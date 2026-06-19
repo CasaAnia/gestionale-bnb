@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="it">
       <body className="bg-gray-50 text-gray-900 antialiased">
-        <main className="max-w-lg mx-auto min-h-screen pb-20">
+        <main className="max-w-lg lg:max-w-full mx-auto min-h-screen pb-20 lg:pb-0 lg:ml-48">
           {children}
         </main>
         <BottomNav />
