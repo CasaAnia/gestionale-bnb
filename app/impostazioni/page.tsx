@@ -37,7 +37,8 @@ export default function Impostazioni() {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       })
       const res = await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) })
-      if (!res.ok) throw new Error('Errore salvataggio')
+      const resData = await res.json()
+      if (!res.ok) throw new Error(JSON.stringify(resData))
       setNotifStatus('ok')
     } catch (e: any) {
       alert('Errore: ' + (e?.message || String(e)))
