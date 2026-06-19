@@ -76,8 +76,8 @@ export default function Calendario() {
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
-        <div className="overflow-x-scroll">
-          <table className="border-collapse" style={{ minWidth: `${60 + daysInMonth * 36}px` }}>
+        <div className="overflow-x-auto">
+          <table className="border-collapse w-full" style={{ minWidth: `${60 + daysInMonth * 36}px` }}>
             <thead>
               <tr>
                 <th className="w-16 sticky left-0 bg-white z-10 border-b border-gray-100" />
@@ -87,7 +87,7 @@ export default function Calendario() {
                   const wd = new Date(year, month, day).toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, 2)
                   const isSun = new Date(year, month, day).getDay() === 0
                   return (
-                    <th key={day} className={`w-9 text-center pb-1 border-b border-gray-100 ${isSun ? 'bg-gray-50' : ''}`}>
+                    <th key={day} className={`text-center pb-1 border-b border-gray-100 ${isSun ? 'bg-gray-50' : ''}`} style={{ minWidth: '32px' }}>
                       <div className={`text-[9px] ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>{wd}</div>
                       <div className={`text-xs font-bold mx-auto w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white' : 'text-gray-600'}`}>{day}</div>
                     </th>
