@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 
 const navItems = [
   { href: '/', label: 'Home', icon: '🏠' },
-  { href: '/prenotazioni', label: 'Prenot.', icon: '📅' },
+  { href: '/calendario', label: 'Calendario', icon: '📅' },
   { href: '/nuova', label: 'Nuova', icon: '➕' },
   { href: '/clienti', label: 'Clienti', icon: '👤' },
   { href: '/spese', label: 'Spese', icon: '💶' },
