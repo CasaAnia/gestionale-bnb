@@ -2,11 +2,42 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)))
+}
+
 export default function Impostazioni() {
   const [rooms, setRooms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<string, any>>({})
+  const [notifStatus, setNotifStatus] = useState<'idle' | 'loading' | 'ok' | 'denied'>('idle')
+
+  async function attivaNotifiche() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert('Il tuo browser non supporta le notifiche push')
+      return
+    }
+    setNotifStatus('loading')
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js')
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') { setNotifStatus('denied'); return }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      })
+      await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) })
+      setNotifStatus('ok')
+    } catch (e) {
+      setNotifStatus('denied')
+    }
+  }
 
   useEffect(() => {
     supabase.from('rooms').select('*')
@@ -92,7 +123,23 @@ export default function Impostazioni() {
         </div>
       )}
 
-      <div className="mt-6 bg-gray-100 rounded-xl p-4 text-sm text-gray-500">
+      {/* Notifiche push */}
+      <div className="mt-6 bg-white rounded-xl p-4 border border-gray-100">
+        <p className="font-semibold mb-1">🔔 Notifiche arrivi</p>
+        <p className="text-xs text-gray-500 mb-3">Ricevi una notifica ogni giorno alle 15:00 con gli arrivi del giorno successivo e i letti da preparare.</p>
+        {notifStatus === 'ok' ? (
+          <div className="bg-green-50 text-green-700 rounded-lg px-3 py-2 text-sm font-semibold">✅ Notifiche attive!</div>
+        ) : notifStatus === 'denied' ? (
+          <div className="bg-red-50 text-red-600 rounded-lg px-3 py-2 text-sm">❌ Permesso negato. Vai nelle impostazioni del telefono per abilitarle.</div>
+        ) : (
+          <button onClick={attivaNotifiche} disabled={notifStatus === 'loading'}
+            className="w-full bg-blue-600 text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
+            {notifStatus === 'loading' ? 'Attivazione...' : '🔔 Attiva notifiche sul telefono'}
+          </button>
+        )}
+      </div>
+
+      <div className="mt-4 bg-gray-100 rounded-xl p-4 text-sm text-gray-500">
         <p className="font-semibold text-gray-700 mb-1">ℹ️ Note</p>
         <p>• I prezzi si aggiornano subito per le nuove prenotazioni</p>
         <p>• Le prenotazioni esistenti mantengono il prezzo inserito</p>

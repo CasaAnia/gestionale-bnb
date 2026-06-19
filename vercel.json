@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/push/send?secret=casaania2026",
+      "schedule": "0 14 * * *"
+    }
+  ]
+}
