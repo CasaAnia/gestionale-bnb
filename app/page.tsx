@@ -74,6 +74,7 @@ export default function Dashboard() {
                   <span className="bg-green-100 text-green-700 rounded px-1.5 py-0.5 text-xs font-bold">CHECK-IN</span>
                   <span className="font-medium">{b.guests?.full_name || b.guests?.phone}</span>
                   <span className="text-gray-500">— {b.rooms?.name}</span>
+                  {b.check_in_time && <span className="bg-blue-100 text-blue-700 rounded px-1.5 py-0.5 text-xs font-bold">🕐 {b.check_in_time}</span>}
                   {b.extra_bed && <span className="bg-orange-100 text-orange-700 rounded px-1 text-xs">+letto agg.</span>}
                 </div>
               ))}

@@ -44,6 +44,7 @@ export default function BookingDetail() {
       setBooking(b)
       setEditForm(b ? {
         room_id: b.room_id, check_in: b.check_in, check_out: b.check_out,
+        check_in_time: b.check_in_time || '',
         num_guests: b.num_guests, extra_bed: b.extra_bed, price_per_night: Number(b.price_per_night),
         notes: b.notes || '',
       } : {})
@@ -85,6 +86,7 @@ export default function BookingDetail() {
       price_per_night: editForm.price_per_night,
       extra_bed_total: extraBedTotal,
       total_amount: total,
+      check_in_time: editForm.check_in_time || null,
       notes: editForm.notes || null,
       updated_at: new Date().toISOString(),
     }
@@ -160,6 +162,12 @@ export default function BookingDetail() {
             </div>
           </div>
 
+          <div className="mb-3">
+            <p className="text-xs text-gray-500 mb-1">🕐 Orario arrivo (opzionale)</p>
+            <input type="time" value={editForm.check_in_time} onChange={e => setEditForm({ ...editForm, check_in_time: e.target.value })}
+              className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+          </div>
+
           <div className="grid grid-cols-2 gap-2 mb-3">
             <div>
               <p className="text-xs text-gray-500 mb-1">N° ospiti</p>
@@ -229,6 +237,15 @@ export default function BookingDetail() {
               {booking.status}
             </span>
           </div>
+          {booking.check_in_time && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
+              <span className="text-2xl">🕐</span>
+              <div>
+                <p className="text-xs text-blue-500 font-medium">Orario arrivo previsto</p>
+                <p className="text-xl font-bold text-blue-700">{booking.check_in_time}</p>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2 text-sm mb-3">
             <div><span className="text-gray-500">Check-in</span><p className="font-semibold">{booking.check_in}</p></div>
             <div><span className="text-gray-500">Check-out</span><p className="font-semibold">{booking.check_out}</p></div>

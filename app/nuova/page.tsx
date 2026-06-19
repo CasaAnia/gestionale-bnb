@@ -13,7 +13,7 @@ export default function NuovaPrenotazione() {
   const [guest, setGuest] = useState<any>(null)
   const [guestHistory, setGuestHistory] = useState<any[]>([])
   const [rooms, setRooms] = useState<any[]>([])
-  const [form, setForm] = useState({ room_id: '', check_in: '', check_out: '', num_guests: 1, extra_bed: false, use_matrimoniale: false, price_per_night: 0, notes: '' })
+  const [form, setForm] = useState({ room_id: '', check_in: '', check_out: '', check_in_time: '', num_guests: 1, extra_bed: false, use_matrimoniale: false, price_per_night: 0, notes: '' })
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
   const [saving, setSaving] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
@@ -82,6 +82,7 @@ export default function NuovaPrenotazione() {
     const ebt = extraBedTotal()
     await supabase.from('bookings').insert({
       room_id: form.room_id, guest_id: guestId, check_in: form.check_in, check_out: form.check_out,
+      check_in_time: form.check_in_time || null,
       num_guests: form.num_guests, extra_bed: form.extra_bed, price_per_night: Number(form.price_per_night),
       extra_bed_total: ebt, total_amount: calcTotal(), notes: form.notes || null, status: 'confermata', source: 'diretta',
     })
@@ -197,6 +198,12 @@ export default function NuovaPrenotazione() {
                 <input type="date" value={form.check_out} onChange={e => setForm({...form, check_out: e.target.value})}
                   className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
               </div>
+            </div>
+
+            <div className="mb-3">
+              <p className="text-sm text-gray-500 mb-1">🕐 Orario arrivo (opzionale)</p>
+              <input type="time" value={form.check_in_time} onChange={e => setForm({...form, check_in_time: e.target.value})}
+                className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
             </div>
 
             <div className="grid grid-cols-2 gap-2 mb-3">
