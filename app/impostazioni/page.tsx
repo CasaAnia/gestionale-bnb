@@ -1,0 +1,103 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
+
+export default function Impostazioni() {
+  const [rooms, setRooms] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState<string | null>(null)
+  const [edits, setEdits] = useState<Record<string, any>>({})
+
+  useEffect(() => {
+    supabase.from('rooms').select('*')
+      .then(({ data }) => {
+        const ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
+        const sorted = (data || []).sort((a, b) => {
+          const ai = ORDER.findIndex(o => a.name.includes(o))
+          const bi = ORDER.findIndex(o => b.name.includes(o))
+          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+        })
+        setRooms(sorted); setLoading(false)
+      })
+  }, [])
+
+  function edit(id: string, field: string, value: any) {
+    setEdits(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: value } }))
+  }
+
+  function val(room: any, field: string) {
+    return edits[room.id]?.[field] !== undefined ? edits[room.id][field] : room[field]
+  }
+
+  async function saveRoom(room: any) {
+    const changes = edits[room.id]
+    if (!changes) return
+    setSaving(room.id)
+    await supabase.from('rooms').update(changes).eq('id', room.id)
+    setRooms(rooms.map(r => r.id === room.id ? { ...r, ...changes } : r))
+    setEdits(prev => { const n = { ...prev }; delete n[room.id]; return n })
+    setSaving(null)
+  }
+
+  const BATHROOM_LABELS: Record<string, string> = { privato_interno: '🚿 Privato in camera', privato_esterno: '🚶 Privato esterno' }
+
+  return (
+    <div className="p-4">
+      <h1 className="text-xl font-bold mb-2">Impostazioni</h1>
+      <p className="text-sm text-gray-500 mb-4">Configura prezzi e camere</p>
+
+      {loading ? (
+        <div className="text-center py-10 text-gray-400">Caricamento...</div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {rooms.map(room => (
+            <div key={room.id} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <p className="font-bold">{room.name}</p>
+                <span className="text-xs text-gray-500">{BATHROOM_LABELS[room.bathroom_type]}</span>
+              </div>
+              {room.bathroom_note && (
+                <p className="text-xs text-amber-600 bg-amber-50 rounded p-2 mb-3">📍 {room.bathroom_note}</p>
+              )}
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Prezzo base/notte €</p>
+                  <input type="number" min={0} value={val(room, 'base_price')}
+                    onChange={e => edit(room.id, 'base_price', parseFloat(e.target.value))}
+                    className="w-full border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-400" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Letto agg. €/notte</p>
+                  <input type="number" min={0} value={val(room, 'extra_bed_price')}
+                    onChange={e => edit(room.id, 'extra_bed_price', parseFloat(e.target.value))}
+                    className="w-full border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-400" />
+                </div>
+              </div>
+              {room.matrimoniale_price !== null && room.matrimoniale_price !== undefined && (
+                <div className="mb-3">
+                  <p className="text-xs text-gray-500 mb-1">💑 Uso matrimoniale €/notte</p>
+                  <input type="number" min={0} value={val(room, 'matrimoniale_price')}
+                    onChange={e => edit(room.id, 'matrimoniale_price', parseFloat(e.target.value))}
+                    className="w-full border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-400" />
+                </div>
+              )}
+              {edits[room.id] && (
+                <button onClick={() => saveRoom(room)} disabled={saving === room.id}
+                  className="w-full bg-blue-600 text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-50">
+                  {saving === room.id ? 'Salvataggio...' : '💾 Salva modifiche'}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-6 bg-gray-100 rounded-xl p-4 text-sm text-gray-500">
+        <p className="font-semibold text-gray-700 mb-1">ℹ️ Note</p>
+        <p>• I prezzi si aggiornano subito per le nuove prenotazioni</p>
+        <p>• Le prenotazioni esistenti mantengono il prezzo inserito</p>
+        <p>• Il regime fiscale si potrà aggiungere in seguito</p>
+      </div>
+    </div>
+  )
+}
