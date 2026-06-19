@@ -39,8 +39,8 @@ export default function Impostazioni() {
       const res = await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) })
       if (!res.ok) throw new Error('Errore salvataggio')
       setNotifStatus('ok')
-    } catch (e) {
-      console.error(e)
+    } catch (e: any) {
+      alert('Errore: ' + (e?.message || String(e)))
       setNotifStatus('denied')
     }
   }
