@@ -68,8 +68,7 @@ export default function Calendario() {
   }
 
   function guestName(b: any) {
-    const n = b.guests?.full_name || b.guests?.phone || ''
-    return n.length > 9 ? n.slice(0, 9) + '…' : n
+    return b.guests?.full_name || b.guests?.phone || ''
   }
 
   function scrollToToday() {
