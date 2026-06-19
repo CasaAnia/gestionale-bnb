@@ -5,15 +5,18 @@ import { useRouter } from 'next/navigation'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const COLORS = [
-  { bg: 'bg-blue-500', label: 'bg-blue-100 text-blue-900' },
-  { bg: 'bg-green-500', label: 'bg-green-100 text-green-900' },
-  { bg: 'bg-purple-500', label: 'bg-purple-100 text-purple-900' },
-  { bg: 'bg-orange-500', label: 'bg-orange-100 text-orange-900' },
+  { bg: '#3b82f6', label: 'bg-blue-100 text-blue-900' },
+  { bg: '#22c55e', label: 'bg-green-100 text-green-900' },
+  { bg: '#a855f7', label: 'bg-purple-100 text-purple-900' },
+  { bg: '#f97316', label: 'bg-orange-100 text-orange-900' },
 ]
 
-const CELL_W = 36 // px per giorno
-const DAYS_TOTAL = 180 // giorni totali mostrati
-const DAYS_BEFORE = 30 // giorni prima di oggi
+const CELL_W = 36
+const ROW_H = 44
+const HEADER_H = 52
+const NAME_W = 64
+const DAYS_TOTAL = 180
+const DAYS_BEFORE = 30
 
 function addDays(date: Date, n: number) {
   const d = new Date(date)
@@ -23,6 +26,11 @@ function addDays(date: Date, n: number) {
 
 function toStr(d: Date) {
   return d.toISOString().split('T')[0]
+}
+
+function strToDate(s: string) {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d)
 }
 
 export default function Calendario() {
@@ -35,6 +43,7 @@ export default function Calendario() {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const startDate = addDays(today, -DAYS_BEFORE)
+  const endDate = addDays(startDate, DAYS_TOTAL)
 
   const days: Date[] = Array.from({ length: DAYS_TOTAL }, (_, i) => addDays(startDate, i))
   const todayStr = toStr(today)
@@ -55,27 +64,34 @@ export default function Calendario() {
     })
   }, [])
 
-  // Scroll a oggi all'avvio
   useEffect(() => {
     if (!loading && scrollRef.current) {
       scrollRef.current.scrollLeft = DAYS_BEFORE * CELL_W - 80
     }
   }, [loading])
 
-  function bookingForCell(roomId: string, d: Date) {
-    const ds = toStr(d)
-    return bookings.find(b => b.room_id === roomId && b.check_in <= ds && b.check_out > ds) || null
-  }
-
-  function guestName(b: any) {
-    return b.guests?.full_name || b.guests?.phone || ''
-  }
-
   function scrollToToday() {
     if (scrollRef.current) {
       scrollRef.current.scrollLeft = DAYS_BEFORE * CELL_W - 80
     }
   }
+
+  function dayIndex(dateStr: string) {
+    const d = strToDate(dateStr)
+    return Math.round((d.getTime() - startDate.getTime()) / 86400000)
+  }
+
+  function bookingsForRoom(roomId: string) {
+    const endStr = toStr(endDate)
+    return bookings.filter(b =>
+      b.room_id === roomId &&
+      b.check_out > toStr(startDate) &&
+      b.check_in < endStr
+    )
+  }
+
+  const totalW = NAME_W + DAYS_TOTAL * CELL_W
+  const totalH = HEADER_H + rooms.length * ROW_H
 
   return (
     <div className="flex flex-col h-screen pb-16 lg:pb-0">
@@ -90,41 +106,38 @@ export default function Calendario() {
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
-        <div ref={scrollRef} className="overflow-x-auto flex-1" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div style={{ width: `${64 + DAYS_TOTAL * CELL_W}px` }}>
-            {/* Riga mesi */}
-            <div className="flex sticky top-0 z-20 bg-white border-b border-gray-200">
-              <div className="shrink-0 bg-white" style={{ width: 64 }} />
-              {days.map((d, i) => {
-                const isFirst = d.getDate() === 1
-                const isToday = toStr(d) === todayStr
-                return (
-                  <div key={i} style={{ width: CELL_W, minWidth: CELL_W }}
-                    className={`text-center border-l ${isToday ? 'border-blue-300' : 'border-transparent'}`}>
-                    {isFirst && (
-                      <div className="text-[10px] font-bold text-gray-500 bg-gray-50 px-1 py-0.5 capitalize truncate">
-                        {d.toLocaleDateString('it-IT', { month: 'short', year: '2-digit' })}
-                      </div>
-                    )}
+        <div ref={scrollRef} className="overflow-auto flex-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div style={{ width: totalW, position: 'relative', height: totalH }}>
+
+            {/* ── HEADER MESI ── */}
+            <div style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', height: 26, background: 'white', borderBottom: '1px solid #f3f4f6' }}>
+              <div style={{ width: NAME_W, minWidth: NAME_W, background: 'white', position: 'sticky', left: 0, zIndex: 31 }} />
+              {days.map((d, i) => (
+                d.getDate() === 1 ? (
+                  <div key={i} style={{ position: 'absolute', left: NAME_W + i * CELL_W, fontSize: 10, fontWeight: 700, color: '#6b7280', background: '#f9fafb', padding: '3px 6px', borderRadius: 4, whiteSpace: 'nowrap' }}>
+                    {d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
                   </div>
-                )
-              })}
+                ) : null
+              ))}
             </div>
 
-            {/* Riga giorni */}
-            <div className="flex sticky top-6 z-20 bg-white border-b border-gray-100">
-              <div className="shrink-0 bg-white border-r border-gray-100" style={{ width: 64 }} />
+            {/* ── HEADER GIORNI ── */}
+            <div style={{ position: 'sticky', top: 26, zIndex: 30, display: 'flex', height: 26, background: 'white', borderBottom: '2px solid #e5e7eb' }}>
+              <div style={{ width: NAME_W, minWidth: NAME_W, background: 'white', position: 'sticky', left: 0, zIndex: 31, borderRight: '1px solid #e5e7eb' }} />
               {days.map((d, i) => {
                 const isToday = toStr(d) === todayStr
                 const isSun = d.getDay() === 0
                 const isSat = d.getDay() === 6
-                const wd = d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, 1)
                 return (
-                  <div key={i} style={{ width: CELL_W, minWidth: CELL_W }}
-                    className={`text-center py-1 ${isSun || isSat ? 'bg-gray-50' : ''} ${isToday ? 'bg-blue-50' : ''}`}>
-                    <div className={`text-[9px] ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>{wd}</div>
-                    <div className={`text-xs font-bold mx-auto flex items-center justify-center rounded-full`}
-                      style={{ width: 22, height: 22, background: isToday ? '#2563eb' : 'transparent', color: isToday ? 'white' : (isSun ? '#ef4444' : '#374151') }}>
+                  <div key={i} style={{
+                    width: CELL_W, minWidth: CELL_W, textAlign: 'center', paddingTop: 2,
+                    background: isToday ? '#eff6ff' : (isSun || isSat ? '#f9fafb' : 'white'),
+                    borderLeft: isToday ? '2px solid #3b82f6' : '1px solid #f3f4f6',
+                  }}>
+                    <div style={{ fontSize: 9, color: isToday ? '#2563eb' : (isSun ? '#ef4444' : '#9ca3af') }}>
+                      {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, 1)}
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? 'white' : (isSun ? '#ef4444' : '#374151'), background: isToday ? '#2563eb' : 'transparent', borderRadius: '50%', width: 20, height: 20, lineHeight: '20px', margin: '0 auto' }}>
                       {d.getDate()}
                     </div>
                   </div>
@@ -132,44 +145,61 @@ export default function Calendario() {
               })}
             </div>
 
-            {/* Righe camere */}
+            {/* ── GRIGLIA + NOMI CAMERE + BARRE ── */}
             {rooms.map((room, ri) => {
               const color = COLORS[ri % COLORS.length]
+              const rowTop = HEADER_H + ri * ROW_H
+
               return (
-                <div key={room.id} className="flex border-b border-gray-100">
-                  {/* Nome camera */}
-                  <div className="shrink-0 sticky left-0 z-10 bg-white border-r border-gray-100 flex items-center justify-center py-1 px-1"
-                    style={{ width: 64 }}>
-                    <div className={`text-[10px] font-bold px-1 py-1 rounded text-center w-full ${color.label}`}>
-                      {room.name.split(' ').slice(-1)[0]}
+                <div key={room.id}>
+                  {/* Sfondo riga con celle */}
+                  <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: ROW_H, display: 'flex', borderBottom: '1px solid #f3f4f6' }}>
+                    {/* Nome camera (sticky) */}
+                    <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10, background: 'white', borderRight: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', padding: '0 4px' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, padding: '3px 4px', borderRadius: 4, textAlign: 'center', width: '100%', background: color.label.includes('blue') ? '#dbeafe' : color.label.includes('green') ? '#dcfce7' : color.label.includes('purple') ? '#f3e8ff' : '#ffedd5', color: color.label.includes('blue') ? '#1e3a5f' : color.label.includes('green') ? '#14532d' : color.label.includes('purple') ? '#581c87' : '#7c2d12' }}>
+                        {room.name.split(' ').slice(-1)[0]}
+                      </div>
                     </div>
+                    {/* Celle giorni */}
+                    {days.map((d, i) => {
+                      const isToday = toStr(d) === todayStr
+                      const isSun = d.getDay() === 0
+                      const isSat = d.getDay() === 6
+                      return (
+                        <div key={i} style={{ width: CELL_W, minWidth: CELL_W, height: '100%', background: isToday ? '#eff6ff' : (isSun || isSat ? '#f9fafb' : 'white'), borderLeft: isToday ? '2px solid #bfdbfe' : '1px solid #f3f4f6' }} />
+                      )
+                    })}
                   </div>
 
-                  {/* Celle giorni */}
-                  {days.map((d, i) => {
-                    const booking = bookingForCell(room.id, d)
-                    const ds = toStr(d)
-                    const isToday = ds === todayStr
-                    const isSun = d.getDay() === 0
-                    const isSat = d.getDay() === 6
-                    const isFirst = booking && booking.check_in === ds
-                    const isFirstVisible = booking && i === 0 && booking.check_in < ds
+                  {/* Barre prenotazioni */}
+                  {bookingsForRoom(room.id).map((booking: any) => {
+                    const startIdx = Math.max(0, dayIndex(booking.check_in))
+                    const endIdx = Math.min(DAYS_TOTAL, dayIndex(booking.check_out))
+                    const barWidth = (endIdx - startIdx) * CELL_W
+                    if (barWidth <= 0) return null
+                    const guestName = booking.guests?.full_name || booking.guests?.phone || ''
 
                     return (
-                      <div key={i} onClick={() => booking && router.push(`/prenotazioni/${booking.id}`)}
-                        style={{ width: CELL_W, minWidth: CELL_W, height: 40 }}
-                        className={`relative ${booking ? 'cursor-pointer' : ''} ${isSun || isSat ? 'bg-gray-50/60' : ''} ${isToday && !booking ? 'bg-blue-50' : ''}`}>
-                        {booking ? (
-                          <div className={`absolute inset-0 ${color.bg} flex items-center overflow-hidden opacity-90
-                            ${(isFirst || isFirstVisible) ? 'border-l-2 border-l-white/60' : ''}
-                            ${booking.check_out === toStr(addDays(d, 1)) ? 'border-r-2 border-r-white/60' : ''}`}>
-                            {(isFirst || isFirstVisible) && (
-                              <span className="text-white text-[10px] font-semibold pl-1.5 whitespace-nowrap">
-                                {guestName(booking)}
-                              </span>
-                            )}
-                          </div>
-                        ) : null}
+                      <div key={booking.id}
+                        onClick={() => router.push(`/prenotazioni/${booking.id}`)}
+                        style={{
+                          position: 'absolute',
+                          top: rowTop + 6,
+                          left: NAME_W + startIdx * CELL_W + 1,
+                          width: barWidth - 2,
+                          height: ROW_H - 12,
+                          background: color.bg,
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          overflow: 'hidden',
+                          zIndex: 5,
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                        }}>
+                        <span style={{ color: 'white', fontSize: 11, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {guestName}
+                        </span>
                       </div>
                     )
                   })}
@@ -184,7 +214,7 @@ export default function Calendario() {
       <div className="shrink-0 px-4 py-2 bg-white border-t border-gray-100 flex flex-wrap gap-3">
         {rooms.map((room, ri) => (
           <div key={room.id} className="flex items-center gap-1.5">
-            <div className={`w-3 h-3 rounded-full ${COLORS[ri % COLORS.length].bg}`} />
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: COLORS[ri % COLORS.length].bg }} />
             <span className="text-xs text-gray-500">{room.name}</span>
           </div>
         ))}
