@@ -37,11 +37,9 @@ export default function Impostazioni() {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       })
       const res = await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) })
-      const resData = await res.json()
-      if (!res.ok) throw new Error(JSON.stringify(resData))
+      if (!res.ok) throw new Error('Errore salvataggio')
       setNotifStatus('ok')
-    } catch (e: any) {
-      alert('Errore: ' + (e?.message || String(e)))
+    } catch (e) {
       setNotifStatus('denied')
     }
   }
@@ -135,10 +133,7 @@ export default function Impostazioni() {
         <p className="font-semibold mb-1">🔔 Notifiche arrivi</p>
         <p className="text-xs text-gray-500 mb-3">Ricevi una notifica ogni giorno alle 15:00 con gli arrivi del giorno successivo e i letti da preparare.</p>
         {notifStatus === 'ok' ? (
-          <div className="flex flex-col gap-2">
-            <div className="bg-green-50 text-green-700 rounded-lg px-3 py-2 text-sm font-semibold">✅ Notifiche attive!</div>
-            <button onClick={attivaNotifiche} className="text-xs text-blue-500 underline text-left">Problema? Tocca qui per riattivare</button>
-          </div>
+          <div className="bg-green-50 text-green-700 rounded-lg px-3 py-2 text-sm font-semibold">✅ Notifiche attive!</div>
         ) : notifStatus === 'denied' ? (
           <div className="bg-red-50 text-red-600 rounded-lg px-3 py-2 text-sm">❌ Permesso negato. Vai nelle impostazioni del telefono per abilitarle.</div>
         ) : (
