@@ -160,7 +160,9 @@ export default function Calendario() {
                         style={{ width: CELL_W, minWidth: CELL_W, height: 40 }}
                         className={`relative ${booking ? 'cursor-pointer' : ''} ${isSun || isSat ? 'bg-gray-50/60' : ''} ${isToday && !booking ? 'bg-blue-50' : ''}`}>
                         {booking ? (
-                          <div className={`absolute inset-0 ${color.bg} flex items-center overflow-hidden opacity-90`}>
+                          <div className={`absolute inset-0 ${color.bg} flex items-center overflow-hidden opacity-90
+                            ${(isFirst || isFirstVisible) ? 'border-l-2 border-l-white/60' : ''}
+                            ${booking.check_out === toStr(addDays(d, 1)) ? 'border-r-2 border-r-white/60' : ''}`}>
                             {(isFirst || isFirstVisible) && (
                               <span className="text-white text-[10px] font-semibold pl-1.5 whitespace-nowrap">
                                 {guestName(booking)}
