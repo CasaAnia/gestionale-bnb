@@ -87,7 +87,7 @@ export default function Calendario() {
                   const wd = new Date(year, month, day).toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, 2)
                   const isSun = new Date(year, month, day).getDay() === 0
                   return (
-                    <th key={day} className={`text-center pb-1 border-b border-gray-100 ${isSun ? 'bg-gray-50' : ''}`} style={{ minWidth: '32px' }}>
+                    <th key={day} className={`text-center pb-1 border-b border-gray-100 ${isSun ? 'bg-gray-50/50' : ''}`} style={{ minWidth: '32px' }}>
                       <div className={`text-[9px] ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>{wd}</div>
                       <div className={`text-xs font-bold mx-auto w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white' : 'text-gray-600'}`}>{day}</div>
                     </th>
@@ -119,7 +119,7 @@ export default function Calendario() {
                       return (
                         <td key={day}
                           onClick={() => booking && router.push(`/prenotazioni/${booking.id}`)}
-                          className={`h-10 p-0 border-b border-gray-50 ${isSun ? 'border-r border-gray-100' : ''} ${booking ? 'cursor-pointer' : ''}`}
+                          className={`h-10 p-0 border-b border-gray-50  ${booking ? 'cursor-pointer' : ''}`}
                         >
                           {booking ? (
                             <div className={`h-full flex items-center ${color.bg} ${isFirst || isFirstOfMonth ? 'rounded-l-full ml-0.5' : ''} ${booking.check_out === ds(day + 1) ? 'rounded-r-full mr-0.5' : ''}`}>
@@ -130,7 +130,7 @@ export default function Calendario() {
                               )}
                             </div>
                           ) : (
-                            <div className={`h-full ${isToday ? 'bg-blue-50' : isSun ? 'bg-gray-50' : ''}`} />
+                            <div className={`h-full ${isToday ? 'bg-blue-50' : isSun ? 'bg-gray-50/50' : ''}`} />
                           )}
                         </td>
                       )
