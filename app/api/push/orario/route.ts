@@ -38,7 +38,8 @@ export async function GET(req: NextRequest) {
   const lines = bookings.map((b: any) => {
     const camera = b.rooms?.name || 'Camera'
     const ospite = b.guests?.full_name || 'Ospite'
-    return `• ${camera}: ${ospite}`
+    const phone = b.guests?.phone ? ` 📞 ${b.guests.phone}` : ''
+    return `• ${camera}: ${ospite}${phone}`
   })
 
   const titolo = `⏰ Orario mancante per domani`
