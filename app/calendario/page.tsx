@@ -182,8 +182,10 @@ export default function Calendario() {
                       const isToday = toStr(d) === todayStr
                       const isSun = d.getDay() === 0
                       const isSat = d.getDay() === 6
+                      const dateStr = toStr(d)
                       return (
-                        <div key={i} style={{ width: CELL_W, minWidth: CELL_W, height: '100%', background: isToday ? '#eff6ff' : (isSun || isSat ? '#f9fafb' : 'white'), borderLeft: isToday ? '2px solid #bfdbfe' : '1px solid #f3f4f6' }} />
+                        <div key={i} onClick={() => router.push(`/nuova?room_id=${room.id}&check_in=${dateStr}`)}
+                          style={{ width: CELL_W, minWidth: CELL_W, height: '100%', background: isToday ? '#eff6ff' : (isSun || isSat ? '#f9fafb' : 'white'), borderLeft: isToday ? '2px solid #bfdbfe' : '1px solid #f3f4f6', cursor: 'pointer' }} />
                       )
                     })}
                   </div>
