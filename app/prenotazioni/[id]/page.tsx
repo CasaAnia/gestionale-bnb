@@ -7,21 +7,75 @@ import Link from 'next/link'
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
+function formatDateIT(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  return date.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function bagnoDesc(room: any) {
+  if (room?.bathroom_type === 'privato_interno') return "privato, all'interno della camera"
+  if (room?.bathroom_type === 'privato_esterno') return room?.bathroom_note ? `privato esterno (${room.bathroom_note})` : 'privato esterno'
+  return ''
+}
+
 function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento') {
   const name = b.guests?.full_name || 'Ospite'
   const room = b.rooms?.name || ''
   const cin = b.check_in
   const cout = b.check_out
   const notti = Math.round((new Date(cout).getTime() - new Date(cin).getTime()) / 86400000)
-  const totale = Number(b.total_amount).toFixed(0)
+  const totale = Number(b.total_amount).toLocaleString('it-IT', { minimumFractionDigits: 2 })
+  const numOspiti = b.num_guests || 1
+  const ospiti = `${numOspiti} ${numOspiti === 1 ? 'adulto' : 'adulti'}`
+  const cinF = formatDateIT(cin)
+  const coutF = formatDateIT(cout)
+  const bagno = bagnoDesc(b.rooms)
 
   if (type === 'conferma') {
-    return `Buongiorno ${name}! ✅\nConfermiamo la sua prenotazione:\n📍 ${room}\n📅 Check-in: ${cin}\n📅 Check-out: ${cout} (${notti} notti)\n💶 Totale: €${totale}${b.extra_bed ? '\n🛏 Letto aggiuntivo incluso' : ''}\nCasa Ania Rozzano`
+    return `CONFERMA DI PRENOTAZIONE – Casa Ania Rozzano
+
+Gentile ${name},
+grazie per aver scelto Casa Ania. Sono lieta di confermarle il soggiorno e la aspetto con piacere!
+
+RIEPILOGO SOGGIORNO
+📅 Check-in: ${cinF} (dalle ore 15:00 alle 20:00)
+📅 Check-out: ${coutF} (entro le ore 10:00)
+👥 Ospiti: ${ospiti}
+🛏️ Camera: ${room}${b.extra_bed ? ' + letto aggiuntivo' : ''}
+${bagno ? `🚿 Bagno: ${bagno}` : ''}
+Notti: ${notti}
+
+💶 Importo totale: € ${totale} – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
+
+Appena le sarà possibile, la preghiamo di comunicarci l'orario di arrivo in struttura, per organizzare al meglio la sua accoglienza.
+
+📍 COME RAGGIUNGERCI
+Via Liguria 26 – Fizzonasco, Pieve Emanuele (MI) 20072
+(A 140 metri dalla palazzina 8 di Humanitas di Rozzano – ortopedia)
+
+✅ WiFi gratuito (credenziali in camera)
+✅ Ricordarsi documento d'identità valido
+🚭 Fumo solo all'esterno
+
+📞 CONTATTI
+Per qualsiasi necessità sono sempre disponibile:
+📱 342 700 4345 (anche WhatsApp)
+
+POLITICA DI CANCELLAZIONE
+Cancellazione gratuita fino a 3 giorni prima dell'arrivo.
+
+Sarà un piacere accoglierla! 🏡
+
+A presto,
+Ania
+Casa Ania Rozzano`
   }
+
   if (type === 'modifica') {
-    return `Buongiorno ${name}! ✏️\nLa sua prenotazione è stata modificata:\n📍 ${room}\n📅 Check-in: ${cin}\n📅 Check-out: ${cout} (${notti} notti)\n💶 Totale: €${totale}\nCasa Ania Rozzano`
+    return `Buongiorno ${name}! ✏️\nLa sua prenotazione è stata modificata:\n📍 ${room}\n📅 Check-in: ${cinF}\n📅 Check-out: ${coutF} (${notti} notti)\n💶 Totale: €${totale}\nCasa Ania Rozzano`
   }
-  return `Buongiorno ${name}.\nCi dispiace informarla che la prenotazione del ${cin} presso ${room} è stata annullata.\nResti a disposizione per eventuali chiarimenti.\nCasa Ania Rozzano`
+  return `Buongiorno ${name}.\nCi dispiace informarla che la prenotazione del ${cinF} presso ${room} è stata annullata.\nResti a disposizione per eventuali chiarimenti.\nCasa Ania Rozzano`
 }
 
 export default function BookingDetail() {
