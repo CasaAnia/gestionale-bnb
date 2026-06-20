@@ -213,7 +213,8 @@ export default function NuovaPrenotazione() {
                   const n = parseInt(e.target.value)
                   const room = rooms.find(r => r.id === form.room_id)
                   const autoLetto = room?.has_extra_bed && n >= 3
-                  setForm({...form, num_guests: n, extra_bed: autoLetto})
+                  const autoPrice = room?.double_price && n >= 2 ? Number(room.double_price) : (room ? Number(room.base_price) : form.price_per_night)
+                  setForm({...form, num_guests: n, extra_bed: autoLetto, price_per_night: autoPrice})
                 }}
                   className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
               </div>

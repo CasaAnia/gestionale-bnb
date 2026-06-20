@@ -109,6 +109,14 @@ export default function Impostazioni() {
                     className="w-full border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-400" />
                 </div>
               </div>
+              {room.double_price !== null && room.double_price !== undefined && (
+                <div className="mb-3">
+                  <p className="text-xs text-gray-500 mb-1">👥 Prezzo 2 ospiti €/notte</p>
+                  <input type="number" min={0} value={val(room, 'double_price')}
+                    onChange={e => edit(room.id, 'double_price', parseFloat(e.target.value))}
+                    className="w-full border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-400" />
+                </div>
+              )}
               {room.matrimoniale_price !== null && room.matrimoniale_price !== undefined && (
                 <div className="mb-3">
                   <p className="text-xs text-gray-500 mb-1">💑 Uso matrimoniale €/notte</p>
