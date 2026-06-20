@@ -95,6 +95,7 @@ export default function BookingDetail() {
     }
     await supabase.from('bookings').update(updates).eq('id', id)
     const guestId = booking.guest_id || booking.guests?.id
+    alert(`DEBUG: guest_id=${booking.guest_id} | guests.id=${booking.guests?.id} | phone da salvare=${editForm.guest_phone}`)
     if (guestId) {
       const guestUpdates: any = {}
       if (editForm.guest_name.trim()) guestUpdates.full_name = editForm.guest_name.trim()
