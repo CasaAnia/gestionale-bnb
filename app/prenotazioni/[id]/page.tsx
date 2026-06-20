@@ -46,9 +46,9 @@ RIEPILOGO SOGGIORNO
 👥 Ospiti: ${ospiti}
 🛏️ Camera: ${room}${b.extra_bed ? ' + letto aggiuntivo' : ''}
 ${bagno ? (isLena ? `*🚿 Bagno: ${bagno}*` : `🚿 Bagno: ${bagno}`) : ''}
-Notti: ${notti}
+Notti: *${notti}*
 
-💶 Importo totale: € ${totale} – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
+💶 Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
 
 Appena le sarà possibile, la preghiamo di comunicarci l'orario di arrivo in struttura, per organizzare al meglio la sua accoglienza.
 
