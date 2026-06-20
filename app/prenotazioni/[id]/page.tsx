@@ -53,6 +53,7 @@ Appena le sarà possibile, la preghiamo di comunicarci l'orario di arrivo in str
 📍 COME RAGGIUNGERCI
 Via Liguria 26 – Fizzonasco, Pieve Emanuele (MI) 20072
 (A 140 metri dalla palazzina 8 di Humanitas di Rozzano – ortopedia)
+🗺 https://maps.google.com/?q=45.374667,9.168639
 
 ✅ WiFi gratuito (credenziali in camera)
 ✅ Ricordarsi documento d'identità valido
