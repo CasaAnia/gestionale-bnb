@@ -96,16 +96,11 @@ export default function BookingDetail() {
     await supabase.from('bookings').update(updates).eq('id', id)
     const guestId = booking.guest_id || booking.guests?.id
     if (guestId) {
-      const guestUpdates: any = {}
-      if (editForm.guest_name.trim()) guestUpdates.full_name = editForm.guest_name.trim()
-      if (editForm.guest_phone.trim()) guestUpdates.phone = editForm.guest_phone.trim()
-      if (editForm.guest_email.trim()) guestUpdates.email = editForm.guest_email.trim()
-      if (Object.keys(guestUpdates).length > 0) {
-        const { error } = await supabase.from('guests').update(guestUpdates).eq('id', guestId)
-        if (error) alert('Errore salvataggio cliente: ' + error.message)
-      }
-    } else {
-      alert('Nessun cliente collegato a questa prenotazione')
+      await supabase.from('guests').update({
+        full_name: editForm.guest_name || booking.guests?.full_name || null,
+        phone: editForm.guest_phone || booking.guests?.phone || null,
+        email: editForm.guest_email || booking.guests?.email || null,
+      }).eq('id', guestId)
     }
     const { data: updated } = await supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single()
     setBooking(updated)
