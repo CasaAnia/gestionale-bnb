@@ -195,7 +195,7 @@ export default function Calendario() {
                     const barWidth = (endIdx - startIdx) * CELL_W
                     if (barWidth <= 0) return null
                     const guestName = booking.guests?.full_name || booking.guests?.phone || ''
-                    const barColor = booking.extra_bed ? '#ef4444' : color.bg
+                    const barColor = booking.extra_bed ? '#ef4444' : '#22c55e'
 
                     return (
                       <div key={booking.id}
@@ -230,12 +230,10 @@ export default function Calendario() {
 
       {/* Legenda */}
       <div className="shrink-0 px-4 py-2 bg-white border-t border-gray-100 flex flex-wrap gap-3 items-center">
-        {rooms.map((room, ri) => (
-          <div key={room.id} className="flex items-center gap-1.5">
-            <div style={{ width: 12, height: 12, borderRadius: '50%', background: COLORS[ri % COLORS.length].bg }} />
-            <span className="text-xs text-gray-500">{room.name}</span>
-          </div>
-        ))}
+        <div className="flex items-center gap-1.5">
+          <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#22c55e' }} />
+          <span className="text-xs text-gray-500">Prenotazione</span>
+        </div>
         <div className="flex items-center gap-1.5">
           <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#ef4444' }} />
           <span className="text-xs text-gray-500">🛏 Letto aggiuntivo</span>
