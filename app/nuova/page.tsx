@@ -265,6 +265,7 @@ export default function NuovaPrenotazione() {
             </div>
           )}
 
+          <p className="text-xs text-gray-400 mb-1">debug: cin={form.check_in} cout={form.check_out} notti={notti()} room={form.room_id ? 'ok' : 'no'}</p>
           <button onClick={save} disabled={saving || !form.room_id || !form.check_in || !form.check_out || notti() <= 0}
             className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
             {saving ? 'Salvataggio...' : '✅ Salva prenotazione'}
