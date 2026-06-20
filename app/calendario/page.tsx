@@ -195,6 +195,7 @@ export default function Calendario() {
                     const barWidth = (endIdx - startIdx) * CELL_W
                     if (barWidth <= 0) return null
                     const guestName = booking.guests?.full_name || booking.guests?.phone || ''
+                    const barColor = booking.extra_bed ? '#ef4444' : color.bg
 
                     return (
                       <div key={booking.id}
@@ -205,7 +206,7 @@ export default function Calendario() {
                           left: NAME_W + startIdx * CELL_W + 1,
                           width: barWidth - 2,
                           height: ROW_H - 12,
-                          background: color.bg,
+                          background: barColor,
                           borderRadius: 6,
                           cursor: 'pointer',
                           display: 'flex',
@@ -215,7 +216,7 @@ export default function Calendario() {
                           boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                         }}>
                         <span style={{ color: 'white', fontSize: isDesktop ? 14 : 11, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {guestName}
+                          {booking.extra_bed ? '🛏 ' : ''}{guestName}
                         </span>
                       </div>
                     )
@@ -228,13 +229,17 @@ export default function Calendario() {
       )}
 
       {/* Legenda */}
-      <div className="shrink-0 px-4 py-2 bg-white border-t border-gray-100 flex flex-wrap gap-3">
+      <div className="shrink-0 px-4 py-2 bg-white border-t border-gray-100 flex flex-wrap gap-3 items-center">
         {rooms.map((room, ri) => (
           <div key={room.id} className="flex items-center gap-1.5">
             <div style={{ width: 12, height: 12, borderRadius: '50%', background: COLORS[ri % COLORS.length].bg }} />
             <span className="text-xs text-gray-500">{room.name}</span>
           </div>
         ))}
+        <div className="flex items-center gap-1.5">
+          <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#ef4444' }} />
+          <span className="text-xs text-gray-500">🛏 Letto aggiuntivo</span>
+        </div>
       </div>
     </div>
   )
