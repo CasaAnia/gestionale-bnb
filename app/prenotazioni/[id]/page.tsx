@@ -95,11 +95,13 @@ export default function BookingDetail() {
     }
     await supabase.from('bookings').update(updates).eq('id', id)
     if (booking.guests?.id) {
-      await supabase.from('guests').update({
-        full_name: editForm.guest_name || null,
-        phone: editForm.guest_phone || null,
-        email: editForm.guest_email || null,
-      }).eq('id', booking.guests.id)
+      const guestUpdates: any = {}
+      if (editForm.guest_name.trim()) guestUpdates.full_name = editForm.guest_name.trim()
+      if (editForm.guest_phone.trim()) guestUpdates.phone = editForm.guest_phone.trim()
+      if (editForm.guest_email.trim()) guestUpdates.email = editForm.guest_email.trim()
+      if (Object.keys(guestUpdates).length > 0) {
+        await supabase.from('guests').update(guestUpdates).eq('id', booking.guests.id)
+      }
     }
     const { data: updated } = await supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single()
     setBooking(updated)
