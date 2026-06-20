@@ -32,18 +32,20 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   const coutF = formatDateIT(cout)
   const bagno = bagnoDesc(b.rooms)
 
+  const isLena = room.includes('Lena')
+
   if (type === 'conferma') {
     return `CONFERMA DI PRENOTAZIONE – Casa Granata Humanitas
 
-Gentile ${name},
+Gentile *${name}*,
 grazie per aver scelto Casa Granata. Sono lieta di confermarle il soggiorno e la aspetto con piacere!
 
 RIEPILOGO SOGGIORNO
-📅 Check-in: ${cinF} (dalle ore 15:00 alle 20:00)
-📅 Check-out: ${coutF} (entro le ore 10:00)
+📅 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
+📅 Check-out: *${coutF}* (entro le ore 10:00)
 👥 Ospiti: ${ospiti}
 🛏️ Camera: ${room}${b.extra_bed ? ' + letto aggiuntivo' : ''}
-${bagno ? `🚿 Bagno: ${bagno}` : ''}
+${bagno ? (isLena ? `*🚿 Bagno: ${bagno}*` : `🚿 Bagno: ${bagno}`) : ''}
 Notti: ${notti}
 
 💶 Importo totale: € ${totale} – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
