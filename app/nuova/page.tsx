@@ -25,6 +25,7 @@ function NuovaPrenotazione() {
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
   const [saving, setSaving] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
+  const [conflitto, setConflitto] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.from('rooms').select('*').eq('active', true).then(({ data }) => {
@@ -79,6 +80,22 @@ function NuovaPrenotazione() {
   function notti() {
     if (!form.check_in || !form.check_out) return 0
     return Math.round((new Date(form.check_out).getTime() - new Date(form.check_in).getTime()) / 86400000)
+  }
+
+  async function checkDisponibilita(room_id: string, check_in: string, check_out: string) {
+    if (!room_id || !check_in || !check_out) return
+    const { data } = await supabase.from('bookings')
+      .select('id, check_in, check_out, guests(full_name)')
+      .eq('room_id', room_id)
+      .neq('status', 'annullata')
+      .lt('check_in', check_out)
+      .gt('check_out', check_in)
+    if (data && data.length > 0) {
+      const b = data[0] as any
+      setConflitto(`⚠️ Camera già occupata dal ${b.check_in} al ${b.check_out} (${b.guests?.full_name || 'altro cliente'})`)
+    } else {
+      setConflitto(null)
+    }
   }
 
   async function save() {
@@ -191,7 +208,9 @@ function NuovaPrenotazione() {
             <p className="text-sm text-gray-500 mb-1">Camera</p>
             <select value={form.room_id} onChange={e => {
               const room = rooms.find(r => r.id === e.target.value)
-              setForm({...form, room_id: e.target.value, use_matrimoniale: false, price_per_night: room ? Number(room.base_price) : 0})
+              const newRoomId = e.target.value
+              setForm({...form, room_id: newRoomId, use_matrimoniale: false, price_per_night: room ? Number(room.base_price) : 0})
+              checkDisponibilita(newRoomId, form.check_in, form.check_out)
             }} className="w-full border border-gray-200 rounded-lg p-2 mb-3 text-sm">
               <option value="">Seleziona camera</option>
               {rooms.map(r => (
@@ -202,13 +221,17 @@ function NuovaPrenotazione() {
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
                 <p className="text-sm text-gray-500 mb-1">Check-in</p>
-                <input type="date" value={form.check_in} onChange={e => setForm({...form, check_in: e.target.value})}
-                  className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+                <input type="date" value={form.check_in} onChange={e => {
+                  setForm({...form, check_in: e.target.value})
+                  checkDisponibilita(form.room_id, e.target.value, form.check_out)
+                }} className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 mb-1">Check-out</p>
-                <input type="date" value={form.check_out} onChange={e => setForm({...form, check_out: e.target.value})}
-                  className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+                <input type="date" value={form.check_out} onChange={e => {
+                  setForm({...form, check_out: e.target.value})
+                  checkDisponibilita(form.room_id, form.check_in, e.target.value)
+                }} className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
               </div>
             </div>
 
@@ -274,6 +297,12 @@ function NuovaPrenotazione() {
               placeholder="Note (opzionale)" className="w-full border border-gray-200 rounded-lg p-2 text-sm mb-3" />
           </div>
 
+          {conflitto && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-sm text-red-700 font-semibold">
+              {conflitto}
+            </div>
+          )}
+
           {notti() > 0 && form.price_per_night > 0 && (
             <div className={`rounded-xl p-4 border mb-4 ${form.extra_bed ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-100'}`}>
               <p className="font-semibold text-gray-700 mb-1">Riepilogo</p>
@@ -283,7 +312,7 @@ function NuovaPrenotazione() {
             </div>
           )}
 
-          <button onClick={save} disabled={saving || !form.room_id || !form.check_in || !form.check_out || notti() <= 0}
+          <button onClick={save} disabled={saving || !form.room_id || !form.check_in || !form.check_out || notti() <= 0 || !!conflitto}
             className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
             {saving ? 'Salvataggio...' : '✅ Salva prenotazione'}
           </button>

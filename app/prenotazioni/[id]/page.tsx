@@ -91,6 +91,24 @@ export default function BookingDetail() {
   const [saving, setSaving] = useState(false)
   const [showCancel, setShowCancel] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
+  const [conflitto, setConflitto] = useState<string | null>(null)
+
+  async function checkDisponibilita(room_id: string, check_in: string, check_out: string) {
+    if (!room_id || !check_in || !check_out) return
+    const { data } = await supabase.from('bookings')
+      .select('id, check_in, check_out, guests(full_name)')
+      .eq('room_id', room_id)
+      .neq('status', 'annullata')
+      .neq('id', id)
+      .lt('check_in', check_out)
+      .gt('check_out', check_in)
+    if (data && data.length > 0) {
+      const b = data[0] as any
+      setConflitto(`⚠️ Camera già occupata dal ${b.check_in} al ${b.check_out} (${b.guests?.full_name || 'altro cliente'})`)
+    } else {
+      setConflitto(null)
+    }
+  }
 
   useEffect(() => {
     Promise.all([
@@ -226,7 +244,9 @@ export default function BookingDetail() {
           <p className="text-xs text-gray-500 mb-1">Camera</p>
           <select value={editForm.room_id} onChange={e => {
             const room = rooms.find(r => r.id === e.target.value)
-            setEditForm({ ...editForm, room_id: e.target.value, price_per_night: room ? Number(room.base_price) : editForm.price_per_night })
+            const newRoomId = e.target.value
+            setEditForm({ ...editForm, room_id: newRoomId, price_per_night: room ? Number(room.base_price) : editForm.price_per_night })
+            checkDisponibilita(newRoomId, editForm.check_in, editForm.check_out)
           }} className="w-full border border-gray-200 rounded-lg p-2 mb-3 text-sm">
             {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
@@ -234,13 +254,17 @@ export default function BookingDetail() {
           <div className="grid grid-cols-2 gap-2 mb-3">
             <div>
               <p className="text-xs text-gray-500 mb-1">Check-in</p>
-              <input type="date" value={editForm.check_in} onChange={e => setEditForm({ ...editForm, check_in: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+              <input type="date" value={editForm.check_in} onChange={e => {
+                setEditForm({ ...editForm, check_in: e.target.value })
+                checkDisponibilita(editForm.room_id, e.target.value, editForm.check_out)
+              }} className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-1">Check-out</p>
-              <input type="date" value={editForm.check_out} onChange={e => setEditForm({ ...editForm, check_out: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+              <input type="date" value={editForm.check_out} onChange={e => {
+                setEditForm({ ...editForm, check_out: e.target.value })
+                checkDisponibilita(editForm.room_id, editForm.check_in, e.target.value)
+              }} className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
             </div>
           </div>
 
@@ -302,7 +326,13 @@ export default function BookingDetail() {
             </div>
           )}
 
-          <button onClick={saveEdit} disabled={saving}
+          {conflitto && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 text-sm text-red-700 font-semibold">
+              {conflitto}
+            </div>
+          )}
+
+          <button onClick={saveEdit} disabled={saving || !!conflitto}
             className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
             {saving ? 'Salvataggio...' : '💾 Salva modifiche'}
           </button>
