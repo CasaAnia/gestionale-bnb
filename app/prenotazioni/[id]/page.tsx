@@ -33,10 +33,10 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   const bagno = bagnoDesc(b.rooms)
 
   if (type === 'conferma') {
-    return `CONFERMA DI PRENOTAZIONE – Casa Ania Rozzano
+    return `CONFERMA DI PRENOTAZIONE – Casa Granata Rozzano
 
 Gentile ${name},
-grazie per aver scelto Casa Ania. Sono lieta di confermarle il soggiorno e la aspetto con piacere!
+grazie per aver scelto Casa Granata. Sono lieta di confermarle il soggiorno e la aspetto con piacere!
 
 RIEPILOGO SOGGIORNO
 📅 Check-in: ${cinF} (dalle ore 15:00 alle 20:00)
@@ -69,13 +69,13 @@ Sarà un piacere accoglierla! 🏡
 
 A presto,
 Ania
-Casa Ania Rozzano`
+Casa Granata Rozzano`
   }
 
   if (type === 'modifica') {
-    return `Buongiorno ${name}! ✏️\nLa sua prenotazione è stata modificata:\n📍 ${room}\n📅 Check-in: ${cinF}\n📅 Check-out: ${coutF} (${notti} notti)\n💶 Totale: €${totale}\nCasa Ania Rozzano`
+    return `Buongiorno ${name}! ✏️\nLa sua prenotazione è stata modificata:\n📍 ${room}\n📅 Check-in: ${cinF}\n📅 Check-out: ${coutF} (${notti} notti)\n💶 Totale: €${totale}\nCasa Granata Rozzano`
   }
-  return `Buongiorno ${name}.\nCi dispiace informarla che la prenotazione del ${cinF} presso ${room} è stata annullata.\nResti a disposizione per eventuali chiarimenti.\nCasa Ania Rozzano`
+  return `Buongiorno ${name}.\nCi dispiace informarla che la prenotazione del ${cinF} presso ${room} è stata annullata.\nResti a disposizione per eventuali chiarimenti.\nCasa Granata Rozzano`
 }
 
 export default function BookingDetail() {
