@@ -1,20 +1,27 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const RATING_COLOR: Record<string, string> = { ottimo: 'bg-green-100 text-green-700', problematico: 'bg-red-100 text-red-700', vuole_ricevuta: 'bg-blue-100 text-blue-700', normale: 'bg-gray-100 text-gray-600' }
 
-export default function NuovaPrenotazione() {
+export default function NuovaPrenotazionePage() {
+  return <Suspense><NuovaPrenotazione /></Suspense>
+}
+
+function NuovaPrenotazione() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const preselectedRoomId = searchParams.get('room_id') || ''
+  const preselectedCheckIn = searchParams.get('check_in') || ''
+
   const [step, setStep] = useState<'telefono' | 'cliente' | 'dettagli'>('telefono')
   const [phone, setPhone] = useState('')
   const [guest, setGuest] = useState<any>(null)
   const [guestHistory, setGuestHistory] = useState<any[]>([])
   const [rooms, setRooms] = useState<any[]>([])
-  const [form, setForm] = useState({ room_id: searchParams.get('room_id') || '', check_in: searchParams.get('check_in') || '', check_out: '', check_in_time: '', num_guests: 1, extra_bed: false, use_matrimoniale: false, price_per_night: 0, notes: '' })
+  const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: '', check_in_time: '', num_guests: 1, extra_bed: false, use_matrimoniale: false, price_per_night: 0, notes: '' })
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
   const [saving, setSaving] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
@@ -28,10 +35,8 @@ export default function NuovaPrenotazione() {
         return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
       })
       setRooms(sorted)
-      // Se arriva room_id dall'URL, precompila il prezzo base
-      const preselectedId = searchParams.get('room_id')
-      if (preselectedId) {
-        const room = (data || []).find((r: any) => r.id === preselectedId)
+      if (preselectedRoomId) {
+        const room = (data || []).find((r: any) => r.id === preselectedRoomId)
         if (room) setForm(f => ({ ...f, price_per_night: Number(room.base_price) }))
       }
     })
