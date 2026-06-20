@@ -11,10 +11,14 @@ const COLORS = [
   { bg: '#f97316', label: 'bg-orange-100 text-orange-900' },
 ]
 
-const CELL_W = 36
-const ROW_H = 44
-const HEADER_H = 52
-const NAME_W = 64
+const CELL_W_MOBILE = 36
+const CELL_W_DESKTOP = 52
+const ROW_H_MOBILE = 44
+const ROW_H_DESKTOP = 60
+const HEADER_H_MOBILE = 52
+const HEADER_H_DESKTOP = 64
+const NAME_W_MOBILE = 64
+const NAME_W_DESKTOP = 120
 const DAYS_TOTAL = 180
 const DAYS_BEFORE = 30
 
@@ -39,6 +43,19 @@ export default function Calendario() {
   const [rooms, setRooms] = useState<any[]>([])
   const [bookings, setBookings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 1024)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
+  const CELL_W = isDesktop ? CELL_W_DESKTOP : CELL_W_MOBILE
+  const ROW_H = isDesktop ? ROW_H_DESKTOP : ROW_H_MOBILE
+  const HEADER_H = isDesktop ? HEADER_H_DESKTOP : HEADER_H_MOBILE
+  const NAME_W = isDesktop ? NAME_W_DESKTOP : NAME_W_MOBILE
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -68,7 +85,7 @@ export default function Calendario() {
     if (!loading && scrollRef.current) {
       scrollRef.current.scrollLeft = DAYS_BEFORE * CELL_W - 80
     }
-  }, [loading])
+  }, [loading, CELL_W])
 
   function scrollToToday() {
     if (scrollRef.current) {
@@ -134,10 +151,10 @@ export default function Calendario() {
                     background: isToday ? '#eff6ff' : (isSun || isSat ? '#f9fafb' : 'white'),
                     borderLeft: isToday ? '2px solid #3b82f6' : '1px solid #f3f4f6',
                   }}>
-                    <div style={{ fontSize: 9, color: isToday ? '#2563eb' : (isSun ? '#ef4444' : '#9ca3af') }}>
-                      {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, 1)}
+                    <div style={{ fontSize: isDesktop ? 11 : 9, color: isToday ? '#2563eb' : (isSun ? '#ef4444' : '#9ca3af') }}>
+                      {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop ? 3 : 1)}
                     </div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? 'white' : (isSun ? '#ef4444' : '#374151'), background: isToday ? '#2563eb' : 'transparent', borderRadius: '50%', width: 20, height: 20, lineHeight: '20px', margin: '0 auto' }}>
+                    <div style={{ fontSize: isDesktop ? 14 : 11, fontWeight: 700, color: isToday ? 'white' : (isSun ? '#ef4444' : '#374151'), background: isToday ? '#2563eb' : 'transparent', borderRadius: '50%', width: isDesktop ? 26 : 20, height: isDesktop ? 26 : 20, lineHeight: isDesktop ? '26px' : '20px', margin: '0 auto' }}>
                       {d.getDate()}
                     </div>
                   </div>
@@ -156,8 +173,8 @@ export default function Calendario() {
                   <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: ROW_H, display: 'flex', borderBottom: '1px solid #f3f4f6' }}>
                     {/* Nome camera (sticky) */}
                     <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10, background: 'white', borderRight: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', padding: '0 4px' }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, padding: '3px 4px', borderRadius: 4, textAlign: 'center', width: '100%', background: color.label.includes('blue') ? '#dbeafe' : color.label.includes('green') ? '#dcfce7' : color.label.includes('purple') ? '#f3e8ff' : '#ffedd5', color: color.label.includes('blue') ? '#1e3a5f' : color.label.includes('green') ? '#14532d' : color.label.includes('purple') ? '#581c87' : '#7c2d12' }}>
-                        {room.name.split(' ').slice(-1)[0]}
+                      <div style={{ fontSize: isDesktop ? 13 : 10, fontWeight: 700, padding: '3px 4px', borderRadius: 4, textAlign: 'center', width: '100%', background: color.label.includes('blue') ? '#dbeafe' : color.label.includes('green') ? '#dcfce7' : color.label.includes('purple') ? '#f3e8ff' : '#ffedd5', color: color.label.includes('blue') ? '#1e3a5f' : color.label.includes('green') ? '#14532d' : color.label.includes('purple') ? '#581c87' : '#7c2d12' }}>
+                        {isDesktop ? room.name : room.name.split(' ').slice(-1)[0]}
                       </div>
                     </div>
                     {/* Celle giorni */}
@@ -197,7 +214,7 @@ export default function Calendario() {
                           zIndex: 5,
                           boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                         }}>
-                        <span style={{ color: 'white', fontSize: 11, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ color: 'white', fontSize: isDesktop ? 14 : 11, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {guestName}
                         </span>
                       </div>
