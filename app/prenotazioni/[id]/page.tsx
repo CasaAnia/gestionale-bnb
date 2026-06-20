@@ -129,10 +129,8 @@ export default function BookingDetail() {
       <div className="flex items-center gap-3 mb-4">
         <button onClick={() => router.back()} className="text-blue-600 text-sm">← Indietro</button>
         <h1 className="text-xl font-bold flex-1">Prenotazione</h1>
-        {booking.status !== 'annullata' && (
-          <button onClick={() => setEditing(!editing)} className="text-blue-600 text-sm font-semibold">
-            {editing ? 'Annulla' : '✏️ Modifica'}
-          </button>
+        {editing && (
+          <button onClick={() => setEditing(false)} className="text-gray-500 text-sm">Annulla</button>
         )}
       </div>
 
@@ -266,6 +264,13 @@ export default function BookingDetail() {
         </div>
       )}
 
+      {/* Bottone Modifica prenotazione */}
+      {!editing && booking.status !== 'annullata' && (
+        <button onClick={() => setEditing(true)} className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold mb-4">
+          ✏️ Modifica prenotazione
+        </button>
+      )}
+
       {/* Dati cliente */}
       {!editing && (
         <div className="bg-white rounded-xl p-4 border border-gray-100 mb-4">
@@ -284,6 +289,14 @@ export default function BookingDetail() {
         </div>
       )}
 
+      {/* Azioni */}
+      {!editing && booking.status === 'confermata' && (
+        <div className="flex flex-col gap-2 mb-4">
+          <button onClick={markComplete} className="bg-gray-100 text-gray-700 rounded-xl py-3 font-semibold">✓ Segna come completata</button>
+          <button onClick={() => setShowCancel(true)} className="bg-red-50 text-red-500 rounded-xl py-3 font-semibold">Annulla prenotazione</button>
+        </div>
+      )}
+
       {/* WhatsApp */}
       {!editing && booking.guests?.phone && (
         <div className="bg-green-50 rounded-xl p-4 border border-green-100 mb-4">
@@ -294,14 +307,6 @@ export default function BookingDetail() {
             <button onClick={() => sendWhatsapp('annullamento')} className="bg-red-400 text-white rounded-lg py-2 text-sm font-semibold">❌ Annullamento</button>
           </div>
           <p className="text-xs text-green-700 mt-2">Il messaggio si apre in WhatsApp — sei tu a decidere se inviarlo</p>
-        </div>
-      )}
-
-      {/* Azioni */}
-      {!editing && booking.status === 'confermata' && (
-        <div className="flex flex-col gap-2">
-          <button onClick={markComplete} className="bg-blue-600 text-white rounded-xl py-3 font-semibold">✓ Segna come completata</button>
-          <button onClick={() => setShowCancel(true)} className="bg-red-500 text-white rounded-xl py-3 font-semibold">Annulla prenotazione</button>
         </div>
       )}
 
