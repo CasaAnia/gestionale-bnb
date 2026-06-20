@@ -209,7 +209,12 @@ export default function NuovaPrenotazione() {
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
                 <p className="text-sm text-gray-500 mb-1">N° ospiti</p>
-                <input type="number" min={1} max={4} value={form.num_guests} onChange={e => setForm({...form, num_guests: parseInt(e.target.value)})}
+                <input type="number" min={1} max={4} value={form.num_guests} onChange={e => {
+                  const n = parseInt(e.target.value)
+                  const room = rooms.find(r => r.id === form.room_id)
+                  const autoLetto = room?.has_extra_bed && n >= 3
+                  setForm({...form, num_guests: n, extra_bed: autoLetto})
+                }}
                   className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
               </div>
               <div>
@@ -265,7 +270,6 @@ export default function NuovaPrenotazione() {
             </div>
           )}
 
-          <p className="text-xs text-gray-400 mb-1">debug: cin={form.check_in} cout={form.check_out} notti={notti()} room={form.room_id ? 'ok' : 'no'}</p>
           <button onClick={save} disabled={saving || !form.room_id || !form.check_in || !form.check_out || notti() <= 0}
             className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
             {saving ? 'Salvataggio...' : '✅ Salva prenotazione'}
