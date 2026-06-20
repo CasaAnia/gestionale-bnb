@@ -16,6 +16,7 @@ export default function ClienteDetail() {
   const [editing, setEditing] = useState(searchParams.get('edit') === '1')
   const [form, setForm] = useState<any>({})
   const [saving, setSaving] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -25,6 +26,11 @@ export default function ClienteDetail() {
       setGuest(g); setForm(g || {}); setBookings(b || []); setLoading(false)
     })
   }, [id])
+
+  async function deleteGuest() {
+    await supabase.from('guests').delete().eq('id', id)
+    router.push('/clienti')
+  }
 
   async function save() {
     setSaving(true)
@@ -124,6 +130,23 @@ export default function ClienteDetail() {
               {b.status === 'annullata' && b.cancelled_reason && <p className="text-xs text-gray-400 mt-1">Motivo: {b.cancelled_reason}</p>}
             </div>
           ))}
+        </div>
+      )}
+      {/* Elimina cliente */}
+      {!editing && (
+        <button onClick={() => setShowDelete(true)} className="w-full mt-2 text-red-500 text-sm py-2">
+          🗑 Elimina cliente
+        </button>
+      )}
+
+      {showDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={() => setShowDelete(false)}>
+          <div className="bg-white rounded-t-2xl p-4 w-full max-w-lg mx-auto" onClick={e => e.stopPropagation()}>
+            <h2 className="font-bold mb-2">Elimina cliente</h2>
+            <p className="text-sm text-gray-500 mb-4">Sei sicuro? Questa azione non si può annullare. Le prenotazioni associate rimarranno nel sistema.</p>
+            <button onClick={deleteGuest} className="w-full bg-red-500 text-white rounded-xl py-3 font-semibold mb-2">Sì, elimina</button>
+            <button onClick={() => setShowDelete(false)} className="w-full text-gray-500 py-2 text-sm">Annulla</button>
+          </div>
         </div>
       )}
     </div>
