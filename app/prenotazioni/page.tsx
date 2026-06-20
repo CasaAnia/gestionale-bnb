@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 const STATUS_COLORS: Record<string, string> = {
   confermata: 'bg-green-100 text-green-700',
@@ -11,6 +12,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function Prenotazioni() {
+  const router = useRouter()
   const [bookings, setBookings] = useState<any[]>([])
   const [filter, setFilter] = useState<'tutte' | 'attive' | 'annullate'>('attive')
   const [loading, setLoading] = useState(true)
@@ -61,8 +63,8 @@ export default function Prenotazioni() {
       ) : (
         <div className="flex flex-col gap-3">
           {filtered.map(b => (
-            <Link key={b.id} href={`/prenotazioni/${b.id}`}
-              className={`rounded-xl p-4 border shadow-sm transition-all ${b.extra_bed ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-100'}`}>
+            <div key={b.id} onClick={() => router.push(`/prenotazioni/${b.id}`)}
+              className={`rounded-xl p-4 border shadow-sm transition-all cursor-pointer active:opacity-70 ${b.extra_bed ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-100'}`}>
               <div className="flex items-start justify-between mb-1">
                 <div className="flex-1">
                   <p className="font-semibold">{b.guests?.full_name || b.guests?.phone}</p>
@@ -83,7 +85,7 @@ export default function Prenotazioni() {
               {b.guests?.rating === 'vuole_ricevuta' && (
                 <p className="text-xs text-blue-600 mt-1 font-semibold">🧾 Vuole ricevuta</p>
               )}
-            </Link>
+            </div>
           ))}
         </div>
       )}
