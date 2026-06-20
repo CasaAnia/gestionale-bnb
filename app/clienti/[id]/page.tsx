@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const RATING_COLOR: Record<string, string> = { ottimo: 'bg-green-100 text-green-700', problematico: 'bg-red-100 text-red-700', vuole_ricevuta: 'bg-blue-100 text-blue-700', normale: 'bg-gray-100 text-gray-600' }
@@ -9,10 +9,11 @@ const RATING_COLOR: Record<string, string> = { ottimo: 'bg-green-100 text-green-
 export default function ClienteDetail() {
   const { id } = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [guest, setGuest] = useState<any>(null)
   const [bookings, setBookings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(searchParams.get('edit') === '1')
   const [form, setForm] = useState<any>({})
   const [saving, setSaving] = useState(false)
 
@@ -27,7 +28,7 @@ export default function ClienteDetail() {
 
   async function save() {
     setSaving(true)
-    await supabase.from('guests').update({ full_name: form.full_name, email: form.email, rating: form.rating, notes: form.notes }).eq('id', id)
+    await supabase.from('guests').update({ full_name: form.full_name, phone: form.phone, email: form.email, rating: form.rating, notes: form.notes }).eq('id', id)
     setGuest({ ...guest, ...form }); setEditing(false); setSaving(false)
   }
 
@@ -51,6 +52,8 @@ export default function ClienteDetail() {
           <>
             <input value={form.full_name || ''} onChange={e => setForm({...form, full_name: e.target.value})}
               placeholder="Nome e cognome" className="w-full border border-gray-200 rounded-lg p-2 mb-2 text-sm" />
+            <input value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})}
+              placeholder="Telefono" className="w-full border border-gray-200 rounded-lg p-2 mb-2 text-sm" type="tel" />
             <input value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})}
               placeholder="Email" className="w-full border border-gray-200 rounded-lg p-2 mb-2 text-sm" type="email" />
             <textarea value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})}

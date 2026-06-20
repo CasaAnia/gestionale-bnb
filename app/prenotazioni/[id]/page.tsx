@@ -271,7 +271,10 @@ export default function BookingDetail() {
         <div className="bg-white rounded-xl p-4 border border-gray-100 mb-4">
           <div className="flex justify-between items-center mb-2">
             <p className="font-semibold">Cliente</p>
-            <Link href={`/clienti/${guest?.id}`} className="text-blue-600 text-sm">Vedi storico →</Link>
+            <div className="flex gap-3">
+              <Link href={`/clienti/${guest?.id}?edit=1`} className="text-blue-600 text-sm">✏️ Modifica</Link>
+              <Link href={`/clienti/${guest?.id}`} className="text-blue-600 text-sm">Storico →</Link>
+            </div>
           </div>
           <p className="text-sm text-gray-600">📞 {guest?.phone}</p>
           {guest?.email && <p className="text-sm text-gray-600">✉️ {guest.email}</p>}
