@@ -47,6 +47,9 @@ export default function BookingDetail() {
         check_in_time: b.check_in_time || '',
         num_guests: b.num_guests, extra_bed: b.extra_bed, price_per_night: Number(b.price_per_night),
         notes: b.notes || '',
+        guest_name: b.guests?.full_name || '',
+        guest_phone: b.guests?.phone || '',
+        guest_email: b.guests?.email || '',
       } : {})
       const sorted = (r || []).sort((a, b) => {
         const ai = ROOM_ORDER.findIndex(o => a.name.includes(o))
@@ -91,6 +94,13 @@ export default function BookingDetail() {
       updated_at: new Date().toISOString(),
     }
     await supabase.from('bookings').update(updates).eq('id', id)
+    if (booking.guests?.id) {
+      await supabase.from('guests').update({
+        full_name: editForm.guest_name || null,
+        phone: editForm.guest_phone || null,
+        email: editForm.guest_email || null,
+      }).eq('id', booking.guests.id)
+    }
     const { data: updated } = await supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single()
     setBooking(updated)
     setEditing(false)
@@ -138,6 +148,23 @@ export default function BookingDetail() {
       {editing ? (
         <div className="bg-white rounded-xl p-4 border border-blue-200 mb-4">
           <p className="font-semibold mb-3 text-blue-700">✏️ Modifica prenotazione</p>
+
+          <p className="text-xs text-gray-500 mb-1">Nome cliente</p>
+          <input value={editForm.guest_name} onChange={e => setEditForm({ ...editForm, guest_name: e.target.value })}
+            placeholder="Nome e cognome" className="w-full border border-gray-200 rounded-lg p-2 mb-3 text-sm" />
+
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Telefono</p>
+              <input value={editForm.guest_phone} onChange={e => setEditForm({ ...editForm, guest_phone: e.target.value })}
+                placeholder="+39..." className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Email</p>
+              <input value={editForm.guest_email} onChange={e => setEditForm({ ...editForm, guest_email: e.target.value })}
+                placeholder="email@..." className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+            </div>
+          </div>
 
           <p className="text-xs text-gray-500 mb-1">Camera</p>
           <select value={editForm.room_id} onChange={e => {
