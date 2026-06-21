@@ -125,6 +125,7 @@ export default function BookingDetail() {
         check_in_time: b.check_in_time || '',
         num_guests: b.num_guests, extra_bed: b.extra_bed, price_per_night: Number(b.price_per_night),
         notes: b.notes || '',
+        color: b.color || '',
         guest_name: b.guests?.full_name || '',
         guest_phone: b.guests?.phone || '',
         guest_email: b.guests?.email || '',
@@ -169,6 +170,7 @@ export default function BookingDetail() {
       total_amount: total,
       check_in_time: editForm.check_in_time || null,
       notes: editForm.notes || null,
+      color: editForm.color || null,
       updated_at: new Date().toISOString(),
     }
     await supabase.from('bookings').update(updates).eq('id', id)
@@ -344,6 +346,25 @@ export default function BookingDetail() {
 
           <input value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
             placeholder="Note (opzionale)" className="w-full border border-gray-200 rounded-lg p-2 text-sm mb-3" />
+
+          <div className="mb-3">
+            <p className="text-xs text-gray-500 mb-2">Colore sul calendario</p>
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { value: '', label: 'Auto', bg: '#22c55e' },
+                { value: '#1f2937', label: 'Nero', bg: '#1f2937' },
+                { value: '#3b82f6', label: 'Blu', bg: '#3b82f6' },
+                { value: '#a855f7', label: 'Viola', bg: '#a855f7' },
+                { value: '#f97316', label: 'Arancio', bg: '#f97316' },
+                { value: '#ec4899', label: 'Rosa', bg: '#ec4899' },
+                { value: '#eab308', label: 'Giallo', bg: '#eab308' },
+              ].map(c => (
+                <button key={c.value} onClick={() => setEditForm({ ...editForm, color: c.value })}
+                  title={c.label}
+                  style={{ background: c.bg, width: 28, height: 28, borderRadius: '50%', border: editForm.color === c.value ? '3px solid #1f2937' : '2px solid transparent', outline: editForm.color === c.value ? '2px solid white' : 'none', outlineOffset: -4 }} />
+              ))}
+            </div>
+          </div>
 
           {calcNotti(editForm.check_in, editForm.check_out) > 0 && (
             <div className="bg-blue-50 rounded-lg p-3 mb-3 text-sm">

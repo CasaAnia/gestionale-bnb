@@ -206,7 +206,7 @@ export default function Calendario() {
                     const barWidth = (endIdx - startIdx) * CELL_W
                     if (barWidth <= 0) return null
                     const guestName = booking.guests?.full_name || booking.guests?.phone || ''
-                    const barColor = booking.extra_bed ? '#ef4444' : '#22c55e'
+                    const barColor = booking.color || (booking.extra_bed ? '#ef4444' : '#22c55e')
 
                     return (
                       <div key={booking.id}
