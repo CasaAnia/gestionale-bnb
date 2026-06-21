@@ -284,8 +284,13 @@ export default function BookingDetail() {
           <div className="grid grid-cols-2 gap-2 mb-3">
             <div>
               <p className="text-xs text-gray-500 mb-1">N° ospiti</p>
-              <input type="number" min={1} max={4} value={editForm.num_guests} onChange={e => setEditForm({ ...editForm, num_guests: parseInt(e.target.value) })}
-                className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+              <input type="number" min={1} max={4} value={editForm.num_guests} onChange={e => {
+                const n = parseInt(e.target.value)
+                const room = rooms.find(r => r.id === editForm.room_id)
+                const autoLetto = room?.has_extra_bed && n >= 3
+                const autoPrice = room?.double_price && n >= 2 ? Number(room.double_price) : (room ? Number(room.base_price) : editForm.price_per_night)
+                setEditForm({ ...editForm, num_guests: n, extra_bed: autoLetto, price_per_night: autoPrice })
+              }} className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-1">Tariffa/notte €</p>
