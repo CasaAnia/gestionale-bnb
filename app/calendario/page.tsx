@@ -132,9 +132,9 @@ export default function Calendario() {
   }
 
   function getDayColor(booking: any, dateStr: string): string {
-    if (booking.color) return booking.color
     const extraDays = getExtraBedDays(booking)
-    if (!extraDays.has(dateStr)) return '#22c55e'
+    if (extraDays.size === 0 && booking.color) return booking.color
+    if (!extraDays.has(dateStr)) return booking.color || '#22c55e'
     const contrib = booking.room_id === LENA_ID && booking.num_guests >= 4 ? 2 : 1
     const others = (extraBedsMap.get(dateStr) || 0) - contrib
     return others >= 2 ? '#1f2937' : '#ef4444'
