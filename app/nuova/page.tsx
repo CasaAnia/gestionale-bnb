@@ -374,15 +374,15 @@ function NuovaPrenotazione() {
               </>
             })()}
 
-            <div className="flex items-center justify-between bg-blue-50 rounded-lg p-3 mb-3 border border-blue-100">
+            <div onClick={() => setForm({...form, bonifico: !form.bonifico})}
+              className="flex items-center justify-between bg-blue-50 rounded-lg p-3 mb-3 border border-blue-100 cursor-pointer active:opacity-70">
               <div>
                 <p className="text-sm font-semibold text-blue-800">🏦 Pagamento tramite bonifico</p>
                 <p className="text-xs text-blue-600">La conferma includerà l'IBAN</p>
               </div>
-              <button onClick={() => setForm({...form, bonifico: !form.bonifico})}
-                className={`w-12 h-6 rounded-full transition-colors ${form.bonifico ? 'bg-blue-600' : 'bg-gray-200'}`}>
+              <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${form.bonifico ? 'bg-blue-600' : 'bg-gray-200'}`}>
                 <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${form.bonifico ? 'translate-x-6' : ''}`} />
-              </button>
+              </div>
             </div>
 
             <input value={form.notes} onChange={e => setForm({...form, notes: e.target.value})}

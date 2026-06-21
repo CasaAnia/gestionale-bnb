@@ -473,26 +473,26 @@ export default function BookingDetail() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between bg-blue-50 rounded-lg p-3 mb-2 border border-blue-100">
+          <div onClick={() => setEditForm({ ...editForm, bonifico: !editForm.bonifico })}
+            className="flex items-center justify-between bg-blue-50 rounded-lg p-3 mb-2 border border-blue-100 cursor-pointer active:opacity-70">
             <div>
               <p className="text-sm font-semibold text-blue-800">🏦 Pagamento tramite bonifico</p>
               <p className="text-xs text-blue-600">La conferma includerà l'IBAN</p>
             </div>
-            <button onClick={() => setEditForm({ ...editForm, bonifico: !editForm.bonifico })}
-              className={`w-12 h-6 rounded-full transition-colors ${editForm.bonifico ? 'bg-blue-600' : 'bg-gray-200'}`}>
+            <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${editForm.bonifico ? 'bg-blue-600' : 'bg-gray-200'}`}>
               <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.bonifico ? 'translate-x-6' : ''}`} />
-            </button>
+            </div>
           </div>
 
-          <div className="flex items-center justify-between bg-sky-50 rounded-lg p-3 mb-3 border border-sky-100">
+          <div onClick={() => setEditForm({ ...editForm, pagato: !editForm.pagato })}
+            className="flex items-center justify-between bg-sky-50 rounded-lg p-3 mb-3 border border-sky-100 cursor-pointer active:opacity-70">
             <div>
               <p className="text-sm font-semibold text-sky-800">✅ Pagato</p>
               <p className="text-xs text-sky-600">Segna come pagamento ricevuto</p>
             </div>
-            <button onClick={() => setEditForm({ ...editForm, pagato: !editForm.pagato })}
-              className={`w-12 h-6 rounded-full transition-colors ${editForm.pagato ? 'bg-sky-500' : 'bg-gray-200'}`}>
+            <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${editForm.pagato ? 'bg-sky-500' : 'bg-gray-200'}`}>
               <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.pagato ? 'translate-x-6' : ''}`} />
-            </button>
+            </div>
           </div>
 
           {calcNotti(editForm.check_in, editForm.check_out) > 0 && (
