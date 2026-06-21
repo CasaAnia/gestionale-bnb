@@ -577,8 +577,25 @@ export default function BookingDetail() {
             </div>
           )}
           {booking.notes && <p className="text-sm text-gray-600 italic">📝 {booking.notes}</p>}
-          {booking.status === 'annullata' && booking.cancelled_reason && (
-            <p className="text-sm text-red-500 mt-2">Motivo: {booking.cancelled_reason}</p>
+          {booking.status === 'annullata' && (
+            <div className="mt-2">
+              <p className="text-xs text-gray-500 mb-1">Motivo annullamento</p>
+              <div className="flex gap-2">
+                <input
+                  defaultValue={booking.cancelled_reason || ''}
+                  id="cancel-reason-input"
+                  placeholder="Aggiungi motivo..."
+                  className="flex-1 border border-gray-200 rounded-lg p-2 text-sm text-red-700"
+                />
+                <button onClick={async () => {
+                  const val = (document.getElementById('cancel-reason-input') as HTMLInputElement)?.value
+                  await supabase.from('bookings').update({ cancelled_reason: val }).eq('id', id)
+                  setBooking({ ...booking, cancelled_reason: val })
+                }} className="bg-red-100 text-red-700 px-3 py-2 rounded-lg text-sm font-semibold">
+                  Salva
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}
