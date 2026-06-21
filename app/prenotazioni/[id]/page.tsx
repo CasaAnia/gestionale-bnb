@@ -119,7 +119,7 @@ Causale: Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}
 
 Importo: *€ ${totale}*
 
-Non appena ricevuto il bonifico le darò conferma. Per qualsiasi necessità sono a disposizione.
+Non appena ricevuto il bonifico le darò conferma. Per qualsiasi necessità sono sempre a disposizione.
 
 A presto,
 Ania
