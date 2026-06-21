@@ -15,13 +15,19 @@ function NuovaPrenotazione() {
   const searchParams = useSearchParams()
   const preselectedRoomId = searchParams.get('room_id') || ''
   const preselectedCheckIn = searchParams.get('check_in') || ''
+  function addOneDay(dateStr: string) {
+    if (!dateStr) return ''
+    const d = new Date(dateStr.replace(/-/g, '/'))
+    d.setDate(d.getDate() + 1)
+    return d.toISOString().split('T')[0]
+  }
 
   const [step, setStep] = useState<'telefono' | 'cliente' | 'dettagli'>('telefono')
   const [phone, setPhone] = useState('')
   const [guest, setGuest] = useState<any>(null)
   const [guestHistory, setGuestHistory] = useState<any[]>([])
   const [rooms, setRooms] = useState<any[]>([])
-  const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: '', check_in_time: '', num_guests: 1, extra_bed: false, use_matrimoniale: false, price_per_night: 0, notes: '' })
+  const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', num_guests: 1, extra_bed: false, use_matrimoniale: false, price_per_night: 0, notes: '' })
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
   const [saving, setSaving] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
