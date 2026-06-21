@@ -19,7 +19,7 @@ function bagnoDesc(room: any) {
   return ''
 }
 
-function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento') {
+function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') {
   const name = b.guests?.full_name || 'Ospite'
   const room = b.rooms?.name || ''
   const cin = b.check_in
@@ -108,6 +108,35 @@ A presto,
 Ania
 Casa Granata Humanitas`
   }
+  if (type === 'dati_bonifico') {
+    return `Gentile *${name}*,
+come da sua richiesta, le invio i dati per effettuare il pagamento tramite bonifico bancario:
+
+Intestatario: *SAWICKA ANNA JANINA*
+Banca: *BANCO BPM*
+IBAN: *IT32P0503401753000000159653*
+Causale: Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}
+
+Importo: *€ ${totale}*
+
+Non appena ricevuto il bonifico le darò conferma. Per qualsiasi necessità sono a disposizione.
+
+A presto,
+Ania
+Casa Granata Humanitas`
+  }
+
+  if (type === 'pagamento_ricevuto') {
+    return `Gentile *${name}*,
+ho ricevuto il suo pagamento. La aspetto con piacere il *${cinF}*!
+
+Per qualsiasi necessità sono sempre a disposizione.
+
+A presto,
+Ania
+Casa Granata Humanitas`
+  }
+
   return `CANCELLAZIONE PRENOTAZIONE – Casa Granata Humanitas
 
 Gentile *${name}*,
@@ -289,7 +318,7 @@ export default function BookingDetail() {
     setShowCancel(false)
   }
 
-  function sendWhatsapp(type: 'conferma' | 'modifica' | 'annullamento') {
+  function sendWhatsapp(type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') {
     const phone = booking.guests?.phone?.replace(/\D/g, '')
     const msg = buildWhatsappMsg(booking, type)
     supabase.from('booking_whatsapp_log').insert({ booking_id: id, message_type: type, message_text: msg, sent: false })
@@ -652,7 +681,7 @@ export default function BookingDetail() {
       {/* WhatsApp */}
       {!editing && booking.guests?.phone && (() => {
         const phone = booking.guests.phone.replace(/\D/g, '')
-        const waLink = (type: 'conferma' | 'modifica' | 'annullamento') =>
+        const waLink = (type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') =>
           `whatsapp://send?phone=${phone}&text=${encodeURIComponent(buildWhatsappMsg(booking, type))}`
         return (
           <div className="bg-green-50 rounded-xl p-4 border border-green-100 mb-4">
@@ -660,6 +689,8 @@ export default function BookingDetail() {
             <div className="flex flex-col gap-2">
               <a href={waLink('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-500 text-white rounded-lg py-2 text-sm font-semibold">✅ Conferma prenotazione</a>
               <a href={waLink('modifica')} target="_blank" rel="noopener noreferrer" className="block text-center bg-blue-500 text-white rounded-lg py-2 text-sm font-semibold">✏️ Modifica prenotazione</a>
+              <a href={waLink('dati_bonifico')} target="_blank" rel="noopener noreferrer" className="block text-center bg-indigo-500 text-white rounded-lg py-2 text-sm font-semibold">🏦 Dati bonifico</a>
+              <a href={waLink('pagamento_ricevuto')} target="_blank" rel="noopener noreferrer" className="block text-center bg-sky-500 text-white rounded-lg py-2 text-sm font-semibold">💸 Pagamento ricevuto</a>
               <a href={waLink('annullamento')} target="_blank" rel="noopener noreferrer" className="block text-center bg-red-400 text-white rounded-lg py-2 text-sm font-semibold">❌ Annullamento</a>
             </div>
             <p className="text-xs text-green-700 mt-2">Il messaggio si apre in WhatsApp — sei tu a decidere se inviarlo</p>
