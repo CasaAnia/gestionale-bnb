@@ -256,8 +256,10 @@ function NuovaPrenotazione() {
                 <input type="number" min={1} max={4} value={form.num_guests} onChange={e => {
                   const n = parseInt(e.target.value)
                   const room = rooms.find(r => r.id === form.room_id)
-                  const autoLetto = room?.has_extra_bed && n >= 3
-                  const autoPrice = room?.double_price && n >= 2 ? Number(room.double_price) : (room ? Number(room.base_price) : form.price_per_night)
+                  const autoLetto = room?.has_extra_bed && n >= 4
+                  const autoPrice = room?.double_price
+                    ? (room.has_extra_bed ? (n >= 3 ? Number(room.double_price) : Number(room.base_price)) : (n >= 2 ? Number(room.double_price) : Number(room.base_price)))
+                    : (room ? Number(room.base_price) : form.price_per_night)
                   setForm({...form, num_guests: n, extra_bed: autoLetto, price_per_night: autoPrice})
                 }}
                   className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
