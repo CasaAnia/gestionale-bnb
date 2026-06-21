@@ -419,17 +419,22 @@ export default function BookingDetail() {
       )}
 
       {/* WhatsApp */}
-      {!editing && booking.guests?.phone && (
-        <div className="bg-green-50 rounded-xl p-4 border border-green-100 mb-4">
-          <p className="font-semibold text-green-800 mb-2">💬 Invia WhatsApp</p>
-          <div className="flex flex-col gap-2">
-            <button onClick={() => sendWhatsapp('conferma')} className="bg-green-500 text-white rounded-lg py-2 text-sm font-semibold">✅ Conferma prenotazione</button>
-            <button onClick={() => sendWhatsapp('modifica')} className="bg-blue-500 text-white rounded-lg py-2 text-sm font-semibold">✏️ Modifica prenotazione</button>
-            <button onClick={() => sendWhatsapp('annullamento')} className="bg-red-400 text-white rounded-lg py-2 text-sm font-semibold">❌ Annullamento</button>
+      {!editing && booking.guests?.phone && (() => {
+        const phone = booking.guests.phone.replace(/\D/g, '')
+        const waLink = (type: 'conferma' | 'modifica' | 'annullamento') =>
+          `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsappMsg(booking, type))}`
+        return (
+          <div className="bg-green-50 rounded-xl p-4 border border-green-100 mb-4">
+            <p className="font-semibold text-green-800 mb-2">💬 Invia WhatsApp</p>
+            <div className="flex flex-col gap-2">
+              <a href={waLink('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-500 text-white rounded-lg py-2 text-sm font-semibold">✅ Conferma prenotazione</a>
+              <a href={waLink('modifica')} target="_blank" rel="noopener noreferrer" className="block text-center bg-blue-500 text-white rounded-lg py-2 text-sm font-semibold">✏️ Modifica prenotazione</a>
+              <a href={waLink('annullamento')} target="_blank" rel="noopener noreferrer" className="block text-center bg-red-400 text-white rounded-lg py-2 text-sm font-semibold">❌ Annullamento</a>
+            </div>
+            <p className="text-xs text-green-700 mt-2">Il messaggio si apre in WhatsApp — sei tu a decidere se inviarlo</p>
           </div>
-          <p className="text-xs text-green-700 mt-2">Il messaggio si apre in WhatsApp — sei tu a decidere se inviarlo</p>
-        </div>
-      )}
+        )
+      })()}
 
       {showCancel && (
         <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={() => setShowCancel(false)}>
