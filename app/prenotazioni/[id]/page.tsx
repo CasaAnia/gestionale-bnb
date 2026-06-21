@@ -92,23 +92,26 @@ export default function BookingDetail() {
   const [showCancel, setShowCancel] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [conflitto, setConflitto] = useState<string | null>(null)
+  const [lettiOccupati, setLettiOccupati] = useState(0)
 
   async function checkDisponibilita(room_id: string, check_in: string, check_out: string) {
     if (!room_id || !check_in || !check_out) return
-    const { data } = await supabase.from('bookings')
-      .select('id, check_in, check_out, rooms(name), guests(full_name)')
-      .eq('room_id', room_id)
-      .neq('status', 'annullata')
-      .neq('id', id)
-      .lt('check_in', check_out)
-      .gt('check_out', check_in)
-    if (data && data.length > 0) {
-      const b = data[0] as any
-      const roomName = b.rooms?.name || 'Camera'
-      setConflitto(`⚠️ ${roomName} già occupata dal ${b.check_in} al ${b.check_out} (${b.guests?.full_name || 'altro cliente'})`)
+    const [{ data: conf }, { data: letti }] = await Promise.all([
+      supabase.from('bookings')
+        .select('id, check_in, check_out, rooms(name), guests(full_name)')
+        .eq('room_id', room_id).neq('status', 'annullata').neq('id', id)
+        .lt('check_in', check_out).gt('check_out', check_in),
+      supabase.from('bookings')
+        .select('id').eq('extra_bed', true).neq('status', 'annullata').neq('id', id)
+        .lt('check_in', check_out).gt('check_out', check_in),
+    ])
+    if (conf && conf.length > 0) {
+      const b = conf[0] as any
+      setConflitto(`⚠️ ${b.rooms?.name || 'Camera'} già occupata dal ${b.check_in} al ${b.check_out} (${b.guests?.full_name || 'altro cliente'})`)
     } else {
       setConflitto(null)
     }
+    setLettiOccupati(letti?.length || 0)
   }
 
   useEffect(() => {
@@ -302,16 +305,25 @@ export default function BookingDetail() {
           </div>
 
           {selectedRoom?.has_extra_bed && (
-            <div className="flex items-center justify-between bg-orange-50 rounded-lg p-3 mb-3 border border-orange-100">
-              <div>
-                <p className="text-sm font-semibold text-orange-800">🛏 Letto aggiuntivo</p>
-                <p className="text-xs text-orange-600">+€{selectedRoom.extra_bed_price}/notte</p>
+            <>
+              <div className="flex items-center justify-between bg-orange-50 rounded-lg p-3 mb-1 border border-orange-100">
+                <div>
+                  <p className="text-sm font-semibold text-orange-800">🛏 Letto aggiuntivo</p>
+                  <p className="text-xs text-orange-600">+€{selectedRoom.extra_bed_price}/notte</p>
+                </div>
+                <button onClick={() => setEditForm({ ...editForm, extra_bed: !editForm.extra_bed })}
+                  className={`w-12 h-6 rounded-full transition-colors ${editForm.extra_bed ? 'bg-orange-500' : 'bg-gray-200'}`}>
+                  <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.extra_bed ? 'translate-x-6' : ''}`} />
+                </button>
               </div>
-              <button onClick={() => setEditForm({ ...editForm, extra_bed: !editForm.extra_bed })}
-                className={`w-12 h-6 rounded-full transition-colors ${editForm.extra_bed ? 'bg-orange-500' : 'bg-gray-200'}`}>
-                <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.extra_bed ? 'translate-x-6' : ''}`} />
-              </button>
-            </div>
+              {lettiOccupati >= 2 && (
+                <p className="text-xs text-red-600 font-semibold mb-3 px-1">⚠️ Entrambi i letti aggiuntivi sono già occupati in queste date</p>
+              )}
+              {lettiOccupati === 1 && !editForm.extra_bed && (
+                <p className="text-xs text-orange-600 mb-3 px-1">⚠️ 1 letto aggiuntivo già occupato in queste date</p>
+              )}
+              {(lettiOccupati === 0 || (lettiOccupati === 1 && editForm.extra_bed)) && <div className="mb-3" />}
+            </>
           )}
 
           {selectedRoom?.matrimoniale_price != null && (

@@ -107,8 +107,17 @@ export default function Calendario() {
     )
   }
 
+  const EXTRA_BED_MAX = 2
+  const EXTRA_ROW_H = isDesktop ? 28 : 22
+
+  function extraBedsOnDay(dateStr: string) {
+    return bookings.filter(b =>
+      b.extra_bed && b.check_in <= dateStr && b.check_out > dateStr
+    ).length
+  }
+
   const totalW = NAME_W + DAYS_TOTAL * CELL_W
-  const totalH = HEADER_H + rooms.length * ROW_H
+  const totalH = HEADER_H + rooms.length * ROW_H + EXTRA_ROW_H
 
   return (
     <div className="flex flex-col h-screen pb-16 lg:pb-0">
@@ -226,6 +235,36 @@ export default function Calendario() {
                 </div>
               )
             })}
+
+            {/* ── RIGA LETTI AGGIUNTIVI ── */}
+            {(() => {
+              const rowTop = HEADER_H + rooms.length * ROW_H
+              return (
+                <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: EXTRA_ROW_H, display: 'flex', borderTop: '2px solid #e5e7eb' }}>
+                  <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10, background: 'white', borderRight: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>
+                    <span style={{ fontSize: isDesktop ? 11 : 9, fontWeight: 700, color: '#92400e', background: '#fef3c7', borderRadius: 4, padding: '1px 4px', textAlign: 'center', lineHeight: 1.2 }}>
+                      🛏 extra
+                    </span>
+                  </div>
+                  {days.map((d, i) => {
+                    const dateStr = toStr(d)
+                    const count = extraBedsOnDay(dateStr)
+                    const isFull = count >= EXTRA_BED_MAX
+                    const isToday = dateStr === todayStr
+                    return (
+                      <div key={i} style={{ width: CELL_W, minWidth: CELL_W, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isFull ? '#fef2f2' : isToday ? '#eff6ff' : 'white', borderLeft: isToday ? '2px solid #bfdbfe' : '1px solid #f3f4f6' }}>
+                        {count > 0 && (
+                          <span style={{ fontSize: isDesktop ? 11 : 8, fontWeight: 700, color: isFull ? '#dc2626' : '#d97706' }}>
+                            {count}/{EXTRA_BED_MAX}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+
           </div>
         </div>
       )}
@@ -239,6 +278,10 @@ export default function Calendario() {
         <div className="flex items-center gap-1.5">
           <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#ef4444' }} />
           <span className="text-xs text-gray-500">🛏 Letto aggiuntivo</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#dc2626' }}>2/2</span>
+          <span className="text-xs text-gray-500">Letti extra esauriti</span>
         </div>
       </div>
     </div>
