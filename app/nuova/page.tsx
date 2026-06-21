@@ -27,7 +27,7 @@ function NuovaPrenotazione() {
   const [guest, setGuest] = useState<any>(null)
   const [guestHistory, setGuestHistory] = useState<any[]>([])
   const [rooms, setRooms] = useState<any[]>([])
-  const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '' })
+  const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '', bonifico: false })
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
   const [saving, setSaving] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
@@ -150,6 +150,7 @@ function NuovaPrenotazione() {
       check_in_time: form.check_in_time || null,
       num_guests: form.num_guests, extra_bed: form.extra_bed_dates.length > 0, extra_bed_dates: form.extra_bed_dates, price_per_night: Number(form.price_per_night),
       extra_bed_total: ebt, total_amount: calcTotal(), notes: form.notes || null, status: 'confermata', source: 'diretta',
+      bonifico: form.bonifico, pagato: false,
     })
     setSaving(false)
     router.push('/prenotazioni')
@@ -372,6 +373,17 @@ function NuovaPrenotazione() {
                 )}
               </>
             })()}
+
+            <div className="flex items-center justify-between bg-blue-50 rounded-lg p-3 mb-3 border border-blue-100">
+              <div>
+                <p className="text-sm font-semibold text-blue-800">🏦 Pagamento tramite bonifico</p>
+                <p className="text-xs text-blue-600">La conferma includerà l'IBAN</p>
+              </div>
+              <button onClick={() => setForm({...form, bonifico: !form.bonifico})}
+                className={`w-12 h-6 rounded-full transition-colors ${form.bonifico ? 'bg-blue-600' : 'bg-gray-200'}`}>
+                <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${form.bonifico ? 'translate-x-6' : ''}`} />
+              </button>
+            </div>
 
             <input value={form.notes} onChange={e => setForm({...form, notes: e.target.value})}
               placeholder="Note (opzionale)" className="w-full border border-gray-200 rounded-lg p-2 text-sm mb-3" />

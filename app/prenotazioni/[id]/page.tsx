@@ -34,6 +34,16 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
 
   const isLena = room.includes('Lena')
 
+  const paymentLine = b.bonifico
+    ? `💶 Importo totale: *€ ${totale}* – pagamento tramite bonifico bancario.
+
+Per completare la prenotazione, la prego di effettuare il bonifico con i seguenti dati:
+🏦 Intestatario: *SAWICKA ANNA JANINA*
+🏛️ Banca: *BANCO BPM*
+💳 IBAN: *IT32P0503401753000000159653*
+📝 Causale: *Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}*`
+    : `💶 Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.`
+
   if (type === 'conferma') {
     return `CONFERMA DI PRENOTAZIONE – Casa Granata Humanitas
 
@@ -48,7 +58,7 @@ RIEPILOGO SOGGIORNO
 ${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}
 Notti: *${notti}*
 
-💶 Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
+${paymentLine}
 
 *Appena le sarà possibile, la prego di farmi sapere l'orario di arrivo in struttura, per organizzare al meglio la sua accoglienza.*
 
@@ -88,7 +98,7 @@ RIEPILOGO SOGGIORNO
 ${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}
 Notti: *${notti}*
 
-💶 Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
+${paymentLine}
 
 Per qualsiasi domanda resto a Sua disposizione.
 
@@ -190,6 +200,8 @@ export default function BookingDetail() {
         num_guests: b.num_guests, extra_bed: b.extra_bed, extra_bed_dates: b.extra_bed_dates || (b.extra_bed ? getDaysBetween(b.check_in, b.check_out) : []), price_per_night: Number(b.price_per_night),
         notes: b.notes || '',
         color: b.color || '',
+        bonifico: b.bonifico || false,
+        pagato: b.pagato || false,
         guest_name: b.guests?.full_name || '',
         guest_phone: b.guests?.phone || '',
         guest_email: b.guests?.email || '',
@@ -237,6 +249,8 @@ export default function BookingDetail() {
       check_in_time: editForm.check_in_time || null,
       notes: editForm.notes || null,
       color: editForm.color || null,
+      bonifico: editForm.bonifico || false,
+      pagato: editForm.pagato || false,
       updated_at: new Date().toISOString(),
     }
     await supabase.from('bookings').update(updates).eq('id', id)
@@ -459,6 +473,28 @@ export default function BookingDetail() {
             </div>
           </div>
 
+          <div className="flex items-center justify-between bg-blue-50 rounded-lg p-3 mb-2 border border-blue-100">
+            <div>
+              <p className="text-sm font-semibold text-blue-800">🏦 Pagamento tramite bonifico</p>
+              <p className="text-xs text-blue-600">La conferma includerà l'IBAN</p>
+            </div>
+            <button onClick={() => setEditForm({ ...editForm, bonifico: !editForm.bonifico })}
+              className={`w-12 h-6 rounded-full transition-colors ${editForm.bonifico ? 'bg-blue-600' : 'bg-gray-200'}`}>
+              <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.bonifico ? 'translate-x-6' : ''}`} />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between bg-sky-50 rounded-lg p-3 mb-3 border border-sky-100">
+            <div>
+              <p className="text-sm font-semibold text-sky-800">✅ Pagato</p>
+              <p className="text-xs text-sky-600">Segna come pagamento ricevuto</p>
+            </div>
+            <button onClick={() => setEditForm({ ...editForm, pagato: !editForm.pagato })}
+              className={`w-12 h-6 rounded-full transition-colors ${editForm.pagato ? 'bg-sky-500' : 'bg-gray-200'}`}>
+              <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.pagato ? 'translate-x-6' : ''}`} />
+            </button>
+          </div>
+
           {calcNotti(editForm.check_in, editForm.check_out) > 0 && (
             <div className="bg-blue-50 rounded-lg p-3 mb-3 text-sm">
               <p className="text-gray-600">{calcNotti(editForm.check_in, editForm.check_out)} notti × €{editForm.price_per_night}</p>
@@ -511,6 +547,11 @@ export default function BookingDetail() {
               🛏 Letto aggiuntivo: +€{Number(booking.extra_bed_total).toFixed(0)} totale
             </div>
           )}
+          {booking.bonifico && (
+            <div className={`rounded-lg p-2 text-sm mb-2 ${booking.pagato ? 'bg-sky-100 text-sky-800' : 'bg-blue-100 text-blue-800'}`}>
+              🏦 Bonifico{booking.pagato ? ' – ✅ Pagato' : ' – in attesa di pagamento'}
+            </div>
+          )}
           {booking.notes && <p className="text-sm text-gray-600 italic">📝 {booking.notes}</p>}
           {booking.status === 'annullata' && booking.cancelled_reason && (
             <p className="text-sm text-red-500 mt-2">Motivo: {booking.cancelled_reason}</p>
@@ -541,6 +582,16 @@ export default function BookingDetail() {
             <p className="text-sm font-semibold mt-1">{RATING_LABEL[guest.rating]}</p>
           )}
         </div>
+      )}
+
+      {/* Quick pagato toggle */}
+      {!editing && booking.bonifico && !booking.pagato && booking.status !== 'annullata' && (
+        <button onClick={async () => {
+          await supabase.from('bookings').update({ pagato: true }).eq('id', id)
+          setBooking({ ...booking, pagato: true })
+        }} className="w-full bg-sky-500 text-white rounded-xl py-3 font-semibold mb-4">
+          ✅ Segna come pagato
+        </button>
       )}
 
       {/* Azioni */}

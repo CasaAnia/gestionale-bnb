@@ -132,6 +132,8 @@ export default function Calendario() {
   }
 
   function getDayColor(booking: any, dateStr: string): string {
+    if (booking.pagato) return '#38bdf8'
+    if (booking.bonifico) return '#2563eb'
     const extraDays = getExtraBedDays(booking)
     if (extraDays.size === 0 && booking.color) return booking.color
     if (!extraDays.has(dateStr)) return booking.color || '#22c55e'
