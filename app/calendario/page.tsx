@@ -112,10 +112,36 @@ export default function Calendario() {
 
   const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
 
+  function getExtraBedDays(booking: any): Set<string> {
+    if (booking.extra_bed_dates && booking.extra_bed_dates.length > 0) return new Set(booking.extra_bed_dates)
+    if (booking.extra_bed) {
+      const days = new Set<string>()
+      const d = strToDate(booking.check_in)
+      const end = strToDate(booking.check_out)
+      while (d < end) { days.add(toStr(d)); d.setDate(d.getDate() + 1) }
+      return days
+    }
+    return new Set()
+  }
+
+  const extraBedsMap = new Map<string, number>()
+  for (const b of bookings) {
+    const extraDays = getExtraBedDays(b)
+    const contrib = b.room_id === LENA_ID && b.num_guests >= 4 ? 2 : 1
+    for (const day of extraDays) extraBedsMap.set(day, (extraBedsMap.get(day) || 0) + contrib)
+  }
+
+  function getDayColor(booking: any, dateStr: string): string {
+    if (booking.color) return booking.color
+    const extraDays = getExtraBedDays(booking)
+    if (!extraDays.has(dateStr)) return '#22c55e'
+    const contrib = booking.room_id === LENA_ID && booking.num_guests >= 4 ? 2 : 1
+    const others = (extraBedsMap.get(dateStr) || 0) - contrib
+    return others >= 2 ? '#1f2937' : '#ef4444'
+  }
+
   function extraBedsOnDay(dateStr: string) {
-    return bookings
-      .filter(b => b.extra_bed && b.check_in <= dateStr && b.check_out > dateStr)
-      .reduce((sum, b) => sum + (b.room_id === LENA_ID && b.num_guests >= 4 ? 2 : 1), 0)
+    return extraBedsMap.get(dateStr) || 0
   }
 
   const totalW = NAME_W + DAYS_TOTAL * CELL_W
@@ -202,37 +228,51 @@ export default function Calendario() {
                   </div>
 
                   {/* Barre prenotazioni */}
-                  {bookingsForRoom(room.id).map((booking: any) => {
+                  {bookingsForRoom(room.id).flatMap((booking: any) => {
                     const startIdx = Math.max(0, dayIndex(booking.check_in))
                     const endIdx = Math.min(DAYS_TOTAL, dayIndex(booking.check_out))
-                    const barWidth = (endIdx - startIdx) * CELL_W
-                    if (barWidth <= 0) return null
+                    if (endIdx - startIdx <= 0) return []
                     const guestName = booking.guests?.full_name || booking.guests?.phone || ''
-                    const barColor = booking.color || (booking.extra_bed ? '#ef4444' : '#22c55e')
 
-                    return (
-                      <div key={booking.id}
-                        onClick={() => router.push(`/prenotazioni/${booking.id}`)}
-                        style={{
-                          position: 'absolute',
-                          top: rowTop + 6,
-                          left: NAME_W + startIdx * CELL_W + 1,
-                          width: barWidth - 2,
-                          height: ROW_H - 12,
-                          background: barColor,
-                          borderRadius: 6,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          overflow: 'hidden',
-                          zIndex: 5,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-                        }}>
-                        <span style={{ color: 'white', fontSize: isDesktop ? 14 : 11, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {booking.extra_bed ? '🛏 ' : ''}{guestName}
-                        </span>
-                      </div>
-                    )
+                    const segments: { start: number, end: number, color: string }[] = []
+                    let curColor = '', segStart = startIdx
+                    for (let i = startIdx; i < endIdx; i++) {
+                      const color = getDayColor(booking, toStr(addDays(startDate, i)))
+                      if (color !== curColor) {
+                        if (curColor) segments.push({ start: segStart, end: i, color: curColor })
+                        curColor = color; segStart = i
+                      }
+                    }
+                    if (curColor) segments.push({ start: segStart, end: endIdx, color: curColor })
+
+                    return segments.map((seg, si) => {
+                      const isFirst = si === 0, isLast = si === segments.length - 1
+                      return (
+                        <div key={`${booking.id}-${si}`}
+                          onClick={() => router.push(`/prenotazioni/${booking.id}`)}
+                          style={{
+                            position: 'absolute',
+                            top: rowTop + 6,
+                            left: NAME_W + seg.start * CELL_W + (isFirst ? 1 : 0),
+                            width: (seg.end - seg.start) * CELL_W - (isFirst ? 1 : 0) - (isLast ? 1 : 0),
+                            height: ROW_H - 12,
+                            background: seg.color,
+                            borderRadius: isFirst && isLast ? 6 : isFirst ? '6px 0 0 6px' : isLast ? '0 6px 6px 0' : 0,
+                            cursor: 'pointer',
+                            display: isFirst ? 'flex' : 'block',
+                            alignItems: 'center',
+                            overflow: 'hidden',
+                            zIndex: 5,
+                            boxShadow: isFirst ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+                          }}>
+                          {isFirst && (
+                            <span style={{ color: 'white', fontSize: isDesktop ? 14 : 11, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {guestName}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })
                   })}
                 </div>
               )

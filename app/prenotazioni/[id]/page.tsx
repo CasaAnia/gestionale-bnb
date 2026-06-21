@@ -134,6 +134,22 @@ export default function BookingDetail() {
   const [cancelReason, setCancelReason] = useState('')
   const [conflitto, setConflitto] = useState<string | null>(null)
   const [lettiOccupati, setLettiOccupati] = useState(0)
+  const [extraBedsPerDay, setExtraBedsPerDay] = useState<Record<string, number>>({})
+  const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
+
+  function getDaysBetween(checkIn: string, checkOut: string): string[] {
+    if (!checkIn || !checkOut) return []
+    const days: string[] = []
+    const [sy, sm, sd] = checkIn.split('-').map(Number)
+    const [ey, em, ed] = checkOut.split('-').map(Number)
+    const d = new Date(sy, sm - 1, sd)
+    const end = new Date(ey, em - 1, ed)
+    while (d < end) {
+      days.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`)
+      d.setDate(d.getDate() + 1)
+    }
+    return days
+  }
 
   async function checkDisponibilita(room_id: string, check_in: string, check_out: string) {
     if (!room_id || !check_in || !check_out) return
@@ -143,7 +159,7 @@ export default function BookingDetail() {
         .eq('room_id', room_id).neq('status', 'annullata').neq('id', id)
         .lt('check_in', check_out).gt('check_out', check_in),
       supabase.from('bookings')
-        .select('id, room_id, num_guests').eq('extra_bed', true).neq('status', 'annullata').neq('id', id)
+        .select('id, room_id, num_guests, extra_bed_dates, check_in, check_out').eq('extra_bed', true).neq('status', 'annullata').neq('id', id)
         .lt('check_in', check_out).gt('check_out', check_in),
     ])
     if (conf && conf.length > 0) {
@@ -152,9 +168,14 @@ export default function BookingDetail() {
     } else {
       setConflitto(null)
     }
-    const lettiCount = (letti || []).reduce((sum: number, b: any) =>
-      sum + (b.room_id === '19ae4611-c0a4-42ae-8530-210f9a948e9e' && b.num_guests >= 4 ? 2 : 1), 0)
-    setLettiOccupati(lettiCount)
+    const perDay: Record<string, number> = {}
+    for (const b of letti || []) {
+      const bDays = b.extra_bed_dates?.length > 0 ? b.extra_bed_dates : getDaysBetween(b.check_in, b.check_out)
+      const contrib = b.room_id === LENA_ID && b.num_guests >= 4 ? 2 : 1
+      for (const day of bDays) perDay[day] = (perDay[day] || 0) + contrib
+    }
+    setExtraBedsPerDay(perDay)
+    setLettiOccupati(Math.max(0, ...Object.values(perDay), 0))
   }
 
   useEffect(() => {
@@ -166,7 +187,7 @@ export default function BookingDetail() {
       setEditForm(b ? {
         room_id: b.room_id, check_in: b.check_in, check_out: b.check_out,
         check_in_time: b.check_in_time || '',
-        num_guests: b.num_guests, extra_bed: b.extra_bed, price_per_night: Number(b.price_per_night),
+        num_guests: b.num_guests, extra_bed: b.extra_bed, extra_bed_dates: b.extra_bed_dates || (b.extra_bed ? getDaysBetween(b.check_in, b.check_out) : []), price_per_night: Number(b.price_per_night),
         notes: b.notes || '',
         color: b.color || '',
         guest_name: b.guests?.full_name || '',
@@ -192,22 +213,24 @@ export default function BookingDetail() {
     const n = calcNotti(editForm.check_in, editForm.check_out)
     if (n <= 0) return 0
     const room = rooms.find(r => r.id === editForm.room_id)
-    const extraBedTotal = editForm.extra_bed && room ? Number(room.extra_bed_price) * n : 0
+    const ebDays = editForm.extra_bed_dates?.length || 0
+    const extraBedTotal = room && ebDays > 0 ? Number(room.extra_bed_price) * ebDays : 0
     return Number(editForm.price_per_night) * n + extraBedTotal
   }
 
   async function saveEdit() {
     setSaving(true)
-    const n = calcNotti(editForm.check_in, editForm.check_out)
     const room = rooms.find(r => r.id === editForm.room_id)
-    const extraBedTotal = editForm.extra_bed && room ? Number(room.extra_bed_price) * n : 0
+    const ebDays = editForm.extra_bed_dates?.length || 0
+    const extraBedTotal = room && ebDays > 0 ? Number(room.extra_bed_price) * ebDays : 0
     const total = calcTotal()
     const updates = {
       room_id: editForm.room_id,
       check_in: editForm.check_in,
       check_out: editForm.check_out,
       num_guests: editForm.num_guests,
-      extra_bed: editForm.extra_bed,
+      extra_bed: (editForm.extra_bed_dates?.length || 0) > 0,
+      extra_bed_dates: editForm.extra_bed_dates || [],
       price_per_night: editForm.price_per_night,
       extra_bed_total: extraBedTotal,
       total_amount: total,
@@ -340,7 +363,8 @@ export default function BookingDetail() {
                 const autoPrice = room?.double_price
                   ? (room.has_extra_bed ? (n >= 3 ? Number(room.double_price) : Number(room.base_price)) : (n >= 2 ? Number(room.double_price) : Number(room.base_price)))
                   : (room ? Number(room.base_price) : editForm.price_per_night)
-                setEditForm({ ...editForm, num_guests: n, extra_bed: autoLetto, price_per_night: autoPrice })
+                const autoDates = autoLetto ? getDaysBetween(editForm.check_in, editForm.check_out) : []
+                setEditForm({ ...editForm, num_guests: n, extra_bed: autoLetto, extra_bed_dates: autoDates, price_per_night: autoPrice })
               }} className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
             </div>
             <div>
@@ -357,18 +381,43 @@ export default function BookingDetail() {
                   <p className="text-sm font-semibold text-orange-800">🛏 Letto aggiuntivo</p>
                   <p className="text-xs text-orange-600">+€{selectedRoom.extra_bed_price}/notte</p>
                 </div>
-                <button onClick={() => setEditForm({ ...editForm, extra_bed: !editForm.extra_bed })}
+                <button onClick={() => {
+                  const newVal = !editForm.extra_bed
+                  setEditForm({ ...editForm, extra_bed: newVal, extra_bed_dates: newVal ? getDaysBetween(editForm.check_in, editForm.check_out) : [] })
+                }}
                   className={`w-12 h-6 rounded-full transition-colors ${editForm.extra_bed ? 'bg-orange-500' : 'bg-gray-200'}`}>
                   <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.extra_bed ? 'translate-x-6' : ''}`} />
                 </button>
               </div>
-              {lettiOccupati >= 2 && (
-                <p className="text-xs text-red-600 font-semibold mb-3 px-1">⚠️ Entrambi i letti aggiuntivi sono già occupati in queste date</p>
+              {editForm.extra_bed && editForm.check_in && editForm.check_out && (
+                <div className="mt-2 mb-1">
+                  <p className="text-xs text-gray-500 mb-1.5">Seleziona i giorni con letto extra:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {getDaysBetween(editForm.check_in, editForm.check_out).map((day: string) => {
+                      const [y, m, d] = day.split('-').map(Number)
+                      const date = new Date(y, m - 1, d)
+                      const isSelected = (editForm.extra_bed_dates || []).includes(day)
+                      const thisContrib = editForm.room_id === LENA_ID && editForm.num_guests >= 4 ? 2 : 1
+                      const othersOnDay = extraBedsPerDay[day] || 0
+                      const isBlocked = othersOnDay + thisContrib > 2
+                      return (
+                        <button key={day} disabled={isBlocked && !isSelected}
+                          onClick={() => {
+                            const dates = isSelected
+                              ? (editForm.extra_bed_dates || []).filter((x: string) => x !== day)
+                              : [...(editForm.extra_bed_dates || []), day]
+                            setEditForm({ ...editForm, extra_bed_dates: dates })
+                          }}
+                          className="px-2 py-1 rounded text-xs font-semibold border transition-colors"
+                          style={{ background: isBlocked ? '#1f2937' : isSelected ? '#ef4444' : 'white', color: isBlocked || isSelected ? 'white' : '#6b7280', borderColor: isBlocked ? '#1f2937' : isSelected ? '#ef4444' : '#e5e7eb', opacity: isBlocked && !isSelected ? 0.6 : 1 }}>
+                          {date.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
               )}
-              {lettiOccupati === 1 && !editForm.extra_bed && (
-                <p className="text-xs text-orange-600 mb-3 px-1">⚠️ 1 letto aggiuntivo già occupato in queste date</p>
-              )}
-              {(lettiOccupati === 0 || (lettiOccupati === 1 && editForm.extra_bed)) && <div className="mb-3" />}
+              <div className="mb-3" />
             </>
           )}
 
@@ -423,7 +472,7 @@ export default function BookingDetail() {
             </div>
           )}
 
-          <button onClick={saveEdit} disabled={saving || !!conflitto || (editForm.extra_bed && lettiOccupati + (editForm.room_id === '19ae4611-c0a4-42ae-8530-210f9a948e9e' && editForm.num_guests >= 4 ? 2 : 1) > 2)}
+          <button onClick={saveEdit} disabled={saving || !!conflitto || ((editForm.extra_bed_dates?.length > 0) && (editForm.extra_bed_dates || []).some((day: string) => { const contrib = editForm.room_id === LENA_ID && editForm.num_guests >= 4 ? 2 : 1; return (extraBedsPerDay[day] || 0) + contrib > 2 }))}
             className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
             {saving ? 'Salvataggio...' : '💾 Salva modifiche'}
           </button>
