@@ -200,7 +200,13 @@ export default function BookingDetail() {
     const phone = booking.guests?.phone?.replace(/\D/g, '')
     const msg = buildWhatsappMsg(booking, type)
     supabase.from('booking_whatsapp_log').insert({ booking_id: id, message_type: type, message_text: msg, sent: false })
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+    const a = document.createElement('a')
+    a.href = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+    a.target = '_blank'
+    a.rel = 'noopener'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
   }
 
   if (loading) return <div className="p-4 text-center py-10 text-gray-400">Caricamento...</div>
