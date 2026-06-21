@@ -103,6 +103,7 @@ export default function BookingDetail() {
         .lt('check_in', check_out).gt('check_out', check_in),
       supabase.from('bookings')
         .select('id').eq('extra_bed', true).neq('status', 'annullata').neq('id', id)
+        .neq('room_id', '19ae4611-c0a4-42ae-8530-210f9a948e9e')
         .lt('check_in', check_out).gt('check_out', check_in),
     ])
     if (conf && conf.length > 0) {
