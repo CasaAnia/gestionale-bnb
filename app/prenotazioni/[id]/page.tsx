@@ -110,6 +110,8 @@ PRENOTAZIONE ANNULLATA
 🛏️ Camera: ${room}
 Notti: *${notti}*
 
+💶 Importo totale: *€ ${totale}* – pagamento all'arrivo.
+
 Restiamo a disposizione per qualsiasi domanda o per una nuova prenotazione.
 
 📱 342 700 4345 (anche WhatsApp)
