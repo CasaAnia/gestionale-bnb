@@ -63,7 +63,7 @@ function NuovaPrenotazione() {
 
   function calcTotal() {
     if (!form.check_in || !form.check_out) return 0
-    const notti = Math.round((new Date(form.check_out).getTime() - new Date(form.check_in).getTime()) / 86400000)
+    const notti = Math.round((parseDate(form.check_out).getTime() - parseDate(form.check_in).getTime()) / 86400000)
     if (notti <= 0) return 0
     const room = rooms.find(r => r.id === form.room_id)
     const extraBedTotal = form.extra_bed && room ? Number(room.extra_bed_price) * notti : 0
@@ -72,14 +72,16 @@ function NuovaPrenotazione() {
 
   function extraBedTotal() {
     if (!form.extra_bed || !form.check_in || !form.check_out) return 0
-    const notti = Math.round((new Date(form.check_out).getTime() - new Date(form.check_in).getTime()) / 86400000)
+    const notti = Math.round((parseDate(form.check_out).getTime() - parseDate(form.check_in).getTime()) / 86400000)
     const room = rooms.find(r => r.id === form.room_id)
     return room ? Number(room.extra_bed_price) * notti : 0
   }
 
+  function parseDate(s: string) { return new Date(s.replace(/-/g, '/')) }
+
   function notti() {
     if (!form.check_in || !form.check_out) return 0
-    return Math.round((new Date(form.check_out).getTime() - new Date(form.check_in).getTime()) / 86400000)
+    return Math.round((parseDate(form.check_out).getTime() - parseDate(form.check_in).getTime()) / 86400000)
   }
 
   async function checkDisponibilita(room_id: string, check_in: string, check_out: string) {
