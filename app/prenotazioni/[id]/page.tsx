@@ -422,7 +422,7 @@ export default function BookingDetail() {
       {!editing && booking.guests?.phone && (() => {
         const phone = booking.guests.phone.replace(/\D/g, '')
         const waLink = (type: 'conferma' | 'modifica' | 'annullamento') =>
-          `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsappMsg(booking, type))}`
+          `whatsapp://send?phone=${phone}&text=${encodeURIComponent(buildWhatsappMsg(booking, type))}`
         return (
           <div className="bg-green-50 rounded-xl p-4 border border-green-100 mb-4">
             <p className="font-semibold text-green-800 mb-2">💬 Invia WhatsApp</p>
