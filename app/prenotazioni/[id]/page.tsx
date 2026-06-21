@@ -98,7 +98,24 @@ A presto,
 Ania
 Casa Granata Humanitas`
   }
-  return `Buongiorno ${name}.\nCi dispiace informarla che la prenotazione del ${cinF} presso ${room} è stata annullata.\nResti a disposizione per eventuali chiarimenti.\nCasa Granata Humanitas`
+  return `CANCELLAZIONE PRENOTAZIONE – Casa Granata Humanitas
+
+Gentile *${name}*,
+la informiamo che la sua prenotazione presso Casa Granata Humanitas è stata annullata.
+
+PRENOTAZIONE ANNULLATA
+📅 Check-in: *${cinF}*
+📅 Check-out: *${coutF}*
+👥 Ospiti: ${ospiti}
+🛏️ Camera: ${room}
+
+Restiamo a disposizione per qualsiasi domanda o per una nuova prenotazione.
+
+📱 342 700 4345 (anche WhatsApp)
+
+Cordiali saluti,
+Ania
+Casa Granata Humanitas`
 }
 
 export default function BookingDetail() {
