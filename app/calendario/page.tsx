@@ -113,9 +113,9 @@ export default function Calendario() {
   const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
 
   function extraBedsOnDay(dateStr: string) {
-    return bookings.filter(b =>
-      b.extra_bed && b.room_id !== LENA_ID && b.check_in <= dateStr && b.check_out > dateStr
-    ).length
+    return bookings
+      .filter(b => b.extra_bed && b.check_in <= dateStr && b.check_out > dateStr)
+      .reduce((sum, b) => sum + (b.room_id === LENA_ID && b.num_guests >= 4 ? 2 : 1), 0)
   }
 
   const totalW = NAME_W + DAYS_TOTAL * CELL_W

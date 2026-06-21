@@ -102,8 +102,7 @@ export default function BookingDetail() {
         .eq('room_id', room_id).neq('status', 'annullata').neq('id', id)
         .lt('check_in', check_out).gt('check_out', check_in),
       supabase.from('bookings')
-        .select('id').eq('extra_bed', true).neq('status', 'annullata').neq('id', id)
-        .neq('room_id', '19ae4611-c0a4-42ae-8530-210f9a948e9e')
+        .select('id, room_id, num_guests').eq('extra_bed', true).neq('status', 'annullata').neq('id', id)
         .lt('check_in', check_out).gt('check_out', check_in),
     ])
     if (conf && conf.length > 0) {
@@ -112,7 +111,9 @@ export default function BookingDetail() {
     } else {
       setConflitto(null)
     }
-    setLettiOccupati(letti?.length || 0)
+    const lettiCount = (letti || []).reduce((sum: number, b: any) =>
+      sum + (b.room_id === '19ae4611-c0a4-42ae-8530-210f9a948e9e' && b.num_guests >= 4 ? 2 : 1), 0)
+    setLettiOccupati(lettiCount)
   }
 
   useEffect(() => {
