@@ -381,7 +381,7 @@ export default function BookingDetail() {
             </div>
           )}
 
-          <button onClick={saveEdit} disabled={saving || !!conflitto}
+          <button onClick={saveEdit} disabled={saving || !!conflitto || (editForm.extra_bed && lettiOccupati + (editForm.room_id === '19ae4611-c0a4-42ae-8530-210f9a948e9e' && editForm.num_guests >= 4 ? 2 : 1) > 2)}
             className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
             {saving ? 'Salvataggio...' : '💾 Salva modifiche'}
           </button>

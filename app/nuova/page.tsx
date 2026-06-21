@@ -345,7 +345,7 @@ function NuovaPrenotazione() {
             </div>
           )}
 
-          <button onClick={save} disabled={saving || !form.room_id || !form.check_in || !form.check_out || notti() <= 0 || !!conflitto}
+          <button onClick={save} disabled={saving || !form.room_id || !form.check_in || !form.check_out || notti() <= 0 || !!conflitto || (form.extra_bed && lettiOccupati + (form.room_id === '19ae4611-c0a4-42ae-8530-210f9a948e9e' && form.num_guests >= 4 ? 2 : 1) > 2)}
             className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
             {saving ? 'Salvataggio...' : '✅ Salva prenotazione'}
           </button>
