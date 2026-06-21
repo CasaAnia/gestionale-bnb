@@ -202,6 +202,10 @@ export default function BookingDetail() {
         color: b.color || '',
         bonifico: b.bonifico || false,
         pagato: b.pagato || false,
+        extra_phone_1: b.extra_phone_1 || '',
+        extra_phone_1_name: b.extra_phone_1_name || '',
+        extra_phone_2: b.extra_phone_2 || '',
+        extra_phone_2_name: b.extra_phone_2_name || '',
         guest_name: b.guests?.full_name || '',
         guest_phone: b.guests?.phone || '',
         guest_email: b.guests?.email || '',
@@ -251,6 +255,10 @@ export default function BookingDetail() {
       color: editForm.color || null,
       bonifico: editForm.bonifico || false,
       pagato: editForm.pagato || false,
+      extra_phone_1: editForm.extra_phone_1 || null,
+      extra_phone_1_name: editForm.extra_phone_1_name || null,
+      extra_phone_2: editForm.extra_phone_2 || null,
+      extra_phone_2_name: editForm.extra_phone_2_name || null,
       updated_at: new Date().toISOString(),
     }
     await supabase.from('bookings').update(updates).eq('id', id)
@@ -331,6 +339,22 @@ export default function BookingDetail() {
               <input value={editForm.guest_email} onChange={e => setEditForm({ ...editForm, guest_email: e.target.value })}
                 placeholder="email@..." className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
             </div>
+          </div>
+
+          <p className="text-xs text-gray-500 mb-1">📞 Contatto 2 (ospite in struttura)</p>
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <input value={editForm.extra_phone_1} onChange={e => setEditForm({ ...editForm, extra_phone_1: e.target.value })}
+              placeholder="+39..." className="w-full border border-gray-200 rounded-lg p-2 text-sm" type="tel" />
+            <input value={editForm.extra_phone_1_name} onChange={e => setEditForm({ ...editForm, extra_phone_1_name: e.target.value })}
+              placeholder="Nome (es. papà)" className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+          </div>
+
+          <p className="text-xs text-gray-500 mb-1">📞 Contatto 3</p>
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <input value={editForm.extra_phone_2} onChange={e => setEditForm({ ...editForm, extra_phone_2: e.target.value })}
+              placeholder="+39..." className="w-full border border-gray-200 rounded-lg p-2 text-sm" type="tel" />
+            <input value={editForm.extra_phone_2_name} onChange={e => setEditForm({ ...editForm, extra_phone_2_name: e.target.value })}
+              placeholder="Nome (opzionale)" className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
           </div>
 
           <p className="text-xs text-gray-500 mb-1">Camera</p>
@@ -580,6 +604,12 @@ export default function BookingDetail() {
           {guest?.email && <p className="text-sm text-gray-600">✉️ {guest.email}</p>}
           {guest?.rating && guest.rating !== 'normale' && (
             <p className="text-sm font-semibold mt-1">{RATING_LABEL[guest.rating]}</p>
+          )}
+          {booking.extra_phone_1 && (
+            <p className="text-sm text-gray-600 mt-1">📞 {booking.extra_phone_1}{booking.extra_phone_1_name ? ` – ${booking.extra_phone_1_name}` : ''}</p>
+          )}
+          {booking.extra_phone_2 && (
+            <p className="text-sm text-gray-600">📞 {booking.extra_phone_2}{booking.extra_phone_2_name ? ` – ${booking.extra_phone_2_name}` : ''}</p>
           )}
         </div>
       )}

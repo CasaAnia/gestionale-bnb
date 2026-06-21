@@ -70,16 +70,33 @@ function NuovaPrenotazione() {
   async function searchPhone() {
     if (!phone.trim()) return
     setSearchLoading(true)
-    const { data: existingGuest } = await supabase.from('guests').select('*').eq('phone', phone.trim()).single()
+    const t = phone.trim()
+    const { data: existingGuest } = await supabase.from('guests').select('*').eq('phone', t).single()
     if (existingGuest) {
       setGuest(existingGuest)
       setGuestForm({ full_name: existingGuest.full_name || '', email: existingGuest.email || '', rating: existingGuest.rating })
       const { data: history } = await supabase.from('bookings').select('*, rooms(name)').eq('guest_id', existingGuest.id).order('check_in', { ascending: false })
       setGuestHistory(history || [])
     } else {
-      setGuest(null)
-      setGuestForm({ full_name: '', email: '', rating: 'normale' })
-      setGuestHistory([])
+      // cerca nei contatti extra delle prenotazioni
+      const { data: extraMatch } = await supabase.from('bookings')
+        .select('*, guests(*)')
+        .or(`extra_phone_1.eq.${t},extra_phone_2.eq.${t}`)
+        .neq('status', 'annullata')
+        .order('check_in', { ascending: false })
+        .limit(1)
+        .single()
+      if (extraMatch?.guests) {
+        const g = extraMatch.guests
+        setGuest(g)
+        setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
+        const { data: history } = await supabase.from('bookings').select('*, rooms(name)').eq('guest_id', g.id).order('check_in', { ascending: false })
+        setGuestHistory(history || [])
+      } else {
+        setGuest(null)
+        setGuestForm({ full_name: '', email: '', rating: 'normale' })
+        setGuestHistory([])
+      }
     }
     setSearchLoading(false)
     setStep('cliente')
