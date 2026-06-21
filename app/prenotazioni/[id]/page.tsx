@@ -112,7 +112,7 @@ Notti: *${notti}*
 
 💶 Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
 
-Restiamo a disposizione per qualsiasi domanda o per una nuova prenotazione.
+Per qualsiasi chiarimento restiamo a Sua completa disposizione e saremo lieti di accoglierla in futuro.
 
 📱 342 700 4345 (anche WhatsApp)
 
