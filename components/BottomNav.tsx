@@ -2,14 +2,25 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-const navItems = [
+const mobileNavItems = [
   { href: '/', label: 'Home', icon: '🏠' },
   { href: '/calendario', label: 'Calendario', icon: '📅' },
+  { href: '/prenotazioni', label: 'Prenot.', icon: '📋' },
   { href: '/nuova', label: 'Nuova', icon: '➕' },
   { href: '/clienti', label: 'Clienti', icon: '👤' },
   { href: '/spese', label: 'Spese', icon: '💶' },
-  { href: '/statistiche', label: 'Stats', icon: '📊' },
   { href: '/impostazioni', label: 'Impost.', icon: '⚙️' },
+]
+
+const desktopNavItems = [
+  { href: '/', label: 'Home', icon: '🏠' },
+  { href: '/calendario', label: 'Calendario', icon: '📅' },
+  { href: '/prenotazioni', label: 'Prenotazioni', icon: '📋' },
+  { href: '/nuova', label: 'Nuova', icon: '➕' },
+  { href: '/clienti', label: 'Clienti', icon: '👤' },
+  { href: '/spese', label: 'Spese', icon: '💶' },
+  { href: '/statistiche', label: 'Statistiche', icon: '📊' },
+  { href: '/impostazioni', label: 'Impostazioni', icon: '⚙️' },
 ]
 
 export default function BottomNav() {
@@ -19,7 +30,7 @@ export default function BottomNav() {
       {/* Mobile: barra in basso */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
         <div className="flex justify-around items-center h-16 max-w-lg mx-auto px-1">
-          {navItems.map(item => {
+          {mobileNavItems.map(item => {
             const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
             return (
               <Link key={item.href} href={item.href}
@@ -37,7 +48,7 @@ export default function BottomNav() {
         <div className="px-4 mb-6">
           <p className="font-bold text-gray-800 text-sm">Casa Ania Rozzano</p>
         </div>
-        {navItems.map(item => {
+        {desktopNavItems.map(item => {
           const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
           return (
             <Link key={item.href} href={item.href}
