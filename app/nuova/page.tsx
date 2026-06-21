@@ -93,14 +93,15 @@ function NuovaPrenotazione() {
   async function checkDisponibilita(room_id: string, check_in: string, check_out: string) {
     if (!room_id || !check_in || !check_out) return
     const { data } = await supabase.from('bookings')
-      .select('id, check_in, check_out, guests(full_name)')
+      .select('id, check_in, check_out, rooms(name), guests(full_name)')
       .eq('room_id', room_id)
       .neq('status', 'annullata')
       .lt('check_in', check_out)
       .gt('check_out', check_in)
     if (data && data.length > 0) {
       const b = data[0] as any
-      setConflitto(`⚠️ Camera già occupata dal ${b.check_in} al ${b.check_out} (${b.guests?.full_name || 'altro cliente'})`)
+      const roomName = b.rooms?.name || 'Camera'
+      setConflitto(`⚠️ ${roomName} già occupata dal ${b.check_in} al ${b.check_out} (${b.guests?.full_name || 'altro cliente'})`)
     } else {
       setConflitto(null)
     }
