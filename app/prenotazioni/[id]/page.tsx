@@ -88,7 +88,7 @@ RIEPILOGO SOGGIORNO
 ${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}
 Notti: *${notti}*
 
-💶 Importo totale: *€ ${totale}* – pagamento all'arrivo.
+💶 Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
 
 Per qualsiasi domanda siamo a disposizione.
 
