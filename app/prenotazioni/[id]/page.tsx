@@ -56,9 +56,9 @@ Notti: *${notti}*
 Via Liguria 26 – Fizzonasco, Pieve Emanuele (MI) 20072
 *(A 140 metri dalla palazzina 8 di Humanitas di Rozzano – ortopedia)*
 
-✅ WiFi gratuito (credenziali in camera)
-✅ Ricordarsi documento d'identità valido
-🚭 Fumo solo all'esterno
+• WiFi gratuito (credenziali in camera)
+• Ricordarsi documento d'identità valido
+• Fumo solo all'esterno
 
 📞 CONTATTI
 Per qualsiasi necessità sono sempre disponibile:
