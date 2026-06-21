@@ -75,7 +75,28 @@ Casa Granata Humanitas`
   }
 
   if (type === 'modifica') {
-    return `Buongiorno ${name}! ✏️\nLa sua prenotazione è stata modificata:\n📍 ${room}\n📅 Check-in: ${cinF}\n📅 Check-out: ${coutF} (${notti} notti)\n💶 Totale: €${totale}\nCasa Granata Humanitas`
+    return `MODIFICA PRENOTAZIONE – Casa Granata Humanitas
+
+Gentile *${name}*,
+la informiamo che la sua prenotazione presso Casa Granata Humanitas è stata modificata. Ecco il riepilogo aggiornato:
+
+RIEPILOGO SOGGIORNO
+📅 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
+📅 Check-out: *${coutF}* (entro le ore 10:00)
+👥 Ospiti: ${ospiti}
+🛏️ Camera: ${room}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}
+${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}
+Notti: *${notti}*
+
+💶 Importo totale: *€ ${totale}* – pagamento all'arrivo.
+
+Per qualsiasi domanda siamo a disposizione.
+
+📱 342 700 4345 (anche WhatsApp)
+
+A presto,
+Ania
+Casa Granata Humanitas`
   }
   return `Buongiorno ${name}.\nCi dispiace informarla che la prenotazione del ${cinF} presso ${room} è stata annullata.\nResti a disposizione per eventuali chiarimenti.\nCasa Granata Humanitas`
 }
