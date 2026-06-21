@@ -50,7 +50,7 @@ Notti: *${notti}*
 
 💶 Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
 
-*Appena le sarà possibile, la preghiamo di comunicarci l'orario di arrivo in struttura, per organizzare al meglio la sua accoglienza.*
+*Appena le sarà possibile, la prego di farmi sapere l'orario di arrivo in struttura, per organizzare al meglio la sua accoglienza.*
 
 📍 COME RAGGIUNGERCI
 Via Liguria 26 – Fizzonasco, Pieve Emanuele (MI) 20072
