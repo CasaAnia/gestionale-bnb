@@ -671,9 +671,11 @@ export default function BookingDetail() {
       )}
 
       {/* Azioni */}
-      {!editing && booking.status === 'confermata' && (
+      {!editing && (booking.status === 'confermata' || booking.status === 'completata') && (
         <div className="flex flex-col gap-2 mb-4">
-          <button onClick={markComplete} className="bg-gray-100 text-gray-700 rounded-xl py-3 font-semibold">✓ Segna come completata</button>
+          {booking.status === 'confermata' && (
+            <button onClick={markComplete} className="bg-gray-100 text-gray-700 rounded-xl py-3 font-semibold">✓ Segna come completata</button>
+          )}
           <button onClick={() => setShowCancel(true)} className="bg-red-50 text-red-500 rounded-xl py-3 font-semibold">Annulla prenotazione</button>
         </div>
       )}
