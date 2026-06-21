@@ -45,7 +45,7 @@ RIEPILOGO SOGGIORNO
 📅 Check-out: *${coutF}* (entro le ore 10:00)
 👥 Ospiti: ${ospiti}
 🛏️ Camera: ${room}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}
-${isLena ? '🚿 *Bagno:* privato esterno, chiuso a chiave, a circa 1 metro dalla camera' : (bagno ? `🚿 *Bagno:* ${bagno}` : '')}
+${isLena ? '🚿 *Bagno:* privato esterno, chiuso a chiave, a circa 1 metro dalla camera' : (bagno ? `🚿 Bagno: ${bagno}` : '')}
 Notti: *${notti}*
 
 💶 Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
