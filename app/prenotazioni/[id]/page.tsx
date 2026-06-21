@@ -38,10 +38,10 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
     ? `💶 Importo totale: *€ ${totale}* – pagamento tramite bonifico bancario.
 
 Per completare la prenotazione, la prego di effettuare il bonifico con i seguenti dati:
-🏦 Intestatario: *SAWICKA ANNA JANINA*
-🏛️ Banca: *BANCO BPM*
-💳 IBAN: *IT32P0503401753000000159653*
-📝 Causale: *Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}*`
+Intestatario: *SAWICKA ANNA JANINA*
+Banca: *BANCO BPM*
+IBAN: *IT32P0503401753000000159653*
+Causale: *Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}*`
     : `💶 Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.`
 
   if (type === 'conferma') {
