@@ -132,14 +132,22 @@ export default function Calendario() {
   }
 
   function getDayColor(booking: any, dateStr: string): string {
-    if (booking.pagato) return '#38bdf8'
-    if (booking.bonifico) return '#2563eb'
+    const bonColor = booking.pagato ? '#38bdf8' : booking.bonifico ? '#2563eb' : null
     const extraDays = getExtraBedDays(booking)
-    if (extraDays.size === 0 && booking.color) return booking.color
-    if (!extraDays.has(dateStr)) return booking.color || '#22c55e'
     const contrib = booking.room_id === LENA_ID && booking.num_guests >= 4 ? 2 : 1
+
+    if (!bonColor) {
+      if (extraDays.size === 0 && booking.color) return booking.color
+      if (!extraDays.has(dateStr)) return booking.color || '#22c55e'
+      const others = (extraBedsMap.get(dateStr) || 0) - contrib
+      return others >= 2 ? '#1f2937' : '#ef4444'
+    }
+
+    // bonifico o pagato: stripe se il giorno ha letto aggiuntivo
+    if (!extraDays.has(dateStr)) return bonColor
     const others = (extraBedsMap.get(dateStr) || 0) - contrib
-    return others >= 2 ? '#1f2937' : '#ef4444'
+    const bedColor = others >= 2 ? '#1f2937' : '#ef4444'
+    return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${bonColor} 8px, ${bonColor} 16px)`
   }
 
   function extraBedsOnDay(dateStr: string) {
