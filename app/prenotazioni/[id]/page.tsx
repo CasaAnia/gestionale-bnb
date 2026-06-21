@@ -44,7 +44,7 @@ RIEPILOGO SOGGIORNO
 📅 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
 📅 Check-out: *${coutF}* (entro le ore 10:00)
 👥 Ospiti: ${ospiti}
-🛏️ Camera: ${room}
+🛏️ Camera: ${room}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}
 ${bagno ? (isLena ? `*🚿 Bagno: ${bagno}*` : `🚿 Bagno: ${bagno}`) : ''}
 Notti: *${notti}*
 
