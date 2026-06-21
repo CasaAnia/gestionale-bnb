@@ -46,6 +46,7 @@ function NuovaPrenotazione() {
       if (preselectedRoomId) {
         const room = (data || []).find((r: any) => r.id === preselectedRoomId)
         if (room) setForm(f => ({ ...f, price_per_night: Number(room.base_price) }))
+        if (preselectedCheckIn) checkDisponibilita(preselectedRoomId, preselectedCheckIn, addOneDay(preselectedCheckIn))
       }
     })
   }, [])
@@ -326,6 +327,12 @@ function NuovaPrenotazione() {
           {conflitto && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-sm text-red-700 font-semibold">
               {conflitto}
+            </div>
+          )}
+
+          {lettiOccupati >= 2 && !form.extra_bed && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-sm text-red-700 font-semibold">
+              ⚠️ Entrambi i letti aggiuntivi sono già occupati in queste date
             </div>
           )}
 
