@@ -104,10 +104,11 @@ Gentile *${name}*,
 la informiamo che la sua prenotazione presso Casa Granata Humanitas è stata annullata.
 
 PRENOTAZIONE ANNULLATA
-📅 Check-in: *${cinF}*
-📅 Check-out: *${coutF}*
+📅 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
+📅 Check-out: *${coutF}* (entro le ore 10:00)
 👥 Ospiti: ${ospiti}
 🛏️ Camera: ${room}
+Notti: *${notti}*
 
 Restiamo a disposizione per qualsiasi domanda o per una nuova prenotazione.
 
