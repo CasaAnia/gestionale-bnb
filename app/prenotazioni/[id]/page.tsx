@@ -101,7 +101,7 @@ Casa Granata Humanitas`
   return `CANCELLAZIONE PRENOTAZIONE – Casa Granata Humanitas
 
 Gentile *${name}*,
-la informiamo che la sua prenotazione presso Casa Granata Humanitas è stata annullata.
+la informo che la sua prenotazione presso Casa Granata Humanitas è stata annullata.
 
 PRENOTAZIONE ANNULLATA
 📅 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
@@ -112,7 +112,7 @@ Notti: *${notti}*
 
 💶 Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
 
-Per qualsiasi chiarimento restiamo a Sua completa disposizione e saremo lieti di accoglierla in futuro.
+Per qualsiasi chiarimento resto a Sua completa disposizione e sarò lieta di accoglierla in futuro.
 
 📱 342 700 4345 (anche WhatsApp)
 
