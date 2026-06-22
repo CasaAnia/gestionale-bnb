@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 const mobileNavItems = [
   { href: '/', label: 'Home', icon: '🏠' },
   { href: '/calendario', label: 'Calendario', icon: '📅' },
+  { href: '/arrivi', label: 'Arrivi', icon: '🚪' },
   { href: '/prenotazioni', label: 'Prenot.', icon: '📋' },
   { href: '/nuova', label: 'Nuova', icon: '➕' },
   { href: '/clienti', label: 'Clienti', icon: '👤' },
@@ -15,6 +16,7 @@ const mobileNavItems = [
 const desktopNavItems = [
   { href: '/', label: 'Home', icon: '🏠' },
   { href: '/calendario', label: 'Calendario', icon: '📅' },
+  { href: '/arrivi', label: 'Arrivi', icon: '🚪' },
   { href: '/prenotazioni', label: 'Prenotazioni', icon: '📋' },
   { href: '/nuova', label: 'Nuova', icon: '➕' },
   { href: '/clienti', label: 'Clienti', icon: '👤' },
