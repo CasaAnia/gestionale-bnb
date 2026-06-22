@@ -14,7 +14,7 @@ const NAME_W_MOBILE = 72
 const NAME_W_DESKTOP = 120
 const DAYS_TOTAL = 90
 const DAYS_BEFORE = 7
-const HEADER_BG = '#2e7d32'
+const HEADER_BG = '#ffffff'
 
 function addDays(date: Date, n: number) {
   const d = new Date(date)
@@ -136,7 +136,7 @@ export default function Arrivi() {
             {/* ── HEADER MESI ── */}
             <div style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', height: HEADER_MONTH_H, background: HEADER_BG }}>
               <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <button onClick={scrollToToday} style={{ fontSize: 10, fontWeight: 700, color: HEADER_BG, background: 'white', border: 'none', borderRadius: 10, padding: '1px 7px', cursor: 'pointer' }}>Oggi</button>
+                <button onClick={scrollToToday} style={{ fontSize: 10, fontWeight: 700, color: 'white', background: '#16a34a', border: 'none', borderRadius: 10, padding: '1px 7px', cursor: 'pointer' }}>Oggi</button>
               </div>
               {monthGroups.map((mg, i) => (
                 <div key={i} style={{
@@ -145,8 +145,8 @@ export default function Arrivi() {
                   width: mg.count * CELL_W,
                   height: HEADER_MONTH_H,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.9)',
-                  borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.2)' : 'none',
+                  fontSize: 11, fontWeight: 700, color: '#16a34a',
+                  borderLeft: i > 0 ? '1px solid #e5e7eb' : 'none',
                   textTransform: 'capitalize',
                 }}>
                   {mg.label}
@@ -155,24 +155,24 @@ export default function Arrivi() {
             </div>
 
             {/* ── HEADER GIORNI ── */}
-            <div style={{ position: 'sticky', top: HEADER_MONTH_H, zIndex: 30, display: 'flex', height: HEADER_DAY_H, background: HEADER_BG, borderBottom: '2px solid rgba(255,255,255,0.15)' }}>
-              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, borderRight: '1px solid rgba(255,255,255,0.15)' }} />
+            <div style={{ position: 'sticky', top: HEADER_MONTH_H, zIndex: 30, display: 'flex', height: HEADER_DAY_H, background: HEADER_BG, borderBottom: '2px solid #e5e7eb' }}>
+              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, borderRight: '1px solid #e5e7eb' }} />
               {days.map((d, i) => {
                 const isToday = toStr(d) === todayStr
                 const isSun = d.getDay() === 0
                 return (
                   <div key={i} style={{
                     width: CELL_W, minWidth: CELL_W, textAlign: 'center', paddingTop: 4,
-                    background: isToday ? 'rgba(255,255,255,0.2)' : 'transparent',
-                    borderLeft: '1px solid rgba(255,255,255,0.1)',
+                    background: isToday ? '#f0fdf4' : 'transparent',
+                    borderLeft: '1px solid #f3f4f6',
                   }}>
-                    <div style={{ fontSize: isDesktop ? 10 : 8, color: isSun ? '#fca5a5' : 'rgba(255,255,255,0.65)', marginBottom: 2 }}>
+                    <div style={{ fontSize: isDesktop ? 10 : 8, color: isSun ? '#dc2626' : '#9ca3af', marginBottom: 2 }}>
                       {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop ? 3 : 2)}
                     </div>
                     <div style={{
                       fontSize: isDesktop ? 15 : 12, fontWeight: 700,
-                      color: isToday ? HEADER_BG : (isSun ? '#fca5a5' : 'white'),
-                      background: isToday ? 'white' : 'transparent',
+                      color: isToday ? 'white' : (isSun ? '#dc2626' : '#374151'),
+                      background: isToday ? '#16a34a' : 'transparent',
                       borderRadius: '50%',
                       width: isDesktop ? 26 : 20, height: isDesktop ? 26 : 20,
                       lineHeight: isDesktop ? '26px' : '20px',
