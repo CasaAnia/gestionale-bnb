@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -169,6 +169,7 @@ export default function BookingDetail() {
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState<any>({})
   const [saving, setSaving] = useState(false)
+  const timeRef = useRef<HTMLInputElement>(null)
   const [showCancel, setShowCancel] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [conflitto, setConflitto] = useState<string | null>(null)
@@ -279,7 +280,7 @@ export default function BookingDetail() {
       price_per_night: editForm.price_per_night,
       extra_bed_total: extraBedTotal,
       total_amount: total,
-      check_in_time: editForm.check_in_time || null,
+      check_in_time: (timeRef.current?.value || editForm.check_in_time) || null,
       notes: editForm.notes || null,
       color: editForm.color || null,
       bonifico: editForm.bonifico || false,
@@ -416,7 +417,7 @@ export default function BookingDetail() {
 
           <div className="mb-3">
             <p className="text-xs text-gray-500 mb-1">🕐 Orario arrivo (opzionale)</p>
-            <input type="time" defaultValue={editForm.check_in_time}
+            <input type="time" ref={timeRef} defaultValue={editForm.check_in_time}
               onChange={e => setEditForm({ ...editForm, check_in_time: e.target.value })}
               onInput={e => setEditForm({ ...editForm, check_in_time: (e.target as HTMLInputElement).value })}
               className="w-full border border-gray-200 rounded-lg p-2 text-sm" />

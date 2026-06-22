@@ -39,6 +39,7 @@ function NuovaPrenotazione() {
   const [lettiOccupati, setLettiOccupati] = useState(0)
   const [extraBedsPerDay, setExtraBedsPerDay] = useState<Record<string, number>>({})
   const checkOutRef = useRef<HTMLInputElement>(null)
+  const timeRef = useRef<HTMLInputElement>(null)
   const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
 
   function getDaysBetween(checkIn: string, checkOut: string): string[] {
@@ -172,7 +173,7 @@ function NuovaPrenotazione() {
     const ebt = extraBedTotal()
     await supabase.from('bookings').insert({
       room_id: form.room_id, guest_id: guestId, check_in: form.check_in, check_out: form.check_out,
-      check_in_time: form.check_in_time || null,
+      check_in_time: (timeRef.current?.value || form.check_in_time) || null,
       num_guests: form.num_guests, extra_bed: form.extra_bed_dates.length > 0, extra_bed_dates: form.extra_bed_dates, price_per_night: Number(form.price_per_night),
       extra_bed_total: ebt, total_amount: calcTotal(), notes: form.notes || null, status: 'confermata', source: 'diretta',
       bonifico: form.bonifico, pagato: false,
@@ -310,7 +311,7 @@ function NuovaPrenotazione() {
 
             <div className="mb-3">
               <p className="text-sm text-gray-500 mb-1">🕐 Orario arrivo (opzionale)</p>
-              <input type="time" defaultValue={form.check_in_time}
+              <input type="time" ref={timeRef} defaultValue={form.check_in_time}
                 onChange={e => setForm({...form, check_in_time: e.target.value})}
                 onInput={e => setForm({...form, check_in_time: (e.target as HTMLInputElement).value})}
                 className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
