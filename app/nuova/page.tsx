@@ -283,12 +283,22 @@ function NuovaPrenotazione() {
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
                 <p className="text-sm text-gray-500 mb-1">Check-in</p>
-                <input type="date" value={form.check_in} onChange={e => {
-                  const newCheckIn = e.target.value
-                  const newCheckOut = addOneDay(newCheckIn)
-                  setForm({...form, check_in: newCheckIn, check_out: newCheckOut})
-                  checkDisponibilita(form.room_id, newCheckIn, newCheckOut)
-                }} className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+                <input type="date" value={form.check_in}
+                  onChange={e => {
+                    const newCheckIn = e.target.value
+                    if (!newCheckIn) return
+                    const newCheckOut = addOneDay(newCheckIn)
+                    setForm(f => ({ ...f, check_in: newCheckIn, check_out: newCheckOut }))
+                    checkDisponibilita(form.room_id, newCheckIn, newCheckOut)
+                  }}
+                  onInput={e => {
+                    const newCheckIn = (e.target as HTMLInputElement).value
+                    if (!newCheckIn) return
+                    const newCheckOut = addOneDay(newCheckIn)
+                    setForm(f => ({ ...f, check_in: newCheckIn, check_out: newCheckOut }))
+                    checkDisponibilita(form.room_id, newCheckIn, newCheckOut)
+                  }}
+                  className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 mb-1">Check-out</p>
