@@ -231,24 +231,24 @@ export default function Arrivi() {
                           overflow: 'hidden',
                           zIndex: 5,
                           boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                          paddingLeft: 8,
+                          gap: 6,
                         }}>
-                        {/* Pin arrivo sul primo giorno */}
-                        <div style={{
-                          minWidth: CELL_W - 4,
-                          height: '100%',
-                          background: time ? '#15803d' : 'rgba(0,0,0,0.15)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRight: '1px solid rgba(255,255,255,0.2)',
+                        {/* Orario */}
+                        <span style={{
+                          color: 'white',
+                          fontSize: isDesktop ? 13 : 11,
+                          fontWeight: 800,
+                          whiteSpace: 'nowrap',
                           flexShrink: 0,
+                          background: time ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.1)',
+                          borderRadius: 4,
+                          padding: '1px 5px',
                         }}>
-                          <span style={{ color: 'white', fontSize: isDesktop ? 12 : 10, fontWeight: 700 }}>
-                            {time || '?'}
-                          </span>
-                        </div>
-                        {/* Resto della barra */}
-                        <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: isDesktop ? 12 : 10, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {time || '?'}
+                        </span>
+                        {/* Nome */}
+                        <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? 12 : 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {booking.guests?.full_name || booking.guests?.phone || ''}
                         </span>
                       </div>
