@@ -173,7 +173,7 @@ function NuovaPrenotazione() {
     const ebt = extraBedTotal()
     await supabase.from('bookings').insert({
       room_id: form.room_id, guest_id: guestId, check_in: form.check_in, check_out: form.check_out,
-      check_in_time: (timeRef.current?.value || form.check_in_time) || null,
+      check_in_time: form.check_in_time || null,
       num_guests: form.num_guests, extra_bed: form.extra_bed_dates.length > 0, extra_bed_dates: form.extra_bed_dates, price_per_night: Number(form.price_per_night),
       extra_bed_total: ebt, total_amount: calcTotal(), notes: form.notes || null, status: 'confermata', source: 'diretta',
       bonifico: form.bonifico, pagato: false,
@@ -311,9 +311,14 @@ function NuovaPrenotazione() {
 
             <div className="mb-3">
               <p className="text-sm text-gray-500 mb-1">🕐 Orario arrivo (opzionale)</p>
-              <input type="time" ref={timeRef} defaultValue={form.check_in_time}
-                onChange={e => setForm({...form, check_in_time: e.target.value})}
-                onInput={e => setForm({...form, check_in_time: (e.target as HTMLInputElement).value})}
+              <input type="text" inputMode="numeric" placeholder="HH:MM"
+                value={form.check_in_time}
+                onChange={e => {
+                  let v = e.target.value.replace(/[^0-9:]/g, '')
+                  if (v.length === 2 && !v.includes(':') && form.check_in_time.length === 1) v = v + ':'
+                  setForm({...form, check_in_time: v})
+                }}
+                maxLength={5}
                 className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
             </div>
 

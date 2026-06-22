@@ -280,7 +280,7 @@ export default function BookingDetail() {
       price_per_night: editForm.price_per_night,
       extra_bed_total: extraBedTotal,
       total_amount: total,
-      check_in_time: (timeRef.current?.value || editForm.check_in_time) || null,
+      check_in_time: editForm.check_in_time || null,
       notes: editForm.notes || null,
       color: editForm.color || null,
       bonifico: editForm.bonifico || false,
@@ -416,10 +416,15 @@ export default function BookingDetail() {
           </div>
 
           <div className="mb-3">
-            <p className="text-xs text-gray-500 mb-1">🕐 Orario arrivo (opzionale)</p>
-            <input type="time" ref={timeRef} defaultValue={editForm.check_in_time}
-              onChange={e => setEditForm({ ...editForm, check_in_time: e.target.value })}
-              onInput={e => setEditForm({ ...editForm, check_in_time: (e.target as HTMLInputElement).value })}
+            <p className="text-xs text-gray-500 mb-1">🕐 Orario arrivo (es. 15:30)</p>
+            <input type="text" inputMode="numeric" placeholder="HH:MM"
+              value={editForm.check_in_time}
+              onChange={e => {
+                let v = e.target.value.replace(/[^0-9:]/g, '')
+                if (v.length === 2 && !v.includes(':') && editForm.check_in_time.length === 1) v = v + ':'
+                setEditForm({ ...editForm, check_in_time: v })
+              }}
+              maxLength={5}
               className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
           </div>
 

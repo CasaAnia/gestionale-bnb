@@ -92,7 +92,7 @@ export default function Arrivi() {
   async function saveTime() {
     if (!popup) return
     setSavingTime(true)
-    const time = popupTimeRef.current?.value ?? popup.time
+    const time = popup.time
     await supabase.from('bookings').update({ check_in_time: time || null }).eq('id', popup.id)
     setBookings(bookings.map(b => b.id === popup.id ? { ...b, check_in_time: time || null } : b))
     setSavingTime(false)
@@ -281,11 +281,14 @@ export default function Arrivi() {
             <p className="font-bold text-lg mb-1">{popup.name}</p>
             <p className="text-sm text-gray-500 mb-4">Orario di arrivo</p>
             <input
-              ref={popupTimeRef}
-              type="time"
-              defaultValue={popup.time}
-              onChange={e => setPopup({ ...popup, time: e.target.value })}
-              onInput={e => setPopup({ ...popup, time: (e.target as HTMLInputElement).value })}
+              type="text" inputMode="numeric" placeholder="HH:MM"
+              value={popup.time}
+              onChange={e => {
+                let v = e.target.value.replace(/[^0-9:]/g, '')
+                if (v.length === 2 && !v.includes(':') && popup.time.length === 1) v = v + ':'
+                setPopup({ ...popup, time: v })
+              }}
+              maxLength={5}
               className="w-full border border-gray-200 rounded-xl p-3 text-2xl font-bold text-center mb-4"
             />
             <div className="flex gap-2">
