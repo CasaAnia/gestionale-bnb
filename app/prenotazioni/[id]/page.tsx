@@ -685,8 +685,11 @@ export default function BookingDetail() {
       {!editing && booking.guests?.phone && (() => {
         const rawPhone = booking.guests.phone.replace(/\D/g, '')
         const phone = rawPhone.startsWith('39') ? rawPhone : `39${rawPhone}`
+        const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent)
         const waLink = (type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') =>
-          `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsappMsg(booking, type))}`
+          isMobile
+            ? `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsappMsg(booking, type))}`
+            : `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(buildWhatsappMsg(booking, type))}`
         const buttons = (
           <div className="flex flex-col gap-2">
             <a href={waLink('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-500 text-white rounded-lg py-2 text-sm font-semibold">✅ Conferma prenotazione</a>
