@@ -70,7 +70,8 @@ function NuovaPrenotazione() {
   async function searchPhone() {
     if (!phone.trim()) return
     setSearchLoading(true)
-    const t = phone.trim()
+    const raw = phone.trim().replace(/\D/g, '')
+    const t = raw.startsWith('39') ? raw : `39${raw}`
     const { data: existingGuest } = await supabase.from('guests').select('*').eq('phone', t).single()
     if (existingGuest) {
       setGuest(existingGuest)
@@ -155,7 +156,9 @@ function NuovaPrenotazione() {
     setSaving(true)
     let guestId = guest?.id
     if (!guestId) {
-      const { data: newGuest } = await supabase.from('guests').insert({ phone: phone.trim(), full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating }).select().single()
+      const rawP = phone.trim().replace(/\D/g, '')
+      const formattedPhone = rawP.startsWith('39') ? rawP : `39${rawP}`
+      const { data: newGuest } = await supabase.from('guests').insert({ phone: formattedPhone, full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating }).select().single()
       guestId = newGuest?.id
     } else {
       await supabase.from('guests').update({ full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating }).eq('id', guestId)
