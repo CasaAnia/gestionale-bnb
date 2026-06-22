@@ -319,7 +319,8 @@ export default function BookingDetail() {
   }
 
   function sendWhatsapp(type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') {
-    const phone = booking.guests?.phone?.replace(/\D/g, '')
+    const rawPhone = booking.guests?.phone?.replace(/\D/g, '')
+    const phone = rawPhone?.startsWith('39') ? rawPhone : `39${rawPhone}`
     const msg = buildWhatsappMsg(booking, type)
     supabase.from('booking_whatsapp_log').insert({ booking_id: id, message_type: type, message_text: msg, sent: false })
     const a = document.createElement('a')
@@ -682,7 +683,8 @@ export default function BookingDetail() {
 
       {/* WhatsApp */}
       {!editing && booking.guests?.phone && (() => {
-        const phone = booking.guests.phone.replace(/\D/g, '')
+        const rawPhone = booking.guests.phone.replace(/\D/g, '')
+        const phone = rawPhone.startsWith('39') ? rawPhone : `39${rawPhone}`
         const waLink = (type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') =>
           `whatsapp://send?phone=${phone}&text=${encodeURIComponent(buildWhatsappMsg(booking, type))}`
         return (
