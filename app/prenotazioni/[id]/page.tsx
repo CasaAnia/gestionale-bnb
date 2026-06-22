@@ -416,7 +416,9 @@ export default function BookingDetail() {
 
           <div className="mb-3">
             <p className="text-xs text-gray-500 mb-1">🕐 Orario arrivo (opzionale)</p>
-            <input type="time" value={editForm.check_in_time} onChange={e => setEditForm({ ...editForm, check_in_time: e.target.value })}
+            <input type="time" defaultValue={editForm.check_in_time}
+              onChange={e => setEditForm({ ...editForm, check_in_time: e.target.value })}
+              onInput={e => setEditForm({ ...editForm, check_in_time: (e.target as HTMLInputElement).value })}
               className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
           </div>
 

@@ -310,7 +310,9 @@ function NuovaPrenotazione() {
 
             <div className="mb-3">
               <p className="text-sm text-gray-500 mb-1">🕐 Orario arrivo (opzionale)</p>
-              <input type="time" value={form.check_in_time} onChange={e => setForm({...form, check_in_time: e.target.value})}
+              <input type="time" defaultValue={form.check_in_time}
+                onChange={e => setForm({...form, check_in_time: e.target.value})}
+                onInput={e => setForm({...form, check_in_time: (e.target as HTMLInputElement).value})}
                 className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
             </div>
 
