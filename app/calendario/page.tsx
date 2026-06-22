@@ -23,7 +23,7 @@ const PURPLE = '#7c3aed'
 const CYAN = '#0891b2'
 const RED = '#dc2626'
 const BLACK = '#1f2937'
-const HEADER_BG = '#1a5c2a'
+const HEADER_BG = '#2e7d32'
 
 function addDays(date: Date, n: number) {
   const d = new Date(date)

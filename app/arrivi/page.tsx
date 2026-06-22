@@ -14,7 +14,7 @@ const NAME_W_MOBILE = 72
 const NAME_W_DESKTOP = 120
 const DAYS_TOTAL = 90
 const DAYS_BEFORE = 7
-const HEADER_BG = '#1a5c2a'
+const HEADER_BG = '#2e7d32'
 
 function addDays(date: Date, n: number) {
   const d = new Date(date)
