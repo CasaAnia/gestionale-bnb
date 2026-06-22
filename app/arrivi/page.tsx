@@ -40,6 +40,7 @@ export default function Arrivi() {
   const [isDesktop, setIsDesktop] = useState(false)
   const [popup, setPopup] = useState<{ id: string; name: string; time: string } | null>(null)
   const [savingTime, setSavingTime] = useState(false)
+  const popupTimeRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const check = () => setIsDesktop(window.innerWidth >= 1024)
@@ -91,8 +92,9 @@ export default function Arrivi() {
   async function saveTime() {
     if (!popup) return
     setSavingTime(true)
-    await supabase.from('bookings').update({ check_in_time: popup.time || null }).eq('id', popup.id)
-    setBookings(bookings.map(b => b.id === popup.id ? { ...b, check_in_time: popup.time || null } : b))
+    const time = popupTimeRef.current?.value ?? popup.time
+    await supabase.from('bookings').update({ check_in_time: time || null }).eq('id', popup.id)
+    setBookings(bookings.map(b => b.id === popup.id ? { ...b, check_in_time: time || null } : b))
     setSavingTime(false)
     setPopup(null)
   }
@@ -279,9 +281,11 @@ export default function Arrivi() {
             <p className="font-bold text-lg mb-1">{popup.name}</p>
             <p className="text-sm text-gray-500 mb-4">Orario di arrivo</p>
             <input
+              ref={popupTimeRef}
               type="time"
-              value={popup.time}
+              defaultValue={popup.time}
               onChange={e => setPopup({ ...popup, time: e.target.value })}
+              onInput={e => setPopup({ ...popup, time: (e.target as HTMLInputElement).value })}
               className="w-full border border-gray-200 rounded-xl p-3 text-2xl font-bold text-center mb-4"
             />
             <div className="flex gap-2">
