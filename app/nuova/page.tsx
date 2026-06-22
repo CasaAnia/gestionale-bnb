@@ -72,7 +72,7 @@ function NuovaPrenotazione() {
     setSearchLoading(true)
     const raw = phone.trim().replace(/\D/g, '')
     const t = raw.startsWith('39') ? raw : `39${raw}`
-    const { data: existingGuest } = await supabase.from('guests').select('*').eq('phone', t).single()
+    const { data: existingGuest } = await supabase.from('guests').select('*').eq('phone', t).order('created_at', { ascending: false }).limit(1).maybeSingle()
     if (existingGuest) {
       setGuest(existingGuest)
       setGuestForm({ full_name: existingGuest.full_name || '', email: existingGuest.email || '', rating: existingGuest.rating })
