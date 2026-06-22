@@ -14,7 +14,11 @@ function NuovaPrenotazione() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const preselectedRoomId = searchParams.get('room_id') || ''
-  const preselectedCheckIn = searchParams.get('check_in') || ''
+  function getTodayStr() {
+    const t = new Date()
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+  }
+  const preselectedCheckIn = searchParams.get('check_in') || getTodayStr()
   function addOneDay(dateStr: string) {
     if (!dateStr) return ''
     const [y, m, d] = dateStr.split('-').map(Number)
