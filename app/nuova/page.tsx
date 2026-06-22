@@ -284,8 +284,10 @@ function NuovaPrenotazione() {
               <div>
                 <p className="text-sm text-gray-500 mb-1">Check-in</p>
                 <input type="date" value={form.check_in} onChange={e => {
-                  setForm({...form, check_in: e.target.value})
-                  checkDisponibilita(form.room_id, e.target.value, form.check_out)
+                  const newCheckIn = e.target.value
+                  const newCheckOut = addOneDay(newCheckIn)
+                  setForm({...form, check_in: newCheckIn, check_out: newCheckOut})
+                  checkDisponibilita(form.room_id, newCheckIn, newCheckOut)
                 }} className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
               </div>
               <div>
