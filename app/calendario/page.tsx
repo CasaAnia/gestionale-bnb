@@ -159,13 +159,6 @@ export default function Calendario() {
 
   return (
     <div className="flex flex-col h-screen pb-16 lg:pb-0">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0" style={{ background: HEADER_BG }}>
-        <h1 className="text-base font-bold text-white">Calendario</h1>
-        <button onClick={scrollToToday} className="text-xs px-3 py-1.5 rounded-full font-semibold" style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>
-          Oggi
-        </button>
-      </div>
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
@@ -175,7 +168,9 @@ export default function Calendario() {
 
             {/* ── HEADER MESI ── */}
             <div style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', height: HEADER_MONTH_H, background: HEADER_BG }}>
-              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG }} />
+              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <button onClick={scrollToToday} style={{ fontSize: 10, fontWeight: 700, color: HEADER_BG, background: 'white', border: 'none', borderRadius: 10, padding: '1px 7px', cursor: 'pointer' }}>Oggi</button>
+              </div>
               {monthGroups.map((mg, i) => (
                 <div key={i} style={{
                   position: 'absolute',
