@@ -687,18 +687,26 @@ export default function BookingDetail() {
         const phone = rawPhone.startsWith('39') ? rawPhone : `39${rawPhone}`
         const waLink = (type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') =>
           `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsappMsg(booking, type))}`
-        return (
-          <div className="bg-green-50 rounded-xl p-4 border border-green-100 mb-4">
-            <p className="font-semibold text-green-800 mb-2">💬 Invia WhatsApp</p>
-            <div className="flex flex-col gap-2">
-              <a href={waLink('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-500 text-white rounded-lg py-2 text-sm font-semibold">✅ Conferma prenotazione</a>
-              <a href={waLink('modifica')} target="_blank" rel="noopener noreferrer" className="block text-center bg-blue-500 text-white rounded-lg py-2 text-sm font-semibold">✏️ Modifica prenotazione</a>
-              <a href={waLink('dati_bonifico')} target="_blank" rel="noopener noreferrer" className="block text-center bg-indigo-500 text-white rounded-lg py-2 text-sm font-semibold">🏦 Dati bonifico</a>
-              <a href={waLink('pagamento_ricevuto')} target="_blank" rel="noopener noreferrer" className="block text-center bg-sky-500 text-white rounded-lg py-2 text-sm font-semibold">💸 Pagamento ricevuto</a>
-              <a href={waLink('annullamento')} target="_blank" rel="noopener noreferrer" className="block text-center bg-red-400 text-white rounded-lg py-2 text-sm font-semibold">❌ Annullamento</a>
-            </div>
-            <p className="text-xs text-green-700 mt-2">Il messaggio si apre in WhatsApp — sei tu a decidere se inviarlo</p>
+        const buttons = (
+          <div className="flex flex-col gap-2">
+            <a href={waLink('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-500 text-white rounded-lg py-2 text-sm font-semibold">✅ Conferma prenotazione</a>
+            <a href={waLink('modifica')} target="_blank" rel="noopener noreferrer" className="block text-center bg-blue-500 text-white rounded-lg py-2 text-sm font-semibold">✏️ Modifica prenotazione</a>
+            <a href={waLink('dati_bonifico')} target="_blank" rel="noopener noreferrer" className="block text-center bg-indigo-500 text-white rounded-lg py-2 text-sm font-semibold">🏦 Dati bonifico</a>
+            <a href={waLink('pagamento_ricevuto')} target="_blank" rel="noopener noreferrer" className="block text-center bg-sky-500 text-white rounded-lg py-2 text-sm font-semibold">💸 Pagamento ricevuto</a>
+            <a href={waLink('annullamento')} target="_blank" rel="noopener noreferrer" className="block text-center bg-red-400 text-white rounded-lg py-2 text-sm font-semibold">❌ Annullamento</a>
           </div>
+        )
+        return (
+          <>
+            <div className="bg-green-50 rounded-xl p-4 border border-green-100 mb-3">
+              <p className="font-semibold text-green-800 mb-2">💬 WhatsApp Ania</p>
+              {buttons}
+            </div>
+            <div className="bg-teal-50 rounded-xl p-4 border border-teal-100 mb-4">
+              <p className="font-semibold text-teal-800 mb-2">💼 WhatsApp Business</p>
+              {buttons}
+            </div>
+          </>
         )
       })()}
 
