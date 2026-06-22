@@ -38,6 +38,8 @@ export default function Arrivi() {
   const [bookings, setBookings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
+  const [popup, setPopup] = useState<{ id: string; name: string; time: string } | null>(null)
+  const [savingTime, setSavingTime] = useState(false)
 
   useEffect(() => {
     const check = () => setIsDesktop(window.innerWidth >= 1024)
@@ -84,6 +86,15 @@ export default function Arrivi() {
 
   function scrollToToday() {
     if (scrollRef.current) scrollRef.current.scrollLeft = DAYS_BEFORE * CELL_W - 80
+  }
+
+  async function saveTime() {
+    if (!popup) return
+    setSavingTime(true)
+    await supabase.from('bookings').update({ check_in_time: popup.time || null }).eq('id', popup.id)
+    setBookings(bookings.map(b => b.id === popup.id ? { ...b, check_in_time: popup.time || null } : b))
+    setSavingTime(false)
+    setPopup(null)
   }
 
   function dayIndex(dateStr: string) {
@@ -216,7 +227,7 @@ export default function Arrivi() {
 
                     return (
                       <div key={booking.id}
-                        onClick={() => router.push(`/prenotazioni/${booking.id}`)}
+                        onClick={() => setPopup({ id: booking.id, name: booking.guests?.full_name || booking.guests?.phone || '', time: booking.check_in_time || '' })}
                         style={{
                           position: 'absolute',
                           top: rowTop + 6,
@@ -257,6 +268,30 @@ export default function Arrivi() {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Popup orario */}
+      {popup && (
+        <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={() => setPopup(null)}>
+          <div className="bg-white rounded-t-2xl p-5 w-full max-w-lg mx-auto" onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-lg mb-1">{popup.name}</p>
+            <p className="text-sm text-gray-500 mb-4">Orario di arrivo</p>
+            <input
+              type="time"
+              value={popup.time}
+              onChange={e => setPopup({ ...popup, time: e.target.value })}
+              className="w-full border border-gray-200 rounded-xl p-3 text-2xl font-bold text-center mb-4"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => router.push(`/prenotazioni/${popup.id}`)} className="flex-1 border border-gray-200 text-gray-600 rounded-xl py-3 font-semibold text-sm">
+                Apri prenotazione
+              </button>
+              <button onClick={saveTime} disabled={savingTime} className="flex-1 bg-green-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
+                {savingTime ? 'Salvo...' : 'Salva orario'}
+              </button>
+            </div>
           </div>
         </div>
       )}
