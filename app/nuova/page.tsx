@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -34,6 +34,7 @@ function NuovaPrenotazione() {
   const [conflitto, setConflitto] = useState<string | null>(null)
   const [lettiOccupati, setLettiOccupati] = useState(0)
   const [extraBedsPerDay, setExtraBedsPerDay] = useState<Record<string, number>>({})
+  const checkOutRef = useRef<HTMLInputElement>(null)
   const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
 
   function getDaysBetween(checkIn: string, checkOut: string): string[] {
@@ -283,18 +284,12 @@ function NuovaPrenotazione() {
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
                 <p className="text-sm text-gray-500 mb-1">Check-in</p>
-                <input type="date" value={form.check_in}
+                <input type="date" defaultValue={form.check_in}
                   onChange={e => {
                     const newCheckIn = e.target.value
                     if (!newCheckIn) return
                     const newCheckOut = addOneDay(newCheckIn)
-                    setForm(f => ({ ...f, check_in: newCheckIn, check_out: newCheckOut }))
-                    checkDisponibilita(form.room_id, newCheckIn, newCheckOut)
-                  }}
-                  onInput={e => {
-                    const newCheckIn = (e.target as HTMLInputElement).value
-                    if (!newCheckIn) return
-                    const newCheckOut = addOneDay(newCheckIn)
+                    if (checkOutRef.current) checkOutRef.current.value = newCheckOut
                     setForm(f => ({ ...f, check_in: newCheckIn, check_out: newCheckOut }))
                     checkDisponibilita(form.room_id, newCheckIn, newCheckOut)
                   }}
@@ -302,7 +297,7 @@ function NuovaPrenotazione() {
               </div>
               <div>
                 <p className="text-sm text-gray-500 mb-1">Check-out</p>
-                <input type="date" value={form.check_out} onChange={e => {
+                <input type="date" ref={checkOutRef} defaultValue={form.check_out} onChange={e => {
                   setForm({...form, check_out: e.target.value})
                   checkDisponibilita(form.room_id, form.check_in, e.target.value)
                 }} className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
