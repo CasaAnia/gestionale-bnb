@@ -524,7 +524,7 @@ export default function BookingDetail() {
                 { value: '#1f2937', label: 'Nero', bg: '#1f2937' },
                 { value: '#3b82f6', label: 'Blu', bg: '#3b82f6' },
                 { value: '#a855f7', label: 'Viola', bg: '#a855f7' },
-                { value: '#f97316', label: 'Arancio', bg: '#f97316' },
+                { value: '#f97316', label: '🔒 Esclusiva', bg: '#f97316' },
                 { value: '#ec4899', label: 'Rosa', bg: '#ec4899' },
                 { value: '#eab308', label: 'Giallo', bg: '#eab308' },
               ].map(c => (

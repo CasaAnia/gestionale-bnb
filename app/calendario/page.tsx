@@ -261,6 +261,7 @@ export default function Calendario() {
                     if (endIdx - startIdx <= 0) return []
                     const guestName = booking.guests?.full_name || booking.guests?.phone || ''
                     const isOttimo = booking.guests?.rating === 'ottimo'
+                    const isEsclusiva = booking.color === '#f97316'
 
                     const segments: { start: number; end: number; color: string }[] = []
                     let curColor = '', segStart = startIdx
@@ -296,7 +297,7 @@ export default function Calendario() {
                           }}>
                           {isFirst && (
                             <span style={{ color: 'white', fontSize: isDesktop ? 13 : 10, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {isOttimo ? '⭐ ' : ''}{guestName}
+                              {isEsclusiva ? '🔒 ' : isOttimo ? '⭐ ' : ''}{guestName}
                             </span>
                           )}
                         </div>
