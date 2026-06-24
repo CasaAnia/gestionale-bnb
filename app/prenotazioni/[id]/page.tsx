@@ -571,8 +571,12 @@ export default function BookingDetail() {
           )}
 
           <button onClick={saveEdit} disabled={saving || !!conflitto || ((editForm.extra_bed_dates?.length > 0) && (editForm.extra_bed_dates || []).some((day: string) => { const contrib = editForm.room_id === LENA_ID && editForm.num_guests >= 4 ? 2 : 1; return (extraBedsPerDay[day] || 0) + contrib > 2 }))}
-            className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
+            className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50 mb-3">
             {saving ? 'Salvataggio...' : '💾 Salva modifiche'}
+          </button>
+          <button onClick={() => setEditing(false)}
+            className="w-full border border-gray-300 text-gray-600 rounded-xl py-3 font-semibold">
+            Annulla modifiche
           </button>
         </div>
       ) : (
