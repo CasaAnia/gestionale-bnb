@@ -262,6 +262,7 @@ export default function Calendario() {
                     const guestName = booking.guests?.full_name || booking.guests?.phone || ''
                     const isOttimo = booking.guests?.rating === 'ottimo'
                     const isEsclusiva = booking.color === '#f97316'
+                    const vuoleRicevuta = booking.guests?.rating === 'vuole_ricevuta'
                     const hasExtraBed = booking.extra_bed || (booking.extra_bed_dates && booking.extra_bed_dates.length > 0)
 
                     const segments: { start: number; end: number; color: string }[] = []
@@ -298,7 +299,7 @@ export default function Calendario() {
                           }}>
                           {isFirst && (
                             <span style={{ color: 'white', fontSize: isDesktop ? 13 : 10, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {isEsclusiva ? '🔒 ' : isOttimo ? '⭐ ' : ''}{hasExtraBed ? '🛏 ' : ''}{guestName}
+                              {isEsclusiva ? '🔒 ' : isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏 ' : ''}{guestName}
                             </span>
                           )}
                         </div>
