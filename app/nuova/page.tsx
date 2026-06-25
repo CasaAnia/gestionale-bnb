@@ -325,7 +325,7 @@ function NuovaPrenotazione() {
                         <p className="text-xs text-red-400 italic mt-0.5">↳ {h.cancelled_reason}</p>
                       )}
                     </div>
-                  )}}
+                  )})}
                 </div>
               )}
             </div>
