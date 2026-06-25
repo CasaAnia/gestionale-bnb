@@ -292,17 +292,21 @@ function NuovaPrenotazione() {
                 <div className="mt-3 border-t border-gray-100 pt-3">
                   <p className="text-sm font-semibold text-gray-600 mb-2">Storico soggiorni ({guestHistory.length})</p>
                   <p className="text-sm font-semibold text-blue-600 mb-2">Totale speso: €{guestHistory.filter(h => h.status !== 'annullata').reduce((s: number, h: any) => s + Number(h.total_amount), 0).toFixed(0)}</p>
-                  {guestHistory.slice(0, 4).map(h => (
+                  {guestHistory.slice(0, 4).map(h => {
+                    const notti = h.check_in && h.check_out ? Math.round((new Date(h.check_out.replace(/-/g,'/')).getTime() - new Date(h.check_in.replace(/-/g,'/')).getTime()) / 86400000) : 0
+                    return (
                     <div key={h.id} className="py-1 border-b border-gray-50 last:border-0">
-                      <div className="flex justify-between text-xs">
-                        <span className={h.status === 'annullata' ? 'line-through text-gray-400' : ''}>{h.check_in} — {h.rooms?.name}</span>
-                        <span className={h.status === 'annullata' ? 'text-red-400' : 'text-gray-600'}>€{Number(h.total_amount).toFixed(0)}</span>
+                      <div className="flex justify-between text-xs gap-1">
+                        <span className={h.status === 'annullata' ? 'line-through text-gray-400' : 'text-gray-700'}>
+                          {h.check_in} → {h.check_out} · {notti}n · €{Number(h.price_per_night).toFixed(0)}/n · {h.rooms?.name}
+                        </span>
+                        <span className={`font-semibold shrink-0 ${h.status === 'annullata' ? 'text-red-400' : 'text-gray-600'}`}>€{Number(h.total_amount).toFixed(0)}</span>
                       </div>
                       {h.status === 'annullata' && h.cancelled_reason && (
                         <p className="text-xs text-red-400 italic mt-0.5">↳ {h.cancelled_reason}</p>
                       )}
                     </div>
-                  ))}
+                  )}}
                 </div>
               )}
             </div>
