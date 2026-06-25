@@ -71,7 +71,7 @@ export default function Calendario() {
   useEffect(() => {
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings').select('*, guests(full_name, phone)').neq('status', 'annullata'),
+      supabase.from('bookings').select('*, guests(full_name, phone, rating)').neq('status', 'annullata'),
     ]).then(([{ data: r }, { data: b }]) => {
       const sorted = (r || []).sort((a: any, b: any) => {
         const ai = ROOM_ORDER.findIndex(o => a.name.includes(o))
