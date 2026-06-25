@@ -5,6 +5,10 @@ import BottomNav from '@/components/BottomNav'
 export const metadata: Metadata = {
   title: 'Casa Ania Rozzano',
   description: 'Gestionale B&B',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
 }
 
 export const viewport: Viewport = {
