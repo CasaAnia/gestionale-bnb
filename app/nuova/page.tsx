@@ -78,20 +78,38 @@ function NuovaPrenotazione() {
   async function searchByName() {
     if (!searchName.trim()) return
     setSearchLoading(true)
-    const { data } = await supabase.from('guests').select('*').ilike('full_name', `%${searchName.trim()}%`).order('created_at', { ascending: false }).limit(10)
-    if (data && data.length === 1) {
-      const g = data[0]
+    const q = searchName.trim()
+
+    // cerca tra i clienti principali
+    const { data: guestMatches } = await supabase.from('guests').select('*').ilike('full_name', `%${q}%`).order('created_at', { ascending: false }).limit(10)
+
+    // cerca tra i nomi secondari nelle prenotazioni
+    const { data: extraMatches } = await supabase.from('bookings')
+      .select('*, guests(*)')
+      .or(`extra_phone_1_name.ilike.%${q}%,extra_phone_2_name.ilike.%${q}%`)
+      .neq('status', 'annullata')
+      .order('check_in', { ascending: false })
+      .limit(5)
+
+    // unisci i risultati (evita duplicati per id)
+    const seen = new Set<string>()
+    const combined: any[] = []
+    for (const g of guestMatches || []) { if (!seen.has(g.id)) { seen.add(g.id); combined.push(g) } }
+    for (const b of extraMatches || []) { if (b.guests && !seen.has(b.guests.id)) { seen.add(b.guests.id); combined.push(b.guests) } }
+
+    if (combined.length === 1) {
+      const g = combined[0]
       setGuest(g)
       setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
       const { data: history } = await supabase.from('bookings').select('*, rooms(name)').eq('guest_id', g.id).order('check_in', { ascending: false })
       setGuestHistory(history || [])
       setNameResults([])
       setStep('cliente')
-    } else if (data && data.length > 1) {
-      setNameResults(data)
+    } else if (combined.length > 1) {
+      setNameResults(combined)
     } else {
       setGuest(null)
-      setGuestForm({ full_name: searchName.trim(), email: '', rating: 'normale' })
+      setGuestForm({ full_name: q, email: '', rating: 'normale' })
       setGuestHistory([])
       setNameResults([])
       setStep('cliente')
