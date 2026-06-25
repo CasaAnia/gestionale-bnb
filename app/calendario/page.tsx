@@ -71,7 +71,7 @@ export default function Calendario() {
   useEffect(() => {
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings').select('*, guests(full_name, phone, rating)').neq('status', 'annullata'),
+      supabase.from('bookings').select('*, guests(id, full_name, phone, rating)').neq('status', 'annullata'),
     ]).then(([{ data: r }, { data: b }]) => {
       const sorted = (r || []).sort((a: any, b: any) => {
         const ai = ROOM_ORDER.findIndex(o => a.name.includes(o))
@@ -264,6 +264,12 @@ export default function Calendario() {
                     const isEsclusiva = booking.color === '#f97316'
                     const vuoleRicevuta = booking.guests?.rating === 'vuole_ricevuta'
                     const hasExtraBed = booking.extra_bed || (booking.extra_bed_dates && booking.extra_bed_dates.length > 0)
+                    const isMultiRoom = booking.guests?.id && bookings.some((b: any) =>
+                      b.id !== booking.id &&
+                      b.guests?.id === booking.guests?.id &&
+                      b.check_in < booking.check_out &&
+                      b.check_out > booking.check_in
+                    )
 
                     const segments: { start: number; end: number; color: string }[] = []
                     let curColor = '', segStart = startIdx
@@ -299,7 +305,7 @@ export default function Calendario() {
                           }}>
                           {isFirst && (
                             <span style={{ color: 'white', fontSize: isDesktop ? 13 : 10, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {isEsclusiva ? '🔒 ' : isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏 ' : ''}{guestName}
+                              {isEsclusiva ? '🔒 ' : isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏 ' : ''}{isMultiRoom ? '🔗 ' : ''}{guestName}
                             </span>
                           )}
                         </div>
