@@ -18,7 +18,7 @@ const DAYS_BEFORE = 30
 const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
 const EXTRA_BED_MAX = 2
 
-const GREEN = '#1a7a32'
+const GREEN = '#25D366'
 const PURPLE = '#7c3aed'
 const CYAN = '#0891b2'
 const RED = '#dc2626'
