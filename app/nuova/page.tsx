@@ -36,6 +36,7 @@ function NuovaPrenotazione() {
   const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '', bonifico: false })
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [searchLoading, setSearchLoading] = useState(false)
   const [conflitto, setConflitto] = useState<string | null>(null)
   const [lettiOccupati, setLettiOccupati] = useState(0)
@@ -214,18 +215,24 @@ function NuovaPrenotazione() {
 
   async function save() {
     setSaving(true)
+    setSaveError(null)
     let guestId = guest?.id
     if (!guestId) {
       const rawP = phone.trim().replace(/\D/g, '')
       const formattedPhone = rawP ? (rawP.startsWith('39') ? rawP : `39${rawP}`) : null
-      const { data: newGuest } = await supabase.from('guests').insert({ phone: formattedPhone, full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating }).select().single()
-      guestId = newGuest?.id
+      const { data: newGuest, error: guestError } = await supabase.from('guests').insert({ phone: formattedPhone, full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating }).select().single()
+      if (guestError || !newGuest) {
+        setSaveError(`Errore creazione cliente: ${guestError?.message || 'sconosciuto'}`)
+        setSaving(false)
+        return
+      }
+      guestId = newGuest.id
     } else {
       await supabase.from('guests').update({ full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating }).eq('id', guestId)
     }
     const room = rooms.find(r => r.id === form.room_id)
     const ebt = extraBedTotal()
-    await supabase.from('bookings').insert({
+    const { error: bookingError } = await supabase.from('bookings').insert({
       room_id: form.room_id, guest_id: guestId, check_in: form.check_in, check_out: form.check_out,
       check_in_time: form.check_in_time || null,
       num_guests: form.num_guests, extra_bed: form.extra_bed_dates.length > 0, extra_bed_dates: form.extra_bed_dates, price_per_night: Number(form.price_per_night),
@@ -233,6 +240,10 @@ function NuovaPrenotazione() {
       bonifico: form.bonifico, pagato: false,
     })
     setSaving(false)
+    if (bookingError) {
+      setSaveError(`Errore salvataggio prenotazione: ${bookingError.message}`)
+      return
+    }
     router.push('/prenotazioni')
   }
 
@@ -543,6 +554,12 @@ function NuovaPrenotazione() {
               <p className="text-sm text-gray-600">{notti()} notti × €{form.price_per_night}</p>
               {form.extra_bed && <p className="text-sm text-orange-600">+ Letto agg.: €{extraBedTotal().toFixed(0)}</p>}
               <p className="text-2xl font-bold text-blue-700 mt-1">Totale: €{calcTotal().toFixed(0)}</p>
+            </div>
+          )}
+
+          {saveError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-sm text-red-700 font-semibold">
+              ❌ {saveError}
             </div>
           )}
 
