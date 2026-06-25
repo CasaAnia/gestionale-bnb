@@ -6,8 +6,8 @@ export const metadata: Metadata = {
   title: 'Casa Ania Rozzano',
   description: 'Gestionale B&B',
   icons: {
-    icon: '/icon-192.png',
-    apple: '/icon-192.png',
+    icon: '/apple-touch-icon.png',
+    apple: '/apple-touch-icon.png',
   },
 }
 
