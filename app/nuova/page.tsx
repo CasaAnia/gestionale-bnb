@@ -28,6 +28,8 @@ function NuovaPrenotazione() {
 
   const [step, setStep] = useState<'telefono' | 'cliente' | 'dettagli'>('telefono')
   const [phone, setPhone] = useState('')
+  const [searchName, setSearchName] = useState('')
+  const [nameResults, setNameResults] = useState<any[]>([])
   const [guest, setGuest] = useState<any>(null)
   const [guestHistory, setGuestHistory] = useState<any[]>([])
   const [rooms, setRooms] = useState<any[]>([])
@@ -72,6 +74,39 @@ function NuovaPrenotazione() {
       }
     })
   }, [])
+
+  async function searchByName() {
+    if (!searchName.trim()) return
+    setSearchLoading(true)
+    const { data } = await supabase.from('guests').select('*').ilike('full_name', `%${searchName.trim()}%`).order('created_at', { ascending: false }).limit(10)
+    if (data && data.length === 1) {
+      const g = data[0]
+      setGuest(g)
+      setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
+      const { data: history } = await supabase.from('bookings').select('*, rooms(name)').eq('guest_id', g.id).order('check_in', { ascending: false })
+      setGuestHistory(history || [])
+      setNameResults([])
+      setStep('cliente')
+    } else if (data && data.length > 1) {
+      setNameResults(data)
+    } else {
+      setGuest(null)
+      setGuestForm({ full_name: searchName.trim(), email: '', rating: 'normale' })
+      setGuestHistory([])
+      setNameResults([])
+      setStep('cliente')
+    }
+    setSearchLoading(false)
+  }
+
+  async function selectGuestFromList(g: any) {
+    setGuest(g)
+    setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
+    const { data: history } = await supabase.from('bookings').select('*, rooms(name)').eq('guest_id', g.id).order('check_in', { ascending: false })
+    setGuestHistory(history || [])
+    setNameResults([])
+    setStep('cliente')
+  }
 
   async function searchPhone() {
     if (!phone.trim()) return
@@ -163,7 +198,7 @@ function NuovaPrenotazione() {
     let guestId = guest?.id
     if (!guestId) {
       const rawP = phone.trim().replace(/\D/g, '')
-      const formattedPhone = rawP.startsWith('39') ? rawP : `39${rawP}`
+      const formattedPhone = rawP ? (rawP.startsWith('39') ? rawP : `39${rawP}`) : null
       const { data: newGuest } = await supabase.from('guests').insert({ phone: formattedPhone, full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating }).select().single()
       guestId = newGuest?.id
     } else {
@@ -189,21 +224,55 @@ function NuovaPrenotazione() {
         <h1 className="text-xl font-bold">Nuova prenotazione</h1>
       </div>
 
-      {/* Step 1: telefono */}
+      {/* Step 1: telefono o nome */}
       {step === 'telefono' && (
-        <div className="bg-white rounded-xl p-4 border border-gray-100">
-          <p className="font-semibold mb-3">📞 Numero di telefono cliente</p>
-          <input
-            type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && searchPhone()}
-            placeholder="+39 333 1234567"
-            className="w-full border border-gray-200 rounded-lg p-3 text-lg mb-3 focus:outline-none focus:border-blue-400"
-            autoFocus
-          />
-          <button onClick={searchPhone} disabled={!phone.trim() || searchLoading}
-            className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
-            {searchLoading ? 'Ricerca...' : 'Cerca cliente →'}
-          </button>
+        <div className="space-y-3">
+          <div className="bg-white rounded-xl p-4 border border-gray-100">
+            <p className="font-semibold mb-3">📞 Cerca per telefono</p>
+            <input
+              type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && searchPhone()}
+              placeholder="+39 333 1234567"
+              className="w-full border border-gray-200 rounded-lg p-3 text-lg mb-3 focus:outline-none focus:border-blue-400"
+              autoFocus
+            />
+            <button onClick={searchPhone} disabled={!phone.trim() || searchLoading}
+              className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
+              {searchLoading ? 'Ricerca...' : 'Cerca →'}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 px-1">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400 font-medium">oppure</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          <div className="bg-white rounded-xl p-4 border border-gray-100">
+            <p className="font-semibold mb-3">👤 Cerca per nome</p>
+            <input
+              type="text" value={searchName} onChange={e => { setSearchName(e.target.value); setNameResults([]) }}
+              onKeyDown={e => e.key === 'Enter' && searchByName()}
+              placeholder="Nome e cognome"
+              className="w-full border border-gray-200 rounded-lg p-3 text-lg mb-3 focus:outline-none focus:border-blue-400"
+            />
+            <button onClick={searchByName} disabled={!searchName.trim() || searchLoading}
+              className="w-full bg-gray-700 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
+              {searchLoading ? 'Ricerca...' : 'Cerca →'}
+            </button>
+            {nameResults.length > 1 && (
+              <div className="mt-3 border-t border-gray-100 pt-3">
+                <p className="text-sm text-gray-500 mb-2">Più clienti trovati — seleziona:</p>
+                {nameResults.map(g => (
+                  <button key={g.id} onClick={() => selectGuestFromList(g)}
+                    className="w-full text-left px-3 py-2 rounded-lg border border-gray-100 mb-1.5 hover:bg-blue-50 active:bg-blue-100">
+                    <p className="font-semibold text-sm">{g.full_name}</p>
+                    <p className="text-xs text-gray-400">📞 {g.phone || '—'}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
