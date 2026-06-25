@@ -7,6 +7,11 @@ import Link from 'next/link'
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
+function normalizePhone(p: string) {
+  const raw = p.trim().replace(/\D/g, '')
+  return raw.startsWith('39') ? raw : `39${raw}`
+}
+
 function formatDateIT(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
   const date = new Date(y, m - 1, d)
@@ -285,9 +290,9 @@ export default function BookingDetail() {
       color: editForm.color || null,
       bonifico: editForm.bonifico || false,
       pagato: editForm.pagato || false,
-      extra_phone_1: editForm.extra_phone_1 || null,
+      extra_phone_1: editForm.extra_phone_1 ? normalizePhone(editForm.extra_phone_1) : null,
       extra_phone_1_name: editForm.extra_phone_1_name || null,
-      extra_phone_2: editForm.extra_phone_2 || null,
+      extra_phone_2: editForm.extra_phone_2 ? normalizePhone(editForm.extra_phone_2) : null,
       extra_phone_2_name: editForm.extra_phone_2_name || null,
       updated_at: new Date().toISOString(),
     }

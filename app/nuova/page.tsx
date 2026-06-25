@@ -120,10 +120,11 @@ function NuovaPrenotazione() {
       const { data: history } = await supabase.from('bookings').select('*, rooms(name)').eq('guest_id', existingGuest.id).order('check_in', { ascending: false })
       setGuestHistory(history || [])
     } else {
-      // cerca nei contatti extra delle prenotazioni
+      // cerca nei contatti extra (prova sia con che senza prefisso 39)
+      const tShort = t.startsWith('39') ? t.slice(2) : t
       const { data: extraMatch } = await supabase.from('bookings')
         .select('*, guests(*)')
-        .or(`extra_phone_1.eq.${t},extra_phone_2.eq.${t}`)
+        .or(`extra_phone_1.eq.${t},extra_phone_2.eq.${t},extra_phone_1.eq.${tShort},extra_phone_2.eq.${tShort}`)
         .neq('status', 'annullata')
         .order('check_in', { ascending: false })
         .limit(1)
