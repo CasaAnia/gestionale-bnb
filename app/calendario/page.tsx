@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
-const CELL_W_MOBILE = 36
-const CELL_W_DESKTOP = 52
-const ROW_H_MOBILE = 44
-const ROW_H_DESKTOP = 60
+const CELL_W_MOBILE = 42
+const CELL_W_DESKTOP = 62
+const ROW_H_MOBILE = 50
+const ROW_H_DESKTOP = 66
 const HEADER_MONTH_H = 24
 const HEADER_DAY_H = 50
-const NAME_W_MOBILE = 72
-const NAME_W_DESKTOP = 120
+const NAME_W_MOBILE = 88
+const NAME_W_DESKTOP = 140
 const DAYS_TOTAL = 180
 const DAYS_BEFORE = 30
 const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
