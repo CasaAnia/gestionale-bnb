@@ -23,7 +23,10 @@ export default function Clienti() {
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">Clienti</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold">Clienti</h1>
+        <Link href="/clienti/nuovo" className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Nuovo</Link>
+      </div>
       <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="🔍 Cerca per nome o telefono..."
         className="w-full border border-gray-200 rounded-xl p-3 mb-4 text-sm focus:outline-none focus:border-blue-400" />
