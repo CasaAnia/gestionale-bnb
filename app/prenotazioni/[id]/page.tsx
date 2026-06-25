@@ -684,7 +684,7 @@ export default function BookingDetail() {
       )}
 
       {/* Azioni */}
-      {!editing && (booking.status === 'confermata' || booking.status === 'completata') && (
+      {!editing && (booking.status === 'confermata' || booking.status === 'completata' || booking.status === 'in_attesa') && (
         <div className="flex flex-col gap-2 mb-4">
           {booking.status === 'confermata' && (
             <button onClick={markComplete} className="bg-gray-100 text-gray-700 rounded-xl py-3 font-semibold">✓ Segna come completata</button>
