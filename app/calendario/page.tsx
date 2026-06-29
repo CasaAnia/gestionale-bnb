@@ -264,11 +264,8 @@ export default function Calendario() {
                     const isEsclusiva = booking.color === '#f97316'
                     const vuoleRicevuta = booking.guests?.rating === 'vuole_ricevuta'
                     const hasExtraBed = booking.extra_bed || (booking.extra_bed_dates && booking.extra_bed_dates.length > 0)
-                    const isMultiRoom = booking.guests?.id && bookings.some((b: any) =>
-                      b.id !== booking.id &&
-                      b.guests?.id === booking.guests?.id &&
-                      b.check_in < booking.check_out &&
-                      b.check_out > booking.check_in
+                    const isMultiRoom = booking.group_id && bookings.some((b: any) =>
+                      b.id !== booking.id && b.group_id === booking.group_id
                     )
 
                     const segments: { start: number; end: number; color: string }[] = []
