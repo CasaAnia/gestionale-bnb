@@ -644,6 +644,31 @@ export default function BookingDetail() {
             </div>
           )}
           {booking.notes && <p className="text-sm text-gray-600 italic">📝 {booking.notes}</p>}
+          {groupBookings.length > 1 && (
+            <div className="mt-3 bg-purple-50 border border-purple-200 rounded-xl p-3">
+              <p className="text-xs font-bold text-purple-700 mb-2">🔄 SOGGIORNO CON CAMBIO CAMERA</p>
+              {[...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in)).map((gb, i) => {
+                const isCurrent = gb.id === id
+                const n = Math.round((new Date(gb.check_out).getTime() - new Date(gb.check_in).getTime()) / 86400000)
+                return (
+                  <div key={gb.id} className={`flex items-center gap-2 py-1 ${i > 0 ? 'border-t border-purple-100' : ''}`}>
+                    <span className="text-purple-400 text-xs">{i + 1}.</span>
+                    <div className="flex-1">
+                      <span className={`text-sm font-semibold ${isCurrent ? 'text-purple-900' : 'text-purple-700'}`}>{gb.rooms?.name}</span>
+                      <span className="text-xs text-purple-500 ml-2">{gb.check_in} → {gb.check_out} ({n} notti) · €{Number(gb.price_per_night).toFixed(0)}/notte</span>
+                    </div>
+                    {isCurrent
+                      ? <span className="text-xs bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-bold">qui</span>
+                      : <button onClick={() => router.push(`/prenotazioni/${gb.id}`)} className="text-xs text-purple-600 underline">apri</button>
+                    }
+                  </div>
+                )
+              })}
+              <p className="text-xs text-purple-600 font-semibold mt-2 pt-2 border-t border-purple-100">
+                Totale soggiorno: €{groupBookings.reduce((s, x) => s + Number(x.total_amount), 0).toFixed(0)}
+              </p>
+            </div>
+          )}
           {booking.status === 'annullata' && (
             <div className="mt-2">
               <p className="text-xs text-gray-500 mb-1">Motivo annullamento</p>
