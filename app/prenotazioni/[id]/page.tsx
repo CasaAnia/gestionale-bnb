@@ -24,13 +24,18 @@ function bagnoDesc(room: any) {
   return ''
 }
 
-function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') {
+function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto', gruppo: any[] = []) {
   const name = b.guests?.full_name || 'Ospite'
   const room = b.rooms?.name || ''
-  const cin = b.check_in
-  const cout = b.check_out
+  const isGruppo = gruppo.length > 1
+
+  // Per soggiorno con cambio camera usa il gruppo ordinato per check_in
+  const segmenti = isGruppo ? [...gruppo].sort((a, z) => a.check_in.localeCompare(z.check_in)) : [b]
+  const cin = segmenti[0].check_in
+  const cout = segmenti[segmenti.length - 1].check_out
+  const totaleNum = isGruppo ? segmenti.reduce((s, x) => s + Number(x.total_amount), 0) : Number(b.total_amount)
   const notti = Math.round((new Date(cout).getTime() - new Date(cin).getTime()) / 86400000)
-  const totale = Number(b.total_amount).toLocaleString('it-IT', { minimumFractionDigits: 2 })
+  const totale = totaleNum.toLocaleString('it-IT', { minimumFractionDigits: 2 })
   const numOspiti = b.num_guests || 1
   const ospiti = `${numOspiti} ${numOspiti === 1 ? 'adulto' : 'adulti'}`
   const cinF = formatDateIT(cin)
@@ -38,6 +43,12 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   const bagno = bagnoDesc(b.rooms)
 
   const isLena = room.includes('Lena')
+
+  // Riepilogo camere per soggiorno con cambio camera
+  const riepilogoCamere = isGruppo ? segmenti.map((s, i) => {
+    const n = Math.round((new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86400000)
+    return `   ${i + 1}. *${s.rooms?.name || 'Camera'}*: ${formatDateIT(s.check_in)} → ${formatDateIT(s.check_out)} (${n} notti) – €${Number(s.price_per_night).toFixed(0)}/notte`
+  }).join('\n') : ''
 
   const paymentLine = b.bonifico
     ? `💶 Importo totale: *€ ${totale}* – pagamento tramite bonifico bancario.
@@ -59,9 +70,8 @@ RIEPILOGO SOGGIORNO
 📅 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
 📅 Check-out: *${coutF}* (entro le ore 10:00)
 👥 Ospiti: ${ospiti}
-🛏️ Camera: ${room}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}
-${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}
-Notti: *${notti}*
+${isGruppo ? `🛏️ Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `🛏️ Camera: ${room}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}
+Notti totali: *${notti}*
 
 ${paymentLine}
 
@@ -169,6 +179,7 @@ export default function BookingDetail() {
   const { id } = useParams()
   const router = useRouter()
   const [booking, setBooking] = useState<any>(null)
+  const [groupBookings, setGroupBookings] = useState<any[]>([])
   const [rooms, setRooms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -251,6 +262,15 @@ export default function BookingDetail() {
         return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
       })
       setRooms(sorted)
+      // Carica le altre prenotazioni del gruppo (cambio camera)
+      if (b?.group_id) {
+        supabase.from('bookings')
+          .select('*, rooms(*)')
+          .eq('group_id', b.group_id)
+          .neq('status', 'annullata')
+          .order('check_in', { ascending: true })
+          .then(({ data: grp }) => setGroupBookings(grp || []))
+      }
       setLoading(false)
     })
   }, [id])
@@ -318,7 +338,7 @@ export default function BookingDetail() {
 
   async function cancelBooking() {
     await supabase.from('bookings').update({ status: 'annullata', cancelled_at: new Date().toISOString(), cancelled_reason: cancelReason }).eq('id', id)
-    const msg = buildWhatsappMsg(booking, 'annullamento')
+    const msg = buildWhatsappMsg(booking, 'annullamento', groupBookings)
     await supabase.from('booking_whatsapp_log').insert({ booking_id: id, message_type: 'annullamento', message_text: msg, sent: false })
     setBooking({ ...booking, status: 'annullata' })
     setShowCancel(false)
@@ -705,8 +725,8 @@ export default function BookingDetail() {
         const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent)
         const waLink = (type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') =>
           isMobile
-            ? `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsappMsg(booking, type))}`
-            : `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(buildWhatsappMsg(booking, type))}`
+            ? `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsappMsg(booking, type, groupBookings))}`
+            : `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(buildWhatsappMsg(booking, type, groupBookings))}`
         const buttons = (
           <div className="flex flex-col gap-2">
             <a href={waLink('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-500 text-white rounded-lg py-2 text-sm font-semibold">✅ Conferma prenotazione</a>
