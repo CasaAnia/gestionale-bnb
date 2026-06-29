@@ -37,6 +37,8 @@ function NuovaPrenotazione() {
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [savedGroupId, setSavedGroupId] = useState<string | null>(null)
+  const [savedCheckOut, setSavedCheckOut] = useState<string | null>(null)
   const [searchLoading, setSearchLoading] = useState(false)
   const [conflitto, setConflitto] = useState<string | null>(null)
   const [lettiOccupati, setLettiOccupati] = useState(0)
@@ -230,21 +232,64 @@ function NuovaPrenotazione() {
     } else {
       await supabase.from('guests').update({ full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating }).eq('id', guestId)
     }
-    const room = rooms.find(r => r.id === form.room_id)
     const ebt = extraBedTotal()
+    // Se è un cambio camera usa il group_id esistente, altrimenti ne crea uno nuovo
+    const groupId = savedGroupId || crypto.randomUUID()
     const { error: bookingError } = await supabase.from('bookings').insert({
       room_id: form.room_id, guest_id: guestId, check_in: form.check_in, check_out: form.check_out,
       check_in_time: form.check_in_time || null,
       num_guests: form.num_guests, extra_bed: form.extra_bed_dates.length > 0, extra_bed_dates: form.extra_bed_dates, price_per_night: Number(form.price_per_night),
       extra_bed_total: ebt, total_amount: calcTotal(), notes: form.notes || null, status: 'confermata', source: 'diretta',
-      bonifico: form.bonifico, pagato: false,
+      bonifico: form.bonifico, pagato: false, group_id: groupId,
     })
     setSaving(false)
     if (bookingError) {
       setSaveError(`Errore salvataggio prenotazione: ${bookingError.message}`)
       return
     }
-    router.push('/prenotazioni')
+    setSavedGroupId(groupId)
+    setSavedCheckOut(form.check_out)
+  }
+
+  // Schermata post-salvataggio: propone cambio camera o fine
+  if (savedGroupId && savedCheckOut) {
+    const room = rooms.find(r => r.id === form.room_id)
+    return (
+      <div className="p-4 max-w-md mx-auto">
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center mb-6">
+          <p className="text-3xl mb-2">✓</p>
+          <p className="font-bold text-green-800 text-lg">Prenotazione salvata</p>
+          <p className="text-green-700 text-sm mt-1">{room?.name} · check-out {savedCheckOut}</p>
+        </div>
+        <p className="text-center text-gray-600 font-semibold mb-4">Vuoi aggiungere un cambio camera?</p>
+        <button
+          onClick={() => {
+            setStep('dettagli')
+            setForm(f => ({
+              ...f,
+              room_id: '',
+              check_in: savedCheckOut,
+              check_out: addOneDay(savedCheckOut),
+              check_in_time: '',
+              extra_bed: false,
+              extra_bed_dates: [],
+              price_per_night: 0,
+              notes: '',
+            }))
+            setSavedCheckOut(null)
+          }}
+          className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl text-base mb-3"
+        >
+          ➕ Aggiungi cambio camera
+        </button>
+        <button
+          onClick={() => router.push('/prenotazioni')}
+          className="w-full border border-gray-300 text-gray-700 font-semibold py-4 rounded-2xl text-base"
+        >
+          Fine — vai alle prenotazioni
+        </button>
+      </div>
+    )
   }
 
   return (

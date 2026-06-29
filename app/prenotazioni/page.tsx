@@ -73,6 +73,7 @@ export default function Prenotazioni() {
                 <div className="flex flex-col items-end gap-1">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${STATUS_COLORS[b.status]}`}>{b.status}</span>
                   {b.extra_bed && <span className="text-xs bg-orange-200 text-orange-800 px-2 py-0.5 rounded-full font-semibold">+letto agg.</span>}
+                  {b.group_id && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold">🔄 cambio camera</span>}
                 </div>
               </div>
               <div className="flex items-center justify-between text-sm text-gray-500">
