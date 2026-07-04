@@ -276,7 +276,7 @@ export default function Arrivi() {
 
       {/* Popup orario */}
       {popup && (
-        <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={() => setPopup(null)}>
+        <div className="fixed inset-0 bg-black/50 flex items-end z-[60]" onClick={() => setPopup(null)}>
           <div className="bg-white rounded-t-2xl p-5 w-full max-w-lg mx-auto" onClick={e => e.stopPropagation()}>
             <p className="font-bold text-lg mb-1">{popup.name}</p>
             <p className="text-sm text-gray-500 mb-4">Orario di arrivo</p>
