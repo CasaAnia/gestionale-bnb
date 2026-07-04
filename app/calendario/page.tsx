@@ -310,15 +310,23 @@ export default function Calendario() {
                             borderRadius: isFirst && isLast ? 6 : isFirst ? '6px 0 0 6px' : isLast ? '0 6px 6px 0' : 0,
                             cursor: 'pointer',
                             display: isFirst ? 'flex' : 'block',
-                            alignItems: 'center',
+                            flexDirection: 'column',
+                            justifyContent: 'center',
                             overflow: 'hidden',
                             zIndex: 5,
                             boxShadow: groupColor ? `0 1px 3px rgba(0,0,0,0.2), inset 0 0 0 2px white, inset 0 0 0 4px ${groupColor}` : '0 1px 3px rgba(0,0,0,0.2)',
                           }}>
                           {isFirst && (
-                            <span style={{ color: 'white', fontSize: isDesktop ? 13 : 10, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {isEsclusiva ? '🔒 ' : isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏 ' : ''}{isMultiRoom ? '🔗 ' : ''}{guestName}
-                            </span>
+                            <>
+                              <span style={{ color: 'white', fontSize: isDesktop ? 13 : 10, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                                {guestName}
+                              </span>
+                              {(isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed || isMultiRoom) && (
+                                <span style={{ fontSize: isDesktop ? 12 : 9, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
+                                  {isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏 ' : ''}{isMultiRoom ? '🔗' : ''}
+                                </span>
+                              )}
+                            </>
                           )}
                         </div>
                       )
