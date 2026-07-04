@@ -331,6 +331,20 @@ export default function BookingDetail() {
     setSaving(false)
   }
 
+  async function addRoomChange() {
+    let groupId = booking.group_id
+    if (!groupId) {
+      groupId = crypto.randomUUID()
+      await supabase.from('bookings').update({ group_id: groupId }).eq('id', id)
+      setBooking({ ...booking, group_id: groupId })
+    }
+    const lastCheckOut = groupBookings.length > 0
+      ? [...groupBookings].sort((a, z) => z.check_out.localeCompare(a.check_out))[0].check_out
+      : booking.check_out
+    const guestId = booking.guest_id || booking.guests?.id
+    router.push(`/nuova?guest_id=${guestId}&group_id=${groupId}&check_in=${lastCheckOut}`)
+  }
+
   async function markComplete() {
     await supabase.from('bookings').update({ status: 'completata' }).eq('id', id)
     setBooking({ ...booking, status: 'completata' })
@@ -668,6 +682,11 @@ export default function BookingDetail() {
                 Totale soggiorno: €{groupBookings.reduce((s, x) => s + Number(x.total_amount), 0).toFixed(0)}
               </p>
             </div>
+          )}
+          {(booking.status === 'confermata' || booking.status === 'in_attesa') && (
+            <button onClick={addRoomChange} className="w-full mt-3 bg-purple-600 text-white font-semibold text-sm py-2 rounded-xl">
+              ➕ Aggiungi cambio camera
+            </button>
           )}
           {booking.status === 'annullata' && (
             <div className="mt-2">

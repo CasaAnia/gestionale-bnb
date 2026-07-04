@@ -19,6 +19,8 @@ function NuovaPrenotazione() {
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
   }
   const preselectedCheckIn = searchParams.get('check_in') || getTodayStr()
+  const preselectedGuestId = searchParams.get('guest_id') || ''
+  const preselectedGroupId = searchParams.get('group_id') || ''
   function addOneDay(dateStr: string) {
     if (!dateStr) return ''
     const [y, m, d] = dateStr.split('-').map(Number)
@@ -76,7 +78,19 @@ function NuovaPrenotazione() {
         if (preselectedCheckIn) checkDisponibilita(preselectedRoomId, preselectedCheckIn, addOneDay(preselectedCheckIn))
       }
     })
+    if (preselectedGuestId) loadGuestById(preselectedGuestId)
   }, [])
+
+  async function loadGuestById(guestId: string) {
+    const { data: g } = await supabase.from('guests').select('*').eq('id', guestId).single()
+    if (g) {
+      setGuest(g)
+      setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
+      const { data: history } = await supabase.from('bookings').select('*, rooms(name)').eq('guest_id', g.id).order('check_in', { ascending: false })
+      setGuestHistory(history || [])
+      setStep('cliente')
+    }
+  }
 
   async function searchByName() {
     if (!searchName.trim()) return
@@ -234,7 +248,7 @@ function NuovaPrenotazione() {
     }
     const ebt = extraBedTotal()
     // Se è un cambio camera usa il group_id esistente, altrimenti ne crea uno nuovo
-    const groupId = savedGroupId || crypto.randomUUID()
+    const groupId = savedGroupId || preselectedGroupId || crypto.randomUUID()
     const { error: bookingError } = await supabase.from('bookings').insert({
       room_id: form.room_id, guest_id: guestId, check_in: form.check_in, check_out: form.check_out,
       check_in_time: form.check_in_time || null,
