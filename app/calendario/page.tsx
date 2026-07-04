@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -24,6 +24,7 @@ const CYAN = '#0891b2'
 const RED = '#dc2626'
 const BLACK = '#1f2937'
 const HEADER_BG = '#ffffff'
+const GROUP_COLORS = ['#b45309', '#4338ca', '#be123c', '#065f46']
 
 function addDays(date: Date, n: number) {
   const d = new Date(date)
@@ -47,6 +48,19 @@ export default function Calendario() {
   const [bookings, setBookings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
+
+  // Assegna un colore fisso a ogni gruppo di prenotazioni con cambio camera (max 4 colori, poi si ripetono)
+  const groupColorMap = useMemo(() => {
+    const ids: string[] = []
+    for (const b of bookings) {
+      if (b.group_id && bookings.some((x: any) => x.id !== b.id && x.group_id === b.group_id)) {
+        if (!ids.includes(b.group_id)) ids.push(b.group_id)
+      }
+    }
+    const map: Record<string, string> = {}
+    ids.forEach((gid, i) => { map[gid] = GROUP_COLORS[i % GROUP_COLORS.length] })
+    return map
+  }, [bookings])
 
   useEffect(() => {
     const check = () => setIsDesktop(window.innerWidth >= 1024)
@@ -267,6 +281,7 @@ export default function Calendario() {
                     const isMultiRoom = booking.group_id && bookings.some((b: any) =>
                       b.id !== booking.id && b.group_id === booking.group_id
                     )
+                    const groupColor = isMultiRoom ? groupColorMap[booking.group_id] : null
 
                     const segments: { start: number; end: number; color: string }[] = []
                     let curColor = '', segStart = startIdx
@@ -298,7 +313,7 @@ export default function Calendario() {
                             alignItems: 'center',
                             overflow: 'hidden',
                             zIndex: 5,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                            boxShadow: groupColor ? `0 1px 3px rgba(0,0,0,0.2), inset 0 0 0 2px white, inset 0 0 0 4px ${groupColor}` : '0 1px 3px rgba(0,0,0,0.2)',
                           }}>
                           {isFirst && (
                             <span style={{ color: 'white', fontSize: isDesktop ? 13 : 10, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -363,6 +378,10 @@ export default function Calendario() {
         <div className="flex items-center gap-1.5">
           <div style={{ width: 12, height: 12, borderRadius: 3, background: RED }} />
           <span className="text-xs text-gray-500">Letto extra</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: 'white', boxShadow: `inset 0 0 0 2px ${GROUP_COLORS[0]}` }} />
+          <span className="text-xs text-gray-500">Cambio camera (colore diverso per ogni cliente)</span>
         </div>
       </div>
     </div>
