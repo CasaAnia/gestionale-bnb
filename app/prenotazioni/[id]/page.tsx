@@ -175,6 +175,29 @@ Ania
 Casa Granata Humanitas`
 }
 
+// Prova ad aprire l'app WhatsApp (desktop o mobile) tramite lo schema whatsapp://,
+// e ricade su wa.me (WhatsApp Web) se l'app non risponde entro 1 secondo.
+function openWhatsApp(phone: string, text: string) {
+  const encoded = encodeURIComponent(text)
+  const appUrl = `whatsapp://send?phone=${phone}&text=${encoded}`
+  const webUrl = `https://wa.me/${phone}?text=${encoded}`
+
+  let handedOff = false
+  const markHandedOff = () => { handedOff = true }
+  document.addEventListener('visibilitychange', markHandedOff)
+  window.addEventListener('blur', markHandedOff)
+
+  window.location.href = appUrl
+
+  setTimeout(() => {
+    document.removeEventListener('visibilitychange', markHandedOff)
+    window.removeEventListener('blur', markHandedOff)
+    if (!handedOff) {
+      window.open(webUrl, '_blank', 'noopener,noreferrer')
+    }
+  }, 1000)
+}
+
 export default function BookingDetail() {
   const { id } = useParams()
   const router = useRouter()
@@ -766,18 +789,20 @@ export default function BookingDetail() {
       {!editing && booking.guests?.phone && (() => {
         const rawPhone = booking.guests.phone.replace(/\D/g, '')
         const phone = rawPhone.startsWith('39') ? rawPhone : `39${rawPhone}`
-        const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent)
-        const waLink = (type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') =>
-          isMobile
-            ? `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsappMsg(booking, type, groupBookings))}`
-            : `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(buildWhatsappMsg(booking, type, groupBookings))}`
+        const waHref = (type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') =>
+          `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsappMsg(booking, type, groupBookings))}`
+        const waClick = (type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') =>
+          (e: React.MouseEvent) => {
+            e.preventDefault()
+            openWhatsApp(phone, buildWhatsappMsg(booking, type, groupBookings))
+          }
         const buttons = (
           <div className="flex flex-col gap-2">
-            <a href={waLink('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-500 text-white rounded-lg py-2 text-sm font-semibold">✅ Conferma prenotazione</a>
-            <a href={waLink('modifica')} target="_blank" rel="noopener noreferrer" className="block text-center bg-blue-500 text-white rounded-lg py-2 text-sm font-semibold">✏️ Modifica prenotazione</a>
-            <a href={waLink('dati_bonifico')} target="_blank" rel="noopener noreferrer" className="block text-center bg-indigo-500 text-white rounded-lg py-2 text-sm font-semibold">🏦 Dati bonifico</a>
-            <a href={waLink('pagamento_ricevuto')} target="_blank" rel="noopener noreferrer" className="block text-center bg-sky-500 text-white rounded-lg py-2 text-sm font-semibold">💸 Pagamento ricevuto</a>
-            <a href={waLink('annullamento')} target="_blank" rel="noopener noreferrer" className="block text-center bg-red-400 text-white rounded-lg py-2 text-sm font-semibold">❌ Annullamento</a>
+            <a href={waHref('conferma')} onClick={waClick('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-500 text-white rounded-lg py-2 text-sm font-semibold">✅ Conferma prenotazione</a>
+            <a href={waHref('modifica')} onClick={waClick('modifica')} target="_blank" rel="noopener noreferrer" className="block text-center bg-blue-500 text-white rounded-lg py-2 text-sm font-semibold">✏️ Modifica prenotazione</a>
+            <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico')} target="_blank" rel="noopener noreferrer" className="block text-center bg-indigo-500 text-white rounded-lg py-2 text-sm font-semibold">🏦 Dati bonifico</a>
+            <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto')} target="_blank" rel="noopener noreferrer" className="block text-center bg-sky-500 text-white rounded-lg py-2 text-sm font-semibold">💸 Pagamento ricevuto</a>
+            <a href={waHref('annullamento')} onClick={waClick('annullamento')} target="_blank" rel="noopener noreferrer" className="block text-center bg-red-400 text-white rounded-lg py-2 text-sm font-semibold">❌ Annullamento</a>
           </div>
         )
         return (
