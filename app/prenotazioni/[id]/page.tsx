@@ -87,7 +87,7 @@ Via Liguria 26 – Fizzonasco, Pieve Emanuele (MI) 20072
 
 📞 CONTATTI
 Per qualsiasi necessità sono sempre disponibile:
-📱 342 700 4345 (anche WhatsApp)
+📱 342 700 4354 (anche WhatsApp)
 
 POLITICA DI CANCELLAZIONE
 Cancellazione gratuita fino a 3 giorni prima dell'arrivo.
@@ -119,7 +119,7 @@ ${paymentLine}
 
 Per qualsiasi domanda resto a Sua disposizione.
 
-📱 342 700 4345 (anche WhatsApp)
+📱 342 700 4354 (anche WhatsApp)
 
 Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info
 
@@ -176,7 +176,7 @@ Notti: *${notti}*
 
 Per qualsiasi chiarimento resto a Sua completa disposizione e sarò lieta di accoglierla in futuro.
 
-📱 342 700 4345 (anche WhatsApp)
+📱 342 700 4354 (anche WhatsApp)
 
 Cordiali saluti,
 Ania
