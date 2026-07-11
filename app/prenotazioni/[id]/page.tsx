@@ -94,6 +94,8 @@ Cancellazione gratuita fino a 3 giorni prima dell'arrivo.
 
 Sarà un piacere accoglierla! 🏡
 
+Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info
+
 A presto,
 Ania
 Casa Granata Humanitas`
@@ -119,6 +121,8 @@ Per qualsiasi domanda resto a Sua disposizione.
 
 📱 342 700 4345 (anche WhatsApp)
 
+Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info
+
 A presto,
 Ania
 Casa Granata Humanitas`
@@ -136,6 +140,8 @@ Importo: *€ ${totale}*
 
 Non appena ricevuto il bonifico le darò conferma. Per qualsiasi necessità sono sempre a disposizione.
 
+Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info
+
 A presto,
 Ania
 Casa Granata Humanitas`
@@ -146,6 +152,8 @@ Casa Granata Humanitas`
 ho ricevuto il suo pagamento. La aspetto con piacere il *${cinF}*!
 
 Per qualsiasi necessità sono sempre a disposizione.
+
+Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info
 
 A presto,
 Ania
