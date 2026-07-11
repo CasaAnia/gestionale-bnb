@@ -24,6 +24,14 @@ function bagnoDesc(room: any) {
   return ''
 }
 
+function roomPageLink(roomName: string): string | null {
+  if (roomName.includes('Amelia')) return 'https://www.casaaniarozzano.it/camere/singola'
+  if (roomName.includes('Allegra')) return 'https://www.casaaniarozzano.it/camere/allegra'
+  if (roomName.includes('Ambra')) return 'https://www.casaaniarozzano.it/camere/ambra'
+  if (roomName.includes('Lena')) return 'https://www.casaaniarozzano.it/camere/lena'
+  return null
+}
+
 function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto', gruppo: any[] = []) {
   const name = b.guests?.full_name || 'Ospite'
   const room = b.rooms?.name || ''
@@ -43,6 +51,7 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   const bagno = bagnoDesc(b.rooms)
 
   const isLena = room.includes('Lena')
+  const roomLink = roomPageLink(room)
 
   // Riepilogo camere per soggiorno con cambio camera
   const riepilogoCamere = isGruppo ? segmenti.map((s, i) => {
@@ -66,11 +75,13 @@ Causale: Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}`
 Gentile *${name}*,
 grazie per aver scelto Casa Granata. Sono lieta di confermarle il soggiorno e la aspetto con piacere!
 
+ℹ️ Info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=5
+
 RIEPILOGO SOGGIORNO
 📅 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
 📅 Check-out: *${coutF}* (entro le ore 10:00)
 👥 Ospiti: ${ospiti}
-${isGruppo ? `🛏️ Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `🛏️ Camera: ${room}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}
+${isGruppo ? `🛏️ Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `🛏️ Camera: ${room}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}${roomLink ? `\n👁 Vedi la tua camera: ${roomLink}` : ''}`}
 Notti totali: *${notti}*
 
 ${paymentLine}
@@ -93,8 +104,6 @@ POLITICA DI CANCELLAZIONE
 Cancellazione gratuita fino a 3 giorni prima dell'arrivo.
 
 Sarà un piacere accoglierla! 🏡
-
-Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=5
 
 A presto,
 Ania
