@@ -75,7 +75,7 @@ Causale: Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}`
 Gentile *${name}*,
 grazie per aver scelto Casa Granata. Sono lieta di confermarle il soggiorno e la aspetto con piacere!
 
-ℹ️ Info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=6
+ℹ️ Info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
 
 RIEPILOGO SOGGIORNO
 📅 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
@@ -130,7 +130,7 @@ Per qualsiasi domanda resto a Sua disposizione.
 
 📱 342 700 4354 (anche WhatsApp)
 
-Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=6
+Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
 
 A presto,
 Ania
@@ -149,7 +149,7 @@ Importo: *€ ${totale}*
 
 Non appena ricevuto il bonifico le darò conferma. Per qualsiasi necessità sono sempre a disposizione.
 
-Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=6
+Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
 
 A presto,
 Ania
@@ -162,7 +162,7 @@ ho ricevuto il suo pagamento. La aspetto con piacere il *${cinF}*!
 
 Per qualsiasi necessità sono sempre a disposizione.
 
-Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=6
+Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
 
 A presto,
 Ania
