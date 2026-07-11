@@ -94,7 +94,7 @@ Cancellazione gratuita fino a 3 giorni prima dell'arrivo.
 
 Sarà un piacere accoglierla! 🏡
 
-Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=4
+Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=5
 
 A presto,
 Ania
@@ -121,7 +121,7 @@ Per qualsiasi domanda resto a Sua disposizione.
 
 📱 342 700 4354 (anche WhatsApp)
 
-Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=4
+Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=5
 
 A presto,
 Ania
@@ -140,7 +140,7 @@ Importo: *€ ${totale}*
 
 Non appena ricevuto il bonifico le darò conferma. Per qualsiasi necessità sono sempre a disposizione.
 
-Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=4
+Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=5
 
 A presto,
 Ania
@@ -153,7 +153,7 @@ ho ricevuto il suo pagamento. La aspetto con piacere il *${cinF}*!
 
 Per qualsiasi necessità sono sempre a disposizione.
 
-Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=4
+Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=5
 
 A presto,
 Ania
