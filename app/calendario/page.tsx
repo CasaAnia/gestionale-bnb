@@ -67,6 +67,8 @@ function buildChangeGroups(bookings: any[]): {
     byGroupId.get(b.group_id)!.push(i)
   })
   byGroupId.forEach(idxs => { for (let k = 1; k < idxs.length; k++) union(idxs[0], idxs[k]) })
+  // group_id condivisi da almeno 2 prenotazioni: collegamento esplicito, va sempre evidenziato
+  const explicitGroupIds = new Set([...byGroupId.entries()].filter(([, idxs]) => idxs.length >= 2).map(([gid]) => gid))
 
   // Stesso ospite, camere diverse, date contigue o sovrapposte (ma non identiche: due camere nelle
   // stesse identiche date sono una prenotazione multipla contemporanea, non un cambio camera)
@@ -102,7 +104,8 @@ function buildChangeGroups(bookings: any[]): {
     if (idxs.length < 2) return
     const sorted = idxs.map(i => bookings[i]).sort((a, b) => a.check_in.localeCompare(b.check_in))
     const hasChange = sorted.some((b, i) => i > 0 && b.room_id !== sorted[i - 1].room_id)
-    if (!hasChange) return
+    const hasExplicitLink = sorted.some(b => b.group_id && explicitGroupIds.has(b.group_id))
+    if (!hasChange && !hasExplicitLink) return
     const key = `chain-${[...sorted.map(b => b.id)].sort()[0]}`
     sorted.forEach(b => { chainKeyOf[b.id] = key })
     sorted.forEach((b, i) => {
