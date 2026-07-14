@@ -33,27 +33,75 @@ function strToDate(s: string) {
 
 const HIGHLIGHT_COLORS = ['#FF4FD8', '#8C8C8C', '#FFE93B']
 
-// Assegna un colore (max 3, evitando sovrapposizioni nello stesso periodo) a ogni soggiorno con cambio camera reale
-function computeGroupHighlightColors(bookings: any[]): Record<string, string> {
-  const groups: Record<string, any[]> = {}
-  for (const b of bookings) {
-    if (!b.group_id) continue
-    if (!groups[b.group_id]) groups[b.group_id] = []
-    groups[b.group_id].push(b)
+// Collega in "catene" le prenotazioni con cambio camera reale: stesso group_id, oppure stesso ospite
+// con camere diverse e date contigue/sovrapposte (anche senza group_id). Assegna un colore (max 3,
+// evitando sovrapposizioni nello stesso periodo) a ogni catena.
+function buildChangeGroups(bookings: any[]): {
+  chainKeyOf: Record<string, string>
+  colorOf: Record<string, string>
+} {
+  const n = bookings.length
+  const parent = Array.from({ length: n }, (_, i) => i)
+  function find(x: number): number {
+    while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x] }
+    return x
   }
-  const ranges: { id: string; start: string; end: string }[] = []
-  Object.entries(groups).forEach(([gid, list]) => {
-    if (list.length < 2) return
-    const sorted = [...list].sort((a, b) => a.check_in.localeCompare(b.check_in))
+  function union(a: number, b: number) {
+    a = find(a); b = find(b)
+    if (a !== b) parent[a] = b
+  }
+
+  const byGroupId = new Map<string, number[]>()
+  bookings.forEach((b, i) => {
+    if (!b.group_id) return
+    if (!byGroupId.has(b.group_id)) byGroupId.set(b.group_id, [])
+    byGroupId.get(b.group_id)!.push(i)
+  })
+  byGroupId.forEach(idxs => { for (let k = 1; k < idxs.length; k++) union(idxs[0], idxs[k]) })
+
+  // Stesso ospite, camere diverse, date contigue o sovrapposte (ma non identiche: due camere nelle
+  // stesse identiche date sono una prenotazione multipla contemporanea, non un cambio camera)
+  const byGuest = new Map<string, number[]>()
+  bookings.forEach((b, i) => {
+    if (!b.guest_id) return
+    if (!byGuest.has(b.guest_id)) byGuest.set(b.guest_id, [])
+    byGuest.get(b.guest_id)!.push(i)
+  })
+  byGuest.forEach(idxs => {
+    for (let x = 0; x < idxs.length; x++) {
+      for (let y = x + 1; y < idxs.length; y++) {
+        const a = bookings[idxs[x]], b = bookings[idxs[y]]
+        if (a.room_id === b.room_id) continue
+        if (a.check_in === b.check_in && a.check_out === b.check_out) continue
+        if (a.check_in <= b.check_out && b.check_in <= a.check_out) union(idxs[x], idxs[y])
+      }
+    }
+  })
+
+  const components = new Map<number, number[]>()
+  bookings.forEach((_, i) => {
+    const r = find(i)
+    if (!components.has(r)) components.set(r, [])
+    components.get(r)!.push(i)
+  })
+
+  const chainKeyOf: Record<string, string> = {}
+  const ranges: { key: string; start: string; end: string }[] = []
+
+  components.forEach(idxs => {
+    if (idxs.length < 2) return
+    const sorted = idxs.map(i => bookings[i]).sort((a, b) => a.check_in.localeCompare(b.check_in))
     const hasChange = sorted.some((b, i) => i > 0 && b.room_id !== sorted[i - 1].room_id)
     if (!hasChange) return
+    const key = `chain-${[...sorted.map(b => b.id)].sort()[0]}`
+    sorted.forEach(b => { chainKeyOf[b.id] = key })
     const start = sorted[0].check_in
     const end = sorted.reduce((m, b) => (b.check_out > m ? b.check_out : m), sorted[0].check_out)
-    ranges.push({ id: gid, start, end })
+    ranges.push({ key, start, end })
   })
-  ranges.sort((a, b) => a.start.localeCompare(b.start) || a.id.localeCompare(b.id))
 
-  const map: Record<string, string> = {}
+  ranges.sort((a, b) => a.start.localeCompare(b.start) || a.key.localeCompare(b.key))
+  const colorOf: Record<string, string> = {}
   const active: { end: string; color: string }[] = []
   ranges.forEach(g => {
     for (let i = active.length - 1; i >= 0; i--) {
@@ -61,10 +109,11 @@ function computeGroupHighlightColors(bookings: any[]): Record<string, string> {
     }
     const used = new Set(active.map(a => a.color))
     const color = HIGHLIGHT_COLORS.find(c => !used.has(c)) || HIGHLIGHT_COLORS[active.length % HIGHLIGHT_COLORS.length]
-    map[g.id] = color
+    colorOf[g.key] = color
     active.push({ end: g.end, color })
   })
-  return map
+
+  return { chainKeyOf, colorOf }
 }
 
 export default function Arrivi() {
@@ -90,8 +139,8 @@ export default function Arrivi() {
   const HEADER_H = HEADER_MONTH_H + HEADER_DAY_H
   const NAME_W = isDesktop ? NAME_W_DESKTOP : NAME_W_MOBILE
 
-  // Colore di evidenziazione (max 3, senza sovrapposizioni) per ogni soggiorno con cambio camera reale
-  const groupHighlightColorMap = useMemo(() => computeGroupHighlightColors(bookings), [bookings])
+  // Catene di cambio camera (per group_id o per stesso ospite/date contigue) e relativi colori
+  const changeGroups = useMemo(() => buildChangeGroups(bookings), [bookings])
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -264,7 +313,8 @@ export default function Arrivi() {
                     if (startIdx < 0 || startIdx >= DAYS_TOTAL || endIdx <= startIdx) return []
 
                     const time = booking.check_in_time || ''
-                    const highlightColor = booking.group_id ? groupHighlightColorMap[booking.group_id] : null
+                    const chainKey = changeGroups.chainKeyOf[booking.id]
+                    const highlightColor = chainKey ? changeGroups.colorOf[chainKey] : null
                     const insetV = highlightColor ? 10 : 6
                     const insetH = highlightColor ? 8 : 2
                     const barWidth = (endIdx - startIdx) * CELL_W - insetH * 2

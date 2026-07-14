@@ -41,27 +41,83 @@ function strToDate(s: string) {
   return new Date(y, m - 1, d)
 }
 
-// Assegna un colore (max 3, evitando sovrapposizioni nello stesso periodo) a ogni soggiorno con cambio camera reale
-function computeGroupHighlightColors(bookings: any[]): Record<string, string> {
-  const groups: Record<string, any[]> = {}
-  for (const b of bookings) {
-    if (!b.group_id) continue
-    if (!groups[b.group_id]) groups[b.group_id] = []
-    groups[b.group_id].push(b)
+// Collega in "catene" le prenotazioni con cambio camera reale: stesso group_id, oppure stesso ospite
+// con camere diverse e date contigue/sovrapposte (anche senza group_id). Assegna un colore (max 3,
+// evitando sovrapposizioni nello stesso periodo) a ogni catena e individua le transizioni ⇄ camera.
+function buildChangeGroups(bookings: any[]): {
+  chainKeyOf: Record<string, string>
+  transitionOf: Record<string, { toRoomId?: string; fromRoomId?: string }>
+  colorOf: Record<string, string>
+} {
+  const n = bookings.length
+  const parent = Array.from({ length: n }, (_, i) => i)
+  function find(x: number): number {
+    while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x] }
+    return x
   }
-  const ranges: { id: string; start: string; end: string }[] = []
-  Object.entries(groups).forEach(([gid, list]) => {
-    if (list.length < 2) return
-    const sorted = [...list].sort((a, b) => a.check_in.localeCompare(b.check_in))
+  function union(a: number, b: number) {
+    a = find(a); b = find(b)
+    if (a !== b) parent[a] = b
+  }
+
+  const byGroupId = new Map<string, number[]>()
+  bookings.forEach((b, i) => {
+    if (!b.group_id) return
+    if (!byGroupId.has(b.group_id)) byGroupId.set(b.group_id, [])
+    byGroupId.get(b.group_id)!.push(i)
+  })
+  byGroupId.forEach(idxs => { for (let k = 1; k < idxs.length; k++) union(idxs[0], idxs[k]) })
+
+  // Stesso ospite, camere diverse, date contigue o sovrapposte (ma non identiche: due camere nelle
+  // stesse identiche date sono una prenotazione multipla contemporanea, non un cambio camera)
+  const byGuest = new Map<string, number[]>()
+  bookings.forEach((b, i) => {
+    if (!b.guest_id) return
+    if (!byGuest.has(b.guest_id)) byGuest.set(b.guest_id, [])
+    byGuest.get(b.guest_id)!.push(i)
+  })
+  byGuest.forEach(idxs => {
+    for (let x = 0; x < idxs.length; x++) {
+      for (let y = x + 1; y < idxs.length; y++) {
+        const a = bookings[idxs[x]], b = bookings[idxs[y]]
+        if (a.room_id === b.room_id) continue
+        if (a.check_in === b.check_in && a.check_out === b.check_out) continue
+        if (a.check_in <= b.check_out && b.check_in <= a.check_out) union(idxs[x], idxs[y])
+      }
+    }
+  })
+
+  const components = new Map<number, number[]>()
+  bookings.forEach((_, i) => {
+    const r = find(i)
+    if (!components.has(r)) components.set(r, [])
+    components.get(r)!.push(i)
+  })
+
+  const chainKeyOf: Record<string, string> = {}
+  const transitionOf: Record<string, { toRoomId?: string; fromRoomId?: string }> = {}
+  const ranges: { key: string; start: string; end: string }[] = []
+
+  components.forEach(idxs => {
+    if (idxs.length < 2) return
+    const sorted = idxs.map(i => bookings[i]).sort((a, b) => a.check_in.localeCompare(b.check_in))
     const hasChange = sorted.some((b, i) => i > 0 && b.room_id !== sorted[i - 1].room_id)
     if (!hasChange) return
+    const key = `chain-${[...sorted.map(b => b.id)].sort()[0]}`
+    sorted.forEach(b => { chainKeyOf[b.id] = key })
+    sorted.forEach((b, i) => {
+      const entry: { toRoomId?: string; fromRoomId?: string } = {}
+      if (i < sorted.length - 1 && sorted[i + 1].room_id !== b.room_id) entry.toRoomId = sorted[i + 1].room_id
+      if (i > 0 && sorted[i - 1].room_id !== b.room_id) entry.fromRoomId = sorted[i - 1].room_id
+      if (entry.toRoomId || entry.fromRoomId) transitionOf[b.id] = entry
+    })
     const start = sorted[0].check_in
     const end = sorted.reduce((m, b) => (b.check_out > m ? b.check_out : m), sorted[0].check_out)
-    ranges.push({ id: gid, start, end })
+    ranges.push({ key, start, end })
   })
-  ranges.sort((a, b) => a.start.localeCompare(b.start) || a.id.localeCompare(b.id))
 
-  const map: Record<string, string> = {}
+  ranges.sort((a, b) => a.start.localeCompare(b.start) || a.key.localeCompare(b.key))
+  const colorOf: Record<string, string> = {}
   const active: { end: string; color: string }[] = []
   ranges.forEach(g => {
     for (let i = active.length - 1; i >= 0; i--) {
@@ -69,10 +125,11 @@ function computeGroupHighlightColors(bookings: any[]): Record<string, string> {
     }
     const used = new Set(active.map(a => a.color))
     const color = HIGHLIGHT_COLORS.find(c => !used.has(c)) || HIGHLIGHT_COLORS[active.length % HIGHLIGHT_COLORS.length]
-    map[g.id] = color
+    colorOf[g.key] = color
     active.push({ end: g.end, color })
   })
-  return map
+
+  return { chainKeyOf, transitionOf, colorOf }
 }
 
 export default function Calendario() {
@@ -83,30 +140,8 @@ export default function Calendario() {
   const [loading, setLoading] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
 
-  // Colore di evidenziazione (max 3, senza sovrapposizioni) per ogni soggiorno con cambio camera reale
-  const groupHighlightColorMap = useMemo(() => computeGroupHighlightColors(bookings), [bookings])
-
-  // Per ogni prenotazione con cambio camera, verso/da quale camera si sposta
-  const groupChainMap = useMemo(() => {
-    const groups: Record<string, any[]> = {}
-    for (const b of bookings) {
-      if (!b.group_id) continue
-      if (!groups[b.group_id]) groups[b.group_id] = []
-      groups[b.group_id].push(b)
-    }
-    const map: Record<string, { toRoomId?: string; fromRoomId?: string }> = {}
-    Object.values(groups).forEach(list => {
-      if (list.length < 2) return
-      const sorted = [...list].sort((a, b) => a.check_in.localeCompare(b.check_in))
-      sorted.forEach((b, i) => {
-        const entry: { toRoomId?: string; fromRoomId?: string } = {}
-        if (i < sorted.length - 1 && sorted[i + 1].room_id !== b.room_id) entry.toRoomId = sorted[i + 1].room_id
-        if (i > 0 && sorted[i - 1].room_id !== b.room_id) entry.fromRoomId = sorted[i - 1].room_id
-        if (entry.toRoomId || entry.fromRoomId) map[b.id] = entry
-      })
-    })
-    return map
-  }, [bookings])
+  // Catene di cambio camera (per group_id o per stesso ospite/date contigue), colori e transizioni ⇄
+  const changeGroups = useMemo(() => buildChangeGroups(bookings), [bookings])
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
 
@@ -337,10 +372,11 @@ export default function Calendario() {
                     const isEsclusiva = booking.color === '#f97316'
                     const vuoleRicevuta = booking.guests?.rating === 'vuole_ricevuta'
                     const hasExtraBed = booking.extra_bed || (booking.extra_bed_dates && booking.extra_bed_dates.length > 0)
-                    const transition = groupChainMap[booking.id]
-                    const highlightColor = booking.group_id ? groupHighlightColorMap[booking.group_id] : null
+                    const transition = changeGroups.transitionOf[booking.id]
+                    const chainKey = changeGroups.chainKeyOf[booking.id]
+                    const highlightColor = chainKey ? changeGroups.colorOf[chainKey] : null
                     const isMultiRoom = !!highlightColor
-                    const isSelected = isMultiRoom && selectedGroupId === booking.group_id
+                    const isSelected = isMultiRoom && selectedGroupId === chainKey
                     const insetV = highlightColor ? 10 : 6
                     const insetH = highlightColor ? 8 : 2
 
@@ -362,11 +398,11 @@ export default function Calendario() {
                         <div key={`${booking.id}-${si}`}
                           onClick={(e) => {
                             if (isMultiRoom) {
-                              if (selectedGroupId === booking.group_id) {
+                              if (selectedGroupId === chainKey) {
                                 router.push(`/prenotazioni/${booking.id}`)
                               } else {
                                 e.stopPropagation()
-                                setSelectedGroupId(booking.group_id)
+                                setSelectedGroupId(chainKey)
                               }
                             } else {
                               router.push(`/prenotazioni/${booking.id}`)
