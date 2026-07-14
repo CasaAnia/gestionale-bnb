@@ -54,7 +54,7 @@ export default function BottomNav() {
           const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
           return (
             <Link key={item.href} href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors ${active ? 'bg-blue-50 text-blue-600 border-r-2 border-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}>
+              className={`flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors ${active ? 'mx-3 rounded-full bg-[#E3EFE7] text-[#1F3D2F]' : 'text-gray-600 hover:bg-gray-50'}`}>
               <span className="text-xl">{item.icon}</span>
               <span>{item.label}</span>
             </Link>
