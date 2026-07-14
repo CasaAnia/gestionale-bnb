@@ -202,7 +202,7 @@ export default function Arrivi() {
                 return (
                   <div key={i} style={{
                     width: CELL_W, minWidth: CELL_W, textAlign: 'center', paddingTop: 4,
-                    background: isToday ? '#f0fdf4' : 'transparent',
+                    background: isToday ? '#A8DCF0' : 'transparent',
                     borderLeft: '1px solid #f3f4f6',
                   }}>
                     <div style={{ fontSize: isDesktop ? 10 : 8, color: isSun ? '#dc2626' : '#9ca3af', marginBottom: 2 }}>
@@ -250,8 +250,8 @@ export default function Arrivi() {
                         <div key={i}
                           style={{
                             width: CELL_W, minWidth: CELL_W, height: '100%',
-                            background: isToday ? '#f0fdf4' : isSun ? '#fafafa' : (isEven ? 'white' : '#fafafa'),
-                            borderLeft: isToday ? '2px solid #bbf7d0' : '1px solid #f3f4f6',
+                            background: isToday ? '#A8DCF0' : isSun ? '#fafafa' : (isEven ? 'white' : '#fafafa'),
+                            borderLeft: isToday ? '2px solid #A8DCF0' : '1px solid #f3f4f6',
                           }} />
                       )
                     })}

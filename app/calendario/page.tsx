@@ -270,7 +270,7 @@ export default function Calendario() {
                   <div key={i} style={{
                     width: CELL_W, minWidth: CELL_W, textAlign: 'center',
                     paddingTop: 4,
-                    background: isToday ? '#f0fdf4' : 'transparent',
+                    background: isToday ? '#A8DCF0' : 'transparent',
                     borderLeft: '1px solid #d1d5db',
                   }}>
                     <div style={{ fontSize: isDesktop ? 10 : 8, color: isSun ? '#dc2626' : '#9ca3af', marginBottom: 2 }}>
@@ -319,8 +319,8 @@ export default function Calendario() {
                           onClick={() => router.push(`/nuova?room_id=${room.id}&check_in=${dateStr}`)}
                           style={{
                             width: CELL_W, minWidth: CELL_W, height: '100%',
-                            background: isToday ? '#f0fdf4' : isSun ? '#fafafa' : (isEven ? 'white' : '#fafafa'),
-                            borderLeft: isToday ? '2px solid #bbf7d0' : '1px solid #d1d5db',
+                            background: isToday ? '#A8DCF0' : isSun ? '#fafafa' : (isEven ? 'white' : '#fafafa'),
+                            borderLeft: isToday ? '2px solid #A8DCF0' : '1px solid #d1d5db',
                             cursor: 'pointer',
                           }} />
                       )
@@ -450,7 +450,7 @@ export default function Calendario() {
                     const isFull = count >= EXTRA_BED_MAX
                     const isToday = dateStr === todayStr
                     return (
-                      <div key={i} style={{ width: CELL_W, minWidth: CELL_W, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isFull ? '#fef2f2' : isToday ? '#f0fdf4' : 'white', borderLeft: isToday ? '2px solid #bbf7d0' : '1px solid #d1d5db' }}>
+                      <div key={i} style={{ width: CELL_W, minWidth: CELL_W, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isFull ? '#fef2f2' : isToday ? '#A8DCF0' : 'white', borderLeft: isToday ? '2px solid #A8DCF0' : '1px solid #d1d5db' }}>
                         {count > 0 && (
                           <span style={{ fontSize: isDesktop ? 11 : 8, fontWeight: 700, color: isFull ? RED : '#d97706' }}>
                             {count}/{EXTRA_BED_MAX}
