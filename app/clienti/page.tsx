@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 
-const RATING_COLOR: Record<string, string> = { ottimo: 'bg-green-100 text-green-700', problematico: 'bg-red-100 text-red-700', vuole_ricevuta: 'bg-blue-100 text-blue-700', normale: 'bg-gray-100 text-gray-600' }
+const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐', problematico: '⚠️', vuole_ricevuta: '🧾', normale: '' }
 
 export default function Clienti() {
@@ -24,12 +24,12 @@ export default function Clienti() {
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold">Clienti</h1>
-        <Link href="/clienti/nuovo" className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Nuovo</Link>
+        <h1 className="font-serif text-xl text-green-dark">Clienti</h1>
+        <Link href="/clienti/nuovo" className="bg-green-mid text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Nuovo</Link>
       </div>
       <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="🔍 Cerca per nome o telefono..."
-        className="w-full border border-gray-200 rounded-xl p-3 mb-4 text-sm focus:outline-none focus:border-blue-400" />
+        className="w-full border border-card-border rounded-xl p-3 mb-4 text-sm focus:outline-none focus:border-green-mid" />
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
@@ -39,7 +39,7 @@ export default function Clienti() {
         <div className="flex flex-col gap-2">
           {filtered.map(g => (
             <Link key={g.id} href={`/clienti/${g.id}`}
-              className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm flex items-center justify-between">
+              className="bg-white rounded-xl p-4 border border-card-border shadow-sm flex items-center justify-between">
               <div>
                 <p className="font-semibold">{g.full_name || 'Senza nome'}</p>
                 <p className="text-sm text-gray-500">📞 {g.phone}</p>

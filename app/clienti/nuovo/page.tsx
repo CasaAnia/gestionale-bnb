@@ -34,35 +34,35 @@ export default function NuovoCliente() {
   return (
     <div className="p-4">
       <div className="flex items-center gap-3 mb-4">
-        <button onClick={() => router.back()} className="text-blue-600 text-sm">← Indietro</button>
-        <h1 className="text-xl font-bold">Nuovo cliente</h1>
+        <button onClick={() => router.back()} className="text-green-mid text-sm">← Indietro</button>
+        <h1 className="font-serif text-xl text-green-dark">Nuovo cliente</h1>
       </div>
 
-      <div className="bg-white rounded-xl p-4 border border-gray-100 space-y-3">
+      <div className="bg-white rounded-xl p-4 border border-card-border space-y-3">
         <div>
           <p className="text-sm text-gray-500 mb-1">Nome e cognome</p>
           <input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })}
             placeholder="Nome e cognome" autoFocus
-            className="w-full border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-400" />
+            className="w-full border border-card-border rounded-lg p-3 text-sm focus:outline-none focus:border-green-mid" />
         </div>
         <div>
           <p className="text-sm text-gray-500 mb-1">Telefono (opzionale)</p>
           <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
             placeholder="+39 333 1234567"
-            className="w-full border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-400" />
+            className="w-full border border-card-border rounded-lg p-3 text-sm focus:outline-none focus:border-green-mid" />
         </div>
         <div>
           <p className="text-sm text-gray-500 mb-1">Email (opzionale)</p>
           <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
             placeholder="email@esempio.it"
-            className="w-full border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-400" />
+            className="w-full border border-card-border rounded-lg p-3 text-sm focus:outline-none focus:border-green-mid" />
         </div>
         <div>
           <p className="text-sm text-gray-500 mb-2">Valutazione</p>
           <div className="grid grid-cols-2 gap-2">
             {Object.entries(RATING_LABEL).map(([k, v]) => (
               <button key={k} onClick={() => setForm({ ...form, rating: k })}
-                className={`text-xs py-2 px-3 rounded-lg font-medium border transition-colors ${form.rating === k ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'}`}>
+                className={`text-xs py-2 px-3 rounded-lg font-medium border transition-colors ${form.rating === k ? 'bg-green-mid text-white border-green-mid' : 'bg-white text-gray-600 border-card-border'}`}>
                 {v}
               </button>
             ))}
@@ -70,10 +70,10 @@ export default function NuovoCliente() {
         </div>
       </div>
 
-      {error && <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">❌ {error}</div>}
+      {error && <div className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">❌ {error}</div>}
 
       <button onClick={save} disabled={saving}
-        className="w-full mt-4 bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
+        className="w-full mt-4 bg-green-mid text-white rounded-xl py-3 font-semibold disabled:opacity-50">
         {saving ? 'Salvataggio...' : '✅ Salva cliente'}
       </button>
     </div>

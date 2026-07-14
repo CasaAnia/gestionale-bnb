@@ -79,7 +79,7 @@ export default function Impostazioni() {
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-2">Impostazioni</h1>
+      <h1 className="font-serif text-xl text-green-dark mb-2">Impostazioni</h1>
       <p className="text-sm text-gray-500 mb-4">Configura prezzi e camere</p>
 
       {loading ? (
@@ -87,26 +87,26 @@ export default function Impostazioni() {
       ) : (
         <div className="flex flex-col gap-4">
           {rooms.map(room => (
-            <div key={room.id} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <div key={room.id} className="bg-white rounded-xl p-4 border border-card-border shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <p className="font-bold">{room.name}</p>
                 <span className="text-xs text-gray-500">{BATHROOM_LABELS[room.bathroom_type]}</span>
               </div>
               {room.bathroom_note && (
-                <p className="text-xs text-amber-600 bg-amber-50 rounded p-2 mb-3">📍 {room.bathroom_note}</p>
+                <p className="text-xs text-[#7A4B22] bg-[#F1E0CE] rounded p-2 mb-3">📍 {room.bathroom_note}</p>
               )}
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Prezzo base/notte €</p>
                   <input type="number" min={0} value={val(room, 'base_price')}
                     onChange={e => edit(room.id, 'base_price', parseFloat(e.target.value))}
-                    className="w-full border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-400" />
+                    className="w-full border border-card-border rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Letto agg. €/notte</p>
                   <input type="number" min={0} value={val(room, 'extra_bed_price')}
                     onChange={e => edit(room.id, 'extra_bed_price', parseFloat(e.target.value))}
-                    className="w-full border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-400" />
+                    className="w-full border border-card-border rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
                 </div>
               </div>
               {room.double_price !== null && room.double_price !== undefined && (
@@ -114,7 +114,7 @@ export default function Impostazioni() {
                   <p className="text-xs text-gray-500 mb-1">👥 Prezzo 2 ospiti €/notte</p>
                   <input type="number" min={0} value={val(room, 'double_price')}
                     onChange={e => edit(room.id, 'double_price', parseFloat(e.target.value))}
-                    className="w-full border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-400" />
+                    className="w-full border border-card-border rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
                 </div>
               )}
               {room.matrimoniale_price !== null && room.matrimoniale_price !== undefined && (
@@ -122,12 +122,12 @@ export default function Impostazioni() {
                   <p className="text-xs text-gray-500 mb-1">💑 Uso matrimoniale €/notte</p>
                   <input type="number" min={0} value={val(room, 'matrimoniale_price')}
                     onChange={e => edit(room.id, 'matrimoniale_price', parseFloat(e.target.value))}
-                    className="w-full border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:border-blue-400" />
+                    className="w-full border border-card-border rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
                 </div>
               )}
               {edits[room.id] && (
                 <button onClick={() => saveRoom(room)} disabled={saving === room.id}
-                  className="w-full bg-blue-600 text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-50">
+                  className="w-full bg-green-mid text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-50">
                   {saving === room.id ? 'Salvataggio...' : '💾 Salva modifiche'}
                 </button>
               )}
@@ -137,16 +137,16 @@ export default function Impostazioni() {
       )}
 
       {/* Notifiche push */}
-      <div className="mt-6 bg-white rounded-xl p-4 border border-gray-100">
+      <div className="mt-6 bg-white rounded-xl p-4 border border-card-border">
         <p className="font-semibold mb-1">🔔 Notifiche arrivi</p>
         <p className="text-xs text-gray-500 mb-3">Ricevi una notifica ogni giorno alle 15:00 con gli arrivi del giorno successivo e i letti da preparare.</p>
         {notifStatus === 'ok' ? (
-          <div className="bg-green-50 text-green-700 rounded-lg px-3 py-2 text-sm font-semibold">✅ Notifiche attive!</div>
+          <div className="bg-sage text-green-dark rounded-lg px-3 py-2 text-sm font-semibold">✅ Notifiche attive!</div>
         ) : notifStatus === 'denied' ? (
-          <div className="bg-red-50 text-red-600 rounded-lg px-3 py-2 text-sm">❌ Permesso negato. Vai nelle impostazioni del telefono per abilitarle.</div>
+          <div className="bg-[#F6E4DE] text-[#8C3B2E] rounded-lg px-3 py-2 text-sm">❌ Permesso negato. Vai nelle impostazioni del telefono per abilitarle.</div>
         ) : (
           <button onClick={attivaNotifiche} disabled={notifStatus === 'loading'}
-            className="w-full bg-blue-600 text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
+            className="w-full bg-green-mid text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
             {notifStatus === 'loading' ? 'Attivazione...' : '🔔 Attiva notifiche sul telefono'}
           </button>
         )}

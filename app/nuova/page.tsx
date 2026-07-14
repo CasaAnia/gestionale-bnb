@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
-const RATING_COLOR: Record<string, string> = { ottimo: 'bg-green-100 text-green-700', problematico: 'bg-red-100 text-red-700', vuole_ricevuta: 'bg-blue-100 text-blue-700', normale: 'bg-gray-100 text-gray-600' }
+const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
 
 export default function NuovaPrenotazionePage() {
   return <Suspense><NuovaPrenotazione /></Suspense>
@@ -270,10 +270,10 @@ function NuovaPrenotazione() {
     const room = rooms.find(r => r.id === form.room_id)
     return (
       <div className="p-4 max-w-md mx-auto">
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center mb-6">
+        <div className="bg-sage border border-[#C9DDD0] rounded-2xl p-6 text-center mb-6">
           <p className="text-3xl mb-2">✓</p>
-          <p className="font-bold text-green-800 text-lg">Prenotazione salvata</p>
-          <p className="text-green-700 text-sm mt-1">{room?.name} · check-out {savedCheckOut}</p>
+          <p className="font-bold text-green-dark text-lg">Prenotazione salvata</p>
+          <p className="text-green-dark text-sm mt-1">{room?.name} · check-out {savedCheckOut}</p>
         </div>
         <p className="text-center text-gray-600 font-semibold mb-4">Vuoi aggiungere un cambio camera?</p>
         <button
@@ -292,7 +292,7 @@ function NuovaPrenotazione() {
             }))
             setSavedCheckOut(null)
           }}
-          className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl text-base mb-3"
+          className="w-full bg-green-mid text-white font-bold py-4 rounded-2xl text-base mb-3"
         >
           ➕ Aggiungi cambio camera
         </button>
@@ -309,24 +309,24 @@ function NuovaPrenotazione() {
   return (
     <div className="p-4">
       <div className="flex items-center gap-3 mb-4">
-        <button onClick={() => step === 'telefono' ? router.back() : setStep(step === 'dettagli' ? 'cliente' : 'telefono')} className="text-blue-600 text-sm">← Indietro</button>
-        <h1 className="text-xl font-bold">Nuova prenotazione</h1>
+        <button onClick={() => step === 'telefono' ? router.back() : setStep(step === 'dettagli' ? 'cliente' : 'telefono')} className="text-green-mid text-sm">← Indietro</button>
+        <h1 className="font-serif text-xl text-green-dark">Nuova prenotazione</h1>
       </div>
 
       {/* Step 1: telefono o nome */}
       {step === 'telefono' && (
         <div className="space-y-3">
-          <div className="bg-white rounded-xl p-4 border border-gray-100">
+          <div className="bg-white rounded-xl p-4 border border-card-border">
             <p className="font-semibold mb-3">📞 Cerca per telefono</p>
             <input
               type="tel" value={phone} onChange={e => setPhone(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && searchPhone()}
               placeholder="+39 333 1234567"
-              className="w-full border border-gray-200 rounded-lg p-3 text-lg mb-3 focus:outline-none focus:border-blue-400"
+              className="w-full border border-card-border rounded-lg p-3 text-lg mb-3 focus:outline-none focus:border-green-mid"
               autoFocus
             />
             <button onClick={searchPhone} disabled={!phone.trim() || searchLoading}
-              className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
+              className="w-full bg-green-mid text-white rounded-xl py-3 font-semibold disabled:opacity-50">
               {searchLoading ? 'Ricerca...' : 'Cerca →'}
             </button>
           </div>
@@ -337,24 +337,24 @@ function NuovaPrenotazione() {
             <div className="flex-1 h-px bg-gray-200" />
           </div>
 
-          <div className="bg-white rounded-xl p-4 border border-gray-100">
+          <div className="bg-white rounded-xl p-4 border border-card-border">
             <p className="font-semibold mb-3">👤 Cerca per nome</p>
             <input
               type="text" value={searchName} onChange={e => { setSearchName(e.target.value); setNameResults([]) }}
               onKeyDown={e => e.key === 'Enter' && searchByName()}
               placeholder="Nome e cognome"
-              className="w-full border border-gray-200 rounded-lg p-3 text-lg mb-3 focus:outline-none focus:border-blue-400"
+              className="w-full border border-card-border rounded-lg p-3 text-lg mb-3 focus:outline-none focus:border-green-mid"
             />
             <button onClick={searchByName} disabled={!searchName.trim() || searchLoading}
               className="w-full bg-gray-700 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
               {searchLoading ? 'Ricerca...' : 'Cerca →'}
             </button>
             {nameResults.length > 1 && (
-              <div className="mt-3 border-t border-gray-100 pt-3">
+              <div className="mt-3 border-t border-card-border pt-3">
                 <p className="text-sm text-gray-500 mb-2">Più clienti trovati — seleziona:</p>
                 {nameResults.map(g => (
                   <button key={g.id} onClick={() => selectGuestFromList(g)}
-                    className="w-full text-left px-3 py-2 rounded-lg border border-gray-100 mb-1.5 hover:bg-blue-50 active:bg-blue-100">
+                    className="w-full text-left px-3 py-2 rounded-lg border border-card-border mb-1.5 hover:bg-sage active:bg-sage">
                     <p className="font-semibold text-sm">{g.full_name}</p>
                     <p className="text-xs text-gray-400">📞 {g.phone || '—'}</p>
                   </button>
@@ -369,18 +369,18 @@ function NuovaPrenotazione() {
       {step === 'cliente' && (
         <div>
           {guest ? (
-            <div className="bg-white rounded-xl p-4 border border-gray-100 mb-4">
+            <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
               <div className="flex items-center justify-between mb-2">
-                <p className="font-bold text-green-700">✅ Cliente trovato</p>
+                <p className="font-bold text-green-dark">✅ Cliente trovato</p>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${RATING_COLOR[guest.rating]}`}>{RATING_LABEL[guest.rating]}</span>
               </div>
               <p className="font-semibold">{guest.full_name || phone}</p>
               <p className="text-sm text-gray-500">📞 {guest.phone}</p>
               {guest.email && <p className="text-sm text-gray-500">✉️ {guest.email}</p>}
               {guestHistory.length > 0 && (
-                <div className="mt-3 border-t border-gray-100 pt-3">
+                <div className="mt-3 border-t border-card-border pt-3">
                   <p className="text-sm font-semibold text-gray-600 mb-2">Storico soggiorni ({guestHistory.length})</p>
-                  <p className="text-sm font-semibold text-blue-600 mb-2">Totale speso: €{guestHistory.filter(h => h.status !== 'annullata').reduce((s: number, h: any) => s + Number(h.total_amount), 0).toFixed(0)}</p>
+                  <p className="text-sm font-semibold text-green-mid mb-2">Totale speso: €{guestHistory.filter(h => h.status !== 'annullata').reduce((s: number, h: any) => s + Number(h.total_amount), 0).toFixed(0)}</p>
                   {guestHistory.slice(0, 4).map(h => {
                     const notti = h.check_in && h.check_out ? Math.round((new Date(h.check_out.replace(/-/g,'/')).getTime() - new Date(h.check_in.replace(/-/g,'/')).getTime()) / 86400000) : 0
                     return (
@@ -389,10 +389,10 @@ function NuovaPrenotazione() {
                         <span className={h.status === 'annullata' ? 'line-through text-gray-400' : 'text-gray-700'}>
                           {h.check_in} → {h.check_out} · {notti}n · €{Number(h.price_per_night).toFixed(0)}/n · {h.rooms?.name}
                         </span>
-                        <span className={`font-semibold shrink-0 ${h.status === 'annullata' ? 'text-red-400' : 'text-gray-600'}`}>€{Number(h.total_amount).toFixed(0)}</span>
+                        <span className={`font-semibold shrink-0 ${h.status === 'annullata' ? 'text-[#8C3B2E]' : 'text-gray-600'}`}>€{Number(h.total_amount).toFixed(0)}</span>
                       </div>
                       {h.status === 'annullata' && h.cancelled_reason && (
-                        <p className="text-xs text-red-400 italic mt-0.5">↳ {h.cancelled_reason}</p>
+                        <p className="text-xs text-[#8C3B2E] italic mt-0.5">↳ {h.cancelled_reason}</p>
                       )}
                     </div>
                   )})}
@@ -400,30 +400,30 @@ function NuovaPrenotazione() {
               )}
             </div>
           ) : (
-            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100 mb-4">
-              <p className="font-semibold text-blue-700 mb-1">➕ Nuovo cliente</p>
-              <p className="text-sm text-blue-600">📞 {phone}</p>
+            <div className="bg-sage rounded-xl p-4 border border-card-border mb-4">
+              <p className="font-semibold text-green-mid mb-1">➕ Nuovo cliente</p>
+              <p className="text-sm text-green-mid">📞 {phone}</p>
             </div>
           )}
 
-          <div className="bg-white rounded-xl p-4 border border-gray-100 mb-4">
+          <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
             <p className="font-semibold mb-3">{guest ? 'Aggiorna dati' : 'Dati cliente'}</p>
             <input value={guestForm.full_name} onChange={e => setGuestForm({...guestForm, full_name: e.target.value})}
-              placeholder="Nome e cognome" className="w-full border border-gray-200 rounded-lg p-2 mb-2 text-sm" />
+              placeholder="Nome e cognome" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" />
             <input value={guestForm.email} onChange={e => setGuestForm({...guestForm, email: e.target.value})}
-              placeholder="Email (opzionale)" className="w-full border border-gray-200 rounded-lg p-2 mb-3 text-sm" type="email" />
+              placeholder="Email (opzionale)" className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" type="email" />
             <p className="text-sm font-semibold mb-2">Valutazione cliente</p>
             <div className="grid grid-cols-2 gap-2">
               {Object.entries(RATING_LABEL).map(([k, v]) => (
                 <button key={k} onClick={() => setGuestForm({...guestForm, rating: k})}
-                  className={`text-xs py-2 px-3 rounded-lg font-medium border transition-colors ${guestForm.rating === k ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'}`}>
+                  className={`text-xs py-2 px-3 rounded-lg font-medium border transition-colors ${guestForm.rating === k ? 'bg-green-mid text-white border-green-mid' : 'bg-white text-gray-600 border-card-border'}`}>
                   {v}
                 </button>
               ))}
             </div>
           </div>
 
-          <button onClick={() => setStep('dettagli')} className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold">
+          <button onClick={() => setStep('dettagli')} className="w-full bg-green-mid text-white rounded-xl py-3 font-semibold">
             Continua →
           </button>
         </div>
@@ -432,7 +432,7 @@ function NuovaPrenotazione() {
       {/* Step 3: dettagli prenotazione */}
       {step === 'dettagli' && (
         <div>
-          <div className="bg-white rounded-xl p-4 border border-gray-100 mb-4">
+          <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
             <p className="font-semibold mb-3">Dettagli prenotazione</p>
 
             <p className="text-sm text-gray-500 mb-1">Camera</p>
@@ -441,7 +441,7 @@ function NuovaPrenotazione() {
               const newRoomId = e.target.value
               setForm({...form, room_id: newRoomId, use_matrimoniale: false, price_per_night: room ? Number(room.base_price) : 0})
               checkDisponibilita(newRoomId, form.check_in, form.check_out)
-            }} className="w-full border border-gray-200 rounded-lg p-2 mb-3 text-sm">
+            }} className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm">
               <option value="">Seleziona camera</option>
               {rooms.map(r => (
                 <option key={r.id} value={r.id}>{r.name} — €{r.base_price}/notte{r.bathroom_type === 'privato_esterno' ? ' (bagno esterno)' : ''}</option>
@@ -460,14 +460,14 @@ function NuovaPrenotazione() {
                     setForm(f => ({ ...f, check_in: newCheckIn, check_out: newCheckOut }))
                     checkDisponibilita(form.room_id, newCheckIn, newCheckOut)
                   }}
-                  className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+                  className="w-full border border-card-border rounded-lg p-2 text-sm" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 mb-1">Check-out</p>
                 <input type="date" ref={checkOutRef} defaultValue={form.check_out} onChange={e => {
                   setForm({...form, check_out: e.target.value})
                   checkDisponibilita(form.room_id, form.check_in, e.target.value)
-                }} className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+                }} className="w-full border border-card-border rounded-lg p-2 text-sm" />
               </div>
             </div>
 
@@ -481,7 +481,7 @@ function NuovaPrenotazione() {
                   setForm({...form, check_in_time: v})
                 }}
                 maxLength={5}
-                className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+                className="w-full border border-card-border rounded-lg p-2 text-sm" />
             </div>
 
             <div className="grid grid-cols-2 gap-2 mb-3">
@@ -498,12 +498,12 @@ function NuovaPrenotazione() {
                   const autoDates = autoLetto ? getDaysBetween(form.check_in, form.check_out) : []
                   setForm({...form, num_guests: n, extra_bed: autoLetto, extra_bed_dates: autoDates, price_per_night: autoPrice})
                 }}
-                  className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+                  className="w-full border border-card-border rounded-lg p-2 text-sm" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 mb-1">Tariffa/notte €</p>
                 <input type="number" min={0} value={form.price_per_night} onChange={e => setForm({...form, price_per_night: parseFloat(e.target.value)})}
-                  className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+                  className="w-full border border-card-border rounded-lg p-2 text-sm" />
               </div>
             </div>
 
@@ -512,16 +512,16 @@ function NuovaPrenotazione() {
               return <>
                 {room?.has_extra_bed && (
                   <>
-                    <div className="flex items-center justify-between bg-orange-50 rounded-lg p-3 mb-1 border border-orange-100">
+                    <div className="flex items-center justify-between bg-[#F1E0CE] rounded-lg p-3 mb-1 border border-[#E7CDAE]">
                       <div>
-                        <p className="text-sm font-semibold text-orange-800">🛏 Letto aggiuntivo</p>
-                        <p className="text-xs text-orange-600">+€{room.extra_bed_price}/notte</p>
+                        <p className="text-sm font-semibold text-[#7A4B22]">🛏 Letto aggiuntivo</p>
+                        <p className="text-xs text-[#7A4B22]">+€{room.extra_bed_price}/notte</p>
                       </div>
                       <button onClick={() => {
                         const newVal = !form.extra_bed
                         setForm({...form, extra_bed: newVal, extra_bed_dates: newVal ? getDaysBetween(form.check_in, form.check_out) : []})
                       }}
-                        className={`w-12 h-6 rounded-full transition-colors ${form.extra_bed ? 'bg-orange-500' : 'bg-gray-200'}`}>
+                        className={`w-12 h-6 rounded-full transition-colors ${form.extra_bed ? 'bg-[#C58A67]' : 'bg-gray-200'}`}>
                         <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${form.extra_bed ? 'translate-x-6' : ''}`} />
                       </button>
                     </div>
@@ -554,25 +554,25 @@ function NuovaPrenotazione() {
                       </div>
                     )}
                     {lettiOccupati >= 2 && !form.extra_bed && (
-                      <p className="text-xs text-red-600 font-semibold mb-3 px-1">⚠️ Entrambi i letti aggiuntivi sono già occupati in queste date</p>
+                      <p className="text-xs text-[#8C3B2E] font-semibold mb-3 px-1">⚠️ Entrambi i letti aggiuntivi sono già occupati in queste date</p>
                     )}
                     {lettiOccupati === 1 && !form.extra_bed && (
-                      <p className="text-xs text-orange-600 mb-3 px-1">⚠️ 1 letto aggiuntivo già occupato in queste date</p>
+                      <p className="text-xs text-[#7A4B22] mb-3 px-1">⚠️ 1 letto aggiuntivo già occupato in queste date</p>
                     )}
                     {<div className="mb-3" />}
                   </>
                 )}
                 {room?.matrimoniale_price != null && (
-                  <div className="flex items-center justify-between bg-pink-50 rounded-lg p-3 mb-3 border border-pink-100">
+                  <div className="flex items-center justify-between bg-[#EFEAF7] rounded-lg p-3 mb-3 border border-[#D9D0EA]">
                     <div>
-                      <p className="text-sm font-semibold text-pink-800">💑 Uso matrimoniale</p>
-                      <p className="text-xs text-pink-600">€{room.matrimoniale_price}/notte</p>
+                      <p className="text-sm font-semibold text-[#5B4E82]">💑 Uso matrimoniale</p>
+                      <p className="text-xs text-[#5B4E82]">€{room.matrimoniale_price}/notte</p>
                     </div>
                     <button onClick={() => {
                       const useM = !form.use_matrimoniale
                       setForm({...form, use_matrimoniale: useM, price_per_night: useM ? Number(room.matrimoniale_price) : Number(room.base_price)})
                     }}
-                      className={`w-12 h-6 rounded-full transition-colors ${form.use_matrimoniale ? 'bg-pink-500' : 'bg-gray-200'}`}>
+                      className={`w-12 h-6 rounded-full transition-colors ${form.use_matrimoniale ? 'bg-[#9B8EC4]' : 'bg-gray-200'}`}>
                       <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${form.use_matrimoniale ? 'translate-x-6' : ''}`} />
                     </button>
                   </div>
@@ -581,49 +581,49 @@ function NuovaPrenotazione() {
             })()}
 
             <div onClick={() => setForm({...form, bonifico: !form.bonifico})}
-              className="flex items-center justify-between bg-blue-50 rounded-lg p-3 mb-3 border border-blue-100 cursor-pointer active:opacity-70">
+              className="flex items-center justify-between bg-sage rounded-lg p-3 mb-3 border border-card-border cursor-pointer active:opacity-70">
               <div>
-                <p className="text-sm font-semibold text-blue-800">🏦 Pagamento tramite bonifico</p>
-                <p className="text-xs text-blue-600">La conferma includerà l'IBAN</p>
+                <p className="text-sm font-semibold text-green-dark">🏦 Pagamento tramite bonifico</p>
+                <p className="text-xs text-green-mid">La conferma includerà l'IBAN</p>
               </div>
-              <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${form.bonifico ? 'bg-blue-600' : 'bg-gray-200'}`}>
+              <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${form.bonifico ? 'bg-green-mid' : 'bg-gray-200'}`}>
                 <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${form.bonifico ? 'translate-x-6' : ''}`} />
               </div>
             </div>
 
             <input value={form.notes} onChange={e => setForm({...form, notes: e.target.value})}
-              placeholder="Note (opzionale)" className="w-full border border-gray-200 rounded-lg p-2 text-sm mb-3" />
+              placeholder="Note (opzionale)" className="w-full border border-card-border rounded-lg p-2 text-sm mb-3" />
           </div>
 
           {conflitto && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-sm text-red-700 font-semibold">
+            <div className="bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 mb-4 text-sm text-[#8C3B2E] font-semibold">
               {conflitto}
             </div>
           )}
 
           {lettiOccupati >= 2 && !form.extra_bed && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-sm text-red-700 font-semibold">
+            <div className="bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 mb-4 text-sm text-[#8C3B2E] font-semibold">
               ⚠️ Entrambi i letti aggiuntivi sono già occupati in queste date
             </div>
           )}
 
           {notti() > 0 && form.price_per_night > 0 && (
-            <div className={`rounded-xl p-4 border mb-4 ${form.extra_bed ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-100'}`}>
+            <div className={`rounded-xl p-4 border mb-4 ${form.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-sage border-card-border'}`}>
               <p className="font-semibold text-gray-700 mb-1">Riepilogo</p>
               <p className="text-sm text-gray-600">{notti()} notti × €{form.price_per_night}</p>
-              {form.extra_bed && <p className="text-sm text-orange-600">+ Letto agg.: €{extraBedTotal().toFixed(0)}</p>}
-              <p className="text-2xl font-bold text-blue-700 mt-1">Totale: €{calcTotal().toFixed(0)}</p>
+              {form.extra_bed && <p className="text-sm text-[#7A4B22]">+ Letto agg.: €{extraBedTotal().toFixed(0)}</p>}
+              <p className="font-serif text-2xl text-green-dark mt-1">Totale: €{calcTotal().toFixed(0)}</p>
             </div>
           )}
 
           {saveError && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-sm text-red-700 font-semibold">
+            <div className="bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 mb-4 text-sm text-[#8C3B2E] font-semibold">
               ❌ {saveError}
             </div>
           )}
 
           <button onClick={save} disabled={saving || !form.room_id || !form.check_in || !form.check_out || notti() <= 0 || !!conflitto || (form.extra_bed && form.extra_bed_dates.some(day => { const contrib = form.room_id === LENA_ID && form.num_guests >= 4 ? 2 : 1; return (extraBedsPerDay[day] || 0) + contrib > 2 }))}
-            className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
+            className="w-full bg-green-mid text-white rounded-xl py-3 font-semibold disabled:opacity-50">
             {saving ? 'Salvataggio...' : '✅ Salva prenotazione'}
           </button>
         </div>

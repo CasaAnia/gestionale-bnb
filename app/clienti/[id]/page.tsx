@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
-const RATING_COLOR: Record<string, string> = { ottimo: 'bg-green-100 text-green-700', problematico: 'bg-red-100 text-red-700', vuole_ricevuta: 'bg-blue-100 text-blue-700', normale: 'bg-gray-100 text-gray-600' }
+const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
 
 export default function ClienteDetail() {
   const { id } = useParams()
@@ -48,32 +48,32 @@ export default function ClienteDetail() {
   return (
     <div className="p-4">
       <div className="flex items-center gap-3 mb-4">
-        <button onClick={() => router.back()} className="text-blue-600 text-sm">← Indietro</button>
-        <h1 className="text-xl font-bold flex-1">Cliente</h1>
-        <button onClick={() => setEditing(!editing)} className="text-blue-600 text-sm font-semibold">{editing ? 'Annulla' : 'Modifica'}</button>
+        <button onClick={() => router.back()} className="text-green-mid text-sm">← Indietro</button>
+        <h1 className="font-serif text-xl text-green-dark flex-1">Cliente</h1>
+        <button onClick={() => setEditing(!editing)} className="text-green-mid text-sm font-semibold">{editing ? 'Annulla' : 'Modifica'}</button>
       </div>
 
-      <div className="bg-white rounded-xl p-4 border border-gray-100 mb-4">
+      <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
         {editing ? (
           <>
             <input value={form.full_name || ''} onChange={e => setForm({...form, full_name: e.target.value})}
-              placeholder="Nome e cognome" className="w-full border border-gray-200 rounded-lg p-2 mb-2 text-sm" />
+              placeholder="Nome e cognome" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" />
             <input value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})}
-              placeholder="Telefono" className="w-full border border-gray-200 rounded-lg p-2 mb-2 text-sm" type="tel" />
+              placeholder="Telefono" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" type="tel" />
             <input value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})}
-              placeholder="Email" className="w-full border border-gray-200 rounded-lg p-2 mb-2 text-sm" type="email" />
+              placeholder="Email" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" type="email" />
             <textarea value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})}
-              placeholder="Note..." className="w-full border border-gray-200 rounded-lg p-2 mb-3 text-sm" rows={2} />
+              placeholder="Note..." className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" rows={2} />
             <p className="text-sm font-semibold mb-2">Valutazione</p>
             <div className="grid grid-cols-2 gap-2 mb-3">
               {Object.entries(RATING_LABEL).map(([k, v]) => (
                 <button key={k} onClick={() => setForm({...form, rating: k})}
-                  className={`text-xs py-2 px-3 rounded-lg font-medium border ${form.rating === k ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'}`}>
+                  className={`text-xs py-2 px-3 rounded-lg font-medium border ${form.rating === k ? 'bg-green-mid text-white border-green-mid' : 'bg-white text-gray-600 border-card-border'}`}>
                   {v}
                 </button>
               ))}
             </div>
-            <button onClick={save} disabled={saving} className="w-full bg-blue-600 text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
+            <button onClick={save} disabled={saving} className="w-full bg-green-mid text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
               {saving ? 'Salvataggio...' : 'Salva'}
             </button>
           </>
@@ -94,16 +94,16 @@ export default function ClienteDetail() {
 
       {/* Statistiche cliente */}
       <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
-          <p className="text-xl font-bold text-blue-600">{confermateCompletate.length}</p>
+        <div className="bg-white rounded-xl p-3 border border-card-border text-center">
+          <p className="font-serif text-xl text-green-dark">{confermateCompletate.length}</p>
           <p className="text-xs text-gray-500">Soggiorni</p>
         </div>
-        <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
-          <p className="text-xl font-bold text-green-600">€{totaleSpeso.toFixed(0)}</p>
+        <div className="bg-white rounded-xl p-3 border border-card-border text-center">
+          <p className="font-serif text-xl text-green-dark">€{totaleSpeso.toFixed(0)}</p>
           <p className="text-xs text-gray-500">Totale speso</p>
         </div>
-        <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
-          <p className="text-xl font-bold text-red-400">{annullate.length}</p>
+        <div className="bg-white rounded-xl p-3 border border-card-border text-center">
+          <p className="font-serif text-xl text-[#8C3B2E]">{annullate.length}</p>
           <p className="text-xs text-gray-500">Annullate</p>
         </div>
       </div>
@@ -115,7 +115,7 @@ export default function ClienteDetail() {
       ) : (
         <div className="flex flex-col gap-2">
           {bookings.map(b => (
-            <div key={b.id} className={`rounded-xl p-3 border ${b.status === 'annullata' ? 'bg-gray-50 border-gray-100 opacity-60' : b.extra_bed ? 'bg-orange-50 border-orange-100' : 'bg-white border-gray-100'}`}>
+            <div key={b.id} className={`rounded-xl p-3 border ${b.status === 'annullata' ? 'bg-gray-50 border-card-border opacity-60' : b.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-white border-card-border'}`}>
               <div className="flex justify-between items-start">
                 <div>
                   <p className="font-medium text-sm">{b.rooms?.name}</p>
@@ -123,10 +123,10 @@ export default function ClienteDetail() {
                 </div>
                 <div className="text-right">
                   <p className="font-semibold text-sm">€{Number(b.total_amount).toFixed(0)}</p>
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${b.status === 'annullata' ? 'bg-red-100 text-red-600' : b.status === 'completata' ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'}`}>{b.status}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${b.status === 'annullata' ? 'bg-[#F6E4DE] text-[#8C3B2E]' : b.status === 'completata' ? 'bg-gray-100 text-gray-600' : 'bg-sage text-green-dark'}`}>{b.status}</span>
                 </div>
               </div>
-              {b.extra_bed && <p className="text-xs text-orange-600 mt-1">🛏 Letto aggiuntivo</p>}
+              {b.extra_bed && <p className="text-xs text-[#7A4B22] mt-1">🛏 Letto aggiuntivo</p>}
               {b.status === 'annullata' && b.cancelled_reason && <p className="text-xs text-gray-400 mt-1">Motivo: {b.cancelled_reason}</p>}
             </div>
           ))}
@@ -134,7 +134,7 @@ export default function ClienteDetail() {
       )}
       {/* Elimina cliente */}
       {!editing && (
-        <button onClick={() => setShowDelete(true)} className="w-full mt-2 text-red-500 text-sm py-2">
+        <button onClick={() => setShowDelete(true)} className="w-full mt-2 text-[#8C3B2E] text-sm py-2">
           🗑 Elimina cliente
         </button>
       )}
@@ -144,7 +144,7 @@ export default function ClienteDetail() {
           <div className="bg-white rounded-t-2xl p-4 w-full max-w-lg mx-auto" onClick={e => e.stopPropagation()}>
             <h2 className="font-bold mb-2">Elimina cliente</h2>
             <p className="text-sm text-gray-500 mb-4">Sei sicuro? Questa azione non si può annullare. Le prenotazioni associate rimarranno nel sistema.</p>
-            <button onClick={deleteGuest} className="w-full bg-red-500 text-white rounded-xl py-3 font-semibold mb-2">Sì, elimina</button>
+            <button onClick={deleteGuest} className="w-full bg-[#B5502F] text-white rounded-xl py-3 font-semibold mb-2">Sì, elimina</button>
             <button onClick={() => setShowDelete(false)} className="w-full text-gray-500 py-2 text-sm">Annulla</button>
           </div>
         </div>

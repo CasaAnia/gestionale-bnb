@@ -422,8 +422,8 @@ export default function BookingDetail() {
   return (
     <div className="p-4">
       <div className="flex items-center gap-3 mb-4">
-        <button onClick={() => router.back()} className="text-blue-600 text-sm">← Indietro</button>
-        <h1 className="text-xl font-bold flex-1">Prenotazione</h1>
+        <button onClick={() => router.back()} className="text-green-mid text-sm">← Indietro</button>
+        <h1 className="font-serif text-xl text-green-dark flex-1">Prenotazione</h1>
         {editing && (
           <button onClick={() => setEditing(false)} className="text-gray-500 text-sm">Annulla</button>
         )}
@@ -431,40 +431,40 @@ export default function BookingDetail() {
 
       {/* MODALITÀ MODIFICA */}
       {editing ? (
-        <div className="bg-white rounded-xl p-4 border border-blue-200 mb-4">
-          <p className="font-semibold mb-3 text-blue-700">✏️ Modifica prenotazione</p>
+        <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
+          <p className="font-semibold mb-3 text-green-mid">✏️ Modifica prenotazione</p>
 
           <p className="text-xs text-gray-500 mb-1">Nome cliente</p>
           <input value={editForm.guest_name} onChange={e => setEditForm({ ...editForm, guest_name: e.target.value })}
-            placeholder="Nome e cognome" className="w-full border border-gray-200 rounded-lg p-2 mb-3 text-sm" />
+            placeholder="Nome e cognome" className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" />
 
           <div className="grid grid-cols-2 gap-2 mb-3">
             <div>
               <p className="text-xs text-gray-500 mb-1">Telefono</p>
               <input value={editForm.guest_phone} onChange={e => setEditForm({ ...editForm, guest_phone: e.target.value })}
-                placeholder="+39..." className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+                placeholder="+39..." className="w-full border border-card-border rounded-lg p-2 text-sm" />
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-1">Email</p>
               <input value={editForm.guest_email} onChange={e => setEditForm({ ...editForm, guest_email: e.target.value })}
-                placeholder="email@..." className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+                placeholder="email@..." className="w-full border border-card-border rounded-lg p-2 text-sm" />
             </div>
           </div>
 
           <p className="text-xs text-gray-500 mb-1">📞 Contatto 2 (ospite in struttura)</p>
           <div className="grid grid-cols-2 gap-2 mb-2">
             <input value={editForm.extra_phone_1} onChange={e => setEditForm({ ...editForm, extra_phone_1: e.target.value })}
-              placeholder="+39..." className="w-full border border-gray-200 rounded-lg p-2 text-sm" type="tel" />
+              placeholder="+39..." className="w-full border border-card-border rounded-lg p-2 text-sm" type="tel" />
             <input value={editForm.extra_phone_1_name} onChange={e => setEditForm({ ...editForm, extra_phone_1_name: e.target.value })}
-              placeholder="Nome (es. papà)" className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+              placeholder="Nome (es. papà)" className="w-full border border-card-border rounded-lg p-2 text-sm" />
           </div>
 
           <p className="text-xs text-gray-500 mb-1">📞 Contatto 3</p>
           <div className="grid grid-cols-2 gap-2 mb-3">
             <input value={editForm.extra_phone_2} onChange={e => setEditForm({ ...editForm, extra_phone_2: e.target.value })}
-              placeholder="+39..." className="w-full border border-gray-200 rounded-lg p-2 text-sm" type="tel" />
+              placeholder="+39..." className="w-full border border-card-border rounded-lg p-2 text-sm" type="tel" />
             <input value={editForm.extra_phone_2_name} onChange={e => setEditForm({ ...editForm, extra_phone_2_name: e.target.value })}
-              placeholder="Nome (opzionale)" className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+              placeholder="Nome (opzionale)" className="w-full border border-card-border rounded-lg p-2 text-sm" />
           </div>
 
           <p className="text-xs text-gray-500 mb-1">Camera</p>
@@ -473,7 +473,7 @@ export default function BookingDetail() {
             const newRoomId = e.target.value
             setEditForm({ ...editForm, room_id: newRoomId, price_per_night: room ? Number(room.base_price) : editForm.price_per_night })
             checkDisponibilita(newRoomId, editForm.check_in, editForm.check_out)
-          }} className="w-full border border-gray-200 rounded-lg p-2 mb-3 text-sm">
+          }} className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm">
             {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
 
@@ -483,14 +483,14 @@ export default function BookingDetail() {
               <input type="date" value={editForm.check_in} onChange={e => {
                 setEditForm({ ...editForm, check_in: e.target.value })
                 checkDisponibilita(editForm.room_id, e.target.value, editForm.check_out)
-              }} className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+              }} className="w-full border border-card-border rounded-lg p-2 text-sm" />
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-1">Check-out</p>
               <input type="date" value={editForm.check_out} onChange={e => {
                 setEditForm({ ...editForm, check_out: e.target.value })
                 checkDisponibilita(editForm.room_id, editForm.check_in, e.target.value)
-              }} className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+              }} className="w-full border border-card-border rounded-lg p-2 text-sm" />
             </div>
           </div>
 
@@ -504,7 +504,7 @@ export default function BookingDetail() {
                 setEditForm({ ...editForm, check_in_time: v })
               }}
               maxLength={5}
-              className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+              className="w-full border border-card-border rounded-lg p-2 text-sm" />
           </div>
 
           <div className="grid grid-cols-2 gap-2 mb-3">
@@ -520,27 +520,27 @@ export default function BookingDetail() {
                   : (room ? Number(room.base_price) : editForm.price_per_night)
                 const autoDates = autoLetto ? getDaysBetween(editForm.check_in, editForm.check_out) : []
                 setEditForm({ ...editForm, num_guests: n, extra_bed: autoLetto, extra_bed_dates: autoDates, price_per_night: autoPrice })
-              }} className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+              }} className="w-full border border-card-border rounded-lg p-2 text-sm" />
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-1">Tariffa/notte €</p>
               <input type="number" min={0} value={editForm.price_per_night} onChange={e => setEditForm({ ...editForm, price_per_night: parseFloat(e.target.value) })}
-                className="w-full border border-gray-200 rounded-lg p-2 text-sm" />
+                className="w-full border border-card-border rounded-lg p-2 text-sm" />
             </div>
           </div>
 
           {selectedRoom?.has_extra_bed && (
             <>
-              <div className="flex items-center justify-between bg-orange-50 rounded-lg p-3 mb-1 border border-orange-100">
+              <div className="flex items-center justify-between bg-[#F1E0CE] rounded-lg p-3 mb-1 border border-[#E7CDAE]">
                 <div>
-                  <p className="text-sm font-semibold text-orange-800">🛏 Letto aggiuntivo</p>
-                  <p className="text-xs text-orange-600">+€{selectedRoom.extra_bed_price}/notte</p>
+                  <p className="text-sm font-semibold text-[#7A4B22]">🛏 Letto aggiuntivo</p>
+                  <p className="text-xs text-[#7A4B22]">+€{selectedRoom.extra_bed_price}/notte</p>
                 </div>
                 <button onClick={() => {
                   const newVal = !editForm.extra_bed
                   setEditForm({ ...editForm, extra_bed: newVal, extra_bed_dates: newVal ? getDaysBetween(editForm.check_in, editForm.check_out) : [] })
                 }}
-                  className={`w-12 h-6 rounded-full transition-colors ${editForm.extra_bed ? 'bg-orange-500' : 'bg-gray-200'}`}>
+                  className={`w-12 h-6 rounded-full transition-colors ${editForm.extra_bed ? 'bg-[#C58A67]' : 'bg-gray-200'}`}>
                   <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.extra_bed ? 'translate-x-6' : ''}`} />
                 </button>
               </div>
@@ -577,23 +577,23 @@ export default function BookingDetail() {
           )}
 
           {selectedRoom?.matrimoniale_price != null && (
-            <div className="flex items-center justify-between bg-pink-50 rounded-lg p-3 mb-3 border border-pink-100">
+            <div className="flex items-center justify-between bg-[#EFEAF7] rounded-lg p-3 mb-3 border border-[#D9D0EA]">
               <div>
-                <p className="text-sm font-semibold text-pink-800">💑 Uso matrimoniale</p>
-                <p className="text-xs text-pink-600">€{selectedRoom.matrimoniale_price}/notte</p>
+                <p className="text-sm font-semibold text-[#5B4E82]">💑 Uso matrimoniale</p>
+                <p className="text-xs text-[#5B4E82]">€{selectedRoom.matrimoniale_price}/notte</p>
               </div>
               <button onClick={() => {
                 const isMatr = editForm.price_per_night === Number(selectedRoom.matrimoniale_price)
                 setEditForm({ ...editForm, price_per_night: isMatr ? Number(selectedRoom.base_price) : Number(selectedRoom.matrimoniale_price) })
               }}
-                className={`w-12 h-6 rounded-full transition-colors ${editForm.price_per_night === Number(selectedRoom.matrimoniale_price) ? 'bg-pink-500' : 'bg-gray-200'}`}>
+                className={`w-12 h-6 rounded-full transition-colors ${editForm.price_per_night === Number(selectedRoom.matrimoniale_price) ? 'bg-[#9B8EC4]' : 'bg-gray-200'}`}>
                 <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.price_per_night === Number(selectedRoom.matrimoniale_price) ? 'translate-x-6' : ''}`} />
               </button>
             </div>
           )}
 
           <input value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
-            placeholder="Note (opzionale)" className="w-full border border-gray-200 rounded-lg p-2 text-sm mb-3" />
+            placeholder="Note (opzionale)" className="w-full border border-card-border rounded-lg p-2 text-sm mb-3" />
 
           <div className="mb-3">
             <p className="text-xs text-gray-500 mb-2">Colore sul calendario</p>
@@ -615,42 +615,42 @@ export default function BookingDetail() {
           </div>
 
           <div onClick={() => setEditForm({ ...editForm, bonifico: !editForm.bonifico })}
-            className="flex items-center justify-between bg-blue-50 rounded-lg p-3 mb-2 border border-blue-100 cursor-pointer active:opacity-70">
+            className="flex items-center justify-between bg-sage rounded-lg p-3 mb-2 border border-card-border cursor-pointer active:opacity-70">
             <div>
-              <p className="text-sm font-semibold text-blue-800">🏦 Pagamento tramite bonifico</p>
-              <p className="text-xs text-blue-600">La conferma includerà l'IBAN</p>
+              <p className="text-sm font-semibold text-green-dark">🏦 Pagamento tramite bonifico</p>
+              <p className="text-xs text-green-mid">La conferma includerà l'IBAN</p>
             </div>
-            <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${editForm.bonifico ? 'bg-blue-600' : 'bg-gray-200'}`}>
+            <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${editForm.bonifico ? 'bg-green-mid' : 'bg-gray-200'}`}>
               <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.bonifico ? 'translate-x-6' : ''}`} />
             </div>
           </div>
 
           <div onClick={() => setEditForm({ ...editForm, pagato: !editForm.pagato })}
-            className="flex items-center justify-between bg-sky-50 rounded-lg p-3 mb-3 border border-sky-100 cursor-pointer active:opacity-70">
+            className="flex items-center justify-between bg-[#EAF0F3] rounded-lg p-3 mb-3 border border-[#D7E3E8] cursor-pointer active:opacity-70">
             <div>
-              <p className="text-sm font-semibold text-sky-800">✅ Pagato</p>
-              <p className="text-xs text-sky-600">Segna come pagamento ricevuto</p>
+              <p className="text-sm font-semibold text-[#3D5A66]">✅ Pagato</p>
+              <p className="text-xs text-[#3D5A66]">Segna come pagamento ricevuto</p>
             </div>
-            <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${editForm.pagato ? 'bg-sky-500' : 'bg-gray-200'}`}>
+            <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${editForm.pagato ? 'bg-[#7D9DB0]' : 'bg-gray-200'}`}>
               <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.pagato ? 'translate-x-6' : ''}`} />
             </div>
           </div>
 
           {calcNotti(editForm.check_in, editForm.check_out) > 0 && (
-            <div className="bg-blue-50 rounded-lg p-3 mb-3 text-sm">
+            <div className="bg-sage rounded-lg p-3 mb-3 text-sm">
               <p className="text-gray-600">{calcNotti(editForm.check_in, editForm.check_out)} notti × €{editForm.price_per_night}</p>
-              <p className="font-bold text-blue-700 text-lg">Totale: €{calcTotal().toFixed(0)}</p>
+              <p className="font-bold text-green-mid text-lg">Totale: €{calcTotal().toFixed(0)}</p>
             </div>
           )}
 
           {conflitto && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 text-sm text-red-700 font-semibold">
+            <div className="bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 mb-3 text-sm text-[#8C3B2E] font-semibold">
               {conflitto}
             </div>
           )}
 
           <button onClick={saveEdit} disabled={saving || !!conflitto || ((editForm.extra_bed_dates?.length > 0) && (editForm.extra_bed_dates || []).some((day: string) => { const contrib = editForm.room_id === LENA_ID && editForm.num_guests >= 4 ? 2 : 1; return (extraBedsPerDay[day] || 0) + contrib > 2 }))}
-            className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50 mb-3">
+            className="w-full bg-green-mid text-white rounded-xl py-3 font-semibold disabled:opacity-50 mb-3">
             {saving ? 'Salvataggio...' : '💾 Salva modifiche'}
           </button>
           <button onClick={() => setEditing(false)}
@@ -660,22 +660,22 @@ export default function BookingDetail() {
         </div>
       ) : (
         /* VISUALIZZAZIONE NORMALE */
-        <div className={`rounded-xl p-4 border mb-4 ${booking.extra_bed ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-100'}`}>
+        <div className={`rounded-xl p-4 border mb-4 ${booking.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-white border-card-border'}`}>
           <div className="flex justify-between items-start mb-3">
             <div>
               <p className="font-bold text-lg">{guest?.full_name || guest?.phone}</p>
               <p className="text-gray-500">{booking.rooms?.name}</p>
             </div>
-            <span className={`text-xs px-2 py-1 rounded-full font-bold ${booking.status === 'confermata' ? 'bg-green-100 text-green-700' : booking.status === 'annullata' ? 'bg-red-100 text-red-700' : booking.status === 'completata' ? 'bg-gray-100 text-gray-600' : 'bg-yellow-100 text-yellow-700'}`}>
+            <span className={`text-xs px-2 py-1 rounded-full font-bold ${booking.status === 'confermata' ? 'bg-sage text-green-dark' : booking.status === 'annullata' ? 'bg-[#F6E4DE] text-[#8C3B2E]' : booking.status === 'completata' ? 'bg-gray-100 text-gray-600' : 'bg-[#F1E0CE] text-[#7A4B22]'}`}>
               {booking.status}
             </span>
           </div>
           {booking.check_in_time && (
-            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
+            <div className="bg-sage border border-card-border rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
               <span className="text-2xl">🕐</span>
               <div>
-                <p className="text-xs text-blue-500 font-medium">Orario arrivo previsto</p>
-                <p className="text-xl font-bold text-blue-700">{booking.check_in_time}</p>
+                <p className="text-xs text-green-mid font-medium">Orario arrivo previsto</p>
+                <p className="font-serif text-xl text-green-dark">{booking.check_in_time}</p>
               </div>
             </div>
           )}
@@ -685,46 +685,46 @@ export default function BookingDetail() {
             <div><span className="text-gray-500">Notti</span><p className="font-semibold">{notti}</p></div>
             <div><span className="text-gray-500">Ospiti</span><p className="font-semibold">{booking.num_guests}</p></div>
             <div><span className="text-gray-500">Tariffa/notte</span><p className="font-semibold">€{Number(booking.price_per_night).toFixed(0)}</p></div>
-            <div><span className="text-gray-500">Totale</span><p className="font-bold text-blue-600">€{Number(booking.total_amount).toFixed(0)}</p></div>
+            <div><span className="text-gray-500">Totale</span><p className="font-bold text-green-mid">€{Number(booking.total_amount).toFixed(0)}</p></div>
           </div>
           {booking.extra_bed && (
-            <div className="bg-orange-100 rounded-lg p-2 text-sm text-orange-800 mb-2">
+            <div className="bg-[#F1E0CE] rounded-lg p-2 text-sm text-[#7A4B22] mb-2">
               🛏 Letto aggiuntivo: +€{Number(booking.extra_bed_total).toFixed(0)} totale
             </div>
           )}
           {booking.bonifico && (
-            <div className={`rounded-lg p-2 text-sm mb-2 ${booking.pagato ? 'bg-sky-100 text-sky-800' : 'bg-blue-100 text-blue-800'}`}>
+            <div className={`rounded-lg p-2 text-sm mb-2 ${booking.pagato ? 'bg-[#EAF0F3] text-[#3D5A66]' : 'bg-sage text-green-dark'}`}>
               🏦 Bonifico{booking.pagato ? ' – ✅ Pagato' : ' – in attesa di pagamento'}
             </div>
           )}
           {booking.notes && <p className="text-sm text-gray-600 italic">📝 {booking.notes}</p>}
           {groupBookings.length > 1 && (
-            <div className="mt-3 bg-purple-50 border border-purple-200 rounded-xl p-3">
-              <p className="text-xs font-bold text-purple-700 mb-2">🔄 SOGGIORNO CON CAMBIO CAMERA</p>
+            <div className="mt-3 bg-[#EFEAF7] border border-[#D9D0EA] rounded-xl p-3">
+              <p className="text-xs font-bold text-[#5B4E82] mb-2">🔄 SOGGIORNO CON CAMBIO CAMERA</p>
               {[...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in)).map((gb, i) => {
                 const isCurrent = gb.id === id
                 const n = Math.round((new Date(gb.check_out).getTime() - new Date(gb.check_in).getTime()) / 86400000)
                 return (
-                  <div key={gb.id} className={`flex items-center gap-2 py-1 ${i > 0 ? 'border-t border-purple-100' : ''}`}>
-                    <span className="text-purple-400 text-xs">{i + 1}.</span>
+                  <div key={gb.id} className={`flex items-center gap-2 py-1 ${i > 0 ? 'border-t border-[#D9D0EA]' : ''}`}>
+                    <span className="text-[#5B4E82] text-xs">{i + 1}.</span>
                     <div className="flex-1">
-                      <span className={`text-sm font-semibold ${isCurrent ? 'text-purple-900' : 'text-purple-700'}`}>{gb.rooms?.name}</span>
-                      <span className="text-xs text-purple-500 ml-2">{gb.check_in} → {gb.check_out} ({n} notti) · €{Number(gb.price_per_night).toFixed(0)}/notte</span>
+                      <span className={`text-sm font-semibold ${isCurrent ? 'text-[#4A3F6B]' : 'text-[#5B4E82]'}`}>{gb.rooms?.name}</span>
+                      <span className="text-xs text-[#5B4E82] ml-2">{gb.check_in} → {gb.check_out} ({n} notti) · €{Number(gb.price_per_night).toFixed(0)}/notte</span>
                     </div>
                     {isCurrent
-                      ? <span className="text-xs bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-bold">qui</span>
-                      : <button onClick={() => router.push(`/prenotazioni/${gb.id}`)} className="text-xs text-purple-600 underline">apri</button>
+                      ? <span className="text-xs bg-[#EFEAF7] text-[#4A3F6B] px-2 py-0.5 rounded-full font-bold">qui</span>
+                      : <button onClick={() => router.push(`/prenotazioni/${gb.id}`)} className="text-xs text-[#5B4E82] underline">apri</button>
                     }
                   </div>
                 )
               })}
-              <p className="text-xs text-purple-600 font-semibold mt-2 pt-2 border-t border-purple-100">
+              <p className="text-xs text-[#5B4E82] font-semibold mt-2 pt-2 border-t border-[#D9D0EA]">
                 Totale soggiorno: €{groupBookings.reduce((s, x) => s + Number(x.total_amount), 0).toFixed(0)}
               </p>
             </div>
           )}
           {(booking.status === 'confermata' || booking.status === 'in_attesa') && (
-            <button onClick={addRoomChange} className="w-full mt-3 bg-purple-600 text-white font-semibold text-sm py-2 rounded-xl">
+            <button onClick={addRoomChange} className="w-full mt-3 bg-[#9B8EC4] text-white font-semibold text-sm py-2 rounded-xl">
               ➕ Aggiungi cambio camera
             </button>
           )}
@@ -736,13 +736,13 @@ export default function BookingDetail() {
                   defaultValue={booking.cancelled_reason || ''}
                   id="cancel-reason-input"
                   placeholder="Aggiungi motivo..."
-                  className="flex-1 border border-gray-200 rounded-lg p-2 text-sm text-red-700"
+                  className="flex-1 border border-card-border rounded-lg p-2 text-sm text-[#8C3B2E]"
                 />
                 <button onClick={async () => {
                   const val = (document.getElementById('cancel-reason-input') as HTMLInputElement)?.value
                   await supabase.from('bookings').update({ cancelled_reason: val }).eq('id', id)
                   setBooking({ ...booking, cancelled_reason: val })
-                }} className="bg-red-100 text-red-700 px-3 py-2 rounded-lg text-sm font-semibold">
+                }} className="bg-[#F6E4DE] text-[#8C3B2E] px-3 py-2 rounded-lg text-sm font-semibold">
                   Salva
                 </button>
               </div>
@@ -753,19 +753,19 @@ export default function BookingDetail() {
 
       {/* Bottone Modifica prenotazione */}
       {!editing && booking.status !== 'annullata' && (
-        <button onClick={() => setEditing(true)} className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold mb-4">
+        <button onClick={() => setEditing(true)} className="w-full bg-green-mid text-white rounded-xl py-3 font-semibold mb-4">
           ✏️ Modifica prenotazione
         </button>
       )}
 
       {/* Dati cliente */}
       {!editing && (
-        <div className="bg-white rounded-xl p-4 border border-gray-100 mb-4">
+        <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
           <div className="flex justify-between items-center mb-2">
             <p className="font-semibold">Cliente</p>
             <div className="flex gap-3">
-              <Link href={`/clienti/${guest?.id}?edit=1`} className="text-blue-600 text-sm">✏️ Modifica</Link>
-              <Link href={`/clienti/${guest?.id}`} className="text-blue-600 text-sm">Storico →</Link>
+              <Link href={`/clienti/${guest?.id}?edit=1`} className="text-green-mid text-sm">✏️ Modifica</Link>
+              <Link href={`/clienti/${guest?.id}`} className="text-green-mid text-sm">Storico →</Link>
             </div>
           </div>
           <p className="text-sm text-gray-600">📞 {guest?.phone}</p>
@@ -787,7 +787,7 @@ export default function BookingDetail() {
         <button onClick={async () => {
           await supabase.from('bookings').update({ pagato: true }).eq('id', id)
           setBooking({ ...booking, pagato: true })
-        }} className="w-full bg-sky-500 text-white rounded-xl py-3 font-semibold mb-4">
+        }} className="w-full bg-[#7D9DB0] text-white rounded-xl py-3 font-semibold mb-4">
           ✅ Segna come pagato
         </button>
       )}
@@ -798,7 +798,7 @@ export default function BookingDetail() {
           {booking.status === 'confermata' && (
             <button onClick={markComplete} className="bg-gray-100 text-gray-700 rounded-xl py-3 font-semibold">✓ Segna come completata</button>
           )}
-          <button onClick={() => setShowCancel(true)} className="bg-red-50 text-red-500 rounded-xl py-3 font-semibold">Annulla prenotazione</button>
+          <button onClick={() => setShowCancel(true)} className="bg-[#F6E4DE] text-[#8C3B2E] rounded-xl py-3 font-semibold">Annulla prenotazione</button>
         </div>
       )}
 
@@ -815,21 +815,21 @@ export default function BookingDetail() {
           }
         const buttons = (
           <div className="flex flex-col gap-2">
-            <a href={waHref('conferma')} onClick={waClick('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-500 text-white rounded-lg py-2 text-sm font-semibold">✅ Conferma prenotazione</a>
-            <a href={waHref('modifica')} onClick={waClick('modifica')} target="_blank" rel="noopener noreferrer" className="block text-center bg-blue-500 text-white rounded-lg py-2 text-sm font-semibold">✏️ Modifica prenotazione</a>
-            <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico')} target="_blank" rel="noopener noreferrer" className="block text-center bg-indigo-500 text-white rounded-lg py-2 text-sm font-semibold">🏦 Dati bonifico</a>
-            <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto')} target="_blank" rel="noopener noreferrer" className="block text-center bg-sky-500 text-white rounded-lg py-2 text-sm font-semibold">💸 Pagamento ricevuto</a>
-            <a href={waHref('annullamento')} onClick={waClick('annullamento')} target="_blank" rel="noopener noreferrer" className="block text-center bg-red-400 text-white rounded-lg py-2 text-sm font-semibold">❌ Annullamento</a>
+            <a href={waHref('conferma')} onClick={waClick('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-2 text-sm font-semibold">✅ Conferma prenotazione</a>
+            <a href={waHref('modifica')} onClick={waClick('modifica')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-2 text-sm font-semibold">✏️ Modifica prenotazione</a>
+            <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-2 text-sm font-semibold">🏦 Dati bonifico</a>
+            <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto')} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#7D9DB0] text-white rounded-lg py-2 text-sm font-semibold">💸 Pagamento ricevuto</a>
+            <a href={waHref('annullamento')} onClick={waClick('annullamento')} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#B5502F] text-white rounded-lg py-2 text-sm font-semibold">❌ Annullamento</a>
           </div>
         )
         return (
           <>
-            <div className="bg-green-50 rounded-xl p-4 border border-green-100 mb-3">
-              <p className="font-semibold text-green-800 mb-2">💬 WhatsApp Ania</p>
+            <div className="bg-sage rounded-xl p-4 border border-[#C9DDD0] mb-3">
+              <p className="font-semibold text-green-dark mb-2">💬 WhatsApp Ania</p>
               {buttons}
             </div>
-            <div className="bg-teal-50 rounded-xl p-4 border border-teal-100 mb-4">
-              <p className="font-semibold text-teal-800 mb-2">💼 WhatsApp Business</p>
+            <div className="bg-[#F4E6DF] rounded-xl p-4 border border-[#E9D3C8] mb-4">
+              <p className="font-semibold text-[#7A3B22] mb-2">💼 WhatsApp Business</p>
               {buttons}
             </div>
           </>
@@ -840,8 +840,8 @@ export default function BookingDetail() {
         <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={() => setShowCancel(false)}>
           <div className="bg-white rounded-t-2xl p-4 w-full max-w-lg mx-auto" onClick={e => e.stopPropagation()}>
             <h2 className="font-bold mb-3">Motivo annullamento</h2>
-            <input value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Es. cliente ha cancellato..." className="w-full border border-gray-200 rounded-lg p-2 mb-3 text-sm" />
-            <button onClick={cancelBooking} className="w-full bg-red-500 text-white rounded-xl py-3 font-semibold mb-2">Conferma annullamento</button>
+            <input value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Es. cliente ha cancellato..." className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" />
+            <button onClick={cancelBooking} className="w-full bg-[#B5502F] text-white rounded-xl py-3 font-semibold mb-2">Conferma annullamento</button>
             <button onClick={() => setShowCancel(false)} className="w-full text-gray-500 py-2 text-sm">Annulla</button>
           </div>
         </div>

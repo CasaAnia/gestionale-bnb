@@ -64,87 +64,86 @@ export default function Dashboard() {
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold">Casa Ania Rozzano</h1>
+          <h1 className="font-serif text-2xl text-green-dark">Buongiorno, Ania</h1>
           <p className="text-sm text-gray-500 capitalize">{italianDate()}</p>
         </div>
-        <Link href="/nuova" className="bg-blue-600 text-white rounded-full px-4 py-2 text-sm font-semibold shadow">+ Prenota</Link>
+        <Link href="/nuova" className="bg-green-mid text-cream-text rounded-full px-4 py-2 text-sm font-semibold">+ Prenota</Link>
       </div>
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
         <>
-          {(data.checkInOggi.length > 0 || data.checkOutOggi.length > 0) && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-              <p className="font-semibold text-amber-800 text-sm mb-2">📋 Oggi</p>
+          {(data.checkInOggi.length > 0 || data.checkOutOggi.length > 0 || data.roomChanges.length > 0) && (
+            <div className="bg-white rounded-[10px] border border-card-border p-3 mb-4">
+              <p className="font-semibold text-green-dark text-sm mb-2">📋 Oggi</p>
               {data.checkInOggi.map((b: any) => (
                 <div key={b.id} className="flex flex-wrap items-center gap-2 text-sm py-1">
-                  <span className="bg-green-100 text-green-700 rounded px-1.5 py-0.5 text-xs font-bold">CHECK-IN</span>
+                  <span className="bg-sage text-green-dark rounded px-1.5 py-0.5 text-xs font-bold">CHECK-IN</span>
                   <span className="font-medium">{b.guests?.full_name || b.guests?.phone}</span>
                   <span className="text-gray-500">— {b.rooms?.name}</span>
-                  {b.check_in_time && <span className="bg-blue-100 text-blue-700 rounded px-1.5 py-0.5 text-xs font-bold">🕐 {b.check_in_time}</span>}
-                  {b.extra_bed && <span className="bg-orange-100 text-orange-700 rounded px-1 text-xs">+letto agg.</span>}
+                  {b.check_in_time && <span className="bg-sage text-green-mid rounded px-1.5 py-0.5 text-xs font-bold">🕐 {b.check_in_time}</span>}
+                  {b.extra_bed && <span className="bg-[#F1E0CE] text-[#7A4B22] rounded px-1 text-xs">+letto agg.</span>}
                 </div>
               ))}
               {data.checkOutOggi.map((b: any) => (
                 <div key={b.id} className="flex flex-wrap items-center gap-2 text-sm py-1">
-                  <span className="bg-red-100 text-red-700 rounded px-1.5 py-0.5 text-xs font-bold">CHECK-OUT</span>
+                  <span className="bg-[#F4E6DF] text-[#7A3B22] rounded px-1.5 py-0.5 text-xs font-bold">CHECK-OUT</span>
                   <span className="font-medium">{b.guests?.full_name || b.guests?.phone}</span>
                   <span className="text-gray-500">— {b.rooms?.name}</span>
                 </div>
               ))}
-            </div>
-          )}
-
-          {data.roomChanges.length > 0 && (
-            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 mb-4">
-              <p className="font-semibold text-indigo-800 text-sm mb-2">⇄ Cambi camera</p>
-              {data.roomChanges.map((m: any) => (
-                <p key={m.id} className="text-sm py-0.5">
-                  <span className="font-medium">{m.guest}</span>
-                  <span className="text-gray-500"> da {m.fromRoom} {roomPreposition(m.toRoom)} {m.toRoom}</span>
-                  <span className="text-indigo-500"> ({m.date === data.td ? 'oggi' : 'domani'})</span>
-                </p>
-              ))}
+              {data.roomChanges.length > 0 && (
+                <div className="bg-sand rounded-lg px-2 py-1.5 mt-2">
+                  <p className="text-xs font-semibold text-green-dark mb-0.5">⇄ Cambi camera</p>
+                  {data.roomChanges.map((m: any) => (
+                    <p key={m.id} className="text-xs py-0.5">
+                      <span className="font-medium">{m.guest}</span>
+                      <span className="text-gray-500"> da {m.fromRoom} {roomPreposition(m.toRoom)} {m.toRoom}</span>
+                      <span className="text-green-mid"> ({m.date === data.td ? 'oggi' : 'domani'})</span>
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <div className="bg-white rounded-[10px] p-4 border border-card-border">
               <p className="text-xs text-gray-500 mb-1">Entrate mese</p>
-              <p className="text-2xl font-bold text-blue-600">€{fmt(data.entrateMese)}</p>
+              <p className="font-serif text-2xl text-green-dark">€{fmt(data.entrateMese)}</p>
             </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <div className="bg-white rounded-[10px] p-4 border border-card-border">
               <p className="text-xs text-gray-500 mb-1">Profitto mese</p>
-              <p className={`text-2xl font-bold ${data.profittoMese >= 0 ? 'text-green-600' : 'text-red-600'}`}>€{fmt(data.profittoMese)}</p>
+              <p className={`font-serif text-2xl ${data.profittoMese >= 0 ? 'text-green-dark' : 'text-[#8C3B2E]'}`}>€{fmt(data.profittoMese)}</p>
             </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <div className="bg-white rounded-[10px] p-4 border border-card-border">
               <p className="text-xs text-gray-500 mb-1">Tariffa media</p>
-              <p className="text-2xl font-bold">€{fmt(data.tariffaMedia)}</p>
+              <p className="font-serif text-2xl text-green-dark">€{fmt(data.tariffaMedia)}</p>
             </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <div className="bg-white rounded-[10px] p-4 border border-card-border">
               <p className="text-xs text-gray-500 mb-1">Camere occupate</p>
-              <p className="text-2xl font-bold">{data.camereOccupate}<span className="text-base text-gray-400">/4</span></p>
+              <p className="font-serif text-2xl text-green-dark">{data.camereOccupate}<span className="text-base text-gray-400">/4</span></p>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm mb-4">
+          <div className="bg-white rounded-[10px] p-4 border border-card-border mb-4">
             <p className="text-xs text-gray-500 mb-1">Spese anno</p>
-            <p className="text-xl font-bold text-red-500">€{fmt(data.speseAnno)}</p>
+            <p className="font-serif text-xl text-[#8C3B2E]">€{fmt(data.speseAnno)}</p>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
-            <Link href="/prenotazioni" className="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
+            <Link href="/prenotazioni" className="bg-sage rounded-[10px] p-3 text-center border border-card-border">
               <div className="text-2xl">📅</div>
-              <div className="text-xs font-semibold text-blue-700 mt-1">Prenotazioni</div>
+              <div className="text-xs font-semibold text-green-dark mt-1">Prenotazioni</div>
             </Link>
-            <Link href="/statistiche" className="bg-green-50 rounded-xl p-3 text-center border border-green-100">
+            <Link href="/statistiche" className="bg-sand rounded-[10px] p-3 text-center border border-card-border">
               <div className="text-2xl">📊</div>
-              <div className="text-xs font-semibold text-green-700 mt-1">Statistiche</div>
+              <div className="text-xs font-semibold text-green-dark mt-1">Statistiche</div>
             </Link>
-            <Link href="/spese" className="bg-orange-50 rounded-xl p-3 text-center border border-orange-100">
+            <Link href="/spese" className="bg-[#F4E6DF] rounded-[10px] p-3 text-center border border-card-border">
               <div className="text-2xl">💶</div>
-              <div className="text-xs font-semibold text-orange-700 mt-1">Spese</div>
+              <div className="text-xs font-semibold text-[#7A3B22] mt-1">Spese</div>
             </Link>
           </div>
         </>

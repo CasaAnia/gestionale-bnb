@@ -19,10 +19,10 @@ const DAYS_BEFORE = 180
 const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
 const EXTRA_BED_MAX = 2
 
-const GREEN = '#1fa84e'
-const PURPLE = '#7c3aed'
-const CYAN = '#0891b2'
-const RED = '#dc2626'
+const GREEN = '#6C9A7C'
+const PURPLE = '#9B8EC4'
+const CYAN = '#7D9DB0'
+const RED = '#C58A67'
 const BLACK = '#1f2937'
 const HEADER_BG = '#ffffff'
 
@@ -205,7 +205,7 @@ export default function Calendario() {
             {/* ── HEADER MESI ── */}
             <div style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', height: HEADER_MONTH_H, background: HEADER_BG }}>
               <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <button onClick={scrollToToday} style={{ fontSize: 10, fontWeight: 700, color: 'white', background: '#16a34a', border: 'none', borderRadius: 10, padding: '2px 8px', cursor: 'pointer' }}>Oggi</button>
+                <button onClick={scrollToToday} style={{ fontSize: 10, fontWeight: 700, color: 'white', background: '#2D6A4F', border: 'none', borderRadius: 10, padding: '2px 8px', cursor: 'pointer' }}>Oggi</button>
               </div>
               {monthGroups.map((mg, i) => (
                 <div key={i} style={{
@@ -214,8 +214,8 @@ export default function Calendario() {
                   width: mg.count * CELL_W,
                   height: HEADER_MONTH_H,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, color: '#16a34a',
-                  borderLeft: i > 0 ? '1px solid #d1d5db' : 'none',
+                  fontSize: 11, fontWeight: 700, color: '#2D6A4F',
+                  borderLeft: i > 0 ? '1px solid #ECE8DD' : 'none',
                   textTransform: 'capitalize',
                 }}>
                   {mg.label}
@@ -224,8 +224,8 @@ export default function Calendario() {
             </div>
 
             {/* ── HEADER GIORNI ── */}
-            <div style={{ position: 'sticky', top: HEADER_MONTH_H, zIndex: 30, display: 'flex', height: HEADER_DAY_H, background: HEADER_BG, borderBottom: '2px solid #9ca3af' }}>
-              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, borderRight: '1px solid #d1d5db' }} />
+            <div style={{ position: 'sticky', top: HEADER_MONTH_H, zIndex: 30, display: 'flex', height: HEADER_DAY_H, background: HEADER_BG, borderBottom: '2px solid #D6CFBD' }}>
+              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, borderRight: '1px solid #ECE8DD' }} />
               {days.map((d, i) => {
                 const isToday = toStr(d) === todayStr
                 const isSun = d.getDay() === 0
@@ -233,16 +233,16 @@ export default function Calendario() {
                   <div key={i} style={{
                     width: CELL_W, minWidth: CELL_W, textAlign: 'center',
                     paddingTop: 4,
-                    background: isToday ? '#A8DCF0' : 'transparent',
-                    borderLeft: '1px solid #d1d5db',
+                    background: isToday ? '#F3ECD8' : 'transparent',
+                    borderLeft: '1px solid #ECE8DD',
                   }}>
-                    <div style={{ fontSize: isDesktop ? 10 : 8, color: isSun ? '#dc2626' : '#9ca3af', marginBottom: 2 }}>
+                    <div style={{ fontSize: isDesktop ? 10 : 8, color: isSun ? '#C58A67' : '#D6CFBD', marginBottom: 2 }}>
                       {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop ? 3 : 2)}
                     </div>
                     <div style={{
                       fontSize: isDesktop ? 15 : 12, fontWeight: 700,
-                      color: isToday ? 'white' : (isSun ? '#dc2626' : '#374151'),
-                      background: isToday ? '#16a34a' : 'transparent',
+                      color: isToday ? 'white' : (isSun ? '#C58A67' : '#1F3D2F'),
+                      background: isToday ? '#2D6A4F' : 'transparent',
                       borderRadius: '50%',
                       width: isDesktop ? 26 : 20, height: isDesktop ? 26 : 20,
                       lineHeight: isDesktop ? '26px' : '20px',
@@ -261,14 +261,14 @@ export default function Calendario() {
               const isEven = ri % 2 === 0
               return (
                 <div key={room.id}>
-                  <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: ROW_H, display: 'flex', borderBottom: '1px solid #d1d5db' }}>
+                  <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: ROW_H, display: 'flex', borderBottom: '1px solid #ECE8DD' }}>
                     {/* Nome camera */}
                     <div style={{
                       width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10,
-                      background: 'white', borderRight: '2px solid #9ca3af',
+                      background: 'white', borderRight: '2px solid #D6CFBD',
                       display: 'flex', alignItems: 'center', padding: '0 8px',
                     }}>
-                      <span style={{ fontSize: isDesktop ? 13 : 11, fontWeight: 700, color: '#1a5c2a' }}>
+                      <span style={{ fontSize: isDesktop ? 13 : 11, fontWeight: 700, color: '#1F3D2F' }}>
                         {isDesktop ? room.name : room.name.split(' ').slice(-1)[0]}
                       </span>
                     </div>
@@ -282,8 +282,8 @@ export default function Calendario() {
                           onClick={() => router.push(`/nuova?room_id=${room.id}&check_in=${dateStr}`)}
                           style={{
                             width: CELL_W, minWidth: CELL_W, height: '100%',
-                            background: isToday ? '#A8DCF0' : isSun ? '#fafafa' : (isEven ? 'white' : '#fafafa'),
-                            borderLeft: isToday ? '2px solid #A8DCF0' : '1px solid #d1d5db',
+                            background: isToday ? '#F3ECD8' : isSun ? '#F7F3E8' : (isEven ? 'white' : '#F7F3E8'),
+                            borderLeft: isToday ? '2px solid #F3ECD8' : '1px solid #ECE8DD',
                             cursor: 'pointer',
                           }} />
                       )
@@ -375,9 +375,9 @@ export default function Calendario() {
             {(() => {
               const rowTop = HEADER_H + rooms.length * ROW_H
               return (
-                <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: EXTRA_ROW_H, display: 'flex', borderTop: '2px solid #9ca3af' }}>
-                  <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10, background: 'white', borderRight: '2px solid #9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: isDesktop ? 10 : 8, fontWeight: 700, color: '#92400e', background: '#fef3c7', borderRadius: 4, padding: '1px 5px' }}>
+                <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: EXTRA_ROW_H, display: 'flex', borderTop: '2px solid #D6CFBD' }}>
+                  <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10, background: 'white', borderRight: '2px solid #D6CFBD', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: isDesktop ? 10 : 8, fontWeight: 700, color: '#7A4B22', background: '#F1E0CE', borderRadius: 4, padding: '1px 5px' }}>
                       🛏 extra
                     </span>
                   </div>
@@ -387,9 +387,9 @@ export default function Calendario() {
                     const isFull = count >= EXTRA_BED_MAX
                     const isToday = dateStr === todayStr
                     return (
-                      <div key={i} style={{ width: CELL_W, minWidth: CELL_W, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isFull ? '#fef2f2' : isToday ? '#A8DCF0' : 'white', borderLeft: isToday ? '2px solid #A8DCF0' : '1px solid #d1d5db' }}>
+                      <div key={i} style={{ width: CELL_W, minWidth: CELL_W, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isFull ? '#F6E4DE' : isToday ? '#F3ECD8' : 'white', borderLeft: isToday ? '2px solid #F3ECD8' : '1px solid #ECE8DD' }}>
                         {count > 0 && (
-                          <span style={{ fontSize: isDesktop ? 11 : 8, fontWeight: 700, color: isFull ? RED : '#d97706' }}>
+                          <span style={{ fontSize: isDesktop ? 11 : 8, fontWeight: 700, color: isFull ? RED : '#7A4B22' }}>
                             {count}/{EXTRA_BED_MAX}
                           </span>
                         )}
@@ -416,7 +416,7 @@ export default function Calendario() {
       )}
 
       {/* Legenda */}
-      <div className="shrink-0 px-4 py-2 bg-white border-t border-gray-100 flex flex-wrap gap-3 items-center">
+      <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border flex flex-wrap gap-3 items-center">
         <div className="flex items-center gap-1.5">
           <div style={{ width: 12, height: 12, borderRadius: 3, background: GREEN }} />
           <span className="text-xs text-gray-500">Prenotazione</span>

@@ -146,12 +146,12 @@ export default function Arrivi() {
     <div className="flex flex-col h-screen pb-16 lg:pb-0">
 
       {!loading && roomChanges.length > 0 && (
-        <div className="shrink-0 px-4 py-2 bg-indigo-50 border-b border-indigo-100">
-          <p className="text-xs font-semibold text-indigo-800 mb-1">⇄ Cambi camera</p>
+        <div className="shrink-0 px-4 py-2 bg-sand border-b border-card-border">
+          <p className="text-xs font-semibold text-green-dark mb-1">⇄ Cambi camera</p>
           {roomChanges.map(m => (
-            <p key={m.id} className="text-xs text-indigo-700">
+            <p key={m.id} className="text-xs text-green-mid">
               <span className="font-medium">{m.guest}</span> da {m.fromRoom} {roomPreposition(m.toRoom)} {m.toRoom}
-              <span className="text-indigo-400"> ({m.date === todayStr ? 'oggi' : 'domani'})</span>
+              <span className="text-green-mid"> ({m.date === todayStr ? 'oggi' : 'domani'})</span>
             </p>
           ))}
         </div>
@@ -166,7 +166,7 @@ export default function Arrivi() {
             {/* ── HEADER MESI ── */}
             <div style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', height: HEADER_MONTH_H, background: HEADER_BG }}>
               <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <button onClick={scrollToToday} style={{ fontSize: 10, fontWeight: 700, color: 'white', background: '#16a34a', border: 'none', borderRadius: 10, padding: '1px 7px', cursor: 'pointer' }}>Oggi</button>
+                <button onClick={scrollToToday} style={{ fontSize: 10, fontWeight: 700, color: 'white', background: '#2D6A4F', border: 'none', borderRadius: 10, padding: '1px 7px', cursor: 'pointer' }}>Oggi</button>
               </div>
               {monthGroups.map((mg, i) => (
                 <div key={i} style={{
@@ -175,8 +175,8 @@ export default function Arrivi() {
                   width: mg.count * CELL_W,
                   height: HEADER_MONTH_H,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, color: '#16a34a',
-                  borderLeft: i > 0 ? '1px solid #e5e7eb' : 'none',
+                  fontSize: 11, fontWeight: 700, color: '#2D6A4F',
+                  borderLeft: i > 0 ? '1px solid #ECE8DD' : 'none',
                   textTransform: 'capitalize',
                 }}>
                   {mg.label}
@@ -185,24 +185,24 @@ export default function Arrivi() {
             </div>
 
             {/* ── HEADER GIORNI ── */}
-            <div style={{ position: 'sticky', top: HEADER_MONTH_H, zIndex: 30, display: 'flex', height: HEADER_DAY_H, background: HEADER_BG, borderBottom: '2px solid #e5e7eb' }}>
-              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, borderRight: '1px solid #e5e7eb' }} />
+            <div style={{ position: 'sticky', top: HEADER_MONTH_H, zIndex: 30, display: 'flex', height: HEADER_DAY_H, background: HEADER_BG, borderBottom: '2px solid #ECE8DD' }}>
+              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, borderRight: '1px solid #ECE8DD' }} />
               {days.map((d, i) => {
                 const isToday = toStr(d) === todayStr
                 const isSun = d.getDay() === 0
                 return (
                   <div key={i} style={{
                     width: CELL_W, minWidth: CELL_W, textAlign: 'center', paddingTop: 4,
-                    background: isToday ? '#A8DCF0' : 'transparent',
-                    borderLeft: '1px solid #f3f4f6',
+                    background: isToday ? '#F3ECD8' : 'transparent',
+                    borderLeft: '1px solid #F2EEE3',
                   }}>
-                    <div style={{ fontSize: isDesktop ? 10 : 8, color: isSun ? '#dc2626' : '#9ca3af', marginBottom: 2 }}>
+                    <div style={{ fontSize: isDesktop ? 10 : 8, color: isSun ? '#dc2626' : '#D6CFBD', marginBottom: 2 }}>
                       {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop ? 3 : 2)}
                     </div>
                     <div style={{
                       fontSize: isDesktop ? 15 : 12, fontWeight: 700,
-                      color: isToday ? 'white' : (isSun ? '#dc2626' : '#374151'),
-                      background: isToday ? '#16a34a' : 'transparent',
+                      color: isToday ? 'white' : (isSun ? '#dc2626' : '#1F3D2F'),
+                      background: isToday ? '#2D6A4F' : 'transparent',
                       borderRadius: '50%',
                       width: isDesktop ? 26 : 20, height: isDesktop ? 26 : 20,
                       lineHeight: isDesktop ? '26px' : '20px',
@@ -221,14 +221,14 @@ export default function Arrivi() {
               const isEven = ri % 2 === 0
               return (
                 <div key={room.id}>
-                  <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: ROW_H, display: 'flex', borderBottom: '1px solid #e5e7eb' }}>
+                  <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: ROW_H, display: 'flex', borderBottom: '1px solid #ECE8DD' }}>
                     {/* Nome camera */}
                     <div style={{
                       width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10,
-                      background: 'white', borderRight: '2px solid #e5e7eb',
+                      background: 'white', borderRight: '2px solid #ECE8DD',
                       display: 'flex', alignItems: 'center', padding: '0 8px',
                     }}>
-                      <span style={{ fontSize: isDesktop ? 13 : 11, fontWeight: 700, color: '#1a5c2a' }}>
+                      <span style={{ fontSize: isDesktop ? 13 : 11, fontWeight: 700, color: '#1F3D2F' }}>
                         {isDesktop ? room.name : room.name.split(' ').slice(-1)[0]}
                       </span>
                     </div>
@@ -241,8 +241,8 @@ export default function Arrivi() {
                         <div key={i}
                           style={{
                             width: CELL_W, minWidth: CELL_W, height: '100%',
-                            background: isToday ? '#A8DCF0' : isSun ? '#fafafa' : (isEven ? 'white' : '#fafafa'),
-                            borderLeft: isToday ? '2px solid #A8DCF0' : '1px solid #f3f4f6',
+                            background: isToday ? '#F3ECD8' : isSun ? '#F7F3E8' : (isEven ? 'white' : '#F7F3E8'),
+                            borderLeft: isToday ? '2px solid #F3ECD8' : '1px solid #F2EEE3',
                           }} />
                       )
                     })}
@@ -266,7 +266,7 @@ export default function Arrivi() {
                           left: NAME_W + startIdx * CELL_W + 2,
                           width: barWidth,
                           height: ROW_H - 12,
-                          background: '#1a7a32',
+                          background: '#6C9A7C',
                           borderRadius: 6,
                           cursor: 'pointer',
                           display: 'flex',
@@ -320,13 +320,13 @@ export default function Arrivi() {
                 setPopup({ ...popup, time: v })
               }}
               maxLength={5}
-              className="w-full border border-gray-200 rounded-xl p-3 text-2xl font-bold text-center mb-4"
+              className="w-full border border-card-border rounded-xl p-3 text-2xl font-bold text-center mb-4"
             />
             <div className="flex gap-2">
-              <button onClick={() => router.push(`/prenotazioni/${popup.id}`)} className="flex-1 border border-gray-200 text-gray-600 rounded-xl py-3 font-semibold text-sm">
+              <button onClick={() => router.push(`/prenotazioni/${popup.id}`)} className="flex-1 border border-card-border text-gray-600 rounded-xl py-3 font-semibold text-sm">
                 Apri prenotazione
               </button>
-              <button onClick={saveTime} disabled={savingTime} className="flex-1 bg-green-600 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
+              <button onClick={saveTime} disabled={savingTime} className="flex-1 bg-green-mid text-white rounded-xl py-3 font-semibold disabled:opacity-50">
                 {savingTime ? 'Salvo...' : 'Salva orario'}
               </button>
             </div>
@@ -335,9 +335,9 @@ export default function Arrivi() {
       )}
 
       {/* Legenda */}
-      <div className="shrink-0 px-4 py-2 bg-white border-t border-gray-100 flex gap-4 items-center">
+      <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border flex gap-4 items-center">
         <div className="flex items-center gap-1.5">
-          <div style={{ width: 14, height: 14, borderRadius: 3, background: '#15803d' }} />
+          <div style={{ width: 14, height: 14, borderRadius: 3, background: '#6C9A7C' }} />
           <span className="text-xs text-gray-500">Orario arrivo</span>
         </div>
         <div className="flex items-center gap-1.5">

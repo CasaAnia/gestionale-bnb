@@ -105,12 +105,12 @@ export default function Statistiche() {
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">Statistiche</h1>
+      <h1 className="font-serif text-xl text-green-dark mb-4">Statistiche</h1>
 
       <div className="flex gap-2 mb-4">
         {(['settimana', 'mese', 'anno'] as const).map(p => (
           <button key={p} onClick={() => setPeriod(p)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${period === p ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>
+            className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${period === p ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-card-border'}`}>
             {p}
           </button>
         ))}
@@ -121,28 +121,28 @@ export default function Statistiche() {
       ) : (
         <>
           <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+            <div className="bg-white rounded-xl p-3 border border-card-border text-center">
               <p className="text-xs text-gray-500 mb-1">Entrate</p>
-              <p className="font-bold text-blue-600 text-sm">€{fmt(totalRevenue)}</p>
+              <p className="font-bold text-green-mid text-sm">€{fmt(totalRevenue)}</p>
             </div>
-            <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+            <div className="bg-white rounded-xl p-3 border border-card-border text-center">
               <p className="text-xs text-gray-500 mb-1">Spese</p>
-              <p className="font-bold text-red-500 text-sm">€{fmt(totalExpenses)}</p>
+              <p className="font-bold text-[#8C3B2E] text-sm">€{fmt(totalExpenses)}</p>
             </div>
-            <div className="bg-white rounded-xl p-3 border border-gray-100 text-center">
+            <div className="bg-white rounded-xl p-3 border border-card-border text-center">
               <p className="text-xs text-gray-500 mb-1">Profitto</p>
-              <p className={`font-bold text-sm ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>€{fmt(totalProfit)}</p>
+              <p className={`font-bold text-sm ${totalProfit >= 0 ? 'text-green-mid' : 'text-[#8C3B2E]'}`}>€{fmt(totalProfit)}</p>
             </div>
           </div>
 
           {/* Grafico a barre */}
-          <div className="bg-white rounded-xl p-4 border border-gray-100 mb-4">
+          <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
             <p className="text-sm font-semibold text-gray-600 mb-3">Entrate per {period}</p>
             <div className="flex items-end gap-1" style={{ height: 120 }}>
               {rows.map((r, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
                   <div className="w-full flex flex-col justify-end" style={{ height: 100 }}>
-                    <div className="w-full bg-blue-500 rounded-t-sm transition-all"
+                    <div className="w-full bg-green-mid rounded-t-sm transition-all"
                       style={{ height: `${Math.max(2, (r.revenue / maxRevenue) * 100)}%` }} />
                   </div>
                   {rows.length <= 12 && (
@@ -154,16 +154,16 @@ export default function Statistiche() {
           </div>
 
           {/* Tabella riepilogo */}
-          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-xl border border-card-border overflow-hidden">
             <div className="grid grid-cols-4 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500">
               <span>Periodo</span><span className="text-right">Entrate</span><span className="text-right">Spese</span><span className="text-right">Profitto</span>
             </div>
             {rows.filter(r => r.revenue > 0 || r.expenses > 0).map((r, i) => (
               <div key={i} className="grid grid-cols-4 px-3 py-2 text-sm border-t border-gray-50">
                 <span className="text-gray-600">{r.label}</span>
-                <span className="text-right text-blue-600">€{fmt(r.revenue)}</span>
-                <span className="text-right text-red-500">€{fmt(r.expenses)}</span>
-                <span className={`text-right font-semibold ${r.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>€{fmt(r.profit)}</span>
+                <span className="text-right text-green-mid">€{fmt(r.revenue)}</span>
+                <span className="text-right text-[#8C3B2E]">€{fmt(r.expenses)}</span>
+                <span className={`text-right font-semibold ${r.profit >= 0 ? 'text-green-mid' : 'text-[#8C3B2E]'}`}>€{fmt(r.profit)}</span>
               </div>
             ))}
             {rows.filter(r => r.revenue > 0 || r.expenses > 0).length === 0 && (

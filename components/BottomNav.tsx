@@ -30,13 +30,13 @@ export default function BottomNav() {
   return (
     <>
       {/* Mobile: barra in basso */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-card-border z-50">
         <div className="flex justify-around items-center h-16 max-w-lg mx-auto px-1">
           {mobileNavItems.map(item => {
             const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
             return (
               <Link key={item.href} href={item.href}
-                className={`flex flex-col items-center justify-center flex-1 py-1 text-xs gap-0.5 transition-colors ${active ? 'text-blue-600' : 'text-gray-500'}`}>
+                className={`flex flex-col items-center justify-center flex-1 py-1 text-xs gap-0.5 transition-colors ${active ? 'text-green-mid' : 'text-gray-500'}`}>
                 <span className="text-lg leading-none">{item.icon}</span>
                 <span className="font-medium">{item.label}</span>
               </Link>
@@ -46,15 +46,18 @@ export default function BottomNav() {
       </nav>
 
       {/* Desktop: barra laterale a sinistra */}
-      <nav className="hidden lg:flex fixed left-0 top-0 bottom-0 w-48 bg-white border-r border-gray-200 z-50 flex-col py-6">
+      <nav className="hidden lg:flex fixed left-0 top-0 bottom-0 w-48 bg-sidebar border-r border-border-soft z-50 flex-col py-6">
         <div className="px-4 mb-6">
-          <p className="font-bold text-gray-800 text-sm">Casa Ania Rozzano</p>
+          <p className="font-serif text-lg text-green-dark leading-tight">Casa Ania</p>
+          <p className="text-[10px] text-green-dark/60 mt-0.5" style={{ fontVariantCaps: 'small-caps', letterSpacing: '0.08em' }}>
+            Affittacamere · Rozzano
+          </p>
         </div>
         {desktopNavItems.map(item => {
           const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
           return (
             <Link key={item.href} href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors ${active ? 'mx-3 rounded-full bg-[#A8DCF0] text-[#0C447C]' : 'text-gray-600 hover:bg-gray-50'}`}>
+              className={`flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors ${active ? 'mx-3 rounded-full bg-sage text-green-dark' : 'text-gray-600 hover:bg-white/60'}`}>
               <span className="text-xl">{item.icon}</span>
               <span>{item.label}</span>
             </Link>
