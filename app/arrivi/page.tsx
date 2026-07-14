@@ -263,19 +263,21 @@ export default function Arrivi() {
                     const endIdx = Math.min(DAYS_TOTAL, dayIndex(booking.check_out))
                     if (startIdx < 0 || startIdx >= DAYS_TOTAL || endIdx <= startIdx) return []
 
-                    const barWidth = (endIdx - startIdx) * CELL_W - 4
                     const time = booking.check_in_time || ''
                     const highlightColor = booking.group_id ? groupHighlightColorMap[booking.group_id] : null
+                    const insetV = highlightColor ? 10 : 6
+                    const insetH = highlightColor ? 8 : 2
+                    const barWidth = (endIdx - startIdx) * CELL_W - insetH * 2
 
                     const bar = (
                       <div key={booking.id}
                         onClick={() => setPopup({ id: booking.id, name: booking.guests?.full_name || booking.guests?.phone || '', time: booking.check_in_time || '' })}
                         style={{
                           position: 'absolute',
-                          top: rowTop + 6,
-                          left: NAME_W + startIdx * CELL_W + 2,
+                          top: rowTop + insetV,
+                          left: NAME_W + startIdx * CELL_W + insetH,
                           width: barWidth,
-                          height: ROW_H - 12,
+                          height: ROW_H - insetV * 2,
                           background: '#1a7a32',
                           borderRadius: 6,
                           cursor: 'pointer',
@@ -314,12 +316,11 @@ export default function Arrivi() {
                       <div key={`${booking.id}-hl`}
                         style={{
                           position: 'absolute',
-                          top: rowTop + 2,
+                          top: rowTop,
                           left: NAME_W + startIdx * CELL_W,
                           width: (endIdx - startIdx) * CELL_W,
-                          height: ROW_H - 4,
+                          height: ROW_H,
                           background: highlightColor,
-                          borderRadius: 8,
                           zIndex: 4,
                           pointerEvents: 'none',
                         }} />

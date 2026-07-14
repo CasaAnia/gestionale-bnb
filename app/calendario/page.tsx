@@ -338,9 +338,11 @@ export default function Calendario() {
                     const vuoleRicevuta = booking.guests?.rating === 'vuole_ricevuta'
                     const hasExtraBed = booking.extra_bed || (booking.extra_bed_dates && booking.extra_bed_dates.length > 0)
                     const transition = groupChainMap[booking.id]
-                    const isMultiRoom = !!transition
-                    const highlightColor = isMultiRoom ? groupHighlightColorMap[booking.group_id] : null
+                    const highlightColor = booking.group_id ? groupHighlightColorMap[booking.group_id] : null
+                    const isMultiRoom = !!highlightColor
                     const isSelected = isMultiRoom && selectedGroupId === booking.group_id
+                    const insetV = highlightColor ? 10 : 6
+                    const insetH = highlightColor ? 8 : 2
 
                     const segments: { start: number; end: number; color: string }[] = []
                     let curColor = '', segStart = startIdx
@@ -372,10 +374,10 @@ export default function Calendario() {
                           }}
                           style={{
                             position: 'absolute',
-                            top: rowTop + 6,
-                            left: NAME_W + seg.start * CELL_W + (isFirst ? 2 : 0),
-                            width: (seg.end - seg.start) * CELL_W - (isFirst ? 2 : 0) - (isLast ? 2 : 0),
-                            height: ROW_H - 12,
+                            top: rowTop + insetV,
+                            left: NAME_W + seg.start * CELL_W + (isFirst ? insetH : 0),
+                            width: (seg.end - seg.start) * CELL_W - (isFirst ? insetH : 0) - (isLast ? insetH : 0),
+                            height: ROW_H - insetV * 2,
                             background: seg.color,
                             borderRadius: isFirst && isLast ? 6 : isFirst ? '6px 0 0 6px' : isLast ? '0 6px 6px 0' : 0,
                             cursor: 'pointer',
@@ -416,14 +418,13 @@ export default function Calendario() {
                       <div key={`${booking.id}-hl`}
                         style={{
                           position: 'absolute',
-                          top: rowTop + 2,
+                          top: rowTop,
                           left: NAME_W + startIdx * CELL_W,
                           width: (endIdx - startIdx) * CELL_W,
-                          height: ROW_H - 4,
+                          height: ROW_H,
                           background: highlightColor,
-                          borderRadius: 8,
-                          outline: isSelected ? '2px solid rgba(0,0,0,0.45)' : 'none',
-                          outlineOffset: -1,
+                          outline: isSelected ? '3px solid rgba(0,0,0,0.5)' : 'none',
+                          outlineOffset: -2,
                           zIndex: isSelected ? 14 : 4,
                           pointerEvents: 'none',
                         }} />
