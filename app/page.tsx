@@ -3,9 +3,12 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import type { Booking, Expense } from '@/lib/types'
+import { getUpcomingRoomChanges } from '@/lib/roomChanges'
 
 function fmt(n: number) { return n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 function today() { return new Date().toISOString().split('T')[0] }
+function tomorrow() { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0] }
+function roomPreposition(room: string) { return /^[aeiouAEIOU]/.test(room) ? 'ad' : 'a' }
 function monthStart() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
 function monthEnd() { const d = new Date(); const last = new Date(d.getFullYear(), d.getMonth()+1, 0); return last.toISOString().split('T')[0] }
 function yearStart() { return `${new Date().getFullYear()}-01-01` }
@@ -20,6 +23,7 @@ export default function Dashboard() {
   useEffect(() => {
     async function load() {
       const td = today()
+      const tmr = tomorrow()
       const ms = monthStart()
       const me = monthEnd()
       const ys = yearStart()
@@ -37,6 +41,10 @@ export default function Dashboard() {
       const checkOutOggi = active.filter((x: any) => x.check_out === td)
       const camereOccupate = active.filter((x: any) => x.check_in <= td && x.check_out > td).length
 
+      const roomNameById: Record<string, string> = {}
+      active.forEach((x: any) => { if (x.rooms?.name) roomNameById[x.room_id] = x.rooms.name.split(' ').slice(-1)[0] })
+      const roomChanges = getUpcomingRoomChanges(active, roomNameById, [td, tmr])
+
       const bMese = active.filter((x: any) => x.check_in >= ms && x.check_in <= me)
       const entrateMese = bMese.reduce((s: number, x: any) => s + Number(x.total_amount), 0)
       const speseAnno = e.filter((x: any) => x.expense_date >= ys).reduce((s: number, x: any) => s + Number(x.amount), 0)
@@ -46,7 +54,7 @@ export default function Dashboard() {
       const completate = active.filter((x: any) => x.price_per_night > 0)
       const tariffaMedia = completate.length > 0 ? completate.reduce((s: number, x: any) => s + Number(x.price_per_night), 0) / completate.length : 0
 
-      setData({ entrateMese, speseAnno, profittoMese, tariffaMedia, checkInOggi, checkOutOggi, camereOccupate })
+      setData({ entrateMese, speseAnno, profittoMese, tariffaMedia, checkInOggi, checkOutOggi, camereOccupate, roomChanges, td })
       setLoading(false)
     }
     load()
@@ -84,6 +92,19 @@ export default function Dashboard() {
                   <span className="font-medium">{b.guests?.full_name || b.guests?.phone}</span>
                   <span className="text-gray-500">— {b.rooms?.name}</span>
                 </div>
+              ))}
+            </div>
+          )}
+
+          {data.roomChanges.length > 0 && (
+            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 mb-4">
+              <p className="font-semibold text-indigo-800 text-sm mb-2">⇄ Cambi camera</p>
+              {data.roomChanges.map((m: any) => (
+                <p key={m.id} className="text-sm py-0.5">
+                  <span className="font-medium">{m.guest}</span>
+                  <span className="text-gray-500"> da {m.fromRoom} {roomPreposition(m.toRoom)} {m.toRoom}</span>
+                  <span className="text-indigo-500"> ({m.date === data.td ? 'oggi' : 'domani'})</span>
+                </p>
               ))}
             </div>
           )}

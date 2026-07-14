@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { buildChangeGroups } from '@/lib/roomChanges'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
@@ -24,7 +25,6 @@ const CYAN = '#0891b2'
 const RED = '#dc2626'
 const BLACK = '#1f2937'
 const HEADER_BG = '#ffffff'
-const HIGHLIGHT_COLORS = ['#FF4FD8', '#FFE93B', '#8C8C8C']
 
 function addDays(date: Date, n: number) {
   const d = new Date(date)
@@ -41,110 +41,6 @@ function strToDate(s: string) {
   return new Date(y, m - 1, d)
 }
 
-// Collega in "catene" le prenotazioni con cambio camera reale: stesso group_id, oppure stesso ospite
-// con camere diverse e date contigue/sovrapposte (anche senza group_id). Assegna un colore a rotazione
-// (in ordine cronologico) a ogni catena e individua le transizioni ⇄ camera.
-function buildChangeGroups(bookings: any[]): {
-  chainKeyOf: Record<string, string>
-  transitionOf: Record<string, { toRoomId?: string; fromRoomId?: string }>
-  colorOf: Record<string, string>
-} {
-  const n = bookings.length
-  const parent = Array.from({ length: n }, (_, i) => i)
-  function find(x: number): number {
-    while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x] }
-    return x
-  }
-  function union(a: number, b: number) {
-    a = find(a); b = find(b)
-    if (a !== b) parent[a] = b
-  }
-
-  const byGroupId = new Map<string, number[]>()
-  bookings.forEach((b, i) => {
-    if (!b.group_id) return
-    if (!byGroupId.has(b.group_id)) byGroupId.set(b.group_id, [])
-    byGroupId.get(b.group_id)!.push(i)
-  })
-  byGroupId.forEach(idxs => { for (let k = 1; k < idxs.length; k++) union(idxs[0], idxs[k]) })
-  // group_id condivisi da almeno 2 prenotazioni: collegamento esplicito, va sempre evidenziato
-  const explicitGroupIds = new Set([...byGroupId.entries()].filter(([, idxs]) => idxs.length >= 2).map(([gid]) => gid))
-
-  // Stesso ospite, camere diverse, date contigue o sovrapposte (ma non identiche: due camere nelle
-  // stesse identiche date sono una prenotazione multipla contemporanea, non un cambio camera)
-  const byGuest = new Map<string, number[]>()
-  bookings.forEach((b, i) => {
-    if (!b.guest_id) return
-    if (!byGuest.has(b.guest_id)) byGuest.set(b.guest_id, [])
-    byGuest.get(b.guest_id)!.push(i)
-  })
-  byGuest.forEach(idxs => {
-    for (let x = 0; x < idxs.length; x++) {
-      for (let y = x + 1; y < idxs.length; y++) {
-        const a = bookings[idxs[x]], b = bookings[idxs[y]]
-        if (a.room_id === b.room_id) continue
-        if (a.check_in === b.check_in && a.check_out === b.check_out) continue
-        if (a.check_in <= b.check_out && b.check_in <= a.check_out) union(idxs[x], idxs[y])
-      }
-    }
-  })
-
-  const components = new Map<number, number[]>()
-  bookings.forEach((_, i) => {
-    const r = find(i)
-    if (!components.has(r)) components.set(r, [])
-    components.get(r)!.push(i)
-  })
-
-  const chainKeyOf: Record<string, string> = {}
-  const transitionOf: Record<string, { toRoomId?: string; fromRoomId?: string }> = {}
-  const ranges: { key: string; start: string; end: string }[] = []
-
-  components.forEach(idxs => {
-    if (idxs.length < 2) return
-    const sorted = idxs.map(i => bookings[i]).sort((a, b) => a.check_in.localeCompare(b.check_in))
-    const hasChange = sorted.some((b, i) => i > 0 && b.room_id !== sorted[i - 1].room_id)
-    const hasExplicitLink = sorted.some(b => b.group_id && explicitGroupIds.has(b.group_id))
-    if (!hasChange && !hasExplicitLink) return
-    const key = `chain-${[...sorted.map(b => b.id)].sort()[0]}`
-    sorted.forEach(b => { chainKeyOf[b.id] = key })
-    sorted.forEach((b, i) => {
-      const entry: { toRoomId?: string; fromRoomId?: string } = {}
-      if (i < sorted.length - 1 && sorted[i + 1].room_id !== b.room_id) entry.toRoomId = sorted[i + 1].room_id
-      if (i > 0 && sorted[i - 1].room_id !== b.room_id) entry.fromRoomId = sorted[i - 1].room_id
-      if (entry.toRoomId || entry.fromRoomId) transitionOf[b.id] = entry
-    })
-    const start = sorted[0].check_in
-    const end = sorted.reduce((m, b) => (b.check_out > m ? b.check_out : m), sorted[0].check_out)
-    ranges.push({ key, start, end })
-  })
-
-  // Colori a rotazione in ordine cronologico (1° soggiorno rosa, 2° giallo, 3° grigio, poi si ripete).
-  // Se il prossimo colore in rotazione è già in uso da un soggiorno ancora sovrapposto, si passa al
-  // successivo: così soggiorni vicini nel tempo non risultano quasi sempre dello stesso colore, e due
-  // soggiorni che si sovrappongono davvero non hanno lo stesso colore a meno che siano più di 3 insieme.
-  ranges.sort((a, b) => a.start.localeCompare(b.start) || a.key.localeCompare(b.key))
-  const colorOf: Record<string, string> = {}
-  const active: { end: string; color: string }[] = []
-  let pointer = 0
-  ranges.forEach(g => {
-    for (let i = active.length - 1; i >= 0; i--) {
-      if (active[i].end <= g.start) active.splice(i, 1)
-    }
-    const used = new Set(active.map(a => a.color))
-    let color = HIGHLIGHT_COLORS[pointer % HIGHLIGHT_COLORS.length]
-    for (let steps = 0; used.has(color) && steps < HIGHLIGHT_COLORS.length - 1; steps++) {
-      pointer = (pointer + 1) % HIGHLIGHT_COLORS.length
-      color = HIGHLIGHT_COLORS[pointer % HIGHLIGHT_COLORS.length]
-    }
-    colorOf[g.key] = color
-    pointer = (pointer + 1) % HIGHLIGHT_COLORS.length
-    active.push({ end: g.end, color })
-  })
-
-  return { chainKeyOf, transitionOf, colorOf }
-}
-
 export default function Calendario() {
   const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -153,21 +49,16 @@ export default function Calendario() {
   const [loading, setLoading] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
 
-  // Catene di cambio camera (per group_id o per stesso ospite/date contigue), colori e transizioni ⇄
+  // Catene di cambio camera (per group_id o per stesso ospite/date contigue) e relative transizioni
   const changeGroups = useMemo(() => buildChangeGroups(bookings), [bookings])
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
 
-  const roomsById = useMemo(() => {
-    const map: Record<string, any> = {}
-    rooms.forEach(r => { map[r.id] = r })
+  const roomRowIndex = useMemo(() => {
+    const map: Record<string, number> = {}
+    rooms.forEach((r, i) => { map[r.id] = i })
     return map
   }, [rooms])
-
-  function shortRoomName(id?: string) {
-    const room = id ? roomsById[id] : null
-    return room ? room.name.split(' ').slice(-1)[0] : ''
-  }
 
   useEffect(() => {
     const check = () => setIsDesktop(window.innerWidth >= 1024)
@@ -269,6 +160,30 @@ export default function Calendario() {
   const totalW = NAME_W + DAYS_TOTAL * CELL_W
   const totalH = HEADER_H + rooms.length * ROW_H + EXTRA_ROW_H
 
+  const bookingsById = new Map(bookings.map((b: any) => [b.id, b]))
+  const edgeCoords = changeGroups.edges.flatMap(edge => {
+    const from = bookingsById.get(edge.fromId)
+    const to = bookingsById.get(edge.toId)
+    if (!from || !to) return []
+    const fromRow = roomRowIndex[from.room_id]
+    const toRow = roomRowIndex[to.room_id]
+    if (fromRow === undefined || toRow === undefined) return []
+    const fromEndIdx = Math.min(DAYS_TOTAL, dayIndex(from.check_out))
+    const toStartIdx = Math.max(0, dayIndex(to.check_in))
+    if (fromEndIdx < 0 || fromEndIdx > DAYS_TOTAL || toStartIdx < 0 || toStartIdx > DAYS_TOTAL) return []
+    const x1 = NAME_W + fromEndIdx * CELL_W - 2
+    const y1 = HEADER_H + fromRow * ROW_H + ROW_H / 2
+    const x2 = NAME_W + toStartIdx * CELL_W + 2
+    const y2 = HEADER_H + toRow * ROW_H + ROW_H / 2
+    const chainKey = changeGroups.chainKeyOf[edge.fromId]
+    return [{
+      id: `${edge.fromId}-${edge.toId}`,
+      x1, y1, x2, y2,
+      midX: (x1 + x2) / 2, midY: (y1 + y2) / 2,
+      isSelected: selectedGroupId !== null && selectedGroupId === chainKey,
+    }]
+  })
+
   // Calcola mesi per header
   const monthGroups: { label: string; startIdx: number; count: number }[] = []
   days.forEach((d, i) => {
@@ -285,7 +200,7 @@ export default function Calendario() {
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
         <div ref={scrollRef} className="overflow-auto flex-1" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div style={{ width: totalW, position: 'relative', height: totalH }}>
+          <div style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
 
             {/* ── HEADER MESI ── */}
             <div style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', height: HEADER_MONTH_H, background: HEADER_BG }}>
@@ -385,13 +300,12 @@ export default function Calendario() {
                     const isEsclusiva = booking.color === '#f97316'
                     const vuoleRicevuta = booking.guests?.rating === 'vuole_ricevuta'
                     const hasExtraBed = booking.extra_bed || (booking.extra_bed_dates && booking.extra_bed_dates.length > 0)
-                    const transition = changeGroups.transitionOf[booking.id]
                     const chainKey = changeGroups.chainKeyOf[booking.id]
-                    const highlightColor = chainKey ? changeGroups.colorOf[chainKey] : null
-                    const isMultiRoom = !!highlightColor
+                    const isMultiRoom = !!chainKey
                     const isSelected = isMultiRoom && selectedGroupId === chainKey
-                    const insetV = highlightColor ? 10 : 6
-                    const insetH = highlightColor ? 8 : 2
+                    const isDimmed = selectedGroupId !== null && !isSelected
+                    const insetV = 6
+                    const insetH = 2
 
                     const segments: { start: number; end: number; color: string }[] = []
                     let curColor = '', segStart = startIdx
@@ -404,19 +318,15 @@ export default function Calendario() {
                     }
                     if (curColor) segments.push({ start: segStart, end: endIdx, color: curColor })
 
-                    const barEls = segments.map((seg, si) => {
+                    return segments.map((seg, si) => {
                       const isFirst = si === 0
                       const isLast = si === segments.length - 1
                       return (
                         <div key={`${booking.id}-${si}`}
                           onClick={(e) => {
                             if (isMultiRoom) {
-                              if (selectedGroupId === chainKey) {
-                                router.push(`/prenotazioni/${booking.id}`)
-                              } else {
-                                e.stopPropagation()
-                                setSelectedGroupId(chainKey)
-                              }
+                              e.stopPropagation()
+                              setSelectedGroupId(selectedGroupId === chainKey ? null : chainKey)
                             } else {
                               router.push(`/prenotazioni/${booking.id}`)
                             }
@@ -435,24 +345,20 @@ export default function Calendario() {
                             justifyContent: 'center',
                             overflow: 'hidden',
                             zIndex: isSelected ? 15 : 5,
-                            transform: isSelected ? 'scale(1.04)' : 'none',
-                            boxShadow: isSelected ? '0 4px 10px rgba(0,0,0,0.35)' : '0 1px 3px rgba(0,0,0,0.2)',
+                            opacity: isDimmed ? 0.3 : 1,
+                            outline: isSelected ? `3px solid ${BLACK}` : 'none',
+                            outlineOffset: -1,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                            transition: 'opacity 0.15s',
                           }}>
                           {isFirst && (
                             <>
                               <span style={{ color: 'white', fontSize: isDesktop ? 13 : 10, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                                {guestName}
+                                {guestName}{isMultiRoom ? ' ⇄' : ''}
                               </span>
                               {(isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed) && (
                                 <span style={{ fontSize: isDesktop ? 12 : 9, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
                                   {isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏 ' : ''}
-                                </span>
-                              )}
-                              {transition && (
-                                <span style={{ fontSize: isDesktop ? 11 : 8, fontWeight: 700, color: 'white', paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                                  {transition.toRoomId ? `⇄ → ${shortRoomName(transition.toRoomId)}` : ''}
-                                  {transition.toRoomId && transition.fromRoomId ? '  ' : ''}
-                                  {transition.fromRoomId ? `⇄ da ${shortRoomName(transition.fromRoomId)}` : ''}
                                 </span>
                               )}
                             </>
@@ -460,25 +366,6 @@ export default function Calendario() {
                         </div>
                       )
                     })
-
-                    if (!highlightColor) return barEls
-
-                    const backdrop = (
-                      <div key={`${booking.id}-hl`}
-                        style={{
-                          position: 'absolute',
-                          top: rowTop,
-                          left: NAME_W + startIdx * CELL_W,
-                          width: (endIdx - startIdx) * CELL_W,
-                          height: ROW_H,
-                          background: highlightColor,
-                          outline: isSelected ? '3px solid rgba(0,0,0,0.5)' : 'none',
-                          outlineOffset: -2,
-                          zIndex: isSelected ? 14 : 4,
-                          pointerEvents: 'none',
-                        }} />
-                    )
-                    return [backdrop, ...barEls]
                   })}
                 </div>
               )
@@ -513,6 +400,17 @@ export default function Calendario() {
               )
             })()}
 
+            {/* ── LINEE DI COLLEGAMENTO CAMBIO CAMERA ── */}
+            <svg width={totalW} height={totalH} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 20 }}>
+              {edgeCoords.map(e => (
+                <g key={e.id} style={{ opacity: selectedGroupId !== null && !e.isSelected ? 0.25 : 1 }}>
+                  <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke={BLACK} strokeWidth={e.isSelected ? 3 : 2} strokeDasharray="6,4" />
+                  <circle cx={e.midX} cy={e.midY} r={11} fill="#ffffff" stroke={BLACK} strokeWidth={e.isSelected ? 3 : 2} />
+                  <text x={e.midX} y={e.midY + 1} textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight={700} fill={BLACK}>⇄</text>
+                </g>
+              ))}
+            </svg>
+
           </div>
         </div>
       )}
@@ -536,8 +434,11 @@ export default function Calendario() {
           <span className="text-xs text-gray-500">Letto extra</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: HIGHLIGHT_COLORS[0] }} />
-          <span className="text-xs text-gray-500">⇄ Cambio camera (stesso colore = stesso soggiorno, tocca per abbinare)</span>
+          <svg width="28" height="14" style={{ overflow: 'visible', flexShrink: 0 }}>
+            <line x1="1" y1="7" x2="27" y2="7" stroke={BLACK} strokeWidth="2" strokeDasharray="5,3" />
+            <circle cx="14" cy="7" r="6" fill="#ffffff" stroke={BLACK} strokeWidth="2" />
+          </svg>
+          <span className="text-xs text-gray-500">Cambio camera (tocca un segmento per abbinare)</span>
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { getUpcomingRoomChanges } from '@/lib/roomChanges'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const CELL_W_MOBILE = 56
@@ -31,102 +32,8 @@ function strToDate(s: string) {
   return new Date(y, m - 1, d)
 }
 
-const HIGHLIGHT_COLORS = ['#FF4FD8', '#FFE93B', '#8C8C8C']
-
-// Collega in "catene" le prenotazioni con cambio camera reale: stesso group_id, oppure stesso ospite
-// con camere diverse e date contigue/sovrapposte (anche senza group_id). Assegna un colore a rotazione
-// (in ordine cronologico) a ogni catena.
-function buildChangeGroups(bookings: any[]): {
-  chainKeyOf: Record<string, string>
-  colorOf: Record<string, string>
-} {
-  const n = bookings.length
-  const parent = Array.from({ length: n }, (_, i) => i)
-  function find(x: number): number {
-    while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x] }
-    return x
-  }
-  function union(a: number, b: number) {
-    a = find(a); b = find(b)
-    if (a !== b) parent[a] = b
-  }
-
-  const byGroupId = new Map<string, number[]>()
-  bookings.forEach((b, i) => {
-    if (!b.group_id) return
-    if (!byGroupId.has(b.group_id)) byGroupId.set(b.group_id, [])
-    byGroupId.get(b.group_id)!.push(i)
-  })
-  byGroupId.forEach(idxs => { for (let k = 1; k < idxs.length; k++) union(idxs[0], idxs[k]) })
-  // group_id condivisi da almeno 2 prenotazioni: collegamento esplicito, va sempre evidenziato
-  const explicitGroupIds = new Set([...byGroupId.entries()].filter(([, idxs]) => idxs.length >= 2).map(([gid]) => gid))
-
-  // Stesso ospite, camere diverse, date contigue o sovrapposte (ma non identiche: due camere nelle
-  // stesse identiche date sono una prenotazione multipla contemporanea, non un cambio camera)
-  const byGuest = new Map<string, number[]>()
-  bookings.forEach((b, i) => {
-    if (!b.guest_id) return
-    if (!byGuest.has(b.guest_id)) byGuest.set(b.guest_id, [])
-    byGuest.get(b.guest_id)!.push(i)
-  })
-  byGuest.forEach(idxs => {
-    for (let x = 0; x < idxs.length; x++) {
-      for (let y = x + 1; y < idxs.length; y++) {
-        const a = bookings[idxs[x]], b = bookings[idxs[y]]
-        if (a.room_id === b.room_id) continue
-        if (a.check_in === b.check_in && a.check_out === b.check_out) continue
-        if (a.check_in <= b.check_out && b.check_in <= a.check_out) union(idxs[x], idxs[y])
-      }
-    }
-  })
-
-  const components = new Map<number, number[]>()
-  bookings.forEach((_, i) => {
-    const r = find(i)
-    if (!components.has(r)) components.set(r, [])
-    components.get(r)!.push(i)
-  })
-
-  const chainKeyOf: Record<string, string> = {}
-  const ranges: { key: string; start: string; end: string }[] = []
-
-  components.forEach(idxs => {
-    if (idxs.length < 2) return
-    const sorted = idxs.map(i => bookings[i]).sort((a, b) => a.check_in.localeCompare(b.check_in))
-    const hasChange = sorted.some((b, i) => i > 0 && b.room_id !== sorted[i - 1].room_id)
-    const hasExplicitLink = sorted.some(b => b.group_id && explicitGroupIds.has(b.group_id))
-    if (!hasChange && !hasExplicitLink) return
-    const key = `chain-${[...sorted.map(b => b.id)].sort()[0]}`
-    sorted.forEach(b => { chainKeyOf[b.id] = key })
-    const start = sorted[0].check_in
-    const end = sorted.reduce((m, b) => (b.check_out > m ? b.check_out : m), sorted[0].check_out)
-    ranges.push({ key, start, end })
-  })
-
-  // Colori a rotazione in ordine cronologico (1° soggiorno rosa, 2° giallo, 3° grigio, poi si ripete).
-  // Se il prossimo colore in rotazione è già in uso da un soggiorno ancora sovrapposto, si passa al
-  // successivo: così soggiorni vicini nel tempo non risultano quasi sempre dello stesso colore, e due
-  // soggiorni che si sovrappongono davvero non hanno lo stesso colore a meno che siano più di 3 insieme.
-  ranges.sort((a, b) => a.start.localeCompare(b.start) || a.key.localeCompare(b.key))
-  const colorOf: Record<string, string> = {}
-  const active: { end: string; color: string }[] = []
-  let pointer = 0
-  ranges.forEach(g => {
-    for (let i = active.length - 1; i >= 0; i--) {
-      if (active[i].end <= g.start) active.splice(i, 1)
-    }
-    const used = new Set(active.map(a => a.color))
-    let color = HIGHLIGHT_COLORS[pointer % HIGHLIGHT_COLORS.length]
-    for (let steps = 0; used.has(color) && steps < HIGHLIGHT_COLORS.length - 1; steps++) {
-      pointer = (pointer + 1) % HIGHLIGHT_COLORS.length
-      color = HIGHLIGHT_COLORS[pointer % HIGHLIGHT_COLORS.length]
-    }
-    colorOf[g.key] = color
-    pointer = (pointer + 1) % HIGHLIGHT_COLORS.length
-    active.push({ end: g.end, color })
-  })
-
-  return { chainKeyOf, colorOf }
+function roomPreposition(room: string) {
+  return /^[aeiouAEIOU]/.test(room) ? 'ad' : 'a'
 }
 
 export default function Arrivi() {
@@ -152,15 +59,25 @@ export default function Arrivi() {
   const HEADER_H = HEADER_MONTH_H + HEADER_DAY_H
   const NAME_W = isDesktop ? NAME_W_DESKTOP : NAME_W_MOBILE
 
-  // Catene di cambio camera (per group_id o per stesso ospite/date contigue) e relativi colori
-  const changeGroups = useMemo(() => buildChangeGroups(bookings), [bookings])
-
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const startDate = addDays(today, -DAYS_BEFORE)
   const endDate = addDays(startDate, DAYS_TOTAL)
   const days: Date[] = Array.from({ length: DAYS_TOTAL }, (_, i) => addDays(startDate, i))
   const todayStr = toStr(today)
+  const tomorrowStr = toStr(addDays(today, 1))
+
+  const roomNameById = useMemo(() => {
+    const map: Record<string, string> = {}
+    rooms.forEach(r => { map[r.id] = r.name.split(' ').slice(-1)[0] })
+    return map
+  }, [rooms])
+
+  // Cambi camera (di soggiorni collegati) la cui nuova camera inizia oggi o domani
+  const roomChanges = useMemo(
+    () => getUpcomingRoomChanges(bookings, roomNameById, [todayStr, tomorrowStr]),
+    [bookings, roomNameById, todayStr, tomorrowStr]
+  )
 
   useEffect(() => {
     Promise.all([
@@ -227,6 +144,18 @@ export default function Arrivi() {
 
   return (
     <div className="flex flex-col h-screen pb-16 lg:pb-0">
+
+      {!loading && roomChanges.length > 0 && (
+        <div className="shrink-0 px-4 py-2 bg-indigo-50 border-b border-indigo-100">
+          <p className="text-xs font-semibold text-indigo-800 mb-1">⇄ Cambi camera</p>
+          {roomChanges.map(m => (
+            <p key={m.id} className="text-xs text-indigo-700">
+              <span className="font-medium">{m.guest}</span> da {m.fromRoom} {roomPreposition(m.toRoom)} {m.toRoom}
+              <span className="text-indigo-400"> ({m.date === todayStr ? 'oggi' : 'domani'})</span>
+            </p>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
@@ -320,27 +249,23 @@ export default function Arrivi() {
                   </div>
 
                   {/* Barre prenotazioni — mostra solo il check-in day con l'orario */}
-                  {bookingsForRoom(room.id).flatMap((booking: any) => {
+                  {bookingsForRoom(room.id).map((booking: any) => {
                     const startIdx = dayIndex(booking.check_in)
                     const endIdx = Math.min(DAYS_TOTAL, dayIndex(booking.check_out))
-                    if (startIdx < 0 || startIdx >= DAYS_TOTAL || endIdx <= startIdx) return []
+                    if (startIdx < 0 || startIdx >= DAYS_TOTAL || endIdx <= startIdx) return null
 
                     const time = booking.check_in_time || ''
-                    const chainKey = changeGroups.chainKeyOf[booking.id]
-                    const highlightColor = chainKey ? changeGroups.colorOf[chainKey] : null
-                    const insetV = highlightColor ? 10 : 6
-                    const insetH = highlightColor ? 8 : 2
-                    const barWidth = (endIdx - startIdx) * CELL_W - insetH * 2
+                    const barWidth = (endIdx - startIdx) * CELL_W - 4
 
-                    const bar = (
+                    return (
                       <div key={booking.id}
                         onClick={() => setPopup({ id: booking.id, name: booking.guests?.full_name || booking.guests?.phone || '', time: booking.check_in_time || '' })}
                         style={{
                           position: 'absolute',
-                          top: rowTop + insetV,
-                          left: NAME_W + startIdx * CELL_W + insetH,
+                          top: rowTop + 6,
+                          left: NAME_W + startIdx * CELL_W + 2,
                           width: barWidth,
-                          height: ROW_H - insetV * 2,
+                          height: ROW_H - 12,
                           background: '#1a7a32',
                           borderRadius: 6,
                           cursor: 'pointer',
@@ -372,23 +297,6 @@ export default function Arrivi() {
                         </div>
                       </div>
                     )
-
-                    if (!highlightColor) return [bar]
-
-                    const backdrop = (
-                      <div key={`${booking.id}-hl`}
-                        style={{
-                          position: 'absolute',
-                          top: rowTop,
-                          left: NAME_W + startIdx * CELL_W,
-                          width: (endIdx - startIdx) * CELL_W,
-                          height: ROW_H,
-                          background: highlightColor,
-                          zIndex: 4,
-                          pointerEvents: 'none',
-                        }} />
-                    )
-                    return [backdrop, bar]
                   })}
                 </div>
               )
