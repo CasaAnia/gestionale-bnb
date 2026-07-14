@@ -24,7 +24,7 @@ const CYAN = '#0891b2'
 const RED = '#dc2626'
 const BLACK = '#1f2937'
 const HEADER_BG = '#ffffff'
-const HIGHLIGHT_COLORS = ['#FF4FD8', '#D9D9D9', '#FFE93B']
+const HIGHLIGHT_COLORS = ['#FF4FD8', '#8C8C8C', '#FFE93B']
 
 function addDays(date: Date, n: number) {
   const d = new Date(date)

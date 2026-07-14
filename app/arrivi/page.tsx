@@ -31,7 +31,7 @@ function strToDate(s: string) {
   return new Date(y, m - 1, d)
 }
 
-const HIGHLIGHT_COLORS = ['#FF4FD8', '#D9D9D9', '#FFE93B']
+const HIGHLIGHT_COLORS = ['#FF4FD8', '#8C8C8C', '#FFE93B']
 
 // Assegna un colore (max 3, evitando sovrapposizioni nello stesso periodo) a ogni soggiorno con cambio camera reale
 function computeGroupHighlightColors(bookings: any[]): Record<string, string> {
