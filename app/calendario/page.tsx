@@ -62,6 +62,41 @@ export default function Calendario() {
     return map
   }, [bookings])
 
+  // Per ogni prenotazione con cambio camera, verso/da quale camera si sposta
+  const groupChainMap = useMemo(() => {
+    const groups: Record<string, any[]> = {}
+    for (const b of bookings) {
+      if (!b.group_id) continue
+      if (!groups[b.group_id]) groups[b.group_id] = []
+      groups[b.group_id].push(b)
+    }
+    const map: Record<string, { toRoomId?: string; fromRoomId?: string }> = {}
+    Object.values(groups).forEach(list => {
+      if (list.length < 2) return
+      const sorted = [...list].sort((a, b) => a.check_in.localeCompare(b.check_in))
+      sorted.forEach((b, i) => {
+        const entry: { toRoomId?: string; fromRoomId?: string } = {}
+        if (i < sorted.length - 1 && sorted[i + 1].room_id !== b.room_id) entry.toRoomId = sorted[i + 1].room_id
+        if (i > 0 && sorted[i - 1].room_id !== b.room_id) entry.fromRoomId = sorted[i - 1].room_id
+        if (entry.toRoomId || entry.fromRoomId) map[b.id] = entry
+      })
+    })
+    return map
+  }, [bookings])
+
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+
+  const roomsById = useMemo(() => {
+    const map: Record<string, any> = {}
+    rooms.forEach(r => { map[r.id] = r })
+    return map
+  }, [rooms])
+
+  function shortRoomName(id?: string) {
+    const room = id ? roomsById[id] : null
+    return room ? room.name.split(' ').slice(-1)[0] : ''
+  }
+
   useEffect(() => {
     const check = () => setIsDesktop(window.innerWidth >= 1024)
     check()
@@ -278,10 +313,10 @@ export default function Calendario() {
                     const isEsclusiva = booking.color === '#f97316'
                     const vuoleRicevuta = booking.guests?.rating === 'vuole_ricevuta'
                     const hasExtraBed = booking.extra_bed || (booking.extra_bed_dates && booking.extra_bed_dates.length > 0)
-                    const isMultiRoom = booking.group_id && bookings.some((b: any) =>
-                      b.id !== booking.id && b.group_id === booking.group_id
-                    )
+                    const transition = groupChainMap[booking.id]
+                    const isMultiRoom = !!transition
                     const groupColor = isMultiRoom ? groupColorMap[booking.group_id] : null
+                    const isSelected = isMultiRoom && selectedGroupId === booking.group_id
 
                     const segments: { start: number; end: number; color: string }[] = []
                     let curColor = '', segStart = startIdx
@@ -299,7 +334,18 @@ export default function Calendario() {
                       const isLast = si === segments.length - 1
                       return (
                         <div key={`${booking.id}-${si}`}
-                          onClick={() => router.push(`/prenotazioni/${booking.id}`)}
+                          onClick={(e) => {
+                            if (isMultiRoom) {
+                              if (selectedGroupId === booking.group_id) {
+                                router.push(`/prenotazioni/${booking.id}`)
+                              } else {
+                                e.stopPropagation()
+                                setSelectedGroupId(booking.group_id)
+                              }
+                            } else {
+                              router.push(`/prenotazioni/${booking.id}`)
+                            }
+                          }}
                           style={{
                             position: 'absolute',
                             top: rowTop + 6,
@@ -313,17 +359,29 @@ export default function Calendario() {
                             flexDirection: 'column',
                             justifyContent: 'center',
                             overflow: 'hidden',
-                            zIndex: 5,
-                            boxShadow: groupColor ? `0 1px 3px rgba(0,0,0,0.2), inset 0 0 0 2px white, inset 0 0 0 4px ${groupColor}` : '0 1px 3px rgba(0,0,0,0.2)',
+                            zIndex: isSelected ? 15 : 5,
+                            transform: isSelected ? 'scale(1.04)' : 'none',
+                            boxShadow: groupColor
+                              ? (isSelected
+                                ? `0 4px 10px rgba(0,0,0,0.35), 0 0 0 4px ${groupColor}55, inset 0 0 0 2px white, inset 0 0 0 7px ${groupColor}`
+                                : `0 1px 3px rgba(0,0,0,0.2), inset 0 0 0 2px white, inset 0 0 0 5px ${groupColor}`)
+                              : '0 1px 3px rgba(0,0,0,0.2)',
                           }}>
                           {isFirst && (
                             <>
                               <span style={{ color: 'white', fontSize: isDesktop ? 13 : 10, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                                 {guestName}
                               </span>
-                              {(isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed || isMultiRoom) && (
+                              {(isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed) && (
                                 <span style={{ fontSize: isDesktop ? 12 : 9, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
-                                  {isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏 ' : ''}{isMultiRoom ? '🔗' : ''}
+                                  {isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏 ' : ''}
+                                </span>
+                              )}
+                              {transition && (
+                                <span style={{ fontSize: isDesktop ? 11 : 8, fontWeight: 700, color: 'white', paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                                  {transition.toRoomId ? `⇄ → ${shortRoomName(transition.toRoomId)}` : ''}
+                                  {transition.toRoomId && transition.fromRoomId ? '  ' : ''}
+                                  {transition.fromRoomId ? `⇄ da ${shortRoomName(transition.fromRoomId)}` : ''}
                                 </span>
                               )}
                             </>
@@ -388,8 +446,8 @@ export default function Calendario() {
           <span className="text-xs text-gray-500">Letto extra</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: 'white', boxShadow: `inset 0 0 0 2px ${GROUP_COLORS[0]}` }} />
-          <span className="text-xs text-gray-500">Cambio camera (colore diverso per ogni cliente)</span>
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: 'white', boxShadow: `inset 0 0 0 3px ${GROUP_COLORS[0]}` }} />
+          <span className="text-xs text-gray-500">⇄ Cambio camera (bordo spesso, tocca per abbinare)</span>
         </div>
       </div>
     </div>

@@ -1,17 +1,17 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
-const CELL_W_MOBILE = 36
-const CELL_W_DESKTOP = 52
-const ROW_H_MOBILE = 44
-const ROW_H_DESKTOP = 60
+const CELL_W_MOBILE = 56
+const CELL_W_DESKTOP = 84
+const ROW_H_MOBILE = 64
+const ROW_H_DESKTOP = 84
 const HEADER_MONTH_H = 24
 const HEADER_DAY_H = 50
-const NAME_W_MOBILE = 72
-const NAME_W_DESKTOP = 120
+const NAME_W_MOBILE = 110
+const NAME_W_DESKTOP = 180
 const DAYS_TOTAL = 90
 const DAYS_BEFORE = 7
 const HEADER_BG = '#ffffff'
@@ -29,6 +29,11 @@ function toStr(d: Date) {
 function strToDate(s: string) {
   const [y, m, d] = s.split('-').map(Number)
   return new Date(y, m - 1, d)
+}
+
+function formatDDMM(dateStr: string) {
+  const d = strToDate(dateStr)
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
 export default function Arrivi() {
@@ -53,6 +58,46 @@ export default function Arrivi() {
   const ROW_H = isDesktop ? ROW_H_DESKTOP : ROW_H_MOBILE
   const HEADER_H = HEADER_MONTH_H + HEADER_DAY_H
   const NAME_W = isDesktop ? NAME_W_DESKTOP : NAME_W_MOBILE
+
+  const roomsById = useMemo(() => {
+    const map: Record<string, any> = {}
+    rooms.forEach(r => { map[r.id] = r })
+    return map
+  }, [rooms])
+
+  function shortRoomName(id?: string) {
+    const room = id ? roomsById[id] : null
+    return room ? room.name.split(' ').slice(-1)[0] : ''
+  }
+
+  // Per le prenotazioni con cambio camera, frase con l'itinerario completo (es. "Lena fino al 18/07, poi Ambra")
+  const groupChangeLabels = useMemo(() => {
+    const groups: Record<string, any[]> = {}
+    for (const b of bookings) {
+      if (!b.group_id) continue
+      if (!groups[b.group_id]) groups[b.group_id] = []
+      groups[b.group_id].push(b)
+    }
+    const map: Record<string, string> = {}
+    Object.values(groups).forEach(list => {
+      if (list.length < 2) return
+      const sorted = [...list].sort((a, b) => a.check_in.localeCompare(b.check_in))
+      // Comprime le tratte consecutive nella stessa camera (es. split di prezzo): non sono un vero cambio camera
+      const compressed: { room_id: string; check_in: string }[] = []
+      sorted.forEach(b => {
+        const last = compressed[compressed.length - 1]
+        if (!last || last.room_id !== b.room_id) compressed.push({ room_id: b.room_id, check_in: b.check_in })
+      })
+      if (compressed.length < 2) return
+      const parts = compressed.slice(0, -1).map((seg, i) =>
+        `${shortRoomName(seg.room_id)} fino al ${formatDDMM(compressed[i + 1].check_in)}`
+      )
+      parts.push(`poi ${shortRoomName(compressed[compressed.length - 1].room_id)}`)
+      const label = parts.join(', ')
+      sorted.forEach(b => { map[b.id] = label })
+    })
+    return map
+  }, [bookings, roomsById])
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -226,6 +271,7 @@ export default function Arrivi() {
 
                     const barWidth = (endIdx - startIdx) * CELL_W - 4
                     const time = booking.check_in_time || ''
+                    const changeLabel = groupChangeLabels[booking.id]
 
                     return (
                       <div key={booking.id}
@@ -240,30 +286,37 @@ export default function Arrivi() {
                           borderRadius: 6,
                           cursor: 'pointer',
                           display: 'flex',
-                          alignItems: 'center',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
                           overflow: 'hidden',
                           zIndex: 5,
                           boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                          paddingLeft: 8,
-                          gap: 6,
                         }}>
-                        {/* Orario */}
-                        <span style={{
-                          color: 'white',
-                          fontSize: isDesktop ? 13 : 11,
-                          fontWeight: 800,
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0,
-                          background: time ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.1)',
-                          borderRadius: 4,
-                          padding: '1px 5px',
-                        }}>
-                          {time || '?'}
-                        </span>
-                        {/* Nome */}
-                        <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? 12 : 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {booking.guests?.full_name || booking.guests?.phone || ''}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 8, maxWidth: '100%' }}>
+                          {/* Orario */}
+                          <span style={{
+                            color: 'white',
+                            fontSize: isDesktop ? 13 : 10,
+                            fontWeight: 800,
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                            background: time ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.1)',
+                            borderRadius: 4,
+                            padding: '1px 5px',
+                          }}>
+                            {time || '?'}
+                          </span>
+                          {/* Nome */}
+                          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? 13 : 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                            {booking.guests?.full_name || booking.guests?.phone || ''}
+                          </span>
+                        </div>
+                        {/* Cambio camera */}
+                        {changeLabel && (
+                          <span style={{ color: 'white', fontSize: isDesktop ? 11 : 8, fontWeight: 700, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                            ⇄ Cambio camera: {changeLabel}
+                          </span>
+                        )}
                       </div>
                     )
                   })}
