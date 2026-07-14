@@ -513,7 +513,7 @@ export default function BookingDetail() {
               <input type="number" min={1} max={4} value={editForm.num_guests} onChange={e => {
                 const n = parseInt(e.target.value)
                 const room = rooms.find(r => r.id === editForm.room_id)
-                const nativeCapacity = room?.name?.includes('Singola') ? 1 : 2
+                const nativeCapacity = room?.name === 'Amelia' ? 1 : 2
                 const autoLetto = room?.has_extra_bed && n > nativeCapacity
                 const autoPrice = room?.double_price
                   ? (room.has_extra_bed ? (n >= 3 ? Number(room.double_price) : Number(room.base_price)) : (n >= 2 ? Number(room.double_price) : Number(room.base_price)))
