@@ -24,7 +24,7 @@ const CYAN = '#0891b2'
 const RED = '#dc2626'
 const BLACK = '#1f2937'
 const HEADER_BG = '#ffffff'
-const GROUP_COLORS = ['#b45309', '#4338ca', '#be123c', '#065f46']
+const HIGHLIGHT_COLORS = ['#FF4FD8', '#D9D9D9', '#FFE93B']
 
 function addDays(date: Date, n: number) {
   const d = new Date(date)
@@ -41,6 +41,40 @@ function strToDate(s: string) {
   return new Date(y, m - 1, d)
 }
 
+// Assegna un colore (max 3, evitando sovrapposizioni nello stesso periodo) a ogni soggiorno con cambio camera reale
+function computeGroupHighlightColors(bookings: any[]): Record<string, string> {
+  const groups: Record<string, any[]> = {}
+  for (const b of bookings) {
+    if (!b.group_id) continue
+    if (!groups[b.group_id]) groups[b.group_id] = []
+    groups[b.group_id].push(b)
+  }
+  const ranges: { id: string; start: string; end: string }[] = []
+  Object.entries(groups).forEach(([gid, list]) => {
+    if (list.length < 2) return
+    const sorted = [...list].sort((a, b) => a.check_in.localeCompare(b.check_in))
+    const hasChange = sorted.some((b, i) => i > 0 && b.room_id !== sorted[i - 1].room_id)
+    if (!hasChange) return
+    const start = sorted[0].check_in
+    const end = sorted.reduce((m, b) => (b.check_out > m ? b.check_out : m), sorted[0].check_out)
+    ranges.push({ id: gid, start, end })
+  })
+  ranges.sort((a, b) => a.start.localeCompare(b.start) || a.id.localeCompare(b.id))
+
+  const map: Record<string, string> = {}
+  const active: { end: string; color: string }[] = []
+  ranges.forEach(g => {
+    for (let i = active.length - 1; i >= 0; i--) {
+      if (active[i].end <= g.start) active.splice(i, 1)
+    }
+    const used = new Set(active.map(a => a.color))
+    const color = HIGHLIGHT_COLORS.find(c => !used.has(c)) || HIGHLIGHT_COLORS[active.length % HIGHLIGHT_COLORS.length]
+    map[g.id] = color
+    active.push({ end: g.end, color })
+  })
+  return map
+}
+
 export default function Calendario() {
   const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -49,18 +83,8 @@ export default function Calendario() {
   const [loading, setLoading] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
 
-  // Assegna un colore fisso a ogni gruppo di prenotazioni con cambio camera (max 4 colori, poi si ripetono)
-  const groupColorMap = useMemo(() => {
-    const ids: string[] = []
-    for (const b of bookings) {
-      if (b.group_id && bookings.some((x: any) => x.id !== b.id && x.group_id === b.group_id)) {
-        if (!ids.includes(b.group_id)) ids.push(b.group_id)
-      }
-    }
-    const map: Record<string, string> = {}
-    ids.forEach((gid, i) => { map[gid] = GROUP_COLORS[i % GROUP_COLORS.length] })
-    return map
-  }, [bookings])
+  // Colore di evidenziazione (max 3, senza sovrapposizioni) per ogni soggiorno con cambio camera reale
+  const groupHighlightColorMap = useMemo(() => computeGroupHighlightColors(bookings), [bookings])
 
   // Per ogni prenotazione con cambio camera, verso/da quale camera si sposta
   const groupChainMap = useMemo(() => {
@@ -315,7 +339,7 @@ export default function Calendario() {
                     const hasExtraBed = booking.extra_bed || (booking.extra_bed_dates && booking.extra_bed_dates.length > 0)
                     const transition = groupChainMap[booking.id]
                     const isMultiRoom = !!transition
-                    const groupColor = isMultiRoom ? groupColorMap[booking.group_id] : null
+                    const highlightColor = isMultiRoom ? groupHighlightColorMap[booking.group_id] : null
                     const isSelected = isMultiRoom && selectedGroupId === booking.group_id
 
                     const segments: { start: number; end: number; color: string }[] = []
@@ -329,7 +353,7 @@ export default function Calendario() {
                     }
                     if (curColor) segments.push({ start: segStart, end: endIdx, color: curColor })
 
-                    return segments.map((seg, si) => {
+                    const barEls = segments.map((seg, si) => {
                       const isFirst = si === 0
                       const isLast = si === segments.length - 1
                       return (
@@ -361,11 +385,7 @@ export default function Calendario() {
                             overflow: 'hidden',
                             zIndex: isSelected ? 15 : 5,
                             transform: isSelected ? 'scale(1.04)' : 'none',
-                            boxShadow: groupColor
-                              ? (isSelected
-                                ? `0 4px 10px rgba(0,0,0,0.35), 0 0 0 4px ${groupColor}55, inset 0 0 0 2px white, inset 0 0 0 7px ${groupColor}`
-                                : `0 1px 3px rgba(0,0,0,0.2), inset 0 0 0 2px white, inset 0 0 0 5px ${groupColor}`)
-                              : '0 1px 3px rgba(0,0,0,0.2)',
+                            boxShadow: isSelected ? '0 4px 10px rgba(0,0,0,0.35)' : '0 1px 3px rgba(0,0,0,0.2)',
                           }}>
                           {isFirst && (
                             <>
@@ -389,6 +409,26 @@ export default function Calendario() {
                         </div>
                       )
                     })
+
+                    if (!highlightColor) return barEls
+
+                    const backdrop = (
+                      <div key={`${booking.id}-hl`}
+                        style={{
+                          position: 'absolute',
+                          top: rowTop + 2,
+                          left: NAME_W + startIdx * CELL_W,
+                          width: (endIdx - startIdx) * CELL_W,
+                          height: ROW_H - 4,
+                          background: highlightColor,
+                          borderRadius: 8,
+                          outline: isSelected ? '2px solid rgba(0,0,0,0.45)' : 'none',
+                          outlineOffset: -1,
+                          zIndex: isSelected ? 14 : 4,
+                          pointerEvents: 'none',
+                        }} />
+                    )
+                    return [backdrop, ...barEls]
                   })}
                 </div>
               )
@@ -446,8 +486,8 @@ export default function Calendario() {
           <span className="text-xs text-gray-500">Letto extra</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: 'white', boxShadow: `inset 0 0 0 3px ${GROUP_COLORS[0]}` }} />
-          <span className="text-xs text-gray-500">⇄ Cambio camera (bordo spesso, tocca per abbinare)</span>
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: HIGHLIGHT_COLORS[0] }} />
+          <span className="text-xs text-gray-500">⇄ Cambio camera (stesso colore = stesso soggiorno, tocca per abbinare)</span>
         </div>
       </div>
     </div>

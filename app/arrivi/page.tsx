@@ -31,9 +31,40 @@ function strToDate(s: string) {
   return new Date(y, m - 1, d)
 }
 
-function formatDDMM(dateStr: string) {
-  const d = strToDate(dateStr)
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+const HIGHLIGHT_COLORS = ['#FF4FD8', '#D9D9D9', '#FFE93B']
+
+// Assegna un colore (max 3, evitando sovrapposizioni nello stesso periodo) a ogni soggiorno con cambio camera reale
+function computeGroupHighlightColors(bookings: any[]): Record<string, string> {
+  const groups: Record<string, any[]> = {}
+  for (const b of bookings) {
+    if (!b.group_id) continue
+    if (!groups[b.group_id]) groups[b.group_id] = []
+    groups[b.group_id].push(b)
+  }
+  const ranges: { id: string; start: string; end: string }[] = []
+  Object.entries(groups).forEach(([gid, list]) => {
+    if (list.length < 2) return
+    const sorted = [...list].sort((a, b) => a.check_in.localeCompare(b.check_in))
+    const hasChange = sorted.some((b, i) => i > 0 && b.room_id !== sorted[i - 1].room_id)
+    if (!hasChange) return
+    const start = sorted[0].check_in
+    const end = sorted.reduce((m, b) => (b.check_out > m ? b.check_out : m), sorted[0].check_out)
+    ranges.push({ id: gid, start, end })
+  })
+  ranges.sort((a, b) => a.start.localeCompare(b.start) || a.id.localeCompare(b.id))
+
+  const map: Record<string, string> = {}
+  const active: { end: string; color: string }[] = []
+  ranges.forEach(g => {
+    for (let i = active.length - 1; i >= 0; i--) {
+      if (active[i].end <= g.start) active.splice(i, 1)
+    }
+    const used = new Set(active.map(a => a.color))
+    const color = HIGHLIGHT_COLORS.find(c => !used.has(c)) || HIGHLIGHT_COLORS[active.length % HIGHLIGHT_COLORS.length]
+    map[g.id] = color
+    active.push({ end: g.end, color })
+  })
+  return map
 }
 
 export default function Arrivi() {
@@ -59,45 +90,8 @@ export default function Arrivi() {
   const HEADER_H = HEADER_MONTH_H + HEADER_DAY_H
   const NAME_W = isDesktop ? NAME_W_DESKTOP : NAME_W_MOBILE
 
-  const roomsById = useMemo(() => {
-    const map: Record<string, any> = {}
-    rooms.forEach(r => { map[r.id] = r })
-    return map
-  }, [rooms])
-
-  function shortRoomName(id?: string) {
-    const room = id ? roomsById[id] : null
-    return room ? room.name.split(' ').slice(-1)[0] : ''
-  }
-
-  // Per le prenotazioni con cambio camera, frase con l'itinerario completo (es. "Lena fino al 18/07, poi Ambra")
-  const groupChangeLabels = useMemo(() => {
-    const groups: Record<string, any[]> = {}
-    for (const b of bookings) {
-      if (!b.group_id) continue
-      if (!groups[b.group_id]) groups[b.group_id] = []
-      groups[b.group_id].push(b)
-    }
-    const map: Record<string, string> = {}
-    Object.values(groups).forEach(list => {
-      if (list.length < 2) return
-      const sorted = [...list].sort((a, b) => a.check_in.localeCompare(b.check_in))
-      // Comprime le tratte consecutive nella stessa camera (es. split di prezzo): non sono un vero cambio camera
-      const compressed: { room_id: string; check_in: string }[] = []
-      sorted.forEach(b => {
-        const last = compressed[compressed.length - 1]
-        if (!last || last.room_id !== b.room_id) compressed.push({ room_id: b.room_id, check_in: b.check_in })
-      })
-      if (compressed.length < 2) return
-      const parts = compressed.slice(0, -1).map((seg, i) =>
-        `${shortRoomName(seg.room_id)} fino al ${formatDDMM(compressed[i + 1].check_in)}`
-      )
-      parts.push(`poi ${shortRoomName(compressed[compressed.length - 1].room_id)}`)
-      const label = parts.join(', ')
-      sorted.forEach(b => { map[b.id] = label })
-    })
-    return map
-  }, [bookings, roomsById])
+  // Colore di evidenziazione (max 3, senza sovrapposizioni) per ogni soggiorno con cambio camera reale
+  const groupHighlightColorMap = useMemo(() => computeGroupHighlightColors(bookings), [bookings])
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -264,16 +258,16 @@ export default function Arrivi() {
                   </div>
 
                   {/* Barre prenotazioni — mostra solo il check-in day con l'orario */}
-                  {bookingsForRoom(room.id).map((booking: any) => {
+                  {bookingsForRoom(room.id).flatMap((booking: any) => {
                     const startIdx = dayIndex(booking.check_in)
                     const endIdx = Math.min(DAYS_TOTAL, dayIndex(booking.check_out))
-                    if (startIdx < 0 || startIdx >= DAYS_TOTAL || endIdx <= startIdx) return null
+                    if (startIdx < 0 || startIdx >= DAYS_TOTAL || endIdx <= startIdx) return []
 
                     const barWidth = (endIdx - startIdx) * CELL_W - 4
                     const time = booking.check_in_time || ''
-                    const changeLabel = groupChangeLabels[booking.id]
+                    const highlightColor = booking.group_id ? groupHighlightColorMap[booking.group_id] : null
 
-                    return (
+                    const bar = (
                       <div key={booking.id}
                         onClick={() => setPopup({ id: booking.id, name: booking.guests?.full_name || booking.guests?.phone || '', time: booking.check_in_time || '' })}
                         style={{
@@ -311,14 +305,26 @@ export default function Arrivi() {
                             {booking.guests?.full_name || booking.guests?.phone || ''}
                           </span>
                         </div>
-                        {/* Cambio camera */}
-                        {changeLabel && (
-                          <span style={{ color: 'white', fontSize: isDesktop ? 11 : 8, fontWeight: 700, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                            ⇄ Cambio camera: {changeLabel}
-                          </span>
-                        )}
                       </div>
                     )
+
+                    if (!highlightColor) return [bar]
+
+                    const backdrop = (
+                      <div key={`${booking.id}-hl`}
+                        style={{
+                          position: 'absolute',
+                          top: rowTop + 2,
+                          left: NAME_W + startIdx * CELL_W,
+                          width: (endIdx - startIdx) * CELL_W,
+                          height: ROW_H - 4,
+                          background: highlightColor,
+                          borderRadius: 8,
+                          zIndex: 4,
+                          pointerEvents: 'none',
+                        }} />
+                    )
+                    return [backdrop, bar]
                   })}
                 </div>
               )
