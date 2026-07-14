@@ -31,11 +31,11 @@ function strToDate(s: string) {
   return new Date(y, m - 1, d)
 }
 
-const HIGHLIGHT_COLORS = ['#FF4FD8', '#8C8C8C', '#FFE93B']
+const HIGHLIGHT_COLORS = ['#FF4FD8', '#FFE93B', '#8C8C8C']
 
 // Collega in "catene" le prenotazioni con cambio camera reale: stesso group_id, oppure stesso ospite
-// con camere diverse e date contigue/sovrapposte (anche senza group_id). Assegna un colore (max 3,
-// evitando sovrapposizioni nello stesso periodo) a ogni catena.
+// con camere diverse e date contigue/sovrapposte (anche senza group_id). Assegna un colore a rotazione
+// (in ordine cronologico) a ogni catena.
 function buildChangeGroups(bookings: any[]): {
   chainKeyOf: Record<string, string>
   colorOf: Record<string, string>
@@ -103,16 +103,26 @@ function buildChangeGroups(bookings: any[]): {
     ranges.push({ key, start, end })
   })
 
+  // Colori a rotazione in ordine cronologico (1° soggiorno rosa, 2° giallo, 3° grigio, poi si ripete).
+  // Se il prossimo colore in rotazione è già in uso da un soggiorno ancora sovrapposto, si passa al
+  // successivo: così soggiorni vicini nel tempo non risultano quasi sempre dello stesso colore, e due
+  // soggiorni che si sovrappongono davvero non hanno lo stesso colore a meno che siano più di 3 insieme.
   ranges.sort((a, b) => a.start.localeCompare(b.start) || a.key.localeCompare(b.key))
   const colorOf: Record<string, string> = {}
   const active: { end: string; color: string }[] = []
+  let pointer = 0
   ranges.forEach(g => {
     for (let i = active.length - 1; i >= 0; i--) {
       if (active[i].end <= g.start) active.splice(i, 1)
     }
     const used = new Set(active.map(a => a.color))
-    const color = HIGHLIGHT_COLORS.find(c => !used.has(c)) || HIGHLIGHT_COLORS[active.length % HIGHLIGHT_COLORS.length]
+    let color = HIGHLIGHT_COLORS[pointer % HIGHLIGHT_COLORS.length]
+    for (let steps = 0; used.has(color) && steps < HIGHLIGHT_COLORS.length - 1; steps++) {
+      pointer = (pointer + 1) % HIGHLIGHT_COLORS.length
+      color = HIGHLIGHT_COLORS[pointer % HIGHLIGHT_COLORS.length]
+    }
     colorOf[g.key] = color
+    pointer = (pointer + 1) % HIGHLIGHT_COLORS.length
     active.push({ end: g.end, color })
   })
 
