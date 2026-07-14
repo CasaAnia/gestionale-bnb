@@ -52,13 +52,15 @@ export default function Calendario() {
   // Catene di cambio camera (per group_id o per stesso ospite/date contigue) e relative transizioni
   const changeGroups = useMemo(() => buildChangeGroups(bookings), [bookings])
 
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+  // Per ogni prenotazione: esce verso un'altra camera (taglio a destra) e/o arriva da un'altra camera (taglio a sinistra)
+  const { outgoingIds, incomingIds } = useMemo(() => {
+    const outgoing = new Set<string>()
+    const incoming = new Set<string>()
+    changeGroups.edges.forEach(e => { outgoing.add(e.fromId); incoming.add(e.toId) })
+    return { outgoingIds: outgoing, incomingIds: incoming }
+  }, [changeGroups])
 
-  const roomRowIndex = useMemo(() => {
-    const map: Record<string, number> = {}
-    rooms.forEach((r, i) => { map[r.id] = i })
-    return map
-  }, [rooms])
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
 
   useEffect(() => {
     const check = () => setIsDesktop(window.innerWidth >= 1024)
@@ -159,30 +161,6 @@ export default function Calendario() {
 
   const totalW = NAME_W + DAYS_TOTAL * CELL_W
   const totalH = HEADER_H + rooms.length * ROW_H + EXTRA_ROW_H
-
-  const bookingsById = new Map(bookings.map((b: any) => [b.id, b]))
-  const edgeCoords = changeGroups.edges.flatMap(edge => {
-    const from = bookingsById.get(edge.fromId)
-    const to = bookingsById.get(edge.toId)
-    if (!from || !to) return []
-    const fromRow = roomRowIndex[from.room_id]
-    const toRow = roomRowIndex[to.room_id]
-    if (fromRow === undefined || toRow === undefined) return []
-    const fromEndIdx = Math.min(DAYS_TOTAL, dayIndex(from.check_out))
-    const toStartIdx = Math.max(0, dayIndex(to.check_in))
-    if (fromEndIdx < 0 || fromEndIdx > DAYS_TOTAL || toStartIdx < 0 || toStartIdx > DAYS_TOTAL) return []
-    const x1 = NAME_W + fromEndIdx * CELL_W - 2
-    const y1 = HEADER_H + fromRow * ROW_H + ROW_H / 2
-    const x2 = NAME_W + toStartIdx * CELL_W + 2
-    const y2 = HEADER_H + toRow * ROW_H + ROW_H / 2
-    const chainKey = changeGroups.chainKeyOf[edge.fromId]
-    return [{
-      id: `${edge.fromId}-${edge.toId}`,
-      x1, y1, x2, y2,
-      midX: (x1 + x2) / 2, midY: (y1 + y2) / 2,
-      isSelected: selectedGroupId !== null && selectedGroupId === chainKey,
-    }]
-  })
 
   // Calcola mesi per header
   const monthGroups: { label: string; startIdx: number; count: number }[] = []
@@ -302,6 +280,8 @@ export default function Calendario() {
                     const hasExtraBed = booking.extra_bed || (booking.extra_bed_dates && booking.extra_bed_dates.length > 0)
                     const chainKey = changeGroups.chainKeyOf[booking.id]
                     const isMultiRoom = !!chainKey
+                    const hasIncoming = incomingIds.has(booking.id)
+                    const hasOutgoing = outgoingIds.has(booking.id)
                     const isSelected = isMultiRoom && selectedGroupId === chainKey
                     const isDimmed = selectedGroupId !== null && !isSelected
                     const insetV = 6
@@ -321,6 +301,14 @@ export default function Calendario() {
                     return segments.map((seg, si) => {
                       const isFirst = si === 0
                       const isLast = si === segments.length - 1
+                      const cutLeft = isFirst && hasIncoming
+                      const cutRight = isLast && hasOutgoing
+                      let clipPath = 'none'
+                      if (cutLeft && cutRight) clipPath = 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 12px 100%)'
+                      else if (cutLeft) clipPath = 'polygon(0 0, 100% 0, 100% 100%, 12px 100%)'
+                      else if (cutRight) clipPath = 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)'
+                      const leftRounded = isFirst && !cutLeft
+                      const rightRounded = isLast && !cutRight
                       return (
                         <div key={`${booking.id}-${si}`}
                           onClick={(e) => {
@@ -338,7 +326,8 @@ export default function Calendario() {
                             width: (seg.end - seg.start) * CELL_W - (isFirst ? insetH : 0) - (isLast ? insetH : 0),
                             height: ROW_H - insetV * 2,
                             background: seg.color,
-                            borderRadius: isFirst && isLast ? 6 : isFirst ? '6px 0 0 6px' : isLast ? '0 6px 6px 0' : 0,
+                            borderRadius: `${leftRounded ? 6 : 0}px ${rightRounded ? 6 : 0}px ${rightRounded ? 6 : 0}px ${leftRounded ? 6 : 0}px`,
+                            clipPath,
                             cursor: 'pointer',
                             display: isFirst ? 'flex' : 'block',
                             flexDirection: 'column',
@@ -354,7 +343,7 @@ export default function Calendario() {
                           {isFirst && (
                             <>
                               <span style={{ color: 'white', fontSize: isDesktop ? 13 : 10, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                                {guestName}{isMultiRoom ? ' ⇄' : ''}
+                                {hasIncoming ? '⇄ ' : ''}{guestName}{hasOutgoing ? ' ⇄' : ''}
                               </span>
                               {(isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed) && (
                                 <span style={{ fontSize: isDesktop ? 12 : 9, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
@@ -400,17 +389,6 @@ export default function Calendario() {
               )
             })()}
 
-            {/* ── LINEE DI COLLEGAMENTO CAMBIO CAMERA ── */}
-            <svg width={totalW} height={totalH} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 20 }}>
-              {edgeCoords.map(e => (
-                <g key={e.id} style={{ opacity: selectedGroupId !== null && !e.isSelected ? 0.25 : 1 }}>
-                  <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke={BLACK} strokeWidth={e.isSelected ? 3 : 2} strokeDasharray="6,4" />
-                  <circle cx={e.midX} cy={e.midY} r={11} fill="#ffffff" stroke={BLACK} strokeWidth={e.isSelected ? 3 : 2} />
-                  <text x={e.midX} y={e.midY + 1} textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight={700} fill={BLACK}>⇄</text>
-                </g>
-              ))}
-            </svg>
-
           </div>
         </div>
       )}
@@ -434,10 +412,11 @@ export default function Calendario() {
           <span className="text-xs text-gray-500">Letto extra</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <svg width="28" height="14" style={{ overflow: 'visible', flexShrink: 0 }}>
-            <line x1="1" y1="7" x2="27" y2="7" stroke={BLACK} strokeWidth="2" strokeDasharray="5,3" />
-            <circle cx="14" cy="7" r="6" fill="#ffffff" stroke={BLACK} strokeWidth="2" />
-          </svg>
+          <div style={{ position: 'relative', width: 32, height: 16, flexShrink: 0 }}>
+            <div style={{ position: 'absolute', left: 0, top: 0, width: 16, height: 16, background: GREEN, clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }} />
+            <div style={{ position: 'absolute', left: 16, top: 0, width: 16, height: 16, background: GREEN, clipPath: 'polygon(0 0, 100% 0, 100% 100%, 6px 100%)' }} />
+            <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', fontSize: 8, fontWeight: 700, color: 'white' }}>⇄</span>
+          </div>
           <span className="text-xs text-gray-500">Cambio camera (tocca un segmento per abbinare)</span>
         </div>
       </div>
