@@ -279,12 +279,12 @@ export default function Arrivi() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 8, maxWidth: '100%' }}>
                           {/* Orario */}
                           <span style={{
-                            color: 'white',
+                            color: time ? '#1F3D2F' : 'white',
                             fontSize: isDesktop ? 13 : 10,
                             fontWeight: 800,
                             whiteSpace: 'nowrap',
                             flexShrink: 0,
-                            background: time ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.1)',
+                            background: time ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.35)',
                             borderRadius: 4,
                             padding: '1px 5px',
                           }}>
@@ -341,7 +341,9 @@ export default function Arrivi() {
           <span className="text-xs text-gray-500">Orario arrivo</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div style={{ width: 14, height: 14, borderRadius: 3, background: 'rgba(0,0,0,0.15)', border: '1px solid #ccc' }} />
+          <div style={{ width: 14, height: 14, borderRadius: 3, background: '#6C9A7C', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 8, fontWeight: 700, color: 'white' }}>?</span>
+          </div>
           <span className="text-xs text-gray-500">Orario non inserito</span>
         </div>
       </div>
