@@ -231,6 +231,10 @@ export default function BookingDetail() {
   const [conflitto, setConflitto] = useState<string | null>(null)
   const [lettiOccupati, setLettiOccupati] = useState(0)
   const [extraBedsPerDay, setExtraBedsPerDay] = useState<Record<string, number>>({})
+  const [editingStay, setEditingStay] = useState(false)
+  const [stayForm, setStayForm] = useState<{ check_in: string; check_out: string }>({ check_in: '', check_out: '' })
+  const [stayConflict, setStayConflict] = useState<string | null>(null)
+  const [savingStay, setSavingStay] = useState(false)
   const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
 
   function getDaysBetween(checkIn: string, checkOut: string): string[] {
@@ -377,6 +381,105 @@ export default function BookingDetail() {
     }
     setEditing(false)
     setSaving(false)
+  }
+
+  // Nuovo piano dei segmenti del soggiorno per le date [newIn, newOut):
+  // ogni segmento viene ritagliato sull'intervallo, quelli rimasti vuoti vanno annullati,
+  // il primo/ultimo si estendono fino alle nuove date (le date dei cambi camera restano invariate).
+  function computeStayPlan(segments: any[], newIn: string, newOut: string) {
+    const sorted = [...segments].sort((a, z) => a.check_in.localeCompare(z.check_in))
+    if (!newIn || !newOut || newIn >= newOut) {
+      return { kept: [] as any[], removed: sorted, total: 0, error: "La data di partenza deve essere successiva all'arrivo" }
+    }
+    const clipped = sorted.map(seg => ({
+      seg,
+      s: seg.check_in < newIn ? newIn : seg.check_in,
+      e: seg.check_out > newOut ? newOut : seg.check_out,
+    }))
+    const kept = clipped.filter(c => c.s < c.e)
+    const removed = clipped.filter(c => c.s >= c.e).map(c => c.seg)
+    if (kept.length === 0) {
+      return { kept: [] as any[], removed: sorted, total: 0, error: 'Le nuove date non coprono nessuna camera del soggiorno' }
+    }
+    kept[0].s = newIn
+    kept[kept.length - 1].e = newOut
+    const plan = kept.map(c => {
+      const days = getDaysBetween(c.s, c.e)
+      const ebDates = (c.seg.extra_bed_dates || []).filter((d: string) => days.includes(d))
+      const extraBedTotal = ebDates.length * Number(c.seg.rooms?.extra_bed_price || 0)
+      const total = Number(c.seg.price_per_night) * days.length + extraBedTotal
+      return {
+        id: c.seg.id, roomName: c.seg.rooms?.name || 'Camera',
+        check_in: c.s, check_out: c.e, nights: days.length,
+        price_per_night: Number(c.seg.price_per_night),
+        extra_bed_dates: ebDates, extra_bed_total: extraBedTotal, total,
+      }
+    })
+    return { kept: plan, removed, total: plan.reduce((s, x) => s + x.total, 0), error: null as string | null }
+  }
+
+  // Se il soggiorno viene allungato, verifica che la camera del primo/ultimo segmento sia libera nei giorni aggiunti
+  async function checkStayConflict(newIn: string, newOut: string) {
+    setStayConflict(null)
+    const sorted = [...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in))
+    if (sorted.length === 0) return
+    const groupIds = sorted.map(s => s.id)
+    const checks: { room_id: string; roomName: string; from: string; to: string }[] = []
+    const first = sorted[0], last = sorted[sorted.length - 1]
+    if (newIn && newIn < first.check_in) checks.push({ room_id: first.room_id, roomName: first.rooms?.name || 'Camera', from: newIn, to: first.check_in })
+    if (newOut && newOut > last.check_out) checks.push({ room_id: last.room_id, roomName: last.rooms?.name || 'Camera', from: last.check_out, to: newOut })
+    for (const c of checks) {
+      const { data } = await supabase.from('bookings')
+        .select('id, check_in, check_out, guests(full_name)')
+        .eq('room_id', c.room_id).neq('status', 'annullata')
+        .not('id', 'in', `(${groupIds.join(',')})`)
+        .lt('check_in', c.to).gt('check_out', c.from)
+      if (data && data.length > 0) {
+        const b = data[0] as any
+        setStayConflict(`⚠️ ${c.roomName} già occupata dal ${b.check_in} al ${b.check_out} (${b.guests?.full_name || 'altro cliente'})`)
+        return
+      }
+    }
+  }
+
+  async function saveStayEdit() {
+    const plan = computeStayPlan(groupBookings, stayForm.check_in, stayForm.check_out)
+    if (plan.error || stayConflict) return
+    setSavingStay(true)
+    const now = new Date().toISOString()
+    for (const seg of plan.kept) {
+      await supabase.from('bookings').update({
+        check_in: seg.check_in,
+        check_out: seg.check_out,
+        extra_bed: seg.extra_bed_dates.length > 0,
+        extra_bed_dates: seg.extra_bed_dates,
+        extra_bed_total: seg.extra_bed_total,
+        total_amount: seg.total,
+        updated_at: now,
+      }).eq('id', seg.id)
+    }
+    for (const seg of plan.removed) {
+      await supabase.from('bookings').update({
+        status: 'annullata',
+        cancelled_at: now,
+        cancelled_reason: 'Camera non più necessaria: date del soggiorno modificate',
+        updated_at: now,
+      }).eq('id', seg.id)
+    }
+    setEditingStay(false)
+    // Se il segmento aperto è stato annullato, passa al primo segmento rimasto
+    if (!plan.kept.find(k => k.id === id)) {
+      setSavingStay(false)
+      router.replace(`/prenotazioni/${plan.kept[0].id}`)
+      return
+    }
+    const [{ data: updated }, { data: grp }] = await Promise.all([
+      supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single(),
+      supabase.from('bookings').select('*, rooms(*)').eq('group_id', booking.group_id).neq('status', 'annullata').order('check_in', { ascending: true }),
+    ])
+    setBooking(updated)
+    setGroupBookings(grp || [])
+    setSavingStay(false)
   }
 
   async function addRoomChange() {
@@ -729,6 +832,74 @@ export default function BookingDetail() {
               <p className="text-xs text-[#5B4E82] font-semibold mt-2 pt-2 border-t border-[#D9D0EA]">
                 Totale soggiorno: €{groupBookings.reduce((s, x) => s + Number(x.total_amount), 0).toFixed(0)}
               </p>
+              {(booking.status === 'confermata' || booking.status === 'in_attesa') && !editingStay && (
+                <button onClick={() => {
+                  const sorted = [...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in))
+                  setStayForm({ check_in: sorted[0].check_in, check_out: sorted[sorted.length - 1].check_out })
+                  setStayConflict(null)
+                  setEditingStay(true)
+                }} className="w-full mt-2 bg-[#9B8EC4] text-white text-sm font-semibold py-2 rounded-xl">
+                  📅 Modifica date soggiorno
+                </button>
+              )}
+              {editingStay && (
+                <div className="mt-2 pt-2 border-t border-[#D9D0EA]">
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                      <p className="text-xs text-[#5B4E82] mb-1">Arrivo</p>
+                      <input type="date" value={stayForm.check_in} onChange={e => {
+                        setStayForm({ ...stayForm, check_in: e.target.value })
+                        checkStayConflict(e.target.value, stayForm.check_out)
+                      }} className="w-full border border-[#D9D0EA] rounded-lg p-2 text-sm bg-white" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-[#5B4E82] mb-1">Partenza</p>
+                      <input type="date" value={stayForm.check_out} onChange={e => {
+                        setStayForm({ ...stayForm, check_out: e.target.value })
+                        checkStayConflict(stayForm.check_in, e.target.value)
+                      }} className="w-full border border-[#D9D0EA] rounded-lg p-2 text-sm bg-white" />
+                    </div>
+                  </div>
+                  {(() => {
+                    const plan = computeStayPlan(groupBookings, stayForm.check_in, stayForm.check_out)
+                    const oldTotal = groupBookings.reduce((s, x) => s + Number(x.total_amount), 0)
+                    return (
+                      <>
+                        {plan.error ? (
+                          <p className="text-xs text-[#8C3B2E] font-semibold mb-2">{plan.error}</p>
+                        ) : (
+                          <div className="bg-white rounded-lg p-2 mb-2 border border-[#D9D0EA]">
+                            <p className="text-xs font-bold text-[#5B4E82] mb-1">Anteprima nuovo soggiorno:</p>
+                            {plan.kept.map((k, i) => (
+                              <p key={k.id} className="text-xs text-[#5B4E82]">
+                                {i + 1}. {k.roomName}: {k.check_in} → {k.check_out} ({k.nights} {k.nights === 1 ? 'notte' : 'notti'}) · €{k.total.toFixed(0)}{k.extra_bed_total > 0 ? ` (incl. €${k.extra_bed_total.toFixed(0)} letto extra)` : ''}
+                              </p>
+                            ))}
+                            {plan.removed.map((r: any) => (
+                              <p key={r.id} className="text-xs text-[#8C3B2E]">
+                                <span className="line-through">{r.rooms?.name}: {r.check_in} → {r.check_out}</span> — verrà annullata
+                              </p>
+                            ))}
+                            <p className="text-xs font-bold text-[#4A3F6B] mt-1 pt-1 border-t border-[#D9D0EA]">
+                              Nuovo totale: €{plan.total.toFixed(0)}{plan.total !== oldTotal ? <span className="font-normal"> (prima: €{oldTotal.toFixed(0)})</span> : null}
+                            </p>
+                          </div>
+                        )}
+                        {stayConflict && (
+                          <p className="text-xs text-[#8C3B2E] font-semibold mb-2">{stayConflict}</p>
+                        )}
+                        <button onClick={saveStayEdit} disabled={savingStay || !!plan.error || !!stayConflict}
+                          className="w-full bg-green-mid text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50 mb-1">
+                          {savingStay ? 'Salvataggio...' : '💾 Conferma nuove date'}
+                        </button>
+                        <button onClick={() => setEditingStay(false)} className="w-full text-[#5B4E82] py-1.5 text-xs">
+                          Annulla
+                        </button>
+                      </>
+                    )
+                  })()}
+                </div>
+              )}
             </div>
           )}
           {(booking.status === 'confermata' || booking.status === 'in_attesa') && (
