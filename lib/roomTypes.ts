@@ -16,3 +16,11 @@ export function roomWithType(name: string | null | undefined): string {
   const tip = ROOM_TYPE_BY_NAME[name]
   return tip ? `${name} – ${tip}` : name
 }
+
+// Slug della pagina della camera su casaaniarozzano.it (/camere/<slug>)
+export const ROOM_SLUG_BY_NAME: Record<string, string> = {
+  Amelia: 'singola',
+  Allegra: 'allegra',
+  Ambra: 'ambra',
+  Lena: 'lena',
+}

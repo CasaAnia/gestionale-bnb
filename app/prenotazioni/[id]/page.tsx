@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { roomWithType } from '@/lib/roomTypes'
+import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -269,6 +270,7 @@ export default function BookingDetail() {
   const [saving, setSaving] = useState(false)
   const timeRef = useRef<HTMLInputElement>(null)
   const [showCancel, setShowCancel] = useState(false)
+  const [showConferma, setShowConferma] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [conflitto, setConflitto] = useState<string | null>(null)
   const [lettiOccupati, setLettiOccupati] = useState(0)
@@ -1045,6 +1047,10 @@ export default function BookingDetail() {
         )
         return (
           <>
+            <button onClick={() => setShowConferma(true)}
+              className="w-full bg-green-dark text-white rounded-xl py-3 font-semibold mb-3">
+              🖼 Conferma WhatsApp (immagine + testo)
+            </button>
             <div className="bg-sage rounded-xl p-4 border border-[#C9DDD0] mb-3">
               <p className="font-semibold text-green-dark mb-2">💬 WhatsApp Ania</p>
               {buttons}
@@ -1056,6 +1062,10 @@ export default function BookingDetail() {
           </>
         )
       })()}
+
+      {showConferma && (
+        <ConfermaWhatsApp booking={booking} groupBookings={groupBookings} onClose={() => setShowConferma(false)} />
+      )}
 
       {showCancel && (
         <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={() => setShowCancel(false)}>
