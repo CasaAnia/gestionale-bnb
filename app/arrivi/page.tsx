@@ -346,6 +346,7 @@ export default function Arrivi() {
           </div>
           <span className="text-xs text-gray-500">Orario non inserito</span>
         </div>
+        <span className="ml-auto text-[9px] text-gray-300">v. {process.env.NEXT_PUBLIC_BUILD_TAG}</span>
       </div>
     </div>
   )

@@ -422,6 +422,7 @@ export default function Calendario() {
           </div>
           <span className="text-xs text-gray-500">Cambio camera (1° tocco: abbina · 2° tocco: apri)</span>
         </div>
+        <span className="ml-auto text-[9px] text-gray-300">v. {process.env.NEXT_PUBLIC_BUILD_TAG}</span>
       </div>
     </div>
   )

@@ -20,6 +20,9 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   themeColor: '#FBF9F4',
+  // Il gestionale è solo chiaro: impedisce alla "modalità scura forzata" dei
+  // browser Android di scurire automaticamente sfondi e riquadri
+  colorScheme: 'light',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
