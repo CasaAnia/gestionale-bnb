@@ -340,9 +340,7 @@ export default function Calendario() {
                             overflow: 'hidden',
                             zIndex: isSelected ? 15 : 5,
                             opacity: isDimmed ? 0.3 : 1,
-                            outline: isSelected ? `3px solid ${BLACK}` : 'none',
-                            outlineOffset: -1,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                            boxShadow: isSelected ? '0 2px 8px rgba(0,0,0,0.25)' : '0 1px 3px rgba(0,0,0,0.2)',
                             transition: 'opacity 0.15s',
                           }}>
                           {isFirst && (
