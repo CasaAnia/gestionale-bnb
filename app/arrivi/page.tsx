@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getUpcomingRoomChanges } from '@/lib/roomChanges'
+import { getUpcomingRoomChanges, buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const CELL_W_MOBILE = 56
@@ -78,6 +78,15 @@ export default function Arrivi() {
     () => getUpcomingRoomChanges(bookings, roomNameById, [todayStr, tomorrowStr]),
     [bookings, roomNameById, todayStr, tomorrowStr]
   )
+
+  // Catene cambio camera: stesse del calendario, per il taglio a incastro delle barre
+  const { outgoingIds, incomingIds } = useMemo(() => {
+    const { edges } = buildChangeGroups(bookings)
+    const outgoing = new Set<string>()
+    const incoming = new Set<string>()
+    edges.forEach(e => { outgoing.add(e.fromId); incoming.add(e.toId) })
+    return { outgoingIds: outgoing, incomingIds: incoming }
+  }, [bookings])
 
   useEffect(() => {
     Promise.all([
@@ -256,6 +265,9 @@ export default function Arrivi() {
 
                     const time = booking.check_in_time || ''
                     const barWidth = (endIdx - startIdx) * CELL_W - 4
+                    // Taglio a incastro identico al calendario per i soggiorni con cambio camera
+                    const hasIncoming = incomingIds.has(booking.id)
+                    const hasOutgoing = outgoingIds.has(booking.id)
 
                     return (
                       <div key={booking.id}
@@ -267,7 +279,8 @@ export default function Arrivi() {
                           width: barWidth,
                           height: ROW_H - 12,
                           background: '#6C9A7C',
-                          borderRadius: 6,
+                          borderRadius: `${hasIncoming ? 0 : 6}px ${hasOutgoing ? 0 : 6}px ${hasOutgoing ? 0 : 6}px ${hasIncoming ? 0 : 6}px`,
+                          clipPath: chainClipPath(hasIncoming, hasOutgoing),
                           cursor: 'pointer',
                           display: 'flex',
                           flexDirection: 'column',
@@ -292,7 +305,7 @@ export default function Arrivi() {
                           </span>
                           {/* Nome */}
                           <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? 13 : 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                            {booking.guests?.full_name || booking.guests?.phone || ''}
+                            {hasIncoming ? '⇄ ' : ''}{booking.guests?.full_name || booking.guests?.phone || ''}{hasOutgoing ? ' ⇄' : ''}
                           </span>
                         </div>
                       </div>
@@ -345,6 +358,14 @@ export default function Arrivi() {
             <span style={{ fontSize: 8, fontWeight: 700, color: 'white' }}>?</span>
           </div>
           <span className="text-xs text-gray-500">Orario non inserito</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div style={{ position: 'relative', width: 32, height: 16, flexShrink: 0 }}>
+            <div style={{ position: 'absolute', left: 0, top: 0, width: 16, height: 16, background: '#6C9A7C', clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }} />
+            <div style={{ position: 'absolute', left: 16, top: 0, width: 16, height: 16, background: '#6C9A7C', clipPath: 'polygon(0 0, 100% 0, 100% 100%, 6px 100%)' }} />
+            <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', fontSize: 8, fontWeight: 700, color: 'white' }}>⇄</span>
+          </div>
+          <span className="text-xs text-gray-500">Cambio camera</span>
         </div>
         <span className="ml-auto text-[9px] text-gray-300">v. {process.env.NEXT_PUBLIC_BUILD_TAG}</span>
       </div>

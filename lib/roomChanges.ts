@@ -5,6 +5,16 @@
 
 export type ChangeEdge = { fromId: string; toId: string }
 
+// "Taglio a incastro" delle barre di un soggiorno con cambio camera (usato da
+// Calendario e Arrivi): il lato tagliato indica che il soggiorno prosegue
+// (taglio a destra) o proviene (taglio a sinistra) da un'altra camera.
+export function chainClipPath(cutLeft: boolean, cutRight: boolean): string {
+  if (cutLeft && cutRight) return 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 12px 100%)'
+  if (cutLeft) return 'polygon(0 0, 100% 0, 100% 100%, 12px 100%)'
+  if (cutRight) return 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)'
+  return 'none'
+}
+
 export type ChangeGroups = {
   chainKeyOf: Record<string, string>
   edges: ChangeEdge[]

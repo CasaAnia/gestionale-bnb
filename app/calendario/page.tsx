@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { buildChangeGroups } from '@/lib/roomChanges'
+import { buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
@@ -303,10 +303,7 @@ export default function Calendario() {
                       const isLast = si === segments.length - 1
                       const cutLeft = isFirst && hasIncoming
                       const cutRight = isLast && hasOutgoing
-                      let clipPath = 'none'
-                      if (cutLeft && cutRight) clipPath = 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 12px 100%)'
-                      else if (cutLeft) clipPath = 'polygon(0 0, 100% 0, 100% 100%, 12px 100%)'
-                      else if (cutRight) clipPath = 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)'
+                      const clipPath = chainClipPath(cutLeft, cutRight)
                       const leftRounded = isFirst && !cutLeft
                       const rightRounded = isLast && !cutRight
                       return (
