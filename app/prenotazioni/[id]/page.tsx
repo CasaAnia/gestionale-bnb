@@ -62,6 +62,43 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
     return `   ${i + 1}. *${roomWithType(s.rooms?.name) || 'Camera'}*: ${formatDateIT(s.check_in)} → ${formatDateIT(s.check_out)} (${n} notti) – €${Number(s.price_per_night).toFixed(0)}/notte`
   }).join('\n') : ''
 
+  // Riepilogo costi: una riga per camera (+ letto supplementare se presente), totale = somma delle righe
+  const fmtEuro = (n: number) => n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+  let totaleRighe = 0
+  const righeCosti: string[] = []
+  for (const s of segmenti) {
+    const n = Math.round((new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86400000)
+    const prezzo = Number(s.price_per_night)
+    const subCamera = prezzo * n
+    totaleRighe += subCamera
+    const nomeCamera = `Camera ${roomWithType(s.rooms?.name) || ''}`.trim()
+    righeCosti.push(n > 1
+      ? `${nomeCamera} (${n} notti × ${fmtEuro(prezzo)}): ${fmtEuro(subCamera)}`
+      : `${nomeCamera}: ${fmtEuro(subCamera)}`)
+    const ebTot = Number(s.extra_bed_total || 0)
+    if (s.extra_bed && ebTot > 0) {
+      const ebNotti = s.extra_bed_dates?.length > 0 ? s.extra_bed_dates.length : n
+      const ebPrezzo = Number(s.rooms?.extra_bed_price || 0)
+      const label = isGruppo ? `Letto supplementare – ${s.rooms?.name || ''}`.trim() : 'Letto supplementare'
+      // La moltiplicazione si mostra solo se torna con il totale salvato
+      righeCosti.push(ebNotti > 1 && Math.abs(ebNotti * ebPrezzo - ebTot) < 0.005
+        ? `${label} (${ebNotti} notti × ${fmtEuro(ebPrezzo)}): ${fmtEuro(ebTot)}`
+        : `${label}: ${fmtEuro(ebTot)}`)
+      totaleRighe += ebTot
+    }
+  }
+  const riepilogoCosti = `💶 RIEPILOGO COSTI
+${righeCosti.join('\n')}
+*Totale soggiorno: ${fmtEuro(totaleRighe)}*`
+
+  const pagamentoInfo = b.bonifico
+    ? `Pagamento tramite bonifico bancario. Per completare la prenotazione, la prego di effettuare il bonifico con i seguenti dati:
+Intestatario: *SAWICKA ANNA JANINA*
+Banca: *BANCO BPM*
+IBAN: *IT32P0503401753000000159653*
+Causale: Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}`
+    : `Pagamento all'arrivo: alla consegna delle chiavi verrà chiesto il pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.`
+
   const paymentLine = b.bonifico
     ? `💶 Importo totale: *€ ${totale}* – pagamento tramite bonifico bancario.
 
@@ -87,7 +124,9 @@ RIEPILOGO SOGGIORNO
 ${isGruppo ? `🛏️ Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `🛏️ Camera: ${roomFull}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}${roomLink ? `\n👁 Vedi la tua camera: ${roomLink}` : ''}`}
 Notti totali: *${notti}*
 
-${paymentLine}
+${riepilogoCosti}
+
+${pagamentoInfo}
 
 *Appena le sarà possibile, la prego di farmi sapere l'orario di arrivo in struttura, per organizzare al meglio la sua accoglienza.*
 
