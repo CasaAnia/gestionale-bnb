@@ -33,8 +33,9 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
   const frameRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0.3)
   const [imgH, setImgH] = useState(0)
-  const [busy, setBusy] = useState<'share' | 'download' | null>(null)
+  const [busy, setBusy] = useState<'share' | 'download' | 'copyimg' | null>(null)
   const [copied, setCopied] = useState(false)
+  const [imgCopied, setImgCopied] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
 
   const isGruppo = groupBookings.length > 1
@@ -132,6 +133,48 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
     setBusy(null)
   }
 
+  // Copia il PNG negli appunti: nella chat basta poi "Incolla" (Cmd+V sul Mac).
+  // Il pattern con la Promise dentro ClipboardItem è richiesto da Safari per
+  // non perdere il permesso durante i secondi di generazione dell'immagine.
+  async function copiaImmagine() {
+    setErrore(null); setBusy('copyimg')
+    try {
+      const blobPromise = generaPng().then(r => r.file as Blob)
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })])
+      setImgCopied(true); setTimeout(() => setImgCopied(false), 3000)
+    } catch {
+      try {
+        const { file } = await generaPng()
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': file })])
+        setImgCopied(true); setTimeout(() => setImgCopied(false), 3000)
+      } catch {
+        setErrore('Su questo dispositivo la copia dell\'immagine non è supportata: usa "Condividi" o "Scarica"')
+      }
+    }
+    setBusy(null)
+  }
+
+  // Apre direttamente la chat WhatsApp del cliente con il messaggio già scritto
+  // (app WhatsApp se installata, altrimenti WhatsApp Web dopo 1 secondo)
+  function apriChat() {
+    const raw = (booking.guests?.phone || '').replace(/\D/g, '')
+    if (!raw) return
+    const phone = raw.startsWith('39') ? raw : `39${raw}`
+    const encoded = encodeURIComponent(testoMessaggio)
+    const appUrl = `whatsapp://send?phone=${phone}&text=${encoded}`
+    const webUrl = `https://wa.me/${phone}?text=${encoded}`
+    let handedOff = false
+    const mark = () => { handedOff = true }
+    document.addEventListener('visibilitychange', mark)
+    window.addEventListener('blur', mark)
+    window.location.href = appUrl
+    setTimeout(() => {
+      document.removeEventListener('visibilitychange', mark)
+      window.removeEventListener('blur', mark)
+      if (!handedOff) window.open(webUrl, '_blank', 'noopener,noreferrer')
+    }, 1000)
+  }
+
   async function copiaTesto() {
     try {
       await navigator.clipboard.writeText(testoMessaggio)
@@ -166,7 +209,7 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
           <button onClick={onClose} className="text-gray-500 text-2xl leading-none px-2">✕</button>
         </div>
 
-        <p className="text-xs text-gray-500 mb-2">1 · Invia l&apos;immagine su WhatsApp</p>
+        <p className="text-xs text-gray-500 mb-2">Anteprima dell&apos;immagine</p>
         <div ref={frameRef} className="rounded-xl overflow-hidden border border-card-border mb-3 bg-white"
           style={{ height: imgH ? imgH * scale : undefined }}>
           <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: IMG_W }}>
@@ -300,26 +343,55 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
           </div>
         </div>
 
+        {/* PASSO 1: copia l'immagine negli appunti */}
+        <p className="text-xs font-semibold text-green-dark mb-1.5">1 · Copia l&apos;immagine</p>
+        <button onClick={copiaImmagine} disabled={!!busy}
+          className={`w-full rounded-xl py-3 font-semibold text-sm mb-2 disabled:opacity-50 ${imgCopied ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
+          {busy === 'copyimg' ? 'Preparo…' : imgCopied ? '✓ Immagine copiata!' : '🖼 Copia immagine'}
+        </button>
         <div className="flex gap-2 mb-4">
           <button onClick={condividi} disabled={!!busy}
-            className="flex-1 bg-green-mid text-white rounded-xl py-3 font-semibold text-sm disabled:opacity-50">
-            {busy === 'share' ? 'Preparo…' : '📤 Condividi immagine'}
+            className="flex-1 border border-card-border bg-white text-gray-600 rounded-xl py-2 font-semibold text-xs disabled:opacity-50">
+            {busy === 'share' ? 'Preparo…' : '📤 Condividi'}
           </button>
           <button onClick={scarica} disabled={!!busy}
-            className="flex-1 border border-card-border bg-white text-gray-700 rounded-xl py-3 font-semibold text-sm disabled:opacity-50">
-            {busy === 'download' ? 'Preparo…' : '⬇️ Scarica immagine'}
+            className="flex-1 border border-card-border bg-white text-gray-600 rounded-xl py-2 font-semibold text-xs disabled:opacity-50">
+            {busy === 'download' ? 'Preparo…' : '⬇️ Scarica'}
           </button>
         </div>
         {errore && <p className="text-xs text-[#8C3B2E] font-semibold mb-3">{errore}</p>}
 
-        <p className="text-xs text-gray-500 mb-2">2 · Incolla il messaggio subito dopo l&apos;immagine</p>
-        <div className="bg-white border border-card-border rounded-xl p-3 mb-3 text-sm text-gray-700 whitespace-pre-wrap">
-          {testoMessaggio}
+        {/* PASSO 2: apri direttamente la chat del cliente */}
+        <p className="text-xs font-semibold text-green-dark mb-1.5">2 · Apri la chat del cliente (messaggio già scritto)</p>
+        {booking.guests?.phone ? (
+          <button onClick={apriChat}
+            className="w-full bg-green-dark text-white rounded-xl py-3 font-semibold text-sm mb-4">
+            💬 Apri chat di {nome}
+          </button>
+        ) : (
+          <p className="text-xs text-[#8C3B2E] font-semibold mb-4">Nessun numero di telefono sulla prenotazione</p>
+        )}
+
+        {/* PASSO 3: istruzioni */}
+        <div className="bg-sage border border-[#C9DDD0] rounded-xl p-3 mb-4">
+          <p className="text-xs font-semibold text-green-dark mb-1">3 · Nella chat che si apre:</p>
+          <p className="text-xs text-green-dark leading-relaxed">
+            <span className="font-semibold">Incolla</span> l&apos;immagine nel campo del messaggio (Mac: Cmd+V · telefono: tieni premuto → Incolla) e <span className="font-semibold">inviala</span>.
+            Poi invia il <span className="font-semibold">messaggio già scritto</span> che trovi pronto nella casella di testo.
+          </p>
         </div>
-        <button onClick={copiaTesto}
-          className={`w-full rounded-xl py-3 font-semibold text-sm mb-4 ${copied ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
-          {copied ? '✓ Copiato!' : '📋 Copia testo'}
-        </button>
+
+        {/* Riserva: testo da copiare a mano */}
+        <details className="mb-4">
+          <summary className="text-xs text-gray-500 cursor-pointer mb-2">Il testo del messaggio (se serve copiarlo a mano)</summary>
+          <div className="bg-white border border-card-border rounded-xl p-3 mb-2 text-sm text-gray-700 whitespace-pre-wrap">
+            {testoMessaggio}
+          </div>
+          <button onClick={copiaTesto}
+            className={`w-full rounded-xl py-2.5 font-semibold text-sm ${copied ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
+            {copied ? '✓ Copiato!' : '📋 Copia testo'}
+          </button>
+        </details>
       </div>
     </div>
   )
