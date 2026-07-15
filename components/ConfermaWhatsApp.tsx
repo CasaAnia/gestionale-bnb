@@ -33,10 +33,17 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
   const frameRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0.3)
   const [imgH, setImgH] = useState(0)
-  const [busy, setBusy] = useState<'share' | 'download' | 'copyimg' | null>(null)
+  const [busy, setBusy] = useState<'share' | 'download' | 'copyimg' | 'save' | null>(null)
   const [copied, setCopied] = useState(false)
   const [imgCopied, setImgCopied] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
+
+  // Su telefono WhatsApp spesso non permette di incollare immagini dagli appunti:
+  // lì il flusso passa da "salva in galleria + allega dalla chat"
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  const isIOS = /iPhone|iPad|iPod/.test(ua)
+  const isMobile = isIOS || /Android/i.test(ua)
 
   const isGruppo = groupBookings.length > 1
   const segmenti = isGruppo ? [...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in)) : [booking]
@@ -150,6 +157,29 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
       } catch {
         setErrore('Su questo dispositivo la copia dell\'immagine non è supportata: usa "Condividi" o "Scarica"')
       }
+    }
+    setBusy(null)
+  }
+
+  // Telefono: porta l'immagine nella galleria. iPhone: foglio di condivisione →
+  // "Salva immagine" (finisce in Foto). Android: il download finisce in galleria.
+  async function salvaSuTelefono() {
+    setErrore(null); setBusy('save')
+    try {
+      const { dataUrl, file } = await generaPng()
+      if (isIOS && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file] })
+      } else {
+        const a = document.createElement('a')
+        a.href = dataUrl
+        a.download = file.name
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      }
+      setSaved(true); setTimeout(() => setSaved(false), 4000)
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') setErrore('Salvataggio non riuscito: prova "Condividi"')
     }
     setBusy(null)
   }
@@ -343,12 +373,26 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
           </div>
         </div>
 
-        {/* PASSO 1: copia l'immagine negli appunti */}
-        <p className="text-xs font-semibold text-green-dark mb-1.5">1 · Copia l&apos;immagine</p>
-        <button onClick={copiaImmagine} disabled={!!busy}
-          className={`w-full rounded-xl py-3 font-semibold text-sm mb-2 disabled:opacity-50 ${imgCopied ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
-          {busy === 'copyimg' ? 'Preparo…' : imgCopied ? '✓ Immagine copiata!' : '🖼 Copia immagine'}
-        </button>
+        {/* PASSO 1 — telefono: salva in galleria · computer: copia negli appunti */}
+        {isMobile ? (
+          <>
+            <p className="text-xs font-semibold text-green-dark mb-1.5">1 · Salva l&apos;immagine sul telefono</p>
+            <button onClick={salvaSuTelefono} disabled={!!busy}
+              className={`w-full rounded-xl py-3 font-semibold text-sm mb-1 disabled:opacity-50 ${saved ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
+              {busy === 'save' ? 'Preparo…' : saved ? '✓ Immagine salvata!' : '💾 Salva immagine'}
+            </button>
+            {isIOS && <p className="text-[11px] text-gray-500 mb-3">Nel menu che si apre tocca <span className="font-semibold">&quot;Salva immagine&quot;</span></p>}
+            {!isIOS && <div className="mb-3" />}
+          </>
+        ) : (
+          <>
+            <p className="text-xs font-semibold text-green-dark mb-1.5">1 · Copia l&apos;immagine</p>
+            <button onClick={copiaImmagine} disabled={!!busy}
+              className={`w-full rounded-xl py-3 font-semibold text-sm mb-2 disabled:opacity-50 ${imgCopied ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
+              {busy === 'copyimg' ? 'Preparo…' : imgCopied ? '✓ Immagine copiata!' : '🖼 Copia immagine'}
+            </button>
+          </>
+        )}
         <div className="flex gap-2 mb-4">
           <button onClick={condividi} disabled={!!busy}
             className="flex-1 border border-card-border bg-white text-gray-600 rounded-xl py-2 font-semibold text-xs disabled:opacity-50">
@@ -375,10 +419,17 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
         {/* PASSO 3: istruzioni */}
         <div className="bg-sage border border-[#C9DDD0] rounded-xl p-3 mb-4">
           <p className="text-xs font-semibold text-green-dark mb-1">3 · Nella chat che si apre:</p>
-          <p className="text-xs text-green-dark leading-relaxed">
-            <span className="font-semibold">Incolla</span> l&apos;immagine nel campo del messaggio (Mac: Cmd+V · telefono: tieni premuto → Incolla) e <span className="font-semibold">inviala</span>.
-            Poi invia il <span className="font-semibold">messaggio già scritto</span> che trovi pronto nella casella di testo.
-          </p>
+          {isMobile ? (
+            <p className="text-xs text-green-dark leading-relaxed">
+              Tocca la <span className="font-semibold">graffetta 📎 (o +)</span> → <span className="font-semibold">Galleria</span>: la conferma è la <span className="font-semibold">prima foto</span> → <span className="font-semibold">inviala</span>.
+              Poi invia il <span className="font-semibold">messaggio già scritto</span> che trovi pronto nella casella di testo.
+            </p>
+          ) : (
+            <p className="text-xs text-green-dark leading-relaxed">
+              <span className="font-semibold">Incolla</span> l&apos;immagine nel campo del messaggio (<span className="font-semibold">Cmd+V</span>) e <span className="font-semibold">inviala</span>.
+              Poi invia il <span className="font-semibold">messaggio già scritto</span> che trovi pronto nella casella di testo.
+            </p>
+          )}
         </div>
 
         {/* Riserva: testo da copiare a mano */}
