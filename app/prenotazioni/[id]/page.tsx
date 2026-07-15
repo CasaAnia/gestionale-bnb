@@ -367,6 +367,14 @@ export default function BookingDetail() {
     }
     const { data: updated } = await supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single()
     setBooking(updated)
+    if (updated?.group_id) {
+      const { data: grp } = await supabase.from('bookings')
+        .select('*, rooms(*)')
+        .eq('group_id', updated.group_id)
+        .neq('status', 'annullata')
+        .order('check_in', { ascending: true })
+      setGroupBookings(grp || [])
+    }
     setEditing(false)
     setSaving(false)
   }

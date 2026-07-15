@@ -314,7 +314,12 @@ export default function Calendario() {
                           onClick={(e) => {
                             if (isMultiRoom) {
                               e.stopPropagation()
-                              setSelectedGroupId(selectedGroupId === chainKey ? null : chainKey)
+                              // Primo tocco: evidenzia la catena. Secondo tocco sul segmento evidenziato: apre il dettaglio.
+                              if (selectedGroupId === chainKey) {
+                                router.push(`/prenotazioni/${booking.id}`)
+                              } else {
+                                setSelectedGroupId(chainKey)
+                              }
                             } else {
                               router.push(`/prenotazioni/${booking.id}`)
                             }
@@ -417,7 +422,7 @@ export default function Calendario() {
             <div style={{ position: 'absolute', left: 16, top: 0, width: 16, height: 16, background: GREEN, clipPath: 'polygon(0 0, 100% 0, 100% 100%, 6px 100%)' }} />
             <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', fontSize: 8, fontWeight: 700, color: 'white' }}>⇄</span>
           </div>
-          <span className="text-xs text-gray-500">Cambio camera (tocca un segmento per abbinare)</span>
+          <span className="text-xs text-gray-500">Cambio camera (1° tocco: abbina · 2° tocco: apri)</span>
         </div>
       </div>
     </div>
