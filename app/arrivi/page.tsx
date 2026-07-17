@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { getUpcomingRoomChanges, buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
+import BackLink from '@/components/BackLink'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const CELL_W_MOBILE = 56
@@ -153,6 +154,7 @@ export default function Arrivi() {
 
   return (
     <div className="flex flex-col h-screen pb-16 lg:pb-0">
+      <div className="shrink-0 px-4 pt-3 pb-2"><BackLink href="/" /></div>
 
       {!loading && roomChanges.length > 0 && (
         <div className="shrink-0 px-4 py-2 bg-sand border-b border-card-border">

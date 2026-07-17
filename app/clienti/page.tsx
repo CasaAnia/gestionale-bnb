@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import BackLink from '@/components/BackLink'
 
 const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐', problematico: '⚠️', vuole_ricevuta: '🧾', normale: '' }
@@ -23,6 +24,7 @@ export default function Clienti() {
 
   return (
     <div className="p-4">
+      <div className="mb-2"><BackLink href="/" /></div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="font-serif text-xl text-green-dark">Clienti</h1>
         <Link href="/clienti/nuovo" className="bg-green-mid text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Nuovo</Link>

@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
+import BackLink from '@/components/BackLink'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
@@ -173,6 +174,7 @@ export default function Calendario() {
 
   return (
     <div className="flex flex-col h-screen pb-16 lg:pb-0">
+      <div className="shrink-0 px-4 pt-3 pb-2"><BackLink href="/" /></div>
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>

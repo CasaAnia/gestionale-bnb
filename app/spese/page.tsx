@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import BackLink from '@/components/BackLink'
 
 export default function Spese() {
   const [expenses, setExpenses] = useState<any[]>([])
@@ -43,6 +44,7 @@ export default function Spese() {
 
   return (
     <div className="p-4">
+      <div className="mb-2"><BackLink href="/" /></div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="font-serif text-xl text-green-dark">Spese</h1>
         <button onClick={() => setShowForm(!showForm)} className="bg-[#C58A67] text-white rounded-full px-3 py-1.5 text-sm font-semibold">

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import BackLink from '@/components/BackLink'
 
 const STATUS_COLORS: Record<string, string> = {
   confermata: 'bg-sage text-green-dark',
@@ -42,6 +43,7 @@ export default function Prenotazioni() {
 
   return (
     <div className="p-4">
+      <div className="mb-2"><BackLink href="/calendario" /></div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="font-serif text-xl text-green-dark">Prenotazioni</h1>
         <Link href="/nuova" className="bg-green-mid text-white rounded-full px-3 py-1.5 text-sm font-semibold">+ Nuova</Link>

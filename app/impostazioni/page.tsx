@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import BackLink from '@/components/BackLink'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
 
@@ -79,6 +80,7 @@ export default function Impostazioni() {
 
   return (
     <div className="p-4">
+      <div className="mb-2"><BackLink href="/" /></div>
       <h1 className="font-serif text-xl text-green-dark mb-2">Impostazioni</h1>
       <p className="text-sm text-gray-500 mb-4">Configura prezzi e camere</p>
 

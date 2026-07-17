@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { roomWithType } from '@/lib/roomTypes'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
+import BackLink from '@/components/BackLink'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -576,8 +577,8 @@ export default function BookingDetail() {
 
   return (
     <div className="p-4">
+      <div className="mb-2"><BackLink href="/prenotazioni" /></div>
       <div className="flex items-center gap-3 mb-4">
-        <button onClick={() => router.back()} className="text-green-mid text-sm">← Indietro</button>
         <h1 className="font-serif text-xl text-green-dark flex-1">Prenotazione</h1>
         {editing && (
           <button onClick={() => setEditing(false)} className="text-gray-500 text-sm">Annulla</button>
