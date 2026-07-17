@@ -78,6 +78,7 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
   const slugs = [...new Set(segmenti.map(s => ROOM_SLUG_BY_NAME[s.rooms?.name]).filter(Boolean))]
   const linkCamere = slugs.map(sl => `${SITO_URL}/camere/${sl}`).join('\n')
   const testoMessaggio = `Qui sopra trova la conferma completa della sua prenotazione. 🏡
+Basta un tocco sull'immagine e la conferma si apre a schermo intero, con tutti i dettagli del suo soggiorno.
 
 Per comodità, due link utili:
 
@@ -260,6 +261,11 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
 
               <div style={{ padding: '52px 52px 0' }}>
 
+                {/* LOGO (stesso file og-logo.jpg della conferma testuale) */}
+                <div style={{ textAlign: 'center', margin: '0 0 44px' }}>
+                  <img src="/og-logo.jpg" alt="" style={{ width: 400, borderRadius: 20, display: 'inline-block' }} />
+                </div>
+
                 {/* SALUTO */}
                 <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 42, fontWeight: 600, color: '#1F3D2F', margin: '0 0 14px' }}>Gentile {nome},</p>
                 <p style={{ fontSize: 30, color: '#3a3a35', lineHeight: 1.5, margin: '0 0 40px' }}>
@@ -335,14 +341,6 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
                   <p style={S.boxTitle}>Dove siamo</p>
                   <p style={{ fontSize: 30, fontWeight: 700, color: '#1F3D2F', margin: '0 0 10px' }}>{INDIRIZZO}</p>
                   <p style={{ fontSize: 27, color: '#3a3a35', margin: 0 }}>{INDIRIZZO_NOTA}</p>
-                </div>
-
-                {/* DA SAPERE */}
-                <div style={S.box}>
-                  <p style={S.boxTitle}>Da sapere</p>
-                  {['WiFi gratuito (credenziali in camera)', "Ricordarsi documento d'identità valido", 'Fumo solo all\'esterno', 'Animali: solo se concordati prima'].map(t => (
-                    <p key={t} style={{ fontSize: 28, color: '#3a3a35', margin: '0 0 14px', lineHeight: 1.4 }}>•&nbsp;&nbsp;{t}</p>
-                  ))}
                 </div>
 
                 {/* CONTATTI */}
