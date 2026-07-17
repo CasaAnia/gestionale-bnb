@@ -261,11 +261,6 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
 
               <div style={{ padding: '52px 52px 0' }}>
 
-                {/* LOGO (stesso file og-logo.jpg della conferma testuale) */}
-                <div style={{ textAlign: 'center', margin: '0 0 44px' }}>
-                  <img src="/og-logo.jpg" alt="" style={{ width: 400, borderRadius: 20, display: 'inline-block' }} />
-                </div>
-
                 {/* SALUTO */}
                 <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 42, fontWeight: 600, color: '#1F3D2F', margin: '0 0 14px' }}>Gentile {nome},</p>
                 <p style={{ fontSize: 30, color: '#3a3a35', lineHeight: 1.5, margin: '0 0 40px' }}>
