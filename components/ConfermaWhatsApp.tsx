@@ -22,6 +22,24 @@ function fmtEuro(n: number) {
   return n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 }
 
+// Dati per il bonifico anticipato: gli stessi delle conferme testuali WhatsApp
+const BONIFICO_INTESTATARIO = 'SAWICKA ANNA JANINA'
+const BONIFICO_IBAN = 'IT32P0503401753000000159653'
+
+function toYMD(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function formatGiornoMese(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+}
+
+function meseBreve(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('it-IT', { month: 'short' })
+}
+
 function bagnoDesc(room: any) {
   if (room?.bathroom_type === 'privato_interno') return "privato, all'interno della camera"
   if (room?.bathroom_type === 'privato_esterno') return room?.bathroom_note ? `privato esterno (${room.bathroom_note})` : 'privato esterno'
@@ -38,6 +56,7 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
   const [imgCopied, setImgCopied] = useState(false)
   const [saved, setSaved] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
+  const [pagamento, setPagamento] = useState<'contanti' | 'bonifico'>(booking.bonifico ? 'bonifico' : 'contanti')
 
   // Su telefono WhatsApp spesso non permette di incollare immagini dagli appunti:
   // lì il flusso passa da "salva in galleria + allega dalla chat"
@@ -74,6 +93,18 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
   }
   const totale = righeCosti.reduce((s, r) => s + r.amount, 0)
 
+  // Variante bonifico: scadenza = domani, anticipata al giorno di arrivo se precedente
+  const domani = new Date()
+  domani.setDate(domani.getDate() + 1)
+  const scadenza = cin <= toYMD(domani) ? cin : toYMD(domani)
+  const scadenzaF = formatGiornoMese(scadenza)
+  const cognomeOspite = nome.trim().split(' ').slice(-1)[0]
+  const nomiCamere = [...new Set(segmenti.map(s => s.rooms?.name?.split(' ').slice(-1)[0]).filter(Boolean))].join(' + ')
+  const dateCausale = cin.slice(0, 7) === cout.slice(0, 7)
+    ? `${Number(cin.slice(8))}–${Number(cout.slice(8))} ${meseBreve(cout)}`
+    : `${Number(cin.slice(8))} ${meseBreve(cin)} – ${Number(cout.slice(8))} ${meseBreve(cout)}`
+  const causale = `${nomiCamere} · ${dateCausale} · ${cognomeOspite}`
+
   // Messaggio di testo con i link (con cambio camera: un link per ogni camera)
   const slugs = [...new Set(segmenti.map(s => ROOM_SLUG_BY_NAME[s.rooms?.name]).filter(Boolean))]
   const linkCamere = slugs.map(sl => `${SITO_URL}/camere/${sl}`).join('\n')
@@ -100,7 +131,7 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
     const t = setTimeout(measure, 300)
     window.addEventListener('resize', measure)
     return () => { clearTimeout(t); window.removeEventListener('resize', measure) }
-  }, [])
+  }, [pagamento])
 
   async function generaPng(): Promise<{ dataUrl: string; file: File }> {
     const dataUrl = await toPng(imgRef.current!, { pixelRatio: 2, backgroundColor: '#FBF9F4', cacheBust: true })
@@ -239,6 +270,15 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
           <button onClick={onClose} className="text-gray-500 text-2xl leading-none px-2">✕</button>
         </div>
 
+        <div className="flex gap-2 mb-3">
+          {(['contanti', 'bonifico'] as const).map(p => (
+            <button key={p} onClick={() => setPagamento(p)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${pagamento === p ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-card-border'}`}>
+              {p === 'contanti' ? '💶 Contanti all’arrivo' : '🏦 Bonifico anticipato'}
+            </button>
+          ))}
+        </div>
+
         <p className="text-xs text-gray-500 mb-2">Anteprima dell&apos;immagine</p>
         <div ref={frameRef} className="rounded-xl overflow-hidden border border-card-border mb-3 bg-white"
           style={{ height: imgH ? imgH * scale : undefined }}>
@@ -318,10 +358,34 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
                     <span style={{ fontSize: 32, fontWeight: 700, color: '#1F3D2F' }}>Totale soggiorno</span>
                     <span style={{ fontSize: 44, fontWeight: 800, color: '#2D6A4F' }}>{fmtEuro(totale)}</span>
                   </div>
-                  <p style={{ ...S.small, margin: '14px 0 0' }}>
-                    Pagamento all&apos;arrivo, alla consegna delle chiavi, per l&apos;intera prenotazione: contanti o bonifico istantaneo.
-                  </p>
+                  {pagamento === 'contanti' && (
+                    <p style={{ ...S.small, margin: '14px 0 0' }}>
+                      Pagamento all&apos;arrivo, alla consegna delle chiavi, per l&apos;intera prenotazione: contanti o bonifico istantaneo.
+                    </p>
+                  )}
                 </div>
+
+                {/* PAGAMENTO ANTICIPATO (variante bonifico) */}
+                {pagamento === 'bonifico' && (
+                  <div style={S.box}>
+                    <p style={S.boxTitle}>Pagamento</p>
+                    <p style={{ fontSize: 28, color: '#3a3a35', lineHeight: 1.5, margin: '0 0 26px' }}>
+                      Il soggiorno si salda in anticipo con bonifico bancario, per l&apos;intero importo. La prenotazione è confermata alla ricezione della ricevuta.
+                    </p>
+                    <div style={{ background: '#FBF9F4', borderRadius: 16, padding: '12px 32px', marginBottom: 26 }}>
+                      <div style={S.row}><span style={S.label}>Importo</span><span style={{ ...S.value, fontWeight: 600 }}>{fmtEuro(totale)}</span></div>
+                      <div style={S.row}><span style={S.label}>Intestatario</span><span style={{ ...S.value, fontWeight: 400 }}>{BONIFICO_INTESTATARIO}</span></div>
+                      <div style={S.row}><span style={S.label}>IBAN</span><span style={{ ...S.value, fontWeight: 400, fontSize: 28, whiteSpace: 'nowrap' }}>{BONIFICO_IBAN}</span></div>
+                      <div style={S.row}><span style={S.label}>Causale</span><span style={{ ...S.value, fontWeight: 400 }}>{causale}</span></div>
+                      <div style={S.row}><span style={S.label}>Entro il</span><span style={{ ...S.value, fontWeight: 600 }}>{scadenzaF}</span></div>
+                    </div>
+                    <div style={{ background: '#FBF9F4', borderLeft: '3px solid #C58A67', borderRadius: 16, padding: '26px 40px', margin: 0 }}>
+                      <p style={{ fontSize: 27, color: '#1F3D2F', lineHeight: 1.6, margin: 0 }}>
+                        Quando ha effettuato il bonifico ci mandi la ricevuta su WhatsApp. Senza la ricevuta entro il {scadenzaF}, la camera torna ad essere disponibile.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* RIQUADRO EVIDENZIATO */}
                 <div style={{ background: '#EFF3EA', borderRadius: 24, padding: '38px 48px', marginBottom: 36 }}>
