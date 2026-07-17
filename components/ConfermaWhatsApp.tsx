@@ -359,6 +359,13 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
                   <p style={{ fontSize: 28, color: '#6f6a5e', margin: '0 0 6px' }}>A presto,</p>
                   <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 46, fontWeight: 600, color: '#1F3D2F', margin: 0 }}>Ania</p>
                 </div>
+
+                {/* NOTA PERSONALE — CAMBIO NOME (ultimo elemento dell'immagine) */}
+                <div style={{ background: '#FBF9F4', borderLeft: '3px solid #2D6A4F', borderRadius: 16, padding: '26px 40px', margin: '0 0 48px' }}>
+                  <p style={{ fontSize: 27, color: '#1F3D2F', lineHeight: 1.6, margin: 0 }}>
+                    Dopo aver rinnovato ogni stanza, questa casa non sembrava più la stessa. Così stiamo per cambiarle nome in <span style={{ fontWeight: 600 }}>Casa Ania</span>.
+                  </p>
+                </div>
               </div>
 
               {/* PIÈ DI PAGINA */}
