@@ -269,6 +269,7 @@ export default function BookingDetail() {
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState<any>({})
   const [saving, setSaving] = useState(false)
+  const [saveEditError, setSaveEditError] = useState<string | null>(null)
   const timeRef = useRef<HTMLInputElement>(null)
   const [showCancel, setShowCancel] = useState(false)
   const [showConferma, setShowConferma] = useState(false)
@@ -408,7 +409,14 @@ export default function BookingDetail() {
       extra_phone_2_name: editForm.extra_phone_2_name || null,
       updated_at: new Date().toISOString(),
     }
-    await supabase.from('bookings').update(updates).eq('id', id)
+    // Se il DB rifiuta l'update (es. colonna mancante) il salvataggio NON deve sembrare riuscito
+    const { error: updateError } = await supabase.from('bookings').update(updates).eq('id', id)
+    if (updateError) {
+      setSaveEditError(`Salvataggio non riuscito: ${updateError.message}`)
+      setSaving(false)
+      return
+    }
+    setSaveEditError(null)
     const guestId = booking.guest_id || booking.guests?.id
     if (guestId) {
       await supabase.from('guests').update({
@@ -813,6 +821,12 @@ export default function BookingDetail() {
           {conflitto && (
             <div className="bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 mb-3 text-sm text-[#8C3B2E] font-semibold">
               {conflitto}
+            </div>
+          )}
+
+          {saveEditError && (
+            <div className="bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 mb-3 text-sm text-[#8C3B2E] font-semibold">
+              ❌ {saveEditError}
             </div>
           )}
 
