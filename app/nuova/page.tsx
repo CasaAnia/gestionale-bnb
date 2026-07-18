@@ -35,13 +35,14 @@ function NuovaPrenotazione() {
   const [guest, setGuest] = useState<any>(null)
   const [guestHistory, setGuestHistory] = useState<any[]>([])
   const [rooms, setRooms] = useState<any[]>([])
-  const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '', bonifico: false })
+  const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '', bonifico: false, extra_phone_1_name: '', chi_e: '' })
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedGroupId, setSavedGroupId] = useState<string | null>(null)
   const [savedCheckOut, setSavedCheckOut] = useState<string | null>(null)
   const [searchLoading, setSearchLoading] = useState(false)
+  const [openHistory, setOpenHistory] = useState<Set<string>>(new Set())
   const [conflitto, setConflitto] = useState<string | null>(null)
   const [lettiOccupati, setLettiOccupati] = useState(0)
   const [extraBedsPerDay, setExtraBedsPerDay] = useState<Record<string, number>>({})
@@ -197,6 +198,31 @@ function NuovaPrenotazione() {
 
   function parseDate(s: string) { return new Date(s.replace(/-/g, '/')) }
 
+  function fmtRange(ci: string, co: string) {
+    if (!ci || !co) return ''
+    const a = parseDate(ci), b = parseDate(co)
+    const short: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
+    const sameMonth = a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()
+    const left = sameMonth ? String(a.getDate()) : a.toLocaleDateString('it-IT', short)
+    return `${left}–${b.toLocaleDateString('it-IT', short)} ${b.getFullYear()}`
+  }
+
+  function statusBadge(h: any) {
+    if (h.status === 'annullata') return { label: 'Annullata', bg: '#F6E4DE', fg: '#8C3B2E' }
+    if (h.pagato) return { label: 'Pagato', bg: '#7D9DB0', fg: 'white' }
+    if (h.bonifico) return { label: 'Bonifico', bg: '#9B8EC4', fg: 'white' }
+    return { label: 'Prenotazione', bg: '#6C9A7C', fg: 'white' }
+  }
+
+  function toggleHistory(id: string) {
+    setOpenHistory(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   function notti() {
     if (!form.check_in || !form.check_out) return 0
     return Math.round((parseDate(form.check_out).getTime() - parseDate(form.check_in).getTime()) / 86400000)
@@ -255,6 +281,9 @@ function NuovaPrenotazione() {
       num_guests: form.num_guests, extra_bed: form.extra_bed_dates.length > 0, extra_bed_dates: form.extra_bed_dates, price_per_night: Number(form.price_per_night),
       extra_bed_total: ebt, total_amount: calcTotal(), notes: form.notes || null, status: 'confermata', source: 'diretta',
       bonifico: form.bonifico, pagato: false, group_id: groupId,
+      extra_phone_1_name: form.extra_phone_1_name || null,
+      // chi_e incluso solo se valorizzato: così il salvataggio funziona anche se la colonna non è ancora stata creata su Supabase
+      ...(form.chi_e ? { chi_e: form.chi_e } : {}),
     })
     setSaving(false)
     if (bookingError) {
@@ -381,18 +410,39 @@ function NuovaPrenotazione() {
                 <div className="mt-3 border-t border-card-border pt-3">
                   <p className="text-sm font-semibold text-gray-600 mb-2">Storico soggiorni ({guestHistory.length})</p>
                   <p className="text-sm font-semibold text-green-mid mb-2">Totale speso: €{guestHistory.filter(h => h.status !== 'annullata').reduce((s: number, h: any) => s + Number(h.total_amount), 0).toFixed(0)}</p>
-                  {guestHistory.slice(0, 4).map(h => {
-                    const notti = h.check_in && h.check_out ? Math.round((new Date(h.check_out.replace(/-/g,'/')).getTime() - new Date(h.check_in.replace(/-/g,'/')).getTime()) / 86400000) : 0
+                  {guestHistory.map(h => {
+                    const open = openHistory.has(h.id)
+                    const badge = statusBadge(h)
+                    const notti = h.check_in && h.check_out ? Math.round((parseDate(h.check_out).getTime() - parseDate(h.check_in).getTime()) / 86400000) : 0
                     return (
-                    <div key={h.id} className="py-1 border-b border-gray-50 last:border-0">
-                      <div className="flex justify-between text-xs gap-1">
-                        <span className={h.status === 'annullata' ? 'line-through text-gray-400' : 'text-gray-700'}>
-                          {h.check_in} → {h.check_out} · {notti}n · €{Number(h.price_per_night).toFixed(0)}/n · {h.rooms?.name}
-                        </span>
-                        <span className={`font-semibold shrink-0 ${h.status === 'annullata' ? 'text-[#8C3B2E]' : 'text-gray-600'}`}>€{Number(h.total_amount).toFixed(0)}</span>
-                      </div>
-                      {h.status === 'annullata' && h.cancelled_reason && (
-                        <p className="text-xs text-[#8C3B2E] italic mt-0.5">↳ {h.cancelled_reason}</p>
+                    <div key={h.id} className="border-b border-[#ECE8DD] last:border-0">
+                      <button onClick={() => toggleHistory(h.id)} className="w-full flex items-center gap-2 py-2 text-left">
+                        <span className="text-[#2D6A4F] text-xs shrink-0 transition-transform duration-150" style={{ transform: open ? 'rotate(90deg)' : 'none' }}>▸</span>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-semibold ${h.status === 'annullata' ? 'line-through text-gray-400' : 'text-[#1F3D2F]'}`}>
+                            {fmtRange(h.check_in, h.check_out)} · {h.rooms?.name}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {h.extra_phone_1_name || '—'}
+                            {h.chi_e && <span className="ml-1.5 px-2 py-px rounded-full bg-[#EDE6D6] text-[#5a6b3f] text-[10px] font-medium">{h.chi_e}</span>}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.fg }}>{badge.label}</span>
+                      </button>
+                      {open && (
+                        <div className="bg-[#F6F2EA] rounded-lg p-3 mb-2 ml-5 text-xs space-y-1">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[#1F3D2F]">
+                            <span>👥 {h.num_guests} {h.num_guests === 1 ? 'ospite' : 'ospiti'}</span>
+                            <span className="font-semibold">€{Number(h.total_amount).toFixed(0)} <span className="font-normal text-gray-500">({notti}n × €{Number(h.price_per_night).toFixed(0)})</span></span>
+                            {h.extra_bed && <span className="px-2 py-px rounded-full text-white font-medium" style={{ background: '#C58A67' }}>🛏 Letto extra</span>}
+                          </div>
+                          {h.notes
+                            ? <p className="text-[#1F3D2F] whitespace-pre-wrap">📝 {h.notes}</p>
+                            : <p className="text-gray-400 italic">📝 Nessuna nota</p>}
+                          {h.status === 'annullata' && h.cancelled_reason && (
+                            <p className="text-[#8C3B2E] italic">↳ {h.cancelled_reason}</p>
+                          )}
+                        </div>
                       )}
                     </div>
                   )})}
@@ -588,6 +638,19 @@ function NuovaPrenotazione() {
               </div>
               <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${form.bonifico ? 'bg-green-mid' : 'bg-gray-200'}`}>
                 <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${form.bonifico ? 'translate-x-6' : ''}`} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Nome aggiuntivo</p>
+                <input value={form.extra_phone_1_name} onChange={e => setForm({...form, extra_phone_1_name: e.target.value})}
+                  placeholder="Nome" className="w-full border border-card-border rounded-lg p-2 text-sm" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Chi è</p>
+                <input value={form.chi_e} onChange={e => setForm({...form, chi_e: e.target.value})}
+                  placeholder="mamma, collega..." className="w-full border border-card-border rounded-lg p-2 text-sm" />
               </div>
             </div>
 
