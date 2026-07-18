@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { House, CalendarDays, DoorOpen, ClipboardList, Plus, Users, Banknote, ChartColumn, Settings } from 'lucide-react'
 
 const mobileNavItems = [
   { href: '/', label: 'Home', icon: '🏠' },
@@ -14,15 +15,15 @@ const mobileNavItems = [
 ]
 
 const desktopNavItems = [
-  { href: '/', label: 'Home', icon: '🏠' },
-  { href: '/calendario', label: 'Calendario', icon: '📅' },
-  { href: '/arrivi', label: 'Arrivi', icon: '🚪' },
-  { href: '/prenotazioni', label: 'Prenotazioni', icon: '📋' },
-  { href: '/nuova', label: 'Nuova', icon: '➕' },
-  { href: '/clienti', label: 'Clienti', icon: '👤' },
-  { href: '/spese', label: 'Spese', icon: '💶' },
-  { href: '/statistiche', label: 'Statistiche', icon: '📊' },
-  { href: '/impostazioni', label: 'Impostazioni', icon: '⚙️' },
+  { href: '/', label: 'Home', Icon: House },
+  { href: '/calendario', label: 'Calendario', Icon: CalendarDays },
+  { href: '/arrivi', label: 'Arrivi', Icon: DoorOpen },
+  { href: '/prenotazioni', label: 'Prenotazioni', Icon: ClipboardList },
+  { href: '/nuova', label: 'Nuova', Icon: Plus },
+  { href: '/clienti', label: 'Clienti', Icon: Users },
+  { href: '/spese', label: 'Spese', Icon: Banknote },
+  { href: '/statistiche', label: 'Statistiche', Icon: ChartColumn },
+  { href: '/impostazioni', label: 'Impostazioni', Icon: Settings },
 ]
 
 export default function BottomNav() {
@@ -56,16 +57,18 @@ export default function BottomNav() {
             Rozzano
           </p>
         </div>
-        {desktopNavItems.map(item => {
-          const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
-          return (
-            <Link key={item.href} href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors ${active ? 'mx-3 rounded-full bg-sage text-green-dark' : 'text-gray-600 hover:bg-white/60'}`}>
-              <span className="text-xl">{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          )
-        })}
+        <div className="flex flex-col gap-1.5">
+          {desktopNavItems.map(item => {
+            const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+            return (
+              <Link key={item.href} href={item.href}
+                className={`flex items-center gap-3 pl-4 pr-4 py-2.5 font-serif text-[15px] border-l-2 transition-colors duration-200 ${active ? 'border-[#A9884E] text-green-dark' : 'border-transparent text-[#8a9488] hover:text-green-dark'}`}>
+                <item.Icon size={16} strokeWidth={1.5} className="shrink-0 text-green-mid" aria-hidden />
+                <span>{item.label}</span>
+              </Link>
+            )
+          })}
+        </div>
       </nav>
     </>
   )
