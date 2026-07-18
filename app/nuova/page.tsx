@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
+import BackLink from '@/components/BackLink'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
@@ -337,10 +338,10 @@ function NuovaPrenotazione() {
 
   return (
     <div className="p-4">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={() => step === 'telefono' ? router.back() : setStep(step === 'dettagli' ? 'cliente' : 'telefono')} className="text-green-mid text-sm">← Indietro</button>
-        <h1 className="font-serif text-xl text-green-dark max-lg:hidden">Nuova prenotazione</h1>
+      <div className="mb-2">
+        <BackLink onClick={() => step === 'telefono' ? router.back() : setStep(step === 'dettagli' ? 'cliente' : 'telefono')} />
       </div>
+      <h1 className="font-serif text-xl text-green-dark max-lg:hidden mb-4">Nuova prenotazione</h1>
 
       {/* Step 1: telefono o nome */}
       {step === 'telefono' && (
