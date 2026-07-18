@@ -5,11 +5,21 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import BackLink from '@/components/BackLink'
 
-const STATUS_COLORS: Record<string, string> = {
-  confermata: 'bg-sage text-green-dark',
-  in_attesa: 'bg-[#F1E0CE] text-[#7A4B22]',
-  annullata: 'bg-[#F6E4DE] text-[#8C3B2E]',
-  completata: 'bg-gray-100 text-gray-600',
+// Pallino di stato discreto: colori coerenti con il calendario
+const STATUS_DOT: Record<string, string> = {
+  confermata: '#6C9A7C',
+  in_attesa: '#C58A67',
+  annullata: '#8C3B2E',
+  completata: '#9CA3AF',
+}
+
+function StatusDot({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5 text-xs font-medium text-green-dark">
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+      {label}
+    </span>
+  )
 }
 
 export default function Prenotazioni() {
@@ -66,19 +76,20 @@ export default function Prenotazioni() {
         <div className="flex flex-col gap-3">
           {filtered.map(b => (
             <div key={b.id} onClick={() => router.push(`/prenotazioni/${b.id}`)}
-              className={`rounded-xl p-4 border shadow-sm transition-all cursor-pointer active:opacity-70 ${b.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-white border-card-border'}`}>
-              <div className="flex items-start justify-between mb-1">
+              className={`rounded-xl p-5 border shadow-sm transition-all cursor-pointer active:opacity-70 leading-relaxed ${b.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-white border-card-border'}`}>
+              <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
                   <p className="font-semibold">{b.guests?.full_name || b.guests?.phone}</p>
-                  <p className="text-sm text-gray-500">{b.rooms?.name}</p>
+                  <p className="text-sm mt-0.5" style={{ color: 'var(--color-stone)' }}>{b.rooms?.name}</p>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${STATUS_COLORS[b.status]}`}>{b.status}</span>
-                  {b.extra_bed && <span className="text-xs bg-[#F1E0CE] text-[#7A4B22] px-2 py-0.5 rounded-full font-semibold">+letto agg.</span>}
-                  {b.group_id && <span className="text-xs bg-[#EFEAF7] text-[#5B4E82] px-2 py-0.5 rounded-full font-semibold">🔄 cambio camera</span>}
+                <div className="flex flex-col items-end gap-1.5">
+                  <StatusDot color={b.status === 'annullata' ? STATUS_DOT.annullata : b.pagato ? '#7D9DB0' : b.bonifico ? '#9B8EC4' : STATUS_DOT[b.status]}
+                    label={b.status === 'annullata' ? 'annullata' : b.pagato ? 'pagata' : b.bonifico ? 'bonifico attesa' : b.status} />
+                  {b.extra_bed && <StatusDot color="#C58A67" label="letto extra" />}
+                  {b.group_id && <span className="text-xs text-gray-500">⇄ cambio camera</span>}
                 </div>
               </div>
-              <div className="flex items-center justify-between text-sm text-gray-500">
+              <div className="flex items-center justify-between text-sm text-gray-500 pt-2 border-t-[0.5px] border-border-soft">
                 <span>{b.check_in} → {b.check_out} ({notti(b)} notti)</span>
                 <span className="font-semibold text-gray-800">€{Number(b.total_amount).toFixed(0)}</span>
               </div>

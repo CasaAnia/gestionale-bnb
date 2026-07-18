@@ -47,10 +47,13 @@ export default function BottomNav() {
 
       {/* Desktop: barra laterale a sinistra */}
       <nav className="hidden lg:flex fixed left-0 top-0 bottom-0 w-48 bg-sidebar border-r border-border-soft z-50 flex-col py-6">
-        <div className="px-4 mb-6">
-          <p className="font-serif text-lg text-green-dark leading-tight">Casa Ania</p>
-          <p className="text-[10px] text-green-dark/60 mt-0.5" style={{ fontVariantCaps: 'small-caps', letterSpacing: '0.08em' }}>
-            Affittacamere · Rozzano
+        <div className="px-4 pt-3 mb-10 flex flex-col items-center text-center">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mb-3" style={{ border: '1px solid var(--color-brass)' }}>
+            <span className="font-serif text-2xl" style={{ color: 'var(--color-brass)' }}>CA</span>
+          </div>
+          <p className="font-serif text-xl text-green-dark leading-tight">Casa Ania</p>
+          <p className="text-[10px] mt-1 uppercase" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>
+            Rozzano
           </p>
         </div>
         {desktopNavItems.map(item => {

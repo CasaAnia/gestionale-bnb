@@ -15,6 +15,10 @@
   --color-sand: #FAF3DF;
   --color-today: #F3ECD8;
   --color-grid-line: #ECE8DD;
+  /* Accento ottone tenue — solo per dettagli fini (filo logo, numeri camera, etichette di sezione) */
+  --color-brass: #A9884E;
+  /* Grigio-verde tenue per descrizioni secondarie */
+  --color-stone: #7C857A;
 }
 
 * { box-sizing: border-box; }

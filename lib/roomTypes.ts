@@ -17,6 +17,22 @@ export function roomWithType(name: string | null | undefined): string {
   return tip ? `${name} – ${tip}` : name
 }
 
+// Numero-monogramma della camera (ordine fisso Amelia→Lena), mostrato in ottone accanto al nome
+export const ROOM_NUMBER_BY_NAME: Record<string, string> = {
+  Amelia: '01',
+  Allegra: '02',
+  Ambra: '03',
+  Lena: '04',
+}
+
+// Descrizione breve sotto il nome camera (tipologia · bagno)
+export const ROOM_DESC_BY_NAME: Record<string, string> = {
+  Amelia: 'singola · bagno in camera',
+  Allegra: 'matrimoniale · bagno in camera',
+  Ambra: 'matrimoniale · bagno in camera',
+  Lena: 'tripla · bagno privato esterno',
+}
+
 // Slug della pagina della camera su casaaniarozzano.it (/camere/<slug>)
 export const ROOM_SLUG_BY_NAME: Record<string, string> = {
   Amelia: 'singola',

@@ -208,10 +208,10 @@ function NuovaPrenotazione() {
   }
 
   function statusBadge(h: any) {
-    if (h.status === 'annullata') return { label: 'Annullata', bg: '#F6E4DE', fg: '#8C3B2E' }
-    if (h.pagato) return { label: 'Pagato', bg: '#7D9DB0', fg: 'white' }
-    if (h.bonifico) return { label: 'Bonifico', bg: '#9B8EC4', fg: 'white' }
-    return { label: 'Prenotazione', bg: '#6C9A7C', fg: 'white' }
+    if (h.status === 'annullata') return { label: 'Annullata', dot: '#8C3B2E' }
+    if (h.pagato) return { label: 'Pagato', dot: '#7D9DB0' }
+    if (h.bonifico) return { label: 'Bonifico', dot: '#9B8EC4' }
+    return { label: 'Prenotazione', dot: '#6C9A7C' }
   }
 
   function toggleHistory(id: string) {
@@ -408,15 +408,15 @@ function NuovaPrenotazione() {
               {guest.email && <p className="text-sm text-gray-500">✉️ {guest.email}</p>}
               {guestHistory.length > 0 && (
                 <div className="mt-3 border-t border-card-border pt-3">
-                  <p className="text-sm font-semibold text-gray-600 mb-2">Storico soggiorni ({guestHistory.length})</p>
+                  <p className="text-[11px] uppercase mb-2 text-brass" style={{ letterSpacing: '2px' }}>Storico soggiorni ({guestHistory.length})</p>
                   <p className="text-sm font-semibold text-green-mid mb-2">Totale speso: €{guestHistory.filter(h => h.status !== 'annullata').reduce((s: number, h: any) => s + Number(h.total_amount), 0).toFixed(0)}</p>
                   {guestHistory.map(h => {
                     const open = openHistory.has(h.id)
                     const badge = statusBadge(h)
                     const notti = h.check_in && h.check_out ? Math.round((parseDate(h.check_out).getTime() - parseDate(h.check_in).getTime()) / 86400000) : 0
                     return (
-                    <div key={h.id} className="border-b border-[#ECE8DD] last:border-0">
-                      <button onClick={() => toggleHistory(h.id)} className="w-full flex items-center gap-2 py-2 text-left">
+                    <div key={h.id} className="border-b-[0.5px] border-border-soft last:border-0">
+                      <button onClick={() => toggleHistory(h.id)} className="w-full flex items-center gap-2 py-2.5 text-left">
                         <span className="text-[#2D6A4F] text-xs shrink-0 transition-transform duration-150" style={{ transform: open ? 'rotate(90deg)' : 'none' }}>▸</span>
                         <div className="flex-1 min-w-0">
                           <p className={`text-xs font-semibold ${h.status === 'annullata' ? 'line-through text-gray-400' : 'text-[#1F3D2F]'}`}>
@@ -427,14 +427,16 @@ function NuovaPrenotazione() {
                             {h.chi_e && <span className="ml-1.5 px-2 py-px rounded-full bg-[#EDE6D6] text-[#5a6b3f] text-[10px] font-medium">{h.chi_e}</span>}
                           </p>
                         </div>
-                        <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.fg }}>{badge.label}</span>
+                        <span className="shrink-0 flex items-center gap-1.5 text-[11px] font-medium text-green-dark">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: badge.dot }} />{badge.label}
+                        </span>
                       </button>
                       {open && (
                         <div className="bg-[#F6F2EA] rounded-lg p-3 mb-2 ml-5 text-xs space-y-1">
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[#1F3D2F]">
                             <span>👥 {h.num_guests} {h.num_guests === 1 ? 'ospite' : 'ospiti'}</span>
                             <span className="font-semibold">€{Number(h.total_amount).toFixed(0)} <span className="font-normal text-gray-500">({notti}n × €{Number(h.price_per_night).toFixed(0)})</span></span>
-                            {h.extra_bed && <span className="px-2 py-px rounded-full text-white font-medium" style={{ background: '#C58A67' }}>🛏 Letto extra</span>}
+                            {h.extra_bed && <span className="flex items-center gap-1.5 font-medium"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: '#C58A67' }} />Letto extra</span>}
                           </div>
                           {h.notes
                             ? <p className="text-[#1F3D2F] whitespace-pre-wrap">📝 {h.notes}</p>

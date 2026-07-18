@@ -827,13 +827,14 @@ export default function BookingDetail() {
         </div>
       ) : (
         /* VISUALIZZAZIONE NORMALE */
-        <div className={`rounded-xl p-4 border mb-4 ${booking.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-white border-card-border'}`}>
+        <div className={`rounded-xl p-5 border mb-4 ${booking.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-white border-card-border'}`}>
           <div className="flex justify-between items-start mb-3">
             <div>
               <p className="font-bold text-lg">{guest?.full_name || guest?.phone}</p>
               <p className="text-gray-500">{booking.rooms?.name}</p>
             </div>
-            <span className={`text-xs px-2 py-1 rounded-full font-bold ${booking.status === 'confermata' ? 'bg-sage text-green-dark' : booking.status === 'annullata' ? 'bg-[#F6E4DE] text-[#8C3B2E]' : booking.status === 'completata' ? 'bg-gray-100 text-gray-600' : 'bg-[#F1E0CE] text-[#7A4B22]'}`}>
+            <span className="flex items-center gap-1.5 text-xs font-medium text-green-dark pt-1">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: booking.status === 'confermata' ? '#6C9A7C' : booking.status === 'annullata' ? '#8C3B2E' : booking.status === 'completata' ? '#9CA3AF' : '#C58A67' }} />
               {booking.status}
             </span>
           </div>

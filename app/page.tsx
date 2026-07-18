@@ -76,7 +76,7 @@ export default function Dashboard() {
         <>
           {(data.checkInOggi.length > 0 || data.checkOutOggi.length > 0 || data.roomChanges.length > 0) && (
             <div className="bg-white rounded-[10px] border border-card-border p-3 mb-4">
-              <p className="font-semibold text-green-dark text-sm mb-2">📋 Oggi</p>
+              <p className="text-[11px] uppercase mb-2.5 text-brass" style={{ letterSpacing: '2px' }}>Oggi</p>
               {data.checkInOggi.map((b: any) => (
                 <div key={b.id} className="flex flex-wrap items-center gap-2 text-sm py-1">
                   <span className="bg-sage text-green-dark rounded px-1.5 py-0.5 text-xs font-bold">CHECK-IN</span>
@@ -109,26 +109,26 @@ export default function Dashboard() {
           )}
 
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <div className="bg-white rounded-[10px] p-4 border border-card-border">
-              <p className="text-xs text-gray-500 mb-1">Entrate mese</p>
+            <div className="bg-white rounded-[10px] p-5 border border-card-border">
+              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Entrate mese</p>
               <p className="font-serif text-2xl text-green-dark">€{fmt(data.entrateMese)}</p>
             </div>
-            <div className="bg-white rounded-[10px] p-4 border border-card-border">
-              <p className="text-xs text-gray-500 mb-1">Profitto mese</p>
+            <div className="bg-white rounded-[10px] p-5 border border-card-border">
+              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Profitto mese</p>
               <p className={`font-serif text-2xl ${data.profittoMese >= 0 ? 'text-green-dark' : 'text-[#8C3B2E]'}`}>€{fmt(data.profittoMese)}</p>
             </div>
-            <div className="bg-white rounded-[10px] p-4 border border-card-border">
-              <p className="text-xs text-gray-500 mb-1">Tariffa media</p>
+            <div className="bg-white rounded-[10px] p-5 border border-card-border">
+              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Tariffa media</p>
               <p className="font-serif text-2xl text-green-dark">€{fmt(data.tariffaMedia)}</p>
             </div>
-            <div className="bg-white rounded-[10px] p-4 border border-card-border">
-              <p className="text-xs text-gray-500 mb-1">Camere occupate</p>
+            <div className="bg-white rounded-[10px] p-5 border border-card-border">
+              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Camere occupate</p>
               <p className="font-serif text-2xl text-green-dark">{data.camereOccupate}<span className="text-base text-gray-400">/4</span></p>
             </div>
           </div>
 
-          <div className="bg-white rounded-[10px] p-4 border border-card-border mb-4">
-            <p className="text-xs text-gray-500 mb-1">Spese anno</p>
+          <div className="bg-white rounded-[10px] p-5 border border-card-border mb-4">
+            <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Spese anno</p>
             <p className="font-serif text-xl text-[#8C3B2E]">€{fmt(data.speseAnno)}</p>
           </div>
 

@@ -38,10 +38,10 @@ export default function Clienti() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-10 text-gray-400">Nessun cliente trovato</div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {filtered.map(g => (
             <Link key={g.id} href={`/clienti/${g.id}`}
-              className="bg-white rounded-xl p-4 border border-card-border shadow-sm flex items-center justify-between">
+              className="bg-white rounded-xl p-5 border border-card-border shadow-sm flex items-center justify-between leading-relaxed">
               <div>
                 <p className="font-semibold">{g.full_name || 'Senza nome'}</p>
                 <p className="text-sm text-gray-500">📞 {g.phone}</p>

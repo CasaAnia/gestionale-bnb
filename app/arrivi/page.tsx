@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { getUpcomingRoomChanges, buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
+import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import BackLink from '@/components/BackLink'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -234,15 +235,28 @@ export default function Arrivi() {
                 <div key={room.id}>
                   <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: ROW_H, display: 'flex', borderBottom: '1px solid #ECE8DD' }}>
                     {/* Nome camera */}
+                    {(() => {
+                      const shortName = room.name.split(' ').slice(-1)[0]
+                      return (
                     <div style={{
                       width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10,
                       background: 'white', borderRight: '2px solid #ECE8DD',
-                      display: 'flex', alignItems: 'center', padding: '0 8px',
+                      display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px',
                     }}>
-                      <span style={{ fontSize: isDesktop ? 13 : 11, fontWeight: 700, color: '#1F3D2F' }}>
-                        {isDesktop ? room.name : room.name.split(' ').slice(-1)[0]}
+                      <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 12 : 10, color: 'var(--color-brass)', flexShrink: 0 }}>
+                        {ROOM_NUMBER_BY_NAME[shortName] || ''}
+                      </span>
+                      <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 16 : 13, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {shortName}
+                        </span>
+                        <span style={{ fontSize: isDesktop ? 10 : 8, color: 'var(--color-stone)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {isDesktop ? (ROOM_DESC_BY_NAME[shortName] || '') : (ROOM_DESC_BY_NAME[shortName] || '').split(' · ')[0]}
+                        </span>
                       </span>
                     </div>
+                      )
+                    })()}
                     {/* Celle giorni */}
                     {days.map((d, i) => {
                       const isToday = toStr(d) === todayStr

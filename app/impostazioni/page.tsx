@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import BackLink from '@/components/BackLink'
+import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
 
@@ -87,11 +88,21 @@ export default function Impostazioni() {
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {rooms.map(room => (
-            <div key={room.id} className="bg-white rounded-xl p-4 border border-card-border shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <p className="font-bold">{room.name}</p>
+        <>
+        <p className="text-[11px] uppercase mb-3 mt-2" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>Le camere</p>
+        <div className="flex flex-col gap-5">
+          {rooms.map(room => {
+            const shortName = room.name.split(' ').slice(-1)[0]
+            return (
+            <div key={room.id} className="bg-white rounded-xl p-5 border border-card-border shadow-sm">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-serif text-sm" style={{ color: 'var(--color-brass)' }}>{ROOM_NUMBER_BY_NAME[shortName] || ''}</span>
+                  <div>
+                    <p className="font-serif text-lg text-green-dark leading-tight">{shortName}</p>
+                    <p className="text-xs" style={{ color: 'var(--color-stone)' }}>{ROOM_DESC_BY_NAME[shortName] || ''}</p>
+                  </div>
+                </div>
                 <span className="text-xs text-gray-500">{BATHROOM_LABELS[room.bathroom_type]}</span>
               </div>
               {room.bathroom_note && (
@@ -134,8 +145,9 @@ export default function Impostazioni() {
                 </button>
               )}
             </div>
-          ))}
+          )})}
         </div>
+        </>
       )}
 
       {/* Notifiche push */}
