@@ -208,12 +208,12 @@ export default function Arrivi() {
                     background: isToday ? '#F3ECD8' : 'transparent',
                     borderLeft: '1px solid #F2EEE3',
                   }}>
-                    <div style={{ fontSize: isDesktop ? 10 : 8, color: isSun ? '#dc2626' : '#D6CFBD', marginBottom: 2 }}>
+                    <div style={{ fontSize: isDesktop ? 10 : 8, fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2 }}>
                       {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop ? 3 : 2)}
                     </div>
                     <div style={{
                       fontSize: isDesktop ? 15 : 12, fontWeight: 700,
-                      color: isToday ? 'white' : (isSun ? '#dc2626' : '#1F3D2F'),
+                      color: isToday ? 'white' : (isSun ? '#C58A67' : '#1F3D2F'),
                       background: isToday ? '#2D6A4F' : 'transparent',
                       borderRadius: '50%',
                       width: isDesktop ? 26 : 20, height: isDesktop ? 26 : 20,

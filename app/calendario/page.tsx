@@ -217,7 +217,7 @@ export default function Calendario() {
                     background: isToday ? '#F3ECD8' : 'transparent',
                     borderLeft: '1px solid #ECE8DD',
                   }}>
-                    <div style={{ fontSize: isDesktop ? 10 : 8, color: isSun ? '#C58A67' : '#D6CFBD', marginBottom: 2 }}>
+                    <div style={{ fontSize: isDesktop ? 10 : 8, fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2 }}>
                       {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop ? 3 : 2)}
                     </div>
                     <div style={{
