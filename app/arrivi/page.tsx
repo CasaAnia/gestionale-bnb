@@ -154,7 +154,7 @@ export default function Arrivi() {
   })
 
   return (
-    <div className="flex flex-col h-screen pb-16 lg:pb-0">
+    <div className="flex flex-col h-screen pb-32 lg:pb-0">
       <div className="shrink-0 px-4 pt-3 pb-2"><BackLink href="/" /></div>
 
       {!loading && roomChanges.length > 0 && (

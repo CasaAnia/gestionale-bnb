@@ -4,14 +4,10 @@ import { usePathname } from 'next/navigation'
 import { House, CalendarDays, DoorOpen, ClipboardList, Plus, Users, Banknote, ChartColumn, Settings } from 'lucide-react'
 
 const mobileNavItems = [
-  { href: '/', label: 'Home', icon: '🏠' },
-  { href: '/calendario', label: 'Calendario', icon: '📅' },
-  { href: '/arrivi', label: 'Arrivi', icon: '🚪' },
-  { href: '/prenotazioni', label: 'Prenot.', icon: '📋' },
-  { href: '/nuova', label: 'Nuova', icon: '➕' },
-  { href: '/clienti', label: 'Clienti', icon: '👤' },
-  { href: '/spese', label: 'Spese', icon: '💶' },
-  { href: '/impostazioni', label: 'Impost.', icon: '⚙️' },
+  { href: '/calendario', label: 'Calendario', Icon: CalendarDays },
+  { href: '/nuova', label: 'Nuova', Icon: Plus },
+  { href: '/clienti', label: 'Clienti', Icon: Users },
+  { href: '/statistiche', label: 'Report', Icon: ChartColumn },
 ]
 
 const desktopNavItems = [
@@ -30,16 +26,19 @@ export default function BottomNav() {
   const pathname = usePathname()
   return (
     <>
-      {/* Mobile: barra in basso */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-card-border z-50">
-        <div className="flex justify-around items-center h-16 max-w-lg mx-auto px-1">
+      {/* Mobile: bottom navigation crema & ottone */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-sidebar border-t-[0.5px] border-[#E9E2D2] z-50"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div className="flex justify-around items-stretch h-14 max-w-lg mx-auto">
           {mobileNavItems.map(item => {
-            const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+            const active = pathname.startsWith(item.href)
+            const color = active ? '#A9884E' : '#8a9488'
             return (
               <Link key={item.href} href={item.href}
-                className={`flex flex-col items-center justify-center flex-1 py-1 text-xs gap-0.5 transition-colors ${active ? 'text-green-mid' : 'text-gray-500'}`}>
-                <span className="text-lg leading-none">{item.icon}</span>
-                <span className="font-medium">{item.label}</span>
+                className="flex flex-col items-center justify-center flex-1 gap-1 transition-colors"
+                style={{ color }}>
+                <item.Icon size={20} strokeWidth={active ? 2 : 1.6} aria-hidden />
+                <span className="text-[10px] font-medium leading-none">{item.label}</span>
               </Link>
             )
           })}

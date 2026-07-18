@@ -339,7 +339,7 @@ function NuovaPrenotazione() {
     <div className="p-4">
       <div className="flex items-center gap-3 mb-4">
         <button onClick={() => step === 'telefono' ? router.back() : setStep(step === 'dettagli' ? 'cliente' : 'telefono')} className="text-green-mid text-sm">← Indietro</button>
-        <h1 className="font-serif text-xl text-green-dark">Nuova prenotazione</h1>
+        <h1 className="font-serif text-xl text-green-dark max-lg:hidden">Nuova prenotazione</h1>
       </div>
 
       {/* Step 1: telefono o nome */}

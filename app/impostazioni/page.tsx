@@ -82,7 +82,7 @@ export default function Impostazioni() {
   return (
     <div className="p-4">
       <div className="mb-2"><BackLink href="/" /></div>
-      <h1 className="font-serif text-xl text-green-dark mb-2">Impostazioni</h1>
+      <h1 className="font-serif text-xl text-green-dark mb-2 max-lg:hidden">Impostazioni</h1>
       <p className="text-sm text-gray-500 mb-4">Configura prezzi e camere</p>
 
       {loading ? (

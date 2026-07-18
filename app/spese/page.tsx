@@ -46,8 +46,8 @@ export default function Spese() {
     <div className="p-4">
       <div className="mb-2"><BackLink href="/" /></div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="font-serif text-xl text-green-dark">Spese</h1>
-        <button onClick={() => setShowForm(!showForm)} className="bg-[#C58A67] text-white rounded-full px-3 py-1.5 text-sm font-semibold">
+        <h1 className="font-serif text-xl text-green-dark max-lg:hidden">Spese</h1>
+        <button onClick={() => setShowForm(!showForm)} className="ml-auto bg-[#C58A67] text-white rounded-full px-3 py-1.5 text-sm font-semibold">
           {showForm ? '✕ Chiudi' : '+ Aggiungi'}
         </button>
       </div>

@@ -55,8 +55,8 @@ export default function Prenotazioni() {
     <div className="p-4">
       <div className="mb-2"><BackLink href="/calendario" /></div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="font-serif text-xl text-green-dark">Prenotazioni</h1>
-        <Link href="/nuova" className="bg-green-mid text-white rounded-full px-3 py-1.5 text-sm font-semibold">+ Nuova</Link>
+        <h1 className="font-serif text-xl text-green-dark max-lg:hidden">Prenotazioni</h1>
+        <Link href="/nuova" className="ml-auto bg-green-mid text-white rounded-full px-3 py-1.5 text-sm font-semibold">+ Nuova</Link>
       </div>
 
       <div className="flex gap-2 mb-4">

@@ -26,8 +26,8 @@ export default function Clienti() {
     <div className="p-4">
       <div className="mb-2"><BackLink href="/" /></div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="font-serif text-xl text-green-dark">Clienti</h1>
-        <Link href="/clienti/nuovo" className="bg-green-mid text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Nuovo</Link>
+        <h1 className="font-serif text-xl text-green-dark max-lg:hidden">Clienti</h1>
+        <Link href="/clienti/nuovo" className="ml-auto bg-green-mid text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Nuovo</Link>
       </div>
       <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="🔍 Cerca per nome o telefono..."

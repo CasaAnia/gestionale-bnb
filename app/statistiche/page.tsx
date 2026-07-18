@@ -107,7 +107,7 @@ export default function Statistiche() {
   return (
     <div className="p-4">
       <div className="mb-2"><BackLink href="/" /></div>
-      <h1 className="font-serif text-xl text-green-dark mb-4">Statistiche</h1>
+      <h1 className="font-serif text-xl text-green-dark mb-4 max-lg:hidden">Statistiche</h1>
 
       <div className="flex gap-2 mb-4">
         {(['settimana', 'mese', 'anno'] as const).map(p => (
