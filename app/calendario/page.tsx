@@ -91,11 +91,15 @@ export default function Calendario() {
   const days: Date[] = Array.from({ length: DAYS_TOTAL }, (_, i) => addDays(startDate, i))
   const todayStr = toStr(today)
 
+  // Somma acconti per prenotazione (vuota se la tabella payments non è ancora migrata)
+  const [accontiByBooking, setAccontiByBooking] = useState<Record<string, number>>({})
+
   useEffect(() => {
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
       supabase.from('bookings').select('*, guests(id, full_name, phone, rating)').neq('status', 'annullata'),
-    ]).then(([{ data: r }, { data: b }]) => {
+      supabase.from('payments').select('booking_id, amount'),
+    ]).then(([{ data: r }, { data: b }, { data: p }]) => {
       const sorted = (r || []).sort((a: any, b: any) => {
         const ai = ROOM_ORDER.findIndex(o => a.name.includes(o))
         const bi = ROOM_ORDER.findIndex(o => b.name.includes(o))
@@ -103,6 +107,9 @@ export default function Calendario() {
       })
       setRooms(sorted)
       setBookings(b || [])
+      const sums: Record<string, number> = {}
+      for (const x of p || []) sums[x.booking_id] = (sums[x.booking_id] || 0) + Number(x.amount)
+      setAccontiByBooking(sums)
       setLoading(false)
     })
   }, [])
@@ -162,6 +169,18 @@ export default function Calendario() {
     if (booking.pagato) {
       if (!hasExtra) return CYAN
       return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${CYAN} 8px, ${CYAN} 16px)`
+    }
+    // Acconti: le notti interamente coperte dai soldi ricevuti diventano blu
+    // (da sinistra); il resto resta come da stato. A saldo raggiunto è tutta blu.
+    const ricevuto = accontiByBooking[booking.id] || 0
+    if (ricevuto > 0) {
+      const prezzo = Number(booking.price_per_night)
+      const giorno = Math.round((strToDate(dateStr).getTime() - strToDate(booking.check_in).getTime()) / 86400000)
+      const coperto = ricevuto >= Number(booking.total_amount) || (prezzo > 0 && giorno < Math.floor(ricevuto / prezzo))
+      if (coperto) {
+        if (!hasExtra) return CYAN
+        return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${CYAN} 8px, ${CYAN} 16px)`
+      }
     }
     if (booking.bonifico) {
       if (!hasExtra) return PURPLE

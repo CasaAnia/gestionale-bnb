@@ -281,6 +281,11 @@ export default function BookingDetail() {
   const [stayForm, setStayForm] = useState<{ check_in: string; check_out: string }>({ check_in: '', check_out: '' })
   const [stayConflict, setStayConflict] = useState<string | null>(null)
   const [savingStay, setSavingStay] = useState(false)
+  // Conto del soggiorno (acconti). accontiOk=false se la tabella payments non è ancora migrata
+  const [acconti, setAcconti] = useState<any[]>([])
+  const [accontiOk, setAccontiOk] = useState(true)
+  const [accontoForm, setAccontoForm] = useState({ amount: '', method: 'contanti', paid_on: new Date().toISOString().split('T')[0] })
+  const [savingAcconto, setSavingAcconto] = useState(false)
   const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
 
   function getDaysBetween(checkIn: string, checkOut: string): string[] {
@@ -365,6 +370,37 @@ export default function BookingDetail() {
       setLoading(false)
     })
   }, [id])
+
+  // Carica gli acconti del soggiorno (tutti i segmenti se c'è un cambio camera)
+  useEffect(() => {
+    if (!booking) return
+    const ids = groupBookings.length > 1 ? groupBookings.map((b: any) => b.id) : [booking.id]
+    supabase.from('payments').select('*').in('booking_id', ids).order('paid_on').then(({ data, error }) => {
+      if (error) { setAccontiOk(false); return }
+      setAccontiOk(true)
+      setAcconti(data || [])
+    })
+  }, [booking?.id, groupBookings.length])
+
+  async function aggiungiAcconto() {
+    const amount = parseFloat(accontoForm.amount)
+    if (!amount || amount <= 0 || savingAcconto) return
+    setSavingAcconto(true)
+    const { data, error } = await supabase.from('payments')
+      .insert({ booking_id: booking.id, amount, method: accontoForm.method, paid_on: accontoForm.paid_on })
+      .select().single()
+    if (!error && data) {
+      setAcconti([...acconti, data].sort((a, b) => a.paid_on.localeCompare(b.paid_on)))
+      setAccontoForm({ amount: '', method: 'contanti', paid_on: new Date().toISOString().split('T')[0] })
+    }
+    setSavingAcconto(false)
+  }
+
+  async function eliminaAcconto(pid: string) {
+    if (!confirm('Eliminare questo acconto?')) return
+    const { error } = await supabase.from('payments').delete().eq('id', pid)
+    if (!error) setAcconti(acconti.filter(a => a.id !== pid))
+  }
 
   function calcNotti(cin: string, cout: string) {
     if (!cin || !cout) return 0
@@ -880,6 +916,61 @@ export default function BookingDetail() {
             </div>
           )}
           {booking.notes && <p className="text-sm text-gray-600 italic">📝 {booking.notes}</p>}
+
+          {/* Conto del soggiorno: acconti ricevuti e residuo */}
+          {accontiOk && booking.status !== 'annullata' && (() => {
+            const totaleDovuto = groupBookings.length > 1
+              ? groupBookings.reduce((s: number, x: any) => s + Number(x.total_amount), 0)
+              : Number(booking.total_amount)
+            const ricevuto = acconti.reduce((s, a) => s + Number(a.amount), 0)
+            const residuo = totaleDovuto - ricevuto
+            return (
+              <div className="mt-3 bg-white border border-card-border rounded-xl p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[11px] uppercase" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>Conto del soggiorno</p>
+                  {ricevuto > 0 && (residuo <= 0
+                    ? <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={{ background: '#EAF0F3', color: '#3D5A66' }}>saldato</span>
+                    : <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={{ background: '#EDE6D6', color: '#5a6b3f' }}>acconto ricevuto</span>
+                  )}
+                </div>
+                {acconti.map(a => (
+                  <div key={a.id} className="flex items-center gap-2 py-1.5 border-b border-card-border text-sm">
+                    <span>{a.method === 'bonifico' ? '🏦' : '💵'}</span>
+                    <span className="text-gray-500">{new Date(a.paid_on + 'T00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}</span>
+                    <span className="flex-1 font-semibold text-green-dark">€{Number(a.amount).toFixed(0)}</span>
+                    <button onClick={() => eliminaAcconto(a.id)} className="text-gray-400 text-xs px-1">✕</button>
+                  </div>
+                ))}
+                <div className="flex justify-between text-sm py-1.5">
+                  <span className="text-gray-500">Ricevuti</span>
+                  <span className="font-semibold">€{ricevuto.toFixed(0)} su €{totaleDovuto.toFixed(0)}</span>
+                </div>
+                <div className="flex justify-between text-sm rounded-lg px-2 py-1.5 mb-2" style={{ background: residuo > 0 ? '#F3ECD8' : '#EAF0F3' }}>
+                  <span className="font-semibold" style={{ color: residuo > 0 ? '#8a4f2f' : '#3D5A66' }}>{residuo > 0 ? 'Resta da avere' : 'Saldato'}</span>
+                  <span className="font-bold" style={{ color: residuo > 0 ? '#8a4f2f' : '#3D5A66' }}>€{Math.max(0, residuo).toFixed(0)}{residuo < 0 ? ` (+€${(-residuo).toFixed(0)} in più)` : ''}</span>
+                </div>
+                <div className="flex gap-2 items-center">
+                  <input type="number" inputMode="decimal" min={0} placeholder="€"
+                    value={accontoForm.amount}
+                    onChange={e => setAccontoForm({ ...accontoForm, amount: e.target.value })}
+                    className="w-20 border border-card-border rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
+                  <select value={accontoForm.method} onChange={e => setAccontoForm({ ...accontoForm, method: e.target.value })}
+                    className="border border-card-border rounded-lg p-2 text-sm bg-white">
+                    <option value="contanti">💵 Contanti</option>
+                    <option value="bonifico">🏦 Bonifico</option>
+                  </select>
+                  <input type="date" value={accontoForm.paid_on}
+                    onChange={e => setAccontoForm({ ...accontoForm, paid_on: e.target.value })}
+                    className="flex-1 min-w-0 border border-card-border rounded-lg p-2 text-sm bg-white" />
+                  <button onClick={aggiungiAcconto} disabled={savingAcconto || !parseFloat(accontoForm.amount)}
+                    className="bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40 shrink-0">
+                    {savingAcconto ? '...' : '+'}
+                  </button>
+                </div>
+              </div>
+            )
+          })()}
+
           {groupBookings.length > 1 && (
             <div className="mt-3 bg-[#EFEAF7] border border-[#D9D0EA] rounded-xl p-3">
               <p className="text-xs font-bold text-[#5B4E82] mb-2">🔄 SOGGIORNO CON CAMBIO CAMERA</p>

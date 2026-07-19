@@ -28,9 +28,10 @@ export default function Dashboard() {
       const me = monthEnd()
       const ys = yearStart()
 
-      const [{ data: bookings }, { data: expenses }] = await Promise.all([
+      const [{ data: bookings }, { data: expenses }, { data: payments }] = await Promise.all([
         supabase.from('bookings').select('*, rooms(name), guests(full_name, phone)'),
         supabase.from('expenses').select('*'),
+        supabase.from('payments').select('booking_id, amount'),
       ])
 
       const b: any[] = bookings || []
@@ -54,7 +55,23 @@ export default function Dashboard() {
       const completate = active.filter((x: any) => x.price_per_night > 0)
       const tariffaMedia = completate.length > 0 ? completate.reduce((s: number, x: any) => s + Number(x.price_per_night), 0) / completate.length : 0
 
-      setData({ entrateMese, speseAnno, profittoMese, tariffaMedia, checkInOggi, checkOutOggi, camereOccupate, roomChanges, td })
+      // Da incassare: soggiorni con acconti registrati ma non ancora saldati.
+      // I segmenti di un cambio camera (stesso group_id) contano come un unico soggiorno.
+      const accontiSum: Record<string, number> = {}
+      for (const p of payments || []) accontiSum[p.booking_id] = (accontiSum[p.booking_id] || 0) + Number(p.amount)
+      const gruppi: Record<string, { id: string; guest: string; dovuto: number; ricevuto: number }> = {}
+      for (const b of active) {
+        const key = b.group_id || b.id
+        if (!gruppi[key]) gruppi[key] = { id: b.id, guest: b.guests?.full_name || b.guests?.phone || 'Ospite', dovuto: 0, ricevuto: 0 }
+        gruppi[key].dovuto += Number(b.total_amount)
+        gruppi[key].ricevuto += accontiSum[b.id] || 0
+      }
+      const daIncassare = Object.values(gruppi)
+        .filter(g => g.ricevuto > 0 && g.dovuto - g.ricevuto > 0.5)
+        .map(g => ({ ...g, residuo: g.dovuto - g.ricevuto }))
+        .sort((a, b) => b.residuo - a.residuo)
+
+      setData({ entrateMese, speseAnno, profittoMese, tariffaMedia, checkInOggi, checkOutOggi, camereOccupate, roomChanges, td, daIncassare })
       setLoading(false)
     }
     load()
@@ -105,6 +122,18 @@ export default function Dashboard() {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {data.daIncassare?.length > 0 && (
+            <div className="bg-white rounded-[10px] border border-card-border p-3 mb-4">
+              <p className="text-[11px] uppercase mb-1.5 text-brass" style={{ letterSpacing: '2px' }}>💶 Da incassare</p>
+              {data.daIncassare.map((g: any) => (
+                <Link key={g.id} href={`/prenotazioni/${g.id}`} className="flex items-center justify-between py-1.5 border-t border-card-border text-sm">
+                  <span className="font-medium text-green-dark">{g.guest}</span>
+                  <span className="font-bold" style={{ color: '#8a4f2f' }}>€{g.residuo.toFixed(0)}</span>
+                </Link>
+              ))}
             </div>
           )}
 
