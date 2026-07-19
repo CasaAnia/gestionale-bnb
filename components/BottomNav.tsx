@@ -6,7 +6,7 @@ import { House, CalendarDays, DoorOpen, Sparkles, ClipboardList, Plus, Users, Ba
 const mobileNavItems = [
   { href: '/calendario', label: 'Calendario', Icon: CalendarDays },
   { href: '/arrivi', label: 'Arrivi', Icon: DoorOpen },
-  { href: '/clienti', label: 'Clienti', Icon: Users },
+  { href: '/pulizie', label: 'Pulizie', Icon: Sparkles },
   { href: '/statistiche', label: 'Report', Icon: ChartColumn },
 ]
 

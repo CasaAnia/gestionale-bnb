@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 const SECTION_TITLES: [string, string][] = [
   ['/calendario', 'Calendario'],
   ['/arrivi', 'Arrivi'],
+  ['/pulizie', 'Pulizie'],
   ['/prenotazioni', 'Prenotazioni'],
   ['/nuova', 'Nuova prenotazione'],
   ['/clienti', 'Clienti'],
