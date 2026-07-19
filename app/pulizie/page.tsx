@@ -91,6 +91,8 @@ export default function Pulizie() {
   const [localLinen, setLocalLinen] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
+  // Data scelta a mano per "cambio fatto il" (per camera; default oggi)
+  const [fattoIl, setFattoIl] = useState<Record<string, string>>({})
   const td = todayStr()
 
   useEffect(() => {
@@ -175,11 +177,21 @@ export default function Pulizie() {
     }
   }
 
-  async function spostaCambio(riga: RigaCamera, delta: number) {
+  // Cambio fatto in una data scelta a mano: il conteggio delle 4 notti riparte da lì
+  async function cambioFatto(riga: RigaCamera) {
     const c = riga.cambio || riga.cambioProssimo
     if (!c || saving) return
     setSaving(riga.room.id)
-    await salvaCambio(c.booking.id, addDaysStr(c.due, delta))
+    await salvaCambio(c.booking.id, addDaysStr(fattoIl[riga.room.id] || td, NOTTI_CAMBIO))
+    setSaving(null)
+  }
+
+  // Cambio non fatto (es. l'ospite rifiuta): si salta e se ne riparla fra 4 notti
+  async function saltaCambio(riga: RigaCamera) {
+    const c = riga.cambio || riga.cambioProssimo
+    if (!c || saving) return
+    setSaving(riga.room.id)
+    await salvaCambio(c.booking.id, addDaysStr(c.due, NOTTI_CAMBIO))
     setSaving(null)
   }
 
@@ -252,13 +264,20 @@ export default function Pulizie() {
                     )}
                     {spostabile && (
                       <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                        <span className="text-xs text-gray-500">Sposta cambio:</span>
-                        {[-2, -1, 1, 2].map(d => (
-                          <button key={d} onClick={() => spostaCambio(riga, d)} disabled={saving === room.id}
-                            className="rounded-full border border-card-border bg-cream text-green-mid text-xs font-semibold px-2.5 py-1 disabled:opacity-50">
-                            {d > 0 ? `+${d}g` : `${d}g`}
-                          </button>
-                        ))}
+                        <span className="text-xs text-gray-500">Fatto il</span>
+                        <input type="date" value={fattoIl[room.id] || td}
+                          onChange={e => setFattoIl({ ...fattoIl, [room.id]: e.target.value })}
+                          className="border border-card-border rounded-lg px-2 py-1 text-xs bg-white" />
+                        <button onClick={() => cambioFatto(riga)} disabled={saving === room.id}
+                          className="rounded-full text-xs font-semibold px-3 py-1.5 text-white disabled:opacity-50"
+                          style={{ background: '#2D6A4F' }}>
+                          ✓ Salva
+                        </button>
+                        <button onClick={() => saltaCambio(riga)} disabled={saving === room.id}
+                          className="rounded-full border border-card-border bg-cream text-xs font-semibold px-3 py-1.5 disabled:opacity-50"
+                          style={{ color: '#8a4f2f' }}>
+                          Non fatto, salta
+                        </button>
                       </div>
                     )}
                     {partenza?.notes && (
