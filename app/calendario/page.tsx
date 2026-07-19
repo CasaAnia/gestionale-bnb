@@ -94,6 +94,32 @@ export default function Calendario() {
   // Somma acconti per prenotazione (vuota se la tabella payments non è ancora migrata)
   const [accontiByBooking, setAccontiByBooking] = useState<Record<string, number>>({})
 
+  // Notti coperte dagli acconti per prenotazione (-1 = tutte). Nei soggiorni con
+  // cambio camera i soldi ricevuti "scorrono" lungo tutta la catena in ordine di
+  // data, qualunque sia il segmento su cui l'acconto è stato registrato.
+  const paidNightsByBooking = useMemo(() => {
+    const map: Record<string, number> = {}
+    const groups: Record<string, any[]> = {}
+    bookings.forEach((b: any) => { const k = b.group_id || b.id; (groups[k] = groups[k] || []).push(b) })
+    Object.values(groups).forEach(segs => {
+      let money = segs.reduce((s, b) => s + (accontiByBooking[b.id] || 0), 0)
+      if (money <= 0) return
+      const totale = segs.reduce((s, b) => s + Number(b.total_amount), 0)
+      const ordinati = [...segs].sort((a, b) => a.check_in.localeCompare(b.check_in))
+      if (money >= totale) { ordinati.forEach(b => { map[b.id] = -1 }); return }
+      for (const b of ordinati) {
+        const prezzo = Number(b.price_per_night)
+        const notti = Math.round((strToDate(b.check_out).getTime() - strToDate(b.check_in).getTime()) / 86400000)
+        if (prezzo <= 0) continue
+        const coperte = Math.min(notti, Math.floor(money / prezzo))
+        if (coperte > 0) map[b.id] = coperte
+        money -= coperte * prezzo
+        if (coperte < notti) break
+      }
+    })
+    return map
+  }, [bookings, accontiByBooking])
+
   useEffect(() => {
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
@@ -171,13 +197,11 @@ export default function Calendario() {
       return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${CYAN} 8px, ${CYAN} 16px)`
     }
     // Acconti: le notti interamente coperte dai soldi ricevuti diventano blu
-    // (da sinistra); il resto resta come da stato. A saldo raggiunto è tutta blu.
-    const ricevuto = accontiByBooking[booking.id] || 0
-    if (ricevuto > 0) {
-      const prezzo = Number(booking.price_per_night)
+    // (da sinistra, lungo tutta la catena); a saldo raggiunto è tutta blu.
+    const coperte = paidNightsByBooking[booking.id]
+    if (coperte !== undefined) {
       const giorno = Math.round((strToDate(dateStr).getTime() - strToDate(booking.check_in).getTime()) / 86400000)
-      const coperto = ricevuto >= Number(booking.total_amount) || (prezzo > 0 && giorno < Math.floor(ricevuto / prezzo))
-      if (coperto) {
+      if (coperte === -1 || giorno < coperte) {
         if (!hasExtra) return CYAN
         return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${CYAN} 8px, ${CYAN} 16px)`
       }
