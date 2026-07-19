@@ -6,45 +6,85 @@ import BackLink from '@/components/BackLink'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
-// Segna-pulita salvati in locale quando la colonna cleaned_at non esiste ancora su Supabase
+// Ogni quante notti di permanenza va rifatta la biancheria
+const NOTTI_CAMBIO = 4
+// Con quanti giorni di anticipo mostrare il prossimo cambio (per poterlo anticipare)
+const GIORNI_PREAVVISO = 2
+
+// Salvataggi locali usati quando le colonne cleaned_at / linen_next_date
+// non esistono ancora su Supabase (migrazioni 0004 e 0005 da eseguire a mano)
 const LOCAL_KEY = 'pulizie_cleaned_ids'
+const LOCAL_LINEN_KEY = 'pulizie_linen_dates'
 
 function todayStr() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function addDaysStr(s: string, n: number) {
+  const [y, m, d] = s.split('-').map(Number)
+  const dt = new Date(y, m - 1, d + n)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+}
+
+// Giorni da b a a (positivo se a è nel futuro rispetto a b)
+function diffDays(a: string, b: string) {
+  const [ay, am, ad] = a.split('-').map(Number)
+  const [by, bm, bd] = b.split('-').map(Number)
+  return Math.round((new Date(ay, am - 1, ad).getTime() - new Date(by, bm - 1, bd).getTime()) / 86400000)
+}
+
+function dayMonth(s: string) {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+}
+
 function italianDate() {
   return new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-// "2026-07-18" -> "ieri" / "il 15 luglio" (rispetto a oggi)
+// "2026-07-18" -> "partenza ieri" / "partenza il 15 luglio" (rispetto a oggi)
 function partenzaLabel(checkOut: string, td: string) {
   if (checkOut === td) return 'partenza oggi'
-  const [y, m, d] = checkOut.split('-').map(Number)
-  const diff = Math.round((new Date(td).getTime() - new Date(y, m - 1, d).getTime()) / 86400000)
+  const diff = diffDays(td, checkOut)
   if (diff === 1) return 'partenza ieri'
-  return `partenza il ${new Date(y, m - 1, d).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })}`
+  return `partenza il ${dayMonth(checkOut)}`
 }
+
+// Quando cade (o cadeva) il cambio biancheria rispetto a oggi
+function cambioLabel(due: string, td: string) {
+  const diff = diffDays(due, td)
+  if (diff === 0) return 'oggi'
+  if (diff === -1) return 'previsto ieri'
+  if (diff < 0) return `previsto il ${dayMonth(due)}`
+  if (diff === 1) return 'domani'
+  return `il ${dayMonth(due)}`
+}
+
+type Cambio = { booking: any; due: string }
 
 type RigaCamera = {
   room: any
   shortName: string
   daPulire: boolean
-  partenza: any | null   // prenotazione del check-out che ha sporcato la camera
-  arrivo: any | null     // prenotazione che arriva oggi nella stessa camera
+  partenza: any | null       // prenotazione del check-out che ha sporcato la camera
+  cambio: Cambio | null      // cambio biancheria dovuto (oggi o in ritardo)
+  cambioProssimo: Cambio | null // cambio in arrivo nei prossimi giorni (spostabile/anticipabile)
+  arrivo: any | null         // prenotazione che arriva oggi nella stessa camera
 }
 
 export default function Pulizie() {
   const [rooms, setRooms] = useState<any[]>([])
   const [bookings, setBookings] = useState<any[]>([])
   const [localCleaned, setLocalCleaned] = useState<string[]>([])
+  const [localLinen, setLocalLinen] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const td = todayStr()
 
   useEffect(() => {
     try { setLocalCleaned(JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]')) } catch { /* ignora */ }
+    try { setLocalLinen(JSON.parse(localStorage.getItem(LOCAL_LINEN_KEY) || '{}')) } catch { /* ignora */ }
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
       supabase.from('bookings').select('*, guests(full_name, phone)').neq('status', 'annullata'),
@@ -64,38 +104,78 @@ export default function Pulizie() {
     const out: RigaCamera[] = rooms.map(room => {
       // Ultimo check-out già avvenuto (oggi o nel passato): è lui a rendere la camera "da pulire"
       const partenze = bookings.filter(b => b.room_id === room.id && b.check_out <= td)
-      const partenza = partenze.sort((a, b) => b.check_out.localeCompare(a.check_out))[0] || null
-      const pulita = !partenza || partenza.cleaned_at != null || localCleaned.includes(partenza.id)
+      const ultima = partenze.sort((a, b) => b.check_out.localeCompare(a.check_out))[0] || null
+      const partenzaSporca = ultima && ultima.cleaned_at == null && !localCleaned.includes(ultima.id)
+
+      // Cambio biancheria: ospite in corso (non parte oggi), ogni NOTTI_CAMBIO notti dal
+      // check-in oppure dalla data spostata/segnata (linen_next_date)
+      const inCorso = bookings.find(b => b.room_id === room.id && b.check_in <= td && b.check_out > td) || null
+      let cambio: Cambio | null = null
+      let cambioProssimo: Cambio | null = null
+      if (inCorso) {
+        const due = inCorso.linen_next_date ?? localLinen[inCorso.id] ?? addDaysStr(inCorso.check_in, NOTTI_CAMBIO)
+        if (due < inCorso.check_out) {
+          if (due <= td) cambio = { booking: inCorso, due }
+          else if (diffDays(due, td) <= GIORNI_PREAVVISO) cambioProssimo = { booking: inCorso, due }
+        }
+      }
+
       const arrivo = bookings.find(b => b.room_id === room.id && b.check_in === td) || null
       return {
         room,
         shortName: room.name.split(' ').slice(-1)[0],
-        daPulire: !pulita,
-        partenza: pulita ? null : partenza,
+        daPulire: !!partenzaSporca || !!cambio,
+        partenza: partenzaSporca ? ultima : null,
+        cambio,
+        cambioProssimo,
         arrivo,
       }
     })
-    // Prima le "da pulire con arrivo oggi", poi le "da pulire", infine le "pulite"
-    const rank = (r: RigaCamera) => (r.daPulire && r.arrivo ? 0 : r.daPulire ? 1 : 2)
+    // Prima le "da pulire con arrivo oggi", poi le "da pulire", poi i cambi in arrivo, infine le "pulite"
+    const rank = (r: RigaCamera) => (r.daPulire && r.arrivo ? 0 : r.daPulire ? 1 : r.cambioProssimo ? 2 : 3)
     return out.sort((a, b) => rank(a) - rank(b))
-  }, [rooms, bookings, localCleaned, td])
+  }, [rooms, bookings, localCleaned, localLinen, td])
 
   const daRifare = righe.filter(r => r.daPulire).length
 
-  async function segnaPulita(riga: RigaCamera) {
-    const b = riga.partenza
-    if (!b || saving) return
-    setSaving(riga.room.id)
-    const cleanedAt = new Date().toISOString()
-    const { error } = await supabase.from('bookings').update({ cleaned_at: cleanedAt }).eq('id', b.id)
+  // Salva la data del prossimo cambio biancheria (con fallback locale se la colonna manca)
+  async function salvaCambio(bookingId: string, date: string) {
+    const { error } = await supabase.from('bookings').update({ linen_next_date: date }).eq('id', bookingId)
     if (error) {
-      // Colonna cleaned_at non ancora migrata su Supabase: ricorda la pulizia in locale
-      const next = [...localCleaned, b.id]
-      setLocalCleaned(next)
-      try { localStorage.setItem(LOCAL_KEY, JSON.stringify(next)) } catch { /* ignora */ }
+      const next = { ...localLinen, [bookingId]: date }
+      setLocalLinen(next)
+      try { localStorage.setItem(LOCAL_LINEN_KEY, JSON.stringify(next)) } catch { /* ignora */ }
     } else {
-      setBookings(bookings.map(x => x.id === b.id ? { ...x, cleaned_at: cleanedAt } : x))
+      setBookings(bs => bs.map(x => x.id === bookingId ? { ...x, linen_next_date: date } : x))
     }
+  }
+
+  async function spostaCambio(riga: RigaCamera, delta: number) {
+    const c = riga.cambio || riga.cambioProssimo
+    if (!c || saving) return
+    setSaving(riga.room.id)
+    await salvaCambio(c.booking.id, addDaysStr(c.due, delta))
+    setSaving(null)
+  }
+
+  async function segnaPulita(riga: RigaCamera) {
+    if (saving) return
+    setSaving(riga.room.id)
+    if (riga.partenza) {
+      const b = riga.partenza
+      const cleanedAt = new Date().toISOString()
+      const { error } = await supabase.from('bookings').update({ cleaned_at: cleanedAt }).eq('id', b.id)
+      if (error) {
+        // Colonna cleaned_at non ancora migrata su Supabase: ricorda la pulizia in locale
+        const next = [...localCleaned, b.id]
+        setLocalCleaned(next)
+        try { localStorage.setItem(LOCAL_KEY, JSON.stringify(next)) } catch { /* ignora */ }
+      } else {
+        setBookings(bs => bs.map(x => x.id === b.id ? { ...x, cleaned_at: cleanedAt } : x))
+      }
+    }
+    // Cambio biancheria fatto: il conteggio delle 4 notti riparte da oggi
+    if (riga.cambio) await salvaCambio(riga.cambio.booking.id, addDaysStr(td, NOTTI_CAMBIO))
     setSaving(null)
   }
 
@@ -105,7 +185,7 @@ export default function Pulizie() {
 
       <h1 className="font-serif text-2xl text-green-dark capitalize">{italianDate()}</h1>
       <p className="text-sm text-gray-500 mb-4">
-        {loading ? ' ' : daRifare === 0 ? 'Nessuna camera da rifare' : daRifare === 1 ? '1 camera da rifare' : `${daRifare} camere da rifare`}
+        {loading ? ' ' : daRifare === 0 ? 'Nessuna camera da rifare' : daRifare === 1 ? '1 camera da rifare' : `${daRifare} camere da rifare`}
       </p>
 
       {loading ? (
@@ -113,11 +193,12 @@ export default function Pulizie() {
       ) : (
         <div className="flex flex-col gap-3">
           {righe.map(riga => {
-            const { room, shortName, daPulire, partenza, arrivo } = riga
+            const { room, shortName, daPulire, partenza, cambio, cambioProssimo, arrivo } = riga
             const conArrivo = daPulire && arrivo
+            const spostabile = cambio || cambioProssimo
             return (
               <div key={room.id}
-                className={`bg-white rounded-[10px] border border-card-border p-4 ${!daPulire ? 'opacity-55' : ''}`}>
+                className={`bg-white rounded-[10px] border border-card-border p-4 ${!daPulire && !cambioProssimo ? 'opacity-55' : ''}`}>
                 <div className="flex items-start gap-3">
                   <span className="font-serif text-sm text-brass pt-0.5">{ROOM_NUMBER_BY_NAME[shortName] || ''}</span>
                   <div className="min-w-0 flex-1">
@@ -131,6 +212,12 @@ export default function Pulizie() {
                       {partenza && (
                         <span className="text-xs text-gray-500">{partenzaLabel(partenza.check_out, td)}</span>
                       )}
+                      {(cambio || cambioProssimo) && (
+                        <>
+                          <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={{ background: '#EDE6D6', color: '#5a6b3f' }}>cambio biancheria</span>
+                          <span className="text-xs text-gray-500">{cambioLabel((cambio || cambioProssimo)!.due, td)}</span>
+                        </>
+                      )}
                     </div>
                     <p className="text-[11px] text-stone mt-0.5">{ROOM_DESC_BY_NAME[shortName] || ''}</p>
                     {conArrivo && (
@@ -138,8 +225,22 @@ export default function Pulizie() {
                         arriva un ospite oggi{arrivo.check_in_time ? ` alle ${arrivo.check_in_time}` : ''}
                       </p>
                     )}
+                    {spostabile && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        <span className="text-xs text-gray-500">Sposta cambio:</span>
+                        {[-2, -1, 1, 2].map(d => (
+                          <button key={d} onClick={() => spostaCambio(riga, d)} disabled={saving === room.id}
+                            className="rounded-full border border-card-border bg-cream text-green-mid text-xs font-semibold px-2.5 py-1 disabled:opacity-50">
+                            {d > 0 ? `+${d}g` : `${d}g`}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     {partenza?.notes && (
                       <p className="text-sm text-green-mid italic mt-2">“{partenza.notes}”</p>
+                    )}
+                    {(cambio || cambioProssimo)?.booking.notes && (
+                      <p className="text-sm text-green-mid italic mt-2">“{(cambio || cambioProssimo)!.booking.notes}”</p>
                     )}
                   </div>
                   {daPulire && (
