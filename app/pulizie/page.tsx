@@ -63,6 +63,17 @@ function cambioLabel(due: string, td: string) {
 
 type Cambio = { booking: any; due: string }
 
+// Prolungamenti: stesso ospite, stessa camera, date contigue = un unico soggiorno
+// (es. prenotazione separata per distinguere il pagamento). Il confine tra le due
+// prenotazioni non è una partenza né un arrivo, e il conteggio delle 4 notti
+// non riparte. Il cambio camera invece resta un soggiorno nuovo (biancheria fresca).
+function continuaIn(bookings: any[], b: any) {
+  return bookings.find(x => x.id !== b.id && x.room_id === b.room_id && b.guest_id && x.guest_id === b.guest_id && x.check_in === b.check_out) || null
+}
+function continuaDa(bookings: any[], b: any) {
+  return bookings.find(x => x.id !== b.id && x.room_id === b.room_id && b.guest_id && x.guest_id === b.guest_id && x.check_out === b.check_in) || null
+}
+
 type RigaCamera = {
   room: any
   shortName: string
@@ -102,25 +113,39 @@ export default function Pulizie() {
 
   const righe: RigaCamera[] = useMemo(() => {
     const out: RigaCamera[] = rooms.map(room => {
-      // Ultimo check-out già avvenuto (oggi o nel passato): è lui a rendere la camera "da pulire"
-      const partenze = bookings.filter(b => b.room_id === room.id && b.check_out <= td)
+      // Ultimo check-out già avvenuto (oggi o nel passato): è lui a rendere la camera
+      // "da pulire". I confini dei prolungamenti (l'ospite continua) non contano.
+      const partenze = bookings.filter(b => b.room_id === room.id && b.check_out <= td && !continuaIn(bookings, b))
       const ultima = partenze.sort((a, b) => b.check_out.localeCompare(a.check_out))[0] || null
       const partenzaSporca = ultima && ultima.cleaned_at == null && !localCleaned.includes(ultima.id)
 
-      // Cambio biancheria: ospite in corso (non parte oggi), ogni NOTTI_CAMBIO notti dal
-      // check-in oppure dalla data spostata/segnata (linen_next_date)
+      // Cambio biancheria: ospite in corso (non parte oggi), ogni NOTTI_CAMBIO notti
+      // dall'inizio del soggiorno continuativo in questa camera (prolungamenti inclusi),
+      // oppure dalla data spostata/segnata (linen_next_date)
       const inCorso = bookings.find(b => b.room_id === room.id && b.check_in <= td && b.check_out > td) || null
       let cambio: Cambio | null = null
       let cambioProssimo: Cambio | null = null
       if (inCorso) {
-        const due = inCorso.linen_next_date ?? localLinen[inCorso.id] ?? addDaysStr(inCorso.check_in, NOTTI_CAMBIO)
-        if (due < inCorso.check_out) {
+        // Ricostruisce il soggiorno continuativo: indietro fino al primo segmento,
+        // avanti fino all'ultimo (prolungamenti già prenotati)
+        let inizio = inCorso
+        const tratto = [inCorso]
+        for (let prev = continuaDa(bookings, inizio); prev; prev = continuaDa(bookings, prev)) { inizio = prev; tratto.push(prev) }
+        let fine = inCorso
+        for (let next = continuaIn(bookings, fine); next; next = continuaIn(bookings, next)) { fine = next; tratto.push(next) }
+        // Data salvata: prima quella del segmento corrente (è dove scriviamo),
+        // poi quella dei segmenti precedenti (cambio segnato prima del prolungamento)
+        const salvata = inCorso.linen_next_date ?? localLinen[inCorso.id]
+          ?? tratto.map(b => b.linen_next_date ?? localLinen[b.id]).filter(Boolean).sort().slice(-1)[0]
+        const due = salvata ?? addDaysStr(inizio.check_in, NOTTI_CAMBIO)
+        if (due < fine.check_out) {
           if (due <= td) cambio = { booking: inCorso, due }
           else if (diffDays(due, td) <= GIORNI_PREAVVISO) cambioProssimo = { booking: inCorso, due }
         }
       }
 
-      const arrivo = bookings.find(b => b.room_id === room.id && b.check_in === td) || null
+      // Arrivo di oggi: solo se è un ospite nuovo per questa camera (non un prolungamento)
+      const arrivo = bookings.find(b => b.room_id === room.id && b.check_in === td && !continuaDa(bookings, b)) || null
       return {
         room,
         shortName: room.name.split(' ').slice(-1)[0],
