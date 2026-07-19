@@ -113,10 +113,6 @@ export default function Calendario() {
     }
   }, [loading, CELL_W])
 
-  function scrollToToday() {
-    if (scrollRef.current) scrollRef.current.scrollLeft = DAYS_BEFORE * CELL_W - 80
-  }
-
   function updateVisibleMonth() {
     const sl = scrollRef.current?.scrollLeft ?? 0
     const idx = Math.min(days.length - 1, Math.max(0, Math.floor(sl / CELL_W)))
@@ -220,9 +216,7 @@ export default function Calendario() {
 
             {/* ── HEADER GIORNI ── */}
             <div style={{ position: 'sticky', top: HEADER_MONTH_H, zIndex: 30, display: 'flex', height: HEADER_DAY_H, background: HEADER_BG, borderBottom: '2px solid #D6CFBD' }}>
-              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, borderRight: '1px solid #ECE8DD', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <button onClick={scrollToToday} style={{ fontSize: 10, fontWeight: 700, color: 'white', background: '#2D6A4F', border: 'none', borderRadius: 10, padding: '2px 8px', cursor: 'pointer' }}>Oggi</button>
-              </div>
+              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, borderRight: '1px solid #ECE8DD' }} />
               {days.map((d, i) => {
                 const isToday = toStr(d) === todayStr
                 const isSun = d.getDay() === 0
