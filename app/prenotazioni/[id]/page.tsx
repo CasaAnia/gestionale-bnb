@@ -286,6 +286,7 @@ export default function BookingDetail() {
   const [accontiOk, setAccontiOk] = useState(true)
   const [accontoForm, setAccontoForm] = useState({ amount: '', method: 'contanti', paid_on: new Date().toISOString().split('T')[0] })
   const [savingAcconto, setSavingAcconto] = useState(false)
+  const [accontoError, setAccontoError] = useState<string | null>(null)
   const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
 
   function getDaysBetween(checkIn: string, checkOut: string): string[] {
@@ -392,6 +393,9 @@ export default function BookingDetail() {
     if (!error && data) {
       setAcconti([...acconti, data].sort((a, b) => a.paid_on.localeCompare(b.paid_on)))
       setAccontoForm({ amount: '', method: 'contanti', paid_on: new Date().toISOString().split('T')[0] })
+      setAccontoError(null)
+    } else {
+      setAccontoError(error?.message || 'Errore di salvataggio')
     }
     setSavingAcconto(false)
   }
@@ -949,6 +953,9 @@ export default function BookingDetail() {
                   <span className="font-semibold" style={{ color: residuo > 0 ? '#8a4f2f' : '#3D5A66' }}>{residuo > 0 ? 'Resta da avere' : 'Saldato'}</span>
                   <span className="font-bold" style={{ color: residuo > 0 ? '#8a4f2f' : '#3D5A66' }}>€{Math.max(0, residuo).toFixed(0)}{residuo < 0 ? ` (+€${(-residuo).toFixed(0)} in più)` : ''}</span>
                 </div>
+                {accontoError && (
+                  <p className="text-xs text-[#8C3B2E] bg-[#F6E4DE] rounded-lg px-2 py-1.5 mb-2">❌ {accontoError}</p>
+                )}
                 <div className="flex gap-2 items-center">
                   <input type="number" inputMode="decimal" min={0} placeholder="€"
                     value={accontoForm.amount}

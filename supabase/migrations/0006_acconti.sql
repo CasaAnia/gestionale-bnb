@@ -10,3 +10,7 @@ create table if not exists payments (
 );
 
 create index if not exists idx_payments_booking on payments (booking_id);
+
+-- Come per le altre tabelle del gestionale: RLS disattivata (l'editor SQL
+-- Supabase la attiva di default sulle tabelle nuove e blocca le scritture)
+alter table payments disable row level security;
