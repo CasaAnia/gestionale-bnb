@@ -14,6 +14,12 @@ export const metadata: Metadata = {
     icon: '/apple-touch-icon.png',
     apple: '/apple-touch-icon.png',
   },
+  // Apertura come app (senza barra Safari) dalla schermata Home di iOS
+  appleWebApp: {
+    capable: true,
+    title: 'Casa Ania',
+    statusBarStyle: 'default',
+  },
 }
 
 export const viewport: Viewport = {

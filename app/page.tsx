@@ -132,7 +132,7 @@ export default function Dashboard() {
             <p className="font-serif text-xl text-[#8C3B2E]">€{fmt(data.speseAnno)}</p>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Link href="/prenotazioni" className="bg-sage rounded-[10px] p-3 text-center border border-card-border">
               <div className="text-2xl">📅</div>
               <div className="text-xs font-semibold text-green-dark mt-1">Prenotazioni</div>
@@ -144,6 +144,10 @@ export default function Dashboard() {
             <Link href="/spese" className="bg-[#F4E6DF] rounded-[10px] p-3 text-center border border-card-border">
               <div className="text-2xl">💶</div>
               <div className="text-xs font-semibold text-[#7A3B22] mt-1">Spese</div>
+            </Link>
+            <Link href="/impostazioni" className="bg-white rounded-[10px] p-3 text-center border border-card-border">
+              <div className="text-2xl">🔔</div>
+              <div className="text-xs font-semibold text-green-dark mt-1">Impostazioni e notifiche</div>
             </Link>
           </div>
         </>
