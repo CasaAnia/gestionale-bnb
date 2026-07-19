@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { House, CalendarDays, DoorOpen, ClipboardList, Plus, Users, Banknote, ChartColumn, Settings } from 'lucide-react'
+import { House, CalendarDays, DoorOpen, Sparkles, ClipboardList, Plus, Users, Banknote, ChartColumn, Settings } from 'lucide-react'
 
 const mobileNavItems = [
   { href: '/calendario', label: 'Calendario', Icon: CalendarDays },
@@ -10,16 +10,30 @@ const mobileNavItems = [
   { href: '/statistiche', label: 'Report', Icon: ChartColumn },
 ]
 
-const desktopNavItems = [
-  { href: '/', label: 'Home', Icon: House },
-  { href: '/calendario', label: 'Calendario', Icon: CalendarDays },
-  { href: '/arrivi', label: 'Arrivi', Icon: DoorOpen },
-  { href: '/prenotazioni', label: 'Prenotazioni', Icon: ClipboardList },
-  { href: '/nuova', label: 'Nuova', Icon: Plus },
-  { href: '/clienti', label: 'Clienti', Icon: Users },
-  { href: '/spese', label: 'Spese', Icon: Banknote },
-  { href: '/statistiche', label: 'Statistiche', Icon: ChartColumn },
-  { href: '/impostazioni', label: 'Impostazioni', Icon: Settings },
+const desktopNavGroups = [
+  {
+    label: null as string | null,
+    items: [{ href: '/', label: 'Home', Icon: House }],
+  },
+  {
+    label: 'Ogni giorno',
+    items: [
+      { href: '/calendario', label: 'Calendario', Icon: CalendarDays },
+      { href: '/arrivi', label: 'Arrivi', Icon: DoorOpen },
+      { href: '/pulizie', label: 'Pulizie', Icon: Sparkles },
+    ],
+  },
+  {
+    label: null as string | null,
+    items: [
+      { href: '/prenotazioni', label: 'Prenotazioni', Icon: ClipboardList },
+      { href: '/nuova', label: 'Nuova', Icon: Plus },
+      { href: '/clienti', label: 'Clienti', Icon: Users },
+      { href: '/spese', label: 'Spese', Icon: Banknote },
+      { href: '/statistiche', label: 'Statistiche', Icon: ChartColumn },
+      { href: '/impostazioni', label: 'Impostazioni', Icon: Settings },
+    ],
+  },
 ]
 
 export default function BottomNav() {
@@ -57,16 +71,25 @@ export default function BottomNav() {
           </p>
         </div>
         <div className="flex flex-col gap-1.5">
-          {desktopNavItems.map(item => {
-            const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
-            return (
-              <Link key={item.href} href={item.href}
-                className={`flex items-center gap-3 pl-4 pr-4 py-2.5 font-serif text-[15px] border-l-2 transition-colors duration-200 ${active ? 'border-[#A9884E] text-green-dark' : 'border-transparent text-[#8a9488] hover:text-green-dark'}`}>
-                <item.Icon size={16} strokeWidth={1.5} className="shrink-0 text-green-mid" aria-hidden />
-                <span>{item.label}</span>
-              </Link>
-            )
-          })}
+          {desktopNavGroups.map((group, gi) => (
+            <div key={gi} className="flex flex-col gap-1.5">
+              {group.label && (
+                <p className="pl-4 mt-3 mb-0.5 text-[9px] uppercase" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>
+                  {group.label}
+                </p>
+              )}
+              {group.items.map(item => {
+                const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+                return (
+                  <Link key={item.href} href={item.href}
+                    className={`flex items-center gap-3 pl-4 pr-4 py-2.5 font-serif text-[15px] border-l-2 transition-colors duration-200 ${active ? 'border-[#A9884E] text-green-dark' : 'border-transparent text-[#8a9488] hover:text-green-dark'}`}>
+                    <item.Icon size={16} strokeWidth={1.5} className="shrink-0 text-green-mid" aria-hidden />
+                    <span>{item.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          ))}
         </div>
       </nav>
     </>
