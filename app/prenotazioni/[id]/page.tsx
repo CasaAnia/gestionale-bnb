@@ -1192,12 +1192,12 @@ export default function BookingDetail() {
             openWhatsApp(phone, buildWhatsappMsg(booking, type, groupBookings))
           }
         const buttons = (
-          <div className="flex flex-col gap-2">
-            <a href={waHref('conferma')} onClick={waClick('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-2 text-sm font-semibold">✅ Conferma prenotazione</a>
-            <a href={waHref('modifica')} onClick={waClick('modifica')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-2 text-sm font-semibold">✏️ Modifica prenotazione</a>
-            <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-2 text-sm font-semibold">🏦 Dati bonifico</a>
-            <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto')} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#7D9DB0] text-white rounded-lg py-2 text-sm font-semibold">💸 Pagamento ricevuto</a>
-            <a href={waHref('annullamento')} onClick={waClick('annullamento')} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#B5502F] text-white rounded-lg py-2 text-sm font-semibold">❌ Annullamento</a>
+          <div className="grid grid-cols-2 gap-1.5">
+            <a href={waHref('conferma')} onClick={waClick('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-1.5 text-xs font-semibold">✅ Conferma</a>
+            <a href={waHref('modifica')} onClick={waClick('modifica')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-1.5 text-xs font-semibold">✏️ Modifica</a>
+            <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-1.5 text-xs font-semibold">🏦 Dati bonifico</a>
+            <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto')} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">💸 Pagamento</a>
+            <a href={waHref('annullamento')} onClick={waClick('annullamento')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#B5502F] text-white rounded-lg py-1.5 text-xs font-semibold">❌ Annullamento</a>
           </div>
         )
         return (
@@ -1206,12 +1206,12 @@ export default function BookingDetail() {
               className="w-full bg-green-dark text-white rounded-xl py-3 font-semibold mb-3">
               🖼 Conferma WhatsApp (immagine + testo)
             </button>
-            <div className="bg-sage rounded-xl p-4 border border-[#C9DDD0] mb-3">
-              <p className="font-semibold text-green-dark mb-2">💬 WhatsApp Ania</p>
+            <div className="bg-sage rounded-xl p-3 border border-[#C9DDD0] mb-2">
+              <p className="font-semibold text-green-dark mb-1.5 text-sm">💬 WhatsApp Ania</p>
               {buttons}
             </div>
-            <div className="bg-[#F4E6DF] rounded-xl p-4 border border-[#E9D3C8] mb-4">
-              <p className="font-semibold text-[#7A3B22] mb-2">💼 WhatsApp Business</p>
+            <div className="bg-[#F4E6DF] rounded-xl p-3 border border-[#E9D3C8] mb-4">
+              <p className="font-semibold text-[#7A3B22] mb-1.5 text-sm">💼 WhatsApp Business</p>
               {buttons}
             </div>
           </>
