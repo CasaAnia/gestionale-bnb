@@ -646,7 +646,7 @@ export default function BookingDetail() {
   const selectedRoom = rooms.find(r => r.id === editForm.room_id)
 
   return (
-    <div className="p-4">
+    <div className="p-4 sm:max-w-[420px] sm:mx-auto">
       <div className="mb-2"><BackLink href="/prenotazioni" /></div>
       <div className="flex items-center gap-3 mb-4">
         <h1 className="font-serif text-xl text-green-dark flex-1">Prenotazione</h1>
@@ -975,7 +975,7 @@ export default function BookingDetail() {
                 {accontoError && (
                   <p className="text-xs text-[#8C3B2E] bg-[#F6E4DE] rounded-lg px-2 py-1.5 mb-2">❌ {accontoError}</p>
                 )}
-                <div className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
+                <div className="flex flex-wrap gap-2 items-center">
                   <input type="number" inputMode="decimal" min={0} placeholder="€"
                     value={accontoForm.amount}
                     onChange={e => setAccontoForm({ ...accontoForm, amount: e.target.value })}
@@ -987,10 +987,10 @@ export default function BookingDetail() {
                   </select>
                   <input type="date" value={accontoForm.paid_on}
                     onChange={e => setAccontoForm({ ...accontoForm, paid_on: e.target.value })}
-                    className="basis-full sm:basis-0 sm:flex-1 sm:min-w-0 border border-card-border rounded-lg p-2 text-sm bg-white" />
+                    className="basis-full border border-card-border rounded-lg p-2 text-sm bg-white" />
                   <button onClick={aggiungiAcconto} disabled={savingAcconto || !parseFloat(accontoForm.amount)}
-                    className="basis-full sm:basis-auto sm:shrink-0 bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40">
-                    {savingAcconto ? '...' : (<>+<span className="sm:hidden"> Aggiungi</span></>)}
+                    className="basis-full bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40">
+                    {savingAcconto ? '...' : '+ Aggiungi'}
                   </button>
                 </div>
               </div>
