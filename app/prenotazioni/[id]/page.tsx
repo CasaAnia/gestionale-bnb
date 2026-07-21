@@ -646,7 +646,7 @@ export default function BookingDetail() {
   const selectedRoom = rooms.find(r => r.id === editForm.room_id)
 
   return (
-    <div className="p-4 sm:max-w-[420px] sm:mx-auto">
+    <div className="p-4">
       <div className="mb-2"><BackLink href="/prenotazioni" /></div>
       <div className="flex items-center gap-3 mb-4">
         <h1 className="font-serif text-xl text-green-dark flex-1">Prenotazione</h1>
@@ -975,7 +975,7 @@ export default function BookingDetail() {
                 {accontoError && (
                   <p className="text-xs text-[#8C3B2E] bg-[#F6E4DE] rounded-lg px-2 py-1.5 mb-2">❌ {accontoError}</p>
                 )}
-                <div className="flex flex-wrap gap-2 items-center">
+                <div className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
                   <input type="number" inputMode="decimal" min={0} placeholder="€"
                     value={accontoForm.amount}
                     onChange={e => setAccontoForm({ ...accontoForm, amount: e.target.value })}
@@ -987,10 +987,10 @@ export default function BookingDetail() {
                   </select>
                   <input type="date" value={accontoForm.paid_on}
                     onChange={e => setAccontoForm({ ...accontoForm, paid_on: e.target.value })}
-                    className="basis-full border border-card-border rounded-lg p-2 text-sm bg-white" />
+                    className="basis-full sm:basis-0 sm:flex-1 sm:min-w-0 border border-card-border rounded-lg p-2 text-sm bg-white" />
                   <button onClick={aggiungiAcconto} disabled={savingAcconto || !parseFloat(accontoForm.amount)}
-                    className="basis-full bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40">
-                    {savingAcconto ? '...' : '+ Aggiungi'}
+                    className="basis-full sm:basis-auto sm:shrink-0 bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40">
+                    {savingAcconto ? '...' : (<>+<span className="sm:hidden"> Aggiungi</span></>)}
                   </button>
                 </div>
               </div>
@@ -1092,12 +1092,14 @@ export default function BookingDetail() {
           )}
           {(booking.status === 'confermata' || booking.status === 'in_attesa') && (
             <>
-              <button onClick={addRoomChange} className="w-full mt-3 bg-[#9B8EC4] text-white font-semibold text-sm py-2 rounded-xl">
-                ➕ Aggiungi cambio camera
-              </button>
-              <button onClick={addPriceChange} className="w-full mt-2 bg-[#7A9B7E] text-white font-semibold text-sm py-2 rounded-xl">
-                💶 Cambia prezzo da una data (stessa camera)
-              </button>
+              <div className="grid grid-cols-2 gap-1.5 mt-3">
+                <button onClick={addRoomChange} className="bg-[#9B8EC4] text-white font-semibold text-xs py-2 px-1 rounded-xl">
+                  ➕ Cambio camera
+                </button>
+                <button onClick={addPriceChange} className="bg-[#7A9B7E] text-white font-semibold text-xs py-2 px-1 rounded-xl">
+                  💶 Cambia prezzo
+                </button>
+              </div>
               <p className="text-[11px] text-gray-500 mt-1.5 px-1 leading-snug">
                 Per cambiare tariffa da un certo giorno senza spezzare la prenotazione agli occhi del cliente: prima accorcia la partenza di questo periodo alla data da cui parte il nuovo prezzo (con "Modifica" qui sopra, oppure "Modifica date soggiorno" se già raggruppato), poi tocca "💶 Cambia prezzo": si apre una nuova riga già sulla stessa camera, tu cambi solo la tariffa/notte e la data di partenza finale. Il calendario, WhatsApp e il conto del soggiorno la mostreranno come un unico soggiorno.
               </p>
@@ -1128,7 +1130,7 @@ export default function BookingDetail() {
 
       {/* Bottone Modifica prenotazione */}
       {!editing && booking.status !== 'annullata' && (
-        <button onClick={() => setEditing(true)} className="w-full bg-green-mid text-white rounded-xl py-3 font-semibold mb-4">
+        <button onClick={() => setEditing(true)} className="w-full bg-green-mid text-white rounded-xl py-2 font-semibold mb-4">
           ✏️ Modifica prenotazione
         </button>
       )}
@@ -1172,11 +1174,11 @@ export default function BookingDetail() {
 
       {/* Azioni */}
       {!editing && (booking.status === 'confermata' || booking.status === 'completata' || booking.status === 'in_attesa') && (
-        <div className="flex flex-col gap-2 mb-4">
+        <div className="grid grid-cols-2 gap-2 mb-4">
           {booking.status === 'confermata' && (
-            <button onClick={markComplete} className="bg-gray-100 text-gray-700 rounded-xl py-3 font-semibold">✓ Segna come completata</button>
+            <button onClick={markComplete} className="bg-gray-100 text-gray-700 rounded-xl py-2 text-sm font-semibold">✓ Completata</button>
           )}
-          <button onClick={() => setShowCancel(true)} className="bg-[#F6E4DE] text-[#8C3B2E] rounded-xl py-3 font-semibold">Annulla prenotazione</button>
+          <button onClick={() => setShowCancel(true)} className={`bg-[#F6E4DE] text-[#8C3B2E] rounded-xl py-2 text-sm font-semibold ${booking.status !== 'confermata' ? 'col-span-2' : ''}`}>Annulla prenotazione</button>
         </div>
       )}
 
