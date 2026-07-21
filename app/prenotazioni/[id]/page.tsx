@@ -592,6 +592,25 @@ export default function BookingDetail() {
     router.push(`/nuova?guest_id=${guestId}&group_id=${groupId}&check_in=${lastCheckOut}`)
   }
 
+  // Stessa camera, prezzo diverso da una certa data: usa lo stesso meccanismo del cambio camera
+  // (nuovo segmento collegato allo stesso group_id) ma pre-seleziona la camera attuale, così basta
+  // cambiare solo la tariffa/notte. Prima va accorciata la partenza del periodo corrente alla data
+  // da cui parte il nuovo prezzo (con "Modifica" qui sopra o "Modifica date soggiorno" se già raggruppato).
+  async function addPriceChange() {
+    let groupId = booking.group_id
+    if (!groupId) {
+      groupId = crypto.randomUUID()
+      await supabase.from('bookings').update({ group_id: groupId }).eq('id', id)
+      setBooking({ ...booking, group_id: groupId })
+    }
+    const lastCheckOut = groupBookings.length > 0
+      ? [...groupBookings].sort((a, z) => z.check_out.localeCompare(a.check_out))[0].check_out
+      : booking.check_out
+    const guestId = booking.guest_id || booking.guests?.id
+    const roomId = booking.room_id
+    router.push(`/nuova?guest_id=${guestId}&group_id=${groupId}&check_in=${lastCheckOut}&room_id=${roomId}`)
+  }
+
   async function markComplete() {
     await supabase.from('bookings').update({ status: 'completata' }).eq('id', id)
     setBooking({ ...booking, status: 'completata' })
@@ -1072,9 +1091,17 @@ export default function BookingDetail() {
             </div>
           )}
           {(booking.status === 'confermata' || booking.status === 'in_attesa') && (
-            <button onClick={addRoomChange} className="w-full mt-3 bg-[#9B8EC4] text-white font-semibold text-sm py-2 rounded-xl">
-              ➕ Aggiungi cambio camera
-            </button>
+            <>
+              <button onClick={addRoomChange} className="w-full mt-3 bg-[#9B8EC4] text-white font-semibold text-sm py-2 rounded-xl">
+                ➕ Aggiungi cambio camera
+              </button>
+              <button onClick={addPriceChange} className="w-full mt-2 bg-[#7A9B7E] text-white font-semibold text-sm py-2 rounded-xl">
+                💶 Cambia prezzo da una data (stessa camera)
+              </button>
+              <p className="text-[11px] text-gray-500 mt-1.5 px-1 leading-snug">
+                Per cambiare tariffa da un certo giorno senza spezzare la prenotazione agli occhi del cliente: prima accorcia la partenza di questo periodo alla data da cui parte il nuovo prezzo (con "Modifica" qui sopra, oppure "Modifica date soggiorno" se già raggruppato), poi tocca "💶 Cambia prezzo": si apre una nuova riga già sulla stessa camera, tu cambi solo la tariffa/notte e la data di partenza finale. Il calendario, WhatsApp e il conto del soggiorno la mostreranno come un unico soggiorno.
+              </p>
+            </>
           )}
           {booking.status === 'annullata' && (
             <div className="mt-2">
