@@ -722,9 +722,9 @@ export default function BookingDetail() {
   // Bottoni WhatsApp in versione tenue per il pannello Azioni desktop
   const renderWaChips = (preferBusiness: boolean) => (
     <div className="grid grid-cols-2 gap-1.5">
-      <a href={waHref('conferma')} onClick={waClick('conferma', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>✅ Conferma</a>
-      <a href={waHref('modifica')} onClick={waClick('modifica', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>✏️ Modifica</a>
-      <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>🏦 Dati bonifico</a>
+      <a href={waHref('conferma')} onClick={waClick('conferma', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>✅ Conferma</a>
+      <a href={waHref('modifica')} onClick={waClick('modifica', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>✏️ Modifica</a>
+      <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>🏦 Dati bonifico</a>
       <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>💸 Pagamento</a>
       <a href={waHref('promemoria_bonifico')} onClick={waClick('promemoria_bonifico', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>⏰ Promemoria bonifico</a>
       <a href={waHref('libero')} onClick={waClick('libero', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EDEDED', color: '#444444' }}>✍️ Messaggio libero</a>
@@ -1000,10 +1000,6 @@ export default function BookingDetail() {
               <p className="font-bold text-lg">{guest?.full_name || guest?.phone}</p>
               <p className="text-gray-500">{booking.rooms?.name}</p>
             </div>
-            <span className="flex items-center gap-1.5 text-xs font-medium text-green-dark pt-1">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: booking.status === 'confermata' ? '#6C9A7C' : booking.status === 'annullata' ? '#8C3B2E' : booking.status === 'completata' ? '#9CA3AF' : '#C58A67' }} />
-              {booking.status}
-            </span>
           </div>
           {booking.check_in_time && (
             <div className="bg-sage border border-card-border rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
@@ -1269,11 +1265,8 @@ export default function BookingDetail() {
 
       {/* Azioni */}
       {!editing && (booking.status === 'confermata' || booking.status === 'completata' || booking.status === 'in_attesa') && (
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          {booking.status === 'confermata' && (
-            <button onClick={markComplete} className="bg-gray-100 text-gray-700 rounded-xl py-2 text-sm font-semibold">✓ Completata</button>
-          )}
-          <button onClick={() => setShowCancel(true)} className={`bg-[#F6E4DE] text-[#8C3B2E] rounded-xl py-2 text-sm font-semibold ${booking.status !== 'confermata' ? 'col-span-2' : ''}`}>Annulla prenotazione</button>
+        <div className="mb-4">
+          <button onClick={() => setShowCancel(true)} className="w-full bg-[#F6E4DE] text-[#8C3B2E] rounded-xl py-2 text-sm font-semibold">Annulla prenotazione</button>
         </div>
       )}
 
@@ -1281,9 +1274,9 @@ export default function BookingDetail() {
       {!editing && waPhone && (() => {
         const renderButtons = (preferBusiness: boolean) => (
           <div className="grid grid-cols-2 gap-1.5">
-            <a href={waHref('conferma')} onClick={waClick('conferma', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-1.5 text-xs font-semibold">✅ Conferma</a>
-            <a href={waHref('modifica')} onClick={waClick('modifica', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-1.5 text-xs font-semibold">✏️ Modifica</a>
-            <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-1.5 text-xs font-semibold">🏦 Dati bonifico</a>
+            <a href={waHref('conferma')} onClick={waClick('conferma', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">✅ Conferma</a>
+            <a href={waHref('modifica')} onClick={waClick('modifica', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">✏️ Modifica</a>
+            <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">🏦 Dati bonifico</a>
             <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">💸 Pagamento</a>
             <a href={waHref('promemoria_bonifico')} onClick={waClick('promemoria_bonifico', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">⏰ Promemoria bonifico</a>
             <a href={waHref('libero')} onClick={waClick('libero', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#8A8A8A] text-white rounded-lg py-1.5 text-xs font-semibold">✍️ Messaggio libero</a>
