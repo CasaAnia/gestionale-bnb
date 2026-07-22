@@ -101,7 +101,7 @@ export default function Dashboard() {
         .map(g => ({ ...g, residuo: g.dovuto - g.ricevuto }))
         .sort((a, b) => b.residuo - a.residuo)
 
-      setData({ entrateMese, incassatoMese, daIncassareMese, speseAnno, profittoMese, tariffaMedia, checkInOggi, checkOutOggi, camereOccupate, roomChanges, td, daIncassare })
+      setData({ entrateMese, incassatoMese, daIncassareMese, speseMese, profittoMese, tariffaMedia, checkInOggi, checkOutOggi, camereOccupate, roomChanges, td, daIncassare })
       setLoading(false)
     }
     load()
@@ -198,8 +198,8 @@ export default function Dashboard() {
               <p className="font-serif text-2xl text-green-dark">{data.camereOccupate}<span className="text-base text-gray-400">/4</span></p>
             </div>
             <div className="bg-white rounded-[10px] p-5 border border-card-border">
-              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Spese anno</p>
-              <p className="font-serif text-2xl text-[#8C3B2E]">€{fmt(data.speseAnno)}</p>
+              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Spese mese</p>
+              <p className="font-serif text-2xl text-[#8C3B2E]">€{fmt(data.speseMese)}</p>
             </div>
           </div>
 
