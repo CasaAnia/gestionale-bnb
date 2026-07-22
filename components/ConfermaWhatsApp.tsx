@@ -359,7 +359,7 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
                     <span style={{ fontSize: 44, fontWeight: 800, color: '#2D6A4F' }}>{fmtEuro(totale)}</span>
                   </div>
                   {pagamento === 'contanti' && (
-                    <p style={{ ...S.small, margin: '14px 0 0' }}>
+                    <p style={{ fontSize: 30, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.5, margin: '18px 0 0' }}>
                       Pagamento all&apos;arrivo, alla consegna delle chiavi, per l&apos;intera prenotazione: contanti o bonifico istantaneo.
                     </p>
                   )}
