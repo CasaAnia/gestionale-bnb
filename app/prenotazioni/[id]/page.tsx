@@ -35,7 +35,7 @@ function roomPageLink(roomName: string): string | null {
   return null
 }
 
-function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario', gruppo: any[] = []) {
+function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento', gruppo: any[] = []) {
   const name = b.guests?.full_name || 'Ospite'
   const room = b.rooms?.name || ''
   // Nome con tipologia (es. "Amelia – Singola"): solo nei messaggi al cliente
@@ -224,6 +224,18 @@ il suo arrivo si avvicina e vorrei organizzare al meglio la sua accoglienza: mi 
 Le ricordo che il check-in è dalle ore 15:00 alle 20:00. Se prevede di arrivare prima o dopo questi orari, mi avvisi pure per tempo, così mi organizzo per accoglierla al meglio.
 
 A presto,
+Ania
+Casa Granata Humanitas`
+  }
+
+  if (type === 'ringraziamento') {
+    return `Gentile *${name}*,
+grazie per aver soggiornato a Casa Granata Humanitas, è stato un piacere ospitarla.
+Spero che tutto sia andato bene. Se trova un momento per lasciare una recensione, per me vorrebbe dire moltissimo: https://maps.google.com/?cid=12687762198889638693
+
+E se dovesse ripassare da queste parti, saremo sempre felici di ospitarla di nuovo!
+
+Un caro saluto,
 Ania
 Casa Granata Humanitas`
   }
@@ -674,7 +686,7 @@ export default function BookingDetail() {
   const selectedRoom = rooms.find(r => r.id === editForm.room_id)
 
   // Link WhatsApp condivisi tra la versione mobile e il pannello Azioni desktop
-  type WaTipo = 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario'
+  type WaTipo = 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento'
   const rawPhone = (booking.guests?.phone || '').replace(/\D/g, '')
   const waPhone = rawPhone ? (rawPhone.startsWith('39') ? rawPhone : `39${rawPhone}`) : null
   const waHref = (type: WaTipo) =>
@@ -692,6 +704,7 @@ export default function BookingDetail() {
       <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto')} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>💸 Pagamento</a>
       <a href={waHref('promemoria_bonifico')} onClick={waClick('promemoria_bonifico')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>⏰ Promemoria bonifico</a>
       <a href={waHref('richiesta_orario')} onClick={waClick('richiesta_orario')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>🕐 Richiesta orario</a>
+      <a href={waHref('ringraziamento')} onClick={waClick('ringraziamento')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>🙏 Ringraziamento</a>
       <a href={waHref('annullamento')} onClick={waClick('annullamento')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#F6E4DE', color: '#8C3B2E' }}>❌ Annullamento</a>
     </div>
   )
@@ -1247,6 +1260,7 @@ export default function BookingDetail() {
             <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto')} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">💸 Pagamento</a>
             <a href={waHref('promemoria_bonifico')} onClick={waClick('promemoria_bonifico')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">⏰ Promemoria bonifico</a>
             <a href={waHref('richiesta_orario')} onClick={waClick('richiesta_orario')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">🕐 Richiesta orario</a>
+            <a href={waHref('ringraziamento')} onClick={waClick('ringraziamento')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">🙏 Ringraziamento</a>
             <a href={waHref('annullamento')} onClick={waClick('annullamento')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#B5502F] text-white rounded-lg py-1.5 text-xs font-semibold">❌ Annullamento</a>
           </div>
         )
