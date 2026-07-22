@@ -278,9 +278,18 @@ Casa Granata Humanitas`
 
 // Prova ad aprire l'app WhatsApp (desktop o mobile) tramite lo schema whatsapp://,
 // e ricade su wa.me (WhatsApp Web) se l'app non risponde entro 1 secondo.
-function openWhatsApp(phone: string, text: string) {
+function openWhatsApp(phone: string, text: string, preferBusiness: boolean = false) {
   const encoded = encodeURIComponent(text)
-  const appUrl = `whatsapp://send?phone=${phone}&text=${encoded}`
+  // whatsapp:// e whatsapp-consumer:// non sono schemi documentati ufficialmente da Meta:
+  // quando sul telefono sono installate sia WhatsApp che WhatsApp Business, è iOS a decidere
+  // da solo quale app apre ciascuno scheme, e la scelta può cambiare da sola con gli aggiornamenti.
+  // Proviamo prima lo scheme "preferito", poi l'altro, poi il link web come ultima spiaggia.
+  const schemeA = preferBusiness
+    ? `whatsapp://send?phone=${phone}&text=${encoded}`
+    : `whatsapp-consumer://send?phone=${phone}&text=${encoded}`
+  const schemeB = preferBusiness
+    ? `whatsapp-consumer://send?phone=${phone}&text=${encoded}`
+    : `whatsapp://send?phone=${phone}&text=${encoded}`
   const webUrl = `https://wa.me/${phone}?text=${encoded}`
 
   let handedOff = false
@@ -288,15 +297,23 @@ function openWhatsApp(phone: string, text: string) {
   document.addEventListener('visibilitychange', markHandedOff)
   window.addEventListener('blur', markHandedOff)
 
-  window.location.href = appUrl
+  window.location.href = schemeA
 
   setTimeout(() => {
-    document.removeEventListener('visibilitychange', markHandedOff)
-    window.removeEventListener('blur', markHandedOff)
-    if (!handedOff) {
-      window.open(webUrl, '_blank', 'noopener,noreferrer')
+    if (handedOff) {
+      document.removeEventListener('visibilitychange', markHandedOff)
+      window.removeEventListener('blur', markHandedOff)
+      return
     }
-  }, 1000)
+    window.location.href = schemeB
+    setTimeout(() => {
+      document.removeEventListener('visibilitychange', markHandedOff)
+      window.removeEventListener('blur', markHandedOff)
+      if (!handedOff) {
+        window.open(webUrl, '_blank', 'noopener,noreferrer')
+      }
+    }, 800)
+  }, 800)
 }
 
 export default function BookingDetail() {
@@ -691,23 +708,25 @@ export default function BookingDetail() {
   const waPhone = rawPhone ? (rawPhone.startsWith('39') ? rawPhone : `39${rawPhone}`) : null
   const waHref = (type: WaTipo) =>
     `https://wa.me/${waPhone}?text=${encodeURIComponent(buildWhatsappMsg(booking, type, groupBookings))}`
-  const waClick = (type: WaTipo) => (e: React.MouseEvent) => {
+  const waClick = (type: WaTipo, preferBusiness: boolean = false) => (e: React.MouseEvent) => {
     e.preventDefault()
-    openWhatsApp(waPhone!, buildWhatsappMsg(booking, type, groupBookings))
+    openWhatsApp(waPhone!, buildWhatsappMsg(booking, type, groupBookings), preferBusiness)
   }
   // Bottoni WhatsApp in versione tenue per il pannello Azioni desktop
-  const waChips = (
+  const renderWaChips = (preferBusiness: boolean) => (
     <div className="grid grid-cols-2 gap-1.5">
-      <a href={waHref('conferma')} onClick={waClick('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>✅ Conferma</a>
-      <a href={waHref('modifica')} onClick={waClick('modifica')} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>✏️ Modifica</a>
-      <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico')} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>🏦 Dati bonifico</a>
-      <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto')} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>💸 Pagamento</a>
-      <a href={waHref('promemoria_bonifico')} onClick={waClick('promemoria_bonifico')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>⏰ Promemoria bonifico</a>
-      <a href={waHref('richiesta_orario')} onClick={waClick('richiesta_orario')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>🕐 Richiesta orario</a>
-      <a href={waHref('ringraziamento')} onClick={waClick('ringraziamento')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>🙏 Ringraziamento</a>
-      <a href={waHref('annullamento')} onClick={waClick('annullamento')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#F6E4DE', color: '#8C3B2E' }}>❌ Annullamento</a>
+      <a href={waHref('conferma')} onClick={waClick('conferma', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>✅ Conferma</a>
+      <a href={waHref('modifica')} onClick={waClick('modifica', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>✏️ Modifica</a>
+      <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>🏦 Dati bonifico</a>
+      <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>💸 Pagamento</a>
+      <a href={waHref('promemoria_bonifico')} onClick={waClick('promemoria_bonifico', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>⏰ Promemoria bonifico</a>
+      <a href={waHref('richiesta_orario')} onClick={waClick('richiesta_orario', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>🕐 Richiesta orario</a>
+      <a href={waHref('ringraziamento')} onClick={waClick('ringraziamento', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>🙏 Ringraziamento</a>
+      <a href={waHref('annullamento')} onClick={waClick('annullamento', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#F6E4DE', color: '#8C3B2E' }}>❌ Annullamento</a>
     </div>
   )
+  const waChipsAnia = renderWaChips(false)
+  const waChipsBusiness = renderWaChips(true)
 
   return (
     <div className="p-4">
@@ -1252,16 +1271,16 @@ export default function BookingDetail() {
 
       {/* WhatsApp (mobile; su desktop sta nel pannello Azioni) */}
       {!editing && waPhone && (() => {
-        const buttons = (
+        const renderButtons = (preferBusiness: boolean) => (
           <div className="grid grid-cols-2 gap-1.5">
-            <a href={waHref('conferma')} onClick={waClick('conferma')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-1.5 text-xs font-semibold">✅ Conferma</a>
-            <a href={waHref('modifica')} onClick={waClick('modifica')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-1.5 text-xs font-semibold">✏️ Modifica</a>
-            <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico')} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-1.5 text-xs font-semibold">🏦 Dati bonifico</a>
-            <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto')} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">💸 Pagamento</a>
-            <a href={waHref('promemoria_bonifico')} onClick={waClick('promemoria_bonifico')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">⏰ Promemoria bonifico</a>
-            <a href={waHref('richiesta_orario')} onClick={waClick('richiesta_orario')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">🕐 Richiesta orario</a>
-            <a href={waHref('ringraziamento')} onClick={waClick('ringraziamento')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">🙏 Ringraziamento</a>
-            <a href={waHref('annullamento')} onClick={waClick('annullamento')} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#B5502F] text-white rounded-lg py-1.5 text-xs font-semibold">❌ Annullamento</a>
+            <a href={waHref('conferma')} onClick={waClick('conferma', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-1.5 text-xs font-semibold">✅ Conferma</a>
+            <a href={waHref('modifica')} onClick={waClick('modifica', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-1.5 text-xs font-semibold">✏️ Modifica</a>
+            <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-mid text-white rounded-lg py-1.5 text-xs font-semibold">🏦 Dati bonifico</a>
+            <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">💸 Pagamento</a>
+            <a href={waHref('promemoria_bonifico')} onClick={waClick('promemoria_bonifico', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">⏰ Promemoria bonifico</a>
+            <a href={waHref('richiesta_orario')} onClick={waClick('richiesta_orario', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">🕐 Richiesta orario</a>
+            <a href={waHref('ringraziamento')} onClick={waClick('ringraziamento', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">🙏 Ringraziamento</a>
+            <a href={waHref('annullamento')} onClick={waClick('annullamento', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#B5502F] text-white rounded-lg py-1.5 text-xs font-semibold">❌ Annullamento</a>
           </div>
         )
         return (
@@ -1272,11 +1291,11 @@ export default function BookingDetail() {
             </button>
             <div className="bg-sage rounded-xl p-3 border border-[#C9DDD0] mb-2">
               <p className="font-semibold text-green-dark mb-1.5 text-sm">💬 WhatsApp Ania</p>
-              {buttons}
+              {renderButtons(false)}
             </div>
             <div className="bg-[#F4E6DF] rounded-xl p-3 border border-[#E9D3C8] mb-4">
               <p className="font-semibold text-[#7A3B22] mb-1.5 text-sm">💼 WhatsApp Business</p>
-              {buttons}
+              {renderButtons(true)}
             </div>
           </div>
         )
@@ -1293,9 +1312,9 @@ export default function BookingDetail() {
               🖼 Conferma WhatsApp (immagine + testo)
             </button>
             <p className="font-semibold text-green-dark mt-4 mb-1.5 text-sm">💬 WhatsApp Ania</p>
-            {waChips}
+            {waChipsAnia}
             <p className="font-semibold text-[#7A3B22] mt-4 mb-1.5 text-sm">💼 WhatsApp Business</p>
-            {waChips}
+            {waChipsBusiness}
           </div>
         </aside>
       )}
