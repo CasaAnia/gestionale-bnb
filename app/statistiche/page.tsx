@@ -54,12 +54,13 @@ export default function Statistiche() {
     if (!data) return []
     const { bookings, expenses } = data
 
+    // Da noi si paga tutto all'arrivo: l'intera prenotazione conta nel giorno di
+    // check-in (stesso criterio della Home). Prima veniva spalmata sulle notti,
+    // con il letto extra diviso per notte: uscivano cifre non tonde e totali
+    // diversi da quelli della Home.
     function revenueForDay(day: string) {
-      return bookings.filter((b: any) => b.check_in <= day && b.check_out > day)
-        .reduce((s: number, b: any) => {
-          const notti = Math.max(1, Math.round((new Date(b.check_out).getTime() - new Date(b.check_in).getTime()) / 86400000))
-          return s + Number(b.price_per_night) + (b.extra_bed ? Number(b.extra_bed_total) / notti : 0)
-        }, 0)
+      return bookings.filter((b: any) => b.check_in === day)
+        .reduce((s: number, b: any) => s + Number(b.total_amount), 0)
     }
 
     function expensesForDay(day: string) {
