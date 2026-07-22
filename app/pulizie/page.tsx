@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import BackLink from '@/components/BackLink'
@@ -252,7 +253,12 @@ export default function Pulizie() {
 
   return (
     <div className="p-4">
-      <div className="mb-3"><BackLink href="/" /></div>
+      <div className="mb-3 flex items-center justify-between">
+        <BackLink href="/" />
+        <Link href="/pulizie/statistiche" className="text-sm font-semibold text-green-mid rounded-sm py-2 -my-2 pl-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-mid">
+          Statistiche ›
+        </Link>
+      </div>
 
       <h1 className="font-serif text-2xl text-green-dark capitalize">{italianDate()}</h1>
       <p className="text-sm text-gray-500 mb-4">
