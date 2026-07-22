@@ -95,6 +95,9 @@ export default function Pulizie() {
   const [saving, setSaving] = useState<string | null>(null)
   // Data scelta a mano per "cambio fatto il" (per camera; default oggi)
   const [fattoIl, setFattoIl] = useState<Record<string, string>>({})
+  // Data scelta a mano per "Segna pulita" (per camera; default oggi), per quando
+  // la pulizia viene registrata nell'app in un giorno diverso da quello vero
+  const [pulitaIl, setPulitaIl] = useState<Record<string, string>>({})
   const td = todayStr()
 
   useEffect(() => {
@@ -233,9 +236,11 @@ export default function Pulizie() {
   async function segnaPulita(riga: RigaCamera) {
     if (saving) return
     setSaving(riga.room.id)
+    const giorno = pulitaIl[riga.room.id] || td
     if (riga.partenza) {
       const b = riga.partenza
-      const cleanedAt = new Date().toISOString()
+      // Se la data scelta è oggi vale l'ora esatta; per un giorno passato mezzogiorno
+      const cleanedAt = giorno === td ? new Date().toISOString() : new Date(`${giorno}T12:00:00`).toISOString()
       const { error } = await supabase.from('bookings').update({ cleaned_at: cleanedAt }).eq('id', b.id)
       if (error) {
         // Colonna cleaned_at non ancora migrata su Supabase: ricorda la pulizia in locale
@@ -246,8 +251,8 @@ export default function Pulizie() {
         setBookings(bs => bs.map(x => x.id === b.id ? { ...x, cleaned_at: cleanedAt } : x))
       }
     }
-    // Cambio biancheria fatto: il conteggio delle 4 notti riparte da oggi
-    if (riga.cambio) await salvaCambio(riga.cambio.booking.id, addDaysStr(td, NOTTI_CAMBIO))
+    // Cambio biancheria fatto: il conteggio delle 4 notti riparte dal giorno scelto
+    if (riga.cambio) await salvaCambio(riga.cambio.booking.id, addDaysStr(giorno, NOTTI_CAMBIO))
     setSaving(null)
   }
 
@@ -329,11 +334,16 @@ export default function Pulizie() {
                     )}
                   </div>
                   {daPulire && (
-                    <button onClick={() => segnaPulita(riga)} disabled={saving === room.id}
-                      className="shrink-0 text-cream-text rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                      style={{ background: '#2D6A4F' }}>
-                      {saving === room.id ? 'Salvo...' : 'Segna pulita'}
-                    </button>
+                    <div className="shrink-0 flex flex-col items-end gap-1.5">
+                      <button onClick={() => segnaPulita(riga)} disabled={saving === room.id}
+                        className="text-cream-text rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                        style={{ background: '#2D6A4F' }}>
+                        {saving === room.id ? 'Salvo...' : 'Segna pulita'}
+                      </button>
+                      <input type="date" value={pulitaIl[room.id] || td} max={td} aria-label="Pulita il giorno"
+                        onChange={e => setPulitaIl({ ...pulitaIl, [room.id]: e.target.value })}
+                        className="border border-card-border rounded-lg px-2 py-1 text-xs bg-white" />
+                    </div>
                   )}
                 </div>
               </div>

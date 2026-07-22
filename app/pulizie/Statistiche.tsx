@@ -82,14 +82,31 @@ export default function Statistiche({ rooms, bookings, localCleaned, td }:
         // non va contata. Quelle più vecchie senza cleaned_at sono di prima della
         // funzione "segna pulita" e si considerano fatte alla partenza.
         const ancoraDaPulire = i === conclusi.length - 1 && !cleanedAt && !segnataLocale
-        if (!ancoraDaPulire) pulizie.push({ roomId: room.id, date: cleanedAt ? cleanedAt.slice(0, 10) : coda.check_out })
+        if (ancoraDaPulire) return
+        let date = cleanedAt ? cleanedAt.slice(0, 10) : coda.check_out
+        // Una pulizia segnata in ritardo non può cadere dopo l'arrivo dell'ospite
+        // successivo: la camera era per forza già pulita a quell'arrivo
+        const arrivoDopo = soggiorni[soggiorni.indexOf(s) + 1]?.[0]?.check_in
+        if (arrivoDopo && date > arrivoDopo) date = arrivoDopo
+        pulizie.push({ roomId: room.id, date })
       })
       for (const s of soggiorni) {
         if (s.some(x => SOGGIORNI_SENZA_CAMBIO.includes(x.id))) continue
         const inizio = s[0].check_in
         const fine = s[s.length - 1].check_out
-        for (let d = addDaysStr(inizio, NOTTI_CAMBIO); d < fine && d <= td; d = addDaysStr(d, NOTTI_CAMBIO)) {
-          cambi.push({ roomId: room.id, date: d })
+        // Se l'app ha registrato la data del prossimo cambio (linen_next_date), i cambi
+        // fatti sono quelli a ritroso ogni 4 notti da lì: più preciso della stima in
+        // avanti, e non conta un cambio previsto ma mai segnato fatto (es. a fine
+        // soggiorno). Senza quel dato resta la stima: un cambio ogni 4 notti dall'inizio.
+        const linen = s.map(x => x.linen_next_date).filter(Boolean).sort().slice(-1)[0]
+        if (linen) {
+          for (let d = addDaysStr(linen, -NOTTI_CAMBIO); d > inizio; d = addDaysStr(d, -NOTTI_CAMBIO)) {
+            if (d < fine && d <= td) cambi.push({ roomId: room.id, date: d })
+          }
+        } else {
+          for (let d = addDaysStr(inizio, NOTTI_CAMBIO); d < fine && d <= td; d = addDaysStr(d, NOTTI_CAMBIO)) {
+            cambi.push({ roomId: room.id, date: d })
+          }
         }
       }
     }
