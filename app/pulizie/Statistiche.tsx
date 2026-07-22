@@ -1,10 +1,6 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useMemo, useState } from 'react'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
-import BackLink from '@/components/BackLink'
-
-const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
 // Ogni quante notti di permanenza va rifatta la biancheria (stessa regola della pagina Pulizie)
 const NOTTI_CAMBIO = 4
@@ -13,14 +9,6 @@ const NOTTI_CAMBIO = 4
 // ma per questi soggiorni sappiamo che il cambio non è mai stato fatto.
 // Giovanna Ricci, Amelia, 4 maggio – 13 giugno 2026 (40 notti).
 const SOGGIORNI_SENZA_CAMBIO = ['9d539f6d-85c8-4da6-9da6-7aaa74dce042']
-
-// Pulizie segnate in locale quando la colonna cleaned_at non era ancora migrata
-const LOCAL_KEY = 'pulizie_cleaned_ids'
-
-function todayStr() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 function addDaysStr(s: string, n: number) {
   const [y, m, d] = s.split('-').map(Number)
@@ -60,31 +48,12 @@ function intervallo(periodo: Periodo, offset: number): { inizio: string; fine: s
 
 type Evento = { roomId: string; date: string }
 
-export default function StatistichePulizie() {
-  const [rooms, setRooms] = useState<any[]>([])
-  const [bookings, setBookings] = useState<any[]>([])
-  const [localCleaned, setLocalCleaned] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
+// Statistiche di pulizie e cambi biancheria, mostrate in fondo alla pagina Pulizie.
+// Riceve rooms/bookings/localCleaned già caricati dalla pagina.
+export default function Statistiche({ rooms, bookings, localCleaned, td }:
+  { rooms: any[]; bookings: any[]; localCleaned: string[]; td: string }) {
   const [periodo, setPeriodo] = useState<Periodo>('mese')
   const [offset, setOffset] = useState(0)
-  const td = todayStr()
-
-  useEffect(() => {
-    try { setLocalCleaned(JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]')) } catch { /* ignora */ }
-    Promise.all([
-      supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings').select('id, room_id, guest_id, check_in, check_out, cleaned_at').neq('status', 'annullata'),
-    ]).then(([{ data: r }, { data: b }]) => {
-      const sorted = (r || []).sort((a: any, b: any) => {
-        const ai = ROOM_ORDER.findIndex(o => a.name.includes(o))
-        const bi = ROOM_ORDER.findIndex(o => b.name.includes(o))
-        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
-      })
-      setRooms(sorted)
-      setBookings(b || [])
-      setLoading(false)
-    })
-  }, [])
 
   // Ricostruisce lo storico: ogni soggiorno concluso = 1 pulizia (alla partenza c'è
   // sempre stata la pulizia); cambi biancheria stimati ogni 4 notti di soggiorno.
@@ -145,14 +114,10 @@ export default function StatistichePulizie() {
   const ogniQuanti = pulizieP.length > 0 ? giorniTrascorsi / pulizieP.length : null
   const top = perCamera.reduce((a, b) => (b.pulizie + b.cambi > a.pulizie + a.cambi ? b : a), perCamera[0])
 
-  const futuro = inizio > td
-
   return (
-    <div className="p-4">
-      <div className="mb-3"><BackLink href="/pulizie" label="Pulizie" /></div>
-
-      <h1 className="font-serif text-2xl text-green-dark">Statistiche pulizie</h1>
-      <p className="text-sm text-gray-500 mb-4">Quante volte sono state rifatte le camere</p>
+    <div className="mt-8">
+      <h2 className="font-serif text-xl text-green-dark mb-1">Statistiche</h2>
+      <p className="text-sm text-gray-500 mb-3">Quante volte sono state rifatte le camere</p>
 
       <div className="flex gap-1.5 mb-3">
         {(['settimana', 'mese', 'anno'] as Periodo[]).map(p => (
@@ -172,69 +137,61 @@ export default function StatistichePulizie() {
           className="rounded-full border border-card-border bg-white w-9 h-9 text-green-dark font-bold disabled:opacity-30">›</button>
       </div>
 
-      {loading ? (
-        <div className="text-center py-10 text-gray-400">Caricamento...</div>
-      ) : futuro ? (
-        <div className="text-center py-10 text-gray-400">Periodo futuro</div>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 gap-2.5 mb-3">
-            <div className="bg-white rounded-[10px] border border-card-border p-3.5">
-              <p className="text-xs text-gray-500">Pulizie fatte</p>
-              <p className="font-serif text-3xl text-green-dark mt-0.5">{pulizieP.length}</p>
-            </div>
-            <div className="bg-white rounded-[10px] border border-card-border p-3.5">
-              <p className="text-xs text-gray-500">Cambi biancheria</p>
-              <p className="font-serif text-3xl text-green-dark mt-0.5">{cambiP.length}</p>
-            </div>
-          </div>
+      <div className="grid grid-cols-2 gap-2.5 mb-3">
+        <div className="bg-white rounded-[10px] border border-card-border p-3.5">
+          <p className="text-xs text-gray-500">Pulizie fatte</p>
+          <p className="font-serif text-3xl text-green-dark mt-0.5">{pulizieP.length}</p>
+        </div>
+        <div className="bg-white rounded-[10px] border border-card-border p-3.5">
+          <p className="text-xs text-gray-500">Cambi biancheria</p>
+          <p className="font-serif text-3xl text-green-dark mt-0.5">{cambiP.length}</p>
+        </div>
+      </div>
 
-          <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-gray-500">Per camera</p>
-              <p className="text-[11px] text-stone">
-                <span className="inline-block w-2 h-2 rounded-full align-middle mr-1" style={{ background: '#6C9A7C' }} />pulizie
-                <span className="inline-block w-2 h-2 rounded-full align-middle ml-2.5 mr-1" style={{ background: '#7C857A' }} />cambi
-              </p>
-            </div>
-            {perCamera.map(({ room, shortName, pulizie, cambi }) => (
-              <div key={room.id} className="mb-3 last:mb-0">
-                <div className="flex items-baseline gap-2">
-                  <span className="font-serif text-sm text-brass">{ROOM_NUMBER_BY_NAME[shortName] || ''}</span>
-                  <span className="font-serif text-green-dark">{shortName}</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="h-1.5 rounded-full" style={{ background: '#6C9A7C', width: `${(pulizie / maxConteggio) * 82}%`, minWidth: pulizie > 0 ? 6 : 0 }} />
-                  <span className="text-xs font-semibold text-green-dark">{pulizie}</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="h-1.5 rounded-full" style={{ background: '#7C857A', width: `${(cambi / maxConteggio) * 82}%`, minWidth: cambi > 0 ? 6 : 0 }} />
-                  <span className="text-xs font-semibold text-stone">{cambi}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-            <p className="text-sm text-green-dark">
-              {ogniQuanti == null ? 'Nessuna pulizia in questo periodo'
-                : Math.round(ogniQuanti * 10) / 10 <= 1 ? <>In media <span className="font-bold">una pulizia al giorno</span></>
-                : <>In media una pulizia ogni <span className="font-bold">{(Math.round(ogniQuanti * 10) / 10).toLocaleString('it-IT')}</span> giorni</>}
-            </p>
-            {top && top.pulizie + top.cambi > 0 && (
-              <p className="text-sm text-green-dark mt-1">
-                Camera più impegnativa: <span className="font-bold">{top.shortName}</span> ({top.pulizie + top.cambi} lavori)
-              </p>
-            )}
-          </div>
-
-          <p className="text-[11px] text-stone leading-relaxed">
-            Le pulizie contano una per ogni partenza. I cambi biancheria del passato sono stimati
-            (uno ogni {NOTTI_CAMBIO} notti di soggiorno); il soggiorno lungo di Giovanna in Amelia
-            (maggio–giugno) è escluso perché il cambio non è mai stato fatto.
+      <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs text-gray-500">Per camera</p>
+          <p className="text-[11px] text-stone">
+            <span className="inline-block w-2 h-2 rounded-full align-middle mr-1" style={{ background: '#6C9A7C' }} />pulizie
+            <span className="inline-block w-2 h-2 rounded-full align-middle ml-2.5 mr-1" style={{ background: '#7C857A' }} />cambi
           </p>
-        </>
-      )}
+        </div>
+        {perCamera.map(({ room, shortName, pulizie, cambi }) => (
+          <div key={room.id} className="mb-3 last:mb-0">
+            <div className="flex items-baseline gap-2">
+              <span className="font-serif text-sm text-brass">{ROOM_NUMBER_BY_NAME[shortName] || ''}</span>
+              <span className="font-serif text-green-dark">{shortName}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="h-1.5 rounded-full" style={{ background: '#6C9A7C', width: `${(pulizie / maxConteggio) * 82}%`, minWidth: pulizie > 0 ? 6 : 0 }} />
+              <span className="text-xs font-semibold text-green-dark">{pulizie}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="h-1.5 rounded-full" style={{ background: '#7C857A', width: `${(cambi / maxConteggio) * 82}%`, minWidth: cambi > 0 ? 6 : 0 }} />
+              <span className="text-xs font-semibold text-stone">{cambi}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
+        <p className="text-sm text-green-dark">
+          {ogniQuanti == null ? 'Nessuna pulizia in questo periodo'
+            : Math.round(ogniQuanti * 10) / 10 <= 1 ? <>In media <span className="font-bold">una pulizia al giorno</span></>
+            : <>In media una pulizia ogni <span className="font-bold">{(Math.round(ogniQuanti * 10) / 10).toLocaleString('it-IT')}</span> giorni</>}
+        </p>
+        {top && top.pulizie + top.cambi > 0 && (
+          <p className="text-sm text-green-dark mt-1">
+            Camera più impegnativa: <span className="font-bold">{top.shortName}</span> ({top.pulizie + top.cambi} lavori)
+          </p>
+        )}
+      </div>
+
+      <p className="text-[11px] text-stone leading-relaxed">
+        Le pulizie contano una per ogni partenza. I cambi biancheria del passato sono stimati
+        (uno ogni {NOTTI_CAMBIO} notti di soggiorno); il soggiorno lungo di Giovanna in Amelia
+        (maggio–giugno) è escluso perché il cambio non è mai stato fatto.
+      </p>
     </div>
   )
 }
