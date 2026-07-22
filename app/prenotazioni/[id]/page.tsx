@@ -284,12 +284,15 @@ function openWhatsApp(phone: string, text: string, preferBusiness: boolean = fal
   // quando sul telefono sono installate sia WhatsApp che WhatsApp Business, è iOS a decidere
   // da solo quale app apre ciascuno scheme, e la scelta può cambiare da sola con gli aggiornamenti.
   // Proviamo prima lo scheme "preferito", poi l'altro, poi il link web come ultima spiaggia.
+  // Sul telefono di Ania questi due schemi risultano assegnati al contrario
+  // di quanto documentato altrove: whatsapp:// apre la sua app personale,
+  // whatsapp-consumer:// apre WhatsApp Business.
   const schemeA = preferBusiness
-    ? `whatsapp://send?phone=${phone}&text=${encoded}`
-    : `whatsapp-consumer://send?phone=${phone}&text=${encoded}`
-  const schemeB = preferBusiness
     ? `whatsapp-consumer://send?phone=${phone}&text=${encoded}`
     : `whatsapp://send?phone=${phone}&text=${encoded}`
+  const schemeB = preferBusiness
+    ? `whatsapp://send?phone=${phone}&text=${encoded}`
+    : `whatsapp-consumer://send?phone=${phone}&text=${encoded}`
   const webUrl = `https://wa.me/${phone}?text=${encoded}`
 
   let handedOff = false
