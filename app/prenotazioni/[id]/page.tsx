@@ -1266,7 +1266,7 @@ export default function BookingDetail() {
       {/* Azioni */}
       {!editing && (booking.status === 'confermata' || booking.status === 'completata' || booking.status === 'in_attesa') && (
         <div className="mb-4">
-          <button onClick={() => setShowCancel(true)} className="w-full bg-[#F6E4DE] text-[#8C3B2E] rounded-xl py-2 text-sm font-semibold">Annulla prenotazione</button>
+          <button onClick={() => setShowCancel(true)} className="w-full bg-[#B5502F] text-white rounded-xl py-2 text-sm font-semibold">Annulla prenotazione</button>
         </div>
       )}
 
