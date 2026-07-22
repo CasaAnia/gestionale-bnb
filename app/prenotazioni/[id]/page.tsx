@@ -1241,7 +1241,7 @@ export default function BookingDetail() {
       {!editing && waPhone && (
         <aside className="hidden lg:block lg:flex-1 lg:sticky lg:top-6">
           <div className="bg-white rounded-xl border border-card-border p-4">
-            <p className="text-[11px] uppercase mb-3" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>Comunicazioni</p>
+            <p className="text-[11px] uppercase mb-3" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>Messaggi</p>
             <button onClick={() => setShowConferma(true)}
               className="w-full rounded-xl py-2 text-sm font-semibold mb-2" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>
               🖼 Conferma WhatsApp (immagine + testo)
