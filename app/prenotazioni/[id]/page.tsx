@@ -1152,9 +1152,10 @@ export default function BookingDetail() {
         </div>
       )}
 
-      {/* Bottone Modifica prenotazione (mobile; su desktop sta nel pannello Azioni) */}
+      {/* Bottone Modifica prenotazione: pieno su mobile, a bordo verde su desktop */}
       {!editing && booking.status !== 'annullata' && (
-        <button onClick={() => setEditing(true)} className="lg:hidden w-full bg-green-mid text-white rounded-xl py-2 font-semibold mb-4">
+        <button onClick={() => setEditing(true)}
+          className="w-full bg-green-mid text-white lg:bg-transparent lg:border lg:border-green-mid lg:text-green-mid rounded-xl py-2 font-semibold mb-4">
           ✏️ Modifica prenotazione
         </button>
       )}
@@ -1191,14 +1192,14 @@ export default function BookingDetail() {
         <button onClick={async () => {
           await supabase.from('bookings').update({ pagato: true }).eq('id', id)
           setBooking({ ...booking, pagato: true })
-        }} className="lg:hidden w-full bg-[#7D9DB0] text-white rounded-xl py-3 font-semibold mb-4">
+        }} className="w-full bg-[#7D9DB0] text-white lg:bg-[#EAF0F3] lg:text-[#3D5A66] rounded-xl py-3 font-semibold mb-4">
           ✅ Segna come pagato
         </button>
       )}
 
       {/* Azioni */}
       {!editing && (booking.status === 'confermata' || booking.status === 'completata' || booking.status === 'in_attesa') && (
-        <div className="lg:hidden grid grid-cols-2 gap-2 mb-4">
+        <div className="grid grid-cols-2 gap-2 mb-4">
           {booking.status === 'confermata' && (
             <button onClick={markComplete} className="bg-gray-100 text-gray-700 rounded-xl py-2 text-sm font-semibold">✓ Completata</button>
           )}
@@ -1236,49 +1237,19 @@ export default function BookingDetail() {
       })()}
       </div>
 
-      {/* Pannello Azioni (solo desktop): tutte le azioni raccolte a destra, in colori tenui */}
-      {!editing && (
+      {/* Pannello Comunicazioni (solo desktop): tutto ciò che si manda al cliente, in colori tenui */}
+      {!editing && waPhone && (
         <aside className="hidden lg:block lg:flex-1 lg:sticky lg:top-6">
           <div className="bg-white rounded-xl border border-card-border p-4">
-            <p className="text-[11px] uppercase mb-3" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>Azioni</p>
-            {booking.status !== 'annullata' && (
-              <button onClick={() => setEditing(true)}
-                className="w-full border border-green-mid text-green-mid rounded-xl py-2 text-sm font-semibold mb-2">
-                ✏️ Modifica prenotazione
-              </button>
-            )}
-            {waPhone && (
-              <button onClick={() => setShowConferma(true)}
-                className="w-full rounded-xl py-2 text-sm font-semibold mb-2" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>
-                🖼 Conferma WhatsApp (immagine + testo)
-              </button>
-            )}
-            {booking.bonifico && !booking.pagato && booking.status !== 'annullata' && (
-              <button onClick={async () => {
-                await supabase.from('bookings').update({ pagato: true }).eq('id', id)
-                setBooking({ ...booking, pagato: true })
-              }} className="w-full rounded-xl py-2 text-sm font-semibold mb-2" style={{ background: '#EAF0F3', color: '#3D5A66' }}>
-                ✅ Segna come pagato
-              </button>
-            )}
-            {booking.status === 'confermata' && (
-              <button onClick={markComplete} className="w-full bg-gray-100 text-gray-600 rounded-xl py-2 text-sm font-semibold mb-2">
-                ✓ Completata
-              </button>
-            )}
-            {waPhone && (
-              <>
-                <p className="font-semibold text-green-dark mt-4 mb-1.5 text-sm">💬 WhatsApp Ania</p>
-                {waChips}
-                <p className="font-semibold text-[#7A3B22] mt-4 mb-1.5 text-sm">💼 WhatsApp Business</p>
-                {waChips}
-              </>
-            )}
-            {(booking.status === 'confermata' || booking.status === 'completata' || booking.status === 'in_attesa') && (
-              <button onClick={() => setShowCancel(true)} className="w-full text-center text-sm mt-5" style={{ color: '#8C3B2E' }}>
-                Annulla prenotazione
-              </button>
-            )}
+            <p className="text-[11px] uppercase mb-3" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>Comunicazioni</p>
+            <button onClick={() => setShowConferma(true)}
+              className="w-full rounded-xl py-2 text-sm font-semibold mb-2" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>
+              🖼 Conferma WhatsApp (immagine + testo)
+            </button>
+            <p className="font-semibold text-green-dark mt-4 mb-1.5 text-sm">💬 WhatsApp Ania</p>
+            {waChips}
+            <p className="font-semibold text-[#7A3B22] mt-4 mb-1.5 text-sm">💼 WhatsApp Business</p>
+            {waChips}
           </div>
         </aside>
       )}
