@@ -12,9 +12,8 @@ const NOTTI_CAMBIO = 4
 // Con quanti giorni di anticipo mostrare il prossimo cambio (per poterlo anticipare)
 const GIORNI_PREAVVISO = 2
 
-// Salvataggi locali usati quando le colonne cleaned_at / linen_next_date
-// non esistono ancora su Supabase (migrazioni 0004 e 0005 da eseguire a mano)
-const LOCAL_KEY = 'pulizie_cleaned_ids'
+// Salvataggio locale usato quando la colonna linen_next_date
+// non esiste ancora su Supabase (migrazione 0005 da eseguire a mano)
 const LOCAL_LINEN_KEY = 'pulizie_linen_dates'
 
 function todayStr() {
@@ -44,14 +43,6 @@ function italianDate() {
   return new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-// "2026-07-18" -> "partenza ieri" / "partenza il 15 luglio" (rispetto a oggi)
-function partenzaLabel(checkOut: string, td: string) {
-  if (checkOut === td) return 'partenza oggi'
-  const diff = diffDays(td, checkOut)
-  if (diff === 1) return 'partenza ieri'
-  return `partenza il ${dayMonth(checkOut)}`
-}
-
 // Quando cade (o cadeva) il cambio biancheria rispetto a oggi
 function cambioLabel(due: string, td: string) {
   const diff = diffDays(due, td)
@@ -79,7 +70,7 @@ type RigaCamera = {
   room: any
   shortName: string
   daPulire: boolean
-  partenza: any | null       // prenotazione del check-out che ha sporcato la camera
+  partenza: any | null       // check-out di oggi: la camera va rifatta (sempre, cambia l'ospite)
   cambio: Cambio | null      // cambio biancheria dovuto (oggi o in ritardo)
   cambioProssimo: Cambio | null // cambio in arrivo nei prossimi giorni (spostabile/anticipabile)
   arrivo: any | null         // prenotazione che arriva oggi nella stessa camera
@@ -89,19 +80,14 @@ type RigaCamera = {
 export default function Pulizie() {
   const [rooms, setRooms] = useState<any[]>([])
   const [bookings, setBookings] = useState<any[]>([])
-  const [localCleaned, setLocalCleaned] = useState<string[]>([])
   const [localLinen, setLocalLinen] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   // Data scelta a mano per "cambio fatto il" (per camera; default oggi)
   const [fattoIl, setFattoIl] = useState<Record<string, string>>({})
-  // Data scelta a mano per "Segna pulita" (per camera; default oggi), per quando
-  // la pulizia viene registrata nell'app in un giorno diverso da quello vero
-  const [pulitaIl, setPulitaIl] = useState<Record<string, string>>({})
   const td = todayStr()
 
   useEffect(() => {
-    try { setLocalCleaned(JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]')) } catch { /* ignora */ }
     try { setLocalLinen(JSON.parse(localStorage.getItem(LOCAL_LINEN_KEY) || '{}')) } catch { /* ignora */ }
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
@@ -120,11 +106,10 @@ export default function Pulizie() {
 
   const righe: RigaCamera[] = useMemo(() => {
     const out: RigaCamera[] = rooms.map(room => {
-      // Ultimo check-out già avvenuto (oggi o nel passato): è lui a rendere la camera
-      // "da pulire". I confini dei prolungamenti (l'ospite continua) non contano.
-      const partenze = bookings.filter(b => b.room_id === room.id && b.check_out <= td && !continuaIn(bookings, b))
-      const ultima = partenze.sort((a, b) => b.check_out.localeCompare(a.check_out))[0] || null
-      const partenzaSporca = ultima && ultima.cleaned_at == null && !localCleaned.includes(ultima.id)
+      // Check-out di oggi: la camera va rifatta. La pulizia al cambio ospite è
+      // obbligatoria, quindi non si chiede più conferma: domani si considera fatta.
+      // I confini dei prolungamenti (l'ospite continua) non contano.
+      const partenzaOggi = bookings.find(b => b.room_id === room.id && b.check_out === td && !continuaIn(bookings, b)) || null
 
       // Cambio biancheria: ospite in corso (non parte oggi), ogni NOTTI_CAMBIO notti
       // dall'inizio del soggiorno continuativo in questa camera (prolungamenti inclusi),
@@ -182,8 +167,8 @@ export default function Pulizie() {
       return {
         room,
         shortName: room.name.split(' ').slice(-1)[0],
-        daPulire: !!partenzaSporca || !!cambio,
-        partenza: partenzaSporca ? ultima : null,
+        daPulire: !!partenzaOggi || !!cambio,
+        partenza: partenzaOggi,
         cambio,
         cambioProssimo,
         arrivo,
@@ -199,7 +184,7 @@ export default function Pulizie() {
       : 3
     )
     return out.sort((a, b) => rank(a) - rank(b))
-  }, [rooms, bookings, localCleaned, localLinen, td])
+  }, [rooms, bookings, localLinen, td])
 
   const daRifare = righe.filter(r => r.daPulire).length
 
@@ -230,29 +215,6 @@ export default function Pulizie() {
     if (!c || saving) return
     setSaving(riga.room.id)
     await salvaCambio(c.booking.id, addDaysStr(c.due, NOTTI_CAMBIO))
-    setSaving(null)
-  }
-
-  async function segnaPulita(riga: RigaCamera) {
-    if (saving) return
-    setSaving(riga.room.id)
-    const giorno = pulitaIl[riga.room.id] || td
-    if (riga.partenza) {
-      const b = riga.partenza
-      // Se la data scelta è oggi vale l'ora esatta; per un giorno passato mezzogiorno
-      const cleanedAt = giorno === td ? new Date().toISOString() : new Date(`${giorno}T12:00:00`).toISOString()
-      const { error } = await supabase.from('bookings').update({ cleaned_at: cleanedAt }).eq('id', b.id)
-      if (error) {
-        // Colonna cleaned_at non ancora migrata su Supabase: ricorda la pulizia in locale
-        const next = [...localCleaned, b.id]
-        setLocalCleaned(next)
-        try { localStorage.setItem(LOCAL_KEY, JSON.stringify(next)) } catch { /* ignora */ }
-      } else {
-        setBookings(bs => bs.map(x => x.id === b.id ? { ...x, cleaned_at: cleanedAt } : x))
-      }
-    }
-    // Cambio biancheria fatto: il conteggio delle 4 notti riparte dal giorno scelto
-    if (riga.cambio) await salvaCambio(riga.cambio.booking.id, addDaysStr(giorno, NOTTI_CAMBIO))
     setSaving(null)
   }
 
@@ -287,7 +249,7 @@ export default function Pulizie() {
                         <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>pulita</span>
                       )}
                       {partenza && (
-                        <span className="text-xs text-gray-500">{partenzaLabel(partenza.check_out, td)}</span>
+                        <span className="text-xs text-gray-500">partenza oggi</span>
                       )}
                       {(cambio || cambioProssimo) && (
                         <>
@@ -333,18 +295,6 @@ export default function Pulizie() {
                       <p className="text-sm text-green-mid italic mt-2">“{(cambio || cambioProssimo)!.booking.notes}”</p>
                     )}
                   </div>
-                  {daPulire && (
-                    <div className="shrink-0 flex flex-col items-end gap-1.5">
-                      <button onClick={() => segnaPulita(riga)} disabled={saving === room.id}
-                        className="text-cream-text rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                        style={{ background: '#2D6A4F' }}>
-                        {saving === room.id ? 'Salvo...' : 'Segna pulita'}
-                      </button>
-                      <input type="date" value={pulitaIl[room.id] || td} max={td} aria-label="Pulita il giorno"
-                        onChange={e => setPulitaIl({ ...pulitaIl, [room.id]: e.target.value })}
-                        className="border border-card-border rounded-lg px-2 py-1 text-xs bg-white" />
-                    </div>
-                  )}
                 </div>
               </div>
             )
@@ -352,7 +302,7 @@ export default function Pulizie() {
         </div>
       )}
 
-      {!loading && <Statistiche rooms={rooms} bookings={bookings} localCleaned={localCleaned} td={td} />}
+      {!loading && <Statistiche rooms={rooms} bookings={bookings} td={td} />}
     </div>
   )
 }

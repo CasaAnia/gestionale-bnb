@@ -49,9 +49,9 @@ function intervallo(periodo: Periodo, offset: number): { inizio: string; fine: s
 type Evento = { roomId: string; date: string }
 
 // Statistiche di pulizie e cambi biancheria, mostrate in fondo alla pagina Pulizie.
-// Riceve rooms/bookings/localCleaned già caricati dalla pagina.
-export default function Statistiche({ rooms, bookings, localCleaned, td }:
-  { rooms: any[]; bookings: any[]; localCleaned: string[]; td: string }) {
+// Riceve rooms/bookings già caricati dalla pagina.
+export default function Statistiche({ rooms, bookings, td }:
+  { rooms: any[]; bookings: any[]; td: string }) {
   const [periodo, setPeriodo] = useState<Periodo>('mese')
   const [offset, setOffset] = useState(0)
 
@@ -73,23 +73,17 @@ export default function Statistiche({ rooms, bookings, localCleaned, td }:
         if (coda && coda.guest_id && coda.guest_id === b.guest_id && coda.check_out === b.check_in) ultimo.push(b)
         else soggiorni.push([b])
       }
+      // La pulizia al cambio ospite è obbligatoria: ogni soggiorno concluso conta
+      // sempre, senza bisogno di conferme. La data è quella della partenza (o quella
+      // registrata col vecchio pulsante "Segna pulita", quando c'è).
       const conclusi = soggiorni.filter(s => s[s.length - 1].check_out <= td)
-      conclusi.forEach((s, i) => {
+      conclusi.forEach(s => {
         const coda = s[s.length - 1]
         const cleanedAt = s.map(x => x.cleaned_at).filter(Boolean).sort().slice(-1)[0]
-        const segnataLocale = s.some(x => localCleaned.includes(x.id))
-        // L'ultima partenza della camera non ancora segnata pulita è ancora "da pulire"
-        // e non va contata — ma solo finché l'ospite successivo non è arrivato: se è
-        // già entrato, la camera è stata per forza pulita anche senza premere il
-        // pulsante. Le partenze più vecchie senza cleaned_at sono di prima della
-        // funzione "segna pulita" e si considerano fatte alla partenza.
-        const arrivoDopo = soggiorni[soggiorni.indexOf(s) + 1]?.[0]?.check_in
-        const ancoraDaPulire = i === conclusi.length - 1 && !cleanedAt && !segnataLocale
-          && !(arrivoDopo && arrivoDopo <= td)
-        if (ancoraDaPulire) return
         let date = cleanedAt ? cleanedAt.slice(0, 10) : coda.check_out
         // Una pulizia segnata in ritardo non può cadere dopo l'arrivo dell'ospite
         // successivo: la camera era per forza già pulita a quell'arrivo
+        const arrivoDopo = soggiorni[soggiorni.indexOf(s) + 1]?.[0]?.check_in
         if (arrivoDopo && date > arrivoDopo) date = arrivoDopo
         pulizie.push({ roomId: room.id, date })
       })
@@ -114,7 +108,7 @@ export default function Statistiche({ rooms, bookings, localCleaned, td }:
       }
     }
     return { pulizie, cambi }
-  }, [rooms, bookings, localCleaned, td])
+  }, [rooms, bookings, td])
 
   const { inizio, fine, label } = intervallo(periodo, offset)
   const nelPeriodo = (e: Evento) => e.date >= inizio && e.date <= fine
