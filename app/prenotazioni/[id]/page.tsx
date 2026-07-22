@@ -35,7 +35,7 @@ function roomPageLink(roomName: string): string | null {
   return null
 }
 
-function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento', gruppo: any[] = []) {
+function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero', gruppo: any[] = []) {
   const name = b.guests?.full_name || 'Ospite'
   const room = b.rooms?.name || ''
   // Nome con tipologia (es. "Amelia – Singola"): solo nei messaggi al cliente
@@ -226,6 +226,10 @@ Le ricordo che il check-in è dalle ore 15:00 alle 20:00. Se prevede di arrivare
 A presto,
 Ania
 Casa Granata Humanitas`
+  }
+
+  if (type === 'libero') {
+    return ''
   }
 
   if (type === 'ringraziamento') {
@@ -706,7 +710,7 @@ export default function BookingDetail() {
   const selectedRoom = rooms.find(r => r.id === editForm.room_id)
 
   // Link WhatsApp condivisi tra la versione mobile e il pannello Azioni desktop
-  type WaTipo = 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento'
+  type WaTipo = 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero'
   const rawPhone = (booking.guests?.phone || '').replace(/\D/g, '')
   const waPhone = rawPhone ? (rawPhone.startsWith('39') ? rawPhone : `39${rawPhone}`) : null
   const waHref = (type: WaTipo) =>
@@ -726,6 +730,7 @@ export default function BookingDetail() {
       <a href={waHref('richiesta_orario')} onClick={waClick('richiesta_orario', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>🕐 Richiesta orario</a>
       <a href={waHref('ringraziamento')} onClick={waClick('ringraziamento', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>🙏 Ringraziamento</a>
       <a href={waHref('annullamento')} onClick={waClick('annullamento', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#F6E4DE', color: '#8C3B2E' }}>❌ Annullamento</a>
+      <a href={waHref('libero')} onClick={waClick('libero', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EDEDED', color: '#444444' }}>✍️ Messaggio libero</a>
     </div>
   )
   const waChipsAnia = renderWaChips(false)
@@ -1284,6 +1289,7 @@ export default function BookingDetail() {
             <a href={waHref('richiesta_orario')} onClick={waClick('richiesta_orario', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">🕐 Richiesta orario</a>
             <a href={waHref('ringraziamento')} onClick={waClick('ringraziamento', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#7D9DB0] text-white rounded-lg py-1.5 text-xs font-semibold">🙏 Ringraziamento</a>
             <a href={waHref('annullamento')} onClick={waClick('annullamento', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#B5502F] text-white rounded-lg py-1.5 text-xs font-semibold">❌ Annullamento</a>
+            <a href={waHref('libero')} onClick={waClick('libero', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center bg-[#8A8A8A] text-white rounded-lg py-1.5 text-xs font-semibold">✍️ Messaggio libero</a>
           </div>
         )
         return (
