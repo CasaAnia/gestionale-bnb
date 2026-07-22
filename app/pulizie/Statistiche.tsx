@@ -78,15 +78,18 @@ export default function Statistiche({ rooms, bookings, localCleaned, td }:
         const coda = s[s.length - 1]
         const cleanedAt = s.map(x => x.cleaned_at).filter(Boolean).sort().slice(-1)[0]
         const segnataLocale = s.some(x => localCleaned.includes(x.id))
-        // L'ultima partenza della camera non ancora segnata pulita è ancora "da pulire":
-        // non va contata. Quelle più vecchie senza cleaned_at sono di prima della
+        // L'ultima partenza della camera non ancora segnata pulita è ancora "da pulire"
+        // e non va contata — ma solo finché l'ospite successivo non è arrivato: se è
+        // già entrato, la camera è stata per forza pulita anche senza premere il
+        // pulsante. Le partenze più vecchie senza cleaned_at sono di prima della
         // funzione "segna pulita" e si considerano fatte alla partenza.
+        const arrivoDopo = soggiorni[soggiorni.indexOf(s) + 1]?.[0]?.check_in
         const ancoraDaPulire = i === conclusi.length - 1 && !cleanedAt && !segnataLocale
+          && !(arrivoDopo && arrivoDopo <= td)
         if (ancoraDaPulire) return
         let date = cleanedAt ? cleanedAt.slice(0, 10) : coda.check_out
         // Una pulizia segnata in ritardo non può cadere dopo l'arrivo dell'ospite
         // successivo: la camera era per forza già pulita a quell'arrivo
-        const arrivoDopo = soggiorni[soggiorni.indexOf(s) + 1]?.[0]?.check_in
         if (arrivoDopo && date > arrivoDopo) date = arrivoDopo
         pulizie.push({ roomId: room.id, date })
       })
