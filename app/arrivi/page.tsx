@@ -312,7 +312,7 @@ export default function Arrivi() {
                           {/* Orario — o freccine ⇄ se è l'arrivo di un cambio camera */}
                           <span style={{
                             color: isCambio ? 'white' : (time ? '#1F3D2F' : 'white'),
-                            fontSize: isCambio ? (isDesktop ? 15 : 12) : (isDesktop ? 13 : 10),
+                            fontSize: isDesktop ? 13 : 10,
                             fontWeight: 800,
                             whiteSpace: 'nowrap',
                             flexShrink: 0,
