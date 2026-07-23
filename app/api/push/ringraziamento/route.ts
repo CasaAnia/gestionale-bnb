@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
+import { buildChangeGroups } from '@/lib/roomChanges'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,21 +44,34 @@ export async function GET(req: NextRequest) {
 
   const oggi = todayStr()
 
+  // Servono tutte le prenotazioni attive (non solo quelle in partenza oggi) per
+  // ricostruire le catene dei cambi camera con la stessa logica del resto dell'app.
   const { data: bookings } = await supabase
     .from('bookings')
     .select('*, rooms(name), guests(full_name, phone)')
-    .eq('check_out', oggi)
     .neq('status', 'annullata')
 
-  if (!bookings || bookings.length === 0) {
+  const partenzeOggi = (bookings || []).filter((b: any) => b.check_out === oggi)
+
+  if (partenzeOggi.length === 0) {
     return NextResponse.json({ sent: 0, message: 'Nessuna partenza oggi' })
   }
 
-  // Esclude i cambi camera/prezzo a metà soggiorno: se lo stesso ospite ha
-  // un'altra prenotazione che inizia esattamente oggi, non è una vera partenza.
-  const partenzeVere = bookings.filter((b: any) =>
-    !bookings.some((x: any) => x.id !== b.id && b.guest_id && x.guest_id === b.guest_id && x.check_in === b.check_out)
-  )
+  // Esclude i cambi camera a metà soggiorno: un segmento che oggi "esce" da una
+  // camera per proseguire in un'altra ha un arco uscente nella catena. Restano
+  // solo le partenze definitive, cioè gli ultimi segmenti del soggiorno.
+  const { edges } = buildChangeGroups(bookings || [])
+  const proseguono = new Set(edges.map((e) => e.fromId))
+  const partenzeVere = partenzeOggi.filter((b: any) => {
+    if (proseguono.has(b.id)) return false
+    // Sicurezza extra: se lo stesso ospite ha un'altra prenotazione che inizia
+    // proprio oggi (prolungamento nella stessa camera o cambio non concatenato),
+    // il soggiorno continua e non è una partenza definitiva.
+    const continua = (bookings || []).some(
+      (x: any) => x.id !== b.id && b.guest_id && x.guest_id === b.guest_id && x.check_in === b.check_out
+    )
+    return !continua
+  })
 
   if (partenzeVere.length === 0) {
     return NextResponse.json({ sent: 0, message: 'Solo cambi camera oggi, nessuna vera partenza' })

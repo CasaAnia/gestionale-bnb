@@ -37,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="it" className={`${fraunces.variable} ${nunitoSans.variable}`}>
       <body className="bg-cream text-green-dark antialiased font-sans">
         <MobileTopBar />
-        <main className="max-w-lg lg:max-w-full mx-auto min-h-screen pt-12 lg:pt-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:ml-48">
+        <main className="max-w-lg lg:max-w-full mx-auto min-h-screen pt-12 lg:pt-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:ml-48">
           {children}
         </main>
         <BottomNav />

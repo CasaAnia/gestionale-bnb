@@ -42,6 +42,22 @@ export default function Dashboard() {
       const checkOutOggi = active.filter((x: any) => x.check_out === td)
       const camereOccupate = active.filter((x: any) => x.check_in <= td && x.check_out > td).length
 
+      // Percentuale di occupazione del mese corrente: notti-camera occupate su notti-camera
+      // disponibili (4 camere × giorni del mese). Ogni soggiorno conta solo le notti che
+      // cadono dentro il mese.
+      const now = new Date()
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+      const nm = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+      const nextMonthStart = `${nm.getFullYear()}-${String(nm.getMonth() + 1).padStart(2, '0')}-01`
+      const nightsInMonth = (ci: string, co: string) => {
+        const s = ci > ms ? ci : ms
+        const e = co < nextMonthStart ? co : nextMonthStart
+        if (e <= s) return 0
+        return Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86400000)
+      }
+      const notteCamereMese = active.reduce((sum: number, x: any) => sum + nightsInMonth(x.check_in, x.check_out), 0)
+      const occupazioneMese = daysInMonth > 0 ? Math.round((notteCamereMese / (4 * daysInMonth)) * 100) : 0
+
       const roomNameById: Record<string, string> = {}
       active.forEach((x: any) => { if (x.rooms?.name) roomNameById[x.room_id] = x.rooms.name.split(' ').slice(-1)[0] })
       const roomChanges = getUpcomingRoomChanges(active, roomNameById, [td, tmr])
@@ -101,7 +117,7 @@ export default function Dashboard() {
         .map(g => ({ ...g, residuo: g.dovuto - g.ricevuto }))
         .sort((a, b) => b.residuo - a.residuo)
 
-      setData({ entrateMese, incassatoMese, daIncassareMese, speseMese, profittoMese, tariffaMedia, checkInOggi, checkOutOggi, camereOccupate, roomChanges, td, daIncassare })
+      setData({ entrateMese, incassatoMese, daIncassareMese, speseMese, profittoMese, tariffaMedia, checkInOggi, checkOutOggi, camereOccupate, occupazioneMese, roomChanges, td, daIncassare })
       setLoading(false)
     }
     load()
@@ -190,16 +206,16 @@ export default function Dashboard() {
               <p className={`font-serif text-2xl ${data.profittoMese >= 0 ? 'text-green-dark' : 'text-[#8C3B2E]'}`}>€{fmt(data.profittoMese)}</p>
             </div>
             <div className="bg-white rounded-[10px] p-5 border border-card-border">
-              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Tariffa media</p>
-              <p className="font-serif text-2xl text-green-dark">€{fmt(data.tariffaMedia)}</p>
+              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Spese mese</p>
+              <p className="font-serif text-2xl text-[#8C3B2E]">€{fmt(data.speseMese)}</p>
             </div>
             <div className="bg-white rounded-[10px] p-5 border border-card-border">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Camere occupate</p>
-              <p className="font-serif text-2xl text-green-dark">{data.camereOccupate}<span className="text-base text-gray-400">/4</span></p>
+              <p className="font-serif text-2xl text-green-dark">{data.occupazioneMese}<span className="text-base text-gray-400">% mese</span></p>
             </div>
             <div className="bg-white rounded-[10px] p-5 border border-card-border">
-              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Spese mese</p>
-              <p className="font-serif text-2xl text-[#8C3B2E]">€{fmt(data.speseMese)}</p>
+              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Tariffa media</p>
+              <p className="font-serif text-2xl text-green-dark">€{fmt(data.tariffaMedia)}</p>
             </div>
           </div>
 
