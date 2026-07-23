@@ -11,7 +11,7 @@ const CELL_W_MOBILE = 56
 const CELL_W_DESKTOP = 84
 const ROW_H_MOBILE = 64
 const ROW_H_DESKTOP = 84
-const HEADER_MONTH_H = 24
+const HEADER_MONTH_H = 34
 const HEADER_DAY_H = 50
 const NAME_W_MOBILE = 110
 const NAME_W_DESKTOP = 180
@@ -48,6 +48,13 @@ export default function Arrivi() {
   const [popup, setPopup] = useState<{ id: string; name: string; time: string } | null>(null)
   const [savingTime, setSavingTime] = useState(false)
   const popupTimeRef = useRef<HTMLInputElement>(null)
+
+  // Titolo sticky mese+anno: segue il mese più a sinistra attualmente in vista (come nel calendario)
+  function fmtMonth(d: Date) {
+    const l = d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
+    return l.charAt(0).toUpperCase() + l.slice(1)
+  }
+  const [visibleMonth, setVisibleMonth] = useState(() => fmtMonth(new Date()))
 
   useEffect(() => {
     const check = () => setIsDesktop(window.innerWidth >= 1024)
@@ -111,8 +118,16 @@ export default function Arrivi() {
   useEffect(() => {
     if (!loading && scrollRef.current) {
       scrollRef.current.scrollLeft = DAYS_BEFORE * CELL_W - 80
+      updateVisibleMonth()
     }
   }, [loading, CELL_W])
+
+  function updateVisibleMonth() {
+    const sl = scrollRef.current?.scrollLeft ?? 0
+    const idx = Math.min(days.length - 1, Math.max(0, Math.floor(sl / CELL_W)))
+    const label = fmtMonth(days[idx])
+    setVisibleMonth(prev => (prev === label ? prev : label))
+  }
 
   async function saveTime() {
     if (!popup) return
@@ -156,26 +171,28 @@ export default function Arrivi() {
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
-        <div ref={scrollRef} className="overflow-auto flex-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div ref={scrollRef} onScroll={updateVisibleMonth} className="overflow-auto flex-1" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div style={{ width: totalW, position: 'relative', height: totalH }}>
 
-            {/* ── HEADER MESI ── */}
+            {/* ── HEADER MESI: titolo sticky + nome del mese nuovo in ottone al 1° del mese ── */}
             <div style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', height: HEADER_MONTH_H, background: HEADER_BG }}>
-              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG }} />
-              {monthGroups.map((mg, i) => (
+              {monthGroups.map((mg, i) => i === 0 ? null : (
                 <div key={i} style={{
                   position: 'absolute',
-                  left: NAME_W + mg.startIdx * CELL_W,
-                  width: mg.count * CELL_W,
+                  left: NAME_W + mg.startIdx * CELL_W + 6,
                   height: HEADER_MONTH_H,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, color: '#2D6A4F',
-                  borderLeft: i > 0 ? '1px solid #ECE8DD' : 'none',
-                  textTransform: 'capitalize',
+                  display: 'flex', alignItems: 'center',
+                  fontSize: isDesktop ? 10 : 9, fontWeight: 600, letterSpacing: '1.5px',
+                  color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap',
                 }}>
-                  {mg.label}
+                  {mg.label.split(' ')[0]}
                 </div>
               ))}
+              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+                <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 19 : 15, fontWeight: 600, color: '#1F3D2F', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {visibleMonth}
+                </span>
+              </div>
             </div>
 
             {/* ── HEADER GIORNI ── */}
@@ -208,6 +225,21 @@ export default function Arrivi() {
                 )
               })}
             </div>
+
+            {/* ── SEPARATORI DI MESE: linea ottone al 1° del mese, sotto le barre ── */}
+            {monthGroups.map((mg, i) => i === 0 ? null : (
+              <div key={`sep-${i}`} style={{
+                position: 'absolute',
+                left: NAME_W + mg.startIdx * CELL_W - 1,
+                top: HEADER_H,
+                width: 2,
+                height: totalH - HEADER_H,
+                background: '#A9884E',
+                opacity: 0.55,
+                zIndex: 4,
+                pointerEvents: 'none',
+              }} />
+            ))}
 
             {/* ── RIGHE CAMERE ── */}
             {rooms.map((room, ri) => {
