@@ -11,7 +11,7 @@ const CELL_W_MOBILE = 56
 const CELL_W_DESKTOP = 84
 const ROW_H_MOBILE = 64
 const ROW_H_DESKTOP = 84
-const HEADER_MONTH_H = 34
+const HEADER_MONTH_H = 40
 const HEADER_DAY_H = 50
 const NAME_W_MOBILE = 110
 const NAME_W_DESKTOP = 180
@@ -188,9 +188,12 @@ export default function Arrivi() {
                   {mg.label.split(' ')[0]}
                 </div>
               ))}
-              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, display: 'flex', alignItems: 'center', padding: '0 8px' }}>
-                <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 19 : 15, fontWeight: 600, color: '#1F3D2F', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {visibleMonth}
+              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 8px' }}>
+                <span style={{ fontSize: isDesktop ? 10 : 9, fontWeight: 600, letterSpacing: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                  {visibleMonth.split(' ')[0]}
+                </span>
+                <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 21 : 17, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
+                  {visibleMonth.split(' ')[1]}
                 </span>
               </div>
             </div>
