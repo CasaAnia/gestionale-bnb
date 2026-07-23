@@ -114,10 +114,6 @@ export default function Arrivi() {
     }
   }, [loading, CELL_W])
 
-  function scrollToToday() {
-    if (scrollRef.current) scrollRef.current.scrollLeft = DAYS_BEFORE * CELL_W - 80
-  }
-
   async function saveTime() {
     if (!popup) return
     setSavingTime(true)
@@ -177,9 +173,7 @@ export default function Arrivi() {
 
             {/* ── HEADER MESI ── */}
             <div style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', height: HEADER_MONTH_H, background: HEADER_BG }}>
-              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <button onClick={scrollToToday} style={{ fontSize: 10, fontWeight: 700, color: 'white', background: '#2D6A4F', border: 'none', borderRadius: 10, padding: '1px 7px', cursor: 'pointer' }}>Oggi</button>
-              </div>
+              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG }} />
               {monthGroups.map((mg, i) => (
                 <div key={i} style={{
                   position: 'absolute',
@@ -312,11 +306,13 @@ export default function Arrivi() {
                           {/* Orario — o freccine ⇄ se è l'arrivo di un cambio camera */}
                           <span style={{
                             color: isCambio ? 'white' : (time ? '#1F3D2F' : 'white'),
-                            fontSize: isDesktop ? 13 : 10,
+                            fontSize: isCambio ? (isDesktop ? 16 : 13) : (isDesktop ? 13 : 10),
                             fontWeight: 800,
                             whiteSpace: 'nowrap',
                             flexShrink: 0,
                             lineHeight: 1,
+                            textAlign: 'center',
+                            minWidth: isCambio ? (isDesktop ? 50 : 37) : undefined,
                             background: isCambio ? 'rgba(255,255,255,0.30)' : (time ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.35)'),
                             borderRadius: 4,
                             padding: '1px 5px',
