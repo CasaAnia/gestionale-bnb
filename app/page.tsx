@@ -3,12 +3,11 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import type { Booking, Expense } from '@/lib/types'
-import { getUpcomingRoomChanges } from '@/lib/roomChanges'
+import { getUpcomingRoomChanges, buildChangeGroups } from '@/lib/roomChanges'
 
 function fmt(n: number) { return n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 function today() { return new Date().toISOString().split('T')[0] }
 function tomorrow() { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0] }
-function roomPreposition(room: string) { return /^[aeiouAEIOU]/.test(room) ? 'ad' : 'a' }
 function monthStart() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
 function monthEnd() { const d = new Date(); const last = new Date(d.getFullYear(), d.getMonth()+1, 0); return last.toISOString().split('T')[0] }
 function yearStart() { return `${new Date().getFullYear()}-01-01` }
@@ -38,8 +37,6 @@ export default function Dashboard() {
       const e: any[] = expenses || []
 
       const active = b.filter((x: any) => x.status !== 'annullata')
-      const checkInOggi = active.filter((x: any) => x.check_in === td)
-      const checkOutOggi = active.filter((x: any) => x.check_out === td)
       const camereOccupate = active.filter((x: any) => x.check_in <= td && x.check_out > td).length
 
       // Percentuale di occupazione del mese corrente: notti-camera occupate su notti-camera
@@ -61,6 +58,25 @@ export default function Dashboard() {
       const roomNameById: Record<string, string> = {}
       active.forEach((x: any) => { if (x.rooms?.name) roomNameById[x.room_id] = x.rooms.name.split(' ').slice(-1)[0] })
       const roomChanges = getUpcomingRoomChanges(active, roomNameById, [td, tmr])
+
+      // Un cambio camera di oggi non è né un check-in né un check-out: il segmento in
+      // arrivo (to) e quello in partenza (from) vanno tolti dalle liste e mostrati solo
+      // nella riga dedicata "⇄ CAMBIO".
+      const byId = new Map(active.map((x: any) => [x.id, x]))
+      const { edges } = buildChangeGroups(active)
+      const cambioInIds = new Set<string>()
+      const cambioOutIds = new Set<string>()
+      for (const e of edges) {
+        const from: any = byId.get(e.fromId)
+        const to: any = byId.get(e.toId)
+        if (!from || !to) continue
+        if (to.check_in === td) {
+          cambioInIds.add(to.id)
+          if (from.check_out === td) cambioOutIds.add(from.id)
+        }
+      }
+      const checkInOggi = active.filter((x: any) => x.check_in === td && !cambioInIds.has(x.id))
+      const checkOutOggi = active.filter((x: any) => x.check_out === td && !cambioOutIds.has(x.id))
 
       const bMese = active.filter((x: any) => x.check_in >= ms && x.check_in <= me)
       const entrateMese = bMese.reduce((s: number, x: any) => s + Number(x.total_amount), 0)
@@ -156,18 +172,14 @@ export default function Dashboard() {
                   <span className="text-gray-500">— {b.rooms?.name}</span>
                 </div>
               ))}
-              {data.roomChanges.length > 0 && (
-                <div className="bg-sand rounded-lg px-2 py-1.5 mt-2">
-                  <p className="text-xs font-semibold text-green-dark mb-0.5">⇄ Cambi camera</p>
-                  {data.roomChanges.map((m: any) => (
-                    <p key={m.id} className="text-xs py-0.5">
-                      <span className="font-medium">{m.guest}</span>
-                      <span className="text-gray-500"> da {m.fromRoom} {roomPreposition(m.toRoom)} {m.toRoom}</span>
-                      <span className="text-green-mid"> ({m.date === data.td ? 'oggi' : 'domani'})</span>
-                    </p>
-                  ))}
+              {data.roomChanges.map((m: any) => (
+                <div key={m.id} className="flex flex-wrap items-center gap-2 text-sm py-1">
+                  <span className="rounded px-1.5 py-0.5 text-xs font-bold" style={{ background: '#EFE2C7', color: '#7A5C1E' }}>⇄ CAMBIO</span>
+                  <span className="font-medium">{m.guest}</span>
+                  <span className="text-gray-500">— {m.fromRoom} → {m.toRoom}</span>
+                  {m.date !== data.td && <span className="text-green-mid text-xs">(domani)</span>}
                 </div>
-              )}
+              ))}
             </div>
           )}
 
