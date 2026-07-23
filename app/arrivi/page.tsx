@@ -153,18 +153,6 @@ export default function Arrivi() {
     <div className="flex flex-col h-screen pb-32 lg:pb-0">
       <div className="shrink-0 px-4 pt-3 pb-2"><BackLink href="/" /></div>
 
-      {!loading && roomChanges.length > 0 && (
-        <div className="shrink-0 px-4 py-2 bg-sand border-b border-card-border">
-          <p className="text-xs font-semibold text-green-dark mb-1">⇄ Cambi camera</p>
-          {roomChanges.map(m => (
-            <p key={m.id} className="text-xs text-green-mid">
-              <span className="font-medium">{m.guest}</span> da {m.fromRoom} {roomPreposition(m.toRoom)} {m.toRoom}
-              <span className="text-green-mid"> ({m.date === todayStr ? 'oggi' : 'domani'})</span>
-            </p>
-          ))}
-        </div>
-      )}
-
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
@@ -331,6 +319,18 @@ export default function Arrivi() {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {!loading && roomChanges.length > 0 && (
+        <div className="shrink-0 px-4 py-2 bg-sand border-t border-card-border">
+          <p className="text-xs font-semibold text-green-dark mb-1">⇄ Cambi camera</p>
+          {roomChanges.map(m => (
+            <p key={m.id} className="text-xs text-green-mid">
+              <span className="font-medium">{m.guest}</span> da {m.fromRoom} {roomPreposition(m.toRoom)} {m.toRoom}
+              <span className="text-green-mid"> ({m.date === todayStr ? 'oggi' : 'domani'})</span>
+            </p>
+          ))}
         </div>
       )}
 
