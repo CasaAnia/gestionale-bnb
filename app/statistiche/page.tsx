@@ -33,6 +33,26 @@ function getYearMonths() {
   return Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
 }
 
+// Notti di un soggiorno che cadono in un dato mese [ms, nms) — nms = 1° del mese dopo.
+function nightsInMonth(ci: string, co: string, ms: string, nms: string) {
+  const s = ci > ms ? ci : ms
+  const e = co < nms ? co : nms
+  if (e <= s) return 0
+  return Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86400000)
+}
+
+// Colore della cella heatmap: dal crema chiaro (0%) al verde scuro Casa Ania (100%).
+function occColor(pct: number) {
+  const t = Math.max(0, Math.min(1, pct / 100))
+  const r = Math.round(237 + (45 - 237) * t)
+  const g = Math.round(243 + (106 - 243) * t)
+  const b = Math.round(233 + (79 - 233) * t)
+  return `rgb(${r}, ${g}, ${b})`
+}
+
+const MESI_INIZIALI = ['G', 'F', 'M', 'A', 'M', 'G', 'L', 'A', 'S', 'O', 'N', 'D']
+const MESI_NOMI = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
+
 export default function Statistiche() {
   const [period, setPeriod] = useState<'settimana' | 'mese' | 'anno'>('mese')
   const [data, setData] = useState<any>(null)
@@ -98,6 +118,39 @@ export default function Statistiche() {
       profit: revenueForMonth(month) - expensesForMonth(month),
     }))
   }
+
+  // Occupazione per mese (indipendente dal periodo scelto): heatmap anni × mesi.
+  function buildOccupancy(): { years: number[]; cell: Record<string, number | null> } | null {
+    if (!data) return null
+    const bookings: any[] = data.bookings
+    if (!bookings.length) return { years: [], cell: {} }
+    let earliest = bookings[0].check_in
+    for (const b of bookings) if (b.check_in < earliest) earliest = b.check_in
+    const startYear = Number(earliest.slice(0, 4))
+    const startMonthIdx = Number(earliest.slice(5, 7)) - 1
+    const now = new Date()
+    const curYear = now.getFullYear()
+    const curMonth = now.getMonth()
+    const years: number[] = []
+    for (let y = startYear; y <= curYear; y++) years.push(y)
+    const cell: Record<string, number | null> = {}
+    for (const y of years) {
+      for (let m = 0; m < 12; m++) {
+        const afterStart = y > startYear || (y === startYear && m >= startMonthIdx)
+        const beforeEnd = y < curYear || (y === curYear && m <= curMonth)
+        if (!afterStart || !beforeEnd) { cell[`${y}-${m}`] = null; continue }
+        const daysInMonth = new Date(y, m + 1, 0).getDate()
+        const ms = `${y}-${String(m + 1).padStart(2, '0')}-01`
+        const nmDate = new Date(y, m + 1, 1)
+        const nms = `${nmDate.getFullYear()}-${String(nmDate.getMonth() + 1).padStart(2, '0')}-01`
+        let occ = 0
+        for (const b of bookings) occ += nightsInMonth(b.check_in, b.check_out, ms, nms)
+        cell[`${y}-${m}`] = Math.min(100, Math.round((occ / (4 * daysInMonth)) * 100))
+      }
+    }
+    return { years, cell }
+  }
+  const occ = buildOccupancy()
 
   const rows = calcPeriod()
   const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0)
@@ -173,6 +226,49 @@ export default function Statistiche() {
               <div className="text-center py-6 text-gray-400 text-sm">Nessun dato per questo periodo</div>
             )}
           </div>
+
+          {/* Occupazione: heatmap anni × mesi (% di camere occupate sul mese) */}
+          {occ && occ.years.length > 0 && (
+            <div className="bg-white rounded-xl p-4 border border-card-border mt-4">
+              <p className="text-sm font-semibold text-gray-600">Occupazione</p>
+              <p className="text-xs text-gray-400 mb-3">% di camere occupate sul mese — verde più intenso = più pieno</p>
+              <div className="overflow-x-auto">
+                <table className="border-separate w-full" style={{ borderSpacing: 2, tableLayout: 'fixed' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 30 }}></th>
+                      {MESI_INIZIALI.map((m, i) => (
+                        <th key={i} className="text-[10px] font-normal text-gray-400 pb-1" title={MESI_NOMI[i]}>{m}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {occ.years.map(y => (
+                      <tr key={y}>
+                        <td className="text-[10px] text-gray-500 pr-1 whitespace-nowrap">{y}</td>
+                        {Array.from({ length: 12 }, (_, m) => {
+                          const v = occ.cell[`${y}-${m}`]
+                          if (v == null) return <td key={m} className="rounded" style={{ height: 26, background: '#F6F2EA' }} />
+                          return (
+                            <td key={m} title={`${MESI_NOMI[m]} ${y}: ${v}%`}
+                              className="text-center text-[10px] rounded"
+                              style={{ height: 26, background: occColor(v), color: v >= 55 ? '#fff' : '#1F3D2F' }}>
+                              {v}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-center gap-2 mt-3">
+                <span className="text-[10px] text-gray-400">0%</span>
+                <div className="flex-1 h-2 rounded-full" style={{ background: `linear-gradient(to right, ${occColor(0)}, ${occColor(50)}, ${occColor(100)})` }} />
+                <span className="text-[10px] text-gray-400">100%</span>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
