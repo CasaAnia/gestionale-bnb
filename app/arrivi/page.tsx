@@ -188,11 +188,11 @@ export default function Arrivi() {
                   {mg.label.split(' ')[0]}
                 </div>
               ))}
-              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 8px' }}>
-                <span style={{ fontSize: isDesktop ? 10 : 9, fontWeight: 600, letterSpacing: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
+              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '0 8px' }}>
+                <span style={{ fontSize: isDesktop ? 12 : 11, fontWeight: 600, letterSpacing: '2px', textIndent: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
                   {visibleMonth.split(' ')[0]}
                 </span>
-                <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 21 : 17, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
+                <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 24 : 22, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
                   {visibleMonth.split(' ')[1]}
                 </span>
               </div>

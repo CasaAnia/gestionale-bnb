@@ -250,8 +250,8 @@ export default function Calendario() {
                   {mg.label.split(' ')[0]}
                 </div>
               ))}
-              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, display: 'flex', alignItems: 'center', padding: '0 8px' }}>
-                <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 19 : 15, fontWeight: 600, color: '#1F3D2F', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px' }}>
+                <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 19 : 15, fontWeight: 600, color: '#1F3D2F', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center' }}>
                   {visibleMonth}
                 </span>
               </div>
