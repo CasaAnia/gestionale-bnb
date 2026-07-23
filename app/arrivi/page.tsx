@@ -284,6 +284,9 @@ export default function Arrivi() {
                     // Taglio a incastro identico al calendario per i soggiorni con cambio camera
                     const hasIncoming = incomingIds.has(booking.id)
                     const hasOutgoing = outgoingIds.has(booking.id)
+                    // Il segmento in arrivo di un cambio camera non è un vero check-in con
+                    // orario: al posto del "?" mostra le freccine ⇄ del cambio camera.
+                    const isCambio = hasIncoming
 
                     return (
                       <div key={booking.id}
@@ -306,22 +309,23 @@ export default function Arrivi() {
                           boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
                         }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 8, maxWidth: '100%' }}>
-                          {/* Orario */}
+                          {/* Orario — o freccine ⇄ se è l'arrivo di un cambio camera */}
                           <span style={{
-                            color: time ? '#1F3D2F' : 'white',
-                            fontSize: isDesktop ? 13 : 10,
+                            color: isCambio ? 'white' : (time ? '#1F3D2F' : 'white'),
+                            fontSize: isCambio ? (isDesktop ? 15 : 12) : (isDesktop ? 13 : 10),
                             fontWeight: 800,
                             whiteSpace: 'nowrap',
                             flexShrink: 0,
-                            background: time ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.35)',
+                            lineHeight: 1,
+                            background: isCambio ? 'rgba(255,255,255,0.30)' : (time ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.35)'),
                             borderRadius: 4,
                             padding: '1px 5px',
                           }}>
-                            {time || '?'}
+                            {isCambio ? '⇄' : (time || '?')}
                           </span>
                           {/* Nome */}
                           <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? 13 : 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                            {hasIncoming ? '⇄ ' : ''}{booking.guests?.full_name || booking.guests?.phone || ''}{hasOutgoing ? ' ⇄' : ''}
+                            {booking.guests?.full_name || booking.guests?.phone || ''}{hasOutgoing ? ' ⇄' : ''}
                           </span>
                         </div>
                       </div>
