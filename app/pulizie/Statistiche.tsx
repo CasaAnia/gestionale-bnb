@@ -147,8 +147,8 @@ export default function Statistiche({ rooms, bookings, td }:
         <button onClick={() => setOffset(offset - 1)} aria-label="Periodo precedente"
           className="shrink-0 rounded-full border border-card-border bg-white w-9 h-9 text-green-dark font-bold">‹</button>
         <span className="text-lg text-green-dark capitalize text-center min-w-[120px]" style={{ fontFamily: 'Georgia, serif', fontWeight: 600 }}>{label}</span>
-        <button onClick={() => setOffset(offset + 1)} disabled={offset >= 0} aria-label="Periodo successivo"
-          className="shrink-0 rounded-full border border-card-border bg-white w-9 h-9 text-green-dark font-bold disabled:text-[#BDB9AE] disabled:bg-[#F7F5EF] disabled:border-[#EDE9DF]">›</button>
+        <button onClick={() => { if (offset < 0) setOffset(offset + 1) }} aria-label="Periodo successivo"
+          className="shrink-0 rounded-full border border-card-border bg-white w-9 h-9 text-green-dark font-bold">›</button>
       </div>
 
       <div className="grid grid-cols-2 gap-2.5 mb-3">
