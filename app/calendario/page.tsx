@@ -12,7 +12,7 @@ const CELL_W_MOBILE = 56
 const CELL_W_DESKTOP = 84
 const ROW_H_MOBILE = 64
 const ROW_H_DESKTOP = 84
-const HEADER_MONTH_H = 34
+const HEADER_MONTH_H = 40
 const HEADER_DAY_H = 50
 const NAME_W_MOBILE = 110
 const NAME_W_DESKTOP = 180
@@ -237,7 +237,7 @@ export default function Calendario() {
           <div style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
 
             {/* ── HEADER MESI: titolo sticky + nome del mese nuovo in ottone al 1° del mese ── */}
-            <div style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', height: HEADER_MONTH_H, background: HEADER_BG }}>
+            <div style={{ position: 'sticky', top: 0, zIndex: 31, display: 'flex', height: HEADER_MONTH_H, background: HEADER_BG }}>
               {monthGroups.map((mg, i) => i === 0 ? null : (
                 <div key={i} style={{
                   position: 'absolute',
@@ -250,9 +250,12 @@ export default function Calendario() {
                   {mg.label.split(' ')[0]}
                 </div>
               ))}
-              <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px' }}>
-                <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 19 : 15, fontWeight: 600, color: '#1F3D2F', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center' }}>
-                  {visibleMonth}
+              <div style={{ width: NAME_W, minWidth: NAME_W, height: HEADER_H, position: 'sticky', left: 0, zIndex: 32, background: HEADER_BG, borderRight: '2px solid #D6CFBD', borderBottom: '2px solid #D6CFBD', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '0 8px' }}>
+                <span style={{ fontSize: isDesktop ? 12 : 11, fontWeight: 600, letterSpacing: '2px', textIndent: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                  {visibleMonth.split(' ')[0]}
+                </span>
+                <span style={{ fontFamily: 'Georgia, serif', fontSize: isDesktop ? 24 : 22, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
+                  {visibleMonth.split(' ')[1]}
                 </span>
               </div>
             </div>
