@@ -143,12 +143,12 @@ export default function Statistiche({ rooms, bookings, td }:
         ))}
       </div>
 
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-center gap-4 mb-3">
         <button onClick={() => setOffset(offset - 1)} aria-label="Periodo precedente"
-          className="rounded-full border border-card-border bg-white w-9 h-9 text-green-dark font-bold">‹</button>
-        <span className="text-lg text-green-dark capitalize" style={{ fontFamily: 'Georgia, serif', fontWeight: 600 }}>{label}</span>
+          className="shrink-0 rounded-full border border-card-border bg-white w-9 h-9 text-green-dark font-bold">‹</button>
+        <span className="text-lg text-green-dark capitalize text-center min-w-[120px]" style={{ fontFamily: 'Georgia, serif', fontWeight: 600 }}>{label}</span>
         <button onClick={() => setOffset(offset + 1)} disabled={offset >= 0} aria-label="Periodo successivo"
-          className="rounded-full border border-card-border bg-white w-9 h-9 text-green-dark font-bold disabled:opacity-30">›</button>
+          className="shrink-0 rounded-full border border-card-border bg-white w-9 h-9 text-green-dark font-bold disabled:text-[#BDB9AE] disabled:bg-[#F7F5EF] disabled:border-[#EDE9DF]">›</button>
       </div>
 
       <div className="grid grid-cols-2 gap-2.5 mb-3">
