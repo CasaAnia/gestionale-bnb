@@ -53,6 +53,40 @@ function occColor(pct: number) {
 const MESI_INIZIALI = ['G', 'F', 'M', 'A', 'M', 'G', 'L', 'A', 'S', 'O', 'N', 'D']
 const MESI_NOMI = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
 
+function todayStr() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Incassi reali: ogni entrata è attribuita al giorno in cui i soldi arrivano davvero.
+// - Se ci sono pagamenti registrati (acconti/bonifici) → ognuno nel suo giorno (paid_on);
+//   l'eventuale parte non pagata NON viene contata (è ancora da incassare).
+// - Se non c'è nessun pagamento registrato → si assume saldo intero alla consegna chiavi
+//   (primo check-in del soggiorno), tranne bonifici in attesa o arrivi ancora futuri.
+// I segmenti di un cambio camera (stesso group_id) sono un unico soggiorno.
+function buildReceipts(bookings: any[], payments: any[], today: string): { date: string; amount: number }[] {
+  const paysByBooking: Record<string, any[]> = {}
+  for (const p of payments) (paysByBooking[p.booking_id] = paysByBooking[p.booking_id] || []).push(p)
+  const groups: Record<string, any[]> = {}
+  for (const b of bookings) { const k = b.group_id || b.id; (groups[k] = groups[k] || []).push(b) }
+  const receipts: { date: string; amount: number }[] = []
+  for (const k in groups) {
+    const segs = groups[k]
+    const gp: any[] = []
+    for (const s of segs) for (const p of (paysByBooking[s.id] || [])) gp.push(p)
+    if (gp.length > 0) {
+      for (const p of gp) if (p.paid_on) receipts.push({ date: p.paid_on, amount: Number(p.amount) })
+    } else {
+      const dovuto = segs.reduce((s: number, x: any) => s + Number(x.total_amount), 0)
+      const firstCheckIn = segs.map((s: any) => s.check_in).sort()[0]
+      const bonifico = segs.some((s: any) => s.bonifico)
+      const pagato = segs.some((s: any) => s.pagato)
+      if (pagato || (!bonifico && firstCheckIn <= today)) receipts.push({ date: firstCheckIn, amount: dovuto })
+    }
+  }
+  return receipts
+}
+
 export default function Statistiche() {
   const [period, setPeriod] = useState<'settimana' | 'mese' | 'anno'>('mese')
   const [data, setData] = useState<any>(null)
@@ -60,11 +94,12 @@ export default function Statistiche() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: bookings }, { data: expenses }] = await Promise.all([
+      const [{ data: bookings }, { data: expenses }, { data: payments }] = await Promise.all([
         supabase.from('bookings').select('*').neq('status', 'annullata'),
         supabase.from('expenses').select('*'),
+        supabase.from('payments').select('booking_id, amount, paid_on'),
       ])
-      setData({ bookings: bookings || [], expenses: expenses || [] })
+      setData({ bookings: bookings || [], expenses: expenses || [], payments: payments || [] })
       setLoading(false)
     }
     load()
@@ -72,15 +107,14 @@ export default function Statistiche() {
 
   function calcPeriod() {
     if (!data) return []
-    const { bookings, expenses } = data
+    const { expenses } = data
 
-    // Da noi si paga tutto all'arrivo: l'intera prenotazione conta nel giorno di
-    // check-in (stesso criterio della Home). Prima veniva spalmata sulle notti,
-    // con il letto extra diviso per notte: uscivano cifre non tonde e totali
-    // diversi da quelli della Home.
+    // Entrate = incasso REALE, attribuito al giorno in cui i soldi arrivano davvero
+    // (acconti/bonifici nel loro giorno; altrimenti saldo intero alla consegna chiavi).
+    const receipts = buildReceipts(data.bookings, data.payments || [], todayStr())
+
     function revenueForDay(day: string) {
-      return bookings.filter((b: any) => b.check_in === day)
-        .reduce((s: number, b: any) => s + Number(b.total_amount), 0)
+      return receipts.filter(r => r.date === day).reduce((s, r) => s + r.amount, 0)
     }
 
     function expensesForDay(day: string) {
@@ -88,7 +122,7 @@ export default function Statistiche() {
     }
 
     function revenueForMonth(month: string) {
-      return bookings.filter((b: any) => b.check_in.startsWith(month)).reduce((s: number, b: any) => s + Number(b.total_amount), 0)
+      return receipts.filter(r => r.date.startsWith(month)).reduce((s, r) => s + r.amount, 0)
     }
 
     function expensesForMonth(month: string) {
