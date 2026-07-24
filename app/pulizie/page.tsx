@@ -70,6 +70,7 @@ type RigaCamera = {
   room: any
   shortName: string
   daPulire: boolean
+  occupata: boolean          // c'è un ospite che soggiorna ora (né da pulire né vuota)
   partenza: any | null       // check-out di oggi: la camera va rifatta (sempre, cambia l'ospite)
   cambio: Cambio | null      // cambio biancheria dovuto (oggi o in ritardo)
   cambioProssimo: Cambio | null // cambio in arrivo nei prossimi giorni (spostabile/anticipabile)
@@ -168,6 +169,7 @@ export default function Pulizie() {
         room,
         shortName: room.name.split(' ').slice(-1)[0],
         daPulire: !!partenzaOggi || !!cambio,
+        occupata: !!inCorso,
         partenza: partenzaOggi,
         cambio,
         cambioProssimo,
@@ -232,7 +234,7 @@ export default function Pulizie() {
       ) : (
         <div className="flex flex-col gap-3">
           {righe.map(riga => {
-            const { room, shortName, daPulire, partenza, cambio, cambioProssimo, arrivo, prossimo } = riga
+            const { room, shortName, daPulire, occupata, partenza, cambio, cambioProssimo, arrivo, prossimo } = riga
             const conArrivo = daPulire && arrivo
             const spostabile = cambio || cambioProssimo
             return (
@@ -245,6 +247,8 @@ export default function Pulizie() {
                       <span className="font-serif text-lg text-green-dark leading-tight">{shortName}</span>
                       {daPulire ? (
                         <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={{ background: '#EFD9C7', color: '#8a4f2f' }}>da pulire</span>
+                      ) : occupata ? (
+                        <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={{ background: '#E1E9EE', color: '#41637A' }}>occupata</span>
                       ) : (
                         <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>pulita</span>
                       )}
