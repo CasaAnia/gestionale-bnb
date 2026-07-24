@@ -146,7 +146,7 @@ export default function Statistiche({ rooms, bookings, td }:
       <div className="flex items-center justify-between mb-3">
         <button onClick={() => setOffset(offset - 1)} aria-label="Periodo precedente"
           className="rounded-full border border-card-border bg-white w-9 h-9 text-green-dark font-bold">‹</button>
-        <span className="font-serif text-lg text-green-dark capitalize">{label}</span>
+        <span className="text-lg text-green-dark capitalize" style={{ fontFamily: 'Georgia, serif', fontWeight: 600 }}>{label}</span>
         <button onClick={() => setOffset(offset + 1)} disabled={offset >= 0} aria-label="Periodo successivo"
           className="rounded-full border border-card-border bg-white w-9 h-9 text-green-dark font-bold disabled:opacity-30">›</button>
       </div>
