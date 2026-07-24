@@ -222,7 +222,7 @@ export default function Pulizie() {
     <div className="p-4">
       <div className="mb-3"><BackLink href="/" /></div>
 
-      <h1 className="font-serif text-2xl text-green-dark capitalize">{italianDate()}</h1>
+      <h1 className="text-2xl text-green-dark capitalize" style={{ fontFamily: 'Georgia, serif', fontWeight: 600 }}>{italianDate()}</h1>
       <p className="text-sm text-gray-500 mb-4">
         {loading ? ' ' : daRifare === 0 ? 'Nessuna camera da rifare' : daRifare === 1 ? '1 camera da rifare' : `${daRifare} camere da rifare`}
       </p>
