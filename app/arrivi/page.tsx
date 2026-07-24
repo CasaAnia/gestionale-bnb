@@ -188,7 +188,7 @@ export default function Arrivi() {
                   {mg.label.split(' ')[0]}
                 </div>
               ))}
-              <div style={{ width: NAME_W, minWidth: NAME_W, height: HEADER_H, position: 'sticky', left: 0, zIndex: 32, background: HEADER_BG, borderRight: '2px solid #ECE8DD', borderBottom: '2px solid #ECE8DD', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '0 8px' }}>
+              <div style={{ width: NAME_W, minWidth: NAME_W, height: HEADER_H, position: 'sticky', left: 0, zIndex: 32, background: HEADER_BG, borderRight: '2px solid #D6CFBD', borderBottom: '2px solid #D6CFBD', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '0 8px' }}>
                 <span style={{ fontSize: isDesktop ? 12 : 11, fontWeight: 600, letterSpacing: '2px', textIndent: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
                   {visibleMonth.split(' ')[0]}
                 </span>
@@ -199,7 +199,7 @@ export default function Arrivi() {
             </div>
 
             {/* ── HEADER GIORNI ── */}
-            <div style={{ position: 'sticky', top: HEADER_MONTH_H, zIndex: 30, display: 'flex', height: HEADER_DAY_H, background: HEADER_BG, borderBottom: '2px solid #ECE8DD' }}>
+            <div style={{ position: 'sticky', top: HEADER_MONTH_H, zIndex: 30, display: 'flex', height: HEADER_DAY_H, background: HEADER_BG, borderBottom: '2px solid #D6CFBD' }}>
               <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 31, background: HEADER_BG, borderRight: '1px solid #ECE8DD' }} />
               {days.map((d, i) => {
                 const isToday = toStr(d) === todayStr
@@ -208,7 +208,7 @@ export default function Arrivi() {
                   <div key={i} style={{
                     width: CELL_W, minWidth: CELL_W, textAlign: 'center', paddingTop: 4,
                     background: isToday ? '#F3ECD8' : 'transparent',
-                    borderLeft: '1px solid #F2EEE3',
+                    borderLeft: '1px solid #ECE8DD',
                   }}>
                     <div style={{ fontSize: isDesktop ? 10 : 8, fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2 }}>
                       {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop ? 3 : 2)}
@@ -257,7 +257,7 @@ export default function Arrivi() {
                       return (
                     <div style={{
                       width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10,
-                      background: 'white', borderRight: '2px solid #ECE8DD',
+                      background: 'white', borderRight: '2px solid #D6CFBD',
                       display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px',
                     }}>
                       <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 12 : 10, color: 'var(--color-brass)', flexShrink: 0 }}>
@@ -284,7 +284,7 @@ export default function Arrivi() {
                           style={{
                             width: CELL_W, minWidth: CELL_W, height: '100%',
                             background: isToday ? '#F3ECD8' : isSun ? '#F7F3E8' : (isEven ? 'white' : '#F7F3E8'),
-                            borderLeft: isToday ? '2px solid #F3ECD8' : '1px solid #F2EEE3',
+                            borderLeft: isToday ? '2px solid #F3ECD8' : '1px solid #ECE8DD',
                           }} />
                       )
                     })}
