@@ -8,14 +8,17 @@ import BackLink from '@/components/BackLink'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
-const CELL_W_MOBILE = 56
-const CELL_W_DESKTOP = 84
-const ROW_H_MOBILE = 64
-const ROW_H_DESKTOP = 84
-const HEADER_MONTH_H = 40
-const HEADER_DAY_H = 50
-const NAME_W_MOBILE = 110
-const NAME_W_DESKTOP = 180
+// Fattore di ingrandimento della griglia (1 = originale). Scala misure e testi.
+const GRID_SCALE = 1.2
+function gs(n: number) { return Math.round(n * GRID_SCALE) }
+const CELL_W_MOBILE = gs(56)
+const CELL_W_DESKTOP = gs(84)
+const ROW_H_MOBILE = gs(64)
+const ROW_H_DESKTOP = gs(84)
+const HEADER_MONTH_H = gs(40)
+const HEADER_DAY_H = gs(50)
+const NAME_W_MOBILE = gs(110)
+const NAME_W_DESKTOP = gs(180)
 const DAYS_TOTAL = 365
 const DAYS_BEFORE = 180
 const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
@@ -82,7 +85,7 @@ export default function Calendario() {
   const ROW_H = isDesktop ? ROW_H_DESKTOP : ROW_H_MOBILE
   const HEADER_H = HEADER_MONTH_H + HEADER_DAY_H
   const NAME_W = isDesktop ? NAME_W_DESKTOP : NAME_W_MOBILE
-  const EXTRA_ROW_H = isDesktop ? 28 : 22
+  const EXTRA_ROW_H = isDesktop ? gs(28) : gs(22)
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -244,17 +247,17 @@ export default function Calendario() {
                   left: NAME_W + mg.startIdx * CELL_W + 6,
                   height: HEADER_MONTH_H,
                   display: 'flex', alignItems: 'center',
-                  fontSize: isDesktop ? 10 : 9, fontWeight: 600, letterSpacing: '1.5px',
+                  fontSize: isDesktop ? gs(10) : gs(9), fontWeight: 600, letterSpacing: '1.5px',
                   color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap',
                 }}>
                   {mg.label.split(' ')[0]}
                 </div>
               ))}
               <div style={{ width: NAME_W, minWidth: NAME_W, height: HEADER_H, position: 'sticky', left: 0, zIndex: 32, background: HEADER_BG, borderRight: '2px solid #D6CFBD', borderBottom: '2px solid #D6CFBD', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '0 8px' }}>
-                <span style={{ fontSize: isDesktop ? 12 : 11, fontWeight: 600, letterSpacing: '2px', textIndent: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                <span style={{ fontSize: isDesktop ? gs(12) : gs(11), fontWeight: 600, letterSpacing: '2px', textIndent: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
                   {visibleMonth.split(' ')[0]}
                 </span>
-                <span style={{ fontFamily: 'Georgia, serif', fontSize: isDesktop ? 24 : 22, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
+                <span style={{ fontFamily: 'Georgia, serif', fontSize: isDesktop ? gs(24) : gs(22), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
                   {visibleMonth.split(' ')[1]}
                 </span>
               </div>
@@ -273,16 +276,16 @@ export default function Calendario() {
                     background: isToday ? '#F3ECD8' : 'transparent',
                     borderLeft: '1px solid #ECE8DD',
                   }}>
-                    <div style={{ fontSize: isDesktop ? 10 : 8, fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2 }}>
+                    <div style={{ fontSize: isDesktop ? gs(10) : gs(8), fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2 }}>
                       {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop ? 3 : 2)}
                     </div>
                     <div style={{
-                      fontSize: isDesktop ? 15 : 12, fontWeight: 700,
+                      fontSize: isDesktop ? gs(15) : gs(12), fontWeight: 700,
                       color: isToday ? 'white' : (isSun ? '#C58A67' : '#1F3D2F'),
                       background: isToday ? '#2D6A4F' : 'transparent',
                       borderRadius: '50%',
-                      width: isDesktop ? 26 : 20, height: isDesktop ? 26 : 20,
-                      lineHeight: isDesktop ? '26px' : '20px',
+                      width: isDesktop ? gs(26) : gs(20), height: isDesktop ? gs(26) : gs(20),
+                      lineHeight: isDesktop ? `${gs(26)}px` : `${gs(20)}px`,
                       margin: '0 auto',
                     }}>
                       {d.getDate()}
@@ -323,14 +326,14 @@ export default function Calendario() {
                       background: 'white', borderRight: '2px solid #D6CFBD',
                       display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px',
                     }}>
-                      <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 12 : 10, color: 'var(--color-brass)', flexShrink: 0 }}>
+                      <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? gs(12) : gs(10), color: 'var(--color-brass)', flexShrink: 0 }}>
                         {ROOM_NUMBER_BY_NAME[shortName] || ''}
                       </span>
                       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 16 : 13, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? gs(16) : gs(13), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {shortName}
                         </span>
-                        <span style={{ fontSize: isDesktop ? 10 : 8, color: 'var(--color-stone)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontSize: isDesktop ? gs(10) : gs(8), color: 'var(--color-stone)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {isDesktop ? (ROOM_DESC_BY_NAME[shortName] || '') : (ROOM_DESC_BY_NAME[shortName] || '').split(' · ')[0]}
                         </span>
                       </span>
@@ -429,11 +432,11 @@ export default function Calendario() {
                           }}>
                           {isFirst && (
                             <>
-                              <span style={{ color: 'white', fontSize: isDesktop ? 13 : 10, fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                              <span style={{ color: 'white', fontSize: isDesktop ? gs(13) : gs(10), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                                 {hasIncoming ? '⇄ ' : ''}{guestName}{hasOutgoing ? ' ⇄' : ''}
                               </span>
                               {(isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed) && (
-                                <span style={{ fontSize: isDesktop ? 12 : 9, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
+                                <span style={{ fontSize: isDesktop ? gs(12) : gs(9), paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
                                   {isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏 ' : ''}
                                 </span>
                               )}
@@ -453,7 +456,7 @@ export default function Calendario() {
               return (
                 <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: EXTRA_ROW_H, display: 'flex', borderTop: '2px solid #D6CFBD' }}>
                   <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10, background: 'white', borderRight: '2px solid #D6CFBD', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: isDesktop ? 10 : 8, fontWeight: 700, color: '#7A4B22', background: '#F1E0CE', borderRadius: 4, padding: '1px 5px' }}>
+                    <span style={{ fontSize: isDesktop ? gs(10) : gs(8), fontWeight: 700, color: '#7A4B22', background: '#F1E0CE', borderRadius: 4, padding: '1px 5px' }}>
                       🛏 extra
                     </span>
                   </div>
@@ -465,7 +468,7 @@ export default function Calendario() {
                     return (
                       <div key={i} style={{ width: CELL_W, minWidth: CELL_W, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isFull ? '#F6E4DE' : isToday ? '#F3ECD8' : 'white', borderLeft: isToday ? '2px solid #F3ECD8' : '1px solid #ECE8DD' }}>
                         {count > 0 && (
-                          <span style={{ fontSize: isDesktop ? 11 : 8, fontWeight: 700, color: isFull ? RED : '#7A4B22' }}>
+                          <span style={{ fontSize: isDesktop ? gs(11) : gs(8), fontWeight: 700, color: isFull ? RED : '#7A4B22' }}>
                             {count}/{EXTRA_BED_MAX}
                           </span>
                         )}
