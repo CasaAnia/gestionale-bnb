@@ -66,6 +66,8 @@ export default function Dashboard() {
       const { edges } = buildChangeGroups(active)
       const cambioInIds = new Set<string>()
       const cambioOutIds = new Set<string>()
+      const cambioInDomaniIds = new Set<string>()
+      const cambioOutDomaniIds = new Set<string>()
       for (const e of edges) {
         const from: any = byId.get(e.fromId)
         const to: any = byId.get(e.toId)
@@ -74,9 +76,17 @@ export default function Dashboard() {
           cambioInIds.add(to.id)
           if (from.check_out === td) cambioOutIds.add(from.id)
         }
+        if (to.check_in === tmr) {
+          cambioInDomaniIds.add(to.id)
+          if (from.check_out === tmr) cambioOutDomaniIds.add(from.id)
+        }
       }
       const checkInOggi = active.filter((x: any) => x.check_in === td && !cambioInIds.has(x.id))
       const checkOutOggi = active.filter((x: any) => x.check_out === td && !cambioOutIds.has(x.id))
+      const checkInDomani = active.filter((x: any) => x.check_in === tmr && !cambioInDomaniIds.has(x.id))
+      const checkOutDomani = active.filter((x: any) => x.check_out === tmr && !cambioOutDomaniIds.has(x.id))
+      const roomChangesOggi = roomChanges.filter((m: any) => m.date === td)
+      const roomChangesDomani = roomChanges.filter((m: any) => m.date === tmr)
 
       const bMese = active.filter((x: any) => x.check_in >= ms && x.check_in <= me)
       const entrateMese = bMese.reduce((s: number, x: any) => s + Number(x.total_amount), 0)
@@ -133,11 +143,44 @@ export default function Dashboard() {
         .map(g => ({ ...g, residuo: g.dovuto - g.ricevuto }))
         .sort((a, b) => b.residuo - a.residuo)
 
-      setData({ entrateMese, incassatoMese, daIncassareMese, speseMese, profittoMese, tariffaMedia, checkInOggi, checkOutOggi, camereOccupate, occupazioneMese, roomChanges, td, daIncassare })
+      setData({ entrateMese, incassatoMese, daIncassareMese, speseMese, profittoMese, tariffaMedia, checkInOggi, checkOutOggi, checkInDomani, checkOutDomani, roomChangesOggi, roomChangesDomani, camereOccupate, occupazioneMese, td, daIncassare })
       setLoading(false)
     }
     load()
   }, [])
+
+  // Righe di un giorno (arrivi, partenze, cambi camera). Il prefisso rende le key
+  // uniche tra le sezioni Oggi e Domani (una prenotazione può arrivare oggi e
+  // ripartire domani, comparendo in entrambe).
+  function renderEventi(prefix: string, checkIn: any[], checkOut: any[], changes: any[]) {
+    return (
+      <>
+        {checkIn.map((b: any) => (
+          <div key={`${prefix}-in-${b.id}`} className="flex flex-wrap items-center gap-2 text-sm py-1">
+            <span className="bg-sage text-green-dark rounded px-1.5 py-0.5 text-xs font-bold">CHECK-IN</span>
+            <span className="font-medium">{b.guests?.full_name || b.guests?.phone}</span>
+            <span className="text-gray-500">— {b.rooms?.name}</span>
+            {b.check_in_time && <span className="bg-sage text-green-mid rounded px-1.5 py-0.5 text-xs font-bold">🕐 {b.check_in_time}</span>}
+            {b.extra_bed && <span className="bg-[#F1E0CE] text-[#7A4B22] rounded px-1 text-xs">+letto agg.</span>}
+          </div>
+        ))}
+        {checkOut.map((b: any) => (
+          <div key={`${prefix}-out-${b.id}`} className="flex flex-wrap items-center gap-2 text-sm py-1">
+            <span className="bg-[#F4E6DF] text-[#7A3B22] rounded px-1.5 py-0.5 text-xs font-bold">CHECK-OUT</span>
+            <span className="font-medium">{b.guests?.full_name || b.guests?.phone}</span>
+            <span className="text-gray-500">— {b.rooms?.name}</span>
+          </div>
+        ))}
+        {changes.map((m: any) => (
+          <div key={`${prefix}-ch-${m.id}`} className="flex flex-wrap items-center gap-2 text-sm py-1">
+            <span className="rounded px-1.5 py-0.5 text-xs font-bold" style={{ background: '#EFE2C7', color: '#7A5C1E' }}>⇄ CAMBIO</span>
+            <span className="font-medium">{m.guest}</span>
+            <span className="text-gray-500">— {m.fromRoom} → {m.toRoom}</span>
+          </div>
+        ))}
+      </>
+    )
+  }
 
   return (
     <div className="p-4">
@@ -150,35 +193,28 @@ export default function Dashboard() {
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
         <>
-          {(data.checkInOggi.length > 0 || data.checkOutOggi.length > 0 || data.roomChanges.length > 0) && (
-            <div className="bg-white rounded-[10px] border border-card-border p-3 mb-4">
-              <p className="text-[11px] uppercase mb-2.5 text-brass" style={{ letterSpacing: '2px' }}>Oggi</p>
-              {data.checkInOggi.map((b: any) => (
-                <div key={b.id} className="flex flex-wrap items-center gap-2 text-sm py-1">
-                  <span className="bg-sage text-green-dark rounded px-1.5 py-0.5 text-xs font-bold">CHECK-IN</span>
-                  <span className="font-medium">{b.guests?.full_name || b.guests?.phone}</span>
-                  <span className="text-gray-500">— {b.rooms?.name}</span>
-                  {b.check_in_time && <span className="bg-sage text-green-mid rounded px-1.5 py-0.5 text-xs font-bold">🕐 {b.check_in_time}</span>}
-                  {b.extra_bed && <span className="bg-[#F1E0CE] text-[#7A4B22] rounded px-1 text-xs">+letto agg.</span>}
-                </div>
-              ))}
-              {data.checkOutOggi.map((b: any) => (
-                <div key={b.id} className="flex flex-wrap items-center gap-2 text-sm py-1">
-                  <span className="bg-[#F4E6DF] text-[#7A3B22] rounded px-1.5 py-0.5 text-xs font-bold">CHECK-OUT</span>
-                  <span className="font-medium">{b.guests?.full_name || b.guests?.phone}</span>
-                  <span className="text-gray-500">— {b.rooms?.name}</span>
-                </div>
-              ))}
-              {data.roomChanges.map((m: any) => (
-                <div key={m.id} className="flex flex-wrap items-center gap-2 text-sm py-1">
-                  <span className="rounded px-1.5 py-0.5 text-xs font-bold" style={{ background: '#EFE2C7', color: '#7A5C1E' }}>⇄ CAMBIO</span>
-                  <span className="font-medium">{m.guest}</span>
-                  <span className="text-gray-500">— {m.fromRoom} → {m.toRoom}</span>
-                  {m.date !== data.td && <span className="text-green-mid text-xs">(domani)</span>}
-                </div>
-              ))}
-            </div>
-          )}
+          {(() => {
+            const hasOggi = data.checkInOggi.length > 0 || data.checkOutOggi.length > 0 || data.roomChangesOggi.length > 0
+            const hasDomani = data.checkInDomani.length > 0 || data.checkOutDomani.length > 0 || data.roomChangesDomani.length > 0
+            if (!hasOggi && !hasDomani) return null
+            return (
+              <div className="bg-white rounded-[10px] border border-card-border p-3 mb-4">
+                {hasOggi && (
+                  <>
+                    <p className="text-[11px] uppercase mb-2.5 text-brass" style={{ letterSpacing: '2px' }}>Oggi</p>
+                    {renderEventi('oggi', data.checkInOggi, data.checkOutOggi, data.roomChangesOggi)}
+                  </>
+                )}
+                {hasDomani && (
+                  <>
+                    {hasOggi && <div className="border-t border-card-border mt-3 mb-2.5" />}
+                    <p className="text-[11px] uppercase mb-2.5" style={{ letterSpacing: '2px', color: '#8a9488' }}>Domani</p>
+                    {renderEventi('domani', data.checkInDomani, data.checkOutDomani, data.roomChangesDomani)}
+                  </>
+                )}
+              </div>
+            )
+          })()}
 
           {data.daIncassare?.length > 0 && (
             <div className="bg-white rounded-[10px] border border-card-border p-3 mb-4">
