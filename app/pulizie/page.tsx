@@ -299,10 +299,10 @@ export default function Pulizie() {
     )
   }
 
-  // Divisorio di sezione ("Oggi", "Prossimi")
+  // Divisorio di sezione ("Oggi", "Prossimi") — etichetta identica alla Home (ottone)
   const sezioneTitolo = (titolo: string, sub?: string) => (
-    <div className="flex items-center gap-2 mb-3">
-      <span className="font-serif text-sm text-green-dark" style={{ fontWeight: 600, letterSpacing: '0.02em' }}>{titolo}</span>
+    <div className="flex items-center gap-2 mb-2.5">
+      <span className="text-[11px] uppercase text-brass" style={{ letterSpacing: '2px' }}>{titolo}</span>
       {sub && <span className="text-xs text-stone">{sub}</span>}
       <span className="flex-1 h-px" style={{ background: 'var(--color-card-border)' }} />
     </div>
@@ -407,7 +407,7 @@ export default function Pulizie() {
                 return (
                   <div key={g} className="mb-4">
                     <div className="flex items-baseline gap-2 mb-2">
-                      <span className="text-sm font-semibold" style={{ color: 'var(--color-brass)' }}>{h.label}</span>
+                      <span className="text-[11px] uppercase" style={{ letterSpacing: '2px', color: '#8a9488' }}>{h.label}</span>
                       {h.sub && <span className="text-xs text-stone">{h.sub}</span>}
                     </div>
                     <div className="flex flex-col gap-3">
