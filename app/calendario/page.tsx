@@ -24,9 +24,10 @@ const DAYS_BEFORE = 180
 const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
 const EXTRA_BED_MAX = 2
 
-const GREEN = '#6C9A7C'
-const PURPLE = '#9B8EC4'
-const CYAN = '#7D9DB0'
+// Colori delle barre per stato di pagamento (attenuati)
+const COLOR_PRENOTAZIONE = '#7D9DB0' // blu — prenotazione normale (paga in contanti all'arrivo)
+const COLOR_BONIFICO = '#9B8EC4'     // viola — bonifico in attesa
+const COLOR_PAGATO = '#6C9A7C'       // verde — già pagato
 const RED = '#C58A67'
 const BLACK = '#1f2937'
 const HEADER_BG = '#ffffff'
@@ -196,8 +197,8 @@ export default function Calendario() {
     const bedColor = others >= 2 ? BLACK : RED
 
     if (booking.pagato) {
-      if (!hasExtra) return CYAN
-      return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${CYAN} 8px, ${CYAN} 16px)`
+      if (!hasExtra) return COLOR_PAGATO
+      return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${COLOR_PAGATO} 8px, ${COLOR_PAGATO} 16px)`
     }
     // Acconti: le notti interamente coperte dai soldi ricevuti diventano blu
     // (da sinistra, lungo tutta la catena); a saldo raggiunto è tutta blu.
@@ -205,16 +206,16 @@ export default function Calendario() {
     if (coperte !== undefined) {
       const giorno = Math.round((strToDate(dateStr).getTime() - strToDate(booking.check_in).getTime()) / 86400000)
       if (coperte === -1 || giorno < coperte) {
-        if (!hasExtra) return CYAN
-        return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${CYAN} 8px, ${CYAN} 16px)`
+        if (!hasExtra) return COLOR_PAGATO
+        return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${COLOR_PAGATO} 8px, ${COLOR_PAGATO} 16px)`
       }
     }
     if (booking.bonifico) {
-      if (!hasExtra) return PURPLE
-      return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${PURPLE} 8px, ${PURPLE} 16px)`
+      if (!hasExtra) return COLOR_BONIFICO
+      return `repeating-linear-gradient(45deg, ${bedColor} 0px, ${bedColor} 8px, ${COLOR_BONIFICO} 8px, ${COLOR_BONIFICO} 16px)`
     }
     if (hasExtra) return bedColor
-    return booking.color || GREEN
+    return booking.color || COLOR_PRENOTAZIONE
   }
 
   const totalW = NAME_W + DAYS_TOTAL * CELL_W
@@ -486,15 +487,15 @@ export default function Calendario() {
       {/* Legenda */}
       <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border flex flex-wrap gap-3 items-center">
         <div className="flex items-center gap-1.5">
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: GREEN }} />
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: COLOR_PRENOTAZIONE }} />
           <span className="text-xs text-gray-500">Prenotazione</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: PURPLE }} />
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: COLOR_BONIFICO }} />
           <span className="text-xs text-gray-500">Bonifico attesa</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: CYAN }} />
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: COLOR_PAGATO }} />
           <span className="text-xs text-gray-500">Pagato</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -503,8 +504,8 @@ export default function Calendario() {
         </div>
         <div className="flex items-center gap-1.5">
           <div style={{ position: 'relative', width: 32, height: 16, flexShrink: 0 }}>
-            <div style={{ position: 'absolute', left: 0, top: 0, width: 16, height: 16, background: GREEN, clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }} />
-            <div style={{ position: 'absolute', left: 16, top: 0, width: 16, height: 16, background: GREEN, clipPath: 'polygon(0 0, 100% 0, 100% 100%, 6px 100%)' }} />
+            <div style={{ position: 'absolute', left: 0, top: 0, width: 16, height: 16, background: COLOR_PRENOTAZIONE, clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }} />
+            <div style={{ position: 'absolute', left: 16, top: 0, width: 16, height: 16, background: COLOR_PRENOTAZIONE, clipPath: 'polygon(0 0, 100% 0, 100% 100%, 6px 100%)' }} />
             <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', fontSize: 8, fontWeight: 700, color: 'white' }}>⇄</span>
           </div>
           <span className="text-xs text-gray-500">Cambio camera (1° tocco: abbina · 2° tocco: apri)</span>
