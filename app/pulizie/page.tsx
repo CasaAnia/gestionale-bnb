@@ -34,23 +34,19 @@ function diffDays(a: string, b: string) {
   return Math.round((new Date(ay, am - 1, ad).getTime() - new Date(by, bm - 1, bd).getTime()) / 86400000)
 }
 
-function dayMonth(s: string) {
-  const [y, m, d] = s.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
-}
-
 function italianDate() {
   return new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-// Quando cade (o cadeva) il cambio biancheria rispetto a oggi
-function cambioLabel(due: string, td: string) {
-  const diff = diffDays(due, td)
-  if (diff === 0) return 'oggi'
-  if (diff === -1) return 'previsto ieri'
-  if (diff < 0) return `previsto il ${dayMonth(due)}`
-  if (diff === 1) return 'domani'
-  return `il ${dayMonth(due)}`
+// Intestazione di un gruppo di giorni nella sezione "Prossimi":
+// "Domani" / "Dopodomani" con la data per esteso, o solo la data se più lontano.
+function intestazioneGiorno(date: string, td: string) {
+  const diff = diffDays(date, td)
+  const [y, m, d] = date.split('-').map(Number)
+  const full = new Date(y, m - 1, d).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })
+  if (diff === 1) return { label: 'Domani', sub: full }
+  if (diff === 2) return { label: 'Dopodomani', sub: full }
+  return { label: full.charAt(0).toUpperCase() + full.slice(1), sub: '' }
 }
 
 type Cambio = { booking: any; due: string }
@@ -66,6 +62,17 @@ function continuaDa(bookings: any[], b: any) {
   return bookings.find(x => x.id !== b.id && x.room_id === b.room_id && b.guest_id && x.guest_id === b.guest_id && x.check_out === b.check_in) || null
 }
 
+// Cambio camera: stesso ospite che lo stesso giorno si sposta in un'altra camera.
+// In uscita = parte da questa camera e riappare altrove; in entrata = arriva qui da un'altra.
+// Il badge "⇄ cambio camera" segnala SOLO chi arriva: chi parte per spostarsi lascia
+// comunque la camera "da pulire" (senza fretta, non entra subito un altro ospite).
+function cambioCameraOut(bookings: any[], b: any) {
+  return bookings.find(x => x.id !== b.id && b.guest_id && x.guest_id === b.guest_id && x.check_in === b.check_out && x.room_id !== b.room_id) || null
+}
+function cambioCameraIn(bookings: any[], b: any) {
+  return bookings.find(x => x.id !== b.id && b.guest_id && x.guest_id === b.guest_id && x.check_out === b.check_in && x.room_id !== b.room_id) || null
+}
+
 type RigaCamera = {
   room: any
   shortName: string
@@ -75,7 +82,9 @@ type RigaCamera = {
   cambio: Cambio | null      // cambio biancheria dovuto (oggi o in ritardo)
   cambioProssimo: Cambio | null // cambio in arrivo nei prossimi giorni (spostabile/anticipabile)
   arrivo: any | null         // prenotazione che arriva oggi nella stessa camera
-  prossimo: { date: string; motivo: string } | null // primo lavoro futuro previsto e perché
+  arrivoCC: any | null       // se chi arriva oggi fa un cambio camera: prenotazione di provenienza
+  partenzaCC: any | null     // se chi parte oggi fa un cambio camera: prenotazione di destinazione
+  prossimo: { date: string; badges: string[]; testo: string } | null // primo lavoro futuro: giorno, etichette e testo
 }
 
 export default function Pulizie() {
@@ -106,6 +115,10 @@ export default function Pulizie() {
   }, [])
 
   const righe: RigaCamera[] = useMemo(() => {
+    const shortOf = (id: string) => {
+      const r = rooms.find(rr => rr.id === id)
+      return r ? r.name.split(' ').slice(-1)[0] : 'un’altra camera'
+    }
     const out: RigaCamera[] = rooms.map(room => {
       // Check-out di oggi: la camera va rifatta. La pulizia al cambio ospite è
       // obbligatoria, quindi non si chiede più conferma: domani si considera fatta.
@@ -143,27 +156,50 @@ export default function Pulizie() {
 
       // Arrivo di oggi: solo se è un ospite nuovo per questa camera (non un prolungamento)
       const arrivo = bookings.find(b => b.room_id === room.id && b.check_in === td && !continuaDa(bookings, b)) || null
+      const arrivoCC = arrivo ? cambioCameraIn(bookings, arrivo) : null
+      const partenzaCC = partenzaOggi ? cambioCameraOut(bookings, partenzaOggi) : null
 
-      // "Prossimo: ..." — il primo lavoro futuro previsto in questa camera, con motivo:
-      // cambio biancheria (4 notti), partenza dell'ospite in corso, o arrivo/cambio camera
-      const eventi: { date: string; motivo: string }[] = []
-      if (dueFuturo && dueFuturo > td) eventi.push({ date: dueFuturo, motivo: 'cambio biancheria' })
+      // "Prossimi": il primo lavoro futuro previsto in questa camera, con le etichette
+      // (da pulire / cambio biancheria / ⇄ cambio camera) e un testo che spiega cosa succede.
+      type Ev = { date: string; badge: string | null; testo: string }
+      const eventi: Ev[] = []
+      if (dueFuturo && dueFuturo > td) {
+        const g = inCorso?.guests?.full_name
+        eventi.push({ date: dueFuturo, badge: 'cambio biancheria', testo: g ? `${g} resta · solo lenzuola` : 'solo lenzuola' })
+      }
       if (inCorso) {
         let fineSoggiorno = inCorso
         for (let next = continuaIn(bookings, fineSoggiorno); next; next = continuaIn(bookings, next)) fineSoggiorno = next
-        eventi.push({ date: fineSoggiorno.check_out, motivo: `parte ${fineSoggiorno.guests?.full_name || 'l’ospite'}` })
+        const out = cambioCameraOut(bookings, fineSoggiorno)
+        const nome = fineSoggiorno.guests?.full_name || 'l’ospite'
+        // Partenza: sempre "da pulire". Se l'ospite fa cambio camera, niente badge ⇄
+        // (il badge è di chi arriva); qui basta il testo che spiega dove va.
+        eventi.push({
+          date: fineSoggiorno.check_out,
+          badge: 'da pulire',
+          testo: out ? `${nome} cambia camera → va in ${shortOf(out.room_id)}` : `parte ${nome}`,
+        })
       }
       const arrivoFuturo = bookings
         .filter(b => b.room_id === room.id && b.check_in > td && !continuaDa(bookings, b))
         .sort((a, b) => a.check_in.localeCompare(b.check_in))[0]
       if (arrivoFuturo) {
-        const daAltraCamera = bookings.some(x => x.guest_id && x.guest_id === arrivoFuturo.guest_id && x.check_out === arrivoFuturo.check_in && x.room_id !== room.id)
-        eventi.push({ date: arrivoFuturo.check_in, motivo: `arriva ${arrivoFuturo.guests?.full_name || 'un ospite'}${daAltraCamera ? ' (cambio camera)' : ''}` })
+        const inCC = cambioCameraIn(bookings, arrivoFuturo)
+        const nome = arrivoFuturo.guests?.full_name || 'un ospite'
+        eventi.push({
+          date: arrivoFuturo.check_in,
+          badge: inCC ? '⇄ cambio camera' : null,
+          testo: inCC ? `arriva ${nome} (⇄ da ${shortOf(inCC.room_id)})` : `arriva ${nome}`,
+        })
       }
       eventi.sort((a, b) => a.date.localeCompare(b.date))
-      const prossimo = eventi.length > 0
-        ? { date: eventi[0].date, motivo: eventi.filter(e => e.date === eventi[0].date).map(e => e.motivo).join(' · ') }
-        : null
+      let prossimo: { date: string; badges: string[]; testo: string } | null = null
+      if (eventi.length > 0) {
+        const d0 = eventi[0].date
+        const onDay = eventi.filter(e => e.date === d0)
+        const badges = Array.from(new Set(onDay.map(e => e.badge).filter(Boolean))) as string[]
+        prossimo = { date: d0, badges, testo: onDay.map(e => e.testo).join(' · ') }
+      }
 
       return {
         room,
@@ -174,6 +210,8 @@ export default function Pulizie() {
         cambio,
         cambioProssimo,
         arrivo,
+        arrivoCC,
+        partenzaCC,
         prossimo,
       }
     })
@@ -188,7 +226,24 @@ export default function Pulizie() {
     return out.sort((a, b) => rank(a) - rank(b))
   }, [rooms, bookings, localLinen, td])
 
-  const daRifare = righe.filter(r => r.daPulire).length
+  // Due sezioni: "Oggi" (da fare adesso) e "Prossimi" (domani e oltre, raggruppati per giorno)
+  const righeOggi = righe.filter(r => r.daPulire)
+  const righeProssimi = righe.filter(r => !r.daPulire && r.prossimo)
+  const giorniProssimi = Array.from(new Set(righeProssimi.map(r => r.prossimo!.date))).sort()
+  const daRifare = righeOggi.length
+
+  // Nome breve di una camera dal suo id (per i cambi camera: provenienza/destinazione)
+  const shortNameOf = (id: string) => {
+    const r = rooms.find(rr => rr.id === id)
+    return r ? r.name.split(' ').slice(-1)[0] : 'un’altra camera'
+  }
+
+  // Colori dei badge azione (coerenti con l'identità del gestionale)
+  const badgeStyle: Record<string, { background: string; color: string }> = {
+    'da pulire': { background: '#EFD9C7', color: '#8a4f2f' },
+    'cambio biancheria': { background: '#EDE6D6', color: '#5a6b3f' },
+    '⇄ cambio camera': { background: '#EDE6D6', color: '#5a6b3f' },
+  }
 
   // Salva la data del prossimo cambio biancheria (con fallback locale se la colonna manca)
   async function salvaCambio(bookingId: string, date: string) {
@@ -220,90 +275,150 @@ export default function Pulizie() {
     setSaving(null)
   }
 
+  // Comandi cambio biancheria (data + Salva + salta): compaiono dove c'è un cambio da gestire
+  const linenControls = (riga: RigaCamera) => {
+    if (!riga.cambio && !riga.cambioProssimo) return null
+    const room = riga.room
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+        <span className="text-xs text-gray-500">Fatto il</span>
+        <input type="date" value={fattoIl[room.id] || td}
+          onChange={e => setFattoIl({ ...fattoIl, [room.id]: e.target.value })}
+          className="border border-card-border rounded-lg px-2 py-1 text-xs bg-white" />
+        <button onClick={() => cambioFatto(riga)} disabled={saving === room.id}
+          className="rounded-full text-xs font-semibold px-3 py-1.5 text-white disabled:opacity-50"
+          style={{ background: '#2D6A4F' }}>
+          ✓ Salva
+        </button>
+        <button onClick={() => saltaCambio(riga)} disabled={saving === room.id}
+          className="rounded-full border border-card-border bg-cream text-xs font-semibold px-3 py-1.5 disabled:opacity-50"
+          style={{ color: '#8a4f2f' }}>
+          Non fatto, salta
+        </button>
+      </div>
+    )
+  }
+
+  // Divisorio di sezione ("Oggi", "Prossimi")
+  const sezioneTitolo = (titolo: string, sub?: string) => (
+    <div className="flex items-center gap-2 mb-3">
+      <span className="font-serif text-sm text-green-dark" style={{ fontWeight: 600, letterSpacing: '0.02em' }}>{titolo}</span>
+      {sub && <span className="text-xs text-stone">{sub}</span>}
+      <span className="flex-1 h-px" style={{ background: 'var(--color-card-border)' }} />
+    </div>
+  )
+
+  // Card della sezione "Oggi": la camera va rifatta adesso
+  const cardOggi = (riga: RigaCamera) => {
+    const { room, shortName, partenza, cambio, arrivo, arrivoCC, partenzaCC } = riga
+    return (
+      <div key={room.id} className="bg-white rounded-[10px] border border-card-border p-4">
+        <div className="flex items-start gap-3">
+          <span className="font-serif text-sm text-brass pt-0.5">{ROOM_NUMBER_BY_NAME[shortName] || ''}</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-serif text-lg text-green-dark leading-tight">{shortName}</span>
+              <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={badgeStyle['da pulire']}>da pulire</span>
+              {partenza && <span className="text-xs text-gray-500">partenza oggi</span>}
+              {cambio && (
+                <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={badgeStyle['cambio biancheria']}>cambio biancheria</span>
+              )}
+            </div>
+            <p className="text-[11px] text-stone mt-0.5">{ROOM_DESC_BY_NAME[shortName] || ''}</p>
+            {partenza && (
+              <p className="text-xs text-stone mt-1">
+                {partenzaCC
+                  ? `${partenza.guests?.full_name || 'l’ospite'} cambia camera → va in ${shortNameOf(partenzaCC.room_id)}`
+                  : `è partito ${partenza.guests?.full_name || 'l’ospite'}`}
+              </p>
+            )}
+            {arrivo && (
+              <p className="text-sm font-semibold mt-2 flex flex-wrap items-center gap-1.5" style={{ color: 'var(--color-brass)' }}>
+                arriva {arrivo.guests?.full_name || 'un ospite'} oggi{arrivo.check_in_time ? ` alle ${arrivo.check_in_time}` : ''}
+                {arrivoCC && (
+                  <span className="text-xs font-bold rounded-full px-2 py-0.5" style={badgeStyle['⇄ cambio camera']}>⇄ cambio camera da {shortNameOf(arrivoCC.room_id)}</span>
+                )}
+              </p>
+            )}
+            {linenControls(riga)}
+            {partenza?.notes && (
+              <p className="text-sm text-green-mid italic mt-2">“{partenza.notes}”</p>
+            )}
+            {cambio?.booking.notes && (
+              <p className="text-sm text-green-mid italic mt-2">“{cambio.booking.notes}”</p>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Card della sezione "Prossimi": lavoro futuro, sotto l'intestazione del giorno
+  const cardProssimo = (riga: RigaCamera) => {
+    const { room, shortName, prossimo } = riga
+    return (
+      <div key={room.id} className="bg-white rounded-[10px] border border-card-border p-3.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-serif text-xs text-brass">{ROOM_NUMBER_BY_NAME[shortName] || ''}</span>
+          <span className="font-serif text-base text-green-dark leading-tight">{shortName}</span>
+          {prossimo!.badges.map(b => (
+            <span key={b} className="text-xs font-bold rounded-full px-2.5 py-0.5" style={badgeStyle[b] || badgeStyle['cambio biancheria']}>{b}</span>
+          ))}
+        </div>
+        <p className="text-xs mt-1.5" style={{ color: '#41637A' }}>{prossimo!.testo}</p>
+        {linenControls(riga)}
+        {riga.cambioProssimo?.booking.notes && (
+          <p className="text-sm text-green-mid italic mt-2">“{riga.cambioProssimo.booking.notes}”</p>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="p-4">
       <div className="mb-3"><BackLink href="/" /></div>
 
       <h1 className="text-2xl text-green-dark capitalize" style={{ fontFamily: 'Georgia, serif', fontWeight: 600 }}>{italianDate()}</h1>
       <p className="text-sm text-gray-500 mb-4">
-        {loading ? ' ' : daRifare === 0 ? 'Nessuna camera da rifare' : daRifare === 1 ? '1 camera da rifare' : `${daRifare} camere da rifare`}
+        {loading ? ' ' : daRifare === 0 ? 'Nessuna camera da rifare oggi' : daRifare === 1 ? '1 camera da rifare oggi' : `${daRifare} camere da rifare oggi`}
       </p>
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {righe.map(riga => {
-            const { room, shortName, daPulire, occupata, partenza, cambio, cambioProssimo, arrivo, prossimo } = riga
-            const conArrivo = daPulire && arrivo
-            const spostabile = cambio || cambioProssimo
-            return (
-              <div key={room.id}
-                className={`bg-white rounded-[10px] border border-card-border p-4 ${!daPulire && !cambioProssimo && !(prossimo && diffDays(prossimo.date, td) <= 1) ? 'opacity-55' : ''}`}>
-                <div className="flex items-start gap-3">
-                  <span className="font-serif text-sm text-brass pt-0.5">{ROOM_NUMBER_BY_NAME[shortName] || ''}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-serif text-lg text-green-dark leading-tight">{shortName}</span>
-                      {daPulire ? (
-                        <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={{ background: '#EFD9C7', color: '#8a4f2f' }}>da pulire</span>
-                      ) : occupata ? (
-                        <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={{ background: '#E1E9EE', color: '#41637A' }}>occupata</span>
-                      ) : (
-                        <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>pulita</span>
-                      )}
-                      {partenza && (
-                        <span className="text-xs text-gray-500">partenza oggi</span>
-                      )}
-                      {(cambio || cambioProssimo) && (
-                        <>
-                          <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={{ background: '#EDE6D6', color: '#5a6b3f' }}>cambio biancheria</span>
-                          <span className="text-xs text-gray-500">{cambioLabel((cambio || cambioProssimo)!.due, td)}</span>
-                        </>
-                      )}
+        <>
+          {sezioneTitolo('Oggi')}
+          {righeOggi.length === 0 ? (
+            <div className="rounded-[10px] border border-dashed border-card-border p-5 text-center mb-6">
+              <p className="text-green-dark">Nessuna camera da rifare oggi</p>
+              <p className="text-xs text-stone mt-0.5">tutto pulito · guarda i prossimi qui sotto</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 mb-6">
+              {righeOggi.map(riga => cardOggi(riga))}
+            </div>
+          )}
+
+          {righeProssimi.length > 0 && (
+            <>
+              {sezioneTitolo('Prossimi', 'domani e oltre')}
+              {giorniProssimi.map(g => {
+                const h = intestazioneGiorno(g, td)
+                return (
+                  <div key={g} className="mb-4">
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <span className="text-sm font-semibold" style={{ color: 'var(--color-brass)' }}>{h.label}</span>
+                      {h.sub && <span className="text-xs text-stone">{h.sub}</span>}
                     </div>
-                    <p className="text-[11px] text-stone mt-0.5">{ROOM_DESC_BY_NAME[shortName] || ''}</p>
-                    {prossimo && (
-                      <p className={`text-xs mt-1 ${diffDays(prossimo.date, td) <= 1 ? 'font-semibold' : ''}`}
-                        style={{ color: diffDays(prossimo.date, td) <= 1 ? 'var(--color-brass)' : 'var(--color-stone)' }}>
-                        Prossimo: {cambioLabel(prossimo.date, td)} · {prossimo.motivo}
-                      </p>
-                    )}
-                    {conArrivo && (
-                      <p className="text-sm font-semibold mt-2" style={{ color: 'var(--color-brass)' }}>
-                        arriva un ospite oggi{arrivo.check_in_time ? ` alle ${arrivo.check_in_time}` : ''}
-                      </p>
-                    )}
-                    {spostabile && (
-                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                        <span className="text-xs text-gray-500">Fatto il</span>
-                        <input type="date" value={fattoIl[room.id] || td}
-                          onChange={e => setFattoIl({ ...fattoIl, [room.id]: e.target.value })}
-                          className="border border-card-border rounded-lg px-2 py-1 text-xs bg-white" />
-                        <button onClick={() => cambioFatto(riga)} disabled={saving === room.id}
-                          className="rounded-full text-xs font-semibold px-3 py-1.5 text-white disabled:opacity-50"
-                          style={{ background: '#2D6A4F' }}>
-                          ✓ Salva
-                        </button>
-                        <button onClick={() => saltaCambio(riga)} disabled={saving === room.id}
-                          className="rounded-full border border-card-border bg-cream text-xs font-semibold px-3 py-1.5 disabled:opacity-50"
-                          style={{ color: '#8a4f2f' }}>
-                          Non fatto, salta
-                        </button>
-                      </div>
-                    )}
-                    {partenza?.notes && (
-                      <p className="text-sm text-green-mid italic mt-2">“{partenza.notes}”</p>
-                    )}
-                    {(cambio || cambioProssimo)?.booking.notes && (
-                      <p className="text-sm text-green-mid italic mt-2">“{(cambio || cambioProssimo)!.booking.notes}”</p>
-                    )}
+                    <div className="flex flex-col gap-3">
+                      {righeProssimi.filter(r => r.prossimo!.date === g).map(riga => cardProssimo(riga))}
+                    </div>
                   </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+                )
+              })}
+            </>
+          )}
+        </>
       )}
 
       {!loading && <Statistiche rooms={rooms} bookings={bookings} td={td} />}
