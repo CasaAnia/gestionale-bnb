@@ -317,7 +317,7 @@ export default function Arrivi() {
                           left: NAME_W + startIdx * CELL_W + 2,
                           width: barWidth,
                           height: ROW_H - 12,
-                          background: '#6C9A7C',
+                          background: '#7D9DB0',
                           borderRadius: `${hasIncoming ? 0 : 6}px ${hasOutgoing ? 0 : 6}px ${hasOutgoing ? 0 : 6}px ${hasIncoming ? 0 : 6}px`,
                           clipPath: chainClipPath(hasIncoming, hasOutgoing),
                           cursor: 'pointer',
@@ -404,19 +404,19 @@ export default function Arrivi() {
       {/* Legenda */}
       <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border flex gap-4 items-center">
         <div className="flex items-center gap-1.5">
-          <div style={{ width: 14, height: 14, borderRadius: 3, background: '#6C9A7C' }} />
+          <div style={{ width: 14, height: 14, borderRadius: 3, background: '#7D9DB0' }} />
           <span className="text-xs text-gray-500">Orario arrivo</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div style={{ width: 14, height: 14, borderRadius: 3, background: '#6C9A7C', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 14, height: 14, borderRadius: 3, background: '#7D9DB0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ fontSize: 8, fontWeight: 700, color: 'white' }}>?</span>
           </div>
           <span className="text-xs text-gray-500">Orario non inserito</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div style={{ position: 'relative', width: 32, height: 16, flexShrink: 0 }}>
-            <div style={{ position: 'absolute', left: 0, top: 0, width: 16, height: 16, background: '#6C9A7C', clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }} />
-            <div style={{ position: 'absolute', left: 16, top: 0, width: 16, height: 16, background: '#6C9A7C', clipPath: 'polygon(0 0, 100% 0, 100% 100%, 6px 100%)' }} />
+            <div style={{ position: 'absolute', left: 0, top: 0, width: 16, height: 16, background: '#7D9DB0', clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }} />
+            <div style={{ position: 'absolute', left: 16, top: 0, width: 16, height: 16, background: '#7D9DB0', clipPath: 'polygon(0 0, 100% 0, 100% 100%, 6px 100%)' }} />
             <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', fontSize: 8, fontWeight: 700, color: 'white' }}>⇄</span>
           </div>
           <span className="text-xs text-gray-500">Cambio camera</span>
