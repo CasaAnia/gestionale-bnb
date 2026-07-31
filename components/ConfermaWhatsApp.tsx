@@ -309,7 +309,7 @@ ${linkCamere}
               <div style={{ padding: '52px 52px 0' }}>
 
                 {/* SALUTO — nome cliente in evidenza */}
-                <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 48, fontWeight: 600, color: '#1F3D2F', textAlign: 'center', margin: '0 0 34px' }}>{nome}</p>
+                <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 72, fontWeight: 600, color: '#1F3D2F', textAlign: 'center', margin: '0 0 34px', lineHeight: 1.1 }}>{nome}</p>
 
                 {/* BIGLIETTO — DATE */}
                 <div style={{ display: 'flex', background: 'white', border: '2px solid #e3ddd0', borderRadius: 24, overflow: 'hidden', marginBottom: 30 }}>
