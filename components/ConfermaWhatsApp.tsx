@@ -118,7 +118,7 @@ Per comodità, due link utili:
 Info complete per il soggiorno:
 ${SITO_URL}/info
 
-🌿 La sua camera:
+La sua camera:
 ${linkCamere}
 
 💬 Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!

@@ -89,7 +89,7 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
       totaleRighe += ebTot
     }
   }
-  const riepilogoCosti = `💶 RIEPILOGO COSTI
+  const riepilogoCosti = `RIEPILOGO COSTI
 ${righeCosti.join('\n')}
 *Totale soggiorno: ${fmtEuro(totaleRighe)}*`
 
@@ -102,14 +102,14 @@ Causale: Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}`
     : `Pagamento all'arrivo: alla consegna delle chiavi verrà chiesto il pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.`
 
   const paymentLine = b.bonifico
-    ? `💶 Importo totale: *€ ${totale}* – pagamento tramite bonifico bancario.
+    ? `Importo totale: *€ ${totale}* – pagamento tramite bonifico bancario.
 
 Per completare la prenotazione, la prego di effettuare il bonifico con i seguenti dati:
 Intestatario: *SAWICKA ANNA JANINA*
 Banca: *BANCO BPM*
 IBAN: *IT32P0503401753000000159653*
 Causale: Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}`
-    : `💶 Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.`
+    : `Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.`
 
   if (type === 'conferma') {
     return `CONFERMA DI PRENOTAZIONE – Casa Granata Humanitas
@@ -117,22 +117,22 @@ Causale: Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}`
 Gentile *${name}*,
 grazie per aver scelto Casa Granata. Sono lieta di confermarle il soggiorno e la aspetto con piacere!
 
-ℹ️ Info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
+Info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
 
 RIEPILOGO SOGGIORNO
-📅 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
-📅 Check-out: *${coutF}* (entro le ore 10:00)
-👥 Ospiti: ${ospiti}
-${isGruppo ? `🛏️ Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `🛏️ Camera: ${roomFull}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}${roomLink ? `\n👁 Vedi la tua camera: ${roomLink}` : ''}`}
+Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
+Check-out: *${coutF}* (entro le ore 10:00)
+Ospiti: ${ospiti}
+${isGruppo ? `Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `Camera: ${roomFull}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}${roomLink ? `\nVedi la tua camera: ${roomLink}` : ''}`}
 Notti totali: *${notti}*
 
 ${riepilogoCosti}
 
 ${pagamentoInfo}
 
-*Appena le sarà possibile, la prego di farmi sapere l'orario di arrivo in struttura, per organizzare al meglio la sua accoglienza.*
+💬 *Appena le sarà possibile, la prego di farmi sapere l'orario di arrivo in struttura, per organizzare al meglio la sua accoglienza.*
 
-📍 COME RAGGIUNGERCI
+COME RAGGIUNGERCI
 Via Liguria 26 – Fizzonasco, Pieve Emanuele (MI) 20072
 *A 140 metri dalla palazzina 8 di Humanitas di Rozzano – ortopedia*
 
@@ -142,12 +142,12 @@ Via Liguria 26 – Fizzonasco, Pieve Emanuele (MI) 20072
 
 📞 CONTATTI
 Per qualsiasi necessità sono sempre disponibile:
-📱 342 700 4354 (anche WhatsApp)
+💬 342 700 4354 (anche WhatsApp)
 
 POLITICA DI CANCELLAZIONE
 Cancellazione gratuita fino a 3 giorni prima dell'arrivo.
 
-Sarà un piacere accoglierla! 🏡
+Sarà un piacere accoglierla!
 
 A presto,
 Ania
@@ -161,10 +161,10 @@ Gentile *${name}*,
 la informo che la sua prenotazione presso Casa Granata Humanitas è stata modificata. Ecco il riepilogo aggiornato:
 
 RIEPILOGO SOGGIORNO
-📅 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
-📅 Check-out: *${coutF}* (entro le ore 10:00)
-👥 Ospiti: ${ospiti}
-🛏️ Camera: ${roomFull}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}
+Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
+Check-out: *${coutF}* (entro le ore 10:00)
+Ospiti: ${ospiti}
+Camera: ${roomFull}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}
 ${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}
 Notti: *${notti}*
 
@@ -172,7 +172,7 @@ ${paymentLine}
 
 Per qualsiasi domanda resto a Sua disposizione.
 
-📱 342 700 4354 (anche WhatsApp)
+💬 342 700 4354 (anche WhatsApp)
 
 Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
 
@@ -263,17 +263,17 @@ Gentile *${name}*,
 la informo che la sua prenotazione presso Casa Granata Humanitas è stata annullata.
 
 PRENOTAZIONE ANNULLATA
-📅 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
-📅 Check-out: *${coutF}* (entro le ore 10:00)
-👥 Ospiti: ${ospiti}
-🛏️ Camera: ${roomFull}
+Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
+Check-out: *${coutF}* (entro le ore 10:00)
+Ospiti: ${ospiti}
+Camera: ${roomFull}
 Notti: *${notti}*
 
-💶 Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
+Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
 
 Per qualsiasi chiarimento resto a Sua completa disposizione e sarò lieta di accoglierla in futuro.
 
-📱 342 700 4354 (anche WhatsApp)
+💬 342 700 4354 (anche WhatsApp)
 
 Cordiali saluti,
 Ania
@@ -1117,7 +1117,7 @@ export default function BookingDetail() {
                   setStayConflict(null)
                   setEditingStay(true)
                 }} className="w-full mt-2 bg-[#9B8EC4] text-white text-sm font-semibold py-2 rounded-xl">
-                  📅 Modifica date soggiorno
+                  Modifica date soggiorno
                 </button>
               )}
               {editingStay && (
@@ -1187,11 +1187,11 @@ export default function BookingDetail() {
                   ➕ Cambio camera
                 </button>
                 <button onClick={addPriceChange} className="bg-[#7A9B7E] text-white font-semibold text-xs py-2 px-1 rounded-xl">
-                  💶 Cambia prezzo
+                  Cambia prezzo
                 </button>
               </div>
               <p className="text-[11px] text-gray-500 mt-1.5 px-1 leading-snug">
-                Per cambiare tariffa da un certo giorno senza spezzare la prenotazione agli occhi del cliente: prima accorcia la partenza di questo periodo alla data da cui parte il nuovo prezzo (con "Modifica" qui sopra, oppure "Modifica date soggiorno" se già raggruppato), poi tocca "💶 Cambia prezzo": si apre una nuova riga già sulla stessa camera, tu cambi solo la tariffa/notte e la data di partenza finale. Il calendario, WhatsApp e il conto del soggiorno la mostreranno come un unico soggiorno.
+                Per cambiare tariffa da un certo giorno senza spezzare la prenotazione agli occhi del cliente: prima accorcia la partenza di questo periodo alla data da cui parte il nuovo prezzo (con "Modifica" qui sopra, oppure "Modifica date soggiorno" se già raggruppato), poi tocca "Cambia prezzo": si apre una nuova riga già sulla stessa camera, tu cambi solo la tariffa/notte e la data di partenza finale. Il calendario, WhatsApp e il conto del soggiorno la mostreranno come un unico soggiorno.
               </p>
             </>
           )}
