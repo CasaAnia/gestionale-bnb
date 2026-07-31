@@ -48,7 +48,7 @@ function meseBreve(dateStr: string) {
 
 function bagnoDesc(room: any) {
   if (room?.bathroom_type === 'privato_interno') return "privato, all'interno della camera"
-  if (room?.bathroom_type === 'privato_esterno') return room?.bathroom_note ? `privato esterno (${room.bathroom_note})` : 'privato esterno'
+  if (room?.bathroom_type === 'privato_esterno') return 'privato esterno, chiuso a chiave, a circa 1 metro dalla camera'
   return ''
 }
 
