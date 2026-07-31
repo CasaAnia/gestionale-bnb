@@ -118,10 +118,10 @@ Per comodità, due link utili:
 Info complete per il soggiorno:
 ${SITO_URL}/info
 
-La sua camera:
+🌿 La sua camera:
 ${linkCamere}
 
-Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
+💬 Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
 *Ania*`
 
   // Anteprima in scala + altezza reale dell'immagine
@@ -277,7 +277,7 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
           {(['contanti', 'bonifico'] as const).map(p => (
             <button key={p} onClick={() => setPagamento(p)}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${pagamento === p ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-card-border'}`}>
-              {p === 'contanti' ? '💶 Contanti all’arrivo' : '🏦 Bonifico anticipato'}
+              {p === 'contanti' ? 'Contanti all’arrivo' : 'Bonifico anticipato'}
             </button>
           ))}
         </div>
@@ -445,7 +445,7 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
             <p className="text-xs font-semibold text-green-dark mb-1.5">1 · Salva l&apos;immagine sul telefono</p>
             <button onClick={salvaSuTelefono} disabled={!!busy}
               className={`w-full rounded-xl py-3 font-semibold text-sm mb-1 disabled:opacity-50 ${saved ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
-              {busy === 'save' ? 'Preparo…' : saved ? '✓ Immagine salvata!' : '💾 Salva immagine'}
+              {busy === 'save' ? 'Preparo…' : saved ? '✓ Immagine salvata!' : 'Salva immagine'}
             </button>
             {isIOS && <p className="text-[11px] text-gray-500 mb-3">Nel menu che si apre tocca <span className="font-semibold">&quot;Salva immagine&quot;</span></p>}
             {!isIOS && <div className="mb-3" />}
@@ -455,18 +455,18 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
             <p className="text-xs font-semibold text-green-dark mb-1.5">1 · Copia l&apos;immagine</p>
             <button onClick={copiaImmagine} disabled={!!busy}
               className={`w-full rounded-xl py-3 font-semibold text-sm mb-2 disabled:opacity-50 ${imgCopied ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
-              {busy === 'copyimg' ? 'Preparo…' : imgCopied ? '✓ Immagine copiata!' : '🖼 Copia immagine'}
+              {busy === 'copyimg' ? 'Preparo…' : imgCopied ? '✓ Immagine copiata!' : 'Copia immagine'}
             </button>
           </>
         )}
         <div className="flex gap-2 mb-4">
           <button onClick={condividi} disabled={!!busy}
             className="flex-1 border border-card-border bg-white text-gray-600 rounded-xl py-2 font-semibold text-xs disabled:opacity-50">
-            {busy === 'share' ? 'Preparo…' : '📤 Condividi'}
+            {busy === 'share' ? 'Preparo…' : 'Condividi'}
           </button>
           <button onClick={scarica} disabled={!!busy}
             className="flex-1 border border-card-border bg-white text-gray-600 rounded-xl py-2 font-semibold text-xs disabled:opacity-50">
-            {busy === 'download' ? 'Preparo…' : '⬇️ Scarica'}
+            {busy === 'download' ? 'Preparo…' : 'Scarica'}
           </button>
         </div>
         {errore && <p className="text-xs text-[#8C3B2E] font-semibold mb-3">{errore}</p>}
@@ -506,7 +506,7 @@ Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
           </div>
           <button onClick={copiaTesto}
             className={`w-full rounded-xl py-2.5 font-semibold text-sm ${copied ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
-            {copied ? '✓ Copiato!' : '📋 Copia testo'}
+            {copied ? '✓ Copiato!' : 'Copia testo'}
           </button>
         </details>
       </div>
