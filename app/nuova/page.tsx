@@ -257,6 +257,11 @@ function NuovaPrenotazione() {
   }
 
   async function save() {
+    // Blocco di sicurezza: non salvare mai date impossibili (check-out non successivo al check-in)
+    if (!form.check_in || !form.check_out || form.check_out <= form.check_in) {
+      setSaveError('Date non valide: il check-out deve essere almeno una notte dopo il check-in.')
+      return
+    }
     setSaving(true)
     setSaveError(null)
     let guestId = guest?.id
@@ -517,7 +522,7 @@ function NuovaPrenotazione() {
               </div>
               <div>
                 <p className="text-sm text-gray-500 mb-1">Check-out</p>
-                <input type="date" ref={checkOutRef} defaultValue={form.check_out} onChange={e => {
+                <input type="date" ref={checkOutRef} defaultValue={form.check_out} min={form.check_in ? addOneDay(form.check_in) : undefined} onChange={e => {
                   setForm({...form, check_out: e.target.value})
                   checkDisponibilita(form.room_id, form.check_in, e.target.value)
                 }} className="w-full border border-card-border rounded-lg p-2 text-sm" />

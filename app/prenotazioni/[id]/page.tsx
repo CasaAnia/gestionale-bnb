@@ -472,6 +472,13 @@ export default function BookingDetail() {
     return Math.round((new Date(cout).getTime() - new Date(cin).getTime()) / 86400000)
   }
 
+  // Giorno successivo (YYYY-MM-DD): serve per spostare il check-out di almeno una notte
+  function nextDay(dateStr: string) {
+    const [y, m, d] = dateStr.split('-').map(Number)
+    const dt = new Date(y, m - 1, d + 1)
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+  }
+
   function calcTotal() {
     const n = calcNotti(editForm.check_in, editForm.check_out)
     if (n <= 0) return 0
@@ -482,6 +489,12 @@ export default function BookingDetail() {
   }
 
   async function saveEdit() {
+    // Blocco di sicurezza: non salvare mai date impossibili (check-out non successivo al check-in)
+    if (!editForm.check_in || !editForm.check_out || editForm.check_out <= editForm.check_in) {
+      setSaveEditError('Date non valide: il check-out deve essere almeno una notte dopo il check-in. Correggi le date prima di salvare.')
+      return
+    }
+    setSaveEditError('')
     setSaving(true)
     const room = rooms.find(r => r.id === editForm.room_id)
     const ebDays = editForm.extra_bed_dates?.length || 0
@@ -806,13 +819,16 @@ export default function BookingDetail() {
             <div>
               <p className="text-xs text-gray-500 mb-1">Check-in</p>
               <input type="date" value={editForm.check_in} onChange={e => {
-                setEditForm({ ...editForm, check_in: e.target.value })
-                checkDisponibilita(editForm.room_id, e.target.value, editForm.check_out)
+                const newIn = e.target.value
+                // Se il check-out manca o cadrebbe prima/uguale al nuovo check-in, spostalo a una notte dopo
+                const newOut = newIn && (!editForm.check_out || editForm.check_out <= newIn) ? nextDay(newIn) : editForm.check_out
+                setEditForm({ ...editForm, check_in: newIn, check_out: newOut })
+                checkDisponibilita(editForm.room_id, newIn, newOut)
               }} className="w-full border border-card-border rounded-lg p-2 text-sm" />
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-1">Check-out</p>
-              <input type="date" value={editForm.check_out} onChange={e => {
+              <input type="date" value={editForm.check_out} min={editForm.check_in ? nextDay(editForm.check_in) : undefined} onChange={e => {
                 setEditForm({ ...editForm, check_out: e.target.value })
                 checkDisponibilita(editForm.room_id, editForm.check_in, e.target.value)
               }} className="w-full border border-card-border rounded-lg p-2 text-sm" />
