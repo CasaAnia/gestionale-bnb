@@ -260,8 +260,11 @@ ${linkCamere}
     box: { background: '#F6F2EA', borderRadius: 24, padding: '44px 48px', marginBottom: 36 } as React.CSSProperties,
     boxTitle: { fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 36, fontWeight: 600, color: '#1F3D2F', margin: '0 0 28px' } as React.CSSProperties,
     row: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '14px 0' } as React.CSSProperties,
+    rowBig: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '18px 0' } as React.CSSProperties,
     label: { fontSize: 28, color: '#6f6a5e', flexShrink: 0 } as React.CSSProperties,
+    labelBig: { fontSize: 36, color: '#6f6a5e', flexShrink: 0 } as React.CSSProperties,
     value: { fontSize: 30, fontWeight: 700, color: '#1F3D2F', textAlign: 'right' as const },
+    valueBig: { fontSize: 40, fontWeight: 700, color: '#1F3D2F', textAlign: 'right' as const },
     small: { fontSize: 24, color: '#6f6a5e', lineHeight: 1.45 } as React.CSSProperties,
   }
 
@@ -309,24 +312,24 @@ ${linkCamere}
 
                 {/* RIEPILOGO SOGGIORNO */}
                 <div style={S.box}>
-                  <p style={S.boxTitle}>Riepilogo soggiorno</p>
-                  <div style={S.row}>
-                    <span style={S.label}>Check-in</span>
-                    <span style={S.value}>{formatDateIT(cin)}<br /><span style={{ fontSize: 24, fontWeight: 400, color: '#6f6a5e' }}>dalle 15:00 alle 20:00</span></span>
+                  <p style={{ ...S.boxTitle, fontSize: 42 }}>Riepilogo soggiorno</p>
+                  <div style={S.rowBig}>
+                    <span style={S.labelBig}>Check-in</span>
+                    <span style={S.valueBig}>{formatDateIT(cin)}<br /><span style={{ fontSize: 30, fontWeight: 400, color: '#6f6a5e' }}>dalle 15:00 alle 20:00</span></span>
                   </div>
-                  <div style={S.row}>
-                    <span style={S.label}>Check-out</span>
-                    <span style={S.value}>{formatDateIT(cout)}<br /><span style={{ fontSize: 24, fontWeight: 400, color: '#6f6a5e' }}>entro le 10:00</span></span>
+                  <div style={S.rowBig}>
+                    <span style={S.labelBig}>Check-out</span>
+                    <span style={S.valueBig}>{formatDateIT(cout)}<br /><span style={{ fontSize: 30, fontWeight: 400, color: '#6f6a5e' }}>entro le 10:00</span></span>
                   </div>
-                  <div style={S.row}><span style={S.label}>Notti</span><span style={S.value}>{nottiTot}</span></div>
-                  <div style={S.row}><span style={S.label}>Ospiti</span><span style={S.value}>{ospiti}</span></div>
+                  <div style={S.rowBig}><span style={S.labelBig}>Notti</span><span style={S.valueBig}>{nottiTot}</span></div>
+                  <div style={S.rowBig}><span style={S.labelBig}>Ospiti</span><span style={S.valueBig}>{ospiti}</span></div>
                   {isGruppo ? (
                     segmenti.map((s, i) => (
-                      <div key={s.id} style={S.row}>
-                        <span style={S.label}>Camera {i + 1}</span>
-                        <span style={S.value}>
+                      <div key={s.id} style={S.rowBig}>
+                        <span style={S.labelBig}>Camera {i + 1}</span>
+                        <span style={S.valueBig}>
                           {roomWithType(s.rooms?.name)}<br />
-                          <span style={{ fontSize: 24, fontWeight: 400, color: '#6f6a5e' }}>
+                          <span style={{ fontSize: 30, fontWeight: 400, color: '#6f6a5e' }}>
                             {formatDateIT(s.check_in)} → {formatDateIT(s.check_out)} ({notti(s.check_in, s.check_out)} {notti(s.check_in, s.check_out) === 1 ? 'notte' : 'notti'})
                             {bagnoDesc(s.rooms) ? <><br />bagno {bagnoDesc(s.rooms)}</> : null}
                           </span>
@@ -335,9 +338,9 @@ ${linkCamere}
                     ))
                   ) : (
                     <>
-                      <div style={S.row}><span style={S.label}>Camera</span><span style={S.value}>{roomWithType(booking.rooms?.name)}</span></div>
+                      <div style={S.rowBig}><span style={S.labelBig}>Camera</span><span style={S.valueBig}>{roomWithType(booking.rooms?.name)}</span></div>
                       {bagnoDesc(booking.rooms) && (
-                        <div style={S.row}><span style={S.label}>Bagno</span><span style={{ ...S.value, fontWeight: 400, fontSize: 27 }}>{bagnoDesc(booking.rooms)}</span></div>
+                        <div style={S.rowBig}><span style={S.labelBig}>Bagno</span><span style={{ ...S.valueBig, fontWeight: 400, fontSize: 34 }}>{bagnoDesc(booking.rooms)}</span></div>
                       )}
                     </>
                   )}
