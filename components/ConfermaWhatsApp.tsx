@@ -137,7 +137,7 @@ ${linkCamere}
   }, [pagamento])
 
   async function generaPng(): Promise<{ dataUrl: string; file: File }> {
-    const dataUrl = await toPng(imgRef.current!, { pixelRatio: 2, backgroundColor: '#FBF9F4', cacheBust: true })
+    const dataUrl = await toPng(imgRef.current!, { pixelRatio: 2, backgroundColor: '#f9f6f1', cacheBust: true })
     const blob = await (await fetch(dataUrl)).blob()
     const cognome = nome.trim().split(' ').slice(-1)[0].toLowerCase() || 'ospite'
     return { dataUrl, file: new File([blob], `conferma-${cognome}-${cin}.png`, { type: 'image/png' }) }
@@ -288,7 +288,7 @@ ${linkCamere}
           <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: IMG_W }}>
 
             {/* ═══ IMMAGINE DELLA CONFERMA (1080px) ═══ */}
-            <div ref={imgRef} style={{ width: IMG_W, background: '#FBF9F4', fontFamily: 'var(--font-nunito-sans), sans-serif' }}>
+            <div ref={imgRef} style={{ width: IMG_W, background: '#f9f6f1', fontFamily: 'var(--font-nunito-sans), sans-serif' }}>
 
               {/* TESTATA con la foto del sito e overlay verde scuro */}
               <div style={{ position: 'relative', height: 430, overflow: 'hidden' }}>
@@ -375,14 +375,14 @@ ${linkCamere}
                     <p style={{ fontSize: 28, color: '#3a3a35', lineHeight: 1.5, margin: '0 0 26px' }}>
                       Il soggiorno si salda in anticipo con bonifico bancario, per l&apos;intero importo. La prenotazione è confermata alla ricezione della ricevuta.
                     </p>
-                    <div style={{ background: '#FBF9F4', borderRadius: 16, padding: '12px 32px', marginBottom: 26 }}>
+                    <div style={{ background: '#f9f6f1', borderRadius: 16, padding: '12px 32px', marginBottom: 26 }}>
                       <div style={S.row}><span style={S.label}>Importo</span><span style={{ ...S.value, fontWeight: 600 }}>{fmtEuro(totale)}</span></div>
                       <div style={S.row}><span style={S.label}>Intestatario</span><span style={{ ...S.value, fontWeight: 400 }}>{BONIFICO_INTESTATARIO}</span></div>
                       <div style={S.row}><span style={S.label}>IBAN</span><span style={{ ...S.value, fontWeight: 400, fontSize: 28, whiteSpace: 'nowrap' }}>{BONIFICO_IBAN}</span></div>
                       <div style={S.row}><span style={S.label}>Causale</span><span style={{ ...S.value, fontWeight: 400 }}>{causale}</span></div>
                       <div style={S.row}><span style={S.label}>Entro il</span><span style={{ ...S.value, fontWeight: 600 }}>{scadenzaF}</span></div>
                     </div>
-                    <div style={{ background: '#FBF9F4', borderLeft: '3px solid #C58A67', borderRadius: 16, padding: '26px 40px', margin: 0 }}>
+                    <div style={{ background: '#f9f6f1', borderLeft: '3px solid #C58A67', borderRadius: 16, padding: '26px 40px', margin: 0 }}>
                       <p style={{ fontSize: 27, color: '#1F3D2F', lineHeight: 1.6, margin: 0 }}>
                         Quando ha effettuato il bonifico ci mandi la ricevuta su WhatsApp. Senza la ricevuta entro il {scadenzaF}, la camera torna ad essere disponibile.
                       </p>
@@ -422,7 +422,7 @@ ${linkCamere}
                 </div>
 
                 {/* NOTA PERSONALE — CAMBIO NOME (ultimo elemento dell'immagine) */}
-                <div style={{ background: '#FBF9F4', borderLeft: '3px solid #2D6A4F', borderRadius: 16, padding: '26px 40px', margin: '0 0 48px' }}>
+                <div style={{ background: '#f9f6f1', borderLeft: '3px solid #2D6A4F', borderRadius: 16, padding: '26px 40px', margin: '0 0 48px' }}>
                   <p style={{ fontSize: 27, color: '#1F3D2F', lineHeight: 1.6, margin: 0 }}>
                     Dopo aver rinnovato ogni stanza, questa casa non sembrava più la stessa. Così stiamo per cambiarle nome in <span style={{ fontWeight: 600 }}>Casa Ania</span>.
                   </p>
