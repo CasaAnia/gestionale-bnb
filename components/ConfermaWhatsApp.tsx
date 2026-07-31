@@ -303,10 +303,13 @@ ${linkCamere}
               <div style={{ height: 360, background: '#007451', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 60px' }}>
                 <span style={{ border: '2px solid rgba(255,255,255,0.8)', color: 'white', borderRadius: 999, padding: '8px 30px', fontSize: 24, fontWeight: 600, letterSpacing: 6, marginBottom: 24 }}>BENVENUTI</span>
                 <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 60, fontWeight: 600, color: 'white', margin: 0, lineHeight: 1.15 }}>Prenotazione confermata</p>
-                <p style={{ fontSize: 30, color: 'rgba(255,255,255,0.92)', margin: '18px 0 0' }}>{nome} · {NOME_STRUTTURA}</p>
+                <p style={{ fontSize: 30, color: 'rgba(255,255,255,0.92)', margin: '18px 0 0' }}>{NOME_STRUTTURA} · a 140 metri da Humanitas</p>
               </div>
 
               <div style={{ padding: '52px 52px 0' }}>
+
+                {/* SALUTO — nome cliente in evidenza */}
+                <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 46, fontWeight: 600, color: '#1F3D2F', textAlign: 'center', margin: '0 0 34px' }}>Gentile {nome},</p>
 
                 {/* BIGLIETTO — DATE */}
                 <div style={{ display: 'flex', background: 'white', border: '2px solid #e3ddd0', borderRadius: 24, overflow: 'hidden', marginBottom: 30 }}>
