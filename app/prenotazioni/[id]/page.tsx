@@ -150,6 +150,8 @@ Casa Granata Humanitas`
 Gentile *${name}*,
 la informo che la sua prenotazione presso Casa Granata Humanitas è stata modificata. Ecco il riepilogo aggiornato:
 
+Info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
+
 RIEPILOGO SOGGIORNO
 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
 Check-out: *${coutF}* (entro le ore 10:00)
@@ -164,8 +166,6 @@ ${pagamentoInfo}
 Per qualsiasi domanda resto a Sua disposizione.
 
 💬 342 700 4354 (anche WhatsApp)
-
-Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
 
 A presto,
 Ania
