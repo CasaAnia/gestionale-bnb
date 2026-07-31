@@ -267,11 +267,11 @@ ${linkCamere}
     boxTitle: { fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 36, fontWeight: 600, color: '#1F3D2F', margin: '0 0 28px' } as React.CSSProperties,
     row: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '14px 0' } as React.CSSProperties,
     rowBig: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '18px 0' } as React.CSSProperties,
-    label: { fontSize: 28, color: '#6f6a5e', flexShrink: 0 } as React.CSSProperties,
-    labelBig: { fontSize: 36, color: '#6f6a5e', flexShrink: 0 } as React.CSSProperties,
-    value: { fontSize: 30, fontWeight: 700, color: '#1F3D2F', textAlign: 'right' as const },
+    label: { fontSize: 32, color: '#3a3a35', flexShrink: 0 } as React.CSSProperties,
+    labelBig: { fontSize: 36, color: '#3a3a35', flexShrink: 0 } as React.CSSProperties,
+    value: { fontSize: 34, fontWeight: 700, color: '#1F3D2F', textAlign: 'right' as const },
     valueBig: { fontSize: 40, fontWeight: 700, color: '#1F3D2F', textAlign: 'right' as const },
-    small: { fontSize: 24, color: '#6f6a5e', lineHeight: 1.45 } as React.CSSProperties,
+    small: { fontSize: 30, color: '#3a3a35', lineHeight: 1.45 } as React.CSSProperties,
   }
 
   return (
@@ -301,9 +301,9 @@ ${linkCamere}
 
               {/* TESTATA verde pieno #007451 (stesso verde della card del sito) */}
               <div style={{ height: 360, background: '#007451', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 60px' }}>
-                <span style={{ border: '2px solid rgba(255,255,255,0.8)', color: 'white', borderRadius: 999, padding: '8px 30px', fontSize: 24, fontWeight: 600, letterSpacing: 6, marginBottom: 24 }}>BENVENUTI</span>
+                <span style={{ border: '2px solid rgba(255,255,255,0.8)', color: 'white', borderRadius: 999, padding: '8px 30px', fontSize: 30, fontWeight: 600, letterSpacing: 6, marginBottom: 24 }}>BENVENUTI</span>
                 <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 60, fontWeight: 600, color: 'white', margin: 0, lineHeight: 1.15 }}>Prenotazione confermata</p>
-                <p style={{ fontSize: 30, color: 'rgba(255,255,255,0.92)', margin: '18px 0 0' }}>{NOME_STRUTTURA} · a 140 metri da Humanitas</p>
+                <p style={{ fontSize: 34, color: 'rgba(255,255,255,0.92)', margin: '18px 0 0' }}>{NOME_STRUTTURA} · a 140 metri da Humanitas</p>
               </div>
 
               <div style={{ padding: '52px 52px 0' }}>
@@ -314,14 +314,14 @@ ${linkCamere}
                 {/* BIGLIETTO — DATE */}
                 <div style={{ display: 'flex', background: 'white', border: '2px solid #e3ddd0', borderRadius: 24, overflow: 'hidden', marginBottom: 30 }}>
                   <div style={{ flex: 1, padding: '34px 28px', textAlign: 'center', borderRight: '3px dashed #d9d2c3' }}>
-                    <div style={{ fontSize: 26, letterSpacing: 2, color: '#6f6a5e' }}>CHECK-IN</div>
+                    <div style={{ fontSize: 32, letterSpacing: 2, color: '#3a3a35' }}>CHECK-IN</div>
                     <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 44, fontWeight: 600, color: '#1F3D2F', margin: '10px 0 6px', lineHeight: 1.2 }}>{formatDateHero(cin)}</div>
-                    <div style={{ fontSize: 26, color: '#6f6a5e' }}>15:00 – 20:00</div>
+                    <div style={{ fontSize: 32, color: '#3a3a35' }}>15:00 – 20:00</div>
                   </div>
                   <div style={{ flex: 1, padding: '34px 28px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 26, letterSpacing: 2, color: '#6f6a5e' }}>CHECK-OUT</div>
+                    <div style={{ fontSize: 32, letterSpacing: 2, color: '#3a3a35' }}>CHECK-OUT</div>
                     <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 44, fontWeight: 600, color: '#1F3D2F', margin: '10px 0 6px', lineHeight: 1.2 }}>{formatDateHero(cout)}</div>
-                    <div style={{ fontSize: 26, color: '#6f6a5e' }}>entro le 10:00</div>
+                    <div style={{ fontSize: 32, color: '#3a3a35' }}>entro le 10:00</div>
                   </div>
                 </div>
 
@@ -329,11 +329,11 @@ ${linkCamere}
                 <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center', marginBottom: 30 }}>
                   <div>
                     <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 46, fontWeight: 700, color: '#1F3D2F' }}>{nottiTot}</div>
-                    <div style={{ fontSize: 26, color: '#6f6a5e' }}>{nottiTot === 1 ? 'notte' : 'notti'}</div>
+                    <div style={{ fontSize: 32, color: '#3a3a35' }}>{nottiTot === 1 ? 'notte' : 'notti'}</div>
                   </div>
                   <div>
                     <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 46, fontWeight: 700, color: '#1F3D2F' }}>{numOspiti}</div>
-                    <div style={{ fontSize: 26, color: '#6f6a5e' }}>{numOspiti === 1 ? 'ospite' : 'ospiti'}</div>
+                    <div style={{ fontSize: 32, color: '#3a3a35' }}>{numOspiti === 1 ? 'ospite' : 'ospiti'}</div>
                   </div>
                 </div>
 
@@ -343,7 +343,7 @@ ${linkCamere}
                     segmenti.map((s, i) => (
                       <div key={s.id} style={{ padding: '14px 0', borderTop: i === 0 ? 'none' : '1px solid #e3ddd0' }}>
                         <div style={{ fontSize: 34, fontWeight: 700, color: '#1F3D2F' }}>Camera {i + 1} · {roomWithType(s.rooms?.name)}</div>
-                        <div style={{ fontSize: 27, color: '#6f6a5e', marginTop: 6 }}>
+                        <div style={{ fontSize: 32, color: '#3a3a35', marginTop: 6 }}>
                           {formatGiornoMese(s.check_in)} → {formatGiornoMese(s.check_out)} ({notti(s.check_in, s.check_out)} {notti(s.check_in, s.check_out) === 1 ? 'notte' : 'notti'})
                           {bagnoDesc(s.rooms) ? ` · bagno ${bagnoDesc(s.rooms)}` : ''}
                         </div>
@@ -352,13 +352,13 @@ ${linkCamere}
                   ) : (
                     <>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '8px 0' }}>
-                        <span style={{ fontSize: 30, color: '#6f6a5e', flexShrink: 0 }}>Camera</span>
+                        <span style={{ fontSize: 34, color: '#3a3a35', flexShrink: 0 }}>Camera</span>
                         <span style={{ fontSize: 36, fontWeight: 700, color: '#1F3D2F', textAlign: 'right' }}>{roomWithType(booking.rooms?.name)}</span>
                       </div>
                       {bagnoDesc(booking.rooms) && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '8px 0' }}>
-                          <span style={{ fontSize: 30, color: '#6f6a5e', flexShrink: 0 }}>Bagno</span>
-                          <span style={{ fontSize: 28, fontWeight: 400, color: '#3a3a35', textAlign: 'right' }}>{bagnoDesc(booking.rooms)}</span>
+                          <span style={{ fontSize: 34, color: '#3a3a35', flexShrink: 0 }}>Bagno</span>
+                          <span style={{ fontSize: 32, fontWeight: 400, color: '#3a3a35', textAlign: 'right' }}>{bagnoDesc(booking.rooms)}</span>
                         </div>
                       )}
                     </>
@@ -378,7 +378,7 @@ ${linkCamere}
                     <span style={{ fontSize: 44, fontWeight: 800, color: '#2D6A4F' }}>{fmtEuro(totale)}</span>
                   </div>
                   {pagamento === 'contanti' && (
-                    <p style={{ fontSize: 30, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.5, margin: '18px 0 0' }}>
+                    <p style={{ fontSize: 34, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.5, margin: '18px 0 0' }}>
                       Pagamento all&apos;arrivo, alla consegna delle chiavi, per l&apos;intera prenotazione: contanti o bonifico istantaneo.
                     </p>
                   )}
@@ -388,18 +388,18 @@ ${linkCamere}
                 {pagamento === 'bonifico' && (
                   <div style={S.box}>
                     <p style={S.boxTitle}>Pagamento</p>
-                    <p style={{ fontSize: 28, color: '#3a3a35', lineHeight: 1.5, margin: '0 0 26px' }}>
+                    <p style={{ fontSize: 32, color: '#3a3a35', lineHeight: 1.5, margin: '0 0 26px' }}>
                       Il soggiorno si salda in anticipo con bonifico bancario, per l&apos;intero importo. La prenotazione è confermata alla ricezione della ricevuta.
                     </p>
                     <div style={{ background: '#f9f6f1', borderRadius: 16, padding: '12px 32px', marginBottom: 26 }}>
                       <div style={S.row}><span style={S.label}>Importo</span><span style={{ ...S.value, fontWeight: 600 }}>{fmtEuro(totale)}</span></div>
                       <div style={S.row}><span style={S.label}>Intestatario</span><span style={{ ...S.value, fontWeight: 400 }}>{BONIFICO_INTESTATARIO}</span></div>
-                      <div style={S.row}><span style={S.label}>IBAN</span><span style={{ ...S.value, fontWeight: 400, fontSize: 28, whiteSpace: 'nowrap' }}>{BONIFICO_IBAN}</span></div>
+                      <div style={S.row}><span style={S.label}>IBAN</span><span style={{ ...S.value, fontWeight: 400, fontSize: 32, whiteSpace: 'nowrap' }}>{BONIFICO_IBAN}</span></div>
                       <div style={S.row}><span style={S.label}>Causale</span><span style={{ ...S.value, fontWeight: 400 }}>{causale}</span></div>
                       <div style={S.row}><span style={S.label}>Entro il</span><span style={{ ...S.value, fontWeight: 600 }}>{scadenzaF}</span></div>
                     </div>
                     <div style={{ background: '#f9f6f1', borderLeft: '3px solid #C58A67', borderRadius: 16, padding: '26px 40px', margin: 0 }}>
-                      <p style={{ fontSize: 27, color: '#1F3D2F', lineHeight: 1.6, margin: 0 }}>
+                      <p style={{ fontSize: 32, color: '#1F3D2F', lineHeight: 1.6, margin: 0 }}>
                         Quando ha effettuato il bonifico ci mandi la ricevuta su WhatsApp. Senza la ricevuta entro il {scadenzaF}, la camera torna ad essere disponibile.
                       </p>
                     </div>
@@ -408,16 +408,16 @@ ${linkCamere}
 
                 {/* RIQUADRO EVIDENZIATO */}
                 <div style={{ background: '#EFF3EA', borderRadius: 24, padding: '38px 48px', marginBottom: 36 }}>
-                  <p style={{ fontSize: 30, fontWeight: 600, color: '#2D6A4F', lineHeight: 1.5, margin: 0, textAlign: 'center' }}>
+                  <p style={{ fontSize: 34, fontWeight: 600, color: '#2D6A4F', lineHeight: 1.5, margin: 0, textAlign: 'center' }}>
                     Appena le sarà possibile, la preghiamo di comunicarci l&apos;orario di arrivo, per organizzare al meglio la sua accoglienza.
                   </p>
                 </div>
 
                 {/* COME ARRIVARE */}
-                <p style={{ fontSize: 26, letterSpacing: 3, color: '#6f6a5e', fontWeight: 700, margin: '0 0 14px' }}>COME ARRIVARE</p>
+                <p style={{ fontSize: 32, letterSpacing: 3, color: '#3a3a35', fontWeight: 700, margin: '0 0 14px' }}>COME ARRIVARE</p>
                 <div style={{ background: 'white', borderLeft: '4px solid #C58A67', borderRadius: '0 16px 16px 0', padding: '28px 40px', marginBottom: 40 }}>
                   <p style={{ fontSize: 32, fontWeight: 700, color: '#1F3D2F', lineHeight: 1.35, margin: 0 }}>{INDIRIZZO}</p>
-                  <p style={{ fontSize: 27, color: '#3a3a35', margin: '10px 0 0' }}>{INDIRIZZO_NOTA}</p>
+                  <p style={{ fontSize: 32, color: '#3a3a35', margin: '10px 0 0' }}>{INDIRIZZO_NOTA}</p>
                 </div>
 
                 {/* CONTATTI — solo numero + firma */}
@@ -429,7 +429,7 @@ ${linkCamere}
 
               {/* PIÈ DI PAGINA */}
               <div style={{ background: '#F6F2EA', padding: '26px 52px', textAlign: 'center' }}>
-                <p style={{ fontSize: 26, color: '#6f6a5e', margin: 0 }}>{NOME_STRUTTURA} – {CITTA_STRUTTURA} · {SITO_DISPLAY}</p>
+                <p style={{ fontSize: 32, color: '#3a3a35', margin: 0 }}>{NOME_STRUTTURA} – {CITTA_STRUTTURA} · {SITO_DISPLAY}</p>
               </div>
             </div>
             {/* ═══ FINE IMMAGINE ═══ */}
