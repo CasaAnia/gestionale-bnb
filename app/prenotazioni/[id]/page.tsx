@@ -122,9 +122,9 @@ Info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
 RIEPILOGO SOGGIORNO
 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
 Check-out: *${coutF}* (entro le ore 10:00)
+Notti totali: *${notti}*
 Ospiti: ${ospiti}
-${isGruppo ? `Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `Camera: ${roomFull}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}
-Notti totali: *${notti}*${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
+${isGruppo ? `Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `Camera: ${roomFull}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
 
 ${riepilogoCosti}
 
