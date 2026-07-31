@@ -7,7 +7,7 @@ import { NOME_STRUTTURA, CITTA_STRUTTURA, SITO_URL, SITO_DISPLAY, TELEFONO_DISPL
 // Conferma di prenotazione WhatsApp: immagine grafica (1080px, identità visiva
 // del sito casaaniarozzano.it) + messaggio di testo con i link, pronti da inviare.
 
-const IMG_W = 1080
+const IMG_W = 820
 
 function formatDateIT(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -300,27 +300,27 @@ ${linkCamere}
             <div ref={imgRef} style={{ width: IMG_W, background: '#f9f6f1', fontFamily: 'var(--font-nunito-sans), sans-serif' }}>
 
               {/* TESTATA verde pieno #007451 (stesso verde della card del sito) */}
-              <div style={{ height: 360, background: '#007451', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 60px' }}>
+              <div style={{ height: 300, background: '#007451', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 44px' }}>
                 <span style={{ border: '2px solid rgba(255,255,255,0.8)', color: 'white', borderRadius: 999, padding: '8px 30px', fontSize: 30, fontWeight: 600, letterSpacing: 6, marginBottom: 24 }}>BENVENUTI</span>
-                <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 60, fontWeight: 600, color: 'white', margin: 0, lineHeight: 1.15 }}>Prenotazione confermata</p>
+                <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 54, fontWeight: 600, color: 'white', margin: 0, lineHeight: 1.15 }}>Prenotazione confermata</p>
                 <p style={{ fontSize: 34, color: 'rgba(255,255,255,0.92)', margin: '18px 0 0' }}>{NOME_STRUTTURA} · a 140 metri da Humanitas</p>
               </div>
 
               <div style={{ padding: '52px 52px 0' }}>
 
                 {/* SALUTO — nome cliente in evidenza */}
-                <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 72, fontWeight: 600, color: '#1F3D2F', textAlign: 'center', margin: '0 0 34px', lineHeight: 1.1 }}>{nome}</p>
+                <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 84, fontWeight: 600, color: '#1F3D2F', textAlign: 'center', margin: '0 0 32px', lineHeight: 1.05 }}>{nome}</p>
 
                 {/* BIGLIETTO — DATE */}
                 <div style={{ display: 'flex', background: 'white', border: '2px solid #e3ddd0', borderRadius: 24, overflow: 'hidden', marginBottom: 30 }}>
                   <div style={{ flex: 1, padding: '34px 28px', textAlign: 'center', borderRight: '3px dashed #d9d2c3' }}>
                     <div style={{ fontSize: 32, letterSpacing: 2, color: '#3a3a35' }}>CHECK-IN</div>
-                    <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 44, fontWeight: 600, color: '#1F3D2F', margin: '10px 0 6px', lineHeight: 1.2 }}>{formatDateHero(cin)}</div>
+                    <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 50, fontWeight: 600, color: '#1F3D2F', margin: '10px 0 6px', lineHeight: 1.15 }}>{formatDateHero(cin).split(' ')[0]}<br />{formatDateHero(cin).split(' ').slice(1).join(' ')}</div>
                     <div style={{ fontSize: 32, color: '#3a3a35' }}>15:00 – 20:00</div>
                   </div>
                   <div style={{ flex: 1, padding: '34px 28px', textAlign: 'center' }}>
                     <div style={{ fontSize: 32, letterSpacing: 2, color: '#3a3a35' }}>CHECK-OUT</div>
-                    <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 44, fontWeight: 600, color: '#1F3D2F', margin: '10px 0 6px', lineHeight: 1.2 }}>{formatDateHero(cout)}</div>
+                    <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 50, fontWeight: 600, color: '#1F3D2F', margin: '10px 0 6px', lineHeight: 1.15 }}>{formatDateHero(cout).split(' ')[0]}<br />{formatDateHero(cout).split(' ').slice(1).join(' ')}</div>
                     <div style={{ fontSize: 32, color: '#3a3a35' }}>entro le 10:00</div>
                   </div>
                 </div>
