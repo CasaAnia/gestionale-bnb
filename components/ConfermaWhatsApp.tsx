@@ -290,10 +290,8 @@ ${linkCamere}
             {/* ═══ IMMAGINE DELLA CONFERMA (1080px) ═══ */}
             <div ref={imgRef} style={{ width: IMG_W, background: '#f9f6f1', fontFamily: 'var(--font-nunito-sans), sans-serif' }}>
 
-              {/* TESTATA con la foto del sito e overlay verde scuro */}
-              <div style={{ position: 'relative', height: 430, overflow: 'hidden' }}>
-                <img src="/testata-conferma.jpg" alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(rgba(31,61,47,0.52), rgba(31,61,47,0.68))' }} />
+              {/* TESTATA verde pieno #007451 (stesso verde della card del sito) */}
+              <div style={{ position: 'relative', height: 430, overflow: 'hidden', background: '#007451' }}>
                 <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 60px' }}>
                   <span style={{ border: '2px solid rgba(255,255,255,0.75)', color: 'white', borderRadius: 999, padding: '8px 30px', fontSize: 24, fontWeight: 600, letterSpacing: 6, marginBottom: 26 }}>BENVENUTI</span>
                   <p style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 58, fontWeight: 600, color: 'white', margin: 0, lineHeight: 1.15 }}>La tua prenotazione è confermata</p>
