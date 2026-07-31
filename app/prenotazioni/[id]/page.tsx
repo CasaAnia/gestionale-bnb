@@ -123,8 +123,8 @@ RIEPILOGO SOGGIORNO
 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
 Check-out: *${coutF}* (entro le ore 10:00)
 Ospiti: ${ospiti}
-${isGruppo ? `Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `Camera: ${roomFull}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}${roomLink ? `\nVedi la tua camera: ${roomLink}` : ''}`}
-Notti totali: *${notti}*
+${isGruppo ? `Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `Camera: ${roomFull}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}
+Notti totali: *${notti}*${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
 
 ${riepilogoCosti}
 
