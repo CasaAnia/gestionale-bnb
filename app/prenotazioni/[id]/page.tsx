@@ -203,6 +203,8 @@ Importo: *€ ${totale}*
 
 Quando ha effettuato il bonifico, mi mandi pure la ricevuta qui su WhatsApp. Se l'ha già fatto in queste ore, ignori questo messaggio e mi scusi il disturbo!
 
+Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
+
 A presto,
 Ania
 Casa Granata Humanitas`
@@ -213,6 +215,8 @@ Casa Granata Humanitas`
 il suo arrivo si avvicina e vorrei organizzare al meglio la sua accoglienza: mi può indicare, anche in modo approssimativo, l'orario in cui pensa di arrivare?
 
 Le ricordo che il check-in è dalle ore 15:00 alle 20:00. Se prevede di arrivare prima o dopo questi orari, mi avvisi pure per tempo, così mi organizzo per accoglierla al meglio.
+
+Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
 
 A presto,
 Ania
@@ -265,6 +269,8 @@ Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle ch
 Per qualsiasi chiarimento resto a Sua completa disposizione e sarò lieta di accoglierla in futuro.
 
 💬 342 700 4354 (anche WhatsApp)
+
+I nostri contatti e dove siamo: https://www.casaaniarozzano.it/info?v=7
 
 Cordiali saluti,
 Ania
