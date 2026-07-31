@@ -101,16 +101,6 @@ IBAN: *IT32P0503401753000000159653*
 Causale: Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}`
     : `Pagamento all'arrivo: alla consegna delle chiavi verrà chiesto il pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.`
 
-  const paymentLine = b.bonifico
-    ? `Importo totale: *€ ${totale}* – pagamento tramite bonifico bancario.
-
-Per completare la prenotazione, la prego di effettuare il bonifico con i seguenti dati:
-Intestatario: *SAWICKA ANNA JANINA*
-Banca: *BANCO BPM*
-IBAN: *IT32P0503401753000000159653*
-Causale: Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}`
-    : `Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.`
-
   if (type === 'conferma') {
     return `CONFERMA DI PRENOTAZIONE – Casa Granata Humanitas
 
@@ -163,12 +153,13 @@ la informo che la sua prenotazione presso Casa Granata Humanitas è stata modifi
 RIEPILOGO SOGGIORNO
 Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
 Check-out: *${coutF}* (entro le ore 10:00)
+Notti totali: *${notti}*
 Ospiti: ${ospiti}
-Camera: ${roomFull}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}
-${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}
-Notti: *${notti}*
+${isGruppo ? `Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `Camera: ${roomFull}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
 
-${paymentLine}
+${riepilogoCosti}
+
+${pagamentoInfo}
 
 Per qualsiasi domanda resto a Sua disposizione.
 
