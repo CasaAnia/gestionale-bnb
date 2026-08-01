@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { roomWithType } from '@/lib/roomTypes'
+import { roomWithType, lettoInclusoNellaCamera } from '@/lib/roomTypes'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 import BackLink from '@/components/BackLink'
 
@@ -61,7 +61,11 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   // Riepilogo camere per soggiorno con cambio camera
   const riepilogoCamere = isGruppo ? segmenti.map((s, i) => {
     const n = Math.round((new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86400000)
-    return `   ${i + 1}. *${roomWithType(s.rooms?.name) || 'Camera'}*: ${formatDateIT(s.check_in)} → ${formatDateIT(s.check_out)} (${n} notti) – €${Number(s.price_per_night).toFixed(0)}/notte`
+    // Per Lena con 3 ospiti il prezzo a notte mostrato è quello tutto compreso (letto incluso)
+    const prezzoNotte = lettoInclusoNellaCamera(s, n)
+      ? Number(s.price_per_night) + Number(s.rooms?.extra_bed_price || 0)
+      : Number(s.price_per_night)
+    return `   ${i + 1}. *${roomWithType(s.rooms?.name) || 'Camera'}*: ${formatDateIT(s.check_in)} → ${formatDateIT(s.check_out)} (${n} notti) – €${prezzoNotte.toFixed(0)}/notte`
   }).join('\n') : ''
 
   // Riepilogo costi: una riga per camera (+ letto supplementare se presente), totale = somma delle righe
@@ -71,9 +75,18 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   for (const s of segmenti) {
     const n = Math.round((new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86400000)
     const prezzo = Number(s.price_per_night)
+    const nomeCamera = `Camera ${roomWithType(s.rooms?.name) || ''}`.trim()
+    // Lena con 3 ospiti: il terzo letto è parte della tripla, una riga sola tutto compreso
+    if (lettoInclusoNellaCamera(s, n)) {
+      const totCamera = prezzo * n + Number(s.extra_bed_total || 0)
+      totaleRighe += totCamera
+      righeCosti.push(n > 1
+        ? `${nomeCamera} (${n} notti × ${fmtEuro(totCamera / n)}): ${fmtEuro(totCamera)}`
+        : `${nomeCamera}: ${fmtEuro(totCamera)}`)
+      continue
+    }
     const subCamera = prezzo * n
     totaleRighe += subCamera
-    const nomeCamera = `Camera ${roomWithType(s.rooms?.name) || ''}`.trim()
     righeCosti.push(n > 1
       ? `${nomeCamera} (${n} notti × ${fmtEuro(prezzo)}): ${fmtEuro(subCamera)}`
       : `${nomeCamera}: ${fmtEuro(subCamera)}`)

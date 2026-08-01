@@ -33,6 +33,20 @@ export const ROOM_DESC_BY_NAME: Record<string, string> = {
   Lena: 'tripla · bagno privato esterno',
 }
 
+// Lena è una TRIPLA: quando è prenotata per 3 ospiti il terzo letto fa parte della
+// camera, non è un extra. Nelle comunicazioni al cliente le due voci vanno perciò unite
+// in una riga sola col prezzo tutto compreso (es. "Lena – Tripla, 90 €/notte"), mai
+// "80 € + letto supplementare 10 €".
+// L'unione avviene solo se il letto copre TUTTE le notti del soggiorno: se ne copre solo
+// alcune resta una voce separata, altrimenti il prezzo a notte risulterebbe sbagliato.
+export function lettoInclusoNellaCamera(seg: any, nottiTot: number): boolean {
+  if (seg?.rooms?.name !== 'Lena') return false
+  if (Number(seg?.num_guests) !== 3) return false
+  if (!seg?.extra_bed || Number(seg?.extra_bed_total || 0) <= 0) return false
+  const ebNotti = seg?.extra_bed_dates?.length > 0 ? seg.extra_bed_dates.length : nottiTot
+  return ebNotti === nottiTot
+}
+
 // Slug della pagina della camera su casaaniarozzano.it (/camere/<slug>)
 export const ROOM_SLUG_BY_NAME: Record<string, string> = {
   Amelia: 'singola',

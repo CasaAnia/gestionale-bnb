@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { toPng } from 'html-to-image'
-import { roomWithType, ROOM_SLUG_BY_NAME } from '@/lib/roomTypes'
+import { roomWithType, ROOM_SLUG_BY_NAME, lettoInclusoNellaCamera } from '@/lib/roomTypes'
 import { NOME_STRUTTURA, CITTA_STRUTTURA, SITO_URL, SITO_DISPLAY, TELEFONO_DISPLAY, INDIRIZZO, INDIRIZZO_NOTA } from '@/lib/config'
 
 // Conferma di prenotazione WhatsApp: immagine grafica (1080px, identità visiva
@@ -84,8 +84,18 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
   for (const s of segmenti) {
     const n = notti(s.check_in, s.check_out)
     const prezzo = Number(s.price_per_night)
+    const nomeCamera = `Camera ${roomWithType(s.rooms?.name)}`
+    // Lena con 3 ospiti: il terzo letto è parte della tripla, una riga sola tutto compreso
+    if (lettoInclusoNellaCamera(s, n)) {
+      const totCamera = prezzo * n + Number(s.extra_bed_total || 0)
+      righeCosti.push({
+        label: n > 1 ? `${nomeCamera} (${n} notti × ${fmtEuro(totCamera / n)})` : nomeCamera,
+        amount: totCamera,
+      })
+      continue
+    }
     righeCosti.push({
-      label: n > 1 ? `Camera ${roomWithType(s.rooms?.name)} (${n} notti × ${fmtEuro(prezzo)})` : `Camera ${roomWithType(s.rooms?.name)}`,
+      label: n > 1 ? `${nomeCamera} (${n} notti × ${fmtEuro(prezzo)})` : nomeCamera,
       amount: prezzo * n,
     })
     const ebTot = Number(s.extra_bed_total || 0)
