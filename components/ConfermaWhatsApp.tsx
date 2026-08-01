@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { toPng } from 'html-to-image'
 import { roomWithType, ROOM_SLUG_BY_NAME, lettoInclusoNellaCamera } from '@/lib/roomTypes'
+import { lettoDaComunicare } from '@/lib/tariffe'
 import { NOME_STRUTTURA, CITTA_STRUTTURA, SITO_URL, SITO_DISPLAY, TELEFONO_DISPLAY, INDIRIZZO, INDIRIZZO_NOTA } from '@/lib/config'
 
 // Conferma di prenotazione WhatsApp: immagine grafica (1080px, identità visiva
@@ -363,7 +364,7 @@ ${linkCamere}
                     <>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '8px 0' }}>
                         <span style={{ fontSize: 34, color: '#3a3a35', flexShrink: 0 }}>Camera</span>
-                        <span style={{ fontSize: 36, fontWeight: 700, color: '#1F3D2F', textAlign: 'right' }}>{roomWithType(booking.rooms?.name)}</span>
+                        <span style={{ fontSize: 36, fontWeight: 700, color: '#1F3D2F', textAlign: 'right' }}>{roomWithType(booking.rooms?.name)}{lettoDaComunicare(booking) ? ' + letto aggiuntivo' : ''}</span>
                       </div>
                       {bagnoDesc(booking.rooms) && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '8px 0' }}>

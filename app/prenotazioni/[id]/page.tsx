@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { roomWithType, lettoInclusoNellaCamera } from '@/lib/roomTypes'
-import { tariffaCamera, totaleLetto } from '@/lib/tariffe'
+import { tariffaCamera, totaleLetto, lettoDaComunicare } from '@/lib/tariffe'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 import BackLink from '@/components/BackLink'
 
@@ -128,7 +128,7 @@ Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
 Check-out: *${coutF}* (entro le ore 10:00)
 Notti totali: *${notti}*
 Ospiti: ${ospiti}
-${isGruppo ? `Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `Camera: ${roomFull}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
+${isGruppo ? `Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
 
 ${riepilogoCosti}
 
@@ -171,7 +171,7 @@ Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
 Check-out: *${coutF}* (entro le ore 10:00)
 Notti totali: *${notti}*
 Ospiti: ${ospiti}
-${isGruppo ? `Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `Camera: ${roomFull}${b.extra_bed && (!isLena || b.num_guests >= 4) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
+${isGruppo ? `Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
 
 ${riepilogoCosti}
 
