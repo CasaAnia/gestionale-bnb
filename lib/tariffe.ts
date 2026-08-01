@@ -42,10 +42,13 @@ export function tariffaCamera(room: any, numOspiti: number): TariffaCamera {
   return { prezzoNotte: base, lettiPool: 1, lettoAddebitato: true }
 }
 
-// Il letto si nomina al cliente solo quando gli viene davvero addebitato: così
-// l'etichetta "+ letto aggiuntivo" e la riga di costo compaiono sempre insieme, e per
-// Lena a 3 ospiti non compare nessuna delle due (il letto è già dentro la tariffa).
+// Se accanto al nome della camera va scritto "+ letto aggiuntivo".
+// Per Lena MAI: la camera è già venduta come tripla, quindi "Tripla + letto aggiuntivo"
+// sarebbe sbagliato (a 4 ospiti il letto in più compare comunque fra i costi).
+// Per le altre camere si nomina solo quando viene davvero addebitato, così l'etichetta
+// e la riga di costo compaiono sempre insieme.
 export function lettoDaComunicare(seg: any): boolean {
+  if (seg?.rooms?.name === 'Lena') return false
   return !!seg?.extra_bed && Number(seg?.extra_bed_total || 0) > 0
 }
 
