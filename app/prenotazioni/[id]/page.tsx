@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { roomWithType, lettoInclusoNellaCamera } from '@/lib/roomTypes'
+import { tariffaCamera, totaleLetto } from '@/lib/tariffe'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 import BackLink from '@/components/BackLink'
 
@@ -497,7 +498,8 @@ export default function BookingDetail() {
     if (n <= 0) return 0
     const room = rooms.find(r => r.id === editForm.room_id)
     const ebDays = editForm.extra_bed_dates?.length || 0
-    const extraBedTotal = room && ebDays > 0 ? Number(room.extra_bed_price) * ebDays : 0
+    // Il letto non si addebita quando è già compreso nella tariffa (Lena fino a 3 ospiti)
+    const extraBedTotal = totaleLetto(room, editForm.num_guests, ebDays)
     return Number(editForm.price_per_night) * n + extraBedTotal
   }
 
@@ -511,7 +513,8 @@ export default function BookingDetail() {
     setSaving(true)
     const room = rooms.find(r => r.id === editForm.room_id)
     const ebDays = editForm.extra_bed_dates?.length || 0
-    const extraBedTotal = room && ebDays > 0 ? Number(room.extra_bed_price) * ebDays : 0
+    // Il letto non si addebita quando è già compreso nella tariffa (Lena fino a 3 ospiti)
+    const extraBedTotal = totaleLetto(room, editForm.num_guests, ebDays)
     const total = calcTotal()
     const updates = {
       room_id: editForm.room_id,
@@ -822,7 +825,13 @@ export default function BookingDetail() {
           <select value={editForm.room_id} onChange={e => {
             const room = rooms.find(r => r.id === e.target.value)
             const newRoomId = e.target.value
-            setEditForm({ ...editForm, room_id: newRoomId, price_per_night: room ? Number(room.base_price) : editForm.price_per_night })
+            // Cambiando camera si riapplica la regola con gli ospiti già inseriti
+            const { prezzoNotte, lettiPool } = tariffaCamera(room, editForm.num_guests)
+            const letto = lettiPool > 0
+            setEditForm({ ...editForm, room_id: newRoomId,
+              price_per_night: room ? prezzoNotte : editForm.price_per_night,
+              extra_bed: letto,
+              extra_bed_dates: letto ? getDaysBetween(editForm.check_in, editForm.check_out) : [] })
             checkDisponibilita(newRoomId, editForm.check_in, editForm.check_out)
           }} className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm">
             {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -867,13 +876,11 @@ export default function BookingDetail() {
               <input type="number" min={1} max={4} value={editForm.num_guests} onChange={e => {
                 const n = parseInt(e.target.value)
                 const room = rooms.find(r => r.id === editForm.room_id)
-                const nativeCapacity = room?.name === 'Amelia' ? 1 : 2
-                const autoLetto = room?.has_extra_bed && n > nativeCapacity
-                const autoPrice = room?.double_price
-                  ? (room.has_extra_bed ? (n >= 3 ? Number(room.double_price) : Number(room.base_price)) : (n >= 2 ? Number(room.double_price) : Number(room.base_price)))
-                  : (room ? Number(room.base_price) : editForm.price_per_night)
+                // Regola unica (lib/tariffe): prezzo e letti impegnati dal pool
+                const { prezzoNotte, lettiPool } = tariffaCamera(room, n)
+                const autoLetto = lettiPool > 0
                 const autoDates = autoLetto ? getDaysBetween(editForm.check_in, editForm.check_out) : []
-                setEditForm({ ...editForm, num_guests: n, extra_bed: autoLetto, extra_bed_dates: autoDates, price_per_night: autoPrice })
+                setEditForm({ ...editForm, num_guests: n, extra_bed: autoLetto, extra_bed_dates: autoDates, price_per_night: room ? prezzoNotte : editForm.price_per_night })
               }} className="w-full border border-card-border rounded-lg p-2 text-sm" />
             </div>
             <div>

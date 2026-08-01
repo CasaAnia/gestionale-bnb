@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BackLink from '@/components/BackLink'
+import { tariffaCamera, totaleLetto } from '@/lib/tariffe'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
@@ -187,14 +188,14 @@ function NuovaPrenotazione() {
     const notti = Math.round((parseDate(form.check_out).getTime() - parseDate(form.check_in).getTime()) / 86400000)
     if (notti <= 0) return 0
     const room = rooms.find(r => r.id === form.room_id)
-    const extraBedTotal = form.extra_bed && room ? Number(room.extra_bed_price) * notti : 0
-    return Number(form.price_per_night) * notti + extraBedTotal
+    return Number(form.price_per_night) * notti + extraBedTotal()
   }
 
+  // Il letto non si addebita quando è già compreso nella tariffa (Lena fino a 3 ospiti)
   function extraBedTotal() {
     if (!form.extra_bed) return 0
     const room = rooms.find(r => r.id === form.room_id)
-    return room ? Number(room.extra_bed_price) * form.extra_bed_dates.length : 0
+    return totaleLetto(room, form.num_guests, form.extra_bed_dates.length)
   }
 
   function parseDate(s: string) { return new Date(s.replace(/-/g, '/')) }
@@ -497,7 +498,13 @@ function NuovaPrenotazione() {
             <select value={form.room_id} onChange={e => {
               const room = rooms.find(r => r.id === e.target.value)
               const newRoomId = e.target.value
-              setForm({...form, room_id: newRoomId, use_matrimoniale: false, price_per_night: room ? Number(room.base_price) : 0})
+              // Cambiando camera si riapplica la regola con gli ospiti già inseriti
+              const { prezzoNotte, lettiPool } = tariffaCamera(room, form.num_guests)
+              const letto = lettiPool > 0
+              setForm({...form, room_id: newRoomId, use_matrimoniale: false,
+                price_per_night: room ? prezzoNotte : 0,
+                extra_bed: letto,
+                extra_bed_dates: letto ? getDaysBetween(form.check_in, form.check_out) : []})
               checkDisponibilita(newRoomId, form.check_in, form.check_out)
             }} className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm">
               <option value="">Seleziona camera</option>
@@ -548,13 +555,11 @@ function NuovaPrenotazione() {
                 <input type="number" min={1} max={4} value={form.num_guests} onChange={e => {
                   const n = parseInt(e.target.value)
                   const room = rooms.find(r => r.id === form.room_id)
-                  const nativeCapacity = room?.name === 'Amelia' ? 1 : room?.name === 'Lena' ? 3 : 2
-                  const autoLetto = room?.has_extra_bed && n > nativeCapacity
-                  const autoPrice = room?.double_price
-                    ? (room.has_extra_bed ? (n >= 3 ? Number(room.double_price) : Number(room.base_price)) : (n >= 2 ? Number(room.double_price) : Number(room.base_price)))
-                    : (room ? Number(room.base_price) : form.price_per_night)
+                  // Regola unica (lib/tariffe): prezzo e letti impegnati dal pool
+                  const { prezzoNotte, lettiPool } = tariffaCamera(room, n)
+                  const autoLetto = lettiPool > 0
                   const autoDates = autoLetto ? getDaysBetween(form.check_in, form.check_out) : []
-                  setForm({...form, num_guests: n, extra_bed: autoLetto, extra_bed_dates: autoDates, price_per_night: autoPrice})
+                  setForm({...form, num_guests: n, extra_bed: autoLetto, extra_bed_dates: autoDates, price_per_night: room ? prezzoNotte : form.price_per_night})
                 }}
                   className="w-full border border-card-border rounded-lg p-2 text-sm" />
               </div>
