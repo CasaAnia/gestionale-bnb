@@ -231,8 +231,9 @@ export default function Calendario() {
   })
 
   return (
-    <div className="flex flex-col h-screen pb-32 lg:pb-0">
-      <div className="shrink-0 px-4 pt-3 pb-2"><BackLink href="/" /></div>
+    <div className="flex flex-col h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0">
+      {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
+      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 pb-2 bg-cream/95 backdrop-blur-sm"><BackLink href="/" /></div>
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
