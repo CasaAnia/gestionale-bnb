@@ -1360,8 +1360,8 @@ export default function BookingDetail() {
       )}
 
       {showCancel && (
-        <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={() => setShowCancel(false)}>
-          <div className="bg-white rounded-t-2xl p-4 w-full max-w-lg mx-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowCancel(false)}>
+          <div className="bg-white rounded-2xl p-4 w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <h2 className="font-bold mb-3">Motivo annullamento</h2>
             <input value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Es. cliente ha cancellato..." className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" />
             <button onClick={cancelBooking} className="w-full bg-[#B5502F] text-white rounded-xl py-3 font-semibold mb-2">Conferma annullamento</button>
