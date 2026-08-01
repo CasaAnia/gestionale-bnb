@@ -141,8 +141,8 @@ export default function ClienteDetail() {
       )}
 
       {showDelete && (
-        <div className="fixed inset-0 bg-black/50 flex items-end z-50" onClick={() => setShowDelete(false)}>
-          <div className="bg-white rounded-t-2xl p-4 w-full max-w-lg mx-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowDelete(false)}>
+          <div className="bg-white rounded-2xl p-4 w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <h2 className="font-bold mb-2">Elimina cliente</h2>
             <p className="text-sm text-gray-500 mb-4">Sei sicuro? Questa azione non si può annullare. Le prenotazioni associate rimarranno nel sistema.</p>
             <button onClick={deleteGuest} className="w-full bg-[#B5502F] text-white rounded-xl py-3 font-semibold mb-2">Sì, elimina</button>
