@@ -454,7 +454,7 @@ ${linkCamere}
             <p className="text-xs font-semibold text-green-dark mb-1.5">1 · Salva l&apos;immagine sul telefono</p>
             <button onClick={salvaSuTelefono} disabled={!!busy}
               className={`w-full rounded-xl py-3 font-semibold text-sm mb-1 disabled:opacity-50 ${saved ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
-              {busy === 'save' ? 'Preparo…' : saved ? '✓ Immagine salvata!' : 'Salva immagine'}
+              {busy === 'save' ? 'Preparo…' : saved ? 'Immagine salvata!' : 'Salva immagine'}
             </button>
             {isIOS && <p className="text-[11px] text-gray-500 mb-3">Nel menu che si apre tocca <span className="font-semibold">&quot;Salva immagine&quot;</span></p>}
             {!isIOS && <div className="mb-3" />}
@@ -464,7 +464,7 @@ ${linkCamere}
             <p className="text-xs font-semibold text-green-dark mb-1.5">1 · Copia l&apos;immagine</p>
             <button onClick={copiaImmagine} disabled={!!busy}
               className={`w-full rounded-xl py-3 font-semibold text-sm mb-2 disabled:opacity-50 ${imgCopied ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
-              {busy === 'copyimg' ? 'Preparo…' : imgCopied ? '✓ Immagine copiata!' : 'Copia immagine'}
+              {busy === 'copyimg' ? 'Preparo…' : imgCopied ? 'Immagine copiata!' : 'Copia immagine'}
             </button>
           </>
         )}
@@ -485,7 +485,7 @@ ${linkCamere}
         {booking.guests?.phone ? (
           <button onClick={apriChat}
             className="w-full bg-green-dark text-white rounded-xl py-3 font-semibold text-sm mb-4">
-            💬 Apri chat di {nome}
+            Apri chat di {nome}
           </button>
         ) : (
           <p className="text-xs text-[#8C3B2E] font-semibold mb-4">Nessun numero di telefono sulla prenotazione</p>
@@ -496,7 +496,7 @@ ${linkCamere}
           <p className="text-xs font-semibold text-green-dark mb-1">3 · Nella chat che si apre:</p>
           {isMobile ? (
             <p className="text-xs text-green-dark leading-relaxed">
-              Tocca la <span className="font-semibold">graffetta 📎 (o +)</span> → <span className="font-semibold">Galleria</span>: la conferma è la <span className="font-semibold">prima foto</span> → <span className="font-semibold">inviala</span>.
+              Tocca la <span className="font-semibold">graffetta (o +)</span> → <span className="font-semibold">Galleria</span>: la conferma è la <span className="font-semibold">prima foto</span> → <span className="font-semibold">inviala</span>.
               Poi invia il <span className="font-semibold">messaggio già scritto</span> che trovi pronto nella casella di testo.
             </p>
           ) : (
@@ -515,7 +515,7 @@ ${linkCamere}
           </div>
           <button onClick={copiaTesto}
             className={`w-full rounded-xl py-2.5 font-semibold text-sm ${copied ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
-            {copied ? '✓ Copiato!' : 'Copia testo'}
+            {copied ? 'Copiato!' : 'Copia testo'}
           </button>
         </details>
       </div>
