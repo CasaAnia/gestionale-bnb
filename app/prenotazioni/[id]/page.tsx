@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { roomWithType, lettoInclusoNellaCamera } from '@/lib/roomTypes'
 import { tariffaCamera, totaleLetto, lettoDaComunicare } from '@/lib/tariffe'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
-import BackLink from '@/components/BackLink'
+import BackBar from '@/components/BackBar'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -764,7 +764,7 @@ export default function BookingDetail() {
 
   return (
     <div className="p-4">
-      <div className="mb-2"><BackLink href="/prenotazioni" /></div>
+      <BackBar href="/prenotazioni" />
       <div className="flex items-center gap-3 mb-4">
         <h1 className="font-serif text-xl text-green-dark flex-1">Prenotazione</h1>
         {editing && (

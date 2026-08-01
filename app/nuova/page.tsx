@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
-import BackLink from '@/components/BackLink'
+import BackBar from '@/components/BackBar'
 import { tariffaCamera, totaleLetto } from '@/lib/tariffe'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
@@ -344,9 +344,7 @@ function NuovaPrenotazione() {
 
   return (
     <div className="p-4">
-      <div className="mb-2">
-        <BackLink onClick={() => step === 'telefono' ? router.back() : setStep(step === 'dettagli' ? 'cliente' : 'telefono')} />
-      </div>
+      <BackBar onClick={() => step === 'telefono' ? router.back() : setStep(step === 'dettagli' ? 'cliente' : 'telefono')} />
       <h1 className="font-serif text-xl text-green-dark max-lg:hidden mb-4">Nuova prenotazione</h1>
 
       {/* Step 1: telefono o nome */}

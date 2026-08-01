@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Statistiche from './Statistiche'
 import { supabase } from '@/lib/supabase'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
-import BackLink from '@/components/BackLink'
+import BackBar from '@/components/BackBar'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
@@ -376,7 +376,7 @@ export default function Pulizie() {
 
   return (
     <div className="p-4">
-      <div className="mb-3"><BackLink href="/" /></div>
+      <BackBar href="/" />
 
       <h1 className="text-2xl text-green-dark capitalize" style={{ fontFamily: 'Georgia, serif', fontWeight: 600 }}>{italianDate()}</h1>
       <p className="text-sm text-gray-500 mb-4">

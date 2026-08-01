@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import BackLink from '@/components/BackLink'
+import BackBar from '@/components/BackBar'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 
@@ -34,7 +34,7 @@ export default function NuovoCliente() {
 
   return (
     <div className="p-4">
-      <div className="mb-2"><BackLink href="/clienti" /></div>
+      <BackBar href="/clienti" />
       <div className="flex items-center gap-3 mb-4">
         <h1 className="font-serif text-xl text-green-dark">Nuovo cliente</h1>
       </div>

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import BackLink from '@/components/BackLink'
+import BackBar from '@/components/BackBar'
 
 function fmt(n: number) { return n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 
@@ -194,7 +194,7 @@ export default function Statistiche() {
 
   return (
     <div className="p-4">
-      <div className="mb-2"><BackLink href="/" /></div>
+      <BackBar href="/" />
       <h1 className="font-serif text-xl text-green-dark mb-4 max-lg:hidden">Statistiche</h1>
 
       <div className="flex gap-2 mb-4">

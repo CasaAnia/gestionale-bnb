@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import BackLink from '@/components/BackLink'
+import BackBar from '@/components/BackBar'
 
 // Pallino di stato discreto: colori coerenti con il calendario
 const STATUS_DOT: Record<string, string> = {
@@ -53,7 +53,7 @@ export default function Prenotazioni() {
 
   return (
     <div className="p-4">
-      <div className="mb-2"><BackLink href="/calendario" /></div>
+      <BackBar href="/calendario" />
       <div className="flex items-center justify-between mb-4">
         <h1 className="font-serif text-xl text-green-dark max-lg:hidden">Prenotazioni</h1>
         <Link href="/nuova" className="ml-auto bg-green-mid text-white rounded-full px-3 py-1.5 text-sm font-semibold">+ Nuova</Link>

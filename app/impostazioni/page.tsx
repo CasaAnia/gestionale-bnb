@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import BackLink from '@/components/BackLink'
+import BackBar from '@/components/BackBar'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
@@ -81,7 +81,7 @@ export default function Impostazioni() {
 
   return (
     <div className="p-4">
-      <div className="mb-2"><BackLink href="/" /></div>
+      <BackBar href="/" />
       <h1 className="font-serif text-xl text-green-dark mb-2 max-lg:hidden">Impostazioni</h1>
       <p className="text-sm text-gray-500 mb-4">Configura prezzi e camere</p>
 
