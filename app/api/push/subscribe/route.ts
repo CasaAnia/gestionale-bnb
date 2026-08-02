@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { createRouteClient } from '@/lib/supabaseRoute'
 
 export async function POST(req: NextRequest) {
+  // Questa route la chiama il browser di chi è loggato, non un cron: usa la
+  // sessione e non il service role, altrimenti sarebbe un endpoint di
+  // scrittura aperto a chiunque.
+  const supabase = await createRouteClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ ok: false, error: 'Non autenticato' }, { status: 401 })
+  }
+
   const subscription = await req.json()
   const endpoint = subscription.endpoint || subscription.keys?.endpoint || null
   if (!endpoint) {

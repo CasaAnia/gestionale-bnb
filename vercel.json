@@ -1,15 +1,15 @@
 {
   "crons": [
     {
-      "path": "/api/push/send?secret=casaania2026",
+      "path": "/api/push/send",
       "schedule": "0 14 * * *"
     },
     {
-      "path": "/api/push/orario?secret=casaania2026",
+      "path": "/api/push/orario",
       "schedule": "0 15 * * *"
     },
     {
-      "path": "/api/push/ringraziamento?secret=casaania2026",
+      "path": "/api/push/ringraziamento",
       "schedule": "0 10 * * *"
     }
   ]

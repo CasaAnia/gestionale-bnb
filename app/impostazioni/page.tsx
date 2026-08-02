@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BackBar from '@/components/BackBar'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
@@ -14,6 +15,7 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export default function Impostazioni() {
+  const router = useRouter()
   const [rooms, setRooms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
@@ -164,6 +166,24 @@ export default function Impostazioni() {
             {notifStatus === 'loading' ? 'Attivazione...' : '🔔 Attiva notifiche sul telefono'}
           </button>
         )}
+      </div>
+
+      {/* Accesso */}
+      <div className="mt-6 bg-white rounded-xl p-4 border border-card-border">
+        <p className="font-semibold mb-1">🔒 Accesso</p>
+        <p className="text-xs text-gray-500 mb-3">
+          Il gestionale è protetto da password. Esci se usi un telefono o un computer non tuo.
+        </p>
+        <button
+          onClick={async () => {
+            await supabase.auth.signOut()
+            router.replace('/login')
+            router.refresh()
+          }}
+          className="w-full border border-card-border text-green-dark rounded-xl py-2.5 font-semibold"
+        >
+          Esci
+        </button>
       </div>
 
       <div className="mt-4 bg-gray-100 rounded-xl p-4 text-sm text-gray-500">

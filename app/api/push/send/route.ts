@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
 import { inviaPulizieNotification } from '@/lib/puliziePush'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { createAdminClient } from '@/lib/supabaseAdmin'
+import { isCronAuthorized } from '@/lib/cronAuth'
 
 webpush.setVapidDetails(
   'mailto:amerigogranata@gmail.com',
@@ -15,11 +11,13 @@ webpush.setVapidDetails(
 )
 
 export async function GET(req: NextRequest) {
-  // Verifica secret per sicurezza
-  const secret = req.nextUrl.searchParams.get('secret')
-  if (secret !== process.env.CRON_SECRET) {
+  if (!isCronAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Service role: il cron gira senza utente loggato, con la chiave anon le
+  // policy RLS non gli farebbero leggere nulla.
+  const supabase = createAdminClient()
 
   // Calcola domani
   const tomorrow = new Date()

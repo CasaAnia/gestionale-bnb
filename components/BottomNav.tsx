@@ -38,6 +38,7 @@ const desktopNavGroups = [
 
 export default function BottomNav() {
   const pathname = usePathname()
+  if (pathname === '/login') return null
   return (
     <>
       {/* Mobile: bottom navigation crema & ottone */}

@@ -10,6 +10,8 @@ const nunitoSans = Nunito_Sans({ subsets: ['latin'], variable: '--font-nunito-sa
 export const metadata: Metadata = {
   title: 'Casa Ania Rozzano',
   description: 'Gestionale B&B',
+  // Il gestionale non deve finire su Google: contiene dati degli ospiti.
+  robots: { index: false, follow: false, nocache: true },
   icons: {
     icon: '/apple-touch-icon.png',
     apple: '/apple-touch-icon.png',

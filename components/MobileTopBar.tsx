@@ -16,6 +16,7 @@ const SECTION_TITLES: [string, string][] = [
 
 export default function MobileTopBar() {
   const pathname = usePathname()
+  if (pathname === '/login') return null
   const entry = SECTION_TITLES.find(([prefix]) => pathname.startsWith(prefix))
   const title = entry ? entry[1] : 'Casa Ania'
   return (
