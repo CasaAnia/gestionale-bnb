@@ -3,6 +3,31 @@ import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
+// Messaggi chiari al posto dell'inglese di Supabase. Il caso non previsto
+// mostra il messaggio originale: nasconderlo dietro un "riprova" generico
+// rende impossibile capire cosa è andato storto.
+function traduciErrore(messaggio: string): string {
+  const m = messaggio.toLowerCase()
+
+  if (m.includes('invalid login credentials')) {
+    return 'Email o password non corretti.'
+  }
+  if (m.includes('email not confirmed')) {
+    return "Utente creato ma email non confermata. In Supabase, Authentication → Users, apri l'utente e confermalo (o ricrealo spuntando «Auto Confirm User»)."
+  }
+  if (m.includes('email logins are disabled') || m.includes('email provider')) {
+    return 'Il login via email è disattivato in Supabase: Authentication → Providers → Email, attivalo.'
+  }
+  if (m.includes('too many requests') || m.includes('rate limit')) {
+    return 'Troppi tentativi ravvicinati. Aspetta un minuto e riprova.'
+  }
+  if (m.includes('failed to fetch') || m.includes('network')) {
+    return 'Non riesco a raggiungere il server. Controlla la connessione.'
+  }
+
+  return `Errore: ${messaggio}`
+}
+
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -19,11 +44,7 @@ function LoginForm() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
-      setErrore(
-        error.message === 'Invalid login credentials'
-          ? 'Email o password non corretti'
-          : 'Non riesco ad accedere. Riprova tra un momento.'
-      )
+      setErrore(traduciErrore(error.message))
       setLoading(false)
       return
     }
