@@ -73,6 +73,9 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
 
   const isGruppo = groupBookings.length > 1
   const segmenti = isGruppo ? [...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in)) : [booking]
+  // Più periodi possono essere camere diverse (cambio camera) oppure la stessa camera a
+  // tariffa diversa: le etichette devono dire la cosa giusta al cliente
+  const camereDiverse = new Set(segmenti.map((s: any) => s.rooms?.name)).size > 1
   const cin = segmenti[0].check_in
   const cout = segmenti[segmenti.length - 1].check_out
   const nottiTot = notti(cin, cout)
@@ -353,7 +356,7 @@ ${linkCamere}
                   {isGruppo ? (
                     segmenti.map((s, i) => (
                       <div key={s.id} style={{ padding: '14px 0', borderTop: i === 0 ? 'none' : '1px solid #e3ddd0' }}>
-                        <div style={{ fontSize: 34, fontWeight: 700, color: '#1F3D2F' }}>Camera {i + 1} · {roomWithType(s.rooms?.name)}</div>
+                        <div style={{ fontSize: 34, fontWeight: 700, color: '#1F3D2F' }}>{camereDiverse ? `Camera ${i + 1}` : `Periodo ${i + 1}`} · {roomWithType(s.rooms?.name)}</div>
                         <div style={{ fontSize: 32, color: '#3a3a35', marginTop: 6 }}>
                           {formatGiornoMese(s.check_in)} → {formatGiornoMese(s.check_out)} ({notti(s.check_in, s.check_out)} {notti(s.check_in, s.check_out) === 1 ? 'notte' : 'notti'})
                           {bagnoDesc(s.rooms) ? ` · bagno ${bagnoDesc(s.rooms)}` : ''}

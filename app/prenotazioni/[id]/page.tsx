@@ -59,14 +59,20 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   const isLena = room.includes('Lena')
   const roomLink = roomPageLink(room)
 
-  // Riepilogo camere per soggiorno con cambio camera
+  // Un soggiorno può essere spezzato in più periodi o perché l'ospite cambia camera,
+  // oppure perché resta nella stessa camera a una tariffa diversa: l'intestazione deve
+  // dire la cosa giusta, altrimenti al cliente annunciamo un cambio camera che non c'è.
+  const camereDiverse = new Set(segmenti.map((s: any) => s.rooms?.name)).size > 1
+  const intestazioneSegmenti = camereDiverse
+    ? 'Camere (cambio camera durante il soggiorno):'
+    : 'Periodi del soggiorno:'
   const riepilogoCamere = isGruppo ? segmenti.map((s, i) => {
     const n = Math.round((new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86400000)
     // Per Lena con 3 ospiti il prezzo a notte mostrato è quello tutto compreso (letto incluso)
     const prezzoNotte = lettoInclusoNellaCamera(s, n)
       ? Number(s.price_per_night) + Number(s.rooms?.extra_bed_price || 0)
       : Number(s.price_per_night)
-    return `   ${i + 1}. *${roomWithType(s.rooms?.name) || 'Camera'}*: ${formatDateIT(s.check_in)} → ${formatDateIT(s.check_out)} (${n} notti) – €${prezzoNotte.toFixed(0)}/notte`
+    return `   ${i + 1}. *${roomWithType(s.rooms?.name) || 'Camera'}*: ${formatDateIT(s.check_in)} → ${formatDateIT(s.check_out)} (${n} ${n === 1 ? 'notte' : 'notti'}) – €${prezzoNotte.toFixed(0)}/notte`
   }).join('\n') : ''
 
   // Riepilogo costi: una riga per camera (+ letto supplementare se presente), totale = somma delle righe
@@ -128,7 +134,7 @@ Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
 Check-out: *${coutF}* (entro le ore 10:00)
 Notti totali: *${notti}*
 Ospiti: ${ospiti}
-${isGruppo ? `Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
+${isGruppo ? `${intestazioneSegmenti}\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
 
 ${riepilogoCosti}
 
@@ -171,7 +177,7 @@ Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
 Check-out: *${coutF}* (entro le ore 10:00)
 Notti totali: *${notti}*
 Ospiti: ${ospiti}
-${isGruppo ? `Camere (cambio camera durante il soggiorno):\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
+${isGruppo ? `${intestazioneSegmenti}\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
 
 ${riepilogoCosti}
 
