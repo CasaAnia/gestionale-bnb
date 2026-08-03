@@ -9,12 +9,23 @@ import type { NextRequest } from 'next/server'
 //
 // Resta accettato anche ?secret= per poter lanciare le notifiche a mano dal
 // telefono, ma confrontato con la stessa variabile d'ambiente.
+
+// Il valore incollato nel pannello di Vercel può portarsi dietro spazi o un
+// a capo (è già successo con le chiavi Supabase, dove l'a capo stava
+// addirittura in mezzo al valore). Qui li togliamo da entrambi i lati del
+// confronto, altrimenti l'unico sintomo è un "Unauthorized" inspiegabile.
+function pulisci(v: string | null | undefined): string {
+  return (v ?? '').replace(/\s+/g, '')
+}
+
 export function isCronAuthorized(req: NextRequest): boolean {
-  const expected = process.env.CRON_SECRET
+  const expected = pulisci(process.env.CRON_SECRET)
   if (!expected) return false
 
-  const header = req.headers.get('authorization')
-  if (header === `Bearer ${expected}`) return true
+  const header = req.headers.get('authorization') ?? ''
+  if (header.startsWith('Bearer ') && pulisci(header.slice(7)) === expected) {
+    return true
+  }
 
-  return req.nextUrl.searchParams.get('secret') === expected
+  return pulisci(req.nextUrl.searchParams.get('secret')) === expected
 }
