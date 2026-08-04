@@ -18,10 +18,11 @@ type Fx = {
 }
 
 const GROUP_COLORS: Record<string, string> = {
-  'Casa': '#2D6A4F', 'Ania': '#A9884E', 'Matteo': '#5E7FA3',
-  'Matteo e Ania': '#9C6B99', 'Casa Granata': '#8C3B2E',
+  'Casa': '#5B8A70', 'Ania': '#BCA06A', 'Matteo': '#8AA1B8',
+  'Matteo e Ania': '#AD90A8', 'Casa Granata': '#BC7E6E',
 }
-const FALLBACK_COLOR = '#7C857A'
+const FALLBACK_COLOR = '#9AA096'
+const BAR_COLOR = '#D2A98C' // pesca tenue per le barre categoria
 const eur = (n: number) => '€' + n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const eur2 = (n: number) => '€' + n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const strip = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -290,7 +291,7 @@ function SpeseFamiglia() {
                           <span className="font-semibold text-[#8C3B2E]">{eur(tot)}</span>
                         </div>
                         <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
-                          <div className="h-full rounded-full bg-[#C58A67]" style={{ width: `${(tot / maxCat) * 100}%` }} />
+                          <div className="h-full rounded-full" style={{ width: `${(tot / maxCat) * 100}%`, background: BAR_COLOR }} />
                         </div>
                       </div>
                     ))}
