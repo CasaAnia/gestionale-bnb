@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BackBar from '@/components/BackBar'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
+import { useDemoMode } from '@/lib/useDemoMode'
+import { hasDemoPin, setDemoPin, enableDemo, disableDemo } from '@/lib/demoMode'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
 
@@ -21,6 +23,21 @@ export default function Impostazioni() {
   const [saving, setSaving] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<string, any>>({})
   const [notifStatus, setNotifStatus] = useState<'idle' | 'loading' | 'ok' | 'denied'>('idle')
+
+  // Modalità dimostrazione
+  const demo = useDemoMode()
+  const [pinSet, setPinSet] = useState(false)
+  const [newPin, setNewPin] = useState('')
+  const [pinSaved, setPinSaved] = useState(false)
+  const [exitPin, setExitPin] = useState('')
+  const [exitErr, setExitErr] = useState(false)
+  useEffect(() => { setPinSet(hasDemoPin()) }, [demo])
+  function salvaPin() {
+    const p = newPin.trim()
+    if (p.length < 4) return
+    setDemoPin(p); setPinSet(true); setNewPin(''); setPinSaved(true)
+    setTimeout(() => setPinSaved(false), 2000)
+  }
 
   async function attivaNotifiche() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -165,6 +182,46 @@ export default function Impostazioni() {
             className="w-full bg-green-mid text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
             {notifStatus === 'loading' ? 'Attivazione...' : '🔔 Attiva notifiche sul telefono'}
           </button>
+        )}
+      </div>
+
+      {/* Modalità dimostrazione */}
+      <div className="mt-6 bg-white rounded-xl p-4 border border-card-border">
+        <p className="font-semibold mb-1">🫥 Modalità dimostrazione</p>
+        <p className="text-xs text-gray-500 mb-3">
+          Nasconde le sezioni <b>Spese</b> e <b>Spese Famiglia</b> quando fai vedere il gestionale a qualcuno.
+          Per farle riapparire serve il PIN.
+        </p>
+
+        {demo ? (
+          <form onSubmit={e => { e.preventDefault(); if (disableDemo(exitPin)) { setExitErr(false); setExitPin('') } else setExitErr(true) }}>
+            <div className="bg-[#F3ECD8] text-[#7A5C1E] rounded-lg px-3 py-2 text-sm font-semibold mb-2">🫥 Attiva — le spese sono nascoste</div>
+            <input inputMode="numeric" type="password" value={exitPin}
+              onChange={e => { setExitPin(e.target.value); setExitErr(false) }} placeholder="PIN per uscire"
+              className="w-full border border-card-border rounded-lg p-2.5 text-center tracking-widest mb-2" />
+            {exitErr && <p className="text-xs text-[#8C3B2E] mb-2">PIN errato</p>}
+            <button type="submit" className="w-full bg-green-mid text-white rounded-xl py-2.5 font-semibold">Esci dalla dimostrazione</button>
+          </form>
+        ) : (
+          <>
+            <div className="mb-3">
+              <p className="text-xs text-gray-500 mb-1">{pinSet ? 'Cambia PIN' : 'Scegli un PIN (min 4 cifre)'}</p>
+              <div className="flex gap-2">
+                <input inputMode="numeric" type="password" value={newPin}
+                  onChange={e => setNewPin(e.target.value)} placeholder="PIN"
+                  className="flex-1 border border-card-border rounded-lg p-2.5 text-center tracking-widest" />
+                <button onClick={salvaPin} disabled={newPin.trim().length < 4}
+                  className="border border-card-border text-green-dark rounded-lg px-4 font-semibold text-sm disabled:opacity-50">
+                  {pinSaved ? '✅' : 'Salva'}
+                </button>
+              </div>
+            </div>
+            <button onClick={enableDemo} disabled={!pinSet}
+              className="w-full bg-green-mid text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
+              🫥 Attiva modalità dimostrazione
+            </button>
+            {!pinSet && <p className="text-xs text-gray-400 mt-2 text-center">Imposta prima un PIN per poter attivare</p>}
+          </>
         )}
       </div>
 

@@ -1,7 +1,9 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { House, CalendarDays, DoorOpen, Sparkles, ClipboardList, Plus, Users, Banknote, ChartColumn, Settings } from 'lucide-react'
+import { House, CalendarDays, DoorOpen, Sparkles, ClipboardList, Plus, Users, Banknote, Wallet, ChartColumn, Settings } from 'lucide-react'
+import { useDemoMode } from '@/lib/useDemoMode'
+import { isHiddenPath } from '@/lib/demoMode'
 
 const mobileNavItems = [
   { href: '/calendario', label: 'Calendario', Icon: CalendarDays },
@@ -30,6 +32,7 @@ const desktopNavGroups = [
       { href: '/nuova', label: 'Nuova', Icon: Plus },
       { href: '/clienti', label: 'Clienti', Icon: Users },
       { href: '/spese', label: 'Spese', Icon: Banknote },
+      { href: '/spese-famiglia', label: 'Spese Famiglia', Icon: Wallet },
       { href: '/statistiche', label: 'Statistiche', Icon: ChartColumn },
       { href: '/impostazioni', label: 'Impostazioni', Icon: Settings },
     ],
@@ -38,7 +41,9 @@ const desktopNavGroups = [
 
 export default function BottomNav() {
   const pathname = usePathname()
+  const demo = useDemoMode()
   if (pathname === '/login') return null
+  const visible = (href: string) => !(demo && isHiddenPath(href))
   return (
     <>
       {/* Mobile: bottom navigation crema & ottone */}
@@ -79,7 +84,7 @@ export default function BottomNav() {
                   {group.label}
                 </p>
               )}
-              {group.items.map(item => {
+              {group.items.filter(item => visible(item.href)).map(item => {
                 const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
                 return (
                   <Link key={item.href} href={item.href}

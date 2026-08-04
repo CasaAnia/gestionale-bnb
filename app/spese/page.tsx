@@ -2,8 +2,14 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import BackBar from '@/components/BackBar'
+import DemoGate from '@/components/DemoGate'
+import { isDemoMode } from '@/lib/demoMode'
 
-export default function Spese() {
+export default function SpesePage() {
+  return <DemoGate><Spese /></DemoGate>
+}
+
+function Spese() {
   const [expenses, setExpenses] = useState<any[]>([])
   const [categories, setCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -13,6 +19,7 @@ export default function Spese() {
   const [monthFilter, setMonthFilter] = useState(new Date().toISOString().slice(0, 7))
 
   async function load() {
+    if (isDemoMode()) return // in dimostrazione non si carica nulla
     const [{ data: e }, { data: c }] = await Promise.all([
       supabase.from('expenses').select('*, expense_categories(name)').order('expense_date', { ascending: false }),
       supabase.from('expense_categories').select('*').order('name'),

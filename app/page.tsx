@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import type { Booking, Expense } from '@/lib/types'
 import { getUpcomingRoomChanges, buildChangeGroups } from '@/lib/roomChanges'
+import { useDemoMode } from '@/lib/useDemoMode'
 
 function fmt(n: number) { return n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 function today() { return new Date().toISOString().split('T')[0] }
@@ -18,6 +19,7 @@ function italianDate() {
 export default function Dashboard() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const demo = useDemoMode()
 
   useEffect(() => {
     async function load() {
@@ -273,10 +275,18 @@ export default function Dashboard() {
               <div className="text-2xl">📊</div>
               <div className="text-xs font-semibold text-green-dark mt-1">Statistiche</div>
             </Link>
-            <Link href="/spese" className="bg-[#F4E6DF] rounded-[10px] p-3 text-center border border-card-border">
-              <div className="text-2xl">💶</div>
-              <div className="text-xs font-semibold text-[#7A3B22] mt-1">Spese</div>
-            </Link>
+            {!demo && (
+              <Link href="/spese" className="bg-[#F4E6DF] rounded-[10px] p-3 text-center border border-card-border">
+                <div className="text-2xl">💶</div>
+                <div className="text-xs font-semibold text-[#7A3B22] mt-1">Spese</div>
+              </Link>
+            )}
+            {!demo && (
+              <Link href="/spese-famiglia" className="bg-[#F4E6DF] rounded-[10px] p-3 text-center border border-card-border">
+                <div className="text-2xl">👛</div>
+                <div className="text-xs font-semibold text-[#7A3B22] mt-1">Spese Famiglia</div>
+              </Link>
+            )}
             <Link href="/impostazioni" className="bg-white rounded-[10px] p-3 text-center border border-card-border">
               <div className="text-2xl">🔔</div>
               <div className="text-xs font-semibold text-green-dark mt-1">Impostazioni e notifiche</div>
