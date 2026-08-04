@@ -6,6 +6,7 @@ import { useDemoMode } from '@/lib/useDemoMode'
 import { isHiddenPath } from '@/lib/demoMode'
 
 const mobileNavItems = [
+  { href: '/', label: 'Home', Icon: House },
   { href: '/calendario', label: 'Calendario', Icon: CalendarDays },
   { href: '/arrivi', label: 'Arrivi', Icon: DoorOpen },
   { href: '/pulizie', label: 'Pulizie', Icon: Sparkles },
@@ -51,7 +52,7 @@ export default function BottomNav() {
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="flex justify-around items-stretch h-[70px] max-w-lg mx-auto">
           {mobileNavItems.map(item => {
-            const active = pathname.startsWith(item.href)
+            const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
             const color = active ? '#A9884E' : '#8a9488'
             return (
               <Link key={item.href} href={item.href}
