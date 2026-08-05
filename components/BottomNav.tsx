@@ -32,7 +32,7 @@ const desktopNavGroups = [
       { href: '/prenotazioni', label: 'Prenotazioni', Icon: ClipboardList },
       { href: '/nuova', label: 'Nuova', Icon: Plus },
       { href: '/clienti', label: 'Clienti', Icon: Users },
-      { href: '/spese', label: 'Spese', Icon: Banknote },
+      { href: '/spese', label: 'Spese B&B', Icon: Banknote },
       { href: '/spese-famiglia', label: 'Spese Famiglia', Icon: Wallet },
       { href: '/statistiche', label: 'Statistiche', Icon: ChartColumn },
       { href: '/impostazioni', label: 'Impostazioni', Icon: Settings },

@@ -96,7 +96,7 @@ export default function Statistiche() {
     async function load() {
       const [{ data: bookings }, { data: expenses }, { data: payments }] = await Promise.all([
         supabase.from('bookings').select('*').neq('status', 'annullata'),
-        supabase.from('expenses').select('*'),
+        supabase.from('family_expenses').select('expense_date, amount, family_groups!inner(ambito)').eq('family_groups.ambito', 'azienda'),
         supabase.from('payments').select('booking_id, amount, paid_on'),
       ])
       setData({ bookings: bookings || [], expenses: expenses || [], payments: payments || [] })

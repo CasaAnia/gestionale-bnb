@@ -31,7 +31,8 @@ export default function Dashboard() {
 
       const [{ data: bookings }, { data: expenses }, { data: payments }] = await Promise.all([
         supabase.from('bookings').select('*, rooms(name), guests(full_name, phone)'),
-        supabase.from('expenses').select('*'),
+        // Spese del B&B = spese dei gruppi con ambito 'azienda' (Casa Granata/Casa Ania).
+        supabase.from('family_expenses').select('expense_date, amount, family_groups!inner(ambito)').eq('family_groups.ambito', 'azienda'),
         supabase.from('payments').select('booking_id, amount'),
       ])
 
@@ -278,7 +279,7 @@ export default function Dashboard() {
             {!demo && (
               <Link href="/spese" className="bg-[#F4E6DF] rounded-[10px] p-3 text-center border border-card-border">
                 <div className="text-2xl">💶</div>
-                <div className="text-xs font-semibold text-[#7A3B22] mt-1">Spese</div>
+                <div className="text-xs font-semibold text-[#7A3B22] mt-1">Spese B&B</div>
               </Link>
             )}
             {!demo && (

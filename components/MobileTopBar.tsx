@@ -9,7 +9,8 @@ const SECTION_TITLES: [string, string][] = [
   ['/prenotazioni', 'Prenotazioni'],
   ['/nuova', 'Nuova prenotazione'],
   ['/clienti', 'Clienti'],
-  ['/spese', 'Spese'],
+  ['/spese-famiglia', 'Spese Famiglia'],
+  ['/spese', 'Spese B&B'],
   ['/statistiche', 'Report'],
   ['/impostazioni', 'Impostazioni'],
 ]
