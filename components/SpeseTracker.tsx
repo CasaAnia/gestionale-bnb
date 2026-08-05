@@ -58,6 +58,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const [toDate, setToDate] = useState('')
   const [groupFilter, setGroupFilter] = useState<string>('') // '' = tutti
   const [search, setSearch] = useState('')
+  const [showAllProducts, setShowAllProducts] = useState(false)
   const [showForm, setShowForm] = useState(false)
 
   const blankForm = () => ({
@@ -281,7 +282,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       const name = it.name.trim(); if (!name) return
       m[name] = (m[name] || 0) + Number(it.amount)
     })
-    return Object.entries(m).map(([name, tot]) => ({ name, tot })).sort((a, b) => b.tot - a.tot).slice(0, 10)
+    return Object.entries(m).map(([name, tot]) => ({ name, tot })).sort((a, b) => b.tot - a.tot)
   }, [items, filtered])
   const maxProduct = Math.max(1, ...topProducts.map(x => x.tot))
 
@@ -594,7 +595,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                 <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
                   <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Prodotti dove spendi di più</p>
                   <div className="flex flex-col gap-2.5">
-                    {topProducts.map(({ name, tot }) => (
+                    {(showAllProducts ? topProducts : topProducts.slice(0, 10)).map(({ name, tot }) => (
                       <button key={name} onClick={() => setSearch(name)} className="text-left">
                         <div className="flex items-center justify-between text-sm mb-1">
                           <span className="text-green-dark capitalize">{name}</span>
@@ -606,6 +607,12 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                       </button>
                     ))}
                   </div>
+                  {topProducts.length > 10 && (
+                    <button onClick={() => setShowAllProducts(!showAllProducts)}
+                      className="mt-3 text-xs text-brass font-semibold">
+                      {showAllProducts ? 'Mostra meno' : `Vedi tutti i ${topProducts.length} prodotti →`}
+                    </button>
+                  )}
                 </div>
               )}
 
