@@ -538,7 +538,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
           ) : (
             <>
               {/* DASHBOARD: per gruppo */}
-              {!groupFilter && perGroup.length > 0 && (
+              {!q && !groupFilter && perGroup.length > 0 && (
                 <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
                   <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Dove va la spesa</p>
                   <div className="flex flex-col gap-2.5">
@@ -558,7 +558,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
               )}
 
               {/* DASHBOARD: per categoria */}
-              {perCat.length > 0 && (
+              {!q && perCat.length > 0 && (
                 <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
                   <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Voci dove spendi di più</p>
                   <div className="flex flex-col gap-2.5">
@@ -572,26 +572,6 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                           <div className="h-full rounded-full" style={{ width: `${(tot / maxCat) * 100}%`, background: BAR_COLOR }} />
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* DASHBOARD: per negozio */}
-              {perStore.length > 0 && (
-                <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Per negozio</p>
-                  <div className="flex flex-col gap-2.5">
-                    {perStore.map(({ store, tot }) => (
-                      <button key={store} onClick={() => setSearch(store)} className="text-left">
-                        <div className="flex items-center justify-between text-sm mb-1">
-                          <span className="text-green-dark">{store}</span>
-                          <span className="font-semibold text-[#8C3B2E]">{eur(tot)}</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${(tot / maxStore) * 100}%`, background: '#8AA1B8' }} />
-                        </div>
-                      </button>
                     ))}
                   </div>
                 </div>
@@ -620,6 +600,26 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                       {showAllProducts ? 'Mostra meno' : `Vedi tutti i ${topProducts.length} prodotti →`}
                     </button>
                   )}
+                </div>
+              )}
+
+              {/* DASHBOARD: per negozio */}
+              {perStore.length > 0 && (
+                <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
+                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Per negozio</p>
+                  <div className="flex flex-col gap-2.5">
+                    {perStore.map(({ store, tot }) => (
+                      <button key={store} onClick={() => setSearch(store)} className="text-left">
+                        <div className="flex items-center justify-between text-sm mb-1">
+                          <span className="text-green-dark">{store}</span>
+                          <span className="font-semibold text-[#8C3B2E]">{eur(tot)}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${(tot / maxStore) * 100}%`, background: '#8AA1B8' }} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
