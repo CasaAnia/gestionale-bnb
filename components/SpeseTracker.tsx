@@ -48,12 +48,14 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const [rows, setRows] = useState<Fx[]>([])
   const [loading, setLoading] = useState(true)
   const [needsSetup, setNeedsSetup] = useState(false)
-  const [periodMode, setPeriodMode] = useState<'mese' | 'settimana' | 'intervallo'>('mese')
+  const [periodMode, setPeriodMode] = useState<'mese' | 'settimana' | 'anno' | 'intervallo'>('mese')
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [year, setYear] = useState(String(new Date().getFullYear()))
   const [weekAnchor, setWeekAnchor] = useState(new Date().toISOString().split('T')[0])
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [groupFilter, setGroupFilter] = useState<string>('') // '' = tutti
+  const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
 
   const blankForm = () => ({
@@ -216,17 +218,21 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   }
   const [periodStart, periodEnd] = periodMode === 'mese' ? monthRange(month)
     : periodMode === 'settimana' ? weekRange(weekAnchor)
+    : periodMode === 'anno' ? [`${year}-01-01`, `${year}-12-31`]
     : [fromDate || '0000-01-01', toDate || '9999-12-31']
 
   const periodRows = rows.filter(r => r.expense_date >= periodStart && r.expense_date <= periodEnd)
-  const filtered = groupFilter ? periodRows.filter(r => r.group_id === groupFilter) : periodRows
+  // Ricerca libera su negozio + descrizione + prodotto (accenti/maiuscole ignorati).
+  const q = strip(search.trim())
+  const searched = q ? periodRows.filter(r => strip(`${r.store || ''} ${r.description || ''} ${r.product || ''}`).includes(q)) : periodRows
+  const filtered = groupFilter ? searched.filter(r => r.group_id === groupFilter) : searched
   const totale = filtered.reduce((s, r) => s + Number(r.amount), 0)
 
   const perGroup = useMemo(() => {
     const m: Record<string, number> = {}
-    periodRows.forEach(r => { const k = r.group_id || 'none'; m[k] = (m[k] || 0) + Number(r.amount) })
+    searched.forEach(r => { const k = r.group_id || 'none'; m[k] = (m[k] || 0) + Number(r.amount) })
     return groups.map(g => ({ g, tot: m[g.id] || 0 })).filter(x => x.tot > 0).sort((a, b) => b.tot - a.tot)
-  }, [periodRows, groups])
+  }, [searched, groups])
   const maxGroup = Math.max(1, ...perGroup.map(x => x.tot))
 
   const perCat = useMemo(() => {
@@ -235,6 +241,14 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     return Object.entries(m).map(([id, tot]) => ({ id, tot })).sort((a, b) => b.tot - a.tot).slice(0, 8)
   }, [filtered])
   const maxCat = Math.max(1, ...perCat.map(x => x.tot))
+
+  // Totale per negozio (dove spendi di più, negozio per negozio).
+  const perStore = useMemo(() => {
+    const m: Record<string, number> = {}
+    filtered.forEach(r => { const s = (r.store || '').trim(); if (s) m[s] = (m[s] || 0) + Number(r.amount) })
+    return Object.entries(m).map(([store, tot]) => ({ store, tot })).sort((a, b) => b.tot - a.tot).slice(0, 8)
+  }, [filtered])
+  const maxStore = Math.max(1, ...perStore.map(x => x.tot))
 
   // Prodotti seguiti (track_detail): totale del mese per ciascuno.
   const tracked = useMemo(() => {
@@ -368,7 +382,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       <div className="mb-3">
         <div className="flex items-center gap-2 mb-2">
           <div className="flex bg-white border border-card-border rounded-lg p-0.5 text-sm">
-            {([['mese', 'Mese'], ['settimana', 'Settimana'], ['intervallo', 'Dal–al']] as const).map(([m, label]) => (
+            {([['mese', 'Mese'], ['settimana', 'Settimana'], ['anno', 'Anno'], ['intervallo', 'Dal–al']] as const).map(([m, label]) => (
               <button key={m} onClick={() => setPeriodMode(m)}
                 className={`px-3 py-1 rounded-md transition ${periodMode === m ? 'text-white' : 'text-gray-500'}`}
                 style={periodMode === m ? { background: FALLBACK_COLOR } : {}}>
@@ -395,6 +409,13 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
               <span className="text-xs text-gray-400">{periodStart} → {periodEnd}</span>
             </>
           )}
+          {periodMode === 'anno' && (
+            <>
+              <span className="text-sm text-gray-500">Anno</span>
+              <input type="number" value={year} onChange={e => setYear(e.target.value)} min="2024" max="2099" step="1"
+                className="border border-card-border rounded-lg p-2 text-sm w-24" />
+            </>
+          )}
           {periodMode === 'intervallo' && (
             <>
               <span className="text-sm text-gray-500">Dal</span>
@@ -404,6 +425,16 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
               <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
                 className="border border-card-border rounded-lg p-2 text-sm w-auto" />
             </>
+          )}
+        </div>
+
+        <div className="relative mt-2">
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="🔍 Cerca negozio o prodotto (es. Esselunga, bagnoschiuma)"
+            className="w-full border border-card-border rounded-lg p-2 pr-8 text-sm" />
+          {search && (
+            <button onClick={() => setSearch('')} aria-label="Pulisci ricerca"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">✕</button>
           )}
         </div>
       </div>
@@ -472,6 +503,26 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                           <div className="h-full rounded-full" style={{ width: `${(tot / maxCat) * 100}%`, background: BAR_COLOR }} />
                         </div>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* DASHBOARD: per negozio */}
+              {perStore.length > 0 && (
+                <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
+                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Per negozio</p>
+                  <div className="flex flex-col gap-2.5">
+                    {perStore.map(({ store, tot }) => (
+                      <button key={store} onClick={() => setSearch(store)} className="text-left">
+                        <div className="flex items-center justify-between text-sm mb-1">
+                          <span className="text-green-dark">{store}</span>
+                          <span className="font-semibold text-[#8C3B2E]">{eur(tot)}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${(tot / maxStore) * 100}%`, background: '#8AA1B8' }} />
+                        </div>
+                      </button>
                     ))}
                   </div>
                 </div>
