@@ -5,12 +5,13 @@ import { House, CalendarDays, DoorOpen, Sparkles, ClipboardList, Plus, Users, Ba
 import { useDemoMode } from '@/lib/useDemoMode'
 import { isHiddenPath } from '@/lib/demoMode'
 
+// Max 4 tasti: devono restare grossi e comodi da toccare. Le Statistiche/Report
+// si raggiungono dalla Home (card), quindi non stanno qui.
 const mobileNavItems = [
   { href: '/', label: 'Home', Icon: House },
   { href: '/calendario', label: 'Calendario', Icon: CalendarDays },
   { href: '/arrivi', label: 'Arrivi', Icon: DoorOpen },
   { href: '/pulizie', label: 'Pulizie', Icon: Sparkles },
-  { href: '/statistiche', label: 'Report', Icon: ChartColumn },
 ]
 
 const desktopNavGroups = [
