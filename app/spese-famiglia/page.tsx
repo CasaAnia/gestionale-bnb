@@ -89,15 +89,20 @@ function SpeseFamiglia() {
   }
   useEffect(() => { load() }, [])
 
-  // Carica la foto di uno scontrino nello spazio archivio del gestionale.
-  async function uploadReceipt(file: File) {
-    if (!file) return
+  // Carica una o più foto di scontrini nello spazio archivio del gestionale.
+  async function uploadReceipts(files: FileList) {
+    if (!files.length) return
     setUploading(true)
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
-    const path = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`
-    const up = await supabase.storage.from('scontrini').upload(path, file, { contentType: file.type || 'image/jpeg' })
-    if (up.error) { alert('Non sono riuscito a salvare la foto. Riprova.\n(' + up.error.message + ')'); setUploading(false); return }
-    await supabase.from('family_receipts').insert({ storage_path: path, note: receiptNote.trim() || null })
+    const note = receiptNote.trim() || null
+    let failed = 0
+    for (const file of Array.from(files)) {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`
+      const up = await supabase.storage.from('scontrini').upload(path, file, { contentType: file.type || 'image/jpeg' })
+      if (up.error) { failed++; continue }
+      await supabase.from('family_receipts').insert({ storage_path: path, note })
+    }
+    if (failed) alert(`${failed} foto non salvate (riprova). Le altre sono a posto.`)
     setReceiptNote(''); setUploading(false); loadReceipts()
   }
 
@@ -286,9 +291,9 @@ function SpeseFamiglia() {
           className="w-full border border-card-border rounded-lg p-2 text-sm mb-2 resize-none" />
 
         <label className={`w-full flex items-center justify-center gap-2 bg-green-mid text-white rounded-xl py-2.5 font-semibold cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-          {uploading ? 'Carico la foto…' : '📷 Scatta / carica scontrino'}
-          <input type="file" accept="image/*" capture="environment" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) uploadReceipt(f); e.currentTarget.value = '' }} />
+          {uploading ? 'Carico le foto…' : '📷 Scatta / carica scontrini'}
+          <input type="file" accept="image/*" multiple className="hidden"
+            onChange={e => { const f = e.target.files; if (f && f.length) uploadReceipts(f); e.currentTarget.value = '' }} />
         </label>
 
         {receipts.length > 0 && (
