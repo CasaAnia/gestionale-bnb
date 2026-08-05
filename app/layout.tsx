@@ -41,8 +41,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-cream text-green-dark antialiased font-sans">
         <ScrollToTop />
         <MobileTopBar />
-        <main className="max-w-lg lg:max-w-full mx-auto min-h-screen pt-12 lg:pt-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:ml-48">
-          {children}
+        <main className="min-h-screen pt-12 lg:pt-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-48">
+          <div className="max-w-lg lg:max-w-3xl mx-auto w-full">
+            {children}
+          </div>
         </main>
         <BottomNav />
       </body>
