@@ -244,9 +244,15 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     : [fromDate || '0000-01-01', toDate || '9999-12-31']
 
   const periodRows = rows.filter(r => r.expense_date >= periodStart && r.expense_date <= periodEnd)
-  // Ricerca libera su negozio + descrizione + prodotto (accenti/maiuscole ignorati).
+  // Ricerca libera su negozio + descrizione + prodotto, E dentro il dettaglio
+  // prodotti dello scontrino (accenti/maiuscole ignorati).
   const q = strip(search.trim())
-  const searched = q ? periodRows.filter(r => strip(`${r.store || ''} ${r.description || ''} ${r.product || ''}`).includes(q)) : periodRows
+  const itemMatchIds = useMemo(
+    () => q ? new Set(items.filter(it => strip(it.name).includes(q)).map(it => it.expense_id)) : new Set<string>(),
+    [items, q])
+  const searched = q
+    ? periodRows.filter(r => strip(`${r.store || ''} ${r.description || ''} ${r.product || ''}`).includes(q) || itemMatchIds.has(r.id))
+    : periodRows
   const filtered = groupFilter ? searched.filter(r => r.group_id === groupFilter) : searched
   const totale = filtered.reduce((s, r) => s + Number(r.amount), 0)
 
@@ -279,11 +285,12 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     const m: Record<string, number> = {}
     items.forEach(it => {
       if (!scope.has(it.expense_id)) return
+      if (q && !strip(it.name).includes(q)) return // in ricerca, solo i prodotti che combaciano
       const name = it.name.trim(); if (!name) return
       m[name] = (m[name] || 0) + Number(it.amount)
     })
     return Object.entries(m).map(([name, tot]) => ({ name, tot })).sort((a, b) => b.tot - a.tot)
-  }, [items, filtered])
+  }, [items, filtered, q])
   const maxProduct = Math.max(1, ...topProducts.map(x => x.tot))
 
   // Prodotti seguiti (track_detail): totale del mese per ciascuno.
