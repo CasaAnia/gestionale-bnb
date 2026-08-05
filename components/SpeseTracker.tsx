@@ -134,6 +134,16 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     setReceipts(receipts.filter(x => x.id !== r.id))
   }
 
+  // Aggiunge/modifica la nota di uno scontrino già caricato (l'ordine foto/nota
+  // non conta più: la puoi scrivere anche dopo).
+  async function editReceiptNote(r: Receipt) {
+    const nota = prompt('Nota per questo scontrino (indicazioni per me):', r.note || '')
+    if (nota === null) return
+    const value = nota.trim() || null
+    await supabase.from('family_receipts').update({ note: value }).eq('id', r.id)
+    setReceipts(receipts.map(x => x.id === r.id ? { ...x, note: value } : x))
+  }
+
   // Riapre la foto dello scontrino collegato a una spesa (link firmato al volo).
   async function openReceiptPhoto(receiptId: string) {
     const { data: rec } = await supabase.from('family_receipts').select('storage_path').eq('id', receiptId).single()
@@ -343,7 +353,9 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                 {receiptUrls[r.id]
                   ? <img src={receiptUrls[r.id]} alt="scontrino" className="w-full h-24 object-cover rounded-lg border border-card-border" />
                   : <div className="w-full h-24 rounded-lg bg-sand flex items-center justify-center text-2xl">🧾</div>}
-                {r.note && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{r.note}</p>}
+                <button onClick={() => editReceiptNote(r)} className="block w-full text-left text-[10px] text-gray-500 mt-0.5 truncate">
+                  {r.note ? r.note : <span className="text-brass">✏️ aggiungi nota</span>}
+                </button>
                 <button onClick={() => deleteReceipt(r)}
                   className="absolute top-1 right-1 bg-white/90 rounded-full w-6 h-6 flex items-center justify-center text-[#8C3B2E] text-sm shadow-sm">✕</button>
               </div>
