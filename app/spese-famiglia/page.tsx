@@ -25,6 +25,11 @@ const GROUP_COLORS: Record<string, string> = {
 }
 const FALLBACK_COLOR = '#9AA096'
 const BAR_COLOR = '#D2A98C' // pesca tenue per le barre categoria
+// Faccine dei gruppi tenute nel codice (non nel DB): incollando la migrazione
+// in Supabase gli emoji si erano corrotti. Qui restano sempre puliti.
+const GROUP_EMOJI: Record<string, string> = {
+  'Casa': '🏠', 'Ania': '👩', 'Matteo': '👦', 'Matteo e Ania': '👦👩', 'Casa Granata': '🥂',
+}
 const eur = (n: number) => '€' + n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const eur2 = (n: number) => '€' + n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const strip = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -122,7 +127,7 @@ function SpeseFamiglia() {
   }
 
   const groupName = (id: string | null) => groups.find(x => x.id === id)?.name || '—'
-  const groupEmoji = (id: string | null) => groups.find(x => x.id === id)?.emoji || ''
+  const groupEmoji = (id: string | null) => GROUP_EMOJI[groupName(id)] || ''
   const catName = (id: string | null) => cats.find(x => x.id === id)?.name || ''
   const colorOf = (id: string | null) => GROUP_COLORS[groupName(id)] || FALLBACK_COLOR
   const stores = useMemo(() => Array.from(new Set(rows.map(r => r.store).filter(Boolean))) as string[], [rows])
@@ -247,7 +252,7 @@ function SpeseFamiglia() {
             <select value={form.group_id} onChange={e => { setForm({ ...form, group_id: e.target.value, category_id: '' }); setAutoGroup(null) }}
               className="border border-card-border rounded-lg p-2 text-sm">
               <option value="">Gruppo…</option>
-              {groups.map(g => <option key={g.id} value={g.id}>{g.emoji} {g.name}</option>)}
+              {groups.map(g => <option key={g.id} value={g.id}>{GROUP_EMOJI[g.name] || ''} {g.name}</option>)}
             </select>
             <select value={form.category_id} onChange={e => setForm({ ...form, category_id: e.target.value })}
               disabled={!form.group_id} className="border border-card-border rounded-lg p-2 text-sm disabled:opacity-50">
@@ -340,7 +345,7 @@ function SpeseFamiglia() {
                   <button key={g.id} onClick={() => setGroupFilter(on ? '' : g.id)}
                     className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${on ? 'text-white border-transparent' : 'bg-white text-gray-600 border-card-border'}`}
                     style={on ? { background: GROUP_COLORS[g.name] || FALLBACK_COLOR } : {}}>
-                    {g.emoji} {g.name}
+                    {GROUP_EMOJI[g.name] || ''} {g.name}
                   </button>
                 )
               })}
@@ -359,7 +364,7 @@ function SpeseFamiglia() {
                     {perGroup.map(({ g, tot }) => (
                       <button key={g.id} onClick={() => setGroupFilter(g.id)} className="text-left">
                         <div className="flex items-center justify-between text-sm mb-1">
-                          <span className="text-green-dark">{g.emoji} {g.name}</span>
+                          <span className="text-green-dark">{GROUP_EMOJI[g.name] || ''} {g.name}</span>
                           <span className="font-semibold" style={{ color: GROUP_COLORS[g.name] || FALLBACK_COLOR }}>{eur(tot)}</span>
                         </div>
                         <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
