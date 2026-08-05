@@ -29,3 +29,13 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
+
+/* Calendario nativo dei campi data/mese: tinge il giorno selezionato e gli
+   accenti col verde del sito invece del blu di default (Chrome/Edge/Safari).
+   Il popup resta un controllo di sistema: font e struttura non sono modificabili. */
+input[type="date"],
+input[type="month"],
+input[type="week"] {
+  accent-color: var(--color-green-mid);
+  color-scheme: light;
+}
