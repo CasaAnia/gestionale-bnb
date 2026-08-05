@@ -343,7 +343,7 @@ function NuovaPrenotazione() {
   }
 
   return (
-    <div className="p-4">
+    <div className="p-4 max-w-2xl mx-auto">
       <BackBar onClick={() => step === 'telefono' ? router.back() : setStep(step === 'dettagli' ? 'cliente' : 'telefono')} />
       <h1 className="font-serif text-xl text-green-dark max-lg:hidden mb-4">Nuova prenotazione</h1>
 
