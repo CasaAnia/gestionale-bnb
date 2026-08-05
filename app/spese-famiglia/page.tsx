@@ -45,7 +45,11 @@ function SpeseFamiglia() {
   const [rows, setRows] = useState<Fx[]>([])
   const [loading, setLoading] = useState(true)
   const [needsSetup, setNeedsSetup] = useState(false)
+  const [periodMode, setPeriodMode] = useState<'mese' | 'settimana' | 'intervallo'>('mese')
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [weekAnchor, setWeekAnchor] = useState(new Date().toISOString().split('T')[0])
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [groupFilter, setGroupFilter] = useState<string>('') // '' = tutti
   const [showForm, setShowForm] = useState(false)
 
@@ -173,15 +177,33 @@ function SpeseFamiglia() {
   }
 
   // ---- dati del periodo ----
-  const monthRows = rows.filter(r => r.expense_date.startsWith(month))
-  const filtered = groupFilter ? monthRows.filter(r => r.group_id === groupFilter) : monthRows
+  // Intervallo [inizio, fine] inclusi (stringhe YYYY-MM-DD) del periodo scelto.
+  function monthRange(m: string): [string, string] {
+    const [y, mo] = m.split('-').map(Number)
+    const last = new Date(y, mo, 0).getDate()
+    return [`${m}-01`, `${m}-${String(last).padStart(2, '0')}`]
+  }
+  function weekRange(d: string): [string, string] {
+    const dt = new Date(d + 'T00:00:00')
+    const dow = (dt.getDay() + 6) % 7 // lunedì = 0
+    const mon = new Date(dt); mon.setDate(dt.getDate() - dow)
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
+    const fmt = (x: Date) => x.toISOString().split('T')[0]
+    return [fmt(mon), fmt(sun)]
+  }
+  const [periodStart, periodEnd] = periodMode === 'mese' ? monthRange(month)
+    : periodMode === 'settimana' ? weekRange(weekAnchor)
+    : [fromDate || '0000-01-01', toDate || '9999-12-31']
+
+  const periodRows = rows.filter(r => r.expense_date >= periodStart && r.expense_date <= periodEnd)
+  const filtered = groupFilter ? periodRows.filter(r => r.group_id === groupFilter) : periodRows
   const totale = filtered.reduce((s, r) => s + Number(r.amount), 0)
 
   const perGroup = useMemo(() => {
     const m: Record<string, number> = {}
-    monthRows.forEach(r => { const k = r.group_id || 'none'; m[k] = (m[k] || 0) + Number(r.amount) })
+    periodRows.forEach(r => { const k = r.group_id || 'none'; m[k] = (m[k] || 0) + Number(r.amount) })
     return groups.map(g => ({ g, tot: m[g.id] || 0 })).filter(x => x.tot > 0).sort((a, b) => b.tot - a.tot)
-  }, [monthRows, groups])
+  }, [periodRows, groups])
   const maxGroup = Math.max(1, ...perGroup.map(x => x.tot))
 
   const perCat = useMemo(() => {
@@ -195,12 +217,12 @@ function SpeseFamiglia() {
   const tracked = useMemo(() => {
     const keys = rules.filter(r => r.track_detail).map(r => r.keyword)
     return keys.map(k => {
-      const tot = monthRows
+      const tot = periodRows
         .filter(r => strip(`${r.product || ''} ${r.description || ''}`).includes(strip(k)))
         .reduce((s, r) => s + Number(r.amount), 0)
       return { k, tot }
     }).filter(x => x.tot > 0)
-  }, [monthRows, rules])
+  }, [periodRows, rules])
 
   const catsForGroup = cats.filter(c => c.group_id === form.group_id)
 
@@ -317,13 +339,47 @@ function SpeseFamiglia() {
         )}
       </div>
 
-      {/* FILTRO MESE + TOTALE */}
-      <div className="flex items-center gap-2 mb-3">
-        <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-          className="border border-card-border rounded-lg p-2 text-sm w-auto" />
-        <div className="bg-white rounded-xl px-4 py-2 border border-card-border text-right ml-auto">
-          <p className="text-xs text-gray-500">{groupFilter ? groupName(groupFilter) : 'Totale mese'}</p>
-          <p className="font-bold text-[#8C3B2E]">{eur(totale)}</p>
+      {/* FILTRO PERIODO + TOTALE */}
+      <div className="mb-3">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="flex bg-white border border-card-border rounded-lg p-0.5 text-sm">
+            {([['mese', 'Mese'], ['settimana', 'Settimana'], ['intervallo', 'Dal–al']] as const).map(([m, label]) => (
+              <button key={m} onClick={() => setPeriodMode(m)}
+                className={`px-3 py-1 rounded-md transition ${periodMode === m ? 'text-white' : 'text-gray-500'}`}
+                style={periodMode === m ? { background: FALLBACK_COLOR } : {}}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="bg-white rounded-xl px-4 py-2 border border-card-border text-right ml-auto">
+            <p className="text-xs text-gray-500">{groupFilter ? groupName(groupFilter) : 'Totale'}</p>
+            <p className="font-bold text-[#8C3B2E]">{eur(totale)}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {periodMode === 'mese' && (
+            <input type="month" value={month} onChange={e => setMonth(e.target.value)}
+              className="border border-card-border rounded-lg p-2 text-sm w-auto" />
+          )}
+          {periodMode === 'settimana' && (
+            <>
+              <span className="text-sm text-gray-500">Settimana di</span>
+              <input type="date" value={weekAnchor} onChange={e => setWeekAnchor(e.target.value)}
+                className="border border-card-border rounded-lg p-2 text-sm w-auto" />
+              <span className="text-xs text-gray-400">{periodStart} → {periodEnd}</span>
+            </>
+          )}
+          {periodMode === 'intervallo' && (
+            <>
+              <span className="text-sm text-gray-500">Dal</span>
+              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                className="border border-card-border rounded-lg p-2 text-sm w-auto" />
+              <span className="text-sm text-gray-500">al</span>
+              <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                className="border border-card-border rounded-lg p-2 text-sm w-auto" />
+            </>
+          )}
         </div>
       </div>
 
@@ -352,8 +408,8 @@ function SpeseFamiglia() {
             </div>
           )}
 
-          {monthRows.length === 0 ? (
-            <div className="text-center py-10 text-gray-400">Nessuna spesa per questo mese</div>
+          {periodRows.length === 0 ? (
+            <div className="text-center py-10 text-gray-400">Nessuna spesa in questo periodo</div>
           ) : (
             <>
               {/* DASHBOARD: per gruppo */}
