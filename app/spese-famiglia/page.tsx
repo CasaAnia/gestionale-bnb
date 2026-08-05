@@ -15,6 +15,7 @@ type Rule = { id: string; keyword: string; group_id: string | null; category_id:
 type Fx = {
   id: string; expense_date: string; amount: number; group_id: string | null; category_id: string | null
   store: string | null; product: string | null; description: string | null; recurring: boolean; source: string
+  receipt_id: string | null
 }
 type Receipt = { id: string; storage_path: string; note: string | null; status: string; uploaded_at: string }
 
@@ -105,6 +106,14 @@ function SpeseFamiglia() {
     await supabase.storage.from('scontrini').remove([r.storage_path])
     await supabase.from('family_receipts').delete().eq('id', r.id)
     setReceipts(receipts.filter(x => x.id !== r.id))
+  }
+
+  // Riapre la foto dello scontrino collegato a una spesa (link firmato al volo).
+  async function openReceiptPhoto(receiptId: string) {
+    const { data: rec } = await supabase.from('family_receipts').select('storage_path').eq('id', receiptId).single()
+    if (!rec?.storage_path) { alert('Foto non trovata.'); return }
+    const { data: s } = await supabase.storage.from('scontrini').createSignedUrl(rec.storage_path, 3600)
+    if (s?.signedUrl) window.open(s.signedUrl, '_blank')
   }
 
   const groupName = (id: string | null) => groups.find(x => x.id === id)?.name || '—'
@@ -272,8 +281,9 @@ function SpeseFamiglia() {
         </div>
         <p className="text-xs text-gray-500 mb-3">Scatta o carica la foto: resta qui finché non la leggo io e la trasformo in spesa.</p>
 
-        <input value={receiptNote} onChange={e => setReceiptNote(e.target.value)}
-          placeholder="Nota (facoltativa, es. spesa Ania)" className="w-full border border-card-border rounded-lg p-2 text-sm mb-2" />
+        <textarea value={receiptNote} onChange={e => setReceiptNote(e.target.value)} rows={2}
+          placeholder="Indicazioni per me (facoltative): es. «qui dentro vodka e caffè sono di Casa Granata», oppure «aggiungi la regola: pannolini → Matteo»"
+          className="w-full border border-card-border rounded-lg p-2 text-sm mb-2 resize-none" />
 
         <label className={`w-full flex items-center justify-center gap-2 bg-green-mid text-white rounded-xl py-2.5 font-semibold cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
           {uploading ? 'Carico la foto…' : '📷 Scatta / carica scontrino'}
@@ -404,6 +414,10 @@ function SpeseFamiglia() {
                         )}
                         {r.category_id && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{catName(r.category_id)}</span>}
                         {r.recurring && <span className="text-xs bg-sage text-green-mid px-2 py-0.5 rounded-full">🔁</span>}
+                        {r.receipt_id && (
+                          <button onClick={() => openReceiptPhoto(r.receipt_id!)}
+                            className="text-xs bg-sand text-[#7A5C1E] px-2 py-0.5 rounded-full">🧾 foto</button>
+                        )}
                       </div>
                       <p className="text-sm mt-1 truncate">{r.description || '—'}{r.store ? <span className="text-gray-400"> · {r.store}</span> : null}</p>
                       <p className="text-xs text-gray-400">{r.expense_date}</p>
