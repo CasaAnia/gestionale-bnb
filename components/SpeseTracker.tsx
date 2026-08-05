@@ -24,14 +24,14 @@ type Receipt = { id: string; storage_path: string; note: string | null; status: 
 
 const GROUP_COLORS: Record<string, string> = {
   'Casa': '#5B8A70', 'Ania': '#BCA06A', 'Matteo': '#8AA1B8',
-  'Matteo e Ania': '#AD90A8', 'Casa Granata': '#BC7E6E',
+  'Matteo e Ania': '#AD90A8', 'Casa Ania': '#BC7E6E',
 }
 const FALLBACK_COLOR = '#9AA096'
 const BAR_COLOR = '#D2A98C' // pesca tenue per le barre categoria
 // Faccine dei gruppi tenute nel codice (non nel DB): incollando la migrazione
 // in Supabase gli emoji si erano corrotti. Qui restano sempre puliti.
 const GROUP_EMOJI: Record<string, string> = {
-  'Casa': '🏠', 'Ania': '👩', 'Matteo': '👦', 'Matteo e Ania': '👦👩', 'Casa Granata': '🥂',
+  'Casa': '🏠', 'Ania': '👩', 'Matteo': '👦', 'Matteo e Ania': '👦👩', 'Casa Ania': '🥂',
 }
 const eur = (n: number) => '€' + n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const eur2 = (n: number) => '€' + n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
