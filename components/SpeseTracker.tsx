@@ -71,6 +71,8 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const [receiptUrls, setReceiptUrls] = useState<Record<string, string>>({})
   const [receiptNote, setReceiptNote] = useState('')
   const [uploading, setUploading] = useState(false)
+  // Foto scelte ma non ancora salvate (si salvano col bottone Salva).
+  const [staged, setStaged] = useState<{ file: File; url: string }[]>([])
 
   async function loadReceipts() {
     const { data, error } = await supabase.from('family_receipts')
@@ -112,13 +114,22 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   }
   useEffect(() => { load() }, [])
 
-  // Carica una o più foto di scontrini nello spazio archivio del gestionale.
-  async function uploadReceipts(files: FileList) {
-    if (!files.length) return
+  // Aggiunge le foto scelte all'anteprima (non le salva ancora).
+  function stagePhotos(files: FileList) {
+    const next = Array.from(files).map(file => ({ file, url: URL.createObjectURL(file) }))
+    setStaged(prev => [...prev, ...next])
+  }
+  function removeStaged(i: number) {
+    setStaged(prev => { URL.revokeObjectURL(prev[i]?.url); return prev.filter((_, idx) => idx !== i) })
+  }
+
+  // Salva le foto in anteprima nell'archivio del gestionale (col Salva).
+  async function saveStaged() {
+    if (!staged.length) return
     setUploading(true)
     const note = receiptNote.trim() || null
     let failed = 0
-    for (const file of Array.from(files)) {
+    for (const { file } of staged) {
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
       const path = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`
       const up = await supabase.storage.from('scontrini').upload(path, file, { contentType: file.type || 'image/jpeg' })
@@ -126,7 +137,8 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       await supabase.from('family_receipts').insert({ storage_path: path, note, ambito })
     }
     if (failed) alert(`${failed} foto non salvate (riprova). Le altre sono a posto.`)
-    setReceiptNote(''); setUploading(false); loadReceipts()
+    staged.forEach(s => URL.revokeObjectURL(s.url))
+    setStaged([]); setReceiptNote(''); setUploading(false); loadReceipts()
   }
 
   async function deleteReceipt(r: Receipt) {
@@ -348,17 +360,43 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
             <span className="text-xs bg-sand text-[#7A5C1E] px-2 py-0.5 rounded-full">{receipts.length} da leggere</span>
           )}
         </div>
-        <p className="text-xs text-gray-500 mb-3">Scatta o carica la foto: resta qui finché non la leggo io e la trasformo in spesa.</p>
+        <p className="text-xs text-gray-500 mb-3">Scatta la foto, scrivi la nota (facoltativa) e premi Salva. Resta in “da leggere” finché non la trasformo in spesa.</p>
 
-        <textarea value={receiptNote} onChange={e => setReceiptNote(e.target.value)} rows={2}
-          placeholder="Indicazioni per me (facoltative): es. «qui dentro vodka e caffè sono di Casa Granata», oppure «aggiungi la regola: pannolini → Matteo»"
-          className="w-full border border-card-border rounded-lg p-2 text-sm mb-2 resize-none" />
+        {/* 1. Scegli/scatta le foto (non ancora salvate) */}
+        {staged.length === 0 && (
+          <label className="w-full flex items-center justify-center gap-2 bg-green-mid text-white rounded-xl py-2.5 font-semibold cursor-pointer">
+            📷 Scatta / scegli scontrino
+            <input type="file" accept="image/*" multiple className="hidden"
+              onChange={e => { const f = e.target.files; if (f && f.length) stagePhotos(f); e.currentTarget.value = '' }} />
+          </label>
+        )}
 
-        <label className={`w-full flex items-center justify-center gap-2 bg-green-mid text-white rounded-xl py-2.5 font-semibold cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-          {uploading ? 'Carico le foto…' : '📷 Scatta / carica scontrini'}
-          <input type="file" accept="image/*" multiple className="hidden"
-            onChange={e => { const f = e.target.files; if (f && f.length) uploadReceipts(f); e.currentTarget.value = '' }} />
-        </label>
+        {/* 2. Anteprima + nota + Salva */}
+        {staged.length > 0 && (
+          <div>
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              {staged.map((s, i) => (
+                <div key={i} className="relative">
+                  <img src={s.url} alt="anteprima" className="w-full h-24 object-cover rounded-lg border border-card-border" />
+                  <button onClick={() => removeStaged(i)}
+                    className="absolute top-1 right-1 bg-white/90 rounded-full w-6 h-6 flex items-center justify-center text-[#8C3B2E] text-sm shadow-sm">✕</button>
+                </div>
+              ))}
+              <label className="h-24 flex flex-col items-center justify-center gap-1 border border-dashed border-card-border rounded-lg text-gray-400 text-xs cursor-pointer">
+                <span className="text-xl">＋</span>altra foto
+                <input type="file" accept="image/*" multiple className="hidden"
+                  onChange={e => { const f = e.target.files; if (f && f.length) stagePhotos(f); e.currentTarget.value = '' }} />
+              </label>
+            </div>
+            <textarea value={receiptNote} onChange={e => setReceiptNote(e.target.value)} rows={2}
+              placeholder="Nota (facoltativa): es. «vodka e caffè sono di Casa Ania», oppure «aggiungi la regola: pannolini → Matteo»"
+              className="w-full border border-card-border rounded-lg p-2 text-sm mb-2 resize-none" />
+            <button onClick={saveStaged} disabled={uploading}
+              className="w-full bg-green-mid text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
+              {uploading ? 'Salvataggio…' : `💾 Salva ${staged.length > 1 ? staged.length + ' scontrini' : 'scontrino'}`}
+            </button>
+          </div>
+        )}
 
         {receipts.length > 0 && (
           <div className="grid grid-cols-3 gap-2 mt-3">
