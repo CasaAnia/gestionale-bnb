@@ -84,8 +84,8 @@ function Spese() {
 
       <div className="flex items-center gap-2 mb-4">
         <input type="month" value={monthFilter} onChange={e => setMonthFilter(e.target.value)}
-          className="border border-card-border rounded-lg p-2 text-sm flex-1" />
-        <div className="bg-white rounded-xl px-4 py-2 border border-card-border text-right">
+          className="border border-card-border rounded-lg p-2 text-sm w-auto" />
+        <div className="bg-white rounded-xl px-4 py-2 border border-card-border text-right ml-auto">
           <p className="text-xs text-gray-500">Totale mese</p>
           <p className="font-bold text-[#8C3B2E]">€{totale.toFixed(0)}</p>
         </div>
