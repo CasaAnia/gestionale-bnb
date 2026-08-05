@@ -72,7 +72,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
 
   async function loadReceipts() {
     const { data, error } = await supabase.from('family_receipts')
-      .select('*').eq('status', 'da_leggere').order('uploaded_at', { ascending: false })
+      .select('*').eq('status', 'da_leggere').eq('ambito', ambito).order('uploaded_at', { ascending: false })
     if (error) return // tabella/bucket non ancora pronti: la sezione resta nascosta
     const list = (data || []) as Receipt[]
     setReceipts(list)
@@ -121,7 +121,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       const path = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`
       const up = await supabase.storage.from('scontrini').upload(path, file, { contentType: file.type || 'image/jpeg' })
       if (up.error) { failed++; continue }
-      await supabase.from('family_receipts').insert({ storage_path: path, note })
+      await supabase.from('family_receipts').insert({ storage_path: path, note, ambito })
     }
     if (failed) alert(`${failed} foto non salvate (riprova). Le altre sono a posto.`)
     setReceiptNote(''); setUploading(false); loadReceipts()
