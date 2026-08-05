@@ -3,6 +3,7 @@ import { Fraunces, Nunito_Sans } from 'next/font/google'
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
 import MobileTopBar from '@/components/MobileTopBar'
+import MainContainer from '@/components/MainContainer'
 import ScrollToTop from '@/components/ScrollToTop'
 
 const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', display: 'swap' })
@@ -42,9 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ScrollToTop />
         <MobileTopBar />
         <main className="min-h-screen pt-12 lg:pt-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-48">
-          <div className="max-w-lg lg:max-w-3xl mx-auto w-full">
-            {children}
-          </div>
+          <MainContainer>{children}</MainContainer>
         </main>
         <BottomNav />
       </body>
