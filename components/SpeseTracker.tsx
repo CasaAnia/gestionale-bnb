@@ -21,6 +21,7 @@ type Fx = {
   receipt_id: string | null
 }
 type Receipt = { id: string; storage_path: string; note: string | null; status: string; uploaded_at: string }
+type Item = { id: string; expense_id: string; name: string; amount: number }
 
 const GROUP_COLORS: Record<string, string> = {
   'Casa': '#5B8A70', 'Ania': '#BCA06A', 'Matteo': '#8AA1B8',
@@ -46,6 +47,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const [cats, setCats] = useState<Category[]>([])
   const [rules, setRules] = useState<Rule[]>([])
   const [rows, setRows] = useState<Fx[]>([])
+  const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
   const [needsSetup, setNeedsSetup] = useState(false)
   const [periodMode, setPeriodMode] = useState<'mese' | 'settimana' | 'anno' | 'intervallo'>('mese')
@@ -108,9 +110,16 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     setRules((r.data || []).filter((x: Rule) => x.group_id != null && myIds.has(x.group_id)))
     // Spese dell'ambito: gruppo appartenente a questo ambito. Nel personale
     // mostro anche quelle senza gruppo (inserimenti veloci lasciati vuoti).
-    setRows((e.data || []).filter((x: Fx) => myIds.has(x.group_id || '') || (ambito === 'personale' && !x.group_id)))
+    const myExpenses = (e.data || []).filter((x: Fx) => myIds.has(x.group_id || '') || (ambito === 'personale' && !x.group_id))
+    setRows(myExpenses)
     setLoading(false)
     loadReceipts()
+    // Dettaglio prodotti delle spese di questo ambito (per "dove spendi di più").
+    const expIds = myExpenses.map((x: Fx) => x.id)
+    if (expIds.length) {
+      const it = await supabase.from('family_expense_items').select('id, expense_id, name, amount').in('expense_id', expIds)
+      if (!it.error) setItems((it.data || []) as Item[])
+    } else setItems([])
   }
   useEffect(() => { load() }, [])
 
@@ -261,6 +270,20 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     return Object.entries(m).map(([store, tot]) => ({ store, tot })).sort((a, b) => b.tot - a.tot).slice(0, 8)
   }, [filtered])
   const maxStore = Math.max(1, ...perStore.map(x => x.tot))
+
+  // Prodotti dove spendi di più: aggrega i dettagli-prodotto delle spese del
+  // periodo (+ gruppo). Fa emergere anche voci insospettabili.
+  const topProducts = useMemo(() => {
+    const scope = new Set(filtered.map(r => r.id))
+    const m: Record<string, number> = {}
+    items.forEach(it => {
+      if (!scope.has(it.expense_id)) return
+      const name = it.name.trim(); if (!name) return
+      m[name] = (m[name] || 0) + Number(it.amount)
+    })
+    return Object.entries(m).map(([name, tot]) => ({ name, tot })).sort((a, b) => b.tot - a.tot).slice(0, 10)
+  }, [items, filtered])
+  const maxProduct = Math.max(1, ...topProducts.map(x => x.tot))
 
   // Prodotti seguiti (track_detail): totale del mese per ciascuno.
   const tracked = useMemo(() => {
@@ -559,6 +582,26 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                         </div>
                         <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: `${(tot / maxStore) * 100}%`, background: '#8AA1B8' }} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* PRODOTTI DOVE SPENDI DI PIÙ (dal dettaglio scontrini) */}
+              {topProducts.length > 0 && (
+                <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
+                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Prodotti dove spendi di più</p>
+                  <div className="flex flex-col gap-2.5">
+                    {topProducts.map(({ name, tot }) => (
+                      <button key={name} onClick={() => setSearch(name)} className="text-left">
+                        <div className="flex items-center justify-between text-sm mb-1">
+                          <span className="text-green-dark capitalize">{name}</span>
+                          <span className="font-semibold text-[#8C3B2E]">{eur2(tot)}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${(tot / maxProduct) * 100}%`, background: '#7FA88F' }} />
                         </div>
                       </button>
                     ))}
