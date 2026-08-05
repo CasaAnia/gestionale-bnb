@@ -16,6 +16,7 @@ type Fx = {
   id: string; expense_date: string; amount: number; group_id: string | null; category_id: string | null
   store: string | null; product: string | null; description: string | null; recurring: boolean; source: string
 }
+type Receipt = { id: string; storage_path: string; note: string | null; status: string; uploaded_at: string }
 
 const GROUP_COLORS: Record<string, string> = {
   'Casa': '#5B8A70', 'Ania': '#BCA06A', 'Matteo': '#8AA1B8',
@@ -50,6 +51,27 @@ function SpeseFamiglia() {
   const [autoGroup, setAutoGroup] = useState<string | null>(null) // regola prodotto scattata
   const [saving, setSaving] = useState(false)
 
+  // Scontrini fotografati, in attesa che Claude li legga.
+  const [receipts, setReceipts] = useState<Receipt[]>([])
+  const [receiptUrls, setReceiptUrls] = useState<Record<string, string>>({})
+  const [receiptNote, setReceiptNote] = useState('')
+  const [uploading, setUploading] = useState(false)
+
+  async function loadReceipts() {
+    const { data, error } = await supabase.from('family_receipts')
+      .select('*').eq('status', 'da_leggere').order('uploaded_at', { ascending: false })
+    if (error) return // tabella/bucket non ancora pronti: la sezione resta nascosta
+    const list = (data || []) as Receipt[]
+    setReceipts(list)
+    // Anteprime: link firmati temporanei (il bucket è privato).
+    const urls: Record<string, string> = {}
+    await Promise.all(list.map(async r => {
+      const { data: s } = await supabase.storage.from('scontrini').createSignedUrl(r.storage_path, 3600)
+      if (s?.signedUrl) urls[r.id] = s.signedUrl
+    }))
+    setReceiptUrls(urls)
+  }
+
   async function load() {
     if (isDemoMode()) return // in dimostrazione non si carica nulla
     setLoading(true)
@@ -62,8 +84,28 @@ function SpeseFamiglia() {
     if (g.error || e.error) { setNeedsSetup(true); setLoading(false); return } // migrazione non ancora applicata
     setGroups(g.data || []); setCats(c.data || []); setRules(r.data || []); setRows(e.data || [])
     setLoading(false)
+    loadReceipts()
   }
   useEffect(() => { load() }, [])
+
+  // Carica la foto di uno scontrino nello spazio archivio del gestionale.
+  async function uploadReceipt(file: File) {
+    if (!file) return
+    setUploading(true)
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+    const path = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`
+    const up = await supabase.storage.from('scontrini').upload(path, file, { contentType: file.type || 'image/jpeg' })
+    if (up.error) { alert('Non sono riuscito a salvare la foto. Riprova.\n(' + up.error.message + ')'); setUploading(false); return }
+    await supabase.from('family_receipts').insert({ storage_path: path, note: receiptNote.trim() || null })
+    setReceiptNote(''); setUploading(false); loadReceipts()
+  }
+
+  async function deleteReceipt(r: Receipt) {
+    if (!confirm('Eliminare questa foto?')) return
+    await supabase.storage.from('scontrini').remove([r.storage_path])
+    await supabase.from('family_receipts').delete().eq('id', r.id)
+    setReceipts(receipts.filter(x => x.id !== r.id))
+  }
 
   const groupName = (id: string | null) => groups.find(x => x.id === id)?.name || '—'
   const groupEmoji = (id: string | null) => groups.find(x => x.id === id)?.emoji || ''
@@ -219,6 +261,41 @@ function SpeseFamiglia() {
           </button>
         </div>
       )}
+
+      {/* SCONTRINI DA LEGGERE */}
+      <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
+        <div className="flex items-center justify-between mb-1">
+          <p className="font-semibold">📷 Scontrini</p>
+          {receipts.length > 0 && (
+            <span className="text-xs bg-sand text-[#7A5C1E] px-2 py-0.5 rounded-full">{receipts.length} da leggere</span>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 mb-3">Scatta o carica la foto: resta qui finché non la leggo io e la trasformo in spesa.</p>
+
+        <input value={receiptNote} onChange={e => setReceiptNote(e.target.value)}
+          placeholder="Nota (facoltativa, es. spesa Ania)" className="w-full border border-card-border rounded-lg p-2 text-sm mb-2" />
+
+        <label className={`w-full flex items-center justify-center gap-2 bg-green-mid text-white rounded-xl py-2.5 font-semibold cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+          {uploading ? 'Carico la foto…' : '📷 Scatta / carica scontrino'}
+          <input type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) uploadReceipt(f); e.currentTarget.value = '' }} />
+        </label>
+
+        {receipts.length > 0 && (
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            {receipts.map(r => (
+              <div key={r.id} className="relative">
+                {receiptUrls[r.id]
+                  ? <img src={receiptUrls[r.id]} alt="scontrino" className="w-full h-24 object-cover rounded-lg border border-card-border" />
+                  : <div className="w-full h-24 rounded-lg bg-sand flex items-center justify-center text-2xl">🧾</div>}
+                {r.note && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{r.note}</p>}
+                <button onClick={() => deleteReceipt(r)}
+                  className="absolute top-1 right-1 bg-white/90 rounded-full w-6 h-6 flex items-center justify-center text-[#8C3B2E] text-sm shadow-sm">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* FILTRO MESE + TOTALE */}
       <div className="flex items-center gap-2 mb-3">
