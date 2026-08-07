@@ -270,11 +270,14 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const filtered = catFilter ? grouped.filter(r => catOf(r) === catFilter) : grouped
   const totale = filtered.reduce((s, r) => s + Number(r.amount), 0)
 
+  // Aggregato per gruppo: rispetta il filtro categoria (ma non quello gruppo,
+  // così le card degli altri gruppi restano visibili quando uno è attivo).
   const perGroup = useMemo(() => {
+    const base = catFilter ? searched.filter(r => catOf(r) === catFilter) : searched
     const m: Record<string, number> = {}
-    searched.forEach(r => { const k = r.group_id || 'none'; m[k] = (m[k] || 0) + Number(r.amount) })
+    base.forEach(r => { const k = r.group_id || 'none'; m[k] = (m[k] || 0) + Number(r.amount) })
     return groups.map(g => ({ g, tot: m[g.id] || 0 })).filter(x => x.tot > 0).sort((a, b) => b.tot - a.tot)
-  }, [searched, groups])
+  }, [searched, groups, catFilter, cats])
   const maxGroup = Math.max(1, ...perGroup.map(x => x.tot))
 
   // Aggregato per nome categoria sulle righe già filtrate per gruppo (ma non
