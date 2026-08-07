@@ -540,7 +540,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
         {!loading && groups.length > 0 && (
           <>
             <p className="text-[10px] uppercase tracking-[1.5px] text-brass mt-3 mb-1.5">Di chi</p>
-            <div className="flex gap-2 overflow-x-auto pb-2.5 -mx-1 px-1">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
               <button onClick={() => setGroupFilter('')}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${groupFilter === '' ? 'text-white border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
                 style={groupFilter === '' ? { background: ACCENT } : {}}>
@@ -564,7 +564,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
         {!loading && perCatAll.length > 0 && (
           <>
             <p className="text-[10px] uppercase tracking-[1.5px] text-brass mt-2 mb-1.5">Per cosa</p>
-            <div className="flex gap-2 overflow-x-auto pb-2.5 -mx-1 px-1">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
               <button onClick={() => setCatFilter('')}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${catFilter === '' ? 'text-white border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
                 style={catFilter === '' ? { background: ACCENT } : {}}>

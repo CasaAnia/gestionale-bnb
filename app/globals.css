@@ -39,3 +39,12 @@ input[type="week"] {
   accent-color: var(--color-green-mid);
   color-scheme: light;
 }
+
+/* File di chip scorrevoli: si scorrono col dito, senza barra visibile */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
