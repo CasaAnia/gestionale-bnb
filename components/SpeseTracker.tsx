@@ -448,7 +448,8 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
             {receipts.map(r => (
               <div key={r.id} className="relative">
                 {receiptUrls[r.id]
-                  ? <img src={receiptUrls[r.id]} alt="scontrino" className="w-full h-24 object-cover rounded-lg border border-card-border" />
+                  ? <img src={receiptUrls[r.id]} alt="scontrino" onClick={() => window.open(receiptUrls[r.id], '_blank')}
+                      className="w-full h-24 object-cover rounded-lg border border-card-border cursor-pointer" />
                   : <div className="w-full h-24 rounded-lg bg-sand flex items-center justify-center text-2xl">🧾</div>}
                 <button onClick={() => editReceiptNote(r)} className="block w-full text-left text-[10px] text-gray-500 mt-0.5 truncate">
                   {r.note ? r.note : <span className="text-brass">✏️ aggiungi nota</span>}
