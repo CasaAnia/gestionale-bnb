@@ -327,15 +327,21 @@ Ania`
 
                 {/* BIGLIETTO — DATE */}
                 <div style={{ display: 'flex', background: 'white', border: '2px solid #e3ddd0', borderRadius: 24, overflow: 'hidden', marginBottom: 30 }}>
+                  {/* Righe fisse nei due lati (etichetta / giorno settimana / numero / mese / orario),
+                      così le due colonne restano sempre allineate qualunque sia la lunghezza delle parole */}
                   <div style={{ flex: 1, padding: '34px 28px', textAlign: 'center', borderRight: '3px dashed #d9d2c3' }}>
                     <div style={{ fontSize: 32, letterSpacing: 2, color: '#3a3a35' }}>CHECK-IN</div>
-                    <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 50, fontWeight: 600, color: '#1F3D2F', margin: '10px 0 6px', lineHeight: 1.15 }}>{formatDateHero(cin).split(' ')[0]}<br />{formatDateHero(cin).split(' ').slice(1).join(' ')}</div>
-                    <div style={{ fontSize: 32, color: '#3a3a35' }}>15:00 – 20:00</div>
+                    <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 38, fontWeight: 600, color: '#1F3D2F', marginTop: 12, lineHeight: 1 }}>{formatDateHero(cin).split(' ')[0]}</div>
+                    <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 68, fontWeight: 700, color: '#1F3D2F', marginTop: 8, lineHeight: 1 }}>{formatDateHero(cin).split(' ')[1]}</div>
+                    <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 38, fontWeight: 600, color: '#1F3D2F', marginTop: 8, lineHeight: 1 }}>{formatDateHero(cin).split(' ').slice(2).join(' ')}</div>
+                    <div style={{ fontSize: 32, color: '#3a3a35', marginTop: 14 }}>15:00 – 20:00</div>
                   </div>
                   <div style={{ flex: 1, padding: '34px 28px', textAlign: 'center' }}>
                     <div style={{ fontSize: 32, letterSpacing: 2, color: '#3a3a35' }}>CHECK-OUT</div>
-                    <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 50, fontWeight: 600, color: '#1F3D2F', margin: '10px 0 6px', lineHeight: 1.15 }}>{formatDateHero(cout).split(' ')[0]}<br />{formatDateHero(cout).split(' ').slice(1).join(' ')}</div>
-                    <div style={{ fontSize: 32, color: '#3a3a35' }}>entro le 10:00</div>
+                    <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 38, fontWeight: 600, color: '#1F3D2F', marginTop: 12, lineHeight: 1 }}>{formatDateHero(cout).split(' ')[0]}</div>
+                    <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 68, fontWeight: 700, color: '#1F3D2F', marginTop: 8, lineHeight: 1 }}>{formatDateHero(cout).split(' ')[1]}</div>
+                    <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif', fontSize: 38, fontWeight: 600, color: '#1F3D2F', marginTop: 8, lineHeight: 1 }}>{formatDateHero(cout).split(' ').slice(2).join(' ')}</div>
+                    <div style={{ fontSize: 32, color: '#3a3a35', marginTop: 14 }}>entro le 10:00</div>
                   </div>
                 </div>
 
