@@ -142,7 +142,7 @@ La sua camera:
 ${linkCamere}
 
 💬 Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
-*Ania*`
+Ania`
 
   // Anteprima in scala + altezza reale dell'immagine
   useEffect(() => {
