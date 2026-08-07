@@ -472,20 +472,19 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
 
       {/* CARD FILTRI: periodo, ricerca, di chi, per cosa — tutto in un posto solo */}
       <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="flex bg-[#FBF9F4] border border-card-border rounded-lg p-0.5 text-sm">
-            {([['mese', 'Mese'], ['settimana', 'Settimana'], ['anno', 'Anno'], ['intervallo', 'Dal–al']] as const).map(([m, label]) => (
-              <button key={m} onClick={() => setPeriodMode(m)}
-                className={`px-3 py-1 rounded-md transition ${periodMode === m ? 'text-white' : 'text-gray-500'}`}
-                style={periodMode === m ? { background: ACCENT } : {}}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="bg-[#FBF9F4] rounded-xl px-4 py-2 border border-card-border text-right ml-auto">
-            <p className="text-xs text-gray-500">{[groupFilter ? groupName(groupFilter) : '', catFilter].filter(Boolean).join(' · ') || 'Totale'}</p>
-            <p className="font-bold text-[#8C3B2E]">{eur(totale)}</p>
-          </div>
+        <div className="bg-[#FBF9F4] rounded-xl px-4 py-2.5 border border-card-border text-center mb-2">
+          <p className="text-xs text-gray-500">{[groupFilter ? groupName(groupFilter) : '', catFilter].filter(Boolean).join(' · ') || 'Totale'}</p>
+          <p className="font-bold text-xl text-[#8C3B2E]">{eur(totale)}</p>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1 mb-1">
+          {([['mese', 'Mese'], ['settimana', 'Settimana'], ['anno', 'Anno'], ['intervallo', 'Dal–al']] as const).map(([m, label]) => (
+            <button key={m} onClick={() => setPeriodMode(m)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${periodMode === m ? 'text-white border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
+              style={periodMode === m ? { background: ACCENT } : {}}>
+              {label}
+            </button>
+          ))}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
