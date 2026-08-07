@@ -653,9 +653,9 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                 </div>
               )}
 
-              {/* ELENCO */}
+              {/* ELENCO — dalla spesa più vecchia alla più recente */}
               <div className="flex flex-col gap-2">
-                {filtered.map(r => (
+                {[...filtered].sort((a, b) => a.expense_date.localeCompare(b.expense_date)).map(r => (
                   <div key={r.id} className="bg-white rounded-xl p-3 border border-card-border flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
