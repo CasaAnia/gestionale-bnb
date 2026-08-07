@@ -57,6 +57,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [groupFilter, setGroupFilter] = useState<string>('') // '' = tutti
+  const [catFilter, setCatFilter] = useState<string>('') // nome categoria, '' = tutte
   const [search, setSearch] = useState('')
   const [showAllProducts, setShowAllProducts] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -267,7 +268,11 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const searched = q
     ? periodRows.filter(r => strip(`${r.store || ''} ${r.description || ''} ${r.product || ''}`).includes(q) || itemMatchIds.has(r.id))
     : periodRows
-  const filtered = groupFilter ? searched.filter(r => r.group_id === groupFilter) : searched
+  const grouped = groupFilter ? searched.filter(r => r.group_id === groupFilter) : searched
+  // Filtro per nome categoria (non per id): così "Bar" vale per tutti i gruppi
+  // che hanno una categoria con quel nome, anche con "Tutti" selezionato.
+  const catOf = (r: Fx) => catName(r.category_id) || 'Senza categoria'
+  const filtered = catFilter ? grouped.filter(r => catOf(r) === catFilter) : grouped
   const totale = filtered.reduce((s, r) => s + Number(r.amount), 0)
 
   const perGroup = useMemo(() => {
@@ -277,12 +282,20 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   }, [searched, groups])
   const maxGroup = Math.max(1, ...perGroup.map(x => x.tot))
 
-  const perCat = useMemo(() => {
+  // Aggregato per nome categoria sulle righe già filtrate per gruppo (ma non
+  // per categoria, così le barre restano tutte visibili quando una è attiva).
+  const perCatAll = useMemo(() => {
     const m: Record<string, number> = {}
-    filtered.forEach(r => { const k = r.category_id || 'none'; m[k] = (m[k] || 0) + Number(r.amount) })
-    return Object.entries(m).map(([id, tot]) => ({ id, tot })).sort((a, b) => b.tot - a.tot).slice(0, 8)
-  }, [filtered])
+    grouped.forEach(r => { const k = catName(r.category_id) || 'Senza categoria'; m[k] = (m[k] || 0) + Number(r.amount) })
+    return Object.entries(m).map(([name, tot]) => ({ name, tot })).sort((a, b) => b.tot - a.tot)
+  }, [grouped, cats])
+  const perCat = perCatAll.slice(0, 8)
   const maxCat = Math.max(1, ...perCat.map(x => x.tot))
+
+  // Se cambio periodo/gruppo/ricerca e la categoria scelta sparisce, la tolgo.
+  useEffect(() => {
+    if (catFilter && !perCatAll.some(c => c.name === catFilter)) setCatFilter('')
+  }, [catFilter, perCatAll])
 
   // Totale per negozio (dove spendi di più, negozio per negozio).
   const perStore = useMemo(() => {
@@ -475,7 +488,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
             ))}
           </div>
           <div className="bg-white rounded-xl px-4 py-2 border border-card-border text-right ml-auto">
-            <p className="text-xs text-gray-500">{groupFilter ? groupName(groupFilter) : 'Totale'}</p>
+            <p className="text-xs text-gray-500">{[groupFilter ? groupName(groupFilter) : '', catFilter].filter(Boolean).join(' · ') || 'Totale'}</p>
             <p className="font-bold text-[#8C3B2E]">{eur(totale)}</p>
           </div>
         </div>
@@ -548,6 +561,27 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
             </div>
           )}
 
+          {/* CHIP CATEGORIE (per nome, seguono il gruppo selezionato) */}
+          {perCatAll.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-3 -mx-1 px-1">
+              <button onClick={() => setCatFilter('')}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs border transition ${catFilter === '' ? 'border-transparent' : 'bg-white text-gray-500 border-card-border'}`}
+                style={catFilter === '' ? { background: '#F3ECD8', color: '#7A5C1E' } : {}}>
+                Tutte le voci
+              </button>
+              {perCatAll.map(({ name }) => {
+                const on = catFilter === name
+                return (
+                  <button key={name} onClick={() => setCatFilter(on ? '' : name)}
+                    className={`shrink-0 rounded-full px-3 py-1 text-xs border transition ${on ? 'border-transparent' : 'bg-white text-gray-500 border-card-border'}`}
+                    style={on ? { background: BAR_COLOR, color: '#5C3A24' } : {}}>
+                    {name}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {periodRows.length === 0 ? (
             <div className="text-center py-10 text-gray-400">Nessuna spesa in questo periodo</div>
           ) : (
@@ -577,16 +611,17 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                 <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
                   <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Voci dove spendi di più</p>
                   <div className="flex flex-col gap-2.5">
-                    {perCat.map(({ id, tot }) => (
-                      <div key={id}>
+                    {perCat.map(({ name, tot }) => (
+                      <button key={name} onClick={() => setCatFilter(catFilter === name ? '' : name)}
+                        className={`text-left transition ${catFilter && catFilter !== name ? 'opacity-40' : ''}`}>
                         <div className="flex items-center justify-between text-sm mb-1">
-                          <span className="text-green-dark">{catName(id) || 'Senza categoria'}</span>
+                          <span className="text-green-dark">{name}</span>
                           <span className="font-semibold text-[#8C3B2E]">{eur(tot)}</span>
                         </div>
                         <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: `${(tot / maxCat) * 100}%`, background: BAR_COLOR }} />
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
