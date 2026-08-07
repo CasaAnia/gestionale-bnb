@@ -22,6 +22,7 @@ type Fx = {
 }
 type Receipt = { id: string; storage_path: string; note: string | null; status: string; uploaded_at: string }
 type Item = { id: string; expense_id: string; name: string; amount: number }
+type Budget = { id: string; ambito: string; category_name: string; monthly_amount: number }
 
 const GROUP_COLORS: Record<string, string> = {
   'Casa': '#5B8A70', 'Ania': '#BCA06A', 'Matteo': '#8AA1B8',
@@ -57,6 +58,13 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const [search, setSearch] = useState('')
   const [showAllProducts, setShowAllProducts] = useState(false)
   const [showForm, setShowForm] = useState(false)
+
+  // Budget mensili per categoria (tabella family_budgets; se la migrazione
+  // 0013 non e' ancora applicata la card resta nascosta).
+  const [budgets, setBudgets] = useState<Budget[]>([])
+  const [budgetsOk, setBudgetsOk] = useState(false)
+  const [showBudgetForm, setShowBudgetForm] = useState(false)
+  const [budgetForm, setBudgetForm] = useState({ category_name: '', amount: '' })
 
   const blankForm = () => ({
     expense_date: new Date().toISOString().split('T')[0],
@@ -118,6 +126,12 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       const it = await supabase.from('family_expense_items').select('id, expense_id, name, amount').in('expense_id', expIds)
       if (!it.error) setItems((it.data || []) as Item[])
     } else setItems([])
+    // Budget mensili (tollerante: senza migrazione 0013 la card non appare).
+    const b = await supabase.from('family_budgets').select('*')
+    if (!b.error) {
+      setBudgets(((b.data || []) as Budget[]).filter(x => (x.ambito || 'personale') === ambito))
+      setBudgetsOk(true)
+    }
   }
   useEffect(() => { load() }, [])
 
@@ -234,6 +248,24 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     setRows(rows.filter(r => r.id !== id))
   }
 
+  // ---- budget mensili ----
+  async function saveBudget() {
+    const name = budgetForm.category_name
+    const amt = parseFloat(budgetForm.amount.replace(',', '.'))
+    if (!name || !amt) return
+    await supabase.from('family_budgets')
+      .upsert({ ambito, category_name: name, monthly_amount: amt }, { onConflict: 'ambito,category_name' })
+    setBudgetForm({ category_name: '', amount: '' }); setShowBudgetForm(false); load()
+  }
+  async function editBudget(b: Budget) {
+    const v = prompt(`Budget mensile per "${b.category_name}" (vuoto per toglierlo):`, String(b.monthly_amount))
+    if (v === null) return
+    const amt = parseFloat(v.replace(',', '.'))
+    if (!v.trim() || !amt) await supabase.from('family_budgets').delete().eq('id', b.id)
+    else await supabase.from('family_budgets').update({ monthly_amount: amt }).eq('id', b.id)
+    load()
+  }
+
   // ---- dati del periodo ----
   // Intervallo [inizio, fine] inclusi (stringhe YYYY-MM-DD) del periodo scelto.
   function monthRange(m: string): [string, string] {
@@ -323,6 +355,76 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     return Object.entries(m).map(([name, tot]) => ({ name, tot })).sort((a, b) => b.tot - a.tot)
   }, [items, filtered, q])
   const maxProduct = Math.max(1, ...topProducts.map(x => x.tot))
+
+  // ---- confronto e andamento (vista Mese) ----
+  // Mese a distanza `offset` dal mese scelto (es. -1 = mese precedente).
+  const monthKey = (offset: number) => {
+    const [y, mo] = month.split('-').map(Number)
+    const d = new Date(y, mo - 1 + offset, 1)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  }
+  const monthLabel = (m: string) => new Date(m + '-01T00:00:00').toLocaleDateString('it-IT', { month: 'long' })
+  // Stesse spese filtrate (ricerca, gruppo, categoria) ma su TUTTI i mesi:
+  // servono per confrontare il mese scelto con i precedenti a parita' di filtri.
+  const filteredAll = rows.filter(r =>
+    (!q || strip(`${r.store || ''} ${r.description || ''} ${r.product || ''}`).includes(q) || itemMatchIds.has(r.id))
+    && (!groupFilter || r.group_id === groupFilter)
+    && (!catFilter || catOf(r) === catFilter))
+  const chartMonths = [-5, -4, -3, -2, -1, 0].map(off => {
+    const m = monthKey(off)
+    const [s, e] = monthRange(m)
+    return { m, tot: filteredAll.filter(r => r.expense_date >= s && r.expense_date <= e).reduce((sum, r) => sum + Number(r.amount), 0) }
+  })
+  const maxChart = Math.max(1, ...chartMonths.map(x => x.tot))
+  const prevTot = chartMonths[4].tot
+  const diffPct = prevTot > 0 ? Math.round(((totale - prevTot) / prevTot) * 100) : null
+  // Media al giorno e stima di fine mese (solo per il mese in corso).
+  const oggi = new Date()
+  const isCurrentMonth = month === oggi.toISOString().slice(0, 7)
+  const daysInMonth = Number(monthRange(month)[1].slice(-2))
+  const mediaGiorno = totale / (isCurrentMonth ? oggi.getDate() : daysInMonth)
+  const previsione = mediaGiorno * daysInMonth
+
+  // ---- budget mensili: speso per nome categoria nel mese scelto (senza
+  // filtri: il budget e' un tetto assoluto, non segue ricerca/gruppo) ----
+  const spentByCat = useMemo(() => {
+    const m: Record<string, number> = {}
+    periodRows.forEach(r => { const k = catName(r.category_id) || 'Senza categoria'; m[k] = (m[k] || 0) + Number(r.amount) })
+    return m
+  }, [periodRows, cats])
+  const budgetRows = budgets
+    .map(b => ({ b, spent: spentByCat[b.category_name] || 0 }))
+    .sort((x, y) => y.spent / y.b.monthly_amount - x.spent / x.b.monthly_amount)
+  const budgetColor = (ratio: number) => ratio >= 1 ? '#8C3B2E' : ratio >= 0.9 ? '#B07D4F' : '#5B8A70'
+  const catNames = Array.from(new Set(cats.map(c => c.name))).sort()
+
+  // ---- spese fisse del mese: ricorrenti gia' pagate + attese (viste il
+  // mese scorso ma non ancora in questo), col giorno stimato dall'ultima volta ----
+  const fisse = useMemo(() => {
+    if (periodMode !== 'mese') return []
+    const [ms, me] = monthRange(month)
+    const [ps, pe] = monthRange(monthKey(-1))
+    const nameOf = (r: Fx) => (r.description || r.product || r.store || 'Ricorrente').trim()
+    const rec = rows.filter(r => r.recurring)
+    const out: { name: string; tot: number; day: number; paid: boolean }[] = []
+    const seen = new Set<string>()
+    rec.filter(r => r.expense_date >= ms && r.expense_date <= me).forEach(r => {
+      const name = nameOf(r); const k = strip(name)
+      const ex = out.find(x => strip(x.name) === k)
+      if (ex) { ex.tot += Number(r.amount); ex.day = Math.max(ex.day, Number(r.expense_date.slice(-2))) }
+      else out.push({ name, tot: Number(r.amount), day: Number(r.expense_date.slice(-2)), paid: true })
+      seen.add(k)
+    })
+    // rows e' ordinato dal piu' recente: la prima occorrenza e' l'ultima pagata.
+    rec.filter(r => r.expense_date >= ps && r.expense_date <= pe).forEach(r => {
+      const k = strip(nameOf(r))
+      if (seen.has(k)) return
+      seen.add(k)
+      out.push({ name: nameOf(r), tot: Number(r.amount), day: Number(r.expense_date.slice(-2)), paid: false })
+    })
+    return out.sort((a, b) => a.day - b.day)
+  }, [rows, month, periodMode])
+  const fisseTot = fisse.reduce((s, x) => s + x.tot, 0)
 
   // Prodotti seguiti (track_detail): totale del mese per ciascuno.
   const tracked = useMemo(() => {
@@ -496,6 +598,36 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
         <div className="bg-white rounded-xl px-4 py-2.5 border border-card-border text-center mb-2">
           <p className="text-base text-gray-500">{[groupFilter ? groupName(groupFilter) : '', catFilter].filter(Boolean).join(' · ') || 'Totale'}</p>
           <p className="font-serif text-4xl text-[#8C3B2E]">{eur(totale)}</p>
+          {/* Confronto col mese precedente, a parita' di filtri */}
+          {periodMode === 'mese' && diffPct !== null && (
+            diffPct === 0
+              ? <p className="text-sm text-gray-500">≈ come a {monthLabel(monthKey(-1))} ({eur(prevTot)})</p>
+              : <p className="text-sm" style={{ color: diffPct < 0 ? '#2D6A4F' : '#8C3B2E' }}>
+                  {diffPct < 0 ? '▼' : '▲'} {Math.abs(diffPct)}% in {diffPct < 0 ? 'meno' : 'più'} di {monthLabel(monthKey(-1))} ({eur(prevTot)})
+                </p>
+          )}
+          {periodMode === 'mese' && totale > 0 && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              Media {eur(mediaGiorno)} al giorno{isCurrentMonth ? ` · a fine mese ~ ${eur(previsione)}` : ''}
+            </p>
+          )}
+          {/* Andamento degli ultimi 6 mesi: tocca una barra per andare a quel mese */}
+          {periodMode === 'mese' && chartMonths.some(x => x.tot > 0) && (
+            <div className="mt-2">
+              <div className="flex items-end gap-1.5 h-14">
+                {chartMonths.map(({ m, tot }) => (
+                  <button key={m} onClick={() => setMonth(m)} aria-label={`${monthLabel(m)}: ${eur(tot)}`}
+                    className="flex-1 flex flex-col justify-end h-full">
+                    <div className="w-full rounded-t transition-all"
+                      style={{ height: `${tot > 0 ? Math.max(5, (tot / maxChart) * 100) : 0}%`, background: m === month ? ACCENT : BAR_COLOR }} />
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-1.5 text-[10px] text-gray-400">
+                {chartMonths.map(({ m }) => <span key={m} className="flex-1 text-center">{monthLabel(m).slice(0, 3)}</span>)}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1 mb-1">
@@ -598,6 +730,76 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
           </>
         )}
       </div>
+
+      {/* BUDGET MENSILI PER CATEGORIA (solo vista Mese) */}
+      {!loading && periodMode === 'mese' && budgetsOk && (
+        <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Budget di {monthLabel(month)}</p>
+            <button onClick={() => setShowBudgetForm(!showBudgetForm)}
+              className="text-xs text-brass font-semibold">{showBudgetForm ? '✕ Chiudi' : '＋ Budget'}</button>
+          </div>
+          {showBudgetForm && (
+            <div className="flex gap-2 mb-3">
+              <select value={budgetForm.category_name} onChange={e => setBudgetForm({ ...budgetForm, category_name: e.target.value })}
+                className="flex-1 border border-card-border rounded-lg p-2 text-sm min-w-0">
+                <option value="">Categoria…</option>
+                {catNames.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+              <input inputMode="decimal" value={budgetForm.amount} onChange={e => setBudgetForm({ ...budgetForm, amount: e.target.value })}
+                placeholder="€ al mese" className="w-24 border border-card-border rounded-lg p-2 text-sm" />
+              <button onClick={saveBudget} disabled={!budgetForm.category_name || !budgetForm.amount}
+                className="bg-green-mid text-white rounded-lg px-3 text-sm font-semibold disabled:opacity-50">OK</button>
+            </div>
+          )}
+          {budgetRows.length === 0 && !showBudgetForm && (
+            <p className="text-sm text-gray-400">Nessun budget impostato: tocca ＋ per dare un tetto a una voce (es. Mangiare fuori).</p>
+          )}
+          <div className="flex flex-col gap-2.5">
+            {budgetRows.map(({ b, spent }) => {
+              const ratio = spent / Number(b.monthly_amount)
+              return (
+                <button key={b.id} onClick={() => editBudget(b)} className="text-left">
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-green-dark">{b.category_name}</span>
+                    <span className="font-semibold" style={{ color: budgetColor(ratio) }}>
+                      {eur(spent)} su {eur(Number(b.monthly_amount))}{ratio >= 1 ? ' — superato' : ''}
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, ratio * 100)}%`, background: budgetColor(ratio) }} />
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* SPESE FISSE DEL MESE (ricorrenti: pagate ✓ e attese ~) */}
+      {!loading && periodMode === 'mese' && fisse.length > 0 && (
+        <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Spese fisse del mese</p>
+            <span className="font-serif text-lg text-[#8C3B2E]">{eur(fisseTot)}</span>
+          </div>
+          <div className="flex flex-col">
+            {fisse.map(f => (
+              <div key={f.name} className="flex items-center justify-between text-sm py-1.5 border-b border-[#F1EEE6] last:border-b-0">
+                <span className="text-green-dark truncate mr-2">🔁 {f.name}</span>
+                <span className="shrink-0 text-gray-400">
+                  {f.paid
+                    ? <span><span className="text-green-mid">✓</span> {f.day} {monthLabel(month).slice(0, 3)} · <span className="text-gray-600 font-semibold">{eur2(f.tot)}</span></span>
+                    : <span>~ {f.day} {monthLabel(month).slice(0, 3)} · {eur2(f.tot)}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+          {fisse.some(f => !f.paid) && (
+            <p className="text-[11px] text-gray-400 mt-2">~ = attesa: vista il mese scorso ma non ancora registrata questo mese.</p>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento…</div>
