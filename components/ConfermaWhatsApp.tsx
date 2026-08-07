@@ -129,7 +129,7 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
   const slugs = [...new Set(segmenti.map(s => ROOM_SLUG_BY_NAME[s.rooms?.name]).filter(Boolean))]
   const linkCamere = slugs.map(sl => `${SITO_URL}/camere/${sl}`).join('\n')
   const testoMessaggio = `​
-Gentile *${nome}*,
+Gentile ${nome},
 
 Basta un tocco sull'immagine e la conferma della prenotazione si apre a schermo intero, con tutti i dettagli del suo soggiorno.
 
