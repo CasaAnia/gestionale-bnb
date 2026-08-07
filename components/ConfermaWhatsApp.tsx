@@ -383,8 +383,8 @@ ${linkCamere}
                 <div style={{ ...S.box, background: 'white', border: '2px solid #e3ddd0' }}>
                   {righeCosti.map((r, i) => (
                     <div key={i} style={S.row}>
-                      <span style={{ ...S.label, color: '#3a3a35' }}>{r.label}</span>
-                      <span style={S.value}>{fmtEuro(r.amount)}</span>
+                      <span style={{ ...S.label, color: '#3a3a35', flexShrink: 1, minWidth: 0, lineHeight: 1.35 }}>{r.label}</span>
+                      <span style={{ ...S.value, flexShrink: 0 }}>{fmtEuro(r.amount)}</span>
                     </div>
                   ))}
                   <div style={{ ...S.row, borderTop: '2px solid #e3ddd0', marginTop: 12, paddingTop: 26 }}>
