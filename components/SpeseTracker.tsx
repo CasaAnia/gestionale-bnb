@@ -246,12 +246,11 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     return [`${m}-01`, `${m}-${String(last).padStart(2, '0')}`]
   }
   function weekRange(d: string): [string, string] {
+    // 7 giorni a partire dalla data scelta (inizio = data, non il lunedì).
     const dt = new Date(d + 'T00:00:00')
-    const dow = (dt.getDay() + 6) % 7 // lunedì = 0
-    const mon = new Date(dt); mon.setDate(dt.getDate() - dow)
-    const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
+    const end = new Date(dt); end.setDate(dt.getDate() + 6)
     const fmt = (x: Date) => x.toISOString().split('T')[0]
-    return [fmt(mon), fmt(sun)]
+    return [fmt(dt), fmt(end)]
   }
   const [periodStart, periodEnd] = periodMode === 'mese' ? monthRange(month)
     : periodMode === 'settimana' ? weekRange(weekAnchor)
@@ -487,7 +486,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
           )}
           {periodMode === 'settimana' && (
             <>
-              <span className="text-sm text-gray-500">Settimana di</span>
+              <span className="text-sm text-gray-500">Settimana dal</span>
               <input type="date" value={weekAnchor} onChange={e => setWeekAnchor(e.target.value)}
                 className="border border-card-border rounded-lg p-2 text-sm w-auto" />
               <span className="text-xs text-gray-400">{periodStart} → {periodEnd}</span>
