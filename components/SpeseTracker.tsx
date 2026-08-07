@@ -283,10 +283,16 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   // Aggregato per nome categoria sulle righe già filtrate per gruppo (ma non
   // per categoria, così le barre restano tutte visibili quando una è attiva).
   const perCatAll = useMemo(() => {
-    const m: Record<string, number> = {}
-    grouped.forEach(r => { const k = catName(r.category_id) || 'Senza categoria'; m[k] = (m[k] || 0) + Number(r.amount) })
-    return Object.entries(m).map(([name, tot]) => ({ name, tot })).sort((a, b) => b.tot - a.tot)
+    const m: Record<string, { tot: number; n: number }> = {}
+    grouped.forEach(r => {
+      const k = catName(r.category_id) || 'Senza categoria'
+      const e = m[k] || (m[k] = { tot: 0, n: 0 })
+      e.tot += Number(r.amount); e.n += 1
+    })
+    return Object.entries(m).map(([name, { tot, n }]) => ({ name, tot, n })).sort((a, b) => b.tot - a.tot)
   }, [grouped, cats])
+  // Chip "Per cosa": la categoria con più spese registrate viene prima.
+  const perCatByUse = useMemo(() => [...perCatAll].sort((a, b) => b.n - a.n), [perCatAll])
   const perCat = perCatAll.slice(0, 8)
   const maxCat = Math.max(1, ...perCat.map(x => x.tot))
 
@@ -566,7 +572,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                 style={catFilter === '' ? { background: ACCENT } : {}}>
                 Tutte le voci
               </button>
-              {perCatAll.map(({ name }) => {
+              {perCatByUse.map(({ name }) => {
                 const on = catFilter === name
                 return (
                   <button key={name} onClick={() => setCatFilter(on ? '' : name)}
