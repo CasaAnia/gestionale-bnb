@@ -134,21 +134,36 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   }
 
   // Salva le foto in anteprima nell'archivio del gestionale (col Salva).
+  // Se qualcosa fallisce, avvisa e TIENE le foto non salvate per riprovare.
   async function saveStaged() {
     if (!staged.length) return
     setUploading(true)
     const note = receiptNote.trim() || null
-    let failed = 0
-    for (const { file } of staged) {
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
-      const path = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`
-      const up = await supabase.storage.from('scontrini').upload(path, file, { contentType: file.type || 'image/jpeg' })
-      if (up.error) { failed++; continue }
-      await supabase.from('family_receipts').insert({ storage_path: path, note, ambito })
+    const remaining: typeof staged = []
+    let ok = 0
+    try {
+      for (const s of staged) {
+        const ext = (s.file.name.split('.').pop() || 'jpg').toLowerCase()
+        const path = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`
+        const up = await supabase.storage.from('scontrini').upload(path, s.file, { contentType: s.file.type || 'image/jpeg' })
+        if (up.error) { remaining.push(s); continue }
+        const ins = await supabase.from('family_receipts').insert({ storage_path: path, note, ambito })
+        if (ins.error) { await supabase.storage.from('scontrini').remove([path]); remaining.push(s); continue }
+        URL.revokeObjectURL(s.url); ok++
+      }
+    } catch (e: any) {
+      setUploading(false)
+      alert('Salvataggio interrotto — probabile connessione assente. Le foto sono ancora qui: riprova.\n(' + (e?.message || 'errore di rete') + ')')
+      return
     }
-    if (failed) alert(`${failed} foto non salvate (riprova). Le altre sono a posto.`)
-    staged.forEach(s => URL.revokeObjectURL(s.url))
-    setStaged([]); setReceiptNote(''); setUploading(false); loadReceipts()
+    setUploading(false)
+    if (remaining.length) {
+      setStaged(remaining)
+      alert(`${ok > 0 ? ok + ' salvati. ' : ''}${remaining.length} non salvati: riprova (controlla la connessione).`)
+    } else {
+      setStaged([]); setReceiptNote('')
+    }
+    loadReceipts()
   }
 
   async function deleteReceipt(r: Receipt) {
