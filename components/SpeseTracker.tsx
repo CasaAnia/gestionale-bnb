@@ -28,6 +28,7 @@ const GROUP_COLORS: Record<string, string> = {
   'Matteo e Ania': '#AD90A8', 'Casa Ania': '#BC7E6E',
 }
 const FALLBACK_COLOR = '#9AA096'
+const ACCENT = '#7D9DB0' // azzurro carta da zucchero, come "pagato" in arrivi/calendario
 const BAR_COLOR = '#D2A98C' // pesca tenue per le barre categoria
 // Faccine dei gruppi tenute nel codice (non nel DB): incollando la migrazione
 // in Supabase gli emoji si erano corrotti. Qui restano sempre puliti.
@@ -475,19 +476,19 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
         )}
       </div>
 
-      {/* FILTRO PERIODO + TOTALE */}
-      <div className="mb-3">
+      {/* CARD FILTRI: periodo, ricerca, di chi, per cosa — tutto in un posto solo */}
+      <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
         <div className="flex items-center gap-2 mb-2">
-          <div className="flex bg-white border border-card-border rounded-lg p-0.5 text-sm">
+          <div className="flex bg-[#FBF9F4] border border-card-border rounded-lg p-0.5 text-sm">
             {([['mese', 'Mese'], ['settimana', 'Settimana'], ['anno', 'Anno'], ['intervallo', 'Dal–al']] as const).map(([m, label]) => (
               <button key={m} onClick={() => setPeriodMode(m)}
                 className={`px-3 py-1 rounded-md transition ${periodMode === m ? 'text-white' : 'text-gray-500'}`}
-                style={periodMode === m ? { background: FALLBACK_COLOR } : {}}>
+                style={periodMode === m ? { background: ACCENT } : {}}>
                 {label}
               </button>
             ))}
           </div>
-          <div className="bg-white rounded-xl px-4 py-2 border border-card-border text-right ml-auto">
+          <div className="bg-[#FBF9F4] rounded-xl px-4 py-2 border border-card-border text-right ml-auto">
             <p className="text-xs text-gray-500">{[groupFilter ? groupName(groupFilter) : '', catFilter].filter(Boolean).join(' · ') || 'Totale'}</p>
             <p className="font-bold text-[#8C3B2E]">{eur(totale)}</p>
           </div>
@@ -534,54 +535,60 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
               className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">✕</button>
           )}
         </div>
-      </div>
 
-      {loading ? (
-        <div className="text-center py-10 text-gray-400">Caricamento…</div>
-      ) : (
-        <>
-          {/* CHIP GRUPPI */}
-          {groups.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-2 mb-3 -mx-1 px-1">
+        {/* DI CHI (gruppi) */}
+        {!loading && groups.length > 0 && (
+          <>
+            <p className="text-[10px] uppercase tracking-[1.5px] text-brass mt-3 mb-1.5">Di chi</p>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               <button onClick={() => setGroupFilter('')}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${groupFilter === '' ? 'text-white border-transparent' : 'bg-white text-gray-600 border-card-border'}`}
-                style={groupFilter === '' ? { background: FALLBACK_COLOR } : {}}>
+                className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${groupFilter === '' ? 'text-white border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
+                style={groupFilter === '' ? { background: ACCENT } : {}}>
                 Tutti
               </button>
               {groups.map(g => {
                 const on = groupFilter === g.id
                 return (
                   <button key={g.id} onClick={() => setGroupFilter(on ? '' : g.id)}
-                    className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${on ? 'text-white border-transparent' : 'bg-white text-gray-600 border-card-border'}`}
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${on ? 'text-white border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
                     style={on ? { background: GROUP_COLORS[g.name] || FALLBACK_COLOR } : {}}>
                     {GROUP_EMOJI[g.name] || ''} {g.name}
                   </button>
                 )
               })}
             </div>
-          )}
+          </>
+        )}
 
-          {/* CHIP CATEGORIE (per nome, seguono il gruppo selezionato) */}
-          {perCatAll.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-2 mb-3 -mx-1 px-1">
+        {/* PER COSA (categorie, per nome: seguono il gruppo selezionato) */}
+        {!loading && perCatAll.length > 0 && (
+          <>
+            <p className="text-[10px] uppercase tracking-[1.5px] text-brass mt-2 mb-1.5">Per cosa</p>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               <button onClick={() => setCatFilter('')}
-                className={`shrink-0 rounded-full px-3 py-1 text-xs border transition ${catFilter === '' ? 'border-transparent' : 'bg-white text-gray-500 border-card-border'}`}
-                style={catFilter === '' ? { background: '#F3ECD8', color: '#7A5C1E' } : {}}>
+                className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${catFilter === '' ? 'text-white border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
+                style={catFilter === '' ? { background: ACCENT } : {}}>
                 Tutte le voci
               </button>
               {perCatAll.map(({ name }) => {
                 const on = catFilter === name
                 return (
                   <button key={name} onClick={() => setCatFilter(on ? '' : name)}
-                    className={`shrink-0 rounded-full px-3 py-1 text-xs border transition ${on ? 'border-transparent' : 'bg-white text-gray-500 border-card-border'}`}
-                    style={on ? { background: BAR_COLOR, color: '#5C3A24' } : {}}>
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${on ? 'border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
+                    style={on ? { background: BAR_COLOR, color: '#4A2E1B' } : {}}>
                     {name}
                   </button>
                 )
               })}
             </div>
-          )}
+          </>
+        )}
+      </div>
 
+      {loading ? (
+        <div className="text-center py-10 text-gray-400">Caricamento…</div>
+      ) : (
+        <>
           {periodRows.length === 0 ? (
             <div className="text-center py-10 text-gray-400">Nessuna spesa in questo periodo</div>
           ) : (
