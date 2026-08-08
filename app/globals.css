@@ -40,6 +40,19 @@ input[type="week"] {
   color-scheme: light;
 }
 
+/* Chip che compare accanto al filtro attivo (es. "senza caffè") */
+@keyframes chip-in {
+  from { opacity: 0; transform: translateX(-6px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+.chip-in {
+  transform-origin: left center;
+  animation: chip-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chip-in { animation-duration: 0.01ms; }
+}
+
 /* File di chip scorrevoli: si scorrono col dito, senza barra visibile */
 .no-scrollbar {
   scrollbar-width: none;

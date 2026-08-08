@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import BackBar from '@/components/BackBar'
 import DemoGate from '@/components/DemoGate'
@@ -55,6 +55,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const [toDate, setToDate] = useState('')
   const [groupFilter, setGroupFilter] = useState<string>('') // '' = tutti
   const [catFilter, setCatFilter] = useState<string>('') // nome categoria, '' = tutte
+  const [senzaCaffe, setSenzaCaffe] = useState(false) // con Mangiare fuori: nasconde le righe Caffè
   const [search, setSearch] = useState('')
   const [showAllProducts, setShowAllProducts] = useState(false)
   const [showForm, setShowForm] = useState(false)
@@ -299,17 +300,20 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   // Filtro per nome categoria (non per id): così "Bar" vale per tutti i gruppi
   // che hanno una categoria con quel nome, anche con "Tutti" selezionato.
   const catOf = (r: Fx) => catName(r.category_id) || 'Senza categoria'
-  const filtered = catFilter ? grouped.filter(r => catOf(r) === catFilter) : grouped
+  // Interruttore "senza caffè": filtrando Mangiare fuori si può togliere il
+  // caffè scorporato dai pasti (righe con descrizione "Caffè").
+  const noCaffe = (r: Fx) => !(senzaCaffe && catFilter === 'Mangiare fuori' && strip(r.description || '') === 'caffe')
+  const filtered = (catFilter ? grouped.filter(r => catOf(r) === catFilter) : grouped).filter(noCaffe)
   const totale = filtered.reduce((s, r) => s + Number(r.amount), 0)
 
   // Aggregato per gruppo: rispetta il filtro categoria (ma non quello gruppo,
   // così le card degli altri gruppi restano visibili quando uno è attivo).
   const perGroup = useMemo(() => {
-    const base = catFilter ? searched.filter(r => catOf(r) === catFilter) : searched
+    const base = (catFilter ? searched.filter(r => catOf(r) === catFilter) : searched).filter(noCaffe)
     const m: Record<string, number> = {}
     base.forEach(r => { const k = r.group_id || 'none'; m[k] = (m[k] || 0) + Number(r.amount) })
     return groups.map(g => ({ g, tot: m[g.id] || 0 })).filter(x => x.tot > 0).sort((a, b) => b.tot - a.tot)
-  }, [searched, groups, catFilter, cats])
+  }, [searched, groups, catFilter, cats, senzaCaffe])
   const maxGroup = Math.max(1, ...perGroup.map(x => x.tot))
 
   // Aggregato per nome categoria sulle righe già filtrate per gruppo (ma non
@@ -369,7 +373,8 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const filteredAll = rows.filter(r =>
     (!q || strip(`${r.store || ''} ${r.description || ''} ${r.product || ''}`).includes(q) || itemMatchIds.has(r.id))
     && (!groupFilter || r.group_id === groupFilter)
-    && (!catFilter || catOf(r) === catFilter))
+    && (!catFilter || catOf(r) === catFilter)
+    && noCaffe(r))
   const chartMonths = [-5, -4, -3, -2, -1, 0].map(off => {
     const m = monthKey(off)
     const [s, e] = monthRange(m)
@@ -596,7 +601,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       {/* CARD FILTRI: periodo, ricerca, di chi, per cosa — tutto in un posto solo */}
       <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
         <div className="bg-white rounded-xl px-4 py-2.5 border border-card-border text-center mb-2">
-          <p className="text-base text-gray-500">{[groupFilter ? groupName(groupFilter) : '', catFilter].filter(Boolean).join(' · ') || 'Totale'}</p>
+          <p className="text-base text-gray-500">{[groupFilter ? groupName(groupFilter) : '', catFilter, senzaCaffe && catFilter === 'Mangiare fuori' ? 'senza caffè' : ''].filter(Boolean).join(' · ') || 'Totale'}</p>
           <p className="font-serif text-4xl text-[#8C3B2E]">{eur(totale)}</p>
           {/* Confronto col mese precedente, a parita' di filtri */}
           {periodMode === 'mese' && diffPct !== null && (
@@ -719,11 +724,20 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
               {perCatByUse.map(({ name }) => {
                 const on = catFilter === name
                 return (
-                  <button key={name} onClick={() => setCatFilter(on ? '' : name)}
-                    className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${on ? 'border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
-                    style={on ? { background: BAR_COLOR, color: '#4A2E1B' } : {}}>
-                    {name}
-                  </button>
+                  <Fragment key={name}>
+                    <button onClick={() => setCatFilter(on ? '' : name)}
+                      className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${on ? 'border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
+                      style={on ? { background: BAR_COLOR, color: '#4A2E1B' } : {}}>
+                      {name}
+                    </button>
+                    {name === 'Mangiare fuori' && on && (
+                      <button onClick={() => setSenzaCaffe(v => !v)}
+                        className={`chip-in shrink-0 rounded-full px-3 py-1.5 text-sm border transition-transform duration-100 active:scale-[0.97] ${senzaCaffe ? 'text-white border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
+                        style={senzaCaffe ? { background: ACCENT } : {}}>
+                        ☕ senza caffè
+                      </button>
+                    )}
+                  </Fragment>
                 )
               })}
             </div>
