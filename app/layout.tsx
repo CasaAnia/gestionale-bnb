@@ -5,6 +5,7 @@ import BottomNav from '@/components/BottomNav'
 import MobileTopBar from '@/components/MobileTopBar'
 import MainContainer from '@/components/MainContainer'
 import ScrollToTop from '@/components/ScrollToTop'
+import NavTracker from '@/components/NavTracker'
 
 const nunitoSans = Nunito_Sans({ subsets: ['latin'], variable: '--font-nunito-sans', display: 'swap' })
 
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="it" className={nunitoSans.variable}>
       <body className="bg-cream text-green-dark antialiased font-sans">
         <ScrollToTop />
+        <NavTracker />
         <MobileTopBar />
         <main className="min-h-screen pt-12 lg:pt-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-48">
           <MainContainer>{children}</MainContainer>
