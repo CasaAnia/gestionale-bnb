@@ -56,6 +56,11 @@ const ICONE: Record<string, string> = {
   'Macchina': '🚗', 'Trasporti': '🚌', 'Viaggi': '✈️', 'Regali': '🎁', 'Svago': '🎉',
   'Scuola': '🎒', 'Sport': '⚽', 'Paghetta': '💰', 'Parrucchiere': '💇', 'Assicurazioni': '🛡️',
   'Tasse': '🏛️', 'Abbonamenti': '🔁', 'Varie': '📦',
+  // Nomi nuovi (riordino 0015)
+  'Detersivi': '🧴', 'Cura corpo': '🧼', 'Medico': '💊', 'Colazione/Bar': '☕',
+  'Merenda': '🍦', 'Divertimento': '🎉', 'Cucina utensili': '🍳', 'Arredo casa': '🛋️',
+  'Riparazioni e manutenzione': '🔧', 'Auto': '🚗', 'Cancelleria casa': '✏️',
+  'Assicurazioni e tasse': '🛡️',
 }
 const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
   'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
