@@ -1,5 +1,5 @@
 'use client'
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import BackBar from '@/components/BackBar'
 import DemoGate from '@/components/DemoGate'
@@ -7,9 +7,18 @@ import { isDemoMode } from '@/lib/demoMode'
 
 // Tracker spese riutilizzabile. Due ambiti:
 //  - 'personale' → Spese Famiglia (gruppi: Casa, Ania, Matteo, Matteo e Ania)
-//  - 'azienda'   → Spese B&B (gruppo Casa Granata / Casa Ania), contano nel profitto
-// Due livelli (gruppo → categoria), più negozio, prodotto seguito, flag
-// ricorrente, regole prodotto→gruppo, foto scontrini.
+//  - 'azienda'   → Spese B&B (gruppo Casa Ania), contano nel profitto
+//
+// Design "4 schede" (scelto da Ania il 15/08/2026, ispirato ai migliori
+// gestionali: Copilot Money, DailyBean, Monarch Money):
+//  🏠 Home       — tessere-categoria con ▲▼ vs mese scorso, ritmo e previsione
+//  📅 Calendario — giorni colorati per quanto si è speso, tocchi e vedi
+//  📖 Racconto   — il riassunto del mese scritto, con i numeri toccabili
+//  💬 Domanda    — chiedi a parole ("Quanto in bar a luglio?") e risponde
+//
+// Ogni voce di scontrino può avere la SUA categoria (migrazione 0014):
+// se manca, vale quella della spesa madre. Il codice tollera la colonna
+// assente (migrazione non ancora applicata).
 
 type Ambito = 'personale' | 'azienda'
 type Group = { id: string; name: string; emoji: string | null; sort: number; ambito: string }
@@ -21,8 +30,13 @@ type Fx = {
   receipt_id: string | null
 }
 type Receipt = { id: string; storage_path: string; note: string | null; status: string; uploaded_at: string }
-type Item = { id: string; expense_id: string; name: string; amount: number }
+type Item = { id: string; expense_id: string; name: string; amount: number; category_id?: string | null }
 type Budget = { id: string; ambito: string; category_name: string; monthly_amount: number }
+// Una "voce": la singola riga di scontrino (o la spesa intera se senza dettaglio)
+type Voce = { n: string; a: number; cat: string; store: string; d: string; g: string; expId: string }
+type Tab = 'home' | 'calendario' | 'racconto' | 'domanda'
+type Dettaglio = { titolo: string; voci: Voce[] } | null
+type Msg = { io: boolean; t: string }
 
 const GROUP_COLORS: Record<string, string> = {
   'Casa': '#5B8A70', 'Ania': '#BCA06A', 'Matteo': '#8AA1B8',
@@ -30,10 +44,26 @@ const GROUP_COLORS: Record<string, string> = {
 }
 const FALLBACK_COLOR = '#9AA096'
 const ACCENT = '#7D9DB0' // azzurro carta da zucchero, come "pagato" in arrivi/calendario
-const BAR_COLOR = '#D2A98C' // pesca tenue per le barre categoria
+const ICONE: Record<string, string> = {
+  'Spesa alimentare': '🛒', 'Detersivi e pulizia': '🧴', 'Bar': '☕', 'Bar e caffe': '☕',
+  'Mangiare fuori': '🍽️', 'Abbigliamento': '👗', 'Gelato e merenda': '🍦', 'Sacchetti': '🛍️',
+  'Scarpe': '👟', 'Salute ed estetica': '💆‍♀️', 'Salute e farmacia': '💊', 'Manutenzione': '🔧',
+  'Manutenzione casa': '🔧', 'Arredo e acquisti': '🛋️', 'Utensili cucina': '🍳', 'Cancelleria': '✏️',
+  'Tecnologia': '📱', 'Telefono/Internet': '📶', 'Telefono': '📶', 'Internet': '📶', 'Cura persona': '🧼',
+  'Forniture': '📦', 'Utenze': '💡', 'Luce': '💡', 'Gas': '🔥', 'Acqua': '🚿', 'Spesa': '🛒',
+  'Lavori e ristrutturazione': '🏗️', 'Riparazioni': '🔧', 'Prodotti di pulizia': '🧴',
+  'Macchina': '🚗', 'Trasporti': '🚌', 'Viaggi': '✈️', 'Regali': '🎁', 'Svago': '🎉',
+  'Scuola': '🎒', 'Sport': '⚽', 'Paghetta': '💰', 'Parrucchiere': '💇', 'Assicurazioni': '🛡️',
+  'Tasse': '🏛️', 'Abbonamenti': '🔁', 'Varie': '📦',
+}
+const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
+  'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
 const eur = (n: number) => '€' + n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const eur2 = (n: number) => '€' + n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const strip = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+const strip = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+// Nome negozio corto: via la città, ma "Iper bar" e "Iper supermercato" restano distinti
+const corto = (s: string) => s.replace(/ (Rozzano|Milano( \S+)?|Fiordaliso|Milanofiori|Assago|Pieve Emanuele|Locate Triulzi|Basiglio|Scalo Milano)( bar| supermercato)?$/i, '$3').trim()
+const icona = (cat: string) => ICONE[cat] || '🏷️'
 
 export default function SpeseTracker({ ambito, title }: { ambito: Ambito; title: string }) {
   return <DemoGate><Tracker ambito={ambito} title={title} /></DemoGate>
@@ -47,18 +77,15 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
   const [needsSetup, setNeedsSetup] = useState(false)
-  const [periodMode, setPeriodMode] = useState<'mese' | 'settimana' | 'anno' | 'intervallo'>('mese')
+
+  // Le 4 schede + mese scelto
+  const [tab, setTab] = useState<Tab>('home')
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
-  const [year, setYear] = useState(String(new Date().getFullYear()))
-  const [weekAnchor, setWeekAnchor] = useState(new Date().toISOString().split('T')[0])
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
-  const [groupFilter, setGroupFilter] = useState<string>('') // '' = tutti
-  const [catFilter, setCatFilter] = useState<string>('') // nome categoria, '' = tutte
-  const [senzaCaffe, setSenzaCaffe] = useState(false) // con Mangiare fuori: nasconde le righe Caffè
-  const [prodFilter, setProdFilter] = useState('') // sottocategoria "Cosa" (prodotto), '' = tutte
-  const [search, setSearch] = useState('')
-  const [showAllProducts, setShowAllProducts] = useState(false)
+  const [dettaglio, setDettaglio] = useState<Dettaglio>(null) // lista voci aperta (tessera, racconto…)
+  const [giornoSel, setGiornoSel] = useState('') // giorno toccato nel calendario
+  const [showAll, setShowAll] = useState(false) // elenco completo del mese (in Home)
+  const [chat, setChat] = useState<Msg[]>([])
+  const [domanda, setDomanda] = useState('')
   const [showForm, setShowForm] = useState(false)
 
   // Budget mensili per categoria (tabella family_budgets; se la migrazione
@@ -122,10 +149,11 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     setRows(myExpenses)
     setLoading(false)
     loadReceipts()
-    // Dettaglio prodotti delle spese di questo ambito (per "dove spendi di più").
+    // Dettaglio prodotti: select * per tollerare la colonna category_id
+    // assente (migrazione 0014 non ancora applicata).
     const expIds = myExpenses.map((x: Fx) => x.id)
     if (expIds.length) {
-      const it = await supabase.from('family_expense_items').select('id, expense_id, name, amount').in('expense_id', expIds)
+      const it = await supabase.from('family_expense_items').select('*').in('expense_id', expIds)
       if (!it.error) setItems((it.data || []) as Item[])
     } else setItems([])
     // Budget mensili (tollerante: senza migrazione 0013 la card non appare).
@@ -186,8 +214,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     setReceipts(receipts.filter(x => x.id !== r.id))
   }
 
-  // Aggiunge/modifica la nota di uno scontrino già caricato (l'ordine foto/nota
-  // non conta più: la puoi scrivere anche dopo).
+  // Aggiunge/modifica la nota di uno scontrino già caricato.
   async function editReceiptNote(r: Receipt) {
     const nota = prompt('Nota per questo scontrino (indicazioni per me):', r.note || '')
     if (nota === null) return
@@ -205,7 +232,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   }
 
   const groupName = (id: string | null) => groups.find(x => x.id === id)?.name || '—'
-  const catName = (id: string | null) => cats.find(x => x.id === id)?.name || ''
+  const catName = (id: string | null | undefined) => cats.find(x => x.id === id)?.name || ''
   const colorOf = (id: string | null) => GROUP_COLORS[groupName(id)] || FALLBACK_COLOR
   const stores = useMemo(() => Array.from(new Set(rows.map(r => r.store).filter(Boolean))) as string[], [rows])
 
@@ -268,165 +295,89 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     load()
   }
 
-  // ---- dati del periodo ----
-  // Intervallo [inizio, fine] inclusi (stringhe YYYY-MM-DD) del periodo scelto.
+  // ================= LE VOCI (il cuore del nuovo design) =================
+  // Ogni spesa si scompone nelle sue righe di scontrino; la voce prende la
+  // SUA categoria se ce l'ha (migrazione 0014), sennò quella della spesa.
+  const itemsByExp = useMemo(() => {
+    const m: Record<string, Item[]> = {}
+    items.forEach(it => { (m[it.expense_id] || (m[it.expense_id] = [])).push(it) })
+    return m
+  }, [items])
+
+  function vociDi(spese: Fx[]): Voce[] {
+    const out: Voce[] = []
+    spese.forEach(e => {
+      const catSpesa = catName(e.category_id) || 'Senza categoria'
+      const dettagli = itemsByExp[e.id]
+      const base = { store: e.store || '', d: e.expense_date, g: groupName(e.group_id), expId: e.id }
+      if (dettagli?.length) dettagli.forEach(it =>
+        out.push({ n: it.name, a: Number(it.amount), cat: catName(it.category_id) || catSpesa, ...base }))
+      else out.push({ n: e.description || e.product || catSpesa, a: Number(e.amount), cat: catSpesa, ...base })
+    })
+    return out
+  }
+
   function monthRange(m: string): [string, string] {
     const [y, mo] = m.split('-').map(Number)
     const last = new Date(y, mo, 0).getDate()
     return [`${m}-01`, `${m}-${String(last).padStart(2, '0')}`]
   }
-  function weekRange(d: string): [string, string] {
-    // 7 giorni a partire dalla data scelta (inizio = data, non il lunedì).
-    const dt = new Date(d + 'T00:00:00')
-    const end = new Date(dt); end.setDate(dt.getDate() + 6)
-    const fmt = (x: Date) => x.toISOString().split('T')[0]
-    return [fmt(dt), fmt(end)]
-  }
-  const [periodStart, periodEnd] = periodMode === 'mese' ? monthRange(month)
-    : periodMode === 'settimana' ? weekRange(weekAnchor)
-    : periodMode === 'anno' ? [`${year}-01-01`, `${year}-12-31`]
-    : [fromDate || '0000-01-01', toDate || '9999-12-31']
-
-  const periodRows = rows.filter(r => r.expense_date >= periodStart && r.expense_date <= periodEnd)
-  // Ricerca libera su negozio + descrizione + prodotto, E dentro il dettaglio
-  // prodotti dello scontrino (accenti/maiuscole ignorati).
-  const q = strip(search.trim())
-  const itemMatchIds = useMemo(
-    () => q ? new Set(items.filter(it => strip(it.name).includes(q)).map(it => it.expense_id)) : new Set<string>(),
-    [items, q])
-  const searched = q
-    ? periodRows.filter(r => strip(`${r.store || ''} ${r.description || ''} ${r.product || ''}`).includes(q) || itemMatchIds.has(r.id))
-    : periodRows
-  const grouped = groupFilter ? searched.filter(r => r.group_id === groupFilter) : searched
-  // Filtro per nome categoria (non per id): così "Bar" vale per tutti i gruppi
-  // che hanno una categoria con quel nome, anche con "Tutti" selezionato.
-  const catOf = (r: Fx) => catName(r.category_id) || 'Senza categoria'
-  const isCaffeRow = (r: Fx) => strip(r.description || '') === 'caffe'
-  // Interruttore "senza caffè": filtrando Mangiare fuori si può togliere il
-  // caffè scorporato dai pasti (righe con descrizione "Caffè").
-  const noCaffe = (r: Fx) => !(senzaCaffe && catFilter === 'Mangiare fuori' && isCaffeRow(r))
-  // Sottocategoria "Cosa" (campo product): vale in qualunque categoria, così
-  // "Caffè" somma colazione (Bar) + pranzo/cena (Mangiare fuori).
-  const byProd = (r: Fx) => !prodFilter || r.product === prodFilter
-  const filtered = (catFilter ? grouped.filter(r => catOf(r) === catFilter) : grouped).filter(noCaffe).filter(byProd)
-  const totale = filtered.reduce((s, r) => s + Number(r.amount), 0)
-
-  // Aggregato per gruppo: rispetta il filtro categoria (ma non quello gruppo,
-  // così le card degli altri gruppi restano visibili quando uno è attivo).
-  const perGroup = useMemo(() => {
-    const base = (catFilter ? searched.filter(r => catOf(r) === catFilter) : searched).filter(noCaffe).filter(byProd)
-    const m: Record<string, number> = {}
-    base.forEach(r => { const k = r.group_id || 'none'; m[k] = (m[k] || 0) + Number(r.amount) })
-    return groups.map(g => ({ g, tot: m[g.id] || 0 })).filter(x => x.tot > 0).sort((a, b) => b.tot - a.tot)
-  }, [searched, groups, catFilter, cats, senzaCaffe, prodFilter])
-  const maxGroup = Math.max(1, ...perGroup.map(x => x.tot))
-
-  // Aggregato per nome categoria sulle righe già filtrate per gruppo (ma non
-  // per categoria, così le barre restano tutte visibili quando una è attiva).
-  const perCatAll = useMemo(() => {
-    const m: Record<string, { tot: number; n: number }> = {}
-    grouped.forEach(r => {
-      const k = catName(r.category_id) || 'Senza categoria'
-      const e = m[k] || (m[k] = { tot: 0, n: 0 })
-      e.tot += Number(r.amount); e.n += 1
-    })
-    return Object.entries(m).map(([name, { tot, n }]) => ({ name, tot, n })).sort((a, b) => b.tot - a.tot)
-  }, [grouped, cats])
-  // Chip "Per cosa": la categoria con più spese registrate viene prima.
-  const perCatByUse = useMemo(() => [...perCatAll].sort((a, b) => b.n - a.n), [perCatAll])
-  const perCat = perCatAll.slice(0, 8)
-  const maxCat = Math.max(1, ...perCat.map(x => x.tot))
-
-  // Se cambio periodo/gruppo/ricerca e la categoria scelta sparisce, la tolgo.
-  useEffect(() => {
-    if (catFilter && !perCatAll.some(c => c.name === catFilter)) setCatFilter('')
-  }, [catFilter, perCatAll])
-
-  // Sottocategorie disponibili ("Cosa"): i prodotti delle righe Bar/Mangiare
-  // fuori nella selezione corrente, ordinati per numero di spese.
-  const perProd = useMemo(() => {
-    const base = catFilter ? grouped.filter(r => catOf(r) === catFilter) : grouped
-    const m: Record<string, number> = {}
-    base.forEach(r => {
-      if (r.product && (catOf(r) === 'Bar' || catOf(r) === 'Mangiare fuori')) m[r.product] = (m[r.product] || 0) + 1
-    })
-    return Object.entries(m).sort((a, b) => b[1] - a[1]).map(([name]) => name)
-  }, [grouped, catFilter, cats])
-  // Se la sottocategoria scelta sparisce dalla selezione, la tolgo.
-  useEffect(() => {
-    if (prodFilter && !perProd.includes(prodFilter)) setProdFilter('')
-  }, [prodFilter, perProd])
-
-  // Totale per negozio (dove spendi di più, negozio per negozio).
-  const perStore = useMemo(() => {
-    const m: Record<string, number> = {}
-    filtered.forEach(r => { const s = (r.store || '').trim(); if (s) m[s] = (m[s] || 0) + Number(r.amount) })
-    return Object.entries(m).map(([store, tot]) => ({ store, tot })).sort((a, b) => b.tot - a.tot).slice(0, 8)
-  }, [filtered])
-  const maxStore = Math.max(1, ...perStore.map(x => x.tot))
-
-  // Prodotti dove spendi di più: aggrega i dettagli-prodotto delle spese del
-  // periodo (+ gruppo). Fa emergere anche voci insospettabili.
-  const topProducts = useMemo(() => {
-    const scope = new Set(filtered.map(r => r.id))
-    const m: Record<string, number> = {}
-    items.forEach(it => {
-      if (!scope.has(it.expense_id)) return
-      if (q && !strip(it.name).includes(q)) return // in ricerca, solo i prodotti che combaciano
-      const name = it.name.trim(); if (!name) return
-      m[name] = (m[name] || 0) + Number(it.amount)
-    })
-    return Object.entries(m).map(([name, tot]) => ({ name, tot })).sort((a, b) => b.tot - a.tot)
-  }, [items, filtered, q])
-  const maxProduct = Math.max(1, ...topProducts.map(x => x.tot))
-
-  // ---- confronto e andamento (vista Mese) ----
-  // Mese a distanza `offset` dal mese scelto (es. -1 = mese precedente).
   const monthKey = (offset: number) => {
     const [y, mo] = month.split('-').map(Number)
     const d = new Date(y, mo - 1 + offset, 1)
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   }
   const monthLabel = (m: string) => new Date(m + '-01T00:00:00').toLocaleDateString('it-IT', { month: 'long' })
-  // Stesse spese filtrate (ricerca, gruppo, categoria) ma su TUTTI i mesi:
-  // servono per confrontare il mese scelto con i precedenti a parita' di filtri.
-  const filteredAll = rows.filter(r =>
-    (!q || strip(`${r.store || ''} ${r.description || ''} ${r.product || ''}`).includes(q) || itemMatchIds.has(r.id))
-    && (!groupFilter || r.group_id === groupFilter)
-    && (!catFilter || catOf(r) === catFilter)
-    && noCaffe(r) && byProd(r))
-  const chartMonths = [-5, -4, -3, -2, -1, 0].map(off => {
-    const m = monthKey(off)
-    const [s, e] = monthRange(m)
-    return { m, tot: filteredAll.filter(r => r.expense_date >= s && r.expense_date <= e).reduce((sum, r) => sum + Number(r.amount), 0) }
-  })
-  const maxChart = Math.max(1, ...chartMonths.map(x => x.tot))
-  const prevTot = chartMonths[4].tot
-  const diffPct = prevTot > 0 ? Math.round(((totale - prevTot) / prevTot) * 100) : null
-  // Media al giorno e stima di fine mese (solo per il mese in corso).
+
+  const speseMese = useMemo(() => rows.filter(r => r.expense_date.slice(0, 7) === month), [rows, month])
+  const vociMese = useMemo(() => vociDi(speseMese), [speseMese, itemsByExp, cats, groups])
+  const vociPrec = useMemo(() => vociDi(rows.filter(r => r.expense_date.slice(0, 7) === monthKey(-1))), [rows, month, itemsByExp, cats, groups])
+  const totMese = speseMese.reduce((s, r) => s + Number(r.amount), 0)
+
+  // Ritmo e previsione (solo mese corrente)
   const oggi = new Date()
   const isCurrentMonth = month === oggi.toISOString().slice(0, 7)
   const daysInMonth = Number(monthRange(month)[1].slice(-2))
-  const mediaGiorno = totale / (isCurrentMonth ? oggi.getDate() : daysInMonth)
+  const giorniPassati = isCurrentMonth ? oggi.getDate() : daysInMonth
+  const mediaGiorno = totMese / Math.max(1, giorniPassati)
   const previsione = mediaGiorno * daysInMonth
 
-  // ---- budget mensili: speso per nome categoria nel mese scelto (senza
-  // filtri: il budget e' un tetto assoluto, non segue ricerca/gruppo) ----
+  // Linea del mese: spesa cumulata giorno per giorno
+  const sparkline = useMemo(() => {
+    const perGiorno = Array(daysInMonth).fill(0)
+    speseMese.forEach(e => { perGiorno[Number(e.expense_date.slice(-2)) - 1] += Number(e.amount) })
+    let cum = 0
+    const punti = perGiorno.slice(0, giorniPassati).map(x => cum += x)
+    const max = Math.max(1, cum)
+    const W = 340, H = 56
+    return punti.map((p, i) => `${i ? 'L' : 'M'}${(i / Math.max(1, daysInMonth - 1) * W).toFixed(1)},${(H - p / max * H * 0.9).toFixed(1)}`).join(' ')
+  }, [speseMese, daysInMonth, giorniPassati])
+
+  // Tessere: totale per categoria, con confronto sul mese precedente
+  const tessere = useMemo(() => {
+    const cur: Record<string, { tot: number; n: number }> = {}
+    vociMese.forEach(v => { const e = cur[v.cat] || (cur[v.cat] = { tot: 0, n: 0 }); e.tot += v.a; e.n++ })
+    const prev: Record<string, number> = {}
+    vociPrec.forEach(v => { prev[v.cat] = (prev[v.cat] || 0) + v.a })
+    return Object.entries(cur)
+      .map(([cat, e]) => ({ cat, ...e, prev: prev[cat] || 0 }))
+      .sort((a, b) => b.tot - a.tot)
+  }, [vociMese, vociPrec])
+
+  // ---- budget: speso per nome categoria nel mese scelto ----
   const spentByCat = useMemo(() => {
     const m: Record<string, number> = {}
-    periodRows.forEach(r => { const k = catName(r.category_id) || 'Senza categoria'; m[k] = (m[k] || 0) + Number(r.amount) })
+    vociMese.forEach(v => { m[v.cat] = (m[v.cat] || 0) + v.a })
     return m
-  }, [periodRows, cats])
+  }, [vociMese])
   const budgetRows = budgets
     .map(b => ({ b, spent: spentByCat[b.category_name] || 0 }))
     .sort((x, y) => y.spent / y.b.monthly_amount - x.spent / x.b.monthly_amount)
   const budgetColor = (ratio: number) => ratio >= 1 ? '#8C3B2E' : ratio >= 0.9 ? '#B07D4F' : '#5B8A70'
   const catNames = Array.from(new Set(cats.map(c => c.name))).sort()
 
-  // ---- spese fisse del mese: ricorrenti gia' pagate + attese (viste il
-  // mese scorso ma non ancora in questo), col giorno stimato dall'ultima volta ----
+  // ---- spese fisse del mese: ricorrenti gia' pagate + attese ----
   const fisse = useMemo(() => {
-    if (periodMode !== 'mese') return []
     const [ms, me] = monthRange(month)
     const [ps, pe] = monthRange(monthKey(-1))
     const nameOf = (r: Fx) => (r.description || r.product || r.store || 'Ricorrente').trim()
@@ -440,7 +391,6 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       else out.push({ name, tot: Number(r.amount), day: Number(r.expense_date.slice(-2)), paid: true })
       seen.add(k)
     })
-    // rows e' ordinato dal piu' recente: la prima occorrenza e' l'ultima pagata.
     rec.filter(r => r.expense_date >= ps && r.expense_date <= pe).forEach(r => {
       const k = strip(nameOf(r))
       if (seen.has(k)) return
@@ -448,21 +398,123 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       out.push({ name: nameOf(r), tot: Number(r.amount), day: Number(r.expense_date.slice(-2)), paid: false })
     })
     return out.sort((a, b) => a.day - b.day)
-  }, [rows, month, periodMode])
+  }, [rows, month])
   const fisseTot = fisse.reduce((s, x) => s + x.tot, 0)
 
-  // Prodotti seguiti (track_detail): totale del mese per ciascuno.
-  const tracked = useMemo(() => {
-    const keys = rules.filter(r => r.track_detail).map(r => r.keyword)
-    return keys.map(k => {
-      const tot = periodRows
-        .filter(r => strip(`${r.product || ''} ${r.description || ''}`).includes(strip(k)))
-        .reduce((s, r) => s + Number(r.amount), 0)
-      return { k, tot }
-    }).filter(x => x.tot > 0)
-  }, [periodRows, rules])
-
   const catsForGroup = cats.filter(c => c.group_id === form.group_id)
+
+  // ================= 📖 RACCONTO =================
+  const racconto = useMemo(() => {
+    if (!vociMese.length) return null
+    const perCat: Record<string, number> = {}, perG: Record<string, number> = {}, perS: Record<string, number> = {}
+    vociMese.forEach(v => {
+      perCat[v.cat] = (perCat[v.cat] || 0) + v.a
+      perG[v.g] = (perG[v.g] || 0) + v.a
+      if (v.store) { const k = corto(v.store); perS[k] = (perS[k] || 0) + v.a }
+    })
+    const topCat = Object.entries(perCat).sort((a, b) => b[1] - a[1])[0]
+    const topS = Object.entries(perS).sort((a, b) => b[1] - a[1])[0]
+    const topVoce = [...vociMese].sort((a, b) => b.a - a.a)[0]
+    const caffe = vociMese.filter(v => strip(v.n).includes('caffe') || strip(v.n).includes('cappuccino'))
+    const gruppi = Object.entries(perG).sort((a, b) => b[1] - a[1])
+    const prevTot = vociPrec.reduce((s, v) => s + v.a, 0)
+    const diff = prevTot > 0 ? Math.round((totMese - prevTot) / prevTot * 100) : null
+    return { topCat, topS, topVoce, caffe, gruppi, prevTot, diff }
+  }, [vociMese, vociPrec, totMese])
+
+  function apriDettaglio(titolo: string, voci: Voce[]) {
+    setDettaglio({ titolo, voci })
+  }
+
+  // ================= 💬 DOMANDA LIBERA =================
+  function rispondi(q: string): string {
+    const s = strip(q)
+    // Mese: se nominato, cerco l'anno più recente che ha dati
+    let m = month, mLbl = monthLabel(month)
+    for (let i = 0; i < 12; i++) {
+      if (s.includes(MESI[i])) {
+        const mm = String(i + 1).padStart(2, '0')
+        const anni = [...new Set(rows.map(r => r.expense_date.slice(0, 4)))].sort().reverse()
+        m = `${anni[0] || month.slice(0, 4)}-${mm}`
+        for (const y of anni) if (rows.some(r => r.expense_date.startsWith(`${y}-${mm}`))) { m = `${y}-${mm}`; break }
+        mLbl = MESI[i]
+        break
+      }
+    }
+    let v = vociDi(rows.filter(r => r.expense_date.slice(0, 7) === m))
+    if (!v.length) return `A ${mLbl} non trovo spese registrate.`
+    const filtri: string[] = []
+    // Persona/gruppo (prima i nomi più lunghi, così "Matteo e Ania" vince su "Matteo")
+    const gNames = [...groups.map(g => g.name)].sort((a, b) => b.length - a.length)
+    for (const g of gNames) if (s.includes(strip(g))) { v = v.filter(x => x.g === g); filtri.push(g); break }
+    // Categoria
+    const cNames = [...new Set(cats.map(c => c.name))].sort((a, b) => b.length - a.length)
+    for (const c of cNames) if (s.includes(strip(c))) { v = v.filter(x => x.cat === c); filtri.push(c.toLowerCase()); break }
+    // Negozio
+    const negozi = [...new Set(rows.filter(r => r.store).map(r => corto(r.store!)))]
+    for (const n of negozi) if (n.length > 3 && s.includes(strip(n))) { v = v.filter(x => corto(x.store) === n); filtri.push(n); break }
+    // "Dove abbiamo speso di più?"
+    if (s.includes('dove') && s.includes('piu')) {
+      const perS: Record<string, number> = {}, perC: Record<string, number> = {}
+      v.forEach(x => { if (x.store) perS[corto(x.store)] = (perS[corto(x.store)] || 0) + x.a; perC[x.cat] = (perC[x.cat] || 0) + x.a })
+      const ts = Object.entries(perS).sort((a, b) => b[1] - a[1])[0]
+      const tc = Object.entries(perC).sort((a, b) => b[1] - a[1])[0]
+      return `A ${mLbl} la voce più pesante è ${tc[0].toLowerCase()} (${eur(tc[1])})${ts ? ` e il negozio dove avete speso di più è ${ts[0]} (${eur(ts[1])})` : ''}.`
+    }
+    // Prodotto: parole della domanda cercate dentro i nomi delle voci
+    if (!filtri.some(f => !groups.some(g => g.name === f))) {
+      const parole = s.replace(/[?.,!]/g, ' ').split(/\s+/).filter(w => w.length > 3
+        && !['quanto', 'quanti', 'quante', 'questo', 'mese', 'speso', 'spesa', 'spese', 'abbiamo', 'comprato', 'cosa', 'della', 'dello', 'delle', ...MESI].includes(w))
+      for (const w of parole) {
+        const match = v.filter(x => strip(x.n).includes(w))
+        if (match.length) { v = match; filtri.push(w); break }
+      }
+    }
+    if (!v.length) return `A ${mLbl} non trovo niente per «${q.trim()}».`
+    const tot = v.reduce((sum, x) => sum + x.a, 0)
+    const top = [...v].sort((a, b) => b.a - a.a).slice(0, 3).map(x => `${x.n} (${eur2(x.a)})`).join(', ')
+    const cosa = filtri.length ? filtri.join(' · ') : 'in totale'
+    return `A ${mLbl}, ${cosa}: ${eur2(tot)} in ${v.length} ${v.length === 1 ? 'voce' : 'voci'}.${v.length > 1 ? ` Le più grosse: ${top}.` : ''}`
+  }
+  function chiedi(q: string) {
+    if (!q.trim()) return
+    setChat(prev => [...prev, { io: true, t: q.trim() }, { io: false, t: rispondi(q) }])
+    setDomanda('')
+  }
+  const DOMANDE_VELOCI = ambito === 'personale'
+    ? ['Quanto in bar questo mese?', 'Cosa ha comprato Matteo?', 'Dove abbiamo speso di più?', 'Quanto da Esselunga?']
+    : ['Dove abbiamo speso di più?', 'Quanto in detersivi questo mese?', 'Quanto in sacchetti?']
+
+  // ================= 📅 CALENDARIO =================
+  const perGiorno = useMemo(() => {
+    const m: Record<number, number> = {}
+    speseMese.forEach(e => { const g = Number(e.expense_date.slice(-2)); m[g] = (m[g] || 0) + Number(e.amount) })
+    return m
+  }, [speseMese])
+
+  function cambiaMese(delta: number) {
+    setMonth(monthKey(delta)); setDettaglio(null); setGiornoSel(''); setShowAll(false)
+  }
+  function cambiaTab(t: Tab) {
+    setTab(t); setDettaglio(null); setGiornoSel(''); setShowAll(false)
+  }
+
+  // Lista di voci (usata da tessere, racconto, calendario)
+  function ListaVoci({ voci, max }: { voci: Voce[]; max?: number }) {
+    const el = [...voci].sort((a, b) => b.a - a.a).slice(0, max || 999)
+    return (
+      <div className="bg-white rounded-xl p-3 border border-card-border mb-3">
+        {el.map((v, i) => (
+          <div key={i} className="flex items-start justify-between gap-2 py-2 border-b border-[#F1EEE6] last:border-b-0 text-sm">
+            <span className="flex-1 min-w-0">{v.n}
+              <br /><span className="text-xs text-gray-400">{[corto(v.store), groups.length > 1 ? v.g : ''].filter(Boolean).join(' · ')} · {v.d.slice(-2)} {monthLabel(v.d.slice(0, 7)).slice(0, 3)}</span>
+            </span>
+            <span className="font-bold text-[#8C3B2E] shrink-0">{eur2(v.a)}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   if (needsSetup) return (
     <div className="p-4">
@@ -618,387 +670,336 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
         </div>
       )}
 
-      {/* CARD FILTRI: periodo, ricerca, di chi, per cosa — tutto in un posto solo */}
-      <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-        <div className="bg-white rounded-xl px-4 py-2.5 border border-card-border text-center mb-2">
-          <p className="text-base text-gray-500">{[groupFilter ? groupName(groupFilter) : '', catFilter, prodFilter, senzaCaffe && catFilter === 'Mangiare fuori' ? 'senza caffè' : ''].filter(Boolean).join(' · ') || 'Totale'}</p>
-          <p className="font-serif text-4xl text-[#8C3B2E]">{eur(totale)}</p>
-          {/* Confronto col mese precedente, a parita' di filtri */}
-          {periodMode === 'mese' && diffPct !== null && (
-            diffPct === 0
-              ? <p className="text-sm text-gray-500">≈ come a {monthLabel(monthKey(-1))} ({eur(prevTot)})</p>
-              : <p className="text-sm" style={{ color: diffPct < 0 ? '#2D6A4F' : '#8C3B2E' }}>
-                  {diffPct < 0 ? '▼' : '▲'} {Math.abs(diffPct)}% in {diffPct < 0 ? 'meno' : 'più'} di {monthLabel(monthKey(-1))} ({eur(prevTot)})
-                </p>
-          )}
-          {periodMode === 'mese' && totale > 0 && (
-            <p className="text-xs text-gray-400 mt-0.5">
-              Media {eur(mediaGiorno)} al giorno{isCurrentMonth ? ` · a fine mese ~ ${eur(previsione)}` : ''}
-            </p>
-          )}
-          {/* Andamento degli ultimi 6 mesi: tocca una barra per andare a quel mese */}
-          {periodMode === 'mese' && chartMonths.some(x => x.tot > 0) && (
-            <div className="mt-2">
-              <div className="flex items-end gap-1.5 h-14">
-                {chartMonths.map(({ m, tot }) => (
-                  <button key={m} onClick={() => setMonth(m)} aria-label={`${monthLabel(m)}: ${eur(tot)}`}
-                    className="flex-1 flex flex-col justify-end h-full">
-                    <div className="w-full rounded-t transition-all"
-                      style={{ height: `${tot > 0 ? Math.max(5, (tot / maxChart) * 100) : 0}%`, background: m === month ? ACCENT : BAR_COLOR }} />
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-1.5 text-[10px] text-gray-400">
-                {chartMonths.map(({ m }) => <span key={m} className="flex-1 text-center">{monthLabel(m).slice(0, 3)}</span>)}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1 mb-1">
-          {([['mese', 'Mese'], ['settimana', 'Settimana'], ['anno', 'Anno'], ['intervallo', 'Dal–al']] as const).map(([m, label]) => (
-            <button key={m} onClick={() => setPeriodMode(m)}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${periodMode === m ? 'text-white border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
-              style={periodMode === m ? { background: ACCENT } : {}}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {periodMode === 'mese' && (
-            <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-              className="border border-card-border rounded-lg p-2 text-sm w-auto" />
-          )}
-          {periodMode === 'settimana' && (
-            <>
-              <span className="text-sm text-gray-500">Settimana dal</span>
-              <input type="date" value={weekAnchor} onChange={e => setWeekAnchor(e.target.value)}
-                className="border border-card-border rounded-lg p-2 text-sm w-auto" />
-              <span className="text-xs text-gray-400">{periodStart} → {periodEnd}</span>
-            </>
-          )}
-          {periodMode === 'anno' && (
-            <>
-              <span className="text-sm text-gray-500">Anno</span>
-              <input type="number" value={year} onChange={e => setYear(e.target.value)} min="2024" max="2099" step="1"
-                className="border border-card-border rounded-lg p-2 text-sm w-24" />
-            </>
-          )}
-          {periodMode === 'intervallo' && (
-            <>
-              <span className="text-sm text-gray-500">Dal</span>
-              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-                className="border border-card-border rounded-lg p-2 text-sm w-auto" />
-              <span className="text-sm text-gray-500">al</span>
-              <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-                className="border border-card-border rounded-lg p-2 text-sm w-auto" />
-            </>
-          )}
-        </div>
-
-        <div className="relative mt-2">
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="🔍 Cerca negozio o prodotto (es. Esselunga, bagnoschiuma)"
-            className="w-full border border-card-border rounded-lg p-2 pr-8 text-sm" />
-          {search && (
-            <button onClick={() => setSearch('')} aria-label="Pulisci ricerca"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">✕</button>
-          )}
-        </div>
-
-        {/* DI CHI (gruppi) */}
-        {!loading && groups.length > 0 && (
-          <>
-            <p className="text-[10px] uppercase tracking-[1.5px] text-brass mt-3 mb-1.5">Di chi</p>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
-              <button onClick={() => setGroupFilter('')}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${groupFilter === '' ? 'text-white border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
-                style={groupFilter === '' ? { background: ACCENT } : {}}>
-                Tutti
-              </button>
-              {groups.map(g => {
-                const on = groupFilter === g.id
-                return (
-                  <button key={g.id} onClick={() => setGroupFilter(on ? '' : g.id)}
-                    className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${on ? 'text-white border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
-                    style={on ? { background: GROUP_COLORS[g.name] || FALLBACK_COLOR } : {}}>
-                    {g.name}
-                  </button>
-                )
-              })}
-            </div>
-          </>
-        )}
-
-        {/* PER COSA (categorie, per nome: seguono il gruppo selezionato) */}
-        {!loading && perCatAll.length > 0 && (
-          <>
-            <p className="text-[10px] uppercase tracking-[1.5px] text-brass mt-2 mb-1.5">Per cosa</p>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
-              <button onClick={() => { setCatFilter(''); setProdFilter('') }}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${catFilter === '' ? 'text-white border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
-                style={catFilter === '' ? { background: ACCENT } : {}}>
-                Tutte le voci
-              </button>
-              {perCatByUse.map(({ name }) => {
-                const on = catFilter === name
-                return (
-                  <Fragment key={name}>
-                    <button onClick={() => setCatFilter(on ? '' : name)}
-                      className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${on ? 'border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
-                      style={on ? { background: BAR_COLOR, color: '#4A2E1B' } : {}}>
-                      {name}
-                    </button>
-                    {name === 'Mangiare fuori' && on && (
-                      <button onClick={() => setSenzaCaffe(v => !v)}
-                        className={`chip-in shrink-0 rounded-full px-3 py-1.5 text-sm border transition-transform duration-100 active:scale-[0.97] ${senzaCaffe ? 'text-white border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
-                        style={senzaCaffe ? { background: ACCENT } : {}}>
-                        ☕ senza caffè
-                      </button>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </div>
-          </>
-        )}
-
-        {/* COSA (sottocategorie: i prodotti scorporati, es. Caffè/Cappuccino/Brioche) */}
-        {!loading && perProd.length > 0 && (
-          <div className="chip-in">
-            <p className="text-[10px] uppercase tracking-[1.5px] text-brass mt-2 mb-1.5">Cosa</p>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
-              <button onClick={() => setProdFilter('')}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${prodFilter === '' ? 'text-white border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
-                style={prodFilter === '' ? { background: ACCENT } : {}}>
-                Tutto
-              </button>
-              {perProd.map(name => {
-                const on = prodFilter === name
-                return (
-                  <button key={name} onClick={() => setProdFilter(on ? '' : name)}
-                    className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition-transform duration-100 active:scale-[0.97] ${on ? 'border-transparent' : 'bg-[#FBF9F4] text-gray-600 border-card-border'}`}
-                    style={on ? { background: BAR_COLOR, color: '#4A2E1B' } : {}}>
-                    {name === 'Caffè' ? '☕ Caffè' : name}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
+      {/* LE 4 SCHEDE */}
+      <div className="flex gap-1.5 bg-sand rounded-xl p-1 mb-3">
+        {([['home', '🏠', 'Home'], ['calendario', '📅', 'Calendario'], ['racconto', '📖', 'Racconto'], ['domanda', '💬', 'Domanda']] as const).map(([t, ic, label]) => (
+          <button key={t} onClick={() => cambiaTab(t)}
+            className={`flex-1 rounded-lg py-1.5 text-xs leading-tight transition ${tab === t ? 'bg-white text-green-mid font-bold shadow-sm' : 'text-gray-500'}`}>
+            {ic}<br />{label}
+          </button>
+        ))}
       </div>
 
-      {/* BUDGET MENSILI PER CATEGORIA (solo vista Mese) */}
-      {!loading && periodMode === 'mese' && budgetsOk && (
-        <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Budget di {monthLabel(month)}</p>
-            <button onClick={() => setShowBudgetForm(!showBudgetForm)}
-              className="text-xs text-brass font-semibold">{showBudgetForm ? '✕ Chiudi' : '＋ Budget'}</button>
-          </div>
-          {showBudgetForm && (
-            <div className="flex gap-2 mb-3">
-              <select value={budgetForm.category_name} onChange={e => setBudgetForm({ ...budgetForm, category_name: e.target.value })}
-                className="flex-1 border border-card-border rounded-lg p-2 text-sm min-w-0">
-                <option value="">Categoria…</option>
-                {catNames.map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
-              <input inputMode="decimal" value={budgetForm.amount} onChange={e => setBudgetForm({ ...budgetForm, amount: e.target.value })}
-                placeholder="€ al mese" className="w-24 border border-card-border rounded-lg p-2 text-sm" />
-              <button onClick={saveBudget} disabled={!budgetForm.category_name || !budgetForm.amount}
-                className="bg-green-mid text-white rounded-lg px-3 text-sm font-semibold disabled:opacity-50">OK</button>
-            </div>
-          )}
-          {budgetRows.length === 0 && !showBudgetForm && (
-            <p className="text-sm text-gray-400">Nessun budget impostato: tocca ＋ per dare un tetto a una voce (es. Mangiare fuori).</p>
-          )}
-          <div className="flex flex-col gap-2.5">
-            {budgetRows.map(({ b, spent }) => {
-              const ratio = spent / Number(b.monthly_amount)
-              return (
-                <button key={b.id} onClick={() => editBudget(b)} className="text-left">
-                  <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="text-green-dark">{b.category_name}</span>
-                    <span className="font-semibold" style={{ color: budgetColor(ratio) }}>
-                      {eur(spent)} su {eur(Number(b.monthly_amount))}{ratio >= 1 ? ' — superato' : ''}
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, ratio * 100)}%`, background: budgetColor(ratio) }} />
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* SPESE FISSE DEL MESE (ricorrenti: pagate ✓ e attese ~) */}
-      {!loading && periodMode === 'mese' && fisse.length > 0 && (
-        <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Spese fisse del mese</p>
-            <span className="font-serif text-lg text-[#8C3B2E]">{eur(fisseTot)}</span>
-          </div>
-          <div className="flex flex-col">
-            {fisse.map(f => (
-              <div key={f.name} className="flex items-center justify-between text-sm py-1.5 border-b border-[#F1EEE6] last:border-b-0">
-                <span className="text-green-dark truncate mr-2">🔁 {f.name}</span>
-                <span className="shrink-0 text-gray-400">
-                  {f.paid
-                    ? <span><span className="text-green-mid">✓</span> {f.day} {monthLabel(month).slice(0, 3)} · <span className="text-gray-600 font-semibold">{eur2(f.tot)}</span></span>
-                    : <span>~ {f.day} {monthLabel(month).slice(0, 3)} · {eur2(f.tot)}</span>}
-                </span>
-              </div>
-            ))}
-          </div>
-          {fisse.some(f => !f.paid) && (
-            <p className="text-[11px] text-gray-400 mt-2">~ = attesa: vista il mese scorso ma non ancora registrata questo mese.</p>
-          )}
+      {/* Mese scelto (non serve nella Domanda: lì si chiede a parole) */}
+      {tab !== 'domanda' && (
+        <div className="flex items-center justify-center gap-4 mb-3">
+          <button onClick={() => cambiaMese(-1)} aria-label="Mese precedente"
+            className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">‹</button>
+          <span className="font-serif text-base text-green-dark capitalize min-w-[130px] text-center">
+            {new Date(month + '-01T00:00:00').toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
+          </span>
+          <button onClick={() => cambiaMese(1)} aria-label="Mese successivo"
+            className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">›</button>
         </div>
       )}
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento…</div>
-      ) : (
-        <>
-          {periodRows.length === 0 ? (
-            <div className="text-center py-10 text-gray-400">Nessuna spesa in questo periodo</div>
-          ) : (
-            <>
-              {/* DASHBOARD: per gruppo */}
-              {!q && !groupFilter && perGroup.length > 0 && (
-                <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Dove va la spesa</p>
-                  <div className="flex flex-col gap-2.5">
-                    {perGroup.map(({ g, tot }) => (
-                      <button key={g.id} onClick={() => setGroupFilter(g.id)} className="text-left">
-                        <div className="flex items-center justify-between text-sm mb-1">
-                          <span className="text-green-dark">{g.name}</span>
-                          <span className="font-semibold" style={{ color: GROUP_COLORS[g.name] || FALLBACK_COLOR }}>{eur(tot)}</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${(tot / maxGroup) * 100}%`, background: GROUP_COLORS[g.name] || FALLBACK_COLOR }} />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+      ) : tab === 'home' ? (
+        /* ================= 🏠 HOME ================= */
+        speseMese.length === 0 ? (
+          <div className="text-center py-10 text-gray-400">Nessuna spesa in questo mese</div>
+        ) : (
+          <>
+            {/* Speso del mese + ritmo + linea */}
+            <div className="bg-white rounded-xl p-4 border border-card-border mb-3 text-center">
+              <p className="text-xs text-gray-400">Speso a {monthLabel(month)}</p>
+              <p className="font-serif text-4xl text-[#8C3B2E]">{eur(totMese)}</p>
+              {isCurrentMonth && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {eur(mediaGiorno)} al giorno · di questo passo ~ <b className="text-[#8C3B2E]">{eur(previsione)}</b> a fine mese
+                </p>
               )}
-
-              {/* DASHBOARD: per categoria */}
-              {!q && perCat.length > 0 && (
-                <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Voci dove spendi di più</p>
-                  <div className="flex flex-col gap-2.5">
-                    {perCat.map(({ name, tot }) => (
-                      <button key={name} onClick={() => setCatFilter(catFilter === name ? '' : name)}
-                        className={`text-left transition ${catFilter && catFilter !== name ? 'opacity-40' : ''}`}>
-                        <div className="flex items-center justify-between text-sm mb-1">
-                          <span className="text-green-dark">{name}</span>
-                          <span className="font-semibold text-[#8C3B2E]">{eur(tot)}</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${(tot / maxCat) * 100}%`, background: BAR_COLOR }} />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* PRODOTTI DOVE SPENDI DI PIÙ (dal dettaglio scontrini) */}
-              {topProducts.length > 0 && (
-                <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Prodotti dove spendi di più</p>
-                  <div className="flex flex-col gap-2.5">
-                    {(showAllProducts ? topProducts : topProducts.slice(0, 10)).map(({ name, tot }) => (
-                      <button key={name} onClick={() => setSearch(name)} className="text-left">
-                        <div className="flex items-center justify-between text-sm mb-1">
-                          <span className="text-green-dark capitalize">{name}</span>
-                          <span className="font-semibold text-[#8C3B2E]">{eur2(tot)}</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${(tot / maxProduct) * 100}%`, background: '#7FA88F' }} />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  {topProducts.length > 10 && (
-                    <button onClick={() => setShowAllProducts(!showAllProducts)}
-                      className="mt-3 text-xs text-brass font-semibold">
-                      {showAllProducts ? 'Mostra meno' : `Vedi tutti i ${topProducts.length} prodotti →`}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* DASHBOARD: per negozio */}
-              {perStore.length > 0 && (
-                <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Per negozio</p>
-                  <div className="flex flex-col gap-2.5">
-                    {perStore.map(({ store, tot }) => (
-                      <button key={store} onClick={() => setSearch(store)} className="text-left">
-                        <div className="flex items-center justify-between text-sm mb-1">
-                          <span className="text-green-dark">{store}</span>
-                          <span className="font-semibold text-[#8C3B2E]">{eur(tot)}</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${(tot / maxStore) * 100}%`, background: '#8AA1B8' }} />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* PRODOTTI SEGUITI */}
-              {tracked.length > 0 && (
-                <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Prodotti seguiti</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {tracked.map(({ k, tot }) => (
-                      <div key={k} className="bg-sand rounded-lg px-3 py-2">
-                        <p className="text-xs text-gray-500 capitalize">{k}</p>
-                        <p className="font-serif text-lg text-green-dark">{eur2(tot)}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* ELENCO — dalla spesa più vecchia alla più recente */}
-              <div className="flex flex-col gap-2">
-                {[...filtered].sort((a, b) => a.expense_date.localeCompare(b.expense_date)).map(r => (
-                  <div key={r.id} className="bg-white rounded-xl p-3 border border-card-border flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {r.group_id && (
-                          <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ background: colorOf(r.group_id) }}>
-                            {groupName(r.group_id)}
-                          </span>
-                        )}
-                        {r.category_id && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{catName(r.category_id)}</span>}
-                        {r.recurring && <span className="text-xs bg-sage text-green-mid px-2 py-0.5 rounded-full">🔁</span>}
-                        {r.receipt_id && (
-                          <button onClick={() => openReceiptPhoto(r.receipt_id!)}
-                            className="text-xs bg-sand text-[#7A5C1E] px-2 py-0.5 rounded-full">🧾 foto</button>
-                        )}
-                      </div>
-                      <p className="text-sm mt-1 truncate">{r.description || '—'}{r.store ? <span className="text-gray-400"> · {r.store}</span> : null}</p>
-                      <p className="text-xs text-gray-400">{r.expense_date}</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <p className="font-bold text-[#8C3B2E]">{eur2(Number(r.amount))}</p>
-                      <button onClick={() => del(r.id)} className="text-gray-300 hover:text-[#8C3B2E] text-lg">✕</button>
-                    </div>
-                  </div>
-                ))}
+              <svg viewBox="0 0 340 56" className="w-full h-[48px] mt-2">
+                <path d={sparkline} fill="none" stroke={ACCENT} strokeWidth="2.5" strokeLinecap="round" />
+              </svg>
+              <div className="flex justify-between text-[10px] text-gray-400">
+                <span>1</span><span className="capitalize">{monthLabel(month)}</span><span>{daysInMonth}</span>
               </div>
-            </>
-          )}
+            </div>
+
+            {/* Tessere categoria */}
+            <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Le tue voci · tocca per il dettaglio</p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {tessere.map(t => (
+                <button key={t.cat}
+                  onClick={() => apriDettaglio(`${icona(t.cat)} ${t.cat} · ${eur(t.tot)}`, vociMese.filter(v => v.cat === t.cat))}
+                  className="bg-white rounded-xl p-3 border border-card-border text-left transition active:scale-[0.98]">
+                  <p className="text-xl">{icona(t.cat)}</p>
+                  <p className="text-xs text-green-dark mt-0.5">{t.cat}</p>
+                  <p className="font-serif text-lg text-[#8C3B2E]">
+                    {eur(t.tot)}{' '}
+                    <span className="text-xs">
+                      {t.prev > 0 && (t.tot > t.prev * 1.1 ? <span className="text-[#8C3B2E]">▲</span>
+                        : t.tot < t.prev * 0.9 ? <span className="text-green-mid">▼</span> : <span className="text-gray-400">≈</span>)}
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-gray-400">{t.n} {t.n === 1 ? 'voce' : 'voci'}</p>
+                </button>
+              ))}
+            </div>
+
+            {/* Dettaglio tessera aperta */}
+            {dettaglio && (
+              <>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass">{dettaglio.titolo}</p>
+                  <button onClick={() => setDettaglio(null)} className="text-xs text-[#8C3B2E] font-semibold">✕ chiudi</button>
+                </div>
+                <ListaVoci voci={dettaglio.voci} />
+              </>
+            )}
+
+            {/* BUDGET MENSILI PER CATEGORIA */}
+            {budgetsOk && (
+              <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Budget di {monthLabel(month)}</p>
+                  <button onClick={() => setShowBudgetForm(!showBudgetForm)}
+                    className="text-xs text-brass font-semibold">{showBudgetForm ? '✕ Chiudi' : '＋ Budget'}</button>
+                </div>
+                {showBudgetForm && (
+                  <div className="flex gap-2 mb-3">
+                    <select value={budgetForm.category_name} onChange={e => setBudgetForm({ ...budgetForm, category_name: e.target.value })}
+                      className="flex-1 border border-card-border rounded-lg p-2 text-sm min-w-0">
+                      <option value="">Categoria…</option>
+                      {catNames.map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                    <input inputMode="decimal" value={budgetForm.amount} onChange={e => setBudgetForm({ ...budgetForm, amount: e.target.value })}
+                      placeholder="€ al mese" className="w-24 border border-card-border rounded-lg p-2 text-sm" />
+                    <button onClick={saveBudget} disabled={!budgetForm.category_name || !budgetForm.amount}
+                      className="bg-green-mid text-white rounded-lg px-3 text-sm font-semibold disabled:opacity-50">OK</button>
+                  </div>
+                )}
+                {budgetRows.length === 0 && !showBudgetForm && (
+                  <p className="text-sm text-gray-400">Nessun budget impostato: tocca ＋ per dare un tetto a una voce (es. Mangiare fuori).</p>
+                )}
+                <div className="flex flex-col gap-2.5">
+                  {budgetRows.map(({ b, spent }) => {
+                    const ratio = spent / Number(b.monthly_amount)
+                    return (
+                      <button key={b.id} onClick={() => editBudget(b)} className="text-left">
+                        <div className="flex items-center justify-between text-sm mb-1">
+                          <span className="text-green-dark">{b.category_name}</span>
+                          <span className="font-semibold" style={{ color: budgetColor(ratio) }}>
+                            {eur(spent)} su {eur(Number(b.monthly_amount))}{ratio >= 1 ? ' — superato' : ''}
+                          </span>
+                        </div>
+                        <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, ratio * 100)}%`, background: budgetColor(ratio) }} />
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* SPESE FISSE DEL MESE */}
+            {fisse.length > 0 && (
+              <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Spese fisse del mese</p>
+                  <span className="font-serif text-lg text-[#8C3B2E]">{eur(fisseTot)}</span>
+                </div>
+                <div className="flex flex-col">
+                  {fisse.map(f => (
+                    <div key={f.name} className="flex items-center justify-between text-sm py-1.5 border-b border-[#F1EEE6] last:border-b-0">
+                      <span className="text-green-dark truncate mr-2">🔁 {f.name}</span>
+                      <span className="shrink-0 text-gray-400">
+                        {f.paid
+                          ? <span><span className="text-green-mid">✓</span> {f.day} {monthLabel(month).slice(0, 3)} · <span className="text-gray-600 font-semibold">{eur2(f.tot)}</span></span>
+                          : <span>~ {f.day} {monthLabel(month).slice(0, 3)} · {eur2(f.tot)}</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {fisse.some(f => !f.paid) && (
+                  <p className="text-[11px] text-gray-400 mt-2">~ = attesa: vista il mese scorso ma non ancora registrata questo mese.</p>
+                )}
+              </div>
+            )}
+
+            {/* ULTIME SPESE + elenco completo */}
+            <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">{showAll ? `Tutte le spese di ${monthLabel(month)}` : 'Ultime spese'}</p>
+            <div className="flex flex-col gap-2">
+              {(showAll ? [...speseMese] : [...speseMese].slice(0, 5)).map(r => (
+                <div key={r.id} className="bg-white rounded-xl p-3 border border-card-border flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {r.group_id && groups.length > 1 && (
+                        <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ background: colorOf(r.group_id) }}>
+                          {groupName(r.group_id)}
+                        </span>
+                      )}
+                      {r.category_id && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{icona(catName(r.category_id))} {catName(r.category_id)}</span>}
+                      {r.recurring && <span className="text-xs bg-sage text-green-mid px-2 py-0.5 rounded-full">🔁</span>}
+                      {r.receipt_id && (
+                        <button onClick={() => openReceiptPhoto(r.receipt_id!)}
+                          className="text-xs bg-sand text-[#7A5C1E] px-2 py-0.5 rounded-full">🧾 foto</button>
+                      )}
+                    </div>
+                    <p className="text-sm mt-1 truncate">{r.description || '—'}{r.store ? <span className="text-gray-400"> · {r.store}</span> : null}</p>
+                    <p className="text-xs text-gray-400">{r.expense_date}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <p className="font-bold text-[#8C3B2E]">{eur2(Number(r.amount))}</p>
+                    <button onClick={() => del(r.id)} className="text-gray-300 hover:text-[#8C3B2E] text-lg">✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {speseMese.length > 5 && (
+              <button onClick={() => setShowAll(!showAll)} className="mt-3 text-xs text-brass font-semibold">
+                {showAll ? 'Mostra meno' : `Vedi tutte le ${speseMese.length} spese →`}
+              </button>
+            )}
+          </>
+        )
+      ) : tab === 'calendario' ? (
+        /* ================= 📅 CALENDARIO ================= */
+        <>
+          <div className="bg-white rounded-xl p-4 border border-card-border mb-3 text-center">
+            <p className="font-serif text-4xl text-[#8C3B2E]">{eur(totMese)}</p>
+            <p className="text-xs text-gray-400">{Object.keys(perGiorno).length} giorni con spese</p>
+          </div>
+          <div className="bg-white rounded-xl p-3 border border-card-border mb-3">
+            <div className="grid grid-cols-7 gap-1.5">
+              {['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'].map(d => (
+                <div key={d} className="text-center text-[10px] uppercase text-brass py-0.5">{d}</div>
+              ))}
+              {Array.from({ length: (new Date(Number(month.slice(0, 4)), Number(month.slice(5)) - 1, 1).getDay() + 6) % 7 }).map((_, i) => <div key={'v' + i} />)}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const g = i + 1
+                const sp = perGiorno[g]
+                const gs = `${month}-${String(g).padStart(2, '0')}`
+                const max = Math.max(1, ...Object.values(perGiorno))
+                if (!sp) return (
+                  <div key={g} className="aspect-square rounded-lg border border-dashed border-card-border flex items-center justify-center text-xs text-gray-300">{g}</div>
+                )
+                const t = sp / max
+                const bg = t > 0.66 ? '#E5B8A6' : t > 0.33 ? '#F0D4C4' : '#F8EADF'
+                return (
+                  <button key={g} onClick={() => { setGiornoSel(giornoSel === gs ? '' : gs); setDettaglio(null) }}
+                    className="aspect-square rounded-lg border flex flex-col items-center justify-center transition active:scale-[0.93]"
+                    style={{ background: bg, borderColor: giornoSel === gs ? ACCENT : 'transparent', borderWidth: giornoSel === gs ? 2 : 1 }}>
+                    <span className="text-xs font-semibold text-green-dark">{g}</span>
+                    <span className="text-[9px] font-bold text-[#8C3B2E]">{eur(sp)}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-2">Più il giorno è scuro, più avete speso. Toccane uno.</p>
+          </div>
+          {giornoSel && (() => {
+            const v = vociDi(rows.filter(r => r.expense_date === giornoSel))
+            if (!v.length) return null
+            return (
+              <>
+                <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5 capitalize">
+                  {new Date(giornoSel + 'T00:00:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })} · {eur2(v.reduce((s, x) => s + x.a, 0))}
+                </p>
+                <ListaVoci voci={v} />
+              </>
+            )
+          })()}
+        </>
+      ) : tab === 'racconto' ? (
+        /* ================= 📖 RACCONTO ================= */
+        !racconto ? (
+          <div className="text-center py-10 text-gray-400">Nessuna spesa da raccontare questo mese</div>
+        ) : (
+          <>
+            <div className="bg-white rounded-xl p-4 border border-card-border mb-3 text-[15px] leading-relaxed text-green-dark">
+              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-2">Il racconto di {monthLabel(month)}</p>
+              <p>
+                Questo mese avete speso{' '}
+                <button onClick={() => apriDettaglio(`Tutte le voci · ${eur(totMese)}`, vociMese)}
+                  className="inline font-bold text-[#8C3B2E] border-b-2 border-dotted border-[#D2A98C]">{eur(totMese)}</button>
+                {racconto.diff !== null && (racconto.diff <= 0
+                  ? <>, il <span className="text-green-mid font-semibold">{Math.abs(racconto.diff)}% in meno</span> di {monthLabel(monthKey(-1))} 👏</>
+                  : <>, il <span className="text-[#8C3B2E] font-semibold">{racconto.diff}% in più</span> di {monthLabel(monthKey(-1))}</>)}.{' '}
+                La voce più pesante è stata{' '}
+                <button onClick={() => apriDettaglio(`${icona(racconto.topCat[0])} ${racconto.topCat[0]} · ${eur(racconto.topCat[1])}`, vociMese.filter(v => v.cat === racconto.topCat[0]))}
+                  className="inline font-bold text-[#8C3B2E] border-b-2 border-dotted border-[#D2A98C]">{racconto.topCat[0].toLowerCase()} ({eur(racconto.topCat[1])})</button>
+                {racconto.topS && <>, e il negozio dove avete lasciato di più è{' '}
+                  <button onClick={() => apriDettaglio(`🏪 ${racconto.topS[0]} · ${eur(racconto.topS[1])}`, vociMese.filter(v => corto(v.store) === racconto.topS[0]))}
+                    className="inline font-bold text-[#8C3B2E] border-b-2 border-dotted border-[#D2A98C]">{racconto.topS[0]} ({eur(racconto.topS[1])})</button></>}.
+              </p>
+              <p className="mt-2">
+                L&apos;acquisto singolo più caro: <b className="text-[#8C3B2E]">{racconto.topVoce.n} ({eur2(racconto.topVoce.a)})</b>.
+                {racconto.caffe.length > 0 && <>{' '}E il rito del bar?{' '}
+                  <button onClick={() => apriDettaglio(`☕ Caffè e cappuccini · ${eur2(racconto.caffe.reduce((s, v) => s + v.a, 0))}`, racconto.caffe)}
+                    className="inline font-bold text-[#8C3B2E] border-b-2 border-dotted border-[#D2A98C]">
+                    {racconto.caffe.length} caffè e cappuccini, {eur2(racconto.caffe.reduce((s, v) => s + v.a, 0))}</button> ☕</>}
+              </p>
+            </div>
+
+            {groups.length > 1 && (
+              <div className="bg-white rounded-xl p-4 border border-card-border mb-3">
+                <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Chi ha speso cosa</p>
+                <div className="flex flex-col gap-2.5">
+                  {racconto.gruppi.map(([g, tot]) => (
+                    <button key={g} onClick={() => apriDettaglio(`${g} · ${eur(tot)}`, vociMese.filter(v => v.g === g))} className="text-left">
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-green-dark">{g}</span>
+                        <span className="font-semibold" style={{ color: GROUP_COLORS[g] || FALLBACK_COLOR }}>{eur(tot)}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${(tot / Math.max(1, racconto.gruppi[0][1])) * 100}%`, background: GROUP_COLORS[g] || FALLBACK_COLOR }} />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {dettaglio ? (
+              <>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass">{dettaglio.titolo}</p>
+                  <button onClick={() => setDettaglio(null)} className="text-xs text-[#8C3B2E] font-semibold">✕ chiudi</button>
+                </div>
+                <ListaVoci voci={dettaglio.voci} max={15} />
+              </>
+            ) : (
+              <p className="text-xs text-gray-400 text-center">Tocca i numeri sottolineati per vedere il dettaglio.</p>
+            )}
+          </>
+        )
+      ) : (
+        /* ================= 💬 DOMANDA LIBERA ================= */
+        <>
+          <div className="flex flex-col gap-2.5 mb-3">
+            {chat.length === 0 && (
+              <div className="self-start max-w-[88%] bg-white border border-card-border rounded-2xl rounded-bl-md px-4 py-2.5 text-sm leading-relaxed">
+                Chiedimi quello che vuoi sulle vostre spese: una persona, una voce, un negozio, un mese… anche insieme. 💬
+              </div>
+            )}
+            {chat.map((b, i) => (
+              <div key={i} className={b.io
+                ? 'self-end max-w-[88%] bg-green-mid text-white rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed'
+                : 'self-start max-w-[88%] bg-white border border-card-border rounded-2xl rounded-bl-md px-4 py-2.5 text-sm leading-relaxed'}>
+                {b.t}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1 mb-2">
+            {DOMANDE_VELOCI.map(q => (
+              <button key={q} onClick={() => chiedi(q)}
+                className="shrink-0 rounded-full px-3 py-1.5 text-sm border bg-white text-green-mid border-card-border transition active:scale-[0.97]">
+                {q}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input value={domanda} onChange={e => setDomanda(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') chiedi(domanda) }}
+              placeholder="Scrivi (o detta) la domanda…"
+              className="flex-1 border border-card-border rounded-xl p-2.5 text-sm bg-white" />
+            <button onClick={() => chiedi(domanda)} disabled={!domanda.trim()}
+              className="bg-green-mid text-white rounded-xl px-4 font-bold disabled:opacity-40">➤</button>
+          </div>
         </>
       )}
     </div>
