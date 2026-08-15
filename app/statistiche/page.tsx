@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import BackBar from '@/components/BackBar'
+import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
 
 function fmt(n: number) { return n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 
@@ -376,38 +377,47 @@ export default function Statistiche() {
             </div>
           )}
 
-          {/* Camera del mese: la migliore di ogni mese + media mensile per camera */}
-          {roomStats && (
-            <div className="bg-white rounded-xl p-4 border border-card-border mt-4">
-              <p className="text-sm font-semibold text-gray-600">Camera del mese</p>
-              <p className="text-xs text-gray-400 mb-3">la camera che ha incassato di più, mese per mese</p>
-              <div className="rounded-lg border border-card-border overflow-hidden">
-                <div className="grid grid-cols-3 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500">
-                  <span>Mese</span><span>Camera</span><span className="text-right">Incasso</span>
-                </div>
-                {Array.from({ length: roomStats.numMonths }, (_, k) => roomStats.firstMonthIdx + k).map(m => {
-                  const best = roomStats.list.reduce((a, s) => (s.monthly[m] > a.monthly[m] ? s : a), roomStats.list[0])
-                  const vuoto = best.monthly[m] <= 0
-                  return (
-                    <div key={m} className="grid grid-cols-3 px-3 py-2 text-sm border-t border-gray-50">
-                      <span className="text-gray-600">{MESI_NOMI[m]}</span>
-                      <span className="font-medium text-green-dark">{vuoto ? '—' : best.name}</span>
-                      <span className="text-right text-green-mid">{vuoto ? '' : `€${fmt(best.monthly[m])}`}</span>
-                    </div>
-                  )
-                })}
-              </div>
-              <p className="text-xs text-gray-400 mt-3 mb-1.5">Media al mese per camera</p>
-              <div className="grid grid-cols-2 gap-2">
-                {roomStats.list.map(s => (
-                  <div key={s.name} className="rounded-lg px-3 py-2 flex justify-between items-baseline" style={{ background: '#F6F2EA' }}>
-                    <span className="text-xs text-green-dark">{s.name}</span>
-                    <span className="text-xs font-semibold text-green-mid">€{fmt(s.revenue / roomStats.numMonths)}</span>
+          {/* Camera del mese: incasso di ogni camera in ogni mese, in grassetto la migliore,
+              ultima riga = media mensile (incasso totale ÷ mesi trascorsi) */}
+          {roomStats && (() => {
+            const cols = [...roomStats.list].sort((a, b2) => (ROOM_NUMBER_BY_NAME[a.name] || '99').localeCompare(ROOM_NUMBER_BY_NAME[b2.name] || '99'))
+            const gridCols = { display: 'grid', gridTemplateColumns: `44px repeat(${cols.length}, 1fr)` } as const
+            const months = Array.from({ length: roomStats.numMonths }, (_, k) => roomStats.firstMonthIdx + k)
+            return (
+              <div className="bg-white rounded-xl p-4 border border-card-border mt-4">
+                <p className="text-sm font-semibold text-gray-600">Camera del mese</p>
+                <p className="text-xs text-gray-400 mb-3">incasso di ogni camera, mese per mese — in verde la migliore del mese</p>
+                <div className="rounded-lg border border-card-border overflow-hidden">
+                  <div className="bg-gray-50 px-2 py-2 text-xs font-semibold text-gray-500" style={gridCols}>
+                    <span></span>
+                    {cols.map(s => <span key={s.name} className="text-right truncate">{s.name}</span>)}
                   </div>
-                ))}
+                  {months.map(m => {
+                    const top = Math.max(...cols.map(s => s.monthly[m]))
+                    return (
+                      <div key={m} className="px-2 py-2 text-xs border-t border-gray-50" style={gridCols}>
+                        <span className="text-gray-600">{MESI_NOMI[m].slice(0, 3)}</span>
+                        {cols.map(s => (
+                          <span key={s.name} className={`text-right ${s.monthly[m] <= 0 ? 'text-gray-300' : top > 0 && s.monthly[m] === top ? 'font-semibold text-green-mid' : 'text-gray-600'}`}>
+                            {s.monthly[m] <= 0 ? '—' : `€${fmt(s.monthly[m])}`}
+                          </span>
+                        ))}
+                      </div>
+                    )
+                  })}
+                  <div className="px-2 py-2 text-xs border-t border-card-border bg-gray-50" style={gridCols}>
+                    <span className="font-semibold text-gray-500">Media</span>
+                    {cols.map(s => (
+                      <span key={s.name} className="text-right font-semibold text-green-mid">€{fmt(s.revenue / roomStats.numMonths)}</span>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-2">
+                  Media = incasso al mese, calcolata su tutti i mesi da {MESI_NOMI[roomStats.firstMonthIdx]} a {MESI_NOMI[roomStats.curMonth]}
+                </p>
               </div>
-            </div>
-          )}
+            )
+          })()}
         </>
       )}
     </div>
