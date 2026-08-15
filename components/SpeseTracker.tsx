@@ -87,6 +87,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
 
   // Le 4 schede + mese scelto
   const [tab, setTab] = useState<Tab>('home')
+  const [gFilter, setGFilter] = useState('') // "Di chi": id gruppo, '' = tutti
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
   const [dettaglio, setDettaglio] = useState<Dettaglio>(null) // lista voci aperta (tessera, racconto…)
   const [giornoSel, setGiornoSel] = useState('') // giorno toccato nel calendario
@@ -340,9 +341,9 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   }
   const monthLabel = (m: string) => new Date(m + '-01T00:00:00').toLocaleDateString('it-IT', { month: 'long' })
 
-  const speseMese = useMemo(() => rows.filter(r => r.expense_date.slice(0, 7) === month), [rows, month])
+  const speseMese = useMemo(() => rows.filter(r => r.expense_date.slice(0, 7) === month && (!gFilter || r.group_id === gFilter)), [rows, month, gFilter])
   const vociMese = useMemo(() => vociDi(speseMese), [speseMese, itemsByExp, cats, groups])
-  const vociPrec = useMemo(() => vociDi(rows.filter(r => r.expense_date.slice(0, 7) === monthKey(-1))), [rows, month, itemsByExp, cats, groups])
+  const vociPrec = useMemo(() => vociDi(rows.filter(r => r.expense_date.slice(0, 7) === monthKey(-1) && (!gFilter || r.group_id === gFilter))), [rows, month, gFilter, itemsByExp, cats, groups])
   const totMese = speseMese.reduce((s, r) => s + Number(r.amount), 0)
 
   // Ritmo e previsione (solo mese corrente)
@@ -520,8 +521,13 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   function ListaVoci({ voci, max }: { voci: Voce[]; max?: number }) {
     type Agg = { n: string; tot: number; q: number; stores: string[]; sott: string; last: string }
     const perStore: Record<string, number> = {}
-    voci.forEach(v => { const s = corto(v.store); if (s) perStore[s] = (perStore[s] || 0) + v.a })
+    const perGruppo: Record<string, number> = {}
+    voci.forEach(v => {
+      const s = corto(v.store); if (s) perStore[s] = (perStore[s] || 0) + v.a
+      if (v.g && v.g !== '—') perGruppo[v.g] = (perGruppo[v.g] || 0) + v.a
+    })
     const negozi = Object.entries(perStore).sort((a, b) => b[1] - a[1])
+    const persone = Object.entries(perGruppo).sort((a, b) => b[1] - a[1])
     const m: Record<string, Agg> = {}
     voci.forEach(v => {
       const k = (v.sott || '') + '|' + strip(v.n)
@@ -537,6 +543,15 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       : [{ s: '', list: righe }]
     return (
       <div className="bg-white rounded-xl p-3 border border-card-border mb-3">
+        {persone.length > 1 && (
+          <div className="flex gap-1.5 flex-wrap pb-2 mb-1">
+            {persone.map(([g, tot]) => (
+              <span key={g} className="text-xs px-2 py-1 rounded-full text-white" style={{ background: GROUP_COLORS[g] || FALLBACK_COLOR }}>
+                {g} <b>{eur(tot)}</b>
+              </span>
+            ))}
+          </div>
+        )}
         {negozi.length > 1 && (
           <div className="flex gap-1.5 flex-wrap pb-2 mb-1 border-b border-[#F1EEE6]">
             {negozi.map(([s, tot]) => (
@@ -747,6 +762,27 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
           </button>
         ))}
       </div>
+
+      {/* DI CHI (non serve nella Domanda: lì si chiede a parole) */}
+      {tab !== 'domanda' && groups.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1 mb-2">
+          <button onClick={() => setGFilter('')}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${gFilter === '' ? 'text-white border-transparent' : 'bg-white text-gray-600 border-card-border'}`}
+            style={gFilter === '' ? { background: ACCENT } : {}}>
+            Tutti
+          </button>
+          {groups.map(g => {
+            const on = gFilter === g.id
+            return (
+              <button key={g.id} onClick={() => { setGFilter(on ? '' : g.id); setDettaglio(null) }}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${on ? 'text-white border-transparent' : 'bg-white text-gray-600 border-card-border'}`}
+                style={on ? { background: GROUP_COLORS[g.name] || FALLBACK_COLOR } : {}}>
+                {g.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Mese scelto (non serve nella Domanda: lì si chiede a parole) */}
       {tab !== 'domanda' && (
