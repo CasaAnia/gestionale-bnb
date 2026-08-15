@@ -819,7 +819,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
         <>
           {tab !== 'calendario' && (
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1 mb-2">
-              {([['mese', 'Mese'], ['settimana', 'Settimana'], ['anno', 'Anno'], ['intervallo', 'Dal–al']] as const).map(([m, label]) => (
+              {([['anno', 'Anno'], ['mese', 'Mese'], ['settimana', 'Settimana'], ['intervallo', 'Dal–al']] as const).map(([m, label]) => (
                 <button key={m} onClick={() => { setPeriodMode(m); setDettaglio(null); setShowAll(false) }}
                   className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${periodMode === m ? 'text-white border-transparent' : 'bg-white text-gray-600 border-card-border'}`}
                   style={periodMode === m ? { background: ACCENT } : {}}>
