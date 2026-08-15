@@ -777,7 +777,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
               <button key={g.id} onClick={() => { setGFilter(on ? '' : g.id); setDettaglio(null) }}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${on ? 'text-white border-transparent' : 'bg-white text-gray-600 border-card-border'}`}
                 style={on ? { background: GROUP_COLORS[g.name] || FALLBACK_COLOR } : {}}>
-                {g.name}
+                {g.name === 'Matteo e Ania' ? 'M e A' : g.name}
               </button>
             )
           })}
