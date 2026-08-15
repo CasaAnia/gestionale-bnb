@@ -94,12 +94,13 @@ export default function Statistiche() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: bookings }, { data: expenses }, { data: payments }] = await Promise.all([
+      const [{ data: bookings }, { data: expenses }, { data: payments }, { data: rooms }] = await Promise.all([
         supabase.from('bookings').select('*').neq('status', 'annullata'),
         supabase.from('family_expenses').select('expense_date, amount, family_groups!inner(ambito)').eq('family_groups.ambito', 'azienda'),
         supabase.from('payments').select('booking_id, amount, paid_on'),
+        supabase.from('rooms').select('id, name'),
       ])
-      setData({ bookings: bookings || [], expenses: expenses || [], payments: payments || [] })
+      setData({ bookings: bookings || [], expenses: expenses || [], payments: payments || [], rooms: rooms || [] })
       setLoading(false)
     }
     load()
@@ -185,6 +186,52 @@ export default function Statistiche() {
     return { years, cell }
   }
   const occ = buildOccupancy()
+
+  // Rendimento per camera nell'anno corrente, contando solo le notti già trascorse
+  // (fino a stanotte compresa): l'incasso di un soggiorno è ripartito pro-quota
+  // sulle sue notti, così un soggiorno a cavallo di due mesi pesa sul mese giusto.
+  function buildRoomStats() {
+    if (!data) return null
+    const rooms: any[] = data.rooms || []
+    const bookings: any[] = data.bookings
+    if (!rooms.length || !bookings.length) return null
+    const now = new Date()
+    const year = now.getFullYear()
+    const curMonth = now.getMonth()
+    const tom = new Date(now); tom.setDate(now.getDate() + 1)
+    const cap = `${tom.getFullYear()}-${String(tom.getMonth() + 1).padStart(2, '0')}-${String(tom.getDate()).padStart(2, '0')}`
+    const stats: Record<string, { name: string; nights: number; revenue: number; monthly: number[] }> = {}
+    for (const r of rooms) stats[r.id] = { name: r.name, nights: 0, revenue: 0, monthly: Array(12).fill(0) }
+    let firstNight: string | null = null
+    for (const b of bookings) {
+      const st = stats[b.room_id]
+      if (!st) continue
+      const totNights = Math.round((new Date(b.check_out).getTime() - new Date(b.check_in).getTime()) / 86400000)
+      if (totNights <= 0) continue
+      const perNight = Number(b.total_amount || 0) / totNights
+      for (let m = 0; m <= curMonth; m++) {
+        const ms = `${year}-${String(m + 1).padStart(2, '0')}-01`
+        const nmD = new Date(year, m + 1, 1)
+        const nms = `${nmD.getFullYear()}-${String(nmD.getMonth() + 1).padStart(2, '0')}-01`
+        const end = nms < cap ? nms : cap
+        if (end <= ms) continue
+        const n = nightsInMonth(b.check_in, b.check_out, ms, end)
+        if (n <= 0) continue
+        st.nights += n
+        st.revenue += n * perNight
+        st.monthly[m] += n * perNight
+        const s = b.check_in > ms ? b.check_in : ms
+        if (!firstNight || s < firstNight) firstNight = s
+      }
+    }
+    const list = Object.values(stats).filter(s => s.nights > 0).sort((a, b2) => b2.revenue - a.revenue)
+    if (!list.length || !firstNight) return null
+    const daysElapsed = Math.max(1, Math.round((new Date(cap).getTime() - new Date(firstNight).getTime()) / 86400000))
+    const firstMonthIdx = Number(firstNight.slice(5, 7)) - 1
+    const numMonths = curMonth - firstMonthIdx + 1
+    return { year, list, daysElapsed, firstMonthIdx, curMonth, numMonths }
+  }
+  const roomStats = buildRoomStats()
 
   const rows = calcPeriod()
   const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0)
@@ -300,6 +347,64 @@ export default function Statistiche() {
                 <span className="text-[10px] text-gray-400">0%</span>
                 <div className="flex-1 h-2 rounded-full" style={{ background: `linear-gradient(to right, ${occColor(0)}, ${occColor(50)}, ${occColor(100)})` }} />
                 <span className="text-[10px] text-gray-400">100%</span>
+              </div>
+            </div>
+          )}
+
+          {/* Rendimento camere: classifica dell'anno in corso (incassi pro-quota a notte) */}
+          {roomStats && (
+            <div className="bg-white rounded-xl p-4 border border-card-border mt-4">
+              <p className="text-sm font-semibold text-gray-600">Rendimento camere</p>
+              <p className="text-xs text-gray-400 mb-3">anno {roomStats.year} · incassi e notti fino a oggi</p>
+              {roomStats.list.map((s, i) => (
+                <div key={s.name} className={i > 0 ? 'mt-3' : ''}>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-sm font-medium text-green-dark">
+                      {s.name}
+                      {i === 0 && <span className="ml-1.5 text-[10px] bg-[#EDF3E9] text-green-mid rounded-full px-2 py-0.5">migliore</span>}
+                    </span>
+                    <span className="text-sm font-semibold text-green-mid">€{fmt(s.revenue)}</span>
+                  </div>
+                  <div className="h-1.5 rounded-full my-1.5" style={{ background: '#F6F2EA' }}>
+                    <div className="h-1.5 rounded-full" style={{ width: `${Math.max(3, (s.revenue / roomStats.list[0].revenue) * 100)}%`, background: i === 0 ? '#2D6A4F' : '#6C9A7C' }} />
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    {s.nights} notti · {Math.round((s.nights / roomStats.daysElapsed) * 100)}% occupazione · media €{fmt(s.revenue / s.nights)}/notte
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Camera del mese: la migliore di ogni mese + media mensile per camera */}
+          {roomStats && (
+            <div className="bg-white rounded-xl p-4 border border-card-border mt-4">
+              <p className="text-sm font-semibold text-gray-600">Camera del mese</p>
+              <p className="text-xs text-gray-400 mb-3">la camera che ha incassato di più, mese per mese</p>
+              <div className="rounded-lg border border-card-border overflow-hidden">
+                <div className="grid grid-cols-3 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500">
+                  <span>Mese</span><span>Camera</span><span className="text-right">Incasso</span>
+                </div>
+                {Array.from({ length: roomStats.numMonths }, (_, k) => roomStats.firstMonthIdx + k).map(m => {
+                  const best = roomStats.list.reduce((a, s) => (s.monthly[m] > a.monthly[m] ? s : a), roomStats.list[0])
+                  const vuoto = best.monthly[m] <= 0
+                  return (
+                    <div key={m} className="grid grid-cols-3 px-3 py-2 text-sm border-t border-gray-50">
+                      <span className="text-gray-600">{MESI_NOMI[m]}</span>
+                      <span className="font-medium text-green-dark">{vuoto ? '—' : best.name}</span>
+                      <span className="text-right text-green-mid">{vuoto ? '' : `€${fmt(best.monthly[m])}`}</span>
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-gray-400 mt-3 mb-1.5">Media al mese per camera</p>
+              <div className="grid grid-cols-2 gap-2">
+                {roomStats.list.map(s => (
+                  <div key={s.name} className="rounded-lg px-3 py-2 flex justify-between items-baseline" style={{ background: '#F6F2EA' }}>
+                    <span className="text-xs text-green-dark">{s.name}</span>
+                    <span className="text-xs font-semibold text-green-mid">€{fmt(s.revenue / roomStats.numMonths)}</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
