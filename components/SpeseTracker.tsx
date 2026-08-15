@@ -566,9 +566,16 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     })
     const righe = Object.values(m).sort((a, b) => b.tot - a.tot).slice(0, max || 999)
     const sotts = Array.from(new Set(righe.map(r => r.sott)))
+    // Ordine fisso delle sezioni: il campo `sort` di family_subcategories
+    // (es. Abbigliamento: Vestiti, Scarpe, Intimo, Accessori); "Altro" in fondo.
+    const sortDi = (s: string) => {
+      if (!s) return 9e9 // "Altro" sempre in fondo
+      const sc = subcats.filter(x => x.name === s)
+      return sc.length ? Math.min(...sc.map(x => x.sort)) : 8e9
+    }
     const sezioni = sotts.length > 1
       ? sotts.map(s => ({ s, list: righe.filter(r => r.sott === s) }))
-          .sort((a, b) => b.list.reduce((x, r) => x + r.tot, 0) - a.list.reduce((x, r) => x + r.tot, 0))
+          .sort((a, b) => sortDi(a.s) - sortDi(b.s))
       : [{ s: '', list: righe }]
     return (
       <div className="bg-white rounded-xl p-3 border border-card-border mb-3">
