@@ -89,6 +89,12 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const [tab, setTab] = useState<Tab>('home')
   const [gFilter, setGFilter] = useState('') // "Di chi": id gruppo, '' = tutti
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
+  // Periodo: mese (default), settimana, anno o intervallo libero (Dal–al)
+  const [periodMode, setPeriodMode] = useState<'mese' | 'settimana' | 'anno' | 'intervallo'>('mese')
+  const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [weekAnchor, setWeekAnchor] = useState(new Date().toISOString().split('T')[0])
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [dettaglio, setDettaglio] = useState<Dettaglio>(null) // lista voci aperta (tessera, racconto…)
   const [giornoSel, setGiornoSel] = useState('') // giorno toccato nel calendario
   const [showAll, setShowAll] = useState(false) // elenco completo del mese (in Home)
@@ -341,9 +347,32 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   }
   const monthLabel = (m: string) => new Date(m + '-01T00:00:00').toLocaleDateString('it-IT', { month: 'long' })
 
-  const speseMese = useMemo(() => rows.filter(r => r.expense_date.slice(0, 7) === month && (!gFilter || r.group_id === gFilter)), [rows, month, gFilter])
+  // ---- periodo scelto ----
+  // Il Calendario resta sempre per mese (è una griglia mensile); le altre
+  // schede seguono il periodo scelto coi bottoni Mese/Settimana/Anno/Dal–al.
+  function weekRange(d: string): [string, string] {
+    // 7 giorni a partire dalla data scelta (inizio = data, non il lunedì).
+    // Date locali, non UTC: sennò la settimana parte un giorno prima.
+    const dt = new Date(d + 'T00:00:00')
+    const end = new Date(dt); end.setDate(dt.getDate() + 6)
+    const fmt = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+    return [fmt(dt), fmt(end)]
+  }
+  const isMese = periodMode === 'mese' || tab === 'calendario'
+  const [periodStart, periodEnd] = isMese ? monthRange(month)
+    : periodMode === 'settimana' ? weekRange(weekAnchor)
+    : periodMode === 'anno' ? [`${year}-01-01`, `${year}-12-31`]
+    : [fromDate || '0000-01-01', toDate || '9999-12-31']
+  const giornoBreve = (s: string) => `${Number(s.slice(-2))} ${monthLabel(s.slice(0, 7)).slice(0, 3)}`
+  const periodLabel = isMese ? `a ${monthLabel(month)}`
+    : periodMode === 'settimana' ? `dal ${giornoBreve(periodStart)} al ${giornoBreve(periodEnd)}`
+    : periodMode === 'anno' ? `nel ${year}`
+    : (fromDate || toDate) ? `dal ${fromDate ? giornoBreve(fromDate) : 'inizio'} al ${toDate ? giornoBreve(toDate) : 'oggi'}` : 'in totale'
+
+  const speseMese = useMemo(() => rows.filter(r => r.expense_date >= periodStart && r.expense_date <= periodEnd && (!gFilter || r.group_id === gFilter)), [rows, periodStart, periodEnd, gFilter])
   const vociMese = useMemo(() => vociDi(speseMese), [speseMese, itemsByExp, cats, groups])
-  const vociPrec = useMemo(() => vociDi(rows.filter(r => r.expense_date.slice(0, 7) === monthKey(-1) && (!gFilter || r.group_id === gFilter))), [rows, month, gFilter, itemsByExp, cats, groups])
+  // Confronto col mese precedente: ha senso solo nella vista Mese
+  const vociPrec = useMemo(() => isMese ? vociDi(rows.filter(r => r.expense_date.slice(0, 7) === monthKey(-1) && (!gFilter || r.group_id === gFilter))) : [], [rows, month, gFilter, isMese, itemsByExp, cats, groups])
   const totMese = speseMese.reduce((s, r) => s + Number(r.amount), 0)
 
   // Ritmo e previsione (solo mese corrente)
@@ -784,17 +813,57 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
         </div>
       )}
 
-      {/* Mese scelto (non serve nella Domanda: lì si chiede a parole) */}
+      {/* Periodo scelto (non serve nella Domanda: lì si chiede a parole).
+          Nel Calendario niente bottoni: la griglia è per forza mensile. */}
       {tab !== 'domanda' && (
-        <div className="flex items-center justify-center gap-4 mb-3">
-          <button onClick={() => cambiaMese(-1)} aria-label="Mese precedente"
-            className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">‹</button>
-          <span className="font-serif text-base text-green-dark capitalize min-w-[130px] text-center">
-            {new Date(month + '-01T00:00:00').toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
-          </span>
-          <button onClick={() => cambiaMese(1)} aria-label="Mese successivo"
-            className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">›</button>
-        </div>
+        <>
+          {tab !== 'calendario' && (
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1 mb-2">
+              {([['mese', 'Mese'], ['settimana', 'Settimana'], ['anno', 'Anno'], ['intervallo', 'Dal–al']] as const).map(([m, label]) => (
+                <button key={m} onClick={() => { setPeriodMode(m); setDettaglio(null); setShowAll(false) }}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${periodMode === m ? 'text-white border-transparent' : 'bg-white text-gray-600 border-card-border'}`}
+                  style={periodMode === m ? { background: ACCENT } : {}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {isMese ? (
+            <div className="flex items-center justify-center gap-4 mb-3">
+              <button onClick={() => cambiaMese(-1)} aria-label="Mese precedente"
+                className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">‹</button>
+              <span className="font-serif text-base text-green-dark capitalize min-w-[130px] text-center">
+                {new Date(month + '-01T00:00:00').toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
+              </span>
+              <button onClick={() => cambiaMese(1)} aria-label="Mese successivo"
+                className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">›</button>
+            </div>
+          ) : periodMode === 'settimana' ? (
+            <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
+              <span className="text-sm text-gray-500">Settimana dal</span>
+              <input type="date" value={weekAnchor} onChange={e => { setWeekAnchor(e.target.value); setDettaglio(null) }}
+                className="border border-card-border rounded-lg p-2 text-sm bg-white" />
+              <span className="text-xs text-gray-400">{giornoBreve(periodStart)} → {giornoBreve(periodEnd)}</span>
+            </div>
+          ) : periodMode === 'anno' ? (
+            <div className="flex items-center justify-center gap-4 mb-3">
+              <button onClick={() => { setYear(String(Number(year) - 1)); setDettaglio(null) }} aria-label="Anno precedente"
+                className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">‹</button>
+              <span className="font-serif text-base text-green-dark min-w-[80px] text-center">{year}</span>
+              <button onClick={() => { setYear(String(Number(year) + 1)); setDettaglio(null) }} aria-label="Anno successivo"
+                className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">›</button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
+              <span className="text-sm text-gray-500">Dal</span>
+              <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setDettaglio(null) }}
+                className="border border-card-border rounded-lg p-2 text-sm bg-white" />
+              <span className="text-sm text-gray-500">al</span>
+              <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setDettaglio(null) }}
+                className="border border-card-border rounded-lg p-2 text-sm bg-white" />
+            </div>
+          )}
+        </>
       )}
 
       {loading ? (
@@ -802,24 +871,28 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       ) : tab === 'home' ? (
         /* ================= 🏠 HOME ================= */
         speseMese.length === 0 ? (
-          <div className="text-center py-10 text-gray-400">Nessuna spesa in questo mese</div>
+          <div className="text-center py-10 text-gray-400">Nessuna spesa in questo periodo</div>
         ) : (
           <>
-            {/* Speso del mese + ritmo + linea */}
+            {/* Speso del periodo + ritmo + linea (ritmo e linea solo per mese) */}
             <div className="bg-white rounded-xl p-4 border border-card-border mb-3 text-center">
-              <p className="text-xs text-gray-400">Speso a {monthLabel(month)}</p>
+              <p className="text-xs text-gray-400">Speso {periodLabel}</p>
               <p className="font-serif text-4xl text-[#8C3B2E]">{eur(totMese)}</p>
-              {isCurrentMonth && (
+              {isMese && isCurrentMonth && (
                 <p className="text-xs text-gray-400 mt-0.5">
                   {eur(mediaGiorno)} al giorno · di questo passo ~ <b className="text-[#8C3B2E]">{eur(previsione)}</b> a fine mese
                 </p>
               )}
-              <svg viewBox="0 0 340 56" className="w-full h-[48px] mt-2">
-                <path d={sparkline} fill="none" stroke={ACCENT} strokeWidth="2.5" strokeLinecap="round" />
-              </svg>
-              <div className="flex justify-between text-[10px] text-gray-400">
-                <span>1</span><span className="capitalize">{monthLabel(month)}</span><span>{daysInMonth}</span>
-              </div>
+              {isMese && (
+                <>
+                  <svg viewBox="0 0 340 56" className="w-full h-[48px] mt-2">
+                    <path d={sparkline} fill="none" stroke={ACCENT} strokeWidth="2.5" strokeLinecap="round" />
+                  </svg>
+                  <div className="flex justify-between text-[10px] text-gray-400">
+                    <span>1</span><span className="capitalize">{monthLabel(month)}</span><span>{daysInMonth}</span>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Tessere categoria */}
@@ -854,8 +927,8 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
               </>
             )}
 
-            {/* BUDGET MENSILI PER CATEGORIA */}
-            {budgetsOk && (
+            {/* BUDGET MENSILI PER CATEGORIA (solo vista Mese) */}
+            {isMese && budgetsOk && (
               <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Budget di {monthLabel(month)}</p>
@@ -899,8 +972,8 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
               </div>
             )}
 
-            {/* SPESE FISSE DEL MESE */}
-            {fisse.length > 0 && (
+            {/* SPESE FISSE DEL MESE (solo vista Mese) */}
+            {isMese && fisse.length > 0 && (
               <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Spese fisse del mese</p>
@@ -925,7 +998,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
             )}
 
             {/* ULTIME SPESE + elenco completo */}
-            <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">{showAll ? `Tutte le spese di ${monthLabel(month)}` : 'Ultime spese'}</p>
+            <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">{showAll ? (isMese ? `Tutte le spese di ${monthLabel(month)}` : `Tutte le spese ${periodLabel}`) : 'Ultime spese'}</p>
             <div className="flex flex-col gap-2">
               {(showAll ? [...speseMese] : [...speseMese].slice(0, 5)).map(r => (
                 <div key={r.id} className="bg-white rounded-xl p-3 border border-card-border flex items-center justify-between">
@@ -1011,13 +1084,15 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       ) : tab === 'racconto' ? (
         /* ================= 📖 RACCONTO ================= */
         !racconto ? (
-          <div className="text-center py-10 text-gray-400">Nessuna spesa da raccontare questo mese</div>
+          <div className="text-center py-10 text-gray-400">Nessuna spesa da raccontare in questo periodo</div>
         ) : (
           <>
             <div className="bg-white rounded-xl p-4 border border-card-border mb-3 text-[15px] leading-relaxed text-green-dark">
-              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-2">Il racconto di {monthLabel(month)}</p>
+              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-2">
+                {isMese ? `Il racconto di ${monthLabel(month)}` : `Il racconto · ${periodLabel}`}
+              </p>
               <p>
-                Questo mese avete speso{' '}
+                {isMese ? 'Questo mese' : 'In questo periodo'} avete speso{' '}
                 <button onClick={() => apriDettaglio(`Tutte le voci · ${eur(totMese)}`, vociMese)}
                   className="inline font-bold text-[#8C3B2E] border-b-2 border-dotted border-[#D2A98C]">{eur(totMese)}</button>
                 {racconto.diff !== null && (racconto.diff <= 0
