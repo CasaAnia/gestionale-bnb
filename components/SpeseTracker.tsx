@@ -573,7 +573,11 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       const sc = subcats.filter(x => x.name === s)
       return sc.length ? Math.min(...sc.map(x => x.sort)) : 8e9
     }
-    const sezioni = sotts.length > 1
+    // Le sezioni si mostrano appena c'è ALMENO una sottocategoria vera,
+    // anche unica (es. luglio tutto "Pranzo"); lista piatta solo se
+    // nessuna voce ha la sottocategoria.
+    const mostraSezioni = sotts.some(s => s)
+    const sezioni = mostraSezioni
       ? sotts.map(s => ({ s, list: righe.filter(r => r.sott === s) }))
           .sort((a, b) => sortDi(a.s) - sortDi(b.s))
       : [{ s: '', list: righe }]
@@ -599,7 +603,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
         )}
         {sezioni.map(({ s, list }) => (
           <div key={s || '·'}>
-            {sotts.length > 1 && (
+            {mostraSezioni && (
               <p className="flex justify-between text-[11px] uppercase tracking-wide text-brass pt-2">
                 <span>{s || 'Altro'}</span>
                 <span>{eur2(list.reduce((x, r) => x + r.tot, 0))}</span>
