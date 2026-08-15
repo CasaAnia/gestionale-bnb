@@ -27,13 +27,14 @@ type Rule = { id: string; keyword: string; group_id: string | null; category_id:
 type Fx = {
   id: string; expense_date: string; amount: number; group_id: string | null; category_id: string | null
   store: string | null; product: string | null; description: string | null; recurring: boolean; source: string
-  receipt_id: string | null
+  receipt_id: string | null; subcategory?: string | null
 }
 type Receipt = { id: string; storage_path: string; note: string | null; status: string; uploaded_at: string }
-type Item = { id: string; expense_id: string; name: string; amount: number; category_id?: string | null }
+type Item = { id: string; expense_id: string; name: string; amount: number; category_id?: string | null; subcategory?: string | null }
+type Subcat = { id: string; category_name: string; name: string; sort: number }
 type Budget = { id: string; ambito: string; category_name: string; monthly_amount: number }
 // Una "voce": la singola riga di scontrino (o la spesa intera se senza dettaglio)
-type Voce = { n: string; a: number; cat: string; store: string; d: string; g: string; expId: string }
+type Voce = { n: string; a: number; cat: string; sott: string; store: string; d: string; g: string; expId: string }
 type Tab = 'home' | 'calendario' | 'racconto' | 'domanda'
 type Dettaglio = { titolo: string; voci: Voce[] } | null
 type Msg = { io: boolean; t: string }
@@ -75,6 +76,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const [rules, setRules] = useState<Rule[]>([])
   const [rows, setRows] = useState<Fx[]>([])
   const [items, setItems] = useState<Item[]>([])
+  const [subcats, setSubcats] = useState<Subcat[]>([]) // sottocategorie (migrazione 0015)
   const [loading, setLoading] = useState(true)
   const [needsSetup, setNeedsSetup] = useState(false)
 
@@ -97,7 +99,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
 
   const blankForm = () => ({
     expense_date: new Date().toISOString().split('T')[0],
-    amount: '', group_id: '', category_id: '', store: '', product: '', description: '', recurring: false,
+    amount: '', group_id: '', category_id: '', subcategory: '', store: '', product: '', description: '', recurring: false,
   })
   const [form, setForm] = useState(blankForm())
   const [autoGroup, setAutoGroup] = useState<string | null>(null) // regola prodotto scattata
@@ -156,6 +158,9 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       const it = await supabase.from('family_expense_items').select('*').in('expense_id', expIds)
       if (!it.error) setItems((it.data || []) as Item[])
     } else setItems([])
+    // Sottocategorie (tollerante: senza migrazione 0015 restano vuote).
+    const sc = await supabase.from('family_subcategories').select('*').order('sort')
+    if (!sc.error) setSubcats((sc.data || []) as Subcat[])
     // Budget mensili (tollerante: senza migrazione 0013 la card non appare).
     const b = await supabase.from('family_budgets').select('*')
     if (!b.error) {
@@ -262,6 +267,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       // Se c'è un solo gruppo (caso azienda) e non è stato scelto, lo assegno da solo.
       group_id: form.group_id || (groups.length === 1 ? groups[0].id : null),
       category_id: form.category_id || null,
+      ...(form.subcategory ? { subcategory: form.subcategory } : {}),
       store: form.store.trim() || null,
       product: form.product.trim() || null,
       description: form.description.trim() || null,
@@ -311,8 +317,8 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       const dettagli = itemsByExp[e.id]
       const base = { store: e.store || '', d: e.expense_date, g: groupName(e.group_id), expId: e.id }
       if (dettagli?.length) dettagli.forEach(it =>
-        out.push({ n: it.name, a: Number(it.amount), cat: catName(it.category_id) || catSpesa, ...base }))
-      else out.push({ n: e.description || e.product || catSpesa, a: Number(e.amount), cat: catSpesa, ...base })
+        out.push({ n: it.name, a: Number(it.amount), cat: catName(it.category_id) || catSpesa, sott: it.subcategory || e.subcategory || '', ...base }))
+      else out.push({ n: e.description || e.product || catSpesa, a: Number(e.amount), cat: catSpesa, sott: e.subcategory || '', ...base })
     })
     return out
   }
@@ -450,6 +456,9 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     // Categoria
     const cNames = [...new Set(cats.map(c => c.name))].sort((a, b) => b.length - a.length)
     for (const c of cNames) if (s.includes(strip(c))) { v = v.filter(x => x.cat === c); filtri.push(c.toLowerCase()); break }
+    // Sottocategoria (es. "benzina", "trucchi", "affitto")
+    const sNames = [...new Set(subcats.map(x => x.name))].sort((a, b) => b.length - a.length)
+    for (const sc of sNames) if (s.includes(strip(sc))) { v = v.filter(x => x.sott === sc); filtri.push(sc.toLowerCase()); break }
     // Negozio
     const negozi = [...new Set(rows.filter(r => r.store).map(r => corto(r.store!)))]
     for (const n of negozi) if (n.length > 3 && s.includes(strip(n))) { v = v.filter(x => corto(x.store) === n); filtri.push(n); break }
@@ -499,17 +508,34 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     setTab(t); setDettaglio(null); setGiornoSel(''); setShowAll(false)
   }
 
-  // Lista di voci (usata da tessere, racconto, calendario)
+  // Lista di voci (usata da tessere, racconto, calendario). Se le voci hanno
+  // sottocategorie diverse, le raggruppa con un totalino per ciascuna.
   function ListaVoci({ voci, max }: { voci: Voce[]; max?: number }) {
     const el = [...voci].sort((a, b) => b.a - a.a).slice(0, max || 999)
+    const sotts = new Set(el.map(v => v.sott || ''))
+    const gruppi = sotts.size > 1
+      ? Array.from(new Set(el.map(v => v.sott || ''))).map(s => ({
+          s, list: el.filter(v => (v.sott || '') === s),
+        })).sort((a, b) => b.list.reduce((x, v) => x + v.a, 0) - a.list.reduce((x, v) => x + v.a, 0))
+      : [{ s: '', list: el }]
     return (
       <div className="bg-white rounded-xl p-3 border border-card-border mb-3">
-        {el.map((v, i) => (
-          <div key={i} className="flex items-start justify-between gap-2 py-2 border-b border-[#F1EEE6] last:border-b-0 text-sm">
-            <span className="flex-1 min-w-0">{v.n}
-              <br /><span className="text-xs text-gray-400">{[corto(v.store), groups.length > 1 ? v.g : ''].filter(Boolean).join(' · ')} · {v.d.slice(-2)} {monthLabel(v.d.slice(0, 7)).slice(0, 3)}</span>
-            </span>
-            <span className="font-bold text-[#8C3B2E] shrink-0">{eur2(v.a)}</span>
+        {gruppi.map(({ s, list }) => (
+          <div key={s || '·'}>
+            {sotts.size > 1 && (
+              <p className="flex justify-between text-[11px] uppercase tracking-wide text-brass pt-2 first:pt-0">
+                <span>{s || 'Senza sottocategoria'}</span>
+                <span>{eur2(list.reduce((x, v) => x + v.a, 0))}</span>
+              </p>
+            )}
+            {list.map((v, i) => (
+              <div key={i} className="flex items-start justify-between gap-2 py-2 border-b border-[#F1EEE6] last:border-b-0 text-sm">
+                <span className="flex-1 min-w-0">{v.n}
+                  <br /><span className="text-xs text-gray-400">{[corto(v.store), groups.length > 1 ? v.g : ''].filter(Boolean).join(' · ')} · {v.d.slice(-2)} {monthLabel(v.d.slice(0, 7)).slice(0, 3)}</span>
+                </span>
+                <span className="font-bold text-[#8C3B2E] shrink-0">{eur2(v.a)}</span>
+              </div>
+            ))}
           </div>
         ))}
       </div>
@@ -643,12 +669,25 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
               <option value="">Gruppo…</option>
               {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
-            <select value={form.category_id} onChange={e => setForm({ ...form, category_id: e.target.value })}
+            <select value={form.category_id} onChange={e => setForm({ ...form, category_id: e.target.value, subcategory: '' })}
               disabled={!form.group_id} className="border border-card-border rounded-lg p-2 text-sm disabled:opacity-50">
               <option value="">Categoria…</option>
               {catsForGroup.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
+
+          {/* Sottocategoria (solo se la categoria scelta ne ha) */}
+          {(() => {
+            const opts = subcats.filter(s => s.category_name === catName(form.category_id))
+            if (!opts.length) return null
+            return (
+              <select value={form.subcategory} onChange={e => setForm({ ...form, subcategory: e.target.value })}
+                className="w-full border border-card-border rounded-lg p-2 text-sm mb-2">
+                <option value="">Sottocategoria…</option>
+                {opts.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
+            )
+          })()}
 
           <div className="grid grid-cols-2 gap-2 mb-2">
             <input list="stores-list" value={form.store} onChange={e => setForm({ ...form, store: e.target.value })}
