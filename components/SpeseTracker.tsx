@@ -513,32 +513,56 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     setTab(t); setDettaglio(null); setGiornoSel(''); setShowAll(false)
   }
 
-  // Lista di voci (usata da tessere, racconto, calendario). Se le voci hanno
-  // sottocategorie diverse, le raggruppa con un totalino per ciascuna.
+  // Lista di voci (usata da tessere, racconto, calendario).
+  // Le voci con lo stesso nome vengono SOMMATE (tutti i "kiwi" del mese in
+  // una riga: ×7 e totale); in testa la divisione per negozio; se ci sono
+  // sottocategorie diverse, sezioni con totalino.
   function ListaVoci({ voci, max }: { voci: Voce[]; max?: number }) {
-    const el = [...voci].sort((a, b) => b.a - a.a).slice(0, max || 999)
-    const sotts = new Set(el.map(v => v.sott || ''))
-    const gruppi = sotts.size > 1
-      ? Array.from(new Set(el.map(v => v.sott || ''))).map(s => ({
-          s, list: el.filter(v => (v.sott || '') === s),
-        })).sort((a, b) => b.list.reduce((x, v) => x + v.a, 0) - a.list.reduce((x, v) => x + v.a, 0))
-      : [{ s: '', list: el }]
+    type Agg = { n: string; tot: number; q: number; stores: string[]; sott: string; last: string }
+    const perStore: Record<string, number> = {}
+    voci.forEach(v => { const s = corto(v.store); if (s) perStore[s] = (perStore[s] || 0) + v.a })
+    const negozi = Object.entries(perStore).sort((a, b) => b[1] - a[1])
+    const m: Record<string, Agg> = {}
+    voci.forEach(v => {
+      const k = (v.sott || '') + '|' + strip(v.n)
+      const e = m[k] || (m[k] = { n: v.n, tot: 0, q: 0, stores: [], sott: v.sott || '', last: v.d })
+      e.tot += v.a; e.q++; if (v.d > e.last) e.last = v.d
+      const s = corto(v.store); if (s && !e.stores.includes(s)) e.stores.push(s)
+    })
+    const righe = Object.values(m).sort((a, b) => b.tot - a.tot).slice(0, max || 999)
+    const sotts = Array.from(new Set(righe.map(r => r.sott)))
+    const sezioni = sotts.length > 1
+      ? sotts.map(s => ({ s, list: righe.filter(r => r.sott === s) }))
+          .sort((a, b) => b.list.reduce((x, r) => x + r.tot, 0) - a.list.reduce((x, r) => x + r.tot, 0))
+      : [{ s: '', list: righe }]
     return (
       <div className="bg-white rounded-xl p-3 border border-card-border mb-3">
-        {gruppi.map(({ s, list }) => (
+        {negozi.length > 1 && (
+          <div className="flex gap-1.5 flex-wrap pb-2 mb-1 border-b border-[#F1EEE6]">
+            {negozi.map(([s, tot]) => (
+              <span key={s} className="text-xs bg-sand text-[#7A5C1E] px-2 py-1 rounded-full">
+                {s} <b>{eur(tot)}</b>
+              </span>
+            ))}
+          </div>
+        )}
+        {sezioni.map(({ s, list }) => (
           <div key={s || '·'}>
-            {sotts.size > 1 && (
-              <p className="flex justify-between text-[11px] uppercase tracking-wide text-brass pt-2 first:pt-0">
-                <span>{s || 'Senza sottocategoria'}</span>
-                <span>{eur2(list.reduce((x, v) => x + v.a, 0))}</span>
+            {sotts.length > 1 && (
+              <p className="flex justify-between text-[11px] uppercase tracking-wide text-brass pt-2">
+                <span>{s || 'Altro'}</span>
+                <span>{eur2(list.reduce((x, r) => x + r.tot, 0))}</span>
               </p>
             )}
-            {list.map((v, i) => (
-              <div key={i} className="flex items-start justify-between gap-2 py-2 border-b border-[#F1EEE6] last:border-b-0 text-sm">
-                <span className="flex-1 min-w-0">{v.n}
-                  <br /><span className="text-xs text-gray-400">{[corto(v.store), groups.length > 1 ? v.g : ''].filter(Boolean).join(' · ')} · {v.d.slice(-2)} {monthLabel(v.d.slice(0, 7)).slice(0, 3)}</span>
+            {list.map(r => (
+              <div key={(r.sott || '') + r.n} className="flex items-start justify-between gap-2 py-2 border-b border-[#F1EEE6] last:border-b-0 text-sm">
+                <span className="flex-1 min-w-0">{r.n}{r.q > 1 && <span className="text-xs text-gray-400"> ×{r.q}</span>}
+                  <br /><span className="text-xs text-gray-400">
+                    {[r.stores.slice(0, 2).join(', ') + (r.stores.length > 2 ? ` +${r.stores.length - 2}` : ''),
+                      r.q === 1 ? `${r.last.slice(-2)} ${monthLabel(r.last.slice(0, 7)).slice(0, 3)}` : ''].filter(Boolean).join(' · ')}
+                  </span>
                 </span>
-                <span className="font-bold text-[#8C3B2E] shrink-0">{eur2(v.a)}</span>
+                <span className="font-bold text-[#8C3B2E] shrink-0">{eur2(r.tot)}</span>
               </div>
             ))}
           </div>
