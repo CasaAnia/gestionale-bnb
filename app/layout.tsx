@@ -1,12 +1,11 @@
 import type { Metadata, Viewport } from 'next'
-import { Fraunces, Nunito_Sans } from 'next/font/google'
+import { Nunito_Sans } from 'next/font/google'
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
 import MobileTopBar from '@/components/MobileTopBar'
 import MainContainer from '@/components/MainContainer'
 import ScrollToTop from '@/components/ScrollToTop'
 
-const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', display: 'swap' })
 const nunitoSans = Nunito_Sans({ subsets: ['latin'], variable: '--font-nunito-sans', display: 'swap' })
 
 export const metadata: Metadata = {
@@ -38,7 +37,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="it" className={`${fraunces.variable} ${nunitoSans.variable}`}>
+    <html lang="it" className={nunitoSans.variable}>
       <body className="bg-cream text-green-dark antialiased font-sans">
         <ScrollToTop />
         <MobileTopBar />
