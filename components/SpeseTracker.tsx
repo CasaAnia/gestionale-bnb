@@ -93,8 +93,8 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const [periodMode, setPeriodMode] = useState<'mese' | 'settimana' | 'anno' | 'intervallo'>('mese')
   const [year, setYear] = useState(String(new Date().getFullYear()))
   const [weekAnchor, setWeekAnchor] = useState(new Date().toISOString().split('T')[0])
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [fromDate, setFromDate] = useState(new Date().toISOString().split('T')[0])
+  const [toDate, setToDate] = useState(new Date().toISOString().split('T')[0])
   const [dettaglio, setDettaglio] = useState<Dettaglio>(null) // lista voci aperta (tessera, racconto…)
   const [giornoSel, setGiornoSel] = useState('') // giorno toccato nel calendario
   const [showAll, setShowAll] = useState(false) // elenco completo del mese (in Home)
