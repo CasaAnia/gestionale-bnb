@@ -30,11 +30,11 @@ type Fx = {
   receipt_id: string | null; subcategory?: string | null
 }
 type Receipt = { id: string; storage_path: string; note: string | null; status: string; uploaded_at: string }
-type Item = { id: string; expense_id: string; name: string; amount: number; category_id?: string | null; subcategory?: string | null }
+type Item = { id: string; expense_id: string; name: string; amount: number; qty?: number | null; category_id?: string | null; subcategory?: string | null }
 type Subcat = { id: string; category_name: string; name: string; sort: number }
 type Budget = { id: string; ambito: string; category_name: string; monthly_amount: number }
 // Una "voce": la singola riga di scontrino (o la spesa intera se senza dettaglio)
-type Voce = { n: string; a: number; cat: string; sott: string; store: string; d: string; g: string; expId: string; rid: string | null }
+type Voce = { n: string; a: number; q: number; cat: string; sott: string; store: string; d: string; g: string; expId: string; rid: string | null }
 type Tab = 'home' | 'calendario' | 'racconto' | 'domanda'
 type Dettaglio = { titolo: string; voci: Voce[] } | null
 type Msg = { io: boolean; t: string }
@@ -329,8 +329,8 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       const dettagli = itemsByExp[e.id]
       const base = { store: e.store || '', d: e.expense_date, g: groupName(e.group_id), expId: e.id, rid: e.receipt_id }
       if (dettagli?.length) dettagli.forEach(it =>
-        out.push({ n: it.name, a: Number(it.amount), cat: catName(it.category_id) || catSpesa, sott: it.subcategory || e.subcategory || '', ...base }))
-      else out.push({ n: e.description || e.product || catSpesa, a: Number(e.amount), cat: catSpesa, sott: e.subcategory || '', ...base })
+        out.push({ n: it.name, a: Number(it.amount), q: Number(it.qty) || 1, cat: catName(it.category_id) || catSpesa, sott: it.subcategory || e.subcategory || '', ...base }))
+      else out.push({ n: e.description || e.product || catSpesa, a: Number(e.amount), q: 1, cat: catSpesa, sott: e.subcategory || '', ...base })
     })
     return out
   }
@@ -572,7 +572,9 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   // una riga: ×7 e totale); in testa la divisione per negozio; se ci sono
   // sottocategorie diverse, sezioni con totalino.
   function ListaVoci({ voci, max }: { voci: Voce[]; max?: number }) {
-    type Agg = { n: string; tot: number; q: number; stores: string[]; sott: string; last: string; rids: string[] }
+    // q = pezzi/confezioni comprati (somma delle qty), righe = da quanti
+    // acquisti viene la somma: la data si mostra solo se l'acquisto è uno.
+    type Agg = { n: string; tot: number; q: number; righe: number; stores: string[]; sott: string; last: string; rids: string[] }
     // Pastiglie-filtro (scelto da Ania il 16/08/2026): tocchi una persona o un
     // negozio e la lista mostra solo quello; ritocchi e torna tutto. Le due
     // scelte si combinano (es. Matteo + Coin). Niente bordi neri: la pastiglia
@@ -595,8 +597,8 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     const m: Record<string, Agg> = {}
     vociVis.forEach(v => {
       const k = (v.sott || '') + '|' + strip(v.n)
-      const e = m[k] || (m[k] = { n: v.n, tot: 0, q: 0, stores: [], sott: v.sott || '', last: v.d, rids: [] })
-      e.tot += v.a; e.q++; if (v.d > e.last) e.last = v.d
+      const e = m[k] || (m[k] = { n: v.n, tot: 0, q: 0, righe: 0, stores: [], sott: v.sott || '', last: v.d, rids: [] })
+      e.tot += v.a; e.q += v.q; e.righe++; if (v.d > e.last) e.last = v.d
       const s = corto(v.store); if (s && !e.stores.includes(s)) e.stores.push(s)
       if (v.rid && !e.rids.includes(v.rid)) e.rids.push(v.rid)
     })
@@ -659,7 +661,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                 <span className="flex-1 min-w-0">{r.n}{r.q > 1 && <span className="text-xs text-gray-400"> ×{r.q}</span>}
                   <br /><span className="text-xs text-gray-400">
                     {[r.stores.slice(0, 2).join(', ') + (r.stores.length > 2 ? ` +${r.stores.length - 2}` : ''),
-                      r.q === 1 ? `${r.last.slice(-2)} ${monthLabel(r.last.slice(0, 7)).slice(0, 3)}` : ''].filter(Boolean).join(' · ')}
+                      r.righe === 1 ? `${r.last.slice(-2)} ${monthLabel(r.last.slice(0, 7)).slice(0, 3)}` : ''].filter(Boolean).join(' · ')}
                   </span>
                   {r.rids.length > 0 && (
                     <span className="ml-1 whitespace-nowrap">
