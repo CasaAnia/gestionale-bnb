@@ -504,9 +504,16 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     // Categoria
     const cNames = [...new Set(cats.map(c => c.name))].sort((a, b) => b.length - a.length)
     for (const c of cNames) if (combacia(c)) { v = v.filter(x => x.cat === c); filtri.push(c.toLowerCase()); break }
-    // Sottocategoria (es. "benzina", "trucchi", "affitto")
+    // Sottocategoria (es. "benzina", "trucchi", "affitto"). Se il nome è una
+    // parola sola prende anche le voci che si CHIAMANO così: il caffè del
+    // pranzo sta sotto Mangiare fuori/Pranzo ma deve contare come caffè.
     const sNames = [...new Set(subcats.map(x => x.name))].sort((a, b) => b.length - a.length)
-    for (const sc of sNames) if (combacia(sc)) { v = v.filter(x => x.sott === sc); filtri.push(sc.toLowerCase()); break }
+    for (const sc of sNames) if (combacia(sc)) {
+      const w = strip(sc)
+      const unaParola = !/[^a-z0-9]/.test(w)
+      v = v.filter(x => x.sott === sc || (unaParola && new RegExp(`\\b${w}`).test(strip(x.n))))
+      filtri.push(sc.toLowerCase()); break
+    }
     // Negozio
     const negozi = [...new Set(rows.filter(r => r.store).map(r => corto(r.store!)))]
     for (const n of negozi) if (n.length > 3 && s.includes(strip(n))) { v = v.filter(x => corto(x.store) === n); filtri.push(n); break }
