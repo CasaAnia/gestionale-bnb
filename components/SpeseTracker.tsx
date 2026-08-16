@@ -34,7 +34,7 @@ type Item = { id: string; expense_id: string; name: string; amount: number; cate
 type Subcat = { id: string; category_name: string; name: string; sort: number }
 type Budget = { id: string; ambito: string; category_name: string; monthly_amount: number }
 // Una "voce": la singola riga di scontrino (o la spesa intera se senza dettaglio)
-type Voce = { n: string; a: number; cat: string; sott: string; store: string; d: string; g: string; expId: string }
+type Voce = { n: string; a: number; cat: string; sott: string; store: string; d: string; g: string; expId: string; rid: string | null }
 type Tab = 'home' | 'calendario' | 'racconto' | 'domanda'
 type Dettaglio = { titolo: string; voci: Voce[] } | null
 type Msg = { io: boolean; t: string }
@@ -327,7 +327,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     spese.forEach(e => {
       const catSpesa = catName(e.category_id) || 'Senza categoria'
       const dettagli = itemsByExp[e.id]
-      const base = { store: e.store || '', d: e.expense_date, g: groupName(e.group_id), expId: e.id }
+      const base = { store: e.store || '', d: e.expense_date, g: groupName(e.group_id), expId: e.id, rid: e.receipt_id }
       if (dettagli?.length) dettagli.forEach(it =>
         out.push({ n: it.name, a: Number(it.amount), cat: catName(it.category_id) || catSpesa, sott: it.subcategory || e.subcategory || '', ...base }))
       else out.push({ n: e.description || e.product || catSpesa, a: Number(e.amount), cat: catSpesa, sott: e.subcategory || '', ...base })
@@ -548,7 +548,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   // una riga: ×7 e totale); in testa la divisione per negozio; se ci sono
   // sottocategorie diverse, sezioni con totalino.
   function ListaVoci({ voci, max }: { voci: Voce[]; max?: number }) {
-    type Agg = { n: string; tot: number; q: number; stores: string[]; sott: string; last: string }
+    type Agg = { n: string; tot: number; q: number; stores: string[]; sott: string; last: string; rids: string[] }
     const perStore: Record<string, number> = {}
     const perGruppo: Record<string, number> = {}
     voci.forEach(v => {
@@ -560,9 +560,10 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     const m: Record<string, Agg> = {}
     voci.forEach(v => {
       const k = (v.sott || '') + '|' + strip(v.n)
-      const e = m[k] || (m[k] = { n: v.n, tot: 0, q: 0, stores: [], sott: v.sott || '', last: v.d })
+      const e = m[k] || (m[k] = { n: v.n, tot: 0, q: 0, stores: [], sott: v.sott || '', last: v.d, rids: [] })
       e.tot += v.a; e.q++; if (v.d > e.last) e.last = v.d
       const s = corto(v.store); if (s && !e.stores.includes(s)) e.stores.push(s)
+      if (v.rid && !e.rids.includes(v.rid)) e.rids.push(v.rid)
     })
     const righe = Object.values(m).sort((a, b) => b.tot - a.tot).slice(0, max || 999)
     const sotts = Array.from(new Set(righe.map(r => r.sott)))
@@ -616,6 +617,15 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                     {[r.stores.slice(0, 2).join(', ') + (r.stores.length > 2 ? ` +${r.stores.length - 2}` : ''),
                       r.q === 1 ? `${r.last.slice(-2)} ${monthLabel(r.last.slice(0, 7)).slice(0, 3)}` : ''].filter(Boolean).join(' · ')}
                   </span>
+                  {r.rids.length > 0 && (
+                    <span className="ml-1 whitespace-nowrap">
+                      {r.rids.slice(0, 5).map(id => (
+                        <button key={id} onClick={() => openReceiptPhoto(id)} title="Apri lo scontrino"
+                          className="text-[13px] px-0.5 align-middle">🧾</button>
+                      ))}
+                      {r.rids.length > 5 && <span className="text-xs text-gray-400">+{r.rids.length - 5}</span>}
+                    </span>
+                  )}
                 </span>
                 <span className="font-bold text-[#8C3B2E] shrink-0">{eur2(r.tot)}</span>
               </div>
