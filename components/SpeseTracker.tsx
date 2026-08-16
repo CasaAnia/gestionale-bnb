@@ -470,8 +470,11 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   // ================= 💬 DOMANDA LIBERA =================
   function rispondi(q: string): string {
     const s = strip(q)
+    // "da sempre" / "in tutto" / "tutti gli scontrini": nessun filtro mese
+    const sempre = s.includes('sempre') || s.includes('in tutto') || s.includes('tutti gli scontrini') || s.includes('tutti i mesi')
     // Mese: se nominato, cerco l'anno più recente che ha dati
     let m = month, mLbl = monthLabel(month)
+    let mesePreciso = false
     for (let i = 0; i < 12; i++) {
       if (s.includes(MESI[i])) {
         const mm = String(i + 1).padStart(2, '0')
@@ -479,11 +482,14 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
         m = `${anni[0] || month.slice(0, 4)}-${mm}`
         for (const y of anni) if (rows.some(r => r.expense_date.startsWith(`${y}-${mm}`))) { m = `${y}-${mm}`; break }
         mLbl = MESI[i]
+        mesePreciso = true
         break
       }
     }
-    let v = vociDi(rows.filter(r => r.expense_date.slice(0, 7) === m))
-    if (!v.length) return `A ${mLbl} non trovo spese registrate.`
+    const tuttoIlPeriodo = sempre && !mesePreciso
+    const quando = tuttoIlPeriodo ? 'Da sempre' : `A ${mLbl}`
+    let v = vociDi(tuttoIlPeriodo ? rows : rows.filter(r => r.expense_date.slice(0, 7) === m))
+    if (!v.length) return tuttoIlPeriodo ? 'Non trovo spese registrate.' : `A ${mLbl} non trovo spese registrate.`
     const filtri: string[] = []
     // Persona/gruppo (prima i nomi più lunghi, così "Matteo e Ania" vince su "Matteo")
     const gNames = [...groups.map(g => g.name)].sort((a, b) => b.length - a.length)
@@ -503,22 +509,22 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       v.forEach(x => { if (x.store) perS[corto(x.store)] = (perS[corto(x.store)] || 0) + x.a; perC[x.cat] = (perC[x.cat] || 0) + x.a })
       const ts = Object.entries(perS).sort((a, b) => b[1] - a[1])[0]
       const tc = Object.entries(perC).sort((a, b) => b[1] - a[1])[0]
-      return `A ${mLbl} la voce più pesante è ${tc[0].toLowerCase()} (${eur(tc[1])})${ts ? ` e il negozio dove avete speso di più è ${ts[0]} (${eur(ts[1])})` : ''}.`
+      return `${quando} la voce più pesante è ${tc[0].toLowerCase()} (${eur(tc[1])})${ts ? ` e il negozio dove avete speso di più è ${ts[0]} (${eur(ts[1])})` : ''}.`
     }
     // Prodotto: parole della domanda cercate dentro i nomi delle voci
     if (!filtri.some(f => !groups.some(g => g.name === f))) {
       const parole = s.replace(/[?.,!]/g, ' ').split(/\s+/).filter(w => w.length > 3
-        && !['quanto', 'quanti', 'quante', 'questo', 'mese', 'speso', 'spesa', 'spese', 'abbiamo', 'comprato', 'cosa', 'della', 'dello', 'delle', ...MESI].includes(w))
+        && !['quanto', 'quanti', 'quante', 'questo', 'mese', 'speso', 'spesa', 'spese', 'abbiamo', 'comprato', 'cosa', 'della', 'dello', 'delle', 'sempre', 'tutto', 'tutti', 'totale', 'scontrini', ...MESI].includes(w))
       for (const w of parole) {
         const match = v.filter(x => strip(x.n).includes(w))
         if (match.length) { v = match; filtri.push(w); break }
       }
     }
-    if (!v.length) return `A ${mLbl} non trovo niente per «${q.trim()}».`
+    if (!v.length) return `${quando} non trovo niente per «${q.trim()}».`
     const tot = v.reduce((sum, x) => sum + x.a, 0)
     const top = [...v].sort((a, b) => b.a - a.a).slice(0, 3).map(x => `${x.n} (${eur2(x.a)})`).join(', ')
     const cosa = filtri.length ? filtri.join(' · ') : 'in totale'
-    return `A ${mLbl}, ${cosa}: ${eur2(tot)} in ${v.length} ${v.length === 1 ? 'voce' : 'voci'}.${v.length > 1 ? ` Le più grosse: ${top}.` : ''}`
+    return `${quando}, ${cosa}: ${eur2(tot)} in ${v.length} ${v.length === 1 ? 'voce' : 'voci'}.${v.length > 1 ? ` Le più grosse: ${top}.` : ''}`
   }
   function chiedi(q: string) {
     if (!q.trim()) return
@@ -526,8 +532,8 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     setDomanda('')
   }
   const DOMANDE_VELOCI = ambito === 'personale'
-    ? ['Quanto in bar questo mese?', 'Cosa ha comprato Matteo?', 'Dove abbiamo speso di più?', 'Quanto da Esselunga?']
-    : ['Dove abbiamo speso di più?', 'Quanto in detersivi questo mese?', 'Quanto in sacchetti?']
+    ? ['Quanto in bar questo mese?', 'Quanto in caffè da sempre?', 'Cosa ha comprato Matteo?', 'Dove abbiamo speso di più?', 'Quanto da Esselunga?']
+    : ['Dove abbiamo speso di più?', 'Quanto in detersivi questo mese?', 'Quanto in sacchetti da sempre?']
 
   // ================= 📅 CALENDARIO =================
   const perGiorno = useMemo(() => {
