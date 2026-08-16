@@ -494,12 +494,19 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     // Persona/gruppo (prima i nomi più lunghi, così "Matteo e Ania" vince su "Matteo")
     const gNames = [...groups.map(g => g.name)].sort((a, b) => b.length - a.length)
     for (const g of gNames) if (s.includes(strip(g))) { v = v.filter(x => x.g === g); filtri.push(g); break }
+    // Nome intero contenuto nella domanda, oppure una sua parola intera
+    // (es. "bar" → "Colazione/Bar", "frutta" → "Frutta e verdura")
+    const combacia = (nome: string) => {
+      const full = strip(nome)
+      if (s.includes(full)) return true
+      return full.split(/[^a-z0-9]+/).some(w => w.length >= 3 && new RegExp(`\\b${w}\\b`).test(s))
+    }
     // Categoria
     const cNames = [...new Set(cats.map(c => c.name))].sort((a, b) => b.length - a.length)
-    for (const c of cNames) if (s.includes(strip(c))) { v = v.filter(x => x.cat === c); filtri.push(c.toLowerCase()); break }
+    for (const c of cNames) if (combacia(c)) { v = v.filter(x => x.cat === c); filtri.push(c.toLowerCase()); break }
     // Sottocategoria (es. "benzina", "trucchi", "affitto")
     const sNames = [...new Set(subcats.map(x => x.name))].sort((a, b) => b.length - a.length)
-    for (const sc of sNames) if (s.includes(strip(sc))) { v = v.filter(x => x.sott === sc); filtri.push(sc.toLowerCase()); break }
+    for (const sc of sNames) if (combacia(sc)) { v = v.filter(x => x.sott === sc); filtri.push(sc.toLowerCase()); break }
     // Negozio
     const negozi = [...new Set(rows.filter(r => r.store).map(r => corto(r.store!)))]
     for (const n of negozi) if (n.length > 3 && s.includes(strip(n))) { v = v.filter(x => corto(x.store) === n); filtri.push(n); break }
