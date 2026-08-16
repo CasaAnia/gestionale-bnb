@@ -549,16 +549,27 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   // sottocategorie diverse, sezioni con totalino.
   function ListaVoci({ voci, max }: { voci: Voce[]; max?: number }) {
     type Agg = { n: string; tot: number; q: number; stores: string[]; sott: string; last: string; rids: string[] }
+    // Pastiglie-filtro (scelto da Ania il 16/08/2026): tocchi una persona o un
+    // negozio e la lista mostra solo quello; ritocchi e torna tutto. Le due
+    // scelte si combinano (es. Matteo + Coin). Niente bordi neri: la pastiglia
+    // attiva resta piena con ombra leggera, le altre si attenuano.
+    const [gSel, setGSel] = useState('')
+    const [sSel, setSSel] = useState('')
+    // Totali delle pastiglie: incrociati con l'altro filtro (es. con Coin
+    // attivo, "Matteo" mostra quanto ha speso Matteo da Coin), ma la
+    // pastiglia resta visibile anche a €0 così si può sempre cambiare scelta.
     const perStore: Record<string, number> = {}
     const perGruppo: Record<string, number> = {}
     voci.forEach(v => {
-      const s = corto(v.store); if (s) perStore[s] = (perStore[s] || 0) + v.a
-      if (v.g && v.g !== '—') perGruppo[v.g] = (perGruppo[v.g] || 0) + v.a
+      const s = corto(v.store)
+      if (s) perStore[s] = (perStore[s] || 0) + ((!gSel || v.g === gSel) ? v.a : 0)
+      if (v.g && v.g !== '—') perGruppo[v.g] = (perGruppo[v.g] || 0) + ((!sSel || corto(v.store) === sSel) ? v.a : 0)
     })
     const negozi = Object.entries(perStore).sort((a, b) => b[1] - a[1])
     const persone = Object.entries(perGruppo).sort((a, b) => b[1] - a[1])
+    const vociVis = voci.filter(v => (!gSel || v.g === gSel) && (!sSel || corto(v.store) === sSel))
     const m: Record<string, Agg> = {}
-    voci.forEach(v => {
+    vociVis.forEach(v => {
       const k = (v.sott || '') + '|' + strip(v.n)
       const e = m[k] || (m[k] = { n: v.n, tot: 0, q: 0, stores: [], sott: v.sott || '', last: v.d, rids: [] })
       e.tot += v.a; e.q++; if (v.d > e.last) e.last = v.d
@@ -586,20 +597,29 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       <div className="bg-white rounded-xl p-3 border border-card-border mb-3">
         {persone.length > 1 && (
           <div className="flex gap-1.5 flex-wrap pb-2 mb-1">
-            {persone.map(([g, tot]) => (
-              <span key={g} className="text-xs px-2 py-1 rounded-full text-white" style={{ background: GROUP_COLORS[g] || FALLBACK_COLOR }}>
-                {g} <b>{eur(tot)}</b>
-              </span>
-            ))}
+            {persone.map(([g, tot]) => {
+              const on = gSel === g
+              return (
+                <button key={g} onClick={() => setGSel(on ? '' : g)}
+                  className={`text-xs px-2 py-1 rounded-full text-white transition ${on ? 'shadow-md' : gSel ? 'opacity-40' : ''}`}
+                  style={{ background: GROUP_COLORS[g] || FALLBACK_COLOR }}>
+                  {on && '✓ '}{g} <b>{eur(tot)}</b>
+                </button>
+              )
+            })}
           </div>
         )}
         {negozi.length > 1 && (
           <div className="flex gap-1.5 flex-wrap pb-2 mb-1 border-b border-[#F1EEE6]">
-            {negozi.map(([s, tot]) => (
-              <span key={s} className="text-xs bg-sand text-[#7A5C1E] px-2 py-1 rounded-full">
-                {s} <b>{eur(tot)}</b>
-              </span>
-            ))}
+            {negozi.map(([s, tot]) => {
+              const on = sSel === s
+              return (
+                <button key={s} onClick={() => setSSel(on ? '' : s)}
+                  className={`text-xs bg-sand text-[#7A5C1E] px-2 py-1 rounded-full transition ${on ? 'shadow-md' : sSel ? 'opacity-40' : ''}`}>
+                  {on && '✓ '}{s} <b>{eur(tot)}</b>
+                </button>
+              )
+            })}
           </div>
         )}
         {sezioni.map(({ s, list }) => (
