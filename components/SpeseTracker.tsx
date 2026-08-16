@@ -529,10 +529,14 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     if (!filtri.some(f => !groups.some(g => g.name === f))) {
       const parole = s.replace(/[?.,!]/g, ' ').split(/\s+/).filter(w => w.length > 3
         && !['quanto', 'quanti', 'quante', 'questo', 'mese', 'speso', 'spesa', 'spese', 'abbiamo', 'comprato', 'cosa', 'della', 'dello', 'delle', 'sempre', 'tutto', 'tutti', 'totale', 'scontrini', ...MESI].includes(w))
+      let trovato = parole.length === 0
       for (const w of parole) {
         const match = v.filter(x => strip(x.n).includes(w))
-        if (match.length) { v = match; filtri.push(w); break }
+        if (match.length) { v = match; filtri.push(w); trovato = true; break }
       }
+      // Ha cercato qualcosa di preciso ("tè freddo") che non esiste:
+      // niente totale generico, meglio dirlo chiaro.
+      if (!trovato) return `Non trovo nessuna voce per «${q.trim()}»${quando === 'Da sempre' ? '' : ` a ${mLbl}`}. Prova con un altro nome, o aggiungi "da sempre" per cercare in tutti i mesi.`
     }
     if (!v.length) return `${quando} non trovo niente per «${q.trim()}».`
     const tot = v.reduce((sum, x) => sum + x.a, 0)
