@@ -546,7 +546,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     setDomanda('')
   }
   const DOMANDE_VELOCI = ambito === 'personale'
-    ? ['Quanto in bar questo mese?', 'Quanto in caffè da sempre?', 'Dove abbiamo speso di più?', 'Quanto da Esselunga?']
+    ? ['Dove abbiamo speso di più?']
     : ['Dove abbiamo speso di più?', 'Quanto in detersivi questo mese?', 'Quanto in sacchetti da sempre?']
 
   // ================= 📅 CALENDARIO =================
