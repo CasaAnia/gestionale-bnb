@@ -58,6 +58,16 @@ export default function Calendario() {
   // Catene di cambio camera (per group_id o per stesso ospite/date contigue) e relative transizioni
   const changeGroups = useMemo(() => buildChangeGroups(bookings), [bookings])
 
+  // Richieste arrivate dal sito, ancora da confermare: hanno un avviso sticky
+  // in alto e la barra tratteggiata sulle loro date.
+  const webRequests = useMemo(
+    () => bookings
+      .filter((b: any) => b.status === 'in_attesa' && b.source === 'sito_web')
+      .sort((a: any, b: any) => a.check_in.localeCompare(b.check_in)),
+    [bookings]
+  )
+  const [webReqIdx, setWebReqIdx] = useState(0)
+
   // Per ogni prenotazione: esce verso un'altra camera (taglio a destra) e/o arriva da un'altra camera (taglio a sinistra)
   const { outgoingIds, incomingIds } = useMemo(() => {
     const outgoing = new Set<string>()
@@ -233,7 +243,39 @@ export default function Calendario() {
   return (
     <div className="flex flex-col h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0">
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
-      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 pb-2 bg-cream/95 backdrop-blur-sm"><BackLink href="/" /></div>
+      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 pb-2 bg-cream/95 backdrop-blur-sm">
+        <BackLink href="/" />
+        {webRequests.length > 0 && (
+          <div
+            onClick={() => {
+              // Ogni tocco porta il calendario sulla richiesta (a rotazione se più di una)
+              const b: any = webRequests[webReqIdx % webRequests.length]
+              if (!b || !scrollRef.current) return
+              scrollRef.current.scrollTo({ left: Math.max(0, dayIndex(b.check_in) * CELL_W - Math.round(CELL_W * 1.5)), behavior: 'smooth' })
+              setWebReqIdx(i => i + 1)
+            }}
+            className="chip-in mt-2 flex items-center gap-2 bg-white rounded-lg px-3 py-2 shadow-sm cursor-pointer transition-transform duration-100 active:scale-[0.97]">
+            <span aria-hidden>🌐</span>
+            <span className="text-[13px] text-green-dark min-w-0 flex-1 truncate">
+              <span className="font-semibold">
+                {webRequests.length === 1 ? '1 richiesta dal sito da confermare' : `${webRequests.length} richieste dal sito da confermare`}
+              </span>
+              {' · '}
+              {(webRequests[webReqIdx % webRequests.length] as any)?.guests?.full_name || 'Ospite'}
+              {' · '}
+              {(webRequests[webReqIdx % webRequests.length] as any)?.check_in?.slice(5).split('-').reverse().join('/')}
+            </span>
+            <button
+              onClick={e => {
+                e.stopPropagation()
+                router.push(`/prenotazioni/${(webRequests[webReqIdx % webRequests.length] as any)?.id}`)
+              }}
+              className="shrink-0 text-[12.5px] font-semibold text-white bg-green-mid rounded-full px-3 py-1 transition-transform duration-100 active:scale-[0.97]">
+              Apri
+            </button>
+          </div>
+        )}
+      </div>
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
@@ -376,6 +418,8 @@ export default function Calendario() {
                     const hasOutgoing = outgoingIds.has(booking.id)
                     const isSelected = isMultiRoom && selectedGroupId === chainKey
                     const isDimmed = selectedGroupId !== null && !isSelected
+                    // Richiesta dal sito da confermare: barra bianca tratteggiata
+                    const isWebPending = booking.status === 'in_attesa' && booking.source === 'sito_web'
                     const insetV = 6
                     const insetH = 2
 
@@ -419,7 +463,8 @@ export default function Calendario() {
                             left: NAME_W + seg.start * CELL_W + (isFirst ? insetH : 0),
                             width: (seg.end - seg.start) * CELL_W - (isFirst ? insetH : 0) - (isLast ? insetH : 0),
                             height: ROW_H - insetV * 2,
-                            background: seg.color,
+                            background: isWebPending ? '#FFFFFF' : seg.color,
+                            border: isWebPending ? '2px dashed #2D6A4F' : undefined,
                             borderRadius: `${leftRounded ? 6 : 0}px ${rightRounded ? 6 : 0}px ${rightRounded ? 6 : 0}px ${leftRounded ? 6 : 0}px`,
                             clipPath,
                             cursor: 'pointer',
@@ -434,9 +479,14 @@ export default function Calendario() {
                           }}>
                           {isFirst && (
                             <>
-                              <span style={{ color: 'white', fontSize: isDesktop ? gs(13) : gs(10), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                              <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? gs(13) : gs(10), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                                 {hasIncoming ? '⇄ ' : ''}{guestName}{hasOutgoing ? ' ⇄' : ''}
                               </span>
+                              {isWebPending && (
+                                <span style={{ color: '#2D6A4F', fontSize: isDesktop ? gs(10) : gs(8), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
+                                  🌐 dal sito
+                                </span>
+                              )}
                               {(isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed) && (
                                 <span style={{ fontSize: isDesktop ? gs(12) : gs(9), paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
                                   {isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏 ' : ''}
@@ -502,6 +552,10 @@ export default function Calendario() {
         <div className="flex items-center gap-1.5">
           <div style={{ width: 12, height: 12, borderRadius: 3, background: RED }} />
           <span className="text-xs text-gray-500">Letto extra</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: 'white', border: '1.5px dashed #2D6A4F' }} />
+          <span className="text-xs text-gray-500">Dal sito (da confermare)</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div style={{ position: 'relative', width: 32, height: 16, flexShrink: 0 }}>

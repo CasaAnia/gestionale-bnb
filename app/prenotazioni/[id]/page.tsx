@@ -753,7 +753,11 @@ export default function BookingDetail() {
     <div className="p-4">
       <BackBar href="/prenotazioni" />
       <div className="flex items-center gap-3 mb-4">
-        <h1 className="font-serif text-xl text-green-dark flex-1">Prenotazione</h1>
+        <h1 className="font-serif text-xl text-green-dark">Prenotazione</h1>
+        {booking.source === 'sito_web' && (
+          <span className="text-[11px] font-semibold rounded-full px-2 py-0.5" style={{ background: '#EAF1EC', color: '#1F3D2F' }}>🌐 Dal sito</span>
+        )}
+        <span className="flex-1" />
         {editing && (
           <button onClick={() => setEditing(false)} className="text-gray-500 text-sm">Annulla</button>
         )}

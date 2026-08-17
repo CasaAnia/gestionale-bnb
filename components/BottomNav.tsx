@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { House, CalendarDays, DoorOpen, Sparkles, ClipboardList, Plus, Users, Banknote, Wallet, ChartColumn, Settings } from 'lucide-react'
 import { useDemoMode } from '@/lib/useDemoMode'
 import { isHiddenPath } from '@/lib/demoMode'
+import { useWebRequestCount } from '@/lib/webRequests'
 
 // Max 4 tasti: devono restare grossi e comodi da toccare. Le Statistiche/Report
 // si raggiungono dalla Home (card), quindi non stanno qui.
@@ -41,9 +42,22 @@ const desktopNavGroups = [
   },
 ]
 
+// Bollino rosso mattone con il numero di richieste dal sito da confermare.
+function RequestBadge({ count, className }: { count: number; className?: string }) {
+  if (count === 0) return null
+  return (
+    <span className={`chip-in min-w-[17px] h-[17px] px-1 rounded-full bg-[#C0563B] text-white text-[10.5px] font-bold leading-none inline-flex items-center justify-center ${className || ''}`}>
+      {count}
+    </span>
+  )
+}
+
 export default function BottomNav() {
   const pathname = usePathname()
   const demo = useDemoMode()
+  // La chiave cambia a ogni navigazione: il conteggio si riaggiorna anche
+  // quando Ania conferma una richiesta e torna indietro.
+  const webCount = useWebRequestCount(pathname)
   if (pathname === '/login') return null
   const visible = (href: string) => !(demo && isHiddenPath(href))
   return (
@@ -59,7 +73,12 @@ export default function BottomNav() {
               <Link key={item.href} href={item.href}
                 className="flex flex-col items-center justify-center flex-1 gap-[5px] transition-colors"
                 style={{ color }}>
-                <item.Icon size={25} strokeWidth={active ? 2 : 1.6} aria-hidden />
+                <span className="relative">
+                  <item.Icon size={25} strokeWidth={active ? 2 : 1.6} aria-hidden />
+                  {item.href === '/calendario' && (
+                    <RequestBadge count={webCount} className="absolute -top-1.5 -right-2.5" />
+                  )}
+                </span>
                 <span className="text-[12.5px] font-medium leading-none">{item.label}</span>
               </Link>
             )
@@ -93,6 +112,7 @@ export default function BottomNav() {
                     className={`flex items-center gap-3 pl-4 pr-4 py-2.5 font-serif text-[15px] border-l-2 transition-colors duration-200 ${active ? 'border-[#A9884E] text-green-dark' : 'border-transparent text-[#8a9488] hover:text-green-dark'}`}>
                     <item.Icon size={16} strokeWidth={1.5} className="shrink-0 text-green-mid" aria-hidden />
                     <span>{item.label}</span>
+                    {item.href === '/calendario' && <RequestBadge count={webCount} />}
                   </Link>
                 )
               })}

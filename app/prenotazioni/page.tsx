@@ -83,6 +83,9 @@ export default function Prenotazioni() {
                   <p className="text-sm mt-0.5" style={{ color: 'var(--color-stone)' }}>{b.rooms?.name}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
+                  {b.source === 'sito_web' && (
+                    <span className="text-[11px] font-semibold rounded-full px-2 py-0.5" style={{ background: '#EAF1EC', color: '#1F3D2F' }}>🌐 Dal sito</span>
+                  )}
                   <StatusDot color={b.status === 'annullata' ? STATUS_DOT.annullata : b.pagato ? '#7D9DB0' : b.bonifico ? '#9B8EC4' : STATUS_DOT[b.status]}
                     label={b.status === 'annullata' ? 'annullata' : b.pagato ? 'pagata' : b.bonifico ? 'bonifico attesa' : b.status} />
                   {b.extra_bed && <StatusDot color="#C58A67" label="letto extra" />}
