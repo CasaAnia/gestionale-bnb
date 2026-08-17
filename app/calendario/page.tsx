@@ -66,7 +66,6 @@ export default function Calendario() {
       .sort((a: any, b: any) => a.check_in.localeCompare(b.check_in)),
     [bookings]
   )
-  const [webReqIdx, setWebReqIdx] = useState(0)
 
   // Per ogni prenotazione: esce verso un'altra camera (taglio a destra) e/o arriva da un'altra camera (taglio a sinistra)
   const { outgoingIds, incomingIds } = useMemo(() => {
@@ -246,33 +245,33 @@ export default function Calendario() {
       <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 pb-2 bg-cream/95 backdrop-blur-sm">
         <BackLink href="/" />
         {webRequests.length > 0 && (
-          <div
-            onClick={() => {
-              // Ogni tocco porta il calendario sulla richiesta (a rotazione se più di una)
-              const b: any = webRequests[webReqIdx % webRequests.length]
-              if (!b || !scrollRef.current) return
-              scrollRef.current.scrollTo({ left: Math.max(0, dayIndex(b.check_in) * CELL_W - Math.round(CELL_W * 1.5)), behavior: 'smooth' })
-              setWebReqIdx(i => i + 1)
-            }}
-            className="chip-in mt-2 flex items-center gap-2 bg-white rounded-lg px-3 py-2 shadow-sm cursor-pointer transition-transform duration-100 active:scale-[0.97]">
-            <span aria-hidden>🌐</span>
-            <span className="text-[13px] text-green-dark min-w-0 flex-1 truncate">
-              <span className="font-semibold">
-                {webRequests.length === 1 ? '1 richiesta dal sito da confermare' : `${webRequests.length} richieste dal sito da confermare`}
-              </span>
-              {' · '}
-              {(webRequests[webReqIdx % webRequests.length] as any)?.guests?.full_name || 'Ospite'}
-              {' · '}
-              {(webRequests[webReqIdx % webRequests.length] as any)?.check_in?.slice(5).split('-').reverse().join('/')}
-            </span>
-            <button
-              onClick={e => {
-                e.stopPropagation()
-                router.push(`/prenotazioni/${(webRequests[webReqIdx % webRequests.length] as any)?.id}`)
-              }}
-              className="shrink-0 text-[12.5px] font-semibold text-white bg-green-mid rounded-full px-3 py-1 transition-transform duration-100 active:scale-[0.97]">
-              Apri
-            </button>
+          // Una riga per richiesta, ognuna col suo Apri: il tocco sulla riga
+          // porta il calendario sulla data, il bottone apre la prenotazione
+          <div className="chip-in mt-2 bg-white rounded-lg px-3 py-1 shadow-sm">
+            {webRequests.map((b: any) => (
+              <div key={b.id}
+                onClick={() => {
+                  if (!scrollRef.current) return
+                  scrollRef.current.scrollTo({ left: Math.max(0, dayIndex(b.check_in) * CELL_W - Math.round(CELL_W * 1.5)), behavior: 'smooth' })
+                }}
+                className="flex items-center gap-2 py-1.5 border-b border-gray-100 last:border-b-0 cursor-pointer transition-transform duration-100 active:scale-[0.97]">
+                <span aria-hidden>🌐</span>
+                <span className="text-[13px] text-green-dark min-w-0 flex-1 truncate">
+                  <span className="font-semibold">{b.guests?.full_name || 'Ospite'}</span>
+                  {' · '}
+                  {b.check_in?.slice(5).split('-').reverse().join('/')} → {b.check_out?.slice(5).split('-').reverse().join('/')}
+                  {rooms.find((r: any) => r.id === b.room_id)?.name ? ` · ${rooms.find((r: any) => r.id === b.room_id).name}` : ''}
+                </span>
+                <button
+                  onClick={e => {
+                    e.stopPropagation()
+                    router.push(`/prenotazioni/${b.id}`)
+                  }}
+                  className="shrink-0 text-[12.5px] font-semibold text-white bg-green-mid rounded-full px-3 py-1 transition-transform duration-100 active:scale-[0.97]">
+                  Apri
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>
