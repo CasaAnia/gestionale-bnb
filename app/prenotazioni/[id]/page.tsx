@@ -348,6 +348,11 @@ export default function BookingDetail() {
   // Altre prenotazioni dello stesso ospite (anche annullate): se ha mandato
   // più richieste dal sito, magari una sbagliata, da qui si ritrovano tutte
   const [otherBookings, setOtherBookings] = useState<any[]>([])
+  // Sconto in modifica: percentuale libera o totale deciso a mano.
+  // Non tocca il database: ricalcola solo il prezzo a notte già esistente
+  const [scontoPct, setScontoPct] = useState('')
+  const [scontoTot, setScontoTot] = useState('')
+  const [scontoInfo, setScontoInfo] = useState('')
   const [rooms, setRooms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -522,6 +527,33 @@ export default function BookingDetail() {
     // Il letto non si addebita quando è già compreso nella tariffa (Lena fino a 3 ospiti)
     const extraBedTotal = totaleLetto(room, editForm.num_guests, ebDays)
     return Number(editForm.price_per_night) * n + extraBedTotal
+  }
+
+  // Porta il totale del soggiorno a un valore voluto ricalcolando il prezzo
+  // a notte (il letto aggiuntivo non si sconta: si scala solo la camera)
+  function applicaTotale(target: number, label: string) {
+    const n = calcNotti(editForm.check_in, editForm.check_out)
+    if (n <= 0 || !isFinite(target)) return
+    const room = rooms.find(r => r.id === editForm.room_id)
+    const extraBedTotal = totaleLetto(room, editForm.num_guests, editForm.extra_bed_dates?.length || 0)
+    const nuovoPrezzo = Math.round(((target - extraBedTotal) / n) * 100) / 100
+    if (nuovoPrezzo <= 0) { setScontoInfo('❌ Totale troppo basso per queste notti'); return }
+    const vecchioTotale = calcTotal()
+    setEditForm({ ...editForm, price_per_night: nuovoPrezzo })
+    const risparmio = Math.round(vecchioTotale - (nuovoPrezzo * n + extraBedTotal))
+    setScontoInfo(`Sconto ${label}: −€${risparmio} · nuovo totale €${Math.round(nuovoPrezzo * n + extraBedTotal)} (€${nuovoPrezzo}/notte)`)
+  }
+
+  function applicaScontoPct() {
+    const p = parseFloat(scontoPct.replace(',', '.'))
+    if (!p || p <= 0 || p >= 100) return
+    applicaTotale(calcTotal() * (1 - p / 100), `−${p}%`)
+  }
+
+  function applicaScontoTot() {
+    const t = parseFloat(scontoTot.replace(',', '.'))
+    if (!t || t <= 0) return
+    applicaTotale(t, 'personalizzato')
   }
 
   async function saveEdit() {
@@ -1007,6 +1039,36 @@ export default function BookingDetail() {
             <div className="bg-sage rounded-lg p-3 mb-3 text-sm">
               <p className="text-gray-600">{calcNotti(editForm.check_in, editForm.check_out)} notti × €{editForm.price_per_night}</p>
               <p className="font-bold text-green-mid text-lg">Totale: €{calcTotal().toFixed(0)}</p>
+            </div>
+          )}
+
+          {/* Sconto: percentuale a mano o totale deciso da Ania */}
+          {calcNotti(editForm.check_in, editForm.check_out) > 0 && (
+            <div className="border border-card-border rounded-lg p-3 mb-3">
+              <p className="text-xs text-gray-500 mb-2">Sconto</p>
+              <div className="flex gap-2 items-center mb-2">
+                <input type="number" inputMode="decimal" min={1} max={99} placeholder="%"
+                  value={scontoPct} onChange={e => setScontoPct(e.target.value)}
+                  className="w-20 border border-card-border rounded-lg p-2 text-sm" />
+                <button type="button" onClick={applicaScontoPct}
+                  className="bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
+                  disabled={!parseFloat(scontoPct.replace(',', '.'))}>
+                  Applica %
+                </button>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input type="number" inputMode="decimal" min={1} placeholder="€ totale"
+                  value={scontoTot} onChange={e => setScontoTot(e.target.value)}
+                  className="w-28 border border-card-border rounded-lg p-2 text-sm" />
+                <button type="button" onClick={applicaScontoTot}
+                  className="bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
+                  disabled={!parseFloat(scontoTot.replace(',', '.'))}>
+                  Porta il totale
+                </button>
+              </div>
+              {scontoInfo && (
+                <p className="text-xs rounded-lg px-2 py-1.5 mt-2" style={{ background: '#F3ECD8', color: '#8a4f2f' }}>{scontoInfo}</p>
+              )}
             </div>
           )}
 
