@@ -534,8 +534,8 @@ export default function Calendario() {
         </div>
       )}
 
-      {/* Legenda */}
-      <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border flex flex-wrap gap-3 items-center">
+      {/* Legenda: solo su desktop — sul telefono ruba spazio al calendario */}
+      <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border hidden lg:flex flex-wrap gap-3 items-center">
         <div className="flex items-center gap-1.5">
           <div style={{ width: 12, height: 12, borderRadius: 3, background: COLOR_PRENOTAZIONE }} />
           <span className="text-xs text-gray-500">Prenotazione</span>
