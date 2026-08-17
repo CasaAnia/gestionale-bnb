@@ -909,8 +909,10 @@ export default function BookingDetail() {
             {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
 
+          {/* min-w-0 ovunque: i campi data su iPhone hanno una larghezza
+              minima propria e senza questo sfondano le due colonne */}
           <div className="grid grid-cols-2 gap-2 mb-3">
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-gray-500 mb-1">Check-in</p>
               <input type="date" value={editForm.check_in} onChange={e => {
                 const newIn = e.target.value
@@ -918,14 +920,14 @@ export default function BookingDetail() {
                 const newOut = newIn && (!editForm.check_out || editForm.check_out <= newIn) ? nextDay(newIn) : editForm.check_out
                 setEditForm({ ...editForm, check_in: newIn, check_out: newOut })
                 checkDisponibilita(editForm.room_id, newIn, newOut)
-              }} className="w-full border border-card-border rounded-lg p-2 text-sm" />
+              }} className="w-full min-w-0 border border-card-border rounded-lg p-2 text-sm" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-gray-500 mb-1">Check-out</p>
               <input type="date" value={editForm.check_out} min={editForm.check_in ? nextDay(editForm.check_in) : undefined} onChange={e => {
                 setEditForm({ ...editForm, check_out: e.target.value })
                 checkDisponibilita(editForm.room_id, editForm.check_in, e.target.value)
-              }} className="w-full border border-card-border rounded-lg p-2 text-sm" />
+              }} className="w-full min-w-0 border border-card-border rounded-lg p-2 text-sm" />
             </div>
           </div>
 
@@ -1277,19 +1279,19 @@ export default function BookingDetail() {
               {editingStay && (
                 <div className="mt-2 pt-2 border-t border-[#D9D0EA]">
                   <div className="grid grid-cols-2 gap-2 mb-2">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs text-[#5B4E82] mb-1">Arrivo</p>
                       <input type="date" value={stayForm.check_in} onChange={e => {
                         setStayForm({ ...stayForm, check_in: e.target.value })
                         checkStayConflict(e.target.value, stayForm.check_out)
-                      }} className="w-full border border-[#D9D0EA] rounded-lg p-2 text-sm bg-white" />
+                      }} className="w-full min-w-0 border border-[#D9D0EA] rounded-lg p-2 text-sm bg-white" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs text-[#5B4E82] mb-1">Partenza</p>
                       <input type="date" value={stayForm.check_out} onChange={e => {
                         setStayForm({ ...stayForm, check_out: e.target.value })
                         checkStayConflict(stayForm.check_in, e.target.value)
-                      }} className="w-full border border-[#D9D0EA] rounded-lg p-2 text-sm bg-white" />
+                      }} className="w-full min-w-0 border border-[#D9D0EA] rounded-lg p-2 text-sm bg-white" />
                     </div>
                   </div>
                   {(() => {
