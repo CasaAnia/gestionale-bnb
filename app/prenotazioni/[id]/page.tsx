@@ -1058,6 +1058,17 @@ export default function BookingDetail() {
             </div>
           )}
 
+          <div onClick={() => setEditForm({ ...editForm, bonifico: !editForm.bonifico })}
+            className="flex items-center justify-between bg-sage rounded-lg p-3 mb-3 border border-card-border cursor-pointer active:opacity-70">
+            <div>
+              <p className="text-sm font-semibold text-green-dark">🏦 Pagamento tramite bonifico</p>
+              <p className="text-xs text-green-mid">La conferma includerà l'IBAN</p>
+            </div>
+            <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${editForm.bonifico ? 'bg-green-mid' : 'bg-gray-200'}`}>
+              <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.bonifico ? 'translate-x-6' : ''}`} />
+            </div>
+          </div>
+
           <input value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
             placeholder="Note (opzionale)" className="w-full border border-card-border rounded-lg p-2 text-sm mb-3" />
 
@@ -1080,17 +1091,14 @@ export default function BookingDetail() {
             </div>
           </div>
 
-          <div onClick={() => setEditForm({ ...editForm, bonifico: !editForm.bonifico })}
-            className="flex items-center justify-between bg-sage rounded-lg p-3 mb-2 border border-card-border cursor-pointer active:opacity-70">
-            <div>
-              <p className="text-sm font-semibold text-green-dark">🏦 Pagamento tramite bonifico</p>
-              <p className="text-xs text-green-mid">La conferma includerà l'IBAN</p>
+          {calcNotti(editForm.check_in, editForm.check_out) > 0 && (
+            <div className="bg-sage rounded-lg p-3 mb-3 text-sm">
+              <p className="text-gray-600">{calcNotti(editForm.check_in, editForm.check_out)} notti × €{editForm.price_per_night}</p>
+              <p className="font-bold text-green-mid text-lg">Totale: €{calcTotal().toFixed(0)}</p>
             </div>
-            <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${editForm.bonifico ? 'bg-green-mid' : 'bg-gray-200'}`}>
-              <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.bonifico ? 'translate-x-6' : ''}`} />
-            </div>
-          </div>
+          )}
 
+          {/* Pagato per ultimo: è la spunta finale, dopo tutti i conti */}
           <div onClick={() => setEditForm({ ...editForm, pagato: !editForm.pagato })}
             className="flex items-center justify-between bg-[#EAF0F3] rounded-lg p-3 mb-3 border border-[#D7E3E8] cursor-pointer active:opacity-70">
             <div>
@@ -1101,13 +1109,6 @@ export default function BookingDetail() {
               <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.pagato ? 'translate-x-6' : ''}`} />
             </div>
           </div>
-
-          {calcNotti(editForm.check_in, editForm.check_out) > 0 && (
-            <div className="bg-sage rounded-lg p-3 mb-3 text-sm">
-              <p className="text-gray-600">{calcNotti(editForm.check_in, editForm.check_out)} notti × €{editForm.price_per_night}</p>
-              <p className="font-bold text-green-mid text-lg">Totale: €{calcTotal().toFixed(0)}</p>
-            </div>
-          )}
 
           {conflitto && (
             <div className="bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 mb-3 text-sm text-[#8C3B2E] font-semibold">
