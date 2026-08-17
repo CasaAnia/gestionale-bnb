@@ -1267,7 +1267,6 @@ export default function BookingDetail() {
             <p className="font-semibold">Cliente</p>
             <div className="flex gap-3">
               <Link href={`/clienti/${guest?.id}?edit=1`} className="text-green-mid text-sm">✏️ Modifica</Link>
-              <Link href={`/clienti/${guest?.id}`} className="text-green-mid text-sm">Storico →</Link>
             </div>
           </div>
           <p className="text-sm text-gray-600">📞 {guest?.phone}</p>
