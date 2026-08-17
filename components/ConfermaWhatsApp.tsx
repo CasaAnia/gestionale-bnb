@@ -84,7 +84,7 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
   const nome = booking.guests?.full_name || 'Ospite'
 
   // Righe del riepilogo costi: una per camera, più il letto supplementare se presente
-  const righeCosti: { label: string; amount: number }[] = []
+  const righeCosti: { label: string; amount: number; sconto?: boolean }[] = []
   for (const s of segmenti) {
     const n = notti(s.check_in, s.check_out)
     const prezzo = Number(s.price_per_night)
@@ -98,10 +98,22 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
       })
       continue
     }
-    righeCosti.push({
-      label: n > 1 ? `${nomeCamera} (${n} notti × ${fmtEuro(prezzo)})` : nomeCamera,
-      amount: prezzo * n,
-    })
+    // Prezzo sotto il listino = sconto di Ania: nell'immagine si mostra il
+    // listino pieno e la riga di sconto evidenziata in verde
+    const listino = Number(s.rooms?.base_price || 0)
+    const scontoCamera = listino > prezzo ? (listino - prezzo) * n : 0
+    if (scontoCamera > 0.005) {
+      righeCosti.push({
+        label: n > 1 ? `${nomeCamera} (${n} notti × ${fmtEuro(listino)})` : nomeCamera,
+        amount: listino * n,
+      })
+      righeCosti.push({ label: 'Sconto a lei riservato', amount: -scontoCamera, sconto: true })
+    } else {
+      righeCosti.push({
+        label: n > 1 ? `${nomeCamera} (${n} notti × ${fmtEuro(prezzo)})` : nomeCamera,
+        amount: prezzo * n,
+      })
+    }
     const ebTot = Number(s.extra_bed_total || 0)
     if (s.extra_bed && ebTot > 0) {
       const ebNotti = s.extra_bed_dates?.length > 0 ? s.extra_bed_dates.length : n
@@ -387,7 +399,12 @@ Ania`
 
                 {/* RIEPILOGO COSTI */}
                 <div style={{ ...S.box, background: 'white', border: '2px solid #e3ddd0' }}>
-                  {righeCosti.map((r, i) => (
+                  {righeCosti.map((r, i) => r.sconto ? (
+                    <div key={i} style={{ ...S.row, background: '#E7EFE9', borderRadius: 14, padding: '12px 16px', margin: '6px 0' }}>
+                      <span style={{ fontSize: 32, fontWeight: 700, color: '#1F3D2F', flexShrink: 1, minWidth: 0, lineHeight: 1.35 }}>{r.label}</span>
+                      <span style={{ fontSize: 36, fontWeight: 800, color: '#2D6A4F', flexShrink: 0 }}>−{fmtEuro(-r.amount)}</span>
+                    </div>
+                  ) : (
                     <div key={i} style={S.row}>
                       <span style={{ ...S.label, color: '#3a3a35', flexShrink: 1, minWidth: 0, lineHeight: 1.35 }}>{r.label}</span>
                       <span style={{ ...S.value, flexShrink: 0 }}>{fmtEuro(r.amount)}</span>
