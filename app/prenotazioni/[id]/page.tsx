@@ -1034,12 +1034,31 @@ export default function BookingDetail() {
       ) : (
         /* VISUALIZZAZIONE NORMALE */
         <div className={`rounded-xl p-5 border mb-4 ${booking.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-white border-card-border'}`}>
-          <div className="flex justify-between items-start mb-3">
-            <div>
-              <p className="font-bold text-lg">{guest?.full_name || guest?.phone}</p>
-              <p className="text-gray-500">{booking.rooms?.name}</p>
-            </div>
+          {/* Cliente in testa: nome, telefono con chiamata diretta, poi camera */}
+          <div className="flex justify-between items-start gap-2 mb-2">
+            <p className="font-bold text-lg min-w-0">{guest?.full_name || guest?.phone}</p>
+            <Link href={`/clienti/${guest?.id}?edit=1`} className="text-green-mid text-sm shrink-0 pt-1">✏️ Modifica</Link>
           </div>
+          {guest?.phone && (
+            <a href={`tel:${(guest.phone || '').replace(/[^\d+]/g, '')}`}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold py-1 mb-1" style={{ color: '#2D6A4F' }}>
+              📞 {guest.phone}
+            </a>
+          )}
+          {guest?.email && <p className="text-sm text-gray-600 mb-1">✉️ {guest.email}</p>}
+          {guest?.rating && guest.rating !== 'normale' && (
+            <p className="text-sm font-semibold mb-1">{RATING_LABEL[guest.rating]}</p>
+          )}
+          {(booking.extra_phone_1 || booking.extra_phone_1_name) && (
+            <p className="text-sm text-gray-600 mb-1">
+              {booking.extra_phone_1 ? `📞 ${booking.extra_phone_1}` : '👤'}{booking.extra_phone_1_name ? ` – ${booking.extra_phone_1_name}` : ''}
+              {booking.chi_e && <span className="ml-1.5 text-xs px-2 py-0.5 rounded-full bg-[#EDE6D6] text-[#5a6b3f] font-medium align-middle">{booking.chi_e}</span>}
+            </p>
+          )}
+          {booking.extra_phone_2 && (
+            <p className="text-sm text-gray-600 mb-1">📞 {booking.extra_phone_2}{booking.extra_phone_2_name ? ` – ${booking.extra_phone_2_name}` : ''}</p>
+          )}
+          <p className="text-gray-500 mt-4 mb-1.5">{booking.rooms?.name}</p>
           {booking.check_in_time && (
             <div className="bg-sage border border-card-border rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
               <span className="text-2xl">🕐</span>
@@ -1260,31 +1279,6 @@ export default function BookingDetail() {
         </button>
       )}
 
-      {/* Dati cliente */}
-      {!editing && (
-        <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
-          <div className="flex justify-between items-center mb-2">
-            <p className="font-semibold">Cliente</p>
-            <div className="flex gap-3">
-              <Link href={`/clienti/${guest?.id}?edit=1`} className="text-green-mid text-sm">✏️ Modifica</Link>
-            </div>
-          </div>
-          <p className="text-sm text-gray-600">📞 {guest?.phone}</p>
-          {guest?.email && <p className="text-sm text-gray-600">✉️ {guest.email}</p>}
-          {guest?.rating && guest.rating !== 'normale' && (
-            <p className="text-sm font-semibold mt-1">{RATING_LABEL[guest.rating]}</p>
-          )}
-          {(booking.extra_phone_1 || booking.extra_phone_1_name) && (
-            <p className="text-sm text-gray-600 mt-1">
-              {booking.extra_phone_1 ? `📞 ${booking.extra_phone_1}` : '👤'}{booking.extra_phone_1_name ? ` – ${booking.extra_phone_1_name}` : ''}
-              {booking.chi_e && <span className="ml-1.5 text-xs px-2 py-0.5 rounded-full bg-[#EDE6D6] text-[#5a6b3f] font-medium align-middle">{booking.chi_e}</span>}
-            </p>
-          )}
-          {booking.extra_phone_2 && (
-            <p className="text-sm text-gray-600">📞 {booking.extra_phone_2}{booking.extra_phone_2_name ? ` – ${booking.extra_phone_2_name}` : ''}</p>
-          )}
-        </div>
-      )}
 
       {/* Altre prenotazioni dello stesso ospite: per ritrovare al volo
           tutte le richieste fatte con lo stesso numero */}
