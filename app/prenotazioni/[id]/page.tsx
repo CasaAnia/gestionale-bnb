@@ -1293,8 +1293,11 @@ export default function BookingDetail() {
         <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
           <p className="font-semibold mb-1">Altre prenotazioni di questo ospite</p>
           {otherBookings.map((ob: any) => {
-            const st = ob.status === 'in_attesa'
-              ? { label: '⏳ In attesa', bg: '#B5502F', fg: '#fff' }
+            // "In attesa" = riga intera rosso mattone: il bollino da solo
+            // rischiava di sfuggire all'occhio
+            const pending = ob.status === 'in_attesa'
+            const st = pending
+              ? { label: '⏳ In attesa', bg: '#fff', fg: '#B5502F' }
               : ob.status === 'annullata'
                 ? { label: 'Annullata', bg: '#EDEDED', fg: '#777777' }
                 : ob.status === 'completata'
@@ -1303,11 +1306,14 @@ export default function BookingDetail() {
             const d = (s: string) => new Date(s + 'T00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
             return (
               <Link key={ob.id} href={`/prenotazioni/${ob.id}`}
-                className="flex items-center justify-between gap-2 py-2.5 border-b border-gray-100 last:border-b-0">
-                <span className="text-sm min-w-0">
+                className={pending
+                  ? 'flex items-center justify-between gap-2 py-2.5 px-3 -mx-1 my-1 rounded-lg shadow-sm'
+                  : 'flex items-center justify-between gap-2 py-2.5 border-b border-gray-100 last:border-b-0'}
+                style={pending ? { background: '#B5502F' } : undefined}>
+                <span className="text-sm min-w-0" style={pending ? { color: '#fff' } : undefined}>
                   <span className="font-medium">{ob.rooms?.name}</span>
-                  <span className="text-gray-500"> · {d(ob.check_in)} → {d(ob.check_out)}</span>
-                  {ob.source === 'sito_web' && <span className="text-gray-400 text-xs"> · 🌐</span>}
+                  <span style={pending ? { color: 'rgba(255,255,255,0.85)' } : undefined} className={pending ? '' : 'text-gray-500'}> · {d(ob.check_in)} → {d(ob.check_out)}</span>
+                  {ob.source === 'sito_web' && <span className={pending ? '' : 'text-gray-400'} style={{ fontSize: '0.75rem' }}> · 🌐</span>}
                 </span>
                 <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 whitespace-nowrap" style={{ background: st.bg, color: st.fg }}>{st.label}</span>
               </Link>
