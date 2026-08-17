@@ -481,8 +481,10 @@ export default function Calendario() {
                               <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? gs(13) : gs(10), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                                 {hasIncoming ? '⇄ ' : ''}{guestName}{hasOutgoing ? ' ⇄' : ''}
                               </span>
-                              {isWebPending && (
-                                <span style={{ color: '#2D6A4F', fontSize: isDesktop ? gs(10) : gs(8), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
+                              {/* "dal sito" resta anche dopo la conferma: ad
+                                  Ania serve sapere da dove è arrivata */}
+                              {booking.source === 'sito_web' && (
+                                <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? gs(10) : gs(8), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
                                   🌐 dal sito
                                 </span>
                               )}
