@@ -94,9 +94,20 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
     }
     const subCamera = prezzo * n
     totaleRighe += subCamera
-    righeCosti.push(n > 1
-      ? `${nomeCamera} (${n} notti × ${fmtEuro(prezzo)}): ${fmtEuro(subCamera)}`
-      : `${nomeCamera}: ${fmtEuro(subCamera)}`)
+    // Prezzo sotto il listino della camera = sconto fatto da Ania: il
+    // cliente lo deve vedere nero su bianco, non un prezzo basso e muto
+    const listino = Number(s.rooms?.base_price || 0)
+    const scontoCamera = listino > prezzo ? (listino - prezzo) * n : 0
+    if (scontoCamera > 0.005) {
+      righeCosti.push(n > 1
+        ? `${nomeCamera} (${n} notti × ${fmtEuro(listino)}): ${fmtEuro(listino * n)}`
+        : `${nomeCamera}: ${fmtEuro(listino)}`)
+      righeCosti.push(`━━━━━━━━━━━━━━\n*Sconto a lei riservato: −${fmtEuro(scontoCamera)}*\n━━━━━━━━━━━━━━`)
+    } else {
+      righeCosti.push(n > 1
+        ? `${nomeCamera} (${n} notti × ${fmtEuro(prezzo)}): ${fmtEuro(subCamera)}`
+        : `${nomeCamera}: ${fmtEuro(subCamera)}`)
+    }
     const ebTot = Number(s.extra_bed_total || 0)
     if (s.extra_bed && ebTot > 0) {
       const ebNotti = s.extra_bed_dates?.length > 0 ? s.extra_bed_dates.length : n
