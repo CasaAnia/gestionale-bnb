@@ -1367,23 +1367,27 @@ export default function BookingDetail() {
         </div>
       )}
 
-      {/* Conferma richiesta: un tocco solo — appena confermata il bottone
-          sparisce, il calendario cambia colore e la richiesta esce dalla
-          barra e dal popup (guardano tutti lo stato in_attesa) */}
-      {!editing && booking.status === 'in_attesa' && (
-        <button onClick={confermaPrenotazione} disabled={confirming}
-          className="w-full text-white rounded-xl py-3.5 font-bold mb-4 disabled:opacity-60"
-          style={{ background: '#2D6A4F' }}>
-          {confirming ? 'Confermo...' : '✅ Conferma prenotazione'}
-        </button>
-      )}
-
-      {/* Bottone Modifica prenotazione: pieno su mobile, a bordo verde su desktop */}
+      {/* Conferma, Modifica e Annulla insieme, tutti della stessa grandezza.
+          Conferma: un tocco solo — appena confermata il bottone sparisce,
+          il calendario cambia colore e la richiesta esce da barra e popup */}
       {!editing && booking.status !== 'annullata' && (
-        <button onClick={() => setEditing(true)}
-          className="w-full bg-green-mid text-white lg:bg-transparent lg:border lg:border-green-mid lg:text-green-mid rounded-xl py-2 font-semibold mb-4">
-          ✏️ Modifica prenotazione
-        </button>
+        <div className="space-y-2 mb-4">
+          {booking.status === 'in_attesa' && (
+            <button onClick={confermaPrenotazione} disabled={confirming}
+              className="w-full text-white rounded-xl py-3 font-semibold disabled:opacity-60"
+              style={{ background: '#2D6A4F' }}>
+              {confirming ? 'Confermo...' : '✅ Conferma prenotazione'}
+            </button>
+          )}
+          <button onClick={() => setEditing(true)}
+            className="w-full bg-green-mid text-white lg:bg-transparent lg:border lg:border-green-mid lg:text-green-mid rounded-xl py-3 font-semibold">
+            ✏️ Modifica prenotazione
+          </button>
+          <button onClick={() => setShowCancel(true)}
+            className="w-full bg-[#B5502F] text-white rounded-xl py-3 font-semibold">
+            Annulla prenotazione
+          </button>
+        </div>
       )}
 
 
@@ -1430,13 +1434,6 @@ export default function BookingDetail() {
         }} className="w-full bg-[#7D9DB0] text-white lg:bg-[#EAF0F3] lg:text-[#3D5A66] rounded-xl py-3 font-semibold mb-4">
           ✅ Segna come pagato
         </button>
-      )}
-
-      {/* Azioni */}
-      {!editing && (booking.status === 'confermata' || booking.status === 'completata' || booking.status === 'in_attesa') && (
-        <div className="mb-4">
-          <button onClick={() => setShowCancel(true)} className="w-full bg-[#B5502F] text-white rounded-xl py-2 text-sm font-semibold">Annulla prenotazione</button>
-        </div>
       )}
 
       {/* WhatsApp (mobile; su desktop sta nel pannello Azioni) */}
