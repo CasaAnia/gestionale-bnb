@@ -54,9 +54,16 @@ export default function WebRequestAlert() {
           {fmtData(primo.check_in)} → {fmtData(primo.check_out)} · {primo.room_name} · €{Math.round(primo.total_amount)}
         </p>
         {requests.length > 1 && (
-          <p className="text-xs mb-3" style={{ color: 'var(--color-stone)' }}>
-            …e {requests.length - 1 === 1 ? 'un’altra richiesta' : `altre ${requests.length - 1} richieste`} in attesa
-          </p>
+          <div className="mb-3">
+            <p className="text-xs font-semibold mb-0.5" style={{ color: 'var(--color-stone)' }}>
+              {requests.length - 1 === 1 ? '…e un’altra richiesta in attesa:' : `…e altre ${requests.length - 1} richieste in attesa:`}
+            </p>
+            {requests.slice(1).map(r => (
+              <p key={r.id} className="text-xs" style={{ color: 'var(--color-stone)' }}>
+                {r.guest_name} · {fmtData(r.check_in)} → {fmtData(r.check_out)} · {r.room_name}
+              </p>
+            ))}
+          </div>
         )}
         <p className="text-xs text-gray-500 mb-4">Chiama il cliente e poi conferma la prenotazione.</p>
         <div className="flex gap-2">
