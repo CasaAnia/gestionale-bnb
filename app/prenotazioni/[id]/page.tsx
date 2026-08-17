@@ -1294,7 +1294,7 @@ export default function BookingDetail() {
           <p className="font-semibold mb-1">Altre prenotazioni di questo ospite</p>
           {otherBookings.map((ob: any) => {
             const st = ob.status === 'in_attesa'
-              ? { label: 'In attesa', bg: '#F3E4D9', fg: '#8a5231' }
+              ? { label: '⏳ In attesa', bg: '#B5502F', fg: '#fff' }
               : ob.status === 'annullata'
                 ? { label: 'Annullata', bg: '#EDEDED', fg: '#777777' }
                 : ob.status === 'completata'
