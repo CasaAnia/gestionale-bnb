@@ -359,6 +359,8 @@ export default function BookingDetail() {
   // Altre prenotazioni dello stesso ospite (anche annullate): se ha mandato
   // più richieste dal sito, magari una sbagliata, da qui si ritrovano tutte
   const [otherBookings, setOtherBookings] = useState<any[]>([])
+  // Conferma della richiesta dal sito: un solo tocco, poi il bottone sparisce
+  const [confirming, setConfirming] = useState(false)
   // Sconto in modifica: percentuale libera o totale deciso a mano.
   // Non tocca il database: ricalcola solo il prezzo a notte già esistente
   const [scontoPct, setScontoPct] = useState('')
@@ -538,6 +540,27 @@ export default function BookingDetail() {
     // Il letto non si addebita quando è già compreso nella tariffa (Lena fino a 3 ospiti)
     const extraBedTotal = totaleLetto(room, editForm.num_guests, ebDays)
     return Number(editForm.price_per_night) * n + extraBedTotal
+  }
+
+  // Conferma la richiesta (tutti i segmenti se c'è un cambio camera).
+  // L'update filtra su status=in_attesa: anche premuto due volte per
+  // sbaglio non tocca nulla che sia già confermato
+  async function confermaPrenotazione() {
+    if (confirming) return
+    setConfirming(true)
+    try {
+      if (booking.group_id) {
+        await supabase.from('bookings').update({ status: 'confermata' })
+          .eq('group_id', booking.group_id).eq('status', 'in_attesa')
+      } else {
+        await supabase.from('bookings').update({ status: 'confermata' })
+          .eq('id', id).eq('status', 'in_attesa')
+      }
+      setBooking({ ...booking, status: 'confermata' })
+      setGroupBookings(gs => gs.map((g: any) => g.status === 'in_attesa' ? { ...g, status: 'confermata' } : g))
+    } finally {
+      setConfirming(false)
+    }
   }
 
   // Porta il totale del soggiorno a un valore voluto ricalcolando il prezzo
@@ -1342,6 +1365,17 @@ export default function BookingDetail() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Conferma richiesta: un tocco solo — appena confermata il bottone
+          sparisce, il calendario cambia colore e la richiesta esce dalla
+          barra e dal popup (guardano tutti lo stato in_attesa) */}
+      {!editing && booking.status === 'in_attesa' && (
+        <button onClick={confermaPrenotazione} disabled={confirming}
+          className="w-full text-white rounded-xl py-3.5 font-bold mb-4 disabled:opacity-60"
+          style={{ background: '#2D6A4F' }}>
+          {confirming ? 'Confermo...' : '✅ Conferma prenotazione'}
+        </button>
       )}
 
       {/* Bottone Modifica prenotazione: pieno su mobile, a bordo verde su desktop */}
