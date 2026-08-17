@@ -1027,6 +1027,37 @@ export default function BookingDetail() {
             </div>
           )}
 
+          {/* Sconto: percentuale a mano o totale deciso da Ania — subito
+              dopo il letto aggiuntivo, dove si ragiona sui prezzi */}
+          {calcNotti(editForm.check_in, editForm.check_out) > 0 && (
+            <div className="border border-card-border rounded-lg p-3 mb-3">
+              <p className="text-xs text-gray-500 mb-2">Sconto</p>
+              <div className="flex gap-2 items-center mb-2">
+                <input type="number" inputMode="decimal" min={1} max={99} placeholder="%"
+                  value={scontoPct} onChange={e => setScontoPct(e.target.value)}
+                  className="w-20 border border-card-border rounded-lg p-2 text-sm" />
+                <button type="button" onClick={applicaScontoPct}
+                  className="bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
+                  disabled={!parseFloat(scontoPct.replace(',', '.'))}>
+                  Applica %
+                </button>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input type="number" inputMode="decimal" min={1} placeholder="€ totale"
+                  value={scontoTot} onChange={e => setScontoTot(e.target.value)}
+                  className="w-28 border border-card-border rounded-lg p-2 text-sm" />
+                <button type="button" onClick={applicaScontoTot}
+                  className="bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
+                  disabled={!parseFloat(scontoTot.replace(',', '.'))}>
+                  Porta il totale
+                </button>
+              </div>
+              {scontoInfo && (
+                <p className="text-xs rounded-lg px-2 py-1.5 mt-2" style={{ background: '#F3ECD8', color: '#8a4f2f' }}>{scontoInfo}</p>
+              )}
+            </div>
+          )}
+
           <input value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
             placeholder="Note (opzionale)" className="w-full border border-card-border rounded-lg p-2 text-sm mb-3" />
 
@@ -1075,36 +1106,6 @@ export default function BookingDetail() {
             <div className="bg-sage rounded-lg p-3 mb-3 text-sm">
               <p className="text-gray-600">{calcNotti(editForm.check_in, editForm.check_out)} notti × €{editForm.price_per_night}</p>
               <p className="font-bold text-green-mid text-lg">Totale: €{calcTotal().toFixed(0)}</p>
-            </div>
-          )}
-
-          {/* Sconto: percentuale a mano o totale deciso da Ania */}
-          {calcNotti(editForm.check_in, editForm.check_out) > 0 && (
-            <div className="border border-card-border rounded-lg p-3 mb-3">
-              <p className="text-xs text-gray-500 mb-2">Sconto</p>
-              <div className="flex gap-2 items-center mb-2">
-                <input type="number" inputMode="decimal" min={1} max={99} placeholder="%"
-                  value={scontoPct} onChange={e => setScontoPct(e.target.value)}
-                  className="w-20 border border-card-border rounded-lg p-2 text-sm" />
-                <button type="button" onClick={applicaScontoPct}
-                  className="bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
-                  disabled={!parseFloat(scontoPct.replace(',', '.'))}>
-                  Applica %
-                </button>
-              </div>
-              <div className="flex gap-2 items-center">
-                <input type="number" inputMode="decimal" min={1} placeholder="€ totale"
-                  value={scontoTot} onChange={e => setScontoTot(e.target.value)}
-                  className="w-28 border border-card-border rounded-lg p-2 text-sm" />
-                <button type="button" onClick={applicaScontoTot}
-                  className="bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
-                  disabled={!parseFloat(scontoTot.replace(',', '.'))}>
-                  Porta il totale
-                </button>
-              </div>
-              {scontoInfo && (
-                <p className="text-xs rounded-lg px-2 py-1.5 mt-2" style={{ background: '#F3ECD8', color: '#8a4f2f' }}>{scontoInfo}</p>
-              )}
             </div>
           )}
 
