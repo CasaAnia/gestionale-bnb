@@ -345,6 +345,9 @@ export default function BookingDetail() {
   const router = useRouter()
   const [booking, setBooking] = useState<any>(null)
   const [groupBookings, setGroupBookings] = useState<any[]>([])
+  // Altre prenotazioni dello stesso ospite (anche annullate): se ha mandato
+  // più richieste dal sito, magari una sbagliata, da qui si ritrovano tutte
+  const [otherBookings, setOtherBookings] = useState<any[]>([])
   const [rooms, setRooms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -440,6 +443,18 @@ export default function BookingDetail() {
         return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
       })
       setRooms(sorted)
+      // Altre prenotazioni dello stesso ospite, escluse quelle del gruppo
+      // (i segmenti del cambio camera sono lo stesso soggiorno)
+      if (b?.guest_id) {
+        supabase.from('bookings')
+          .select('id, check_in, check_out, status, group_id, source, rooms(name)')
+          .eq('guest_id', b.guest_id)
+          .neq('id', id)
+          .order('check_in', { ascending: false })
+          .then(({ data: others }) => {
+            setOtherBookings((others || []).filter((x: any) => !(b.group_id && x.group_id === b.group_id)))
+          })
+      }
       // Carica le altre prenotazioni del gruppo (cambio camera)
       if (b?.group_id) {
         supabase.from('bookings')
@@ -755,7 +770,7 @@ export default function BookingDetail() {
       <div className="flex items-center gap-3 mb-4">
         <h1 className="font-serif text-xl text-green-dark">Prenotazione</h1>
         {booking.source === 'sito_web' && (
-          <span className="text-[11px] font-semibold rounded-full px-2 py-0.5" style={{ background: '#EAF1EC', color: '#1F3D2F' }}>🌐 Dal sito</span>
+          <span className="text-xs font-bold rounded-full px-3 py-1 shadow-sm" style={{ background: '#2D6A4F', color: '#fff' }}>🌐 Dal sito</span>
         )}
         <span className="flex-1" />
         {editing && (
@@ -1269,6 +1284,35 @@ export default function BookingDetail() {
           {booking.extra_phone_2 && (
             <p className="text-sm text-gray-600">📞 {booking.extra_phone_2}{booking.extra_phone_2_name ? ` – ${booking.extra_phone_2_name}` : ''}</p>
           )}
+        </div>
+      )}
+
+      {/* Altre prenotazioni dello stesso ospite: per ritrovare al volo
+          tutte le richieste fatte con lo stesso numero */}
+      {!editing && otherBookings.length > 0 && (
+        <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
+          <p className="font-semibold mb-1">Altre prenotazioni di questo ospite</p>
+          {otherBookings.map((ob: any) => {
+            const st = ob.status === 'in_attesa'
+              ? { label: 'In attesa', bg: '#F3E4D9', fg: '#8a5231' }
+              : ob.status === 'annullata'
+                ? { label: 'Annullata', bg: '#EDEDED', fg: '#777777' }
+                : ob.status === 'completata'
+                  ? { label: 'Completata', bg: '#EAF0F3', fg: '#3D5A66' }
+                  : { label: 'Confermata', bg: '#E7EFE9', fg: '#2D6A4F' }
+            const d = (s: string) => new Date(s + 'T00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
+            return (
+              <Link key={ob.id} href={`/prenotazioni/${ob.id}`}
+                className="flex items-center justify-between gap-2 py-2.5 border-b border-gray-100 last:border-b-0">
+                <span className="text-sm min-w-0">
+                  <span className="font-medium">{ob.rooms?.name}</span>
+                  <span className="text-gray-500"> · {d(ob.check_in)} → {d(ob.check_out)}</span>
+                  {ob.source === 'sito_web' && <span className="text-gray-400 text-xs"> · 🌐</span>}
+                </span>
+                <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 whitespace-nowrap" style={{ background: st.bg, color: st.fg }}>{st.label}</span>
+              </Link>
+            )
+          })}
         </div>
       )}
 
