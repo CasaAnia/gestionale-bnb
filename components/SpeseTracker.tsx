@@ -463,6 +463,18 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     return { topCat, topS, topVoce, caffe, gruppi, prevTot, diff }
   }, [vociMese, vociPrec, totMese])
 
+  // ---- il conto del caffè: quanti caffè/cappuccini bevuti FUORI questo mese ----
+  const caffeMese = useMemo(() => {
+    const fuori = new Set(['Colazione/Bar', 'Mangiare fuori', 'Merenda'])
+    const voci = vociMese.filter(v => fuori.has(v.cat) && /caff|espresso|cappucc/i.test(v.n))
+    const caffe = voci.filter(v => !/cappucc/i.test(v.n))
+    const capp = voci.filter(v => /cappucc/i.test(v.n))
+    const nC = caffe.reduce((s, v) => s + v.q, 0), nK = capp.reduce((s, v) => s + v.q, 0)
+    const tot = voci.reduce((s, v) => s + v.a, 0)
+    const pasti = voci.filter(v => v.cat === 'Mangiare fuori').reduce((s, v) => s + v.a, 0)
+    return { voci, nC, nK, tot, pasti }
+  }, [vociMese])
+
   function apriDettaglio(titolo: string, voci: Voce[]) {
     setDettaglio({ titolo, voci })
   }
@@ -961,6 +973,19 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                 </>
               )}
             </div>
+
+            {/* IL CONTO DEL CAFFÈ */}
+            {caffeMese.tot > 0 && (
+              <button onClick={() => apriDettaglio(`☕ I caffè di ${monthLabel(month)} · ${eur2(caffeMese.tot)}`, caffeMese.voci)}
+                className="w-full bg-sand rounded-xl px-4 py-3 border border-card-border mb-3 text-left transition active:scale-[0.99]">
+                <p className="text-sm text-green-dark">
+                  ☕ <b>{caffeMese.nC} caffè{caffeMese.nK > 0 ? ` e ${caffeMese.nK} cappuccini` : ''}</b> fuori casa questo mese
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Ti sono costati <b className="text-[#8C3B2E]">{eur2(caffeMese.tot)}</b>{caffeMese.pasti > 0 ? ` (di cui ${eur2(caffeMese.pasti)} a pranzo/cena)` : ''} · tocca per l'elenco
+                </p>
+              </button>
+            )}
 
             {/* Tessere categoria */}
             <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Le tue voci · tocca per il dettaglio</p>
