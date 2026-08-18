@@ -254,14 +254,13 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const stores = useMemo(() => Array.from(new Set(rows.map(r => r.store).filter(Boolean))) as string[], [rows])
 
   // Applica le regole prodotto: se descrizione/prodotto contiene una keyword,
-  // propone il gruppo giusto (e riempie il prodotto seguito se track_detail).
+  // propone il gruppo giusto.
   function applyRules(text: string, current: ReturnType<typeof blankForm>) {
     const t = strip(text)
     for (const rule of rules) {
       if (t.includes(strip(rule.keyword))) {
         const next = { ...current }
         if (rule.group_id) { next.group_id = rule.group_id; next.category_id = '' }
-        if (rule.track_detail && !next.product) next.product = rule.keyword
         setAutoGroup(rule.group_id ? groupName(rule.group_id) : null)
         return next
       }
@@ -281,7 +280,6 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       category_id: form.category_id || null,
       ...(form.subcategory ? { subcategory: form.subcategory } : {}),
       store: form.store.trim() || null,
-      product: form.product.trim() || null,
       description: form.description.trim() || null,
       recurring: form.recurring,
       source: 'manuale',
@@ -841,13 +839,9 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
             )
           })()}
 
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <input list="stores-list" value={form.store} onChange={e => setForm({ ...form, store: e.target.value })}
-              placeholder="Negozio" className="border border-card-border rounded-lg p-2 text-sm" />
-            <datalist id="stores-list">{stores.map(s => <option key={s} value={s} />)}</datalist>
-            <input value={form.product} onChange={e => setForm({ ...form, product: e.target.value })}
-              placeholder="Prodotto seguito (opz.)" className="border border-card-border rounded-lg p-2 text-sm" />
-          </div>
+          <input list="stores-list" value={form.store} onChange={e => setForm({ ...form, store: e.target.value })}
+            placeholder="Negozio" className="w-full border border-card-border rounded-lg p-2 text-sm mb-2" />
+          <datalist id="stores-list">{stores.map(s => <option key={s} value={s} />)}</datalist>
 
           <label className="flex items-center gap-2 text-sm mb-3 text-gray-600">
             <input type="checkbox" checked={form.recurring} onChange={e => setForm({ ...form, recurring: e.target.checked })} />
