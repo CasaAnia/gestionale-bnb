@@ -7,6 +7,7 @@ import MainContainer from '@/components/MainContainer'
 import ScrollToTop from '@/components/ScrollToTop'
 import NavTracker from '@/components/NavTracker'
 import WebRequestAlert from '@/components/WebRequestAlert'
+import RinnovoNotifiche from '@/components/RinnovoNotifiche'
 
 const nunitoSans = Nunito_Sans({ subsets: ['latin'], variable: '--font-nunito-sans', display: 'swap' })
 
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </main>
         <BottomNav />
         <WebRequestAlert />
+        <RinnovoNotifiche />
       </body>
     </html>
   )

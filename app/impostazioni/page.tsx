@@ -23,6 +23,9 @@ export default function Impostazioni() {
   const [saving, setSaving] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<string, any>>({})
   const [notifStatus, setNotifStatus] = useState<'idle' | 'loading' | 'ok' | 'denied'>('idle')
+  // Motivo del fallimento: prima l'attivazione falliva in silenzio e non si
+  // capiva se era il permesso del telefono o la sessione scaduta
+  const [notifErr, setNotifErr] = useState('')
 
   // Modalità dimostrazione
   const demo = useDemoMode()
@@ -49,7 +52,11 @@ export default function Impostazioni() {
       const reg = await navigator.serviceWorker.register('/sw.js')
       await navigator.serviceWorker.ready
       const permission = await Notification.requestPermission()
-      if (permission !== 'granted') { setNotifStatus('denied'); return }
+      if (permission !== 'granted') {
+        setNotifErr('Permesso negato dal telefono. Vai nelle impostazioni del telefono per abilitarle.')
+        setNotifStatus('denied')
+        return
+      }
       // Cancella subscription esistente e ricreala
       const existing = await reg.pushManager.getSubscription()
       if (existing) await existing.unsubscribe()
@@ -58,9 +65,14 @@ export default function Impostazioni() {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       })
       const res = await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) })
-      if (!res.ok) throw new Error('Errore salvataggio')
+      if (!res.ok) {
+        throw new Error(res.status === 401
+          ? 'Sessione scaduta: esci e rientra nel gestionale, poi riprova.'
+          : 'Errore nel salvataggio: riprova tra un momento.')
+      }
       setNotifStatus('ok')
     } catch (e) {
+      setNotifErr(e instanceof Error && e.message ? e.message : 'Attivazione non riuscita: riprova.')
       setNotifStatus('denied')
     }
   }
@@ -176,7 +188,13 @@ export default function Impostazioni() {
         {notifStatus === 'ok' ? (
           <div className="bg-sage text-green-dark rounded-lg px-3 py-2 text-sm font-semibold">✅ Notifiche attive!</div>
         ) : notifStatus === 'denied' ? (
-          <div className="bg-[#F6E4DE] text-[#8C3B2E] rounded-lg px-3 py-2 text-sm">❌ Permesso negato. Vai nelle impostazioni del telefono per abilitarle.</div>
+          <div className="space-y-2">
+            <div className="bg-[#F6E4DE] text-[#8C3B2E] rounded-lg px-3 py-2 text-sm">{notifErr || 'Attivazione non riuscita: riprova.'}</div>
+            <button onClick={() => { setNotifErr(''); setNotifStatus('idle') }}
+              className="w-full border border-card-border rounded-xl py-2 text-sm font-semibold">
+              Riprova
+            </button>
+          </div>
         ) : (
           <button onClick={attivaNotifiche} disabled={notifStatus === 'loading'}
             className="w-full bg-green-mid text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
