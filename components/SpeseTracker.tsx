@@ -55,7 +55,7 @@ const ICONE: Record<string, string> = {
   'Lavori e ristrutturazione': '🏗️', 'Riparazioni': '🔧', 'Prodotti di pulizia': '🧴',
   'Macchina': '🚗', 'Trasporti': '🚌', 'Viaggi': '✈️', 'Regali': '🎁', 'Svago': '🎉',
   'Scuola': '🎒', 'Sport': '⚽', 'Paghetta': '💰', 'Parrucchiere': '💇', 'Assicurazioni': '🛡️',
-  'Tasse': '🏛️', 'Abbonamenti': '🔁', 'Varie': '📦',
+  'Tasse': '🏛️', 'Abbonamenti': '🔁', 'Varie': '📦', 'Servizi': '🧾',
   // Nomi nuovi (riordino 0015)
   'Detersivi': '🧴', 'Cura corpo': '🧼', 'Medico': '💊', 'Colazione/Bar': '☕',
   'Merenda': '🍦', 'Divertimento': '🎉', 'Cucina utensili': '🍳', 'Arredo casa': '🛋️',
