@@ -374,6 +374,9 @@ export default function BookingDetail() {
   const [saveEditError, setSaveEditError] = useState<string | null>(null)
   const timeRef = useRef<HTMLInputElement>(null)
   const [showCancel, setShowCancel] = useState(false)
+  // Conferma visibile dopo l'annullamento: prima cambiava solo il pallino di
+  // stato e sembrava che il tasto non avesse fatto nulla
+  const [cancelDone, setCancelDone] = useState(false)
   const [showConferma, setShowConferma] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [conflitto, setConflitto] = useState<string | null>(null)
@@ -775,11 +778,18 @@ export default function BookingDetail() {
   }
 
   async function cancelBooking() {
-    await supabase.from('bookings').update({ status: 'annullata', cancelled_at: new Date().toISOString(), cancelled_reason: cancelReason }).eq('id', id)
+    const { error } = await supabase.from('bookings').update({ status: 'annullata', cancelled_at: new Date().toISOString(), cancelled_reason: cancelReason }).eq('id', id)
+    if (error) {
+      alert('Non sono riuscito ad annullare la prenotazione. Riprova tra un momento.')
+      return
+    }
     const msg = buildWhatsappMsg(booking, 'annullamento', groupBookings)
     await supabase.from('booking_whatsapp_log').insert({ booking_id: id, message_type: 'annullamento', message_text: msg, sent: false })
     setBooking({ ...booking, status: 'annullata' })
     setShowCancel(false)
+    window.scrollTo({ top: 0 })
+    setCancelDone(true)
+    setTimeout(() => setCancelDone(false), 4000)
   }
 
   function sendWhatsapp(type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') {
@@ -1491,6 +1501,12 @@ export default function BookingDetail() {
         </aside>
       )}
       </div>
+
+      {cancelDone && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] bg-[#DCE8DD] text-[#2f6a4d] rounded-xl px-5 py-3 font-semibold shadow-lg">
+          ✓ Prenotazione annullata
+        </div>
+      )}
 
       {showConferma && (
         <ConfermaWhatsApp booking={booking} groupBookings={groupBookings} onClose={() => setShowConferma(false)} />
