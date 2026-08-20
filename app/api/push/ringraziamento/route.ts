@@ -20,16 +20,26 @@ function normalizePhone(p: string) {
   return raw.startsWith('39') ? raw : `39${raw}`
 }
 
+// Stesso identico testo del pulsante "Ringraziamento" nel dettaglio prenotazione
+// (buildWhatsappMsg, type 'ringraziamento'): se si cambia uno, cambiare anche l'altro.
 function buildRingraziamentoMsg(name: string) {
   return `Gentile *${name}*,
-grazie per aver soggiornato a Casa Granata Humanitas, è stato un piacere ospitarla.
-Spero che tutto sia andato bene. Se trova un momento per lasciare una recensione, per me vorrebbe dire moltissimo: https://maps.google.com/?cid=12687762198889638693
 
-E se dovesse ripassare da queste parti, saremo sempre felici di ospitarla di nuovo!
+grazie per aver soggiornato da noi. È stato un piacere averla come nostra ospite e spero che si sia trovata bene. 🌿
+
+Se ha un momento e le fa piacere, può raccontare la sua esperienza lasciandoci una recensione su Google.
+
+Per noi è davvero importante e può essere utile anche a chi sta cercando un posto dove soggiornare vicino a Humanitas.
+
+⭐ Lascia una recensione:
+https://maps.google.com/?cid=12687762198889638693
+
+Grazie ancora per averci scelto.
+
+E se dovesse tornare da queste parti, sarà un piacere accoglierla di nuovo.
 
 Un caro saluto,
-Ania
-Casa Granata Humanitas`
+Ania`
 }
 
 export async function GET(req: NextRequest) {

@@ -22,6 +22,12 @@ function formatDateIT(dateStr: string) {
   return date.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+// Data breve per il cliente: 20/08/2026 (mai il formato interno 2026-08-20)
+function formatDateShort(dateStr: string) {
+  const [y, m, d] = dateStr.split('-')
+  return `${d}/${m}/${y}`
+}
+
 function bagnoDesc(room: any) {
   if (room?.bathroom_type === 'privato_interno') return "privato, all'interno della camera"
   if (room?.bathroom_type === 'privato_esterno') return room?.bathroom_note ? `privato esterno (${room.bathroom_note})` : 'privato esterno'
@@ -36,6 +42,10 @@ function roomPageLink(roomName: string): string | null {
   return null
 }
 
+// I template sono condivisi tra i due WhatsApp (personale Ania e Business): il testo è
+// identico da entrambi i mittenti. Durante la transizione del nome, i messaggi formali
+// usano la formula ufficiale "CASA ANIA / precedentemente Casa Granata Humanitas";
+// la causale del bonifico resta invece "Casa Granata Humanitas".
 function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero', gruppo: any[] = []) {
   const name = b.guests?.full_name || 'Ospite'
   const room = b.rooms?.name || ''
@@ -120,138 +130,174 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
       totaleRighe += ebTot
     }
   }
-  const riepilogoCosti = `RIEPILOGO COSTI
+  const riepilogoCosti = `💶 RIEPILOGO COSTI
 ${righeCosti.join('\n')}
 *Totale soggiorno: ${fmtEuro(totaleRighe)}*`
 
-  const pagamentoInfo = b.bonifico
-    ? `Pagamento tramite bonifico bancario. Per completare la prenotazione, la prego di effettuare il bonifico con i seguenti dati:
-Intestatario: *SAWICKA ANNA JANINA*
+  // La causale resta "Casa Granata Humanitas" finché la transizione del nome non è
+  // completa: è il riferimento che i clienti conoscono per il bonifico
+  const causale = `Soggiorno Casa Granata Humanitas – ${name} – dal ${formatDateShort(cin)} al ${formatDateShort(cout)}`
+
+  // Blocco dati bonifico condiviso da conferma (variante bonifico), "Dati bonifico" e promemoria
+  const datiBonifico = `Intestatario: *SAWICKA ANNA JANINA*
 Banca: *BANCO BPM*
-IBAN: *IT32P0503401753000000159653*
-Causale: Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}`
-    : `Pagamento all'arrivo: alla consegna delle chiavi verrà chiesto il pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.`
+
+IBAN:
+*IT32P0503401753000000159653*
+
+Importo:
+*${totale} €*
+
+Causale:
+${causale}`
+
+  const ricevutaWhatsApp = `Una volta effettuato il bonifico, può inviarmi la ricevuta direttamente qui su WhatsApp. Le confermerò la ricezione appena possibile.`
+
+  const pagamentoInfo = b.bonifico
+    ? `💳 PAGAMENTO
+Il soggiorno si salda in anticipo con bonifico bancario.
+
+${datiBonifico}
+
+${ricevutaWhatsApp}`
+    : `💳 PAGAMENTO
+Il pagamento avviene all'arrivo, alla consegna delle chiavi, per l'intero soggiorno: in contanti oppure con bonifico istantaneo.`
+
+  // Formula ufficiale della transizione, identica da entrambi i WhatsApp
+  const SOTTOTITOLO_STRUTTURA = 'precedentemente Casa Granata Humanitas'
+  const firmaFormale = `A presto,
+Ania
+Casa Ania
+${SOTTOTITOLO_STRUTTURA}`
+
+  // Blocco camera/bagno/link condiviso da conferma e modifica
+  const cameraBlock = `${isGruppo ? `${intestazioneSegmenti}\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nLa sua camera:\n${roomLink}` : ''}`
 
   if (type === 'conferma') {
-    return `CONFERMA DI PRENOTAZIONE – Casa Granata Humanitas
+    return `CONFERMA DI PRENOTAZIONE – CASA ANIA
+${SOTTOTITOLO_STRUTTURA}
 
 Gentile *${name}*,
-grazie per aver scelto Casa Granata. Sono lieta di confermarle il soggiorno e la aspetto con piacere!
 
-Info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
+grazie per averci scelto. Sono felice di confermarle il soggiorno presso Casa Ania (precedentemente Casa Granata Humanitas) e sarà un piacere accoglierla. 🌿
 
-RIEPILOGO SOGGIORNO
-Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
-Check-out: *${coutF}* (entro le ore 10:00)
-Notti totali: *${notti}*
+📅 IL SUO SOGGIORNO
+Check-in: *${cinF}* (dalle 15:00 alle 20:00)
+Check-out: *${coutF}* (entro le 10:00)
+Notti: *${notti}*
 Ospiti: ${ospiti}
-${isGruppo ? `${intestazioneSegmenti}\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
+${cameraBlock}
 
 ${riepilogoCosti}
 
 ${pagamentoInfo}
 
-💬 *Appena le sarà possibile, la prego di farmi sapere l'orario di arrivo in struttura, per organizzare al meglio la sua accoglienza.*
+💬 *Appena le sarà possibile, le chiedo di comunicarmi l'orario di arrivo, così potrò organizzare al meglio la sua accoglienza.*
 
-DOVE SIAMO
+📍 DOVE SIAMO
 Via Liguria 26 – Fizzonasco, Pieve Emanuele (MI) 20072
-*A 140 metri dalla palazzina 8 di Humanitas di Rozzano – ortopedia*
+*A 140 metri dalla palazzina 8 di Humanitas (ortopedia)*
 
+🏠 DA SAPERE
 • WiFi gratuito (credenziali in camera)
-• Ricordarsi documento d'identità valido
-• Fumo solo all'esterno
+• Porti con sé un documento d'identità valido
+• Si può fumare solo all'esterno
+
+Tutte le informazioni utili per il soggiorno:
+https://www.casaaniarozzano.it/info?v=7
 
 📞 CONTATTI
-Per qualsiasi necessità sono sempre disponibile:
-💬 342 700 4354 (anche WhatsApp)
+Per qualsiasi necessità sono a sua disposizione:
+342 700 4354 (anche WhatsApp)
 
-POLITICA DI CANCELLAZIONE
+CANCELLAZIONE
 Cancellazione gratuita fino a 3 giorni prima dell'arrivo.
 
 Sarà un piacere accoglierla!
 
-A presto,
-Ania
-Casa Granata Humanitas`
+${firmaFormale}`
   }
 
   if (type === 'modifica') {
-    return `MODIFICA PRENOTAZIONE – Casa Granata Humanitas
+    return `MODIFICA PRENOTAZIONE – CASA ANIA
+${SOTTOTITOLO_STRUTTURA}
 
 Gentile *${name}*,
-la informo che la sua prenotazione presso Casa Granata Humanitas è stata modificata. Ecco il riepilogo aggiornato:
 
-Info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
+la sua prenotazione è stata modificata.
+Di seguito trova il riepilogo aggiornato del soggiorno.
 
-RIEPILOGO SOGGIORNO
-Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
-Check-out: *${coutF}* (entro le ore 10:00)
-Notti totali: *${notti}*
+📅 SOGGIORNO AGGIORNATO
+Check-in: *${cinF}* (dalle 15:00 alle 20:00)
+Check-out: *${coutF}* (entro le 10:00)
+Notti: *${notti}*
 Ospiti: ${ospiti}
-${isGruppo ? `${intestazioneSegmenti}\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nVedi la tua camera: ${roomLink}` : ''}
+${cameraBlock}
 
 ${riepilogoCosti}
 
 ${pagamentoInfo}
 
-Per qualsiasi domanda resto a Sua disposizione.
+🏠 Tutte le informazioni utili per il soggiorno:
+https://www.casaaniarozzano.it/info?v=7
 
-💬 342 700 4354 (anche WhatsApp)
+Per qualsiasi domanda sono a sua disposizione:
+📞 342 700 4354 (anche WhatsApp)
 
-A presto,
-Ania
-Casa Granata Humanitas`
+${firmaFormale}`
   }
   if (type === 'dati_bonifico') {
     return `Gentile *${name}*,
-come da sua richiesta, le invio i dati per effettuare il pagamento tramite bonifico bancario:
 
-Intestatario: *SAWICKA ANNA JANINA*
-Banca: *BANCO BPM*
-IBAN: *IT32P0503401753000000159653*
-Causale: Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}
+come da accordi, le invio i dati per il pagamento tramite bonifico bancario.
 
-Importo: *€ ${totale}*
+💳 DATI PER IL BONIFICO
 
-Non appena ricevuto il bonifico le darò conferma. Per qualsiasi necessità sono sempre a disposizione.
+${datiBonifico}
 
-Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
+${ricevutaWhatsApp}
+
+Per qualsiasi necessità sono a sua disposizione.
 
 A presto,
-Ania
-Casa Granata Humanitas`
+Ania`
   }
 
   if (type === 'promemoria_bonifico') {
     return `Gentile *${name}*,
-le scrivo per ricordarle gentilmente che non ho ancora ricevuto il bonifico per il soggiorno dal *${cinF}* al *${coutF}*.
 
-Intestatario: *SAWICKA ANNA JANINA*
-Banca: *BANCO BPM*
-IBAN: *IT32P0503401753000000159653*
-Causale: Soggiorno Casa Granata Humanitas – ${name} – dal ${cin} al ${cout}
-Importo: *€ ${totale}*
+le scrivo solo per ricordarle che non ho ancora ricevuto il bonifico relativo al soggiorno dal *${formatDateShort(cin)}* al *${formatDateShort(cout)}*.
 
-Quando ha effettuato il bonifico, mi mandi pure la ricevuta qui su WhatsApp. Se l'ha già fatto in queste ore, ignori questo messaggio e mi scusi il disturbo!
+Le lascio di nuovo i dati:
 
-Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
+💳 DATI PER IL BONIFICO
+
+${datiBonifico}
+
+Quando avrà effettuato il bonifico, può inviarmi la ricevuta direttamente qui su WhatsApp.
+
+Se invece ha già provveduto in queste ore, ignori pure questo messaggio. Grazie.
 
 A presto,
-Ania
-Casa Granata Humanitas`
+Ania`
   }
 
   if (type === 'richiesta_orario') {
     return `Gentile *${name}*,
-il suo arrivo si avvicina e vorrei organizzare al meglio la sua accoglienza: mi può indicare, anche in modo approssimativo, l'orario in cui pensa di arrivare?
 
-Le ricordo che il check-in è dalle ore 15:00 alle 20:00. Se prevede di arrivare prima o dopo questi orari, mi avvisi pure per tempo, così mi organizzo per accoglierla al meglio.
+il suo arrivo si avvicina e vorrei organizzare al meglio la sua accoglienza. 😊
 
-Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
+Quando le sarà possibile, può indicarmi anche indicativamente a che ora pensa di arrivare?
+
+Le ricordo che il check-in è previsto dalle 15:00 alle 20:00.
+
+Se pensa di arrivare prima delle 15:00 o dopo le 20:00, mi avvisi pure per tempo, così possiamo organizzarci.
+
+🏠 Tutte le informazioni utili per il soggiorno:
+https://www.casaaniarozzano.it/info?v=7
 
 A presto,
-Ania
-Casa Granata Humanitas`
+Ania`
   }
 
   if (type === 'libero') {
@@ -260,52 +306,59 @@ Casa Granata Humanitas`
 
   if (type === 'ringraziamento') {
     return `Gentile *${name}*,
-grazie per aver soggiornato a Casa Granata Humanitas, è stato un piacere ospitarla.
-Spero che tutto sia andato bene. Se trova un momento per lasciare una recensione, per me vorrebbe dire moltissimo: https://maps.google.com/?cid=12687762198889638693
 
-E se dovesse ripassare da queste parti, saremo sempre felici di ospitarla di nuovo!
+grazie per aver soggiornato da noi. È stato un piacere averla come nostra ospite e spero che si sia trovata bene. 🌿
+
+Se ha un momento e le fa piacere, può raccontare la sua esperienza lasciandoci una recensione su Google.
+
+Per noi è davvero importante e può essere utile anche a chi sta cercando un posto dove soggiornare vicino a Humanitas.
+
+⭐ Lascia una recensione:
+https://maps.google.com/?cid=12687762198889638693
+
+Grazie ancora per averci scelto.
+
+E se dovesse tornare da queste parti, sarà un piacere accoglierla di nuovo.
 
 Un caro saluto,
-Ania
-Casa Granata Humanitas`
+Ania`
   }
 
   if (type === 'pagamento_ricevuto') {
     return `Gentile *${name}*,
-ho ricevuto il suo pagamento. La aspetto con piacere il *${cinF}*!
 
-Per qualsiasi necessità sono sempre a disposizione.
+ho ricevuto il suo pagamento. Grazie. ✓
 
-Tutte le info utili per il tuo soggiorno: https://www.casaaniarozzano.it/info?v=7
+È tutto confermato e la aspetto con piacere *${cinF}*.
+
+🏠 Tutte le informazioni utili per il soggiorno:
+https://www.casaaniarozzano.it/info?v=7
+
+Per qualsiasi necessità sono a sua disposizione.
 
 A presto,
-Ania
-Casa Granata Humanitas`
+Ania`
   }
 
-  return `CANCELLAZIONE PRENOTAZIONE – Casa Granata Humanitas
+  return `ANNULLAMENTO PRENOTAZIONE – CASA ANIA
+${SOTTOTITOLO_STRUTTURA}
 
 Gentile *${name}*,
-la informo che la sua prenotazione presso Casa Granata Humanitas è stata annullata.
 
-PRENOTAZIONE ANNULLATA
-Check-in: *${cinF}* (dalle ore 15:00 alle 20:00)
-Check-out: *${coutF}* (entro le ore 10:00)
-Ospiti: ${ospiti}
+le confermo che la sua prenotazione è stata annullata.
+
+📅 PRENOTAZIONE ANNULLATA
+Check-in: ${formatDateShort(cin)}
+Check-out: ${formatDateShort(cout)}
 Camera: ${roomFull}
-Notti: *${notti}*
+Ospiti: ${ospiti}
 
-Importo totale: *€ ${totale}* – pagamento all'arrivo. Alla consegna delle chiavi verrà chiesto pagamento per l'intera prenotazione in contante oppure tramite bonifico bancario istantaneo.
+Mi dispiace non poterla accogliere questa volta. Se in futuro dovesse averne bisogno, sarà un piacere ospitarla.
 
-Per qualsiasi chiarimento resto a Sua completa disposizione e sarò lieta di accoglierla in futuro.
+Per qualsiasi necessità sono a sua disposizione:
+📞 342 700 4354 (anche WhatsApp)
 
-💬 342 700 4354 (anche WhatsApp)
-
-I nostri contatti e dove siamo: https://www.casaaniarozzano.it/info?v=7
-
-Cordiali saluti,
-Ania
-Casa Granata Humanitas`
+${firmaFormale}`
 }
 
 // Prova ad aprire l'app WhatsApp (desktop o mobile) tramite lo schema whatsapp://,
