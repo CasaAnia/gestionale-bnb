@@ -143,17 +143,21 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
   const testoMessaggio = `​
 Gentile ${nome},
 
-Basta un tocco sull'immagine e la conferma della prenotazione si apre a schermo intero, con tutti i dettagli del suo soggiorno.
+la sua prenotazione è confermata. 🌿
 
-Per comodità, due link utili:
+Nell'immagine trova il riepilogo completo del soggiorno: date, camera, importo, pagamento e indirizzo. Può toccarla per visualizzarla a schermo intero.
 
-Info complete per il soggiorno:
+Per comodità, le lascio anche due link utili:
+
+Info per il soggiorno:
 ${SITO_URL}/info
 
 La sua camera:
 ${linkCamere}
 
-💬 Appena le sarà possibile, ci comunichi l'orario di arrivo. A presto!
+💬 Appena le sarà possibile, le chiedo di comunicarmi l'orario di arrivo, così potrò organizzare al meglio la sua accoglienza.
+
+A presto,
 Ania`
 
   // Anteprima in scala + altezza reale dell'immagine
