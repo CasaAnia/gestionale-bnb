@@ -174,48 +174,48 @@ ${SOTTOTITOLO_STRUTTURA}`
   const cameraBlock = `${isGruppo ? `${intestazioneSegmenti}\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nLa sua camera:\n${roomLink}` : ''}`
 
   if (type === 'conferma') {
+    // Titoli di sezione in grassetto SOLO nella conferma: i blocchi restano condivisi
+    // con la modifica, che mantiene i suoi titoli semplici
+    const riepilogoCostiBold = riepilogoCosti.replace('💶 RIEPILOGO COSTI', '💶 *RIEPILOGO COSTI*')
+    const pagamentoInfoBold = pagamentoInfo.replace('💳 PAGAMENTO', '💳 *PAGAMENTO*')
     return `CONFERMA DI PRENOTAZIONE – CASA ANIA
 ${SOTTOTITOLO_STRUTTURA}
 
 Gentile *${name}*,
 
-grazie per averci scelto. Sono felice di confermarle il soggiorno presso Casa Ania (precedentemente Casa Granata Humanitas) e sarà un piacere accoglierla. 🌿
+grazie per averci scelto. Sono felice di confermarle il soggiorno e sarà un piacere accoglierla. 🌿
 
-📅 IL SUO SOGGIORNO
+📅 *IL SUO SOGGIORNO*
 Check-in: *${cinF}* (dalle 15:00 alle 20:00)
 Check-out: *${coutF}* (entro le 10:00)
 Notti: *${notti}*
 Ospiti: ${ospiti}
 ${cameraBlock}
 
-${riepilogoCosti}
+${riepilogoCostiBold}
 
-${pagamentoInfo}
+${pagamentoInfoBold}
 
 💬 *Appena le sarà possibile, le chiedo di comunicarmi l'orario di arrivo, così potrò organizzare al meglio la sua accoglienza.*
 
-📍 DOVE SIAMO
+📍 *DOVE SIAMO*
 Via Liguria 26 – Fizzonasco, Pieve Emanuele (MI) 20072
 *A 140 metri dalla palazzina 8 di Humanitas (ortopedia)*
-
-🏠 DA SAPERE
-• WiFi gratuito (credenziali in camera)
-• Porti con sé un documento d'identità valido
-• Si può fumare solo all'esterno
 
 Tutte le informazioni utili per il soggiorno:
 https://www.casaaniarozzano.it/info?v=7
 
-📞 CONTATTI
+📞 *CONTATTI*
 Per qualsiasi necessità sono a sua disposizione:
 342 700 4354 (anche WhatsApp)
 
-CANCELLAZIONE
+*CANCELLAZIONE*
 Cancellazione gratuita fino a 3 giorni prima dell'arrivo.
 
-Sarà un piacere accoglierla!
-
-${firmaFormale}`
+A presto,
+*Ania*
+*Casa Ania*
+_precedentemente Casa Granata Humanitas_`
   }
 
   if (type === 'modifica') {
