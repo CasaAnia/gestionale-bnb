@@ -4,6 +4,7 @@ import { toPng } from 'html-to-image'
 import { roomWithType, ROOM_SLUG_BY_NAME, lettoInclusoNellaCamera } from '@/lib/roomTypes'
 import { lettoDaComunicare } from '@/lib/tariffe'
 import { NOME_STRUTTURA, CITTA_STRUTTURA, SITO_URL, SITO_DISPLAY, TELEFONO_DISPLAY, INDIRIZZO, INDIRIZZO_NOTA } from '@/lib/config'
+import { nomeOspite } from '@/lib/guestName'
 
 // Conferma di prenotazione WhatsApp: immagine grafica (1080px, identità visiva
 // del sito casaaniarozzano.it) + messaggio di testo con i link, pronti da inviare.
@@ -81,7 +82,7 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
   const nottiTot = notti(cin, cout)
   const numOspiti = booking.num_guests || 1
   const ospiti = `${numOspiti} ${numOspiti === 1 ? 'adulto' : 'adulti'}`
-  const nome = booking.guests?.full_name || 'Ospite'
+  const nome = nomeOspite(booking)
 
   // Righe del riepilogo costi: una per camera, più il letto supplementare se presente
   const righeCosti: { label: string; amount: number; sconto?: boolean }[] = []
@@ -293,7 +294,7 @@ Ania`
 
   // ── Stili dell'immagine (1080px, solo da leggere: nessun elemento cliccabile) ──
   const S = {
-    box: { background: '#F6F2EA', borderRadius: 24, padding: '44px 48px', marginBottom: 36 } as React.CSSProperties,
+    box: { background: '#F6F2EA', borderRadius: 24, padding: '44px 48px', marginBottom: 32 } as React.CSSProperties,
     boxTitle: { fontFamily: 'Georgia, serif', fontSize: 36, fontWeight: 600, color: '#1F3D2F', margin: '0 0 28px' } as React.CSSProperties,
     row: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '14px 0' } as React.CSSProperties,
     rowBig: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '18px 0' } as React.CSSProperties,
@@ -330,10 +331,12 @@ Ania`
             <div ref={imgRef} style={{ width: IMG_W, background: '#f9f6f1', fontFamily: 'var(--font-nunito-sans), sans-serif' }}>
 
               {/* TESTATA verde pieno #007451 (stesso verde della card del sito) */}
-              <div style={{ height: 300, background: '#007451', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 44px' }}>
+              <div style={{ background: '#007451', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '52px 44px 46px' }}>
                 <span style={{ border: '2px solid rgba(255,255,255,0.8)', color: 'white', borderRadius: 999, padding: '8px 30px', fontSize: 30, fontWeight: 600, letterSpacing: 6, marginBottom: 24 }}>BENVENUTI</span>
                 <p style={{ fontFamily: 'Georgia, serif', fontSize: 54, fontWeight: 600, color: 'white', margin: 0, lineHeight: 1.15 }}>Prenotazione confermata</p>
                 <p style={{ fontSize: 34, color: 'rgba(255,255,255,0.92)', margin: '18px 0 0' }}>{NOME_STRUTTURA} · a 140 metri da Humanitas</p>
+                {/* Vecchia denominazione: gerarchia visiva inferiore, solo qui (mai nel footer) */}
+                <p style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 26, color: 'rgba(255,255,255,0.75)', margin: '10px 0 0' }}>precedentemente Casa Granata Humanitas</p>
               </div>
 
               <div style={{ padding: '52px 52px 0' }}>
@@ -448,29 +451,29 @@ Ania`
                 )}
 
                 {/* RIQUADRO EVIDENZIATO */}
-                <div style={{ background: '#EFF3EA', borderRadius: 24, padding: '38px 48px', marginBottom: 36 }}>
+                <div style={{ background: '#EFF3EA', borderRadius: 24, padding: '34px 48px', marginBottom: 32 }}>
                   <p style={{ fontSize: 34, fontWeight: 600, color: '#2D6A4F', lineHeight: 1.5, margin: 0, textAlign: 'center' }}>
-                    Appena le sarà possibile, la preghiamo di comunicarci l&apos;orario di arrivo, per organizzare al meglio la sua accoglienza.
+                    Appena le sarà possibile, le chiedo di comunicarmi l&apos;orario di arrivo, così potrò organizzare al meglio la sua accoglienza.
                   </p>
                 </div>
 
                 {/* DOVE SIAMO */}
                 <p style={{ fontSize: 32, letterSpacing: 3, color: '#3a3a35', fontWeight: 700, margin: '0 0 14px' }}>DOVE SIAMO</p>
-                <div style={{ background: 'white', borderLeft: '4px solid #C58A67', borderRadius: '0 16px 16px 0', padding: '28px 40px', marginBottom: 40 }}>
+                <div style={{ background: 'white', borderLeft: '4px solid #C58A67', borderRadius: '0 16px 16px 0', padding: '28px 40px', marginBottom: 34 }}>
                   <p style={{ fontSize: 32, fontWeight: 700, color: '#1F3D2F', lineHeight: 1.35, margin: 0 }}>{INDIRIZZO}</p>
                   <p style={{ fontSize: 32, color: '#3a3a35', margin: '10px 0 0' }}>{INDIRIZZO_NOTA}</p>
                 </div>
 
                 {/* CONTATTI — solo numero + firma */}
-                <div style={{ textAlign: 'center', paddingBottom: 48 }}>
-                  <p style={{ fontSize: 46, fontWeight: 800, color: '#2D6A4F', margin: '0 0 30px' }}>{TELEFONO_DISPLAY}</p>
+                <div style={{ textAlign: 'center', paddingBottom: 42 }}>
+                  <p style={{ fontSize: 46, fontWeight: 800, color: '#2D6A4F', margin: '0 0 26px' }}>{TELEFONO_DISPLAY}</p>
                   <p style={{ fontFamily: 'Georgia, serif', fontSize: 46, fontWeight: 600, color: '#1F3D2F', margin: 0 }}>A presto, Ania</p>
                 </div>
               </div>
 
               {/* PIÈ DI PAGINA */}
               <div style={{ background: '#F6F2EA', padding: '26px 52px', textAlign: 'center' }}>
-                <p style={{ fontSize: 32, color: '#3a3a35', margin: 0 }}>{NOME_STRUTTURA} – {CITTA_STRUTTURA} · {SITO_DISPLAY}</p>
+                <p style={{ fontSize: 32, color: '#3a3a35', margin: 0 }}>{NOME_STRUTTURA} · {CITTA_STRUTTURA} · {SITO_DISPLAY}</p>
               </div>
             </div>
             {/* ═══ FINE IMMAGINE ═══ */}

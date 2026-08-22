@@ -14,6 +14,20 @@ function fmtData(s: string) {
   return `${Number(d)}/${Number(m)}`
 }
 
+// Avviso rosso quando il numero della richiesta è già in archivio con un altro
+// nominativo: solo informativo, non blocca né modifica nulla.
+function AvvisoNomeDiverso({ r }: { r: WebRequest }) {
+  if (!r.nome_diverso) return null
+  return (
+    <div className="rounded-lg px-2.5 py-2 mb-1.5" style={{ background: '#FBE7E4', border: '2px solid #C0392B' }}>
+      <p className="text-[11px] font-extrabold tracking-wide" style={{ color: '#C0392B' }}>⚠️ NUMERO GIÀ USATO CON UN ALTRO NOMINATIVO</p>
+      <p className="text-[12.5px] mt-0.5" style={{ color: '#8a5049' }}>
+        Richiesta di <span className="font-bold text-green-dark">{r.guest_name}</span> · in archivio come <span className="font-bold" style={{ color: '#C0392B' }}>{r.nome_archivio}</span>
+      </p>
+    </div>
+  )
+}
+
 export default function WebRequestAlert() {
   const router = useRouter()
   const pathname = usePathname()
@@ -50,9 +64,10 @@ export default function WebRequestAlert() {
         <p className="text-[14.5px] font-semibold text-green-dark">
           {primo.guest_name} · {primo.num_guests} {primo.num_guests === 1 ? 'persona' : 'persone'}
         </p>
-        <p className="text-[13.5px] mb-3" style={{ color: 'var(--color-stone)' }}>
+        <p className="text-[13.5px] mb-2" style={{ color: 'var(--color-stone)' }}>
           {fmtData(primo.check_in)} → {fmtData(primo.check_out)} · {primo.room_name} · €{Math.round(primo.total_amount)}
         </p>
+        <AvvisoNomeDiverso r={primo} />
         {requests.length > 1 && (
           <div className="mb-3">
             <p className="text-xs font-semibold mb-1" style={{ color: 'var(--color-stone)' }}>
@@ -63,9 +78,10 @@ export default function WebRequestAlert() {
                 <p className="text-[14.5px] font-semibold text-green-dark">
                   {r.guest_name} · {r.num_guests} {r.num_guests === 1 ? 'persona' : 'persone'}
                 </p>
-                <p className="text-[13.5px]" style={{ color: 'var(--color-stone)' }}>
+                <p className="text-[13.5px] mb-1" style={{ color: 'var(--color-stone)' }}>
                   {fmtData(r.check_in)} → {fmtData(r.check_out)} · {r.room_name} · €{Math.round(r.total_amount)}
                 </p>
+                <AvvisoNomeDiverso r={r} />
               </div>
             ))}
           </div>

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import type { Booking, Expense } from '@/lib/types'
 import { getUpcomingRoomChanges, buildChangeGroups } from '@/lib/roomChanges'
+import { nomeOspite } from '@/lib/guestName'
 import { useDemoMode } from '@/lib/useDemoMode'
 
 function fmt(n: number) { return n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
@@ -137,7 +138,7 @@ export default function Dashboard() {
       const gruppi: Record<string, { id: string; guest: string; dovuto: number; ricevuto: number }> = {}
       for (const b of active) {
         const key = b.group_id || b.id
-        if (!gruppi[key]) gruppi[key] = { id: b.id, guest: b.guests?.full_name || b.guests?.phone || 'Ospite', dovuto: 0, ricevuto: 0 }
+        if (!gruppi[key]) gruppi[key] = { id: b.id, guest: nomeOspite(b), dovuto: 0, ricevuto: 0 }
         gruppi[key].dovuto += Number(b.total_amount)
         gruppi[key].ricevuto += accontiSum[b.id] || 0
       }
@@ -161,7 +162,7 @@ export default function Dashboard() {
         {checkIn.map((b: any) => (
           <div key={`${prefix}-in-${b.id}`} className="flex flex-wrap items-center gap-2 text-sm py-1">
             <span className="bg-sage text-green-dark rounded px-1.5 py-0.5 text-xs font-bold">CHECK-IN</span>
-            <span className="font-medium">{b.guests?.full_name || b.guests?.phone}</span>
+            <span className="font-medium">{nomeOspite(b)}</span>
             <span className="text-gray-500">— {b.rooms?.name}</span>
             {b.check_in_time && <span className="bg-sage text-green-mid rounded px-1.5 py-0.5 text-xs font-bold">🕐 {b.check_in_time}</span>}
             {b.extra_bed && <span className="bg-[#F1E0CE] text-[#7A4B22] rounded px-1 text-xs">+letto agg.</span>}
@@ -170,7 +171,7 @@ export default function Dashboard() {
         {checkOut.map((b: any) => (
           <div key={`${prefix}-out-${b.id}`} className="flex flex-wrap items-center gap-2 text-sm py-1">
             <span className="bg-[#F4E6DF] text-[#7A3B22] rounded px-1.5 py-0.5 text-xs font-bold">CHECK-OUT</span>
-            <span className="font-medium">{b.guests?.full_name || b.guests?.phone}</span>
+            <span className="font-medium">{nomeOspite(b)}</span>
             <span className="text-gray-500">— {b.rooms?.name}</span>
           </div>
         ))}

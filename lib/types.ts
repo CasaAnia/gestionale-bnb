@@ -45,6 +45,9 @@ export interface Booking {
   total_amount: number
   status: BookingStatus
   source: string
+  // Nome dell'ospite di QUESTA prenotazione (può differire dalla scheda guests,
+  // riusata per telefono). Colonna migrata a mano; assente nelle righe vecchie.
+  guest_name?: string | null
   notes: string | null
   cancelled_at: string | null
   cancelled_reason: string | null

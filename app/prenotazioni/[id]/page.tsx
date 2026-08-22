@@ -7,6 +7,7 @@ import { roomWithType, lettoInclusoNellaCamera } from '@/lib/roomTypes'
 import { tariffaCamera, totaleLetto, lettoDaComunicare } from '@/lib/tariffe'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 import BackBar from '@/components/BackBar'
+import { nomeOspite, nomeDiverso, nomiPrecedenti } from '@/lib/guestName'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -47,7 +48,7 @@ function roomPageLink(roomName: string): string | null {
 // usano la formula ufficiale "CASA ANIA / precedentemente Casa Granata Humanitas";
 // la causale del bonifico resta invece "Casa Granata Humanitas".
 function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero', gruppo: any[] = []) {
-  const name = b.guests?.full_name || 'Ospite'
+  const name = nomeOspite(b)
   const room = b.rooms?.name || ''
   // Nome con tipologia (es. "Amelia – Singola"): solo nei messaggi al cliente
   const roomFull = roomWithType(room)
@@ -465,7 +466,7 @@ export default function BookingDetail() {
     if (!room_id || !check_in || !check_out) return
     const [{ data: conf }, { data: letti }] = await Promise.all([
       supabase.from('bookings')
-        .select('id, check_in, check_out, rooms(name), guests(full_name)')
+        .select('id, check_in, check_out, guest_name, rooms(name), guests(full_name)')
         .eq('room_id', room_id).neq('status', 'annullata').neq('id', id)
         .lt('check_in', check_out).gt('check_out', check_in),
       supabase.from('bookings')
@@ -474,7 +475,7 @@ export default function BookingDetail() {
     ])
     if (conf && conf.length > 0) {
       const b = conf[0] as any
-      setConflitto(`⚠️ ${b.rooms?.name || 'Camera'} già occupata dal ${b.check_in} al ${b.check_out} (${b.guests?.full_name || 'altro cliente'})`)
+      setConflitto(`⚠️ ${b.rooms?.name || 'Camera'} già occupata dal ${b.check_in} al ${b.check_out} (${b.guest_name || b.guests?.full_name || 'altro cliente'})`)
     } else {
       setConflitto(null)
     }
@@ -507,7 +508,7 @@ export default function BookingDetail() {
         chi_e: b.chi_e || '',
         extra_phone_2: b.extra_phone_2 || '',
         extra_phone_2_name: b.extra_phone_2_name || '',
-        guest_name: b.guests?.full_name || '',
+        guest_name: b.guest_name || b.guests?.full_name || '',
         guest_phone: b.guests?.phone || '',
         guest_email: b.guests?.email || '',
       } : {})
@@ -521,7 +522,7 @@ export default function BookingDetail() {
       // (i segmenti del cambio camera sono lo stesso soggiorno)
       if (b?.guest_id) {
         supabase.from('bookings')
-          .select('id, check_in, check_out, status, group_id, source, rooms(name)')
+          .select('id, check_in, check_out, status, group_id, source, guest_name, rooms(name)')
           .eq('guest_id', b.guest_id)
           .neq('id', id)
           .order('check_in', { ascending: false })
@@ -680,6 +681,9 @@ export default function BookingDetail() {
       ...(booking.chi_e !== undefined || editForm.chi_e ? { chi_e: editForm.chi_e || null } : {}),
       extra_phone_2: editForm.extra_phone_2 ? normalizePhone(editForm.extra_phone_2) : null,
       extra_phone_2_name: editForm.extra_phone_2_name || null,
+      // Il nome modificato qui vale per QUESTA prenotazione (bookings.guest_name),
+      // non rinomina la scheda cliente. Incluso solo a colonna migrata, come chi_e.
+      ...(booking.guest_name !== undefined ? { guest_name: editForm.guest_name?.trim() || null } : {}),
       updated_at: new Date().toISOString(),
     }
     // Se il DB rifiuta l'update (es. colonna mancante) il salvataggio NON deve sembrare riuscito
@@ -693,7 +697,12 @@ export default function BookingDetail() {
     const guestId = booking.guest_id || booking.guests?.id
     if (guestId) {
       await supabase.from('guests').update({
-        full_name: editForm.guest_name || booking.guests?.full_name || null,
+        // La scheda cliente (condivisa da tutte le prenotazioni del numero) non
+        // viene più rinominata da qui: prende il nome solo se ne è senza.
+        // Finché guest_name non è migrata resta il vecchio comportamento.
+        full_name: booking.guest_name === undefined
+          ? (editForm.guest_name || booking.guests?.full_name || null)
+          : (booking.guests?.full_name || editForm.guest_name?.trim() || null),
         phone: editForm.guest_phone || booking.guests?.phone || null,
         email: editForm.guest_email || booking.guests?.email || null,
       }).eq('id', guestId)
@@ -759,13 +768,13 @@ export default function BookingDetail() {
     if (newOut && newOut > last.check_out) checks.push({ room_id: last.room_id, roomName: last.rooms?.name || 'Camera', from: last.check_out, to: newOut })
     for (const c of checks) {
       const { data } = await supabase.from('bookings')
-        .select('id, check_in, check_out, guests(full_name)')
+        .select('id, check_in, check_out, guest_name, guests(full_name)')
         .eq('room_id', c.room_id).neq('status', 'annullata')
         .not('id', 'in', `(${groupIds.join(',')})`)
         .lt('check_in', c.to).gt('check_out', c.from)
       if (data && data.length > 0) {
         const b = data[0] as any
-        setStayConflict(`⚠️ ${c.roomName} già occupata dal ${b.check_in} al ${b.check_out} (${b.guests?.full_name || 'altro cliente'})`)
+        setStayConflict(`⚠️ ${c.roomName} già occupata dal ${b.check_in} al ${b.check_out} (${b.guest_name || b.guests?.full_name || 'altro cliente'})`)
         return
       }
     }
@@ -1199,7 +1208,7 @@ export default function BookingDetail() {
         <div className={`rounded-xl p-5 border mb-4 ${booking.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-white border-card-border'}`}>
           {/* Cliente in testa: nome, telefono con chiamata diretta, poi camera */}
           <div className="flex justify-between items-start gap-2 mb-2">
-            <p className="font-bold text-lg min-w-0">{guest?.full_name || guest?.phone}</p>
+            <p className="font-bold text-lg min-w-0">{nomeOspite(booking)}</p>
             <Link href={`/clienti/${guest?.id}?edit=1`} className="text-green-mid text-sm shrink-0 pt-1">✏️ Modifica</Link>
           </div>
           {guest?.phone && (
@@ -1220,6 +1229,17 @@ export default function BookingDetail() {
           )}
           {booking.extra_phone_2 && (
             <p className="text-sm text-gray-600 mb-1">📞 {booking.extra_phone_2}{booking.extra_phone_2_name ? ` – ${booking.extra_phone_2_name}` : ''}</p>
+          )}
+          {/* Stesso numero, nominativo diverso: avviso persistente, ricalcolato
+              dai dati salvati a ogni apertura. Solo informativo, non blocca nulla. */}
+          {nomeDiverso(booking) && (
+            <div className="rounded-xl px-3.5 py-3 mt-3 mb-1" style={{ background: '#FBE7E4', border: '2px solid #C0392B' }}>
+              <p className="text-xs font-extrabold tracking-wider mb-1.5" style={{ color: '#C0392B' }}>⚠️ NUMERO GIÀ USATO CON UN ALTRO NOMINATIVO</p>
+              <p className="text-[12.5px]" style={{ color: '#8a5049' }}>Questa prenotazione</p>
+              <p className="text-sm font-bold text-green-dark mb-1.5">{nomeOspite(booking)}</p>
+              <p className="text-[12.5px]" style={{ color: '#8a5049' }}>Con lo stesso numero in passato</p>
+              <p className="text-sm font-bold" style={{ color: '#C0392B' }}>{nomiPrecedenti(booking, otherBookings).join(' · ')}</p>
+            </div>
           )}
           <p className="text-gray-500 mt-4 mb-1.5">{booking.rooms?.name}</p>
           {booking.check_in_time && (
@@ -1249,7 +1269,14 @@ export default function BookingDetail() {
               🏦 Bonifico{booking.pagato ? ' – ✅ Pagato' : ' – in attesa di pagamento'}
             </div>
           )}
-          {booking.notes && <p className="text-sm text-gray-600 italic">📝 {booking.notes}</p>}
+          {/* Nota scritta dal cliente nel modulo del sito (o da Ania): deve
+              saltare all'occhio, non nascondersi in fondo alla card */}
+          {booking.notes && (
+            <div className="rounded-r-xl px-3.5 py-2.5" style={{ background: '#FDF2EF', borderLeft: '4px solid #C0392B' }}>
+              <p className="text-[11px] font-extrabold tracking-widest mb-1" style={{ color: '#C0392B' }}>NOTA DEL CLIENTE</p>
+              <p className="text-[15px] text-green-dark leading-relaxed whitespace-pre-wrap">{booking.notes}</p>
+            </div>
+          )}
 
           {/* Conto del soggiorno: acconti ricevuti e residuo */}
           {accontiOk && booking.status !== 'annullata' && (() => {

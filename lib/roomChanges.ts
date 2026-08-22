@@ -101,7 +101,7 @@ export function getUpcomingRoomChanges(
       if (!dates.includes(to.check_in)) return null
       return {
         id: `${e.fromId}-${e.toId}`,
-        guest: to.guests?.full_name || to.guests?.phone || '',
+        guest: to.guest_name || to.guests?.full_name || to.guests?.phone || '',
         fromRoom: roomNameById[from.room_id] || '',
         toRoom: roomNameById[to.room_id] || '',
         date: to.check_in,

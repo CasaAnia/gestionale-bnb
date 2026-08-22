@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
 
   if (conTelefono.length === 1 && partenzeVere.length === 1) {
     const b = conTelefono[0]
-    const nome = b.guests?.full_name || 'Ospite'
+    const nome = b.guest_name || b.guests?.full_name || 'Ospite'
     const phone = normalizePhone(b.guests.phone)
     const msg = buildRingraziamentoMsg(nome)
     titolo = `🙏 ${nome} è partito/a oggi`
@@ -106,7 +106,7 @@ export async function GET(req: NextRequest) {
   } else {
     const lines = partenzeVere.map((b: any) => {
       const camera = b.rooms?.name || 'Camera'
-      const nome = b.guests?.full_name || 'Ospite'
+      const nome = b.guest_name || b.guests?.full_name || 'Ospite'
       const senzaTel = b.guests?.phone ? '' : ' (senza telefono)'
       return `• ${camera}: ${nome}${senzaTel}`
     })

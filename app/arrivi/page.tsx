@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { getUpcomingRoomChanges, buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
+import { nomeOspite } from '@/lib/guestName'
 import BackLink from '@/components/BackLink'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -311,7 +312,7 @@ export default function Arrivi() {
 
                     return (
                       <div key={booking.id}
-                        onClick={() => setPopup({ id: booking.id, name: booking.guests?.full_name || booking.guests?.phone || '', time: booking.check_in_time || '' })}
+                        onClick={() => setPopup({ id: booking.id, name: nomeOspite(booking), time: booking.check_in_time || '' })}
                         style={{
                           position: 'absolute',
                           top: rowTop + 6,
@@ -348,7 +349,7 @@ export default function Arrivi() {
                           </span>
                           {/* Nome */}
                           <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? gs(13) : gs(10), fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                            {booking.guests?.full_name || booking.guests?.phone || ''}{hasOutgoing ? ' ⇄' : ''}
+                            {nomeOspite(booking)}{hasOutgoing ? ' ⇄' : ''}
                           </span>
                         </div>
                       </div>

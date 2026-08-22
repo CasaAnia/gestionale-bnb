@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   if (bookings && bookings.length > 0) {
     const lines = bookings.map((b: any) => {
       const camera = b.rooms?.name || 'Camera'
-      const ospite = b.guests?.full_name || 'Ospite'
+      const ospite = b.guest_name || b.guests?.full_name || 'Ospite'
       const orario = b.check_in_time ? ` 🕐 ${b.check_in_time}` : ''
       const letto = b.extra_bed ? ' 🛏 +letto' : ''
       return `• ${camera}: ${ospite}${orario}${letto}`

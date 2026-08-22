@@ -1,6 +1,5 @@
 // Dati della struttura usati nelle comunicazioni al cliente.
-// Il nome è qui per essere facilmente modificabile in futuro (es. "Casa Ania").
-export const NOME_STRUTTURA = 'Casa Granata'
+export const NOME_STRUTTURA = 'Casa Ania'
 export const CITTA_STRUTTURA = 'Rozzano'
 export const SITO_URL = 'https://www.casaaniarozzano.it'
 export const SITO_DISPLAY = 'casaaniarozzano.it'

@@ -4,6 +4,7 @@
 // calendario e finestra all'apertura del gestionale.
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
+import { nomeOspite, nomeDiverso } from './guestName'
 
 export type WebRequest = {
   id: string
@@ -14,17 +15,28 @@ export type WebRequest = {
   room_name: string
   guest_name: string
   guest_phone: string
+  // Il numero è già in archivio con un nominativo diverso da quello della
+  // richiesta: nome_archivio è quello della scheda, per l'avviso rosso
+  nome_diverso: boolean
+  nome_archivio: string
 }
 
 export async function fetchWebRequests(): Promise<WebRequest[]> {
-  const { data, error } = await supabase
+  // Prima con bookings.guest_name (nome della singola richiesta); se la
+  // colonna non è ancora migrata si ripiega sulla query di prima.
+  const query = (cols: string) => supabase
     .from('bookings')
-    .select('id, check_in, check_out, num_guests, total_amount, rooms(name), guests(full_name, phone)')
+    .select(cols)
     .eq('status', 'in_attesa')
     .eq('source', 'sito_web')
     .order('check_in', { ascending: true })
-  // Se la query fallisce (es. colonna non ancora migrata) niente avvisi: il
-  // gestionale deve continuare a funzionare come prima.
+  let { data, error }: { data: any[] | null; error: any } =
+    await query('id, check_in, check_out, num_guests, total_amount, guest_name, rooms(name), guests(full_name, phone)')
+  if (error) {
+    ;({ data, error } = await query('id, check_in, check_out, num_guests, total_amount, rooms(name), guests(full_name, phone)'))
+  }
+  // Se la query fallisce niente avvisi: il gestionale deve continuare a
+  // funzionare come prima.
   if (error || !data) return []
   return data.map((b: any) => ({
     id: b.id,
@@ -33,8 +45,10 @@ export async function fetchWebRequests(): Promise<WebRequest[]> {
     num_guests: b.num_guests,
     total_amount: Number(b.total_amount) || 0,
     room_name: b.rooms?.name?.split(' ').slice(-1)[0] || 'Camera',
-    guest_name: b.guests?.full_name || b.guests?.phone || 'Ospite',
+    guest_name: nomeOspite(b),
     guest_phone: b.guests?.phone || '',
+    nome_diverso: nomeDiverso(b),
+    nome_archivio: b.guests?.full_name || '',
   }))
 }
 

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Statistiche from './Statistiche'
 import { supabase } from '@/lib/supabase'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
+import { nomeOspite } from '@/lib/guestName'
 import BackBar from '@/components/BackBar'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -164,14 +165,14 @@ export default function Pulizie() {
       type Ev = { date: string; badge: string | null; testo: string }
       const eventi: Ev[] = []
       if (dueFuturo && dueFuturo > td) {
-        const g = inCorso?.guests?.full_name
+        const g = inCorso ? (inCorso.guest_name || inCorso.guests?.full_name) : null
         eventi.push({ date: dueFuturo, badge: 'cambio biancheria', testo: g ? `${g} resta · solo lenzuola` : 'solo lenzuola' })
       }
       if (inCorso) {
         let fineSoggiorno = inCorso
         for (let next = continuaIn(bookings, fineSoggiorno); next; next = continuaIn(bookings, next)) fineSoggiorno = next
         const out = cambioCameraOut(bookings, fineSoggiorno)
-        const nome = fineSoggiorno.guests?.full_name || 'l’ospite'
+        const nome = nomeOspite(fineSoggiorno)
         // Partenza: sempre "da pulire". Se l'ospite fa cambio camera, niente badge ⇄
         // (il badge è di chi arriva); qui basta il testo che spiega dove va.
         eventi.push({
@@ -185,7 +186,7 @@ export default function Pulizie() {
         .sort((a, b) => a.check_in.localeCompare(b.check_in))[0]
       if (arrivoFuturo) {
         const inCC = cambioCameraIn(bookings, arrivoFuturo)
-        const nome = arrivoFuturo.guests?.full_name || 'un ospite'
+        const nome = nomeOspite(arrivoFuturo)
         eventi.push({
           date: arrivoFuturo.check_in,
           badge: inCC ? '⇄ cambio camera' : null,
@@ -328,13 +329,13 @@ export default function Pulizie() {
             {partenza && (
               <p className="text-xs text-stone mt-1">
                 {partenzaCC
-                  ? `${partenza.guests?.full_name || 'l’ospite'} cambia camera → va in ${shortNameOf(partenzaCC.room_id)}`
-                  : `è partito ${partenza.guests?.full_name || 'l’ospite'}`}
+                  ? `${nomeOspite(partenza)} cambia camera → va in ${shortNameOf(partenzaCC.room_id)}`
+                  : `è partito ${nomeOspite(partenza)}`}
               </p>
             )}
             {arrivo && (
               <p className="text-sm font-semibold mt-2 flex flex-wrap items-center gap-1.5" style={{ color: 'var(--color-brass)' }}>
-                arriva {arrivo.guests?.full_name || 'un ospite'} oggi{arrivo.check_in_time ? ` alle ${arrivo.check_in_time}` : ''}
+                arriva {nomeOspite(arrivo)} oggi{arrivo.check_in_time ? ` alle ${arrivo.check_in_time}` : ''}
                 {arrivoCC && (
                   <span className="text-xs font-bold rounded-full px-2 py-0.5" style={badgeStyle['⇄ cambio camera']}>⇄ cambio camera da {shortNameOf(arrivoCC.room_id)}</span>
                 )}

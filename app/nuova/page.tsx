@@ -235,7 +235,7 @@ function NuovaPrenotazione() {
     if (!room_id || !check_in || !check_out) return
     const [{ data: conf }, { data: letti }] = await Promise.all([
       supabase.from('bookings')
-        .select('id, check_in, check_out, rooms(name), guests(full_name)')
+        .select('id, check_in, check_out, guest_name, rooms(name), guests(full_name)')
         .eq('room_id', room_id).neq('status', 'annullata')
         .lt('check_in', check_out).gt('check_out', check_in),
       supabase.from('bookings')
@@ -244,7 +244,7 @@ function NuovaPrenotazione() {
     ])
     if (conf && conf.length > 0) {
       const b = conf[0] as any
-      setConflitto(`⚠️ ${b.rooms?.name || 'Camera'} già occupata dal ${b.check_in} al ${b.check_out} (${b.guests?.full_name || 'altro cliente'})`)
+      setConflitto(`⚠️ ${b.rooms?.name || 'Camera'} già occupata dal ${b.check_in} al ${b.check_out} (${b.guest_name || b.guests?.full_name || 'altro cliente'})`)
     } else {
       setConflitto(null)
     }

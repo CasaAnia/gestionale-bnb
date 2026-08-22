@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
+import { nomeOspite, nomeDiverso } from '@/lib/guestName'
 import BackLink from '@/components/BackLink'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -256,11 +257,18 @@ export default function Calendario() {
                 }}
                 className="flex items-center gap-2 py-1.5 border-b border-gray-100 last:border-b-0 cursor-pointer transition-transform duration-100 active:scale-[0.97]">
                 <span aria-hidden>🌐</span>
-                <span className="text-[13px] text-green-dark min-w-0 flex-1 truncate">
-                  <span className="font-semibold">{b.guests?.full_name || 'Ospite'}</span>
-                  {' · '}
-                  {b.check_in?.slice(5).split('-').reverse().join('/')} → {b.check_out?.slice(5).split('-').reverse().join('/')}
-                  {rooms.find((r: any) => r.id === b.room_id)?.name ? ` · ${rooms.find((r: any) => r.id === b.room_id).name}` : ''}
+                <span className="text-[13px] text-green-dark min-w-0 flex-1">
+                  <span className="block truncate">
+                    <span className="font-semibold">{nomeOspite(b)}</span>
+                    {' · '}
+                    {b.check_in?.slice(5).split('-').reverse().join('/')} → {b.check_out?.slice(5).split('-').reverse().join('/')}
+                    {rooms.find((r: any) => r.id === b.room_id)?.name ? ` · ${rooms.find((r: any) => r.id === b.room_id).name}` : ''}
+                  </span>
+                  {/* Numero già in archivio con un altro nominativo: avviso rosso su
+                      riga propria, mai troncato (su mobile lo spazio è poco) */}
+                  {nomeDiverso(b) && (
+                    <span className="block font-bold text-[12px]" style={{ color: '#C0392B' }}>⚠️ Numero già usato · in archivio: {b.guests?.full_name}</span>
+                  )}
                 </span>
                 <button
                   onClick={e => {
@@ -406,7 +414,7 @@ export default function Calendario() {
                     const startIdx = Math.max(0, dayIndex(booking.check_in))
                     const endIdx = Math.min(DAYS_TOTAL, dayIndex(booking.check_out))
                     if (endIdx - startIdx <= 0) return []
-                    const guestName = booking.guests?.full_name || booking.guests?.phone || ''
+                    const guestName = booking.guest_name || booking.guests?.full_name || booking.guests?.phone || ''
                     const isOttimo = booking.guests?.rating === 'ottimo'
                     const isEsclusiva = booking.color === '#f97316'
                     const vuoleRicevuta = booking.guests?.rating === 'vuole_ricevuta'
