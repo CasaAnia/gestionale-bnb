@@ -5,6 +5,7 @@ import { roomWithType, ROOM_SLUG_BY_NAME, lettoInclusoNellaCamera } from '@/lib/
 import { lettoDaComunicare } from '@/lib/tariffe'
 import { NOME_STRUTTURA, CITTA_STRUTTURA, SITO_URL, SITO_DISPLAY, TELEFONO_DISPLAY, INDIRIZZO, INDIRIZZO_NOTA } from '@/lib/config'
 import { nomeOspite } from '@/lib/guestName'
+import { causaleBonifico } from '@/lib/causale'
 
 // Conferma di prenotazione WhatsApp: immagine grafica (1080px, identità visiva
 // del sito casaaniarozzano.it) + messaggio di testo con i link, pronti da inviare.
@@ -41,11 +42,6 @@ function toYMD(d: Date) {
 function formatGiornoMese(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
-}
-
-function meseBreve(dateStr: string) {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('it-IT', { month: 'short' })
 }
 
 function bagnoDesc(room: any) {
@@ -131,12 +127,7 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
   domani.setDate(domani.getDate() + 1)
   const scadenza = cin <= toYMD(domani) ? cin : toYMD(domani)
   const scadenzaF = formatGiornoMese(scadenza)
-  const cognomeOspite = nome.trim().split(' ').slice(-1)[0]
-  const nomiCamere = [...new Set(segmenti.map(s => s.rooms?.name?.split(' ').slice(-1)[0]).filter(Boolean))].join(' + ')
-  const dateCausale = cin.slice(0, 7) === cout.slice(0, 7)
-    ? `${Number(cin.slice(8))}–${Number(cout.slice(8))} ${meseBreve(cout)}`
-    : `${Number(cin.slice(8))} ${meseBreve(cin)} – ${Number(cout.slice(8))} ${meseBreve(cout)}`
-  const causale = `${nomiCamere} · ${dateCausale} · ${cognomeOspite}`
+  const causale = causaleBonifico(segmenti, nome)
 
   // Messaggio di testo con i link (con cambio camera: un link per ogni camera)
   const slugs = [...new Set(segmenti.map(s => ROOM_SLUG_BY_NAME[s.rooms?.name]).filter(Boolean))]

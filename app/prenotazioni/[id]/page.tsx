@@ -8,6 +8,7 @@ import { tariffaCamera, totaleLetto, lettoDaComunicare } from '@/lib/tariffe'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 import BackBar from '@/components/BackBar'
 import { nomeOspite, nomeDiverso, nomiPrecedenti } from '@/lib/guestName'
+import { causaleBonifico } from '@/lib/causale'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -45,8 +46,8 @@ function roomPageLink(roomName: string): string | null {
 
 // I template sono condivisi tra i due WhatsApp (personale Ania e Business): il testo è
 // identico da entrambi i mittenti. Durante la transizione del nome, i messaggi formali
-// usano la formula ufficiale "CASA ANIA / precedentemente Casa Granata Humanitas";
-// la causale del bonifico resta invece "Casa Granata Humanitas".
+// usano la formula ufficiale "CASA ANIA / precedentemente Casa Granata Humanitas".
+// La causale del bonifico è quella corta condivisa con la locandina (lib/causale.ts).
 function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero', gruppo: any[] = []) {
   const name = nomeOspite(b)
   const room = b.rooms?.name || ''
@@ -135,9 +136,7 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
 ${righeCosti.join('\n')}
 *Totale soggiorno: ${fmtEuro(totaleRighe)}*`
 
-  // La causale resta "Casa Granata Humanitas" finché la transizione del nome non è
-  // completa: è il riferimento che i clienti conoscono per il bonifico
-  const causale = `Soggiorno Casa Granata Humanitas – ${name} – dal ${formatDateShort(cin)} al ${formatDateShort(cout)}`
+  const causale = causaleBonifico(segmenti, name)
 
   // Blocco dati bonifico condiviso da conferma (variante bonifico), "Dati bonifico" e promemoria
   const datiBonifico = `Intestatario: *SAWICKA ANNA JANINA*
