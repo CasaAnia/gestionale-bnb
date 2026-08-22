@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
 import { tariffaCamera, totaleLetto } from '@/lib/tariffe'
-import { smartBack } from '@/lib/navHistory'
+import { smartBack, returnToSicuro } from '@/lib/navHistory'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
@@ -24,6 +24,10 @@ function NuovaPrenotazione() {
   const preselectedCheckIn = searchParams.get('check_in') || getTodayStr()
   const preselectedGuestId = searchParams.get('guest_id') || ''
   const preselectedGroupId = searchParams.get('group_id') || ''
+  // Dove tornare dopo il salvataggio: la pagina di provenienza (?returnTo=),
+  // se è un percorso interno ammesso; altrimenti l'elenco prenotazioni.
+  // Sta nell'URL, quindi sopravvive a refresh e apertura in nuova scheda.
+  const returnTo = returnToSicuro(searchParams.get('returnTo')) || '/prenotazioni'
   function addOneDay(dateStr: string) {
     if (!dateStr) return ''
     const [y, m, d] = dateStr.split('-').map(Number)
@@ -334,10 +338,13 @@ function NuovaPrenotazione() {
           ➕ Aggiungi cambio camera
         </button>
         <button
-          onClick={() => router.push('/prenotazioni')}
+          onClick={() => router.push(returnTo)}
           className="w-full border border-gray-300 text-gray-700 font-semibold py-4 rounded-2xl text-base"
         >
-          Fine — vai alle prenotazioni
+          {returnTo === '/calendario' ? 'Fine — torna al calendario'
+            : returnTo.startsWith('/prenotazioni/') ? 'Fine — torna alla prenotazione'
+            : returnTo === '/prenotazioni' ? 'Fine — vai alle prenotazioni'
+            : 'Fine — torna indietro'}
         </button>
       </div>
     )

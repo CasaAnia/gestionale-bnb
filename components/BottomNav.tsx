@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { House, CalendarDays, DoorOpen, Sparkles, ClipboardList, Plus, Users, Banknote, Wallet, ChartColumn, Settings } from 'lucide-react'
 import { useDemoMode } from '@/lib/useDemoMode'
+import { returnToSicuro } from '@/lib/navHistory'
 import { isHiddenPath } from '@/lib/demoMode'
 import { useWebRequestCount } from '@/lib/webRequests'
 
@@ -107,8 +108,13 @@ export default function BottomNav() {
               )}
               {group.items.filter(item => visible(item.href)).map(item => {
                 const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+                // "Nuova" ricorda la pagina di provenienza: dopo il salvataggio
+                // si torna lì (vedi returnTo in app/nuova/page.tsx).
+                const href = item.href === '/nuova' && returnToSicuro(pathname)
+                  ? `/nuova?returnTo=${pathname}`
+                  : item.href
                 return (
-                  <Link key={item.href} href={item.href}
+                  <Link key={item.href} href={href}
                     className={`flex items-center gap-3 pl-4 pr-4 py-2.5 font-serif text-[15px] border-l-2 transition-colors duration-200 ${active ? 'border-[#A9884E] text-green-dark' : 'border-transparent text-[#8a9488] hover:text-green-dark'}`}>
                     <item.Icon size={16} strokeWidth={1.5} className="shrink-0 text-green-mid" aria-hidden />
                     <span>{item.label}</span>

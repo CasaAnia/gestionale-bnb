@@ -831,7 +831,7 @@ export default function BookingDetail() {
       ? [...groupBookings].sort((a, z) => z.check_out.localeCompare(a.check_out))[0].check_out
       : booking.check_out
     const guestId = booking.guest_id || booking.guests?.id
-    router.push(`/nuova?guest_id=${guestId}&group_id=${groupId}&check_in=${lastCheckOut}`)
+    router.push(`/nuova?guest_id=${guestId}&group_id=${groupId}&check_in=${lastCheckOut}&returnTo=/prenotazioni/${id}`)
   }
 
   async function markComplete() {

@@ -57,7 +57,7 @@ export default function Prenotazioni() {
       <BackBar href="/calendario" />
       <div className="flex items-center justify-between mb-4">
         <h1 className="font-serif text-xl text-green-dark max-lg:hidden">Prenotazioni</h1>
-        <Link href="/nuova" className="ml-auto bg-green-mid text-white rounded-full px-3 py-1.5 text-sm font-semibold">+ Nuova</Link>
+        <Link href="/nuova?returnTo=/prenotazioni" className="ml-auto bg-green-mid text-white rounded-full px-3 py-1.5 text-sm font-semibold">+ Nuova</Link>
       </div>
 
       <div className="flex gap-2 mb-4">

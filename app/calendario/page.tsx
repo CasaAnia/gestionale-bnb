@@ -398,7 +398,7 @@ export default function Calendario() {
                       const dateStr = toStr(d)
                       return (
                         <div key={i}
-                          onClick={() => router.push(`/nuova?room_id=${room.id}&check_in=${dateStr}`)}
+                          onClick={() => router.push(`/nuova?room_id=${room.id}&check_in=${dateStr}&returnTo=/calendario`)}
                           style={{
                             width: CELL_W, minWidth: CELL_W, height: '100%',
                             background: isToday ? '#F3ECD8' : isSun ? '#F7F3E8' : (isEven ? 'white' : '#F7F3E8'),

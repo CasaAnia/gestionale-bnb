@@ -30,6 +30,20 @@ export function setDepth(n: number) {
   }
 }
 
+// Destinazioni interne a cui la pagina Nuova prenotazione può tornare dopo
+// il salvataggio (parametro ?returnTo=). Solo percorsi dell'app: qualunque
+// altro valore viene scartato, così un link esterno non può dirottare il
+// ritorno (niente open redirect).
+const RETURN_PATHS = new Set(['/', '/calendario', '/prenotazioni', '/arrivi', '/pulizie', '/clienti'])
+
+export function returnToSicuro(raw: string | null): string | null {
+  if (!raw) return null
+  if (RETURN_PATHS.has(raw)) return raw
+  // Dettaglio prenotazione: /prenotazioni/<id> (cambio camera)
+  if (/^\/prenotazioni\/[A-Za-z0-9-]+$/.test(raw)) return raw
+  return null
+}
+
 type RouterLike = { back: () => void; push: (href: string) => void }
 
 // Torna alla pagina precedente vera; se non esiste (o se il conteggio si
