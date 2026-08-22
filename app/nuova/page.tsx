@@ -42,7 +42,7 @@ function NuovaPrenotazione() {
   const [guest, setGuest] = useState<any>(null)
   const [guestHistory, setGuestHistory] = useState<any[]>([])
   const [rooms, setRooms] = useState<any[]>([])
-  const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '', bonifico: false, extra_phone_1_name: '', chi_e: '' })
+  const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '', bonifico: false, source: 'diretta', extra_phone_1_name: '', chi_e: '' })
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -291,7 +291,7 @@ function NuovaPrenotazione() {
       room_id: form.room_id, guest_id: guestId, check_in: form.check_in, check_out: form.check_out,
       check_in_time: form.check_in_time || null,
       num_guests: form.num_guests, extra_bed: form.extra_bed_dates.length > 0, extra_bed_dates: form.extra_bed_dates, price_per_night: Number(form.price_per_night),
-      extra_bed_total: ebt, total_amount: calcTotal(), notes: form.notes || null, status: 'confermata', source: 'diretta',
+      extra_bed_total: ebt, total_amount: calcTotal(), notes: form.notes || null, status: 'confermata', source: form.source,
       bonifico: form.bonifico, pagato: false, group_id: groupId,
       extra_phone_1_name: form.extra_phone_1_name || null,
       // chi_e incluso solo se valorizzato: così il salvataggio funziona anche se la colonna non è ancora stata creata su Supabase
@@ -657,6 +657,21 @@ function NuovaPrenotazione() {
               </div>
               <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${form.bonifico ? 'bg-green-mid' : 'bg-gray-200'}`}>
                 <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${form.bonifico ? 'translate-x-6' : ''}`} />
+              </div>
+            </div>
+
+            {/* Provenienza del cliente: con "Sito" la prenotazione mostra il
+                pallino 🌐 sul calendario anche se inserita a mano (cliente
+                trovato dal sito che poi ha scritto su WhatsApp) */}
+            <div className="mb-3">
+              <p className="text-sm text-gray-500 mb-1">Il cliente è arrivato da</p>
+              <div className="flex gap-2">
+                {([['diretta', 'Diretta'], ['sito_web', '🌐 Sito'], ['whatsapp', 'WhatsApp']] as const).map(([val, label]) => (
+                  <button key={val} type="button" onClick={() => setForm({ ...form, source: val })}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${form.source === val ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-card-border'}`}>
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 

@@ -486,13 +486,20 @@ export default function Calendario() {
                           }}>
                           {isFirst && (
                             <>
+                              {/* Pallino di provenienza: il cliente è arrivato dal sito.
+                                  Resta anche dopo la conferma (il colore della barra
+                                  continua a dire solo lo STATO) e si vede pure sulle
+                                  barre da 1 notte, dove la scritta non ci sta */}
+                              {booking.source === 'sito_web' && (
+                                <span style={{ position: 'absolute', top: 1.5, left: 1.5, width: isDesktop ? gs(13) : gs(11), height: isDesktop ? gs(13) : gs(11), borderRadius: '50%', background: '#1F3D2F', border: '1px solid rgba(255,255,255,0.9)', color: '#fff', fontSize: isDesktop ? gs(7) : gs(6), lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, pointerEvents: 'none' }}>🌐</span>
+                              )}
                               <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? gs(13) : gs(10), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                                 {hasIncoming ? '⇄ ' : ''}{guestName}{hasOutgoing ? ' ⇄' : ''}
                               </span>
-                              {/* "dal sito" resta anche dopo la conferma: ad
-                                  Ania serve sapere da dove è arrivata */}
-                              {booking.source === 'sito_web' && (
-                                <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? gs(10) : gs(8), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
+                              {/* La scritta resta solo sulla richiesta da confermare
+                                  (barra bianca): sulle confermate parla il pallino */}
+                              {isWebPending && (
+                                <span style={{ color: '#2D6A4F', fontSize: isDesktop ? gs(10) : gs(8), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
                                   🌐 dal sito
                                 </span>
                               )}

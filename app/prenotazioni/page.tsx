@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import BackBar from '@/components/BackBar'
 import { nomeOspite } from '@/lib/guestName'
+import { matchPrenotazione } from '@/lib/ricerca'
 
 // Pallino di stato discreto: colori coerenti con il calendario
 const STATUS_DOT: Record<string, string> = {
@@ -27,6 +28,7 @@ export default function Prenotazioni() {
   const router = useRouter()
   const [bookings, setBookings] = useState<any[]>([])
   const [filter, setFilter] = useState<'tutte' | 'attive' | 'annullate'>('attive')
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -42,6 +44,7 @@ export default function Prenotazioni() {
   }, [])
 
   const filtered = bookings.filter(b => {
+    if (!matchPrenotazione(b, search)) return false
     if (filter === 'attive') return b.status !== 'annullata'
     if (filter === 'annullate') return b.status === 'annullata'
     return true
@@ -60,6 +63,19 @@ export default function Prenotazioni() {
         <Link href="/nuova?returnTo=/prenotazioni" className="ml-auto bg-green-mid text-white rounded-full px-3 py-1.5 text-sm font-semibold">+ Nuova</Link>
       </div>
 
+      {/* Ricerca istantanea su nome della prenotazione, nome in scheda e
+          telefono (tollerante a spazi, trattini e prefisso +39) */}
+      <div className="relative mb-3">
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔎</span>
+        <input value={search} onChange={e => setSearch(e.target.value)} type="search" inputMode="search"
+          placeholder="Cerca per nome o telefono…"
+          className="w-full bg-white border border-card-border rounded-xl pl-10 pr-9 py-2.5 text-[15px] shadow-sm focus:outline-none focus:border-green-mid" />
+        {search && (
+          <button onClick={() => setSearch('')} aria-label="Cancella ricerca"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 px-2 py-1 text-sm">✕</button>
+        )}
+      </div>
+
       <div className="flex gap-2 mb-4">
         {(['attive', 'tutte', 'annullate'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
@@ -72,9 +88,14 @@ export default function Prenotazioni() {
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-10 text-gray-400">Nessuna prenotazione</div>
+        <div className="text-center py-10 text-gray-400">
+          {search.trim() ? <>Nessun risultato per «{search.trim()}»</> : 'Nessuna prenotazione'}
+        </div>
       ) : (
         <div className="flex flex-col gap-3">
+          {search.trim() && (
+            <p className="text-xs text-gray-500 -mt-1">{filtered.length} {filtered.length === 1 ? 'risultato' : 'risultati'} per «{search.trim()}»</p>
+          )}
           {filtered.map(b => (
             <div key={b.id} onClick={() => router.push(`/prenotazioni/${b.id}`)}
               className={`rounded-xl p-5 border shadow-sm transition-all cursor-pointer active:opacity-70 leading-relaxed ${b.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-white border-card-border'}`}>

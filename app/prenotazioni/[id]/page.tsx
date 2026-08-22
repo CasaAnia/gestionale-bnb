@@ -502,6 +502,7 @@ export default function BookingDetail() {
         color: b.color || '',
         bonifico: b.bonifico || false,
         pagato: b.pagato || false,
+        source: b.source || 'diretta',
         extra_phone_1: b.extra_phone_1 || '',
         extra_phone_1_name: b.extra_phone_1_name || '',
         chi_e: b.chi_e || '',
@@ -674,6 +675,7 @@ export default function BookingDetail() {
       color: editForm.color || null,
       bonifico: editForm.bonifico || false,
       pagato: editForm.pagato || false,
+      source: editForm.source || 'diretta',
       extra_phone_1: editForm.extra_phone_1 ? normalizePhone(editForm.extra_phone_1) : null,
       extra_phone_1_name: editForm.extra_phone_1_name || null,
       // chi_e incluso solo se la colonna esiste già sul DB o se è stato valorizzato: gli altri salvataggi non si bloccano prima della migrazione
@@ -1137,6 +1139,20 @@ export default function BookingDetail() {
             </div>
             <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${editForm.bonifico ? 'bg-green-mid' : 'bg-gray-200'}`}>
               <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.bonifico ? 'translate-x-6' : ''}`} />
+            </div>
+          </div>
+
+          {/* Provenienza del cliente: con "Sito" la prenotazione mostra il
+              pallino 🌐 sul calendario anche se inserita a mano */}
+          <div className="mb-3">
+            <p className="text-sm text-gray-500 mb-1">Il cliente è arrivato da</p>
+            <div className="flex gap-2">
+              {([['diretta', 'Diretta'], ['sito_web', '🌐 Sito'], ['whatsapp', 'WhatsApp']] as const).map(([val, label]) => (
+                <button key={val} type="button" onClick={() => setEditForm({ ...editForm, source: val })}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${editForm.source === val ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-card-border'}`}>
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 
