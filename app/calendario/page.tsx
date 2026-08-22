@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite, nomeDiverso } from '@/lib/guestName'
+import { matchPrenotazione } from '@/lib/ricerca'
 import BackLink from '@/components/BackLink'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -48,6 +49,14 @@ function strToDate(s: string) {
   return new Date(y, m - 1, d)
 }
 
+// "2026-09-15","2026-09-16" -> "15–16 set"; a cavallo di mese "27 set – 2 ott"
+const MESI_BREVI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
+function lblDate(ci: string, co: string) {
+  const [, m1, g1] = ci.split('-').map(Number)
+  const [, m2, g2] = co.split('-').map(Number)
+  return m1 === m2 ? `${g1}–${g2} ${MESI_BREVI[m1 - 1]}` : `${g1} ${MESI_BREVI[m1 - 1]} – ${g2} ${MESI_BREVI[m2 - 1]}`
+}
+
 export default function Calendario() {
   const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -78,6 +87,21 @@ export default function Calendario() {
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
 
+  // ── Ricerca nel calendario ──
+  // La ricerca evidenzia la prenotazione trovata e attenua le altre, senza
+  // mai nasconderle: serve a ragionare su prolungamenti e camere libere.
+  const [query, setQuery] = useState('')
+  const [matchIdx, setMatchIdx] = useState(0)
+  const [menuAperto, setMenuAperto] = useState(false)   // elenco a comparsa dei risultati
+  const [wrAperto, setWrAperto] = useState(false)       // richieste dal sito riaperte durante la ricerca
+  // Intervallo disegnato: parte dai valori fissi e si estende solo quando un
+  // risultato selezionato sta fuori; con ✕ torna quello normale.
+  const [daysBefore, setDaysBefore] = useState(DAYS_BEFORE)
+  const [daysTotal, setDaysTotal] = useState(DAYS_TOTAL)
+  // Data da raggiungere dopo il prossimo render (così lo scroll usa gli
+  // indici dell'intervallo già esteso, mai tentativi)
+  const [scrollTarget, setScrollTarget] = useState<string | null>(null)
+
   // Titolo sticky mese+anno: segue il mese più a sinistra attualmente in vista
   function fmtMonth(d: Date) {
     const l = d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
@@ -100,9 +124,9 @@ export default function Calendario() {
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const startDate = addDays(today, -DAYS_BEFORE)
-  const endDate = addDays(startDate, DAYS_TOTAL)
-  const days: Date[] = Array.from({ length: DAYS_TOTAL }, (_, i) => addDays(startDate, i))
+  const startDate = addDays(today, -daysBefore)
+  const endDate = addDays(startDate, daysTotal)
+  const days: Date[] = Array.from({ length: daysTotal }, (_, i) => addDays(startDate, i))
   const todayStr = toStr(today)
 
   // Somma acconti per prenotazione (vuota se la tabella payments non è ancora migrata)
@@ -159,6 +183,73 @@ export default function Calendario() {
       scrollRef.current.scrollLeft = DAYS_BEFORE * CELL_W - 80
     }
   }, [loading, CELL_W])
+
+  // Risultati della ricerca: TUTTE le prenotazioni corrispondenti in archivio,
+  // anche lontane mesi, in ordine di arrivo. Stessa logica della pagina
+  // Prenotazioni (lib/ricerca.ts): nome, scheda cliente e telefono.
+  const matches = useMemo(() => {
+    const t = query.trim()
+    if (!t) return []
+    return bookings
+      .filter((b: any) => matchPrenotazione(b, t))
+      .sort((a: any, b: any) => a.check_in.localeCompare(b.check_in))
+  }, [bookings, query])
+  const matchedIds = useMemo(() => new Set(matches.map((m: any) => m.id)), [matches])
+  const cercando = query.trim() !== ''
+  const searchAttiva = matches.length > 0
+  const currentMatch: any = searchAttiva ? matches[Math.min(matchIdx, matches.length - 1)] : null
+  const clientiDiversi = useMemo(
+    () => new Set(matches.map((m: any) => m.guests?.id || m.id)).size,
+    [matches]
+  )
+
+  // Va al risultato i: estende l'intervallo se la prenotazione sta fuori,
+  // poi fa scorrere il calendario alla sua data (dopo il render, via effect)
+  function vaiA(i: number) {
+    const m: any = matches[i]
+    if (!m) return
+    setMatchIdx(i)
+    setMenuAperto(false)
+    const inIdx = dayIndex(m.check_in)
+    const outIdx = dayIndex(m.check_out)
+    if (inIdx < 0) {
+      const extra = -inIdx + 10
+      setDaysBefore(v => v + extra)
+      setDaysTotal(v => v + extra)
+    } else if (outIdx + 3 > daysTotal) {
+      setDaysTotal(outIdx + 10)
+    }
+    setScrollTarget(m.check_in)
+  }
+  const vaiARef = useRef(vaiA)
+  vaiARef.current = vaiA
+
+  // Nuova ricerca: salto automatico al primo risultato
+  useEffect(() => {
+    if (matches.length > 0) vaiARef.current(0)
+  }, [matches])
+
+  // Lo scroll parte solo a intervallo già ridisegnato: posizione esatta, mai tentativi
+  useEffect(() => {
+    if (!scrollTarget || !scrollRef.current) return
+    scrollRef.current.scrollTo({ left: Math.max(0, dayIndex(scrollTarget) * CELL_W - Math.round(CELL_W * 1.5)), behavior: 'smooth' })
+    setScrollTarget(null)
+  }, [scrollTarget, daysBefore, daysTotal, CELL_W]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cambio testo nel campo: query vuota = tutto torna normale
+  function cambiaRicerca(v: string) {
+    setQuery(v)
+    setMatchIdx(0)
+    setMenuAperto(false)
+    if (!v.trim()) {
+      setWrAperto(false)
+      if (daysBefore !== DAYS_BEFORE || daysTotal !== DAYS_TOTAL) {
+        setDaysBefore(DAYS_BEFORE)
+        setDaysTotal(DAYS_TOTAL)
+        setScrollTarget(todayStr)
+      }
+    }
+  }
 
   function updateVisibleMonth() {
     const sl = scrollRef.current?.scrollLeft ?? 0
@@ -228,7 +319,7 @@ export default function Calendario() {
     return booking.color || COLOR_PRENOTAZIONE
   }
 
-  const totalW = NAME_W + DAYS_TOTAL * CELL_W
+  const totalW = NAME_W + daysTotal * CELL_W
   const totalH = HEADER_H + rooms.length * ROW_H + EXTRA_ROW_H
 
   // Calcola mesi per header
@@ -244,12 +335,136 @@ export default function Calendario() {
     <div className="flex flex-col h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0">
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
       <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 pb-2 bg-cream/95 backdrop-blur-sm">
-        <BackLink href="/" />
+        <div className="flex items-center gap-2">
+          <BackLink href="/" />
+          {/* Ricerca compatta: una riga sola quando non si cerca */}
+          <div className="flex items-center gap-2 flex-1 min-w-0 bg-white border border-card-border rounded-full px-3 py-1.5">
+            <span aria-hidden className="text-[13px]">🔎</span>
+            <input
+              type="search"
+              enterKeyHint="search"
+              value={query}
+              onChange={e => cambiaRicerca(e.target.value)}
+              placeholder="Cerca nome o telefono…"
+              className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-green-dark placeholder:text-gray-400 [&::-webkit-search-cancel-button]:hidden"
+            />
+            {query !== '' && (
+              <button
+                onClick={() => cambiaRicerca('')}
+                aria-label="Chiudi ricerca"
+                className="shrink-0 w-6 h-6 rounded-full bg-cream text-green-dark text-[12px] font-bold leading-none transition-transform duration-100 active:scale-[0.9]">
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Nessun risultato: messaggio semplice, calendario normale */}
+        {cercando && matches.length === 0 && (
+          <div className="mt-2 text-[13.5px] font-bold" style={{ color: '#8c6a52' }}>Nessuna prenotazione trovata</div>
+        )}
+
+        {/* Risultati della ricerca */}
+        {searchAttiva && (() => {
+          const m = currentMatch
+          const stessoCliente = clientiDiversi === 1
+          const roomShort = (id: string) => (rooms.find((r: any) => r.id === id)?.name || '').split(' ').slice(-1)[0]
+          const tel4 = (x: any) => (x.guests?.phone || '').replace(/\D/g, '').slice(-4)
+          const voce = (x: any) => `${lblDate(x.check_in, x.check_out)} · ${roomShort(x.room_id)}`
+          return (
+            <div className="mt-2">
+              {matches.length === 1 ? (
+                // Un solo risultato: UNA riga compatta
+                <div className="text-[13px] font-bold text-green-dark truncate">
+                  🔎 {nomeOspite(m)} · {voce(m)}
+                </div>
+              ) : (
+                <>
+                  {/* Riga 1: quante prenotazioni, ben chiaro (tocco = elenco a comparsa) */}
+                  <button onClick={() => setMenuAperto(o => !o)} className="flex items-center gap-1.5 text-[13px] text-green-dark max-w-full">
+                    <span aria-hidden>🔎</span>
+                    <span className="truncate">
+                      <b>{matches.length} prenotazioni trovate</b> · {stessoCliente ? nomeOspite(matches[0]) : `${clientiDiversi} clienti diversi`}
+                    </span>
+                    <span className="text-green-mid text-[11px]" aria-hidden>▾</span>
+                  </button>
+
+                  {/* Mobile: navigatore ‹ [1 di N · data · camera] › */}
+                  <div className="flex items-center gap-2 mt-1 lg:hidden">
+                    <button
+                      onClick={() => vaiA((matchIdx - 1 + matches.length) % matches.length)}
+                      aria-label="Risultato precedente"
+                      className="shrink-0 w-11 h-11 rounded-[10px] border border-card-border bg-white text-green-mid text-xl font-bold leading-none transition-transform duration-100 active:scale-[0.95]">
+                      ‹
+                    </button>
+                    <button
+                      onClick={() => setScrollTarget(m.check_in)}
+                      className="flex-1 min-w-0 rounded-[10px] bg-green-mid text-white px-2 py-1 text-center transition-transform duration-100 active:scale-[0.98]">
+                      <span className="block text-[11px] font-extrabold tracking-[1.5px] uppercase opacity-90">{matchIdx + 1} di {matches.length}</span>
+                      <span className="block text-[13.5px] font-extrabold truncate">{voce(m)}</span>
+                      {!stessoCliente && (
+                        <span className="block text-[10.5px] font-semibold opacity-85 truncate">{nomeOspite(m)} · …{tel4(m)}</span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => vaiA((matchIdx + 1) % matches.length)}
+                      aria-label="Risultato successivo"
+                      className="shrink-0 w-11 h-11 rounded-[10px] border border-card-border bg-white text-green-mid text-xl font-bold leading-none transition-transform duration-100 active:scale-[0.95]">
+                      ›
+                    </button>
+                  </div>
+
+                  {/* Desktop: riquadri in fila */}
+                  <div className="hidden lg:flex gap-1.5 mt-1.5 overflow-x-auto pb-1">
+                    {matches.map((x: any, i: number) => (
+                      <button
+                        key={x.id}
+                        onClick={() => vaiA(i)}
+                        className={`shrink-0 rounded-[10px] border px-3 py-1 text-left ${i === matchIdx ? 'bg-green-mid border-green-mid text-white' : 'bg-white border-card-border text-green-dark'}`}>
+                        <span className="block text-[13px] font-extrabold whitespace-nowrap">{voce(x)}</span>
+                        {!stessoCliente && (
+                          <span className={`block text-[11px] whitespace-nowrap ${i === matchIdx ? 'text-white/85' : 'text-gray-400'}`}>{nomeOspite(x)} · …{tel4(x)}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Elenco a comparsa: sta SOPRA il calendario, non lo spinge in basso */}
+                  {menuAperto && (
+                    <div className="absolute left-4 right-4 z-50 mt-1 bg-white border border-card-border rounded-xl shadow-lg p-1">
+                      {matches.map((x: any, i: number) => (
+                        <button
+                          key={x.id}
+                          onClick={() => vaiA(i)}
+                          className={`flex flex-col items-start w-full text-left px-2.5 py-2 rounded-lg ${i === matchIdx ? 'bg-cream' : ''}`}>
+                          <span className="text-[13.5px] font-extrabold text-green-dark">{voce(x)}</span>
+                          {!stessoCliente && <span className="text-[11px] text-gray-400">{nomeOspite(x)} · …{tel4(x)}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )
+        })()}
+
         {webRequests.length > 0 && (
           // Una riga per richiesta, ognuna col suo Apri: il tocco sulla riga
-          // porta il calendario sulla data, il bottone apre la prenotazione
+          // porta il calendario sulla data, il bottone apre la prenotazione.
+          // Durante una ricerca con più richieste il blocco si compatta in una
+          // riga sola (il calendario deve restare visibile); un tocco lo riapre
+          // e con ✕ torna comunque tutto com'era.
           <div className="chip-in mt-2 bg-white rounded-lg px-3 py-1 shadow-sm">
-            {webRequests.map((b: any) => (
+            {searchAttiva && webRequests.length > 1 && !wrAperto ? (
+              <div
+                onClick={() => setWrAperto(true)}
+                className="flex items-center gap-2 py-1.5 cursor-pointer transition-transform duration-100 active:scale-[0.98]">
+                <span aria-hidden>🌐</span>
+                <span className="text-[13px] font-bold text-green-dark">{webRequests.length} richieste dal sito</span>
+                <span className="ml-auto text-[11px] text-gray-400 font-semibold">tocca per vedere</span>
+              </div>
+            ) : webRequests.map((b: any) => (
               <div key={b.id}
                 onClick={() => {
                   if (!scrollRef.current) return
@@ -412,7 +627,7 @@ export default function Calendario() {
                   {/* Barre prenotazioni */}
                   {bookingsForRoom(room.id).flatMap((booking: any) => {
                     const startIdx = Math.max(0, dayIndex(booking.check_in))
-                    const endIdx = Math.min(DAYS_TOTAL, dayIndex(booking.check_out))
+                    const endIdx = Math.min(daysTotal, dayIndex(booking.check_out))
                     if (endIdx - startIdx <= 0) return []
                     const guestName = booking.guest_name || booking.guests?.full_name || booking.guests?.phone || ''
                     const isOttimo = booking.guests?.rating === 'ottimo'
@@ -424,7 +639,14 @@ export default function Calendario() {
                     const hasIncoming = incomingIds.has(booking.id)
                     const hasOutgoing = outgoingIds.has(booking.id)
                     const isSelected = isMultiRoom && selectedGroupId === chainKey
-                    const isDimmed = selectedGroupId !== null && !isSelected
+                    // Ricerca attiva: risultato selezionato a colore pieno con
+                    // ombra, gli altri risultati pieni, tutto il resto attenuato
+                    // ma leggibile. I colori di stato non cambiano mai.
+                    const isMatch = matchedIds.has(booking.id)
+                    const isCurrent = searchAttiva && currentMatch?.id === booking.id
+                    const isDimmed = searchAttiva
+                      ? !isMatch
+                      : (selectedGroupId !== null && !isSelected)
                     // Richiesta dal sito da confermare: barra bianca tratteggiata
                     const isWebPending = booking.status === 'in_attesa' && booking.source === 'sito_web'
                     const insetV = 6
@@ -452,7 +674,10 @@ export default function Calendario() {
                       return (
                         <div key={`${booking.id}-${si}`}
                           onClick={(e) => {
-                            if (isMultiRoom) {
+                            // Con la ricerca attiva vince la ricerca: il tocco
+                            // apre direttamente la scheda, senza il passaggio
+                            // di evidenziazione della catena
+                            if (isMultiRoom && !searchAttiva) {
                               e.stopPropagation()
                               // Primo tocco: evidenzia la catena. Secondo tocco sul segmento evidenziato: apre il dettaglio.
                               if (selectedGroupId === chainKey) {
@@ -479,18 +704,22 @@ export default function Calendario() {
                             flexDirection: 'column',
                             justifyContent: 'center',
                             overflow: 'hidden',
-                            zIndex: isSelected ? 15 : 5,
+                            zIndex: isCurrent ? 16 : isSelected ? 15 : 5,
                             opacity: isDimmed ? 0.3 : 1,
-                            boxShadow: isSelected ? '0 2px 8px rgba(0,0,0,0.25)' : '0 1px 3px rgba(0,0,0,0.2)',
-                            transition: 'opacity 0.15s',
+                            boxShadow: isCurrent
+                              ? '0 3px 10px rgba(31,61,47,0.45)'
+                              : isSelected ? '0 2px 8px rgba(0,0,0,0.25)' : '0 1px 3px rgba(0,0,0,0.2)',
+                            transition: 'opacity 0.15s, box-shadow 0.15s',
                           }}>
                           {isFirst && (
                             <>
                               {/* Pallino di provenienza: il cliente è arrivato dal sito.
                                   Resta anche dopo la conferma (il colore della barra
                                   continua a dire solo lo STATO) e si vede pure sulle
-                                  barre da 1 notte, dove la scritta non ci sta */}
-                              {booking.source === 'sito_web' && (
+                                  barre da 1 notte, dove la scritta non ci sta.
+                                  Sulla richiesta ancora da confermare parla già la
+                                  scritta «dal sito»: lì il pallino non si mostra */}
+                              {booking.source === 'sito_web' && !isWebPending && (
                                 <span style={{ position: 'absolute', top: 1.5, left: 1.5, width: isDesktop ? gs(13) : gs(11), height: isDesktop ? gs(13) : gs(11), borderRadius: '50%', background: '#1F3D2F', border: '1px solid rgba(255,255,255,0.9)', color: '#fff', fontSize: isDesktop ? gs(7) : gs(6), lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, pointerEvents: 'none' }}>🌐</span>
                               )}
                               <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? gs(13) : gs(10), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
