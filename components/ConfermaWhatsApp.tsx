@@ -79,7 +79,10 @@ export default function ConfermaWhatsApp({ booking, groupBookings, payments = []
   const nottiTot = notti(cin, cout)
   const numOspiti = booking.num_guests || 1
   const ospiti = `${numOspiti} ${numOspiti === 1 ? 'adulto' : 'adulti'}`
-  const nome = nomeOspite(booking)
+  // Alcune schede cliente portano caratteri invisibili residui davanti al nome
+  // (es. U+FE0F di una vecchia emoji): il saluto deve risultare "Gentile Nome Cognome,"
+  // pulito, senza spazi anomali né caratteri di formattazione.
+  const nome = nomeOspite(booking).replace(/[\u200B-\u200D\uFE0F]/g, '').replace(/\s+/g, ' ').trim()
 
   // Righe del riepilogo costi dal conto unico: dettaglio a prezzo pieno e riga
   // sconto solo se esiste uno sconto SALVATO (mai dedotto dal listino). Se per
@@ -147,17 +150,19 @@ Gentile ${nome},
 
 la sua prenotazione è confermata. 🌿
 
-Nell'immagine trova il riepilogo completo del soggiorno: date, camera, importo, pagamento e indirizzo. Può toccarla per visualizzarla a schermo intero.
+*Nell'immagine trova il riepilogo completo del soggiorno: date, camera, importo, pagamento e indirizzo. Può toccarla per visualizzarla a schermo intero.*
 
-Per comodità, le lascio anche due link utili:
+Le lascio anche due link che possono esserle utili:
 
-Info per il soggiorno:
+*Informazioni utili per il soggiorno:*
 ${SITO_URL}/info
 
-La sua camera:
+*La sua camera:*
 ${linkCamere}
 
 💬 Appena le sarà possibile, le chiedo di comunicarmi l'orario di arrivo, così potrò organizzare al meglio la sua accoglienza.
+
+*Per qualsiasi necessità, sono a sua disposizione.*
 
 A presto,
 Ania`
