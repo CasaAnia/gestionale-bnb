@@ -9,6 +9,7 @@ import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 import BackBar from '@/components/BackBar'
 import { nomeOspite, nomeDiverso, nomiPrecedenti } from '@/lib/guestName'
 import { causaleBonifico } from '@/lib/causale'
+import { contoSoggiorno, residuoDaPagare } from '@/lib/conto'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -48,7 +49,7 @@ function roomPageLink(roomName: string): string | null {
 // identico da entrambi i mittenti. Durante la transizione del nome, i messaggi formali
 // usano la formula ufficiale "CASA ANIA / precedentemente Casa Granata Humanitas".
 // La causale del bonifico è quella corta condivisa con la locandina (lib/causale.ts).
-function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero', gruppo: any[] = []) {
+function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero', gruppo: any[] = [], acconti: any[] = []) {
   const name = nomeOspite(b)
   const room = b.rooms?.name || ''
   // Nome con tipologia (es. "Amelia – Singola"): solo nei messaggi al cliente
@@ -59,7 +60,9 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   const segmenti = isGruppo ? [...gruppo].sort((a, z) => a.check_in.localeCompare(z.check_in)) : [b]
   const cin = segmenti[0].check_in
   const cout = segmenti[segmenti.length - 1].check_out
-  const totaleNum = isGruppo ? segmenti.reduce((s, x) => s + Number(x.total_amount), 0) : Number(b.total_amount)
+  // Totale dal conto unico (LETTURA: il record salvato è autorevole per le
+  // prenotazioni senza sconto, i dati storici non vengono reinterpretati)
+  const totaleNum = segmenti.reduce((s, x) => s + contoSoggiorno(x).totale, 0)
   const notti = Math.round((new Date(cout).getTime() - new Date(cin).getTime()) / 86400000)
   const totale = totaleNum.toLocaleString('it-IT', { minimumFractionDigits: 2 })
   const numOspiti = b.num_guests || 1
@@ -87,49 +90,54 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
     return `   ${i + 1}. *${roomWithType(s.rooms?.name) || 'Camera'}*: ${formatDateIT(s.check_in)} → ${formatDateIT(s.check_out)} (${n} ${n === 1 ? 'notte' : 'notti'}) – €${prezzoNotte.toFixed(0)}/notte`
   }).join('\n') : ''
 
-  // Riepilogo costi: una riga per camera (+ letto supplementare se presente), totale = somma delle righe
+  // Riepilogo costi dal conto unico: righe di dettaglio a prezzo pieno e, solo
+  // se esiste uno sconto SALVATO, la riga "Sconto a lei riservato". Se per un
+  // dato storico il dettaglio non torna col totale autorevole, si rinuncia
+  // allo spezzettamento e si mostra una riga unica: tutte le schermate devono
+  // dire lo stesso totale.
   const fmtEuro = (n: number) => n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
   let totaleRighe = 0
   const righeCosti: string[] = []
   for (const s of segmenti) {
-    const n = Math.round((new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86400000)
+    const conto = contoSoggiorno(s)
+    const n = conto.notti
     const prezzo = Number(s.price_per_night)
     const nomeCamera = `Camera ${roomWithType(s.rooms?.name) || ''}`.trim()
+    totaleRighe += conto.totale
+    const righeSegmento: string[] = []
+    let sommaDettaglio = 0
     // Lena con 3 ospiti: il terzo letto è parte della tripla, una riga sola tutto compreso
     if (lettoInclusoNellaCamera(s, n)) {
       const totCamera = prezzo * n + Number(s.extra_bed_total || 0)
-      totaleRighe += totCamera
-      righeCosti.push(n > 1
+      sommaDettaglio += totCamera
+      righeSegmento.push(n > 1
         ? `${nomeCamera} (${n} notti × ${fmtEuro(totCamera / n)}): ${fmtEuro(totCamera)}`
         : `${nomeCamera}: ${fmtEuro(totCamera)}`)
-      continue
-    }
-    const subCamera = prezzo * n
-    totaleRighe += subCamera
-    // Prezzo sotto il listino della camera = sconto fatto da Ania: il
-    // cliente lo deve vedere nero su bianco, non un prezzo basso e muto
-    const listino = Number(s.rooms?.base_price || 0)
-    const scontoCamera = listino > prezzo ? (listino - prezzo) * n : 0
-    if (scontoCamera > 0.005) {
-      righeCosti.push(n > 1
-        ? `${nomeCamera} (${n} notti × ${fmtEuro(listino)}): ${fmtEuro(listino * n)}`
-        : `${nomeCamera}: ${fmtEuro(listino)}`)
-      righeCosti.push(`━━━━━━━━━━━━━━\n*Sconto a lei riservato: −${fmtEuro(scontoCamera)}*\n━━━━━━━━━━━━━━`)
     } else {
-      righeCosti.push(n > 1
+      const subCamera = prezzo * n
+      sommaDettaglio += subCamera
+      righeSegmento.push(n > 1
         ? `${nomeCamera} (${n} notti × ${fmtEuro(prezzo)}): ${fmtEuro(subCamera)}`
         : `${nomeCamera}: ${fmtEuro(subCamera)}`)
+      const ebTot = Number(s.extra_bed_total || 0)
+      if (s.extra_bed && ebTot > 0) {
+        const ebNotti = s.extra_bed_dates?.length > 0 ? s.extra_bed_dates.length : n
+        const ebPrezzo = Number(s.rooms?.extra_bed_price || 0)
+        const label = isGruppo ? `Letto supplementare – ${s.rooms?.name || ''}`.trim() : 'Letto supplementare'
+        righeSegmento.push(ebNotti > 1 && Math.abs(ebNotti * ebPrezzo - ebTot) < 0.005
+          ? `${label} (${ebNotti} notti × ${fmtEuro(ebPrezzo)}): ${fmtEuro(ebTot)}`
+          : `${label}: ${fmtEuro(ebTot)}`)
+        sommaDettaglio += ebTot
+      }
     }
-    const ebTot = Number(s.extra_bed_total || 0)
-    if (s.extra_bed && ebTot > 0) {
-      const ebNotti = s.extra_bed_dates?.length > 0 ? s.extra_bed_dates.length : n
-      const ebPrezzo = Number(s.rooms?.extra_bed_price || 0)
-      const label = isGruppo ? `Letto supplementare – ${s.rooms?.name || ''}`.trim() : 'Letto supplementare'
-      // La moltiplicazione si mostra solo se torna con il totale salvato
-      righeCosti.push(ebNotti > 1 && Math.abs(ebNotti * ebPrezzo - ebTot) < 0.005
-        ? `${label} (${ebNotti} notti × ${fmtEuro(ebPrezzo)}): ${fmtEuro(ebTot)}`
-        : `${label}: ${fmtEuro(ebTot)}`)
-      totaleRighe += ebTot
+    if (Math.abs(sommaDettaglio - conto.prezzoPieno) > 0.005) {
+      // Dato storico discordante: riga unica col totale autorevole
+      righeCosti.push(`${nomeCamera} (${n} ${n === 1 ? 'notte' : 'notti'}): ${fmtEuro(conto.totale)}`)
+    } else {
+      righeCosti.push(...righeSegmento)
+      if (conto.sconto > 0.005) {
+        righeCosti.push(`━━━━━━━━━━━━━━\n*Sconto a lei riservato: −${fmtEuro(conto.sconto)}*\n━━━━━━━━━━━━━━`)
+      }
     }
   }
   const riepilogoCosti = `💶 RIEPILOGO COSTI
@@ -138,15 +146,27 @@ ${righeCosti.join('\n')}
 
   const causale = causaleBonifico(segmenti, name)
 
-  // Blocco dati bonifico condiviso da conferma (variante bonifico), "Dati bonifico" e promemoria
+  // Blocco dati bonifico condiviso da conferma (variante bonifico), "Dati bonifico" e promemoria.
+  // Con acconti già registrati l'importo da bonificare è il RESIDUO, non il
+  // totale: al cliente non si chiedono soldi già consegnati.
+  const ricevutoNum = (acconti || []).reduce((s, a) => s + Number(a.amount || 0), 0)
+  const residuoNum = residuoDaPagare(totaleNum, acconti)
+  const fmtIt = (n: number) => n.toLocaleString('it-IT', { minimumFractionDigits: 2 })
+  const importoBlocco = ricevutoNum > 0
+    ? `Totale soggiorno: ${fmtIt(totaleNum)} €
+Già ricevuto: ${fmtIt(ricevutoNum)} €
+
+Importo da bonificare:
+*${fmtIt(residuoNum)} €*`
+    : `Importo:
+*${totale} €*`
   const datiBonifico = `Intestatario: *SAWICKA ANNA JANINA*
 Banca: *BANCO BPM*
 
 IBAN:
 *IT32P0503401753000000159653*
 
-Importo:
-*${totale} €*
+${importoBlocco}
 
 Causale:
 ${causale}`
@@ -414,11 +434,18 @@ export default function BookingDetail() {
   const [otherBookings, setOtherBookings] = useState<any[]>([])
   // Conferma della richiesta dal sito: un solo tocco, poi il bottone sparisce
   const [confirming, setConfirming] = useState(false)
-  // Sconto in modifica: percentuale libera o totale deciso a mano.
-  // Non tocca il database: ricalcola solo il prezzo a notte già esistente
+  // Sconto V4: un solo sconto per prenotazione (percentuale o totale
+  // concordato), salvato nei campi discount_type/discount_value. La tariffa
+  // a notte non viene MAI toccata dallo sconto.
   const [scontoPct, setScontoPct] = useState('')
   const [scontoTot, setScontoTot] = useState('')
   const [scontoInfo, setScontoInfo] = useState('')
+  // Con un totale concordato, cambiare date/camera/ospiti/letto richiede una
+  // scelta esplicita (Mantieni/Rimuovi) prima di poter salvare: mai silenzioso
+  const [scontoDecisione, setScontoDecisione] = useState<'mantieni' | 'rimuovi' | null>(null)
+  // Conferma a due tocchi per la rimozione dello sconto dalla scheda
+  const [confermaRimuoviSconto, setConfermaRimuoviSconto] = useState(false)
+  const [rimuovendoSconto, setRimuovendoSconto] = useState(false)
   const [rooms, setRooms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -498,6 +525,8 @@ export default function BookingDetail() {
         room_id: b.room_id, check_in: b.check_in, check_out: b.check_out,
         check_in_time: b.check_in_time || '',
         num_guests: b.num_guests, extra_bed: b.extra_bed, extra_bed_dates: b.extra_bed_dates || (b.extra_bed ? getDaysBetween(b.check_in, b.check_out) : []), price_per_night: Number(b.price_per_night),
+        discount_type: b.discount_type || null,
+        discount_value: b.discount_value ?? null,
         notes: b.notes || '',
         color: b.color || '',
         bonifico: b.bonifico || false,
@@ -589,14 +618,59 @@ export default function BookingDetail() {
     return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
   }
 
-  function calcTotal() {
-    const n = calcNotti(editForm.check_in, editForm.check_out)
-    if (n <= 0) return 0
+  // Conto del form di modifica: sempre in modalità RICALCOLO (senza totale
+  // salvato), così l'anteprima mostra il prezzo che verrebbe scritto salvando
+  function contoEdit(senzaSconto = false) {
     const room = rooms.find(r => r.id === editForm.room_id)
     const ebDays = editForm.extra_bed_dates?.length || 0
     // Il letto non si addebita quando è già compreso nella tariffa (Lena fino a 3 ospiti)
     const extraBedTotal = totaleLetto(room, editForm.num_guests, ebDays)
-    return Number(editForm.price_per_night) * n + extraBedTotal
+    return contoSoggiorno({
+      check_in: editForm.check_in, check_out: editForm.check_out,
+      price_per_night: editForm.price_per_night, extra_bed_total: extraBedTotal,
+      discount_type: senzaSconto ? null : editForm.discount_type,
+      discount_value: senzaSconto ? null : editForm.discount_value,
+    })
+  }
+
+  function calcTotal() {
+    if (calcNotti(editForm.check_in, editForm.check_out) <= 0) return 0
+    return contoEdit().totale
+  }
+
+  // Un campo economico è cambiato rispetto al salvato? Solo in quel caso il
+  // salvataggio ricalcola il totale: i totali storici non si reinterpretano
+  // per una nota o un colore (regola lettura vs ricalcolo della V4)
+  function economicoCambiato() {
+    if (!booking) return false
+    return editForm.check_in !== booking.check_in
+      || editForm.check_out !== booking.check_out
+      || editForm.room_id !== booking.room_id
+      || Number(editForm.num_guests) !== Number(booking.num_guests)
+      || Number(editForm.price_per_night) !== Number(booking.price_per_night)
+      || JSON.stringify(editForm.extra_bed_dates || []) !== JSON.stringify(booking.extra_bed_dates || [])
+      || (editForm.discount_type || null) !== (booking.discount_type || null)
+      || Number(editForm.discount_value || 0) !== Number(booking.discount_value || 0)
+  }
+
+  // Il prezzo pieno è cambiato mentre c'è un totale concordato salvato:
+  // serve la scelta esplicita Mantieni/Rimuovi prima di salvare
+  function serveDecisioneSconto() {
+    if (!booking || booking.discount_type !== 'target_total') return false
+    if (editForm.discount_type !== 'target_total') return false
+    if (scontoDecisione) return false
+    const coreCambiato = editForm.check_in !== booking.check_in
+      || editForm.check_out !== booking.check_out
+      || editForm.room_id !== booking.room_id
+      || Number(editForm.num_guests) !== Number(booking.num_guests)
+      || JSON.stringify(editForm.extra_bed_dates || []) !== JSON.stringify(booking.extra_bed_dates || [])
+    return coreCambiato
+  }
+
+  // Il totale concordato deve restare sotto il prezzo pieno, altrimenti non è uno sconto
+  function targetNonValido() {
+    return editForm.discount_type === 'target_total'
+      && !(Number(editForm.discount_value) > 0 && Number(editForm.discount_value) < contoEdit(true).prezzoPieno)
   }
 
   // Conferma la richiesta (tutti i segmenti se c'è un cambio camera).
@@ -620,31 +694,27 @@ export default function BookingDetail() {
     }
   }
 
-  // Porta il totale del soggiorno a un valore voluto ricalcolando il prezzo
-  // a notte (il letto aggiuntivo non si sconta: si scala solo la camera)
-  function applicaTotale(target: number, label: string) {
-    const n = calcNotti(editForm.check_in, editForm.check_out)
-    if (n <= 0 || !isFinite(target)) return
-    const room = rooms.find(r => r.id === editForm.room_id)
-    const extraBedTotal = totaleLetto(room, editForm.num_guests, editForm.extra_bed_dates?.length || 0)
-    const nuovoPrezzo = Math.round(((target - extraBedTotal) / n) * 100) / 100
-    if (nuovoPrezzo <= 0) { setScontoInfo('❌ Totale troppo basso per queste notti'); return }
-    const vecchioTotale = calcTotal()
-    setEditForm({ ...editForm, price_per_night: nuovoPrezzo })
-    const risparmio = Math.round(vecchioTotale - (nuovoPrezzo * n + extraBedTotal))
-    setScontoInfo(`Sconto ${label}: −€${risparmio} · nuovo totale €${Math.round(nuovoPrezzo * n + extraBedTotal)} (€${nuovoPrezzo}/notte)`)
-  }
-
+  // Applica lo sconto SENZA toccare la tariffa a notte: si salvano solo
+  // discount_type e discount_value, il totale lo deriva contoSoggiorno()
   function applicaScontoPct() {
     const p = parseFloat(scontoPct.replace(',', '.'))
-    if (!p || p <= 0 || p >= 100) return
-    applicaTotale(calcTotal() * (1 - p / 100), `−${p}%`)
+    if (!p || p <= 0 || p >= 100) { setScontoInfo('❌ La percentuale deve essere tra 0 e 100 esclusi'); return }
+    setEditForm({ ...editForm, discount_type: 'percentage', discount_value: p })
+    setScontoInfo('')
   }
 
   function applicaScontoTot() {
     const t = parseFloat(scontoTot.replace(',', '.'))
+    const pieno = contoEdit(true).prezzoPieno
     if (!t || t <= 0) return
-    applicaTotale(t, 'personalizzato')
+    if (t >= pieno) { setScontoInfo(`❌ Il totale concordato deve essere sotto il prezzo pieno (€${pieno.toFixed(2).replace('.', ',')})`); return }
+    setEditForm({ ...editForm, discount_type: 'target_total', discount_value: t })
+    setScontoInfo('')
+  }
+
+  function rimuoviScontoForm() {
+    setEditForm({ ...editForm, discount_type: null, discount_value: null })
+    setScontoPct(''); setScontoTot(''); setScontoInfo('')
   }
 
   async function saveEdit() {
@@ -653,13 +723,28 @@ export default function BookingDetail() {
       setSaveEditError('Date non valide: il check-out deve essere almeno una notte dopo il check-in. Correggi le date prima di salvare.')
       return
     }
+    // Con un totale concordato e prezzo pieno cambiato serve la scelta
+    // esplicita Mantieni/Rimuovi: mai mantenere in silenzio il vecchio totale
+    if (serveDecisioneSconto()) {
+      setSaveEditError('C\'è un totale concordato e hai cambiato dati che influiscono sul prezzo: scegli prima "Mantieni" o "Rimuovi sconto" nel riquadro Sconto.')
+      return
+    }
+    if (targetNonValido()) {
+      setSaveEditError(`Il totale concordato (€${Number(editForm.discount_value)}) non è più sotto il prezzo pieno (€${contoEdit(true).prezzoPieno}): correggi o rimuovi lo sconto.`)
+      return
+    }
     setSaveEditError('')
     setSaving(true)
     const room = rooms.find(r => r.id === editForm.room_id)
     const ebDays = editForm.extra_bed_dates?.length || 0
     // Il letto non si addebita quando è già compreso nella tariffa (Lena fino a 3 ospiti)
     const extraBedTotal = totaleLetto(room, editForm.num_guests, ebDays)
-    const total = calcTotal()
+    // Regola lettura vs ricalcolo: il totale si ricalcola SOLO se è cambiato
+    // un campo economico (o c'è uno sconto attivo). Cambiare una nota non
+    // deve reinterpretare un totale storico salvato.
+    const total = (economicoCambiato() || editForm.discount_type)
+      ? contoEdit().totale
+      : Number(booking.total_amount)
     const updates = {
       room_id: editForm.room_id,
       check_in: editForm.check_in,
@@ -670,6 +755,13 @@ export default function BookingDetail() {
       price_per_night: editForm.price_per_night,
       extra_bed_total: extraBedTotal,
       total_amount: total,
+      // Campi sconto inclusi solo a colonne migrate (booking le riporta anche
+      // se null) o se c'è uno sconto da salvare: come per chi_e, i salvataggi
+      // non si bloccano prima della migrazione
+      ...(booking.discount_type !== undefined || editForm.discount_type ? {
+        discount_type: editForm.discount_type || null,
+        discount_value: editForm.discount_type ? Number(editForm.discount_value) : null,
+      } : {}),
       check_in_time: editForm.check_in_time || null,
       notes: editForm.notes || null,
       color: editForm.color || null,
@@ -722,6 +814,29 @@ export default function BookingDetail() {
     setSaving(false)
   }
 
+  // Rimozione sconto dalla scheda, con conferma a due tocchi: azzera i campi
+  // sconto e riporta il totale al prezzo pieno derivato. I pagamenti non si
+  // toccano mai: il "resta da avere" si aggiorna da solo leggendo il totale
+  async function rimuoviScontoDiretto() {
+    if (!booking?.discount_type || rimuovendoSconto) return
+    setRimuovendoSconto(true)
+    const pieno = contoSoggiorno({
+      check_in: booking.check_in, check_out: booking.check_out,
+      price_per_night: booking.price_per_night, extra_bed_total: booking.extra_bed_total,
+    }).totale
+    const { error } = await supabase.from('bookings').update({
+      discount_type: null, discount_value: null,
+      total_amount: pieno, updated_at: new Date().toISOString(),
+    }).eq('id', id)
+    if (!error) {
+      const { data: updated } = await supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single()
+      setBooking(updated)
+      setEditForm((f: any) => ({ ...f, discount_type: null, discount_value: null }))
+    }
+    setConfermaRimuoviSconto(false)
+    setRimuovendoSconto(false)
+  }
+
   // Nuovo piano dei segmenti del soggiorno per le date [newIn, newOut):
   // ogni segmento viene ritagliato sull'intervallo, quelli rimasti vuoti vanno annullati,
   // il primo/ultimo si estendono fino alle nuove date (le date dei cambi camera restano invariate).
@@ -746,12 +861,23 @@ export default function BookingDetail() {
       const days = getDaysBetween(c.s, c.e)
       const ebDates = (c.seg.extra_bed_dates || []).filter((d: string) => days.includes(d))
       const extraBedTotal = ebDates.length * Number(c.seg.rooms?.extra_bed_price || 0)
-      const total = Number(c.seg.price_per_night) * days.length + extraBedTotal
+      // Totale dal conto unico: la percentuale segue le nuove notti; il totale
+      // concordato resta se ancora sotto il nuovo prezzo pieno, altrimenti
+      // decade e lo si dice in anteprima (mai in silenzio)
+      const conto = contoSoggiorno({
+        check_in: c.s, check_out: c.e,
+        price_per_night: c.seg.price_per_night, extra_bed_total: extraBedTotal,
+        discount_type: c.seg.discount_type, discount_value: c.seg.discount_value,
+      })
+      const scontoDecaduto = !!c.seg.discount_type && conto.sconto === 0
       return {
         id: c.seg.id, roomName: c.seg.rooms?.name || 'Camera',
         check_in: c.s, check_out: c.e, nights: days.length,
         price_per_night: Number(c.seg.price_per_night),
-        extra_bed_dates: ebDates, extra_bed_total: extraBedTotal, total,
+        extra_bed_dates: ebDates, extra_bed_total: extraBedTotal, total: conto.totale,
+        sconto: conto.sconto, scontoDecaduto,
+        discount_type: scontoDecaduto ? null : (c.seg.discount_type || null),
+        discount_value: scontoDecaduto ? null : (c.seg.discount_value ?? null),
       }
     })
     return { kept: plan, removed, total: plan.reduce((s, x) => s + x.total, 0), error: null as string | null }
@@ -794,6 +920,12 @@ export default function BookingDetail() {
         extra_bed_dates: seg.extra_bed_dates,
         extra_bed_total: seg.extra_bed_total,
         total_amount: seg.total,
+        // Sconto del segmento: mantenuto (o decaduto, già mostrato in anteprima).
+        // Incluso solo a colonne migrate, come nel salvataggio normale
+        ...(booking.discount_type !== undefined ? {
+          discount_type: seg.discount_type,
+          discount_value: seg.discount_value,
+        } : {}),
         updated_at: now,
       }).eq('id', seg.id)
     }
@@ -846,7 +978,7 @@ export default function BookingDetail() {
       alert('Non sono riuscito ad annullare la prenotazione. Riprova tra un momento.')
       return
     }
-    const msg = buildWhatsappMsg(booking, 'annullamento', groupBookings)
+    const msg = buildWhatsappMsg(booking, 'annullamento', groupBookings, acconti)
     await supabase.from('booking_whatsapp_log').insert({ booking_id: id, message_type: 'annullamento', message_text: msg, sent: false })
     setBooking({ ...booking, status: 'annullata' })
     setShowCancel(false)
@@ -858,7 +990,7 @@ export default function BookingDetail() {
   function sendWhatsapp(type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') {
     const rawPhone = booking.guests?.phone?.replace(/\D/g, '')
     const phone = rawPhone?.startsWith('39') ? rawPhone : `39${rawPhone}`
-    const msg = buildWhatsappMsg(booking, type)
+    const msg = buildWhatsappMsg(booking, type, groupBookings, acconti)
     supabase.from('booking_whatsapp_log').insert({ booking_id: id, message_type: type, message_text: msg, sent: false })
     const a = document.createElement('a')
     a.href = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
@@ -881,10 +1013,10 @@ export default function BookingDetail() {
   const rawPhone = (booking.guests?.phone || '').replace(/\D/g, '')
   const waPhone = rawPhone ? (rawPhone.startsWith('39') ? rawPhone : `39${rawPhone}`) : null
   const waHref = (type: WaTipo) =>
-    `https://wa.me/${waPhone}?text=${encodeURIComponent(buildWhatsappMsg(booking, type, groupBookings))}`
+    `https://wa.me/${waPhone}?text=${encodeURIComponent(buildWhatsappMsg(booking, type, groupBookings, acconti))}`
   const waClick = (type: WaTipo, preferBusiness: boolean = false) => (e: React.MouseEvent) => {
     e.preventDefault()
-    openWhatsApp(waPhone!, buildWhatsappMsg(booking, type, groupBookings), preferBusiness)
+    openWhatsApp(waPhone!, buildWhatsappMsg(booking, type, groupBookings, acconti), preferBusiness)
   }
   // Bottoni WhatsApp in versione tenue per il pannello Azioni desktop
   const renderWaChips = (preferBusiness: boolean) => (
@@ -1100,11 +1232,11 @@ export default function BookingDetail() {
             </div>
           )}
 
-          {/* Sconto: percentuale a mano o totale deciso da Ania — subito
-              dopo il letto aggiuntivo, dove si ragiona sui prezzi */}
-          {calcNotti(editForm.check_in, editForm.check_out) > 0 && (
+          {/* Sconto V4: un solo sconto (percentuale O totale concordato), la
+              tariffa a notte non si tocca mai. Visibile solo a colonne migrate */}
+          {booking.discount_type !== undefined && calcNotti(editForm.check_in, editForm.check_out) > 0 && (
             <div className="border border-card-border rounded-lg p-3 mb-3">
-              <p className="text-xs text-gray-500 mb-2">Sconto</p>
+              <p className="text-xs text-gray-500 mb-2">Sconto {editForm.discount_type && <span className="font-semibold" style={{ color: '#2D6A4F' }}>(attivo: {editForm.discount_type === 'percentage' ? `−${editForm.discount_value}%` : `totale concordato €${editForm.discount_value}`})</span>}</p>
               <div className="flex gap-2 items-center mb-2">
                 <input type="number" inputMode="decimal" min={1} max={99} placeholder="%"
                   value={scontoPct} onChange={e => setScontoPct(e.target.value)}
@@ -1116,17 +1248,52 @@ export default function BookingDetail() {
                 </button>
               </div>
               <div className="flex gap-2 items-center">
-                <input type="number" inputMode="decimal" min={1} placeholder="€ totale"
+                <input type="number" inputMode="decimal" min={1} placeholder="Porta il totale a €"
                   value={scontoTot} onChange={e => setScontoTot(e.target.value)}
-                  className="w-28 border border-card-border rounded-lg p-2 text-sm" />
+                  className="w-40 border border-card-border rounded-lg p-2 text-sm" />
                 <button type="button" onClick={applicaScontoTot}
                   className="bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
                   disabled={!parseFloat(scontoTot.replace(',', '.'))}>
-                  Porta il totale
+                  Applica
                 </button>
               </div>
+              {editForm.discount_type && (() => {
+                const c = contoEdit()
+                return (
+                  <p className="text-xs rounded-lg px-2 py-1.5 mt-2 font-semibold" style={{ background: '#E7EFE9', color: '#2D6A4F' }}>
+                    €{c.prezzoPieno.toLocaleString('it-IT')} − €{c.sconto.toLocaleString('it-IT')} = €{c.totale.toLocaleString('it-IT')}
+                  </p>
+                )
+              })()}
+              {targetNonValido() && (
+                <p className="text-xs rounded-lg px-2 py-1.5 mt-2 font-semibold" style={{ background: '#F6E4DE', color: '#8C3B2E' }}>
+                  ❌ Il totale concordato non è più sotto il prezzo pieno (€{contoEdit(true).prezzoPieno.toLocaleString('it-IT')}): correggi o rimuovi lo sconto.
+                </p>
+              )}
+              {/* Totale concordato + dati economici cambiati: scelta obbligatoria, mai silenzioso */}
+              {serveDecisioneSconto() && (
+                <div className="rounded-lg px-2.5 py-2 mt-2 text-xs" style={{ background: '#F3ECD8', color: '#8a4f2f' }}>
+                  <p className="font-semibold mb-1.5">⚠️ Totale concordato €{Number(booking.discount_value).toLocaleString('it-IT')}, ma hai cambiato dati che influiscono sul prezzo. Nuovo prezzo pieno: €{contoEdit(true).prezzoPieno.toLocaleString('it-IT')}.</p>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setScontoDecisione('mantieni')}
+                      className="bg-green-mid text-white rounded-lg px-3 py-1.5 font-semibold">
+                      Mantieni €{Number(booking.discount_value).toLocaleString('it-IT')}
+                    </button>
+                    <button type="button" onClick={() => { rimuoviScontoForm(); setScontoDecisione('rimuovi') }}
+                      className="bg-white rounded-lg px-3 py-1.5 font-semibold" style={{ color: '#8C3B2E' }}>
+                      Rimuovi sconto
+                    </button>
+                  </div>
+                </div>
+              )}
               {scontoInfo && (
                 <p className="text-xs rounded-lg px-2 py-1.5 mt-2" style={{ background: '#F3ECD8', color: '#8a4f2f' }}>{scontoInfo}</p>
+              )}
+              {editForm.discount_type && (
+                <button type="button" onClick={rimuoviScontoForm}
+                  className="w-full mt-2 rounded-lg py-2 text-sm font-semibold bg-sage" style={{ color: '#8C3B2E' }}>
+                  ✕ Rimuovi sconto (torna a €{contoEdit(true).prezzoPieno.toLocaleString('it-IT')})
+                </button>
               )}
             </div>
           )}
@@ -1178,12 +1345,25 @@ export default function BookingDetail() {
             </div>
           </div>
 
-          {calcNotti(editForm.check_in, editForm.check_out) > 0 && (
-            <div className="bg-sage rounded-lg p-3 mb-3 text-sm">
-              <p className="text-gray-600">{calcNotti(editForm.check_in, editForm.check_out)} notti × €{editForm.price_per_night}</p>
-              <p className="font-bold text-green-mid text-lg">Totale: €{calcTotal().toFixed(0)}</p>
-            </div>
-          )}
+          {calcNotti(editForm.check_in, editForm.check_out) > 0 && (() => {
+            const c = contoEdit()
+            const totaleSalvato = Number(booking.total_amount)
+            // Il salvataggio ricalcolerà solo se è cambiato un dato economico:
+            // se il nuovo totale differisce da quello storico va detto PRIMA
+            const ricalcolo = economicoCambiato() || editForm.discount_type
+            const nuovoTotale = ricalcolo ? c.totale : totaleSalvato
+            return (
+              <div className="bg-sage rounded-lg p-3 mb-3 text-sm">
+                <p className="text-gray-600">{c.notti} notti × €{editForm.price_per_night}{c.sconto > 0 ? ` − sconto €${c.sconto.toLocaleString('it-IT')}` : ''}</p>
+                <p className="font-bold text-green-mid text-lg">Totale: €{nuovoTotale.toLocaleString('it-IT')}</p>
+                {ricalcolo && Math.abs(nuovoTotale - totaleSalvato) > 0.005 && (
+                  <p className="text-xs mt-1" style={{ color: '#8a4f2f' }}>
+                    Da €{totaleSalvato.toLocaleString('it-IT')} a €{nuovoTotale.toLocaleString('it-IT')} (ricalcolato dai nuovi dati)
+                  </p>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Pagato per ultimo: è la spunta finale, dopo tutti i conti */}
           <div onClick={() => setEditForm({ ...editForm, pagato: !editForm.pagato })}
@@ -1209,7 +1389,7 @@ export default function BookingDetail() {
             </div>
           )}
 
-          <button onClick={saveEdit} disabled={saving || !!conflitto || ((editForm.extra_bed_dates?.length > 0) && (editForm.extra_bed_dates || []).some((day: string) => { const contrib = editForm.room_id === LENA_ID && editForm.num_guests >= 4 ? 2 : 1; return (extraBedsPerDay[day] || 0) + contrib > 2 }))}
+          <button onClick={saveEdit} disabled={saving || !!conflitto || serveDecisioneSconto() || targetNonValido() || ((editForm.extra_bed_dates?.length > 0) && (editForm.extra_bed_dates || []).some((day: string) => { const contrib = editForm.room_id === LENA_ID && editForm.num_guests >= 4 ? 2 : 1; return (extraBedsPerDay[day] || 0) + contrib > 2 }))}
             className="w-full bg-green-mid text-white rounded-xl py-3 font-semibold disabled:opacity-50 mb-3">
             {saving ? 'Salvataggio...' : '💾 Salva modifiche'}
           </button>
@@ -1271,9 +1451,63 @@ export default function BookingDetail() {
             <div><span className="text-gray-500">Check-out</span><p className="font-semibold">{booking.check_out}</p></div>
             <div><span className="text-gray-500">Notti</span><p className="font-semibold">{notti}</p></div>
             <div><span className="text-gray-500">Ospiti</span><p className="font-semibold">{booking.num_guests}</p></div>
-            <div><span className="text-gray-500">Tariffa/notte</span><p className="font-semibold">€{Number(booking.price_per_night).toFixed(0)}</p></div>
-            <div><span className="text-gray-500">Totale</span><p className="font-bold text-green-mid">€{Number(booking.total_amount).toFixed(0)}</p></div>
+            {!booking.discount_type && (<>
+              <div><span className="text-gray-500">Tariffa/notte</span><p className="font-semibold">€{Number(booking.price_per_night).toFixed(0)}</p></div>
+              <div><span className="text-gray-500">Totale</span><p className="font-bold text-green-mid">€{Number(booking.total_amount).toFixed(0)}</p></div>
+            </>)}
           </div>
+          {/* Sconto attivo: prezzo pieno, sconto e totale sempre in chiaro,
+              con la rimozione a portata di mano (conferma a due tocchi) */}
+          {booking.discount_type && (() => {
+            const c = contoSoggiorno(booking)
+            return (
+              <div className="bg-white border border-card-border rounded-xl p-3 mb-3 text-sm">
+                <div className="flex justify-between items-baseline py-0.5">
+                  <span className="text-gray-500">Prezzo pieno <span className="text-xs">({c.notti} × €{Number(booking.price_per_night).toFixed(0)}{Number(booking.extra_bed_total) > 0 ? ' + letto' : ''})</span></span>
+                  <span className="font-semibold">€{c.prezzoPieno.toLocaleString('it-IT')}</span>
+                </div>
+                <div className="flex justify-between items-baseline rounded-lg px-2 py-1 my-1" style={{ background: '#E7EFE9' }}>
+                  <span className="font-semibold" style={{ color: '#2D6A4F' }}>Sconto a lei riservato</span>
+                  <span className="font-bold" style={{ color: '#2D6A4F' }}>−€{c.sconto.toLocaleString('it-IT')}</span>
+                </div>
+                <div className="flex justify-between items-baseline pt-1 border-t border-card-border">
+                  <span className="font-semibold">Totale soggiorno</span>
+                  <span className="font-bold text-green-mid text-base">€{c.totale.toLocaleString('it-IT')}</span>
+                </div>
+                {!confermaRimuoviSconto ? (
+                  <button onClick={() => setConfermaRimuoviSconto(true)}
+                    className="w-full mt-2 rounded-lg py-2 text-sm font-semibold bg-sage" style={{ color: '#8C3B2E' }}>
+                    ✕ Rimuovi sconto
+                  </button>
+                ) : (
+                  <div className="mt-2 rounded-lg p-2 text-xs" style={{ background: '#F3ECD8', color: '#8a4f2f' }}>
+                    <p className="font-semibold mb-1.5">Il totale torna a €{c.prezzoPieno.toLocaleString('it-IT')}. I pagamenti ricevuti non cambiano.</p>
+                    <div className="flex gap-2">
+                      <button onClick={rimuoviScontoDiretto} disabled={rimuovendoSconto}
+                        className="bg-[#B5502F] text-white rounded-lg px-3 py-1.5 font-semibold disabled:opacity-60">
+                        {rimuovendoSconto ? 'Rimuovo…' : 'Sì, rimuovi'}
+                      </button>
+                      <button onClick={() => setConfermaRimuoviSconto(false)}
+                        className="bg-white rounded-lg px-3 py-1.5 font-semibold text-gray-600">
+                        Annulla
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+          {/* Spia discreta: totale salvato diverso dal derivato (dato storico).
+              Solo informativa: il salvato resta autorevole, nulla viene toccato */}
+          {!booking.discount_type && (() => {
+            const derivato = contoSoggiorno({
+              check_in: booking.check_in, check_out: booking.check_out,
+              price_per_night: booking.price_per_night, extra_bed_total: booking.extra_bed_total,
+            }).totale
+            return Math.abs(derivato - Number(booking.total_amount)) > 0.005 ? (
+              <p className="text-[11px] text-gray-400 -mt-2 mb-3">Totale salvato personalizzato (il calcolo dai dati darebbe €{derivato.toLocaleString('it-IT')}): resta valido quello salvato.</p>
+            ) : null
+          })()}
           {booking.extra_bed && (
             <div className="bg-[#F1E0CE] rounded-lg p-2 text-sm text-[#7A4B22] mb-2">
               🛏 Letto aggiuntivo: +€{Number(booking.extra_bed_total).toFixed(0)} totale
@@ -1413,7 +1647,7 @@ export default function BookingDetail() {
                             <p className="text-xs font-bold text-[#5B4E82] mb-1">Anteprima nuovo soggiorno:</p>
                             {plan.kept.map((k, i) => (
                               <p key={k.id} className="text-xs text-[#5B4E82]">
-                                {i + 1}. {k.roomName}: {k.check_in} → {k.check_out} ({k.nights} {k.nights === 1 ? 'notte' : 'notti'}) · €{k.total.toFixed(0)}{k.extra_bed_total > 0 ? ` (incl. €${k.extra_bed_total.toFixed(0)} letto extra)` : ''}
+                                {i + 1}. {k.roomName}: {k.check_in} → {k.check_out} ({k.nights} {k.nights === 1 ? 'notte' : 'notti'}) · €{k.total.toFixed(0)}{k.extra_bed_total > 0 ? ` (incl. €${k.extra_bed_total.toFixed(0)} letto extra)` : ''}{k.sconto > 0 ? ` · sconto mantenuto −€${k.sconto.toLocaleString('it-IT')}` : ''}{k.scontoDecaduto ? ' · ⚠️ sconto rimosso: il totale concordato non è più sotto il prezzo pieno' : ''}
                               </p>
                             ))}
                             {plan.removed.map((r: any) => (
@@ -1488,7 +1722,7 @@ export default function BookingDetail() {
               {confirming ? 'Confermo...' : '✅ Conferma prenotazione'}
             </button>
           )}
-          <button onClick={() => setEditing(true)}
+          <button onClick={() => { setScontoDecisione(null); setScontoPct(''); setScontoTot(''); setScontoInfo(''); setEditing(true) }}
             className="w-full bg-green-mid text-white lg:bg-transparent lg:border lg:border-green-mid lg:text-green-mid rounded-xl py-3 font-semibold">
             ✏️ Modifica prenotazione
           </button>
@@ -1604,7 +1838,7 @@ export default function BookingDetail() {
       )}
 
       {showConferma && (
-        <ConfermaWhatsApp booking={booking} groupBookings={groupBookings} onClose={() => setShowConferma(false)} />
+        <ConfermaWhatsApp booking={booking} groupBookings={groupBookings} payments={acconti} onClose={() => setShowConferma(false)} />
       )}
 
       {showCancel && (

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import BackBar from '@/components/BackBar'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
+import { contoSoggiorno } from '@/lib/conto'
 
 function fmt(n: number) { return n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 
@@ -155,6 +156,38 @@ export default function Statistiche() {
     }))
   }
 
+  // Sconti concessi nel periodo (mese o anno corrente): valore a prezzo pieno,
+  // sconti, valore dopo sconto, incassato. Tutto attribuito pro-quota sulle
+  // notti dormite (mai alla data in cui si è premuto "Applica sconto") e tutto
+  // dal conto unico: con discount_type null lo sconto è SEMPRE zero e il
+  // valore resta il total_amount salvato — i dati storici non generano sconti
+  // artificiali né vengono reinterpretati.
+  function calcSconti() {
+    if (!data || period === 'settimana') return null
+    const now = new Date()
+    const y = now.getFullYear(); const m = now.getMonth()
+    const start = period === 'mese' ? `${y}-${String(m + 1).padStart(2, '0')}-01` : `${y}-01-01`
+    const endD = period === 'mese' ? new Date(y, m + 1, 1) : new Date(y + 1, 0, 1)
+    const end = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-01`
+    let pieno = 0, sconti = 0, valore = 0
+    for (const b of data.bookings) {
+      const totN = Math.round((new Date(b.check_out).getTime() - new Date(b.check_in).getTime()) / 86400000)
+      if (totN <= 0) continue
+      const inWin = nightsInMonth(b.check_in, b.check_out, start, end)
+      if (inWin <= 0) continue
+      const q = inWin / totN
+      const v = Number(b.total_amount || 0)
+      const s = b.discount_type ? contoSoggiorno(b).sconto : 0
+      valore += v * q
+      sconti += s * q
+      pieno += (v + s) * q
+    }
+    // Incassato: solo denaro con una data reale nel periodo (stessa logica delle Entrate)
+    const receipts = buildReceipts(data.bookings, data.payments || [], todayStr())
+    const incassato = receipts.filter(r => r.date >= start && r.date < end).reduce((s, r) => s + r.amount, 0)
+    return { pieno, sconti, valore, incassato }
+  }
+
   // Occupazione per mese (indipendente dal periodo scelto): heatmap anni × mesi.
   function buildOccupancy(): { years: number[]; cell: Record<string, number | null> } | null {
     if (!data) return null
@@ -235,6 +268,7 @@ export default function Statistiche() {
   const roomStats = buildRoomStats()
 
   const rows = calcPeriod()
+  const sconti = calcSconti()
   const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0)
   const totalExpenses = rows.reduce((s, r) => s + r.expenses, 0)
   const totalProfit = totalRevenue - totalExpenses
@@ -308,6 +342,31 @@ export default function Statistiche() {
               <div className="text-center py-6 text-gray-400 text-sm">Nessun dato per questo periodo</div>
             )}
           </div>
+
+          {/* Sconti concessi: valore pieno, sconti, valore dopo sconto, incassato.
+              Attribuiti alle notti dormite del periodo, dal conto unico */}
+          {sconti && (
+            <div className="bg-white rounded-xl p-4 border border-card-border mt-4">
+              <p className="text-sm font-semibold text-gray-600">Sconti concessi</p>
+              <p className="text-xs text-gray-400 mb-3">{period === 'mese' ? 'mese corrente' : `anno ${new Date().getFullYear()}`} · valori attribuiti alle notti del periodo</p>
+              <div className="flex justify-between text-sm py-1.5 border-b border-gray-50">
+                <span className="text-gray-600">Valore a prezzo pieno</span>
+                <span className="font-semibold">€{fmt(sconti.pieno)}</span>
+              </div>
+              <div className="flex justify-between text-sm py-1.5 border-b border-gray-50">
+                <span className="text-gray-600">Sconti concessi</span>
+                <span className="font-semibold" style={{ color: '#8a4f2f' }}>−€{fmt(sconti.sconti)}</span>
+              </div>
+              <div className="flex justify-between text-sm py-1.5 border-b border-gray-50">
+                <span className="text-gray-600">Valore soggiorni dopo sconto</span>
+                <span className="font-semibold text-green-mid">€{fmt(sconti.valore)}</span>
+              </div>
+              <div className="flex justify-between text-sm py-1.5">
+                <span className="text-gray-600">Incassato realmente</span>
+                <span className="font-bold text-green-mid">€{fmt(sconti.incassato)}</span>
+              </div>
+            </div>
+          )}
 
           {/* Occupazione: heatmap anni × mesi (% di camere occupate sul mese) */}
           {occ && occ.years.length > 0 && (

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
 import { tariffaCamera, totaleLetto } from '@/lib/tariffe'
+import { contoSoggiorno } from '@/lib/conto'
 import { smartBack, returnToSicuro } from '@/lib/navHistory'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
@@ -188,12 +189,14 @@ function NuovaPrenotazione() {
     setStep('cliente')
   }
 
+  // Totale dalla funzione unica del conto (nessuno sconto alla creazione:
+  // gli sconti si applicano dalla modifica della prenotazione)
   function calcTotal() {
     if (!form.check_in || !form.check_out) return 0
-    const notti = Math.round((parseDate(form.check_out).getTime() - parseDate(form.check_in).getTime()) / 86400000)
-    if (notti <= 0) return 0
-    const room = rooms.find(r => r.id === form.room_id)
-    return Number(form.price_per_night) * notti + extraBedTotal()
+    return contoSoggiorno({
+      check_in: form.check_in, check_out: form.check_out,
+      price_per_night: form.price_per_night, extra_bed_total: extraBedTotal(),
+    }).totale
   }
 
   // Il letto non si addebita quando è già compreso nella tariffa (Lena fino a 3 ospiti)

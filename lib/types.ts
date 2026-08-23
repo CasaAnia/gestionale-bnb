@@ -43,6 +43,10 @@ export interface Booking {
   price_per_night: number
   extra_bed_total: number
   total_amount: number
+  // Sconto V4: un solo sconto per prenotazione, la tariffa non si tocca mai.
+  // percentage = percentuale (es. 10) · target_total = totale concordato (es. 1700)
+  discount_type?: 'percentage' | 'target_total' | null
+  discount_value?: number | null
   status: BookingStatus
   source: string
   // Nome dell'ospite di QUESTA prenotazione (può differire dalla scheda guests,

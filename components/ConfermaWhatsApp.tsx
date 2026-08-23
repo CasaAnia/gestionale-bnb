@@ -6,6 +6,7 @@ import { lettoDaComunicare } from '@/lib/tariffe'
 import { NOME_STRUTTURA, CITTA_STRUTTURA, SITO_URL, SITO_DISPLAY, TELEFONO_DISPLAY, INDIRIZZO, INDIRIZZO_NOTA } from '@/lib/config'
 import { nomeOspite } from '@/lib/guestName'
 import { causaleBonifico } from '@/lib/causale'
+import { contoSoggiorno, residuoDaPagare } from '@/lib/conto'
 
 // Conferma di prenotazione WhatsApp: immagine grafica (1080px, identità visiva
 // del sito casaaniarozzano.it) + messaggio di testo con i link, pronti da inviare.
@@ -50,7 +51,7 @@ function bagnoDesc(room: any) {
   return ''
 }
 
-export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { booking: any; groupBookings: any[]; onClose: () => void }) {
+export default function ConfermaWhatsApp({ booking, groupBookings, payments = [], onClose }: { booking: any; groupBookings: any[]; payments?: any[]; onClose: () => void }) {
   const imgRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0.3)
@@ -80,47 +81,56 @@ export default function ConfermaWhatsApp({ booking, groupBookings, onClose }: { 
   const ospiti = `${numOspiti} ${numOspiti === 1 ? 'adulto' : 'adulti'}`
   const nome = nomeOspite(booking)
 
-  // Righe del riepilogo costi: una per camera, più il letto supplementare se presente
+  // Righe del riepilogo costi dal conto unico: dettaglio a prezzo pieno e riga
+  // sconto solo se esiste uno sconto SALVATO (mai dedotto dal listino). Se per
+  // un dato storico il dettaglio non torna col totale autorevole, riga unica:
+  // l'immagine deve dire lo stesso totale della scheda.
   const righeCosti: { label: string; amount: number; sconto?: boolean }[] = []
+  let totale = 0
   for (const s of segmenti) {
-    const n = notti(s.check_in, s.check_out)
+    const conto = contoSoggiorno(s)
+    const n = conto.notti
     const prezzo = Number(s.price_per_night)
     const nomeCamera = `Camera ${roomWithType(s.rooms?.name)}`
+    totale += conto.totale
+    const righeSegmento: { label: string; amount: number; sconto?: boolean }[] = []
+    let sommaDettaglio = 0
     // Lena con 3 ospiti: il terzo letto è parte della tripla, una riga sola tutto compreso
     if (lettoInclusoNellaCamera(s, n)) {
       const totCamera = prezzo * n + Number(s.extra_bed_total || 0)
-      righeCosti.push({
+      sommaDettaglio += totCamera
+      righeSegmento.push({
         label: n > 1 ? `${nomeCamera} (${n} notti × ${fmtEuro(totCamera / n)})` : nomeCamera,
         amount: totCamera,
       })
-      continue
-    }
-    // Prezzo sotto il listino = sconto di Ania: nell'immagine si mostra il
-    // listino pieno e la riga di sconto evidenziata in verde
-    const listino = Number(s.rooms?.base_price || 0)
-    const scontoCamera = listino > prezzo ? (listino - prezzo) * n : 0
-    if (scontoCamera > 0.005) {
-      righeCosti.push({
-        label: n > 1 ? `${nomeCamera} (${n} notti × ${fmtEuro(listino)})` : nomeCamera,
-        amount: listino * n,
-      })
-      righeCosti.push({ label: 'Sconto a lei riservato', amount: -scontoCamera, sconto: true })
     } else {
-      righeCosti.push({
+      sommaDettaglio += prezzo * n
+      righeSegmento.push({
         label: n > 1 ? `${nomeCamera} (${n} notti × ${fmtEuro(prezzo)})` : nomeCamera,
         amount: prezzo * n,
       })
+      const ebTot = Number(s.extra_bed_total || 0)
+      if (s.extra_bed && ebTot > 0) {
+        const ebNotti = s.extra_bed_dates?.length > 0 ? s.extra_bed_dates.length : n
+        const ebPrezzo = Number(s.rooms?.extra_bed_price || 0)
+        const showMolt = ebNotti > 1 && Math.abs(ebNotti * ebPrezzo - ebTot) < 0.005
+        const base = isGruppo ? `Letto supplementare – ${s.rooms?.name || ''}`.trim() : 'Letto supplementare'
+        righeSegmento.push({ label: showMolt ? `${base} (${ebNotti} notti × ${fmtEuro(ebPrezzo)})` : base, amount: ebTot })
+        sommaDettaglio += ebTot
+      }
     }
-    const ebTot = Number(s.extra_bed_total || 0)
-    if (s.extra_bed && ebTot > 0) {
-      const ebNotti = s.extra_bed_dates?.length > 0 ? s.extra_bed_dates.length : n
-      const ebPrezzo = Number(s.rooms?.extra_bed_price || 0)
-      const showMolt = ebNotti > 1 && Math.abs(ebNotti * ebPrezzo - ebTot) < 0.005
-      const base = isGruppo ? `Letto supplementare – ${s.rooms?.name || ''}`.trim() : 'Letto supplementare'
-      righeCosti.push({ label: showMolt ? `${base} (${ebNotti} notti × ${fmtEuro(ebPrezzo)})` : base, amount: ebTot })
+    if (Math.abs(sommaDettaglio - conto.prezzoPieno) > 0.005) {
+      righeCosti.push({ label: `${nomeCamera} (${n} ${n === 1 ? 'notte' : 'notti'})`, amount: conto.totale })
+    } else {
+      righeCosti.push(...righeSegmento)
+      if (conto.sconto > 0.005) {
+        righeCosti.push({ label: 'Sconto a lei riservato', amount: -conto.sconto, sconto: true })
+      }
     }
   }
-  const totale = righeCosti.reduce((s, r) => s + r.amount, 0)
+  // Importo da bonificare = residuo quando ci sono pagamenti già registrati
+  const ricevuto = (payments || []).reduce((s: number, p: any) => s + Number(p.amount || 0), 0)
+  const importoBonifico = residuoDaPagare(totale, payments)
 
   // Variante bonifico: scadenza = domani, anticipata al giorno di arrivo se precedente
   const domani = new Date()
@@ -427,7 +437,10 @@ Ania`
                       Il soggiorno si salda in anticipo con bonifico bancario, per l&apos;intero importo. La prenotazione è confermata alla ricezione della ricevuta.
                     </p>
                     <div style={{ background: '#f9f6f1', borderRadius: 16, padding: '12px 32px', marginBottom: 26 }}>
-                      <div style={S.row}><span style={S.label}>Importo</span><span style={{ ...S.value, fontWeight: 600 }}>{fmtEuro(totale)}</span></div>
+                      {ricevuto > 0 && (
+                        <div style={S.row}><span style={S.label}>Già ricevuto</span><span style={{ ...S.value, fontWeight: 400 }}>{fmtEuro(ricevuto)}</span></div>
+                      )}
+                      <div style={S.row}><span style={S.label}>{ricevuto > 0 ? 'Da bonificare' : 'Importo'}</span><span style={{ ...S.value, fontWeight: 600 }}>{fmtEuro(importoBonifico)}</span></div>
                       <div style={S.row}><span style={S.label}>Intestatario</span><span style={{ ...S.value, fontWeight: 400 }}>{BONIFICO_INTESTATARIO}</span></div>
                       <div style={S.row}><span style={S.label}>IBAN</span><span style={{ ...S.value, fontWeight: 400, fontSize: 32, whiteSpace: 'nowrap' }}>{BONIFICO_IBAN}</span></div>
                       <div style={S.row}><span style={S.label}>Causale</span><span style={{ ...S.value, fontWeight: 400 }}>{causale}</span></div>
