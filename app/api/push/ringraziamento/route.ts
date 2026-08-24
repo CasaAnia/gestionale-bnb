@@ -3,6 +3,7 @@ import webpush from 'web-push'
 import { buildChangeGroups } from '@/lib/roomChanges'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { isCronAuthorized } from '@/lib/cronAuth'
+import { nomePerMessaggio } from '@/lib/guestName'
 
 webpush.setVapidDetails(
   'mailto:amerigogranata@gmail.com',
@@ -23,7 +24,7 @@ function normalizePhone(p: string) {
 // Stesso identico testo del pulsante "Ringraziamento" nel dettaglio prenotazione
 // (buildWhatsappMsg, type 'ringraziamento'): se si cambia uno, cambiare anche l'altro.
 function buildRingraziamentoMsg(name: string) {
-  return `Gentile *${name}*,
+  return `Gentile ${name},
 
 grazie per aver soggiornato da noi. È stato un piacere averla come nostra ospite e spero che si sia trovata bene. 🌿
 
@@ -97,7 +98,7 @@ export async function GET(req: NextRequest) {
 
   if (conTelefono.length === 1 && partenzeVere.length === 1) {
     const b = conTelefono[0]
-    const nome = b.guest_name || b.guests?.full_name || 'Ospite'
+    const nome = nomePerMessaggio(b.guest_name || b.guests?.full_name) || 'Ospite'
     const phone = normalizePhone(b.guests.phone)
     const msg = buildRingraziamentoMsg(nome)
     titolo = `🙏 ${nome} è partito/a oggi`

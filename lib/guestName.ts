@@ -12,6 +12,15 @@ export function nomeOspite(b: any): string {
   return b?.guest_name || b?.guests?.full_name || b?.guests?.phone || 'Ospite'
 }
 
+// Nome pronto per i messaggi al cliente: via i caratteri invisibili residui
+// (es. U+FE0F di una vecchia emoji) e gli spazi doppi/iniziali. Oltre a sporcare
+// il saluto ("Gentile ️Monda,"), quei caratteri rompono la sintassi *grassetto*
+// di WhatsApp facendo comparire asterischi letterali. Pulisce il valore all'uso:
+// i nomi salvati nel database non vengono toccati.
+export function nomePerMessaggio(n: string | null | undefined): string {
+  return (n || '').replace(/[\u200B-\u200D\uFE0F]/g, '').replace(/\s+/g, ' ').trim()
+}
+
 // Confronto insensibile a maiuscole, spazi doppi e codifiche Unicode diverse:
 // "ROBERTO GRANATA" e "Roberto  Granata" sono la stessa persona.
 export function normalizzaNome(n: string | null | undefined): string {
