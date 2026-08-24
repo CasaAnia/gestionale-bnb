@@ -358,24 +358,25 @@ export default function Arrivi() {
                           }}>
                             {isCambio ? '⇄' : (time || '?')}
                           </span>
-                          {/* Navetta: 🚌 ben visibile se sì, 🚌? ambrato se da definire,
-                              niente se no (o colonna non ancora migrata). Non sui cambi
-                              camera: l'ospite è già in struttura. */}
-                          {!isCambio && 'shuttle' in booking && booking.shuttle !== 'no' && (
-                            <span style={{
-                              flexShrink: 0, lineHeight: 1, borderRadius: 4, padding: '1px 4px',
-                              fontSize: isDesktop ? gs(12) : gs(10), fontWeight: 800,
-                              background: booking.shuttle === 'si' ? 'rgba(255,255,255,0.92)' : 'rgba(240,205,120,0.95)',
-                              color: '#1F3D2F',
-                            }}>
-                              {booking.shuttle === 'si' ? '🚌' : '🚌?'}
-                            </span>
-                          )}
                           {/* Nome */}
                           <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? gs(13) : gs(10), fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                             {nomeOspite(booking)}{hasOutgoing ? ' ⇄' : ''}
                           </span>
                         </div>
+                        {/* Navetta sotto l'orario, SOLO se confermata: ogni 🚌 nella
+                            griglia significa una cosa sola. "No" e "Da definire" non
+                            mostrano nulla qui (restano nel popup e nei promemoria). */}
+                        {!isCambio && booking.shuttle === 'si' && (
+                          <div style={{ display: 'flex', paddingLeft: 8, marginTop: 3 }}>
+                            <span style={{
+                              background: 'rgba(255,255,255,0.92)', color: '#1F3D2F',
+                              borderRadius: 4, padding: '1px 5px', lineHeight: 1.25,
+                              fontSize: isDesktop ? gs(11) : gs(9), fontWeight: 800, whiteSpace: 'nowrap',
+                            }}>
+                              🚌{barWidth >= 90 ? ' Navetta' : ''}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -461,11 +462,7 @@ export default function Arrivi() {
         </div>
         <div className="flex items-center gap-1.5">
           <span style={{ fontSize: 11 }}>🚌</span>
-          <span className="text-xs text-gray-500">Navetta</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span style={{ fontSize: 9, fontWeight: 800, background: 'rgba(240,205,120,0.95)', borderRadius: 3, padding: '1px 3px', color: '#1F3D2F' }}>🚌?</span>
-          <span className="text-xs text-gray-500">Da definire</span>
+          <span className="text-xs text-gray-500">Navetta confermata</span>
         </div>
         <span className="ml-auto text-[9px] text-gray-300">v. {process.env.NEXT_PUBLIC_BUILD_TAG}</span>
       </div>
