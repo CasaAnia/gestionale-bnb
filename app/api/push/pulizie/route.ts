@@ -3,21 +3,19 @@ import { inviaPulizieNotification } from '@/lib/puliziePush'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { isCronAuthorized } from '@/lib/cronAuth'
 
-// Route manuale per testare la notifica "camere da pulire domani" senza
+// Route manuale per testare la notifica "pulizie previste domani" senza
 // aspettare il cron delle 16 (che la invia già insieme a quella arrivi,
 // vedi /api/push/send). Non è collegata a un cron su vercel.json: il piano
-// Vercel Hobby ne consente solo 2 e sono già usati da send/orario.
+// Vercel Hobby ne consente pochi e sono già usati.
+//
+// Nota: usa la data del server (UTC). Lanciata a mano tra mezzanotte e le
+// 2 di notte italiane calcolerebbe il giorno precedente.
 export async function GET(req: NextRequest) {
   if (!isCronAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const supabase = createAdminClient()
-
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toISOString().split('T')[0]
-
-  const result = await inviaPulizieNotification(supabase, tomorrowStr)
+  const result = await inviaPulizieNotification(supabase)
   return NextResponse.json(result)
 }

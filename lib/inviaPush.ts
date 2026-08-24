@@ -1,6 +1,14 @@
 import webpush from 'web-push'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+// Le chiavi VAPID si configurano qui, una volta per tutti: ogni route che
+// invia notifiche passa da inviaATutti, quindi nessuna può dimenticarsele.
+webpush.setVapidDetails(
+  'mailto:amerigogranata@gmail.com',
+  process.env.VAPID_PUBLIC_KEY!,
+  process.env.VAPID_PRIVATE_KEY!
+)
+
 type Esito = { inviate: number; rimosse: number; errori: string[] }
 
 // Invia una notifica a tutti i telefoni registrati.

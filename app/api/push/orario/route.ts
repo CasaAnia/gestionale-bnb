@@ -1,26 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import webpush from 'web-push'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { isCronAuthorized } from '@/lib/cronAuth'
+import { inviaATutti } from '@/lib/inviaPush'
+import { registraPush } from '@/lib/pushLog'
+import { attive, addDaysStr, todayStr } from '@/lib/pulizie'
 
-webpush.setVapidDetails(
-  'mailto:amerigogranata@gmail.com',
-  process.env.VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-)
-
+// Cron delle 15 UTC (17:00 italiane d'estate): arrivi di domani ancora
+// senza orario, per ricordarsi di chiederlo.
 export async function GET(req: NextRequest) {
   if (!isCronAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const supabase = createAdminClient()
+  const tomorrowStr = addDaysStr(todayStr(), 1)
 
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toISOString().split('T')[0]
-
-  // Solo prenotazioni di domani SENZA orario di arrivo
+  // Solo prenotazioni di domani SENZA orario di arrivo. Solo confermate:
+  // le richieste "in attesa" non sono ospiti (audit 24/08/2026).
   const { data: bookings } = await supabase
     .from('bookings')
     .select('*, rooms(name), guests(full_name, phone)')
@@ -28,11 +24,12 @@ export async function GET(req: NextRequest) {
     .neq('status', 'annullata')
     .is('check_in_time', null)
 
-  if (!bookings || bookings.length === 0) {
+  const senzaOrario = attive(bookings || [])
+  if (senzaOrario.length === 0) {
     return NextResponse.json({ sent: 0, message: 'Tutti gli arrivi di domani hanno l\'orario' })
   }
 
-  const lines = bookings.map((b: any) => {
+  const lines = senzaOrario.map((b: any) => {
     const camera = b.rooms?.name || 'Camera'
     const ospite = b.guest_name || b.guests?.full_name || 'Ospite'
     const phone = b.guests?.phone ? ` 📞 ${b.guests.phone}` : ''
@@ -42,19 +39,8 @@ export async function GET(req: NextRequest) {
   const titolo = `⏰ Orario mancante per domani`
   const corpo = `Chiedi l'orario a:\n${lines.join('\n')}`
 
-  const { data: subs } = await supabase.from('push_subscriptions').select('subscription')
-  if (!subs || subs.length === 0) return NextResponse.json({ sent: 0 })
+  const esito = await inviaATutti(supabase, { title: titolo, body: corpo, url: '/prenotazioni' })
+  await registraPush(supabase, 'orario', titolo, corpo, { giorno: tomorrowStr }, esito.inviate)
 
-  let sent = 0
-  for (const sub of subs) {
-    try {
-      await webpush.sendNotification(
-        JSON.parse(sub.subscription),
-        JSON.stringify({ title: titolo, body: corpo, url: '/prenotazioni' })
-      )
-      sent++
-    } catch (e) {}
-  }
-
-  return NextResponse.json({ sent, bookings: bookings.length })
+  return NextResponse.json({ sent: esito.inviate, bookings: senzaOrario.length })
 }

@@ -1,26 +1,12 @@
 'use client'
 import { useMemo, useState } from 'react'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
+import { NOTTI_CAMBIO, CUTOFF_STORICO, addDaysStr, diffDays, type Decisione } from '@/lib/pulizie'
 
-// Ogni quante notti di permanenza va rifatta la biancheria (stessa regola della pagina Pulizie)
-const NOTTI_CAMBIO = 4
-
-// Soggiorni senza mai cambio biancheria: lo storico è stimato "1 cambio ogni 4 notti",
-// ma per questi soggiorni sappiamo che il cambio non è mai stato fatto.
+// Soggiorni senza mai cambio biancheria: lo storico stimato è "1 cambio ogni
+// 4 notti", ma per questi sappiamo che il cambio non è mai stato fatto.
 // Giovanna Ricci, Amelia, 4 maggio – 13 giugno 2026 (40 notti).
 const SOGGIORNI_SENZA_CAMBIO = ['9d539f6d-85c8-4da6-9da6-7aaa74dce042']
-
-function addDaysStr(s: string, n: number) {
-  const [y, m, d] = s.split('-').map(Number)
-  const dt = new Date(y, m - 1, d + n)
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
-}
-
-function diffDays(a: string, b: string) {
-  const [ay, am, ad] = a.split('-').map(Number)
-  const [by, bm, bd] = b.split('-').map(Number)
-  return Math.round((new Date(ay, am - 1, ad).getTime() - new Date(by, bm - 1, bd).getTime()) / 86400000)
-}
 
 type Periodo = 'settimana' | 'mese' | 'anno'
 
@@ -48,19 +34,27 @@ function intervallo(periodo: Periodo, offset: number): { inizio: string; fine: s
 
 type Evento = { roomId: string; date: string }
 
-// Statistiche di pulizie e cambi biancheria, mostrate in fondo alla pagina Pulizie.
-// Riceve rooms/bookings già caricati dalla pagina.
-export default function Statistiche({ rooms, bookings, td }:
-  { rooms: any[]; bookings: any[]; td: string }) {
+// Statistiche di pulizie e cambi biancheria, in fondo alla pagina Pulizie.
+//
+// Due fonti, con un confine netto (CUTOFF_STORICO, 24/08/2026):
+//  - PRIMA del confine: stime dalle prenotazioni, come da sempre (una pulizia
+//    per ogni partenza, un cambio ogni 4 notti di soggiorno);
+//  - DAL confine in poi: la tabella cleanings, cioè le pulizie realmente
+//    segnate da Ania. Numeri veri, non più stimati — comprese rimandate
+//    e saltate, che prima non lasciavano traccia.
+export default function Statistiche({ rooms, bookings, events, td }:
+  { rooms: any[]; bookings: any[]; events: Decisione[]; td: string }) {
   const [periodo, setPeriodo] = useState<Periodo>('mese')
   const [offset, setOffset] = useState(0)
 
-  // Ricostruisce lo storico: ogni soggiorno concluso = 1 pulizia (alla partenza c'è
-  // sempre stata la pulizia); cambi biancheria stimati ogni 4 notti di soggiorno.
-  // I prolungamenti (stesso ospite, stessa camera, date contigue) sono un unico soggiorno.
-  const { pulizie, cambi } = useMemo(() => {
+  const { pulizie, cambi, rimandate, saltate, ritardi } = useMemo(() => {
     const pulizie: Evento[] = []
     const cambi: Evento[] = []
+    const rimandate: Evento[] = []
+    const saltate: Evento[] = []
+    const ritardi: number[] = []   // giorni di rinvio di ogni "rimandata" (per la media)
+
+    // --- Stime per il passato (prima del confine) ---
     for (const room of rooms) {
       const own = bookings
         .filter(b => b.room_id === room.id)
@@ -73,10 +67,10 @@ export default function Statistiche({ rooms, bookings, td }:
         if (coda && coda.guest_id && coda.guest_id === b.guest_id && coda.check_out === b.check_in) ultimo.push(b)
         else soggiorni.push([b])
       }
-      // La pulizia al cambio ospite è obbligatoria: ogni soggiorno concluso conta
-      // sempre, senza bisogno di conferme. La data è quella della partenza (o quella
-      // registrata col vecchio pulsante "Segna pulita", quando c'è).
-      const conclusi = soggiorni.filter(s => s[s.length - 1].check_out <= td)
+      // Una pulizia per ogni soggiorno concluso prima del confine (al cambio
+      // ospite la pulizia c'è sempre stata). Dal confine in poi contano solo
+      // le pulizie segnate davvero.
+      const conclusi = soggiorni.filter(s => s[s.length - 1].check_out <= td && s[s.length - 1].check_out < CUTOFF_STORICO)
       conclusi.forEach(s => {
         const coda = s[s.length - 1]
         const cleanedAt = s.map(x => x.cleaned_at).filter(Boolean).sort().slice(-1)[0]
@@ -91,29 +85,44 @@ export default function Statistiche({ rooms, bookings, td }:
         if (s.some(x => SOGGIORNI_SENZA_CAMBIO.includes(x.id))) continue
         const inizio = s[0].check_in
         const fine = s[s.length - 1].check_out
-        // Se l'app ha registrato la data del prossimo cambio (linen_next_date), i cambi
-        // fatti sono quelli a ritroso ogni 4 notti da lì: più preciso della stima in
-        // avanti, e non conta un cambio previsto ma mai segnato fatto (es. a fine
-        // soggiorno). Senza quel dato resta la stima: un cambio ogni 4 notti dall'inizio.
+        // Cambi stimati SOLO fino al confine: da lì in poi valgono le decisioni vere
+        const limite = CUTOFF_STORICO < fine ? CUTOFF_STORICO : fine
         const linen = s.map(x => x.linen_next_date).filter(Boolean).sort().slice(-1)[0]
         if (linen) {
           for (let d = addDaysStr(linen, -NOTTI_CAMBIO); d > inizio; d = addDaysStr(d, -NOTTI_CAMBIO)) {
-            if (d < fine && d <= td) cambi.push({ roomId: room.id, date: d })
+            if (d < limite && d <= td) cambi.push({ roomId: room.id, date: d })
           }
         } else {
-          for (let d = addDaysStr(inizio, NOTTI_CAMBIO); d < fine && d <= td; d = addDaysStr(d, NOTTI_CAMBIO)) {
+          for (let d = addDaysStr(inizio, NOTTI_CAMBIO); d < limite && d <= td; d = addDaysStr(d, NOTTI_CAMBIO)) {
             cambi.push({ roomId: room.id, date: d })
           }
         }
       }
     }
-    return { pulizie, cambi }
-  }, [rooms, bookings, td])
+
+    // --- Dati veri (tabella cleanings) ---
+    for (const e of events) {
+      if (e.stato === 'fatta') {
+        const date = e.data_effettiva || e.data_prevista
+        if (e.tipo === 'soggiorno') cambi.push({ roomId: e.room_id, date })
+        else pulizie.push({ roomId: e.room_id, date })
+      } else if (e.stato === 'rimandata') {
+        rimandate.push({ roomId: e.room_id, date: e.data_prevista })
+        if (e.prossima_data) ritardi.push(diffDays(e.prossima_data, e.data_prevista))
+      } else if (e.stato === 'saltata') {
+        saltate.push({ roomId: e.room_id, date: e.data_prevista })
+      }
+    }
+
+    return { pulizie, cambi, rimandate, saltate, ritardi }
+  }, [rooms, bookings, events, td])
 
   const { inizio, fine, label } = intervallo(periodo, offset)
   const nelPeriodo = (e: Evento) => e.date >= inizio && e.date <= fine
   const pulizieP = pulizie.filter(nelPeriodo)
   const cambiP = cambi.filter(nelPeriodo)
+  const rimandateP = rimandate.filter(nelPeriodo)
+  const saltateP = saltate.filter(nelPeriodo)
 
   const perCamera = rooms.map(room => ({
     room,
@@ -127,6 +136,7 @@ export default function Statistiche({ rooms, bookings, td }:
   const giorniTrascorsi = Math.max(1, diffDays((fine < td ? fine : td), inizio) + 1)
   const ogniQuanti = pulizieP.length > 0 ? giorniTrascorsi / pulizieP.length : null
   const top = perCamera.reduce((a, b) => (b.pulizie + b.cambi > a.pulizie + a.cambi ? b : a), perCamera[0])
+  const ritardoMedio = ritardi.length > 0 ? Math.round((ritardi.reduce((a, b) => a + b, 0) / ritardi.length) * 10) / 10 : null
 
   return (
     <div className="mt-8">
@@ -161,6 +171,23 @@ export default function Statistiche({ rooms, bookings, td }:
           <p className="font-serif text-3xl text-green-dark mt-0.5">{cambiP.length}</p>
         </div>
       </div>
+
+      {(rimandateP.length > 0 || saltateP.length > 0) && (
+        <div className="grid grid-cols-2 gap-2.5 mb-3">
+          <div className="bg-white rounded-[10px] border border-card-border p-3.5">
+            <p className="text-xs text-gray-500">Rimandate</p>
+            <p className="font-serif text-3xl text-green-dark mt-0.5">{rimandateP.length}</p>
+            {ritardoMedio != null && (
+              <p className="text-[11px] text-stone mt-0.5">rinvio medio {ritardoMedio.toLocaleString('it-IT')} {ritardoMedio === 1 ? 'giorno' : 'giorni'}</p>
+            )}
+          </div>
+          <div className="bg-white rounded-[10px] border border-card-border p-3.5">
+            <p className="text-xs text-gray-500">Saltate</p>
+            <p className="font-serif text-3xl text-green-dark mt-0.5">{saltateP.length}</p>
+            <p className="text-[11px] text-stone mt-0.5">concordate con l&apos;ospite</p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
         <div className="flex items-center justify-between mb-3">
@@ -202,9 +229,11 @@ export default function Statistiche({ rooms, bookings, td }:
       </div>
 
       <p className="text-[11px] text-stone leading-relaxed">
-        Le pulizie contano una per ogni partenza. I cambi biancheria del passato sono stimati
-        (uno ogni {NOTTI_CAMBIO} notti di soggiorno); il soggiorno lungo di Giovanna in Amelia
-        (maggio–giugno) è escluso perché il cambio non è mai stato fatto.
+        Fino al 23 agosto 2026 i numeri sono ricostruiti dalle prenotazioni (una
+        pulizia per ogni partenza, un cambio stimato ogni {NOTTI_CAMBIO} notti; il
+        soggiorno lungo di Giovanna in Amelia è escluso perché il cambio non è mai
+        stato fatto). Dal 24 agosto contano solo le pulizie segnate davvero
+        nella pagina, comprese rimandate e saltate.
       </p>
     </div>
   )

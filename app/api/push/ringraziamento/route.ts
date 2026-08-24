@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import webpush from 'web-push'
 import { buildChangeGroups } from '@/lib/roomChanges'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { isCronAuthorized } from '@/lib/cronAuth'
 import { nomePerMessaggio } from '@/lib/guestName'
-
-webpush.setVapidDetails(
-  'mailto:amerigogranata@gmail.com',
-  process.env.VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-)
+import { inviaATutti } from '@/lib/inviaPush'
+import { registraPush } from '@/lib/pushLog'
+import { attive } from '@/lib/pulizie'
 
 function todayStr() {
   const d = new Date()
@@ -54,12 +50,16 @@ export async function GET(req: NextRequest) {
 
   // Servono tutte le prenotazioni attive (non solo quelle in partenza oggi) per
   // ricostruire le catene dei cambi camera con la stessa logica del resto dell'app.
-  const { data: bookings } = await supabase
+  // Solo confermate/completate: il 23/08/2026 una richiesta dal sito rimasta
+  // "in attesa" ha generato un ringraziamento per un ospite mai esistito
+  // (Caso 2 dell'audit) — le richieste in attesa non sono ospiti.
+  const { data: tutte } = await supabase
     .from('bookings')
     .select('*, rooms(name), guests(full_name, phone)')
     .neq('status', 'annullata')
 
-  const partenzeOggi = (bookings || []).filter((b: any) => b.check_out === oggi)
+  const bookings = attive(tutte || [])
+  const partenzeOggi = bookings.filter((b: any) => b.check_out === oggi)
 
   if (partenzeOggi.length === 0) {
     return NextResponse.json({ sent: 0, message: 'Nessuna partenza oggi' })
@@ -68,14 +68,14 @@ export async function GET(req: NextRequest) {
   // Esclude i cambi camera a metà soggiorno: un segmento che oggi "esce" da una
   // camera per proseguire in un'altra ha un arco uscente nella catena. Restano
   // solo le partenze definitive, cioè gli ultimi segmenti del soggiorno.
-  const { edges } = buildChangeGroups(bookings || [])
+  const { edges } = buildChangeGroups(bookings)
   const proseguono = new Set(edges.map((e) => e.fromId))
   const partenzeVere = partenzeOggi.filter((b: any) => {
     if (proseguono.has(b.id)) return false
     // Sicurezza extra: se lo stesso ospite ha un'altra prenotazione che inizia
     // proprio oggi (prolungamento nella stessa camera o cambio non concatenato),
     // il soggiorno continua e non è una partenza definitiva.
-    const continua = (bookings || []).some(
+    const continua = bookings.some(
       (x: any) => x.id !== b.id && b.guest_id && x.guest_id === b.guest_id && x.check_in === b.check_out
     )
     return !continua
@@ -83,11 +83,6 @@ export async function GET(req: NextRequest) {
 
   if (partenzeVere.length === 0) {
     return NextResponse.json({ sent: 0, message: 'Solo cambi camera oggi, nessuna vera partenza' })
-  }
-
-  const { data: subs } = await supabase.from('push_subscriptions').select('subscription')
-  if (!subs || subs.length === 0) {
-    return NextResponse.json({ sent: 0, partenze: partenzeVere.length, message: 'Nessuna subscription' })
   }
 
   const conTelefono = partenzeVere.filter((b: any) => b.guests?.phone)
@@ -116,18 +111,10 @@ export async function GET(req: NextRequest) {
     url = '/prenotazioni'
   }
 
-  let sent = 0
-  for (const sub of subs) {
-    try {
-      await webpush.sendNotification(
-        JSON.parse(sub.subscription),
-        JSON.stringify({ title: titolo, body: corpo, url })
-      )
-      sent++
-    } catch (e) {
-      // subscription scaduta, ignora
-    }
-  }
+  const esito = await inviaATutti(supabase, { title: titolo, body: corpo, url })
+  await registraPush(supabase, 'ringraziamento', titolo, corpo,
+    { giorno: oggi, partenze: partenzeVere.map((b: any) => ({ id: b.id, nome: b.guest_name || b.guests?.full_name, status: b.status })) },
+    esito.inviate)
 
-  return NextResponse.json({ sent, partenze: partenzeVere.length })
+  return NextResponse.json({ sent: esito.inviate, partenze: partenzeVere.length })
 }
