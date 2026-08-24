@@ -169,21 +169,21 @@ export function cicloCambio(bookings: any[], inCorso: any, events: Decisione[]):
   let base: string
   if (ev && ev.stato === 'fatta' && ev.data_effettiva) {
     due = addDaysStr(ev.data_effettiva, NOTTI_CAMBIO)
-    base = `ultima pulizia fatta il ${ev.data_effettiva} + ${NOTTI_CAMBIO} notti`
+    base = `ultima pulizia fatta il ${dataIt(ev.data_effettiva)} + ${NOTTI_CAMBIO} notti`
   } else if (ev && ev.prossima_data) {
     due = ev.prossima_data
     base = ev.stato === 'saltata'
-      ? `pulizia del ${ev.data_prevista} saltata → proposta ${ev.prossima_data}`
-      : `rimandata dal ${ev.data_prevista} al ${ev.prossima_data}`
+      ? `pulizia del ${dataIt(ev.data_prevista)} saltata → proposta ${dataIt(ev.prossima_data)}`
+      : `rimandata dal ${dataIt(ev.data_prevista)} al ${dataIt(ev.prossima_data)}`
   } else {
     const salvata = inCorso.linen_next_date
       ?? tratto.map(b => b.linen_next_date).filter(Boolean).sort().slice(-1)[0]
     if (salvata) {
       due = salvata
-      base = `data salvata nell'app (${salvata})`
+      base = `data salvata nell'app dal vecchio sistema (${dataIt(salvata)})`
     } else {
       due = addDaysStr(inizio.check_in, NOTTI_CAMBIO)
-      base = `check-in ${inizio.check_in} + ${NOTTI_CAMBIO} notti (regola base)`
+      base = `check-in del ${dataIt(inizio.check_in)} + ${NOTTI_CAMBIO} notti (regola base)`
     }
   }
   // La scadenza prima dei rimandi in coda (per "rimandata dal X al Y")
@@ -301,6 +301,120 @@ export function pulizieAperte(bookings: any[], roomId: string, oggi: string, eve
     }
   }
   return out
+}
+
+// ---------------------------------------------------------------- cronologia
+
+// Registro di una voce della cronologia (richiesta di Ania, 24/08/2026):
+//   reale       = evento registrato davvero (tabella cleanings, o movimento
+//                 di una prenotazione: check-in, prolungamento, partenza)
+//   ricostruita = data teorica del vecchio sistema, ricostruita a ritroso
+//                 ogni 4 notti: l'esito NON è noto e non va mai spacciata
+//                 per una pulizia fatta
+//   futura      = la prossima scadenza calcolata (una sola, mai una serie)
+export type Registro = 'reale' | 'ricostruita' | 'futura'
+export type VoceCronologia = { data: string; testo: string; registro: Registro }
+
+function dataIt(s: string): string {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+}
+
+// Cronologia delle pulizie di una camera: il soggiorno in corso (ciclo delle
+// 4 notti compreso) e/o la pulizia di fine soggiorno ancora aperta.
+// Solo lettura: non tocca la logica di calcolo, la racconta.
+export function cronologiaCamera(bookings: any[], roomId: string, oggi: string, events: Decisione[], rooms: any[] = []): VoceCronologia[] {
+  const voci: (VoceCronologia & { ordine: number })[] = []
+  let n = 0
+  const push = (data: string, testo: string, registro: Registro) => voci.push({ data, testo, registro, ordine: n++ })
+  const nomeDi = (b: any) => b?.guest_name || b?.guests?.full_name || 'Ospite'
+  const shortOf = (id: string) => {
+    const r = rooms.find(rr => rr.id === id)
+    return r ? r.name.split(' ').slice(-1)[0] : 'un’altra camera'
+  }
+
+  // --- Pulizia di fine soggiorno ancora aperta (ospite già partito) ---
+  const fs = partenzaAperta(bookings, roomId, oggi, events)
+  if (fs) {
+    push(fs.partenza.check_in, `check-in di ${nomeDi(fs.partenza)}`, 'reale')
+    push(fs.partenza.check_out, fs.cambioCameraVerso
+      ? `${nomeDi(fs.partenza)} cambia camera → va in ${shortOf(fs.cambioCameraVerso.room_id)} · pulizia prevista`
+      : `partenza di ${nomeDi(fs.partenza)} · pulizia prevista`, 'reale')
+    for (const r of fs.rinvii) push(r.data_prevista, `rimandata dal ${dataIt(r.data_prevista)} al ${dataIt(r.prossima_data!)}`, 'reale')
+    if (fs.due > oggi) push(fs.due, 'pulizia attesa (dopo il rinvio)', 'futura')
+  }
+
+  // --- Soggiorno in corso: il ciclo delle 4 notti ---
+  const inCorso = bookings.find(b => b.room_id === roomId && b.check_in <= oggi && b.check_out > oggi) || null
+  if (inCorso) {
+    const { inizio, fine, tratto } = soggiornoContinuativo(bookings, inCorso)
+    push(inizio.check_in, `check-in di ${nomeDi(inizio)}`, 'reale')
+    for (const seg of tratto.filter(s => s.id !== inizio.id).sort((a, b) => a.check_in.localeCompare(b.check_in))) {
+      push(seg.check_in, 'prolungamento del soggiorno', 'reale')
+    }
+
+    const ids = new Set<string>(tratto.map(b => String(b.id)))
+    const propri = (events || [])
+      .filter(e => e.booking_id && ids.has(e.booking_id) && e.tipo === 'soggiorno')
+      .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || String(a.id || '').localeCompare(String(b.id || '')))
+    const previsteRegistrate = new Set(propri.map(e => e.data_prevista))
+
+    // Ricostruzione del vecchio sistema: a ritroso ogni 4 notti dall'ultima
+    // scadenza salvata (o in avanti dal check-in se non c'è nulla). L'esito
+    // di queste date non è registrato da nessuna parte: mai chiamarle "fatte".
+    const anchor = tratto.map(b => b.linen_next_date).filter(Boolean).sort().slice(-1)[0] || null
+    if (anchor) {
+      for (let d = addDaysStr(anchor, -NOTTI_CAMBIO); d > inizio.check_in; d = addDaysStr(d, -NOTTI_CAMBIO)) {
+        push(d, 'prevista — ricostruita dal vecchio sistema, esito non registrato', 'ricostruita')
+      }
+      if (!previsteRegistrate.has(anchor) && anchor < fine.check_out) {
+        push(anchor, 'scadenza salvata dal vecchio sistema, esito non registrato', 'ricostruita')
+      }
+    } else if (propri.length === 0) {
+      for (let d = addDaysStr(inizio.check_in, NOTTI_CAMBIO); d < CUTOFF_STORICO && d < fine.check_out && d <= oggi; d = addDaysStr(d, NOTTI_CAMBIO)) {
+        push(d, 'prevista — ricostruita dal vecchio sistema, esito non registrato', 'ricostruita')
+      }
+    }
+
+    // Le decisioni vere del nuovo storico
+    for (const e of propri) {
+      if (e.stato === 'fatta') {
+        push(e.data_effettiva || e.data_prevista, e.data_effettiva && e.data_effettiva !== e.data_prevista
+          ? `fatta (era prevista il ${dataIt(e.data_prevista)})`
+          : 'fatta', 'reale')
+      } else if (e.stato === 'rimandata') {
+        push(e.data_prevista, `rimandata dal ${dataIt(e.data_prevista)} al ${dataIt(e.prossima_data!)}`, 'reale')
+      } else {
+        push(e.data_prevista, `saltata (concordato) · proposta successiva il ${dataIt(e.prossima_data!)}`, 'reale')
+      }
+    }
+
+    // Una sola data futura: la prossima scadenza calcolata adesso
+    const ciclo = cicloCambio(bookings, inCorso, events)
+    if (ciclo.due) {
+      if (ciclo.due <= oggi) {
+        const rit = diffDays(oggi, ciclo.due)
+        push(ciclo.due, `pulizia attesa · ${ciclo.base}${rit > 0 ? ` · in ritardo di ${rit} ${rit === 1 ? 'giorno' : 'giorni'}` : ''}`, 'reale')
+      } else {
+        push(ciclo.due, `prossima prevista · ${ciclo.base}`, 'futura')
+      }
+    } else {
+      const verso = cambioCameraOut(bookings, fine)
+      push(fine.check_out, verso
+        ? `nessun'altra pulizia del ciclo: il ${dataIt(fine.check_out)} ${nomeDi(fine)} cambia camera → ${shortOf(verso.room_id)}`
+        : `nessun'altra pulizia del ciclo: cadrebbe alla partenza del ${dataIt(fine.check_out)}`, 'futura')
+    }
+
+    // La fine del soggiorno chiude sempre la cronologia
+    const verso = cambioCameraOut(bookings, fine)
+    push(fine.check_out, verso
+      ? `${nomeDi(fine)} cambia camera → va in ${shortOf(verso.room_id)}`
+      : `partenza di ${nomeDi(fine)}`, fine.check_out > oggi ? 'futura' : 'reale')
+  }
+
+  return voci
+    .sort((a, b) => a.data.localeCompare(b.data) || a.ordine - b.ordine)
+    .map(({ data, testo, registro }) => ({ data, testo, registro }))
 }
 
 // ------------------------------------------------------------------ notifica

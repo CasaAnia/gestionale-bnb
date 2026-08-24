@@ -8,9 +8,9 @@ import BackBar from '@/components/BackBar'
 import {
   attive, pulizieAperte, prossimoArrivo, prioritaDi, testoArrivo, cicloCambio,
   partenzaAperta, cambioCameraIn, continuaDa, cambioCameraOut,
-  soggiornoContinuativo, todayStr, addDaysStr, diffDays,
+  soggiornoContinuativo, todayStr, addDaysStr, diffDays, cronologiaCamera,
   NOTTI_CAMBIO, GIORNI_PREAVVISO,
-  type Pulizia, type Priorita, type Decisione,
+  type Pulizia, type Priorita, type Decisione, type VoceCronologia,
 } from '@/lib/pulizie'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -61,7 +61,7 @@ type RigaCamera = {
   priorita: Priorita | null               // la più alta tra le pulizie aperte
   cambioProssimo: { due: string; booking: any } | null // cambio 4 notti nei prossimi giorni (anticipabile)
   prossimo: { date: string; badges: string[]; testo: string } | null
-  spiegazione: string[]                   // pannello "perché questa data?"
+  cronologia: VoceCronologia[]            // pannello "perché questa data?"
 }
 
 const RANK: Record<Priorita, number> = { urgente: 0, alta: 1, flessibile: 2, nessuna_fretta: 3 }
@@ -124,21 +124,11 @@ export default function Pulizie() {
         ? { due: ciclo.due, booking: inCorso }
         : null
 
-      // Pannello "perché questa data?": la provenienza di ogni numero mostrato
-      const spiegazione: string[] = []
-      if (inCorso && ciclo) {
-        spiegazione.push(`Ciclo 4 notti: ${ciclo.base}`)
-        for (const r of ciclo.rinvii) spiegazione.push(`Rimandata dal ${dataBreve(r.data_prevista)} al ${dataBreve(r.prossima_data!)}`)
-        spiegazione.push(ciclo.due
-          ? `Prossima pulizia calcolata: ${dataBreve(ciclo.due)} · notifica prevista la sera del ${dataBreve(addDaysStr(ciclo.due, -1))}`
-          : 'Nessun altro cambio previsto: cadrebbe alla partenza')
-      }
+      // Pannello "perché questa data?": la cronologia completa del soggiorno,
+      // con la distinzione netta tra eventi reali, date ricostruite dal
+      // vecchio sistema e prossima scadenza calcolata (lib/pulizie.ts)
+      const cronologia = cronologiaCamera(prenotazioni, room.id, td, events, rooms)
       const fsAperta = partenzaAperta(prenotazioni, room.id, td, events)
-      if (fsAperta) {
-        spiegazione.push(`Fine soggiorno: partenza del ${dataBreve(fsAperta.partenza.check_out)}`)
-        for (const r of fsAperta.rinvii) spiegazione.push(`Rimandata dal ${dataBreve(r.data_prevista)} al ${dataBreve(r.prossima_data!)}`)
-      }
-      if (!tabellaOk) spiegazione.push('Storico non attivo: manca la migrazione 0018 su Supabase')
 
       // "Prossimi": il primo lavoro futuro previsto in questa camera
       type Ev = { date: string; badge: string | null; testo: string }
@@ -186,7 +176,7 @@ export default function Pulizie() {
       return {
         room,
         shortName: room.name.split(' ').slice(-1)[0],
-        aperte, arrivo, priorita, cambioProssimo, prossimo, spiegazione,
+        aperte, arrivo, priorita, cambioProssimo, prossimo, cronologia,
       }
     })
     // Oggi: prima le più urgenti; a parità, l'ordine fisso delle camere
@@ -302,16 +292,40 @@ export default function Pulizie() {
     )
   }
 
-  // Link + pannello "perché questa data?" di una camera
-  const spiega = (r: RigaCamera) => r.spiegazione.length === 0 ? null : (
+  // Stili dei tre registri della cronologia: un evento reale, una data
+  // ricostruita dal vecchio sistema e una scadenza futura non si devono
+  // poter confondere nemmeno a colpo d'occhio.
+  const pallino = (registro: VoceCronologia['registro']) =>
+    registro === 'reale'
+      ? { background: '#2D6A4F' }
+      : registro === 'futura'
+        ? { background: '#A98A56' }
+        : { background: 'transparent', border: '1.5px solid #B4AC9C' }
+
+  // Link + pannello "perché questa data?" di una camera: la cronologia
+  // completa del soggiorno, solo su richiesta (le card restano leggere)
+  const spiega = (r: RigaCamera) => r.cronologia.length === 0 ? null : (
     <div className="mt-2">
       <button onClick={() => setSpiegaAperta(s => ({ ...s, [r.room.id]: !s[r.room.id] }))}
         className="text-[11px] text-stone underline decoration-dotted underline-offset-2">
-        {spiegaAperta[r.room.id] ? 'nascondi il calcolo' : 'perché questa data?'}
+        {spiegaAperta[r.room.id] ? 'nascondi la cronologia' : 'perché questa data?'}
       </button>
       {spiegaAperta[r.room.id] && (
-        <div className="mt-1.5 rounded-lg p-2.5 text-[11px] leading-relaxed text-stone" style={{ background: '#F5F1E8' }}>
-          {r.spiegazione.map((s, i) => <p key={i}>{s}</p>)}
+        <div className="mt-1.5 rounded-lg p-3 text-[11px] leading-relaxed" style={{ background: '#F5F1E8' }}>
+          {r.cronologia.map((v, i) => (
+            <div key={i} className="flex items-baseline gap-2 mb-1.5 last:mb-0">
+              <span className="shrink-0 w-2 h-2 rounded-full translate-y-px" style={pallino(v.registro)} />
+              <span className="shrink-0 font-semibold text-green-dark" style={{ fontVariantNumeric: 'tabular-nums' }}>{dataBreve(v.data)}</span>
+              <span className={v.registro === 'ricostruita' ? 'italic text-stone' : v.registro === 'futura' ? 'text-brass' : 'text-green-dark'}>
+                {v.testo}
+              </span>
+            </div>
+          ))}
+          <p className="mt-2 pt-2 text-[10px] text-stone" style={{ borderTop: '1px solid #E5DCCB' }}>
+            <span className="inline-block w-2 h-2 rounded-full align-middle mr-1" style={pallino('reale')} />registrato
+            <span className="inline-block w-2 h-2 rounded-full align-middle ml-2.5 mr-1" style={pallino('ricostruita')} />ricostruito, esito ignoto
+            <span className="inline-block w-2 h-2 rounded-full align-middle ml-2.5 mr-1" style={pallino('futura')} />previsto
+          </p>
         </div>
       )}
     </div>

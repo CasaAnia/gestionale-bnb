@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import {
   attive, cicloCambio, statoFineSoggiorno, partenzaAperta, pulizieAperte,
   prossimoArrivo, prioritaDi, testoArrivo, calcolaNotifica, addDaysStr,
+  cronologiaCamera,
   type Decisione,
 } from './pulizie.ts'
 
@@ -209,6 +210,51 @@ test('la notifica del giorno prima cita orario d\'arrivo e cambio camera', () =>
   assert.match(n.domani[0].testo, /fine soggiorno/)
   assert.match(n.domani[0].testo, /14:30/)
   assert.match(n.domani[0].testo, /URGENTE/)
+})
+
+// ---------------------------------------------------------------- cronologia
+
+test('CRONOLOGIA · le date del vecchio sistema sono "ricostruite", mai "fatte" (caso Rosa)', () => {
+  // Rosa in Ambra dal 6/08, ultima scadenza vecchio sistema 22/08,
+  // poi nel nuovo storico: fatta il 23 (era prevista il 22)
+  const rosa = prenotazione({ guest_id: 'g-rosa', guest_name: 'Rosa Macauda', room_id: AMBRA, check_in: '2026-08-06', check_out: '2026-09-01', linen_next_date: '2026-08-22' })
+  const events = [decisione({ booking_id: rosa.id, stato: 'fatta', data_prevista: '2026-08-22', data_effettiva: '2026-08-23' })]
+  const voci = cronologiaCamera([rosa], AMBRA, '2026-08-24', events, rooms)
+
+  // Catena ricostruita a ritroso: 10, 14, 18 — tutte marcate "ricostruita"
+  const ricostruite = voci.filter(v => v.registro === 'ricostruita')
+  assert.deepEqual(ricostruite.map(v => v.data), ['2026-08-10', '2026-08-14', '2026-08-18'])
+  for (const v of ricostruite) assert.doesNotMatch(v.testo, /fatta/)
+
+  // La pulizia vera: fatta il 23, era prevista il 22 — registro reale
+  const fatta = voci.find(v => v.testo.startsWith('fatta'))
+  assert.equal(fatta?.data, '2026-08-23')
+  assert.equal(fatta?.registro, 'reale')
+
+  // Una sola data futura di ciclo: 27 (23 + 4), col calcolo scritto
+  const future = voci.filter(v => v.registro === 'futura' && v.testo.includes('prossima prevista'))
+  assert.equal(future.length, 1)
+  assert.equal(future[0].data, '2026-08-27')
+  assert.match(future[0].testo, /23/)
+})
+
+test('CRONOLOGIA · un rinvio si legge "dal X al Y" e il check-in apre la storia', () => {
+  const events = [
+    decisione({ booking_id: lungo.id, stato: 'rimandata', data_prevista: '2026-08-20', prossima_data: '2026-08-22' }),
+    decisione({ booking_id: lungo.id, stato: 'fatta', data_prevista: '2026-08-22', data_effettiva: '2026-08-23' }),
+  ]
+  const voci = cronologiaCamera([lungo], AMBRA, '2026-08-24', events, rooms)
+  assert.equal(voci[0].testo, 'check-in di ' + lungo.guest_name)
+  assert.ok(voci.some(v => v.registro === 'reale' && /rimandata dal 20 agosto al 22 agosto/.test(v.testo)))
+  assert.ok(voci.some(v => v.registro === 'reale' && /fatta \(era prevista il 22 agosto\)/.test(v.testo)))
+})
+
+test('CRONOLOGIA · quando il ciclo si ferma lo spiega, senza inventare date future', () => {
+  const corto = prenotazione({ guest_name: 'Breve', room_id: LENA, check_in: '2026-08-23', check_out: '2026-08-26' })
+  const voci = cronologiaCamera([corto], LENA, '2026-08-24', [], rooms)
+  const future = voci.filter(v => v.registro === 'futura')
+  assert.ok(future.some(v => /nessun'altra pulizia del ciclo/.test(v.testo)))
+  assert.ok(!voci.some(v => v.testo.includes('prossima prevista')))
 })
 
 test('addDaysStr scavalca i mesi correttamente', () => {
