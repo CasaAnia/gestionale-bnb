@@ -46,6 +46,17 @@ export default function ClienteDetail() {
   const annullate = bookings.filter(b => b.status === 'annullata')
   const totaleSpeso = confermateCompletate.reduce((s: number, b: any) => s + Number(b.total_amount), 0)
 
+  // Storico arrivi (24/08/2026): solo dati realmente registrati, mai ricostruiti.
+  // Un segmento preceduto da un altro con check-out uguale al suo check-in
+  // (prolungamento o cambio camera) non è un vero arrivo del cliente.
+  const d = new Date()
+  const oggiStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const arrivoVero = (b: any) => !confermateCompletate.some(x => x.id !== b.id && x.check_out === b.check_in)
+  const ultimiArrivi = confermateCompletate
+    .filter(b => arrivoVero(b) && b.check_in_time && b.check_in <= oggiStr)
+    .sort((a, b) => b.check_in.localeCompare(a.check_in))
+    .slice(0, 4)
+
   return (
     <div className="p-4">
       <BackBar href="/clienti" />
@@ -109,6 +120,16 @@ export default function ClienteDetail() {
         </div>
       </div>
 
+      {/* Ultimi arrivi: solo orari realmente registrati, dal più recente */}
+      {ultimiArrivi.length > 0 && (
+        <div className="bg-white rounded-xl p-3 border border-card-border mb-4">
+          <p className="text-xs text-gray-500">Ultimi arrivi</p>
+          <p className="text-sm font-bold text-green-dark mt-0.5">
+            {ultimiArrivi.map(b => `${b.check_in_time}${b.shuttle === 'si' ? ' 🚌' : ''}`).join(' · ')}
+          </p>
+        </div>
+      )}
+
       {/* Storico prenotazioni */}
       <p className="font-semibold mb-3">Storico prenotazioni</p>
       {bookings.length === 0 ? (
@@ -121,6 +142,17 @@ export default function ClienteDetail() {
                 <div>
                   <p className="font-medium text-sm">{b.rooms?.name}</p>
                   <p className="text-xs text-gray-500">{b.check_in} → {b.check_out}</p>
+                  {/* Arrivo registrato: mai inventare — se manca l'orario lo si dice,
+                      la navetta compare solo se davvero salvata (mai "no" per il vuoto) */}
+                  {b.status !== 'annullata' && arrivoVero(b) && (
+                    <p className="text-xs mt-0.5">
+                      {b.check_in_time
+                        ? <span className="text-green-dark">arrivo <span className="font-bold">{b.check_in_time}</span></span>
+                        : <span className="text-gray-400">orario non registrato</span>}
+                      {b.shuttle === 'si' && ' · 🚌'}
+                      {b.shuttle === 'no' && <span className="text-gray-500"> · no navetta</span>}
+                    </p>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="font-semibold text-sm">€{Number(b.total_amount).toFixed(0)}</p>

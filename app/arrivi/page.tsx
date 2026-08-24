@@ -51,6 +51,7 @@ export default function Arrivi() {
   const [loading, setLoading] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
   const [popup, setPopup] = useState<{ id: string; name: string; time: string; shuttle: string } | null>(null)
+  const [showStorico, setShowStorico] = useState(false)
   const [savingTime, setSavingTime] = useState(false)
   const popupTimeRef = useRef<HTMLInputElement>(null)
 
@@ -107,7 +108,7 @@ export default function Arrivi() {
       supabase.from('rooms').select('*').eq('active', true),
       supabase.from('bookings')
         .select('*, guests(full_name, phone)')
-        .eq('status', 'confermata'),
+        .in('status', ['confermata', 'completata']),
     ]).then(([{ data: r }, { data: b }]) => {
       const sorted = (r || []).sort((a: any, b: any) => {
         const ai = ROOM_ORDER.findIndex(o => a.name.includes(o))
@@ -323,7 +324,7 @@ export default function Arrivi() {
 
                     return (
                       <div key={booking.id}
-                        onClick={() => setPopup({ id: booking.id, name: nomeOspite(booking), time: booking.check_in_time || '', shuttle: booking.shuttle || '' })}
+                        onClick={() => { setShowStorico(false); setPopup({ id: booking.id, name: nomeOspite(booking), time: booking.check_in_time || '', shuttle: booking.shuttle || '' }) }}
                         style={{
                           position: 'absolute',
                           top: rowTop + 6,
@@ -400,8 +401,26 @@ export default function Arrivi() {
         </div>
       )}
 
-      {/* Popup orario */}
-      {popup && (
+      {/* Popup orario + navetta, con la memoria degli arrivi precedenti */}
+      {popup && (() => {
+        // Storico arrivi del cliente (24/08/2026): visite precedenti dello
+        // stesso cliente (scheda, non nome), solo veri arrivi — i segmenti
+        // preceduti da un check-out dello stesso ospite nello stesso giorno
+        // (prolungamenti e cambi camera) non contano.
+        const cur = bookings.find(b => b.id === popup.id)
+        const precedenti = cur?.guest_id
+          ? bookings
+              .filter(b => b.id !== cur.id && b.guest_id === cur.guest_id && b.check_in < cur.check_in
+                && !bookings.some(x => x.id !== b.id && x.guest_id === b.guest_id && x.check_out === b.check_in))
+              .sort((a, b) => b.check_in.localeCompare(a.check_in))
+          : []
+        const ultimoConOra = precedenti.find(b => b.check_in_time)
+        const dataIt = (s: string) => {
+          const [y, m, dd] = s.split('-').map(Number)
+          return new Date(y, m - 1, dd).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
+        }
+        const navettaTxt = (b: any) => b.shuttle === 'si' ? ' · 🚌' : b.shuttle === 'no' ? ' · no navetta' : ''
+        return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4" onClick={() => setPopup(null)}>
           <div className="bg-white rounded-2xl p-5 w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <p className="font-bold text-lg mb-1">{popup.name}</p>
@@ -429,6 +448,45 @@ export default function Arrivi() {
                 </button>
               ))}
             </div>
+            {/* Memoria: "arriviamo come sempre" — cosa significa davvero.
+                Solo consultazione: niente viene compilato da solo. */}
+            {precedenti.length > 0 && (
+              <div className="rounded-xl p-3 mb-4" style={{ background: '#F5F1E8' }}>
+                {ultimoConOra ? (
+                  <p className="text-sm text-green-dark">
+                    Ultimo arrivo registrato: <span className="font-bold">{dataIt(ultimoConOra.check_in)} — {ultimoConOra.check_in_time}</span>{navettaTxt(ultimoConOra)}
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500">Già ospite {precedenti.length === 1 ? 'una volta' : `${precedenti.length} volte`}, ma senza orari registrati</p>
+                )}
+                <div className="flex items-center gap-3 mt-1.5">
+                  <button type="button" onClick={() => setShowStorico(s => !s)}
+                    className="text-xs text-stone underline decoration-dotted underline-offset-2">
+                    {showStorico ? 'nascondi storico' : `Vedi storico arrivi (${precedenti.length})`}
+                  </button>
+                  {ultimoConOra && (
+                    <button type="button"
+                      onClick={() => setPopup({ ...popup, time: ultimoConOra.check_in_time, shuttle: ultimoConOra.shuttle || popup.shuttle })}
+                      className="text-xs font-semibold rounded-full border border-card-border bg-white px-3 py-1"
+                      style={{ color: '#2D6A4F' }}>
+                      Usa come l&apos;ultima volta
+                    </button>
+                  )}
+                </div>
+                {showStorico && (
+                  <div className="mt-2 pt-2" style={{ borderTop: '1px solid #E5DCCB' }}>
+                    {precedenti.map(b => (
+                      <p key={b.id} className="text-xs text-green-dark mb-1 last:mb-0">
+                        <span className="font-semibold">{dataIt(b.check_in)}</span>
+                        {b.check_in_time ? ` — arrivo ${b.check_in_time}` : <span className="text-gray-400"> — orario non registrato</span>}
+                        {navettaTxt(b)}
+                        {roomNameById[b.room_id] ? <span className="text-stone"> · {roomNameById[b.room_id]}</span> : null}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex gap-2">
               <button onClick={() => router.push(`/prenotazioni/${popup.id}`)} className="flex-1 border border-card-border text-gray-600 rounded-xl py-3 font-semibold text-sm">
                 Apri prenotazione
@@ -439,7 +497,8 @@ export default function Arrivi() {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Legenda */}
       <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border flex gap-4 items-center">
