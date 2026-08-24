@@ -79,3 +79,16 @@ left join pg_policies p
 where t.schemaname = 'public'
 group by t.tablename, t.rowsecurity
 order by t.tablename;
+
+-- Pulizie e registro notifiche (migrazione 0018): stessa regola delle altre
+-- tabelle — solo utenti loggati; il cron usa la service role e non è toccato.
+alter table public.cleanings enable row level security;
+alter table public.push_log  enable row level security;
+
+drop policy if exists "accesso_utenti_autenticati" on public.cleanings;
+create policy "accesso_utenti_autenticati" on public.cleanings
+  for all to authenticated using (true) with check (true);
+
+drop policy if exists "accesso_utenti_autenticati" on public.push_log;
+create policy "accesso_utenti_autenticati" on public.push_log
+  for all to authenticated using (true) with check (true);
