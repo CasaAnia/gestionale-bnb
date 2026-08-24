@@ -5,6 +5,7 @@ import { registraPush } from '@/lib/pushLog'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { isCronAuthorized } from '@/lib/cronAuth'
 import { attive, addDaysStr, todayStr } from '@/lib/pulizie'
+import { suffissoNavettaNotifica } from '@/lib/navetta'
 
 // Cron giornaliero delle 14 UTC (16:00 italiane d'estate): notifica arrivi
 // di domani + pulizie in scadenza domani. A quell'ora la data UTC coincide
@@ -32,6 +33,15 @@ export async function GET(req: NextRequest) {
 
   const arriviDomani = attive(bookings || [])
 
+  // Ospiti già in struttura che domani si spostano (cambio camera): per loro
+  // la navetta non ha senso, non va segnalata come "da definire".
+  const { data: uscite } = await supabase
+    .from('bookings')
+    .select('guest_id, status')
+    .eq('check_out', tomorrowStr)
+    .neq('status', 'annullata')
+  const inCasa = new Set(attive(uscite || []).map((b: any) => b.guest_id).filter(Boolean))
+
   let arrivi: any = { sent: 0, message: 'Nessun arrivo domani' }
   if (arriviDomani.length > 0) {
     const lines = arriviDomani.map((b: any) => {
@@ -39,7 +49,8 @@ export async function GET(req: NextRequest) {
       const ospite = b.guest_name || b.guests?.full_name || 'Ospite'
       const orario = b.check_in_time ? ` 🕐 ${b.check_in_time}` : ''
       const letto = b.extra_bed ? ' 🛏 +letto' : ''
-      return `• ${camera}: ${ospite}${orario}${letto}`
+      const navetta = inCasa.has(b.guest_id) ? '' : suffissoNavettaNotifica(b)
+      return `• ${camera}: ${ospite}${orario}${letto}${navetta}`
     })
 
     const titolo = `🏠 ${arriviDomani.length} ${arriviDomani.length === 1 ? 'arrivo' : 'arrivi'} domani`

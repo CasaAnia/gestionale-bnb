@@ -43,7 +43,7 @@ function NuovaPrenotazione() {
   const [guest, setGuest] = useState<any>(null)
   const [guestHistory, setGuestHistory] = useState<any[]>([])
   const [rooms, setRooms] = useState<any[]>([])
-  const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '', bonifico: false, source: 'diretta', extra_phone_1_name: '', chi_e: '' })
+  const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', shuttle: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '', bonifico: false, source: 'diretta', extra_phone_1_name: '', chi_e: '' })
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -299,6 +299,8 @@ function NuovaPrenotazione() {
       extra_phone_1_name: form.extra_phone_1_name || null,
       // chi_e incluso solo se valorizzato: così il salvataggio funziona anche se la colonna non è ancora stata creata su Supabase
       ...(form.chi_e ? { chi_e: form.chi_e } : {}),
+      // navetta: stessa regola (vuoto = "da definire", non si salva nulla)
+      ...(form.shuttle ? { shuttle: form.shuttle } : {}),
     })
     setSaving(false)
     if (bookingError) {
@@ -329,6 +331,7 @@ function NuovaPrenotazione() {
               check_in: savedCheckOut,
               check_out: addOneDay(savedCheckOut),
               check_in_time: '',
+              shuttle: '',
               extra_bed: false,
               extra_bed_dates: [],
               price_per_night: 0,
@@ -556,6 +559,19 @@ function NuovaPrenotazione() {
                 }}
                 maxLength={5}
                 className="w-full border border-card-border rounded-lg p-2 text-sm" />
+            </div>
+
+            <div className="mb-3">
+              <p className="text-sm text-gray-500 mb-1">🚌 Navetta</p>
+              <div className="flex gap-1.5">
+                {([['', 'Da definire'], ['si', 'Sì'], ['no', 'No']] as const).map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => setForm({ ...form, shuttle: v })}
+                    className={`rounded-full text-sm font-semibold px-4 py-1.5 ${form.shuttle === v ? 'text-white' : 'border border-card-border bg-white text-stone'}`}
+                    style={form.shuttle === v ? { background: '#2D6A4F' } : undefined}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 mb-3">

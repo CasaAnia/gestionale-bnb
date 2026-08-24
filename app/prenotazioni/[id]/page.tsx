@@ -524,6 +524,7 @@ export default function BookingDetail() {
       setEditForm(b ? {
         room_id: b.room_id, check_in: b.check_in, check_out: b.check_out,
         check_in_time: b.check_in_time || '',
+        shuttle: b.shuttle || '',
         num_guests: b.num_guests, extra_bed: b.extra_bed, extra_bed_dates: b.extra_bed_dates || (b.extra_bed ? getDaysBetween(b.check_in, b.check_out) : []), price_per_night: Number(b.price_per_night),
         discount_type: b.discount_type || null,
         discount_value: b.discount_value ?? null,
@@ -763,6 +764,8 @@ export default function BookingDetail() {
         discount_value: editForm.discount_type ? Number(editForm.discount_value) : null,
       } : {}),
       check_in_time: editForm.check_in_time || null,
+      // navetta inclusa solo a colonna migrata o se valorizzata (come chi_e)
+      ...(booking.shuttle !== undefined || editForm.shuttle ? { shuttle: editForm.shuttle || null } : {}),
       notes: editForm.notes || null,
       color: editForm.color || null,
       bonifico: editForm.bonifico || false,
@@ -1147,6 +1150,19 @@ export default function BookingDetail() {
               }}
               maxLength={5}
               className="w-full border border-card-border rounded-lg p-2 text-sm" />
+          </div>
+
+          <div className="mb-3">
+            <p className="text-xs text-gray-500 mb-1">🚌 Navetta</p>
+            <div className="flex gap-1.5">
+              {([['', 'Da definire'], ['si', 'Sì'], ['no', 'No']] as const).map(([v, label]) => (
+                <button key={v} type="button" onClick={() => setEditForm({ ...editForm, shuttle: v })}
+                  className={`rounded-full text-sm font-semibold px-4 py-1.5 ${editForm.shuttle === v ? 'text-white' : 'border border-card-border bg-white text-stone'}`}
+                  style={editForm.shuttle === v ? { background: '#2D6A4F' } : undefined}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 mb-3">

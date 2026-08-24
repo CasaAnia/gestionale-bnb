@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getUpcomingRoomChanges, buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite } from '@/lib/guestName'
+import { testoNavetta } from '@/lib/navetta'
 import BackLink from '@/components/BackLink'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -49,7 +50,7 @@ export default function Arrivi() {
   const [bookings, setBookings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
-  const [popup, setPopup] = useState<{ id: string; name: string; time: string } | null>(null)
+  const [popup, setPopup] = useState<{ id: string; name: string; time: string; shuttle: string } | null>(null)
   const [savingTime, setSavingTime] = useState(false)
   const popupTimeRef = useRef<HTMLInputElement>(null)
 
@@ -133,12 +134,22 @@ export default function Arrivi() {
     setVisibleMonth(prev => (prev === label ? prev : label))
   }
 
+  // Salva insieme orario e navetta: un solo pannello, un solo dato condiviso
+  // con il modulo prenotazione. Se la colonna shuttle non esiste ancora
+  // (migrazione 0019 da incollare), l'orario si salva comunque.
   async function saveTime() {
     if (!popup) return
     setSavingTime(true)
     const time = popup.time
-    await supabase.from('bookings').update({ check_in_time: time || null }).eq('id', popup.id)
-    setBookings(bookings.map(b => b.id === popup.id ? { ...b, check_in_time: time || null } : b))
+    const shuttle = popup.shuttle || null
+    const { error } = await supabase.from('bookings').update({ check_in_time: time || null, shuttle }).eq('id', popup.id)
+    if (error) {
+      await supabase.from('bookings').update({ check_in_time: time || null }).eq('id', popup.id)
+      if (popup.shuttle) alert('Orario salvato, ma la navetta no: va incollata la migrazione 0019 su Supabase.')
+      setBookings(bookings.map(b => b.id === popup.id ? { ...b, check_in_time: time || null } : b))
+    } else {
+      setBookings(bookings.map(b => b.id === popup.id ? { ...b, check_in_time: time || null, shuttle } : b))
+    }
     setSavingTime(false)
     setPopup(null)
   }
@@ -312,7 +323,7 @@ export default function Arrivi() {
 
                     return (
                       <div key={booking.id}
-                        onClick={() => setPopup({ id: booking.id, name: nomeOspite(booking), time: booking.check_in_time || '' })}
+                        onClick={() => setPopup({ id: booking.id, name: nomeOspite(booking), time: booking.check_in_time || '', shuttle: booking.shuttle || '' })}
                         style={{
                           position: 'absolute',
                           top: rowTop + 6,
@@ -347,6 +358,19 @@ export default function Arrivi() {
                           }}>
                             {isCambio ? '⇄' : (time || '?')}
                           </span>
+                          {/* Navetta: 🚌 ben visibile se sì, 🚌? ambrato se da definire,
+                              niente se no (o colonna non ancora migrata). Non sui cambi
+                              camera: l'ospite è già in struttura. */}
+                          {!isCambio && 'shuttle' in booking && booking.shuttle !== 'no' && (
+                            <span style={{
+                              flexShrink: 0, lineHeight: 1, borderRadius: 4, padding: '1px 4px',
+                              fontSize: isDesktop ? gs(12) : gs(10), fontWeight: 800,
+                              background: booking.shuttle === 'si' ? 'rgba(255,255,255,0.92)' : 'rgba(240,205,120,0.95)',
+                              color: '#1F3D2F',
+                            }}>
+                              {booking.shuttle === 'si' ? '🚌' : '🚌?'}
+                            </span>
+                          )}
                           {/* Nome */}
                           <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? gs(13) : gs(10), fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                             {nomeOspite(booking)}{hasOutgoing ? ' ⇄' : ''}
@@ -379,7 +403,9 @@ export default function Arrivi() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4" onClick={() => setPopup(null)}>
           <div className="bg-white rounded-2xl p-5 w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <p className="font-bold text-lg mb-1">{popup.name}</p>
-            <p className="text-sm text-gray-500 mb-4">Orario di arrivo</p>
+            <p className="text-sm text-gray-500 mb-4">
+              {popup.time || 'Orario da definire'} · {testoNavetta((popup.shuttle || null) as any)}
+            </p>
             <input
               type="text" inputMode="numeric" placeholder="HH:MM"
               value={popup.time}
@@ -389,14 +415,24 @@ export default function Arrivi() {
                 setPopup({ ...popup, time: v })
               }}
               maxLength={5}
-              className="w-full border border-card-border rounded-xl p-3 text-2xl font-bold text-center mb-4"
+              className="w-full border border-card-border rounded-xl p-3 text-2xl font-bold text-center mb-3"
             />
+            <p className="text-xs text-gray-500 mb-1.5">🚌 Navetta</p>
+            <div className="flex gap-1.5 mb-4">
+              {([['', 'Da definire'], ['si', 'Sì'], ['no', 'No']] as const).map(([v, label]) => (
+                <button key={v} type="button" onClick={() => setPopup({ ...popup, shuttle: v })}
+                  className={`flex-1 rounded-full text-sm font-semibold py-2 ${popup.shuttle === v ? 'text-white' : 'border border-card-border bg-white text-stone'}`}
+                  style={popup.shuttle === v ? { background: '#2D6A4F' } : undefined}>
+                  {label}
+                </button>
+              ))}
+            </div>
             <div className="flex gap-2">
               <button onClick={() => router.push(`/prenotazioni/${popup.id}`)} className="flex-1 border border-card-border text-gray-600 rounded-xl py-3 font-semibold text-sm">
                 Apri prenotazione
               </button>
               <button onClick={saveTime} disabled={savingTime} className="flex-1 bg-green-mid text-white rounded-xl py-3 font-semibold disabled:opacity-50">
-                {savingTime ? 'Salvo...' : 'Salva orario'}
+                {savingTime ? 'Salvo...' : 'Salva'}
               </button>
             </div>
           </div>
@@ -422,6 +458,14 @@ export default function Arrivi() {
             <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', fontSize: 8, fontWeight: 700, color: 'white' }}>⇄</span>
           </div>
           <span className="text-xs text-gray-500">Cambio camera</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span style={{ fontSize: 11 }}>🚌</span>
+          <span className="text-xs text-gray-500">Navetta</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span style={{ fontSize: 9, fontWeight: 800, background: 'rgba(240,205,120,0.95)', borderRadius: 3, padding: '1px 3px', color: '#1F3D2F' }}>🚌?</span>
+          <span className="text-xs text-gray-500">Da definire</span>
         </div>
         <span className="ml-auto text-[9px] text-gray-300">v. {process.env.NEXT_PUBLIC_BUILD_TAG}</span>
       </div>
