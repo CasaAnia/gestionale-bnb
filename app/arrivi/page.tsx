@@ -363,17 +363,18 @@ export default function Arrivi() {
                             {nomeOspite(booking)}{hasOutgoing ? ' ⇄' : ''}
                           </span>
                         </div>
-                        {/* Navetta sotto l'orario, SOLO se confermata: ogni 🚌 nella
-                            griglia significa una cosa sola. "No" e "Da definire" non
-                            mostrano nulla qui (restano nel popup e nei promemoria). */}
+                        {/* Navetta sotto l'orario, SOLO se confermata e solo l'icona:
+                            ogni 🚌 nella griglia significa una cosa sola. "No" e
+                            "Da definire" non mostrano nulla qui (restano nel popup
+                            e nei promemoria). */}
                         {!isCambio && booking.shuttle === 'si' && (
                           <div style={{ display: 'flex', paddingLeft: 8, marginTop: 3 }}>
                             <span style={{
-                              background: 'rgba(255,255,255,0.92)', color: '#1F3D2F',
+                              background: 'rgba(255,255,255,0.92)',
                               borderRadius: 4, padding: '1px 5px', lineHeight: 1.25,
-                              fontSize: isDesktop ? gs(11) : gs(9), fontWeight: 800, whiteSpace: 'nowrap',
+                              fontSize: isDesktop ? gs(11) : gs(9), whiteSpace: 'nowrap',
                             }}>
-                              🚌{barWidth >= 90 ? ' Navetta' : ''}
+                              🚌
                             </span>
                           </div>
                         )}
