@@ -20,8 +20,8 @@ import { isDemoMode } from '@/lib/demoMode'
 // assente (migrazione non ancora applicata).
 
 import type { Ambito, Group, Category, Rule, Fx, Receipt, Item, Subcat, Budget, Voce, Tab, Dettaglio, Msg } from '@/lib/spese/types'
-import { GROUP_COLORS, FALLBACK_COLOR, ACCENT, MESI, eur, eur2, strip, corto, icona } from '@/lib/spese/costanti'
-import { monthKey, monthLabel, giornoBreve, periodoRange, periodoLabel, ritmoEPrevisione } from '@/lib/spese/periodo'
+import { GROUP_COLORS, FALLBACK_COLOR, strip } from '@/lib/spese/costanti'
+import { monthKey, periodoRange, periodoLabel, ritmoEPrevisione } from '@/lib/spese/periodo'
 import { rispondi as rispondiDomanda } from '@/lib/spese/domanda'
 import {
   vociDi as vociDiPure, itemsPerSpesa, sparklinePath, tessereCategorie,
@@ -29,6 +29,13 @@ import {
 } from '@/lib/spese/voci'
 import { filtraPerAmbito } from '@/lib/spese/ambito'
 import * as dati from '@/lib/spese/dati'
+import ScontriniBlock from '@/components/spese/ScontriniBlock'
+import FormSpesa from '@/components/spese/FormSpesa'
+import FiltriSchede from '@/components/spese/FiltriSchede'
+import HomeTab from '@/components/spese/HomeTab'
+import CalendarioTab from '@/components/spese/CalendarioTab'
+import RaccontoTab from '@/components/spese/RaccontoTab'
+import DomandaTab from '@/components/spese/DomandaTab'
 
 export default function SpeseTracker({ ambito, title }: { ambito: Ambito; title: string }) {
   return <DemoGate><Tracker ambito={ambito} title={title} /></DemoGate>
@@ -312,121 +319,6 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     setTab(t); setDettaglio(null); setGiornoSel(''); setShowAll(false)
   }
 
-  // Lista di voci (usata da tessere, racconto, calendario).
-  // Le voci con lo stesso nome vengono SOMMATE (tutti i "kiwi" del mese in
-  // una riga: ×7 e totale); in testa la divisione per negozio; se ci sono
-  // sottocategorie diverse, sezioni con totalino.
-  function ListaVoci({ voci, max }: { voci: Voce[]; max?: number }) {
-    // q = pezzi/confezioni comprati (somma delle qty), righe = da quanti
-    // acquisti viene la somma: la data si mostra solo se l'acquisto è uno.
-    type Agg = { n: string; tot: number; q: number; righe: number; stores: string[]; sott: string; last: string; rids: string[] }
-    // Pastiglie-filtro (scelto da Ania il 16/08/2026): tocchi una persona o un
-    // negozio e la lista mostra solo quello; ritocchi e torna tutto. Le due
-    // scelte si combinano (es. Matteo + Coin). Niente bordi neri: la pastiglia
-    // attiva resta piena con ombra leggera, le altre si attenuano.
-    const [gSel, setGSel] = useState('')
-    const [sSel, setSSel] = useState('')
-    // Totali delle pastiglie: incrociati con l'altro filtro (es. con Coin
-    // attivo, "Matteo" mostra quanto ha speso Matteo da Coin), ma la
-    // pastiglia resta visibile anche a €0 così si può sempre cambiare scelta.
-    const perStore: Record<string, number> = {}
-    const perGruppo: Record<string, number> = {}
-    voci.forEach(v => {
-      const s = corto(v.store)
-      if (s) perStore[s] = (perStore[s] || 0) + ((!gSel || v.g === gSel) ? v.a : 0)
-      if (v.g && v.g !== '—') perGruppo[v.g] = (perGruppo[v.g] || 0) + ((!sSel || corto(v.store) === sSel) ? v.a : 0)
-    })
-    const negozi = Object.entries(perStore).sort((a, b) => b[1] - a[1])
-    const persone = Object.entries(perGruppo).sort((a, b) => b[1] - a[1])
-    const vociVis = voci.filter(v => (!gSel || v.g === gSel) && (!sSel || corto(v.store) === sSel))
-    const m: Record<string, Agg> = {}
-    vociVis.forEach(v => {
-      const k = (v.sott || '') + '|' + strip(v.n)
-      const e = m[k] || (m[k] = { n: v.n, tot: 0, q: 0, righe: 0, stores: [], sott: v.sott || '', last: v.d, rids: [] })
-      e.tot += v.a; e.q += v.q; e.righe++; if (v.d > e.last) e.last = v.d
-      const s = corto(v.store); if (s && !e.stores.includes(s)) e.stores.push(s)
-      if (v.rid && !e.rids.includes(v.rid)) e.rids.push(v.rid)
-    })
-    const righe = Object.values(m).sort((a, b) => b.tot - a.tot).slice(0, max || 999)
-    const sotts = Array.from(new Set(righe.map(r => r.sott)))
-    // Ordine fisso delle sezioni: il campo `sort` di family_subcategories
-    // (es. Abbigliamento: Vestiti, Scarpe, Intimo, Accessori); "Altro" in fondo.
-    const sortDi = (s: string) => {
-      if (!s) return 9e9 // "Altro" sempre in fondo
-      const sc = subcats.filter(x => x.name === s)
-      return sc.length ? Math.min(...sc.map(x => x.sort)) : 8e9
-    }
-    // Le sezioni si mostrano appena c'è ALMENO una sottocategoria vera,
-    // anche unica (es. luglio tutto "Pranzo"); lista piatta solo se
-    // nessuna voce ha la sottocategoria.
-    const mostraSezioni = sotts.some(s => s)
-    const sezioni = mostraSezioni
-      ? sotts.map(s => ({ s, list: righe.filter(r => r.sott === s) }))
-          .sort((a, b) => sortDi(a.s) - sortDi(b.s))
-      : [{ s: '', list: righe }]
-    return (
-      <div className="bg-white rounded-xl p-3 border border-card-border mb-3">
-        {persone.length > 1 && (
-          <div className="flex gap-1.5 flex-wrap pb-2 mb-1">
-            {persone.map(([g, tot]) => {
-              const on = gSel === g
-              return (
-                <button key={g} onClick={() => setGSel(on ? '' : g)}
-                  className={`text-xs px-2 py-1 rounded-full text-white transition ${on ? 'shadow-md' : gSel ? 'opacity-40' : ''}`}
-                  style={{ background: GROUP_COLORS[g] || FALLBACK_COLOR }}>
-                  {on && '✓ '}{g} <b>{eur(tot)}</b>
-                </button>
-              )
-            })}
-          </div>
-        )}
-        {negozi.length > 1 && (
-          <div className="flex gap-1.5 flex-wrap pb-2 mb-1 border-b border-[#F1EEE6]">
-            {negozi.map(([s, tot]) => {
-              const on = sSel === s
-              return (
-                <button key={s} onClick={() => setSSel(on ? '' : s)}
-                  className={`text-xs bg-sand text-[#7A5C1E] px-2 py-1 rounded-full transition ${on ? 'shadow-md' : sSel ? 'opacity-40' : ''}`}>
-                  {on && '✓ '}{s} <b>{eur(tot)}</b>
-                </button>
-              )
-            })}
-          </div>
-        )}
-        {sezioni.map(({ s, list }) => (
-          <div key={s || '·'}>
-            {mostraSezioni && (
-              <p className="flex justify-between text-[11px] uppercase tracking-wide text-brass pt-2">
-                <span>{s || 'Altro'}</span>
-                <span>{eur2(list.reduce((x, r) => x + r.tot, 0))}</span>
-              </p>
-            )}
-            {list.map(r => (
-              <div key={(r.sott || '') + r.n} className="flex items-start justify-between gap-2 py-2 border-b border-[#F1EEE6] last:border-b-0 text-sm">
-                <span className="flex-1 min-w-0">{r.n}{r.q > 1 && <span className="text-xs text-gray-400"> ×{r.q}</span>}
-                  <br /><span className="text-xs text-gray-400">
-                    {[r.stores.slice(0, 2).join(', ') + (r.stores.length > 2 ? ` +${r.stores.length - 2}` : ''),
-                      r.righe === 1 ? `${r.last.slice(-2)} ${monthLabel(r.last.slice(0, 7)).slice(0, 3)}` : ''].filter(Boolean).join(' · ')}
-                  </span>
-                  {r.rids.length > 0 && (
-                    <span className="ml-1 whitespace-nowrap">
-                      {r.rids.slice(0, 5).map(id => (
-                        <button key={id} onClick={() => openReceiptPhoto(id)} title="Apri lo scontrino"
-                          className="text-[13px] px-0.5 align-middle">🧾</button>
-                      ))}
-                      {r.rids.length > 5 && <span className="text-xs text-gray-400">+{r.rids.length - 5}</span>}
-                    </span>
-                  )}
-                </span>
-                <span className="font-bold text-[#8C3B2E] shrink-0">{eur2(r.tot)}</span>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    )
-  }
-
   if (needsSetup) return (
     <div className="p-4">
       <BackBar href="/" />
@@ -444,563 +336,66 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       <h1 className="font-serif text-xl text-green-dark max-lg:hidden mb-4">{title}</h1>
 
       {/* SCONTRINI DA LEGGERE */}
-      <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <p className="font-semibold">📷 Scontrini</p>
-          {receipts.length > 0 && (
-            <span className="text-xs bg-sand text-[#7A5C1E] px-2 py-0.5 rounded-full">{receipts.length} da leggere</span>
-          )}
-        </div>
-
-        {/* 1. Bottone principale: apre direttamente la fotocamera */}
-        {staged.length === 0 && (
-          <>
-            <label className="w-full flex items-center justify-center gap-2 bg-green-mid text-white rounded-2xl py-5 text-lg font-semibold cursor-pointer transition active:scale-[0.98]">
-              📷 Scatta scontrino
-              <input type="file" accept="image/*" capture="environment" className="hidden"
-                onChange={e => { const f = e.target.files; if (f && f.length) stagePhotos(f); e.currentTarget.value = '' }} />
-            </label>
-            {/* Alternative usate di rado: piccole, sotto */}
-            <div className="grid grid-cols-3 gap-2 mt-2">
-              <button onClick={() => { setShowForm(!showForm); setForm(blankForm()); setAutoGroup(null) }}
-                className="rounded-lg py-2 text-xs bg-[#FBF9F4] border border-card-border text-gray-600 transition active:scale-[0.97]">
-                {showForm ? '✕ Chiudi' : '＋ Aggiungi'}
-              </button>
-              <label className="rounded-lg py-2 text-xs bg-[#FBF9F4] border border-card-border text-gray-600 text-center cursor-pointer transition active:scale-[0.97]">
-                🖼️ Libreria
-                <input type="file" accept="image/*" multiple className="hidden"
-                  onChange={e => { const f = e.target.files; if (f && f.length) stagePhotos(f); e.currentTarget.value = '' }} />
-              </label>
-              <label className="rounded-lg py-2 text-xs bg-[#FBF9F4] border border-card-border text-gray-600 text-center cursor-pointer transition active:scale-[0.97]">
-                📁 File
-                <input type="file" accept="image/*" multiple className="hidden"
-                  onChange={e => { const f = e.target.files; if (f && f.length) stagePhotos(f); e.currentTarget.value = '' }} />
-              </label>
-            </div>
-          </>
-        )}
-
-        {/* 2. Anteprima + nota + Salva */}
-        {staged.length > 0 && (
-          <div>
-            <div className="grid grid-cols-3 gap-2 mb-2">
-              {staged.map((s, i) => (
-                <div key={i} className="relative">
-                  <img src={s.url} alt="anteprima" className="w-full h-24 object-cover rounded-lg border border-card-border" />
-                  <button onClick={() => removeStaged(i)}
-                    className="absolute top-1 right-1 bg-white/90 rounded-full w-6 h-6 flex items-center justify-center text-[#8C3B2E] text-sm shadow-sm">✕</button>
-                </div>
-              ))}
-              <label className="h-24 flex flex-col items-center justify-center gap-1 border border-dashed border-card-border rounded-lg text-gray-400 text-xs cursor-pointer">
-                <span className="text-xl">＋</span>altra foto
-                <input type="file" accept="image/*" multiple className="hidden"
-                  onChange={e => { const f = e.target.files; if (f && f.length) stagePhotos(f); e.currentTarget.value = '' }} />
-              </label>
-            </div>
-            <textarea value={receiptNote} onChange={e => setReceiptNote(e.target.value)} rows={2}
-              placeholder="Nota:"
-              className="w-full border border-card-border rounded-lg p-2 text-sm mb-2 resize-none" />
-            <button onClick={saveStaged} disabled={uploading}
-              className="w-full bg-green-mid text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
-              {uploading ? 'Salvataggio…' : `💾 Salva ${staged.length > 1 ? staged.length + ' scontrini' : 'scontrino'}`}
-            </button>
-          </div>
-        )}
-
-        {receipts.length > 0 && (
-          <div className="grid grid-cols-3 gap-2 mt-3">
-            {receipts.map(r => (
-              <div key={r.id} className="relative">
-                {receiptUrls[r.id]
-                  ? <img src={receiptUrls[r.id]} alt="scontrino" onClick={() => window.open(receiptUrls[r.id], '_blank')}
-                      className="w-full h-24 object-cover rounded-lg border border-card-border cursor-pointer" />
-                  : <div className="w-full h-24 rounded-lg bg-sand flex items-center justify-center text-2xl">🧾</div>}
-                <button onClick={() => editReceiptNote(r)} className="block w-full text-left text-[10px] text-gray-500 mt-0.5 truncate">
-                  {r.note ? r.note : <span className="text-brass">✏️ aggiungi nota</span>}
-                </button>
-                <button onClick={() => deleteReceipt(r)}
-                  className="absolute top-1 right-1 bg-white/90 rounded-full w-6 h-6 flex items-center justify-center text-[#8C3B2E] text-sm shadow-sm">✕</button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <ScontriniBlock receipts={receipts} receiptUrls={receiptUrls} staged={staged}
+        receiptNote={receiptNote} uploading={uploading} showForm={showForm}
+        onStagePhotos={stagePhotos} onRemoveStaged={removeStaged} onSaveStaged={saveStaged}
+        onReceiptNote={setReceiptNote}
+        onToggleForm={() => { setShowForm(!showForm); setForm(blankForm()); setAutoGroup(null) }}
+        onEditNote={editReceiptNote} onDelete={deleteReceipt} />
 
       {/* FORM */}
       {showForm && (
-        <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
-          <p className="font-semibold mb-3">Nuova spesa</p>
-
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <input type="date" value={form.expense_date} onChange={e => setForm({ ...form, expense_date: e.target.value })}
-              className="border border-card-border rounded-lg p-2 text-sm" />
-            <input inputMode="decimal" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}
-              placeholder="Importo €" className="border border-card-border rounded-lg p-2 text-sm" />
-          </div>
-
-          <input value={form.description}
-            onChange={e => setForm(applyRules(e.target.value, { ...form, description: e.target.value }))}
-            placeholder="Descrizione (es. bar, Esselunga, vodka…)" className="w-full border border-card-border rounded-lg p-2 text-sm mb-2" />
-
-          {autoGroup && (
-            <p className="text-xs mb-2 px-2 py-1 rounded-lg" style={{ background: '#F3ECD8', color: '#7A5C1E' }}>
-              Regola prodotto → assegnato a <b>{autoGroup}</b> (puoi cambiarlo qui sotto)
-            </p>
-          )}
-
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <select value={form.group_id} onChange={e => { setForm({ ...form, group_id: e.target.value, category_id: '' }); setAutoGroup(null) }}
-              className="border border-card-border rounded-lg p-2 text-sm">
-              <option value="">Gruppo…</option>
-              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-            <select value={form.category_id} onChange={e => setForm({ ...form, category_id: e.target.value, subcategory: '' })}
-              disabled={!form.group_id} className="border border-card-border rounded-lg p-2 text-sm disabled:opacity-50">
-              <option value="">Categoria…</option>
-              {catsForGroup.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-
-          {/* Sottocategoria (solo se la categoria scelta ne ha) */}
-          {(() => {
-            const opts = subcats.filter(s => s.category_name === catName(form.category_id))
-            if (!opts.length) return null
-            return (
-              <select value={form.subcategory} onChange={e => setForm({ ...form, subcategory: e.target.value })}
-                className="w-full border border-card-border rounded-lg p-2 text-sm mb-2">
-                <option value="">Sottocategoria…</option>
-                {opts.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-              </select>
-            )
-          })()}
-
-          <input list="stores-list" value={form.store} onChange={e => setForm({ ...form, store: e.target.value })}
-            placeholder="Negozio" className="w-full border border-card-border rounded-lg p-2 text-sm mb-2" />
-          <datalist id="stores-list">{stores.map(s => <option key={s} value={s} />)}</datalist>
-
-          <label className="flex items-center gap-2 text-sm mb-3 text-gray-600">
-            <input type="checkbox" checked={form.recurring} onChange={e => setForm({ ...form, recurring: e.target.checked })} />
-            Spesa ricorrente (acqua, frutta, verdura…)
-          </label>
-
-          <button onClick={save} disabled={saving || !form.amount}
-            className="w-full bg-[#C58A67] text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
-            {saving ? 'Salvataggio…' : 'Salva spesa'}
-          </button>
-        </div>
+        <FormSpesa form={form} setForm={setForm} autoGroup={autoGroup} setAutoGroup={setAutoGroup}
+          groups={groups} catsForGroup={catsForGroup} subcats={subcats} stores={stores}
+          saving={saving} catName={catName} applyRules={applyRules} onSave={save} />
       )}
 
-      {/* LE 4 SCHEDE */}
-      <div className="flex gap-1.5 bg-sand rounded-xl p-1 mb-3">
-        {([['home', '🏠', 'Home'], ['calendario', '📅', 'Calendario'], ['racconto', '📖', 'Racconto'], ['domanda', '💬', 'Domanda']] as const).map(([t, ic, label]) => (
-          <button key={t} onClick={() => cambiaTab(t)}
-            className={`flex-1 rounded-lg py-1.5 text-xs leading-tight transition ${tab === t ? 'bg-white text-green-mid font-bold shadow-sm' : 'text-gray-500'}`}>
-            {ic}<br />{label}
-          </button>
-        ))}
-      </div>
-
-      {/* DI CHI (non serve nella Domanda: lì si chiede a parole) */}
-      {tab !== 'domanda' && groups.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1 mb-2">
-          <button onClick={() => setGFilter('')}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${gFilter === '' ? 'text-white border-transparent' : 'bg-white text-gray-600 border-card-border'}`}
-            style={gFilter === '' ? { background: ACCENT } : {}}>
-            Tutti
-          </button>
-          {groups.map(g => {
-            const on = gFilter === g.id
-            return (
-              <button key={g.id} onClick={() => { setGFilter(on ? '' : g.id); setDettaglio(null) }}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${on ? 'text-white border-transparent' : 'bg-white text-gray-600 border-card-border'}`}
-                style={on ? { background: GROUP_COLORS[g.name] || FALLBACK_COLOR } : {}}>
-                {g.name === 'Matteo e Ania' ? 'M e A' : g.name}
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Periodo scelto (non serve nella Domanda: lì si chiede a parole).
-          Nel Calendario niente bottoni: la griglia è per forza mensile. */}
-      {tab !== 'domanda' && (
-        <>
-          {tab !== 'calendario' && (
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1 mb-2">
-              {([['anno', 'Anno'], ['mese', 'Mese'], ['settimana', 'Settimana'], ['intervallo', 'Dal–al']] as const).map(([m, label]) => (
-                <button key={m} onClick={() => { setPeriodMode(m); setDettaglio(null); setShowAll(false) }}
-                  className={`shrink-0 rounded-full px-3 py-1.5 text-sm border transition ${periodMode === m ? 'text-white border-transparent' : 'bg-white text-gray-600 border-card-border'}`}
-                  style={periodMode === m ? { background: ACCENT } : {}}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-          {isMese ? (
-            <div className="flex items-center justify-center gap-4 mb-3">
-              <button onClick={() => cambiaMese(-1)} aria-label="Mese precedente"
-                className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">‹</button>
-              <span className="font-serif text-base text-green-dark capitalize min-w-[130px] text-center">
-                {new Date(month + '-01T00:00:00').toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
-              </span>
-              <button onClick={() => cambiaMese(1)} aria-label="Mese successivo"
-                className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">›</button>
-            </div>
-          ) : periodMode === 'settimana' ? (
-            <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
-              <span className="text-sm text-gray-500">Settimana dal</span>
-              <input type="date" value={weekAnchor} onChange={e => { setWeekAnchor(e.target.value); setDettaglio(null) }}
-                className="border border-card-border rounded-lg p-2 text-sm bg-white" />
-              <span className="text-xs text-gray-400">{giornoBreve(periodStart)} → {giornoBreve(periodEnd)}</span>
-            </div>
-          ) : periodMode === 'anno' ? (
-            <div className="flex items-center justify-center gap-4 mb-3">
-              <button onClick={() => { setYear(String(Number(year) - 1)); setDettaglio(null) }} aria-label="Anno precedente"
-                className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">‹</button>
-              <span className="font-serif text-base text-green-dark min-w-[80px] text-center">{year}</span>
-              <button onClick={() => { setYear(String(Number(year) + 1)); setDettaglio(null) }} aria-label="Anno successivo"
-                className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">›</button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
-              <span className="text-sm text-gray-500">Dal</span>
-              <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setDettaglio(null) }}
-                className="border border-card-border rounded-lg p-2 text-sm bg-white" />
-              <span className="text-sm text-gray-500">al</span>
-              <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setDettaglio(null) }}
-                className="border border-card-border rounded-lg p-2 text-sm bg-white" />
-            </div>
-          )}
-        </>
-      )}
+      {/* LE 4 SCHEDE + DI CHI + PERIODO */}
+      <FiltriSchede tab={tab} cambiaTab={cambiaTab} groups={groups} gFilter={gFilter}
+        setGFilter={setGFilter} chiudiDettaglio={() => setDettaglio(null)}
+        periodMode={periodMode} setPeriodMode={setPeriodMode} isMese={isMese}
+        month={month} cambiaMese={cambiaMese}
+        weekAnchor={weekAnchor} setWeekAnchor={setWeekAnchor} year={year} setYear={setYear}
+        fromDate={fromDate} setFromDate={setFromDate} toDate={toDate} setToDate={setToDate}
+        periodStart={periodStart} periodEnd={periodEnd} resetShowAll={() => setShowAll(false)} />
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento…</div>
       ) : tab === 'home' ? (
         /* ================= 🏠 HOME ================= */
-        speseMese.length === 0 ? (
-          <div className="text-center py-10 text-gray-400">Nessuna spesa in questo periodo</div>
-        ) : (
-          <>
-            {/* Speso del periodo + ritmo + linea (ritmo e linea solo per mese) */}
-            <div className="bg-white rounded-xl p-4 border border-card-border mb-3 text-center">
-              <p className="text-xs text-gray-400">Speso {periodLabel}</p>
-              <p className="font-serif text-4xl text-[#8C3B2E]">{eur(totMese)}</p>
-              {isMese && isCurrentMonth && (
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {eur(mediaGiorno)} al giorno · di questo passo ~ <b className="text-[#8C3B2E]">{eur(previsione)}</b> a fine mese
-                </p>
-              )}
-              {isMese && (
-                <>
-                  <svg viewBox="0 0 340 56" className="w-full h-[48px] mt-2">
-                    <path d={sparkline} fill="none" stroke={ACCENT} strokeWidth="2.5" strokeLinecap="round" />
-                  </svg>
-                  <div className="flex justify-between text-[10px] text-gray-400">
-                    <span>1</span><span className="capitalize">{monthLabel(month)}</span><span>{daysInMonth}</span>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* IL CONTO DEL CAFFÈ */}
-            {caffeMese.tot > 0 && (
-              <button onClick={() => apriDettaglio(`☕ I caffè di ${monthLabel(month)} · ${eur2(caffeMese.tot)}`, caffeMese.voci)}
-                className="w-full bg-sand rounded-xl px-4 py-3 border border-card-border mb-3 text-left transition active:scale-[0.99]">
-                <p className="text-sm text-green-dark">
-                  ☕ <b>{caffeMese.nC} caffè{caffeMese.nK > 0 ? ` e ${caffeMese.nK} cappuccini` : ''}</b> fuori casa questo mese
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Ti sono costati <b className="text-[#8C3B2E]">{eur2(caffeMese.tot)}</b>{caffeMese.pasti > 0 ? ` (di cui ${eur2(caffeMese.pasti)} a pranzo/cena)` : ''} · tocca per l'elenco
-                </p>
-              </button>
-            )}
-
-            {/* Tessere categoria */}
-            <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Le tue voci · tocca per il dettaglio</p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {tessere.map(t => (
-                <button key={t.cat}
-                  onClick={() => apriDettaglio(`${icona(t.cat)} ${t.cat} · ${eur(t.tot)}`, vociMese.filter(v => v.cat === t.cat))}
-                  className="bg-white rounded-xl p-3 border border-card-border text-left transition active:scale-[0.98]">
-                  <p className="text-xl">{icona(t.cat)}</p>
-                  <p className="text-xs text-green-dark mt-0.5">{t.cat}</p>
-                  <p className="font-serif text-lg text-[#8C3B2E]">
-                    {eur(t.tot)}{' '}
-                    <span className="text-xs">
-                      {t.prev > 0 && (t.tot > t.prev * 1.1 ? <span className="text-[#8C3B2E]">▲</span>
-                        : t.tot < t.prev * 0.9 ? <span className="text-green-mid">▼</span> : <span className="text-gray-400">≈</span>)}
-                    </span>
-                  </p>
-                  <p className="text-[11px] text-gray-400">{t.n} {t.n === 1 ? 'voce' : 'voci'}</p>
-                </button>
-              ))}
-            </div>
-
-            {/* Dettaglio tessera aperta */}
-            {dettaglio && (
-              <>
-                <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass">{dettaglio.titolo}</p>
-                  <button onClick={() => setDettaglio(null)} className="text-xs text-[#8C3B2E] font-semibold">✕ chiudi</button>
-                </div>
-                <ListaVoci voci={dettaglio.voci} />
-              </>
-            )}
-
-            {/* BUDGET MENSILI PER CATEGORIA (solo vista Mese) */}
-            {isMese && budgetsOk && (
-              <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Budget di {monthLabel(month)}</p>
-                  <button onClick={() => setShowBudgetForm(!showBudgetForm)}
-                    className="text-xs text-brass font-semibold">{showBudgetForm ? '✕ Chiudi' : '＋ Budget'}</button>
-                </div>
-                {showBudgetForm && (
-                  <div className="flex gap-2 mb-3">
-                    <select value={budgetForm.category_name} onChange={e => setBudgetForm({ ...budgetForm, category_name: e.target.value })}
-                      className="flex-1 border border-card-border rounded-lg p-2 text-sm min-w-0">
-                      <option value="">Categoria…</option>
-                      {catNames.map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                    <input inputMode="decimal" value={budgetForm.amount} onChange={e => setBudgetForm({ ...budgetForm, amount: e.target.value })}
-                      placeholder="€ al mese" className="w-24 border border-card-border rounded-lg p-2 text-sm" />
-                    <button onClick={saveBudget} disabled={!budgetForm.category_name || !budgetForm.amount}
-                      className="bg-green-mid text-white rounded-lg px-3 text-sm font-semibold disabled:opacity-50">OK</button>
-                  </div>
-                )}
-                {budgetRows.length === 0 && !showBudgetForm && (
-                  <p className="text-sm text-gray-400">Nessun budget impostato: tocca ＋ per dare un tetto a una voce (es. Mangiare fuori).</p>
-                )}
-                <div className="flex flex-col gap-2.5">
-                  {budgetRows.map(({ b, spent }) => {
-                    const ratio = spent / Number(b.monthly_amount)
-                    return (
-                      <button key={b.id} onClick={() => editBudget(b)} className="text-left">
-                        <div className="flex items-center justify-between text-sm mb-1">
-                          <span className="text-green-dark">{b.category_name}</span>
-                          <span className="font-semibold" style={{ color: budgetColor(ratio) }}>
-                            {eur(spent)} su {eur(Number(b.monthly_amount))}{ratio >= 1 ? ' — superato' : ''}
-                          </span>
-                        </div>
-                        <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, ratio * 100)}%`, background: budgetColor(ratio) }} />
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* SPESE FISSE DEL MESE (solo vista Mese) */}
-            {isMese && fisse.length > 0 && (
-              <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Spese fisse del mese</p>
-                  <span className="font-serif text-lg text-[#8C3B2E]">{eur(fisseTot)}</span>
-                </div>
-                <div className="flex flex-col">
-                  {fisse.map(f => (
-                    <div key={f.name} className="flex items-center justify-between text-sm py-1.5 border-b border-[#F1EEE6] last:border-b-0">
-                      <span className="text-green-dark truncate mr-2">🔁 {f.name}</span>
-                      <span className="shrink-0 text-gray-400">
-                        {f.paid
-                          ? <span><span className="text-green-mid">✓</span> {f.day} {monthLabel(month).slice(0, 3)} · <span className="text-gray-600 font-semibold">{eur2(f.tot)}</span></span>
-                          : <span>~ {f.day} {monthLabel(month).slice(0, 3)} · {eur2(f.tot)}</span>}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                {fisse.some(f => !f.paid) && (
-                  <p className="text-[11px] text-gray-400 mt-2">~ = attesa: vista il mese scorso ma non ancora registrata questo mese.</p>
-                )}
-              </div>
-            )}
-
-            {/* ULTIME SPESE + elenco completo */}
-            <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">{showAll ? (isMese ? `Tutte le spese di ${monthLabel(month)}` : `Tutte le spese ${periodLabel}`) : 'Ultime spese'}</p>
-            <div className="flex flex-col gap-2">
-              {(showAll ? [...speseMese] : [...speseMese].slice(0, 5)).map(r => (
-                <div key={r.id} className="bg-white rounded-xl p-3 border border-card-border flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {r.group_id && groups.length > 1 && (
-                        <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ background: colorOf(r.group_id) }}>
-                          {groupName(r.group_id)}
-                        </span>
-                      )}
-                      {r.category_id && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{icona(catName(r.category_id))} {catName(r.category_id)}</span>}
-                      {r.recurring && <span className="text-xs bg-sage text-green-mid px-2 py-0.5 rounded-full">🔁</span>}
-                      {r.receipt_id && (
-                        <button onClick={() => openReceiptPhoto(r.receipt_id!)}
-                          className="text-xs bg-sand text-[#7A5C1E] px-2 py-0.5 rounded-full">🧾 foto</button>
-                      )}
-                    </div>
-                    <p className="text-sm mt-1 truncate">{r.description || '—'}{r.store ? <span className="text-gray-400"> · {r.store}</span> : null}</p>
-                    <p className="text-xs text-gray-400">{r.expense_date}</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <p className="font-bold text-[#8C3B2E]">{eur2(Number(r.amount))}</p>
-                    <button onClick={() => del(r.id)} className="text-gray-300 hover:text-[#8C3B2E] text-lg">✕</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {speseMese.length > 5 && (
-              <button onClick={() => setShowAll(!showAll)} className="mt-3 text-xs text-brass font-semibold">
-                {showAll ? 'Mostra meno' : `Vedi tutte le ${speseMese.length} spese →`}
-              </button>
-            )}
-          </>
-        )
+        <HomeTab speseMese={speseMese} vociMese={vociMese} totMese={totMese}
+          periodLabel={periodLabel} isMese={isMese} isCurrentMonth={isCurrentMonth}
+          mediaGiorno={mediaGiorno} previsione={previsione} sparkline={sparkline}
+          daysInMonth={daysInMonth} month={month} caffeMese={caffeMese} tessere={tessere}
+          dettaglio={dettaglio} apriDettaglio={apriDettaglio} chiudiDettaglio={() => setDettaglio(null)}
+          budgetsOk={budgetsOk} budgetRows={budgetRows} catNames={catNames}
+          showBudgetForm={showBudgetForm} setShowBudgetForm={setShowBudgetForm}
+          budgetForm={budgetForm} setBudgetForm={setBudgetForm}
+          onSaveBudget={saveBudget} onEditBudget={editBudget}
+          fisse={fisse} fisseTot={fisseTot} showAll={showAll} setShowAll={setShowAll}
+          groups={groups} subcats={subcats} groupName={groupName} catName={catName}
+          colorOf={colorOf} onOpenReceipt={openReceiptPhoto} onDelete={del} />
       ) : tab === 'calendario' ? (
         /* ================= 📅 CALENDARIO ================= */
-        <>
-          <div className="bg-white rounded-xl p-4 border border-card-border mb-3 text-center">
-            <p className="font-serif text-4xl text-[#8C3B2E]">{eur(totMese)}</p>
-            <p className="text-xs text-gray-400">{Object.keys(perGiorno).length} giorni con spese</p>
-          </div>
-          <div className="bg-white rounded-xl p-3 border border-card-border mb-3">
-            <div className="grid grid-cols-7 gap-1.5">
-              {['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'].map(d => (
-                <div key={d} className="text-center text-[10px] uppercase text-brass py-0.5">{d}</div>
-              ))}
-              {Array.from({ length: (new Date(Number(month.slice(0, 4)), Number(month.slice(5)) - 1, 1).getDay() + 6) % 7 }).map((_, i) => <div key={'v' + i} />)}
-              {Array.from({ length: daysInMonth }).map((_, i) => {
-                const g = i + 1
-                const sp = perGiorno[g]
-                const gs = `${month}-${String(g).padStart(2, '0')}`
-                const max = Math.max(1, ...Object.values(perGiorno))
-                if (!sp) return (
-                  <div key={g} className="aspect-square rounded-lg border border-dashed border-card-border flex items-center justify-center text-xs text-gray-300">{g}</div>
-                )
-                const t = sp / max
-                const bg = t > 0.66 ? '#E5B8A6' : t > 0.33 ? '#F0D4C4' : '#F8EADF'
-                return (
-                  <button key={g} onClick={() => { setGiornoSel(giornoSel === gs ? '' : gs); setDettaglio(null) }}
-                    className="aspect-square rounded-lg border flex flex-col items-center justify-center transition active:scale-[0.93]"
-                    style={{ background: bg, borderColor: giornoSel === gs ? ACCENT : 'transparent', borderWidth: giornoSel === gs ? 2 : 1 }}>
-                    <span className="text-xs font-semibold text-green-dark">{g}</span>
-                    <span className="text-[9px] font-bold text-[#8C3B2E]">{eur(sp)}</span>
-                  </button>
-                )
-              })}
-            </div>
-            <p className="text-[11px] text-gray-400 mt-2">Più il giorno è scuro, più avete speso. Toccane uno.</p>
-          </div>
-          {giornoSel && (() => {
-            const v = vociDi(rows.filter(r => r.expense_date === giornoSel))
-            if (!v.length) return null
-            return (
-              <>
-                <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5 capitalize">
-                  {new Date(giornoSel + 'T00:00:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })} · {eur2(v.reduce((s, x) => s + x.a, 0))}
-                </p>
-                <ListaVoci voci={v} />
-              </>
-            )
-          })()}
-        </>
+        <CalendarioTab month={month} daysInMonth={daysInMonth} perGiorno={perGiorno}
+          totMese={totMese} giornoSel={giornoSel}
+          onGiorno={gs => { setGiornoSel(giornoSel === gs ? '' : gs); setDettaglio(null) }}
+          vociGiorno={giornoSel ? vociDi(rows.filter(r => r.expense_date === giornoSel)) : []}
+          subcats={subcats} onOpenReceipt={openReceiptPhoto} />
       ) : tab === 'racconto' ? (
         /* ================= 📖 RACCONTO ================= */
         !racconto ? (
           <div className="text-center py-10 text-gray-400">Nessuna spesa da raccontare in questo periodo</div>
         ) : (
-          <>
-            <div className="bg-white rounded-xl p-4 border border-card-border mb-3 text-[15px] leading-relaxed text-green-dark">
-              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-2">
-                {isMese ? `Il racconto di ${monthLabel(month)}` : `Il racconto · ${periodLabel}`}
-              </p>
-              <p>
-                {isMese ? 'Questo mese' : 'In questo periodo'} avete speso{' '}
-                <button onClick={() => apriDettaglio(`Tutte le voci · ${eur(totMese)}`, vociMese)}
-                  className="inline font-bold text-[#8C3B2E] border-b-2 border-dotted border-[#D2A98C]">{eur(totMese)}</button>
-                {racconto.diff !== null && (racconto.diff <= 0
-                  ? <>, il <span className="text-green-mid font-semibold">{Math.abs(racconto.diff)}% in meno</span> di {monthLabel(mKey(-1))} 👏</>
-                  : <>, il <span className="text-[#8C3B2E] font-semibold">{racconto.diff}% in più</span> di {monthLabel(mKey(-1))}</>)}.{' '}
-                La voce più pesante è stata{' '}
-                <button onClick={() => apriDettaglio(`${icona(racconto.topCat[0])} ${racconto.topCat[0]} · ${eur(racconto.topCat[1])}`, vociMese.filter(v => v.cat === racconto.topCat[0]))}
-                  className="inline font-bold text-[#8C3B2E] border-b-2 border-dotted border-[#D2A98C]">{racconto.topCat[0].toLowerCase()} ({eur(racconto.topCat[1])})</button>
-                {racconto.topS && <>, e il negozio dove avete lasciato di più è{' '}
-                  <button onClick={() => apriDettaglio(`🏪 ${racconto.topS[0]} · ${eur(racconto.topS[1])}`, vociMese.filter(v => corto(v.store) === racconto.topS[0]))}
-                    className="inline font-bold text-[#8C3B2E] border-b-2 border-dotted border-[#D2A98C]">{racconto.topS[0]} ({eur(racconto.topS[1])})</button></>}.
-              </p>
-              <p className="mt-2">
-                L&apos;acquisto singolo più caro: <b className="text-[#8C3B2E]">{racconto.topVoce.n} ({eur2(racconto.topVoce.a)})</b>.
-                {racconto.caffe.length > 0 && <>{' '}E il rito del bar?{' '}
-                  <button onClick={() => apriDettaglio(`☕ Caffè e cappuccini · ${eur2(racconto.caffe.reduce((s, v) => s + v.a, 0))}`, racconto.caffe)}
-                    className="inline font-bold text-[#8C3B2E] border-b-2 border-dotted border-[#D2A98C]">
-                    {racconto.caffe.length} caffè e cappuccini, {eur2(racconto.caffe.reduce((s, v) => s + v.a, 0))}</button> ☕</>}
-              </p>
-            </div>
-
-            {groups.length > 1 && (
-              <div className="bg-white rounded-xl p-4 border border-card-border mb-3">
-                <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Chi ha speso cosa</p>
-                <div className="flex flex-col gap-2.5">
-                  {racconto.gruppi.map(([g, tot]) => (
-                    <button key={g} onClick={() => apriDettaglio(`${g} · ${eur(tot)}`, vociMese.filter(v => v.g === g))} className="text-left">
-                      <div className="flex items-center justify-between text-sm mb-1">
-                        <span className="text-green-dark">{g}</span>
-                        <span className="font-semibold" style={{ color: GROUP_COLORS[g] || FALLBACK_COLOR }}>{eur(tot)}</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-[#F1EEE6] overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${(tot / Math.max(1, racconto.gruppi[0][1])) * 100}%`, background: GROUP_COLORS[g] || FALLBACK_COLOR }} />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {dettaglio ? (
-              <>
-                <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-[10px] uppercase tracking-[1.5px] text-brass">{dettaglio.titolo}</p>
-                  <button onClick={() => setDettaglio(null)} className="text-xs text-[#8C3B2E] font-semibold">✕ chiudi</button>
-                </div>
-                <ListaVoci voci={dettaglio.voci} max={15} />
-              </>
-            ) : (
-              <p className="text-xs text-gray-400 text-center">Tocca i numeri sottolineati per vedere il dettaglio.</p>
-            )}
-          </>
+          <RaccontoTab racconto={racconto} vociMese={vociMese} totMese={totMese} isMese={isMese}
+            month={month} mesePrecedente={mKey(-1)} periodLabel={periodLabel} groups={groups}
+            dettaglio={dettaglio} apriDettaglio={apriDettaglio} chiudiDettaglio={() => setDettaglio(null)}
+            subcats={subcats} onOpenReceipt={openReceiptPhoto} />
         )
       ) : (
         /* ================= 💬 DOMANDA LIBERA ================= */
-        <>
-          <div className="flex flex-col gap-2.5 mb-3">
-            {chat.length === 0 && (
-              <div className="self-start max-w-[88%] bg-white border border-card-border rounded-2xl rounded-bl-md px-4 py-2.5 text-sm leading-relaxed">
-                Chiedimi quello che vuoi sulle vostre spese: una persona, una voce, un negozio, un mese… anche insieme. 💬
-              </div>
-            )}
-            {chat.map((b, i) => (
-              <div key={i} className={b.io
-                ? 'self-end max-w-[88%] bg-green-mid text-white rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed'
-                : 'self-start max-w-[88%] bg-white border border-card-border rounded-2xl rounded-bl-md px-4 py-2.5 text-sm leading-relaxed'}>
-                {b.t}
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1 mb-2">
-            {DOMANDE_VELOCI.map(q => (
-              <button key={q} onClick={() => chiedi(q)}
-                className="shrink-0 rounded-full px-3 py-1.5 text-sm border bg-white text-green-mid border-card-border transition active:scale-[0.97]">
-                {q}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <input value={domanda} onChange={e => setDomanda(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') chiedi(domanda) }}
-              placeholder="Scrivi (o detta) la domanda…"
-              className="flex-1 border border-card-border rounded-xl p-2.5 text-sm bg-white" />
-            <button onClick={() => chiedi(domanda)} disabled={!domanda.trim()}
-              className="bg-green-mid text-white rounded-xl px-4 font-bold disabled:opacity-40">➤</button>
-          </div>
-        </>
+        <DomandaTab chat={chat} domanda={domanda} setDomanda={setDomanda}
+          domandeVeloci={DOMANDE_VELOCI} onChiedi={chiedi} />
       )}
     </div>
   )
