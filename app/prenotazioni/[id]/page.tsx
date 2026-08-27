@@ -454,8 +454,8 @@ export default function BookingDetail() {
   const [saveEditError, setSaveEditError] = useState<string | null>(null)
   const timeRef = useRef<HTMLInputElement>(null)
   const [showCancel, setShowCancel] = useState(false)
-  // Conferma visibile dopo l'annullamento: prima cambiava solo il pallino di
-  // stato e sembrava che il tasto non avesse fatto nulla
+  // Dopo l'annullamento la pagina si svuota e resta solo l'avviso di conferma:
+  // vedere ancora la prenotazione sotto faceva dubitare che fosse andata a buon fine
   const [cancelDone, setCancelDone] = useState(false)
   const [showConferma, setShowConferma] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
@@ -987,7 +987,6 @@ export default function BookingDetail() {
     setShowCancel(false)
     window.scrollTo({ top: 0 })
     setCancelDone(true)
-    setTimeout(() => setCancelDone(false), 4000)
   }
 
   function sendWhatsapp(type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') {
@@ -1037,6 +1036,19 @@ export default function BookingDetail() {
   )
   const waChipsAnia = renderWaChips(false)
   const waChipsBusiness = renderWaChips(true)
+
+  // Dopo l'annullamento la pagina si svuota: resta solo l'avviso di conferma
+  if (cancelDone) return (
+    <div className="min-h-[70vh] flex items-center justify-center p-6">
+      <div className="scheda-in bg-[#DCE8DD] text-[#2f6a4d] rounded-2xl px-8 py-8 shadow-lg text-center w-full max-w-xs">
+        <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-white/70 flex items-center justify-center text-2xl font-bold">✓</div>
+        <p className="font-semibold text-lg leading-snug">La prenotazione è stata cancellata</p>
+        <a href="/prenotazioni" className="inline-block mt-5 rounded-lg px-4 py-2 text-sm font-semibold bg-white/80 transition-transform duration-100 active:scale-[0.97]">
+          Torna alle prenotazioni
+        </a>
+      </div>
+    </div>
+  )
 
   return (
     <div className="p-4">
@@ -1846,12 +1858,6 @@ export default function BookingDetail() {
         </aside>
       )}
       </div>
-
-      {cancelDone && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] bg-[#DCE8DD] text-[#2f6a4d] rounded-xl px-5 py-3 font-semibold shadow-lg">
-          ✓ Prenotazione annullata
-        </div>
-      )}
 
       {showConferma && (
         <ConfermaWhatsApp booking={booking} groupBookings={groupBookings} payments={acconti} onClose={() => setShowConferma(false)} />
