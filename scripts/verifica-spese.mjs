@@ -12,6 +12,13 @@
 //   node scripts/verifica-spese.mjs                  # backup di default
 //   node scripts/verifica-spese.mjs /percorso/backup # altro export
 //
+//   Confronto tra DUE export (Fase 2A): riferimento ↔ candidato,
+//   ID per ID e campo per campo su tutte le tabelle, più relazioni,
+//   duplicati, file+hash (se presenti) e totali per ambito:
+//   node scripts/verifica-spese.mjs --confronta /rif /candidato
+//     [--consenti-aggiunte]   # i record NUOVI nel candidato non sono errore
+//   Il riepilogo mostra id e NOMI dei campi, mai i contenuti (privacy).
+//
 // Esce con codice 1 se anche una sola verifica fallisce.
 // Il riepilogo mostra SOLO conteggi e totali aggregati: mai nomi, negozi,
 // descrizioni o altri dati personali.
@@ -19,8 +26,129 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-const BACKUP = process.argv[2] ||
+const args = process.argv.slice(2)
+if (args[0] === '--confronta') {
+  const [rif, cand] = args.slice(1).filter(a => !a.startsWith('--'))
+  const consentiAggiunte = args.includes('--consenti-aggiunte')
+  process.exit(await confronta(rif, cand, consentiAggiunte))
+}
+
+const BACKUP = args[0] ||
   '/Users/amerigogranata/Desktop/Backup completo spese prima del rifacimento 2026-08-27'
+
+// ============================================================================
+// CONFRONTO riferimento ↔ candidato — ID per ID, campo per campo
+// ============================================================================
+async function confronta(rifDir, candDir, consentiAggiunte) {
+  const { createHash } = await import('node:crypto')
+  const { readdirSync, statSync } = await import('node:fs')
+  const TAB = ['family_groups', 'family_categories', 'family_subcategories', 'family_expenses',
+    'family_expense_items', 'family_receipts', 'family_budgets', 'family_product_rules']
+  if (!rifDir || !candDir) { console.error('Servono due cartelle: --confronta /riferimento /candidato'); return 1 }
+  console.log(`Confronto\n  riferimento: ${rifDir}\n  candidato:   ${candDir}\n`)
+  const cent = n => Math.round(Number(n) * 100)
+  let errori = 0
+  const err = m => { console.log('  ✗ ' + m); errori++ }
+  const ok = m => console.log('  ✓ ' + m)
+
+  const leggi = (dir, t) => {
+    const f = join(dir, 'tabelle', `${t}.json`)
+    if (!existsSync(f)) return null
+    return JSON.parse(readFileSync(f, 'utf8'))
+  }
+
+  const tabelle = {}
+  for (const t of TAB) {
+    console.log(t)
+    const rif = leggi(rifDir, t), cand = leggi(candDir, t)
+    if (!rif || !cand) { err(`file mancante (${!rif ? 'riferimento' : 'candidato'})`); continue }
+    tabelle[t] = { rif, cand }
+
+    // duplicati di id (in entrambi)
+    for (const [nome, lista] of [['riferimento', rif], ['candidato', cand]]) {
+      const visti = new Set(); const dup = []
+      for (const r of lista) { if (visti.has(r.id)) dup.push(r.id); visti.add(r.id) }
+      if (dup.length) err(`id DUPLICATI nel ${nome}: ${dup.join(', ')}`)
+    }
+
+    const perIdCand = new Map(cand.map(r => [r.id, r]))
+    const perIdRif = new Map(rif.map(r => [r.id, r]))
+    // mancanti (nel candidato) e campi modificati, ID per ID e campo per campo
+    let mancanti = 0, modificati = 0
+    for (const r of rif) {
+      const c = perIdCand.get(r.id)
+      if (!c) { err(`record MANCANTE nel candidato: ${r.id}`); mancanti++; continue }
+      const campi = new Set([...Object.keys(r), ...Object.keys(c)])
+      const diff = [...campi].filter(k => JSON.stringify(r[k] ?? null) !== JSON.stringify(c[k] ?? null))
+      if (diff.length) { err(`record MODIFICATO ${r.id}: campi [${diff.join(', ')}]`); modificati++ }
+    }
+    // aggiunti (nel candidato)
+    const aggiunti = cand.filter(r => !perIdRif.has(r.id))
+    if (aggiunti.length) {
+      const m = `${aggiunti.length} record AGGIUNTI nel candidato`
+      if (consentiAggiunte) console.log('  ⚠ ' + m + ' (consentiti)')
+      else err(m + `: ${aggiunti.slice(0, 5).map(r => r.id).join(', ')}${aggiunti.length > 5 ? '…' : ''}`)
+    }
+    if (!mancanti && !modificati && (!aggiunti.length || consentiAggiunte))
+      ok(`${rif.length} record del riferimento tutti presenti e identici`)
+  }
+
+  // relazioni nel candidato (righe orfane, riferimenti spezzati)
+  console.log('Relazioni nel candidato')
+  const C = t => tabelle[t]?.cand || []
+  const ids = t => new Set(C(t).map(r => r.id))
+  const idSpese = ids('family_expenses'), idGruppi = ids('family_groups')
+  const idCategorie = ids('family_categories'), idDocs = ids('family_receipts')
+  const orfane = C('family_expense_items').filter(i => !idSpese.has(i.expense_id))
+  if (orfane.length) err(`righe con spesa inesistente (relazione SPEZZATA): ${orfane.map(i => i.id).join(', ')}`)
+  else ok('ogni riga appartiene a una spesa esistente')
+  const rotte = C('family_expenses').filter(e =>
+    (e.group_id != null && !idGruppi.has(e.group_id)) ||
+    (e.category_id != null && !idCategorie.has(e.category_id)) ||
+    (e.receipt_id != null && !idDocs.has(e.receipt_id)))
+  if (rotte.length) err(`spese con riferimenti spezzati: ${rotte.map(e => e.id).join(', ')}`)
+  else ok('gruppi, categorie e documenti delle spese tutti esistenti')
+
+  // differenze economiche: totali per ambito (in centesimi)
+  console.log('Totali economici')
+  const totali = lato => {
+    const g = new Map((lato === 'rif' ? tabelle.family_groups?.rif : C('family_groups')).map(x => [x.id, x.ambito || 'personale']))
+    const spese = lato === 'rif' ? tabelle.family_expenses?.rif : C('family_expenses')
+    const out = { personale: 0, azienda: 0 }
+    for (const e of spese || []) out[e.group_id ? (g.get(e.group_id) ?? 'personale') : 'personale'] += cent(e.amount)
+    return out
+  }
+  const tr = totali('rif'), tc = totali('cand')
+  for (const amb of ['personale', 'azienda']) {
+    if (consentiAggiunte ? tc[amb] < tr[amb] : tc[amb] !== tr[amb])
+      err(`DIFFERENZA ECONOMICA ${amb}: riferimento ${tr[amb]} cent, candidato ${tc[amb]} cent`)
+    else ok(`${amb}: ${tc[amb]} cent${tc[amb] !== tr[amb] ? ' (aggiunte consentite)' : ''}`)
+  }
+
+  // file + hash (solo se ENTRAMBI hanno la cartella scontrini/)
+  const dirR = join(rifDir, 'scontrini'), dirC = join(candDir, 'scontrini')
+  if (existsSync(dirR) && existsSync(dirC)) {
+    console.log('File')
+    const walk = d => readdirSync(d, { recursive: true }).filter(f => statSync(join(d, f)).isFile())
+    const sha = f => createHash('sha256').update(readFileSync(f)).digest('hex')
+    const fr = new Set(walk(dirR)), fc = new Set(walk(dirC))
+    let fOk = true
+    for (const f of fr) {
+      if (!fc.has(f)) { err(`file MANCANTE nel candidato: ${f}`); fOk = false }
+      else if (sha(join(dirR, f)) !== sha(join(dirC, f))) { err(`file MODIFICATO (hash diverso): ${f}`); fOk = false }
+    }
+    const inPiu = [...fc].filter(f => !fr.has(f))
+    if (inPiu.length && !consentiAggiunte) { err(`${inPiu.length} file aggiunti nel candidato`); fOk = false }
+    if (fOk) ok(`${fr.size} file tutti presenti con hash identico`)
+  } else {
+    console.log('File: cartella scontrini assente da uno dei due lati — confronto file saltato')
+  }
+
+  console.log('')
+  if (errori > 0) { console.error(`ESITO CONFRONTO: ${errori} differenze. NON procedere.`); return 1 }
+  console.log('ESITO CONFRONTO: nessuna differenza sui dati storici.')
+  return 0
+}
 
 // ---- Valori attesi (approvati, vedi PIANO-RIFACIMENTO-SPESE.md) ----
 const ATTESI = {
