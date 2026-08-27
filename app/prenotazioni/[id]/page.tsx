@@ -188,8 +188,7 @@ Il pagamento avviene all'arrivo, alla consegna delle chiavi, per l'intero soggio
   const SOTTOTITOLO_STRUTTURA = 'precedentemente Casa Granata Humanitas'
   const firmaFormale = `A presto,
 Ania
-Casa Ania
-${SOTTOTITOLO_STRUTTURA}`
+Casa Ania`
 
   // Blocco camera/bagno/link condiviso da conferma e modifica
   const cameraBlock = `${isGruppo ? `${intestazioneSegmenti}\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nLa sua camera:\n${roomLink}` : ''}`
@@ -235,8 +234,7 @@ Cancellazione gratuita fino a 3 giorni prima dell'arrivo.
 
 A presto,
 *Ania*
-*Casa Ania*
-_precedentemente Casa Granata Humanitas_`
+*Casa Ania*`
   }
 
   if (type === 'modifica') {
