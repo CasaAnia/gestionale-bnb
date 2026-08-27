@@ -20,56 +20,8 @@ import { isDemoMode } from '@/lib/demoMode'
 // se manca, vale quella della spesa madre. Il codice tollera la colonna
 // assente (migrazione non ancora applicata).
 
-type Ambito = 'personale' | 'azienda'
-type Group = { id: string; name: string; emoji: string | null; sort: number; ambito: string }
-type Category = { id: string; group_id: string; name: string; sort: number }
-type Rule = { id: string; keyword: string; group_id: string | null; category_id: string | null; track_detail: boolean }
-type Fx = {
-  id: string; expense_date: string; amount: number; group_id: string | null; category_id: string | null
-  store: string | null; product: string | null; description: string | null; recurring: boolean; source: string
-  receipt_id: string | null; subcategory?: string | null
-}
-type Receipt = { id: string; storage_path: string; note: string | null; status: string; uploaded_at: string }
-type Item = { id: string; expense_id: string; name: string; amount: number; qty?: number | null; category_id?: string | null; subcategory?: string | null }
-type Subcat = { id: string; category_name: string; name: string; sort: number }
-type Budget = { id: string; ambito: string; category_name: string; monthly_amount: number }
-// Una "voce": la singola riga di scontrino (o la spesa intera se senza dettaglio)
-type Voce = { n: string; a: number; q: number; cat: string; sott: string; store: string; d: string; g: string; expId: string; rid: string | null }
-type Tab = 'home' | 'calendario' | 'racconto' | 'domanda'
-type Dettaglio = { titolo: string; voci: Voce[] } | null
-type Msg = { io: boolean; t: string }
-
-const GROUP_COLORS: Record<string, string> = {
-  'Casa': '#5B8A70', 'Ania': '#BCA06A', 'Matteo': '#8AA1B8',
-  'Matteo e Ania': '#AD90A8', 'Casa Ania': '#BC7E6E',
-}
-const FALLBACK_COLOR = '#9AA096'
-const ACCENT = '#7D9DB0' // azzurro carta da zucchero, come "pagato" in arrivi/calendario
-const ICONE: Record<string, string> = {
-  'Spesa alimentare': '🛒', 'Detersivi e pulizia': '🧴', 'Bar': '☕', 'Bar e caffe': '☕',
-  'Mangiare fuori': '🍽️', 'Abbigliamento': '👗', 'Gelato e merenda': '🍦', 'Sacchetti': '🛍️',
-  'Scarpe': '👟', 'Salute ed estetica': '💆‍♀️', 'Salute e farmacia': '💊', 'Manutenzione': '🔧',
-  'Manutenzione casa': '🔧', 'Arredo e acquisti': '🛋️', 'Utensili cucina': '🍳', 'Cancelleria': '✏️',
-  'Tecnologia': '📱', 'Telefono/Internet': '📶', 'Telefono': '📶', 'Internet': '📶', 'Cura persona': '🧼',
-  'Forniture': '📦', 'Utenze': '💡', 'Luce': '💡', 'Gas': '🔥', 'Acqua': '🚿', 'Spesa': '🛒',
-  'Lavori e ristrutturazione': '🏗️', 'Riparazioni': '🔧', 'Prodotti di pulizia': '🧴',
-  'Macchina': '🚗', 'Trasporti': '🚌', 'Viaggi': '✈️', 'Regali': '🎁', 'Svago': '🎉',
-  'Scuola': '🎒', 'Sport': '⚽', 'Paghetta': '💰', 'Parrucchiere': '💇', 'Assicurazioni': '🛡️',
-  'Tasse': '🏛️', 'Abbonamenti': '🔁', 'Varie': '📦', 'Servizi': '🧾',
-  // Nomi nuovi (riordino 0015)
-  'Detersivi': '🧴', 'Cura corpo': '🧼', 'Medico': '💊', 'Colazione/Bar': '☕',
-  'Merenda': '🍦', 'Divertimento': '🎉', 'Cucina utensili': '🍳', 'Arredo casa': '🛋️',
-  'Riparazioni e manutenzione': '🔧', 'Auto': '🚗', 'Cancelleria casa': '✏️',
-  'Assicurazioni e tasse': '🛡️', 'Biancheria': '🛏️', 'Commissioni': '💳',
-}
-const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
-  'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
-const eur = (n: number) => '€' + n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-const eur2 = (n: number) => '€' + n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const strip = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-// Nome negozio corto: via la città, ma "Iper bar" e "Iper supermercato" restano distinti
-const corto = (s: string) => s.replace(/ (Rozzano|Milano( \S+)?|Fiordaliso|Milanofiori|Assago|Pieve Emanuele|Locate Triulzi|Basiglio|Scalo Milano)( bar| supermercato)?$/i, '$3').trim()
-const icona = (cat: string) => ICONE[cat] || '🏷️'
+import type { Ambito, Group, Category, Rule, Fx, Receipt, Item, Subcat, Budget, Voce, Tab, Dettaglio, Msg } from '@/lib/spese/types'
+import { GROUP_COLORS, FALLBACK_COLOR, ACCENT, MESI, eur, eur2, strip, corto, icona } from '@/lib/spese/costanti'
 
 export default function SpeseTracker({ ambito, title }: { ambito: Ambito; title: string }) {
   return <DemoGate><Tracker ambito={ambito} title={title} /></DemoGate>
