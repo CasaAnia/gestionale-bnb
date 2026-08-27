@@ -709,3 +709,75 @@ I valori attesi fotografano il 27/08/2026: se durante il rifacimento Ania
 registra spese nuove, lo script va usato contro il BACKUP (invariato) o
 contro un export rigenerato confrontando gli id originali, non i conteggi
 totali. Le fasi successive aggiungeranno il confronto id-per-id.
+
+---
+
+## Resoconto Fase 1 — 27 agosto 2026 (branch `rifacimento-spese`)
+
+Scomposizione di `components/SpeseTracker.tsx` a parità completa di funzioni:
+**da 1.272 a 402 righe (−68%)**. Nessun cambiamento a interfaccia, testi,
+filtri, calcoli, rotte o database; SpeseTracker resta l'orchestratore usato
+da `/spese` e `/spese-famiglia`. Cinque commit, uno per passaggio.
+
+### Moduli estratti e responsabilità
+
+**Logica (lib/spese/, tutta pura e testabile):**
+- `types.ts` — i tipi delle tabelle family_* e delle viste (Voce, Tab…).
+- `costanti.ts` — colori gruppi, icone, mesi, formattatori (eur, strip, corto).
+- `periodo.ts` — mese/settimana/anno/Dal–al, etichette, ritmo e previsione.
+- `voci.ts` — vociDi (scomposizione in righe), tessere, sparkline, spese
+  fisse, racconto, conto del caffè, spese per giorno.
+- `domanda.ts` — il motore della scheda 💬 Domanda (nessuna capacità nuova).
+- `ambito.ts` — filtro personale/azienda (la semantica di load()).
+- `dati.ts` — UNICO punto che parla con Supabase: stesse query, stessa
+  tolleranza alle migrazioni non applicate (0012–0015).
+- `caratterizzazione.ts` — ora DELEGA ai moduli veri: i test verificano il
+  codice di produzione, non una copia.
+
+**Componenti (components/spese/, classi e testi identici):**
+`ListaVoci`, `ScontriniBlock`, `FormSpesa`, `FiltriSchede` (4 schede + Di chi
++ periodo), `HomeTab` (con `BudgetCard`, `SpeseFisseCard`, `UltimeSpese`),
+`CalendarioTab`, `RaccontoTab`, `DomandaTab`.
+
+### Test aggiunti in Fase 1
+- `domanda.test.ts` — 12 test del motore Domanda (mese, persona, categoria,
+  sottocategoria, negozio, prodotto, "da sempre", combinazioni, casi vuoti).
+- `ambito.test.ts` — 2 test di parità del filtro ambito (spese senza gruppo:
+  personale sì, azienda no).
+- Correzione approvata da Ania inclusa: `quadratura` ESATTA al centesimo
+  (niente tolleranza automatica; arrotondamento valido solo se dichiarato),
+  test ed esempi aggiornati.
+
+### Risultati delle verifiche (27/08/2026, sera)
+- `npm test`: **54/54** (23 preesistenti + 17 caratterizzazione + 12 domanda
+  + 2 ambito). `npx tsc --noEmit`: pulito. `npm run build`: ok (24/24 pagine).
+- `npm run lint`: **250 problemi totali contro i 254 di partenza** — zero
+  nuovi, 4 risolti dall'estrazione (i due errori "component created during
+  render" di ListaVoci spariscono per costruzione). Gli avvisi `<img>` in
+  ScontriniBlock sono i preesistenti, solo spostati.
+- `scripts/verifica-spese.mjs`: 28/28 sul backup, dati intatti.
+- Git: 5 commit su `rifacimento-spese` (c9703c3, 5fe5728, 4d72935, 95d7b87,
+  25a45bb), niente push, `main` intatto. Supabase e Vercel non toccati.
+
+### Parti NON estratte (con motivo)
+- Stato, orchestrazione e handler (load, saveStaged, applyRules, chiedi…)
+  restano in SpeseTracker: è il suo ruolo di orchestratore fino alla Fase 3.
+- La schermata `needsSetup` (migrazione 0007 mancante): banale e legata al
+  guscio della pagina.
+
+### Note e differenze consapevoli (nessuna visibile a occhio)
+- ListaVoci era definita DENTRO il render: React la smontava a ogni
+  aggiornamento del genitore azzerando le pastiglie-filtro. Estratta, le
+  pastiglie sopravvivono agli aggiornamenti del genitore (era anche uno dei
+  due errori lint). Stesso identico aspetto e interazioni.
+- L'apostrofo in "tocca per l'elenco" e "L'acquisto" ora è `&apos;` (stesso
+  carattere reso a schermo).
+- Verifica visiva dal vivo a 390px NON completata: il dev server chiede il
+  login e le credenziali non le inserisco io (regola di sicurezza). Da fare
+  con Ania/Matteo loggati al prossimo giro; la parità è coperta da JSX
+  copiato invariato + test + build.
+
+### Problemi preesistenti incontrati (non toccati)
+- I 250 problemi lint restanti (quasi tutti `any` espliciti fuori dal modulo).
+- `set-state-in-effect` e `any` nel catch di saveStaged in SpeseTracker
+  (pattern preesistenti, spariranno con le fasi 3+).
