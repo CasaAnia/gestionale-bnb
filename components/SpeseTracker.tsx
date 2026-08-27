@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import BackBar from '@/components/BackBar'
 import DemoGate from '@/components/DemoGate'
 import { isDemoMode } from '@/lib/demoMode'
@@ -28,6 +27,8 @@ import {
   vociDi as vociDiPure, itemsPerSpesa, sparklinePath, tessereCategorie,
   totalePerCategoria, fisseMese, costruisciRacconto, contoCaffe, spesePerGiorno,
 } from '@/lib/spese/voci'
+import { filtraPerAmbito } from '@/lib/spese/ambito'
+import * as dati from '@/lib/spese/dati'
 
 export default function SpeseTracker({ ambito, title }: { ambito: Ambito; title: string }) {
   return <DemoGate><Tracker ambito={ambito} title={title} /></DemoGate>
@@ -83,60 +84,32 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   // Foto scelte ma non ancora salvate (si salvano col bottone Salva).
   const [staged, setStaged] = useState<{ file: File; url: string }[]>([])
 
+  // L'accesso a Supabase vive in lib/spese/dati.ts (estratto in Fase 1,
+  // stesse query); il filtro per ambito in lib/spese/ambito.ts (puro).
   async function loadReceipts() {
-    const { data, error } = await supabase.from('family_receipts')
-      .select('*').eq('status', 'da_leggere').eq('ambito', ambito).order('uploaded_at', { ascending: false })
-    if (error) return // tabella/bucket non ancora pronti: la sezione resta nascosta
-    const list = (data || []) as Receipt[]
+    const list = await dati.caricaScontriniDaLeggere(ambito)
+    if (list === null) return // tabella/bucket non ancora pronti: la sezione resta nascosta
     setReceipts(list)
-    // Anteprime: link firmati temporanei (il bucket è privato).
-    const urls: Record<string, string> = {}
-    await Promise.all(list.map(async r => {
-      const { data: s } = await supabase.storage.from('scontrini').createSignedUrl(r.storage_path, 3600)
-      if (s?.signedUrl) urls[r.id] = s.signedUrl
-    }))
-    setReceiptUrls(urls)
+    setReceiptUrls(await dati.urlFirmatiScontrini(list))
   }
 
   async function load() {
     if (isDemoMode()) return // in dimostrazione non si carica nulla
     setLoading(true)
-    const [g, c, r, e] = await Promise.all([
-      supabase.from('family_groups').select('*').order('sort'),
-      supabase.from('family_categories').select('*').order('sort'),
-      supabase.from('family_product_rules').select('*'),
-      supabase.from('family_expenses').select('*').order('expense_date', { ascending: false }),
-    ])
-    if (g.error || e.error) { setNeedsSetup(true); setLoading(false); return } // migrazione non ancora applicata
-    // Tiene solo i gruppi di questo ambito (personale o azienda), e di
-    // conseguenza solo le sue categorie, regole e spese.
-    const myGroups = (g.data || []).filter((x: Group) => (x.ambito || 'personale') === ambito)
-    const myIds = new Set(myGroups.map((x: Group) => x.id))
-    setGroups(myGroups)
-    setCats((c.data || []).filter((x: Category) => myIds.has(x.group_id)))
-    setRules((r.data || []).filter((x: Rule) => x.group_id != null && myIds.has(x.group_id)))
-    // Spese dell'ambito: gruppo appartenente a questo ambito. Nel personale
-    // mostro anche quelle senza gruppo (inserimenti veloci lasciati vuoti).
-    const myExpenses = (e.data || []).filter((x: Fx) => myIds.has(x.group_id || '') || (ambito === 'personale' && !x.group_id))
-    setRows(myExpenses)
+    const base = await dati.caricaBase()
+    if (base.needsSetup) { setNeedsSetup(true); setLoading(false); return } // migrazione non ancora applicata
+    const mio = filtraPerAmbito(ambito, base.groups, base.cats, base.rules, base.expenses)
+    setGroups(mio.groups)
+    setCats(mio.cats)
+    setRules(mio.rules)
+    setRows(mio.expenses)
     setLoading(false)
     loadReceipts()
-    // Dettaglio prodotti: select * per tollerare la colonna category_id
-    // assente (migrazione 0014 non ancora applicata).
-    const expIds = myExpenses.map((x: Fx) => x.id)
-    if (expIds.length) {
-      const it = await supabase.from('family_expense_items').select('*').in('expense_id', expIds)
-      if (!it.error) setItems((it.data || []) as Item[])
-    } else setItems([])
-    // Sottocategorie (tollerante: senza migrazione 0015 restano vuote).
-    const sc = await supabase.from('family_subcategories').select('*').order('sort')
-    if (!sc.error) setSubcats((sc.data || []) as Subcat[])
-    // Budget mensili (tollerante: senza migrazione 0013 la card non appare).
-    const b = await supabase.from('family_budgets').select('*')
-    if (!b.error) {
-      setBudgets(((b.data || []) as Budget[]).filter(x => (x.ambito || 'personale') === ambito))
-      setBudgetsOk(true)
-    }
+    setItems(await dati.caricaItems(mio.expenses.map(x => x.id)))
+    const sc = await dati.caricaSubcats()
+    if (sc.length) setSubcats(sc)
+    const b = await dati.caricaBudgets(ambito)
+    if (b.ok) { setBudgets(b.budgets); setBudgetsOk(true) }
   }
   useEffect(() => { load() }, [])
 
@@ -159,12 +132,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     let ok = 0
     try {
       for (const s of staged) {
-        const ext = (s.file.name.split('.').pop() || 'jpg').toLowerCase()
-        const path = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`
-        const up = await supabase.storage.from('scontrini').upload(path, s.file, { contentType: s.file.type || 'image/jpeg' })
-        if (up.error) { remaining.push(s); continue }
-        const ins = await supabase.from('family_receipts').insert({ storage_path: path, note, ambito })
-        if (ins.error) { await supabase.storage.from('scontrini').remove([path]); remaining.push(s); continue }
+        if (!await dati.salvaFotoScontrino(s.file, note, ambito)) { remaining.push(s); continue }
         URL.revokeObjectURL(s.url); ok++
       }
     } catch (e: any) {
@@ -184,8 +152,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
 
   async function deleteReceipt(r: Receipt) {
     if (!confirm('Eliminare questa foto?')) return
-    await supabase.storage.from('scontrini').remove([r.storage_path])
-    await supabase.from('family_receipts').delete().eq('id', r.id)
+    await dati.eliminaScontrino(r)
     setReceipts(receipts.filter(x => x.id !== r.id))
   }
 
@@ -194,16 +161,15 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     const nota = prompt('Nota per questo scontrino (indicazioni per me):', r.note || '')
     if (nota === null) return
     const value = nota.trim() || null
-    await supabase.from('family_receipts').update({ note: value }).eq('id', r.id)
+    await dati.aggiornaNotaScontrino(r.id, value)
     setReceipts(receipts.map(x => x.id === r.id ? { ...x, note: value } : x))
   }
 
   // Riapre la foto dello scontrino collegato a una spesa (link firmato al volo).
   async function openReceiptPhoto(receiptId: string) {
-    const { data: rec } = await supabase.from('family_receipts').select('storage_path').eq('id', receiptId).single()
-    if (!rec?.storage_path) { alert('Foto non trovata.'); return }
-    const { data: s } = await supabase.storage.from('scontrini').createSignedUrl(rec.storage_path, 3600)
-    if (s?.signedUrl) window.open(s.signedUrl, '_blank')
+    const url = await dati.urlFotoScontrino(receiptId)
+    if (!url) { alert('Foto non trovata.'); return }
+    window.open(url, '_blank')
   }
 
   const groupName = (id: string | null) => groups.find(x => x.id === id)?.name || '—'
@@ -230,7 +196,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   async function save() {
     if (!form.amount || !form.expense_date) return
     setSaving(true)
-    await supabase.from('family_expenses').insert({
+    await dati.inserisciSpesa({
       expense_date: form.expense_date,
       amount: parseFloat(form.amount.replace(',', '.')),
       // Se c'è un solo gruppo (caso azienda) e non è stato scelto, lo assegno da solo.
@@ -247,7 +213,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
 
   async function del(id: string) {
     if (!confirm('Eliminare questa spesa?')) return
-    await supabase.from('family_expenses').delete().eq('id', id)
+    await dati.eliminaSpesa(id)
     setRows(rows.filter(r => r.id !== id))
   }
 
@@ -256,16 +222,15 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     const name = budgetForm.category_name
     const amt = parseFloat(budgetForm.amount.replace(',', '.'))
     if (!name || !amt) return
-    await supabase.from('family_budgets')
-      .upsert({ ambito, category_name: name, monthly_amount: amt }, { onConflict: 'ambito,category_name' })
+    await dati.salvaBudget(ambito, name, amt)
     setBudgetForm({ category_name: '', amount: '' }); setShowBudgetForm(false); load()
   }
   async function editBudget(b: Budget) {
     const v = prompt(`Budget mensile per "${b.category_name}" (vuoto per toglierlo):`, String(b.monthly_amount))
     if (v === null) return
     const amt = parseFloat(v.replace(',', '.'))
-    if (!v.trim() || !amt) await supabase.from('family_budgets').delete().eq('id', b.id)
-    else await supabase.from('family_budgets').update({ monthly_amount: amt }).eq('id', b.id)
+    if (!v.trim() || !amt) await dati.eliminaBudget(b.id)
+    else await dati.aggiornaBudget(b.id, amt)
     load()
   }
 
