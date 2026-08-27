@@ -81,197 +81,197 @@ scelta consapevole ma aumenta la complessità e nasconde errori.
   diventa il "motore di elaborazione" del nuovo flusso a stati.
 - `lib/supabase.ts`, `lib/inviaPush.ts` (per future notifiche di scadenza).
 
-## 3. Proposta del nuovo modello dati
+## 3. Modello dati definitivo
 
-Principio: **non si rinomina e non si cancella nulla**; si aggiungono colonne
-e tabelle. Gli id e i collegamenti esistenti restano identici. Il concetto
-centrale nuovo è il **ciclo di vita della spesa** e il **documento** come
-entità di prima classe.
+*(Consolidato il 27/08/2026 dopo la revisione di Ania: questo è l'UNICO
+schema valido — le versioni precedenti di §3/§4 sono superate e rimosse.)*
 
-```
-family_receipts  (= "documenti": scontrini, fatture, allegati)
-   │ 1..N        status: da_elaborare → da_controllare → pronta → confermata / errore
-   ▼
-family_expenses  (= movimento; per le fatture Casa Ania porta anche i campi fattura)
-   │ 1..N
-   ▼
-family_expense_items  (righe, ognuna con destinatario, classificazioni, affidabilità)
-
-family_expense_documents  (ponte N:N spesa↔documento, per allegati multipli)
-family_corrections        (log delle correzioni dell'utente)
-```
-
-- **Lo stato vive sulla spesa** (`review_status`), non solo sul documento: così
-  anche le spese manuali e le fatture senza foto hanno un ciclo di vita.
-  `family_receipts.status` tiene lo stato di *elaborazione* del file.
-- **Scontrino misto Casa Mia / Casa Ania**: si mantiene il pattern attuale
-  (una spesa per ambito, stesso documento collegato), ma l'elenco Movimenti
-  raggruppa le spese che condividono il documento in **un movimento unico**
-  con il totale del documento. In più ogni riga ha il suo `group_id`, così
-  una voce può essere attribuita a una persona diversa dalla spesa madre.
-  (Alternativa scartata: una spesa unica multi-ambito — romperebbe i totali
-  per ambito, il profitto in Home/Statistiche e la compatibilità con le 221
-  spese esistenti.)
-- Le **fatture non ancora pagate** di Casa Ania sono spese normali con
-  `payment_status='non_pagata'` e `due_date`: stanno nell'elenco, nello
-  scadenzario e in "Impegnato/Da pagare"; entrano nel totale "Speso" solo
-  alla data di pagamento (`paid_at`) — deciso da Ania il 27/08/2026.
-
-## 4. Nuove tabelle e colonne (migrazione `0020_rifacimento_spese.sql`, DA NON APPLICARE ORA)
-
-**`family_expenses` — nuove colonne** (tutte nullable o con default, zero impatto
-sulle 221 esistenti):
-
-| Colonna | Tipo | Uso |
-|---|---|---|
-| `review_status` | text default `'confermata'` check in (`da_elaborare`,`da_controllare`,`pronta`,`confermata`,`errore`) | ciclo di vita; le esistenti nascono confermate |
-| `payment_method` | text check in (`contanti`,`carta_personale`,`carta_attivita`,`bonifico`,`altro`) | Casa Mia e Casa Ania |
-| `supplier` | text | fornitore (fatture; per gli scontrini resta `store`) |
-| `invoice_number` | text | numero fattura |
-| `document_date` | date | data documento se diversa dalla data spesa |
-| `due_date` | date | scadenza |
-| `payment_status` | text default `'pagata'` check in (`pagata`,`non_pagata`) — "scaduta" è derivato: `non_pagata` + `due_date < oggi` | fatture |
-| `paid_at` | date | data pagamento |
-| `room_id` | uuid references rooms(id) | camera di riferimento (Amelia, Allegra, Ambra, Lena — la tabella `rooms` esiste già dalla 0001, niente nomi duplicati come testo). **Nullo = "Generale"**, che è il caso normale: utenze, forniture comuni, pulizie e manutenzioni della struttura. Mai obbligatorio. *(Deciso da Ania il 27/08/2026.)* |
-| `expense_nature` | text check in (`ordinaria`,`ricorrente`,`straordinaria`) | UN solo campo nuovo (niente booleani contraddittori con `recurring`, che resta in sola lettura per lo storico) — rivisto il 27/08/2026 |
-| ~~`doc_total`~~ | — | SPOSTATO su `family_documents` (§4-ter): appartiene al documento, mai duplicato sulle spese sorelle |
-| `notes` | text | note libere |
-| `error_message` | text | dettaglio per stato `errore` |
-
-**`family_expense_items` — nuove colonne:**
-
-| Colonna | Tipo | Uso |
-|---|---|---|
-| `raw_name` | text | descrizione originale stampata sullo scontrino (`name` resta il nome normalizzato) |
-| `unit_price` | numeric(10,3) | prezzo unitario quando disponibile |
-| `discount` | numeric(10,2) default 0 | sconto della riga (l'importo resta il netto, come da regola attuale) |
-| `group_id` | uuid references family_groups | destinatario della riga (persona, o Casa Ania per lo split); se nullo vale quello della spesa |
-| `necessity` | text check in (`necessario`,`discrezionale`) | classificazione facoltativa |
-| `planning` | text check in (`previsto`,`impulsivo`) | classificazione facoltativa |
-| `confidence` | numeric(3,2) | affidabilità 0–1 dell'estrazione |
-| `doubt_reason` | text | motivo del dubbio (foto illeggibile, nome ambiguo…) |
-
-**`family_receipts` — nuove colonne:** `kind` (`scontrino`/`fattura`/`altro`),
-`mime_type`, `doc_total` (totale letto), `parsed_at`, `error_message`,
-`file_sha256` (per i duplicati da file identico). `status` accetta i nuovi
-valori mantenendo validi `da_leggere`/`letto` (nessun UPDATE sui dati storici;
-il codice tratta `da_leggere`≡`da_elaborare` e `letto`≡`confermata`).
-
-**Nuove tabelle:**
-
-```sql
-create table family_expense_documents (   -- allegati multipli
-  id uuid primary key default gen_random_uuid(),
-  expense_id uuid not null references family_expenses(id) on delete cascade,
-  receipt_id uuid not null references family_receipts(id) on delete cascade,
-  unique (expense_id, receipt_id)
-);
--- Backfill: una riga per ognuna delle spese con receipt_id valorizzato —
--- 215 secondo il backup del 27/08 (221 − 6 senza documento, su 81 documenti
--- distinti; conteggio VERIFICATO via script, mai scritto a mano: la
--- migrazione dovrà ricontarlo a runtime e confrontarlo con select count(*)).
--- family_expenses.receipt_id resta e continua a funzionare (compatibilità).
-
-create table family_corrections (         -- log correzioni (§10)
-  id uuid primary key default gen_random_uuid(),
-  expense_id uuid references family_expenses(id) on delete set null,
-  item_id uuid references family_expense_items(id) on delete set null,
-  field text not null,                    -- es. 'category', 'amount', 'store'
-  proposed_value text,                    -- cosa aveva proposto l'estrazione
-  corrected_value text,                   -- cosa ha scelto l'utente
-  rule_applied text,                      -- regola/euristica che aveva deciso il valore
-  source text not null default 'revisione',
-  created_at timestamptz not null default now()
-);
-```
-
-RLS: NON copiare la policy attuale `authenticated using (true)` sulle nuove
-tabelle — prima si analizza il modello di autenticazione e si progetta
-l'isolamento per proprietario/account (§4-ter, punto 12; la modalità
-dimostrazione non è una protezione del database). Indici su
-`review_status`, `due_date`, `payment_status`, `family_expense_documents(expense_id)`.
-
-**Non si aggiunge la FK su `family_expenses.receipt_id`**: le 6 spese con
-receipt nullo e la storia esistente restano valide; il collegamento "forte"
-nuovo è `family_expense_documents`.
-
-## 4-ter. Revisione dello schema (Ania, 27/08/2026, dopo la Fase 1)
-
-Tredici correzioni vincolanti che SOSTITUISCONO i punti corrispondenti di
-§3, §4, §7, §8, §9, §12 e §13. La 0020 non è ancora scritta: verrà scritta
-su QUESTO schema.
-
-### Nuovo schema concettuale
+Principio: **non si rinomina e non si cancella nulla dello storico**; si
+aggiungono tabelle e colonne. Gli id e i collegamenti esistenti restano
+identici. I tre concetti nuovi: il **documento logico** separato dai file,
+le **bozze in tabelle separate** (mai dentro le spese vere), la **conferma
+atomica**.
 
 ```
 family_documents (NUOVO: il documento LOGICO — scontrino, fattura…)
-  id, kind (scontrino/fattura/altro), doc_total (QUI, unico), supplier,
-  invoice_number, document_date, status, error_message, note
-   │ 1..N
-   ├── family_receipts (storici e nuovi FILE: foto/pagine/allegati,
-   │     + document_id → più file per lo stesso documento)
-   ├── family_draft_expenses (NUOVE: le BOZZE, mai in family_expenses)
-   │      └── family_draft_items (righe di bozza)
-   └── family_expense_documents (spesa confermata ↔ documento)
+  kind, doc_total (QUI, unico), supplier, invoice_number, document_date,
+  status, error_message, note
+   │
+   ├── family_receipts        ← SOLO file/pagine (foto, PDF…): più file per
+   │                             documento via document_id; gli 81 storici
+   │                             si agganciano 1:1 ai documenti creati per loro
+   ├── family_draft_expenses  ← le BOZZE (mai in family_expenses)
+   │      └── family_draft_items
+   └── family_expense_documents  ← spesa CONFERMATA ↔ documento
 
-family_expenses / family_expense_items: SOLO spese confermate (come oggi:
-  Home e Statistiche sommano tutto ciò che c'è, e così deve restare).
-family_corrections: riferibile a bozza, documento, spesa o riga.
+family_expenses / family_expense_items  ← SOLO spese confermate: Home e
+  Statistiche sommano tutto ciò che trovano qui, e così deve restare.
+family_corrections  ← log correzioni: riferibile a documento, bozza, spesa
+  o riga; valori strutturati (jsonb).
+family_canonical_categories / family_canonical_subcategories  ← tassonomia
+  canonica per ID (§4-bis).
+app_members  ← lista degli utenti autorizzati del gestionale (§4.8).
 ```
 
-1. **Bozze in tabelle separate** (`family_draft_expenses` +
-   `family_draft_items`, stessa forma delle definitive + confidence e
-   canoniche): NIENTE bozze in `family_expenses`/`family_expense_items`,
-   perché Home e Statistiche sommano tutte le spese aziendali senza filtro.
-   Le bozze diventano spese solo alla conferma.
-2. **Conferma atomica**: un'unica operazione (funzione RPC Postgres in
-   transazione) valida il documento e crea INSIEME spese sorelle, righe,
-   collegamenti e correzioni; se un passo fallisce, rollback totale, nessuna
-   spesa definitiva creata a metà.
-3. **Documento logico ≠ file**: `family_documents` è la fattura/scontrino;
-   `family_receipts` restano i FILE (gli 81 storici compresi) agganciati con
-   `document_id`. Una fattura può avere più foto, pagine o allegati.
-4. **`doc_total` vive su `family_documents`**, mai duplicato sulle spese
-   sorelle. La quadratura confronta doc_total del documento con la somma
-   delle righe di TUTTE le sorelle.
-5. **Collegamenti storici: 215, verificati** (221 spese − 6 senza documento,
-   su 81 documenti distinti; ricontato dallo script sul backup — il "75"
-   scritto prima era un errore manuale). Ogni numero nel piano e nelle
-   migrazioni va prodotto da verifica automatica, mai a mano.
-6. **Tassonomia canonica nativa**: bozze, spese e righe nuove salvano
-   direttamente `canonical_category_id` e `canonical_subcategory_id`
-   (FK per id); `category_id`/`subcategory` restano per compatibilità.
-7. **Affidabilità PER CAMPO**, non per riga: metadati strutturati (jsonb
-   `confidence`: { campo → { valore_proposto, confidence, doubt_reason } }).
-   `family_corrections` può riferirsi anche a documento e bozza
-   (draft_id/document_id) e conserva valori strutturati (jsonb), non solo
-   testo.
-8. **necessario/discrezionale e previsto/impulsivo sono FACOLTATIVI**:
-   Claude non li inventa mai (li propone solo l'utente). Le prime analisi
-   di abitudini usano: frequenza, piccoli importi ripetuti, crescita
-   mese-su-mese, prodotti mai comprati prima, totale cumulato.
-9. **Navigazione**: nessuna seconda barra in basso; nav compatta in alto
-   (Panoramica · Movimenti · Documenti · Analisi) + bottone ＋ flottante
-   (§7 aggiornato).
-10. **Avvisi ≠ blocchi**: data precedente a novembre 2024 e sottocategoria
-    non determinabile generano AVVISI (visibili, registrati) ma non
-    bloccano; la quadratura economica resta ESATTA e BLOCCANTE.
-11. **Natura della spesa**: un solo campo `expense_nature`
-    (ordinaria/ricorrente/straordinaria); `recurring` resta in sola lettura
-    per lo storico, mai due booleani contraddittori.
-12. **RLS da riprogettare**: sulle nuove tabelle NON si copia
-    `authenticated using (true)`. Prima della 0020: analisi del modello di
-    autenticazione attuale (unico account condiviso di Ania?) e progetto
-    dell'isolamento per proprietario/account (es. colonna owner/account_id
-    + policy sull'utente); la modalità dimostrazione è solo interfaccia,
-    non una protezione del database.
-13. **Verifiche pre-migrazione estese**: prima di applicare la 0020 —
-    (a) `verifica-spese.mjs` esteso al confronto ID per ID e campo per
-    campo contro l'export; (b) backup AGGIORNATO il giorno stesso;
-    (c) seconda copia fuori dalla cartella principale del Mac (disco
-    esterno o cloud); (d) prova generale della migrazione su una copia dei
-    dati (progetto Supabase di prova o Postgres locale), con verifica
-    prima/dopo, PRIMA di toccare il database vero.
+**Comportamenti definiti, caso per caso:**
+
+- **Spesa manuale senza foto**: nasce direttamente in `family_expenses`
+  (confermata, come oggi), senza documento né bozza. Un documento può
+  esserle collegato in seguito via `family_expense_documents`.
+- **Fattura inserita senza allegato**: si crea il `family_documents`
+  (fornitore, numero, data, doc_total, kind='fattura') SENZA file collegati
+  + la spesa con scadenza/pagamento. I file possono arrivare dopo.
+- **Documento con più foto/pagine**: un solo `family_documents`, N
+  `family_receipts` con lo stesso `document_id` (ordine pagina in
+  `page_order`).
+- **Scontrino misto (spese sorelle)**: un documento, più spese confermate
+  (una per ambito/gruppo madre) tutte collegate allo stesso documento via
+  `family_expense_documents`. Nei Movimenti appare come UN acquisto col
+  totale del documento; nelle statistiche ogni ambito riceve solo le sue.
+- **Conferma atomica (bozza → definitiva)**: un'unica funzione RPC Postgres
+  in transazione: verifica la quadratura, crea spese sorelle + righe +
+  collegamenti + correzioni, marca bozze e documento `confermata/o`. Se un
+  passo fallisce → rollback totale: nessuna spesa definitiva a metà.
+- **Scarto di una bozza**: `family_draft_expenses.status='scartata'` (con
+  motivo, registrato anche in `family_corrections`); il documento può
+  essere riscartato o rielaborato; nulla tocca `family_expenses`.
+- **Nuovo tentativo dopo errore**: solo da `status='errore'` il documento
+  torna `da_elaborare` (bozze precedenti scartate); il file non si ricarica.
+- **Quadratura sulle sorelle**: `family_documents.doc_total` = Σ righe di
+  TUTTE le bozze del documento (poi di tutte le spese sorelle), esatta al
+  centesimo (§9); mai duplicare doc_total sulle spese.
+- Le **fatture non pagate** di Casa Ania entrano nel totale "Speso" solo
+  alla data di pagamento (`paid_at`); prima stanno nello scadenzario e in
+  "Impegnato/Da pagare" (deciso da Ania il 27/08/2026); le tre date restano
+  separate: `document_date` (documento), `due_date`, `paid_at` (spesa).
+
+## 4. Tabelle e colonne definitive (migrazione `0020`, DA NON CREARE né APPLICARE ORA)
+
+### 4.1 `family_documents` (nuova)
+
+| Colonna | Tipo | Uso |
+|---|---|---|
+| `id` | uuid pk | |
+| `kind` | text check in (`scontrino`,`fattura`,`altro`) | |
+| `doc_total` | numeric(10,2) | totale del documento, QUI e solo qui |
+| `supplier` | text | fornitore (fatture) |
+| `invoice_number` | text | numero fattura |
+| `document_date` | date | data del documento |
+| `status` | text check in (`da_elaborare`,`in_revisione`,`confermato`,`errore`,`scartato`) | ciclo di vita del documento |
+| `error_message` | text | dettaglio per `errore` |
+| `note` | text | la nota di Ania per l'elaborazione |
+| `created_at` | timestamptz | |
+
+### 4.2 `family_receipts` (esistente → diventa SOLO file/pagine)
+
+Nuove colonne: `document_id uuid references family_documents` ·
+`page_order int default 1` · `mime_type text` · `file_sha256 text` (per i
+duplicati da file identico). **Niente kind/doc_total qui**: appartengono al
+documento. Le colonne storiche (`storage_path`, `note`, `status`,
+`uploaded_at`, `processed_at`, `ambito`) restano intatte; `status` e `note`
+del file diventano ridondanti per i documenti nuovi (fanno fede quelli del
+documento) ma NON si toccano per gli 81 storici.
+
+### 4.3 `family_draft_expenses` + `family_draft_items` (nuove: le bozze)
+
+`family_draft_expenses`: `id` · `document_id` (nullable: bozza senza
+documento non prevista ora ma non vietata) · `expense_date` · `amount` ·
+`group_id` · `canonical_category_id` · `canonical_subcategory_id` ·
+`category_id`/`subcategory` (compatibilità) · `store` · `description` ·
+`payment_method` · `due_date` · `payment_status` · `paid_at` · `room_id` ·
+`expense_nature` · `status` check in (`da_controllare`,`pronta`,
+`confermata`,`scartata`,`errore`) · `confidence jsonb` · `expense_id`
+(valorizzato alla conferma, per l'audit) · `created_at`.
+
+`family_draft_items`: `id` · `draft_id` · `raw_name` (descrizione originale
+stampata) · `name` (normalizzata) · `qty` · `unit_price` · `discount` ·
+`amount` · `group_id` (destinatario per riga) · `canonical_category_id` ·
+`canonical_subcategory_id` · `necessity`/`planning` (facoltativi, MAI
+proposti da Claude) · `confidence jsonb` · `created_at`.
+
+**Affidabilità per campo, non per riga**: `confidence` è jsonb strutturato
+`{ campo: { proposto, confidence 0–1, doubt_reason } }`, sia sulla bozza
+che sulle singole righe.
+
+### 4.4 `family_expenses` (esistente) — nuove colonne per le CONFERMATE
+
+| Colonna | Tipo | Uso |
+|---|---|---|
+| `payment_method` | text check in (`contanti`,`carta_personale`,`carta_attivita`,`bonifico`,`altro`) | |
+| `due_date` | date | scadenza (fatture) |
+| `payment_status` | text default `'pagata'` check in (`pagata`,`non_pagata`) — "scaduta" è derivato | |
+| `paid_at` | date | data di pagamento effettiva |
+| `room_id` | uuid references rooms(id) | camera (Amelia, Allegra, Ambra, Lena); NULLO = "Generale", mai obbligatorio |
+| `expense_nature` | text check in (`ordinaria`,`ricorrente`,`straordinaria`) | UN solo campo; `recurring` resta in sola lettura per lo storico |
+| `canonical_category_id` / `canonical_subcategory_id` | uuid | tassonomia canonica; `category_id`/`subcategory` restano per compatibilità |
+| `notes` | text | |
+
+NIENTE `review_status` qui: una riga in `family_expenses` È confermata per
+definizione (le bozze vivono altrove). Niente doc_total, supplier,
+invoice_number, document_date, error_message: vivono sul documento.
+
+### 4.5 `family_expense_items` (esistente) — nuove colonne
+
+`raw_name` · `unit_price` · `discount default 0` · `group_id` (destinatario
+riga) · `canonical_category_id` · `canonical_subcategory_id` · `necessity` /
+`planning` (facoltativi). L'affidabilità NON si copia sulle righe
+confermate: vive sulle bozze; ciò che sopravvive alla conferma sono i
+valori scelti.
+
+### 4.6 `family_expense_documents` (nuova, ponte)
+
+`expense_id` + `document_id`, unique sulla coppia. Backfill storico: una
+riga per ogni spesa con `receipt_id` valorizzato — **215 secondo il backup
+del 27/08** (221 − 6, su 81 documenti distinti; il conteggio è verificato
+via script e va ricontato a runtime dalla migrazione, mai fidarsi di un
+numero scritto a mano). `family_expenses.receipt_id` resta per
+compatibilità col codice vecchio.
+
+### 4.7 `family_corrections` (nuova, log correzioni)
+
+`id` · riferimenti FACOLTATIVI: `document_id`, `draft_id`, `draft_item_id`,
+`expense_id`, `item_id` · `field` · `proposed jsonb` · `corrected jsonb`
+(valori strutturati, non solo testo) · `rule_applied` · `source`
+(`revisione`/`duplicato`/`avviso`) · `created_at`.
+
+### 4.8 Sicurezza: `app_members` + RLS (sostituisce `using (true)`)
+
+Contesto verificato il 27/08/2026 (audit in sola lettura): **1 solo utente**
+in Supabase Authentication (l'account di Ania). È un gestionale privato,
+non una piattaforma multi-cliente: il modello è una **lista di autorizzati**.
+
+```sql
+create table app_members (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  role text not null default 'member' check (role in ('owner','member')),
+  created_at timestamptz not null default now()
+);
+-- policy tipo, su OGNI tabella family_* (nuove E storiche):
+--   using ( exists (select 1 from app_members m where m.user_id = auth.uid()) )
+-- gestione membri: solo role='owner'.
+```
+
+- Un account autenticato NON in lista non legge e non scrive nulla.
+- Un futuro accesso per un familiare = una riga in `app_members`, zero
+  cambi di schema.
+- **Nel repository niente email o UUID reali**: il primo owner si inserisce
+  con un passaggio separato e documentato nell'SQL Editor (Ania loggata,
+  `insert into app_members select id, 'owner' from auth.users where email =
+  auth.jwt()->>'email'` o equivalente con il proprio uid).
+- **Rollout in due tempi anti-lockout**: (1) creare tabella + inserire
+  l'owner + verificare `select count(*) from app_members` ≥ 1; (2) SOLO
+  DOPO sostituire le policy `authenticated using (true)` su tutte le
+  tabelle family_*. Mai nello stesso script. La modalità dimostrazione
+  (PIN) resta solo interfaccia, non è una protezione del database.
+
+### 4.9 Tassonomia canonica (tabelle)
+
+`family_canonical_categories` (id, name, ambito
+`personale`/`azienda`/`condivisa`, sort, `monitorata` boolean per
+Altro/Varie) e `family_canonical_subcategories` (canonical_category_id —
+FK per ID, mai per nome — name, sort). Mappatura dallo storico:
+`canonical_category_id` su `family_categories` + `family_subcategory_map`
+per le sottocategorie; si mappa SOLO a corrispondenza sicura.
 
 ## 4-bis. Tassonomia canonica approvata (Ania, 27/08/2026)
 
@@ -280,35 +280,14 @@ Basata sull'inventario del 27/08 (`~/Desktop/Inventario categorie spese
 gruppo), 52 sottocategorie mai usate, doppione corrotto "Caff√®",
 5 sottocategorie orfane di "Detersivi e pulizia".
 
-**Ania ha approvato:**
-1. l'accorpamento di Colazione/Bar, Merenda e Mangiare fuori in **"Mangiare
-   fuori"**;
-2. l'accorpamento di Sport e Hobby in **"Sport e hobby"**;
-3. una **tassonomia canonica non duplicata per persona**;
-4. la **conservazione completa degli ID e dello storico**.
+**Ania ha approvato:** ① accorpamento di Colazione/Bar, Merenda e Mangiare
+fuori in **"Mangiare fuori"**; ② accorpamento di Sport e Hobby in **"Sport
+e hobby"**; ③ tassonomia canonica non duplicata per persona; ④ conservazione
+completa degli ID e dello storico.
 
-### Principio strutturale
-
-Nel nuovo modello sono dimensioni SEPARATE, mai confuse tra loro:
-persona/destinatario (`group_id`) · categoria · sottocategoria · metodo di
-pagamento (`payment_method`) · necessario/discrezionale (`necessity`) ·
-previsto/impulsivo (`planning`). Le categorie NON sono più replicate per
-Casa/Ania/Teo/M e A: una tassonomia canonica indipendente dal gruppo, con
-ambito `personale`, `azienda` o `condivisa`.
-
-### Modello della transizione (dettaglio in 0020, da NON applicare ora)
-
-- Nuove tabelle: `family_canonical_categories` (id, name, ambito
-  personale/azienda/condivisa, sort, monitorata boolean per Altro/Varie) e
-  `family_canonical_subcategories` (canonical_category_id — FK per id, NON
-  per nome — name, sort).
-- Mappatura: colonna `canonical_category_id` su `family_categories` (le 115
-  storiche restano intatte, id compresi) + tabella
-  `family_subcategory_map` per le sottocategorie storiche → canoniche.
-- Il vecchio codice continua a funzionare durante la transizione: legge le
-  tabelle storiche come oggi; il codice nuovo risolve
-  storica → canonica via mappatura. Nessuna categoria storica viene
-  eliminata o sostituita; si mappa SOLO dove la corrispondenza è sicura.
+**Dimensioni SEPARATE, mai confuse**: persona/destinatario (`group_id`) ·
+categoria · sottocategoria · metodo di pagamento · necessario/discrezionale ·
+previsto/impulsivo (le ultime due facoltative, mai proposte da Claude).
 
 ### Categorie canoniche di Casa Mia (ambito personale)
 
@@ -360,213 +339,172 @@ ambito `personale`, `azienda` o `condivisa`.
   categoria storica finché non lo decide Ania.
 - Le **66 voci senza sottocategoria** (144,49 €) ricevono la sottocategoria
   solo quando deducibile con certezza; altrimenti l'interfaccia mostra
-  "**Non specificata**" — mai inventare una classificazione, mai usare
-  "Altro"/"Varie" come soluzione automatica dei dubbi (sono monitorate).
+  "**Non specificata**" — mai inventare, mai usare "Altro"/"Varie" come
+  soluzione automatica dei dubbi (sono monitorate nelle analisi).
 - La sottocategoria corrotta "**Caff√®**" si elimina **logicamente** solo
   dopo aver ri-verificato che non sia usata (dall'inventario: 0 usi).
 - Le **5 sottocategorie orfane** di "Detersivi e pulizia" si gestiscono con
-  una migrazione controllata (mappate a Pulizia e detergenti / Casa e
-  consumabili, o dismesse), mai cancellate a mano.
-- Tempi: le tabelle canoniche e la mappatura entrano nella 0020 (fase 2);
-  il popolamento della mappatura e la dismissione logica dei doppioni sono
-  in fase 6, con verifica `verifica-spese.mjs` prima e dopo. **Niente di
-  tutto questo è ancora applicato a Supabase.**
+  una migrazione controllata (mappate o dismesse), mai cancellate a mano.
 
 ## 5. Strategia di migrazione senza perdita dati
 
-1. **Backup già fatto** (cartella sulla scrivania, hash SHA-256 in
-   `manifest.json`) — prerequisito soddisfatto.
-2. La migrazione 0020 è **solo additiva**: `add column if not exists`,
-   `create table if not exists`, default che rendono valide le righe esistenti
-   senza toccarle. Nessun `update`, `rename`, `drop`.
-3. Unico backfill (idempotente, dentro la 0020): popolare
-   `family_expense_documents` dalle 75 spese con `receipt_id` valorizzato.
-4. Come sempre la migrazione si **incolla a mano** nell'SQL Editor Supabase;
-   il codice nuovo è tollerante alle colonne mancanti (pattern già in uso):
-   con la 0020 non applicata il modulo funziona in "modalità compatibilità"
-   (tutto confermato, niente revisione).
-5. **Verifica automatica post-migrazione**: script read-only (riuso di quello
-   dell'inventario) che riconfronta conteggi (221/728/81/5/115/93/5), totali
-   per ambito e ogni id col backup. Da eseguire subito dopo la 0020 e alla
-   fine di ogni fase.
-6. Le 6 spese senza documento restano intatte; il ricollegamento dei 5
-   scontrini Esselunga del 5–6/8 è un'operazione separata e facoltativa
-   (§decisioni).
+1. Backup del 27/08 ✓ (hash SHA-256 in manifest.json). Prima della 2C:
+   backup AGGIORNATO + seconda copia fuori dal Mac (destinazione da
+   scegliere prima della 2C, § 12).
+2. La 0020 è **solo additiva**: `add column if not exists`, `create table
+   if not exists`, default validi per le righe esistenti. Nessun `update`
+   distruttivo, `rename` o `drop`.
+3. Backfill (idempotenti, dentro la 0020, con conteggi VERIFICATI a
+   runtime): ① un `family_documents` per ognuno degli 81 `family_receipts`
+   storici (1:1, `kind` dal contesto, `doc_total` = somma delle spese
+   sorelle collegate — derivazione esatta perché lo storico quadra al
+   centesimo, marcata come derivata); ② `document_id` sui receipts;
+   ③ 215 righe `family_expense_documents` (ricontate a runtime).
+4. Le 221 spese esistenti restano intatte e confermate per definizione
+   (nessun campo di stato da riempire). `recurring` non si tocca.
+5. RLS in due tempi (§4.8) per non chiudersi fuori.
+6. Come sempre la migrazione si incolla a mano nell'SQL Editor; il codice
+   nuovo tollera l'assenza della 0020 (modalità compatibilità).
+7. **Verifica dopo ogni passo**: `verifica-spese.mjs` esteso (§13/§14) al
+   confronto **ID per ID e campo per campo** contro l'export.
 
-## 6. Suddivisione di `SpeseTracker.tsx`
+## 6. Suddivisione di `SpeseTracker.tsx` — FATTA (Fase 1 ✅)
 
-Da 1 file × 1.272 righe a moduli piccoli. La logica pura va in `lib/spese/`
-(testabile con `node --test`, come `navetta.test.ts`):
-
-```
-lib/spese/
-  types.ts        tipi condivisi (Ambito, Spesa, Riga, Documento, Stati…)
-  dati.ts         caricamento/salvataggio Supabase (unico punto di accesso)
-  voci.ts         vociDi, aggregazioni, somma per prodotto (dall'attuale)
-  periodo.ts      monthRange, weekRange, periodo scelto, etichette
-  domanda.ts      il motore della Domanda libera (oggi righe 481–564)
-  controlli.ts    quadratura, duplicati, campi dubbi (§9) — NUOVO
-  correzioni.ts   registrazione e lettura family_corrections (§10) — NUOVO
-```
-
-```
-components/spese/
-  SpeseShell.tsx        involucro per ambito: navigazione a 5, DemoGate, testata
-  PanoramicaTab.tsx     card riassuntive (§7)
-  MovimentiTab.tsx      elenco movimenti + FiltriPanel
-  AggiungiSheet.tsx     bottone centrale: scatta/libreria/file/manuale
-  DocumentiTab.tsx      documenti per stato, coda di revisione
-  RevisioneSpesa.tsx    schermata di controllo bozza (§8)
-  AnalisiTab.tsx        contenitore di: TessereCategorie, CalendarioView,
-                        RaccontoView, DomandaView, BudgetCard, SpeseFisseCard
-  ListaVoci.tsx         estratta com'è (pastiglie, sezioni, ×N)
-  FiltriPanel.tsx       pannello filtri a comparsa + riga "filtri attivi"
-  FatturaForm.tsx       form fattura Casa Ania (fornitore, scadenza, camera…)
-  SpesaForm.tsx         form manuale attuale, ripulito
-```
-
-`SpeseTracker.tsx` **non si cancella** finché la parità non è verificata: la
-fase 1 lo scompone mantenendo l'interfaccia attuale identica, le fasi
-successive cambiano l'interfaccia.
+Completata il 27/08/2026: da 1.272 a 402 righe, parità verificata (54 test,
+build, lint). Moduli esistenti: `lib/spese/{types,costanti,periodo,voci,
+domanda,ambito,dati,caratterizzazione}.ts` e `components/spese/{ListaVoci,
+ScontriniBlock,FormSpesa,FiltriSchede,HomeTab,BudgetCard,SpeseFisseCard,
+UltimeSpese,CalendarioTab,RaccontoTab,DomandaTab}.tsx` (dettagli nel
+resoconto Fase 1 in fondo). Da creare nelle prossime fasi: `controlli.ts`
+(quadratura/duplicati/avvisi), `correzioni.ts`, `bozze.ts` (accesso alle
+tabelle draft), `documenti.ts`.
 
 ## 7. Struttura delle nuove pagine e componenti
 
 Le rotte restano `/spese-famiglia` (Casa Mia) e `/spese` (Casa Ania): link,
-segnalibri e DemoGate esistenti continuano a valere. NIENTE seconda barra
-inferiore sopra la BottomNav (rivisto da Ania il 27/08/2026): la navigazione
-principale del gestionale resta l'unica in basso; dentro il modulo una
-**navigazione compatta in alto** fra le sezioni, più un **pulsante ＋
-flottante** per l'acquisizione:
+segnalibri e DemoGate esistenti continuano a valere. **NIENTE seconda barra
+inferiore sopra la BottomNav** (deciso da Ania il 27/08/2026): la
+navigazione principale del gestionale resta l'unica in basso; dentro il
+modulo una **navigazione compatta in alto** fra le QUATTRO sezioni, più un
+**pulsante ＋ flottante** per l'acquisizione:
 
 ```
 [ Panoramica │ Movimenti │ Documenti │ Analisi ]   (in alto, compatta)
                                             (＋)   (flottante)
 ```
 
-- **Panoramica** — in ordine: ① spese da controllare (n + link alla coda),
-  ② fatture da pagare/scadute (solo Casa Ania), ③ speso nel periodo (con
-  ritmo/previsione attuali), ④ budget disponibile, ⑤ ultimi movimenti.
-- **Movimenti** — l'elenco unico; uno scontrino con più spese collegate appare
-  come un movimento solo (somma delle sue parti, badge dei gruppi); tocco →
-  dettaglio con righe, documento, stato. Filtri in pannello a comparsa
-  (periodo, persona/gruppo, categoria, stato, metodo di pagamento, camera):
-  chiusi mostrano solo pastiglie dei filtri attivi con ✕.
-- **＋ Aggiungi** — foglio a comparsa con le 4 azioni: 📷 Scatta, 🖼️ Libreria,
-  📁 Carica documento, ✏️ Manuale. (Riusa il flusso staged attuale.)
-- **Documenti** — tutti i documenti per stato (da elaborare / da controllare /
-  errore / confermati), anteprime, note, e il punto d'ingresso alla revisione.
-  Dalla spesa si arriva sempre al documento originale e viceversa.
-- **Analisi** — le 4 viste attuali (tessere-categorie, Calendario, Racconto,
-  Domanda) + budget + spese fisse + (Casa Mia) le analisi
-  necessario/discrezionale e previsto/impulsivo; (Casa Ania) costi per camera,
-  ricorrente vs straordinario, metodi di pagamento.
-
-Differenze per contesto (stessa infrastruttura, interfaccia coerente con gli
-obiettivi): Casa Mia = budget, abitudini, acquisti inconsapevoli; Casa Ania =
-scadenzario fatture, stato pagamenti, costi per camera, profitto (il collegamento
-con Home/Statistiche resta sulle spese confermate).
+- **Panoramica** — ① spese da controllare (bozze), ② fatture da
+  pagare/scadute e "Impegnato/Da pagare" (solo Casa Ania), ③ speso nel
+  periodo (ritmo/previsione attuali), ④ budget disponibile, ⑤ ultimi
+  movimenti.
+- **Movimenti** — l'elenco; le spese sorelle di uno stesso documento
+  appaiono come un movimento unico (totale del documento, badge dei
+  gruppi); tocco → dettaglio con righe, documento, pagamento. Filtri in
+  pannello a comparsa (periodo, persona/gruppo, categoria, stato pagamento,
+  metodo, camera): chiusi mostrano solo pastiglie dei filtri attivi con ✕.
+- **＋ flottante** — foglio con le 4 azioni: 📷 Scatta, 🖼️ Libreria,
+  📁 Carica documento, ✏️ Manuale (riusa il flusso staged attuale).
+- **Documenti** — i documenti per stato (da elaborare / in revisione /
+  errore / confermati), file/pagine, note, ingresso alla revisione. Dalla
+  spesa si arriva sempre al documento originale e viceversa.
+- **Analisi** — le 4 viste attuali (tessere, Calendario, Racconto, Domanda)
+  + budget + spese fisse; Casa Mia: analisi abitudini (frequenza, piccoli
+  importi ripetuti, crescita, prodotti nuovi, cumulato); Casa Ania: costi
+  per camera, natura ordinaria/ricorrente/straordinaria, metodi di
+  pagamento; contatore d'uso di "Altro"/"Varie".
 
 ## 8. Flusso completo: foto → elaborazione → revisione → conferma
 
 ```
- ① Acquisizione (telefono)
-    scatta / libreria / file / manuale → upload nel bucket +
-    family_receipts { status: 'da_elaborare', kind, sha256, nota }
-    (una spesa manuale nasce direttamente 'pronta', senza documento)
+ ① Acquisizione (telefono, ＋ flottante)
+    scatta / libreria / file → upload dei file nel bucket +
+    family_receipts (file) + family_documents { status: 'da_elaborare',
+    kind, note } — più foto della stessa fattura = un documento, N file.
+    ✏️ Manuale: family_expenses diretta (confermata), nessuna bozza.
 
- ② Elaborazione (fase 1: Claude via /scontrini — deciso da Ania il 27/08/2026)
-    Claude NON crea più spese definitive. Deve: leggere il documento; creare
-    la bozza strutturata (family_expenses in review_status='da_controllare');
-    inserire TUTTE le righe (raw_name, unit_price, sconto, categoria,
-    sottocategoria, group_id); indicare l'affidabilità di ogni campo
-    (confidence + doubt_reason); eseguire i controlli matematici di §9;
-    segnalare duplicati e incongruenze; scrivere doc_total e collegare il
-    documento (receipt_id + family_expense_documents, receipt →
-    'da_controllare'); poi ATTENDERE la conferma dell'utente dal gestionale.
-    Se non riesce: receipt status='errore' + error_message.
-
-    L'elaboratore è intercambiabile per costruzione: il contratto è "scrive
-    una bozza valida nel modello dati e non conferma mai". Un domani un
-    processo lato server (OCR/AI in-app) potrà sostituire /scontrini
-    rispettando lo stesso contratto, senza toccare né il modello dati né la
-    schermata di revisione. In questa fase NIENTE API AI nell'app e nessun
-    costo per chiamata: bozze e validazione sono l'infrastruttura definitiva,
-    /scontrini è l'elaboratore della prima fase.
+ ② Elaborazione (fase attuale: Claude via /scontrini — deciso il 27/08)
+    Claude legge il documento e scrive SOLO bozze: family_draft_expenses
+    (una per ambito/gruppo madre se misto) + family_draft_items con
+    raw_name, unit_price, discount, group_id per riga, canoniche per ID,
+    confidence PER CAMPO (jsonb con doubt_reason); esegue i controlli §9;
+    segnala duplicati; scrive doc_total sul DOCUMENTO; documento →
+    'in_revisione'. Se non riesce: documento 'errore' + error_message.
+    ATTENDE la conferma dal gestionale: mai spese definitive.
+    L'elaboratore è intercambiabile per contratto ("scrive bozze valide,
+    non conferma mai"): un domani un processo lato server potrà sostituire
+    /scontrini senza toccare modello dati né revisione. In questa fase
+    NIENTE API AI nell'app e nessun costo per chiamata.
 
  ③ Revisione (schermata RevisioneSpesa)
-    mostra: foto/fattura zoomabile ── dati estratti ── per ogni campo dubbio
-    l'evidenza del motivo ── controlli §9 (verde/rosso) ── totale documento,
-    somma righe, differenza ── avviso "possibile duplicato di …".
-    Ogni modifica dell'utente → riga in family_corrections
-    { field, proposed_value, corrected_value, rule_applied }.
-    Quadratura ko ⇒ il bottone Conferma resta disattivato (controllo obbligatorio).
+    foto/pagine zoomabili ── dati estratti ── campi dubbi con motivo ──
+    controlli §9 (verdi/rossi; avvisi gialli non bloccanti) ── doc_total,
+    somma righe di TUTTE le bozze sorelle, differenza ── "possibile
+    duplicato di …" con confronto. Ogni modifica → family_corrections
+    (valori strutturati). Quadratura ko ⇒ Conferma disattivata.
+    Scarto ⇒ bozze 'scartata' + motivo. Errore ⇒ rielaborazione possibile.
 
- ④ Conferma
-    review_status='confermata' (receipt 'confermata') → la spesa entra in
-    totali, budget, statistiche, profitto. Fino ad allora le bozze sono
-    visibili solo in Documenti/Panoramica, NON nei totali.
-    'pronta' = controlli tutti verdi ma non ancora vista dall'utente:
-    all'inizio TUTTO passa comunque dalla revisione manuale.
+ ④ Conferma ATOMICA (RPC in transazione)
+    valida quadratura ⇒ crea spese sorelle + righe + family_expense_documents
+    + correzioni ⇒ bozze e documento 'confermata/o'. Un fallimento
+    qualsiasi = rollback: nessuna spesa definitiva parziale. Solo da qui
+    le spese entrano in totali, budget, statistiche, profitto.
 ```
 
-## 9. Controlli matematici e rilevamento duplicati (`lib/spese/controlli.ts`)
+All'inizio TUTTE le bozze passano dalla revisione manuale ('da_controllare');
+'pronta' (controlli verdi, non ancora vista) si userà più avanti, guidati
+dal tasso di correzioni (§10).
 
-**Quadratura (obbligatoria, ESATTA al centesimo — corretta da Ania il
-27/08/2026, niente tolleranza automatica):**
-- `Σ(righe.amount) + arrotondamento esplicito = doc_total`, differenza
-  esattamente zero (gli sconti sono già incorporati nel netto di riga);
+## 9. Controlli, avvisi e duplicati (`lib/spese/controlli.ts`, da creare)
+
+**Quadratura — ESATTA e BLOCCANTE (corretta da Ania il 27/08/2026):**
+- `Σ(righe di TUTTE le bozze sorelle) + arrotondamento esplicito =
+  family_documents.doc_total`, differenza esattamente ZERO;
 - l'arrotondamento è valido SOLO se letto dal documento oppure inserito e
   confermato dall'utente, registrato separatamente (`arrotondamentoCent`);
-  una differenza di 1 centesimo non dichiarata ⇒ documento `da_controllare`;
-- se `unit_price` presente: `|unit_price × qty − (amount + discount)| ≤ 0,01`
-  (qui la tolleranza resta: copre solo il arrotondamento del prezzo unitario
-  stampato, non il totale);
-- `doc_total` assente ⇒ campo dubbio ⇒ `da_controllare`;
-- differenza ≠ 0 ⇒ **stato `da_controllare` forzato**, conferma bloccata
-  finché l'utente non corregge o dichiara l'arrotondamento.
+  1 centesimo non dichiarato ⇒ resta `da_controllare`;
+- se `unit_price` presente: `|unit_price × qty − (amount + discount)| ≤
+  0,01` (qui la tolleranza resta: copre solo l'arrotondamento del prezzo
+  unitario stampato);
+- `doc_total` assente ⇒ campo dubbio ⇒ conferma bloccata finché l'utente
+  non lo inserisce.
 
-**Altri controlli:** sottocategoria presente su ogni riga (regola di Ania);
-gruppo presente; data non futura e non anteriore a nov 2024; `confidence`
-sotto soglia (0,8) ⇒ riga evidenziata col suo `doubt_reason`.
+**Avvisi — visibili e registrati ma NON bloccanti (deciso il 27/08/2026):**
+- data precedente a novembre 2024 o futura;
+- sottocategoria non determinabile ⇒ si mostra "Non specificata";
+- gruppo mancante; confidence sotto soglia (parte da 0,8) col suo motivo.
 
 **Duplicati (avviso, mai blocco automatico):**
-1. stesso `file_sha256` di un documento già caricato ⇒ duplicato certo
-   (la regola "doppioni scartati senza chiedere" si applica qui);
-2. stesso negozio + stessa data + stesso totale (±0,01) ⇒ probabile;
-3. stesso importo e data con negozio simile (prefisso comune) ⇒ possibile.
-   In revisione compare "possibile duplicato di [movimento]" con confronto
-   affiancato; l'utente decide (scarta / conferma comunque). L'esito finisce
-   in `family_corrections` (field=`duplicate`).
+1. stesso `file_sha256` di un file già caricato ⇒ duplicato certo (la
+   regola "doppioni scartati senza chiedere" si applica qui);
+2. stesso fornitore/negozio + stessa data + stesso doc_total ⇒ probabile;
+3. stessi data e totale con negozio simile ⇒ possibile.
+   L'esito della scelta finisce in family_corrections.
 
 ## 10. Registrazione e analisi delle correzioni
 
-- Scrittura: ogni modifica in RevisioneSpesa (e ogni scarto duplicato) genera
-  una riga `family_corrections`, col valore proposto, il corretto, il campo e
-  la regola che aveva prodotto la proposta (es. `regola: aceto→Detersivi`,
-  `euristica: negozio da intestazione`).
-- Lettura: sezione "Qualità dell'estrazione" dentro Analisi (o solo per noi,
-  da decidere): tasso di correzione per campo, per regola, per negozio; le 10
-  correzioni più frequenti. Serve a: misurare gli errori, aggiornare
-  `scontrini.md` e `family_product_rules`, e stabilire quando una tipologia
-  (es. scontrini Esselunga) è matura per lo stato `pronta` con controllo a
-  campione invece che totale.
+- Scrittura: ogni modifica in revisione (e ogni scarto/conferma di
+  duplicato) genera una riga `family_corrections` con riferimento a
+  documento/bozza/riga, campo, valore proposto e corretto (jsonb), regola
+  applicata.
+- Lettura: pannello "Qualità dell'estrazione" (fase 6): tasso di correzione
+  per campo, regola e negozio; le 10 correzioni più frequenti. Serve a
+  misurare gli errori, aggiornare scontrini.md e family_product_rules, e
+  decidere quando una tipologia è matura per lo stato 'pronta' col
+  controllo a campione.
 
 ## 11. Distinzione Casa Mia / Casa Ania
 
-- **Dato**: resta l'`ambito` sui gruppi (`personale`/`azienda`) — nessuna
-  modifica ai 5 gruppi esistenti. Le righe possono avere un `group_id` di
-  ambito diverso dalla spesa madre solo attraverso lo split in spese sorelle
-  (stesso documento), come oggi: i totali per ambito restano semplici e
-  compatibili con Home/Statistiche/profitto.
-- **UI**: due sezioni con lo stesso guscio (`SpeseShell ambito=…`) ma
-  contenuti diversi: Panoramica di Casa Ania apre con lo scadenzario fatture,
-  quella di Casa Mia con da-controllare + budget; Analisi diverge (abitudini
-  vs costi per camera). I campi fattura compaiono solo nei form/filtri
-  dell'ambito azienda.
-- **Split alla revisione**: nella schermata di revisione ogni riga ha la
-  pastiglia del destinatario (Casa, Ania, Teo, M e A, Casa Ania); al
-  salvataggio le righe vengono raggruppate in spese per ambito/gruppo madre,
-  tutte agganciate allo stesso documento (pattern attuale, ora esplicito).
+- **Dato**: l'ambito resta sui gruppi (personale/azienda), nessuna modifica
+  ai 5 gruppi. Le righe hanno il loro `group_id` ma i totali per ambito si
+  calcolano sempre dalle spese sorelle (mai multi-ambito su una spesa).
+- **UI**: stesso guscio, contenuti diversi: Panoramica Casa Ania apre con
+  scadenzario e Impegnato/Da pagare; Casa Mia con da-controllare + budget;
+  Analisi diverge (abitudini vs costi per camera). I campi fattura appaiono
+  solo nell'ambito azienda.
+- **Split alla revisione**: ogni riga di bozza ha la pastiglia del
+  destinatario (Casa, Ania, Teo, M e A, Casa Ania); la conferma atomica
+  raggruppa le righe in spese per ambito/gruppo madre, tutte sullo stesso
+  documento.
 
 ## 11-bis. Requisito Casa Mia: le spese di Teo (aggiunto il 27/08/2026)
 
@@ -597,7 +535,7 @@ una sola "Abbigliamento", la persona la dice il gruppo. (Il modello attuale
 replica le categorie per gruppo — §1 — ma sono la STESSA tassonomia: le
 analisi restano per nome e il rifacimento non aggiunge doppioni.)
 
-**Sottocategorie da prevedere** (seed nella 0020 o in fase 6, insieme alle
+**Sottocategorie da prevedere** (seed nelle tabelle canoniche, fase 2A/6, insieme alle
 altre; oggi "Scuola" e "Sport" esistono ma senza sottocategorie dedicate):
 - **Scuola e formazione**: Retta · Mensa · Libri · Cancelleria · Materiale
   scolastico · Gite · Corsi e ripetizioni · Trasporto scolastico · Altro
@@ -618,123 +556,124 @@ sottocategoria "Bricolage e creatività".
 - Scuola per mese e per **anno scolastico** (set–ago, periodo nuovo da
   aggiungere in `periodo.ts`);
 - Sport e hobby per attività (sottocategoria);
-- ricorrenti e straordinarie di Teo (`recurring`/`extraordinary`).
+- natura ordinaria/ricorrente/straordinaria delle spese di Teo (`expense_nature`; `recurring` storico in sola lettura).
 
 Nessuna modifica a categorie o dati Supabase durante la Fase 0: questo
 capitolo è solo requisito per le fasi 3–6.
 
 ## 12. Piano di sviluppo in fasi verificabili
 
-Ogni fase si chiude con: `npx tsc --noEmit` pulito, test `node --test` verdi,
-script di verifica totali contro il backup, prova visiva a 390px, voce in
-PROGETTO.md. Una fase non parte se la precedente non è verificata.
+Ogni fase si chiude con: tsc pulito, test verdi, `verifica-spese.mjs`,
+prova visiva a 390px (da loggati), voce in PROGETTO.md. Una fase non parte
+se la precedente non è verificata E approvata.
 
-- **Fase 0 — Rete di sicurezza** ✅ *(completata il 27/08/2026, vedi
-  resoconto in fondo)*: backup ✓, script `scripts/verifica-spese.mjs` ✓,
-  test di caratterizzazione `lib/spese/caratterizzazione{,.test}.ts` ✓.
-- **Fase 1 — Scomposizione a parità di funzioni**: estrarre `lib/spese/*` e
-  `ListaVoci` da SpeseTracker SENZA cambiare nulla di visibile. Verifica:
-  stessa UI, stessi numeri.
-- **Fase 2 — Migrazione 0020** (Ania la incolla) + tipi aggiornati + modalità
-  compatibilità. Verifica: script totali, app invariata.
-- **Fase 3 — Nuovo guscio**: navigazione a 5, Panoramica, Movimenti con
-  raggruppamento per documento, FiltriPanel, Aggiungi. Calendario/Racconto/
-  Domanda traslocano in Analisi. SpeseTracker.tsx va in pensione.
-- **Fase 4 — Ciclo di revisione**: stati, RevisioneSpesa, controlli.ts,
-  duplicati, family_corrections; `/scontrini` (scontrini.md) aggiornato per
-  scrivere bozze `da_controllare` con i campi nuovi.
-- **Fase 5 — Casa Ania fatture**: FatturaForm, scadenzario, pagata/non
-  pagata/scaduta, metodi di pagamento, camera, ricorrente/straordinario.
-- **Fase 6 — Classificazioni e analisi**: necessario/discrezionale,
-  previsto/impulsivo, analisi abitudini (Casa Mia), costi per camera (Casa
-  Ania), pannello qualità estrazione.
-- **Fase 7 — Pulizia**: rimozione del codice compatibilità superfluo,
-  aggiornamento scontrini.md e memoria, eventuale ricollegamento dei 5
-  scontrini orfani (se approvato).
+- **Fase 0 — Rete di sicurezza** ✅ *(27/08/2026: backup, verificatore,
+  test di caratterizzazione — resoconto in fondo)*.
+- **Fase 1 — Scomposizione a parità di funzioni** ✅ *(27/08/2026,
+  approvata da Ania: 1.272 → 402 righe — resoconto in fondo)*.
+- **Fase 2A — Progettazione migrazione** *(prossima)*: scrittura della
+  0020 sullo schema di §3–§4 (SENZA applicarla), tipi TypeScript, test del
+  nuovo modello, estensione di `verifica-spese.mjs` al confronto **ID per
+  ID e campo per campo**. Nessun contatto con Supabase.
+- **Fase 2B — Prova generale** *(solo dopo approvazione esplicita)*: su un
+  progetto Supabase SEPARATO, con **dati anonimizzati e nessuna foto** (il
+  backup reale NON si carica automaticamente): 0020 applicata lì, verifiche
+  prima/dopo, prova del rollout RLS in due tempi e della conferma atomica.
+- **Fase 2C — Applicazione al database vero** *(molto più avanti)*: solo
+  dopo backup aggiornato + **seconda copia fuori dal Mac** (destinazione da
+  scegliere allora, non ora: niente copie su dischi/cloud adesso) + prova
+  2B riuscita + approvazione esplicita di Ania. Include il passaggio
+  separato e documentato per il primo owner in `app_members` PRIMA di
+  sostituire le policy.
+- **Fase 3 — Nuovo guscio**: nav compatta in alto (Panoramica · Movimenti ·
+  Documenti · Analisi) + ＋ flottante, Movimenti raggruppati per documento,
+  FiltriPanel. Calendario/Racconto/Domanda traslocano in Analisi.
+  SpeseTracker.tsx va in pensione.
+- **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
+  duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
+  contratto "solo bozze".
+- **Fase 5 — Casa Ania fatture**: FatturaForm, scadenzario,
+  pagata/non pagata/scaduta, metodi di pagamento, camera, expense_nature.
+- **Fase 6 — Analisi e tassonomia**: analisi abitudini (frequenza, piccoli
+  importi ripetuti, crescita, prodotti nuovi, cumulato — necessity/planning
+  solo se inseriti dall'utente), popolamento mappatura canonica, pulizia
+  Caff√®/orfane, pannello qualità estrazione.
+- **Fase 7 — Pulizia finale**: rimozione codice compatibilità, memoria e
+  scontrini.md aggiornati, eventuale ricollegamento dei 5 scontrini orfani
+  (verifica certa su foto/data/negozio/totale/righe/ambiti, con conferma).
 
 ## 13. Rischi e misure di sicurezza
 
 | Rischio | Misura |
 |---|---|
-| Perdita/alterazione dei 221+728+81 record | migrazione solo additiva; backup con hash; script di verifica id-per-id dopo ogni fase |
-| Migrazione 0020 applicata in ritardo o a metà | modalità compatibilità già prevista; la 0020 è un file unico idempotente |
-| Regressione di profitto/Statistiche/Home | le bozze NON entrano nei totali; test di caratterizzazione sui totali prima del refactoring |
-| Doppio conteggio nei movimenti raggruppati | il raggruppamento per documento è solo di presentazione; i totali si calcolano sempre dalle spese |
-| Modalità dimostrazione che non copre le nuove viste | DemoGate su SpeseShell (un punto solo); prova col PIN in ogni fase |
-| RLS dimenticata sulle nuove tabelle | policy nella stessa 0020, come le esistenti |
-| Peso/lentezza su telefono (load carica tutto) | `dati.ts` incapsula le query: si potrà paginare per periodo senza toccare la UI |
-| Bozze duplicate se l'elaborazione riparte | vincolo: un documento non in `errore` non è rielaborabile; sha256 contro i doppi upload |
-| Push accidentale in produzione a metà lavoro | lavoro su branch `rifacimento-spese`; niente push su `main` senza verifica di fase (deroga concordata alla regola auto-push) |
+| Perdita/alterazione dei 221+728+81 record | migrazione solo additiva; backup con hash; verificatore esteso ID-per-ID e campo-per-campo dopo ogni fase |
+| Chiudersi fuori dal gestionale con le nuove policy | rollout RLS in due tempi: prima owner verificato in app_members, poi sostituzione policy; prova completa in 2B |
+| Bozze contate nei totali | impossibili per costruzione: vivono in tabelle separate |
+| Conferma a metà (spese parziali) | conferma atomica in transazione RPC |
+| Doppio conteggio nei movimenti raggruppati | raggruppamento solo di presentazione; totali sempre dalle spese |
+| Migrazione applicata in ritardo o a metà | 0020 idempotente; modalità compatibilità nel codice |
+| Regressione profitto/Statistiche/Home | test di caratterizzazione già attivi; bozze fuori dai totali |
+| Demo mode scoperta sulle nuove viste | DemoGate sul guscio; prova col PIN a ogni fase (resta solo UI, non protezione dati) |
+| Peso su telefono | dati.ts incapsula le query: si potrà paginare senza toccare la UI |
+| Bozze duplicate da doppia elaborazione | documento non in 'errore' non rielaborabile; sha256 sui file |
+| Push accidentale | branch `rifacimento-spese`, niente push su main senza verifica di fase (deroga concordata all'auto-push) |
 
 ## 14. Test necessari
 
-- **Caratterizzazione (prima di toccare)**: dai JSON del backup, i totali
-  attesi per mese/gruppo/categoria; `voci.ts` e `periodo.ts` devono
-  riprodurli esattamente (fissa anche i casi: settimana da data, voce senza
-  gruppo, item senza categoria → categoria madre).
-- **Unit (`node --test`, pattern di `pulizie.test.ts`)**: `controlli.ts`
-  (quadratura con sconti/arrotondamenti/tolleranza; duplicati nei 3 livelli);
-  `domanda.ts` (le domande già note: "bar", "da sempre", caffè del pranzo…);
-  `correzioni.ts`; stato derivato "scaduta".
-- **Flusso**: foto → bozza → correzione → conferma su progetto Supabase di
-  prova o con mock di `dati.ts`; verifica che una bozza non tocchi i totali.
-- **Visivi (390px, regola mobile-first)**: le 5 tab, revisione con foto,
-  pannello filtri, scadenzario; modalità dimostrazione; dark non previsto.
-- **Verifica dati**: `verifica-spese.mjs` dopo ogni fase e dopo la 0020.
+- **Caratterizzazione** ✅ (attivi, delegano al codice di produzione).
+- **Unit nuovi (2A+)**: controlli.ts (quadratura esatta con arrotondamento
+  dichiarato, sulle sorelle; avvisi non bloccanti; duplicati nei 3 livelli);
+  conferma atomica (successo, fallimento a metà ⇒ nessuna spesa); scarto e
+  rielaborazione; bozze mai nei totali; scadenzario/Impegnato;
+  contaNelloSpeso alla data di pagamento; mappatura canonica.
+- **Verificatore esteso (2A)**: confronto ID-per-ID e campo-per-campo
+  export ↔ backup; da usare in 2B prima/dopo la prova.
+- **Sicurezza (2B)**: con un utente di prova NON in app_members ogni
+  select/insert sulle family_* deve fallire; con l'owner tutto funziona.
+- **Visivi (390px, mobile-first, da loggati)**: le 4 sezioni + ＋
+  flottante, revisione con foto, pannello filtri, scadenzario, demo mode.
+- **Flusso**: foto → documento → bozze → correzione → conferma atomica su
+  ambiente di prova (2B), mai sul database vero.
 
-## 15. File che verrebbero creati o modificati
+## 15. File del progetto
 
-**Nuovi:** `supabase/migrations/0020_rifacimento_spese.sql` ·
-`lib/spese/{types,dati,voci,periodo,domanda,controlli,correzioni}.ts` ·
-`lib/spese/{voci,periodo,domanda,controlli}.test.ts` ·
-`components/spese/{SpeseShell,PanoramicaTab,MovimentiTab,AggiungiSheet,DocumentiTab,RevisioneSpesa,AnalisiTab,ListaVoci,FiltriPanel,FatturaForm,SpesaForm}.tsx` ·
-`scripts/verifica-spese.mjs` (read-only).
+**Già creati (Fasi 0–1)** ✅: `scripts/verifica-spese.mjs` ·
+`lib/spese/{types,costanti,periodo,voci,domanda,ambito,dati,caratterizzazione}.ts`
++ test (`caratterizzazione`, `domanda`, `ambito`) ·
+`components/spese/{ListaVoci,ScontriniBlock,FormSpesa,FiltriSchede,HomeTab,BudgetCard,SpeseFisseCard,UltimeSpese,CalendarioTab,RaccontoTab,DomandaTab}.tsx`.
 
-**Modificati:** `app/spese/page.tsx` e `app/spese-famiglia/page.tsx` (montano
-SpeseShell) · `components/SpeseTracker.tsx` (svuotato per gradi, poi rimosso
-in fase 7) · `~/.claude/commands/scontrini.md` (bozze + campi nuovi, fase 4) ·
-`lib/demoMode.ts` (se le rotte interne cambiano) · `PROGETTO.md` (a ogni fase).
+**Da creare (2A+)**: `supabase/migrations/0020_rifacimento_spese.sql` (2A,
+non applicata) · `lib/spese/{controlli,correzioni,bozze,documenti}.ts` +
+test · estensione `verifica-spese.mjs` · `components/spese/{SpeseShell,
+PanoramicaTab,MovimentiTab,AggiungiSheet,DocumentiTab,RevisioneSpesa,
+AnalisiTab,FiltriPanel,FatturaForm}.tsx` (fasi 3–5).
 
-**Intoccati:** tutto il resto del gestionale (prenotazioni, calendario, arrivi,
-pulizie, clienti, statistiche, push, sito).
+**Da modificare**: `app/spese/page.tsx`, `app/spese-famiglia/page.tsx`
+(fase 3) · `components/SpeseTracker.tsx` (pensione in fase 3) ·
+`~/.claude/commands/scontrini.md` (fase 4) · `lib/demoMode.ts` (se serve) ·
+`PROGETTO.md` (a ogni fase).
 
----
+**Intoccati**: tutto il resto del gestionale.
 
-## Decisioni prese (nessuna ancora aperta)
+## Decisioni prese e punti aperti
 
-**Già decise (27/08/2026):**
-- ✅ **Camere**: collegamento vero `room_id → rooms` (Amelia, Allegra, Ambra,
-  Lena), nullo = "Generale", mai obbligatorio.
-- ✅ **Elaborazione**: resta Claude via `/scontrini`, ma solo come creatore di
-  bozze "da controllare" con righe complete, affidabilità per campo, controlli
-  matematici e segnalazione duplicati; conferma sempre dell'utente dal
-  gestionale. Architettura pronta a sostituirlo con un elaboratore lato
-  server senza cambiare modello dati né schermata di revisione. Niente API AI
-  nell'app e nessun costo per chiamata in questa fase.
+**Decise da Ania (27/08/2026)** — camere via `room_id`; /scontrini
+elaboratore di sole bozze; spese sorelle; fatture nello Speso alla data di
+pagamento; storico confermato senza revisione retroattiva; orfani solo a
+fine lavori con verifica certa; branch senza push; tassonomia canonica con
+i due accorpamenti; quadratura esatta; revisione schema §3–§4 (bozze
+separate, family_documents, conferma atomica, confidence per campo,
+expense_nature, niente seconda barra, avvisi non bloccanti, RLS con
+app_members).
 
-- ✅ **Scontrino misto**: spese sorelle — una spesa per ambito, collegate allo
-  stesso documento. Nella vista documento appaiono come UN unico acquisto;
-  nelle statistiche ogni ambito riceve esclusivamente le proprie righe e il
-  proprio importo (mai il totale del documento).
-- ✅ **Fatture non pagate**: entrano nel totale principale "Speso" solo alla
-  data effettiva di pagamento (`paid_at`). Prima stanno nello scadenzario e
-  nei valori **"Impegnato/Da pagare"** della Panoramica Casa Ania. Le tre
-  date si conservano separate: `document_date`, `due_date`, `paid_at`.
-- ✅ **Storico**: le 221 spese esistenti migrano come già `confermata`, senza
-  revisione retroattiva e senza toccare categorie, importi, righe o
-  collegamenti.
-- ✅ **5 scontrini Esselunga orfani (5–6/8)**: NON si ricollegano nella prima
-  migrazione. Solo a fine lavori (fase 7), e solo dopo verifica certa della
-  corrispondenza su: fotografia, data, negozio, totale complessivo, righe e
-  suddivisione tra ambiti. Corrispondenza non certa ⇒ si lasciano invariate e
-  si segnalano. Mai collegare per semplice somiglianza.
-- ✅ **Modalità di sviluppo**: branch `rifacimento-spese`; niente push su
-  `main`, niente deploy su Vercel, nessuna migrazione applicata a Supabase
-  finché la nuova versione non è verificata e approvata da Ania (deroga
-  esplicita alla regola dell'auto-push per tutto il rifacimento).
+**Audit utenti (27/08/2026, sola lettura)**: 1 solo account in Supabase
+Authentication (Ania) — il modello app_members parte da un solo owner.
 
-*(Tutte confermate da Ania il 27/08/2026. Nessuna decisione bloccante residua:
-l'implementazione può partire quando Ania dà il via.)*
+**Aperti (non bloccanti per la 2A):**
+- approvazione esplicita per far partire la 2B (progetto di prova);
+- destinazione della seconda copia del backup — si decide prima della 2C;
+- prova visiva a 390px della Fase 1 da loggati (il login non lo fa Claude);
+- soglia confidence (parte a 0,8, si tara sui primi scontrini veri).
 
 ---
 
