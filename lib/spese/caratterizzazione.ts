@@ -31,11 +31,12 @@ export type Spesa = {
   description?: string | null
   recurring: boolean
   receipt_id: string | null
-  // Campi nuovi (migrazione 0020, fasi 3-5) — facoltativi finché non esiste:
-  payment_status?: 'pagata' | 'non_pagata'
+  // Campi nuovi (0020) — facoltativi finché la migrazione non è applicata.
+  // INVARIANTE (Ania, 28/08/2026): qui c'è SOLO denaro realmente uscito,
+  // quindi niente payment_status/due_date/review_status: le fatture non
+  // pagate e le bozze vivono su family_documents + family_draft_*.
   paid_at?: string | null
-  due_date?: string | null
-  review_status?: 'da_elaborare' | 'da_controllare' | 'pronta' | 'confermata' | 'errore'
+  payment_method?: string | null
 }
 export type Riga = {
   expense_id: string
@@ -163,59 +164,24 @@ export function raggruppaPerDocumento(spese: Spesa[]) {
   ]
 }
 
-// Quadratura obbligatoria ed ESATTA al centesimo (regola di Ania,
-// 27/08/2026): somma delle righe (sconti già incorporati nei prezzi) +
-// arrotondamento ESPLICITO = totale documento, differenza zero. Nessuna
-// tolleranza automatica: 1 centesimo non dichiarato lascia il documento
-// "da controllare". L'arrotondamento è valido solo se letto dal documento
-// o inserito e confermato dall'utente, registrato come arrotondamentoCent.
+// Quadratura ESATTA al centesimo e prezzo unitario: la logica vive in
+// lib/spese/controlli.ts (Fase 2A); qui restano involucri di compatibilità
+// per i test storici.
+import { quadraturaDocumento, rigaCoerente as rigaCoerenteApp, possibileDuplicato as duplicatoApp } from './controlli.ts'
+
 export function quadratura(docTotaleCent: number, righeCent: number[], arrotondamentoCent = 0) {
-  const somma = righeCent.reduce((s, x) => s + x, 0) + arrotondamentoCent
-  const diffCent = docTotaleCent - somma
-  return { sommaCent: somma, diffCent, ok: diffCent === 0 }
+  const r = quadraturaDocumento(docTotaleCent, [{ righeCent, arrotondamentoCent }])
+  return { sommaCent: r.sommaCent, diffCent: r.diffCent ?? 0, ok: r.ok }
 }
+export const rigaCoerente = rigaCoerenteApp
 
-// Prezzo unitario (quando disponibile): unit_price × qty deve ridare
-// l'importo della riga più lo sconto, al centesimo.
-export function rigaCoerente(unitPrice: number, qty: number, amountCent: number, discountCent = 0) {
-  return Math.abs(Math.round(unitPrice * 100 * qty) - (amountCent + discountCent)) <= 1
-}
-
-// Fatture Casa Ania (decisione di Ania, 27/08/2026): una spesa entra nel
-// totale principale "Speso" SOLO alla data effettiva di pagamento. Non
-// pagata ⇒ mai nello Speso (sta in Impegnato/Da pagare). Le spese normali
-// (senza payment_status) sono pagate per definizione alla loro data.
-// Le bozze (review_status diverso da confermata) non contano mai.
+// Fatture non pagate e bozze (invariante del 28/08/2026): NON esistono in
+// family_expenses, quindi lo "Speso" è semplicemente la somma delle spese
+// per expense_date (che per le fatture pagate È la data di pagamento).
+// Scadenzario e Impegnato vivono sui DOCUMENTI: vedi lib/spese/fatture.ts
+// (impegnatoCent, scadute, approvaDaPagare, pagaFattura).
 export function contaNelloSpeso(e: Spesa, periodo: [string, string]): boolean {
-  if (e.review_status && e.review_status !== 'confermata') return false
-  if (e.payment_status === 'non_pagata') return false
-  const dataEffettiva = e.paid_at || e.expense_date
-  return dataEffettiva >= periodo[0] && dataEffettiva <= periodo[1]
+  return e.expense_date >= periodo[0] && e.expense_date <= periodo[1]
 }
 
-// Impegnato/Da pagare: le fatture confermate ma non pagate, con lo stato
-// "scaduta" DERIVATO (non salvato): non pagata + scadenza superata.
-export function scadenzario(spese: Spesa[], oggi: string) {
-  const daPagare = spese.filter(e =>
-    (!e.review_status || e.review_status === 'confermata') && e.payment_status === 'non_pagata')
-  return {
-    daPagare,
-    impegnatoCent: daPagare.reduce((s, e) => s + cent(e.amount), 0),
-    scadute: daPagare.filter(e => e.due_date != null && e.due_date < oggi),
-  }
-}
-
-// Possibili duplicati (avviso, mai blocco): 'certo' = stesso file (sha256);
-// 'probabile' = stesso negozio + data + totale al centesimo; 'possibile' =
-// stessi data e totale con negozio simile. Altrimenti nessun sospetto.
-export function possibileDuplicato(
-  a: { date: string; totCent: number; store?: string | null; sha256?: string | null },
-  b: { date: string; totCent: number; store?: string | null; sha256?: string | null },
-): 'certo' | 'probabile' | 'possibile' | null {
-  if (a.sha256 && b.sha256 && a.sha256 === b.sha256) return 'certo'
-  if (a.date !== b.date || a.totCent !== b.totCent) return null
-  const sa = strip(a.store || ''), sb = strip(b.store || '')
-  if (sa && sa === sb) return 'probabile'
-  if (sa && sb && (sa.startsWith(sb) || sb.startsWith(sa))) return 'possibile'
-  return null
-}
+export const possibileDuplicato = duplicatoApp

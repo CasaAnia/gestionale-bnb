@@ -23,3 +23,61 @@ export type Voce = { n: string; a: number; q: number; cat: string; sott: string;
 export type Tab = 'home' | 'calendario' | 'racconto' | 'domanda'
 export type Dettaglio = { titolo: string; voci: Voce[] } | null
 export type Msg = { io: boolean; t: string }
+
+// ---- Nuovo modello 0020 (Fase 2A) — tipi delle tabelle nuove ----
+import type { DocumentoStato, BozzaStato } from './stati.ts'
+
+export type Documento = {
+  id: string
+  kind: 'scontrino' | 'fattura' | 'altro'
+  doc_total: number | null            // il totale vive QUI, mai sulle spese
+  supplier: string | null
+  invoice_number: string | null
+  document_date: string | null        // data della fattura
+  due_date: string | null             // scadenza (sul documento)
+  status: DocumentoStato
+  ambito: Ambito
+  error_message: string | null
+  note: string | null
+  created_at?: string
+}
+
+// Affidabilità PER CAMPO (mai un numero unico per riga)
+export type Confidence = Record<string, { proposto?: unknown; confidence?: number; doubt_reason?: string }>
+
+export type Bozza = {
+  id: string
+  document_id: string | null
+  expense_date: string
+  group_id: string | null
+  category_id?: string | null         // compatibilità
+  subcategory?: string | null         // compatibilità
+  canonical_category_id?: string | null
+  canonical_subcategory_id?: string | null
+  store?: string | null
+  description?: string | null
+  payment_method?: string | null
+  room_id?: string | null
+  expense_nature?: 'ordinaria' | 'ricorrente' | 'straordinaria' | null
+  status: BozzaStato
+  confidence: Confidence
+  arrotondamento_cent: number         // solo se letto dal documento o dichiarato
+  expense_id?: string | null          // collegamento certo bozza → spesa (unique)
+}
+
+export type RigaBozza = {
+  id: string
+  draft_id: string
+  raw_name?: string | null            // descrizione originale stampata
+  name: string                        // normalizzata
+  qty: number
+  unit_price?: number | null
+  discount: number
+  amount: number
+  group_id?: string | null            // destinatario della riga
+  canonical_category_id?: string | null
+  canonical_subcategory_id?: string | null
+  necessity?: 'necessario' | 'discrezionale' | null   // facoltative: Claude non le compila
+  planning?: 'previsto' | 'impulsivo' | null
+  confidence: Confidence
+}

@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import {
   cent, vociDi, monthRange, weekRange, yearRange, intervalloRange, nelPeriodo,
   aggregaVoci, sommaQty, totaliPerAmbito, speseAziendaHomeCent, speseFisseMese,
-  raggruppaPerDocumento, quadratura, rigaCoerente, contaNelloSpeso, scadenzario,
+  raggruppaPerDocumento, quadratura, rigaCoerente, contaNelloSpeso,
   possibileDuplicato, type Spesa, type Riga, type Gruppo,
 } from './caratterizzazione.ts'
 
@@ -180,33 +180,14 @@ test('differenza tra totale documento e somma righe: rilevata e misurata', () =>
   assert.equal(q.diffCent, 34)                   // manca una riga da 0,34 €
 })
 
-test('fattura non pagata: mai nello Speso, sta in Impegnato/Da pagare', () => {
-  const fattura = spesa({
-    amount: 250, group_id: 'g-bnb', payment_status: 'non_pagata',
-    expense_date: '2026-08-01', due_date: '2026-08-20', paid_at: null,
+test('invariante: lo Speso è la somma delle spese per expense_date (tutto già pagato)', () => {
+  // Fatture non pagate e bozze NON possono comparire qui: vivono su
+  // family_documents/family_draft_* (test completi in fatture.test.ts).
+  const fatturaPagata = spesa({
+    amount: 250, group_id: 'g-bnb', expense_date: '2026-08-03', paid_at: '2026-08-03',
   })
-  assert.ok(!contaNelloSpeso(fattura, monthRange('2026-08')))
-  const sc = scadenzario([fattura], '2026-08-27')
-  assert.equal(sc.impegnatoCent, 25000)
-  assert.equal(sc.scadute.length, 1)             // scaduta = derivato: non pagata + oltre scadenza
-  assert.equal(scadenzario([fattura], '2026-08-15').scadute.length, 0)
-})
-
-test('fattura pagata: entra nello Speso alla data di pagamento, non del documento', () => {
-  const fattura = spesa({
-    amount: 250, group_id: 'g-bnb', payment_status: 'pagata',
-    expense_date: '2026-07-28', paid_at: '2026-08-03',
-  })
-  assert.ok(contaNelloSpeso(fattura, monthRange('2026-08')))   // agosto: pagata qui
-  assert.ok(!contaNelloSpeso(fattura, monthRange('2026-07')))  // luglio: solo data documento
-})
-
-test('le bozze non contano mai nello Speso', () => {
-  const bozza = spesa({ amount: 50, review_status: 'da_controllare', expense_date: '2026-08-10' })
-  assert.ok(!contaNelloSpeso(bozza, monthRange('2026-08')))
-  assert.ok(contaNelloSpeso({ ...bozza, review_status: 'confermata' }, monthRange('2026-08')))
-  // una spesa storica senza review_status è confermata per definizione
-  assert.ok(contaNelloSpeso(spesa({ amount: 50, expense_date: '2026-08-10' }), monthRange('2026-08')))
+  assert.ok(contaNelloSpeso(fatturaPagata, monthRange('2026-08')))   // agosto: pagata qui
+  assert.ok(!contaNelloSpeso(fatturaPagata, monthRange('2026-07')))  // luglio (data fattura): no
 })
 
 test('possibile duplicato: certo per file uguale, probabile per negozio+data+totale', () => {
