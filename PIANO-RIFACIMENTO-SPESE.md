@@ -133,8 +133,8 @@ sulle 221 esistenti):
 | `payment_status` | text default `'pagata'` check in (`pagata`,`non_pagata`) — "scaduta" è derivato: `non_pagata` + `due_date < oggi` | fatture |
 | `paid_at` | date | data pagamento |
 | `room_id` | uuid references rooms(id) | camera di riferimento (Amelia, Allegra, Ambra, Lena — la tabella `rooms` esiste già dalla 0001, niente nomi duplicati come testo). **Nullo = "Generale"**, che è il caso normale: utenze, forniture comuni, pulizie e manutenzioni della struttura. Mai obbligatorio. *(Deciso da Ania il 27/08/2026.)* |
-| `extraordinary` | boolean default false | ricorrente (`recurring`) / straordinario |
-| `doc_total` | numeric(10,2) | totale letto sul documento (per la quadratura) |
+| `expense_nature` | text check in (`ordinaria`,`ricorrente`,`straordinaria`) | UN solo campo nuovo (niente booleani contraddittori con `recurring`, che resta in sola lettura per lo storico) — rivisto il 27/08/2026 |
+| ~~`doc_total`~~ | — | SPOSTATO su `family_documents` (§4-ter): appartiene al documento, mai duplicato sulle spese sorelle |
 | `notes` | text | note libere |
 | `error_message` | text | dettaglio per stato `errore` |
 
@@ -166,7 +166,10 @@ create table family_expense_documents (   -- allegati multipli
   receipt_id uuid not null references family_receipts(id) on delete cascade,
   unique (expense_id, receipt_id)
 );
--- Backfill: una riga per ognuna delle 75 spese con receipt_id valorizzato.
+-- Backfill: una riga per ognuna delle spese con receipt_id valorizzato —
+-- 215 secondo il backup del 27/08 (221 − 6 senza documento, su 81 documenti
+-- distinti; conteggio VERIFICATO via script, mai scritto a mano: la
+-- migrazione dovrà ricontarlo a runtime e confrontarlo con select count(*)).
 -- family_expenses.receipt_id resta e continua a funzionare (compatibilità).
 
 create table family_corrections (         -- log correzioni (§10)
@@ -182,12 +185,93 @@ create table family_corrections (         -- log correzioni (§10)
 );
 ```
 
-RLS identica alle tabelle esistenti (`accesso_utenti_autenticati`). Indici su
+RLS: NON copiare la policy attuale `authenticated using (true)` sulle nuove
+tabelle — prima si analizza il modello di autenticazione e si progetta
+l'isolamento per proprietario/account (§4-ter, punto 12; la modalità
+dimostrazione non è una protezione del database). Indici su
 `review_status`, `due_date`, `payment_status`, `family_expense_documents(expense_id)`.
 
 **Non si aggiunge la FK su `family_expenses.receipt_id`**: le 6 spese con
 receipt nullo e la storia esistente restano valide; il collegamento "forte"
 nuovo è `family_expense_documents`.
+
+## 4-ter. Revisione dello schema (Ania, 27/08/2026, dopo la Fase 1)
+
+Tredici correzioni vincolanti che SOSTITUISCONO i punti corrispondenti di
+§3, §4, §7, §8, §9, §12 e §13. La 0020 non è ancora scritta: verrà scritta
+su QUESTO schema.
+
+### Nuovo schema concettuale
+
+```
+family_documents (NUOVO: il documento LOGICO — scontrino, fattura…)
+  id, kind (scontrino/fattura/altro), doc_total (QUI, unico), supplier,
+  invoice_number, document_date, status, error_message, note
+   │ 1..N
+   ├── family_receipts (storici e nuovi FILE: foto/pagine/allegati,
+   │     + document_id → più file per lo stesso documento)
+   ├── family_draft_expenses (NUOVE: le BOZZE, mai in family_expenses)
+   │      └── family_draft_items (righe di bozza)
+   └── family_expense_documents (spesa confermata ↔ documento)
+
+family_expenses / family_expense_items: SOLO spese confermate (come oggi:
+  Home e Statistiche sommano tutto ciò che c'è, e così deve restare).
+family_corrections: riferibile a bozza, documento, spesa o riga.
+```
+
+1. **Bozze in tabelle separate** (`family_draft_expenses` +
+   `family_draft_items`, stessa forma delle definitive + confidence e
+   canoniche): NIENTE bozze in `family_expenses`/`family_expense_items`,
+   perché Home e Statistiche sommano tutte le spese aziendali senza filtro.
+   Le bozze diventano spese solo alla conferma.
+2. **Conferma atomica**: un'unica operazione (funzione RPC Postgres in
+   transazione) valida il documento e crea INSIEME spese sorelle, righe,
+   collegamenti e correzioni; se un passo fallisce, rollback totale, nessuna
+   spesa definitiva creata a metà.
+3. **Documento logico ≠ file**: `family_documents` è la fattura/scontrino;
+   `family_receipts` restano i FILE (gli 81 storici compresi) agganciati con
+   `document_id`. Una fattura può avere più foto, pagine o allegati.
+4. **`doc_total` vive su `family_documents`**, mai duplicato sulle spese
+   sorelle. La quadratura confronta doc_total del documento con la somma
+   delle righe di TUTTE le sorelle.
+5. **Collegamenti storici: 215, verificati** (221 spese − 6 senza documento,
+   su 81 documenti distinti; ricontato dallo script sul backup — il "75"
+   scritto prima era un errore manuale). Ogni numero nel piano e nelle
+   migrazioni va prodotto da verifica automatica, mai a mano.
+6. **Tassonomia canonica nativa**: bozze, spese e righe nuove salvano
+   direttamente `canonical_category_id` e `canonical_subcategory_id`
+   (FK per id); `category_id`/`subcategory` restano per compatibilità.
+7. **Affidabilità PER CAMPO**, non per riga: metadati strutturati (jsonb
+   `confidence`: { campo → { valore_proposto, confidence, doubt_reason } }).
+   `family_corrections` può riferirsi anche a documento e bozza
+   (draft_id/document_id) e conserva valori strutturati (jsonb), non solo
+   testo.
+8. **necessario/discrezionale e previsto/impulsivo sono FACOLTATIVI**:
+   Claude non li inventa mai (li propone solo l'utente). Le prime analisi
+   di abitudini usano: frequenza, piccoli importi ripetuti, crescita
+   mese-su-mese, prodotti mai comprati prima, totale cumulato.
+9. **Navigazione**: nessuna seconda barra in basso; nav compatta in alto
+   (Panoramica · Movimenti · Documenti · Analisi) + bottone ＋ flottante
+   (§7 aggiornato).
+10. **Avvisi ≠ blocchi**: data precedente a novembre 2024 e sottocategoria
+    non determinabile generano AVVISI (visibili, registrati) ma non
+    bloccano; la quadratura economica resta ESATTA e BLOCCANTE.
+11. **Natura della spesa**: un solo campo `expense_nature`
+    (ordinaria/ricorrente/straordinaria); `recurring` resta in sola lettura
+    per lo storico, mai due booleani contraddittori.
+12. **RLS da riprogettare**: sulle nuove tabelle NON si copia
+    `authenticated using (true)`. Prima della 0020: analisi del modello di
+    autenticazione attuale (unico account condiviso di Ania?) e progetto
+    dell'isolamento per proprietario/account (es. colonna owner/account_id
+    + policy sull'utente); la modalità dimostrazione è solo interfaccia,
+    non una protezione del database.
+13. **Verifiche pre-migrazione estese**: prima di applicare la 0020 —
+    (a) `verifica-spese.mjs` esteso al confronto ID per ID e campo per
+    campo contro l'export; (b) backup AGGIORNATO il giorno stesso;
+    (c) seconda copia fuori dalla cartella principale del Mac (disco
+    esterno o cloud); (d) prova generale della migrazione su una copia dei
+    dati (progetto Supabase di prova o Postgres locale), con verifica
+    prima/dopo, PRIMA di toccare il database vero.
 
 ## 4-bis. Tassonomia canonica approvata (Ania, 27/08/2026)
 
@@ -348,12 +432,15 @@ successive cambiano l'interfaccia.
 ## 7. Struttura delle nuove pagine e componenti
 
 Le rotte restano `/spese-famiglia` (Casa Mia) e `/spese` (Casa Ania): link,
-segnalibri e DemoGate esistenti continuano a valere. Dentro, `SpeseShell`
-con la navigazione a 5 richiesta (barra propria del modulo, sticky in basso
-sopra la BottomNav del gestionale — da verificare dal vivo su iPhone 390px):
+segnalibri e DemoGate esistenti continuano a valere. NIENTE seconda barra
+inferiore sopra la BottomNav (rivisto da Ania il 27/08/2026): la navigazione
+principale del gestionale resta l'unica in basso; dentro il modulo una
+**navigazione compatta in alto** fra le sezioni, più un **pulsante ＋
+flottante** per l'acquisizione:
 
 ```
-Panoramica │ Movimenti │ (＋) │ Documenti │ Analisi
+[ Panoramica │ Movimenti │ Documenti │ Analisi ]   (in alto, compatta)
+                                            (＋)   (flottante)
 ```
 
 - **Panoramica** — in ordine: ① spese da controllare (n + link alla coda),
