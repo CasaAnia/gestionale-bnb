@@ -10,6 +10,7 @@ import BackBar from '@/components/BackBar'
 import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio } from '@/lib/guestName'
 import { causaleBonifico } from '@/lib/causale'
 import { contoSoggiorno, residuoDaPagare } from '@/lib/conto'
+import { smartBack } from '@/lib/navHistory'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -1043,9 +1044,11 @@ export default function BookingDetail() {
       <div className="scheda-in bg-[#DCE8DD] text-[#2f6a4d] rounded-2xl px-8 py-8 shadow-lg text-center w-full max-w-xs">
         <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-white/70 flex items-center justify-center text-2xl font-bold">✓</div>
         <p className="font-semibold text-lg leading-snug">La prenotazione è stata cancellata</p>
-        <a href="/prenotazioni" className="inline-block mt-5 rounded-lg px-4 py-2 text-sm font-semibold bg-white/80 transition-transform duration-100 active:scale-[0.97]">
-          Torna alle prenotazioni
-        </a>
+        {/* Torna alla pagina vera di provenienza (calendario, arrivi, elenco…),
+            come il pulsante Indietro; l'elenco è solo la riserva */}
+        <button type="button" onClick={() => smartBack(router, '/prenotazioni')} className="inline-block mt-5 rounded-lg px-4 py-2 text-sm font-semibold bg-white/80 transition-transform duration-100 active:scale-[0.97]">
+          Torna indietro
+        </button>
       </div>
     </div>
   )
