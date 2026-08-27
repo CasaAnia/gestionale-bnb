@@ -1044,7 +1044,7 @@ export default function BookingDetail() {
         <p className="font-semibold text-lg leading-snug">La prenotazione è stata cancellata</p>
         {/* Torna alla pagina vera di provenienza (calendario, arrivi, elenco…),
             come il pulsante Indietro; l'elenco è solo la riserva */}
-        <button type="button" onClick={() => smartBack(router, '/prenotazioni')} className="inline-block mt-5 rounded-lg px-4 py-2 text-sm font-semibold bg-white/80 transition-transform duration-100 active:scale-[0.97]">
+        <button type="button" onClick={() => smartBack(router, '/calendario')} className="inline-block mt-5 rounded-lg px-4 py-2 text-sm font-semibold bg-white/80 transition-transform duration-100 active:scale-[0.97]">
           Torna indietro
         </button>
       </div>
@@ -1053,7 +1053,9 @@ export default function BookingDetail() {
 
   return (
     <div className="p-4">
-      <BackBar href="/prenotazioni" />
+      {/* Riserva sul calendario: Ania entra quasi sempre da lì e non vuole mai
+          finire sull'elenco prenotazioni quando il ritorno vero non è possibile */}
+      <BackBar href="/calendario" />
       <div className="flex items-center gap-3 mb-4">
         <h1 className="font-serif text-xl text-green-dark">Prenotazione</h1>
         {booking.source === 'sito_web' && (
