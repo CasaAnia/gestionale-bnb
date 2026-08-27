@@ -382,9 +382,9 @@ Ogni fase si chiude con: `npx tsc --noEmit` pulito, test `node --test` verdi,
 script di verifica totali contro il backup, prova visiva a 390px, voce in
 PROGETTO.md. Una fase non parte se la precedente non è verificata.
 
-- **Fase 0 — Rete di sicurezza** *(fatta a metà)*: backup ✓; da aggiungere:
-  script `verifica-spese.mjs` (read-only, riusa l'inventario) + test di
-  caratterizzazione su `voci.ts`/`periodo.ts` coi dati del backup.
+- **Fase 0 — Rete di sicurezza** ✅ *(completata il 27/08/2026, vedi
+  resoconto in fondo)*: backup ✓, script `scripts/verifica-spese.mjs` ✓,
+  test di caratterizzazione `lib/spese/caratterizzazione{,.test}.ts` ✓.
 - **Fase 1 — Scomposizione a parità di funzioni**: estrarre `lib/spese/*` e
   `ListaVoci` da SpeseTracker SENZA cambiare nulla di visibile. Verifica:
   stessa UI, stessi numeri.
@@ -488,3 +488,64 @@ pulizie, clienti, statistiche, push, sito).
 
 *(Tutte confermate da Ania il 27/08/2026. Nessuna decisione bloccante residua:
 l'implementazione può partire quando Ania dà il via.)*
+
+---
+
+## Resoconto Fase 0 — 27 agosto 2026 (branch `rifacimento-spese`)
+
+### File creati
+- `scripts/verifica-spese.mjs` — script di verifica riutilizzabile: legge il
+  backup locale in SOLA lettura (niente Supabase, niente chiavi, niente rete),
+  confronta conteggi e totali attesi, verifica relazioni/orfani/ambiti/
+  quadrature, esce con codice 1 se qualcosa non torna. Il riepilogo mostra
+  solo aggregati, mai dati personali.
+- `lib/spese/caratterizzazione.ts` — funzioni pure che documentano (A) il
+  comportamento economico attuale copiato da SpeseTracker.tsx SENZA
+  modificarlo, e (B) le regole approvate per il nuovo modulo (quadratura,
+  fatture non pagate, duplicati, spese sorelle). Denaro sempre in centesimi.
+- `lib/spese/caratterizzazione.test.ts` — 17 test con dati sintetici e
+  anonimi (nessun dato reale nel repository). Coprono tutti i casi richiesti:
+  scontrino solo Casa Mia / solo Casa Ania / misto con spese sorelle,
+  quantità multiple, sconto in riga, arrotondamento, spesa manuale senza
+  documento, fattura non pagata (fuori dallo Speso) e pagata (conta alla
+  data di pagamento), bozze escluse dai totali, duplicato certo/probabile/
+  possibile, differenza totale-righe, periodi (mese/settimana/anno/Dal–al,
+  bisestile compreso), aggregazioni per gruppo/categoria/sottocategoria/
+  negozio, ricorrenti (pagata ✓ / attesa ~).
+- Modificato: solo questo file (PIANO-RIFACIMENTO-SPESE.md). SpeseTracker.tsx
+  e tutto il resto del gestionale: intoccati.
+
+### Come ripetere le verifiche
+```
+npm test                          # 40 test (23 esistenti + 17 nuovi)
+npx tsc --noEmit                  # typecheck
+npm run lint                      # lint (vedi problemi preesistenti sotto)
+npm run build                     # build di produzione
+node scripts/verifica-spese.mjs   # verifica sul backup della scrivania
+```
+
+### Risultati del 27/08/2026
+- Test: **40/40 verdi**. TypeScript: pulito. Build di produzione: ok.
+- `verifica-spese.mjs`: **28/28 verifiche superate** sul backup
+  (221 spese · 728 righe · 81 documenti · personale 4.621,75 € · azienda
+  169,10 € · 6 senza documento per 132,70 € · 0 righe orfane · quadratura
+  al centesimo ovunque · 81/81 file presenti).
+- Fatti fotografati dal backup, utili per le fasi successive: 220 spese su
+  221 hanno righe di dettaglio e quadrano TUTTE al centesimo; 49 documenti
+  hanno spese sorelle, di cui 12 con ambiti misti; 0 spese ricorrenti nei
+  dati attuali (la card "Spese fisse" oggi è sempre vuota).
+
+### Problemi preesistenti scoperti (NON toccati, fuori dal perimetro Fase 0)
+- `npm run lint`: **254 problemi (229 errori, 25 avvisi)** in tutto il
+  progetto, quasi tutti `@typescript-eslint/no-explicit-any` in file NON del
+  modulo spese (app/page.tsx, statistiche, pulizie, webRequests…). I tre
+  file nuovi della Fase 0 sono puliti (`npx eslint` su di essi: zero errori).
+- `node --test` avvisa che manca `"type": "module"` in package.json
+  (avviso di prestazioni, non un errore; riguarda anche i test esistenti).
+- Nessun altro problema emerso.
+
+### Limite noto dello script di verifica
+I valori attesi fotografano il 27/08/2026: se durante il rifacimento Ania
+registra spese nuove, lo script va usato contro il BACKUP (invariato) o
+contro un export rigenerato confrontando gli id originali, non i conteggi
+totali. Le fasi successive aggiungeranno il confronto id-per-id.
