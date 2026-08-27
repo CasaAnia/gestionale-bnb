@@ -128,10 +128,18 @@ app_members  ← lista degli utenti autorizzati del gestionale (§4.8).
   (una per ambito/gruppo madre) tutte collegate allo stesso documento via
   `family_expense_documents`. Nei Movimenti appare come UN acquisto col
   totale del documento; nelle statistiche ogni ambito riceve solo le sue.
-- **Conferma atomica (bozza → definitiva)**: un'unica funzione RPC Postgres
-  in transazione: verifica la quadratura, crea spese sorelle + righe +
-  collegamenti + correzioni, marca bozze e documento `confermata/o`. Se un
-  passo fallisce → rollback totale: nessuna spesa definitiva a metà.
+- **Conferma atomica e IDEMPOTENTE (bozza → definitiva)**: un'unica RPC
+  Postgres in transazione che: blocca il documento (`for update`), accetta
+  solo stati validi, verifica la quadratura esatta su tutte le righe di
+  tutte le sorelle, crea spese + righe + collegamenti + correzioni, marca
+  bozze e documento. Un passo fallito ⇒ rollback totale. Doppio tocco,
+  timeout o richiesta ripetuta non creano doppioni: vincoli univoci
+  (`family_draft_expenses.expense_id` unique = collegamento certo
+  bozza → spesa; una bozza non è confermabile due volte) e la ripetizione
+  restituisce le spese già create.
+- **Pagamento fattura**: RPC SEPARATA e idempotente per un documento
+  `approvata_da_pagare`: crea le spese sorelle con `expense_date = data di
+  pagamento`, documento → `confermato`; un secondo tentativo non duplica.
 - **Scarto di una bozza**: `family_draft_expenses.status='scartata'` (con
   motivo, registrato anche in `family_corrections`); il documento può
   essere riscartato o rielaborato; nulla tocca `family_expenses`.
@@ -140,10 +148,18 @@ app_members  ← lista degli utenti autorizzati del gestionale (§4.8).
 - **Quadratura sulle sorelle**: `family_documents.doc_total` = Σ righe di
   TUTTE le bozze del documento (poi di tutte le spese sorelle), esatta al
   centesimo (§9); mai duplicare doc_total sulle spese.
-- Le **fatture non pagate** di Casa Ania entrano nel totale "Speso" solo
-  alla data di pagamento (`paid_at`); prima stanno nello scadenzario e in
-  "Impegnato/Da pagare" (deciso da Ania il 27/08/2026); le tre date restano
-  separate: `document_date` (documento), `due_date`, `paid_at` (spesa).
+- **INVARIANTE ECONOMICA (Ania, 28/08/2026): tutto ciò che sta in
+  `family_expenses` è denaro realmente uscito** e conta nello "Speso".
+  Una fattura confermata ma NON pagata non entra mai in `family_expenses`:
+  resta `family_documents` (stato **`approvata_da_pagare`**: non più
+  dubbia, non ancora spesa) con le righe classificate nelle bozze; compare
+  in scadenzario e "Impegnato/Da pagare". Al pagamento, una **RPC atomica
+  separata** crea le spese sorelle definitive con `expense_date = data
+  reale di pagamento (= paid_at)`; `document_date` resta la data della
+  fattura e `due_date` la scadenza sul documento; `payment_method` può
+  restare vuoto finché non si paga. Così Home, Statistiche e ogni calcolo
+  storico conservano la regola semplice: ciò che è in family_expenses è
+  già pagato.
 
 ## 4. Tabelle e colonne definitive (migrazione `0020`, DA NON CREARE né APPLICARE ORA)
 
@@ -157,7 +173,8 @@ app_members  ← lista degli utenti autorizzati del gestionale (§4.8).
 | `supplier` | text | fornitore (fatture) |
 | `invoice_number` | text | numero fattura |
 | `document_date` | date | data del documento |
-| `status` | text check in (`da_elaborare`,`in_revisione`,`confermato`,`errore`,`scartato`) | ciclo di vita del documento |
+| `due_date` | date | scadenza (fatture) — vive sul documento |
+| `status` | text check in (`da_elaborare`,`in_revisione`,`approvata_da_pagare`,`confermato`,`errore`,`scartato`) | ciclo di vita; `approvata_da_pagare` = fattura revisionata ma non pagata (scadenzario/Impegnato) |
 | `error_message` | text | dettaglio per `errore` |
 | `note` | text | la nota di Ania per l'elaborazione |
 | `created_at` | timestamptz | |
@@ -195,12 +212,14 @@ che sulle singole righe.
 
 ### 4.4 `family_expenses` (esistente) — nuove colonne per le CONFERMATE
 
+Regola: qui entra SOLO denaro realmente uscito (invariante §3): niente
+`payment_status` né `due_date` (vivono sul documento; "scaduta" è derivata
+lì: `approvata_da_pagare` + `due_date < oggi`).
+
 | Colonna | Tipo | Uso |
 |---|---|---|
 | `payment_method` | text check in (`contanti`,`carta_personale`,`carta_attivita`,`bonifico`,`altro`) | |
-| `due_date` | date | scadenza (fatture) |
-| `payment_status` | text default `'pagata'` check in (`pagata`,`non_pagata`) — "scaduta" è derivato | |
-| `paid_at` | date | data di pagamento effettiva |
+| `paid_at` | date | data di pagamento (per le fatture = `expense_date`) |
 | `room_id` | uuid references rooms(id) | camera (Amelia, Allegra, Ambra, Lena); NULLO = "Generale", mai obbligatorio |
 | `expense_nature` | text check in (`ordinaria`,`ricorrente`,`straordinaria`) | UN solo campo; `recurring` resta in sola lettura per lo storico |
 | `canonical_category_id` / `canonical_subcategory_id` | uuid | tassonomia canonica; `category_id`/`subcategory` restano per compatibilità |
@@ -246,10 +265,19 @@ create table app_members (
   role text not null default 'member' check (role in ('owner','member')),
   created_at timestamptz not null default now()
 );
--- policy tipo, su OGNI tabella family_* (nuove E storiche):
---   using ( exists (select 1 from app_members m where m.user_id = auth.uid()) )
--- gestione membri: solo role='owner'.
+-- NIENTE sottoquery dirette su app_members nelle policy (rischio
+-- ricorsione con la RLS di app_members stessa): funzioni dedicate
+--   is_app_member() / is_app_owner()
+--   security definer · stable · set search_path esplicito e sicuro ·
+--   confronto con auth.uid() · execute revocata ad anon
+-- policy tipo su OGNI tabella family_* (nuove E storiche) e su app_members:
+--   using ( is_app_member() )      [owner-only per gestire i membri]
+-- e sul bucket privato 'scontrini' in storage.objects: select/insert/
+-- update/delete solo per is_app_member().
 ```
+
+Un account autenticato ma NON in `app_members` non può leggere, caricare,
+modificare o eliminare né dati né foto.
 
 - Un account autenticato NON in lista non legge e non scrive nulla.
 - Un futuro accesso per un familiare = una riga in `app_members`, zero
@@ -264,7 +292,27 @@ create table app_members (
   tabelle family_*. Mai nello stesso script. La modalità dimostrazione
   (PIN) resta solo interfaccia, non è una protezione del database.
 
-### 4.9 Tassonomia canonica (tabelle)
+### 4.9 Vincoli del modello dati (nella 0020)
+
+- FK con `on delete` scelto consapevolmente: eliminare un documento o un
+  file NON cancella MAI una spesa definitiva (nessuna FK da family_expenses
+  ai documenti; il ponte si limita a perdere il collegamento); le bozze non
+  confermate cadono col documento; le confermate restano come audit
+  (`document_id` set null); `family_draft_expenses.expense_id` on delete
+  set null (eliminare una spesa non cancella l'audit della bozza).
+- Importi `>= 0` dove appropriato; quantità `> 0`; `page_order > 0` e
+  UNICO dentro lo stesso documento; `file_sha256` unico quando presente
+  (indice parziale).
+- `family_corrections`: vincolo "almeno un riferimento valorizzato".
+- Canoniche coerenti: la sottocategoria scelta deve appartenere alla
+  categoria scelta (FK composita su `(canonical_subcategory_id,
+  canonical_category_id)`).
+- Stati e transizioni documentati in `lib/spese/stati.ts` e ripresi nei
+  CHECK.
+- `necessity`/`planning` facoltativi e VUOTI per default: Claude non li
+  compila mai.
+
+### 4.10 Tassonomia canonica (tabelle)
 
 `family_canonical_categories` (id, name, ambito
 `personale`/`azienda`/`condivisa`, sort, `monitorata` boolean per
@@ -362,7 +410,18 @@ previsto/impulsivo (le ultime due facoltative, mai proposte da Claude).
    ③ 215 righe `family_expense_documents` (ricontate a runtime).
 4. Le 221 spese esistenti restano intatte e confermate per definizione
    (nessun campo di stato da riempire). `recurring` non si tocca.
-5. RLS in due tempi (§4.8) per non chiudersi fuori.
+5. **Rollout anti-lockout in FILE DISTINTI, mai un unico script** (Ania,
+   28/08/2026): ① `0020_rifacimento_spese_schema.sql` — tabelle, colonne,
+   indici, vincoli, RPC economiche; nuove tabelle con RLS ATTIVA e nessuna
+   policy permissiva (chiuse finché non c'è la 0021), vecchie policy NON
+   toccate; ② `supabase/bootstrap_owner.sql` — script manuale generico
+   (zero email/UUID nel repo) che pretende ESATTAMENTE un utente in
+   auth.users (fallisce chiaro con 0 o >1), lo inserisce come owner e
+   verifica che l'owner sia esattamente uno; ③ `0021_protezione_family.sql`
+   — funzioni di sicurezza e SOSTITUZIONE delle vecchie policy su tabelle
+   e bucket, con precondizione che blocca se manca l'owner. Tutti
+   idempotenti dove possibile, con controlli che interrompono se le
+   precondizioni mancano.
 6. Come sempre la migrazione si incolla a mano nell'SQL Editor; il codice
    nuovo tollera l'assenza della 0020 (modalità compatibilità).
 7. **Verifica dopo ogni passo**: `verifica-spese.mjs` esteso (§13/§14) al
@@ -571,10 +630,16 @@ se la precedente non è verificata E approvata.
   test di caratterizzazione — resoconto in fondo)*.
 - **Fase 1 — Scomposizione a parità di funzioni** ✅ *(27/08/2026,
   approvata da Ania: 1.272 → 402 righe — resoconto in fondo)*.
-- **Fase 2A — Progettazione migrazione** *(prossima)*: scrittura della
-  0020 sullo schema di §3–§4 (SENZA applicarla), tipi TypeScript, test del
-  nuovo modello, estensione di `verifica-spese.mjs` al confronto **ID per
-  ID e campo per campo**. Nessun contatto con Supabase.
+- **Fase 2A — Progettazione migrazione** *(in corso, 28/08/2026)*:
+  scrittura di 0020-schema + bootstrap owner + 0021-protezione (SENZA
+  applicarli, §5.5), tipi TypeScript, funzioni pure e test per stati/
+  transizioni/quadratura sorelle/fatture impegnate e pagate/scaduta
+  derivata/duplicati/canoniche/idempotenza logica/esclusioni dallo Speso;
+  estensione di `verifica-spese.mjs` al confronto backup ↔ export candidato
+  **ID per ID e campo per campo** (mancanti, aggiunti, campi modificati,
+  relazioni spezzate, duplicati, differenze economiche) con autotest sul
+  backup contro sé stesso e fixture sintetiche alterate. Nessun contatto
+  con Supabase, nessun export nuovo.
 - **Fase 2B — Prova generale** *(solo dopo approvazione esplicita)*: su un
   progetto Supabase SEPARATO, con **dati anonimizzati e nessuna foto** (il
   backup reale NON si carica automaticamente): 0020 applicata lì, verifiche
@@ -624,8 +689,11 @@ se la precedente non è verificata E approvata.
 - **Unit nuovi (2A+)**: controlli.ts (quadratura esatta con arrotondamento
   dichiarato, sulle sorelle; avvisi non bloccanti; duplicati nei 3 livelli);
   conferma atomica (successo, fallimento a metà ⇒ nessuna spesa); scarto e
-  rielaborazione; bozze mai nei totali; scadenzario/Impegnato;
-  contaNelloSpeso alla data di pagamento; mappatura canonica.
+  rielaborazione; bozze mai nei totali; mappatura canonica. **Fatture
+  (espliciti)**: ricevuta e non pagata ⇒ ZERO righe in family_expenses;
+  non pagata ⇒ presente in "Impegnato"; pagamento ⇒ creazione atomica con
+  `expense_date = paid_at`; fattura di agosto pagata a settembre ⇒ Speso
+  di settembre; secondo tentativo di pagamento ⇒ nessun duplicato.
 - **Verificatore esteso (2A)**: confronto ID-per-ID e campo-per-campo
   export ↔ backup; da usare in 2B prima/dopo la prova.
 - **Sicurezza (2B)**: con un utente di prova NON in app_members ogni
