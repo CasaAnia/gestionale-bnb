@@ -424,13 +424,19 @@ con Home/Statistiche resta sulle spese confermate).
 
 ## 9. Controlli matematici e rilevamento duplicati (`lib/spese/controlli.ts`)
 
-**Quadratura (obbligatoria):**
-- `Σ(righe.amount) + arrotondamenti = doc_total` con tolleranza 0,01 €
-  (gli sconti sono già incorporati nel netto di riga, regola esistente);
-- se `unit_price` presente: `|unit_price × qty − (amount + discount)| ≤ 0,01`;
+**Quadratura (obbligatoria, ESATTA al centesimo — corretta da Ania il
+27/08/2026, niente tolleranza automatica):**
+- `Σ(righe.amount) + arrotondamento esplicito = doc_total`, differenza
+  esattamente zero (gli sconti sono già incorporati nel netto di riga);
+- l'arrotondamento è valido SOLO se letto dal documento oppure inserito e
+  confermato dall'utente, registrato separatamente (`arrotondamentoCent`);
+  una differenza di 1 centesimo non dichiarata ⇒ documento `da_controllare`;
+- se `unit_price` presente: `|unit_price × qty − (amount + discount)| ≤ 0,01`
+  (qui la tolleranza resta: copre solo il arrotondamento del prezzo unitario
+  stampato, non il totale);
 - `doc_total` assente ⇒ campo dubbio ⇒ `da_controllare`;
 - differenza ≠ 0 ⇒ **stato `da_controllare` forzato**, conferma bloccata
-  finché l'utente non corregge o registra esplicitamente un arrotondamento.
+  finché l'utente non corregge o dichiara l'arrotondamento.
 
 **Altri controlli:** sottocategoria presente su ogni riga (regola di Ania);
 gruppo presente; data non futura e non anteriore a nov 2024; `confidence`

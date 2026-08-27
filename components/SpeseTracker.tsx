@@ -22,6 +22,11 @@ import { isDemoMode } from '@/lib/demoMode'
 
 import type { Ambito, Group, Category, Rule, Fx, Receipt, Item, Subcat, Budget, Voce, Tab, Dettaglio, Msg } from '@/lib/spese/types'
 import { GROUP_COLORS, FALLBACK_COLOR, ACCENT, MESI, eur, eur2, strip, corto, icona } from '@/lib/spese/costanti'
+import { monthRange, monthKey, monthLabel, weekRange, giornoBreve, periodoRange, periodoLabel, ritmoEPrevisione } from '@/lib/spese/periodo'
+import {
+  vociDi as vociDiPure, itemsPerSpesa, sparklinePath, tessereCategorie,
+  totalePerCategoria, fisseMese, costruisciRacconto, contoCaffe, spesePerGiorno,
+} from '@/lib/spese/voci'
 
 export default function SpeseTracker({ ambito, title }: { ambito: Ambito; title: string }) {
   return <DemoGate><Tracker ambito={ambito} title={title} /></DemoGate>
@@ -264,103 +269,38 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   }
 
   // ================= LE VOCI (il cuore del nuovo design) =================
-  // Ogni spesa si scompone nelle sue righe di scontrino; la voce prende la
-  // SUA categoria se ce l'ha (migrazione 0014), sennò quella della spesa.
-  const itemsByExp = useMemo(() => {
-    const m: Record<string, Item[]> = {}
-    items.forEach(it => { (m[it.expense_id] || (m[it.expense_id] = [])).push(it) })
-    return m
-  }, [items])
+  // La scomposizione in voci e le aggregazioni vivono in lib/spese/voci.ts
+  // (estratte in Fase 1, identiche); qui restano solo i collegamenti allo stato.
+  const itemsByExp = useMemo(() => itemsPerSpesa(items), [items])
 
-  function vociDi(spese: Fx[]): Voce[] {
-    const out: Voce[] = []
-    spese.forEach(e => {
-      const catSpesa = catName(e.category_id) || 'Senza categoria'
-      const dettagli = itemsByExp[e.id]
-      const base = { store: e.store || '', d: e.expense_date, g: groupName(e.group_id), expId: e.id, rid: e.receipt_id }
-      if (dettagli?.length) dettagli.forEach(it =>
-        out.push({ n: it.name, a: Number(it.amount), q: Number(it.qty) || 1, cat: catName(it.category_id) || catSpesa, sott: it.subcategory || e.subcategory || '', ...base }))
-      else out.push({ n: e.description || e.product || catSpesa, a: Number(e.amount), q: 1, cat: catSpesa, sott: e.subcategory || '', ...base })
-    })
-    return out
-  }
+  const vociDi = (spese: Fx[]): Voce[] => vociDiPure(spese, itemsByExp, catName, groupName)
 
-  function monthRange(m: string): [string, string] {
-    const [y, mo] = m.split('-').map(Number)
-    const last = new Date(y, mo, 0).getDate()
-    return [`${m}-01`, `${m}-${String(last).padStart(2, '0')}`]
-  }
-  const monthKey = (offset: number) => {
-    const [y, mo] = month.split('-').map(Number)
-    const d = new Date(y, mo - 1 + offset, 1)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-  }
-  const monthLabel = (m: string) => new Date(m + '-01T00:00:00').toLocaleDateString('it-IT', { month: 'long' })
+  const mKey = (offset: number) => monthKey(month, offset)
 
   // ---- periodo scelto ----
   // Il Calendario resta sempre per mese (è una griglia mensile); le altre
   // schede seguono il periodo scelto coi bottoni Mese/Settimana/Anno/Dal–al.
-  function weekRange(d: string): [string, string] {
-    // 7 giorni a partire dalla data scelta (inizio = data, non il lunedì).
-    // Date locali, non UTC: sennò la settimana parte un giorno prima.
-    const dt = new Date(d + 'T00:00:00')
-    const end = new Date(dt); end.setDate(dt.getDate() + 6)
-    const fmt = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
-    return [fmt(dt), fmt(end)]
-  }
   const isMese = periodMode === 'mese' || tab === 'calendario'
-  const [periodStart, periodEnd] = isMese ? monthRange(month)
-    : periodMode === 'settimana' ? weekRange(weekAnchor)
-    : periodMode === 'anno' ? [`${year}-01-01`, `${year}-12-31`]
-    : [fromDate || '0000-01-01', toDate || '9999-12-31']
-  const giornoBreve = (s: string) => `${Number(s.slice(-2))} ${monthLabel(s.slice(0, 7)).slice(0, 3)}`
-  const periodLabel = isMese ? `a ${monthLabel(month)}`
-    : periodMode === 'settimana' ? `dal ${giornoBreve(periodStart)} al ${giornoBreve(periodEnd)}`
-    : periodMode === 'anno' ? `nel ${year}`
-    : (fromDate || toDate) ? `dal ${fromDate ? giornoBreve(fromDate) : 'inizio'} al ${toDate ? giornoBreve(toDate) : 'oggi'}` : 'in totale'
+  const [periodStart, periodEnd] = periodoRange(isMese, periodMode, { month, year, weekAnchor, fromDate, toDate })
+  const periodLabel = periodoLabel(isMese, periodMode, { month, year, fromDate, toDate }, periodStart, periodEnd)
 
   const speseMese = useMemo(() => rows.filter(r => r.expense_date >= periodStart && r.expense_date <= periodEnd && (!gFilter || r.group_id === gFilter)), [rows, periodStart, periodEnd, gFilter])
   const vociMese = useMemo(() => vociDi(speseMese), [speseMese, itemsByExp, cats, groups])
   // Confronto col mese precedente: ha senso solo nella vista Mese
-  const vociPrec = useMemo(() => isMese ? vociDi(rows.filter(r => r.expense_date.slice(0, 7) === monthKey(-1) && (!gFilter || r.group_id === gFilter))) : [], [rows, month, gFilter, isMese, itemsByExp, cats, groups])
+  const vociPrec = useMemo(() => isMese ? vociDi(rows.filter(r => r.expense_date.slice(0, 7) === mKey(-1) && (!gFilter || r.group_id === gFilter))) : [], [rows, month, gFilter, isMese, itemsByExp, cats, groups])
   const totMese = speseMese.reduce((s, r) => s + Number(r.amount), 0)
 
   // Ritmo e previsione (solo mese corrente)
-  const oggi = new Date()
-  const isCurrentMonth = month === oggi.toISOString().slice(0, 7)
-  const daysInMonth = Number(monthRange(month)[1].slice(-2))
-  const giorniPassati = isCurrentMonth ? oggi.getDate() : daysInMonth
-  const mediaGiorno = totMese / Math.max(1, giorniPassati)
-  const previsione = mediaGiorno * daysInMonth
+  const { isCurrentMonth, daysInMonth, giorniPassati, mediaGiorno, previsione } = ritmoEPrevisione(totMese, month, new Date())
 
   // Linea del mese: spesa cumulata giorno per giorno
-  const sparkline = useMemo(() => {
-    const perGiorno = Array(daysInMonth).fill(0)
-    speseMese.forEach(e => { perGiorno[Number(e.expense_date.slice(-2)) - 1] += Number(e.amount) })
-    let cum = 0
-    const punti = perGiorno.slice(0, giorniPassati).map(x => cum += x)
-    const max = Math.max(1, cum)
-    const W = 340, H = 56
-    return punti.map((p, i) => `${i ? 'L' : 'M'}${(i / Math.max(1, daysInMonth - 1) * W).toFixed(1)},${(H - p / max * H * 0.9).toFixed(1)}`).join(' ')
-  }, [speseMese, daysInMonth, giorniPassati])
+  const sparkline = useMemo(() => sparklinePath(speseMese, daysInMonth, giorniPassati), [speseMese, daysInMonth, giorniPassati])
 
   // Tessere: totale per categoria, con confronto sul mese precedente
-  const tessere = useMemo(() => {
-    const cur: Record<string, { tot: number; n: number }> = {}
-    vociMese.forEach(v => { const e = cur[v.cat] || (cur[v.cat] = { tot: 0, n: 0 }); e.tot += v.a; e.n++ })
-    const prev: Record<string, number> = {}
-    vociPrec.forEach(v => { prev[v.cat] = (prev[v.cat] || 0) + v.a })
-    return Object.entries(cur)
-      .map(([cat, e]) => ({ cat, ...e, prev: prev[cat] || 0 }))
-      .sort((a, b) => b.tot - a.tot)
-  }, [vociMese, vociPrec])
+  const tessere = useMemo(() => tessereCategorie(vociMese, vociPrec), [vociMese, vociPrec])
 
   // ---- budget: speso per nome categoria nel mese scelto ----
-  const spentByCat = useMemo(() => {
-    const m: Record<string, number> = {}
-    vociMese.forEach(v => { m[v.cat] = (m[v.cat] || 0) + v.a })
-    return m
-  }, [vociMese])
+  const spentByCat = useMemo(() => totalePerCategoria(vociMese), [vociMese])
   const budgetRows = budgets
     .map(b => ({ b, spent: spentByCat[b.category_name] || 0 }))
     .sort((x, y) => y.spent / y.b.monthly_amount - x.spent / x.b.monthly_amount)
@@ -368,62 +308,16 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const catNames = Array.from(new Set(cats.map(c => c.name))).sort()
 
   // ---- spese fisse del mese: ricorrenti gia' pagate + attese ----
-  const fisse = useMemo(() => {
-    const [ms, me] = monthRange(month)
-    const [ps, pe] = monthRange(monthKey(-1))
-    const nameOf = (r: Fx) => (r.description || r.product || r.store || 'Ricorrente').trim()
-    const rec = rows.filter(r => r.recurring)
-    const out: { name: string; tot: number; day: number; paid: boolean }[] = []
-    const seen = new Set<string>()
-    rec.filter(r => r.expense_date >= ms && r.expense_date <= me).forEach(r => {
-      const name = nameOf(r); const k = strip(name)
-      const ex = out.find(x => strip(x.name) === k)
-      if (ex) { ex.tot += Number(r.amount); ex.day = Math.max(ex.day, Number(r.expense_date.slice(-2))) }
-      else out.push({ name, tot: Number(r.amount), day: Number(r.expense_date.slice(-2)), paid: true })
-      seen.add(k)
-    })
-    rec.filter(r => r.expense_date >= ps && r.expense_date <= pe).forEach(r => {
-      const k = strip(nameOf(r))
-      if (seen.has(k)) return
-      seen.add(k)
-      out.push({ name: nameOf(r), tot: Number(r.amount), day: Number(r.expense_date.slice(-2)), paid: false })
-    })
-    return out.sort((a, b) => a.day - b.day)
-  }, [rows, month])
+  const fisse = useMemo(() => fisseMese(rows, month), [rows, month])
   const fisseTot = fisse.reduce((s, x) => s + x.tot, 0)
 
   const catsForGroup = cats.filter(c => c.group_id === form.group_id)
 
   // ================= 📖 RACCONTO =================
-  const racconto = useMemo(() => {
-    if (!vociMese.length) return null
-    const perCat: Record<string, number> = {}, perG: Record<string, number> = {}, perS: Record<string, number> = {}
-    vociMese.forEach(v => {
-      perCat[v.cat] = (perCat[v.cat] || 0) + v.a
-      perG[v.g] = (perG[v.g] || 0) + v.a
-      if (v.store) { const k = corto(v.store); perS[k] = (perS[k] || 0) + v.a }
-    })
-    const topCat = Object.entries(perCat).sort((a, b) => b[1] - a[1])[0]
-    const topS = Object.entries(perS).sort((a, b) => b[1] - a[1])[0]
-    const topVoce = [...vociMese].sort((a, b) => b.a - a.a)[0]
-    const caffe = vociMese.filter(v => strip(v.n).includes('caffe') || strip(v.n).includes('cappuccino'))
-    const gruppi = Object.entries(perG).sort((a, b) => b[1] - a[1])
-    const prevTot = vociPrec.reduce((s, v) => s + v.a, 0)
-    const diff = prevTot > 0 ? Math.round((totMese - prevTot) / prevTot * 100) : null
-    return { topCat, topS, topVoce, caffe, gruppi, prevTot, diff }
-  }, [vociMese, vociPrec, totMese])
+  const racconto = useMemo(() => costruisciRacconto(vociMese, vociPrec, totMese), [vociMese, vociPrec, totMese])
 
   // ---- il conto del caffè: quanti caffè/cappuccini bevuti FUORI questo mese ----
-  const caffeMese = useMemo(() => {
-    const fuori = new Set(['Colazione/Bar', 'Mangiare fuori', 'Merenda'])
-    const voci = vociMese.filter(v => fuori.has(v.cat) && /caff|espresso|cappucc/i.test(v.n))
-    const caffe = voci.filter(v => !/cappucc/i.test(v.n))
-    const capp = voci.filter(v => /cappucc/i.test(v.n))
-    const nC = caffe.reduce((s, v) => s + v.q, 0), nK = capp.reduce((s, v) => s + v.q, 0)
-    const tot = voci.reduce((s, v) => s + v.a, 0)
-    const pasti = voci.filter(v => v.cat === 'Mangiare fuori').reduce((s, v) => s + v.a, 0)
-    return { voci, nC, nK, tot, pasti }
-  }, [vociMese])
+  const caffeMese = useMemo(() => contoCaffe(vociMese), [vociMese])
 
   function apriDettaglio(titolo: string, voci: Voce[]) {
     setDettaglio({ titolo, voci })
@@ -516,14 +410,10 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     : ['Dove abbiamo speso di più?', 'Quanto in detersivi questo mese?', 'Quanto in sacchetti da sempre?']
 
   // ================= 📅 CALENDARIO =================
-  const perGiorno = useMemo(() => {
-    const m: Record<number, number> = {}
-    speseMese.forEach(e => { const g = Number(e.expense_date.slice(-2)); m[g] = (m[g] || 0) + Number(e.amount) })
-    return m
-  }, [speseMese])
+  const perGiorno = useMemo(() => spesePerGiorno(speseMese), [speseMese])
 
   function cambiaMese(delta: number) {
-    setMonth(monthKey(delta)); setDettaglio(null); setGiornoSel(''); setShowAll(false)
+    setMonth(mKey(delta)); setDettaglio(null); setGiornoSel(''); setShowAll(false)
   }
   function cambiaTab(t: Tab) {
     setTab(t); setDettaglio(null); setGiornoSel(''); setShowAll(false)
@@ -1134,8 +1024,8 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
                 <button onClick={() => apriDettaglio(`Tutte le voci · ${eur(totMese)}`, vociMese)}
                   className="inline font-bold text-[#8C3B2E] border-b-2 border-dotted border-[#D2A98C]">{eur(totMese)}</button>
                 {racconto.diff !== null && (racconto.diff <= 0
-                  ? <>, il <span className="text-green-mid font-semibold">{Math.abs(racconto.diff)}% in meno</span> di {monthLabel(monthKey(-1))} 👏</>
-                  : <>, il <span className="text-[#8C3B2E] font-semibold">{racconto.diff}% in più</span> di {monthLabel(monthKey(-1))}</>)}.{' '}
+                  ? <>, il <span className="text-green-mid font-semibold">{Math.abs(racconto.diff)}% in meno</span> di {monthLabel(mKey(-1))} 👏</>
+                  : <>, il <span className="text-[#8C3B2E] font-semibold">{racconto.diff}% in più</span> di {monthLabel(mKey(-1))}</>)}.{' '}
                 La voce più pesante è stata{' '}
                 <button onClick={() => apriDettaglio(`${icona(racconto.topCat[0])} ${racconto.topCat[0]} · ${eur(racconto.topCat[1])}`, vociMese.filter(v => v.cat === racconto.topCat[0]))}
                   className="inline font-bold text-[#8C3B2E] border-b-2 border-dotted border-[#D2A98C]">{racconto.topCat[0].toLowerCase()} ({eur(racconto.topCat[1])})</button>

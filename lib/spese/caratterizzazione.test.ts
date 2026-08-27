@@ -165,11 +165,13 @@ test('sconto su una riga: incorporato nel prezzo, la quadratura torna', () => {
   assert.ok(!rigaCoerente(2, 2, 350, 0))
 })
 
-test('arrotondamento di cassa: dichiarato quadra, non dichiarato blocca', () => {
-  // Totale 9,99 pagato 10,00 con arrotondamento +0,01
-  assert.ok(quadratura(1000, [999], 1).ok)
-  assert.ok(quadratura(1000, [999]).ok)          // 1 centesimo rientra nella tolleranza
-  assert.ok(!quadratura(1000, [995]).ok)         // 5 centesimi no: da controllare
+test('arrotondamento di cassa: valido solo se dichiarato, mai tolleranza automatica', () => {
+  // Regola di Ania (27/08/2026): quadratura ESATTA al centesimo.
+  assert.ok(quadratura(1000, [999], 1).ok)       // arrotondamento +0,01 dichiarato → valida
+  assert.ok(!quadratura(1000, [999]).ok)         // 0,01 NON dichiarato → da controllare
+  assert.ok(quadratura(1000, [1000]).ok)         // esatta → valida
+  assert.ok(!quadratura(1000, [995]).ok)         // 5 centesimi: da controllare
+  assert.equal(quadratura(1000, [999]).diffCent, 1) // la differenza resta misurata
 })
 
 test('differenza tra totale documento e somma righe: rilevata e misurata', () => {

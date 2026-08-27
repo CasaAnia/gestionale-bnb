@@ -3,10 +3,10 @@
 //
 // Funzioni PURE che descrivono il comportamento economico atteso, in due parti:
 //
-//  A) Comportamento ATTUALE, copiato pari pari da components/SpeseTracker.tsx
-//     (che NON è stato toccato): quando la Fase 1 estrarrà la logica in
-//     lib/spese/, i test di caratterizzazione dovranno continuare a passare
-//     con le funzioni estratte al posto di queste.
+//  A) Comportamento ATTUALE: dalla Fase 1 queste funzioni DELEGANO ai moduli
+//     estratti (lib/spese/voci.ts e lib/spese/periodo.ts) usati davvero da
+//     SpeseTracker — così i test di caratterizzazione verificano il codice
+//     di produzione, non una copia.
 //
 //  B) Regole APPROVATE per il nuovo modulo (decisioni di Ania del 27/08/2026):
 //     quadratura obbligatoria, fatture non pagate fuori dallo "Speso",
@@ -55,52 +55,33 @@ export const sommaCent = (importi: number[]) => importi.reduce((s, x) => s + cen
 export const strip = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 // ============================================================================
-// A) COMPORTAMENTO ATTUALE (da SpeseTracker.tsx — non modificato)
+// A) COMPORTAMENTO ATTUALE — delega ai moduli estratti in Fase 1
 // ============================================================================
+import { vociDi as vociDiApp, itemsPerSpesa, fisseMese } from './voci.ts'
+import { monthRange as monthRangeApp, weekRange as weekRangeApp } from './periodo.ts'
+import type { Fx, Item } from './types.ts'
 
-// SpeseTracker.tsx:323 — ogni spesa si scompone nelle sue righe; la riga
-// prende la SUA categoria se ce l'ha, sennò quella della spesa madre; la
-// sottocategoria segue la stessa regola; una spesa senza righe è una voce
-// unica che si chiama come la descrizione (o il prodotto, o la categoria).
+// lib/spese/voci.ts (ex SpeseTracker.tsx:323) — ogni spesa si scompone nelle
+// sue righe; la riga prende la SUA categoria se ce l'ha, sennò quella della
+// spesa madre; la sottocategoria segue la stessa regola; una spesa senza
+// righe è una voce unica (descrizione, o prodotto, o nome categoria).
 export function vociDi(
   spese: Spesa[], righe: Riga[],
   nomeCategoria: (id: string | null | undefined) => string,
   nomeGruppo: (id: string | null) => string,
 ): Voce[] {
-  const perSpesa = new Map<string, Riga[]>()
-  righe.forEach(r => {
-    if (!perSpesa.has(r.expense_id)) perSpesa.set(r.expense_id, [])
-    perSpesa.get(r.expense_id)!.push(r)
-  })
-  const out: Voce[] = []
-  spese.forEach(e => {
-    const catSpesa = nomeCategoria(e.category_id) || 'Senza categoria'
-    const dettagli = perSpesa.get(e.id)
-    const base = { store: e.store || '', d: e.expense_date, g: nomeGruppo(e.group_id) }
-    if (dettagli?.length) dettagli.forEach(it =>
-      out.push({ n: it.name, a: Number(it.amount), q: Number(it.qty) || 1, cat: nomeCategoria(it.category_id) || catSpesa, sott: it.subcategory || e.subcategory || '', ...base }))
-    else out.push({ n: e.description || e.product || catSpesa, a: Number(e.amount), q: 1, cat: catSpesa, sott: e.subcategory || '', ...base })
-  })
-  return out
+  const items: Item[] = righe.map((r, i) => ({ id: `r${i}`, ...r }))
+  return vociDiApp(spese as unknown as Fx[], itemsPerSpesa(items), nomeCategoria, nomeGruppo)
 }
 
-// SpeseTracker.tsx:336 — primo e ultimo giorno del mese YYYY-MM
-export function monthRange(m: string): [string, string] {
-  const [y, mo] = m.split('-').map(Number)
-  const last = new Date(y, mo, 0).getDate()
-  return [`${m}-01`, `${m}-${String(last).padStart(2, '0')}`]
-}
+// lib/spese/periodo.ts — primo e ultimo giorno del mese YYYY-MM
+export const monthRange = monthRangeApp
 
-// SpeseTracker.tsx:351 — 7 giorni A PARTIRE dalla data scelta (non dal
+// lib/spese/periodo.ts — 7 giorni A PARTIRE dalla data scelta (non dal
 // lunedì), calcolati in ora locale (non UTC: sennò parte un giorno prima).
-export function weekRange(d: string): [string, string] {
-  const dt = new Date(d + 'T00:00:00')
-  const end = new Date(dt); end.setDate(dt.getDate() + 6)
-  const fmt = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
-  return [fmt(dt), fmt(end)]
-}
+export const weekRange = weekRangeApp
 
-// SpeseTracker.tsx:360-363 — anno intero e intervallo Dal–al (estremi
+// SpeseTracker (periodoRange) — anno intero e intervallo Dal–al (estremi
 // facoltativi: vuoto = da sempre / fino a sempre)
 export const yearRange = (y: string): [string, string] => [`${y}-01-01`, `${y}-12-31`]
 export const intervalloRange = (dal: string, al: string): [string, string] =>
@@ -145,30 +126,16 @@ export function speseAziendaHomeCent(spese: Spesa[], gruppi: Gruppo[]): number {
     .reduce((s, e) => s + cent(e.amount), 0)
 }
 
-// SpeseTracker.tsx:419-440 — spese fisse del mese: le ricorrenti pagate
-// questo mese (per nome, sommate, ✓) più quelle viste il mese scorso e non
-// ancora ripagate (attese, ~). Ordinate per giorno.
+// lib/spese/voci.ts (ex SpeseTracker.tsx:419-440) — spese fisse del mese:
+// le ricorrenti pagate questo mese (per nome, sommate, ✓) più quelle viste
+// il mese scorso e non ancora ripagate (attese, ~). Ordinate per giorno.
+// `mesePrecedente` documenta l'atteso: la funzione vera lo deriva da sola
+// (monthKey(mese, -1)), quindi qui viene solo verificato.
 export function speseFisseMese(spese: Spesa[], mese: string, mesePrecedente: string) {
-  const [ms, me] = monthRange(mese)
-  const [ps, pe] = monthRange(mesePrecedente)
-  const nomeDi = (r: Spesa) => (r.description || r.product || r.store || 'Ricorrente').trim()
-  const rec = spese.filter(r => r.recurring)
-  const out: { name: string; totCent: number; day: number; paid: boolean }[] = []
-  const viste = new Set<string>()
-  rec.filter(r => r.expense_date >= ms && r.expense_date <= me).forEach(r => {
-    const name = nomeDi(r); const k = strip(name)
-    const ex = out.find(x => strip(x.name) === k)
-    if (ex) { ex.totCent += cent(r.amount); ex.day = Math.max(ex.day, Number(r.expense_date.slice(-2))) }
-    else out.push({ name, totCent: cent(r.amount), day: Number(r.expense_date.slice(-2)), paid: true })
-    viste.add(k)
-  })
-  rec.filter(r => r.expense_date >= ps && r.expense_date <= pe).forEach(r => {
-    const k = strip(nomeDi(r))
-    if (viste.has(k)) return
-    viste.add(k)
-    out.push({ name: nomeDi(r), totCent: cent(r.amount), day: Number(r.expense_date.slice(-2)), paid: false })
-  })
-  return out.sort((a, b) => a.day - b.day)
+  const [inizioPrec] = monthRange(mesePrecedente)
+  if (inizioPrec.slice(0, 7) !== mesePrecedente) throw new Error('mese precedente non valido')
+  return fisseMese(spese as unknown as Fx[], mese)
+    .map(f => ({ name: f.name, totCent: cent(f.tot), day: f.day, paid: f.paid }))
 }
 
 // ============================================================================
@@ -196,14 +163,16 @@ export function raggruppaPerDocumento(spese: Spesa[]) {
   ]
 }
 
-// Quadratura obbligatoria: somma delle righe (sconti già incorporati nei
-// prezzi, regola esistente) + eventuale arrotondamento = totale documento,
-// con tolleranza di 1 centesimo. Se non torna, la spesa DEVE restare
-// "da controllare" e la conferma è bloccata.
+// Quadratura obbligatoria ed ESATTA al centesimo (regola di Ania,
+// 27/08/2026): somma delle righe (sconti già incorporati nei prezzi) +
+// arrotondamento ESPLICITO = totale documento, differenza zero. Nessuna
+// tolleranza automatica: 1 centesimo non dichiarato lascia il documento
+// "da controllare". L'arrotondamento è valido solo se letto dal documento
+// o inserito e confermato dall'utente, registrato come arrotondamentoCent.
 export function quadratura(docTotaleCent: number, righeCent: number[], arrotondamentoCent = 0) {
   const somma = righeCent.reduce((s, x) => s + x, 0) + arrotondamentoCent
   const diffCent = docTotaleCent - somma
-  return { sommaCent: somma, diffCent, ok: Math.abs(diffCent) <= 1 }
+  return { sommaCent: somma, diffCent, ok: diffCent === 0 }
 }
 
 // Prezzo unitario (quando disponibile): unit_price × qty deve ridare
