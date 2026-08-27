@@ -372,9 +372,66 @@ sotto soglia (0,8) ⇒ riga evidenziata col suo `doubt_reason`.
   vs costi per camera). I campi fattura compaiono solo nei form/filtri
   dell'ambito azienda.
 - **Split alla revisione**: nella schermata di revisione ogni riga ha la
-  pastiglia del destinatario (Casa, Ania, Matteo, M e A, Casa Ania); al
+  pastiglia del destinatario (Casa, Ania, Teo, M e A, Casa Ania); al
   salvataggio le righe vengono raggruppate in spese per ambito/gruppo madre,
   tutte agganciate allo stesso documento (pattern attuale, ora esplicito).
+
+## 11-bis. Requisito Casa Mia: le spese di Teo (aggiunto il 27/08/2026)
+
+Teo è il figlio di Ania. **Corrispondenza verificata sul backup**: è il
+gruppo già esistente **"Matteo"** (id `b8cc9faa-1afc-44e3-ade8-f6af3e1b62b0`,
+ambito personale, emoji 👦, categorie con Scuola/Sport/Paghetta, 20 spese per
+189,76 €). **Non si crea nessun gruppo nuovo**: l'id storico resta quello;
+in interfaccia si mostra "Teo" come nome preferito (etichetta di sola
+presentazione, come già oggi "Matteo e Ania" → "M e A"; il campo
+`family_groups.name` non si tocca).
+
+**Tre concetti sempre distinti, mai confusi:**
+
+| Concetto | Dove vive | Esempio |
+|---|---|---|
+| **Persona/gruppo** a cui si riferisce la spesa | `group_id` (spesa e, dal rifacimento, singola riga) | vestito di Teo → gruppo Teo/Matteo |
+| **Categoria** (cosa è) | `category_id` + sottocategoria | → Abbigliamento |
+| **Chi/come ha pagato** | `payment_method` (nuovo, §4) | → contanti, carta personale… |
+
+Esempi normativi: vestito di Ania → persona Ania, Abbigliamento · vestito di
+Teo → persona Teo/Matteo, Abbigliamento · libri scolastici → persona
+Teo/Matteo, Scuola e formazione → Libri · corso sportivo → persona
+Teo/Matteo, Sport e hobby → Iscrizioni/Corsi · spesa comune → gruppo Casa
+oppure Matteo e Ania, secondo la regola esistente.
+
+**Vietato** creare categorie per persona ("Vestiti Ania", "Vestiti Teo"):
+una sola "Abbigliamento", la persona la dice il gruppo. (Il modello attuale
+replica le categorie per gruppo — §1 — ma sono la STESSA tassonomia: le
+analisi restano per nome e il rifacimento non aggiunge doppioni.)
+
+**Sottocategorie da prevedere** (seed nella 0020 o in fase 6, insieme alle
+altre; oggi "Scuola" e "Sport" esistono ma senza sottocategorie dedicate):
+- **Scuola e formazione**: Retta · Mensa · Libri · Cancelleria · Materiale
+  scolastico · Gite · Corsi e ripetizioni · Trasporto scolastico · Altro
+- **Sport e hobby**: Iscrizioni · Abbonamenti · Corsi · Attrezzatura ·
+  Abbigliamento sportivo · Eventi e gare · Giochi e attività · Altro
+
+I nomi richiesti ("Scuola e formazione", "Sport e hobby") differiscono dagli
+attuali "Scuola" e "Sport": il rinomino va fatto in una migrazione controllata
+che aggiorna INSIEME `family_categories.name`, `family_subcategories.
+category_name` e `family_budgets.category_name` (sono agganciati per nome,
+§1) — in fase 6, non prima. Da decidere lì: se la categoria esistente
+"Hobby" (bricolage di Teo, regola in memoria) confluisce in "Sport e hobby"
+o resta separata.
+
+**Analisi richieste (fase 6, dentro Analisi di Casa Mia):**
+- totale speso per Teo (filtro gruppo, già possibile oggi);
+- totale per categoria di Teo;
+- confronto Abbigliamento Ania ↔ Abbigliamento Teo (stessa categoria,
+  gruppi diversi — è il motivo del divieto di categorie per persona);
+- Scuola per mese e per **anno scolastico** (set–ago, periodo nuovo da
+  aggiungere in `periodo.ts`);
+- Sport e hobby per attività (sottocategoria);
+- ricorrenti e straordinarie di Teo (`recurring`/`extraordinary`).
+
+Nessuna modifica a categorie o dati Supabase durante la Fase 0: questo
+capitolo è solo requisito per le fasi 3–6.
 
 ## 12. Piano di sviluppo in fasi verificabili
 
