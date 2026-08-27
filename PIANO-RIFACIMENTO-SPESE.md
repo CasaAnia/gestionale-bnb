@@ -875,3 +875,73 @@ da `/spese` e `/spese-famiglia`. Cinque commit, uno per passaggio.
 - I 250 problemi lint restanti (quasi tutti `any` espliciti fuori dal modulo).
 - `set-state-in-effect` e `any` nel catch di saveStaged in SpeseTracker
   (pattern preesistenti, spariranno con le fasi 3+).
+
+---
+
+## Resoconto Fase 2A — 28 agosto 2026 (branch `rifacimento-spese`)
+
+Progettazione della migrazione COMPLETATA. Vincoli rispettati: nessuna
+migrazione applicata, nessuna scrittura su Supabase (solo l'audit utenti in
+lettura), nessun progetto di prova, nessun upload, push o deploy;
+interfaccia e produzione intoccate.
+
+### File creati (SQL: scritti, MAI eseguiti)
+- `supabase/migrations/0020_rifacimento_spese_schema.sql` — tabelle nuove
+  (documenti, bozze+righe, ponte, correzioni, canoniche, app_members),
+  colonne nuove sulle storiche, vincoli §4.9, backfill con conteggi
+  verificati a runtime, RPC `conferma_documento` e `paga_fattura` (lock
+  `for update`, stati validi, quadratura esatta sulle sorelle, rollback,
+  idempotenza; `revoke` ad anon). Nuove tabelle con RLS attiva e zero
+  policy (chiuse fino alla 0021).
+- `supabase/bootstrap_owner.sql` — bootstrap manuale dell'owner: pretende
+  ESATTAMENTE 1 utente in auth.users, zero email/UUID nel repo, verifica
+  finale.
+- `supabase/migrations/0021_protezione_family.sql` — `is_app_member()` /
+  `is_app_owner()` (security definer, stable, search_path fisso, niente
+  anon), policy solo-membri su TUTTE le family_* (storiche+nuove), su
+  app_members (gestione solo owner) e sul bucket `scontrini` in
+  storage.objects (drop dinamico delle vecchie policy del bucket);
+  precondizione anti-lockout: si ferma senza owner.
+- `lib/spese/stati.ts` — macchina a stati documento/bozza (= CHECK 0020).
+- `lib/spese/controlli.ts` — quadratura esatta sulle sorelle, avvisi non
+  bloccanti (pre-nov 2024, data futura, "Non specificata", confidence<0,8),
+  duplicati, coerenza canonica.
+- `lib/spese/fatture.ts` — modello PURO delle RPC: invariante economica,
+  atomicità e idempotenza testabili senza database.
+- `lib/spese/fatture.test.ts` (17 test) e
+  `lib/spese/verificatore.test.ts` (6 test negativi).
+
+### File modificati
+- `lib/spese/types.ts` — tipi 0020 (Documento, Bozza, RigaBozza, Confidence
+  per campo).
+- `lib/spese/caratterizzazione.ts` + test — allineati all'invariante: via
+  payment_status/review_status dalla Spesa; quadratura/duplicati delegano a
+  controlli.ts; i test fatture vivono in fatture.test.ts.
+- `scripts/verifica-spese.mjs` — nuova modalità `--confronta rif cand`
+  (`--consenti-aggiunte`): ID per ID e campo per campo su 8 tabelle,
+  duplicati, relazioni, totali per ambito, file+hash; riepilogo con id e
+  NOMI di campo, mai contenuti.
+- Questo piano (invariante, RPC, sicurezza, rollout, vincoli, fasi).
+
+### Audit utenti (sola lettura, Admin API)
+1 solo account in Supabase Authentication (sa***@gmail.com, creato
+02/08/2026, ultimo accesso 24/08/2026): bootstrap_owner.sql è applicabile
+così com'è.
+
+### Risultati (28/08/2026)
+- `npm test`: **76/76** (23 storici + 16 caratterizzazione + 12 domanda +
+  2 ambito + 17 fatture/stati/controlli + 6 verificatore).
+- `tsc --noEmit` pulito · build ok (24/24) · lint nuovi file: 0 problemi;
+  totale progetto **250 = identico a fine Fase 1** (tutti preesistenti).
+- Verificatore: backup base 28/28 ✓; autotest `--confronta` backup ↔ sé
+  stesso: nessuna differenza (8 tabelle, 81 file hash identici); fixture
+  alterate: tutte rilevate con uscita 1.
+
+### Limiti: verificabile solo in Fase 2B (progetto di prova)
+- Esecuzione REALE di 0020/bootstrap/0021 su Postgres (sintassi validata a
+  occhio e per costruzione, non eseguita): backfill, vincoli, CHECK.
+- Comportamento REALE delle RPC sotto concorrenza (lock `for update`) e
+  dentro transazioni vere — qui provata solo la logica pura equivalente.
+- RLS: che un utente autenticato NON membro sia davvero bloccato su tabelle
+  e storage; che il rollout in due tempi non chiuda fuori l'owner.
+- Interazione policy storage con upload firmati dell'app.
