@@ -189,6 +189,105 @@ RLS identica alle tabelle esistenti (`accesso_utenti_autenticati`). Indici su
 receipt nullo e la storia esistente restano valide; il collegamento "forte"
 nuovo è `family_expense_documents`.
 
+## 4-bis. Tassonomia canonica approvata (Ania, 27/08/2026)
+
+Basata sull'inventario del 27/08 (`~/Desktop/Inventario categorie spese
+2026-08-27/`): 115 categorie storiche di cui 82 mai usate (repliche per
+gruppo), 52 sottocategorie mai usate, doppione corrotto "Caff√®",
+5 sottocategorie orfane di "Detersivi e pulizia".
+
+**Ania ha approvato:**
+1. l'accorpamento di Colazione/Bar, Merenda e Mangiare fuori in **"Mangiare
+   fuori"**;
+2. l'accorpamento di Sport e Hobby in **"Sport e hobby"**;
+3. una **tassonomia canonica non duplicata per persona**;
+4. la **conservazione completa degli ID e dello storico**.
+
+### Principio strutturale
+
+Nel nuovo modello sono dimensioni SEPARATE, mai confuse tra loro:
+persona/destinatario (`group_id`) · categoria · sottocategoria · metodo di
+pagamento (`payment_method`) · necessario/discrezionale (`necessity`) ·
+previsto/impulsivo (`planning`). Le categorie NON sono più replicate per
+Casa/Ania/Teo/M e A: una tassonomia canonica indipendente dal gruppo, con
+ambito `personale`, `azienda` o `condivisa`.
+
+### Modello della transizione (dettaglio in 0020, da NON applicare ora)
+
+- Nuove tabelle: `family_canonical_categories` (id, name, ambito
+  personale/azienda/condivisa, sort, monitorata boolean per Altro/Varie) e
+  `family_canonical_subcategories` (canonical_category_id — FK per id, NON
+  per nome — name, sort).
+- Mappatura: colonna `canonical_category_id` su `family_categories` (le 115
+  storiche restano intatte, id compresi) + tabella
+  `family_subcategory_map` per le sottocategorie storiche → canoniche.
+- Il vecchio codice continua a funzionare durante la transizione: legge le
+  tabelle storiche come oggi; il codice nuovo risolve
+  storica → canonica via mappatura. Nessuna categoria storica viene
+  eliminata o sostituita; si mappa SOLO dove la corrispondenza è sicura.
+
+### Categorie canoniche di Casa Mia (ambito personale)
+
+| Categoria | Sottocategorie |
+|---|---|
+| Spesa alimentare | Frutta e verdura · Pane e prodotti da forno · Carne e pesce · Latte, uova e latticini · Dispensa · Surgelati · Bevande · Dolci e snack · Altro |
+| Casa e consumabili | Bucato · Superfici e pavimenti · Piatti · Panni e spugne · Carta casa · Sacchetti · Utensili da cucina · Cancelleria per la casa · Altro |
+| Utenze e abitazione | Affitto · Condominio · Luce · Gas · Acqua · Internet · Telefono · Rifiuti · Ricariche · Altro |
+| Arredo ed elettrodomestici | Mobili · Tessili · Decorazioni · Grandi elettrodomestici · Piccoli elettrodomestici · Altro |
+| Riparazioni e manutenzione | Riparazioni · Ferramenta · Piante e giardino · Interventi tecnici · Altro |
+| Abbigliamento | Vestiti · Scarpe · Intimo · Accessori e borse · Abbigliamento sportivo · Altro |
+| Salute e cura personale | Farmacia · Visite e analisi · Occhiali · Igiene personale · Trucchi · Profumeria · Parrucchiere ed estetica · Altro |
+| Mangiare fuori *(accorpa Colazione/Bar + Merenda + Mangiare fuori)* | Bar e colazione · Pranzo · Cena · Aperitivo · Gelato e merenda · Bevande · Snack fuori casa · Altro |
+| Auto e trasporti | Benzina · Assicurazione e bollo · Officina · Parcheggi · Mezzi pubblici · Taxi e noleggio · Altro |
+| Scuola e formazione | Retta · Mensa · Libri · Cancelleria · Materiale scolastico · Gite · Corsi e ripetizioni · Trasporto scolastico · Altro |
+| Sport e hobby *(accorpa Sport + Hobby)* | Iscrizioni · Abbonamenti · Corsi · Attrezzatura · Abbigliamento sportivo · Eventi e gare · Giochi e attività · Bricolage e creatività · Altro |
+| Tecnologia e abbonamenti | Telefoni e accessori · Computer e accessori · App e software · Streaming e abbonamenti · Altro |
+| Divertimento e tempo libero | Cinema e spettacoli · Uscite · Eventi · Giochi · Altro |
+| Viaggi | Trasporti · Alloggio · Mangiare in viaggio · Attività · Extra · Altro |
+| Regali | Compleanni · Ricorrenze · Festività · Altro |
+| Paghetta | Paghetta ordinaria · Premio · Anticipo · Altro |
+| Assicurazioni e tasse | Assicurazioni · Imposte e tasse · Commissioni · Altro |
+| Servizi | Lavanderia e sartoria · Poste e spedizioni · Commissioni bancarie · Altri servizi |
+| Altro | *(ultima scelta; utilizzo monitorato e segnalato nelle analisi)* |
+
+### Categorie canoniche di Casa Ania (ambito azienda)
+
+| Categoria | Sottocategorie |
+|---|---|
+| Pulizia e detergenti | Bucato · Superfici e pavimenti · Piatti · Panni e spugne · Carta · Sacchetti · Altro |
+| Forniture per gli ospiti | Cortesia bagno · Materiale monouso · Materiale informativo · Benvenuto ospiti · Altri consumabili |
+| Colazioni e bevande | Caffè · Tè e tisane · Latte · Biscotti e prodotti confezionati · Bevande · Alimenti per gli ospiti · Altro |
+| Biancheria e lavanderia | Lenzuola · Asciugamani · Copriletti e tessili · Lavanderia · Sostituzioni · Altro |
+| Utenze | Luce · Gas · Acqua · Internet · Telefono · Rifiuti · Altro |
+| Manutenzione e riparazioni | Riparazioni · Ferramenta · Interventi tecnici · Manutenzione ordinaria · Altro |
+| Lavori e ristrutturazioni | Lavori edili · Impianti · Bagni · Tinteggiatura · Altro |
+| Arredi e attrezzature | Mobili · Tessili · Elettrodomestici · Tecnologia · Attrezzature · Altro |
+| Commissioni e servizi digitali | Commissioni portali · Commissioni bancarie · Gestionale · Sito e hosting · Software e abbonamenti · Altro |
+| Servizi professionali | Commercialista · Tecnici · Fotografia · Consulenze · Altri professionisti |
+| Assicurazioni e imposte | Assicurazioni · Imposte · Tributi · Licenze e autorizzazioni · Altro |
+| Trasporti e acquisti operativi | Trasporto materiali · Consegne · Parcheggi · Acquisti urgenti · Altro |
+| Altro | *(ultima scelta; utilizzo monitorato e segnalato nelle analisi)* |
+
+### Migrazione dello storico (regole vincolanti)
+
+- Non cancellare categorie o sottocategorie storiche; non cambiare gli ID.
+- Non riclassificare automaticamente dati incerti: si mappa vecchia →
+  canonica SOLO quando la corrispondenza è sicura; il resto resta con la
+  categoria storica finché non lo decide Ania.
+- Le **66 voci senza sottocategoria** (144,49 €) ricevono la sottocategoria
+  solo quando deducibile con certezza; altrimenti l'interfaccia mostra
+  "**Non specificata**" — mai inventare una classificazione, mai usare
+  "Altro"/"Varie" come soluzione automatica dei dubbi (sono monitorate).
+- La sottocategoria corrotta "**Caff√®**" si elimina **logicamente** solo
+  dopo aver ri-verificato che non sia usata (dall'inventario: 0 usi).
+- Le **5 sottocategorie orfane** di "Detersivi e pulizia" si gestiscono con
+  una migrazione controllata (mappate a Pulizia e detergenti / Casa e
+  consumabili, o dismesse), mai cancellate a mano.
+- Tempi: le tabelle canoniche e la mappatura entrano nella 0020 (fase 2);
+  il popolamento della mappatura e la dismissione logica dei doppioni sono
+  in fase 6, con verifica `verifica-spese.mjs` prima e dopo. **Niente di
+  tutto questo è ancora applicato a Supabase.**
+
 ## 5. Strategia di migrazione senza perdita dati
 
 1. **Backup già fatto** (cartella sulla scrivania, hash SHA-256 in
@@ -412,13 +511,11 @@ altre; oggi "Scuola" e "Sport" esistono ma senza sottocategorie dedicate):
 - **Sport e hobby**: Iscrizioni · Abbonamenti · Corsi · Attrezzatura ·
   Abbigliamento sportivo · Eventi e gare · Giochi e attività · Altro
 
-I nomi richiesti ("Scuola e formazione", "Sport e hobby") differiscono dagli
-attuali "Scuola" e "Sport": il rinomino va fatto in una migrazione controllata
-che aggiorna INSIEME `family_categories.name`, `family_subcategories.
-category_name` e `family_budgets.category_name` (sono agganciati per nome,
-§1) — in fase 6, non prima. Da decidere lì: se la categoria esistente
-"Hobby" (bricolage di Teo, regola in memoria) confluisce in "Sport e hobby"
-o resta separata.
+I nomi richiesti ("Scuola e formazione", "Sport e hobby") sono ora parte
+della tassonomia canonica approvata (§4-bis): niente rinomini distruttivi
+delle categorie storiche, ma mappatura storica → canonica. Deciso il
+27/08/2026: "Hobby" (bricolage di Teo) confluisce in "Sport e hobby",
+sottocategoria "Bricolage e creatività".
 
 **Analisi richieste (fase 6, dentro Analisi di Casa Mia):**
 - totale speso per Teo (filtro gruppo, già possibile oggi);
