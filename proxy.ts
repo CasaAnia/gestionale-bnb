@@ -16,6 +16,13 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
 
+  // Anteprima spese (Fase 3A): SOLO in sviluppo locale si apre senza login.
+  // In produzione questo bypass non esiste (NODE_ENV) e comunque la pagina
+  // stessa risponde notFound(): doppia serratura.
+  if (process.env.NODE_ENV === 'development' && request.nextUrl.pathname.startsWith('/anteprima-spese')) {
+    return response
+  }
+
   const supabase = createServerClient(
     (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\s+/g, ''),
     (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').replace(/\s+/g, ''),
