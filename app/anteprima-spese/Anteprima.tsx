@@ -5,7 +5,7 @@
 // SOLO dati sintetici, nessuna chiamata di rete.
 import { useState } from 'react'
 import { Plus, Camera, Images, FolderOpen, PencilLine, X } from 'lucide-react'
-import { CALDA, ESSENZIALE, type Tema } from './tema'
+import { CALDA, ESSENZIALE, MISTA, type Tema } from './tema'
 import { PanoramicaMia, PanoramicaAnia, Movimenti, Documenti, Revisione, Analisi } from './viste'
 
 type TabId = 'panoramica' | 'movimenti' | 'documenti' | 'analisi'
@@ -19,7 +19,7 @@ function statoIniziale() {
   if (typeof window === 'undefined') return { v: 'calda', c: 'mia', t: 'panoramica' as TabId, filtri: false, rev: false }
   const q = new URLSearchParams(window.location.search)
   return {
-    v: q.get('v') === 'essenziale' ? 'essenziale' : 'calda',
+    v: ['essenziale', 'mista'].includes(q.get('v') || '') ? q.get('v') : 'calda',
     c: q.get('c') === 'ania' ? 'ania' : 'mia',
     t: (['panoramica', 'movimenti', 'documenti', 'analisi'].includes(q.get('t') || '') ? q.get('t') : 'panoramica') as TabId,
     filtri: q.get('filtri') === '1',
@@ -29,13 +29,13 @@ function statoIniziale() {
 
 export default function Anteprima() {
   const [iniziale] = useState(statoIniziale)
-  const [variante, setVariante] = useState<'calda' | 'essenziale'>(iniziale.v as 'calda' | 'essenziale')
+  const [variante, setVariante] = useState<'calda' | 'essenziale' | 'mista'>(iniziale.v as 'calda' | 'essenziale' | 'mista')
   const [contesto, setContesto] = useState<'mia' | 'ania'>(iniziale.c as 'mia' | 'ania')
   const [tab, setTab] = useState<TabId>(iniziale.t)
   const [filtriAperti, setFiltriAperti] = useState(iniziale.filtri)
   const [revisione, setRevisione] = useState(iniziale.rev)
   const [aggiungi, setAggiungi] = useState(false)
-  const t: Tema = variante === 'calda' ? CALDA : ESSENZIALE
+  const t: Tema = variante === 'calda' ? CALDA : variante === 'mista' ? MISTA : ESSENZIALE
 
   return (
     <div className="min-h-dvh pb-40" style={{ background: t.fondo, color: t.inchiostro }}>
@@ -43,11 +43,11 @@ export default function Anteprima() {
       <div className="flex items-center justify-center gap-2 py-1.5 text-[11px] font-bold tracking-wide"
         style={{ background: t.inchiostro, color: t.fondo }}>
         ANTEPRIMA · dati finti ·
-        {(['calda', 'essenziale'] as const).map(v => (
+        {(['calda', 'essenziale', 'mista'] as const).map(v => (
           <button key={v} onClick={() => setVariante(v)}
             className="px-2 py-0.5 rounded-full min-h-6"
             style={variante === v ? { background: t.fondo, color: t.inchiostro } : { opacity: 0.6 }}>
-            {v === 'calda' ? 'A · calda' : 'B · essenziale'}
+            {v === 'calda' ? 'A · calda' : v === 'essenziale' ? 'B · essenziale' : 'C · mista'}
           </button>
         ))}
       </div>

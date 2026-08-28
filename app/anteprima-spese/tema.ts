@@ -7,7 +7,7 @@
 //     righe sottili al posto delle scatole, tutto sans, angoli più asciutti.
 
 export type Tema = {
-  id: 'calda' | 'essenziale'
+  id: 'calda' | 'essenziale' | 'mista'
   nome: string
   fondo: string
   carta: string          // superfici principali
@@ -82,4 +82,33 @@ export const ESSENZIALE: Tema = {
   display: 'font-sans font-extrabold tracking-tight tabular-nums',
   ombra: '0 1px 1px rgba(20,30,25,.04)',
   bordoCarta: '1px solid #E4E6E0',
+}
+
+// C) "Mista" — l'impianto pulito della B (bordi sottili, poca ombra, ordine)
+//    con il calore della A (crema, verde profondo, terracotta, oro e i
+//    numeri importanti in Fraunces).
+export const MISTA: Tema = {
+  id: 'mista',
+  nome: 'Mista',
+  fondo: '#FAF6EE',
+  carta: '#FFFFFF',
+  velo: '#F0EADC',
+  inchiostro: '#22302A',
+  sub: '#75766B',
+  verde: '#1F4B38',
+  verdeTenue: '#E4EBE3',
+  salvia: '#8FA68E',
+  terracotta: '#B4552D',
+  terraTenue: '#F4E4D9',
+  oro: '#A97F2F',
+  oroTenue: '#F2E8D0',
+  rosso: '#9C2F22',
+  giallo: '#856012',
+  gialloTenue: '#F6EDD4',
+  bordo: '#E8E1D0',
+  r: '0.9rem',
+  rPill: '999px',
+  display: '[font-family:var(--font-fraunces)] font-medium',
+  ombra: '0 1px 2px rgba(50,45,25,.05)',
+  bordoCarta: '1px solid #E8E1D0',
 }

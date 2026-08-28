@@ -7,7 +7,7 @@
 // Non tocca /spese, /spese-famiglia né SpeseTracker.
 import { notFound } from 'next/navigation'
 import { Fraunces } from 'next/font/google'
-import Anteprima from './Anteprima'
+import AnteprimaClient from './AnteprimaClient'
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -22,7 +22,7 @@ export default function PaginaAnteprima() {
   if (process.env.NODE_ENV !== 'development') notFound()
   return (
     <div className={fraunces.variable}>
-      <Anteprima />
+      <AnteprimaClient />
     </div>
   )
 }
