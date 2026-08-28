@@ -668,6 +668,20 @@ se la precedente non è verificata E approvata.
   seconda copia esterna caricata e verificata; niente backup incompleti.
   Serve comunque l'approvazione esplicita di Ania per partire; bootstrap
   owner PRIMA di sostituire le policy.
+  **2C-A COMPLETATA (notte 28→29/08/2026)**: backup fresco del 28/08
+  identico alla produzione (solo GET/HEAD, produzione intatta); DMG
+  cifrato AES-256 in `Desktop/Casa Ania/Backup spese/`. Incidente gestito:
+  la prima password del DMG è comparsa per errore in chat (incollata nel
+  campo sbagliato) → password RUOTATA subito (36 caratteri casuali, mai
+  mostrata), portachiavi aggiornato, DMG rigenerato e riverificato
+  (password vuota e sbagliata rifiutate). SHA-256 definitivo:
+  `565c022fe5ac67d7b194071336b7bcd3f144ad9f4d2acbaa7b8cb78d6137d96a`.
+  Prova di recupero completa: voce `backup-casa-ania.local` (utente
+  "Backup spese pre-2C 2026-08-28") nell'app Password di Apple (iCloud →
+  recuperabile anche senza questo Mac); password ricopiata DALLA voce
+  salvata e usata per aprire il DMG in sola lettura: manifest identico,
+  81 scontrini. Appunti puliti a fine prova. FERMO qui: caricamento su
+  Google Drive e 2C-B solo dopo revisione indipendente + ok esplicito.
 - **Fase 3A — Prototipo visivo locale** *(AUTORIZZATA in attesa della 2C)*:
   anteprima mobile isolata con dati SOLO sintetici, nessuna query a
   Supabase, protetta da controllo d'ambiente (`notFound()` fuori dallo
