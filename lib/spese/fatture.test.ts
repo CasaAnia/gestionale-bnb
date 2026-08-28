@@ -5,8 +5,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   type Db, impegnatoCent, scadute, spesoCent,
-  confermaDocumento, approvaDaPagare, pagaFattura,
+  confermaDocumento, approvaDaPagare, pagaFattura, confermaFatturaPagata,
 } from './fatture.ts'
+import { modificaMembro, puoAccedereAiDati, puoGestireMembri, type Membro } from './sicurezza.ts'
+import { verificaBackfillEsatto } from './backfill.ts'
 import { transizioneDocumentoValida, transizioneBozzaValida } from './stati.ts'
 import { quadraturaDocumento, avvisiBozza, canonicaCoerente, possibileDuplicato } from './controlli.ts'
 import { monthRange } from './periodo.ts'
@@ -16,7 +18,7 @@ function dbBase(): Db {
   return {
     documenti: [
       { id: 'doc-fatt', kind: 'fattura', status: 'in_revisione', docTotalCent: 25000,
-        document_date: '2026-08-05', due_date: '2026-08-20' },
+        document_date: '2026-08-05', due_date: '2026-08-20', supplier: 'Fornitore Prova' },
       { id: 'doc-scontr', kind: 'scontrino', status: 'in_revisione', docTotalCent: 1547 },
     ],
     bozze: [
@@ -133,8 +135,9 @@ test('arrotondamento dichiarato: la stessa differenza diventa valida', () => {
 
 test('stati non validi: conferma e pagamento rifiutati', () => {
   const db = dbBase()
+  db.documenti[1].status = 'da_elaborare'
+  assert.throws(() => confermaDocumento(db, 'doc-scontr'), /Stato non valido/)
   db.documenti[0].status = 'da_elaborare'
-  assert.throws(() => confermaDocumento(db, 'doc-fatt'), /Stato non valido/)
   assert.throws(() => pagaFattura(db, 'doc-fatt', '2026-09-02'), /Stato non valido/)
   assert.throws(() => confermaDocumento(db, 'doc-inesistente'), /inesistente/)
 })
@@ -186,7 +189,7 @@ test('avvisi non bloccanti: data pre-novembre 2024, futura, sottocategoria, conf
   const campi = avvisi.map(a => a.campo)
   assert.ok(campi.includes('expense_date'))      // pre novembre 2024
   assert.ok(campi.includes('subcategory'))       // "Non specificata"
-  assert.ok(campi.includes('group_id'))
+  assert.ok(!campi.includes('group_id'))  // il gruppo NON è più un avviso: è bloccante (2A.1)
   assert.ok(campi.includes('store'))             // confidence 0,5 < 0,8
   // sono AVVISI: nessuno di questi blocca (lo dimostra la conferma che
   // guarda solo la quadratura, testata sopra)
@@ -211,4 +214,146 @@ test('duplicati: certo per stesso file, probabile per negozio+data+totale', () =
   assert.equal(possibileDuplicato(a, { ...a, sha256: 'xyz' }), 'probabile')
   assert.equal(possibileDuplicato(a, { ...a, sha256: null, store: 'Supermercato' }), 'possibile')
   assert.equal(possibileDuplicato(a, { ...a, sha256: null, totCent: 4735 }), null)
+})
+
+// ============================================================
+// 2A.1 — tipi per RPC, fattura già pagata, gruppo bloccante,
+//        arrotondamenti nelle righe definitive
+// ============================================================
+
+test('tipo sbagliato per ogni RPC: fatture e scontrini non si scambiano', () => {
+  const db = dbBase()
+  assert.throws(() => confermaDocumento(db, 'doc-fatt'), /Tipo non valido/)          // fattura → no conferma scontrino
+  assert.throws(() => approvaDaPagare(db, 'doc-scontr'), /Tipo non valido/)          // scontrino → no approva fattura
+  const conStato = structuredClone(db)
+  conStato.documenti[1].status = 'approvata_da_pagare'
+  assert.throws(() => pagaFattura(conStato, 'doc-scontr', '2026-09-02'), /Tipo non valido/)
+  assert.throws(() => confermaFatturaPagata(db, 'doc-scontr', '2026-09-02'), /Tipo non valido/)
+})
+
+test('approvazione fattura: pretende totale, data documento, scadenza e fornitore', () => {
+  for (const campo of ['docTotalCent', 'document_date', 'due_date', 'supplier'] as const) {
+    const db = dbBase()
+    const doc = db.documenti[0] as unknown as Record<string, unknown>
+    doc[campo] = null
+    assert.throws(() => approvaDaPagare(db, 'doc-fatt'), /mancante/)
+  }
+})
+
+test('doppia approvazione: idempotente', () => {
+  const db1 = approvaDaPagare(dbBase(), 'doc-fatt')
+  const db2 = approvaDaPagare(db1, 'doc-fatt')
+  assert.equal(db2.documenti.find(d => d.id === 'doc-fatt')!.status, 'approvata_da_pagare')
+  assert.equal(db2.spese.length, 0)
+})
+
+test('fattura già pagata durante la revisione: RPC dedicata, document_date conservata', () => {
+  const { db, expenseIds } = confermaFatturaPagata(dbBase(), 'doc-fatt', '2026-08-06', 'carta_attivita')
+  assert.equal(expenseIds.length, 1)
+  assert.equal(db.spese[0].expense_date, '2026-08-06')            // = paid_at
+  assert.equal(db.spese[0].paid_at, '2026-08-06')
+  assert.equal(db.documenti[0].document_date, '2026-08-05')       // la data fattura resta
+  // idempotente anche lei
+  const seconda = confermaFatturaPagata(db, 'doc-fatt', '2026-08-07')
+  assert.equal(seconda.db.spese.length, 1)
+})
+
+test('gruppo mancante: BLOCCANTE alla conferma (non un avviso)', () => {
+  const db = dbBase()
+  db.bozze.find(b => b.id === 'b-casa')!.groupId = null
+  assert.throws(() => confermaDocumento(db, 'doc-scontr'), /senza gruppo/)
+  assert.equal(db.spese.length, 0)
+})
+
+test('arrotondamento +1: riga esplicita, somma righe = spesa madre, sorelle = documento', () => {
+  const db = dbBase()
+  db.documenti[1].docTotalCent = 1548
+  db.bozze.find(b => b.id === 'b-bnb')!.arrotondamentoCent = 1
+  const { db: dopo } = confermaDocumento(db, 'doc-scontr')
+  const conArr = dopo.spese.find(e => e.righe.some(r => r.isAdjustment))!
+  assert.equal(conArr.righe.at(-1)!.name, 'Arrotondamento')
+  assert.equal(conArr.righe.at(-1)!.cent, 1)
+  // somma righe definitive = importo della spesa madre, per OGNI sorella
+  for (const e of dopo.spese)
+    assert.equal(e.amountCent, e.righe.reduce((s, r) => s + r.cent, 0))
+  // somma sorelle definitive = totale documento (arrotondamento sulla sorella giusta)
+  assert.equal(dopo.spese.reduce((s, e) => s + e.amountCent, 0), 1548)
+  assert.equal(conArr.amountCent, 415)                            // 414 + 1 alla sorella B&B
+})
+
+test('arrotondamento -1: negativo conservato, totali sempre quadrati', () => {
+  const db = dbBase()
+  db.documenti[1].docTotalCent = 1546
+  db.bozze.find(b => b.id === 'b-casa')!.arrotondamentoCent = -1
+  const { db: dopo } = confermaDocumento(db, 'doc-scontr')
+  const conArr = dopo.spese.find(e => e.righe.some(r => r.isAdjustment))!
+  assert.equal(conArr.righe.at(-1)!.cent, -1)
+  assert.equal(conArr.amountCent, 1132)                           // 1133 - 1 alla sorella Casa
+  assert.equal(dopo.spese.reduce((s, e) => s + e.amountCent, 0), 1546)
+})
+
+test('fattura con arrotondamento: la somma delle sorelle resta = doc_total', () => {
+  const db = dbBase()
+  db.documenti[0].docTotalCent = 25001
+  db.bozze.find(b => b.id === 'b-fatt')!.arrotondamentoCent = 1
+  const approvato = approvaDaPagare(db, 'doc-fatt')
+  const { db: dopo } = pagaFattura(approvato, 'doc-fatt', '2026-09-02')
+  assert.equal(dopo.spese[0].amountCent, 25001)
+  assert.ok(dopo.spese[0].righe.some(r => r.isAdjustment && r.cent === 1))
+})
+
+// ============================================================
+// 2A.1 — ultimo owner e verifica esatta del backfill (modelli puri)
+// ============================================================
+
+test("ultimo owner: impossibile eliminarlo o declassarlo; con due owner si può", () => {
+  const unoSolo: Membro[] = [{ userId: 'u1', role: 'owner' }, { userId: 'u2', role: 'member' }]
+  assert.throws(() => modificaMembro(unoSolo, 'u1', { tipo: 'rimuovi' }), /ULTIMO owner/)
+  assert.throws(() => modificaMembro(unoSolo, 'u1', { tipo: 'cambia_ruolo', ruolo: 'member' }), /ULTIMO owner/)
+  const due: Membro[] = [{ userId: 'u1', role: 'owner' }, { userId: 'u2', role: 'owner' }]
+  assert.equal(modificaMembro(due, 'u1', { tipo: 'rimuovi' }).length, 1)
+  // e il membro normale si gestisce liberamente
+  assert.equal(modificaMembro(unoSolo, 'u2', { tipo: 'rimuovi' }).length, 1)
+})
+
+test('accessi: niente anonimi, niente autenticati fuori lista; gestione solo owner', () => {
+  const membri: Membro[] = [{ userId: 'ania', role: 'owner' }, { userId: 'teo', role: 'member' }]
+  assert.ok(!puoAccedereAiDati(membri, null))            // anonimo
+  assert.ok(!puoAccedereAiDati(membri, 'estraneo'))      // autenticato ma non in lista
+  assert.ok(puoAccedereAiDati(membri, 'teo'))
+  assert.ok(puoGestireMembri(membri, 'ania'))
+  assert.ok(!puoGestireMembri(membri, 'teo'))
+})
+
+test('backfill: coppie esatte ok; mancante, errata/eccedente e ricevute fuse rilevate', () => {
+  const spese = [{ id: 'e1', receipt_id: 'r1' }, { id: 'e2', receipt_id: 'r1' }, { id: 'e3', receipt_id: null }]
+  const receipts = [{ id: 'r1', document_id: 'd1' }]
+  const ponteOk = [
+    { expenseId: 'e1', documentId: 'd1', origine: 'backfill_0020' as const },
+    { expenseId: 'e2', documentId: 'd1', origine: 'backfill_0020' as const },
+  ]
+  assert.ok(verificaBackfillEsatto(spese, receipts, ponteOk).ok)
+  // coppia mancante
+  const manca = verificaBackfillEsatto(spese, receipts, ponteOk.slice(0, 1))
+  assert.ok(!manca.ok && manca.errori.some(e => e.includes('MANCANTE')))
+  // coppia eccedente/errata di backfill
+  const eccede = verificaBackfillEsatto(spese, receipts,
+    [...ponteOk, { expenseId: 'e3', documentId: 'd1', origine: 'backfill_0020' as const }])
+  assert.ok(!eccede.ok && eccede.errori.some(e => e.includes('ECCEDENTE')))
+  // i collegamenti NUOVI dell'app non sono considerati eccedenti
+  assert.ok(verificaBackfillEsatto(spese, receipts,
+    [...ponteOk, { expenseId: 'e3', documentId: 'd1', origine: 'app' as const }]).ok)
+  // ricevuta senza documento
+  const senzaDoc = verificaBackfillEsatto(spese, [{ id: 'r1', document_id: null }], [])
+  assert.ok(!senzaDoc.ok && senzaDoc.errori.some(e => e.includes('senza documento')))
+  // due ricevute fuse sullo stesso documento
+  const fuse = verificaBackfillEsatto(spese,
+    [{ id: 'r1', document_id: 'd1' }, { id: 'r2', document_id: 'd1' }], ponteOk)
+  assert.ok(!fuse.ok && fuse.errori.some(e => e.includes('FUSE')))
+  // totale derivato diverso dalla somma delle sorelle
+  const tot = verificaBackfillEsatto(spese, receipts, ponteOk,
+    [{ id: 'd1', docTotalCent: 999, derivato: true }], { e1: 500, e2: 400 })
+  assert.ok(!tot.ok && tot.errori.some(e => e.includes('somma sorelle')))
+  assert.ok(verificaBackfillEsatto(spese, receipts, ponteOk,
+    [{ id: 'd1', docTotalCent: 900, derivato: true }], { e1: 500, e2: 400 }).ok)
 })

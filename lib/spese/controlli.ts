@@ -49,8 +49,8 @@ export function avvisiBozza(b: {
     out.push({ campo: 'expense_date', messaggio: 'data futura' })
   if (!b.canonical_subcategory_id && !b.subcategory)
     out.push({ campo: 'subcategory', messaggio: 'sottocategoria non determinabile: mostrare "Non specificata"' })
-  if (!b.group_id)
-    out.push({ campo: 'group_id', messaggio: 'gruppo mancante' })
+  // NB: il gruppo mancante NON è un avviso — è BLOCCANTE alla conferma
+  // (rivisto da Ania il 28/08/2026): lo impongono le RPC e fatture.ts.
   for (const [campo, v] of Object.entries(b.confidence || {})) {
     if (v?.confidence != null && v.confidence < SOGLIA_CONFIDENCE)
       out.push({ campo, messaggio: `affidabilità bassa (${v.confidence})${v.doubt_reason ? `: ${v.doubt_reason}` : ''}` })
