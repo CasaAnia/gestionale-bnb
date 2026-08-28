@@ -658,12 +658,21 @@ se la precedente non è verificata E approvata.
   progetto Supabase SEPARATO, con **dati anonimizzati e nessuna foto** (il
   backup reale NON si carica automaticamente): 0020 applicata lì, verifiche
   prima/dopo, prova del rollout RLS in due tempi e della conferma atomica.
-- **Fase 2C — Applicazione al database vero** *(molto più avanti)*: solo
-  dopo backup aggiornato + **seconda copia fuori dal Mac** (destinazione da
-  scegliere allora, non ora: niente copie su dischi/cloud adesso) + prova
-  2B riuscita + approvazione esplicita di Ania. Include il passaggio
-  separato e documentato per il primo owner in `app_members` PRIMA di
-  sostituire le policy.
+- **Fase 2C — Applicazione al database vero** — **SOSPESA (29/08/2026)**:
+  iCloud senza spazio e nessun disco esterno disponibile. 2C-A (backup
+  fresco + seconda copia esterna) e 2C-B (applicazione) sono RINVIATE
+  finché non ci sarà una destinazione esterna. REGOLA FERMA: nessuna
+  migrazione arriva in produzione senza backup fresco E seconda copia
+  esterna. Niente backup incompleti nel frattempo. Quando si sbloccherà:
+  prova 2B già riuscita + approvazione esplicita di Ania + bootstrap owner
+  PRIMA di sostituire le policy.
+- **Fase 3A — Prototipo visivo locale** *(AUTORIZZATA in attesa della 2C)*:
+  anteprima mobile isolata con dati SOLO sintetici, nessuna query a
+  Supabase, protetta da controllo d'ambiente (`notFound()` fuori dallo
+  sviluppo locale), impossibile da aprire in produzione anche con un
+  deploy accidentale. Non pensiona SpeseTracker e non tocca /spese e
+  /spese-famiglia. Due varianti grafiche sugli stessi dati; Ania sceglie
+  la direzione prima della Fase 3 definitiva.
 - **Fase 3 — Nuovo guscio**: nav compatta in alto (Panoramica · Movimenti ·
   Documenti · Analisi) + ＋ flottante, Movimenti raggruppati per documento,
   FiltriPanel. Calendario/Racconto/Domanda traslocano in Analisi.
