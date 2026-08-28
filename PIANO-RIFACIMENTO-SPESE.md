@@ -1027,3 +1027,80 @@ fuso/totale).
 - Blocco reale di un autenticato non-membro su tabelle e storage; rollout
   0020→bootstrap→0021 senza lockout; idempotenza della 0021 rieseguita.
 - Il trigger dell'ultimo owner contro update/delete reali.
+
+---
+
+## Resoconto Fase 2A.2 — 28 agosto 2026 (mini-fase correttiva, branch `rifacimento-spese`)
+
+Correzioni mirate dalla seconda revisione con Codex. Nuovi commit (59ecc86,
+3ccb5ec), nessuna cronologia riscritta, nulla applicato o eseguito.
+
+### Correzioni
+1. **Backfill multipagina**: il controllo 1:1 ricevute↔documento vale SOLO
+   per i documenti di backfill (`doc_total_derivato`): un documento nuovo
+   con più foto/pagine è legittimo e rieseguire la 0020 non fallisce.
+   Stesso comportamento nel verificatore puro (`backfill.ts`).
+2. **Bucket come precondizione**: la 0021 fallisce chiaramente se
+   `scontrini` è ASSENTE, duplicato in storage.buckets o PUBBLICO; non lo
+   crea mai.
+3. **Ultimo owner, concorrenza**: `pg_advisory_xact_lock` a chiave costante
+   PRIMA del conteggio nel trigger (due transazioni simultanee non possono
+   più rimuovere entrambe l'ultimo owner); `revoke execute` della funzione
+   trigger a public/anon/authenticated. Test concorrente reale a due
+   sessioni: pianificato in 2B.
+4. **Spese documentate protette**: `family_expense_documents.expense_id` e
+   `family_draft_expenses.expense_id` ora `on delete restrict` — la X non
+   può far sparire una spesa lasciando un documento "confermato" orfano;
+   le spese MANUALI senza documento restano eliminabili come oggi;
+   l'annullamento futuro sarà un'operazione esplicita e tracciata.
+5. **Vincoli reali per gli arrotondamenti**: CHECK `is_adjustment or
+   amount >= 0` sulle righe definitive; nella RPC: sorella negativa dopo
+   arrotondamento ⇒ eccezione; verifica EFFETTIVA post-inserimento
+   somma righe = madre e somma madri = doc_total (raise, non commenti).
+6. **Fatture**: validazione COMUNE `private.valida_fattura` (totale, data
+   documento, fornitore, bozze, gruppi, quadratura) per approvazione e
+   conferma-già-pagata; scadenza obbligatoria per una fattura DA PAGARE,
+   per una già pagata se assente diventa = data di pagamento (scelta
+   esplicita); gruppo bloccante anche all'approvazione; METODO DI
+   PAGAMENTO obbligatorio e valido al pagamento e per le fatture già
+   pagate (vuoto solo finché "da pagare"); per gli scontrini le righe
+   Casa Ania esigono il metodo prima della conferma (personale:
+   facoltativo); TIPO controllato PRIMA del ramo idempotente.
+7. **Correzioni atomiche**: tutte le RPC di revisione accettano
+   `p_correzioni jsonb` (array anche vuoto: field, proposed, corrected,
+   draft_id/draft_item_id, rule_applied) con verifica di appartenenza al
+   documento; inserite nella STESSA transazione (una correzione errata ⇒
+   nessuna spesa); il doppio tocco non duplica (ramo idempotente prima
+   della registrazione); firme vecchie eliminate con `drop function`.
+8. **Stati riservati alle RPC**: permessi PER COLONNA nella 0021 — i membri
+   aggiornano solo i campi economici della revisione; stati finali,
+   `expense_id` e cancellazioni fisiche passano solo da RPC/service role;
+   nuova RPC `scarta_documento` (scarto logico, tracciato in
+   family_corrections con source='scarto').
+
+### Elenco RPC definitivo (2A.2)
+`conferma_documento(doc, correzioni)` · `approva_fattura_da_pagare(doc,
+correzioni)` · `paga_fattura(doc, data, metodo, correzioni)` ·
+`conferma_fattura_pagata(doc, data, metodo, correzioni)` ·
+`scarta_documento(doc, motivo)` — più gli helper privati non esposti
+(spese_crea_da_bozze, spese_gia_confermate, valida_fattura,
+registra_correzioni).
+
+### Test e verifiche (28/08/2026)
+- `npm test`: **97/97** (10 nuovi: spesa documentata protetta, sorella
+  negativa bloccata, metodo Casa Ania/personale, gruppo bloccante anche in
+  approvazione, scadenza esplicita, tipo prima dell'idempotenza, correzioni
+  zero/categoria+importo/estranea/campo vuoto/doppia conferma/approvazione
+  e pagamento, multipagina nel backfill, metodo obbligatorio/invalido).
+- `tsc` pulito · build ok (24/24) · lint file toccati 0 problemi ·
+  verificatore base 28/28 · confronto backup↔sé stesso senza differenze.
+
+### Da verificare SOLO in 2B (checklist per il progetto di prova)
+- Esecuzione reale dei tre SQL; riesecuzione della 0020 DOPO aver creato
+  un documento multipagina (non deve fallire); 0021 due volte di fila.
+- Test concorrente ultimo owner con DUE sessioni reali (advisory lock).
+- Permessi per colonna: un membro NON deve poter fare update di status/
+  expense_id via PostgREST; delete di documenti/bozze negato; service role
+  invariato per /scontrini.
+- RPC: firme nuove uniche esposte (niente overload), correzioni nella
+  stessa transazione sotto errore SQL reale, precondizione bucket.
