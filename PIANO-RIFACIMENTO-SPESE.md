@@ -1104,3 +1104,62 @@ registra_correzioni).
   invariato per /scontrini.
 - RPC: firme nuove uniche esposte (niente overload), correzioni nella
   stessa transazione sotto errore SQL reale, precondizione bucket.
+
+---
+
+## Resoconto Fase 2A.3 — 28 agosto 2026 (mini-fase correttiva, branch `rifacimento-spese`)
+
+Ultime correzioni concrete prima della 2B. Commit a49f758 (SQL), 3dcb941
+(modello puro + test); nessuna cronologia riscritta, nulla eseguito.
+
+1. **CHECK 'scarto'**: `family_corrections_source_valida` ora è un vincolo
+   NOMINATO e idempotente (drop+add) che ammette
+   revisione/duplicato/avviso/**scarto**: `scarta_documento` si completa e
+   lascia un audit valido. Nel TS la costante `SORGENTI_CORREZIONE`
+   rispecchia ESATTAMENTE il CHECK, con test.
+2. **INSERT protetti**: revoca dell'INSERT completo su documenti, bozze e
+   righe di bozza; INSERT concesso SOLO sulle colonne iniziali consentite —
+   `status` prende esclusivamente il default, `expense_id`,
+   `doc_total_derivato`, `error_message`, `confidence`, `discard_reason` e
+   gli stati finali non sono inseribili dal browser. Service role completo.
+   Test PostgREST (insert normale ok / insert già confermato respinto) in
+   checklist 2B.
+3. **Spese documentate IMMUTABILI**: trigger
+   `private.blocca_spese_documentate()` (security definer,
+   `search_path=''`, nomi qualificati, execute revocato) su
+   family_expenses E family_expense_items: UPDATE/DELETE respinti se la
+   spesa è collegata a un documento CONFERMATO; manuali senza documento
+   invariate; service role esente; la futura rettifica sarà una RPC
+   tracciata o uno storno.
+4. **Ponte e audit**: `family_expense_documents` e `family_corrections` in
+   SOLA LETTURA per i membri (insert/update/delete revocati): il ponte si
+   scrive solo via RPC/service role e il registro correzioni è APPEND-ONLY
+   — nessuno scollega documenti o cancella la memoria degli errori dal
+   browser.
+5. **Esclusione righe OCR non distruttiva**: `family_draft_items.excluded`
+   (default false) — la riga resta nell'audit, quadratura/creazione/righe
+   definitive la ignorano, la correzione registra il motivo;
+   `user_added` marca le righe aggiunte a mano (trigger
+   `private.marca_riga_utente()` per gli insert non-service-role);
+   il membro aggiorna SOLO i campi revisionabili + excluded (`draft_id`,
+   `confidence`, `raw_name`, `user_added` immutabili dal browser).
+6. **Scadenza non inventata**: se una fattura GIÀ PAGATA non riporta la
+   scadenza, `due_date` resta NULL (document_date, due_date e paid_at sono
+   informazioni diverse); obbligatoria solo per una fattura da pagare.
+   (Sostituisce la scelta della 2A.2 che la poneva = data di pagamento.)
+7. **Lock qualificato**: `pg_catalog.pg_advisory_xact_lock(pg_catalog.
+   hashtext(...))` — coerente con `search_path=''`.
+
+**Test: 101/101** (4 nuovi: scarto con source valido e mai fisico, riga OCR
+esclusa con audit conservato, riga user_added inclusa con quadratura
+aggiornata, immutabilità documentate). tsc pulito · build ok · lint file
+toccati 0 · verificatore base 28/28 · confronto senza differenze.
+
+**Checklist residua SOLO per la 2B**: esecuzione reale dei tre SQL (0020
+anche DOPO un documento multipagina; 0021 due volte); test concorrente
+ultimo owner a due sessioni; PostgREST: insert normale consentito vs insert
+"già confermato"/campi riservati respinto, update di status/expense_id
+respinto, delete documenti/bozze negato, ponte e correzioni read-only,
+trigger immutabilità su spesa documentata reale (e service role esente);
+precondizione bucket (assente/doppio/pubblico); RPC con correzioni sotto
+errore SQL reale; firma unica esposta per ogni RPC.
