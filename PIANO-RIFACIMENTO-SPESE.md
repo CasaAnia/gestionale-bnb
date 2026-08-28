@@ -681,6 +681,36 @@ se la precedente non è verificata E approvata.
   recuperabile anche senza questo Mac); password ricopiata DALLA voce
   salvata e usata per aprire il DMG in sola lettura: manifest identico,
   81 scontrini. Appunti puliti a fine prova.
+  **PREFLIGHT 2C-B (29/08/2026, notte) — TUTTO VERDE, in attesa di ok**:
+  produzione riletta e confrontata ID per ID e campo per campo col backup
+  2C-A: identica (221/728/81/215/6; totali 462175+16910 cent; 81 file con
+  hash identici; 1 solo utente auth; bucket `scontrini` unico e privato;
+  0020 mai applicata neppure in parte — 8 tabelle nuove assenti e colonna
+  `family_receipts.document_id` assente). Albero Git pulito; SHA-256 dei
+  tre file identici a quelli approvati in 2B.1.
+  **Canale di esecuzione scelto per la 2C-B**: token temporaneo della
+  Management API di Supabase creato da Ania al momento, salvato in un file
+  locale FUORI dal repo con permessi ristretti (stessa procedura della
+  2B: mai in chat, mai nei log, mai nel repo), usato dall'orchestratore
+  via endpoint SQL del progetto; revoca immediata dal dashboard a fine
+  fase. Ripiego se l'endpoint non fosse disponibile: connessione Postgres
+  diretta con la password del database inserita da Ania nello stesso file
+  locale (mai mostrata), come nel ripiego già provato in 2B.1.
+  **Sequenza esatta 2C-B** (stop automatico = qualunque verifica fallita
+  interrompe TUTTO e non si prosegue): (0) preflight qui sopra ripetuto
+  sul momento — stop se un solo dato differisce dal backup; (1) `0020` in
+  una transazione — stop se errore SQL; (2) verifiche post-0020: 81
+  documenti derivati, 215 righe ponte `origine='backfill_0020'`,
+  `doc_total` derivato coerente, dati storici INTATTI (confronto
+  `--campi-del-riferimento` col backup), conteggi e totali cent invariati
+  — stop se una sola differenza; (3) `bootstrap_owner.sql` — deve trovare
+  UN SOLO utente reale e nominarlo owner; stop se 0 o >1; (4) verifica:
+  `app_members` = 1 owner; (5) `0021` — stop se errore (precondizione
+  bucket già verificata: esiste ed è privato); (6) verifiche finali:
+  policy nuove attive, RPC eseguibili solo dai membri (`service_role`
+  revocato), doppio export fresco + confronto completo col backup 2C-A,
+  app esistente ancora funzionante in lettura/scrittura sulle tabelle
+  storiche; (7) rapporto e revoca del token. Niente push/deploy.
   **Seconda copia esterna COMPLETATA (29/08/2026, notte)**: revisione
   superata; DMG caricato da Ania su Google Drive in `Casa Ania/Backup
   gestionale`; copia riscaricata e verificata (SHA-256 identico a
@@ -754,8 +784,11 @@ se la precedente non è verificata E approvata.
 + test (`caratterizzazione`, `domanda`, `ambito`) ·
 `components/spese/{ListaVoci,ScontriniBlock,FormSpesa,FiltriSchede,HomeTab,BudgetCard,SpeseFisseCard,UltimeSpese,CalendarioTab,RaccontoTab,DomandaTab}.tsx`.
 
-**Da creare (2A+)**: `supabase/migrations/0020_rifacimento_spese.sql` (2A,
-non applicata) · `lib/spese/{controlli,correzioni,bozze,documenti}.ts` +
+**Da creare (2A+)** — i file SQL sono stati POI creati in 2A con questi
+nomi definitivi: `supabase/migrations/0020_rifacimento_spese_schema.sql` +
+`supabase/bootstrap_owner.sql` + `supabase/migrations/0021_protezione_family.sql`
+(scritti e provati in 2B/2B.1, non applicati in produzione) ·
+`lib/spese/{controlli,correzioni,bozze,documenti}.ts` +
 test · estensione `verifica-spese.mjs` · `components/spese/{SpeseShell,
 PanoramicaTab,MovimentiTab,AggiungiSheet,DocumentiTab,RevisioneSpesa,
 AnalisiTab,FiltriPanel,FatturaForm}.tsx` (fasi 3–5).
