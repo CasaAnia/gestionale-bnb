@@ -33,8 +33,12 @@ if (args[0] === '--confronta') {
   process.exit(await confronta(rif, cand, consentiAggiunte))
 }
 
-const BACKUP = args[0] ||
+const BACKUP = args.filter(a => !a.startsWith('--'))[0] ||
   '/Users/amerigogranata/Desktop/Backup completo spese prima del rifacimento 2026-08-27'
+// --manifest <file>: usa i valori attesi di un manifest (es. la fixture
+// anonimizzata della Fase 2B) al posto di quelli reali scritti sotto.
+const iManifest = args.indexOf('--manifest')
+const MANIFEST = iManifest >= 0 ? args[iManifest + 1] : null
 
 // ============================================================================
 // CONFRONTO riferimento ↔ candidato — ID per ID, campo per campo
@@ -164,6 +168,7 @@ const ATTESI = {
   senzaDocumento: 6,
   senzaDocumentoCent: 13270,   //   132,70 €
 }
+if (MANIFEST) Object.assign(ATTESI, JSON.parse(readFileSync(MANIFEST, 'utf8')).attesi)
 
 // Denaro sempre in centesimi interi: niente errori di virgola mobile.
 const cent = n => Math.round(Number(n) * 100)
@@ -306,11 +311,15 @@ check('il campo recurring è sempre un booleano',
   spese.every(e => typeof e.recurring === 'boolean'),
   `${spese.filter(e => e.recurring).length} ricorrenti`)
 
-// ---- 9. File del backup ----
-console.log('File')
-const mancanti = documenti.filter(r => !existsSync(join(BACKUP, 'scontrini', r.storage_path)))
-check('ogni documento ha il suo file nel backup', mancanti.length === 0,
-  `${documenti.length - mancanti.length}/${documenti.length}`)
+// ---- 9. File del backup (saltato se l'export non ha la cartella scontrini) ----
+if (existsSync(join(BACKUP, 'scontrini'))) {
+  console.log('File')
+  const mancanti = documenti.filter(r => !existsSync(join(BACKUP, 'scontrini', r.storage_path)))
+  check('ogni documento ha il suo file nel backup', mancanti.length === 0,
+    `${documenti.length - mancanti.length}/${documenti.length}`)
+} else {
+  console.log('File: cartella scontrini assente in questo export — controllo saltato')
+}
 
 // ---- Esito ----
 console.log('')
