@@ -17,6 +17,9 @@
 //   duplicati, file+hash (se presenti) e totali per ambito:
 //   node scripts/verifica-spese.mjs --confronta /rif /candidato
 //     [--consenti-aggiunte]   # i record NUOVI nel candidato non sono errore
+//     [--campi-del-riferimento] # confronta SOLO i campi del riferimento:
+//        per verificare una migrazione ADDITIVA (colonne nuove nel candidato
+//        ammesse; i campi storici devono restare identici)
 //   Il riepilogo mostra id e NOMI dei campi, mai i contenuti (privacy).
 //
 // Esce con codice 1 se anche una sola verifica fallisce.
@@ -30,7 +33,8 @@ const args = process.argv.slice(2)
 if (args[0] === '--confronta') {
   const [rif, cand] = args.slice(1).filter(a => !a.startsWith('--'))
   const consentiAggiunte = args.includes('--consenti-aggiunte')
-  process.exit(await confronta(rif, cand, consentiAggiunte))
+  const campiRif = args.includes('--campi-del-riferimento')
+  process.exit(await confronta(rif, cand, consentiAggiunte, campiRif))
 }
 
 const BACKUP = args.filter(a => !a.startsWith('--'))[0] ||
@@ -43,7 +47,7 @@ const MANIFEST = iManifest >= 0 ? args[iManifest + 1] : null
 // ============================================================================
 // CONFRONTO riferimento ↔ candidato — ID per ID, campo per campo
 // ============================================================================
-async function confronta(rifDir, candDir, consentiAggiunte) {
+async function confronta(rifDir, candDir, consentiAggiunte, campiRif = false) {
   const { createHash } = await import('node:crypto')
   const { readdirSync, statSync } = await import('node:fs')
   const TAB = ['family_groups', 'family_categories', 'family_subcategories', 'family_expenses',
@@ -82,7 +86,7 @@ async function confronta(rifDir, candDir, consentiAggiunte) {
     for (const r of rif) {
       const c = perIdCand.get(r.id)
       if (!c) { err(`record MANCANTE nel candidato: ${r.id}`); mancanti++; continue }
-      const campi = new Set([...Object.keys(r), ...Object.keys(c)])
+      const campi = campiRif ? new Set(Object.keys(r)) : new Set([...Object.keys(r), ...Object.keys(c)])
       const diff = [...campi].filter(k => JSON.stringify(r[k] ?? null) !== JSON.stringify(c[k] ?? null))
       if (diff.length) { err(`record MODIFICATO ${r.id}: campi [${diff.join(', ')}]`); modificati++ }
     }

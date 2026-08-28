@@ -37,7 +37,7 @@ function uuidDi(orig) {
 function dataDi(orig) {
   if (!orig) return null
   const h = parseInt(sha('data:' + String(orig).slice(0, 10)).slice(0, 8), 16)
-  const mese = (h % 12) + 1, giorno = (h >> 4) % 28 + 1
+  const mese = (h % 12) + 1, giorno = ((h >>> 4) % 28) + 1
   return `2030-${String(mese).padStart(2, '0')}-${String(giorno).padStart(2, '0')}`
 }
 const tsDi = (orig) => orig ? dataDi(orig) + 'T10:00:00+00:00' : null
