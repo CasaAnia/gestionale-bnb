@@ -426,6 +426,26 @@ drop function if exists public.conferma_fattura_pagata(uuid, date, text);
 drop function if exists private.spese_crea_da_bozze(uuid, date, date, text);
 drop function if exists private.spese_gia_confermate(uuid);
 
+-- Chi può invocare le RPC: un MEMBRO autorizzato oppure il SERVICE ROLE
+-- (l'elaboratore /scontrini): per la chiave amministrativa auth.uid() è
+-- nullo, quindi is_app_member() da sola lo respingerebbe (bug trovato in
+-- Fase 2B e corretto in 2B.1).
+-- plpgsql (non sql): il corpo si risolve a RUNTIME, così la 0020 si può
+-- applicare su un database pulito dove private.is_app_member() (0021)
+-- non esiste ancora — le RPC si usano comunque solo dopo la 0021.
+create or replace function private.chiamante_autorizzato()
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return coalesce((select auth.jwt()->>'role'), '') = 'service_role'
+      or private.is_app_member();
+end $$;
+revoke execute on function private.chiamante_autorizzato() from public, anon, authenticated;
+
 -- Correzioni della revisione: payload jsonb (array, anche vuoto) di
 --   { field, proposed, corrected, draft_id?, draft_item_id?, rule_applied? }
 -- Verifica che bozze e righe indicate appartengano DAVVERO al documento.
@@ -681,7 +701,7 @@ as $$
 declare
   v_doc public.family_documents%rowtype;
 begin
-  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  if not private.chiamante_autorizzato() then raise exception 'Accesso negato: utente non autorizzato'; end if;
   select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
   if v_doc.kind = 'fattura' then
@@ -707,7 +727,7 @@ as $$
 declare
   v_doc public.family_documents%rowtype;
 begin
-  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  if not private.chiamante_autorizzato() then raise exception 'Accesso negato: utente non autorizzato'; end if;
   select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
   if v_doc.kind <> 'fattura' then
@@ -738,7 +758,7 @@ as $$
 declare
   v_doc public.family_documents%rowtype;
 begin
-  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  if not private.chiamante_autorizzato() then raise exception 'Accesso negato: utente non autorizzato'; end if;
   select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
   if v_doc.kind <> 'fattura' then
@@ -777,7 +797,7 @@ as $$
 declare
   v_doc public.family_documents%rowtype;
 begin
-  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  if not private.chiamante_autorizzato() then raise exception 'Accesso negato: utente non autorizzato'; end if;
   select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
   if v_doc.kind <> 'fattura' then
@@ -810,7 +830,7 @@ as $$
 declare
   v_doc public.family_documents%rowtype;
 begin
-  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  if not private.chiamante_autorizzato() then raise exception 'Accesso negato: utente non autorizzato'; end if;
   select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
   if v_doc.status = 'scartato' then return; end if;  -- idempotente

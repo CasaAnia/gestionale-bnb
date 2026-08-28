@@ -244,7 +244,13 @@ begin
     if tg_op = 'DELETE' then return old; end if;
     return new;
   end if;
-  v_expense_id := case when tg_table_name = 'family_expenses' then old.id else old.expense_id end;
+  -- rami separati: in un'unica espressione CASE il campo old.expense_id
+  -- verrebbe risolto anche per family_expenses, dove non esiste (bug 2B)
+  if tg_table_name = 'family_expenses' then
+    v_expense_id := old.id;
+  else
+    v_expense_id := old.expense_id;
+  end if;
   if exists (
     select 1 from public.family_expense_documents l
     join public.family_documents d on d.id = l.document_id
