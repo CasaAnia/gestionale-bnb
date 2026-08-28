@@ -149,12 +149,27 @@ console.log('SERVICE ROLE (elaboratore /scontrini)')
   esito('riga inserita dal service role', !!riga, 'status ' + r.status)
   esito('… user_added=false (ruolo service riconosciuto dal trigger)', riga?.user_added === false)
   // il ruolo visto dal database con la chiave amministrativa
+  // (2B.1) CONTRATTO: il service role NON conferma/paga/scarta — solo bozze
   const chi = await rest('/rest/v1/rpc/conferma_documento', 'service', { method: 'POST', body: JSON.stringify({ p_document_id: doc.id }) })
-  const msg = await chi.text()
-  esito('service role: RPC raggiungibile (fallisce solo per regole di dominio)', !chi.ok && /bozza|gruppo|attiva|Totale|Stato non valido/i.test(msg), msg.slice(0, 60).replace(/[a-f0-9-]{36}/g, '****'))
-  // e un NON membro resta fuori dalle RPC
-  const negato = await rest('/rest/v1/rpc/conferma_documento', estraneo, { method: 'POST', body: JSON.stringify({ p_document_id: doc.id }) })
-  esito('non membro: RPC negata', !negato.ok && /Accesso negato/.test(await negato.text()), 'status ' + negato.status)
+  esito('service role: conferma via RPC NEGATA', !chi.ok, 'status ' + chi.status)
+  const statoDopo = await sql(`select status from family_documents where id='${doc.id}'`)
+  const speseDopo = await sql(`select count(*) n from family_expense_documents where document_id='${doc.id}'`)
+  esito('… stato invariato e zero spese create', statoDopo[0].status === 'da_elaborare' && speseDopo[0].n === 0)
+  const paga = await rest('/rest/v1/rpc/paga_fattura', 'service', { method: 'POST', body: JSON.stringify({ p_document_id: doc.id, p_data_pagamento: '2030-01-01', p_payment_method: 'bonifico' }) })
+  esito('service role: pagamento via RPC negato', !paga.ok, 'status ' + paga.status)
+  const scarta = await rest('/rest/v1/rpc/scarta_documento', 'service', { method: 'POST', body: JSON.stringify({ p_document_id: doc.id, p_motivo: 'x' }) })
+  esito('service role: scarto via RPC negato', !scarta.ok, 'status ' + scarta.status)
+  // test PERMANENTE contro la riapertura accidentale dei permessi
+  const RPC5 = ['conferma_documento(uuid, jsonb)', 'approva_fattura_da_pagare(uuid, jsonb)',
+    'paga_fattura(uuid, date, text, jsonb)', 'conferma_fattura_pagata(uuid, date, text, jsonb)',
+    'scarta_documento(uuid, text)']
+  const priv = await sql(RPC5.map(f => `select '${f.split('(')[0]}' rpc,
+    has_function_privilege('service_role', 'public.${f}', 'execute') servizio,
+    has_function_privilege('authenticated', 'public.${f}', 'execute') autenticato,
+    has_function_privilege('anon', 'public.${f}', 'execute') anonimo`).join(' union all '))
+  esito('permessi RPC blindati (service/anon: NO, authenticated: SÌ) su tutte e 5',
+    priv.length === 5 && priv.every(x => x.servizio === false && x.autenticato === true && x.anonimo === false),
+    priv.map(x => `${x.rpc}:${x.servizio ? 'S!' : 'ok'}`).join(' '))
   await sql(`delete from family_draft_items where draft_id='${bozza.id}'; delete from family_draft_expenses where id='${bozza.id}'; delete from family_documents where id='${doc.id}'`)
 }
 
