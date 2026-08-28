@@ -40,12 +40,15 @@ export function verificaBackfillEsatto(
       errori.push(`coppia di backfill ERRATA o ECCEDENTE: ${l.expenseId} ↔ ${l.documentId}`)
   }
 
-  // (c) due ricevute storiche fuse sullo stesso documento (backfill 1:1)
+  // (c) due ricevute storiche fuse sullo stesso documento di BACKFILL
+  // (1:1). SOLO sui documenti storici (derivato=true): un documento NUOVO
+  // multipagina ha legittimamente più file, e la verifica non deve fallire.
+  const derivati = new Set(documenti.filter(d => d.derivato).map(d => d.id))
   const perDoc = new Map<string, number>()
-  for (const r of receipts) if (r.document_id)
+  for (const r of receipts) if (r.document_id && derivati.has(r.document_id))
     perDoc.set(r.document_id, (perDoc.get(r.document_id) || 0) + 1)
   for (const [doc, n] of perDoc) if (n > 1)
-    errori.push(`documento ${doc}: ${n} ricevute FUSE (atteso 1:1)`)
+    errori.push(`documento di backfill ${doc}: ${n} ricevute FUSE (atteso 1:1)`)
 
   // (d) totale derivato = somma ESATTA delle spese sorelle collegate
   for (const d of documenti) {

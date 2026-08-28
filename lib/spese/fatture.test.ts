@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   type Db, impegnatoCent, scadute, spesoCent,
-  confermaDocumento, approvaDaPagare, pagaFattura, confermaFatturaPagata,
+  confermaDocumento, approvaDaPagare, pagaFattura, confermaFatturaPagata, eliminaSpesa,
 } from './fatture.ts'
 import { modificaMembro, puoAccedereAiDati, puoGestireMembri, type Membro } from './sicurezza.ts'
 import { verificaBackfillEsatto } from './backfill.ts'
@@ -23,12 +23,13 @@ function dbBase(): Db {
     ],
     bozze: [
       { id: 'b-fatt', documentId: 'doc-fatt', status: 'da_controllare',
-        expense_date: '2026-08-05', groupId: 'g-bnb', righeCent: [25000] },
+        expense_date: '2026-08-05', groupId: 'g-bnb', groupAmbito: 'azienda', righeCent: [25000] },
       // scontrino misto: due bozze sorelle (casa + B&B) sullo stesso documento
       { id: 'b-casa', documentId: 'doc-scontr', status: 'da_controllare',
-        expense_date: '2026-08-10', groupId: 'g-casa', righeCent: [1133] },
+        expense_date: '2026-08-10', groupId: 'g-casa', groupAmbito: 'personale', righeCent: [1133] },
       { id: 'b-bnb', documentId: 'doc-scontr', status: 'pronta',
-        expense_date: '2026-08-10', groupId: 'g-bnb', righeCent: [414] },
+        expense_date: '2026-08-10', groupId: 'g-bnb', groupAmbito: 'azienda',
+        paymentMethod: 'carta_attivita', righeCent: [414] },
     ],
     spese: [],
   }
@@ -50,7 +51,7 @@ test('scaduta è derivato: non pagata + oltre scadenza', () => {
   const db = approvaDaPagare(dbBase(), 'doc-fatt')
   assert.equal(scadute(db, '2026-08-15').length, 0)             // prima della scadenza
   assert.equal(scadute(db, '2026-08-27').length, 1)             // dopo
-  const { db: pagato } = pagaFattura(db, 'doc-fatt', '2026-09-02')
+  const { db: pagato } = pagaFattura(db, 'doc-fatt', '2026-09-02', 'bonifico')
   assert.equal(scadute(pagato, '2026-09-27').length, 0)         // pagata: mai più scaduta
 })
 
@@ -73,24 +74,27 @@ test('pagamento: creazione atomica con expense_date = paid_at', () => {
 
 test('fattura di agosto pagata a settembre: conta nello Speso di settembre', () => {
   const db = approvaDaPagare(dbBase(), 'doc-fatt')
-  const { db: dopo } = pagaFattura(db, 'doc-fatt', '2026-09-02')
+  const { db: dopo } = pagaFattura(db, 'doc-fatt', '2026-09-02', 'bonifico')
   assert.equal(spesoCent(dopo, monthRange('2026-08')), 0)       // agosto: niente
   assert.equal(spesoCent(dopo, monthRange('2026-09')), 25000)   // settembre: 250 €
 })
 
 test('secondo tentativo di pagamento: nessun duplicato (idempotente)', () => {
   const db = approvaDaPagare(dbBase(), 'doc-fatt')
-  const { db: dopo1, expenseIds: ids1 } = pagaFattura(db, 'doc-fatt', '2026-09-02')
+  const { db: dopo1, expenseIds: ids1 } = pagaFattura(db, 'doc-fatt', '2026-09-02', 'bonifico')
   const { db: dopo2, expenseIds: ids2 } = pagaFattura(dopo1, 'doc-fatt', '2026-09-05', 'contanti')
   assert.equal(dopo2.spese.length, 1)                           // sempre UNA spesa
   assert.deepEqual(ids2, ids1)                                  // le stesse spese di prima
   assert.equal(dopo2.spese[0].expense_date, '2026-09-02')       // la data vera resta
 })
 
-test('il metodo di pagamento può restare vuoto finché la fattura non è pagata', () => {
-  const db = approvaDaPagare(dbBase(), 'doc-fatt')
-  const { db: dopo } = pagaFattura(db, 'doc-fatt', '2026-09-02') // senza metodo
-  assert.equal(dopo.spese[0].payment_method, null)
+test('metodo di pagamento: vuoto solo finché "da pagare"; obbligatorio e valido al pagamento', () => {
+  const db = approvaDaPagare(dbBase(), 'doc-fatt')     // approvata SENZA metodo: ok
+  assert.throws(() => pagaFattura(db, 'doc-fatt', '2026-09-02'), /Metodo di pagamento obbligatorio/)
+  assert.throws(() => pagaFattura(db, 'doc-fatt', '2026-09-02', 'assegno'), /obbligatorio e valido/)
+  assert.throws(() => confermaFatturaPagata(dbBase(), 'doc-fatt', '2026-08-06'), /obbligatorio e valido/)
+  const { db: dopo } = pagaFattura(db, 'doc-fatt', '2026-09-02', 'bonifico')
+  assert.equal(dopo.spese[0].payment_method, 'bonifico')
 })
 
 // ============================================================
@@ -138,7 +142,7 @@ test('stati non validi: conferma e pagamento rifiutati', () => {
   db.documenti[1].status = 'da_elaborare'
   assert.throws(() => confermaDocumento(db, 'doc-scontr'), /Stato non valido/)
   db.documenti[0].status = 'da_elaborare'
-  assert.throws(() => pagaFattura(db, 'doc-fatt', '2026-09-02'), /Stato non valido/)
+  assert.throws(() => pagaFattura(db, 'doc-fatt', '2026-09-02', 'bonifico'), /Stato non valido/)
   assert.throws(() => confermaDocumento(db, 'doc-inesistente'), /inesistente/)
 })
 
@@ -225,10 +229,8 @@ test('tipo sbagliato per ogni RPC: fatture e scontrini non si scambiano', () => 
   const db = dbBase()
   assert.throws(() => confermaDocumento(db, 'doc-fatt'), /Tipo non valido/)          // fattura → no conferma scontrino
   assert.throws(() => approvaDaPagare(db, 'doc-scontr'), /Tipo non valido/)          // scontrino → no approva fattura
-  const conStato = structuredClone(db)
-  conStato.documenti[1].status = 'approvata_da_pagare'
-  assert.throws(() => pagaFattura(conStato, 'doc-scontr', '2026-09-02'), /Tipo non valido/)
-  assert.throws(() => confermaFatturaPagata(db, 'doc-scontr', '2026-09-02'), /Tipo non valido/)
+  assert.throws(() => pagaFattura(db, 'doc-scontr', '2026-09-02', 'bonifico'), /Tipo non valido/)
+  assert.throws(() => confermaFatturaPagata(db, 'doc-scontr', '2026-09-02', 'bonifico'), /Tipo non valido/)
 })
 
 test('approvazione fattura: pretende totale, data documento, scadenza e fornitore', () => {
@@ -254,7 +256,7 @@ test('fattura già pagata durante la revisione: RPC dedicata, document_date cons
   assert.equal(db.spese[0].paid_at, '2026-08-06')
   assert.equal(db.documenti[0].document_date, '2026-08-05')       // la data fattura resta
   // idempotente anche lei
-  const seconda = confermaFatturaPagata(db, 'doc-fatt', '2026-08-07')
+  const seconda = confermaFatturaPagata(db, 'doc-fatt', '2026-08-07', 'bonifico')
   assert.equal(seconda.db.spese.length, 1)
 })
 
@@ -297,7 +299,7 @@ test('fattura con arrotondamento: la somma delle sorelle resta = doc_total', () 
   db.documenti[0].docTotalCent = 25001
   db.bozze.find(b => b.id === 'b-fatt')!.arrotondamentoCent = 1
   const approvato = approvaDaPagare(db, 'doc-fatt')
-  const { db: dopo } = pagaFattura(approvato, 'doc-fatt', '2026-09-02')
+  const { db: dopo } = pagaFattura(approvato, 'doc-fatt', '2026-09-02', 'bonifico')
   assert.equal(dopo.spese[0].amountCent, 25001)
   assert.ok(dopo.spese[0].righe.some(r => r.isAdjustment && r.cent === 1))
 })
@@ -346,14 +348,117 @@ test('backfill: coppie esatte ok; mancante, errata/eccedente e ricevute fuse ril
   // ricevuta senza documento
   const senzaDoc = verificaBackfillEsatto(spese, [{ id: 'r1', document_id: null }], [])
   assert.ok(!senzaDoc.ok && senzaDoc.errori.some(e => e.includes('senza documento')))
-  // due ricevute fuse sullo stesso documento
+  // due ricevute STORICHE fuse sullo stesso documento di backfill
   const fuse = verificaBackfillEsatto(spese,
-    [{ id: 'r1', document_id: 'd1' }, { id: 'r2', document_id: 'd1' }], ponteOk)
+    [{ id: 'r1', document_id: 'd1' }, { id: 'r2', document_id: 'd1' }], ponteOk,
+    [{ id: 'd1', docTotalCent: null, derivato: true }])
   assert.ok(!fuse.ok && fuse.errori.some(e => e.includes('FUSE')))
+  // un documento NUOVO multipagina (derivato=false) con più file è legittimo
+  const multipagina = verificaBackfillEsatto(spese,
+    [{ id: 'r1', document_id: 'd1' }, { id: 'r-pag2', document_id: 'd-nuovo' }, { id: 'r-pag3', document_id: 'd-nuovo' }],
+    ponteOk, [{ id: 'd1', docTotalCent: null, derivato: true }, { id: 'd-nuovo', docTotalCent: null, derivato: false }])
+  assert.ok(multipagina.ok)
   // totale derivato diverso dalla somma delle sorelle
   const tot = verificaBackfillEsatto(spese, receipts, ponteOk,
     [{ id: 'd1', docTotalCent: 999, derivato: true }], { e1: 500, e2: 400 })
   assert.ok(!tot.ok && tot.errori.some(e => e.includes('somma sorelle')))
   assert.ok(verificaBackfillEsatto(spese, receipts, ponteOk,
     [{ id: 'd1', docTotalCent: 900, derivato: true }], { e1: 500, e2: 400 }).ok)
+})
+
+// ============================================================
+// 2A.2 — spese documentate protette, sorelle mai negative,
+//        scadenze, correzioni atomiche
+// ============================================================
+
+test('spesa documentata: la X non può farla sparire (restrict); la manuale sì', () => {
+  const { db } = confermaDocumento(dbBase(), 'doc-scontr')
+  const documentata = db.spese[0].id
+  assert.throws(() => eliminaSpesa(db, documentata), /annullamento esplicito/)
+  assert.equal(db.spese.length, 2)                       // nulla è sparito
+  const conManuale = structuredClone(db)
+  conManuale.spese.push({ id: 'e-manuale', expense_date: '2026-08-20', amountCent: 6000, righe: [{ name: 'Benzina', cent: 6000, isAdjustment: false }], documentId: null })
+  const dopo = eliminaSpesa(conManuale, 'e-manuale')     // manuale senza documento: come oggi
+  assert.equal(dopo.spese.length, 2)
+})
+
+test('arrotondamento che renderebbe negativa una sorella: bloccato', () => {
+  const db = dbBase()
+  db.documenti[1].docTotalCent = 1133                    // 1133 + 414 - 415 + 1? no: forza il caso
+  db.bozze.find(b => b.id === 'b-bnb')!.arrotondamentoCent = -415
+  db.documenti[1].docTotalCent = 1133 + 414 - 415
+  assert.throws(() => confermaDocumento(db, 'doc-scontr'), /Importo sorella negativo/)
+  assert.equal(db.spese.length, 0)
+})
+
+test('scontrino con righe Casa Ania: metodo obbligatorio; solo personale: facoltativo', () => {
+  const senzaMetodo = dbBase()
+  senzaMetodo.bozze.find(b => b.id === 'b-bnb')!.paymentMethod = null
+  assert.throws(() => confermaDocumento(senzaMetodo, 'doc-scontr'), /righe Casa Ania/)
+  // solo personale: nessun obbligo
+  const soloCasa = dbBase()
+  soloCasa.documenti[1].docTotalCent = 1133
+  soloCasa.bozze = soloCasa.bozze.filter(b => b.id !== 'b-bnb')
+  const { db } = confermaDocumento(soloCasa, 'doc-scontr')
+  assert.equal(db.spese[0].payment_method, null)
+})
+
+test('approvazione: gruppo mancante blocca anche lo scadenzario', () => {
+  const db = dbBase()
+  db.bozze.find(b => b.id === 'b-fatt')!.groupId = null
+  assert.throws(() => approvaDaPagare(db, 'doc-fatt'), /senza gruppo/)
+})
+
+test('scadenza: obbligatoria per approvare; per una già pagata diventa la data di pagamento', () => {
+  const senzaScadenza = dbBase()
+  senzaScadenza.documenti[0].due_date = null
+  assert.throws(() => approvaDaPagare(senzaScadenza, 'doc-fatt'), /Scadenza mancante/)
+  const { db } = confermaFatturaPagata(senzaScadenza, 'doc-fatt', '2026-08-06', 'bonifico')
+  assert.equal(db.documenti[0].due_date, '2026-08-06')   // scelta esplicita documentata
+})
+
+test('tipo controllato PRIMA dell\'idempotenza: paga_fattura su scontrino confermato', () => {
+  const { db } = confermaDocumento(dbBase(), 'doc-scontr')
+  assert.throws(() => pagaFattura(db, 'doc-scontr', '2026-09-02', 'bonifico'), /Tipo non valido/)
+  assert.throws(() => confermaFatturaPagata(db, 'doc-scontr', '2026-09-02', 'bonifico'), /Tipo non valido/)
+})
+
+test('correzioni: zero correzioni ok; categoria e importo registrate col documento', () => {
+  const { db } = confermaDocumento(dbBase(), 'doc-scontr', [])
+  assert.equal((db.correzioni || []).length, 0)
+  const { db: con } = confermaDocumento(dbBase(), 'doc-scontr', [
+    { field: 'categoria', proposed: 'Varie', corrected: 'Detersivi', draftId: 'b-bnb', ruleApplied: 'aceto→Detersivi' },
+    { field: 'importo', proposed: 413, corrected: 414, draftId: 'b-bnb' },
+  ])
+  assert.equal(con.correzioni!.length, 2)
+  assert.ok(con.correzioni!.every(c => c.documentId === 'doc-scontr'))
+  assert.equal(con.correzioni![0].field, 'categoria')
+})
+
+test('correzioni: bozza di un altro documento respinta e NESSUNA spesa creata', () => {
+  const db = dbBase()
+  assert.throws(() => confermaDocumento(db, 'doc-scontr', [
+    { field: 'importo', draftId: 'b-fatt' },              // appartiene a doc-fatt!
+  ]), /non appartiene al documento/)
+  assert.equal(db.spese.length, 0)
+  assert.equal((db.correzioni || []).length, 0)
+  // stessa cosa per un campo mancante (errore nel log ⇒ niente spese)
+  assert.throws(() => confermaDocumento(db, 'doc-scontr', [{ field: '' }]), /senza campo/)
+  assert.equal(db.spese.length, 0)
+})
+
+test('doppia conferma: nessuna correzione duplicata', () => {
+  const prima = confermaDocumento(dbBase(), 'doc-scontr', [{ field: 'negozio', corrected: 'X' }])
+  assert.equal(prima.db.correzioni!.length, 1)
+  const seconda = confermaDocumento(prima.db, 'doc-scontr', [{ field: 'negozio', corrected: 'X' }])
+  assert.equal(seconda.db.correzioni!.length, 1)          // ramo idempotente: non registra
+})
+
+test('anche approvazione e pagamento registrano correzioni nella stessa operazione', () => {
+  const approvato = approvaDaPagare(dbBase(), 'doc-fatt', [{ field: 'fornitore', corrected: 'Fornitore Prova' }])
+  assert.equal(approvato.correzioni!.length, 1)
+  const doppia = approvaDaPagare(approvato, 'doc-fatt', [{ field: 'fornitore', corrected: 'Fornitore Prova' }])
+  assert.equal(doppia.correzioni!.length, 1)              // idempotente
+  const { db: pagato } = pagaFattura(approvato, 'doc-fatt', '2026-09-02', 'bonifico', [{ field: 'totale', corrected: 250 }])
+  assert.equal(pagato.correzioni!.length, 2)
 })
