@@ -175,11 +175,19 @@ create table if not exists public.family_draft_items (
   necessity text check (necessity is null or necessity in ('necessario', 'discrezionale')),
   planning text check (planning is null or planning in ('previsto', 'impulsivo')),
   confidence jsonb not null default '{}'::jsonb,
+  -- (2A.3) esclusione NON distruttiva di una riga OCR inventata o doppia:
+  -- resta nell'audit, ma quadratura e spese definitive la ignorano
+  excluded boolean not null default false,
+  -- riga aggiunta a mano durante la revisione (distinguibile dall'OCR);
+  -- imposta anche da trigger per gli insert non-service-role (0021)
+  user_added boolean not null default false,
   created_at timestamptz not null default now(),
   foreign key (canonical_subcategory_id, canonical_category_id)
     references public.family_canonical_subcategories (id, canonical_category_id)
 );
 create index if not exists family_draft_items_draft_idx on public.family_draft_items (draft_id);
+alter table public.family_draft_items add column if not exists excluded boolean not null default false;
+alter table public.family_draft_items add column if not exists user_added boolean not null default false;
 
 -- ----------------------------------------------------------------------------
 -- 5. COLONNE NUOVE SULLE TABELLE STORICHE
@@ -259,10 +267,15 @@ create table if not exists public.family_corrections (
   proposed jsonb,
   corrected jsonb,
   rule_applied text,
-  source text not null default 'revisione' check (source in ('revisione', 'duplicato', 'avviso', 'scarto')),
+  source text not null default 'revisione',
   created_at timestamptz not null default now(),
   check (num_nonnulls(document_id, draft_id, draft_item_id, expense_id, item_id) >= 1)
 );
+-- (2A.3) vincolo NOMINATO e idempotente: include 'scarto' anche se la
+-- tabella fosse stata creata da una versione precedente del file
+alter table public.family_corrections drop constraint if exists family_corrections_source_valida;
+alter table public.family_corrections add constraint family_corrections_source_valida
+  check (source in ('revisione', 'duplicato', 'avviso', 'scarto'));
 
 -- ----------------------------------------------------------------------------
 -- 7. LISTA UTENTI AUTORIZZATI (schema; funzioni e policy nella 0021)
@@ -495,7 +508,8 @@ begin
   select coalesce(sum(round(i.amount * 100)::bigint), 0) into v_somma_cent
   from public.family_draft_expenses b
   join public.family_draft_items i on i.draft_id = b.id
-  where b.document_id = p_document_id and b.status in ('da_controllare', 'pronta');
+  where b.document_id = p_document_id and b.status in ('da_controllare', 'pronta')
+    and not i.excluded;
   select coalesce(sum(b.arrotondamento_cent), 0) into v_arrotondamenti_cent
   from public.family_draft_expenses b
   where b.document_id = p_document_id and b.status in ('da_controllare', 'pronta');
@@ -561,7 +575,8 @@ begin
   select coalesce(sum(round(i.amount * 100)::bigint), 0) into v_somma_cent
   from public.family_draft_expenses b
   join public.family_draft_items i on i.draft_id = b.id
-  where b.document_id = p_document_id and b.status in ('da_controllare', 'pronta');
+  where b.document_id = p_document_id and b.status in ('da_controllare', 'pronta')
+    and not i.excluded;
   select coalesce(sum(b.arrotondamento_cent), 0) into v_arrotondamenti_cent
   from public.family_draft_expenses b
   where b.document_id = p_document_id and b.status in ('da_controllare', 'pronta');
@@ -578,7 +593,7 @@ begin
     -- importo sorella = somma righe + il SUO arrotondamento
     select coalesce(sum(i.amount), 0) + (v_bozza.arrotondamento_cent::numeric / 100)
       into v_amount
-    from public.family_draft_items i where i.draft_id = v_bozza.id;
+    from public.family_draft_items i where i.draft_id = v_bozza.id and not i.excluded;
     -- (2A.2) una sorella non può diventare negativa per l''arrotondamento
     if v_amount < 0 then
       raise exception 'Importo sorella negativo (%) dopo l''arrotondamento: non valido', v_amount;
@@ -604,7 +619,7 @@ begin
     select v_expense_id, i.name, i.amount, i.qty, i.category_id, i.subcategory,
            i.raw_name, i.unit_price, i.discount, i.group_id,
            i.canonical_category_id, i.canonical_subcategory_id, i.necessity, i.planning, false
-    from public.family_draft_items i where i.draft_id = v_bozza.id;
+    from public.family_draft_items i where i.draft_id = v_bozza.id and not i.excluded;
 
     if v_bozza.arrotondamento_cent <> 0 then
       insert into public.family_expense_items
@@ -746,8 +761,9 @@ end $$;
 
 -- ④ Fattura GIÀ PAGATA al momento della revisione: metodo obbligatorio;
 --    document_date resta la data della fattura; se la SCADENZA manca
---    davvero viene posta = data di pagamento (scelta esplicita: una
---    fattura pagata non ha più uno scadenzario da rispettare).
+--    davvero resta NULL (2A.3): document_date, due_date e paid_at sono
+--    informazioni diverse e nessuna va inventata. La scadenza è
+--    obbligatoria solo per una fattura ancora da pagare.
 create or replace function public.conferma_fattura_pagata(
   p_document_id uuid,
   p_data_pagamento date,
@@ -778,10 +794,7 @@ begin
     ('contanti', 'carta_personale', 'carta_attivita', 'bonifico', 'altro') then
     raise exception 'Metodo di pagamento obbligatorio e valido per una fattura già pagata';
   end if;
-  perform private.valida_fattura(p_document_id, false);  -- scadenza facoltativa qui
-  if v_doc.due_date is null then
-    update public.family_documents set due_date = p_data_pagamento where id = p_document_id;
-  end if;
+  perform private.valida_fattura(p_document_id, false);  -- scadenza facoltativa qui: se manca resta NULL
   perform private.registra_correzioni(p_document_id, p_correzioni);
   return private.spese_crea_da_bozze(p_document_id, p_data_pagamento, p_data_pagamento, p_payment_method);
 end $$;

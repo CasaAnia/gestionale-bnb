@@ -89,7 +89,7 @@ begin
     -- lock transazionale a chiave costante serializza il controllo: va
     -- preso PRIMA del conteggio e si rilascia a fine transazione.
     -- (Test concorrente reale a due sessioni: previsto in Fase 2B.)
-    perform pg_advisory_xact_lock(hashtext('app_members_owner_guard'));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('app_members_owner_guard'));
     if (select count(*) from public.app_members where role = 'owner') = 1 then
       raise exception 'Operazione negata: non si può eliminare o declassare l''ULTIMO owner.';
     end if;
@@ -151,26 +151,123 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- 4-bis. STATI RISERVATI ALLE RPC (2A.2): permessi PER COLONNA
+-- 4-bis. STATI RISERVATI ALLE RPC (2A.2, ampliata in 2A.3): permessi PER
+-- COLONNA su UPDATE **E INSERT**, ponte e audit protetti, immutabilità
 -- ---------------------------------------------------------------------------
--- La policy generica darebbe UPDATE completo: un client potrebbe impostare
--- da solo documento 'confermato', bozza 'confermata' o expense_id senza
--- passare dalle RPC. Qui si restringe: i campi economici della revisione
--- restano modificabili dal membro; stati finali, expense_id e cancellazioni
--- fisiche passano SOLO dalle RPC (security definer) o dal service role
--- (/scontrini), che conserva i propri privilegi.
-revoke update, delete on public.family_documents from authenticated;
+-- La policy generica darebbe CRUD completo: un client potrebbe inserire
+-- direttamente un documento 'confermato', una bozza 'confermata' o con
+-- expense_id già valorizzato, modificare una spesa documentata, scollegare
+-- il ponte o cancellare il registro delle correzioni. Qui si restringe:
+-- i campi della revisione restano al membro; stati, campi di sistema,
+-- ponte e audit passano SOLO dalle RPC (security definer) o dal service
+-- role (/scontrini), che conserva accesso completo.
+
+-- DOCUMENTI: update e insert solo sulle colonne consentite
+revoke update, delete, insert on public.family_documents from authenticated;
 grant update (kind, doc_total, supplier, invoice_number, document_date, due_date, note)
   on public.family_documents to authenticated;
-revoke update, delete on public.family_draft_expenses from authenticated;
+grant insert (kind, doc_total, supplier, invoice_number, document_date, due_date, note, upload_ambito)
+  on public.family_documents to authenticated;
+  -- status prende SOLO il default 'da_elaborare'; error_message e
+  -- doc_total_derivato non sono inseribili dal browser
+
+-- BOZZE: idem
+revoke update, delete, insert on public.family_draft_expenses from authenticated;
 grant update (expense_date, group_id, category_id, subcategory,
   canonical_category_id, canonical_subcategory_id, store, description,
-  payment_method, room_id, expense_nature, confidence, arrotondamento_cent)
+  payment_method, room_id, expense_nature, arrotondamento_cent)
   on public.family_draft_expenses to authenticated;
-revoke delete on public.family_draft_items from authenticated;
--- (le righe di bozza restano interamente modificabili in revisione)
+grant insert (document_id, expense_date, group_id, category_id, subcategory,
+  canonical_category_id, canonical_subcategory_id, store, description,
+  payment_method, room_id, expense_nature, arrotondamento_cent)
+  on public.family_draft_expenses to authenticated;
+  -- status solo default 'da_controllare'; expense_id, confidence e
+  -- discard_reason mai dal browser
+
+-- RIGHE DI BOZZA: il membro modifica SOLO i campi revisionabili + excluded;
+-- draft_id, confidence, raw_name (originale OCR) e user_added restano
+-- immutabili dal browser. L'insert manuale è consentito (riga corretta
+-- aggiunta in revisione) e viene marcato user_added dal trigger sotto.
+revoke update, delete, insert on public.family_draft_items from authenticated;
+grant update (name, qty, unit_price, discount, amount, group_id, category_id,
+  subcategory, canonical_category_id, canonical_subcategory_id, necessity,
+  planning, excluded)
+  on public.family_draft_items to authenticated;
+grant insert (draft_id, name, qty, unit_price, discount, amount, group_id,
+  category_id, subcategory, canonical_category_id, canonical_subcategory_id,
+  necessity, planning)
+  on public.family_draft_items to authenticated;
+
+-- ogni riga inserita da un NON-service-role è marcata user_added=true
+create or replace function private.marca_riga_utente()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if coalesce(auth.jwt()->>'role', '') <> 'service_role' then
+    new.user_added := true;
+  end if;
+  return new;
+end $$;
+revoke execute on function private.marca_riga_utente() from public, anon, authenticated;
+drop trigger if exists family_draft_items_marca_utente on public.family_draft_items;
+create trigger family_draft_items_marca_utente
+  before insert on public.family_draft_items
+  for each row execute function private.marca_riga_utente();
+
+-- PONTE e REGISTRO CORREZIONI (2A.3): sola lettura per i membri.
+-- Il ponte si scrive solo via RPC/service role (scollegarlo a mano
+-- spezzerebbe i documenti); il registro è APPEND-ONLY via RPC/service
+-- role: la memoria degli errori di Claude non si tocca dal browser.
+revoke insert, update, delete on public.family_expense_documents from authenticated;
+revoke insert, update, delete on public.family_corrections from authenticated;
+
+-- IMMUTABILITÀ DELLE SPESE DOCUMENTATE (2A.3): una spesa collegata a un
+-- documento CONFERMATO non si modifica né si cancella direttamente (il
+-- documento resterebbe "confermato" ma non più quadrato). Vale anche per
+-- le sue righe definitive. Le spese manuali senza documento restano
+-- modificabili/eliminabili come oggi. Una futura rettifica passerà da una
+-- RPC tracciata o da uno storno. Il service role (elaborazione /scontrini)
+-- conserva il proprio accesso.
+create or replace function private.blocca_spese_documentate()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_expense_id uuid;
+begin
+  if coalesce(auth.jwt()->>'role', '') = 'service_role' then
+    if tg_op = 'DELETE' then return old; end if;
+    return new;
+  end if;
+  v_expense_id := case when tg_table_name = 'family_expenses' then old.id else old.expense_id end;
+  if exists (
+    select 1 from public.family_expense_documents l
+    join public.family_documents d on d.id = l.document_id
+    where l.expense_id = v_expense_id and d.status = 'confermato'
+  ) then
+    raise exception 'Operazione negata: spesa collegata a un documento confermato — serve una rettifica tracciata (RPC), non la modifica diretta';
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end $$;
+revoke execute on function private.blocca_spese_documentate() from public, anon, authenticated;
+drop trigger if exists family_expenses_immutabili_documentate on public.family_expenses;
+create trigger family_expenses_immutabili_documentate
+  before update or delete on public.family_expenses
+  for each row execute function private.blocca_spese_documentate();
+drop trigger if exists family_expense_items_immutabili_documentate on public.family_expense_items;
+create trigger family_expense_items_immutabili_documentate
+  before update or delete on public.family_expense_items
+  for each row execute function private.blocca_spese_documentate();
+
 grant all on public.family_documents, public.family_draft_expenses,
-  public.family_draft_items to service_role;
+  public.family_draft_items, public.family_expense_documents,
+  public.family_corrections to service_role;
 
 -- ---------------------------------------------------------------------------
 -- 5. BUCKET PRIVATO 'scontrini' (storage.objects): SELECT/INSERT/UPDATE/DELETE
