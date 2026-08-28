@@ -426,25 +426,12 @@ drop function if exists public.conferma_fattura_pagata(uuid, date, text);
 drop function if exists private.spese_crea_da_bozze(uuid, date, date, text);
 drop function if exists private.spese_gia_confermate(uuid);
 
--- Chi può invocare le RPC: un MEMBRO autorizzato oppure il SERVICE ROLE
--- (l'elaboratore /scontrini): per la chiave amministrativa auth.uid() è
--- nullo, quindi is_app_member() da sola lo respingerebbe (bug trovato in
--- Fase 2B e corretto in 2B.1).
--- plpgsql (non sql): il corpo si risolve a RUNTIME, così la 0020 si può
--- applicare su un database pulito dove private.is_app_member() (0021)
--- non esiste ancora — le RPC si usano comunque solo dopo la 0021.
-create or replace function private.chiamante_autorizzato()
-returns boolean
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-begin
-  return coalesce((select auth.jwt()->>'role'), '') = 'service_role'
-      or private.is_app_member();
-end $$;
-revoke execute on function private.chiamante_autorizzato() from public, anon, authenticated;
+-- CONTRATTO (ribadito in 2B.1): le RPC di conferma/pagamento/scarto sono
+-- AZIONI DELL'UTENTE. /scontrini (service role) scrive SOLO documenti,
+-- bozze e righe OCR e attende la conferma dal gestionale: NON può
+-- confermare, pagare o scartare. La funzione chiamante_autorizzato() che
+-- in 2B aveva aperto le RPC anche al service role è stata rimossa.
+drop function if exists private.chiamante_autorizzato();
 
 -- Correzioni della revisione: payload jsonb (array, anche vuoto) di
 --   { field, proposed, corrected, draft_id?, draft_item_id?, rule_applied? }
@@ -701,7 +688,7 @@ as $$
 declare
   v_doc public.family_documents%rowtype;
 begin
-  if not private.chiamante_autorizzato() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
   select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
   if v_doc.kind = 'fattura' then
@@ -727,7 +714,7 @@ as $$
 declare
   v_doc public.family_documents%rowtype;
 begin
-  if not private.chiamante_autorizzato() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
   select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
   if v_doc.kind <> 'fattura' then
@@ -758,7 +745,7 @@ as $$
 declare
   v_doc public.family_documents%rowtype;
 begin
-  if not private.chiamante_autorizzato() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
   select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
   if v_doc.kind <> 'fattura' then
@@ -797,7 +784,7 @@ as $$
 declare
   v_doc public.family_documents%rowtype;
 begin
-  if not private.chiamante_autorizzato() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
   select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
   if v_doc.kind <> 'fattura' then
@@ -830,7 +817,7 @@ as $$
 declare
   v_doc public.family_documents%rowtype;
 begin
-  if not private.chiamante_autorizzato() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
   select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
   if v_doc.status = 'scartato' then return; end if;  -- idempotente
@@ -860,3 +847,11 @@ grant execute on function public.approva_fattura_da_pagare(uuid, jsonb) to authe
 grant execute on function public.paga_fattura(uuid, date, text, jsonb) to authenticated;
 grant execute on function public.conferma_fattura_pagata(uuid, date, text, jsonb) to authenticated;
 grant execute on function public.scarta_documento(uuid, text) to authenticated;
+--  - (2B.1) il SERVICE ROLE non esegue le RPC: revoca ESPLICITA (i default
+--    privileges di piattaforma gliele concederebbero) — doppia difesa
+--    insieme alla guardia is_app_member() dentro ogni RPC
+revoke execute on function public.conferma_documento(uuid, jsonb) from service_role;
+revoke execute on function public.approva_fattura_da_pagare(uuid, jsonb) from service_role;
+revoke execute on function public.paga_fattura(uuid, date, text, jsonb) from service_role;
+revoke execute on function public.conferma_fattura_pagata(uuid, date, text, jsonb) from service_role;
+revoke execute on function public.scarta_documento(uuid, text) from service_role;
