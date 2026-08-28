@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import BackBar from '@/components/BackBar'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
 import { contoSoggiorno } from '@/lib/conto'
+import { buildSiteFunnel, type SiteEvent } from '@/lib/siteStats'
 
 function fmt(n: number) { return n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 
@@ -96,13 +97,14 @@ export default function Statistiche() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: bookings }, { data: expenses }, { data: payments }, { data: rooms }] = await Promise.all([
+      const [{ data: bookings }, { data: expenses }, { data: payments }, { data: rooms }, { data: siteEvents }] = await Promise.all([
         supabase.from('bookings').select('*').neq('status', 'annullata'),
         supabase.from('family_expenses').select('expense_date, amount, family_groups!inner(ambito)').eq('family_groups.ambito', 'azienda'),
         supabase.from('payments').select('booking_id, amount, paid_on'),
         supabase.from('rooms').select('id, name'),
+        supabase.from('site_events').select('tipo, pagina, fonte, campagna, created_at'),
       ])
-      setData({ bookings: bookings || [], expenses: expenses || [], payments: payments || [], rooms: rooms || [] })
+      setData({ bookings: bookings || [], expenses: expenses || [], payments: payments || [], rooms: rooms || [], siteEvents: siteEvents || [] })
       setLoading(false)
     }
     load()
@@ -266,6 +268,7 @@ export default function Statistiche() {
     return { year, list, daysElapsed, firstMonthIdx, curMonth, numMonths }
   }
   const roomStats = buildRoomStats()
+  const siteStats = data ? buildSiteFunnel(data.siteEvents as SiteEvent[], period) : null
 
   const rows = calcPeriod()
   const sconti = calcSconti()
@@ -306,6 +309,78 @@ export default function Statistiche() {
               <p className={`font-bold text-sm ${totalProfit >= 0 ? 'text-green-mid' : 'text-[#8C3B2E]'}`}>€{fmt(totalProfit)}</p>
             </div>
           </div>
+
+          {siteStats && (
+            <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-600">Sito e richieste</p>
+                  <p className="text-xs text-gray-400">dati anonimi · {period} corrente</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-bold text-green-mid">{siteStats.conversioneVisita}%</p>
+                  <p className="text-[10px] text-gray-400">visita → richiesta</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-1.5">
+                {[
+                  ['Visite', siteStats.visite],
+                  ['Pagina richiesta', siteStats.paginaPrenota],
+                  ['Modulo iniziato', siteStats.moduliIniziati],
+                  ['Richiesta inviata', siteStats.richiesteInviate],
+                ].map(([label, value], index) => (
+                  <div key={String(label)} className={`rounded-lg p-2 text-center ${index === 3 ? 'bg-[#EDF3E9]' : 'bg-gray-50'}`}>
+                    <p className={`text-lg font-bold ${index === 3 ? 'text-green-mid' : 'text-green-dark'}`}>{value}</p>
+                    <p className="text-[10px] leading-tight text-gray-500">{label}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mt-3 text-center">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">{siteStats.conversioneModulo}%</p>
+                  <p className="text-[10px] text-gray-400">modulo → richiesta</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">{siteStats.nonConcluseStimate}</p>
+                  <p className="text-[10px] text-gray-400">non concluse (stima)</p>
+                </div>
+                <div>
+                  <p className={`text-sm font-semibold ${siteStats.errori > 0 ? 'text-[#8C3B2E]' : 'text-gray-700'}`}>{siteStats.errori}</p>
+                  <p className="text-[10px] text-gray-400">errori</p>
+                </div>
+              </div>
+
+              {siteStats.fontiRichieste.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 mb-2">Da dove arrivano le richieste</p>
+                  <div className="space-y-1.5">
+                    {siteStats.fontiRichieste.slice(0, 5).map(source => (
+                      <div key={source.nome} className="flex justify-between text-xs">
+                        <span className="text-gray-600">{source.nome}</span>
+                        <span className="font-semibold text-green-mid">{source.valore}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {siteStats.campagneRichieste.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 mb-2">Campagne che hanno generato richieste</p>
+                  <div className="space-y-1.5">
+                    {siteStats.campagneRichieste.slice(0, 5).map(campaign => (
+                      <div key={campaign.nome} className="flex justify-between text-xs">
+                        <span className="text-gray-600">{campaign.nome}</span>
+                        <span className="font-semibold text-green-mid">{campaign.valore}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Grafico a barre */}
           <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
