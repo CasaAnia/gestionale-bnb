@@ -495,6 +495,17 @@ modulo una **navigazione compatta in alto** fra le QUATTRO sezioni, più un
     /scontrini senza toccare modello dati né revisione. In questa fase
     NIENTE API AI nell'app e nessun costo per chiamata.
 
+    CONTRATTO NEL DATABASE (2B.1): le 5 RPC (conferma, approvazione,
+    pagamento, conferma-pagata, scarto) sono eseguibili SOLO da un utente
+    autenticato in app_members — il service role ha revoke esplicito e la
+    guardia is_app_member() dentro ogni RPC. COMPATIBILITÀ TEMPORANEA:
+    fino alla Fase 4 il VECCHIO /scontrini continua a inserire spese
+    direttamente in family_expenses (per questo il service role conserva
+    l'accesso alle tabelle e l'esenzione dal trigger di immutabilità);
+    nella Fase 4 /scontrini viene riscritto per produrre SOLO bozze, si
+    aggiunge la protezione definitiva contro creazione/modifica di spese
+    confermate da parte dell'elaboratore e si rimuove quell'esenzione.
+
  ③ Revisione (schermata RevisioneSpesa)
     foto/pagine zoomabili ── dati estratti ── campi dubbi con motivo ──
     controlli §9 (verdi/rossi; avvisi gialli non bloccanti) ── doc_total,
@@ -1237,3 +1248,42 @@ anonimizzata deterministica e 81 file finti di testo.
    va verificata (privato ✓) ma non serve crearlo;
 6. dopo la 2C: fasi 3+ (interfaccia) — il vecchio SpeseTracker continua a
    funzionare nel frattempo (modalità compatibilità).
+
+---
+
+## Resoconto Fase 2B.1 — 28 agosto 2026 (correzione contrattuale)
+
+La revisione indipendente ha trovato una contraddizione introdotta in 2B
+(commit f9a3826): `private.chiamante_autorizzato()` permetteva anche al
+SERVICE ROLE di chiamare le 5 RPC di conferma/pagamento/scarto, mentre il
+contratto del piano dice che `/scontrini` scrive SOLO documenti e bozze e
+ATTENDE la conferma dal gestionale. Il rifiuto originario era giusto.
+
+**Correzione (commit 00321d6, 4c907b9):**
+- `chiamante_autorizzato()` RIMOSSA; guardia `is_app_member()` dentro
+  ognuna delle 5 RPC: eseguibili SOLO da un autenticato in `app_members`;
+- `REVOKE EXECUTE` esplicito a `service_role` sulle 5 RPC (i default
+  privileges di piattaforma le concederebbero); grant solo `authenticated`;
+- test reali aggiornati: il service role CREA documenti/bozze/righe OCR
+  (`user_added=false`), ma conferma/pagamento/scarto via RPC sono NEGATI e
+  non cambiano stato né creano spese; owner normale; non membro escluso;
+- test PERMANENTE contro la riapertura accidentale:
+  `has_function_privilege` su tutte e 5 (service/anon: NO, authenticated: SÌ).
+
+**Compatibilità temporanea (documentata anche in §8):** fino alla Fase 4 il
+VECCHIO `/scontrini` continua a inserire spese direttamente in
+`family_expenses` (per questo il service role conserva l'accesso alle
+tabelle e l'esenzione dal trigger di immutabilità). Nella Fase 4
+`/scontrini` sarà riscritto per produrre soltanto bozze; allora si
+aggiungerà la protezione definitiva contro creazione/modifica di spese
+confermate da parte dell'elaboratore e si rimuoverà quell'esenzione.
+
+**Nota tecnica:** col token di gestione ormai revocato, il SQL di prova
+passa dalla connessione Postgres DIRETTA al solo progetto di prova
+(devDependency `pg`, password del db di prova fuori dal repo, guardia
+anti-produzione invariata; parser per bigint/numeric/date).
+
+**Sequenza 2B rieseguita PER INTERO dopo la correzione:** sicurezza
+**44/44** (3 test contrattuali nuovi + permessi permanenti), integrità/RPC
+**50/50**, storico invariato campo per campo, 0021 idempotente. Locale:
+101/101, tsc/build/lint puliti.
