@@ -326,7 +326,7 @@ export default function Statistiche() {
               <div className="grid grid-cols-4 gap-1.5">
                 {[
                   ['Visite', siteStats.visite],
-                  ['Pagina richiesta', siteStats.paginaPrenota],
+                  ['Pagina prenotazione', siteStats.paginaPrenota],
                   ['Modulo iniziato', siteStats.moduliIniziati],
                   ['Richiesta inviata', siteStats.richiesteInviate],
                 ].map(([label, value], index) => (
