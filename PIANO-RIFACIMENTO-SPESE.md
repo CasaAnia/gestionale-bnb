@@ -1339,3 +1339,12 @@ Due varianti sugli stessi identici dati:
 
 PROSSIMO PASSO: Ania sceglie la direzione (o un misto); solo dopo parte la
 Fase 3 vera sul modulo reale.
+
+### Direzione grafica SCELTA (28/08/2026, sera)
+Dopo il confronto affiancato A/B/C: **variante B · Contemporanea
+essenziale** (fondi neutri, tutto sans con cifre tabellari, bordi sottili,
+geometria asciutta). La Fase 3 definitiva userà i token della B
+(`ESSENZIALE` in app/anteprima-spese/tema.ts come riferimento). Le varianti
+A e C restano nell'anteprima come archivio della decisione.
+NB: la Fase 3 vera sulle pagine reali resta comunque DOPO la 2C (il nuovo
+guscio poggia su documenti/bozze della 0020, non ancora in produzione).
