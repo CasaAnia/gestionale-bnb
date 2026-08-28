@@ -147,7 +147,8 @@ create table if not exists public.family_draft_expenses (
   -- una riga esplicita "Arrotondamento" della spesa di QUESTA sorella
   arrotondamento_cent int not null default 0,
   discard_reason text,
-  expense_id uuid unique references public.family_expenses(id) on delete set null,
+  -- restrict (2A.2): l'audit bozza→spesa non deve mai restare orfano
+  expense_id uuid unique references public.family_expenses(id) on delete restrict,
   created_at timestamptz not null default now(),
   foreign key (canonical_subcategory_id, canonical_category_id)
     references public.family_canonical_subcategories (id, canonical_category_id)
@@ -217,6 +218,11 @@ alter table public.family_expense_items add constraint family_expense_items_cano
 alter table public.family_expense_items drop constraint if exists family_expense_items_qty_positiva;
 alter table public.family_expense_items add constraint family_expense_items_qty_positiva
   check (qty > 0) not valid;  -- storico verificato sul backup; validate a parte
+-- (2A.2) una riga NORMALE non può essere negativa: solo la rettifica
+-- "Arrotondamento" (is_adjustment=true) può esserlo
+alter table public.family_expense_items drop constraint if exists family_expense_items_importo_riga_normale;
+alter table public.family_expense_items add constraint family_expense_items_importo_riga_normale
+  check (is_adjustment or amount >= 0) not valid;
 
 -- ----------------------------------------------------------------------------
 -- 6. PONTE SPESA ↔ DOCUMENTO e LOG CORREZIONI
@@ -224,9 +230,14 @@ alter table public.family_expense_items add constraint family_expense_items_qty_
 -- document_id RESTRICT: un documento con collegamenti confermati non si
 -- elimina (protezione nel database). Eliminare una SPESA (funzione già
 -- esistente dell'app) elimina solo il proprio collegamento.
+-- expense_id RESTRICT (2A.2): una spesa collegata a un documento non si
+-- cancella con la X — sparirebbe il ponte lasciando un documento
+-- "confermato" con un totale che non corrisponde più a nulla. Le spese
+-- MANUALI senza documento restano eliminabili come oggi. Un eventuale
+-- annullamento futuro sarà un'operazione esplicita e tracciata.
 create table if not exists public.family_expense_documents (
   id uuid primary key default gen_random_uuid(),
-  expense_id uuid not null references public.family_expenses(id) on delete cascade,
+  expense_id uuid not null references public.family_expenses(id) on delete restrict,
   document_id uuid not null references public.family_documents(id) on delete restrict,
   -- per distinguere il backfill storico dai collegamenti nuovi (verifiche
   -- esatte, §8): mai un semplice count(*) globale
@@ -248,7 +259,7 @@ create table if not exists public.family_corrections (
   proposed jsonb,
   corrected jsonb,
   rule_applied text,
-  source text not null default 'revisione' check (source in ('revisione', 'duplicato', 'avviso')),
+  source text not null default 'revisione' check (source in ('revisione', 'duplicato', 'avviso', 'scarto')),
   created_at timestamptz not null default now(),
   check (num_nonnulls(document_id, draft_id, draft_item_id, expense_id, item_id) >= 1)
 );
@@ -355,13 +366,17 @@ begin
     raise exception 'BACKFILL: ricevuta storica senza documento';
   end if;
   -- (d) due ricevute storiche non possono essere state fuse sullo stesso
-  --     documento (il backfill è 1:1)
+  --     documento di backfill (1:1). SOLO sui documenti storici
+  --     (doc_total_derivato): un documento NUOVO multipagina ha
+  --     legittimamente più file, e rieseguire la 0020 non deve fallire.
   if exists (
-    select document_id from public.family_receipts
-    where document_id is not null
-    group by document_id having count(*) > 1
+    select r.document_id
+    from public.family_receipts r
+    join public.family_documents d on d.id = r.document_id
+    where d.doc_total_derivato
+    group by r.document_id having count(*) > 1
   ) then
-    raise exception 'BACKFILL: due ricevute fuse sullo stesso documento';
+    raise exception 'BACKFILL: due ricevute storiche fuse sullo stesso documento di backfill';
   end if;
   -- (e) il totale derivato coincide ESATTAMENTE con la somma delle sorelle
   select count(*) into v_doc_rotti
@@ -379,18 +394,116 @@ begin
 end $$;
 
 -- ----------------------------------------------------------------------------
--- 9. RPC ECONOMICHE — atomiche, idempotenti, coi permessi giusti
+-- 9. RPC ECONOMICHE — atomiche, idempotenti, coi permessi giusti (rev. 2A.2)
 -- ----------------------------------------------------------------------------
 -- Architettura dei permessi:
---  - HELPER in schema private: NON eseguibile da authenticated (nessun
---    grant); le RPC pubbliche (security definer) lo invocano internamente.
---  - RPC PUBBLICHE: security definer (necessario per usare l'helper e per
---    girare prima/insieme alla RLS in modo controllato), search_path = ''
---    e nomi schema-qualificati, controllo esplicito di appartenenza
---    (private.is_app_member(), installata dalla 0021: le RPC si usano solo
---    dopo), revoke a public/anon e grant SOLO ad authenticated.
---  - Nessuna funzione generica che permetta inserimenti arbitrari: ogni RPC
---    fa una sola operazione di dominio con stati e tipi vincolati.
+--  - HELPER in schema private: NON eseguibili da authenticated;
+--  - RPC PUBBLICHE: security definer, search_path = '', nomi qualificati,
+--    controllo esplicito private.is_app_member(), grant SOLO ad authenticated;
+--  - controllo del TIPO sempre PRIMA del ramo idempotente: paga_fattura su
+--    uno scontrino (anche già confermato) risponde "tipo non valido";
+--  - le correzioni della revisione viaggiano NELLA STESSA transazione:
+--    se una correzione fallisce, non nasce nessuna spesa.
+-- Firme vecchie eliminate esplicitamente (niente overload residui esposti
+-- da PostgREST):
+drop function if exists public.conferma_documento(uuid);
+drop function if exists public.approva_fattura_da_pagare(uuid);
+drop function if exists public.paga_fattura(uuid, date, text);
+drop function if exists public.conferma_fattura_pagata(uuid, date, text);
+drop function if exists private.spese_crea_da_bozze(uuid, date, date, text);
+drop function if exists private.spese_gia_confermate(uuid);
+
+-- Correzioni della revisione: payload jsonb (array, anche vuoto) di
+--   { field, proposed, corrected, draft_id?, draft_item_id?, rule_applied? }
+-- Verifica che bozze e righe indicate appartengano DAVVERO al documento.
+create or replace function private.registra_correzioni(p_document_id uuid, p_correzioni jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  c jsonb;
+  v_draft uuid;
+  v_item uuid;
+begin
+  if p_correzioni is null or jsonb_typeof(p_correzioni) <> 'array' then
+    raise exception 'Correzioni non valide: atteso un array (anche vuoto)';
+  end if;
+  for c in select * from jsonb_array_elements(p_correzioni) loop
+    if coalesce(c->>'field', '') = '' then
+      raise exception 'Correzione senza campo';
+    end if;
+    v_draft := nullif(c->>'draft_id', '')::uuid;
+    v_item := nullif(c->>'draft_item_id', '')::uuid;
+    if v_draft is not null and not exists (
+      select 1 from public.family_draft_expenses
+      where id = v_draft and document_id = p_document_id
+    ) then
+      raise exception 'Correzione respinta: la bozza % non appartiene al documento', v_draft;
+    end if;
+    if v_item is not null and not exists (
+      select 1 from public.family_draft_items i
+      join public.family_draft_expenses b on b.id = i.draft_id
+      where i.id = v_item and b.document_id = p_document_id
+    ) then
+      raise exception 'Correzione respinta: la riga % non appartiene al documento', v_item;
+    end if;
+    insert into public.family_corrections
+      (document_id, draft_id, draft_item_id, field, proposed, corrected, rule_applied, source)
+    values
+      (p_document_id, v_draft, v_item, c->>'field', c->'proposed', c->'corrected',
+       c->>'rule_applied', 'revisione');
+  end loop;
+end $$;
+
+-- Validazione COMUNE delle fatture (approvazione e conferma-già-pagata):
+-- totale, data documento, fornitore, bozze attive, gruppi, quadratura.
+-- La SCADENZA è obbligatoria solo per una fattura DA PAGARE
+-- (p_richiedi_scadenza=true): per una già pagata può mancare e in quel
+-- caso viene posta = data di pagamento (scelta esplicita, vedi RPC ④).
+create or replace function private.valida_fattura(p_document_id uuid, p_richiedi_scadenza boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_doc public.family_documents%rowtype;
+  v_somma_cent bigint;
+  v_arrotondamenti_cent bigint;
+begin
+  select * into v_doc from public.family_documents where id = p_document_id;
+  if v_doc.doc_total is null then raise exception 'Totale documento mancante'; end if;
+  if v_doc.document_date is null then raise exception 'Data documento mancante'; end if;
+  if p_richiedi_scadenza and v_doc.due_date is null then raise exception 'Scadenza mancante'; end if;
+  if v_doc.supplier is null or v_doc.supplier = '' then raise exception 'Fornitore mancante'; end if;
+  if not exists (
+    select 1 from public.family_draft_expenses
+    where document_id = p_document_id and status in ('da_controllare', 'pronta')
+  ) then
+    raise exception 'Nessuna bozza attiva: documento senza bozze o con bozze scartate/in errore';
+  end if;
+  -- gruppo BLOCCANTE anche per l'approvazione nello scadenzario
+  if exists (
+    select 1 from public.family_draft_expenses
+    where document_id = p_document_id and status in ('da_controllare', 'pronta')
+      and group_id is null
+  ) then
+    raise exception 'Bozza senza gruppo: assegnare il gruppo prima di approvare';
+  end if;
+  select coalesce(sum(round(i.amount * 100)::bigint), 0) into v_somma_cent
+  from public.family_draft_expenses b
+  join public.family_draft_items i on i.draft_id = b.id
+  where b.document_id = p_document_id and b.status in ('da_controllare', 'pronta');
+  select coalesce(sum(b.arrotondamento_cent), 0) into v_arrotondamenti_cent
+  from public.family_draft_expenses b
+  where b.document_id = p_document_id and b.status in ('da_controllare', 'pronta');
+  if v_somma_cent + v_arrotondamenti_cent <> round(v_doc.doc_total * 100)::bigint then
+    raise exception 'Quadratura non esatta: righe+arrotondamento=% cent, documento=% cent',
+      v_somma_cent + v_arrotondamenti_cent, round(v_doc.doc_total * 100)::bigint;
+  end if;
+end $$;
 
 create or replace function private.spese_crea_da_bozze(
   p_document_id uuid,
@@ -410,6 +523,8 @@ declare
   v_amount numeric(10,2);
   v_expense_id uuid;
   v_ids uuid[] := '{}';
+  v_madri_cent bigint := 0;
+  v_check_cent bigint;
 begin
   select * into v_doc from public.family_documents where id = p_document_id;
 
@@ -422,13 +537,24 @@ begin
   ) then
     raise exception 'Nessuna bozza attiva: documento senza bozze o con bozze scartate/in errore';
   end if;
-  -- gruppo mancante = BLOCCANTE (senza non si distingue Casa/Ania/Teo/Casa Ania)
+  -- gruppo mancante = BLOCCANTE
   if exists (
     select 1 from public.family_draft_expenses
     where document_id = p_document_id and status in ('da_controllare', 'pronta')
       and group_id is null
   ) then
     raise exception 'Bozza senza gruppo: assegnare il gruppo prima di confermare';
+  end if;
+  -- (2A.2) metodo di pagamento OBBLIGATORIO per le bozze di ambito azienda
+  -- (Casa Ania), salvo quando la RPC lo fornisce per tutte (fatture pagate):
+  if p_payment_method is null and exists (
+    select 1 from public.family_draft_expenses b
+    join public.family_groups g on g.id = b.group_id
+    where b.document_id = p_document_id and b.status in ('da_controllare', 'pronta')
+      and coalesce(g.ambito, 'personale') = 'azienda'
+      and b.payment_method is null
+  ) then
+    raise exception 'Metodo di pagamento mancante sulle righe Casa Ania: obbligatorio prima della conferma';
   end if;
 
   -- quadratura ESATTA su tutte le righe + arrotondamenti dichiarati
@@ -449,11 +575,14 @@ begin
     where document_id = p_document_id and status in ('da_controllare', 'pronta')
     order by created_at
   loop
-    -- l'importo della sorella INCLUDE il suo arrotondamento: così la somma
-    -- delle sorelle definitive è SEMPRE identica a doc_total
+    -- importo sorella = somma righe + il SUO arrotondamento
     select coalesce(sum(i.amount), 0) + (v_bozza.arrotondamento_cent::numeric / 100)
       into v_amount
     from public.family_draft_items i where i.draft_id = v_bozza.id;
+    -- (2A.2) una sorella non può diventare negativa per l''arrotondamento
+    if v_amount < 0 then
+      raise exception 'Importo sorella negativo (%) dopo l''arrotondamento: non valido', v_amount;
+    end if;
 
     insert into public.family_expenses
       (expense_date, amount, group_id, category_id, subcategory, store, description,
@@ -477,8 +606,6 @@ begin
            i.canonical_category_id, i.canonical_subcategory_id, i.necessity, i.planning, false
     from public.family_draft_items i where i.draft_id = v_bozza.id;
 
-    -- arrotondamento ≠ 0: riga finale ESPLICITA e leggibile (mai nascosto
-    -- nel prezzo di un prodotto); può essere positivo o negativo
     if v_bozza.arrotondamento_cent <> 0 then
       insert into public.family_expense_items
         (expense_id, name, amount, qty, category_id, subcategory, is_adjustment)
@@ -486,6 +613,14 @@ begin
         (v_expense_id, 'Arrotondamento', v_bozza.arrotondamento_cent::numeric / 100, 1,
          v_bozza.category_id, v_bozza.subcategory, true);
     end if;
+
+    -- (2A.2) VERIFICA EFFETTIVA: somma righe definitive = importo madre
+    select coalesce(sum(round(i.amount * 100)::bigint), 0) into v_check_cent
+    from public.family_expense_items i where i.expense_id = v_expense_id;
+    if v_check_cent <> round(v_amount * 100)::bigint then
+      raise exception 'Incoerenza interna: somma righe (%) diversa dall''importo madre (%)', v_check_cent, round(v_amount * 100)::bigint;
+    end if;
+    v_madri_cent := v_madri_cent + round(v_amount * 100)::bigint;
 
     insert into public.family_expense_documents (expense_id, document_id, origine)
     values (v_expense_id, p_document_id, 'app')
@@ -498,11 +633,15 @@ begin
     v_ids := v_ids || v_expense_id;
   end loop;
 
+  -- (2A.2) VERIFICA EFFETTIVA: somma delle madri = doc_total
+  if v_madri_cent <> round(v_doc.doc_total * 100)::bigint then
+    raise exception 'Incoerenza interna: somma sorelle (%) diversa dal totale documento (%)', v_madri_cent, round(v_doc.doc_total * 100)::bigint;
+  end if;
+
   update public.family_documents set status = 'confermato' where id = p_document_id;
   return v_ids;
 end $$;
 
--- Idempotenza condivisa: se il documento è già confermato, le spese esistenti.
 create or replace function private.spese_gia_confermate(p_document_id uuid)
 returns uuid[]
 language sql
@@ -515,10 +654,10 @@ as $$
   where document_id = p_document_id and expense_id is not null;
 $$;
 
--- ============ RPC PUBBLICHE (le sole quattro esposte) ============
+-- ============ RPC PUBBLICHE (le cinque esposte) ============
 
--- ① Conferma di uno SCONTRINO (kind <> 'fattura'): spese con la data della bozza.
-create or replace function public.conferma_documento(p_document_id uuid)
+-- ① Conferma di uno SCONTRINO. Il tipo si controlla PRIMA dell''idempotenza.
+create or replace function public.conferma_documento(p_document_id uuid, p_correzioni jsonb default '[]'::jsonb)
 returns uuid[]
 language plpgsql
 security definer
@@ -527,27 +666,24 @@ as $$
 declare
   v_doc public.family_documents%rowtype;
 begin
-  if not private.is_app_member() then
-    raise exception 'Accesso negato: utente non autorizzato';
-  end if;
-  select * into v_doc from public.family_documents
-  where id = p_document_id for update;
+  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
-  if v_doc.status = 'confermato' then
-    return private.spese_gia_confermate(p_document_id);
-  end if;
   if v_doc.kind = 'fattura' then
     raise exception 'Tipo non valido: per le fatture usare approva_fattura_da_pagare / paga_fattura / conferma_fattura_pagata';
+  end if;
+  if v_doc.status = 'confermato' then
+    return private.spese_gia_confermate(p_document_id);  -- idempotente: niente correzioni duplicate
   end if;
   if v_doc.status <> 'in_revisione' then
     raise exception 'Stato non valido per la conferma: % (serve in_revisione)', v_doc.status;
   end if;
+  perform private.registra_correzioni(p_document_id, p_correzioni);
   return private.spese_crea_da_bozze(p_document_id, null, null, null);
 end $$;
 
--- ② Approvazione di una FATTURA revisionata ma ANCORA DA PAGARE:
---    nessuna spesa creata; documento → approvata_da_pagare (scadenzario).
-create or replace function public.approva_fattura_da_pagare(p_document_id uuid)
+-- ② Approvazione di una FATTURA revisionata ma ANCORA DA PAGARE.
+create or replace function public.approva_fattura_da_pagare(p_document_id uuid, p_correzioni jsonb default '[]'::jsonb)
 returns void
 language plpgsql
 security definer
@@ -555,55 +691,30 @@ set search_path = ''
 as $$
 declare
   v_doc public.family_documents%rowtype;
-  v_somma_cent bigint;
-  v_arrotondamenti_cent bigint;
 begin
-  if not private.is_app_member() then
-    raise exception 'Accesso negato: utente non autorizzato';
-  end if;
-  select * into v_doc from public.family_documents
-  where id = p_document_id for update;
+  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
-  if v_doc.status = 'approvata_da_pagare' then return; end if;  -- idempotente
   if v_doc.kind <> 'fattura' then
     raise exception 'Tipo non valido: solo le fatture si approvano da pagare';
   end if;
+  if v_doc.status = 'approvata_da_pagare' then return; end if;  -- idempotente
   if v_doc.status <> 'in_revisione' then
     raise exception 'Stato non valido per l''approvazione: % (serve in_revisione)', v_doc.status;
   end if;
-  -- requisiti della fattura (piano §3): dati completi PRIMA dello scadenzario
-  if v_doc.doc_total is null then raise exception 'Totale documento mancante'; end if;
-  if v_doc.document_date is null then raise exception 'Data documento mancante'; end if;
-  if v_doc.due_date is null then raise exception 'Scadenza mancante'; end if;
-  if v_doc.supplier is null or v_doc.supplier = '' then raise exception 'Fornitore mancante'; end if;
-  if not exists (
-    select 1 from public.family_draft_expenses
-    where document_id = p_document_id and status in ('da_controllare', 'pronta')
-  ) then
-    raise exception 'Nessuna bozza attiva: niente da approvare';
-  end if;
-  -- quadratura esatta anche qui: "approvata" = non più dubbia
-  select coalesce(sum(round(i.amount * 100)::bigint), 0) into v_somma_cent
-  from public.family_draft_expenses b
-  join public.family_draft_items i on i.draft_id = b.id
-  where b.document_id = p_document_id and b.status in ('da_controllare', 'pronta');
-  select coalesce(sum(b.arrotondamento_cent), 0) into v_arrotondamenti_cent
-  from public.family_draft_expenses b
-  where b.document_id = p_document_id and b.status in ('da_controllare', 'pronta');
-  if v_somma_cent + v_arrotondamenti_cent <> round(v_doc.doc_total * 100)::bigint then
-    raise exception 'Quadratura non esatta: righe+arrotondamento=% cent, documento=% cent',
-      v_somma_cent + v_arrotondamenti_cent, round(v_doc.doc_total * 100)::bigint;
-  end if;
+  perform private.valida_fattura(p_document_id, true);  -- scadenza OBBLIGATORIA
+  perform private.registra_correzioni(p_document_id, p_correzioni);
   -- NESSUNA family_expenses: le bozze restano disponibili allo scadenzario
   update public.family_documents set status = 'approvata_da_pagare'
   where id = p_document_id;
 end $$;
 
--- ③ Pagamento di una fattura APPROVATA: spese con expense_date = paid_at.
+-- ③ Pagamento di una fattura APPROVATA: metodo OBBLIGATORIO e valido.
 create or replace function public.paga_fattura(
   p_document_id uuid,
   p_data_pagamento date,
-  p_payment_method text default null
+  p_payment_method text,
+  p_correzioni jsonb default '[]'::jsonb
 ) returns uuid[]
 language plpgsql
 security definer
@@ -612,32 +723,36 @@ as $$
 declare
   v_doc public.family_documents%rowtype;
 begin
-  if not private.is_app_member() then
-    raise exception 'Accesso negato: utente non autorizzato';
-  end if;
-  select * into v_doc from public.family_documents
-  where id = p_document_id for update;
+  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
-  if v_doc.status = 'confermato' then
-    return private.spese_gia_confermate(p_document_id);  -- idempotente
-  end if;
   if v_doc.kind <> 'fattura' then
     raise exception 'Tipo non valido: paga_fattura accetta solo fatture';
+  end if;
+  if v_doc.status = 'confermato' then
+    return private.spese_gia_confermate(p_document_id);  -- idempotente
   end if;
   if v_doc.status <> 'approvata_da_pagare' then
     raise exception 'Stato non valido per il pagamento: % (serve approvata_da_pagare)', v_doc.status;
   end if;
   if p_data_pagamento is null then raise exception 'Data di pagamento obbligatoria'; end if;
+  if p_payment_method is null or p_payment_method not in
+    ('contanti', 'carta_personale', 'carta_attivita', 'bonifico', 'altro') then
+    raise exception 'Metodo di pagamento obbligatorio e valido quando la fattura viene pagata';
+  end if;
+  perform private.registra_correzioni(p_document_id, p_correzioni);
   return private.spese_crea_da_bozze(p_document_id, p_data_pagamento, p_data_pagamento, p_payment_method);
 end $$;
 
--- ④ Fattura GIÀ PAGATA al momento della revisione: conferma diretta con
---    data e metodo ESPLICITI; document_date resta la data della fattura,
---    la spesa nasce con expense_date = paid_at = data reale di pagamento.
+-- ④ Fattura GIÀ PAGATA al momento della revisione: metodo obbligatorio;
+--    document_date resta la data della fattura; se la SCADENZA manca
+--    davvero viene posta = data di pagamento (scelta esplicita: una
+--    fattura pagata non ha più uno scadenzario da rispettare).
 create or replace function public.conferma_fattura_pagata(
   p_document_id uuid,
   p_data_pagamento date,
-  p_payment_method text default null
+  p_payment_method text,
+  p_correzioni jsonb default '[]'::jsonb
 ) returns uuid[]
 language plpgsql
 security definer
@@ -646,35 +761,69 @@ as $$
 declare
   v_doc public.family_documents%rowtype;
 begin
-  if not private.is_app_member() then
-    raise exception 'Accesso negato: utente non autorizzato';
-  end if;
-  select * into v_doc from public.family_documents
-  where id = p_document_id for update;
+  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then raise exception 'Documento inesistente'; end if;
-  if v_doc.status = 'confermato' then
-    return private.spese_gia_confermate(p_document_id);  -- idempotente
-  end if;
   if v_doc.kind <> 'fattura' then
     raise exception 'Tipo non valido: conferma_fattura_pagata accetta solo fatture';
+  end if;
+  if v_doc.status = 'confermato' then
+    return private.spese_gia_confermate(p_document_id);  -- idempotente
   end if;
   if v_doc.status <> 'in_revisione' then
     raise exception 'Stato non valido: % (serve in_revisione)', v_doc.status;
   end if;
   if p_data_pagamento is null then raise exception 'Data di pagamento obbligatoria'; end if;
+  if p_payment_method is null or p_payment_method not in
+    ('contanti', 'carta_personale', 'carta_attivita', 'bonifico', 'altro') then
+    raise exception 'Metodo di pagamento obbligatorio e valido per una fattura già pagata';
+  end if;
+  perform private.valida_fattura(p_document_id, false);  -- scadenza facoltativa qui
+  if v_doc.due_date is null then
+    update public.family_documents set due_date = p_data_pagamento where id = p_document_id;
+  end if;
+  perform private.registra_correzioni(p_document_id, p_correzioni);
   return private.spese_crea_da_bozze(p_document_id, p_data_pagamento, p_data_pagamento, p_payment_method);
 end $$;
 
+-- ⑤ Scarto CONTROLLATO e tracciato (i membri non possono cambiare stato o
+--    cancellare fisicamente: questa è l''unica via).
+create or replace function public.scarta_documento(p_document_id uuid, p_motivo text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_doc public.family_documents%rowtype;
+begin
+  if not private.is_app_member() then raise exception 'Accesso negato: utente non autorizzato'; end if;
+  select * into v_doc from public.family_documents where id = p_document_id for update;
+  if not found then raise exception 'Documento inesistente'; end if;
+  if v_doc.status = 'scartato' then return; end if;  -- idempotente
+  if v_doc.status not in ('da_elaborare', 'in_revisione', 'errore') then
+    raise exception 'Stato non valido per lo scarto: %', v_doc.status;
+  end if;
+  update public.family_draft_expenses
+  set status = 'scartata', discard_reason = coalesce(p_motivo, 'scarto documento')
+  where document_id = p_document_id and status in ('da_controllare', 'pronta', 'errore');
+  update public.family_documents set status = 'scartato' where id = p_document_id;
+  insert into public.family_corrections (document_id, field, corrected, source)
+  values (p_document_id, 'scarto', to_jsonb(coalesce(p_motivo, '')), 'scarto');
+end $$;
+
 -- PERMESSI ESPLICITI delle funzioni:
---  - helper private.*: nessuna esecuzione diretta per authenticated/anon/public
 revoke execute on function private.spese_crea_da_bozze(uuid, date, date, text) from public, anon, authenticated;
 revoke execute on function private.spese_gia_confermate(uuid) from public, anon, authenticated;
---  - RPC pubbliche: SOLO authenticated (il controllo di appartenenza è dentro)
-revoke execute on function public.conferma_documento(uuid) from public, anon;
-revoke execute on function public.approva_fattura_da_pagare(uuid) from public, anon;
-revoke execute on function public.paga_fattura(uuid, date, text) from public, anon;
-revoke execute on function public.conferma_fattura_pagata(uuid, date, text) from public, anon;
-grant execute on function public.conferma_documento(uuid) to authenticated;
-grant execute on function public.approva_fattura_da_pagare(uuid) to authenticated;
-grant execute on function public.paga_fattura(uuid, date, text) to authenticated;
-grant execute on function public.conferma_fattura_pagata(uuid, date, text) to authenticated;
+revoke execute on function private.valida_fattura(uuid, boolean) from public, anon, authenticated;
+revoke execute on function private.registra_correzioni(uuid, jsonb) from public, anon, authenticated;
+revoke execute on function public.conferma_documento(uuid, jsonb) from public, anon;
+revoke execute on function public.approva_fattura_da_pagare(uuid, jsonb) from public, anon;
+revoke execute on function public.paga_fattura(uuid, date, text, jsonb) from public, anon;
+revoke execute on function public.conferma_fattura_pagata(uuid, date, text, jsonb) from public, anon;
+revoke execute on function public.scarta_documento(uuid, text) from public, anon;
+grant execute on function public.conferma_documento(uuid, jsonb) to authenticated;
+grant execute on function public.approva_fattura_da_pagare(uuid, jsonb) to authenticated;
+grant execute on function public.paga_fattura(uuid, date, text, jsonb) to authenticated;
+grant execute on function public.conferma_fattura_pagata(uuid, date, text, jsonb) to authenticated;
+grant execute on function public.scarta_documento(uuid, text) to authenticated;

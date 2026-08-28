@@ -16,12 +16,25 @@
 -- 0. PRECONDIZIONI
 -- ---------------------------------------------------------------------------
 do $$
+declare
+  v_bucket int;
 begin
   if to_regclass('public.app_members') is null then
     raise exception 'PRECONDIZIONE FALLITA: manca app_members — applicare prima la 0020.';
   end if;
   if not exists (select 1 from public.app_members where role = 'owner') then
     raise exception 'PRECONDIZIONE FALLITA: nessun owner in app_members. Eseguire prima supabase/bootstrap_owner.sql.';
+  end if;
+  -- (2A.2) il bucket 'scontrini' è una PRECONDIZIONE, non lo si crea qui:
+  -- deve esistere, essere UNICO e PRIVATO.
+  select count(*) into v_bucket from storage.buckets where id = 'scontrini';
+  if v_bucket = 0 then
+    raise exception 'PRECONDIZIONE FALLITA: il bucket scontrini NON ESISTE. Crearlo (privato) prima di applicare la 0021.';
+  elsif v_bucket > 1 then
+    raise exception 'PRECONDIZIONE FALLITA: % righe anomale per il bucket scontrini in storage.buckets.', v_bucket;
+  end if;
+  if exists (select 1 from storage.buckets where id = 'scontrini' and public) then
+    raise exception 'PRECONDIZIONE FALLITA: il bucket scontrini è PUBBLICO — renderlo privato prima di applicare la 0021.';
   end if;
 end $$;
 
@@ -70,14 +83,22 @@ security definer
 set search_path = ''
 as $$
 begin
-  if old.role = 'owner'
-     and (tg_op = 'DELETE' or new.role <> 'owner')
-     and (select count(*) from public.app_members where role = 'owner') = 1 then
-    raise exception 'Operazione negata: non si può eliminare o declassare l''ULTIMO owner.';
+  if old.role = 'owner' and (tg_op = 'DELETE' or new.role <> 'owner') then
+    -- (2A.2) SERIALIZZAZIONE: senza lock, due transazioni simultanee
+    -- potrebbero vedere entrambe 2 owner e rimuoverli entrambi. L'advisory
+    -- lock transazionale a chiave costante serializza il controllo: va
+    -- preso PRIMA del conteggio e si rilascia a fine transazione.
+    -- (Test concorrente reale a due sessioni: previsto in Fase 2B.)
+    perform pg_advisory_xact_lock(hashtext('app_members_owner_guard'));
+    if (select count(*) from public.app_members where role = 'owner') = 1 then
+      raise exception 'Operazione negata: non si può eliminare o declassare l''ULTIMO owner.';
+    end if;
   end if;
   if tg_op = 'DELETE' then return old; end if;
   return new;
 end $$;
+-- la funzione trigger non è invocabile direttamente da nessuno
+revoke execute on function private.proteggi_ultimo_owner() from public, anon, authenticated;
 
 drop trigger if exists app_members_ultimo_owner on public.app_members;
 create trigger app_members_ultimo_owner
@@ -128,6 +149,28 @@ begin
     execute format('grant select, insert, update, delete on public.%I to authenticated', t);
   end loop;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- 4-bis. STATI RISERVATI ALLE RPC (2A.2): permessi PER COLONNA
+-- ---------------------------------------------------------------------------
+-- La policy generica darebbe UPDATE completo: un client potrebbe impostare
+-- da solo documento 'confermato', bozza 'confermata' o expense_id senza
+-- passare dalle RPC. Qui si restringe: i campi economici della revisione
+-- restano modificabili dal membro; stati finali, expense_id e cancellazioni
+-- fisiche passano SOLO dalle RPC (security definer) o dal service role
+-- (/scontrini), che conserva i propri privilegi.
+revoke update, delete on public.family_documents from authenticated;
+grant update (kind, doc_total, supplier, invoice_number, document_date, due_date, note)
+  on public.family_documents to authenticated;
+revoke update, delete on public.family_draft_expenses from authenticated;
+grant update (expense_date, group_id, category_id, subcategory,
+  canonical_category_id, canonical_subcategory_id, store, description,
+  payment_method, room_id, expense_nature, confidence, arrotondamento_cent)
+  on public.family_draft_expenses to authenticated;
+revoke delete on public.family_draft_items from authenticated;
+-- (le righe di bozza restano interamente modificabili in revisione)
+grant all on public.family_documents, public.family_draft_expenses,
+  public.family_draft_items to service_role;
 
 -- ---------------------------------------------------------------------------
 -- 5. BUCKET PRIVATO 'scontrini' (storage.objects): SELECT/INSERT/UPDATE/DELETE
