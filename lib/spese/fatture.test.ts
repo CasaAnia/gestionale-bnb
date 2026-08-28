@@ -8,6 +8,7 @@ import {
   confermaDocumento, approvaDaPagare, pagaFattura, confermaFatturaPagata, eliminaSpesa,
 } from './fatture.ts'
 import { modificaMembro, puoAccedereAiDati, puoGestireMembri, type Membro } from './sicurezza.ts'
+import { scartaDocumento, SORGENTI_CORREZIONE } from './fatture.ts'
 import { verificaBackfillEsatto } from './backfill.ts'
 import { transizioneDocumentoValida, transizioneBozzaValida } from './stati.ts'
 import { quadraturaDocumento, avvisiBozza, canonicaCoerente, possibileDuplicato } from './controlli.ts'
@@ -409,12 +410,16 @@ test('approvazione: gruppo mancante blocca anche lo scadenzario', () => {
   assert.throws(() => approvaDaPagare(db, 'doc-fatt'), /senza gruppo/)
 })
 
-test('scadenza: obbligatoria per approvare; per una già pagata diventa la data di pagamento', () => {
+test('scadenza: obbligatoria per approvare; per una già pagata NON si inventa (resta null)', () => {
   const senzaScadenza = dbBase()
   senzaScadenza.documenti[0].due_date = null
   assert.throws(() => approvaDaPagare(senzaScadenza, 'doc-fatt'), /Scadenza mancante/)
+  // 2A.3: document_date, due_date e paid_at sono informazioni diverse —
+  // se la fattura già pagata non riporta una scadenza, resta NULL
   const { db } = confermaFatturaPagata(senzaScadenza, 'doc-fatt', '2026-08-06', 'bonifico')
-  assert.equal(db.documenti[0].due_date, '2026-08-06')   // scelta esplicita documentata
+  assert.equal(db.documenti[0].due_date, null)
+  assert.equal(db.spese[0].paid_at, '2026-08-06')
+  assert.equal(db.documenti[0].document_date, '2026-08-05')
 })
 
 test('tipo controllato PRIMA dell\'idempotenza: paga_fattura su scontrino confermato', () => {
@@ -461,4 +466,67 @@ test('anche approvazione e pagamento registrano correzioni nella stessa operazio
   assert.equal(doppia.correzioni!.length, 1)              // idempotente
   const { db: pagato } = pagaFattura(approvato, 'doc-fatt', '2026-09-02', 'bonifico', [{ field: 'totale', corrected: 250 }])
   assert.equal(pagato.correzioni!.length, 2)
+})
+
+// ============================================================
+// 2A.3 — scarto valido per il CHECK, esclusione righe OCR
+// ============================================================
+
+test("scarto: si completa e lascia un audit con source ammesso dal CHECK SQL", () => {
+  const db = scartaDocumento(dbBase(), 'doc-scontr', 'foto doppia')
+  assert.equal(db.documenti.find(d => d.id === 'doc-scontr')!.status, 'scartato')
+  assert.ok(db.bozze.filter(b => b.documentId === 'doc-scontr').every(b => b.status === 'scartata'))
+  const audit = db.correzioni!.find(c => c.field === 'scarto')!
+  assert.equal(audit.source, 'scarto')
+  assert.equal(audit.corrected, 'foto doppia')
+  // specchio ESATTO del vincolo family_corrections_source_valida
+  assert.ok((SORGENTI_CORREZIONE as readonly string[]).includes(audit.source!))
+  assert.deepEqual([...SORGENTI_CORREZIONE], ['revisione', 'duplicato', 'avviso', 'scarto'])
+  // idempotente e mai fisico: le bozze esistono ancora
+  const doppio = scartaDocumento(db, 'doc-scontr', 'di nuovo')
+  assert.equal(doppio.correzioni!.length, db.correzioni!.length)
+  assert.equal(doppio.bozze.length, db.bozze.length)
+})
+
+test('riga OCR esclusa: fuori da quadratura e spese, ma conservata nell\'audit', () => {
+  const db = dbBase()
+  // lo scontrino da 15,47: la bozza Casa ha una riga fantasma da 5,00 esclusa
+  db.bozze.find(b => b.id === 'b-casa')!.righe = [
+    { name: 'Pane', cent: 1133 },
+    { name: 'Riga fantasma (letta due volte)', cent: 500, excluded: true },
+  ]
+  const { db: dopo } = confermaDocumento(db, 'doc-scontr', [
+    { field: 'righe', proposed: 'Riga fantasma (letta due volte)', corrected: 'esclusa: doppione OCR', draftId: 'b-casa' },
+  ])
+  const spesaCasa = dopo.spese.find(e => e.groupId === 'g-casa')!
+  assert.equal(spesaCasa.amountCent, 1133)                          // la fantasma non c'è
+  assert.ok(!spesaCasa.righe.some(r => r.name.includes('fantasma')))
+  // l'originale resta nell'audit della bozza
+  const bozza = dopo.bozze.find(b => b.id === 'b-casa')!
+  assert.ok(bozza.righe!.some(r => r.excluded && r.name.includes('fantasma')))
+  assert.equal(dopo.correzioni!.length, 1)                          // motivo registrato
+})
+
+test('riga aggiunta a mano (user_added) inclusa; quadratura aggiornata', () => {
+  const db = dbBase()
+  db.documenti[1].docTotalCent = 1547 + 200
+  db.bozze.find(b => b.id === 'b-casa')!.righe = [
+    { name: 'Pane', cent: 1133 },
+    { name: 'Riga aggiunta in revisione', cent: 200, userAdded: true },
+  ]
+  const { db: dopo } = confermaDocumento(db, 'doc-scontr')
+  const spesaCasa = dopo.spese.find(e => e.groupId === 'g-casa')!
+  assert.equal(spesaCasa.amountCent, 1333)
+  assert.ok(spesaCasa.righe.some(r => r.name === 'Riga aggiunta in revisione'))
+  assert.equal(dopo.spese.reduce((s, e) => s + e.amountCent, 0), 1747)
+  // e l'originale distingue la riga manuale dall'OCR
+  assert.ok(dopo.bozze.find(b => b.id === 'b-casa')!.righe!.some(r => r.userAdded))
+})
+
+test('immutabilità (specchio del trigger 0021): documentate bloccate, manuali libere', () => {
+  // eliminaSpesa già copre la cancellazione; qui la regola completa è
+  // demandata al trigger SQL: il modello puro garantisce che una spesa
+  // documentata non possa sparire e che la manuale resti gestibile.
+  const { db } = confermaDocumento(dbBase(), 'doc-scontr')
+  assert.throws(() => eliminaSpesa(db, db.spese[0].id), /annullamento esplicito|rettifica/)
 })

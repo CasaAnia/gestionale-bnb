@@ -31,6 +31,9 @@ export type BozzaSim = {
   groupAmbito?: 'personale' | 'azienda'   // per la regola sul metodo di pagamento
   paymentMethod?: string | null
   righeCent: number[]
+  // dettaglio facoltativo (2A.3): righe con esclusione NON distruttiva e
+  // marcatore user_added; se presente, vince su righeCent
+  righe?: { name: string; cent: number; excluded?: boolean; userAdded?: boolean }[]
   arrotondamentoCent?: number
   expenseId?: string | null      // valorizzato alla conferma (unique per costruzione)
 }
@@ -42,7 +45,11 @@ export type CorrezioneSim = {
   draftItemId?: string
   documentId?: string            // impostato dal registro
   ruleApplied?: string
+  source?: SorgenteCorrezione
 }
+// specchio ESATTO del CHECK family_corrections_source_valida della 0020
+export const SORGENTI_CORREZIONE = ['revisione', 'duplicato', 'avviso', 'scarto'] as const
+export type SorgenteCorrezione = typeof SORGENTI_CORREZIONE[number]
 export const METODI_VALIDI = ['contanti', 'carta_personale', 'carta_attivita', 'bonifico', 'altro'] as const
 export type SpesaSim = {
   id: string
@@ -57,6 +64,13 @@ export type SpesaSim = {
 export type Db = { documenti: DocumentoSim[]; bozze: BozzaSim[]; spese: SpesaSim[]; correzioni?: CorrezioneSim[] }
 
 const clona = (db: Db): Db => structuredClone(db)
+
+// Le righe ATTIVE di una bozza: le escluse (OCR inventato/doppio) restano
+// nell'audit ma quadratura e spese definitive le ignorano (2A.3).
+function righeAttive(b: BozzaSim): { name: string; cent: number }[] {
+  if (b.righe) return b.righe.filter(r => !r.excluded).map(r => ({ name: r.name, cent: r.cent }))
+  return b.righeCent.map((c, i) => ({ name: `riga-${i + 1}`, cent: c }))
+}
 
 // Correzioni della revisione: come private.registra_correzioni della 0020.
 // La VALIDAZIONE avviene prima di qualsiasi creazione (un riferimento
@@ -99,7 +113,7 @@ function validaFattura(db: Db, doc: DocumentoSim, richiediScadenza: boolean) {
   if (!attive.length) throw new Error('Nessuna bozza attiva: niente da approvare')
   if (attive.some(b => !b.groupId)) throw new Error('Bozza senza gruppo: assegnare il gruppo prima di approvare')
   const q = quadraturaDocumento(doc.docTotalCent,
-    attive.map(b => ({ righeCent: b.righeCent, arrotondamentoCent: b.arrotondamentoCent })))
+    attive.map(b => ({ righeCent: righeAttive(b).map(r => r.cent), arrotondamentoCent: b.arrotondamentoCent })))
   if (!q.ok) throw new Error(`Quadratura non esatta: ${q.motivo}`)
 }
 const metodoValido = (m: string | null | undefined) => m != null && (METODI_VALIDI as readonly string[]).includes(m)
@@ -144,7 +158,7 @@ function creaSpeseDaBozze(db: Db, documentId: string, expenseDate: string | null
   if (metodo == null && attive.some(b => b.groupAmbito === 'azienda' && !b.paymentMethod))
     throw new Error('Metodo di pagamento mancante sulle righe Casa Ania: obbligatorio prima della conferma')
   const q = quadraturaDocumento(doc.docTotalCent,
-    attive.map(b => ({ righeCent: b.righeCent, arrotondamentoCent: b.arrotondamentoCent })))
+    attive.map(b => ({ righeCent: righeAttive(b).map(r => r.cent), arrotondamentoCent: b.arrotondamentoCent })))
   if (!q.ok) throw new Error(`Quadratura non esatta: ${q.motivo} (diff ${q.diffCent} cent)`)
 
   const nuovo = clona(db)
@@ -155,7 +169,7 @@ function creaSpeseDaBozze(db: Db, documentId: string, expenseDate: string | null
     // l'arrotondamento (±) è una riga ESPLICITA, mai nascosto nei prezzi:
     // così l'importo della sorella = somma delle sue righe definitive, e la
     // somma delle sorelle = doc_total
-    const righe = b.righeCent.map((c, i) => ({ name: `riga-${i + 1}`, cent: c, isAdjustment: false }))
+    const righe = righeAttive(b).map(r => ({ name: r.name, cent: r.cent, isAdjustment: false }))
     const arr = b.arrotondamentoCent || 0
     if (arr !== 0) righe.push({ name: 'Arrotondamento', cent: arr, isAdjustment: true })
     const amountCent = righe.reduce((s, r) => s + r.cent, 0)
@@ -247,13 +261,30 @@ export function confermaFatturaPagata(db: Db, documentId: string, dataPagamento:
   if (doc.status !== 'in_revisione') throw new Error(`Stato non valido: ${doc.status}`)
   if (!dataPagamento) throw new Error('Data di pagamento obbligatoria')
   if (!metodoValido(metodo)) throw new Error('Metodo di pagamento obbligatorio e valido per una fattura già pagata')
-  validaFattura(db, doc, false)  // scadenza facoltativa qui…
+  // scadenza facoltativa qui e, se manca, resta NULL (2A.3): document_date,
+  // due_date e paid_at sono informazioni diverse e nessuna va inventata
+  validaFattura(db, doc, false)
   validaCorrezioni(db, documentId, correzioni)
   const r = creaSpeseDaBozze(db, documentId, dataPagamento, dataPagamento, metodo)
-  // …e se manca davvero viene posta = data di pagamento (scelta esplicita:
-  // una fattura già pagata non ha più uno scadenzario da rispettare)
-  const d = r.db.documenti.find(x => x.id === documentId)!
-  if (!d.due_date) d.due_date = dataPagamento
   registraCorrezioni(r.db, documentId, correzioni)
   return r
+}
+
+// ⑤ Scarto CONTROLLATO e tracciato: bozze → scartata (logico, mai fisico),
+// documento → scartato, correzione di audit con source='scarto' (valore
+// ammesso dal CHECK family_corrections_source_valida).
+export function scartaDocumento(db: Db, documentId: string, motivo: string): Db {
+  const doc = db.documenti.find(d => d.id === documentId)
+  if (!doc) throw new Error('Documento inesistente')
+  if (doc.status === 'scartato') return db // idempotente
+  if (!['da_elaborare', 'in_revisione', 'errore'].includes(doc.status))
+    throw new Error(`Stato non valido per lo scarto: ${doc.status}`)
+  const nuovo = clona(db)
+  for (const b of nuovo.bozze) {
+    if (b.documentId === documentId && ['da_controllare', 'pronta', 'errore'].includes(b.status))
+      b.status = 'scartata'
+  }
+  nuovo.documenti.find(d => d.id === documentId)!.status = 'scartato'
+  registraCorrezioni(nuovo, documentId, [{ field: 'scarto', corrected: motivo, source: 'scarto' }])
+  return nuovo
 }
