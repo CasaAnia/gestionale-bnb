@@ -175,6 +175,7 @@ app_members  ← lista degli utenti autorizzati del gestionale (§4.8).
 | `document_date` | date | data del documento |
 | `due_date` | date | scadenza (fatture) — vive sul documento |
 | `status` | text check in (`da_elaborare`,`in_revisione`,`approvata_da_pagare`,`confermato`,`errore`,`scartato`) | ciclo di vita; `approvata_da_pagare` = fattura revisionata ma non pagata (scadenzario/Impegnato) |
+| `upload_ambito` | text (`personale`/`azienda`) | SOLO da quale sezione è stata caricata la foto (2A.1): l'ambito ECONOMICO deriva sempre dalle spese sorelle — uno scontrino misto è normale; MAI usato in totali o statistiche. Il backfill vi copia il vecchio `family_receipts.ambito` |
 | `error_message` | text | dettaglio per `errore` |
 | `note` | text | la nota di Ania per l'elaborazione |
 | `created_at` | timestamptz | |
@@ -530,7 +531,9 @@ dal tasso di correzioni (§10).
 **Avvisi — visibili e registrati ma NON bloccanti (deciso il 27/08/2026):**
 - data precedente a novembre 2024 o futura;
 - sottocategoria non determinabile ⇒ si mostra "Non specificata";
-- gruppo mancante; confidence sotto soglia (parte da 0,8) col suo motivo.
+- confidence sotto soglia (parte da 0,8) col suo motivo.
+  Il **gruppo mancante NON è un avviso: è BLOCCANTE alla conferma** (2A.1) —
+  senza gruppo non si distingue Casa/Ania/Teo/Casa Ania.
 
 **Duplicati (avviso, mai blocco automatico):**
 1. stesso `file_sha256` di un file già caricato ⇒ duplicato certo (la
@@ -945,3 +948,82 @@ così com'è.
 - RLS: che un utente autenticato NON membro sia davvero bloccato su tabelle
   e storage; che il rollout in due tempi non chiuda fuori l'owner.
 - Interazione policy storage con upload firmati dell'app.
+
+---
+
+## Resoconto Fase 2A.1 — 28 agosto 2026 (mini-fase correttiva, branch `rifacimento-spese`)
+
+La revisione con Codex ha stabilito che la prima versione SQL della 2A
+NON era pronta per la prova: permessi RPC incompleti, RPC di approvazione
+fattura assente, arrotondamenti persi alla conferma, ambito del documento
+fuorviante, vincoli deboli, backfill verificato solo a conteggio, funzioni
+di sicurezza in schema esposto, 0021 non rieseguibile. La 2A.1 ha corretto
+tutto SENZA riscrivere la cronologia (nuovi commit) e senza applicare nulla.
+
+### Correzioni SQL (0020 e 0021 riscritte)
+- **Permessi RPC**: helper `private.spese_crea_da_bozze` /
+  `private.spese_gia_confermate` NON eseguibili da authenticated; 4 RPC
+  pubbliche security definer con `set search_path = ''`, nomi
+  schema-qualificati, controllo esplicito `private.is_app_member()`,
+  `revoke` a public/anon e `grant execute` SOLO ad authenticated. Nessuna
+  funzione generica di inserimento arbitrario.
+- **Elenco definitivo delle RPC**: ① `conferma_documento` (rifiuta
+  kind='fattura'); ② `approva_fattura_da_pagare` (solo fatture in
+  in_revisione; pretende totale+data documento+scadenza+fornitore+bozze
+  attive+quadratura esatta; NESSUNA spesa; → approvata_da_pagare,
+  idempotente); ③ `paga_fattura` (solo fatture approvata_da_pagare;
+  expense_date=paid_at); ④ `conferma_fattura_pagata` (fattura già pagata in
+  revisione: data e metodo espliciti, document_date conservata). Tutte con
+  lock `for update`, atomiche, idempotenti.
+- **Arrotondamenti conservati**: importo sorella = somma righe + il SUO
+  arrotondamento; riga definitiva esplicita "Arrotondamento"
+  (`is_adjustment`, positiva o negativa, mai nascosta nei prezzi);
+  somma righe = spesa madre e somma sorelle = doc_total SEMPRE.
+- **Scontrino misto**: `family_documents.ambito` → **`upload_ambito`**
+  (solo provenienza del caricamento; mai nei totali); backfill dal vecchio
+  `family_receipts.ambito`.
+- **Integrità**: bozze con `document_id NOT NULL` e `on delete restrict`
+  (spesa manuale senza foto bypassa le bozze); scarto solo LOGICO;
+  ponte e file con `restrict` sul documento (un documento confermato o con
+  file/bozze non si elimina per sbaglio — lo impone il database, non
+  l'interfaccia); gruppo mancante BLOCCANTE alla conferma (data vecchia e
+  sottocategoria restano avvisi).
+- **Backfill esatto**: verifica coppia per coppia
+  `family_expenses.id ↔ family_receipts.document_id` (mancante, errata,
+  eccedente, ricevute fuse, totale derivato ≠ somma sorelle), con
+  `origine='backfill_0020'` sul ponte per distinguere i collegamenti
+  storici dai nuovi. Niente count(*) globale.
+- **Sicurezza**: `private.is_app_member()`/`is_app_owner()` in schema
+  `private` (grant usage ad authenticated, execute solo sulle due),
+  `security definer` + `set search_path = ''` + riferimenti completi;
+  policy con `(select private.is_app_member())`; trigger
+  `private.proteggi_ultimo_owner()`: impossibile eliminare o declassare
+  l'ULTIMO owner. 0021 realmente idempotente (droppa anche le proprie
+  quattro policy `scontrini_membri_*`), verifica finale: nessuna policy
+  estranea su family_*/bucket, bucket `scontrini` PRIVATO, owner presente.
+  Grant/revoke espliciti ovunque (mai fidarsi dei default del progetto).
+
+### Modello puro e test allineati
+`fatture.ts` (tipi per RPC, `confermaFatturaPagata`, gruppo bloccante,
+righe con `isAdjustment`), `controlli.ts` (gruppo via dagli avvisi),
+`sicurezza.ts` (ultimo owner, accessi) e `backfill.ts` (verifica esatta)
+nuovi; test: 87/87 di cui 11 nuovi in 2A.1 (tipi sbagliati per ogni RPC,
+approvazione senza spese, fattura già pagata, gruppo bloccante,
+arrotondamento ±1 con somme quadrate su misto e su fattura, doppia
+approvazione/pagamento, ultimo owner, backfill mancante/errato/eccedente/
+fuso/totale).
+
+### Verifiche (28/08/2026)
+- `npm test` 87/87 · `tsc` pulito · build ok · lint file nuovi/modificati:
+  0 problemi (totale progetto invariato) · verificatore base 28/28 ·
+  `--confronta` backup ↔ sé stesso: nessuna differenza.
+
+### Resta verificabile SOLO in Fase 2B (vero progetto Supabase di prova)
+- Esecuzione reale dei tre SQL (sintassi/semantica Postgres, backfill sugli
+  81 receipts, vincoli e FK composite, NOT VALID, trigger).
+- RPC sotto concorrenza reale (lock, transazioni) e con RLS attiva.
+- Grant/revoke effettivi per anon/authenticated/service role; che l'helper
+  in `private` non sia invocabile da PostgREST.
+- Blocco reale di un autenticato non-membro su tabelle e storage; rollout
+  0020→bootstrap→0021 senza lockout; idempotenza della 0021 rieseguita.
+- Il trigger dell'ultimo owner contro update/delete reali.
