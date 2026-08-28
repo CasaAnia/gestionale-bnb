@@ -1163,3 +1163,77 @@ respinto, delete documenti/bozze negato, ponte e correzioni read-only,
 trigger immutabilità su spesa documentata reale (e service role esente);
 precondizione bucket (assente/doppio/pubblico); RPC con correzioni sotto
 errore SQL reale; firma unica esposta per ogni RPC.
+
+---
+
+## Resoconto Fase 2B — 28 agosto 2026 (prova generale su progetto separato)
+
+**SEQUENZA COMPLETA VERDE dall'inizio alla fine** sul progetto Supabase di
+prova (gratuito, riferimento mascherato `exyl****`, creato via Management
+API nell'unica organizzazione; costo effettivo: ZERO — nessun acquisto,
+nessun piano a pagamento). Produzione, Vercel e `.env.local` INTOCCATI
+(guardia anti-produzione in ogni script). Nessun dato o documento reale ha
+lasciato il Mac: sul progetto di prova sono saliti SOLO fixture
+anonimizzata deterministica e 81 file finti di testo.
+
+### Numeri della sequenza finale (orchestratore `esegui-sequenza.mjs`)
+- migrazioni storiche 0001–0019: 19/19 applicate;
+- fixture anonimizzata: 221 spese / 728 righe / 81 ricevute / 215
+  collegamenti / 6 senza documento, verificatore 28/28 sul manifest
+  sintetico e confronto fixture↔db senza differenze;
+- 0020 applicata DAVVERO: 81 documenti derivati, 215 ponte (origine
+  backfill), 6 manuali intatte, 0 ricevute orfane; storico invariato
+  CAMPO PER CAMPO (confronto `--campi-del-riferimento`);
+- bootstrap: 1 owner; 0021 senza bucket: fallita per precondizione senza
+  modifiche parziali; bucket privato creato; 0021 applicata e RIapplicata
+  (idempotente): 16 policy `_solo_membri`, 0 vecchie, 4 policy bucket;
+- test sicurezza: **41/41** (anonimo/non-membro/owner/service; colonne
+  riservate; ponte e audit read-only; helper private non esposti; storage
+  per membro e negato agli altri; user_added: service⇒false, owner⇒true —
+  chiave amministrativa riconosciuta dai trigger);
+- test integrità/RPC: **50/50** (tutti gli scenari richiesti, più:
+  conferme e pagamenti CONCORRENTI senza doppioni, ultimo owner protetto
+  con due declassamenti concorrenti, una sola firma esposta per ognuna
+  delle 5 RPC, documento multipagina e RIESECUZIONE della 0020 senza
+  errori né duplicati);
+- locale: 101/101 test, tsc pulito, build ok, lint file toccati 0 errori,
+  verificatore su backup reale 28/28.
+
+### Problemi trovati e corretti (commit f9a3826 + script)
+1. le RPC respingevano il **service role** (auth.uid() nullo) →
+   `private.chiamante_autorizzato()` (membro O service role);
+2. quella funzione in `language sql` non si creava su un db pulito
+   (riferimento a is_app_member della 0021) → plpgsql, risoluzione a
+   runtime;
+3. il trigger di immutabilità bloccava per errore le **spese manuali**
+   (CASE che risolveva old.expense_id su family_expenses, 42703) → rami
+   IF separati;
+4. difetti dei TEST (non del SQL): DELETE storage con Content-Type json e
+   corpo vuoto (si usa la forma batch), regex d'asserzione troppo strette;
+   azzeramento storage via API (il DELETE SQL è vietato dalla piattaforma);
+   fixture: giorno negativo da shift a 32 bit.
+   Dopo OGNI correzione la sequenza è stata ripetuta dall'inizio.
+
+### Note
+- Il progetto di prova NON è stato eliminato (come richiesto); niente da
+  pagare sul piano gratuito (si autosospende dopo ~1 settimana di
+  inattività).
+- Nel repo non sono entrati credenziali, fixture, dati personali o
+  identificativi completi del progetto di prova (scansione eseguita);
+  gli unici `mailto:` trovati sono i contatti VAPID preesistenti delle
+  notifiche push (obbligatori per il protocollo, fuori perimetro).
+- Il file del token e i JWT di prova locali sono stati eliminati a fine
+  fase; il token `gestionale-2b-temporaneo` VA REVOCATO dal dashboard
+  (era finito anche nella chat).
+
+### Cosa resta prima della 2C (applicazione al database VERO)
+1. approvazione esplicita di Ania per la 2C;
+2. backup AGGIORNATO il giorno stesso + SECONDA COPIA fuori dal Mac
+   (destinazione da scegliere allora);
+3. rigenerare l'export di produzione e confrontarlo ID per ID col backup;
+4. applicare 0020 → bootstrap (l'unico utente reale = Ania) → 0021
+   nell'ordine provato qui, con verifiche identiche a questa sequenza;
+5. su produzione il bucket `scontrini` ESISTE già: la precondizione 0021
+   va verificata (privato ✓) ma non serve crearlo;
+6. dopo la 2C: fasi 3+ (interfaccia) — il vecchio SpeseTracker continua a
+   funzionare nel frattempo (modalità compatibilità).
