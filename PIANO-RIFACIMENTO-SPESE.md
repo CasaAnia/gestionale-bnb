@@ -658,14 +658,16 @@ se la precedente non è verificata E approvata.
   progetto Supabase SEPARATO, con **dati anonimizzati e nessuna foto** (il
   backup reale NON si carica automaticamente): 0020 applicata lì, verifiche
   prima/dopo, prova del rollout RLS in due tempi e della conferma atomica.
-- **Fase 2C — Applicazione al database vero** — **SOSPESA (29/08/2026)**:
-  iCloud senza spazio e nessun disco esterno disponibile. 2C-A (backup
-  fresco + seconda copia esterna) e 2C-B (applicazione) sono RINVIATE
-  finché non ci sarà una destinazione esterna. REGOLA FERMA: nessuna
-  migrazione arriva in produzione senza backup fresco E seconda copia
-  esterna. Niente backup incompleti nel frattempo. Quando si sbloccherà:
-  prova 2B già riuscita + approvazione esplicita di Ania + bootstrap owner
-  PRIMA di sostituire le policy.
+- **Fase 2C — Applicazione al database vero** — sbloccata sul fronte
+  spazio (28/08/2026 sera): destinazione UFFICIALE della seconda copia =
+  **Google Drive** dell'account amerigogranata (verificato: 1,63 GB usati
+  su 15, ~13 GB liberi; l'archivio pesa ~0,22 GB). La copia salirà come
+  archivio CIFRATO con password (dati economici personali) e verrà
+  trascinata su drive.google.com dall'utente. REGOLA FERMA invariata:
+  nessuna migrazione in produzione senza backup fresco del giorno E
+  seconda copia esterna caricata e verificata; niente backup incompleti.
+  Serve comunque l'approvazione esplicita di Ania per partire; bootstrap
+  owner PRIMA di sostituire le policy.
 - **Fase 3A — Prototipo visivo locale** *(AUTORIZZATA in attesa della 2C)*:
   anteprima mobile isolata con dati SOLO sintetici, nessuna query a
   Supabase, protetta da controllo d'ambiente (`notFound()` fuori dallo
