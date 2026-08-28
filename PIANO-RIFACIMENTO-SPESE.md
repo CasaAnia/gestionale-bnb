@@ -680,8 +680,13 @@ se la precedente non è verificata E approvata.
   "Backup spese pre-2C 2026-08-28") nell'app Password di Apple (iCloud →
   recuperabile anche senza questo Mac); password ricopiata DALLA voce
   salvata e usata per aprire il DMG in sola lettura: manifest identico,
-  81 scontrini. Appunti puliti a fine prova. FERMO qui: caricamento su
-  Google Drive e 2C-B solo dopo revisione indipendente + ok esplicito.
+  81 scontrini. Appunti puliti a fine prova.
+  **Seconda copia esterna COMPLETATA (29/08/2026, notte)**: revisione
+  superata; DMG caricato da Ania su Google Drive in `Casa Ania/Backup
+  gestionale`; copia riscaricata e verificata (SHA-256 identico a
+  `565c022f…d96a`), copia temporanea eliminata. Restano il DMG locale e
+  quello su Drive. **La 2C-A è chiusa.** La 2C-B (migrazioni 0020/0021 in
+  produzione) resta FERMA: serve revisione indipendente + ok esplicito.
 - **Fase 3A — Prototipo visivo locale** *(AUTORIZZATA in attesa della 2C)*:
   anteprima mobile isolata con dati SOLO sintetici, nessuna query a
   Supabase, protetta da controllo d'ambiente (`notFound()` fuori dallo
