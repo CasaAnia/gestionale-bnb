@@ -1296,3 +1296,46 @@ anti-produzione invariata; parser per bigint/numeric/date).
 **44/44** (3 test contrattuali nuovi + permessi permanenti), integrità/RPC
 **50/50**, storico invariato campo per campo, 0021 idempotente. Locale:
 101/101, tsc/build/lint puliti.
+
+---
+
+## Resoconto Fase 3A — 28 agosto 2026 (prototipo visivo locale)
+
+Commit 2aaa69c. Anteprima in `app/anteprima-spese` (`/anteprima-spese` SOLO
+in sviluppo: `notFound()` fuori dal dev + bypass del proxy limitato a
+NODE_ENV=development — in produzione restano login E 404). Dati soltanto
+sintetici, zero query; SpeseTracker e pagine reali intoccati; nessuna
+dipendenza nuova (icone lucide già presenti, Fraunces via next/font).
+Stato pilotabile da URL (?v=&c=&t=&filtri=&rev=) per prove e screenshot.
+
+Struttura richiesta realizzata: selettore Casa Mia/Casa Ania, nav compatta
+in alto (Panoramica · Movimenti · Documenti · Analisi), niente seconda
+barra in basso, ＋ flottante sopra la barra globale, filtri in pannello a
+scomparsa con sole pastiglie attive in vista, target ≥44px, niente emoji.
+Contenuti: tutti quelli elencati per le due Panoramiche, Movimenti (misto
+con badge sorelle, ricerca, niente X esposta), Documenti per stato con
+indicatori (foto, multipagina, dubbio, scadenza), Revisione completa
+(foto, controlli con esito e spiegazione, righe con destinatario, dubbio
+evidenziato, esclusa con ripristino, aggiungi riga, conferma con
+quadratura). Analisi = assaggio (fase 6).
+
+Ispirazioni (principi, non grafica): Monarch (da controllare in testa),
+YNAB (budget come progresso leggibile), Ramp (controlli con esito+motivo),
+Expensify (acquisizione immediata e revisione guidata).
+
+Screenshot reali (CDP, viewport 390×844 + desktop 1280): 4 schermate ×2
+varianti + 1 desktop, consegnati nel resoconto in chat. Verifiche: 101/101
+test, tsc pulito, build ok (la rotta compare come ○ statica ma serve
+notFound in produzione), lint pulito sui file nuovi, pagine reali senza
+regressioni (nessun file toccato oltre proxy.ts, bypass solo-dev).
+
+Due varianti sugli stessi identici dati:
+- **A · Calda editoriale** — l'identità Casa Ania portata avanti: crema,
+  verde profondo, terracotta, oro raro, numeri in Fraunces, angoli
+  morbidi, ombre calde.
+- **B · Contemporanea essenziale** — linguaggio più finanziario: neutri
+  freddi, tutto sans con cifre tabellari, bordi sottili al posto delle
+  ombre, angoli asciutti, pill squadrate.
+
+PROSSIMO PASSO: Ania sceglie la direzione (o un misto); solo dopo parte la
+Fase 3 vera sul modulo reale.
