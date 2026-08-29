@@ -25,7 +25,7 @@ export type GrezzoGruppo = { id: string; name: string; ambito: string | null }
 export type GrezzaCategoria = { id: string; name: string }
 export type GrezzaCategoriaCanonica = { id: string; name: string }
 export type GrezzaSottocategoriaCanonica = { id: string; name: string }
-export type GrezzaCamera = { id: string; name: string }
+export type GrezzaCamera = { id: string; name: string; active?: boolean | null }
 export type GrezzaSpesa = {
   id: string; amount: number; expense_date: string; group_id: string | null
   category_id: string | null; subcategory: string | null; description: string | null
@@ -200,7 +200,9 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
   const categoriaDi = new Map(t.categorie.map(c => [c.id, c.name]))
   const canonicaDi = new Map(t.categorieCanoniche.map(c => [c.id, c.name]))
   const sottoCanonicaDi = new Map(t.sottocategorieCanoniche.map(c => [c.id, c.name]))
-  const cameraDi = new Map(t.camere.map(c => [c.id, c.name]))
+  // TUTTE le camere risolvono i riferimenti storici; una camera oggi
+  // archiviata non manda in errore la pagina: compare come "Nome (archiviata)"
+  const cameraDi = new Map(t.camere.map(c => [c.id, c.active === false ? `${c.name} (archiviata)` : c.name]))
   const spesaDi = new Map(t.spese.map(s => [s.id, s]))
   const documentoGrezzoDi = new Map(t.documenti.map(d => [d.id, d]))
 
@@ -213,11 +215,22 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
     controllaRif(`spesa ${s.id}`, s.category_id, categoriaDi, 'categoria')
     controllaRif(`spesa ${s.id}`, s.room_id, cameraDi, 'camera')
     controllaRif(`spesa ${s.id}`, s.canonical_category_id, canonicaDi, 'categoria canonica')
+    controllaRif(`spesa ${s.id}`, s.canonical_subcategory_id, sottoCanonicaDi, 'sottocategoria canonica')
   }
+  const ambitoGrezzo = (groupId: string | null | undefined) =>
+    (groupId ? gruppoDi.get(groupId)?.ambito : 'personale') === 'azienda' ? 'azienda' : 'personale'
   for (const r of t.righe) {
     if (!spesaDi.has(r.expense_id)) anomalie.push(`riga ${r.id}: spesa madre "${r.expense_id}" inesistente`)
     controllaRif(`riga ${r.id}`, r.group_id, gruppoDi, 'gruppo')
     controllaRif(`riga ${r.id}`, r.category_id, categoriaDi, 'categoria')
+    controllaRif(`riga ${r.id}`, r.canonical_category_id, canonicaDi, 'categoria canonica')
+    controllaRif(`riga ${r.id}`, r.canonical_subcategory_id, sottoCanonicaDi, 'sottocategoria canonica')
+    // personale e azienda stanno in SORELLE separate: la riga può cambiare
+    // persona dentro l'ambito personale, mai ambito rispetto alla madre
+    const madre = spesaDi.get(r.expense_id)
+    if (madre && r.group_id && gruppoDi.has(r.group_id) && (madre.group_id == null || gruppoDi.has(madre.group_id))
+      && ambitoGrezzo(r.group_id) !== ambitoGrezzo(madre.group_id))
+      anomalie.push(`riga ${r.id}: gruppo di ambito ${ambitoGrezzo(r.group_id)} dentro una spesa ${ambitoGrezzo(madre.group_id)}`)
   }
   const documentoDiSpesa = new Map<string, string>()
   for (const p of t.ponte) {
@@ -235,11 +248,21 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
     if (!documentoGrezzoDi.has(b.document_id)) anomalie.push(`bozza ${b.id}: documento "${b.document_id}" inesistente`)
     controllaRif(`bozza ${b.id}`, b.group_id, gruppoDi, 'gruppo')
     controllaRif(`bozza ${b.id}`, b.room_id, cameraDi, 'camera')
+    controllaRif(`bozza ${b.id}`, b.category_id, categoriaDi, 'categoria')
+    controllaRif(`bozza ${b.id}`, b.canonical_category_id, canonicaDi, 'categoria canonica')
+    controllaRif(`bozza ${b.id}`, b.canonical_subcategory_id, sottoCanonicaDi, 'sottocategoria canonica')
   }
   const bozzaDi = new Map(t.bozze.map(b => [b.id, b]))
   for (const r of t.righeBozza) {
     if (!bozzaDi.has(r.draft_id)) anomalie.push(`riga di bozza ${r.id}: bozza "${r.draft_id}" inesistente`)
     controllaRif(`riga di bozza ${r.id}`, r.group_id, gruppoDi, 'gruppo')
+    controllaRif(`riga di bozza ${r.id}`, r.category_id, categoriaDi, 'categoria')
+    controllaRif(`riga di bozza ${r.id}`, r.canonical_category_id, canonicaDi, 'categoria canonica')
+    controllaRif(`riga di bozza ${r.id}`, r.canonical_subcategory_id, sottoCanonicaDi, 'sottocategoria canonica')
+    const madre = bozzaDi.get(r.draft_id)
+    if (madre && r.group_id && gruppoDi.has(r.group_id) && (madre.group_id == null || gruppoDi.has(madre.group_id))
+      && ambitoGrezzo(r.group_id) !== ambitoGrezzo(madre.group_id))
+      anomalie.push(`riga di bozza ${r.id}: gruppo di ambito ${ambitoGrezzo(r.group_id)} dentro una bozza ${ambitoGrezzo(madre.group_id)}`)
   }
 
   // --- mappe di appoggio ---
@@ -373,9 +396,14 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
         && (d.status === 'confermato'))
         anomalie.push(`documento ${d.id} confermato: somma spese sorelle ${totaleCent} ≠ doc_total ${cent(d.doc_total)} (centesimi)`)
       const righe = spese.flatMap(righeVista)
-      const righeCent = righe.reduce((sum, r) => sum + cent(r.importo), 0)
-      if (d.status === 'confermato' && righeCent !== totaleCent)
-        anomalie.push(`documento ${d.id} confermato: somma righe ${righeCent} ≠ somma spese ${totaleCent} (centesimi)`)
+      if (d.status === 'confermato') {
+        // per OGNI sorella: la somma delle sue righe = la sua quota
+        for (const s of spese) {
+          const somma = righeVista(s).reduce((sum, r) => sum + cent(r.importo), 0)
+          if (somma !== cent(s.amount))
+            anomalie.push(`documento ${d.id}: la sorella ${s.id} ha righe per ${somma} ma quota ${cent(s.amount)} (centesimi)`)
+        }
+      }
       const data = spese.map(s => s.expense_date).sort().at(-1)!
       const metodi = [...new Set(spese.map(s => s.payment_method).filter((x): x is string => !!x).map(etichettaMetodo))]
       const stato: StatoMovimento = statoDoc === 'pagata' ? 'pagata' : 'confermato'
@@ -412,18 +440,39 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
     // economico viene dalle BOZZE attive; upload_ambito è solo l'ultimo
     // ripiego per un documento appena caricato senza alcun dato economico
     if (d.status !== 'in_revisione' && d.status !== 'approvata_da_pagare') continue
-    const bozzeAttive = (bozzeDiDocumento.get(d.id) ?? []).filter(b => b.status !== 'scartata')
-    const righe = bozzeAttive.flatMap(righeVistaBozza)
+    // economicamente ATTIVE = da_controllare o pronta (coerente con le RPC):
+    // confermata/errore/scartata restano storico, fuori da quote e conti
+    const bozzeAttive = (bozzeDiDocumento.get(d.id) ?? [])
+      .filter(b => b.status === 'da_controllare' || b.status === 'pronta')
+    // ogni bozza è una SORELLA: quota = righe attive + il SUO arrotondamento
+    const perBozza = bozzeAttive.map(b => {
+      const righeBozza = righeVistaBozza(b)
+      const quotaCent = righeBozza.filter(r => !r.esclusa).reduce((sum, r) => sum + cent(r.importo), 0)
+        + (b.arrotondamento_cent ?? 0)
+      return { b, righeBozza, quotaCent, ambito: ambitoDiGruppo(b.group_id) }
+    })
+    const righe = perBozza.flatMap(x => x.righeBozza)
     const attive = righe.filter(r => !r.esclusa)
     const arrotondamentoCent = bozzeAttive.reduce((sum, b) => sum + (b.arrotondamento_cent ?? 0), 0)
-    const attiveCent = attive.reduce((sum, r) => sum + cent(r.importo), 0) + arrotondamentoCent
-    const perAmbito = (c: Contesto) => attive.filter(r => r.contesto === c).reduce((sum, r) => sum + cent(r.importo), 0)
-    const ambiti = new Set(attive.map(r => r.contesto))
+    const attiveCent = perBozza.reduce((sum, x) => sum + x.quotaCent, 0)
+    const perAmbito = (c: Contesto) => perBozza.filter(x => x.ambito === c).reduce((sum, x) => sum + x.quotaCent, 0)
+    // il contesto viene dalle BOZZE attive anche quando (per ora) non hanno
+    // righe; upload_ambito è SOLO l'ultimo ripiego senza bozze attive
+    const ambiti = new Set(perBozza.map(x => x.ambito))
     const contesto: MovimentoVista['contesto'] = ambiti.size > 1 ? 'misto'
       : ambiti.size === 1 ? [...ambiti][0]
         : d.upload_ambito === 'azienda' ? 'ania' : 'mia'
+    // dubbi ancora da risolvere: bozze attive + righe NON escluse
     const dubbiDoc = bozzeAttive.reduce((sum, b) => sum + campiDubbi(b.confidence).n, 0)
-      + (righeDiBozza.size ? bozzeAttive.flatMap(b => righeDiBozza.get(b.id) ?? []).reduce((sum, r) => sum + campiDubbi(r.confidence).n, 0) : 0)
+      + bozzeAttive.flatMap(b => righeDiBozza.get(b.id) ?? [])
+        .filter(r => !r.excluded)
+        .reduce((sum, r) => sum + campiDubbi(r.confidence).n, 0)
+    // insiemi anche dalle bozze senza righe (categoria/camera/persona della bozza)
+    const senzaRighe = perBozza.filter(x => x.righeBozza.length === 0).map(x => x.b)
+    const extraCategorie = senzaRighe.map(b => nomeCategoria({}, b)).filter((x): x is string => !!x)
+    const extraPersone = senzaRighe.map(b => personaDiGruppo(b.group_id)).filter((x): x is string => !!x)
+    const extraCamere = perBozza.filter(x => x.ambito === 'ania')
+      .map(x => x.b.room_id ? cameraDi.get(x.b.room_id) ?? 'Generale' : 'Generale')
     // un documento in revisione PUÒ non quadrare: è un avviso bloccante
     // DENTRO il documento (è quello che Ania deve sistemare), non un errore
     const avviso = d.doc_total != null && bozzeAttive.length > 0 && attiveCent !== cent(d.doc_total)
@@ -444,13 +493,13 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
       persona: principale(attive.map(r => r.persona)) ?? (contesto === 'ania' ? 'Casa Ania' : 'Casa'),
       metodo: metodi.length === 1 ? metodi[0] : undefined,
       stato: d.status === 'approvata_da_pagare' ? 'da_pagare' : 'da_controllare',
-      categorie: [...new Set(attive.map(r => r.categoria).filter((x): x is string => !!x))],
+      categorie: [...new Set([...attive.map(r => r.categoria), ...extraCategorie].filter((x): x is string => !!x))],
       sottocategorie: [...new Set(attive.map(r => r.sottocategoria).filter((x): x is string => !!x))],
-      persone: [...new Set(attive.map(r => r.persona).filter((x): x is string => !!x))],
-      camere: [...new Set(attive.map(r => r.camera).filter((x): x is string => !!x))],
+      persone: [...new Set([...attive.map(r => r.persona), ...extraPersone].filter((x): x is string => !!x))],
+      camere: [...new Set([...attive.map(r => r.camera), ...extraCamere].filter((x): x is string => !!x))],
       metodi,
       sorelle: contesto === 'misto'
-        ? (['mia', 'ania'] as const).map(c => ({ contesto: c, importo: daCent(perAmbito(c)) })).filter(q => q.importo > 0)
+        ? (['mia', 'ania'] as const).map(c => ({ contesto: c, importo: daCent(perAmbito(c)) })).filter(q => q.importo !== 0)
         : undefined,
       righe: righe.length ? righe : undefined,
       dubbio: dubbiDoc > 0 ? (dubbiDoc === 1 ? '1 campo dubbio' : `${dubbiDoc} campi dubbi`) : undefined,
@@ -498,10 +547,11 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
   const documenti: DocumentoVista[] = t.documenti.map(d => {
     const tipo = tipoDocumentoVista(d)
     const spese = speseDiDocumento.get(d.id) ?? []
-    const bozzeAttive = (bozzeDiDocumento.get(d.id) ?? []).filter(b => b.status !== 'scartata')
+    const bozzeAttive = (bozzeDiDocumento.get(d.id) ?? [])
+      .filter(b => b.status === 'da_controllare' || b.status === 'pronta')
     const ambiti = spese.length
       ? new Set(spese.map(s => ambitoDiGruppo(s.group_id)))
-      : new Set(bozzeAttive.flatMap(b => righeVistaBozza(b)).filter(r => !r.esclusa).map(r => r.contesto))
+      : new Set(bozzeAttive.map(b => ambitoDiGruppo(b.group_id)))
     const contesto: DocumentoVista['contesto'] = ambiti.size > 1 ? 'misto'
       : ambiti.size === 1 ? [...ambiti][0]
         : d.upload_ambito === 'azienda' ? 'ania' : 'mia'
@@ -509,7 +559,7 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
     const dataDoc = d.document_date ?? spese.map(s => s.expense_date).sort().at(-1)
       ?? bozzeAttive.map(b => b.expense_date).sort().at(-1) ?? d.created_at.slice(0, 10)
     const dubbi = bozzeAttive.reduce((sum, b) => sum + campiDubbi(b.confidence).n
-      + (righeDiBozza.get(b.id) ?? []).reduce((s2, r) => s2 + campiDubbi(r.confidence).n, 0), 0)
+      + (righeDiBozza.get(b.id) ?? []).filter(r => !r.excluded).reduce((s2, r) => s2 + campiDubbi(r.confidence).n, 0), 0)
     return {
       id: d.id,
       titolo: d.supplier ? `${nomeTipo(tipo)} ${d.supplier}`
@@ -561,15 +611,20 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
   const righeTeo = righeMesePers.filter(r => r.persona === 'Teo')
   const teoPerCat = new Map<string, number>()
   for (const r of righeTeo) teoPerCat.set(r.categoria, (teoPerCat.get(r.categoria) ?? 0) + r.cent)
-  const docDaControllare = documenti.filter(x => x.stato === 'da_controllare')
+  // "da controllare" in Panoramica: per i misti conta la QUOTA dell'ambito
+  // visualizzato (il totale documento resta nella pastiglia del movimento)
+  const movDaControllare = movimenti.filter(m => m.stato === 'da_controllare')
+  const quotaNelContesto = (m: MovimentoVista, c: Contesto) =>
+    m.contesto === 'misto' ? (m.sorelle?.find(q => q.contesto === c)?.importo ?? 0) : m.importo
 
   const mia: PanoramicaMiaVista = {
     mese: `${MESI[meseOggi - 1][0].toUpperCase()}${MESI[meseOggi - 1].slice(1)}`,
     speso: daCent(sommaCent(mesePers)),
     confrontoPct: scorsoPers > 0 ? Math.round((sommaCent(mesePers) - scorsoPers) / scorsoPers * 100) : null,
     daControllare: {
-      n: docDaControllare.filter(x => x.contesto !== 'ania').length,
-      tot: daCent(docDaControllare.filter(x => x.contesto !== 'ania').reduce((x, dd) => x + cent(dd.importo ?? 0), 0)),
+      n: movDaControllare.filter(m => m.contesto !== 'ania').length,
+      tot: daCent(movDaControllare.filter(m => m.contesto !== 'ania')
+        .reduce((x, m) => x + cent(quotaNelContesto(m, 'mia')), 0)),
     },
     budget: (t.budget ?? []).filter(b => b.ambito !== 'azienda').map(b => ({
       nome: b.category_name,
@@ -578,7 +633,7 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
     })),
     // testo NEUTRO: la ripetizione e le abitudini si calcolano in Fase 6
     ripetute: piccole.length > 0 ? {
-      frase: `${piccole.length} righe sotto i 5 € nei documenti`,
+      frase: `${piccole.length} voci sotto i 5 €`,
       tot: daCent(piccole.reduce((s2, r) => s2 + r.cent, 0)),
       esempio: [...new Set(piccole.map(r => r.nome.toLowerCase()))].slice(0, 3).join(', '),
     } : null,
@@ -638,7 +693,12 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
     return {
       periodi,
       ...(c === 'mia' ? { persone: [...new Set(mov.flatMap(m => m.persone))].sort() } : {}),
-      ...(c === 'ania' ? { camere: ['Generale', ...t.camere.map(x => x.name).filter(n => n !== 'Generale')] } : {}),
+      ...(c === 'ania' ? {
+        camere: ['Generale',
+          ...t.camere.filter(x => x.active !== false).map(x => x.name).filter(n => n !== 'Generale'),
+          // una camera archiviata compare SOLO se davvero presente nei dati
+          ...[...new Set(mov.flatMap(m => m.camere))].filter(n => n.endsWith('(archiviata)'))],
+      } : {}),
       categorie: [...new Set(mov.flatMap(m => m.categorie))].sort(),
       metodi: [...new Set(mov.flatMap(m => m.metodi))].sort(),
     }

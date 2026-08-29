@@ -44,7 +44,7 @@ async function leggiTabelle(): Promise<TabelleGrezze> {
     tutta<TabelleGrezze['categorie'][0]>('family_categories', 'id, name'),
     tutta<TabelleGrezze['categorieCanoniche'][0]>('family_canonical_categories', 'id, name'),
     tutta<TabelleGrezze['sottocategorieCanoniche'][0]>('family_canonical_subcategories', 'id, name'),
-    tutta<TabelleGrezze['camere'][0]>('rooms', 'id, name', { active: true }),
+    tutta<TabelleGrezze['camere'][0]>('rooms', 'id, name, active'),  // TUTTE: le archiviate risolvono lo storico
     tutta<NonNullable<TabelleGrezze['budget']>[0]>('family_budgets', 'id, ambito, category_name, monthly_amount'),
   ])
   return {

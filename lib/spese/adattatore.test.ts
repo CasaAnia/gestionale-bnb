@@ -351,7 +351,7 @@ test('righe sotto i 5 €: dagli item, non dalle spese madri; arrotondamenti esc
   const d = costruisciDatiSpese(t, OGGI)
   // righe personali < 5 € di agosto: Pane 5? no (=5 escluso), Latte 3,50, Quaderni 4,50 → 2 righe
   // (la spesa madre s-man da 60 NON è spezzata: resta 1 riga da 60, fuori)
-  assert.equal(d.mia.ripetute!.frase, '2 righe sotto i 5 € nei documenti')
+  assert.equal(d.mia.ripetute!.frase, '2 voci sotto i 5 €')
   assert.equal(d.mia.ripetute!.tot, 8)
   assert.ok(!d.mia.ripetute!.frase.includes('spese'))
 })
@@ -388,7 +388,7 @@ rompi('stessa spesa su più documenti', t => { t.ponte.push({ expense_id: 's-m1'
 rompi('riga definitiva con spesa madre inesistente', t => { t.righe.push({ id: 'r-x', expense_id: 's-fantasma', name: 'X', amount: 1, category_id: null, subcategory: null }) }, /spesa madre "s-fantasma" inesistente/)
 rompi('spesa con receipt_id ma senza ponte', t => { t.spese.push(spesa({ id: 's-recluso', amount: 5, receipt_id: 'vecchia-foto' })) }, /receipt_id ma nessun ponte/)
 rompi('documento confermato con somma sorelle diversa da doc_total', t => { t.documenti.find(x => x.id === 'd-misto')!.doc_total = 21 }, /somma spese sorelle .* doc_total/)
-rompi('misto confermato con righe non quadrate', t => { t.righe[0].amount = 4 }, /somma righe/)
+rompi('misto confermato con righe non quadrate (per sorella)', t => { t.righe[0].amount = 4 }, /ha righe per/)
 rompi('gruppo sconosciuto', t => { t.spese[0].group_id = 'g-fantasma' }, /gruppo "g-fantasma" inesistente/)
 rompi('categoria sconosciuta', t => { t.spese[0].category_id = 'c-fantasma' }, /categoria "c-fantasma" inesistente/)
 rompi('camera sconosciuta', t => { t.spese[2].room_id = 'r-fantasma' }, /camera "r-fantasma" inesistente/)
@@ -410,4 +410,128 @@ test('settimana stabile: due giorni della stessa settimana → stesso id', () =>
   assert.equal(p1.id, p2.id)
   assert.equal(p1.id, 'settimana-2026-08-24')
   assert.deepEqual([p1.dal, p1.al], ['2026-08-24', '2026-08-30'])
+})
+
+// ============================================================================
+// 3.2A.2 — bozze attive per stato, arrotondamenti per sorella, contesto dalla
+// bozza senza righe, camere archiviate, invarianti extra, quota "da controllare".
+// ============================================================================
+
+test('bozze attive = solo da_controllare e pronta; confermata/errore fuori da conti e dubbi', () => {
+  const t = tabelleConRevisione()
+  // una bozza CONFERMATA e una in ERRORE con righe e dubbi: non devono contare
+  t.bozze.push(
+    bozza({ id: 'b-confermata', document_id: 'd-rev', group_id: 'g-bnb', status: 'confermata', confidence: { store: { confidence: 0.1 } } }),
+    bozza({ id: 'b-errore', document_id: 'd-rev', group_id: 'g-bnb', status: 'errore', confidence: { amount: { confidence: 0.2 } } }),
+    bozza({ id: 'b-pronta', document_id: 'd-rev', group_id: 'g-casa', status: 'pronta' }),
+  )
+  t.righeBozza.push(
+    rigaBozza({ id: 'rb-conf', draft_id: 'b-confermata', name: 'Vecchia', amount: 99 }),
+    rigaBozza({ id: 'rb-pronta', draft_id: 'b-pronta', name: 'Olio', amount: 0, category_id: 'c-spesa' }),
+  )
+  t.documenti.find(x => x.id === 'd-rev')!.doc_total = 10
+  const d = costruisciDatiSpese(t, OGGI)
+  const rev = d.movimenti.find(m => m.id === 'doc-d-rev')!
+  // la riga della confermata (99) NON entra: quote invariate 7 + 3
+  assert.deepEqual(rev.sorelle, [{ contesto: 'mia', importo: 7 }, { contesto: 'ania', importo: 3 }])
+  assert.ok(!rev.righe!.some(r => r.nome === 'Vecchia'))
+  // i dubbi delle bozze confermata/errore NON contano: restano i 2 attivi
+  assert.equal(rev.dubbio, '2 campi dubbi')
+  assert.equal(rev.avviso, undefined)
+})
+
+test('riga bozza ESCLUSA con confidence bassa: visibile come audit, ma non conta tra i dubbi', () => {
+  const t = tabelleConRevisione()
+  const esclusa = t.righeBozza.find(r => r.id === 'rb3')!
+  esclusa.confidence = { amount: { confidence: 0.1, doubt_reason: 'dubbio su riga esclusa' } }
+  const d = costruisciDatiSpese(t, OGGI)
+  const rev = d.movimenti.find(m => m.id === 'doc-d-rev')!
+  assert.ok(rev.righe!.some(r => r.esclusa))          // audit conservato
+  assert.equal(rev.dubbio, '2 campi dubbi')           // il dubbio dell'esclusa NON conta
+  assert.equal(d.documenti.find(x => x.id === 'd-rev')!.dubbi, 2)
+})
+
+test('arrotondamenti per sorella in un misto in revisione: +1 e −1 centesimo', () => {
+  const t = tabelleConRevisione()
+  // sorella mia: righe attive 7 € + 1 cent; sorella ania: 3 € − 1 cent
+  t.bozze.find(b => b.id === 'b-mia')!.arrotondamento_cent = 1
+  t.bozze.find(b => b.id === 'b-bnb')!.arrotondamento_cent = -1
+  t.documenti.find(x => x.id === 'd-rev')!.doc_total = 10  // 7,01 + 2,99
+  const d = costruisciDatiSpese(t, OGGI)
+  const rev = d.movimenti.find(m => m.id === 'doc-d-rev')!
+  // somma righe attive + arrotondamento della sorella = quota della sorella
+  assert.deepEqual(rev.sorelle, [{ contesto: 'mia', importo: 7.01 }, { contesto: 'ania', importo: 2.99 }])
+  // somma quote = totale documento, nessun avviso, quadratura del misto ok
+  assert.equal(rev.avviso, undefined)
+  assert.deepEqual(controllaMisto(rev), [])
+  assert.equal(rev.arrotondamentoCent ?? 0, 0)   // +1 −1: la somma è zero, le quote no
+})
+
+test('bozza attiva SENZA righe: ambito, camera e categoria dalla bozza, non da upload_ambito', () => {
+  const t = tabelle()
+  // documento caricato da "personale" ma la bozza attiva è aziendale, camera Lena
+  t.documenti.push(documento({ id: 'd-vuoto', status: 'in_revisione', doc_total: 50, upload_ambito: 'personale' }))
+  t.bozze = [bozza({ id: 'b-vuota', document_id: 'd-vuoto', group_id: 'g-bnb', category_id: 'c-bianco', room_id: 'r-lena' })]
+  const d = costruisciDatiSpese(t, OGGI)
+  const m = d.movimenti.find(x => x.id === 'doc-d-vuoto')!
+  assert.equal(m.contesto, 'ania')
+  assert.deepEqual(m.camere, ['Lena'])
+  assert.deepEqual(m.categorie, ['Biancheria'])
+  assert.equal(d.documenti.find(x => x.id === 'd-vuoto')!.contesto, 'ania')
+  // senza NESSUNA bozza attiva resta l'ultimo ripiego: upload_ambito
+  t.bozze[0].status = 'errore'
+  const d2 = costruisciDatiSpese(t, OGGI)
+  assert.equal(d2.movimenti.find(x => x.id === 'doc-d-vuoto')!.contesto, 'mia')
+})
+
+test('camera archiviata: risolve lo storico senza errori, etichetta "(archiviata)", opzioni solo attive + archiviate presenti', () => {
+  const t = tabelle()
+  t.camere = [...CAMERE.map(c => ({ ...c, active: true })), { id: 'r-vecchia', name: 'Camera 1', active: false }]
+  t.spese.find(s => s.id === 's-m3')!.room_id = 'r-vecchia'
+  const d = costruisciDatiSpese(t, OGGI)   // NON deve lanciare
+  const m = d.movimenti.find(x => x.id === 'doc-d-misto')!
+  assert.deepEqual(m.camere, ['Camera 1 (archiviata)'])
+  assert.ok(d.opzioni.ania.camere!.includes('Camera 1 (archiviata)'))
+  assert.ok(!d.opzioni.ania.camere!.includes('Camera 1'))
+  // una archiviata NON presente nei dati non compare tra le opzioni
+  t.spese.find(s => s.id === 's-m3')!.room_id = 'r-ambra'
+  const d2 = costruisciDatiSpese(t, OGGI)
+  assert.ok(!d2.opzioni.ania.camere!.some(n => n.includes('archiviata')))
+  assert.deepEqual(d2.opzioni.ania.camere, ['Generale', 'Ambra', 'Lena', 'Amelia', 'Allegra'])
+})
+
+// invarianti nuove sui riferimenti
+rompi('sottocategoria canonica inesistente su una spesa', t => { t.spese[0].canonical_subcategory_id = 'sc-fantasma' }, /sottocategoria canonica "sc-fantasma" inesistente/)
+rompi('categoria canonica inesistente su una riga', t => { t.righe[0].canonical_category_id = 'cc-fantasma' }, /categoria canonica "cc-fantasma" inesistente/)
+rompi('riga con gruppo di ambito diverso dalla spesa madre', t => { t.righe[0].group_id = 'g-bnb' }, /ambito azienda dentro una spesa personale/)
+rompi('sorella confermata con righe diverse dalla sua quota', t => {
+  t.righe.push({ id: 'r-extra', expense_id: 's-m2', name: 'Extra', amount: 1, category_id: null, subcategory: null })
+}, /la sorella s-m2 ha righe per/)
+
+test('riga di bozza con gruppo di ambito diverso dalla bozza madre: anomalia', () => {
+  const t = tabelleConRevisione()
+  t.righeBozza.find(r => r.id === 'rb1')!.group_id = 'g-bnb'   // dentro la bozza personale
+  assert.throws(() => costruisciDatiSpese(t, OGGI), /ambito azienda dentro una bozza personale/)
+})
+
+test('riga con persona DIVERSA dentro l\'ambito personale: consentita', () => {
+  const t = tabelle()
+  t.righe[0].group_id = 'g-teo'   // da Casa a Teo: stesso ambito personale
+  const d = costruisciDatiSpese(t, OGGI)   // nessun errore
+  assert.ok(d.movimenti.find(x => x.id === 'doc-d-misto')!.persone.includes('Teo'))
+})
+
+test('somma delle categorie per ambito e periodo = Speso al centesimo (anche azienda)', () => {
+  const d = costruisciDatiSpese(tabelleConRevisione(), OGGI)
+  const cent = (n: number) => Math.round(n * 100)
+  assert.equal(d.mia.categorie.reduce((s, c) => s + cent(c.tot), 0), cent(d.mia.speso))
+  assert.equal(d.ania.costiCamere.reduce((s, c) => s + cent(c.tot), 0), cent(d.ania.speso))
+})
+
+test('Panoramica "da controllare": quota dell\'ambito, non il totale documento', () => {
+  const d = costruisciDatiSpese(tabelleConRevisione(), OGGI)
+  // il misto in revisione vale 10 (7 mia + 3 ania) più il d-inrev (12,50, mia):
+  // in Casa Mia contano 7 + 12,50 = 19,50, NON 10 + 12,50
+  assert.equal(d.mia.daControllare.n, 2)
+  assert.equal(d.mia.daControllare.tot, 19.5)
 })

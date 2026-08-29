@@ -790,6 +790,17 @@ se la precedente non è verificata E approvata.
   scorrimento (verificato 8 sezioni × 2 ambiti + 3 stati a 390px); guardia
   permanente sola-lettura nei test. 149/149; prova reale ripetuta e
   identica (87/81+6/12 misti; 462175/16910 cent).
+  **3.2A.2 FATTA (29/08/2026)**: bozze attive = da_controllare|pronta
+  (le altre restano audit, fuori da quote/dubbi/conti; escluse mai
+  contate come dubbi); arrotondamento per SORELLA (righe attive +
+  arrotondamento = quota; somma quote = totale; test ±1 cent); contesto/
+  camera/categoria dalla bozza attiva anche senza righe; camere TUTTE
+  con active ("Nome (archiviata)" per lo storico, opzioni = attive +
+  archiviate presenti); invarianti extra (canoniche su spese/righe/bozze/
+  righe bozza, ambito riga = ambito madre, somma righe = quota per ogni
+  sorella confermata, categorie = Speso anche azienda); "da controllare"
+  in Panoramica con la quota dell'ambito; "voci sotto i 5 €". 162/162;
+  reale identico (87; 12 misti; 462175/16910; 135 voci/327,99 €).
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".
