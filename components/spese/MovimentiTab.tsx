@@ -20,6 +20,7 @@ function PastiglieStato({ m, contesto }: { m: MovimentoVista; contesto: Contesto
   return (
     <span className="flex gap-1 mt-1 flex-wrap">
       {m.stato === 'da_controllare' && <Pastiglia testo="da controllare" tono="giallo" />}
+      {m.avviso && <Pastiglia icona={TriangleAlert} testo={`non quadra: ${m.avviso}`} tono="rosso" />}
       {m.stato === 'da_pagare' && <Pastiglia icona={CalendarClock} testo="da pagare" tono="terra" />}
       {m.dubbio && <Pastiglia icona={TriangleAlert} testo={m.dubbio} tono="giallo" />}
       {m.senzaFoto && m.stato !== 'senza_documento' && <Pastiglia icona={Camera} testo="senza foto" />}
@@ -43,6 +44,8 @@ function DettaglioRighe({ m }: { m: MovimentoVista }) {
     ? ([['mia', 'Casa Mia'], ['ania', 'Casa Ania']] as const).map(([c, nome]) =>
         ({ nome, righe: m.righe!.filter(r => r.contesto === c) })).filter(g => g.righe.length > 0)
     : [{ nome: null, righe: m.righe }]
+  const sommaAttive = (righe: typeof m.righe & object) =>
+    righe.filter(r => !r.esclusa).reduce((s, r) => s + r.importo, 0)
   return (
     <div className="pb-3 pl-12">
       {gruppi.map(g => (
@@ -50,20 +53,23 @@ function DettaglioRighe({ m }: { m: MovimentoVista }) {
           {g.nome && (
             <p className="text-[11px] uppercase tracking-[0.1em] font-semibold mt-1.5 mb-0.5"
               style={{ color: g.nome === 'Casa Ania' ? t.terracotta : t.verde }}>
-              {g.nome} · {eur(g.righe.reduce((s, r) => s + r.importo, 0))}
+              {g.nome} · {eur(sommaAttive(g.righe))}
             </p>
           )}
           {g.righe.map((r, i) => (
-            <div key={`${r.nome}-${i}`} className="flex items-center gap-2 min-h-8 text-[13px]">
+            <div key={`${r.nome}-${i}`} className="flex items-center gap-2 min-h-8 text-[13px]"
+              style={r.esclusa ? { opacity: 0.55 } : undefined}>
               <span className="w-1.5 h-1.5 rounded-full shrink-0"
                 style={{ background: r.contesto === 'ania' ? t.terracotta : t.salvia }} />
-              <span className="flex-1 truncate" style={{ color: t.inchiostro }}>
+              <span className={`flex-1 truncate ${r.esclusa ? 'line-through' : ''}`} style={{ color: t.inchiostro }}>
                 {r.nome}
                 {r.persona && r.persona !== 'Casa' && <span className="ml-1" style={{ color: t.sub }}>· {r.persona}</span>}
                 {r.camera && r.camera !== 'Generale' && <span className="ml-1" style={{ color: t.sub }}>· {r.camera}</span>}
+                {r.esclusa && <span className="ml-1.5 align-middle no-underline"><Pastiglia testo="esclusa: fuori dai conti" /></span>}
+                {r.aggiuntaUtente && <span className="ml-1.5 align-middle"><Pastiglia testo="aggiunta a mano" tono="verde" /></span>}
                 {r.dubbio && <span className="ml-1.5 align-middle"><Pastiglia icona={TriangleAlert} testo={r.dubbio} tono="giallo" /></span>}
               </span>
-              <span className="tabular-nums" style={{ color: t.sub }}>{eur(r.importo)}</span>
+              <span className={`tabular-nums ${r.esclusa ? 'line-through' : ''}`} style={{ color: t.sub }}>{eur(r.importo)}</span>
             </div>
           ))}
         </div>

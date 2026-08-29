@@ -79,8 +79,8 @@ export function PanoramicaMia({ dati, movimenti, apriDaControllare }: {
               <Coffee size={16} />
             </span>
             <p className="text-[13.5px] leading-snug" style={{ color: t.inchiostro }}>
-              <b>{dati.ripetute.frase}</b> — {eur(dati.ripetute.tot)} quasi senza accorgertene
-              <span className="block text-[12px]" style={{ color: t.sub }}>{dati.ripetute.esempio}</span>
+              <b>{dati.ripetute.frase}</b> — {eur(dati.ripetute.tot)} complessivi
+              <span className="block text-[12px]" style={{ color: t.sub }}>per esempio: {dati.ripetute.esempio}</span>
             </p>
           </div>
         </Card>
@@ -90,7 +90,7 @@ export function PanoramicaMia({ dati, movimenti, apriDaControllare }: {
         <Card className="px-4 py-4">
           <Etichetta>Dove va la spesa</Etichetta>
           <div className="flex flex-col gap-2.5">
-            {dati.categorie.map(c => (
+            {dati.categorie.slice(0, 6).map(c => (
               <div key={c.nome} className="flex items-center gap-3 min-h-10">
                 <IconaCategoria nome={c.nome} tenue />
                 <span className="flex-1 min-w-0">

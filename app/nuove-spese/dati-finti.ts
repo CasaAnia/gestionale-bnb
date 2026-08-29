@@ -49,7 +49,7 @@ export const TABELLE_FINTE: TabelleGrezze = {
   ],
   documenti: [
     doc({ id: 'd-coda' }),                                             // foto in coda
-    doc({ id: 'd-rev', status: 'in_revisione', doc_total: 12.5, upload_ambito: 'personale' }),  // senza foto, in revisione
+    doc({ id: 'd-rev', status: 'in_revisione', doc_total: 12.5, upload_ambito: 'personale' }),  // senza foto, in revisione (bozze sotto)
     doc({ id: 'd-misto', doc_total: 15.47 }),                          // scontrino misto confermato
     doc({ id: 'd-lenzuola', doc_total: 74 }),
     doc({ id: 'd-fatt-lav', kind: 'fattura', status: 'approvata_da_pagare', doc_total: 180, supplier: 'Lavanderia Girasole', due_date: '2026-09-05', upload_ambito: 'azienda' }),
@@ -101,6 +101,34 @@ export const TABELLE_FINTE: TabelleGrezze = {
     { id: 'r4', expense_id: 's-teo1', name: 'Quaderno a righe', amount: 2.63, category_id: 'c-scuola', subcategory: 'Cartoleria' },
     { id: 'r5', expense_id: 's-bnb1', name: 'Aceto di alcol ×2', amount: 4.14, category_id: 'c-pulizia', subcategory: 'Detersivi' },
   ],
+  bozze: [
+    {
+      id: 'b-rev-mia', document_id: 'd-rev', status: 'da_controllare', expense_date: '2026-08-29',
+      group_id: 'g-casa', category_id: 'c-spesa', subcategory: null,
+      canonical_category_id: null, canonical_subcategory_id: null,
+      store: 'Mercato di Rozzano', description: null, payment_method: 'contanti',
+      room_id: null, expense_nature: null,
+      confidence: { store: { confidence: 0.55, doubt_reason: 'nome del negozio poco leggibile' } },
+      arrotondamento_cent: 0, expense_id: null,
+    },
+    {
+      id: 'b-rev-bnb', document_id: 'd-rev', status: 'da_controllare', expense_date: '2026-08-29',
+      group_id: 'g-bnb', category_id: 'c-pulizia', subcategory: null,
+      canonical_category_id: null, canonical_subcategory_id: null,
+      store: 'Mercato di Rozzano', description: null, payment_method: 'contanti',
+      room_id: 'r-lena', expense_nature: null,
+      confidence: {}, arrotondamento_cent: 0, expense_id: null,
+    },
+  ],
+  righeBozza: [
+    { id: 'rb1', draft_id: 'b-rev-mia', raw_name: 'FRUTTA MISTA KG1', name: 'Frutta mista 1 kg', qty: 1, unit_price: 4.5, discount: 0, amount: 4.5, group_id: null, category_id: 'c-spesa', subcategory: 'Frutta', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: false, user_added: false },
+    { id: 'rb2', draft_id: 'b-rev-mia', raw_name: 'PANE COMUNE', name: 'Pane comune', qty: 1, unit_price: 2.5, discount: 0, amount: 2.5, group_id: null, category_id: 'c-spesa', subcategory: 'Pane', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: { amount: { confidence: 0.6, doubt_reason: 'importo poco leggibile' } }, excluded: false, user_added: false },
+    { id: 'rb3', draft_id: 'b-rev-mia', raw_name: 'PANE COMUNE', name: 'Pane (letto due volte)', qty: 1, unit_price: 2.5, discount: 0, amount: 2.5, group_id: null, category_id: 'c-spesa', subcategory: 'Pane', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: true, user_added: false },
+    { id: 'rb4', draft_id: 'b-rev-mia', raw_name: null, name: 'Sacchetto', qty: 1, unit_price: 0.5, discount: 0, amount: 0.5, group_id: null, category_id: 'c-spesa', subcategory: 'Sacchetti', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: false, user_added: true },
+    { id: 'rb5', draft_id: 'b-rev-bnb', raw_name: 'ACETO ALCOL X2', name: 'Aceto di alcol ×2', qty: 2, unit_price: 2.5, discount: 0, amount: 5, group_id: null, category_id: 'c-pulizia', subcategory: 'Detersivi', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: false, user_added: false },
+  ],
+  categorieCanoniche: [],
+  sottocategorieCanoniche: [],
   ricevute: [
     { id: 'f-coda', document_id: 'd-coda' },
     { id: 'f-misto', document_id: 'd-misto' },
@@ -111,12 +139,12 @@ export const TABELLE_FINTE: TabelleGrezze = {
     { id: 'f-err', document_id: 'd-errore' },
     // d-rev SENZA fotografia
   ],
-  bozze: [],
 }
 
 export const DATI_FINTI: DatiSpese = costruisciDatiSpese(TABELLE_FINTE, OGGI_FINTO)
 
 // mese "vuoto": stesse tabelle di contorno, nessuna spesa né documento
 export const DATI_QUASI_VUOTI: DatiSpese = costruisciDatiSpese({
-  ...TABELLE_FINTE, documenti: [], ponte: [], spese: [], righe: [], ricevute: [], budget: [],
+  ...TABELLE_FINTE, documenti: [], ponte: [], spese: [], righe: [], ricevute: [],
+  bozze: [], righeBozza: [], budget: [],
 }, '2026-09-02')

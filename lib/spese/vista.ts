@@ -42,7 +42,17 @@ export type RigaMovimentoVista = {
   sottocategoria?: string
   persona?: string              // etichetta del gruppo (Casa, Ania, Teo, M e A)
   camera?: string               // solo righe aziendali; assente = Generale
-  dubbio?: string               // es. "importo poco leggibile"
+  dubbio?: string               // motivo del dubbio (confidence sotto soglia)
+  // dettagli per la revisione (Fase 4) — l'adattatore li porta già oggi
+  nomeGrezzo?: string           // testo letto dall'OCR prima della pulizia
+  quantita?: number
+  prezzoUnitario?: number
+  sconto?: number
+  necessita?: string            // 'necessario' | 'discrezionale'
+  pianificazione?: string       // 'previsto' | 'impulsivo'
+  arrotondamento?: boolean      // riga di rettifica: fuori dalle analisi
+  esclusa?: boolean             // audit: resta visibile, MAI nei conti
+  aggiuntaUtente?: boolean      // riga aggiunta a mano in revisione
 }
 
 export type MovimentoVista = {
@@ -66,7 +76,9 @@ export type MovimentoVista = {
   metodi: string[]
   sorelle?: { contesto: Contesto; importo: number }[]  // scontrino misto
   righe?: RigaMovimentoVista[]                          // dettaglio espandibile
-  dubbio?: string
+  dubbio?: string       // es. "2 campi dubbi"
+  avviso?: string       // problema BLOCCANTE dentro un documento in revisione
+  arrotondamentoCent?: number
   senzaFoto?: boolean
 }
 
@@ -80,7 +92,7 @@ export type StatoDocumento =
 export type DocumentoVista = {
   id: string
   titolo: string
-  tipo: 'scontrino' | 'fattura'
+  tipo: 'scontrino' | 'fattura' | 'altro'
   contesto: Contesto | 'misto'   // il misto appare in ENTRAMBI gli ambiti, come un solo documento
   stato: StatoDocumento
   importo?: number
@@ -186,7 +198,9 @@ export function controllaMisto(m: MovimentoVista): string[] {
   const ambiti = m.sorelle.map(q => q.contesto)
   if (new Set(ambiti).size !== ambiti.length) problemi.push('quote duplicate per lo stesso ambito')
   if (m.righe) {
-    const daRighe = m.righe.reduce((s, r) => s + cent(r.importo), 0)
+    // le righe ESCLUSE sono audit: fuori da quadratura e quote
+    const attive = m.righe.filter(r => !r.esclusa)
+    const daRighe = attive.reduce((s, r) => s + cent(r.importo), 0) + (m.arrotondamentoCent ?? 0)
     if (daRighe !== cent(m.importo)) problemi.push(`somma righe ${daRighe} ≠ totale ${cent(m.importo)} (centesimi)`)
   }
   return problemi

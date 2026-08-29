@@ -777,6 +777,19 @@ se la precedente non è verificata E approvata.
   nel pannello filtri. 125/125 test. VINCOLO per la sostituzione (3.2B+):
   Calendario, Racconto, Domanda, caricamento foto e inserimento manuale
   vanno trasferiti davvero, mai ridotti a scritte "in arrivo".
+  **3.2A.1 FATTA (29/08/2026)**: SELECT complete (bozze+righe bozza con
+  confidence/arrotondamento/excluded/user_added, canoniche con ripiego
+  esplicito, dettagli riga per la Fase 4) e paginazione ordinata; documenti
+  in revisione e fatture da pagare costruiti dalle bozze (upload_ambito
+  solo ultimo ripiego), escluse = audit fuori dai conti, dubbi con soglia
+  0,8 e motivi; metrica <5 € SULLE RIGHE (reale: 27/48,61 € → 135/327,99 €),
+  categorie/Teo per riga, somma categorie = Speso; 10 anomalie strutturali
+  esplicite (errore di pagina sui definitivi, avviso interno sui documenti
+  in revisione); stati/tipi esaustivi con kind 'altro'; oggiARoma +
+  settimana stabile (id = lunedì); + in fascia riservata fuori dallo
+  scorrimento (verificato 8 sezioni × 2 ambiti + 3 stati a 390px); guardia
+  permanente sola-lettura nei test. 149/149; prova reale ripetuta e
+  identica (87/81+6/12 misti; 462175/16910 cent).
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

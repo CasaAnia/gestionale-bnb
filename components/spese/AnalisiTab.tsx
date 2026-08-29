@@ -53,12 +53,13 @@ function AnalisiMia({ mia }: { mia: PanoramicaMiaVista }) {
 
       {mia.ripetute && (
         <Card className="px-4 py-4">
-          <Etichetta>Abitudini · piccole spese ripetute</Etichetta>
+          <Etichetta>Righe sotto i 5 €</Etichetta>
           <p className="text-[13.5px]" style={{ color: t.inchiostro }}>
-            <b>{mia.ripetute.frase}</b> — {eur(mia.ripetute.tot)} in un mese
+            <b>{mia.ripetute.frase}</b> — {eur(mia.ripetute.tot)} complessivi
           </p>
-          <Grafico valori={[3, 5, 2, 6, 4, 7, 3, 5, 6, 4, 2, 5]} evidenzia={5} />
-          <p className="text-[11.5px] mt-1.5" style={{ color: t.sub }}>{mia.ripetute.esempio}</p>
+          <p className="text-[11.5px] mt-1.5" style={{ color: t.sub }}>
+            per esempio: {mia.ripetute.esempio} · abitudini e ripetizioni arrivano con la fase 6
+          </p>
         </Card>
       )}
 

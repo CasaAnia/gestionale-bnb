@@ -29,15 +29,16 @@ export default function Prova() {
   const [scelta, setScelta] = useState<string | null>(null)
   return (
     <>
-      {/* barretta della PROVA (non fa parte del prodotto) */}
-      <div className="flex items-center justify-center gap-2 py-1.5 text-[11px] font-bold tracking-wide"
-        style={{ background: '#141E19', color: '#F6F6F3' }}>
-        PROVA · guscio reale (Fase 3.1) · dati finti · direzione B
-      </div>
       <SpeseShell dati={dati} contestoIniziale={c} sezioneIniziale={t} filtriApertiIniziale={filtri}
         riprova={() => window.location.reload()}
         aggiungi={v => setScelta(v)}
-        notaAggiungi="in questa prova non si registra nulla: l'inserimento vero arriva con le fasi 4-5" />
+        notaAggiungi="in questa prova non si registra nulla: l'inserimento vero arriva con le fasi 4-5"
+        sopra={
+          <div className="flex items-center justify-center gap-2 py-1.5 text-[11px] font-bold tracking-wide"
+            style={{ background: '#141E19', color: '#F6F6F3' }}>
+            PROVA · guscio reale · dati finti · direzione B
+          </div>
+        } />
       {scelta && (
         <div className="fixed inset-x-4 z-[70] bottom-[calc(env(safe-area-inset-bottom)+16px)] max-w-md mx-auto px-4 py-3 text-[13px] font-semibold text-center"
           style={{ background: '#141E19', color: '#F6F6F3', borderRadius: '0.75rem' }}
