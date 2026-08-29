@@ -750,6 +750,17 @@ se la precedente non è verificata E approvata.
   tsc, lint, build, 390px, confronto visivo con la B approvata, pagine
   vecchie intatte. IN ATTESA di approvazione per sostituire le pagine
   vere (3.2); SpeseTracker ancora al suo posto.
+  **3.1.1 FATTA (29/08/2026, correzioni della revisione)**: contesto =
+  confine reale in tutte le sezioni (Mia = personale+misti, Ania =
+  azienda+misti, mai contaminazioni); misto = una voce con importo
+  principale = quota dell'ambito e "totale documento" visibile, dettaglio
+  righe separato per ambito; `DocumentoVista.contesto`; Analisi
+  contestuale (Ania: andamento, costi per camera, metodi, fatture);
+  filtri per ambito con opzioni DAI DATI ("Di chi" solo Mia, "Camera"
+  Generale/Amelia/Allegra/Ambra/Lena solo Ania, etichetta "M e A", due
+  stati filtro separati, filtro ambito sostituito da "Solo documenti
+  misti"); tocchi ≥44px misurati; "Speso ad agosto" corretto (nelMese);
+  fogli dal basso con Escape+focus+blocco scorrimento. 114/114 test.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

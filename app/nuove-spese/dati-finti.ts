@@ -39,6 +39,14 @@ export const DATI_FINTI: DatiSpese = {
       { nome: 'Bonifico', quota: 30 },
       { nome: 'Contanti', quota: 8 },
     ],
+    costiCamere: [
+      { nome: 'Generale', tot: 418.5 },
+      { nome: 'Ambra', tot: 98 },
+      { nome: 'Amelia', tot: 62 },
+      { nome: 'Lena', tot: 41.8 },
+      { nome: 'Allegra', tot: 22 },
+    ],
+    andamento: [512, 448, 605, 530, 587, 642.3],
   },
   movimenti: [
     {
@@ -72,7 +80,7 @@ export const DATI_FINTI: DatiSpese = {
     },
     {
       id: 'm5', titolo: 'Benzina', giorno: 'Mer 27', mese: 'Agosto',
-      importo: 60, categoria: 'Auto e trasporti', contesto: 'mia', persona: 'A + M',
+      importo: 60, categoria: 'Auto e trasporti', contesto: 'mia', persona: 'M e A',
       metodo: 'Contanti', stato: 'senza_documento',
     },
     {
@@ -92,7 +100,7 @@ export const DATI_FINTI: DatiSpese = {
     },
     {
       id: 'm9', titolo: 'Pranzo insieme', negozio: 'Trattoria del Ponte', giorno: 'Dom 24', mese: 'Agosto',
-      importo: 47, categoria: 'Mangiare fuori', contesto: 'mia', persona: 'A + M',
+      importo: 47, categoria: 'Mangiare fuori', contesto: 'mia', persona: 'M e A',
       metodo: 'Carta', stato: 'confermato',
     },
     {
@@ -102,14 +110,28 @@ export const DATI_FINTI: DatiSpese = {
     },
   ],
   documenti: [
-    { id: 'd1', titolo: 'Foto di oggi, 9:12', tipo: 'scontrino', stato: 'da_elaborare' },
-    { id: 'd2', titolo: 'Scontrino Esselunga', tipo: 'scontrino', stato: 'da_controllare', importo: 15.47, dubbi: 1, pagine: 1 },
-    { id: 'd3', titolo: 'Nota spese mercato', tipo: 'scontrino', stato: 'da_controllare', importo: 12.5, senzaFoto: true },
-    { id: 'd4', titolo: 'Fattura Lavanderia Girasole', tipo: 'fattura', stato: 'da_pagare', importo: 180, scade: '5 set' },
-    { id: 'd5', titolo: 'Fattura Elettricista Fumagalli', tipo: 'fattura', stato: 'da_pagare', importo: 300, scade: '12 set', pagine: 3 },
-    { id: 'd6', titolo: 'Fattura idraulico Bianchi', tipo: 'fattura', stato: 'pagata', importo: 220, giorno: 'lun 25' },
-    { id: 'd7', titolo: 'Scontrino Tessil Casa', tipo: 'scontrino', stato: 'confermato', importo: 74, giorno: 'ieri' },
-    { id: 'd8', titolo: 'Scontrino Esselunga del 21 ago', tipo: 'scontrino', stato: 'scartato', motivo: 'doppione: stessa foto caricata due volte' },
-    { id: 'd9', titolo: 'Foto sfocata del 21 ago', tipo: 'scontrino', stato: 'errore', motivo: 'non leggibile: rifare la foto' },
+    { id: 'd1', titolo: 'Foto di oggi, 9:12', tipo: 'scontrino', contesto: 'mia', stato: 'da_elaborare' },
+    { id: 'd2', titolo: 'Scontrino Esselunga', tipo: 'scontrino', contesto: 'misto', stato: 'da_controllare', importo: 15.47, dubbi: 1, pagine: 1 },
+    { id: 'd3', titolo: 'Nota spese mercato', tipo: 'scontrino', contesto: 'mia', stato: 'da_controllare', importo: 12.5, senzaFoto: true },
+    { id: 'd4', titolo: 'Fattura Lavanderia Girasole', tipo: 'fattura', contesto: 'ania', stato: 'da_pagare', importo: 180, scade: '5 set' },
+    { id: 'd5', titolo: 'Fattura Elettricista Fumagalli', tipo: 'fattura', contesto: 'ania', stato: 'da_pagare', importo: 300, scade: '12 set', pagine: 3 },
+    { id: 'd6', titolo: 'Fattura idraulico Bianchi', tipo: 'fattura', contesto: 'ania', stato: 'pagata', importo: 220, giorno: 'lun 25' },
+    { id: 'd7', titolo: 'Scontrino Tessil Casa', tipo: 'scontrino', contesto: 'ania', stato: 'confermato', importo: 74, giorno: 'ieri' },
+    { id: 'd8', titolo: 'Scontrino Esselunga del 21 ago', tipo: 'scontrino', contesto: 'mia', stato: 'scartato', motivo: 'doppione: stessa foto caricata due volte' },
+    { id: 'd9', titolo: 'Foto sfocata del 21 ago', tipo: 'scontrino', contesto: 'mia', stato: 'errore', motivo: 'non leggibile: rifare la foto' },
   ],
+  opzioni: {
+    mia: {
+      periodi: ['Agosto', 'Luglio', 'Anno'],
+      persone: ['Casa', 'Ania', 'Teo', 'M e A'],
+      categorie: ['Spesa alimentare', 'Mangiare fuori', 'Scuola e formazione', 'Casa e consumabili', 'Auto e trasporti', 'Abbigliamento'],
+      metodi: ['Contanti', 'Carta'],
+    },
+    ania: {
+      periodi: ['Agosto', 'Luglio', 'Anno'],
+      camere: ['Generale', 'Amelia', 'Allegra', 'Ambra', 'Lena'],
+      categorie: ['Spesa alimentare', 'Biancheria', 'Pulizia e detergenti', 'Casa e consumabili', 'Colazioni e bevande'],
+      metodi: ['Carta attività', 'Bonifico', 'Contanti', 'Carta'],
+    },
+  },
 }

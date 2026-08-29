@@ -66,6 +66,7 @@ export type DocumentoVista = {
   id: string
   titolo: string
   tipo: 'scontrino' | 'fattura'
+  contesto: Contesto | 'misto'   // il misto appare in ENTRAMBI gli ambiti, come un solo documento
   stato: StatoDocumento
   importo?: number
   giorno?: string
@@ -97,6 +98,19 @@ export type PanoramicaAniaVista = {
   scadenze: { fornitore: string; importo: number; scade: string; giorni: number }[]
   fattureDaControllare: number
   metodi: { nome: string; quota: number }[]
+  costiCamere: { nome: string; tot: number }[]   // per l'Analisi aziendale
+  andamento: number[]                            // spesa degli ultimi mesi, per il grafico
+}
+
+// Opzioni offerte dai filtri: arrivano dai DATI (l'adattatore le costruisce
+// dal database; nella preview stanno nei dati sintetici), mai liste rigide
+// scritte nei componenti.
+export type OpzioniFiltri = {
+  periodi: string[]        // es. ['Agosto', 'Luglio', 'Anno'] — il primo è il periodo iniziale
+  persone?: string[]       // SOLO Casa Mia (es. ['Casa', 'Ania', 'Teo', 'M e A'])
+  camere?: string[]        // SOLO Casa Ania (es. ['Generale', 'Amelia', 'Allegra', 'Ambra', 'Lena'])
+  categorie: string[]
+  metodi: string[]
 }
 
 export type DatiSpese = {
@@ -104,23 +118,53 @@ export type DatiSpese = {
   ania: PanoramicaAniaVista
   movimenti: MovimentoVista[]
   documenti: DocumentoVista[]
+  opzioni: { mia: OpzioniFiltri; ania: OpzioniFiltri }
 }
 
 // ---------------------------------------------------------------------------
-// Filtri — semplici, pensati per il telefono
+// Il CONTESTO è un confine reale: Casa Mia = personale + misti,
+// Casa Ania = azienda + misti. Un documento misto appare in entrambi,
+// sempre come UNA sola voce.
+// ---------------------------------------------------------------------------
+export function perContesto(movimenti: MovimentoVista[], contesto: Contesto): MovimentoVista[] {
+  const escluso = contesto === 'mia' ? 'ania' : 'mia'
+  return movimenti.filter(m => m.contesto !== escluso)
+}
+export function perContestoDocumenti(documenti: DocumentoVista[], contesto: Contesto): DocumentoVista[] {
+  const escluso = contesto === 'mia' ? 'ania' : 'mia'
+  return documenti.filter(d => d.contesto !== escluso)
+}
+
+// Importo principale di un movimento DENTRO un contesto: per il misto è la
+// quota di quel contesto (così l'elenco si può sommare senza falsare i
+// totali); per gli altri è l'importo del documento.
+export function importoNelContesto(m: MovimentoVista, contesto: Contesto): number {
+  if (m.contesto === 'misto') {
+    const quota = m.sorelle?.find(s => s.contesto === contesto)
+    if (quota) return quota.importo
+  }
+  return m.importo
+}
+
+// ---------------------------------------------------------------------------
+// Filtri — semplici, pensati per il telefono. Ogni contesto ha il SUO stato
+// dei filtri (il guscio ne tiene due): niente contaminazioni tra ambiti.
 // ---------------------------------------------------------------------------
 export type FiltriSpese = {
-  periodo: string          // 'Agosto' | 'Luglio' | 'Anno'
-  persona: string          // 'Tutti' | 'Casa' | 'Ania' | 'Teo' | 'A + M'
-  categoria: string        // 'Tutte' | nome categoria
-  ambito: string           // 'Tutti' | 'Casa Mia' | 'Casa Ania' | 'Misti'
-  metodo: string           // 'Tutti' | 'Contanti' | 'Carta' | 'Bonifico' | 'Carta attività'
+  periodo: string          // una voce di opzioni.periodi
+  persona: string          // 'Tutti' | voce di opzioni.persone — usato SOLO in Casa Mia
+  camera: string           // 'Tutte' | voce di opzioni.camere — usato SOLO in Casa Ania
+  categoria: string        // 'Tutte' | voce di opzioni.categorie
+  metodo: string           // 'Tutti' | voce di opzioni.metodi
   stato: string            // 'Tutti' | etichetta di STATI_FILTRO
+  soloMisti: boolean       // l'unica scelta d'ambito utile qui: il selettore in alto fa il resto
 }
 
-export const FILTRI_INIZIALI: FiltriSpese = {
-  periodo: 'Agosto', persona: 'Tutti', categoria: 'Tutte',
-  ambito: 'Tutti', metodo: 'Tutti', stato: 'Tutti',
+export function filtriIniziali(opzioni: OpzioniFiltri): FiltriSpese {
+  return {
+    periodo: opzioni.periodi[0] ?? 'Anno', persona: 'Tutti', camera: 'Tutte',
+    categoria: 'Tutte', metodo: 'Tutti', stato: 'Tutti', soloMisti: false,
+  }
 }
 
 // etichetta leggibile → stati di movimento corrispondenti
@@ -130,27 +174,33 @@ export const STATI_FILTRO: Record<string, StatoMovimento[]> = {
   'Confermati': ['confermato', 'pagata', 'senza_documento'],
 }
 
-// i filtri diversi dal valore iniziale, come coppie [chiave, valore]
-export function filtriAttivi(f: FiltriSpese): [keyof FiltriSpese, string][] {
-  return (Object.keys(FILTRI_INIZIALI) as (keyof FiltriSpese)[])
-    .filter(k => f[k] !== FILTRI_INIZIALI[k])
-    .map(k => [k, f[k]])
+// i filtri diversi dal valore iniziale, come coppie [chiave, etichetta]
+export function filtriAttivi(f: FiltriSpese, iniziali: FiltriSpese): [keyof FiltriSpese, string][] {
+  return (Object.keys(iniziali) as (keyof FiltriSpese)[])
+    .filter(k => f[k] !== iniziali[k])
+    .map(k => [k, k === 'soloMisti' ? 'Solo documenti misti' : String(f[k])])
 }
 
-export function applicaFiltri(movimenti: MovimentoVista[], f: FiltriSpese, cerca = ''): MovimentoVista[] {
+export function applicaFiltri(movimenti: MovimentoVista[], f: FiltriSpese, contesto: Contesto, cerca = ''): MovimentoVista[] {
   const testo = cerca.trim().toLowerCase()
-  return movimenti.filter(m => {
+  return perContesto(movimenti, contesto).filter(m => {
     if (f.periodo !== 'Anno' && m.mese !== f.periodo) return false
-    if (f.persona !== 'Tutti' && m.persona !== f.persona) return false
+    // "Di chi" ha senso solo in Casa Mia; "Camera" solo in Casa Ania
+    if (contesto === 'mia' && f.persona !== 'Tutti' && m.persona !== f.persona) return false
+    if (contesto === 'ania' && f.camera !== 'Tutte' && (m.camera ?? 'Generale') !== f.camera) return false
     if (f.categoria !== 'Tutte' && m.categoria !== f.categoria) return false
-    if (f.ambito === 'Casa Mia' && !(m.contesto === 'mia' || m.contesto === 'misto')) return false
-    if (f.ambito === 'Casa Ania' && !(m.contesto === 'ania' || m.contesto === 'misto')) return false
-    if (f.ambito === 'Misti' && m.contesto !== 'misto') return false
     if (f.metodo !== 'Tutti' && m.metodo !== f.metodo) return false
     if (f.stato !== 'Tutti' && !(STATI_FILTRO[f.stato] ?? []).includes(m.stato)) return false
+    if (f.soloMisti && m.contesto !== 'misto') return false
     if (testo && !`${m.titolo} ${m.negozio ?? ''} ${m.categoria}`.toLowerCase().includes(testo)) return false
     return true
   })
+}
+
+// "ad agosto", "a settembre": la d eufonica solo davanti a vocale
+export function nelMese(mese: string): string {
+  const minuscolo = mese.toLowerCase()
+  return (/^[aeiou]/.test(minuscolo) ? 'ad ' : 'a ') + minuscolo
 }
 
 // importi: interi senza decimali, altrimenti due decimali, stile "1.247,60 €".

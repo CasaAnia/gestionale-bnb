@@ -1,11 +1,41 @@
 'use client'
 // Mattoni condivisi del nuovo guscio spese (Fase 3.1) — direzione B.
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import {
   ShoppingBasket, UtensilsCrossed, Home, Shirt, Car, GraduationCap, Coffee,
   Sparkles, BedDouble, Receipt, Dumbbell,
 } from 'lucide-react'
 import { TEMA as t } from './tema'
+
+// Foglio dal basso accessibile: Escape chiude, il focus parte dal foglio,
+// la pagina sotto non scorre finché è aperto.
+export function Foglio({ aria, chiudi, children, scorrevole }: {
+  aria: string; chiudi: () => void; children: ReactNode; scorrevole?: boolean
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const prima = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    ref.current?.focus()
+    const suTasto = (e: KeyboardEvent) => { if (e.key === 'Escape') chiudi() }
+    document.addEventListener('keydown', suTasto)
+    return () => {
+      document.body.style.overflow = prima
+      document.removeEventListener('keydown', suTasto)
+    }
+  }, [chiudi])
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end" role="dialog" aria-modal="true" aria-label={aria}>
+      <button className="absolute inset-0" style={{ background: 'rgba(20,25,20,.45)' }} onClick={chiudi} aria-label="Chiudi" />
+      <div ref={ref} tabIndex={-1}
+        className={`relative px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+20px)] outline-none ${scorrevole ? 'max-h-[82%] overflow-y-auto' : ''}`}
+        style={{ background: t.fondo, borderRadius: `${t.r} ${t.r} 0 0` }}>
+        <div className="mx-auto w-10 h-1 rounded-full mb-4" style={{ background: t.bordo }} />
+        {children}
+      </div>
+    </div>
+  )
+}
 
 export const Card = ({ children, className = '', tinta }: { children: ReactNode; className?: string; tinta?: string }) => (
   <div className={className}
@@ -29,7 +59,7 @@ export const Chip = ({ attivo, children, tono = 'verde', onClick, aria }: {
   attivo?: boolean; children: ReactNode; tono?: 'verde' | 'neutro'; onClick?: () => void; aria?: string
 }) => (
   <button type="button" onClick={onClick} aria-label={aria} aria-pressed={attivo}
-    className="inline-flex items-center gap-1 min-h-9 px-3 text-[13px] font-semibold"
+    className="inline-flex items-center gap-1 min-h-11 px-3.5 text-[13px] font-semibold"
     style={attivo
       ? { background: tono === 'verde' ? t.verde : t.inchiostro, color: '#fff', borderRadius: t.rPill }
       : { background: t.carta, color: t.inchiostro, border: `1px solid ${t.bordo}`, borderRadius: t.rPill }}>

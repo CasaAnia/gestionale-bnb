@@ -5,7 +5,7 @@
 import { TriangleAlert, ChevronRight, Coffee, CalendarClock, FileText } from 'lucide-react'
 import { TEMA as t, DISPLAY } from './tema'
 import { Card, Etichetta, Barra, IconaCategoria, Pastiglia } from './mattoni'
-import { eurVista as eur, type PanoramicaMiaVista, type PanoramicaAniaVista, type MovimentoVista } from '@/lib/spese/vista'
+import { eurVista as eur, nelMese, perContesto, type PanoramicaMiaVista, type PanoramicaAniaVista, type MovimentoVista } from '@/lib/spese/vista'
 import { RigaMovimento } from './MovimentiTab'
 import { Vuoto } from './StatiDati'
 
@@ -14,12 +14,12 @@ export function PanoramicaMia({ dati, movimenti, apriDaControllare }: {
   movimenti: MovimentoVista[]
   apriDaControllare: () => void
 }) {
-  const recenti = movimenti.filter(m => m.contesto !== 'ania').slice(0, 4)
+  const recenti = perContesto(movimenti, 'mia').slice(0, 4)
   return (
     <div className="flex flex-col gap-3">
       <Card className="px-4 pt-4 pb-3">
         <div className="flex items-baseline justify-between">
-          <Etichetta>Speso ad {dati.mese.toLowerCase()}</Etichetta>
+          <Etichetta>Speso {nelMese(dati.mese)}</Etichetta>
           {dati.confrontoPct !== null && (
             <span className="text-[12px] font-bold px-2 py-0.5"
               style={{ background: t.verdeTenue, color: t.verde, borderRadius: t.rPill }}>
@@ -125,7 +125,7 @@ export function PanoramicaMia({ dati, movimenti, apriDaControllare }: {
         <Card className="px-4 py-3">
           <Etichetta>Ultime attività</Etichetta>
           {recenti.map((m, i, a) => (
-            <RigaMovimento key={m.id} m={m} ultimo={i === a.length - 1} />
+            <RigaMovimento key={m.id} m={m} contesto="mia" ultimo={i === a.length - 1} />
           ))}
         </Card>
       )}
@@ -137,13 +137,13 @@ export function PanoramicaAnia({ dati, movimenti }: {
   dati: PanoramicaAniaVista
   movimenti: MovimentoVista[]
 }) {
-  const recenti = movimenti.filter(m => m.contesto !== 'mia').slice(0, 4)
+  const recenti = perContesto(movimenti, 'ania').slice(0, 4)
   return (
     <div className="flex flex-col gap-3">
       <Card className="px-4 pt-4 pb-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Etichetta>Speso a {dati.mese.toLowerCase()}</Etichetta>
+            <Etichetta>Speso {nelMese(dati.mese)}</Etichetta>
             <p className={`${DISPLAY} text-[26px] leading-none`} style={{ color: t.inchiostro }}>{eur(dati.speso)}</p>
             <p className="text-[12px] mt-1" style={{ color: t.sub }}>denaro uscito davvero</p>
           </div>
@@ -211,7 +211,7 @@ export function PanoramicaAnia({ dati, movimenti }: {
         <Card className="px-4 py-3">
           <Etichetta>Ultimi movimenti</Etichetta>
           {recenti.map((m, i, a) => (
-            <RigaMovimento key={m.id} m={m} ultimo={i === a.length - 1} />
+            <RigaMovimento key={m.id} m={m} contesto="ania" ultimo={i === a.length - 1} />
           ))}
         </Card>
       )}

@@ -3,6 +3,7 @@
 // Stato pilotabile dall'URL per le verifiche:
 //   ?c=ania            → parte su Casa Ania
 //   ?t=movimenti       → parte su una sezione
+//   ?filtri=1          → apre il pannello dei filtri
 //   ?stato=caricamento → mostra lo scheletro di caricamento
 //   ?stato=errore      → mostra lo stato di errore
 //   ?stato=vuoto       → dati quasi vuoti (mese senza spese)
@@ -18,13 +19,17 @@ const QUASI_VUOTI: DatiSpese = {
   },
   ania: {
     mese: 'Settembre', speso: 0, impegnato: { tot: 0, n: 0 },
-    scadenze: [], fattureDaControllare: 0, metodi: [],
+    scadenze: [], fattureDaControllare: 0, metodi: [], costiCamere: [], andamento: [],
   },
   movimenti: [],
   documenti: [],
+  opzioni: {
+    mia: { periodi: ['Settembre', 'Anno'], persone: [], categorie: [], metodi: [] },
+    ania: { periodi: ['Settembre', 'Anno'], camere: [], categorie: [], metodi: [] },
+  },
 }
 
-function statoIniziale(): { c: Contesto; t: SezioneSpese; dati: StatoDati<DatiSpese> } {
+function statoIniziale(): { c: Contesto; t: SezioneSpese; filtri: boolean; dati: StatoDati<DatiSpese> } {
   const q = new URLSearchParams(window.location.search)
   const c: Contesto = q.get('c') === 'ania' ? 'ania' : 'mia'
   const t = (['panoramica', 'movimenti', 'documenti', 'analisi'].includes(q.get('t') || '')
@@ -33,11 +38,11 @@ function statoIniziale(): { c: Contesto; t: SezioneSpese; dati: StatoDati<DatiSp
     q.get('stato') === 'caricamento' ? { stato: 'caricamento' }
       : q.get('stato') === 'errore' ? { stato: 'errore', messaggio: 'Il telefono era senza rete mentre chiedevo i movimenti.' }
         : { stato: 'pronto', dati: q.get('stato') === 'vuoto' ? QUASI_VUOTI : DATI_FINTI }
-  return { c, t, dati }
+  return { c, t, filtri: q.get('filtri') === '1', dati }
 }
 
 export default function Prova() {
-  const [{ c, t, dati }] = useState(statoIniziale)
+  const [{ c, t, filtri, dati }] = useState(statoIniziale)
   const [scelta, setScelta] = useState<string | null>(null)
   return (
     <>
@@ -46,7 +51,7 @@ export default function Prova() {
         style={{ background: '#141E19', color: '#F6F6F3' }}>
         PROVA · guscio reale (Fase 3.1) · dati finti · direzione B
       </div>
-      <SpeseShell dati={dati} contestoIniziale={c} sezioneIniziale={t}
+      <SpeseShell dati={dati} contestoIniziale={c} sezioneIniziale={t} filtriApertiIniziale={filtri}
         riprova={() => window.location.reload()}
         aggiungi={v => setScelta(v)}
         notaAggiungi="in questa prova non si registra nulla: l'inserimento vero arriva con le fasi 4-5" />
