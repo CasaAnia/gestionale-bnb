@@ -1,16 +1,18 @@
 // ============================================================================
-// VISTA SPESE (Fase 3.1) — il contratto dati del nuovo guscio.
+// VISTA SPESE (Fase 3.1 → 3.2A) — il contratto dati del nuovo guscio.
 //
 // Il guscio (components/spese/SpeseShell) NON parla con Supabase: riceve
-// questi tipi già pronti. Nella preview /nuove-spese arrivano dati sintetici;
-// quando le pagine vere adotteranno il guscio, un adattatore costruirà le
-// stesse strutture dai dati reali. Regola chiave: in "Movimenti" UNA voce =
-// UN documento (lo scontrino misto è un movimento solo, con le spese
-// sorelle dentro), mai una riga per spesa.
+// questi tipi già pronti. Li costruisce l'adattatore (lib/spese/adattatore.ts)
+// dai dati reali, oppure i dati sintetici nella preview. Regole chiave:
+//  · in "Movimenti" UNA voce = UN documento (lo scontrino misto è un
+//    movimento solo, con le spese sorelle dentro), mai una riga per spesa;
+//  · un documento può toccare PIÙ categorie, persone e camere: la vista
+//    porta gli INSIEMI veri (per i filtri) e una categoria principale solo
+//    per titolo e icona;
+//  · date ISO e periodi con identificatore stabile (agosto 2025 ≠ 2026).
 // ============================================================================
 
-// Stato generico dei dati che il guscio sa disegnare: mentre arrivano,
-// se qualcosa va storto, o pronti.
+// Stato generico dei dati che il guscio sa disegnare.
 export type StatoDati<T> =
   | { stato: 'caricamento' }
   | { stato: 'errore'; messaggio: string }
@@ -29,29 +31,42 @@ export type StatoMovimento =
   | 'pagata'
   | 'scartato'
 
+// Ogni riga porta ciò che serve per capirla e filtrarla: ambito, categoria,
+// sottocategoria, persona/gruppo e camera. La divisione riga per riga dello
+// scontrino non si perde mai.
 export type RigaMovimentoVista = {
   nome: string
   importo: number
-  contesto: Contesto
-  dubbio?: string       // es. "importo poco leggibile"
+  contesto: Contesto            // ambito della riga
+  categoria?: string
+  sottocategoria?: string
+  persona?: string              // etichetta del gruppo (Casa, Ania, Teo, M e A)
+  camera?: string               // solo righe aziendali; assente = Generale
+  dubbio?: string               // es. "importo poco leggibile"
 }
 
 export type MovimentoVista = {
   id: string
   titolo: string
   negozio?: string
-  giorno: string        // etichetta leggibile: "Oggi", "Mar 26"
-  mese: string          // "Agosto", "Luglio" — per il filtro periodo
+  data: string          // ISO YYYY-MM-DD (per periodi e ordinamenti)
+  giorno: string        // etichetta leggibile: "Oggi", "26 ago"
   importo: number       // totale del documento
-  categoria: string     // categoria prevalente, per icona e filtro
+  categoria: string     // categoria PRINCIPALE, solo per icona e titolo
   contesto: Contesto | 'misto'
-  persona: string       // "Casa", "Ania", "Teo", "A + M"
-  metodo?: string       // "Contanti", "Carta", "Bonifico", "Carta attività"
-  camera?: string       // solo Casa Ania
+  persona: string       // etichetta principale, per la riga
+  metodo?: string       // etichetta di pagamento principale, per la riga
   stato: StatoMovimento
+  // insiemi REALI ricavati da spese e righe: i filtri trovano il documento
+  // se ALMENO UNA riga/spesa corrisponde
+  categorie: string[]
+  sottocategorie: string[]
+  persone: string[]     // solo dai gruppi personali
+  camere: string[]      // solo dalle spese aziendali; 'Generale' = senza camera
+  metodi: string[]
   sorelle?: { contesto: Contesto; importo: number }[]  // scontrino misto
   righe?: RigaMovimentoVista[]                          // dettaglio espandibile
-  dubbio?: string       // avviso a livello di documento
+  dubbio?: string
   senzaFoto?: boolean
 }
 
@@ -102,11 +117,24 @@ export type PanoramicaAniaVista = {
   andamento: number[]                            // spesa degli ultimi mesi, per il grafico
 }
 
+// ---------------------------------------------------------------------------
+// Periodi — identificatore STABILE separato dall'etichetta leggibile.
+// Mese, Anno, Settimana e Dal–al come nel gestionale attuale.
+// (L'anno scolastico resta per la fase dedicata.)
+// ---------------------------------------------------------------------------
+export type PeriodoVista = {
+  id: string            // stabile: '2026-08', '2026', '2026-s35', 'intervallo'
+  etichetta: string     // leggibile: 'Agosto 2026', 'Anno 2026', 'Questa settimana', 'Dal–al…'
+  tipo: 'mese' | 'anno' | 'settimana' | 'intervallo'
+  dal: string           // ISO, incluso ('' per l'intervallo da compilare)
+  al: string            // ISO, incluso
+}
+
 // Opzioni offerte dai filtri: arrivano dai DATI (l'adattatore le costruisce
 // dal database; nella preview stanno nei dati sintetici), mai liste rigide
 // scritte nei componenti.
 export type OpzioniFiltri = {
-  periodi: string[]        // es. ['Agosto', 'Luglio', 'Anno'] — il primo è il periodo iniziale
+  periodi: PeriodoVista[]  // il primo è il periodo iniziale
   persone?: string[]       // SOLO Casa Mia (es. ['Casa', 'Ania', 'Teo', 'M e A'])
   camere?: string[]        // SOLO Casa Ania (es. ['Generale', 'Amelia', 'Allegra', 'Ambra', 'Lena'])
   categorie: string[]
@@ -146,12 +174,32 @@ export function importoNelContesto(m: MovimentoVista, contesto: Contesto): numbe
   return m.importo
 }
 
+// Controllo dello scontrino misto: quote per ambito presenti e somma quote
+// = totale documento, al centesimo. Ritorna l'elenco dei problemi (vuoto=ok).
+export function controllaMisto(m: MovimentoVista): string[] {
+  const problemi: string[] = []
+  if (m.contesto !== 'misto') return problemi
+  if (!m.sorelle || m.sorelle.length < 2) { problemi.push('misto senza quote per ambito'); return problemi }
+  const cent = (n: number) => Math.round(n * 100)
+  const somma = m.sorelle.reduce((s, q) => s + cent(q.importo), 0)
+  if (somma !== cent(m.importo)) problemi.push(`somma quote ${somma} ≠ totale ${cent(m.importo)} (centesimi)`)
+  const ambiti = m.sorelle.map(q => q.contesto)
+  if (new Set(ambiti).size !== ambiti.length) problemi.push('quote duplicate per lo stesso ambito')
+  if (m.righe) {
+    const daRighe = m.righe.reduce((s, r) => s + cent(r.importo), 0)
+    if (daRighe !== cent(m.importo)) problemi.push(`somma righe ${daRighe} ≠ totale ${cent(m.importo)} (centesimi)`)
+  }
+  return problemi
+}
+
 // ---------------------------------------------------------------------------
 // Filtri — semplici, pensati per il telefono. Ogni contesto ha il SUO stato
 // dei filtri (il guscio ne tiene due): niente contaminazioni tra ambiti.
 // ---------------------------------------------------------------------------
 export type FiltriSpese = {
-  periodo: string          // una voce di opzioni.periodi
+  periodo: string          // id di un PeriodoVista tra opzioni.periodi
+  dal: string              // solo per il periodo 'intervallo' (ISO, '' = aperto)
+  al: string               // idem
   persona: string          // 'Tutti' | voce di opzioni.persone — usato SOLO in Casa Mia
   camera: string           // 'Tutte' | voce di opzioni.camere — usato SOLO in Casa Ania
   categoria: string        // 'Tutte' | voce di opzioni.categorie
@@ -162,8 +210,9 @@ export type FiltriSpese = {
 
 export function filtriIniziali(opzioni: OpzioniFiltri): FiltriSpese {
   return {
-    periodo: opzioni.periodi[0] ?? 'Anno', persona: 'Tutti', camera: 'Tutte',
-    categoria: 'Tutte', metodo: 'Tutti', stato: 'Tutti', soloMisti: false,
+    periodo: opzioni.periodi[0]?.id ?? 'intervallo', dal: '', al: '',
+    persona: 'Tutti', camera: 'Tutte', categoria: 'Tutte', metodo: 'Tutti',
+    stato: 'Tutti', soloMisti: false,
   }
 }
 
@@ -174,25 +223,40 @@ export const STATI_FILTRO: Record<string, StatoMovimento[]> = {
   'Confermati': ['confermato', 'pagata', 'senza_documento'],
 }
 
-// i filtri diversi dal valore iniziale, come coppie [chiave, etichetta]
-export function filtriAttivi(f: FiltriSpese, iniziali: FiltriSpese): [keyof FiltriSpese, string][] {
-  return (Object.keys(iniziali) as (keyof FiltriSpese)[])
-    .filter(k => f[k] !== iniziali[k])
-    .map(k => [k, k === 'soloMisti' ? 'Solo documenti misti' : String(f[k])])
+// l'intervallo di date del periodo scelto (ISO inclusivi; '' = senza limite)
+export function intervalloDelPeriodo(f: FiltriSpese, periodi: PeriodoVista[]): { dal: string; al: string } {
+  const p = periodi.find(x => x.id === f.periodo)
+  if (!p) return { dal: '', al: '' }
+  if (p.tipo === 'intervallo') return { dal: f.dal, al: f.al }
+  return { dal: p.dal, al: p.al }
 }
 
-export function applicaFiltri(movimenti: MovimentoVista[], f: FiltriSpese, contesto: Contesto, cerca = ''): MovimentoVista[] {
+// i filtri diversi dal valore iniziale, come coppie [chiave, etichetta]
+export function filtriAttivi(f: FiltriSpese, iniziali: FiltriSpese, periodi: PeriodoVista[] = []): [keyof FiltriSpese, string][] {
+  return (Object.keys(iniziali) as (keyof FiltriSpese)[])
+    .filter(k => k !== 'dal' && k !== 'al' && f[k] !== iniziali[k])
+    .map(k => [k,
+      k === 'soloMisti' ? 'Solo documenti misti'
+        : k === 'periodo' ? (periodi.find(p => p.id === f.periodo)?.etichetta ?? String(f[k]))
+          : String(f[k]),
+    ])
+}
+
+export function applicaFiltri(movimenti: MovimentoVista[], f: FiltriSpese, contesto: Contesto, periodi: PeriodoVista[], cerca = ''): MovimentoVista[] {
   const testo = cerca.trim().toLowerCase()
+  const { dal, al } = intervalloDelPeriodo(f, periodi)
   return perContesto(movimenti, contesto).filter(m => {
-    if (f.periodo !== 'Anno' && m.mese !== f.periodo) return false
-    // "Di chi" ha senso solo in Casa Mia; "Camera" solo in Casa Ania
-    if (contesto === 'mia' && f.persona !== 'Tutti' && m.persona !== f.persona) return false
-    if (contesto === 'ania' && f.camera !== 'Tutte' && (m.camera ?? 'Generale') !== f.camera) return false
-    if (f.categoria !== 'Tutte' && m.categoria !== f.categoria) return false
-    if (f.metodo !== 'Tutti' && m.metodo !== f.metodo) return false
+    if (dal && m.data < dal) return false
+    if (al && m.data > al) return false
+    // insiemi: il documento passa se ALMENO UNA riga/spesa corrisponde.
+    // "Di chi" ha senso solo in Casa Mia; "Camera" solo in Casa Ania.
+    if (contesto === 'mia' && f.persona !== 'Tutti' && !m.persone.includes(f.persona)) return false
+    if (contesto === 'ania' && f.camera !== 'Tutte' && !m.camere.includes(f.camera)) return false
+    if (f.categoria !== 'Tutte' && !m.categorie.includes(f.categoria)) return false
+    if (f.metodo !== 'Tutti' && !m.metodi.includes(f.metodo)) return false
     if (f.stato !== 'Tutti' && !(STATI_FILTRO[f.stato] ?? []).includes(m.stato)) return false
     if (f.soloMisti && m.contesto !== 'misto') return false
-    if (testo && !`${m.titolo} ${m.negozio ?? ''} ${m.categoria}`.toLowerCase().includes(testo)) return false
+    if (testo && !`${m.titolo} ${m.negozio ?? ''} ${m.categorie.join(' ')}`.toLowerCase().includes(testo)) return false
     return true
   })
 }

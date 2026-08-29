@@ -761,6 +761,22 @@ se la precedente non è verificata E approvata.
   stati filtro separati, filtro ambito sostituito da "Solo documenti
   misti"); tocchi ≥44px misurati; "Speso ad agosto" corretto (nelMese);
   fogli dal basso con Escape+focus+blocco scorrimento. 114/114 test.
+  **3.2A FATTA (29/08/2026)**: contratto vista con INSIEMI reali
+  (categorie/sottocategorie/persone/camere/metodi; un filtro trova il
+  documento se almeno una riga corrisponde), righe con ambito/categoria/
+  persona/camera, più camere per documento + "Generale", periodi ISO con
+  id stabile (mese/anno/settimana/dal–al; agosto 2025 ≠ 2026),
+  controllaMisto. `lib/spese/adattatore.ts` puro (schema 0020 →
+  DatiSpese, sola lettura) + 11 test dedicati; dati finti della preview
+  generati dallo STESSO adattatore. Route `/nuove-spese-reali`: dev-only
+  E login vero (bypass proxy ristretto alla sola pagina sintetica),
+  client anon+sessione, SOLO SELECT. Prova reale: 87 movimenti (81 doc +
+  6 manuali), 12 misti quadrati al centesimo, totali identici al
+  gestionale (462175/16910 cent), camere = rooms attive. Correzioni
+  visive: fondo lista libero dal +, terracotta in Casa Ania, piede fisso
+  nel pannello filtri. 125/125 test. VINCOLO per la sostituzione (3.2B+):
+  Calendario, Racconto, Domanda, caricamento foto e inserimento manuale
+  vanno trasferiti davvero, mai ridotti a scritte "in arrivo".
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

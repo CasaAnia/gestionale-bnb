@@ -1,10 +1,11 @@
 'use client'
-// Movimenti del nuovo guscio (3.1, corretto in 3.1.1): UNA voce per
-// documento, dentro il CONTESTO scelto in alto (Casa Mia = personali +
-// misti, Casa Ania = aziendali + misti). Per il misto l'importo principale
-// è la QUOTA dell'ambito corrente (così l'elenco si somma senza falsare i
-// totali) e il totale del documento resta visibile; il dettaglio mostra
-// tutte le righe separate per ambito.
+// Movimenti del nuovo guscio (3.1 → 3.2A): UNA voce per documento, dentro il
+// CONTESTO scelto in alto. Per il misto l'importo principale è la QUOTA
+// dell'ambito corrente (l'elenco si somma senza falsare i totali) e il totale
+// del documento resta visibile; il dettaglio mostra tutte le righe separate
+// per ambito. I filtri lavorano sugli INSIEMI (categorie, persone, camere,
+// metodi) e sui periodi con id stabile. Accento: verde Casa Mia, terracotta
+// Casa Ania.
 import { useState } from 'react'
 import { Search, SlidersHorizontal, X, BedDouble, Camera, TriangleAlert, CalendarClock, Layers } from 'lucide-react'
 import { TEMA as t, DISPLAY } from './tema'
@@ -12,7 +13,7 @@ import { Card, Chip, IconaCategoria, Pastiglia } from './mattoni'
 import { Vuoto } from './StatiDati'
 import {
   eurVista as eur, applicaFiltri, filtriAttivi, importoNelContesto,
-  type Contesto, type FiltriSpese, type MovimentoVista,
+  type Contesto, type FiltriSpese, type MovimentoVista, type OpzioniFiltri,
 } from '@/lib/spese/vista'
 
 function PastiglieStato({ m, contesto }: { m: MovimentoVista; contesto: Contesto }) {
@@ -21,7 +22,7 @@ function PastiglieStato({ m, contesto }: { m: MovimentoVista; contesto: Contesto
       {m.stato === 'da_controllare' && <Pastiglia testo="da controllare" tono="giallo" />}
       {m.stato === 'da_pagare' && <Pastiglia icona={CalendarClock} testo="da pagare" tono="terra" />}
       {m.dubbio && <Pastiglia icona={TriangleAlert} testo={m.dubbio} tono="giallo" />}
-      {m.senzaFoto && <Pastiglia icona={Camera} testo="senza foto" />}
+      {m.senzaFoto && m.stato !== 'senza_documento' && <Pastiglia icona={Camera} testo="senza foto" />}
       {m.contesto === 'misto' && (
         <>
           <Pastiglia tono={contesto === 'ania' ? 'verde' : 'terra'}
@@ -29,7 +30,9 @@ function PastiglieStato({ m, contesto }: { m: MovimentoVista; contesto: Contesto
           <Pastiglia icona={Layers} testo={`totale documento ${eur(m.importo)}`} />
         </>
       )}
-      {contesto === 'ania' && m.camera && <Pastiglia icona={BedDouble} testo={m.camera} tono="verde" />}
+      {contesto === 'ania' && m.camere.filter(c => c !== 'Generale').map(c => (
+        <Pastiglia key={c} icona={BedDouble} testo={c} tono="verde" />
+      ))}
     </span>
   )
 }
@@ -50,12 +53,14 @@ function DettaglioRighe({ m }: { m: MovimentoVista }) {
               {g.nome} · {eur(g.righe.reduce((s, r) => s + r.importo, 0))}
             </p>
           )}
-          {g.righe.map(r => (
-            <div key={r.nome} className="flex items-center gap-2 min-h-8 text-[13px]">
+          {g.righe.map((r, i) => (
+            <div key={`${r.nome}-${i}`} className="flex items-center gap-2 min-h-8 text-[13px]">
               <span className="w-1.5 h-1.5 rounded-full shrink-0"
                 style={{ background: r.contesto === 'ania' ? t.terracotta : t.salvia }} />
               <span className="flex-1 truncate" style={{ color: t.inchiostro }}>
                 {r.nome}
+                {r.persona && r.persona !== 'Casa' && <span className="ml-1" style={{ color: t.sub }}>· {r.persona}</span>}
+                {r.camera && r.camera !== 'Generale' && <span className="ml-1" style={{ color: t.sub }}>· {r.camera}</span>}
                 {r.dubbio && <span className="ml-1.5 align-middle"><Pastiglia icona={TriangleAlert} testo={r.dubbio} tono="giallo" /></span>}
               </span>
               <span className="tabular-nums" style={{ color: t.sub }}>{eur(r.importo)}</span>
@@ -105,13 +110,14 @@ export function RigaMovimento({ m, contesto, ultimo, apri, aperto }: {
 }
 
 const NOMI_FILTRO: Record<keyof FiltriSpese, string> = {
-  periodo: 'Periodo', persona: 'Di chi', camera: 'Camera', categoria: 'Categoria',
-  metodo: 'Pagamento', stato: 'Stato', soloMisti: 'Documenti misti',
+  periodo: 'Periodo', dal: 'Dal', al: 'Al', persona: 'Di chi', camera: 'Camera',
+  categoria: 'Categoria', metodo: 'Pagamento', stato: 'Stato', soloMisti: 'Documenti misti',
 }
 
-export function MovimentiTab({ movimenti, contesto, filtri, iniziali, setFiltri, apriFiltri }: {
+export function MovimentiTab({ movimenti, contesto, opzioni, filtri, iniziali, setFiltri, apriFiltri }: {
   movimenti: MovimentoVista[]
   contesto: Contesto
+  opzioni: OpzioniFiltri
   filtri: FiltriSpese
   iniziali: FiltriSpese
   setFiltri: (f: FiltriSpese) => void
@@ -119,8 +125,11 @@ export function MovimentiTab({ movimenti, contesto, filtri, iniziali, setFiltri,
 }) {
   const [cerca, setCerca] = useState('')
   const [aperto, setAperto] = useState<string | null>(null)
-  const visibili = applicaFiltri(movimenti, filtri, contesto, cerca)
-  const attivi = filtriAttivi(filtri, iniziali)
+  const accento = contesto === 'ania' ? t.terracotta : t.verde
+  const visibili = applicaFiltri(movimenti, filtri, contesto, opzioni.periodi, cerca)
+  const attivi = filtriAttivi(filtri, iniziali, opzioni.periodi)
+  const etichettaPeriodo = attivi.find(([k]) => k === 'periodo')?.[1]
+    ?? opzioni.periodi.find(p => p.id === filtri.periodo)?.etichetta ?? filtri.periodo
 
   return (
     <div className="flex flex-col gap-3">
@@ -141,19 +150,19 @@ export function MovimentiTab({ movimenti, contesto, filtri, iniziali, setFiltri,
         </label>
         <button onClick={apriFiltri} aria-label="Apri i filtri"
           className="grid place-items-center w-11 h-11 shrink-0 relative"
-          style={{ background: t.verde, color: '#fff', borderRadius: t.rPill }}>
+          style={{ background: accento, color: '#fff', borderRadius: t.rPill }}>
           <SlidersHorizontal size={17} />
           {attivi.length > 0 && (
             <span className="absolute -top-1 -right-1 grid place-items-center min-w-[18px] min-h-[18px] text-[10px] font-bold"
-              style={{ background: t.terracotta, color: '#fff', borderRadius: 99 }}>{attivi.length}</span>
+              style={{ background: t.inchiostro, color: '#fff', borderRadius: 99 }}>{attivi.length}</span>
           )}
         </button>
       </div>
 
       {/* solo i filtri ATTIVI, come pastiglie rimovibili */}
       <div className="flex gap-1.5 flex-wrap">
-        <Chip attivo aria={`Periodo: ${filtri.periodo}. Apri i filtri per cambiarlo`}
-          onClick={apriFiltri}>{filtri.periodo}</Chip>
+        <Chip attivo colore={accento} aria={`Periodo: ${etichettaPeriodo}. Apri i filtri per cambiarlo`}
+          onClick={apriFiltri}>{etichettaPeriodo}</Chip>
         {attivi.filter(([k]) => k !== 'periodo').map(([k, v]) => (
           <Chip key={k} attivo tono="neutro" aria={`Togli il filtro ${NOMI_FILTRO[k]}: ${v}`}
             onClick={() => setFiltri({ ...filtri, [k]: iniziali[k] })}>

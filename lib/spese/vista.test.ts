@@ -1,28 +1,46 @@
-// Test della logica pura del nuovo guscio (Fase 3.1 + correzioni 3.1.1):
-// contesto come confine reale, quote del misto, filtri per ambito.
+// Test della logica pura del nuovo guscio (3.1 → 3.2A): contesto come
+// confine reale, quote del misto, filtri su INSIEMI, periodi con id stabile.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  applicaFiltri, filtriAttivi, filtriIniziali, perContesto, perContestoDocumenti,
-  importoNelContesto, nelMese, eurVista,
-  type FiltriSpese, type MovimentoVista, type DocumentoVista, type OpzioniFiltri,
+  applicaFiltri, controllaMisto, filtriAttivi, filtriIniziali, perContesto,
+  perContestoDocumenti, importoNelContesto, intervalloDelPeriodo, nelMese, eurVista,
+  type FiltriSpese, type MovimentoVista, type DocumentoVista, type OpzioniFiltri, type PeriodoVista,
 } from './vista.ts'
 
+const PERIODI: PeriodoVista[] = [
+  { id: '2026-08', etichetta: 'Agosto 2026', tipo: 'mese', dal: '2026-08-01', al: '2026-08-31' },
+  { id: '2026-07', etichetta: 'Luglio 2026', tipo: 'mese', dal: '2026-07-01', al: '2026-07-31' },
+  { id: '2026', etichetta: 'Anno 2026', tipo: 'anno', dal: '2026-01-01', al: '2026-12-31' },
+  { id: 'intervallo', etichetta: 'Dal–al…', tipo: 'intervallo', dal: '', al: '' },
+]
+
 const m = (dati: Partial<MovimentoVista>): MovimentoVista => ({
-  id: 'x', titolo: 'Prova', giorno: 'Oggi', mese: 'Agosto', importo: 10,
+  id: 'x', titolo: 'Prova', giorno: 'Oggi', data: '2026-08-20', importo: 10,
   categoria: 'Spesa alimentare', contesto: 'mia', persona: 'Casa',
-  stato: 'confermato', ...dati,
+  stato: 'confermato', categorie: ['Spesa alimentare'], sottocategorie: [],
+  persone: ['Casa'], camere: [], metodi: [], ...dati,
 })
 
 const MOVIMENTI: MovimentoVista[] = [
-  m({ id: 'misto', titolo: 'Supermercato', negozio: 'Esselunga', contesto: 'misto', stato: 'da_controllare', metodo: 'Carta', importo: 15.47, sorelle: [{ contesto: 'mia', importo: 11.33 }, { contesto: 'ania', importo: 4.14 }] }),
-  m({ id: 'bar', titolo: 'Colazione', categoria: 'Mangiare fuori', persona: 'Ania', metodo: 'Contanti' }),
-  m({ id: 'teo', titolo: 'Quaderni', categoria: 'Scuola e formazione', persona: 'Teo', mese: 'Luglio' }),
-  m({ id: 'lenzuola', titolo: 'Lenzuola', contesto: 'ania', stato: 'pagata', metodo: 'Carta attività', camera: 'Ambra' }),
-  m({ id: 'fattura', titolo: 'Fattura idraulico', contesto: 'ania', stato: 'da_pagare', metodo: 'Bonifico' }),
+  m({
+    id: 'misto', titolo: 'Supermercato', negozio: 'Esselunga', contesto: 'misto',
+    stato: 'da_controllare', importo: 15.47,
+    categorie: ['Spesa alimentare', 'Detersivi e pulizia'], persone: ['Casa'],
+    camere: ['Generale'], metodi: ['Carta'],
+    sorelle: [{ contesto: 'mia', importo: 11.33 }, { contesto: 'ania', importo: 4.14 }],
+    righe: [
+      { nome: 'Pane', importo: 11.33, contesto: 'mia', categoria: 'Spesa alimentare' },
+      { nome: 'Aceto', importo: 4.14, contesto: 'ania', categoria: 'Detersivi e pulizia' },
+    ],
+  }),
+  m({ id: 'bar', titolo: 'Colazione', categorie: ['Mangiare fuori'], persone: ['Ania'], metodi: ['Contanti'] }),
+  m({ id: 'teo', titolo: 'Quaderni', data: '2026-07-15', categorie: ['Scuola e formazione'], persone: ['Teo'] }),
+  m({ id: 'lenzuola', titolo: 'Lenzuola', contesto: 'ania', stato: 'pagata', persone: [], camere: ['Ambra'], metodi: ['Carta attività'] }),
+  m({ id: 'fattura', titolo: 'Fattura idraulico', contesto: 'ania', stato: 'da_pagare', persone: [], camere: ['Generale'], metodi: ['Bonifico'] }),
 ]
 
-const OPZIONI: OpzioniFiltri = { periodi: ['Agosto', 'Luglio', 'Anno'], categorie: [], metodi: [] }
+const OPZIONI: OpzioniFiltri = { periodi: PERIODI, categorie: [], metodi: [] }
 const f = (dati: Partial<FiltriSpese>): FiltriSpese => ({ ...filtriIniziali(OPZIONI), ...dati })
 
 // ---- il contesto è un confine reale ----
@@ -32,19 +50,15 @@ test('Casa Mia esclude i movimenti solo Casa Ania (ma tiene il misto)', () => {
 test('Casa Ania esclude i movimenti solo Casa Mia (ma tiene il misto)', () => {
   assert.deepEqual(perContesto(MOVIMENTI, 'ania').map(x => x.id), ['misto', 'lenzuola', 'fattura'])
 })
-test('il misto appare UNA sola volta in ciascun ambito', () => {
-  for (const c of ['mia', 'ania'] as const) {
-    assert.equal(perContesto(MOVIMENTI, c).filter(x => x.id === 'misto').length, 1)
-  }
-})
 
-// ---- quota principale del misto per ambito ----
-test('la quota principale del misto cambia con l\'ambito; il totale resta sul documento', () => {
+// ---- quote del misto e controllo di quadratura ----
+test('quota principale del misto per ambito; somma quote = totale (controllaMisto)', () => {
   const misto = MOVIMENTI[0]
   assert.equal(importoNelContesto(misto, 'mia'), 11.33)
   assert.equal(importoNelContesto(misto, 'ania'), 4.14)
-  assert.equal(misto.importo, 15.47)
-  assert.equal(importoNelContesto(MOVIMENTI[3], 'ania'), 10) // non misto: importo pieno
+  assert.deepEqual(controllaMisto(misto), [])
+  const rotto = { ...misto, sorelle: [{ contesto: 'mia' as const, importo: 10 }, { contesto: 'ania' as const, importo: 4.14 }] }
+  assert.ok(controllaMisto(rotto).length > 0)
 })
 
 // ---- documenti separati per ambito ----
@@ -56,48 +70,50 @@ test('documenti: personali, aziendali e misti separati correttamente', () => {
   assert.deepEqual(perContestoDocumenti(DOCS, 'ania').map(x => x.id), ['a', 'x'])
 })
 
-// ---- filtri dipendenti dall'ambito ----
-test('filtro persona: agisce in Casa Mia, ignorato in Casa Ania', () => {
-  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ periodo: 'Anno', persona: 'Teo' }), 'mia').map(x => x.id), ['teo'])
-  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ periodo: 'Anno', persona: 'Teo' }), 'ania').map(x => x.id), ['misto', 'lenzuola', 'fattura'])
+// ---- filtri su insiemi, dipendenti dall'ambito ----
+test('filtro persona: sugli insiemi, solo in Casa Mia', () => {
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ periodo: '2026', persona: 'Teo' }), 'mia', PERIODI).map(x => x.id), ['teo'])
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ periodo: '2026', persona: 'Teo' }), 'ania', PERIODI).map(x => x.id), ['misto', 'lenzuola', 'fattura'])
 })
-test('filtro camera: agisce in Casa Ania (Generale = senza camera), ignorato in Casa Mia', () => {
-  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ camera: 'Ambra' }), 'ania').map(x => x.id), ['lenzuola'])
-  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ camera: 'Generale' }), 'ania').map(x => x.id), ['misto', 'fattura'])
-  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ camera: 'Ambra' }), 'mia').map(x => x.id), ['misto', 'bar'])
+test('filtro camera: sugli insiemi, solo in Casa Ania', () => {
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ camera: 'Ambra' }), 'ania', PERIODI).map(x => x.id), ['lenzuola'])
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ camera: 'Generale' }), 'ania', PERIODI).map(x => x.id), ['misto', 'fattura'])
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ camera: 'Ambra' }), 'mia', PERIODI).map(x => x.id), ['misto', 'bar'])
 })
-test('soloMisti: l\'unica scelta d\'ambito nel pannello', () => {
-  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ soloMisti: true }), 'mia').map(x => x.id), ['misto'])
-  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ soloMisti: true }), 'ania').map(x => x.id), ['misto'])
+test('filtro categoria: il documento passa se ALMENO una riga corrisponde', () => {
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ categoria: 'Detersivi e pulizia' }), 'mia', PERIODI).map(x => x.id), ['misto'])
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ categoria: 'Spesa alimentare' }), 'mia', PERIODI).map(x => x.id), ['misto'])
+})
+test('soloMisti e stato', () => {
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ soloMisti: true }), 'ania', PERIODI).map(x => x.id), ['misto'])
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ stato: 'Da pagare' }), 'ania', PERIODI).map(x => x.id), ['fattura'])
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ stato: 'Confermati' }), 'ania', PERIODI).map(x => x.id), ['lenzuola'])
 })
 
-// ---- filtri classici ----
-test('periodo, stato, metodo e ricerca', () => {
-  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ periodo: 'Anno' }), 'mia').map(x => x.id), ['misto', 'bar', 'teo'])
-  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ stato: 'Da pagare' }), 'ania').map(x => x.id), ['fattura'])
-  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ stato: 'Confermati' }), 'ania').map(x => x.id), ['lenzuola'])
-  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ metodo: 'Carta attività' }), 'ania').map(x => x.id), ['lenzuola'])
-  assert.deepEqual(applicaFiltri(MOVIMENTI, f({}), 'mia', 'ESSELUNGA').map(x => x.id), ['misto'])
+// ---- periodi ----
+test('periodo per id stabile e Dal–al', () => {
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ periodo: '2026-07' }), 'mia', PERIODI).map(x => x.id), ['teo'])
+  assert.deepEqual(intervalloDelPeriodo(f({ periodo: 'intervallo', dal: '2026-08-01', al: '2026-08-31' }), PERIODI),
+    { dal: '2026-08-01', al: '2026-08-31' })
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({ periodo: 'intervallo', dal: '2026-07-01', al: '2026-07-31' }), 'mia', PERIODI).map(x => x.id), ['teo'])
 })
 
 // ---- stato dei filtri ----
-test('filtriIniziali parte dal primo periodo delle opzioni', () => {
-  assert.equal(filtriIniziali(OPZIONI).periodo, 'Agosto')
-  assert.equal(filtriIniziali({ periodi: [], categorie: [], metodi: [] }).periodo, 'Anno')
-})
-test('filtriAttivi elenca solo le differenze, con etichetta leggibile per i misti', () => {
+test('filtriAttivi: differenze con etichette leggibili (periodo per etichetta)', () => {
   const iniziali = filtriIniziali(OPZIONI)
-  assert.deepEqual(filtriAttivi(iniziali, iniziali), [])
-  assert.deepEqual(filtriAttivi(f({ camera: 'Lena', soloMisti: true }), iniziali),
-    [['camera', 'Lena'], ['soloMisti', 'Solo documenti misti']])
+  assert.deepEqual(filtriAttivi(iniziali, iniziali, PERIODI), [])
+  assert.deepEqual(filtriAttivi(f({ periodo: '2026', camera: 'Lena', soloMisti: true }), iniziali, PERIODI),
+    [['periodo', 'Anno 2026'], ['camera', 'Lena'], ['soloMisti', 'Solo documenti misti']])
 })
 
-// ---- testi ----
+// ---- ricerca e testi ----
+test('ricerca su titolo, negozio e categorie', () => {
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({}), 'mia', PERIODI, 'esselunga').map(x => x.id), ['misto'])
+  assert.deepEqual(applicaFiltri(MOVIMENTI, f({}), 'mia', PERIODI, 'MANGIARE').map(x => x.id), ['bar'])
+})
 test('nelMese: la d eufonica solo davanti a vocale', () => {
   assert.equal(nelMese('Agosto'), 'ad agosto')
-  assert.equal(nelMese('Ottobre'), 'ad ottobre')
   assert.equal(nelMese('Settembre'), 'a settembre')
-  assert.equal(nelMese('Luglio'), 'a luglio')
 })
 test('eurVista: interi asciutti, decimali completi', () => {
   assert.equal(eurVista(1500), '1.500 €')

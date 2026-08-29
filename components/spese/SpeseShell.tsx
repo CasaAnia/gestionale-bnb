@@ -29,7 +29,7 @@ const SEZIONI: [SezioneSpese, string][] = [
   ['panoramica', 'Panoramica'], ['movimenti', 'Movimenti'],
   ['documenti', 'Documenti'], ['analisi', 'Analisi'],
 ]
-const OPZIONI_VUOTE = { periodi: [], categorie: [], metodi: [] }
+const OPZIONI_VUOTE = { periodi: [], categorie: [], metodi: [] } as import('@/lib/spese/vista').OpzioniFiltri
 
 export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = 'panoramica', filtriApertiIniziale = false, riprova, aggiungi, notaAggiungi }: {
   dati: StatoDati<DatiSpese>
@@ -61,7 +61,7 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
   }
 
   return (
-    <div className="min-h-dvh pb-40" style={{ background: t.fondo, color: t.inchiostro }}>
+    <div className="min-h-dvh pb-48" style={{ background: t.fondo, color: t.inchiostro }}>
       <div className="max-w-md mx-auto px-4">
         {/* selettore di contesto: un confine reale per tutte le sezioni */}
         <div className="flex items-center justify-between pt-4 pb-3">
@@ -104,6 +104,7 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
               : <PanoramicaAnia dati={dati.dati.ania} movimenti={dati.dati.movimenti} />)}
             {sezione === 'movimenti' && (
               <MovimentiTab movimenti={dati.dati.movimenti} contesto={contesto}
+                opzioni={contesto === 'mia' ? opzioni.mia : opzioni.ania}
                 filtri={filtri} iniziali={iniziali} setFiltri={setFiltri}
                 apriFiltri={() => setFiltriAperti(true)} />
             )}
@@ -127,7 +128,7 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
       {filtriAperti && dati.stato === 'pronto' && (
         <FiltriPanel contesto={contesto} opzioni={contesto === 'mia' ? opzioni.mia : opzioni.ania}
           filtri={filtri} iniziali={iniziali} setFiltri={setFiltri}
-          risultati={applicaFiltri(dati.dati.movimenti, filtri, contesto).length}
+          risultati={applicaFiltri(dati.dati.movimenti, filtri, contesto, (contesto === 'mia' ? opzioni.mia : opzioni.ania).periodi).length}
           chiudi={() => setFiltriAperti(false)} />
       )}
       {aggiungiAperto && (

@@ -8,9 +8,10 @@ import {
 import { TEMA as t } from './tema'
 
 // Foglio dal basso accessibile: Escape chiude, il focus parte dal foglio,
-// la pagina sotto non scorre finché è aperto.
-export function Foglio({ aria, chiudi, children, scorrevole }: {
-  aria: string; chiudi: () => void; children: ReactNode; scorrevole?: boolean
+// la pagina sotto non scorre finché è aperto. Con `piede` l'azione finale
+// resta FISSA in fondo al foglio anche quando il contenuto scorre.
+export function Foglio({ aria, chiudi, children, scorrevole, piede }: {
+  aria: string; chiudi: () => void; children: ReactNode; scorrevole?: boolean; piede?: ReactNode
 }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -28,10 +29,18 @@ export function Foglio({ aria, chiudi, children, scorrevole }: {
     <div className="fixed inset-0 z-[60] flex flex-col justify-end" role="dialog" aria-modal="true" aria-label={aria}>
       <button className="absolute inset-0" style={{ background: 'rgba(20,25,20,.45)' }} onClick={chiudi} aria-label="Chiudi" />
       <div ref={ref} tabIndex={-1}
-        className={`relative px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+20px)] outline-none ${scorrevole ? 'max-h-[82%] overflow-y-auto' : ''}`}
+        className={`relative flex flex-col outline-none ${scorrevole ? 'max-h-[85dvh]' : ''}`}
         style={{ background: t.fondo, borderRadius: `${t.r} ${t.r} 0 0` }}>
-        <div className="mx-auto w-10 h-1 rounded-full mb-4" style={{ background: t.bordo }} />
-        {children}
+        <div className="mx-auto w-10 h-1 rounded-full mt-3 mb-4 shrink-0" style={{ background: t.bordo }} />
+        <div className={`px-5 ${scorrevole ? 'overflow-y-auto min-h-0' : ''} ${piede ? '' : 'pb-[calc(env(safe-area-inset-bottom)+20px)]'}`}>
+          {children}
+        </div>
+        {piede && (
+          <div className="shrink-0 px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)]"
+            style={{ borderTop: `1px solid ${t.bordo}`, background: t.fondo }}>
+            {piede}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -55,13 +64,14 @@ export const Barra = ({ quota, colore }: { quota: number; colore: string }) => (
   </div>
 )
 
-export const Chip = ({ attivo, children, tono = 'verde', onClick, aria }: {
-  attivo?: boolean; children: ReactNode; tono?: 'verde' | 'neutro'; onClick?: () => void; aria?: string
+// `colore` = accento del contesto (verde Casa Mia, terracotta Casa Ania)
+export const Chip = ({ attivo, children, tono = 'accento', colore = t.verde, onClick, aria }: {
+  attivo?: boolean; children: ReactNode; tono?: 'accento' | 'neutro'; colore?: string; onClick?: () => void; aria?: string
 }) => (
   <button type="button" onClick={onClick} aria-label={aria} aria-pressed={attivo}
     className="inline-flex items-center gap-1 min-h-11 px-3.5 text-[13px] font-semibold"
     style={attivo
-      ? { background: tono === 'verde' ? t.verde : t.inchiostro, color: '#fff', borderRadius: t.rPill }
+      ? { background: tono === 'accento' ? colore : t.inchiostro, color: '#fff', borderRadius: t.rPill }
       : { background: t.carta, color: t.inchiostro, border: `1px solid ${t.bordo}`, borderRadius: t.rPill }}>
     {children}
   </button>

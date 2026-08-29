@@ -10,24 +10,7 @@
 import { useState } from 'react'
 import { SpeseShell, type SezioneSpese } from '@/components/spese/SpeseShell'
 import type { Contesto, DatiSpese, StatoDati } from '@/lib/spese/vista'
-import { DATI_FINTI } from './dati-finti'
-
-const QUASI_VUOTI: DatiSpese = {
-  mia: {
-    mese: 'Settembre', speso: 0, confrontoPct: null,
-    daControllare: { n: 0, tot: 0 }, budget: [], ripetute: null, categorie: [], teo: null,
-  },
-  ania: {
-    mese: 'Settembre', speso: 0, impegnato: { tot: 0, n: 0 },
-    scadenze: [], fattureDaControllare: 0, metodi: [], costiCamere: [], andamento: [],
-  },
-  movimenti: [],
-  documenti: [],
-  opzioni: {
-    mia: { periodi: ['Settembre', 'Anno'], persone: [], categorie: [], metodi: [] },
-    ania: { periodi: ['Settembre', 'Anno'], camere: [], categorie: [], metodi: [] },
-  },
-}
+import { DATI_FINTI, DATI_QUASI_VUOTI } from './dati-finti'
 
 function statoIniziale(): { c: Contesto; t: SezioneSpese; filtri: boolean; dati: StatoDati<DatiSpese> } {
   const q = new URLSearchParams(window.location.search)
@@ -37,7 +20,7 @@ function statoIniziale(): { c: Contesto; t: SezioneSpese; filtri: boolean; dati:
   const dati: StatoDati<DatiSpese> =
     q.get('stato') === 'caricamento' ? { stato: 'caricamento' }
       : q.get('stato') === 'errore' ? { stato: 'errore', messaggio: 'Il telefono era senza rete mentre chiedevo i movimenti.' }
-        : { stato: 'pronto', dati: q.get('stato') === 'vuoto' ? QUASI_VUOTI : DATI_FINTI }
+        : { stato: 'pronto', dati: q.get('stato') === 'vuoto' ? DATI_QUASI_VUOTI : DATI_FINTI }
   return { c, t, filtri: q.get('filtri') === '1', dati }
 }
 

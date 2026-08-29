@@ -23,7 +23,10 @@ export async function proxy(request: NextRequest) {
     return response
   }
   // Prova del guscio reale (Fase 3.1): stessa doppia serratura dell'anteprima.
-  if (process.env.NODE_ENV === 'development' && request.nextUrl.pathname.startsWith('/nuove-spese')) {
+  // SOLO la pagina dei dati finti: /nuove-spese-reali (Fase 3.2A) NON è qui
+  // dentro e richiede il login vero come tutte le altre pagine.
+  if (process.env.NODE_ENV === 'development'
+    && (request.nextUrl.pathname === '/nuove-spese' || request.nextUrl.pathname.startsWith('/nuove-spese/'))) {
     return response
   }
 
