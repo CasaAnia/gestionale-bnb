@@ -22,6 +22,10 @@ export async function proxy(request: NextRequest) {
   if (process.env.NODE_ENV === 'development' && request.nextUrl.pathname.startsWith('/anteprima-spese')) {
     return response
   }
+  // Prova del guscio reale (Fase 3.1): stessa doppia serratura dell'anteprima.
+  if (process.env.NODE_ENV === 'development' && request.nextUrl.pathname.startsWith('/nuove-spese')) {
+    return response
+  }
 
   const supabase = createServerClient(
     (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\s+/g, ''),
