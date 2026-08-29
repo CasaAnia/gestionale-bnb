@@ -715,8 +715,20 @@ se la precedente non è verificata E approvata.
   superata; DMG caricato da Ania su Google Drive in `Casa Ania/Backup
   gestionale`; copia riscaricata e verificata (SHA-256 identico a
   `565c022f…d96a`), copia temporanea eliminata. Restano il DMG locale e
-  quello su Drive. **La 2C-A è chiusa.** La 2C-B (migrazioni 0020/0021 in
-  produzione) resta FERMA: serve revisione indipendente + ok esplicito.
+  quello su Drive. **La 2C-A è chiusa.**
+  **2C-B ESEGUITA E CHIUSA (29/08/2026)**: dopo revisione e ok esplicito,
+  0020 → bootstrap_owner → 0021 applicate in produzione (una transazione
+  ciascuna, script `scripts/fase2c/passo0-5`), cancelli verdi prima di
+  ogni scrittura. Esiti: 81 documenti derivati, 215 ponte backfill,
+  storici INTATTI campo per campo (file e hash compresi), quadratura al
+  centesimo su tutti, owner unico = utente reale, 15/15 verifiche di
+  sicurezza verdi, due export finali identici tra loro e allo storico.
+  Prova dal telefono di Ania SUPERATA (Home, Spese Famiglia, Spese Casa
+  Ania, foto). Pulizia: `~/.gestionale-2c` eliminata; token
+  `gestionale-2c-produzione-temporaneo-4` da revocare dal dashboard.
+  **LA FASE 2C È COMPLETA: il nuovo schema è in produzione.** Prossima:
+  Fase 3 (guscio grafico, direzione B), sempre senza push/deploy fino a
+  nuovo ok.
 - **Fase 3A — Prototipo visivo locale** *(AUTORIZZATA in attesa della 2C)*:
   anteprima mobile isolata con dati SOLO sintetici, nessuna query a
   Supabase, protetta da controllo d'ambiente (`notFound()` fuori dallo
