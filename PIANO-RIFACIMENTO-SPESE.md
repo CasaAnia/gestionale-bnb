@@ -725,7 +725,7 @@ se la precedente non è verificata E approvata.
   sicurezza verdi, due export finali identici tra loro e allo storico.
   Prova dal telefono di Ania SUPERATA (Home, Spese Famiglia, Spese Casa
   Ania, foto). Pulizia: `~/.gestionale-2c` eliminata; token
-  `gestionale-2c-produzione-temporaneo-4` da revocare dal dashboard.
+  `gestionale-2c-produzione-temporaneo-4` REVOCATO dal dashboard (29/08).
   **LA FASE 2C È COMPLETA: il nuovo schema è in produzione.** Prossima:
   Fase 3 (guscio grafico, direzione B), sempre senza push/deploy fino a
   nuovo ok.
