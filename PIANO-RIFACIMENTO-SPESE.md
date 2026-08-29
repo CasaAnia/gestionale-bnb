@@ -740,6 +740,16 @@ se la precedente non è verificata E approvata.
   Documenti · Analisi) + ＋ flottante, Movimenti raggruppati per documento,
   FiltriPanel. Calendario/Racconto/Domanda traslocano in Analisi.
   SpeseTracker.tsx va in pensione.
+  **3.1 FATTA (29/08/2026)**: guscio reale in direzione B dietro
+  `/nuove-spese` (solo sviluppo, doppia serratura come la 3A), dati
+  sintetici. Componenti: SpeseShell, PanoramicaTab, MovimentiTab (un
+  documento = una voce, dettaglio con spese sorelle), DocumentiTab (ciclo
+  di vita completo, indicatore senza-foto), AnalisiTab, FiltriPanel (6
+  filtri funzionanti), AggiungiSheet non operativo, StatiDati. Contratto
+  dati `lib/spese/vista.ts` + filtri puri con test (110/110). Verifiche:
+  tsc, lint, build, 390px, confronto visivo con la B approvata, pagine
+  vecchie intatte. IN ATTESA di approvazione per sostituire le pagine
+  vere (3.2); SpeseTracker ancora al suo posto.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".
