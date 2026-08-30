@@ -24,11 +24,20 @@ const BOLLINI: Partial<Record<VocePagina['stato'], { sfondo: string; Icona: type
   pulizia_pendente: { sfondo: t.sub, Icona: Eraser, titolo: 'pulizia in sospeso' },
   duplicato: { sfondo: t.sub, Icona: CopyX, titolo: 'già in archivio' },
 }
-const SPIEGA: Partial<Record<VocePagina['stato'], string>> = {
-  da_ritentare: ' — verrà RITENTATA col bottone Salva',
-  da_verificare: ' — esito da VERIFICARE: Salva controlla e recupera senza doppioni',
-  da_riselezionare: ' — riseleziona il file originale col bottoncino ↺',
-  pulizia_pendente: ' — doppione accertato, copia da togliere: Salva completa la pulizia',
+// spiegazioni FEDELI alle azioni davvero disponibili per QUELLA voce:
+// mai promettere «Salva riprova» a una voce che Salva non toccherà
+function spiega(v: VocePagina): string {
+  if (!inviabilePagina(v)) {
+    if (v.stato === 'da_riselezionare') return ' — riseleziona il file originale col bottoncino ↺'
+    if (v.stato === 'da_verificare' || v.stato === 'da_ritentare')
+      return ' — NON ritentabile da qui: segnalala'
+    return ''
+  }
+  if (v.stato === 'da_ritentare') return ' — verrà RITENTATA col bottone Salva'
+  if (v.stato === 'da_verificare') return ' — esito da VERIFICARE: Salva controlla e recupera senza doppioni'
+  if (v.stato === 'da_riselezionare') return ' — file pronto: Salva lo ricontrolla e completa'
+  if (v.stato === 'pulizia_pendente') return ' — doppione accertato, copia da togliere: Salva completa la pulizia'
+  return ''
 }
 
 export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, depositoErrore, togli, riseleziona, aggiungiAltri, salvaTutte, chiudi }: {
@@ -106,16 +115,20 @@ export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, deposit
               )}
               {c.stato === 'da_riselezionare' && (
                 <button onClick={() => riseleziona(c.id)} aria-label={`Riseleziona il file ${c.nome}`}
-                  className="absolute top-1 right-1 grid place-items-center w-7 h-7"
-                  style={{ background: accento, color: '#fff', borderRadius: 99 }}>
-                  <RefreshCw size={14} />
+                  className="absolute top-0 right-0 grid place-items-center w-11 h-11"
+                  style={{ color: '#fff', borderRadius: t.r }}>
+                  <span className="grid place-items-center w-8 h-8" style={{ background: accento, borderRadius: 99 }}>
+                    <RefreshCw size={15} />
+                  </span>
                 </button>
               )}
               {rimovibilePagina(c) && (
                 <button onClick={() => togli(c.id)} aria-label={`Togli ${c.nome}`}
-                  className="absolute top-1 right-1 grid place-items-center w-6 h-6"
-                  style={{ background: 'rgba(20,25,20,.65)', color: '#fff', borderRadius: 99 }}>
-                  <X size={13} />
+                  className="absolute top-0 right-0 grid place-items-center w-11 h-11"
+                  style={{ color: '#fff', borderRadius: t.r }}>
+                  <span className="grid place-items-center w-8 h-8" style={{ background: 'rgba(20,25,20,.65)', borderRadius: 99 }}>
+                    <X size={15} />
+                  </span>
                 </button>
               )}
             </div>
@@ -131,7 +144,7 @@ export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, deposit
       {coda.filter(c => c.errore || c.avviso).map(c => (
         <p key={c.id} className="text-[12.5px] mb-1.5 font-semibold" role="alert"
           style={{ color: c.stato === 'da_ritentare' || c.stato === 'da_verificare' ? t.rosso : t.sub }}>
-          {c.nome}: {c.errore}{SPIEGA[c.stato] ?? ''}
+          {c.nome}: {c.errore}{spiega(c)}
           {c.avviso ? ` · ${c.avviso}` : ''}
         </p>
       ))}

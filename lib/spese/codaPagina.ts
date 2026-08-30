@@ -82,8 +82,12 @@ export function nuoveVociPagina(
 export function applicaEsitoPagina(v: VocePagina, esito: Awaited<ReturnType<ControllerPagina['avvia']>>, nota: string | null): VocePagina {
   if (esito.ok) return { ...v, stato: 'salvata', errore: undefined, riprovabile: false, avviso: esito.avvisoDeposito, op: undefined }
   const ripresa = 'ripresa' in esito ? esito.ripresa : undefined
+  // la nota ORIGINALE dell'operazione è immutabile, NULL COMPRESO: se
+  // l'operazione esiste già si conserva la sua (anche nulla); la nota del
+  // campo vale solo per la PRIMA creazione
+  const notaOriginale = v.op ? v.op.nota : nota
   const op: OperazioneDurevole | undefined = ripresa
-    ? { ...ripresa, ambito: v.ambito, nota: v.op?.nota ?? nota, nomeFile: v.nome }
+    ? { ...ripresa, ambito: v.ambito, nota: notaOriginale, nomeFile: v.nome }
     : v.op
   const chiusura = 'chiusura' in esito ? esito.chiusura : 'da_ritentare'
   const duplicato = 'duplicato' in esito && esito.duplicato
@@ -100,10 +104,16 @@ export function applicaEsitoPagina(v: VocePagina, esito: Awaited<ReturnType<Cont
 
 // si (ri)invia col bottone Salva: le nuove col loro file, e le pendenti
 // RIPROVABILI (anche senza file: il recupero decide da sé); mai le
-// da_riselezionare senza file né le chiuse
+// da_riselezionare senza file né le chiuse.
+// Caso particolare: un fallimento PRIMA della creazione dell'operazione
+// (impronta non calcolabile, deposito momentaneamente non scrivibile) non
+// ha op né effetti esterni — si riprova da capo col file in mano, ma SOLO
+// se esplicitamente riprovabile: niente sblocchi indiscriminati delle
+// voci senza operazione
 export const inviabilePagina = (v: VocePagina): boolean =>
   (v.stato === 'in_attesa' && !!v.file)
-  || ((v.stato === 'da_ritentare' || v.stato === 'pulizia_pendente') && !!v.op)
+  || (v.stato === 'da_ritentare' && (!!v.op || (!!v.file && v.riprovabile === true)))
+  || (v.stato === 'pulizia_pendente' && !!v.op)
   || (v.stato === 'da_verificare' && v.riprovabile === true && !!v.op)
   || (v.stato === 'da_riselezionare' && !!v.file && !!v.op)   // file appena riselezionato
 

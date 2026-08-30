@@ -16,7 +16,7 @@ import { creaGuardiaInvio, sha256DiFile } from './scrittura.ts'
 import type { ClienteIdempotente } from './registrazioneIdempotente.ts'
 
 // ---- archivio simulato (byte + stato, semantica RPC come nei collaudi) ----
-type Guasti = Partial<Record<'registra' | 'ricevutaEsiste', string[]>>
+type Guasti = Partial<Record<'registra' | 'ricevutaEsiste' | 'documentoConToken', string[]>>
 function archivio(guasti: Guasti = {}) {
   const stato = {
     bucket: new Map<string, string>(),
@@ -43,6 +43,7 @@ function archivio(guasti: Guasti = {}) {
       return { esiste: stato.ricevute.some(r => r.storage_path === percorso) }
     },
     async documentoConToken(token) {
+      if (guasto('documentoConToken') === 'rete') return { errore: 'Failed to fetch' }
       const d = stato.documenti.find(x => x.token === token)
       return d ? { documentId: d.id } : {}
     },
@@ -201,4 +202,73 @@ test('PULIZIA INCERTA: pulizia_pendente resta visibile e ritentabile; al recuper
   assert.equal(s2.leggi()[0].stato, 'duplicato')
   assert.equal((await c2.pendenti()).riprese.length, 0)
   assert.equal(a.stato.bucket.size, 1)                          // resta solo l'originale
+})
+
+
+test('FALLIMENTO PRIMA DELL\'OPERAZIONE (impronta indisponibile): ritentabile e il secondo Salva COMPLETA davvero', async () => {
+  const a = archivio(); const memoria = memoriaFinta()
+  let volte = 0
+  const hasherBallerino = async (b: Blob) => (volte++ === 0 ? null : sha256DiFile(b))
+  const c = creaControllore(a.cliente, depositoLocale(undefined, () => memoria), hasherBallerino, orologio)
+  const s1 = statoVivo(nuoveVociPagina([file('x')], 'personale', genId))
+  await salvaCodaPagina(s1.leggi, s1.scrivi, c, null)
+  const dopo1 = s1.leggi()[0]
+  assert.equal(dopo1.stato, 'da_ritentare')
+  assert.equal(dopo1.op, undefined)                 // nessuna operazione, nessun effetto
+  assert.equal(inviabilePagina(dopo1), true)        // PRIMA: bloccata per sempre
+  assert.equal(a.stato.bucket.size, 0)
+  // problema risolto → secondo Salva → COMPLETA
+  await salvaCodaPagina(s1.leggi, s1.scrivi, c, null)
+  assert.equal(s1.leggi()[0].stato, 'salvata')
+  assert.equal(a.stato.documenti.length, 1)
+})
+
+test('deposito TEMPORANEAMENTE non scrivibile: ritentabile; ripristinato → completa; senza-op NON riprovabile resta bloccata', async () => {
+  const a = archivio(); const memoria = memoriaFinta()
+  let guastoSet = true
+  const memGuasta = {
+    getItem: memoria.getItem,
+    setItem: (k: string, v: string) => { if (guastoSet) throw new Error('spazio esaurito'); memoria.setItem(k, v) },
+  }
+  const c = creaControllore(a.cliente, depositoLocale(undefined, () => memGuasta), undefined, orologio)
+  const s1 = statoVivo(nuoveVociPagina([file('y')], 'personale', genId))
+  await salvaCodaPagina(s1.leggi, s1.scrivi, c, null)
+  assert.equal(s1.leggi()[0].stato, 'da_ritentare')
+  assert.ok(s1.leggi()[0].errore?.includes('NON carico'))
+  assert.equal(a.stato.bucket.size, 0)              // upload MAI partito
+  guastoSet = false                                  // problema risolto
+  await salvaCodaPagina(s1.leggi, s1.scrivi, c, null)
+  assert.equal(s1.leggi()[0].stato, 'salvata')
+  assert.equal(a.stato.documenti.length, 1)
+  // ma una voce senza op e NON riprovabile non si sblocca indiscriminatamente
+  const bloccata: VocePagina = { id: 'x', nome: 'x.jpg', tipo: 'image/jpeg', ambito: 'personale', stato: 'da_ritentare', riprovabile: false, file: new Blob(['x']) }
+  assert.equal(inviabilePagina(bloccata), false)
+})
+
+test('NOTA ORIGINALE NULL IMMUTABILE: la sequenza della revisione non altera né la coda né la traccia persistita', async () => {
+  const a = archivio({ registra: ['risposta-persa'], documentoConToken: ['ok', 'rete'] })
+  const memoria = memoriaFinta()
+  // 1) prima registrazione SENZA nota, riuscita ma risposta persa
+  const c1 = controller(a, memoria)
+  const s1 = statoVivo(nuoveVociPagina([file('z')], 'personale', genId))
+  await salvaCodaPagina(s1.leggi, s1.scrivi, c1, null)
+  assert.equal(s1.leggi()[0].op!.nota, null)
+  // 2-3) l'utente scrive una nota per le foto NUOVE e il recupero incontra
+  //      un errore di verifica (documentoConToken giù)
+  await salvaCodaPagina(s1.leggi, s1.scrivi, c1, 'nota per le foto nuove')
+  const dopo = s1.leggi()[0]
+  assert.equal(dopo.stato, 'da_verificare')
+  // 4) la coda NON ha sostituito il NULL con la nota nuova…
+  assert.equal(dopo.op!.nota, null)                 // PRIMA: 'nota per le foto nuove'
+  // …e nemmeno la traccia PERSISTITA nel deposito
+  const salvate = JSON.parse(memoria.dati.get('gestionale-riprese-caricamento')!)
+  assert.equal(salvate[0].nota, null)
+  // 5) al recupero successivo (verifica su, anche con PAGINA RICREATA):
+  //    ripetuta, MAI TOKEN_RIUSATO
+  const c2 = controller(a, memoria)
+  const s2 = statoVivo(vociDaPendenti((await c2.pendenti()).riprese))
+  await salvaCodaPagina(s2.leggi, s2.scrivi, c2, 'un\'altra nota ancora')
+  assert.equal(s2.leggi()[0].stato, 'salvata')
+  assert.equal(a.stato.documenti.length, 1)
+  assert.equal((await c2.pendenti()).riprese.length, 0)
 })

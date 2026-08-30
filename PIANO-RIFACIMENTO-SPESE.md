@@ -1347,6 +1347,28 @@ se la precedente non è verificata E approvata.
   la demo/synthetic non contatta servizi. Suite 241/241; tsc, lint,
   build verdi. Questo blocco registra SOLO documenti e allegati:
   niente OCR, conferme di spese o modifiche ai conti.
+  **CORREZIONE DEL BLOCCO 2 (30/08/2026, notte — locale):** 1) i
+  fallimenti PRIMA della creazione dell'operazione (impronta non
+  calcolabile, deposito momentaneamente non scrivibile: nessun effetto
+  esterno, niente op) ora sono RITENTABILI col file in mano — ma solo
+  se esplicitamente riprovabili, niente sblocchi indiscriminati delle
+  voci senza operazione; testato: impronta ripristinata → il secondo
+  Salva COMPLETA davvero, idem col deposito riparato. 2) la NOTA
+  ORIGINALE dell'operazione è immutabile NULL COMPRESO (prima
+  v.op?.nota ?? nota trattava il null come mancante): la sequenza
+  della revisione — registrazione senza nota, risposta persa, nota
+  nuova nel campo, errore di verifica al recupero — non altera più né
+  la coda né la traccia persistita, e il recupero successivo chiude
+  con «ripetuta», mai TOKEN_RIUSATO (testata per intero con controller
+  e depositoLocale veri, anche a pagina ricreata). 3) usabilità:
+  Riseleziona e Togli portati a 44×44 px reali (misurati a 390 px:
+  44×44, mai sovrapposti — non coesistono per costruzione) e
+  spiegazioni FEDELI alle azioni disponibili (una voce non ritentabile
+  non promette più «Salva la riprova»: dice «NON ritentabile da qui:
+  segnalala»). PRECISAZIONE al resoconto precedente: il flusso è stato
+  collaudato end-to-end nel progetto ISOLATO; in produzione è stata
+  applicata la migrazione e verificata la struttura SENZA mai chiamare
+  la RPC. Test 244/244 (3 nuovi di sequenza); tsc, lint, build verdi.
   **PROSSIMO (da autorizzare):** revisione completa delle spese
   (schermata di revisione bozze) e riscrittura del flusso di
   elaborazione al contratto «solo bozze».
