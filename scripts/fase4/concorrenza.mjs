@@ -94,8 +94,15 @@ declare
   v_dopo timestamptz;
   v_r jsonb;
   v_err text;
+  v_sveglia timestamptz;
 begin
-  perform pg_sleep(0.5);            -- allinea le partenze dei due rami
+  -- allineamento a un istante ASSOLUTO comune (il prossimo confine di 2
+  -- secondi dell'orologio del server): il ritardo di arrivo fra le due
+  -- richieste HTTP non separa più le finestre. Una pausa relativa non
+  -- basta: con chiamate da ~5 ms e jitter di rete da ~80 ms le finestre
+  -- risultavano sempre disgiunte (giustamente NON VALIDE).
+  v_sveglia := date_trunc('second', clock_timestamp()) + interval '2 seconds';
+  perform pg_sleep(greatest(0, extract(epoch from (v_sveglia - clock_timestamp()))::double precision));
   v_prima := clock_timestamp();
   begin
     v_r := ${chiamataRpcSql};

@@ -1135,12 +1135,29 @@ se la precedente non è verificata E approvata.
   il registro; coperto anche l'upload mai avvenuto (registro chiuso
   senza errori né cancellazioni). Test locali con servizi simulati:
   14/14. Suite 234/234, tsc pulito, sintassi ok su tutti gli script.
-  **PROVE REMOTE ANCORA DA COMPLETARE (prossimo accesso autorizzato):**
-  a) passo3b concorrenza vera della RPC; b) rilancio passi 1→5 con
-  registri e impronte nuovi (verifica end-to-end del rigore aggiunto);
-  c) audit permessi in produzione (autorizzazione separata, sola
-  lettura); d) (a valle di tutto) applicazione della 0022 in produzione
-  con backup fresco, MAI senza autorizzazione.
+  **SECONDO COLLAUDO REALE COMPLETO (30/08/2026, notte — autorizzato,
+  progetto exyl****, produzione INTOCCATA):** sequenza intera senza
+  azzeramenti né riesecuzioni della 0020: fotografia iniziale
+  automatica (impronte md5 riga per riga di 11 dataset, incluse le
+  colonne 0022 GIÀ presenti e quindi confrontate, e auth.users) →
+  0022 rieseguita due volte (idempotente, privilegi giusti) → checklist
+  SQL **18/18** → CONCORRENZA 3B **3/3 casi validi e passati** con pid
+  diversi e finestre sovrapposte al MICROSECONDO (canale verificato: i
+  timestamp arrivano con 6 cifre di frazione; primo giro onestamente
+  «3 non validi» — finestre da ~5 ms contro jitter HTTP ~80 ms —
+  risolto ALLINEANDO i rami a un istante ASSOLUTO comune dell'orologio
+  del server, non con pause relative; riutilizzo del backend provato:
+  doppia CREATE OR REPLACE della funzione pg_temp nella stessa sessione
+  accettata) → client/storage reali **13/13** (orfani = ESATTAMENTE gli
+  estranei registrati) → pulizia dai SOLI registri (7 registri chiusi a
+  residui verificati zero; 12 documenti, 13 ricevute, 5 oggetti, 1
+  utente sintetico) → STATO INVARIATO per conteggio e impronta riga per
+  riga su tutti gli 11 dataset. Credenziali locali eliminate; token
+  gestionale-0022-collaudo2-temporaneo DA REVOCARE dal dashboard.
+  **PROVE RIMASTE (autorizzazioni separate):** a) audit permessi in
+  produzione (sola lettura, query pronte); b) applicazione della 0022
+  in produzione con backup fresco del giorno; poi collegamento del
+  flusso idempotente alle pagine.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".
