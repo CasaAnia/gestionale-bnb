@@ -922,6 +922,38 @@ se la precedente non è verificata E approvata.
   perde in silenzio), tre condizioni distinte a schermo (non inviato /
   esito sconosciuto / doppione accertato). Prossimo blocco: schermata di
   revisione + riscrittura operativa di /scontrini.
+  **BLOCCO 1 RIVISTO (30/08/2026, sera)** — correzioni della revisione:
+  1) BYTE immutabili: l'upload non usa più upsert (oggetto presente =
+  "esiste già", mai sovrascritto); il blob viene riconfrontato con
+  l'impronta FISSATA all'inizio prima di ogni invio (file riselezionato
+  diverso → fermato PRIMA di ogni effetto); il token si verifica PRIMA di
+  caricare (già registrato → niente upload, decide la RPC); la pulizia
+  cancella SOLO dopo la verifica esplicita che il percorso non è
+  collegato (esito incerto → si conserva e si dice). 2) Operazione
+  stabile: preparaRipresa fissa token, impronta SHA-256 OBBLIGATORIA
+  (senza impronta niente upload, errore recuperabile), percorso DERIVATO
+  dal token (<giorno>/<token>.<ext> — proprietà verificabile, concorrenza
+  stesso token = stesso percorso senza aiuti nei test), mime e kind;
+  hash null dello storico non toccati. 3) RPC col MANIFESTO normalizzato
+  e immutabile (kind, ambito, nota, pagine con percorso/ordine/mime/
+  impronta) in family_documents.upload_manifest, protetto da trigger
+  anche verso service_role; replay = confronto del manifesto, mai dei
+  campi modificabili in revisione; validazioni (ordini unici, percorsi
+  coerenti col token, impronte 64-hex, doppioni interni) con errori
+  PROPRI, mai spacciati per "già in archivio" (constraint ispezionato:
+  solo family_receipts_sha_uq = doppione). 4) search_path VUOTO e
+  riferimenti qualificati, revoke execute esplicito anche a service_role,
+  checklist SQL rifatta con contesto AUTENTICATO (set_config dei claims +
+  set local role), privilegi e controllo interno provati separatamente,
+  file sintetici nel bucket, stesso token tra i passi; prima esecuzione
+  in ambiente isolato, mai senza autorizzazione. 5) 13 test su archivio
+  che conserva i BYTE: contenuto cambiato, percorso già collegato,
+  risposta persa/ricaricamento, impronta indisponibile, concorrenza da
+  inizializzazione reale, metadati diversi, pagine malformate, verifica
+  giù, rollback intermedio, pulizia incerta. 221/221; tsc, lint, build
+  verdi. Restano da provare su PostgreSQL vero (checklist in coda alla
+  0022): rollback plpgsql, confronto jsonb, lock advisory, trigger di
+  immutabilità, privilegi reali.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".
