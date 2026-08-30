@@ -123,3 +123,49 @@ export function spesePerGiorno(speseMese: Fx[]): Record<number, number> {
   speseMese.forEach(e => { const g = Number(e.expense_date.slice(-2)); m[g] = (m[g] || 0) + Number(e.amount) })
   return m
 }
+
+// ---------------------------------------------------------------------------
+// 3.2B.1 — proiezione per riga COERENTE con l'adattatore del nuovo guscio:
+// il gruppo della voce è quello della RIGA quando c'è (item.group_id),
+// altrimenti quello della spesa madre; i nomi di categoria/sottocategoria
+// seguono la stessa catena di ripiego (canonica della riga → storica della
+// riga → canonica della madre → storica della madre). La vecchia vociDi
+// resta intatta per il tracker legacy.
+// ---------------------------------------------------------------------------
+export type ItemEsteso = Item & {
+  group_id?: string | null
+  canonical_category_id?: string | null
+  canonical_subcategory_id?: string | null
+}
+export type FxEsteso = Fx & {
+  canonical_category_id?: string | null
+  canonical_subcategory_id?: string | null
+}
+export type RisolutoriVoce = {
+  gruppo: (groupId: string | null | undefined) => string
+  categoria: (riga: { canonical_category_id?: string | null; category_id?: string | null },
+    madre: { canonical_category_id?: string | null; category_id?: string | null }) => string
+  sottocategoria: (riga: { canonical_subcategory_id?: string | null; subcategory?: string | null },
+    madre: { canonical_subcategory_id?: string | null; subcategory?: string | null }) => string
+}
+
+export function vociEstese(
+  spese: FxEsteso[], itemsByExp: Record<string, ItemEsteso[]>, nomi: RisolutoriVoce,
+): Voce[] {
+  const out: Voce[] = []
+  spese.forEach(e => {
+    const dettagli = itemsByExp[e.id]
+    const base = { store: e.store || '', d: e.expense_date, expId: e.id, rid: e.receipt_id }
+    if (dettagli?.length) dettagli.forEach(it => out.push({
+      n: it.name, a: Number(it.amount), q: Number(it.qty) || 1,
+      cat: nomi.categoria(it, e), sott: nomi.sottocategoria(it, e),
+      g: nomi.gruppo(it.group_id ?? e.group_id), ...base,
+    }))
+    else out.push({
+      n: e.description || e.product || nomi.categoria({}, e), a: Number(e.amount), q: 1,
+      cat: nomi.categoria({}, e), sott: nomi.sottocategoria({}, e),
+      g: nomi.gruppo(e.group_id), ...base,
+    })
+  })
+  return out
+}

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { TEMA as t, DISPLAY } from './tema'
 import { Foglio } from './mattoni'
 
-export type PaginaFoto = { id: string; storage_path: string; page_order: number }
+export type PaginaFoto = { id: string; storage_path: string; page_order: number; tipo?: string | null }
 
 export function FotoSheet({ titolo, pagine, firmaUrl, chiudi }: {
   titolo: string
@@ -52,18 +52,40 @@ export function FotoSheet({ titolo, pagine, firmaUrl, chiudi }: {
         <p className="text-[13px] py-4 text-center font-semibold" role="alert" style={{ color: t.rosso }}>{errore}</p>
       )}
       <div className="flex flex-col gap-3 pb-2">
-        {ordinate.map(p => urls[p.id] && (
-          <figure key={p.id}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- link firmato temporaneo, niente ottimizzatore */}
-            <img src={urls[p.id]} alt={`${titolo} — pagina ${p.page_order}`}
-              className="w-full h-auto" style={{ borderRadius: t.r, border: t.bordoCarta }} />
-            {ordinate.length > 1 && (
-              <figcaption className="text-[11.5px] mt-1 text-center" style={{ color: t.sub }}>
-                pagina {p.page_order} di {ordinate.length}
-              </figcaption>
-            )}
-          </figure>
-        ))}
+        {ordinate.map(p => {
+          if (!urls[p.id]) {
+            // pagina non caricabile: si DICE, non si nasconde
+            return !caricamento && (
+              <p key={p.id} className="text-[12.5px] font-semibold px-3 py-2" role="alert"
+                style={{ background: t.terraTenue, color: t.rosso, borderRadius: t.r }}>
+                pagina {p.page_order}: non riesco ad aprirla — riprova più tardi
+              </p>
+            )
+          }
+          if (p.tipo === 'application/pdf') {
+            return (
+              <figure key={p.id}>
+                <iframe src={urls[p.id]} title={`${titolo} — PDF pagina ${p.page_order}`}
+                  className="w-full h-[60vh]" style={{ borderRadius: t.r, border: t.bordoCarta }} />
+                <a href={urls[p.id]} target="_blank" rel="noreferrer"
+                  className="block text-center text-[13px] font-bold mt-1 min-h-11 leading-[44px]"
+                  style={{ color: t.verde }}>Apri il PDF a tutto schermo</a>
+              </figure>
+            )
+          }
+          return (
+            <figure key={p.id}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- link firmato temporaneo, niente ottimizzatore */}
+              <img src={urls[p.id]} alt={`${titolo} — pagina ${p.page_order}`}
+                className="w-full h-auto" style={{ borderRadius: t.r, border: t.bordoCarta }} />
+              {ordinate.length > 1 && (
+                <figcaption className="text-[11.5px] mt-1 text-center" style={{ color: t.sub }}>
+                  pagina {p.page_order} di {ordinate.length}
+                </figcaption>
+              )}
+            </figure>
+          )
+        })}
       </div>
     </Foglio>
   )

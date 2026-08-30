@@ -1,12 +1,14 @@
 'use client'
 // ============================================================================
-// PAGINA UFFICIALE del nuovo modulo spese (3.2B) — /spese (Casa Ania) e
-// /spese-famiglia (Casa Mia). Una sola lettura (fonte) alimenta il guscio
-// (via adattatore) e le analisi operative trasferite. Le scritture passano
-// da lib/spese/scrittura* e sono SEPARATE dalla preview in sola lettura.
-// Dietro il login vero (proxy) e la modalità dimostrazione (DemoGate).
+// PAGINA UFFICIALE del nuovo modulo spese (3.2B → 3.2B.1) — /spese (Casa
+// Ania) e /spese-famiglia (Casa Mia). L'AMBITO OPERATIVO È UNICO per pagina:
+// il selettore in alto NAVIGA all'altra route, così schermata, inserimento,
+// caricamento, analisi e budget riguardano sempre l'ambito mostrato.
+// Le scritture passano da lib/spese/scrittura* (errori veri, righe contate),
+// separate dalla preview in sola lettura. Dietro login e DemoGate.
 // ============================================================================
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import DemoGate from '@/components/DemoGate'
 import { isDemoMode } from '@/lib/demoMode'
 import { SpeseShell } from './SpeseShell'
@@ -14,30 +16,49 @@ import { AnalisiOperativa } from './AnalisiOperativa'
 import { ModuloSpesa } from './ModuloSpesa'
 import { BudgetSheet } from './BudgetSheet'
 import { FotoSheet, type PaginaFoto } from './FotoSheet'
+import { CaricaFotoSheet } from './CaricaFotoSheet'
 import { costruisciDatiSpese, oggiARoma } from '@/lib/spese/adattatore'
 import { leggiTutto, urlFirmato, type FonteCompleta } from '@/lib/spese/fonte'
 import { clienteSupabase } from '@/lib/spese/scritturaSupabase'
-import { caricaDocumentoConFoto, salvaSpesaManuale, sha256DiFile, type SpesaManualeInput } from '@/lib/spese/scrittura'
-import * as vecchi from '@/lib/spese/dati'
+import {
+  aggiornaBudgetEsistente, eliminaBudgetEsistente, eliminaSpesaManuale,
+  salvaBudgetNuovo, salvaSpesaManuale, type SpesaManualeInput,
+} from '@/lib/spese/scrittura'
 import { filtraPerAmbito } from '@/lib/spese/ambito'
-import type { Ambito, Fx, Item } from '@/lib/spese/types'
+import type { RisolutoriVoce, ItemEsteso } from '@/lib/spese/voci'
+import type { Ambito, Fx } from '@/lib/spese/types'
 import type { Contesto, DatiSpese, StatoDati } from '@/lib/spese/vista'
 import type { VoceAggiungi } from './AggiungiSheet'
+
+// il selettore di file, come promessa di File[] (selezione MULTIPLA)
+function scegliFiles(accetta: string, fotocamera: boolean): Promise<File[]> {
+  return new Promise(risolvi => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = accetta
+    input.multiple = !fotocamera
+    if (fotocamera) input.setAttribute('capture', 'environment')
+    input.onchange = () => risolvi(Array.from(input.files ?? []))
+    input.oncancel = () => risolvi([])
+    input.click()
+  })
+}
 
 export default function SpesePagina({ ambito }: { ambito: Ambito }) {
   return <DemoGate><Pagina ambito={ambito} /></DemoGate>
 }
 
 function Pagina({ ambito }: { ambito: Ambito }) {
+  const router = useRouter()
   const [fonte, setFonte] = useState<FonteCompleta | null>(null)
   const [dati, setDati] = useState<StatoDati<DatiSpese>>({ stato: 'caricamento' })
   const [tentativo, setTentativo] = useState(0)
 
   // fogli aperti
   const [moduloAperto, setModuloAperto] = useState(false)
-  const [budgetAperto, setBudgetAperto] = useState<Contesto | null>(null)
+  const [budgetAperto, setBudgetAperto] = useState(false)
   const [foto, setFoto] = useState<{ titolo: string; pagine: PaginaFoto[] } | null>(null)
-  const [caricamentoFoto, setCaricamentoFoto] = useState<string | null>(null) // messaggio di stato upload
+  const [codaCaricamento, setCodaCaricamento] = useState<File[] | null>(null)
   const [avviso, setAvviso] = useState<string | null>(null)
 
   useEffect(() => {
@@ -62,12 +83,14 @@ function Pagina({ ambito }: { ambito: Ambito }) {
     if (!fonte) return null
     const spese = fonte.spese.map(s => ({
       ...s,
-      recurring: !!s.recurring || s.expense_nature === 'ricorrente',
+      // expense_nature PREVALE; il vecchio flag recurring è solo un ripiego
+      // per lo storico che non ha ancora la natura
+      recurring: s.expense_nature != null ? s.expense_nature === 'ricorrente' : !!s.recurring,
       source: s.source ?? '',
     })) as Fx[]
     return filtraPerAmbito(ambito, fonte.gruppi as never, fonte.categorie as never, fonte.regole, spese)
   }, [fonte, ambito])
-  const items = (fonte?.righe ?? []) as unknown as Item[]
+  const items = (fonte?.righe ?? []) as unknown as ItemEsteso[]
   const negozi = useMemo(
     () => [...new Set((mio?.expenses ?? []).map(r => r.store).filter(Boolean))] as string[],
     [mio])
@@ -75,46 +98,49 @@ function Pagina({ ambito }: { ambito: Ambito }) {
     () => (fonte?.camere ?? []).filter(c => c.active !== false),
     [fonte])
 
-  // ---- foto: apertura di un documento esistente ----
+  // gli STESSI nomi e ripieghi dell'adattatore, per le voci delle analisi
+  const risolutori = useMemo<RisolutoriVoce | null>(() => {
+    if (!fonte) return null
+    const gruppoDi = new Map(fonte.gruppi.map(g => [g.id, g.name]))
+    const categoriaDi = new Map(fonte.categorie.map(c => [c.id, c.name]))
+    const canonicaDi = new Map(fonte.categorieCanoniche.map(c => [c.id, c.name]))
+    const sottoCanonicaDi = new Map(fonte.sottocategorieCanoniche.map(c => [c.id, c.name]))
+    return {
+      gruppo: id => (id ? gruppoDi.get(id) : undefined) ?? '—',
+      categoria: (riga, madre) =>
+        (riga.canonical_category_id ? canonicaDi.get(riga.canonical_category_id) : undefined)
+          ?? (riga.category_id ? categoriaDi.get(riga.category_id) : undefined)
+          ?? (madre.canonical_category_id ? canonicaDi.get(madre.canonical_category_id) : undefined)
+          ?? (madre.category_id ? categoriaDi.get(madre.category_id) : undefined)
+          ?? 'Senza categoria',
+      sottocategoria: (riga, madre) =>
+        (riga.canonical_subcategory_id ? sottoCanonicaDi.get(riga.canonical_subcategory_id) : undefined)
+          ?? riga.subcategory
+          ?? (madre.canonical_subcategory_id ? sottoCanonicaDi.get(madre.canonical_subcategory_id) : undefined)
+          ?? madre.subcategory ?? '',
+    }
+  }, [fonte])
+
+  // ---- foto: apertura di un documento esistente (mime incluso, per i PDF) ----
   const apriFoto = useCallback((documentId: string) => {
     if (!fonte) return
     const pagine = fonte.ricevute
       .filter(r => r.document_id === documentId && r.storage_path)
-      .map(r => ({ id: r.id, storage_path: r.storage_path!, page_order: r.page_order ?? 1 }))
+      .map(r => ({ id: r.id, storage_path: r.storage_path!, page_order: r.page_order ?? 1, tipo: r.mime_type }))
     if (pagine.length === 0) { setAvviso('Questo documento non ha fotografie.'); return }
     const doc = fonte.documenti.find(d => d.id === documentId)
     setFoto({ titolo: doc?.supplier || 'Documento', pagine })
   }, [fonte])
 
-  // ---- caricamento foto/documenti (fotocamera, libreria, file) ----
-  const scegliFile = useCallback((accetta: string, fotocamera: boolean) => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = accetta
-    if (fotocamera) input.setAttribute('capture', 'environment')
-    input.onchange = async () => {
-      const file = input.files?.[0]
-      if (!file) return
-      setCaricamentoFoto('Carico la foto…')
-      const esito = await caricaDocumentoConFoto(clienteSupabase, {
-        nomeFile: file.name, tipo: file.type, contenuto: file, sha256: await sha256DiFile(file),
-      }, ambito, null, accetta.includes('pdf') ? 'altro' : 'scontrino')
-      setCaricamentoFoto(null)
-      if (!esito.ok) { setAvviso(esito.errore); return }
-      setAvviso('Foto caricata: la trovi in Documenti, in coda per la lettura.')
-      ricarica()
-    }
-    input.click()
-  }, [ambito, ricarica])
+  // ---- ＋: le quattro strade ----
+  const aggiungi = useCallback(async (voce: VoceAggiungi) => {
+    if (voce === 'manuale') { setModuloAperto(true); return }
+    const accetta = voce === 'documento' ? 'image/*,application/pdf' : 'image/*'
+    const files = await scegliFiles(accetta, voce === 'scatta')
+    if (files.length) setCodaCaricamento(files)
+  }, [])
 
-  const aggiungi = useCallback((voce: VoceAggiungi) => {
-    if (voce === 'manuale') setModuloAperto(true)
-    else if (voce === 'scatta') scegliFile('image/*', true)
-    else if (voce === 'libreria') scegliFile('image/*', false)
-    else scegliFile('image/*,application/pdf', false)
-  }, [scegliFile])
-
-  // ---- scritture ----
+  // ---- scritture (errori veri: mai successi simulati) ----
   const salvaManuale = useCallback(async (input: SpesaManualeInput) => {
     const esito = await salvaSpesaManuale(clienteSupabase, input, ambito)
     if (esito.ok) ricarica()
@@ -123,35 +149,41 @@ function Pagina({ ambito }: { ambito: Ambito }) {
 
   const eliminaSpesa = useCallback(async (expenseId: string) => {
     if (!confirm('Eliminare questa spesa manuale?')) return
-    await vecchi.eliminaSpesa(expenseId)
+    const esito = await eliminaSpesaManuale(clienteSupabase, expenseId)
+    if (!esito.ok) { setAvviso(esito.errore); return }
     ricarica()
   }, [ricarica])
 
-  const contestoIniziale: Contesto = ambito === 'azienda' ? 'ania' : 'mia'
-  const budgets = (fonte?.budget ?? []).filter((b): b is typeof b & { id: string } => !!b.id
-    && (b.ambito || 'personale') === (budgetAperto === 'ania' ? 'azienda' : 'personale')) as import('@/lib/spese/types').Budget[]
+  const contesto: Contesto = ambito === 'azienda' ? 'ania' : 'mia'
+  const budgets = useMemo(() => (fonte?.budget ?? [])
+    .filter((b): b is typeof b & { id: string } => !!b.id && (b.ambito || 'personale') === ambito)
+    .map(b => ({ id: b.id, ambito: b.ambito, category_name: b.category_name, monthly_amount: Number(b.monthly_amount) })),
+  [fonte, ambito])
   const categorieBudget = useMemo(() => {
-    if (!fonte) return []
-    const ambitoBudget = budgetAperto === 'ania' ? 'azienda' : 'personale'
-    const gruppi = new Set(fonte.gruppi.filter(g => (g.ambito || 'personale') === ambitoBudget).map(g => g.id))
-    return [...new Set(fonte.categorie.filter(c => c.group_id && gruppi.has(c.group_id)).map(c => c.name))].sort()
-  }, [fonte, budgetAperto])
+    if (!mio) return []
+    return [...new Set(mio.cats.map(c => c.name))].sort()
+  }, [mio])
 
   return (
     <>
-      <SpeseShell dati={dati} contestoIniziale={contestoIniziale} riprova={ricarica}
+      <SpeseShell dati={dati} contestoIniziale={contesto} riprova={ricarica}
         aggiungi={aggiungi}
         apriFoto={apriFoto}
         eliminaSpesa={eliminaSpesa}
-        gestisciBudget={c => setBudgetAperto(c)}
-        analisiOperativa={c => (mio && (c === 'mia') === (ambito === 'personale') ? (
+        gestisciBudget={() => setBudgetAperto(true)}
+        // il selettore NAVIGA: una pagina = un ambito, sempre coerente
+        cambiaContesto={c => {
+          if (c !== contesto) router.push(c === 'ania' ? '/spese' : '/spese-famiglia')
+        }}
+        analisiOperativa={() => (mio && risolutori ? (
           <AnalisiOperativa ambito={ambito} spese={mio.expenses} items={items}
             groups={mio.groups} cats={mio.cats} subcats={fonte?.sottocategorieLegacy ?? []}
-            apriFoto={async id => {
-              // dal vecchio mondo arriva il receipt_id: risalgo al documento
+            risolutori={risolutori}
+            apriFoto={id => {
               const ric = fonte?.ricevute.find(r => r.id === id)
               if (ric?.document_id) apriFoto(ric.document_id)
-              else if (ric?.storage_path) setFoto({ titolo: 'Scontrino', pagine: [{ id: ric.id, storage_path: ric.storage_path, page_order: 1 }] })
+              else if (ric?.storage_path) setFoto({ titolo: 'Scontrino', pagine: [{ id: ric.id, storage_path: ric.storage_path, page_order: 1, tipo: ric.mime_type }] })
+              else setAvviso('Foto non trovata.')
             }} />
         ) : null)} />
 
@@ -162,34 +194,45 @@ function Pagina({ ambito }: { ambito: Ambito }) {
           salva={salvaManuale} chiudi={() => setModuloAperto(false)} />
       )}
       {budgetAperto && fonte && (
-        <BudgetSheet ambito={budgetAperto === 'ania' ? 'azienda' : 'personale'}
+        <BudgetSheet ambito={ambito}
           budgets={budgets} categorie={categorieBudget}
           salva={async (categoria, importo) => {
-            try { await vecchi.salvaBudget(budgetAperto === 'ania' ? 'azienda' : 'personale', categoria, importo); ricarica(); return {} }
-            catch (e) { return { errore: String((e as Error).message ?? e) } }
+            const e = await salvaBudgetNuovo(clienteSupabase, ambito, categoria, importo)
+            if (e.ok) ricarica()
+            return e.ok ? {} : { errore: e.errore }
           }}
           aggiorna={async (id, importo) => {
-            try { await vecchi.aggiornaBudget(id, importo); ricarica(); return {} }
-            catch (e) { return { errore: String((e as Error).message ?? e) } }
+            const e = await aggiornaBudgetEsistente(clienteSupabase, id, importo)
+            if (e.ok) ricarica()
+            return e.ok ? {} : { errore: e.errore }
           }}
           elimina={async id => {
-            try { await vecchi.eliminaBudget(id); ricarica(); return {} }
-            catch (e) { return { errore: String((e as Error).message ?? e) } }
+            const e = await eliminaBudgetEsistente(clienteSupabase, id)
+            if (e.ok) ricarica()
+            return e.ok ? {} : { errore: e.errore }
           }}
-          chiudi={() => setBudgetAperto(null)} />
+          chiudi={() => setBudgetAperto(false)} />
       )}
       {foto && (
         <FotoSheet titolo={foto.titolo} pagine={foto.pagine} firmaUrl={urlFirmato}
           chiudi={() => setFoto(null)} />
       )}
+      {codaCaricamento && (
+        <CaricaFotoSheet ambito={ambito} cliente={clienteSupabase}
+          inizialiFile={codaCaricamento}
+          apriAltri={() => scegliFiles('image/*,application/pdf', false)}
+          alSalvataggio={ricarica}
+          chiudi={() => setCodaCaricamento(null)} />
+      )}
 
-      {(caricamentoFoto || avviso) && (
+      {avviso && (
         <div className="fixed inset-x-4 z-[70] bottom-[calc(env(safe-area-inset-bottom)+16px)] max-w-md mx-auto px-4 py-3 text-[13px] font-semibold text-center"
           style={{ background: '#141E19', color: '#F6F6F3', borderRadius: '0.75rem' }}
           onClick={() => setAvviso(null)} role="status">
-          {caricamentoFoto ?? avviso}
+          {avviso}
         </div>
       )}
+
     </>
   )
 }

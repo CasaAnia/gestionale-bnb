@@ -831,17 +831,39 @@ se la precedente non è verificata E approvata.
   17. Tessere per categoria con confronto mese precedente (→ Panoramica)
   18. NON trasferiti di proposito: /scontrini e revisione (Fase 4), flusso
       fatture completo (Fase 5), analisi nuove (Fase 6).
-  **3.2B ESEGUITA (30/08/2026)** — checklist: 1✅ 2✅ 3✅ 4✅ 5✅ 6✅ (nel
-  dettaglio movimenti e nelle analisi) 7✅ 8✅ (fotocamera/libreria/file →
-  family_documents+family_receipts collegate, documento da_elaborare, MAI
-  spese automatiche; campi legacy per /scontrini fino alla Fase 4) 9⚠️
-  (nota impostabile al caricamento: campo previsto nel flusso, interfaccia
-  della nota da rifinire in Fase 4 con la revisione) 10✅ 11✅ 12✅ 13✅
-  14✅ 15✅ 16✅ 17✅ (Panoramica) 18 = fasi dedicate. Pagine sostituite
-  (/spese→Casa Ania, /spese-famiglia→Casa Mia), vecchio tracker in
-  ?vecchia=1 per il ripristino fino alla pulizia finale; preview reale
-  sempre in sola lettura (guardia nei test). Prove simulate (cliente
-  finto) e reali in sola lettura documentate in PROGETTO.md.
+  **3.2B + 3.2B.1 ESEGUITE (30/08/2026)** — checklist a TRE stati
+  (presente graficamente / funzionante / verificato):
+  1 Calendario ✅✅✅ (reale) · 2 Racconto ✅✅✅ (reale) · 3 Domanda ✅✅✅
+  (rispetta persona e periodo selezionati; capacità del motore INVARIATE
+  dalla Fase 1) · 4 Periodi ✅✅✅ · 5 Di chi ✅✅✅ (ora PER RIGA: la riga
+  di Teo dentro una spesa di Casa si trova) · 6 Dettaglio voci ✅✅✅ ·
+  7 Foto esistenti ✅✅✅ (reale, PDF con visore dedicato, pagine non
+  caricabili segnalate) · 8 Caricamento ✅✅ verificato con servizi
+  SIMULATI (selezione multipla, anteprime, nota, conferma esplicita,
+  RIPRESA senza duplicare documenti, doppioni sha, esiti incerti
+  verificati) — NON provato end-to-end con file veri (niente scritture di
+  prova in produzione) · 9 Nota ✅✅ al caricamento (simulato); la
+  MODIFICA della nota di una ricevuta esistente NON è trasferita → Fase 4
+  · 10 Inserimento manuale ✅✅✅ (simulato UI + unit; importi rigorosi) ·
+  11 Natura/ricorrenti ✅✅✅ (expense_nature PREVALE, recurring solo
+  ripiego storico) · 12 Spese fisse ✅✅ (funzione pura di Fase 1) ·
+  13 Ritmo/previsione ✅✅ · 14 Budget ✅✅ (errori veri e righe contate,
+  unit; foglio reale aperto senza salvare) · 15 Elimina manuali ✅✅
+  (0 righe = errore, unit) · 16 DemoGate ✅ presente · 17 Tessere→
+  Panoramica ✅✅✅ · 18 = fasi dedicate.
+  3.2B.1: ambito operativo UNICO per pagina (il selettore NAVIGA tra
+  /spese e /spese-famiglia, verificato in entrambe le direzioni);
+  importoDaTesto con grammatica rigorosa ("12.50"=12,50; "12abc"/"0,001"
+  rifiutati; budget decimale letto e risalvato invariato con
+  testoDaImporto); scritture con ERRORI RESTITUITI e righe toccate
+  (budget crud + elimina manuali), guardia anti doppio invio;
+  caricamento RECUPERABILE (ripresa file+documento, mai duplicati,
+  doppione sha = rifiuto pulito, esito incerto → verifica ricevutaEsiste
+  prima di cancellare/ripetere, pulizia fallita dichiarata); tipo
+  documento dal FILE (pdf → 'altro'); Domanda nel contesto visibile.
+  Pagine sostituite, vecchio tracker in ?vecchia=1, preview reale in sola
+  lettura (guardia nei test). 189/189 test; lint: 2 warning storici in
+  ScontriniBlock (vecchio tracker), zero nei file nuovi.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

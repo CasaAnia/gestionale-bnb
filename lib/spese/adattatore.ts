@@ -54,8 +54,9 @@ export type GrezzoDocumento = {
 export type GrezzoPonte = { expense_id: string; document_id: string }
 export type GrezzaRicevuta = {
   id: string; document_id: string | null
-  storage_path?: string; page_order?: number; note?: string | null
-  status?: string | null; ambito?: string | null; uploaded_at?: string | null
+  storage_path?: string; page_order?: number; mime_type?: string | null
+  note?: string | null; status?: string | null; ambito?: string | null
+  uploaded_at?: string | null
 }
 export type Confidence = Record<string, { confidence?: number; doubt_reason?: string } | null | undefined>
 export type GrezzaBozza = {

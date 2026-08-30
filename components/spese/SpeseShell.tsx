@@ -31,7 +31,7 @@ const SEZIONI: [SezioneSpese, string][] = [
 ]
 const OPZIONI_VUOTE: OpzioniFiltri = { periodi: [], categorie: [], metodi: [] }
 
-export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = 'panoramica', filtriApertiIniziale = false, riprova, aggiungi, notaAggiungi, sopra, apriFoto, eliminaSpesa, gestisciBudget, analisiOperativa }: {
+export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = 'panoramica', filtriApertiIniziale = false, riprova, aggiungi, notaAggiungi, sopra, apriFoto, eliminaSpesa, gestisciBudget, analisiOperativa, cambiaContesto }: {
   dati: StatoDati<DatiSpese>
   contestoIniziale?: Contesto
   sezioneIniziale?: SezioneSpese
@@ -45,6 +45,10 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
   eliminaSpesa?: (expenseId: string) => void
   gestisciBudget?: (contesto: Contesto) => void
   analisiOperativa?: (contesto: Contesto) => ReactNode
+  // 3.2B.1: sulle pagine ufficiali il selettore NAVIGA alla route dell'altro
+  // ambito (l'ambito operativo resta UNICO per pagina); nelle preview resta
+  // il cambio interno.
+  cambiaContesto?: (contesto: Contesto) => void
 }) {
   const [contesto, setContesto] = useState<Contesto>(contestoIniziale)
   const [sezione, setSezione] = useState<SezioneSpese>(sezioneIniziale)
@@ -89,7 +93,7 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
           <h1 className={`${DISPLAY} text-[22px] leading-none`} style={{ color: t.inchiostro }}>Spese</h1>
           <div className="flex p-0.5" style={{ background: t.velo, borderRadius: t.rPill }}>
             {([['mia', 'Casa Mia'], ['ania', 'Casa Ania']] as const).map(([id, nome]) => (
-              <button key={id} onClick={() => setContesto(id)}
+              <button key={id} onClick={() => cambiaContesto ? cambiaContesto(id) : setContesto(id)}
                 aria-pressed={contesto === id}
                 className="min-h-11 px-3.5 text-[13px] font-bold"
                 style={contesto === id

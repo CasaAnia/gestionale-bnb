@@ -45,13 +45,14 @@ export function DocumentiTab({ documenti, apriRevisione, apriFoto }: {
     <div className="flex flex-col gap-3">
       <Blocco titolo="In coda" docs={per('da_elaborare')} vuoto="Nessuna foto in attesa di lettura.">
         {(d, i) => (
-          <div key={d.id} className="flex items-center gap-3 min-h-11" style={bordoSopra(i)}>
+          <button key={d.id} onClick={toccaFoto(d)} disabled={!toccaFoto(d)}
+            className="w-full text-left flex items-center gap-3 min-h-11" style={bordoSopra(i)}>
             <span className="grid place-items-center w-9 h-9 shrink-0" style={{ background: t.velo, color: t.sub, borderRadius: t.rIcona }}>
               <Camera size={16} />
             </span>
             <span className="flex-1 text-[14px]" style={{ color: t.inchiostro }}>{d.titolo}</span>
             <span className="text-[12px]" style={{ color: t.sub }}>in coda</span>
-          </div>
+          </button>
         )}
       </Blocco>
 

@@ -21,10 +21,15 @@ function clienteFinto(fallisci: boolean): ClienteScrittura {
   const nega = async () => fallisci ? { errore: 'connessione assente (simulata)' } : {}
   return {
     inserisciSpesa: nega,
+    eliminaSpesa: async () => fallisci ? { errore: 'connessione assente (simulata)' } : { righe: 1 },
     caricaFile: nega,
-    rimuoviFile: async () => {},
+    rimuoviFile: nega,
     creaDocumento: async () => fallisci ? { errore: 'connessione assente (simulata)' } : { id: 'doc-finto' },
     creaRicevuta: nega,
+    ricevutaEsiste: async () => ({ esiste: false }),
+    salvaBudget: nega,
+    aggiornaBudget: async () => fallisci ? { errore: 'connessione assente (simulata)' } : { righe: 1 },
+    eliminaBudget: async () => fallisci ? { errore: 'connessione assente (simulata)' } : { righe: 1 },
   }
 }
 

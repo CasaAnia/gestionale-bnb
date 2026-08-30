@@ -40,7 +40,7 @@ export async function leggiTutto(): Promise<FonteCompleta> {
     tutta<TabelleGrezze['righe'][0]>('family_expense_items',
       'id, expense_id, name, amount, category_id, subcategory, qty, unit_price, discount, group_id, canonical_category_id, canonical_subcategory_id, necessity, planning, is_adjustment'),
     tutta<TabelleGrezze['ricevute'][0]>('family_receipts',
-      'id, document_id, storage_path, page_order, note, status, ambito, uploaded_at'),
+      'id, document_id, storage_path, page_order, mime_type, note, status, ambito, uploaded_at'),
     tutta<TabelleGrezze['bozze'][0]>('family_draft_expenses',
       'id, document_id, status, expense_date, group_id, category_id, subcategory, canonical_category_id, canonical_subcategory_id, store, description, payment_method, room_id, expense_nature, confidence, arrotondamento_cent, expense_id'),
     tutta<TabelleGrezze['righeBozza'][0]>('family_draft_items',

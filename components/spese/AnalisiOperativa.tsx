@@ -1,57 +1,66 @@
 'use client'
 // ============================================================================
-// ANALISI OPERATIVE (3.2B) — Calendario, Racconto e Domanda TRASFERITI nel
-// nuovo guscio, funzionanti: sono gli stessi componenti e le stesse funzioni
-// pure della Fase 1 (CalendarioTab, RaccontoTab, DomandaTab, lib/spese/*),
-// alimentati dalla stessa lettura della pagina. Periodi Mese/Settimana/
-// Anno/Dal–al e filtro "Di chi" come nel vecchio tracker.
-// Bozze e fatture non pagate NON sono qui dentro: queste analisi lavorano
-// solo su family_expenses (denaro uscito), come sempre.
+// ANALISI OPERATIVE (3.2B → 3.2B.1) — Calendario, Racconto e Domanda vivi
+// dentro il nuovo guscio. Dalla 3.2B.1:
+//  · proiezione PER RIGA coerente con l'adattatore (item.group_id vince
+//    sulla madre; categorie canoniche con ripiego storico): il filtro
+//    "Di chi" agisce sulle RIGHE, così la riga di Teo dentro una spesa di
+//    Casa non si perde;
+//  · totali e calendario derivati dalle stesse voci (viste equivalenti,
+//    stessi numeri);
+//  · la Domanda rispetta periodo e persona selezionati (i periodi o le
+//    persone nominati NELLA domanda vincono e vengono indicati);
+//  · date nel fuso italiano (oggiARoma).
 // ============================================================================
 import { useMemo, useState } from 'react'
 import { TEMA as t } from './tema'
 import { Card, Chip, Etichetta } from './mattoni'
-import type { Ambito, Category, Dettaglio, Fx, Group, Item, Msg, Subcat, Voce } from '@/lib/spese/types'
+import type { Ambito, Category, Dettaglio, Fx, Group, Msg, Subcat, Voce } from '@/lib/spese/types'
 import { monthKey, periodoRange, periodoLabel as periodoLabelDi, ritmoEPrevisione } from '@/lib/spese/periodo'
 import { eur2 } from '@/lib/spese/costanti'
-import {
-  vociDi as vociDiPure, itemsPerSpesa, costruisciRacconto, contoCaffe,
-  spesePerGiorno, fisseMese,
-} from '@/lib/spese/voci'
-import { rispondi as rispondiDomanda } from '@/lib/spese/domanda'
+import { itemsPerSpesa, costruisciRacconto, fisseMese, vociEstese, type ItemEsteso, type RisolutoriVoce } from '@/lib/spese/voci'
+import { rispondiNelContesto } from '@/lib/spese/domandaContesto'
+import { oggiARoma } from '@/lib/spese/adattatore'
 import CalendarioTab from './CalendarioTab'
 import RaccontoTab from './RaccontoTab'
 import DomandaTab from './DomandaTab'
 
 type Sotto = 'calendario' | 'racconto' | 'domanda'
 
-export function AnalisiOperativa({ ambito, spese, items, groups, cats, subcats, apriFoto }: {
+export function AnalisiOperativa({ ambito, spese, items, groups, cats, subcats, risolutori, apriFoto }: {
   ambito: Ambito
-  spese: Fx[]           // già filtrate per ambito; recurring include expense_nature='ricorrente'
-  items: Item[]
+  spese: Fx[]           // già filtrate per ambito; recurring già armonizzato con expense_nature
+  items: ItemEsteso[]
   groups: Group[]
   cats: Category[]
   subcats: Subcat[]
+  risolutori: RisolutoriVoce   // stessi nomi e ripieghi dell'adattatore
   apriFoto: (receiptId: string) => void
 }) {
+  const oggi = oggiARoma()
   const [sotto, setSotto] = useState<Sotto>('calendario')
   const [gFilter, setGFilter] = useState('')
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [month, setMonth] = useState(oggi.slice(0, 7))
   const [periodMode, setPeriodMode] = useState<'mese' | 'settimana' | 'anno' | 'intervallo'>('mese')
-  const [year, setYear] = useState(String(new Date().getFullYear()))
-  const [weekAnchor, setWeekAnchor] = useState(new Date().toISOString().split('T')[0])
-  const [fromDate, setFromDate] = useState(new Date().toISOString().split('T')[0])
-  const [toDate, setToDate] = useState(new Date().toISOString().split('T')[0])
+  const [year, setYear] = useState(oggi.slice(0, 4))
+  const [weekAnchor, setWeekAnchor] = useState(oggi)
+  const [fromDate, setFromDate] = useState(oggi)
+  const [toDate, setToDate] = useState(oggi)
   const [giornoSel, setGiornoSel] = useState('')
   const [dettaglio, setDettaglio] = useState<Dettaglio>(null)
   const [chat, setChat] = useState<Msg[]>([])
   const [domanda, setDomanda] = useState('')
 
   const accento = ambito === 'azienda' ? t.terracotta : t.verde
-  const groupName = (id: string | null) => groups.find(x => x.id === id)?.name || '—'
-  const catName = (id: string | null | undefined) => cats.find(x => x.id === id)?.name || ''
-  const itemsByExp = useMemo(() => itemsPerSpesa(items), [items])
-  const vociDi = (righe: Fx[]): Voce[] => vociDiPure(righe, itemsByExp, catName, groupName)
+  const itemsByExp = useMemo(() => itemsPerSpesa(items) as Record<string, ItemEsteso[]>, [items])
+  const personaNome = gFilter ? (groups.find(g => g.id === gFilter)?.name ?? null) : null
+  // proiezione per RIGA (item prima, madre come ripiego), poi filtro persona
+  // sulle voci: la riga di Teo dentro una spesa di Casa resta di Teo
+  const vociDi = useMemo(() =>
+    (righe: Fx[]): Voce[] => {
+      const voci = vociEstese(righe, itemsByExp, risolutori)
+      return personaNome ? voci.filter(v => v.g === personaNome) : voci
+    }, [itemsByExp, risolutori, personaNome])
 
   // il Calendario resta per mese (è una griglia mensile); Racconto e Domanda
   // seguono il periodo scelto, come nel vecchio tracker
@@ -59,20 +68,24 @@ export function AnalisiOperativa({ ambito, spese, items, groups, cats, subcats, 
   const [periodStart, periodEnd] = periodoRange(isMese, periodMode, { month, year, weekAnchor, fromDate, toDate })
   const periodLabel = periodoLabelDi(isMese, periodMode, { month, year, fromDate, toDate }, periodStart, periodEnd)
 
-  const speseMese = useMemo(
-    () => spese.filter(r => r.expense_date >= periodStart && r.expense_date <= periodEnd && (!gFilter || r.group_id === gFilter)),
-    [spese, periodStart, periodEnd, gFilter])
-  const vociMese = useMemo(() => vociDi(speseMese), [speseMese, itemsByExp, cats, groups])
+  const spesePeriodo = useMemo(
+    () => spese.filter(r => r.expense_date >= periodStart && r.expense_date <= periodEnd),
+    [spese, periodStart, periodEnd])
+  const vociMese = useMemo(() => vociDi(spesePeriodo), [vociDi, spesePeriodo])
   const vociPrec = useMemo(
-    () => isMese ? vociDi(spese.filter(r => r.expense_date.slice(0, 7) === monthKey(month, -1) && (!gFilter || r.group_id === gFilter))) : [],
-    [spese, month, gFilter, isMese, itemsByExp, cats, groups])
-  const totMese = speseMese.reduce((s, r) => s + Number(r.amount), 0)
-  const { daysInMonth } = ritmoEPrevisione(totMese, month, new Date())
-  const perGiorno = useMemo(() => spesePerGiorno(speseMese), [speseMese])
+    () => isMese ? vociDi(spese.filter(r => r.expense_date.slice(0, 7) === monthKey(month, -1))) : [],
+    [vociDi, spese, month, isMese])
+  // il totale viene dalle STESSE voci (righe): coerente col filtro persona
+  const totMese = vociMese.reduce((s, v) => s + v.a, 0)
+  const { daysInMonth } = ritmoEPrevisione(totMese, month, new Date(`${oggi}T12:00:00`))
+  const perGiorno = useMemo(() => {
+    const m: Record<number, number> = {}
+    vociMese.forEach(v => { const g = Number(v.d.slice(-2)); m[g] = (m[g] || 0) + v.a })
+    return m
+  }, [vociMese])
   const racconto = useMemo(() => costruisciRacconto(vociMese, vociPrec, totMese), [vociMese, vociPrec, totMese])
-  void contoCaffe // (il conto del caffè vive dentro il racconto)
 
-  // spese fisse del mese (ricorrenti pagate + attese), come nel vecchio Home
+  // spese fisse del mese (expense_nature prevale, armonizzato a monte)
   const fisse = useMemo(() => fisseMese(spese, month), [spese, month])
   const fisseTot = fisse.reduce((s, x) => s + x.tot, 0)
 
@@ -81,7 +94,9 @@ export function AnalisiOperativa({ ambito, spese, items, groups, cats, subcats, 
     : ['Dove abbiamo speso di più?', 'Quanto in detersivi questo mese?', 'Quanto in sacchetti da sempre?']
   const chiedi = (q: string) => {
     if (!q.trim()) return
-    const risposta = rispondiDomanda(q, { rows: spese, month, groups, cats, subcats, vociDi })
+    const risposta = rispondiNelContesto(q,
+      { rows: spese, month, groups, cats, subcats, vociDi: righe => vociEstese(righe, itemsByExp, risolutori) },
+      { isMese, periodStart, periodEnd, periodLabel, personaNome })
     setChat(prev => [...prev, { io: true, t: q.trim() }, { io: false, t: risposta }])
     setDomanda('')
   }
@@ -122,7 +137,7 @@ export function AnalisiOperativa({ ambito, spese, items, groups, cats, subcats, 
         {!isMese && periodMode === 'anno' && (
           <div className="flex gap-1.5 mt-2 flex-wrap">
             {[0, 1, 2].map(off => {
-              const a = String(new Date().getFullYear() - off)
+              const a = String(Number(oggi.slice(0, 4)) - off)
               return <Chip key={a} attivo={year === a} colore={accento} onClick={() => setYear(a)}>{a}</Chip>
             })}
           </div>
@@ -163,7 +178,7 @@ export function AnalisiOperativa({ ambito, spese, items, groups, cats, subcats, 
         <CalendarioTab month={month} daysInMonth={daysInMonth} perGiorno={perGiorno}
           totMese={totMese} giornoSel={giornoSel}
           onGiorno={gs => { setGiornoSel(giornoSel === gs ? '' : gs); setDettaglio(null) }}
-          vociGiorno={giornoSel ? vociDi(spese.filter(r => r.expense_date === giornoSel && (!gFilter || r.group_id === gFilter))) : []}
+          vociGiorno={giornoSel ? vociMese.filter(v => v.d === giornoSel) : []}
           subcats={subcats} onOpenReceipt={apriFoto} />
       )}
       {sotto === 'racconto' && (
