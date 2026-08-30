@@ -120,6 +120,13 @@ const lista = (v) => v.map(x => `'${x}'`).join(',')
 // UPDATE(status) concesso a PUBLIC o ereditato NON sfugge più) + evidenza
 // delle ACL di colonna
 {
+  // INVENTARIO delle colonne: query DISTINTA da quella dei privilegi — è
+  // lui a definire la matrice completa dei casi attesi
+  const qInv = `select table_name as tabella, column_name as colonna
+    from information_schema.columns
+    where table_schema='public' and table_name in (${lista(TAB_RISTRETTE)})
+    order by table_name, column_name`
+  const inv = await sql(qInv)
   const q = `select c.table_name as tabella, c.column_name as colonna, r.ruolo, p.priv as privilegio,
       has_column_privilege(r.ruolo, ('public.' || c.table_name)::regclass, c.column_name, p.priv) as effettivo
     from information_schema.columns c
@@ -128,11 +135,12 @@ const lista = (v) => v.map(x => `'${x}'`).join(',')
     where c.table_schema='public' and c.table_name in (${lista(TAB_RISTRETTE)})
     order by c.table_name, c.column_name, r.ruolo, p.priv`
   const r = await sql(q)
-  const v = verificaColonneEffettive(r)
+  const v = verificaColonneEffettive(inv, r)
   sezione('1-ter. privilegi EFFETTIVI di COLONNA contro le autorizzazioni della 0021', q, r,
-    'colonne CONSENTITE dalla 0021 presenti e vere per authenticated; riservate negate; anon senza scritture su nessuna colonna; booleani espliciti e completezza per identità',
+    'matrice COMPLETA dall\'inventario (ogni colonna × authenticated/anon × INSERT/UPDATE, esattamente una volta): consentite vere, tutto il resto false, booleani espliciti; mancanti/duplicati/inattesi segnalati',
     v.ok, v.ok ? `${r.length} casi letti, tutti conformi alla 0021` : v.differenze.join(' · '))
   evidenze.sezioni.at(-1).matrice_0021 = { consentite: COLONNE_CONSENTITE, riservate_minime: COLONNE_RISERVATE_MINIME }
+  evidenze.sezioni.at(-1).inventario = { query: qInv, righe_lette: inv }
   // evidenza: ACL di COLONNA grezze con grantor (riportate senza giudizio)
   const qAcl = `select c.relname as tabella, a.attname as colonna,
       x.grantor::regrole::text as grantor, x.grantee::regrole::text as grantee, x.privilege_type

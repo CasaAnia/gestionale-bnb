@@ -101,7 +101,9 @@ export function verificaPolicy(osservate) {
     const o = mappa.get(chiave(a))
     if (!o) { differenze.push(`ASSENTE: ${chiave(a)}`); continue }
     const problemi = []
-    if (canon(o.roles) !== canon(a.ruoli)) problemi.push(`ruoli ${o.roles}`)
+    // IDENTITÀ dei ruoli: confronto ESATTO (niente minuscole né spazi:
+    // la normalizzazione sintattica delle espressioni non si applica ai nomi)
+    if (String(o.roles) !== a.ruoli) problemi.push(`ruoli ${o.roles}`)
     if (String(o.cmd).toUpperCase() !== a.cmd) problemi.push(`cmd ${o.cmd}`)
     const modo = String(o.permissive ?? '').toUpperCase()
     if (modo !== 'PERMISSIVE' && modo !== 'RESTRICTIVE')
@@ -193,38 +195,49 @@ export const COLONNE_RISERVATE_MINIME = {
 }
 // NB: upload_ambito è consentita SOLO in INSERT sui documenti — in UPDATE è riservata.
 
-// righe: {tabella, colonna, ruolo, privilegio, effettivo}
-export function verificaColonneEffettive(righe) {
+// La matrice COMPLETA dei casi attesi nasce da un INVENTARIO delle colonne
+// (query information_schema.columns, DISTINTA da quella dei privilegi):
+// ogni colonna delle 5 tabelle × authenticated/anon × INSERT/UPDATE deve
+// comparire ESATTAMENTE una volta, con booleano esplicito e valore
+// conforme alla 0021. Mancanti, duplicati, righe inattese o null sono
+// differenze — mai conformità.
+// inventario: [{tabella, colonna}] · righe: [{tabella, colonna, ruolo,
+// privilegio, effettivo}]
+export function verificaColonneEffettive(inventario, righe) {
   const differenze = []
-  const mappa = new Map((righe ?? []).map(r => [`${r.tabella}/${r.colonna}/${r.ruolo}/${r.privilegio}`, r]))
-  const controlla = (tabella, colonna, ruolo, privilegio, atteso) => {
-    const k = `${tabella}/${colonna}/${ruolo}/${privilegio}`
-    const r = mappa.get(k)
-    if (!r) { differenze.push(`INCOMPLETO: caso ${k} assente`); return }
-    if (typeof r.effettivo !== 'boolean') { differenze.push(`INCOMPLETO: ${k} senza booleano esplicito`); return }
+  // 0) l'inventario stesso deve coprire almeno le colonne consentite e le
+  //    riservate minime: un inventario monco restringerebbe la matrice
+  const invSet = new Set((inventario ?? []).map(i => `${i.tabella}/${i.colonna}`))
+  for (const [chiave, cols] of Object.entries(COLONNE_CONSENTITE)) {
+    const t = chiave.split('/')[0]
+    for (const c of cols) if (!invSet.has(`${t}/${c}`)) differenze.push(`INCOMPLETO: inventario senza ${t}.${c} (consentita)`)
+  }
+  for (const [t, cols] of Object.entries(COLONNE_RISERVATE_MINIME))
+    for (const c of cols) if (!invSet.has(`${t}/${c}`)) differenze.push(`INCOMPLETO: inventario senza ${t}.${c} (riservata)`)
+  // 1) matrice attesa COMPLETA
+  const attesi = new Map()
+  for (const i of inventario ?? [])
+    for (const ruolo of ['authenticated', 'anon'])
+      for (const privilegio of ['INSERT', 'UPDATE'])
+        attesi.set(`${i.tabella}/${i.colonna}/${ruolo}/${privilegio}`,
+          ruolo === 'authenticated' && (COLONNE_CONSENTITE[`${i.tabella}/${privilegio}`] ?? []).includes(i.colonna))
+  // 2) ogni caso esattamente una volta, booleano esplicito, valore atteso
+  const visti = new Map()
+  for (const r of righe ?? []) {
+    const k = `${r.tabella}/${r.colonna}/${r.ruolo}/${r.privilegio}`
+    visti.set(k, (visti.get(k) ?? 0) + 1)
+    if (visti.get(k) > 1) continue                 // il duplicato è segnalato sotto
+    if (!attesi.has(k)) { differenze.push(`riga INATTESA (fuori inventario): ${k}`); continue }
+    if (typeof r.effettivo !== 'boolean') { differenze.push(`INCOMPLETO: ${k} senza booleano esplicito`); continue }
+    const atteso = attesi.get(k)
     if (r.effettivo !== atteso)
       differenze.push(atteso
-        ? `${tabella}.${colonna}: ${privilegio} CONSENTITO dalla 0021 ma negato a ${ruolo}`
-        : `${tabella}.${colonna}: ${privilegio} RIAPERTO per ${ruolo} (PUBLIC/ereditarietà comprese)`)
+        ? `${r.tabella}.${r.colonna}: ${r.privilegio} CONSENTITO dalla 0021 ma negato a authenticated`
+        : r.ruolo === 'anon'
+          ? `${r.tabella}.${r.colonna}: ${r.privilegio} APERTO ad anon`
+          : `${r.tabella}.${r.colonna}: ${r.privilegio} RIAPERTO per authenticated (PUBLIC/ereditarietà comprese)`)
   }
-  for (const [chiave, consentite] of Object.entries(COLONNE_CONSENTITE)) {
-    const [tabella, privilegio] = chiave.split('/')
-    for (const c of consentite) controlla(tabella, c, 'authenticated', privilegio, true)
-    for (const c of COLONNE_RISERVATE_MINIME[tabella] ?? [])
-      if (!consentite.includes(c)) controlla(tabella, c, 'authenticated', privilegio, false)
-  }
-  // anon: MAI scritture, su nessuna colonna osservata o attesa
-  for (const r of righe ?? []) {
-    if (r.ruolo === 'anon' && ['INSERT', 'UPDATE'].includes(r.privilegio)) {
-      if (typeof r.effettivo !== 'boolean') differenze.push(`INCOMPLETO: ${r.tabella}/${r.colonna}/anon/${r.privilegio} senza booleano`)
-      else if (r.effettivo) differenze.push(`${r.tabella}.${r.colonna}: ${r.privilegio} APERTO ad anon`)
-    }
-    // qualunque colonna osservata NON consentita deve risultare negata
-    if (r.ruolo === 'authenticated' && ['INSERT', 'UPDATE'].includes(r.privilegio)) {
-      const consentite = COLONNE_CONSENTITE[`${r.tabella}/${r.privilegio}`]
-      if (consentite && !consentite.includes(r.colonna) && r.effettivo === true)
-        differenze.push(`${r.tabella}.${r.colonna}: ${r.privilegio} RIAPERTO per authenticated`)
-    }
-  }
+  for (const [k, n] of visti) if (n > 1) differenze.push(`caso DUPLICATO (${n} volte): ${k}`)
+  for (const k of attesi.keys()) if (!visti.has(k)) differenze.push(`INCOMPLETO: caso ${k} assente`)
   return { ok: differenze.length === 0, differenze: [...new Set(differenze)] }
 }

@@ -398,47 +398,83 @@ test('FALSO VERDE riprodotto: 30 casi con effettivo=null NON sono «tutti negati
   assert.ok(verificaEffettiviTabella(unoAperto, casi).differenze.some(d => d.includes('può')))
 })
 
-// osservazioni CONFORMI di colonna: consentite vere per authenticated,
-// tutto il resto false, anon sempre false
-function colonneConformi() {
-  const righe = []
+// INVENTARIO completo di colonna (con colonne extra vere come created_at e
+// id) e osservazioni CONFORMI: la matrice nasce dall'inventario, distinto
+// dai risultati dei privilegi
+function inventarioColonne() {
+  const inv = []
   const tabelle = [...new Set(Object.keys(COLONNE_CONSENTITE).map(k => k.split('/')[0]))]
   for (const t of tabelle) {
     const colonne = [...new Set([
+      'id', 'created_at',
       ...(COLONNE_CONSENTITE[`${t}/INSERT`] ?? []), ...(COLONNE_CONSENTITE[`${t}/UPDATE`] ?? []),
       ...(COLONNE_RISERVATE_MINIME[t] ?? []),
     ])]
-    for (const colonna of colonne)
-      for (const ruolo of ['authenticated', 'anon'])
-        for (const privilegio of ['INSERT', 'UPDATE'])
-          righe.push({
-            tabella: t, colonna, ruolo, privilegio,
-            effettivo: ruolo === 'authenticated' && (COLONNE_CONSENTITE[`${t}/${privilegio}`] ?? []).includes(colonna),
-          })
+    for (const colonna of colonne) inv.push({ tabella: t, colonna })
   }
+  return inv
+}
+function colonneConformi(inv = inventarioColonne()) {
+  const righe = []
+  for (const i of inv)
+    for (const ruolo of ['authenticated', 'anon'])
+      for (const privilegio of ['INSERT', 'UPDATE'])
+        righe.push({
+          tabella: i.tabella, colonna: i.colonna, ruolo, privilegio,
+          effettivo: ruolo === 'authenticated' && (COLONNE_CONSENTITE[`${i.tabella}/${privilegio}`] ?? []).includes(i.colonna),
+        })
   return righe
 }
 
-test('colonne EFFETTIVE: caso conforme verde; UPDATE(status) riaperto via PUBLIC/ereditarietà → ROSSO', () => {
-  assert.equal(verificaColonneEffettive(colonneConformi()).ok, true)
-  // il caso riprodotto: has_column_privilege vede status riaperto anche se
-  // il grant diretto ad authenticated non c'è (PUBLIC o ruolo ereditato)
-  const riaperto = colonneConformi().map(r =>
+test('colonne EFFETTIVE: caso completo conforme verde; UPDATE(status) riaperto via PUBLIC/ereditarietà → ROSSO', () => {
+  const inv = inventarioColonne()
+  assert.equal(verificaColonneEffettive(inv, colonneConformi(inv)).ok, true)
+  const riaperto = colonneConformi(inv).map(r =>
     r.tabella === 'family_documents' && r.colonna === 'status' && r.ruolo === 'authenticated' && r.privilegio === 'UPDATE'
       ? { ...r, effettivo: true } : r)
-  const v = verificaColonneEffettive(riaperto)               // PRIMA: nessuna sezione lo vedeva
+  const v = verificaColonneEffettive(inv, riaperto)
   assert.equal(v.ok, false)
   assert.ok(v.differenze.some(d => d.includes('status') && d.includes('RIAPERTO')))
-  // anon con una scrittura di colonna → rosso; booleano mancante → INCOMPLETO
-  let girato = false
-  const anonAperto = colonneConformi().map(r =>
-    !girato && r.ruolo === 'anon' ? (girato = true, { ...r, effettivo: true }) : r)
-  const vAnon = verificaColonneEffettive(anonAperto)
-  assert.equal(vAnon.ok, false)
-  assert.ok(vAnon.differenze.some(d => d.includes('APERTO ad anon')))
-  const nullo = colonneConformi().map(r =>
-    r.tabella === 'family_documents' && r.colonna === 'status' && r.ruolo === 'authenticated' && r.privilegio === 'UPDATE'
+})
+
+test('FALSI VERDI riprodotti: la completezza viene dalla MATRICE dell\'inventario, non dalle righe ricevute', () => {
+  const inv = inventarioColonne()
+  // 1) TUTTE le righe anon eliminate → i casi anon risultano ASSENTI
+  const senzaAnon = colonneConformi(inv).filter(r => r.ruolo !== 'anon')
+  const v1 = verificaColonneEffettive(inv, senzaAnon)          // PRIMA: verde
+  assert.equal(v1.ok, false)
+  assert.ok(v1.differenze.some(d => d.includes('assente') && d.includes('anon')))
+  // 2) via il caso family_draft_expenses/document_id/authenticated/UPDATE
+  //    (document_id è consentita SOLO in insert: il suo caso UPDATE prima
+  //    non era preteso da nessuno)
+  const senzaCaso = colonneConformi(inv).filter(r =>
+    !(r.tabella === 'family_draft_expenses' && r.colonna === 'document_id' && r.ruolo === 'authenticated' && r.privilegio === 'UPDATE'))
+  const v2 = verificaColonneEffettive(inv, senzaCaso)          // PRIMA: verde
+  assert.equal(v2.ok, false)
+  assert.ok(v2.differenze.some(d => d.includes('family_draft_expenses/document_id/authenticated/UPDATE')))
+  // 3) una riservata FUORI dalla lista minima (created_at) con
+  //    effettivo=null per authenticated → INCOMPLETO
+  const conNull = colonneConformi(inv).map(r =>
+    r.tabella === 'family_documents' && r.colonna === 'created_at' && r.ruolo === 'authenticated' && r.privilegio === 'UPDATE'
       ? { ...r, effettivo: null } : r)
-  const v3 = verificaColonneEffettive(nullo)
-  assert.ok(v3.differenze.some(d => d.includes('INCOMPLETO')))
+  const v3 = verificaColonneEffettive(inv, conNull)            // PRIMA: verde
+  assert.equal(v3.ok, false)
+  assert.ok(v3.differenze.some(d => d.includes('created_at') && d.includes('INCOMPLETO')))
+  // 4) duplicati e righe fuori inventario: mai conformi
+  const doppia = [...colonneConformi(inv), colonneConformi(inv)[0]]
+  assert.ok(verificaColonneEffettive(inv, doppia).differenze.some(d => d.includes('DUPLICATO')))
+  const estranea = [...colonneConformi(inv), { tabella: 'family_documents', colonna: 'colonna_inventata', ruolo: 'anon', privilegio: 'UPDATE', effettivo: false }]
+  assert.ok(verificaColonneEffettive(inv, estranea).differenze.some(d => d.includes('INATTESA')))
+  // 5) inventario monco (senza una consentita) → incompleto
+  const invMonco = inv.filter(i => !(i.tabella === 'family_documents' && i.colonna === 'note'))
+  assert.ok(verificaColonneEffettive(invMonco, colonneConformi(invMonco)).differenze.some(d => d.includes('inventario senza family_documents.note')))
+})
+
+test('IDENTITÀ dei ruoli: {AUTHENTICATED} ≠ {authenticated} — confronto esatto, niente canon', () => {
+  const maiuscolo = policyConformi().map(p => p.policyname === 'family_expenses_solo_membri'
+    ? { ...p, roles: '{AUTHENTICATED}' } : p)
+  const v = verificaPolicy(maiuscolo)                          // PRIMA: verde via canon
+  assert.equal(v.ok, false)
+  assert.ok(v.differenze.some(d => d.includes('family_expenses') && d.includes('ruoli')))
+  assert.equal(verificaPolicy(policyConformi()).ok, true)      // il conforme resta verde
 })

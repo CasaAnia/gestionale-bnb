@@ -1223,6 +1223,21 @@ se la precedente non è verificata E approvata.
   assente o sconosciuta = INCOMPLETA non conforme; il rendering
   conforme di pg_policies resta verde. Test collegati al codice usato
   dall'audit: 26/26 il file collaudo; suite 234/234.
+  **QUINTA CORREZIONE AGLI STRUMENTI D'AUDIT (30/08/2026, sera —
+  locale):** 1) completezza delle colonne effettive: la matrice dei
+  casi attesi nasce ora da un INVENTARIO delle colonne (query
+  information_schema DISTINTA da quella dei privilegi) — ogni colonna
+  delle 5 tabelle × authenticated/anon × INSERT/UPDATE deve comparire
+  ESATTAMENTE una volta con booleano esplicito e valore conforme alla
+  0021; mancanti, duplicati, righe fuori inventario e null sono
+  differenze, e un inventario monco (senza una consentita o riservata
+  minima) è INCOMPLETO. Riprodotti e coperti i tre falsi verdi: tutte
+  le righe anon eliminate, il caso document_id/UPDATE mancante, una
+  riservata fuori lista minima (created_at) con effettivo=null. 2)
+  identità dei ruoli: confronto ESATTO in verificaPolicy —
+  {AUTHENTICATED} non passa più per {authenticated} (canon resta solo
+  per le espressioni SQL, mai per i nomi). Test 28/28 il file collaudo;
+  suite 234/234.
   **RESTA (autorizzazione separata):** eventuale nuovo audit remoto col
   verificatore corretto; applicazione della 0022 in produzione con
   backup fresco del giorno + seconda copia verificata; poi collegamento
