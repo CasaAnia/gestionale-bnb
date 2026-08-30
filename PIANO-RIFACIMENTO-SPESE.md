@@ -1238,10 +1238,25 @@ se la precedente non è verificata E approvata.
   {AUTHENTICATED} non passa più per {authenticated} (canon resta solo
   per le espressioni SQL, mai per i nomi). Test 28/28 il file collaudo;
   suite 234/234.
-  **RESTA (autorizzazione separata):** eventuale nuovo audit remoto col
-  verificatore corretto; applicazione della 0022 in produzione con
-  backup fresco del giorno + seconda copia verificata; poi collegamento
-  del flusso idempotente alle pagine.
+  **AUDIT IN PRODUZIONE RIPETUTO COL VERIFICATORE CORRETTO (30/08/2026,
+  sera — autorizzato, SOLA LETTURA, transazioni read-only):** 10/10
+  sezioni CONFORMI, stavolta col giudizio del verificatore TESTATO e le
+  EVIDENZE GREZZE complete nel rapporto NUOVO (il precedente e il suo
+  addendum restano intatti): grant di tabella espliciti + PUBLIC (12
+  righe), effettivi di tabella 30/30 esplicitamente negati, effettivi
+  di COLONNA 272/272 conformi alla matrice 0021 su inventario separato
+  di 68 colonne, ACL di colonna (66 voci) e di tabella (25) con grantor
+  come evidenza, colonne esatte 6/6, RLS su 18 tabelle per identità,
+  22/22 policy con ruoli/cmd/modalità/USING/WITH CHECK combacianti
+  (bucket compreso), 5/5 RPC per firma senza overload, 0022 ASSENTE.
+  Residui TRUNCATE/REFERENCES/TRIGGER riportati a parte (invariati).
+  Rapporto: audit-permessi-produzione-2026-08-30-secondo-giro.json sul
+  Desktop. Credenziali eliminate; token
+  gestionale-audit-produzione-temporaneo-2 DA REVOCARE.
+  **RESTA (autorizzazione separata):** applicazione della 0022 in
+  produzione — prima: backup fresco del giorno + seconda copia
+  verificata fuori dal Mac + consenso esplicito; poi collegamento del
+  flusso idempotente alle pagine.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".
