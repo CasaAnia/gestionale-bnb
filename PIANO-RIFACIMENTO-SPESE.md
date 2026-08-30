@@ -1285,6 +1285,25 @@ se la precedente non è verificata E approvata.
   impronta IDENTICA all'originale (0e5fc6ea…8de8825548f7); copia
   temporanea in Scaricati eliminata. TUTTI i prerequisiti della 0022
   in produzione sono ora soddisfatti TRANNE il consenso esplicito.
+  **0022 APPLICATA IN PRODUZIONE (30/08/2026, ore 20:51 UTC —
+  AUTORIZZATA):** pausa concordata; preflight in sola lettura TUTTO
+  VERDE (file SQL identico al collaudato per SHA, produzione
+  confrontata col backup del giorno ID per ID e campo per campo su 18
+  tabelle, 81 allegati raggiungibili, 0022 assente, protezioni
+  invariate); applicazione in UNA transazione con timeout limitati e
+  VERIFICHE STRUTTURALI PRE-COMMIT; dopo: colonne/indice/RPC/trigger
+  verificati per identità e DEFINIZIONE, privilegi a contratto (RPC
+  solo authenticated; upload_token/manifest non scrivibili dal browser,
+  8 casi effettivi false; revisione invariata), dati identici al backup
+  con le sole due colonne nuove NULL su tutti gli 81 documenti, nessun
+  inserimento di prova né chiamate alla RPC, pagine e foto verificate
+  in sola lettura (nuove pagine + ?vecchia=1; «/scontrini» non è una
+  rotta: è il flusso di elaborazione). Rapporto:
+  applicazione-0022-produzione-2026-08-30.txt sul Desktop. Token
+  gestionale-0022-produzione-temporaneo eliminato, DA REVOCARE.
+  **PROSSIMO PASSO (NON autorizzato, separato):** collegamento del
+  flusso idempotente (registrazioneSupabase/ripresaDurevole) alle
+  pagine ufficiali, poi il resto della Fase 4.
   **RESTA (autorizzazione separata):** applicazione della 0022 in
   produzione — prima: seconda copia su Drive verificata (caricamento +
   riscaricamento + confronto impronta) + backup ancora fresco +
