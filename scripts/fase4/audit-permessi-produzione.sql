@@ -19,7 +19,8 @@
 --    ATTESO: authenticated SENZA INSERT/UPDATE/DELETE di tabella su
 --    family_documents, family_draft_expenses, family_draft_items;
 --    niente scritture su family_expense_documents e family_corrections;
---    anon: niente. ATTENZIONE: eventuali TRUNCATE/REFERENCES/TRIGGER per
+--    anon: niente. ATTENZIONE: eventuali TRUNCATE/REFERENCES/TRIGGER e
+--    MAINTAIN (presente nelle ACL grezze delle cinque tabelle) per
 --    authenticated sono il DEFAULT di creazione che la 0021 NON revoca
 --    (revoca solo insert/update/delete): la loro presenza NON è un
 --    fallimento dell'audit e NON va dichiarata "rimossa" da una eventuale

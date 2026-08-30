@@ -1253,10 +1253,40 @@ se la precedente non è verificata E approvata.
   Rapporto: audit-permessi-produzione-2026-08-30-secondo-giro.json sul
   Desktop. Credenziali eliminate; token
   gestionale-audit-produzione-temporaneo-2 DA REVOCARE.
+  **BACKUP FRESCO PRE-0022 ESEGUITO (30/08/2026, sera — autorizzato,
+  produzione in SOLA LETTURA con la guardia solo-GET/HEAD del 2C-A,
+  nessuna credenziale nuova: chiave di servizio già in .env.local):**
+  nuovo scripts/fase4/backup-pre-0022.mjs adeguato allo SCHEMA ATTUALE
+  (il vecchio 2C-A copriva solo le 8 tabelle storiche): 16 family_* +
+  app_members + rooms (copia di riferimento), doppio inventario stabile
+  al 1º giro, COERENZA dei collegamenti verificata prima di scrivere
+  (ricevute→documenti, ponte, spese→ricevute, righe→spese,
+  bozze→documenti), 81 file del bucket con impronte SHA-256 e
+  stabilità su 5 riscaricamenti a campione, inventario Auth solo
+  mascherato, LEGGIMI con contenuti/LIMITI del ripristino e ordine FK.
+  Numeri: 221/728/81/215/6 · 462.175+16.910 cent — IDENTICI agli
+  invarianti noti (produzione immutata dal 2C); tabelle documentali
+  0020 presenti (81 documenti, 215 ponte), canoniche/bozze vuote come
+  atteso. Destinazione datata NUOVA (Backup spese/pre-0022-2026-08-30),
+  precedenti intatti. DMG cifrato AES-256 (219 MB) verificato: manifest
+  e impronta aggregata dei 120 file identici dentro/fuori, password
+  sbagliata e vuota rifiutate; SHA-256
+  0e5fc6eafd79e651506091b8ed5658c6fb0033dfef8c91abb7508de8825548f7.
+  (Un primo DMG è stato scartato e ricreato due volte: percorso di
+  verifica errato, poi password degli appunti sovrascritta prima del
+  salvataggio — mai una password mostrata.) Password in voce
+  «Backup spese pre-0022» (backup-pre-0022.local) nell'app Password;
+  RECUPERO PROVATO: password ricopiata DALLA voce salvata (appunti
+  prima sovrascritti con un segnaposto) → DMG aperto in sola lettura,
+  manifest identico; appunti ripuliti. Nota MAINTAIN aggiunta ai
+  privilegi residui (audit tool + SQL + addendum del rapporto).
+  FERMO PRIMA DEL CARICAMENTO su Drive (lo fanno loro); dopo il
+  caricamento: riscaricare e confrontare l'impronta.
   **RESTA (autorizzazione separata):** applicazione della 0022 in
-  produzione — prima: backup fresco del giorno + seconda copia
-  verificata fuori dal Mac + consenso esplicito; poi collegamento del
-  flusso idempotente alle pagine.
+  produzione — prima: seconda copia su Drive verificata (caricamento +
+  riscaricamento + confronto impronta) + backup ancora fresco +
+  consenso esplicito; poi collegamento del flusso idempotente alle
+  pagine.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

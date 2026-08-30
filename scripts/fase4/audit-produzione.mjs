@@ -93,9 +93,9 @@ const lista = (v) => v.map(x => `'${x}'`).join(',')
       ? [...violazioni, ...mancanoService.map(t => `INCOMPLETO: manca service_role su ${t}`)].join(' · ')
       : `${r.length} righe lette, nessuna violazione`)
   const residui = TAB_RISTRETTE
-    .map(t => [t, (perTab[`${t}/authenticated`] ?? '').split(',').filter(x => ['TRUNCATE', 'REFERENCES', 'TRIGGER'].includes(x))])
+    .map(t => [t, (perTab[`${t}/authenticated`] ?? '').split(',').filter(x => ['TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN'].includes(x))])
     .filter(([, x]) => x.length)
-  console.log(`  residui TRUNCATE/REFERENCES/TRIGGER (default di creazione, non revocati dalla 0021 — riportati a parte, nessuna azione): ${residui.length ? residui.map(([t, x]) => `${t}:${x.join('+')}`).join(' · ') : 'nessuno'}`)
+  console.log(`  residui TRUNCATE/REFERENCES/TRIGGER/MAINTAIN (default di creazione, non revocati dalla 0021 — riportati a parte, nessuna azione): ${residui.length ? residui.map(([t, x]) => `${t}:${x.join('+')}`).join(' · ') : 'nessuno'}`)
   evidenze.sezioni.at(-1).residui_default = residui
 }
 
