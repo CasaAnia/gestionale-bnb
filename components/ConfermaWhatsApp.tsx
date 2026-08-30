@@ -12,6 +12,8 @@ import { contoSoggiorno, residuoDaPagare } from '@/lib/conto'
 // del sito casaaniarozzano.it) + messaggio di testo con i link, pronti da inviare.
 
 const IMG_W = 820
+const IMG_SANS = 'var(--font-manrope), Arial, Helvetica, sans-serif'
+const IMG_DISPLAY = 'var(--font-fraunces), Georgia, serif'
 
 function formatDateIT(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -180,6 +182,7 @@ Ania`
   }, [pagamento])
 
   async function generaPng(): Promise<{ dataUrl: string; file: File }> {
+    await document.fonts.ready
     const dataUrl = await toPng(imgRef.current!, { pixelRatio: 2, backgroundColor: '#f9f6f1', cacheBust: true })
     const blob = await (await fetch(dataUrl)).blob()
     const cognome = nome.trim().split(' ').slice(-1)[0].toLowerCase() || 'ospite'
@@ -301,7 +304,7 @@ Ania`
   // ── Stili dell'immagine (1080px, solo da leggere: nessun elemento cliccabile) ──
   const S = {
     box: { background: '#F6F2EA', borderRadius: 24, padding: '44px 48px', marginBottom: 32 } as React.CSSProperties,
-    boxTitle: { fontFamily: 'Georgia, serif', fontSize: 36, fontWeight: 600, color: '#1F3D2F', margin: '0 0 28px' } as React.CSSProperties,
+    boxTitle: { fontFamily: IMG_DISPLAY, fontSize: 36, fontWeight: 600, color: '#1F3D2F', margin: '0 0 28px' } as React.CSSProperties,
     row: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '14px 0' } as React.CSSProperties,
     rowBig: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '18px 0' } as React.CSSProperties,
     label: { fontSize: 32, color: '#3a3a35', flexShrink: 0 } as React.CSSProperties,
@@ -334,50 +337,50 @@ Ania`
           <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: IMG_W }}>
 
             {/* ═══ IMMAGINE DELLA CONFERMA (1080px) ═══ */}
-            <div ref={imgRef} style={{ width: IMG_W, background: '#f9f6f1', fontFamily: 'var(--font-nunito-sans), sans-serif' }}>
+            <div ref={imgRef} style={{ width: IMG_W, background: '#f9f6f1', fontFamily: IMG_SANS }}>
 
               {/* TESTATA verde pieno #007451 (stesso verde della card del sito) */}
               <div style={{ background: '#007451', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '52px 44px 46px' }}>
                 <span style={{ border: '2px solid rgba(255,255,255,0.8)', color: 'white', borderRadius: 999, padding: '8px 30px', fontSize: 30, fontWeight: 600, letterSpacing: 6, marginBottom: 24 }}>BENVENUTI</span>
-                <p style={{ fontFamily: 'Georgia, serif', fontSize: 54, fontWeight: 600, color: 'white', margin: 0, lineHeight: 1.15 }}>Prenotazione confermata</p>
+                <p style={{ fontFamily: IMG_DISPLAY, fontSize: 54, fontWeight: 600, color: 'white', margin: 0, lineHeight: 1.15 }}>Prenotazione confermata</p>
                 <p style={{ fontSize: 34, color: 'rgba(255,255,255,0.92)', margin: '18px 0 0' }}>{NOME_STRUTTURA} · a 140 metri da Humanitas</p>
                 {/* Vecchia denominazione: gerarchia visiva inferiore, solo qui (mai nel footer) */}
-                <p style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 26, color: 'rgba(255,255,255,0.75)', margin: '10px 0 0' }}>precedentemente Casa Granata Humanitas</p>
+                <p style={{ fontFamily: IMG_DISPLAY, fontStyle: 'italic', fontSize: 26, color: 'rgba(255,255,255,0.75)', margin: '10px 0 0' }}>precedentemente Casa Granata Humanitas</p>
               </div>
 
               <div style={{ padding: '52px 52px 0' }}>
 
                 {/* SALUTO — nome cliente in evidenza */}
-                <p style={{ fontFamily: 'Georgia, serif', fontSize: 84, fontWeight: 600, color: '#1F3D2F', textAlign: 'center', margin: '0 0 32px', lineHeight: 1.05 }}>{nome}</p>
+                <p style={{ fontFamily: IMG_DISPLAY, fontSize: 84, fontWeight: 600, color: '#1F3D2F', textAlign: 'center', margin: '0 0 32px', lineHeight: 1.05 }}>{nome}</p>
 
                 {/* BIGLIETTO — DATE */}
                 <div style={{ display: 'flex', background: 'white', border: '2px solid #e3ddd0', borderRadius: 24, overflow: 'hidden', marginBottom: 30 }}>
                   {/* Righe fisse nei due lati (etichetta / giorno settimana / numero / mese / orario),
                       così le due colonne restano sempre allineate qualunque sia la lunghezza delle parole */}
-                  <div style={{ flex: 1, padding: '34px 28px', textAlign: 'center', borderRight: '3px dashed #d9d2c3' }}>
+                  <div style={{ flex: 1, padding: '38px 28px 42px', textAlign: 'center', borderRight: '3px dashed #d9d2c3' }}>
                     <div style={{ fontSize: 32, letterSpacing: 2, color: '#3a3a35' }}>CHECK-IN</div>
-                    <div style={{ fontFamily: 'Georgia, serif', fontSize: 38, fontWeight: 600, color: '#1F3D2F', marginTop: 12, lineHeight: 1 }}>{formatDateHero(cin).split(' ')[0]}</div>
-                    <div style={{ fontFamily: 'Georgia, serif', fontSize: 68, fontWeight: 700, color: '#1F3D2F', marginTop: 8, lineHeight: 1 }}>{formatDateHero(cin).split(' ')[1]}</div>
-                    <div style={{ fontFamily: 'Georgia, serif', fontSize: 38, fontWeight: 600, color: '#1F3D2F', marginTop: 8, lineHeight: 1 }}>{formatDateHero(cin).split(' ').slice(2).join(' ')}</div>
-                    <div style={{ fontSize: 32, color: '#3a3a35', marginTop: 14 }}>15:00 – 20:00</div>
+                    <div style={{ fontSize: 38, fontWeight: 600, color: '#1F3D2F', marginTop: 12, lineHeight: 1 }}>{formatDateHero(cin).split(' ')[0]}</div>
+                    <div style={{ fontSize: 68, fontWeight: 700, color: '#1F3D2F', marginTop: 8, lineHeight: 1 }}>{formatDateHero(cin).split(' ')[1]}</div>
+                    <div style={{ fontSize: 38, fontWeight: 600, color: '#1F3D2F', marginTop: 8, lineHeight: 1 }}>{formatDateHero(cin).split(' ').slice(2).join(' ')}</div>
+                    <div style={{ fontSize: 32, color: '#3a3a35', marginTop: 24, lineHeight: 1.15 }}>15:00 – 20:00</div>
                   </div>
-                  <div style={{ flex: 1, padding: '34px 28px', textAlign: 'center' }}>
+                  <div style={{ flex: 1, padding: '38px 28px 42px', textAlign: 'center' }}>
                     <div style={{ fontSize: 32, letterSpacing: 2, color: '#3a3a35' }}>CHECK-OUT</div>
-                    <div style={{ fontFamily: 'Georgia, serif', fontSize: 38, fontWeight: 600, color: '#1F3D2F', marginTop: 12, lineHeight: 1 }}>{formatDateHero(cout).split(' ')[0]}</div>
-                    <div style={{ fontFamily: 'Georgia, serif', fontSize: 68, fontWeight: 700, color: '#1F3D2F', marginTop: 8, lineHeight: 1 }}>{formatDateHero(cout).split(' ')[1]}</div>
-                    <div style={{ fontFamily: 'Georgia, serif', fontSize: 38, fontWeight: 600, color: '#1F3D2F', marginTop: 8, lineHeight: 1 }}>{formatDateHero(cout).split(' ').slice(2).join(' ')}</div>
-                    <div style={{ fontSize: 32, color: '#3a3a35', marginTop: 14 }}>entro le 10:00</div>
+                    <div style={{ fontSize: 38, fontWeight: 600, color: '#1F3D2F', marginTop: 12, lineHeight: 1 }}>{formatDateHero(cout).split(' ')[0]}</div>
+                    <div style={{ fontSize: 68, fontWeight: 700, color: '#1F3D2F', marginTop: 8, lineHeight: 1 }}>{formatDateHero(cout).split(' ')[1]}</div>
+                    <div style={{ fontSize: 38, fontWeight: 600, color: '#1F3D2F', marginTop: 8, lineHeight: 1 }}>{formatDateHero(cout).split(' ').slice(2).join(' ')}</div>
+                    <div style={{ fontSize: 32, color: '#3a3a35', marginTop: 24, lineHeight: 1.15 }}>entro le 10:00</div>
                   </div>
                 </div>
 
                 {/* NOTTI · OSPITI */}
                 <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center', marginBottom: 30 }}>
                   <div>
-                    <div style={{ fontFamily: 'Georgia, serif', fontSize: 46, fontWeight: 700, color: '#1F3D2F' }}>{nottiTot}</div>
+                    <div style={{ fontSize: 46, fontWeight: 700, color: '#1F3D2F' }}>{nottiTot}</div>
                     <div style={{ fontSize: 32, color: '#3a3a35' }}>{nottiTot === 1 ? 'notte' : 'notti'}</div>
                   </div>
                   <div>
-                    <div style={{ fontFamily: 'Georgia, serif', fontSize: 46, fontWeight: 700, color: '#1F3D2F' }}>{numOspiti}</div>
+                    <div style={{ fontSize: 46, fontWeight: 700, color: '#1F3D2F' }}>{numOspiti}</div>
                     <div style={{ fontSize: 32, color: '#3a3a35' }}>{numOspiti === 1 ? 'ospite' : 'ospiti'}</div>
                   </div>
                 </div>
@@ -415,7 +418,7 @@ Ania`
                   {righeCosti.map((r, i) => r.sconto ? (
                     <div key={i} style={{ ...S.row, background: '#E7EFE9', borderRadius: 14, padding: '12px 16px', margin: '6px 0' }}>
                       <span style={{ fontSize: 32, fontWeight: 700, color: '#1F3D2F', flexShrink: 1, minWidth: 0, lineHeight: 1.35 }}>{r.label}</span>
-                      <span style={{ fontSize: 36, fontWeight: 800, color: '#2D6A4F', flexShrink: 0 }}>−{fmtEuro(-r.amount)}</span>
+                      <span style={{ fontSize: 36, fontWeight: 700, color: '#2D6A4F', flexShrink: 0 }}>−{fmtEuro(-r.amount)}</span>
                     </div>
                   ) : (
                     <div key={i} style={S.row}>
@@ -425,7 +428,7 @@ Ania`
                   ))}
                   <div style={{ ...S.row, borderTop: '2px solid #e3ddd0', marginTop: 12, paddingTop: 26 }}>
                     <span style={{ fontSize: 32, fontWeight: 700, color: '#1F3D2F' }}>Totale soggiorno</span>
-                    <span style={{ fontSize: 44, fontWeight: 800, color: '#2D6A4F' }}>{fmtEuro(totale)}</span>
+                    <span style={{ fontSize: 44, fontWeight: 700, color: '#2D6A4F' }}>{fmtEuro(totale)}</span>
                   </div>
                   {pagamento === 'contanti' && (
                     <p style={{ fontSize: 34, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.5, margin: '18px 0 0' }}>
@@ -475,8 +478,8 @@ Ania`
 
                 {/* CONTATTI — solo numero + firma */}
                 <div style={{ textAlign: 'center', paddingBottom: 42 }}>
-                  <p style={{ fontSize: 46, fontWeight: 800, color: '#2D6A4F', margin: '0 0 26px' }}>{TELEFONO_DISPLAY}</p>
-                  <p style={{ fontFamily: 'Georgia, serif', fontSize: 46, fontWeight: 600, color: '#1F3D2F', margin: 0 }}>A presto, Ania</p>
+                  <p style={{ fontSize: 46, fontWeight: 700, color: '#2D6A4F', margin: '0 0 26px' }}>{TELEFONO_DISPLAY}</p>
+                  <p style={{ fontFamily: IMG_DISPLAY, fontSize: 46, fontWeight: 600, color: '#1F3D2F', margin: 0 }}>A presto, Ania</p>
                 </div>
               </div>
 
