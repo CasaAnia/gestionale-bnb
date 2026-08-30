@@ -103,6 +103,10 @@ test('un invio che LANCIA non rompe il ciclo: la voce resta riprovabile con la s
 
 test('applicaEsito: il successo pulisce l\'errore; i tre fallimenti finiscono nello stato giusto', () => {
   const base = nuoveVoci([voce('a.jpg')], genId)[0]
+  // e una voce SOSPESA (esito sconosciuto) non si può togliere: il
+  // riferimento all'operazione non va perso in silenzio
+  assert.equal(rimovibile({ ...base, stato: 'sospesa' }), false)
+  assert.equal(rimovibile({ ...base, stato: 'duplicato' }), true)
   assert.equal(applicaEsito(base, { ok: true }).stato, 'salvata')
   assert.equal(applicaEsito(base, { ok: false, errore: 'x', riprovabile: true, ripresa: {} }).stato, 'errore')
   assert.equal(applicaEsito(base, { ok: false, errore: 'x', riprovabile: false, sospeso: true, ripresa: {} }).stato, 'sospesa')

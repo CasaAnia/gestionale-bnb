@@ -89,9 +89,12 @@ export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, togli, 
         </button>
       </div>
 
+      {/* tre condizioni ben distinte: non inviato (nessuna riga, conta nel
+          bottone Salva), ESITO SCONOSCIUTO (sospesa) e DOPPIONE ACCERTATO */}
       {coda.filter(c => c.errore).map(c => (
         <p key={c.id} className="text-[12.5px] mb-1.5 font-semibold" role="alert"
           style={{ color: c.stato === 'errore' ? t.rosso : t.sub }}>
+          {c.stato === 'sospesa' ? '⏸ esito sconosciuto · ' : c.stato === 'duplicato' ? 'doppione accertato · ' : ''}
           {c.nome}: {c.errore}
           {c.stato === 'errore' && c.riprovabile && ' — verrà ritentata col bottone Salva'}
         </p>

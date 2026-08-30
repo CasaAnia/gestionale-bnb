@@ -38,9 +38,11 @@ export const inviabile = (v: VoceCoda<unknown>): boolean =>
 
 export const daInviare = <V extends VoceCoda<unknown>>(coda: V[]): V[] => coda.filter(inviabile)
 
-// una voce già salvata o in volo non si toglie
+// una voce già salvata o in volo non si toglie; e nemmeno una SOSPESA
+// (esito sconosciuto): toglierla perderebbe in silenzio il riferimento
+// all'operazione, e potrebbe esserci un documento già creato
 export const rimovibile = (v: VoceCoda<unknown>): boolean =>
-  v.stato !== 'in_invio' && v.stato !== 'salvata'
+  v.stato !== 'in_invio' && v.stato !== 'salvata' && v.stato !== 'sospesa'
 
 export function applicaEsito<V extends VoceCoda<unknown>>(v: V, esito: EsitoCaricamento): V {
   if (esito.ok) return { ...v, stato: 'salvata', errore: undefined, riprovabile: false }

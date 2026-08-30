@@ -886,6 +886,42 @@ se la precedente non è verificata E approvata.
   documenti/ricevute/file finali). 207/207 test; tsc pulito; lint dei
   file toccati 0 segnalazioni (restano i 2 warning storici di
   ScontriniBlock, file non toccato); build verde.
+  ATTENZIONE (residuo dichiarato, 30/08): il recupero dei caricamenti nel
+  flusso a tre passi resta INCOMPLETO — la 3.2B NON è pronta alla
+  pubblicazione finché non arriva la registrazione idempotente. Casi vivi:
+  documento con risposta persa = voce sospesa senza via d'uscita (la coda
+  vive solo nello stato della pagina: un ricaricamento + riselezione dello
+  stesso file produce 2 documenti, 1 ricevuta e 1 orfano); controllo sha
+  indisponibile + doppione vero = un documento VUOTO resta creato.
+  **FASE 4 · BLOCCO 1 (30/08/2026) — acquisizione documentale affidabile**
+  Proposta pronta e NON applicata: supabase/migrations/0022_caricamento_
+  idempotente.sql — family_documents.upload_token uuid con indice unico
+  parziale (storico a token nullo, NESSUN grant nuovo sulla colonna: i
+  grant per colonna della 0021 restano invariati, il browser non la scrive
+  mai) + RPC registra_documento_caricato (security definer, controllo
+  private.is_app_member, stati solo ai default, niente spese/bozze):
+  documento + tutte le ricevute in UNA transazione; stesso token →
+  restituisce il risultato precedente (ripetuta=true); stesso token con
+  contenuto diverso → TOKEN_RIUSATO; doppione sha → GIA_IN_ARCHIVIO con
+  rollback totale (mai documenti vuoti); token concorrenti serializzati
+  con pg_advisory_xact_lock. Il bucket resta fuori dalla transazione:
+  contratto esplicito nel file (percorso nostro casuale + upsert; pulizia
+  SOLO del proprio percorso e SOLO dopo un esito definito di
+  non-registrazione; mai su esito incerto). Client locale pronto:
+  lib/spese/registrazioneIdempotente.ts (caricaConToken, token generato
+  una volta per foto e mai perso) + registrazioneSupabase.ts (adapter RPC,
+  da collegare alle pagine SOLO dopo l'applicazione della 0022). Nove test
+  con archivio simulato persistente (risposta persa e recupero,
+  ricaricamento nei tre casi, controllo doppioni giù senza documenti
+  vuoti, concorrenza stesso token e stesso file, token riusato respinto,
+  errore intermedio con rollback, mai cancellare allegati collegati o su
+  esito incerto). La semantica SQL vera della RPC andrà provata dopo
+  l'applicazione (checklist di verifica manuale in coda alla 0022).
+  Nell'attesa, nel flusso attuale: messaggio della voce sospesa SENZA
+  inviti a ricaricare, voce sospesa NON rimovibile (il riferimento non si
+  perde in silenzio), tre condizioni distinte a schermo (non inviato /
+  esito sconosciuto / doppione accertato). Prossimo blocco: schermata di
+  revisione + riscrittura operativa di /scontrini.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

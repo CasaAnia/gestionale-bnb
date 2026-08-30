@@ -259,8 +259,11 @@ export async function caricaDocumentoConFoto(
   //    recuperabile: l'operazione resta SOSPESA, niente ritentativi alla cieca
   //    che creerebbero un secondo documento.
   if (!documentId) {
+    // NB: niente inviti a "ricaricare e riprovare": rifare il caricamento da
+    // capo creerebbe un secondo documento. Si sblocca con la registrazione
+    // idempotente della 0022 (proposta in supabase/migrations).
     const sospendi = (msg: string) => fallito(
-      `non riesco a sapere se il documento è stato creato (${msg}): per non creare doppioni questo file resta sospeso — ricarica la pagina e riprova più tardi`,
+      `esito sconosciuto: non so se il documento è stato creato (${msg}). Questa foto resta SOSPESA qui: non la ritento e non va ricaricata da capo, si creerebbe un doppione`,
       false, { sospeso: true })
     try {
       const doc = await cliente.creaDocumento({ kind: tipoDocumentoDaFile(foto.tipo), upload_ambito: ambito, note: nota })
