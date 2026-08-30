@@ -88,8 +88,10 @@ function DettaglioRighe({ m }: { m: MovimentoVista }) {
   )
 }
 
-export function RigaMovimento({ m, contesto, ultimo, apri, aperto }: {
+export function RigaMovimento({ m, contesto, ultimo, apri, aperto, apriFoto, elimina }: {
   m: MovimentoVista; contesto: Contesto; ultimo?: boolean; apri?: () => void; aperto?: boolean
+  apriFoto?: () => void            // 3.2B: foto del documento
+  elimina?: () => void             // 3.2B: solo spese manuali
 }) {
   return (
     <div style={ultimo && !aperto ? undefined : { borderBottom: `1px solid ${t.bordo}` }}>
@@ -115,7 +117,27 @@ export function RigaMovimento({ m, contesto, ultimo, apri, aperto }: {
           )}
         </span>
       </button>
-      {aperto && <DettaglioRighe m={m} />}
+      {aperto && (
+        <>
+          <DettaglioRighe m={m} />
+          {(apriFoto || elimina) && (
+            <div className="flex gap-2 pb-3 pl-12 -mt-1">
+              {apriFoto && (
+                <button onClick={apriFoto} className="min-h-11 px-3 text-[12.5px] font-bold inline-flex items-center gap-1.5"
+                  style={{ color: t.verde, border: `1px solid ${t.bordo}`, borderRadius: t.rPill, background: t.carta }}>
+                  <Camera size={14} /> Vedi le foto
+                </button>
+              )}
+              {elimina && (
+                <button onClick={elimina} className="min-h-11 px-3 text-[12.5px] font-bold"
+                  style={{ color: t.rosso, border: `1px solid ${t.bordo}`, borderRadius: t.rPill, background: t.carta }}>
+                  Elimina questa spesa
+                </button>
+              )}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -125,7 +147,7 @@ const NOMI_FILTRO: Record<keyof FiltriSpese, string> = {
   categoria: 'Categoria', metodo: 'Pagamento', stato: 'Stato', soloMisti: 'Documenti misti',
 }
 
-export function MovimentiTab({ movimenti, contesto, opzioni, filtri, iniziali, setFiltri, apriFiltri }: {
+export function MovimentiTab({ movimenti, contesto, opzioni, filtri, iniziali, setFiltri, apriFiltri, apriFoto, eliminaSpesa }: {
   movimenti: MovimentoVista[]
   contesto: Contesto
   opzioni: OpzioniFiltri
@@ -133,6 +155,8 @@ export function MovimentiTab({ movimenti, contesto, opzioni, filtri, iniziali, s
   iniziali: FiltriSpese
   setFiltri: (f: FiltriSpese) => void
   apriFiltri: () => void
+  apriFoto?: (documentId: string) => void
+  eliminaSpesa?: (expenseId: string) => void
 }) {
   const [cerca, setCerca] = useState('')
   const [aperto, setAperto] = useState<string | null>(null)
@@ -190,11 +214,18 @@ export function MovimentiTab({ movimenti, contesto, opzioni, filtri, iniziali, s
       ) : (
         <>
           <Card className="px-4 py-1.5">
-            {visibili.map((m, i) => (
-              <RigaMovimento key={m.id} m={m} contesto={contesto} ultimo={i === visibili.length - 1}
-                apri={m.righe ? () => setAperto(aperto === m.id ? null : m.id) : undefined}
-                aperto={aperto === m.id} />
-            ))}
+            {visibili.map((m, i) => {
+              const conFoto = apriFoto && m.id.startsWith('doc-') && !m.senzaFoto
+              const eliminabile = eliminaSpesa && m.stato === 'senza_documento'
+              const apribile = !!m.righe || conFoto || eliminabile
+              return (
+                <RigaMovimento key={m.id} m={m} contesto={contesto} ultimo={i === visibili.length - 1}
+                  apri={apribile ? () => setAperto(aperto === m.id ? null : m.id) : undefined}
+                  aperto={aperto === m.id}
+                  apriFoto={conFoto ? () => apriFoto!(m.id.slice(4)) : undefined}
+                  elimina={eliminabile ? () => eliminaSpesa!(m.id.slice(6)) : undefined} />
+              )
+            })}
           </Card>
           <p className="text-center text-[12px]" style={{ color: t.sub }}>
             {visibili.length} {visibili.length === 1 ? 'movimento' : 'movimenti'} in {contesto === 'ania' ? 'Casa Ania' : 'Casa Mia'} · un documento = una voce

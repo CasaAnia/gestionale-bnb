@@ -9,10 +9,11 @@ import { eurVista as eur, nelMese, perContesto, type PanoramicaMiaVista, type Pa
 import { RigaMovimento } from './MovimentiTab'
 import { Vuoto } from './StatiDati'
 
-export function PanoramicaMia({ dati, movimenti, apriDaControllare }: {
+export function PanoramicaMia({ dati, movimenti, apriDaControllare, gestisciBudget }: {
   dati: PanoramicaMiaVista
   movimenti: MovimentoVista[]
   apriDaControllare: () => void
+  gestisciBudget?: () => void            // 3.2B: apre la gestione dei budget
 }) {
   const recenti = perContesto(movimenti, 'mia').slice(0, 4)
   return (
@@ -28,6 +29,11 @@ export function PanoramicaMia({ dati, movimenti, apriDaControllare }: {
           )}
         </div>
         <p className={`${DISPLAY} text-[34px] leading-none`} style={{ color: t.inchiostro }}>{eur(dati.speso)}</p>
+        {dati.ritmo && (
+          <p className="text-[12px] mt-1.5" style={{ color: t.sub }}>
+            circa {eur(Math.round(dati.ritmo.mediaGiorno))} al giorno · di questo passo {eur(Math.round(dati.ritmo.previsione))} a fine mese
+          </p>
+        )}
         {dati.daControllare.n > 0 && (
           <div className="mt-3 -mx-4 px-4 pt-3" style={{ borderTop: `1px solid ${t.bordo}` }}>
             <button onClick={apriDaControllare} className="w-full min-h-11 flex items-center gap-2.5 text-left">
@@ -46,14 +52,25 @@ export function PanoramicaMia({ dati, movimenti, apriDaControllare }: {
         )}
       </Card>
 
-      {dati.budget.length > 0 && (
+      {(dati.budget.length > 0 || gestisciBudget) && (
         <Card className="px-4 py-4">
           <div className="flex items-center justify-between">
             <Etichetta>Budget di {dati.mese.toLowerCase()}</Etichetta>
-            <span className="text-[12px] font-semibold" style={{ color: t.verde }}>
-              {eur(dati.budget.reduce((s, b) => s + Math.max(0, b.tetto - b.speso), 0))} ancora liberi
+            <span className="flex items-center gap-2">
+              {dati.budget.length > 0 && (
+                <span className="text-[12px] font-semibold" style={{ color: t.verde }}>
+                  {eur(dati.budget.reduce((s, b) => s + Math.max(0, b.tetto - b.speso), 0))} ancora liberi
+                </span>
+              )}
+              {gestisciBudget && (
+                <button onClick={gestisciBudget} className="min-h-9 px-2 text-[12px] font-bold"
+                  style={{ color: t.verde }}>Gestisci</button>
+              )}
             </span>
           </div>
+          {dati.budget.length === 0 && (
+            <p className="text-[13px]" style={{ color: t.sub }}>Nessun budget: toccane uno da &quot;Gestisci&quot; per crearlo.</p>
+          )}
           <div className="flex flex-col gap-3">
             {dati.budget.map(b => {
               const quota = b.tetto > 0 ? b.speso / b.tetto * 100 : 0
@@ -133,9 +150,10 @@ export function PanoramicaMia({ dati, movimenti, apriDaControllare }: {
   )
 }
 
-export function PanoramicaAnia({ dati, movimenti }: {
+export function PanoramicaAnia({ dati, movimenti, gestisciBudget }: {
   dati: PanoramicaAniaVista
   movimenti: MovimentoVista[]
+  gestisciBudget?: () => void
 }) {
   const recenti = perContesto(movimenti, 'ania').slice(0, 4)
   return (
@@ -145,7 +163,9 @@ export function PanoramicaAnia({ dati, movimenti }: {
           <div>
             <Etichetta>Speso {nelMese(dati.mese)}</Etichetta>
             <p className={`${DISPLAY} text-[26px] leading-none`} style={{ color: t.inchiostro }}>{eur(dati.speso)}</p>
-            <p className="text-[12px] mt-1" style={{ color: t.sub }}>denaro uscito davvero</p>
+            <p className="text-[12px] mt-1" style={{ color: t.sub }}>
+              denaro uscito davvero{dati.ritmo ? ` · ~${eur(Math.round(dati.ritmo.previsione))} a fine mese` : ''}
+            </p>
           </div>
           <div className="pl-3" style={{ borderLeft: `1px solid ${t.bordo}` }}>
             <Etichetta>Impegnato / da pagare</Etichetta>
@@ -186,6 +206,37 @@ export function PanoramicaAnia({ dati, movimenti }: {
           </div>
         )}
       </Card>
+
+      {(dati.budget.length > 0 || gestisciBudget) && (
+        <Card className="px-4 py-4">
+          <div className="flex items-center justify-between">
+            <Etichetta>Budget di {dati.mese.toLowerCase()}</Etichetta>
+            {gestisciBudget && (
+              <button onClick={gestisciBudget} className="min-h-9 px-2 text-[12px] font-bold"
+                style={{ color: t.terracotta }}>Gestisci</button>
+            )}
+          </div>
+          {dati.budget.length === 0 ? (
+            <p className="text-[13px]" style={{ color: t.sub }}>Nessun budget per Casa Ania: crealo da &quot;Gestisci&quot;.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {dati.budget.map(b => {
+                const quota = b.tetto > 0 ? b.speso / b.tetto * 100 : 0
+                const colore = quota >= 90 ? t.rosso : t.terracotta
+                return (
+                  <div key={b.nome}>
+                    <div className="flex justify-between text-[13.5px] mb-1">
+                      <span className="font-medium" style={{ color: t.inchiostro }}>{b.nome}</span>
+                      <span style={{ color: t.sub }}><b style={{ color: colore }}>{eur(b.speso)}</b> di {eur(b.tetto)}</span>
+                    </div>
+                    <Barra quota={quota} colore={colore} />
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card className="px-4 py-4">
         <Etichetta>Come stai pagando</Etichetta>

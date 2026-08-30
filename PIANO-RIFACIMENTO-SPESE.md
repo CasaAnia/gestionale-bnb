@@ -808,6 +808,40 @@ se la precedente non è verificata E approvata.
   ("Arrotondamento di cassa", subtotali = quote, niente doppio conteggio
   nelle definitive); gruppiDettaglio puro e testato. 166/166; reale
   invariato e con due quote per ogni misto.
+  **3.2B — CHECKLIST DI PARITÀ** (dal codice di SpeseTracker, da verificare
+  prima di pensionare il vecchio percorso; ✅ = trasferita nel guscio):
+  1. Calendario mensile con giorni colorati e voci del giorno
+  2. Racconto del periodo con numeri toccabili e "chi ha speso cosa"
+  3. Domanda libera (chat) con domande veloci per ambito
+  4. Periodi Mese/Settimana/Anno/Dal–al coerenti
+  5. Filtro "Di chi" (gruppi) nelle analisi
+  6. Dettaglio delle voci (ListaVoci) con sottocategorie e foto collegate
+  7. Apertura foto degli scontrini esistenti (link firmati)
+  8. Caricamento foto: fotocamera, libreria, file; anteprima; errori gestiti
+  9. Nota sugli scontrini caricati
+  10. Inserimento manuale (data, importo, gruppo, categoria, sottocategoria,
+      negozio con suggerimenti, prodotto, descrizione, regole-prodotto)
+  11. Ricorrenti: natura della spesa (expense_nature; il vecchio flag
+      recurring resta solo lettura storica, non seconda fonte di verità)
+  12. Spese fisse del mese (pagate + attese)
+  13. Ritmo e previsione del mese corrente
+  14. Budget mensili per categoria: vedere, creare, modificare, togliere
+  15. Eliminazione spese MANUALI (le documentate restano protette dal db)
+  16. Modalità dimostrazione (DemoGate/PIN)
+  17. Tessere per categoria con confronto mese precedente (→ Panoramica)
+  18. NON trasferiti di proposito: /scontrini e revisione (Fase 4), flusso
+      fatture completo (Fase 5), analisi nuove (Fase 6).
+  **3.2B ESEGUITA (30/08/2026)** — checklist: 1✅ 2✅ 3✅ 4✅ 5✅ 6✅ (nel
+  dettaglio movimenti e nelle analisi) 7✅ 8✅ (fotocamera/libreria/file →
+  family_documents+family_receipts collegate, documento da_elaborare, MAI
+  spese automatiche; campi legacy per /scontrini fino alla Fase 4) 9⚠️
+  (nota impostabile al caricamento: campo previsto nel flusso, interfaccia
+  della nota da rifinire in Fase 4 con la revisione) 10✅ 11✅ 12✅ 13✅
+  14✅ 15✅ 16✅ 17✅ (Panoramica) 18 = fasi dedicate. Pagine sostituite
+  (/spese→Casa Ania, /spese-famiglia→Casa Mia), vecchio tracker in
+  ?vecchia=1 per il ripristino fino alla pulizia finale; preview reale
+  sempre in sola lettura (guardia nei test). Prove simulate (cliente
+  finto) e reali in sola lettura documentate in PROGETTO.md.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

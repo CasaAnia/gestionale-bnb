@@ -31,7 +31,7 @@ const SEZIONI: [SezioneSpese, string][] = [
 ]
 const OPZIONI_VUOTE: OpzioniFiltri = { periodi: [], categorie: [], metodi: [] }
 
-export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = 'panoramica', filtriApertiIniziale = false, riprova, aggiungi, notaAggiungi, sopra }: {
+export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = 'panoramica', filtriApertiIniziale = false, riprova, aggiungi, notaAggiungi, sopra, apriFoto, eliminaSpesa, gestisciBudget, analisiOperativa }: {
   dati: StatoDati<DatiSpese>
   contestoIniziale?: Contesto
   sezioneIniziale?: SezioneSpese
@@ -40,6 +40,11 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
   aggiungi?: (voce: VoceAggiungi) => void   // richiamo sicuro del vecchio inserimento (opzionale)
   notaAggiungi?: string
   sopra?: ReactNode                         // es. la barretta PROVA (mai nel prodotto finale)
+  // 3.2B — funzioni operative delle pagine ufficiali (assenti nella preview)
+  apriFoto?: (documentId: string) => void
+  eliminaSpesa?: (expenseId: string) => void
+  gestisciBudget?: (contesto: Contesto) => void
+  analisiOperativa?: (contesto: Contesto) => ReactNode
 }) {
   const [contesto, setContesto] = useState<Contesto>(contestoIniziale)
   const [sezione, setSezione] = useState<SezioneSpese>(sezioneIniziale)
@@ -121,19 +126,22 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
           {dati.stato === 'pronto' && (
             <>
               {sezione === 'panoramica' && (contesto === 'mia'
-                ? <PanoramicaMia dati={dati.dati.mia} movimenti={dati.dati.movimenti} apriDaControllare={vaiAiDaControllare} />
-                : <PanoramicaAnia dati={dati.dati.ania} movimenti={dati.dati.movimenti} />)}
+                ? <PanoramicaMia dati={dati.dati.mia} movimenti={dati.dati.movimenti} apriDaControllare={vaiAiDaControllare}
+                    gestisciBudget={gestisciBudget ? () => gestisciBudget('mia') : undefined} />
+                : <PanoramicaAnia dati={dati.dati.ania} movimenti={dati.dati.movimenti}
+                    gestisciBudget={gestisciBudget ? () => gestisciBudget('ania') : undefined} />)}
               {sezione === 'movimenti' && (
                 <MovimentiTab movimenti={dati.dati.movimenti} contesto={contesto}
                   opzioni={opzioniAttuali}
                   filtri={filtri} iniziali={iniziali} setFiltri={setFiltri}
-                  apriFiltri={() => setFiltriAperti(true)} />
+                  apriFiltri={() => setFiltriAperti(true)}
+                  apriFoto={apriFoto} eliminaSpesa={eliminaSpesa} />
               )}
               {sezione === 'documenti' && (
-                <DocumentiTab documenti={perContestoDocumenti(dati.dati.documenti, contesto)} />
+                <DocumentiTab documenti={perContestoDocumenti(dati.dati.documenti, contesto)} apriFoto={apriFoto ? d => apriFoto(d.id) : undefined} />
               )}
               {sezione === 'analisi' && (
-                <AnalisiTab contesto={contesto} mia={dati.dati.mia} ania={dati.dati.ania} />
+                <AnalisiTab contesto={contesto} mia={dati.dati.mia} ania={dati.dati.ania} operativa={analisiOperativa?.(contesto)} />
               )}
             </>
           )}

@@ -120,6 +120,7 @@ export type PanoramicaMiaVista = {
   ripetute: { frase: string; tot: number; esempio: string } | null
   categorie: { nome: string; tot: number }[]
   teo: { tot: number; voci: [string, number][] } | null
+  ritmo: { mediaGiorno: number; previsione: number } | null   // solo mese corrente
 }
 
 export type PanoramicaAniaVista = {
@@ -131,6 +132,8 @@ export type PanoramicaAniaVista = {
   metodi: { nome: string; quota: number }[]
   costiCamere: { nome: string; tot: number }[]   // per l'Analisi aziendale
   andamento: number[]                            // spesa degli ultimi mesi, per il grafico
+  budget: { nome: string; speso: number; tetto: number }[]
+  ritmo: { mediaGiorno: number; previsione: number } | null   // solo mese corrente
 }
 
 // ---------------------------------------------------------------------------

@@ -24,10 +24,10 @@ function Grafico({ valori, evidenzia }: { valori: number[]; evidenzia?: number }
   )
 }
 
-function AnalisiMia({ mia }: { mia: PanoramicaMiaVista }) {
+function AnalisiMia({ mia, inArrivo }: { mia: PanoramicaMiaVista; inArrivo?: boolean }) {
   return (
     <>
-      <Card className="px-4 py-4">
+      {inArrivo && <Card className="px-4 py-4">
         <Etichetta>In arrivo qui</Etichetta>
         <div className="flex flex-col gap-2.5">
           {[
@@ -49,7 +49,7 @@ function AnalisiMia({ mia }: { mia: PanoramicaMiaVista }) {
             )
           })}
         </div>
-      </Card>
+      </Card>}
 
       {mia.ripetute && (
         <Card className="px-4 py-4">
@@ -161,14 +161,18 @@ function AnalisiAnia({ ania }: { ania: PanoramicaAniaVista }) {
   )
 }
 
-export function AnalisiTab({ contesto, mia, ania }: {
+export function AnalisiTab({ contesto, mia, ania, operativa }: {
   contesto: Contesto
   mia: PanoramicaMiaVista
   ania: PanoramicaAniaVista
+  // 3.2B: Calendario/Racconto/Domanda VERI (pagine ufficiali). Quando c'è,
+  // sostituisce la card "In arrivo qui" della preview.
+  operativa?: React.ReactNode
 }) {
   return (
     <div className="flex flex-col gap-3">
-      {contesto === 'mia' ? <AnalisiMia mia={mia} /> : <AnalisiAnia ania={ania} />}
+      {operativa}
+      {contesto === 'mia' ? <AnalisiMia mia={mia} inArrivo={!operativa} /> : <AnalisiAnia ania={ania} />}
     </div>
   )
 }

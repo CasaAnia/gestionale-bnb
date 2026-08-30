@@ -13,6 +13,7 @@ const FILE_SOLA_LETTURA = [
   'app/nuove-spese-reali/page.tsx',
   'lib/spese/adattatore.ts',
   'lib/spese/vista.ts',
+  'lib/spese/fonte.ts',
 ]
 const VIETATI = /\.(insert|update|upsert|delete|rpc)\s*\(/
 
@@ -22,5 +23,7 @@ test('la prova sui dati reali non contiene INSERT, UPDATE, DELETE, UPSERT o RPC'
     const colpo = sorgente.match(VIETATI)
     assert.equal(colpo, null, `${f} contiene una chiamata vietata: ${colpo?.[0]}`)
     assert.ok(!/service_role|SERVICE_ROLE/i.test(sorgente), `${f} tocca la service role`)
+    // la preview non deve importare i moduli di scrittura delle pagine ufficiali
+    assert.ok(!/from '.*scrittura/.test(sorgente), `${f} importa un modulo di scrittura`)
   }
 })

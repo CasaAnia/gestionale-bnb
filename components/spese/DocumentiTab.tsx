@@ -32,10 +32,13 @@ function Blocco({ titolo, docs, vuoto, children }: {
 
 const bordoSopra = (i: number) => (i > 0 ? { borderTop: `1px solid ${t.bordo}` } : undefined)
 
-export function DocumentiTab({ documenti, apriRevisione }: {
+export function DocumentiTab({ documenti, apriRevisione, apriFoto }: {
   documenti: DocumentoVista[]
   apriRevisione?: (d: DocumentoVista) => void
+  apriFoto?: (d: DocumentoVista) => void      // 3.2B: apre le fotografie
 }) {
+  const toccaFoto = (d: DocumentoVista) =>
+    apriFoto && !d.senzaFoto ? () => apriFoto(d) : undefined
   const per = (s: StatoDocumento) => documenti.filter(d => d.stato === s)
 
   return (
@@ -95,7 +98,8 @@ export function DocumentiTab({ documenti, apriRevisione }: {
 
       <Blocco titolo="Fatture pagate" docs={per('pagata')} vuoto="Le fatture pagate compariranno qui.">
         {(d, i) => (
-          <div key={d.id} className="flex items-center gap-3 min-h-11" style={bordoSopra(i)}>
+          <button key={d.id} onClick={toccaFoto(d)} disabled={!toccaFoto(d)}
+            className="w-full text-left flex items-center gap-3 min-h-11" style={bordoSopra(i)}>
             <span className="grid place-items-center w-9 h-9 shrink-0" style={{ background: t.verdeTenue, color: t.verde, borderRadius: t.rIcona }}>
               <CircleCheck size={16} />
             </span>
@@ -104,13 +108,14 @@ export function DocumentiTab({ documenti, apriRevisione }: {
               {d.giorno && <span className="block text-[12px]" style={{ color: t.sub }}>pagata {d.giorno}</span>}
             </span>
             {d.importo != null && <span className={`${DISPLAY} text-[15px]`} style={{ color: t.inchiostro }}>{eur(d.importo)}</span>}
-          </div>
+          </button>
         )}
       </Blocco>
 
       <Blocco titolo="Confermati" docs={per('confermato')} vuoto="L'archivio del mese comparirà qui.">
         {(d, i) => (
-          <div key={d.id} className="flex items-center gap-3 min-h-11" style={bordoSopra(i)}>
+          <button key={d.id} onClick={toccaFoto(d)} disabled={!toccaFoto(d)}
+            className="w-full text-left flex items-center gap-3 min-h-11" style={bordoSopra(i)}>
             <span className="grid place-items-center w-9 h-9 shrink-0" style={{ background: t.velo, color: t.verde, borderRadius: t.rIcona }}>
               <Receipt size={16} />
             </span>
@@ -119,7 +124,7 @@ export function DocumentiTab({ documenti, apriRevisione }: {
               {d.giorno && <span className="block text-[12px]" style={{ color: t.sub }}>{d.giorno}</span>}
             </span>
             {d.importo != null && <span className={`${DISPLAY} text-[15px]`} style={{ color: t.inchiostro }}>{eur(d.importo)}</span>}
-          </div>
+          </button>
         )}
       </Blocco>
 

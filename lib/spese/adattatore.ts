@@ -15,6 +15,7 @@
 // ============================================================================
 import { SOGLIA_CONFIDENCE } from './controlli.ts'
 import { controllaMisto } from './vista.ts'
+import { ritmoEPrevisione } from './periodo.ts'
 import type {
   Contesto, DatiSpese, DocumentoVista, MovimentoVista, OpzioniFiltri,
   PanoramicaAniaVista, PanoramicaMiaVista, PeriodoVista, RigaMovimentoVista,
@@ -22,8 +23,8 @@ import type {
 } from './vista'
 
 // ---- righe grezze (solo i campi che servono qui) ----
-export type GrezzoGruppo = { id: string; name: string; ambito: string | null }
-export type GrezzaCategoria = { id: string; name: string }
+export type GrezzoGruppo = { id: string; name: string; ambito: string | null; sort?: number; emoji?: string | null }
+export type GrezzaCategoria = { id: string; name: string; group_id?: string | null; sort?: number }
 export type GrezzaCategoriaCanonica = { id: string; name: string }
 export type GrezzaSottocategoriaCanonica = { id: string; name: string }
 export type GrezzaCamera = { id: string; name: string; active?: boolean | null }
@@ -33,7 +34,7 @@ export type GrezzaSpesa = {
   store: string | null; product: string | null; receipt_id: string | null
   payment_method?: string | null; paid_at?: string | null; room_id?: string | null
   canonical_category_id?: string | null; canonical_subcategory_id?: string | null
-  expense_nature?: string | null
+  expense_nature?: string | null; recurring?: boolean | null; source?: string | null
 }
 export type GrezzaRiga = {
   id: string; expense_id: string; name: string; amount: number
@@ -51,7 +52,11 @@ export type GrezzoDocumento = {
   doc_total_derivato?: boolean | null; created_at: string
 }
 export type GrezzoPonte = { expense_id: string; document_id: string }
-export type GrezzaRicevuta = { id: string; document_id: string | null }
+export type GrezzaRicevuta = {
+  id: string; document_id: string | null
+  storage_path?: string; page_order?: number; note?: string | null
+  status?: string | null; ambito?: string | null; uploaded_at?: string | null
+}
 export type Confidence = Record<string, { confidence?: number; doubt_reason?: string } | null | undefined>
 export type GrezzaBozza = {
   id: string; document_id: string; status: string; expense_date: string
@@ -69,7 +74,7 @@ export type GrezzaRigaBozza = {
   necessity: string | null; planning: string | null; confidence: Confidence
   excluded: boolean; user_added: boolean
 }
-export type GrezzoBudget = { ambito: string; category_name: string; monthly_amount: number }
+export type GrezzoBudget = { id?: string; ambito: string; category_name: string; monthly_amount: number }
 
 export type TabelleGrezze = {
   documenti: GrezzoDocumento[]
@@ -650,6 +655,11 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
   const quotaNelContesto = (m: MovimentoVista, c: Contesto) =>
     m.contesto === 'misto' ? (m.sorelle?.find(q => q.contesto === c)?.importo ?? 0) : m.importo
 
+  const ritmoDi = (totCent: number) => {
+    const r = ritmoEPrevisione(daCent(totCent), idMese, new Date(`${oggi}T12:00:00`))
+    return r.isCurrentMonth && r.giorniPassati > 0
+      ? { mediaGiorno: r.mediaGiorno, previsione: r.previsione } : null
+  }
   const mia: PanoramicaMiaVista = {
     mese: `${MESI[meseOggi - 1][0].toUpperCase()}${MESI[meseOggi - 1].slice(1)}`,
     speso: daCent(sommaCent(mesePers)),
@@ -672,6 +682,7 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
     } : null,
     categorie: [...categorieMese.entries()].sort((a, b) => b[1] - a[1])
       .map(([nome, tot]) => ({ nome, tot: daCent(tot) })),
+    ritmo: ritmoDi(sommaCent(mesePers)),
     teo: righeTeo.length ? {
       tot: daCent(righeTeo.reduce((s2, r) => s2 + r.cent, 0)),
       voci: [...teoPerCat.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
@@ -716,6 +727,12 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
     costiCamere: [...perCamera.entries()].sort((a, b) => b[1] - a[1])
       .map(([nome, v]) => ({ nome, tot: daCent(v) })),
     andamento,
+    budget: (t.budget ?? []).filter(b => b.ambito === 'azienda').map(b => {
+      const speso = righeMeseAz.filter(r => r.categoria === b.category_name)
+        .reduce((sum, r) => sum + r.cent, 0)
+      return { nome: b.category_name, speso: daCent(speso), tetto: Number(b.monthly_amount) }
+    }),
+    ritmo: ritmoDi(totMeseAz),
   }
 
   // --- OPZIONI dei filtri, dai dati ---
