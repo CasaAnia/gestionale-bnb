@@ -1280,8 +1280,11 @@ se la precedente non è verificata E approvata.
   prima sovrascritti con un segnaposto) → DMG aperto in sola lettura,
   manifest identico; appunti ripuliti. Nota MAINTAIN aggiunta ai
   privilegi residui (audit tool + SQL + addendum del rapporto).
-  FERMO PRIMA DEL CARICAMENTO su Drive (lo fanno loro); dopo il
-  caricamento: riscaricare e confrontare l'impronta.
+  SECONDA COPIA SU DRIVE VERIFICATA (30/08/2026, sera): DMG caricato
+  da Ania in Casa Ania/Backup gestionale, RISCARICATO e confrontato —
+  impronta IDENTICA all'originale (0e5fc6ea…8de8825548f7); copia
+  temporanea in Scaricati eliminata. TUTTI i prerequisiti della 0022
+  in produzione sono ora soddisfatti TRANNE il consenso esplicito.
   **RESTA (autorizzazione separata):** applicazione della 0022 in
   produzione — prima: seconda copia su Drive verificata (caricamento +
   riscaricamento + confronto impronta) + backup ancora fresco +
