@@ -25,8 +25,9 @@
 --    advisory di transazione.
 --
 -- CONTRATTO SUL BUCKET (lato client, lib/spese/registrazioneIdempotente.ts):
---  · il percorso è DERIVATO dal token (<giorno>/<token>.<ext>): proprietà
---    verificabile (la RPC RIFIUTA percorsi che non contengono il token) e
+--  · il percorso ha un FORMATO PRECISO derivato dal token e dalla pagina:
+--    <AAAA-MM-GG>/<token>-p<pagina>.<ext> — validato dal client PRIMA
+--    dell'upload e di nuovo dalla RPC ("contiene il token" non basta);
 --    concorrenza sullo stesso token = stesso percorso;
 --  · l'impronta SHA-256 è OBBLIGATORIA e fissata prima di ogni effetto:
 --    la RPC rifiuta pagine senza impronta valida (lo storico con hash
@@ -108,7 +109,7 @@ set search_path = ''
 as $$
 declare
   v_doc uuid;
-  v_nota text := pg_catalog.nullif(pg_catalog.btrim(pg_catalog.coalesce(p_nota, '')), '');
+  v_nota text := nullif(pg_catalog.btrim(coalesce(p_nota, '')), '');
   v_manifesto jsonb;
   v_registrato jsonb;
   v_pag jsonb;
@@ -135,19 +136,23 @@ begin
   end if;
   begin
     for v_pag in select * from pg_catalog.jsonb_array_elements(p_pagine) loop
-      if pg_catalog.coalesce(v_pag->>'storage_path', '') = '' then
+      if coalesce(v_pag->>'storage_path', '') = '' then
         raise exception 'PAGINE_MALFORMATE';
-      end if;
-      -- proprietà verificabile: il percorso appartiene a QUESTA operazione
-      if pg_catalog.strpos(v_pag->>'storage_path', p_token::text) = 0 then
-        raise exception 'PERCORSO_NON_COERENTE';
       end if;
       if (v_pag->>'page_order') is not null and (v_pag->>'page_order')::int < 1 then
         raise exception 'PAGINE_MALFORMATE';
       end if;
+      -- proprietà verificabile: FORMATO PRECISO del percorso, legato al
+      -- token E alla pagina (<AAAA-MM-GG>/<token>-p<pagina>.<ext>)
+      if (v_pag->>'storage_path') !~ ('^[0-9]{4}-[0-9]{2}-[0-9]{2}/'
+           || p_token::text || '-p'
+           || coalesce((v_pag->>'page_order')::int, 1)::text
+           || '\.[a-z0-9]{1,8}$') then
+        raise exception 'PERCORSO_NON_COERENTE';
+      end if;
       -- impronta OBBLIGATORIA e valida per i caricamenti nuovi (lo storico
       -- con hash nullo non passa da qui e non viene toccato)
-      if pg_catalog.coalesce(v_pag->>'file_sha256', '') = '' then
+      if coalesce(v_pag->>'file_sha256', '') = '' then
         raise exception 'IMPRONTA_MANCANTE';
       end if;
       if (v_pag->>'file_sha256') !~ '^[0-9a-f]{64}$' then
@@ -161,7 +166,7 @@ begin
   -- ordini e percorsi unici DENTRO la richiesta; impronte interne non doppie
   select pg_catalog.count(*) into v_n from (
     select 1 from pg_catalog.jsonb_array_elements(p_pagine) p
-    group by pg_catalog.coalesce((p->>'page_order')::int, 1)
+    group by coalesce((p->>'page_order')::int, 1)
     having pg_catalog.count(*) > 1
     union all
     select 1 from pg_catalog.jsonb_array_elements(p_pagine) p
@@ -177,10 +182,10 @@ begin
            'kind', p_kind, 'ambito', p_ambito, 'nota', v_nota,
            'pagine', pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
              'storage_path', p->>'storage_path',
-             'page_order', pg_catalog.coalesce((p->>'page_order')::int, 1),
-             'mime_type', pg_catalog.nullif(p->>'mime_type', ''),
+             'page_order', coalesce((p->>'page_order')::int, 1),
+             'mime_type', nullif(p->>'mime_type', ''),
              'file_sha256', p->>'file_sha256')
-             order by pg_catalog.coalesce((p->>'page_order')::int, 1)))
+             order by coalesce((p->>'page_order')::int, 1)))
     into v_manifesto
     from pg_catalog.jsonb_array_elements(p_pagine) p;
 
@@ -211,8 +216,8 @@ begin
         (storage_path, document_id, page_order, mime_type, file_sha256,
          note, ambito, status)   -- gli ultimi tre: campi legacy per /scontrini
       values (v_pag->>'storage_path', v_doc,
-              pg_catalog.coalesce((v_pag->>'page_order')::int, 1),
-              pg_catalog.nullif(v_pag->>'mime_type', ''),
+              coalesce((v_pag->>'page_order')::int, 1),
+              nullif(v_pag->>'mime_type', ''),
               v_pag->>'file_sha256',
               v_nota, p_ambito, 'da_leggere');
     end loop;
@@ -239,43 +244,63 @@ grant execute on function public.registra_documento_caricato(uuid, text, text, t
 -- ----------------------------------------------------------------------------
 -- VERIFICA MANUALE PROPOSTA — ***NON ESEGUIRE senza autorizzazione; prima
 -- esecuzione in un ambiente ISOLATO dalla produzione.***
--- L'editor SQL gira come postgres (auth.uid() nullo): per provare il
--- percorso reale serve un CONTESTO AUTENTICATO. Prima, dal pannello
--- Storage, caricare DUE file sintetici nel bucket 'scontrini' con percorsi
--- che CONTENGONO il token di prova (es. prova/<TOKEN>.jpg e
--- prova/<TOKEN>-2.jpg). Usare lo STESSO token in tutti i passi.
+-- L'editor SQL gira come postgres (auth.uid() nullo): il percorso reale va
+-- provato in un CONTESTO AUTENTICATO. Prima, dal pannello Storage, caricare
+-- due file sintetici nel bucket 'scontrini' con percorsi nel formato esatto
+-- (es. 2026-09-01/<TOKEN>-p1.jpg). Usare lo STESSO token in tutti i passi;
+-- ogni errore ATTESO va isolato in un savepoint (o in una transazione a sé),
+-- altrimenti abortisce tutto il resto della prova.
 --
--- A. PRIVILEGI (separati dal controllo interno):
---    set local role anon;          select public.registra_documento_caricato(...);
---      → permission denied (execute negato)
---    set local role service_role;  → permission denied
---    reset role;
--- B. CONTROLLO INTERNO (in UNA transazione, con claims finti):
+-- A. PRIVILEGI (ogni prova nella SUA transazione, chiusa con rollback):
+--    begin; set local role anon;
+--      select public.registra_documento_caricato('<TOKEN>'::uuid, 'scontrino',
+--        'personale', null, '[]'::jsonb);   → permission denied
+--    rollback;
+--    begin; set local role service_role;
+--      select public.registra_documento_caricato(...);  → permission denied
+--    rollback;
+-- B. CONTROLLO INTERNO (autenticato ma NON membro):
 --    begin;
 --    select set_config('request.jwt.claims',
 --      pg_catalog.jsonb_build_object('sub', pg_catalog.gen_random_uuid(),
 --                                    'role', 'authenticated')::text, true);
 --    set local role authenticated;
---    select public.registra_documento_caricato('<TOKEN>'::uuid, 'scontrino',
---      'personale', 'prova', '[{"storage_path":"prova/<TOKEN>.jpg",
---      "page_order":1,"mime_type":"image/jpeg","file_sha256":"<64 hex>"}]');
---      → NON_MEMBRO (utente autenticato ma non in app_members)
+--      select public.registra_documento_caricato(...);  → NON_MEMBRO
 --    rollback;
--- C. PERCORSO DELL'OWNER (in UNA transazione; sub = user_id dell'owner):
+-- C. PERCORSO DELL'OWNER (una transazione; sub = user_id dell'owner):
 --    begin;
 --    select set_config('request.jwt.claims',
 --      pg_catalog.jsonb_build_object('sub',
 --        (select user_id from public.app_members where role = 'owner' limit 1),
 --        'role', 'authenticated')::text, true);
 --    set local role authenticated;
---    1. registrazione → document_id, ripetuta=false
+--    1. registrazione con pagina {storage_path:'2026-09-01/<TOKEN>-p1.jpg',
+--       page_order:1, mime_type:'image/jpeg', file_sha256:'<64 hex reali>'}
+--       → document_id, ripetuta=false
 --    2. STESSA chiamata identica → stesso id, ripetuta=true
---    3. stesso token, nota diversa → TOKEN_RIUSATO (manifesto intero)
---    4. token nuovo, percorso senza il token → PERCORSO_NON_COERENTE
---    5. token nuovo, percorso coerente, STESSA impronta → GIA_IN_ARCHIVIO
---       e count(*) dei documenti INVARIATO (niente documenti vuoti)
---    6. update del documento (nota) → passa; update di upload_manifest →
---       MANIFESTO_IMMUTABILE
---    commit/rollback e PULIZIA: eliminare ricevuta e documento di prova e
---    i file sintetici dal bucket.
+--    3. savepoint s3; stesso token, nota diversa → TOKEN_RIUSATO;
+--       rollback to savepoint s3;
+--    4. savepoint s4; token nuovo, percorso '2026-09-01/<TOKEN2>-p2.jpg' con
+--       page_order 1 (pagina non combaciante) → PERCORSO_NON_COERENTE;
+--       rollback to savepoint s4;
+--    5. savepoint s5; token nuovo, percorso corretto, STESSA impronta del
+--       passo 1 → GIA_IN_ARCHIVIO; rollback to savepoint s5;
+--       poi: select count(*) from public.family_documents → INVARIATO
+--       rispetto a dopo il passo 1 (niente documenti vuoti);
+--    commit (o rollback per non lasciare tracce).
+-- D. TRIGGER DI IMMUTABILITÀ — da distinguere dal rifiuto dei permessi:
+--    l'authenticated NON ha il grant di colonna su upload_manifest, quindi
+--    il suo update fallirebbe per PERMESSI, non per trigger. La prova vera
+--    si fa con un ruolo che PUÒ aggiornare le colonne (postgres stesso,
+--    fuori dai set role):
+--    begin;
+--      update public.family_documents set note = 'nota nuova'
+--        where upload_token = '<TOKEN>';          → passa (campo di revisione)
+--      savepoint d1;
+--      update public.family_documents set upload_manifest = '{}'::jsonb
+--        where upload_token = '<TOKEN>';          → MANIFESTO_IMMUTABILE
+--      rollback to savepoint d1;
+--    rollback;
+-- E. PULIZIA: eliminare ricevute e documento di prova (o avere chiuso tutto
+--    con rollback) e togliere i file sintetici dal bucket.
 -- ----------------------------------------------------------------------------

@@ -951,9 +951,42 @@ se la precedente non è verificata E approvata.
   risposta persa/ricaricamento, impronta indisponibile, concorrenza da
   inizializzazione reale, metadati diversi, pagine malformate, verifica
   giù, rollback intermedio, pulizia incerta. 221/221; tsc, lint, build
-  verdi. Restano da provare su PostgreSQL vero (checklist in coda alla
-  0022): rollback plpgsql, confronto jsonb, lock advisory, trigger di
-  immutabilità, privilegi reali.
+  verdi.
+  **BLOCCO 1, TERZA PASSATA (30/08/2026, notte)** — correzioni della
+  seconda revisione: 1) SQL: COALESCE e NULLIF ricondotti alla sintassi
+  di costrutto (erano qualificati per errore come funzioni pg_catalog;
+  le funzioni ordinarie restano qualificate, search_path vuoto). 2)
+  RIPRESA DUREVOLE (lib/spese/ripresaDurevole.ts): il manifesto COMPLETO
+  (token, percorso, impronta, mime, kind, ambito, nota, nome file) si
+  salva in un deposito persistente PRIMA del primo effetto esterno
+  (salvataggio fallito = upload mai partito); dopo la chiusura della
+  pagina il controllore ricreato recupera le operazioni pendenti: token
+  registrato → completa come ripetuta; file già nel bucket (impronta del
+  contenuto VERIFICATA) → registra senza upload; file assente → chiede
+  la riselezione e la riconfronta con l'impronta. Il buco «upload ok,
+  registrazione mai arrivata, ripresa persa → file orfano» è chiuso
+  (test: 1 documento, 1 ricevuta, UN file). depositoInMemoria per i
+  test + depositoLocale (localStorage) pronto, pagine NON collegate. 3)
+  «Oggetto già presente» ≠ «stessa foto»: su esisteGia si scarica e si
+  ricalcola l'impronta di ciò che è ARCHIVIATO (improntaFile); contenuto
+  diverso o verifica indisponibile fermano la registrazione senza
+  sovrascrivere né cancellare. Percorso con FORMATO PRECISO
+  <AAAA-MM-GG>/<token>-p<pagina>.<ext>, validato nel client prima
+  dell'upload e di nuovo nella RPC (legato anche alla pagina; «contiene
+  il token» non basta più). 4) Finestra di concorrenza chiusa: se il
+  controllo doppioni trova l'impronta, il client NON dichiara più il
+  doppione da una lettura vecchia del token — salta l'upload e lascia
+  decidere la RPC col manifesto (test con pausa controllata fra lettura
+  del token e controllo sha: entrambe le chiamate ottengono lo STESSO
+  documento, nessuna cancellazione). Checklist SQL rifatta: ruoli in
+  transazioni esplicite chiuse da rollback, errori attesi isolati in
+  savepoint, prova del trigger con un ruolo che PUÒ aggiornare le
+  colonne (distinta dal rifiuto dei permessi del browser). Test con
+  UUID e SHA-256 VERI su archivio che conserva i byte: 226/226; tsc,
+  lint e build verdi. Restano da provare su PostgreSQL vero (checklist
+  0022, dopo autorizzazione, ambiente isolato): rollback plpgsql e
+  diagnostica del vincolo, confronto jsonb del manifesto, regex del
+  percorso, lock advisory, trigger di immutabilità, privilegi reali.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

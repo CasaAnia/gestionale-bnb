@@ -4,6 +4,7 @@
 // + sessione, la RPC verifica da sé l'appartenenza ad app_members.
 import { supabase } from '@/lib/supabase'
 import { clienteSupabase } from './scritturaSupabase'
+import { sha256DiFile } from './scrittura'
 import { codiceDaMessaggio, type ClienteIdempotente } from './registrazioneIdempotente'
 
 export const clienteIdempotenteSupabase: ClienteIdempotente = {
@@ -18,6 +19,20 @@ export const clienteIdempotenteSupabase: ClienteIdempotente = {
     return { errore: error.message }
   },
   rimuoviFile: clienteSupabase.rimuoviFile,
+  // l'impronta di ciò che è DAVVERO archiviato: si scarica l'oggetto e lo
+  // si ricalcola (le foto sono piccole; è il controllo affidabile richiesto
+  // quando un oggetto risulta già presente al nostro percorso)
+  async improntaFile(percorso) {
+    const { data, error } = await supabase.storage.from('scontrini').download(percorso)
+    if (error) {
+      if (/not.?found|404|does not exist/i.test(error.message)) return { esiste: false }
+      return { errore: error.message }
+    }
+    if (!data) return { errore: 'scaricamento vuoto' }
+    const sha = await sha256DiFile(data)
+    if (!sha) return { errore: 'impronta non calcolabile' }
+    return { esiste: true, sha }
+  },
   ricevutaConSha: clienteSupabase.ricevutaConSha,
   ricevutaEsiste: clienteSupabase.ricevutaEsiste,
   async documentoConToken(token) {
