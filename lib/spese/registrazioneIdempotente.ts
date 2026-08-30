@@ -121,17 +121,40 @@ export function codiceDaMessaggio(msg: string): CodiceRegistrazione {
   return 'altro'
 }
 
+// Lo STATO DI CHIUSURA dell'operazione, esplicito e strutturato: dice al
+// deposito durevole se la traccia va conservata. "Non ritentare in
+// automatico" NON significa "operazione conclusa": un errore definitivo
+// che lascia un file nel bucket (o una pulizia non verificata) mantiene
+// una responsabilità residua e quindi la traccia.
+export type ChiusuraOperazione =
+  | 'conclusa'            // nessuna responsabilità residua: rimuovibile dal deposito
+  | 'da_ritentare'        // fallimento transitorio: si ripete col bottone
+  | 'da_verificare'       // esito sconosciuto o anomalia: la traccia resta
+  | 'in_attesa_del_file'  // serve riselezionare il file originale
+  | 'pulizia_pendente'    // esito definito, ma una copia resta nel bucket
+
+// l'esito della pulizia in forma STRUTTURATA (mai dedotto dal testo)
+export type EsitoPulizia = 'rimossa' | 'collegata' | 'incerta' | 'fallita'
+
 export type EsitoIdempotente =
   | { ok: true; documentId: string; ripetuta: boolean }
-  | { ok: false; errore: string; riprovabile: boolean; duplicato?: boolean; serveFile?: boolean; ripresa: RipresaToken }
+  | {
+      ok: false; errore: string; riprovabile: boolean
+      chiusura: ChiusuraOperazione
+      duplicato?: boolean; serveFile?: boolean
+      pulizia?: EsitoPulizia
+      ripresa: RipresaToken
+    }
 
 const fallimento = (
   ripresa: RipresaToken, errore: string, riprovabile: boolean,
-  extra: { duplicato?: boolean; serveFile?: boolean } = {},
+  chiusura: ChiusuraOperazione,
+  extra: { duplicato?: boolean; serveFile?: boolean; pulizia?: EsitoPulizia } = {},
 ): EsitoIdempotente => ({
-  ok: false, errore, riprovabile,
+  ok: false, errore, riprovabile, chiusura,
   ...(extra.duplicato ? { duplicato: true } : {}),
   ...(extra.serveFile ? { serveFile: true } : {}),
+  ...(extra.pulizia ? { pulizia: extra.pulizia } : {}),
   ripresa,   // il riferimento all'operazione non si perde MAI, intero
 })
 
@@ -145,17 +168,17 @@ export async function caricaConToken(
 ): Promise<EsitoIdempotente> {
   // 0a) percorso nel formato ESATTO dell'operazione, prima di ogni effetto
   if (!percorsoValido(ripresa.percorso, ripresa.token, 1))
-    return fallimento(ripresa, 'la ripresa ha un percorso che non appartiene a questa operazione: non tocco nulla — segnalalo', false)
+    return fallimento(ripresa, 'la ripresa ha un percorso che non appartiene a questa operazione: non tocco nulla — segnalalo', false, 'da_verificare')
 
   // 0b) il blob DEVE corrispondere all'impronta fissata all'inizio: un file
   //     riselezionato diverso si ferma PRIMA di qualsiasi effetto
   let shaOra: string | null = null
   try { shaOra = await hasher(foto.contenuto) } catch { shaOra = null }
   if (!shaOra)
-    return fallimento(ripresa, 'non riesco a ricalcolare l\'impronta della foto: non tocco nulla, riprova', true)
+    return fallimento(ripresa, 'non riesco a ricalcolare l\'impronta della foto: non tocco nulla, riprova', true, 'da_ritentare')
   if (shaOra !== ripresa.sha256)
     // l'operazione resta in attesa del SUO file: serveFile, non un fallimento definitivo
-    return fallimento(ripresa, 'questo file NON corrisponde a quello del tentativo originale: non lo carico sopra — riseleziona il file giusto, o elimina l\'operazione e caricalo come foto nuova', false, { serveFile: true })
+    return fallimento(ripresa, 'questo file NON corrisponde a quello del tentativo originale: non lo carico sopra — riseleziona il file giusto, o elimina l\'operazione e caricalo come foto nuova', false, 'in_attesa_del_file', { serveFile: true })
 
   // 0c) il tentativo precedente è arrivato? Si verifica PRIMA di toccare il
   //     bucket. Token già registrato → niente upload, decide la RPC.
@@ -163,10 +186,10 @@ export async function caricaConToken(
   try {
     const c = await cliente.documentoConToken(ripresa.token)
     if (c.errore)
-      return fallimento(ripresa, `non riesco a verificare il tentativo precedente (${c.errore}): non tocco nulla, riprova`, true)
+      return fallimento(ripresa, `non riesco a verificare il tentativo precedente (${c.errore}): non tocco nulla, riprova`, true, 'da_verificare')
     saltaUpload = !!c.documentId
   } catch (e) {
-    return fallimento(ripresa, `non riesco a verificare il tentativo precedente (${String((e as Error).message ?? e)}): non tocco nulla, riprova`, true)
+    return fallimento(ripresa, `non riesco a verificare il tentativo precedente (${String((e as Error).message ?? e)}): non tocco nulla, riprova`, true, 'da_verificare')
   }
 
   if (!saltaUpload) {
@@ -189,14 +212,14 @@ export async function caricaConToken(
       if (su.esisteGia) {
         const dentro = await cliente.improntaFile(ripresa.percorso)
         if (dentro.errore || !dentro.esiste)
-          return fallimento(ripresa, 'al nostro percorso c\'è già un oggetto ma non riesco a verificarne il contenuto: non registro e non tocco nulla, riprova', true)
+          return fallimento(ripresa, 'al nostro percorso c\'è già un oggetto ma non riesco a verificarne il contenuto: non registro e non tocco nulla, riprova', true, 'da_verificare')
         if (dentro.sha !== ripresa.sha256)
-          return fallimento(ripresa, 'al nostro percorso c\'è un contenuto DIVERSO dalla foto attesa: non registro, non sovrascrivo e non cancello nulla — segnalalo', false)
+          return fallimento(ripresa, 'al nostro percorso c\'è un contenuto DIVERSO dalla foto attesa: non registro, non sovrascrivo e non cancello nulla — segnalalo', false, 'da_verificare')
       } else if (su.errore) {
-        return fallimento(ripresa, `caricamento della foto fallito: ${su.errore}`, true)
+        return fallimento(ripresa, `caricamento della foto fallito: ${su.errore}`, true, 'da_ritentare')
       }
     } catch (e) {
-      return fallimento(ripresa, `caricamento interrotto (${String((e as Error).message ?? e)}): riprova`, true)
+      return fallimento(ripresa, `caricamento interrotto (${String((e as Error).message ?? e)}): riprova`, true, 'da_ritentare')
     }
   }
 
@@ -231,34 +254,43 @@ export async function registraOperazione(
   switch (codice) {
     case 'gia_in_archivio': {
       // rifiuto DEFINITO e atomico deciso dalla RPC (nessun documento resta);
-      // la copia si toglie SOLO dopo la verifica esplicita del collegamento
-      const via = await pulisciSicuro(cliente, ripresa.percorso)
-      return fallimento(ripresa, `questa foto è già in archivio${via}`, false, { duplicato: true })
+      // la copia si toglie SOLO dopo la verifica esplicita del collegamento.
+      // Se la pulizia NON è andata in porto, la responsabilità resta:
+      // chiusura 'pulizia_pendente', la traccia non si perde.
+      const p = await pulisciSicuro(cliente, ripresa.percorso)
+      const conclusa = p.pulizia === 'rimossa' || p.pulizia === 'collegata'
+      return fallimento(ripresa, `questa foto è già in archivio${p.nota}`, false,
+        conclusa ? 'conclusa' : 'pulizia_pendente', { duplicato: true, pulizia: p.pulizia })
     }
     case 'token_riusato':
-      return fallimento(ripresa, 'questo caricamento risulta già registrato con un contenuto diverso: non tocco nulla — segnalalo', false)
+      return fallimento(ripresa, 'questo caricamento risulta già registrato con un contenuto diverso: non tocco nulla — segnalalo', false, 'da_verificare')
     case 'richiesta_non_valida':
-      return fallimento(ripresa, `registrazione respinta come non valida (${errore}): non è un doppione; il file resta nel bucket — segnalalo`, false)
+      // il file resta nel bucket: responsabilità residua, traccia conservata
+      return fallimento(ripresa, `registrazione respinta come non valida (${errore}): non è un doppione; il file resta nel bucket — segnalalo`, false, 'da_verificare')
     case 'non_membro':
-      return fallimento(ripresa, 'questo account non è abilitato a caricare documenti', false)
+      return fallimento(ripresa, 'questo account non è abilitato a caricare documenti', false, 'da_verificare')
     case 'rete':
-      return fallimento(ripresa, 'esito sconosciuto (rete): al prossimo tentativo recupero il risultato con lo stesso token, senza doppioni', true)
+      return fallimento(ripresa, 'esito sconosciuto (rete): al prossimo tentativo recupero il risultato con lo stesso token, senza doppioni', true, 'da_verificare')
     default:
-      return fallimento(ripresa, `registrazione rifiutata (${errore}): riprova`, true)
+      return fallimento(ripresa, `registrazione rifiutata (${errore}): riprova`, true, 'da_ritentare')
   }
 }
 
 // Pulizia SICURA di un percorso: si cancella SOLO se una verifica esplicita
 // dice che NON è collegato ad alcuna ricevuta. "Token non registrato" da
-// solo NON basta a dimostrare che il percorso è libero.
-async function pulisciSicuro(cliente: ClienteIdempotente, percorso: string): Promise<string> {
+// solo NON basta a dimostrare che il percorso è libero. L'esito è
+// STRUTTURATO: chi chiama non deve dedurlo dal testo del messaggio.
+async function pulisciSicuro(
+  cliente: ClienteIdempotente, percorso: string,
+): Promise<{ pulizia: EsitoPulizia; nota: string }> {
   try {
     const c = await cliente.ricevutaEsiste(percorso)
-    if (c.errore) return ' · verifica del percorso non riuscita: la copia resta nel bucket'
-    if (c.esiste) return ' · il percorso risulta COLLEGATO a una ricevuta: non lo tocco'
+    if (c.errore) return { pulizia: 'incerta', nota: ' · verifica del percorso non riuscita: la copia resta nel bucket' }
+    if (c.esiste) return { pulizia: 'collegata', nota: ' · il percorso risulta COLLEGATO a una ricevuta: non lo tocco' }
     const r = await cliente.rimuoviFile(percorso)
-    return r.errore ? ` · la copia non è stata rimossa dal bucket (${r.errore})` : ''
+    if (r.errore) return { pulizia: 'fallita', nota: ` · la copia non è stata rimossa dal bucket (${r.errore})` }
+    return { pulizia: 'rimossa', nota: '' }
   } catch {
-    return ' · verifica del percorso non riuscita: la copia resta nel bucket'
+    return { pulizia: 'incerta', nota: ' · verifica del percorso non riuscita: la copia resta nel bucket' }
   }
 }

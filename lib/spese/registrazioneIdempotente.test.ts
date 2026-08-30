@@ -14,7 +14,7 @@ import {
   caricaConToken, codiceDaMessaggio, percorsoOperazione, percorsoValido,
   preparaRipresa, type ClienteIdempotente, type RipresaToken,
 } from './registrazioneIdempotente.ts'
-import { creaControllore, depositoInMemoria } from './ripresaDurevole.ts'
+import { creaControllore, depositoInMemoria, depositoLocale } from './ripresaDurevole.ts'
 import { sha256DiFile } from './scrittura.ts'
 
 type Guasti = Partial<Record<
@@ -260,9 +260,11 @@ test('RECUPERO DUREVOLE: upload riuscito, registrazione mai arrivata, pagina CHI
   assert.equal(a.stato.documenti.length, 0)            // la registrazione no
   // "chiusura della pagina": il controllore e ogni stato in memoria spariscono
   const c2 = creaControllore(a.cliente, deposito, undefined, orologio)
-  const pendenti = await c2.pendenti()
+  const { riprese: pendenti } = await c2.pendenti()
   assert.equal(pendenti.length, 1)
   assert.equal(pendenti[0].nota, 'nota mia')           // il manifesto è COMPLETO
+  assert.equal(pendenti[0].stato, 'da_verificare')     // con l'ultimo stato noto
+  assert.ok(pendenti[0].motivo?.includes('esito sconosciuto'))
   const t2 = await c2.riprendi(pendenti[0])            // SENZA riselezionare il file
   assert.ok(t2.ok && !t2.ripetuta)
   assert.equal(a.stato.documenti.length, 1)
@@ -270,7 +272,7 @@ test('RECUPERO DUREVOLE: upload riuscito, registrazione mai arrivata, pagina CHI
   assert.deepEqual([...a.stato.bucket.keys()], [pendenti[0].percorso])  // UN file, NESSUN orfano
   assert.equal(a.stato.ricevute[0].storage_path, pendenti[0].percorso)  // ed è quello collegato
   assert.equal(a.stato.bucket.get(pendenti[0].percorso), 'x')
-  assert.equal((await c2.pendenti()).length, 0)        // operazione chiusa nel deposito
+  assert.equal((await c2.pendenti()).riprese.length, 0)   // operazione chiusa nel deposito
 })
 
 test('recupero durevole quando la registrazione ERA passata: si completa come ripetuta', async () => {
@@ -278,11 +280,11 @@ test('recupero durevole quando la registrazione ERA passata: si completa come ri
   const deposito = depositoInMemoria()
   await creaControllore(a.cliente, deposito, undefined, orologio).avvia(foto('x'), 'personale', null)
   const c2 = creaControllore(a.cliente, deposito, undefined, orologio)
-  const [op] = await c2.pendenti()
+  const [op] = (await c2.pendenti()).riprese
   const t = await c2.riprendi(op)
   assert.ok(t.ok && t.ripetuta)
   assert.equal(a.stato.documenti.length, 1)
-  assert.equal((await c2.pendenti()).length, 0)
+  assert.equal((await c2.pendenti()).riprese.length, 0)
 })
 
 test('recupero durevole senza file nel bucket: chiede la RISELEZIONE e riconfronta l\'impronta', async () => {
@@ -292,16 +294,17 @@ test('recupero durevole senza file nel bucket: chiede la RISELEZIONE e riconfron
   assert.ok(!t1.ok && t1.riprovabile)
   assert.equal(a.stato.bucket.size, 0)
   const c2 = creaControllore(a.cliente, deposito, undefined, orologio)
-  const [op] = await c2.pendenti()
+  const [op] = (await c2.pendenti()).riprese
   const senzaFile = await c2.riprendi(op)
   assert.ok(!senzaFile.ok && senzaFile.serveFile)      // serve il file, l'operazione resta
-  assert.equal((await c2.pendenti()).length, 1)
+  assert.ok(!senzaFile.ok && senzaFile.chiusura === 'in_attesa_del_file')
+  assert.equal((await c2.pendenti()).riprese.length, 1)
   const sbagliato = await c2.riprendi(op, foto('ALTRO FILE'))
   assert.ok(!sbagliato.ok && sbagliato.errore.includes('NON corrisponde'))
   const giusto = await c2.riprendi(op, foto('x'))      // riselezione corretta
   assert.ok(giusto.ok)
   assert.deepEqual([...a.stato.bucket], [[op.percorso, 'x']])
-  assert.equal((await c2.pendenti()).length, 0)
+  assert.equal((await c2.pendenti()).riprese.length, 0)
 })
 
 test('se il salvataggio della ripresa fallisce, l\'upload NON parte', async () => {
@@ -399,4 +402,142 @@ test('codiceDaMessaggio: sentinelle della RPC, richieste non valide e rete', () 
   assert.equal(codiceDaMessaggio('IMPRONTA_NON_VALIDA'), 'richiesta_non_valida')
   assert.equal(codiceDaMessaggio('TypeError: Failed to fetch'), 'rete')
   assert.equal(codiceDaMessaggio('permission denied'), 'altro')
+})
+
+
+// ---- la traccia resta finché c'è una responsabilità residua ---------------
+
+test('RICHIESTA_NON_VALIDA dopo l\'upload: il file resta e la traccia NON si perde (controller ricreato)', async () => {
+  const a = archivio({ registra: ['errore-interno'] })
+  const deposito = depositoInMemoria()
+  const t1 = await creaControllore(a.cliente, deposito, undefined, orologio).avvia(foto('x'), 'personale', null)
+  assert.ok(!t1.ok && !t1.riprovabile && t1.chiusura === 'da_verificare')
+  assert.equal(a.stato.bucket.size, 1)                 // un file È rimasto nel bucket
+  // «pagina chiusa»: controller ricreato → l'operazione DEVE esserci ancora
+  const c2 = creaControllore(a.cliente, deposito, undefined, orologio)
+  const { riprese } = await c2.pendenti()
+  assert.equal(riprese.length, 1)                      // PRIMA: zero, traccia persa
+  assert.equal(riprese[0].stato, 'da_verificare')
+  assert.ok(riprese[0].motivo?.includes('non valida'))
+  assert.equal(riprese[0].percorso, [...a.stato.bucket.keys()][0])  // percorso conservato
+})
+
+test('doppione con PULIZIA NON RIUSCITA: chiusura pulizia_pendente, la traccia resta e il recupero completa la pulizia', async () => {
+  const a = archivio({ ricevutaConSha: ['rete'], ricevutaEsiste: ['rete'] })
+  await seminaAltro(a, 'x')
+  const deposito = depositoInMemoria()
+  const t1 = await creaControllore(a.cliente, deposito, undefined, orologio).avvia(foto('x'), 'personale', null)
+  assert.ok(!t1.ok && t1.duplicato)
+  assert.equal(!t1.ok && t1.pulizia, 'incerta')        // esito della pulizia STRUTTURATO
+  assert.ok(!t1.ok && t1.chiusura === 'pulizia_pendente')
+  // il controller ricreato la ritrova (PRIMA veniva eliminata comunque)
+  const c2 = creaControllore(a.cliente, deposito, undefined, orologio)
+  const { riprese } = await c2.pendenti()
+  assert.equal(riprese.length, 1)
+  assert.equal(riprese[0].stato, 'pulizia_pendente')
+  // recupero con la verifica tornata su: doppione confermato, copia RIMOSSA
+  const t2 = await c2.riprendi(riprese[0])
+  assert.ok(!t2.ok && t2.duplicato && t2.pulizia === 'rimossa' && t2.chiusura === 'conclusa')
+  assert.equal((await c2.pendenti()).riprese.length, 0)          // ora sì, conclusa
+  assert.ok(!a.stato.bucket.has(riprese[0].percorso))            // la copia non c'è più
+  assert.equal(a.stato.bucket.size, 1)                           // l'allegato altrui è intatto
+})
+
+test('gli esiti davvero CONCLUSI continuano a chiudersi: successo e doppione con pulizia riuscita', async () => {
+  const a = archivio()
+  const deposito = depositoInMemoria()
+  const c = creaControllore(a.cliente, deposito, undefined, orologio)
+  const t1 = await c.avvia(foto('x'), 'personale', null)
+  assert.ok(t1.ok)
+  assert.equal((await c.pendenti()).riprese.length, 0)
+  // doppione dello stesso file da una nuova operazione: pulizia verificata → conclusa
+  const t2 = await c.avvia(foto('x'), 'personale', null)
+  assert.ok(!t2.ok && t2.duplicato && t2.chiusura === 'conclusa')
+  assert.equal((await c.pendenti()).riprese.length, 0)
+})
+
+// ---- depositoLocale: errore di lettura ≠ deposito vuoto -------------------
+
+function memoriaFinta(iniziale: Record<string, string> = {}) {
+  const dati = new Map(Object.entries(iniziale))
+  const finta = {
+    guastoGet: false, guastoSet: false,
+    getItem(k: string) { if (finta.guastoGet) throw new Error('accesso negato'); return dati.get(k) ?? null },
+    setItem(k: string, v: string) { if (finta.guastoSet) throw new Error('spazio esaurito'); dati.set(k, v) },
+    dati,
+  }
+  return finta
+}
+const OP_VALIDA = {
+  token: crypto.randomUUID(), sha256: 'a'.repeat(64),
+  percorso: '2026-08-30/x-p1.jpg', mime: 'image/jpeg', kind: 'scontrino',
+  ambito: 'personale', nota: null, nomeFile: 'x.jpg',
+}
+const CHIAVE = 'gestionale-riprese-caricamento'
+
+test('depositoLocale: chiave ASSENTE è vuoto vero; lettura fallita è un ERRORE segnalato', async () => {
+  const mem = memoriaFinta()
+  const d = depositoLocale(CHIAVE, () => mem)
+  assert.deepEqual(await d.leggi(), { riprese: [] })    // assente = vuoto, senza errore
+  mem.guastoGet = true
+  const lettura = await d.leggi()
+  assert.equal(lettura.riprese.length, 0)
+  assert.ok(lettura.errore?.includes('lettura del deposito fallita'))
+})
+
+test('depositoLocale: lettura fallita o dati corrotti → salva SI RIFIUTA e non sovrascrive', async () => {
+  // lettura fallita con contenuto preesistente: PRIMA salva sovrascriveva
+  // il deposito con la sola operazione nuova
+  const preesistente = JSON.stringify([{ ...OP_VALIDA, token: crypto.randomUUID() }])
+  const mem = memoriaFinta({ [CHIAVE]: preesistente })
+  const d = depositoLocale(CHIAVE, () => mem)
+  mem.guastoGet = true
+  const s1 = await d.salva({ ...OP_VALIDA } as never)
+  assert.ok(s1.errore?.includes('non sovrascrivo'))
+  mem.guastoGet = false
+  assert.equal(mem.dati.get(CHIAVE), preesistente)      // contenuto CONSERVATO
+  // JSON corrotto
+  mem.dati.set(CHIAVE, '{{{non json')
+  const l2 = await d.leggi()
+  assert.ok(l2.errore?.includes('JSON'))
+  const s2 = await d.salva({ ...OP_VALIDA } as never)
+  assert.ok(s2.errore)
+  assert.equal(mem.dati.get(CHIAVE), '{{{non json')     // né azzerato né sovrascritto
+  // struttura non valida
+  mem.dati.set(CHIAVE, '[{"x":1}]')
+  const l3 = await d.leggi()
+  assert.ok(l3.errore?.includes('struttura'))
+  assert.ok((await d.salva({ ...OP_VALIDA } as never)).errore)
+  assert.equal(mem.dati.get(CHIAVE), '[{"x":1}]')
+  // e anche rimuovi non tocca un deposito illeggibile
+  assert.ok((await d.rimuovi('qualunque')).errore)
+  assert.equal(mem.dati.get(CHIAVE), '[{"x":1}]')
+})
+
+test('depositoLocale: salvataggio e rimozione falliti restituiscono l\'errore; il giro normale funziona', async () => {
+  const mem = memoriaFinta()
+  const d = depositoLocale(CHIAVE, () => mem)
+  mem.guastoSet = true
+  assert.ok((await d.salva({ ...OP_VALIDA } as never)).errore?.includes('spazio esaurito'))
+  mem.guastoSet = false
+  assert.deepEqual(await d.salva({ ...OP_VALIDA } as never), {})
+  assert.equal((await d.leggi()).riprese.length, 1)
+  mem.guastoSet = true
+  assert.ok((await d.rimuovi(OP_VALIDA.token)).errore)
+  assert.equal((await d.leggi()).riprese.length, 1)     // rimozione fallita = voce ancora lì
+  mem.guastoSet = false
+  assert.deepEqual(await d.rimuovi(OP_VALIDA.token), {})
+  assert.deepEqual(await d.leggi(), { riprese: [] })
+})
+
+test('controllore su deposito illeggibile: il caricamento nuovo è BLOCCATO prima di ogni effetto', async () => {
+  const a = archivio()
+  const mem = memoriaFinta({ [CHIAVE]: '{{{non json' })
+  const c = creaControllore(a.cliente, depositoLocale(CHIAVE, () => mem), undefined, orologio)
+  const t = await c.avvia(foto('x'), 'personale', null)
+  assert.ok(!t.ok && t.errore.includes('NON carico'))
+  assert.equal(a.stato.bucket.size, 0)                  // nessun upload
+  assert.equal(mem.dati.get(CHIAVE), '{{{non json')     // deposito intatto
+  const lettura = await c.pendenti()
+  assert.ok(lettura.errore)                             // e l'errore arriva ESPLICITO
 })

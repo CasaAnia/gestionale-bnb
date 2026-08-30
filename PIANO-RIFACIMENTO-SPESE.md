@@ -987,6 +987,28 @@ se la precedente non è verificata E approvata.
   0022, dopo autorizzazione, ambiente isolato): rollback plpgsql e
   diagnostica del vincolo, confronto jsonb del manifesto, regex del
   percorso, lock advisory, trigger di immutabilità, privilegi reali.
+  **BLOCCO 1, QUARTA PASSATA (30/08/2026, notte)** — due correzioni al
+  deposito durevole: 1) STATI DI CHIUSURA espliciti negli esiti
+  (conclusa / da_ritentare / da_verificare / in_attesa_del_file /
+  pulizia_pendente) + esito della pulizia STRUTTURATO (rimossa /
+  collegata / incerta / fallita, mai dedotto dal testo). Il controllore
+  rimuove dal deposito SOLO le operazioni 'concluse': richiesta respinta
+  col file rimasto nel bucket e doppione con pulizia non verificata ora
+  CONSERVANO la traccia (manifesto, percorso e motivo persistiti) anche
+  dopo la ricreazione del controllore; il recupero di una
+  pulizia_pendente completa la pulizia quando la verifica torna su.
+  Stessa regola su avvia e riprendi. 2) depositoLocale: lettura con TRE
+  esiti distinti — chiave assente = vuoto vero; lettura fallita, JSON
+  corrotto o struttura non valida = ERRORE segnalato, contenuto
+  esistente CONSERVATO (mai azzerato/sovrascritto) e nuovi caricamenti
+  bloccati prima di ogni effetto perché non salvabili in sicurezza;
+  salvataggio e rimozione restituiscono l'errore. Test: i due casi della
+  revisione conservano l'operazione dopo la ricreazione; depositoLocale
+  provato con memoria finta (lettura fallita, JSON corrotto, struttura
+  non valida, salvataggio e rimozione falliti, giro normale); gli esiti
+  davvero conclusi continuano a chiudersi. 233/233; tsc, lint e build
+  verdi. Prova PostgreSQL reale sempre separata (checklist 0022, dopo
+  autorizzazione, ambiente isolato).
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".
