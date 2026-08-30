@@ -1116,6 +1116,25 @@ se la precedente non è verificata E approvata.
   5) NUOVI TEST LOCALI con servizi simulati (scripts/fase4/
   collaudo.test.mjs, 9/9 — comando: node --test scripts/fase4/
   collaudo.test.mjs): tutti i casi riprodotti dalla revisione coperti.
+  **TERZA CORREZIONE POST-COLLAUDO (30/08/2026, notte — locale, dopo la
+  revisione di 7baeb2f):** 1) passo 3b: l'ORCHESTRATORE (eseguiCaso in
+  concorrenza.mjs) ora ATTENDE rami e verifica di ogni caso e converte
+  ogni errore in un esito esplicito; il riepilogo pretende TRE casi
+  COMPLETATI e passati (il caso riprodotto — processo uscito verde con
+  «0 passati, 0 falliti» e verifiche ancora in corso — è ora un test che
+  deve dare rosso). Precisione temporale al MICROSECONDO (getTime()
+  tronca ai ms: due finestre distinte nello stesso millisecondo
+  sembravano sovrapposte — riprodotto e testato) e sovrapposizione
+  EFFETTIVA con disuguaglianze strette (il contatto fra estremi non è
+  concorrenza). batchRamo con CREATE OR REPLACE: rieseguibile su un
+  backend del pool riutilizzato (la funzione pg_temp può già esistere).
+  2) passo 4, caso 3: il percorso dell'oggetto ESTRANEO si annota nel
+  registro PRIMA dell'upload diretto (che non passa dal deposito
+  annotato): «oggetto creato, risposta persa» ora lascia la traccia per
+  il recupero — testato: la pulizia rimuove SOLO quell'oggetto e chiude
+  il registro; coperto anche l'upload mai avvenuto (registro chiuso
+  senza errori né cancellazioni). Test locali con servizi simulati:
+  14/14. Suite 234/234, tsc pulito, sintassi ok su tutti gli script.
   **PROVE REMOTE ANCORA DA COMPLETARE (prossimo accesso autorizzato):**
   a) passo3b concorrenza vera della RPC; b) rilancio passi 1→5 con
   registri e impronte nuovi (verifica end-to-end del rigore aggiunto);

@@ -135,12 +135,15 @@ let percorsoEstraneo = null
 {
   const prep = await preparaRipresa(foto(`foto-vera-${SALE}-3`), orologio)
   if (!prep.ok) { esito('3 prepara', false, prep.errore) } else {
+    // questo caricamento DIRETTO non passa dal depositoAnnotato: token e
+    // percorso vanno registrati durevolmente PRIMA dell'upload, altrimenti
+    // "oggetto creato, risposta persa" lascerebbe un file senza traccia
     registro.annota('tokens', prep.ripresa.token)
+    registro.annota('estranei', prep.ripresa.percorso)
+    percorsoEstraneo = prep.ripresa.percorso
     const estraneo = `BYTE-ESTRANEI-${SALE}`
     const su = await client.storage.from('scontrini').upload(prep.ripresa.percorso, new Blob([estraneo]), { contentType: 'text/plain', upsert: false })
     esito('3a oggetto estraneo piazzato al percorso (membro reale)', !su.error, su.error?.message ?? '')
-    percorsoEstraneo = prep.ripresa.percorso
-    registro.annota('estranei', prep.ripresa.percorso)
     const t = await caricaConToken(cliente, foto(`foto-vera-${SALE}-3`), 'personale', null, prep.ripresa)
     const dentro = await scarica(prep.ripresa.percorso)
     esito('3b contenuto diverso: registrazione FERMATA, byte remoti INTATTI, nessun documento',

@@ -6,7 +6,7 @@
 // ============================================================================
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { provaValida, misuraCompleta } from './concorrenza.mjs'
+import { eseguiCaso, microsecondi, misuraCompleta, provaValida, riepilogo } from './concorrenza.mjs'
 import { eseguiPulizia, validaPreliminari } from './pulizia.mjs'
 
 // ---- 1. concorrenza: i rami in errore devono restare MISURATI --------------
@@ -166,4 +166,90 @@ test('fotografia assente, voce senza impronta o registro rotto → blocco; tutto
   })
   assert.equal(v.ok, true)
   assert.ok(v.controlli.length >= 4)              // elenco OBBLIGATORIO delle verifiche
+})
+
+
+// ---- 4. orchestratore: catena ATTESA, mai verdi con verifiche in corso ----
+
+const ritardo = (ms, v) => new Promise(r => setTimeout(() => r(v), ms))
+const ramoOk = (pid, prima, dopo) => ({ pid, prima, dopo, r: { document_id: 'd1' } })
+const FIN_A = ['2026-09-05T10:00:00.100000Z', '2026-09-05T10:00:00.900000Z']
+const FIN_B = ['2026-09-05T10:00:00.200000Z', '2026-09-05T10:00:00.800000Z']
+
+test('IL CASO RIPRODOTTO: rami ritardati + verifica fallita → il risultato ARRIVA e il riepilogo è rosso (niente 0/0/0 verdi)', async () => {
+  let verificaFinita = false
+  const e = await eseguiCaso(
+    ritardo(20, ramoOk(11, ...FIN_A)),
+    ritardo(30, ramoOk(12, ...FIN_B)),
+    async () => { await ritardo(20); verificaFinita = true; return { ok: false, dettaglio: 'conteggio sbagliato' } },
+  )
+  assert.equal(verificaFinita, true)              // la verifica è stata ATTESA
+  assert.equal(e.stato, 'fallito')                // PRIMA: il processo usciva 0 con 0/0/0
+  const r = riepilogo([e], 3)
+  assert.equal(r.ok, false)                       // e comunque 1 caso su 3 non basta
+  assert.equal(riepilogo([], 3).ok, false)        // zero casi completati ≠ successo
+})
+
+test('orchestratore: verifica che LANCIA → fallito; misure mancanti → non_valido; tre passati → riepilogo verde', async () => {
+  const scoppia = await eseguiCaso(
+    ritardo(5, ramoOk(11, ...FIN_A)), ritardo(5, ramoOk(12, ...FIN_B)),
+    async () => { throw new Error('select rotta') },
+  )
+  assert.equal(scoppia.stato, 'fallito')
+  assert.ok(scoppia.dettaglio.includes('select rotta'))
+  const senzaMisure = await eseguiCaso(
+    ritardo(5, ramoOk(11, ...FIN_A)), ritardo(5, { errore: 'TOKEN_RIUSATO' }),
+    async () => ({ ok: true }),
+  )
+  assert.equal(senzaMisure.stato, 'non_valido')
+  const passato = await eseguiCaso(
+    ritardo(5, ramoOk(11, ...FIN_A)), ritardo(5, ramoOk(12, ...FIN_B)),
+    async () => ({ ok: true }),
+  )
+  assert.equal(riepilogo([passato, passato, passato], 3).ok, true)
+})
+
+// ---- 5. precisione temporale: microsecondi, sovrapposizione EFFETTIVA -----
+
+test('IL CASO RIPRODOTTO: due finestre nello stesso millisecondo ma disgiunte al microsecondo → NON sovrapposte', () => {
+  // .100100–.100200 contro .100800–.100900: getTime() le schiaccerebbe
+  // tutte su .100 e sembravano sovrapposte
+  const a = { pid: 11, prima: '2026-09-05T10:00:00.100100Z', dopo: '2026-09-05T10:00:00.100200Z' }
+  const b = { pid: 12, prima: '2026-09-05T10:00:00.100800Z', dopo: '2026-09-05T10:00:00.100900Z' }
+  assert.equal(microsecondi(a.prima) < microsecondi(b.prima), true)
+  const v = provaValida(a, b)
+  assert.equal(v.valida, false)                   // PRIMA: valida
+  assert.ok(v.motivo.includes('disgiunte'))
+  // il semplice CONTATTO fra estremi non è sovrapposizione effettiva
+  const c = { pid: 12, prima: a.dopo, dopo: '2026-09-05T10:00:00.100500Z' }
+  assert.equal(provaValida(a, c).valida, false)
+  // sovrapposizione vera al microsecondo → valida
+  const d = { pid: 12, prima: '2026-09-05T10:00:00.100150Z', dopo: '2026-09-05T10:00:00.100500Z' }
+  assert.equal(provaValida(a, d).valida, true)
+})
+
+// ---- 6. estraneo interrotto FRA effetto remoto e risposta -----------------
+
+test('IL CASO RIPRODOTTO: upload dell\'estraneo riuscito ma risposta persa → il registro (annotato PRIMA) fa rimuovere SOLO quell\'oggetto', async () => {
+  const { stato, servizi } = mondoFinto()
+  // il percorso è nel registro PRIMA dell'upload; l'interruzione arriva
+  // dopo l'effetto remoto e prima della risposta (nessun documento)
+  stato.oggetti.add('p/estraneo-p1.jpg')
+  stato.oggetti.add('p/di-altri.jpg')             // roba NON nostra: intoccabile
+  const r = registro({ tokens: ['tok-estraneo'], estranei: ['p/estraneo-p1.jpg'] })
+  const b = await eseguiPulizia([r], servizi)
+  assert.equal(stato.oggetti.has('p/estraneo-p1.jpg'), false)   // rimosso via registro
+  assert.equal(stato.oggetti.has('p/di-altri.jpg'), true)       // il resto è intatto
+  assert.equal(r.dati.pulito, true)
+  assert.equal(b.problemi.length, 0)
+})
+
+test('upload dell\'estraneo MAI avvenuto (interrotto prima dell\'effetto): pulizia senza errori, nulla da rimuovere', async () => {
+  const { stato, servizi } = mondoFinto()
+  const r = registro({ tokens: ['tok-mai'], estranei: ['p/mai-caricato-p1.jpg'] })
+  const b = await eseguiPulizia([r], servizi)
+  assert.equal(b.oggetti, 0)
+  assert.equal(b.documenti, 0)
+  assert.equal(r.dati.pulito, true)               // niente residui: chiuso
+  assert.equal(stato.oggetti.size, 0)
 })
