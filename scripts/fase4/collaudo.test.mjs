@@ -332,3 +332,113 @@ test('caso CONFORME completo (rendering realistico di pg_policies): tutto verde'
   assert.equal(verificaRpc(Object.entries(RPC_ATTESE).map(([nome, firma]) =>
     ({ proname: nome, firma, autenticato: true, anonimo: false, service: false }))).ok, true)
 })
+
+// ---- 8. terza revisione dell'audit: firme nominate, colonne effettive, letterali ----
+import {
+  COLONNE_CONSENTITE, COLONNE_RISERVATE_MINIME, canon, normalizzaFirma,
+  verificaColonneEffettive, verificaEffettiviTabella,
+} from './verificaAudit.mjs'
+
+// il formato REALE di pg_get_function_identity_arguments (nomi degli
+// argomenti CONSERVATI, dalla 0020) — non copiato da RPC_ATTESE
+const FIRME_NOMINATE = {
+  conferma_documento: 'p_document_id uuid, p_correzioni jsonb',
+  approva_fattura_da_pagare: 'p_document_id uuid, p_correzioni jsonb',
+  paga_fattura: 'p_document_id uuid, p_data_pagamento date, p_payment_method text, p_correzioni jsonb',
+  conferma_fattura_pagata: 'p_document_id uuid, p_data_pagamento date, p_payment_method text, p_correzioni jsonb',
+  scarta_documento: 'p_document_id uuid, p_motivo text',
+}
+
+test('FALSO ALLARME riprodotto: firme NOMINATE della 0020 (formato vero della query) → ora CONFORMI', () => {
+  assert.equal(normalizzaFirma('p_document_id uuid, p_correzioni jsonb'), 'uuid, jsonb')
+  const oss = Object.entries(FIRME_NOMINATE).map(([nome, firma]) =>
+    ({ proname: nome, firma, autenticato: true, anonimo: false, service: false }))
+  const v = verificaRpc(oss)                       // PRIMA: tutte e 5 "diverse"
+  assert.equal(v.ok, true)
+  // e un TIPO sbagliato dentro la firma nominata resta un rosso
+  const rotte = oss.map(o => o.proname === 'scarta_documento'
+    ? { ...o, firma: 'p_document_id uuid, p_motivo jsonb' } : o)
+  const v2 = verificaRpc(rotte)
+  assert.equal(v2.ok, false)
+  assert.ok(v2.differenze.some(d => d.includes('scarta_documento') && d.includes('firma')))
+})
+
+test('FALSO VERDE riprodotto: i letterali NON si normalizzano — SCONTRINI e "s c o n t r i n i" ≠ scontrini', () => {
+  assert.notEqual(canon("bucket_id = 'SCONTRINI'"), canon("bucket_id = 'scontrini'"))
+  assert.notEqual(canon("bucket_id = 's c o n t r i n i'"), canon("bucket_id = 'scontrini'"))
+  const maiuscola = policyConformi().map(p => p.policyname === 'scontrini_membri_select'
+    ? { ...p, qual: p.qual.replace("'scontrini'", "'SCONTRINI'") } : p)
+  assert.equal(verificaPolicy(maiuscola).ok, false)          // PRIMA: verde
+  const spaziata = policyConformi().map(p => p.policyname === 'scontrini_membri_select'
+    ? { ...p, qual: p.qual.replace("'scontrini'", "'s c o n t r i n i'") } : p)
+  assert.equal(verificaPolicy(spaziata).ok, false)           // PRIMA: verde
+  // il rendering CONFORME resta verde (regressione)
+  assert.equal(verificaPolicy(policyConformi()).ok, true)
+})
+
+test('modalità permissive ASSENTE o sconosciuta → INCOMPLETO, non conforme', () => {
+  const senza = policyConformi().map(p => p.policyname === 'family_expenses_solo_membri'
+    ? { ...p, permissive: undefined } : p)
+  const v = verificaPolicy(senza)                            // PRIMA: passava come PERMISSIVE
+  assert.equal(v.ok, false)
+  assert.ok(v.differenze.some(d => d.includes('family_expenses') && d.includes('INCOMPLETO')))
+})
+
+test('FALSO VERDE riprodotto: 30 casi con effettivo=null NON sono «tutti negati»', () => {
+  const casi = ['family_documents'].flatMap(t => ['INSERT'].flatMap(p =>
+    ['authenticated', 'anon'].map(ruolo => ({ tabella: t, privilegio: p, ruolo }))))
+  const nulli = casi.map(c => ({ ...c, effettivo: null }))
+  const v = verificaEffettiviTabella(nulli, casi)            // PRIMA: "tutti negati"
+  assert.equal(v.ok, false)
+  assert.ok(v.differenze.every(d => d.includes('INCOMPLETO')))
+  // caso mancante = incompleto; tutti false espliciti = verde; un true = rosso
+  assert.equal(verificaEffettiviTabella([], casi).ok, false)
+  assert.equal(verificaEffettiviTabella(casi.map(c => ({ ...c, effettivo: false })), casi).ok, true)
+  const unoAperto = casi.map((c, i) => ({ ...c, effettivo: i === 0 }))
+  assert.ok(verificaEffettiviTabella(unoAperto, casi).differenze.some(d => d.includes('può')))
+})
+
+// osservazioni CONFORMI di colonna: consentite vere per authenticated,
+// tutto il resto false, anon sempre false
+function colonneConformi() {
+  const righe = []
+  const tabelle = [...new Set(Object.keys(COLONNE_CONSENTITE).map(k => k.split('/')[0]))]
+  for (const t of tabelle) {
+    const colonne = [...new Set([
+      ...(COLONNE_CONSENTITE[`${t}/INSERT`] ?? []), ...(COLONNE_CONSENTITE[`${t}/UPDATE`] ?? []),
+      ...(COLONNE_RISERVATE_MINIME[t] ?? []),
+    ])]
+    for (const colonna of colonne)
+      for (const ruolo of ['authenticated', 'anon'])
+        for (const privilegio of ['INSERT', 'UPDATE'])
+          righe.push({
+            tabella: t, colonna, ruolo, privilegio,
+            effettivo: ruolo === 'authenticated' && (COLONNE_CONSENTITE[`${t}/${privilegio}`] ?? []).includes(colonna),
+          })
+  }
+  return righe
+}
+
+test('colonne EFFETTIVE: caso conforme verde; UPDATE(status) riaperto via PUBLIC/ereditarietà → ROSSO', () => {
+  assert.equal(verificaColonneEffettive(colonneConformi()).ok, true)
+  // il caso riprodotto: has_column_privilege vede status riaperto anche se
+  // il grant diretto ad authenticated non c'è (PUBLIC o ruolo ereditato)
+  const riaperto = colonneConformi().map(r =>
+    r.tabella === 'family_documents' && r.colonna === 'status' && r.ruolo === 'authenticated' && r.privilegio === 'UPDATE'
+      ? { ...r, effettivo: true } : r)
+  const v = verificaColonneEffettive(riaperto)               // PRIMA: nessuna sezione lo vedeva
+  assert.equal(v.ok, false)
+  assert.ok(v.differenze.some(d => d.includes('status') && d.includes('RIAPERTO')))
+  // anon con una scrittura di colonna → rosso; booleano mancante → INCOMPLETO
+  let girato = false
+  const anonAperto = colonneConformi().map(r =>
+    !girato && r.ruolo === 'anon' ? (girato = true, { ...r, effettivo: true }) : r)
+  const vAnon = verificaColonneEffettive(anonAperto)
+  assert.equal(vAnon.ok, false)
+  assert.ok(vAnon.differenze.some(d => d.includes('APERTO ad anon')))
+  const nullo = colonneConformi().map(r =>
+    r.tabella === 'family_documents' && r.colonna === 'status' && r.ruolo === 'authenticated' && r.privilegio === 'UPDATE'
+      ? { ...r, effettivo: null } : r)
+  const v3 = verificaColonneEffettive(nullo)
+  assert.ok(v3.differenze.some(d => d.includes('INCOMPLETO')))
+})

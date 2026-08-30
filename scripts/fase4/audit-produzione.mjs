@@ -13,7 +13,9 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { refProduzione, maschera } from '../fase2b/guardia.mjs'
 import {
-  verificaPolicy, verificaRpc, verificaTabelleRls, TAB_FAMILY,
+  COLONNE_CONSENTITE, COLONNE_RISERVATE_MINIME, TAB_FAMILY,
+  verificaColonneEffettive, verificaEffettiviTabella, verificaPolicy,
+  verificaRpc, verificaTabelleRls,
 } from './verificaAudit.mjs'
 
 if (process.env.CONFERMA_PRODUZIONE !== 'sola-lettura') {
@@ -106,12 +108,41 @@ const lista = (v) => v.map(x => `'${x}'`).join(',')
       has_table_privilege(x.ruolo, ('public.' || x.tabella)::regclass, x.privilegio) as effettivo
     from (values ${casi.map(c => `('${c.t}','${c.p}','${c.ruolo}')`).join(',')}) as x(tabella, privilegio, ruolo)`
   const r = await sql(q)
-  const attivi = r.filter(x => x.effettivo === true)
-  sezione('1-bis. privilegi EFFETTIVI di scrittura (ereditarietà e PUBLIC compresi)', q, r,
-    'has_table_privilege = false per authenticated e anon su INSERT/UPDATE/DELETE delle 5 tabelle ristrette (30 casi)',
-    r.length === casi.length && attivi.length === 0,
-    r.length !== casi.length ? `INCOMPLETO: ${r.length}/${casi.length} casi letti`
-      : attivi.length ? attivi.map(x => `${x.tabella}: ${x.ruolo} può ${x.privilegio}`).join(' · ') : `${r.length}/30 casi, tutti negati`)
+  // il giudizio è del verificatore TESTATO: booleani ESPLICITI obbligatori
+  // (30 «effettivo=null» NON sono «tutti negati») e completezza per identità
+  const v = verificaEffettiviTabella(r, casi.map(c => ({ tabella: c.t, privilegio: c.p, ruolo: c.ruolo })))
+  sezione('1-bis. privilegi EFFETTIVI di scrittura di TABELLA (ereditarietà e PUBLIC compresi)', q, r,
+    'has_table_privilege = false ESPLICITO per authenticated e anon su INSERT/UPDATE/DELETE delle 5 tabelle ristrette (30 casi, tutti presenti)',
+    v.ok, v.ok ? `${r.length}/30 casi, tutti esplicitamente negati` : v.differenze.join(' · '))
+}
+
+// 1-ter. privilegi EFFETTIVI di COLONNA (has_column_privilege: un
+// UPDATE(status) concesso a PUBLIC o ereditato NON sfugge più) + evidenza
+// delle ACL di colonna
+{
+  const q = `select c.table_name as tabella, c.column_name as colonna, r.ruolo, p.priv as privilegio,
+      has_column_privilege(r.ruolo, ('public.' || c.table_name)::regclass, c.column_name, p.priv) as effettivo
+    from information_schema.columns c
+    cross join (values ('authenticated'),('anon')) as r(ruolo)
+    cross join (values ('INSERT'),('UPDATE')) as p(priv)
+    where c.table_schema='public' and c.table_name in (${lista(TAB_RISTRETTE)})
+    order by c.table_name, c.column_name, r.ruolo, p.priv`
+  const r = await sql(q)
+  const v = verificaColonneEffettive(r)
+  sezione('1-ter. privilegi EFFETTIVI di COLONNA contro le autorizzazioni della 0021', q, r,
+    'colonne CONSENTITE dalla 0021 presenti e vere per authenticated; riservate negate; anon senza scritture su nessuna colonna; booleani espliciti e completezza per identità',
+    v.ok, v.ok ? `${r.length} casi letti, tutti conformi alla 0021` : v.differenze.join(' · '))
+  evidenze.sezioni.at(-1).matrice_0021 = { consentite: COLONNE_CONSENTITE, riservate_minime: COLONNE_RISERVATE_MINIME }
+  // evidenza: ACL di COLONNA grezze con grantor (riportate senza giudizio)
+  const qAcl = `select c.relname as tabella, a.attname as colonna,
+      x.grantor::regrole::text as grantor, x.grantee::regrole::text as grantee, x.privilege_type
+    from pg_attribute a join pg_class c on c.oid = a.attrelid, aclexplode(a.attacl) x
+    where c.relkind='r' and c.relname in (${lista(TAB_RISTRETTE)}) and a.attnum > 0 and a.attacl is not null
+    order by c.relname, a.attname, x.grantee::regrole::text, x.privilege_type`
+  const rAcl = await sql(qAcl)
+  sezione('1-quater. ACL di COLONNA grezze con grantor (evidenza, senza giudizio automatico)', qAcl, rAcl,
+    'evidenza completa per la revisione umana (il giudizio è in 1-ter e 2)',
+    true, `${rAcl.length} voci ACL di colonna conservate nel rapporto`)
 }
 
 // 2. grant di COLONNA (authenticated)

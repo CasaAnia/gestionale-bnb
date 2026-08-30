@@ -7,13 +7,21 @@
 // non vengono dichiarate innocue: sono differenze da analizzare.
 // ============================================================================
 
-// canonizzazione delle condizioni: minuscole, niente spazi, via gli alias
-// di rendering di pg_policies e i cast ::text — poi UGUAGLIANZA ESATTA
-export const canon = (s) => String(s ?? '')
-  .toLowerCase()
-  .replace(/\s+/g, '')
-  .replace(/asis_app_member/g, '').replace(/asis_app_owner/g, '')
-  .replace(/::text/g, '')
+// canonizzazione delle condizioni: SOLO differenze sintattiche innocue.
+// Fuori dalle virgolette: minuscole, niente spazi, via gli alias di
+// rendering di pg_policies e i cast ::text. DENTRO stringhe letterali
+// ('…', con '' come apice raddoppiato) e identificatori quotati ("…") non
+// si tocca NULLA: 'scontrini', 'SCONTRINI' e 's c o n t r i n i' devono
+// restare tre valori diversi. Poi UGUAGLIANZA ESATTA.
+export function canon(s) {
+  const pezzi = String(s ?? '').split(/('(?:[^']|'')*'|"(?:[^"]|"")*")/)
+  return pezzi.map((pezzo, i) => i % 2 === 1
+    ? pezzo   // letterale o identificatore quotato: INTATTO
+    : pezzo.toLowerCase().replace(/\s+/g, '')
+        .replace(/asis_app_member/g, '').replace(/asis_app_owner/g, '')
+        .replace(/::text/g, ''),
+  ).join('')
+}
 
 const MEMBRO = canon("(select private.is_app_member())")
 const OWNER = canon("(select private.is_app_owner())")
@@ -32,6 +40,20 @@ export const TAB_FAMILY = [
 export const TABELLE_ATTESE = [
   ...TAB_FAMILY.map(t => `public.${t}`), 'public.app_members', 'storage.objects',
 ]
+
+// Normalizza una firma nel SOLO elenco dei tipi. Regge sia il formato di
+// pg_get_function_identity_arguments — che CONSERVA i nomi degli argomenti
+// («p_document_id uuid, p_correzioni jsonb») — sia l'elenco di tipi nudo.
+// Per ogni argomento: via IN/OUT/INOUT/VARIADIC, poi se restano più parole
+// la PRIMA è il nome dell'argomento e cade; il resto è il tipo.
+export function normalizzaFirma(firma) {
+  return String(firma ?? '').split(',').map(parte => {
+    let parole = parte.trim().split(/\s+/).filter(Boolean)
+    while (parole.length && ['in', 'out', 'inout', 'variadic'].includes(parole[0].toLowerCase())) parole = parole.slice(1)
+    if (parole.length > 1) parole = parole.slice(1)   // cade il nome dell'argomento
+    return parole.join(' ').toLowerCase()
+  }).filter(Boolean).join(', ')
+}
 
 // le 5 RPC per nome E FIRMA ESATTA (un solo overload ciascuna)
 export const RPC_ATTESE = {
@@ -81,8 +103,10 @@ export function verificaPolicy(osservate) {
     const problemi = []
     if (canon(o.roles) !== canon(a.ruoli)) problemi.push(`ruoli ${o.roles}`)
     if (String(o.cmd).toUpperCase() !== a.cmd) problemi.push(`cmd ${o.cmd}`)
-    const perm = String(o.permissive ?? '').toUpperCase() !== 'RESTRICTIVE'
-    if (perm !== a.permissiva) problemi.push(`modalità ${o.permissive}`)
+    const modo = String(o.permissive ?? '').toUpperCase()
+    if (modo !== 'PERMISSIVE' && modo !== 'RESTRICTIVE')
+      problemi.push(`modalità ASSENTE o sconosciuta («${o.permissive ?? ''}»): risultato INCOMPLETO`)
+    else if ((modo === 'PERMISSIVE') !== a.permissiva) problemi.push(`modalità ${o.permissive}`)
     if (canon(o.qual) !== a.qual) problemi.push(`USING [${o.qual}]`)
     if (canon(o.with_check) !== a.check) problemi.push(`WITH CHECK [${o.with_check}]`)
     if (problemi.length) differenze.push(`${chiave(a)}: ${problemi.join(' · ')}`)
@@ -119,11 +143,88 @@ export function verificaRpc(osservate) {
     if (overload.length === 0) { differenze.push(`ASSENTE: ${nome}(${firma})`); continue }
     if (overload.length > 1) { differenze.push(`${nome}: ${overload.length} OVERLOAD (attesa una sola firma)`); continue }
     const o = overload[0]
-    if (canon(o.firma) !== canon(firma)) differenze.push(`${nome}: firma osservata (${o.firma}) ≠ attesa (${firma})`)
+    if (normalizzaFirma(o.firma) !== normalizzaFirma(firma))
+      differenze.push(`${nome}: firma osservata (${o.firma}) ≠ attesa (${firma})`)
     if (o.autenticato !== true || o.anonimo !== false || o.service !== false)
       differenze.push(`${nome}: privilegi fuori contratto (auth=${o.autenticato} anon=${o.anonimo} service=${o.service})`)
   }
   for (const o of righe)
     if (!(o.proname in RPC_ATTESE)) differenze.push(`funzione INATTESA nel perimetro: ${o.proname}(${o.firma})`)
   return { ok: differenze.length === 0, differenze, attese: Object.keys(RPC_ATTESE).length }
+}
+
+
+// ---- privilegi EFFETTIVI di tabella: booleani ESPLICITI e completezza -----
+// righe: {tabella, privilegio, ruolo, effettivo}; casiAttesi = [{tabella,
+// privilegio, ruolo}] — ogni caso deve comparire e valere ESATTAMENTE false
+// (true = riaperto; null/assente = INCOMPLETO, mai "tutti negati")
+export function verificaEffettiviTabella(righe, casiAttesi) {
+  const differenze = []
+  const mappa = new Map((righe ?? []).map(r => [`${r.tabella}/${r.privilegio}/${r.ruolo}`, r]))
+  for (const c of casiAttesi) {
+    const k = `${c.tabella}/${c.privilegio}/${c.ruolo}`
+    const r = mappa.get(k)
+    if (!r) { differenze.push(`INCOMPLETO: caso ${k} assente`); continue }
+    if (r.effettivo === true) differenze.push(`${c.tabella}: ${c.ruolo} può ${c.privilegio} (effettivo)`) 
+    else if (r.effettivo !== false) differenze.push(`INCOMPLETO: ${k} senza booleano esplicito (${JSON.stringify(r.effettivo)})`)
+  }
+  return { ok: differenze.length === 0, differenze }
+}
+
+// ---- privilegi EFFETTIVI di COLONNA (has_column_privilege: PUBLIC ed ------
+// ereditarietà compresi) contro le autorizzazioni della 0021
+export const COLONNE_CONSENTITE = {
+  'family_documents/UPDATE': ['doc_total', 'document_date', 'due_date', 'invoice_number', 'kind', 'note', 'supplier'],
+  'family_documents/INSERT': ['doc_total', 'document_date', 'due_date', 'invoice_number', 'kind', 'note', 'supplier', 'upload_ambito'],
+  'family_draft_expenses/UPDATE': ['arrotondamento_cent', 'canonical_category_id', 'canonical_subcategory_id', 'category_id', 'description', 'expense_date', 'expense_nature', 'group_id', 'payment_method', 'room_id', 'store', 'subcategory'],
+  'family_draft_expenses/INSERT': ['arrotondamento_cent', 'canonical_category_id', 'canonical_subcategory_id', 'category_id', 'description', 'document_id', 'expense_date', 'expense_nature', 'group_id', 'payment_method', 'room_id', 'store', 'subcategory'],
+  'family_draft_items/UPDATE': ['amount', 'canonical_category_id', 'canonical_subcategory_id', 'category_id', 'discount', 'excluded', 'group_id', 'name', 'necessity', 'planning', 'qty', 'subcategory', 'unit_price'],
+  'family_draft_items/INSERT': ['amount', 'canonical_category_id', 'canonical_subcategory_id', 'category_id', 'discount', 'draft_id', 'group_id', 'name', 'necessity', 'planning', 'qty', 'subcategory', 'unit_price'],
+  'family_expense_documents/UPDATE': [], 'family_expense_documents/INSERT': [],
+  'family_corrections/UPDATE': [], 'family_corrections/INSERT': [],
+}
+// colonne RISERVATE che DEVONO comparire negate (completezza per identità)
+export const COLONNE_RISERVATE_MINIME = {
+  family_documents: ['status', 'error_message', 'upload_ambito'],
+  family_draft_expenses: ['status', 'expense_id', 'confidence', 'discard_reason'],
+  family_draft_items: ['user_added', 'raw_name', 'confidence'],
+  family_expense_documents: ['expense_id', 'document_id'],
+  family_corrections: ['id'],
+}
+// NB: upload_ambito è consentita SOLO in INSERT sui documenti — in UPDATE è riservata.
+
+// righe: {tabella, colonna, ruolo, privilegio, effettivo}
+export function verificaColonneEffettive(righe) {
+  const differenze = []
+  const mappa = new Map((righe ?? []).map(r => [`${r.tabella}/${r.colonna}/${r.ruolo}/${r.privilegio}`, r]))
+  const controlla = (tabella, colonna, ruolo, privilegio, atteso) => {
+    const k = `${tabella}/${colonna}/${ruolo}/${privilegio}`
+    const r = mappa.get(k)
+    if (!r) { differenze.push(`INCOMPLETO: caso ${k} assente`); return }
+    if (typeof r.effettivo !== 'boolean') { differenze.push(`INCOMPLETO: ${k} senza booleano esplicito`); return }
+    if (r.effettivo !== atteso)
+      differenze.push(atteso
+        ? `${tabella}.${colonna}: ${privilegio} CONSENTITO dalla 0021 ma negato a ${ruolo}`
+        : `${tabella}.${colonna}: ${privilegio} RIAPERTO per ${ruolo} (PUBLIC/ereditarietà comprese)`)
+  }
+  for (const [chiave, consentite] of Object.entries(COLONNE_CONSENTITE)) {
+    const [tabella, privilegio] = chiave.split('/')
+    for (const c of consentite) controlla(tabella, c, 'authenticated', privilegio, true)
+    for (const c of COLONNE_RISERVATE_MINIME[tabella] ?? [])
+      if (!consentite.includes(c)) controlla(tabella, c, 'authenticated', privilegio, false)
+  }
+  // anon: MAI scritture, su nessuna colonna osservata o attesa
+  for (const r of righe ?? []) {
+    if (r.ruolo === 'anon' && ['INSERT', 'UPDATE'].includes(r.privilegio)) {
+      if (typeof r.effettivo !== 'boolean') differenze.push(`INCOMPLETO: ${r.tabella}/${r.colonna}/anon/${r.privilegio} senza booleano`)
+      else if (r.effettivo) differenze.push(`${r.tabella}.${r.colonna}: ${r.privilegio} APERTO ad anon`)
+    }
+    // qualunque colonna osservata NON consentita deve risultare negata
+    if (r.ruolo === 'authenticated' && ['INSERT', 'UPDATE'].includes(r.privilegio)) {
+      const consentite = COLONNE_CONSENTITE[`${r.tabella}/${r.privilegio}`]
+      if (consentite && !consentite.includes(r.colonna) && r.effettivo === true)
+        differenze.push(`${r.tabella}.${r.colonna}: ${r.privilegio} RIAPERTO per authenticated`)
+    }
+  }
+  return { ok: differenze.length === 0, differenze: [...new Set(differenze)] }
 }

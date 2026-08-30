@@ -1201,6 +1201,28 @@ se la precedente non è verificata E approvata.
   mai eseguite). Test: 7 nuovi collegati al verificatore reale, 21/21
   il file collaudo; suite 234/234. Un nuovo audit remoto richiede
   autorizzazione separata.
+  **QUARTA CORREZIONE AGLI STRUMENTI D'AUDIT (30/08/2026, sera —
+  locale):** 1) firme RPC: pg_get_function_identity_arguments CONSERVA i
+  nomi degli argomenti («p_document_id uuid, …») e il confronto testuale
+  avrebbe dato un FALSO ALLARME su tutte e 5 → normalizzaFirma estrae i
+  soli tipi (via IN/OUT/INOUT/VARIADIC e nome dell'argomento), overload
+  sempre rifiutati; test col formato REALE della query (nomi della
+  0020), non copiato dagli attesi. 2) privilegi effettivi di COLONNA:
+  nuova sezione 1-ter con has_column_privilege (PUBLIC ed ereditarietà
+  comprese) su TUTTE le colonne delle 5 tabelle ristrette × INSERT/
+  UPDATE × authenticated/anon, giudicata dal verificatore contro la
+  matrice della 0021 (consentite presenti e vere, riservate negate,
+  anon a zero; booleani ESPLICITI obbligatori e completezza per
+  identità — 30 «effettivo=null» non sono più «tutti negati», vale
+  anche per la sezione di tabella 1-bis ora sul verificatore); evidenze
+  con le ACL di COLONNA grezze (1-quater). Riprodotto e coperto:
+  UPDATE(status) riaperto via PUBLIC/ereditarietà → ROSSO. 3) canon
+  limitata alle differenze sintattiche innocue: stringhe letterali e
+  identificatori quotati INTATTI ('scontrini' ≠ 'SCONTRINI' ≠
+  's c o n t r i n i', riprodotti e coperti), modalità permissive
+  assente o sconosciuta = INCOMPLETA non conforme; il rendering
+  conforme di pg_policies resta verde. Test collegati al codice usato
+  dall'audit: 26/26 il file collaudo; suite 234/234.
   **RESTA (autorizzazione separata):** eventuale nuovo audit remoto col
   verificatore corretto; applicazione della 0022 in produzione con
   backup fresco del giorno + seconda copia verificata; poi collegamento
