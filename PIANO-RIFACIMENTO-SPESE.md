@@ -1301,6 +1301,20 @@ se la precedente non è verificata E approvata.
   rotta: è il flusso di elaborazione). Rapporto:
   applicazione-0022-produzione-2026-08-30.txt sul Desktop. Token
   gestionale-0022-produzione-temporaneo eliminato, DA REVOCARE.
+  **CHIUSURA POST-APPLICAZIONE (30/08/2026, notte — locale):** 1) lo
+  strumento di applicazione ora VALIDA la risposta del commit
+  (valutaRispostaCommit, pura e testata): solo la riga esplicita
+  {esito:'APPLICATA'} è un successo; array vuoto, JSON illeggibile o
+  forme inattese = INCERTO → verifica di stato in sola lettura, mai
+  successo dichiarato né rollback presunto (e anche la verifica di
+  stato illeggibile = STOP); 8 test simulati sul codice usato
+  (collaudo 30/30). 2) evidenze del giro concluso RECUPERATE dagli
+  output disponibili e allegate al rapporto (appendice E1–E5:
+  risposta grezza del commit, definizioni integrali degli oggetti,
+  privilegi, confronto dati, pagine), con le parti NON recuperabili
+  dichiarate MANCANTI (le 8 righe grezze dei casi di colonna e il
+  dettaglio per-tabella delle prime 14 del giro POST) e mai
+  ricostruite.
   **PROSSIMO PASSO (NON autorizzato, separato):** collegamento del
   flusso idempotente (registrazioneSupabase/ripresaDurevole) alle
   pagine ufficiali, poi il resto della Fase 4.

@@ -478,3 +478,27 @@ test('IDENTITÀ dei ruoli: {AUTHENTICATED} ≠ {authenticated} — confronto esa
   assert.ok(v.differenze.some(d => d.includes('family_expenses') && d.includes('ruoli')))
   assert.equal(verificaPolicy(policyConformi()).ok, true)      // il conforme resta verde
 })
+
+// ---- 9. risposta di commit dell'applicazione: mai successi non validati ----
+import { valutaRispostaCommit } from './rispostaCommit.mjs'
+
+test('IL CASO RIPRODOTTO: array vuoto, JSON illeggibile o forme inattese → INCERTA, mai applicata', () => {
+  // prima arrivavano tutte ad applicata=true
+  assert.equal(valutaRispostaCommit([]).stato, 'incerta')
+  assert.equal(valutaRispostaCommit(undefined).stato, 'incerta')
+  assert.equal(valutaRispostaCommit('non-json').stato, 'incerta')
+  assert.equal(valutaRispostaCommit({ esito: 'APPLICATA' }).stato, 'incerta')   // non è un array
+  assert.equal(valutaRispostaCommit([null]).stato, 'incerta')
+  assert.equal(valutaRispostaCommit([{ qualcosa: 'altro' }]).stato, 'incerta')
+  assert.equal(valutaRispostaCommit([{ esito: 'applicata' }]).stato, 'incerta') // conferma ESATTA, non minuscola
+  assert.equal(valutaRispostaCommit([[{ esito: 'APPLICATA' }]]).stato, 'incerta') // annidata: non è la riga attesa
+})
+
+test('la conferma ESPLICITA {esito: APPLICATA} → applicata; e l\'incerta non presume MAI il rollback', () => {
+  const ok = valutaRispostaCommit([{ esito: 'APPLICATA', quando: '2026-08-30 20:51:05+00' }])
+  assert.equal(ok.stato, 'applicata')
+  assert.ok(ok.dettaglio.includes('APPLICATA'))
+  // l'incerta porta alla VERIFICA di stato, non a un esito: qui si
+  // controlla solo che non sia mai 'applicata' né un terzo stato inventato
+  for (const r of [[], [{}], 'x']) assert.equal(valutaRispostaCommit(r).stato, 'incerta')
+})

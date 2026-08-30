@@ -12,6 +12,7 @@
 // Richiede: CONFERMA_APPLICAZIONE_0022=si
 // ============================================================================
 import { createHash } from 'node:crypto'
+import { valutaRispostaCommit } from './rispostaCommit.mjs'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { homedir } from 'node:os'
@@ -89,25 +90,36 @@ commit;
 select 'APPLICATA' as esito, now() as quando`
 
 let applicata = false
+let valutazione = null
 try {
   const r = await sqlProd(batch)
-  const riga = Array.isArray(r) ? r[r.length - 1] ?? r[0] : null
-  console.log('risposta del commit:', JSON.stringify(riga ?? r).slice(0, 120))
-  applicata = true
+  // la conferma va VALIDATA: JSON illeggibile, array vuoto o forme
+  // inattese NON sono un successo (e nemmeno un rollback presunto)
+  valutazione = valutaRispostaCommit(r)
+  console.log('risposta del commit:', valutazione.stato, '—', valutazione.dettaglio.slice(0, 120))
 } catch (e) {
   const msg = String(e.message)
   if (/fetch|network|timeout|timed out|abort|econn|socket/i.test(msg)) {
-    // COMMIT INCERTO: si VERIFICA in sola lettura, niente ritentativi
-    console.log('risposta INCERTA (', msg.slice(0, 80), ') → verifica dello stato in sola lettura…')
+    valutazione = { stato: 'incerta', dettaglio: msg.slice(0, 120) }
+  } else {
+    console.error('APPLICAZIONE FALLITA (rollback automatico della transazione):', msg.slice(0, 300))
+    process.exit(1)
+  }
+}
+if (valutazione.stato === 'applicata') {
+  applicata = true
+} else {
+  // INCERTA (trasporto O risposta non interpretabile): si VERIFICA lo
+  // stato in sola lettura, niente ritentativi e niente rollback presunto
+  {
+    console.log('esito INCERTO (', valutazione.dettaglio.slice(0, 80), ') → verifica dello stato in sola lettura…')
     const [z] = await sqlProd(`begin transaction read only;
 select (select count(*) from information_schema.columns where table_schema='public' and table_name='family_documents' and column_name in ('upload_token','upload_manifest')) as colonne,
        (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='registra_documento_caricato') as rpc;
 rollback;`)
-    if (z.colonne === 2 && z.rpc === 1) { console.log('lo stato dice: APPLICATA (il commit era passato)'); applicata = true }
-    else { console.error('lo stato dice: NON applicata. STOP senza ritentare — decidere insieme.'); process.exit(2) }
-  } else {
-    console.error('APPLICAZIONE FALLITA (rollback automatico della transazione):', msg.slice(0, 300))
-    process.exit(1)
+    if (z?.colonne === 2 && z?.rpc === 1) { console.log('lo stato dice: APPLICATA (il commit era passato)'); applicata = true }
+    else if (z?.colonne === 0 && z?.rpc === 0) { console.error('lo stato dice: NON applicata. STOP senza ritentare — decidere insieme.'); process.exit(2) }
+    else { console.error('anche la verifica di stato è ILLEGGIBILE:', JSON.stringify(z).slice(0, 120), '— STOP, decidere insieme.'); process.exit(2) }
   }
 }
 if (applicata) console.log('\n0022 APPLICATA IN PRODUZIONE (una transazione, verifiche pre-commit superate).')
