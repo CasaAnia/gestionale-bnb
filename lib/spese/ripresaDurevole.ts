@@ -124,6 +124,7 @@ export type EsitoAvvio =
       ok: false; errore: string; riprovabile: boolean
       chiusura: 'da_ritentare'
       duplicato?: undefined; serveFile?: undefined; pulizia?: undefined
+      avvisoDeposito?: undefined
       ripresa?: undefined
     }
 
@@ -135,10 +136,21 @@ export function creaControllore(
   idCasuale = () => crypto.randomUUID(),
 ) {
   // la regola di conservazione: SOLO 'conclusa' chiude la traccia; ogni
-  // altro esito la mantiene nel deposito, aggiornata col suo motivo
+  // altro esito la mantiene nel deposito, aggiornata col suo motivo.
+  // Un errore del DEPOSITO diventa un AVVISO strutturato sull'esito: non
+  // trasforma un salvataggio remoto riuscito in un fallimento, e non
+  // perde la traccia (la voce resta com'era, col motivo vecchio).
   const chiudiOConserva = async (op: OperazioneDurevole, esito: EsitoIdempotente): Promise<EsitoIdempotente> => {
-    if (esito.ok || esito.chiusura === 'conclusa') await deposito.rimuovi(op.token)
-    else await deposito.salva({ ...op, motivo: esito.errore, stato: esito.chiusura })  // meglio provarci: se fallisce, la voce resta con il motivo vecchio
+    if (esito.ok || esito.chiusura === 'conclusa') {
+      const r = await deposito.rimuovi(op.token).catch(e => ({ errore: String((e as Error).message ?? e) }))
+      if (r.errore)
+        return { ...esito, avvisoDeposito: `operazione conclusa ma non rimossa dal deposito (${r.errore}): comparirà ancora tra le pendenti — un recupero la richiuderà senza doppioni` }
+      return esito
+    }
+    const r = await deposito.salva({ ...op, motivo: esito.errore, stato: esito.chiusura })
+      .catch(e => ({ errore: String((e as Error).message ?? e) }))
+    if (r.errore)
+      return { ...esito, avvisoDeposito: `motivo non aggiornato nel deposito (${r.errore}): la traccia resta con le informazioni precedenti` }
     return esito
   }
 

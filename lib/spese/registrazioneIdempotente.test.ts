@@ -541,3 +541,34 @@ test('controllore su deposito illeggibile: il caricamento nuovo è BLOCCATO prim
   const lettura = await c.pendenti()
   assert.ok(lettura.errore)                             // e l'errore arriva ESPLICITO
 })
+
+test('errori del DEPOSITO visibili come avviso: mai un fallimento finto, mai la traccia persa', async () => {
+  // rimozione fallita DOPO un successo remoto: l'esito resta ok, con avviso
+  const a = archivio()
+  const base = depositoInMemoria()
+  const rotto = {
+    ...base,
+    rimuovi: async () => ({ errore: 'memoria piena' }),
+  }
+  const c = creaControllore(a.cliente, rotto, undefined, orologio)
+  const t1 = await c.avvia(foto('x'), 'personale', null)
+  assert.ok(t1.ok)                                       // il salvataggio remoto RIUSCITO resta un successo
+  assert.ok(t1.ok && t1.avvisoDeposito?.includes('non rimossa dal deposito'))
+  assert.equal(base.contenuto().length, 1)               // la traccia c'è ancora (rimozione fallita)
+  // aggiornamento del motivo fallito su un esito da conservare: avviso, e
+  // la voce resta con le informazioni precedenti
+  const b = archivio({ registra: ['rete-prima'] })
+  const base2 = depositoInMemoria()
+  let salvataggi = 0
+  const mezzo = {
+    ...base2,
+    salva: async (op: Parameters<typeof base2.salva>[0]) =>
+      ++salvataggi === 1 ? base2.salva(op) : { errore: 'spazio esaurito' },
+  }
+  const c2 = creaControllore(b.cliente, mezzo, undefined, orologio)
+  const t2 = await c2.avvia(foto('x'), 'personale', null)
+  assert.ok(!t2.ok && t2.riprovabile)
+  assert.ok(!t2.ok && t2.avvisoDeposito?.includes('motivo non aggiornato'))
+  assert.equal(base2.contenuto().length, 1)              // traccia conservata (senza il motivo nuovo)
+  assert.equal(base2.contenuto()[0].motivo, undefined)
+})

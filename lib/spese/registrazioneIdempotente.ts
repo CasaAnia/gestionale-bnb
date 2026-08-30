@@ -137,12 +137,14 @@ export type ChiusuraOperazione =
 export type EsitoPulizia = 'rimossa' | 'collegata' | 'incerta' | 'fallita'
 
 export type EsitoIdempotente =
-  | { ok: true; documentId: string; ripetuta: boolean }
+  | { ok: true; documentId: string; ripetuta: boolean; avvisoDeposito?: string }
   | {
       ok: false; errore: string; riprovabile: boolean
       chiusura: ChiusuraOperazione
       duplicato?: boolean; serveFile?: boolean
       pulizia?: EsitoPulizia
+      // problema del DEPOSITO locale, distinto dall'esito remoto
+      avvisoDeposito?: string
       ripresa: RipresaToken
     }
 

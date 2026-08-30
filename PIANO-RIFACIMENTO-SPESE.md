@@ -1009,6 +1009,49 @@ se la precedente non è verificata E approvata.
   davvero conclusi continuano a chiudersi. 233/233; tsc, lint e build
   verdi. Prova PostgreSQL reale sempre separata (checklist 0022, dopo
   autorizzazione, ambiente isolato).
+  **COLLAUDO REALE 0022 ESEGUITO (30/08/2026, notte) — sul progetto di
+  prova exyl**** della 2B, autorizzato; PRODUZIONE INTOCCATA** (guardia
+  anti-produzione verificata VIVA dandole apposta il ref vero → STOP).
+  Accesso: token temporaneo Management API salvato dagli appunti in file
+  locale fuori dal repo (mai in chat/log/repo/.env.local — controllato a
+  fine collaudo col grep sul valore), eliminato a fine collaudo; DA
+  REVOCARE dal dashboard. Scripts: scripts/fase4/passo0–5.
+  RISULTATI: (a) PostgreSQL vero — 0022 applicata e RIeseguita
+  (idempotente); checklist A–E **18/18**: privilegi (anon e service_role
+  negati, authenticated sì), NON_MEMBRO (anche per postgres senza
+  claims), registrazione singola e replay (stesso id, ripetuta=true),
+  TOKEN_RIUSATO sul manifesto, PERCORSO_NON_COERENTE, GIA_IN_ARCHIVIO
+  senza documenti vuoti, multipagina 2 ricevute e "tutte o nessuna" col
+  rollback totale, PAGINE_MALFORMATE ≠ doppione, IMPRONTA_NON_VALIDA,
+  trigger MANIFESTO_IMMUTABILE (postgres) DISTINTO dal permission denied
+  di colonna (authenticated). (b) Storage e client REALI — adattatori
+  effettivi (fabbrica registrazioneClient.ts, la STESSA logica delle
+  pagine) con utente sintetico membro: **13/13** — avvia col controller
+  e depositoLocale vero (byte e impronta remoti riscontrati), risposta
+  persa + controller RICREATO → recupero senza file né orfani, oggetto
+  estraneo al nostro percorso fermato coi byte intatti, riselezione
+  diversa fermata prima di ogni effetto, doppione con pulizia giù →
+  pulizia_pendente e recupero che completa la pulizia sul bucket vero,
+  bilancio orfani pulito. REPERTO IMPORTANTE: sul progetto di prova i
+  permessi PER COLONNA del §4-bis della 0021 NON erano più in vigore
+  (authenticated aveva GRANT ALL di tabella con impronta da "creazione",
+  anon pulito; nessuno script del repo produce quello stato → sospetto
+  re-grant di piattaforma). Ripristinati riapplicando la 0021
+  (idempotente) e riverificati; la 0022 rieseguita NON li disturba.
+  → AZIONE APERTA: prima di fidarsi dei grant per colonna in produzione,
+  VERIFICARLI (e nel caso riapplicare la 0021) — da pianificare con
+  autorizzazione, la produzione non è stata toccata in questo collaudo.
+  Secondo reperto (solo verifica): la CDN dello storage può servire per
+  qualche istante un oggetto appena cancellato → i controlli usano un
+  cache-buster; il flusso era corretto. PULIZIA: eliminati SOLO gli
+  artefatti del collaudo (13 documenti con upload_token, 15 ricevute, 13
+  oggetti nei prefissi-data del collaudo, 5 utenti sintetici) → bilancio
+  IDENTICO al pre-collaudo (98/83/232/1/81); 0021+0022 restano applicate
+  sul progetto di prova. Codice locale: fabbrica iniettabile
+  registrazioneClient.ts (registrazioneSupabase = binding del browser),
+  chiudiOConserva con avvisoDeposito strutturato (un errore del deposito
+  non falsifica l'esito remoto e non perde la traccia; testato). 234/234
+  locali; tsc, lint, build verdi.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".
