@@ -21,11 +21,18 @@ import { costruisciDatiSpese, oggiARoma } from '@/lib/spese/adattatore'
 import { leggiTutto, urlFirmato, type FonteCompleta } from '@/lib/spese/fonte'
 import { clienteSupabase } from '@/lib/spese/scritturaSupabase'
 import {
-  aggiornaBudgetEsistente, caricaDocumentoConFoto, creaGuardiaInvio,
+  aggiornaBudgetEsistente, creaGuardiaInvio,
   eliminaBudgetEsistente, eliminaSpesaManuale, salvaBudgetNuovo,
-  salvaSpesaManuale, sha256DiFile, type SpesaManualeInput,
+  salvaSpesaManuale, type SpesaManualeInput,
 } from '@/lib/spese/scrittura'
-import { nuoveVoci, rimovibile, salvaCoda } from '@/lib/spese/codaCaricamento'
+// il caricamento passa dal flusso IDEMPOTENTE collaudato (0022): nessun
+// secondo percorso di registrazione
+import { clienteIdempotenteSupabase } from '@/lib/spese/registrazioneSupabase'
+import { creaControllore, depositoLocale } from '@/lib/spese/ripresaDurevole'
+import {
+  conFileRiselezionato, nuoveVociPagina, rimovibilePagina, salvaCodaPagina,
+  vociDaPendenti,
+} from '@/lib/spese/codaPagina'
 import { filtraPerAmbito } from '@/lib/spese/ambito'
 import type { RisolutoriVoce, ItemEsteso } from '@/lib/spese/voci'
 import type { Ambito, Fx } from '@/lib/spese/types'
@@ -62,10 +69,11 @@ function Pagina({ ambito }: { ambito: Ambito }) {
   const [foto, setFoto] = useState<{ titolo: string; pagine: PaginaFoto[] } | null>(null)
   const [avviso, setAvviso] = useState<string | null>(null)
 
-  // ---- coda di caricamento: vive nella PAGINA, non nel foglio -----------
-  // Chiudere il foglio non perde lo stato di recupero, e il ciclo di invio
-  // (per identificativi, su lib/spese/codaCaricamento) lavora sempre sullo
-  // stato vivo: aggiungere o togliere una foto durante l'attesa è sicuro.
+  // ---- coda di caricamento: flusso IDEMPOTENTE (0022) -------------------
+  // La coda vive nella PAGINA; le operazioni PENDENTI del deposito durevole
+  // (localStorage) riappaiono anche dopo chiusura del foglio, navigazione e
+  // ricaricamento, con ambito/token/manifesto originali. Il ciclo lavora
+  // sullo stato vivo per identificativi (lib/spese/codaPagina).
   const [coda, setCodaStato] = useState<VoceUI[]>([])
   const codaRef = useRef<VoceUI[]>([])
   const setCoda = useCallback((aggiorna: (c: VoceUI[]) => VoceUI[]) => {
@@ -74,7 +82,29 @@ function Pagina({ ambito }: { ambito: Ambito }) {
   const [fogliocaricaAperto, setFoglioCaricaAperto] = useState(false)
   const [notaCoda, setNotaCoda] = useState('')
   const [salvandoCoda, setSalvandoCoda] = useState(false)
+  const [depositoErrore, setDepositoErrore] = useState<string | null>(null)
   const guardiaCoda = useRef(creaGuardiaInvio())
+  const controllore = useMemo(() => creaControllore(clienteIdempotenteSupabase, depositoLocale()), [])
+
+  // le operazioni rimaste in sospeso: caricate all'apertura della pagina
+  // (in demo NON si contatta nulla: il deposito è locale, ma per pulizia
+  // si salta tutto)
+  useEffect(() => {
+    if (isDemoMode()) return
+    let vivo = true
+    controllore.pendenti().then(lettura => {
+      if (!vivo) return
+      setDepositoErrore(lettura.errore ?? null)
+      if (lettura.riprese.length) {
+        setCoda(prev => {
+          const gia = new Set(prev.map(v => v.id))
+          return [...prev, ...vociDaPendenti(lettura.riprese).filter(v => !gia.has(v.id))]
+        })
+        setAvviso(`${lettura.riprese.length === 1 ? 'c\'è 1 caricamento in sospeso' : `ci sono ${lettura.riprese.length} caricamenti in sospeso`}: tocca ＋ per riprenderli`)
+      }
+    })
+    return () => { vivo = false }
+  }, [controllore, setCoda])
 
   useEffect(() => {
     if (isDemoMode()) return
@@ -150,13 +180,13 @@ function Pagina({ ambito }: { ambito: Ambito }) {
   // ---- ＋: le quattro strade ----
   const accoda = useCallback((files: File[]) => {
     if (files.length === 0 && codaRef.current.length === 0) return
-    setCoda(prev => [...prev, ...nuoveVoci(
+    setCoda(prev => [...prev, ...nuoveVociPagina(
       files.map(f => ({ file: f, nome: f.name, tipo: f.type })),
-      () => crypto.randomUUID(),
-    ).map(v => ({ ...v, url: URL.createObjectURL(v.file) }))])
+      ambito, () => crypto.randomUUID(),
+    ).map(v => ({ ...v, url: URL.createObjectURL(v.file as File) }))])
     // si riapre anche a mani vuote se c'è una coda in sospeso da riprendere
     setFoglioCaricaAperto(true)
-  }, [setCoda])
+  }, [ambito, setCoda])
   const aggiungi = useCallback(async (voce: VoceAggiungi) => {
     if (voce === 'manuale') { setModuloAperto(true); return }
     const accetta = voce === 'documento' ? 'image/*,application/pdf' : 'image/*'
@@ -166,31 +196,39 @@ function Pagina({ ambito }: { ambito: Ambito }) {
   const salvaTutteLeFoto = useCallback(() => guardiaCoda.current(async () => {
     setSalvandoCoda(true)
     try {
-      const { salvate } = await salvaCoda(
-        () => codaRef.current, setCoda,
-        async (voce, nota) => caricaDocumentoConFoto(clienteSupabase, {
-          nomeFile: voce.nome, tipo: voce.tipo, contenuto: voce.file,
-          sha256: await sha256DiFile(voce.file),
-        }, ambito, nota, voce.ripresa),
-        notaCoda.trim() || null,
-      )
+      const { salvate } = await salvaCodaPagina(
+        () => codaRef.current, setCoda, controllore, notaCoda.trim() || null)
       if (salvate > 0) ricarica()
       if (codaRef.current.length > 0 && codaRef.current.every(v => v.stato === 'salvata'))
         setTimeout(() => setFoglioCaricaAperto(false), 900)
     } finally { setSalvandoCoda(false) }
-  }), [ambito, notaCoda, ricarica, setCoda])
+  }), [controllore, notaCoda, ricarica, setCoda])
+
+  // riselezione del file per una voce che lo chiede (o per un ritentativo
+  // con i byte in mano): il flusso riconfronta l'impronta originale
+  const riseleziona = useCallback(async (id: string) => {
+    const [f] = await scegliFiles('image/*,application/pdf', false)
+    if (!f) return
+    setCoda(prev => prev.map(v => {
+      if (v.id !== id) return v
+      const nuova = conFileRiselezionato(v, f, f.name, f.type) as VoceUI
+      if (v.url) URL.revokeObjectURL(v.url)
+      return { ...nuova, url: URL.createObjectURL(f) }
+    }))
+  }, [setCoda])
 
   const chiudiFoglioCarica = useCallback(() => {
-    // le foto salvate escono di scena; errori, sospese e doppioni RESTANO
-    // in coda (si ritrovano toccando ＋) — lo stato di recupero non si perde
+    // salvate e doppioni chiusi escono di scena; TUTTO il resto resta in
+    // coda (le operazioni con traccia nel deposito sopravvivono comunque
+    // anche al ricaricamento della pagina)
     setCoda(prev => {
       const resta = prev.filter(v => v.stato !== 'salvata' && v.stato !== 'duplicato')
-      prev.filter(v => !resta.includes(v)).forEach(v => URL.revokeObjectURL(v.url))
+      prev.filter(v => !resta.includes(v)).forEach(v => { if (v.url) URL.revokeObjectURL(v.url) })
       return resta
     })
     setFoglioCaricaAperto(false)
     const rimaste = codaRef.current.length
-    if (rimaste > 0) setAvviso(`${rimaste === 1 ? '1 foto non è ancora salvata: la ritrovi' : `${rimaste} foto non sono ancora salvate: le ritrovi`} toccando ＋`)
+    if (rimaste > 0) setAvviso(`${rimaste === 1 ? '1 caricamento è ancora in sospeso: lo ritrovi' : `${rimaste} caricamenti sono ancora in sospeso: li ritrovi`} toccando ＋`)
   }, [setCoda])
 
   // ---- scritture (errori veri: mai successi simulati) ----
@@ -221,6 +259,8 @@ function Pagina({ ambito }: { ambito: Ambito }) {
     <>
       <SpeseShell dati={dati} contestoIniziale={contesto} riprova={ricarica}
         aggiungi={aggiungi}
+        inSospeso={coda.filter(v => v.op).length}
+        riprendiCaricamenti={() => setFoglioCaricaAperto(true)}
         apriFoto={apriFoto}
         eliminaSpesa={eliminaSpesa}
         gestisciBudget={() => setBudgetAperto(true)}
@@ -273,12 +313,14 @@ function Pagina({ ambito }: { ambito: Ambito }) {
       {fogliocaricaAperto && (
         <CaricaFotoSheet ambito={ambito} coda={coda}
           salvando={salvandoCoda} nota={notaCoda} setNota={setNotaCoda}
+          depositoErrore={depositoErrore}
           togli={id => setCoda(prev => {
             const via = prev.find(v => v.id === id)
-            if (!via || !rimovibile(via)) return prev
-            URL.revokeObjectURL(via.url)
+            if (!via || !rimovibilePagina(via)) return prev
+            if (via.url) URL.revokeObjectURL(via.url)
             return prev.filter(v => v.id !== id)
           })}
+          riseleziona={riseleziona}
           aggiungiAltri={async () => accoda(await scegliFiles('image/*,application/pdf', false))}
           salvaTutte={salvaTutteLeFoto}
           chiudi={chiudiFoglioCarica} />

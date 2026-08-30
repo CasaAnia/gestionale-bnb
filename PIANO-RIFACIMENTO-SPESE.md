@@ -1315,14 +1315,41 @@ se la precedente non è verificata E approvata.
   dichiarate MANCANTI (le 8 righe grezze dei casi di colonna e il
   dettaglio per-tabella delle prime 14 del giro POST) e mai
   ricostruite.
-  **PROSSIMO PASSO (NON autorizzato, separato):** collegamento del
-  flusso idempotente (registrazioneSupabase/ripresaDurevole) alle
-  pagine ufficiali, poi il resto della Fase 4.
-  **RESTA (autorizzazione separata):** applicazione della 0022 in
-  produzione — prima: seconda copia su Drive verificata (caricamento +
-  riscaricamento + confronto impronta) + backup ancora fresco +
-  consenso esplicito; poi collegamento del flusso idempotente alle
-  pagine.
+  **FASE 4 · BLOCCO 2 ESEGUITO (30/08/2026, notte — autorizzato):
+  CARICAMENTO IDEMPOTENTE COLLEGATO ALLE PAGINE.** (Il vecchio
+  promemoria «0022 ancora da applicare» è superato: applicata e
+  verificata in produzione il 30/08.) /spese e /spese-famiglia caricano
+  ora SOLO col flusso collaudato (clienteIdempotenteSupabase +
+  creaControllore + depositoLocale): nessun secondo percorso; il
+  vecchio flusso a tre passi (scrittura.caricaDocumentoConFoto +
+  codaCaricamento) resta nel repo SOLO come storico/test, scollegato
+  dalle pagine. Strato di integrazione lib/spese/codaPagina.ts (voci
+  con stati espliciti: in_attesa / da_ritentare / da_verificare /
+  da_riselezionare / pulizia_pendente / duplicato; ciclo per
+  identificativi sullo stato vivo; rimovibili SOLO in_attesa, salvate e
+  doppioni chiusi — la traccia resta finché c'è da recuperare). Le
+  PENDENTI del deposito durevole riappaiono dopo chiusura del foglio,
+  navigazione e ricaricamento, con ambito/token/manifesto ORIGINALI
+  (badge dell'ambito quando diverso dalla pagina; il recupero usa
+  SEMPRE l'ambito originale); avviso all'apertura e voce «Riprendi i
+  caricamenti in sospeso» nel menù ＋; deposito illeggibile = avviso
+  esplicito e caricamenti nuovi bloccati. Parità confermata: selezione
+  multipla, anteprime, nota (solo per le nuove: le riprese conservano
+  la loro), conferma esplicita, riselezione col riconfronto
+  dell'impronta. TEST dell'integrazione REALE (codaPagina.test.ts,
+  7/7, controller vero + depositoLocale vero su memoria finta +
+  archivio a byte): risposta persa e pagina ricreata (recupero SENZA
+  file, mai doppioni), doppio clic (guardia), doppione, file diverso
+  respinto/giusto accettato, deposito illeggibile, pulizia incerta
+  completata al recupero. Prova UI a 390 px nei DUE ambiti (schermate
+  nel resoconto; dati finti SOLO in localStorage, nessun servizio
+  contattato, deposito ripulito). Preview reale sempre in sola lettura;
+  la demo/synthetic non contatta servizi. Suite 241/241; tsc, lint,
+  build verdi. Questo blocco registra SOLO documenti e allegati:
+  niente OCR, conferme di spese o modifiche ai conti.
+  **PROSSIMO (da autorizzare):** revisione completa delle spese
+  (schermata di revisione bozze) e riscrittura del flusso di
+  elaborazione al contratto «solo bozze».
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

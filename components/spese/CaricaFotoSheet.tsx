@@ -1,37 +1,52 @@
 'use client'
 // ============================================================================
-// CARICAMENTO FOTO/DOCUMENTI (3.2B.2) — vista SOTTILE sulla coda tenuta
-// dalla PAGINA (lib/spese/codaCaricamento.ts): chiudere il foglio non perde
-// lo stato di recupero, e il ciclo di invio continua a lavorare sullo stato
-// vivo. Parità col vecchio flusso: selezione multipla, anteprime, nota,
-// conferma esplicita. Sospese e doppioni restano FUORI dai ritentativi.
+// CARICAMENTO FOTO/DOCUMENTI (Fase 4 · blocco 2) — vista sottile sulla coda
+// di pagina (lib/spese/codaPagina) che usa il flusso IDEMPOTENTE collaudato
+// (ripresaDurevole + registrazioneSupabase): nessun secondo percorso.
+// Parità: selezione multipla, anteprime, nota, conferma esplicita. Le
+// operazioni PENDENTI (anche di ricaricamenti precedenti) sono voci a tutti
+// gli effetti, con ambito/token/manifesto ORIGINALI, e stati distinti:
+// da ritentare · da verificare · file da riselezionare · pulizia pendente.
 // ============================================================================
-import { X, Plus, TriangleAlert, CircleCheck, CopyX, PauseCircle, FileText } from 'lucide-react'
+import { X, Plus, TriangleAlert, CircleCheck, CopyX, RefreshCw, FileQuestion, Eraser, FileText } from 'lucide-react'
 import { TEMA as t, DISPLAY } from './tema'
 import { Etichetta, Foglio } from './mattoni'
-import { daInviare, rimovibile, type VoceCoda } from '@/lib/spese/codaCaricamento'
+import { inviabilePagina, rimovibilePagina, type VocePagina } from '@/lib/spese/codaPagina'
 import type { Ambito } from '@/lib/spese/types'
 
-export type VoceUI = VoceCoda<File> & { url: string }
+export type VoceUI = VocePagina & { url?: string }
 
-export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, togli, aggiungiAltri, salvaTutte, chiudi }: {
+const BOLLINI: Partial<Record<VocePagina['stato'], { sfondo: string; Icona: typeof CircleCheck; titolo: string }>> = {
+  salvata: { sfondo: t.verde, Icona: CircleCheck, titolo: 'salvata' },
+  da_ritentare: { sfondo: t.rosso, Icona: TriangleAlert, titolo: 'da ritentare' },
+  da_verificare: { sfondo: t.rosso, Icona: FileQuestion, titolo: 'da verificare' },
+  da_riselezionare: { sfondo: t.sub, Icona: FileQuestion, titolo: 'serve il file' },
+  pulizia_pendente: { sfondo: t.sub, Icona: Eraser, titolo: 'pulizia in sospeso' },
+  duplicato: { sfondo: t.sub, Icona: CopyX, titolo: 'già in archivio' },
+}
+const SPIEGA: Partial<Record<VocePagina['stato'], string>> = {
+  da_ritentare: ' — verrà RITENTATA col bottone Salva',
+  da_verificare: ' — esito da VERIFICARE: Salva controlla e recupera senza doppioni',
+  da_riselezionare: ' — riseleziona il file originale col bottoncino ↺',
+  pulizia_pendente: ' — doppione accertato, copia da togliere: Salva completa la pulizia',
+}
+
+export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, depositoErrore, togli, riseleziona, aggiungiAltri, salvaTutte, chiudi }: {
   ambito: Ambito
   coda: VoceUI[]
   salvando: boolean
   nota: string
   setNota: (v: string) => void
+  depositoErrore?: string | null
   togli: (id: string) => void
+  riseleziona: (id: string) => void
   aggiungiAltri: () => void
   salvaTutte: () => void
   chiudi: () => void
 }) {
   const accento = ambito === 'azienda' ? t.terracotta : t.verde
-  const pronte = daInviare(coda).length
+  const pronte = coda.filter(inviabilePagina).length
   const tutteSalvate = coda.length > 0 && coda.every(c => c.stato === 'salvata')
-  const bollino = (sfondo: string, Icona: typeof CircleCheck) => (
-    <span className="absolute top-1 left-1 grid place-items-center w-6 h-6"
-      style={{ background: sfondo, color: '#fff', borderRadius: 99 }}><Icona size={14} /></span>
-  )
 
   return (
     <Foglio aria="Carica foto e documenti" chiudi={chiudi} scorrevole
@@ -51,37 +66,61 @@ export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, togli, 
       <p className="text-[12px] mb-3" style={{ color: t.sub }}>
         le foto vanno in archivio come documenti da leggere: NESSUNA spesa viene creata ora
       </p>
+      {depositoErrore && (
+        <p className="text-[12.5px] mb-2 px-3 py-2 font-semibold" role="alert"
+          style={{ background: t.terraTenue, color: t.rosso, borderRadius: t.r }}>
+          promemoria dei caricamenti illeggibile ({depositoErrore}): i nuovi caricamenti sono bloccati finché non si risolve
+        </p>
+      )}
 
       <div className="grid grid-cols-3 gap-2 mb-3">
-        {coda.map(c => (
-          <div key={c.id} className="relative">
-            {c.tipo === 'application/pdf' ? (
-              <div className="w-full aspect-square grid place-items-center"
-                style={{ background: t.velo, borderRadius: t.r, border: t.bordoCarta }}>
-                <FileText size={26} style={{ color: t.sub }} />
-              </div>
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element -- anteprima locale
-              <img src={c.url} alt={c.nome} className="w-full aspect-square object-cover"
-                style={{ borderRadius: t.r, border: t.bordoCarta, opacity: c.stato === 'salvata' ? 0.55 : 1 }} />
-            )}
-            {c.stato === 'salvata' && bollino(t.verde, CircleCheck)}
-            {c.stato === 'errore' && bollino(t.rosso, TriangleAlert)}
-            {c.stato === 'duplicato' && bollino(t.sub, CopyX)}
-            {c.stato === 'sospesa' && bollino(t.sub, PauseCircle)}
-            {c.stato === 'in_invio' && (
-              <span className="absolute inset-x-0 bottom-0 text-center text-[10.5px] font-bold text-white py-0.5"
-                style={{ background: 'rgba(20,25,20,.65)', borderRadius: `0 0 ${t.r} ${t.r}` }}>salvo…</span>
-            )}
-            {rimovibile(c) && (
-              <button onClick={() => togli(c.id)} aria-label={`Togli ${c.nome}`}
-                className="absolute top-1 right-1 grid place-items-center w-6 h-6"
-                style={{ background: 'rgba(20,25,20,.65)', color: '#fff', borderRadius: 99 }}>
-                <X size={13} />
-              </button>
-            )}
-          </div>
-        ))}
+        {coda.map(c => {
+          const bollino = BOLLINI[c.stato]
+          return (
+            <div key={c.id} className="relative">
+              {c.url && c.tipo !== 'application/pdf' ? (
+                // eslint-disable-next-line @next/next/no-img-element -- anteprima locale
+                <img src={c.url} alt={c.nome} className="w-full aspect-square object-cover"
+                  style={{ borderRadius: t.r, border: t.bordoCarta, opacity: c.stato === 'salvata' ? 0.55 : 1 }} />
+              ) : (
+                // pendente di un giro precedente (niente anteprima) o PDF
+                <div className="w-full aspect-square grid place-items-center px-1"
+                  style={{ background: t.velo, borderRadius: t.r, border: t.bordoCarta }}>
+                  <FileText size={22} style={{ color: t.sub }} />
+                  <span className="text-[9.5px] text-center leading-tight break-all" style={{ color: t.sub }}>{c.nome}</span>
+                </div>
+              )}
+              {bollino && (
+                <span title={bollino.titolo} className="absolute top-1 left-1 grid place-items-center w-6 h-6"
+                  style={{ background: bollino.sfondo, color: '#fff', borderRadius: 99 }}><bollino.Icona size={14} /></span>
+              )}
+              {c.ambito !== ambito && (
+                <span className="absolute bottom-1 left-1 px-1.5 text-[9.5px] font-bold text-white"
+                  style={{ background: c.ambito === 'azienda' ? t.terracotta : t.verde, borderRadius: 99 }}>
+                  {c.ambito === 'azienda' ? 'Casa Ania' : 'Casa Mia'}
+                </span>
+              )}
+              {c.stato === 'in_invio' && (
+                <span className="absolute inset-x-0 bottom-0 text-center text-[10.5px] font-bold text-white py-0.5"
+                  style={{ background: 'rgba(20,25,20,.65)', borderRadius: `0 0 ${t.r} ${t.r}` }}>salvo…</span>
+              )}
+              {c.stato === 'da_riselezionare' && (
+                <button onClick={() => riseleziona(c.id)} aria-label={`Riseleziona il file ${c.nome}`}
+                  className="absolute top-1 right-1 grid place-items-center w-7 h-7"
+                  style={{ background: accento, color: '#fff', borderRadius: 99 }}>
+                  <RefreshCw size={14} />
+                </button>
+              )}
+              {rimovibilePagina(c) && (
+                <button onClick={() => togli(c.id)} aria-label={`Togli ${c.nome}`}
+                  className="absolute top-1 right-1 grid place-items-center w-6 h-6"
+                  style={{ background: 'rgba(20,25,20,.65)', color: '#fff', borderRadius: 99 }}>
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          )
+        })}
         <button onClick={aggiungiAltri} aria-label="Aggiungi altre foto"
           className="w-full aspect-square grid place-items-center"
           style={{ background: t.velo, borderRadius: t.r, border: `1.5px dashed ${t.bordo}`, color: t.sub }}>
@@ -89,14 +128,11 @@ export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, togli, 
         </button>
       </div>
 
-      {/* tre condizioni ben distinte: non inviato (nessuna riga, conta nel
-          bottone Salva), ESITO SCONOSCIUTO (sospesa) e DOPPIONE ACCERTATO */}
-      {coda.filter(c => c.errore).map(c => (
+      {coda.filter(c => c.errore || c.avviso).map(c => (
         <p key={c.id} className="text-[12.5px] mb-1.5 font-semibold" role="alert"
-          style={{ color: c.stato === 'errore' ? t.rosso : t.sub }}>
-          {c.stato === 'sospesa' ? '⏸ esito sconosciuto · ' : c.stato === 'duplicato' ? 'doppione accertato · ' : ''}
-          {c.nome}: {c.errore}
-          {c.stato === 'errore' && c.riprovabile && ' — verrà ritentata col bottone Salva'}
+          style={{ color: c.stato === 'da_ritentare' || c.stato === 'da_verificare' ? t.rosso : t.sub }}>
+          {c.nome}: {c.errore}{SPIEGA[c.stato] ?? ''}
+          {c.avviso ? ` · ${c.avviso}` : ''}
         </p>
       ))}
 
@@ -107,7 +143,7 @@ export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, togli, 
           className="w-full min-h-11 px-3 text-[14px] outline-none"
           style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
         <p className="text-[11px] mt-1" style={{ color: t.sub }}>
-          la nota di una foto resta quella del suo PRIMO tentativo di salvataggio
+          vale per le foto nuove; le operazioni riprese conservano la loro nota originale
         </p>
       </div>
     </Foglio>

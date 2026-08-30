@@ -31,13 +31,15 @@ const SEZIONI: [SezioneSpese, string][] = [
 ]
 const OPZIONI_VUOTE: OpzioniFiltri = { periodi: [], categorie: [], metodi: [] }
 
-export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = 'panoramica', filtriApertiIniziale = false, riprova, aggiungi, notaAggiungi, sopra, apriFoto, eliminaSpesa, gestisciBudget, analisiOperativa, cambiaContesto }: {
+export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = 'panoramica', filtriApertiIniziale = false, riprova, aggiungi, notaAggiungi, sopra, apriFoto, eliminaSpesa, gestisciBudget, analisiOperativa, cambiaContesto, inSospeso, riprendiCaricamenti }: {
   dati: StatoDati<DatiSpese>
   contestoIniziale?: Contesto
   sezioneIniziale?: SezioneSpese
   filtriApertiIniziale?: boolean
   riprova?: () => void
   aggiungi?: (voce: VoceAggiungi) => void   // richiamo sicuro del vecchio inserimento (opzionale)
+  inSospeso?: number                        // caricamenti pendenti nel deposito durevole
+  riprendiCaricamenti?: () => void          // apre la coda dei caricamenti senza selettore
   notaAggiungi?: string
   sopra?: ReactNode                         // es. la barretta PROVA (mai nel prodotto finale)
   // 3.2B — funzioni operative delle pagine ufficiali (assenti nella preview)
@@ -171,7 +173,9 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
       {aggiungiAperto && (
         <AggiungiSheet chiudi={() => setAggiungiAperto(false)}
           scegli={aggiungi ? v => { setAggiungiAperto(false); aggiungi(v) } : undefined}
-          nota={notaAggiungi} />
+          nota={notaAggiungi}
+          inSospeso={inSospeso}
+          riprendi={riprendiCaricamenti ? () => { setAggiungiAperto(false); riprendiCaricamenti() } : undefined} />
       )}
     </div>
   )
