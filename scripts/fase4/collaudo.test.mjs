@@ -253,3 +253,82 @@ test('upload dell\'estraneo MAI avvenuto (interrotto prima dell\'effetto): puliz
   assert.equal(r.dati.pulito, true)               // niente residui: chiuso
   assert.equal(stato.oggetti.size, 0)
 })
+// ---- 7. verificatore dell'audit: mai più verdi non verificati -------------
+import { matricePolicy, verificaPolicy, verificaRpc, verificaTabelleRls, TABELLE_ATTESE, RPC_ATTESE } from './verificaAudit.mjs'
+
+// osservazioni CONFORMI, rese come le renderebbe pg_policies
+const RESA = {
+  [`(select private.is_app_member())`.replace(/\s/g, '')]: '( SELECT private.is_app_member() AS is_app_member)',
+  [`(select private.is_app_owner())`.replace(/\s/g, '')]: '( SELECT private.is_app_owner() AS is_app_owner)',
+}
+const resa = (c) => c === '' ? ''
+  : RESA[c] ?? `((bucket_id = 'scontrini'::text) AND ( SELECT private.is_app_member() AS is_app_member))`
+const policyConformi = () => matricePolicy().map(a => ({
+  schemaname: a.schema, tablename: a.tabella, policyname: a.nome,
+  roles: '{authenticated}', cmd: a.cmd, permissive: 'PERMISSIVE',
+  qual: resa(a.qual), with_check: resa(a.check),
+}))
+
+test('FALSO VERDE riprodotto: 4 policy storage col nome giusto ma ruolo anon e condizione true → ROSSO', () => {
+  const oss = policyConformi().map(p =>
+    p.schemaname === 'storage' ? { ...p, roles: '{anon}', qual: 'true', with_check: p.with_check ? 'true' : '' } : p)
+  const v = verificaPolicy(oss)
+  assert.equal(v.ok, false)                        // PRIMA: contava 4 nomi e passava
+  assert.ok(v.differenze.some(d => d.includes('scontrini_membri_select')))
+})
+
+test('FALSO VERDE riprodotto: policy di app_members del tutto ASSENTI → ROSSO', () => {
+  const oss = policyConformi().filter(p => p.tablename !== 'app_members')
+  const v = verificaPolicy(oss)
+  assert.equal(v.ok, false)                        // PRIMA: app_members non era validata
+  assert.ok(v.differenze.some(d => d.includes('ASSENTE: public.app_members.app_members_lettura_membri')))
+  assert.ok(v.differenze.some(d => d.includes('app_members_gestione_owner')))
+})
+
+test('FALSO VERDE riprodotto: family con "is_app_member() OR true" → ROSSO (uguaglianza, non sottostringa)', () => {
+  const oss = policyConformi().map(p =>
+    p.policyname === 'family_expenses_solo_membri'
+      ? { ...p, qual: '(( SELECT private.is_app_member() AS is_app_member) OR true)' } : p)
+  const v = verificaPolicy(oss)
+  assert.equal(v.ok, false)                        // PRIMA: la sottostringa bastava
+  assert.ok(v.differenze.some(d => d.includes('family_expenses') && d.includes('USING')))
+})
+
+test('policy AGGIUNTIVA: mai dichiarata innocua, è una differenza da analizzare', () => {
+  const oss = [...policyConformi(), {
+    schemaname: 'storage', tablename: 'objects', policyname: 'apertura_totale',
+    roles: '{anon}', cmd: 'ALL', permissive: 'PERMISSIVE', qual: 'true', with_check: 'true',
+  }]
+  const v = verificaPolicy(oss)
+  assert.equal(v.ok, false)
+  assert.ok(v.differenze.some(d => d.includes('AGGIUNTIVA da analizzare') && d.includes('apertura_totale')))
+})
+
+test('FALSO VERDE riprodotto: storage.objects assente ma COMPENSATA da una tabella family in più → ROSSO', () => {
+  const oss = TABELLE_ATTESE.filter(t => t !== 'storage.objects')
+    .map(t => ({ schema: t.split('.')[0], tabella: t.split('.')[1], rls: true }))
+  oss.push({ schema: 'public', tabella: 'family_inventata', rls: true })   // stesso CONTEGGIO
+  const v = verificaTabelleRls(oss)
+  assert.equal(v.ok, false)                        // PRIMA: 18 = 18 e passava
+  assert.ok(v.differenze.some(d => d.includes('ASSENTE: storage.objects')))
+  assert.ok(v.differenze.some(d => d.includes('family_inventata')))
+})
+
+test('FALSO VERDE riprodotto: scarta_documento assente, COMPENSATA da un secondo overload di conferma_documento → ROSSO', () => {
+  const base = Object.entries(RPC_ATTESE).map(([nome, firma]) =>
+    ({ proname: nome, firma, autenticato: true, anonimo: false, service: false }))
+  const oss = base.filter(o => o.proname !== 'scarta_documento')
+  oss.push({ proname: 'conferma_documento', firma: 'uuid', autenticato: true, anonimo: false, service: false })
+  const v = verificaRpc(oss)                       // sempre 5 righe: il conteggio non vede nulla
+  assert.equal(v.ok, false)
+  assert.ok(v.differenze.some(d => d.includes('ASSENTE: scarta_documento')))
+  assert.ok(v.differenze.some(d => d.includes('OVERLOAD')))
+})
+
+test('caso CONFORME completo (rendering realistico di pg_policies): tutto verde', () => {
+  assert.equal(verificaPolicy(policyConformi()).ok, true)
+  assert.equal(verificaTabelleRls(TABELLE_ATTESE.map(t =>
+    ({ schema: t.split('.')[0], tabella: t.split('.')[1], rls: true }))).ok, true)
+  assert.equal(verificaRpc(Object.entries(RPC_ATTESE).map(([nome, firma]) =>
+    ({ proname: nome, firma, autenticato: true, anonimo: false, service: false }))).ok, true)
+})

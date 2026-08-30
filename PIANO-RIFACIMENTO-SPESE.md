@@ -1175,9 +1175,36 @@ se la precedente non è verificata E approvata.
   segreti sul Desktop (audit-permessi-produzione-2026-08-30.txt).
   Credenziali eliminate; token gestionale-audit-produzione-temporaneo DA
   REVOCARE.
-  **RESTA (autorizzazione separata):** applicazione della 0022 in
-  produzione con backup fresco del giorno + seconda copia verificata;
-  poi collegamento del flusso idempotente alle pagine.
+  **CORREZIONE DEL VERIFICATORE D'AUDIT (30/08/2026, sera — locale,
+  dopo la revisione dell'audit):** la conclusione «6/6 conformi»
+  SUPERAVA il verificato: la sezione policy leggeva ruoli e condizioni
+  senza confrontarli (sottostringa + conteggi; app_members non
+  validata; storage contato per nome), la completezza era per numero e
+  le RPC senza firma. Riprodotti 6 falsi verdi (storage anon/true,
+  app_members assenti, «is_app_member() OR true», tabella sostituita a
+  parità di conteggio, overload al posto di scarta_documento, policy
+  aggiuntiva "innocua"). CORRETTO: verificatore puro
+  (verificaAudit.mjs) con MATRICE esplicita della 0021 — 22 policy con
+  schema/tabella/nome/ruoli/cmd/modalità/USING/WITH CHECK (canonizzate,
+  uguaglianza esatta; bucket vincolato nello storage; app_members con
+  lettura membri e gestione owner distinte), 18 tabelle per NOME
+  QUALIFICATO, 5 RPC per nome e FIRMA esatta senza overload; policy e
+  oggetti aggiuntivi = differenze da analizzare, mai innocui. Lo
+  strumento d'audit ora conserva le EVIDENZE GREZZE di ogni query
+  (query, data, attesi, righe lette — senza segreti), esegue anche le
+  ACL con grantor e i privilegi EFFETTIVI (has_table_privilege, PUBLIC
+  ed ereditarietà) distinti dagli espliciti. Le evidenze grezze del
+  giro CONCLUSO non erano state conservate: dichiarate MANCANTI
+  nell'addendum al rapporto sul Desktop (non ricostruite); i controlli
+  di quel giro sono riclassificati (supportati: grant tabella/colonna e
+  assenza 0022; deboli: policy, RLS per conteggio, RPC senza firma, ACL
+  mai eseguite). Test: 7 nuovi collegati al verificatore reale, 21/21
+  il file collaudo; suite 234/234. Un nuovo audit remoto richiede
+  autorizzazione separata.
+  **RESTA (autorizzazione separata):** eventuale nuovo audit remoto col
+  verificatore corretto; applicazione della 0022 in produzione con
+  backup fresco del giorno + seconda copia verificata; poi collegamento
+  del flusso idempotente alle pagine.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

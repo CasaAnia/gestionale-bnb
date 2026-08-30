@@ -1,30 +1,27 @@
 #!/usr/bin/env node
 // ============================================================================
-// AUDIT PERMESSI IN PRODUZIONE (Fase 4) — SOLA LETTURA di metadati.
-// Strumento DEDICATO: non usa gli attrezzi del collaudo (fase2b/api.mjs
-// vieta la produzione per contratto). Qui la produzione è il bersaglio
-// ESPLICITO e VERIFICATO, e ogni batch gira in una transazione READ ONLY
-// chiusa da rollback. Implementa audit-permessi-produzione.sql.
-// Sicurezze:
-//  · credenziali SOLO in ~/.gestionale-audit/token.txt (mai in chat/log/
-//    repo/.env.local), eliminate a fine audit;
-//  · serve CONFERMA_PRODUZIONE=sola-lettura nell'ambiente: niente
-//    esecuzioni per sbaglio;
-//  · nessuna scrittura: solo SELECT su cataloghi, dentro READ ONLY;
-//  · qualsiasi differenza viene RIPORTATA, mai corretta;
-//  · risultati incompleti (oggetti mancanti) NON valgono come superati.
+// AUDIT PERMESSI IN PRODUZIONE (Fase 4, revisionato) — SOLA LETTURA di
+// metadati. Strumento DEDICATO (niente attrezzi del collaudo, che vietano
+// la produzione). Ogni batch in transazione READ ONLY chiusa da rollback.
+// Il giudizio è del VERIFICATORE TESTATO (verificaAudit.mjs): matrici
+// esplicite per identità, ruoli, comandi e condizioni — mai sottostringhe
+// né conteggi. Il rapporto conserva le EVIDENZE GREZZE complete di ogni
+// query (senza segreti): atteso, osservato e righe lette, revisionabili.
 // ============================================================================
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { refProduzione, maschera } from '../fase2b/guardia.mjs'
+import {
+  verificaPolicy, verificaRpc, verificaTabelleRls, TAB_FAMILY,
+} from './verificaAudit.mjs'
 
 if (process.env.CONFERMA_PRODUZIONE !== 'sola-lettura') {
   console.error('STOP: manca CONFERMA_PRODUZIONE=sola-lettura (guardia contro le esecuzioni accidentali).')
   process.exit(1)
 }
 const RAPPORTO = process.env.RAPPORTO_AUDIT
-if (!RAPPORTO) { console.error('STOP: RAPPORTO_AUDIT mancante (file del rapporto, fuori dalle credenziali).'); process.exit(1) }
+if (!RAPPORTO) { console.error('STOP: RAPPORTO_AUDIT mancante.'); process.exit(1) }
 
 const DIR = join(homedir(), '.gestionale-audit')
 let token
@@ -35,20 +32,17 @@ try { token = readFileSync(join(DIR, 'token.txt'), 'utf8').trim() } catch {
 
 // ---- bersaglio ESPLICITO: la produzione, verificata via Management API ----
 const PROD = refProduzione()
-const mgmt = async (percorso) => fetch('https://api.supabase.com/v1' + percorso, {
+const progetti = await (await fetch('https://api.supabase.com/v1/projects', {
   headers: { Authorization: 'Bearer ' + token },
-})
-const progetti = await (await mgmt('/projects')).json()
+})).json()
 if (!Array.isArray(progetti)) { console.error('Management API non raggiungibile (token non valido?)'); process.exit(1) }
 const prod = progetti.find(p => p.id === PROD)
 if (!prod) { console.error('STOP: il progetto di produzione non risulta tra quelli del token.'); process.exit(1) }
 if (prod.name === 'gestionale-bnb-spese-test-2b-20260828') {
-  console.error('STOP: il ref di produzione coincide col progetto di PROVA: configurazione incoerente.'); process.exit(1)
+  console.error('STOP: il ref di produzione coincide col progetto di PROVA.'); process.exit(1)
 }
 console.log(`Bersaglio ESPLICITO: PRODUZIONE ${maschera(PROD)} («${prod.name}», ${prod.status}) — SOLA LETTURA`)
 
-// ogni batch: transazione READ ONLY chiusa da rollback (nessuna scrittura
-// possibile nemmeno per errore)
 async function sql(query) {
   const r = await fetch(`https://api.supabase.com/v1/projects/${PROD}/database/query`, {
     method: 'POST',
@@ -60,60 +54,74 @@ async function sql(query) {
   try { return JSON.parse(testo) } catch { return [] }
 }
 
-// ---- le sezioni dell'audit (attesi accanto agli osservati) ----------------
-const righe = []
+// ---- raccolta con EVIDENZE: ogni sezione conserva query e righe grezze ----
+const evidenze = { quando: new Date().toISOString(), bersaglio: maschera(PROD), sezioni: [] }
 let problemi = 0
-const scrivi = (t) => { console.log(t); righe.push(t) }
-const sezione = (nome, ok, atteso, osservato) => {
-  if (!ok) problemi++
-  scrivi(`\n${ok ? '✓' : '✗'} ${nome}`)
-  scrivi(`  atteso:    ${atteso}`)
-  scrivi(`  osservato: ${osservato}`)
+function sezione(nome, query, righe, atteso, esitoOk, osservato) {
+  if (!esitoOk) problemi++
+  evidenze.sezioni.push({ nome, ok: esitoOk, atteso, osservato, query, righe_lette: righe })
+  console.log(`\n${esitoOk ? '✓' : '✗'} ${nome}`)
+  console.log(`  atteso:    ${atteso}`)
+  console.log(`  osservato: ${osservato}`)
 }
 const TAB_RISTRETTE = ['family_documents', 'family_draft_expenses', 'family_draft_items', 'family_expense_documents', 'family_corrections']
+const lista = (v) => v.map(x => `'${x}'`).join(',')
 
-scrivi(`AUDIT PERMESSI PRODUZIONE — ${new Date().toISOString()} — bersaglio ${maschera(PROD)} — transazioni READ ONLY`)
-scrivi('Nessuna correzione automatica: solo osservazioni.')
-
-// 1. grant di TABELLA
+// 1. grant di TABELLA (espliciti, information_schema — PUBLIC incluso)
 {
-  const r = await sql(`select table_name, grantee, string_agg(privilege_type, ',' order by privilege_type) as privilegi
+  const q = `select table_name, grantee, string_agg(privilege_type, ',' order by privilege_type) as privilegi
     from information_schema.table_privileges
-    where table_schema='public'
-      and table_name in ('family_documents','family_draft_expenses','family_draft_items','family_expense_documents','family_corrections','app_members')
-      and grantee in ('authenticated','anon','service_role')
-    group by table_name, grantee order by table_name, grantee`)
+    where table_schema='public' and table_name in (${lista([...TAB_RISTRETTE, 'app_members'])})
+      and grantee in ('authenticated','anon','service_role','PUBLIC')
+    group by table_name, grantee order by table_name, grantee`
+  const r = await sql(q)
   const perTab = Object.fromEntries(r.map(x => [`${x.table_name}/${x.grantee}`, x.privilegi]))
-  const scritture = ['INSERT', 'UPDATE', 'DELETE']
   const violazioni = []
   for (const t of TAB_RISTRETTE) {
     const p = (perTab[`${t}/authenticated`] ?? '').split(',')
-    for (const s of scritture) if (p.includes(s)) violazioni.push(`${t}: authenticated ha ${s} di tabella`)
+    for (const s of ['INSERT', 'UPDATE', 'DELETE']) if (p.includes(s)) violazioni.push(`${t}: authenticated ha ${s} di tabella`)
     if (perTab[`${t}/anon`]) violazioni.push(`${t}: anon ha privilegi (${perTab[`${t}/anon`]})`)
+    if (perTab[`${t}/PUBLIC`]) violazioni.push(`${t}: PUBLIC ha privilegi (${perTab[`${t}/PUBLIC`]})`)
   }
-  // completezza: il service_role deve comparire su TUTTE e 6 (default di
-  // piattaforma): righe mancanti = risultato incompleto, NON superato
   const mancanoService = [...TAB_RISTRETTE, 'app_members'].filter(t => !perTab[`${t}/service_role`])
-  sezione('1. grant di TABELLA sulle tabelle ristrette',
+  sezione('1. grant di TABELLA espliciti (con PUBLIC)', q, r,
+    'authenticated senza INSERT/UPDATE/DELETE sulle 5 ristrette; anon e PUBLIC a zero; service_role presente su tutte e 6 (completezza)',
     violazioni.length === 0 && mancanoService.length === 0,
-    'authenticated senza INSERT/UPDATE/DELETE di tabella; anon niente; service_role presente ovunque (completezza)',
     violazioni.length || mancanoService.length
-      ? [...violazioni, ...mancanoService.map(t => `INCOMPLETO: manca la riga service_role di ${t}`)].join(' · ')
-      : `nessuna violazione; ${r.length} righe lette`)
-  // TRUNCATE/REFERENCES/TRIGGER residui: RIPORTATI A PARTE, non violazioni
+      ? [...violazioni, ...mancanoService.map(t => `INCOMPLETO: manca service_role su ${t}`)].join(' · ')
+      : `${r.length} righe lette, nessuna violazione`)
   const residui = TAB_RISTRETTE
     .map(t => [t, (perTab[`${t}/authenticated`] ?? '').split(',').filter(x => ['TRUNCATE', 'REFERENCES', 'TRIGGER'].includes(x))])
     .filter(([, x]) => x.length)
-  scrivi(`  residui TRUNCATE/REFERENCES/TRIGGER (default di creazione, NON revocati dalla 0021 — da discutere a parte, nessuna azione): ${residui.length ? residui.map(([t, x]) => `${t}:${x.join('+')}`).join(' · ') : 'nessuno'}`)
+  console.log(`  residui TRUNCATE/REFERENCES/TRIGGER (default di creazione, non revocati dalla 0021 — riportati a parte, nessuna azione): ${residui.length ? residui.map(([t, x]) => `${t}:${x.join('+')}`).join(' · ') : 'nessuno'}`)
+  evidenze.sezioni.at(-1).residui_default = residui
 }
 
-// 2. grant di COLONNA (update e insert) per authenticated
+// 1-bis. privilegi EFFETTIVI (has_table_privilege: ereditarietà e PUBLIC
+// inclusi — distinti dagli espliciti della sezione 1)
 {
-  const r = await sql(`select table_name, privilege_type, string_agg(column_name, ',' order by column_name) as colonne
+  const casi = TAB_RISTRETTE.flatMap(t => ['INSERT', 'UPDATE', 'DELETE'].flatMap(p =>
+    ['authenticated', 'anon'].map(ruolo => ({ t, p, ruolo }))))
+  const q = `select x.tabella, x.privilegio, x.ruolo,
+      has_table_privilege(x.ruolo, ('public.' || x.tabella)::regclass, x.privilegio) as effettivo
+    from (values ${casi.map(c => `('${c.t}','${c.p}','${c.ruolo}')`).join(',')}) as x(tabella, privilegio, ruolo)`
+  const r = await sql(q)
+  const attivi = r.filter(x => x.effettivo === true)
+  sezione('1-bis. privilegi EFFETTIVI di scrittura (ereditarietà e PUBLIC compresi)', q, r,
+    'has_table_privilege = false per authenticated e anon su INSERT/UPDATE/DELETE delle 5 tabelle ristrette (30 casi)',
+    r.length === casi.length && attivi.length === 0,
+    r.length !== casi.length ? `INCOMPLETO: ${r.length}/${casi.length} casi letti`
+      : attivi.length ? attivi.map(x => `${x.tabella}: ${x.ruolo} può ${x.privilegio}`).join(' · ') : `${r.length}/30 casi, tutti negati`)
+}
+
+// 2. grant di COLONNA (authenticated)
+{
+  const q = `select table_name, privilege_type, string_agg(column_name, ',' order by column_name) as colonne
     from information_schema.column_privileges
     where table_schema='public' and grantee='authenticated'
       and table_name in ('family_documents','family_draft_expenses','family_draft_items')
-    group by table_name, privilege_type order by table_name, privilege_type`)
+    group by table_name, privilege_type order by table_name, privilege_type`
+  const r = await sql(q)
   const attesi = {
     'family_documents/UPDATE': 'doc_total,document_date,due_date,invoice_number,kind,note,supplier',
     'family_documents/INSERT': 'doc_total,document_date,due_date,invoice_number,kind,note,supplier,upload_ambito',
@@ -129,74 +137,90 @@ scrivi('Nessuna correzione automatica: solo osservazioni.')
     else if (osservati[k] !== a) diff.push(`${k}: osservato [${osservati[k]}]`)
   }
   for (const k of Object.keys(osservati)) if (!(k in attesi) && ['UPDATE', 'INSERT'].includes(k.split('/')[1])) diff.push(`inatteso: ${k} [${osservati[k]}]`)
-  sezione('2. grant di COLONNA (authenticated)', diff.length === 0,
-    'esattamente le colonne di revisione della 0021 (mai status/error_message/upload_*)',
-    diff.length ? diff.join(' · ') : `tutte e 6 le liste combaciano ESATTAMENTE`)
+  sezione('2. grant di COLONNA (authenticated)', q, r,
+    'esattamente le 6 liste della 0021 (mai status/error_message/upload_*)',
+    diff.length === 0, diff.length ? diff.join(' · ') : 'tutte e 6 le liste combaciano ESATTAMENTE')
 }
 
-// 3. RLS abilitata (SOLO tabelle: relkind='r')
+// 3. ACL grezze con GRANTOR (come da file SQL): evidenza per distinguere i
+// default di creazione dai grant espliciti — riportate, non giudicate
 {
-  const r = await sql(`select n.nspname as schema, c.relname as tabella, c.relrowsecurity as rls
+  const q = `select c.relname, a.grantor::regrole::text as grantor,
+      a.grantee::regrole::text as grantee, a.privilege_type
+    from pg_class c, aclexplode(c.relacl) a
+    where c.relkind='r' and c.relname in (${lista(TAB_RISTRETTE)})
+      and a.grantee::regrole::text in ('authenticated','anon','-')
+    order by c.relname, a.grantee::regrole::text, a.privilege_type`
+  const r = await sql(q)
+  sezione('3. ACL grezze con grantor (evidenza, riportata senza giudizio automatico)', q, r,
+    'evidenza completa per la revisione umana (il giudizio sui grant è nelle sezioni 1 e 1-bis)',
+    true, `${r.length} voci ACL conservate nel rapporto`)
+}
+
+// 4. RLS per IDENTITÀ qualificata (solo tabelle, relkind='r')
+{
+  const q = `select n.nspname as schema, c.relname as tabella, c.relrowsecurity as rls
     from pg_class c join pg_namespace n on n.oid=c.relnamespace
-    where c.relkind='r' and ((n.nspname='public' and c.relname like 'family_%')
-      or (n.nspname='public' and c.relname='app_members')
+    where c.relkind='r' and ((n.nspname='public' and c.relname in (${lista([...TAB_FAMILY, 'app_members'])}))
       or (n.nspname='storage' and c.relname='objects'))
-    order by n.nspname, c.relname`)
-  const spente = r.filter(x => !x.rls).map(x => `${x.schema}.${x.tabella}`)
-  const ok = r.length >= 18 && spente.length === 0   // 16 family + app_members + storage.objects
-  sezione('3. RLS abilitata (solo tabelle, relkind=r)', ok,
-    'rowsecurity=true su 16 family_* + app_members + storage.objects (18 tabelle)',
-    `${r.length} tabelle lette; spente: ${spente.length ? spente.join(', ') : 'nessuna'}`)
+    order by n.nspname, c.relname`
+  const r = await sql(q)
+  const v = verificaTabelleRls(r)
+  sezione('4. RLS abilitata sulle 18 tabelle attese (per NOME qualificato)', q, r,
+    `le ${v.attese} tabelle attese, tutte presenti per identità e con RLS attiva (mancanti o sostituite = fallito)`,
+    v.ok, v.ok ? `${r.length} tabelle, identità e RLS a posto` : v.differenze.join(' · '))
 }
 
-// 4. policy: condizioni effettive
+// 5. POLICY: matrice completa (identità, ruoli, cmd, modalità, condizioni)
 {
-  const r = await sql(`select schemaname, tablename, policyname, roles::text as ruoli, cmd, coalesce(qual,'') as qual, coalesce(with_check,'') as with_check
+  const q = `select schemaname, tablename, policyname, roles::text as roles, cmd,
+      permissive, coalesce(qual,'') as qual, coalesce(with_check,'') as with_check
     from pg_policies
-    where (schemaname='public' and (tablename like 'family_%' or tablename='app_members'))
+    where (schemaname='public' and (tablename in (${lista(TAB_FAMILY)}) or tablename='app_members'))
        or (schemaname='storage' and tablename='objects')
-    order by schemaname, tablename, policyname`)
-  const nuove = r.filter(x => x.policyname.endsWith('_solo_membri'))
-  const vecchie = r.filter(x => x.schemaname === 'public' && x.tablename.startsWith('family_') && !x.policyname.endsWith('_solo_membri'))
-  const senzaGuardia = nuove.filter(x => !x.qual.includes('is_app_member') || !x.with_check.includes('is_app_member'))
-  const storage = r.filter(x => x.schemaname === 'storage' && x.policyname.startsWith('scontrini_membri_'))
-  const storageAltre = r.filter(x => x.schemaname === 'storage' && !x.policyname.startsWith('scontrini_membri_'))
-  sezione('4. policy (ruoli e condizioni effettive)',
-    nuove.length === 16 && vecchie.length === 0 && senzaGuardia.length === 0 && storage.length === 4,
-    '16 *_solo_membri con is_app_member() in using E with check; 0 vecchie; 4 scontrini_membri_* sullo storage',
-    `nuove=${nuove.length} vecchie=${vecchie.length} senzaGuardia=${senzaGuardia.length ? senzaGuardia.map(x => x.policyname).join(',') : 0} storage=${storage.length}${storageAltre.length ? ` · ALTRE policy storage da riportare: ${storageAltre.map(x => x.policyname).join(',')}` : ''}`)
+    order by schemaname, tablename, policyname`
+  const r = await sql(q)
+  const v = verificaPolicy(r)
+  sezione('5. policy: matrice 0021 completa (22 attese: 16 family + 2 app_members + 4 storage col vincolo sul bucket)', q, r,
+    `${v.attese} policy con ruoli/cmd/modalità/USING/WITH CHECK esatti; nessuna aggiuntiva non analizzata`,
+    v.ok, v.ok ? `${r.length} policy lette, matrice combaciante` : v.differenze.join(' · '))
 }
 
-// 5. privilegi delle 5 RPC
+// 6. le 5 RPC per nome e FIRMA (overload inclusi)
 {
-  const r = await sql(`select proname,
+  const q = `select p.proname, pg_get_function_identity_arguments(p.oid) as firma,
       has_function_privilege('authenticated', p.oid, 'execute') as autenticato,
       has_function_privilege('anon', p.oid, 'execute') as anonimo,
       has_function_privilege('service_role', p.oid, 'execute') as service
     from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-    where n.nspname='public' and p.proname in ('conferma_documento','approva_fattura_da_pagare','paga_fattura','conferma_fattura_pagata','scarta_documento')
-    order by proname`)
-  const sbagliate = r.filter(x => !(x.autenticato === true && x.anonimo === false && x.service === false))
-  sezione('5. privilegi delle 5 RPC (contratto 2B.1)',
-    r.length === 5 && sbagliate.length === 0,
-    '5 funzioni; authenticated=true, anon=false, service_role=false su tutte',
-    `${r.length}/5 lette${sbagliate.length ? ' · fuori contratto: ' + sbagliate.map(x => x.proname).join(',') : ' · tutte a contratto'}`)
+    where n.nspname='public' and p.proname in (${lista(Object.keys({ conferma_documento: 1, approva_fattura_da_pagare: 1, paga_fattura: 1, conferma_fattura_pagata: 1, scarta_documento: 1 }))})
+    order by p.proname`
+  const r = await sql(q)
+  const v = verificaRpc(r)
+  sezione('6. le 5 RPC per nome e firma esatta (un solo overload; privilegi a contratto)', q, r,
+    'firme esatte della 0020; authenticated=true, anon=false, service_role=false; niente overload o sostituti',
+    v.ok, v.ok ? '5/5 a contratto' : v.differenze.join(' · '))
 }
 
-// 6. assenza della 0022
+// 7. assenza della 0022
 {
-  const [r] = await sql(`select
+  const q = `select
     (select count(*) from information_schema.columns where table_schema='public' and table_name='family_documents' and column_name in ('upload_token','upload_manifest')) as colonne,
     (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='registra_documento_caricato') as rpc,
     (select count(*) from pg_trigger where tgname='family_documents_manifesto_immutabile') as trg,
-    (select count(*) from pg_indexes where indexname='family_documents_upload_token_uq') as indice`)
-  sezione('6. assenza della 0022 in produzione',
-    r.colonne === 0 && r.rpc === 0 && r.trg === 0 && r.indice === 0,
-    'colonne=0, rpc=0, trigger=0, indice=0 (0022 MAI applicata qui)',
-    JSON.stringify(r))
+    (select count(*) from pg_indexes where indexname='family_documents_upload_token_uq') as indice`
+  const r = await sql(q)
+  const x = r[0] ?? {}
+  sezione('7. assenza della 0022 in produzione', q, r,
+    'colonne=0, rpc=0, trigger=0, indice=0',
+    x.colonne === 0 && x.rpc === 0 && x.trg === 0 && x.indice === 0, JSON.stringify(x))
 }
 
-scrivi(`\nESITO: ${problemi === 0 ? 'NESSUNA DIFFERENZA — produzione conforme agli attesi della 0021/2B.1' : problemi + ' SEZIONI CON DIFFERENZE — da discutere, NESSUNA correzione eseguita'}`)
-writeFileSync(RAPPORTO, righe.join('\n') + '\n')
-console.log('\nrapporto salvato (senza segreti):', RAPPORTO)
+const conclusione = problemi === 0
+  ? 'NESSUNA DIFFERENZA nelle sezioni verificate dal codice (evidenze grezze conservate nel rapporto)'
+  : `${problemi} SEZIONI CON DIFFERENZE — riportate, NESSUNA correzione eseguita`
+console.log(`\nESITO: ${conclusione}`)
+evidenze.conclusione = conclusione
+writeFileSync(RAPPORTO, JSON.stringify(evidenze, null, 2))
+console.log('rapporto con evidenze grezze salvato (senza segreti):', RAPPORTO)
 process.exit(problemi === 0 ? 0 : 2)
