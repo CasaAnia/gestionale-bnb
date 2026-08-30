@@ -74,7 +74,11 @@ export type MovimentoVista = {
   persone: string[]     // solo dai gruppi personali
   camere: string[]      // solo dalle spese aziendali; 'Generale' = senza camera
   metodi: string[]
-  sorelle?: { contesto: Contesto; importo: number }[]  // scontrino misto
+  // scontrino misto: quote per ambito. La quota può essere legittimamente
+  // ZERO (es. tutte le righe personali escluse): resta esplicita, mai
+  // sottintesa. L'arrotondamento della sorella è già DENTRO l'importo,
+  // e viene riportato a parte per mostrarlo nel dettaglio.
+  sorelle?: { contesto: Contesto; importo: number; arrotondamento?: number }[]
   righe?: RigaMovimentoVista[]                          // dettaglio espandibile
   dubbio?: string       // es. "2 campi dubbi"
   avviso?: string       // problema BLOCCANTE dentro un documento in revisione
@@ -180,8 +184,10 @@ export function perContestoDocumenti(documenti: DocumentoVista[], contesto: Cont
 // totali); per gli altri è l'importo del documento.
 export function importoNelContesto(m: MovimentoVista, contesto: Contesto): number {
   if (m.contesto === 'misto') {
-    const quota = m.sorelle?.find(s => s.contesto === contesto)
-    if (quota) return quota.importo
+    // la quota può essere ZERO (esplicita); una quota MANCANTE è un dato
+    // incompleto e vale 0 — mai il totale del documento, che gonfierebbe
+    // l'elenco dell'ambito (controllaMisto segnala l'incompletezza)
+    return m.sorelle?.find(s => s.contesto === contesto)?.importo ?? 0
   }
   return m.importo
 }
@@ -191,7 +197,11 @@ export function importoNelContesto(m: MovimentoVista, contesto: Contesto): numbe
 export function controllaMisto(m: MovimentoVista): string[] {
   const problemi: string[] = []
   if (m.contesto !== 'misto') return problemi
-  if (!m.sorelle || m.sorelle.length < 2) { problemi.push('misto senza quote per ambito'); return problemi }
+  if (!m.sorelle || m.sorelle.length === 0) { problemi.push('misto senza quote per ambito'); return problemi }
+  for (const c of ['mia', 'ania'] as const) {
+    if (!m.sorelle.some(q => q.contesto === c))
+      problemi.push(`quota ${c === 'mia' ? 'Casa Mia' : 'Casa Ania'} mancante (deve esserci, anche se zero)`)
+  }
   const cent = (n: number) => Math.round(n * 100)
   const somma = m.sorelle.reduce((s, q) => s + cent(q.importo), 0)
   if (somma !== cent(m.importo)) problemi.push(`somma quote ${somma} ≠ totale ${cent(m.importo)} (centesimi)`)
@@ -273,6 +283,33 @@ export function applicaFiltri(movimenti: MovimentoVista[], f: FiltriSpese, conte
     if (testo && !`${m.titolo} ${m.negozio ?? ''} ${m.categorie.join(' ')}`.toLowerCase().includes(testo)) return false
     return true
   })
+}
+
+// I gruppi del dettaglio di un movimento: per il misto un gruppo per ambito,
+// altrimenti uno solo. Il subtotale del gruppo = righe ATTIVE + arrotondamento
+// della sorella (nelle bozze; nelle definitive l'arrotondamento è già una riga
+// e qui arrotondamento=0: niente doppio conteggio). Subtotali e quote
+// coincidono sempre.
+export type GruppoDettaglio = {
+  nome: string | null            // 'Casa Mia' | 'Casa Ania' | null (non misto)
+  righe: RigaMovimentoVista[]
+  arrotondamento: number         // in euro, già compreso nel subtotale
+  subtotale: number              // = quota della sorella per i misti
+}
+export function gruppiDettaglio(m: MovimentoVista): GruppoDettaglio[] {
+  if (!m.righe) return []
+  const cent = (n: number) => Math.round(n * 100)
+  const gruppo = (nome: string | null, righe: RigaMovimentoVista[], arrCent: number): GruppoDettaglio => ({
+    nome, righe,
+    arrotondamento: arrCent / 100,
+    subtotale: (righe.filter(r => !r.esclusa).reduce((s, r) => s + cent(r.importo), 0) + arrCent) / 100,
+  })
+  if (m.contesto !== 'misto') return [gruppo(null, m.righe, m.arrotondamentoCent ?? 0)]
+  return ([['mia', 'Casa Mia'], ['ania', 'Casa Ania']] as const)
+    .map(([c, nome]) => gruppo(nome,
+      m.righe!.filter(r => r.contesto === c),
+      Math.round((m.sorelle?.find(q => q.contesto === c)?.arrotondamento ?? 0) * 100)))
+    .filter(g => g.righe.length > 0 || g.arrotondamento !== 0)
 }
 
 // "ad agosto", "a settembre": la d eufonica solo davanti a vocale

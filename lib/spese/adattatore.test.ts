@@ -5,7 +5,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { costruisciDatiSpese, costruisciPeriodi, etichettaPersona, type TabelleGrezze } from './adattatore.ts'
-import { applicaFiltri, controllaMisto, filtriIniziali, importoNelContesto, intervalloDelPeriodo } from './vista.ts'
+import { applicaFiltri, controllaMisto, filtriIniziali, gruppiDettaglio, importoNelContesto, intervalloDelPeriodo } from './vista.ts'
 
 const OGGI = '2026-08-29'
 
@@ -388,7 +388,7 @@ rompi('stessa spesa su più documenti', t => { t.ponte.push({ expense_id: 's-m1'
 rompi('riga definitiva con spesa madre inesistente', t => { t.righe.push({ id: 'r-x', expense_id: 's-fantasma', name: 'X', amount: 1, category_id: null, subcategory: null }) }, /spesa madre "s-fantasma" inesistente/)
 rompi('spesa con receipt_id ma senza ponte', t => { t.spese.push(spesa({ id: 's-recluso', amount: 5, receipt_id: 'vecchia-foto' })) }, /receipt_id ma nessun ponte/)
 rompi('documento confermato con somma sorelle diversa da doc_total', t => { t.documenti.find(x => x.id === 'd-misto')!.doc_total = 21 }, /somma spese sorelle .* doc_total/)
-rompi('misto confermato con righe non quadrate (per sorella)', t => { t.righe[0].amount = 4 }, /ha righe per/)
+rompi('misto confermato con righe non quadrate (per sorella)', t => { t.righe[0].amount = 4 }, /le righe sommano/)
 rompi('gruppo sconosciuto', t => { t.spese[0].group_id = 'g-fantasma' }, /gruppo "g-fantasma" inesistente/)
 rompi('categoria sconosciuta', t => { t.spese[0].category_id = 'c-fantasma' }, /categoria "c-fantasma" inesistente/)
 rompi('camera sconosciuta', t => { t.spese[2].room_id = 'r-fantasma' }, /camera "r-fantasma" inesistente/)
@@ -459,12 +459,22 @@ test('arrotondamenti per sorella in un misto in revisione: +1 e −1 centesimo',
   t.documenti.find(x => x.id === 'd-rev')!.doc_total = 10  // 7,01 + 2,99
   const d = costruisciDatiSpese(t, OGGI)
   const rev = d.movimenti.find(m => m.id === 'doc-d-rev')!
-  // somma righe attive + arrotondamento della sorella = quota della sorella
-  assert.deepEqual(rev.sorelle, [{ contesto: 'mia', importo: 7.01 }, { contesto: 'ania', importo: 2.99 }])
+  // somma righe attive + arrotondamento della sorella = quota della sorella,
+  // e l'arrotondamento della sorella è esposto nel modello di vista
+  assert.deepEqual(rev.sorelle, [
+    { contesto: 'mia', importo: 7.01, arrotondamento: 0.01 },
+    { contesto: 'ania', importo: 2.99, arrotondamento: -0.01 },
+  ])
   // somma quote = totale documento, nessun avviso, quadratura del misto ok
   assert.equal(rev.avviso, undefined)
   assert.deepEqual(controllaMisto(rev), [])
   assert.equal(rev.arrotondamentoCent ?? 0, 0)   // +1 −1: la somma è zero, le quote no
+  // il DETTAGLIO (logica del componente): subtotali = quote, arrotondamento
+  // visibile, prezzi dei prodotti intatti
+  const gruppi = gruppiDettaglio(rev)
+  assert.deepEqual(gruppi.map(g => [g.nome, g.subtotale, g.arrotondamento]),
+    [['Casa Mia', 7.01, 0.01], ['Casa Ania', 2.99, -0.01]])
+  assert.ok(gruppi[0].righe.every(r => [4, 2, 2, 1].includes(r.importo)))
 })
 
 test('bozza attiva SENZA righe: ambito, camera e categoria dalla bozza, non da upload_ambito', () => {
@@ -506,7 +516,7 @@ rompi('categoria canonica inesistente su una riga', t => { t.righe[0].canonical_
 rompi('riga con gruppo di ambito diverso dalla spesa madre', t => { t.righe[0].group_id = 'g-bnb' }, /ambito azienda dentro una spesa personale/)
 rompi('sorella confermata con righe diverse dalla sua quota', t => {
   t.righe.push({ id: 'r-extra', expense_id: 's-m2', name: 'Extra', amount: 1, category_id: null, subcategory: null })
-}, /la sorella s-m2 ha righe per/)
+}, /spesa s-m2: le righe sommano/)
 
 test('riga di bozza con gruppo di ambito diverso dalla bozza madre: anomalia', () => {
   const t = tabelleConRevisione()
@@ -521,7 +531,7 @@ test('riga con persona DIVERSA dentro l\'ambito personale: consentita', () => {
   assert.ok(d.movimenti.find(x => x.id === 'doc-d-misto')!.persone.includes('Teo'))
 })
 
-test('somma delle categorie per ambito e periodo = Speso al centesimo (anche azienda)', () => {
+test('aggregazioni coerenti: somma categorie (Casa Mia) e somma COSTI PER CAMERA (Casa Ania) = Speso al centesimo', () => {
   const d = costruisciDatiSpese(tabelleConRevisione(), OGGI)
   const cent = (n: number) => Math.round(n * 100)
   assert.equal(d.mia.categorie.reduce((s, c) => s + cent(c.tot), 0), cent(d.mia.speso))
@@ -534,4 +544,78 @@ test('Panoramica "da controllare": quota dell\'ambito, non il totale documento',
   // in Casa Mia contano 7 + 12,50 = 19,50, NON 10 + 12,50
   assert.equal(d.mia.daControllare.n, 2)
   assert.equal(d.mia.daControllare.tot, 19.5)
+})
+
+// ============================================================================
+// 3.2A.3 — quota ZERO esplicita nei misti, quadratura delle definitive senza
+// documento, arrotondamenti visibili nel dettaglio.
+// ============================================================================
+
+test('misto in revisione con quota personale ZERO: la quota resta esplicita e Casa Mia mostra 0, mai il totale', () => {
+  const t = tabelleConRevisione()
+  // tutte le righe personali ESCLUSE; attive solo le aziendali per 10 €
+  for (const r of t.righeBozza.filter(r => r.draft_id === 'b-mia')) r.excluded = true
+  t.righeBozza.find(r => r.id === 'rb5')!.amount = 10
+  t.documenti.find(x => x.id === 'd-rev')!.doc_total = 10
+  const d = costruisciDatiSpese(t, OGGI)
+  const rev = d.movimenti.find(m => m.id === 'doc-d-rev')!
+  assert.equal(rev.contesto, 'misto')             // le bozze attive coprono i due ambiti
+  assert.deepEqual(rev.sorelle, [{ contesto: 'mia', importo: 0 }, { contesto: 'ania', importo: 10 }])
+  // l'elenco di Casa Mia mostra la QUOTA (0), mai il totale documento
+  assert.equal(importoNelContesto(rev, 'mia'), 0)
+  assert.equal(importoNelContesto(rev, 'ania'), 10)
+  assert.deepEqual(controllaMisto(rev), [])       // 0 + 10 = 10: quadrato
+  assert.equal(rev.avviso, undefined)
+  // e la Panoramica conta 0 per Casa Mia su questo documento
+  const soloRev = d.mia.daControllare
+  assert.equal(soloRev.n, 2)                      // d-rev + d-inrev
+  assert.equal(soloRev.tot, 12.5)                 // 0 (d-rev) + 12,50 (d-inrev)
+})
+
+test('quota MANCANTE (dato incompleto) ≠ quota zero: importo 0 nell\'elenco e problema segnalato', () => {
+  const rotto = {
+    id: 'x', titolo: 'X', giorno: 'Oggi', data: '2026-08-20', importo: 10,
+    categoria: 'Altro', contesto: 'misto' as const, persona: 'Casa', stato: 'confermato' as const,
+    categorie: [], sottocategorie: [], persone: [], camere: [], metodi: [],
+    sorelle: [{ contesto: 'ania' as const, importo: 10 }],   // manca la quota mia
+  }
+  assert.equal(importoNelContesto(rotto, 'mia'), 0)          // MAI il totale (10)
+  assert.ok(controllaMisto(rotto).some(p => p.includes('quota Casa Mia mancante')))
+})
+
+test('quadratura anche per le definitive SENZA documento (personale e aziendale)', () => {
+  // personale: spesa manuale 10 € con una sola riga da 9 € → errore chiaro
+  const t1 = tabelle()
+  t1.spese.push(spesa({ id: 's-man-rotta', amount: 10, description: 'Spesa manuale' }))
+  t1.righe.push({ id: 'r-man', expense_id: 's-man-rotta', name: 'Unica riga', amount: 9, category_id: 'c-spesa', subcategory: null })
+  assert.throws(() => costruisciDatiSpese(t1, OGGI), /spesa s-man-rotta: le righe sommano 900 ma l'importo è 1000/)
+  // aziendale: stesso controllo
+  const t2 = tabelle()
+  t2.spese.push(spesa({ id: 's-bnb-rotta', amount: 20, group_id: 'g-bnb', description: 'Scorte' }))
+  t2.righe.push({ id: 'r-bnb', expense_id: 's-bnb-rotta', name: 'Scorte', amount: 19.5, category_id: 'c-pulizia', subcategory: null })
+  assert.throws(() => costruisciDatiSpese(t2, OGGI), /spesa s-bnb-rotta: le righe sommano 1950 ma l'importo è 2000/)
+  // una manuale SENZA righe resta legittima (ripiego sull'importo madre)
+  const t3 = tabelle()
+  t3.spese.push(spesa({ id: 's-man-ok', amount: 10, description: 'Senza righe' }))
+  const d3 = costruisciDatiSpese(t3, OGGI)
+  assert.ok(d3.movimenti.some(m => m.id === 'spesa-s-man-ok'))
+  // e con la quadratura verde le aggregazioni tornano davvero
+  const cent = (n: number) => Math.round(n * 100)
+  assert.equal(d3.mia.categorie.reduce((s, c) => s + cent(c.tot), 0), cent(d3.mia.speso))
+})
+
+test('dettaglio delle DEFINITIVE: nessun doppio conteggio (l\'arrotondamento è già una riga)', () => {
+  const t = tabelle()
+  // arrotondamento come riga esplicita is_adjustment nella sorella s-m1
+  t.righe.push({ id: 'r-arr2', expense_id: 's-m1', name: 'Arrotondamento', amount: 0.02, category_id: null, subcategory: null, is_adjustment: true })
+  t.spese.find(x => x.id === 's-m1')!.amount = 8.52
+  t.documenti.find(x => x.id === 'd-misto')!.doc_total = 20.02
+  const d = costruisciDatiSpese(t, OGGI)
+  const m = d.movimenti.find(x => x.id === 'doc-d-misto')!
+  const gruppi = gruppiDettaglio(m)
+  // subtotali = quote; il gruppo NON aggiunge un secondo arrotondamento
+  assert.deepEqual(gruppi.map(g => [g.nome, g.subtotale, g.arrotondamento]),
+    [['Casa Mia', 13.02, 0], ['Casa Ania', 7, 0]])
+  assert.deepEqual(m.sorelle, [{ contesto: 'mia', importo: 13.02 }, { contesto: 'ania', importo: 7 }])
+  assert.ok(m.righe!.some(r => r.arrotondamento && r.importo === 0.02))  // la riga c'è, una volta sola
 })

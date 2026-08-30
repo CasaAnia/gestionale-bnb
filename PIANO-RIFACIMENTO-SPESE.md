@@ -801,6 +801,13 @@ se la precedente non è verificata E approvata.
   sorella confermata, categorie = Speso anche azienda); "da controllare"
   in Panoramica con la quota dell'ambito; "voci sotto i 5 €". 162/162;
   reale identico (87; 12 misti; 462175/16910; 135 voci/327,99 €).
+  **3.2A.3 FATTA (30/08/2026)**: quote dei misti SEMPRE esplicite (anche
+  zero); quota mancante = 0 + problema segnalato, mai il totale documento;
+  quadratura righe=importo su TUTTE le definitive con righe (anche
+  manuali); arrotondamento per sorella nel modello e nel dettaglio
+  ("Arrotondamento di cassa", subtotali = quote, niente doppio conteggio
+  nelle definitive); gruppiDettaglio puro e testato. 166/166; reale
+  invariato e con due quote per ogni misto.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

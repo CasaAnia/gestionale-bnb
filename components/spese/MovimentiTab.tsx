@@ -12,7 +12,7 @@ import { TEMA as t, DISPLAY } from './tema'
 import { Card, Chip, IconaCategoria, Pastiglia } from './mattoni'
 import { Vuoto } from './StatiDati'
 import {
-  eurVista as eur, applicaFiltri, filtriAttivi, importoNelContesto,
+  eurVista as eur, applicaFiltri, filtriAttivi, gruppiDettaglio, importoNelContesto,
   type Contesto, type FiltriSpese, type MovimentoVista, type OpzioniFiltri,
 } from '@/lib/spese/vista'
 
@@ -39,13 +39,11 @@ function PastiglieStato({ m, contesto }: { m: MovimentoVista; contesto: Contesto
 }
 
 function DettaglioRighe({ m }: { m: MovimentoVista }) {
-  if (!m.righe) return null
-  const gruppi = m.contesto === 'misto'
-    ? ([['mia', 'Casa Mia'], ['ania', 'Casa Ania']] as const).map(([c, nome]) =>
-        ({ nome, righe: m.righe!.filter(r => r.contesto === c) })).filter(g => g.righe.length > 0)
-    : [{ nome: null, righe: m.righe }]
-  const sommaAttive = (righe: typeof m.righe & object) =>
-    righe.filter(r => !r.esclusa).reduce((s, r) => s + r.importo, 0)
+  // la divisione in gruppi e i subtotali (righe attive + arrotondamento
+  // della sorella) vengono dalla logica pura gruppiDettaglio: i subtotali
+  // coincidono SEMPRE con le quote
+  const gruppi = gruppiDettaglio(m)
+  if (gruppi.length === 0) return null
   return (
     <div className="pb-3 pl-12">
       {gruppi.map(g => (
@@ -53,7 +51,7 @@ function DettaglioRighe({ m }: { m: MovimentoVista }) {
           {g.nome && (
             <p className="text-[11px] uppercase tracking-[0.1em] font-semibold mt-1.5 mb-0.5"
               style={{ color: g.nome === 'Casa Ania' ? t.terracotta : t.verde }}>
-              {g.nome} · {eur(sommaAttive(g.righe))}
+              {g.nome} · {eur(g.subtotale)}
             </p>
           )}
           {g.righe.map((r, i) => (
@@ -72,6 +70,13 @@ function DettaglioRighe({ m }: { m: MovimentoVista }) {
               <span className={`tabular-nums ${r.esclusa ? 'line-through' : ''}`} style={{ color: t.sub }}>{eur(r.importo)}</span>
             </div>
           ))}
+          {g.arrotondamento !== 0 && (
+            <div className="flex items-center gap-2 min-h-8 text-[13px] italic">
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: t.oro }} />
+              <span className="flex-1" style={{ color: t.sub }}>Arrotondamento di cassa</span>
+              <span className="tabular-nums" style={{ color: t.sub }}>{eur(g.arrotondamento)}</span>
+            </div>
+          )}
         </div>
       ))}
       <p className="text-[11.5px] mt-1" style={{ color: t.sub }}>

@@ -109,7 +109,7 @@ export const TABELLE_FINTE: TabelleGrezze = {
       store: 'Mercato di Rozzano', description: null, payment_method: 'contanti',
       room_id: null, expense_nature: null,
       confidence: { store: { confidence: 0.55, doubt_reason: 'nome del negozio poco leggibile' } },
-      arrotondamento_cent: 0, expense_id: null,
+      arrotondamento_cent: 1, expense_id: null,   // +1 cent alla sorella personale
     },
     {
       id: 'b-rev-bnb', document_id: 'd-rev', status: 'da_controllare', expense_date: '2026-08-29',
@@ -117,7 +117,7 @@ export const TABELLE_FINTE: TabelleGrezze = {
       canonical_category_id: null, canonical_subcategory_id: null,
       store: 'Mercato di Rozzano', description: null, payment_method: 'contanti',
       room_id: 'r-lena', expense_nature: null,
-      confidence: {}, arrotondamento_cent: 0, expense_id: null,
+      confidence: {}, arrotondamento_cent: -1, expense_id: null,  // −1 cent alla sorella B&B
     },
   ],
   righeBozza: [

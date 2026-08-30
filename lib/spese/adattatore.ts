@@ -14,6 +14,7 @@
 //  · dati definitivi incoerenti = ERRORE esplicito, mai vista parziale.
 // ============================================================================
 import { SOGLIA_CONFIDENCE } from './controlli.ts'
+import { controllaMisto } from './vista.ts'
 import type {
   Contesto, DatiSpese, DocumentoVista, MovimentoVista, OpzioniFiltri,
   PanoramicaAniaVista, PanoramicaMiaVista, PeriodoVista, RigaMovimentoVista,
@@ -244,6 +245,21 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
     if (s.receipt_id && !documentoDiSpesa.has(s.id))
       anomalie.push(`spesa ${s.id}: ha receipt_id ma nessun ponte (backfill incompleto?)`)
   }
+  // quadratura di OGNI spesa definitiva che ha righe (anche manuale senza
+  // documento): la somma delle righe deve essere l'importo della madre.
+  // Le spese SENZA righe mantengono il ripiego legittimo sull'importo madre.
+  {
+    const righeDi = new Map<string, number>()
+    for (const r of t.righe) {
+      if (!spesaDi.has(r.expense_id)) continue // già segnalata
+      righeDi.set(r.expense_id, (righeDi.get(r.expense_id) ?? 0) + cent(r.amount))
+    }
+    for (const [expenseId, somma] of righeDi) {
+      const s2 = spesaDi.get(expenseId)!
+      if (somma !== cent(s2.amount))
+        anomalie.push(`spesa ${expenseId}: le righe sommano ${somma} ma l'importo è ${cent(s2.amount)} (centesimi)`)
+    }
+  }
   for (const b of t.bozze) {
     if (!documentoGrezzoDi.has(b.document_id)) anomalie.push(`bozza ${b.id}: documento "${b.document_id}" inesistente`)
     controllaRif(`bozza ${b.id}`, b.group_id, gruppoDi, 'gruppo')
@@ -396,14 +412,8 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
         && (d.status === 'confermato'))
         anomalie.push(`documento ${d.id} confermato: somma spese sorelle ${totaleCent} ≠ doc_total ${cent(d.doc_total)} (centesimi)`)
       const righe = spese.flatMap(righeVista)
-      if (d.status === 'confermato') {
-        // per OGNI sorella: la somma delle sue righe = la sua quota
-        for (const s of spese) {
-          const somma = righeVista(s).reduce((sum, r) => sum + cent(r.importo), 0)
-          if (somma !== cent(s.amount))
-            anomalie.push(`documento ${d.id}: la sorella ${s.id} ha righe per ${somma} ma quota ${cent(s.amount)} (centesimi)`)
-        }
-      }
+      // la quadratura per sorella (somma righe = importo) è già verificata
+      // GLOBALMENTE su tutte le spese definitive con righe
       const data = spese.map(s => s.expense_date).sort().at(-1)!
       const metodi = [...new Set(spese.map(s => s.payment_method).filter((x): x is string => !!x).map(etichettaMetodo))]
       const stato: StatoMovimento = statoDoc === 'pagata' ? 'pagata' : 'confermato'
@@ -427,8 +437,9 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
         sorelle: contesto === 'misto'
           ? (['mia', 'ania'] as const).map(c => ({
               contesto: c,
+              // quota esplicita, anche zero: mai sottintesa
               importo: daCent(spese.filter(s => ambitoDiGruppo(s.group_id) === c).reduce((sum, s) => sum + cent(s.amount), 0)),
-            })).filter(q => q.importo > 0)
+            }))
           : undefined,
         righe,
         senzaFoto: !fotoDiDocumento.get(d.id),
@@ -499,7 +510,15 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
       camere: [...new Set([...attive.map(r => r.camera), ...extraCamere].filter((x): x is string => !!x))],
       metodi,
       sorelle: contesto === 'misto'
-        ? (['mia', 'ania'] as const).map(c => ({ contesto: c, importo: daCent(perAmbito(c)) })).filter(q => q.importo !== 0)
+        ? (['mia', 'ania'] as const).map(c => {
+            const arr = perBozza.filter(x => x.ambito === c)
+              .reduce((sum, x) => sum + (x.b.arrotondamento_cent ?? 0), 0)
+            return {
+              contesto: c,
+              importo: daCent(perAmbito(c)),   // esplicita anche se ZERO
+              ...(arr !== 0 ? { arrotondamento: daCent(arr) } : {}),
+            }
+          })
         : undefined,
       righe: righe.length ? righe : undefined,
       dubbio: dubbiDoc > 0 ? (dubbiDoc === 1 ? '1 campo dubbio' : `${dubbiDoc} campi dubbi`) : undefined,
@@ -535,6 +554,20 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
     })
   }
   movimenti.sort((a, b) => b.data.localeCompare(a.data))
+
+  // ogni misto deve avere le DUE quote esplicite e quadrate col totale:
+  // sui dati definitivi è un'anomalia, su un documento in revisione è
+  // l'avviso bloccante interno (è ciò che Ania deve sistemare)
+  for (const m of movimenti) {
+    if (m.contesto !== 'misto') continue
+    const problemi = controllaMisto(m)
+    if (problemi.length === 0) continue
+    if (m.stato === 'da_controllare' || m.stato === 'da_pagare') {
+      m.avviso = m.avviso ?? problemi[0]
+    } else {
+      anomalie.push(`movimento ${m.id} (misto): ${problemi.join('; ')}`)
+    }
+  }
 
   // dati DEFINITIVI incoerenti → errore chiaro, mai una vista parziale
   if (anomalie.length > 0) {
