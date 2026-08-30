@@ -1154,10 +1154,30 @@ se la precedente non è verificata E approvata.
   utente sintetico) → STATO INVARIATO per conteggio e impronta riga per
   riga su tutti gli 11 dataset. Credenziali locali eliminate; token
   gestionale-0022-collaudo2-temporaneo DA REVOCARE dal dashboard.
-  **PROVE RIMASTE (autorizzazioni separate):** a) audit permessi in
-  produzione (sola lettura, query pronte); b) applicazione della 0022
-  in produzione con backup fresco del giorno; poi collegamento del
-  flusso idempotente alle pagine.
+  **AUDIT PERMESSI IN PRODUZIONE ESEGUITO (30/08/2026, notte —
+  autorizzato, SOLA LETTURA):** strumento dedicato (audit-produzione.mjs,
+  separato dagli attrezzi anti-produzione del collaudo), bersaglio
+  esplicitamente verificato (tnsa****, «Gestionale Casa Ania Rozzano»),
+  ogni query in transazione READ ONLY chiusa da rollback, solo metadati.
+  ESITO: **NESSUNA DIFFERENZA, 6/6 sezioni conformi** — 1) grant di
+  tabella: authenticated senza INSERT/UPDATE/DELETE sulle 5 tabelle
+  ristrette, anon a zero, service_role ovunque (completezza verificata);
+  riportati A PARTE i residui TRUNCATE/REFERENCES/TRIGGER (default di
+  creazione mai revocato dalla 0021, su tutte e 5 — da discutere, nessuna
+  azione); 2) grant di colonna: le 6 liste combaciano ESATTAMENTE con la
+  0021; 3) RLS attiva su tutte e 18 le tabelle (query corretta con
+  relkind='r': niente indici nei risultati); 4) policy: 16 _solo_membri
+  con is_app_member in using E with check, 0 vecchie, 4 policy storage;
+  5) 5 RPC a contratto (authenticated sì, anon/service no); 6) 0022
+  ASSENTE (colonne/rpc/trigger/indice = 0). La deriva dei permessi vista
+  sul progetto di prova NON tocca la produzione, come previsto dalla
+  causa interna (0020 mai rieseguita dopo la 0021). Rapporto senza
+  segreti sul Desktop (audit-permessi-produzione-2026-08-30.txt).
+  Credenziali eliminate; token gestionale-audit-produzione-temporaneo DA
+  REVOCARE.
+  **RESTA (autorizzazione separata):** applicazione della 0022 in
+  produzione con backup fresco del giorno + seconda copia verificata;
+  poi collegamento del flusso idempotente alle pagine.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

@@ -64,9 +64,11 @@ order by c.relname, a.grantee::regrole::text, a.privilege_type;
 select n.nspname as schema, c.relname as tabella,
        c.relrowsecurity as rls_abilitata, c.relforcerowsecurity as rls_forzata
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
-where (n.nspname = 'public' and c.relname like 'family_%')
-   or (n.nspname = 'public' and c.relname = 'app_members')
-   or (n.nspname = 'storage' and c.relname = 'objects')
+where c.relkind = 'r'   -- SOLO tabelle: senza questo filtro entrerebbero
+                        -- anche gli indici family_* (falsi allarmi)
+  and ((n.nspname = 'public' and c.relname like 'family_%')
+    or (n.nspname = 'public' and c.relname = 'app_members')
+    or (n.nspname = 'storage' and c.relname = 'objects'))
 order by n.nspname, c.relname;
 
 -- 4b. Policy nel DETTAGLIO: nome, ruoli, comando e CONDIZIONI effettive
