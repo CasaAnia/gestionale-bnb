@@ -33,3 +33,17 @@ const oggetti = await sql(`select count(*) as n from storage.objects`)
 console.log('Oggetti nello storage:', oggetti[0].n)
 const owner = await sql(`select count(*) as n from public.app_members where role='owner'`)
 console.log('Owner in app_members:', owner[0].n)
+
+// ---------------------------------------------------------------------------
+// FOTOGRAFIA AUTOMATICA (per il confronto finale del passo 5): conteggi +
+// impronte md5 riga per riga, salvata nella cartella dei registri.
+// ---------------------------------------------------------------------------
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { cartellaRegistri, IMPRONTA_INIZIALE } from './registro.mjs'
+import { improntaStato } from './impronta.mjs'
+
+const iniziale = await improntaStato()
+writeFileSync(join(cartellaRegistri(), IMPRONTA_INIZIALE), JSON.stringify(iniziale, null, 2))
+console.log('fotografia iniziale (conteggi + impronte md5 riga per riga) salvata:',
+  Object.entries(iniziale).map(([t, v]) => `${t}=${v.n}`).join(' '))

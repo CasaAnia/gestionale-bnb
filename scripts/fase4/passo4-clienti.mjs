@@ -7,17 +7,17 @@
 // confrontano byte, impronte, documenti, ricevute, pendenti e orfani.
 // ============================================================================
 import { randomUUID, createHash } from 'node:crypto'
-import { writeFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 import { sql, rest, maschera, progetto } from '../fase2b/api.mjs'
+import { nuovoRegistro, tuttiIRegistri } from './registro.mjs'
 import { creaClienteIdempotente } from '../../lib/spese/registrazioneClient.ts'
 import { preparaRipresa, caricaConToken } from '../../lib/spese/registrazioneIdempotente.ts'
 import { creaControllore, depositoLocale } from '../../lib/spese/ripresaDurevole.ts'
 
-const REGISTRO = process.env.REGISTRO_COLLAUDO
-if (!REGISTRO) { console.error('REGISTRO_COLLAUDO mancante'); process.exit(1) }
+// registro INCREMENTALE: aggiornato a ogni artefatto creato
+const registro = nuovoRegistro('clienti')
 const p = progetto()
-console.log('Bersaglio:', maschera(p.ref))
+console.log('Bersaglio:', maschera(p.ref), '· registro:', registro.file)
 
 let passati = 0, falliti = 0
 const esito = (nome, ok, dettaglio = '') => {
@@ -37,6 +37,7 @@ const cr = await rest('/auth/v1/admin/users', 'service', {
 })
 if (!cr.ok) { console.error('utente sintetico non creato:', cr.status, await cr.text()); process.exit(1) }
 const utente = await cr.json()
+registro.annota('utenti', utente.id)
 await sql(`insert into public.app_members (user_id, role) values ('${utente.id}', 'member')`)
 console.log('utente sintetico membro creato (email locale di prova)')
 
@@ -63,8 +64,6 @@ const scarica = async (percorso) => {
   return r.ok ? Buffer.from(await r.arrayBuffer()).toString() : null
 }
 
-const registro = { tokens: [], percorsi: [], utente: utente.id, email: EMAIL }
-
 // ---- 1. percorso felice con avvia (controller + deposito + storage veri) --
 {
   const memoria = memoriaFinta()
@@ -75,9 +74,10 @@ const registro = { tokens: [], percorsi: [], utente: utente.id, email: EMAIL }
   esito('1 avvia: registrazione reale riuscita', ok, ok ? '' : t.errore)
   if (ok) {
     const d = (await sql(`select upload_token, note, kind from public.family_documents where id='${t.documentId}'`))[0]
-    registro.tokens.push(d.upload_token)
+    registro.annota('tokens', d.upload_token)
+    registro.annota('documenti', t.documentId)
     const ric = await ricevute(t.documentId)
-    registro.percorsi.push(ric[0].storage_path)
+    registro.annota('percorsi', ric[0].storage_path)
     const byte = await scarica(ric[0].storage_path)
     esito('1b documento+ricevuta+file coerenti (byte e impronta VERI)',
       d.note === 'nota collaudo reale' && ric.length === 1
@@ -97,6 +97,7 @@ const registro = { tokens: [], percorsi: [], utente: utente.id, email: EMAIL }
   const c1 = creaControllore(perdiRisposta, depositoLocale(undefined, () => memoria), undefined, orologio)
   const contenuto = `foto-vera-${SALE}-2`
   const t1 = await c1.avvia(foto(contenuto), 'azienda', 'risposta persa')
+  if (!t1.ok && t1.ripresa) { registro.annota('tokens', t1.ripresa.token); registro.annota('percorsi', t1.ripresa.percorso) }
   esito('2 risposta persa: esito riprovabile con traccia', !t1.ok && t1.riprovabile)
   // «pagina chiusa»: controller NUOVO su cliente REALE e stesso deposito
   const c2 = creaControllore(cliente, depositoLocale(undefined, () => memoria), undefined, orologio)
@@ -105,7 +106,7 @@ const registro = { tokens: [], percorsi: [], utente: utente.id, email: EMAIL }
   const t2 = await c2.riprendi(riprese[0])            // SENZA riselezionare il file
   const d = t2.ok && await doc(riprese[0].token)
   const ric = d ? await ricevute(d.id) : []
-  if (d) { registro.tokens.push(riprese[0].token); registro.percorsi.push(riprese[0].percorso) }
+  if (d) registro.annota('documenti', d.id)
   esito('2c recupero reale: ripetuta, UN documento, UNA ricevuta, file collegato',
     t2.ok && t2.ripetuta && ric.length === 1 && ric[0].storage_path === riprese[0].percorso
     && (await scarica(riprese[0].percorso)) === contenuto)
@@ -121,7 +122,7 @@ let percorsoEstraneo = null
     const su = await client.storage.from('scontrini').upload(prep.ripresa.percorso, new Blob([estraneo]), { contentType: 'text/plain', upsert: false })
     esito('3a oggetto estraneo piazzato al percorso (membro reale)', !su.error, su.error?.message ?? '')
     percorsoEstraneo = prep.ripresa.percorso
-    registro.percorsi.push(prep.ripresa.percorso)
+    registro.annota('estranei', prep.ripresa.percorso)
     const t = await caricaConToken(cliente, foto(`foto-vera-${SALE}-3`), 'personale', null, prep.ripresa)
     const dentro = await scarica(prep.ripresa.percorso)
     esito('3b contenuto diverso: registrazione FERMATA, byte remoti INTATTI, nessun documento',
@@ -156,6 +157,7 @@ let percorsoEstraneo = null
   }
   const c1 = creaControllore(puliziaGiu, depositoLocale(undefined, () => memoria), undefined, orologio)
   const t1 = await c1.avvia(foto(contenuto), 'personale', null)
+  if (!t1.ok && t1.ripresa) registro.annota('percorsi', t1.ripresa.percorso)
   esito('5 doppione reale con pulizia giù: pulizia_pendente, copia conservata',
     !t1.ok && t1.duplicato && t1.pulizia === 'incerta' && t1.chiusura === 'pulizia_pendente'
     && (await scarica(t1.ripresa?.percorso)) !== null)
@@ -179,17 +181,17 @@ let percorsoEstraneo = null
     method: 'POST', body: JSON.stringify({ prefix: '2026-09-02', limit: 1000 }),
   })
   const oggetti = lista.ok ? (await lista.json()).map(o => '2026-09-02/' + o.name) : null
-  const orfani = oggetti?.filter(o => !percorsiCollegati.has(o)) ?? null
-  // orfani LEGITTIMI: l'oggetto estraneo del punto 3 di QUESTO giro
-  // (conservato apposta) e quelli identici dei giri precedenti del collaudo
-  // (formato -p1.jpg, tutti registrati e rimossi dal passo di pulizia; il
-  // controllo AUTORITATIVO post-pulizia è nel passo 5)
-  const legittimo = (o) => /-p1\.jpg$/.test(o)
-  esito('6 nessun orfano INATTESO (solo gli estranei conservati del punto 3, questo e i giri precedenti)',
-    orfani !== null && orfani.includes(percorsoEstraneo) && orfani.every(legittimo),
-    orfani === null ? 'lista non disponibile' : `oggetti=${oggetti.length} orfani=${JSON.stringify(orfani)}`)
+  const orfani = (oggetti?.filter(o => !percorsiCollegati.has(o)) ?? null)?.sort()
+  // gli orfani ATTESI sono un ELENCO ESATTO: gli oggetti estranei
+  // deliberatamente conservati (prova 3), registrati giro per giro e non
+  // ancora ripuliti. Qualsiasi altro orfano è un file PERSO dal flusso.
+  const attesi = [...new Set(tuttiIRegistri()
+    .filter(r => !r.dati.pulito)
+    .flatMap(r => r.dati.estranei ?? []))].sort()
+  esito('6 orfani = ESATTAMENTE gli estranei registrati e non ancora ripuliti',
+    orfani !== null && JSON.stringify(orfani) === JSON.stringify(attesi),
+    orfani === null ? 'lista non disponibile' : `orfani=${JSON.stringify(orfani)} attesi=${JSON.stringify(attesi)}`)
 }
 
-writeFileSync(REGISTRO, JSON.stringify(registro, null, 2))
 console.log(`\nPASSO 4: ${passati} passati, ${falliti} falliti`)
 process.exit(falliti ? 1 : 0)

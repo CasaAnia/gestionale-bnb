@@ -1032,26 +1032,65 @@ se la precedente non è verificata E approvata.
   estraneo al nostro percorso fermato coi byte intatti, riselezione
   diversa fermata prima di ogni effetto, doppione con pulizia giù →
   pulizia_pendente e recupero che completa la pulizia sul bucket vero,
-  bilancio orfani pulito. REPERTO IMPORTANTE: sul progetto di prova i
-  permessi PER COLONNA del §4-bis della 0021 NON erano più in vigore
-  (authenticated aveva GRANT ALL di tabella con impronta da "creazione",
-  anon pulito; nessuno script del repo produce quello stato → sospetto
-  re-grant di piattaforma). Ripristinati riapplicando la 0021
-  (idempotente) e riverificati; la 0022 rieseguita NON li disturba.
-  → AZIONE APERTA: prima di fidarsi dei grant per colonna in produzione,
-  VERIFICARLI (e nel caso riapplicare la 0021) — da pianificare con
-  autorizzazione, la produzione non è stata toccata in questo collaudo.
+  bilancio orfani pulito. REPERTO IMPORTANTE — CAUSA INTERNA
+  IDENTIFICATA (correzione del 30/08, notte: la prima attribuzione a un
+  "re-grant di piattaforma" era SBAGLIATA): il passo 9 della sequenza 2B
+  (test-rpc) RIESEGUE la 0020 per la prova multipagina, e la 0020
+  (righe 305–313) riconcede il CRUD di TABELLA ad authenticated su
+  family_documents/draft/ponte/correzioni — riaprendo i permessi che la
+  0021 aveva ristretto, senza che 0021 e verifiche venissero ripetute
+  dopo. Questo spiega i grant osservati (i TRUNCATE/REFERENCES/TRIGGER
+  in più vengono dal default di creazione, mai revocati ad
+  authenticated dalla 0021). SEQUENZA CORRETTA: esegui-sequenza.mjs ora
+  termina SEMPRE (anche su test falliti) ripristinando la 0021 e
+  rieseguendo i test di sicurezza DOPO l'ultima migrazione rieseguita;
+  migrazioni intoccate. Nel collaudo lo stato era già stato ripristinato
+  riapplicando la 0021 (idempotente) e la 0022 rieseguita non lo
+  disturba.
+  → AZIONE APERTA: audit dei permessi in PRODUZIONE (dove la 0020 non
+  risulta mai rieseguita dopo la 0021: atteso ristretto, da VERIFICARE
+  invece che presumere) — query di sola lettura PRONTE in
+  scripts/fase4/audit-permessi-produzione.sql, esecuzione SOLO con
+  autorizzazione separata; niente riapplicazioni automatiche.
   Secondo reperto (solo verifica): la CDN dello storage può servire per
   qualche istante un oggetto appena cancellato → i controlli usano un
   cache-buster; il flusso era corretto. PULIZIA: eliminati SOLO gli
   artefatti del collaudo (13 documenti con upload_token, 15 ricevute, 13
-  oggetti nei prefissi-data del collaudo, 5 utenti sintetici) → bilancio
-  IDENTICO al pre-collaudo (98/83/232/1/81); 0021+0022 restano applicate
-  sul progetto di prova. Codice locale: fabbrica iniettabile
+  oggetti nei prefissi-data del collaudo, 5 utenti sintetici) →
+  CONTEGGI FINALI identici al pre-collaudo (98/83/232/1/81) — in quel
+  giro il confronto fu SOLO sui conteggi, non su ID/campi/impronte (ora
+  automatizzato: fotografia con impronte md5 riga per riga nel passo 1 e
+  confronto nel passo 5); 0021+0022 restano applicate sul progetto di
+  prova. Codice locale: fabbrica iniettabile
   registrazioneClient.ts (registrazioneSupabase = binding del browser),
   chiudiOConserva con avvisoDeposito strutturato (un errore del deposito
   non falsifica l'esito remoto e non perde la traccia; testato). 234/234
   locali; tsc, lint, build verdi.
+  **CORREZIONI POST-COLLAUDO (30/08/2026, notte — solo locali, nessun
+  accesso remoto):** 1) causa dei permessi identificata e sequenza 2B
+  corretta (vedi sopra). 2) Prova di CONCORRENZA vera della 0022 pronta
+  (scripts/fase4/passo3b-concorrenza.mjs, NON eseguita): connessioni
+  indipendenti (pid diversi) e sovrapposizione VERIFICATA sugli
+  intervalli temporali (esecuzioni sequenziali = prova non valida, da
+  ripetere); casi: stesso token+manifesto → stesso documento; manifesti
+  diversi → uno solo accettato; token diversi stessa impronta → un
+  documento, zero vuoti. Distinta dalle vecchie prove concorrenti della
+  0020. 3) Rigore su orfani e pulizia: registro INCREMENTALE per giro
+  (scripts/fase4/registro.mjs — token, id documento, percorsi, estranei,
+  utenti, aggiornato a ogni artefatto anche nei giri interrotti); il
+  passo 4 pretende che gli orfani siano ESATTAMENTE gli estranei
+  registrati (niente più "qualsiasi -p1.jpg"); il passo 5 pulisce SOLO
+  dai registri (mai per upload_token o prefisso) e dichiara lo stato
+  invariato confrontando conteggi E impronte md5 riga per riga con la
+  fotografia automatica del passo 1 (normalizzate sulle colonne aggiunte
+  dalla 0022). 4) Audit permessi produzione: query di sola lettura
+  pronte, NON eseguite.
+  **PROVE REMOTE ANCORA DA COMPLETARE (prossimo accesso autorizzato):**
+  a) passo3b concorrenza vera della RPC; b) rilancio passi 1→5 con
+  registri e impronte nuovi (verifica end-to-end del rigore aggiunto);
+  c) audit permessi in produzione (autorizzazione separata, sola
+  lettura); d) (a valle di tutto) applicazione della 0022 in produzione
+  con backup fresco, MAI senza autorizzazione.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

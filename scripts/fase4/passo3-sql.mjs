@@ -6,12 +6,13 @@
 // un registro locale per la pulizia finale.
 // ============================================================================
 import { randomUUID, createHash } from 'node:crypto'
-import { writeFileSync } from 'node:fs'
 import { sql, maschera, progetto } from '../fase2b/api.mjs'
+import { nuovoRegistro } from './registro.mjs'
 
-const REGISTRO = process.env.REGISTRO_COLLAUDO
-if (!REGISTRO) { console.error('REGISTRO_COLLAUDO mancante'); process.exit(1) }
-console.log('Bersaglio:', maschera(progetto().ref))
+// registro INCREMENTALE: aggiornato a ogni artefatto, anche se il giro si
+// interrompe a metà la pulizia ritrova tutto
+const registro = nuovoRegistro('sql')
+console.log('Bersaglio:', maschera(progetto().ref), '· registro:', registro.file)
 
 let passati = 0, falliti = 0
 const esito = (nome, ok, dettaglio = '') => {
@@ -32,6 +33,7 @@ async function fallisce(nome, query, sentinella) {
 const sha = (s) => createHash('sha256').update(s).digest('hex')
 const GIORNO = '2026-09-01'
 const T1 = randomUUID(), T2 = randomUUID(), T3 = randomUUID(), T4 = randomUUID()
+for (const t of [T1, T2, T3, T4]) registro.annota('tokens', t)
 const percorso = (tok, pag, ext = 'jpg') => `${GIORNO}/${tok}-p${pag}.${ext}`
 const pagina = (tok, pag, impronta) =>
   `{"storage_path":"${percorso(tok, pag)}","page_order":${pag},"mime_type":"image/jpeg","file_sha256":"${impronta}"}`
@@ -67,6 +69,7 @@ await fallisce('B2 postgres senza claims: NON_MEMBRO (il definer non regala null
 // ---- C. PERCORSO DELL'OWNER ------------------------------------------------
 const c1 = await sql(`begin; ${comeOwner} ${chiama(T1, 'scontrino', 'personale', 'prova collaudo', pagina(T1, 1, SHA1))}; commit;`)
 const doc1 = c1[0]?.r
+registro.annota('documenti', doc1?.document_id)
 esito('C1 registrazione singola', !!doc1?.document_id && doc1
 
 .ripetuta === false, JSON.stringify(doc1))
@@ -93,6 +96,7 @@ esito('C5b nessun documento vuoto dopo il doppione', dopoC5 === primaC5, `${prim
 
 const c6 = await sql(`begin; ${comeOwner} ${chiama(T2, 'scontrino', 'azienda', 'multipagina',
   pagina(T2, 1, SHA2A) + ',' + pagina(T2, 2, SHA2B))}; commit;`)
+registro.annota('documenti', c6[0]?.r?.document_id)
 const ric2 = await sql(`select count(*) as n from public.family_receipts where document_id='${c6[0]?.r?.document_id}'`)
 esito('C6 multipagina: 2 ricevute collegate', ric2[0].n === 2, JSON.stringify(c6[0]?.r))
 
@@ -122,13 +126,6 @@ await fallisce('D2 postgres aggiorna upload_manifest: MANIFESTO_IMMUTABILE (trig
 await fallisce('D3 authenticated aggiorna upload_manifest: negato dai PERMESSI di colonna (messaggio diverso)',
   `begin; ${comeOwner} update public.family_documents set upload_manifest='{}'::jsonb where upload_token='${T1}'; rollback;`,
   'permission denied')
-
-// ---- registro per la pulizia finale ---------------------------------------
-writeFileSync(REGISTRO, JSON.stringify({
-  tokens: [T1, T2, T3, T4],
-  percorsi_sql: [percorso(T1, 1), percorso(T2, 1), percorso(T2, 2)],
-  note: 'artefatti SQL del passo 3 (T3/T4 mai registrati: rollback)',
-}, null, 2))
 
 console.log(`\nPASSO 3: ${passati} passati, ${falliti} falliti`)
 process.exit(falliti ? 1 : 0)
