@@ -67,6 +67,9 @@ export function rispondi(q: string, ctx: ContestoDomanda): string {
   for (const n of negozi) if (n.length > 3 && s.includes(strip(n))) { v = v.filter(x => corto(x.store) === n); filtri.push(n); break }
   // "Dove abbiamo speso di più?"
   if (s.includes('dove') && s.includes('piu')) {
+    // dopo i filtri (persona, categoria…) può non restare nulla: si dice,
+    // non si va in errore (gestione, NON capacità nuova)
+    if (!v.length) return `${quando} non trovo niente per «${q.trim()}».`
     const perS: Record<string, number> = {}, perC: Record<string, number> = {}
     v.forEach(x => { if (x.store) perS[corto(x.store)] = (perS[corto(x.store)] || 0) + x.a; perC[x.cat] = (perC[x.cat] || 0) + x.a })
     const ts = Object.entries(perS).sort((a, b) => b[1] - a[1])[0]

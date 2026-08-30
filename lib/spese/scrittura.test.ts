@@ -35,6 +35,7 @@ function clienteRegistratore(risposte: Risposte = {}) {
     async creaDocumento(payload) { chiamate.push({ azione: 'creaDocumento', payload }); return esegui('creaDocumento', { id: 'doc-1' }) },
     async creaRicevuta(payload) { chiamate.push({ azione: 'creaRicevuta', payload }); return esegui('creaRicevuta', {}) },
     async ricevutaEsiste(percorso) { chiamate.push({ azione: 'ricevutaEsiste', payload: percorso }); return esegui('ricevutaEsiste', { esiste: false }) },
+    async ricevutaConSha(sha) { chiamate.push({ azione: 'ricevutaConSha', payload: sha }); return esegui('ricevutaConSha', { esiste: false }) },
     async salvaBudget(...a) { chiamate.push({ azione: 'salvaBudget', payload: a }); return esegui('salvaBudget', {}) },
     async aggiornaBudget(...a) { chiamate.push({ azione: 'aggiornaBudget', payload: a }); return esegui('aggiornaBudget', { righe: 1 }) },
     async eliminaBudget(id) { chiamate.push({ azione: 'eliminaBudget', payload: id }); return esegui('eliminaBudget', { righe: 1 }) },
@@ -157,25 +158,27 @@ test('caricamento: successo → file, documento, ricevuta collegata coi campi le
   const { cliente, chiamate } = clienteRegistratore()
   const esito = await caricaDocumentoConFoto(cliente, FOTO, 'personale', 'nota', {}, orologio, id)
   assert.deepEqual(esito, { ok: true, documentId: 'doc-1' })
-  assert.deepEqual(chiamate.map(c => c.azione), ['caricaFile', 'creaDocumento', 'creaRicevuta'])
-  const ric = chiamate[2].payload as Record<string, unknown>
+  // al primo tentativo si controlla il DOPPIONE prima di creare qualsiasi cosa
+  assert.deepEqual(chiamate.map(c => c.azione), ['ricevutaConSha', 'caricaFile', 'creaDocumento', 'creaRicevuta'])
+  const ric = chiamate[3].payload as Record<string, unknown>
   assert.equal(ric.storage_path, '2026-08-30/uuid-fisso.jpg')
   assert.equal(ric.status, 'da_leggere')
 })
 
 test('ricevuta rifiutata (non doppione) → si RIPROVA con lo stesso file e documento: MAI un secondo documento', async () => {
-  const { cliente, chiamate } = clienteRegistratore({ creaRicevuta: { errore: 'timeout del server' } })
+  const { cliente, chiamate } = clienteRegistratore({ creaRicevuta: { errore: 'vietato dalla policy' } })
   const primo = await caricaDocumentoConFoto(cliente, FOTO, 'personale', null, {}, orologio, id)
   assert.equal(primo.ok, false)
   assert.ok(!primo.ok && primo.riprovabile)
   assert.deepEqual(!primo.ok && primo.ripresa, { percorso: '2026-08-30/uuid-fisso.jpg', documentId: 'doc-1' })
   // il file NON è stato cancellato (si riusa)
   assert.ok(!chiamate.some(c => c.azione === 'rimuoviFile'))
-  // secondo tentativo con la ripresa: nessun nuovo documento
+  // secondo tentativo con la ripresa: prima si VERIFICA il tentativo
+  // precedente, poi si prosegue senza un nuovo documento
   const { cliente: buono, chiamate: chiamate2 } = clienteRegistratore()
   const secondo = await caricaDocumentoConFoto(buono, FOTO, 'personale', null, !primo.ok ? primo.ripresa : {}, orologio, id)
   assert.deepEqual(secondo, { ok: true, documentId: 'doc-1' })
-  assert.deepEqual(chiamate2.map(c => c.azione), ['caricaFile', 'creaRicevuta'])  // niente creaDocumento
+  assert.deepEqual(chiamate2.map(c => c.azione), ['ricevutaEsiste', 'caricaFile', 'creaRicevuta'])  // niente creaDocumento
 })
 
 test('foto GIÀ in archivio (doppione sha): rifiuto definitivo, copia rimossa, non riprovabile', async () => {
@@ -210,7 +213,13 @@ test('upload o documento falliti/interrotti: riprovabile, con lo stato conservat
   const { cliente: su } = clienteRegistratore({ caricaFile: { errore: 'bucket giù' } })
   const e1 = await caricaDocumentoConFoto(su, FOTO, 'personale', null, {}, orologio, id)
   assert.ok(!e1.ok && e1.riprovabile && e1.ripresa.percorso)
+  // documento dall'esito incerto: NON c'è un identificativo recuperabile →
+  // l'operazione resta SOSPESA (niente ritentativi alla cieca = doppioni)
   const { cliente: doc } = clienteRegistratore({ creaDocumento: esplode })
   const e2 = await caricaDocumentoConFoto(doc, FOTO, 'personale', null, {}, orologio, id)
-  assert.ok(!e2.ok && e2.riprovabile && e2.ripresa.percorso && !e2.ripresa.documentId)
+  assert.ok(!e2.ok && e2.sospeso && !e2.riprovabile && e2.ripresa.percorso && !e2.ripresa.documentId)
+  // rifiuto NETTO (non di rete) del documento: quello sì è riprovabile
+  const { cliente: no } = clienteRegistratore({ creaDocumento: { errore: 'vietato dalla policy' } })
+  const e3 = await caricaDocumentoConFoto(no, FOTO, 'personale', null, {}, orologio, id)
+  assert.ok(!e3.ok && !e3.sospeso && e3.riprovabile && e3.ripresa.percorso)
 })

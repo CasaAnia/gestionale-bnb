@@ -8,13 +8,13 @@
 // del vecchio modulo continuano a proporre il gruppo giusto.
 // Un errore NON chiude il foglio e NON cancella quello che hai scritto.
 // ============================================================================
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { TEMA as t, DISPLAY } from './tema'
 import { Chip, Etichetta, Foglio } from './mattoni'
 import type { Ambito, Category, Group, Rule, Subcat } from '@/lib/spese/types'
 import { strip } from '@/lib/spese/costanti'
 import {
-  SPESA_MANUALE_VUOTA, validaSpesaManuale,
+  SPESA_MANUALE_VUOTA, creaGuardiaInvio, validaSpesaManuale,
   type EsitoScrittura, type SpesaManualeInput,
 } from '@/lib/spese/scrittura'
 
@@ -79,8 +79,9 @@ export function ModuloSpesa({ ambito, oggi, groups, cats, subcats, camere, negoz
     setGruppoProposto(null)
   }
 
-  const invia = async () => {
-    if (salvando) return                      // doppio clic: il secondo non parte
+  // la guardia condivisa (lib/spese/scrittura): il doppio clic non parte
+  const guardia = useRef(creaGuardiaInvio())
+  const invia = () => guardia.current(async () => {
     setErrore(null)
     const problemi = validaSpesaManuale(form, ambito)
     if (problemi.length) { setErrore(problemi.join(' · ')); return }
@@ -90,7 +91,7 @@ export function ModuloSpesa({ ambito, oggi, groups, cats, subcats, camere, negoz
     if (!esito.ok) { setErrore(esito.errore); return }   // il foglio resta aperto, i valori intatti
     setFatto(true)
     setTimeout(chiudi, 900)
-  }
+  })
 
   return (
     <Foglio aria="Spesa manuale" chiudi={chiudi} scorrevole

@@ -27,6 +27,7 @@ function clienteFinto(fallisci: boolean): ClienteScrittura {
     creaDocumento: async () => fallisci ? { errore: 'connessione assente (simulata)' } : { id: 'doc-finto' },
     creaRicevuta: nega,
     ricevutaEsiste: async () => ({ esiste: false }),
+    ricevutaConSha: async () => ({ esiste: false }),
     salvaBudget: nega,
     aggiornaBudget: async () => fallisci ? { errore: 'connessione assente (simulata)' } : { righe: 1 },
     eliminaBudget: async () => fallisci ? { errore: 'connessione assente (simulata)' } : { righe: 1 },

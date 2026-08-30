@@ -81,7 +81,8 @@ test('Domanda: rispetta la PERSONA selezionata (e lo dice)', () => {
   const risposta = rispondiNelContesto('quanto abbiamo speso?', ctx, sel)
   assert.ok(risposta.includes('4'))            // solo la spesa di Teo
   assert.ok(!risposta.includes('14'))
-  assert.ok(risposta.includes('sto guardando solo Matteo'))
+  // 3.2B.2: la nota usa l'ETICHETTA mostrata a schermo (Matteo → "Teo")
+  assert.ok(risposta.includes('sto guardando solo Teo'))
 })
 
 test('Domanda: rispetta l\'INTERVALLO selezionato (e lo indica)', () => {

@@ -2,11 +2,11 @@
 // Gestione dei budget mensili (3.2B): trasferita dal vecchio Home, stesse
 // scritture (lib/spese/dati.ts: upsert/aggiorna/elimina su family_budgets).
 // Un errore non chiude il foglio e non cancella l'importo scritto.
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { TEMA as t, DISPLAY } from './tema'
 import { Chip, Etichetta, Foglio } from './mattoni'
 import { eur2 } from '@/lib/spese/costanti'
-import { importoDaTesto } from '@/lib/spese/scrittura'
+import { creaGuardiaInvio, importoDaTesto, testoDaImporto } from '@/lib/spese/scrittura'
 import type { Ambito, Budget } from '@/lib/spese/types'
 
 export function BudgetSheet({ ambito, budgets, categorie, salva, aggiorna, elimina, chiudi }: {
@@ -24,15 +24,17 @@ export function BudgetSheet({ ambito, budgets, categorie, salva, aggiorna, elimi
   const [modifiche, setModifiche] = useState<Record<string, string>>({})
   const [lavoro, setLavoro] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
+  const guardia = useRef(creaGuardiaInvio())
 
-  const esegui = async (azione: () => Promise<{ errore?: string }>) => {
-    if (lavoro) return
+  // la stessa guardia condivisa contro il doppio invio (lib/spese/scrittura)
+  const esegui = (azione: () => Promise<{ errore?: string }>) => guardia.current(async () => {
     setErrore(null); setLavoro(true)
-    const r = await azione()
-    setLavoro(false)
-    if (r.errore) { setErrore(r.errore); return false }
-    return true
-  }
+    try {
+      const r = await azione()
+      if (r.errore) { setErrore(r.errore); return false }
+      return true
+    } finally { setLavoro(false) }
+  })
 
   return (
     <Foglio aria="Budget mensili" chiudi={chiudi} scorrevole>
@@ -48,12 +50,12 @@ export function BudgetSheet({ ambito, budgets, categorie, salva, aggiorna, elimi
           {budgets.map(b => (
             <div key={b.id} className="flex items-center gap-2 min-h-11">
               <span className="flex-1 text-[13.5px] truncate" style={{ color: t.inchiostro }}>{b.category_name}</span>
-              <input inputMode="decimal" value={modifiche[b.id] ?? String(b.monthly_amount)}
+              <input inputMode="decimal" value={modifiche[b.id] ?? testoDaImporto(b.monthly_amount)}
                 onChange={e => setModifiche(m => ({ ...m, [b.id]: e.target.value }))}
                 className="w-24 min-h-10 px-2 text-[14px] text-right tabular-nums outline-none"
                 style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
               <button disabled={lavoro} onClick={async () => {
-                const n = importoDaTesto(modifiche[b.id] ?? String(b.monthly_amount))
+                const n = importoDaTesto(modifiche[b.id] ?? testoDaImporto(b.monthly_amount))
                 if (n === null) { setErrore('l\'importo deve essere un numero sopra lo zero'); return }
                 await esegui(() => aggiorna(b.id, n))
               }} className="min-h-10 px-2 text-[12.5px] font-bold" style={{ color: accento }}>Salva</button>

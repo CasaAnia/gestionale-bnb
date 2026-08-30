@@ -36,6 +36,10 @@ export const clienteSupabase: ClienteScrittura = {
     const { data, error } = await supabase.from('family_receipts').select('id').eq('storage_path', storagePath).limit(1)
     return error ? { errore: error.message } : { esiste: (data?.length ?? 0) > 0 }
   },
+  async ricevutaConSha(sha) {
+    const { data, error } = await supabase.from('family_receipts').select('id').eq('file_sha256', sha).limit(1)
+    return error ? { errore: error.message } : { esiste: (data?.length ?? 0) > 0 }
+  },
   async salvaBudget(ambito, categoria, importo) {
     const { error } = await supabase.from('family_budgets')
       .upsert({ ambito, category_name: categoria, monthly_amount: importo }, { onConflict: 'ambito,category_name' })

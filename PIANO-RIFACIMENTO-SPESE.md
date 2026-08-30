@@ -862,8 +862,30 @@ se la precedente non è verificata E approvata.
   prima di cancellare/ripetere, pulizia fallita dichiarata); tipo
   documento dal FILE (pdf → 'altro'); Domanda nel contesto visibile.
   Pagine sostituite, vecchio tracker in ?vecchia=1, preview reale in sola
-  lettura (guardia nei test). 189/189 test; lint: 2 warning storici in
-  ScontriniBlock (vecchio tracker), zero nei file nuovi.
+  lettura (guardia nei test).
+  **3.2B.2 (revisione della 3.2B.1, 30/08/2026)** — caricamento con
+  RITENTATIVI DAVVERO SICURI: la verifica del tentativo precedente viene
+  PRIMA di ogni passo ripetibile o distruttivo (mai più "doppione" deciso
+  dalla sola regex: si accerta che il NOSTRO percorso non sia collegato
+  prima di togliere un file; verifica fallita ≠ ricevuta assente); errori
+  di rete RESTITUITI dalla libreria trattati come esiti incerti; doppione
+  sha controllato PRIMA di creare documento e file; identificativi noti
+  conservati in ogni ramo; documento dall'esito incerto = operazione
+  SOSPESA (niente ritentativi alla cieca; proposta separata: colonna
+  upload_token unica per renderlo recuperabile — NON applicata). Coda del
+  foglio estratta in lib/spese/codaCaricamento.ts: ciclo per
+  identificativi sullo stato VIVO (togliere/aggiungere durante l'attesa è
+  sicuro), sospese e doppioni fuori dai ritentativi, nota fissata al
+  primo tentativo, coda tenuta dalla PAGINA (chiudere il foglio non perde
+  il recupero). Domanda: alias Teo/M e A riconosciuti nella domanda, nota
+  "sto guardando solo…" con l'etichetta vera e solo se la persona non è
+  esplicita (in entrambi i rami), risultato vuoto dopo i filtri = frase
+  onesta invece del crash. testoDaImporto ORA usato dal campo budget;
+  creaGuardiaInvio collegata anche a modulo manuale e budget. Test con
+  cliente simulato CHE CONSERVA LO STATO tra i tentativi (si controllano
+  documenti/ricevute/file finali). 207/207 test; tsc pulito; lint dei
+  file toccati 0 segnalazioni (restano i 2 warning storici di
+  ScontriniBlock, file non toccato); build verde.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

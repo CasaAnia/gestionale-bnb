@@ -99,6 +99,8 @@ export type ClienteScrittura = {
   creaRicevuta(payload: Record<string, unknown>): Promise<{ errore?: string }>
   // per gli esiti INCERTI: la ricevuta con questo percorso esiste già?
   ricevutaEsiste(storagePath: string): Promise<{ esiste?: boolean; errore?: string }>
+  // per i DOPPIONI: una ricevuta con questa impronta esiste già?
+  ricevutaConSha(sha: string): Promise<{ esiste?: boolean; errore?: string }>
   salvaBudget(ambito: string, categoria: string, importo: number): Promise<{ errore?: string }>
   aggiornaBudget(id: string, importo: number): Promise<{ errore?: string; righe?: number }>
   eliminaBudget(id: string): Promise<{ errore?: string; righe?: number }>
@@ -183,11 +185,19 @@ export type FotoDaCaricare = {
 export type RipresaCaricamento = { percorso?: string; documentId?: string }
 
 export type EsitoCaricamento =
-  | { ok: true; documentId: string }
-  | { ok: false; errore: string; riprovabile: boolean; ripresa: RipresaCaricamento }
+  | { ok: true; documentId?: string }
+  | { ok: false; errore: string; riprovabile: boolean; sospeso?: boolean; duplicato?: boolean; ripresa: RipresaCaricamento }
 
 export const tipoDocumentoDaFile = (mime: string): 'scontrino' | 'altro' =>
   mime === 'application/pdf' ? 'altro' : 'scontrino'
+
+// La libreria Supabase può RESTITUIRE gli errori di rete invece di lanciarli:
+// un messaggio così è un esito INCERTO (la richiesta può essere passata).
+const sembraErroreDiRete = (msg: string) =>
+  /fetch|network|timeout|timed out|abort|econn|socket|load failed/i.test(msg)
+// Possibile vincolo unico: NON basta a decidere il doppione — prima si
+// verifica se il NOSTRO percorso è collegato.
+const sembraVincoloUnico = (msg: string) => /duplicate key|unique|23505|sha/i.test(msg)
 
 export async function caricaDocumentoConFoto(
   cliente: ClienteScrittura,
@@ -200,30 +210,67 @@ export async function caricaDocumentoConFoto(
 ): Promise<EsitoCaricamento> {
   const ext = (foto.nomeFile.split('.').pop() || 'jpg').toLowerCase()
   const percorso = ripresa.percorso ?? `${adesso().slice(0, 10)}/${idCasuale()}.${ext}`
-  const kind = tipoDocumentoDaFile(foto.tipo)
-  const fallito = (errore: string, riprovabile: boolean, r: RipresaCaricamento): EsitoCaricamento =>
-    ({ ok: false, errore, riprovabile, ripresa: r })
+  // gli identificativi già noti si CONSERVANO in ogni ramo
+  let documentId = ripresa.documentId
+  const fallito = (
+    errore: string, riprovabile: boolean,
+    extra: { sospeso?: boolean; duplicato?: boolean; senzaPercorso?: boolean } = {},
+  ): EsitoCaricamento => ({
+    ok: false, errore, riprovabile,
+    ...(extra.sospeso ? { sospeso: true } : {}), ...(extra.duplicato ? { duplicato: true } : {}),
+    ripresa: {
+      ...(extra.senzaPercorso ? {} : { percorso }),
+      ...(documentId ? { documentId } : {}),
+    },
+  })
+
+  // 0) RIPRESA: un tentativo precedente può essere andato a buon fine senza
+  //    che lo si sappia. La verifica viene PRIMA di qualsiasi passo che
+  //    potrebbe ripetere o cancellare; se la verifica non riesce, non si
+  //    tocca nulla (verifica fallita ≠ ricevuta assente).
+  if (ripresa.percorso) {
+    const c = await verificaRicevuta(cliente, ripresa.percorso)
+    if (c === 'esiste') return { ok: true, ...(documentId ? { documentId } : {}) }
+    if (c === 'ignoto')
+      return fallito('non riesco a verificare il tentativo precedente: non ho toccato nulla, riprova quando torna la rete', true)
+  } else if (foto.sha256) {
+    // 0b) primo tentativo: la stessa foto è già in archivio? Controllo PRIMA
+    //     di creare qualsiasi cosa (niente documenti vuoti per un doppione).
+    try {
+      const c = await cliente.ricevutaConSha(foto.sha256)
+      if (!c.errore && c.esiste)
+        return fallito('questa foto è già in archivio: non la carico di nuovo', false, { duplicato: true, senzaPercorso: true })
+      // controllo non riuscito: si procede, il vincolo unico farà da rete di sicurezza
+    } catch { /* idem */ }
+  }
 
   // 1) file nel bucket (idempotente: al secondo tentativo sovrascrive il suo
   //    stesso percorso; il percorso è nostro e casuale)
   try {
     const su = await cliente.caricaFile(percorso, foto.contenuto, foto.tipo || 'image/jpeg')
-    if (su.errore) return fallito(`caricamento della foto fallito: ${su.errore}`, true, { percorso })
+    if (su.errore) return fallito(`caricamento della foto fallito: ${su.errore}`, true)
   } catch (e) {
     // esito incerto (rete): il percorso resta valido per il prossimo tentativo
-    return fallito(`caricamento interrotto (${String((e as Error).message ?? e)}): riprova`, true, { percorso })
+    return fallito(`caricamento interrotto (${String((e as Error).message ?? e)}): riprova`, true)
   }
 
-  // 2) documento (riusato se già creato in un tentativo precedente)
-  let documentId = ripresa.documentId
+  // 2) documento (riusato se già creato in un tentativo precedente).
+  //    Se l'INSERT può essere passato senza risposta non c'è un identificativo
+  //    recuperabile: l'operazione resta SOSPESA, niente ritentativi alla cieca
+  //    che creerebbero un secondo documento.
   if (!documentId) {
+    const sospendi = (msg: string) => fallito(
+      `non riesco a sapere se il documento è stato creato (${msg}): per non creare doppioni questo file resta sospeso — ricarica la pagina e riprova più tardi`,
+      false, { sospeso: true })
     try {
-      const doc = await cliente.creaDocumento({ kind, upload_ambito: ambito, note: nota })
-      if (doc.errore || !doc.id)
-        return fallito(`creazione del documento fallita: ${doc.errore ?? 'senza id'}`, true, { percorso })
+      const doc = await cliente.creaDocumento({ kind: tipoDocumentoDaFile(foto.tipo), upload_ambito: ambito, note: nota })
+      if (doc.errore || !doc.id) {
+        if (doc.errore && sembraErroreDiRete(doc.errore)) return sospendi(doc.errore)
+        return fallito(`creazione del documento fallita: ${doc.errore ?? 'senza id'}`, true)
+      }
       documentId = doc.id
     } catch (e) {
-      return fallito(`creazione del documento interrotta (${String((e as Error).message ?? e)}): riprova`, true, { percorso })
+      return sospendi(String((e as Error).message ?? e))
     }
   }
 
@@ -233,28 +280,42 @@ export async function caricaDocumentoConFoto(
     mime_type: foto.tipo || null, file_sha256: foto.sha256,
     note: nota, ambito, status: 'da_leggere',
   }
+  let errore: string
   try {
     const ric = await cliente.creaRicevuta(payloadRicevuta)
-    if (ric.errore) {
-      if (/sha|duplicat|unique/i.test(ric.errore)) {
-        // foto GIÀ in archivio: rifiuto definitivo → tolgo la copia appena
-        // caricata (non è collegata a nulla: la ricevuta è stata rifiutata)
-        const via = await pulisci(cliente, percorso)
-        return fallito(`questa foto è già in archivio (${ric.errore})${via}`, false, { documentId })
-      }
-      // altro rifiuto: si riprova con lo STESSO file e lo STESSO documento
-      return fallito(`foto non collegata (${ric.errore}): riprova — il documento non verrà duplicato`, true, { percorso, documentId })
-    }
-    return { ok: true, documentId }
+    if (!ric.errore) return { ok: true, documentId }
+    if (!sembraVincoloUnico(ric.errore) && !sembraErroreDiRete(ric.errore))
+      // rifiuto netto e definito: si riprova con lo STESSO file e documento
+      return fallito(`foto non collegata (${ric.errore}): riprova — il documento non verrà duplicato`, true)
+    errore = ric.errore
   } catch (e) {
-    // ESITO INCERTO: la richiesta può essere passata. VERIFICO prima di
-    // cancellare o ripetere qualsiasi cosa.
-    try {
-      const c = await cliente.ricevutaEsiste(percorso)
-      if (c.esiste) return { ok: true, documentId }
-    } catch { /* anche la verifica è irraggiungibile: si riprova */ }
-    return fallito(`collegamento interrotto (${String((e as Error).message ?? e)}): riprova — file e documento verranno riusati`, true, { percorso, documentId })
+    errore = String((e as Error).message ?? e)
   }
+
+  // ESITO INCERTO (eccezione, errore di rete restituito o possibile vincolo
+  // unico): la ricevuta può esistere. Si VERIFICA il nostro percorso prima di
+  // decidere qualsiasi cosa.
+  const c = await verificaRicevuta(cliente, percorso)
+  if (c === 'esiste') return { ok: true, documentId }
+  if (c === 'ignoto')
+    // nemmeno la verifica risponde: non si cancella e non si decide niente
+    return fallito(`collegamento dall'esito incerto (${errore}) e verifica non riuscita: non ho toccato nulla, riprova quando torna la rete`, true)
+  if (sembraVincoloUnico(errore)) {
+    // ACCERTATO che il nostro percorso NON è collegato: il vincolo riguarda
+    // un'altra ricevuta con la stessa foto. Solo ora è sicuro togliere la copia.
+    const via = await pulisci(cliente, percorso)
+    return fallito(`questa foto è già in archivio (${errore})${via} · il documento creato resta in coda vuoto`, false, { duplicato: true, senzaPercorso: true })
+  }
+  return fallito(`collegamento fallito (${errore}): riprova — file e documento verranno riusati`, true)
+}
+
+// tre risposte oneste: c'è / non c'è / NON SI SA (mai scambiare l'ultima con la seconda)
+async function verificaRicevuta(cliente: ClienteScrittura, percorso: string): Promise<'esiste' | 'assente' | 'ignoto'> {
+  try {
+    const c = await cliente.ricevutaEsiste(percorso)
+    if (c.errore) return 'ignoto'
+    return c.esiste ? 'esiste' : 'assente'
+  } catch { return 'ignoto' }
 }
 
 // pulizia del file: se fallisce lo dice, senza fingere

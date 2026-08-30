@@ -7,7 +7,7 @@
 // Le scritture passano da lib/spese/scrittura* (errori veri, righe contate),
 // separate dalla preview in sola lettura. Dietro login e DemoGate.
 // ============================================================================
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DemoGate from '@/components/DemoGate'
 import { isDemoMode } from '@/lib/demoMode'
@@ -16,14 +16,16 @@ import { AnalisiOperativa } from './AnalisiOperativa'
 import { ModuloSpesa } from './ModuloSpesa'
 import { BudgetSheet } from './BudgetSheet'
 import { FotoSheet, type PaginaFoto } from './FotoSheet'
-import { CaricaFotoSheet } from './CaricaFotoSheet'
+import { CaricaFotoSheet, type VoceUI } from './CaricaFotoSheet'
 import { costruisciDatiSpese, oggiARoma } from '@/lib/spese/adattatore'
 import { leggiTutto, urlFirmato, type FonteCompleta } from '@/lib/spese/fonte'
 import { clienteSupabase } from '@/lib/spese/scritturaSupabase'
 import {
-  aggiornaBudgetEsistente, eliminaBudgetEsistente, eliminaSpesaManuale,
-  salvaBudgetNuovo, salvaSpesaManuale, type SpesaManualeInput,
+  aggiornaBudgetEsistente, caricaDocumentoConFoto, creaGuardiaInvio,
+  eliminaBudgetEsistente, eliminaSpesaManuale, salvaBudgetNuovo,
+  salvaSpesaManuale, sha256DiFile, type SpesaManualeInput,
 } from '@/lib/spese/scrittura'
+import { nuoveVoci, rimovibile, salvaCoda } from '@/lib/spese/codaCaricamento'
 import { filtraPerAmbito } from '@/lib/spese/ambito'
 import type { RisolutoriVoce, ItemEsteso } from '@/lib/spese/voci'
 import type { Ambito, Fx } from '@/lib/spese/types'
@@ -58,8 +60,21 @@ function Pagina({ ambito }: { ambito: Ambito }) {
   const [moduloAperto, setModuloAperto] = useState(false)
   const [budgetAperto, setBudgetAperto] = useState(false)
   const [foto, setFoto] = useState<{ titolo: string; pagine: PaginaFoto[] } | null>(null)
-  const [codaCaricamento, setCodaCaricamento] = useState<File[] | null>(null)
   const [avviso, setAvviso] = useState<string | null>(null)
+
+  // ---- coda di caricamento: vive nella PAGINA, non nel foglio -----------
+  // Chiudere il foglio non perde lo stato di recupero, e il ciclo di invio
+  // (per identificativi, su lib/spese/codaCaricamento) lavora sempre sullo
+  // stato vivo: aggiungere o togliere una foto durante l'attesa è sicuro.
+  const [coda, setCodaStato] = useState<VoceUI[]>([])
+  const codaRef = useRef<VoceUI[]>([])
+  const setCoda = useCallback((aggiorna: (c: VoceUI[]) => VoceUI[]) => {
+    setCodaStato(prev => { codaRef.current = aggiorna(prev); return codaRef.current })
+  }, [])
+  const [fogliocaricaAperto, setFoglioCaricaAperto] = useState(false)
+  const [notaCoda, setNotaCoda] = useState('')
+  const [salvandoCoda, setSalvandoCoda] = useState(false)
+  const guardiaCoda = useRef(creaGuardiaInvio())
 
   useEffect(() => {
     if (isDemoMode()) return
@@ -133,12 +148,50 @@ function Pagina({ ambito }: { ambito: Ambito }) {
   }, [fonte])
 
   // ---- ＋: le quattro strade ----
+  const accoda = useCallback((files: File[]) => {
+    if (files.length === 0 && codaRef.current.length === 0) return
+    setCoda(prev => [...prev, ...nuoveVoci(
+      files.map(f => ({ file: f, nome: f.name, tipo: f.type })),
+      () => crypto.randomUUID(),
+    ).map(v => ({ ...v, url: URL.createObjectURL(v.file) }))])
+    // si riapre anche a mani vuote se c'è una coda in sospeso da riprendere
+    setFoglioCaricaAperto(true)
+  }, [setCoda])
   const aggiungi = useCallback(async (voce: VoceAggiungi) => {
     if (voce === 'manuale') { setModuloAperto(true); return }
     const accetta = voce === 'documento' ? 'image/*,application/pdf' : 'image/*'
-    const files = await scegliFiles(accetta, voce === 'scatta')
-    if (files.length) setCodaCaricamento(files)
-  }, [])
+    accoda(await scegliFiles(accetta, voce === 'scatta'))
+  }, [accoda])
+
+  const salvaTutteLeFoto = useCallback(() => guardiaCoda.current(async () => {
+    setSalvandoCoda(true)
+    try {
+      const { salvate } = await salvaCoda(
+        () => codaRef.current, setCoda,
+        async (voce, nota) => caricaDocumentoConFoto(clienteSupabase, {
+          nomeFile: voce.nome, tipo: voce.tipo, contenuto: voce.file,
+          sha256: await sha256DiFile(voce.file),
+        }, ambito, nota, voce.ripresa),
+        notaCoda.trim() || null,
+      )
+      if (salvate > 0) ricarica()
+      if (codaRef.current.length > 0 && codaRef.current.every(v => v.stato === 'salvata'))
+        setTimeout(() => setFoglioCaricaAperto(false), 900)
+    } finally { setSalvandoCoda(false) }
+  }), [ambito, notaCoda, ricarica, setCoda])
+
+  const chiudiFoglioCarica = useCallback(() => {
+    // le foto salvate escono di scena; errori, sospese e doppioni RESTANO
+    // in coda (si ritrovano toccando ＋) — lo stato di recupero non si perde
+    setCoda(prev => {
+      const resta = prev.filter(v => v.stato !== 'salvata' && v.stato !== 'duplicato')
+      prev.filter(v => !resta.includes(v)).forEach(v => URL.revokeObjectURL(v.url))
+      return resta
+    })
+    setFoglioCaricaAperto(false)
+    const rimaste = codaRef.current.length
+    if (rimaste > 0) setAvviso(`${rimaste === 1 ? '1 foto non è ancora salvata: la ritrovi' : `${rimaste} foto non sono ancora salvate: le ritrovi`} toccando ＋`)
+  }, [setCoda])
 
   // ---- scritture (errori veri: mai successi simulati) ----
   const salvaManuale = useCallback(async (input: SpesaManualeInput) => {
@@ -217,12 +270,18 @@ function Pagina({ ambito }: { ambito: Ambito }) {
         <FotoSheet titolo={foto.titolo} pagine={foto.pagine} firmaUrl={urlFirmato}
           chiudi={() => setFoto(null)} />
       )}
-      {codaCaricamento && (
-        <CaricaFotoSheet ambito={ambito} cliente={clienteSupabase}
-          inizialiFile={codaCaricamento}
-          apriAltri={() => scegliFiles('image/*,application/pdf', false)}
-          alSalvataggio={ricarica}
-          chiudi={() => setCodaCaricamento(null)} />
+      {fogliocaricaAperto && (
+        <CaricaFotoSheet ambito={ambito} coda={coda}
+          salvando={salvandoCoda} nota={notaCoda} setNota={setNotaCoda}
+          togli={id => setCoda(prev => {
+            const via = prev.find(v => v.id === id)
+            if (!via || !rimovibile(via)) return prev
+            URL.revokeObjectURL(via.url)
+            return prev.filter(v => v.id !== id)
+          })}
+          aggiungiAltri={async () => accoda(await scegliFiles('image/*,application/pdf', false))}
+          salvaTutte={salvaTutteLeFoto}
+          chiudi={chiudiFoglioCarica} />
       )}
 
       {avviso && (
