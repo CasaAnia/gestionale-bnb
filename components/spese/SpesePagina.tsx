@@ -17,9 +17,12 @@ import { ModuloSpesa } from './ModuloSpesa'
 import { BudgetSheet } from './BudgetSheet'
 import { FotoSheet, type PaginaFoto } from './FotoSheet'
 import { CaricaFotoSheet, type VoceUI } from './CaricaFotoSheet'
+import { RevisioneSheet } from './RevisioneSheet'
 import { costruisciDatiSpese, oggiARoma } from '@/lib/spese/adattatore'
 import { leggiTutto, urlFirmato, type FonteCompleta } from '@/lib/spese/fonte'
 import { clienteSupabase } from '@/lib/spese/scritturaSupabase'
+import { clienteRevisioneSupabase } from '@/lib/spese/revisioneSupabase'
+import type { BozzaGrezza, RigaGrezza } from '@/lib/spese/revisione'
 import {
   aggiornaBudgetEsistente, creaGuardiaInvio,
   eliminaBudgetEsistente, eliminaSpesaManuale, salvaBudgetNuovo,
@@ -67,6 +70,7 @@ function Pagina({ ambito }: { ambito: Ambito }) {
   const [moduloAperto, setModuloAperto] = useState(false)
   const [budgetAperto, setBudgetAperto] = useState(false)
   const [foto, setFoto] = useState<{ titolo: string; pagine: PaginaFoto[] } | null>(null)
+  const [revisioneId, setRevisioneId] = useState<string | null>(null)
   const [avviso, setAvviso] = useState<string | null>(null)
 
   // ---- coda di caricamento: flusso IDEMPOTENTE (0022) -------------------
@@ -261,6 +265,11 @@ function Pagina({ ambito }: { ambito: Ambito }) {
         aggiungi={aggiungi}
         inSospeso={coda.filter(v => v.op).length}
         riprendiCaricamenti={() => setFoglioCaricaAperto(true)}
+        apriRevisione={id => {
+          const attive = fonte?.bozze.some(b => b.document_id === id && (b.status === 'da_controllare' || b.status === 'pronta'))
+          if (attive) setRevisioneId(id)
+          else setAvviso('Questo documento non ha ancora bozze da rivedere: prima va letto.')
+        }}
         apriFoto={apriFoto}
         eliminaSpesa={eliminaSpesa}
         gestisciBudget={() => setBudgetAperto(true)}
@@ -310,6 +319,33 @@ function Pagina({ ambito }: { ambito: Ambito }) {
         <FotoSheet titolo={foto.titolo} pagine={foto.pagine} firmaUrl={urlFirmato}
           chiudi={() => setFoto(null)} />
       )}
+      {revisioneId && fonte && (() => {
+        const doc = fonte.documenti.find(d => d.id === revisioneId)
+        const bozzeDoc = fonte.bozze.filter(b => b.document_id === revisioneId) as unknown as BozzaGrezza[]
+        if (!doc || bozzeDoc.every(b => b.status !== 'da_controllare' && b.status !== 'pronta')) return null
+        const idBozze = new Set(bozzeDoc.map(b => b.id))
+        return (
+          <RevisioneSheet
+            documento={{ id: doc.id, supplier: doc.supplier, kind: doc.kind, doc_total: doc.doc_total == null ? null : Number(doc.doc_total), note: doc.note }}
+            bozze={bozzeDoc}
+            righe={fonte.righeBozza.filter(r => idBozze.has(r.draft_id)) as unknown as RigaGrezza[]}
+            gruppi={fonte.gruppi}
+            categorie={fonte.categorie as { id: string; name: string; group_id: string }[]}
+            camere={camereAttive}
+            pagine={fonte.ricevute
+              .filter(r => r.document_id === revisioneId && r.storage_path)
+              .map(r => ({ id: r.id, storage_path: r.storage_path!, page_order: r.page_order ?? 1, tipo: r.mime_type }))}
+            firmaUrl={urlFirmato}
+            cliente={clienteRevisioneSupabase}
+            fatto={esito => {
+              if (esito === 'confermato') { setRevisioneId(null); setAvviso('Documento confermato: le spese sono nel conto.') }
+              if (esito === 'scartato') { setRevisioneId(null); setAvviso('Documento scartato.') }
+              if (esito === 'salvato') setAvviso('Modifiche salvate.')
+              ricarica()
+            }}
+            chiudi={() => setRevisioneId(null)} />
+        )
+      })()}
       {fogliocaricaAperto && (
         <CaricaFotoSheet ambito={ambito} coda={coda}
           salvando={salvandoCoda} nota={notaCoda} setNota={setNotaCoda}

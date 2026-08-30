@@ -1369,9 +1369,47 @@ se la precedente non è verificata E approvata.
   collaudato end-to-end nel progetto ISOLATO; in produzione è stata
   applicata la migrazione e verificata la struttura SENZA mai chiamare
   la RPC. Test 244/244 (3 nuovi di sequenza); tsc, lint, build verdi.
-  **PROSSIMO (da autorizzare):** revisione completa delle spese
-  (schermata di revisione bozze) e riscrittura del flusso di
-  elaborazione al contratto «solo bozze».
+  **FASE 4 · BLOCCO 3 ESEGUITO (30/08/2026, notte — autorizzato):
+  SCHERMATA DI REVISIONE DELLE BOZZE** (implementazione e prove SOLO
+  locali). Architettura: logica PURA in lib/spese/revisione.ts
+  (originali mai mutati + modifiche pendenti; i tipi delle modifiche
+  contengono SOLO i campi di revisione della 0021 — confidence,
+  raw_name, status, expense_id, user_added non sono nemmeno scrivibili;
+  correzioniDa produce {field, proposed, corrected, draft_id/
+  draft_item_id} dal confronto originale→corrente, righe aggiunte
+  escluse perché già marcate user_added dal trigger); servizi INIETTATI
+  in revisioneScrittura.ts (errori restituiti + righe contate, stop al
+  primo errore, esiti INCERTI dichiarati senza cancellare le modifiche
+  né fingere successo, con l'invito a verificare — la RPC è
+  idempotente); binding vero revisioneSupabase.ts (conferma e scarto
+  SOLO via RPC atomiche conferma_documento/scarta_documento: mai
+  insert diretti nelle spese). UI RevisioneSheet.tsx (grafica B, tocchi
+  ≥44 px, dubbi con motivo su sfondo tenue MAI bordi neri): foto/pagine
+  con zoom a due livelli, totale documento MODIFICABILE con somma
+  righe e differenza sempre in vista (conferma bloccata se ≠ 0, blocchi
+  elencati sopra il bottone), sorelle Casa Mia/Casa Ania separate con
+  quota per sorella, righe con raw_name «sullo scontrino», escluse
+  (attenuate, reincludibili) e aggiunte a mano, destinatario/categoria/
+  sottocategoria/data/negozio/natura per sorella, metodo (obbligatorio)
+  e camera per Casa Ania, arrotondamento ± cent per sorella, scarto col
+  motivo obbligatorio, guardia anti doppio clic. Cablata in /spese e
+  /spese-famiglia dai documenti «Da controllare» (solo con bozze
+  attive) e nella pagina SINTETICA con cliente finto (?scrittura=
+  errore simula il rifiuto del server). TEST 10/10 (revisione.test.ts):
+  semplice, misto (quote ±1 cent), quota zero, arrotondamenti, escluse,
+  nota vuota→corrected null, quadratura errata (blocco client + rifiuto
+  server passato integro), doppio clic (una sola RPC), errore di
+  salvataggio (stop al primo, conferma mai partita, zero righe ≠
+  successo), risposta persa (incerto dichiarato, «non riprovare alla
+  cieca»). Prova UI a 390 px nei DUE ambiti con servizi simulati
+  (schermate nel resoconto): quadratura rotta a schermo → differenza
+  rossa e Conferma disabilitata; riquadrata → conferma simulata chiude;
+  rifiuto del server mostrato col foglio aperto e valori intatti.
+  Suite 254/254; tsc, lint, build verdi. NIENTE OCR, /scontrini
+  intatto, niente flusso fatture (le RPC fattura restano per il blocco
+  dedicato).
+  **PROSSIMO (da autorizzare):** riscrittura del flusso di elaborazione
+  al contratto «solo bozze» (poi Fase 5 fatture).
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

@@ -31,7 +31,7 @@ const SEZIONI: [SezioneSpese, string][] = [
 ]
 const OPZIONI_VUOTE: OpzioniFiltri = { periodi: [], categorie: [], metodi: [] }
 
-export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = 'panoramica', filtriApertiIniziale = false, riprova, aggiungi, notaAggiungi, sopra, apriFoto, eliminaSpesa, gestisciBudget, analisiOperativa, cambiaContesto, inSospeso, riprendiCaricamenti }: {
+export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = 'panoramica', filtriApertiIniziale = false, riprova, aggiungi, notaAggiungi, sopra, apriFoto, eliminaSpesa, gestisciBudget, analisiOperativa, cambiaContesto, inSospeso, riprendiCaricamenti, apriRevisione }: {
   dati: StatoDati<DatiSpese>
   contestoIniziale?: Contesto
   sezioneIniziale?: SezioneSpese
@@ -44,6 +44,7 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
   sopra?: ReactNode                         // es. la barretta PROVA (mai nel prodotto finale)
   // 3.2B — funzioni operative delle pagine ufficiali (assenti nella preview)
   apriFoto?: (documentId: string) => void
+  apriRevisione?: (documentId: string) => void   // Fase 4: schermata di revisione
   eliminaSpesa?: (expenseId: string) => void
   gestisciBudget?: (contesto: Contesto) => void
   analisiOperativa?: (contesto: Contesto) => ReactNode
@@ -144,7 +145,9 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
                   apriFoto={apriFoto} eliminaSpesa={eliminaSpesa} />
               )}
               {sezione === 'documenti' && (
-                <DocumentiTab documenti={perContestoDocumenti(dati.dati.documenti, contesto)} apriFoto={apriFoto ? d => apriFoto(d.id) : undefined} />
+                <DocumentiTab documenti={perContestoDocumenti(dati.dati.documenti, contesto)}
+                  apriFoto={apriFoto ? d => apriFoto(d.id) : undefined}
+                  apriRevisione={apriRevisione ? d => apriRevisione(d.id) : undefined} />
               )}
               {sezione === 'analisi' && (
                 <AnalisiTab contesto={contesto} mia={dati.dati.mia} ania={dati.dati.ania} operativa={analisiOperativa?.(contesto)} />
