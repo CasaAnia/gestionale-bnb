@@ -25,6 +25,7 @@ export function nuovoRegistro(tipo) {
     percorsi: [],    // oggetti storage caricati dai flussi
     estranei: [],    // oggetti piazzati APPOSTA e lasciati (prova 3)
     utenti: [],      // id degli utenti sintetici
+    identita: [],    // email ESATTE registrate PRIMA di creare l'utente
   }
   const salva = () => writeFileSync(file, JSON.stringify(dati, null, 2))
   salva()

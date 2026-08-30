@@ -38,12 +38,22 @@ console.log('Owner in app_members:', owner[0].n)
 // FOTOGRAFIA AUTOMATICA (per il confronto finale del passo 5): conteggi +
 // impronte md5 riga per riga, salvata nella cartella dei registri.
 // ---------------------------------------------------------------------------
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { cartellaRegistri, IMPRONTA_INIZIALE } from './registro.mjs'
-import { improntaStato } from './impronta.mjs'
+import { cartellaRegistri, IMPRONTA_INIZIALE, tuttiIRegistri } from './registro.mjs'
+import { improntaStato, colonne0022Presenti } from './impronta.mjs'
 
-const iniziale = await improntaStato()
-writeFileSync(join(cartellaRegistri(), IMPRONTA_INIZIALE), JSON.stringify(iniziale, null, 2))
-console.log('fotografia iniziale (conteggi + impronte md5 riga per riga) salvata:',
-  Object.entries(iniziale).map(([t, v]) => `${t}=${v.n}`).join(' '))
+// mai sovrascrivere la fotografia di un GIRO ANCORA APERTO
+const fotoFile = join(cartellaRegistri(), IMPRONTA_INIZIALE)
+const aperti = tuttiIRegistri().filter(r => !r.dati.pulito)
+if (existsSync(fotoFile) && aperti.length > 0) {
+  console.error(`STOP: esiste già una fotografia e ci sono ${aperti.length} registri APERTI: completare la pulizia (passo 5) prima di scattarne una nuova.`)
+  process.exit(1)
+}
+const con0022 = await colonne0022Presenti()
+// esclusione delle colonne 0022 SOLO se oggi assenti (fotografia pre-0022)
+const iniziale = await improntaStato({ escludi0022: !con0022 })
+iniziale._meta = { colonne_0022_presenti: con0022, scattata: new Date().toISOString() }
+writeFileSync(fotoFile, JSON.stringify(iniziale, null, 2))
+console.log('fotografia iniziale (conteggi + impronte md5 riga per riga, incl. auth.users) salvata:',
+  Object.entries(iniziale).filter(([k]) => k !== '_meta').map(([t, v]) => `${t}=${v.n}`).join(' '))

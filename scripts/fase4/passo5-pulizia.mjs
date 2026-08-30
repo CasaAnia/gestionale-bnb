@@ -1,66 +1,114 @@
 #!/usr/bin/env node
 // ============================================================================
-// Fase 4 · collaudo 0022 — PASSO 5: pulizia guidata ESCLUSIVAMENTE dai
-// registri incrementali (token, ID documento, percorsi, utenti annotati
-// giro per giro, anche nei giri interrotti). NESSUNA cancellazione
-// generica per "upload_token non nullo" o per prefisso-data.
-// Alla fine: "stato invariato" dichiarato confrontando CONTEGGI E IMPRONTE
-// md5 riga per riga con la fotografia automatica del passo 1 — mai numeri
-// scritti a mano.
+// Fase 4 · collaudo 0022 — PASSO 5: pulizia guidata dai registri, col
+// motore testato in locale (pulizia.mjs). Sequenza OBBLIGATORIA:
+//  1. validazione di fotografia e registri (un fallimento BLOCCA tutto,
+//     prima di qualsiasi cancellazione);
+//  2. pulizia con recupero (id da token, utenti da identità), verifica dei
+//     collegamenti prima di togliere file, chiusura solo a residui zero;
+//  3. confronto finale con la fotografia: conteggi e impronte md5 riga per
+//     riga di tabelle, storage e account Auth.
 // ============================================================================
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { sql, rest, maschera, progetto } from '../fase2b/api.mjs'
 import { cartellaRegistri, IMPRONTA_INIZIALE, marcaPulito, tuttiIRegistri } from './registro.mjs'
-import { improntaStato } from './impronta.mjs'
+import { improntaStato, CHIAVI_FOTOGRAFIA } from './impronta.mjs'
+import { eseguiPulizia, validaPreliminari } from './pulizia.mjs'
 
 console.log('Bersaglio:', maschera(progetto().ref))
-const daPulire = tuttiIRegistri().filter(r => !r.dati.pulito)
-console.log('registri da ripulire:', daPulire.length)
 
-const sicuro = (v) => /^[0-9a-zA-Z_/.-]+$/.test(String(v))   // id/percorsi: mai SQL arbitrario
-let ricevuteVia = 0, documentiVia = 0, oggettiVia = 0, utentiVia = 0
+// ---- 1. VALIDAZIONE OBBLIGATORIA, prima di qualsiasi cancellazione --------
+const fotoFile = join(cartellaRegistri(), IMPRONTA_INIZIALE)
+let fotografia = null
+try { fotografia = existsSync(fotoFile) ? JSON.parse(readFileSync(fotoFile, 'utf8')) : null }
+catch { fotografia = null }
+const registri = tuttiIRegistri()
+const preliminari = validaPreliminari({ fotografia, chiaviAttese: CHIAVI_FOTOGRAFIA, registri })
+for (const c of preliminari.controlli)
+  console.log(`${c.ok ? '✓' : '✗'} preliminare: ${c.nome}${c.dettaglio ? ' — ' + c.dettaglio : ''}`)
+if (!preliminari.ok) {
+  console.error('STOP: validazione preliminare fallita — NESSUNA cancellazione eseguita.')
+  process.exit(1)
+}
 
-for (const r of daPulire) {
-  const { documenti = [], percorsi = [], estranei = [], utenti = [] } = r.dati
-  // 1) ricevute e documenti, SOLO per gli id registrati
-  for (const id of documenti.filter(sicuro)) {
-    ricevuteVia += (await sql(`delete from public.family_receipts where document_id='${id}' returning id`)).length
-    documentiVia += (await sql(`delete from public.family_documents where id='${id}' returning id`)).length
-  }
-  // 2) oggetti storage, SOLO i percorsi esatti registrati (già rimossi = ok)
-  const daTogliere = [...new Set([...percorsi, ...estranei])].filter(sicuro)
-  if (daTogliere.length) {
+// ---- 2. PULIZIA col motore testato ----------------------------------------
+const sicuro = (v) => /^[0-9a-zA-Z_@/.-]+$/.test(String(v))
+const servizi = {
+  async documentiDaToken(tokens) {
+    const buoni = tokens.filter(sicuro)
+    if (!buoni.length) return []
+    return await sql(`select id, upload_token as token from public.family_documents
+      where upload_token in (${buoni.map(t => `'${t}'`).join(',')})`)
+  },
+  async eliminaRicevuteDiDocumento(id) {
+    if (!sicuro(id)) return 0
+    return (await sql(`delete from public.family_receipts where document_id='${id}' returning id`)).length
+  },
+  async eliminaDocumento(id) {
+    if (!sicuro(id)) return 0
+    return (await sql(`delete from public.family_documents where id='${id}' returning id`)).length
+  },
+  async ricevutaCheUsaPercorso(percorso) {
+    if (!sicuro(percorso)) return true   // prudenza: percorso strano = non si tocca
+    const r = await sql(`select count(*)::int as n from public.family_receipts where storage_path='${percorso}'`)
+    return r[0].n > 0
+  },
+  async eliminaOggetto(percorso) {
     const via = await rest('/storage/v1/object/scontrini', 'service', {
-      method: 'DELETE', body: JSON.stringify({ prefixes: daTogliere }),
+      method: 'DELETE', body: JSON.stringify({ prefixes: [percorso] }),
     })
-    if (via.ok) oggettiVia += daTogliere.length
-    else if (via.status !== 404) { console.error('cancellazione storage fallita:', via.status, await via.text()); process.exit(1) }
-  }
-  // 3) utenti sintetici registrati (appartenenza + account)
-  for (const id of utenti.filter(sicuro)) {
-    await sql(`delete from public.app_members where user_id='${id}'`)
+    if (via.ok) return true
+    if (via.status === 404) return false
+    throw new Error(`storage DELETE ${percorso}: ${via.status}`)
+  },
+  async utentiDaIdentita(emails) {
+    const buone = emails.filter(sicuro)
+    if (!buone.length) return []
+    return await sql(`select id from auth.users where email in (${buone.map(e => `'${e}'`).join(',')})`)
+  },
+  async rimuoviAppartenenza(id) {
+    if (sicuro(id)) await sql(`delete from public.app_members where user_id='${id}'`)
+  },
+  async eliminaUtente(id) {
     const via = await rest(`/auth/v1/admin/users/${id}`, 'service', { method: 'DELETE' })
-    if (via.ok) utentiVia++
-    else if (via.status !== 404) { console.error('utente non eliminato:', id); process.exit(1) }
-  }
-  marcaPulito(r)
-  console.log(`registro ${r.file.split('/').pop()} ripulito (${documenti.length} documenti, ${daTogliere.length} percorsi, ${utenti.length} utenti)`)
+    if (via.ok) return true
+    if (via.status === 404) return false
+    throw new Error(`auth DELETE ${id}: ${via.status}`)
+  },
+  async residuiRegistro(dati) {
+    const inLista = (vals) => vals.filter(sicuro).map(v => `'${v}'`).join(',')
+    const residui = {}
+    residui.documentiConToken = dati.tokens?.length
+      ? (await sql(`select count(*)::int as n from public.family_documents where upload_token in (${inLista(dati.tokens)})`))[0].n : 0
+    residui.documentiConId = dati.documenti?.length
+      ? (await sql(`select count(*)::int as n from public.family_documents where id in (${inLista(dati.documenti)})`))[0].n : 0
+    const percorsi = [...(dati.percorsi ?? []), ...(dati.estranei ?? [])]
+    residui.ricevuteSuiPercorsi = percorsi.length
+      ? (await sql(`select count(*)::int as n from public.family_receipts where storage_path in (${inLista(percorsi)})`))[0].n : 0
+    residui.oggettiSuiPercorsi = percorsi.length
+      ? (await sql(`select count(*)::int as n from storage.objects where name in (${inLista(percorsi)})`))[0].n : 0
+    residui.utenti = dati.identita?.length
+      ? (await sql(`select count(*)::int as n from auth.users where email in (${inLista(dati.identita)})`))[0].n : 0
+    return residui
+  },
+  marcaPulito: async (r) => marcaPulito(r),
 }
-console.log(`eliminati: ${documentiVia} documenti, ${ricevuteVia} ricevute, ~${oggettiVia} oggetti richiesti, ${utentiVia} utenti`)
+const bilancio = await eseguiPulizia(registri, servizi, console.log)
+console.log(`pulizia: ${bilancio.puliti} registri chiusi, ${bilancio.aperti} ancora aperti · eliminati ${bilancio.documenti} documenti, ${bilancio.ricevute} ricevute, ${bilancio.oggetti} oggetti, ${bilancio.utenti} utenti`)
 
-// 4) STATO INVARIATO: conteggi E impronte contro la fotografia del passo 1
-const iniziale = JSON.parse(readFileSync(join(cartellaRegistri(), IMPRONTA_INIZIALE), 'utf8'))
-const finale = await improntaStato()
-let ok = true
-for (const t of Object.keys(iniziale)) {
-  const uguale = finale[t] && finale[t].n === iniziale[t].n && finale[t].impronta === iniziale[t].impronta
-  if (!uguale) {
-    ok = false
-    console.error(`✗ ${t}: iniziale n=${iniziale[t].n} impronta=${iniziale[t].impronta.slice(0, 8)}… · finale n=${finale[t]?.n} impronta=${finale[t]?.impronta.slice(0, 8)}…`)
+// ---- 3. CONFRONTO FINALE con la fotografia --------------------------------
+const finale = await improntaStato({ escludi0022: !fotografia._meta?.colonne_0022_presenti })
+let uguali = true
+for (const t of CHIAVI_FOTOGRAFIA) {
+  const ok = finale[t] && finale[t].n === fotografia[t].n && finale[t].impronta === fotografia[t].impronta
+  if (!ok) {
+    uguali = false
+    console.error(`✗ ${t}: iniziale n=${fotografia[t].n} impronta=${fotografia[t].impronta.slice(0, 8)}… · finale n=${finale[t]?.n} impronta=${finale[t]?.impronta.slice(0, 8)}…`)
   }
 }
-console.log(ok
-  ? '✓ PULIZIA COMPLETA: conteggi e IMPRONTE riga per riga identici alla fotografia pre-collaudo'
-  : '✗ STATO NON INVARIATO: differenze qui sopra (indagare prima di riprovare)')
-process.exit(ok ? 0 : 1)
+const esito = uguali && bilancio.aperti === 0
+console.log(esito
+  ? `✓ PULIZIA COMPLETA E STATO INVARIATO — verificati per conteggio e impronta md5 riga per riga: ${CHIAVI_FOTOGRAFIA.join(', ')}${fotografia._meta?.colonne_0022_presenti ? '' : ' (colonne 0022 escluse dal confronto perché ASSENTI nella fotografia iniziale)'}`
+  : '✗ COLLAUDO NON CHIUSO: registri aperti o differenze qui sopra — indagare prima di riprovare')
+process.exit(esito ? 0 : 1)

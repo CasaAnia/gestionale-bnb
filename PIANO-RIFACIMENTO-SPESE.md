@@ -1085,6 +1085,37 @@ se la precedente non è verificata E approvata.
   fotografia automatica del passo 1 (normalizzate sulle colonne aggiunte
   dalla 0022). 4) Audit permessi produzione: query di sola lettura
   pronte, NON eseguite.
+  **SECONDA CORREZIONE POST-COLLAUDO (30/08/2026, notte — locale, dopo
+  la revisione di 25040c7):** 1) concorrenza: le misure (pid, inizio,
+  fine) ora arrivano ANCHE dai rami in errore atteso (funzione
+  temporanea pg_temp che cattura l'eccezione — il savepoint implicito
+  annulla i soli effetti della chiamata rifiutata — e restituisce
+  comunque la riga di misura); provaValida severa: misure mancanti,
+  stesso pid o finestre disgiunte = prova NON VALIDA (prima un errore
+  senza pid passava per sovrapposto); caso B: la nota salvata deve
+  essere quella del ramo VINCITORE, non una qualunque. 2) pulizia
+  (motore estratto in pulizia.mjs, iniettabile): gli id documento
+  mancanti si RECUPERANO dai soli token esatti registrati prima di
+  cancellare; un file si elimina SOLO dopo aver verificato che nessuna
+  ricevuta lo usa; utenti recuperabili dall'IDENTITÀ esatta annotata
+  PRIMA della richiesta; nel passo 4 il deposito annota token+percorso
+  al salvataggio della ripresa (prima di ogni effetto remoto); un
+  registro si chiude SOLO a residui verificati zero, errori e
+  incertezze lo lasciano recuperabile. 3) fotografia obbligatoria e
+  valida PRIMA di qualsiasi cancellazione (elenco esplicito dei
+  controlli; {} o voci monche BLOCCANO — prima davano un confronto
+  verde a vuoto); il passo 1 rifiuta di sovrascriverla con registri
+  ancora aperti; aggiunta l'impronta di auth.users (id+email in md5
+  aggregato, nessuna credenziale) che scopre account sintetici senza
+  appartenenza; le colonne 0022 si escludono dal confronto SOLO se
+  assenti nella fotografia iniziale (flag _meta). 4) audit produzione
+  completato: RLS abilitata, policy con ruoli e condizioni effettive
+  (anche storage.objects), indice 0022 nella query, e nota esplicita:
+  i TRUNCATE/REFERENCES/TRIGGER residui sono il default di creazione
+  che la 0021 non revoca — da riportare, non da dichiarare rimossi.
+  5) NUOVI TEST LOCALI con servizi simulati (scripts/fase4/
+  collaudo.test.mjs, 9/9 — comando: node --test scripts/fase4/
+  collaudo.test.mjs): tutti i casi riprodotti dalla revisione coperti.
   **PROVE REMOTE ANCORA DA COMPLETARE (prossimo accesso autorizzato):**
   a) passo3b concorrenza vera della RPC; b) rilancio passi 1→5 con
   registri e impronte nuovi (verifica end-to-end del rigore aggiunto);

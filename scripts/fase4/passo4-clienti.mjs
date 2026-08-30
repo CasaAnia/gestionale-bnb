@@ -32,6 +32,9 @@ const foto = (contenuto, nome = 'collaudo.jpg') =>
 // ---- utente SINTETICO membro (solo progetto di prova) ----------------------
 const EMAIL = `collaudo-0022-${SALE}@prova.locale`
 const PASSWORD = randomUUID() + randomUUID()   // mai stampata, mai salvata
+// l'IDENTITÀ esatta si registra PRIMA della richiesta: se la creazione
+// riesce ma la risposta si perde, la pulizia recupera l'account dall'email
+registro.annota('identita', EMAIL)
 const cr = await rest('/auth/v1/admin/users', 'service', {
   method: 'POST', body: JSON.stringify({ email: EMAIL, password: PASSWORD, email_confirm: true }),
 })
@@ -52,6 +55,20 @@ function memoriaFinta() {
   const dati = new Map()
   return { getItem: k => dati.get(k) ?? null, setItem: (k, v) => { dati.set(k, v) }, dati }
 }
+// il deposito usato nei flussi ANNOTA nel registro token e percorso al
+// momento del salvataggio della ripresa — cioè PRIMA di ogni effetto
+// remoto, non soltanto dopo il successo
+function depositoAnnotato(memoria) {
+  const base = depositoLocale(undefined, () => memoria)
+  return {
+    ...base,
+    async salva(op) {
+      registro.annota('tokens', op.token)
+      registro.annota('percorsi', op.percorso)
+      return base.salva(op)
+    },
+  }
+}
 const orologio = () => '2026-09-02T10:00:00.000Z'
 
 // verifiche remote via service (fuori dal client sotto esame)
@@ -67,7 +84,7 @@ const scarica = async (percorso) => {
 // ---- 1. percorso felice con avvia (controller + deposito + storage veri) --
 {
   const memoria = memoriaFinta()
-  const c = creaControllore(cliente, depositoLocale(undefined, () => memoria), undefined, orologio)
+  const c = creaControllore(cliente, depositoAnnotato(memoria), undefined, orologio)
   const contenuto = `foto-vera-${SALE}-1`
   const t = await c.avvia(foto(contenuto), 'personale', 'nota collaudo reale')
   const ok = t.ok
@@ -94,13 +111,13 @@ const scarica = async (percorso) => {
     ...cliente,
     async registraDocumento(...a) { await cliente.registraDocumento(...a); throw new Error('Failed to fetch (simulata DOPO la registrazione reale)') },
   }
-  const c1 = creaControllore(perdiRisposta, depositoLocale(undefined, () => memoria), undefined, orologio)
+  const c1 = creaControllore(perdiRisposta, depositoAnnotato(memoria), undefined, orologio)
   const contenuto = `foto-vera-${SALE}-2`
   const t1 = await c1.avvia(foto(contenuto), 'azienda', 'risposta persa')
   if (!t1.ok && t1.ripresa) { registro.annota('tokens', t1.ripresa.token); registro.annota('percorsi', t1.ripresa.percorso) }
   esito('2 risposta persa: esito riprovabile con traccia', !t1.ok && t1.riprovabile)
   // «pagina chiusa»: controller NUOVO su cliente REALE e stesso deposito
-  const c2 = creaControllore(cliente, depositoLocale(undefined, () => memoria), undefined, orologio)
+  const c2 = creaControllore(cliente, depositoAnnotato(memoria), undefined, orologio)
   const { riprese } = await c2.pendenti()
   esito('2b operazione pendente ritrovata dal deposito', riprese.length === 1 && riprese[0].nota === 'risposta persa')
   const t2 = await c2.riprendi(riprese[0])            // SENZA riselezionare il file
@@ -118,6 +135,7 @@ let percorsoEstraneo = null
 {
   const prep = await preparaRipresa(foto(`foto-vera-${SALE}-3`), orologio)
   if (!prep.ok) { esito('3 prepara', false, prep.errore) } else {
+    registro.annota('tokens', prep.ripresa.token)
     const estraneo = `BYTE-ESTRANEI-${SALE}`
     const su = await client.storage.from('scontrini').upload(prep.ripresa.percorso, new Blob([estraneo]), { contentType: 'text/plain', upsert: false })
     esito('3a oggetto estraneo piazzato al percorso (membro reale)', !su.error, su.error?.message ?? '')
@@ -136,6 +154,8 @@ let percorsoEstraneo = null
 {
   const prep = await preparaRipresa(foto(`foto-vera-${SALE}-4`), orologio)
   if (!prep.ok) { esito('4 prepara', false, prep.errore) } else {
+    registro.annota('tokens', prep.ripresa.token)
+    registro.annota('percorsi', prep.ripresa.percorso)
     const t = await caricaConToken(cliente, foto(`ALTRO-CONTENUTO-${SALE}`), 'personale', null, prep.ripresa)
     esito('4 file riselezionato diverso: fermato PRIMA di ogni effetto',
       !t.ok && t.serveFile === true && (await scarica(prep.ripresa.percorso)) === null)
@@ -155,7 +175,7 @@ let percorsoEstraneo = null
       return cliente.ricevutaEsiste(percorso)
     },
   }
-  const c1 = creaControllore(puliziaGiu, depositoLocale(undefined, () => memoria), undefined, orologio)
+  const c1 = creaControllore(puliziaGiu, depositoAnnotato(memoria), undefined, orologio)
   const t1 = await c1.avvia(foto(contenuto), 'personale', null)
   if (!t1.ok && t1.ripresa) registro.annota('percorsi', t1.ripresa.percorso)
   esito('5 doppione reale con pulizia giù: pulizia_pendente, copia conservata',
