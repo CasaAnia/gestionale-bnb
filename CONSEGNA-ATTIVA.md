@@ -3,15 +3,14 @@
 ## Identità e perimetro
 
 - Base della revisione indipendente: `7df3c86`.
-- Candidato precedente: `127277d` (revisionato in REVISIONE-127277d.md:
-  quattro gruppi bloccanti). Candidato NUOVO: vedi commit annotato in
-  fondo dalla consegna — corregge i quattro gruppi; le 10 prove del
-  revisore (scripts/revisioni/cablaggio-127277d.test.mjs) sono TUTTE
-  VERDI sul candidato senza modificare gli assert.
-- Stato: REVISIONATO DA CODEX — DUE RILIEVI LOCALI DA CHIUDERE su
-  `7a15fc1` (vedi esito indipendente in fondo). Le dieci prove precedenti
-  passano; due sequenze aggiuntive riproducono i residui. Non riaprire il
-  collaudo PostgreSQL già superato.
+- Candidato verificato: `fb46660b4dff94bd3181a4886c1cb02c93bb1998`.
+  I quattro gruppi di `127277d` e i successivi R1/R2 di `7a15fc1` sono
+  CHIUSI: le 12 prove del revisore passano con assert invariati.
+- Stato: VERIFICATO IN LOCALE — revisione indipendente conclusa, nessun
+  rilievo bloccante aperto in questo giro. Prove tecniche ripetute da
+  Codex; UI e build dell'implementatore, con i limiti dichiarati sotto.
+  Non riaprire il collaudo PostgreSQL già superato. Non è un'autorizzazione
+  all'attivazione del contratto o alla pubblicazione.
 - Implementatore: Claude. Revisore: Codex.
 - Perimetro: correzioni locali al cablaggio, prove e documentazione.
   Interruttore operativo `legacy`; nessun SQL/remoto/push/deploy.
@@ -64,16 +63,18 @@ Non copiare automaticamente i risultati del commit precedente.
   riapertura della sessione precedente.
 - Evidenze senza segreti: commit, impronta dei sorgenti verificati, test,
   stato dei due depositi e dell'archivio finto, schermate sintetiche.
-- Rilievi ancora aperti: i quattro gruppi della revisione di `7df3c86`
-  restano da ricontrollare sul candidato, non sono nuove richieste di prodotto.
+- Rilievi ancora aperti: nessuno nel giro concluso su `fb46660`.
+  Gli esiti negativi riportati più sotto restano lo storico dei candidati
+  precedenti, non richieste da ripetere sul candidato approvato.
 
 ## Prossimo passo e criteri di chiusura
 
-Claude legge il metodo condiviso e completa le prove mancanti sul candidato
-senza riscrivere parti già corrette. Consegna un unico resoconto breve.
-Codex verifica commit esatto, prove C01–C10 e integrazione; restituisce una
-revisione consolidata. Se manca una prova si scrive NON VERIFICATO e perché,
-senza fingere un'approvazione o chiedere altre credenziali.
+La revisione del candidato `fb46660` è conclusa con esito locale positivo
+(verbale indipendente in fondo). Non richiedere nuovamente le correzioni
+R1/R2 né riaprire i quattro gruppi precedenti senza una nuova regressione
+dimostrata. Il prossimo blocco funzionale previsto dal metodo è
+l'elaborazione «solo bozze»: definirne la consegna nel perimetro concordato
+e ottenere l'autorizzazione prevista prima di implementarlo.
 
 Il blocco si chiude IN LOCALE solo con percorsi completi, nessun rilievo
 bloccante e legacy intatto. La successiva fase funzionale e ogni passaggio
@@ -192,3 +193,36 @@ e NON richiede modifiche al database: riguarda soltanto il server finto.
   è riproducibile a mano dalla UI: coperta dalla prova del revisore.
 - Il commit del codice è il candidato fermo annotato qui sotto dalla
   consegna; l'ultimo commit di scheda è sola documentazione.
+
+## Chiusura indipendente di Codex — candidato fb46660
+
+- Verificato HEAD `fb46660b4dff94bd3181a4886c1cb02c93bb1998`, branch
+  `rifacimento-spese`, albero PULITO per tutta l'esecuzione. Rispetto ad
+  `a04d2f6` cambiano solo questa scheda e i due moduli delle correzioni:
+  nessuna modifica ai test del revisore o agli assert.
+- R1 CHIUSO: il documento esplicitamente richiesto passa dal presidio
+  anche senza record. Durante il primo hash l'apertura blocca il guscio
+  prima della presa legacy; la sequenza del test termina con Conferma
+  riuscita, senza vincoli residui. Il cancello della UI è stato ispezionato.
+- R2 CHIUSO: gli identificativi già presenti nelle righe o nel giornale
+  vengono saltati. Il test ricrea mondo e giornale, salva la seconda voce
+  e riscontra la conservazione di entrambe. Difetto della sola preview.
+- Prove del revisore ripetute: 12/12, nessuna saltata, assert invariati.
+  Comando comune ripetuto: `node scripts/verifica-consegna.mjs --base 7df3c86`
+  → VERIFICHE_TECNICHE_OK (suite applicazione, regressioni del revisore,
+  strumenti locali, TypeScript senza incrementale, lint del delta).
+  Impronta IDENTICA a quella della consegna:
+  `dbd37828baa4ff224bf018e72cc10660c07c8551b0cac6e7a9d75807fe49e7d9`.
+  `git diff --check` pulito.
+- Limiti: build e prove UI non ripetute da Codex in questo giro; valgono
+  come evidenze dell'implementatore, non come nuove verifiche indipendenti.
+  Restano dichiarati il rerender React puro non provato e il primo hash
+  coperto deterministicamente dal test, non da un'interruzione manuale.
+  Nessun aggiramento della precedente limitazione del browser.
+- VERDETTO: B1–B5 chiuso IN LOCALE nel perimetro della consegna; nessun
+  nuovo rilievo. Interruttore `legacy` verificato, nessuna attivazione.
+  Remoto, SQL, transizione, push e deploy restano separati e non autorizzati
+  da questo verbale. Nessun collaudo PostgreSQL riaperto.
+- Questa registrazione è successiva allo snapshot: Codex modifica SOLO
+  la scheda, non il codice verificato; nessun commit. Provenienza esplicita
+  per l'eventuale successiva integrazione da parte dell'implementatore.
