@@ -22,6 +22,7 @@ import { costruisciDatiSpese, oggiARoma } from '@/lib/spese/adattatore'
 import { leggiTutto, urlFirmato, type FonteCompleta } from '@/lib/spese/fonte'
 import { clienteSupabase } from '@/lib/spese/scritturaSupabase'
 import { clienteRevisioneSupabase } from '@/lib/spese/revisioneSupabase'
+import { depositoRevisioneLocale } from '@/lib/spese/revisioneDurevole'
 import type { BozzaGrezza, RigaGrezza } from '@/lib/spese/revisione'
 import {
   aggiornaBudgetEsistente, creaGuardiaInvio,
@@ -55,6 +56,10 @@ function scegliFiles(accetta: string, fotocamera: boolean): Promise<File[]> {
     input.click()
   })
 }
+
+// la custodia locale degli originali della revisione (localStorage,
+// valutato solo al momento dell'uso: sicuro anche a livello di modulo)
+const depositoRevisione = depositoRevisioneLocale()
 
 export default function SpesePagina({ ambito }: { ambito: Ambito }) {
   return <DemoGate><Pagina ambito={ambito} /></DemoGate>
@@ -337,10 +342,12 @@ function Pagina({ ambito }: { ambito: Ambito }) {
               .map(r => ({ id: r.id, storage_path: r.storage_path!, page_order: r.page_order ?? 1, tipo: r.mime_type }))}
             firmaUrl={urlFirmato}
             cliente={clienteRevisioneSupabase}
+            deposito={depositoRevisione}
             fatto={esito => {
               if (esito === 'confermato') { setRevisioneId(null); setAvviso('Documento confermato: le spese sono nel conto.') }
               if (esito === 'scartato') { setRevisioneId(null); setAvviso('Documento scartato.') }
               if (esito === 'salvato') setAvviso('Modifiche salvate.')
+              if (esito === 'verifica') { setRevisioneId(null); setAvviso('Ricontrolla il documento: quello che era arrivato è qui, le tue modifiche sono custodite.') }
               ricarica()
             }}
             chiudi={() => setRevisioneId(null)} />

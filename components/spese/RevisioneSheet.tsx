@@ -1,31 +1,40 @@
 'use client'
 // ============================================================================
-// REVISIONE DI UN DOCUMENTO (Fase 4 · blocco 3) — vista sulla logica pura
-// di lib/spese/revisione: originali intatti, modifiche pendenti, correzioni
-// alla conferma via RPC atomica. Grafica B; tocchi ≥ 44 px; dubbi mostrati
-// con motivo (sfondo tenue, MAI bordi neri). Quadratura ESATTA in vista:
-// totale documento, somma righe, differenza — conferma bloccata se ≠ 0.
+// REVISIONE DI UN DOCUMENTO (Fase 4 · blocco 3, corretto) — vista sulla
+// logica pura di lib/spese/revisione: originali intatti E CUSTODITI in modo
+// durevole (sopravvivono a Salva, chiusura e riapertura), modifiche
+// pendenti, correzioni alla conferma via RPC atomica. Grafica B; tocchi
+// ≥ 44 px; dubbi col motivo (sfondo tenue, MAI bordi neri).
+// Totale · somma · differenza stanno nel PIEDE FISSO: sempre in vista,
+// anche scorrendo un documento lungo. Un esito INCERTO blocca i pulsanti
+// finché non si chiude e ricontrolla: mai riprovare alla cieca.
 // ============================================================================
-import { useMemo, useRef, useState } from 'react'
-import { X, Plus, ZoomIn } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { X, Plus, ZoomIn, SlidersHorizontal } from 'lucide-react'
 import { TEMA as t, DISPLAY } from './tema'
 import { Chip, Etichetta, Foglio } from './mattoni'
 import type { PaginaFoto } from './FotoSheet'
 import {
-  aggiungiRiga, apriRevisione, blocchiConferma, bozzaCorrente, dubbiDi,
-  modificaBozza, modificaRiga, modificaTotale, modifichePendenti, quadratura,
-  rigaCorrente, togliRigaNuova, totaliSorella,
+  aggiungiRiga, apriRevisione, avvisoCoerenzaRiga, blocchiConferma,
+  bozzaCorrente, dubbiDi, modificaBozza, modificaRiga, modificaTotale,
+  modifichePendenti, quadratura, reinviaRigaIncerta, rigaCorrente,
+  togliRigaNuova, totaliSorella, tracciaDa,
   type BozzaGrezza, type RigaGrezza, type StatoRevisione,
 } from '@/lib/spese/revisione'
-import { confermaRevisione, salvaModifiche, scartaRevisione, type ClienteRevisione } from '@/lib/spese/revisioneScrittura'
-import { creaGuardiaInvio, importoDaTesto, testoDaImporto } from '@/lib/spese/scrittura'
+import {
+  confermaRevisione, salvaModifiche, scartaRevisione,
+  type ClienteRevisione, type EsitoRevisione,
+} from '@/lib/spese/revisioneScrittura'
+import type { DepositoRevisione } from '@/lib/spese/revisioneDurevole'
+import { gestoreImporto, interpretaImporto, testoCampo, type RegolaImporto } from '@/lib/spese/campiImporto'
+import { creaGuardiaInvio } from '@/lib/spese/scrittura'
 import { etichettaMetodo } from '@/lib/spese/adattatore'
 
 const eurCent = (c: number) => (c / 100).toFixed(2).replace('.', ',') + ' €'
 const METODI = ['contanti', 'carta_personale', 'carta_attivita', 'bonifico', 'altro']
 const NATURE = [['ordinaria', 'Ordinaria'], ['ricorrente', 'Ricorrente'], ['straordinaria', 'Straordinaria']] as const
 
-export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, camere, pagine, firmaUrl, cliente, fatto, chiudi }: {
+export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, camere, pagine, firmaUrl, cliente, deposito, fatto, chiudi }: {
   documento: { id: string; supplier?: string | null; kind: string; doc_total: number | null; note?: string | null }
   bozze: BozzaGrezza[]
   righe: RigaGrezza[]
@@ -35,86 +44,158 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
   pagine: PaginaFoto[]
   firmaUrl: (storagePath: string) => Promise<string | null>
   cliente: ClienteRevisione
-  fatto: (esito: 'confermato' | 'scartato' | 'salvato') => void   // ricarica la pagina
+  deposito: DepositoRevisione
+  fatto: (esito: 'confermato' | 'scartato' | 'salvato' | 'verifica') => void   // ricarica la pagina
   chiudi: () => void
 }) {
-  const [stato, setStato] = useState<StatoRevisione>(() =>
-    apriRevisione(documento.id, documento.doc_total, bozze, righe))
+  // apertura CON la custodia: se c'è una traccia, gli originali veri e le
+  // modifiche pendenti tornano da lì (il database, dopo un Salva, contiene
+  // già i valori corretti e non basta più da solo)
+  const [inizio] = useState(() => {
+    const lettura = deposito.leggi(documento.id)
+    return {
+      stato: apriRevisione(documento.id, documento.doc_total, bozze, righe, lettura.traccia ?? null),
+      avviso: lettura.errore
+        ? `non riesco a leggere la custodia locale (${lettura.errore}): le correzioni di sessioni precedenti potrebbero non comparire`
+        : null,
+    }
+  })
+  const [stato, setStato] = useState<StatoRevisione>(inizio.stato)
+  const [avvisoCustodia, setAvvisoCustodia] = useState<string | null>(inizio.avviso)
   const [errore, setErrore] = useState<string | null>(null)
+  const [nota, setNota] = useState<string | null>(null)
   const [lavoro, setLavoro] = useState(false)
+  const [daVerificare, setDaVerificare] = useState(false)
   const [scartoAperto, setScartoAperto] = useState(false)
   const [motivoScarto, setMotivoScarto] = useState('')
-  const [zoom, setZoom] = useState<{ url: string; grande: boolean } | null>(null)
+  const [zoom, setZoom] = useState<{ url: string; grande: boolean; pdf: boolean } | null>(null)
   const [urls, setUrls] = useState<Record<string, string>>({})
-  // testi degli importi in modifica (il numero entra nello stato solo se valido)
-  const [testi, setTesti] = useState<Record<string, string>>({})
+  const [dettagli, setDettagli] = useState<Record<string, boolean>>({})
+  // i testi in modifica, ciascuno con la SUA regola (totale/riga/±/facoltativo)
+  const [testi, setTesti] = useState<Record<string, { testo: string; regola: RegolaImporto }>>({})
   const guardia = useRef(creaGuardiaInvio())
+
+  // ogni cambiamento va in custodia: un salvataggio interrotto o una
+  // chiusura non perdono nulla (l'errore di custodia si DICE)
+  const custodiaAvviata = useRef(false)
+  useEffect(() => {
+    if (!custodiaAvviata.current && !modifichePendenti(stato)) return
+    custodiaAvviata.current = true
+    const r = deposito.salva(tracciaDa(stato))
+    setAvvisoCustodia(r.errore
+      ? `non riesco a custodire le modifiche sul dispositivo (${r.errore}): se chiudi ora le perdi — il Salva resterà comunque protetto`
+      : null)
+  }, [stato, deposito])
 
   const ambitoDi = useMemo(() => {
     const m = new Map(gruppi.map(g => [g.id, (g.ambito === 'azienda' ? 'azienda' : 'personale') as 'personale' | 'azienda']))
     return (id: string | null) => (id ? m.get(id) ?? 'personale' : 'personale')
   }, [gruppi])
   const q = quadratura(stato)
+  // la somma VERA delle righe (quadraturaDocumento la azzera quando manca
+  // il totale: a schermo sarebbe fuorviante)
+  const sommaCent = stato.bozze.reduce((a, b) => a + totaliSorella(stato, b.id).totaleCent, 0)
   const blocchi = blocchiConferma(stato, ambitoDi)
-  const testiInvalidi = Object.entries(testi).filter(([, v]) => v !== '' && importoDaTesto(v) === null)
+  const invalidi = [...new Set(Object.values(testi)
+    .map(v => interpretaImporto(v.regola, v.testo))
+    .filter(e => e.tipo === 'invalido')
+    .map(e => (e as { perche: string }).perche))]
 
   const apriFoto = async (p: PaginaFoto) => {
     const url = urls[p.id] ?? await firmaUrl(p.storage_path)
-    if (!url) { setErrore('non riesco ad aprire la foto: riprova'); return }
+    if (!url) { setErrore(`non riesco ad aprire la pagina ${p.page_order}: riprova`); return }
     setUrls(prev => ({ ...prev, [p.id]: url }))
-    setZoom({ url, grande: false })
+    setZoom({ url, grande: false, pdf: p.tipo === 'application/pdf' })
   }
 
-  const campoImporto = (chiave: string, corrente: number, applica: (n: number) => void, negativiOk = false) => (
-    <input inputMode="decimal" value={testi[chiave] ?? testoDaImporto(Math.abs(corrente)) ?? ''}
-      onChange={e => {
-        const v = e.target.value
-        setTesti(prev => ({ ...prev, [chiave]: v }))
-        const n = importoDaTesto(v.replace(/^-/, ''))
-        if (n !== null) applica(v.trim().startsWith('-') && negativiOk ? -n : n)
-      }}
-      className="w-20 min-h-11 px-2 text-[13.5px] text-right tabular-nums outline-none"
-      style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
-  )
+  // il campo importo: la regola decide validità, segno e campo vuoto; il
+  // numero entra nello stato SOLO se valido (mai valori invisibili)
+  const campoImporto = (chiave: string, regola: RegolaImporto, correnteCent: number | null, applica: (cent: number | null) => void) => {
+    const testo = testi[chiave]?.testo ?? testoCampo(regola, correnteCent)
+    const invalido = testi[chiave] != null && interpretaImporto(regola, testi[chiave].testo).tipo === 'invalido'
+    return (
+      <input inputMode="decimal" value={testo}
+        placeholder={regola === 'arrotondamento' ? '±0,00' : '0,00'}
+        aria-invalid={invalido}
+        onChange={e => {
+          const v = e.target.value
+          setTesti(prev => ({ ...prev, [chiave]: { testo: v, regola } }))
+          gestoreImporto(regola, applica)(v)
+        }}
+        className="w-20 min-h-11 px-2 text-[13.5px] text-right tabular-nums outline-none"
+        style={{
+          background: t.carta, borderRadius: t.rPill,
+          border: invalido ? `1.5px solid ${t.rosso}` : t.bordoCarta,
+          color: invalido ? t.rosso : t.inchiostro,
+        }} />
+    )
+  }
 
-  const esegui = (azione: () => Promise<{ ok: boolean; errore?: string }>) => guardia.current(async () => {
-    setErrore(null); setLavoro(true)
+  const esegui = (azione: () => Promise<EsitoRevisione>) => guardia.current(async () => {
+    setErrore(null); setNota(null); setLavoro(true)
     try {
       const esito = await azione()
-      if (!esito.ok) setErrore(esito.errore ?? 'errore')   // modifiche INTATTE
+      setStato(esito.stato)                              // id e stati delle righe nuove
+      if (!esito.ok) {
+        setErrore(esito.errore)                          // modifiche INTATTE
+        if (esito.incerto) setDaVerificare(true)         // stop: prima si riconcilia
+      } else if (esito.avviso) setNota(esito.avviso)
       return esito.ok
     } finally { setLavoro(false) }
   })
+
+  const fermo = lavoro || daVerificare
 
   return (
     <Foglio aria={`Revisione: ${documento.supplier || 'documento'}`} chiudi={chiudi} scorrevole
       piede={
         <div className="flex flex-col gap-1.5">
+          {/* ---- totale · somma · differenza: nel piede FISSO, sempre in vista ---- */}
+          <div className="flex items-center justify-between px-1 text-[12.5px] font-bold">
+            <span style={{ color: t.sub }}>
+              totale {stato.docTotaleCent == null ? '—' : eurCent(stato.docTotaleCent)} · righe+arrot. {eurCent(sommaCent)}
+            </span>
+            <span className="tabular-nums" style={{ color: q.ok ? t.verde : t.rosso }}>
+              {q.ok ? '✓ quadra' : q.diffCent == null ? 'totale mancante'
+                : q.diffCent > 0 ? `mancano ${eurCent(q.diffCent)}` : `${eurCent(-q.diffCent)} di troppo`}
+            </span>
+          </div>
+          {invalidi.map(m => (
+            <p key={m} className="text-[12px] font-semibold px-1" role="alert" style={{ color: t.rosso }}>⛔ {m}</p>
+          ))}
           {blocchi.map(b => (
             <p key={b} className="text-[12px] font-semibold px-1" role="alert" style={{ color: t.rosso }}>⛔ {b}</p>
           ))}
-          <div className="flex gap-2">
-            <button disabled={lavoro || !modifichePendenti(stato) || testiInvalidi.length > 0}
-              onClick={() => esegui(async () => {
-                const r = await salvaModifiche(cliente, stato)
-                if (r.ok) fatto('salvato')
-                return r
-              })}
-              className="flex-1 min-h-12 text-[14px] font-bold disabled:opacity-50"
-              style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
-              Salva
+          {daVerificare ? (
+            <button onClick={() => fatto('verifica')}
+              className="w-full min-h-12 text-[14px] font-bold text-white"
+              style={{ background: t.inchiostro, borderRadius: t.rPill }}>
+              Chiudi e ricontrolla
             </button>
-            <button disabled={lavoro || blocchi.length > 0 || testiInvalidi.length > 0}
-              onClick={() => esegui(async () => {
-                const r = await confermaRevisione(cliente, stato)
-                if (r.ok) fatto('confermato')
-                return r
-              })}
-              className="flex-[2] min-h-12 text-[15px] font-bold text-white disabled:opacity-50"
-              style={{ background: t.verde, borderRadius: t.rPill }}>
-              {lavoro ? 'Un attimo…' : 'Conferma le spese'}
-            </button>
-          </div>
+          ) : (
+            <div className="flex gap-2">
+              <button disabled={fermo || !modifichePendenti(stato) || invalidi.length > 0}
+                onClick={() => esegui(async () => {
+                  const r = await salvaModifiche(cliente, deposito, stato)
+                  if (r.ok) { setNota('Modifiche salvate: puoi continuare o confermare.'); fatto('salvato') }
+                  return r
+                })}
+                className="flex-1 min-h-12 text-[14px] font-bold disabled:opacity-50"
+                style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
+                Salva
+              </button>
+              <button disabled={fermo || blocchi.length > 0 || invalidi.length > 0}
+                onClick={() => esegui(async () => {
+                  const r = await confermaRevisione(cliente, deposito, stato)
+                  if (r.ok) fatto('confermato')
+                  return r
+                })}
+                className="flex-[2] min-h-12 text-[15px] font-bold text-white disabled:opacity-50"
+                style={{ background: t.verde, borderRadius: t.rPill }}>
+                {lavoro ? 'Un attimo…' : 'Conferma le spese'}
+              </button>
+            </div>
+          )}
         </div>
       }>
       <p className={`${DISPLAY} text-[19px] mb-0.5`} style={{ color: t.inchiostro }}>
@@ -129,8 +210,16 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
         <div className="mb-3 px-3 py-2 text-[13px] font-semibold" role="alert"
           style={{ background: t.terraTenue, color: t.rosso, borderRadius: t.r }}>{errore}</div>
       )}
+      {nota && (
+        <div className="mb-3 px-3 py-2 text-[13px] font-semibold" role="status"
+          style={{ background: t.verdeTenue, color: t.inchiostro, borderRadius: t.r }}>{nota}</div>
+      )}
+      {avvisoCustodia && (
+        <div className="mb-3 px-3 py-2 text-[12.5px] font-semibold" role="alert"
+          style={{ background: t.terraTenue, color: t.inchiostro, borderRadius: t.r }}>{avvisoCustodia}</div>
+      )}
 
-      {/* ---- foto e pagine, con zoom ---- */}
+      {/* ---- foto e pagine, con zoom (il TIPO si conserva: i PDF sono PDF) ---- */}
       {pagine.length > 0 && (
         <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
           {[...pagine].sort((a, b) => a.page_order - b.page_order).map(p => (
@@ -138,33 +227,38 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
               className="relative shrink-0 grid place-items-center w-20 h-24"
               style={{ background: t.velo, borderRadius: t.r, border: t.bordoCarta }}>
               <ZoomIn size={18} style={{ color: t.sub }} />
-              <span className="absolute bottom-1 text-[10px]" style={{ color: t.sub }}>pagina {p.page_order}</span>
+              <span className="absolute bottom-1 text-[10px]" style={{ color: t.sub }}>
+                {p.tipo === 'application/pdf' ? `PDF ${p.page_order}` : `pagina ${p.page_order}`}
+              </span>
             </button>
           ))}
         </div>
       )}
 
-      {/* ---- totale, somma, differenza: SEMPRE in vista ---- */}
+      {/* ---- totale documento, modificabile (il riepilogo vive nel piede) ---- */}
       <div className="mb-3 p-3" style={{ background: q.ok ? t.verdeTenue : t.terraTenue, borderRadius: t.r }}>
         <div className="flex items-center justify-between min-h-11">
           <span className="text-[13px] font-bold" style={{ color: t.inchiostro }}>Totale documento</span>
-          {campoImporto('doc_total', (stato.docTotaleCent ?? 0) / 100, n => setStato(s => modificaTotale(s, Math.round(n * 100))))}
+          {campoImporto('doc_total', 'totale', stato.docTotaleCent, cent => setStato(s => modificaTotale(s, cent)))}
         </div>
         <div className="flex justify-between text-[12.5px]" style={{ color: t.sub }}>
           <span>somma delle righe + arrotondamenti</span>
-          <span className="tabular-nums font-semibold">{eurCent(q.sommaCent)}</span>
+          <span className="tabular-nums font-semibold">{eurCent(sommaCent)}</span>
         </div>
         <div className="flex justify-between text-[13px] font-bold" style={{ color: q.ok ? t.verde : t.rosso }}>
-          <span>{q.ok ? '✓ quadra al centesimo' : 'differenza'}</span>
-          {!q.ok && <span className="tabular-nums">{q.diffCent == null ? '—' : eurCent(q.diffCent)}</span>}
+          <span>{q.ok ? '✓ quadra al centesimo' : q.diffCent == null ? 'totale del documento mancante' : 'differenza'}</span>
+          {!q.ok && q.diffCent != null && <span className="tabular-nums">{eurCent(q.diffCent)}</span>}
         </div>
       </div>
 
       {/* ---- le sorelle: Casa Mia e Casa Ania separate ---- */}
       {stato.bozze.map(b => {
         const c = bozzaCorrente(stato, b.id)
-        const ambito = ambitoDi(c.group_id)
+        // l'ambito della PARTE è quello originale: i destinatari proposti
+        // restano coerenti (mai gruppi dell'altro ambito sulla sorella)
+        const ambito = ambitoDi(b.group_id ?? c.group_id)
         const accento = ambito === 'azienda' ? t.terracotta : t.verde
+        const gruppiSorella = gruppi.filter(g => !b.group_id || ambitoDi(g.id) === ambito)
         const tot = totaliSorella(stato, b.id)
         const dubbi = dubbiDi(b.confidence)
         // una categoria senza gruppo vale per tutti (sui dati veri il gruppo c'è sempre)
@@ -188,7 +282,7 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
 
             <Etichetta>Di chi è</Etichetta>
             <div className="flex gap-1.5 flex-wrap mb-2">
-              {gruppi.map(g => (
+              {gruppiSorella.map(g => (
                 <Chip key={g.id} attivo={c.group_id === g.id} colore={accento}
                   onClick={() => setStato(s => modificaBozza(s, b.id, { group_id: g.id, category_id: null }))}>
                   {g.name}
@@ -267,14 +361,24 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
             {stato.righe.filter(r => r.draft_id === b.id).map(r => {
               const rc = rigaCorrente(stato, r.id)
               const dubbiRiga = dubbiDi(r.confidence)
+              const coerenza = avvisoCoerenzaRiga(rc)
+              const gruppoRiga = rc.group_id ?? c.group_id
+              const catRiga = categorie.filter(x => !gruppoRiga || !x.group_id || x.group_id === gruppoRiga)
               return (
                 <div key={r.id} className="py-1.5" style={{ opacity: rc.excluded ? 0.45 : 1 }}>
                   <div className="flex items-center gap-2">
                     <input value={rc.name}
                       onChange={e => setStato(s => modificaRiga(s, r.id, { name: e.target.value }))}
-                      className="flex-1 min-h-11 px-3 text-[13.5px] outline-none"
+                      className="flex-1 min-w-0 min-h-11 px-3 text-[13.5px] outline-none"
                       style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
-                    {campoImporto(`riga-${r.id}`, rc.amount, n => setStato(s => modificaRiga(s, r.id, { amount: n })))}
+                    {campoImporto(`riga-${r.id}`, 'riga', Math.round(rc.amount * 100),
+                      cent => setStato(s => modificaRiga(s, r.id, { amount: (cent ?? 0) / 100 })))}
+                    <button onClick={() => setDettagli(d => ({ ...d, [r.id]: !d[r.id] }))}
+                      aria-label={`Dettagli di ${rc.name}`} aria-expanded={!!dettagli[r.id]}
+                      className="min-h-11 min-w-11 grid place-items-center"
+                      style={{ color: dettagli[r.id] ? accento : t.sub }}>
+                      <SlidersHorizontal size={16} />
+                    </button>
                     <button onClick={() => setStato(s => modificaRiga(s, r.id, { excluded: !rc.excluded }))}
                       aria-label={rc.excluded ? `Reincludi ${rc.name}` : `Escludi ${rc.name}`}
                       className="min-h-11 min-w-11 px-2 text-[12px] font-bold"
@@ -294,25 +398,92 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
                       dubbio su «{d.campo}» — {d.motivo}
                     </p>
                   ))}
+                  {coerenza && (
+                    <p className="text-[11.5px] mx-3 mt-0.5 px-2 py-1 font-semibold" role="note"
+                      style={{ background: t.terraTenue, color: t.inchiostro, borderRadius: t.r }}>
+                      da controllare: {coerenza}
+                    </p>
+                  )}
+                  {dettagli[r.id] && (
+                    <div className="mx-1 mt-1.5 p-2" style={{ background: t.velo, borderRadius: t.r }}>
+                      <Etichetta>Di chi è questa voce</Etichetta>
+                      <div className="flex gap-1.5 flex-wrap mb-2">
+                        <Chip attivo={!rc.group_id} colore={accento}
+                          onClick={() => setStato(s => modificaRiga(s, r.id, { group_id: null, category_id: null }))}>
+                          Come la parte
+                        </Chip>
+                        {gruppiSorella.map(g => (
+                          <Chip key={g.id} attivo={rc.group_id === g.id} colore={accento}
+                            onClick={() => setStato(s => modificaRiga(s, r.id, { group_id: g.id, category_id: null }))}>
+                            {g.name}
+                          </Chip>
+                        ))}
+                      </div>
+                      <Etichetta>Categoria della voce</Etichetta>
+                      <select value={rc.category_id ?? ''}
+                        onChange={e => setStato(s => modificaRiga(s, r.id, { category_id: e.target.value || null }))}
+                        className="w-full min-h-11 px-2 mb-2 text-[13.5px] outline-none"
+                        style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
+                        <option value="">Come la parte</option>
+                        {catRiga.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                      </select>
+                      <div className="flex items-center gap-2">
+                        <label className="flex-1 text-[11.5px] font-bold" style={{ color: t.sub }}>Quantità
+                          <input inputMode="numeric" value={rc.qty ?? ''}
+                            onChange={e => {
+                              const v = e.target.value.trim()
+                              if (v === '') setStato(s => modificaRiga(s, r.id, { qty: null }))
+                              else if (/^\d+$/.test(v) && Number(v) > 0) setStato(s => modificaRiga(s, r.id, { qty: Number(v) }))
+                            }}
+                            className="w-full min-h-11 px-2 mt-0.5 text-[13.5px] text-right tabular-nums outline-none font-normal"
+                            style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
+                        </label>
+                        <label className="flex-1 text-[11.5px] font-bold" style={{ color: t.sub }}>Prezzo unit.
+                          <div className="mt-0.5">{campoImporto(`pu-${r.id}`, 'facoltativo',
+                            rc.unit_price == null ? null : Math.round(rc.unit_price * 100),
+                            cent => setStato(s => modificaRiga(s, r.id, { unit_price: cent == null ? null : cent / 100 })))}</div>
+                        </label>
+                        <label className="flex-1 text-[11.5px] font-bold" style={{ color: t.sub }}>Sconto
+                          <div className="mt-0.5">{campoImporto(`sc-${r.id}`, 'facoltativo',
+                            rc.discount == null || rc.discount === 0 ? null : Math.round(rc.discount * 100),
+                            cent => setStato(s => modificaRiga(s, r.id, { discount: cent == null ? null : cent / 100 })))}</div>
+                        </label>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
             {stato.righeNuove.filter(r => r.draft_id === b.id).map(r => (
-              <div key={r.idLocale} className="flex items-center gap-2 py-1.5">
+              <div key={r.idLocale} className="flex items-center gap-2 py-1.5"
+                style={{ opacity: r.stato === 'incerta' ? 0.6 : 1 }}>
                 <span className="flex-1 px-3 text-[13.5px]" style={{ color: t.inchiostro }}>{r.name}
-                  <span className="text-[10.5px] block" style={{ color: t.sub }}>nuova, da salvare</span></span>
+                  <span className="text-[10.5px] block" style={{ color: r.stato === 'incerta' ? t.rosso : t.sub }}>
+                    {r.stato === 'nuova' ? 'nuova, da salvare'
+                      : r.stato === 'salvata' ? 'aggiunta e salvata ✓'
+                        : 'esito incerto: forse è già stata inserita'}
+                  </span></span>
                 <span className="tabular-nums text-[13.5px] font-semibold" style={{ color: t.inchiostro }}>{eurCent(Math.round(r.amount * 100))}</span>
-                <button onClick={() => setStato(s => togliRigaNuova(s, r.idLocale))} aria-label={`Togli ${r.name}`}
-                  className="min-h-11 min-w-11 text-[12px] font-bold" style={{ color: t.rosso }}>✕</button>
+                {r.stato === 'nuova' && (
+                  <button onClick={() => setStato(s => togliRigaNuova(s, r.idLocale))} aria-label={`Togli ${r.name}`}
+                    className="min-h-11 min-w-11 text-[12px] font-bold" style={{ color: t.rosso }}>✕</button>
+                )}
+                {r.stato === 'incerta' && !daVerificare && (
+                  <button onClick={() => setStato(s => reinviaRigaIncerta(s, r.idLocale))}
+                    aria-label={`Reinserisci ${r.name}`}
+                    className="min-h-11 px-2 text-[11.5px] font-bold" style={{ color: accento }}>
+                    Reinserisci
+                  </button>
+                )}
               </div>
             ))}
-            <AggiungiVoce accento={accento} aggiungi={(nome, importo) =>
-              setStato(s => aggiungiRiga(s, { draft_id: b.id, name: nome, amount: importo }, crypto.randomUUID()))} />
+            <AggiungiVoce accento={accento} aggiungi={(nome, importoCent) =>
+              setStato(s => aggiungiRiga(s, { draft_id: b.id, name: nome, amount: importoCent / 100 }, crypto.randomUUID()))} />
 
             <div className="flex items-center justify-between mt-1 pt-2" style={{ borderTop: t.bordoCarta }}>
               <span className="text-[12.5px]" style={{ color: t.sub }}>arrotondamento (± cent)</span>
-              {campoImporto(`arr-${b.id}`, (c.arrotondamento_cent ?? 0) / 100,
-                n => setStato(s => modificaBozza(s, b.id, { arrotondamento_cent: Math.round(n * 100) })), true)}
+              {campoImporto(`arr-${b.id}`, 'arrotondamento', c.arrotondamento_cent ?? 0,
+                cent => setStato(s => modificaBozza(s, b.id, { arrotondamento_cent: cent ?? 0 })))}
             </div>
           </section>
         )
@@ -320,8 +491,8 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
 
       {/* ---- scarto, col motivo ---- */}
       {!scartoAperto ? (
-        <button onClick={() => setScartoAperto(true)} disabled={lavoro}
-          className="w-full min-h-11 mb-4 text-[13px] font-bold" style={{ color: t.rosso }}>
+        <button onClick={() => setScartoAperto(true)} disabled={fermo}
+          className="w-full min-h-11 mb-4 text-[13px] font-bold disabled:opacity-50" style={{ color: t.rosso }}>
           Scarta questo documento…
         </button>
       ) : (
@@ -333,42 +504,61 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
             style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
           <div className="flex gap-2">
             <button onClick={() => setScartoAperto(false)} className="flex-1 min-h-11 text-[13px] font-bold" style={{ color: t.sub }}>Annulla</button>
-            <button disabled={lavoro} onClick={() => esegui(async () => {
-              const r = await scartaRevisione(cliente, documento.id, motivoScarto)
-              if (r.ok) fatto('scartato')
-              return r
+            <button disabled={fermo} onClick={() => guardia.current(async () => {
+              setErrore(null); setLavoro(true)
+              try {
+                const r = await scartaRevisione(cliente, deposito, documento.id, motivoScarto)
+                if (r.ok) fatto('scartato')
+                else { setErrore(r.errore ?? 'errore'); if (r.incerto) setDaVerificare(true) }
+                return r.ok
+              } finally { setLavoro(false) }
             })}
-              className="flex-1 min-h-11 text-[13px] font-bold text-white" style={{ background: t.rosso, borderRadius: t.rPill }}>
+              className="flex-1 min-h-11 text-[13px] font-bold text-white disabled:opacity-50" style={{ background: t.rosso, borderRadius: t.rPill }}>
               Scarta davvero
             </button>
           </div>
         </div>
       )}
 
-      {/* ---- zoom della foto ---- */}
+      {/* ---- zoom della pagina: immagine (2 livelli) o PDF nel suo visore ---- */}
       {zoom && (
         <div className="fixed inset-0 z-[80] overflow-auto" style={{ background: 'rgba(10,12,10,.92)' }}
-          onClick={() => setZoom(z => z && !z.grande ? { ...z, grande: true } : null)}>
+          onClick={() => zoom.pdf ? undefined : setZoom(z => z && !z.grande ? { ...z, grande: true } : null)}>
           <button onClick={e => { e.stopPropagation(); setZoom(null) }} aria-label="Chiudi lo zoom"
             className="fixed top-2 right-2 z-[81] grid place-items-center w-11 h-11 text-white"
             style={{ background: 'rgba(20,25,20,.8)', borderRadius: 99 }}>
             <X size={20} />
           </button>
-          {/* eslint-disable-next-line @next/next/no-img-element -- link firmato temporaneo */}
-          <img src={zoom.url} alt="Documento ingrandito"
-            className={zoom.grande ? 'max-w-none w-[250%]' : 'w-full h-auto'}
-            style={{ cursor: zoom.grande ? 'zoom-out' : 'zoom-in' }} />
-          <p className="fixed bottom-2 inset-x-0 text-center text-[12px] text-white/80">
-            {zoom.grande ? 'tocca per chiudere' : 'tocca per ingrandire'}
-          </p>
+          {zoom.pdf ? (
+            <div className="p-3 pt-16 h-full flex flex-col">
+              <iframe src={zoom.url} title="Documento PDF"
+                className="w-full flex-1" style={{ borderRadius: t.r, background: '#fff' }} />
+              <a href={zoom.url} target="_blank" rel="noreferrer"
+                className="block text-center text-[13px] font-bold text-white min-h-11 leading-[44px]">
+                Apri il PDF a tutto schermo
+              </a>
+            </div>
+          ) : (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element -- link firmato temporaneo */}
+              <img src={zoom.url} alt="Documento ingrandito"
+                onError={() => { setZoom(null); setErrore('non riesco a mostrare la pagina: il collegamento potrebbe essere scaduto — riprova') }}
+                className={zoom.grande ? 'max-w-none w-[250%]' : 'w-full h-auto'}
+                style={{ cursor: zoom.grande ? 'zoom-out' : 'zoom-in' }} />
+              <p className="fixed bottom-2 inset-x-0 text-center text-[12px] text-white/80">
+                {zoom.grande ? 'tocca per chiudere' : 'tocca per ingrandire'}
+              </p>
+            </>
+          )}
         </div>
       )}
     </Foglio>
   )
 }
 
-// mini-modulo per una voce nuova (nome + importo, tocchi ≥44)
-function AggiungiVoce({ accento, aggiungi }: { accento: string; aggiungi: (nome: string, importo: number) => void }) {
+// mini-modulo per una voce nuova (nome + importo con la regola delle
+// righe: mai vuoto, mai zero; tocchi ≥44)
+function AggiungiVoce({ accento, aggiungi }: { accento: string; aggiungi: (nome: string, importoCent: number) => void }) {
   const [aperto, setAperto] = useState(false)
   const [nome, setNome] = useState('')
   const [importo, setImporto] = useState('')
@@ -378,17 +568,21 @@ function AggiungiVoce({ accento, aggiungi }: { accento: string; aggiungi: (nome:
       <Plus size={15} /> Aggiungi una voce
     </button>
   )
-  const n = importoDaTesto(importo)
+  const esito = interpretaImporto('riga', importo)
   return (
     <div className="flex items-center gap-2 py-1.5">
       <input value={nome} onChange={e => setNome(e.target.value)} placeholder="nome della voce"
-        className="flex-1 min-h-11 px-3 text-[13.5px] outline-none"
+        className="flex-1 min-w-0 min-h-11 px-3 text-[13.5px] outline-none"
         style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
       <input value={importo} onChange={e => setImporto(e.target.value)} placeholder="€" inputMode="decimal"
         className="w-20 min-h-11 px-2 text-[13.5px] text-right outline-none"
         style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
-      <button disabled={!nome.trim() || n === null}
-        onClick={() => { aggiungi(nome.trim(), n!); setNome(''); setImporto(''); setAperto(false) }}
+      <button disabled={!nome.trim() || esito.tipo !== 'valido' || esito.cent == null}
+        onClick={() => {
+          if (esito.tipo === 'valido' && esito.cent != null) {
+            aggiungi(nome.trim(), esito.cent); setNome(''); setImporto(''); setAperto(false)
+          }
+        }}
         className="min-h-11 px-3 text-[12.5px] font-bold text-white disabled:opacity-50"
         style={{ background: accento, borderRadius: t.rPill }}>OK</button>
     </div>

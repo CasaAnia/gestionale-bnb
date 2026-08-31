@@ -1410,6 +1410,56 @@ se la precedente non è verificata E approvata.
   dedicato).
   **PROSSIMO (da autorizzare):** riscrittura del flusso di elaborazione
   al contratto «solo bozze» (poi Fase 5 fatture).
+
+  **FASE 4 · BLOCCO 3 — CORREZIONI ESEGUITE (31/08/2026, dalla revisione
+  indipendente).** Sei aree, tutte locali con servizi simulati:
+  1) IMPORTI — regole DISTINTE in lib/spese/campiImporto.ts (totale /
+     riga / arrotondamento / facoltativo) coi VERI gestori del
+     componente: −0,01 mostrato e digitabile col segno, 0 azzera davvero
+     l'arrotondamento, totale svuotato → null e blocco «totale del
+     documento mancante» (mai il vecchio valore invisibile), riga
+     svuotata → invalida e bloccante. Somma delle righe mostrata VERA
+     anche a totale mancante (quadraturaDocumento la azzererebbe).
+  2) RIGHE NUOVE — payload ESPLICITO delle colonne 0021
+     (payloadRigaNuova; l'adattatore non manda più idLocale), stati
+     nuova/salvata/incerta con id ricordato: mai due INSERT (Salva
+     ripetuto, Salva→Conferma), fallimento parziale conserva l'id del
+     primo, risposta persa → 'incerta' (blocca la conferma, riconciliata
+     alla riapertura per contenuto tra le user_added comparse; reinvio
+     SOLO su scelta esplicita). NB: la 0021 non concede id/excluded in
+     INSERT: la riconciliazione esatta per id richiederebbe un nuovo
+     contratto (proposta eventualmente a parte, non fatta ora).
+  3) ORIGINALI — CUSTODIA DUREVOLE (revisioneDurevole.ts, localStorage,
+     stessa disciplina di ripresaDurevole: 3 esiti di lettura, mai
+     sovrascrivere l'illeggibile): traccia con originali+modifiche
+     scritta PRIMA di ogni Salva (custodia negata → il Salva NON parte)
+     e a ogni modifica; alla riapertura apriRevisione ricostruisce
+     originali e correzioni (diff database↔originale + modifiche non
+     salvate). Rimossa solo a documento confermato/scartato. LIMITE
+     DICHIARATO: vive nel browser del dispositivo.
+  4) INCERTI — rete() applicata a ENTRAMBI i canali (errore restituito
+     ed eccezione); la UI entra in uno stato di verifica reale: pulsanti
+     sostituiti da «Chiudi e ricontrolla», nessuna scrittura prima della
+     riconciliazione.
+  5) COERENZA — chips del destinatario filtrate sull'ambito ORIGINALE
+     della sorella; blocco alla conferma se una voce (anche nuova) ha un
+     gruppo dell'altro ambito; dettagli PER VOCE (destinatario «Come la
+     parte»/gruppo, categoria, quantità/prezzo/sconto) con l'avviso non
+     bloccante di controlli.rigaCoerente; il cambio di categoria della
+     madre non tocca le righe.
+  6) VISORE — il tipo si conserva (PDF in iframe col link a tutto
+     schermo, immagini con zoom a 2 livelli e onError dichiarato);
+     totale·somma·differenza nel PIEDE FISSO del foglio, in vista anche
+     scorrendo (verificato in fondo a un documento lungo).
+  Adattatore effettivo come FACTORY testabile (revisioneClient.ts +
+  binding revisioneSupabase.ts) provato con un Supabase finto RIGOROSO
+  (tabelle, colonne per verbo, RPC esatte). Pagina sintetica allineata
+  alla vera: archivio finto MUTABILE (dopo Salva restituisce i valori
+  corretti), il foglio RESTA aperto dopo Salva; ?scrittura=errore|rete|
+  persa. Test: 276/276 (22 nuovi: campiImporto coi gestori veri,
+  revisioneDurevole, revisioneClient con le sequenze intere, revisione
+  con custodia/riconciliazione/incerti/coerenza); tsc, lint, build
+  verdi. Prove UI a 390 px documentate nel resoconto.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

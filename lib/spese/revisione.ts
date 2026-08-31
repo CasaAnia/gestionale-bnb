@@ -12,7 +12,27 @@
 //  · gruppo mancante = bloccante; metodo obbligatorio per Casa Ania;
 //  · necessità e pianificazione FACOLTATIVE: mai valori inventati.
 // ============================================================================
-import { quadraturaDocumento, SOGLIA_CONFIDENCE } from './controlli.ts'
+import { quadraturaDocumento, rigaCoerente, SOGLIA_CONFIDENCE } from './controlli.ts'
+
+// gli UNICI campi che la 0021 consente dal browser (fonte unica per tipi,
+// payload, snapshot degli originali e test):
+export const CAMPI_BOZZA_REVISIONE = [
+  'expense_date', 'group_id', 'category_id', 'subcategory',
+  'canonical_category_id', 'canonical_subcategory_id', 'store',
+  'description', 'payment_method', 'room_id', 'expense_nature',
+  'arrotondamento_cent',
+] as const
+export const CAMPI_RIGA_REVISIONE = [
+  'name', 'qty', 'unit_price', 'discount', 'amount', 'group_id',
+  'category_id', 'subcategory', 'canonical_category_id',
+  'canonical_subcategory_id', 'necessity', 'planning', 'excluded',
+] as const
+// le colonne concesse in INSERT sulle righe (0021: niente id, niente excluded)
+export const CAMPI_RIGA_NUOVA = [
+  'draft_id', 'name', 'qty', 'unit_price', 'discount', 'amount', 'group_id',
+  'category_id', 'subcategory', 'canonical_category_id',
+  'canonical_subcategory_id', 'necessity', 'planning',
+] as const
 
 export type Confidenza = Record<string, { proposto?: unknown; confidence?: number; doubt_reason?: string }>
 
@@ -57,6 +77,29 @@ export type RigaNuova = {
   canonical_category_id?: string | null; canonical_subcategory_id?: string | null
   necessity?: string | null; planning?: string | null
 }
+// una riga nuova nello stato: con la sua RESPONSABILITÀ tracciata.
+//  'nuova'   = mai inviata; 'salvata' = inserita, id noto (MAI reinviata);
+//  'incerta' = risposta persa: forse è arrivata — si riconcilia alla
+//              riapertura (per contenuto), mai reinvio alla cieca.
+export type RigaNuovaPendente = RigaNuova & {
+  idLocale: string
+  stato: 'nuova' | 'salvata' | 'incerta'
+  id?: string                             // l'id vero, dopo l'inserimento
+}
+
+// il payload ESPLICITO dell'INSERT: solo le colonne concesse dalla 0021
+// (mai l'oggetto dello stato com'è: idLocale/stato/id non esistono a valle)
+export function payloadRigaNuova(r: RigaNuova): RigaNuova {
+  return {
+    draft_id: r.draft_id, name: r.name, amount: r.amount,
+    qty: r.qty ?? null, unit_price: r.unit_price ?? null, discount: r.discount ?? null,
+    group_id: r.group_id ?? null, category_id: r.category_id ?? null,
+    subcategory: r.subcategory ?? null,
+    canonical_category_id: r.canonical_category_id ?? null,
+    canonical_subcategory_id: r.canonical_subcategory_id ?? null,
+    necessity: r.necessity ?? null, planning: r.planning ?? null,
+  }
+}
 
 // lo STATO della revisione in corso: originali intatti + modifiche pendenti
 export type StatoRevisione = {
@@ -67,20 +110,115 @@ export type StatoRevisione = {
   righe: RigaGrezza[]                     // ORIGINALI, mai mutati
   modificheBozze: Record<string, ModificaBozza>
   modificheRighe: Record<string, ModificaRiga>
-  righeNuove: (RigaNuova & { idLocale: string })[]
+  righeNuove: RigaNuovaPendente[]
+}
+
+// ---- TRACCIA DUREVOLE: gli originali sopravvivono a Salva e riaperture ----
+// Il database, dopo un Salva, contiene già i valori corretti: senza questa
+// traccia l'originale sparirebbe e le correzioni per la RPC verrebbero
+// azzerate in silenzio. La traccia si scrive PRIMA di ogni salvataggio e
+// si toglie solo a documento confermato o scartato.
+export type TracciaRevisione = {
+  documentId: string
+  docTotaleCent: number | null
+  docTotaleOriginaleCent: number | null
+  originaliBozze: Record<string, Partial<BozzaGrezza>>
+  originaliRighe: Record<string, Partial<RigaGrezza>>
+  modificheBozze: Record<string, ModificaBozza>
+  modificheRighe: Record<string, ModificaRiga>
+  righeNuove: RigaNuovaPendente[]
+}
+
+const foto = <T extends object>(riga: T, campi: readonly string[]): Partial<T> => {
+  const out: Record<string, unknown> = {}
+  for (const c of campi) out[c] = (riga as Record<string, unknown>)[c] ?? null
+  return out as Partial<T>
+}
+
+export function tracciaDa(s: StatoRevisione): TracciaRevisione {
+  return {
+    documentId: s.documentId,
+    docTotaleCent: s.docTotaleCent, docTotaleOriginaleCent: s.docTotaleOriginaleCent,
+    originaliBozze: Object.fromEntries(s.bozze.map(b => [b.id, foto(b, CAMPI_BOZZA_REVISIONE)])),
+    originaliRighe: Object.fromEntries(s.righe.map(r => [r.id, foto(r, CAMPI_RIGA_REVISIONE)])),
+    modificheBozze: s.modificheBozze, modificheRighe: s.modificheRighe,
+    righeNuove: s.righeNuove,
+  }
+}
+
+// le differenze tra ciò che il database restituisce ORA e l'originale
+// custodito: sono le correzioni già salvate, che tornano pendenti
+const diffCampi = <T extends object>(
+  adesso: T, originale: Partial<T>, campi: readonly string[],
+): Partial<T> => {
+  const out: Record<string, unknown> = {}
+  for (const c of campi) {
+    const dopo = (adesso as Record<string, unknown>)[c] ?? null
+    const prima = (originale as Record<string, unknown>)[c] ?? null
+    if (JSON.stringify(dopo) !== JSON.stringify(prima)) out[c] = dopo
+  }
+  return out as Partial<T>
 }
 
 export function apriRevisione(
   documentId: string, docTotale: number | null,
   bozze: BozzaGrezza[], righe: RigaGrezza[],
+  traccia?: TracciaRevisione | null,
 ): StatoRevisione {
   const attive = bozze.filter(b => b.status === 'da_controllare' || b.status === 'pronta')
   const idAttivi = new Set(attive.map(b => b.id))
+  const righeAttive = righe.filter(r => idAttivi.has(r.draft_id))
   const cent = docTotale == null ? null : Math.round(docTotale * 100)
+  if (!traccia || traccia.documentId !== documentId) {
+    return {
+      documentId, docTotaleCent: cent, docTotaleOriginaleCent: cent,
+      bozze: attive, righe: righeAttive,
+      modificheBozze: {}, modificheRighe: {}, righeNuove: [],
+    }
+  }
+  // RIAPERTURA con traccia: originali dalla custodia, correzioni ricostruite
+  // (differenze database↔originale) + modifiche non ancora salvate
+  const modificheBozze: Record<string, ModificaBozza> = {}
+  const bozzeOriginali = attive.map(b => {
+    const orig = traccia.originaliBozze[b.id]
+    if (!orig) return b
+    const originale = { ...b, ...orig } as BozzaGrezza
+    const diff = { ...diffCampi(b, orig, CAMPI_BOZZA_REVISIONE), ...traccia.modificheBozze[b.id] }
+    if (Object.keys(diff).length) modificheBozze[b.id] = diff
+    return originale
+  })
+  const modificheRighe: Record<string, ModificaRiga> = {}
+  const righeOriginali = righeAttive.map(r => {
+    const orig = traccia.originaliRighe[r.id]
+    if (!orig) return r
+    const originale = { ...r, ...orig } as RigaGrezza
+    const diff = { ...diffCampi(r, orig, CAMPI_RIGA_REVISIONE), ...traccia.modificheRighe[r.id] }
+    if (Object.keys(diff).length) modificheRighe[r.id] = diff
+    return originale
+  })
+  // righe nuove: le 'salvata' arrivate dal database si tolgono (sono tra le
+  // righe vere); le 'incerta' si RICONCILIANO per contenuto tra le righe
+  // user_added comparse dopo lo snapshot; il resto resta pendente
+  const noteAlloSnapshot = new Set(Object.keys(traccia.originaliRighe))
+  const comparse = righeAttive.filter(r => r.user_added && !noteAlloSnapshot.has(r.id))
+  const reclamate = new Set(traccia.righeNuove.filter(n => n.id).map(n => n.id as string))
+  const righeNuove = traccia.righeNuove.filter(n => {
+    if (n.stato === 'salvata') return !n.id || !righeAttive.some(r => r.id === n.id)
+    if (n.stato === 'incerta') {
+      const gemella = comparse.find(r => !reclamate.has(r.id)
+        && r.draft_id === n.draft_id && r.name === n.name
+        && Math.round(r.amount * 100) === Math.round(n.amount * 100))
+      if (gemella) { reclamate.add(gemella.id); return false }   // è arrivata
+      return true                                                 // resta incerta
+    }
+    return true
+  })
   return {
-    documentId, docTotaleCent: cent, docTotaleOriginaleCent: cent,
-    bozze: attive, righe: righe.filter(r => idAttivi.has(r.draft_id)),
-    modificheBozze: {}, modificheRighe: {}, righeNuove: [],
+    documentId,
+    docTotaleCent: traccia.docTotaleCent,
+    docTotaleOriginaleCent: traccia.docTotaleOriginaleCent,
+    bozze: bozzeOriginali, righe: righeOriginali,
+    modificheBozze, modificheRighe, righeNuove,
   }
 }
 
@@ -99,9 +237,16 @@ export const modificaBozza = (s: StatoRevisione, id: string, campi: ModificaBozz
 export const modificaRiga = (s: StatoRevisione, id: string, campi: ModificaRiga): StatoRevisione =>
   ({ ...s, modificheRighe: { ...s.modificheRighe, [id]: { ...s.modificheRighe[id], ...campi } } })
 export const aggiungiRiga = (s: StatoRevisione, riga: RigaNuova, idLocale: string): StatoRevisione =>
-  ({ ...s, righeNuove: [...s.righeNuove, { ...riga, idLocale }] })
+  ({ ...s, righeNuove: [...s.righeNuove, { ...riga, idLocale, stato: 'nuova' }] })
+// si toglie SOLO una riga mai inviata: 'salvata' è nel database (la 0021
+// non concede DELETE), 'incerta' è una responsabilità da riconciliare
 export const togliRigaNuova = (s: StatoRevisione, idLocale: string): StatoRevisione =>
-  ({ ...s, righeNuove: s.righeNuove.filter(r => r.idLocale !== idLocale) })
+  ({ ...s, righeNuove: s.righeNuove.filter(r => r.idLocale !== idLocale || r.stato !== 'nuova') })
+// una riga incerta NON trovata alla riapertura può essere reinviata SOLO
+// per scelta esplicita dell'utente: torna 'nuova'
+export const reinviaRigaIncerta = (s: StatoRevisione, idLocale: string): StatoRevisione =>
+  ({ ...s, righeNuove: s.righeNuove.map(r =>
+    r.idLocale === idLocale && r.stato === 'incerta' ? { ...r, stato: 'nuova' as const, id: undefined } : r) })
 export const modificaTotale = (s: StatoRevisione, cent: number | null): StatoRevisione =>
   ({ ...s, docTotaleCent: cent })
 
@@ -120,7 +265,9 @@ const centDi = (n: number) => Math.round(n * 100)
 
 export function totaliSorella(s: StatoRevisione, bozzaId: string) {
   const righe = s.righe.filter(r => r.draft_id === bozzaId).map(r => rigaCorrente(s, r.id))
-  const nuove = s.righeNuove.filter(r => r.draft_id === bozzaId)
+  // le 'incerta' NON contano nei totali: non si sa se esistono — vanno
+  // riconciliate (e intanto bloccano la conferma)
+  const nuove = s.righeNuove.filter(r => r.draft_id === bozzaId && r.stato !== 'incerta')
   const attiveCent = [
     ...righe.filter(r => !r.excluded).map(r => centDi(r.amount)),
     ...nuove.map(r => centDi(r.amount)),
@@ -156,15 +303,38 @@ export function blocchiConferma(
   if (!q.ok) {
     blocchi.push(q.diffCent == null
       ? 'totale del documento mancante'
-      : `non quadra: mancano ${(q.diffCent / 100).toFixed(2).replace('.', ',')} € (${q.sommaCent} vs ${s.docTotaleCent} cent)`)
+      : q.diffCent > 0
+        ? `non quadra: mancano ${(q.diffCent / 100).toFixed(2).replace('.', ',')} € (${q.sommaCent} vs ${s.docTotaleCent} cent)`
+        : `non quadra: ci sono ${(-q.diffCent / 100).toFixed(2).replace('.', ',')} € di troppo (${q.sommaCent} vs ${s.docTotaleCent} cent)`)
   }
   for (const b of s.bozze) {
     const c = bozzaCorrente(s, b.id)
-    if (!c.group_id) blocchi.push('una parte non ha il destinatario (gruppo): assegnalo')
-    else if (ambitoDelGruppo(c.group_id) === 'azienda' && !c.payment_method)
+    if (!c.group_id) { blocchi.push('una parte non ha il destinatario (gruppo): assegnalo'); continue }
+    const ambitoParte = ambitoDelGruppo(c.group_id)
+    if (ambitoParte === 'azienda' && !c.payment_method)
       blocchi.push('per Casa Ania il metodo di pagamento è obbligatorio')
+    // COERENZA: nessuna voce può avere un destinatario dell'altro ambito
+    // rispetto alla sua parte (il salvataggio incoerente romperebbe la vista)
+    for (const r of s.righe.filter(x => x.draft_id === b.id)) {
+      const rc = rigaCorrente(s, r.id)
+      if (!rc.excluded && rc.group_id && ambitoDelGruppo(rc.group_id) !== ambitoParte)
+        blocchi.push('una voce ha un destinatario dell\'altro ambito rispetto alla sua parte: correggila')
+    }
+    for (const n of s.righeNuove.filter(x => x.draft_id === b.id))
+      if (n.group_id && ambitoDelGruppo(n.group_id) !== ambitoParte)
+        blocchi.push('una voce ha un destinatario dell\'altro ambito rispetto alla sua parte: correggila')
   }
+  if (s.righeNuove.some(r => r.stato === 'incerta'))
+    blocchi.push('una voce aggiunta ha l\'esito incerto: chiudi e ricontrolla prima di confermare')
   return [...new Set(blocchi)]
+}
+
+// coerenza quantità × prezzo unitario (avviso NON bloccante, come da
+// controlli.rigaCoerente: tolleranza di 1 cent solo sul prezzo stampato)
+export function avvisoCoerenzaRiga(r: Pick<RigaGrezza, 'qty' | 'unit_price' | 'discount' | 'amount' | 'excluded'>): string | null {
+  if (r.excluded || r.qty == null || r.qty <= 0 || r.unit_price == null) return null
+  if (rigaCoerente(r.unit_price, r.qty, Math.round(r.amount * 100), Math.round((r.discount ?? 0) * 100))) return null
+  return `quantità × prezzo non torna con l'importo (${r.qty} × ${r.unit_price.toFixed(2).replace('.', ',')} ${r.discount ? `− sconto ${r.discount.toFixed(2).replace('.', ',')} ` : ''}≠ ${r.amount.toFixed(2).replace('.', ',')})`
 }
 
 // ---- CORREZIONI per la RPC: differenze tra originale e corrente -----------

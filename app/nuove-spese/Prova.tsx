@@ -13,8 +13,9 @@ import { ModuloSpesa } from '@/components/spese/ModuloSpesa'
 import type { ClienteScrittura } from '@/lib/spese/scrittura'
 import { salvaSpesaManuale, type SpesaManualeInput } from '@/lib/spese/scrittura'
 import { RevisioneSheet } from '@/components/spese/RevisioneSheet'
-import type { BozzaGrezza, RigaGrezza } from '@/lib/spese/revisione'
+import { CAMPI_RIGA_NUOVA, type BozzaGrezza, type RigaGrezza } from '@/lib/spese/revisione'
 import type { ClienteRevisione } from '@/lib/spese/revisioneScrittura'
+import { depositoRevisioneLocale } from '@/lib/spese/revisioneDurevole'
 import type { Contesto, DatiSpese, StatoDati } from '@/lib/spese/vista'
 import { DATI_FINTI, DATI_QUASI_VUOTI, OGGI_FINTO, TABELLE_FINTE } from './dati-finti'
 
@@ -37,19 +38,82 @@ function clienteFinto(fallisci: boolean): ClienteScrittura {
   }
 }
 
-// cliente di REVISIONE finto: nessun servizio reale (?scrittura=errore
-// simula il rifiuto del server, quadratura compresa)
-function clienteRevisioneFinto(fallisci: boolean): ClienteRevisione {
-  const nega = async () => fallisci ? { errore: 'connessione assente (simulata)' } : { righe: 1 }
+// ---- REVISIONE di prova: un ARCHIVIO FINTO che si comporta come il
+// database vero (i Salva lo MUTANO: alla riapertura restituisce i valori
+// corretti come farebbe Supabase — è la custodia locale a conservare gli
+// originali). Modalità dall'URL:
+//   ?scrittura=errore → il server RIFIUTA (quadratura simulata)
+//   ?scrittura=rete   → errore RESTITUITO «Failed to fetch» (esito incerto)
+//   ?scrittura=persa  → ECCEZIONE «Failed to fetch» (risposta persa)
+type ArchivioRevisione = { docTotale: number | null; bozze: BozzaGrezza[]; righe: RigaGrezza[]; contatore: number }
+
+function clienteRevisioneFinto(modo: string | null, db: ArchivioRevisione): ClienteRevisione {
+  const guasto = () => {
+    if (modo === 'persa') throw new Error('Failed to fetch (finto: risposta persa)')
+    if (modo === 'rete') return { errore: 'Failed to fetch (finto: errore di rete restituito)' }
+    if (modo === 'errore') return { errore: 'connessione assente (simulata)' }
+    return null
+  }
   return {
-    aggiornaDocTotale: nega, aggiornaBozza: nega, aggiornaRiga: nega,
-    aggiungiRiga: async () => fallisci ? { errore: 'connessione assente (simulata)' } : { id: 'finta-' + Math.random().toString(36).slice(2, 8) },
-    confermaDocumento: async () => fallisci
-      ? { errore: 'Quadratura non esatta: righe+arrotondamento=1200 cent, documento=1250 cent (simulata)' }
-      : { ids: ['spesa-finta-1', 'spesa-finta-2'] },
-    scartaDocumento: async () => fallisci ? { errore: 'connessione assente (simulata)' } : {},
+    async aggiornaDocTotale(_id, totale) {
+      const g = guasto(); if (g) return g
+      db.docTotale = totale; return { righe: 1 }
+    },
+    async aggiornaBozza(id, campi) {
+      const g = guasto(); if (g) return g
+      const b = db.bozze.find(x => x.id === id); if (!b) return { righe: 0 }
+      Object.assign(b, campi); return { righe: 1 }
+    },
+    async aggiornaRiga(id, campi) {
+      const g = guasto(); if (g) return g
+      const r = db.righe.find(x => x.id === id); if (!r) return { righe: 0 }
+      Object.assign(r, campi); return { righe: 1 }
+    },
+    async aggiungiRiga(riga) {
+      const g = guasto(); if (g) return g
+      // RIGORE come il database: solo le colonne concesse in INSERT dalla
+      // 0021 — un campo estraneo (idLocale…) qui esploderebbe, come là
+      const consentite = new Set<string>(CAMPI_RIGA_NUOVA)
+      for (const k of Object.keys(riga)) if (!consentite.has(k)) return { errore: `colonna inesistente: ${k} (finto)` }
+      const id = `finta-${++db.contatore}`
+      db.righe.push({
+        id, draft_id: riga.draft_id, raw_name: null, name: riga.name,
+        qty: riga.qty ?? null, unit_price: riga.unit_price ?? null, discount: riga.discount ?? null,
+        amount: riga.amount, group_id: riga.group_id ?? null,
+        category_id: riga.category_id ?? null, subcategory: riga.subcategory ?? null,
+        canonical_category_id: null, canonical_subcategory_id: null,
+        necessity: riga.necessity ?? null, planning: riga.planning ?? null,
+        excluded: false, user_added: true, confidence: null,
+      })
+      return { id }
+    },
+    async confermaDocumento() {
+      if (modo === 'persa') throw new Error('Failed to fetch (finto: risposta persa)')
+      if (modo === 'rete') return { errore: 'Failed to fetch (finto: errore di rete restituito)' }
+      if (modo === 'errore')
+        return { errore: 'Quadratura non esatta: righe+arrotondamento=1200 cent, documento=1250 cent (simulata)' }
+      db.bozze.forEach(b => { (b as { status: string }).status = 'confermato' })
+      return { ids: ['spesa-finta-1', 'spesa-finta-2'] }
+    },
+    async scartaDocumento() {
+      const g = guasto(); if (g) return { errore: g.errore }
+      db.bozze.forEach(b => { (b as { status: string }).status = 'scartato' })
+      return {}
+    },
   }
 }
+
+// due pagine per il visore: un'immagine (SVG) e un PDF, per provare che il
+// tipo si conserva e i due visori sono diversi
+const PAGINA_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="390" height="500"><rect width="100%" height="100%" fill="#f4f1ea"/><text x="30" y="60" font-size="22" fill="#141E19">MERCATO DI ROZZANO</text><text x="30" y="110" font-size="16" fill="#444">Pomodori ......... 4,50</text><text x="30" y="140" font-size="16" fill="#444">Insalata ......... 2,50</text><text x="30" y="170" font-size="16" fill="#444">TOTALE .......... 12,50</text></svg>')
+const PAGINE_FINTE = [
+  { id: 'pg-1', storage_path: 'finta/p1.svg', page_order: 1, tipo: 'image/svg+xml' },
+  { id: 'pg-2', storage_path: 'finta/p2.pdf', page_order: 2, tipo: 'application/pdf' },
+]
+const urlFinto = async (percorso: string) => percorso.endsWith('.pdf') ? 'about:blank' : PAGINA_SVG
+
+const depositoProva = depositoRevisioneLocale('gestionale-revisione-prova')
 
 function statoIniziale(): { c: Contesto; t: SezioneSpese; filtri: boolean; dati: StatoDati<DatiSpese> } {
   const q = new URLSearchParams(window.location.search)
@@ -66,10 +130,20 @@ function statoIniziale(): { c: Contesto; t: SezioneSpese; filtri: boolean; dati:
 export default function Prova() {
   const [{ c, t, filtri, dati }] = useState(statoIniziale)
   const [scelta, setScelta] = useState<string | null>(null)
+  const [notaRevisione, setNotaRevisione] = useState<string | null>(null)
   const [moduloAperto, setModuloAperto] = useState(false)
   const [revisioneAperta, setRevisioneAperta] = useState(false)
-  const scritturaFallisce = typeof window !== 'undefined'
-    && new URLSearchParams(window.location.search).get('scrittura') === 'errore'
+  const modoScrittura = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('scrittura') : null
+  const scritturaFallisce = modoScrittura === 'errore'
+  // l'archivio finto SOPRAVVIVE a chiusura e riapertura del foglio: come il
+  // database vero, dopo un Salva restituisce i valori già corretti (il
+  // cliente finto lo muta sul posto, la riapertura lo rilegge)
+  const [archivio] = useState<ArchivioRevisione>(() => ({
+    docTotale: 12.5, contatore: 0,
+    bozze: JSON.parse(JSON.stringify(TABELLE_FINTE.bozze)) as BozzaGrezza[],
+    righe: JSON.parse(JSON.stringify(TABELLE_FINTE.righeBozza)) as RigaGrezza[],
+  }))
   return (
     <>
       <SpeseShell dati={dati} contestoIniziale={c} sezioneIniziale={t} filtriApertiIniziale={filtri}
@@ -96,17 +170,32 @@ export default function Prova() {
       )}
       {revisioneAperta && (
         <RevisioneSheet
-          documento={{ id: 'd-rev', supplier: 'Mercato di Rozzano', kind: 'scontrino', doc_total: 12.5, note: 'metà è di Casa Ania' }}
-          bozze={TABELLE_FINTE.bozze as unknown as BozzaGrezza[]}
-          righe={TABELLE_FINTE.righeBozza as unknown as RigaGrezza[]}
+          documento={{ id: 'd-rev', supplier: 'Mercato di Rozzano', kind: 'scontrino', doc_total: archivio.docTotale, note: 'metà è di Casa Ania' }}
+          bozze={JSON.parse(JSON.stringify(archivio.bozze)) as BozzaGrezza[]}
+          righe={JSON.parse(JSON.stringify(archivio.righe)) as RigaGrezza[]}
           gruppi={TABELLE_FINTE.gruppi.map(g => ({ id: g.id, name: g.name, ambito: g.ambito ?? 'personale' }))}
           categorie={TABELLE_FINTE.categorie.map(x => ({ id: x.id, name: x.name, group_id: x.group_id ?? '' }))}
           camere={TABELLE_FINTE.camere}
-          pagine={[]}
-          firmaUrl={async () => null}
-          cliente={clienteRevisioneFinto(scritturaFallisce)}
-          fatto={() => setRevisioneAperta(false)}
+          pagine={PAGINE_FINTE}
+          firmaUrl={urlFinto}
+          cliente={clienteRevisioneFinto(modoScrittura, archivio)}
+          deposito={depositoProva}
+          fatto={esito => {
+            // come la pagina VERA: dopo Salva il foglio RESTA aperto
+            if (esito === 'salvato') { setNotaRevisione('salvate nell\'archivio finto: chiudi e riapri per vedere originali e correzioni conservati'); return }
+            if (esito === 'confermato') setNotaRevisione('documento confermato (finto)')
+            if (esito === 'scartato') setNotaRevisione('documento scartato (finto)')
+            if (esito === 'verifica') setNotaRevisione('da ricontrollare: riapri il documento — modifiche e responsabilità sono custodite')
+            setRevisioneAperta(false)
+          }}
           chiudi={() => setRevisioneAperta(false)} />
+      )}
+      {notaRevisione && !revisioneAperta && (
+        <div className="fixed inset-x-4 z-[70] bottom-[calc(env(safe-area-inset-bottom)+16px)] max-w-md mx-auto px-4 py-3 text-[13px] font-semibold text-center"
+          style={{ background: '#141E19', color: '#F6F6F3', borderRadius: '0.75rem' }}
+          onClick={() => setNotaRevisione(null)} role="status">
+          {notaRevisione}
+        </div>
       )}
       {scelta && (
         <div className="fixed inset-x-4 z-[70] bottom-[calc(env(safe-area-inset-bottom)+16px)] max-w-md mx-auto px-4 py-3 text-[13px] font-semibold text-center"
