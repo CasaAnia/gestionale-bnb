@@ -1658,6 +1658,43 @@ se la precedente non è verificata E approvata.
   isolato in 6 passi. NESSUN SQL scritto o applicato: collaudo e
   produzione solo con autorizzazioni separate.
 
+  **PROPOSTA DI RECUPERO COMPLETATA (01/09/2026, seconda stesura) coi
+  tre punti coordinati chiesti dalla revisione (af2e213):**
+  1) BARRIERA DI TRANSIZIONE (§5 della proposta) — la revoca non
+     annulla le scritture già in esecuzione: nella stessa transazione
+     della migrazione, pausa applicativa + lock_timeout con STOP (mai
+     stati a metà) + LOCK ACCESS EXCLUSIVE su documenti E tabelle delle
+     bozze (si acquisisce solo a scritture pregresse terminate) + revoke
+     e DDL dopo la barriera; enumerati gli altri detentori di scrittura
+     (RPC definer, service_role — dichiarato, non dimostrato — e
+     trigger); vincoli legacy sciolti SOLO dopo commit e rilettura
+     fresca (riconoscimento dal campo revisione_rev, non euristico);
+     ORDINE DI ATTIVAZIONE esplicito (pausa → migrazione → deploy del
+     client nuovo nella stessa pausa → riapertura; il client vecchio
+     smette di salvare per costruzione, quello nuovo non ha ripieghi).
+     Collaudo con transazioni APERTE PRIMA e ancora pendenti (INSERT e
+     UPDATE): attesa → STOP verificato → passa a transazione chiusa.
+  2) SALVA/CONFERMA/SCARTO COORDINATI (§2.2 e §2.4) — lock COMUNE della
+     riga documento (niente advisory separato); involucri versionati
+     conferma_revisione/scarta_revisione con op_key e base_rev,
+     giornalati (la Conferma tardiva di A dopo il Salva di B prende
+     SUPERATA e non approva nulla; scarto tardivo idem); Salva tardivo
+     su documento chiuso → DOCUMENTO_CHIUSO senza toccare le bozze;
+     revoke dell'execute diretto delle RPC 0020 ad authenticated
+     (nessun percorso che aggiri il contratto; file 0020 intatto).
+  3) IDENTITÀ E PERIMETRO DEL BATCH (§2.6) — manifesto CANONICO
+     definito (JSON ordinato, numeri normalizzati, voci per client_ref)
+     con documento+base_rev+modifiche complete, impronta RICALCOLATA
+     dal server; stessa chiave con documento/revisione/contenuto
+     diversi → CHIAVE_RIUSATA, mai un esito estraneo; esito_revisione
+     restituisce documento/kind/base_rev/impronta per il controllo di
+     corrispondenza; appartenenza verificata riga per riga
+     (RIFERIMENTO_ESTRANEO / IDENTIFICATIVO_MANCANTE /
+     CLIENT_REF_DUPLICATO / MODIFICHE_MALFORMATE → batch interamente
+     respinto). Collaudo esteso: riuso concorrente della stessa op_key
+     su documenti diversi, chiusure versionate, perimetro.
+  Sempre e solo documento: nessun SQL, permesso o codice toccato.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta
