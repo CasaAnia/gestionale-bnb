@@ -2311,6 +2311,33 @@ se la precedente non è verificata E approvata.
   bozze» — definizione nella scheda nuova, implementazione da
   autorizzare.
 
+  **ELABORAZIONE «SOLO BOZZE» — BLOCCO IMPLEMENTATO IN LOCALE
+  (02/09/2026), autorizzato dall'utente, PRONTO PER REVISIONE.**
+  · lib/spese/elaborazioneBozze.ts: costruisciPacchettoBozze (puro —
+    lettura dichiarata → bozze per ambito con righe complete, confidence
+    per campo con motivi, arrotondamenti; quadratura ESATTA o dubbio
+    DICHIARATO, sottocategoria mai vuota, canoniche coerenti, metodo
+    obbligatorio per azienda) + elaboraDocumento (scrittore a perimetro
+    RIGIDO — solo documento e tabelle bozze; stati SOLO
+    da_elaborare/errore → in_revisione|errore; idempotenza, mai bozze
+    doppie né parziali; rielaborazione che sostituisce; duplicati e nota
+    non attribuibile = DUBBI, mai scarti automatici né ipotesi).
+  · Test E01–E07 (7 nuovi, suite 353/353) con scrittore registratore e
+    CONTROPROVA del perimetro (scrittore-esca coi metodi delle spese:
+    mai chiamati).
+  · Demo E08: ?elabora=1|errore sulla pagina sintetica — vista e
+    revisione DERIVANO dall'output del costruttore vero (foto→proposta
+    coi dubbi→conferma; rifiuto con motivo in ERRORI).
+  · E09: RUNBOOK-ELABORAZIONE-BOZZE.md + scripts/elabora/
+    elabora-bozze.mjs con CANCELLO di attivazione (si rifiuta senza
+    ELABORAZIONE_BOZZE_ATTIVA=1, --prova senza scritture, whitelist
+    delle tabelle, duplicati da file_sha256). MAI eseguito contro il
+    database: l'attivazione del flusso reale resta DA AUTORIZZARE, e
+    la rimozione dell'esenzione del service role resta nel runbook di
+    produzione con la sua autorizzazione.
+  Scheda CONSEGNA-ATTIVA.md compilata (E01–E09 con esiti); prossimo:
+  revisione di Codex.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

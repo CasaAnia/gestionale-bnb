@@ -25,6 +25,8 @@ import { depositoOperazioniDurevole } from '@/lib/spese/depositoOperazioniDurevo
 import { ponteContrattoDurevole } from '@/lib/spese/ponteContratto'
 import { orchestrazioneContratto, type OrchestrazioneRevisione } from '@/lib/spese/orchestrazioneRevisione'
 import type { Contesto, DatiSpese, StatoDati } from '@/lib/spese/vista'
+import { costruisciDatiSpese } from '@/lib/spese/adattatore'
+import { costruisciPacchettoBozze, type LetturaDocumento } from '@/lib/spese/elaborazioneBozze'
 import { DATI_FINTI, DATI_QUASI_VUOTI, OGGI_FINTO, TABELLE_FINTE } from './dati-finti'
 
 // cliente FINTO in memoria: per provare salvataggi, errori e doppio clic
@@ -211,7 +213,81 @@ function clienteContrattoProva(modo: string | null, base: ClienteContratto, pers
   }
 }
 
-function statoIniziale(): { c: Contesto; t: SezioneSpese; filtri: boolean; dati: StatoDati<DatiSpese> } {
+// ---- DEMO del blocco «SOLO BOZZE» (?elabora=1 | ?elabora=errore) ----------
+// La lettura finta passa dal COSTRUTTORE VERO (costruisciPacchettoBozze):
+// bozze, dubbi e totale che la pagina mostra sono il suo output — il
+// documento arriva «da elaborare» e diventa una PROPOSTA controllabile
+// (o un errore col motivo), mai una spesa definitiva.
+function letturaDemo(rotta: boolean): LetturaDocumento {
+  return {
+    totale: rotta ? 13 : 12.5,           // 13 NON quadra e senza dubbio → rifiutata
+    sorelle: [
+      {
+        ambito: 'personale', destinatario: 'g-casa', data: '2026-08-29',
+        negozio: 'Mercato di Rozzano', arrotondamento_cent: 1,
+        dubbi: [{ campo: 'store', confidence: 0.55, motivo: 'nome del negozio poco leggibile' }],
+        voci: [
+          { raw_name: 'FRUTTA MISTA KG1', name: 'Frutta mista', amount: 4.5, sottocategoria: 'Frutta' },
+          { raw_name: 'PANE COMUNE', name: 'Pane comune', amount: 2.5, sottocategoria: 'Pane', dubbi: [{ campo: 'amount', confidence: 0.6, motivo: 'importo poco leggibile' }] },
+          { raw_name: 'PANE COMUNE', name: 'Pane (letto due volte)', amount: 2.5, sottocategoria: 'Pane', escludi: true },
+          { raw_name: null, name: 'Sacchetto', amount: 0.5, sottocategoria: 'Sacchetti' },
+        ],
+      },
+      {
+        ambito: 'azienda', destinatario: 'g-bnb', data: '2026-08-29',
+        negozio: 'Mercato di Rozzano', metodo: 'contanti',
+        voci: [{ raw_name: 'ACETO ALCOL X2', name: 'Aceto di alcol', qty: 2, amount: 4.99, sottocategoria: 'Detersivi e pulizia' }],
+      },
+    ],
+    notaNonAttribuita: null,
+  }
+}
+
+type TabelleDemo = typeof TABELLE_FINTE
+function tabellePerElaborazione(modo: string | null): { tabelle: TabelleDemo; nota: string } | null {
+  if (modo !== '1' && modo !== 'errore') return null
+  const esito = costruisciPacchettoBozze(letturaDemo(modo === 'errore'), {
+    documentId: 'd-rev',
+    gruppi: TABELLE_FINTE.gruppi.map(g => ({ id: g.id, ambito: g.ambito === 'azienda' ? 'azienda' as const : 'personale' as const })),
+    sottoCanoniche: TABELLE_FINTE.sottocategorieCanoniche
+      .map(x => ({ id: x.id, canonical_category_id: (x as { canonical_category_id?: string | null }).canonical_category_id ?? '' })),
+    nota: 'metà è di Casa Ania',
+  })
+  const tabelle = JSON.parse(JSON.stringify(TABELLE_FINTE)) as TabelleDemo
+  const doc = (tabelle.documenti as Record<string, unknown>[]).find(d => d.id === 'd-rev')!
+  const senzaDRev = { bozze: (tabelle.bozze as { document_id?: string }[]).filter(b => b.document_id !== 'd-rev') }
+  if (!esito.ok) {
+    doc.status = 'errore'
+    doc.error_message = `l'elaborazione ha rifiutato la lettura: ${esito.errore}`
+    doc.doc_total = null
+    const idBozze = new Set((tabelle.bozze as { id: string; document_id?: string }[]).filter(b => b.document_id === 'd-rev').map(b => b.id))
+    tabelle.bozze = senzaDRev.bozze as typeof tabelle.bozze
+    tabelle.righeBozza = (tabelle.righeBozza as { draft_id: string }[]).filter(r => !idBozze.has(r.draft_id)) as typeof tabelle.righeBozza
+    return { tabelle, nota: `Elaborazione RIFIUTATA dal modulo «solo bozze»: ${esito.errore}` }
+  }
+  doc.status = 'in_revisione'
+  doc.doc_total = esito.pacchetto.documento.doc_total
+  const idPerRif = new Map<string, string>()
+  const bozzeNuove = esito.pacchetto.bozze.map((b, i) => {
+    const id = `b-elab-${i + 1}`
+    idPerRif.set(b.rif, id)
+    const { rif, ...campi } = b
+    void rif
+    return { ...campi, id }
+  })
+  const idVecchie = new Set((tabelle.bozze as { id: string; document_id?: string }[]).filter(b => b.document_id === 'd-rev').map(b => b.id))
+  tabelle.bozze = [...senzaDRev.bozze, ...bozzeNuove] as typeof tabelle.bozze
+  tabelle.righeBozza = [
+    ...(tabelle.righeBozza as { draft_id: string }[]).filter(r => !idVecchie.has(r.draft_id)),
+    ...esito.pacchetto.righe.map((r, j) => {
+      const { bozzaRif, ...campi } = r
+      return { ...campi, id: `r-elab-${j + 1}`, draft_id: idPerRif.get(bozzaRif)! }
+    }),
+  ] as typeof tabelle.righeBozza
+  return { tabelle, nota: 'Documento elaborato ADESSO dal modulo «solo bozze» (demo): le bozze e i dubbi in «Da controllare» sono l\'output del costruttore vero — nessuna spesa definitiva è stata creata.' }
+}
+
+function statoIniziale(tabelle?: TabelleDemo | null): { c: Contesto; t: SezioneSpese; filtri: boolean; dati: StatoDati<DatiSpese> } {
   const q = new URLSearchParams(window.location.search)
   const c: Contesto = q.get('c') === 'ania' ? 'ania' : 'mia'
   const t = (['panoramica', 'movimenti', 'documenti', 'analisi'].includes(q.get('t') || '')
@@ -219,14 +295,17 @@ function statoIniziale(): { c: Contesto; t: SezioneSpese; filtri: boolean; dati:
   const dati: StatoDati<DatiSpese> =
     q.get('stato') === 'caricamento' ? { stato: 'caricamento' }
       : q.get('stato') === 'errore' ? { stato: 'errore', messaggio: 'Il telefono era senza rete mentre chiedevo i movimenti.' }
-        : { stato: 'pronto', dati: q.get('stato') === 'vuoto' ? DATI_QUASI_VUOTI : DATI_FINTI }
+        : { stato: 'pronto', dati: q.get('stato') === 'vuoto' ? DATI_QUASI_VUOTI : (tabelle ? costruisciDatiSpese(tabelle, OGGI_FINTO) : DATI_FINTI) }
   return { c, t, filtri: q.get('filtri') === '1', dati }
 }
 
 export default function Prova() {
-  const [{ c, t, filtri, dati }] = useState(statoIniziale)
+  const [elaborato] = useState(() => tabellePerElaborazione(typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('elabora') : null))
+  const TABELLE_DEMO = elaborato?.tabelle ?? TABELLE_FINTE
+  const [{ c, t, filtri, dati }] = useState(() => statoIniziale(elaborato?.tabelle))
   const [scelta, setScelta] = useState<string | null>(null)
-  const [notaRevisione, setNotaRevisione] = useState<string | null>(null)
+  const [notaRevisione, setNotaRevisione] = useState<string | null>(elaborato?.nota ?? null)
   const [moduloAperto, setModuloAperto] = useState(false)
   const [revisioneAperta, setRevisioneAperta] = useState(false)
   const modoScrittura = typeof window !== 'undefined'
@@ -235,11 +314,14 @@ export default function Prova() {
   // l'archivio finto SOPRAVVIVE a chiusura e riapertura del foglio: come il
   // database vero, dopo un Salva restituisce i valori già corretti (il
   // cliente finto lo muta sul posto, la riapertura lo rilegge)
-  const [archivio] = useState<ArchivioRevisione>(() => ({
-    docTotale: 12.5, docStatus: 'in_revisione', contatore: 0,
-    bozze: JSON.parse(JSON.stringify(TABELLE_FINTE.bozze)) as BozzaGrezza[],
-    righe: JSON.parse(JSON.stringify(TABELLE_FINTE.righeBozza)) as RigaGrezza[],
-  }))
+  const [archivio] = useState<ArchivioRevisione>(() => {
+    const doc = (TABELLE_DEMO.documenti as { id: string; status?: string; doc_total?: number | null }[]).find(d => d.id === 'd-rev')
+    return {
+      docTotale: doc?.doc_total ?? 12.5, docStatus: doc?.status ?? 'in_revisione', contatore: 0,
+      bozze: JSON.parse(JSON.stringify(TABELLE_DEMO.bozze)) as BozzaGrezza[],
+      righe: JSON.parse(JSON.stringify(TABELLE_DEMO.righeBozza)) as RigaGrezza[],
+    }
+  })
   const percorsoProva = typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search).get('percorso') : null
   // MONDO PERSISTENTE del contratto: la ricarica ricrea controller e
