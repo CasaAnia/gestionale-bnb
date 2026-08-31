@@ -1903,6 +1903,38 @@ se la precedente non è verificata E approvata.
   Test: 315/315 (2 nuovi: interruzione con deposito ricreato; guasti di
   scrittura e lettura con controprove); tsc, lint, build verdi.
 
+  **COLLAUDO ISOLATO — MATERIALE PREPARATO (03/09/2026, notte), IN
+  ATTESA DI AUTORIZZAZIONE (nessuna esecuzione, nessun accesso remoto):**
+  · BOZZE della transizione: proposte/transizione-fase-A.BOZZA.sql
+    (spostamento VERBATIM dei cinque legacy in private via
+    pg_get_functiondef — mai copie a mano —, backup per il rollback,
+    respingenti P0001, permessi espliciti sulle private) e
+    transizione-fase-B.BOZZA.sql (condizione di completamento per età
+    delle transazioni fuori transazione, barriera con timeout e STOP,
+    revoche, ripuntamento involucri; verifiche post-commit);
+  · CLIENT: lib/spese/contrattoRpc.ts — factory del ClienteContratto
+    sulle quattro RPC (l'errore porta il codice SQLSTATE: unica prova
+    di rifiuto; esito_revisione LANCIA sugli errori → «illeggibile»),
+    con test (317/317 in suite);
+  · SCRIPT scripts/collaudo-contratto/ (sintassi verificata, MAI
+    eseguiti): ambiente (vettori dal file condiviso, contesto membro,
+    fixture, fotografia byte-per-byte, contatore con STOP),
+    passo1 struttura+permessi effettivi, passo2 vettori comuni lato
+    server (STOP su qualunque scostamento), passo3 comportamento
+    completo nel contesto authenticated, passo4 concorrenza con
+    sessioni pg allineate a istante assoluto (identici→
+    APPLICATA+RIPETUTA; chiave su documenti diversi col ramo perdente
+    fotografato identico), passo5 transizione (rollback provato,
+    riproduzione deterministica della chiamata sospesa in
+    is_app_member, fase B con firme lette da pg_proc e involucri
+    rigenerati dalla bozza — unica fonte), passo6 client vero su
+    PostgREST col jwt del membro, passo7 pulizia guidata e verificata;
+  · PIANO-COLLAUDO-CONTRATTO.md: progetto bersaglio (solo la prova 2B,
+    guardia attiva), sequenza esatta 0→7 eseguita DUE volte, verifiche
+    attese per passo, condizioni di STOP, recupero e pulizia in caso di
+    interruzione, procedura token invariata, e la dichiarazione
+    esplicita che NULLA autorizza la produzione.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta
