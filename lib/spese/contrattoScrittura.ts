@@ -14,6 +14,8 @@ import {
   manifestoScarto, validaEsitoGiornale, validaRisposta,
   type ClienteContratto, type HasherTesto, type OperazioneContratto,
 } from './contrattoRevisione.ts'
+// NB: il reinvio riparte SEMPRE dal deposito (reinviaOperazione):
+// l'unica via d'invio resta la richiesta custodita e verificata
 import type { StatoRevisione } from './revisione.ts'
 
 // custodia delle OPERAZIONI del contratto (parallela alla traccia della
@@ -154,11 +156,43 @@ export async function eseguiScarto(
   return esegui(cliente, deposito, op, inviaDaCustodia(cliente, op))
 }
 
-// REINVIO di una pendenza (dopo un recupero «assente»): stessa chiave,
-// stessa richiesta CUSTODITA — mai ricostruita dalla schermata
-export function reinviaOperazione(
-  cliente: ClienteContratto, deposito: DepositoOperazioni, op: OperazioneContratto,
+// l'impronta RICALCOLATA dalla richiesta custodita: deve coincidere con
+// quella registrata, altrimenti la custodia è discordante e non si invia
+async function improntaDellaRichiesta(op: OperazioneContratto, hasher: HasherTesto): Promise<string | null> {
+  const r = op.richiesta
+  if (!r || r.kind !== op.kind) return null
+  if (r.kind === 'salva') {
+    if (typeof r.modifiche !== 'object' || r.modifiche === null
+      || r.modifiche.document_id !== op.documentId || r.modifiche.base_rev !== op.baseRev) return null
+    return hasher(manifestoSalva(r.modifiche))
+  }
+  if (r.kind === 'conferma') {
+    if (!Array.isArray(r.correzioni)) return null
+    return hasher(manifestoConferma(op.documentId, op.baseRev, r.correzioni))
+  }
+  if (typeof r.motivo !== 'string') return null
+  return hasher(manifestoScarto(op.documentId, op.baseRev, r.motivo))
+}
+
+// REINVIO di una pendenza (dopo un recupero «assente»): si RILEGGE
+// l'operazione ORIGINALE dal deposito per chiave e si usa SOLO quella —
+// mai l'argomento del chiamante, mai lo stato della schermata. Prima
+// dell'invio si verificano struttura, identità e IMPRONTA RICALCOLATA
+// della richiesta custodita: qualunque discordanza respinge senza
+// inviare e senza cancellare la pendenza. Deposito assente o
+// illeggibile → nessuna chiamata.
+export async function reinviaOperazione(
+  cliente: ClienteContratto, deposito: DepositoOperazioni, opKey: string, hasher: HasherTesto,
 ): Promise<EsitoOperazione> {
+  const lettura = deposito.leggi(opKey)
+  if (lettura.errore)
+    return { ok: false, errore: `custodia illeggibile (${lettura.errore}): non invio nulla` }
+  const op = lettura.op
+  if (!op)
+    return { ok: false, errore: 'operazione non trovata in custodia: non invio nulla (la pendenza, se esiste, resta com\'è)' }
+  const ricalcolata = await improntaDellaRichiesta(op, hasher).catch(() => null)
+  if (ricalcolata === null || ricalcolata !== op.impronta)
+    return { ok: false, errore: 'la richiesta custodita NON corrisponde alla sua impronta (struttura o contenuto discordanti): non invio nulla e conservo la pendenza — va segnalato' }
   return esegui(cliente, deposito, op, inviaDaCustodia(cliente, op))
 }
 
@@ -172,7 +206,7 @@ export type EsitoRecupero =
 export async function recuperaOperazione(
   cliente: ClienteContratto, deposito: DepositoOperazioni, op: OperazioneContratto,
 ): Promise<EsitoRecupero> {
-  let g
+  let g: unknown
   try { g = await cliente.esitoRevisione(op.opKey) } catch (e) {
     return { stato: 'illeggibile', errore: `lettura dell'esito fallita (${String((e as Error).message ?? e)}): la pendenza resta — lettura fallita non è «assente»` }
   }

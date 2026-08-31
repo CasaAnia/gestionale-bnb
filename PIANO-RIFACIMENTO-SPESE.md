@@ -1809,6 +1809,43 @@ se la precedente non è verificata E approvata.
   Test: 308/308 (5 nuovi + vettore); tsc, lint, build verdi. Transizione
   A/B sempre separata e DA DIMOSTRARE; nessun collegamento alle pagine.
 
+  **CONTRATTO — TRE CORREZIONI SULLA REVISIONE DI 3901b9c (02/09/2026,
+  notte):**
+  1) SQL, PERIMETRO ATOMICO VERO (rilievo statico recepito, DA
+     COLLAUDARE): il blocco d'eccezione annullava solo l'INSERT a
+     giornale — ora in TUTTE e tre le funzioni contiene TUTTE le
+     scritture (documento, bozze, righe, voci nuove, revisione e
+     giornale; nella conferma/scarto anche la chiamata documentale
+     0020): il ramo perdente di una collisione non lascia nulla
+     applicato. La collisione si riconosce dal NOME DEL VINCOLO
+     (get stacked diagnostics CONSTRAINT_NAME = family_revision_ops_pkey);
+     ogni altra violazione unica RISALE intatta. Commento errato
+     corretto; nota di collaudo: verificare che per il ramo perdente
+     documento, bozze, righe, spese e revisione restino IDENTICI allo
+     stato iniziale.
+  2) PROVA STRUTTURALE DEL RIFIUTO — via la regex come criterio: un
+     rifiuto applicativo è dimostrato SOLO dal codice SQLSTATE
+     riportato dal trasporto (rifiutoDimostrato: 5 caratteri, classi
+     08/53/57/58/XX escluse perché non provano nulla sull'esito). Bad
+     Gateway, Service Unavailable, upstream failed e qualunque messaggio
+     senza codice → pendenza CONSERVATA e recupero per chiave (test coi
+     tre messaggi su operazione realmente applicata: la custodia resta
+     e il recupero la chiude con l'esito vero). Il server finto motiva
+     i suoi rifiuti con P0001. validaEsitoGiornale accetta UNKNOWN:
+     null, undefined, numeri, stringhe e forme sconosciute → esito
+     controllato «illeggibile», custodia intatta, nessuna eccezione.
+  3) REINVIO DAL DEPOSITO, MAI DALL'ARGOMENTO — reinviaOperazione ora
+     prende solo la CHIAVE: rilegge l'operazione originale dal
+     deposito, ne RICALCOLA l'impronta dalla richiesta custodita e la
+     confronta con quella registrata (struttura e identità comprese);
+     discordanza → nessuna chiamata, pendenza conservata e segnalata;
+     deposito assente o illeggibile → nessuna chiamata. Sequenza del
+     revisore testata: copia manomessa «Dopo» con impronta invariata →
+     parte comunque «Prima» (il deposito comanda); payload manomesso
+     DENTRO il deposito → respinto senza inviare.
+  Test: 311/311 (3 nuovi); tsc, lint, build verdi. Collaudo PostgreSQL
+  e transizione A/B sempre separati e da dimostrare.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

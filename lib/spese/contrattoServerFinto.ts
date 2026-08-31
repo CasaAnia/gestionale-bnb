@@ -142,10 +142,10 @@ export function creaServerContratto(mondo: MondoFinto, hasher: HasherTesto) {
       // obbligatorio e QUADRATURA ESATTA in centesimi — un rifiuto viaggia
       // come { errore }, la forma delle eccezioni della RPC
       const attive = [...mondo.bozze.entries()].filter(([, bz]) => bz.document_id === p.document_id && STATI_BOZZA_MODIFICABILI.includes(bz.status))
-      if (attive.length === 0) return { errore: 'nessuna bozza attiva da confermare' }
+      if (attive.length === 0) return { errore: 'nessuna bozza attiva da confermare', codice: 'P0001' }
       let sommaCent = 0
       for (const [bId, bz] of attive) {
-        if (!('group_id' in bz) || bz.group_id == null) return { errore: `destinatario mancante sulla bozza ${bId}` }
+        if (!('group_id' in bz) || bz.group_id == null) return { errore: `destinatario mancante sulla bozza ${bId}`, codice: 'P0001' }
         sommaCent += Number((bz as Record<string, unknown>).arrotondamento_cent ?? 0)
         for (const r of mondo.righe.values())
           if (r.draft_id === bId && !(r as Record<string, unknown>).excluded)
@@ -153,7 +153,7 @@ export function creaServerContratto(mondo: MondoFinto, hasher: HasherTesto) {
       }
       const totCent = doc.doc_total == null ? null : Math.round(doc.doc_total * 100)
       if (totCent == null || totCent !== sommaCent)
-        return { errore: `Quadratura non esatta: righe+arrotondamento=${sommaCent} cent, documento=${totCent ?? 'null'} cent` }
+        return { errore: `Quadratura non esatta: righe+arrotondamento=${sommaCent} cent, documento=${totCent ?? 'null'} cent`, codice: 'P0001' }
       doc.status = 'confermato'; doc.revisione_rev += 1
       for (const [, bz] of attive) bz.status = 'confermata'
       const spese = [`spesa-${++contatore}`]

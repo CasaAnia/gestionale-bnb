@@ -94,7 +94,7 @@ declare
   v_id text; v_campi jsonb; v_voce jsonb;
   v_bozza record; v_riga record;
   v_mappa jsonb := '[]'::jsonb; v_nuovo_id uuid;
-  v_refs text[] := '{}';
+  v_refs text[] := '{}'; v_vincolo text;
   c_campi_bozza constant text[] := array['expense_date','group_id','category_id','subcategory','canonical_category_id','canonical_subcategory_id','store','description','payment_method','room_id','expense_nature','arrotondamento_cent'];
   c_campi_riga constant text[] := array['name','qty','unit_price','discount','amount','group_id','category_id','subcategory','canonical_category_id','canonical_subcategory_id','necessity','planning','excluded'];
   c_campi_nuova constant text[] := array['client_ref','draft_id','name','qty','unit_price','discount','amount','group_id','category_id','subcategory','canonical_category_id','canonical_subcategory_id','necessity','planning'];
@@ -172,8 +172,14 @@ begin
       if k <> all (c_campi_nuova) then return jsonb_build_object('esito', 'CAMPO_NON_CONSENTITO', 'dettaglio', k); end if;
     end loop;
   end loop;
-  -- APPLICAZIONE (i vincoli 0020 restano la rete di sicurezza; ogni
-  -- errore qui fa fallire e annullare l'INTERA funzione: tutto o niente)
+  -- APPLICAZIONE: TUTTE le scritture (documento, bozze, righe, voci
+  -- nuove, revisione E giornale) vivono dentro UN SOLO blocco protetto:
+  -- PostgreSQL annulla le modifiche INTERNE al blocco che intercetta
+  -- l'eccezione, quindi il perimetro atomico deve contenerle tutte —
+  -- il ramo perdente di una collisione non lascia NULLA applicato.
+  -- I vincoli 0020 restano la rete di sicurezza: un loro errore (non
+  -- intercettato) fa fallire l'intera funzione.
+  begin
   if p_modifiche ? 'doc_total' then
     update public.family_documents
       set doc_total = (p_modifiche ->> 'doc_total')::numeric
@@ -228,16 +234,18 @@ begin
   end loop;
   update public.family_documents set revisione_rev = revisione_rev + 1
     where id = p_document_id returning revisione_rev into v_doc.revisione_rev;
-  -- COLLISIONE GLOBALE della chiave (stessa op_key su DOCUMENTI diversi,
-  -- in parallelo: i lock di riga non si incontrano): il vincolo unico
-  -- arbitra, ma va gestito ESPLICITAMENTE — il blocco con l'eccezione
-  -- annulla TUTte le scritture di questa funzione (savepoint implicito)
-  -- e si risponde guardando cosa c'è davvero a giornale
-  begin
-    insert into public.family_revision_ops (op_key, document_id, kind, base_rev, manifesto_sha256, esito)
-      values (p_op_key, p_document_id, 'salva', p_base_rev, v_impronta,
-        jsonb_build_object('rev_dopo', v_doc.revisione_rev, 'righe_nuove', v_mappa));
+  insert into public.family_revision_ops (op_key, document_id, kind, base_rev, manifesto_sha256, esito)
+    values (p_op_key, p_document_id, 'salva', p_base_rev, v_impronta,
+      jsonb_build_object('rev_dopo', v_doc.revisione_rev, 'righe_nuove', v_mappa));
   exception when unique_violation then
+    -- COLLISIONE GLOBALE della chiave (stessa op_key su DOCUMENTI
+    -- diversi, in parallelo: i lock di riga non si incontrano). SOLO la
+    -- collisione del giornale si gestisce qui: qualunque ALTRA
+    -- violazione unica risale intatta (mai mascherata)
+    get stacked diagnostics v_vincolo = CONSTRAINT_NAME;
+    if v_vincolo is distinct from 'family_revision_ops_pkey' then raise; end if;
+    -- le scritture del blocco sono state ANNULLATE dal savepoint del
+    -- blocco stesso: si risponde guardando cosa c'è davvero a giornale
     select * into v_reg from public.family_revision_ops where op_key = p_op_key;
     if v_reg.document_id = p_document_id and v_reg.kind = 'salva'
        and v_reg.base_rev = p_base_rev and v_reg.manifesto_sha256 = v_impronta then
@@ -266,7 +274,7 @@ end $$;
 create or replace function public.conferma_revisione(
   p_op_key uuid, p_document_id uuid, p_base_rev bigint, p_correzioni jsonb default '[]'
 ) returns jsonb language plpgsql security definer set search_path = '' as $$
-declare v_doc record; v_reg record; v_impronta text; v_spese uuid[]; v_ordinate jsonb;
+declare v_doc record; v_reg record; v_impronta text; v_spese uuid[]; v_ordinate jsonb; v_vincolo text;
 begin
   if not private.is_app_member() then raise exception 'NON_MEMBRO'; end if;
   -- le CORREZIONI si ORDINANO come fa il client (draft_id,
@@ -302,15 +310,19 @@ begin
     return jsonb_build_object('esito', 'DOCUMENTO_NON_MODIFICABILE', 'dettaglio', v_doc.status);
   end if;
   if p_base_rev <> v_doc.revisione_rev then return jsonb_build_object('esito', 'SUPERATA'); end if;
-  -- la logica 0020, mai duplicata (la transizione la ripunterà a private.*)
-  select array_agg(id) into v_spese from unnest(public.conferma_documento(p_document_id, p_correzioni)) as id;
-  update public.family_documents set revisione_rev = revisione_rev + 1
-    where id = p_document_id returning revisione_rev into v_doc.revisione_rev;
+  -- il perimetro atomico contiene TUTTO: anche la chiamata documentale
+  -- (logica 0020, mai duplicata; la transizione la ripunterà a
+  -- private.*) viene annullata se il giornale rifiuta la chiave
   begin
+    select array_agg(id) into v_spese from unnest(public.conferma_documento(p_document_id, p_correzioni)) as id;
+    update public.family_documents set revisione_rev = revisione_rev + 1
+      where id = p_document_id returning revisione_rev into v_doc.revisione_rev;
     insert into public.family_revision_ops (op_key, document_id, kind, base_rev, manifesto_sha256, esito)
       values (p_op_key, p_document_id, 'conferma', p_base_rev, v_impronta,
         jsonb_build_object('rev_dopo', v_doc.revisione_rev, 'spese', to_jsonb(coalesce(v_spese, '{}'))));
   exception when unique_violation then
+    get stacked diagnostics v_vincolo = CONSTRAINT_NAME;
+    if v_vincolo is distinct from 'family_revision_ops_pkey' then raise; end if;
     select * into v_reg from public.family_revision_ops where op_key = p_op_key;
     if v_reg.document_id = p_document_id and v_reg.kind = 'conferma'
        and v_reg.base_rev = p_base_rev and v_reg.manifesto_sha256 = v_impronta then
@@ -324,7 +336,7 @@ end $$;
 create or replace function public.scarta_revisione(
   p_op_key uuid, p_document_id uuid, p_base_rev bigint, p_motivo text
 ) returns jsonb language plpgsql security definer set search_path = '' as $$
-declare v_doc record; v_reg record; v_impronta text;
+declare v_doc record; v_reg record; v_impronta text; v_vincolo text;
 begin
   if not private.is_app_member() then raise exception 'NON_MEMBRO'; end if;
   v_impronta := private.impronta_canonica(jsonb_build_object(
@@ -352,14 +364,17 @@ begin
     return jsonb_build_object('esito', 'DOCUMENTO_NON_MODIFICABILE', 'dettaglio', v_doc.status);
   end if;
   if p_base_rev <> v_doc.revisione_rev then return jsonb_build_object('esito', 'SUPERATA'); end if;
-  perform public.scarta_documento(p_document_id, p_motivo);
-  update public.family_documents set revisione_rev = revisione_rev + 1
-    where id = p_document_id returning revisione_rev into v_doc.revisione_rev;
+  -- perimetro atomico: anche lo scarto documentale dentro il blocco
   begin
+    perform public.scarta_documento(p_document_id, p_motivo);
+    update public.family_documents set revisione_rev = revisione_rev + 1
+      where id = p_document_id returning revisione_rev into v_doc.revisione_rev;
     insert into public.family_revision_ops (op_key, document_id, kind, base_rev, manifesto_sha256, esito)
       values (p_op_key, p_document_id, 'scarto', p_base_rev, v_impronta,
         jsonb_build_object('rev_dopo', v_doc.revisione_rev));
   exception when unique_violation then
+    get stacked diagnostics v_vincolo = CONSTRAINT_NAME;
+    if v_vincolo is distinct from 'family_revision_ops_pkey' then raise; end if;
     select * into v_reg from public.family_revision_ops where op_key = p_op_key;
     if v_reg.document_id = p_document_id and v_reg.kind = 'scarto'
        and v_reg.base_rev = p_base_rev and v_reg.manifesto_sha256 = v_impronta then
@@ -394,5 +409,10 @@ commit;
 --  · CONCORRENZA da verificare davvero (diagnosi statica, Read
 --    Committed): due identiche → APPLICATA+RIPETUTA (ricontrollo
 --    post-lock); stessa chiave su documenti DIVERSI → una registrata,
---    l'altra CHIAVE_RIUSATA con il lavoro locale annullato dal blocco
---    d'eccezione (unique_violation).
+--    l'altra CHIAVE_RIUSATA; per il ramo PERDENTE verificare che
+--    documento, bozze, righe, spese e revisione_rev restino IDENTICI
+--    allo stato iniziale (il blocco d'eccezione contiene ORA tutte le
+--    scritture: l'annullamento riguarda solo l'interno del blocco,
+--    come da documentazione plpgsql) e che il giornale non abbia la sua
+--    voce; una violazione unica DIVERSA dal vincolo del giornale deve
+--    risalire intatta (get stacked diagnostics sul CONSTRAINT_NAME).

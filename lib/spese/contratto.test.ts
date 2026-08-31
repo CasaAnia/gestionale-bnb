@@ -232,7 +232,8 @@ test('ASSENTE vs ESTRANEA vs ILLEGGIBILE: il recupero chiude solo a corrisponden
   const op: OperazioneContratto = { opKey: 'op-mai', kind: 'salva', documentId: 'd1', baseRev: 0, impronta: await sha(manifestoSalva(batch)), clientRefs: [], richiesta: { kind: 'salva', modifiche: batch } }
   assert.equal((await recuperaOperazione(cliente, deposito, op)).stato, 'assente')
   // il REINVIO usa la RICHIESTA CUSTODITA, non lo stato della schermata
-  const reinvio = await reinviaOperazione(cliente, deposito, op)
+  deposito.salva(op)                                   // custodita (come dopo l'apertura)
+  const reinvio = await reinviaOperazione(cliente, deposito, 'op-mai', sha)
   assert.ok(reinvio.ok)
   // e se «l'originale» arrivasse DOPO il reinvio: stessa chiave → RIPETUTA
   const tardivo = await cliente.salvaRevisione({ op_key: 'op-mai', document_id: 'd1', base_rev: 0, modifiche: batch })
@@ -331,11 +332,17 @@ test('RISPOSTE CONVALIDATE prima di toccare la custodia: malformate e trasporto 
   assert.ok(!reteRestituita.ok && 'incerto' in reteRestituita)
   assert.equal(deposito.contenuto().length, 1)
   deposito.rimuovi('op-3')
-  // rifiuto VERO restituito (es. quadratura della conferma) → definito,
-  // custodia chiusa
-  const rifiuto = await eseguiConferma(conRisposta({ errore: 'Quadratura non esatta: righe+arrotondamento=500 cent, documento=3000 cent' }), deposito, 'd1', 0, [], sha, 'op-4')
+  // rifiuto VERO restituito CON LA PROVA (SQLSTATE applicativo P0001,
+  // es. la quadratura della conferma) → definito, custodia chiusa
+  const rifiuto = await eseguiConferma(conRisposta({ errore: 'Quadratura non esatta: righe+arrotondamento=500 cent, documento=3000 cent', codice: 'P0001' }), deposito, 'd1', 0, [], sha, 'op-4')
   assert.ok(!rifiuto.ok && 'errore' in rifiuto && !('incerto' in rifiuto) && rifiuto.errore.includes('Quadratura'))
   assert.equal(deposito.contenuto().length, 0)
+  // lo STESSO messaggio SENZA la prova → incerta (una regex non dimostra
+  // il rifiuto): pendenza conservata
+  const senzaProva = await eseguiConferma(conRisposta({ errore: 'Quadratura non esatta: righe+arrotondamento=500 cent, documento=3000 cent' }), deposito, 'd1', 0, [], sha, 'op-4b')
+  assert.ok(!senzaProva.ok && 'incerto' in senzaProva)
+  assert.equal(deposito.contenuto().length, 1)
+  deposito.rimuovi('op-4b')
   // revisione risultante non valida → pendenza conservata
   const revRotta = await eseguiSalva(conRisposta({ esito: 'APPLICATA', rev_dopo: 0, righe_nuove: [{ client_ref: 'loc-1', id: 'srv-1' }] }), deposito, s, 0, sha, 'op-5')
   assert.ok(!revRotta.ok && 'incerto' in revRotta)
@@ -418,7 +425,7 @@ test('CUSTODIA IMMUTABILE: una chiave pendente non cambia identità né contenut
   const op3: OperazioneContratto = { opKey: 'op-3', kind: 'salva', documentId: 'd1', baseRev: 1, impronta: await sha(manifestoSalva(batch3)), clientRefs: [], richiesta: { kind: 'salva', modifiche: batch3 } }
   const dep3 = depositoOperazioniInMemoria([op3])      // come dopo una riapertura
   assert.equal((await recuperaOperazione(cliente, dep3, dep3.contenuto()[0])).stato, 'assente')
-  const reinvio = await reinviaOperazione(cliente, dep3, dep3.contenuto()[0])
+  const reinvio = await reinviaOperazione(cliente, dep3, 'op-3', sha)
   assert.ok(reinvio.ok)
   assert.equal(mondo.righe.get('r1')!.amount, 4)
   // le modifiche SUCCESSIVE dell'utente non alterano l'operazione custodita
@@ -459,4 +466,93 @@ test('SERVER FINTO: respinge i valori vietati sulle righe esistenti e la conferm
   ;(mondo.bozze.get('b1') as Record<string, unknown>).group_id = null
   const senzaGruppo = await eseguiConferma(cliente, deposito, 'd1', 0, [], sha, 'op-4')
   assert.ok(!senzaGruppo.ok && 'errore' in senzaGruppo && senzaGruppo.errore.includes('destinatario'))
+})
+
+// ---- correzioni della revisione su 3901b9c --------------------------------
+test('SENZA PROVA DI RIFIUTO la pendenza resta: Bad Gateway, Service Unavailable e upstream failed non cancellano nulla (l\'effetto può esistere)', async () => {
+  const mondo = mondoBase()
+  const { cliente } = creaServerContratto(mondo, sha)
+  for (const messaggio of ['Bad Gateway', 'Service Unavailable', 'upstream request failed']) {
+    const deposito = depositoOperazioniInMemoria()
+    let s = statoBase()
+    s = modificaBozza(s, 'b1', { store: 'Iper' })
+    // l'operazione viene APPLICATA dal server, ma il trasporto
+    // SOSTITUISCE la risposta con un errore qualunque
+    const manomesso = {
+      ...cliente,
+      salvaRevisione: async (pp: never) => { await cliente.salvaRevisione(pp); return { error: { message: messaggio } } as never },
+    }
+    const esito = await eseguiSalva(manomesso, deposito, s, 0, sha, `op-${messaggio}`)
+    assert.ok(!esito.ok && 'incerto' in esito, messaggio)          // MAI un rifiuto dedotto dal testo
+    assert.equal(deposito.contenuto().length, 1, messaggio)        // pendenza CONSERVATA
+    // e il recupero per chiave trova l'esito vero e la chiude
+    const rec = await recuperaOperazione(cliente, deposito, deposito.contenuto()[0])
+    assert.equal(rec.stato, 'applicata', messaggio)
+    mondo.bozze.get('b1')!.store = 'Mercato'
+    mondo.documenti.get('d1')!.revisione_rev = 0
+  }
+  // stessa regola per {errore:'Bad Gateway'} restituito senza codice
+  const deposito = depositoOperazioniInMemoria()
+  let s2 = statoBase()
+  s2 = modificaBozza(s2, 'b1', { store: 'Iper' })
+  const finto = { ...cliente, salvaRevisione: async () => ({ errore: 'Bad Gateway' }) as never }
+  const esito = await eseguiSalva(finto, deposito, s2, 0, sha, 'op-bg')
+  assert.ok(!esito.ok && 'incerto' in esito)
+  assert.equal(deposito.contenuto().length, 1)
+})
+
+test('RECUPERO con risposte inattese: null, undefined e forme sconosciute → «illeggibile» controllato, custodia intatta, nessuna eccezione', async () => {
+  const mondo = mondoBase()
+  const { cliente, guasti } = creaServerContratto(mondo, sha)
+  const deposito = depositoOperazioniInMemoria()
+  let s = statoBase()
+  s = modificaBozza(s, 'b1', { store: 'Iper' })
+  guasti.perdiRisposta = true
+  await eseguiSalva(cliente, deposito, s, 0, sha, 'op-1')
+  guasti.perdiRisposta = false
+  const op = deposito.contenuto()[0]
+  for (const rotta of [null, undefined, 42, 'boh', {}, { stato: 'sconosciuto' }, { stato: 'applicata' }]) {
+    const finto = { ...cliente, esitoRevisione: async () => rotta as never }
+    const rec = await recuperaOperazione(finto, deposito, op)
+    assert.equal(rec.stato, 'illeggibile', JSON.stringify(rotta ?? String(rotta)))
+    assert.equal(deposito.contenuto().length, 1)
+  }
+  // col giornale VERO si chiude normalmente
+  assert.equal((await recuperaOperazione(cliente, deposito, op)).stato, 'applicata')
+})
+
+test('REINVIO dal deposito, mai dall\'argomento: una copia manomessa non parte; «Dopo» non viene mai inviato; discordanze conservano la pendenza', async () => {
+  const mondo = mondoBase()
+  const { cliente } = creaServerContratto(mondo, sha)
+  // custodita «Prima», richiesta MAI arrivata
+  let s = statoBase()
+  s = modificaBozza(s, 'b1', { store: 'Prima' })
+  const batch = batchSalvaDa(s, 0)
+  const op: OperazioneContratto = { opKey: 'op-p', kind: 'salva', documentId: 'd1', baseRev: 0, impronta: await sha(manifestoSalva(batch)), clientRefs: [], richiesta: { kind: 'salva', modifiche: batch } }
+  const deposito = depositoOperazioniInMemoria([op])
+  // copia MANOMESSA: payload «Dopo», impronta lasciata invariata
+  const copia = JSON.parse(JSON.stringify(op)) as OperazioneContratto
+  ;(copia.richiesta as { modifiche: { bozze: Record<string, { store?: string }> } }).modifiche.bozze.b1.store = 'Dopo'
+  // il reinvio RILEGGE dal deposito per chiave: la copia è irrilevante e
+  // parte la richiesta ORIGINALE
+  const reinvio = await reinviaOperazione(cliente, deposito, copia.opKey, sha)
+  assert.ok(reinvio.ok)
+  assert.equal(mondo.bozze.get('b1')!.store, 'Prima')  // «Dopo» MAI inviato
+  // custodia DISCORDANTE (payload manomesso DENTRO il deposito, impronta
+  // invariata): l'impronta ricalcolata non torna → nessuna chiamata,
+  // pendenza conservata
+  const depositoRotto = depositoOperazioniInMemoria([copia])
+  mondo.documenti.get('d1')!.revisione_rev = 0
+  mondo.bozze.get('b1')!.store = 'Mercato'
+  const discordante = await reinviaOperazione(cliente, depositoRotto, copia.opKey, sha)
+  assert.ok(!discordante.ok && 'errore' in discordante && discordante.errore.includes('NON corrisponde alla sua impronta'))
+  assert.equal(mondo.bozze.get('b1')!.store, 'Mercato')          // niente inviato
+  assert.equal(depositoRotto.contenuto().length, 1)              // pendenza conservata
+  // deposito ASSENTE o ILLEGGIBILE → nessuna chiamata
+  const vuoto = depositoOperazioniInMemoria()
+  const nonTrovata = await reinviaOperazione(cliente, vuoto, 'op-p', sha)
+  assert.ok(!nonTrovata.ok && 'errore' in nonTrovata && nonTrovata.errore.includes('non trovata'))
+  const illeggibile = { salva: () => ({}), leggi: () => ({ errore: 'memoria guasta' }), rimuovi: () => ({}) }
+  const guasto = await reinviaOperazione(cliente, illeggibile as never, 'op-p', sha)
+  assert.ok(!guasto.ok && 'errore' in guasto && guasto.errore.includes('illeggibile'))
 })
