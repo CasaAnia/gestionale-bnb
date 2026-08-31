@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import {
   ErroreCollaudo, LEGACY, TABELLE_FOTOGRAFATE, creaContatore, attendiQuiescenza, attesaSuTabella,
   costruisciFaseB, sqlFixtureDocumento, pianoPulizia, eseguiPiano, confrontaFotografie,
-  tipiTimestampTesto, validaFotografia,
+  tipiTimestampTesto, validaFotografia, provaNegativaFaseA,
 } from './strumenti.mjs'
 import { provaValida } from '../fase4/concorrenza.mjs'
 
@@ -164,15 +164,19 @@ test('fixture: senza importoRiga la riga pareggia il totale', () => {
   assert.match(stmts[2], /, 7\)/)
 })
 
-// ---- pulizia: FK della 0020 rispettate, id esatti, ripresa ------------------
-// SIMULATORE dello schema 0020 (non un esecutore che registra e basta):
-// un documento CONFERMATO con spesa, ponte, righe definitive e
-// correzioni; le FK ON DELETE RESTRICT vengono FATTE RISPETTARE —
-// eliminare una spesa ancora referenziata dal ponte o dalla bozza, o un
-// documento ancora referenziato dal ponte, LANCIA come farebbe PostgreSQL.
+// ---- pulizia: FK della 0020 e trigger della 0021 rispettati -----------------
+// SIMULATORE dello schema (non un esecutore che registra e basta): un
+// documento con status CONFERMATO, spesa, ponte, righe definitive e
+// correzioni. Vengono FATTI RISPETTARE sia le FK ON DELETE RESTRICT
+// (spesa referenziata da ponte o bozza, documento referenziato dal
+// ponte) sia il trigger della 0021 private.blocca_spese_documentate:
+// DELETE su family_expenses o family_expense_items è respinto finché il
+// ponte collega la spesa a un documento con status 'confermato' (vale
+// anche per postgres: l'eccezione dipende dal claim service_role, e il
+// collaudo NON disabilita protezioni).
 function baseConfermata() {
   return {
-    documents: [{ id: 'doc1' }, { id: 'doc-altrui' }],
+    documents: [{ id: 'doc1', status: 'confermato' }, { id: 'doc-altrui', status: 'confermato' }],
     drafts: [
       { id: 'bz1', document_id: 'doc1', expense_id: 'sp1' },
       { id: 'bz-altrui', document_id: 'doc-altrui', expense_id: 'sp-altrui' },
@@ -190,6 +194,10 @@ function baseConfermata() {
   }
 }
 function esecutore0020(db) {
+  // trigger 0021: la spesa è «documentata» se il ponte la collega a un
+  // documento con status confermato
+  const documentata = expenseId => db.ponte.some(pp => pp.expense_id === expenseId
+    && db.documents.some(d => d.id === pp.document_id && d.status === 'confermato'))
   return async stmt => {
     const ids = [...stmt.matchAll(/'([^']+)'/g)].map(m => m[1])
     const bozzeDei = docs => db.drafts.filter(b => docs.includes(b.document_id)).map(b => b.id)
@@ -205,6 +213,10 @@ function esecutore0020(db) {
       return []
     }
     if (stmt.includes('delete from public.family_expense_items')) {
+      for (const vv of db.voci.filter(x => ids.includes(x.expense_id))) {
+        if (documentata(vv.expense_id))
+          throw new Error(`TRIGGER 0021: riga definitiva ${vv.id} di una spesa collegata a un documento confermato`)
+      }
       db.voci = db.voci.filter(vv => !ids.includes(vv.expense_id)); return []
     }
     if (stmt.includes('delete from public.family_draft_items')) {
@@ -219,6 +231,8 @@ function esecutore0020(db) {
     }
     if (stmt.includes('delete from public.family_expenses ')) {
       for (const sp of db.expenses.filter(x => ids.includes(x.id))) {
+        if (documentata(sp.id))
+          throw new Error(`TRIGGER 0021: spesa ${sp.id} collegata a un documento confermato`)
         if (db.ponte.some(pp => pp.expense_id === sp.id))
           throw new Error(`FK RESTRICT: family_expense_documents.expense_id referenzia ancora ${sp.id}`)
         if (db.drafts.some(b => b.expense_id === sp.id))
@@ -251,11 +265,24 @@ test('pulizia con documento CONFERMATO: il piano passa le FK RESTRICT e rimuove 
   assert.equal(db.correzioni.length, 0)
   assert.equal(db.oggetti.size, 0, 'anche la funzione del trigger e la colonna vanno via')
 })
-test("CONTROPROVA: eliminare le spese PRIMA dei riferimenti viene respinto dalle FK", async () => {
+test("CONTROPROVA: eliminare le spese PRIMA dei riferimenti viene respinto (trigger 0021, poi FK)", async () => {
   const db = baseConfermata()
   const piano = pianoPulizia({ docIds: ['doc1'], expenseIds: ['sp1'] })
   const spese = piano.find(x => x.includes('delete from public.family_expenses '))
+  await assert.rejects(esecutore0020(db)(spese), /TRIGGER 0021/)
+  db.documents[0].status = 'in_revisione'   // senza la 0021 resta comunque la FK
   await assert.rejects(esecutore0020(db)(spese), /FK RESTRICT/)
+})
+test('CONTROPROVA 0021: righe definitive PRIMA del ponte → respinte dal trigger; dopo il ponte passano', async () => {
+  const db = baseConfermata()
+  const piano = pianoPulizia({ docIds: ['doc1'], expenseIds: ['sp1'] })
+  const righe = piano.find(x => x.includes('delete from public.family_expense_items'))
+  const ponte = piano.find(x => x.includes('delete from public.family_expense_documents'))
+  await assert.rejects(esecutore0020(db)(righe), /TRIGGER 0021/)
+  assert.ok(piano.indexOf(ponte) < piano.indexOf(righe), 'il piano toglie il ponte PRIMA delle righe definitive')
+  await esecutore0020(db)(ponte)
+  await esecutore0020(db)(righe)
+  assert.deepEqual(db.voci.map(vv => vv.id), ['v-altrui'])
 })
 test('pianoPulizia: id ESATTI (mai nomi), DROP del giornale e della funzione del trigger', () => {
   const piano = pianoPulizia({ docIds: ['aaa'], expenseIds: ['sss'] })
@@ -300,6 +327,35 @@ test('anche la RIPRESA rispetta le FK: interruzione a metà, poi il simulatore c
   await eseguiPiano(vero, piano.slice(arrivataA + 1))
   assert.deepEqual(db.documents.map(d => d.id), ['doc-altrui'])
   assert.equal(db.oggetti.size, 0)
+})
+
+// ---- prove negative della guardia di fase A --------------------------------
+const bozzaFaseAFinta = `-- intestazione (non applicare)
+begin;
+create table if not exists private.transizione_backup (nome text);
+do $do$ begin raise exception 'FASE_A_STOP: prova'; end $do$;
+commit;
+-- runbook in coda`
+test('provaNegativaFaseA: transazione del COLLAUDO — un solo begin, NESSUN commit, rollback finale', () => {
+  const sql = provaNegativaFaseA({ bozza: bozzaFaseAFinta, sonda: `create function sonda();` })
+  assert.ok(!sql.includes('commit;'), 'il commit della bozza deve sparire: concluderebbe anche la sonda')
+  assert.equal((sql.match(/begin;/g) ?? []).length, 1)
+  assert.match(sql.trim(), /rollback;$/)
+  assert.ok(sql.indexOf('begin;') < sql.indexOf('create function sonda();'))
+  assert.ok(sql.indexOf('create function sonda();') < sql.indexOf('transizione_backup'))
+  assert.match(sql, /FASE_A_STOP: prova/)
+})
+test('provaNegativaFaseA: anche se la guardia ACCETTASSE per errore, il rollback è già nel testo', () => {
+  // bozza che NON respinge la sonda (guardia sbagliata simulata): il
+  // testo generato termina comunque con rollback, mai con commit
+  const permissiva = `begin;\ncreate table if not exists private.transizione_backup (nome text);\ncommit;`
+  const sql = provaNegativaFaseA({ bozza: permissiva, sonda: `create function sonda();` })
+  assert.ok(!sql.includes('commit;'))
+  assert.match(sql.trim(), /rollback;$/)
+})
+test('provaNegativaFaseA: bozza senza begin/commit o con commit INTERNO → STOP', () => {
+  assert.throws(() => provaNegativaFaseA({ bozza: 'niente', sonda: 'x' }), ErroreCollaudo)
+  assert.throws(() => provaNegativaFaseA({ bozza: 'begin;\na;\ncommit;\nb;\ncommit;', sonda: 'x' }), /interno/)
 })
 
 // ---- parser dei timestamp (punto perso dal driver pg) ----------------------

@@ -2060,6 +2060,40 @@ se la precedente non è verificata E approvata.
   puliti; tsc e build verdi. NIENTE token, esecuzioni remote,
   azzeramenti, produzione, push o deploy; client verificato non toccato.
 
+  **COLLAUDO ISOLATO — DUE PUNTI SULLA REVISIONE DI d7e8ee5
+  (31/08/2026, notte): trigger della 0021 rispettato nella pulizia e
+  prove negative della guardia con rollback garantito.**
+  1) PULIZIA E TRIGGER 0021 — il piano toglieva le righe definitive
+     prima del ponte, ma private.blocca_spese_documentate respinge il
+     DELETE su family_expenses e family_expense_items finché il ponte
+     collega la spesa a un documento CONFERMATO (vale anche come
+     postgres: l'eccezione dipende dal claim service_role). Ordine
+     corretto SENZA disabilitare protezioni: correzioni → PONTE → righe
+     definitive → righe bozza → bozze → spese → documenti; gli
+     expense_id restano custoditi nel registro prima dei riferimenti.
+     Simulatore esteso: documenti con status, trigger 0021 su spese e
+     righe definitive; controprove — righe prima del ponte → respinte
+     dal trigger, spese prima dei riferimenti → trigger 0021 e poi (a
+     documento non confermato) FK RESTRICT; il piano intero passa e
+     preserva gli estranei.
+  2) PROVE NEGATIVE DELLA GUARDIA IN TRANSAZIONE DEL COLLAUDO — la
+     bozza A porta il SUO begin;…commit;: incollarla dopo un BEGIN non
+     annida nulla e quel commit avrebbe concluso anche la sonda; se la
+     guardia avesse accettato per errore, il rosso sarebbe arrivato
+     DOPO il commit, a residui persistiti e mai registrati. Nuovo
+     strumento provaNegativaFaseA: sonda + corpo della bozza SENZA
+     begin/commit (un commit; interno = STOP), chiusa SEMPRE da
+     rollback — anche un'accettazione inattesa non lascia nulla.
+     Passo 5.0 riscritto sopra: residui e originali verificati PRIMA
+     del verdetto sulla guardia, in entrambi i casi negativi. Testato
+     in locale: un solo begin, nessun commit nel testo, rollback
+     finale, sonda dentro la transazione; bozza permissiva simulata →
+     il rollback è comunque nel testo; bozza senza begin/commit o con
+     commit interno → STOP.
+  Test: 317/317 di suite + 43/43 strumenti e registro; sintassi e lint
+  puliti. Solo correzioni locali: niente token, esecuzioni remote,
+  azzeramenti, produzione, push o deploy; client verificato intatto.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

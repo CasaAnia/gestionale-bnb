@@ -128,6 +128,26 @@ ${involucri}
 commit;`
 }
 
+// ---- prove NEGATIVE della guardia di fase A -------------------------------
+// La bozza è un blocco begin;…commit; autonomo: incollarla dopo un
+// BEGIN del collaudo NON crea una transazione annidata e il suo COMMIT
+// concluderebbe anche la sonda (overload o firma sbagliata). Se la
+// guardia accettasse per ERRORE, il rosso arriverebbe DOPO il commit, a
+// residui già persistiti e mai registrati. Qui la transazione la
+// controlla il COLLAUDO: sonda + corpo della bozza SENZA begin/commit,
+// chiusa SEMPRE da rollback — anche un'accettazione inattesa non
+// lascia nulla nel database.
+export function provaNegativaFaseA({ bozza, sonda }) {
+  const inizio = bozza.indexOf('begin;')
+  const fine = bozza.lastIndexOf('commit;')
+  if (inizio < 0 || fine < 0 || fine <= inizio)
+    throw new ErroreCollaudo('bozza della fase A senza begin;/commit; riconoscibili: prova negativa non costruibile')
+  const corpo = bozza.slice(inizio + 'begin;'.length, fine)
+  if (corpo.includes('commit;'))
+    throw new ErroreCollaudo('corpo della bozza con un commit; interno: il rollback della prova negativa non sarebbe garantito')
+  return `begin;\n${sonda}\n${corpo}\nrollback;`
+}
+
 // ---- fixture: costruttore PURO delle istruzioni ---------------------------
 // importoRiga è SEPARATO dal totale (serve alle prove di quadratura);
 // gli id sono FORNITI (generati e registrati PRIMA degli effetti).
@@ -153,8 +173,15 @@ export function sqlFixtureDocumento({ docId, bozzaId, rigaId, gruppoId, totale =
 // RESTRICT sia dal ponte (family_expense_documents.expense_id) sia
 // dalle bozze (family_draft_expenses.expense_id) — i riferimenti si
 // eliminano PRIMA, le spese poi, i documenti per ultimi (il ponte li
-// referenzia RESTRICT). Correzioni e righe definitive (voci) delle
-// spese del collaudo vengono eliminate esplicitamente e verificate.
+// referenzia RESTRICT). E il PONTE va via PRIMA delle righe definitive
+// e delle spese anche per la protezione della 0021
+// (private.blocca_spese_documentate, BEFORE UPDATE/DELETE su
+// family_expenses e family_expense_items): finché esiste il
+// collegamento a un documento CONFERMATO la cancellazione è respinta —
+// anche come postgres, l'eccezione dipende dal claim service_role, non
+// dal proprietario della connessione; qui non si disabilita nulla, si
+// rispetta l'ordine. Correzioni e righe definitive (voci) delle spese
+// del collaudo vengono eliminate esplicitamente e verificate.
 // Idempotente: rieseguibile dopo un'interruzione.
 export function pianoPulizia({ docIds, expenseIds = [] }) {
   const sentinella = `'00000000-0000-0000-0000-000000000000'`
@@ -173,10 +200,10 @@ export function pianoPulizia({ docIds, expenseIds = [] }) {
     `delete from public.family_corrections where document_id in (${doc})
        or expense_id in (${spesa})
        or draft_id in (select id from public.family_draft_expenses where document_id in (${doc}))`,
+    `delete from public.family_expense_documents where document_id in (${doc})`,
     `delete from public.family_expense_items where expense_id in (${spesa})`,
     `delete from public.family_draft_items where draft_id in
        (select id from public.family_draft_expenses where document_id in (${doc}))`,
-    `delete from public.family_expense_documents where document_id in (${doc})`,
     `delete from public.family_draft_expenses where document_id in (${doc})`,
     `delete from public.family_expenses where id in (${spesa})`,
     `delete from public.family_documents where id in (${doc})`,

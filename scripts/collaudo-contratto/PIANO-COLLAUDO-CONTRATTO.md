@@ -37,8 +37,9 @@ ricordata esplicitamente); nessun segreto in chat, log o repository.
   `node --test scripts/collaudo-contratto/strumenti.test.mjs scripts/collaudo-contratto/registro.test.mjs`
   (STOP del contatore, quiescenza, falsa presenza di Y, concorrenza non
   valida, fase B in un'unica transazione, fixture con squadratura,
-  pulizia simulata sulle FK della 0020 con documento confermato e
-  ripresa dall'interruzione, timestamp a testo contro la perdita dei
+  pulizia simulata su FK della 0020 E trigger della 0021 con documento
+  confermato (controprove comprese) e ripresa dall'interruzione, prove
+  negative della guardia di fase A con rollback garantito nel testo, timestamp a testo contro la perdita dei
   microsecondi del driver, registro: blocco dei giri pendenti e
   scritture atomiche).
 
@@ -94,12 +95,16 @@ ricordata esplicitamente); nessun segreto in chat, log o repository.
    perdendo i microsecondi PRIMA della validazione).
 5. `node scripts/collaudo-contratto/passo5-transizione.mjs`
    — SOLO progetto di prova: 5.0 la GUARDIA della fase A provata sul
-   database vero (un sovraccarico in più → FASE_A_STOP senza alcun
-   effetto; tipi diversi dagli attesi → FASE_A_STOP con l'originale
-   ripristinato dall'abort; il caso conforme sono le funzioni REALI
-   della 0020 con gli argomenti nominati, applicate in 5.1 — il
-   confronto è sui TIPI dal catalogo, mai sul testo della firma
-   nominata); 5.1 fase A applicata e verificata
+   database vero, in una transazione CONTROLLATA DAL COLLAUDO
+   (provaNegativaFaseA: sonda + corpo della bozza SENZA il suo
+   begin/commit, chiusa SEMPRE da rollback — così anche se la guardia
+   accettasse per errore non resterebbe alcun residuo non registrato):
+   un sovraccarico in più → FASE_A_STOP; tipi diversi dagli attesi →
+   FASE_A_STOP con l'originale intatto byte per byte; residui verificati
+   in ogni caso; il caso conforme sono le funzioni REALI della 0020 con
+   gli argomenti nominati, applicate in 5.1 — il confronto è sui TIPI
+   dal catalogo, mai sul testo della firma nominata; 5.1 fase A
+   applicata e verificata
    (spostamento VERBATIM, respingenti P0001 sui cinque nomi, private
    negate) e ROLLBACK dal runbook provato (originali byte per byte);
    5.2 riproduzione DETERMINISTICA della chiamata sospesa dentro
@@ -127,11 +132,14 @@ ricordata esplicitamente); nessun segreto in chat, log o repository.
    CONSERVATI DUREVOLMENTE nel registro PRIMA di eliminare i
    riferimenti. Poi: smontaggio della transizione nell'ORDINE sicuro
    (originali dal backup → ri-grant 0021 ed execute legacy → verifica →
-   via le copie private → backup per ULTIMO) e piano nell'ordine delle
-   FK della 0020 (DROP del giornale e della sua funzione trigger, mai
-   DELETE; correzioni e righe definitive; ponte e bozze PRIMA delle
-   spese — entrambi le referenziano ON DELETE RESTRICT — e documenti
-   per ultimi), con progresso annotato nel registro. Alla fine rifà la
+   via le copie private → backup per ULTIMO) e piano nell'ordine di FK
+   della 0020 E trigger della 0021 (DROP del giornale e della sua
+   funzione trigger, mai DELETE; correzioni; poi il PONTE per primo —
+   private.blocca_spese_documentate respinge il DELETE di spese e righe
+   definitive finché il collegamento a un documento confermato esiste,
+   anche come postgres, e non si disabilita nulla — quindi righe
+   definitive, righe bozza, bozze, spese e documenti per ultimi), con
+   progresso annotato nel registro. Alla fine rifà la
    fotografia (impronte dei dati, definizioni legacy, privilegi con
    identità esatta, EXECUTE) e la CONFRONTA con quella di base; il
    registro si marca «pulito» SOLO dopo che TUTTE le verifiche sono

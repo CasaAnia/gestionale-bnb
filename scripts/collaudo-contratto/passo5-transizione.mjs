@@ -15,7 +15,7 @@ import pg from 'pg'
 import { sql, progetto } from '../fase2b/api.mjs'
 import { verificaNonProduzione } from '../fase2b/guardia.mjs'
 import { LEGACY, bozzaSql, comeMembro, fixtureDocumento, ownerId } from './ambiente.mjs'
-import { attendiQuiescenza, attesaSuTabella, costruisciFaseB, creaContatore, eseguiPasso } from './strumenti.mjs'
+import { attendiQuiescenza, attesaSuTabella, costruisciFaseB, creaContatore, eseguiPasso, provaNegativaFaseA } from './strumenti.mjs'
 import { apriUltimoRegistro } from './registro.mjs'
 
 await eseguiPasso('PASSO 5 · transizione A/B', async () => {
@@ -57,39 +57,50 @@ await eseguiPasso('PASSO 5 · transizione A/B', async () => {
     v.esigi('cinque funzioni legacy presenti in public', Object.keys(originali).length === 5)
 
     // ---- 5.0 GUARDIA della fase A provata sul database vero ---------------
-    // (a) un SOVRACCARICO in più → FASE_A_STOP e nessun effetto (la bozza
-    // è un'unica transazione: l'abort riporta tutto indietro)
+    // La bozza porta il SUO begin;…commit;: incollarla dopo un BEGIN non
+    // annida nulla e quel commit concluderebbe anche la sonda — se la
+    // guardia accettasse per errore, il rosso arriverebbe a residui già
+    // persistiti. provaNegativaFaseA toglie begin/commit dalla bozza e
+    // chiude SEMPRE con rollback: la transazione la controlla il
+    // collaudo, e anche un'accettazione inattesa non lascia nulla.
+    const residuiGuardia = async () => (await sql(`select
+      (select count(*)::int from pg_proc p join pg_namespace n2 on n2.oid=p.pronamespace
+         where n2.nspname='public' and p.proname='scarta_documento') as sovraccarichi,
+      (select count(*)::int from information_schema.tables where table_schema='private' and table_name='transizione_backup') as backup,
+      (select count(*)::int from pg_proc p join pg_namespace n2 on n2.oid=p.pronamespace
+         where n2.nspname='private' and p.proname in (${LEGACY.map(x => `'${x}'`).join(',')})) as private_`))[0]
+    // (a) un SOVRACCARICO in più → FASE_A_STOP
     {
       let stop = ''
       try {
-        await sql(`begin;
-          create function public.scarta_documento(p_solo uuid) returns void
-            language sql as 'select null::void';
-          ${bozzaSql('transizione-fase-A.BOZZA.sql')}`)
+        await sql(provaNegativaFaseA({
+          bozza: bozzaSql('transizione-fase-A.BOZZA.sql'),
+          sonda: `create function public.scarta_documento(p_solo uuid) returns void
+            language sql as 'select null::void';`,
+        }))
       } catch (e) { stop = String(e.message) }
+      const resti = await residuiGuardia()
+      v.esigi('sonda e bozza SENZA residui (rollback del collaudo, anche ad accettazione inattesa)',
+        resti.sovraccarichi === 1 && resti.backup === 0 && resti.private_ === 0, JSON.stringify(resti))
       v.esigi('overload presente → FASE_A_STOP (ESATTAMENTE una)', stop.includes('ESATTAMENTE una'), stop.slice(0, 120))
-      const [sovra] = await sql(`select count(*)::int as n from pg_proc p
-        join pg_namespace n2 on n2.oid=p.pronamespace where n2.nspname='public' and p.proname='scarta_documento'`)
-      const [resti] = await sql(`select
-        (select count(*)::int from information_schema.tables where table_schema='private' and table_name='transizione_backup') as backup,
-        (select count(*)::int from pg_proc p join pg_namespace n2 on n2.oid=p.pronamespace
-           where n2.nspname='private' and p.proname in (${LEGACY.map(x => `'${x}'`).join(',')})) as private_`)
-      v.esigi('abort della guardia SENZA effetti: niente overload, backup né copie private',
-        sovra.n === 1 && resti.backup === 0 && resti.private_ === 0, JSON.stringify({ sovra, resti }))
     }
-    // (b) TIPI diversi da quelli attesi → FASE_A_STOP, originale intatto
+    // (b) TIPI diversi da quelli attesi → FASE_A_STOP
     {
       let stop = ''
       try {
-        await sql(`begin;
-          drop function public.scarta_documento(uuid, text);
+        await sql(provaNegativaFaseA({
+          bozza: bozzaSql('transizione-fase-A.BOZZA.sql'),
+          sonda: `drop function public.scarta_documento(uuid, text);
           create function public.scarta_documento(p_document_id uuid, p_motivi jsonb) returns void
-            language sql as 'select null::void';
-          ${bozzaSql('transizione-fase-A.BOZZA.sql')}`)
+            language sql as 'select null::void';`,
+        }))
       } catch (e) { stop = String(e.message) }
-      v.esigi('tipi inattesi → FASE_A_STOP (confronto dal catalogo, non sul testo nominato)', stop.includes('tipi inattesi'), stop.slice(0, 120))
+      const resti = await residuiGuardia()
       const dopoGuardia = await definizioni('public')
-      v.esigi('l\'abort ripristina l\'originale byte per byte', dopoGuardia.scarta_documento === originali.scarta_documento)
+      v.esigi('nessun residuo e originale INTATTO byte per byte (rollback garantito)',
+        resti.sovraccarichi === 1 && resti.backup === 0 && resti.private_ === 0
+        && dopoGuardia.scarta_documento === originali.scarta_documento, JSON.stringify(resti))
+      v.esigi('tipi inattesi → FASE_A_STOP (confronto dal catalogo, non sul testo nominato)', stop.includes('tipi inattesi'), stop.slice(0, 120))
     }
     // (c) il caso CONFORME sono le funzioni REALI della 0020, con gli
     // argomenti NOMINATI (p_document_id uuid, …): è la 5.1 qui sotto —
