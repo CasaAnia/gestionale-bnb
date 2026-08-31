@@ -1846,6 +1846,35 @@ se la precedente non è verificata E approvata.
   Test: 311/311 (3 nuovi); tsc, lint, build verdi. Collaudo PostgreSQL
   e transizione A/B sempre separati e da dimostrare.
 
+  **CONTRATTO — DUE CORREZIONI SULLA REVISIONE DI 32e3b41 (03/09/2026):**
+  1) SQLSTATE A ELENCO POSITIVO — l'esclusione per classi ammetteva
+     40003 (statement_completion_unknown: esito IGNOTO) e 00000/01000/
+     02000/ZZZZZ come «rifiuti»: ora prova il rifiuto SOLO l'elenco
+     positivo motivato dal contratto (P0001 raise; classi 22 e 23:
+     statement fallito e transazione annullata; 42501/42883/42P01:
+     percorso non eseguito). Tutto il resto — sconosciuto, non
+     pertinente, indeterminato — conserva la pendenza e si recupera per
+     chiave. Riprodotta e chiusa la sequenza del revisore (operazione
+     applicata + code 40003 → custodia CONSERVATA e recupero che la
+     chiude con l'esito vero), più 00000/01000/02000/ZZZZZ.
+  2) RESPONSABILITÀ DEL PRIMO TENTATIVO INCERTO — annotata DUREVOLMENTE
+     nella custodia (tentativiIncerti, aggiornabile solo a identità
+     invariata e mai in giù): finché esiste un invio precedente senza
+     esito, un RIFIUTO autentico di un tentativo successivo (es.
+     NON_MEMBRO P0001 al reinvio) definisce quel tentativo ma NON
+     chiude la pendenza — lo si dichiara nell'errore. Chiudono SOLO gli
+     esiti riferibili all'operazione: successo per chiave (replay
+     protegge gli arrivi tardivi) o SUPERATA (revisione monotona: quel
+     base_rev non applicherà mai più). Testata l'intera sequenza del
+     revisore (risposta persa a invio partito → recupero assente →
+     reinvio rifiutato → pendenza conservata → il primo arriva →
+     recupero la chiude con effetto e giornale ritrovati) + controprove
+     (rifiuto al primo e unico tentativo chiude come prima; SUPERATA
+     risolutiva con incerto pregresso). Nessun ampliamento del
+     contratto database necessario per questo punto.
+  Test: 313/313 (2 nuovi); tsc, lint, build verdi. Collaudo PostgreSQL
+  e transizione A/B sempre separati e da dimostrare.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

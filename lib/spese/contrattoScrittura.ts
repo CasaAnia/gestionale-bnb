@@ -37,7 +37,12 @@ export function depositoOperazioniInMemoria(iniziali: OperazioneContratto[] = []
       const esistente = ops.find(o => o.opKey === op.opKey)
       if (esistente) {
         if (esistente.impronta === op.impronta && esistente.kind === op.kind
-          && esistente.documentId === op.documentId && esistente.baseRev === op.baseRev) return {}
+          && esistente.documentId === op.documentId && esistente.baseRev === op.baseRev) {
+          // stessa identità: si aggiorna SOLO il conteggio dei tentativi
+          // incerti (mai in giù) — la RICHIESTA resta quella originale
+          esistente.tentativiIncerti = Math.max(esistente.tentativiIncerti ?? 0, op.tentativiIncerti ?? 0)
+          return {}
+        }
         return { errore: `la chiave ${op.opKey} è già pendente con UN'ALTRA richiesta: una pendenza non cambia identità né contenuto` }
       }
       ops = [...ops, JSON.parse(JSON.stringify(op))]
@@ -72,27 +77,48 @@ async function esegui(
   const custodia = deposito.salva(op)
   if (custodia.errore)
     return { ok: false, errore: `non riesco a custodire l'operazione (${custodia.errore}): NON la invio — senza custodia una risposta persa sarebbe irrecuperabile` }
+  // un esito incerto va ANNOTATO DUREVOLMENTE prima di restituirlo: da
+  // qui in poi la pendenza porta la responsabilità di un invio che può
+  // ancora applicare
+  const annotaIncerto = () => deposito.salva({ ...op, tentativiIncerti: (deposito.leggi(op.opKey).op?.tentativiIncerti ?? 0) + 1 })
   let r: unknown
   try { r = await invia() } catch (e) {
     const msg = String((e as Error).message ?? e)
+    annotaIncerto()
     return { ok: false, incerto: true, errore: `${rete(msg) ? 'esito incerto' : 'esito ignoto'} (${msg}): l'operazione è custodita — il recupero passa da esito_revisione, nessun reinvio automatico`, op }
   }
   const v = validaRisposta(op, r)
-  if (v.tipo === 'incerta')
+  if (v.tipo === 'incerta') {
+    annotaIncerto()
     return { ok: false, incerto: true, errore: `${v.perche} — l'operazione resta custodita, il recupero passa da esito_revisione`, op }
-  // esito DEFINITO: si chiude la responsabilità; se la rimozione
-  // fallisce lo si DICE (la pendenza ricomparirà e verrà riconciliata)
-  const pulizia = deposito.rimuovi(op.opKey)
-  const avviso = pulizia.errore
-    ? `custodia non rimossa (${pulizia.errore}): la pendenza ricomparirà e il recupero la richiuderà senza effetti doppi`
-    : undefined
+  }
+  // quali esiti CHIUDONO la responsabilità? Se NESSUN tentativo
+  // precedente è rimasto incerto, ogni esito definito la chiude. Se
+  // invece un invio precedente è ancora per aria, chiudono SOLO gli
+  // esiti riferibili all'OPERAZIONE:
+  //  · successo (la chiave è a giornale: un arrivo tardivo fa replay);
+  //  · SUPERATA (la revisione è monotona: nessun invio con questo
+  //    base_rev potrà mai più applicare).
+  // Un RIFIUTO o una sentinella del tentativo attuale non dimostrano la
+  // conclusione del primo: la pendenza RESTA e lo si dichiara.
+  const incertiPregressi = deposito.leggi(op.opKey).op?.tentativiIncerti ?? 0
+  const risolutivo = v.tipo === 'successo' || v.tipo === 'superata' || incertiPregressi === 0
+  let avviso: string | undefined
+  if (risolutivo) {
+    const pulizia = deposito.rimuovi(op.opKey)
+    if (pulizia.errore)
+      avviso = `custodia non rimossa (${pulizia.errore}): la pendenza ricomparirà e il recupero la richiuderà senza effetti doppi`
+  }
+  const codaPendenza = risolutivo
+    ? (avviso ? ` (${avviso})` : '')
+    : ' — ATTENZIONE: un invio precedente di questa operazione è ancora senza esito, la pendenza resta custodita (si chiuderà col recupero per chiave o con SUPERATA)'
   if (v.tipo === 'successo')
     return { ok: true, revDopo: v.revDopo, mappaNuove: v.mappaNuove, ...(v.spese ? { spese: v.spese } : {}), ...(v.ripetuta ? { ripetuta: true } : {}), ...(avviso ? { avviso } : {}) }
   if (v.tipo === 'superata')
     return { ok: false, conflitto: 'superata', errore: `il documento è cambiato rispetto alla revisione attesa: ricarica e riproponi le modifiche — nulla è stato scritto${avviso ? ` (${avviso})` : ''}` }
   if (v.tipo === 'rifiuto')
-    return { ok: false, errore: `il servizio ha rifiutato l'operazione: ${v.errore}${avviso ? ` (${avviso})` : ''}` }
-  return { ok: false, errore: `il servizio ha respinto l'operazione (${v.sentinella}${v.dettaglio ? `: ${v.dettaglio}` : ''}) — nulla è stato scritto${avviso ? ` (${avviso})` : ''}`, sentinella: v.sentinella }
+    return { ok: false, errore: `il servizio ha rifiutato l'operazione: ${v.errore}${codaPendenza}` }
+  return { ok: false, errore: `il servizio ha respinto l'operazione (${v.sentinella}${v.dettaglio ? `: ${v.dettaglio}` : ''}) — nulla è stato scritto da questo tentativo${codaPendenza}`, sentinella: v.sentinella }
 }
 
 // l'invio EFFETTIVO di un'operazione custodita: sempre e solo dalla

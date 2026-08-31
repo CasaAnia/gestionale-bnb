@@ -10,6 +10,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import {
   batchSalvaDa, canonico, corrisponde, manifestoConferma, manifestoSalva,
+  rifiutoDimostrato,
   type OperazioneContratto,
 } from './contrattoRevisione.ts'
 import {
@@ -555,4 +556,93 @@ test('REINVIO dal deposito, mai dall\'argomento: una copia manomessa non parte; 
   const illeggibile = { salva: () => ({}), leggi: () => ({ errore: 'memoria guasta' }), rimuovi: () => ({}) }
   const guasto = await reinviaOperazione(cliente, illeggibile as never, 'op-p', sha)
   assert.ok(!guasto.ok && 'errore' in guasto && guasto.errore.includes('illeggibile'))
+})
+
+// ---- correzioni della revisione su 32e3b41 --------------------------------
+test('SQLSTATE: ELENCO POSITIVO — 40003 (esito ignoto), 00000/01000/02000 e ZZZZZ non provano un rifiuto; provano P0001, 22P02, 23505, 42501', async () => {
+  // unità: la regola stessa
+  for (const non of ['40003', '00000', '01000', '02000', 'ZZZZZ', '08006', '57014', 'XX000', undefined, 'P1', ''])
+    assert.equal(rifiutoDimostrato(non as never), false, String(non))
+  for (const si of ['P0001', '22P02', '23505', '23502', '42501', '42883', '42P01'])
+    assert.equal(rifiutoDimostrato(si), true, si)
+  // sequenza del revisore: operazione APPLICATA, risposta sostituita da
+  // un errore con code 40003 → la custodia NON si cancella (effetto e
+  // giornale esistono) e il recupero la chiude con l'esito vero
+  const mondo = mondoBase()
+  const { cliente } = creaServerContratto(mondo, sha)
+  for (const codice of ['40003', '00000', '01000', '02000', 'ZZZZZ']) {
+    const deposito = depositoOperazioniInMemoria()
+    let s = statoBase()
+    s = modificaBozza(s, 'b1', { store: 'Iper' })
+    const manomesso = {
+      ...cliente,
+      salvaRevisione: async (pp: never) => { await cliente.salvaRevisione(pp); return { error: { message: 'errore qualunque', code: codice } } as never },
+    }
+    const esito = await eseguiSalva(manomesso, deposito, s, 0, sha, `op-${codice}`)
+    assert.ok(!esito.ok && 'incerto' in esito, codice)
+    assert.equal(deposito.contenuto().length, 1, codice)
+    assert.equal((await recuperaOperazione(cliente, deposito, deposito.contenuto()[0])).stato, 'applicata', codice)
+    mondo.bozze.get('b1')!.store = 'Mercato'
+    mondo.documenti.get('d1')!.revisione_rev = 0
+  }
+})
+
+test('IL RIFIUTO DI UN TENTATIVO SUCCESSIVO NON RISOLVE IL PRIMO INCERTO: la pendenza resta e si chiude solo con l\'esito riferibile', async () => {
+  const mondo = mondoBase()
+  const { cliente } = creaServerContratto(mondo, sha)
+  const deposito = depositoOperazioniInMemoria()
+  // 1) PRIMO invio: il trasporto lo accetta (partirà davvero, più
+  //    tardi), ma l'effetto resta SOSPESO e la risposta si perde
+  let rilascia: () => void = () => {}
+  let inSospeso: Promise<unknown> | null = null
+  const trasporto = {
+    ...cliente,
+    salvaRevisione: async (pp: never) => {
+      inSospeso = new Promise(res => { rilascia = () => res(cliente.salvaRevisione(pp)) })
+      throw new Error('Failed to fetch')
+    },
+  }
+  let s = statoBase()
+  s = modificaBozza(s, 'b1', { store: 'Iper' })
+  const primo = await eseguiSalva(trasporto, deposito, s, 0, sha, 'op-1')
+  assert.ok(!primo.ok && 'incerto' in primo)
+  assert.equal(deposito.leggi('op-1').op?.tentativiIncerti, 1)   // responsabilità ANNOTATA durevolmente
+  // 2) recupero → assente (il primo non ha ancora applicato)
+  assert.equal((await recuperaOperazione(cliente, deposito, deposito.contenuto()[0])).stato, 'assente')
+  // 3) REINVIO → rifiuto AUTENTICO (NON_MEMBRO, P0001): definisce il
+  //    secondo tentativo ma NON la conclusione del primo → la custodia
+  //    RESTA, e lo si dichiara
+  const respinge = { ...cliente, salvaRevisione: async () => ({ errore: 'NON_MEMBRO', codice: 'P0001' }) as never }
+  const reinvio = await reinviaOperazione(respinge, deposito, 'op-1', sha)
+  assert.ok(!reinvio.ok && 'errore' in reinvio && !('incerto' in reinvio))
+  assert.ok(!reinvio.ok && 'errore' in reinvio && reinvio.errore.includes('un invio precedente di questa operazione è ancora senza esito'))
+  assert.equal(deposito.contenuto().length, 1)                   // pendenza CONSERVATA
+  // 4) il PRIMO invio finalmente arriva: effetto e giornale esistono
+  rilascia()
+  await inSospeso
+  assert.equal(mondo.bozze.get('b1')!.store, 'Iper')
+  // 5) la pendenza si chiude SOLO ora, con l'esito riferibile per chiave
+  const rec = await recuperaOperazione(cliente, deposito, deposito.contenuto()[0])
+  assert.equal(rec.stato, 'applicata')
+  assert.equal(deposito.contenuto().length, 0)
+  // CONTROPROVA 1: al PRIMO E UNICO tentativo un rifiuto accertato
+  // chiude normalmente la custodia (nessun invio precedente per aria)
+  const dep2 = depositoOperazioniInMemoria()
+  let s2 = statoBase()
+  s2 = modificaBozza(s2, 'b1', { store: 'Altro' })
+  const unico = await eseguiSalva(respinge, dep2, s2, 0, sha, 'op-unico')
+  assert.ok(!unico.ok && 'errore' in unico && !('incerto' in unico))
+  assert.ok(!unico.ok && 'errore' in unico && !unico.errore.includes('invio precedente'))
+  assert.equal(dep2.contenuto().length, 0)
+  // CONTROPROVA 2: con un incerto pregresso, SUPERATA È risolutiva (la
+  // revisione è monotona: quel base_rev non applicherà mai più)
+  const dep3 = depositoOperazioniInMemoria()
+  let s3 = statoBase()
+  s3 = modificaBozza(s3, 'b1', { store: 'Mai' })
+  const perdente = { ...cliente, salvaRevisione: async () => { throw new Error('Failed to fetch') } }
+  await eseguiSalva(perdente, dep3, s3, 0, sha, 'op-sup')        // incerto pregresso
+  const superata = { ...cliente, salvaRevisione: async () => ({ esito: 'SUPERATA' }) as never }
+  const chiusa = await reinviaOperazione(superata, dep3, 'op-sup', sha)
+  assert.ok(!chiusa.ok && 'conflitto' in chiusa)
+  assert.equal(dep3.contenuto().length, 0)                       // chiusa: mai più applicabile
 })
