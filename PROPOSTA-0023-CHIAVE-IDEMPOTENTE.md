@@ -1,5 +1,11 @@
 # PROPOSTA 0023 — chiave idempotente per le righe di bozza
 
+**SUPERATA (01/09/2026): assorbita dalla proposta coordinata
+PROPOSTA-RECUPERO-REVISIONE.md**, che copre in un unico contratto anche
+gli UPDATE della revisione e le pendenze esistenti (giornale delle
+operazioni + versione del documento; la colonna client_key non serve
+più). Questo file resta come storia della progettazione.
+
 **Stato: PROPOSTA, non implementata.** Nessuna migrazione scritta né
 applicata; le migrazioni storiche (0020–0022) non si toccano. Il collaudo
 avverrebbe SOLO nel progetto di prova isolato, con autorizzazione

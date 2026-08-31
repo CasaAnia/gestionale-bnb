@@ -1638,6 +1638,26 @@ se la precedente non è verificata E approvata.
   con banner, campo vincolato disabilitato, conferma spenta, scarto
   disponibile.
 
+  **SESTA TORNATA APPROVATA dalla revisione indipendente (commit
+  ef38240), nei limiti dichiarati.** Il blocco permanente dei documenti
+  con salvataggi senza esito riferibile è una protezione TEMPORANEA.
+
+  **PROPOSTA COORDINATA DI RECUPERO (01/09/2026, solo documento):
+  PROPOSTA-RECUPERO-REVISIONE.md.** Un unico contratto lato database per
+  il recupero completo dopo un'interruzione: giornale delle operazioni
+  append-only + revisione_rev sul documento + RPC atomica
+  salva_revisione (replay per op_key con manifesto, SUPERATA su base_rev
+  vecchio, batch tutto-o-niente, mappa client_ref→id per le voci nuove)
+  + esito_revisione per l'esito RIFERIBILE all'operazione + revoke delle
+  scritture dirette (che rifiuta anche le richieste pre-contratto
+  rimaste per aria e CONGELA le pendenze esistenti: vincoli sciolti alla
+  prima lettura post-migrazione, voci incerte risolte a mano una tantum
+  su evidenza congelata — nessun recupero retroattivo promesso).
+  Sostituisce e assorbe la proposta client_key (0023 originaria, marcata
+  superata). Con permessi minimi, impatto sul codice e piano di collaudo
+  isolato in 6 passi. NESSUN SQL scritto o applicato: collaudo e
+  produzione solo con autorizzazioni separate.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta
