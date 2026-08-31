@@ -76,3 +76,23 @@ senza fingere un'approvazione o chiedere altre credenziali.
 Il blocco si chiude IN LOCALE solo con percorsi completi, nessun rilievo
 bloccante e legacy intatto. La successiva fase funzionale e ogni passaggio
 remoto mantengono le autorizzazioni previste: questa scheda non le concede.
+
+## Esito della consegna (compilato dall'implementatore, 01/09/2026)
+
+- CANDIDATO (codice): `7a15fc1d11289745169d40200ec149d2cd9f3152` — albero
+  PULITO al momento delle verifiche. Il commit precedente `654a3c2`
+  integra, senza modifiche, i cinque file del metodo e la revisione
+  consegnati da Codex (provenienza dichiarata nel messaggio di commit).
+- `node scripts/verifica-consegna.mjs --base 7df3c86` sul candidato:
+  VERIFICHE_TECNICHE_OK; impronta sorgenti
+  `2f95d32fecfea8305d19b99fc1135c7ac905c26a789c4e61cfdf714b72298dd5`.
+  Suite applicazione 348/348 (27 orchestrazione + 2 ciclo inclusi),
+  strumenti locali, TypeScript senza incrementale, lint del delta.
+- Prove del revisore `scripts/revisioni/cablaggio-127277d.test.mjs`:
+  10/10 VERDI sul candidato, assert INVARIATI.
+- Build di produzione: eseguita una volta sul candidato, verde.
+- UI C01–C10: colonna «Prova» della tabella (azioni vere sul dev server
+  sintetico, nessuna rete). Un rilievo del percorso è annotato lì
+  (rerender React puro non provato: nessun harness di componente).
+- Questo blocco di testo è un commit di SOLA documentazione successivo
+  alle verifiche: il codice verificato è `7a15fc1`.
