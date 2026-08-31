@@ -14,7 +14,7 @@ import {
 } from './contrattoRevisione.ts'
 import {
   depositoOperazioniInMemoria, eseguiConferma, eseguiSalva, eseguiScarto,
-  recuperaOperazione,
+  recuperaOperazione, reinviaOperazione,
 } from './contrattoScrittura.ts'
 import { creaServerContratto, type MondoFinto } from './contrattoServerFinto.ts'
 import { VETTORI } from './contrattoVettori.ts'
@@ -41,9 +41,9 @@ function mondoBase(): MondoFinto {
     documenti: new Map([['d1', { status: 'in_revisione', revisione_rev: 0, doc_total: 5 }],
       ['d2', { status: 'in_revisione', revisione_rev: 0, doc_total: 3 }]]),
     bozze: new Map([
-      ['b1', { document_id: 'd1', status: 'da_controllare', store: 'Mercato' }],
-      ['b2', { document_id: 'd2', status: 'da_controllare', store: 'Altro' }],
-      ['b3', { document_id: 'd1', status: 'confermata', store: 'Storica' }],
+      ['b1', { document_id: 'd1', status: 'da_controllare', store: 'Mercato', group_id: 'g-casa', arrotondamento_cent: 0 }],
+      ['b2', { document_id: 'd2', status: 'da_controllare', store: 'Altro', group_id: 'g-casa', arrotondamento_cent: 0 }],
+      ['b3', { document_id: 'd1', status: 'confermata', store: 'Storica', group_id: 'g-casa', arrotondamento_cent: 0 }],
     ]),
     righe: new Map([['r1', { draft_id: 'b1', name: 'Voce', amount: 5, qty: 1, discount: 0 }]]),
   }
@@ -52,6 +52,14 @@ const statoBase = () => apriRevisione('d1', 5, [bozza({ id: 'b1' })], [riga({ id
 
 test('VETTORI COMUNI: la canonicalizzazione del client produce esattamente forma e impronta fissate (base anche per il collaudo SQL)', async () => {
   for (const v of VETTORI) {
+    if (v.tipo === 'manifesto_conferma') {
+      // le CORREZIONI arrivano disordinate: il manifesto le ORDINA — la
+      // futura funzione SQL deve fare lo stesso su questo vettore
+      const inp = v.valore as { document_id: string; base_rev: number; correzioni: Record<string, unknown>[] }
+      assert.equal(manifestoConferma(inp.document_id, inp.base_rev, inp.correzioni), v.canonico, v.nome)
+      assert.equal(await sha(v.canonico), v.sha256, v.nome)
+      continue
+    }
     assert.equal(canonico(v.valore), v.canonico, v.nome)
     assert.equal(await sha(canonico(v.valore)), v.sha256, v.nome)
   }
@@ -221,13 +229,14 @@ test('ASSENTE vs ESTRANEA vs ILLEGGIBILE: il recupero chiude solo a corrisponden
   let s = statoBase()
   s = modificaBozza(s, 'b1', { store: 'Iper' })
   const batch = batchSalvaDa(s, 0)
-  const op: OperazioneContratto = { opKey: 'op-mai', kind: 'salva', documentId: 'd1', baseRev: 0, impronta: await sha(manifestoSalva(batch)), clientRefs: [] }
+  const op: OperazioneContratto = { opKey: 'op-mai', kind: 'salva', documentId: 'd1', baseRev: 0, impronta: await sha(manifestoSalva(batch)), clientRefs: [], richiesta: { kind: 'salva', modifiche: batch } }
   assert.equal((await recuperaOperazione(cliente, deposito, op)).stato, 'assente')
-  const reinvio = await eseguiSalva(cliente, deposito, s, 0, sha, 'op-mai')
+  // il REINVIO usa la RICHIESTA CUSTODITA, non lo stato della schermata
+  const reinvio = await reinviaOperazione(cliente, deposito, op)
   assert.ok(reinvio.ok)
   // e se «l'originale» arrivasse DOPO il reinvio: stessa chiave → RIPETUTA
   const tardivo = await cliente.salvaRevisione({ op_key: 'op-mai', document_id: 'd1', base_rev: 0, modifiche: batch })
-  assert.equal(tardivo.esito, 'RIPETUTA')
+  assert.equal((tardivo as { esito?: string }).esito, 'RIPETUTA')
   // estranea: impronta custodita diversa → l'esito NON chiude la pendenza
   const manomessa = { ...op, impronta: 'impronta-diversa' }
   deposito.salva(manomessa)
@@ -293,4 +302,161 @@ test('CUSTODIA NEGATA: l\'operazione NON parte (nessuna chiamata al servizio)', 
   assert.ok(!esito.ok && 'errore' in esito && esito.errore.includes('NON la invio'))
   assert.equal(giornale.size, 0)
   assert.equal(mondo.bozze.get('b1')!.store, 'Mercato')
+})
+
+// ---- correzioni della revisione su d0ff932 --------------------------------
+test('RISPOSTE CONVALIDATE prima di toccare la custodia: malformate e trasporto conservano la pendenza; i rifiuti veri la chiudono', async () => {
+  const deposito = depositoOperazioniInMemoria()
+  let s = statoBase()
+  s = aggiungiRiga(s, { draft_id: 'b1', name: 'Sacchetto', amount: 0.5 }, 'loc-1')
+  const conRisposta = (r: unknown) => ({
+    salvaRevisione: async () => r, confermaRevisione: async () => r,
+    scartaRevisione: async () => r, esitoRevisione: async () => ({ stato: 'assente' }),
+  }) as never
+  // APPLICATA ma con la mappa VUOTA nonostante la voce inviata → NON è
+  // un successo: pendenza conservata
+  const senzaMappa = await eseguiSalva(conRisposta({ esito: 'APPLICATA', rev_dopo: 1, righe_nuove: [] }), deposito, s, 0, sha, 'op-1')
+  assert.ok(!senzaMappa.ok && 'incerto' in senzaMappa)
+  assert.ok(!senzaMappa.ok && 'errore' in senzaMappa && senzaMappa.errore.includes('MALFORMATA'))
+  assert.equal(deposito.contenuto().length, 1)
+  deposito.rimuovi('op-1')
+  // errore di TRASPORTO restituito come {error:{message:'Failed to fetch'}}
+  // → pendenza conservata (non «nulla è stato scritto»)
+  const trasporto = await eseguiSalva(conRisposta({ error: { message: 'Failed to fetch' } }), deposito, s, 0, sha, 'op-2')
+  assert.ok(!trasporto.ok && 'incerto' in trasporto)
+  assert.equal(deposito.contenuto().length, 1)
+  deposito.rimuovi('op-2')
+  // {errore:'Failed to fetch'} restituito → idem, incerto
+  const reteRestituita = await eseguiSalva(conRisposta({ errore: 'Failed to fetch' }), deposito, s, 0, sha, 'op-3')
+  assert.ok(!reteRestituita.ok && 'incerto' in reteRestituita)
+  assert.equal(deposito.contenuto().length, 1)
+  deposito.rimuovi('op-3')
+  // rifiuto VERO restituito (es. quadratura della conferma) → definito,
+  // custodia chiusa
+  const rifiuto = await eseguiConferma(conRisposta({ errore: 'Quadratura non esatta: righe+arrotondamento=500 cent, documento=3000 cent' }), deposito, 'd1', 0, [], sha, 'op-4')
+  assert.ok(!rifiuto.ok && 'errore' in rifiuto && !('incerto' in rifiuto) && rifiuto.errore.includes('Quadratura'))
+  assert.equal(deposito.contenuto().length, 0)
+  // revisione risultante non valida → pendenza conservata
+  const revRotta = await eseguiSalva(conRisposta({ esito: 'APPLICATA', rev_dopo: 0, righe_nuove: [{ client_ref: 'loc-1', id: 'srv-1' }] }), deposito, s, 0, sha, 'op-5')
+  assert.ok(!revRotta.ok && 'incerto' in revRotta)
+  deposito.rimuovi('op-5')
+  // esito sconosciuto → pendenza conservata
+  const ignoto = await eseguiSalva(conRisposta({ esito: 'BOH' }), deposito, s, 0, sha, 'op-6')
+  assert.ok(!ignoto.ok && 'incerto' in ignoto)
+  assert.equal(deposito.contenuto().length, 1)
+})
+
+test('RIMOZIONE della custodia fallita → mai un successo silenzioso (avviso riportato), anche nel recupero', async () => {
+  const mondo = mondoBase()
+  const { cliente, guasti } = creaServerContratto(mondo, sha)
+  const base = depositoOperazioniInMemoria()
+  const zoppo = { salva: (o: never) => base.salva(o), leggi: (k: string) => base.leggi(k), rimuovi: () => ({ errore: 'spazio in sola lettura' }) }
+  let s = statoBase()
+  s = modificaBozza(s, 'b1', { store: 'Iper' })
+  const esito = await eseguiSalva(cliente, zoppo as never, s, 0, sha, 'op-1')
+  assert.ok(esito.ok && !('nulla' in esito) && esito.avviso?.includes('custodia non rimossa'))
+  // recupero con rimozione fallita → applicata CON avviso
+  guasti.perdiRisposta = true
+  let s2 = statoBase()
+  s2 = modificaBozza(s2, 'b1', { store: 'Esselunga' })
+  await eseguiSalva(cliente, base, s2, 1, sha, 'op-2').catch(() => {})
+  guasti.perdiRisposta = false
+  const op = base.contenuto()[0]
+  const rec = await recuperaOperazione(cliente, zoppo as never, op)
+  assert.ok(rec.stato === 'applicata' && rec.avviso?.includes('custodia non rimossa'))
+})
+
+test('RECUPERO: esito a giornale con identità giusta ma corpo MALFORMATO → pendenza conservata, nessun crash, custodia intatta', async () => {
+  const mondo = mondoBase()
+  const { cliente, giornale, guasti } = creaServerContratto(mondo, sha)
+  const deposito = depositoOperazioniInMemoria()
+  let s = statoBase()
+  s = aggiungiRiga(s, { draft_id: 'b1', name: 'Sacchetto', amount: 0.5 }, 'loc-1')
+  guasti.perdiRisposta = true
+  await eseguiSalva(cliente, deposito, s, 0, sha, 'op-1')
+  guasti.perdiRisposta = false
+  // MANOMISSIONE del corpo a giornale: la mappa sparisce (identità intatta)
+  const reg = giornale.get('op-1')!
+  reg.esito = { rev_dopo: reg.esito.rev_dopo } as never
+  const op = deposito.contenuto()[0]
+  const rec = await recuperaOperazione(cliente, deposito, op)
+  assert.equal(rec.stato, 'illeggibile')
+  assert.ok(rec.stato === 'illeggibile' && rec.errore.includes('MALFORMATO'))
+  assert.equal(deposito.contenuto().length, 1)         // custodia INTATTA
+})
+
+test('CUSTODIA IMMUTABILE: una chiave pendente non cambia identità né contenuto; il reinvio usa la richiesta originale, non la schermata', async () => {
+  const mondo = mondoBase()
+  const { cliente, guasti } = creaServerContratto(mondo, sha)
+  const deposito = depositoOperazioniInMemoria()
+  // Salva «Prima» applicato con risposta PERSA
+  let s = statoBase()
+  s = modificaBozza(s, 'b1', { store: 'Prima' })
+  guasti.perdiRisposta = true
+  const perso = await eseguiSalva(cliente, deposito, s, 0, sha, 'op-1')
+  guasti.perdiRisposta = false
+  assert.ok(!perso.ok && 'incerto' in perso)
+  // STESSA chiave riutilizzata con «Dopo»: il deposito RIFIUTA prima di
+  // qualunque invio — la traccia originale non viene sovrascritta
+  let s2 = statoBase()
+  s2 = modificaBozza(s2, 'b1', { store: 'Dopo' })
+  const riuso = await eseguiSalva(cliente, deposito, s2, 0, sha, 'op-1')
+  assert.ok(!riuso.ok && 'errore' in riuso && riuso.errore.includes('non cambia identità'))
+  const custodita = deposito.leggi('op-1').op!
+  assert.equal((custodita.richiesta as { kind: string; modifiche: { bozze: Record<string, { store?: string }> } }).modifiche.bozze.b1.store, 'Prima')
+  // SERIALIZZAZIONE e riapertura: il deposito si ricrea da JSON e il
+  // reinvio parte dalla richiesta custodita, SENZA lo stato in memoria
+  const ricreato = depositoOperazioniInMemoria(JSON.parse(JSON.stringify(deposito.contenuto())))
+  const op = ricreato.contenuto()[0]
+  const rec = await recuperaOperazione(cliente, ricreato, op)
+  assert.equal(rec.stato, 'applicata')                 // era stata applicata: mappa e rev tornano
+  assert.equal(mondo.bozze.get('b1')!.store, 'Prima')  // e «Dopo» non è mai partito
+  // richiesta MAI arrivata: reinvio dalla custodia ricreata
+  let s3 = statoBase()
+  s3 = modificaRiga(s3, 'r1', { amount: 4 })
+  const batch3 = batchSalvaDa(s3, 1)
+  const op3: OperazioneContratto = { opKey: 'op-3', kind: 'salva', documentId: 'd1', baseRev: 1, impronta: await sha(manifestoSalva(batch3)), clientRefs: [], richiesta: { kind: 'salva', modifiche: batch3 } }
+  const dep3 = depositoOperazioniInMemoria([op3])      // come dopo una riapertura
+  assert.equal((await recuperaOperazione(cliente, dep3, dep3.contenuto()[0])).stato, 'assente')
+  const reinvio = await reinviaOperazione(cliente, dep3, dep3.contenuto()[0])
+  assert.ok(reinvio.ok)
+  assert.equal(mondo.righe.get('r1')!.amount, 4)
+  // le modifiche SUCCESSIVE dell'utente non alterano l'operazione custodita
+  const prima = JSON.stringify(deposito.leggi('op-1').op)
+  s2 = modificaBozza(s2, 'b1', { store: 'Ancora diverso' })
+  assert.equal(JSON.stringify(deposito.leggi('op-1').op), prima)
+})
+
+test('SERVER FINTO: respinge i valori vietati sulle righe esistenti e la conferma che non quadra; il batch misto lascia tutto intatto', async () => {
+  const mondo = mondoBase()
+  const { cliente, giornale } = creaServerContratto(mondo, sha)
+  const deposito = depositoOperazioniInMemoria()
+  // amount NEGATIVO su una riga esistente → respinto, nulla applicato
+  let s = statoBase()
+  s = { ...s, modificheRighe: { r1: { amount: -1 } } }
+  const negativo = await eseguiSalva(cliente, deposito, s, 0, sha, 'op-1')
+  assert.ok(!negativo.ok && 'sentinella' in negativo && negativo.sentinella === 'MODIFICHE_MALFORMATE')
+  assert.equal(mondo.righe.get('r1')!.amount, 5)
+  // batch MISTO (bozza valida + riga invalida) → dati, revisione e
+  // giornale INTATTI
+  let s2 = statoBase()
+  s2 = modificaBozza(s2, 'b1', { store: 'Iper' })
+  s2 = { ...s2, modificheRighe: { r1: { amount: -1 } } }
+  const misto = await eseguiSalva(cliente, deposito, s2, 0, sha, 'op-2')
+  assert.ok(!misto.ok)
+  assert.equal(mondo.bozze.get('b1')!.store, 'Mercato')
+  assert.equal(mondo.documenti.get('d1')!.revisione_rev, 0)
+  assert.equal(giornale.size, 0)
+  // conferma che NON quadra (totale 30, righe per 5) → rifiuto DEFINITO
+  // col messaggio del server, nessuna spesa simulata creata
+  mondo.documenti.get('d1')!.doc_total = 30
+  const nonQuadra = await eseguiConferma(cliente, deposito, 'd1', 0, [], sha, 'op-3')
+  assert.ok(!nonQuadra.ok && 'errore' in nonQuadra && !('incerto' in nonQuadra) && nonQuadra.errore.includes('Quadratura non esatta'))
+  assert.equal(mondo.documenti.get('d1')!.status, 'in_revisione')
+  assert.equal(giornale.size, 0)
+  // destinatario mancante → rifiutata anche quella
+  mondo.documenti.get('d1')!.doc_total = 5
+  ;(mondo.bozze.get('b1') as Record<string, unknown>).group_id = null
+  const senzaGruppo = await eseguiConferma(cliente, deposito, 'd1', 0, [], sha, 'op-4')
+  assert.ok(!senzaGruppo.ok && 'errore' in senzaGruppo && senzaGruppo.errore.includes('destinatario'))
 })

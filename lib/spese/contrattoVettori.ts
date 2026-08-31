@@ -7,7 +7,7 @@
 // Il caso «null espliciti e undefined assenti» parte dal valore CON il
 // campo undefined: la forma canonica deve ometterlo.
 // ============================================================================
-export const VETTORI: { nome: string; valore: unknown; canonico: string; sha256: string }[] = [
+export const VETTORI: { nome: string; tipo?: 'manifesto_conferma'; valore: unknown; canonico: string; sha256: string }[] = [
   {
     "nome": "oggetto semplice, chiavi da riordinare",
     "valore": {
@@ -135,5 +135,35 @@ export const VETTORI: { nome: string; valore: unknown; canonico: string; sha256:
     },
     "canonico": "{\"base_rev\":2,\"document_id\":\"d-rev\",\"kind\":\"scarto\",\"motivo\":\"foto doppia\"}",
     "sha256": "6afa68fb1fb5fda0e4c8424876b3d8207fe173b5fba1a228b0f36022d5155f15"
+  },
+  {
+    "nome": "manifesto conferma con correzioni DA RIORDINARE (il server deve ordinarle allo stesso modo)",
+    "tipo": "manifesto_conferma",
+    "valore": {
+      "document_id": "d-rev",
+      "base_rev": 4,
+      "correzioni": [
+        {
+          "field": "amount",
+          "proposed": 5,
+          "corrected": 6,
+          "draft_id": "b1",
+          "draft_item_id": "r1"
+        },
+        {
+          "field": "store",
+          "proposed": "Mercato",
+          "corrected": "Iper",
+          "draft_id": "b1"
+        },
+        {
+          "field": "doc_total",
+          "proposed": 5,
+          "corrected": 6
+        }
+      ]
+    },
+    "canonico": "{\"base_rev\":4,\"correzioni\":[{\"corrected\":6,\"field\":\"doc_total\",\"proposed\":5},{\"corrected\":\"Iper\",\"draft_id\":\"b1\",\"field\":\"store\",\"proposed\":\"Mercato\"},{\"corrected\":6,\"draft_id\":\"b1\",\"draft_item_id\":\"r1\",\"field\":\"amount\",\"proposed\":5}],\"document_id\":\"d-rev\",\"kind\":\"conferma\"}",
+    "sha256": "47a9fd6a219abf80a2df5e0aa72b2abbf5c74cec74a17f11b2b675966de387d1"
   }
 ]

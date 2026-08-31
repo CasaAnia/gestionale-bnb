@@ -1769,6 +1769,46 @@ se la precedente non è verificata E approvata.
        (revoke a public/anon/authenticated: nessun percorso
        alternativo), rollback nel runbook.
 
+  **CONTRATTO — CORREZIONI LOCALI SULLA REVISIONE DI d0ff932
+  (02/09/2026, sera):**
+  1) RISPOSTE CONVALIDATE prima di toccare la custodia — validaRisposta/
+     validaEsitoGiornale in contrattoRevisione: esito conosciuto,
+     revisione valida (intera, > base_rev), mappa dei client_ref
+     COMPLETA con id validi senza doppioni (Salva), spese per la
+     conferma; risposte malformate, {error:{message}} di trasporto e
+     errori di rete restituiti CONSERVANO la pendenza; i rifiuti veri
+     (es. quadratura) la chiudono; la rimozione della custodia fallita
+     produce un AVVISO, mai silenzio — anche nel recupero, dove l'esito
+     a giornale viene convalidato PER INTERO prima di rimuovere (niente
+     più crash con custodia già eliminata). Client allineato alla SQL:
+     righe_nuove opzionale (conferma/scarto non lo restituiscono).
+  2) CUSTODIA della RICHIESTA ORIGINALE COMPLETA e IMMUTABILE —
+     OperazioneContratto porta il payload intero; il deposito rifiuta
+     la sovrascrittura di una chiave pendente con identità o contenuto
+     diversi (sequenza «Prima»/«Dopo» del revisore: il riuso viene
+     respinto PRIMA di ogni invio); reinviaOperazione riparte SEMPRE
+     dalla richiesta custodita; deposito serializzabile (ricreazione da
+     JSON) con copie profonde (le modifiche successive dell'utente non
+     toccano le pendenze). Test: riapertura senza StatoRevisione in
+     memoria, recupero assente → reinvio dalla custodia.
+  3) SERVER FINTO che respinge ciò che dichiara — vincoli 0020 anche
+     sugli UPDATE delle righe (amount/discount/unit_price/name), la
+     CONFERMA rifà destinatario e QUADRATURA ESATTA (rifiuto {errore}
+     come le eccezioni della RPC), batch misto valido+invalido → dati,
+     revisione e giornale INTATTI; dichiarato in testa COSA NON MODELLA
+     (RLS, lock e isolamento veri, numeric, FK, trigger, metodo
+     azienda): non è una prova del comportamento PostgreSQL.
+  4) BOZZA SQL allineata (rilievi STATICI, da verificare nel collaudo):
+     ricontrollo del giornale DOPO il lock in tutte e tre le funzioni
+     (Read Committed: identiche concorrenti → APPLICATA+RIPETUTA, non
+     SUPERATA), collisione GLOBALE della chiave gestita esplicitamente
+     (blocco con unique_violation che annulla il lavoro locale e
+     risponde dal giornale), correzioni ORDINATE lato server nel
+     manifesto della conferma (vettore comune nuovo con correzioni da
+     riordinare), revoche esplicite anche a service_role.
+  Test: 308/308 (5 nuovi + vettore); tsc, lint, build verdi. Transizione
+  A/B sempre separata e DA DIMOSTRARE; nessun collegamento alle pagine.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

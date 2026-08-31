@@ -6,8 +6,16 @@
 // batch, whitelist dei campi coi vincoli 0020 sui valori, replay con
 // confronto di documento+kind+base_rev+impronta, serializzazione per
 // documento (il «lock di riga»), atomicità tutto-o-niente.
-// SOLO per i test: la verità resterà l'implementazione SQL, da
-// collaudare in ambiente isolato con autorizzazione separata.
+// La CONFERMA rifà la quadratura esatta e il destinatario obbligatorio
+// (come spese_crea_da_bozze) e i rifiuti del server viaggiano come
+// { errore } — la forma con cui la RPC vera rende le sue eccezioni.
+// COSA NON MODELLA, dichiarato: RLS e ruoli, il vero isolamento Read
+// Committed e i lock di PostgreSQL, i tipi numeric (qui numeri JS), le
+// FK (composita canonica compresa), i trigger (user_added), il metodo
+// obbligatorio per l'ambito azienda (non conosce i gruppi), la
+// creazione reale delle spese. NON è una prova del comportamento
+// PostgreSQL: la verità resterà l'implementazione SQL, da collaudare
+// in ambiente isolato con autorizzazione separata.
 // ============================================================================
 import {
   canonico, manifestoConferma, manifestoScarto,
@@ -88,9 +96,14 @@ export function creaServerContratto(mondo: MondoFinto, hasher: HasherTesto) {
         if (!r) return { esito: 'IDENTIFICATIVO_MANCANTE', dettaglio: `riga ${id}` }
         const e = bozzaValida(r.draft_id as string); if (e) return e
         for (const k of Object.keys(campi)) if (!CAMPI_RIGA_REVISIONE.includes(k as never)) return { esito: 'CAMPO_NON_CONSENTITO', dettaglio: k }
+        // i CHECK 0020 valgono anche sugli UPDATE delle righe esistenti
         const c = campi as Record<string, unknown>
         for (const k of ['name', 'qty', 'discount', 'amount']) if (k in c && c[k] == null) return { esito: 'MODIFICHE_MALFORMATE', dettaglio: `null vietato su ${k}` }
-        if ('qty' in c && (typeof c.qty !== 'number' || c.qty <= 0)) return { esito: 'MODIFICHE_MALFORMATE', dettaglio: 'qty > 0' }
+        if ('qty' in c && (typeof c.qty !== 'number' || c.qty <= 0)) return { esito: 'MODIFICHE_MALFORMATE', dettaglio: 'vincolo violato: qty > 0' }
+        if ('amount' in c && (typeof c.amount !== 'number' || c.amount < 0)) return { esito: 'MODIFICHE_MALFORMATE', dettaglio: 'vincolo violato: amount >= 0' }
+        if ('discount' in c && (typeof c.discount !== 'number' || c.discount < 0)) return { esito: 'MODIFICHE_MALFORMATE', dettaglio: 'vincolo violato: discount >= 0' }
+        if ('unit_price' in c && c.unit_price !== null && (typeof c.unit_price !== 'number' || c.unit_price < 0)) return { esito: 'MODIFICHE_MALFORMATE', dettaglio: 'vincolo violato: unit_price null o >= 0' }
+        if ('name' in c && (typeof c.name !== 'string' || !c.name)) return { esito: 'MODIFICHE_MALFORMATE', dettaglio: 'vincolo violato: name non vuoto' }
       }
       for (const [, campi] of Object.entries(b.bozze))
         for (const k of Object.keys(campi)) if (!CAMPI_BOZZA_REVISIONE.includes(k as never)) return { esito: 'CAMPO_NON_CONSENTITO', dettaglio: k }
@@ -125,11 +138,27 @@ export function creaServerContratto(mondo: MondoFinto, hasher: HasherTesto) {
       if (!doc) return { esito: 'IDENTIFICATIVO_MANCANTE' }
       if (!STATI_DOC_MODIFICABILI.includes(doc.status)) return { esito: 'DOCUMENTO_NON_MODIFICABILE', dettaglio: `stato «${doc.status}»` }
       if (p.base_rev !== doc.revisione_rev) return { esito: 'SUPERATA' }
+      // i CONTROLLI della conferma vera (spese_crea_da_bozze): destinatario
+      // obbligatorio e QUADRATURA ESATTA in centesimi — un rifiuto viaggia
+      // come { errore }, la forma delle eccezioni della RPC
+      const attive = [...mondo.bozze.entries()].filter(([, bz]) => bz.document_id === p.document_id && STATI_BOZZA_MODIFICABILI.includes(bz.status))
+      if (attive.length === 0) return { errore: 'nessuna bozza attiva da confermare' }
+      let sommaCent = 0
+      for (const [bId, bz] of attive) {
+        if (!('group_id' in bz) || bz.group_id == null) return { errore: `destinatario mancante sulla bozza ${bId}` }
+        sommaCent += Number((bz as Record<string, unknown>).arrotondamento_cent ?? 0)
+        for (const r of mondo.righe.values())
+          if (r.draft_id === bId && !(r as Record<string, unknown>).excluded)
+            sommaCent += Math.round(Number((r as Record<string, unknown>).amount) * 100)
+      }
+      const totCent = doc.doc_total == null ? null : Math.round(doc.doc_total * 100)
+      if (totCent == null || totCent !== sommaCent)
+        return { errore: `Quadratura non esatta: righe+arrotondamento=${sommaCent} cent, documento=${totCent ?? 'null'} cent` }
       doc.status = 'confermato'; doc.revisione_rev += 1
-      for (const bz of mondo.bozze.values()) if (bz.document_id === p.document_id && STATI_BOZZA_MODIFICABILI.includes(bz.status)) bz.status = 'confermata'
+      for (const [, bz] of attive) bz.status = 'confermata'
       const spese = [`spesa-${++contatore}`]
       giornale.set(p.op_key, { document_id: p.document_id, kind: 'conferma', base_rev: p.base_rev, manifesto_sha256: impronta, esito: { rev_dopo: doc.revisione_rev, spese } })
-      return { esito: 'APPLICATA', rev_dopo: doc.revisione_rev, righe_nuove: [], spese }
+      return { esito: 'APPLICATA', rev_dopo: doc.revisione_rev, spese }
     }),
 
     scartaRevisione: p => serializzato(p.document_id, async () => {
@@ -143,7 +172,7 @@ export function creaServerContratto(mondo: MondoFinto, hasher: HasherTesto) {
       doc.status = 'scartato'; doc.revisione_rev += 1
       for (const bz of mondo.bozze.values()) if (bz.document_id === p.document_id && STATI_BOZZA_MODIFICABILI.includes(bz.status)) bz.status = 'scartata'
       giornale.set(p.op_key, { document_id: p.document_id, kind: 'scarto', base_rev: p.base_rev, manifesto_sha256: impronta, esito: { rev_dopo: doc.revisione_rev } })
-      return { esito: 'APPLICATA', rev_dopo: doc.revisione_rev, righe_nuove: [] }
+      return { esito: 'APPLICATA', rev_dopo: doc.revisione_rev }
     }),
 
     async esitoRevisione(opKey): Promise<EsitoGiornale> {

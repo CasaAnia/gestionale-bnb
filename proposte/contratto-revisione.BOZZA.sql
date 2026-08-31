@@ -104,7 +104,8 @@ begin
   -- impronta RICALCOLATA dal server sui parametri ricevuti
   v_impronta := private.impronta_canonica(
     p_modifiche || jsonb_build_object('kind', 'salva', 'document_id', p_document_id, 'base_rev', p_base_rev));
-  -- REPLAY prima di tutto (non serve il lock per rileggere il giornale)
+  -- REPLAY veloce (pre-lock, solo scorciatoia: la verifica che CONTA è
+  -- quella DOPO il lock)
   select * into v_reg from public.family_revision_ops where op_key = p_op_key;
   if found then
     if v_reg.document_id = p_document_id and v_reg.kind = 'salva'
@@ -116,6 +117,19 @@ begin
   -- LOCK della riga documento: lo stesso primitivo delle chiusure
   select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then return jsonb_build_object('esito', 'IDENTIFICATIVO_MANCANTE'); end if;
+  -- RICONTROLLO del giornale DOPO l'attesa del lock: sotto Read
+  -- Committed la seconda di due richieste identiche concorrenti esce
+  -- dall'attesa DOPO che la prima ha committato — senza questo
+  -- ricontrollo vedrebbe la rev avanzata e risponderebbe SUPERATA
+  -- invece di RIPETUTA
+  select * into v_reg from public.family_revision_ops where op_key = p_op_key;
+  if found then
+    if v_reg.document_id = p_document_id and v_reg.kind = 'salva'
+       and v_reg.base_rev = p_base_rev and v_reg.manifesto_sha256 = v_impronta then
+      return jsonb_build_object('esito', 'RIPETUTA') || v_reg.esito;
+    end if;
+    return jsonb_build_object('esito', 'CHIAVE_RIUSATA');
+  end if;
   -- lista POSITIVA degli stati modificabili
   if v_doc.status <> 'in_revisione' then
     return jsonb_build_object('esito', 'DOCUMENTO_NON_MODIFICABILE', 'dettaglio', v_doc.status);
@@ -214,9 +228,23 @@ begin
   end loop;
   update public.family_documents set revisione_rev = revisione_rev + 1
     where id = p_document_id returning revisione_rev into v_doc.revisione_rev;
-  insert into public.family_revision_ops (op_key, document_id, kind, base_rev, manifesto_sha256, esito)
-    values (p_op_key, p_document_id, 'salva', p_base_rev, v_impronta,
-      jsonb_build_object('rev_dopo', v_doc.revisione_rev, 'righe_nuove', v_mappa));
+  -- COLLISIONE GLOBALE della chiave (stessa op_key su DOCUMENTI diversi,
+  -- in parallelo: i lock di riga non si incontrano): il vincolo unico
+  -- arbitra, ma va gestito ESPLICITAMENTE — il blocco con l'eccezione
+  -- annulla TUTte le scritture di questa funzione (savepoint implicito)
+  -- e si risponde guardando cosa c'è davvero a giornale
+  begin
+    insert into public.family_revision_ops (op_key, document_id, kind, base_rev, manifesto_sha256, esito)
+      values (p_op_key, p_document_id, 'salva', p_base_rev, v_impronta,
+        jsonb_build_object('rev_dopo', v_doc.revisione_rev, 'righe_nuove', v_mappa));
+  exception when unique_violation then
+    select * into v_reg from public.family_revision_ops where op_key = p_op_key;
+    if v_reg.document_id = p_document_id and v_reg.kind = 'salva'
+       and v_reg.base_rev = p_base_rev and v_reg.manifesto_sha256 = v_impronta then
+      return jsonb_build_object('esito', 'RIPETUTA') || v_reg.esito;
+    end if;
+    return jsonb_build_object('esito', 'CHIAVE_RIUSATA');
+  end;
   return jsonb_build_object('esito', 'APPLICATA', 'rev_dopo', v_doc.revisione_rev, 'righe_nuove', v_mappa);
 end $$;
 
@@ -238,12 +266,19 @@ end $$;
 create or replace function public.conferma_revisione(
   p_op_key uuid, p_document_id uuid, p_base_rev bigint, p_correzioni jsonb default '[]'
 ) returns jsonb language plpgsql security definer set search_path = '' as $$
-declare v_doc record; v_reg record; v_impronta text; v_spese uuid[];
+declare v_doc record; v_reg record; v_impronta text; v_spese uuid[]; v_ordinate jsonb;
 begin
   if not private.is_app_member() then raise exception 'NON_MEMBRO'; end if;
+  -- le CORREZIONI si ORDINANO come fa il client (draft_id,
+  -- draft_item_id, field) PRIMA della canonicalizzazione: vettore
+  -- «correzioni da riordinare» nei vettori comuni
+  select coalesce(jsonb_agg(c order by
+      coalesce(c ->> 'draft_id', ''), coalesce(c ->> 'draft_item_id', ''), coalesce(c ->> 'field', '')),
+    '[]'::jsonb)
+    into v_ordinate from jsonb_array_elements(p_correzioni) as c;
   v_impronta := private.impronta_canonica(jsonb_build_object(
     'kind', 'conferma', 'document_id', p_document_id, 'base_rev', p_base_rev,
-    'correzioni', p_correzioni));
+    'correzioni', v_ordinate));
   select * into v_reg from public.family_revision_ops where op_key = p_op_key;
   if found then
     if v_reg.document_id = p_document_id and v_reg.kind = 'conferma'
@@ -254,6 +289,15 @@ begin
   end if;
   select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then return jsonb_build_object('esito', 'IDENTIFICATIVO_MANCANTE'); end if;
+  -- ricontrollo del giornale DOPO l'attesa del lock (Read Committed)
+  select * into v_reg from public.family_revision_ops where op_key = p_op_key;
+  if found then
+    if v_reg.document_id = p_document_id and v_reg.kind = 'conferma'
+       and v_reg.base_rev = p_base_rev and v_reg.manifesto_sha256 = v_impronta then
+      return jsonb_build_object('esito', 'RIPETUTA') || v_reg.esito;
+    end if;
+    return jsonb_build_object('esito', 'CHIAVE_RIUSATA');
+  end if;
   if v_doc.status <> 'in_revisione' then
     return jsonb_build_object('esito', 'DOCUMENTO_NON_MODIFICABILE', 'dettaglio', v_doc.status);
   end if;
@@ -262,9 +306,18 @@ begin
   select array_agg(id) into v_spese from unnest(public.conferma_documento(p_document_id, p_correzioni)) as id;
   update public.family_documents set revisione_rev = revisione_rev + 1
     where id = p_document_id returning revisione_rev into v_doc.revisione_rev;
-  insert into public.family_revision_ops (op_key, document_id, kind, base_rev, manifesto_sha256, esito)
-    values (p_op_key, p_document_id, 'conferma', p_base_rev, v_impronta,
-      jsonb_build_object('rev_dopo', v_doc.revisione_rev, 'spese', to_jsonb(coalesce(v_spese, '{}'))));
+  begin
+    insert into public.family_revision_ops (op_key, document_id, kind, base_rev, manifesto_sha256, esito)
+      values (p_op_key, p_document_id, 'conferma', p_base_rev, v_impronta,
+        jsonb_build_object('rev_dopo', v_doc.revisione_rev, 'spese', to_jsonb(coalesce(v_spese, '{}'))));
+  exception when unique_violation then
+    select * into v_reg from public.family_revision_ops where op_key = p_op_key;
+    if v_reg.document_id = p_document_id and v_reg.kind = 'conferma'
+       and v_reg.base_rev = p_base_rev and v_reg.manifesto_sha256 = v_impronta then
+      return jsonb_build_object('esito', 'RIPETUTA') || v_reg.esito;
+    end if;
+    return jsonb_build_object('esito', 'CHIAVE_RIUSATA');
+  end;
   return jsonb_build_object('esito', 'APPLICATA', 'rev_dopo', v_doc.revisione_rev, 'spese', to_jsonb(coalesce(v_spese, '{}')));
 end $$;
 
@@ -286,6 +339,15 @@ begin
   end if;
   select * into v_doc from public.family_documents where id = p_document_id for update;
   if not found then return jsonb_build_object('esito', 'IDENTIFICATIVO_MANCANTE'); end if;
+  -- ricontrollo del giornale DOPO l'attesa del lock (Read Committed)
+  select * into v_reg from public.family_revision_ops where op_key = p_op_key;
+  if found then
+    if v_reg.document_id = p_document_id and v_reg.kind = 'scarto'
+       and v_reg.base_rev = p_base_rev and v_reg.manifesto_sha256 = v_impronta then
+      return jsonb_build_object('esito', 'RIPETUTA') || v_reg.esito;
+    end if;
+    return jsonb_build_object('esito', 'CHIAVE_RIUSATA');
+  end if;
   if v_doc.status <> 'in_revisione' then
     return jsonb_build_object('esito', 'DOCUMENTO_NON_MODIFICABILE', 'dettaglio', v_doc.status);
   end if;
@@ -293,17 +355,26 @@ begin
   perform public.scarta_documento(p_document_id, p_motivo);
   update public.family_documents set revisione_rev = revisione_rev + 1
     where id = p_document_id returning revisione_rev into v_doc.revisione_rev;
-  insert into public.family_revision_ops (op_key, document_id, kind, base_rev, manifesto_sha256, esito)
-    values (p_op_key, p_document_id, 'scarto', p_base_rev, v_impronta,
-      jsonb_build_object('rev_dopo', v_doc.revisione_rev));
+  begin
+    insert into public.family_revision_ops (op_key, document_id, kind, base_rev, manifesto_sha256, esito)
+      values (p_op_key, p_document_id, 'scarto', p_base_rev, v_impronta,
+        jsonb_build_object('rev_dopo', v_doc.revisione_rev));
+  exception when unique_violation then
+    select * into v_reg from public.family_revision_ops where op_key = p_op_key;
+    if v_reg.document_id = p_document_id and v_reg.kind = 'scarto'
+       and v_reg.base_rev = p_base_rev and v_reg.manifesto_sha256 = v_impronta then
+      return jsonb_build_object('esito', 'RIPETUTA') || v_reg.esito;
+    end if;
+    return jsonb_build_object('esito', 'CHIAVE_RIUSATA');
+  end;
   return jsonb_build_object('esito', 'APPLICATA', 'rev_dopo', v_doc.revisione_rev);
 end $$;
 
 -- 7) PERMESSI minimi sulle funzioni nuove ------------------------------------
-revoke all on function public.salva_revisione(uuid, uuid, bigint, jsonb) from public, anon;
-revoke all on function public.esito_revisione(uuid) from public, anon;
-revoke all on function public.conferma_revisione(uuid, uuid, bigint, jsonb) from public, anon;
-revoke all on function public.scarta_revisione(uuid, uuid, bigint, text) from public, anon;
+revoke all on function public.salva_revisione(uuid, uuid, bigint, jsonb) from public, anon, service_role;
+revoke all on function public.esito_revisione(uuid) from public, anon, service_role;
+revoke all on function public.conferma_revisione(uuid, uuid, bigint, jsonb) from public, anon, service_role;
+revoke all on function public.scarta_revisione(uuid, uuid, bigint, text) from public, anon, service_role;
 grant execute on function public.salva_revisione(uuid, uuid, bigint, jsonb) to authenticated;
 grant execute on function public.esito_revisione(uuid) to authenticated;
 grant execute on function public.conferma_revisione(uuid, uuid, bigint, jsonb) to authenticated;
@@ -319,4 +390,9 @@ commit;
 --    numeric: 12.50 ≠ "12.5" — normalizzare, o il replay non combacia);
 --  · firma esatta di conferma_documento/scarta_documento in 0020 da
 --    verificare prima del collaudo (tipo di ritorno e argomenti);
---  · pgcrypto/digest: su Supabase vive nello schema extensions.
+--  · pgcrypto/digest: su Supabase vive nello schema extensions;
+--  · CONCORRENZA da verificare davvero (diagnosi statica, Read
+--    Committed): due identiche → APPLICATA+RIPETUTA (ricontrollo
+--    post-lock); stessa chiave su documenti DIVERSI → una registrata,
+--    l'altra CHIAVE_RIUSATA con il lavoro locale annullato dal blocco
+--    d'eccezione (unique_violation).
