@@ -1,10 +1,13 @@
 # PROPOSTA COORDINATA — recupero completo della revisione dopo un'interruzione
 
-**Stato: PROPOSTA, nessun SQL scritto né applicato.** Le migrazioni
-storiche (0020–0022) non si toccano. Collaudo isolato e applicazione in
-produzione richiederanno autorizzazioni separate, con le stesse cautele
-della 0022. Questo documento COORDINA e SOSTITUISCE la proposta
-«client_key» di PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md (v. §3).
+**Stato: il CONTRATTO (§2) è approvato come base di SVILUPPO LOCALE
+(client + server finto + bozza SQL non applicabile); la TRANSIZIONE
+(§5) resta NON APPROVATA e i suoi casi PostgreSQL sono DA DIMOSTRARE
+in ambiente isolato, con autorizzazione separata.** Nessuna migrazione
+viene applicata a Supabase; le migrazioni storiche (0020–0022) non si
+toccano; i vincoli legacy nel client NON vengono allentati. Questo
+documento COORDINA e SOSTITUISCE la proposta «client_key» di
+PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md (v. §3).
 
 ## 1. Obiettivo e criterio
 
@@ -239,17 +242,22 @@ del commit e sta aspettando il lock del documento, dopo il commit
 proseguirebbe come proprietario, senza base_rev né giornale. La
 transizione è quindi in DUE FASI, entrambe nella pausa applicativa:
 
-**FASE A — si chiudono gli INGRESSI legacy (transazione 1):**
-`create or replace` sposta VERBATIM i corpi di `conferma_documento` e
-`scarta_documento` in funzioni `private.*` (collaudo di equivalenza nel
-piano) e ridefinisce i corpi pubblici come PURI RESPINGENTI (sentinella
-`PERCORSO_DISMESSO`, nessun accesso alle tabelle). Dal commit della
-fase A nessuna NUOVA invocazione legacy può più entrare nella logica
-vera: chi chiama il nome pubblico riceve la sentinella prima di toccare
-qualunque riga. Le invocazioni già entrate PRIMA continuano il corpo
-vecchio (già caricato): le conclude la fase B. Rollback documentato: se
-la fase B non riuscisse, un `create or replace` inverso ripristina i
-corpi originali (statement pronto nel runbook).
+**FASE A — si chiudono TUTTI gli INGRESSI legacy (transazione 1):**
+`create or replace` sposta VERBATIM in funzioni `private.*` i corpi di
+TUTTI i percorsi legacy interessati — `conferma_documento`,
+`scarta_documento` E le tre RPC fattura (`approva_fattura_da_pagare`,
+`paga_fattura`, `conferma_fattura_pagata`) — e ridefinisce i CINQUE
+corpi pubblici come PURI RESPINGENTI (sentinella `PERCORSO_DISMESSO`,
+nessun accesso alle tabelle): nessuna finestra in cui una fattura possa
+ancora entrare tra fase A e fase B. Le funzioni `private.*` hanno
+PERMESSI ESPLICITI: `revoke all … from public, anon, authenticated`
+(oltre allo schema `private` non esposto) — nessun percorso alternativo
+introdotto: le chiama solo il codice definer del contratto (e, per le
+fatture, i futuri involucri della Fase 5). Collaudo di equivalenza dei
+corpi spostati nel piano. Le invocazioni già entrate PRIMA continuano
+il corpo vecchio (già caricato): le conclude la fase B. Rollback
+documentato: un `create or replace` inverso ripristina i cinque corpi
+originali (statement pronto nel runbook).
 
 **FASE B — si dimostra la CONCLUSIONE di ciò che era entrato
 (transazione 2):**
@@ -260,22 +268,36 @@ corpi originali (statement pronto nel runbook).
    transazione ABORTISCE senza aver cambiato NULLA (la fase A resta:
    ingressi legacy comunque chiusi) e si riprova — mai attese
    indefinite, mai stati a metà.
-3. **La barriera**: `lock table public.family_documents,
+3. **CONDIZIONE DI COMPLETAMENTO delle chiamate pregresse — per ETÀ
+   delle transazioni, non per attese sulle tabelle**: l'assenza di
+   codanti sulle tre tabelle NON dimostra la conclusione (una chiamata
+   pre-fase-A può essere sospesa dentro `is_app_member()`, che legge
+   `app_members`, PRIMA di toccare le tre tabelle — o addirittura
+   prima del suo primo accesso a qualunque tabella; e non basta
+   aggiungere `app_members` all'elenco). Il criterio è un altro: al
+   commit della fase A si registrano l'istante `t_A` e l'xid corrente;
+   la fase B, PRIMA della barriera, attende in poll (con timeout e
+   STOP) finché:
+   · nessun'altra sessione ha una transazione con `xact_start < t_A`
+     (`pg_stat_activity`) — ogni invocazione legacy vive in una
+     transazione aperta prima di entrare nella funzione, quindi anche
+     una chiamata sospesa nel guard o prima del primo accesso è
+     CONTATA finché non conclude;
+   · e l'orizzonte `pg_snapshot_xmin(pg_current_snapshot())` ha
+     superato l'xid registrato (cintura e bretelle: nessuna
+     transazione visibile iniziata prima della fase A è ancora viva).
+   Solo a condizione soddisfatta si prosegue; allo scadere del timeout
+   → STOP (nulla è cambiato, la fase A resta) e si riprova.
+4. **La barriera**: `lock table public.family_documents,
    public.family_draft_expenses, public.family_draft_items in access
-   exclusive mode;` — si acquisisce SOLO quando nessuna transazione
-   tiene ancora un lock su quelle tabelle: ogni scrittura E ogni
-   invocazione legacy pre-fase-A che fosse arrivata a toccare le
-   tabelle è terminata quando la barriera passa.
-4. **Controllo dei CODANTI prima del commit**: subito prima del
-   commit, `pg_locks` (granted=false sulle tre tabelle) joined con
-   `pg_stat_activity`: se QUALCUNO è in coda dietro la barriera →
-   ROLLBACK (STOP) e si riprova. Chi si mettesse in coda dopo questo
-   controllo è per forza un chiamante post-fase-A: al risveglio trova
-   la sentinella o i permessi revocati — innocuo per costruzione.
+   exclusive mode;` — difesa in profondità contro le scritture dirette
+   residue: si acquisisce solo a lock altrui rilasciati. (Con la
+   condizione del punto 3 già soddisfatta dovrebbe acquisirsi subito.)
 5. **Cambio dei permessi coordinato**: revoke/re-grant (§2.4–2.5), DDL
    (giornale, revisione_rev) e RPC nuove in QUESTA transazione, dopo
-   barriera e controllo. Al commit niente può più infilarsi tra la
-   quiescenza dimostrata e la porta chiusa.
+   condizione e barriera. Al commit niente può più infilarsi tra la
+   conclusione dimostrata e la porta chiusa: chi arriva dopo trova
+   respingenti (fase A) o permessi revocati (fase B).
 6. **Altri detentori di capacità di scrittura**, enumerati:
    · RPC 0020/0022 (definer): restano eseguibili solo nei percorsi
      previsti (involucri §2.4; caricamento 0022 invariato) — la
@@ -374,23 +396,32 @@ nessuna direzione.
    RIUSO CONCORRENTE della stessa op_key su documenti DIVERSI → una
    sola registrazione, l'altra `CHIAVE_RIUSATA`; Salva e Conferma
    concorrenti sullo stesso documento → serializzati dal lock di riga.
-5. **Barriera di transizione (le due fasi)**: una transazione con
-   UPDATE (e una con INSERT) sulle bozze APERTA PRIMA e ancora
-   pendente → la fase B attende e, allo scadere del lock_timeout,
-   ABORTISCE senza aver cambiato nulla (STOP verificato); chiusa la
-   transazione, la fase B passa; una scrittura diretta inviata DOPO il
-   commit → permission denied. IN PIÙ, il caso delle RPC legacy:
-   · una `conferma_documento` ENTRATA PRIMA della fase A e tenuta
-     bloccata su un lock di riga → la fase B resta in attesa/STOP
-     finché quella non conclude (la conclusione è DIMOSTRATA, non
-     presunta);
-   · una `conferma_documento` invocata MENTRE la barriera è già
-     occupata (dopo la fase A) → sentinella `PERCORSO_DISMESSO`
-     immediata, nessuna attesa e nessun effetto;
-   · controllo dei CODANTI: con un codante artificiale dietro la
-     barriera, la fase B fa ROLLBACK (STOP verificato);
-   · rollback della fase A (runbook) → i corpi originali tornano
-     operativi.
+5. **Transizione (le due fasi) — TUTTO ANCORA DA DIMOSTRARE in
+   ambiente isolato: nulla di questa sezione si può dichiarare
+   collaudato prima dell'esecuzione reale.** Casi:
+   · una transazione con UPDATE (e una con INSERT) sulle bozze APERTA
+     PRIMA e ancora pendente → la fase B attende e, allo scadere del
+     timeout, ABORTISCE senza aver cambiato nulla (STOP verificato);
+     chiusa la transazione, la fase B passa;
+   · RIPRODUZIONE DETERMINISTICA della chiamata sospesa PRIMA delle
+     tre tabelle: sessione X apre una transazione e prende un lock
+     esclusivo su `app_members`; sessione Y invoca la vecchia
+     `conferma_documento` (corpo pre-fase-A) → resta sospesa DENTRO
+     `is_app_member()`, senza alcun lock sulle tre tabelle; si esegue
+     la fase A; la CONDIZIONE del §5.B.3 (età delle transazioni +
+     orizzonte xmin) deve CONTARE la transazione di Y e portare la
+     fase B a STOP al timeout; X rilascia → Y conclude col corpo
+     vecchio → la fase B ripetuta passa. Da eseguire due volte, come
+     gli altri collaudi;
+   · una `conferma_documento` (o una RPC fattura) invocata DOPO la
+     fase A → sentinella `PERCORSO_DISMESSO` immediata, nessuna attesa
+     e nessun effetto — per TUTTI e cinque i nomi pubblici;
+   · chiamata diretta a una funzione `private.*` come authenticated →
+     permesso negato (nessun percorso alternativo);
+   · rollback della fase A (runbook) → i cinque corpi originali
+     tornano operativi;
+   · una scrittura diretta inviata DOPO il commit della fase B →
+     permission denied.
    Verifica infine che il flusso 0022 resti funzionante e che l'UPDATE
    diretto di QUALSIASI colonna di family_documents (kind compreso)
    sia negato.

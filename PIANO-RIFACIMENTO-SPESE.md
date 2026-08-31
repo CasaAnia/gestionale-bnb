@@ -1726,6 +1726,49 @@ se la precedente non è verificata E approvata.
      client/server per l'impronta canonica. Collaudo con tutti i casi.
   Sempre e solo documento: nessun SQL, permesso o codice toccato.
 
+  **CONTRATTO DI REVISIONE — SVILUPPO LOCALE ESEGUITO (02/09/2026),
+  come da approvazione della revisione su 88ba21f:**
+  A) VERIFICATO IN LOCALE (test eseguiti): implementazione client del
+     contratto in moduli PARALLELI, non collegati alle pagine operative
+     né al flusso attuale (i vincoli legacy restano intatti):
+     contrattoRevisione.ts (forma canonica, manifesti delle tre
+     operazioni con kind/correzioni/motivo, batch del Salva, sentinelle,
+     corrispondenza custodia↔giornale), contrattoScrittura.ts
+     (custodia dell'operazione PRIMA dell'invio, esiti
+     APPLICATA/RIPETUTA/SUPERATA/sentinelle, recupero per op_key con
+     esiti assente/estranea/illeggibile distinti), contrattoServerFinto
+     (giornale, revisione_rev, lista positiva stati doc+bozze,
+     perimetro, whitelist coi vincoli 0020, serializzazione per
+     documento, atomicità, guasti iniettabili), contrattoVettori.ts
+     (vettori COMUNI input→canonico→SHA-256, base per il collaudo SQL).
+     11 test nuovi: vettori, batch atomico con mappa client_ref→id,
+     replay senza doppioni, CHIAVE_RIUSATA per kind/documento/contenuto,
+     SUPERATA anche per conferma e scarto tardivi, stati e perimetro
+     con atomicità, risposta persa→recupero per chiave→reinvio innocuo,
+     assente/estranea/illeggibile, chiusure giornalate con replay,
+     concorrenza stessa chiave, custodia negata. Suite 303/303; tsc,
+     lint, build verdi.
+  B) ANCORA DA DIMOSTRARE (PostgreSQL, collaudo isolato con
+     autorizzazione separata): proposte/contratto-revisione.BOZZA.sql
+     (bozza NON applicabile, fuori dalla cartella migrazioni: giornale,
+     revisione_rev, salva/esito/conferma/scarta_revisione, canonico e
+     impronta lato server) e TUTTA la transizione del §5 (fasi A/B).
+  C) PROPOSTA CORRETTA sui due punti della revisione:
+     · §5.B.3: la conclusione delle chiamate pregresse si dimostra per
+       ETÀ DELLE TRANSAZIONI (xact_start < t_faseA su pg_stat_activity
+       + orizzonte xmin oltre l'xid della fase A), con poll, timeout e
+       STOP — copre anche la chiamata sospesa in is_app_member() o
+       prima del primo accesso (l'assenza di codanti sulle tre tabelle
+       NON basta e non basta aggiungere app_members all'elenco);
+       riproduzione deterministica nel collaudo (lock su app_members,
+       conferma sospesa nel guard, STOP verificato, poi passa) —
+       NIENTE è dichiarato collaudato prima dell'esecuzione reale;
+     · §5 fase A: respingenti per TUTTI e CINQUE i percorsi legacy
+       (conferma, scarto E le tre RPC fattura: nessuna finestra tra le
+       fasi), corpi spostati verbatim in private con PERMESSI ESPLICITI
+       (revoke a public/anon/authenticated: nessun percorso
+       alternativo), rollback nel runbook.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta
