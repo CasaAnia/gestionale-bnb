@@ -1695,6 +1695,37 @@ se la precedente non è verificata E approvata.
      su documenti diversi, chiusure versionate, perimetro.
   Sempre e solo documento: nessun SQL, permesso o codice toccato.
 
+  **PROPOSTA DI RECUPERO — TERZA STESURA (02/09/2026) coi due punti
+  della revisione su 67b023c:**
+  1) BARRIERA IN DUE FASI — la revoca non cancella una funzione definer
+     già ENTRATA: fase A (transazione 1) sposta VERBATIM i corpi di
+     conferma/scarta_documento in private (collaudo di equivalenza) e
+     riduce i nomi pubblici a RESPINGENTI (PERCORSO_DISMESSO) — da lì
+     nessun nuovo ingresso legacy; fase B (transazione 2) = barriera
+     ACCESS EXCLUSIVE che dimostra la conclusione delle chiamate
+     entrate prima + CONTROLLO DEI CODANTI su pg_locks subito prima
+     del commit (codanti → ROLLBACK/STOP) + DDL e revoche dopo la
+     barriera; rollback della fase A documentato nel runbook.
+     Scioglimento delle pendenze SOLO a entrambe le fasi committate e
+     rilettura fresca. Collaudo esteso: RPC legacy entrata prima della
+     fase A e tenuta bloccata → attesa/STOP; RPC invocata a barriera
+     occupata → sentinella immediata; codante artificiale → rollback;
+     rollback della fase A provato.
+  2) STATI E PERCORSI FATTURE — lista POSITIVA: documento modificabile
+     solo in_revisione (approvata_da_pagare ESCLUSO: le sue bozze
+     alimentano il pagamento), bozze solo da_controllare/pronta
+     (BOZZA_NON_MODIFICABILE per le storiche: l'appartenenza non
+     basta); revoke dell'execute ad authenticated anche per
+     approva_fattura_da_pagare/paga_fattura/conferma_fattura_pagata
+     («ferme nella UI» ≠ negate dal database — rientreranno versionate
+     in Fase 5); revoke COMPLETO dell'UPDATE diretto su
+     family_documents, kind compreso (niente re-grant delle colonne
+     fatture). Identità completa: kind obbligatorio nel manifesto e
+     nel replay per tutte e tre le operazioni, correzioni della
+     conferma e motivo dello scarto inclusi; VETTORI DI PROVA COMUNI
+     client/server per l'impronta canonica. Collaudo con tutti i casi.
+  Sempre e solo documento: nessun SQL, permesso o codice toccato.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

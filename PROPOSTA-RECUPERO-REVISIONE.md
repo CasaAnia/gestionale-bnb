@@ -51,9 +51,15 @@ righe + voci nuove):
    differenza (stessa chiave con documento o revisione o modifiche
    diversi) → sentinella `CHIAVE_RIUSATA`, niente scritto e MAI l'esito
    estraneo.
-2. **Stato modificabile**: documento `confermato` o `scartato` →
-   sentinella `DOCUMENTO_CHIUSO`, niente scritto (il Salva tardivo su
-   un documento già chiuso non tocca le bozze).
+2. **Stato modificabile — lista POSITIVA**: il documento deve essere
+   in uno stato ESPLICITAMENTE modificabile: `in_revisione`. Tutti gli
+   altri (`confermato`, `scartato`, ma anche `approvata_da_pagare` —
+   le cui bozze alimentano il pagamento e non vanno più toccate —,
+   `da_elaborare`, `errore`) → sentinella `DOCUMENTO_NON_MODIFICABILE`,
+   niente scritto. Idem per le BOZZE: modificabili solo quelle in
+   `da_controllare` o `pronta`; una bozza `confermata`/`scartata`/
+   `errore` indicata nel batch → `BOZZA_NON_MODIFICABILE`, TUTTO
+   respinto — l'appartenenza al documento non basta.
 3. **Versione**: `p_base_rev <> revisione_rev` → sentinella `SUPERATA`,
    niente scritto. Ferma sia la schermata rimasta indietro sia il
    duplicato tardivo (che comunque, se identico, cade nel replay).
@@ -90,28 +96,44 @@ approverebbe inconsapevolmente i valori nuovi di B. Quindi:
   (kind 'conferma'/'scarto', stesse regole di corrispondenza) →
   `p_base_rev <> revisione_rev` → `SUPERATA`, niente eseguito (né
   confermato né scartato: A viene fermato e B decide di nuovo) →
-  altrimenti chiamano INTERNAMENTE la logica 0020 esistente
-  (`conferma_documento`/`scarta_documento`, mai duplicata) → giornale +
-  `revisione_rev` incrementata. Anche le chiusure diventano così
-  RIFERIBILI per chiave (la presa in carico di una chiusura pendente
-  userà `esito_revisione`, non più solo l'osservazione dello stato).
-- **Niente percorsi che aggirano il contratto**: revoke dell'EXECUTE di
-  `public.conferma_documento` e `public.scarta_documento` per
-  `authenticated` (statement nuovi; il file 0020 non si tocca — gli
-  involucri, definer, continuano a chiamarle). Lo scarto tardivo è
-  coperto dalla stessa versione attesa: dopo un Salva di B, lo scarto
-  di A prende `SUPERATA` e non butta via il lavoro nuovo.
+  altrimenti eseguono la logica 0020 spostata in `private` (v. §5 fase
+  A: MAI duplicata, spostata verbatim) → giornale + `revisione_rev`
+  incrementata. Anche le chiusure diventano così RIFERIBILI per chiave
+  (la presa in carico di una chiusura pendente userà `esito_revisione`,
+  non più solo l'osservazione dello stato).
+- **Identità COMPLETA delle tre operazioni**: `kind` è OBBLIGATORIO
+  nel manifesto e nel confronto di replay (stessa `op_key` con `kind`
+  diverso → `CHIAVE_RIUSATA`); il manifesto della conferma include le
+  CORREZIONI complete (`p_correzioni`, ordinate per draft_id,
+  draft_item_id, field), quello dello scarto il MOTIVO (v. §2.6).
+- **Niente percorsi che aggirano il contratto**: i corpi pubblici di
+  `conferma_documento`/`scarta_documento` diventano RESPINGENTI
+  (sentinella `PERCORSO_DISMESSO`, v. §5 fase A) e in più l'EXECUTE
+  viene revocato ad `authenticated` (doppia porta; il FILE 0020 non si
+  tocca: la ridefinizione vive nella migrazione nuova). Lo scarto
+  tardivo è coperto dalla stessa versione attesa: dopo un Salva di B,
+  lo scarto di A prende `SUPERATA` e non butta via il lavoro nuovo.
+- **Percorsi FATTURE**: la 0020 concede ad `authenticated` anche
+  `approva_fattura_da_pagare`, `paga_fattura`,
+  `conferma_fattura_pagata` — senza `base_rev` né giornale. «Ferme
+  nella UI» non equivale a negate dal database: la migrazione REVOCA
+  il loro EXECUTE ad `authenticated` (corpi intatti). La Fase 5 le
+  reintrodurrà come involucri versionati e giornalati sullo stesso
+  lock di riga — quel disegno è demandato alla Fase 5, qui si chiude
+  solo la porta.
 
 ### 2.5 Chiusura della porta alle scritture dirette
 Statement NUOVI nella migrazione (la 0021 non si modifica):
 - `revoke update, insert on public.family_draft_expenses from authenticated;`
 - `revoke update, insert on public.family_draft_items from authenticated;`
-- su `family_documents`: revoke dell'UPDATE e re-grant delle sole
-  colonne del flusso fatture futuro
-  (`kind, supplier, invoice_number, document_date, due_date, note`) —
-  **`doc_total` esce dal grant**: si scrive solo via RPC.
-  L'INSERT dei documenti e tutto il flusso di caricamento 0022 restano
-  invariati.
+- su `family_documents`: revoke COMPLETO dell'UPDATE diretto per
+  `authenticated` — nessun re-grant, nemmeno delle colonne «da
+  fatture» (`kind` in testa: cambiare il tipo sposterebbe il documento
+  da un regime all'altro aggirando la revisione). Oggi nessuna
+  schermata pubblicata scrive quelle colonne; la Fase 5 le
+  reintrodurrà dentro il proprio contratto versionato, non come
+  scritture dirette. L'INSERT dei documenti e tutto il flusso di
+  caricamento 0022 restano invariati.
 Conseguenza decisiva: una richiesta diretta che deve ancora superare il
 controllo dei permessi viene rifiutata; per le scritture GIÀ in
 esecuzione al momento della migrazione serve la BARRIERA di transizione
@@ -124,9 +146,13 @@ definito in modo canonico e verificato DAL SERVER:
 - serializzazione canonica: JSON con chiavi in ordine lessicografico,
   senza spazi, UTF-8; numeri in forma decimale col punto e senza zeri
   superflui; `null` espliciti; le voci nuove ordinate per `client_ref`;
-- contenuto: `document_id`, `base_rev` e le MODIFICHE COMPLETE
-  (`doc_total?`, `bozze{id→campi}`, `righe{id→campi}`,
-  `nuove[{client_ref, …payload}]`);
+- contenuto per OGNI operazione, col `kind` sempre incluso:
+  · salva: `{kind:'salva', document_id, base_rev, doc_total?,
+    bozze{id→campi}, righe{id→campi}, nuove[{client_ref, …payload}]}`;
+  · conferma: `{kind:'conferma', document_id, base_rev, correzioni:[…]}`
+    con le correzioni COMPLETE ordinate per (draft_id, draft_item_id,
+    field);
+  · scarto: `{kind:'scarto', document_id, base_rev, motivo}`;
 - `manifesto_sha256` = SHA-256 di quel testo. Il client lo calcola e lo
   CUSTODISCE prima dell'invio; il server lo RICALCOLA dai parametri
   ricevuti e registra la PROPRIA impronta — il replay confronta
@@ -141,6 +167,12 @@ TUTTO il batch, niente scritto):
   sentinelle `IDENTIFICATIVO_MANCANTE` / `RIFERIMENTO_ESTRANEO`;
 - `client_ref` duplicati nel batch → `CLIENT_REF_DUPLICATO`;
 - batch vuoto o `p_modifiche` malformato → `MODIFICHE_MALFORMATE`.
+**Vettori di prova COMUNI client/server**: un file condiviso di vettori
+(input → forma canonica → SHA-256 atteso, casi normali e insidiosi:
+numeri con zeri, unicode, null, ordinamenti) verificato SIA dai test
+del client SIA dal collaudo SQL — le due canonicalizzazioni devono
+produrre la STESSA impronta, altrimenti il replay fallirebbe tra
+client e server.
 
 ### 2.7 Perché sostituisce la «client_key» della 0023 originaria
 Con TUTTE le scritture nel batch giornalato, anche gli INSERT delle voci
@@ -177,11 +209,12 @@ Flusso client (`salvaModifiche` diventa UNA chiamata):
 
 Ciò che è partito prima del contratto NON diventa riferibile: nessun
 recupero retroattivo automatico, e questa proposta non lo promette.
-Però revoca (§2.5) e BARRIERA di transizione (§5) insieme CONGELANO il
-mondo: la barriera prova che le scritture già in esecuzione sono
-terminate, la revoca respinge tutte quelle successive. Quindi una
-lettura fresca DOPO il commit della migrazione è definitiva, e le
-pendenze si chiudono così:
+Però le DUE FASI del §5 CONGELANO il mondo: i respingenti della fase A
+chiudono gli ingressi legacy (RPC comprese), la barriera della fase B
+DIMOSTRA che le scritture e le chiamate entrate prima sono concluse, e
+revoche+sentinelle respingono tutto il resto. Quindi una lettura fresca
+DOPO il commit della fase B è definitiva, e le pendenze si chiudono
+così — MAI prima che l'intera garanzia sia dimostrata:
 - **campi VINCOLATI**: alla prima apertura post-migrazione i valori
   letti sono finali → i vincoli si SCIOLGONO (una tantum, automatico,
   dichiarato nel changelog della schermata);
@@ -198,31 +231,52 @@ una tantum, su evidenza congelata).
 
 ## 5. BARRIERA di transizione e ordine di attivazione
 
-La revoca ferma le richieste che devono ancora superare il controllo dei
-permessi, ma NON dimostra che le scritture già in esecuzione siano
-terminate. La transizione quindi è una BARRIERA VERIFICABILE, nella
-stessa transazione della migrazione (pattern di prudenza della 0022):
+La revoca ferma le richieste che devono ancora superare il controllo
+dei permessi, ma NON dimostra che le scritture già in esecuzione siano
+terminate — e NON cancella retroattivamente una funzione definer già
+ENTRATA: una vecchia conferma_documento che ha superato l'EXECUTE prima
+del commit e sta aspettando il lock del documento, dopo il commit
+proseguirebbe come proprietario, senza base_rev né giornale. La
+transizione è quindi in DUE FASI, entrambe nella pausa applicativa:
 
-1. **Pausa applicativa**: come per la 0022 in produzione, si applica a
-   uso fermo (conferma esplicita che nessuna schermata è aperta). La
-   pausa è prudenza, non la prova: la prova è il passo 3.
+**FASE A — si chiudono gli INGRESSI legacy (transazione 1):**
+`create or replace` sposta VERBATIM i corpi di `conferma_documento` e
+`scarta_documento` in funzioni `private.*` (collaudo di equivalenza nel
+piano) e ridefinisce i corpi pubblici come PURI RESPINGENTI (sentinella
+`PERCORSO_DISMESSO`, nessun accesso alle tabelle). Dal commit della
+fase A nessuna NUOVA invocazione legacy può più entrare nella logica
+vera: chi chiama il nome pubblico riceve la sentinella prima di toccare
+qualunque riga. Le invocazioni già entrate PRIMA continuano il corpo
+vecchio (già caricato): le conclude la fase B. Rollback documentato: se
+la fase B non riuscisse, un `create or replace` inverso ripristina i
+corpi originali (statement pronto nel runbook).
+
+**FASE B — si dimostra la CONCLUSIONE di ciò che era entrato
+(transazione 2):**
+1. **Pausa applicativa**: come per la 0022 in produzione, a uso fermo
+   (conferma esplicita). La pausa è prudenza, non la prova.
 2. **Timeout con STOP**: `set local lock_timeout` (pochi secondi) e
-   `statement_timeout`: se la barriera non si acquisisce, la migrazione
-   ABORTISCE senza aver cambiato NULLA e si riprova più tardi — mai
-   attese indefinite, mai stati a metà.
-3. **La barriera vera**: `lock table public.family_documents,
+   `statement_timeout`: se la barriera non si acquisisce, la
+   transazione ABORTISCE senza aver cambiato NULLA (la fase A resta:
+   ingressi legacy comunque chiusi) e si riprova — mai attese
+   indefinite, mai stati a metà.
+3. **La barriera**: `lock table public.family_documents,
    public.family_draft_expenses, public.family_draft_items in access
    exclusive mode;` — si acquisisce SOLO quando nessuna transazione
-   tiene ancora un lock su quelle tabelle: ogni scrittura iniziata
-   PRIMA è quindi terminata (commit o rollback) nel momento in cui la
-   barriera passa. Include le tabelle delle bozze, non solo il
-   documento.
-4. **Cambio dei permessi coordinato**: revoke/re-grant (§2.4–2.5), DDL
-   (giornale, revisione_rev) e nuove RPC nella STESSA transazione,
-   DOPO la barriera. Al commit: le richieste arrivate nel frattempo
-   ripartono e trovano i permessi nuovi → respinte; niente può più
-   infilarsi tra la quiescenza e la porta chiusa.
-5. **Altri detentori di capacità di scrittura**, enumerati:
+   tiene ancora un lock su quelle tabelle: ogni scrittura E ogni
+   invocazione legacy pre-fase-A che fosse arrivata a toccare le
+   tabelle è terminata quando la barriera passa.
+4. **Controllo dei CODANTI prima del commit**: subito prima del
+   commit, `pg_locks` (granted=false sulle tre tabelle) joined con
+   `pg_stat_activity`: se QUALCUNO è in coda dietro la barriera →
+   ROLLBACK (STOP) e si riprova. Chi si mettesse in coda dopo questo
+   controllo è per forza un chiamante post-fase-A: al risveglio trova
+   la sentinella o i permessi revocati — innocuo per costruzione.
+5. **Cambio dei permessi coordinato**: revoke/re-grant (§2.4–2.5), DDL
+   (giornale, revisione_rev) e RPC nuove in QUESTA transazione, dopo
+   barriera e controllo. Al commit niente può più infilarsi tra la
+   quiescenza dimostrata e la porta chiusa.
+6. **Altri detentori di capacità di scrittura**, enumerati:
    · RPC 0020/0022 (definer): restano eseguibili solo nei percorsi
      previsti (involucri §2.4; caricamento 0022 invariato) — la
      conferma/scarto DIRETTI vengono revocati ad authenticated;
@@ -234,19 +288,23 @@ stessa transazione della migrazione (pattern di prudenza della 0022):
      non dimostrato dal contratto;
    · trigger esistenti: non aprono percorsi nuovi (verifica nel
      collaudo con l'inventario di verificaAudit).
-6. **Scioglimento dei vincoli legacy SOLO dopo**: barriera passata +
-   commit + una RILETTURA FRESCA post-commit (il client riconosce il
-   contratto attivo dalla presenza di `revisione_rev` nella lettura:
-   niente rilevazioni euristiche). Prima di quel momento i vincoli e le
-   pendenze restano esattamente come oggi.
+7. **Scioglimento dei vincoli legacy SOLO dopo**: fase A + fase B
+   COMMITTATE (la garanzia sulle chiamate legacy entrate è dimostrata
+   dalla coppia respingente+barriera, non dalla sola revoca) + una
+   RILETTURA FRESCA post-commit (il client riconosce il contratto
+   attivo dalla presenza di `revisione_rev`, che nasce nella fase B:
+   niente rilevazioni euristiche). Prima di quel momento i vincoli e
+   le pendenze restano esattamente come oggi.
 
 **Ordine di attivazione** (il client attuale smetterebbe di salvare
 dopo la revoca — è previsto, e la finestra va tenuta corta):
 1. pausa dell'uso (Ania conferma);
-2. migrazione con la barriera (questa sezione) — da qui il client
-   VECCHIO non può più salvare la revisione: è il comportamento voluto;
+2. fase A (respingenti) e fase B (barriera+DDL+revoke) — tra le due
+   fasi le chiusure legacy sono già respinte: finestra da tenere
+   minima, tutta dentro la pausa. Da qui il client VECCHIO non può più
+   né salvare né confermare: è il comportamento voluto;
 3. deploy IMMEDIATO del client nuovo nella stessa pausa;
-4. riapertura dell'uso; prima apertura → scioglimento vincoli (punto 6).
+4. riapertura dell'uso; prima apertura → scioglimento vincoli (punto 7).
 Il client nuovo NON ha ripieghi: se le RPC nuove mancano (migrazione
 non ancora applicata) mostra un errore chiaro e non tenta mai le
 scritture dirette — nessun percorso che aggiri il contratto, in
@@ -257,7 +315,10 @@ nessuna direzione.
   `authenticated` (revoke a `public`/`anon`/`service_role`, pattern 0022);
 - `grant execute` su `conferma_revisione`/`scarta_revisione` ad
   `authenticated`; revoke dell'execute DIRETTO di
-  `conferma_documento`/`scarta_documento` per `authenticated` (§2.4);
+  `conferma_documento`/`scarta_documento` (corpi pubblici comunque
+  ridotti a respingenti, §5 fase A) e delle tre RPC fatture
+  (`approva_fattura_da_pagare`, `paga_fattura`,
+  `conferma_fattura_pagata`) per `authenticated` (§2.4);
 - i revoke/re-grant delle scritture dirette del §2.5; SELECT invariati;
 - giornale: nessun accesso diretto dal browser (si passa da
   `esito_revisione`); append-only via trigger anche per service_role.
@@ -298,22 +359,41 @@ nessuna direzione.
    `CLIENT_REF_DUPLICATO` — sempre a batch interamente respinto.
 3. **Chiusure versionate**: Conferma di A col `base_rev` vecchio dopo
    un Salva di B → `SUPERATA`, nulla approvato; scarto tardivo idem;
-   replay della conferma per `op_key` → stesso esito; conferma/scarto
-   DIRETTI (0020) come authenticated → execute negato.
+   replay della conferma per `op_key` → stesso esito (manifesto con
+   kind+correzioni; scarto con kind+motivo); conferma/scarto DIRETTI
+   come authenticated → sentinella `PERCORSO_DISMESSO` E execute
+   negato (doppia porta, entrambe verificate); EQUIVALENZA dei corpi
+   spostati in private (fase A): stessi esiti della 0020 sui casi già
+   collaudati; RPC fatture (`approva_fattura_da_pagare`, `paga_fattura`,
+   `conferma_fattura_pagata`) come authenticated → execute negato;
+   IMPRONTE: i VETTORI COMUNI client/server (§2.6) producono la stessa
+   canonicalizzazione e lo stesso SHA-256 da entrambe le parti.
 4. **Concorrenza** (allineamento a istante assoluto, stile passo3b):
    due batch identici in parallelo → UNA applicazione; due operazioni
    diverse sullo stesso `base_rev` → una `APPLICATA` e una `SUPERATA`;
    RIUSO CONCORRENTE della stessa op_key su documenti DIVERSI → una
    sola registrazione, l'altra `CHIAVE_RIUSATA`; Salva e Conferma
    concorrenti sullo stesso documento → serializzati dal lock di riga.
-5. **Barriera di transizione**: una transazione con UPDATE (e una con
-   INSERT) sulle bozze APERTA PRIMA e ancora pendente → la migrazione
-   attende e, allo scadere del lock_timeout, ABORTISCE senza aver
-   cambiato nulla (STOP verificato); chiusa la transazione, la
-   migrazione passa; una scrittura diretta inviata DOPO il commit →
-   permission denied. Provare entrambe le fasi: non basta la richiesta
-   post-revoke. Verifica che il flusso 0022 e le colonne fatture
-   residue restino funzionanti.
+5. **Barriera di transizione (le due fasi)**: una transazione con
+   UPDATE (e una con INSERT) sulle bozze APERTA PRIMA e ancora
+   pendente → la fase B attende e, allo scadere del lock_timeout,
+   ABORTISCE senza aver cambiato nulla (STOP verificato); chiusa la
+   transazione, la fase B passa; una scrittura diretta inviata DOPO il
+   commit → permission denied. IN PIÙ, il caso delle RPC legacy:
+   · una `conferma_documento` ENTRATA PRIMA della fase A e tenuta
+     bloccata su un lock di riga → la fase B resta in attesa/STOP
+     finché quella non conclude (la conclusione è DIMOSTRATA, non
+     presunta);
+   · una `conferma_documento` invocata MENTRE la barriera è già
+     occupata (dopo la fase A) → sentinella `PERCORSO_DISMESSO`
+     immediata, nessuna attesa e nessun effetto;
+   · controllo dei CODANTI: con un codante artificiale dietro la
+     barriera, la fase B fa ROLLBACK (STOP verificato);
+   · rollback della fase A (runbook) → i corpi originali tornano
+     operativi.
+   Verifica infine che il flusso 0022 resti funzionante e che l'UPDATE
+   diretto di QUALSIASI colonna di family_documents (kind compreso)
+   sia negato.
 6. **Cliente**: la suite attuale rigirata sul nuovo flusso con servizio
    finto rigoroso (risposta persa → esito per op_key con controllo di
    corrispondenza; `SUPERATA` → ricarica; lettura dell'esito fallita →
@@ -326,9 +406,11 @@ nessuna direzione.
    nella stessa pausa (ordine del §5).
 
 ## 9. Fuori portata / note
-- Elaborazione (service role) e fatture restano ferme; i CORPI delle
-  RPC 0020 di conferma/scarto non cambiano (file intatto) — cambia solo
-  chi può chiamarle direttamente (§2.4).
+- Elaborazione (service role) e fatture restano ferme; il FILE 0020 è
+  intatto — la logica di conferma/scarto viene SPOSTATA verbatim in
+  private dalla migrazione nuova (§5 fase A) e i percorsi fattura
+  vengono negati ad authenticated finché la Fase 5 non li reintroduce
+  dentro il contratto versionato.
 - Il giornale cresce di una riga per Salva: irrilevante a questi
   volumi; un'eventuale retention è una nota per il futuro, non serve ora.
 - Limite residuo dichiarato: la custodia locale (originali e
