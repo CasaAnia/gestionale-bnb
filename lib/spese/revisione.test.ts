@@ -14,8 +14,9 @@ import {
   aggiungiRiga, apriRevisione, avvisoCoerenzaRiga, blocchiConferma,
   bozzaCorrente, CAMPI_RIGA_NUOVA, correzioniDa, dubbiDi, modificaBozza,
   modificaRiga, modificaTotale, payloadRigaNuova, quadratura,
-  rigaCorrente, risolviRigaIncerta, stessaRigaNuova, togliRigaNuova,
-  totaliSorella, tracciaDa,
+  riconosciRigaIncerta, rigaCorrente, scegliCanonicaBozza,
+  scegliCanonicaRiga, scegliSottoCanonicaRiga, stessaRigaNuova,
+  togliRigaNuova, totaliSorella, tracciaDa,
   type BozzaGrezza, type RigaGrezza,
 } from './revisione.ts'
 import { confermaRevisione, salvaModifiche, scartaRevisione, type ClienteRevisione } from './revisioneScrittura.ts'
@@ -313,8 +314,39 @@ test('RESPONSABILITÀ PRIMA DELLA RICHIESTA: la custodia dice «in_invio» già 
   const dopo = await salvaModifiche(sano, dep(), riaperto)
   assert.equal(dopo.ok, true)
   assert.equal(chiamate.filter(c => c.azione === 'nuova').length, 0)   // NESSUN secondo INSERT
-  assert.ok(blocchiConferma(riaperto, ambitoDi).some(b => b.includes('incerto')))
+  assert.ok(blocchiConferma(riaperto, ambitoDi).some(b => b.includes('senza esito verificabile')))
   void inCorso
+})
+
+test('RISPOSTA VECCHIA vs SCHERMATA NUOVA: la generazione della custodia impedisce al Salva rimasto per aria di calpestare lo stato più recente', async () => {
+  let s = apriRevisione('doc-1', 5.5,
+    [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
+  assert.equal(s.generazione, 1)
+  s = aggiungiRiga(s, { draft_id: 'b1', name: 'Sacchetto', amount: 0.5 }, 'loc-1')
+  const deposito = dep()
+  // il Salva A parte e resta SOSPESO sull'INSERT
+  let rispondiA: (v: { id: string }) => void = () => {}
+  const { cliente } = clienteFinto({ aggiungiRiga: () => new Promise(r => { rispondiA = r as never }) as never })
+  const salvaA = salvaModifiche(cliente, deposito, s)
+  await new Promise(r => setTimeout(r, 10))
+  assert.equal(deposito.leggi('doc-1').traccia!.righeNuove[0].stato, 'in_invio')
+  // si chiude e si RIAPRE: la nuova schermata reclama la generazione 2 e
+  // custodisce una modifica nuova
+  let riaperto = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })], deposito.leggi('doc-1').traccia)
+  assert.equal(riaperto.generazione, 2)
+  riaperto = modificaBozza(riaperto, 'b1', { store: 'Iper' })
+  assert.deepEqual(deposito.salva(tracciaDa(riaperto)), {})            // come fa la schermata
+  // ADESSO arriva la risposta di A: la sua scrittura è SUPERATA
+  rispondiA({ id: 'srv-9' })
+  const esitoA = await salvaA
+  assert.equal(esitoA.ok, true)                                        // il remoto è andato…
+  assert.ok(esitoA.ok && esitoA.avviso?.includes('custodia non aggiornata'))   // …ma la custodia lo dice
+  // la custodia conserva lo stato NUOVO: la modifica c'è ancora, e la
+  // pendenza resta quella prudente della schermata nuova (incerta)
+  const traccia = deposito.leggi('doc-1').traccia!
+  assert.equal(traccia.generazione, 2)
+  assert.equal(traccia.modificheBozze.b1?.store, 'Iper')
+  assert.equal(traccia.righeNuove[0].stato, 'incerta')
 })
 
 test('CUSTODIA DELL\'INVIO NEGATA: l\'INSERT non parte proprio (senza traccia, un\'interruzione creerebbe un doppione)', async () => {
@@ -334,7 +366,7 @@ test('CUSTODIA DELL\'INVIO NEGATA: l\'INSERT non parte proprio (senza traccia, u
   assert.equal(esito.stato.righeNuove[0].stato, 'nuova')  // ritentabile, mai inviata
 })
 
-test('RISPOSTA PERSA sull\'INSERT: riga INCERTA, mai reinviata, conferma bloccata; si risolve SOLO a mano (niente «Reinserisci»)', async () => {
+test('RISPOSTA PERSA sull\'INSERT: riga INCERTA, mai reinviata, conferma bloccata; SENZA gemella la pendenza NON si può cancellare', async () => {
   let s = apriRevisione('doc-1', 5.5,
     [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
   s = aggiungiRiga(s, { draft_id: 'b1', name: 'Sacchetto', amount: 0.5 }, 'loc-1')
@@ -347,7 +379,7 @@ test('RISPOSTA PERSA sull\'INSERT: riga INCERTA, mai reinviata, conferma bloccat
   const riprova = await salvaModifiche(sano, dep(), esito.stato)
   assert.equal(riprova.ok, true)                       // nulla di nuovo da fare
   assert.equal(chiamate.filter(c => c.azione === 'nuova').length, 0)
-  assert.ok(blocchiConferma(esito.stato, ambitoDi).some(b => b.includes('incerto')))
+  assert.ok(blocchiConferma(esito.stato, ambitoDi).some(b => b.includes('senza esito verificabile')))
   // anche un'eccezione NON di rete a richiesta partita è esito ignoto
   const { cliente: strano } = clienteFinto({ aggiungiRiga: () => { throw new Error('boom interno') } })
   let s2 = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
@@ -358,9 +390,11 @@ test('RISPOSTA PERSA sull\'INSERT: riga INCERTA, mai reinviata, conferma bloccat
   const { cliente: vuoto } = clienteFinto({ aggiungiRiga: { errore: 'risposta senza id', incerto: true } })
   const e3 = await salvaModifiche(vuoto, dep(), s2)
   assert.ok(!e3.ok && e3.incerto === true && e3.stato.righeNuove[0].stato === 'incerta')
-  // la risoluzione è solo esplicita: la voce si toglie, non si reinvia
-  const risolto = risolviRigaIncerta(esito.stato, esito.stato.righeNuove[0].idLocale)
-  assert.equal(risolto.righeNuove.length, 0)
+  // SENZA gemella non esiste una risoluzione locale certa: il
+  // riconoscimento non fa nulla, la pendenza resta e continua a bloccare
+  const tentato = riconosciRigaIncerta(esito.stato, esito.stato.righeNuove[0].idLocale)
+  assert.equal(tentato.righeNuove.length, 1)
+  assert.equal(tentato.righeNuove[0].stato, 'incerta')
 })
 
 // ---- custodia degli originali: sopravvivono a Salva, chiusura, riapertura -
@@ -424,10 +458,19 @@ test('RICONCILIAZIONE alla riapertura: la gemella IDENTICA viene PROPOSTA (mai c
   assert.equal(arrivata.righeNuove[0].stato, 'incerta')
   assert.equal(arrivata.righeNuove[0].gemella, 'srv-9')
   assert.ok(blocchiConferma(arrivata, ambitoDi).some(b => b.includes('incerto')))   // finché non decide l'utente
-  // la risoluzione esplicita chiude la pendenza e la quadratura tiene
-  const risolta = risolviRigaIncerta(arrivata, arrivata.righeNuove[0].idLocale)
-  assert.equal(risolta.righeNuove.length, 0)
+  // il RICONOSCIMENTO esplicito sblocca ma NON cancella: la pendenza resta
+  // annotata (nemmeno la gemella dimostra l'esito della richiesta) e la
+  // quadratura tiene (conta la voce vera, non l'annotazione)
+  const risolta = riconosciRigaIncerta(arrivata, arrivata.righeNuove[0].idLocale)
+  assert.equal(risolta.righeNuove.length, 1)
+  assert.equal(risolta.righeNuove[0].stato, 'riconosciuta')
+  assert.equal(risolta.righeNuove[0].idLocale, arrivata.righeNuove[0].idLocale)   // la traccia dell'operazione resta
+  assert.deepEqual(blocchiConferma(risolta, ambitoDi), [])
   assert.equal(quadratura(risolta).ok, true)
+  // e alla riapertura successiva l'annotazione sopravvive
+  const dopoAncora = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })],
+    [riga({ id: 'r1', draft_id: 'b1', amount: 5 }), identica], tracciaDa(risolta))
+  assert.equal(dopoAncora.righeNuove[0]?.stato, 'riconosciuta')
   // caso 2: stessa bozza, stesso nome e importo ma QUANTITÀ diversa → una
   // somiglianza non è un'identità: NESSUNA gemella proposta
   const diversa = riga({ id: 'srv-8', draft_id: 'b1', amount: 0.5, name: 'Sacchetto', qty: 2, user_added: true })
@@ -476,6 +519,46 @@ test('CANONICHE: la sottocategoria incoerente con la categoria blocca (stessa FK
   const correzioni = correzioniDa(s2)
   assert.ok(correzioni.some(c => c.field === 'canonical_category_id' && c.proposed === 'can-alim' && c.corrected === 'can-scuola'))
   assert.ok(correzioni.some(c => c.field === 'canonical_subcategory_id' && c.proposed === 'can-frutta' && c.corrected === 'can-cartoleria'))
+})
+
+test('«COME LA PARTE» EREDITA DAVVERO: azzera anche le storiche della riga, e la catena di ripiego mostra la madre; le storiche azzerate restano nelle correzioni', () => {
+  // la catena di ripiego dell'adattatore: canonica riga → storica riga →
+  // canonica madre → storica madre
+  const catena = (r: { canonical_category_id: string | null; category_id: string | null },
+    m: { canonical_category_id: string | null; category_id: string | null }) =>
+    r.canonical_category_id ?? r.category_id ?? m.canonical_category_id ?? m.category_id ?? '—'
+  // madre con canonica Scuola; riga con STORICHE Alimentari/Frutta (il
+  // caso riprodotto dalla revisione)
+  let s = apriRevisione('doc-1', 5,
+    [bozza({ id: 'b1', category_id: null, canonical_category_id: 'can-scuola' })],
+    [riga({ id: 'r1', draft_id: 'b1', amount: 5, category_id: 'cat-alimentari', subcategory: 'Frutta' })])
+  // PRIMA della correzione le storiche della riga vincono sulla madre
+  assert.equal(catena(rigaCorrente(s, 'r1'), bozzaCorrente(s, 'b1')), 'cat-alimentari')
+  // «Come la parte» (il gestore vero della schermata)
+  s = modificaRiga(s, 'r1', scegliCanonicaRiga(null))
+  const rc = rigaCorrente(s, 'r1')
+  assert.equal(rc.canonical_category_id, null)
+  assert.equal(rc.category_id, null)                   // storica azzerata
+  assert.equal(rc.subcategory, null)                   // storica azzerata
+  assert.equal(catena(rc, bozzaCorrente(s, 'b1')), 'can-scuola')   // ORA eredita la madre
+  // gli originali restano e diventano correzioni (proposed → corrected null)
+  const correzioni = correzioniDa(s)
+  assert.ok(correzioni.some(c => c.field === 'category_id' && c.proposed === 'cat-alimentari' && c.corrected === null))
+  assert.ok(correzioni.some(c => c.field === 'subcategory' && c.proposed === 'Frutta' && c.corrected === null))
+  // cambio di CATEGORIA con vecchia sottocategoria storica: non riaffiora
+  let s2 = apriRevisione('doc-1', 5, [bozza({ id: 'b1', subcategory: 'Frutta' })],
+    [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
+  s2 = modificaBozza(s2, 'b1', scegliCanonicaBozza('can-scuola'))
+  const c2 = bozzaCorrente(s2, 'b1')
+  assert.equal(c2.canonical_category_id, 'can-scuola')
+  assert.equal(c2.canonical_subcategory_id, null)
+  assert.equal(c2.subcategory, null)                   // «Frutta» non ricompare sotto Scuola
+  // idem sulla riga: scegliere una sottocanonica spegne la storica
+  let s3 = apriRevisione('doc-1', 5, [bozza({ id: 'b1' })],
+    [riga({ id: 'r1', draft_id: 'b1', amount: 5, subcategory: 'Frutta', canonical_category_id: 'can-scuola' })])
+  s3 = modificaRiga(s3, 'r1', scegliSottoCanonicaRiga('can-cartoleria'))
+  assert.equal(rigaCorrente(s3, 'r1').subcategory, null)
+  assert.equal(rigaCorrente(s3, 'r1').canonical_subcategory_id, 'can-cartoleria')
 })
 
 test('CUSTODIA NEGATA: se gli originali non si possono mettere al sicuro, il Salva NON parte', async () => {

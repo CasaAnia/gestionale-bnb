@@ -21,17 +21,40 @@ export type DepositoRevisione = {
   rimuovi(documentId: string): { errore?: string }
 }
 
+const STATI_RIGA = ['nuova', 'in_invio', 'salvata', 'incerta', 'riconosciuta']
+const archivioDiOggetti = (x: unknown): boolean =>
+  typeof x === 'object' && x !== null && !Array.isArray(x)
+  && Object.values(x).every(v => typeof v === 'object' && v !== null && !Array.isArray(v))
+
+// la validazione copre anche la STRUTTURA INTERNA: un JSON valido con
+// dentro righeNuove:[null] o modifiche non-oggetto NON è una traccia —
+// va segnalato come errore (mai fatto passare, mai sovrascritto)
 function tracciaValida(x: unknown): x is TracciaRevisione {
   if (typeof x !== 'object' || x === null) return false
   const t = x as Record<string, unknown>
   return typeof t.documentId === 'string'
+    && (t.generazione === undefined || typeof t.generazione === 'number')
     && (t.docTotaleCent === null || typeof t.docTotaleCent === 'number')
     && (t.docTotaleOriginaleCent === null || typeof t.docTotaleOriginaleCent === 'number')
-    && typeof t.originaliBozze === 'object' && t.originaliBozze !== null
-    && typeof t.originaliRighe === 'object' && t.originaliRighe !== null
-    && typeof t.modificheBozze === 'object' && t.modificheBozze !== null
-    && typeof t.modificheRighe === 'object' && t.modificheRighe !== null
+    && archivioDiOggetti(t.originaliBozze) && archivioDiOggetti(t.originaliRighe)
+    && archivioDiOggetti(t.modificheBozze) && archivioDiOggetti(t.modificheRighe)
     && Array.isArray(t.righeNuove)
+    && t.righeNuove.every(n => typeof n === 'object' && n !== null
+      && typeof (n as Record<string, unknown>).idLocale === 'string'
+      && STATI_RIGA.includes((n as Record<string, unknown>).stato as string)
+      && typeof (n as Record<string, unknown>).draft_id === 'string'
+      && typeof (n as Record<string, unknown>).name === 'string'
+      && typeof (n as Record<string, unknown>).amount === 'number')
+}
+
+// il coordinamento fra schermate e operazioni: una scrittura di una
+// GENERAZIONE superata viene rifiutata — la risposta di un Salva rimasto
+// per aria non può calpestare lo stato di una schermata più recente
+function superata(esistente: TracciaRevisione | undefined, nuova: TracciaRevisione): string | null {
+  if (!esistente) return null
+  if ((esistente.generazione ?? 0) > (nuova.generazione ?? 0))
+    return `custodia superata: c'è uno stato più recente del documento (generazione ${esistente.generazione ?? 0} > ${nuova.generazione ?? 0}) — questa scrittura vecchia non lo tocca`
+  return null
 }
 
 type Memoria = Pick<Storage, 'getItem' | 'setItem'>
@@ -67,6 +90,8 @@ export function depositoRevisioneLocale(
         const lettura = leggiArchivio(mem, chiave)
         if (lettura.errore)
           return { errore: `custodia illeggibile, non sovrascrivo (${lettura.errore})` }
+        const vecchia = superata(lettura.tracce[t.documentId], t)
+        if (vecchia) return { errore: vecchia }
         try {
           mem.setItem(chiave, JSON.stringify({ ...lettura.tracce, [t.documentId]: t }))
           return {}
@@ -96,7 +121,11 @@ export function depositoRevisioneLocale(
 export function depositoRevisioneInMemoria(): DepositoRevisione & { contenuto: () => Record<string, TracciaRevisione> } {
   let tracce: Record<string, TracciaRevisione> = {}
   return {
-    salva(t) { tracce = { ...tracce, [t.documentId]: t }; return {} },
+    salva(t) {
+      const vecchia = superata(tracce[t.documentId], t)
+      if (vecchia) return { errore: vecchia }
+      tracce = { ...tracce, [t.documentId]: t }; return {}
+    },
     leggi(documentId) { return { traccia: tracce[documentId] } },
     rimuovi(documentId) { const { [documentId]: via, ...resto } = tracce; void via; tracce = resto; return {} },
     contenuto: () => ({ ...tracce }),

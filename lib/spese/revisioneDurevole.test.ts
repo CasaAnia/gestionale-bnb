@@ -5,11 +5,11 @@
 // ============================================================================
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { depositoRevisioneLocale } from './revisioneDurevole.ts'
+import { depositoRevisioneInMemoria, depositoRevisioneLocale } from './revisioneDurevole.ts'
 import type { TracciaRevisione } from './revisione.ts'
 
-const traccia = (documentId: string): TracciaRevisione => ({
-  documentId, docTotaleCent: 500, docTotaleOriginaleCent: 500,
+const traccia = (documentId: string, generazione = 1): TracciaRevisione => ({
+  documentId, generazione, docTotaleCent: 500, docTotaleOriginaleCent: 500,
   originaliBozze: { b1: { store: 'Mercato' } }, originaliRighe: {},
   modificheBozze: { b1: { store: 'Iper' } }, modificheRighe: {},
   righeNuove: [],
@@ -54,6 +54,40 @@ test('custodia CORROTTA o non valida: errore ESPLICITO, salva e rimuovi NON sovr
   const mem2 = memoriaFinta({ k: '[1,2,3]' })
   const dep2 = depositoRevisioneLocale('k', () => mem2)
   assert.ok(dep2.leggi('d1').errore?.includes('non valida'))
+})
+
+test('STRUTTURA INTERNA invalida (JSON valido ma righeNuove:[null] o modifiche non-oggetto): errore, mai fatta passare, contenuto preservato', () => {
+  const rotta = { ...traccia('d1'), righeNuove: [null] }
+  const mem = memoriaFinta({ k: JSON.stringify({ d1: rotta }) })
+  const dep = depositoRevisioneLocale('k', () => mem)
+  assert.ok(dep.leggi('d1').errore?.includes('non valida'))            // MAI {traccia} né vuoto
+  assert.ok(dep.salva(traccia('d1')).errore?.includes('non sovrascrivo'))
+  assert.equal(mem.dati.k, JSON.stringify({ d1: rotta }))              // preservata per l'analisi
+  // altre strutture interne rotte
+  for (const guasta of [
+    { ...traccia('d1'), righeNuove: [{ idLocale: 'x' }] },             // riga senza stato/campi
+    { ...traccia('d1'), modificheBozze: 'niente' },
+    { ...traccia('d1'), originaliRighe: { r1: 'niente' } },
+    { ...traccia('d1'), generazione: 'due' },
+  ]) {
+    const m = memoriaFinta({ k: JSON.stringify({ d1: guasta }) })
+    assert.ok(depositoRevisioneLocale('k', () => m).leggi('d1').errore, JSON.stringify(guasta).slice(0, 60))
+  }
+})
+
+test('GENERAZIONI: una scrittura superata viene rifiutata (in ENTRAMBI i depositi), una pari o più nuova passa', () => {
+  const mem = memoriaFinta()
+  const dep = depositoRevisioneLocale('k', () => mem)
+  assert.deepEqual(dep.salva(traccia('d1', 2)), {})
+  const rifiuto = dep.salva(traccia('d1', 1))                          // la risposta vecchia
+  assert.ok(rifiuto.errore?.includes('superata'))
+  assert.equal(dep.leggi('d1').traccia?.generazione, 2)                // lo stato recente resta
+  assert.deepEqual(dep.salva(traccia('d1', 2)), {})                    // stessa generazione: ok
+  assert.deepEqual(dep.salva(traccia('d1', 3)), {})                    // più nuova: ok
+  const memv = depositoRevisioneInMemoria()
+  assert.deepEqual(memv.salva(traccia('d2', 2)), {})
+  assert.ok(memv.salva(traccia('d2', 1)).errore?.includes('superata'))
+  assert.equal(memv.leggi('d2').traccia?.generazione, 2)
 })
 
 test('memoria che ESPLODE (lettura o accesso negati): errore dichiarato, mai spacciato per vuoto', () => {

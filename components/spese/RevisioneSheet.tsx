@@ -23,8 +23,9 @@ import type { PaginaFoto } from './FotoSheet'
 import {
   aggiungiRiga, apriRevisione, avvisoCoerenzaRiga, blocchiConferma,
   bozzaCorrente, dubbiDi, modificaBozza, modificaRiga, modificaTotale,
-  modifichePendenti, quadratura, rigaCorrente, risolviRigaIncerta,
-  togliRigaNuova, totaliSorella, tracciaDa,
+  modifichePendenti, quadratura, riconosciRigaIncerta, rigaCorrente,
+  scegliCanonicaBozza, scegliCanonicaRiga, scegliSottoCanonicaBozza,
+  scegliSottoCanonicaRiga, togliRigaNuova, totaliSorella, tracciaDa,
   type BozzaGrezza, type RigaGrezza, type StatoRevisione,
 } from '@/lib/spese/revisione'
 import {
@@ -188,21 +189,36 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
     )
   }
 
-  // le CANONICHE (con precedenza nel contratto): cambiare categoria azzera
-  // la SUA sottocategoria (coerenza FK), mai le assegnazioni delle altre voci
+  // le CANONICHE (con precedenza nel contratto). Perché la SCELTA sia
+  // davvero effettiva anche le STORICHE che riaffiorerebbero nella catena
+  // di ripiego vengono azzerate dal chiamante (suCategoria/suSotto);
+  // le assegnazioni delle ALTRE voci non si toccano mai.
   const selettoreCanonica = (
     valore: { canonical_category_id: string | null; canonical_subcategory_id: string | null },
-    applica: (campi: { canonical_category_id?: string | null; canonical_subcategory_id?: string | null }) => void,
+    suCategoria: (id: string | null) => void,
+    suSotto: (id: string | null) => void,
     vuotoCat: string, vuotoSotto: string,
     storiche?: { categoria?: string | null; sottocategoria?: string | null },
   ) => {
+    // DIPENDENZA DICHIARATA: senza il catalogo canonico non c'è nulla da
+    // proporre — lo si dice, NON si popola il database da qui
+    if (canoniche.length === 0) {
+      return (
+        <p className="mb-2 px-2 py-1.5 text-[11.5px] font-semibold" role="note"
+          style={{ background: t.velo, color: t.sub, borderRadius: t.r }}>
+          il catalogo delle categorie canoniche è vuoto: qui valgono le storiche
+          {storiche?.categoria ? ` (${storiche.categoria}${storiche.sottocategoria ? ` · ${storiche.sottocategoria}` : ''})` : ''} —
+          per correggerle da questa schermata serve prima il catalogo
+        </p>
+      )
+    }
     const sottoDellaCat = sottoCanoniche.filter(x => x.canonical_category_id === valore.canonical_category_id)
     return (
       <div className="flex gap-2 mb-2">
         <div className="flex-1 min-w-0">
           <Etichetta>Categoria</Etichetta>
           <select value={valore.canonical_category_id ?? ''}
-            onChange={e => applica({ canonical_category_id: e.target.value || null, canonical_subcategory_id: null })}
+            onChange={e => suCategoria(e.target.value || null)}
             className="w-full min-h-11 px-2 text-[13.5px] outline-none"
             style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
             <option value="">{vuotoCat}</option>
@@ -215,7 +231,7 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
         <div className="flex-1 min-w-0">
           <Etichetta>Sottocategoria</Etichetta>
           <select value={valore.canonical_subcategory_id ?? ''} disabled={!valore.canonical_category_id}
-            onChange={e => applica({ canonical_subcategory_id: e.target.value || null })}
+            onChange={e => suSotto(e.target.value || null)}
             className="w-full min-h-11 px-2 text-[13.5px] outline-none disabled:opacity-50"
             style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
             <option value="">{vuotoSotto}</option>
@@ -393,7 +409,8 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
             </div>
             {selettoreCanonica(
               { canonical_category_id: c.canonical_category_id, canonical_subcategory_id: c.canonical_subcategory_id },
-              campi => setStato(s => modificaBozza(s, b.id, campi)),
+              id => setStato(s => modificaBozza(s, b.id, scegliCanonicaBozza(id))),
+              id => setStato(s => modificaBozza(s, b.id, scegliSottoCanonicaBozza(id))),
               '—', 'Non specificata',
               { categoria: c.category_id ? nomeCategoria.get(c.category_id) : null, sottocategoria: c.subcategory },
             )}
@@ -508,7 +525,8 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
                       </div>
                       {selettoreCanonica(
                         { canonical_category_id: rc.canonical_category_id, canonical_subcategory_id: rc.canonical_subcategory_id },
-                        campi => setStato(s => modificaRiga(s, r.id, campi)),
+                        id => setStato(s => modificaRiga(s, r.id, scegliCanonicaRiga(id))),
+                        id => setStato(s => modificaRiga(s, r.id, scegliSottoCanonicaRiga(id))),
                         'Come la parte', 'Come la parte',
                         { categoria: rc.category_id ? nomeCategoria.get(rc.category_id) : null, sottocategoria: rc.subcategory },
                       )}
@@ -533,14 +551,15 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
             })}
             {stato.righeNuove.filter(r => r.draft_id === b.id).map(r => (
               <div key={r.idLocale} className="py-1.5"
-                style={{ opacity: r.stato === 'incerta' || r.stato === 'in_invio' ? 0.75 : 1 }}>
+                style={{ opacity: r.stato === 'incerta' || r.stato === 'in_invio' ? 0.75 : r.stato === 'riconosciuta' ? 0.6 : 1 }}>
                 <div className="flex items-center gap-2">
                   <span className="flex-1 px-3 text-[13.5px]" style={{ color: t.inchiostro }}>{r.name}
-                    <span className="text-[10.5px] block" style={{ color: r.stato === 'nuova' || r.stato === 'salvata' ? t.sub : t.rosso }}>
+                    <span className="text-[10.5px] block" style={{ color: r.stato === 'incerta' || r.stato === 'in_invio' ? t.rosso : t.sub }}>
                       {r.stato === 'nuova' ? 'nuova, da salvare'
                         : r.stato === 'salvata' ? 'aggiunta e salvata ✓'
                           : r.stato === 'in_invio' ? 'invio in corso…'
-                            : 'esito incerto: non so se è stata inserita'}
+                            : r.stato === 'riconosciuta' ? 'collegata alla voce comparsa (l\'invio resta annotato)'
+                              : 'esito incerto: non so se è stata inserita'}
                     </span></span>
                   <span className="tabular-nums text-[13.5px] font-semibold" style={{ color: t.inchiostro }}>{eurCent(Math.round(r.amount * 100))}</span>
                   {r.stato === 'nuova' && (
@@ -549,21 +568,23 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
                   )}
                 </div>
                 {r.stato === 'incerta' && !daVerificare && (
-                  <div className="flex gap-2 mx-3 mt-1">
-                    {r.gemella ? (
-                      <button onClick={() => setStato(s => risolviRigaIncerta(s, r.idLocale))}
-                        className="flex-1 min-h-11 px-2 text-[11.5px] font-bold text-white"
+                  r.gemella ? (
+                    <div className="mx-3 mt-1">
+                      <button onClick={() => setStato(s => riconosciRigaIncerta(s, r.idLocale))}
+                        className="w-full min-h-11 px-2 text-[11.5px] font-bold text-white"
                         style={{ background: accento, borderRadius: t.rPill }}>
-                        È arrivata: è la voce identica qui sopra
+                        È arrivata: è la voce identica qui sopra (resta annotata)
                       </button>
-                    ) : (
-                      <button onClick={() => setStato(s => risolviRigaIncerta(s, r.idLocale))}
-                        className="flex-1 min-h-11 px-2 text-[11.5px] font-bold"
-                        style={{ color: t.rosso, border: t.bordoCarta, borderRadius: t.rPill }}>
-                        Toglila (se comparisse più tardi, escludila a mano)
-                      </button>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    // NESSUNA scorciatoia: la pendenza non si può cancellare
+                    // fingendo che sia risolta — resta e blocca la conferma
+                    <p className="mx-3 mt-1 px-2 py-1.5 text-[11px] font-semibold"
+                      style={{ background: t.terraTenue, color: t.inchiostro, borderRadius: t.r }}>
+                      resterà in attesa: si sblocca se la voce compare tra le righe
+                      (o col contratto idempotente — proposta 0023, da autorizzare)
+                    </p>
+                  )
                 )}
               </div>
             ))}

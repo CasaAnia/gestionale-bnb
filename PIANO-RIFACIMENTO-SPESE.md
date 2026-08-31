@@ -1512,8 +1512,47 @@ se la precedente non è verificata E approvata.
   ?scrittura=lenta aggiunta alla pagina sintetica per la prova dei
   controlli spenti.
 
+  **FASE 4 · BLOCCO 3 — TERZA TORNATA DI CORREZIONI (31/08/2026, sera).**
+  1) COORDINAMENTO PER DOCUMENTO — ogni apertura della revisione reclama
+     una GENERAZIONE nuova nella traccia; la custodia (entrambi i
+     depositi) rifiuta le scritture di generazioni superate: il Salva
+     rimasto per aria non può più calpestare lo stato di una schermata
+     aperta dopo (test della sequenza completa: A sospeso → riapertura →
+     modifica custodita → risposta di A rifiutata con avviso, modifica
+     intatta). Validazione della custodia estesa alla STRUTTURA INTERNA
+     (righeNuove:[null], modifiche non-oggetto, generazione non numerica
+     → errore, contenuto preservato, mai crash).
+  2) PENDENZE INCERTE SENZA SCORCIATOIE — «Toglila» eliminato: una
+     pendenza incerta non si può cancellare. Con gemella l'utente può
+     RICONOSCERLA (stato 'riconosciuta': resta annotata col suo idLocale,
+     sblocca perché la voce vera è nel conto — ma l'esito della richiesta
+     originale resta non dimostrato); senza gemella resta e BLOCCA
+     esplicitamente («si sblocca se la voce compare, o col contratto
+     idempotente — proposta 0023»). CORRETTO il resoconto precedente:
+     non «niente più doppioni» — sono stati eliminati i reinvii
+     automatici e le riconciliazioni arbitrarie, l'ambiguità di fondo
+     resta fino alla 0023.
+  3) «COME LA PARTE» EREDITA DAVVERO — i gestori delle canoniche sono
+     funzioni pure (scegliCanonica*/scegliSottoCanonica*): «Come la
+     parte» azzera anche category_id/subcategory STORICHE della riga
+     (che avrebbero la precedenza sulla madre nella catena di ripiego);
+     cambiare categoria azzera la sottocategoria canonica E storica (la
+     vecchia non riaffiora incompatibile); gli azzeramenti restano nelle
+     correzioni (proposed→null). Catalogo canonico VUOTO: dipendenza
+     dichiarata a schermo (restano le storiche), nessun popolamento
+     autonomo del database.
+  Test: 286/286; tsc, lint, build verdi. Prove live: due pendenze (con e
+  senza gemella), riconoscimento che annota senza cancellare, «Come la
+  parte» effettivo alla rilettura senza storiche residue.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
-  idempotente per le righe nuove.** Per chiudere l'ambiguità residua
+  idempotente per le righe nuove.** Progetto completo in
+  PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md (identità per client_key generata
+  e custodita PRIMA dell'invio, indice unico parziale, immutabilità via
+  trigger anche per service_role, MAI upsert — conflitto = «già
+  registrata» con recupero per chiave, righe corrette comunque
+  riconoscibili, concorrenza arbitrata dall'indice, grant minimo della
+  sola colonna in INSERT, piano di collaudo isolato in 4 passi). Per chiudere l'ambiguità residua
   del punto 2 servirebbe una colonna `client_key uuid` su
   family_draft_items con indice UNIQUE parziale (where client_key is
   not null) e la colonna concessa in INSERT dalla 0021: il browser

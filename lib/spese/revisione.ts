@@ -89,7 +89,11 @@ export type RigaNuova = {
 //               riconciliazione arbitraria).
 export type RigaNuovaPendente = RigaNuova & {
   idLocale: string
-  stato: 'nuova' | 'in_invio' | 'salvata' | 'incerta'
+  //  'riconosciuta' = l'utente ha collegato la pendenza a una voce del
+  //  database IDENTICA in ogni campo: la voce vera conta nei totali, la
+  //  pendenza resta ANNOTATA (l'esito della richiesta originale non è
+  //  dimostrato — solo il contratto idempotente 0023 potrà chiuderlo)
+  stato: 'nuova' | 'in_invio' | 'salvata' | 'incerta' | 'riconosciuta'
   id?: string                             // l'id vero, dopo l'inserimento
   gemella?: string                        // riapertura: id di una voce del
                                           // database IDENTICA in ogni campo
@@ -133,6 +137,11 @@ export function stessaRigaNuova(db: RigaGrezza, pendente: RigaNuova): boolean {
 // lo STATO della revisione in corso: originali intatti + modifiche pendenti
 export type StatoRevisione = {
   documentId: string
+  // COORDINAMENTO fra schermate e operazioni sullo stesso documento: ogni
+  // APERTURA reclama una generazione nuova; la custodia rifiuta le
+  // scritture di generazioni superate, così la risposta di un Salva
+  // rimasto per aria non può calpestare uno stato più recente
+  generazione: number
   docTotaleCent: number | null            // valore corrente (modificabile)
   docTotaleOriginaleCent: number | null
   bozze: BozzaGrezza[]                    // ORIGINALI, mai mutati
@@ -149,6 +158,7 @@ export type StatoRevisione = {
 // si toglie solo a documento confermato o scartato.
 export type TracciaRevisione = {
   documentId: string
+  generazione: number
   docTotaleCent: number | null
   docTotaleOriginaleCent: number | null
   originaliBozze: Record<string, Partial<BozzaGrezza>>
@@ -166,7 +176,7 @@ const foto = <T extends object>(riga: T, campi: readonly string[]): Partial<T> =
 
 export function tracciaDa(s: StatoRevisione): TracciaRevisione {
   return {
-    documentId: s.documentId,
+    documentId: s.documentId, generazione: s.generazione,
     docTotaleCent: s.docTotaleCent, docTotaleOriginaleCent: s.docTotaleOriginaleCent,
     originaliBozze: Object.fromEntries(s.bozze.map(b => [b.id, foto(b, CAMPI_BOZZA_REVISIONE)])),
     originaliRighe: Object.fromEntries(s.righe.map(r => [r.id, foto(r, CAMPI_RIGA_REVISIONE)])),
@@ -198,9 +208,12 @@ export function apriRevisione(
   const idAttivi = new Set(attive.map(b => b.id))
   const righeAttive = righe.filter(r => idAttivi.has(r.draft_id))
   const cent = docTotale == null ? null : Math.round(docTotale * 100)
+  // ogni apertura reclama una GENERAZIONE nuova: da qui in poi la custodia
+  // rifiuterà le scritture delle operazioni rimaste indietro
+  const generazione = (traccia?.generazione ?? 0) + 1
   if (!traccia || traccia.documentId !== documentId) {
     return {
-      documentId, docTotaleCent: cent, docTotaleOriginaleCent: cent,
+      documentId, generazione, docTotaleCent: cent, docTotaleOriginaleCent: cent,
       bozze: attive, righe: righeAttive,
       modificheBozze: {}, modificheRighe: {}, righeNuove: [],
     }
@@ -237,13 +250,13 @@ export function apriRevisione(
   const righeNuove = traccia.righeNuove
     .filter(n => n.stato !== 'salvata' || !n.id || !righeAttive.some(r => r.id === n.id))
     .map(n => {
-      if (n.stato !== 'incerta' && n.stato !== 'in_invio') return n
+      if (n.stato !== 'incerta' && n.stato !== 'in_invio') return n   // 'riconosciuta' resta annotata
       const gemella = comparse.find(r => !reclamate.has(r.id) && stessaRigaNuova(r, n))
       if (gemella) reclamate.add(gemella.id)
       return { ...n, stato: 'incerta' as const, gemella: gemella?.id }
     })
   return {
-    documentId,
+    documentId, generazione,
     docTotaleCent: traccia.docTotaleCent,
     docTotaleOriginaleCent: traccia.docTotaleOriginaleCent,
     bozze: bozzeOriginali, righe: righeOriginali,
@@ -271,12 +284,16 @@ export const aggiungiRiga = (s: StatoRevisione, riga: RigaNuova, idLocale: strin
 // non concede DELETE), 'incerta' è una responsabilità da riconciliare
 export const togliRigaNuova = (s: StatoRevisione, idLocale: string): StatoRevisione =>
   ({ ...s, righeNuove: s.righeNuove.filter(r => r.idLocale !== idLocale || r.stato !== 'nuova') })
-// una riga incerta si RISOLVE solo per scelta esplicita dell'utente: o
-// riconosce la gemella proposta («è questa»), o la toglie sapendo che, se
-// l'invio perso arrivasse più tardi, la voce comparsa andrà esclusa a
-// mano. In nessun caso il codice reinvia da solo.
-export const risolviRigaIncerta = (s: StatoRevisione, idLocale: string): StatoRevisione =>
-  ({ ...s, righeNuove: s.righeNuove.filter(r => r.idLocale !== idLocale || r.stato !== 'incerta') })
+// una riga incerta CON gemella si può RICONOSCERE (scelta esplicita
+// dell'utente): la pendenza NON sparisce — resta annotata col suo
+// idLocale, perché nemmeno la gemella dimostra l'esito della richiesta
+// originale. Una riga incerta SENZA gemella non ha soluzione locale
+// certa: resta e blocca (fino al contratto idempotente 0023).
+// In nessun caso il codice reinvia o cancella da solo.
+export const riconosciRigaIncerta = (s: StatoRevisione, idLocale: string): StatoRevisione =>
+  ({ ...s, righeNuove: s.righeNuove.map(r =>
+    r.idLocale === idLocale && r.stato === 'incerta' && r.gemella
+      ? { ...r, stato: 'riconosciuta' as const } : r) })
 export const modificaTotale = (s: StatoRevisione, cent: number | null): StatoRevisione =>
   ({ ...s, docTotaleCent: cent })
 
@@ -295,9 +312,10 @@ const centDi = (n: number) => Math.round(n * 100)
 
 export function totaliSorella(s: StatoRevisione, bozzaId: string) {
   const righe = s.righe.filter(r => r.draft_id === bozzaId).map(r => rigaCorrente(s, r.id))
-  // le 'incerta' (e le 'in_invio') NON contano nei totali: non si sa se
-  // esistono — vanno risolte (e intanto bloccano la conferma)
-  const nuove = s.righeNuove.filter(r => r.draft_id === bozzaId && r.stato !== 'incerta' && r.stato !== 'in_invio')
+  // nei totali contano solo 'nuova' e 'salvata': le 'incerta'/'in_invio'
+  // non si sa se esistano (e bloccano), le 'riconosciute' sono già
+  // rappresentate dalla loro voce vera tra le righe del database
+  const nuove = s.righeNuove.filter(r => r.draft_id === bozzaId && (r.stato === 'nuova' || r.stato === 'salvata'))
   const attiveCent = [
     ...righe.filter(r => !r.excluded).map(r => centDi(r.amount)),
     ...nuove.map(r => centDi(r.amount)),
@@ -355,8 +373,10 @@ export function blocchiConferma(
       if (n.group_id && ambitoDelGruppo(n.group_id) !== ambitoParte)
         blocchi.push('una voce ha un destinatario dell\'altro ambito rispetto alla sua parte: correggila')
   }
-  if (s.righeNuove.some(r => r.stato === 'incerta' || r.stato === 'in_invio'))
+  if (s.righeNuove.some(r => r.stato === 'in_invio' || (r.stato === 'incerta' && r.gemella)))
     blocchi.push('una voce aggiunta ha l\'esito incerto: va risolta prima di confermare')
+  if (s.righeNuove.some(r => r.stato === 'incerta' && !r.gemella))
+    blocchi.push('un invio è rimasto senza esito verificabile: si sblocca se la voce compare, o col contratto idempotente (proposta 0023)')
   // coerenza canonica (la stessa FK composita della 0020): la
   // sottocategoria deve appartenere alla categoria scelta
   if (sottoCanoniche) {
@@ -371,6 +391,26 @@ export function blocchiConferma(
   }
   return [...new Set(blocchi)]
 }
+
+// ---- scelte CANONICHE (i gestori veri della schermata) --------------------
+// Perché la scelta sia EFFETTIVA anche alla rilettura, insieme alle
+// canoniche si azzerano le STORICHE che riaffiorerebbero nella catena di
+// ripiego (canonica riga → storica riga → canonica madre → storica madre):
+//  · cambiare categoria azzera la sottocategoria canonica E storica (la
+//    vecchia non deve ricomparire incompatibile);
+//  · «Come la parte» sulla riga azzera TUTTO il livello riga (canoniche e
+//    storiche): solo così eredita davvero dalla madre.
+// Le assegnazioni delle altre voci non vengono mai toccate.
+export const scegliCanonicaBozza = (id: string | null): ModificaBozza =>
+  ({ canonical_category_id: id, canonical_subcategory_id: null, subcategory: null })
+export const scegliSottoCanonicaBozza = (id: string | null): ModificaBozza =>
+  ({ canonical_subcategory_id: id, subcategory: null })
+export const scegliCanonicaRiga = (id: string | null): ModificaRiga =>
+  id === null
+    ? { canonical_category_id: null, canonical_subcategory_id: null, category_id: null, subcategory: null }
+    : { canonical_category_id: id, canonical_subcategory_id: null, subcategory: null }
+export const scegliSottoCanonicaRiga = (id: string | null): ModificaRiga =>
+  ({ canonical_subcategory_id: id, subcategory: null })
 
 // coerenza quantità × prezzo unitario (avviso NON bloccante, come da
 // controlli.rigaCoerente: tolleranza di 1 cent solo sul prezzo stampato)
