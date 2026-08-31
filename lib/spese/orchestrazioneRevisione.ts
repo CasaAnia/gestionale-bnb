@@ -133,7 +133,15 @@ export async function riconciliaContratto(dip: ServiziContratto, documentId?: st
   if (ePonti.errore) return esitoFinale(`ponte fra le custodie illeggibile (${ePonti.errore}): niente scritture finché non si riesce a leggerlo`)
   const ops = (eOps.ops ?? []).filter(o => !documentId || o.documentId === documentId)
   const rifs = (ePonti.rifs ?? []).filter(r => !documentId || r.documentId === documentId)
-  const documenti = [...new Set([...ops.map(o => o.documentId), ...rifs.map(r => r.documentId)])]
+  // il documento RICHIESTO passa dal presidio ANCHE senza record nei due
+  // depositi: un preparatore sospeso PRIMA della prima impronta non ha
+  // ancora scritto nulla, ma tiene il presidio — l'apertura deve
+  // scoprirlo (bloccante), non concludere «niente da fare» e lasciare
+  // che il guscio entri nella presa legacy creando vincoli irrisolvibili
+  const documenti = [...new Set([
+    ...(documentId ? [documentId] : []),
+    ...ops.map(o => o.documentId), ...rifs.map(r => r.documentId),
+  ])]
 
   for (const doc of documenti) {
     const bloccante = await conPresidio<string | null>(doc,

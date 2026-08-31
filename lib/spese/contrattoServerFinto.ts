@@ -42,6 +42,24 @@ const STATI_BOZZA_MODIFICABILI = ['da_controllare', 'pronta']
 export function creaServerContratto(mondo: MondoFinto, hasher: HasherTesto) {
   const giornale = new Map<string, Registro>()
   let contatore = 0
+  // gli id NON si riusano mai, nemmeno quando il mondo e il giornale
+  // vengono serializzati e ricreati (la preview persistente): si salta
+  // qualunque id già presente fra le righe del mondo, le mappe del
+  // giornale e le spese registrate — un id riusato sovrascriverebbe in
+  // silenzio una riga esistente dichiarando successo
+  const giaUsato = (id: string): boolean => {
+    if (mondo.righe.has(id)) return true
+    for (const r of giornale.values()) {
+      if ((r.esito.righe_nuove ?? []).some(m => m.id === id)) return true
+      if ((r.esito.spese ?? []).includes(id)) return true
+    }
+    return false
+  }
+  const prossimoId = (prefisso: string): string => {
+    let id: string
+    do { id = `${prefisso}-${++contatore}` } while (giaUsato(id))
+    return id
+  }
   // il «lock di riga»: le operazioni sullo stesso documento si
   // SERIALIZZANO (catena di promesse per documento)
   const code = new Map<string, Promise<unknown>>()
@@ -119,7 +137,7 @@ export function creaServerContratto(mondo: MondoFinto, hasher: HasherTesto) {
       for (const [id, campi] of Object.entries(b.righe)) Object.assign(mondo.righe.get(id)!, campi)
       const mappa: { client_ref: string; id: string }[] = []
       for (const n of b.nuove) {
-        const id = `srv-${++contatore}`
+        const id = prossimoId('srv')
         const { client_ref, ...payload } = n
         mondo.righe.set(id, { ...payload, user_added: true, excluded: false } as never)
         mappa.push({ client_ref, id })
@@ -156,7 +174,7 @@ export function creaServerContratto(mondo: MondoFinto, hasher: HasherTesto) {
         return { errore: `Quadratura non esatta: righe+arrotondamento=${sommaCent} cent, documento=${totCent ?? 'null'} cent`, codice: 'P0001' }
       doc.status = 'confermato'; doc.revisione_rev += 1
       for (const [, bz] of attive) bz.status = 'confermata'
-      const spese = [`spesa-${++contatore}`]
+      const spese = [prossimoId('spesa')]
       giornale.set(p.op_key, { document_id: p.document_id, kind: 'conferma', base_rev: p.base_rev, manifesto_sha256: impronta, esito: { rev_dopo: doc.revisione_rev, spese } })
       return { esito: 'APPLICATA', rev_dopo: doc.revisione_rev, spese }
     }),

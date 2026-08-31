@@ -169,3 +169,26 @@ e NON richiede modifiche al database: riguarda soltanto il server finto.
 - Codex ha modificato soltanto questa scheda e i tre file dei test/metodo;
   nessun commit, push o deploy. Queste modifiche locali sono consegnate
   all'implementatore con provenienza esplicita.
+
+## Esito R1/R2 (compilato dall'implementatore, 01/09/2026)
+
+- R1: il documento RICHIESTO entra sempre nel giro del presidio, anche
+  senza record nei due depositi (orchestrazioneRevisione, elenco dei
+  documenti): un preparatore sospeso PRIMA della prima impronta rende
+  l'apertura BLOCCANTE — il guscio mostra il pannello con «Riprova» e la
+  presa legacy non viene mai offerta a un'operazione del contratto;
+  nessun vincolo estraneo eliminato. Prova del revisore VERDE (giro
+  intero fino alla Conferma).
+- R2: il server finto non riusa mai gli id — prima di assegnarne uno
+  salta quelli già presenti fra righe del mondo, mappe del giornale e
+  spese registrate (contrattoServerFinto). Prova del revisore VERDE.
+- Prove sul candidato fermo: 12/12 del revisore (assert invariati),
+  suite 346/346, VERIFICHE_TECNICHE_OK del comando condiviso (ora
+  include scripts/revisioni), build di produzione verde.
+- UI ripetute: DUE inserimenti attraverso una ricarica (entrambe le voci
+  presenti e distinte alla seconda riapertura); interruzione a richiesta
+  in corso (pagina uccisa durante l'invio) → riapertura → «reinviata
+  dalla custodia, applicata e acquisita». La finestra del PRIMO hash non
+  è riproducibile a mano dalla UI: coperta dalla prova del revisore.
+- Il commit del codice è il candidato fermo annotato qui sotto dalla
+  consegna; l'ultimo commit di scheda è sola documentazione.
