@@ -2142,6 +2142,23 @@ se la precedente non è verificata E approvata.
   reale di contratto e transizione richiede un'autorizzazione separata
   (pausa, audit read-only, backup verificato, runbook dedicato).
 
+  **RAPPORTO DEL COLLAUDO E PROSSIMO BLOCCO PRESENTATO (31/08/2026,
+  notte).** Evidenze conservate in scripts/collaudo-contratto/
+  RAPPORTO-COLLAUDO-2026-08-31.md (esiti per passo dei due giri, i
+  quattro difetti con diagnosi e correzioni, tracciabilità dei registri,
+  nessun segreto). Proposto il blocco di CABLAGGIO del contratto alle
+  schermate (PIANO-CABLAGGIO-CONTRATTO.md, DA AUTORIZZARE): interruttore
+  di percorso con default 'legacy' (comportamento attuale intatto),
+  deposito operazioni durevole in browser con letture/scritture
+  controllate, orchestrazione a contratto con le stesse firme di
+  revisioneScrittura e i controlli del blocco 3 davanti, recupero delle
+  pendenze all'apertura, pagina di prova sul server finto, batteria di
+  test e controprova di regressione. Sequenza di produzione dichiarata e
+  vincolante: contratto SQL additivo → deploy client → attivazione
+  interruttore → osservazione → SOLO POI fase A/B (il client nuovo
+  pronto PRIMA di dismettere il percorso attuale); ogni passo con
+  autorizzazione separata. Nessuna nuova esecuzione remota.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta
