@@ -48,6 +48,11 @@ function depositoRevisioneFinto(guasti: { rotta?: boolean; fallisciAllaScrittura
       if (guasti.rotta) return { errore: 'disco pieno (finto)' }
       scritture++
       if (guasti.fallisciAllaScrittura === scritture) return { errore: `scrittura ${scritture} negata (finto)` }
+      // come il deposito VERO: una scrittura di generazione superata
+      // non tocca lo stato più recente
+      const esistente = tracce.get(t.documentId)
+      if (esistente && (esistente.generazione ?? 0) > (t.generazione ?? 0))
+        return { errore: `custodia superata: c'è uno stato più recente del documento (generazione ${esistente.generazione ?? 0} > ${t.generazione ?? 0}) — questa scrittura vecchia non lo tocca` }
       tracce.set(t.documentId, JSON.parse(JSON.stringify(t))); return {}
     },
     leggi: id => guasti.rotta ? { errore: 'disco pieno (finto)' } : { traccia: tracce.get(id) },
@@ -90,6 +95,7 @@ function scenario(opz: {
   const ponte = ponteContrattoDurevole(magazzino, 'ponte')
   const rev = depositoRevisioneFinto(opz.guastiRev)
   let chiavi = 0
+  const nuovaChiave = () => `00000000-0000-0000-0000-0000000000${String(++chiavi).padStart(2, '0')}`
   const servizi = {
     cliente: opz.rivesti ? opz.rivesti(server.cliente) : server.cliente,
     depositoRevisione: rev.dep,
@@ -99,10 +105,31 @@ function scenario(opz: {
   const orch = orchestrazioneContratto({
     ...servizi,
     revisioneIniziale: opz.revisioneIniziale === undefined ? 0 : opz.revisioneIniziale,
-    nuovaChiave: () => `00000000-0000-0000-0000-0000000000${String(++chiavi).padStart(2, '0')}`,
+    nuovaChiave,
   })
+  // la PAGINA RICREATA: istanze NUOVE dei depositi sullo stesso
+  // magazzino (come una ricarica sul medesimo localStorage) e
+  // orchestrazione nuova con la versione riletta dalla «fonte» (mondo)
+  const ricrea = (revIniz?: number | null) => {
+    const servizi2 = {
+      cliente: servizi.cliente,
+      depositoRevisione: rev.dep,
+      depositoOperazioni: depositoOperazioniDurevole(magazzino, 'prova'),
+      ponte: ponteContrattoDurevole(magazzino, 'ponte'),
+    }
+    return {
+      servizi: servizi2,
+      orch: orchestrazioneContratto({
+        ...servizi2,
+        revisioneIniziale: revIniz === undefined ? mondo.documenti.get('d1')!.revisione_rev : revIniz,
+        nuovaChiave,
+      }),
+    }
+  }
   const stato = () => apriRevisione('d1', 5, [BOZZA], [RIGA], null)
-  return { mondo, server, magazzino, mappa, depOp, ponte, rev, orch, servizi, stato }
+  // la RIAPERTURA della schermata: stato ricostruito dalla traccia
+  const riapri = (docTotale = 5) => apriRevisione('d1', docTotale, [BOZZA], [RIGA], rev.tracce.get('d1') ?? null)
+  return { mondo, server, magazzino, mappa, depOp, ponte, rev, orch, servizi, stato, ricrea, riapri }
 }
 
 // ---- deposito operazioni DUREVOLE -----------------------------------------
@@ -271,9 +298,11 @@ test('SEQUENZA COMPLETA della risposta persa: riapertura → traccia ACQUISITA (
   assert.match(!salvaVietato.ok ? salvaVietato.errore : '', /da riconciliare/)
   const scartoVietato = await sc.orch.scarta(sc.stato(), 'motivo')
   assert.match(scartoVietato.errore ?? '', /da riconciliare/)
-  // riapertura: la riconciliazione ACQUISISCE nella traccia
+  // PAGINA RICREATA (istanze nuove sullo stesso magazzino, versione
+  // riletta dalla fonte): la riconciliazione ACQUISISCE nella traccia
   perdi = false
-  const apertura = await sc.orch.apertura('d1')
+  const pagina2 = sc.ricrea()
+  const apertura = await pagina2.orch.apertura('d1')
   assert.equal(apertura.bloccante, undefined, JSON.stringify(apertura))
   assert.equal(apertura.risolte, 1)
   assert.match(apertura.avvisi[0], /ARRIVATA/)
@@ -285,10 +314,21 @@ test('SEQUENZA COMPLETA della risposta persa: riapertura → traccia ACQUISITA (
   assert.ok(traccia!.righeNuove[0].id, 'la voce ha l\'id dal giornale')
   assert.equal(traccia!.inCorso, undefined)
   assert.equal(traccia!.vincoli, undefined)
-  // lo stato RIPARTE dalla traccia persistita (mai vuoto): la conferma passa
-  const s2 = apriRevisione('d1', 6, [BOZZA], [RIGA], traccia!)
+  // UNA SOLA voce sul server, con l'ID REALE della traccia; originali conservati
+  const persaSulServer = [...sc.mondo.righe.entries()].filter(([, r2]) => (r2 as { name?: string }).name === 'Persa')
+  assert.equal(persaSulServer.length, 1, 'nessun doppione della voce')
+  assert.equal(persaSulServer[0][0], traccia!.righeNuove[0].id)
+  assert.ok(Object.keys(traccia!.originaliBozze).length > 0, 'gli originali restano custoditi')
+  // SECONDA riapertura (di nuovo pagina ricreata): nulla da risolvere,
+  // lo stato riparte dalla traccia persistita (mai vuoto)
+  const pagina3 = sc.ricrea()
+  const seconda = await pagina3.orch.apertura('d1')
+  assert.equal(seconda.risolte, 0)
+  assert.equal(seconda.bloccante, undefined)
+  const s2 = sc.riapri(6)
+  assert.equal(s2.righeNuove[0].stato, 'salvata')
   assert.equal(pendenzaNonDimostrata(s2), undefined)
-  const confermato = await sc.orch.conferma(s2)
+  const confermato = await pagina3.orch.conferma(s2)
   assert.equal(confermato.ok, true, JSON.stringify(confermato))
   assert.equal(sc.mondo.documenti.get('d1')?.status, 'confermato')
 })
@@ -307,10 +347,13 @@ test('successo ma TRACCIA FINALE non scrivibile: il ponte conserva l\'esito e la
   const rif = sc.ponte.leggi('d1').rif
   assert.ok(rif?.esito, '…ma il PONTE conserva l\'esito con la mappa')
   assert.ok(rif!.esito!.mappaNuove['loc-s'])
-  // la traccia è rimasta indietro: voce ancora «in_invio»
+  // la traccia è rimasta indietro: voce ancora «in_invio» — e NESSUN
+  // falso «zero pendenze»: il ponte elenca il riferimento con la chiave
   assert.equal(sc.rev.tracce.get('d1')?.righeNuove[0].stato, 'in_invio')
-  // riapertura: l'acquisizione si completa dal ponte (il deposito è vuoto)
-  const apertura = await sc.orch.apertura('d1')
+  assert.equal(sc.ponte.elenca().rifs?.[0]?.opKey, rif!.opKey)
+  // ripristino con PAGINA RICREATA: l'acquisizione si completa dal
+  // ponte PER IDENTITÀ (il deposito operazioni è vuoto)
+  const apertura = await sc.ricrea().orch.apertura('d1')
   assert.equal(apertura.bloccante, undefined, JSON.stringify(apertura))
   assert.equal(apertura.risolte, 1)
   assert.match(apertura.avvisi[0], /già custodito nel ponte/)
@@ -363,24 +406,39 @@ test('riferimento in ponte SENZA esito e giornale che non lo conosce: nulla appl
   assert.equal(sc.ponte.elenca().rifs?.length, 0)
 })
 
-test('recupero NON conclusivo: BLOCCANTE, pendenza conservata', async () => {
+test('recupero NON conclusivo: BLOCCANTE e niente scritture; ripristino → ripresa guidata', async () => {
   let giu = true
+  let rotto = true
+  const aggiusta = () => { rotto = false }
   const sc = scenario({
     rivesti: base => ({
       ...base,
-      salvaRevisione: async () => { throw new Error('Failed to fetch (finto)') },
+      salvaRevisione: async p => { if (rotto) throw new Error('Failed to fetch (finto)'); return base.salvaRevisione(p) },
       esitoRevisione: async k => { if (giu) throw new Error('Failed to fetch (finto)'); return base.esitoRevisione(k) },
     }),
   })
+  void aggiusta
   const r = await sc.orch.salva(modificaBozza(sc.stato(), 'b1', { store: 'X' }))
   assert.equal(!r.ok && r.incerto, true)
   const bloccata = await sc.orch.apertura('d1')
   assert.ok(bloccata.bloccante)
   assert.equal(sc.depOp.elenca().ops?.length, 1)
+  // durante la sospensione anche lo SCARTO è vietato
+  const scartoVietato = await sc.orch.scarta(sc.stato(), 'motivo')
+  assert.match(scartoVietato.errore ?? '', /da riconciliare/)
   giu = false
   const ancora = await sc.orch.apertura('d1')
   assert.ok(ancora.bloccante)                                    // il reinvio fallisce ancora
   assert.equal(sc.depOp.elenca().ops?.length, 1)
+  // RIPRISTINATA anche la scrittura: la ripresa risolve e le scritture
+  // nuove tornano possibili, senza responsabilità perse
+  aggiusta()
+  const ripresa = await sc.orch.apertura('d1')
+  assert.equal(ripresa.bloccante, undefined, JSON.stringify(ripresa))
+  assert.equal(ripresa.risolte, 1)
+  assert.equal(sc.depOp.elenca().ops?.length, 0)
+  const dopo = await sc.orch.salva(modificaBozza(sc.riapri(), 'b1', { store: 'Ripresa' }))
+  assert.equal(dopo.ok, true, JSON.stringify(dopo))
 })
 
 test('richiesta MAI partita ma registrata: la riapertura la REINVIA dalla custodia e la acquisisce', async () => {
@@ -432,6 +490,142 @@ test('scarto versionato: applicato, traccia e ponte puliti', async () => {
   assert.equal(sc.mondo.documenti.get('d1')?.status, 'scartato')
   assert.equal(sc.rev.tracce.size, 0)
   assert.equal(sc.ponte.elenca().rifs?.length, 0)
+})
+
+
+// ---- C01/C02: il giro della VERSIONE lungo la sessione ----------------------
+test('C01 · due Salva consecutivi con rilettura, poi riapertura e conferma: versione aggiornata, mai SUPERATA spuria', async () => {
+  const sc = scenario()
+  const primo = await sc.orch.salva(modificaBozza(sc.stato(), 'b1', { store: 'Primo' }))
+  assert.equal(primo.ok, true, JSON.stringify(primo))
+  assert.equal(sc.mondo.documenti.get('d1')?.revisione_rev, 1)
+  // rilettura della fonte + controller ricreato (come fa la pagina dopo
+  // «Modifiche salvate» → ricarica): la versione arriva dalla fonte
+  const pagina2 = sc.ricrea()
+  const secondo = await pagina2.orch.salva(modificaBozza(sc.riapri(), 'b1', { store: 'Secondo' }))
+  assert.equal(secondo.ok, true, JSON.stringify(secondo))        // NESSUNA SUPERATA spuria
+  assert.equal(sc.mondo.documenti.get('d1')?.revisione_rev, 2)
+  assert.equal(sc.mondo.bozze.get('b1')?.store, 'Secondo')
+  // chiusura/riapertura e CONFERMA sull'ultima versione
+  const pagina3 = sc.ricrea()
+  const confermato = await pagina3.orch.conferma(sc.riapri())
+  assert.equal(confermato.ok, true, JSON.stringify(confermato))
+  assert.equal(sc.mondo.documenti.get('d1')?.status, 'confermato')
+})
+
+test('C02 · controller ricreato coerente con la sessione; conflitto AUTENTICO → stop esplicito, nessun inseguimento', async () => {
+  const sc = scenario()
+  await sc.orch.salva(modificaBozza(sc.stato(), 'b1', { store: 'Mio' }))
+  // il controller si ricrea (rerender/ricarica) e resta coerente
+  const pagina2 = sc.ricrea()
+  const ok2 = await pagina2.orch.salva(modificaBozza(sc.riapri(), 'b1', { expense_date: '2026-09-01' }))
+  assert.equal(ok2.ok, true, JSON.stringify(ok2))
+  // conflitto AUTENTICO: un altro attore avanza la revisione a 3
+  await sc.server.cliente.salvaRevisione({ op_key: 'altro-c02', document_id: 'd1', base_rev: 2, modifiche: { kind: 'salva', document_id: 'd1', base_rev: 2, bozze: { b1: { store: 'Altrui' } }, righe: {}, nuove: [] } })
+  const tardivo = await pagina2.orch.salva(modificaBozza(sc.riapri(), 'b1', { store: 'Tardivo' }))
+  assert.equal(tardivo.ok, false)
+  assert.match(!tardivo.ok ? tardivo.errore : '', /ricarica/)
+  // NESSUN inseguimento silenzioso: senza ricaricare resta il conflitto,
+  // e il valore altrui NON è stato sovrascritto
+  const ancora = await pagina2.orch.salva(modificaBozza(sc.riapri(), 'b1', { store: 'Tardivo' }))
+  assert.equal(ancora.ok, false)
+  assert.equal(sc.mondo.bozze.get('b1')?.store, 'Altrui')
+})
+
+// ---- C05: chiusure perse nei DUE versi --------------------------------------
+test('C05 · scarto APPLICATO con risposta persa: la riconciliazione di pagina chiude traccia e pendenze', async () => {
+  let perdi = true
+  const sc = scenario({
+    rivesti: base => ({
+      ...base,
+      scartaRevisione: async p => {
+        const r = await base.scartaRevisione(p)
+        if (perdi) throw new Error('Failed to fetch (finto: risposta persa)')
+        return r
+      },
+    }),
+  })
+  const r = await sc.orch.scarta(sc.stato(), 'doppione')
+  assert.equal(r.ok, false)
+  assert.equal(r.incerto, true)
+  assert.equal(sc.mondo.documenti.get('d1')?.status, 'scartato')     // effetto REALE
+  perdi = false
+  const esito = await riconciliaContratto(sc.ricrea().servizi)       // pagina, senza schermata
+  assert.equal(esito.bloccante, undefined, JSON.stringify(esito))
+  assert.equal(esito.risolte, 1)
+  assert.equal(sc.rev.tracce.size, 0)
+  assert.equal(sc.ponte.elenca().rifs?.length, 0)
+  assert.equal(sc.depOp.elenca().ops?.length, 0)
+})
+
+test('C05 · conferma MAI PARTITA: la riapertura la reinvia dalla custodia e chiude il documento', async () => {
+  let giu = true
+  const sc = scenario({
+    rivesti: base => ({
+      ...base,
+      confermaRevisione: async p => {
+        if (giu) throw new Error('Failed to fetch (finto: rete giù prima dell\'invio)')
+        return base.confermaRevisione(p)
+      },
+    }),
+  })
+  const r = await sc.orch.conferma(sc.stato())
+  assert.equal(!r.ok && r.incerto, true, JSON.stringify(r))
+  assert.equal(sc.mondo.documenti.get('d1')?.status, 'in_revisione') // NON applicata
+  giu = false
+  const esito = await riconciliaContratto(sc.ricrea().servizi)
+  assert.equal(esito.bloccante, undefined, JSON.stringify(esito))
+  assert.equal(esito.risolte, 1)
+  assert.match(esito.avvisi.join(' '), /reinviata/)
+  assert.equal(sc.mondo.documenti.get('d1')?.status, 'confermato')   // l'intento dell'utente si completa
+  assert.equal(sc.rev.tracce.size, 0)
+  assert.equal(sc.ponte.elenca().rifs?.length, 0)
+})
+
+// ---- C07: schermata SUPERATA e doppio invio ---------------------------------
+test('C07 · schermata superata (generazione più vecchia): nessuna scrittura nuova, custodia recente intatta', async () => {
+  const sc = scenario()
+  const vecchia = sc.stato()                                         // generazione 1
+  // una SECONDA apertura prende in carico il documento (generazione 2)
+  const nuova = apriRevisione('d1', 5, [BOZZA], [RIGA], (() => {
+    const t = JSON.parse(JSON.stringify(tracciaBase())); t.generazione = 1; return t
+  })())
+  assert.equal(nuova.generazione, 2)
+  const presa = sc.rev.dep.salva({ ...tracciaBase(), generazione: 2 })
+  assert.deepEqual(presa, {})
+  // il Salva della schermata VECCHIA si ferma senza toccare nulla
+  const r = await sc.orch.salva(modificaBozza(vecchia, 'b1', { store: 'Vecchio' }))
+  assert.equal(r.ok, false)
+  assert.match(!r.ok ? r.errore : '', /custodia superata|generazione/)
+  assert.equal(sc.server.giornale.size, 0)                           // nessuna richiesta
+  assert.equal(sc.rev.tracce.get('d1')?.generazione, 2)              // la custodia recente resta
+  // anche lo SCARTO della schermata vecchia si ferma
+  const scarto = await sc.orch.scarta(modificaBozza(vecchia, 'b1', {}), 'motivo')
+  assert.equal(scarto.ok, false)
+  assert.match(scarto.errore ?? '', /custodia superata|generazione/)
+})
+
+test('C07 · doppio tocco: la schermata riparte dallo stato AGGIORNATO dall\'esito — nessun doppione, una sola operazione logica', async () => {
+  const sc = scenario()
+  let s = sc.stato()
+  s = aggiungiRiga(s, { draft_id: 'b1', name: 'Doppia', amount: 1 }, 'loc-d')
+  const primo = await sc.orch.salva(s)
+  assert.equal(primo.ok, true)
+  // la schermata fa setStato(esito.stato): il secondo tocco parte dallo
+  // stato in cui la voce è già «salvata» → batch VUOTO, nessun reinvio
+  const secondo = await sc.orch.salva(primo.stato)
+  assert.equal(secondo.ok, true, JSON.stringify(secondo))
+  const doppie = [...sc.mondo.righe.values()].filter(r2 => (r2 as { name?: string }).name === 'Doppia')
+  assert.equal(doppie.length, 1)
+  assert.equal(sc.server.giornale.size, 1)                          // UNA operazione logica
+  // (il doppio tocco RAVVICINATO è già fermato dalla guardia d'invio
+  // della schermata, e il replay per chiave dal contratto collaudato)
+})
+
+// ---- C10: l'interruttore operativo resta su LEGACY --------------------------
+test('C10 · PERCORSO_REVISIONE è \'legacy\': la pagina operativa non costruisce il percorso contratto', async () => {
+  const { PERCORSO_REVISIONE } = await import('./percorso.ts')
+  assert.equal(PERCORSO_REVISIONE, 'legacy')
 })
 
 // una traccia di base per i casi costruiti a mano

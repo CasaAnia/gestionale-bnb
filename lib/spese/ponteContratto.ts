@@ -87,6 +87,14 @@ export function ponteContrattoDurevole(
         const esistente = leggiRif(m, rif.documentId)
         if (esistente && esistente.opKey !== rif.opKey)
           return { errore: `il documento ${rif.documentId} ha già un'operazione in ponte (${esistente.opKey}): va acquisita prima di un'altra` }
+        // stessa chiave: l'IDENTITÀ COMPLETA è immutabile — solo l'esito
+        // può essere aggiunto o aggiornato, mai kind/manifesto/perimetro
+        if (esistente && (esistente.kind !== rif.kind || esistente.documentId !== rif.documentId
+          || esistente.baseRev !== rif.baseRev || esistente.impronta !== rif.impronta
+          || JSON.stringify(esistente.clientRefs) !== JSON.stringify(rif.clientRefs)
+          || JSON.stringify(esistente.inInvio) !== JSON.stringify(rif.inInvio)
+          || esistente.generazione !== rif.generazione))
+          return { errore: `la chiave ${rif.opKey} è già in ponte con UN'ALTRA identità: un riferimento non cambia kind, manifesto o perimetro` }
         m.setItem(chiaveDoc(rif.documentId), JSON.stringify(rif))    // prima il valore…
         const indice = leggiIndice(m)
         if (!indice.includes(rif.documentId)) m.setItem(chiaveIndice, JSON.stringify([...indice, rif.documentId]))  // …poi l'indice

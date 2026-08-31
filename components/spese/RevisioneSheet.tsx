@@ -32,6 +32,7 @@ import {
 } from '@/lib/spese/revisione'
 import type { ClienteRevisione, EsitoRevisione } from '@/lib/spese/revisioneScrittura'
 import { orchestrazioneLegacy, type AperturaRevisione, type OrchestrazioneRevisione } from '@/lib/spese/orchestrazioneRevisione'
+import { cicloRiconciliazione } from '@/lib/spese/riconciliazioneSchermata'
 import type { DepositoRevisione } from '@/lib/spese/revisioneDurevole'
 import {
   gestoreImporto, gestoreNumero, interpretaCampo, testoCampo, testoNumero,
@@ -85,19 +86,23 @@ export function RevisioneSheet(props: PropsRevisione) {
   // e non si scrive nulla; col legacy questo blocco non esiste.
   const [riconciliazione, setRiconciliazione] = useState<AperturaRevisione | null>(
     () => props.orchestrazione ? null : { risolte: 0, avvisi: [], revPerDocumento: {} })
-  const riconciliazioneAvviata = useRef(false)
-  useEffect(() => {
-    if (!props.orchestrazione || riconciliazioneAvviata.current) return
-    riconciliazioneAvviata.current = true
-    // niente guardia di annullamento: lo StrictMode di sviluppo simula
-    // uno smontaggio e la scarterebbe; su smontaggio vero è un no-op
-    props.orchestrazione.apertura(documento.id).then(r => {
-      // la traccia può essere CAMBIATA (acquisizioni): si rilegge PRIMA
-      // di decidere il cancello e di costruire lo stato iniziale
-      setLettura(deposito.leggi(documento.id))
-      setRiconciliazione(r)
+  // il CICLO è testato a parte (riconciliazioneSchermata): ogni avvio —
+  // primo o «Riprova» — fa partire una chiamata VERA, pubblica l'attesa
+  // e scarta le risposte obsolete. Niente guardie di annullamento: lo
+  // StrictMode simulerebbe uno smontaggio e la risposta andrebbe persa.
+  const ciclo = useMemo(() => {
+    if (!props.orchestrazione) return null
+    return cicloRiconciliazione(props.orchestrazione.apertura, documento.id, esito => {
+      if (esito) setLettura(deposito.leggi(documento.id))   // la traccia può essere cambiata
+      setRiconciliazione(esito)
     })
   }, [props.orchestrazione, documento.id, deposito])
+  const riconciliazioneAvviata = useRef(false)
+  useEffect(() => {
+    if (!ciclo || riconciliazioneAvviata.current) return
+    riconciliazioneAvviata.current = true
+    ciclo.avvia()
+  }, [ciclo])
   if (!riconciliazione) {
     return (
       <Foglio aria="Revisione: riconciliazione in corso" chiudi={chiudi} scorrevole>
@@ -123,7 +128,7 @@ export function RevisioneSheet(props: PropsRevisione) {
             style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
             Chiudi
           </button>
-          <button onClick={() => { riconciliazioneAvviata.current = false; setRiconciliazione(null) }}
+          <button onClick={() => ciclo?.avvia()}
             className="flex-[2] min-h-12 text-[14px] font-bold text-white"
             style={{ background: t.verde, borderRadius: t.rPill }}>
             Riprova la riconciliazione

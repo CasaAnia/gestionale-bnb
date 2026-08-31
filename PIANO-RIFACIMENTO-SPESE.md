@@ -2265,6 +2265,37 @@ se la precedente non è verificata E approvata.
   Solo correzioni locali: nessuna modifica SQL, accesso remoto,
   migrazione, push o deploy; collaudo PostgreSQL non riaperto.
 
+  **METODO CONDIVISO E QUATTRO GRUPPI DELLA REVISIONE DI 127277d
+  CHIUSI (01/09/2026, notte).** Adottato il metodo Codex/Claude
+  (COLLABORAZIONE.md, CONSEGNA-ATTIVA.md, verificatore locale). Le 10
+  prove del revisore (scripts/revisioni/cablaggio-127277d.test.mjs, 5
+  rosse sul candidato) sono TUTTE VERDI senza cambiare gli assert:
+  1) PRESIDIO PER DOCUMENTO condiviso a livello di modulo fra pagina,
+     guscio e scritture: chi lo trova occupato riceve un esito esplicito
+     (mai attese cieche né recuperi intrecciati); acquisizione e
+     annullamento CONDIZIONATI a identità e generazione pertinenti (un
+     rifiuto di identità del ponte è uno STOP, mai un avviso; inCorso e
+     vincoli di un'altra operazione non si toccano; il ponte si chiude
+     solo se contiene ancora il proprio riferimento); la rimozione della
+     traccia usa la generazione DELL'OPERAZIONE (mai Math.max che
+     scavalca la protezione del deposito).
+  2) GUARDIA D'INVIO sul varco ponte/deposito: la richiesta parte solo
+     se il ponte contiene ancora il riferimento; una sequenza superata
+     riceve un rifiuto definito senza inviare; l'apertura nel varco è
+     BLOCCANTE (il presidio è occupato: cessazione non dimostrabile).
+  3) L'esito custodito nel ponte si CONVALIDA con le regole del
+     contratto (validaEsitoGiornale su una forma sintetica: identità,
+     revisione, mappa esatta, spese) prima di toccare la traccia;
+     corruzione → blocco con riferimento conservato; l'identità di una
+     chiave in ponte è immutabile (solo l'esito può aggiungersi).
+  4) Il «Riprova la riconciliazione» riavvia DAVVERO: ciclo estratto e
+     testato (riconciliazioneSchermata.ts: nuova chiamata a ogni avvio,
+     risposte obsolete scartate) + prova UI con ?scrittura=giornale1.
+  Inoltre: C09 completato (archivio del finto persistente con giornale;
+  righe nuove dalla fonte), casi C01–C10 compilati nella scheda con
+  prove test+UI, build verde, suite 348/348 (con i 10 del revisore e i
+  2 del ciclo). Percorso legacy intatto, interruttore su 'legacy'.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

@@ -136,28 +136,78 @@ const urlFinto = async (percorso: string) => percorso.endsWith('.pdf') ? 'about:
 const depositoProva = depositoRevisioneLocale('gestionale-revisione-prova')
 
 // ---- PERCORSO A CONTRATTO in prova (?percorso=contratto): la schermata
-// VERA sul server finto RIGOROSO del contratto, senza rete. I guasti
+// VERA sul server finto RIGOROSO del contratto, senza rete. L'ARCHIVIO
+// del finto (documento, bozze, righe E GIORNALE) è PERSISTENTE in
+// localStorage: una ricarica della pagina ricrea controller e servizi
+// ma NON finge che il server abbia perso il giornale (C09). I guasti
 // simulati passano da un RIVESTIMENTO del cliente (come nel collaudo):
-//   ?scrittura=errore → rifiuto DIMOSTRATO (P0001, quadratura simulata)
-//   ?scrittura=rete   → errore senza prova di rifiuto (pendenza custodita)
-//   ?scrittura=persa  → effetto REALE, poi risposta persa (recupero
-//                       all'apertura successiva: riapri il documento)
-//   ?scrittura=lenta  → risposte in 2,5 s (controlli spenti)
-function clienteContrattoProva(modo: string | null, base: ClienteContratto): ClienteContratto {
+//   ?scrittura=errore   → rifiuto DIMOSTRATO (P0001, quadratura simulata)
+//   ?scrittura=rete     → errore senza prova di rifiuto (pendenza custodita)
+//   ?scrittura=persa    → effetto REALE, poi risposta persa (recupero
+//                         all'apertura successiva: riapri il documento)
+//   ?scrittura=lenta    → risposte in 2,5 s (controlli spenti)
+//   ?scrittura=giornale → la LETTURA del giornale fallisce: la
+//                         riconciliazione resta bloccante, niente scritture
+//   ?scrittura=giornale1 → fallisce solo il PRIMO tentativo: il bottone
+//                          «Riprova la riconciliazione» risolve davvero
+//   ?reset=1            → azzera l'archivio e le custodie della prova
+const CHIAVE_ARCHIVIO_CONTRATTO = 'gestionale-archivio-contratto-prova'
+type ArchivioContrattoSalvato = {
+  documento: { status: string; revisione_rev: number; doc_total: number | null }
+  bozze: [string, Record<string, unknown>][]
+  righe: [string, Record<string, unknown>][]
+  giornale: [string, unknown][]
+}
+function caricaMondoContratto(archivio: ArchivioRevisione): { mondo: MondoFinto; documento: { status: string; revisione_rev: number; doc_total: number | null }; giornale: [string, unknown][] } {
+  try {
+    const testo = localStorage.getItem(CHIAVE_ARCHIVIO_CONTRATTO)
+    if (testo) {
+      const salvato = JSON.parse(testo) as ArchivioContrattoSalvato
+      return {
+        documento: salvato.documento, giornale: salvato.giornale,
+        mondo: {
+          documenti: new Map([['d-rev', salvato.documento]]),
+          bozze: new Map(salvato.bozze as [string, { document_id: string; status: string } & Record<string, unknown>][]),
+          righe: new Map(salvato.righe as [string, { draft_id: string } & Record<string, unknown>][]),
+        },
+      }
+    }
+  } catch { /* archivio illeggibile: si riparte dal seme */ }
+  const documento = { status: archivio.docStatus, revisione_rev: 0, doc_total: archivio.docTotale }
+  return {
+    documento, giornale: [],
+    mondo: {
+      documenti: new Map([['d-rev', documento]]),
+      bozze: new Map(archivio.bozze.map(b => [b.id, b as unknown as { document_id: string; status: string } & Record<string, unknown>])),
+      righe: new Map(archivio.righe.map(r => [r.id, r as unknown as { draft_id: string } & Record<string, unknown>])),
+    },
+  }
+}
+function clienteContrattoProva(modo: string | null, base: ClienteContratto, persisti: () => void): ClienteContratto {
   const attesa = () => modo === 'lenta' ? new Promise(r => setTimeout(r, 2500)) : Promise.resolve()
+  let primaLetturaGiornale = true
   const involucro = <P,>(vera: (p: P) => Promise<unknown>) => async (p: P) => {
     await attesa()
     if (modo === 'errore') return { errore: 'Quadratura non esatta (simulata dal finto)', codice: 'P0001' }
     if (modo === 'rete') return { errore: 'Failed to fetch (finto: errore di rete restituito)' }
-    const r = await vera(p)
-    if (modo === 'persa') throw new Error('Failed to fetch (finto: risposta persa DOPO l\'effetto reale)')
-    return r
+    try {
+      const r = await vera(p)
+      if (modo === 'persa') throw new Error('Failed to fetch (finto: risposta persa DOPO l\'effetto reale)')
+      return r
+    } finally { persisti() }                            // l'effetto reale resta, anche a risposta persa
   }
   return {
     salvaRevisione: involucro(base.salvaRevisione) as ClienteContratto['salvaRevisione'],
     confermaRevisione: involucro(base.confermaRevisione) as ClienteContratto['confermaRevisione'],
     scartaRevisione: involucro(base.scartaRevisione) as ClienteContratto['scartaRevisione'],
-    esitoRevisione: k => base.esitoRevisione(k),        // il recupero non si guasta: serve a risolvere
+    esitoRevisione: k => {
+      if (modo === 'giornale') throw new Error('Failed to fetch (finto: giornale non raggiungibile)')
+      if (modo === 'giornale1' && primaLetturaGiornale) {
+        primaLetturaGiornale = false
+        throw new Error('Failed to fetch (finto: giornale non raggiungibile, solo al primo tentativo)')
+      }
+      return base.esitoRevisione(k)
+    },
   }
 }
 
@@ -192,26 +242,37 @@ export default function Prova() {
   }))
   const percorsoProva = typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search).get('percorso') : null
-  // il MONDO del server finto CONDIVIDE gli oggetti dell'archivio: i
-  // salvataggi del contratto mutano le stesse bozze/righe che la
-  // riapertura rilegge (come farebbe il database vero)
-  const [contratto] = useState<{ orchestrazione: OrchestrazioneRevisione; documento: { status: string; revisione_rev: number; doc_total: number | null } } | null>(() => {
+  // MONDO PERSISTENTE del contratto: la ricarica ricrea controller e
+  // servizi, ma archivio remoto finto e custodie restano (C09); la
+  // versione iniziale è quella LETTA dal documento, come farà la fonte
+  const [contratto] = useState<{ orchestrazione: OrchestrazioneRevisione; mondo: MondoFinto; documento: { status: string; revisione_rev: number; doc_total: number | null } } | null>(() => {
     if (percorsoProva !== 'contratto') return null
-    const documento = { status: archivio.docStatus, revisione_rev: 0, doc_total: archivio.docTotale }
-    const mondo: MondoFinto = {
-      documenti: new Map([['d-rev', documento]]),
-      bozze: new Map(archivio.bozze.map(b => [b.id, b as unknown as { document_id: string; status: string } & Record<string, unknown>])),
-      righe: new Map(archivio.righe.map(r => [r.id, r as unknown as { draft_id: string } & Record<string, unknown>])),
+    if (new URLSearchParams(window.location.search).get('reset') === '1') {
+      for (const k of Object.keys(localStorage))
+        if (k.includes('-prova') || k.includes('revisione-prova')) localStorage.removeItem(k)
     }
+    const { mondo, documento, giornale } = caricaMondoContratto(archivio)
     const server = creaServerContratto(mondo, improntaSha256)
+    for (const [k, v] of giornale) server.giornale.set(k, v as never)
+    const persisti = () => {
+      try {
+        const salvato: ArchivioContrattoSalvato = {
+          documento,
+          bozze: [...mondo.bozze.entries()] as ArchivioContrattoSalvato['bozze'],
+          righe: [...mondo.righe.entries()] as ArchivioContrattoSalvato['righe'],
+          giornale: [...server.giornale.entries()],
+        }
+        localStorage.setItem(CHIAVE_ARCHIVIO_CONTRATTO, JSON.stringify(salvato))
+      } catch { /* la persistenza della prova è best-effort */ }
+    }
     const orchestrazione = orchestrazioneContratto({
-      cliente: clienteContrattoProva(modoScrittura, server.cliente),
+      cliente: clienteContrattoProva(modoScrittura, server.cliente, persisti),
       depositoRevisione: depositoProva,
       depositoOperazioni: depositoOperazioniDurevole(undefined, 'gestionale-op-contratto-prova'),
       ponte: ponteContrattoDurevole(undefined, 'gestionale-ponte-contratto-prova'),
-      revisioneIniziale: 0,
+      revisioneIniziale: documento.revisione_rev,
     })
-    return { orchestrazione, documento }
+    return { orchestrazione, mondo, documento }
   })
   return (
     <>
@@ -242,8 +303,12 @@ export default function Prova() {
           documento={{ id: 'd-rev', supplier: 'Mercato di Rozzano', kind: 'scontrino',
             status: contratto ? contratto.documento.status : archivio.docStatus,
             doc_total: contratto ? contratto.documento.doc_total : archivio.docTotale, note: 'metà è di Casa Ania' }}
-          bozze={JSON.parse(JSON.stringify(archivio.bozze)) as BozzaGrezza[]}
-          righe={JSON.parse(JSON.stringify(archivio.righe)) as RigaGrezza[]}
+          bozze={(contratto
+            ? [...contratto.mondo.bozze.entries()].map(([id, b]) => ({ ...(b as object), id }))
+            : JSON.parse(JSON.stringify(archivio.bozze))) as BozzaGrezza[]}
+          righe={(contratto
+            ? [...contratto.mondo.righe.entries()].map(([id, r]) => ({ ...(r as object), id }))
+            : JSON.parse(JSON.stringify(archivio.righe))) as RigaGrezza[]}
           gruppi={TABELLE_FINTE.gruppi.map(g => ({ id: g.id, name: g.name, ambito: g.ambito ?? 'personale' }))}
           categorie={TABELLE_FINTE.categorie.map(x => ({ id: x.id, name: x.name, group_id: x.group_id ?? '' }))}
           canoniche={TABELLE_FINTE.categorieCanoniche}
