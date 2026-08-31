@@ -109,8 +109,12 @@ Senza l'impronta questa distinzione NON sarebbe rilevabile: la garanzia
 - `salvaModifiche`: il recupero per chiave sostituisce lo stato
   'incerta' per le righe con chiave; gemella/riconosciuta restano solo
   per le pendenze storiche senza chiave;
-- `blocchiConferma`: il blocco «senza esito verificabile» decade per le
-  pendenze con chiave (sempre verificabili).
+- `blocchiConferma`: per una pendenza CON chiave il blocco decade SOLO
+  dopo un recupero RIUSCITO e coerente (id trovato, impronta e bozza
+  corrispondenti — oppure «non trovata» seguita da un reinvio andato a
+  buon fine con la stessa chiave). La semplice PRESENZA della chiave non
+  sblocca nulla: finché la lettura di verifica fallisce o dà un esito
+  incoerente, la pendenza resta e blocca.
 
 ## Piano di collaudo ISOLATO (progetto di prova, autorizzazione separata)
 

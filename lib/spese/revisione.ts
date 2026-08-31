@@ -400,6 +400,59 @@ export function blocchiConferma(
   return [...new Set(blocchi)]
 }
 
+// ---- RICONCILIAZIONE della presa in carico --------------------------------
+// Una richiesta GIÀ PARTITA non si può fermare da qui: aumentare la
+// generazione impedisce le chiamate SUCCESSIVE della vecchia sequenza, ma
+// l'effetto di quella per aria può arrivare tardi. La presa in carico è
+// quindi consentita SOLO quando l'esito dell'operazione annotata è
+// DIMOSTRABILE sui dati freschi:
+//  · 'salva'    → ogni scrittura prevista (le modifiche custodite col
+//                 momento dell'annotazione; la schermata è bloccata
+//                 durante e dopo l'operazione, quindi coincidono) deve
+//                 risultare APPLICATA — un valore uguale non può più
+//                 essere danneggiato da un arrivo tardivo identico;
+//  · 'conferma' → il documento deve RISULTARE confermato (bozze non più
+//                 attive); finché è ancora da controllare, la RPC può
+//                 arrivare tardi e consumare le bozze;
+//  · 'scarto'   → idem, il documento deve risultare scartato.
+// Se non è dimostrabile si resta BLOCCATI e lo si dichiara: una
+// rilettura istantanea non esclude un completamento tardivo (limite che
+// solo il contratto idempotente lato database potrà chiudere).
+export function riconciliaPresa(
+  traccia: TracciaRevisione, docTotale: number | null,
+  bozze: BozzaGrezza[], righe: RigaGrezza[],
+): { dimostrata: true } | { dimostrata: false; inAttesa: string[] } {
+  const inCorso = traccia.inCorso
+  if (!inCorso) return { dimostrata: true }
+  if (inCorso.tipo === 'conferma' || inCorso.tipo === 'scarto') {
+    const attive = bozze.some(b => b.status === 'da_controllare' || b.status === 'pronta')
+    if (!attive) return { dimostrata: true }
+    return {
+      dimostrata: false,
+      inAttesa: [inCorso.tipo === 'conferma'
+        ? 'la conferma inviata: il documento risulta ancora da controllare'
+        : 'lo scarto inviato: il documento risulta ancora da controllare'],
+    }
+  }
+  const inAttesa: string[] = []
+  const uguale = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+  if (traccia.docTotaleCent !== traccia.docTotaleOriginaleCent) {
+    const cent = docTotale == null ? null : Math.round(docTotale * 100)
+    if (cent !== traccia.docTotaleCent) inAttesa.push('il totale del documento')
+  }
+  for (const [id, campi] of Object.entries(traccia.modificheBozze)) {
+    const b = bozze.find(x => x.id === id)
+    for (const [campo, valore] of Object.entries(campi))
+      if (!b || !uguale((b as unknown as Record<string, unknown>)[campo], valore)) inAttesa.push(`una parte (${campo})`)
+  }
+  for (const [id, campi] of Object.entries(traccia.modificheRighe)) {
+    const r = righe.find(x => x.id === id)
+    for (const [campo, valore] of Object.entries(campi))
+      if (!r || !uguale((r as unknown as Record<string, unknown>)[campo], valore)) inAttesa.push(`una voce (${campo})`)
+  }
+  return inAttesa.length ? { dimostrata: false, inAttesa: [...new Set(inAttesa)] } : { dimostrata: true }
+}
+
 // ---- scelte CANONICHE (i gestori veri della schermata) --------------------
 // Perché la scelta sia EFFETTIVA anche alla rilettura, insieme alle
 // canoniche si azzerano le STORICHE che riaffiorerebbero nella catena di

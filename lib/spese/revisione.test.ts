@@ -14,7 +14,7 @@ import {
   aggiungiRiga, apriRevisione, avvisoCoerenzaRiga, blocchiConferma,
   bozzaCorrente, CAMPI_RIGA_NUOVA, correzioniDa, dubbiDi, modificaBozza,
   modificaRiga, modificaTotale, payloadRigaNuova, quadratura,
-  riconosciRigaIncerta, rigaCorrente, scegliCanonicaBozza,
+  riconciliaPresa, riconosciRigaIncerta, rigaCorrente, scegliCanonicaBozza,
   scegliCanonicaRiga, scegliSottoCanonicaRiga, stessaRigaNuova,
   togliRigaNuova, totaliSorella, tracciaDa,
   type BozzaGrezza, type RigaGrezza,
@@ -702,12 +702,155 @@ test('RISPOSTA PERSA: esito INCERTO dichiarato, niente successo finto, invito a 
   const esito2 = await confermaRevisione(vuota, dep(), s)
   assert.ok(!esito2.ok && esito2.incerto === true)
   // scarto: motivo obbligatorio + esito incerto gestito (anche RESTITUITO)
+  const sScarto = apriRevisione('doc-1', 5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
   const { cliente: c3 } = clienteFinto()
-  assert.ok(!(await scartaRevisione(c3, dep(), 'doc-1', 1, '  ')).ok)
+  assert.ok(!(await scartaRevisione(c3, dep(), sScarto, '  ')).ok)
   const { cliente: c4 } = clienteFinto({ scartaDocumento: esplode })
-  const e4 = await scartaRevisione(c4, dep(), 'doc-1', 1, 'foto doppia')
+  const e4 = await scartaRevisione(c4, dep(), sScarto, 'foto doppia')
   assert.ok(!e4.ok && e4.incerto === true)
   const { cliente: c5 } = clienteFinto({ scartaDocumento: { errore: 'Failed to fetch' } })
-  const e5 = await scartaRevisione(c5, dep(), 'doc-1', 1, 'foto doppia')
+  const e5 = await scartaRevisione(c5, dep(), sScarto, 'foto doppia')
   assert.ok(!e5.ok && e5.incerto === true)
+})
+
+// ---- quinta tornata: presa in carico, custodia guasta, scarto -------------
+test('EFFETTO RITARDATO: la presa in carico resta BLOCCATA finché l\'effetto remoto non è osservabile — mai scritture incompatibili', async () => {
+  // l'archivio remoto simulato, MUTABILE: l'EFFETTO arriva più tardi
+  // della presa, non solo la risposta
+  const db = { name: 'Nome ORIGINALE' }
+  let applicaEffettoA: () => void = () => {}
+  let sA = apriRevisione('doc-1', 5, [bozza({ id: 'b1' })],
+    [riga({ id: 'r1', draft_id: 'b1', amount: 5, name: 'Nome ORIGINALE' })])
+  sA = modificaRiga(sA, 'r1', { name: 'Nome VECCHIO' })
+  const deposito = dep()
+  const { cliente: clienteA } = clienteFinto({
+    aggiornaRiga: () => new Promise(r => {
+      applicaEffettoA = () => { db.name = 'Nome VECCHIO'; (r as (v: unknown) => void)({ righe: 1 }) }
+    }) as never,
+  })
+  const salvaA = salvaModifiche(clienteA, deposito, sA)
+  await new Promise(r => setTimeout(r, 10))
+  const traccia = deposito.leggi('doc-1').traccia!
+  assert.equal(traccia.inCorso?.tipo, 'salva')
+  // B tenta la presa: i dati FRESCHI mostrano ancora il valore vecchio →
+  // l'esito NON è dimostrato, B resta bloccato e NON scrive nulla
+  const righeFresche1 = [riga({ id: 'r1', draft_id: 'b1', amount: 5, name: db.name })]
+  const presa1 = riconciliaPresa(traccia, 5, [bozza({ id: 'b1' })], righeFresche1)
+  assert.equal(presa1.dimostrata, false)
+  assert.ok(!presa1.dimostrata && presa1.inAttesa.some(x => x.includes('name')))
+  // l'effetto di A arriva TARDI: adesso i dati lo mostrano
+  applicaEffettoA()
+  const esitoA = await salvaA
+  assert.equal(esitoA.ok, true)
+  const righeFresche2 = [riga({ id: 'r1', draft_id: 'b1', amount: 5, name: db.name })]
+  assert.equal(riconciliaPresa(traccia, 5, [bozza({ id: 'b1' })], righeFresche2).dimostrata, true)
+  // SOLO ora B riprende e scrive «Nome NUOVO»: nessun arrivo tardivo può
+  // più calpestarlo (l'operazione di A è finita e dimostrata)
+  let sB = apriRevisione('doc-1', 5, [bozza({ id: 'b1' })], righeFresche2, deposito.leggi('doc-1').traccia)
+  sB = modificaRiga(sB, 'r1', { name: 'Nome NUOVO' })
+  const { cliente: clienteB } = clienteFinto({
+    aggiornaRiga: () => { db.name = 'Nome NUOVO'; return { righe: 1 } },
+  })
+  assert.equal((await salvaModifiche(clienteB, deposito, sB)).ok, true)
+  assert.equal(db.name, 'Nome NUOVO')                  // mai sovrascritto da A
+  // valore uguale all'atteso fin dall'inizio: dimostrata subito (un
+  // arrivo tardivo IDENTICO non danneggia nulla)
+  const gia = { ...traccia, modificheRighe: { r1: { name: 'Nome ORIGINALE' } } }
+  assert.equal(riconciliaPresa(gia, 5, [bozza({ id: 'b1' })], righeFresche1).dimostrata, true)
+})
+
+test('CONFERMA e SCARTO già partiti: la presa è dimostrata solo quando il documento RISULTA confermato/scartato', () => {
+  const base = tracciaDa(apriRevisione('doc-1', 5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })]))
+  for (const tipo of ['conferma', 'scarto'] as const) {
+    const traccia = { ...base, inCorso: { tipo, generazione: 1 } }
+    // il documento risulta ANCORA da controllare: la RPC può arrivare tardi
+    const bloccata = riconciliaPresa(traccia, 5, [bozza({ id: 'b1' })], [])
+    assert.equal(bloccata.dimostrata, false)
+    assert.ok(!bloccata.dimostrata && bloccata.inAttesa[0].includes('ancora da controllare'))
+    // il documento risulta chiuso: dimostrata
+    const chiusa = riconciliaPresa(traccia, 5,
+      [bozza({ id: 'b1', status: tipo === 'conferma' ? 'confermato' : 'scartato' })], [])
+    assert.equal(chiusa.dimostrata, true)
+  }
+})
+
+test('CUSTODIA GUASTA A METÀ OPERAZIONE (depositoLocale effettivo): ci si ferma PRIMA della chiamata successiva, niente successo con avviso', async () => {
+  // memoria che si ROMPE dopo l'avvio: la lettura comincia a fallire
+  const dati: Record<string, string> = {}
+  let rotta = false
+  const memoria = {
+    getItem: (k: string) => { if (rotta) throw new Error('memoria guasta'); return k in dati ? dati[k] : null },
+    setItem: (k: string, v: string) => { dati[k] = v },
+  }
+  const { depositoRevisioneLocale } = await import('./revisioneDurevole.ts')
+  const deposito = depositoRevisioneLocale('prova-guasta', () => memoria)
+  let s = apriRevisione('doc-1', 5,
+    [bozza({ id: 'b1' }), bozza({ id: 'b2', group_id: 'g-teo' })],
+    [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
+  s = modificaBozza(s, 'b1', { store: 'Iper' })
+  s = modificaBozza(s, 'b2', { store: 'Esselunga' })
+  const { cliente, chiamate } = clienteFinto({
+    aggiornaBozza: () => { rotta = true; return undefined },   // il guasto arriva DOPO il primo UPDATE
+  })
+  const esito = await salvaModifiche(cliente, deposito, s)
+  assert.equal(esito.ok, false)                        // MAI un successo con avviso
+  assert.ok(!esito.ok && esito.errore.includes('illeggibile durante'))
+  assert.equal(chiamate.filter(c => c.azione === 'bozza').length, 1)   // il secondo UPDATE non è partito
+  // caso DISTINTO: la traccia è SPARITA (un'altra apertura ha chiuso il
+  // documento) — messaggio diverso, stessa fermata
+  const vero = dep()
+  let prime = 0
+  const sparita: DepositoRevisione = {
+    salva: t => vero.salva(t),
+    leggi: id => (++prime <= 1 ? vero.leggi(id) : {}),   // dal secondo giro in poi: vuota
+    rimuovi: (id, g) => vero.rimuovi(id, g),
+  }
+  const { cliente: c2, chiamate: ch2 } = clienteFinto()
+  const esito2 = await salvaModifiche(c2, sparita, s)
+  assert.ok(!esito2.ok && esito2.errore.includes('sparita'))
+  assert.equal(ch2.filter(c => c.azione === 'bozza').length, 1)
+})
+
+test('SCARTO nel protocollo: annotazione PRIMA della RPC, custodia illeggibile → non parte, incerto conservato, rimozione con generazione', async () => {
+  const s = apriRevisione('doc-1', 5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
+  // 1) RPC sospesa: l'annotazione «scarto» è GIÀ in custodia (chiusura e
+  //    riapertura durante lo scarto passano dalla presa in carico)
+  const deposito = dep()
+  let rispondi: (v: object) => void = () => {}
+  const { cliente } = clienteFinto({ scartaDocumento: () => new Promise(r => { rispondi = r as never }) as never })
+  const inCorso = scartaRevisione(cliente, deposito, s, 'foto doppia')
+  await new Promise(r => setTimeout(r, 10))
+  assert.equal(deposito.leggi('doc-1').traccia!.inCorso?.tipo, 'scarto')
+  const riaperto = apriRevisione('doc-1', 5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })], deposito.leggi('doc-1').traccia)
+  assert.ok(riaperto)                                   // la traccia resta leggibile e valida
+  rispondi({})
+  assert.equal((await inCorso).ok, true)
+  assert.equal(deposito.leggi('doc-1').traccia, undefined)   // successo → rimossa (generazione propria)
+  // 2) custodia ILLEGGIBILE: la RPC NON parte proprio
+  const negato: DepositoRevisione = { salva: () => ({ errore: 'spazio esaurito' }), leggi: () => ({}), rimuovi: () => ({}) }
+  const { cliente: c2, chiamate } = clienteFinto()
+  const e2 = await scartaRevisione(c2, negato, s, 'foto doppia')
+  assert.ok(!e2.ok && e2.errore?.includes('non lo avvio'))
+  assert.equal(chiamate.length, 0)
+  // 3) esito INCERTO: l'annotazione RESTA (la prossima apertura vedrà la presa in carico)
+  const dep3 = dep()
+  const { cliente: c3 } = clienteFinto({ scartaDocumento: esplode })
+  const e3 = await scartaRevisione(c3, dep3, s, 'foto doppia')
+  assert.ok(!e3.ok && e3.incerto === true)
+  assert.equal(dep3.leggi('doc-1').traccia!.inCorso?.tipo, 'scarto')
+  // 4) rifiuto DEFINITIVO: l'annotazione si toglie
+  const dep4 = dep()
+  const { cliente: c4 } = clienteFinto({ scartaDocumento: { errore: 'permesso negato' } })
+  const e4 = await scartaRevisione(c4, dep4, s, 'foto doppia')
+  assert.ok(!e4.ok && !e4.incerto)
+  assert.equal(dep4.leggi('doc-1').traccia!.inCorso, undefined)
+  // 5) la rimozione rispetta la generazione: B (gen 2) presente → lo
+  //    scarto di A non cancella e non parte nemmeno (superato)
+  const dep5 = dep()
+  dep5.salva({ ...tracciaDa(s), generazione: 2 })
+  const { cliente: c5, chiamate: ch5 } = clienteFinto()
+  const e5 = await scartaRevisione(c5, dep5, s, 'foto doppia')
+  assert.ok(!e5.ok && e5.errore?.includes('superata'))
+  assert.equal(ch5.length, 0)
+  assert.ok(dep5.leggi('doc-1').traccia)
 })

@@ -52,14 +52,18 @@ const esitoErrore = (stato: StatoRevisione, contesto: string, msg: string): Esit
     ? { ok: false, stato, incerto: true, errore: `${contesto} dall'esito incerto (${msg}): le modifiche restano qui — chiudi e ricontrolla per vedere cosa è arrivato prima di riprovare` }
     : { ok: false, stato, errore: `${contesto}: ${msg}` }
 
-// il documento è stato ripreso da un'apertura più recente? Si controlla
-// PRIMA di ogni chiamata remota: una sequenza superata si ferma subito.
-// (Custodia illeggibile ≠ superata: quel caso lo fermano già le scritture
-// della custodia, che rifiutano.)
-function superata(deposito: DepositoRevisione, s: StatoRevisione): string | null {
+// PRIMA di ogni chiamata remota si verifica chi ha in mano il documento.
+// TRE esiti distinti, e ci si ferma su ognuno: se la custodia non si può
+// LEGGERE non si può nemmeno sapere se si è stati superati — quindi non
+// si scrive (fermarsi dopo, con un avviso, non basterebbe: la scrittura
+// incompatibile sarebbe già partita).
+function fermaOperazione(deposito: DepositoRevisione, s: StatoRevisione): string | null {
   const lettura = deposito.leggi(s.documentId)
-  if (lettura.errore) return null
-  const g = lettura.traccia?.generazione ?? 0
+  if (lettura.errore)
+    return `custodia illeggibile durante l'operazione (${lettura.errore}): non posso verificare chi ha in mano il documento — mi fermo PRIMA della prossima scrittura`
+  if (!lettura.traccia)
+    return 'la custodia del documento è sparita durante l\'operazione (un\'altra apertura l\'ha chiusa): mi fermo prima della prossima scrittura'
+  const g = lettura.traccia.generazione ?? 0
   if (g > s.generazione)
     return `operazione superata: il documento è stato ripreso da un'altra apertura (generazione ${g} > ${s.generazione}) — questa sequenza si ferma senza altre scritture`
   return null
@@ -107,7 +111,7 @@ export async function salvaModifiche(
   }
   try {
     if (stato.docTotaleCent !== stato.docTotaleOriginaleCent) {
-      const stop = superata(deposito, stato)
+      const stop = fermaOperazione(deposito, stato)
       if (stop) return { ok: false, stato, errore: stop }
       const r = await cliente.aggiornaDocTotale(stato.documentId, stato.docTotaleCent == null ? null : stato.docTotaleCent / 100)
       if (r.errore) return chiudi(esitoErrore(stato, 'totale non salvato', r.errore))
@@ -115,7 +119,7 @@ export async function salvaModifiche(
     }
     for (const [id, campi] of Object.entries(stato.modificheBozze)) {
       if (Object.keys(campi).length === 0) continue
-      const stop = superata(deposito, stato)
+      const stop = fermaOperazione(deposito, stato)
       if (stop) return { ok: false, stato, errore: stop }
       const r = await cliente.aggiornaBozza(id, campi)
       if (r.errore) return chiudi(esitoErrore(stato, 'una parte non è stata salvata', r.errore))
@@ -123,7 +127,7 @@ export async function salvaModifiche(
     }
     for (const [id, campi] of Object.entries(stato.modificheRighe)) {
       if (Object.keys(campi).length === 0) continue
-      const stop = superata(deposito, stato)
+      const stop = fermaOperazione(deposito, stato)
       if (stop) return { ok: false, stato, errore: stop }
       const r = await cliente.aggiornaRiga(id, campi)
       if (r.errore) return chiudi(esitoErrore(stato, 'una voce non è stata salvata', r.errore))
@@ -132,7 +136,7 @@ export async function salvaModifiche(
     // SOLO le righe mai inviate: le 'salvata' hanno già il loro id, le
     // 'incerta'/'riconosciuta' aspettano il contratto idempotente
     for (const riga of stato.righeNuove.filter(r => r.stato === 'nuova')) {
-      const stop = superata(deposito, stato)
+      const stop = fermaOperazione(deposito, stato)
       if (stop) return { ok: false, stato, errore: stop }
       // la RESPONSABILITÀ si persiste PRIMA della richiesta: se questa
       // custodia fallisce l'INSERT NON parte
@@ -187,7 +191,7 @@ export async function confermaRevisione(
   const annotata = deposito.salva({ ...tracciaDa(stato), inCorso: { tipo: 'conferma', generazione: stato.generazione } })
   if (annotata.errore)
     return { ok: false, stato, errore: `non riesco ad annotare la conferma in custodia (${annotata.errore}): non la avvio` }
-  const stop = superata(deposito, stato)
+  const stop = fermaOperazione(deposito, stato)
   if (stop) return { ok: false, stato, errore: stop }
   try {
     const r = await cliente.confermaDocumento(stato.documentId, correzioniDa(stato))
@@ -210,22 +214,30 @@ export async function confermaRevisione(
   }
 }
 
+// SCARTO: stesso protocollo delle altre operazioni — l'annotazione
+// «inCorso» va in custodia PRIMA della RPC (se la custodia è illeggibile
+// o non scrivibile, la RPC NON parte), un esito incerto conserva
+// l'annotazione (la prossima apertura passerà dalla presa in carico), un
+// rifiuto definitivo la toglie, la rimozione rispetta la generazione.
 export async function scartaRevisione(
   cliente: ClienteRevisione, deposito: DepositoRevisione,
-  documentId: string, generazione: number, motivo: string,
+  s: StatoRevisione, motivo: string,
 ): Promise<{ ok: boolean; errore?: string; incerto?: boolean; avviso?: string }> {
   if (!motivo.trim()) return { ok: false, errore: 'serve il motivo dello scarto' }
-  const lettura = deposito.leggi(documentId)
-  if (!lettura.errore && (lettura.traccia?.generazione ?? 0) > generazione)
-    return { ok: false, errore: 'operazione superata: il documento è stato ripreso da un\'altra apertura — ricontrolla prima di scartare' }
+  const annotata = deposito.salva({ ...tracciaDa(s), inCorso: { tipo: 'scarto', generazione: s.generazione } })
+  if (annotata.errore)
+    return { ok: false, errore: `non riesco ad annotare lo scarto in custodia (${annotata.errore}): non lo avvio` }
+  const stop = fermaOperazione(deposito, s)
+  if (stop) return { ok: false, errore: stop }
   try {
-    const r = await cliente.scartaDocumento(documentId, motivo.trim())
+    const r = await cliente.scartaDocumento(s.documentId, motivo.trim())
     if (r.errore) {
-      return rete(r.errore)
-        ? { ok: false, incerto: true, errore: `scarto dall'esito incerto (${r.errore}): chiudi e ricontrolla lo stato` }
-        : { ok: false, errore: r.errore }
+      if (rete(r.errore))
+        return { ok: false, incerto: true, errore: `scarto dall'esito incerto (${r.errore}): chiudi e ricontrolla lo stato` }
+      deposito.salva(tracciaDa(s))                     // rifiuto definitivo: l'annotazione si toglie
+      return { ok: false, errore: r.errore }
     }
-    const pulizia = deposito.rimuovi(documentId, generazione)
+    const pulizia = deposito.rimuovi(s.documentId, s.generazione)
     return pulizia.errore
       ? { ok: true, avviso: `documento scartato, ma la traccia locale non è stata rimossa (${pulizia.errore})` }
       : { ok: true }

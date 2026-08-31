@@ -23,9 +23,10 @@ import type { PaginaFoto } from './FotoSheet'
 import {
   aggiungiRiga, apriRevisione, avvisoCoerenzaRiga, blocchiConferma,
   bozzaCorrente, dubbiDi, modificaBozza, modificaRiga, modificaTotale,
-  modifichePendenti, quadratura, riconosciRigaIncerta, rigaCorrente,
-  scegliCanonicaBozza, scegliCanonicaRiga, scegliSottoCanonicaBozza,
-  scegliSottoCanonicaRiga, togliRigaNuova, totaliSorella, tracciaDa,
+  modifichePendenti, quadratura, riconciliaPresa, riconosciRigaIncerta,
+  rigaCorrente, scegliCanonicaBozza, scegliCanonicaRiga,
+  scegliSottoCanonicaBozza, scegliSottoCanonicaRiga, togliRigaNuova,
+  totaliSorella, tracciaDa,
   type BozzaGrezza, type RigaGrezza, type StatoRevisione,
 } from '@/lib/spese/revisione'
 import {
@@ -70,7 +71,7 @@ type PropsRevisione = {
 // esplicitamente prima di poter scrivere: la presa reclama la generazione
 // nuova, così la sequenza vecchia si ferma da sola al prossimo passo.
 export function RevisioneSheet(props: PropsRevisione) {
-  const { documento, deposito, chiudi } = props
+  const { documento, deposito, chiudi, fatto } = props
   const [lettura, setLettura] = useState(() => deposito.leggi(documento.id))
   const [preso, setPreso] = useState<StatoRevisione | null>(null)
   const [errorePresa, setErrorePresa] = useState<string | null>(null)
@@ -106,23 +107,32 @@ export function RevisioneSheet(props: PropsRevisione) {
         <p className={`${DISPLAY} text-[19px] mb-2`} style={{ color: t.inchiostro }}>Prima di aprire</p>
         <div className="mb-3 px-3 py-2 text-[13px] font-semibold" role="alert"
           style={{ background: t.terraTenue, color: t.inchiostro, borderRadius: t.r }}>
-          Nella sessione precedente {nome} è rimasto annotato come in corso: la sua
-          richiesta potrebbe essere ancora per aria. Se riprendi tu il documento,
-          quella sequenza verrà fermata al suo prossimo passo; quello che era già
-          arrivato è nei dati che vedrai qui, le modifiche non salvate sono custodite.
+          Nella sessione precedente {nome}{' '}è rimasto annotato come in corso: la sua
+          richiesta potrebbe essere ancora per aria. Riprendere il documento è
+          possibile SOLO quando l&apos;esito di quell&apos;operazione risulta nei dati
+          (una richiesta già partita non si può annullare da qui): adesso lo verifico.
         </div>
         {errorePresa && (
-          <p className="mb-3 px-3 py-2 text-[13px] font-semibold" role="alert"
-            style={{ background: t.terraTenue, color: t.rosso, borderRadius: t.r }}>{errorePresa}</p>
+          <div className="mb-3 px-3 py-2 text-[13px] font-semibold" role="alert"
+            style={{ background: t.terraTenue, color: t.rosso, borderRadius: t.r }}>{errorePresa}</div>
         )}
         <div className="flex gap-2 mb-4">
-          <button onClick={chiudi} className="flex-1 min-h-12 text-[14px] font-bold"
+          <button onClick={() => fatto('verifica')} className="flex-1 min-h-12 text-[14px] font-bold"
             style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
-            Aspetta ancora
+            Chiudi e ricarica
           </button>
           <button onClick={() => {
-            // la PRESA reclama la generazione nuova in custodia: da qui la
-            // sequenza precedente non può più scrivere né rimuovere nulla
+            // la presa è consentita SOLO a esito DIMOSTRATO sui dati
+            // freschi: aumentare la generazione ferma le chiamate future
+            // della vecchia sequenza, ma non una richiesta già partita —
+            // finché il suo effetto non si vede, si resta bloccati
+            const presa = riconciliaPresa(lettura.traccia!, documento.doc_total, props.bozze, props.righe)
+            if (!presa.dimostrata) {
+              setErrorePresa(`l'esito non è ancora dimostrabile per: ${presa.inAttesa.join(' · ')}. `
+                + 'Resto bloccato: ricarica tra qualche istante e riprova — una rilettura sola non esclude un arrivo tardivo. '
+                + 'Se non si dimostrasse mai, la pendenza si chiuderà solo col contratto idempotente (proposta 0023).')
+              return
+            }
             const stato = apriRevisione(documento.id, documento.doc_total, props.bozze, props.righe, lettura.traccia ?? null)
             const r = deposito.salva(tracciaDa(stato))
             if (r.errore) setErrorePresa(`non riesco a prendere in carico il documento (${r.errore}): riprova`)
@@ -130,7 +140,7 @@ export function RevisioneSheet(props: PropsRevisione) {
           }}
             className="flex-[2] min-h-12 text-[14px] font-bold text-white"
             style={{ background: t.verde, borderRadius: t.rPill }}>
-            Riprendi tu il documento
+            Verifica e riprendi
           </button>
         </div>
       </Foglio>
@@ -379,9 +389,11 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
           style={{ background: t.terraTenue, color: t.inchiostro, borderRadius: t.r }}>{avvisoCustodia}</div>
       )}
 
-      {/* durante una richiesta TUTTI i controlli di modifica sono spenti:
-          la risposta non può calpestare modifiche fatte nell'attesa */}
-      <fieldset disabled={lavoro} style={{ display: 'contents' }}>
+      {/* durante una richiesta E dopo un esito incerto TUTTI i controlli
+          di modifica sono spenti: la risposta non può calpestare modifiche
+          fatte nell'attesa, e le modifiche custodite restano ESATTAMENTE
+          quelle inviate (serve alla riconciliazione della presa in carico) */}
+      <fieldset disabled={fermo} style={{ display: 'contents' }}>
 
       {/* ---- foto e pagine, con zoom (il TIPO si conserva: i PDF sono PDF) ---- */}
       {pagine.length > 0 && (
@@ -663,7 +675,7 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
             <button disabled={fermo} onClick={() => guardia.current(async () => {
               setErrore(null); setLavoro(true)
               try {
-                const r = await scartaRevisione(cliente, deposito, documento.id, stato.generazione, motivoScarto)
+                const r = await scartaRevisione(cliente, deposito, stato, motivoScarto)
                 if (r.ok) fatto('scartato')
                 else { setErrore(r.errore ?? 'errore'); if (r.incerto) setDaVerificare(true) }
                 return r.ok

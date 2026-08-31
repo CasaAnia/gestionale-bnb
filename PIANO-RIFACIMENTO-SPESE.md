@@ -1572,6 +1572,43 @@ se la precedente non è verificata E approvata.
   aprire» con presa in carico (generazione reclamata, modifiche
   conservate), riconoscimento che annota senza sbloccare.
 
+  **FASE 4 · BLOCCO 3 — QUINTA TORNATA DI CORREZIONI (01/09/2026).**
+  1) PRESA IN CARICO RICONCILIATA — aumentare la generazione ferma le
+     chiamate future della vecchia sequenza, ma NON una richiesta già
+     partita: la presa ora è consentita SOLO quando l'esito
+     dell'operazione annotata è DIMOSTRABILE sui dati freschi
+     (riconciliaPresa: per un Salva ogni scrittura prevista deve
+     risultare applicata — le modifiche custodite coincidono col
+     write-set perché la schermata resta bloccata durante e dopo
+     l'operazione, fieldset disabilitato anche in daVerificare; per
+     conferma/scarto il documento deve risultare chiuso). Altrimenti si
+     resta BLOCCATI e lo si dichiara («una rilettura sola non esclude un
+     arrivo tardivo»; via d'uscita definitiva: proposta 0023). Test con
+     EFFETTO remoto ritardato (archivio mutabile): B non scrive finché
+     l'effetto di A non è osservabile, mai «Nome VECCHIO» sopra «Nome
+     NUOVO»; varianti per conferma e scarto già partiti.
+  2) CUSTODIA ILLEGGIBILE DURANTE IL CICLO — fermaOperazione distingue
+     TRE esiti (lettura fallita / traccia sparita / generazione
+     superata) e su OGNUNO ci si ferma PRIMA della chiamata successiva:
+     se non si può verificare chi ha in mano il documento, non si
+     scrive (mai più «successo con avviso finale»). Test del guasto
+     intervenuto dopo l'avvio sul depositoLocale effettivo: un solo
+     UPDATE partito, esito di errore.
+  3) SCARTO NEL PROTOCOLLO — annotazione «inCorso: scarto» in custodia
+     PRIMA della RPC (custodia illeggibile/non scrivibile → la RPC non
+     parte), esito incerto conserva l'annotazione (la riapertura passa
+     dalla presa in carico), rifiuto definitivo la toglie, rimozione con
+     la generazione. Firma: scartaRevisione(cliente, deposito, stato,
+     motivo). Test: RPC sospesa con annotazione visibile e riapertura,
+     illeggibile, incerto, rifiuto, superato.
+  4) PROPOSTA 0023 — corretta la frase «sempre verificabili»: il blocco
+     decade SOLO dopo un recupero RIUSCITO e coerente (id + impronta +
+     bozza), mai per la semplice presenza della chiave.
+  Test: 292/292; tsc, lint, build verdi. Prove live: gate «Prima di
+  aprire» che rifiuta la presa con l'elenco di ciò che non è dimostrato
+  e la concede a effetto osservato (generazione reclamata, annotazione
+  tolta).
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta
