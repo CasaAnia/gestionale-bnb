@@ -2296,6 +2296,21 @@ se la precedente non è verificata E approvata.
   prove test+UI, build verde, suite 348/348 (con i 10 del revisore e i
   2 del ciclo). Percorso legacy intatto, interruttore su 'legacy'.
 
+  **B1–B5 CHIUSO IN LOCALE — verbale indipendente di Codex su fb46660
+  (01/09/2026).** R1 (presidio consultato anche senza record: un
+  preparatore sospeso al primo hash rende l'apertura bloccante, mai la
+  presa legacy per un'operazione del contratto) e R2 (id del server
+  finto mai riusati dopo la ricreazione) chiusi; 12/12 prove del
+  revisore con assert invariati, VERIFICHE_TECNICHE_OK con impronta
+  identica fra consegna e verifica, giro UI ripetuto (doppio inserimento
+  con ricarica; interruzione a richiesta in corso → reinvio dalla
+  custodia). VERDETTO: blocco chiuso in locale, nessun rilievo aperto;
+  interruttore 'legacy' verificato; remoto/SQL/transizione/push/deploy
+  non autorizzati dal verbale. Storico completo in CONSEGNA-ATTIVA.md
+  (archiviata con questo giro). PROSSIMO BLOCCO: elaborazione «solo
+  bozze» — definizione nella scheda nuova, implementazione da
+  autorizzare.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta
