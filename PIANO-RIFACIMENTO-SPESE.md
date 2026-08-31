@@ -2094,6 +2094,15 @@ se la precedente non è verificata E approvata.
   puliti. Solo correzioni locali: niente token, esecuzioni remote,
   azzeramenti, produzione, push o deploy; client verificato intatto.
 
+  **REVISIONE DI d72c3ad APPROVATA (31/08/2026): preparazione del
+  collaudo COMPLETA.** Il revisore conferma ordine di pulizia (FK +
+  trigger 0021), identificativi custoditi, prove negative senza il
+  commit della bozza e comportamento del driver sugli errori. La
+  preparazione passa alla RICHIESTA DI AUTORIZZAZIONE del collaudo
+  isolato (PIANO-COLLAUDO-CONTRATTO.md); la revisione NON autorizza
+  accessi, token, esecuzioni remote, produzione, azzeramenti, push o
+  deploy: si attende il consenso esplicito dell'utente.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta
