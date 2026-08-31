@@ -156,9 +156,16 @@ export type StatoRevisione = {
 // traccia l'originale sparirebbe e le correzioni per la RPC verrebbero
 // azzerate in silenzio. La traccia si scrive PRIMA di ogni salvataggio e
 // si toglie solo a documento confermato o scartato.
+// un'operazione remota AVVIATA e non ancora chiusa: si annota nella
+// traccia PRIMA delle scritture. Se all'apertura c'è ancora, la richiesta
+// della sessione precedente potrebbe essere per aria: la nuova schermata
+// deve PRENDERE IN CARICO il documento esplicitamente prima di scrivere.
+export type OperazioneInCorsa = { tipo: 'salva' | 'conferma' | 'scarto'; generazione: number }
+
 export type TracciaRevisione = {
   documentId: string
   generazione: number
+  inCorso?: OperazioneInCorsa | null
   docTotaleCent: number | null
   docTotaleOriginaleCent: number | null
   originaliBozze: Record<string, Partial<BozzaGrezza>>
@@ -285,10 +292,10 @@ export const aggiungiRiga = (s: StatoRevisione, riga: RigaNuova, idLocale: strin
 export const togliRigaNuova = (s: StatoRevisione, idLocale: string): StatoRevisione =>
   ({ ...s, righeNuove: s.righeNuove.filter(r => r.idLocale !== idLocale || r.stato !== 'nuova') })
 // una riga incerta CON gemella si può RICONOSCERE (scelta esplicita
-// dell'utente): la pendenza NON sparisce — resta annotata col suo
-// idLocale, perché nemmeno la gemella dimostra l'esito della richiesta
-// originale. Una riga incerta SENZA gemella non ha soluzione locale
-// certa: resta e blocca (fino al contratto idempotente 0023).
+// dell'utente): è solo un'ANNOTAZIONE — la pendenza non sparisce (resta
+// col suo idLocale) e continua a BLOCCARE la conferma, perché nemmeno la
+// gemella dimostra l'esito della richiesta originale. Solo il contratto
+// idempotente (proposta 0023) potrà chiudere queste pendenze.
 // In nessun caso il codice reinvia o cancella da solo.
 export const riconosciRigaIncerta = (s: StatoRevisione, idLocale: string): StatoRevisione =>
   ({ ...s, righeNuove: s.righeNuove.map(r =>
@@ -373,10 +380,11 @@ export function blocchiConferma(
       if (n.group_id && ambitoDelGruppo(n.group_id) !== ambitoParte)
         blocchi.push('una voce ha un destinatario dell\'altro ambito rispetto alla sua parte: correggila')
   }
-  if (s.righeNuove.some(r => r.stato === 'in_invio' || (r.stato === 'incerta' && r.gemella)))
-    blocchi.push('una voce aggiunta ha l\'esito incerto: va risolta prima di confermare')
-  if (s.righeNuove.some(r => r.stato === 'incerta' && !r.gemella))
-    blocchi.push('un invio è rimasto senza esito verificabile: si sblocca se la voce compare, o col contratto idempotente (proposta 0023)')
+  // QUALSIASI pendenza d'invio non dimostrata blocca — anche quella
+  // RICONOSCIUTA: collegare la gemella è un'annotazione, non una prova
+  // dell'esito della richiesta originale
+  if (s.righeNuove.some(r => r.stato === 'in_invio' || r.stato === 'incerta' || r.stato === 'riconosciuta'))
+    blocchi.push('un invio di voce è rimasto senza esito dimostrato: la conferma resta bloccata (si sblocca col contratto idempotente — proposta 0023)')
   // coerenza canonica (la stessa FK composita della 0020): la
   // sottocategoria deve appartenere alla categoria scelta
   if (sottoCanoniche) {

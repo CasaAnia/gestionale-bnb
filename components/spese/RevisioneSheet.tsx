@@ -64,10 +64,16 @@ type PropsRevisione = {
 // ---- guscio: prima si legge la CUSTODIA; se è illeggibile ci si FERMA -----
 // (aprire con gli originali presi dal database sembrerebbe innocuo, ma dopo
 // un Salva quel «originale» è già il valore corretto: la prima modifica
-// sovrascriverebbe la traccia vera e le correzioni andrebbero perse)
+// sovrascriverebbe la traccia vera e le correzioni andrebbero perse).
+// Se la traccia dice che un'operazione precedente è ancora ANNOTATA come
+// in corso, la nuova schermata deve PRENDERE IN CARICO il documento
+// esplicitamente prima di poter scrivere: la presa reclama la generazione
+// nuova, così la sequenza vecchia si ferma da sola al prossimo passo.
 export function RevisioneSheet(props: PropsRevisione) {
   const { documento, deposito, chiudi } = props
   const [lettura, setLettura] = useState(() => deposito.leggi(documento.id))
+  const [preso, setPreso] = useState<StatoRevisione | null>(null)
+  const [errorePresa, setErrorePresa] = useState<string | null>(null)
   if (lettura.errore) {
     return (
       <Foglio aria="Revisione bloccata: custodia illeggibile" chiudi={chiudi} scorrevole>
@@ -92,8 +98,46 @@ export function RevisioneSheet(props: PropsRevisione) {
       </Foglio>
     )
   }
+  const inCorso = lettura.traccia?.inCorso
+  if (inCorso && !preso) {
+    const nome = inCorso.tipo === 'salva' ? 'un salvataggio' : inCorso.tipo === 'conferma' ? 'una conferma' : 'uno scarto'
+    return (
+      <Foglio aria="Revisione: presa in carico" chiudi={chiudi} scorrevole>
+        <p className={`${DISPLAY} text-[19px] mb-2`} style={{ color: t.inchiostro }}>Prima di aprire</p>
+        <div className="mb-3 px-3 py-2 text-[13px] font-semibold" role="alert"
+          style={{ background: t.terraTenue, color: t.inchiostro, borderRadius: t.r }}>
+          Nella sessione precedente {nome} è rimasto annotato come in corso: la sua
+          richiesta potrebbe essere ancora per aria. Se riprendi tu il documento,
+          quella sequenza verrà fermata al suo prossimo passo; quello che era già
+          arrivato è nei dati che vedrai qui, le modifiche non salvate sono custodite.
+        </div>
+        {errorePresa && (
+          <p className="mb-3 px-3 py-2 text-[13px] font-semibold" role="alert"
+            style={{ background: t.terraTenue, color: t.rosso, borderRadius: t.r }}>{errorePresa}</p>
+        )}
+        <div className="flex gap-2 mb-4">
+          <button onClick={chiudi} className="flex-1 min-h-12 text-[14px] font-bold"
+            style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
+            Aspetta ancora
+          </button>
+          <button onClick={() => {
+            // la PRESA reclama la generazione nuova in custodia: da qui la
+            // sequenza precedente non può più scrivere né rimuovere nulla
+            const stato = apriRevisione(documento.id, documento.doc_total, props.bozze, props.righe, lettura.traccia ?? null)
+            const r = deposito.salva(tracciaDa(stato))
+            if (r.errore) setErrorePresa(`non riesco a prendere in carico il documento (${r.errore}): riprova`)
+            else setPreso(stato)
+          }}
+            className="flex-[2] min-h-12 text-[14px] font-bold text-white"
+            style={{ background: t.verde, borderRadius: t.rPill }}>
+            Riprendi tu il documento
+          </button>
+        </div>
+      </Foglio>
+    )
+  }
   return <RevisioneAperta {...props} statoIniziale={
-    apriRevisione(documento.id, documento.doc_total, props.bozze, props.righe, lettura.traccia ?? null)
+    preso ?? apriRevisione(documento.id, documento.doc_total, props.bozze, props.righe, lettura.traccia ?? null)
   } />
 }
 
@@ -558,7 +602,7 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
                       {r.stato === 'nuova' ? 'nuova, da salvare'
                         : r.stato === 'salvata' ? 'aggiunta e salvata ✓'
                           : r.stato === 'in_invio' ? 'invio in corso…'
-                            : r.stato === 'riconosciuta' ? 'collegata alla voce comparsa (l\'invio resta annotato)'
+                            : r.stato === 'riconosciuta' ? 'collegata alla voce comparsa (annotazione: l\'esito dell\'invio resta non dimostrato)'
                               : 'esito incerto: non so se è stata inserita'}
                     </span></span>
                   <span className="tabular-nums text-[13.5px] font-semibold" style={{ color: t.inchiostro }}>{eurCent(Math.round(r.amount * 100))}</span>
@@ -573,7 +617,7 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
                       <button onClick={() => setStato(s => riconosciRigaIncerta(s, r.idLocale))}
                         className="w-full min-h-11 px-2 text-[11.5px] font-bold text-white"
                         style={{ background: accento, borderRadius: t.rPill }}>
-                        È arrivata: è la voce identica qui sopra (resta annotata)
+                        Collega alla voce identica qui sopra (solo annotazione)
                       </button>
                     </div>
                   ) : (
@@ -581,8 +625,9 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
                     // fingendo che sia risolta — resta e blocca la conferma
                     <p className="mx-3 mt-1 px-2 py-1.5 text-[11px] font-semibold"
                       style={{ background: t.terraTenue, color: t.inchiostro, borderRadius: t.r }}>
-                      resterà in attesa: si sblocca se la voce compare tra le righe
-                      (o col contratto idempotente — proposta 0023, da autorizzare)
+                      resta in attesa: l&apos;esito si potrà dimostrare solo col contratto
+                      idempotente (proposta 0023); se comparirà una voce identica potrai
+                      collegarla come annotazione
                     </p>
                   )
                 )}
@@ -618,7 +663,7 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
             <button disabled={fermo} onClick={() => guardia.current(async () => {
               setErrore(null); setLavoro(true)
               try {
-                const r = await scartaRevisione(cliente, deposito, documento.id, motivoScarto)
+                const r = await scartaRevisione(cliente, deposito, documento.id, stato.generazione, motivoScarto)
                 if (r.ok) fatto('scartato')
                 else { setErrore(r.errore ?? 'errore'); if (r.incerto) setDaVerificare(true) }
                 return r.ok

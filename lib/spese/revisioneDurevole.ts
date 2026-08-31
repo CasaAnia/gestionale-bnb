@@ -18,7 +18,9 @@ import type { TracciaRevisione } from './revisione.ts'
 export type DepositoRevisione = {
   salva(t: TracciaRevisione): { errore?: string }
   leggi(documentId: string): { traccia?: TracciaRevisione; errore?: string }
-  rimuovi(documentId: string): { errore?: string }
+  // anche la RIMOZIONE rispetta la generazione: la conferma di una
+  // schermata superata non può cancellare la traccia di una più recente
+  rimuovi(documentId: string, generazione: number): { errore?: string }
 }
 
 const STATI_RIGA = ['nuova', 'in_invio', 'salvata', 'incerta', 'riconosciuta']
@@ -32,8 +34,12 @@ const archivioDiOggetti = (x: unknown): boolean =>
 function tracciaValida(x: unknown): x is TracciaRevisione {
   if (typeof x !== 'object' || x === null) return false
   const t = x as Record<string, unknown>
+  const inCorso = t.inCorso as Record<string, unknown> | null | undefined
   return typeof t.documentId === 'string'
     && (t.generazione === undefined || typeof t.generazione === 'number')
+    && (inCorso == null || (typeof inCorso === 'object' && !Array.isArray(inCorso)
+      && ['salva', 'conferma', 'scarto'].includes(inCorso.tipo as string)
+      && typeof inCorso.generazione === 'number'))
     && (t.docTotaleCent === null || typeof t.docTotaleCent === 'number')
     && (t.docTotaleOriginaleCent === null || typeof t.docTotaleOriginaleCent === 'number')
     && archivioDiOggetti(t.originaliBozze) && archivioDiOggetti(t.originaliRighe)
@@ -105,10 +111,13 @@ export function depositoRevisioneLocale(
         return { traccia: lettura.tracce[documentId] }
       }, msg => ({ errore: msg }))
     },
-    rimuovi(documentId) {
+    rimuovi(documentId, generazione) {
       return con(mem => {
         const lettura = leggiArchivio(mem, chiave)
         if (lettura.errore) return { errore: `custodia illeggibile, non tocco nulla (${lettura.errore})` }
+        const esistente = lettura.tracce[documentId]
+        if (esistente && (esistente.generazione ?? 0) > generazione)
+          return { errore: `custodia superata: c'è uno stato più recente (generazione ${esistente.generazione ?? 0} > ${generazione}) — non rimossa` }
         const { [documentId]: via, ...resto } = lettura.tracce
         void via
         try { mem.setItem(chiave, JSON.stringify(resto)); return {} }
@@ -127,7 +136,12 @@ export function depositoRevisioneInMemoria(): DepositoRevisione & { contenuto: (
       tracce = { ...tracce, [t.documentId]: t }; return {}
     },
     leggi(documentId) { return { traccia: tracce[documentId] } },
-    rimuovi(documentId) { const { [documentId]: via, ...resto } = tracce; void via; tracce = resto; return {} },
+    rimuovi(documentId, generazione) {
+      const esistente = tracce[documentId]
+      if (esistente && (esistente.generazione ?? 0) > generazione)
+        return { errore: `custodia superata: c'è uno stato più recente (generazione ${esistente.generazione ?? 0} > ${generazione}) — non rimossa` }
+      const { [documentId]: via, ...resto } = tracce; void via; tracce = resto; return {}
+    },
     contenuto: () => ({ ...tracce }),
   }
 }

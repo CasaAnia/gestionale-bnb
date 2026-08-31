@@ -1,24 +1,28 @@
 // ============================================================================
-// SCRITTURE DELLA REVISIONE (Fase 4, blocco 3 — correzioni) — servizi
+// SCRITTURE DELLA REVISIONE (Fase 4, blocco 3 — quarta revisione) — servizi
 // INIETTATI (finti nei test, revisioneSupabase.ts nelle pagine). Regole:
 //  · PRIMA di ogni scrittura remota gli ORIGINALI e le modifiche vanno in
-//    custodia durevole: se la custodia fallisce, non si salva nulla (le
-//    correzioni per la RPC non devono potersi perdere);
+//    custodia durevole: se la custodia fallisce, non si salva nulla;
+//  · COORDINAMENTO PER DOCUMENTO sull'INTERO ciclo: l'operazione annota
+//    «inCorso» nella traccia prima di scrivere e RICONTROLLA la
+//    generazione prima di OGNI chiamata remota — se un'altra apertura ha
+//    preso in mano il documento, la sequenza si FERMA subito (niente
+//    scritture superate che rimettono valori vecchi) e lo dice; anche la
+//    RIMOZIONE della custodia rispetta la generazione;
 //  · si aggiornano SOLO i campi di revisione della 0021; le righe nuove
 //    viaggiano col PAYLOAD ESPLICITO delle colonne concesse in INSERT;
-//  · errori RESTITUITI e righe toccate contate: mai successi simulati,
-//    zero righe non è un successo;
-//  · un errore di RETE è INCERTO su ENTRAMBI i canali (errore restituito o
-//    eccezione): ci si FERMA, niente altre scritture prima di riconciliare;
-//  · una riga nuova inserita si RICORDA col suo id (mai due INSERT della
-//    stessa riga); una risposta persa la marca 'incerta' — si riconcilia
-//    alla riapertura, MAI reinvio alla cieca;
-//  · la CONFERMA passa SOLO dalla RPC atomica conferma_documento (mai
-//    inserimenti diretti nelle spese definitive), con le correzioni.
+//  · errori RESTITUITI e righe toccate contate: mai successi simulati;
+//  · un errore di RETE è INCERTO su ENTRAMBI i canali: ci si FERMA;
+//  · una riga nuova inserita si RICORDA col suo id (mai due INSERT);
+//    una risposta persa la marca 'incerta' — nessun reinvio automatico;
+//  · la CONFERMA passa SOLO dalla RPC atomica, e RIFIUTA di partire
+//    finché resta una pendenza d'invio senza esito dimostrato (anche
+//    'riconosciuta': l'annotazione non è una prova) — il controllo vive
+//    QUI, non solo nel bottone.
 // ============================================================================
-import type { StatoRevisione } from './revisione.ts'
+import type { StatoRevisione, TracciaRevisione } from './revisione.ts'
 import { correzioniDa, payloadRigaNuova, tracciaDa } from './revisione.ts'
-import type { ModificaBozza, ModificaRiga, RigaNuova } from './revisione.ts'
+import type { ModificaBozza, ModificaRiga, OperazioneInCorsa, RigaNuova } from './revisione.ts'
 import type { DepositoRevisione } from './revisioneDurevole.ts'
 
 export type ClienteRevisione = {
@@ -48,6 +52,23 @@ const esitoErrore = (stato: StatoRevisione, contesto: string, msg: string): Esit
     ? { ok: false, stato, incerto: true, errore: `${contesto} dall'esito incerto (${msg}): le modifiche restano qui — chiudi e ricontrolla per vedere cosa è arrivato prima di riprovare` }
     : { ok: false, stato, errore: `${contesto}: ${msg}` }
 
+// il documento è stato ripreso da un'apertura più recente? Si controlla
+// PRIMA di ogni chiamata remota: una sequenza superata si ferma subito.
+// (Custodia illeggibile ≠ superata: quel caso lo fermano già le scritture
+// della custodia, che rifiutano.)
+function superata(deposito: DepositoRevisione, s: StatoRevisione): string | null {
+  const lettura = deposito.leggi(s.documentId)
+  if (lettura.errore) return null
+  const g = lettura.traccia?.generazione ?? 0
+  if (g > s.generazione)
+    return `operazione superata: il documento è stato ripreso da un'altra apertura (generazione ${g} > ${s.generazione}) — questa sequenza si ferma senza altre scritture`
+  return null
+}
+
+// una pendenza d'invio senza esito DIMOSTRATO (anche riconosciuta)
+const pendenzaNonDimostrata = (s: StatoRevisione) =>
+  s.righeNuove.find(r => r.stato === 'incerta' || r.stato === 'in_invio' || r.stato === 'riconosciuta')
+
 // salva TUTTE le modifiche pendenti (totale, bozze, righe, righe nuove).
 // Al primo errore ci si FERMA e lo si dice; su esito incerto NON si
 // scrive altro. Le modifiche restano nello stato (e nella custodia).
@@ -56,45 +77,67 @@ export async function salvaModifiche(
 ): Promise<EsitoRevisione> {
   let stato = s
   const avvisi: string[] = []
-  const custodia = deposito.salva(tracciaDa(stato))
+  const inCorso: OperazioneInCorsa = { tipo: 'salva', generazione: s.generazione }
+  const conOperazione = (t: TracciaRevisione): TracciaRevisione => ({ ...t, inCorso })
+  // l'operazione si ANNOTA nella traccia prima di qualunque scrittura:
+  // se la custodia non riesce, non si salva nulla
+  const custodia = deposito.salva(conOperazione(tracciaDa(stato)))
   if (custodia.errore)
     return { ok: false, stato, errore: `non riesco a mettere al sicuro gli originali (${custodia.errore}): NON salvo, altrimenti le correzioni andrebbero perse` }
   // ogni cambiamento di stato torna in custodia. Un fallimento QUI non
-  // perde responsabilità (la custodia precedente è più prudente: 'in_invio'
-  // resta 'in_invio' o la voce resta pendente), ma si DICE, mai ignorato.
-  const custodisci = (nuovo: StatoRevisione) => {
+  // perde responsabilità (resta la custodia precedente, più prudente),
+  // ma si DICE, mai ignorato.
+  const custodisci = (nuovo: StatoRevisione, chiusa = false) => {
     stato = nuovo
-    const r = deposito.salva(tracciaDa(stato))
+    const t = chiusa ? tracciaDa(stato) : conOperazione(tracciaDa(stato))
+    const r = deposito.salva(t)
     if (r.errore) avvisi.push(`custodia non aggiornata (${r.errore}): resta valida quella precedente, più prudente`)
   }
   const marca = (idLocale: string, statoRiga: 'nuova' | 'in_invio' | 'salvata' | 'incerta', id?: string) =>
     ({ ...stato, righeNuove: stato.righeNuove.map(x => x.idLocale === idLocale ? { ...x, stato: statoRiga, ...(id ? { id } : {}) } : x) })
+  // chiusura PULITA dell'operazione (successo o rifiuto definitivo):
+  // l'annotazione inCorso si toglie; su esito INCERTO invece resta, così
+  // la prossima apertura sa che una richiesta può essere ancora per aria
+  const chiudi = (esito: EsitoRevisione): EsitoRevisione => {
+    if (!esito.ok && esito.incerto) return esito
+    const r = deposito.salva(tracciaDa(stato))
+    if (r.errore && !avvisi.some(a => a.includes(r.errore!))) avvisi.push(`custodia non aggiornata (${r.errore})`)
+    if (esito.ok) return { ...esito, avviso: avvisi.length ? avvisi.join(' · ') : undefined }
+    return esito
+  }
   try {
     if (stato.docTotaleCent !== stato.docTotaleOriginaleCent) {
+      const stop = superata(deposito, stato)
+      if (stop) return { ok: false, stato, errore: stop }
       const r = await cliente.aggiornaDocTotale(stato.documentId, stato.docTotaleCent == null ? null : stato.docTotaleCent / 100)
-      if (r.errore) return esitoErrore(stato, 'totale non salvato', r.errore)
-      if ((r.righe ?? 0) < 1) return { ok: false, stato, errore: 'totale non salvato: nessuna riga toccata (documento protetto o sparito)' }
+      if (r.errore) return chiudi(esitoErrore(stato, 'totale non salvato', r.errore))
+      if ((r.righe ?? 0) < 1) return chiudi({ ok: false, stato, errore: 'totale non salvato: nessuna riga toccata (documento protetto o sparito)' })
     }
     for (const [id, campi] of Object.entries(stato.modificheBozze)) {
       if (Object.keys(campi).length === 0) continue
+      const stop = superata(deposito, stato)
+      if (stop) return { ok: false, stato, errore: stop }
       const r = await cliente.aggiornaBozza(id, campi)
-      if (r.errore) return esitoErrore(stato, 'una parte non è stata salvata', r.errore)
-      if ((r.righe ?? 0) < 1) return { ok: false, stato, errore: 'una parte non è stata salvata: nessuna riga toccata' }
+      if (r.errore) return chiudi(esitoErrore(stato, 'una parte non è stata salvata', r.errore))
+      if ((r.righe ?? 0) < 1) return chiudi({ ok: false, stato, errore: 'una parte non è stata salvata: nessuna riga toccata' })
     }
     for (const [id, campi] of Object.entries(stato.modificheRighe)) {
       if (Object.keys(campi).length === 0) continue
+      const stop = superata(deposito, stato)
+      if (stop) return { ok: false, stato, errore: stop }
       const r = await cliente.aggiornaRiga(id, campi)
-      if (r.errore) return esitoErrore(stato, 'una voce non è stata salvata', r.errore)
-      if ((r.righe ?? 0) < 1) return { ok: false, stato, errore: 'una voce non è stata salvata: nessuna riga toccata' }
+      if (r.errore) return chiudi(esitoErrore(stato, 'una voce non è stata salvata', r.errore))
+      if ((r.righe ?? 0) < 1) return chiudi({ ok: false, stato, errore: 'una voce non è stata salvata: nessuna riga toccata' })
     }
     // SOLO le righe mai inviate: le 'salvata' hanno già il loro id, le
-    // 'incerta' aspettano una risoluzione esplicita (mai reinvio cieco)
+    // 'incerta'/'riconosciuta' aspettano il contratto idempotente
     for (const riga of stato.righeNuove.filter(r => r.stato === 'nuova')) {
+      const stop = superata(deposito, stato)
+      if (stop) return { ok: false, stato, errore: stop }
       // la RESPONSABILITÀ si persiste PRIMA della richiesta: se questa
-      // custodia fallisce l'INSERT NON parte (altrimenti una pagina morta
-      // con la risposta per aria produrrebbe un doppione al Salva dopo)
+      // custodia fallisce l'INSERT NON parte
       stato = marca(riga.idLocale, 'in_invio')
-      const presa = deposito.salva(tracciaDa(stato))
+      const presa = deposito.salva(conOperazione(tracciaDa(stato)))
       if (presa.errore) {
         stato = marca(riga.idLocale, 'nuova')
         return { ok: false, stato, errore: `non riesco a custodire l'invio della voce «${riga.name}» (${presa.errore}): NON la invio — senza traccia un'interruzione creerebbe un doppione` }
@@ -109,7 +152,7 @@ export async function salvaModifiche(
       if (r.errore && !r.incerto && !rete(r.errore)) {
         // rifiuto ESPLICITO del servizio: non inserita, si può ritentare
         custodisci(marca(riga.idLocale, 'nuova'))
-        return { ok: false, stato, errore: `una voce nuova non è stata aggiunta: ${r.errore}` }
+        return chiudi({ ok: false, stato, errore: `una voce nuova non è stata aggiunta: ${r.errore}` })
       }
       if (r.errore || r.incerto || !r.id) {
         custodisci(marca(riga.idLocale, 'incerta'))
@@ -117,39 +160,48 @@ export async function salvaModifiche(
       }
       custodisci(marca(riga.idLocale, 'salvata', r.id))
     }
-    return { ok: true, stato, avviso: avvisi.length ? avvisi.join(' · ') : undefined }
+    return chiudi({ ok: true, stato })
   } catch (e) {
     const msg = String((e as Error).message ?? e)
     return rete(msg)
       ? { ok: false, stato, incerto: true, errore: `salvataggio dall'esito incerto (${msg}): le modifiche restano qui — chiudi e ricontrolla per vedere cosa è arrivato` }
-      : { ok: false, stato, errore: msg }
+      : chiudi({ ok: false, stato, errore: msg })
   }
 }
 
 // CONFERMA: prima si salvano le modifiche, poi la RPC atomica con le
-// correzioni (differenze originale→corrente). La quadratura la rifà il
-// server: un rifiuto arriva col suo messaggio, mai mascherato. A conferma
-// riuscita la traccia in custodia si toglie (le correzioni ormai sono nel
-// registro del database).
+// correzioni. La quadratura la rifà il server. A conferma riuscita la
+// traccia si toglie (rispettando la generazione: quella di una schermata
+// più recente NON viene cancellata). RIFIUTA di partire finché resta una
+// pendenza d'invio senza esito dimostrato — anche 'riconosciuta'.
 export async function confermaRevisione(
   cliente: ClienteRevisione, deposito: DepositoRevisione, s: StatoRevisione,
 ): Promise<EsitoRevisione> {
+  const pendenza = pendenzaNonDimostrata(s)
+  if (pendenza)
+    return { ok: false, stato: s, errore: `la conferma è bloccata: l'invio della voce «${pendenza.name}» è senza esito dimostrato — si sblocca col contratto idempotente (proposta 0023)` }
   const salvataggio = await salvaModifiche(cliente, deposito, s)
   if (!salvataggio.ok) return salvataggio
   const stato = salvataggio.stato
+  const avvisi = salvataggio.avviso ? [salvataggio.avviso] : []
+  const annotata = deposito.salva({ ...tracciaDa(stato), inCorso: { tipo: 'conferma', generazione: stato.generazione } })
+  if (annotata.errore)
+    return { ok: false, stato, errore: `non riesco ad annotare la conferma in custodia (${annotata.errore}): non la avvio` }
+  const stop = superata(deposito, stato)
+  if (stop) return { ok: false, stato, errore: stop }
   try {
     const r = await cliente.confermaDocumento(stato.documentId, correzioniDa(stato))
     if (r.errore) {
-      return rete(r.errore)
-        ? { ok: false, stato, incerto: true, errore: `conferma dall'esito incerto (${r.errore}): NON riprovare alla cieca — chiudi e ricontrolla: se il documento risulta confermato è andata (la RPC è idempotente)` }
-        : { ok: false, stato, errore: r.errore }
+      if (rete(r.errore))
+        return { ok: false, stato, incerto: true, errore: `conferma dall'esito incerto (${r.errore}): NON riprovare alla cieca — chiudi e ricontrolla: se il documento risulta confermato è andata (la RPC è idempotente)` }
+      deposito.salva(tracciaDa(stato))                  // rifiuto definitivo: l'annotazione si toglie
+      return { ok: false, stato, errore: r.errore }
     }
     if (!r.ids || r.ids.length === 0)
       return { ok: false, stato, errore: 'la conferma non ha restituito le spese create: verifica lo stato prima di riprovare', incerto: true }
-    const pulizia = deposito.rimuovi(stato.documentId)
-    return pulizia.errore
-      ? { ok: true, stato, avviso: `documento confermato, ma la traccia locale non si è tolta (${pulizia.errore}): innocua, sparirà da sola` }
-      : { ok: true, stato }
+    const pulizia = deposito.rimuovi(stato.documentId, stato.generazione)
+    if (pulizia.errore) avvisi.push(`documento confermato, ma la traccia locale non è stata rimossa (${pulizia.errore})`)
+    return { ok: true, stato, avviso: avvisi.length ? avvisi.join(' · ') : undefined }
   } catch (e) {
     const msg = String((e as Error).message ?? e)
     return rete(msg)
@@ -160,9 +212,12 @@ export async function confermaRevisione(
 
 export async function scartaRevisione(
   cliente: ClienteRevisione, deposito: DepositoRevisione,
-  documentId: string, motivo: string,
+  documentId: string, generazione: number, motivo: string,
 ): Promise<{ ok: boolean; errore?: string; incerto?: boolean; avviso?: string }> {
   if (!motivo.trim()) return { ok: false, errore: 'serve il motivo dello scarto' }
+  const lettura = deposito.leggi(documentId)
+  if (!lettura.errore && (lettura.traccia?.generazione ?? 0) > generazione)
+    return { ok: false, errore: 'operazione superata: il documento è stato ripreso da un\'altra apertura — ricontrolla prima di scartare' }
   try {
     const r = await cliente.scartaDocumento(documentId, motivo.trim())
     if (r.errore) {
@@ -170,9 +225,9 @@ export async function scartaRevisione(
         ? { ok: false, incerto: true, errore: `scarto dall'esito incerto (${r.errore}): chiudi e ricontrolla lo stato` }
         : { ok: false, errore: r.errore }
     }
-    const pulizia = deposito.rimuovi(documentId)
+    const pulizia = deposito.rimuovi(documentId, generazione)
     return pulizia.errore
-      ? { ok: true, avviso: `documento scartato, ma la traccia locale non si è tolta (${pulizia.errore}): innocua` }
+      ? { ok: true, avviso: `documento scartato, ma la traccia locale non è stata rimossa (${pulizia.errore})` }
       : { ok: true }
   } catch (e) {
     const msg = String((e as Error).message ?? e)

@@ -31,7 +31,7 @@ test('giro completo: salva, leggi per documento, rimuovi — documenti diversi n
   assert.deepEqual(dep.salva(traccia('d2')), {})
   assert.equal(dep.leggi('d1').traccia?.documentId, 'd1')
   assert.equal(dep.leggi('d3').traccia, undefined)     // assente, senza errore
-  assert.deepEqual(dep.rimuovi('d1'), {})
+  assert.deepEqual(dep.rimuovi('d1', 1), {})
   assert.equal(dep.leggi('d1').traccia, undefined)
   assert.equal(dep.leggi('d2').traccia?.documentId, 'd2')
 })
@@ -48,7 +48,7 @@ test('custodia CORROTTA o non valida: errore ESPLICITO, salva e rimuovi NON sovr
   const dep = depositoRevisioneLocale('k', () => mem)
   assert.ok(dep.leggi('d1').errore?.includes('corrotti'))
   assert.ok(dep.salva(traccia('d1')).errore?.includes('non sovrascrivo'))
-  assert.ok(dep.rimuovi('d1').errore?.includes('non tocco nulla'))
+  assert.ok(dep.rimuovi('d1', 9).errore?.includes('non tocco nulla'))
   assert.equal(mem.dati.k, 'non-json{{{')              // il contenuto resta com'era
   // struttura sbagliata (lista invece di archivio per documento)
   const mem2 = memoriaFinta({ k: '[1,2,3]' })
@@ -84,10 +84,17 @@ test('GENERAZIONI: una scrittura superata viene rifiutata (in ENTRAMBI i deposit
   assert.equal(dep.leggi('d1').traccia?.generazione, 2)                // lo stato recente resta
   assert.deepEqual(dep.salva(traccia('d1', 2)), {})                    // stessa generazione: ok
   assert.deepEqual(dep.salva(traccia('d1', 3)), {})                    // più nuova: ok
+  // anche la RIMOZIONE rispetta la generazione (la conferma di una
+  // schermata vecchia non cancella la custodia di una più recente)
+  assert.ok(dep.rimuovi('d1', 2).errore?.includes('non rimossa'))
+  assert.equal(dep.leggi('d1').traccia?.generazione, 3)
+  assert.deepEqual(dep.rimuovi('d1', 3), {})
   const memv = depositoRevisioneInMemoria()
   assert.deepEqual(memv.salva(traccia('d2', 2)), {})
   assert.ok(memv.salva(traccia('d2', 1)).errore?.includes('superata'))
   assert.equal(memv.leggi('d2').traccia?.generazione, 2)
+  assert.ok(memv.rimuovi('d2', 1).errore?.includes('non rimossa'))
+  assert.deepEqual(memv.rimuovi('d2', 2), {})
 })
 
 test('memoria che ESPLODE (lettura o accesso negati): errore dichiarato, mai spacciato per vuoto', () => {

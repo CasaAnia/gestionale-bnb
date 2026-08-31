@@ -1545,14 +1545,44 @@ se la precedente non è verificata E approvata.
   senza gemella), riconoscimento che annota senza cancellare, «Come la
   parte» effettivo alla rilettura senza storiche residue.
 
+  **FASE 4 · BLOCCO 3 — QUARTA TORNATA DI CORREZIONI (01/09/2026).**
+  1) GENERAZIONI SU TUTTO IL CICLO — non più solo sulla custodia: ogni
+     operazione si ANNOTA nella traccia come «inCorso» prima di
+     scrivere, RICONTROLLA la generazione prima di OGNI chiamata remota
+     (un Salva superato si ferma subito: l'UPDATE che avrebbe rimesso il
+     valore vecchio NON parte, e l'esito lo dice — mai «successo senza
+     avviso»), e anche la RIMOZIONE della custodia rispetta la
+     generazione (la conferma di una schermata vecchia non cancella la
+     traccia della nuova). All'apertura, se la traccia porta un'
+     operazione ancora annotata in corso, la schermata chiede la PRESA
+     IN CARICO esplicita («Riprendi tu il documento»: reclama la
+     generazione nuova) prima di consentire scritture. Testate le DUE
+     sequenze complete della revisione (Salva sospeso sugli UPDATE;
+     conferma sospesa + rimozione).
+  2) «RICONOSCIUTA» NON SBLOCCA — collegare la gemella è solo un'
+     ANNOTAZIONE: il blocco della conferma resta per QUALSIASI pendenza
+     d'invio senza esito dimostrato (in_invio, incerta, riconosciuta), e
+     vive anche DENTRO confermaRevisione (rifiuta prima della RPC, senza
+     chiamate remote, custodia intatta), non solo nel bottone. Test
+     riconoscimento→tentativo di conferma→riapertura. Nessuna
+     cancellazione della responsabilità residua.
+  3) VALIDAZIONE inCorso nella custodia; messaggi unificati («senza
+     esito dimostrato»).
+  Test: 288/288; tsc, lint, build verdi. Prove live: schermata «Prima di
+  aprire» con presa in carico (generazione reclamata, modifiche
+  conservate), riconoscimento che annota senza sbloccare.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
-  PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md (identità per client_key generata
-  e custodita PRIMA dell'invio, indice unico parziale, immutabilità via
-  trigger anche per service_role, MAI upsert — conflitto = «già
-  registrata» con recupero per chiave, righe corrette comunque
-  riconoscibili, concorrenza arbitrata dall'indice, grant minimo della
-  sola colonna in INSERT, piano di collaudo isolato in 4 passi). Per chiudere l'ambiguità residua
+  PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta
+  revisione: identità = client_key + client_fingerprint (SHA-256 del
+  payload ORIGINALE, immutabile — è l'evidenza che distingue «riga mia
+  poi corretta» da «chiave riusata da un'altra operazione»: senza,
+  quella garanzia non sarebbe rilevabile); verifica di appartenenza alla
+  bozza attesa; lettura di verifica fallita ⇒ pendenza conservata (la
+  chiave non è la risposta); pendenze storiche senza chiave NON
+  identificabili retroattivamente; MAI upsert; grant minimo delle due
+  colonne in INSERT; piano di collaudo isolato in 4 passi. Per chiudere l'ambiguità residua
   del punto 2 servirebbe una colonna `client_key uuid` su
   family_draft_items con indice UNIQUE parziale (where client_key is
   not null) e la colonna concessa in INSERT dalla 0021: il browser

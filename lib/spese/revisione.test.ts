@@ -314,8 +314,76 @@ test('RESPONSABILITÀ PRIMA DELLA RICHIESTA: la custodia dice «in_invio» già 
   const dopo = await salvaModifiche(sano, dep(), riaperto)
   assert.equal(dopo.ok, true)
   assert.equal(chiamate.filter(c => c.azione === 'nuova').length, 0)   // NESSUN secondo INSERT
-  assert.ok(blocchiConferma(riaperto, ambitoDi).some(b => b.includes('senza esito verificabile')))
+  assert.ok(blocchiConferma(riaperto, ambitoDi).some(b => b.includes('senza esito dimostrato')))
   void inCorso
+})
+
+test('SCRITTURE SUPERATE: il Salva A sospeso NON prosegue con gli UPDATE dopo che la schermata B ha ripreso il documento', async () => {
+  // A: due modifiche (bozza + riga). Il primo UPDATE resta sospeso.
+  let sA = apriRevisione('doc-1', 5,
+    [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5, name: 'Nome ORIGINALE' })])
+  assert.equal(sA.generazione, 1)
+  sA = modificaBozza(sA, 'b1', { store: 'Iper' })
+  sA = modificaRiga(sA, 'r1', { name: 'Nome VECCHIO' })
+  const deposito = dep()
+  let rispondiBozza: (v: { righe: number }) => void = () => {}
+  const { cliente: clienteA, chiamate: chiamateA } = clienteFinto({
+    aggiornaBozza: () => new Promise(r => { rispondiBozza = r as never }) as never,
+  })
+  const salvaA = salvaModifiche(clienteA, deposito, sA)
+  await new Promise(r => setTimeout(r, 10))
+  // l'operazione di A è ANNOTATA come in corso nella traccia
+  assert.equal(deposito.leggi('doc-1').traccia!.inCorso?.tipo, 'salva')
+  // B riapre (generazione 2) e SALVA la riga con «Nome NUOVO»
+  let sB = apriRevisione('doc-1', 5,
+    [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5, name: 'Nome ORIGINALE' })],
+    deposito.leggi('doc-1').traccia)
+  assert.equal(sB.generazione, 2)
+  sB = modificaRiga(sB, 'r1', { name: 'Nome NUOVO' })
+  const { cliente: clienteB, chiamate: chiamateB } = clienteFinto()
+  const esitoB = await salvaModifiche(clienteB, deposito, sB)
+  assert.equal(esitoB.ok, true)
+  assert.equal((chiamateB.find(c => c.azione === 'riga')!.payload as { campi: { name: string } }).campi.name, 'Nome NUOVO')
+  // ADESSO arriva la risposta di A: la sequenza è SUPERATA e si ferma —
+  // l'UPDATE che avrebbe rimesso «Nome VECCHIO» NON parte
+  rispondiBozza({ righe: 1 })
+  const esitoA = await salvaA
+  assert.equal(esitoA.ok, false)
+  assert.ok(!esitoA.ok && esitoA.errore.includes('superata'))
+  assert.equal(chiamateA.filter(c => c.azione === 'riga').length, 0)
+  // la custodia conserva lo stato di B, con la sua modifica
+  const traccia = deposito.leggi('doc-1').traccia!
+  assert.equal(traccia.generazione, 2)
+  assert.equal((traccia.modificheRighe.r1 as { name?: string })?.name, 'Nome NUOVO')
+})
+
+test('CONFERMA SUPERATA: la risposta positiva di A NON cancella la custodia della schermata B (rimozione con generazione)', async () => {
+  let sA = apriRevisione('doc-1', 5,
+    [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
+  sA = modificaBozza(sA, 'b1', { store: 'Iper' })
+  const deposito = dep()
+  let rispondiRpc: (v: { ids: string[] }) => void = () => {}
+  const { cliente: clienteA } = clienteFinto({
+    confermaDocumento: () => new Promise(r => { rispondiRpc = r as never }) as never,
+  })
+  const confermaA = confermaRevisione(clienteA, deposito, sA)
+  await new Promise(r => setTimeout(r, 10))
+  assert.equal(deposito.leggi('doc-1').traccia!.inCorso?.tipo, 'conferma')
+  // B riapre e custodisce le SUE modifiche (generazione 2)
+  let sB = apriRevisione('doc-1', 5,
+    [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })],
+    deposito.leggi('doc-1').traccia)
+  sB = modificaBozza(sB, 'b1', { store: 'Esselunga' })
+  assert.deepEqual(deposito.salva(tracciaDa(sB)), {})
+  // arriva la risposta positiva di A: rimuovi RISPETTA la generazione
+  rispondiRpc({ ids: ['spesa-1'] })
+  const esitoA = await confermaA
+  assert.equal(esitoA.ok, true)                        // il remoto è confermato…
+  assert.ok(esitoA.ok && esitoA.avviso?.includes('non è stata rimossa'))
+  const traccia = deposito.leggi('doc-1').traccia
+  assert.ok(traccia)                                   // …ma la traccia di B è VIVA
+  assert.equal(traccia!.generazione, 2)
+  assert.equal(traccia!.modificheBozze.b1?.store, 'Esselunga')
 })
 
 test('RISPOSTA VECCHIA vs SCHERMATA NUOVA: la generazione della custodia impedisce al Salva rimasto per aria di calpestare lo stato più recente', async () => {
@@ -357,7 +425,7 @@ test('CUSTODIA DELL\'INVIO NEGATA: l\'INSERT non parte proprio (senza traccia, u
   // la custodia funziona finché non deve registrare un 'in_invio'
   const selettivo: DepositoRevisione = {
     salva: t => t.righeNuove.some(r => r.stato === 'in_invio') ? { errore: 'spazio esaurito' } : vero.salva(t),
-    leggi: id => vero.leggi(id), rimuovi: id => vero.rimuovi(id),
+    leggi: id => vero.leggi(id), rimuovi: (id, g) => vero.rimuovi(id, g),
   }
   const { cliente, chiamate } = clienteFinto()
   const esito = await salvaModifiche(cliente, selettivo, s)
@@ -379,7 +447,7 @@ test('RISPOSTA PERSA sull\'INSERT: riga INCERTA, mai reinviata, conferma bloccat
   const riprova = await salvaModifiche(sano, dep(), esito.stato)
   assert.equal(riprova.ok, true)                       // nulla di nuovo da fare
   assert.equal(chiamate.filter(c => c.azione === 'nuova').length, 0)
-  assert.ok(blocchiConferma(esito.stato, ambitoDi).some(b => b.includes('senza esito verificabile')))
+  assert.ok(blocchiConferma(esito.stato, ambitoDi).some(b => b.includes('senza esito dimostrato')))
   // anche un'eccezione NON di rete a richiesta partita è esito ignoto
   const { cliente: strano } = clienteFinto({ aggiungiRiga: () => { throw new Error('boom interno') } })
   let s2 = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
@@ -444,7 +512,7 @@ test('MODIFICHE NON SALVATE custodite: chiusura e riapertura senza Salva non per
   assert.equal(deposito.leggi('doc-1').traccia, undefined)
 })
 
-test('RICONCILIAZIONE alla riapertura: la gemella IDENTICA viene PROPOSTA (mai collegata da sola); nome+importo non bastano', () => {
+test('RICONCILIAZIONE alla riapertura: la gemella IDENTICA viene PROPOSTA (mai collegata da sola); nome+importo non bastano', async () => {
   let s = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
   s = aggiungiRiga(s, { draft_id: 'b1', name: 'Sacchetto', amount: 0.5 }, 'loc-1')
   s = { ...s, righeNuove: s.righeNuove.map(r => ({ ...r, stato: 'incerta' as const })) }
@@ -457,20 +525,30 @@ test('RICONCILIAZIONE alla riapertura: la gemella IDENTICA viene PROPOSTA (mai c
   assert.equal(arrivata.righeNuove.length, 1)
   assert.equal(arrivata.righeNuove[0].stato, 'incerta')
   assert.equal(arrivata.righeNuove[0].gemella, 'srv-9')
-  assert.ok(blocchiConferma(arrivata, ambitoDi).some(b => b.includes('incerto')))   // finché non decide l'utente
-  // il RICONOSCIMENTO esplicito sblocca ma NON cancella: la pendenza resta
-  // annotata (nemmeno la gemella dimostra l'esito della richiesta) e la
-  // quadratura tiene (conta la voce vera, non l'annotazione)
+  assert.ok(blocchiConferma(arrivata, ambitoDi).some(b => b.includes('senza esito dimostrato')))
+  // il RICONOSCIMENTO esplicito è un'ANNOTAZIONE: non cancella la pendenza
+  // e NON sblocca la conferma (la gemella non dimostra l'esito dell'invio)
   const risolta = riconosciRigaIncerta(arrivata, arrivata.righeNuove[0].idLocale)
   assert.equal(risolta.righeNuove.length, 1)
   assert.equal(risolta.righeNuove[0].stato, 'riconosciuta')
   assert.equal(risolta.righeNuove[0].idLocale, arrivata.righeNuove[0].idLocale)   // la traccia dell'operazione resta
-  assert.deepEqual(blocchiConferma(risolta, ambitoDi), [])
-  assert.equal(quadratura(risolta).ok, true)
-  // e alla riapertura successiva l'annotazione sopravvive
+  assert.ok(blocchiConferma(risolta, ambitoDi).some(b => b.includes('senza esito dimostrato')))
+  assert.equal(quadratura(risolta).ok, true)           // la voce vera conta, l'annotazione no
+  // RICONOSCIMENTO → TENTATIVO DI CONFERMA → RIAPERTURA (il controllo vive
+  // nella FUNZIONE, non solo nel bottone): la RPC non parte, la custodia resta
+  const deposito = dep()
+  assert.deepEqual(deposito.salva(tracciaDa(risolta)), {})
+  const { cliente, chiamate } = clienteFinto()
+  const conferma = await confermaRevisione(cliente, deposito, risolta)
+  assert.equal(conferma.ok, false)
+  assert.ok(!conferma.ok && conferma.errore.includes('senza esito dimostrato'))
+  assert.equal(chiamate.length, 0)                     // NESSUNA chiamata remota, RPC compresa
+  assert.ok(deposito.leggi('doc-1').traccia)           // nessuna cancellazione della responsabilità
+  // e alla riapertura successiva l'annotazione sopravvive, ancora bloccante
   const dopoAncora = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })],
-    [riga({ id: 'r1', draft_id: 'b1', amount: 5 }), identica], tracciaDa(risolta))
+    [riga({ id: 'r1', draft_id: 'b1', amount: 5 }), identica], deposito.leggi('doc-1').traccia)
   assert.equal(dopoAncora.righeNuove[0]?.stato, 'riconosciuta')
+  assert.ok(blocchiConferma(dopoAncora, ambitoDi).some(b => b.includes('senza esito dimostrato')))
   // caso 2: stessa bozza, stesso nome e importo ma QUANTITÀ diversa → una
   // somiglianza non è un'identità: NESSUNA gemella proposta
   const diversa = riga({ id: 'srv-8', draft_id: 'b1', amount: 0.5, name: 'Sacchetto', qty: 2, user_added: true })
@@ -495,7 +573,7 @@ test('CUSTODIA che si guasta DOPO l\'invio: l\'esito lo dice (avviso), la tracci
   // la custodia registra l'in_invio, poi si rompe (il post-risposta fallisce)
   const traballante: DepositoRevisione = {
     salva: t => t.righeNuove.some(r => r.stato === 'salvata') ? { errore: 'spazio esaurito' } : vero.salva(t),
-    leggi: id => vero.leggi(id), rimuovi: id => vero.rimuovi(id),
+    leggi: id => vero.leggi(id), rimuovi: (id, g) => vero.rimuovi(id, g),
   }
   const { cliente } = clienteFinto()
   const esito = await salvaModifiche(cliente, traballante, s)
@@ -625,11 +703,11 @@ test('RISPOSTA PERSA: esito INCERTO dichiarato, niente successo finto, invito a 
   assert.ok(!esito2.ok && esito2.incerto === true)
   // scarto: motivo obbligatorio + esito incerto gestito (anche RESTITUITO)
   const { cliente: c3 } = clienteFinto()
-  assert.ok(!(await scartaRevisione(c3, dep(), 'doc-1', '  ')).ok)
+  assert.ok(!(await scartaRevisione(c3, dep(), 'doc-1', 1, '  ')).ok)
   const { cliente: c4 } = clienteFinto({ scartaDocumento: esplode })
-  const e4 = await scartaRevisione(c4, dep(), 'doc-1', 'foto doppia')
+  const e4 = await scartaRevisione(c4, dep(), 'doc-1', 1, 'foto doppia')
   assert.ok(!e4.ok && e4.incerto === true)
   const { cliente: c5 } = clienteFinto({ scartaDocumento: { errore: 'Failed to fetch' } })
-  const e5 = await scartaRevisione(c5, dep(), 'doc-1', 'foto doppia')
+  const e5 = await scartaRevisione(c5, dep(), 'doc-1', 1, 'foto doppia')
   assert.ok(!e5.ok && e5.incerto === true)
 })
