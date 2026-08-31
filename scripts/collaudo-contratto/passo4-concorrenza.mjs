@@ -15,7 +15,7 @@ import { randomUUID } from 'node:crypto'
 import pg from 'pg'
 import { sql, progetto } from '../fase2b/api.mjs'
 import { verificaNonProduzione } from '../fase2b/guardia.mjs'
-import { comeMembro, fixtureDocumento, fotografiaDocumento, ownerId } from './ambiente.mjs'
+import { comeMembro, connessionePg, fixtureDocumento, fotografiaDocumento, ownerId } from './ambiente.mjs'
 import { creaContatore, eseguiPasso, tipiTimestampTesto } from './strumenti.mjs'
 import { apriUltimoRegistro } from './registro.mjs'
 import { batchRamo, eseguiCaso, riepilogo } from '../fase4/concorrenza.mjs'
@@ -35,20 +35,29 @@ await eseguiPasso('PASSO 4 · concorrenza misurata', async () => {
   // convertirebbe in Date (millisecondi) e finestre davvero sovrapposte
   // risulterebbero NON valide PRIMA di provaValida
   const sessione = async () => {
-    const cli = new pg.Client({ host: `db.${p.ref}.supabase.co`, port: 5432, user: 'postgres', database: 'postgres', password: p.db_pass, ssl: { rejectUnauthorized: false }, types: tipiTimestampTesto(pg.types) })
-    await cli.connect(); sessioni.push(cli); return cli
+    const cli = await connessionePg(p, { types: tipiTimestampTesto(pg.types) })
+    sessioni.push(cli); return cli
   }
   try {
     const A = await sessione(), B = await sessione()
     // un RAMO: batch della 0022 (allineamento a istante assoluto,
     // misure pid/prima/dopo anche quando la chiamata erra)
     const ramo = async (cli, espressioneRpc) => {
+      const inizio = Date.now()
       try {
-        const r = await cli.query(`begin; ${batchRamo(comeMembro(UID), espressioneRpc)} commit;`)
+        // il «;» è OBBLIGATORIO: batchRamo termina con «select … f()» senza
+        // punto e virgola e un «commit» appeso diventerebbe un ALIAS della
+        // funzione — transazione mai chiusa, lock tenuto per sempre
+        // (trovato al collaudo: rami a 120 s di statement_timeout)
+        const r = await cli.query(`begin; ${batchRamo(comeMembro(UID), espressioneRpc)}; commit;`)
         const righe = (Array.isArray(r) ? r : [r]).flatMap(x => x.rows ?? [])
         const m = righe.find(x => x?.pid)
         return m ?? { trasporto: 'nessuna misura restituita' }
-      } catch (e) { return { trasporto: String(e.message) } }
+      } catch (e) {
+        // la sessione NON deve restare in transazione abortita per i casi dopo
+        await cli.query('rollback;').catch(() => {})
+        return { trasporto: `${String(e.message)} (dopo ${Date.now() - inizio} ms)` }
+      }
     }
     const salvaExpr = (op, doc, rev, modifiche) =>
       `public.salva_revisione('${op}'::uuid,'${doc}'::uuid,${rev},'${JSON.stringify(modifiche).replaceAll("'", "''")}'::jsonb)`

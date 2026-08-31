@@ -2103,6 +2103,45 @@ se la precedente non è verificata E approvata.
   accessi, token, esecuzioni remote, produzione, azzeramenti, push o
   deploy: si attende il consenso esplicito dell'utente.
 
+  **COLLAUDO ISOLATO ESEGUITO E SUPERATO (31/08/2026, sera) — due giri
+  completi 1→7 sul progetto di prova, 108 verifiche verdi per giro.**
+  Autorizzazione esplicita dell'utente; token e password del db passati
+  SOLO per appunti → file 600, mai in chat. Esito per passo (uguale nei
+  due giri): struttura e permessi 10/10 · vettori comuni client/server
+  18/18 (canonicalizzazione del server IDENTICA al client, ordinamento
+  della conferma compreso) · comportamento RPC 23/23 · concorrenza
+  MISURATA 3/3 (sovrapposizione reale al microsecondo; identici→
+  APPLICATA+RIPETUTA, chiave riusata col ramo perdente fotografato
+  identico, Salva⇄Conferma coerente col vincitore nei due ordini
+  forzati) · transizione A/B 32/32 (guardie negative in transazione del
+  collaudo, fase A verbatim con rollback provato byte per byte, la
+  chiamata sospesa in is_app_member CONTATA per PID dalla condizione
+  della fase B, fase B in un'unica transazione, doppia porta) · client
+  vero su PostgREST 12/12 (recupero completo della risposta persa dopo
+  l'effetto reale sul giornale vero) · pulizia 10/10 (smontaggio della
+  transizione nell'ordine sicuro e FOTOGRAFIA FINALE IDENTICA ALLA BASE,
+  impronte dei dati comprese).
+  QUATTRO DIFETTI TROVATI E CORRETTI DAL COLLAUDO (il motivo per cui
+  esiste): 1) BOZZA SQL, logica a tre valori — jsonb_typeof su chiave
+  ASSENTE dà NULL e «<>» non faceva scattare MODIFICHE_MALFORMATE (un
+  batch senza «nuove» veniva applicato; il server finto lo respingeva
+  già): ora «is distinct from», STOP al giro, pulizia, e giro rifatto
+  da capo con la bozza corretta; 2) harness passo 4 — «commit» appeso a
+  batchRamo senza punto e virgola diventava un ALIAS della funzione:
+  transazione mai chiusa, lock tenuto, rami a 120 s di statement_timeout
+  (diagnosi con sonda pg_stat_activity); ora «; commit;» e rollback nel
+  catch del ramo; 3) ambiente — l'host diretto db.<ref> non esiste in
+  DNS sui progetti nuovi: connessionePg con i candidati del pooler in
+  SOLA session mode (mai il 6543); 4) vettoriComuni leggeva la prima «[»
+  del file (l'annotazione di tipo TS), non l'array: ora «= [» con
+  controllo di consistenza. Tutte le correzioni sono locali e committate;
+  suite 317/317 e strumenti 43/43 ancora verdi.
+  Segreti: file del token cancellato a fine collaudo, db_pass rimossa da
+  progetto.json; revoca dei token e nuovo reset della password chiesti
+  all'utente dal dashboard. LA PRODUZIONE RESTA ESCLUSA: l'applicazione
+  reale di contratto e transizione richiede un'autorizzazione separata
+  (pausa, audit read-only, backup verificato, runbook dedicato).
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

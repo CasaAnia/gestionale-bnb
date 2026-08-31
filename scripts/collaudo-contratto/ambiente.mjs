@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createHash, randomUUID } from 'node:crypto'
+import pg from 'pg'
 import { sql } from '../fase2b/api.mjs'
 import { ErroreCollaudo, LEGACY, TABELLE_FOTOGRAFATE, sqlFixtureDocumento } from './strumenti.mjs'
 
@@ -19,7 +20,14 @@ export const sha256 = t => createHash('sha256').update(t, 'utf8').digest('hex')
 
 export function vettoriComuni() {
   const testo = readFileSync(join(RADICE, 'lib/spese/contrattoVettori.ts'), 'utf8')
-  return JSON.parse(testo.slice(testo.indexOf('[')))
+  // l'array JSON comincia dopo «= [»: la prima «[» del file sta
+  // nell'annotazione di tipo (}[] =), non nei dati
+  const da = testo.indexOf('= [')
+  if (da < 0) throw new ErroreCollaudo('contrattoVettori.ts senza l\'array «= [» dei vettori')
+  const vettori = JSON.parse(testo.slice(da + 2))
+  if (!Array.isArray(vettori) || vettori.length < 8)
+    throw new ErroreCollaudo(`vettori comuni inattesi: ${Array.isArray(vettori) ? vettori.length : 'non un array'}`)
+  return vettori
 }
 export const bozzaSql = nome => readFileSync(join(RADICE, 'proposte', nome), 'utf8')
 
@@ -28,6 +36,26 @@ export async function ownerId() {
   if (!r[0]?.user_id) throw new ErroreCollaudo('nessun owner in app_members (fixture della 2B mancanti)')
   return r[0].user_id
 }
+// sessione pg DEDICATA (i passi 4/5 hanno bisogno di UN backend per
+// connessione: pid stabile, lock che restano). L'host diretto db.<ref>
+// può non esistere in DNS: stessi candidati del pool di api.mjs, ma
+// SOLO in session mode (porta 5432) — mai il transaction pooler 6543,
+// che non garantisce lo stesso backend fra una query e l'altra.
+export async function connessionePg(p, opzioni = {}) {
+  const candidati = [
+    { host: `db.${p.ref}.supabase.co`, port: 5432, user: 'postgres' },
+    { host: 'aws-1-eu-central-1.pooler.supabase.com', port: 5432, user: `postgres.${p.ref}` },
+    { host: 'aws-0-eu-central-1.pooler.supabase.com', port: 5432, user: `postgres.${p.ref}` },
+  ]
+  let ultimo
+  for (const c of candidati) {
+    const cli = new pg.Client({ ...c, database: 'postgres', password: p.db_pass,
+      ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 8000, ...opzioni })
+    try { await cli.connect(); return cli } catch (e) { ultimo = e; await cli.end().catch(() => {}) }
+  }
+  throw new ErroreCollaudo(`nessun host pg raggiungibile in session mode: ${String(ultimo?.message ?? ultimo)}`)
+}
+
 export const comeMembro = uid => `select set_config('request.jwt.claims',
     json_build_object('sub','${uid}','role','authenticated')::text, true);
   set local role authenticated;`

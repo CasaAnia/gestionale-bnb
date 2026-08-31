@@ -1,6 +1,9 @@
 # PIANO DI COLLAUDO — contratto di revisione + transizione A/B
 
-**Stato: PREPARATO, NON ESEGUITO.** Nessuno di questi passi va lanciato
+**Stato: ESEGUITO E SUPERATO il 31/08/2026 (due giri completi 1→7,
+108 verifiche verdi per giro; quattro difetti trovati e corretti, vedi
+PIANO-RIFACIMENTO-SPESE.md). Il documento resta come runbook.**
+Nota storica del vincolo di partenza: Nessuno di questi passi va lanciato
 senza l'autorizzazione esplicita al collaudo isolato. La produzione non
 c'entra: NESSUNA autorizzazione implicita, e la guardia anti-produzione
 è attiva in ogni script (`verificaNonProduzione`).

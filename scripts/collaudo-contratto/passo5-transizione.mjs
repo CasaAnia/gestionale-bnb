@@ -11,10 +11,9 @@
 // Le sessioni pg si rilasciano nei finally anche sugli errori.
 // ============================================================================
 import { randomUUID } from 'node:crypto'
-import pg from 'pg'
 import { sql, progetto } from '../fase2b/api.mjs'
 import { verificaNonProduzione } from '../fase2b/guardia.mjs'
-import { LEGACY, bozzaSql, comeMembro, fixtureDocumento, ownerId } from './ambiente.mjs'
+import { LEGACY, bozzaSql, comeMembro, connessionePg, fixtureDocumento, ownerId } from './ambiente.mjs'
 import { attendiQuiescenza, attesaSuTabella, costruisciFaseB, creaContatore, eseguiPasso, provaNegativaFaseA } from './strumenti.mjs'
 import { apriUltimoRegistro } from './registro.mjs'
 
@@ -30,8 +29,8 @@ await eseguiPasso('PASSO 5 · transizione A/B', async () => {
 
   const sessioni = []
   const sessione = async () => {
-    const cli = new pg.Client({ host: `db.${p.ref}.supabase.co`, port: 5432, user: 'postgres', database: 'postgres', password: p.db_pass, ssl: { rejectUnauthorized: false } })
-    await cli.connect(); sessioni.push(cli); return cli
+    const cli = await connessionePg(p)
+    sessioni.push(cli); return cli
   }
   const definizioni = async schema => Object.fromEntries((await sql(`
     select p.proname as nome, pg_get_functiondef(p.oid) as def

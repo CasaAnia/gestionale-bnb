@@ -135,9 +135,12 @@ begin
     return jsonb_build_object('esito', 'DOCUMENTO_NON_MODIFICABILE', 'dettaglio', v_doc.status);
   end if;
   if p_base_rev <> v_doc.revisione_rev then return jsonb_build_object('esito', 'SUPERATA'); end if;
-  if jsonb_typeof(p_modifiche -> 'bozze') <> 'object'
-     or jsonb_typeof(p_modifiche -> 'righe') <> 'object'
-     or jsonb_typeof(p_modifiche -> 'nuove') <> 'array' then
+  -- «is distinct from», MAI «<>»: su una chiave ASSENTE jsonb_typeof dà
+  -- NULL e il confronto a tre valori non farebbe scattare la guardia
+  -- (trovato al collaudo, giro 1 passo 3: batch senza «nuove» applicato)
+  if jsonb_typeof(p_modifiche -> 'bozze') is distinct from 'object'
+     or jsonb_typeof(p_modifiche -> 'righe') is distinct from 'object'
+     or jsonb_typeof(p_modifiche -> 'nuove') is distinct from 'array' then
     return jsonb_build_object('esito', 'MODIFICHE_MALFORMATE');
   end if;
   -- PERIMETRO, stati delle bozze e whitelist: TUTTO prima di scrivere
