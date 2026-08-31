@@ -26,7 +26,7 @@ import type {
 export type GrezzoGruppo = { id: string; name: string; ambito: string | null; sort?: number; emoji?: string | null }
 export type GrezzaCategoria = { id: string; name: string; group_id?: string | null; sort?: number }
 export type GrezzaCategoriaCanonica = { id: string; name: string }
-export type GrezzaSottocategoriaCanonica = { id: string; name: string }
+export type GrezzaSottocategoriaCanonica = { id: string; name: string; canonical_category_id?: string | null }
 export type GrezzaCamera = { id: string; name: string; active?: boolean | null }
 export type GrezzaSpesa = {
   id: string; amount: number; expense_date: string; group_id: string | null

@@ -48,7 +48,7 @@ export async function leggiTutto(): Promise<FonteCompleta> {
     tutta<TabelleGrezze['gruppi'][0]>('family_groups', 'id, name, ambito, sort, emoji'),
     tutta<TabelleGrezze['categorie'][0]>('family_categories', 'id, name, group_id, sort'),
     tutta<TabelleGrezze['categorieCanoniche'][0]>('family_canonical_categories', 'id, name'),
-    tutta<TabelleGrezze['sottocategorieCanoniche'][0]>('family_canonical_subcategories', 'id, name'),
+    tutta<TabelleGrezze['sottocategorieCanoniche'][0]>('family_canonical_subcategories', 'id, name, canonical_category_id'),
     tutta<TabelleGrezze['camere'][0]>('rooms', 'id, name, active'),  // TUTTE: le archiviate risolvono lo storico
     tutta<NonNullable<TabelleGrezze['budget']>[0]>('family_budgets', 'id, ambito, category_name, monthly_amount'),
     tutta<Rule>('family_product_rules', 'id, keyword, group_id, category_id, track_detail'),

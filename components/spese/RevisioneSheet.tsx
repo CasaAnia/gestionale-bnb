@@ -1,13 +1,19 @@
 'use client'
 // ============================================================================
-// REVISIONE DI UN DOCUMENTO (Fase 4 · blocco 3, corretto) — vista sulla
-// logica pura di lib/spese/revisione: originali intatti E CUSTODITI in modo
-// durevole (sopravvivono a Salva, chiusura e riapertura), modifiche
-// pendenti, correzioni alla conferma via RPC atomica. Grafica B; tocchi
-// ≥ 44 px; dubbi col motivo (sfondo tenue, MAI bordi neri).
-// Totale · somma · differenza stanno nel PIEDE FISSO: sempre in vista,
-// anche scorrendo un documento lungo. Un esito INCERTO blocca i pulsanti
-// finché non si chiude e ricontrolla: mai riprovare alla cieca.
+// REVISIONE DI UN DOCUMENTO (Fase 4 · blocco 3, seconda revisione) — vista
+// sulla logica pura di lib/spese/revisione: originali intatti e CUSTODITI,
+// modifiche pendenti, correzioni alla conferma via RPC atomica.
+// Regole di questa schermata:
+//  · custodia ILLEGGIBILE all'apertura → si BLOCCA (niente originali
+//    ricostruiti dal database come se la custodia fosse vuota);
+//  · durante una richiesta i controlli di modifica sono DISABILITATI
+//    (fieldset): la risposta non può sovrascrivere modifiche successive;
+//  · categoria e sottocategoria correggono le CANONICHE (quelle con
+//    precedenza nel contratto), con la coerenza categoria→sottocategoria;
+//  · quantità (3 decimali, mai vuota: default 1), prezzo unitario
+//    (3 decimali, può mancare), sconto (2 decimali, default 0);
+//  · una voce nuova dall'esito incerto si risolve SOLO a mano;
+//  · totale · somma · differenza nel piede FISSO, sempre in vista.
 // ============================================================================
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { X, Plus, ZoomIn, SlidersHorizontal } from 'lucide-react'
@@ -17,7 +23,7 @@ import type { PaginaFoto } from './FotoSheet'
 import {
   aggiungiRiga, apriRevisione, avvisoCoerenzaRiga, blocchiConferma,
   bozzaCorrente, dubbiDi, modificaBozza, modificaRiga, modificaTotale,
-  modifichePendenti, quadratura, reinviaRigaIncerta, rigaCorrente,
+  modifichePendenti, quadratura, rigaCorrente, risolviRigaIncerta,
   togliRigaNuova, totaliSorella, tracciaDa,
   type BozzaGrezza, type RigaGrezza, type StatoRevisione,
 } from '@/lib/spese/revisione'
@@ -26,7 +32,10 @@ import {
   type ClienteRevisione, type EsitoRevisione,
 } from '@/lib/spese/revisioneScrittura'
 import type { DepositoRevisione } from '@/lib/spese/revisioneDurevole'
-import { gestoreImporto, interpretaImporto, testoCampo, type RegolaImporto } from '@/lib/spese/campiImporto'
+import {
+  gestoreImporto, gestoreNumero, interpretaCampo, testoCampo, testoNumero,
+  type RegolaCampo, type RegolaImporto, type RegolaNumero,
+} from '@/lib/spese/campiImporto'
 import { creaGuardiaInvio } from '@/lib/spese/scrittura'
 import { etichettaMetodo } from '@/lib/spese/adattatore'
 
@@ -34,12 +43,14 @@ const eurCent = (c: number) => (c / 100).toFixed(2).replace('.', ',') + ' €'
 const METODI = ['contanti', 'carta_personale', 'carta_attivita', 'bonifico', 'altro']
 const NATURE = [['ordinaria', 'Ordinaria'], ['ricorrente', 'Ricorrente'], ['straordinaria', 'Straordinaria']] as const
 
-export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, camere, pagine, firmaUrl, cliente, deposito, fatto, chiudi }: {
+type PropsRevisione = {
   documento: { id: string; supplier?: string | null; kind: string; doc_total: number | null; note?: string | null }
   bozze: BozzaGrezza[]
   righe: RigaGrezza[]
   gruppi: { id: string; name: string; ambito?: string | null }[]
   categorie: { id: string; name: string; group_id: string }[]
+  canoniche: { id: string; name: string }[]
+  sottoCanoniche: { id: string; name: string; canonical_category_id?: string | null }[]
   camere: { id: string; name: string }[]
   pagine: PaginaFoto[]
   firmaUrl: (storagePath: string) => Promise<string | null>
@@ -47,21 +58,47 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
   deposito: DepositoRevisione
   fatto: (esito: 'confermato' | 'scartato' | 'salvato' | 'verifica') => void   // ricarica la pagina
   chiudi: () => void
-}) {
-  // apertura CON la custodia: se c'è una traccia, gli originali veri e le
-  // modifiche pendenti tornano da lì (il database, dopo un Salva, contiene
-  // già i valori corretti e non basta più da solo)
-  const [inizio] = useState(() => {
-    const lettura = deposito.leggi(documento.id)
-    return {
-      stato: apriRevisione(documento.id, documento.doc_total, bozze, righe, lettura.traccia ?? null),
-      avviso: lettura.errore
-        ? `non riesco a leggere la custodia locale (${lettura.errore}): le correzioni di sessioni precedenti potrebbero non comparire`
-        : null,
-    }
-  })
-  const [stato, setStato] = useState<StatoRevisione>(inizio.stato)
-  const [avvisoCustodia, setAvvisoCustodia] = useState<string | null>(inizio.avviso)
+}
+
+// ---- guscio: prima si legge la CUSTODIA; se è illeggibile ci si FERMA -----
+// (aprire con gli originali presi dal database sembrerebbe innocuo, ma dopo
+// un Salva quel «originale» è già il valore corretto: la prima modifica
+// sovrascriverebbe la traccia vera e le correzioni andrebbero perse)
+export function RevisioneSheet(props: PropsRevisione) {
+  const { documento, deposito, chiudi } = props
+  const [lettura, setLettura] = useState(() => deposito.leggi(documento.id))
+  if (lettura.errore) {
+    return (
+      <Foglio aria="Revisione bloccata: custodia illeggibile" chiudi={chiudi} scorrevole>
+        <p className={`${DISPLAY} text-[19px] mb-2`} style={{ color: t.inchiostro }}>Un attimo: non apro la revisione</p>
+        <div className="mb-3 px-3 py-2 text-[13px] font-semibold" role="alert"
+          style={{ background: t.terraTenue, color: t.rosso, borderRadius: t.r }}>
+          Non riesco a leggere la custodia locale delle correzioni ({lettura.errore}).
+          Aprire adesso userebbe i valori del database come «originali» e le
+          correzioni già fatte andrebbero perse: riprovo a leggere, non tiro a indovinare.
+        </div>
+        <div className="flex gap-2 mb-4">
+          <button onClick={chiudi} className="flex-1 min-h-12 text-[14px] font-bold"
+            style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
+            Chiudi
+          </button>
+          <button onClick={() => setLettura(deposito.leggi(documento.id))}
+            className="flex-[2] min-h-12 text-[14px] font-bold text-white"
+            style={{ background: t.verde, borderRadius: t.rPill }}>
+            Riprova a leggere
+          </button>
+        </div>
+      </Foglio>
+    )
+  }
+  return <RevisioneAperta {...props} statoIniziale={
+    apriRevisione(documento.id, documento.doc_total, props.bozze, props.righe, lettura.traccia ?? null)
+  } />
+}
+
+function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanoniche, camere, pagine, firmaUrl, cliente, deposito, fatto, chiudi, statoIniziale }: PropsRevisione & { statoIniziale: StatoRevisione }) {
+  const [stato, setStato] = useState<StatoRevisione>(statoIniziale)
+  const [avvisoCustodia, setAvvisoCustodia] = useState<string | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
   const [nota, setNota] = useState<string | null>(null)
   const [lavoro, setLavoro] = useState(false)
@@ -71,8 +108,8 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
   const [zoom, setZoom] = useState<{ url: string; grande: boolean; pdf: boolean } | null>(null)
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [dettagli, setDettagli] = useState<Record<string, boolean>>({})
-  // i testi in modifica, ciascuno con la SUA regola (totale/riga/±/facoltativo)
-  const [testi, setTesti] = useState<Record<string, { testo: string; regola: RegolaImporto }>>({})
+  // i testi in modifica, ciascuno con la SUA regola
+  const [testi, setTesti] = useState<Record<string, { testo: string; regola: RegolaCampo }>>({})
   const guardia = useRef(creaGuardiaInvio())
 
   // ogni cambiamento va in custodia: un salvataggio interrotto o una
@@ -91,15 +128,16 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
     const m = new Map(gruppi.map(g => [g.id, (g.ambito === 'azienda' ? 'azienda' : 'personale') as 'personale' | 'azienda']))
     return (id: string | null) => (id ? m.get(id) ?? 'personale' : 'personale')
   }, [gruppi])
+  const nomeCategoria = useMemo(() => new Map(categorie.map(c => [c.id, c.name])), [categorie])
   const q = quadratura(stato)
   // la somma VERA delle righe (quadraturaDocumento la azzera quando manca
   // il totale: a schermo sarebbe fuorviante)
   const sommaCent = stato.bozze.reduce((a, b) => a + totaliSorella(stato, b.id).totaleCent, 0)
-  const blocchi = blocchiConferma(stato, ambitoDi)
+  const blocchi = blocchiConferma(stato, ambitoDi, sottoCanoniche)
   const invalidi = [...new Set(Object.values(testi)
-    .map(v => interpretaImporto(v.regola, v.testo))
+    .map(v => interpretaCampo(v.regola, v.testo))
     .filter(e => e.tipo === 'invalido')
-    .map(e => (e as { perche: string }).perche))]
+    .map(e => e.perche!))]
 
   const apriFoto = async (p: PaginaFoto) => {
     const url = urls[p.id] ?? await firmaUrl(p.storage_path)
@@ -108,11 +146,16 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
     setZoom({ url, grande: false, pdf: p.tipo === 'application/pdf' })
   }
 
-  // il campo importo: la regola decide validità, segno e campo vuoto; il
-  // numero entra nello stato SOLO se valido (mai valori invisibili)
+  const stileCampo = (invalido: boolean) => ({
+    background: t.carta, borderRadius: t.rPill,
+    border: invalido ? `1.5px solid ${t.rosso}` : t.bordoCarta,
+    color: invalido ? t.rosso : t.inchiostro,
+  })
+
+  // campo in CENTESIMI (totale, riga, arrotondamento)
   const campoImporto = (chiave: string, regola: RegolaImporto, correnteCent: number | null, applica: (cent: number | null) => void) => {
     const testo = testi[chiave]?.testo ?? testoCampo(regola, correnteCent)
-    const invalido = testi[chiave] != null && interpretaImporto(regola, testi[chiave].testo).tipo === 'invalido'
+    const invalido = testi[chiave] != null && interpretaCampo(regola, testi[chiave].testo).tipo === 'invalido'
     return (
       <input inputMode="decimal" value={testo}
         placeholder={regola === 'arrotondamento' ? '±0,00' : '0,00'}
@@ -123,11 +166,66 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
           gestoreImporto(regola, applica)(v)
         }}
         className="w-20 min-h-11 px-2 text-[13.5px] text-right tabular-nums outline-none"
-        style={{
-          background: t.carta, borderRadius: t.rPill,
-          border: invalido ? `1.5px solid ${t.rosso}` : t.bordoCarta,
-          color: invalido ? t.rosso : t.inchiostro,
-        }} />
+        style={stileCampo(invalido)} />
+    )
+  }
+
+  // campo NUMERICO fedele alla 0020 (quantità/prezzo unitario/sconto)
+  const campoNumero = (chiave: string, regola: RegolaNumero, corrente: number | null, applica: (valore: number | null) => void) => {
+    const testo = testi[chiave]?.testo ?? testoNumero(corrente)
+    const invalido = testi[chiave] != null && interpretaCampo(regola, testi[chiave].testo).tipo === 'invalido'
+    return (
+      <input inputMode="decimal" value={testo}
+        placeholder={regola === 'quantita' ? '1' : regola === 'sconto' ? '0' : '—'}
+        aria-invalid={invalido}
+        onChange={e => {
+          const v = e.target.value
+          setTesti(prev => ({ ...prev, [chiave]: { testo: v, regola } }))
+          gestoreNumero(regola, applica)(v)
+        }}
+        className="w-full min-h-11 px-2 text-[13.5px] text-right tabular-nums outline-none font-normal"
+        style={stileCampo(invalido)} />
+    )
+  }
+
+  // le CANONICHE (con precedenza nel contratto): cambiare categoria azzera
+  // la SUA sottocategoria (coerenza FK), mai le assegnazioni delle altre voci
+  const selettoreCanonica = (
+    valore: { canonical_category_id: string | null; canonical_subcategory_id: string | null },
+    applica: (campi: { canonical_category_id?: string | null; canonical_subcategory_id?: string | null }) => void,
+    vuotoCat: string, vuotoSotto: string,
+    storiche?: { categoria?: string | null; sottocategoria?: string | null },
+  ) => {
+    const sottoDellaCat = sottoCanoniche.filter(x => x.canonical_category_id === valore.canonical_category_id)
+    return (
+      <div className="flex gap-2 mb-2">
+        <div className="flex-1 min-w-0">
+          <Etichetta>Categoria</Etichetta>
+          <select value={valore.canonical_category_id ?? ''}
+            onChange={e => applica({ canonical_category_id: e.target.value || null, canonical_subcategory_id: null })}
+            className="w-full min-h-11 px-2 text-[13.5px] outline-none"
+            style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
+            <option value="">{vuotoCat}</option>
+            {canoniche.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+          {!valore.canonical_category_id && storiche?.categoria && (
+            <p className="text-[10.5px] px-2 mt-0.5" style={{ color: t.sub }}>oggi vale la storica: {storiche.categoria}</p>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <Etichetta>Sottocategoria</Etichetta>
+          <select value={valore.canonical_subcategory_id ?? ''} disabled={!valore.canonical_category_id}
+            onChange={e => applica({ canonical_subcategory_id: e.target.value || null })}
+            className="w-full min-h-11 px-2 text-[13.5px] outline-none disabled:opacity-50"
+            style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
+            <option value="">{vuotoSotto}</option>
+            {sottoDellaCat.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+          {!valore.canonical_subcategory_id && storiche?.sottocategoria && (
+            <p className="text-[10.5px] px-2 mt-0.5" style={{ color: t.sub }}>storica: {storiche.sottocategoria}</p>
+          )}
+        </div>
+      </div>
     )
   }
 
@@ -135,7 +233,9 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
     setErrore(null); setNota(null); setLavoro(true)
     try {
       const esito = await azione()
-      setStato(esito.stato)                              // id e stati delle righe nuove
+      // i controlli sono DISABILITATI durante l'attesa (fieldset): questo
+      // stato non può sovrascrivere modifiche fatte nel frattempo
+      setStato(esito.stato)
       if (!esito.ok) {
         setErrore(esito.errore)                          // modifiche INTATTE
         if (esito.incerto) setDaVerificare(true)         // stop: prima si riconcilia
@@ -219,6 +319,10 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
           style={{ background: t.terraTenue, color: t.inchiostro, borderRadius: t.r }}>{avvisoCustodia}</div>
       )}
 
+      {/* durante una richiesta TUTTI i controlli di modifica sono spenti:
+          la risposta non può calpestare modifiche fatte nell'attesa */}
+      <fieldset disabled={lavoro} style={{ display: 'contents' }}>
+
       {/* ---- foto e pagine, con zoom (il TIPO si conserva: i PDF sono PDF) ---- */}
       {pagine.length > 0 && (
         <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
@@ -261,8 +365,6 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
         const gruppiSorella = gruppi.filter(g => !b.group_id || ambitoDi(g.id) === ambito)
         const tot = totaliSorella(stato, b.id)
         const dubbi = dubbiDi(b.confidence)
-        // una categoria senza gruppo vale per tutti (sui dati veri il gruppo c'è sempre)
-        const catDelGruppo = categorie.filter(x => !c.group_id || !x.group_id || x.group_id === c.group_id)
         return (
           <section key={b.id} className="mb-4 p-3" style={{ background: t.carta, borderRadius: t.r, border: t.bordoCarta, boxShadow: t.ombra }}>
             <div className="flex items-center justify-between mb-2">
@@ -284,30 +386,17 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
             <div className="flex gap-1.5 flex-wrap mb-2">
               {gruppiSorella.map(g => (
                 <Chip key={g.id} attivo={c.group_id === g.id} colore={accento}
-                  onClick={() => setStato(s => modificaBozza(s, b.id, { group_id: g.id, category_id: null }))}>
+                  onClick={() => setStato(s => modificaBozza(s, b.id, { group_id: g.id }))}>
                   {g.name}
                 </Chip>
               ))}
             </div>
-            <div className="flex gap-2 mb-2">
-              <div className="flex-1">
-                <Etichetta>Categoria</Etichetta>
-                <select value={c.category_id ?? ''}
-                  onChange={e => setStato(s => modificaBozza(s, b.id, { category_id: e.target.value || null }))}
-                  className="w-full min-h-11 px-2 text-[13.5px] outline-none"
-                  style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
-                  <option value="">—</option>
-                  {catDelGruppo.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
-                </select>
-              </div>
-              <div className="flex-1">
-                <Etichetta>Sottocategoria</Etichetta>
-                <input value={c.subcategory ?? ''} placeholder="Non specificata"
-                  onChange={e => setStato(s => modificaBozza(s, b.id, { subcategory: e.target.value || null }))}
-                  className="w-full min-h-11 px-3 text-[13.5px] outline-none"
-                  style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
-              </div>
-            </div>
+            {selettoreCanonica(
+              { canonical_category_id: c.canonical_category_id, canonical_subcategory_id: c.canonical_subcategory_id },
+              campi => setStato(s => modificaBozza(s, b.id, campi)),
+              '—', 'Non specificata',
+              { categoria: c.category_id ? nomeCategoria.get(c.category_id) : null, sottocategoria: c.subcategory },
+            )}
             <div className="flex gap-2 mb-2">
               <div className="flex-1">
                 <Etichetta>Data</Etichetta>
@@ -362,8 +451,6 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
               const rc = rigaCorrente(stato, r.id)
               const dubbiRiga = dubbiDi(r.confidence)
               const coerenza = avvisoCoerenzaRiga(rc)
-              const gruppoRiga = rc.group_id ?? c.group_id
-              const catRiga = categorie.filter(x => !gruppoRiga || !x.group_id || x.group_id === gruppoRiga)
               return (
                 <div key={r.id} className="py-1.5" style={{ opacity: rc.excluded ? 0.45 : 1 }}>
                   <div className="flex items-center gap-2">
@@ -389,7 +476,7 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
                   <p className="text-[10.5px] px-3" style={{ color: t.sub }}>
                     {r.user_added ? 'aggiunta a mano · ' : ''}
                     {r.raw_name && r.raw_name !== rc.name ? `sullo scontrino: «${r.raw_name}»` : ''}
-                    {rc.qty && rc.qty !== 1 ? ` · ×${rc.qty}` : ''}
+                    {rc.qty !== 1 ? ` · ×${testoNumero(rc.qty)}` : ''}
                     {rc.excluded ? ' · esclusa dal conto' : ''}
                   </p>
                   {dubbiRiga.map(d => (
@@ -409,44 +496,34 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
                       <Etichetta>Di chi è questa voce</Etichetta>
                       <div className="flex gap-1.5 flex-wrap mb-2">
                         <Chip attivo={!rc.group_id} colore={accento}
-                          onClick={() => setStato(s => modificaRiga(s, r.id, { group_id: null, category_id: null }))}>
+                          onClick={() => setStato(s => modificaRiga(s, r.id, { group_id: null }))}>
                           Come la parte
                         </Chip>
                         {gruppiSorella.map(g => (
                           <Chip key={g.id} attivo={rc.group_id === g.id} colore={accento}
-                            onClick={() => setStato(s => modificaRiga(s, r.id, { group_id: g.id, category_id: null }))}>
+                            onClick={() => setStato(s => modificaRiga(s, r.id, { group_id: g.id }))}>
                             {g.name}
                           </Chip>
                         ))}
                       </div>
-                      <Etichetta>Categoria della voce</Etichetta>
-                      <select value={rc.category_id ?? ''}
-                        onChange={e => setStato(s => modificaRiga(s, r.id, { category_id: e.target.value || null }))}
-                        className="w-full min-h-11 px-2 mb-2 text-[13.5px] outline-none"
-                        style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
-                        <option value="">Come la parte</option>
-                        {catRiga.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
-                      </select>
-                      <div className="flex items-center gap-2">
+                      {selettoreCanonica(
+                        { canonical_category_id: rc.canonical_category_id, canonical_subcategory_id: rc.canonical_subcategory_id },
+                        campi => setStato(s => modificaRiga(s, r.id, campi)),
+                        'Come la parte', 'Come la parte',
+                        { categoria: rc.category_id ? nomeCategoria.get(rc.category_id) : null, sottocategoria: rc.subcategory },
+                      )}
+                      <div className="flex items-start gap-2">
                         <label className="flex-1 text-[11.5px] font-bold" style={{ color: t.sub }}>Quantità
-                          <input inputMode="numeric" value={rc.qty ?? ''}
-                            onChange={e => {
-                              const v = e.target.value.trim()
-                              if (v === '') setStato(s => modificaRiga(s, r.id, { qty: null }))
-                              else if (/^\d+$/.test(v) && Number(v) > 0) setStato(s => modificaRiga(s, r.id, { qty: Number(v) }))
-                            }}
-                            className="w-full min-h-11 px-2 mt-0.5 text-[13.5px] text-right tabular-nums outline-none font-normal"
-                            style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
+                          <div className="mt-0.5">{campoNumero(`qty-${r.id}`, 'quantita', rc.qty,
+                            v => setStato(s => modificaRiga(s, r.id, { qty: v ?? 1 })))}</div>
                         </label>
                         <label className="flex-1 text-[11.5px] font-bold" style={{ color: t.sub }}>Prezzo unit.
-                          <div className="mt-0.5">{campoImporto(`pu-${r.id}`, 'facoltativo',
-                            rc.unit_price == null ? null : Math.round(rc.unit_price * 100),
-                            cent => setStato(s => modificaRiga(s, r.id, { unit_price: cent == null ? null : cent / 100 })))}</div>
+                          <div className="mt-0.5">{campoNumero(`pu-${r.id}`, 'prezzo_unitario', rc.unit_price,
+                            v => setStato(s => modificaRiga(s, r.id, { unit_price: v })))}</div>
                         </label>
                         <label className="flex-1 text-[11.5px] font-bold" style={{ color: t.sub }}>Sconto
-                          <div className="mt-0.5">{campoImporto(`sc-${r.id}`, 'facoltativo',
-                            rc.discount == null || rc.discount === 0 ? null : Math.round(rc.discount * 100),
-                            cent => setStato(s => modificaRiga(s, r.id, { discount: cent == null ? null : cent / 100 })))}</div>
+                          <div className="mt-0.5">{campoNumero(`sc-${r.id}`, 'sconto', rc.discount === 0 ? null : rc.discount,
+                            v => setStato(s => modificaRiga(s, r.id, { discount: v ?? 0 })))}</div>
                         </label>
                       </div>
                     </div>
@@ -455,25 +532,38 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
               )
             })}
             {stato.righeNuove.filter(r => r.draft_id === b.id).map(r => (
-              <div key={r.idLocale} className="flex items-center gap-2 py-1.5"
-                style={{ opacity: r.stato === 'incerta' ? 0.6 : 1 }}>
-                <span className="flex-1 px-3 text-[13.5px]" style={{ color: t.inchiostro }}>{r.name}
-                  <span className="text-[10.5px] block" style={{ color: r.stato === 'incerta' ? t.rosso : t.sub }}>
-                    {r.stato === 'nuova' ? 'nuova, da salvare'
-                      : r.stato === 'salvata' ? 'aggiunta e salvata ✓'
-                        : 'esito incerto: forse è già stata inserita'}
-                  </span></span>
-                <span className="tabular-nums text-[13.5px] font-semibold" style={{ color: t.inchiostro }}>{eurCent(Math.round(r.amount * 100))}</span>
-                {r.stato === 'nuova' && (
-                  <button onClick={() => setStato(s => togliRigaNuova(s, r.idLocale))} aria-label={`Togli ${r.name}`}
-                    className="min-h-11 min-w-11 text-[12px] font-bold" style={{ color: t.rosso }}>✕</button>
-                )}
+              <div key={r.idLocale} className="py-1.5"
+                style={{ opacity: r.stato === 'incerta' || r.stato === 'in_invio' ? 0.75 : 1 }}>
+                <div className="flex items-center gap-2">
+                  <span className="flex-1 px-3 text-[13.5px]" style={{ color: t.inchiostro }}>{r.name}
+                    <span className="text-[10.5px] block" style={{ color: r.stato === 'nuova' || r.stato === 'salvata' ? t.sub : t.rosso }}>
+                      {r.stato === 'nuova' ? 'nuova, da salvare'
+                        : r.stato === 'salvata' ? 'aggiunta e salvata ✓'
+                          : r.stato === 'in_invio' ? 'invio in corso…'
+                            : 'esito incerto: non so se è stata inserita'}
+                    </span></span>
+                  <span className="tabular-nums text-[13.5px] font-semibold" style={{ color: t.inchiostro }}>{eurCent(Math.round(r.amount * 100))}</span>
+                  {r.stato === 'nuova' && (
+                    <button onClick={() => setStato(s => togliRigaNuova(s, r.idLocale))} aria-label={`Togli ${r.name}`}
+                      className="min-h-11 min-w-11 text-[12px] font-bold" style={{ color: t.rosso }}>✕</button>
+                  )}
+                </div>
                 {r.stato === 'incerta' && !daVerificare && (
-                  <button onClick={() => setStato(s => reinviaRigaIncerta(s, r.idLocale))}
-                    aria-label={`Reinserisci ${r.name}`}
-                    className="min-h-11 px-2 text-[11.5px] font-bold" style={{ color: accento }}>
-                    Reinserisci
-                  </button>
+                  <div className="flex gap-2 mx-3 mt-1">
+                    {r.gemella ? (
+                      <button onClick={() => setStato(s => risolviRigaIncerta(s, r.idLocale))}
+                        className="flex-1 min-h-11 px-2 text-[11.5px] font-bold text-white"
+                        style={{ background: accento, borderRadius: t.rPill }}>
+                        È arrivata: è la voce identica qui sopra
+                      </button>
+                    ) : (
+                      <button onClick={() => setStato(s => risolviRigaIncerta(s, r.idLocale))}
+                        className="flex-1 min-h-11 px-2 text-[11.5px] font-bold"
+                        style={{ color: t.rosso, border: t.bordoCarta, borderRadius: t.rPill }}>
+                        Toglila (se comparisse più tardi, escludila a mano)
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             ))}
@@ -519,6 +609,8 @@ export function RevisioneSheet({ documento, bozze, righe, gruppi, categorie, cam
           </div>
         </div>
       )}
+
+      </fieldset>
 
       {/* ---- zoom della pagina: immagine (2 livelli) o PDF nel suo visore ---- */}
       {zoom && (
@@ -568,7 +660,7 @@ function AggiungiVoce({ accento, aggiungi }: { accento: string; aggiungi: (nome:
       <Plus size={15} /> Aggiungi una voce
     </button>
   )
-  const esito = interpretaImporto('riga', importo)
+  const esito = interpretaCampo('riga', importo)
   return (
     <div className="flex items-center gap-2 py-1.5">
       <input value={nome} onChange={e => setNome(e.target.value)} placeholder="nome della voce"
@@ -577,10 +669,12 @@ function AggiungiVoce({ accento, aggiungi }: { accento: string; aggiungi: (nome:
       <input value={importo} onChange={e => setImporto(e.target.value)} placeholder="€" inputMode="decimal"
         className="w-20 min-h-11 px-2 text-[13.5px] text-right outline-none"
         style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
-      <button disabled={!nome.trim() || esito.tipo !== 'valido' || esito.cent == null}
+      <button disabled={!nome.trim() || esito.tipo !== 'valido'}
         onClick={() => {
-          if (esito.tipo === 'valido' && esito.cent != null) {
-            aggiungi(nome.trim(), esito.cent); setNome(''); setImporto(''); setAperto(false)
+          let centValidi: number | null = null
+          gestoreImporto('riga', c => { centValidi = c })(importo)
+          if (centValidi != null) {
+            aggiungi(nome.trim(), centValidi); setNome(''); setImporto(''); setAperto(false)
           }
         }}
         className="min-h-11 px-3 text-[12.5px] font-bold text-white disabled:opacity-50"

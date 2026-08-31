@@ -12,7 +12,7 @@
 //  · gruppo mancante = bloccante; metodo obbligatorio per Casa Ania;
 //  · necessità e pianificazione FACOLTATIVE: mai valori inventati.
 // ============================================================================
-import { quadraturaDocumento, rigaCoerente, SOGLIA_CONFIDENCE } from './controlli.ts'
+import { canonicaCoerente, quadraturaDocumento, rigaCoerente, SOGLIA_CONFIDENCE } from './controlli.ts'
 
 // gli UNICI campi che la 0021 consente dal browser (fonte unica per tipi,
 // payload, snapshot degli originali e test):
@@ -50,7 +50,9 @@ export type BozzaGrezza = {
 export type RigaGrezza = {
   id: string; draft_id: string
   raw_name: string | null; name: string
-  qty: number | null; unit_price: number | null; discount: number | null
+  // fedeli alla 0020: qty numeric(10,3) NOT NULL > 0 (default 1),
+  // unit_price numeric(10,3) NULL o ≥ 0, discount numeric(10,2) NOT NULL ≥ 0
+  qty: number; unit_price: number | null; discount: number
   amount: number
   group_id: string | null
   category_id: string | null; subcategory: string | null
@@ -72,33 +74,60 @@ export type ModificaRiga = Partial<Pick<RigaGrezza,
   | 'canonical_subcategory_id' | 'necessity' | 'planning' | 'excluded'>>
 export type RigaNuova = {
   draft_id: string; name: string; amount: number
-  qty?: number | null; unit_price?: number | null; discount?: number | null
+  qty?: number; unit_price?: number | null; discount?: number
   group_id?: string | null; category_id?: string | null; subcategory?: string | null
   canonical_category_id?: string | null; canonical_subcategory_id?: string | null
   necessity?: string | null; planning?: string | null
 }
 // una riga nuova nello stato: con la sua RESPONSABILITÀ tracciata.
-//  'nuova'   = mai inviata; 'salvata' = inserita, id noto (MAI reinviata);
-//  'incerta' = risposta persa: forse è arrivata — si riconcilia alla
-//              riapertura (per contenuto), mai reinvio alla cieca.
+//  'nuova'    = mai inviata;
+//  'in_invio' = custodita PRIMA della richiesta: se la pagina muore qui,
+//               alla riapertura diventa 'incerta' (mai un secondo INSERT);
+//  'salvata'  = inserita, id noto (MAI reinviata);
+//  'incerta'  = esito ignoto: si risolve SOLO con una scelta esplicita
+//               dell'utente (nessun reinvio automatico, nessuna
+//               riconciliazione arbitraria).
 export type RigaNuovaPendente = RigaNuova & {
   idLocale: string
-  stato: 'nuova' | 'salvata' | 'incerta'
+  stato: 'nuova' | 'in_invio' | 'salvata' | 'incerta'
   id?: string                             // l'id vero, dopo l'inserimento
+  gemella?: string                        // riapertura: id di una voce del
+                                          // database IDENTICA in ogni campo
+                                          // (proposta all'utente, mai applicata da sola)
 }
 
-// il payload ESPLICITO dell'INSERT: solo le colonne concesse dalla 0021
-// (mai l'oggetto dello stato com'è: idLocale/stato/id non esistono a valle)
+// il payload ESPLICITO dell'INSERT: solo le colonne concesse dalla 0021,
+// con i DEFAULT della 0020 dove NULL è vietato (qty=1, discount=0) — un
+// NULL esplicito non applicherebbe il default e verrebbe rifiutato
 export function payloadRigaNuova(r: RigaNuova): RigaNuova {
   return {
     draft_id: r.draft_id, name: r.name, amount: r.amount,
-    qty: r.qty ?? null, unit_price: r.unit_price ?? null, discount: r.discount ?? null,
+    qty: r.qty ?? 1, unit_price: r.unit_price ?? null, discount: r.discount ?? 0,
     group_id: r.group_id ?? null, category_id: r.category_id ?? null,
     subcategory: r.subcategory ?? null,
     canonical_category_id: r.canonical_category_id ?? null,
     canonical_subcategory_id: r.canonical_subcategory_id ?? null,
     necessity: r.necessity ?? null, planning: r.planning ?? null,
   }
+}
+
+// due righe sono «la stessa operazione» SOLO se identiche in TUTTI i campi
+// del payload (nome e importo non bastano: quantità o destinatario diversi
+// smentiscono l'identità). Anche così resta una FORTE somiglianza, non una
+// prova: per questo la gemella viene PROPOSTA, mai collegata da sola.
+export function stessaRigaNuova(db: RigaGrezza, pendente: RigaNuova): boolean {
+  const p = payloadRigaNuova(pendente)
+  return db.draft_id === p.draft_id && db.name === p.name
+    && Math.round(db.amount * 100) === Math.round(p.amount * 100)
+    && db.qty === p.qty && (db.unit_price ?? null) === (p.unit_price ?? null)
+    && db.discount === p.discount
+    && (db.group_id ?? null) === (p.group_id ?? null)
+    && (db.category_id ?? null) === (p.category_id ?? null)
+    && (db.subcategory ?? null) === (p.subcategory ?? null)
+    && (db.canonical_category_id ?? null) === (p.canonical_category_id ?? null)
+    && (db.canonical_subcategory_id ?? null) === (p.canonical_subcategory_id ?? null)
+    && (db.necessity ?? null) === (p.necessity ?? null)
+    && (db.planning ?? null) === (p.planning ?? null)
 }
 
 // lo STATO della revisione in corso: originali intatti + modifiche pendenti
@@ -196,23 +225,23 @@ export function apriRevisione(
     if (Object.keys(diff).length) modificheRighe[r.id] = diff
     return originale
   })
-  // righe nuove: le 'salvata' arrivate dal database si tolgono (sono tra le
-  // righe vere); le 'incerta' si RICONCILIANO per contenuto tra le righe
-  // user_added comparse dopo lo snapshot; il resto resta pendente
+  // righe nuove: le 'salvata' arrivate dal database si tolgono (l'id è la
+  // prova). 'in_invio' significa che la pagina è morta con una richiesta
+  // per aria: diventa 'incerta'. Le 'incerta' NON si riconciliano da sole
+  // (una somiglianza non è un'identità): se tra le righe user_added
+  // comparse dopo lo snapshot ce n'è una IDENTICA in tutti i campi, viene
+  // PROPOSTA come gemella — decide l'utente, mai il codice.
   const noteAlloSnapshot = new Set(Object.keys(traccia.originaliRighe))
   const comparse = righeAttive.filter(r => r.user_added && !noteAlloSnapshot.has(r.id))
   const reclamate = new Set(traccia.righeNuove.filter(n => n.id).map(n => n.id as string))
-  const righeNuove = traccia.righeNuove.filter(n => {
-    if (n.stato === 'salvata') return !n.id || !righeAttive.some(r => r.id === n.id)
-    if (n.stato === 'incerta') {
-      const gemella = comparse.find(r => !reclamate.has(r.id)
-        && r.draft_id === n.draft_id && r.name === n.name
-        && Math.round(r.amount * 100) === Math.round(n.amount * 100))
-      if (gemella) { reclamate.add(gemella.id); return false }   // è arrivata
-      return true                                                 // resta incerta
-    }
-    return true
-  })
+  const righeNuove = traccia.righeNuove
+    .filter(n => n.stato !== 'salvata' || !n.id || !righeAttive.some(r => r.id === n.id))
+    .map(n => {
+      if (n.stato !== 'incerta' && n.stato !== 'in_invio') return n
+      const gemella = comparse.find(r => !reclamate.has(r.id) && stessaRigaNuova(r, n))
+      if (gemella) reclamate.add(gemella.id)
+      return { ...n, stato: 'incerta' as const, gemella: gemella?.id }
+    })
   return {
     documentId,
     docTotaleCent: traccia.docTotaleCent,
@@ -242,11 +271,12 @@ export const aggiungiRiga = (s: StatoRevisione, riga: RigaNuova, idLocale: strin
 // non concede DELETE), 'incerta' è una responsabilità da riconciliare
 export const togliRigaNuova = (s: StatoRevisione, idLocale: string): StatoRevisione =>
   ({ ...s, righeNuove: s.righeNuove.filter(r => r.idLocale !== idLocale || r.stato !== 'nuova') })
-// una riga incerta NON trovata alla riapertura può essere reinviata SOLO
-// per scelta esplicita dell'utente: torna 'nuova'
-export const reinviaRigaIncerta = (s: StatoRevisione, idLocale: string): StatoRevisione =>
-  ({ ...s, righeNuove: s.righeNuove.map(r =>
-    r.idLocale === idLocale && r.stato === 'incerta' ? { ...r, stato: 'nuova' as const, id: undefined } : r) })
+// una riga incerta si RISOLVE solo per scelta esplicita dell'utente: o
+// riconosce la gemella proposta («è questa»), o la toglie sapendo che, se
+// l'invio perso arrivasse più tardi, la voce comparsa andrà esclusa a
+// mano. In nessun caso il codice reinvia da solo.
+export const risolviRigaIncerta = (s: StatoRevisione, idLocale: string): StatoRevisione =>
+  ({ ...s, righeNuove: s.righeNuove.filter(r => r.idLocale !== idLocale || r.stato !== 'incerta') })
 export const modificaTotale = (s: StatoRevisione, cent: number | null): StatoRevisione =>
   ({ ...s, docTotaleCent: cent })
 
@@ -265,9 +295,9 @@ const centDi = (n: number) => Math.round(n * 100)
 
 export function totaliSorella(s: StatoRevisione, bozzaId: string) {
   const righe = s.righe.filter(r => r.draft_id === bozzaId).map(r => rigaCorrente(s, r.id))
-  // le 'incerta' NON contano nei totali: non si sa se esistono — vanno
-  // riconciliate (e intanto bloccano la conferma)
-  const nuove = s.righeNuove.filter(r => r.draft_id === bozzaId && r.stato !== 'incerta')
+  // le 'incerta' (e le 'in_invio') NON contano nei totali: non si sa se
+  // esistono — vanno risolte (e intanto bloccano la conferma)
+  const nuove = s.righeNuove.filter(r => r.draft_id === bozzaId && r.stato !== 'incerta' && r.stato !== 'in_invio')
   const attiveCent = [
     ...righe.filter(r => !r.excluded).map(r => centDi(r.amount)),
     ...nuove.map(r => centDi(r.amount)),
@@ -297,6 +327,7 @@ export function quadratura(s: StatoRevisione) {
 export function blocchiConferma(
   s: StatoRevisione,
   ambitoDelGruppo: (groupId: string | null) => 'personale' | 'azienda',
+  sottoCanoniche?: { id: string; canonical_category_id?: string | null }[],
 ): string[] {
   const blocchi: string[] = []
   const q = quadratura(s)
@@ -324,8 +355,20 @@ export function blocchiConferma(
       if (n.group_id && ambitoDelGruppo(n.group_id) !== ambitoParte)
         blocchi.push('una voce ha un destinatario dell\'altro ambito rispetto alla sua parte: correggila')
   }
-  if (s.righeNuove.some(r => r.stato === 'incerta'))
-    blocchi.push('una voce aggiunta ha l\'esito incerto: chiudi e ricontrolla prima di confermare')
+  if (s.righeNuove.some(r => r.stato === 'incerta' || r.stato === 'in_invio'))
+    blocchi.push('una voce aggiunta ha l\'esito incerto: va risolta prima di confermare')
+  // coerenza canonica (la stessa FK composita della 0020): la
+  // sottocategoria deve appartenere alla categoria scelta
+  if (sottoCanoniche) {
+    const canoniche = sottoCanoniche.map(x => ({ id: x.id, canonical_category_id: x.canonical_category_id ?? '' }))
+    const controlla = (scelta: { canonical_category_id: string | null; canonical_subcategory_id: string | null }) => {
+      if (!canonicaCoerente(scelta, canoniche))
+        blocchi.push('la sottocategoria non appartiene alla categoria scelta: sistemala')
+    }
+    for (const b of s.bozze) controlla(bozzaCorrente(s, b.id))
+    for (const r of s.righe) controlla(rigaCorrente(s, r.id))
+    for (const n of s.righeNuove) controlla({ canonical_category_id: n.canonical_category_id ?? null, canonical_subcategory_id: n.canonical_subcategory_id ?? null })
+  }
   return [...new Set(blocchi)]
 }
 

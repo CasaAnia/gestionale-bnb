@@ -35,6 +35,20 @@ function supabaseFinto(opzioni: { errori?: Record<string, string>; righeToccate?
     if (!consentite) throw new Error(`tabella o verbo imprevisti: ${tabella}:${verbo}`)
     for (const k of Object.keys(campi))
       if (!consentite.has(k)) throw new Error(`colonna «${k}» inesistente o non concessa in ${verbo} su ${tabella}`)
+    // VALORI e VINCOLI della 0020 sulle righe, non solo i nomi: un NULL
+    // esplicito su qty/discount NON applica il default e viene rifiutato
+    if (tabella === 'family_draft_items') {
+      if ('qty' in campi && (campi.qty == null || typeof campi.qty !== 'number' || campi.qty <= 0))
+        throw new Error('vincolo violato: qty NOT NULL > 0 (null esplicito non applica il default)')
+      if ('discount' in campi && (campi.discount == null || typeof campi.discount !== 'number' || (campi.discount as number) < 0))
+        throw new Error('vincolo violato: discount NOT NULL >= 0 (null esplicito non applica il default)')
+      if ('amount' in campi && (campi.amount == null || typeof campi.amount !== 'number' || (campi.amount as number) < 0))
+        throw new Error('vincolo violato: amount NOT NULL >= 0')
+      if ('unit_price' in campi && campi.unit_price != null && (typeof campi.unit_price !== 'number' || (campi.unit_price as number) < 0))
+        throw new Error('vincolo violato: unit_price NULL o >= 0')
+      if ('name' in campi && (typeof campi.name !== 'string' || !campi.name))
+        throw new Error('vincolo violato: name NOT NULL')
+    }
   }
   const finto: SupabaseRevisione = {
     from(tabella) {
@@ -99,7 +113,7 @@ const riga = (x: Partial<RigaGrezza> & { id: string; draft_id: string; amount: n
   necessity: null, planning: null, excluded: false, user_added: false, confidence: null, ...x,
 })
 
-test('INSERT della riga nuova: il payload contiene SOLO le colonne concesse dalla 0021 (mai idLocale/stato/id)', async () => {
+test('INSERT della riga nuova: SOLO colonne concesse dalla 0021 e VALORI validi per la 0020 (qty=1 e discount=0, mai NULL vietati)', async () => {
   const { finto, chiamate } = supabaseFinto()
   const cliente = creaClienteRevisione(finto)
   // arriva l'oggetto dello STATO, con idLocale e stato: l'adattatore lo pulisce
@@ -111,6 +125,34 @@ test('INSERT della riga nuova: il payload contiene SOLO le colonne concesse dall
   const payload = chiamate[0].payload as Record<string, unknown>
   assert.deepEqual(Object.keys(payload).sort(), [...CAMPI_RIGA_NUOVA].sort())
   assert.ok(!('idLocale' in payload) && !('stato' in payload) && !('id' in payload))
+  // i NOT NULL viaggiano coi default della 0020, mai come null
+  assert.equal(payload.qty, 1)
+  assert.equal(payload.discount, 0)
+  assert.equal(payload.unit_price, null)
+  // la precisione a 3 decimali di qty/unit_price passa intera
+  await cliente.aggiungiRiga({ draft_id: 'b1', name: 'Ciliegie', amount: 3.75, qty: 0.472, unit_price: 7.945 })
+  const secondo = chiamate[1].payload as Record<string, unknown>
+  assert.equal(secondo.qty, 0.472)
+  assert.equal(secondo.unit_price, 7.945)
+})
+
+test('risposta dell\'INSERT senza id: INCERTO (non un rifiuto ordinario) — il chiamante non deve poterla reinviare', async () => {
+  const { finto } = supabaseFinto()
+  const strano: SupabaseRevisione = {
+    ...finto,
+    from(tabella) {
+      const vero = finto.from(tabella)
+      return {
+        ...vero,
+        insert: () => ({ select: () => ({ async single() { return { data: {}, error: null } } }) }),
+      }
+    },
+  }
+  const cliente = creaClienteRevisione(strano)
+  const esito = await cliente.aggiungiRiga({ draft_id: 'b1', name: 'Sacchetto', amount: 0.5 })
+  assert.equal(esito.id, undefined)
+  assert.equal(esito.incerto, true)
+  assert.ok(esito.errore?.includes('id'))
 })
 
 test('sequenza intera con l\'adattatore vero: Salva ripetuto poi Conferma — UN insert, UNA RPC, correzioni nella RPC', async () => {

@@ -50,7 +50,9 @@ export function creaClienteRevisione(supabase: SupabaseRevisione): ClienteRevisi
         .select('id').single()
       if (error) return { errore: error.message }
       const id = (data as { id?: string } | null)?.id
-      if (!id) return { errore: 'inserimento senza id restituito' }
+      // risposta senza id: NON è un rifiuto ordinario — l'inserimento può
+      // essere avvenuto. Il chiamante non deve poterla reinviare da solo.
+      if (!id) return { errore: 'la risposta non contiene l\'id della voce inserita', incerto: true }
       return { id }
     },
     async confermaDocumento(documentId, correzioni) {

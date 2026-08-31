@@ -1460,6 +1460,69 @@ se la precedente non è verificata E approvata.
   revisioneDurevole, revisioneClient con le sequenze intere, revisione
   con custodia/riconciliazione/incerti/coerenza); tsc, lint, build
   verdi. Prove UI a 390 px documentate nel resoconto.
+
+  **FASE 4 · BLOCCO 3 — SECONDA TORNATA DI CORREZIONI (31/08/2026).**
+  Cinque punti dalla revisione indipendente, tutti locali:
+  1) SCHEMA — qty numeric(10,3) NOT NULL>0 (default 1) e discount
+     numeric(10,2) NOT NULL≥0 (default 0) della 0020 rispettati OVUNQUE:
+     tipi RigaGrezza/RigaNuova allineati (qty e discount mai null),
+     payloadRigaNuova manda i DEFAULT (mai NULL espliciti, che non
+     applicherebbero il default), campi UI dedicati con la precisione
+     vera (quantità e prezzo unitario a TRE decimali, sconto a due;
+     svuotare → default, mai NULL). I servizi finti (test e pagina
+     sintetica) ora validano VALORI e VINCOLI, non solo i nomi.
+  2) RIGHE NUOVE SENZA DOPPIONI — la responsabilità si persiste PRIMA
+     della richiesta: stato 'in_invio' custodito prima dell'INSERT (se
+     la custodia fallisce, l'INSERT non parte); pagina morta con la
+     risposta per aria → alla riapertura 'in_invio' diventa 'incerta',
+     MAI un secondo INSERT (test con richiesta sospesa). Gli errori di
+     custodisci non sono più ignorati (avviso nell'esito; la traccia
+     precedente, più prudente, resta). L'adattatore marca INCERTO
+     (non errore ordinario) la risposta senza id. La riconciliazione
+     non è più «per somiglianza»: una voce comparsa IDENTICA in TUTTI i
+     campi del payload viene solo PROPOSTA come gemella («È arrivata: è
+     questa»), la voce senza gemella si può solo TOGLIERE consapevolmente;
+     il bottone «Reinserisci» è stato eliminato. LIMITE DICHIARATO
+     (aperto): senza un identificativo idempotente lato database una
+     richiesta persa può completarsi DOPO qualunque lettura — proposta
+     separata in fondo, NON implementata.
+  3) CUSTODIA ILLEGGIBILE ALL'APERTURA — la revisione NON si apre: foglio
+     bloccato con spiegazione e «Riprova a leggere» finché la traccia non
+     è leggibile (mai originali ricostruiti dal database come se la
+     custodia fosse vuota; salva/rimuovi già non sovrascrivono
+     l'illeggibile).
+  4) MODIFICHE DURANTE UNA RICHIESTA — tutti i controlli di modifica
+     stanno in un fieldset DISABILITATO mentre lavoro=true: la risposta
+     non può calpestare modifiche fatte nell'attesa (verificato live:
+     59/59 controlli :disabled durante il Salva). Chiusura/riapertura a
+     richiesta in corso: coperta dalla custodia (modifiche + 'in_invio').
+  5) CANONICHE DALLA UI — Categoria e Sottocategoria (madre e riga)
+     correggono canonical_category_id/canonical_subcategory_id (quelle
+     con precedenza nel contratto): cambiare categoria azzera SOLO la
+     propria sottocategoria (coerenza FK composita), mai le altre voci;
+     «Come la parte» = null sulla riga; suggerimento «oggi vale la
+     storica: X» quando la canonica manca; blocco canonicaCoerente alla
+     conferma. fonte.ts ora legge canonical_category_id delle
+     sottocanoniche; fixture canoniche nella pagina sintetica.
+     Verificato alla rilettura: Alimentari→Scuola/Cartoleria e qty 0,472
+     mostrate dopo Salva+riapertura, originali custoditi.
+  Test: 282/282 (nuovi: vincoli e valori, richiesta sospesa, custodia
+  selettivamente guasta, gemella proposta/rifiutata per qty o gruppo
+  diversi, canoniche in blocchi e correzioni); tsc, lint, build verdi.
+  ?scrittura=lenta aggiunta alla pagina sintetica per la prova dei
+  controlli spenti.
+
+  **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
+  idempotente per le righe nuove.** Per chiudere l'ambiguità residua
+  del punto 2 servirebbe una colonna `client_key uuid` su
+  family_draft_items con indice UNIQUE parziale (where client_key is
+  not null) e la colonna concessa in INSERT dalla 0021: il browser
+  genererebbe la chiave PRIMA dell'invio (già custodita come idLocale),
+  un reinvio con la stessa chiave sarebbe riconosciuto dal database
+  (conflitto o SELECT per chiave) e la riconciliazione diventerebbe
+  esatta, senza confronti di contenuto. Richiede una migrazione nuova:
+  se la volete, la scrivo come 0023 con collaudo separato prima di
+  toccare la produzione.
 - **Fase 4 — Ciclo di revisione**: bozze, RevisioneSpesa, controlli.ts,
   duplicati, correzioni, conferma atomica; scontrini.md riscritto per il
   contratto "solo bozze".

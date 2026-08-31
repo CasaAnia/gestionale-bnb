@@ -45,9 +45,11 @@ function clienteFinto(fallisci: boolean): ClienteScrittura {
 //   ?scrittura=errore → il server RIFIUTA (quadratura simulata)
 //   ?scrittura=rete   → errore RESTITUITO «Failed to fetch» (esito incerto)
 //   ?scrittura=persa  → ECCEZIONE «Failed to fetch» (risposta persa)
+//   ?scrittura=lenta  → risposte in 2,5 s (per vedere i controlli SPENTI)
 type ArchivioRevisione = { docTotale: number | null; bozze: BozzaGrezza[]; righe: RigaGrezza[]; contatore: number }
 
 function clienteRevisioneFinto(modo: string | null, db: ArchivioRevisione): ClienteRevisione {
+  const attesa = () => modo === 'lenta' ? new Promise(r => setTimeout(r, 2500)) : Promise.resolve()
   const guasto = () => {
     if (modo === 'persa') throw new Error('Failed to fetch (finto: risposta persa)')
     if (modo === 'rete') return { errore: 'Failed to fetch (finto: errore di rete restituito)' }
@@ -56,32 +58,39 @@ function clienteRevisioneFinto(modo: string | null, db: ArchivioRevisione): Clie
   }
   return {
     async aggiornaDocTotale(_id, totale) {
-      const g = guasto(); if (g) return g
+      await attesa(); const g = guasto(); if (g) return g
       db.docTotale = totale; return { righe: 1 }
     },
     async aggiornaBozza(id, campi) {
-      const g = guasto(); if (g) return g
+      await attesa(); const g = guasto(); if (g) return g
       const b = db.bozze.find(x => x.id === id); if (!b) return { righe: 0 }
       Object.assign(b, campi); return { righe: 1 }
     },
     async aggiornaRiga(id, campi) {
-      const g = guasto(); if (g) return g
+      await attesa(); const g = guasto(); if (g) return g
       const r = db.righe.find(x => x.id === id); if (!r) return { righe: 0 }
+      // NOT NULL della 0020 anche in UPDATE: qty/discount/amount mai null
+      for (const k of ['qty', 'discount', 'amount', 'name'] as const)
+        if (k in campi && (campi as Record<string, unknown>)[k] == null) return { errore: `null vietato su ${k} (finto)` }
       Object.assign(r, campi); return { righe: 1 }
     },
     async aggiungiRiga(riga) {
-      const g = guasto(); if (g) return g
-      // RIGORE come il database: solo le colonne concesse in INSERT dalla
-      // 0021 — un campo estraneo (idLocale…) qui esploderebbe, come là
+      await attesa(); const g = guasto(); if (g) return g
+      // RIGORE come il database: colonne concesse dalla 0021 E vincoli
+      // della 0020 (qty NOT NULL > 0, discount NOT NULL ≥ 0, amount ≥ 0)
       const consentite = new Set<string>(CAMPI_RIGA_NUOVA)
       for (const k of Object.keys(riga)) if (!consentite.has(k)) return { errore: `colonna inesistente: ${k} (finto)` }
+      if (riga.qty == null || riga.qty <= 0) return { errore: 'vincolo violato: qty NOT NULL > 0 (finto)' }
+      if (riga.discount == null || riga.discount < 0) return { errore: 'vincolo violato: discount NOT NULL ≥ 0 (finto)' }
+      if (riga.amount == null || riga.amount < 0) return { errore: 'vincolo violato: amount ≥ 0 (finto)' }
       const id = `finta-${++db.contatore}`
       db.righe.push({
         id, draft_id: riga.draft_id, raw_name: null, name: riga.name,
-        qty: riga.qty ?? null, unit_price: riga.unit_price ?? null, discount: riga.discount ?? null,
+        qty: riga.qty, unit_price: riga.unit_price ?? null, discount: riga.discount,
         amount: riga.amount, group_id: riga.group_id ?? null,
         category_id: riga.category_id ?? null, subcategory: riga.subcategory ?? null,
-        canonical_category_id: null, canonical_subcategory_id: null,
+        canonical_category_id: riga.canonical_category_id ?? null,
+        canonical_subcategory_id: riga.canonical_subcategory_id ?? null,
         necessity: riga.necessity ?? null, planning: riga.planning ?? null,
         excluded: false, user_added: true, confidence: null,
       })
@@ -175,6 +184,8 @@ export default function Prova() {
           righe={JSON.parse(JSON.stringify(archivio.righe)) as RigaGrezza[]}
           gruppi={TABELLE_FINTE.gruppi.map(g => ({ id: g.id, name: g.name, ambito: g.ambito ?? 'personale' }))}
           categorie={TABELLE_FINTE.categorie.map(x => ({ id: x.id, name: x.name, group_id: x.group_id ?? '' }))}
+          canoniche={TABELLE_FINTE.categorieCanoniche}
+          sottoCanoniche={TABELLE_FINTE.sottocategorieCanoniche}
           camere={TABELLE_FINTE.camere}
           pagine={PAGINE_FINTE}
           firmaUrl={urlFinto}

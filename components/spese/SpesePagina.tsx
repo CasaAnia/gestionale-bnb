@@ -336,6 +336,8 @@ function Pagina({ ambito }: { ambito: Ambito }) {
             righe={fonte.righeBozza.filter(r => idBozze.has(r.draft_id)) as unknown as RigaGrezza[]}
             gruppi={fonte.gruppi}
             categorie={fonte.categorie as { id: string; name: string; group_id: string }[]}
+            canoniche={fonte.categorieCanoniche}
+            sottoCanoniche={fonte.sottocategorieCanoniche}
             camere={camereAttive}
             pagine={fonte.ricevute
               .filter(r => r.document_id === revisioneId && r.storage_path)

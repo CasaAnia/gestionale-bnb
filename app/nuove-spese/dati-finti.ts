@@ -121,14 +121,25 @@ export const TABELLE_FINTE: TabelleGrezze = {
     },
   ],
   righeBozza: [
-    { id: 'rb1', draft_id: 'b-rev-mia', raw_name: 'FRUTTA MISTA KG1', name: 'Frutta mista 1 kg', qty: 1, unit_price: 4.5, discount: 0, amount: 4.5, group_id: null, category_id: 'c-spesa', subcategory: 'Frutta', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: false, user_added: false },
+    // rb1 con la CANONICA già assegnata (Alimentari): serve a provare che
+    // la UI corregge davvero le canoniche, che hanno la precedenza
+    { id: 'rb1', draft_id: 'b-rev-mia', raw_name: 'FRUTTA MISTA KG1', name: 'Frutta mista 1 kg', qty: 1, unit_price: 4.5, discount: 0, amount: 4.5, group_id: null, category_id: 'c-spesa', subcategory: 'Frutta', canonical_category_id: 'can-alim', canonical_subcategory_id: 'can-frutta', necessity: null, planning: null, confidence: {}, excluded: false, user_added: false },
     { id: 'rb2', draft_id: 'b-rev-mia', raw_name: 'PANE COMUNE', name: 'Pane comune', qty: 1, unit_price: 2.5, discount: 0, amount: 2.5, group_id: null, category_id: 'c-spesa', subcategory: 'Pane', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: { amount: { confidence: 0.6, doubt_reason: 'importo poco leggibile' } }, excluded: false, user_added: false },
     { id: 'rb3', draft_id: 'b-rev-mia', raw_name: 'PANE COMUNE', name: 'Pane (letto due volte)', qty: 1, unit_price: 2.5, discount: 0, amount: 2.5, group_id: null, category_id: 'c-spesa', subcategory: 'Pane', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: true, user_added: false },
     { id: 'rb4', draft_id: 'b-rev-mia', raw_name: null, name: 'Sacchetto', qty: 1, unit_price: 0.5, discount: 0, amount: 0.5, group_id: null, category_id: 'c-spesa', subcategory: 'Sacchetti', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: false, user_added: true },
     { id: 'rb5', draft_id: 'b-rev-bnb', raw_name: 'ACETO ALCOL X2', name: 'Aceto di alcol ×2', qty: 2, unit_price: 2.5, discount: 0, amount: 5, group_id: null, category_id: 'c-pulizia', subcategory: 'Detersivi', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: false, user_added: false },
   ],
-  categorieCanoniche: [],
-  sottocategorieCanoniche: [],
+  categorieCanoniche: [
+    { id: 'can-alim', name: 'Alimentari' },
+    { id: 'can-scuola', name: 'Scuola' },
+    { id: 'can-pulizia', name: 'Pulizia casa' },
+  ],
+  sottocategorieCanoniche: [
+    { id: 'can-frutta', name: 'Frutta e verdura', canonical_category_id: 'can-alim' },
+    { id: 'can-pane', name: 'Pane', canonical_category_id: 'can-alim' },
+    { id: 'can-cartoleria', name: 'Cartoleria', canonical_category_id: 'can-scuola' },
+    { id: 'can-detersivi', name: 'Detersivi', canonical_category_id: 'can-pulizia' },
+  ],
   ricevute: [
     { id: 'f-coda', document_id: 'd-coda' },
     { id: 'f-misto', document_id: 'd-misto' },

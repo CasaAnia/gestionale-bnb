@@ -8,7 +8,7 @@
 // ============================================================================
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { gestoreImporto, interpretaImporto, testoCampo } from './campiImporto.ts'
+import { gestoreImporto, gestoreNumero, interpretaImporto, testoCampo, testoNumero } from './campiImporto.ts'
 import { apriRevisione, blocchiConferma, modificaTotale, quadratura } from './revisione.ts'
 import type { BozzaGrezza, RigaGrezza } from './revisione.ts'
 
@@ -75,6 +75,34 @@ test('RIGA: mai vuota, mai zero, mai negativa — invalida BLOCCA e non applica 
   assert.equal(gestore('0').tipo, 'invalido')
   assert.equal(gestore('-1').tipo, 'invalido')
   assert.deepEqual(applicati, [250])
+})
+
+test('CAMPI NUMERICI fedeli alla 0020: quantità 3 decimali MAI null (vuota→1), prezzo 3 decimali nullable, sconto 2 decimali MAI null (vuoto→0)', () => {
+  const quantita: (number | null)[] = []
+  const gq = gestoreNumero('quantita', v => quantita.push(v))
+  assert.equal(gq('0,472').tipo, 'valido')             // kg con tre decimali
+  assert.equal(gq('3').tipo, 'valido')
+  assert.equal(gq('').tipo, 'valido')                  // svuotata → DEFAULT 1, mai null
+  assert.deepEqual(quantita, [0.472, 3, 1])
+  assert.equal(gq('0').tipo, 'invalido')               // check qty > 0
+  assert.equal(gq('1,2345').tipo, 'invalido')          // oltre i 3 decimali
+  assert.deepEqual(quantita, [0.472, 3, 1])
+  const prezzi: (number | null)[] = []
+  const gp = gestoreNumero('prezzo_unitario', v => prezzi.push(v))
+  assert.equal(gp('7,945').tipo, 'valido')             // tre decimali conservati
+  assert.equal(gp('').tipo, 'valido')                  // può mancare (nullable vero)
+  assert.deepEqual(prezzi, [7.945, null])
+  const sconti: (number | null)[] = []
+  const gs = gestoreNumero('sconto', v => sconti.push(v))
+  assert.equal(gs('1,50').tipo, 'valido')
+  assert.equal(gs('0').tipo, 'valido')                 // zero esplicito vale
+  assert.equal(gs('').tipo, 'valido')                  // svuotato → DEFAULT 0, mai null
+  assert.deepEqual(sconti, [1.5, 0, 0])
+  assert.equal(gs('1,505').tipo, 'invalido')           // lo sconto ha 2 decimali
+  // visualizzazione senza il punto anglosassone
+  assert.equal(testoNumero(0.472), '0,472')
+  assert.equal(testoNumero(1), '1')
+  assert.equal(testoNumero(null), '')
 })
 
 test('FACOLTATIVO (prezzo unitario, sconto): vuoto vale assente, positivo vale, zero e negativo no', () => {

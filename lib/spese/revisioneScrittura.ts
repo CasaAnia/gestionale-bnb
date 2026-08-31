@@ -25,7 +25,9 @@ export type ClienteRevisione = {
   aggiornaDocTotale(documentId: string, totale: number | null): Promise<{ errore?: string; righe?: number }>
   aggiornaBozza(id: string, campi: ModificaBozza): Promise<{ errore?: string; righe?: number }>
   aggiornaRiga(id: string, campi: ModificaRiga): Promise<{ errore?: string; righe?: number }>
-  aggiungiRiga(riga: RigaNuova): Promise<{ errore?: string; id?: string }>
+  // incerto=true quando NON si può sapere se l'inserimento è avvenuto
+  // (es. risposta senza id): non è un rifiuto ordinario
+  aggiungiRiga(riga: RigaNuova): Promise<{ errore?: string; id?: string; incerto?: boolean }>
   // le RPC atomiche esistenti — MAI insert diretti nelle spese definitive
   confermaDocumento(documentId: string, correzioni: Record<string, unknown>[]): Promise<{ ids?: string[]; errore?: string }>
   scartaDocumento(documentId: string, motivo: string): Promise<{ errore?: string }>
@@ -53,12 +55,20 @@ export async function salvaModifiche(
   cliente: ClienteRevisione, deposito: DepositoRevisione, s: StatoRevisione,
 ): Promise<EsitoRevisione> {
   let stato = s
+  const avvisi: string[] = []
   const custodia = deposito.salva(tracciaDa(stato))
   if (custodia.errore)
     return { ok: false, stato, errore: `non riesco a mettere al sicuro gli originali (${custodia.errore}): NON salvo, altrimenti le correzioni andrebbero perse` }
-  // ogni cambiamento di stato torna anche in custodia (ignorare l'errore
-  // qui non perde nulla: la custodia precedente resta valida)
-  const custodisci = (nuovo: StatoRevisione) => { stato = nuovo; deposito.salva(tracciaDa(stato)) }
+  // ogni cambiamento di stato torna in custodia. Un fallimento QUI non
+  // perde responsabilità (la custodia precedente è più prudente: 'in_invio'
+  // resta 'in_invio' o la voce resta pendente), ma si DICE, mai ignorato.
+  const custodisci = (nuovo: StatoRevisione) => {
+    stato = nuovo
+    const r = deposito.salva(tracciaDa(stato))
+    if (r.errore) avvisi.push(`custodia non aggiornata (${r.errore}): resta valida quella precedente, più prudente`)
+  }
+  const marca = (idLocale: string, statoRiga: 'nuova' | 'in_invio' | 'salvata' | 'incerta', id?: string) =>
+    ({ ...stato, righeNuove: stato.righeNuove.map(x => x.idLocale === idLocale ? { ...x, stato: statoRiga, ...(id ? { id } : {}) } : x) })
   try {
     if (stato.docTotaleCent !== stato.docTotaleOriginaleCent) {
       const r = await cliente.aggiornaDocTotale(stato.documentId, stato.docTotaleCent == null ? null : stato.docTotaleCent / 100)
@@ -78,31 +88,36 @@ export async function salvaModifiche(
       if ((r.righe ?? 0) < 1) return { ok: false, stato, errore: 'una voce non è stata salvata: nessuna riga toccata' }
     }
     // SOLO le righe mai inviate: le 'salvata' hanno già il loro id, le
-    // 'incerta' aspettano la riconciliazione (mai reinvio alla cieca)
+    // 'incerta' aspettano una risoluzione esplicita (mai reinvio cieco)
     for (const riga of stato.righeNuove.filter(r => r.stato === 'nuova')) {
-      let r: { errore?: string; id?: string }
-      try { r = await cliente.aggiungiRiga(payloadRigaNuova(riga)) } catch (e) {
-        const msg = String((e as Error).message ?? e)
-        if (rete(msg)) {
-          custodisci({ ...stato, righeNuove: stato.righeNuove.map(x => x.idLocale === riga.idLocale ? { ...x, stato: 'incerta' as const } : x) })
-          return esitoErrore(stato, `la voce nuova «${riga.name}»`, msg)
-        }
-        throw e
+      // la RESPONSABILITÀ si persiste PRIMA della richiesta: se questa
+      // custodia fallisce l'INSERT NON parte (altrimenti una pagina morta
+      // con la risposta per aria produrrebbe un doppione al Salva dopo)
+      stato = marca(riga.idLocale, 'in_invio')
+      const presa = deposito.salva(tracciaDa(stato))
+      if (presa.errore) {
+        stato = marca(riga.idLocale, 'nuova')
+        return { ok: false, stato, errore: `non riesco a custodire l'invio della voce «${riga.name}» (${presa.errore}): NON la invio — senza traccia un'interruzione creerebbe un doppione` }
       }
-      if (r.errore) {
-        if (rete(r.errore)) {
-          custodisci({ ...stato, righeNuove: stato.righeNuove.map(x => x.idLocale === riga.idLocale ? { ...x, stato: 'incerta' as const } : x) })
-          return esitoErrore(stato, `la voce nuova «${riga.name}»`, r.errore)
-        }
+      let r: { errore?: string; id?: string; incerto?: boolean }
+      try { r = await cliente.aggiungiRiga(payloadRigaNuova(riga)) } catch (e) {
+        // QUALSIASI eccezione a richiesta partita è esito ignoto
+        const msg = String((e as Error).message ?? e)
+        custodisci(marca(riga.idLocale, 'incerta'))
+        return { ok: false, stato, incerto: true, errore: `la voce nuova «${riga.name}» ha l'esito incerto (${msg}): nessun reinvio automatico — chiudi e ricontrolla` }
+      }
+      if (r.errore && !r.incerto && !rete(r.errore)) {
+        // rifiuto ESPLICITO del servizio: non inserita, si può ritentare
+        custodisci(marca(riga.idLocale, 'nuova'))
         return { ok: false, stato, errore: `una voce nuova non è stata aggiunta: ${r.errore}` }
       }
-      if (!r.id) {
-        custodisci({ ...stato, righeNuove: stato.righeNuove.map(x => x.idLocale === riga.idLocale ? { ...x, stato: 'incerta' as const } : x) })
-        return { ok: false, stato, errore: 'una voce nuova è stata inviata ma il servizio non ha restituito l\'id: esito incerto — chiudi e ricontrolla prima di riprovare', incerto: true }
+      if (r.errore || r.incerto || !r.id) {
+        custodisci(marca(riga.idLocale, 'incerta'))
+        return { ok: false, stato, incerto: true, errore: `la voce nuova «${riga.name}» ha l'esito incerto (${r.errore ?? 'risposta senza id'}): nessun reinvio automatico — chiudi e ricontrolla` }
       }
-      custodisci({ ...stato, righeNuove: stato.righeNuove.map(x => x.idLocale === riga.idLocale ? { ...x, stato: 'salvata' as const, id: r.id } : x) })
+      custodisci(marca(riga.idLocale, 'salvata', r.id))
     }
-    return { ok: true, stato }
+    return { ok: true, stato, avviso: avvisi.length ? avvisi.join(' · ') : undefined }
   } catch (e) {
     const msg = String((e as Error).message ?? e)
     return rete(msg)

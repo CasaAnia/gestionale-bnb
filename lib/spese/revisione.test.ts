@@ -13,8 +13,9 @@ import assert from 'node:assert/strict'
 import {
   aggiungiRiga, apriRevisione, avvisoCoerenzaRiga, blocchiConferma,
   bozzaCorrente, CAMPI_RIGA_NUOVA, correzioniDa, dubbiDi, modificaBozza,
-  modificaRiga, modificaTotale, quadratura, reinviaRigaIncerta,
-  rigaCorrente, togliRigaNuova, totaliSorella, tracciaDa,
+  modificaRiga, modificaTotale, payloadRigaNuova, quadratura,
+  rigaCorrente, risolviRigaIncerta, stessaRigaNuova, togliRigaNuova,
+  totaliSorella, tracciaDa,
   type BozzaGrezza, type RigaGrezza,
 } from './revisione.ts'
 import { confermaRevisione, salvaModifiche, scartaRevisione, type ClienteRevisione } from './revisioneScrittura.ts'
@@ -37,6 +38,10 @@ const riga = (x: Partial<RigaGrezza> & { id: string; draft_id: string; amount: n
   canonical_category_id: null, canonical_subcategory_id: null,
   necessity: null, planning: null, excluded: false, user_added: false, confidence: null, ...x,
 })
+const SOTTO_CANONICHE = [
+  { id: 'can-frutta', canonical_category_id: 'can-alim' },
+  { id: 'can-cartoleria', canonical_category_id: 'can-scuola' },
+]
 
 // il cliente SIMULATO: registra le chiamate, campi validati contro la 0021
 // (UPDATE e INSERT hanno insiemi diversi: l'INSERT rifiuta ogni campo
@@ -63,10 +68,21 @@ function clienteFinto(risposte: Partial<Record<keyof ClienteRevisione, unknown>>
     },
     async aggiornaRiga(id, campi) {
       for (const k of Object.keys(campi)) if (!CAMPI_RIGA.has(k)) throw new Error(`campo NON consentito sulla riga: ${k}`)
+      // i NOT NULL della 0020 valgono anche in UPDATE
+      const c = campi as Record<string, unknown>
+      for (const k of ['name', 'qty', 'discount', 'amount']) if (k in c && c[k] == null) throw new Error(`NULL vietato su ${k}`)
       chiamate.push({ azione: 'riga', payload: { id, campi } }); return rispondi('aggiornaRiga', { righe: 1 })
     },
     async aggiungiRiga(r) {
+      // VALORI e VINCOLI della 0020, non solo i nomi delle colonne:
+      // qty numeric NOT NULL > 0 (default SOLO se assente dal payload),
+      // discount NOT NULL ≥ 0, amount NOT NULL ≥ 0, name NOT NULL
       for (const k of Object.keys(r)) if (!CAMPI_INSERT.has(k)) throw new Error(`colonna inesistente nell'INSERT: ${k}`)
+      const v = r as Record<string, unknown>
+      if ('qty' in v && (v.qty == null || typeof v.qty !== 'number' || v.qty <= 0)) throw new Error('vincolo violato: qty NOT NULL > 0')
+      if ('discount' in v && (v.discount == null || typeof v.discount !== 'number' || (v.discount as number) < 0)) throw new Error('vincolo violato: discount NOT NULL >= 0')
+      if (v.amount == null || typeof v.amount !== 'number' || (v.amount as number) < 0) throw new Error('vincolo violato: amount NOT NULL >= 0')
+      if (typeof v.name !== 'string' || !v.name) throw new Error('vincolo violato: name NOT NULL')
       chiamate.push({ azione: 'nuova', payload: r }); return rispondi('aggiungiRiga', { id: `srv-${++contatore}` })
     },
     async confermaDocumento(id, correzioni) { chiamate.push({ azione: 'conferma', payload: { id, correzioni } }); return rispondi('confermaDocumento', { ids: ['spesa-1'] }) },
@@ -180,7 +196,7 @@ test('COERENZA DESTINATARI: una voce con gruppo dell\'altro ambito blocca la con
 
 test('coerenza quantità × prezzo: avviso NON bloccante solo quando i numeri non tornano', () => {
   assert.equal(avvisoCoerenzaRiga({ qty: 2, unit_price: 1.25, discount: 0, amount: 2.5, excluded: false }), null)
-  assert.equal(avvisoCoerenzaRiga({ qty: null, unit_price: null, discount: 0, amount: 2.5, excluded: false }), null)
+  assert.equal(avvisoCoerenzaRiga({ qty: 1, unit_price: null, discount: 0, amount: 2.5, excluded: false }), null)
   const avviso = avvisoCoerenzaRiga({ qty: 2, unit_price: 1, discount: 0, amount: 2.5, excluded: false })
   assert.ok(avviso && avviso.includes('non torna'))
   // esclusa: nessun avviso (non è nel conto)
@@ -212,7 +228,7 @@ test('righe nuove: payload SOLO con le colonne della 0021, rimovibili prima del 
   s = modificaTotale(s, 550)
   assert.equal(quadratura(s).ok, true)
   assert.equal(correzioniDa(s).some(c => c.field === 'name'), false)
-  const { cliente, chiamate } = clienteFinto()          // l'INSERT rifiuta campi estranei
+  const { cliente, chiamate } = clienteFinto()          // l'INSERT rifiuta campi estranei E vincoli violati
   const esito = await salvaModifiche(cliente, dep(), s)
   assert.equal(esito.ok, true)
   const nuove = chiamate.filter(c => c.azione === 'nuova')
@@ -220,6 +236,14 @@ test('righe nuove: payload SOLO con le colonne della 0021, rimovibili prima del 
   const payload = nuove[0].payload as Record<string, unknown>
   assert.equal(payload.name, 'Sacchetto')
   assert.ok(!('idLocale' in payload) && !('stato' in payload) && !('id' in payload))
+  // i NOT NULL della 0020: qty e discount viaggiano coi DEFAULT, mai null
+  assert.equal(payload.qty, 1)
+  assert.equal(payload.discount, 0)
+  assert.equal(payload.unit_price, null)                // nullable vero
+  // e la precisione prevista: qty/unit_price a 3 decimali passano interi
+  const conDecimali = payloadRigaNuova({ draft_id: 'b1', name: 'Ciliegie', amount: 3.75, qty: 0.472, unit_price: 7.945 })
+  assert.equal(conDecimali.qty, 0.472)
+  assert.equal(conDecimali.unit_price, 7.945)
   // l'id restituito è RICORDATO nello stato: la riga è 'salvata'
   assert.deepEqual(esito.stato.righeNuove.map(r => ({ stato: r.stato, id: r.id })), [{ stato: 'salvata', id: 'srv-1' }])
   // il totale modificato è una correzione a livello di documento
@@ -251,10 +275,11 @@ test('FALLIMENTO DOPO UN INSERIMENTO RIUSCITO: il primo id resta, al nuovo Salva
   s = aggiungiRiga(s, { draft_id: 'b1', name: 'Prima', amount: 0.5 }, 'loc-1')
   s = aggiungiRiga(s, { draft_id: 'b1', name: 'Seconda', amount: 0.5 }, 'loc-2')
   let inseriti = 0
-  const { cliente, chiamate } = clienteFinto({
-    aggiungiRiga: () => { if (++inseriti === 2) throw Object.assign(new Error('permesso negato'), {}) },
+  const { cliente } = clienteFinto({
+    // il primo INSERT risponde; il secondo è un RIFIUTO esplicito del
+    // servizio (errore RESTITUITO): non inserita, si può ritentare
+    aggiungiRiga: () => (++inseriti === 2 ? { errore: 'permesso negato' } : undefined),
   })
-  // il primo INSERT risponde, il secondo esplode con un errore NON di rete
   const esito = await salvaModifiche(cliente, dep(), s)
   assert.equal(esito.ok, false)
   assert.ok(!esito.ok && !esito.incerto)
@@ -266,10 +291,50 @@ test('FALLIMENTO DOPO UN INSERIMENTO RIUSCITO: il primo id resta, al nuovo Salva
   assert.equal(riprova.ok, true)
   assert.equal(dopo.filter(c => c.azione === 'nuova').length, 1)
   assert.equal((dopo.find(c => c.azione === 'nuova')!.payload as { name: string }).name, 'Seconda')
-  void chiamate
 })
 
-test('RISPOSTA PERSA sull\'INSERT: riga marcata INCERTA, mai reinviata alla cieca, conferma bloccata; il reinvio è solo esplicito', async () => {
+test('RESPONSABILITÀ PRIMA DELLA RICHIESTA: la custodia dice «in_invio» già mentre l\'INSERT è per aria — la pagina che muore lì non produce doppioni', async () => {
+  let s = apriRevisione('doc-1', 5.5,
+    [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
+  s = aggiungiRiga(s, { draft_id: 'b1', name: 'Sacchetto', amount: 0.5 }, 'loc-1')
+  const deposito = dep()
+  // un INSERT che NON risponde mai: la richiesta resta per aria
+  let arrivata = false
+  const { cliente } = clienteFinto({ aggiungiRiga: () => { arrivata = true; return new Promise(() => {}) as never } })
+  const inCorso = salvaModifiche(cliente, deposito, s)   // NON si attende: pagina "morta"
+  await new Promise(r => setTimeout(r, 10))
+  assert.equal(arrivata, true)                           // la richiesta è partita…
+  const traccia = deposito.leggi('doc-1').traccia!
+  assert.equal(traccia.righeNuove[0].stato, 'in_invio')  // …e la custodia lo sapeva PRIMA
+  // "riapertura": in_invio diventa INCERTA, e il Salva successivo NON reinvia
+  const riaperto = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })], traccia)
+  assert.equal(riaperto.righeNuove[0].stato, 'incerta')
+  const { cliente: sano, chiamate } = clienteFinto()
+  const dopo = await salvaModifiche(sano, dep(), riaperto)
+  assert.equal(dopo.ok, true)
+  assert.equal(chiamate.filter(c => c.azione === 'nuova').length, 0)   // NESSUN secondo INSERT
+  assert.ok(blocchiConferma(riaperto, ambitoDi).some(b => b.includes('incerto')))
+  void inCorso
+})
+
+test('CUSTODIA DELL\'INVIO NEGATA: l\'INSERT non parte proprio (senza traccia, un\'interruzione creerebbe un doppione)', async () => {
+  let s = apriRevisione('doc-1', 5.5,
+    [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
+  s = aggiungiRiga(s, { draft_id: 'b1', name: 'Sacchetto', amount: 0.5 }, 'loc-1')
+  const vero = dep()
+  // la custodia funziona finché non deve registrare un 'in_invio'
+  const selettivo: DepositoRevisione = {
+    salva: t => t.righeNuove.some(r => r.stato === 'in_invio') ? { errore: 'spazio esaurito' } : vero.salva(t),
+    leggi: id => vero.leggi(id), rimuovi: id => vero.rimuovi(id),
+  }
+  const { cliente, chiamate } = clienteFinto()
+  const esito = await salvaModifiche(cliente, selettivo, s)
+  assert.ok(!esito.ok && esito.errore.includes('doppione'))
+  assert.equal(chiamate.filter(c => c.azione === 'nuova').length, 0)
+  assert.equal(esito.stato.righeNuove[0].stato, 'nuova')  // ritentabile, mai inviata
+})
+
+test('RISPOSTA PERSA sull\'INSERT: riga INCERTA, mai reinviata, conferma bloccata; si risolve SOLO a mano (niente «Reinserisci»)', async () => {
   let s = apriRevisione('doc-1', 5.5,
     [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
   s = aggiungiRiga(s, { draft_id: 'b1', name: 'Sacchetto', amount: 0.5 }, 'loc-1')
@@ -283,9 +348,19 @@ test('RISPOSTA PERSA sull\'INSERT: riga marcata INCERTA, mai reinviata alla ciec
   assert.equal(riprova.ok, true)                       // nulla di nuovo da fare
   assert.equal(chiamate.filter(c => c.azione === 'nuova').length, 0)
   assert.ok(blocchiConferma(esito.stato, ambitoDi).some(b => b.includes('incerto')))
-  // il reinvio esiste solo come scelta esplicita
-  const riattivata = reinviaRigaIncerta(esito.stato, esito.stato.righeNuove[0].idLocale)
-  assert.equal(riattivata.righeNuove[0].stato, 'nuova')
+  // anche un'eccezione NON di rete a richiesta partita è esito ignoto
+  const { cliente: strano } = clienteFinto({ aggiungiRiga: () => { throw new Error('boom interno') } })
+  let s2 = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
+  s2 = aggiungiRiga(s2, { draft_id: 'b1', name: 'Sacchetto', amount: 0.5 }, 'loc-9')
+  const e2 = await salvaModifiche(strano, dep(), s2)
+  assert.ok(!e2.ok && e2.incerto === true && e2.stato.righeNuove[0].stato === 'incerta')
+  // una risposta SENZA id, marcata incerta dall'adattatore, non è ritentabile
+  const { cliente: vuoto } = clienteFinto({ aggiungiRiga: { errore: 'risposta senza id', incerto: true } })
+  const e3 = await salvaModifiche(vuoto, dep(), s2)
+  assert.ok(!e3.ok && e3.incerto === true && e3.stato.righeNuove[0].stato === 'incerta')
+  // la risoluzione è solo esplicita: la voce si toglie, non si reinvia
+  const risolto = risolviRigaIncerta(esito.stato, esito.stato.righeNuove[0].idLocale)
+  assert.equal(risolto.righeNuove.length, 0)
 })
 
 // ---- custodia degli originali: sopravvivono a Salva, chiusura, riapertura -
@@ -335,22 +410,72 @@ test('MODIFICHE NON SALVATE custodite: chiusura e riapertura senza Salva non per
   assert.equal(deposito.leggi('doc-1').traccia, undefined)
 })
 
-test('RICONCILIAZIONE della riga incerta alla riapertura: se è arrivata si riconosce, altrimenti resta incerta', () => {
+test('RICONCILIAZIONE alla riapertura: la gemella IDENTICA viene PROPOSTA (mai collegata da sola); nome+importo non bastano', () => {
   let s = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
   s = aggiungiRiga(s, { draft_id: 'b1', name: 'Sacchetto', amount: 0.5 }, 'loc-1')
   s = { ...s, righeNuove: s.righeNuove.map(r => ({ ...r, stato: 'incerta' as const })) }
   const traccia = tracciaDa(s)
-  // caso 1: l'INSERT in realtà era arrivato — compare una riga user_added
-  // nuova (id sconosciuto allo snapshot) con lo stesso contenuto
-  const righeCon = [riga({ id: 'r1', draft_id: 'b1', amount: 5 }),
-    riga({ id: 'srv-9', draft_id: 'b1', amount: 0.5, name: 'Sacchetto', user_added: true })]
-  const arrivata = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })], righeCon, traccia)
-  assert.equal(arrivata.righeNuove.length, 0)          // riconosciuta, niente doppione
-  assert.equal(quadratura(arrivata).ok, true)
-  // caso 2: non è mai arrivata — resta INCERTA (il reinvio è una scelta)
+  // caso 1: compare una riga user_added IDENTICA in tutti i campi del
+  // payload → resta INCERTA ma con la gemella proposta; niente auto-drop
+  const identica = riga({ id: 'srv-9', draft_id: 'b1', amount: 0.5, name: 'Sacchetto', user_added: true })
+  const arrivata = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })],
+    [riga({ id: 'r1', draft_id: 'b1', amount: 5 }), identica], traccia)
+  assert.equal(arrivata.righeNuove.length, 1)
+  assert.equal(arrivata.righeNuove[0].stato, 'incerta')
+  assert.equal(arrivata.righeNuove[0].gemella, 'srv-9')
+  assert.ok(blocchiConferma(arrivata, ambitoDi).some(b => b.includes('incerto')))   // finché non decide l'utente
+  // la risoluzione esplicita chiude la pendenza e la quadratura tiene
+  const risolta = risolviRigaIncerta(arrivata, arrivata.righeNuove[0].idLocale)
+  assert.equal(risolta.righeNuove.length, 0)
+  assert.equal(quadratura(risolta).ok, true)
+  // caso 2: stessa bozza, stesso nome e importo ma QUANTITÀ diversa → una
+  // somiglianza non è un'identità: NESSUNA gemella proposta
+  const diversa = riga({ id: 'srv-8', draft_id: 'b1', amount: 0.5, name: 'Sacchetto', qty: 2, user_added: true })
+  assert.equal(stessaRigaNuova(diversa, s.righeNuove[0]), false)
+  const ambigua = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })],
+    [riga({ id: 'r1', draft_id: 'b1', amount: 5 }), diversa], traccia)
+  assert.equal(ambigua.righeNuove[0].gemella, undefined)
+  // idem con un destinatario diverso
+  const altroGruppo = riga({ id: 'srv-7', draft_id: 'b1', amount: 0.5, name: 'Sacchetto', group_id: 'g-teo', user_added: true })
+  assert.equal(stessaRigaNuova(altroGruppo, s.righeNuove[0]), false)
+  // caso 3: non è mai comparsa — resta incerta, senza gemella
   const persa = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })], traccia)
   assert.equal(persa.righeNuove.length, 1)
   assert.equal(persa.righeNuove[0].stato, 'incerta')
+  assert.equal(persa.righeNuove[0].gemella, undefined)
+})
+
+test('CUSTODIA che si guasta DOPO l\'invio: l\'esito lo dice (avviso), la traccia precedente più prudente resta', async () => {
+  let s = apriRevisione('doc-1', 5.5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
+  s = aggiungiRiga(s, { draft_id: 'b1', name: 'Sacchetto', amount: 0.5 }, 'loc-1')
+  const vero = dep()
+  // la custodia registra l'in_invio, poi si rompe (il post-risposta fallisce)
+  const traballante: DepositoRevisione = {
+    salva: t => t.righeNuove.some(r => r.stato === 'salvata') ? { errore: 'spazio esaurito' } : vero.salva(t),
+    leggi: id => vero.leggi(id), rimuovi: id => vero.rimuovi(id),
+  }
+  const { cliente } = clienteFinto()
+  const esito = await salvaModifiche(cliente, traballante, s)
+  assert.equal(esito.ok, true)
+  assert.ok(esito.ok && esito.avviso?.includes('custodia non aggiornata'))
+  // in memoria la riga è salvata con l'id; su disco resta l'in_invio (più
+  // prudente: alla riapertura diventerebbe incerta, mai un doppione)
+  assert.deepEqual(esito.stato.righeNuove.map(r => r.stato), ['salvata'])
+  assert.equal(vero.leggi('doc-1').traccia!.righeNuove[0].stato, 'in_invio')
+})
+
+test('CANONICHE: la sottocategoria incoerente con la categoria blocca (stessa FK composita della 0020); le correzioni le portano', () => {
+  let s = apriRevisione('doc-1', 5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })])
+  s = modificaRiga(s, 'r1', { canonical_category_id: 'can-scuola', canonical_subcategory_id: 'can-frutta' })
+  assert.ok(blocchiConferma(s, ambitoDi, SOTTO_CANONICHE).some(b => b.includes('sottocategoria')))
+  // coerente: nessun blocco, e le canoniche diventano correzioni normali
+  let s2 = apriRevisione('doc-1', 5, [bozza({ id: 'b1' })],
+    [riga({ id: 'r1', draft_id: 'b1', amount: 5, canonical_category_id: 'can-alim', canonical_subcategory_id: 'can-frutta' })])
+  s2 = modificaRiga(s2, 'r1', { canonical_category_id: 'can-scuola', canonical_subcategory_id: 'can-cartoleria' })
+  assert.ok(!blocchiConferma(s2, ambitoDi, SOTTO_CANONICHE).some(b => b.includes('sottocategoria')))
+  const correzioni = correzioniDa(s2)
+  assert.ok(correzioni.some(c => c.field === 'canonical_category_id' && c.proposed === 'can-alim' && c.corrected === 'can-scuola'))
+  assert.ok(correzioni.some(c => c.field === 'canonical_subcategory_id' && c.proposed === 'can-frutta' && c.corrected === 'can-cartoleria'))
 })
 
 test('CUSTODIA NEGATA: se gli originali non si possono mettere al sicuro, il Salva NON parte', async () => {
