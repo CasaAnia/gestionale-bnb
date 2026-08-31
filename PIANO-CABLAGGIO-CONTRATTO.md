@@ -4,8 +4,11 @@
 remote, produzione, push o deploy. Il collaudo isolato del contratto è
 SUPERATO (scripts/collaudo-contratto/RAPPORTO-COLLAUDO-2026-08-31.md);
 questo blocco prepara il CLIENT, perché — vincolo di sequenza — **il
-client nuovo deve essere pronto e attivo PRIMA di dismettere il percorso
-attuale** (fase A/B chiude il legacy per sempre).
+client nuovo deve essere SVILUPPATO E VERIFICATO prima della
+transizione, ma si ATTIVA solo DOPO la fase A/B, nella stessa pausa
+autorizzata: MAI una convivenza operativa dei due percorsi di
+scrittura** (una vecchia scheda potrebbe ancora scrivere direttamente
+senza aggiornare revisione_rev).
 
 ## Punto di partenza (com'è oggi)
 - La schermata `components/spese/RevisioneSheet.tsx` orchestra tramite
@@ -68,18 +71,31 @@ aggiustate in silenzio.
 
 ## Coordinamento col passaggio in produzione (sequenza vincolante, ogni
 passo con AUTORIZZAZIONE SEPARATA — qui solo dichiarata)
-1. **Contratto SQL in produzione** (additivo: involucri che chiamano le
-   legacy; il client legacy continua identico; runbook con pausa, audit
-   read-only, backup verificato — come da rapporto del collaudo).
-2. **Deploy del client con questo blocco** — interruttore ancora
-   'legacy': zero cambiamenti operativi; poi attivazione 'contratto'
-   (prima in demo, poi per le pagine operative). Rollback SEMPRE
-   possibile: interruttore a 'legacy' — finché la fase A non parte.
-3. **Osservazione**: giornale delle operazioni popolato dal percorso
-   nuovo, nessun accesso residuo al percorso legacy dai client attivi.
-4. **Solo allora** fase A (respingenti) e fase B (quiescenza provata,
-   revoche, ripuntamento in un'unica transazione): da qui il legacy è
-   chiuso e il rollback è solo dal runbook della transizione.
+**Principio: NESSUNA CONVIVENZA OPERATIVA dei due percorsi di
+scrittura.** Attivare il contratto sulle pagine operative PRIMA della
+transizione lascerebbe una finestra in cui una vecchia scheda ancora
+aperta scrive direttamente (senza passare da revisione_rev) mentre il
+percorso nuovo versiona: l'osservazione dei client attivi non elimina
+questa possibilità. Perciò l'interruttore operativo resta 'legacy'
+FINO A TRANSIZIONE COMPLETATA.
+1. **Client sviluppato e VERIFICATO prima** (questo blocco, in locale;
+   eventuale deploy successivo SEMPRE con interruttore 'legacy': zero
+   cambiamenti operativi, il percorso contratto è solo compilato e
+   provabile in demo sul server finto).
+2. **Nella PAUSA autorizzata** (pausa reale delle scritture, audit
+   read-only, backup fresco verificato, runbook dedicato): contratto SQL
+   applicato, poi transizione A e B COMPLETATE E VERIFICATE — la
+   quiescenza della fase B garantisce che nessuna scrittura pregressa
+   sia in volo; da qui il percorso legacy è chiuso (respingenti +
+   revoche + ripuntamento).
+3. **Attivazione del client nuovo** (interruttore a 'contratto') e
+   RIAPERTURA: le scritture ripartono solo sul percorso versionato.
+4. **Rollback**: prima della pausa non c'è nulla da annullare
+   (interruttore mai mosso); dentro la pausa vale il runbook della
+   transizione (fase A reversibile dal backup; fase B è un'unica
+   transazione); dopo la riapertura si torna indietro solo con una
+   nuova pausa e il runbook inverso — mai riaprendo il legacy con
+   client misti.
 
 ## Perimetro di questo blocco
 Locale: nuovi moduli + collegamento pagina dietro interruttore

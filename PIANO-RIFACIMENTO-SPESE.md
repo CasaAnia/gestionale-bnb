@@ -2154,10 +2154,12 @@ se la precedente non è verificata E approvata.
   revisioneScrittura e i controlli del blocco 3 davanti, recupero delle
   pendenze all'apertura, pagina di prova sul server finto, batteria di
   test e controprova di regressione. Sequenza di produzione dichiarata e
-  vincolante: contratto SQL additivo → deploy client → attivazione
-  interruttore → osservazione → SOLO POI fase A/B (il client nuovo
-  pronto PRIMA di dismettere il percorso attuale); ogni passo con
-  autorizzazione separata. Nessuna nuova esecuzione remota.
+  vincolante — CORRETTA su rilievo del revisore (31/08/2026): niente
+  convivenza operativa dei due percorsi di scrittura. Client sviluppato
+  e verificato PRIMA (interruttore operativo sempre 'legacy'); poi,
+  nella PAUSA autorizzata, contratto SQL + transizione A/B completate e
+  verificate; SOLO DOPO attivazione del client nuovo e riapertura. Ogni
+  passo con autorizzazione separata. Nessuna nuova esecuzione remota.
 
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
