@@ -1,7 +1,8 @@
 # PIANO — CABLAGGIO DEL CONTRATTO ALLE SCHERMATE (blocco proposto, DA AUTORIZZARE)
 
-**Stato: PROPOSTA.** Solo lavoro LOCALE: niente migrazioni, esecuzioni
-remote, produzione, push o deploy. Il collaudo isolato del contratto è
+**Stato: IMPLEMENTATO IN LOCALE (B1–B5, 01/09/2026), interruttore su
+'legacy'; in attesa di revisione.** Solo lavoro LOCALE: niente
+migrazioni, esecuzioni remote, produzione, push o deploy. Il collaudo isolato del contratto è
 SUPERATO (scripts/collaudo-contratto/RAPPORTO-COLLAUDO-2026-08-31.md);
 questo blocco prepara il CLIENT, perché — vincolo di sequenza — **il
 client nuovo deve essere SVILUPPATO E VERIFICATO prima della

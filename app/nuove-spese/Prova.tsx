@@ -1,6 +1,8 @@
 'use client'
 // Prova del guscio reale (Fase 3.1) con dati sintetici.
 // Stato pilotabile dall'URL per le verifiche:
+//   ?percorso=contratto → la revisione scrive col CONTRATTO collaudato
+//                         sul suo server finto (senza rete)
 //   ?c=ania            → parte su Casa Ania
 //   ?t=movimenti       → parte su una sezione
 //   ?filtri=1          → apre il pannello dei filtri
@@ -16,6 +18,11 @@ import { RevisioneSheet } from '@/components/spese/RevisioneSheet'
 import { CAMPI_RIGA_NUOVA, type BozzaGrezza, type RigaGrezza } from '@/lib/spese/revisione'
 import type { ClienteRevisione } from '@/lib/spese/revisioneScrittura'
 import { depositoRevisioneLocale } from '@/lib/spese/revisioneDurevole'
+import { creaServerContratto, type MondoFinto } from '@/lib/spese/contrattoServerFinto'
+import type { ClienteContratto } from '@/lib/spese/contrattoRevisione'
+import { improntaSha256 } from '@/lib/spese/improntaTesto'
+import { depositoOperazioniDurevole } from '@/lib/spese/depositoOperazioniDurevole'
+import { orchestrazioneContratto, type OrchestrazioneRevisione } from '@/lib/spese/orchestrazioneRevisione'
 import type { Contesto, DatiSpese, StatoDati } from '@/lib/spese/vista'
 import { DATI_FINTI, DATI_QUASI_VUOTI, OGGI_FINTO, TABELLE_FINTE } from './dati-finti'
 
@@ -127,6 +134,32 @@ const urlFinto = async (percorso: string) => percorso.endsWith('.pdf') ? 'about:
 
 const depositoProva = depositoRevisioneLocale('gestionale-revisione-prova')
 
+// ---- PERCORSO A CONTRATTO in prova (?percorso=contratto): la schermata
+// VERA sul server finto RIGOROSO del contratto, senza rete. I guasti
+// simulati passano da un RIVESTIMENTO del cliente (come nel collaudo):
+//   ?scrittura=errore → rifiuto DIMOSTRATO (P0001, quadratura simulata)
+//   ?scrittura=rete   → errore senza prova di rifiuto (pendenza custodita)
+//   ?scrittura=persa  → effetto REALE, poi risposta persa (recupero
+//                       all'apertura successiva: riapri il documento)
+//   ?scrittura=lenta  → risposte in 2,5 s (controlli spenti)
+function clienteContrattoProva(modo: string | null, base: ClienteContratto): ClienteContratto {
+  const attesa = () => modo === 'lenta' ? new Promise(r => setTimeout(r, 2500)) : Promise.resolve()
+  const involucro = <P,>(vera: (p: P) => Promise<unknown>) => async (p: P) => {
+    await attesa()
+    if (modo === 'errore') return { errore: 'Quadratura non esatta (simulata dal finto)', codice: 'P0001' }
+    if (modo === 'rete') return { errore: 'Failed to fetch (finto: errore di rete restituito)' }
+    const r = await vera(p)
+    if (modo === 'persa') throw new Error('Failed to fetch (finto: risposta persa DOPO l\'effetto reale)')
+    return r
+  }
+  return {
+    salvaRevisione: involucro(base.salvaRevisione) as ClienteContratto['salvaRevisione'],
+    confermaRevisione: involucro(base.confermaRevisione) as ClienteContratto['confermaRevisione'],
+    scartaRevisione: involucro(base.scartaRevisione) as ClienteContratto['scartaRevisione'],
+    esitoRevisione: k => base.esitoRevisione(k),        // il recupero non si guasta: serve a risolvere
+  }
+}
+
 function statoIniziale(): { c: Contesto; t: SezioneSpese; filtri: boolean; dati: StatoDati<DatiSpese> } {
   const q = new URLSearchParams(window.location.search)
   const c: Contesto = q.get('c') === 'ania' ? 'ania' : 'mia'
@@ -156,6 +189,28 @@ export default function Prova() {
     bozze: JSON.parse(JSON.stringify(TABELLE_FINTE.bozze)) as BozzaGrezza[],
     righe: JSON.parse(JSON.stringify(TABELLE_FINTE.righeBozza)) as RigaGrezza[],
   }))
+  const percorsoProva = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('percorso') : null
+  // il MONDO del server finto CONDIVIDE gli oggetti dell'archivio: i
+  // salvataggi del contratto mutano le stesse bozze/righe che la
+  // riapertura rilegge (come farebbe il database vero)
+  const [contratto] = useState<{ orchestrazione: OrchestrazioneRevisione; documento: { status: string; revisione_rev: number; doc_total: number | null } } | null>(() => {
+    if (percorsoProva !== 'contratto') return null
+    const documento = { status: archivio.docStatus, revisione_rev: 0, doc_total: archivio.docTotale }
+    const mondo: MondoFinto = {
+      documenti: new Map([['d-rev', documento]]),
+      bozze: new Map(archivio.bozze.map(b => [b.id, b as unknown as { document_id: string; status: string } & Record<string, unknown>])),
+      righe: new Map(archivio.righe.map(r => [r.id, r as unknown as { draft_id: string } & Record<string, unknown>])),
+    }
+    const server = creaServerContratto(mondo, improntaSha256)
+    const orchestrazione = orchestrazioneContratto({
+      cliente: clienteContrattoProva(modoScrittura, server.cliente),
+      depositoRevisione: depositoProva,
+      depositoOperazioni: depositoOperazioniDurevole(undefined, 'gestionale-op-contratto-prova'),
+      revisioneIniziale: 0,
+    })
+    return { orchestrazione, documento }
+  })
   return (
     <>
       <SpeseShell dati={dati} contestoIniziale={c} sezioneIniziale={t} filtriApertiIniziale={filtri}
@@ -182,7 +237,9 @@ export default function Prova() {
       )}
       {revisioneAperta && (
         <RevisioneSheet
-          documento={{ id: 'd-rev', supplier: 'Mercato di Rozzano', kind: 'scontrino', status: archivio.docStatus, doc_total: archivio.docTotale, note: 'metà è di Casa Ania' }}
+          documento={{ id: 'd-rev', supplier: 'Mercato di Rozzano', kind: 'scontrino',
+            status: contratto ? contratto.documento.status : archivio.docStatus,
+            doc_total: contratto ? contratto.documento.doc_total : archivio.docTotale, note: 'metà è di Casa Ania' }}
           bozze={JSON.parse(JSON.stringify(archivio.bozze)) as BozzaGrezza[]}
           righe={JSON.parse(JSON.stringify(archivio.righe)) as RigaGrezza[]}
           gruppi={TABELLE_FINTE.gruppi.map(g => ({ id: g.id, name: g.name, ambito: g.ambito ?? 'personale' }))}
@@ -194,6 +251,7 @@ export default function Prova() {
           firmaUrl={urlFinto}
           cliente={clienteRevisioneFinto(modoScrittura, archivio)}
           deposito={depositoProva}
+          orchestrazione={contratto?.orchestrazione}
           fatto={esito => {
             // come la pagina VERA: dopo Salva il foglio RESTA aperto
             if (esito === 'salvato') { setNotaRevisione('salvate nell\'archivio finto: chiudi e riapri per vedere originali e correzioni conservati'); return }

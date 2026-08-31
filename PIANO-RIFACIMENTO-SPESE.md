@@ -2161,6 +2161,60 @@ se la precedente non è verificata E approvata.
   verificate; SOLO DOPO attivazione del client nuovo e riapertura. Ogni
   passo con autorizzazione separata. Nessuna nuova esecuzione remota.
 
+  **CABLAGGIO DEL CONTRATTO ALLE SCHERMATE — BLOCCO B1–B5 IMPLEMENTATO
+  IN LOCALE (01/09/2026), interruttore su 'legacy'.** Autorizzato
+  dall'utente nel perimetro locale.
+  · B0 lib/spese/percorso.ts: PERCORSO_REVISIONE ('legacy' di default:
+    comportamento attuale INTATTO; l'attivazione è una modifica di
+    codice del runbook, dopo la transizione — mai convivenza dei due
+    percorsi) + improntaTesto.ts (SHA-256 WebCrypto, browser e Node).
+  · B1 depositoOperazioniDurevole.ts: la custodia delle operazioni su
+    localStorage con le stesse regole CONTROLLATE del contratto (guasto
+    ≠ zero pendenze; identità immutabile, solo il contatore; indice
+    autorità dell'elenco, ordini di scrittura pensati per i crash;
+    indicizzata-senza-valore = corruzione dichiarata, mai «assente»).
+  · B2 orchestrazioneRevisione.ts: interfaccia unica della schermata
+    (salva/conferma/scarta/apertura); orchestrazioneLegacy = delega PURA
+    a revisioneScrittura; orchestrazioneContratto = batchSalvaDa →
+    eseguiSalva con mappa riconciliata (voci nuove → 'salvata' con id),
+    conferma/scarto versionati, SUPERATA → «chiudi e ricarica», con i
+    controlli del blocco 3 DAVANTI (custodia prima di scrivere,
+    fermaOperazione, vincoli, pendenze non dimostrate, 'in_invio'
+    persistito prima dell'invio) e il BLOCCO delle scritture nuove
+    finché resta una pendenza da riconciliare.
+  · B3 apertura(): le pendenze del deposito operazioni si risolvono dal
+    giornale (recuperaOperazione) o col reinvio della richiesta
+    custodita (reinviaOperazione); esiti non conclusivi = BLOCCANTE,
+    pendenza conservata. Nella schermata l'esito passa dal meccanismo
+    esistente («Chiudi e ricontrolla»).
+  · B4 RevisioneSheet: prop opzionale `orchestrazione` (assente =
+    legacy identico, stessi moduli di prima); SpesePagina la costruisce
+    dall'interruttore (oggi: undefined); pagina di prova con
+    ?percorso=contratto → schermata VERA sul server finto del contratto
+    senza rete, guasti simulati compresi (?scrittura=persa/rete/errore/
+    lenta col rivestimento del trasporto, come nel collaudo);
+    revisioneContrattoSupabase.ts pronto ma NON raggiungibile finché
+    l'interruttore resta 'legacy'.
+  · B5 test: orchestrazione.test.ts (14 nuovi — deposito durevole con
+    guasti/corruzione/durabilità, giro completo, SUPERATA, risposta
+    persa dopo l'effetto reale con recupero all'apertura, richiesta mai
+    partita col reinvio, recupero non conclusivo bloccante, quadratura
+    P0001, custodia rotta = nessuna richiesta, scarto, delega legacy,
+    vettore SHA-256). Suite 331/331; tsc, eslint (2 avvisi
+    preesistenti su file non toccati), build verdi.
+  · VERIFICA VISIVA in locale (390px, dev server): giro salva→riapertura
+    col valore persistito sul finto; risposta persa → esito incerto
+    dichiarato → alla riapertura banner «reinviata dalla custodia e
+    applicata» e piede bloccato su «Chiudi e ricontrolla»; percorso
+    legacy senza interruttore: identico a prima («Modifiche salvate»).
+    Un difetto trovato e corretto durante la verifica: la guardia di
+    annullamento dell'effetto di apertura scartava l'esito sotto lo
+    StrictMode di sviluppo (smontaggio simulato fra partenza e
+    risposta): rimossa — su smontaggio vero il setState è un no-op.
+  Modifiche al legacy: SOLO l'export di fermaOperazione e
+  pendenzaNonDimostrata (parola chiave, zero comportamento). Percorso
+  legacy e pagine operative intatti; nessun remoto, push o deploy.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

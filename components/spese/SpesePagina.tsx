@@ -23,6 +23,10 @@ import { leggiTutto, urlFirmato, type FonteCompleta } from '@/lib/spese/fonte'
 import { clienteSupabase } from '@/lib/spese/scritturaSupabase'
 import { clienteRevisioneSupabase } from '@/lib/spese/revisioneSupabase'
 import { depositoRevisioneLocale } from '@/lib/spese/revisioneDurevole'
+import { PERCORSO_REVISIONE } from '@/lib/spese/percorso'
+import { orchestrazioneContratto } from '@/lib/spese/orchestrazioneRevisione'
+import { clienteContrattoSupabase } from '@/lib/spese/revisioneContrattoSupabase'
+import { depositoOperazioniDurevole } from '@/lib/spese/depositoOperazioniDurevole'
 import type { BozzaGrezza, RigaGrezza } from '@/lib/spese/revisione'
 import {
   aggiornaBudgetEsistente, creaGuardiaInvio,
@@ -60,6 +64,20 @@ function scegliFiles(accetta: string, fotocamera: boolean): Promise<File[]> {
 // la custodia locale degli originali della revisione (localStorage,
 // valutato solo al momento dell'uso: sicuro anche a livello di modulo)
 const depositoRevisione = depositoRevisioneLocale()
+
+// il percorso a CONTRATTO si costruisce SOLO se l'interruttore lo dice
+// (oggi 'legacy': la schermata riceve undefined e tutto resta identico);
+// revisione_rev arriva col contratto SQL — prima non esiste, e infatti
+// questo ramo non è raggiungibile
+const orchestrazioneContrattoPer = (doc: { id: string; revisione_rev?: number | null }) =>
+  PERCORSO_REVISIONE === 'contratto'
+    ? orchestrazioneContratto({
+      cliente: clienteContrattoSupabase,
+      depositoRevisione,
+      depositoOperazioni: depositoOperazioniDurevole(),
+      revisioneIniziale: doc.revisione_rev ?? 0,
+    })
+    : undefined
 
 export default function SpesePagina({ ambito }: { ambito: Ambito }) {
   return <DemoGate><Pagina ambito={ambito} /></DemoGate>
@@ -345,6 +363,7 @@ function Pagina({ ambito }: { ambito: Ambito }) {
             firmaUrl={urlFirmato}
             cliente={clienteRevisioneSupabase}
             deposito={depositoRevisione}
+            orchestrazione={orchestrazioneContrattoPer(doc as { id: string; revisione_rev?: number | null })}
             fatto={esito => {
               if (esito === 'confermato') { setRevisioneId(null); setAvviso('Documento confermato: le spese sono nel conto.') }
               if (esito === 'scartato') { setRevisioneId(null); setAvviso('Documento scartato.') }

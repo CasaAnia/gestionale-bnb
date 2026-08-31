@@ -30,10 +30,8 @@ import {
   vincoliVuoti,
   type BozzaGrezza, type RigaGrezza, type StatoRevisione,
 } from '@/lib/spese/revisione'
-import {
-  confermaRevisione, salvaModifiche, scartaRevisione,
-  type ClienteRevisione, type EsitoRevisione,
-} from '@/lib/spese/revisioneScrittura'
+import type { ClienteRevisione, EsitoRevisione } from '@/lib/spese/revisioneScrittura'
+import { orchestrazioneLegacy, type OrchestrazioneRevisione } from '@/lib/spese/orchestrazioneRevisione'
 import type { DepositoRevisione } from '@/lib/spese/revisioneDurevole'
 import {
   gestoreImporto, gestoreNumero, interpretaCampo, testoCampo, testoNumero,
@@ -59,6 +57,10 @@ type PropsRevisione = {
   firmaUrl: (storagePath: string) => Promise<string | null>
   cliente: ClienteRevisione
   deposito: DepositoRevisione
+  // percorso di scrittura scelto dall'INTERRUTTORE (lib/spese/percorso):
+  // assente = legacy, identico a prima; presente = orchestrazione a
+  // contratto (con la riconciliazione delle pendenze all'apertura)
+  orchestrazione?: OrchestrazioneRevisione
   fatto: (esito: 'confermato' | 'scartato' | 'salvato' | 'verifica') => void   // ricarica la pagina
   chiudi: () => void
 }
@@ -152,7 +154,7 @@ export function RevisioneSheet(props: PropsRevisione) {
   } />
 }
 
-function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanoniche, camere, pagine, firmaUrl, cliente, deposito, fatto, chiudi, statoIniziale }: PropsRevisione & { statoIniziale: StatoRevisione }) {
+function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanoniche, camere, pagine, firmaUrl, cliente, deposito, orchestrazione, fatto, chiudi, statoIniziale }: PropsRevisione & { statoIniziale: StatoRevisione }) {
   const [stato, setStato] = useState<StatoRevisione>(statoIniziale)
   const [avvisoCustodia, setAvvisoCustodia] = useState<string | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
@@ -167,6 +169,32 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
   // i testi in modifica, ciascuno con la SUA regola
   const [testi, setTesti] = useState<Record<string, { testo: string; regola: RegolaCampo }>>({})
   const guardia = useRef(creaGuardiaInvio())
+  // il percorso di scrittura: senza interruttore è il legacy di sempre
+  const orch = useMemo(() => orchestrazione ?? orchestrazioneLegacy(cliente, deposito), [orchestrazione, cliente, deposito])
+
+  // APERTURA del percorso a contratto: le operazioni pendenti del
+  // deposito si riconciliano dal giornale PRIMA di qualunque scrittura;
+  // un esito bloccante o una pendenza risolta portano a «chiudi e
+  // ricontrolla» (i dati a schermo vanno ricaricati). Col legacy non
+  // succede nulla: la sua presa in carico vive già nel guscio.
+  const aperturaFatta = useRef(false)
+  useEffect(() => {
+    if (!orchestrazione || aperturaFatta.current) return
+    aperturaFatta.current = true
+    // NIENTE guardia di annullamento: in sviluppo lo StrictMode simula
+    // uno smontaggio fra la partenza e la risposta e la scarterebbe (la
+    // seconda esecuzione non trova più pendenze da raccontare); su uno
+    // smontaggio VERO il setState è un no-op innocuo
+    orchestrazione.apertura(documento.id).then(r => {
+      if (r.bloccante) { setErrore(r.bloccante); setDaVerificare(true); return }
+      if (r.risolte > 0) {
+        setNota(`${r.avvisi.join(' · ')} — chiudi e ricontrolla per ripartire dai dati aggiornati`)
+        setDaVerificare(true)
+        return
+      }
+      if (r.avvisi.length) setNota(r.avvisi.join(' · '))
+    })
+  }, [orchestrazione, documento.id])
 
   // ogni cambiamento va in custodia: un salvataggio interrotto o una
   // chiusura non perdono nulla (l'errore di custodia si DICE)
@@ -348,7 +376,7 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
             <div className="flex gap-2">
               <button disabled={fermo || !modifichePendenti(stato) || invalidi.length > 0}
                 onClick={() => esegui(async () => {
-                  const r = await salvaModifiche(cliente, deposito, stato)
+                  const r = await orch.salva(stato)
                   if (r.ok) { setNota('Modifiche salvate: puoi continuare o confermare.'); fatto('salvato') }
                   return r
                 })}
@@ -358,7 +386,7 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
               </button>
               <button disabled={fermo || blocchi.length > 0 || invalidi.length > 0}
                 onClick={() => esegui(async () => {
-                  const r = await confermaRevisione(cliente, deposito, stato)
+                  const r = await orch.conferma(stato)
                   if (r.ok) fatto('confermato')
                   return r
                 })}
@@ -686,7 +714,7 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
             <button disabled={fermo} onClick={() => guardia.current(async () => {
               setErrore(null); setLavoro(true)
               try {
-                const r = await scartaRevisione(cliente, deposito, stato, motivoScarto)
+                const r = await orch.scarta(stato, motivoScarto)
                 if (r.ok) fatto('scartato')
                 else { setErrore(r.errore ?? 'errore'); if (r.incerto) setDaVerificare(true) }
                 return r.ok

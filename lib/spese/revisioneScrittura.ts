@@ -57,7 +57,7 @@ const esitoErrore = (stato: StatoRevisione, contesto: string, msg: string): Esit
 // LEGGERE non si può nemmeno sapere se si è stati superati — quindi non
 // si scrive (fermarsi dopo, con un avviso, non basterebbe: la scrittura
 // incompatibile sarebbe già partita).
-function fermaOperazione(deposito: DepositoRevisione, s: StatoRevisione): string | null {
+export function fermaOperazione(deposito: DepositoRevisione, s: StatoRevisione): string | null {
   const lettura = deposito.leggi(s.documentId)
   if (lettura.errore)
     return `custodia illeggibile durante l'operazione (${lettura.errore}): non posso verificare chi ha in mano il documento — mi fermo PRIMA della prossima scrittura`
@@ -70,7 +70,7 @@ function fermaOperazione(deposito: DepositoRevisione, s: StatoRevisione): string
 }
 
 // una pendenza d'invio senza esito DIMOSTRATO (anche riconosciuta)
-const pendenzaNonDimostrata = (s: StatoRevisione) =>
+export const pendenzaNonDimostrata = (s: StatoRevisione) =>
   s.righeNuove.find(r => r.stato === 'incerta' || r.stato === 'in_invio' || r.stato === 'riconosciuta')
 
 // salva TUTTE le modifiche pendenti (totale, bozze, righe, righe nuove).
