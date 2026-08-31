@@ -13,14 +13,19 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { rest, sql, progetto } from '../fase2b/api.mjs'
 import { verificaNonProduzione } from '../fase2b/guardia.mjs'
-import { contatore, fixtureDocumento, ownerId } from './ambiente.mjs'
+import { fixtureDocumento } from './ambiente.mjs'
+import { creaContatore, eseguiPasso } from './strumenti.mjs'
+import { apriUltimoRegistro } from './registro.mjs'
 import { creaClienteContrattoRpc } from '../../lib/spese/contrattoRpc.ts'
 import { depositoOperazioniInMemoria, eseguiConferma, eseguiSalva, recuperaOperazione, reinviaOperazione } from '../../lib/spese/contrattoScrittura.ts'
 import { apriRevisione, modificaBozza, aggiungiRiga } from '../../lib/spese/revisione.ts'
 
+await eseguiPasso('PASSO 6 · client vero', async () => {
+const v = creaContatore('PASSO 6 · client vero su RPC vere')
 verificaNonProduzione(progetto().ref)
-const v = contatore('PASSO 6 · client vero su RPC vere')
-const UID = await ownerId()
+const registro = apriUltimoRegistro()
+if (!registro || registro.dati.pulito) throw new Error('nessun registro aperto: eseguire prima il passo 1')
+const fixture = opz => fixtureDocumento(registro, opz)
 const sha = async t => createHash('sha256').update(t, 'utf8').digest('hex')
 
 // jwt del membro (creato dalla 2B, salvato fuori repo)
@@ -46,7 +51,7 @@ const statoDa = f => apriRevisione(f.docId, 5,
 
 // ---- giro completo: salva → replay → recupero → conferma ------------------
 {
-  const f = await fixtureDocumento(UID)
+  const f = await fixture()
   const deposito = depositoOperazioniInMemoria()
   let s = statoDa(f)
   s = modificaBozza(s, f.bozzaId, { store: 'Iper' })
@@ -61,13 +66,33 @@ const statoDa = f => apriRevisione(f.docId, 5,
   v.attesa('replay dal client → ripetuta con la stessa mappa',
     replay.ok && !('nulla' in replay) && replay.ripetuta === true
     && JSON.stringify(replay.mappaNuove) === JSON.stringify(esito.ok && !('nulla' in esito) ? esito.mappaNuove : null), JSON.stringify(replay))
-  // recupero per chiave sul giornale VERO con la corrispondenza piena
-  const op = { opKey, kind: 'salva', documentId: f.docId, baseRev: 0, impronta: (dep2.contenuto()[0] ?? { impronta: '' }).impronta, clientRefs: ['loc-1'], richiesta: { kind: 'salva', modifiche: { kind: 'salva', document_id: f.docId, base_rev: 0, bozze: {}, righe: {}, nuove: [] } } }
-  void op // la corrispondenza vera si prova col deposito serializzato:
-  // (il caso completo di risposta persa non è forzabile sul trasporto
-  // reale: coperto dal server finto; qui si prova il canale di lettura)
   const g = await cliente.esitoRevisione(opKey)
   v.attesa('esito_revisione vero: applicata con impronta', g.stato === 'applicata' && typeof g.manifesto_sha256 === 'string', JSON.stringify(g))
+  // SEQUENZA COMPLETA del recupero: la risposta si PERDE nel trasporto
+  // DOPO l'effetto REALE; la custodia (registrata prima dell'invio)
+  // viene SERIALIZZATA e ricreata; recuperaOperazione verifica la
+  // corrispondenza piena sul giornale vero e chiude con la mappa
+  {
+    const h = await fixture()
+    const perdente = {
+      ...cliente,
+      salvaRevisione: async pp => { await cliente.salvaRevisione(pp); throw new Error('Failed to fetch (trasporto: risposta persa dopo l\'effetto reale)') },
+    }
+    const depPerso = depositoOperazioniInMemoria()
+    let sP = statoDa(h)
+    sP = modificaBozza(sP, h.bozzaId, { store: 'Perso e ritrovato' })
+    sP = aggiungiRiga(sP, { draft_id: h.bozzaId, name: 'Voce persa', amount: 0.5 }, 'ref-perso')
+    const perso = await eseguiSalva(perdente, depPerso, sP, 0, sha, randomUUID())
+    v.esigi('risposta persa dopo l\'effetto → incerto con custodia', !perso.ok && 'incerto' in perso && depPerso.contenuto().length === 1)
+    const ricreato = depositoOperazioniInMemoria(JSON.parse(JSON.stringify(depPerso.contenuto())))
+    const opRicreata = ricreato.contenuto()[0]
+    const rec = await recuperaOperazione(cliente, ricreato, opRicreata)
+    v.attesa('recupero sul giornale VERO: corrispondenza piena e mappa della voce',
+      rec.stato === 'applicata' && !!rec.mappaNuove['ref-perso'], JSON.stringify(rec))
+    v.attesa('pendenza chiusa solo dopo il recupero', ricreato.contenuto().length === 0)
+    const [negozio] = await sql(`select store from public.family_draft_expenses where id='${h.bozzaId}'`)
+    v.attesa('l\'effetto reale c\'era davvero', negozio.store === 'Perso e ritrovato')
+  }
   // il totale non quadra più (5 + 0,50): la conferma versionata deve
   // arrivare col RAISE del server e il codice P0001 → rifiuto PROVATO
   const rifiuto = await eseguiConferma(cliente, depositoOperazioniInMemoria(), f.docId, 1, [], sha, randomUUID())
@@ -77,7 +102,7 @@ const statoDa = f => apriRevisione(f.docId, 5,
 
 // ---- SUPERATA reale e reinvio dal deposito --------------------------------
 {
-  const f = await fixtureDocumento(UID)
+  const f = await fixture()
   const deposito = depositoOperazioniInMemoria()
   let s1 = statoDa(f); s1 = modificaBozza(s1, f.bozzaId, { store: 'B' })
   await eseguiSalva(cliente, deposito, s1, 0, sha, randomUUID())
@@ -98,4 +123,5 @@ const statoDa = f => apriRevisione(f.docId, 5,
   v.attesa('reinvio dal deposito applicato sul server vero', reinvio.ok && dopo.store === 'Dal deposito', JSON.stringify(reinvio))
 }
 
-await v.chiudi()
+v.chiudi()
+})

@@ -20,6 +20,20 @@ ricordata esplicitamente); nessun segreto in chat, log o repository.
   richiede).
 - jwt del membro di prova già presente (`~/.gestionale-2b/jwt-owner.txt`,
   creato da scripts/fase2b/utenti-e-export.mjs; rigenerabile).
+- **Password del database del progetto di prova** (passi 4 e 5, sessioni
+  pg dirette): canale dichiarato in `passo0b-password.mjs` — reset dal
+  dashboard del progetto di prova → appunti → file locale
+  `~/.gestionale-2b/db-pass.txt` con permessi 600, MAI in chat o in un
+  comando visibile; lo script la sposta in progetto.json (fuori repo) e
+  cancella il file; a fine collaudo nuovo reset dal dashboard.
+- **`REGISTRO_DIR`** esportata (cartella fuori repo per i registri
+  durevoli del collaudo): ogni artefatto viene registrato lì PRIMA di
+  essere creato; senza registro i passi 3–7 si fermano.
+- **Strumenti già verdi in locale** prima di toccare il progetto:
+  `node --test scripts/collaudo-contratto/strumenti.test.mjs`
+  (STOP del contatore, quiescenza, falsa presenza di Y, concorrenza non
+  valida, fase B in un'unica transazione, fixture con squadratura,
+  ripresa della pulizia interrotta).
 
 ## SEQUENZA ESATTA (ogni passo: STOP alla prima verifica fallita)
 
@@ -28,8 +42,12 @@ ricordata esplicitamente); nessun segreto in chat, log o repository.
    se la base 0020–0022 non è già pulita sul progetto di prova
    (la sequenza termina SEMPRE ripristinando i grant 0021 e il test di
    sicurezza finale — è la versione corretta dopo il caso del 30/08).
+0b. `node scripts/collaudo-contratto/passo0b-password.mjs`
+   — incorpora la db_pass dal file 600 e lo cancella (vedi prerequisiti).
 1. `node scripts/collaudo-contratto/passo1-contratto.mjs`
-   — applica proposte/contratto-revisione.BOZZA.sql e verifica la
+   — apre il REGISTRO durevole e vi salva la FOTOGRAFIA DI BASE
+   (conteggi, definizioni legacy, permessi) PRIMA di ogni effetto; poi
+   applica proposte/contratto-revisione.BOZZA.sql e verifica la
    STRUTTURA: giornale presente e append-only (update E delete respinti
    col messaggio GIORNALE_IMMUTABILE, anche come postgres),
    revisione_rev, matrice dei permessi EFFETTIVI (execute solo ad
@@ -57,7 +75,13 @@ ricordata esplicitamente); nessun segreto in chat, log o repository.
    post-lock) con UNA sola voce inserita; stessa chiave su documenti
    DIVERSI → APPLICATA+CHIAVE_RIUSATA col ramo PERDENTE byte-per-byte
    IDENTICO allo stato iniziale (documento, bozze, righe, spese,
-   giornale) e UNA sola registrazione; Salva⇄Conferma serializzati.
+   giornale) e UNA sola registrazione; Salva⇄Conferma con le SOLE
+   coppie coerenti col vincitore (salva vince → SUPERATA per la
+   conferma; conferma vince → DOCUMENTO_NON_MODIFICABILE per il salva)
+   e i due ordini provati anche FORZATI in sequenza. Ogni caso è
+   MISURATO con la validazione della 0022 (pid e finestre al
+   microsecondo anche sugli errori): senza sovrapposizione effettiva
+   l'esito è NON_VALIDO e il passo fallisce.
 5. `node scripts/collaudo-contratto/passo5-transizione.mjs`
    — SOLO progetto di prova: 5.1 fase A applicata e verificata
    (spostamento VERBATIM, respingenti P0001 sui cinque nomi, private
@@ -76,11 +100,19 @@ ricordata esplicitamente); nessun segreto in chat, log o repository.
    codice dei test locali) su PostgREST col jwt del membro: giro
    completo con mappa, replay, esito_revisione vero, quadratura del
    server come rifiuto DIMOSTRATO (SQLSTATE P0001 dal trasporto),
-   SUPERATA reale, reinvio dalla richiesta custodita.
+   SUPERATA reale, reinvio dalla richiesta custodita, e il RECUPERO
+   COMPLETO: risposta PERSA nel trasporto DOPO l'effetto reale →
+   pendenza custodita → custodia serializzata e ricreata →
+   recuperaOperazione chiude sul giornale vero con la mappa.
 7. `node scripts/collaudo-contratto/passo7-pulizia.mjs`
-   — pulizia GUIDATA E VERIFICATA: smonta transizione (rollback +
-   ri-grant 0021 + execute legacy), fixture, oggetti del contratto;
-   verifica finale che il progetto sia tornato alla base 0020–0022.
+   — pulizia per IDENTIFICATIVI ESATTI dal registro (mai per nome):
+   smonta la transizione nell'ORDINE sicuro (originali dal backup →
+   ri-grant 0021 ed execute legacy → verifica → via le copie private →
+   backup per ULTIMO), esegue il piano (DROP del giornale, mai DELETE
+   contro il trigger; spese/ponte/bozze/righe/documenti dei SOLI docIds
+   registrati) annotando il progresso nel registro; alla fine rifà la
+   fotografia e la CONFRONTA con quella di base: se non coincidono la
+   pulizia NON è verde.
 
 Come per la 0022: passi 1–6 eseguiti DUE volte (dopo la pulizia del
 passo 7 e il ripristino della base) prima di dichiarare il collaudo
@@ -99,9 +131,11 @@ superato.
   stato prima di rilanciare (mai rilanci ciechi).
 
 ## RECUPERO E PULIZIA IN CASO DI INTERRUZIONE
-- interruzione nei passi 1–4: rilanciare il passo 7 (idempotente) e poi
-  ripartire dal passo 1; in alternativa azzerare e riapplicare la base
-  (scripts/fase2b/esegui-sequenza.mjs).
+- interruzione in QUALUNQUE passo (pulizia compresa): rilanciare il
+  passo 7 — riparte dall'istruzione registrata (`puliziaArrivataA`) e
+  lavora sui soli identificativi del registro; poi si riparte dal
+  passo 1. L'azzeramento della 2B NON è un ripiego ordinario: solo su
+  autorizzazione esplicita, se il registro risultasse perso o corrotto.
 - interruzione nel passo 5 con fase A applicata e fase B no: gli
   ingressi legacy restano respinti SUL PROGETTO DI PROVA (nessun
   effetto altrove); il rollback del runbook è nel passo 7 e in coda

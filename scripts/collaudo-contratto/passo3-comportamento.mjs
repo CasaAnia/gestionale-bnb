@@ -8,10 +8,16 @@
 import { randomUUID } from 'node:crypto'
 import { sql, progetto } from '../fase2b/api.mjs'
 import { verificaNonProduzione } from '../fase2b/guardia.mjs'
-import { comeMembro, contatore, fixtureDocumento, fotografiaDocumento, ownerId } from './ambiente.mjs'
+import { comeMembro, fixtureDocumento, fotografiaDocumento, ownerId } from './ambiente.mjs'
+import { creaContatore, eseguiPasso } from './strumenti.mjs'
+import { apriUltimoRegistro } from './registro.mjs'
 
+await eseguiPasso('PASSO 3 · comportamento', async () => {
 verificaNonProduzione(progetto().ref)
-const v = contatore('PASSO 3 · comportamento delle RPC')
+const v = creaContatore('PASSO 3 · comportamento delle RPC')
+const registro = apriUltimoRegistro()
+if (!registro || registro.dati.pulito) { throw new Error('nessun registro aperto: eseguire prima il passo 1') }
+const fixture = opz => fixtureDocumento(registro, opz)
 const UID = await ownerId()
 
 const salva = (op, doc, rev, modifiche) =>
@@ -20,11 +26,11 @@ const chiama = async corpo => {
   const righe = await sql(`begin; ${comeMembro(UID)} ${corpo}; commit;`)
   return righe.find(x => x?.r)?.r ?? righe[righe.length - 1]?.r ?? righe
 }
-const batch = (doc, extra = {}) => ({ bozze: {}, righe: {}, nuove: [], ...extra })
+function batch(_doc, extra = {}) { return { bozze: {}, righe: {}, nuove: [], ...extra } }
 
 // ---- APPLICATA con mappa, replay RIPETUTA, niente doppioni ----------------
 {
-  const f = await fixtureDocumento(UID)
+  const f = await fixture()
   const op = randomUUID()
   const b = batch(f.docId, {
     doc_total: 5.5,
@@ -44,7 +50,7 @@ const batch = (doc, extra = {}) => ({ bozze: {}, righe: {}, nuove: [], ...extra 
   // identità: stessa chiave con contenuto/documento/kind diversi
   const r3 = await chiama(salva(op, f.docId, 0, batch(f.docId, { bozze: { [f.bozzaId]: { store: 'Altro' } } })))
   v.attesa('stessa chiave, contenuto diverso → CHIAVE_RIUSATA', r3.esito === 'CHIAVE_RIUSATA', JSON.stringify(r3))
-  const g = await fixtureDocumento(UID)
+  const g = await fixture()
   const r4 = await chiama(salva(op, g.docId, 0, batch(g.docId, { bozze: { [g.bozzaId]: { store: 'X' } } })))
   v.attesa('stessa chiave, documento diverso → CHIAVE_RIUSATA', r4.esito === 'CHIAVE_RIUSATA', JSON.stringify(r4))
   const r5 = await chiama(`select public.conferma_revisione('${op}'::uuid,'${f.docId}'::uuid,1,'[]'::jsonb) as r`)
@@ -53,7 +59,7 @@ const batch = (doc, extra = {}) => ({ bozze: {}, righe: {}, nuove: [], ...extra 
 
 // ---- SUPERATA (anche per conferma e scarto tardivi) -----------------------
 {
-  const f = await fixtureDocumento(UID)
+  const f = await fixture()
   await chiama(salva(randomUUID(), f.docId, 0, batch(f.docId, { bozze: { [f.bozzaId]: { store: 'Nuovo di B' } } })))
   const prima = await fotografiaDocumento(f.docId)
   const rA = await chiama(salva(randomUUID(), f.docId, 0, batch(f.docId, { bozze: { [f.bozzaId]: { store: 'Vecchio di A' } } })))
@@ -67,14 +73,14 @@ const batch = (doc, extra = {}) => ({ bozze: {}, righe: {}, nuove: [], ...extra 
 
 // ---- STATI (lista positiva) e PERIMETRO con atomicità ---------------------
 {
-  const f = await fixtureDocumento(UID, { stato: 'approvata_da_pagare' })
+  const f = await fixture({ stato: 'approvata_da_pagare' })
   const prima = await fotografiaDocumento(f.docId)
   const r = await chiama(salva(randomUUID(), f.docId, 0, batch(f.docId, { bozze: { [f.bozzaId]: { store: 'X' } } })))
   v.attesa('approvata_da_pagare → DOCUMENTO_NON_MODIFICABILE, intatto',
     r.esito === 'DOCUMENTO_NON_MODIFICABILE' && await fotografiaDocumento(f.docId) === prima, JSON.stringify(r))
 }
 {
-  const f = await fixtureDocumento(UID)
+  const f = await fixture()
   await sql(`update public.family_draft_expenses set status='confermata' where id='${f.bozzaId}'`)
   const [alt] = await sql(`insert into public.family_draft_expenses (document_id, status, expense_date, group_id, arrotondamento_cent)
     values ('${f.docId}','da_controllare','2026-08-29',(select group_id from public.family_draft_expenses where id='${f.bozzaId}'),0) returning id`)
@@ -86,8 +92,8 @@ const batch = (doc, extra = {}) => ({ bozze: {}, righe: {}, nuove: [], ...extra 
     r.esito === 'BOZZA_NON_MODIFICABILE' && await fotografiaDocumento(f.docId) === prima, JSON.stringify(r))
 }
 {
-  const f = await fixtureDocumento(UID)
-  const g = await fixtureDocumento(UID)
+  const f = await fixture()
+  const g = await fixture()
   const estraneo = await chiama(salva(randomUUID(), f.docId, 0, batch(f.docId, { bozze: { [g.bozzaId]: { store: 'furto' } } })))
   v.attesa('bozza di un altro documento → RIFERIMENTO_ESTRANEO', estraneo.esito === 'RIFERIMENTO_ESTRANEO', JSON.stringify(estraneo))
   const mancante = await chiama(salva(randomUUID(), f.docId, 0, batch(f.docId, { righe: { '00000000-0000-0000-0000-000000000009': { amount: 1 } } })))
@@ -103,7 +109,7 @@ const batch = (doc, extra = {}) => ({ bozze: {}, righe: {}, nuove: [], ...extra 
 
 // ---- vincoli 0020 sui valori (rete di sicurezza, non sentinella) ----------
 {
-  const f = await fixtureDocumento(UID)
+  const f = await fixture()
   const prima = await fotografiaDocumento(f.docId)
   let respinto = false
   try { await chiama(salva(randomUUID(), f.docId, 0, batch(f.docId, { righe: { [f.rigaId]: { amount: -1 } } }))) }
@@ -113,7 +119,7 @@ const batch = (doc, extra = {}) => ({ bozze: {}, righe: {}, nuove: [], ...extra 
 
 // ---- CONFERMA versionata: quadratura del server, spese, replay ------------
 {
-  const f = await fixtureDocumento(UID)                       // totale 5, righe 5: quadra
+  const f = await fixture()                       // totale 5, righe 5: quadra
   const op = randomUUID()
   const r1 = await chiama(`select public.conferma_revisione('${op}'::uuid,'${f.docId}'::uuid,0,'[]'::jsonb) as r`)
   v.attesa('conferma → APPLICATA con spese', r1.esito === 'APPLICATA' && Array.isArray(r1.spese) && r1.spese.length > 0, JSON.stringify(r1))
@@ -124,7 +130,7 @@ const batch = (doc, extra = {}) => ({ bozze: {}, righe: {}, nuove: [], ...extra 
   v.attesa('replay della conferma → RIPETUTA con le stesse spese', r2.esito === 'RIPETUTA' && JSON.stringify(r2.spese) === JSON.stringify(r1.spese), JSON.stringify(r2))
 }
 {
-  const f = await fixtureDocumento(UID, { totale: 30 })       // righe 5: NON quadra
+  const f = await fixture({ totale: 30, importoRiga: 5 })     // totale 30, RIGA 5: squadratura VERA
   const prima = await fotografiaDocumento(f.docId)
   let messaggio = ''
   try { await chiama(`select public.conferma_revisione('${randomUUID()}'::uuid,'${f.docId}'::uuid,0,'[]'::jsonb) as r`) }
@@ -135,7 +141,7 @@ const batch = (doc, extra = {}) => ({ bozze: {}, righe: {}, nuove: [], ...extra 
 
 // ---- SCARTO versionato ----------------------------------------------------
 {
-  const f = await fixtureDocumento(UID)
+  const f = await fixture()
   const r = await chiama(`select public.scarta_revisione('${randomUUID()}'::uuid,'${f.docId}'::uuid,0,'foto doppia') as r`)
   const [dopo] = await sql(`select status from public.family_documents where id='${f.docId}'`)
   v.attesa('scarto → APPLICATA e documento scartato', r.esito === 'APPLICATA' && dopo.status === 'scartato', JSON.stringify(r))
@@ -143,7 +149,7 @@ const batch = (doc, extra = {}) => ({ bozze: {}, righe: {}, nuove: [], ...extra 
 
 // ---- esito_revisione ------------------------------------------------------
 {
-  const f = await fixtureDocumento(UID)
+  const f = await fixture()
   const op = randomUUID()
   await chiama(salva(op, f.docId, 0, batch(f.docId, { bozze: { [f.bozzaId]: { store: 'Iper' } } })))
   const g = await chiama(`select public.esito_revisione('${op}'::uuid) as r`)
@@ -153,4 +159,5 @@ const batch = (doc, extra = {}) => ({ bozze: {}, righe: {}, nuove: [], ...extra 
   v.attesa('esito_revisione: assente per chiave mai vista', assente.stato === 'assente', JSON.stringify(assente))
 }
 
-await v.chiudi()
+v.chiudi()
+})

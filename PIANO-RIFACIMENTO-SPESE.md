@@ -1935,6 +1935,69 @@ se la precedente non è verificata E approvata.
     interruzione, procedura token invariata, e la dichiarazione
     esplicita che NULLA autorizza la produzione.
 
+  **COLLAUDO ISOLATO — SEI CORREZIONI SULLA REVISIONE DI 374d4e5
+  (31/08/2026): strumenti decidibili estratti e TESTATI in locale,
+  passi riscritti. Sempre SOLO preparazione: nessuna esecuzione remota.**
+  Nuovo strato scripts/collaudo-contratto/strumenti.mjs (logica pura) +
+  registro.mjs (registro durevole) + strumenti.test.mjs (24 test,
+  `node --test`, senza rete).
+  1) PULIZIA PER IDENTIFICATIVI ESATTI — registro durevole in
+     REGISTRO_DIR scritto PRIMA di ogni effetto (docIds e sonde nascono
+     lato client), fotografia di BASE obbligatoria al passo 1 e
+     CONFRONTATA a fine pulizia (conteggi, md5 delle legacy, permessi);
+     pianoPulizia: DROP del giornale (mai DELETE contro
+     GIORNALE_IMMUTABILE), spese/ponte/righe/bozze/documenti dei SOLI
+     id registrati, figli→genitori, idempotente con progresso
+     (puliziaArrivataA) e RIPRESA dall'interruzione (testata con un
+     esecutore finto che cade a metà); smontaggio transizione
+     nell'ordine sicuro: originali dal backup → RI-GRANT 0021 ed
+     execute legacy → verifica → copie private → backup per ULTIMO.
+     L'azzeramento della 2B tolto dai ripieghi ordinari (solo con
+     autorizzazione, a registro perso).
+  2) STOP VERO E CHIAMATA SOSPESA PROVATA — contatore nuovo: esigi()
+     LANCIA al primo fallimento (gli effetti successivi non partono),
+     chiudi() fallisce anche a zero verifiche (mai un verde vuoto);
+     attendiQuiescenza IMPLEMENTA il criterio della fase B (età delle
+     transazioni + orizzonte xmin, poll con timeout) ed è provata con
+     un INSERT pregresso reale; la chiamata sospesa è identificata per
+     PID e attesaSuTabella dimostra l'attesa EFFETTIVA di lock su
+     app_members con la query della conferma (mai una pausa come
+     prova); la condizione deve CONTARE proprio quel pid; sessioni pg
+     rilasciate nei finally.
+  3) FASE B IN UNA SOLA TRANSAZIONE — costruisciFaseB genera l'intero
+     begin…commit (timeout, barriera, revoche con le firme LETTE da
+     pg_proc, involucri estratti dalla bozza del contratto e ripuntati
+     a private, completezza verificata): un'interruzione non lascia le
+     RPC sui respingenti. Bozza fase B allineata (le revoche hardcoded
+     con le firme fatture SBAGLIATE eliminate: la transazione la genera
+     lo script, unica fonte); bozza fase A con guardia «ESATTAMENTE una
+     funzione» E firme attese per i cinque nomi (sovraccarichi → STOP).
+  4) CONCORRENZA MISURATA — passo4 riusa la validazione della 0022
+     (batchRamo/eseguiCaso/riepilogo: pid e finestre al microsecondo
+     anche sugli errori, sovrapposizione effettiva o NON_VALIDO);
+     Salva⇄Conferma con le sole coppie coerenti col vincitore (conferma
+     vince → DOCUMENTO_NON_MODIFICABILE, salva vince → SUPERATA) e i
+     due ordini provati anche FORZATI in sequenza con esiti esatti.
+  5) PREREQUISITI DICHIARATI — passo0b-password.mjs: canale della
+     db_pass (dashboard → appunti → file 600 fuori repo, incorporata e
+     file cancellato, reset a fine collaudo); sonda del giornale con
+     uuid valido e created_by esplicito; fixture con totale e importo
+     riga SEPARATI (la quadratura si prova con 30 vs 5, non più
+     «totale:30» che pareggiava da solo); gruppo scelto per ambito
+     esplicito, mai il primo che capita.
+  6) RECUPERO COMPLETO NEL PASSO 6 — risposta PERSA nel trasporto DOPO
+     l'effetto REALE (rivestimento del cliente che lancia dopo la rpc),
+     pendenza custodita, deposito serializzato e RICREATO,
+     recuperaOperazione che verifica la corrispondenza piena sul
+     giornale vero e chiude con la mappa; l'effetto reale è verificato
+     sulla bozza. Eliminato il codice morto (`void op`).
+  PIANO-COLLAUDO-CONTRATTO.md aggiornato: prerequisiti db_pass e
+  REGISTRO_DIR, strumenti verdi PRIMA di toccare il progetto, passo7
+  descritto col confronto delle fotografie, recupero senza azzeramento
+  ordinario. Test: 317/317 di suite + 24/24 strumenti; sintassi di
+  tutti gli script verificata; tsc, lint, build verdi. NIENTE token,
+  esecuzioni remote, push o deploy: si resta fermi al materiale.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

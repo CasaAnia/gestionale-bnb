@@ -33,22 +33,34 @@ create table if not exists private.transizione_backup (
 
 do $$
 declare
-  v_nomi constant text[] := array[
-    'conferma_documento', 'scarta_documento',
-    'approva_fattura_da_pagare', 'paga_fattura', 'conferma_fattura_pagata'
-  ];
-  v_nome text; v_oid oid; v_def text; v_def_privata text; v_firma text;
+  -- nomi E firme attese (0020): un sovraccarico in più o una firma
+  -- diversa sono STOP, mai «la prima che capita»
+  v_attese constant jsonb := jsonb_build_object(
+    'conferma_documento',        'uuid, jsonb',
+    'scarta_documento',          'uuid, text',
+    'approva_fattura_da_pagare', 'uuid, jsonb',
+    'paga_fattura',              'uuid, date, text, jsonb',
+    'conferma_fattura_pagata',   'uuid, date, text, jsonb'
+  );
+  v_nome text; v_oid oid; v_def text; v_def_privata text; v_firma text; v_conta int;
 begin
-  foreach v_nome in array v_nomi loop
+  for v_nome in select jsonb_object_keys(v_attese) order by 1 loop
     -- ESATTAMENTE una funzione con quel nome in public (guardia)
-    select p.oid into v_oid
+    select count(*) into v_conta
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = v_nome;
-    if not found then
-      raise exception 'FASE_A_STOP: funzione public.% non trovata', v_nome;
+    if v_conta <> 1 then
+      raise exception 'FASE_A_STOP: attesa ESATTAMENTE una public.%, trovate %', v_nome, v_conta;
+    end if;
+    select p.oid, pg_get_function_identity_arguments(p.oid) into v_oid, v_firma
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = v_nome;
+    -- FIRMA attesa, non solo il nome
+    if v_firma is distinct from (v_attese ->> v_nome) then
+      raise exception 'FASE_A_STOP: firma inattesa per public.% — attesa (%), trovata (%)',
+        v_nome, v_attese ->> v_nome, v_firma;
     end if;
     v_def := pg_get_functiondef(v_oid);
-    v_firma := pg_get_function_identity_arguments(v_oid);
     -- 1) backup dell'originale (se già presente da un giro precedente
     --    interrotto: STOP — prima si risolve col runbook, mai sovrascritto)
     begin

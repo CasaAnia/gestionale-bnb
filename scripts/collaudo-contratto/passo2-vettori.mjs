@@ -10,10 +10,12 @@
 // ============================================================================
 import { sql, progetto } from '../fase2b/api.mjs'
 import { verificaNonProduzione } from '../fase2b/guardia.mjs'
-import { contatore, vettoriComuni } from './ambiente.mjs'
+import { vettoriComuni } from './ambiente.mjs'
+import { creaContatore, eseguiPasso } from './strumenti.mjs'
 
+await eseguiPasso('PASSO 2 · vettori comuni', async () => {
 verificaNonProduzione(progetto().ref)
-const v = contatore('PASSO 2 · vettori comuni client/server')
+const v = creaContatore('PASSO 2 · vettori comuni client/server')
 const lettera = s => s.replaceAll("'", "''")
 
 for (const caso of vettoriComuni()) {
@@ -41,4 +43,5 @@ for (const caso of vettoriComuni()) {
   v.attesa(`[${caso.nome}] impronta identica`, r.impronta === caso.sha256, r.impronta)
 }
 
-await v.chiudi()
+v.chiudi()
+})

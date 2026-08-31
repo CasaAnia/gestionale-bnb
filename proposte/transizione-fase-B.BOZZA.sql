@@ -5,9 +5,10 @@
 -- Stato: DA COLLAUDARE in ambiente isolato con autorizzazione separata.
 --
 -- La fase B è GUIDATA DA UNO SCRIPT (scripts/collaudo-contratto/
--- passo6-transizione.mjs per il collaudo; il runner di produzione avrà
+-- passo5-transizione.mjs per il collaudo; il runner di produzione avrà
 -- la sua autorizzazione): la CONDIZIONE DI COMPLETAMENTO è un poll
--- FUORI transazione, la parte transazionale è il blocco più sotto.
+-- FUORI transazione (attendiQuiescenza in strumenti.mjs), la parte
+-- transazionale è UNA SOLA transazione generata da costruisciFaseB.
 --
 -- (B.0) subito DOPO il commit della fase A, lo script registra:
 --         t_A  = now() del server (select now())
@@ -24,48 +25,33 @@
 --       prima del primo accesso alle tabelle viene CONTATA finché non
 --       conclude. Timeout scaduto → STOP: nulla è cambiato (la fase A
 --       resta), si riprova più tardi.
--- (B.2) SOLO a condizione soddisfatta, la TRANSAZIONE qui sotto.
--- ============================================================================
-
-begin;
-
--- timeout con STOP: mai attese indefinite, mai stati a metà
-set local lock_timeout = '5s';
-set local statement_timeout = '30s';
-
--- BARRIERA (difesa in profondità contro le scritture dirette residue):
--- con la condizione B.1 già soddisfatta si acquisisce subito
-lock table public.family_documents,
-           public.family_draft_expenses,
-           public.family_draft_items in access exclusive mode;
-
--- CHIUSURA della porta alle scritture dirette (statement NUOVI: le
--- migrazioni storiche non si toccano)
-revoke update, insert on public.family_draft_expenses from authenticated;
-revoke update, insert on public.family_draft_items from authenticated;
-revoke update on public.family_documents from authenticated;
-
--- niente EXECUTE diretto sui cinque nomi legacy (già respingenti dalla
--- fase A: doppia porta) — firme esatte da confermare sul progetto
--- bersaglio prima dell'esecuzione (passo6 le legge da pg_proc)
-revoke execute on function public.conferma_documento(uuid, jsonb) from authenticated;
-revoke execute on function public.scarta_documento(uuid, text) from authenticated;
-revoke execute on function public.approva_fattura_da_pagare(uuid) from authenticated;
-revoke execute on function public.paga_fattura(uuid, text, date) from authenticated;
-revoke execute on function public.conferma_fattura_pagata(uuid) from authenticated;
-
--- RIPUNTAMENTO degli involucri del contratto alle copie private (la
--- bozza del contratto, applicata prima, chiamava ancora i nomi pubblici;
--- da qui in poi i pubblici sono respingenti):
---   create or replace function public.conferma_revisione(...)  → chiama
---     private.conferma_documento(...)
---   create or replace function public.scarta_revisione(...)    → chiama
---     private.scarta_documento(...)
--- (i due CREATE OR REPLACE completi, identici alla bozza del contratto
--- salvo la riga della chiamata, vengono generati dal runner leggendo la
--- bozza — un'unica fonte, niente copie divergenti.)
-
-commit;
+-- (B.2) SOLO a condizione soddisfatta, la TRANSAZIONE UNICA.
+--
+-- La transazione NON è trascritta qui: viene GENERATA da
+-- costruisciFaseB (scripts/collaudo-contratto/strumenti.mjs) — UNICA
+-- FONTE, testata in strumenti.test.mjs — e contiene, in UN SOLO
+-- begin…commit («o tutto o niente»: un'interruzione non può lasciare
+-- le RPC del contratto rivolte ai respingenti):
+--
+--   · set local lock_timeout = '5s' / statement_timeout = '30s'
+--     (STOP, mai attese indefinite né stati a metà);
+--   · BARRIERA: lock table family_documents, family_draft_expenses,
+--     family_draft_items in access exclusive mode (difesa in
+--     profondità; con B.1 soddisfatta si acquisisce subito);
+--   · revoke update/insert su bozze e righe, revoke update sui
+--     documenti, da authenticated (statement NUOVI: le migrazioni
+--     storiche non si toccano);
+--   · revoke execute sui CINQUE nomi legacy con le FIRME LETTE DA
+--     pg_proc sul progetto bersaglio al momento dell'esecuzione (mai
+--     firme trascritte a mano in questa bozza: costruisciFaseB rifiuta
+--     una firma mancante) — doppia porta oltre ai respingenti della
+--     fase A;
+--   · RIPUNTAMENTO degli involucri: i CREATE OR REPLACE di
+--     conferma_revisione/scarta_revisione vengono ESTRATTI dalla bozza
+--     del contratto (proposte/contratto-revisione.BOZZA.sql) e le
+--     chiamate public.conferma_documento(/scarta_documento( diventano
+--     private.* — completezza del ripuntamento verificata, niente
+--     copie divergenti.
 
 -- (B.3) VERIFICHE POST-COMMIT dello script (tutte, con STOP al primo
 --       scostamento): scritture dirette respinte per authenticated
