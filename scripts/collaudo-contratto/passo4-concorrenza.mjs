@@ -16,7 +16,7 @@ import pg from 'pg'
 import { sql, progetto } from '../fase2b/api.mjs'
 import { verificaNonProduzione } from '../fase2b/guardia.mjs'
 import { comeMembro, fixtureDocumento, fotografiaDocumento, ownerId } from './ambiente.mjs'
-import { creaContatore, eseguiPasso } from './strumenti.mjs'
+import { creaContatore, eseguiPasso, tipiTimestampTesto } from './strumenti.mjs'
 import { apriUltimoRegistro } from './registro.mjs'
 import { batchRamo, eseguiCaso, riepilogo } from '../fase4/concorrenza.mjs'
 
@@ -31,8 +31,11 @@ await eseguiPasso('PASSO 4 · concorrenza misurata', async () => {
   if (!p.db_pass) throw new Error('db_pass mancante in progetto.json: eseguire passo0b-password.mjs')
 
   const sessioni = []
+  // i timestamp devono restare TESTO a sei decimali: il driver pg li
+  // convertirebbe in Date (millisecondi) e finestre davvero sovrapposte
+  // risulterebbero NON valide PRIMA di provaValida
   const sessione = async () => {
-    const cli = new pg.Client({ host: `db.${p.ref}.supabase.co`, port: 5432, user: 'postgres', database: 'postgres', password: p.db_pass, ssl: { rejectUnauthorized: false } })
+    const cli = new pg.Client({ host: `db.${p.ref}.supabase.co`, port: 5432, user: 'postgres', database: 'postgres', password: p.db_pass, ssl: { rejectUnauthorized: false }, types: tipiTimestampTesto(pg.types) })
     await cli.connect(); sessioni.push(cli); return cli
   }
   try {

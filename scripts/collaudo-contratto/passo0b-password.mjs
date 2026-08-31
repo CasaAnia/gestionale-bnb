@@ -8,16 +8,27 @@
 // cancella a fine collaudo insieme al token.
 // Questo passo la TRAVASA in progetto.json (600) e cancella il file.
 // ============================================================================
-import { readFileSync, rmSync, existsSync } from 'node:fs'
+import { readFileSync, rmSync, existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { progetto, salvaProgetto } from '../fase2b/api.mjs'
 
 const percorso = join(homedir(), '.gestionale-2b', 'db-pass.txt')
 if (!existsSync(percorso)) {
-  console.error(`STOP: manca ${percorso}. Procedura: dashboard del progetto di PROVA → Settings → Database →
-Reset database password → copia negli appunti → pbpaste > ${percorso} && chmod 600 ${percorso}
-(mai incollarla in chat o in un comando visibile).`)
+  console.error(`STOP: manca ${percorso}.
+Procedura (il file nasce PROTETTO prima che la password lo tocchi, e non
+si sovrascrive mai un file esistente): dashboard del progetto di PROVA →
+Settings → Database → Reset database password → copia negli appunti, poi
+in un terminale:
+  ( umask 077 && set -C && pbpaste > ${percorso} )
+(umask 077: il file nasce 600; set -C: se esiste già la scrittura viene
+RIFIUTATA — in quel caso verificarlo e cancellarlo, mai sovrascriverlo;
+mai incollare la password in chat o in un comando visibile).`)
+  process.exit(1)
+}
+const permessi = statSync(percorso).mode & 0o777
+if (permessi !== 0o600) {
+  console.error(`STOP: ${percorso} ha permessi ${permessi.toString(8)}, attesi 600 — il file va creato con umask 077 (vedi procedura), non protetto dopo.`)
   process.exit(1)
 }
 const password = readFileSync(percorso, 'utf8').trim()

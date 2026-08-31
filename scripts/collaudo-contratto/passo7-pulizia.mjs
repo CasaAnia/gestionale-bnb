@@ -14,7 +14,7 @@
 import { sql, progetto } from '../fase2b/api.mjs'
 import { verificaNonProduzione } from '../fase2b/guardia.mjs'
 import { LEGACY, fotografiaBase } from './ambiente.mjs'
-import { creaContatore, eseguiPasso, pianoPulizia, eseguiPiano, confrontaFotografie } from './strumenti.mjs'
+import { creaContatore, eseguiPasso, pianoPulizia, eseguiPiano, confrontaFotografie, validaFotografia } from './strumenti.mjs'
 import { apriUltimoRegistro } from './registro.mjs'
 
 await eseguiPasso('PASSO 7 · pulizia verificata', async () => {
@@ -22,7 +22,9 @@ await eseguiPasso('PASSO 7 · pulizia verificata', async () => {
   const v = creaContatore('PASSO 7 · pulizia verificata')
   const registro = apriUltimoRegistro()
   if (!registro) throw new Error('nessun registro in REGISTRO_DIR: senza gli identificativi la pulizia non parte')
-  if (!registro.dati.fotografiaBase) throw new Error('fotografia di base assente dal registro: la pulizia non può essere verificata')
+  // la fotografia si VALIDA (struttura e completezza) PRIMA di qualunque
+  // effetto: una fotografia vuota non deve far partire i DROP
+  validaFotografia(registro.dati.fotografiaBase)
 
   // ---- 1) transizione: smontaggio con l'ORDINE corretto ---------------------
   // (a) originali ripristinati dal backup; (b) RI-GRANT di 0021 e degli
@@ -72,37 +74,60 @@ await eseguiPasso('PASSO 7 · pulizia verificata', async () => {
       || backup.n === 0, 'transizione segnata applicata ma senza backup: verificare a mano')
   }
 
-  // ---- 2) il PIANO per identificativi esatti, con progresso durevole -------
-  const piano = pianoPulizia({ docIds: registro.dati.docIds })
+  // ---- 2) expenseIds CONSERVATI prima di eliminare i riferimenti -----------
+  // le spese confermate si raggiungono solo via ponte/bozze: gli id si
+  // salvano DUREVOLMENTE nel registro PRIMA delle eliminazioni; a una
+  // ripresa si riusano quelli salvati (i riferimenti potrebbero non
+  // esserci più)
+  const doc = registro.dati.docIds.map(id => `'${id}'`).join(',') || `'00000000-0000-0000-0000-000000000000'`
+  if (!Array.isArray(registro.dati.expenseIds)) {
+    const trovate = await sql(`select distinct expense_id as id from (
+        select expense_id from public.family_expense_documents where document_id in (${doc})
+        union all
+        select expense_id from public.family_draft_expenses where document_id in (${doc})
+      ) x where expense_id is not null`)
+    registro.segna('expenseIds', trovate.map(r => r.id))
+  }
+
+  // ---- 3) il PIANO per identificativi esatti, con progresso durevole -------
+  const piano = pianoPulizia({ docIds: registro.dati.docIds, expenseIds: registro.dati.expenseIds })
   const da = (registro.dati.puliziaArrivataA ?? -1) + 1
   if (da > 0) console.log(`  ripresa della pulizia interrotta: dall'istruzione ${da} di ${piano.length}`)
   await eseguiPiano(sql, piano.slice(da), i => registro.segna('puliziaArrivataA', da + i))
   v.attesa(`piano di pulizia completato (${piano.length} istruzioni, solo id registrati)`, registro.dati.puliziaArrivataA === piano.length - 1)
 
-  // ---- 3) FOTOGRAFIA finale ≡ fotografia di base ----------------------------
+  // ---- 4) FOTOGRAFIA finale ≡ fotografia di base ----------------------------
   const fine = await fotografiaBase()
   const confronto = confrontaFotografie(registro.dati.fotografiaBase, fine)
-  v.esigi('fotografia finale IDENTICA alla base (conteggi, definizioni legacy, permessi)',
+  v.esigi('fotografia finale IDENTICA alla base (impronte dei dati, legacy, privilegi esatti, EXECUTE)',
     confronto.uguali, confronto.differenze.join(' · '))
 
-  // ---- 4) residui espliciti -------------------------------------------------
+  // ---- 5) residui espliciti -------------------------------------------------
+  const spesa = registro.dati.expenseIds.map(id => `'${id}'`).join(',') || `'00000000-0000-0000-0000-000000000000'`
   const [residui] = await sql(`select
     (select count(*)::int from information_schema.tables where table_name='family_revision_ops') as giornale,
     (select count(*)::int from information_schema.columns where table_name='family_documents' and column_name='revisione_rev') as rev,
     (select count(*)::int from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.proname like '%_revisione') as funzioni,
-    (select count(*)::int from public.family_documents where id in
-       (${registro.dati.docIds.map(id => `'${id}'`).join(',') || `'00000000-0000-0000-0000-000000000000'`})) as fixture,
+    (select count(*)::int from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+       where n.nspname='private' and p.proname='proteggi_giornale_revisione') as trigger_fn,
+    (select count(*)::int from public.family_documents where id in (${doc})) as fixture,
+    (select count(*)::int from public.family_expenses where id in (${spesa})) as spese,
+    (select count(*)::int from public.family_expense_items where expense_id in (${spesa})) as voci,
+    (select count(*)::int from public.family_corrections where document_id in (${doc}) or expense_id in (${spesa})) as correzioni,
     (select count(*)::int from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='private' and p.proname in (${LEGACY.map(x => `'${x}'`).join(',')})) as private_,
     (select count(*)::int from information_schema.tables
        where table_schema='private' and table_name='transizione_backup') as backup`)
-  v.attesa('nessun residuo del contratto né della transizione',
+  v.attesa('nessun residuo del contratto né della transizione (funzione del trigger compresa)',
     residui.giornale === 0 && residui.rev === 0 && residui.funzioni === 0
-    && residui.private_ === 0 && residui.backup === 0, JSON.stringify(residui))
-  v.attesa('nessun documento registrato è rimasto', residui.fixture === 0)
+    && residui.trigger_fn === 0 && residui.private_ === 0 && residui.backup === 0, JSON.stringify(residui))
+  v.attesa('nessun artefatto registrato è rimasto (documenti, spese, righe definitive, correzioni)',
+    residui.fixture === 0 && residui.spese === 0 && residui.voci === 0 && residui.correzioni === 0, JSON.stringify(residui))
 
+  // «pulito» SOLO dopo che TUTTE le verifiche sono positive: chiudi()
+  // lancia su qualunque rosso e la marcatura non viene mai raggiunta
+  v.chiudi()
   registro.segna('pulito')
   console.log(`  registro chiuso: ${registro.file}`)
-  v.chiudi()
 })

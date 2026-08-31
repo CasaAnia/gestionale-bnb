@@ -1998,6 +1998,68 @@ se la precedente non è verificata E approvata.
   tutti gli script verificata; tsc, lint, build verdi. NIENTE token,
   esecuzioni remote, push o deploy: si resta fermi al materiale.
 
+  **COLLAUDO ISOLATO — CINQUE BLOCCHI SULLA REVISIONE DI ba8a38b
+  (31/08/2026): FK rispettate, registro blindato, guardie sui tipi,
+  microsecondi salvati. Sempre SOLO preparazione locale.**
+  1) PULIZIA CONFORME ALLE FK DELLA 0020 — il piano eliminava le spese
+     PRIMA di ponte e bozze, che le referenziano entrambi ON DELETE
+     RESTRICT: ordine corretto (correzioni e righe definitive → righe
+     bozza → ponte → bozze → spese → documenti), gli expense_id delle
+     spese confermate CONSERVATI DUREVOLMENTE nel registro PRIMA di
+     eliminare i riferimenti (a una ripresa si riusano quelli salvati),
+     e via anche private.proteggi_giornale_revisione (la funzione del
+     trigger che il DROP della tabella non porta con sé), cercata fra i
+     residui. Il test non registra più le istruzioni e basta: un
+     SIMULATORE dello schema 0020 con documento CONFERMATO fa rispettare
+     le RESTRICT (controprova: spese prima dei riferimenti → respinto),
+     anche nella ripresa a metà.
+  2) REGISTRO E FOTOGRAFIA BLINDATI — i tre falsi recuperi del revisore
+     chiusi: nuovoRegistro RIFIUTA un nuovo giro se esiste un registro
+     pendente o illeggibile (gli id pendenti non vengono mai nascosti da
+     un secondo giro); la fotografia si VALIDA (struttura e completezza:
+     validaFotografia) al passo 1 appena scattata e al passo 7 PRIMA di
+     qualunque effetto — una fotografia {} non fa più partire i DROP;
+     «pulito» si marca SOLO dopo chiudi() con tutte le verifiche
+     positive. Scritture ATOMICHE (tmp + rename): un guasto di
+     scrittura o di rename preserva la copia precedente leggibile
+     (testato con fs che tradisce). La fotografia ora porta IMPRONTE
+     dei dati per tabella (md5 aggregato ordinato: un valore cambiato
+     si vede), privilegi per colonna con identità ESATTA
+     (tabella, colonna, privilegio — niente conteggi) e privilegi
+     EXECUTE per ruolo su public e private; legacy con i TIPI dal
+     catalogo.
+  3) FASE A: TIPI DAL CATALOGO, NON TESTO NOMINATO — la 0020 dichiara
+     argomenti nominati (p_document_id uuid, …) e il confronto testuale
+     con «uuid, jsonb» avrebbe respinto funzioni corrette: la guardia
+     ora confronta oidvectortypes(proargtypes) con i tipi attesi,
+     conservando a parte la firma nominata per il solo DDL; ogni
+     has_function_privilege nei passi usa l'OID verificato, mai il
+     testo della firma. Nel passo 5 la guardia è PROVATA sul database
+     vero: sovraccarico in più → FASE_A_STOP senza alcun effetto (abort
+     verificato: né backup né copie private), tipi diversi →
+     FASE_A_STOP con l'originale ripristinato byte per byte; il caso
+     conforme sono le funzioni reali nominate della 0020 in 5.1.
+  4) MICROSECONDI SALVATI DAL DRIVER — pg restituisce i timestamp come
+     Date (millisecondi) e finestre davvero sovrapposte sarebbero
+     diventate NON valide PRIMA di provaValida: tipiTimestampTesto
+     conserva il TESTO a sei decimali per timestamp/timestamptz e
+     delega il resto al driver; applicato alle sessioni del passo 4 e
+     TESTATA la conversione intera (due finestre sovrapposte dentro lo
+     stesso millisecondo: col testo valide, con le Date del driver no).
+  5) STOP E RUNBOOK COERENTI — nel passo 5 respingenti, private negate,
+     post-fase-A e scritture dirette sono ora CANCELLI (esigi): un rosso
+     non è più seguito da smontaggi o dalla fase B; l'accumulo resta
+     solo sulle verifiche terminali. Il passo 0 del piano non richiama
+     più esegui-sequenza come percorso ordinario: base non pulita =
+     STOP da capire (l'azzeramento resta fuori, solo con autorizzazione
+     separata). passo0b: il file della password NASCE protetto PRIMA
+     della scrittura (umask 077 + set -C contro le sovrascritture) e lo
+     script verifica i permessi 600 prima di leggere.
+  Test: 317/317 di suite + 39/39 strumenti e registro (simulatore FK,
+  parser, fotografia, registro atomico); sintassi e lint della cartella
+  puliti; tsc e build verdi. NIENTE token, esecuzioni remote,
+  azzeramenti, produzione, push o deploy; client verificato non toccato.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

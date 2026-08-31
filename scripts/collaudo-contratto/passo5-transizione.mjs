@@ -53,9 +53,49 @@ await eseguiPasso('PASSO 5 · transizione A/B', async () => {
   }
 
   try {
-    // ---- 5.1 fase A + ROLLBACK provato (sotto-giro isolato) ---------------
     const originali = await definizioni('public')
     v.esigi('cinque funzioni legacy presenti in public', Object.keys(originali).length === 5)
+
+    // ---- 5.0 GUARDIA della fase A provata sul database vero ---------------
+    // (a) un SOVRACCARICO in più → FASE_A_STOP e nessun effetto (la bozza
+    // è un'unica transazione: l'abort riporta tutto indietro)
+    {
+      let stop = ''
+      try {
+        await sql(`begin;
+          create function public.scarta_documento(p_solo uuid) returns void
+            language sql as 'select null::void';
+          ${bozzaSql('transizione-fase-A.BOZZA.sql')}`)
+      } catch (e) { stop = String(e.message) }
+      v.esigi('overload presente → FASE_A_STOP (ESATTAMENTE una)', stop.includes('ESATTAMENTE una'), stop.slice(0, 120))
+      const [sovra] = await sql(`select count(*)::int as n from pg_proc p
+        join pg_namespace n2 on n2.oid=p.pronamespace where n2.nspname='public' and p.proname='scarta_documento'`)
+      const [resti] = await sql(`select
+        (select count(*)::int from information_schema.tables where table_schema='private' and table_name='transizione_backup') as backup,
+        (select count(*)::int from pg_proc p join pg_namespace n2 on n2.oid=p.pronamespace
+           where n2.nspname='private' and p.proname in (${LEGACY.map(x => `'${x}'`).join(',')})) as private_`)
+      v.esigi('abort della guardia SENZA effetti: niente overload, backup né copie private',
+        sovra.n === 1 && resti.backup === 0 && resti.private_ === 0, JSON.stringify({ sovra, resti }))
+    }
+    // (b) TIPI diversi da quelli attesi → FASE_A_STOP, originale intatto
+    {
+      let stop = ''
+      try {
+        await sql(`begin;
+          drop function public.scarta_documento(uuid, text);
+          create function public.scarta_documento(p_document_id uuid, p_motivi jsonb) returns void
+            language sql as 'select null::void';
+          ${bozzaSql('transizione-fase-A.BOZZA.sql')}`)
+      } catch (e) { stop = String(e.message) }
+      v.esigi('tipi inattesi → FASE_A_STOP (confronto dal catalogo, non sul testo nominato)', stop.includes('tipi inattesi'), stop.slice(0, 120))
+      const dopoGuardia = await definizioni('public')
+      v.esigi('l\'abort ripristina l\'originale byte per byte', dopoGuardia.scarta_documento === originali.scarta_documento)
+    }
+    // (c) il caso CONFORME sono le funzioni REALI della 0020, con gli
+    // argomenti NOMINATI (p_document_id uuid, …): è la 5.1 qui sotto —
+    // se la guardia respingesse i nomi, la fase A non passerebbe mai
+
+    // ---- 5.1 fase A + ROLLBACK provato (sotto-giro isolato) ---------------
     registro.segna('transizioneApplicata')
     await sql(bozzaSql('transizione-fase-A.BOZZA.sql'))
     {
@@ -69,9 +109,13 @@ await eseguiPasso('PASSO 5 · transizione A/B', async () => {
         let esito = ''
         try { await sql(`begin; ${comeMembro(UID)} select public.${n}(${argomenti}); rollback;`) }
         catch (e) { esito = String(e.message) }
-        v.attesa(`respingente ${n} → PERCORSO_DISMESSO`, esito.includes('PERCORSO_DISMESSO'), esito.slice(0, 80))
-        const [pr] = await sql(`select has_function_privilege('authenticated','private.${n}(${firme[n]})','execute') as e`)
-        v.attesa(`private.${n} negata ad authenticated`, pr.e === false)
+        // CANCELLO: un respingente mancante o una private eseguibile non
+        // devono lasciar proseguire verso lo smontaggio e la fase B
+        v.esigi(`respingente ${n} → PERCORSO_DISMESSO`, esito.includes('PERCORSO_DISMESSO'), esito.slice(0, 80))
+        const [pr] = await sql(`select has_function_privilege('authenticated',
+          (select p.oid from pg_proc p join pg_namespace ns on ns.oid=p.pronamespace
+           where ns.nspname='private' and p.proname='${n}'), 'execute') as e`)
+        v.esigi(`private.${n} negata ad authenticated`, pr.e === false)
       }
       await smontaFaseA()
       const ripristinate = await definizioni('public')
@@ -119,7 +163,7 @@ await eseguiPasso('PASSO 5 · transizione A/B', async () => {
       let respinta = ''
       try { await sql(`begin; ${comeMembro(UID)} select public.scarta_documento('${f.docId}'::uuid,'x'); rollback;`) }
       catch (e) { respinta = String(e.message) }
-      v.attesa('invocazione post-fase-A → PERCORSO_DISMESSO immediato', respinta.includes('PERCORSO_DISMESSO'))
+      v.esigi('invocazione post-fase-A → PERCORSO_DISMESSO immediato', respinta.includes('PERCORSO_DISMESSO'), respinta.slice(0, 80))
       // X rilascia: Y conclude col corpo VECCHIO, poi la condizione passa
       await X.query('rollback;')
       const esitoY = await chiamataY
@@ -137,18 +181,20 @@ await eseguiPasso('PASSO 5 · transizione A/B', async () => {
       let negato = ''
       try { await sql(`begin; ${comeMembro(UID)} update public.family_draft_items set name='x' where false; rollback;`) }
       catch (e) { negato = String(e.message) }
-      v.attesa('scritture dirette respinte per authenticated', /permission|denied|negat/i.test(negato), negato.slice(0, 80))
+      v.esigi('scritture dirette respinte per authenticated', /permission|denied|negat/i.test(negato), negato.slice(0, 80))
       const f = await fixture()
       const r = await sql(`begin; ${comeMembro(UID)}
         select public.conferma_revisione('${randomUUID()}'::uuid,'${f.docId}'::uuid,0,'[]'::jsonb) as r; commit;`)
       const esito = r.find(x => x?.r)?.r
       v.attesa('conferma_revisione verde via copia private (APPLICATA con spese)',
         esito?.esito === 'APPLICATA' && esito?.spese?.length > 0, JSON.stringify(esito))
-      const [porta] = await sql(`select has_function_privilege('authenticated','public.conferma_documento(${firme.conferma_documento})','execute') as e`)
-      v.attesa('doppia porta: execute legacy revocato oltre al respingente', porta.e === false)
+      // doppia porta: execute revocato oltre ai respingenti (OID
+      // verificato: mai il testo della firma dentro has_function_privilege)
       for (const n of LEGACY) {
-        const [pr] = await sql(`select has_function_privilege('authenticated','public.${n}(${firme[n]})','execute') as e`)
-        v.attesa(`execute negato: ${n}`, pr.e === false)
+        const [pr] = await sql(`select has_function_privilege('authenticated',
+          (select p.oid from pg_proc p join pg_namespace ns on ns.oid=p.pronamespace
+           where ns.nspname='public' and p.proname='${n}'), 'execute') as e`)
+        v.attesa(`doppia porta, execute negato: ${n}`, pr.e === false)
       }
     }
 

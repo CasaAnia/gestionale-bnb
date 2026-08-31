@@ -9,11 +9,11 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createHash, randomUUID } from 'node:crypto'
 import { sql } from '../fase2b/api.mjs'
-import { ErroreCollaudo, sqlFixtureDocumento } from './strumenti.mjs'
+import { ErroreCollaudo, LEGACY, TABELLE_FOTOGRAFATE, sqlFixtureDocumento } from './strumenti.mjs'
 
 const QUI = dirname(fileURLToPath(import.meta.url))
 export const RADICE = join(QUI, '..', '..')
-export const LEGACY = ['conferma_documento', 'scarta_documento', 'approva_fattura_da_pagare', 'paga_fattura', 'conferma_fattura_pagata']
+export { LEGACY }
 
 export const sha256 = t => createHash('sha256').update(t, 'utf8').digest('hex')
 
@@ -65,24 +65,31 @@ export async function fotografiaDocumento(docId) {
   return JSON.stringify(r.foto)
 }
 
-// fotografia di BASE del progetto (obbligatoria all'inizio, confrontata
-// alla fine): conteggi, definizioni legacy, permessi per colonna/funzione
+// fotografia di BASE del progetto (obbligatoria all'inizio, VALIDATA
+// da validaFotografia e confrontata alla fine): conteggi E IMPRONTE
+// dei dati per tabella (un valore cambiato si vede, non solo una riga
+// in più o in meno), definizioni legacy con i TIPI dal catalogo,
+// privilegi per colonna con identità ESATTA (tabella, colonna,
+// privilegio — mai un conteggio) e privilegi EXECUTE per ruolo
 export async function fotografiaBase() {
-  const [conteggi] = await sql(`select
-    (select count(*)::int from public.family_documents) as documenti,
-    (select count(*)::int from public.family_draft_expenses) as bozze,
-    (select count(*)::int from public.family_draft_items) as righe,
-    (select count(*)::int from public.family_expenses) as spese,
-    (select count(*)::int from public.family_expense_documents) as ponte`)
+  const [conteggi] = await sql(`select ${TABELLE_FOTOGRAFATE.map(t =>
+    `(select count(*)::int from public.${t}) as ${t}`).join(', ')}`)
+  const [impronte] = await sql(`select ${TABELLE_FOTOGRAFATE.map(t =>
+    `(select coalesce(md5(string_agg(md5(t::text), '' order by t.id)), 'vuota') from public.${t} t) as ${t}`).join(', ')}`)
   const legacy = await sql(`select p.proname as nome, md5(pg_get_functiondef(p.oid)) as impronta,
-      pg_get_function_identity_arguments(p.oid) as firma
+      pg_get_function_identity_arguments(p.oid) as firma, oidvectortypes(p.proargtypes) as tipi
     from pg_proc p join pg_namespace n on n.oid=p.pronamespace
     where n.nspname='public' and p.proname in (${LEGACY.map(x => `'${x}'`).join(',')})
     order by p.proname`)
-  const permessi = await sql(`select table_name, privilege_type, count(*)::int as colonne
+  const permessi = await sql(`select table_name, column_name, privilege_type
     from information_schema.column_privileges
     where grantee='authenticated' and table_schema='public'
       and table_name in ('family_documents','family_draft_expenses','family_draft_items')
-    group by 1, 2 order by 1, 2`)
-  return { conteggi, legacy, permessi }
+    order by 1, 2, 3`)
+  const esecuzioni = await sql(`select routine_schema, routine_name, grantee
+    from information_schema.routine_privileges
+    where privilege_type='EXECUTE' and routine_schema in ('public','private')
+      and grantee in ('authenticated','anon','service_role')
+    order by 1, 2, 3`)
+  return { conteggi, impronte, legacy, permessi, esecuzioni }
 }

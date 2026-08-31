@@ -7,6 +7,22 @@
 
 export class ErroreCollaudo extends Error {}
 
+export const LEGACY = ['conferma_documento', 'scarta_documento', 'approva_fattura_da_pagare', 'paga_fattura', 'conferma_fattura_pagata']
+
+// ---- pg e i microsecondi ---------------------------------------------------
+// Il driver pg restituisce timestamp/timestamptz come Date (precisione
+// al MILLISECONDO): i microsecondi delle finestre andrebbero persi
+// PRIMA di provaValida e finestre davvero sovrapposte risulterebbero
+// NON valide. Questo parser conserva il TESTO a sei decimali per i soli
+// tipi temporali e delega tutto il resto al parser del driver.
+export function tipiTimestampTesto(tipiPg) {
+  const TIMESTAMP = 1114, TIMESTAMPTZ = 1184
+  return {
+    getTypeParser: (oid, formato) =>
+      (oid === TIMESTAMP || oid === TIMESTAMPTZ) ? (v => v) : tipiPg.getTypeParser(oid, formato),
+  }
+}
+
 // ---- contatore con STOP vero ----------------------------------------------
 // `attesa` accumula (per le verifiche di chiusura); `esigi` è il
 // cancello CRITICO: al primo fallimento LANCIA, così gli effetti
@@ -127,13 +143,23 @@ export function sqlFixtureDocumento({ docId, bozzaId, rigaId, gruppoId, totale =
 }
 
 // ---- PIANO DI PULIZIA per identificativi ESATTI ---------------------------
-// Solo gli artefatti REGISTRATI (docIds generati dal collaudo): niente
-// selezioni per nome. Ordine figli→genitori; il giornale si smonta col
-// DROP della tabella (porta via righe, trigger e FK in un colpo, senza
-// scontrarsi con GIORNALE_IMMUTABILE). Idempotente: rieseguibile dopo
-// un'interruzione, ogni istruzione è un no-op su ciò che non c'è più.
-export function pianoPulizia({ docIds }) {
-  const dentro = docIds.map(id => `'${id}'`).join(',') || `'00000000-0000-0000-0000-000000000000'`
+// Solo gli artefatti REGISTRATI: docIds generati dal collaudo ed
+// expenseIds delle spese confermate, CONSERVATI DUREVOLMENTE nel
+// registro PRIMA di eliminare i riferimenti (dopo, non sarebbero più
+// ricostruibili). Niente selezioni per nome. Il giornale si smonta col
+// DROP della tabella (mai DELETE contro GIORNALE_IMMUTABILE) e se ne
+// elimina anche la funzione del trigger. L'ordine RISPETTA le FK della
+// 0020: le spese (family_expenses) sono referenziate con ON DELETE
+// RESTRICT sia dal ponte (family_expense_documents.expense_id) sia
+// dalle bozze (family_draft_expenses.expense_id) — i riferimenti si
+// eliminano PRIMA, le spese poi, i documenti per ultimi (il ponte li
+// referenzia RESTRICT). Correzioni e righe definitive (voci) delle
+// spese del collaudo vengono eliminate esplicitamente e verificate.
+// Idempotente: rieseguibile dopo un'interruzione.
+export function pianoPulizia({ docIds, expenseIds = [] }) {
+  const sentinella = `'00000000-0000-0000-0000-000000000000'`
+  const doc = docIds.map(id => `'${id}'`).join(',') || sentinella
+  const spesa = expenseIds.map(id => `'${id}'`).join(',') || sentinella
   return [
     `drop function if exists public.salva_revisione(uuid, uuid, bigint, jsonb)`,
     `drop function if exists public.esito_revisione(uuid)`,
@@ -142,14 +168,18 @@ export function pianoPulizia({ docIds }) {
     `drop function if exists private.impronta_canonica(jsonb)`,
     `drop function if exists private.canonico(jsonb)`,
     `drop table if exists public.family_revision_ops`,
+    `drop function if exists private.proteggi_giornale_revisione()`,
     `alter table public.family_documents drop column if exists revisione_rev`,
-    `delete from public.family_expenses where id in
-       (select expense_id from public.family_expense_documents where document_id in (${dentro}))`,
-    `delete from public.family_expense_documents where document_id in (${dentro})`,
+    `delete from public.family_corrections where document_id in (${doc})
+       or expense_id in (${spesa})
+       or draft_id in (select id from public.family_draft_expenses where document_id in (${doc}))`,
+    `delete from public.family_expense_items where expense_id in (${spesa})`,
     `delete from public.family_draft_items where draft_id in
-       (select id from public.family_draft_expenses where document_id in (${dentro}))`,
-    `delete from public.family_draft_expenses where document_id in (${dentro})`,
-    `delete from public.family_documents where id in (${dentro})`,
+       (select id from public.family_draft_expenses where document_id in (${doc}))`,
+    `delete from public.family_expense_documents where document_id in (${doc})`,
+    `delete from public.family_draft_expenses where document_id in (${doc})`,
+    `delete from public.family_expenses where id in (${spesa})`,
+    `delete from public.family_documents where id in (${doc})`,
   ]
 }
 
@@ -160,6 +190,34 @@ export async function eseguiPiano(query, piano, annota = () => {}) {
     await query(piano[i])
     annota(i)
   }
+}
+
+// ---- validazione della FOTOGRAFIA (struttura e completezza) ---------------
+// Va chiamata PRIMA di qualunque effetto della pulizia: una fotografia
+// vuota o monca supererebbe il controllo di presenza e l'errore
+// arriverebbe solo al confronto finale, a DROP già partiti.
+export const TABELLE_FOTOGRAFATE = [
+  'family_documents', 'family_draft_expenses', 'family_draft_items',
+  'family_expenses', 'family_expense_documents', 'family_corrections', 'family_expense_items',
+]
+export function validaFotografia(foto) {
+  const guasto = perche => { throw new ErroreCollaudo(`fotografia di base non valida: ${perche}`) }
+  if (!foto || typeof foto !== 'object') guasto('assente o non è un oggetto')
+  for (const t of TABELLE_FOTOGRAFATE) {
+    if (!Number.isInteger(foto.conteggi?.[t])) guasto(`conteggio mancante per ${t}`)
+    if (typeof foto.impronte?.[t] !== 'string' || !foto.impronte[t]) guasto(`impronta dei dati mancante per ${t}`)
+  }
+  if (!Array.isArray(foto.legacy) || foto.legacy.length !== LEGACY.length) guasto('definizioni legacy assenti o non cinque')
+  for (const n of LEGACY) {
+    const r = foto.legacy.find(x => x?.nome === n)
+    if (!r || !r.impronta || !r.firma || !r.tipi) guasto(`legacy incompleta: ${n}`)
+  }
+  if (!Array.isArray(foto.permessi) || foto.permessi.length === 0
+    || !foto.permessi.every(r => r?.table_name && r?.column_name && r?.privilege_type))
+    guasto('permessi per colonna assenti o senza identità esatta (tabella, colonna, privilegio)')
+  if (!Array.isArray(foto.esecuzioni)
+    || !foto.esecuzioni.every(r => r?.routine_schema && r?.routine_name && r?.grantee))
+    guasto('privilegi EXECUTE assenti o senza identità esatta (schema, funzione, ruolo)')
 }
 
 // ---- confronto delle FOTOGRAFIE (inizio vs fine) --------------------------

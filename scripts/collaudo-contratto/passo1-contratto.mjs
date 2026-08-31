@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto'
 import { sql, progetto } from '../fase2b/api.mjs'
 import { verificaNonProduzione } from '../fase2b/guardia.mjs'
 import { bozzaSql, fotografiaBase, ownerId } from './ambiente.mjs'
-import { creaContatore, eseguiPasso } from './strumenti.mjs'
+import { creaContatore, eseguiPasso, validaFotografia } from './strumenti.mjs'
 import { nuovoRegistro } from './registro.mjs'
 
 await eseguiPasso('PASSO 1 · struttura del contratto', async () => {
@@ -17,8 +17,12 @@ await eseguiPasso('PASSO 1 · struttura del contratto', async () => {
   const v = creaContatore('PASSO 1 · struttura del contratto')
   const registro = nuovoRegistro()
 
-  // FOTOGRAFIA DI BASE prima di qualunque effetto (il passo 7 la confronta)
-  registro.segna('fotografiaBase', await fotografiaBase())
+  // FOTOGRAFIA DI BASE prima di qualunque effetto (il passo 7 la
+  // confronta): VALIDATA subito — una fotografia monca fermerebbe la
+  // pulizia, quindi ferma il giro PRIMA che cominci
+  const foto = await fotografiaBase()
+  validaFotografia(foto)
+  registro.segna('fotografiaBase', foto)
   console.log(`registro: ${registro.file}`)
 
   // applica la bozza (begin/commit nel file); registrato PRIMA

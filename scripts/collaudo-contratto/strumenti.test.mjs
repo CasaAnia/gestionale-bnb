@@ -9,8 +9,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  ErroreCollaudo, creaContatore, attendiQuiescenza, attesaSuTabella,
+  ErroreCollaudo, LEGACY, TABELLE_FOTOGRAFATE, creaContatore, attendiQuiescenza, attesaSuTabella,
   costruisciFaseB, sqlFixtureDocumento, pianoPulizia, eseguiPiano, confrontaFotografie,
+  tipiTimestampTesto, validaFotografia,
 } from './strumenti.mjs'
 import { provaValida } from '../fase4/concorrenza.mjs'
 
@@ -126,10 +127,10 @@ const firmeFinte = {
   approva_fattura_da_pagare: 'uuid, jsonb', paga_fattura: 'uuid, date, text, jsonb',
   conferma_fattura_pagata: 'uuid, date, text, jsonb',
 }
-const LEGACY = Object.keys(firmeFinte)
+const NOMI_LEGACY = Object.keys(firmeFinte)
 
 test('costruisciFaseB: UNA sola transazione, barriera, revoche con firme fornite, involucri ripuntati', () => {
-  const sql = costruisciFaseB({ bozzaContratto: bozzaFinta, firme: firmeFinte, legacy: LEGACY })
+  const sql = costruisciFaseB({ bozzaContratto: bozzaFinta, firme: firmeFinte, legacy: NOMI_LEGACY })
   assert.equal((sql.match(/^begin;/gm) ?? []).length, 1)
   assert.equal((sql.match(/^commit;/gm) ?? []).length, 1)
   assert.ok(sql.indexOf('begin;') < sql.indexOf('lock table'))
@@ -142,12 +143,12 @@ test('costruisciFaseB: UNA sola transazione, barriera, revoche con firme fornite
   assert.ok(!sql.slice(sql.indexOf('conferma_revisione')).includes('public.conferma_documento('))
 })
 test('costruisciFaseB: bozza senza la sezione degli involucri → STOP', () => {
-  assert.throws(() => costruisciFaseB({ bozzaContratto: 'niente', firme: firmeFinte, legacy: LEGACY }), ErroreCollaudo)
+  assert.throws(() => costruisciFaseB({ bozzaContratto: 'niente', firme: firmeFinte, legacy: NOMI_LEGACY }), ErroreCollaudo)
 })
 test('costruisciFaseB: firma mancante → STOP (mai revoche a metà)', () => {
   const senza = { ...firmeFinte }
   delete senza.paga_fattura
-  assert.throws(() => costruisciFaseB({ bozzaContratto: bozzaFinta, firme: senza, legacy: LEGACY }), /paga_fattura/)
+  assert.throws(() => costruisciFaseB({ bozzaContratto: bozzaFinta, firme: senza, legacy: NOMI_LEGACY }), /paga_fattura/)
 })
 
 // ---- fixture: la squadratura è possibile -----------------------------------
@@ -163,29 +164,116 @@ test('fixture: senza importoRiga la riga pareggia il totale', () => {
   assert.match(stmts[2], /, 7\)/)
 })
 
-// ---- pulizia: identificativi esatti e recupero dall'interruzione -----------
-test('pianoPulizia: prima gli oggetti del contratto (DROP del giornale, mai DELETE), poi figli→genitori sui SOLI docIds', () => {
-  const piano = pianoPulizia({ docIds: ['aaa', 'bbb'] })
+// ---- pulizia: FK della 0020 rispettate, id esatti, ripresa ------------------
+// SIMULATORE dello schema 0020 (non un esecutore che registra e basta):
+// un documento CONFERMATO con spesa, ponte, righe definitive e
+// correzioni; le FK ON DELETE RESTRICT vengono FATTE RISPETTARE —
+// eliminare una spesa ancora referenziata dal ponte o dalla bozza, o un
+// documento ancora referenziato dal ponte, LANCIA come farebbe PostgreSQL.
+function baseConfermata() {
+  return {
+    documents: [{ id: 'doc1' }, { id: 'doc-altrui' }],
+    drafts: [
+      { id: 'bz1', document_id: 'doc1', expense_id: 'sp1' },
+      { id: 'bz-altrui', document_id: 'doc-altrui', expense_id: 'sp-altrui' },
+    ],
+    items: [{ id: 'r1', draft_id: 'bz1' }, { id: 'r-altrui', draft_id: 'bz-altrui' }],
+    expenses: [{ id: 'sp1' }, { id: 'sp-altrui' }],
+    ponte: [
+      { id: 'p1', expense_id: 'sp1', document_id: 'doc1' },
+      { id: 'p-altrui', expense_id: 'sp-altrui', document_id: 'doc-altrui' },
+    ],
+    voci: [{ id: 'v1', expense_id: 'sp1' }, { id: 'v-altrui', expense_id: 'sp-altrui' }],
+    correzioni: [{ id: 'c1', document_id: 'doc1', expense_id: 'sp1', draft_id: 'bz1' }],
+    oggetti: new Set(['salva_revisione', 'esito_revisione', 'conferma_revisione', 'scarta_revisione',
+      'impronta_canonica', 'canonico', 'family_revision_ops', 'proteggi_giornale_revisione', 'revisione_rev']),
+  }
+}
+function esecutore0020(db) {
+  return async stmt => {
+    const ids = [...stmt.matchAll(/'([^']+)'/g)].map(m => m[1])
+    const bozzeDei = docs => db.drafts.filter(b => docs.includes(b.document_id)).map(b => b.id)
+    if (stmt.startsWith('drop function') || stmt.startsWith('drop table')) {
+      for (const o of [...db.oggetti]) if (stmt.includes(o)) db.oggetti.delete(o)
+      return []
+    }
+    if (stmt.startsWith('alter table')) { db.oggetti.delete('revisione_rev'); return [] }
+    if (stmt.includes('delete from public.family_corrections')) {
+      const bozze = bozzeDei(ids)
+      db.correzioni = db.correzioni.filter(c =>
+        !(ids.includes(c.document_id) || ids.includes(c.expense_id) || bozze.includes(c.draft_id)))
+      return []
+    }
+    if (stmt.includes('delete from public.family_expense_items')) {
+      db.voci = db.voci.filter(vv => !ids.includes(vv.expense_id)); return []
+    }
+    if (stmt.includes('delete from public.family_draft_items')) {
+      const bozze = bozzeDei(ids)
+      db.items = db.items.filter(r => !bozze.includes(r.draft_id)); return []
+    }
+    if (stmt.includes('delete from public.family_expense_documents')) {
+      db.ponte = db.ponte.filter(pp => !ids.includes(pp.document_id)); return []
+    }
+    if (stmt.includes('delete from public.family_draft_expenses')) {
+      db.drafts = db.drafts.filter(b => !ids.includes(b.document_id)); return []
+    }
+    if (stmt.includes('delete from public.family_expenses ')) {
+      for (const sp of db.expenses.filter(x => ids.includes(x.id))) {
+        if (db.ponte.some(pp => pp.expense_id === sp.id))
+          throw new Error(`FK RESTRICT: family_expense_documents.expense_id referenzia ancora ${sp.id}`)
+        if (db.drafts.some(b => b.expense_id === sp.id))
+          throw new Error(`FK RESTRICT: family_draft_expenses.expense_id referenzia ancora ${sp.id}`)
+      }
+      db.voci = db.voci.filter(vv => !ids.includes(vv.expense_id)) // 0012: cascade
+      db.expenses = db.expenses.filter(x => !ids.includes(x.id)); return []
+    }
+    if (stmt.includes('delete from public.family_documents')) {
+      for (const d of db.documents.filter(x => ids.includes(x.id))) {
+        if (db.ponte.some(pp => pp.document_id === d.id))
+          throw new Error(`FK RESTRICT: family_expense_documents.document_id referenzia ancora ${d.id}`)
+      }
+      db.documents = db.documents.filter(x => !ids.includes(x.id)); return []
+    }
+    throw new Error(`istruzione non riconosciuta dal simulatore: ${stmt}`)
+  }
+}
+
+test('pulizia con documento CONFERMATO: il piano passa le FK RESTRICT e rimuove solo il registrato', async () => {
+  const db = baseConfermata()
+  const piano = pianoPulizia({ docIds: ['doc1'], expenseIds: ['sp1'] })
+  await eseguiPiano(esecutore0020(db), piano)
+  assert.deepEqual(db.documents.map(d => d.id), ['doc-altrui'])
+  assert.deepEqual(db.expenses.map(x => x.id), ['sp-altrui'])
+  assert.deepEqual(db.drafts.map(b => b.id), ['bz-altrui'])
+  assert.deepEqual(db.items.map(r => r.id), ['r-altrui'])
+  assert.deepEqual(db.ponte.map(pp => pp.id), ['p-altrui'])
+  assert.deepEqual(db.voci.map(vv => vv.id), ['v-altrui'])
+  assert.equal(db.correzioni.length, 0)
+  assert.equal(db.oggetti.size, 0, 'anche la funzione del trigger e la colonna vanno via')
+})
+test("CONTROPROVA: eliminare le spese PRIMA dei riferimenti viene respinto dalle FK", async () => {
+  const db = baseConfermata()
+  const piano = pianoPulizia({ docIds: ['doc1'], expenseIds: ['sp1'] })
+  const spese = piano.find(x => x.includes('delete from public.family_expenses '))
+  await assert.rejects(esecutore0020(db)(spese), /FK RESTRICT/)
+})
+test('pianoPulizia: id ESATTI (mai nomi), DROP del giornale e della funzione del trigger', () => {
+  const piano = pianoPulizia({ docIds: ['aaa'], expenseIds: ['sss'] })
   const testo = piano.join('\n')
   assert.ok(!/delete from public\.family_revision_ops/.test(testo))
   assert.match(testo, /drop table if exists public\.family_revision_ops/)
+  assert.match(testo, /drop function if exists private\.proteggi_giornale_revisione\(\)/)
   assert.ok(!/like/.test(testo))
-  for (const d of piano.filter(s => s.startsWith('delete'))) assert.match(d, /'aaa','bbb'/)
-  const posSpese = piano.findIndex(s => s.includes('delete from public.family_expenses '))
-  const posPonte = piano.findIndex(s => s.includes('delete from public.family_expense_documents where'))
-  const posRighe = piano.findIndex(s => s.includes('delete from public.family_draft_items'))
-  const posBozze = piano.findIndex(s => s.includes('delete from public.family_draft_expenses where'))
-  const posDocumenti = piano.findIndex(s => s.includes('delete from public.family_documents'))
-  assert.ok(posSpese < posPonte && posPonte < posDocumenti)
-  assert.ok(posRighe < posBozze && posBozze < posDocumenti)
+  assert.match(testo, /delete from public\.family_expenses where id in \('sss'\)/)
+  for (const d of piano.filter(x => x.startsWith('delete'))) assert.match(d, /'aaa'|'sss'/)
 })
-test('pianoPulizia senza docIds: le DELETE sono no-op (id sentinella), niente selezioni per nome', () => {
-  const testo = pianoPulizia({ docIds: [] }).join('\n')
+test('pianoPulizia senza id: le DELETE sono no-op (sentinella), niente selezioni per nome', () => {
+  const testo = pianoPulizia({ docIds: [], expenseIds: [] }).join('\n')
   assert.match(testo, /'00000000-0000-0000-0000-000000000000'/)
   assert.ok(!/like/.test(testo))
 })
 test('eseguiPiano interrotto a metà: si RIPRENDE da dove era arrivato e completa', async () => {
-  const piano = pianoPulizia({ docIds: ['aaa'] })
+  const piano = pianoPulizia({ docIds: ['aaa'], expenseIds: ['sss'] })
   const eseguite = []
   let arrivataA = -1
   const rompeA = 4
@@ -197,9 +285,77 @@ test('eseguiPiano interrotto a metà: si RIPRENDE da dove era arrivato e complet
   assert.equal(eseguite.length, rompeA)             // nulla oltre il guasto
   // ripresa: dall'istruzione successiva, come fa il passo 7 col registro
   const daCapo = arrivataA + 1
-  await eseguiPiano(async s => { eseguite.push(s) }, piano.slice(daCapo), i => { arrivataA = daCapo + i })
+  await eseguiPiano(async x => { eseguite.push(x) }, piano.slice(daCapo), i => { arrivataA = daCapo + i })
   assert.equal(arrivataA, piano.length - 1)
   assert.deepEqual(eseguite, piano)                 // tutte, una volta, in ordine
+})
+test('anche la RIPRESA rispetta le FK: interruzione a metà, poi il simulatore completa', async () => {
+  const db = baseConfermata()
+  const piano = pianoPulizia({ docIds: ['doc1'], expenseIds: ['sp1'] })
+  const vero = esecutore0020(db)
+  let arrivataA = -1, contate = 0
+  const rompeA = 10
+  const acaduta = async stmt => { if (contate++ === rompeA) throw new Error('interrotta'); return vero(stmt) }
+  await assert.rejects(eseguiPiano(acaduta, piano, i => { arrivataA = i }), /interrotta/)
+  await eseguiPiano(vero, piano.slice(arrivataA + 1))
+  assert.deepEqual(db.documents.map(d => d.id), ['doc-altrui'])
+  assert.equal(db.oggetti.size, 0)
+})
+
+// ---- parser dei timestamp (punto perso dal driver pg) ----------------------
+test('tipiTimestampTesto: timestamp/timestamptz restano TESTO, il resto delega al driver', () => {
+  const deleghe = []
+  const finto = { getTypeParser: (oid, f) => { deleghe.push([oid, f]); return x => `delegato:${x}` } }
+  const t = tipiTimestampTesto(finto)
+  const grezzo = '2026-08-31 10:00:00.123456+00'
+  assert.equal(t.getTypeParser(1184, 'text')(grezzo), grezzo)
+  assert.equal(t.getTypeParser(1114, 'text')(grezzo), grezzo)
+  assert.equal(t.getTypeParser(23, 'text')('7'), 'delegato:7')
+  assert.deepEqual(deleghe, [[23, 'text']])
+})
+test('conversione intera: col TESTO la sovrapposizione al microsecondo regge, con le Date del driver si perderebbe', () => {
+  // finestre sovrapposte DENTRO lo stesso millisecondo: solo i
+  // microsecondi le distinguono
+  const a = { pid: 1, prima: '2026-08-31 10:00:00.100100+00', dopo: '2026-08-31 10:00:00.100500+00' }
+  const b = { pid: 2, prima: '2026-08-31 10:00:00.100200+00', dopo: '2026-08-31 10:00:00.100900+00' }
+  assert.equal(provaValida(a, b).valida, true)
+  // ciò che farebbe il driver senza il parser: Date al millisecondo
+  const data = ts => new Date(ts.replace(' ', 'T').replace('+00', 'Z'))
+  const rotto = provaValida(
+    { pid: 1, prima: data(a.prima), dopo: data(a.dopo) },
+    { pid: 2, prima: data(b.prima), dopo: data(b.dopo) })
+  assert.equal(rotto.valida, false)
+})
+
+// ---- validazione della fotografia ------------------------------------------
+const fotoCompleta = () => ({
+  conteggi: Object.fromEntries(TABELLE_FOTOGRAFATE.map(t => [t, 0])),
+  impronte: Object.fromEntries(TABELLE_FOTOGRAFATE.map(t => [t, 'vuota'])),
+  legacy: LEGACY.map(n => ({ nome: n, impronta: 'h', firma: 'p_document_id uuid', tipi: 'uuid' })),
+  permessi: [{ table_name: 'family_documents', column_name: 'doc_total', privilege_type: 'UPDATE' }],
+  esecuzioni: [{ routine_schema: 'public', routine_name: 'conferma_documento', grantee: 'authenticated' }],
+})
+test('validaFotografia: quella completa passa, {} e null NO (prima dei DROP, non al confronto finale)', () => {
+  validaFotografia(fotoCompleta())
+  assert.throws(() => validaFotografia({}), ErroreCollaudo)
+  assert.throws(() => validaFotografia(null), ErroreCollaudo)
+})
+test('validaFotografia: impronta di una tabella mancante → rifiutata', () => {
+  const f = fotoCompleta(); delete f.impronte.family_expenses
+  assert.throws(() => validaFotografia(f), /family_expenses/)
+})
+test('validaFotografia: legacy non cinque o incompleta → rifiutata', () => {
+  const quattro = fotoCompleta(); quattro.legacy.pop()
+  assert.throws(() => validaFotografia(quattro), /cinque/)
+  const monca = fotoCompleta(); delete monca.legacy[0].tipi
+  assert.throws(() => validaFotografia(monca), ErroreCollaudo)
+})
+test('validaFotografia: permessi a CONTEGGI (senza colonna) o EXECUTE assenti → rifiutati', () => {
+  const conteggi = fotoCompleta()
+  conteggi.permessi = [{ table_name: 'family_documents', privilege_type: 'UPDATE', colonne: 12 }]
+  assert.throws(() => validaFotografia(conteggi), /identità esatta/)
+  const senzaExec = fotoCompleta(); delete senzaExec.esecuzioni
+  assert.throws(() => validaFotografia(senzaExec), /EXECUTE/)
 })
 
 // ---- fotografie -------------------------------------------------------------

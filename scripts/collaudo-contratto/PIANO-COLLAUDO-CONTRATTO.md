@@ -22,26 +22,34 @@ ricordata esplicitamente); nessun segreto in chat, log o repository.
   creato da scripts/fase2b/utenti-e-export.mjs; rigenerabile).
 - **Password del database del progetto di prova** (passi 4 e 5, sessioni
   pg dirette): canale dichiarato in `passo0b-password.mjs` — reset dal
-  dashboard del progetto di prova → appunti → file locale
-  `~/.gestionale-2b/db-pass.txt` con permessi 600, MAI in chat o in un
-  comando visibile; lo script la sposta in progetto.json (fuori repo) e
-  cancella il file; a fine collaudo nuovo reset dal dashboard.
+  dashboard del progetto di prova → appunti → poi, in un terminale,
+  `( umask 077 && set -C && pbpaste > ~/.gestionale-2b/db-pass.txt )`:
+  il file NASCE già 600 (umask) PRIMA che la password lo tocchi, e
+  `set -C` rifiuta la scrittura se il file esiste già (mai
+  sovrascritture involontarie); MAI la password in chat o in un comando
+  visibile. Lo script verifica i permessi, la sposta in progetto.json
+  (fuori repo) e cancella il file; a fine collaudo nuovo reset dal
+  dashboard.
 - **`REGISTRO_DIR`** esportata (cartella fuori repo per i registri
   durevoli del collaudo): ogni artefatto viene registrato lì PRIMA di
   essere creato; senza registro i passi 3–7 si fermano.
 - **Strumenti già verdi in locale** prima di toccare il progetto:
-  `node --test scripts/collaudo-contratto/strumenti.test.mjs`
+  `node --test scripts/collaudo-contratto/strumenti.test.mjs scripts/collaudo-contratto/registro.test.mjs`
   (STOP del contatore, quiescenza, falsa presenza di Y, concorrenza non
   valida, fase B in un'unica transazione, fixture con squadratura,
-  ripresa della pulizia interrotta).
+  pulizia simulata sulle FK della 0020 con documento confermato e
+  ripresa dall'interruzione, timestamp a testo contro la perdita dei
+  microsecondi del driver, registro: blocco dei giri pendenti e
+  scritture atomiche).
 
 ## SEQUENZA ESATTA (ogni passo: STOP alla prima verifica fallita)
 
 0. `node scripts/fase4/passo0-riaggancia.mjs`
-   — riaggancio + guardia; poi `node scripts/fase2b/esegui-sequenza.mjs`
-   se la base 0020–0022 non è già pulita sul progetto di prova
-   (la sequenza termina SEMPRE ripristinando i grant 0021 e il test di
-   sicurezza finale — è la versione corretta dopo il caso del 30/08).
+   — riaggancio + guardia. La base 0020–0022 DEVE già essere pulita sul
+   progetto di prova: se non lo è, è uno STOP da capire, NON un motivo
+   per riapplicare la sequenza 2B (che parte dall'azzeramento e non è
+   mai un passo ordinario di questo collaudo — solo su autorizzazione
+   esplicita e separata).
 0b. `node scripts/collaudo-contratto/passo0b-password.mjs`
    — incorpora la db_pass dal file 600 e lo cancella (vedi prerequisiti).
 1. `node scripts/collaudo-contratto/passo1-contratto.mjs`
@@ -81,9 +89,17 @@ ricordata esplicitamente); nessun segreto in chat, log o repository.
    e i due ordini provati anche FORZATI in sequenza. Ogni caso è
    MISURATO con la validazione della 0022 (pid e finestre al
    microsecondo anche sugli errori): senza sovrapposizione effettiva
-   l'esito è NON_VALIDO e il passo fallisce.
+   l'esito è NON_VALIDO e il passo fallisce. Le sessioni pg usano il
+   parser a TESTO per i timestamp (il driver li convertirebbe in Date
+   perdendo i microsecondi PRIMA della validazione).
 5. `node scripts/collaudo-contratto/passo5-transizione.mjs`
-   — SOLO progetto di prova: 5.1 fase A applicata e verificata
+   — SOLO progetto di prova: 5.0 la GUARDIA della fase A provata sul
+   database vero (un sovraccarico in più → FASE_A_STOP senza alcun
+   effetto; tipi diversi dagli attesi → FASE_A_STOP con l'originale
+   ripristinato dall'abort; il caso conforme sono le funzioni REALI
+   della 0020 con gli argomenti nominati, applicate in 5.1 — il
+   confronto è sui TIPI dal catalogo, mai sul testo della firma
+   nominata); 5.1 fase A applicata e verificata
    (spostamento VERBATIM, respingenti P0001 sui cinque nomi, private
    negate) e ROLLBACK dal runbook provato (originali byte per byte);
    5.2 riproduzione DETERMINISTICA della chiamata sospesa dentro
@@ -105,14 +121,21 @@ ricordata esplicitamente); nessun segreto in chat, log o repository.
    pendenza custodita → custodia serializzata e ricreata →
    recuperaOperazione chiude sul giornale vero con la mappa.
 7. `node scripts/collaudo-contratto/passo7-pulizia.mjs`
-   — pulizia per IDENTIFICATIVI ESATTI dal registro (mai per nome):
-   smonta la transizione nell'ORDINE sicuro (originali dal backup →
-   ri-grant 0021 ed execute legacy → verifica → via le copie private →
-   backup per ULTIMO), esegue il piano (DROP del giornale, mai DELETE
-   contro il trigger; spese/ponte/bozze/righe/documenti dei SOLI docIds
-   registrati) annotando il progresso nel registro; alla fine rifà la
-   fotografia e la CONFRONTA con quella di base: se non coincidono la
-   pulizia NON è verde.
+   — pulizia per IDENTIFICATIVI ESATTI dal registro (mai per nome). La
+   fotografia di base viene VALIDATA (struttura e completezza) PRIMA di
+   qualunque effetto; gli expense_id delle spese confermate vengono
+   CONSERVATI DUREVOLMENTE nel registro PRIMA di eliminare i
+   riferimenti. Poi: smontaggio della transizione nell'ORDINE sicuro
+   (originali dal backup → ri-grant 0021 ed execute legacy → verifica →
+   via le copie private → backup per ULTIMO) e piano nell'ordine delle
+   FK della 0020 (DROP del giornale e della sua funzione trigger, mai
+   DELETE; correzioni e righe definitive; ponte e bozze PRIMA delle
+   spese — entrambi le referenziano ON DELETE RESTRICT — e documenti
+   per ultimi), con progresso annotato nel registro. Alla fine rifà la
+   fotografia (impronte dei dati, definizioni legacy, privilegi con
+   identità esatta, EXECUTE) e la CONFRONTA con quella di base; il
+   registro si marca «pulito» SOLO dopo che TUTTE le verifiche sono
+   positive.
 
 Come per la 0022: passi 1–6 eseguiti DUE volte (dopo la pulizia del
 passo 7 e il ripristino della base) prima di dichiarare il collaudo
