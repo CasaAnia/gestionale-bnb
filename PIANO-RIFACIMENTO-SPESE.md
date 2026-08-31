@@ -2215,6 +2215,56 @@ se la precedente non è verificata E approvata.
   pendenzaNonDimostrata (parola chiave, zero comportamento). Percorso
   legacy e pagine operative intatti; nessun remoto, push o deploy.
 
+  **CABLAGGIO — QUATTRO CORREZIONI SULLA REVISIONE DI 7df3c86
+  (01/09/2026): versione letta davvero, PONTE fra le custodie,
+  riconciliazione prima del cancello e indipendente dalla schermata,
+  cancelli anche sullo scarto.** Interruttore sempre su 'legacy'.
+  1) VERSIONE DEL DOCUMENTO — fonte.ts chiede revisione_rev SOLO col
+     percorso 'contratto' attivo (prima della migrazione la query legacy
+     resta identica); l'orchestrazione riceve number|null e con la
+     versione MANCANTE rifiuta ogni scrittura con l'errore esplicito
+     (mai uno zero implicito che finirebbe in SUPERATA perpetua);
+     l'orchestrazione della pagina ora vive in un useMemo legato a
+     (documento aperto, dati caricati): non si ricrea più a ogni render
+     e la versione interna (aggiornata dai successi e dai recuperi) non
+     si perde; la ricarica la ricostruisce con la versione fresca.
+  2) PONTE FRA LE DUE CUSTODIE (ponteContratto.ts) — riferimento
+     DUREVOLE per documento con l'IDENTITÀ COMPLETA dell'operazione
+     (impronta, clientRefs, voci in invio, generazione), scritto PRIMA
+     dell'invio e chiuso SOLO quando esito, id e stato sono ACQUISITI
+     nella traccia. La riconciliazione ora ACQUISISCE nella schermata:
+     voci «salvata» con l'id dalla mappa, annotazione tolta, vincoli
+     sciolti; se la traccia finale non è scrivibile dopo un successo,
+     l'esito resta custodito nel ponte e la prossima apertura completa
+     (testato); un riferimento senza esito né riga a giornale = nulla
+     applicato → voci di nuovo modificabili. Accessi controllati, mai
+     corruzione scambiata per assenza.
+  3) RICONCILIAZIONE PRIMA DEL CANCELLO E SENZA SCHERMATA — motore
+     riconciliaContratto estratto (giornale → reinvio → acquisizione,
+     chiusure comprese: una conferma/scarto applicati ma mai arrivati
+     rimuovono la traccia); il guscio di RevisioneSheet la esegue PRIMA
+     di ogni decisione della presa in carico (schermata in attesa
+     esplicita, poi traccia RILETTA); SpesePagina la esegue a livello
+     di PAGINA a ogni caricamento dei dati — copre i documenti ormai
+     CHIUSI che la schermata non monterebbe più.
+  4) NIENTE SCRITTURE DURANTE LA RICONCILIAZIONE — cancelli comuni a
+     TUTTE le scritture (versione, operazioni pendenti, ponte da
+     acquisire), Scarta compreso; la schermata non monta nulla di
+     scrivibile finché la riconciliazione non è conclusa (nemmeno lo
+     scarto), e un esito bloccante offre solo chiudi/riprova.
+  Test: 20 nel blocco (sequenze COMPLETE con custodie reali e stato
+  ricostruito DALLA traccia dopo il recupero: risposta persa →
+  riapertura → voce «salvata» con id e vincoli sciolti → conferma;
+  guasto della traccia finale → ponte → acquisizione completata;
+  conferma mai arrivata → riconciliazione di pagina; scarto vietato con
+  pendenze; versione mancante; ponte durevole con guasti). Suite
+  337/337; tsc, lint (2 avvisi preesistenti), build verdi. VERIFICA
+  VISIVA a 390px: risposta persa → riapertura col banner di
+  riconciliazione e blocco «chiudi e ricontrolla» → alla riapertura la
+  voce è «aggiunta e salvata ✓» senza vincoli; legacy identico.
+  Solo correzioni locali: nessuna modifica SQL, accesso remoto,
+  migrazione, push o deploy; collaudo PostgreSQL non riaperto.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

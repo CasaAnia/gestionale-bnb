@@ -31,7 +31,7 @@ import {
   type BozzaGrezza, type RigaGrezza, type StatoRevisione,
 } from '@/lib/spese/revisione'
 import type { ClienteRevisione, EsitoRevisione } from '@/lib/spese/revisioneScrittura'
-import { orchestrazioneLegacy, type OrchestrazioneRevisione } from '@/lib/spese/orchestrazioneRevisione'
+import { orchestrazioneLegacy, type AperturaRevisione, type OrchestrazioneRevisione } from '@/lib/spese/orchestrazioneRevisione'
 import type { DepositoRevisione } from '@/lib/spese/revisioneDurevole'
 import {
   gestoreImporto, gestoreNumero, interpretaCampo, testoCampo, testoNumero,
@@ -78,6 +78,60 @@ export function RevisioneSheet(props: PropsRevisione) {
   const [lettura, setLettura] = useState(() => deposito.leggi(documento.id))
   const [preso, setPreso] = useState<StatoRevisione | null>(null)
   const [errorePresa, setErrorePresa] = useState<string | null>(null)
+  // ---- percorso a CONTRATTO: la RICONCILIAZIONE viene PRIMA di ogni
+  // decisione del cancello (le pendenze — anche una conferma o uno
+  // scarto mai arrivati — si risolvono dal giornale o dal ponte, e la
+  // traccia viene aggiornata). Finché non è conclusa NON si apre nulla
+  // e non si scrive nulla; col legacy questo blocco non esiste.
+  const [riconciliazione, setRiconciliazione] = useState<AperturaRevisione | null>(
+    () => props.orchestrazione ? null : { risolte: 0, avvisi: [], revPerDocumento: {} })
+  const riconciliazioneAvviata = useRef(false)
+  useEffect(() => {
+    if (!props.orchestrazione || riconciliazioneAvviata.current) return
+    riconciliazioneAvviata.current = true
+    // niente guardia di annullamento: lo StrictMode di sviluppo simula
+    // uno smontaggio e la scarterebbe; su smontaggio vero è un no-op
+    props.orchestrazione.apertura(documento.id).then(r => {
+      // la traccia può essere CAMBIATA (acquisizioni): si rilegge PRIMA
+      // di decidere il cancello e di costruire lo stato iniziale
+      setLettura(deposito.leggi(documento.id))
+      setRiconciliazione(r)
+    })
+  }, [props.orchestrazione, documento.id, deposito])
+  if (!riconciliazione) {
+    return (
+      <Foglio aria="Revisione: riconciliazione in corso" chiudi={chiudi} scorrevole>
+        <p className={`${DISPLAY} text-[19px] mb-2`} style={{ color: t.inchiostro }}>Un attimo…</p>
+        <p className="mb-4 px-3 py-2 text-[13px] font-semibold" role="status"
+          style={{ background: t.velo, color: t.inchiostro, borderRadius: t.r }}>
+          Controllo le operazioni rimaste in sospeso sul giornale prima di aprire:
+          finché non ho finito non si può scrivere nulla, nemmeno scartare.
+        </p>
+      </Foglio>
+    )
+  }
+  if (riconciliazione.bloccante) {
+    return (
+      <Foglio aria="Revisione bloccata: riconciliazione non conclusa" chiudi={chiudi} scorrevole>
+        <p className={`${DISPLAY} text-[19px] mb-2`} style={{ color: t.inchiostro }}>Un attimo: non apro la revisione</p>
+        <div className="mb-3 px-3 py-2 text-[13px] font-semibold" role="alert"
+          style={{ background: t.terraTenue, color: t.rosso, borderRadius: t.r }}>
+          {riconciliazione.bloccante}
+        </div>
+        <div className="flex gap-2 mb-4">
+          <button onClick={chiudi} className="flex-1 min-h-12 text-[14px] font-bold"
+            style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
+            Chiudi
+          </button>
+          <button onClick={() => { riconciliazioneAvviata.current = false; setRiconciliazione(null) }}
+            className="flex-[2] min-h-12 text-[14px] font-bold text-white"
+            style={{ background: t.verde, borderRadius: t.rPill }}>
+            Riprova la riconciliazione
+          </button>
+        </div>
+      </Foglio>
+    )
+  }
   if (lettura.errore) {
     return (
       <Foglio aria="Revisione bloccata: custodia illeggibile" chiudi={chiudi} scorrevole>
@@ -149,18 +203,23 @@ export function RevisioneSheet(props: PropsRevisione) {
       </Foglio>
     )
   }
-  return <RevisioneAperta {...props} statoIniziale={
+  return <RevisioneAperta {...props} aperturaIniziale={riconciliazione} statoIniziale={
     preso ?? apriRevisione(documento.id, documento.doc_total, props.bozze, props.righe, lettura.traccia ?? null)
   } />
 }
 
-function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanoniche, camere, pagine, firmaUrl, cliente, deposito, orchestrazione, fatto, chiudi, statoIniziale }: PropsRevisione & { statoIniziale: StatoRevisione }) {
+function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanoniche, camere, pagine, firmaUrl, cliente, deposito, orchestrazione, fatto, chiudi, statoIniziale, aperturaIniziale }: PropsRevisione & { statoIniziale: StatoRevisione; aperturaIniziale: AperturaRevisione }) {
   const [stato, setStato] = useState<StatoRevisione>(statoIniziale)
   const [avvisoCustodia, setAvvisoCustodia] = useState<string | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
-  const [nota, setNota] = useState<string | null>(null)
+  // la riconciliazione dell'apertura parla da subito: qualcosa di
+  // risolto → i dati a schermo possono essere vecchi, si ricarica
+  const [nota, setNota] = useState<string | null>(aperturaIniziale.avvisi.length
+    ? aperturaIniziale.avvisi.join(' · ')
+      + (aperturaIniziale.risolte > 0 ? ' — chiudi e ricontrolla per ripartire dai dati aggiornati' : '')
+    : null)
   const [lavoro, setLavoro] = useState(false)
-  const [daVerificare, setDaVerificare] = useState(false)
+  const [daVerificare, setDaVerificare] = useState(aperturaIniziale.risolte > 0)
   const [scartoAperto, setScartoAperto] = useState(false)
   const [motivoScarto, setMotivoScarto] = useState('')
   const [zoom, setZoom] = useState<{ url: string; grande: boolean; pdf: boolean } | null>(null)
@@ -172,29 +231,7 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
   // il percorso di scrittura: senza interruttore è il legacy di sempre
   const orch = useMemo(() => orchestrazione ?? orchestrazioneLegacy(cliente, deposito), [orchestrazione, cliente, deposito])
 
-  // APERTURA del percorso a contratto: le operazioni pendenti del
-  // deposito si riconciliano dal giornale PRIMA di qualunque scrittura;
-  // un esito bloccante o una pendenza risolta portano a «chiudi e
-  // ricontrolla» (i dati a schermo vanno ricaricati). Col legacy non
-  // succede nulla: la sua presa in carico vive già nel guscio.
-  const aperturaFatta = useRef(false)
-  useEffect(() => {
-    if (!orchestrazione || aperturaFatta.current) return
-    aperturaFatta.current = true
-    // NIENTE guardia di annullamento: in sviluppo lo StrictMode simula
-    // uno smontaggio fra la partenza e la risposta e la scarterebbe (la
-    // seconda esecuzione non trova più pendenze da raccontare); su uno
-    // smontaggio VERO il setState è un no-op innocuo
-    orchestrazione.apertura(documento.id).then(r => {
-      if (r.bloccante) { setErrore(r.bloccante); setDaVerificare(true); return }
-      if (r.risolte > 0) {
-        setNota(`${r.avvisi.join(' · ')} — chiudi e ricontrolla per ripartire dai dati aggiornati`)
-        setDaVerificare(true)
-        return
-      }
-      if (r.avvisi.length) setNota(r.avvisi.join(' · '))
-    })
-  }, [orchestrazione, documento.id])
+
 
   // ogni cambiamento va in custodia: un salvataggio interrotto o una
   // chiusura non perdono nulla (l'errore di custodia si DICE)

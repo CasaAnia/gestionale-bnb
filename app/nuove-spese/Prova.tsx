@@ -22,6 +22,7 @@ import { creaServerContratto, type MondoFinto } from '@/lib/spese/contrattoServe
 import type { ClienteContratto } from '@/lib/spese/contrattoRevisione'
 import { improntaSha256 } from '@/lib/spese/improntaTesto'
 import { depositoOperazioniDurevole } from '@/lib/spese/depositoOperazioniDurevole'
+import { ponteContrattoDurevole } from '@/lib/spese/ponteContratto'
 import { orchestrazioneContratto, type OrchestrazioneRevisione } from '@/lib/spese/orchestrazioneRevisione'
 import type { Contesto, DatiSpese, StatoDati } from '@/lib/spese/vista'
 import { DATI_FINTI, DATI_QUASI_VUOTI, OGGI_FINTO, TABELLE_FINTE } from './dati-finti'
@@ -207,6 +208,7 @@ export default function Prova() {
       cliente: clienteContrattoProva(modoScrittura, server.cliente),
       depositoRevisione: depositoProva,
       depositoOperazioni: depositoOperazioniDurevole(undefined, 'gestionale-op-contratto-prova'),
+      ponte: ponteContrattoDurevole(undefined, 'gestionale-ponte-contratto-prova'),
       revisioneIniziale: 0,
     })
     return { orchestrazione, documento }

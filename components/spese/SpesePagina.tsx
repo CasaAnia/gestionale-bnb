@@ -24,9 +24,10 @@ import { clienteSupabase } from '@/lib/spese/scritturaSupabase'
 import { clienteRevisioneSupabase } from '@/lib/spese/revisioneSupabase'
 import { depositoRevisioneLocale } from '@/lib/spese/revisioneDurevole'
 import { PERCORSO_REVISIONE } from '@/lib/spese/percorso'
-import { orchestrazioneContratto } from '@/lib/spese/orchestrazioneRevisione'
+import { orchestrazioneContratto, riconciliaContratto, type ServiziContratto } from '@/lib/spese/orchestrazioneRevisione'
 import { clienteContrattoSupabase } from '@/lib/spese/revisioneContrattoSupabase'
 import { depositoOperazioniDurevole } from '@/lib/spese/depositoOperazioniDurevole'
+import { ponteContrattoDurevole } from '@/lib/spese/ponteContratto'
 import type { BozzaGrezza, RigaGrezza } from '@/lib/spese/revisione'
 import {
   aggiornaBudgetEsistente, creaGuardiaInvio,
@@ -65,19 +66,14 @@ function scegliFiles(accetta: string, fotocamera: boolean): Promise<File[]> {
 // valutato solo al momento dell'uso: sicuro anche a livello di modulo)
 const depositoRevisione = depositoRevisioneLocale()
 
-// il percorso a CONTRATTO si costruisce SOLO se l'interruttore lo dice
-// (oggi 'legacy': la schermata riceve undefined e tutto resta identico);
-// revisione_rev arriva col contratto SQL — prima non esiste, e infatti
-// questo ramo non è raggiungibile
-const orchestrazioneContrattoPer = (doc: { id: string; revisione_rev?: number | null }) =>
-  PERCORSO_REVISIONE === 'contratto'
-    ? orchestrazioneContratto({
-      cliente: clienteContrattoSupabase,
-      depositoRevisione,
-      depositoOperazioni: depositoOperazioniDurevole(),
-      revisioneIniziale: doc.revisione_rev ?? 0,
-    })
-    : undefined
+// i SERVIZI del percorso a contratto (oggi irraggiungibili:
+// l'interruttore è su 'legacy' e la schermata riceve undefined)
+const serviziContratto = (): ServiziContratto => ({
+  cliente: clienteContrattoSupabase,
+  depositoRevisione,
+  depositoOperazioni: depositoOperazioniDurevole(),
+  ponte: ponteContrattoDurevole(),
+})
 
 export default function SpesePagina({ ambito }: { ambito: Ambito }) {
   return <DemoGate><Pagina ambito={ambito} /></DemoGate>
@@ -149,6 +145,37 @@ function Pagina({ ambito }: { ambito: Ambito }) {
     setDati({ stato: 'caricamento' })
     setTentativo(n => n + 1)
   }, [])
+
+  // RICONCILIAZIONE a livello di PAGINA (solo percorso contratto): le
+  // pendenze si chiudono anche per i documenti ormai CHIUSI, che la
+  // schermata di revisione non monterebbe più (una conferma applicata
+  // ma mai arrivata al client va acquisita lo stesso). Se qualcosa è
+  // stato risolto, i dati si ricaricano.
+  const riconciliatoPer = useRef<FonteCompleta | null>(null)
+  useEffect(() => {
+    if (PERCORSO_REVISIONE !== 'contratto' || !fonte || riconciliatoPer.current === fonte) return
+    riconciliatoPer.current = fonte
+    riconciliaContratto(serviziContratto()).then(r => {
+      if (r.bloccante) setAvviso(`Riconciliazione delle operazioni in sospeso: ${r.bloccante}`)
+      else if (r.risolte > 0) { setAvviso(r.avvisi.join(' · ')); ricarica() }
+    })
+  }, [fonte, ricarica])
+
+  // l'ORCHESTRAZIONE del percorso contratto vive quanto la coppia
+  // (documento aperto, dati caricati): NON si ricrea a ogni render — la
+  // versione interna (revisione_rev aggiornata dai successi) andrebbe
+  // persa; una ricarica dei dati la ricostruisce con la versione fresca.
+  // La versione va LETTA dalla fonte: se manca (colonna non migrata) si
+  // passa null e il contratto RIFIUTA di scrivere con l'errore esplicito.
+  const orchestrazioneRevisione = useMemo(() => {
+    if (PERCORSO_REVISIONE !== 'contratto' || !revisioneId || !fonte) return undefined
+    const doc = fonte.documenti.find(d => d.id === revisioneId) as { revisione_rev?: unknown } | undefined
+    return orchestrazioneContratto({
+      ...serviziContratto(),
+      revisioneIniziale: typeof doc?.revisione_rev === 'number' && Number.isInteger(doc.revisione_rev)
+        ? doc.revisione_rev : null,
+    })
+  }, [revisioneId, fonte])
 
   // ---- dati del vecchio mondo per analisi operative e modulo manuale ----
   const mio = useMemo(() => {
@@ -363,7 +390,7 @@ function Pagina({ ambito }: { ambito: Ambito }) {
             firmaUrl={urlFirmato}
             cliente={clienteRevisioneSupabase}
             deposito={depositoRevisione}
-            orchestrazione={orchestrazioneContrattoPer(doc as { id: string; revisione_rev?: number | null })}
+            orchestrazione={orchestrazioneRevisione}
             fatto={esito => {
               if (esito === 'confermato') { setRevisioneId(null); setAvviso('Documento confermato: le spese sono nel conto.') }
               if (esito === 'scartato') { setRevisioneId(null); setAvviso('Documento scartato.') }

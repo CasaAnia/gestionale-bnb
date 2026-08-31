@@ -5,6 +5,7 @@
 // stesse tabelle grezze). Le SCRITTURE vivono in scritturaSupabase.ts,
 // tenute separate: la preview /nuove-spese-reali importa SOLO questo file.
 // ============================================================================
+import { PERCORSO_REVISIONE } from './percorso'
 import { supabase } from '@/lib/supabase'
 import type { TabelleGrezze } from './adattatore'
 import type { Rule, Subcat } from './types'
@@ -32,8 +33,13 @@ export async function leggiTutto(): Promise<FonteCompleta> {
   const [documenti, ponte, spese, righe, ricevute, bozze, righeBozza,
     gruppi, categorie, categorieCanoniche, sottocategorieCanoniche, camere, budget,
     regole, sottocategorieLegacy] = await Promise.all([
+    // revisione_rev esiste solo DOPO la migrazione del contratto: la si
+    // chiede al database solo col percorso 'contratto' attivo, così il
+    // legacy resta identico anche prima della migrazione (colonna
+    // assente = query invariata, mai un errore)
     tutta<TabelleGrezze['documenti'][0]>('family_documents',
-      'id, kind, status, doc_total, supplier, invoice_number, document_date, due_date, upload_ambito, error_message, note, doc_total_derivato, created_at'),
+      'id, kind, status, doc_total, supplier, invoice_number, document_date, due_date, upload_ambito, error_message, note, doc_total_derivato, created_at'
+      + (PERCORSO_REVISIONE === 'contratto' ? ', revisione_rev' : '')),
     tutta<TabelleGrezze['ponte'][0]>('family_expense_documents', 'id, expense_id, document_id'),
     tutta<TabelleGrezze['spese'][0]>('family_expenses',
       'id, amount, expense_date, group_id, category_id, subcategory, description, store, product, receipt_id, payment_method, paid_at, room_id, canonical_category_id, canonical_subcategory_id, expense_nature, recurring, source'),
