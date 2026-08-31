@@ -149,6 +149,9 @@ export type StatoRevisione = {
   modificheBozze: Record<string, ModificaBozza>
   modificheRighe: Record<string, ModificaRiga>
   righeNuove: RigaNuovaPendente[]
+  // campi VINCOLATI da un'operazione precedente senza esito riferibile:
+  // non modificabili, e finché esistono la conferma resta bloccata
+  vincoli?: Vincoli
 }
 
 // ---- TRACCIA DUREVOLE: gli originali sopravvivono a Salva e riaperture ----
@@ -166,6 +169,7 @@ export type TracciaRevisione = {
   documentId: string
   generazione: number
   inCorso?: OperazioneInCorsa | null
+  vincoli?: Vincoli
   docTotaleCent: number | null
   docTotaleOriginaleCent: number | null
   originaliBozze: Record<string, Partial<BozzaGrezza>>
@@ -184,6 +188,7 @@ const foto = <T extends object>(riga: T, campi: readonly string[]): Partial<T> =
 export function tracciaDa(s: StatoRevisione): TracciaRevisione {
   return {
     documentId: s.documentId, generazione: s.generazione,
+    ...(vincoliVuoti(s.vincoli) ? {} : { vincoli: s.vincoli }),
     docTotaleCent: s.docTotaleCent, docTotaleOriginaleCent: s.docTotaleOriginaleCent,
     originaliBozze: Object.fromEntries(s.bozze.map(b => [b.id, foto(b, CAMPI_BOZZA_REVISIONE)])),
     originaliRighe: Object.fromEntries(s.righe.map(r => [r.id, foto(r, CAMPI_RIGA_REVISIONE)])),
@@ -264,6 +269,7 @@ export function apriRevisione(
     })
   return {
     documentId, generazione,
+    ...(vincoliVuoti(traccia.vincoli) ? {} : { vincoli: traccia.vincoli }),
     docTotaleCent: traccia.docTotaleCent,
     docTotaleOriginaleCent: traccia.docTotaleOriginaleCent,
     bozze: bozzeOriginali, righe: righeOriginali,
@@ -281,10 +287,25 @@ export const rigaCorrente = (s: StatoRevisione, id: string): RigaGrezza => {
   return { ...r, ...s.modificheRighe[id] }
 }
 
-export const modificaBozza = (s: StatoRevisione, id: string, campi: ModificaBozza): StatoRevisione =>
-  ({ ...s, modificheBozze: { ...s.modificheBozze, [id]: { ...s.modificheBozze[id], ...campi } } })
-export const modificaRiga = (s: StatoRevisione, id: string, campi: ModificaRiga): StatoRevisione =>
-  ({ ...s, modificheRighe: { ...s.modificheRighe, [id]: { ...s.modificheRighe[id], ...campi } } })
+// le modifiche RISPETTANO i vincoli: un campo vincolato da un'operazione
+// precedente senza esito riferibile non è modificabile — la scrittura
+// incompatibile non può nemmeno entrare nello stato
+const senzaVincolati = <T extends object>(campi: T, vincolati?: string[]): T => {
+  if (!vincolati?.length) return campi
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(campi)) if (!vincolati.includes(k)) out[k] = v
+  return out as T
+}
+export const modificaBozza = (s: StatoRevisione, id: string, campi: ModificaBozza): StatoRevisione => {
+  const ammessi = senzaVincolati(campi, s.vincoli?.bozze[id])
+  if (Object.keys(ammessi).length === 0) return s
+  return { ...s, modificheBozze: { ...s.modificheBozze, [id]: { ...s.modificheBozze[id], ...ammessi } } }
+}
+export const modificaRiga = (s: StatoRevisione, id: string, campi: ModificaRiga): StatoRevisione => {
+  const ammessi = senzaVincolati(campi, s.vincoli?.righe[id])
+  if (Object.keys(ammessi).length === 0) return s
+  return { ...s, modificheRighe: { ...s.modificheRighe, [id]: { ...s.modificheRighe[id], ...ammessi } } }
+}
 export const aggiungiRiga = (s: StatoRevisione, riga: RigaNuova, idLocale: string): StatoRevisione =>
   ({ ...s, righeNuove: [...s.righeNuove, { ...riga, idLocale, stato: 'nuova' }] })
 // si toglie SOLO una riga mai inviata: 'salvata' è nel database (la 0021
@@ -302,7 +323,7 @@ export const riconosciRigaIncerta = (s: StatoRevisione, idLocale: string): Stato
     r.idLocale === idLocale && r.stato === 'incerta' && r.gemella
       ? { ...r, stato: 'riconosciuta' as const } : r) })
 export const modificaTotale = (s: StatoRevisione, cent: number | null): StatoRevisione =>
-  ({ ...s, docTotaleCent: cent })
+  s.vincoli?.docTotale ? s : { ...s, docTotaleCent: cent }
 
 // ---- dubbi: campi sotto soglia, col motivo --------------------------------
 export function dubbiDi(confidence: Confidenza | null): { campo: string; motivo: string }[] {
@@ -385,6 +406,8 @@ export function blocchiConferma(
   // dell'esito della richiesta originale
   if (s.righeNuove.some(r => r.stato === 'in_invio' || r.stato === 'incerta' || r.stato === 'riconosciuta'))
     blocchi.push('un invio di voce è rimasto senza esito dimostrato: la conferma resta bloccata (si sblocca col contratto idempotente — proposta 0023)')
+  if (!vincoliVuoti(s.vincoli))
+    blocchi.push('alcuni campi sono vincolati da un salvataggio precedente senza esito riferibile: la conferma resta bloccata (lo scarto è possibile; per gli aggiornamenti servirà un contratto dedicato, da proporre)')
   // coerenza canonica (la stessa FK composita della 0020): la
   // sottocategoria deve appartenere alla categoria scelta
   if (sottoCanoniche) {
@@ -400,57 +423,102 @@ export function blocchiConferma(
   return [...new Set(blocchi)]
 }
 
-// ---- RICONCILIAZIONE della presa in carico --------------------------------
-// Una richiesta GIÀ PARTITA non si può fermare da qui: aumentare la
-// generazione impedisce le chiamate SUCCESSIVE della vecchia sequenza, ma
-// l'effetto di quella per aria può arrivare tardi. La presa in carico è
-// quindi consentita SOLO quando l'esito dell'operazione annotata è
-// DIMOSTRABILE sui dati freschi:
-//  · 'salva'    → ogni scrittura prevista (le modifiche custodite col
-//                 momento dell'annotazione; la schermata è bloccata
-//                 durante e dopo l'operazione, quindi coincidono) deve
-//                 risultare APPLICATA — un valore uguale non può più
-//                 essere danneggiato da un arrivo tardivo identico;
-//  · 'conferma' → il documento deve RISULTARE confermato (bozze non più
-//                 attive); finché è ancora da controllare, la RPC può
-//                 arrivare tardi e consumare le bozze;
-//  · 'scarto'   → idem, il documento deve risultare scartato.
-// Se non è dimostrabile si resta BLOCCATI e lo si dichiara: una
-// rilettura istantanea non esclude un completamento tardivo (limite che
-// solo il contratto idempotente lato database potrà chiudere).
+// ---- VINCOLI e RICONCILIAZIONE della presa in carico ----------------------
+// Una richiesta GIÀ PARTITA non si può fermare da qui, e NESSUN confronto
+// di valori può dimostrare che sia terminata: un valore osservato uguale
+// può venire da un salvataggio precedente mentre un duplicato è ancora
+// per aria — appena qualcuno lo cambia, l'arrivo tardivo lo calpesta.
+// Quindi:
+//  · 'salva' annotato → la presa è consentita ma i campi del write-set
+//    dell'operazione diventano VINCOLATI: non modificabili (una
+//    scrittura incompatibile è impossibile) e la CONFERMA resta bloccata
+//    finché i vincoli esistono. Localmente non decadono mai (l'esito non
+//    è riferibile all'operazione): l'uscita è lo SCARTO del documento,
+//    oppure un futuro contratto lato database per gli aggiornamenti —
+//    da proporre a parte (la proposta 0023 copre SOLO gli INSERT delle
+//    righe nuove, NON questi UPDATE);
+//  · 'conferma'/'scarto' annotati → serve lo STATO EFFETTIVO del
+//    documento: dati mancanti, incoerenti o uno stato inatteso NON sono
+//    una prova. Un documento che risulta chiuso si tratta da chiuso
+//    (nessuna revisione modificabile da riaprire).
+export type Vincoli = {
+  docTotale?: boolean
+  bozze: Record<string, string[]>
+  righe: Record<string, string[]>
+}
+export const vincoliVuoti = (v?: Vincoli): boolean =>
+  !v || (!v.docTotale && Object.keys(v.bozze).length === 0 && Object.keys(v.righe).length === 0)
+
+// il write-set dell'operazione annotata (le modifiche custodite al suo
+// avvio: la schermata resta bloccata durante e dopo, quindi coincidono)
+export function vincoliDaOperazione(traccia: TracciaRevisione): Vincoli {
+  const bozze: Record<string, string[]> = {}
+  const righe: Record<string, string[]> = {}
+  for (const [id, campi] of Object.entries(traccia.modificheBozze))
+    if (Object.keys(campi).length) bozze[id] = Object.keys(campi)
+  for (const [id, campi] of Object.entries(traccia.modificheRighe))
+    if (Object.keys(campi).length) righe[id] = Object.keys(campi)
+  return { docTotale: traccia.docTotaleCent !== traccia.docTotaleOriginaleCent || undefined, bozze, righe }
+}
+
+const unioneListe = (a: Record<string, string[]>, b: Record<string, string[]>) => {
+  const out: Record<string, string[]> = { ...a }
+  for (const [id, campi] of Object.entries(b)) out[id] = [...new Set([...(out[id] ?? []), ...campi])]
+  return out
+}
+export const applicaVincoli = (s: StatoRevisione, v: Vincoli): StatoRevisione => ({
+  ...s,
+  vincoli: {
+    docTotale: s.vincoli?.docTotale || v.docTotale || undefined,
+    bozze: unioneListe(s.vincoli?.bozze ?? {}, v.bozze),
+    righe: unioneListe(s.vincoli?.righe ?? {}, v.righe),
+  },
+})
+
+export const eVincolato = (s: StatoRevisione, tipo: 'bozza' | 'riga', id: string, campo: string): boolean =>
+  !!(tipo === 'bozza' ? s.vincoli?.bozze[id] : s.vincoli?.righe[id])?.includes(campo)
+
+export type EsitoPresa =
+  | { esito: 'libera' }
+  | { esito: 'vincolata'; vincoli: Vincoli; motivo: string }
+  | { esito: 'bloccata'; motivo: string }
+  | { esito: 'chiusa'; motivo: string }
+
 export function riconciliaPresa(
-  traccia: TracciaRevisione, docTotale: number | null,
-  bozze: BozzaGrezza[], righe: RigaGrezza[],
-): { dimostrata: true } | { dimostrata: false; inAttesa: string[] } {
+  traccia: TracciaRevisione,
+  documento: { id: string; status?: string | null },
+  bozze: BozzaGrezza[],
+): EsitoPresa {
+  // IDENTITÀ prima di tutto: dati di un altro documento non provano nulla
+  if (documento.id !== traccia.documentId)
+    return { esito: 'bloccata', motivo: 'i dati non appartengono al documento custodito: non riprendo nulla' }
   const inCorso = traccia.inCorso
-  if (!inCorso) return { dimostrata: true }
-  if (inCorso.tipo === 'conferma' || inCorso.tipo === 'scarto') {
-    const attive = bozze.some(b => b.status === 'da_controllare' || b.status === 'pronta')
-    if (!attive) return { dimostrata: true }
+  if (!inCorso) return { esito: 'libera' }
+  if (inCorso.tipo === 'salva') {
+    const vincoli = vincoliDaOperazione(traccia)
+    if (vincoliVuoti(vincoli)) return { esito: 'libera' }   // solo righe nuove: già nel regime «incerta»
     return {
-      dimostrata: false,
-      inAttesa: [inCorso.tipo === 'conferma'
-        ? 'la conferma inviata: il documento risulta ancora da controllare'
-        : 'lo scarto inviato: il documento risulta ancora da controllare'],
+      esito: 'vincolata', vincoli,
+      motivo: 'un salvataggio precedente non ha un esito riferibile: i suoi campi restano VINCOLATI (non modificabili) e la conferma bloccata — lo scarto resta possibile',
     }
   }
-  const inAttesa: string[] = []
-  const uguale = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
-  if (traccia.docTotaleCent !== traccia.docTotaleOriginaleCent) {
-    const cent = docTotale == null ? null : Math.round(docTotale * 100)
-    if (cent !== traccia.docTotaleCent) inAttesa.push('il totale del documento')
+  // conferma/scarto: decide lo stato EFFETTIVO del documento
+  const attive = bozze.some(b => b.status === 'da_controllare' || b.status === 'pronta')
+  if (documento.status === 'confermato' || documento.status === 'scartato') {
+    if (attive)
+      return { esito: 'bloccata', motivo: `dati incoerenti: il documento risulta «${documento.status}» ma alcune bozze sono ancora attive — ricarica e riprova` }
+    const coerente = (inCorso.tipo === 'conferma') === (documento.status === 'confermato')
+    return {
+      esito: 'chiusa',
+      motivo: `il documento risulta ${documento.status === 'confermato' ? 'CONFERMATO' : 'SCARTATO'}${coerente ? '' : ` — esito DIVERSO da ${inCorso.tipo === 'conferma' ? 'la conferma annotata' : 'lo scarto annotato'}: segnalalo`}: non c'è una revisione da riprendere`,
+    }
   }
-  for (const [id, campi] of Object.entries(traccia.modificheBozze)) {
-    const b = bozze.find(x => x.id === id)
-    for (const [campo, valore] of Object.entries(campi))
-      if (!b || !uguale((b as unknown as Record<string, unknown>)[campo], valore)) inAttesa.push(`una parte (${campo})`)
+  if (!documento.status)
+    return { esito: 'bloccata', motivo: 'lo stato del documento non è disponibile: senza, nulla è dimostrabile — ricarica e riprova' }
+  return {
+    esito: 'bloccata',
+    motivo: `${inCorso.tipo === 'conferma' ? 'la conferma inviata' : 'lo scarto inviato'} non risulta ancora (documento «${documento.status}»): la richiesta potrebbe completarsi tardi — ricarica e riprova`,
   }
-  for (const [id, campi] of Object.entries(traccia.modificheRighe)) {
-    const r = righe.find(x => x.id === id)
-    for (const [campo, valore] of Object.entries(campi))
-      if (!r || !uguale((r as unknown as Record<string, unknown>)[campo], valore)) inAttesa.push(`una voce (${campo})`)
-  }
-  return inAttesa.length ? { dimostrata: false, inAttesa: [...new Set(inAttesa)] } : { dimostrata: true }
 }
 
 // ---- scelte CANONICHE (i gestori veri della schermata) --------------------

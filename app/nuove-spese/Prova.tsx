@@ -46,7 +46,7 @@ function clienteFinto(fallisci: boolean): ClienteScrittura {
 //   ?scrittura=rete   → errore RESTITUITO «Failed to fetch» (esito incerto)
 //   ?scrittura=persa  → ECCEZIONE «Failed to fetch» (risposta persa)
 //   ?scrittura=lenta  → risposte in 2,5 s (per vedere i controlli SPENTI)
-type ArchivioRevisione = { docTotale: number | null; bozze: BozzaGrezza[]; righe: RigaGrezza[]; contatore: number }
+type ArchivioRevisione = { docTotale: number | null; docStatus: string; bozze: BozzaGrezza[]; righe: RigaGrezza[]; contatore: number }
 
 function clienteRevisioneFinto(modo: string | null, db: ArchivioRevisione): ClienteRevisione {
   const attesa = () => modo === 'lenta' ? new Promise(r => setTimeout(r, 2500)) : Promise.resolve()
@@ -101,12 +101,15 @@ function clienteRevisioneFinto(modo: string | null, db: ArchivioRevisione): Clie
       if (modo === 'rete') return { errore: 'Failed to fetch (finto: errore di rete restituito)' }
       if (modo === 'errore')
         return { errore: 'Quadratura non esatta: righe+arrotondamento=1200 cent, documento=1250 cent (simulata)' }
-      db.bozze.forEach(b => { (b as { status: string }).status = 'confermato' })
+      // stati REALI della 0020: bozze 'confermata', documento 'confermato'
+      db.bozze.forEach(b => { (b as { status: string }).status = 'confermata' })
+      db.docStatus = 'confermato'
       return { ids: ['spesa-finta-1', 'spesa-finta-2'] }
     },
     async scartaDocumento() {
       const g = guasto(); if (g) return { errore: g.errore }
-      db.bozze.forEach(b => { (b as { status: string }).status = 'scartato' })
+      db.bozze.forEach(b => { (b as { status: string }).status = 'scartata' })
+      db.docStatus = 'scartato'
       return {}
     },
   }
@@ -149,7 +152,7 @@ export default function Prova() {
   // database vero, dopo un Salva restituisce i valori già corretti (il
   // cliente finto lo muta sul posto, la riapertura lo rilegge)
   const [archivio] = useState<ArchivioRevisione>(() => ({
-    docTotale: 12.5, contatore: 0,
+    docTotale: 12.5, docStatus: 'in_revisione', contatore: 0,
     bozze: JSON.parse(JSON.stringify(TABELLE_FINTE.bozze)) as BozzaGrezza[],
     righe: JSON.parse(JSON.stringify(TABELLE_FINTE.righeBozza)) as RigaGrezza[],
   }))
@@ -179,7 +182,7 @@ export default function Prova() {
       )}
       {revisioneAperta && (
         <RevisioneSheet
-          documento={{ id: 'd-rev', supplier: 'Mercato di Rozzano', kind: 'scontrino', doc_total: archivio.docTotale, note: 'metà è di Casa Ania' }}
+          documento={{ id: 'd-rev', supplier: 'Mercato di Rozzano', kind: 'scontrino', status: archivio.docStatus, doc_total: archivio.docTotale, note: 'metà è di Casa Ania' }}
           bozze={JSON.parse(JSON.stringify(archivio.bozze)) as BozzaGrezza[]}
           righe={JSON.parse(JSON.stringify(archivio.righe)) as RigaGrezza[]}
           gruppi={TABELLE_FINTE.gruppi.map(g => ({ id: g.id, name: g.name, ambito: g.ambito ?? 'personale' }))}

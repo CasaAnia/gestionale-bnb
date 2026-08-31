@@ -21,12 +21,13 @@ import { TEMA as t, DISPLAY } from './tema'
 import { Chip, Etichetta, Foglio } from './mattoni'
 import type { PaginaFoto } from './FotoSheet'
 import {
-  aggiungiRiga, apriRevisione, avvisoCoerenzaRiga, blocchiConferma,
-  bozzaCorrente, dubbiDi, modificaBozza, modificaRiga, modificaTotale,
-  modifichePendenti, quadratura, riconciliaPresa, riconosciRigaIncerta,
-  rigaCorrente, scegliCanonicaBozza, scegliCanonicaRiga,
-  scegliSottoCanonicaBozza, scegliSottoCanonicaRiga, togliRigaNuova,
-  totaliSorella, tracciaDa,
+  aggiungiRiga, applicaVincoli, apriRevisione, avvisoCoerenzaRiga,
+  blocchiConferma, bozzaCorrente, dubbiDi, eVincolato, modificaBozza,
+  modificaRiga, modificaTotale, modifichePendenti, quadratura,
+  riconciliaPresa, riconosciRigaIncerta, rigaCorrente,
+  scegliCanonicaBozza, scegliCanonicaRiga, scegliSottoCanonicaBozza,
+  scegliSottoCanonicaRiga, togliRigaNuova, totaliSorella, tracciaDa,
+  vincoliVuoti,
   type BozzaGrezza, type RigaGrezza, type StatoRevisione,
 } from '@/lib/spese/revisione'
 import {
@@ -46,7 +47,7 @@ const METODI = ['contanti', 'carta_personale', 'carta_attivita', 'bonifico', 'al
 const NATURE = [['ordinaria', 'Ordinaria'], ['ricorrente', 'Ricorrente'], ['straordinaria', 'Straordinaria']] as const
 
 type PropsRevisione = {
-  documento: { id: string; supplier?: string | null; kind: string; doc_total: number | null; note?: string | null }
+  documento: { id: string; supplier?: string | null; kind: string; status?: string | null; doc_total: number | null; note?: string | null }
   bozze: BozzaGrezza[]
   righe: RigaGrezza[]
   gruppi: { id: string; name: string; ambito?: string | null }[]
@@ -108,9 +109,10 @@ export function RevisioneSheet(props: PropsRevisione) {
         <div className="mb-3 px-3 py-2 text-[13px] font-semibold" role="alert"
           style={{ background: t.terraTenue, color: t.inchiostro, borderRadius: t.r }}>
           Nella sessione precedente {nome}{' '}è rimasto annotato come in corso: la sua
-          richiesta potrebbe essere ancora per aria. Riprendere il documento è
-          possibile SOLO quando l&apos;esito di quell&apos;operazione risulta nei dati
-          (una richiesta già partita non si può annullare da qui): adesso lo verifico.
+          richiesta potrebbe essere ancora per aria e da qui non si può annullare.
+          Verifico cosa è dimostrabile: un salvataggio si riprende coi suoi campi
+          VINCOLATI (nessun confronto di valori può provare che sia finito), una
+          conferma o uno scarto solo con lo stato effettivo del documento.
         </div>
         {errorePresa && (
           <div className="mb-3 px-3 py-2 text-[13px] font-semibold" role="alert"
@@ -122,18 +124,17 @@ export function RevisioneSheet(props: PropsRevisione) {
             Chiudi e ricarica
           </button>
           <button onClick={() => {
-            // la presa è consentita SOLO a esito DIMOSTRATO sui dati
-            // freschi: aumentare la generazione ferma le chiamate future
-            // della vecchia sequenza, ma non una richiesta già partita —
-            // finché il suo effetto non si vede, si resta bloccati
-            const presa = riconciliaPresa(lettura.traccia!, documento.doc_total, props.bozze, props.righe)
-            if (!presa.dimostrata) {
-              setErrorePresa(`l'esito non è ancora dimostrabile per: ${presa.inAttesa.join(' · ')}. `
-                + 'Resto bloccato: ricarica tra qualche istante e riprova — una rilettura sola non esclude un arrivo tardivo. '
-                + 'Se non si dimostrasse mai, la pendenza si chiuderà solo col contratto idempotente (proposta 0023).')
+            const presa = riconciliaPresa(lettura.traccia!,
+              { id: documento.id, status: documento.status }, props.bozze)
+            if (presa.esito === 'bloccata') { setErrorePresa(presa.motivo); return }
+            if (presa.esito === 'chiusa') {
+              // un documento che risulta chiuso si tratta da chiuso: nessuna
+              // revisione modificabile da riaprire
+              setErrorePresa(`${presa.motivo} — chiudi e ricarica per vederlo al suo posto`)
               return
             }
-            const stato = apriRevisione(documento.id, documento.doc_total, props.bozze, props.righe, lettura.traccia ?? null)
+            let stato = apriRevisione(documento.id, documento.doc_total, props.bozze, props.righe, lettura.traccia ?? null)
+            if (presa.esito === 'vincolata') stato = applicaVincoli(stato, presa.vincoli)
             const r = deposito.salva(tracciaDa(stato))
             if (r.errore) setErrorePresa(`non riesco a prendere in carico il documento (${r.errore}): riprova`)
             else setPreso(stato)
@@ -207,12 +208,13 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
     color: invalido ? t.rosso : t.inchiostro,
   })
 
-  // campo in CENTESIMI (totale, riga, arrotondamento)
-  const campoImporto = (chiave: string, regola: RegolaImporto, correnteCent: number | null, applica: (cent: number | null) => void) => {
+  // campo in CENTESIMI (totale, riga, arrotondamento); bloccato = campo
+  // vincolato da un'operazione precedente senza esito riferibile
+  const campoImporto = (chiave: string, regola: RegolaImporto, correnteCent: number | null, applica: (cent: number | null) => void, bloccato = false) => {
     const testo = testi[chiave]?.testo ?? testoCampo(regola, correnteCent)
     const invalido = testi[chiave] != null && interpretaCampo(regola, testi[chiave].testo).tipo === 'invalido'
     return (
-      <input inputMode="decimal" value={testo}
+      <input inputMode="decimal" value={testo} disabled={bloccato}
         placeholder={regola === 'arrotondamento' ? '±0,00' : '0,00'}
         aria-invalid={invalido}
         onChange={e => {
@@ -388,6 +390,15 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
         <div className="mb-3 px-3 py-2 text-[12.5px] font-semibold" role="alert"
           style={{ background: t.terraTenue, color: t.inchiostro, borderRadius: t.r }}>{avvisoCustodia}</div>
       )}
+      {!vincoliVuoti(stato.vincoli) && (
+        <div className="mb-3 px-3 py-2 text-[12.5px] font-semibold" role="alert"
+          style={{ background: t.terraTenue, color: t.inchiostro, borderRadius: t.r }}>
+          Alcuni campi sono VINCOLATI da un salvataggio precedente senza esito
+          riferibile: non si possono modificare e la conferma resta bloccata.
+          Lo scarto del documento è possibile; per gli aggiornamenti servirà un
+          contratto dedicato (da proporre — la 0023 copre solo le voci nuove).
+        </div>
+      )}
 
       {/* durante una richiesta E dopo un esito incerto TUTTI i controlli
           di modifica sono spenti: la risposta non può calpestare modifiche
@@ -415,7 +426,7 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
       <div className="mb-3 p-3" style={{ background: q.ok ? t.verdeTenue : t.terraTenue, borderRadius: t.r }}>
         <div className="flex items-center justify-between min-h-11">
           <span className="text-[13px] font-bold" style={{ color: t.inchiostro }}>Totale documento</span>
-          {campoImporto('doc_total', 'totale', stato.docTotaleCent, cent => setStato(s => modificaTotale(s, cent)))}
+          {campoImporto('doc_total', 'totale', stato.docTotaleCent, cent => setStato(s => modificaTotale(s, cent)), !!stato.vincoli?.docTotale)}
         </div>
         <div className="flex justify-between text-[12.5px]" style={{ color: t.sub }}>
           <span>somma delle righe + arrotondamenti</span>
@@ -473,14 +484,14 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
             <div className="flex gap-2 mb-2">
               <div className="flex-1">
                 <Etichetta>Data</Etichetta>
-                <input type="date" value={c.expense_date}
+                <input type="date" value={c.expense_date} disabled={eVincolato(stato, 'bozza', b.id, 'expense_date')}
                   onChange={e => setStato(s => modificaBozza(s, b.id, { expense_date: e.target.value }))}
                   className="w-full min-h-11 px-2 text-[13.5px] outline-none"
                   style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
               </div>
               <div className="flex-1">
                 <Etichetta>Negozio</Etichetta>
-                <input value={c.store ?? ''}
+                <input value={c.store ?? ''} disabled={eVincolato(stato, 'bozza', b.id, 'store')}
                   onChange={e => setStato(s => modificaBozza(s, b.id, { store: e.target.value || null }))}
                   className="w-full min-h-11 px-3 text-[13.5px] outline-none"
                   style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
@@ -527,12 +538,12 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
               return (
                 <div key={r.id} className="py-1.5" style={{ opacity: rc.excluded ? 0.45 : 1 }}>
                   <div className="flex items-center gap-2">
-                    <input value={rc.name}
+                    <input value={rc.name} disabled={eVincolato(stato, 'riga', r.id, 'name')}
                       onChange={e => setStato(s => modificaRiga(s, r.id, { name: e.target.value }))}
                       className="flex-1 min-w-0 min-h-11 px-3 text-[13.5px] outline-none"
                       style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
                     {campoImporto(`riga-${r.id}`, 'riga', Math.round(rc.amount * 100),
-                      cent => setStato(s => modificaRiga(s, r.id, { amount: (cent ?? 0) / 100 })))}
+                      cent => setStato(s => modificaRiga(s, r.id, { amount: (cent ?? 0) / 100 })), eVincolato(stato, 'riga', r.id, 'amount'))}
                     <button onClick={() => setDettagli(d => ({ ...d, [r.id]: !d[r.id] }))}
                       aria-label={`Dettagli di ${rc.name}`} aria-expanded={!!dettagli[r.id]}
                       className="min-h-11 min-w-11 grid place-items-center"
@@ -651,7 +662,7 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
             <div className="flex items-center justify-between mt-1 pt-2" style={{ borderTop: t.bordoCarta }}>
               <span className="text-[12.5px]" style={{ color: t.sub }}>arrotondamento (± cent)</span>
               {campoImporto(`arr-${b.id}`, 'arrotondamento', c.arrotondamento_cent ?? 0,
-                cent => setStato(s => modificaBozza(s, b.id, { arrotondamento_cent: cent ?? 0 })))}
+                cent => setStato(s => modificaBozza(s, b.id, { arrotondamento_cent: cent ?? 0 })), eVincolato(stato, 'bozza', b.id, 'arrotondamento_cent'))}
             </div>
           </section>
         )

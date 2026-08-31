@@ -140,6 +140,16 @@ Senza l'impronta questa distinzione NON sarebbe rilevabile: la garanzia
 4. **Audit**: matrici di verificaAudit aggiornate (colonna, indice,
    trigger, grant) e ricontrollate due volte, come per la 0022.
 
+## Cosa NON copre (esplicito)
+- **Gli UPDATE della revisione** (totale, campi delle bozze e delle
+  righe esistenti): questa proposta riguarda SOLO gli INSERT delle voci
+  nuove. L'esito di un UPDATE rimasto per aria resta non riferibile
+  all'operazione anche con la 0023: il regime locale dei CAMPI
+  VINCOLATI alla presa in carico resta in vigore. Se si vorrà chiudere
+  anche quello, servirà un'ULTERIORE proposta separata (per esempio una
+  colonna di versione per riga o un registro delle operazioni lato
+  database) — non è disegnata qui e non va data per prevista.
+
 ## Cosa NON cambia
 - Le righe del flusso di elaborazione (service role) e quelle storiche:
   `client_key` resta NULL, nessun obbligo retroattivo.

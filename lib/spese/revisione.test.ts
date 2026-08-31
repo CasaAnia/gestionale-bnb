@@ -11,7 +11,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  aggiungiRiga, apriRevisione, avvisoCoerenzaRiga, blocchiConferma,
+  aggiungiRiga, applicaVincoli, apriRevisione, avvisoCoerenzaRiga, blocchiConferma,
   bozzaCorrente, CAMPI_RIGA_NUOVA, correzioniDa, dubbiDi, modificaBozza,
   modificaRiga, modificaTotale, payloadRigaNuova, quadratura,
   riconciliaPresa, riconosciRigaIncerta, rigaCorrente, scegliCanonicaBozza,
@@ -713,65 +713,102 @@ test('RISPOSTA PERSA: esito INCERTO dichiarato, niente successo finto, invito a 
   assert.ok(!e5.ok && e5.incerto === true)
 })
 
-// ---- quinta tornata: presa in carico, custodia guasta, scarto -------------
-test('EFFETTO RITARDATO: la presa in carico resta BLOCCATA finché l\'effetto remoto non è osservabile — mai scritture incompatibili', async () => {
+// ---- quinta/sesta tornata: presa in carico, custodia guasta, scarto -------
+test('VALORE GIÀ PRESENTE ≠ RICHIESTA TERMINATA: la presa VINCOLA i campi del write-set — la sequenza del doppio Salva non produce sovrascritture', async () => {
   // l'archivio remoto simulato, MUTABILE: l'EFFETTO arriva più tardi
   // della presa, non solo la risposta
   const db = { name: 'Nome ORIGINALE' }
-  let applicaEffettoA: () => void = () => {}
+  const deposito = dep()
+  // 1) PRIMO Salva di «Nome VECCHIO»: riuscito, effetto applicato
   let sA = apriRevisione('doc-1', 5, [bozza({ id: 'b1' })],
     [riga({ id: 'r1', draft_id: 'b1', amount: 5, name: 'Nome ORIGINALE' })])
   sA = modificaRiga(sA, 'r1', { name: 'Nome VECCHIO' })
-  const deposito = dep()
-  const { cliente: clienteA } = clienteFinto({
+  const { cliente: clientePrimo } = clienteFinto({
+    aggiornaRiga: () => { db.name = 'Nome VECCHIO'; return { righe: 1 } },
+  })
+  const primo = await salvaModifiche(clientePrimo, deposito, sA)
+  assert.equal(primo.ok, true)
+  assert.equal(db.name, 'Nome VECCHIO')
+  // 2) SECONDO Salva dello STESSO valore: UPDATE partito, EFFETTO sospeso
+  let applicaEffetto: () => void = () => {}
+  const { cliente: clienteSecondo } = clienteFinto({
     aggiornaRiga: () => new Promise(r => {
-      applicaEffettoA = () => { db.name = 'Nome VECCHIO'; (r as (v: unknown) => void)({ righe: 1 }) }
+      applicaEffetto = () => { db.name = 'Nome VECCHIO'; (r as (v: unknown) => void)({ righe: 1 }) }
     }) as never,
   })
-  const salvaA = salvaModifiche(clienteA, deposito, sA)
+  const secondo = salvaModifiche(clienteSecondo, deposito, primo.stato)
   await new Promise(r => setTimeout(r, 10))
   const traccia = deposito.leggi('doc-1').traccia!
   assert.equal(traccia.inCorso?.tipo, 'salva')
-  // B tenta la presa: i dati FRESCHI mostrano ancora il valore vecchio →
-  // l'esito NON è dimostrato, B resta bloccato e NON scrive nulla
-  const righeFresche1 = [riga({ id: 'r1', draft_id: 'b1', amount: 5, name: db.name })]
-  const presa1 = riconciliaPresa(traccia, 5, [bozza({ id: 'b1' })], righeFresche1)
-  assert.equal(presa1.dimostrata, false)
-  assert.ok(!presa1.dimostrata && presa1.inAttesa.some(x => x.includes('name')))
-  // l'effetto di A arriva TARDI: adesso i dati lo mostrano
-  applicaEffettoA()
-  const esitoA = await salvaA
-  assert.equal(esitoA.ok, true)
-  const righeFresche2 = [riga({ id: 'r1', draft_id: 'b1', amount: 5, name: db.name })]
-  assert.equal(riconciliaPresa(traccia, 5, [bozza({ id: 'b1' })], righeFresche2).dimostrata, true)
-  // SOLO ora B riprende e scrive «Nome NUOVO»: nessun arrivo tardivo può
-  // più calpestarlo (l'operazione di A è finita e dimostrata)
-  let sB = apriRevisione('doc-1', 5, [bozza({ id: 'b1' })], righeFresche2, deposito.leggi('doc-1').traccia)
-  sB = modificaRiga(sB, 'r1', { name: 'Nome NUOVO' })
-  const { cliente: clienteB } = clienteFinto({
-    aggiornaRiga: () => { db.name = 'Nome NUOVO'; return { righe: 1 } },
-  })
-  assert.equal((await salvaModifiche(clienteB, deposito, sB)).ok, true)
-  assert.equal(db.name, 'Nome NUOVO')                  // mai sovrascritto da A
-  // valore uguale all'atteso fin dall'inizio: dimostrata subito (un
-  // arrivo tardivo IDENTICO non danneggia nulla)
-  const gia = { ...traccia, modificheRighe: { r1: { name: 'Nome ORIGINALE' } } }
-  assert.equal(riconciliaPresa(gia, 5, [bozza({ id: 'b1' })], righeFresche1).dimostrata, true)
+  // 3) B riapre: i dati mostrano GIÀ «Nome VECCHIO» (merito del PRIMO
+  //    salvataggio) — ma NESSUN confronto di valori vale come prova: la
+  //    presa è consentita SOLO col campo VINCOLATO
+  const presa = riconciliaPresa(traccia, { id: 'doc-1', status: 'in_revisione' }, [bozza({ id: 'b1' })])
+  assert.equal(presa.esito, 'vincolata')
+  assert.ok(presa.esito === 'vincolata' && presa.vincoli.righe.r1.includes('name'))
+  // 4) B riprende col vincolo: la modifica a «Nome NUOVO» NON entra
+  let sB = apriRevisione('doc-1', 5, [bozza({ id: 'b1' })],
+    [riga({ id: 'r1', draft_id: 'b1', amount: 5, name: 'Nome VECCHIO' })], traccia)
+  sB = applicaVincoli(sB, presa.esito === 'vincolata' ? presa.vincoli : { bozze: {}, righe: {} })
+  const tentato = modificaRiga(sB, 'r1', { name: 'Nome NUOVO' })
+  assert.equal(rigaCorrente(tentato, 'r1').name, 'Nome VECCHIO')       // rifiutata
+  assert.ok(blocchiConferma(sB, ambitoDi).some(b => b.includes('vincolati')))
+  // anche la FUNZIONE di conferma rifiuta, non solo il bottone
+  const { cliente: clienteRpc, chiamate } = clienteFinto()
+  const conferma = await confermaRevisione(clienteRpc, deposito, sB)
+  assert.ok(!conferma.ok && conferma.errore.includes('vincolati'))
+  assert.equal(chiamate.length, 0)
+  // un campo NON vincolato resta modificabile (es. il negozio della parte)
+  const libera = modificaBozza(sB, 'b1', { store: 'Iper' })
+  assert.equal(bozzaCorrente(libera, 'b1').store, 'Iper')
+  // 5) l'EFFETTO TARDIVO del secondo UPDATE arriva: scrive lo stesso
+  //    valore che B vede e non può cambiare — nessuna sovrascrittura
+  applicaEffetto()
+  await secondo
+  assert.equal(db.name, 'Nome VECCHIO')
+  assert.equal(rigaCorrente(sB, 'r1').name, 'Nome VECCHIO')            // schermata coerente
+  // i vincoli SOPRAVVIVONO alle riaperture (via traccia) e non decadono
+  const dopo = apriRevisione('doc-1', 5, [bozza({ id: 'b1' })],
+    [riga({ id: 'r1', draft_id: 'b1', amount: 5, name: 'Nome VECCHIO' })], tracciaDa(sB))
+  assert.ok(blocchiConferma(dopo, ambitoDi).some(b => b.includes('vincolati')))
+  assert.equal(rigaCorrente(modificaRiga(dopo, 'r1', { name: 'Altro' }), 'r1').name, 'Nome VECCHIO')
 })
 
-test('CONFERMA e SCARTO già partiti: la presa è dimostrata solo quando il documento RISULTA confermato/scartato', () => {
+test('CONFERMA e SCARTO già partiti: decide lo STATO EFFETTIVO del documento — dati mancanti, in errore o inattesi NON sono una prova', () => {
   const base = tracciaDa(apriRevisione('doc-1', 5, [bozza({ id: 'b1' })], [riga({ id: 'r1', draft_id: 'b1', amount: 5 })]))
   for (const tipo of ['conferma', 'scarto'] as const) {
     const traccia = { ...base, inCorso: { tipo, generazione: 1 } }
-    // il documento risulta ANCORA da controllare: la RPC può arrivare tardi
-    const bloccata = riconciliaPresa(traccia, 5, [bozza({ id: 'b1' })], [])
-    assert.equal(bloccata.dimostrata, false)
-    assert.ok(!bloccata.dimostrata && bloccata.inAttesa[0].includes('ancora da controllare'))
-    // il documento risulta chiuso: dimostrata
-    const chiusa = riconciliaPresa(traccia, 5,
-      [bozza({ id: 'b1', status: tipo === 'conferma' ? 'confermato' : 'scartato' })], [])
-    assert.equal(chiusa.dimostrata, true)
+    // documento ancora aperto → bloccata
+    const aperta = riconciliaPresa(traccia, { id: 'doc-1', status: 'in_revisione' }, [bozza({ id: 'b1' })])
+    assert.equal(aperta.esito, 'bloccata')
+    // ELENCO VUOTO di bozze ma documento non chiuso → bloccata (non «dimostrata»)
+    assert.equal(riconciliaPresa(traccia, { id: 'doc-1', status: 'in_revisione' }, []).esito, 'bloccata')
+    // bozze tutte in ERRORE, documento non chiuso → bloccata
+    assert.equal(riconciliaPresa(traccia, { id: 'doc-1', status: 'errore' }, [bozza({ id: 'b1', status: 'errore' })]).esito, 'bloccata')
+    // STATO del documento mancante → bloccata (senza dati non si dimostra nulla)
+    assert.equal(riconciliaPresa(traccia, { id: 'doc-1' }, []).esito, 'bloccata')
+    // IDENTITÀ sbagliata → bloccata
+    assert.equal(riconciliaPresa(traccia, { id: 'doc-ALTRO', status: 'confermato' }, []).esito, 'bloccata')
+    // documento chiuso COERENTE (stati REALI 0020: doc confermato/scartato,
+    // bozze confermata/scartata) → chiusa: niente revisione modificabile
+    const attesa = tipo === 'conferma'
+      ? riconciliaPresa(traccia, { id: 'doc-1', status: 'confermato' }, [bozza({ id: 'b1', status: 'confermata' })])
+      : riconciliaPresa(traccia, { id: 'doc-1', status: 'scartato' }, [bozza({ id: 'b1', status: 'scartata' })])
+    assert.equal(attesa.esito, 'chiusa')
+    assert.ok(attesa.esito === 'chiusa' && !attesa.motivo.includes('DIVERSO'))
+    // stato terminale OPPOSTO all'operazione attesa → chiuso ma SEGNALATO,
+    // mai spacciato per la conferma dell'operazione annotata
+    const opposto = tipo === 'conferma'
+      ? riconciliaPresa(traccia, { id: 'doc-1', status: 'scartato' }, [bozza({ id: 'b1', status: 'scartata' })])
+      : riconciliaPresa(traccia, { id: 'doc-1', status: 'confermato' }, [bozza({ id: 'b1', status: 'confermata' })])
+    assert.equal(opposto.esito, 'chiusa')
+    assert.ok(opposto.esito === 'chiusa' && opposto.motivo.includes('DIVERSO'))
+    // documento «chiuso» ma bozze ancora ATTIVE: dati incoerenti → bloccata
+    const incoerente = riconciliaPresa(traccia, { id: 'doc-1', status: 'confermato' }, [bozza({ id: 'b1', status: 'da_controllare' })])
+    assert.equal(incoerente.esito, 'bloccata')
   }
+  // senza operazione annotata la presa è libera
+  assert.equal(riconciliaPresa(base, { id: 'doc-1', status: 'in_revisione' }, [bozza({ id: 'b1' })]).esito, 'libera')
 })
 
 test('CUSTODIA GUASTA A METÀ OPERAZIONE (depositoLocale effettivo): ci si ferma PRIMA della chiamata successiva, niente successo con avviso', async () => {

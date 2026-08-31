@@ -24,6 +24,9 @@ export type DepositoRevisione = {
 }
 
 const STATI_RIGA = ['nuova', 'in_invio', 'salvata', 'incerta', 'riconosciuta']
+const archivioDiListe = (x: unknown): boolean =>
+  typeof x === 'object' && x !== null && !Array.isArray(x)
+  && Object.values(x).every(v => Array.isArray(v) && v.every(c => typeof c === 'string'))
 const archivioDiOggetti = (x: unknown): boolean =>
   typeof x === 'object' && x !== null && !Array.isArray(x)
   && Object.values(x).every(v => typeof v === 'object' && v !== null && !Array.isArray(v))
@@ -35,6 +38,9 @@ function tracciaValida(x: unknown): x is TracciaRevisione {
   if (typeof x !== 'object' || x === null) return false
   const t = x as Record<string, unknown>
   const inCorso = t.inCorso as Record<string, unknown> | null | undefined
+  const vincoli = t.vincoli as Record<string, unknown> | undefined
+  if (vincoli !== undefined && (typeof vincoli !== 'object' || vincoli === null || Array.isArray(vincoli)
+    || !archivioDiListe(vincoli.bozze) || !archivioDiListe(vincoli.righe))) return false
   return typeof t.documentId === 'string'
     && (t.generazione === undefined || typeof t.generazione === 'number')
     && (inCorso == null || (typeof inCorso === 'object' && !Array.isArray(inCorso)

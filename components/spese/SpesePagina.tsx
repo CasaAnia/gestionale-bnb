@@ -331,7 +331,7 @@ function Pagina({ ambito }: { ambito: Ambito }) {
         const idBozze = new Set(bozzeDoc.map(b => b.id))
         return (
           <RevisioneSheet
-            documento={{ id: doc.id, supplier: doc.supplier, kind: doc.kind, doc_total: doc.doc_total == null ? null : Number(doc.doc_total), note: doc.note }}
+            documento={{ id: doc.id, supplier: doc.supplier, kind: doc.kind, status: doc.status, doc_total: doc.doc_total == null ? null : Number(doc.doc_total), note: doc.note }}
             bozze={bozzeDoc}
             righe={fonte.righeBozza.filter(r => idBozze.has(r.draft_id)) as unknown as RigaGrezza[]}
             gruppi={fonte.gruppi}

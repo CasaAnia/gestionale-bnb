@@ -1609,6 +1609,35 @@ se la precedente non è verificata E approvata.
   e la concede a effetto osservato (generazione reclamata, annotazione
   tolta).
 
+  **FASE 4 · BLOCCO 3 — SESTA TORNATA DI CORREZIONI (01/09/2026, notte).**
+  Due falsi «dimostrata» eliminati da riconciliaPresa:
+  1) VALORE GIÀ PRESENTE ≠ RICHIESTA TERMINATA — via ogni confronto di
+     valori dalla presa: per un salvataggio annotato la presa è
+     consentita SOLO coi campi del write-set VINCOLATI (Vincoli nello
+     stato e nella traccia, persistenti alle riaperture, mai in
+     decadenza locale): non modificabili (la modifica non entra nello
+     stato: guardie in modificaBozza/Riga/Totale + campi disabilitati),
+     conferma bloccata anche DENTRO confermaRevisione, scarto possibile
+     come uscita. Test della sequenza intera del revisore (primo Salva
+     riuscito → secondo Salva sospeso nell'EFFETTO → presa → modifica
+     rifiutata → effetto tardivo: nessuna sovrascrittura, schermata
+     coerente). Dichiarato: la 0023 copre SOLO gli INSERT — per gli
+     UPDATE servirà un'ulteriore proposta (nota esplicita nel documento).
+  2) NESSUNA BOZZA ATTIVA ≠ DOCUMENTO CHIUSO — riconciliaPresa ora
+     riceve e verifica IDENTITÀ e STATO EFFETTIVO del documento
+     (confermato/scartato della 0020, distinti dagli stati delle bozze
+     confermata/scartata): elenco vuoto, bozze in errore o stato
+     mancante → bloccata; documento chiuso → esito «chiusa» SENZA
+     riaprire una revisione modificabile, con la segnalazione quando lo
+     stato terminale è OPPOSTO all'operazione annotata; documento
+     «chiuso» con bozze ancora attive → dati incoerenti, bloccata.
+     Il cliente finto della pagina sintetica ora usa gli stati reali
+     (bozze «confermata»/«scartata», docStatus) e la pagina passa lo
+     status del documento alla schermata.
+  Test: 292/292; tsc, lint, build verdi. Prova live: presa vincolata
+  con banner, campo vincolato disabilitato, conferma spenta, scarto
+  disponibile.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

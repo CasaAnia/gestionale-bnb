@@ -21,7 +21,7 @@
 //    QUI, non solo nel bottone.
 // ============================================================================
 import type { StatoRevisione, TracciaRevisione } from './revisione.ts'
-import { correzioniDa, payloadRigaNuova, tracciaDa } from './revisione.ts'
+import { correzioniDa, payloadRigaNuova, tracciaDa, vincoliVuoti } from './revisione.ts'
 import type { ModificaBozza, ModificaRiga, OperazioneInCorsa, RigaNuova } from './revisione.ts'
 import type { DepositoRevisione } from './revisioneDurevole.ts'
 
@@ -184,6 +184,8 @@ export async function confermaRevisione(
   const pendenza = pendenzaNonDimostrata(s)
   if (pendenza)
     return { ok: false, stato: s, errore: `la conferma è bloccata: l'invio della voce «${pendenza.name}» è senza esito dimostrato — si sblocca col contratto idempotente (proposta 0023)` }
+  if (!vincoliVuoti(s.vincoli))
+    return { ok: false, stato: s, errore: 'la conferma è bloccata: alcuni campi sono vincolati da un salvataggio precedente senza esito riferibile (lo scarto resta possibile)' }
   const salvataggio = await salvaModifiche(cliente, deposito, s)
   if (!salvataggio.ok) return salvataggio
   const stato = salvataggio.stato
