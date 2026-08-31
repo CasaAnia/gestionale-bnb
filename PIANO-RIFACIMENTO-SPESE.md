@@ -1875,6 +1875,34 @@ se la precedente non è verificata E approvata.
   Test: 313/313 (2 nuovi); tsc, lint, build verdi. Collaudo PostgreSQL
   e transizione A/B sempre separati e da dimostrare.
 
+  **CONTRATTO — DUE CORREZIONI SULLA REVISIONE DI d54d81d (03/09/2026,
+  sera): la custodia registra PRIMA e i guasti non azzerano mai.**
+  1) TENTATIVO REGISTRATO PRIMA DELL'INVIO — il contatore dei tentativi
+     (avviati e non risolti) si scrive in custodia PRIMA della
+     chiamata: se la registrazione fallisce la richiesta NON parte; se
+     la pagina muore a richiesta in corso, alla riapertura la custodia
+     dice «potenzialmente ancora attivo», mai zero. Un rifiuto definito
+     risolve il PROPRIO tentativo (decremento) ma non cancella gli
+     altri: la custodia si rimuove solo a contatore azzerato o con un
+     esito riferibile (successo per chiave / SUPERATA). Testata la
+     sequenza del revisore: invio sospeso senza risposta →
+     serializzazione e RICREAZIONE del deposito (contatore presente) →
+     recupero assente → reinvio rifiutato NON_MEMBRO/P0001 → pendenza
+     CONSERVATA → il primo invio completa → recupero che chiude con
+     modifica e giornale ritrovati. Controprova verde: il primo e unico
+     rifiuto accertato chiude come prima.
+  2) GUASTI DEL DEPOSITO ≠ ZERO PENDENZE — ogni lettura e scrittura è
+     CONTROLLATA: lettura pre-invio fallita → non si invia; rilettura
+     fallita prima della decisione di rimuovere → NIENTE rimozione,
+     pendenza conservata e guasto dichiarato nell'esito (l'arrivo
+     tardivo resta recuperabile); decremento fallito → resta il
+     contatore più prudente, dichiarato; lettura fallita, traccia
+     assente e zero reale restano distinti. La registrazione pre-invio
+     è la traccia prudente che sopravvive al fallimento degli
+     aggiornamenti successivi.
+  Test: 315/315 (2 nuovi: interruzione con deposito ricreato; guasti di
+  scrittura e lettura con controprove); tsc, lint, build verdi.
+
   **PROPOSTA SEPARATA (da autorizzare, NON implementata): chiave
   idempotente per le righe nuove.** Progetto completo in
   PROPOSTA-0023-CHIAVE-IDEMPOTENTE.md, reso COERENTE alla quarta

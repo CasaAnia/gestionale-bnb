@@ -39,8 +39,9 @@ export function depositoOperazioniInMemoria(iniziali: OperazioneContratto[] = []
         if (esistente.impronta === op.impronta && esistente.kind === op.kind
           && esistente.documentId === op.documentId && esistente.baseRev === op.baseRev) {
           // stessa identità: si aggiorna SOLO il conteggio dei tentativi
-          // incerti (mai in giù) — la RICHIESTA resta quella originale
-          esistente.tentativiIncerti = Math.max(esistente.tentativiIncerti ?? 0, op.tentativiIncerti ?? 0)
+          // (in su PRIMA di un invio, in giù quando un tentativo si
+          // risolve da solo) — la RICHIESTA resta quella originale
+          esistente.tentativiIncerti = op.tentativiIncerti ?? esistente.tentativiIncerti
           return {}
         }
         return { errore: `la chiave ${op.opKey} è già pendente con UN'ALTRA richiesta: una pendenza non cambia identità né contenuto` }
@@ -65,53 +66,71 @@ export type EsitoOperazione =
 
 const rete = (msg: string) => /fetch|network|timeout|timed out|abort|econn|socket|load failed/i.test(msg)
 
-// esegue un'operazione: custodia PRIMA dell'invio (se fallisce, NIENTE
-// parte); la risposta viene CONVALIDATA per l'operazione specifica e la
-// custodia si rimuove SOLO a esito definito (successo, superata,
-// sentinella o rifiuto restituito) — un errore della rimozione diventa
-// un AVVISO, mai un silenzio.
+// esegue un'operazione. Il TENTATIVO si registra PRIMA della chiamata
+// (contatore dei tentativi avviati e non risolti, persistito): se la
+// pagina muore a richiesta in corso, alla riapertura la custodia dice
+// «potenzialmente ancora attivo», mai «zero». Se la registrazione
+// fallisce, la richiesta NON parte. Ogni lettura e scrittura del
+// deposito è CONTROLLATA: un guasto non autorizza mai una rimozione e
+// viene dichiarato nell'esito. Un rifiuto definito risolve il PROPRIO
+// tentativo (decrementa), ma non cancella altri tentativi senza esito:
+// la custodia si rimuove solo a contatore azzerato, oppure con un
+// esito riferibile all'operazione (successo per chiave, o SUPERATA:
+// revisione monotona, quel base_rev non applicherà mai più).
 async function esegui(
   cliente: ClienteContratto, deposito: DepositoOperazioni,
   op: OperazioneContratto, invia: () => Promise<unknown>,
 ): Promise<EsitoOperazione> {
-  const custodia = deposito.salva(op)
+  // 1) REGISTRAZIONE del tentativo, prima dell'invio (lettura e
+  //    scrittura entrambe controllate)
+  const lettura0 = deposito.leggi(op.opKey)
+  if (lettura0.errore)
+    return { ok: false, errore: `custodia illeggibile (${lettura0.errore}): NON invio nulla — senza la registrazione del tentativo una risposta persa sarebbe irrecuperabile` }
+  const avviati = (lettura0.op?.tentativiIncerti ?? 0) + 1
+  const custodia = deposito.salva({ ...op, tentativiIncerti: avviati })
   if (custodia.errore)
-    return { ok: false, errore: `non riesco a custodire l'operazione (${custodia.errore}): NON la invio — senza custodia una risposta persa sarebbe irrecuperabile` }
-  // un esito incerto va ANNOTATO DUREVOLMENTE prima di restituirlo: da
-  // qui in poi la pendenza porta la responsabilità di un invio che può
-  // ancora applicare
-  const annotaIncerto = () => deposito.salva({ ...op, tentativiIncerti: (deposito.leggi(op.opKey).op?.tentativiIncerti ?? 0) + 1 })
+    return { ok: false, errore: `non riesco a registrare il tentativo in custodia (${custodia.errore}): NON invio nulla` }
+  // 2) invio: se l'esito NON è definito, il tentativo resta contato
+  //    (nessuna scrittura necessaria: la registrazione è già prudente)
   let r: unknown
   try { r = await invia() } catch (e) {
     const msg = String((e as Error).message ?? e)
-    annotaIncerto()
-    return { ok: false, incerto: true, errore: `${rete(msg) ? 'esito incerto' : 'esito ignoto'} (${msg}): l'operazione è custodita — il recupero passa da esito_revisione, nessun reinvio automatico`, op }
+    return { ok: false, incerto: true, errore: `${rete(msg) ? 'esito incerto' : 'esito ignoto'} (${msg}): il tentativo resta registrato in custodia — il recupero passa da esito_revisione, nessun reinvio automatico`, op }
   }
   const v = validaRisposta(op, r)
-  if (v.tipo === 'incerta') {
-    annotaIncerto()
-    return { ok: false, incerto: true, errore: `${v.perche} — l'operazione resta custodita, il recupero passa da esito_revisione`, op }
-  }
-  // quali esiti CHIUDONO la responsabilità? Se NESSUN tentativo
-  // precedente è rimasto incerto, ogni esito definito la chiude. Se
-  // invece un invio precedente è ancora per aria, chiudono SOLO gli
-  // esiti riferibili all'OPERAZIONE:
-  //  · successo (la chiave è a giornale: un arrivo tardivo fa replay);
-  //  · SUPERATA (la revisione è monotona: nessun invio con questo
-  //    base_rev potrà mai più applicare).
-  // Un RIFIUTO o una sentinella del tentativo attuale non dimostrano la
-  // conclusione del primo: la pendenza RESTA e lo si dichiara.
-  const incertiPregressi = deposito.leggi(op.opKey).op?.tentativiIncerti ?? 0
-  const risolutivo = v.tipo === 'successo' || v.tipo === 'superata' || incertiPregressi === 0
+  if (v.tipo === 'incerta')
+    return { ok: false, incerto: true, errore: `${v.perche} — il tentativo resta registrato in custodia, il recupero passa da esito_revisione`, op }
+  // 3) esito definito. Successo e SUPERATA risolvono l'OPERAZIONE
+  //    (rimozione, controllata). Un rifiuto/sentinella risolve SOLO il
+  //    tentativo attuale: si decrementa; se restano tentativi senza
+  //    esito la pendenza resta e lo si dichiara.
   let avviso: string | undefined
-  if (risolutivo) {
+  let codaPendenza = ''
+  if (v.tipo === 'successo' || v.tipo === 'superata') {
     const pulizia = deposito.rimuovi(op.opKey)
     if (pulizia.errore)
       avviso = `custodia non rimossa (${pulizia.errore}): la pendenza ricomparirà e il recupero la richiuderà senza effetti doppi`
+  } else {
+    const rilettura = deposito.leggi(op.opKey)
+    if (rilettura.errore) {
+      // guasto ≠ zero pendenze: NIENTE rimozione, e lo si dichiara
+      codaPendenza = ` — ATTENZIONE: custodia illeggibile dopo la risposta (${rilettura.errore}): per prudenza la pendenza resta registrata`
+    } else if (!rilettura.op) {
+      codaPendenza = ''                                // già chiusa altrove: nulla da fare
+    } else {
+      const restanti = Math.max(0, (rilettura.op.tentativiIncerti ?? 1) - 1)
+      if (restanti === 0) {
+        const pulizia = deposito.rimuovi(op.opKey)
+        if (pulizia.errore)
+          codaPendenza = ` — ATTENZIONE: custodia non rimossa (${pulizia.errore}): la pendenza ricomparirà e verrà richiusa senza effetti doppi`
+      } else {
+        const aggiornata = deposito.salva({ ...rilettura.op, tentativiIncerti: restanti })
+        codaPendenza = ' — ATTENZIONE: un invio precedente di questa operazione è ancora senza esito, la pendenza resta custodita (si chiuderà col recupero per chiave o con SUPERATA)'
+        if (aggiornata.errore)
+          codaPendenza += ` (contatore non aggiornato: ${aggiornata.errore} — resta quello più prudente)`
+      }
+    }
   }
-  const codaPendenza = risolutivo
-    ? (avviso ? ` (${avviso})` : '')
-    : ' — ATTENZIONE: un invio precedente di questa operazione è ancora senza esito, la pendenza resta custodita (si chiuderà col recupero per chiave o con SUPERATA)'
   if (v.tipo === 'successo')
     return { ok: true, revDopo: v.revDopo, mappaNuove: v.mappaNuove, ...(v.spese ? { spese: v.spese } : {}), ...(v.ripetuta ? { ripetuta: true } : {}), ...(avviso ? { avviso } : {}) }
   if (v.tipo === 'superata')

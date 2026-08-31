@@ -301,7 +301,7 @@ test('CUSTODIA NEGATA: l\'operazione NON parte (nessuna chiamata al servizio)', 
   let s = statoBase()
   s = modificaBozza(s, 'b1', { store: 'Iper' })
   const esito = await eseguiSalva(cliente, negato, s, 0, sha, 'op-1')
-  assert.ok(!esito.ok && 'errore' in esito && esito.errore.includes('NON la invio'))
+  assert.ok(!esito.ok && 'errore' in esito && esito.errore.includes('NON invio nulla'))
   assert.equal(giornale.size, 0)
   assert.equal(mondo.bozze.get('b1')!.store, 'Mercato')
 })
@@ -645,4 +645,104 @@ test('IL RIFIUTO DI UN TENTATIVO SUCCESSIVO NON RISOLVE IL PRIMO INCERTO: la pen
   const chiusa = await reinviaOperazione(superata, dep3, 'op-sup', sha)
   assert.ok(!chiusa.ok && 'conflitto' in chiusa)
   assert.equal(dep3.contenuto().length, 0)                       // chiusa: mai più applicabile
+})
+
+// ---- correzioni della revisione su d54d81d --------------------------------
+test('INTERRUZIONE PRIMA DELLA RISPOSTA: il tentativo è registrato PRIMA dell\'invio e sopravvive alla ricreazione del deposito', async () => {
+  const mondo = mondoBase()
+  const { cliente } = creaServerContratto(mondo, sha)
+  const deposito = depositoOperazioniInMemoria()
+  // primo invio SOSPESO, senza risposta: la pagina «muore» qui
+  let rilascia: () => void = () => {}
+  let inSospeso: Promise<unknown> | null = null
+  const trasporto = {
+    ...cliente,
+    salvaRevisione: (pp: never) => new Promise(res => {
+      inSospeso = new Promise(fine => { rilascia = () => fine(cliente.salvaRevisione(pp).then(res)) })
+    }) as never,
+  }
+  let s = statoBase()
+  s = modificaBozza(s, 'b1', { store: 'Iper' })
+  const maiRisolto = eseguiSalva(trasporto, deposito, s, 0, sha, 'op-1')
+  await new Promise(r => setTimeout(r, 10))
+  // il contatore c'è GIÀ, registrato prima della chiamata
+  assert.equal(deposito.leggi('op-1').op?.tentativiIncerti, 1)
+  // SERIALIZZAZIONE e ricreazione del controller: il contatore RESTA
+  const ricreato = depositoOperazioniInMemoria(JSON.parse(JSON.stringify(deposito.contenuto())))
+  assert.equal(ricreato.leggi('op-1').op?.tentativiIncerti, 1)   // «potenzialmente ancora attivo», non zero
+  // recupero → assente (il primo non ha ancora applicato)
+  assert.equal((await recuperaOperazione(cliente, ricreato, ricreato.contenuto()[0])).stato, 'assente')
+  // reinvio → rifiuto autentico: risolve il SUO tentativo, NON il primo
+  const respinge = { ...cliente, salvaRevisione: async () => ({ errore: 'NON_MEMBRO', codice: 'P0001' }) as never }
+  const reinvio = await reinviaOperazione(respinge, ricreato, 'op-1', sha)
+  assert.ok(!reinvio.ok && 'errore' in reinvio && reinvio.errore.includes('invio precedente'))
+  assert.equal(ricreato.contenuto().length, 1)                   // pendenza CONSERVATA
+  assert.equal(ricreato.leggi('op-1').op?.tentativiIncerti, 1)   // resta il primo, senza esito
+  // il primo invio COMPLETA più tardi: modifica e giornale presenti…
+  rilascia()
+  await inSospeso
+  assert.equal(mondo.bozze.get('b1')!.store, 'Iper')
+  // …e la pendenza si chiude col recupero per chiave
+  assert.equal((await recuperaOperazione(cliente, ricreato, ricreato.contenuto()[0])).stato, 'applicata')
+  assert.equal(ricreato.contenuto().length, 0)
+  void maiRisolto
+})
+
+test('GUASTI DEL DEPOSITO ≠ ZERO PENDENZE: scrittura del contatore fallita e lettura fallita non autorizzano mai la rimozione', async () => {
+  const mondo = mondoBase()
+  const { cliente } = creaServerContratto(mondo, sha)
+  const respinge = { ...cliente, salvaRevisione: async () => ({ errore: 'NON_MEMBRO', codice: 'P0001' }) as never }
+  // a) il DECREMENTO dopo il rifiuto fallisce (con un tentativo
+  //    pregresso ancora per aria): la registrazione fatta PRIMA
+  //    dell'invio resta — più prudente — e l'esito lo dichiara
+  {
+    const base = depositoOperazioniInMemoria()
+    let scrittureOk = 2                    // le due registrazioni pre-invio riescono, il decremento no
+    const zoppo = {
+      salva: (o: never) => (scrittureOk-- > 0 ? base.salva(o) : { errore: 'memoria in sola lettura' }),
+      leggi: (k: string) => base.leggi(k), rimuovi: (k: string) => base.rimuovi(k),
+    }
+    let s = statoBase()
+    s = modificaBozza(s, 'b1', { store: 'Iper' })
+    const perdente = { ...cliente, salvaRevisione: async () => { throw new Error('Failed to fetch') } }
+    await eseguiSalva(perdente, zoppo as never, s, 0, sha, 'op-a')      // tentativo 1: incerto (contato)
+    const esito = await reinviaOperazione(respinge, zoppo as never, 'op-a', sha)
+    assert.ok(!esito.ok && 'errore' in esito && esito.errore.includes('invio precedente'))
+    assert.ok(!esito.ok && 'errore' in esito && esito.errore.includes('contatore non aggiornato'))
+    assert.equal(base.leggi('op-a').op?.tentativiIncerti, 2)     // resta il valore più prudente
+    assert.equal(base.contenuto().length, 1)                     // pendenza conservata
+  }
+  // b) la LETTURA prima della decisione di rimuovere fallisce: NIENTE
+  //    rimozione, pendenza conservata e guasto dichiarato — l'arrivo
+  //    tardivo resta recuperabile
+  {
+    const base = depositoOperazioniInMemoria()
+    let lettureOk = 1                                            // solo la lettura pre-invio riesce
+    const cieco = {
+      salva: (o: never) => base.salva(o),
+      leggi: (k: string) => (lettureOk-- > 0 ? base.leggi(k) : { errore: 'memoria guasta' }),
+      rimuovi: (k: string) => base.rimuovi(k),
+    }
+    let s = statoBase()
+    s = modificaBozza(s, 'b1', { store: 'Iper' })
+    const esito = await eseguiSalva(respinge, cieco as never, s, 0, sha, 'op-b')
+    assert.ok(!esito.ok && 'errore' in esito && esito.errore.includes('custodia illeggibile dopo la risposta'))
+    assert.equal(base.contenuto().length, 1)                     // MAI rimossa su guasto
+    // l'arrivo tardivo resta recuperabile dal deposito sottostante
+    assert.equal((await recuperaOperazione(cliente, base, base.contenuto()[0])).stato, 'assente')
+  }
+  // c) le CONTROPROVE restano verdi: successo, primo rifiuto accertato
+  //    e SUPERATA chiudono come prima
+  {
+    const dep = depositoOperazioniInMemoria()
+    let s = statoBase()
+    s = modificaBozza(s, 'b1', { store: 'Iper' })
+    assert.ok((await eseguiSalva(cliente, dep, s, 0, sha, 'op-ok')).ok)
+    assert.equal(dep.contenuto().length, 0)
+    let s2 = statoBase()
+    s2 = modificaBozza(s2, 'b1', { store: 'Altro' })
+    const rifiuto = await eseguiSalva(respinge, dep, s2, 1, sha, 'op-rif')
+    assert.ok(!rifiuto.ok && 'errore' in rifiuto && !rifiuto.errore.includes('invio precedente'))
+    assert.equal(dep.contenuto().length, 0)                      // primo e unico: chiude
+  }
 })
