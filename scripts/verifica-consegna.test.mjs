@@ -69,6 +69,9 @@ test('CLI effettiva in --piano: solo comandi locali previsti, senza eseguirli', 
   const piano = JSON.parse(testo)
   assert.equal(piano.modalita, 'SOLO_PIANO_NON_ESEGUITO')
   assert.ok(piano.passi.length >= 3)
+  assert.ok(piano.passi.some(p => p.nome === 'Regressioni delle revisioni'
+    && p.args.includes('scripts/revisioni/*.test.mjs')),
+  'le riproduzioni del revisore devono entrare nel comando tecnico comune')
   for (const p of piano.passi) assert.ok(p.args[0] === '--test' || p.args[0].startsWith('node_modules/'))
   assert.ok(piano.esclusi.includes('build'))
   assert.ok(piano.esclusi.includes('collaudi remoti'))

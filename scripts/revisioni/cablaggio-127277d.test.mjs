@@ -10,7 +10,7 @@ import { depositoOperazioniDurevole } from '../../lib/spese/depositoOperazioniDu
 import { depositoRevisioneLocale } from '../../lib/spese/revisioneDurevole.ts'
 import { ponteContrattoDurevole } from '../../lib/spese/ponteContratto.ts'
 import { improntaSha256 } from '../../lib/spese/improntaTesto.ts'
-import { apriRevisione, modificaBozza, modificaTotale, aggiungiRiga, tracciaDa } from '../../lib/spese/revisione.ts'
+import { apriRevisione, modificaBozza, modificaTotale, aggiungiRiga, tracciaDa, riconciliaPresa, applicaVincoli } from '../../lib/spese/revisione.ts'
 
 const BOZZA = {
   id: 'b1', document_id: 'd1', status: 'da_controllare', expense_date: '2026-08-31',
@@ -219,4 +219,61 @@ test('chiusura recuperata: non scavalca la generazione per cancellare una tracci
   assert.match(sc.dep.rimuovi('d1', 1).errore, /superata/)
   await sc.orch().apertura('d1')
   assert.deepEqual(sc.dep.leggi('d1').traccia, nuova, 'Math.max ha aggirato la protezione della generazione')
+})
+
+// Revisione successiva di 7a15fc1. I dieci assert precedenti sono intatti.
+test('7a15fc1: apertura durante il PRIMO hash non crea vincoli legacy irrisolvibili', async () => {
+  const sc = scenario()
+  const entrato = differita(), sospeso = differita()
+  let hash = 0
+  const hasher = async testo => {
+    if (++hash === 1) { entrato.risolvi(); await sospeso.promessa }
+    return improntaSha256(testo)
+  }
+  const salvataggio = sc.orch({ hasher }).salva(modificaBozza(sc.stato(), 'b1', { store: 'Corretto' }))
+  await entrato.promessa
+  const apertura = await sc.orch().apertura('d1')
+  let presa
+  if (!apertura.bloccante) {
+    // Stesso cancello del guscio: la traccia inCorso entra nella presa legacy.
+    const traccia = sc.dep.leggi('d1').traccia
+    presa = riconciliaPresa(traccia, sc.doc, [...sc.mondo.bozze.values()])
+    if (presa.esito === 'vincolata') {
+      const statoNuovo = applicaVincoli(sc.stato(), presa.vincoli)
+      assert.deepEqual(sc.dep.salva(tracciaDa(statoNuovo)), {})
+    }
+  }
+  sospeso.risolvi()
+  assert.equal((await salvataggio).ok, true)
+  const recupero = await sc.orch().apertura('d1')
+  assert.equal(recupero.bloccante, undefined, JSON.stringify(recupero))
+  const finale = sc.stato()
+  const conferma = await sc.orch().conferma(finale)
+  assert.equal(conferma.ok, true,
+    `apertura=${JSON.stringify(apertura)}; presa=${presa?.esito}; vincoli=${JSON.stringify(finale.vincoli)}; conferma=${conferma.errore}`)
+})
+
+test('7a15fc1: ricaricare il server finto persistente non riusa gli id delle righe', async () => {
+  const sc = scenario()
+  const prima = modificaTotale(aggiungiRiga(sc.stato(),
+    { draft_id: 'b1', name: 'Prima voce', amount: 1, qty: 1, discount: 0 }, 'prima'), 600)
+  assert.equal((await sc.orch().salva(prima)).ok, true)
+  // La stessa serializzazione della preview: documento, mappe e giornale.
+  const dati = JSON.parse(JSON.stringify({
+    documento: sc.doc, bozze: [...sc.mondo.bozze], righe: [...sc.mondo.righe], giornale: [...sc.server.giornale],
+  }))
+  const mondo = { documenti: new Map([['d1', dati.documento]]), bozze: new Map(dati.bozze), righe: new Map(dati.righe) }
+  const ricreato = creaServerContratto(mondo, improntaSha256)
+  for (const [k, v] of dati.giornale) ricreato.giornale.set(k, v)
+  const orch = orchestrazioneContratto({
+    cliente: ricreato.cliente, depositoRevisione: sc.dep, depositoOperazioni: sc.ops,
+    ponte: sc.ponte, revisioneIniziale: dati.documento.revisione_rev,
+  })
+  let seconda = apriRevisione('d1', dati.documento.doc_total, [...mondo.bozze.values()],
+    [...mondo.righe].map(([id, r]) => ({ ...r, id })), sc.dep.leggi('d1').traccia)
+  seconda = modificaTotale(aggiungiRiga(seconda,
+    { draft_id: 'b1', name: 'Seconda voce', amount: 1, qty: 1, discount: 0 }, 'seconda'), 700)
+  assert.equal((await orch.salva(seconda)).ok, true)
+  assert.deepEqual([...mondo.righe.values()].map(r => r.name).sort(),
+    ['Pane', 'Prima voce', 'Seconda voce'].sort(), 'la seconda voce ha sovrascritto la prima nella preview')
 })

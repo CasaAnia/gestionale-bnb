@@ -8,8 +8,10 @@
   fondo dalla consegna — corregge i quattro gruppi; le 10 prove del
   revisore (scripts/revisioni/cablaggio-127277d.test.mjs) sono TUTTE
   VERDI sul candidato senza modificare gli assert.
-- Stato: PRONTO PER REVISIONE. Non riaprire automaticamente il collaudo
-  PostgreSQL già superato.
+- Stato: REVISIONATO DA CODEX — DUE RILIEVI LOCALI DA CHIUDERE su
+  `7a15fc1` (vedi esito indipendente in fondo). Le dieci prove precedenti
+  passano; due sequenze aggiuntive riproducono i residui. Non riaprire il
+  collaudo PostgreSQL già superato.
 - Implementatore: Claude. Revisore: Codex.
 - Perimetro: correzioni locali al cablaggio, prove e documentazione.
   Interruttore operativo `legacy`; nessun SQL/remoto/push/deploy.
@@ -96,3 +98,74 @@ remoto mantengono le autorizzazioni previste: questa scheda non le concede.
   (rerender React puro non provato: nessun harness di componente).
 - Questo blocco di testo è un commit di SOLA documentazione successivo
   alle verifiche: il codice verificato è `7a15fc1`.
+
+## Esito della revisione indipendente di Codex su 7a15fc1
+
+Il codice applicativo di HEAD `7f1372e` è IDENTICO a `7a15fc1`: cambia solo
+questa scheda. Albero pulito all'avvio. Preflight ripetuto con esito verde
+(suite applicazione, strumenti, TypeScript e lint); snapshot iniziale:
+`353d7549632eeff8a3c0645cd03e8eed9d10cd338c9aea2d893c8c22a9d718f5`.
+La fotografia precede questa appendice e i test aggiunti dal revisore.
+Le dieci prove della revisione precedente sono state rieseguite: 10/10,
+assert invariati. Riprova ora richiama effettivamente il ciclo; i due test
+del ciclo passano. Questi risultati positivi restano acquisiti.
+
+### R1 — blocco funzionale: apertura durante il PRIMO hash
+
+Punto: `lib/spese/orchestrazioneRevisione.ts:136` (elenco dei documenti
+ricavato SOLO da operazioni e ponti). Il presidio esiste già ma la prima
+impronta si calcola PRIMA che esista il riferimento: i due elenchi sono
+vuoti, dunque l'apertura del documento richiesto non consulta il presidio.
+
+Riproduzione completa, su custodie reali e servizio simulato:
+
+1. Salva «Corretto», sospeso al PRIMO hash (non al secondo già coperto).
+2. Chiusura/riapertura: `apertura('d1')` ritorna risolte=0 SENZA blocco.
+3. Il guscio trova inCorso, offre la presa legacy: Verifica e riprendi
+   crea generazione 2 e vincola il negozio.
+4. Il primo salvataggio completa; il successivo recupero trova l'esito,
+   acquisisce, chiude ponte e deposito.
+5. La seconda riapertura conserva però il vincolo: Conferma resta vietata
+   nonostante il salvataggio sia applicato e riferibile a giornale.
+
+Atteso: consultare il presidio per il documento richiesto ANCHE se non
+ha ancora record nei due depositi; non far entrare un preparatore del
+contratto nella presa legacy. Provare l'intero giro fino alla Conferma.
+Non risolvere eliminando indiscriminatamente i vincoli di altre operazioni.
+È lo stesso perimetro di coordinamento C04/C06/C07, non un nuovo contratto SQL.
+
+### R2 — difetto della preview persistente: riuso degli id
+
+Punti: `lib/spese/contrattoServerFinto.ts:44` e `:123`, con la ricreazione
+aggiunta in `app/nuove-spese/Prova.tsx`. Il mondo e il giornale persistono,
+ma il contatore degli id riparte da zero in ogni nuova factory.
+
+Riproduzione: aggiungi «Prima voce» → Salva (srv-1) → serializza/ricrea
+mondo e giornale, come il reload → aggiungi «Seconda voce» → Salva.
+La seconda ottiene ANCORA srv-1 e Map.set sovrascrive la prima. Il servizio
+finto dichiara successo: restano Pane + Seconda voce, non le tre attese.
+
+Atteso: id nuovi non collidenti con quelli già presenti, anche dopo
+ricreazione; entrambe le voci conservate con identità distinte. Serve per
+fidarsi di C09 e delle prove UI. NON è una perdita riscontrata in produzione
+e NON richiede modifiche al database: riguarda soltanto il server finto.
+
+### Prove pronte e prossimo passaggio
+
+- Aggiunte due prove in `scripts/revisioni/cablaggio-127277d.test.mjs`,
+  sezione «Revisione successiva di 7a15fc1». Totale 12: le 10 originali
+  VERDI, queste 2 ROSSE. Gli assert precedenti non sono stati modificati.
+- Il comando condiviso `node scripts/verifica-consegna.mjs --base 7df3c86`
+  ora include ANCHE `scripts/revisioni/*.test.mjs`: non serve ricordare
+  un secondo comando per le regressioni del revisore. Test del verificatore
+  aggiornato (7/7 verdi); nessun cambiamento applicativo del revisore.
+- Build e UI non ripetute indipendentemente in questo giro: restano le
+  prove dell'implementatore dichiarate sopra; il precedente blocco della
+  policy browser non è stato aggirato. Nessun accesso remoto.
+- Claude: correggere R1 e R2 localmente, conservare i casi già verdi,
+  rieseguire il comando condiviso e il giro UI apertura/interruzione e
+  ricarica con DUE inserimenti. Consegnare un candidato fermo. Non riaprire
+  SQL, collaudo remoto, permessi o ulteriori fasi per questi due difetti.
+- Codex ha modificato soltanto questa scheda e i tre file dei test/metodo;
+  nessun commit, push o deploy. Queste modifiche locali sono consegnate
+  all'implementatore con provenienza esplicita.

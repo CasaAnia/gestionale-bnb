@@ -81,6 +81,7 @@ export function creaPiano(cwd = radice, base = 'HEAD') {
   })
   const passi = [
     { nome: 'Suite applicazione', args: ['--test', '--test-reporter=spec', 'lib/**/*.test.ts'] },
+    { nome: 'Regressioni delle revisioni', args: ['--test', '--test-reporter=spec', 'scripts/revisioni/*.test.mjs'] },
     { nome: 'Strumenti locali', args: ['--test', '--test-reporter=spec',
       'scripts/verifica-consegna.test.mjs', 'scripts/fase4/collaudo.test.mjs',
       'scripts/collaudo-contratto/strumenti.test.mjs', 'scripts/collaudo-contratto/registro.test.mjs'] },
