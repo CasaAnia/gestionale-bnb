@@ -1,8 +1,10 @@
 # RUNBOOK — rilascio del nuovo modulo Spese (guscio direzione B)
 
-**Stato: PREPARATO, PUSH/DEPLOY DA AUTORIZZARE.** Candidato di rilascio:
-`0c48a3d` (branch `rifacimento-spese`, fusione di `origin/main` inclusa,
-conflitti zero, lint del delta sistemato senza cambi di comportamento).
+**Stato: PREPARATO, PUSH/DEPLOY DA AUTORIZZARE.** Il candidato di
+rilascio è la PUNTA FERMA di `rifacimento-spese` indicata nell'ultimo
+resoconto di consegna (fusione di `origin/main` inclusa, conflitti
+zero, lint del delta sistemato — SpeseTracker compreso — senza cambi
+di comportamento; verificatore comune eseguito su `--base origin/main`).
 
 ## Cosa pubblica
 

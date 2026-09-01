@@ -118,6 +118,11 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     const b = await dati.caricaBudgets(ambito)
     if (b.ok) { setBudgets(b.budgets); setBudgetsOk(true) }
   }
+  // Il tracker LEGACY carica i dati nell'effetto di montaggio (pattern
+  // storico): il comportamento va conservato identico finché il vecchio
+  // flusso resta il ripristino d'emergenza — niente ristrutturazioni
+  // per una regola di lint su codice in via di ritiro.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [])
 
   // Aggiunge le foto scelte all'anteprima (non le salva ancora).
@@ -142,9 +147,9 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
         if (!await dati.salvaFotoScontrino(s.file, note, ambito)) { remaining.push(s); continue }
         URL.revokeObjectURL(s.url); ok++
       }
-    } catch (e: any) {
+    } catch (e) {
       setUploading(false)
-      alert('Salvataggio interrotto — probabile connessione assente. Le foto sono ancora qui: riprova.\n(' + (e?.message || 'errore di rete') + ')')
+      alert('Salvataggio interrotto — probabile connessione assente. Le foto sono ancora qui: riprova.\n(' + ((e as { message?: string })?.message || 'errore di rete') + ')')
       return
     }
     setUploading(false)
