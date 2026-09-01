@@ -5,7 +5,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { costruisciDatiSpese, costruisciPeriodi, etichettaPersona, type TabelleGrezze } from './adattatore.ts'
-import { applicaFiltri, controllaMisto, filtriIniziali, gruppiDettaglio, importoNelContesto, intervalloDelPeriodo } from './vista.ts'
+import { applicaFiltri, controllaMisto, filtriIniziali, gruppiDettaglio, importoNelContesto, intervalloDelPeriodo, perContestoDocumenti } from './vista.ts'
 
 const OGGI = '2026-08-29'
 
@@ -618,4 +618,28 @@ test('dettaglio delle DEFINITIVE: nessun doppio conteggio (l\'arrotondamento è 
     [['Casa Mia', 13.02, 0], ['Casa Ania', 7, 0]])
   assert.deepEqual(m.sorelle, [{ contesto: 'mia', importo: 13.02 }, { contesto: 'ania', importo: 7 }])
   assert.ok(m.righe!.some(r => r.arrotondamento && r.importo === 0.02))  // la riga c'è, una volta sola
+})
+
+// ============================================================================
+// REGRESSIONE agosto→settembre (difetto reale del 01/09/2026): il banner
+// «da controllare» della Panoramica prometteva 1 movimento, ma l'arrivo in
+// Movimenti col filtro del mese corrente lo nascondeva (scontrino Caleffi
+// del 30/08 aperto a settembre → «Nessun movimento con questi filtri»).
+// Requisito: il banner apre DOCUMENTI, dove le bozze attive si vedono
+// TUTTE, di qualunque mese; conteggio del banner = card visibili.
+// ============================================================================
+test('REGRESSIONE agosto→settembre: banner e card di Documenti coincidono anche per bozze del mese prima; Movimenti filtrato le nasconderebbe (per questo NON è più la destinazione)', () => {
+  // bozze in revisione datate agosto, viste il 1° settembre
+  const d = costruisciDatiSpese(tabelleConRevisione(), '2026-09-01')
+  const banner = d.mia.daControllare
+  assert.ok(banner.n > 0, 'la fixture deve avere bozze attive del mese prima')
+  // DESTINAZIONE NUOVA: Documenti mostra tutte le bozze attive del contesto,
+  // senza filtro di periodo — il numero promesso e le card COINCIDONO
+  const card = perContestoDocumenti(d.documenti, 'mia').filter(x => x.stato === 'da_controllare')
+  assert.equal(card.length, banner.n)
+  // il VECCHIO arrivo (Movimenti, filtro «mese corrente» + Da controllare)
+  // le nasconderebbe tutte: il comportamento dei filtri temporali resta
+  // volutamente INVARIATO — è la destinazione del banner a essere cambiata
+  const filtri = { ...filtriIniziali(d.opzioni.mia), stato: 'Da controllare' as const }
+  assert.equal(applicaFiltri(d.movimenti, filtri, 'mia', d.opzioni.mia.periodi).length, 0)
 })

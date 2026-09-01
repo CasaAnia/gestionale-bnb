@@ -71,8 +71,13 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
   const accento = contesto === 'ania' ? t.terracotta : t.verde
 
   const vaiAiDaControllare = () => {
-    setFiltri({ ...iniziali, stato: 'Da controllare' })
-    setSezione('movimenti')
+    // Il banner promette TUTTE le bozze attive: si atterra in DOCUMENTI,
+    // che le elenca senza filtro di periodo. In Movimenti una bozza del
+    // mese prima sparirebbe dietro il filtro del mese corrente (difetto
+    // reale del 01/09/2026: scontrino del 30/08 aperto a settembre,
+    // «Nessun movimento con questi filtri»). I filtri di Panoramica,
+    // Movimenti e Analisi restano INTOCCATI.
+    setSezione('documenti')
   }
 
   const fab = (classi: string) => (
