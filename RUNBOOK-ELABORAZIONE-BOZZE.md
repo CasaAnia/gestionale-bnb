@@ -60,6 +60,33 @@ nella schermata di revisione.
 5. Il file `lettura.json` è temporaneo: si elimina a elaborazione
    conclusa (non contiene segreti, solo i dati dello scontrino).
 
+## Accensione controllata, spegnimento immediato e controlli
+
+- L'accensione NON è uno stato persistente: `ELABORAZIONE_BOZZE_ATTIVA=1`
+  vale SOLO per il singolo comando in cui viene passata. Non esistono
+  demoni, servizi o interruttori che restano accesi da soli.
+  **SPEGNIMENTO IMMEDIATO = smettere di passare la variabile**: il
+  comando successivo senza variabile è già spento (provato: si rifiuta
+  prima di toccare qualunque cosa). Il vecchio flusso non viene rimosso:
+  in caso di problemi si torna semplicemente a quello, senza rollback.
+- **Primo documento CONTROLLATO** (dopo il via libera): uno scontrino
+  nuovo caricato da Ania, MAI un documento già confermato.
+  1. lettura della foto → `lettura.json` (dubbi dichiarati, nota
+     dichiarata);
+  2. `--prova`: si mostra il pacchetto proposto e lo si controlla;
+  3. scrittura vera (stessa variabile) → UNA chiamata atomica.
+- **Controlli POST-ATTIVAZIONE** (sola lettura, subito dopo):
+  1. documento `in_revisione` con `doc_total`; bozze e righe nei numeri
+     attesi, `error_message` nullo;
+  2. `family_expenses` e `family_expense_items` INVARIATE (conteggio
+     prima/dopo identico: l'elaborazione non crea MAI spese);
+  3. la card compare in «Da controllare» nel gestionale (390 px);
+  4. Ania rivede e conferma DALLA SCHERMATA: solo la sua conferma crea
+     le spese definitive.
+  Se un controllo non torna: STOP, niente riparazioni a mano — il
+  documento si marca in errore col motivo attraverso lo stesso
+  primitivo, e si riferisce all'utente.
+
 ## Attivazione (passo esplicito, non compreso in questo blocco)
 
 - Richiede il via libera dell'utente nella conversazione E il contratto
