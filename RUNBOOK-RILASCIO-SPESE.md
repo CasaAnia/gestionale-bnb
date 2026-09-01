@@ -32,7 +32,8 @@ di comportamento; verificatore comune eseguito su `--base origin/main`).
 
 ## Sequenza del rilascio (dopo l'autorizzazione)
 
-1. Albero fermo su `0c48a3d`, verifica comune appena rieseguita.
+1. Albero fermo sul CANDIDATO AUTORIZZATO (l'unico sha indicato nella
+   domanda di autorizzazione), verifica comune appena rieseguita.
 2. `git checkout main && git merge --ff-only rifacimento-spese`
    (fast-forward: main è già contenuto nel branch).
 3. `git push origin main` → Vercel costruisce e pubblica da solo.
