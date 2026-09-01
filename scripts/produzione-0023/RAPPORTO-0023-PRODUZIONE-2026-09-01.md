@@ -22,8 +22,14 @@ applicazione). Nessun segreto in chat, log o repository.
   81 foto con impronte SHA-256, stabilità su 5 riscaricamenti; conteggi
   identici all'audit. CIFRATO (AES-256-GCM) in un archivio da 227 MB /
   120 file e VERIFICATO decifrando e confrontando byte per byte.
-  Chiave in file 600 (da conservare nel gestore di password); seconda
-  copia su altro supporto raccomandata all'utente.
+  Chiave SALVATA nell'app Password dell'utente e VERIFICATA: il valore
+  copiato dall'app decifra l'archivio (120/120 file identici byte per
+  byte all'origine); file locale della chiave eliminato, appunti puliti.
+  SECONDA COPIA VERIFICATA il 01/09/2026: archivio e indice caricati
+  dall'utente su Google Drive (Casa Ania → Backup gestionale),
+  riscaricati e confrontati byte per byte con gli originali (identici,
+  impronta archivio b7980efe…); copie temporanee eliminate, originali
+  e file su Drive intatti.
 
 ## Fase B — applicazione e verifica
 
