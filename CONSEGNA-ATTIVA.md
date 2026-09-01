@@ -8,11 +8,11 @@ piano. Questa scheda definisce il blocco successivo previsto dal metodo
 ## Identità e perimetro
 
 - Base: `fb46660` più il verbale di chiusura.
-- Stato: REVISIONATO DA CODEX — tre gruppi bloccanti da chiudere sul
-  candidato `108c130` (verbale indipendente in fondo). L'autorizzazione
-  locale è stata data prima dell'implementazione; la data 02/09 indicata
-  dalla consegna era successiva al giorno della revisione e va corretta
-  dall'implementatore con la data effettiva.
+- Stato: CORRETTO, PRONTO PER LA VERIFICA DEL REVISORE — i tre gruppi
+  bloccanti della revisione (verbale in fondo) sono chiusi in un unico
+  giro locale: esiti nella sezione «Chiusura dei rilievi R1–R3».
+  Data effettiva dell'autorizzazione locale all'implementazione:
+  31/08/2026 (il 02/09 scritto in precedenza era un refuso).
 - Implementatore: Claude. Revisore: Codex. Stessi ruoli, stessa scheda.
 - Obiettivo utente: la foto di uno scontrino diventa una PROPOSTA
   CONTROLLABILE (bozze con dubbi dichiarati) che Ania rivede e conferma
@@ -169,3 +169,62 @@ per note applicate/ambigue e falsi dubbi invisibili.
   poi correggere R1-R3 in un unico giro locale e consegnare un candidato
   fermo. Non affidarsi al contesto della chat precedente e non riaprire
   B1-B5 o il collaudo del contratto già chiusi.
+
+## Chiusura dei rilievi R1–R3 (implementatore, un unico giro locale)
+
+Le 5 riproduzioni del revisore (`scripts/revisioni/elaborazione-solo-
+bozze-108c130.test.mjs`) sono integrate SENZA modifiche — né harness né
+assert — e sono VERDI sul nuovo candidato insieme a E01–E07 e alle
+controprove nuove. Nessuna compensazione REST spacciata per atomicità.
+
+- **R1 — scrittore atomico.** Il contratto `ScrittoreBozze` ora ha due
+  forme: ATOMICA (`sostituisciBozze`: stato+sostituzione+righe+documento
+  in UN primitivo, arbitraggio concorrente dentro di esso — l'unica
+  ammessa per un archivio vero) e GRANULARE (solo per gli archivi finti
+  dei test). L'orchestratore serializza il percorso granulare per
+  documento nello stesso processo con RICONTROLLO dello stato in coda,
+  passa ogni chiamata da un involucro che trasforma gli errori LANCIATI
+  in esiti dichiarati, ritenta la pulizia e DICHIARA nell'esito ogni
+  fallimento della compensazione (comprese le pulizie mai riuscite:
+  «possibili bozze parziali rimaste»). Controprove nuove sul finto
+  atomico: rollback totale e concorrenza (una sola riesce). Il contratto
+  database che realizza il primitivo è preparato in LOCALE:
+  `supabase/migrations/0023_elaborazione_bozze_atomica.sql` (PROPOSTA,
+  NON applicata — lock `for update`, tutto o niente, revoke a
+  anon/authenticated). Applicazione e collaudo restano DA AUTORIZZARE.
+- **R2 — nota e dubbi come contratto.** Se il documento ha una nota, la
+  lettura DEVE dichiarare `notaApplicata` (nota identica + COME non
+  vuoto) oppure `notaNonAttribuita` (stessa nota): nessuna delle due,
+  entrambe, o una nota diversa/inesistente → pacchetto RIFIUTATO. Ogni
+  dubbio (sorelle, voci, `dubbioTotale`) deve avere campo pertinente
+  (`doc_total` per il totale), confidence finita sotto la soglia
+  mostrata in revisione (0,8) e motivo non vuoto: un dubbio invisibile
+  non autorizza nulla. Controprove: nota applicata/ignorata/incoerente/
+  senza come/inventata; falsi dubbi (confidence 1, NaN, motivo o campo
+  vuoti). La demo E08 ora dichiara la nota applicata: output del
+  costruttore INVARIATO (stessa card, stessi 2 dubbi).
+- **R3 — runbook e duplicati coerenti.** Il runbook non dice più
+  «doppioni scartati»: in questo flusso i possibili doppioni sono SOLO
+  annotati come dubbio (E05), lo dice anche il passo 1. Nello strumento
+  un errore nella verifica dei duplicati è uno STOP (mai «nessun
+  duplicato») e le ricevute senza impronta diventano un dubbio
+  dichiarato. Il cancello ora copre anche `--prova` (legge il database
+  vero col service role) e l'attivazione richiede DUE passi: la
+  variabile d'ambiente E la migrazione 0023 applicata/collaudata con
+  autorizzazione separata — lo strumento non contiene più alcuna
+  scrittura REST diretta (letture whitelisted senza metodo configurabile,
+  unica scrittura possibile = RPC atomica; senza RPC, si ferma).
+
+Prove del giro: 18 test del modulo verdi (E01–E07, R1/R2, 5 riproduzioni
+del revisore); cancello dello strumento provato (rifiuta con e senza
+`--prova`, uscita 1, prima di toccare `.env.local`); giro E08 ripetuto
+sul dev sintetico a 390 px (?elabora=1 → card «2 campi dubbi» identica;
+?elabora=errore → motivo esatto del modulo, niente in Da controllare;
+console pulita). Comando comune `node scripts/verifica-consegna.mjs
+--base fb46660`: VERIFICHE_TECNICHE_OK (suite applicazione, regressioni
+delle revisioni COMPRESE le 5 riproduzioni, strumenti locali, TypeScript,
+lint del delta). Build eseguita una volta sul candidato: conclusa senza
+errori. L'impronta del candidato FERMO è nel resoconto di consegna (la
+scheda non può contenere la propria impronta). Restano NON eseguiti,
+come da perimetro: SQL, accessi remoti, attivazione dello strumento,
+push e deploy.

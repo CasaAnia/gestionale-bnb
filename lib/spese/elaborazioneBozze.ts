@@ -17,7 +17,7 @@
 // la schermata di revisione li mostra già (dubbiDi) — la decisione
 // resta SEMPRE ad Ania, lo scarto è solo manuale.
 // ============================================================================
-import { canonicaCoerente } from './controlli.ts'
+import { canonicaCoerente, SOGLIA_CONFIDENCE } from './controlli.ts'
 import type { Confidenza } from './revisione.ts'
 
 // ---- la LETTURA: ciò che l'elaboratore dichiara di aver letto -------------
@@ -57,6 +57,11 @@ export type LetturaDocumento = {
   // la differenza di quadratura o il totale mancante vanno DICHIARATI:
   // senza questo dubbio una lettura che non quadra viene RIFIUTATA
   dubbioTotale?: DubbioLetto | null
+  // CONTRATTO DELLA NOTA: se il documento ha una nota di Ania, la lettura
+  // DEVE dichiarare UNA delle due voci qui sotto — come l'ha applicata,
+  // oppure perché non è attribuibile. Nessuna delle due, entrambe, o una
+  // nota diversa da quella del documento = pacchetto RIFIUTATO.
+  notaApplicata?: { nota: string; come: string } | null
   // la nota di Ania non attribuibile con certezza (es. foto con più
   // scontrini): diventa un dubbio visibile, mai un'ipotesi silenziosa
   notaNonAttribuita?: string | null
@@ -125,6 +130,17 @@ const confidenzaDa = (dubbi: DubbioLetto[] | undefined, extra: DubbioLetto[] = [
 
 const cent = (euro: number) => Math.round(euro * 100)
 
+// un dubbio deve essere VISIBILE in revisione: campo pertinente,
+// confidence finita sotto la soglia che la schermata mostra, motivo non
+// vuoto — un «dubbio invisibile» non autorizza mai nulla
+const dubbioNonValido = (d: DubbioLetto): string | null => {
+  if (!d.campo?.trim()) return 'campo mancante'
+  if (!Number.isFinite(d.confidence) || d.confidence < 0 || d.confidence >= SOGLIA_CONFIDENCE)
+    return `confidence ${d.confidence} non finita o non sotto la soglia ${SOGLIA_CONFIDENCE}: la revisione non lo mostrerebbe`
+  if (!d.motivo?.trim()) return 'motivo vuoto'
+  return null
+}
+
 // ---- il COSTRUTTORE puro ---------------------------------------------------
 export function costruisciPacchettoBozze(
   lettura: LetturaDocumento, contesto: ContestoElaborazione,
@@ -132,6 +148,33 @@ export function costruisciPacchettoBozze(
   const no = (errore: string) => ({ ok: false as const, errore })
   if (!Array.isArray(lettura.sorelle) || lettura.sorelle.length === 0)
     return no('lettura senza alcuna parte: niente da proporre')
+
+  // CONTRATTO DELLA NOTA: la nota di Ania sul documento non si ignora MAI
+  const notaDoc = contesto.nota?.trim() || null
+  const applicata = lettura.notaApplicata ?? null
+  const nonAttribuita = lettura.notaNonAttribuita?.trim() || null
+  if (notaDoc) {
+    if (applicata && nonAttribuita)
+      return no('nota di Ania dichiarata sia applicata sia non attribuibile: la lettura deve scegliere una delle due')
+    if (!applicata && !nonAttribuita)
+      return no(`nota di Ania presente sul documento («${notaDoc}») ma la lettura non dichiara né come l'ha applicata né perché non è attribuibile: la nota non si ignora`)
+    if (applicata && applicata.nota.trim() !== notaDoc)
+      return no(`la lettura dichiara applicata una nota diversa da quella del documento («${applicata.nota}» ≠ «${notaDoc}»)`)
+    if (applicata && !applicata.come.trim())
+      return no('nota dichiarata applicata senza dire COME: la dichiarazione deve essere verificabile da Ania')
+    if (nonAttribuita && nonAttribuita !== notaDoc)
+      return no(`la lettura dichiara non attribuibile una nota diversa da quella del documento («${nonAttribuita}» ≠ «${notaDoc}»)`)
+  } else if (applicata || nonAttribuita) {
+    return no('la lettura dichiara una nota che il documento non ha')
+  }
+
+  if (lettura.dubbioTotale) {
+    if (lettura.dubbioTotale.campo !== 'doc_total')
+      return no(`dubbio sul totale con campo «${lettura.dubbioTotale.campo}»: deve essere doc_total`)
+    const ragione = dubbioNonValido(lettura.dubbioTotale)
+    if (ragione) return no(`dubbio sul totale non valido (${ragione}): un dubbio invisibile non autorizza una quadratura errata`)
+  }
+
   const ambitoDi = new Map(contesto.gruppi.map(g => [g.id, g.ambito]))
 
   const bozze: BozzaDaInserire[] = []
@@ -146,6 +189,10 @@ export function costruisciPacchettoBozze(
       return no(`parte ${i + 1}: il metodo di pagamento è OBBLIGATORIO per l'ambito azienda`)
     if (!Array.isArray(s.voci) || s.voci.length === 0)
       return no(`parte ${i + 1}: nessuna voce letta`)
+    for (const d of s.dubbi ?? []) {
+      const ragione = dubbioNonValido(d)
+      if (ragione) return no(`parte ${i + 1}: dubbio dichiarato non valido (${ragione})`)
+    }
     // i dubbi di documento (nota non attribuita, possibile duplicato)
     // vivono sulla PRIMA sorella: la revisione li mostra come dubbi
     const dubbiDocumento: DubbioLetto[] = i === 0
@@ -182,6 +229,10 @@ export function costruisciPacchettoBozze(
         return no(`${dove}: sottocategoria canonica incoerente con la categoria`)
       if (v.destinatario && ambitoDi.get(v.destinatario) !== s.ambito)
         return no(`${dove}: destinatario della voce di un altro ambito`)
+      for (const d of v.dubbi ?? []) {
+        const ragione = dubbioNonValido(d)
+        if (ragione) return no(`${dove}: dubbio dichiarato non valido (${ragione})`)
+      }
       if (!v.escludi) sommaCent += cent(v.amount)
       righe.push({
         bozzaRif: rif, raw_name: v.raw_name, name: v.name.trim(),
@@ -212,85 +263,185 @@ export function costruisciPacchettoBozze(
 // SOLO il documento e le tabelle delle bozze: qui non esiste alcun modo
 // di toccare family_expenses o family_expense_items — l'elaborazione
 // «scrive bozze valide, non conferma mai» (piano §8-②).
-export type ScrittoreBozze = {
+//
+// Due forme di scrittore (revisione R1):
+//  · ATOMICO — UN solo primitivo «sostituisciBozze»: verifica dello stato,
+//    sostituzione di bozze+righe e aggiornamento del documento in UNA
+//    transazione, tutto o niente, con l'arbitraggio concorrente DENTRO il
+//    primitivo. È l'unica forma ammessa per un archivio vero (la RPC della
+//    migrazione 0023, DA AUTORIZZARE, lo realizza con lock sul documento).
+//  · GRANULARE — i cinque metodi elementari: resta per gli archivi FINTI
+//    dei test. L'orchestratore lo serializza per documento nello stesso
+//    processo e compensa dichiarando ogni errore, ma NON può garantire
+//    atomicità fra processi: per quella esiste solo il primitivo atomico.
+export type RichiestaSostituzione = {
+  // stati in cui il documento deve trovarsi NEL MOMENTO della sostituzione
+  statiAmmessi: readonly string[]
+} & (
+  | { pacchetto: PacchettoBozze; errore?: undefined }   // → bozze+righe+doc_total, stato in_revisione
+  | { pacchetto?: undefined; errore: string }           // → pulizia totale, stato errore col motivo
+)
+export type EsitoSostituzione =
+  | { ok: true; bozze: number; righe: number }
+  | { ok: false; statoAttuale?: string; errore: string }
+
+export type ScrittoreBozzeAtomico = {
+  leggiDocumento(id: string): Promise<{ documento?: { status: string }; errore?: string }>
+  sostituisciBozze(documentId: string, richiesta: RichiestaSostituzione): Promise<EsitoSostituzione>
+}
+export type ScrittoreBozzeGranulare = {
   leggiDocumento(id: string): Promise<{ documento?: { status: string }; errore?: string }>
   rimuoviBozzeDi(documentId: string): Promise<{ errore?: string }>
   inserisciBozza(b: Omit<BozzaDaInserire, 'rif'>): Promise<{ id?: string; errore?: string }>
   inserisciRiga(r: Omit<RigaDaInserire, 'bozzaRif'> & { draft_id: string }): Promise<{ errore?: string }>
   aggiornaDocumento(id: string, campi: { status?: string; doc_total?: number | null; error_message?: string | null }): Promise<{ errore?: string }>
 }
+export type ScrittoreBozze = ScrittoreBozzeAtomico | ScrittoreBozzeGranulare
 
 export type EsitoElaborazione =
   | { ok: true; bozze: number; righe: number }
   | { ok: false; stato: 'rifiutata' | 'errore_scrittura' | 'documento_errore'; errore: string }
 
-const STATI_ELABORABILI = ['da_elaborare', 'errore']
+const STATI_ELABORABILI = ['da_elaborare', 'errore'] as const
 
-// l'ORCHESTRATORE: stati giusti, mai bozze doppie, mai parziali
+// ogni chiamata allo scrittore passa da qui: un errore LANCIATO (es. da
+// fetch) diventa un esito dichiarato, mai un salto della compensazione
+const sicuro = async <T extends object>(p: Promise<T>): Promise<T | { errore: string }> => {
+  try { return await p } catch (e) { return { errore: e instanceof Error ? e.message : String(e) } }
+}
+
+// coda PER DOCUMENTO nello stesso processo: due elaborazioni simultanee
+// non si intrecciano mai — la seconda rilegge lo stato e viene rifiutata.
+// Fra processi separati questo non basta: lì arbitra il primitivo atomico.
+const codePerDocumento = new Map<string, Promise<unknown>>()
+function inCodaDocumento<T>(id: string, lavoro: () => Promise<T>): Promise<T> {
+  const coda = codePerDocumento.get(id) ?? Promise.resolve()
+  const mio = coda.then(lavoro, lavoro)
+  const scia = mio.then(() => undefined, () => undefined)
+  codePerDocumento.set(id, scia)
+  void scia.then(() => { if (codePerDocumento.get(id) === scia) codePerDocumento.delete(id) })
+  return mio
+}
+
+const rifiutataPerStato = (stato: string): EsitoElaborazione =>
+  ({ ok: false, stato: 'rifiutata', errore: `documento in stato «${stato}»: non rielaborabile (mai bozze doppie)` })
+
+// l'ORCHESTRATORE: stati giusti, mai bozze doppie, mai parziali taciuti
 export async function elaboraDocumento(
   scrittore: ScrittoreBozze,
   documentId: string,
   esitoLettura: { lettura: LetturaDocumento } | { errore: string },
   contesto: Omit<ContestoElaborazione, 'documentId'>,
 ): Promise<EsitoElaborazione> {
-  const doc = await scrittore.leggiDocumento(documentId)
-  if (doc.errore || !doc.documento)
+  const doc = await sicuro(scrittore.leggiDocumento(documentId))
+  if (doc.errore || !('documento' in doc) || !doc.documento)
     return { ok: false, stato: 'rifiutata', errore: `documento non leggibile (${doc.errore ?? 'assente'}): non elaboro` }
   // IDEMPOTENZA: si elabora SOLO da 'da_elaborare' o 'errore' — un
   // documento già in revisione/confermato non produce mai bozze doppie
-  if (!STATI_ELABORABILI.includes(doc.documento.status))
-    return { ok: false, stato: 'rifiutata', errore: `documento in stato «${doc.documento.status}»: non rielaborabile (mai bozze doppie)` }
+  if (!(STATI_ELABORABILI as readonly string[]).includes(doc.documento.status))
+    return rifiutataPerStato(doc.documento.status)
 
-  // la LETTURA è fallita: documento in errore con il motivo, e nessuna
-  // bozza parziale lasciata in giro (anche di un giro precedente)
+  // cosa va scritto: il pacchetto buono, oppure la marcatura d'errore
+  // (lettura fallita o pacchetto rifiutato) — sempre senza parziali
+  let richiesta: RichiestaSostituzione
+  let motivoErrore: string | null = null
   if ('errore' in esitoLettura) {
-    const pulizia = await scrittore.rimuoviBozzeDi(documentId)
-    const marca = await scrittore.aggiornaDocumento(documentId, { status: 'errore', error_message: esitoLettura.errore })
-    if (pulizia.errore || marca.errore)
-      return { ok: false, stato: 'errore_scrittura', errore: `lettura fallita E stato non aggiornato (${pulizia.errore ?? marca.errore}): da rifare` }
-    return { ok: false, stato: 'documento_errore', errore: esitoLettura.errore }
+    motivoErrore = esitoLettura.errore
+    richiesta = { statiAmmessi: STATI_ELABORABILI, errore: esitoLettura.errore }
+  } else {
+    const costruito = costruisciPacchettoBozze(esitoLettura.lettura, { ...contesto, documentId })
+    if (!costruito.ok) {
+      motivoErrore = costruito.errore
+      richiesta = { statiAmmessi: STATI_ELABORABILI, errore: costruito.errore }
+    } else {
+      richiesta = { statiAmmessi: STATI_ELABORABILI, pacchetto: costruito.pacchetto }
+    }
   }
 
-  const costruito = costruisciPacchettoBozze(esitoLettura.lettura, { ...contesto, documentId })
-  if (!costruito.ok) {
-    const pulizia = await scrittore.rimuoviBozzeDi(documentId)
-    const marca = await scrittore.aggiornaDocumento(documentId, { status: 'errore', error_message: costruito.errore })
-    if (pulizia.errore || marca.errore)
-      return { ok: false, stato: 'errore_scrittura', errore: `pacchetto rifiutato E stato non aggiornato (${pulizia.errore ?? marca.errore})` }
-    return { ok: false, stato: 'documento_errore', errore: costruito.errore }
+  // scrittore ATOMICO: un solo primitivo, l'arbitraggio è dentro di lui
+  if ('sostituisciBozze' in scrittore) {
+    const r = await sicuro(scrittore.sostituisciBozze(documentId, richiesta))
+    if ('errore' in r && !('ok' in r)) return { ok: false, stato: 'errore_scrittura', errore: r.errore as string }
+    const esito = r as EsitoSostituzione
+    if (!esito.ok) {
+      if (esito.statoAttuale !== undefined && !(STATI_ELABORABILI as readonly string[]).includes(esito.statoAttuale))
+        return rifiutataPerStato(esito.statoAttuale)
+      return { ok: false, stato: 'errore_scrittura', errore: esito.errore }
+    }
+    return motivoErrore
+      ? { ok: false, stato: 'documento_errore', errore: motivoErrore }
+      : { ok: true, bozze: esito.bozze, righe: esito.righe }
   }
 
-  // RIELABORAZIONE: le bozze del giro precedente (stato errore) si
-  // sostituiscono per intero — mai accumulate
-  const pulizia = await scrittore.rimuoviBozzeDi(documentId)
-  if (pulizia.errore)
-    return { ok: false, stato: 'errore_scrittura', errore: `bozze precedenti non rimosse (${pulizia.errore}): non scrivo — una doppia elaborazione creerebbe doppioni` }
+  // scrittore GRANULARE (archivi finti dei test): serializzato per
+  // documento, con RICONTROLLO dello stato dentro la coda
+  return inCodaDocumento(documentId, async (): Promise<EsitoElaborazione> => {
+    const doc2 = await sicuro(scrittore.leggiDocumento(documentId))
+    if (doc2.errore || !('documento' in doc2) || !doc2.documento)
+      return { ok: false, stato: 'rifiutata', errore: `documento non leggibile (${doc2.errore ?? 'assente'}): non elaboro` }
+    if (!(STATI_ELABORABILI as readonly string[]).includes(doc2.documento.status))
+      return rifiutataPerStato(doc2.documento.status)
 
-  const { pacchetto } = costruito
-  const idPerRif = new Map<string, string>()
-  const fallisci = async (errore: string): Promise<EsitoElaborazione> => {
-    // NIENTE parziali visibili: si pulisce e il documento resta/va in errore
-    await scrittore.rimuoviBozzeDi(documentId)
-    await scrittore.aggiornaDocumento(documentId, { status: 'errore', error_message: `elaborazione interrotta: ${errore}` })
-    return { ok: false, stato: 'errore_scrittura', errore }
-  }
-  for (const b of pacchetto.bozze) {
-    const campi = { ...b, rif: undefined }
-    delete campi.rif
-    const r = await scrittore.inserisciBozza(campi)
-    if (r.errore || !r.id) return fallisci(`bozza non inserita (${r.errore ?? 'senza id'})`)
-    idPerRif.set(b.rif, r.id)
-  }
-  for (const riga of pacchetto.righe) {
-    const { bozzaRif, ...campi } = riga
-    const draftId = idPerRif.get(bozzaRif)
-    if (!draftId) return fallisci(`riferimento di bozza sconosciuto (${bozzaRif})`)
-    const r = await scrittore.inserisciRiga({ ...campi, draft_id: draftId })
-    if (r.errore) return fallisci(`riga non inserita (${r.errore})`)
-  }
-  const finale = await scrittore.aggiornaDocumento(documentId, {
-    status: 'in_revisione', doc_total: pacchetto.documento.doc_total, error_message: null,
+    // la pulizia si RITENTA e ogni suo fallimento viene DICHIARATO:
+    // «niente parziali» non può essere una promessa a occhi chiusi
+    const pulisci = async (): Promise<{ riuscita: boolean; falliti: string[] }> => {
+      const falliti: string[] = []
+      for (let tentativo = 0; tentativo < 3; tentativo++) {
+        const r = await sicuro(scrittore.rimuoviBozzeDi(documentId))
+        if (!r.errore) return { riuscita: true, falliti }
+        falliti.push(r.errore)
+      }
+      return { riuscita: false, falliti }
+    }
+
+    if (richiesta.errore !== undefined) {
+      const pulizia = await pulisci()
+      const marca = await sicuro(scrittore.aggiornaDocumento(documentId, { status: 'errore', error_message: richiesta.errore }))
+      if (!pulizia.riuscita || marca.errore)
+        return { ok: false, stato: 'errore_scrittura', errore: `lettura/pacchetto in errore E archivio non sistemato (${pulizia.falliti.join('; ') || marca.errore}): da rifare` }
+      return { ok: false, stato: 'documento_errore', errore: richiesta.errore }
+    }
+
+    // RIELABORAZIONE: le bozze del giro precedente (stato errore) si
+    // sostituiscono per intero — mai accumulate
+    const pulizia = await pulisci()
+    if (!pulizia.riuscita)
+      return { ok: false, stato: 'errore_scrittura', errore: `bozze precedenti non rimosse (${pulizia.falliti.join('; ')}): non scrivo — una doppia elaborazione creerebbe doppioni` }
+
+    const { pacchetto } = richiesta
+    const idPerRif = new Map<string, string>()
+    const fallisci = async (errore: string): Promise<EsitoElaborazione> => {
+      // NIENTE parziali taciuti: si pulisce (ritentando), il documento
+      // va in errore, e OGNI fallimento della compensazione finisce
+      // nell'esito — mai nascosto dal primo errore
+      const rimedio = await pulisci()
+      const marca = await sicuro(scrittore.aggiornaDocumento(documentId, { status: 'errore', error_message: `elaborazione interrotta: ${errore}` }))
+      const code: string[] = []
+      if (rimedio.falliti.length)
+        code.push(rimedio.riuscita
+          ? `pulizia riuscita solo al tentativo ${rimedio.falliti.length + 1} (prima: ${rimedio.falliti.join('; ')})`
+          : `ATTENZIONE: pulizia MAI riuscita, possibili bozze parziali rimaste (${rimedio.falliti.join('; ')})`)
+      if (marca.errore) code.push(`stato del documento non aggiornato (${marca.errore})`)
+      return { ok: false, stato: 'errore_scrittura', errore: code.length ? `${errore}; ${code.join('; ')}` : errore }
+    }
+    for (const b of pacchetto.bozze) {
+      const campi = { ...b, rif: undefined }
+      delete campi.rif
+      const r = await sicuro(scrittore.inserisciBozza(campi))
+      if (r.errore || !('id' in r) || !r.id) return fallisci(`bozza non inserita (${r.errore ?? 'senza id'})`)
+      idPerRif.set(b.rif, r.id)
+    }
+    for (const riga of pacchetto.righe) {
+      const { bozzaRif, ...campi } = riga
+      const draftId = idPerRif.get(bozzaRif)
+      if (!draftId) return fallisci(`riferimento di bozza sconosciuto (${bozzaRif})`)
+      const r = await sicuro(scrittore.inserisciRiga({ ...campi, draft_id: draftId }))
+      if (r.errore) return fallisci(`riga non inserita (${r.errore})`)
+    }
+    const finale = await sicuro(scrittore.aggiornaDocumento(documentId, {
+      status: 'in_revisione', doc_total: pacchetto.documento.doc_total, error_message: null,
+    }))
+    if (finale.errore) return fallisci(`stato finale non scritto (${finale.errore})`)
+    return { ok: true, bozze: pacchetto.bozze.length, righe: pacchetto.righe.length }
   })
-  if (finale.errore) return fallisci(`stato finale non scritto (${finale.errore})`)
-  return { ok: true, bozze: pacchetto.bozze.length, righe: pacchetto.righe.length }
 }

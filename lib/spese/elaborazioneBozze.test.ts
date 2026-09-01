@@ -7,7 +7,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   costruisciPacchettoBozze, elaboraDocumento,
-  type ContestoElaborazione, type LetturaDocumento, type ScrittoreBozze,
+  type ContestoElaborazione, type LetturaDocumento, type PacchettoBozze,
+  type RichiestaSostituzione, type ScrittoreBozze,
 } from './elaborazioneBozze.ts'
 
 const CONTESTO: Omit<ContestoElaborazione, 'documentId'> = {
@@ -177,6 +178,135 @@ test('E06 · nota di Ania non attribuibile con certezza → DUBBIO dichiarato, m
   assert.equal(esito.ok, true)
   const prima = [...f.archivio.bozze.values()][0]
   assert.match((prima.confidence as Record<string, { doubt_reason: string }>).nota.doubt_reason, /non attribuibile con certezza/)
+})
+
+// SCRITTORE ATOMICO finto (revisione R1): il primitivo sostituisciBozze
+// è UNA transazione simulata — arbitraggio sullo stato dentro di lui,
+// e un guasto lascia l'archivio ESATTAMENTE com'era (rollback totale)
+function scrittoreAtomicoFinto(statoIniziale = 'da_elaborare') {
+  const archivio = {
+    documento: { status: statoIniziale, doc_total: null as number | null, error_message: null as string | null },
+    bozze: [] as PacchettoBozze['bozze'], righe: [] as PacchettoBozze['righe'],
+  }
+  const guasti = { transazioneRotta: false }
+  const scrittore: ScrittoreBozze = {
+    async leggiDocumento() { return { documento: { status: archivio.documento.status } } },
+    async sostituisciBozze(_id: string, richiesta: RichiestaSostituzione) {
+      if (!richiesta.statiAmmessi.includes(archivio.documento.status))
+        return { ok: false as const, statoAttuale: archivio.documento.status, errore: `stato «${archivio.documento.status}» non ammesso` }
+      if (guasti.transazioneRotta)
+        return { ok: false as const, errore: 'transazione annullata (finto): ROLLBACK, nessun effetto' }
+      if (richiesta.errore !== undefined) {
+        archivio.bozze = []; archivio.righe = []
+        archivio.documento = { status: 'errore', doc_total: null, error_message: richiesta.errore }
+        return { ok: true as const, bozze: 0, righe: 0 }
+      }
+      archivio.bozze = [...richiesta.pacchetto.bozze]
+      archivio.righe = [...richiesta.pacchetto.righe]
+      archivio.documento = { status: 'in_revisione', doc_total: richiesta.pacchetto.documento.doc_total, error_message: null }
+      return { ok: true as const, bozze: richiesta.pacchetto.bozze.length, righe: richiesta.pacchetto.righe.length }
+    },
+  }
+  return { scrittore, archivio, guasti }
+}
+
+test('R1 · scrittore ATOMICO: il giro buono passa dal SOLO primitivo e produce bozze+stato in un colpo', async () => {
+  const f = scrittoreAtomicoFinto()
+  const esito = await elaboraDocumento(f.scrittore, 'd1', { lettura: letturaMista() }, CONTESTO)
+  assert.deepEqual(esito, { ok: true, bozze: 2, righe: 5 })
+  assert.equal(f.archivio.documento.status, 'in_revisione')
+  assert.equal(f.archivio.documento.doc_total, 12.5)
+  assert.equal(f.archivio.bozze.length, 2)
+  assert.equal(f.archivio.righe.length, 5)
+})
+
+test('R1 · scrittore ATOMICO, ROLLBACK: il primitivo che fallisce non lascia NIENTE — né bozze né stati cambiati', async () => {
+  const f = scrittoreAtomicoFinto()
+  f.guasti.transazioneRotta = true
+  const esito = await elaboraDocumento(f.scrittore, 'd1', { lettura: letturaMista() }, CONTESTO)
+  assert.equal(!esito.ok && esito.stato, 'errore_scrittura')
+  assert.match(!esito.ok ? esito.errore : '', /ROLLBACK/)
+  // l'archivio è ESATTAMENTE quello di partenza: questa è l'atomicità
+  assert.deepEqual(f.archivio.documento, { status: 'da_elaborare', doc_total: null, error_message: null })
+  assert.equal(f.archivio.bozze.length, 0)
+  assert.equal(f.archivio.righe.length, 0)
+})
+
+test('R1 · scrittore ATOMICO, CONCORRENZA: due elaborazioni simultanee → una sola riesce, mai bozze doppie', async () => {
+  const f = scrittoreAtomicoFinto()
+  const esiti = await Promise.all([
+    elaboraDocumento(f.scrittore, 'd1', { lettura: letturaMista() }, CONTESTO),
+    elaboraDocumento(f.scrittore, 'd1', { lettura: letturaMista() }, CONTESTO),
+  ])
+  assert.equal(esiti.filter(e => e.ok).length, 1, `esiti: ${JSON.stringify(esiti)}`)
+  const rifiutata = esiti.find(e => !e.ok)!
+  assert.equal(!rifiutata.ok && rifiutata.stato, 'rifiutata')
+  assert.equal(f.archivio.bozze.length, 2)
+  assert.equal(f.archivio.righe.length, 5)
+})
+
+test('R1 · errore LANCIATO dallo scrittore (non solo restituito): esito onesto e niente parziali', async () => {
+  const f = scrittoreFinto()
+  const scrittoreCheEsplode: ScrittoreBozze = {
+    ...(f.scrittore as Extract<ScrittoreBozze, { rimuoviBozzeDi: unknown }>),
+    async inserisciRiga() { throw new Error('rete caduta (finto)') },
+  }
+  const esito = await elaboraDocumento(scrittoreCheEsplode, 'd1', { lettura: letturaMista() }, CONTESTO)
+  assert.equal(!esito.ok && esito.stato, 'errore_scrittura')
+  assert.match(!esito.ok ? esito.errore : '', /rete caduta/)
+  assert.equal(f.archivio.bozze.size, 0, 'nessuna bozza parziale dopo l\'eccezione')
+  assert.equal(f.archivio.documento.status, 'errore')
+})
+
+test('R2 · contratto della NOTA: applicata col come → passa; ignorata, incoerente o senza come → RIFIUTI', () => {
+  const ctx = { ...CONTESTO, documentId: 'd1', nota: 'metà è di Casa Ania' }
+  // dichiarata APPLICATA col come: il pacchetto passa
+  const applicata = letturaMista()
+  applicata.notaApplicata = { nota: 'metà è di Casa Ania', come: 'la parte di Casa Ania è la sorella azienda' }
+  assert.equal(costruisciPacchettoBozze(applicata, ctx).ok, true)
+  // nessuna dichiarazione: RIFIUTO (la nota non si ignora)
+  assert.match((costruisciPacchettoBozze(letturaMista(), ctx) as { errore: string }).errore, /nota di Ania presente.*non dichiara/)
+  // applicata SENZA come: la dichiarazione non è verificabile
+  const senzaCome = letturaMista()
+  senzaCome.notaApplicata = { nota: 'metà è di Casa Ania', come: ' ' }
+  assert.match((costruisciPacchettoBozze(senzaCome, ctx) as { errore: string }).errore, /senza dire COME/)
+  // dichiara una nota DIVERSA da quella del documento
+  const diversa = letturaMista()
+  diversa.notaApplicata = { nota: 'tutto per Matteo', come: 'unica sorella' }
+  assert.match((costruisciPacchettoBozze(diversa, ctx) as { errore: string }).errore, /nota diversa/)
+  // applicata E non attribuibile insieme: la lettura deve scegliere
+  const doppia = letturaMista()
+  doppia.notaApplicata = { nota: 'metà è di Casa Ania', come: 'sorella azienda' }
+  doppia.notaNonAttribuita = 'metà è di Casa Ania'
+  assert.match((costruisciPacchettoBozze(doppia, ctx) as { errore: string }).errore, /deve scegliere/)
+  // dichiarazione di una nota che il documento NON ha
+  const inventata = letturaMista()
+  inventata.notaApplicata = { nota: 'x', come: 'y' }
+  assert.match((costruisciPacchettoBozze(inventata, { ...CONTESTO, documentId: 'd1' }) as { errore: string }).errore, /nota che il documento non ha/)
+})
+
+test('R2 · falsi dubbi INVISIBILI: confidence sopra soglia/non finita, motivo o campo vuoti → RIFIUTI', () => {
+  const ctx = { ...CONTESTO, documentId: 'd1' }
+  // dubbio sul totale con confidence 1 e motivo vuoto (riproduzione Codex)
+  const invisibile = letturaMista(); invisibile.totale = 13
+  invisibile.dubbioTotale = { campo: 'doc_total', confidence: 1, motivo: '' }
+  assert.match((costruisciPacchettoBozze(invisibile, ctx) as { errore: string }).errore, /dubbio sul totale non valido/)
+  // dubbio sul totale con campo NON pertinente
+  const fuoriCampo = letturaMista(); fuoriCampo.totale = 13
+  fuoriCampo.dubbioTotale = { campo: 'store', confidence: 0.4, motivo: 'boh' }
+  assert.match((costruisciPacchettoBozze(fuoriCampo, ctx) as { errore: string }).errore, /deve essere doc_total/)
+  // dubbio di VOCE senza motivo
+  const senzaMotivo = letturaMista()
+  senzaMotivo.sorelle[0].voci[0].dubbi = [{ campo: 'amount', confidence: 0.4, motivo: '  ' }]
+  assert.match((costruisciPacchettoBozze(senzaMotivo, ctx) as { errore: string }).errore, /motivo vuoto/)
+  // dubbio di SORELLA con confidence non finita
+  const nonFinita = letturaMista()
+  nonFinita.sorelle[0].dubbi = [{ campo: 'store', confidence: Number.NaN, motivo: 'illeggibile' }]
+  assert.match((costruisciPacchettoBozze(nonFinita, ctx) as { errore: string }).errore, /non finita o non sotto la soglia/)
+  // dubbio con campo vuoto
+  const senzaCampo = letturaMista()
+  senzaCampo.sorelle[0].voci[0].dubbi = [{ campo: '', confidence: 0.4, motivo: 'illeggibile' }]
+  assert.match((costruisciPacchettoBozze(senzaCampo, ctx) as { errore: string }).errore, /campo mancante/)
 })
 
 test('E07 · PERIMETRO: l\'elaborazione chiama SOLO i metodi delle bozze, mai quelli delle spese (controprova)', async () => {

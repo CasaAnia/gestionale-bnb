@@ -14,21 +14,30 @@ nella schermata di revisione.
    `.env.local`), note di Ania sul documento SEMPRE lette prima
    (regole della casa in memoria: sottocategoria mai vuota, sconti
    incorporati, voce unica Acqua/Ciliegie, sacchetti a parte,
-   Esselunga→Casa, doppioni scartati…).
+   Esselunga→Casa…). ATTENZIONE, in QUESTO flusso i possibili doppioni
+   NON si scartano mai da soli: diventano un dubbio annotato sulla
+   bozza e decide Ania in revisione (caso E05 della scheda).
 2. **Scrivere la LETTURA** in un file JSON locale (forma
    `LetturaDocumento` di `lib/spese/elaborazioneBozze.ts`): totale,
    sorelle per ambito con destinatario/data/negozio/metodo, voci con
    raw_name/nome pulito/qty/importi/sottocategoria, e i DUBBI dichiarati
-   campo per campo (`confidence` + motivo). Un totale che non quadra o
+   campo per campo (`confidence` + motivo — il motivo mai vuoto e la
+   confidence sotto la soglia, altrimenti il costruttore RIFIUTA: un
+   dubbio invisibile non autorizza nulla). Un totale che non quadra o
    una nota non attribuibile con certezza NON si aggiustano a mano: si
-   dichiarano come dubbio — deciderà Ania in revisione.
-3. **Eseguire lo strumento** (prima in prova, senza scritture):
+   dichiarano come dubbio — deciderà Ania in revisione. Se il documento
+   ha una nota di Ania, la lettura DEVE dichiarare `notaApplicata`
+   (con il COME) oppure `notaNonAttribuita`: senza una delle due il
+   pacchetto viene rifiutato — la nota non si ignora.
+3. **Eseguire lo strumento** — solo a flusso ATTIVATO dall'utente
+   (il cancello vale anche per `--prova`, che legge il database vero
+   col service role); prima in prova, senza scritture:
 
    ```bash
-   node scripts/elabora/elabora-bozze.mjs <documentId> lettura.json --prova
+   ELABORAZIONE_BOZZE_ATTIVA=1 node scripts/elabora/elabora-bozze.mjs <documentId> lettura.json --prova
    ```
 
-   e, SOLO a flusso attivato dall'utente:
+   poi la scrittura vera:
 
    ```bash
    ELABORAZIONE_BOZZE_ATTIVA=1 node scripts/elabora/elabora-bozze.mjs <documentId> lettura.json
@@ -36,10 +45,14 @@ nella schermata di revisione.
 
    Lo strumento: verifica lo stato (solo `da_elaborare`/`errore`, mai
    bozze doppie), segnala i possibili duplicati dallo sha256 delle foto
-   (annotati come dubbio, MAI scartati da solo), scrive bozze + righe +
-   `doc_total`, porta il documento `in_revisione` — oppure `errore` col
-   motivo. Non tocca MAI `family_expenses`/`family_expense_items`
-   (whitelist delle tabelle dentro lo script e nel modulo).
+   (annotati come dubbio, MAI scartati da solo; un ERRORE nella verifica
+   dei duplicati è uno STOP, mai «nessun duplicato»), e scrive bozze +
+   righe + `doc_total` con UNA SOLA chiamata atomica: la RPC
+   `elabora_sostituisci_bozze` della migrazione 0023 (tutto o niente,
+   arbitraggio concorrente nel database). Finché la 0023 non è applicata
+   e collaudata (autorizzazione separata) lo strumento NON PUÒ scrivere
+   nulla: non esiste altra via di scrittura al suo interno. Non tocca
+   MAI `family_expenses`/`family_expense_items`.
 4. **Ania rivede e conferma** dalla schermata di revisione (flusso già
    consegnato): solo la conferma crea le spese definitive.
 5. Il file `lettura.json` è temporaneo: si elimina a elaborazione
@@ -47,7 +60,11 @@ nella schermata di revisione.
 
 ## Attivazione (passo esplicito, non compreso in questo blocco)
 
-- Richiede il via libera dell'utente nella conversazione.
+- Richiede il via libera dell'utente nella conversazione E il contratto
+  database: migrazione `0023_elaborazione_bozze_atomica.sql` applicata a
+  mano nell'editor SQL e collaudata in un ambiente isolato (autorizzazione
+  SUA, separata). La sola variabile d'ambiente non basta: senza la RPC lo
+  strumento si ferma senza scrivere.
 - Da quel momento: il vecchio inserimento diretto delle spese NON si usa
   più per gli scontrini; la memoria dell'assistente
   (`reference_elabora_scontrini`) va aggiornata a questo runbook.

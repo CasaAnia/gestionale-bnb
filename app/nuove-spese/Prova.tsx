@@ -239,6 +239,10 @@ function letturaDemo(rotta: boolean): LetturaDocumento {
         voci: [{ raw_name: 'ACETO ALCOL X2', name: 'Aceto di alcol', qty: 2, amount: 4.99, sottocategoria: 'Detersivi e pulizia' }],
       },
     ],
+    // contratto della nota (revisione R2): la lettura DICHIARA come ha
+    // applicato la nota del documento — senza dichiarazione il
+    // costruttore rifiuterebbe il pacchetto
+    notaApplicata: { nota: 'metà è di Casa Ania', come: 'la parte di Casa Ania è la sorella dell\'ambito azienda (Aceto di alcol)' },
     notaNonAttribuita: null,
   }
 }
