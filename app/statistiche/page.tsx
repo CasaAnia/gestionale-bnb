@@ -8,21 +8,33 @@ import { buildSiteFunnel, type SiteEvent } from '@/lib/siteStats'
 
 function fmt(n: number) { return n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 
-function getWeekDays() {
+// Data in formato YYYY-MM-DD nel fuso locale (mai toISOString: di notte scala al giorno prima).
+function ymd(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Lunedì della settimana che contiene `ref`.
+function mondayOf(ref: Date) {
+  const day = ref.getDay()
+  const monday = new Date(ref); monday.setDate(ref.getDate() - (day === 0 ? 6 : day - 1))
+  monday.setHours(0, 0, 0, 0)
+  return monday
+}
+
+// Tutte le funzioni di periodo ricevono `ref`: la data di riferimento scelta con le frecce
+// (oggi all'apertura), così si possono guardare anche settimane/mesi/anni passati.
+function getWeekDays(ref: Date) {
+  const monday = mondayOf(ref)
   const days = []
-  const now = new Date()
-  const day = now.getDay()
-  const monday = new Date(now); monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday); d.setDate(monday.getDate() + i)
-    days.push(d.toISOString().split('T')[0])
+    days.push(ymd(d))
   }
   return days
 }
 
-function getMonthDays() {
-  const now = new Date()
-  const year = now.getFullYear(); const month = now.getMonth()
+function getMonthDays(ref: Date) {
+  const year = ref.getFullYear(); const month = ref.getMonth()
   const lastDay = new Date(year, month + 1, 0).getDate()
   const days = []
   for (let i = 1; i <= lastDay; i++) {
@@ -31,9 +43,39 @@ function getMonthDays() {
   return days
 }
 
-function getYearMonths() {
-  const year = new Date().getFullYear()
+function getYearMonths(ref: Date) {
+  const year = ref.getFullYear()
   return Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
+}
+
+type Periodo = 'settimana' | 'mese' | 'anno'
+
+// Sposta la data di riferimento di un periodo avanti (+1) o indietro (−1).
+function shiftRef(ref: Date, period: Periodo, dir: 1 | -1) {
+  const d = new Date(ref)
+  if (period === 'settimana') d.setDate(d.getDate() + 7 * dir)
+  else if (period === 'mese') { d.setDate(1); d.setMonth(d.getMonth() + dir) }
+  else { d.setDate(1); d.setFullYear(d.getFullYear() + dir) }
+  return d
+}
+
+// Vero se oggi cade nel periodo di `ref` (in quel caso la freccia avanti è spenta).
+function isCurrentPeriod(ref: Date, period: Periodo) {
+  const now = new Date()
+  if (period === 'settimana') return ymd(mondayOf(ref)) === ymd(mondayOf(now))
+  if (period === 'mese') return ref.getFullYear() === now.getFullYear() && ref.getMonth() === now.getMonth()
+  return ref.getFullYear() === now.getFullYear()
+}
+
+// Etichetta del periodo mostrata fra le frecce: «1–7 set 2026», «Settembre 2026», «2026».
+function periodLabel(ref: Date, period: Periodo) {
+  if (period === 'anno') return String(ref.getFullYear())
+  if (period === 'mese') return `${MESI_NOMI[ref.getMonth()]} ${ref.getFullYear()}`
+  const a = mondayOf(ref)
+  const b = new Date(a); b.setDate(a.getDate() + 6)
+  const mese = (d: Date) => d.toLocaleDateString('it-IT', { month: 'short' }).replace('.', '')
+  if (a.getMonth() === b.getMonth()) return `${a.getDate()}–${b.getDate()} ${mese(a)} ${a.getFullYear()}`
+  return `${a.getDate()} ${mese(a)} – ${b.getDate()} ${mese(b)} ${b.getFullYear()}`
 }
 
 // Notti di un soggiorno che cadono in un dato mese [ms, nms) — nms = 1° del mese dopo.
@@ -107,7 +149,9 @@ function buildReceipts(bookings: PrenotazioneStat[], payments: PagamentoIncasso[
 }
 
 export default function Statistiche() {
-  const [period, setPeriod] = useState<'settimana' | 'mese' | 'anno'>('mese')
+  const [period, setPeriod] = useState<Periodo>('mese')
+  // Data di riferimento del periodo: oggi all'apertura, poi spostata con le frecce.
+  const [ref, setRef] = useState<Date>(() => new Date())
   const [data, setData] = useState<DatiStatistiche | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -157,7 +201,7 @@ export default function Statistiche() {
     }
 
     if (period === 'settimana') {
-      return getWeekDays().map(day => ({
+      return getWeekDays(ref).map(day => ({
         label: new Date(day).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' }),
         revenue: revenueForDay(day),
         expenses: expensesForDay(day),
@@ -165,14 +209,14 @@ export default function Statistiche() {
       }))
     }
     if (period === 'mese') {
-      return getMonthDays().map(day => ({
+      return getMonthDays(ref).map(day => ({
         label: new Date(day).getDate().toString(),
         revenue: revenueForDay(day),
         expenses: expensesForDay(day),
         profit: revenueForDay(day) - expensesForDay(day),
       }))
     }
-    return getYearMonths().map(month => ({
+    return getYearMonths(ref).map(month => ({
       label: new Date(month + '-01').toLocaleDateString('it-IT', { month: 'short' }),
       revenue: revenueForMonth(month),
       expenses: expensesForMonth(month),
@@ -180,7 +224,7 @@ export default function Statistiche() {
     }))
   }
 
-  // Sconti concessi nel periodo (mese o anno corrente): valore a prezzo pieno,
+  // Sconti concessi nel periodo (mese o anno scelto con le frecce): valore a prezzo pieno,
   // sconti, valore dopo sconto, incassato. Tutto attribuito pro-quota sulle
   // notti dormite (mai alla data in cui si è premuto "Applica sconto") e tutto
   // dal conto unico: con discount_type null lo sconto è SEMPRE zero e il
@@ -188,8 +232,7 @@ export default function Statistiche() {
   // artificiali né vengono reinterpretati.
   function calcSconti() {
     if (!data || period === 'settimana') return null
-    const now = new Date()
-    const y = now.getFullYear(); const m = now.getMonth()
+    const y = ref.getFullYear(); const m = ref.getMonth()
     const start = period === 'mese' ? `${y}-${String(m + 1).padStart(2, '0')}-01` : `${y}-01-01`
     const endD = period === 'mese' ? new Date(y, m + 1, 1) : new Date(y + 1, 0, 1)
     const end = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-01`
@@ -245,17 +288,19 @@ export default function Statistiche() {
   }
   const occ = buildOccupancy()
 
-  // Rendimento per camera nell'anno corrente, contando solo le notti già trascorse
-  // (fino a stanotte compresa): l'incasso di un soggiorno è ripartito pro-quota
+  // Rendimento per camera nell'anno scelto con le frecce, contando solo le notti già
+  // trascorse (fino a stanotte compresa): l'incasso di un soggiorno è ripartito pro-quota
   // sulle sue notti, così un soggiorno a cavallo di due mesi pesa sul mese giusto.
+  // Per un anno passato si contano tutti i 12 mesi; per un anno futuro non c'è nulla.
   function buildRoomStats() {
     if (!data) return null
     const rooms = data.rooms || []
     const bookings = data.bookings
     if (!rooms.length || !bookings.length) return null
     const now = new Date()
-    const year = now.getFullYear()
-    const curMonth = now.getMonth()
+    const year = ref.getFullYear()
+    if (year > now.getFullYear()) return null
+    const curMonth = year < now.getFullYear() ? 11 : now.getMonth()
     const tom = new Date(now); tom.setDate(now.getDate() + 1)
     const cap = `${tom.getFullYear()}-${String(tom.getMonth() + 1).padStart(2, '0')}-${String(tom.getDate()).padStart(2, '0')}`
     const stats: Record<string, { name: string; nights: number; revenue: number; monthly: number[] }> = {}
@@ -287,10 +332,12 @@ export default function Statistiche() {
     const daysElapsed = Math.max(1, Math.round((new Date(cap).getTime() - new Date(firstNight).getTime()) / 86400000))
     const firstMonthIdx = Number(firstNight.slice(5, 7)) - 1
     const numMonths = curMonth - firstMonthIdx + 1
-    return { year, list, daysElapsed, firstMonthIdx, curMonth, numMonths }
+    return { year, list, daysElapsed, firstMonthIdx, curMonth, numMonths, annoPassato: year < now.getFullYear() }
   }
   const roomStats = buildRoomStats()
-  const siteStats = data ? buildSiteFunnel(data.siteEvents as SiteEvent[], period) : null
+  const siteStats = data ? buildSiteFunnel(data.siteEvents as SiteEvent[], period, ref) : null
+  const label = periodLabel(ref, period)
+  const current = isCurrentPeriod(ref, period)
 
   const rows = calcPeriod()
   const sconti = calcSconti()
@@ -304,13 +351,26 @@ export default function Statistiche() {
       <BackBar href="/" />
       <h1 className="font-serif text-xl text-green-dark mb-4 max-lg:hidden">Statistiche</h1>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2 mb-3">
         {(['settimana', 'mese', 'anno'] as const).map(p => (
           <button key={p} onClick={() => setPeriod(p)}
             className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${period === p ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-card-border'}`}>
             {p}
           </button>
         ))}
+      </div>
+
+      {/* Frecce per cambiare periodo; tocco sull'etichetta = torna a oggi */}
+      <div className="flex items-center justify-between bg-white rounded-xl border border-card-border mb-4">
+        <button type="button" aria-label={`${period} precedente`} onClick={() => setRef(shiftRef(ref, period, -1))}
+          className="px-5 py-1.5 text-2xl leading-none self-stretch text-green-dark active:bg-gray-50 rounded-l-xl">‹</button>
+        <button type="button" onClick={() => setRef(new Date())} disabled={current}
+          className="flex-1 py-2.5 text-sm font-semibold text-green-dark text-center">
+          {label}
+          {!current && <span className="block text-[10px] font-normal text-gray-400">tocca per tornare a oggi</span>}
+        </button>
+        <button type="button" aria-label={`${period} successivo`} onClick={() => setRef(shiftRef(ref, period, 1))} disabled={current}
+          className={`px-5 py-1.5 text-2xl leading-none self-stretch rounded-r-xl ${current ? 'text-gray-300' : 'text-green-dark active:bg-gray-50'}`}>›</button>
       </div>
 
       {loading ? (
@@ -337,7 +397,7 @@ export default function Statistiche() {
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                   <p className="text-sm font-semibold text-gray-600">Sito e richieste</p>
-                  <p className="text-xs text-gray-400">dati anonimi · {period} corrente</p>
+                  <p className="text-xs text-gray-400">dati anonimi · {label}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-bold text-green-mid">{siteStats.conversioneVisita}%</p>
@@ -445,7 +505,7 @@ export default function Statistiche() {
           {sconti && (
             <div className="bg-white rounded-xl p-4 border border-card-border mt-4">
               <p className="text-sm font-semibold text-gray-600">Sconti concessi</p>
-              <p className="text-xs text-gray-400 mb-3">{period === 'mese' ? 'mese corrente' : `anno ${new Date().getFullYear()}`} · valori attribuiti alle notti del periodo</p>
+              <p className="text-xs text-gray-400 mb-3">{period === 'mese' ? label : `anno ${label}`} · valori attribuiti alle notti del periodo</p>
               <div className="flex justify-between text-sm py-1.5 border-b border-gray-50">
                 <span className="text-gray-600">Valore a prezzo pieno</span>
                 <span className="font-semibold">€{fmt(sconti.pieno)}</span>
@@ -512,7 +572,7 @@ export default function Statistiche() {
           {roomStats && (
             <div className="bg-white rounded-xl p-4 border border-card-border mt-4">
               <p className="text-sm font-semibold text-gray-600">Rendimento camere</p>
-              <p className="text-xs text-gray-400 mb-3">anno {roomStats.year} · incassi e notti fino a oggi</p>
+              <p className="text-xs text-gray-400 mb-3">anno {roomStats.year} · {roomStats.annoPassato ? 'tutto l’anno' : 'incassi e notti fino a oggi'}</p>
               {roomStats.list.map((s, i) => (
                 <div key={s.name} className={i > 0 ? 'mt-3' : ''}>
                   <div className="flex justify-between items-baseline">
