@@ -1,7 +1,9 @@
 # RUNBOOK — applicazione della 0023 in PRODUZIONE
 
-**Stato: PREPARATO IN LOCALE, NESSUN PASSO ESEGUITO.** Stesse cautele
-della 0022. DUE autorizzazioni SEPARATE:
+**Stato: ESEGUITO E SUPERATO il 01/09/2026** (Fase A e Fase B, con le
+due autorizzazioni separate; esiti in
+`RAPPORTO-0023-PRODUZIONE-2026-09-01.md`). Il documento resta come
+runbook. Stesse cautele della 0022. DUE autorizzazioni SEPARATE:
 
 - **Autorizzazione A — audit e backup preventivi (SOLA LETTURA).**
   Nessuna scrittura in produzione; serve il token dedicato.
@@ -63,9 +65,10 @@ La fase A NON dà alcun via all'applicazione.
    0023 non tocca alcun dato). NESSUN test di scrittura in produzione.
 8. Chiusura del giro: cancellare `~/.gestionale-0023/token.txt`,
    REVOCARE il token dal dashboard, annotare l'esito nel rapporto.
-   In LOCALE (commit separato): promuovere la bozza a
-   `supabase/migrations/0023_elaborazione_bozze_atomica.sql` (stesso
-   contenuto, via il suffisso BOZZA) e aggiornare i riferimenti.
+   La promozione della bozza fra le migrazioni operative (via il
+   suffisso BOZZA) va CONCORDATA col revisore: una sua riproduzione
+   vincola l'attuale posizione in `supabase/proposte/` — è una rinomina
+   documentale senza effetti sul database, non farla unilateralmente.
 
 ## ROLLBACK
 
