@@ -67,15 +67,26 @@ function todayStr() {
 // - Se non c'è nessun pagamento registrato → si assume saldo intero alla consegna chiavi
 //   (primo check-in del soggiorno), tranne bonifici in attesa o arrivi ancora futuri.
 // I segmenti di un cambio camera (stesso group_id) sono un unico soggiorno.
-type SegmentoIncasso = {
-  id: string; group_id: string | null; total_amount: number | string
-  check_in: string; bonifico?: boolean | null; pagato?: boolean | null
+type PrenotazioneStat = {
+  id: string; group_id: string | null; room_id: string
+  check_in: string; check_out: string
+  total_amount: number | string | null
+  price_per_night?: number | string | null
+  extra_bed_total?: number | string | null
+  discount_type?: string | null
+  discount_value?: number | string | null
+  bonifico?: boolean | null; pagato?: boolean | null
 }
 type PagamentoIncasso = { booking_id: string; paid_on: string | null; amount: number | string }
-function buildReceipts(bookings: SegmentoIncasso[], payments: PagamentoIncasso[], today: string): { date: string; amount: number }[] {
+type SpesaStat = { expense_date: string; amount: number | string }
+type DatiStatistiche = {
+  bookings: PrenotazioneStat[]; expenses: SpesaStat[]; payments: PagamentoIncasso[]
+  rooms: { id: string; name: string }[]; siteEvents: SiteEvent[]
+}
+function buildReceipts(bookings: PrenotazioneStat[], payments: PagamentoIncasso[], today: string): { date: string; amount: number }[] {
   const paysByBooking: Record<string, PagamentoIncasso[]> = {}
   for (const p of payments) (paysByBooking[p.booking_id] = paysByBooking[p.booking_id] || []).push(p)
-  const groups: Record<string, SegmentoIncasso[]> = {}
+  const groups: Record<string, PrenotazioneStat[]> = {}
   for (const b of bookings) { const k = b.group_id || b.id; (groups[k] = groups[k] || []).push(b) }
   const receipts: { date: string; amount: number }[] = []
   for (const k in groups) {
@@ -97,7 +108,7 @@ function buildReceipts(bookings: SegmentoIncasso[], payments: PagamentoIncasso[]
 
 export default function Statistiche() {
   const [period, setPeriod] = useState<'settimana' | 'mese' | 'anno'>('mese')
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<DatiStatistiche | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -109,7 +120,13 @@ export default function Statistiche() {
         supabase.from('rooms').select('id, name'),
         supabase.from('site_events').select('tipo, pagina, fonte, campagna, created_at'),
       ])
-      setData({ bookings: bookings || [], expenses: expenses || [], payments: payments || [], rooms: rooms || [], siteEvents: siteEvents || [] })
+      setData({
+        bookings: (bookings || []) as PrenotazioneStat[],
+        expenses: (expenses || []) as unknown as SpesaStat[],
+        payments: (payments || []) as PagamentoIncasso[],
+        rooms: (rooms || []) as DatiStatistiche['rooms'],
+        siteEvents: (siteEvents || []) as SiteEvent[],
+      })
       setLoading(false)
     }
     load()
@@ -128,7 +145,7 @@ export default function Statistiche() {
     }
 
     function expensesForDay(day: string) {
-      return expenses.filter((e: any) => e.expense_date === day).reduce((s: number, e: any) => s + Number(e.amount), 0)
+      return expenses.filter(e => e.expense_date === day).reduce((s: number, e) => s + Number(e.amount), 0)
     }
 
     function revenueForMonth(month: string) {
@@ -136,7 +153,7 @@ export default function Statistiche() {
     }
 
     function expensesForMonth(month: string) {
-      return expenses.filter((e: any) => e.expense_date.startsWith(month)).reduce((s: number, e: any) => s + Number(e.amount), 0)
+      return expenses.filter(e => e.expense_date.startsWith(month)).reduce((s: number, e) => s + Number(e.amount), 0)
     }
 
     if (period === 'settimana') {
@@ -198,7 +215,7 @@ export default function Statistiche() {
   // Occupazione per mese (indipendente dal periodo scelto): heatmap anni × mesi.
   function buildOccupancy(): { years: number[]; cell: Record<string, number | null> } | null {
     if (!data) return null
-    const bookings: any[] = data.bookings
+    const bookings = data.bookings
     if (!bookings.length) return { years: [], cell: {} }
     let earliest = bookings[0].check_in
     for (const b of bookings) if (b.check_in < earliest) earliest = b.check_in
@@ -233,8 +250,8 @@ export default function Statistiche() {
   // sulle sue notti, così un soggiorno a cavallo di due mesi pesa sul mese giusto.
   function buildRoomStats() {
     if (!data) return null
-    const rooms: any[] = data.rooms || []
-    const bookings: any[] = data.bookings
+    const rooms = data.rooms || []
+    const bookings = data.bookings
     if (!rooms.length || !bookings.length) return null
     const now = new Date()
     const year = now.getFullYear()

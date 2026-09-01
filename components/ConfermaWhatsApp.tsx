@@ -7,6 +7,15 @@ import { NOME_STRUTTURA, CITTA_STRUTTURA, SITO_URL, SITO_DISPLAY, TELEFONO_DISPL
 import { nomeOspite } from '@/lib/guestName'
 import { causaleBonifico } from '@/lib/causale'
 import { contoSoggiorno, residuoDaPagare } from '@/lib/conto'
+import type { Booking } from '@/lib/types'
+
+// colonne migrate a mano (assenti dall'interfaccia Booking di lib/types)
+type PrenotazioneConferma = Booking & {
+  bonifico?: boolean | null
+  pagato?: boolean | null
+  extra_bed_dates?: string[] | null
+}
+type PagamentoConferma = { amount: number | string; paid_on?: string | null }
 
 // Conferma di prenotazione WhatsApp: immagine grafica (1080px, identità visiva
 // del sito casaaniarozzano.it) + messaggio di testo con i link, pronti da inviare.
@@ -47,13 +56,13 @@ function formatGiornoMese(dateStr: string) {
   return new Date(y, m - 1, d).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
 }
 
-function bagnoDesc(room: any) {
+function bagnoDesc(room: { bathroom_type?: string | null } | null | undefined) {
   if (room?.bathroom_type === 'privato_interno') return "privato, all'interno della camera"
   if (room?.bathroom_type === 'privato_esterno') return 'privato esterno, chiuso a chiave, a circa 1 metro dalla camera'
   return ''
 }
 
-export default function ConfermaWhatsApp({ booking, groupBookings, payments = [], onClose }: { booking: any; groupBookings: any[]; payments?: any[]; onClose: () => void }) {
+export default function ConfermaWhatsApp({ booking, groupBookings, payments = [], onClose }: { booking: PrenotazioneConferma; groupBookings: PrenotazioneConferma[]; payments?: PagamentoConferma[]; onClose: () => void }) {
   const imgRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0.3)
@@ -75,7 +84,7 @@ export default function ConfermaWhatsApp({ booking, groupBookings, payments = []
   const segmenti = isGruppo ? [...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in)) : [booking]
   // Più periodi possono essere camere diverse (cambio camera) oppure la stessa camera a
   // tariffa diversa: le etichette devono dire la cosa giusta al cliente
-  const camereDiverse = new Set(segmenti.map((s: any) => s.rooms?.name)).size > 1
+  const camereDiverse = new Set(segmenti.map(s => s.rooms?.name)).size > 1
   const cin = segmenti[0].check_in
   const cout = segmenti[segmenti.length - 1].check_out
   const nottiTot = notti(cin, cout)
@@ -116,7 +125,7 @@ export default function ConfermaWhatsApp({ booking, groupBookings, payments = []
       })
       const ebTot = Number(s.extra_bed_total || 0)
       if (s.extra_bed && ebTot > 0) {
-        const ebNotti = s.extra_bed_dates?.length > 0 ? s.extra_bed_dates.length : n
+        const ebNotti = s.extra_bed_dates && s.extra_bed_dates.length > 0 ? s.extra_bed_dates.length : n
         const ebPrezzo = Number(s.rooms?.extra_bed_price || 0)
         const showMolt = ebNotti > 1 && Math.abs(ebNotti * ebPrezzo - ebTot) < 0.005
         const base = isGruppo ? `Letto supplementare – ${s.rooms?.name || ''}`.trim() : 'Letto supplementare'
@@ -134,7 +143,7 @@ export default function ConfermaWhatsApp({ booking, groupBookings, payments = []
     }
   }
   // Importo da bonificare = residuo quando ci sono pagamenti già registrati
-  const ricevuto = (payments || []).reduce((s: number, p: any) => s + Number(p.amount || 0), 0)
+  const ricevuto = (payments || []).reduce((s: number, p) => s + Number(p.amount || 0), 0)
   const importoBonifico = residuoDaPagare(totale, payments)
 
   // Variante bonifico: scadenza = domani, anticipata al giorno di arrivo se precedente
@@ -145,7 +154,7 @@ export default function ConfermaWhatsApp({ booking, groupBookings, payments = []
   const causale = causaleBonifico(segmenti, nome)
 
   // Messaggio di testo con i link (con cambio camera: un link per ogni camera)
-  const slugs = [...new Set(segmenti.map(s => ROOM_SLUG_BY_NAME[s.rooms?.name]).filter(Boolean))]
+  const slugs = [...new Set(segmenti.map(s => (s.rooms?.name ? ROOM_SLUG_BY_NAME[s.rooms.name] : undefined)).filter(Boolean))]
   const linkCamere = slugs.map(sl => `${SITO_URL}/camere/${sl}`).join('\n')
   const testoMessaggio = `​
 Gentile ${nome},
@@ -198,8 +207,8 @@ Ania`
       } else {
         await scaricaInterno()
       }
-    } catch (e: any) {
-      if (e?.name !== 'AbortError') setErrore('Condivisione non riuscita: usa "Scarica immagine"')
+    } catch (e) {
+      if ((e as { name?: string })?.name !== 'AbortError') setErrore('Condivisione non riuscita: usa "Scarica immagine"')
     }
     setBusy(null)
   }
@@ -258,8 +267,8 @@ Ania`
         document.body.removeChild(a)
       }
       setSaved(true); setTimeout(() => setSaved(false), 4000)
-    } catch (e: any) {
-      if (e?.name !== 'AbortError') setErrore('Salvataggio non riuscito: prova "Condividi"')
+    } catch (e) {
+      if ((e as { name?: string })?.name !== 'AbortError') setErrore('Salvataggio non riuscito: prova "Condividi"')
     }
     setBusy(null)
   }
