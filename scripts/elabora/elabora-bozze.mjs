@@ -7,8 +7,10 @@
 // bozze, MAI spese definitive.
 //
 // SCRITTURE: esclusivamente attraverso il PRIMITIVO ATOMICO — la RPC
-// `elabora_sostituisci_bozze` della migrazione 0023 (PROPOSTA, da
-// applicare a mano con autorizzazione separata). Qui non esiste alcuna
+// `elabora_sostituisci_bozze` della proposta
+// supabase/proposte/0023_elaborazione_bozze_atomica.BOZZA.sql (da
+// applicare a mano con autorizzazione separata; gli stati elaborabili
+// li fissa il SERVER, non questo strumento). Qui non esiste alcuna
 // DELETE/INSERT/PATCH diretta sulle tabelle: senza quella RPC lo
 // strumento NON PUÒ scrivere nulla, nemmeno attivato per sbaglio
 // (revisione R1: niente compensazioni REST spacciate per atomicità).
@@ -52,8 +54,8 @@ if (process.env.ELABORAZIONE_BOZZE_ATTIVA !== '1') {
   console.error(`STOP: il flusso «solo bozze» NON è ancora attivato (scheda: attivazione DA AUTORIZZARE).
 Vale anche per --prova: legge il database vero col service role. Dopo il via
 libera esplicito dell'utente: ELABORAZIONE_BOZZE_ATTIVA=1 davanti al comando.
-Le scritture restano comunque impossibili finché la migrazione 0023 (RPC
-atomica) non è applicata e collaudata con la SUA autorizzazione.`)
+Le scritture restano comunque impossibili finché la proposta 0023 (RPC
+atomica, supabase/proposte/) non è applicata e collaudata con la SUA autorizzazione.`)
   process.exit(1)
 }
 
@@ -85,16 +87,18 @@ async function rpc(nome, corpo) {
   })
   const testo = await r.text()
   if (r.status === 404)
-    return { errore: `contratto database ASSENTE: la RPC ${nome} non esiste — la migrazione 0023 va applicata e collaudata con autorizzazione separata; senza di essa questo strumento non scrive nulla` }
+    return { errore: `contratto database ASSENTE: la RPC ${nome} non esiste — la proposta 0023 (supabase/proposte/…BOZZA.sql) va applicata e collaudata con autorizzazione separata; senza di essa questo strumento non scrive nulla` }
   if (!r.ok) return { errore: `${r.status}: ${testo.slice(0, 200)}` }
   try { return { dati: JSON.parse(testo) } } catch { return { errore: `risposta RPC non interpretabile: ${testo.slice(0, 120)}` } }
 }
 
 // il pacchetto per la RPC: ogni bozza porta le SUE righe (il legame
-// bozzaRif→draft_id lo fa la transazione, non il client)
+// bozzaRif→draft_id lo fa la transazione, non il client). Gli stati
+// ammessi NON si inviano: li fissa il server dentro la RPC (R6) — la
+// whitelist locale di richiesta.statiAmmessi coincide per costruzione.
 function corpoRpc(documentId, richiesta) {
   if (richiesta.errore !== undefined)
-    return { p_document_id: documentId, p_stati_ammessi: richiesta.statiAmmessi, p_pacchetto: null, p_errore: richiesta.errore }
+    return { p_document_id: documentId, p_pacchetto: null, p_errore: richiesta.errore }
   const { pacchetto } = richiesta
   const bozze = pacchetto.bozze.map(({ rif, ...campi }) => ({
     ...campi,
@@ -105,7 +109,7 @@ function corpoRpc(documentId, richiesta) {
     }),
   }))
   return {
-    p_document_id: documentId, p_stati_ammessi: richiesta.statiAmmessi,
+    p_document_id: documentId,
     p_pacchetto: { doc_total: pacchetto.documento.doc_total, bozze }, p_errore: null,
   }
 }

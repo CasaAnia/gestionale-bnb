@@ -8,9 +8,9 @@ piano. Questa scheda definisce il blocco successivo previsto dal metodo
 ## Identità e perimetro
 
 - Base: `fb46660` più il verbale di chiusura.
-- Stato: REVISIONATO SU `8a67af1`, RILIEVI R4–R6 APERTI — R1 e R3
-  risultano chiusi; R2 è chiuso solo in parte. Esiti e riproduzioni nella
-  sezione «Seconda revisione indipendente di Codex» in fondo.
+- Stato: CORRETTO ANCHE R4–R6, PRONTO PER LA VERIFICA FINALE MIRATA —
+  esiti nella sezione «Chiusura dei rilievi R4–R6» in fondo; le 12
+  riproduzioni del revisore restano intatte e sono tutte verdi.
   Data effettiva dell'autorizzazione locale all'implementazione:
   31/08/2026 (il 02/09 scritto in precedenza era un refuso).
 - Implementatore: Claude. Revisore: Codex. Stessi ruoli, stessa scheda.
@@ -301,3 +301,52 @@ pacchetto senza bozze/righe non può portare il documento in revisione.
 - Claude corregge R4–R6 in un solo giro locale sul candidato fermo, senza
   remoto, SQL, migrazione applicata, push o deploy. Poi riesegue il comando
   condiviso e consegna un nuovo candidato per una verifica finale mirata.
+
+## Chiusura dei rilievi R4–R6 (implementatore, un unico giro locale)
+
+Le 7 riproduzioni nuove del revisore sono integrate SENZA modifiche e
+sono VERDI insieme alle 5 precedenti e a tutti i test del modulo.
+
+- **R4 — confine JSON convalidato a runtime, senza eccezioni.** Il
+  costruttore ora convalida OGNI campo prima di usarlo: testi veri
+  (name/raw_name/sottocategoria/negozio/canoniche), numeri FINITI e nei
+  vincoli (qty/unit_price/discount/amount/arrotondamento_cent/totale —
+  Infinity e NaN rifiutati PRIMA che JSON.stringify li muti in null),
+  data che ESISTE davvero (2026-99-99 rifiutata), enum chiusi per
+  ambito, metodo (METODI_VALIDI di fatture.ts) e natura, dubbi come
+  elenchi di oggetti ben formati. In più l'orchestratore avvolge il
+  costruttore in una cintura: se lanciasse comunque, l'eccezione diventa
+  UNA marcatura atomica documento_errore — mai un documento lasciato
+  «da_elaborare» a metà. FEDELTÀ: il metodo personale non letto resta
+  null, mai più inventato «contanti» (la demo E08 ora lo dichiara letto
+  dallo scontrino, output invariato).
+- **R5 — la nota si DIMOSTRA, non si racconta.** `notaApplicata` ora
+  richiede un EFFETTO strutturato (`ambito_unico` | `gruppo_unico` |
+  `divisione`) che il costruttore CONFRONTA con il pacchetto prodotto:
+  dichiarare «tutto a Casa Ania» lasciando le sorelle nel personale
+  rifiuta il pacchetto; il `come` resta come spiegazione per Ania ma non
+  basta più da solo. Whitelist DISTINTE dei campi dubbio per documento
+  (doc_total), parte (store, expense_date, payment_method, group_id,
+  room_id, expense_nature, arrotondamento_cent) e voce (raw_name, name,
+  qty, unit_price, discount, amount, subcategory, group_id, canoniche):
+  il campo inventato «banana» è rifiutato. E06 ora prova un'assegnazione
+  forzata REALE (gruppo rispettato → passa; tradito → rifiuto; gruppo
+  sconosciuto → rifiuto).
+- **R6 — proposta SQL fuori dal percorso operativo e irrigidita.** La
+  0023 vive in `supabase/proposte/0023_elaborazione_bozze_atomica.
+  BOZZA.sql`: NON è più applicabile da `supabase db push`. Irrigidita
+  prima di qualunque collaudo: gli stati elaborabili sono POSITIVI e
+  FISSATI DAL SERVER ('da_elaborare','errore' — il parametro
+  p_stati_ammessi non esiste più), e un pacchetto senza bozze o con una
+  bozza senza righe NON può portare il documento in revisione. Strumento
+  e runbook aggiornati al nuovo percorso e alla nuova firma; nel
+  contratto locale `statiAmmessi` resta per gli archivi finti, con la
+  nota che il primitivo vero li fissa lato server.
+
+Prove del giro: 26 test verdi (14 del modulo + 12 riproduzioni del
+revisore, assert INTATTI); giro E08 ripetuto a 390 px in entrambi i modi
+(card «2 campi dubbi» e ramo d'errore IDENTICI alla consegna; in console
+solo il websocket HMR del dev server, nessun errore applicativo).
+Comando comune e build sul candidato fermo: esito nel resoconto (la
+scheda non può contenere la propria impronta). Nessun SQL eseguito,
+nessun accesso remoto, strumento NON attivato, nessun push.

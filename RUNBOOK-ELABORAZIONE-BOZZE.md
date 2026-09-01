@@ -48,9 +48,11 @@ nella schermata di revisione.
    (annotati come dubbio, MAI scartati da solo; un ERRORE nella verifica
    dei duplicati è uno STOP, mai «nessun duplicato»), e scrive bozze +
    righe + `doc_total` con UNA SOLA chiamata atomica: la RPC
-   `elabora_sostituisci_bozze` della migrazione 0023 (tutto o niente,
-   arbitraggio concorrente nel database). Finché la 0023 non è applicata
-   e collaudata (autorizzazione separata) lo strumento NON PUÒ scrivere
+   `elabora_sostituisci_bozze` della proposta
+   `supabase/proposte/0023_elaborazione_bozze_atomica.BOZZA.sql` (tutto
+   o niente, arbitraggio concorrente e stati elaborabili FISSATI nel
+   database, mai dal chiamante). Finché la 0023 non è applicata e
+   collaudata (autorizzazione separata) lo strumento NON PUÒ scrivere
    nulla: non esiste altra via di scrittura al suo interno. Non tocca
    MAI `family_expenses`/`family_expense_items`.
 4. **Ania rivede e conferma** dalla schermata di revisione (flusso già
@@ -61,10 +63,12 @@ nella schermata di revisione.
 ## Attivazione (passo esplicito, non compreso in questo blocco)
 
 - Richiede il via libera dell'utente nella conversazione E il contratto
-  database: migrazione `0023_elaborazione_bozze_atomica.sql` applicata a
-  mano nell'editor SQL e collaudata in un ambiente isolato (autorizzazione
-  SUA, separata). La sola variabile d'ambiente non basta: senza la RPC lo
-  strumento si ferma senza scrivere.
+  database: la proposta
+  `supabase/proposte/0023_elaborazione_bozze_atomica.BOZZA.sql`
+  applicata a mano nell'editor SQL e collaudata in un ambiente isolato
+  (autorizzazione SUA, separata; finché è una bozza NON va spostata fra
+  le migrazioni operative). La sola variabile d'ambiente non basta:
+  senza la RPC lo strumento si ferma senza scrivere.
 - Da quel momento: il vecchio inserimento diretto delle spese NON si usa
   più per gli scontrini; la memoria dell'assistente
   (`reference_elabora_scontrini`) va aggiornata a questo runbook.

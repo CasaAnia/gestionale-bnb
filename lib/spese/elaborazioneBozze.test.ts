@@ -180,6 +180,32 @@ test('E06 · nota di Ania non attribuibile con certezza → DUBBIO dichiarato, m
   assert.match((prima.confidence as Record<string, { doubt_reason: string }>).nota.doubt_reason, /non attribuibile con certezza/)
 })
 
+test('E06 · la nota GUIDA l\'esito: assegnazione forzata a un gruppo verificata sul pacchetto, contraddizione rifiutata', () => {
+  const ctx = { ...CONTESTO, documentId: 'd1', nota: 'tutto per Casa Mia' }
+  const soloCasa = (): LetturaDocumento => ({
+    totale: 3,
+    sorelle: [{
+      ambito: 'personale', destinatario: 'g-casa', data: '2026-08-29', negozio: 'Mercato',
+      voci: [{ raw_name: 'PANE', name: 'Pane comune', amount: 3, sottocategoria: 'Pane' }],
+    }],
+  })
+  // la nota forza il gruppo e il pacchetto la RISPETTA: passa
+  const rispettata = soloCasa()
+  rispettata.notaApplicata = { nota: 'tutto per Casa Mia', effetto: { tipo: 'gruppo_unico', group_id: 'g-casa' }, come: 'unica sorella al gruppo Casa Mia' }
+  const esito = costruisciPacchettoBozze(rispettata, ctx)
+  assert.equal(esito.ok, true)
+  assert.ok(esito.ok && esito.pacchetto.bozze.every(b => b.group_id === 'g-casa'))
+  // stessa dichiarazione ma il pacchetto va a un ALTRO gruppo: rifiutata
+  const tradita = soloCasa()
+  tradita.sorelle[0].destinatario = 'g-matteo'
+  tradita.notaApplicata = { nota: 'tutto per Casa Mia', effetto: { tipo: 'gruppo_unico', group_id: 'g-casa' }, come: 'unica sorella al gruppo Casa Mia' }
+  assert.match((costruisciPacchettoBozze(tradita, ctx) as { errore: string }).errore, /CONTRADDICE.*gruppo/)
+  // effetto con gruppo sconosciuto: dichiarazione non verificabile
+  const sconosciuto = soloCasa()
+  sconosciuto.notaApplicata = { nota: 'tutto per Casa Mia', effetto: { tipo: 'gruppo_unico', group_id: 'g-fantasma' }, come: 'boh' }
+  assert.match((costruisciPacchettoBozze(sconosciuto, ctx) as { errore: string }).errore, /gruppo sconosciuto/)
+})
+
 // SCRITTORE ATOMICO finto (revisione R1): il primitivo sostituisciBozze
 // è UNA transazione simulata — arbitraggio sullo stato dentro di lui,
 // e un guasto lascia l'archivio ESATTAMENTE com'era (rollback totale)
@@ -258,30 +284,39 @@ test('R1 · errore LANCIATO dallo scrittore (non solo restituito): esito onesto 
   assert.equal(f.archivio.documento.status, 'errore')
 })
 
-test('R2 · contratto della NOTA: applicata col come → passa; ignorata, incoerente o senza come → RIFIUTI', () => {
+test('R2 · contratto della NOTA: applicata con effetto verificato → passa; ignorata, incoerente o non verificabile → RIFIUTI', () => {
   const ctx = { ...CONTESTO, documentId: 'd1', nota: 'metà è di Casa Ania' }
-  // dichiarata APPLICATA col come: il pacchetto passa
+  const divisione = { tipo: 'divisione' as const, ambiti: ['personale' as const, 'azienda' as const] }
+  // dichiarata APPLICATA con effetto strutturato COERENTE: il pacchetto passa
   const applicata = letturaMista()
-  applicata.notaApplicata = { nota: 'metà è di Casa Ania', come: 'la parte di Casa Ania è la sorella azienda' }
+  applicata.notaApplicata = { nota: 'metà è di Casa Ania', effetto: divisione, come: 'la parte di Casa Ania è la sorella azienda' }
   assert.equal(costruisciPacchettoBozze(applicata, ctx).ok, true)
   // nessuna dichiarazione: RIFIUTO (la nota non si ignora)
   assert.match((costruisciPacchettoBozze(letturaMista(), ctx) as { errore: string }).errore, /nota di Ania presente.*non dichiara/)
-  // applicata SENZA come: la dichiarazione non è verificabile
+  // applicata SENZA come: la dichiarazione non è verificabile da Ania
   const senzaCome = letturaMista()
-  senzaCome.notaApplicata = { nota: 'metà è di Casa Ania', come: ' ' }
+  senzaCome.notaApplicata = { nota: 'metà è di Casa Ania', effetto: divisione, come: ' ' }
   assert.match((costruisciPacchettoBozze(senzaCome, ctx) as { errore: string }).errore, /senza dire COME/)
+  // applicata SENZA effetto strutturato: frase libera, non un contratto
+  const senzaEffetto = letturaMista()
+  senzaEffetto.notaApplicata = { nota: 'metà è di Casa Ania', come: 'sorella azienda' } as never
+  assert.match((costruisciPacchettoBozze(senzaEffetto, ctx) as { errore: string }).errore, /senza EFFETTO strutturato/)
+  // effetto CONTRADDETTO dal pacchetto: dichiara tutto azienda, sorelle miste
+  const contraddetta = letturaMista()
+  contraddetta.notaApplicata = { nota: 'metà è di Casa Ania', effetto: { tipo: 'ambito_unico', ambito: 'azienda' }, come: 'tutto a Casa Ania' }
+  assert.match((costruisciPacchettoBozze(contraddetta, ctx) as { errore: string }).errore, /CONTRADDICE/)
   // dichiara una nota DIVERSA da quella del documento
   const diversa = letturaMista()
-  diversa.notaApplicata = { nota: 'tutto per Matteo', come: 'unica sorella' }
+  diversa.notaApplicata = { nota: 'tutto per Matteo', effetto: divisione, come: 'unica sorella' }
   assert.match((costruisciPacchettoBozze(diversa, ctx) as { errore: string }).errore, /nota diversa/)
   // applicata E non attribuibile insieme: la lettura deve scegliere
   const doppia = letturaMista()
-  doppia.notaApplicata = { nota: 'metà è di Casa Ania', come: 'sorella azienda' }
+  doppia.notaApplicata = { nota: 'metà è di Casa Ania', effetto: divisione, come: 'sorella azienda' }
   doppia.notaNonAttribuita = 'metà è di Casa Ania'
   assert.match((costruisciPacchettoBozze(doppia, ctx) as { errore: string }).errore, /deve scegliere/)
   // dichiarazione di una nota che il documento NON ha
   const inventata = letturaMista()
-  inventata.notaApplicata = { nota: 'x', come: 'y' }
+  inventata.notaApplicata = { nota: 'x', effetto: divisione, come: 'y' }
   assert.match((costruisciPacchettoBozze(inventata, { ...CONTESTO, documentId: 'd1' }) as { errore: string }).errore, /nota che il documento non ha/)
 })
 

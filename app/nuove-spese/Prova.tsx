@@ -224,7 +224,7 @@ function letturaDemo(rotta: boolean): LetturaDocumento {
     sorelle: [
       {
         ambito: 'personale', destinatario: 'g-casa', data: '2026-08-29',
-        negozio: 'Mercato di Rozzano', arrotondamento_cent: 1,
+        negozio: 'Mercato di Rozzano', metodo: 'contanti', arrotondamento_cent: 1,
         dubbi: [{ campo: 'store', confidence: 0.55, motivo: 'nome del negozio poco leggibile' }],
         voci: [
           { raw_name: 'FRUTTA MISTA KG1', name: 'Frutta mista', amount: 4.5, sottocategoria: 'Frutta' },
@@ -239,10 +239,14 @@ function letturaDemo(rotta: boolean): LetturaDocumento {
         voci: [{ raw_name: 'ACETO ALCOL X2', name: 'Aceto di alcol', qty: 2, amount: 4.99, sottocategoria: 'Detersivi e pulizia' }],
       },
     ],
-    // contratto della nota (revisione R2): la lettura DICHIARA come ha
-    // applicato la nota del documento — senza dichiarazione il
-    // costruttore rifiuterebbe il pacchetto
-    notaApplicata: { nota: 'metà è di Casa Ania', come: 'la parte di Casa Ania è la sorella dell\'ambito azienda (Aceto di alcol)' },
+    // contratto della nota (revisioni R2/R5): la lettura DICHIARA come
+    // ha applicato la nota con un EFFETTO strutturato che il costruttore
+    // CONFRONTA col pacchetto — senza, o in contraddizione, rifiuta
+    notaApplicata: {
+      nota: 'metà è di Casa Ania',
+      effetto: { tipo: 'divisione', ambiti: ['personale', 'azienda'] },
+      come: 'la parte di Casa Ania è la sorella dell\'ambito azienda (Aceto di alcol)',
+    },
     notaNonAttribuita: null,
   }
 }

@@ -18,6 +18,7 @@
 // resta SEMPRE ad Ania, lo scarto è solo manuale.
 // ============================================================================
 import { canonicaCoerente, SOGLIA_CONFIDENCE } from './controlli.ts'
+import { METODI_VALIDI } from './fatture.ts'
 import type { Confidenza } from './revisione.ts'
 
 // ---- la LETTURA: ciò che l'elaboratore dichiara di aver letto -------------
@@ -51,6 +52,13 @@ export type SorellaLetta = {
   voci: VoceLetta[]
 }
 
+// l'EFFETTO che la nota di Ania ha avuto sulla lettura, in forma
+// verificabile: il costruttore lo confronta con le sorelle/voci prodotte
+export type EffettoNota =
+  | { tipo: 'ambito_unico'; ambito: 'personale' | 'azienda' }   // la nota assegna TUTTO a un ambito
+  | { tipo: 'gruppo_unico'; group_id: string }                  // la nota assegna TUTTO a un gruppo
+  | { tipo: 'divisione'; ambiti: ('personale' | 'azienda')[] }  // la nota chiede la divisione fra ambiti
+
 export type LetturaDocumento = {
   totale: number | null                // in euro; null = non leggibile (dubbio obbligatorio)
   sorelle: SorellaLetta[]
@@ -61,7 +69,10 @@ export type LetturaDocumento = {
   // DEVE dichiarare UNA delle due voci qui sotto — come l'ha applicata,
   // oppure perché non è attribuibile. Nessuna delle due, entrambe, o una
   // nota diversa da quella del documento = pacchetto RIFIUTATO.
-  notaApplicata?: { nota: string; come: string } | null
+  // L'applicazione non è una frase libera: l'EFFETTO è strutturato e il
+  // costruttore lo CONFRONTA col pacchetto prodotto (revisione R5) — una
+  // dichiarazione contraddetta dalle sorelle/voci rifiuta il pacchetto.
+  notaApplicata?: { nota: string; effetto: EffettoNota; come: string } | null
   // la nota di Ania non attribuibile con certezza (es. foto con più
   // scontrini): diventa un dubbio visibile, mai un'ipotesi silenziosa
   notaNonAttribuita?: string | null
@@ -130,14 +141,41 @@ const confidenzaDa = (dubbi: DubbioLetto[] | undefined, extra: DubbioLetto[] = [
 
 const cent = (euro: number) => Math.round(euro * 100)
 
-// un dubbio deve essere VISIBILE in revisione: campo pertinente,
-// confidence finita sotto la soglia che la schermata mostra, motivo non
-// vuoto — un «dubbio invisibile» non autorizza mai nulla
-const dubbioNonValido = (d: DubbioLetto): string | null => {
-  if (!d.campo?.trim()) return 'campo mancante'
-  if (!Number.isFinite(d.confidence) || d.confidence < 0 || d.confidence >= SOGLIA_CONFIDENCE)
-    return `confidence ${d.confidence} non finita o non sotto la soglia ${SOGLIA_CONFIDENCE}: la revisione non lo mostrerebbe`
-  if (!d.motivo?.trim()) return 'motivo vuoto'
+// CONFINE JSON (revisione R4): la lettura arriva da JSON.parse, i tipi
+// TypeScript non la proteggono — ogni campo va convalidato a runtime,
+// senza mai lanciare. Numeri FINITI (JSON.stringify muterebbe Infinity/
+// NaN in null, alterando i valori in silenzio), testi veri, enum chiusi.
+const numeroFinito = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x)
+const testoPieno = (x: unknown): x is string => typeof x === 'string' && x.trim().length > 0
+const testoONull = (x: unknown): x is string | null => x == null || typeof x === 'string'
+const NATURE_VALIDE = ['ordinaria', 'ricorrente', 'straordinaria'] as const
+
+// la data deve ESISTERE davvero, non solo avere il formato giusto
+const dataReale = (x: unknown): boolean => {
+  if (typeof x !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x)) return false
+  const [a, m, g] = x.split('-').map(Number)
+  const d = new Date(Date.UTC(a, m - 1, g))
+  return d.getUTCFullYear() === a && d.getUTCMonth() === m - 1 && d.getUTCDate() === g
+}
+
+// «campo pertinente» = whitelist DISTINTA per livello (revisione R5):
+// un dubbio su un campo inventato non è un dubbio, è rumore
+const CAMPI_DUBBIO_DOCUMENTO = new Set(['doc_total'])
+const CAMPI_DUBBIO_SORELLA = new Set(['store', 'expense_date', 'payment_method', 'group_id', 'room_id', 'expense_nature', 'arrotondamento_cent'])
+const CAMPI_DUBBIO_VOCE = new Set(['raw_name', 'name', 'qty', 'unit_price', 'discount', 'amount', 'subcategory', 'group_id', 'canonical_category_id', 'canonical_subcategory_id'])
+
+// un dubbio deve essere VISIBILE in revisione: campo pertinente al suo
+// livello, confidence finita sotto la soglia che la schermata mostra,
+// motivo non vuoto — un «dubbio invisibile» non autorizza mai nulla
+const dubbioNonValido = (d: unknown, campiAmmessi: Set<string>): string | null => {
+  if (!d || typeof d !== 'object') return 'dubbio non è un oggetto'
+  const { campo, confidence, motivo } = d as Record<string, unknown>
+  if (!testoPieno(campo)) return 'campo mancante'
+  if (!campiAmmessi.has(campo.trim()))
+    return `campo «${campo}» non pertinente a questo livello (ammessi: ${[...campiAmmessi].join(', ')})`
+  if (!numeroFinito(confidence) || confidence < 0 || confidence >= SOGLIA_CONFIDENCE)
+    return `confidence ${confidence} non finita o non sotto la soglia ${SOGLIA_CONFIDENCE}: la revisione non lo mostrerebbe`
+  if (!testoPieno(motivo)) return 'motivo vuoto'
   return null
 }
 
@@ -150,17 +188,19 @@ export function costruisciPacchettoBozze(
     return no('lettura senza alcuna parte: niente da proporre')
 
   // CONTRATTO DELLA NOTA: la nota di Ania sul documento non si ignora MAI
-  const notaDoc = contesto.nota?.trim() || null
+  const notaDoc = typeof contesto.nota === 'string' && contesto.nota.trim() ? contesto.nota.trim() : null
   const applicata = lettura.notaApplicata ?? null
-  const nonAttribuita = lettura.notaNonAttribuita?.trim() || null
+  const nonAttribuita = typeof lettura.notaNonAttribuita === 'string' && lettura.notaNonAttribuita.trim()
+    ? lettura.notaNonAttribuita.trim() : null
+  if (applicata && typeof applicata !== 'object') return no('notaApplicata non è un oggetto')
   if (notaDoc) {
     if (applicata && nonAttribuita)
       return no('nota di Ania dichiarata sia applicata sia non attribuibile: la lettura deve scegliere una delle due')
     if (!applicata && !nonAttribuita)
       return no(`nota di Ania presente sul documento («${notaDoc}») ma la lettura non dichiara né come l'ha applicata né perché non è attribuibile: la nota non si ignora`)
-    if (applicata && applicata.nota.trim() !== notaDoc)
-      return no(`la lettura dichiara applicata una nota diversa da quella del documento («${applicata.nota}» ≠ «${notaDoc}»)`)
-    if (applicata && !applicata.come.trim())
+    if (applicata && (!testoPieno(applicata.nota) || applicata.nota.trim() !== notaDoc))
+      return no(`la lettura dichiara applicata una nota diversa da quella del documento («${String(applicata.nota)}» ≠ «${notaDoc}»)`)
+    if (applicata && !testoPieno(applicata.come))
       return no('nota dichiarata applicata senza dire COME: la dichiarazione deve essere verificabile da Ania')
     if (nonAttribuita && nonAttribuita !== notaDoc)
       return no(`la lettura dichiara non attribuibile una nota diversa da quella del documento («${nonAttribuita}» ≠ «${notaDoc}»)`)
@@ -171,9 +211,11 @@ export function costruisciPacchettoBozze(
   if (lettura.dubbioTotale) {
     if (lettura.dubbioTotale.campo !== 'doc_total')
       return no(`dubbio sul totale con campo «${lettura.dubbioTotale.campo}»: deve essere doc_total`)
-    const ragione = dubbioNonValido(lettura.dubbioTotale)
+    const ragione = dubbioNonValido(lettura.dubbioTotale, CAMPI_DUBBIO_DOCUMENTO)
     if (ragione) return no(`dubbio sul totale non valido (${ragione}): un dubbio invisibile non autorizza una quadratura errata`)
   }
+  if (lettura.totale != null && (!numeroFinito(lettura.totale) || lettura.totale < 0))
+    return no(`totale non è un numero finito ≥ 0 (letto: ${String(lettura.totale)})`)
 
   const ambitoDi = new Map(contesto.gruppi.map(g => [g.id, g.ambito]))
 
@@ -182,15 +224,27 @@ export function costruisciPacchettoBozze(
   let sommaCent = 0
   for (const [i, s] of lettura.sorelle.entries()) {
     const rif = `sorella-${i + 1}`
-    if (!s.destinatario || ambitoDi.get(s.destinatario) !== s.ambito)
-      return no(`parte ${i + 1}: destinatario mancante o di un altro ambito (${s.destinatario ?? 'nessuno'})`)
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(s.data)) return no(`parte ${i + 1}: data non valida (${s.data})`)
-    if (s.ambito === 'azienda' && !s.metodo)
+    if (!s || typeof s !== 'object') return no(`parte ${i + 1}: non è un oggetto`)
+    if (s.ambito !== 'personale' && s.ambito !== 'azienda')
+      return no(`parte ${i + 1}: ambito sconosciuto (${String(s.ambito)})`)
+    if (!testoPieno(s.destinatario) || ambitoDi.get(s.destinatario) !== s.ambito)
+      return no(`parte ${i + 1}: destinatario mancante o di un altro ambito (${String(s.destinatario ?? 'nessuno')})`)
+    if (!dataReale(s.data)) return no(`parte ${i + 1}: data non valida o inesistente (${String(s.data)})`)
+    if (s.ambito === 'azienda' && !testoPieno(s.metodo))
       return no(`parte ${i + 1}: il metodo di pagamento è OBBLIGATORIO per l'ambito azienda`)
+    if (s.metodo != null && !(METODI_VALIDI as readonly string[]).includes(s.metodo))
+      return no(`parte ${i + 1}: metodo di pagamento sconosciuto (${String(s.metodo)})`)
+    if (s.natura != null && !(NATURE_VALIDE as readonly string[]).includes(s.natura))
+      return no(`parte ${i + 1}: natura sconosciuta (${String(s.natura)})`)
+    if (!testoONull(s.negozio)) return no(`parte ${i + 1}: negozio non testuale`)
+    if (s.camera != null && !testoPieno(s.camera)) return no(`parte ${i + 1}: camera non testuale`)
+    if (s.arrotondamento_cent != null && (!numeroFinito(s.arrotondamento_cent) || !Number.isInteger(s.arrotondamento_cent)))
+      return no(`parte ${i + 1}: arrotondamento_cent deve essere un intero finito (letto: ${String(s.arrotondamento_cent)})`)
     if (!Array.isArray(s.voci) || s.voci.length === 0)
       return no(`parte ${i + 1}: nessuna voce letta`)
+    if (s.dubbi != null && !Array.isArray(s.dubbi)) return no(`parte ${i + 1}: dubbi non è un elenco`)
     for (const d of s.dubbi ?? []) {
-      const ragione = dubbioNonValido(d)
+      const ragione = dubbioNonValido(d, CAMPI_DUBBIO_SORELLA)
       if (ragione) return no(`parte ${i + 1}: dubbio dichiarato non valido (${ragione})`)
     }
     // i dubbi di documento (nota non attribuita, possibile duplicato)
@@ -208,29 +262,39 @@ export function costruisciPacchettoBozze(
       category_id: null, subcategory: null,
       canonical_category_id: null, canonical_subcategory_id: null,
       store: s.negozio, description: null,
-      payment_method: s.metodo ?? (s.ambito === 'personale' ? 'contanti' : null),
+      // FEDELTÀ (revisione R4): il metodo non letto resta NON indicato —
+      // per Casa Mia è facoltativo, e inventare «contanti» altererebbe
+      // l'analisi «Come stai pagando»
+      payment_method: s.metodo ?? null,
       room_id: s.camera ?? null, expense_nature: s.natura ?? null,
       arrotondamento_cent: s.arrotondamento_cent ?? 0,
       confidence: confidenzaDa(s.dubbi, dubbiDocumento),
     })
     for (const [j, v] of s.voci.entries()) {
-      const dove = `parte ${i + 1}, voce ${j + 1} («${v.name || v.raw_name || '?'}»)`
-      if (!v.name?.trim()) return no(`${dove}: nome mancante`)
+      const dove = `parte ${i + 1}, voce ${j + 1} («${String(v?.name ?? v?.raw_name ?? '?')}»)`
+      if (!v || typeof v !== 'object') return no(`${dove}: non è un oggetto`)
+      if (!testoPieno(v.name)) return no(`${dove}: nome mancante o non testuale`)
+      if (!testoONull(v.raw_name)) return no(`${dove}: raw_name non testuale`)
       const qty = v.qty ?? 1
       const discount = v.discount ?? 0
-      if (!(qty > 0)) return no(`${dove}: qty deve essere > 0`)
-      if (!(discount >= 0)) return no(`${dove}: discount deve essere ≥ 0`)
-      if (!(v.amount >= 0)) return no(`${dove}: amount deve essere ≥ 0`)
-      if (v.unit_price != null && !(v.unit_price >= 0)) return no(`${dove}: unit_price deve essere null o ≥ 0`)
+      if (!numeroFinito(qty) || !(qty > 0)) return no(`${dove}: qty deve essere un numero finito > 0 (letto: ${String(qty)})`)
+      if (!numeroFinito(discount) || !(discount >= 0)) return no(`${dove}: discount deve essere un numero finito ≥ 0 (letto: ${String(discount)})`)
+      if (!numeroFinito(v.amount) || !(v.amount >= 0)) return no(`${dove}: amount deve essere un numero finito ≥ 0 (letto: ${String(v.amount)})`)
+      if (v.unit_price != null && (!numeroFinito(v.unit_price) || !(v.unit_price >= 0)))
+        return no(`${dove}: unit_price deve essere null o un numero finito ≥ 0 (letto: ${String(v.unit_price)})`)
       // regola della casa: la sottocategoria non è MAI vuota
-      if (!v.sottocategoria?.trim())
+      if (!testoPieno(v.sottocategoria))
         return no(`${dove}: sottocategoria vuota — ogni voce deve averla (regola della casa)`)
+      if (!testoONull(v.canonical_category_id) || !testoONull(v.canonical_subcategory_id))
+        return no(`${dove}: canoniche non testuali`)
       if (!canonicaCoerente(v, contesto.sottoCanoniche))
         return no(`${dove}: sottocategoria canonica incoerente con la categoria`)
-      if (v.destinatario && ambitoDi.get(v.destinatario) !== s.ambito)
+      if (v.destinatario != null && (!testoPieno(v.destinatario) || ambitoDi.get(v.destinatario) !== s.ambito))
         return no(`${dove}: destinatario della voce di un altro ambito`)
+      if (v.escludi != null && typeof v.escludi !== 'boolean') return no(`${dove}: escludi deve essere vero/falso`)
+      if (v.dubbi != null && !Array.isArray(v.dubbi)) return no(`${dove}: dubbi non è un elenco`)
       for (const d of v.dubbi ?? []) {
-        const ragione = dubbioNonValido(d)
+        const ragione = dubbioNonValido(d, CAMPI_DUBBIO_VOCE)
         if (ragione) return no(`${dove}: dubbio dichiarato non valido (${ragione})`)
       }
       if (!v.escludi) sommaCent += cent(v.amount)
@@ -247,6 +311,37 @@ export function costruisciPacchettoBozze(
       })
     }
     sommaCent += s.arrotondamento_cent ?? 0
+  }
+
+  // EFFETTO DELLA NOTA (revisione R5): la dichiarazione non è una frase
+  // libera — l'effetto strutturato viene CONFRONTATO con il pacchetto
+  // prodotto, e una contraddizione rifiuta tutto
+  if (applicata) {
+    const eff = applicata.effetto
+    if (!eff || typeof eff !== 'object')
+      return no('notaApplicata senza EFFETTO strutturato: la dichiarazione deve essere verificabile, non una frase libera')
+    const contraddice = (m: string) => no(`nota dichiarata applicata ma il pacchetto la CONTRADDICE: ${m}`)
+    if (eff.tipo === 'ambito_unico') {
+      if (eff.ambito !== 'personale' && eff.ambito !== 'azienda')
+        return no(`effetto della nota: ambito sconosciuto (${String(eff.ambito)})`)
+      const fuori = lettura.sorelle.filter(s => s.ambito !== eff.ambito).length
+      if (fuori) return contraddice(`dichiarato tutto nell'ambito «${eff.ambito}», ma ${fuori} parte/i stanno nell'altro ambito`)
+    } else if (eff.tipo === 'gruppo_unico') {
+      if (!testoPieno(eff.group_id) || !ambitoDi.has(eff.group_id))
+        return no(`effetto della nota: gruppo sconosciuto (${String(eff.group_id)})`)
+      if (lettura.sorelle.some(s => s.destinatario !== eff.group_id)
+        || righe.some(r => r.group_id != null && r.group_id !== eff.group_id))
+        return contraddice(`dichiarato tutto al gruppo «${eff.group_id}», ma parti o voci vanno ad altri gruppi`)
+    } else if (eff.tipo === 'divisione') {
+      const dichiarati = Array.isArray(eff.ambiti) ? [...new Set(eff.ambiti)] : []
+      if (!dichiarati.length || dichiarati.some(a => a !== 'personale' && a !== 'azienda'))
+        return no('effetto della nota: divisione senza ambiti validi')
+      const presenti = new Set(lettura.sorelle.map(s => s.ambito))
+      if (dichiarati.length !== presenti.size || dichiarati.some(a => !presenti.has(a)))
+        return contraddice(`divisione dichiarata fra ${dichiarati.join('+')}, ma gli ambiti presenti sono ${[...presenti].join('+')}`)
+    } else {
+      return no(`effetto della nota di tipo sconosciuto (${String((eff as { tipo?: unknown }).tipo)})`)
+    }
   }
 
   // QUADRATURA: esatta, oppure il dubbio è DICHIARATO (totale compreso)
@@ -349,7 +444,12 @@ export async function elaboraDocumento(
     motivoErrore = esitoLettura.errore
     richiesta = { statiAmmessi: STATI_ELABORABILI, errore: esitoLettura.errore }
   } else {
-    const costruito = costruisciPacchettoBozze(esitoLettura.lettura, { ...contesto, documentId })
+    // il costruttore VALIDA senza lanciare; se un difetto lo facesse
+    // comunque lanciare, l'eccezione diventa una marcatura d'errore
+    // controllata — mai un documento lasciato «da elaborare» a metà
+    let costruito: ReturnType<typeof costruisciPacchettoBozze>
+    try { costruito = costruisciPacchettoBozze(esitoLettura.lettura, { ...contesto, documentId }) }
+    catch (e) { costruito = { ok: false, errore: `lettura malformata (${e instanceof Error ? e.message : String(e)})` } }
     if (!costruito.ok) {
       motivoErrore = costruito.errore
       richiesta = { statiAmmessi: STATI_ELABORABILI, errore: costruito.errore }

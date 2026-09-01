@@ -1,9 +1,13 @@
 -- ============================================================================
--- 0023 — ELABORAZIONE «SOLO BOZZE»: PRIMITIVO ATOMICO — ***PROPOSTA***
+-- 0023 — ELABORAZIONE «SOLO BOZZE»: PRIMITIVO ATOMICO — ***PROPOSTA/BOZZA***
 -- ============================================================================
--- STATO: NON APPLICATA. Va eseguita a mano nell'editor SQL solo dopo
+-- STATO: NON APPLICATA. Vive in supabase/proposte/ (revisione R6): NON è
+-- nel percorso di `supabase db push` e non deve entrarci finché resta
+-- una proposta. Va eseguita a mano nell'editor SQL solo dopo
 -- l'autorizzazione; la PRIMA esecuzione e il collaudo vanno fatti in un
 -- ambiente ISOLATO dalla produzione. Non modifica la 0020/0021/0022.
+-- Solo all'autorizzazione, se si sceglie di archiviarla fra le
+-- migrazioni, si rinomina senza il suffisso BOZZA.
 --
 -- PROBLEMA (revisione R1 del candidato 108c130): lo strumento di
 -- elaborazione realizzava «mai parziali / mai doppioni» con una sequenza
@@ -15,7 +19,10 @@
 --  · lock della riga documento (select … for update) = arbitraggio
 --    concorrente: due elaborazioni simultanee si serializzano e la
 --    seconda trova lo stato già cambiato → rifiutata, mai bozze doppie;
---  · verifica dello stato DENTRO la transazione (p_stati_ammessi);
+--  · gli stati elaborabili sono POSITIVI e FISSATI DAL SERVER
+--    ('da_elaborare', 'errore'): NON arrivano dal chiamante (R6);
+--  · un pacchetto senza bozze, o con una bozza senza righe, NON può
+--    portare il documento in revisione: rifiutato (R6);
 --  · sostituzione integrale di bozze+righe del documento + doc_total +
 --    stato in_revisione, oppure (p_errore) pulizia totale + stato errore
 --    col motivo — TUTTO O NIENTE: qualunque eccezione annulla l'intera
@@ -40,7 +47,6 @@ end $$;
 
 create or replace function public.elabora_sostituisci_bozze(
   p_document_id uuid,
-  p_stati_ammessi text[],
   -- { doc_total, bozze: [ { …campi bozza…, righe: [ …campi riga… ] } ] }
   -- oppure NULL quando p_errore è valorizzato (marcatura d'errore)
   p_pacchetto jsonb,
@@ -62,8 +68,21 @@ begin
     return jsonb_build_object('ok', false,
       'errore', 'richiesta malformata: serve il pacchetto O il motivo di errore, mai entrambi o nessuno');
   end if;
-  if p_stati_ammessi is null or array_length(p_stati_ammessi, 1) is null then
-    return jsonb_build_object('ok', false, 'errore', 'richiesta malformata: p_stati_ammessi vuoto');
+  -- pacchetto vuoto o bozze senza righe: mai «in revisione» dal nulla
+  if p_pacchetto is not null then
+    if jsonb_typeof(p_pacchetto->'bozze') is distinct from 'array'
+       or jsonb_array_length(p_pacchetto->'bozze') = 0 then
+      return jsonb_build_object('ok', false,
+        'errore', 'pacchetto senza bozze: non può portare il documento in revisione');
+    end if;
+    if exists (
+      select 1 from jsonb_array_elements(p_pacchetto->'bozze') b
+      where jsonb_typeof(b->'righe') is distinct from 'array'
+         or jsonb_array_length(b->'righe') = 0
+    ) then
+      return jsonb_build_object('ok', false,
+        'errore', 'una bozza senza righe: non può portare il documento in revisione');
+    end if;
   end if;
 
   -- ARBITRAGGIO: lock sul documento; chi arriva secondo aspetta e poi
@@ -75,7 +94,8 @@ begin
   if not found then
     return jsonb_build_object('ok', false, 'errore', 'documento inesistente');
   end if;
-  if not (v_stato = any(p_stati_ammessi)) then
+  -- stati elaborabili POSITIVI, FISSATI QUI e non dal chiamante (R6)
+  if v_stato not in ('da_elaborare', 'errore') then
     return jsonb_build_object('ok', false, 'stato_attuale', v_stato,
       'errore', format('documento in stato «%s»: non ammesso alla sostituzione', v_stato));
   end if;
@@ -137,7 +157,7 @@ begin
 end $$;
 
 -- solo il service role (strumento del runbook): mai il browser
-revoke execute on function public.elabora_sostituisci_bozze(uuid, text[], jsonb, text)
+revoke execute on function public.elabora_sostituisci_bozze(uuid, jsonb, text)
   from public, anon, authenticated;
-grant execute on function public.elabora_sostituisci_bozze(uuid, text[], jsonb, text)
+grant execute on function public.elabora_sostituisci_bozze(uuid, jsonb, text)
   to service_role;
