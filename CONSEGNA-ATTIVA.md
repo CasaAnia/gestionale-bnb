@@ -8,9 +8,9 @@ piano. Questa scheda definisce il blocco successivo previsto dal metodo
 ## Identità e perimetro
 
 - Base: `fb46660` più il verbale di chiusura.
-- Stato: CORRETTO ANCHE R4–R6, PRONTO PER LA VERIFICA FINALE MIRATA —
-  esiti nella sezione «Chiusura dei rilievi R4–R6» in fondo; le 12
-  riproduzioni del revisore restano intatte e sono tutte verdi.
+- Stato: VERIFICATO IN LOCALE SU `1ae4b6b` — blocco «elaborazione solo
+  bozze» CHIUSO senza rilievi bloccanti. La bozza 0023, il suo collaudo e
+  qualunque attivazione reale restano passaggi separati da autorizzare.
   Data effettiva dell'autorizzazione locale all'implementazione:
   31/08/2026 (il 02/09 scritto in precedenza era un refuso).
 - Implementatore: Claude. Revisore: Codex. Stessi ruoli, stessa scheda.
@@ -350,3 +350,37 @@ solo il websocket HMR del dev server, nessun errore applicativo).
 Comando comune e build sul candidato fermo: esito nel resoconto (la
 scheda non può contenere la propria impronta). Nessun SQL eseguito,
 nessun accesso remoto, strumento NON attivato, nessun push.
+
+## Verifica finale di Codex — candidato 1ae4b6b
+
+**VERDETTO: APPROVATO IN LOCALE, nessun bloccante residuo su R4–R6.**
+
+- Identità verificata: HEAD
+  `1ae4b6b0574f4cbe2548e620694e769154ce38f5`, branch
+  `rifacimento-spese`, albero pulito all'avvio e al termine.
+- Le prove del revisore sono rimaste intatte: 12/12 verdi (le 5 di
+  `108c130` più le 7 di `8a67af1`). Test del modulo: 14/14. Il comando
+  condiviso ha dato `VERIFICHE_TECNICHE_OK` con impronta
+  `9408c50d137db66ef606535c0bce8913fec12ff2af7e4c654cc413dd066aed4a`;
+  `git diff --check` e sintassi dello strumento verdi.
+- R4 verificato anche oltre le fixture: cinque letture estreme (radice
+  `null`, parte o voce nulla, dubbi non in elenco, effetto nota non
+  strutturato) non lanciano né lasciano il documento sospeso; ciascuna
+  produce una sola richiesta atomica di marcatura `documento_errore`.
+  Metodo personale assente = `null`, numeri non finiti e data impossibile
+  rifiutati.
+- R5 verificato: l'effetto `ambito_unico`/`gruppo_unico`/`divisione` viene
+  confrontato con parti e voci; una dichiarazione contraddittoria o un
+  campo dubbio fuori whitelist viene respinto. La nota non è più una
+  frase libera sufficiente a far passare il pacchetto.
+- R6 verificato staticamente: nessun file 0023 nelle migrazioni operative;
+  la bozza esiste solo in `supabase/proposte/`; `p_stati_ammessi` è assente
+  da bozza e strumento, gli stati positivi sono fissati nella funzione e
+  pacchetti/bozze vuoti sono respinti prima della sostituzione.
+
+Build ed E08 non sono stati ripetuti da Codex: restano evidenze dichiarate
+dell'implementatore e sono coerenti col delta ispezionato. Nessun SQL,
+database remoto, attivazione, push o deploy eseguito in questa verifica.
+Il prossimo passo non è un'altra correzione locale del blocco: è decidere
+se preparare il collaudo isolato della bozza 0023, con autorizzazione
+separata e le stesse cautele già usate per i contratti precedenti.
