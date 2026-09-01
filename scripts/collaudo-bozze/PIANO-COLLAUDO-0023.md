@@ -14,8 +14,9 @@ ferma se non esiste o non è l'unico con quel nome; mai creazioni
 automatiche, mai altri progetti. Credenziali: token Management API
 TEMPORANEO fornito al momento con la solita procedura (appunti → file
 locale fuori repo, permessi 600, cancellato a fine collaudo, revoca
-ricordata esplicitamente); per il passo 3 anche la password del db di
-prova con la procedura di `collaudo-contratto/passo0b-password.mjs`.
+ricordata esplicitamente). La password del db di prova NON serve: il
+caso deterministico del passo 3 usa un solo batch SQL (una richiesta =
+una connessione = una transazione) con un advisory lock osservabile.
 Nessun segreto in chat, log o repository.
 
 ## Prerequisiti
@@ -35,8 +36,6 @@ Nessun segreto in chat, log o repository.
 ## SEQUENZA ESATTA (ogni passo: STOP alla prima verifica fallita)
 
 0. `node scripts/fase4/passo0-riaggancia.mjs` — riaggancio + guardia.
-0b. `node scripts/collaudo-contratto/passo0b-password.mjs` — password
-   del db di prova (serve solo al passo 3; stessa procedura 600).
 1. `node scripts/collaudo-bozze/passo1-struttura.mjs`
    — conformità STATICA della bozza (vincoli R6); apre il REGISTRO
    durevole e salva la FOTOGRAFIA DI BASE prima di ogni effetto;
@@ -55,11 +54,14 @@ Nessun segreto in chat, log o repository.
    violato (fotografia byte per byte, bozze pregresse comprese) ·
    documento inesistente dichiarato.
 3. `node scripts/collaudo-bozze/passo3-concorrenza.mjs`
-   — caso DETERMINISTICO con sessione pg dedicata: lock del documento
-   tenuto da A, la chiamata B resta IN ATTESA (misurato su
-   pg_stat_activity), A elabora e committa, B viene rifiutata con lo
-   stato già cambiato e UNA sola serie di bozze; più il caso PARALLELO
-   via PostgREST: due chiamate simultanee, esattamente una riesce.
+   — caso DETERMINISTICO senza password del db: la sessione A è un solo
+   batch SQL (una richiesta = una connessione = una transazione) che
+   prende il lock del documento, lo segnala con un advisory lock
+   osservabile, dorme e poi elabora e committa; B parte SOLO ad advisory
+   visibile, resta IN ATTESA (misurato su pg_stat_activity) e viene
+   rifiutata con lo stato già cambiato e UNA sola serie di bozze; più il
+   caso PARALLELO via PostgREST: due chiamate simultanee, esattamente
+   una riesce.
 4. `node scripts/collaudo-bozze/passo4-pulizia.mjs`
    — pulizia per IDENTIFICATIVI ESATTI dal registro (righe → bozze →
    documenti, funzione per ultima; in questo collaudo nessun documento
