@@ -1,11 +1,12 @@
 # RUNBOOK — elaborazione «solo bozze» degli scontrini
 
-**Stato: PREPARATO, ATTIVAZIONE DA AUTORIZZARE.** Finché l'utente non dà
-il via libera, il flusso operativo resta quello di sempre e lo strumento
-qui sotto si RIFIUTA di scrivere (cancello nel comando). Questo runbook
-sostituirà il passo «inserire le spese» del flusso attuale: da attivo,
-l'elaborazione scrive SOLO BOZZE e la conferma resta sempre ad Ania
-nella schermata di revisione.
+**Stato: ATTIVO dal 01/09/2026** (via libera esplicito dell'utente;
+contratto database 0023 applicato e collaudato, memoria dell'assistente
+aggiornata). Questo runbook È il flusso degli scontrini: l'elaborazione
+scrive SOLO BOZZE e la conferma resta sempre ad Ania nella schermata di
+revisione. Il primo documento va elaborato in modo CONTROLLATO (sezione
+«Accensione controllata»). La variabile d'ambiente vale per il singolo
+comando: niente resta acceso da solo.
 
 ## Il flusso (per l'assistente che elabora)
 
