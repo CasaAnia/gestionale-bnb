@@ -8,9 +8,9 @@ piano. Questa scheda definisce il blocco successivo previsto dal metodo
 ## Identità e perimetro
 
 - Base: `fb46660` più il verbale di chiusura.
-- Stato: CORRETTO, PRONTO PER LA VERIFICA DEL REVISORE — i tre gruppi
-  bloccanti della revisione (verbale in fondo) sono chiusi in un unico
-  giro locale: esiti nella sezione «Chiusura dei rilievi R1–R3».
+- Stato: REVISIONATO SU `8a67af1`, RILIEVI R4–R6 APERTI — R1 e R3
+  risultano chiusi; R2 è chiuso solo in parte. Esiti e riproduzioni nella
+  sezione «Seconda revisione indipendente di Codex» in fondo.
   Data effettiva dell'autorizzazione locale all'implementazione:
   31/08/2026 (il 02/09 scritto in precedenza era un refuso).
 - Implementatore: Claude. Revisore: Codex. Stessi ruoli, stessa scheda.
@@ -228,3 +228,76 @@ errori. L'impronta del candidato FERMO è nel resoconto di consegna (la
 scheda non può contenere la propria impronta). Restano NON eseguiti,
 come da perimetro: SQL, accessi remoti, attivazione dello strumento,
 push e deploy.
+
+## Seconda revisione indipendente di Codex — candidato 8a67af1
+
+### Identità e quanto è confermato
+
+- Verificato HEAD `8a67af13ead533b48b82f9bab7c22e3805e43dec`, branch
+  `rifacimento-spese`, albero pulito all'avvio. Prima di aggiungere le
+  nuove riproduzioni: 5/5 prove originarie del revisore, 13/13 test del
+  modulo e comando condiviso VERDI; impronta
+  `096fa0427155a182d9ffab3db5f69173609e513cd5285ff54dfaf24c385e622c`.
+- R1 è chiuso nel codice locale: lo strumento non contiene più scritture
+  REST e l'orchestratore reale può usare un solo primitivo atomico. R3 è
+  chiuso: errori nella verifica duplicati fermano il giro, le impronte
+  mancanti diventano dubbio e il cancello blocca anche `--prova` prima di
+  leggere `.env.local` (ricontrollato con entrambe le forme del comando).
+- Build ed E08 non sono stati ripetuti dal revisore in questo giro: restano
+  evidenze dell'implementatore. Nessun accesso remoto o SQL eseguito.
+
+### R4 — BLOCCANTE: il confine JSON non è convalidato a runtime
+
+`lettura.json` arriva da `JSON.parse`, quindi i tipi TypeScript non lo
+proteggono. Con `name: 123` il costruttore lancia `TypeError: trim is not a
+function`; anche `elaboraDocumento` lascia propagare l'eccezione e il
+documento resta `da_elaborare`, invece di passare una marcatura atomica di
+errore. La stessa validazione accetta `qty: Infinity` (che JSON trasforma in
+`null` e la RPC cambierebbe silenziosamente nel default 1) e la data
+impossibile `2026-99-99`. Inoltre un metodo personale assente viene inventato
+come `contanti`, nonostante il tipo dichiari obbligatorio il metodo solo per
+l'azienda: altera l'analisi «Come stai pagando».
+
+Atteso: convalida runtime completa e senza eccezioni del documento letto;
+numeri finiti e nei vincoli, data ISO realmente valida, enum verificati.
+Un input malformato deve produrre l'esito controllato `documento_errore` con
+una sola sostituzione atomica. Il metodo facoltativo di Casa Mia, se non
+letto, resta `null`: mai inventare «Contanti».
+
+### R5 — BLOCCANTE: R2 dichiara la nota, ma non dimostra che l'ha applicata
+
+Una lettura può dichiarare `notaApplicata: «Tutto per Casa Ania»` e
+`come: «tutto assegnato alla parte aziendale»`, lasciando però l'unica
+sorella nell'ambito personale: oggi il pacchetto passa. Il testo `come`
+viene poi scartato e non può essere confrontato con ambito/gruppi né
+mostrato come prova strutturata. Anche «campo pertinente» non è davvero
+applicato: un dubbio sul campo inventato `banana` passa e finisce nella
+confidence.
+
+Atteso: effetto della nota rappresentato in forma strutturata e confrontato
+con il pacchetto prodotto (oppure nota non attribuita e dubbio visibile),
+non una frase libera contraddittoria. Whitelist distinta dei campi dubbio
+per documento, parte e voce. E06 deve provare un'assegnazione forzata reale,
+non soltanto la presenza di una dichiarazione.
+
+### R6 — BLOCCANTE DI PERIMETRO E PRE-COLLAUDO: 0023 è già nel percorso operativo
+
+La scheda esclude esplicitamente migrazioni/RPC da questo blocco, ma la
+proposta è stata aggiunta come `supabase/migrations/0023_...sql`: è quindi
+nel percorso applicabile da un normale `supabase db push`, pur dichiarandosi
+non autorizzata. Finché resta proposta deve vivere in `proposte/*.BOZZA.sql`
+e il runbook deve puntare lì. Prima di qualunque autorizzazione al collaudo
+va inoltre irrigidita: gli stati elaborabili devono essere positivi e
+fissati dal server (non ricevuti come `p_stati_ammessi` dal chiamante) e un
+pacchetto senza bozze/righe non può portare il documento in revisione.
+
+### Prove consegnate e prossimo passaggio
+
+- Aggiunte sette riproduzioni a
+  `scripts/revisioni/elaborazione-solo-bozze-108c130.test.mjs`: confine JSON
+  senza crash e con marcatura d'errore; nota contraddittoria; campi dubbio,
+  numeri/data/metodo; proposta SQL fuori dalla cartella operativa. Gli assert
+  descrivono E02/E04/E06 e il perimetro autorizzato: non vanno invertiti.
+- Claude corregge R4–R6 in un solo giro locale sul candidato fermo, senza
+  remoto, SQL, migrazione applicata, push o deploy. Poi riesegue il comando
+  condiviso e consegna un nuovo candidato per una verifica finale mirata.
