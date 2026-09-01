@@ -7,6 +7,29 @@ import { tariffaCamera, totaleLetto } from '@/lib/tariffe'
 import { contoSoggiorno } from '@/lib/conto'
 import { smartBack, returnToSicuro } from '@/lib/navHistory'
 
+// forme MINIME delle righe lette da Supabase (solo i campi usati qui)
+type ClienteRiga = {
+  id: string; full_name: string | null; email: string | null
+  phone: string | null; rating: string
+}
+type SoggiornoRiga = {
+  id: string; status: string; check_in: string; check_out: string
+  total_amount: number | string; price_per_night: number | string
+  num_guests: number; extra_bed?: boolean | null; notes?: string | null
+  cancelled_reason?: string | null; pagato?: boolean | null
+  bonifico?: boolean | null; guest_name?: string | null
+  extra_phone_1_name?: string | null; chi_e?: string | null
+  rooms?: { name?: string | null } | null
+  guests?: ClienteRiga | null
+}
+type CameraRiga = {
+  id: string; name: string; base_price: number | string
+  bathroom_type?: string | null
+  has_extra_bed?: boolean | null
+  extra_bed_price?: number | string | null
+  matrimoniale_price?: number | string | null
+}
+
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
 
@@ -39,10 +62,10 @@ function NuovaPrenotazione() {
   const [step, setStep] = useState<'telefono' | 'cliente' | 'dettagli'>('telefono')
   const [phone, setPhone] = useState('')
   const [searchName, setSearchName] = useState('')
-  const [nameResults, setNameResults] = useState<any[]>([])
-  const [guest, setGuest] = useState<any>(null)
-  const [guestHistory, setGuestHistory] = useState<any[]>([])
-  const [rooms, setRooms] = useState<any[]>([])
+  const [nameResults, setNameResults] = useState<ClienteRiga[]>([])
+  const [guest, setGuest] = useState<ClienteRiga | null>(null)
+  const [guestHistory, setGuestHistory] = useState<SoggiornoRiga[]>([])
+  const [rooms, setRooms] = useState<CameraRiga[]>([])
   const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', shuttle: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '', bonifico: false, source: 'diretta', extra_phone_1_name: '', chi_e: '' })
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
   const [saving, setSaving] = useState(false)
@@ -82,7 +105,7 @@ function NuovaPrenotazione() {
       })
       setRooms(sorted)
       if (preselectedRoomId) {
-        const room = (data || []).find((r: any) => r.id === preselectedRoomId)
+        const room = ((data || []) as CameraRiga[]).find(r => r.id === preselectedRoomId)
         if (room) setForm(f => ({ ...f, price_per_night: Number(room.base_price) }))
         if (preselectedCheckIn) checkDisponibilita(preselectedRoomId, preselectedCheckIn, addOneDay(preselectedCheckIn))
       }
@@ -119,7 +142,7 @@ function NuovaPrenotazione() {
 
     // unisci i risultati (evita duplicati per id)
     const seen = new Set<string>()
-    const combined: any[] = []
+    const combined: ClienteRiga[] = []
     for (const g of guestMatches || []) { if (!seen.has(g.id)) { seen.add(g.id); combined.push(g) } }
     for (const b of extraMatches || []) { if (b.guests && !seen.has(b.guests.id)) { seen.add(b.guests.id); combined.push(b.guests) } }
 
@@ -143,7 +166,7 @@ function NuovaPrenotazione() {
     setSearchLoading(false)
   }
 
-  async function selectGuestFromList(g: any) {
+  async function selectGuestFromList(g: ClienteRiga) {
     setGuest(g)
     setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
     const { data: history } = await supabase.from('bookings').select('*, rooms(name)').eq('guest_id', g.id).order('check_in', { ascending: false })
@@ -217,7 +240,7 @@ function NuovaPrenotazione() {
     return `${left}–${b.toLocaleDateString('it-IT', short)} ${b.getFullYear()}`
   }
 
-  function statusBadge(h: any) {
+  function statusBadge(h: SoggiornoRiga) {
     if (h.status === 'annullata') return { label: 'Annullata', dot: '#8C3B2E' }
     if (h.pagato) return { label: 'Pagato', dot: '#7D9DB0' }
     if (h.bonifico) return { label: 'Bonifico', dot: '#9B8EC4' }
@@ -250,7 +273,7 @@ function NuovaPrenotazione() {
         .lt('check_in', check_out).gt('check_out', check_in),
     ])
     if (conf && conf.length > 0) {
-      const b = conf[0] as any
+      const b = conf[0] as unknown as SoggiornoRiga
       setConflitto(`⚠️ ${b.rooms?.name || 'Camera'} già occupata dal ${b.check_in} al ${b.check_out} (${b.guest_name || b.guests?.full_name || 'altro cliente'})`)
     } else {
       setConflitto(null)
@@ -428,7 +451,7 @@ function NuovaPrenotazione() {
               {guestHistory.length > 0 && (
                 <div className="mt-3 border-t border-card-border pt-3">
                   <p className="text-[11px] uppercase mb-2 text-brass" style={{ letterSpacing: '2px' }}>Storico soggiorni ({guestHistory.length})</p>
-                  <p className="text-sm font-semibold text-green-mid mb-2">Totale speso: €{guestHistory.filter(h => h.status !== 'annullata').reduce((s: number, h: any) => s + Number(h.total_amount), 0).toFixed(0)}</p>
+                  <p className="text-sm font-semibold text-green-mid mb-2">Totale speso: €{guestHistory.filter(h => h.status !== 'annullata').reduce((s: number, h) => s + Number(h.total_amount), 0).toFixed(0)}</p>
                   {guestHistory.map(h => {
                     const open = openHistory.has(h.id)
                     const badge = statusBadge(h)
@@ -473,7 +496,16 @@ function NuovaPrenotazione() {
           ) : (
             <div className="bg-sage rounded-xl p-4 border border-card-border mb-4">
               <p className="font-semibold text-green-mid mb-1">➕ Nuovo cliente</p>
-              <p className="text-sm text-green-mid">📞 {phone}</p>
+              {/* Quello che hai scritto nella ricerca resta qui: dal telefono
+                  il numero è già compilato; dal NOME il numero si aggiunge
+                  ADESSO da questo campo (prima era testo fisso e chi cercava
+                  per nome non poteva più inserirlo). */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-green-mid">📞</span>
+                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                  placeholder="Numero di telefono"
+                  className="flex-1 border border-card-border rounded-lg p-2 text-sm bg-white" />
+              </div>
             </div>
           )}
 
@@ -672,7 +704,7 @@ function NuovaPrenotazione() {
               className="flex items-center justify-between bg-sage rounded-lg p-3 mb-3 border border-card-border cursor-pointer active:opacity-70">
               <div>
                 <p className="text-sm font-semibold text-green-dark">🏦 Pagamento tramite bonifico</p>
-                <p className="text-xs text-green-mid">La conferma includerà l'IBAN</p>
+                <p className="text-xs text-green-mid">La conferma includerà l&apos;IBAN</p>
               </div>
               <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${form.bonifico ? 'bg-green-mid' : 'bg-gray-200'}`}>
                 <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${form.bonifico ? 'translate-x-6' : ''}`} />
