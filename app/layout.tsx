@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Nunito_Sans } from 'next/font/google'
+import { Fraunces, Manrope, Nunito_Sans } from 'next/font/google'
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
 import MobileTopBar from '@/components/MobileTopBar'
@@ -10,6 +10,8 @@ import WebRequestAlert from '@/components/WebRequestAlert'
 import RinnovoNotifiche from '@/components/RinnovoNotifiche'
 
 const nunitoSans = Nunito_Sans({ subsets: ['latin'], variable: '--font-nunito-sans', display: 'swap' })
+const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', weight: ['400', '600'], style: ['normal', 'italic'], display: 'swap' })
+const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope', weight: ['400', '500', '600', '700'], display: 'swap' })
 
 export const metadata: Metadata = {
   title: 'Casa Ania Rozzano',
@@ -40,7 +42,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="it" className={nunitoSans.variable}>
+    <html lang="it" className={`${nunitoSans.variable} ${fraunces.variable} ${manrope.variable}`}>
       <body className="bg-cream text-green-dark antialiased font-sans">
         <ScrollToTop />
         <NavTracker />
