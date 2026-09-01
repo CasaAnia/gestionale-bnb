@@ -67,23 +67,28 @@ function todayStr() {
 // - Se non c'è nessun pagamento registrato → si assume saldo intero alla consegna chiavi
 //   (primo check-in del soggiorno), tranne bonifici in attesa o arrivi ancora futuri.
 // I segmenti di un cambio camera (stesso group_id) sono un unico soggiorno.
-function buildReceipts(bookings: any[], payments: any[], today: string): { date: string; amount: number }[] {
-  const paysByBooking: Record<string, any[]> = {}
+type SegmentoIncasso = {
+  id: string; group_id: string | null; total_amount: number | string
+  check_in: string; bonifico?: boolean | null; pagato?: boolean | null
+}
+type PagamentoIncasso = { booking_id: string; paid_on: string | null; amount: number | string }
+function buildReceipts(bookings: SegmentoIncasso[], payments: PagamentoIncasso[], today: string): { date: string; amount: number }[] {
+  const paysByBooking: Record<string, PagamentoIncasso[]> = {}
   for (const p of payments) (paysByBooking[p.booking_id] = paysByBooking[p.booking_id] || []).push(p)
-  const groups: Record<string, any[]> = {}
+  const groups: Record<string, SegmentoIncasso[]> = {}
   for (const b of bookings) { const k = b.group_id || b.id; (groups[k] = groups[k] || []).push(b) }
   const receipts: { date: string; amount: number }[] = []
   for (const k in groups) {
     const segs = groups[k]
-    const gp: any[] = []
+    const gp: PagamentoIncasso[] = []
     for (const s of segs) for (const p of (paysByBooking[s.id] || [])) gp.push(p)
     if (gp.length > 0) {
       for (const p of gp) if (p.paid_on) receipts.push({ date: p.paid_on, amount: Number(p.amount) })
     } else {
-      const dovuto = segs.reduce((s: number, x: any) => s + Number(x.total_amount), 0)
-      const firstCheckIn = segs.map((s: any) => s.check_in).sort()[0]
-      const bonifico = segs.some((s: any) => s.bonifico)
-      const pagato = segs.some((s: any) => s.pagato)
+      const dovuto = segs.reduce((s: number, x) => s + Number(x.total_amount), 0)
+      const firstCheckIn = segs.map(s => s.check_in).sort()[0]
+      const bonifico = segs.some(s => s.bonifico)
+      const pagato = segs.some(s => s.pagato)
       if (pagato || (!bonifico && firstCheckIn <= today)) receipts.push({ date: firstCheckIn, amount: dovuto })
     }
   }
