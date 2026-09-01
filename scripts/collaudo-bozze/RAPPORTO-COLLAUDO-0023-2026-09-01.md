@@ -36,8 +36,8 @@ esplicita dell'utente nella conversazione del 01/09/2026; cancello
 ## Credenziali e sicurezza
 
 - Token Management API temporaneo: mai in chat/log/repo, file 600,
-  CANCELLATO a fine collaudo. **REVOCA dal dashboard da fare** (unico
-  residuo a carico dell'utente).
+  CANCELLATO a fine collaudo. REVOCATO dal dashboard dall'utente il
+  01/09/2026 — nessun residuo.
 - Password del db di prova: NON usata (il piano è stato adeguato: il
   caso deterministico usa un batch su una sola connessione).
 - Produzione mai toccata: guardia `verificaNonProduzione` su ogni passo.
