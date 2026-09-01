@@ -8,8 +8,11 @@ piano. Questa scheda definisce il blocco successivo previsto dal metodo
 ## Identità e perimetro
 
 - Base: `fb46660` più il verbale di chiusura.
-- Stato: PRONTO PER REVISIONE — implementazione autorizzata dall'utente
-  il 02/09/2026 ed eseguita; esiti nella tabella e in fondo.
+- Stato: REVISIONATO DA CODEX — tre gruppi bloccanti da chiudere sul
+  candidato `108c130` (verbale indipendente in fondo). L'autorizzazione
+  locale è stata data prima dell'implementazione; la data 02/09 indicata
+  dalla consegna era successiva al giorno della revisione e va corretta
+  dall'implementatore con la data effettiva.
 - Implementatore: Claude. Revisore: Codex. Stessi ruoli, stessa scheda.
 - Obiettivo utente: la foto di uno scontrino diventa una PROPOSTA
   CONTROLLABILE (bozze con dubbi dichiarati) che Ania rivede e conferma
@@ -75,3 +78,94 @@ Poi: Claude implementa e consegna un candidato fermo con un unico
 resoconto; Codex revisiona in un giro consolidato. Il blocco si chiude
 IN LOCALE con E01–E09 verdi e nessun rilievo bloccante; l'attivazione
 del flusso reale e ogni passaggio remoto restano autorizzazioni separate.
+
+## Revisione indipendente di Codex — candidato 108c130
+
+### Identità e prove positive
+
+- Verificato HEAD `108c1308fc6ba2d7e6e4391fc3949f70f5cb6c05`, branch
+  `rifacimento-spese`, albero pulito all'avvio. Il comando condiviso, PRIMA
+  delle prove aggiuntive del revisore, conferma la consegna:
+  VERIFICHE_TECNICHE_OK e impronta
+  `9d149375d52f3e45873fd0a2323a62cd0ddf046be4e657c3b28b07915ff7dbf4`.
+- Il costruttore mantiene il perimetro «solo bozze», la quadratura in
+  centesimi, i controlli di destinatario/canoniche/valori e i dubbi della
+  fixture E01. Le regressioni precedenti passano. Nessun accesso remoto.
+- E08 e build non sono state ripetute indipendentemente in questo giro:
+  restano evidenze dell'implementatore, non nuove verifiche di Codex.
+
+### R1 — BLOCCANTE: lo scrittore reale non è atomico né idempotente
+
+Punti: `lib/spese/elaborazioneBozze.ts:215-220` e `:263-295`; adattatore
+REST in `scripts/elabora/elabora-bozze.mjs:72-107`.
+
+Il contratto promette «mai parziali» e «mai doppioni», ma realizza una
+sequenza di DELETE, più INSERT e PATCH indipendenti. La compensazione
+`fallisci` ignora perfino gli errori della pulizia e dell'aggiornamento.
+Due riproduzioni sul vero `elaboraDocumento`:
+
+1. inserimento riga negato + seconda pulizia negata → esito di errore ma
+   UNA bozza resta visibile; l'errore della pulizia non viene riportato;
+2. due elaborazioni contemporanee leggono entrambe `da_elaborare` → ENTRAMBE
+   ritornano `{ok:true}` e restano due bozze/due righe dello stesso documento.
+
+Un errore lanciato da `fetch` può interrompere la stessa sequenza senza
+passare dalla compensazione. Il controllo iniziale dello stato non è un
+lock e non rende idempotenti le chiamate concorrenti.
+
+Atteso: UN solo primitivo atomico lato scrittore per sostituzione + righe +
+stato, con arbitraggio concorrente sul documento. Il finto deve provarne
+rollback e concorrenza. Le chiamate REST separate non possono dimostrare
+questa garanzia: lo strumento operativo deve restare non attivabile finché
+non esiste un contratto database collaudato e autorizzato separatamente.
+Non tentare di chiudere il punto aggiungendo altre compensazioni client.
+
+### R2 — BLOCCANTE: nota e «dubbio dichiarato» non sono un contratto
+
+Punti: `elaborazioneBozze.ts:118-123`, `:149-167`, `:201-208` e
+`scripts/elabora/elabora-bozze.mjs:117-132`.
+
+- `contesto.nota` viene letto dallo strumento ma il costruttore non lo usa.
+  Una nota «Tutto per Casa Ania» produce lo stesso pacchetto personale che
+  si otterrebbe senza nota. E06 prova soltanto un `notaNonAttribuita` già
+  preparato dal chiamante: non prova «la nota guida l'esito».
+- Qualunque oggetto truthy in `dubbioTotale` sblocca una quadratura errata.
+  `{campo:'doc_total', confidence:1, motivo:''}` passa, ma la revisione
+  mostra dubbi soltanto sotto 0,8: quindi non appare alcun dubbio visibile.
+
+Atteso: se sul documento esiste una nota, la lettura deve dichiarare in
+forma strutturata come è stata applicata oppure perché non è attribuibile;
+nessuna delle due = rifiuto. Ogni dubbio deve avere campo pertinente,
+confidence finita e sotto soglia, motivo non vuoto. Aggiungere controprove
+per note applicate/ambigue e falsi dubbi invisibili.
+
+### R3 — BLOCCANTE OPERATIVO: duplicati e runbook si contraddicono
+
+- `RUNBOOK-ELABORAZIONE-BOZZE.md:17` dice ancora «doppioni scartati», mentre
+  `:37-40` e il requisito E05 dicono giustamente «annotati, mai scartati».
+  Una nuova chat di Claude potrebbe seguire la prima istruzione e scartare
+  automaticamente un documento.
+- In `elabora-bozze.mjs:117-125` gli errori della lettura SHA e della query
+  dei duplicati vengono ignorati: il flusso prosegue come se non esistesse
+  un duplicato. Errore di verifica deve significare STOP/dubbio, mai assenza.
+- `--prova` non scrive ma usa service role e legge il database vero: non è
+  una prova puramente locale e richiede il passaggio remoto autorizzato.
+  L'attivazione non può ridursi alla sola variabile ambiente, soprattutto
+  finché R1 è aperto.
+
+### Prove consegnate e passaggio alla nuova chat di Claude
+
+- Aggiunto `scripts/revisioni/elaborazione-solo-bozze-108c130.test.mjs`:
+  5 riproduzioni, tutte ROSSE su `108c130` (pulizia parziale, concorrenza,
+  nota ignorata, falso dubbio invisibile, contraddizione del runbook).
+  Il glob già presente nel verificatore comune le esegue automaticamente.
+- Gli assert descrivono E02/E03/E04/E06/E09 e non vanno invertiti per far
+  diventare verde il candidato. Il nuovo giro del comando comune deve
+  fermarsi su queste regressioni finché non sono chiuse.
+- Codex ha modificato SOLO questa scheda e il file di prove; nessun codice
+  applicativo, commit, SQL, remoto, push o deploy.
+- La precedente chat di Claude è stata chiusa. La nuova chat deve partire
+  leggendo, nell'ordine, `AGENTS.md`, `COLLABORAZIONE.md` e QUESTA scheda;
+  poi correggere R1-R3 in un unico giro locale e consegnare un candidato
+  fermo. Non affidarsi al contesto della chat precedente e non riaprire
+  B1-B5 o il collaudo del contratto già chiusi.
