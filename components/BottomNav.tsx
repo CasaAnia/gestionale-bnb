@@ -1,17 +1,20 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { House, CalendarDays, DoorOpen, Sparkles, ClipboardList, Plus, Users, Banknote, Wallet, ChartColumn, Settings } from 'lucide-react'
+import { House, CalendarDays, Inbox, DoorOpen, Sparkles, ClipboardList, Plus, Users, Banknote, Wallet, ChartColumn, Settings } from 'lucide-react'
 import { useDemoMode } from '@/lib/useDemoMode'
 import { returnToSicuro } from '@/lib/navHistory'
 import { isHiddenPath } from '@/lib/demoMode'
 import { useWebRequestCount } from '@/lib/webRequests'
+import { useRichiesteCount } from '@/lib/richiesteDati'
 
-// Max 4 tasti: devono restare grossi e comodi da toccare. Le Statistiche/Report
-// si raggiungono dalla Home (card), quindi non stanno qui.
+// Max 5 tasti: devono restare grossi e comodi da toccare (a 390 px ognuno ha
+// 78 px). Le Statistiche/Report si raggiungono dalla Home (card), quindi non
+// stanno qui.
 const mobileNavItems = [
   { href: '/', label: 'Home', Icon: House },
   { href: '/calendario', label: 'Calendario', Icon: CalendarDays },
+  { href: '/richieste', label: 'Richieste', Icon: Inbox },
   { href: '/arrivi', label: 'Arrivi', Icon: DoorOpen },
   { href: '/pulizie', label: 'Pulizie', Icon: Sparkles },
 ]
@@ -25,6 +28,7 @@ const desktopNavGroups = [
     label: 'Ogni giorno',
     items: [
       { href: '/calendario', label: 'Calendario', Icon: CalendarDays },
+      { href: '/richieste', label: 'Richieste', Icon: Inbox },
       { href: '/arrivi', label: 'Arrivi', Icon: DoorOpen },
       { href: '/pulizie', label: 'Pulizie', Icon: Sparkles },
     ],
@@ -59,6 +63,8 @@ export default function BottomNav() {
   // La chiave cambia a ogni navigazione: il conteggio si riaggiorna anche
   // quando Ania conferma una richiesta e torna indietro.
   const webCount = useWebRequestCount(pathname)
+  // Richieste di prenotazione in attesa o con proposta inviata (tabella richieste).
+  const richiesteCount = useRichiesteCount(pathname)
   if (pathname === '/login') return null
   const visible = (href: string) => !(demo && isHiddenPath(href))
   return (
@@ -79,8 +85,11 @@ export default function BottomNav() {
                   {item.href === '/calendario' && (
                     <RequestBadge count={webCount} className="absolute -top-1.5 -right-2.5" />
                   )}
+                  {item.href === '/richieste' && (
+                    <RequestBadge count={richiesteCount} className="absolute -top-1.5 -right-2.5" />
+                  )}
                 </span>
-                <span className="text-[12.5px] font-medium leading-none">{item.label}</span>
+                <span className="text-[12px] font-medium leading-none">{item.label}</span>
               </Link>
             )
           })}
@@ -119,6 +128,7 @@ export default function BottomNav() {
                     <item.Icon size={16} strokeWidth={1.5} className="shrink-0 text-green-mid" aria-hidden />
                     <span>{item.label}</span>
                     {item.href === '/calendario' && <RequestBadge count={webCount} />}
+                    {item.href === '/richieste' && <RequestBadge count={richiesteCount} />}
                   </Link>
                 )
               })}

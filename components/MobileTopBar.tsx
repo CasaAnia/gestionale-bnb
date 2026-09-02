@@ -4,6 +4,8 @@ import { usePathname } from 'next/navigation'
 // Titolo di sezione mostrato nella barra in alto su mobile (match per prefisso)
 const SECTION_TITLES: [string, string][] = [
   ['/calendario', 'Calendario'],
+  ['/richieste/nuova', 'Nuova richiesta'],
+  ['/richieste', 'Richieste'],
   ['/arrivi', 'Arrivi'],
   ['/pulizie', 'Pulizie'],
   ['/prenotazioni', 'Prenotazioni'],
