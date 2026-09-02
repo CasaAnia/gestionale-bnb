@@ -8,7 +8,7 @@ import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
 import { supabase } from '@/lib/supabase'
-import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, AVVISO_0025 } from '@/lib/richiesteDati'
+import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, AVVISO_0025, MOTIVI_RIFIUTO } from '@/lib/richiesteDati'
 import { proponiSoluzioni, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
 import { componiBozza, prezzo as fmtPrezzo } from '@/lib/richiesteTesti'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
@@ -184,10 +184,10 @@ export default function PropostaPage() {
     setRichiesta({ ...richiesta, stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at, proposta_testo: testoFinale, proposta_soluzione: soluzione })
   }
 
-  async function rifiuta() {
+  async function rifiuta(motivo?: string) {
     if (!richiesta) return
     setOccupato('rifiuto')
-    const { error } = await rifiutaRichiesta(richiesta.id)
+    const { error } = await rifiutaRichiesta(richiesta.id, motivo)
     setOccupato(null)
     setDaRifiutare(false)
     if (error) { setErrore(`Rifiuto non riuscito: ${error}`); return }
@@ -388,7 +388,7 @@ export default function PropostaPage() {
           onChiudi={() => setConfermando(null)} onCreata={id => router.push(`/prenotazioni/${id}?da=richiesta`)} />
       )}
       {daRifiutare && (
-        <ConfermaDialog titolo={`Rifiutare la richiesta di ${nomeCompleto(richiesta)}?`} testo="Nessun messaggio parte da qui." conferma="Rifiuta" occupato={occupato === 'rifiuto'}
+        <ConfermaDialog titolo={`Rifiutare la richiesta di ${nomeCompleto(richiesta)}?`} testo="Nessun messaggio parte da qui." conferma="Rifiuta" occupato={occupato === 'rifiuto'} scelte={MOTIVI_RIFIUTO}
           onConferma={rifiuta} onAnnulla={() => { if (occupato !== 'rifiuto') setDaRifiutare(false) }} />
       )}
     </div>

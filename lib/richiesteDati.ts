@@ -48,14 +48,19 @@ export function useRichiesteCount(refreshKey?: string): number {
 
 // Rifiuto: stato rifiutata e ora di chiusura. Nessun messaggio parte da qui.
 // Torna il testo dell'errore (mostrato a schermo) oppure null.
-export async function rifiutaRichiesta(id: string): Promise<{ chiusa_at: string; error: string | null }> {
+export const MOTIVI_RIFIUTO = ['Completo', 'Prezzo', 'Non ha più risposto', 'Altro']
+
+export async function rifiutaRichiesta(id: string, motivo?: string): Promise<{ chiusa_at: string; error: string | null }> {
   const chiusa_at = new Date().toISOString()
   const { data, error } = await supabase
     .from('richieste')
-    .update({ stato: 'rifiutata', chiusa_at })
+    .update({ stato: 'rifiutata', chiusa_at, ...(motivo ? { motivo_rifiuto: motivo } : {}) })
     .eq('id', id)
     .select('id')
-  if (error) return { chiusa_at, error: spiegaErrore(error) }
+  if (error) {
+    if (motivo && /motivo_rifiuto/i.test(error.message || '')) return { chiusa_at, error: 'Va applicata la migrazione 0027 (colonna motivo_rifiuto).' }
+    return { chiusa_at, error: spiegaErrore(error) }
+  }
   if (!data || data.length === 0) return { chiusa_at, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere già stata chiusa.' }
   return { chiusa_at, error: null }
 }

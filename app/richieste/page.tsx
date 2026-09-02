@@ -12,7 +12,7 @@ import ConfermaDialog from '@/components/richieste/ConfermaDialog'
 import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import { supabase } from '@/lib/supabase'
-import { fetchRichieste, rifiutaRichiesta } from '@/lib/richiesteDati'
+import { fetchRichieste, rifiutaRichiesta, MOTIVI_RIFIUTO } from '@/lib/richiesteDati'
 import { useVista, useDesktop } from '@/lib/richiesteVista'
 import { meseCorrente, richiesteAperte, sovrapposizioni } from '@/lib/richiesteCalendario'
 import { nomeOspite } from '@/lib/guestName'
@@ -130,10 +130,10 @@ export default function Richieste() {
   const [daConfermare, setDaConfermare] = useState<RichiestaConProposta | null>(null)
   const [rifiutando, setRifiutando] = useState(false)
 
-  async function confermaRifiuto() {
+  async function confermaRifiuto(motivo?: string) {
     if (!daRifiutare) return
     setRifiutando(true)
-    const { chiusa_at, error } = await rifiutaRichiesta(daRifiutare.id)
+    const { chiusa_at, error } = await rifiutaRichiesta(daRifiutare.id, motivo)
     setRifiutando(false)
     if (error) { setErrori(e => [...e.filter(x => !x.startsWith('rifiuto')), `rifiuto: ${error}`]); setDaRifiutare(null); return }
     const id = daRifiutare.id
@@ -300,7 +300,7 @@ export default function Richieste() {
       )}
       {daRifiutare && (
         <ConfermaDialog titolo={`Rifiutare la richiesta di ${nomeCompleto(daRifiutare)}?`} testo="Nessun messaggio parte da qui."
-          conferma="Rifiuta" occupato={rifiutando} onConferma={confermaRifiuto} onAnnulla={() => { if (!rifiutando) setDaRifiutare(null) }} />
+          conferma="Rifiuta" occupato={rifiutando} scelte={MOTIVI_RIFIUTO} onConferma={confermaRifiuto} onAnnulla={() => { if (!rifiutando) setDaRifiutare(null) }} />
       )}
     </div>
   )
