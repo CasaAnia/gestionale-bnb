@@ -65,6 +65,9 @@ export default function PropostaPage() {
   const [daSostituire, setDaSostituire] = useState<number | null>(null)
   const [daRifiutare, setDaRifiutare] = useState(false)
   const [occupato, setOccupato] = useState<'invio' | 'rifiuto' | 'immagine' | null>(null)
+  // Dopo l'apertura di WhatsApp: barra «L'hai inviata?» finché Ania non risponde
+  const [chiediConferma, setChiediConferma] = useState(false)
+  const barraRef = useRef<HTMLDivElement>(null)
   const [immagineFatta, setImmagineFatta] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imgRef = useRef<HTMLDivElement>(null)
@@ -146,17 +149,32 @@ export default function PropostaPage() {
     setIndice(i); setTestoModificato(null); setPannelloCambia(false)
   }
 
-  async function invia() {
+  // Apre WhatsApp e basta: lo stato NON cambia qui. Cambia solo con «Sì, inviata».
+  function invia() {
     if (!richiesta || !soluzione) return
     setErrore(null); setAvviso(null)
     if (!telefono) { setErrore('Nessun numero di telefono sulla richiesta: aggiungilo prima di inviare.'); return }
-    setOccupato('invio')
     openWhatsApp(telefono, testoFinale)
+    setChiediConferma(true)
+  }
+
+  // Al ritorno nella schermata la barra torna in vista
+  useEffect(() => {
+    if (!chiediConferma) return
+    const mostra = () => { if (document.visibilityState === 'visible') barraRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }
+    window.addEventListener('focus', mostra)
+    document.addEventListener('visibilitychange', mostra)
+    return () => { window.removeEventListener('focus', mostra); document.removeEventListener('visibilitychange', mostra) }
+  }, [chiediConferma])
+
+  async function confermaInviata() {
+    if (!richiesta || !soluzione) return
+    setErrore(null); setAvviso(null); setOccupato('invio')
     const r = await segnaPropostaInviata(richiesta.id, testoFinale, soluzione)
     setOccupato(null)
     if (r.error) { setErrore(`Stato non aggiornato: ${r.error}`); return }
+    setChiediConferma(false)
     setRichiesta({ ...richiesta, stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at, proposta_testo: testoFinale, proposta_soluzione: soluzione })
-    if (r.avviso) setAvviso(r.avviso)
   }
 
   async function rifiuta() {
@@ -272,12 +290,28 @@ export default function PropostaPage() {
       {errore && <div role="alert" className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore}</div>}
       {avviso && <div role="status" className="mt-3 bg-sand border border-card-border rounded-xl p-3 text-sm text-green-dark">{avviso}</div>}
 
-      <button type="button" onClick={invia} disabled={!!occupato || !soluzione} className={`${PIENO} mt-4`}>
+      <button type="button" onClick={invia} disabled={!!occupato || !soluzione || chiediConferma} className={`${PIENO} mt-4`}>
         <IconaWhatsApp />
-        {occupato === 'invio' ? 'Apro WhatsApp…' : inviata ? 'Invia di nuovo' : (modoEffettivo === 'immagine' ? '2 · Apri WhatsApp e invia' : 'Apri WhatsApp e invia')}
+        {inviata ? 'Invia di nuovo' : (modoEffettivo === 'immagine' ? '2 · Apri WhatsApp e invia' : 'Apri WhatsApp e invia')}
       </button>
+      {chiediConferma && (
+        <div ref={barraRef} role="group" aria-label="Conferma dell'invio" className="scheda-in mt-3 bg-white rounded-xl p-3" style={{ border: `1px solid ${BORDO}` }}>
+          <p className="text-sm font-medium text-green-dark mb-2">L’hai inviata?</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={confermaInviata} disabled={occupato === 'invio'}
+              className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-green-mid text-cream-text disabled:opacity-50 active:opacity-80">
+              {occupato === 'invio' ? 'Salvo…' : 'Sì, inviata'}
+            </button>
+            <button type="button" onClick={() => setChiediConferma(false)} disabled={occupato === 'invio'}
+              className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-white text-green-dark border disabled:opacity-50" style={{ borderColor: BORDO }}>
+              No
+            </button>
+          </div>
+          <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>Solo «Sì, inviata» segna la richiesta come proposta inviata.</p>
+        </div>
+      )}
       <p className="text-xs text-center mt-2" style={{ color: GRIGIO_NOTA }}>
-        {inviata ? `Proposta inviata ${richiesta.proposta_inviata_at ? tempoTrascorso(richiesta.proposta_inviata_at, adesso) : ''}. Un nuovo invio aggiorna l’ora.` : 'Dopo l’invio la richiesta passa a ‘Proposta inviata’.'}
+        {inviata ? `Proposta inviata ${richiesta.proposta_inviata_at ? tempoTrascorso(richiesta.proposta_inviata_at, adesso) : ''}. Un nuovo invio, confermato, aggiorna l’ora.` : 'Dopo l’invio, confermato con «Sì, inviata», la richiesta passa a ‘Proposta inviata’.'}
       </p>
       <div className="text-center mt-6">
         <button type="button" onClick={() => setDaRifiutare(true)} className="text-xs underline underline-offset-2" style={{ color: GRIGIO_NOTA }}>Rifiuta subito</button>
