@@ -3,12 +3,18 @@ import type { RefObject } from 'react'
 import { roomWithType, bagnoDesc } from '@/lib/roomTypes'
 import { NOME_STRUTTURA, CITTA_STRUTTURA, SITO_DISPLAY, TELEFONO_DISPLAY, INDIRIZZO, INDIRIZZO_NOTA } from '@/lib/config'
 import { fmtEuro, type RigaCosto } from '@/lib/riepilogoCosti'
+import { lineaSoggiorno } from '@/lib/richiesteImmagine'
+import { dalAl, elencoDate } from '@/lib/richiesteTesti'
 
 // Immagine WhatsApp del soggiorno (1080px, identità visiva del sito): la STESSA
 // per la conferma di prenotazione e per la proposta a una richiesta. Il markup
 // viveva dentro components/ConfermaWhatsApp.tsx ed è stato spostato qui tale e
 // quale; cambiano solo intestazione e i riquadri che hanno senso soltanto
 // per una prenotazione confermata (orario di arrivo, frase del pagamento).
+// Pezzo 6: con `nottiNonDisponibili` (proposta, caso C) il biglietto unico
+// check-in/check-out lascia il posto alla linea del soggiorno: i periodi
+// disponibili come blocchi separati e ogni notte scoperta come spazio vuoto
+// «notte non disponibile». Un caso C non deve mai sembrare un soggiorno continuo.
 
 export const IMG_W = 820
 const IMG_SANS = 'var(--font-manrope), Arial, Helvetica, sans-serif'
@@ -34,6 +40,7 @@ type Props = {
   pagamento: 'contanti' | 'bonifico'
   lettoAggiuntivo?: boolean          // caso singolo: "+ letto aggiuntivo" accanto alla camera
   bonifico?: DatiBonifico            // solo con pagamento = 'bonifico'
+  nottiNonDisponibili?: string[]     // proposta, caso C: notti richieste ma scoperte (giorni ISO)
 }
 
 // Data breve per il "biglietto": giorno della settimana + giorno + mese, senza anno
@@ -49,7 +56,7 @@ function notti(cin: string, cout: string) {
   return Math.round((new Date(cout).getTime() - new Date(cin).getTime()) / 86400000)
 }
 
-export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, numOspiti, righeCosti, totale, pagamento, lettoAggiuntivo = false, bonifico }: Props) {
+export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, numOspiti, righeCosti, totale, pagamento, lettoAggiuntivo = false, bonifico, nottiNonDisponibili = [] }: Props) {
   const intestazione = variante === 'conferma'
     ? { badge: 'BENVENUTI', titolo: 'Prenotazione confermata' }
     : { badge: 'PROPOSTA', titolo: 'Proposta di soggiorno' }
@@ -58,7 +65,13 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
   const camereDiverse = new Set(segmenti.map(s => s.rooms?.name)).size > 1
   const cin = segmenti[0].check_in
   const cout = segmenti[segmenti.length - 1].check_out
-  const nottiTot = notti(cin, cout)
+  // Linea del soggiorno (solo proposta con notti scoperte): le notti contate sono quelle a Casa Ania
+  const linea = variante === 'proposta' && nottiNonDisponibili.length > 0
+    ? lineaSoggiorno(segmenti.map(s => ({ arrivo: s.check_in, partenza: s.check_out, seg: s })), nottiNonDisponibili)
+    : null
+  const nottiTot = linea ? segmenti.reduce((n, s) => n + notti(s.check_in, s.check_out), 0) : notti(cin, cout)
+  const nottiScoperteTot = linea ? linea.reduce((n, b) => n + (b.tipo === 'vuoto' ? b.notti.length : 0), 0) : 0
+  const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
   const ricevuto = bonifico?.ricevuto ?? 0
   const importoBonifico = bonifico?.importo ?? totale
   const causale = bonifico?.causale ?? ''
@@ -98,7 +111,27 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
           {/* SALUTO — nome cliente in evidenza */}
           <p style={{ fontFamily: IMG_DISPLAY, fontSize: 84, fontWeight: 600, color: '#1F3D2F', textAlign: 'center', margin: '0 0 32px', lineHeight: 1.05 }}>{nome}</p>
 
-          {/* BIGLIETTO — DATE */}
+          {linea ? (
+            /* LINEA DEL SOGGIORNO — periodi disponibili e notti scoperte, mai un biglietto unico */
+            <div style={{ marginBottom: 30 }}>
+              <p style={{ fontSize: 32, letterSpacing: 3, color: '#3a3a35', fontWeight: 700, margin: '0 0 14px' }}>SOGGIORNO NON CONTINUO</p>
+              {linea.map((b, i) => b.tipo === 'camera' ? (
+                <div key={`c-${i}`} style={{ background: 'white', border: '2px solid #e3ddd0', borderRadius: 24, padding: '28px 40px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 44, fontWeight: 700, color: '#1F3D2F', lineHeight: 1.15 }}>{maiuscola(dalAl(b.arrivo, b.partenza))}</div>
+                  <div style={{ fontSize: 32, color: '#3a3a35', marginTop: 10, lineHeight: 1.35 }}>
+                    {b.notti} {b.notti === 1 ? 'notte' : 'notti'} · Camera {roomWithType(b.segmento.seg.rooms?.name)}{bagnoDesc(b.segmento.seg.rooms) ? ` · bagno ${bagnoDesc(b.segmento.seg.rooms)}` : ''}
+                  </div>
+                  <div style={{ fontSize: 30, color: '#3a3a35', marginTop: 12, lineHeight: 1.15 }}>Check-in 15:00 – 20:00 · Check-out entro le 10:00</div>
+                </div>
+              ) : (
+                <div key={`v-${i}`} style={{ background: '#F6F2EA', border: '3px dashed #C58A67', borderRadius: 24, padding: '26px 40px', marginBottom: 16, textAlign: 'center' }}>
+                  <div style={{ fontSize: 32, letterSpacing: 3, color: '#8C3B2E', fontWeight: 700 }}>{b.notti.length === 1 ? 'NOTTE NON DISPONIBILE' : `${b.notti.length} NOTTI NON DISPONIBILI`}</div>
+                  <div style={{ fontSize: 36, fontWeight: 600, color: '#1F3D2F', marginTop: 10 }}>{elencoDate(b.notti)}</div>
+                  <div style={{ fontSize: 30, color: '#3a3a35', marginTop: 8 }}>da sistemare altrove</div>
+                </div>
+              ))}
+            </div>
+          ) : (
           <div style={{ display: 'flex', background: 'white', border: '2px solid #e3ddd0', borderRadius: 24, overflow: 'hidden', marginBottom: 30 }}>
             {/* Righe fisse nei due lati (etichetta / giorno settimana / numero / mese / orario),
                 così le due colonne restano sempre allineate qualunque sia la lunghezza delle parole */}
@@ -117,21 +150,28 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
               <div style={{ fontSize: 32, color: '#3a3a35', marginTop: 24, lineHeight: 1.15 }}>entro le 10:00</div>
             </div>
           </div>
+          )}
 
           {/* NOTTI · OSPITI */}
           <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center', marginBottom: 30 }}>
             <div>
               <div style={{ fontSize: 46, fontWeight: 700, color: '#1F3D2F' }}>{nottiTot}</div>
-              <div style={{ fontSize: 32, color: '#3a3a35' }}>{nottiTot === 1 ? 'notte' : 'notti'}</div>
+              <div style={{ fontSize: 32, color: '#3a3a35' }}>{linea ? (nottiTot === 1 ? 'notte da noi' : 'notti da noi') : (nottiTot === 1 ? 'notte' : 'notti')}</div>
             </div>
+            {linea && (
+              <div>
+                <div style={{ fontSize: 46, fontWeight: 700, color: '#8C3B2E' }}>{nottiScoperteTot}</div>
+                <div style={{ fontSize: 32, color: '#3a3a35' }}>{nottiScoperteTot === 1 ? 'notte scoperta' : 'notti scoperte'}</div>
+              </div>
+            )}
             <div>
               <div style={{ fontSize: 46, fontWeight: 700, color: '#1F3D2F' }}>{numOspiti}</div>
               <div style={{ fontSize: 32, color: '#3a3a35' }}>{numOspiti === 1 ? 'ospite' : 'ospiti'}</div>
             </div>
           </div>
 
-          {/* CAMERA / BAGNO */}
-          <div style={{ background: '#F6F2EA', borderRadius: 24, padding: '30px 44px', marginBottom: 30 }}>
+          {/* CAMERA / BAGNO (con la linea del soggiorno la camera è già in ogni blocco) */}
+          {!linea && <div style={{ background: '#F6F2EA', borderRadius: 24, padding: '30px 44px', marginBottom: 30 }}>
             {isGruppo ? (
               segmenti.map((s, i) => (
                 <div key={s.id} style={{ padding: '14px 0', borderTop: i === 0 ? 'none' : '1px solid #e3ddd0' }}>
@@ -156,7 +196,7 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
                 )}
               </>
             )}
-          </div>
+          </div>}
 
           {/* RIEPILOGO COSTI */}
           <div style={{ ...S.box, background: 'white', border: '2px solid #e3ddd0' }}>

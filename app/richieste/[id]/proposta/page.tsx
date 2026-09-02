@@ -10,7 +10,7 @@ import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
 import { supabase } from '@/lib/supabase'
 import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, colonne0029Presenti, AVVISO_0025, AVVISO_0029, MOTIVI_RIFIUTO, type CondizioniSalvate } from '@/lib/richiesteDati'
 import { proponiSoluzioni, alternativaAmelia, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
-import { generaProposta, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, type Condizione } from '@/lib/richiesteTesti'
+import { generaProposta, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, nottiScoperte, type Condizione } from '@/lib/richiesteTesti'
 import { CONDIZIONI_PAGAMENTO, ETICHETTA_CONDIZIONE, caparraDefault, type CondizionePagamento } from '@/lib/condizioniPrenotazione'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import { lettoDaComunicare } from '@/lib/tariffe'
@@ -191,7 +191,8 @@ export default function PropostaPage() {
     }))
     const { righe, totale } = righeCostiSegmenti(seg, seg.length > 1)
     const lettoAggiuntivo = seg.length === 1 && lettoDaComunicare(seg[0])
-    return { seg, righe, totale, lettoAggiuntivo }
+    // Caso C: le notti scoperte vanno nell'immagine come spazi vuoti (mai un soggiorno continuo)
+    return { seg, righe, totale, lettoAggiuntivo, nottiNonDisponibili: nottiScoperte(richiesta, soluzione) }
   }, [richiesta, soluzione])
 
   // Le azioni che rigenerano la bozza chiedono conferma se il testo è stato modificato a mano
@@ -420,10 +421,10 @@ export default function PropostaPage() {
       {modoEffettivo === 'immagine' && immagine && !inviata && (
         <div className="mt-3">
           <p className="text-xs mb-1.5" style={{ color: GRIGIO_NOTA }}>Anteprima dell’immagine</p>
-          <div ref={el => { if (el) setScala(el.clientWidth / IMG_W) }} className="rounded-xl overflow-hidden border border-card-border bg-white" style={{ height: imgH ? imgH * scala : undefined }}>
+          <div ref={el => { if (el) setScala(el.clientWidth / IMG_W) }} className="w-full rounded-xl overflow-hidden border border-card-border bg-white" style={{ height: imgH ? imgH * scala : undefined }}>
             <div style={{ transform: `scale(${scala})`, transformOrigin: 'top left', width: IMG_W }}>
               <ImmagineSoggiorno imgRef={imgRef} variante="proposta" nome={richiesta.nome.trim()} segmenti={immagine.seg} numOspiti={richiesta.persone}
-                righeCosti={immagine.righe} totale={immagine.totale} pagamento="contanti" lettoAggiuntivo={immagine.lettoAggiuntivo} />
+                righeCosti={immagine.righe} totale={immagine.totale} pagamento="contanti" lettoAggiuntivo={immagine.lettoAggiuntivo} nottiNonDisponibili={immagine.nottiNonDisponibili} />
             </div>
           </div>
           <button type="button" onClick={immagineSuDispositivo} disabled={!!occupato}
@@ -490,7 +491,7 @@ export default function PropostaPage() {
           {caso}
           {condizioni}
         </section>
-        <section className="mt-4 md:mt-0">
+        <section className="mt-4 md:mt-0 min-w-0">
           {bozza}
         </section>
       </div>
