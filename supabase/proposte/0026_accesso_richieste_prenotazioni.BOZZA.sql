@@ -5,23 +5,20 @@
 -- STATO DI FATTO (supabase/rls.sql e migrazione 0024): bookings, guests,
 -- payments, rooms e richieste hanno la policy «accesso_utenti_autenticati»:
 -- qualunque utente AUTENTICATO su questo progetto Supabase legge e scrive.
--- Oggi gli utenti registrati sono solo quelli di casa (Ania e Ivan), quindi
--- l'effetto pratico è lo stesso; ma se un giorno si registrasse un altro
--- account, avrebbe accesso a tutto.
+-- Oggi l'unica persona che usa gestionale e sito è Ania (un solo account),
+-- quindi l'effetto pratico è lo stesso; ma se un giorno si registrasse un
+-- altro account, avrebbe accesso a tutto.
 --
 -- Il modulo Spese (0020/0021) usa già una lista esplicita: public.app_members
 -- con la funzione private.is_app_member(). Questa proposta porta richieste e
 -- prenotazioni sulla STESSA lista, senza cambiare nulla per chi è già dentro.
 --
 -- PRIMA DI APPLICARE (nell'editor SQL, progetto tnsaa…vwv):
---   1. controllare che ENTRAMBI gli utenti siano in app_members:
+--   1. controllare che l'account di Ania sia in app_members (come owner):
 --        select u.email, m.role from auth.users u
 --        left join public.app_members m on m.user_id = u.id;
---      chi ha role NULL va aggiunto (come 'member'), altrimenti dopo la
---      migrazione resta chiuso fuori:
---        insert into public.app_members (user_id, role)
---        select id, 'member' from auth.users where email = '<email di Ivan>'
---        on conflict (user_id) do nothing;
+--      se role è NULL va aggiunto, altrimenti dopo la migrazione resta
+--      chiusa fuori (vedi supabase/bootstrap_owner.sql).
 --   2. le route push usano la service key e non passano da qui: nessun effetto.
 --
 -- ROLLBACK: ricreare la policy aperta, es.
@@ -33,8 +30,8 @@ begin
   if to_regprocedure('private.is_app_member()') is null then
     raise exception 'PRECONDIZIONE FALLITA: manca private.is_app_member() (migrazione 0021).';
   end if;
-  if (select count(*) from public.app_members) < 2 then
-    raise exception 'PRECONDIZIONE FALLITA: app_members ha meno di 2 utenti: aggiungere Ania e Ivan prima di restringere.';
+  if (select count(*) from public.app_members where role = 'owner') < 1 then
+    raise exception 'PRECONDIZIONE FALLITA: nessun owner in app_members: aggiungere Ania prima di restringere.';
   end if;
 end $$;
 
