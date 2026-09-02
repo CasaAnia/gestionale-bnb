@@ -34,6 +34,11 @@ export function creaClienteRevisione(supabase: SupabaseRevisione): ClienteRevisi
         .update({ doc_total: totale }).eq('id', documentId).select('id')
       return conta(data, error)
     },
+    async aggiornaDocumento(documentId, campi) {
+      const { data, error } = await supabase.from('family_documents')
+        .update(campi as Record<string, unknown>).eq('id', documentId).select('id')
+      return conta(data, error)
+    },
     async aggiornaBozza(id, campi) {
       const { data, error } = await supabase.from('family_draft_expenses')
         .update(campi).eq('id', id).select('id')
@@ -67,6 +72,30 @@ export function creaClienteRevisione(supabase: SupabaseRevisione): ClienteRevisi
         p_document_id: documentId, p_motivo: motivo,
       })
       return error ? { errore: error.message } : {}
+    },
+    // ---- FATTURE (Fase 5): le tre RPC atomiche della 0020, nomi e
+    // argomenti ESATTI; mai scritture REST al loro posto ----
+    async approvaFattura(documentId, correzioni) {
+      const { error } = await supabase.rpc('approva_fattura_da_pagare', {
+        p_document_id: documentId, p_correzioni: correzioni,
+      })
+      return error ? { errore: error.message } : {}
+    },
+    async pagaFattura(documentId, dataPagamento, metodo, correzioni) {
+      const { data, error } = await supabase.rpc('paga_fattura', {
+        p_document_id: documentId, p_data_pagamento: dataPagamento,
+        p_payment_method: metodo, p_correzioni: correzioni,
+      })
+      if (error) return { errore: error.message }
+      return { ids: Array.isArray(data) ? (data as string[]) : [] }
+    },
+    async confermaFatturaPagata(documentId, dataPagamento, metodo, correzioni) {
+      const { data, error } = await supabase.rpc('conferma_fattura_pagata', {
+        p_document_id: documentId, p_data_pagamento: dataPagamento,
+        p_payment_method: metodo, p_correzioni: correzioni,
+      })
+      if (error) return { errore: error.message }
+      return { ids: Array.isArray(data) ? (data as string[]) : [] }
     },
   }
 }

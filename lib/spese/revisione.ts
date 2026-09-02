@@ -13,6 +13,7 @@
 //  · necessità e pianificazione FACOLTATIVE: mai valori inventati.
 // ============================================================================
 import { canonicaCoerente, quadraturaDocumento, rigaCoerente, SOGLIA_CONFIDENCE } from './controlli.ts'
+import { METODI_VALIDI } from './fatture.ts'
 
 // gli UNICI campi che la 0021 consente dal browser (fonte unica per tipi,
 // payload, snapshot degli originali e test):
@@ -33,6 +34,33 @@ export const CAMPI_RIGA_NUOVA = [
   'category_id', 'subcategory', 'canonical_category_id',
   'canonical_subcategory_id', 'necessity', 'planning',
 ] as const
+
+// i campi del DOCUMENTO che la revisione può correggere (grant UPDATE della
+// 0021 su family_documents; doc_total ha il suo canale). Per le FATTURE
+// (Fase 5) sono i dati di testata — fornitore, numero, data del documento e
+// scadenza — più il tipo, perché una fattura arriva come foto («scontrino»)
+// o PDF («altro») e va riconosciuta in revisione. Gli ORIGINALI restano
+// intatti: le differenze diventano correzioni {field, proposed, corrected}
+// senza draft_id, come prevede private.registra_correzioni.
+export const CAMPI_DOCUMENTO_REVISIONE = ['kind', 'supplier', 'invoice_number', 'document_date', 'due_date'] as const
+export type DocumentoGrezzoRevisione = {
+  kind: string
+  supplier: string | null
+  invoice_number: string | null
+  document_date: string | null
+  due_date: string | null
+}
+export type ModificaDocumento = Partial<DocumentoGrezzoRevisione>
+export const DOCUMENTO_SENZA_TESTATA: DocumentoGrezzoRevisione =
+  { kind: 'scontrino', supplier: null, invoice_number: null, document_date: null, due_date: null }
+
+// una data ISO che ESISTE davvero (non solo col formato giusto)
+export function dataIsoValida(x: unknown): x is string {
+  if (typeof x !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x)) return false
+  const [a, m, g] = x.split('-').map(Number)
+  const d = new Date(Date.UTC(a, m - 1, g))
+  return d.getUTCFullYear() === a && d.getUTCMonth() === m - 1 && d.getUTCDate() === g
+}
 
 export type Confidenza = Record<string, { proposto?: unknown; confidence?: number; doubt_reason?: string }>
 
@@ -144,6 +172,10 @@ export type StatoRevisione = {
   generazione: number
   docTotaleCent: number | null            // valore corrente (modificabile)
   docTotaleOriginaleCent: number | null
+  // la TESTATA del documento (tipo, fornitore, numero, date): ORIGINALE
+  // intatta + modifiche pendenti, come per le bozze
+  documento: DocumentoGrezzoRevisione
+  modificheDocumento: ModificaDocumento
   bozze: BozzaGrezza[]                    // ORIGINALI, mai mutati
   righe: RigaGrezza[]                     // ORIGINALI, mai mutati
   modificheBozze: Record<string, ModificaBozza>
@@ -163,7 +195,10 @@ export type StatoRevisione = {
 // traccia PRIMA delle scritture. Se all'apertura c'è ancora, la richiesta
 // della sessione precedente potrebbe essere per aria: la nuova schermata
 // deve PRENDERE IN CARICO il documento esplicitamente prima di scrivere.
-export type OperazioneInCorsa = { tipo: 'salva' | 'conferma' | 'scarto'; generazione: number }
+// 'approvazione' = approva_fattura_da_pagare (Fase 5): chiude la revisione
+// SENZA spese, il documento diventa approvata_da_pagare; 'conferma' copre
+// sia conferma_documento sia conferma_fattura_pagata (entrambe → confermato)
+export type OperazioneInCorsa = { tipo: 'salva' | 'conferma' | 'scarto' | 'approvazione'; generazione: number }
 
 export type TracciaRevisione = {
   documentId: string
@@ -172,6 +207,11 @@ export type TracciaRevisione = {
   vincoli?: Vincoli
   docTotaleCent: number | null
   docTotaleOriginaleCent: number | null
+  // testata del documento (facoltativa: le tracce precedenti alla Fase 5
+  // non la contengono e restano valide — senza originali custoditi la
+  // testata riparte da ciò che il database restituisce)
+  originaliDocumento?: Partial<DocumentoGrezzoRevisione>
+  modificheDocumento?: ModificaDocumento
   originaliBozze: Record<string, Partial<BozzaGrezza>>
   originaliRighe: Record<string, Partial<RigaGrezza>>
   modificheBozze: Record<string, ModificaBozza>
@@ -190,6 +230,8 @@ export function tracciaDa(s: StatoRevisione): TracciaRevisione {
     documentId: s.documentId, generazione: s.generazione,
     ...(vincoliVuoti(s.vincoli) ? {} : { vincoli: s.vincoli }),
     docTotaleCent: s.docTotaleCent, docTotaleOriginaleCent: s.docTotaleOriginaleCent,
+    originaliDocumento: foto(s.documento, CAMPI_DOCUMENTO_REVISIONE),
+    modificheDocumento: s.modificheDocumento,
     originaliBozze: Object.fromEntries(s.bozze.map(b => [b.id, foto(b, CAMPI_BOZZA_REVISIONE)])),
     originaliRighe: Object.fromEntries(s.righe.map(r => [r.id, foto(r, CAMPI_RIGA_REVISIONE)])),
     modificheBozze: s.modificheBozze, modificheRighe: s.modificheRighe,
@@ -215,23 +257,34 @@ export function apriRevisione(
   documentId: string, docTotale: number | null,
   bozze: BozzaGrezza[], righe: RigaGrezza[],
   traccia?: TracciaRevisione | null,
+  // la testata come la restituisce il database ORA (Fase 5); assente =
+  // scontrino senza testata, comportamento identico a prima
+  documento: DocumentoGrezzoRevisione = DOCUMENTO_SENZA_TESTATA,
 ): StatoRevisione {
   const attive = bozze.filter(b => b.status === 'da_controllare' || b.status === 'pronta')
   const idAttivi = new Set(attive.map(b => b.id))
   const righeAttive = righe.filter(r => idAttivi.has(r.draft_id))
   const cent = docTotale == null ? null : Math.round(docTotale * 100)
+  const testata = foto(documento, CAMPI_DOCUMENTO_REVISIONE) as DocumentoGrezzoRevisione
   // ogni apertura reclama una GENERAZIONE nuova: da qui in poi la custodia
   // rifiuterà le scritture delle operazioni rimaste indietro
   const generazione = (traccia?.generazione ?? 0) + 1
   if (!traccia || traccia.documentId !== documentId) {
     return {
       documentId, generazione, docTotaleCent: cent, docTotaleOriginaleCent: cent,
+      documento: testata, modificheDocumento: {},
       bozze: attive, righe: righeAttive,
       modificheBozze: {}, modificheRighe: {}, righeNuove: [],
     }
   }
   // RIAPERTURA con traccia: originali dalla custodia, correzioni ricostruite
   // (differenze database↔originale) + modifiche non ancora salvate
+  const origDoc = traccia.originaliDocumento
+  const documentoOriginale = origDoc ? { ...testata, ...origDoc } as DocumentoGrezzoRevisione : testata
+  const modificheDocumento: ModificaDocumento = {
+    ...(origDoc ? diffCampi(testata, origDoc, CAMPI_DOCUMENTO_REVISIONE) : {}),
+    ...traccia.modificheDocumento,
+  }
   const modificheBozze: Record<string, ModificaBozza> = {}
   const bozzeOriginali = attive.map(b => {
     const orig = traccia.originaliBozze[b.id]
@@ -272,12 +325,15 @@ export function apriRevisione(
     ...(vincoliVuoti(traccia.vincoli) ? {} : { vincoli: traccia.vincoli }),
     docTotaleCent: traccia.docTotaleCent,
     docTotaleOriginaleCent: traccia.docTotaleOriginaleCent,
+    documento: documentoOriginale, modificheDocumento,
     bozze: bozzeOriginali, righe: righeOriginali,
     modificheBozze, modificheRighe, righeNuove,
   }
 }
 
 // i valori CORRENTI (originale + modifica pendente), senza mutare nulla
+export const documentoCorrente = (s: StatoRevisione): DocumentoGrezzoRevisione =>
+  ({ ...s.documento, ...s.modificheDocumento })
 export const bozzaCorrente = (s: StatoRevisione, id: string): BozzaGrezza => {
   const b = s.bozze.find(x => x.id === id)!
   return { ...b, ...s.modificheBozze[id] }
@@ -295,6 +351,16 @@ const senzaVincolati = <T extends object>(campi: T, vincolati?: string[]): T => 
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(campi)) if (!vincolati.includes(k)) out[k] = v
   return out as T
+}
+// la testata: stessi vincoli; i testi vuoti diventano null (mai «» nel
+// database, che per il fornitore equivale a mancante)
+export const modificaDocumento = (s: StatoRevisione, campi: ModificaDocumento): StatoRevisione => {
+  const puliti: ModificaDocumento = {}
+  for (const [k, v] of Object.entries(campi))
+    (puliti as Record<string, unknown>)[k] = typeof v === 'string' && v.trim() === '' && k !== 'kind' ? null : v
+  const ammessi = senzaVincolati(puliti, s.vincoli?.documento)
+  if (Object.keys(ammessi).length === 0) return s
+  return { ...s, modificheDocumento: { ...s.modificheDocumento, ...ammessi } }
 }
 export const modificaBozza = (s: StatoRevisione, id: string, campi: ModificaBozza): StatoRevisione => {
   const ammessi = senzaVincolati(campi, s.vincoli?.bozze[id])
@@ -375,6 +441,65 @@ export function blocchiConferma(
   ambitoDelGruppo: (groupId: string | null) => 'personale' | 'azienda',
   sottoCanoniche?: { id: string; canonical_category_id?: string | null }[],
 ): string[] {
+  const blocchi = blocchiComuni(s, ambitoDelGruppo, sottoCanoniche, true)
+  // conferma_documento RIFIUTA le fatture: hanno le loro RPC (Fase 5)
+  if (documentoCorrente(s).kind === 'fattura')
+    blocchi.push('questo documento è una fattura: si approva «da pagare» o si conferma «già pagata», non si conferma come scontrino')
+  return [...new Set(blocchi)]
+}
+
+// ---- FATTURE (Fase 5): cosa blocca approvazione e conferma «già pagata» ---
+// Specchio di private.valida_fattura + approva_fattura_da_pagare /
+// conferma_fattura_pagata: totale, data documento, fornitore, bozze attive,
+// gruppo, quadratura; scadenza SOLO per una fattura da pagare; data e
+// metodo di pagamento SOLO per una già pagata. In più la regola della
+// casa: le fatture sono di Casa Ania (ogni parte con un gruppo azienda),
+// e il metodo per parte NON è richiesto qui (lo fornisce il pagamento).
+export type SceltaFattura =
+  | { esito: 'da_pagare' }
+  | { esito: 'pagata'; dataPagamento: string | null; metodo: string | null }
+
+export function blocchiFattura(
+  s: StatoRevisione,
+  ambitoDelGruppo: (groupId: string | null) => 'personale' | 'azienda',
+  sottoCanoniche: { id: string; canonical_category_id?: string | null }[] | undefined,
+  scelta: SceltaFattura,
+  oggi: string,
+): string[] {
+  const blocchi = blocchiComuni(s, ambitoDelGruppo, sottoCanoniche, false)
+  const d = documentoCorrente(s)
+  if (d.kind !== 'fattura') blocchi.push('il documento non è segnato come fattura')
+  if (!d.supplier || !d.supplier.trim()) blocchi.push('manca il fornitore')
+  if (!d.document_date) blocchi.push('manca la data della fattura')
+  else if (!dataIsoValida(d.document_date)) blocchi.push('la data della fattura non è valida')
+  for (const b of s.bozze) {
+    const c = bozzaCorrente(s, b.id)
+    if (c.group_id && ambitoDelGruppo(c.group_id) !== 'azienda')
+      blocchi.push('una fattura è di Casa Ania: ogni parte deve avere un gruppo Casa Ania')
+  }
+  if (scelta.esito === 'da_pagare') {
+    if (!d.due_date) blocchi.push('per una fattura da pagare serve la scadenza')
+    else if (!dataIsoValida(d.due_date)) blocchi.push('la scadenza non è una data valida')
+  } else {
+    if (d.due_date && !dataIsoValida(d.due_date)) blocchi.push('la scadenza non è una data valida')
+    if (!scelta.dataPagamento) blocchi.push('manca la data del pagamento')
+    else if (!dataIsoValida(scelta.dataPagamento)) blocchi.push('la data del pagamento non è valida')
+    else if (scelta.dataPagamento > oggi) blocchi.push('la data del pagamento è nel futuro: una fattura già pagata ha una data passata o di oggi')
+    if (!scelta.metodo || !(METODI_VALIDI as readonly string[]).includes(scelta.metodo))
+      blocchi.push('per una fattura già pagata serve il metodo di pagamento')
+  }
+  return [...new Set(blocchi)]
+}
+
+// i controlli condivisi da scontrini e fatture; `metodoPerBozza` = la
+// regola «metodo obbligatorio sulle parti Casa Ania» (vale per gli
+// scontrini; per le fatture il metodo arriva col pagamento)
+function blocchiComuni(
+  s: StatoRevisione,
+  ambitoDelGruppo: (groupId: string | null) => 'personale' | 'azienda',
+  sottoCanoniche: { id: string; canonical_category_id?: string | null }[] | undefined,
+  metodoPerBozza: boolean,
+): string[] {
   const blocchi: string[] = []
   const q = quadratura(s)
   if (!q.ok) {
@@ -388,7 +513,7 @@ export function blocchiConferma(
     const c = bozzaCorrente(s, b.id)
     if (!c.group_id) { blocchi.push('una parte non ha il destinatario (gruppo): assegnalo'); continue }
     const ambitoParte = ambitoDelGruppo(c.group_id)
-    if (ambitoParte === 'azienda' && !c.payment_method)
+    if (metodoPerBozza && ambitoParte === 'azienda' && !c.payment_method)
       blocchi.push('per Casa Ania il metodo di pagamento è obbligatorio')
     // COERENZA: nessuna voce può avere un destinatario dell'altro ambito
     // rispetto alla sua parte (il salvataggio incoerente romperebbe la vista)
@@ -443,11 +568,12 @@ export function blocchiConferma(
 //    (nessuna revisione modificabile da riaprire).
 export type Vincoli = {
   docTotale?: boolean
+  documento?: string[]                    // campi di testata (Fase 5)
   bozze: Record<string, string[]>
   righe: Record<string, string[]>
 }
 export const vincoliVuoti = (v?: Vincoli): boolean =>
-  !v || (!v.docTotale && Object.keys(v.bozze).length === 0 && Object.keys(v.righe).length === 0)
+  !v || (!v.docTotale && !(v.documento?.length) && Object.keys(v.bozze).length === 0 && Object.keys(v.righe).length === 0)
 
 // il write-set dell'operazione annotata (le modifiche custodite al suo
 // avvio: la schermata resta bloccata durante e dopo, quindi coincidono)
@@ -458,7 +584,12 @@ export function vincoliDaOperazione(traccia: TracciaRevisione): Vincoli {
     if (Object.keys(campi).length) bozze[id] = Object.keys(campi)
   for (const [id, campi] of Object.entries(traccia.modificheRighe))
     if (Object.keys(campi).length) righe[id] = Object.keys(campi)
-  return { docTotale: traccia.docTotaleCent !== traccia.docTotaleOriginaleCent || undefined, bozze, righe }
+  const documento = Object.keys(traccia.modificheDocumento ?? {})
+  return {
+    docTotale: traccia.docTotaleCent !== traccia.docTotaleOriginaleCent || undefined,
+    ...(documento.length ? { documento } : {}),
+    bozze, righe,
+  }
 }
 
 const unioneListe = (a: Record<string, string[]>, b: Record<string, string[]>) => {
@@ -466,17 +597,23 @@ const unioneListe = (a: Record<string, string[]>, b: Record<string, string[]>) =
   for (const [id, campi] of Object.entries(b)) out[id] = [...new Set([...(out[id] ?? []), ...campi])]
   return out
 }
-export const applicaVincoli = (s: StatoRevisione, v: Vincoli): StatoRevisione => ({
-  ...s,
-  vincoli: {
-    docTotale: s.vincoli?.docTotale || v.docTotale || undefined,
-    bozze: unioneListe(s.vincoli?.bozze ?? {}, v.bozze),
-    righe: unioneListe(s.vincoli?.righe ?? {}, v.righe),
-  },
-})
+export const applicaVincoli = (s: StatoRevisione, v: Vincoli): StatoRevisione => {
+  const documento = [...new Set([...(s.vincoli?.documento ?? []), ...(v.documento ?? [])])]
+  return {
+    ...s,
+    vincoli: {
+      docTotale: s.vincoli?.docTotale || v.docTotale || undefined,
+      ...(documento.length ? { documento } : {}),
+      bozze: unioneListe(s.vincoli?.bozze ?? {}, v.bozze),
+      righe: unioneListe(s.vincoli?.righe ?? {}, v.righe),
+    },
+  }
+}
 
 export const eVincolato = (s: StatoRevisione, tipo: 'bozza' | 'riga', id: string, campo: string): boolean =>
   !!(tipo === 'bozza' ? s.vincoli?.bozze[id] : s.vincoli?.righe[id])?.includes(campo)
+export const eVincolatoDocumento = (s: StatoRevisione, campo: string): boolean =>
+  !!s.vincoli?.documento?.includes(campo)
 
 export type EsitoPresa =
   | { esito: 'libera' }
@@ -502,22 +639,36 @@ export function riconciliaPresa(
       motivo: 'un salvataggio precedente non ha un esito riferibile: i suoi campi restano VINCOLATI (non modificabili) e la conferma bloccata — lo scarto resta possibile',
     }
   }
-  // conferma/scarto: decide lo stato EFFETTIVO del documento
+  // conferma/scarto/approvazione: decide lo stato EFFETTIVO del documento
   const attive = bozze.some(b => b.status === 'da_controllare' || b.status === 'pronta')
+  const nomeOp = inCorso.tipo === 'conferma' ? 'la conferma annotata'
+    : inCorso.tipo === 'approvazione' ? 'l\'approvazione annotata' : 'lo scarto annotato'
+  // l'APPROVAZIONE (fattura da pagare) lascia le bozze attive di proposito:
+  // alimentano lo scadenzario e il pagamento. Il documento approvato NON
+  // ha una revisione da riprendere (modificabile solo in_revisione).
+  if (documento.status === 'approvata_da_pagare') {
+    const coerente = inCorso.tipo === 'approvazione'
+    return {
+      esito: 'chiusa',
+      motivo: `il documento risulta APPROVATO DA PAGARE${coerente ? '' : ` — esito DIVERSO da ${nomeOp}: segnalalo`}: non c'è una revisione da riprendere (si paga dallo scadenzario)`,
+    }
+  }
   if (documento.status === 'confermato' || documento.status === 'scartato') {
     if (attive)
       return { esito: 'bloccata', motivo: `dati incoerenti: il documento risulta «${documento.status}» ma alcune bozze sono ancora attive — ricarica e riprova` }
     const coerente = (inCorso.tipo === 'conferma') === (documento.status === 'confermato')
     return {
       esito: 'chiusa',
-      motivo: `il documento risulta ${documento.status === 'confermato' ? 'CONFERMATO' : 'SCARTATO'}${coerente ? '' : ` — esito DIVERSO da ${inCorso.tipo === 'conferma' ? 'la conferma annotata' : 'lo scarto annotato'}: segnalalo`}: non c'è una revisione da riprendere`,
+      motivo: `il documento risulta ${documento.status === 'confermato' ? 'CONFERMATO' : 'SCARTATO'}${coerente ? '' : ` — esito DIVERSO da ${nomeOp}: segnalalo`}: non c'è una revisione da riprendere`,
     }
   }
   if (!documento.status)
     return { esito: 'bloccata', motivo: 'lo stato del documento non è disponibile: senza, nulla è dimostrabile — ricarica e riprova' }
+  const inviata = inCorso.tipo === 'conferma' ? 'la conferma inviata'
+    : inCorso.tipo === 'approvazione' ? 'l\'approvazione inviata' : 'lo scarto inviato'
   return {
     esito: 'bloccata',
-    motivo: `${inCorso.tipo === 'conferma' ? 'la conferma inviata' : 'lo scarto inviato'} non risulta ancora (documento «${documento.status}»): la richiesta potrebbe completarsi tardi — ricarica e riprova`,
+    motivo: `${inviata} non risulta ancora (documento «${documento.status}»): la richiesta potrebbe completarsi tardi — ricarica e riprova`,
   }
 }
 
@@ -562,6 +713,12 @@ export function correzioniDa(s: StatoRevisione): Record<string, unknown>[] {
       corrected: s.docTotaleCent == null ? null : s.docTotaleCent / 100,
     })
   }
+  // testata del documento: correzioni SENZA draft_id (riferite al documento)
+  for (const [campo, valore] of Object.entries(s.modificheDocumento)) {
+    const prima = s.documento[campo as keyof DocumentoGrezzoRevisione] ?? null
+    if (JSON.stringify(prima) !== JSON.stringify(valore ?? null))
+      out.push({ field: campo, proposed: prima, corrected: valore ?? null })
+  }
   for (const [id, campi] of Object.entries(s.modificheBozze)) {
     const originale = s.bozze.find(b => b.id === id)!
     for (const [campo, valore] of Object.entries(campi)) {
@@ -584,6 +741,7 @@ export function correzioniDa(s: StatoRevisione): Record<string, unknown>[] {
 // c'è qualcosa da salvare?
 export const modifichePendenti = (s: StatoRevisione): boolean =>
   s.docTotaleCent !== s.docTotaleOriginaleCent
+  || Object.keys(s.modificheDocumento).length > 0
   || Object.keys(s.modificheBozze).length > 0
   || Object.keys(s.modificheRighe).length > 0
   || s.righeNuove.length > 0

@@ -31,7 +31,7 @@ const SEZIONI: [SezioneSpese, string][] = [
 ]
 const OPZIONI_VUOTE: OpzioniFiltri = { periodi: [], categorie: [], metodi: [] }
 
-export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = 'panoramica', filtriApertiIniziale = false, riprova, aggiungi, notaAggiungi, sopra, apriFoto, eliminaSpesa, gestisciBudget, analisiOperativa, cambiaContesto, inSospeso, riprendiCaricamenti, apriRevisione }: {
+export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = 'panoramica', filtriApertiIniziale = false, riprova, aggiungi, notaAggiungi, sopra, apriFoto, eliminaSpesa, gestisciBudget, analisiOperativa, cambiaContesto, inSospeso, riprendiCaricamenti, apriRevisione, apriFattura }: {
   dati: StatoDati<DatiSpese>
   contestoIniziale?: Contesto
   sezioneIniziale?: SezioneSpese
@@ -45,6 +45,7 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
   // 3.2B — funzioni operative delle pagine ufficiali (assenti nella preview)
   apriFoto?: (documentId: string) => void
   apriRevisione?: (documentId: string) => void   // Fase 4: schermata di revisione
+  apriFattura?: (documentId: string) => void     // Fase 5: dettaglio/pagamento di una fattura
   eliminaSpesa?: (expenseId: string) => void
   gestisciBudget?: (contesto: Contesto) => void
   analisiOperativa?: (contesto: Contesto) => ReactNode
@@ -141,18 +142,20 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
                 ? <PanoramicaMia dati={dati.dati.mia} movimenti={dati.dati.movimenti} apriDaControllare={vaiAiDaControllare}
                     gestisciBudget={gestisciBudget ? () => gestisciBudget('mia') : undefined} />
                 : <PanoramicaAnia dati={dati.dati.ania} movimenti={dati.dati.movimenti}
-                    gestisciBudget={gestisciBudget ? () => gestisciBudget('ania') : undefined} />)}
+                    gestisciBudget={gestisciBudget ? () => gestisciBudget('ania') : undefined}
+                    apriFattura={apriFattura} />)}
               {sezione === 'movimenti' && (
                 <MovimentiTab movimenti={dati.dati.movimenti} contesto={contesto}
                   opzioni={opzioniAttuali}
                   filtri={filtri} iniziali={iniziali} setFiltri={setFiltri}
                   apriFiltri={() => setFiltriAperti(true)}
-                  apriFoto={apriFoto} eliminaSpesa={eliminaSpesa} />
+                  apriFoto={apriFoto} eliminaSpesa={eliminaSpesa} apriFattura={apriFattura} />
               )}
               {sezione === 'documenti' && (
                 <DocumentiTab documenti={perContestoDocumenti(dati.dati.documenti, contesto)}
                   apriFoto={apriFoto ? d => apriFoto(d.id) : undefined}
-                  apriRevisione={apriRevisione ? d => apriRevisione(d.id) : undefined} />
+                  apriRevisione={apriRevisione ? d => apriRevisione(d.id) : undefined}
+                  apriFattura={apriFattura ? d => apriFattura(d.id) : undefined} />
               )}
               {sezione === 'analisi' && (
                 <AnalisiTab contesto={contesto} mia={dati.dati.mia} ania={dati.dati.ania} operativa={analisiOperativa?.(contesto)} />

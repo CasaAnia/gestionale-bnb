@@ -150,10 +150,11 @@ export function PanoramicaMia({ dati, movimenti, apriDaControllare, gestisciBudg
   )
 }
 
-export function PanoramicaAnia({ dati, movimenti, gestisciBudget }: {
+export function PanoramicaAnia({ dati, movimenti, gestisciBudget, apriFattura }: {
   dati: PanoramicaAniaVista
   movimenti: MovimentoVista[]
   gestisciBudget?: () => void
+  apriFattura?: (documentId: string) => void   // Fase 5: dal scadenzario al pagamento
 }) {
   const recenti = perContesto(movimenti, 'ania').slice(0, 4)
   return (
@@ -170,33 +171,55 @@ export function PanoramicaAnia({ dati, movimenti, gestisciBudget }: {
           <div className="pl-3" style={{ borderLeft: `1px solid ${t.bordo}` }}>
             <Etichetta>Impegnato / da pagare</Etichetta>
             <p className={`${DISPLAY} text-[26px] leading-none`} style={{ color: t.terracotta }}>{eur(dati.impegnato.tot)}</p>
-            <p className="text-[12px] mt-1" style={{ color: t.sub }}>
+            <p className="text-[12px] mt-1" style={{ color: dati.scadenzario.scadute > 0 ? t.rosso : t.sub }}>
               {dati.impegnato.n} {dati.impegnato.n === 1 ? 'fattura approvata' : 'fatture approvate'}
+              {dati.scadenzario.scadute > 0 && ` · ${dati.scadenzario.scadute === 1 ? '1 scaduta' : `${dati.scadenzario.scadute} scadute`} (${eur(dati.scadenzario.totScadute)})`}
+              {dati.scadenzario.scadute === 0 && dati.scadenzario.inScadenza > 0 && ` · ${dati.scadenzario.inScadenza} in scadenza`}
             </p>
           </div>
         </div>
       </Card>
 
       <Card className="px-4 py-4">
-        <Etichetta>Prossime scadenze</Etichetta>
+        <div className="flex items-center justify-between">
+          <Etichetta>Scadenzario</Etichetta>
+          {dati.scadenze.length > 0 && (
+            <span className="text-[11.5px] font-semibold mb-2" style={{ color: t.sub }}>
+              {[
+                dati.scadenzario.scadute ? `${dati.scadenzario.scadute} scadut${dati.scadenzario.scadute === 1 ? 'a' : 'e'}` : null,
+                dati.scadenzario.inScadenza ? `${dati.scadenzario.inScadenza} in scadenza` : null,
+                dati.scadenzario.nonScadute ? `${dati.scadenzario.nonScadute} non scadut${dati.scadenzario.nonScadute === 1 ? 'a' : 'e'}` : null,
+              ].filter(Boolean).join(' · ')}
+            </span>
+          )}
+        </div>
         {dati.scadenze.length === 0 ? (
-          <p className="text-[13px] min-h-9 flex items-center" style={{ color: t.sub }}>Nessuna fattura in scadenza: tutto pagato.</p>
+          <p className="text-[13px] min-h-9 flex items-center" style={{ color: t.sub }}>Nessuna fattura da pagare: tutto pagato.</p>
         ) : (
           <div className="flex flex-col gap-1">
-            {dati.scadenze.map((s, i) => (
-              <div key={s.fornitore} className="flex items-center gap-3 min-h-11"
-                style={i > 0 ? { borderTop: `1px solid ${t.bordo}` } : undefined}>
-                <span className="grid place-items-center w-9 h-9 shrink-0"
-                  style={{ background: s.giorni <= 10 ? t.terraTenue : t.velo, color: s.giorni <= 10 ? t.terracotta : t.verde, borderRadius: t.rIcona }}>
-                  <CalendarClock size={17} />
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-[14px] font-semibold truncate" style={{ color: t.inchiostro }}>{s.fornitore}</span>
-                  <span className="block text-[12px]" style={{ color: t.sub }}>scade il {s.scade} · tra {s.giorni} giorni</span>
-                </span>
-                <span className={`${DISPLAY} text-[15px]`} style={{ color: t.inchiostro }}>{eur(s.importo)}</span>
-              </div>
-            ))}
+            {dati.scadenze.map((s, i) => {
+              const scaduta = s.stato === 'scaduta'
+              const vicina = s.stato === 'in_scadenza'
+              const colore = scaduta ? t.rosso : vicina ? t.terracotta : t.verde
+              return (
+                <button key={s.id} onClick={apriFattura ? () => apriFattura(s.id) : undefined} disabled={!apriFattura}
+                  className="w-full text-left flex items-center gap-3 min-h-11"
+                  style={i > 0 ? { borderTop: `1px solid ${t.bordo}` } : undefined}>
+                  <span className="grid place-items-center w-9 h-9 shrink-0"
+                    style={{ background: scaduta || vicina ? t.terraTenue : t.velo, color: colore, borderRadius: t.rIcona }}>
+                    {scaduta ? <TriangleAlert size={17} /> : <CalendarClock size={17} />}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[14px] font-semibold truncate" style={{ color: t.inchiostro }}>{s.fornitore}</span>
+                    <span className="block text-[12px]" style={{ color: scaduta ? t.rosso : t.sub }}>
+                      {s.etichetta}{s.stato !== 'non_scaduta' ? ` · ${s.scade}` : ''}
+                    </span>
+                  </span>
+                  <span className={`${DISPLAY} text-[15px]`} style={{ color: scaduta ? t.rosso : t.inchiostro }}>{eur(s.importo)}</span>
+                  {apriFattura && <ChevronRight size={18} style={{ color: t.sub }} />}
+                </button>
+              )
+            })}
           </div>
         )}
         {dati.fattureDaControllare > 0 && (

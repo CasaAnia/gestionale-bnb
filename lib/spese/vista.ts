@@ -55,6 +55,14 @@ export type RigaMovimentoVista = {
   aggiuntaUtente?: boolean      // riga aggiunta a mano in revisione
 }
 
+// scadenza di una fattura da pagare (Fase 5): stato DERIVATO da oggi,
+// giorni alla scadenza (negativi = già scaduta) ed etichetta pronta
+export type ScadenzaVista = {
+  stato: 'scaduta' | 'in_scadenza' | 'non_scaduta'
+  giorni: number
+  etichetta: string
+}
+
 export type MovimentoVista = {
   id: string
   titolo: string
@@ -84,6 +92,7 @@ export type MovimentoVista = {
   avviso?: string       // problema BLOCCANTE dentro un documento in revisione
   arrotondamentoCent?: number
   senzaFoto?: boolean
+  scadenza?: ScadenzaVista   // solo fatture da pagare
 }
 
 // ---------------------------------------------------------------------------
@@ -101,7 +110,8 @@ export type DocumentoVista = {
   stato: StatoDocumento
   importo?: number
   giorno?: string
-  scade?: string        // solo fatture da pagare
+  scade?: string        // solo fatture da pagare (etichetta della data)
+  scadenza?: ScadenzaVista   // solo fatture da pagare: stato scaduta/in scadenza/non scaduta
   pagine?: number
   dubbi?: number        // campi dubbi in revisione
   senzaFoto?: boolean   // documento registrato senza fotografia
@@ -127,7 +137,10 @@ export type PanoramicaAniaVista = {
   mese: string
   speso: number                     // denaro uscito davvero
   impegnato: { tot: number; n: number }
-  scadenze: { fornitore: string; importo: number; scade: string; giorni: number }[]
+  // lo SCADENZARIO: tutte le fatture approvate da pagare, le scadute per
+  // prime, ciascuna col suo stato; i contatori riassumono la situazione
+  scadenze: { id: string; fornitore: string; importo: number; scade: string; giorni: number; stato: ScadenzaVista['stato']; etichetta: string }[]
+  scadenzario: { scadute: number; inScadenza: number; nonScadute: number; totScadute: number }
   fattureDaControllare: number
   metodi: { nome: string; quota: number }[]
   costiCamere: { nome: string; tot: number }[]   // per l'Analisi aziendale

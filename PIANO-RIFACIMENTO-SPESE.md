@@ -3032,3 +3032,21 @@ geometria asciutta). La Fase 3 definitiva userà i token della B
 A e C restano nell'anteprima come archivio della decisione.
 NB: la Fase 3 vera sulle pagine reali resta comunque DOPO la 2C (il nuovo
 guscio poggia su documenti/bozze della 0020, non ancora in produzione).
+
+## Resoconto Fase 5 — 02/09/2026 (branch `fase5-fatture-casa-ania`, locale)
+
+Percorso completo delle fatture di Casa Ania sul contratto 0020/0021, senza
+SQL nuova e senza secondo percorso: la revisione porta la TESTATA del
+documento (tipo, fornitore, numero, data, scadenza) con originali custoditi
+e correzioni senza `draft_id`; la scelta «ancora da pagare» chiama
+`approva_fattura_da_pagare` (zero spese), «già pagata» chiama
+`conferma_fattura_pagata` con data (mai futura) e metodo; il pagamento di
+una fattura approvata passa da `paga_fattura` con presidio per documento
+(doppio tocco), esiti onesti (rifiuto / incerto / zero spese = incerto) e
+dettaglio leggibile anche dopo. Scadenzario derivato da «oggi» (scaduta /
+in scadenza ≤ 7 giorni / non scaduta) in Panoramica, Documenti, Movimenti.
+Caricamento a più pagine (un token, `-pN`, riselezione per impronta) con
+spunta «È una fattura». Servizio finto rigoroso (`fattureServerFinto.ts`)
+usato da test e preview. 39 test nuovi (410/410). Fuori perimetro:
+contratto di revisione (rifiuta le fatture), elaboratore (proposta in
+`proposte/elaboratore-fatture.BOZZA.md`). Scheda: `CONSEGNA-ATTIVA.md`.

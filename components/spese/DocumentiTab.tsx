@@ -32,14 +32,18 @@ function Blocco({ titolo, docs, vuoto, children }: {
 
 const bordoSopra = (i: number) => (i > 0 ? { borderTop: `1px solid ${t.bordo}` } : undefined)
 
-export function DocumentiTab({ documenti, apriRevisione, apriFoto }: {
+export function DocumentiTab({ documenti, apriRevisione, apriFoto, apriFattura }: {
   documenti: DocumentoVista[]
   apriRevisione?: (d: DocumentoVista) => void
   apriFoto?: (d: DocumentoVista) => void      // 3.2B: apre le fotografie
+  apriFattura?: (d: DocumentoVista) => void   // Fase 5: dettaglio e pagamento di una fattura
 }) {
   const toccaFoto = (d: DocumentoVista) =>
     apriFoto && !d.senzaFoto ? () => apriFoto(d) : undefined
   const per = (s: StatoDocumento) => documenti.filter(d => d.stato === s)
+  // scadenzario: le scadute per prime, poi le più vicine
+  const daPagare = [...per('da_pagare')].sort((a, b) => (a.scadenza?.giorni ?? 1e9) - (b.scadenza?.giorni ?? 1e9))
+  const toccaFattura = (d: DocumentoVista) => apriFattura ? () => apriFattura(d) : toccaFoto(d)
 
   return (
     <div className="flex flex-col gap-3">
@@ -79,27 +83,37 @@ export function DocumentiTab({ documenti, apriRevisione, apriFoto }: {
         )}
       </Blocco>
 
-      <Blocco titolo="Fatture da pagare" docs={per('da_pagare')} vuoto="Nessuna fattura in attesa: tutto pagato.">
-        {(d, i) => (
-          <div key={d.id} className="flex items-center gap-3 min-h-12" style={bordoSopra(i)}>
-            <span className="grid place-items-center w-9 h-9 shrink-0" style={{ background: t.terraTenue, color: t.terracotta, borderRadius: t.rIcona }}>
-              <Landmark size={16} />
-            </span>
-            <span className="flex-1 min-w-0">
-              <span className="block text-[14px] font-semibold truncate" style={{ color: t.inchiostro }}>{d.titolo}</span>
-              <span className="flex gap-1 mt-0.5 flex-wrap">
-                {d.scade && <Pastiglia icona={CalendarClock} testo={`scade ${d.scade}`} tono="rosso" />}
-                {!!d.pagine && d.pagine > 1 && <Pastiglia icona={Layers} testo={`${d.pagine} pagine`} />}
+      <Blocco titolo="Fatture da pagare" docs={daPagare} vuoto="Nessuna fattura in attesa: tutto pagato.">
+        {(d, i) => {
+          const scaduta = d.scadenza?.stato === 'scaduta'
+          const vicina = d.scadenza?.stato === 'in_scadenza'
+          return (
+            <button key={d.id} onClick={toccaFattura(d)} disabled={!toccaFattura(d)}
+              className="w-full text-left flex items-center gap-3 min-h-12" style={bordoSopra(i)}>
+              <span className="grid place-items-center w-9 h-9 shrink-0"
+                style={{ background: t.terraTenue, color: scaduta ? t.rosso : t.terracotta, borderRadius: t.rIcona }}>
+                {scaduta ? <TriangleAlert size={16} /> : <Landmark size={16} />}
               </span>
-            </span>
-            {d.importo != null && <span className={`${DISPLAY} text-[15px]`} style={{ color: t.terracotta }}>{eur(d.importo)}</span>}
-          </div>
-        )}
+              <span className="flex-1 min-w-0">
+                <span className="block text-[14px] font-semibold truncate" style={{ color: t.inchiostro }}>{d.titolo}</span>
+                <span className="flex gap-1 mt-0.5 flex-wrap">
+                  {d.scadenza
+                    ? <Pastiglia icona={scaduta ? TriangleAlert : CalendarClock} testo={d.scadenza.etichetta}
+                        tono={scaduta ? 'rosso' : vicina ? 'terra' : undefined} />
+                    : d.scade && <Pastiglia icona={CalendarClock} testo={`scade ${d.scade}`} />}
+                  {!!d.pagine && d.pagine > 1 && <Pastiglia icona={Layers} testo={`${d.pagine} pagine`} />}
+                </span>
+              </span>
+              {d.importo != null && <span className={`${DISPLAY} text-[15px]`} style={{ color: scaduta ? t.rosso : t.terracotta }}>{eur(d.importo)}</span>}
+              {apriFattura && <ChevronRight size={18} style={{ color: t.sub }} />}
+            </button>
+          )
+        }}
       </Blocco>
 
       <Blocco titolo="Fatture pagate" docs={per('pagata')} vuoto="Le fatture pagate compariranno qui.">
         {(d, i) => (
-          <button key={d.id} onClick={toccaFoto(d)} disabled={!toccaFoto(d)}
+          <button key={d.id} onClick={toccaFattura(d)} disabled={!toccaFattura(d)}
             className="w-full text-left flex items-center gap-3 min-h-11" style={bordoSopra(i)}>
             <span className="grid place-items-center w-9 h-9 shrink-0" style={{ background: t.verdeTenue, color: t.verde, borderRadius: t.rIcona }}>
               <CircleCheck size={16} />

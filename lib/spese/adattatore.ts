@@ -14,12 +14,13 @@
 //  · dati definitivi incoerenti = ERRORE esplicito, mai vista parziale.
 // ============================================================================
 import { SOGLIA_CONFIDENCE } from './controlli.ts'
+import { classificaScadenza, etichettaScadenza } from './fattureVista.ts'
 import { controllaMisto } from './vista.ts'
 import { ritmoEPrevisione } from './periodo.ts'
 import type {
   Contesto, DatiSpese, DocumentoVista, MovimentoVista, OpzioniFiltri,
   PanoramicaAniaVista, PanoramicaMiaVista, PeriodoVista, RigaMovimentoVista,
-  StatoDocumento, StatoMovimento,
+  ScadenzaVista, StatoDocumento, StatoMovimento,
 } from './vista'
 
 // ---- righe grezze (solo i campi che servono qui) ----
@@ -212,6 +213,15 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
   const cameraDi = new Map(t.camere.map(c => [c.id, c.active === false ? `${c.name} (archiviata)` : c.name]))
   const spesaDi = new Map(t.spese.map(s => [s.id, s]))
   const documentoGrezzoDi = new Map(t.documenti.map(d => [d.id, d]))
+  // la scadenza di una fattura APPROVATA da pagare (Fase 5): stato derivato
+  // da oggi; una fattura senza scadenza non può essere approvata (la RPC la
+  // pretende), quindi qui non compare
+  const scadenzaVista = (d: GrezzoDocumento): ScadenzaVista | undefined => {
+    if (d.status !== 'approvata_da_pagare' || !d.due_date) return undefined
+    const c = classificaScadenza(d.due_date, oggi)
+    if (c.stato === 'senza_scadenza' || c.giorni == null) return undefined
+    return { stato: c.stato, giorni: c.giorni, etichetta: etichettaScadenza(d.due_date, c, iso => etichettaGiorno(iso, oggi)) }
+  }
 
   // --- ANOMALIE STRUTTURALI: mai saltare dati incoerenti in silenzio ---
   const controllaRif = (dove: string, id: string | null | undefined, mappa: Map<string, unknown>, cosa: string) => {
@@ -531,6 +541,7 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
       avviso,
       arrotondamentoCent: arrotondamentoCent || undefined,
       senzaFoto: !fotoDiDocumento.get(d.id),
+      scadenza: scadenzaVista(d),
     })
   }
 
@@ -595,8 +606,11 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
       : ambiti.size === 1 ? [...ambiti][0]
         : d.upload_ambito === 'azienda' ? 'ania' : 'mia'
     const pagine = fotoDiDocumento.get(d.id) ?? 0
-    const dataDoc = d.document_date ?? spese.map(s => s.expense_date).sort().at(-1)
-      ?? bozzeAttive.map(b => b.expense_date).sort().at(-1) ?? d.created_at.slice(0, 10)
+    // con spese definitive il giorno è quello del denaro uscito (per una
+    // fattura pagata = data del pagamento, non della fattura); prima, la
+    // data del documento o delle bozze
+    const dataDoc = spese.length ? spese.map(s => s.expense_date).sort().at(-1)!
+      : d.document_date ?? bozzeAttive.map(b => b.expense_date).sort().at(-1) ?? d.created_at.slice(0, 10)
     const dubbi = bozzeAttive.reduce((sum, b) => sum + campiDubbi(b.confidence).n
       + (righeDiBozza.get(b.id) ?? []).filter(r => !r.excluded).reduce((s2, r) => s2 + campiDubbi(r.confidence).n, 0), 0)
     return {
@@ -610,6 +624,7 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
         : spese.length ? daCent(spese.reduce((x, s) => x + cent(s.amount), 0)) : undefined,
       giorno: etichettaGiorno(dataDoc, oggi),
       scade: d.due_date && d.status === 'approvata_da_pagare' ? etichettaGiorno(d.due_date, oggi) : undefined,
+      scadenza: scadenzaVista(d),
       pagine: pagine || undefined,
       senzaFoto: pagine === 0,
       motivo: d.error_message ?? (d.status === 'scartato' ? d.note ?? undefined : undefined),
@@ -693,7 +708,9 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
 
   const meseAz = aziendali.filter(s => s.expense_date.startsWith(idMese))
   const daPagare = t.documenti.filter(d => d.status === 'approvata_da_pagare')
-  const giorniA = (isoData: string) => Math.round((Date.parse(isoData) - Date.parse(oggi)) / 86400000)
+  const conScadenza = daPagare.filter(d => d.due_date)
+    .map(d => ({ d, s: scadenzaVista(d)! }))
+    .sort((a, b) => a.d.due_date!.localeCompare(b.d.due_date!))   // le scadute vengono prime
   const metodiMese = new Map<string, number>()
   for (const s of meseAz) {
     const nome = s.payment_method ? etichettaMetodo(s.payment_method) : 'Non indicato'
@@ -713,13 +730,16 @@ export function costruisciDatiSpese(t: TabelleGrezze, oggi: string): DatiSpese {
     mese: mia.mese,
     speso: daCent(totMeseAz),
     impegnato: { tot: daCent(daPagare.reduce((x, d) => x + cent(d.doc_total ?? 0), 0)), n: daPagare.length },
-    scadenze: daPagare.filter(d => d.due_date)
-      .sort((a, b) => a.due_date!.localeCompare(b.due_date!))
-      .slice(0, 5)
-      .map(d => ({
-        fornitore: d.supplier ?? 'Fattura', importo: Number(d.doc_total ?? 0),
-        scade: etichettaGiorno(d.due_date!, oggi), giorni: giorniA(d.due_date!),
-      })),
+    scadenze: conScadenza.map(({ d, s }) => ({
+      id: d.id, fornitore: d.supplier ?? 'Fattura', importo: Number(d.doc_total ?? 0),
+      scade: etichettaGiorno(d.due_date!, oggi), giorni: s.giorni, stato: s.stato, etichetta: s.etichetta,
+    })),
+    scadenzario: {
+      scadute: conScadenza.filter(x => x.s.stato === 'scaduta').length,
+      inScadenza: conScadenza.filter(x => x.s.stato === 'in_scadenza').length,
+      nonScadute: conScadenza.filter(x => x.s.stato === 'non_scaduta').length,
+      totScadute: daCent(conScadenza.filter(x => x.s.stato === 'scaduta').reduce((x, { d }) => x + cent(d.doc_total ?? 0), 0)),
+    },
     fattureDaControllare: t.documenti.filter(d => d.kind === 'fattura' && d.status === 'in_revisione').length,
     metodi: totMeseAz > 0
       ? [...metodiMese.entries()].sort((a, b) => b[1] - a[1])

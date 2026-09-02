@@ -7,7 +7,7 @@
 // metodi) e sui periodi con id stabile. Accento: verde Casa Mia, terracotta
 // Casa Ania.
 import { useState } from 'react'
-import { Search, SlidersHorizontal, X, BedDouble, Camera, TriangleAlert, CalendarClock, Layers } from 'lucide-react'
+import { Search, SlidersHorizontal, X, BedDouble, Camera, TriangleAlert, CalendarClock, Layers, Landmark } from 'lucide-react'
 import { TEMA as t, DISPLAY } from './tema'
 import { Card, Chip, IconaCategoria, Pastiglia } from './mattoni'
 import { Vuoto } from './StatiDati'
@@ -21,7 +21,14 @@ function PastiglieStato({ m, contesto }: { m: MovimentoVista; contesto: Contesto
     <span className="flex gap-1 mt-1 flex-wrap">
       {m.stato === 'da_controllare' && <Pastiglia testo="da controllare" tono="giallo" />}
       {m.avviso && <Pastiglia icona={TriangleAlert} testo={`non quadra: ${m.avviso}`} tono="rosso" />}
-      {m.stato === 'da_pagare' && <Pastiglia icona={CalendarClock} testo="da pagare" tono="terra" />}
+      {m.stato === 'da_pagare' && (
+        m.scadenza
+          ? <Pastiglia icona={m.scadenza.stato === 'scaduta' ? TriangleAlert : CalendarClock}
+              testo={`da pagare · ${m.scadenza.etichetta}`}
+              tono={m.scadenza.stato === 'scaduta' ? 'rosso' : m.scadenza.stato === 'in_scadenza' ? 'terra' : undefined} />
+          : <Pastiglia icona={CalendarClock} testo="da pagare" tono="terra" />
+      )}
+      {m.stato === 'pagata' && <Pastiglia icona={Landmark} testo="fattura pagata" tono="verde" />}
       {m.dubbio && <Pastiglia icona={TriangleAlert} testo={m.dubbio} tono="giallo" />}
       {m.senzaFoto && m.stato !== 'senza_documento' && <Pastiglia icona={Camera} testo="senza foto" />}
       {m.contesto === 'misto' && (
@@ -88,10 +95,11 @@ function DettaglioRighe({ m }: { m: MovimentoVista }) {
   )
 }
 
-export function RigaMovimento({ m, contesto, ultimo, apri, aperto, apriFoto, elimina }: {
+export function RigaMovimento({ m, contesto, ultimo, apri, aperto, apriFoto, elimina, apriFattura }: {
   m: MovimentoVista; contesto: Contesto; ultimo?: boolean; apri?: () => void; aperto?: boolean
   apriFoto?: () => void            // 3.2B: foto del documento
   elimina?: () => void             // 3.2B: solo spese manuali
+  apriFattura?: () => void         // Fase 5: dettaglio o pagamento della fattura
 }) {
   return (
     <div style={ultimo && !aperto ? undefined : { borderBottom: `1px solid ${t.bordo}` }}>
@@ -120,8 +128,14 @@ export function RigaMovimento({ m, contesto, ultimo, apri, aperto, apriFoto, eli
       {aperto && (
         <>
           <DettaglioRighe m={m} />
-          {(apriFoto || elimina) && (
-            <div className="flex gap-2 pb-3 pl-12 -mt-1">
+          {(apriFoto || elimina || apriFattura) && (
+            <div className="flex gap-2 pb-3 pl-12 -mt-1 flex-wrap">
+              {apriFattura && (
+                <button onClick={apriFattura} className="min-h-11 px-3 text-[12.5px] font-bold inline-flex items-center gap-1.5 text-white"
+                  style={{ background: t.terracotta, borderRadius: t.rPill }}>
+                  <Landmark size={14} /> {m.stato === 'da_pagare' ? 'Fattura: paga…' : 'Dettaglio fattura'}
+                </button>
+              )}
               {apriFoto && (
                 <button onClick={apriFoto} className="min-h-11 px-3 text-[12.5px] font-bold inline-flex items-center gap-1.5"
                   style={{ color: t.verde, border: `1px solid ${t.bordo}`, borderRadius: t.rPill, background: t.carta }}>
@@ -147,7 +161,7 @@ const NOMI_FILTRO: Record<keyof FiltriSpese, string> = {
   categoria: 'Categoria', metodo: 'Pagamento', stato: 'Stato', soloMisti: 'Documenti misti',
 }
 
-export function MovimentiTab({ movimenti, contesto, opzioni, filtri, iniziali, setFiltri, apriFiltri, apriFoto, eliminaSpesa }: {
+export function MovimentiTab({ movimenti, contesto, opzioni, filtri, iniziali, setFiltri, apriFiltri, apriFoto, eliminaSpesa, apriFattura }: {
   movimenti: MovimentoVista[]
   contesto: Contesto
   opzioni: OpzioniFiltri
@@ -157,6 +171,7 @@ export function MovimentiTab({ movimenti, contesto, opzioni, filtri, iniziali, s
   apriFiltri: () => void
   apriFoto?: (documentId: string) => void
   eliminaSpesa?: (expenseId: string) => void
+  apriFattura?: (documentId: string) => void
 }) {
   const [cerca, setCerca] = useState('')
   const [aperto, setAperto] = useState<string | null>(null)
@@ -217,12 +232,14 @@ export function MovimentiTab({ movimenti, contesto, opzioni, filtri, iniziali, s
             {visibili.map((m, i) => {
               const conFoto = apriFoto && m.id.startsWith('doc-') && !m.senzaFoto
               const eliminabile = eliminaSpesa && m.stato === 'senza_documento'
-              const apribile = !!m.righe || conFoto || eliminabile
+              const fattura = apriFattura && m.id.startsWith('doc-') && (m.stato === 'da_pagare' || m.stato === 'pagata')
+              const apribile = !!m.righe || conFoto || eliminabile || fattura
               return (
                 <RigaMovimento key={m.id} m={m} contesto={contesto} ultimo={i === visibili.length - 1}
                   apri={apribile ? () => setAperto(aperto === m.id ? null : m.id) : undefined}
                   aperto={aperto === m.id}
                   apriFoto={conFoto ? () => apriFoto!(m.id.slice(4)) : undefined}
+                  apriFattura={fattura ? () => apriFattura!(m.id.slice(4)) : undefined}
                   elimina={eliminabile ? () => eliminaSpesa!(m.id.slice(6)) : undefined} />
               )
             })}

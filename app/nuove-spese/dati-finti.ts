@@ -52,9 +52,14 @@ export const TABELLE_FINTE: TabelleGrezze = {
     doc({ id: 'd-rev', status: 'in_revisione', doc_total: 12.5, upload_ambito: 'personale' }),  // senza foto, in revisione (bozze sotto)
     doc({ id: 'd-misto', doc_total: 15.47 }),                          // scontrino misto confermato
     doc({ id: 'd-lenzuola', doc_total: 74 }),
-    doc({ id: 'd-fatt-lav', kind: 'fattura', status: 'approvata_da_pagare', doc_total: 180, supplier: 'Lavanderia Girasole', due_date: '2026-09-05', upload_ambito: 'azienda' }),
-    doc({ id: 'd-fatt-ele', kind: 'fattura', status: 'approvata_da_pagare', doc_total: 300, supplier: 'Elettricista Fumagalli', due_date: '2026-09-12', upload_ambito: 'azienda' }),
-    doc({ id: 'd-fatt-idr', kind: 'fattura', status: 'confermato', doc_total: 220, supplier: 'Idraulico Bianchi', upload_ambito: 'azienda', document_date: '2026-08-25' }),
+    // Fase 5: scadenzario completo — in scadenza (5/9), non scaduta (12/9), SCADUTA (20/8) —
+    // ognuna con la sua bozza attiva (è ciò che il pagamento trasforma in spesa)
+    doc({ id: 'd-fatt-lav', kind: 'fattura', status: 'approvata_da_pagare', doc_total: 180, supplier: 'Lavanderia Girasole', invoice_number: '2026/18', document_date: '2026-08-20', due_date: '2026-09-05', upload_ambito: 'azienda' }),
+    doc({ id: 'd-fatt-ele', kind: 'fattura', status: 'approvata_da_pagare', doc_total: 300, supplier: 'Elettricista Fumagalli', invoice_number: '44/2026', document_date: '2026-08-12', due_date: '2026-09-12', upload_ambito: 'azienda' }),
+    doc({ id: 'd-fatt-scad', kind: 'fattura', status: 'approvata_da_pagare', doc_total: 95.5, supplier: 'Vetraio Colombo', invoice_number: '7', document_date: '2026-07-30', due_date: '2026-08-20', upload_ambito: 'azienda' }),
+    doc({ id: 'd-fatt-idr', kind: 'fattura', status: 'confermato', doc_total: 220, supplier: 'Idraulico Bianchi', invoice_number: '113', upload_ambito: 'azienda', document_date: '2026-08-25', due_date: '2026-09-10' }),
+    // fattura appena letta, IN REVISIONE (due pagine): fornitore, numero e date da controllare
+    doc({ id: 'd-fatt-rev', kind: 'fattura', status: 'in_revisione', doc_total: 250, supplier: 'Impianti Rossi', invoice_number: '2026-091', document_date: '2026-08-27', due_date: '2026-09-26', upload_ambito: 'azienda', note: 'caldaia della Lena' }),
     doc({ id: 'd-scarto', status: 'scartato', note: 'doppione: stessa foto caricata due volte' }),
     doc({ id: 'd-errore', status: 'errore', error_message: 'non leggibile: rifare la foto' }),
   ],
@@ -102,6 +107,11 @@ export const TABELLE_FINTE: TabelleGrezze = {
     { id: 'r5', expense_id: 's-bnb1', name: 'Aceto di alcol ×2', amount: 4.14, category_id: 'c-pulizia', subcategory: 'Detersivi' },
   ],
   bozze: [
+    // le bozze delle fatture (Fase 5): una parte Casa Ania ciascuna
+    { id: 'b-fatt-lav', document_id: 'd-fatt-lav', status: 'da_controllare', expense_date: '2026-08-20', group_id: 'g-bnb', category_id: 'c-bianco', subcategory: null, canonical_category_id: null, canonical_subcategory_id: null, store: null, description: null, payment_method: null, room_id: null, expense_nature: 'ricorrente', confidence: {}, arrotondamento_cent: 0, expense_id: null },
+    { id: 'b-fatt-ele', document_id: 'd-fatt-ele', status: 'da_controllare', expense_date: '2026-08-12', group_id: 'g-bnb', category_id: 'c-lavori', subcategory: null, canonical_category_id: null, canonical_subcategory_id: null, store: null, description: null, payment_method: null, room_id: 'r-ambra', expense_nature: 'straordinaria', confidence: {}, arrotondamento_cent: 0, expense_id: null },
+    { id: 'b-fatt-scad', document_id: 'd-fatt-scad', status: 'da_controllare', expense_date: '2026-07-30', group_id: 'g-bnb', category_id: 'c-lavori', subcategory: null, canonical_category_id: null, canonical_subcategory_id: null, store: null, description: null, payment_method: null, room_id: 'r-amelia', expense_nature: 'straordinaria', confidence: {}, arrotondamento_cent: 0, expense_id: null },
+    { id: 'b-fatt-rev', document_id: 'd-fatt-rev', status: 'da_controllare', expense_date: '2026-08-27', group_id: 'g-bnb', category_id: 'c-lavori', subcategory: null, canonical_category_id: null, canonical_subcategory_id: null, store: null, description: null, payment_method: null, room_id: 'r-lena', expense_nature: 'straordinaria', confidence: { due_date: { confidence: 0.6, doubt_reason: 'scadenza poco leggibile sulla seconda pagina' } }, arrotondamento_cent: 0, expense_id: null },
     {
       id: 'b-rev-mia', document_id: 'd-rev', status: 'da_controllare', expense_date: '2026-08-29',
       group_id: 'g-casa', category_id: 'c-spesa', subcategory: null,
@@ -121,6 +131,12 @@ export const TABELLE_FINTE: TabelleGrezze = {
     },
   ],
   righeBozza: [
+    { id: 'rbf-lav', draft_id: 'b-fatt-lav', raw_name: null, name: 'Lavaggio biancheria di agosto', qty: 1, unit_price: null, discount: 0, amount: 180, group_id: null, category_id: 'c-bianco', subcategory: 'Lavanderia', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: false, user_added: false },
+    { id: 'rbf-ele1', draft_id: 'b-fatt-ele', raw_name: null, name: 'Sostituzione quadro elettrico', qty: 1, unit_price: null, discount: 0, amount: 240, group_id: null, category_id: 'c-lavori', subcategory: 'Elettricista', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: false, user_added: false },
+    { id: 'rbf-ele2', draft_id: 'b-fatt-ele', raw_name: null, name: 'Manodopera', qty: 1, unit_price: null, discount: 0, amount: 60, group_id: null, category_id: 'c-lavori', subcategory: 'Elettricista', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: false, user_added: false },
+    { id: 'rbf-scad', draft_id: 'b-fatt-scad', raw_name: null, name: 'Vetro finestra Amelia', qty: 1, unit_price: null, discount: 0, amount: 95.5, group_id: null, category_id: 'c-lavori', subcategory: 'Vetraio', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: false, user_added: false },
+    { id: 'rbf-rev1', draft_id: 'b-fatt-rev', raw_name: 'INTERV. CALDAIA', name: 'Intervento caldaia', qty: 1, unit_price: null, discount: 0, amount: 190, group_id: null, category_id: 'c-lavori', subcategory: 'Idraulico', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: false, user_added: false },
+    { id: 'rbf-rev2', draft_id: 'b-fatt-rev', raw_name: 'RICAMBI', name: 'Ricambi', qty: 1, unit_price: null, discount: 0, amount: 60, group_id: null, category_id: 'c-lavori', subcategory: 'Idraulico', canonical_category_id: null, canonical_subcategory_id: null, necessity: null, planning: null, confidence: {}, excluded: false, user_added: false },
     // rb1 con la CANONICA già assegnata (Alimentari): serve a provare che
     // la UI corregge davvero le canoniche, che hanno la precedenza
     { id: 'rb1', draft_id: 'b-rev-mia', raw_name: 'FRUTTA MISTA KG1', name: 'Frutta mista 1 kg', qty: 1, unit_price: 4.5, discount: 0, amount: 4.5, group_id: null, category_id: 'c-spesa', subcategory: 'Frutta', canonical_category_id: 'can-alim', canonical_subcategory_id: 'can-frutta', necessity: null, planning: null, confidence: {}, excluded: false, user_added: false },
@@ -146,6 +162,9 @@ export const TABELLE_FINTE: TabelleGrezze = {
     { id: 'f-lenz', document_id: 'd-lenzuola' },
     { id: 'f-ele1', document_id: 'd-fatt-ele' }, { id: 'f-ele2', document_id: 'd-fatt-ele' }, { id: 'f-ele3', document_id: 'd-fatt-ele' },
     { id: 'f-idr', document_id: 'd-fatt-idr' },
+    { id: 'f-scad', document_id: 'd-fatt-scad' },
+    { id: 'f-rev1', document_id: 'd-fatt-rev', storage_path: 'finta/fatt-p1.svg', page_order: 1, mime_type: 'image/svg+xml' },
+    { id: 'f-rev2', document_id: 'd-fatt-rev', storage_path: 'finta/fatt-p2.svg', page_order: 2, mime_type: 'image/svg+xml' },
     { id: 'f-scarto', document_id: 'd-scarto' },
     { id: 'f-err', document_id: 'd-errore' },
     // d-rev SENZA fotografia

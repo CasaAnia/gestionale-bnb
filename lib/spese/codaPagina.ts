@@ -28,6 +28,7 @@ export type StatoVocePagina =
   | 'pulizia_pendente'   // doppione accertato, copia ancora nel bucket
   | 'duplicato'          // doppione accertato e chiuso
 
+export type TipoDocumentoCoda = 'scontrino' | 'fattura' | 'altro'
 export type VocePagina = {
   id: string                                   // token dell'operazione, o id locale
   nome: string
@@ -39,13 +40,19 @@ export type VocePagina = {
   avviso?: string                              // es. avvisoDeposito
   file?: Blob | null                           // solo per le voci di questa sessione
   op?: OperazioneDurevole                      // presente appena l'operazione esiste
+  // Fase 5: PAGINE MULTIPLE — le altre pagine dello stesso documento (la
+  // prima è `file`); `pagine` = quante ne ha l'operazione; `kind` esplicito
+  // («è una fattura») per le voci nuove
+  altreFile?: { file: Blob; nome: string; tipo: string }[]
+  pagine?: number
+  kind?: TipoDocumentoCoda
 }
 
 // il controller di ripresaDurevole, come lo vede questa coda
 export type ControllerPagina = {
-  avvia(foto: FotoDaCaricare, ambito: 'personale' | 'azienda', nota: string | null): Promise<EsitoIdempotente | { ok: false; errore: string; riprovabile: boolean; ripresa?: undefined }>
+  avvia(foto: FotoDaCaricare | FotoDaCaricare[], ambito: 'personale' | 'azienda', nota: string | null, kind?: TipoDocumentoCoda): Promise<EsitoIdempotente | { ok: false; errore: string; riprovabile: boolean; ripresa?: undefined }>
   pendenti(): Promise<{ riprese: OperazioneDurevole[]; errore?: string }>
-  riprendi(op: OperazioneDurevole, foto?: FotoDaCaricare): Promise<EsitoIdempotente>
+  riprendi(op: OperazioneDurevole, foto?: FotoDaCaricare | FotoDaCaricare[]): Promise<EsitoIdempotente>
 }
 
 const statoDaChiusura = (c: ChiusuraOperazione | undefined): StatoVocePagina =>
@@ -62,6 +69,7 @@ export function vociDaPendenti(riprese: OperazioneDurevole[]): VocePagina[] {
     return {
       id: op.token, nome: op.nomeFile, tipo: op.mime, ambito: op.ambito,
       stato, errore: op.motivo, file: null, op,
+      pagine: op.pagine?.length ?? 1, kind: op.kind,
       // il recupero senza file è sempre tentabile: verifica da sé cosa fare
       riprovabile: stato !== 'da_riselezionare',
     }
@@ -79,6 +87,45 @@ export function nuoveVociPagina(
   }))
 }
 
+// ---- Fase 5: pagine dello stesso documento e tipo esplicito -----------------
+// Le voci NUOVE (mai inviate) si possono UNIRE in un solo documento a più
+// pagine (nell'ordine in cui stanno in coda) e SEPARARE di nuovo finché non
+// partono; il tipo «fattura» si segna sulle voci nuove. Le operazioni già
+// avviate hanno il manifesto fissato: non si toccano.
+const nuovaConFile = (v: VocePagina) => v.stato === 'in_attesa' && !!v.file && !v.op
+export const unibiliPagina = (coda: VocePagina[]): number =>
+  coda.filter(nuovaConFile).reduce((n, v) => n + 1 + (v.altreFile?.length ?? 0), 0)
+
+export function unisciInAttesa(coda: VocePagina[], genId: () => string): VocePagina[] {
+  const nuove = coda.filter(nuovaConFile)
+  if (nuove.length < 2 && !(nuove.length === 1 && nuove[0].altreFile?.length)) return coda
+  const pagine = nuove.flatMap(v => [{ file: v.file as Blob, nome: v.nome, tipo: v.tipo }, ...(v.altreFile ?? [])])
+  if (pagine.length < 2) return coda
+  const [prima, ...altre] = pagine
+  const unita: VocePagina = {
+    id: genId(), nome: prima.nome, tipo: prima.tipo, ambito: nuove[0].ambito,
+    stato: 'in_attesa', file: prima.file, altreFile: altre, pagine: pagine.length,
+    ...(nuove[0].kind ? { kind: nuove[0].kind } : {}),
+  }
+  const primaPosizione = coda.indexOf(nuove[0])
+  const resto = coda.filter(v => !nuovaConFile(v))
+  return [...resto.slice(0, primaPosizione), unita, ...resto.slice(primaPosizione)]
+}
+
+export function separaInAttesa(coda: VocePagina[], genId: () => string): VocePagina[] {
+  return coda.flatMap(v => {
+    if (!nuovaConFile(v) || !v.altreFile?.length) return [v]
+    const { altreFile, ...prima } = v
+    return [
+      { ...prima, pagine: undefined },
+      ...altreFile.map(f => ({ id: genId(), nome: f.nome, tipo: f.tipo, ambito: v.ambito, stato: 'in_attesa' as const, file: f.file, ...(v.kind ? { kind: v.kind } : {}) })),
+    ]
+  })
+}
+
+export const segnaTipoInAttesa = (coda: VocePagina[], kind: TipoDocumentoCoda | undefined): VocePagina[] =>
+  coda.map(v => (nuovaConFile(v) ? { ...v, kind } : v))
+
 export function applicaEsitoPagina(v: VocePagina, esito: Awaited<ReturnType<ControllerPagina['avvia']>>, nota: string | null): VocePagina {
   if (esito.ok) return { ...v, stato: 'salvata', errore: undefined, riprovabile: false, avviso: esito.avvisoDeposito, op: undefined }
   const ripresa = 'ripresa' in esito ? esito.ripresa : undefined
@@ -87,7 +134,7 @@ export function applicaEsitoPagina(v: VocePagina, esito: Awaited<ReturnType<Cont
   // campo vale solo per la PRIMA creazione
   const notaOriginale = v.op ? v.op.nota : nota
   const op: OperazioneDurevole | undefined = ripresa
-    ? { ...ripresa, ambito: v.ambito, nota: notaOriginale, nomeFile: v.nome }
+    ? { ...ripresa, ambito: v.ambito, nota: notaOriginale, nomeFile: v.altreFile?.length ? `${v.nome} (+${v.altreFile.length})` : v.nome }
     : v.op
   const chiusura = 'chiusura' in esito ? esito.chiusura : 'da_ritentare'
   const duplicato = 'duplicato' in esito && esito.duplicato
@@ -121,8 +168,11 @@ export const rimovibilePagina = (v: VocePagina): boolean =>
   v.stato === 'in_attesa' || v.stato === 'duplicato' || v.stato === 'salvata'
   // tutto il resto ha una traccia nel deposito: si recupera, non si nasconde
 
-const fotoDa = (v: VocePagina): FotoDaCaricare =>
-  ({ nomeFile: v.nome, tipo: v.tipo, contenuto: v.file as Blob, sha256: null })
+const fotoDa = (v: VocePagina): FotoDaCaricare | FotoDaCaricare[] => {
+  const prima: FotoDaCaricare = { nomeFile: v.nome, tipo: v.tipo, contenuto: v.file as Blob, sha256: null }
+  if (!v.altreFile?.length) return prima
+  return [prima, ...v.altreFile.map(f => ({ nomeFile: f.nome, tipo: f.tipo, contenuto: f.file, sha256: null }))]
+}
 
 // Il ciclo di invio della PAGINA: per identificativi, sullo stato vivo.
 export async function salvaCodaPagina(
@@ -141,7 +191,7 @@ export async function salvaCodaPagina(
     try {
       esito = voce.op
         ? await controller.riprendi(voce.op, voce.file ? fotoDa(voce) : undefined)
-        : await controller.avvia(fotoDa(voce), voce.ambito, nota)
+        : await controller.avvia(fotoDa(voce), voce.ambito, nota, voce.kind)
     } catch (e) {
       esito = { ok: false, errore: String((e as Error).message ?? e), riprovabile: true, ripresa: undefined }
     }
@@ -152,7 +202,10 @@ export async function salvaCodaPagina(
 }
 
 // la riselezione del file per una voce da_riselezionare (o per riprovare
-// un ritentativo con i byte in mano): il controller riconfronta l'impronta
-export function conFileRiselezionato(v: VocePagina, file: Blob, nome: string, tipo: string): VocePagina {
-  return { ...v, file, nome: v.op?.nomeFile ?? nome, tipo }
+// un ritentativo con i byte in mano): il controller riconfronta l'impronta.
+// Per un'operazione a più pagine si riselezionano TUTTI i file (in qualsiasi
+// ordine: l'abbinamento è per impronta)
+export function conFileRiselezionato(v: VocePagina, file: Blob, nome: string, tipo: string,
+  altre: { file: Blob; nome: string; tipo: string }[] = []): VocePagina {
+  return { ...v, file, nome: v.op?.nomeFile ?? nome, tipo, ...(altre.length ? { altreFile: altre } : { altreFile: undefined }) }
 }

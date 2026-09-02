@@ -63,13 +63,22 @@ export type ClienteIdempotente = {
 // Lo stato dell'operazione, fissato UNA volta e riusato identico in ogni
 // ritentativo. La nota non sta qui: la fissa la coda al primo tentativo e
 // i ritentativi la ripresentano identica alla RPC (manifesto).
+// PAGINE MULTIPLE (Fase 5): più foto dello stesso documento (una fattura di
+// due pagine) viaggiano con UN token e `pagine` = una voce per pagina, con
+// il SUO percorso (-pN) e la SUA impronta; i campi di testa restano quelli
+// della prima pagina, così le riprese custodite prima della Fase 5 (senza
+// `pagine`) valgono identiche come operazioni da una pagina.
+export type PaginaRipresa = { percorso: string; sha256: string; mime: string; page_order: number }
 export type RipresaToken = {
   token: string
   sha256: string
   percorso: string
   mime: string
   kind: 'scontrino' | 'fattura' | 'altro'
+  pagine?: PaginaRipresa[]
 }
+export const pagineDi = (r: RipresaToken): PaginaRipresa[] =>
+  r.pagine?.length ? r.pagine : [{ percorso: r.percorso, sha256: r.sha256, mime: r.mime, page_order: 1 }]
 
 export type Hasher = (contenuto: Blob) => Promise<string | null>
 
@@ -86,25 +95,38 @@ export function percorsoValido(percorso: string, token: string, pagina: number):
 
 // Fissa token, impronta, percorso e metadati PRIMA di ogni effetto esterno.
 // Se l'impronta non si può calcolare, errore RECUPERABILE prima di caricare.
+// `kind` esplicito (Fase 5: «è una fattura») vince sul tipo dedotto dal file.
 export async function preparaRipresa(
-  foto: FotoDaCaricare,
+  foto: FotoDaCaricare | FotoDaCaricare[],
   adesso = () => new Date().toISOString(),
   idCasuale = () => crypto.randomUUID(),
   hasher: Hasher = sha256DiFile,
+  kind?: 'scontrino' | 'fattura' | 'altro',
 ): Promise<{ ok: true; ripresa: RipresaToken } | { ok: false; errore: string; riprovabile: true }> {
-  let sha: string | null = null
-  try { sha = await hasher(foto.contenuto) } catch { sha = null }
-  if (!sha)
-    return { ok: false, errore: 'non riesco a calcolare l\'impronta della foto: senza impronta non la carico (riprova)', riprovabile: true }
+  const fotos = Array.isArray(foto) ? foto : [foto]
+  if (fotos.length === 0)
+    return { ok: false, errore: 'nessun file da caricare', riprovabile: true }
   const token = idCasuale()
-  const ext = (foto.nomeFile.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+  const giorno = adesso().slice(0, 10)
+  const pagine: PaginaRipresa[] = []
+  for (const [i, f] of fotos.entries()) {
+    let sha: string | null = null
+    try { sha = await hasher(f.contenuto) } catch { sha = null }
+    if (!sha)
+      return { ok: false, errore: `non riesco a calcolare l'impronta della foto${fotos.length > 1 ? ` (pagina ${i + 1})` : ''}: senza impronta non la carico (riprova)`, riprovabile: true }
+    const ext = (f.nomeFile.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+    pagine.push({ percorso: percorsoOperazione(giorno, token, i + 1, ext), sha256: sha, mime: f.tipo || 'image/jpeg', page_order: i + 1 })
+  }
+  // due pagine con la stessa impronta = la stessa foto scelta due volte:
+  // la RPC la respingerebbe come doppione, meglio fermarsi prima
+  if (new Set(pagine.map(p => p.sha256)).size !== pagine.length)
+    return { ok: false, errore: 'due delle pagine scelte sono la stessa foto: togline una', riprovabile: true }
   return {
     ok: true,
     ripresa: {
-      token, sha256: sha,
-      percorso: percorsoOperazione(adesso().slice(0, 10), token, 1, ext),
-      mime: foto.tipo || 'image/jpeg',
-      kind: tipoDocumentoDaFile(foto.tipo),
+      token, sha256: pagine[0].sha256, percorso: pagine[0].percorso, mime: pagine[0].mime,
+      kind: kind ?? tipoDocumentoDaFile(fotos[0].tipo),
+      ...(pagine.length > 1 ? { pagine } : {}),
     },
   }
 }
@@ -162,25 +184,38 @@ const fallimento = (
 
 export async function caricaConToken(
   cliente: ClienteIdempotente,
-  foto: FotoDaCaricare,
+  foto: FotoDaCaricare | FotoDaCaricare[],
   ambito: 'personale' | 'azienda',
   nota: string | null,
   ripresa: RipresaToken,
   hasher: Hasher = sha256DiFile,
 ): Promise<EsitoIdempotente> {
-  // 0a) percorso nel formato ESATTO dell'operazione, prima di ogni effetto
-  if (!percorsoValido(ripresa.percorso, ripresa.token, 1))
+  const fotos = Array.isArray(foto) ? foto : [foto]
+  const pagine = pagineDi(ripresa)
+  // 0a) percorsi nel formato ESATTO dell'operazione, prima di ogni effetto
+  if (pagine.some(p => !percorsoValido(p.percorso, ripresa.token, p.page_order))
+    || new Set(pagine.map(p => p.page_order)).size !== pagine.length)
     return fallimento(ripresa, 'la ripresa ha un percorso che non appartiene a questa operazione: non tocco nulla — segnalalo', false, 'da_verificare')
 
-  // 0b) il blob DEVE corrispondere all'impronta fissata all'inizio: un file
-  //     riselezionato diverso si ferma PRIMA di qualsiasi effetto
-  let shaOra: string | null = null
-  try { shaOra = await hasher(foto.contenuto) } catch { shaOra = null }
-  if (!shaOra)
-    return fallimento(ripresa, 'non riesco a ricalcolare l\'impronta della foto: non tocco nulla, riprova', true, 'da_ritentare')
-  if (shaOra !== ripresa.sha256)
-    // l'operazione resta in attesa del SUO file: serveFile, non un fallimento definitivo
-    return fallimento(ripresa, 'questo file NON corrisponde a quello del tentativo originale: non lo carico sopra — riseleziona il file giusto, o elimina l\'operazione e caricalo come foto nuova', false, 'in_attesa_del_file', { serveFile: true })
+  // 0b) i blob DEVONO corrispondere alle impronte fissate all'inizio: un
+  //     file riselezionato diverso si ferma PRIMA di qualsiasi effetto. Con
+  //     più pagine l'abbinamento è PER IMPRONTA (l'ordine di riselezione
+  //     non conta): ogni pagina deve trovare il suo file
+  const perSha = new Map<string, FotoDaCaricare>()
+  for (const f of fotos) {
+    let shaOra: string | null = null
+    try { shaOra = await hasher(f.contenuto) } catch { shaOra = null }
+    if (!shaOra)
+      return fallimento(ripresa, 'non riesco a ricalcolare l\'impronta della foto: non tocco nulla, riprova', true, 'da_ritentare')
+    perSha.set(shaOra, f)
+  }
+  const mancanti = pagine.filter(p => !perSha.has(p.sha256))
+  if (mancanti.length)
+    // l'operazione resta in attesa dei SUOI file: serveFile, non un fallimento definitivo
+    return fallimento(ripresa, pagine.length > 1
+      ? `${mancanti.length === pagine.length ? 'questi file NON corrispondono' : `manca${mancanti.length === 1 ? '' : 'no'} ${mancanti.length === 1 ? 'una pagina' : `${mancanti.length} pagine`}`} del tentativo originale (pagin${mancanti.length === 1 ? 'a' : 'e'} ${mancanti.map(p => p.page_order).join(', ')}): non carico nulla — riseleziona tutte le pagine giuste, o elimina l'operazione e caricale come foto nuove`
+      : 'questo file NON corrisponde a quello del tentativo originale: non lo carico sopra — riseleziona il file giusto, o elimina l\'operazione e caricalo come foto nuova',
+    false, 'in_attesa_del_file', { serveFile: true })
 
   // 0c) il tentativo precedente è arrivato? Si verifica PRIMA di toccare il
   //     bucket. Token già registrato → niente upload, decide la RPC.
@@ -194,34 +229,36 @@ export async function caricaConToken(
     return fallimento(ripresa, `non riesco a verificare il tentativo precedente (${String((e as Error).message ?? e)}): non tocco nulla, riprova`, true, 'da_verificare')
   }
 
-  if (!saltaUpload) {
-    // 0d) l'impronta risulta già in archivio? Il client NON conclude che sia
-    //     un ALTRO documento (una chiamata concorrente con lo STESSO token
-    //     può essersi registrata dopo la lettura del passo 0c): si salta
-    //     solo l'upload e si lascia decidere la RPC col manifesto.
-    try {
-      const c = await cliente.ricevutaConSha(ripresa.sha256)
-      if (!c.errore && c.esiste) saltaUpload = true
-    } catch { /* si procede: decide comunque la RPC */ }
-  }
-
-  if (!saltaUpload) {
+  for (const pagina of pagine) {
+    let saltaPagina = saltaUpload
+    if (!saltaPagina) {
+      // 0d) l'impronta risulta già in archivio? Il client NON conclude che sia
+      //     un ALTRO documento (una chiamata concorrente con lo STESSO token
+      //     può essersi registrata dopo la lettura del passo 0c): si salta
+      //     solo l'upload e si lascia decidere la RPC col manifesto.
+      try {
+        const c = await cliente.ricevutaConSha(pagina.sha256)
+        if (!c.errore && c.esiste) saltaPagina = true
+      } catch { /* si procede: decide comunque la RPC */ }
+    }
+    if (saltaPagina) continue
     // 1) file nel bucket, MAI sovrascrivendo. E "oggetto già presente" NON
     //    dimostra "stessa foto": si verifica l'impronta di ciò che è
     //    ARCHIVIATO prima di proseguire.
+    const dove = pagine.length > 1 ? ` (pagina ${pagina.page_order})` : ''
     try {
-      const su = await cliente.caricaFile(ripresa.percorso, foto.contenuto, ripresa.mime)
+      const su = await cliente.caricaFile(pagina.percorso, perSha.get(pagina.sha256)!.contenuto, pagina.mime)
       if (su.esisteGia) {
-        const dentro = await cliente.improntaFile(ripresa.percorso)
+        const dentro = await cliente.improntaFile(pagina.percorso)
         if (dentro.errore || !dentro.esiste)
-          return fallimento(ripresa, 'al nostro percorso c\'è già un oggetto ma non riesco a verificarne il contenuto: non registro e non tocco nulla, riprova', true, 'da_verificare')
-        if (dentro.sha !== ripresa.sha256)
-          return fallimento(ripresa, 'al nostro percorso c\'è un contenuto DIVERSO dalla foto attesa: non registro, non sovrascrivo e non cancello nulla — segnalalo', false, 'da_verificare')
+          return fallimento(ripresa, `al nostro percorso${dove} c'è già un oggetto ma non riesco a verificarne il contenuto: non registro e non tocco nulla, riprova`, true, 'da_verificare')
+        if (dentro.sha !== pagina.sha256)
+          return fallimento(ripresa, `al nostro percorso${dove} c'è un contenuto DIVERSO dalla foto attesa: non registro, non sovrascrivo e non cancello nulla — segnalalo`, false, 'da_verificare')
       } else if (su.errore) {
-        return fallimento(ripresa, `caricamento della foto fallito: ${su.errore}`, true, 'da_ritentare')
+        return fallimento(ripresa, `caricamento della foto${dove} fallito: ${su.errore}`, true, 'da_ritentare')
       }
     } catch (e) {
-      return fallimento(ripresa, `caricamento interrotto (${String((e as Error).message ?? e)}): riprova`, true, 'da_ritentare')
+      return fallimento(ripresa, `caricamento interrotto${dove} (${String((e as Error).message ?? e)}): riprova`, true, 'da_ritentare')
     }
   }
 
@@ -237,13 +274,13 @@ export async function registraOperazione(
   ambito: 'personale' | 'azienda',
   nota: string | null,
 ): Promise<EsitoIdempotente> {
-  const pagina: PaginaDaRegistrare = {
-    storage_path: ripresa.percorso, page_order: 1,
-    mime_type: ripresa.mime, file_sha256: ripresa.sha256,
-  }
+  const pagine: PaginaDaRegistrare[] = pagineDi(ripresa).map(p => ({
+    storage_path: p.percorso, page_order: p.page_order,
+    mime_type: p.mime, file_sha256: p.sha256,
+  }))
   let risposta: RispostaRegistrazione
   try {
-    risposta = await cliente.registraDocumento(ripresa.token, ripresa.kind, ambito, nota, [pagina])
+    risposta = await cliente.registraDocumento(ripresa.token, ripresa.kind, ambito, nota, pagine)
   } catch (e) {
     const msg = String((e as Error).message ?? e)
     risposta = { errore: msg, codice: codiceDaMessaggio(msg) }
@@ -259,9 +296,13 @@ export async function registraOperazione(
       // la copia si toglie SOLO dopo la verifica esplicita del collegamento.
       // Se la pulizia NON è andata in porto, la responsabilità resta:
       // chiusura 'pulizia_pendente', la traccia non si perde.
-      const p = await pulisciSicuro(cliente, ripresa.percorso)
-      const conclusa = p.pulizia === 'rimossa' || p.pulizia === 'collegata'
-      return fallimento(ripresa, `questa foto è già in archivio${p.nota}`, false,
+      // con più pagine si puliscono TUTTE le copie; basta una pulizia
+      // non conclusa perché la responsabilità resti
+      const esiti = []
+      for (const pag of pagineDi(ripresa)) esiti.push(await pulisciSicuro(cliente, pag.percorso))
+      const p = esiti.find(x => x.pulizia !== 'rimossa' && x.pulizia !== 'collegata') ?? esiti[0]
+      const conclusa = esiti.every(x => x.pulizia === 'rimossa' || x.pulizia === 'collegata')
+      return fallimento(ripresa, `${pagineDi(ripresa).length > 1 ? 'queste pagine sono' : 'questa foto è'} già in archivio${p.nota}`, false,
         conclusa ? 'conclusa' : 'pulizia_pendente', { duplicato: true, pulizia: p.pulizia })
     }
     case 'token_riusato':

@@ -88,6 +88,11 @@ function clienteFinto(risposte: Partial<Record<keyof ClienteRevisione, unknown>>
     },
     async confermaDocumento(id, correzioni) { chiamate.push({ azione: 'conferma', payload: { id, correzioni } }); return rispondi('confermaDocumento', { ids: ['spesa-1'] }) },
     async scartaDocumento(id, motivo) { chiamate.push({ azione: 'scarta', payload: { id, motivo } }); return rispondi('scartaDocumento', {}) },
+    // Fase 5: testata e RPC fattura (qui non usate: gli scontrini non le toccano)
+    async aggiornaDocumento(id, campi) { chiamate.push({ azione: 'documento', payload: { id, campi } }); return rispondi('aggiornaDocumento', { righe: 1 }) },
+    async approvaFattura(id, correzioni) { chiamate.push({ azione: 'approva', payload: { id, correzioni } }); return rispondi('approvaFattura', {}) },
+    async pagaFattura(id, data, metodo, correzioni) { chiamate.push({ azione: 'paga', payload: { id, data, metodo, correzioni } }); return rispondi('pagaFattura', { ids: ['spesa-1'] }) },
+    async confermaFatturaPagata(id, data, metodo, correzioni) { chiamate.push({ azione: 'pagata', payload: { id, data, metodo, correzioni } }); return rispondi('confermaFatturaPagata', { ids: ['spesa-1'] }) },
   }
   return { cliente, chiamate }
 }

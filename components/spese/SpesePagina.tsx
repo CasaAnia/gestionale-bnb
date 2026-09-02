@@ -18,7 +18,10 @@ import { BudgetSheet } from './BudgetSheet'
 import { FotoSheet, type PaginaFoto } from './FotoSheet'
 import { CaricaFotoSheet, type VoceUI } from './CaricaFotoSheet'
 import { RevisioneSheet } from './RevisioneSheet'
+import { FatturaSheet } from './FatturaSheet'
 import { costruisciDatiSpese, oggiARoma } from '@/lib/spese/adattatore'
+import { dettaglioFattura } from '@/lib/spese/fattureVista'
+import { creaPagatore } from '@/lib/spese/fatturePagamento'
 import { leggiTutto, urlFirmato, type FonteCompleta } from '@/lib/spese/fonte'
 import { clienteSupabase } from '@/lib/spese/scritturaSupabase'
 import { clienteRevisioneSupabase } from '@/lib/spese/revisioneSupabase'
@@ -40,7 +43,7 @@ import { clienteIdempotenteSupabase } from '@/lib/spese/registrazioneSupabase'
 import { creaControllore, depositoLocale } from '@/lib/spese/ripresaDurevole'
 import {
   conFileRiselezionato, nuoveVociPagina, rimovibilePagina, salvaCodaPagina,
-  vociDaPendenti,
+  segnaTipoInAttesa, separaInAttesa, unisciInAttesa, vociDaPendenti,
 } from '@/lib/spese/codaPagina'
 import { filtraPerAmbito } from '@/lib/spese/ambito'
 import type { RisolutoriVoce, ItemEsteso } from '@/lib/spese/voci'
@@ -90,7 +93,11 @@ function Pagina({ ambito }: { ambito: Ambito }) {
   const [budgetAperto, setBudgetAperto] = useState(false)
   const [foto, setFoto] = useState<{ titolo: string; pagine: PaginaFoto[] } | null>(null)
   const [revisioneId, setRevisioneId] = useState<string | null>(null)
+  const [fatturaId, setFatturaId] = useState<string | null>(null)   // Fase 5: dettaglio/pagamento
   const [avviso, setAvviso] = useState<string | null>(null)
+  // il pagamento passa SOLO dalla RPC atomica paga_fattura (idempotente),
+  // con presidio per documento contro il doppio tocco
+  const pagatore = useMemo(() => creaPagatore(clienteRevisioneSupabase), [])
 
   // ---- coda di caricamento: flusso IDEMPOTENTE (0022) -------------------
   // La coda vive nella PAGINA; le operazioni PENDENTI del deposito durevole
@@ -259,17 +266,31 @@ function Pagina({ ambito }: { ambito: Ambito }) {
   }), [controllore, notaCoda, ricarica, setCoda])
 
   // riselezione del file per una voce che lo chiede (o per un ritentativo
-  // con i byte in mano): il flusso riconfronta l'impronta originale
+  // con i byte in mano): il flusso riconfronta l'impronta originale. Per
+  // un'operazione a più pagine si riselezionano tutti i file (l'ordine
+  // non conta: l'abbinamento è per impronta)
   const riseleziona = useCallback(async (id: string) => {
-    const [f] = await scegliFiles('image/*,application/pdf', false)
+    const files = await scegliFiles('image/*,application/pdf', false)
+    const [f, ...altri] = files
     if (!f) return
     setCoda(prev => prev.map(v => {
       if (v.id !== id) return v
-      const nuova = conFileRiselezionato(v, f, f.name, f.type) as VoceUI
+      const nuova = conFileRiselezionato(v, f, f.name, f.type,
+        altri.map(a => ({ file: a as Blob, nome: a.name, tipo: a.type }))) as VoceUI
       if (v.url) URL.revokeObjectURL(v.url)
       return { ...nuova, url: URL.createObjectURL(f) }
     }))
   }, [setCoda])
+  // Fase 5: le foto nuove come UN documento a più pagine, e il tipo «fattura»
+  const unisciCoda = useCallback(() => setCoda(prev => {
+    const unite = unisciInAttesa(prev, () => crypto.randomUUID()) as VoceUI[]
+    return unite.map(v => v.url || !v.file ? v : { ...v, url: URL.createObjectURL(v.file as File) })
+  }), [setCoda])
+  const separaCoda = useCallback(() => setCoda(prev =>
+    (separaInAttesa(prev, () => crypto.randomUUID()) as VoceUI[])
+      .map(v => v.url || !v.file ? v : { ...v, url: URL.createObjectURL(v.file as File) })), [setCoda])
+  const segnaFattura = useCallback((fattura: boolean) =>
+    setCoda(prev => segnaTipoInAttesa(prev, fattura ? 'fattura' : undefined) as VoceUI[]), [setCoda])
 
   const chiudiFoglioCarica = useCallback(() => {
     // salvate e doppioni chiusi escono di scena; TUTTO il resto resta in
@@ -316,10 +337,15 @@ function Pagina({ ambito }: { ambito: Ambito }) {
         inSospeso={coda.filter(v => v.op).length}
         riprendiCaricamenti={() => setFoglioCaricaAperto(true)}
         apriRevisione={id => {
+          const doc = fonte?.documenti.find(d => d.id === id)
+          // una fattura APPROVATA non si rivede più (modificabile solo
+          // in_revisione): si apre il suo dettaglio, da cui si paga
+          if (doc?.status === 'approvata_da_pagare') { setFatturaId(id); return }
           const attive = fonte?.bozze.some(b => b.document_id === id && (b.status === 'da_controllare' || b.status === 'pronta'))
-          if (attive) setRevisioneId(id)
+          if (attive && doc?.status === 'in_revisione') setRevisioneId(id)
           else setAvviso('Questo documento non ha ancora bozze da rivedere: prima va letto.')
         }}
+        apriFattura={id => setFatturaId(id)}
         apriFoto={apriFoto}
         eliminaSpesa={eliminaSpesa}
         gestisciBudget={() => setBudgetAperto(true)}
@@ -376,7 +402,12 @@ function Pagina({ ambito }: { ambito: Ambito }) {
         const idBozze = new Set(bozzeDoc.map(b => b.id))
         return (
           <RevisioneSheet
-            documento={{ id: doc.id, supplier: doc.supplier, kind: doc.kind, status: doc.status, doc_total: doc.doc_total == null ? null : Number(doc.doc_total), note: doc.note }}
+            documento={{
+              id: doc.id, supplier: doc.supplier, kind: doc.kind, status: doc.status,
+              doc_total: doc.doc_total == null ? null : Number(doc.doc_total), note: doc.note,
+              invoice_number: doc.invoice_number ?? null, document_date: doc.document_date, due_date: doc.due_date,
+            }}
+            oggi={oggiARoma()}
             bozze={bozzeDoc}
             righe={fonte.righeBozza.filter(r => idBozze.has(r.draft_id)) as unknown as RigaGrezza[]}
             gruppi={fonte.gruppi}
@@ -393,12 +424,32 @@ function Pagina({ ambito }: { ambito: Ambito }) {
             orchestrazione={orchestrazioneRevisione}
             fatto={esito => {
               if (esito === 'confermato') { setRevisioneId(null); setAvviso('Documento confermato: le spese sono nel conto.') }
+              if (esito === 'approvata') { setRevisioneId(null); setAvviso('Fattura approvata: è nello scadenzario e nell\'Impegnato, non ancora nello Speso.') }
               if (esito === 'scartato') { setRevisioneId(null); setAvviso('Documento scartato.') }
               if (esito === 'salvato') setAvviso('Modifiche salvate.')
               if (esito === 'verifica') { setRevisioneId(null); setAvviso('Ricontrolla il documento: quello che era arrivato è qui, le tue modifiche sono custodite.') }
               ricarica()
             }}
             chiudi={() => setRevisioneId(null)} />
+        )
+      })()}
+      {fatturaId && fonte && (() => {
+        const oggi = oggiARoma()
+        const dettaglio = dettaglioFattura(fonte, fatturaId, oggi)
+        if (!dettaglio) return null
+        return (
+          <FatturaSheet dettaglio={dettaglio} oggi={oggi}
+            apriFoto={dettaglio.pagine.length ? () => apriFoto(fatturaId) : undefined}
+            paga={dettaglio.stato === 'da_pagare'
+              ? richiesta => pagatore.paga(fatturaId, richiesta, oggi)
+              : undefined}
+            fatto={esito => {
+              setFatturaId(null)
+              if (esito === 'pagata') setAvviso('Fattura pagata: la spesa è nel conto alla data del pagamento.')
+              if (esito === 'verifica') setAvviso('Ricontrolla la fattura: se risulta pagata è andata, altrimenti puoi riprovare.')
+              ricarica()
+            }}
+            chiudi={() => setFatturaId(null)} />
         )
       })()}
       {fogliocaricaAperto && (
@@ -414,6 +465,7 @@ function Pagina({ ambito }: { ambito: Ambito }) {
           riseleziona={riseleziona}
           aggiungiAltri={async () => accoda(await scegliFiles('image/*,application/pdf', false))}
           salvaTutte={salvaTutteLeFoto}
+          unisci={unisciCoda} separa={separaCoda} segnaFattura={segnaFattura}
           chiudi={chiudiFoglioCarica} />
       )}
 

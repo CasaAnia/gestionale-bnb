@@ -9,7 +9,15 @@
 //   ?stato=caricamento → mostra lo scheletro di caricamento
 //   ?stato=errore      → mostra lo stato di errore
 //   ?stato=vuoto       → dati quasi vuoti (mese senza spese)
-import { useState } from 'react'
+//   ?oggi=AAAA-MM-GG   → il giorno «di oggi» (scadenzario: scaduta/in scadenza)
+//   ?fattura=<id>      → apre subito il dettaglio/pagamento di una fattura
+//   ?revisione=<id>    → apre subito la revisione di un documento (es. d-fatt-rev)
+// FATTURE (Fase 5): revisione e pagamento passano dal SERVIZIO FINTO
+// RIGOROSO (lib/spese/fattureServerFinto) sulle tabelle sintetiche, che
+// vengono MUTATE come farebbe il database: il guscio si ricostruisce dalle
+// stesse tabelle con l'adattatore vero. ?scrittura=errore|rete|persa|lenta|zero
+// vale anche per le RPC fattura.
+import { useMemo, useState } from 'react'
 import { SpeseShell, type SezioneSpese } from '@/components/spese/SpeseShell'
 import { ModuloSpesa } from '@/components/spese/ModuloSpesa'
 import type { ClienteScrittura } from '@/lib/spese/scrittura'
@@ -27,7 +35,11 @@ import { orchestrazioneContratto, type OrchestrazioneRevisione } from '@/lib/spe
 import type { Contesto, DatiSpese, StatoDati } from '@/lib/spese/vista'
 import { costruisciDatiSpese } from '@/lib/spese/adattatore'
 import { costruisciPacchettoBozze, type LetturaDocumento } from '@/lib/spese/elaborazioneBozze'
-import { DATI_FINTI, DATI_QUASI_VUOTI, OGGI_FINTO, TABELLE_FINTE } from './dati-finti'
+import { creaServerFattureFinto, type GuastoFinto } from '@/lib/spese/fattureServerFinto'
+import { dettaglioFattura } from '@/lib/spese/fattureVista'
+import { creaPagatore } from '@/lib/spese/fatturePagamento'
+import { FatturaSheet } from '@/components/spese/FatturaSheet'
+import { DATI_QUASI_VUOTI, OGGI_FINTO, TABELLE_FINTE } from './dati-finti'
 
 // cliente FINTO in memoria: per provare salvataggi, errori e doppio clic
 // senza toccare nulla di vero (?scrittura=errore simula il fallimento)
@@ -122,6 +134,12 @@ function clienteRevisioneFinto(modo: string | null, db: ArchivioRevisione): Clie
       db.docStatus = 'scartato'
       return {}
     },
+    // Fase 5: qui non usate (d-rev è uno scontrino); le fatture passano
+    // dal servizio finto rigoroso sulle tabelle
+    async aggiornaDocumento() { await attesa(); const g = guasto(); if (g) return g; return { righe: 1 } },
+    async approvaFattura() { return { errore: 'd-rev è uno scontrino: le fatture usano il servizio finto sulle tabelle' } },
+    async pagaFattura() { return { errore: 'd-rev è uno scontrino: le fatture usano il servizio finto sulle tabelle' } },
+    async confermaFatturaPagata() { return { errore: 'd-rev è uno scontrino: le fatture usano il servizio finto sulle tabelle' } },
   }
 }
 
@@ -295,30 +313,48 @@ function tabellePerElaborazione(modo: string | null): { tabelle: TabelleDemo; no
   return { tabelle, nota: 'Documento elaborato ADESSO dal modulo «solo bozze» (demo): le bozze e i dubbi in «Da controllare» sono l\'output del costruttore vero — nessuna spesa definitiva è stata creata.' }
 }
 
-function statoIniziale(tabelle?: TabelleDemo | null): { c: Contesto; t: SezioneSpese; filtri: boolean; dati: StatoDati<DatiSpese> } {
+function statoIniziale(): { c: Contesto; t: SezioneSpese; filtri: boolean; statoDati: string; oggi: string } {
   const q = new URLSearchParams(window.location.search)
   const c: Contesto = q.get('c') === 'ania' ? 'ania' : 'mia'
   const t = (['panoramica', 'movimenti', 'documenti', 'analisi'].includes(q.get('t') || '')
     ? q.get('t') : 'panoramica') as SezioneSpese
-  const dati: StatoDati<DatiSpese> =
-    q.get('stato') === 'caricamento' ? { stato: 'caricamento' }
-      : q.get('stato') === 'errore' ? { stato: 'errore', messaggio: 'Il telefono era senza rete mentre chiedevo i movimenti.' }
-        : { stato: 'pronto', dati: q.get('stato') === 'vuoto' ? DATI_QUASI_VUOTI : (tabelle ? costruisciDatiSpese(tabelle, OGGI_FINTO) : DATI_FINTI) }
-  return { c, t, filtri: q.get('filtri') === '1', dati }
+  const oggi = /^\d{4}-\d{2}-\d{2}$/.test(q.get('oggi') ?? '') ? q.get('oggi')! : OGGI_FINTO
+  return { c, t, filtri: q.get('filtri') === '1', statoDati: q.get('stato') ?? 'pronto', oggi }
 }
 
 export default function Prova() {
   const [elaborato] = useState(() => tabellePerElaborazione(typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search).get('elabora') : null))
-  const TABELLE_DEMO = elaborato?.tabelle ?? TABELLE_FINTE
-  const [{ c, t, filtri, dati }] = useState(() => statoIniziale(elaborato?.tabelle))
+  // le TABELLE della prova sono MUTABILI (il servizio finto delle fatture le
+  // cambia come farebbe il database) e il guscio si ricostruisce da lì
+  const [TABELLE_DEMO] = useState<TabelleDemo>(() => JSON.parse(JSON.stringify(elaborato?.tabelle ?? TABELLE_FINTE)) as TabelleDemo)
+  const [{ c, t, filtri, statoDati, oggi }] = useState(() => statoIniziale())
+  const [versione, setVersione] = useState(0)
+  const dati = useMemo<StatoDati<DatiSpese>>(() =>
+    statoDati === 'caricamento' ? { stato: 'caricamento' }
+      : statoDati === 'errore' ? { stato: 'errore', messaggio: 'Il telefono era senza rete mentre chiedevo i movimenti.' }
+        : { stato: 'pronto', dati: statoDati === 'vuoto' ? DATI_QUASI_VUOTI : costruisciDatiSpese(TABELLE_DEMO, oggi) },
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- versione = «le tabelle sono cambiate»
+  [TABELLE_DEMO, statoDati, oggi, versione])
+  const ricarica = () => setVersione(v => v + 1)
   const [scelta, setScelta] = useState<string | null>(null)
   const [notaRevisione, setNotaRevisione] = useState<string | null>(elaborato?.nota ?? null)
   const [moduloAperto, setModuloAperto] = useState(false)
-  const [revisioneAperta, setRevisioneAperta] = useState(false)
+  const [revisioneId, setRevisioneId] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('revisione') : null)
+  const [fatturaId, setFatturaId] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('fattura') : null)
+  const revisioneAperta = revisioneId === 'd-rev'
+  const setRevisioneAperta = (aperta: boolean) => setRevisioneId(aperta ? 'd-rev' : null)
   const modoScrittura = typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search).get('scrittura') : null
   const scritturaFallisce = modoScrittura === 'errore'
+  // il servizio finto RIGOROSO delle fatture (RPC 0020 sulle tabelle) e il
+  // pagatore con presidio per documento
+  const fattureServer = useMemo(() => creaServerFattureFinto(TABELLE_DEMO, {
+    guasto: () => (['errore', 'rete', 'persa', 'lenta', 'zero'].includes(modoScrittura ?? '') ? modoScrittura : null) as GuastoFinto,
+  }), [TABELLE_DEMO, modoScrittura])
+  const pagatore = useMemo(() => creaPagatore(fattureServer.cliente), [fattureServer])
   // l'archivio finto SOPRAVVIVE a chiusura e riapertura del foglio: come il
   // database vero, dopo un Salva restituisce i valori già corretti (il
   // cliente finto lo muta sul posto, la riapertura lo rilegge)
@@ -369,7 +405,12 @@ export default function Prova() {
       <SpeseShell dati={dati} contestoIniziale={c} sezioneIniziale={t} filtriApertiIniziale={filtri}
         riprova={() => window.location.reload()}
         aggiungi={v => { if (v === 'manuale') setModuloAperto(true); else setScelta(v) }}
-        apriRevisione={() => setRevisioneAperta(true)}
+        apriRevisione={id => {
+          const doc = (TABELLE_DEMO.documenti as { id: string; status?: string }[]).find(d => d.id === id)
+          if (doc?.status === 'approvata_da_pagare') setFatturaId(id)
+          else setRevisioneId(id)
+        }}
+        apriFattura={id => setFatturaId(id)}
         notaAggiungi="in questa prova non si registra nulla: l'inserimento vero arriva con le fasi 4-5"
         sopra={
           <div className="flex items-center justify-center gap-2 py-1.5 text-[11px] font-bold tracking-wide"
@@ -419,7 +460,57 @@ export default function Prova() {
           }}
           chiudi={() => setRevisioneAperta(false)} />
       )}
-      {notaRevisione && !revisioneAperta && (
+      {revisioneId && revisioneId !== 'd-rev' && (() => {
+        const doc = (TABELLE_DEMO.documenti as { id: string; kind: string; status: string; doc_total: number | null; supplier: string | null; invoice_number?: string | null; document_date: string | null; due_date: string | null; note: string | null }[]).find(d => d.id === revisioneId)
+        if (!doc) return null
+        const bozzeDoc = (TABELLE_DEMO.bozze as { document_id: string }[]).filter(b => b.document_id === revisioneId) as unknown as BozzaGrezza[]
+        const idBozze = new Set(bozzeDoc.map(b => b.id))
+        return (
+          <RevisioneSheet
+            documento={{ id: doc.id, supplier: doc.supplier, kind: doc.kind, status: doc.status, doc_total: doc.doc_total, note: doc.note,
+              invoice_number: doc.invoice_number ?? null, document_date: doc.document_date, due_date: doc.due_date }}
+            oggi={oggi}
+            bozze={JSON.parse(JSON.stringify(bozzeDoc)) as BozzaGrezza[]}
+            righe={JSON.parse(JSON.stringify((TABELLE_DEMO.righeBozza as { draft_id: string }[]).filter(r => idBozze.has(r.draft_id)))) as RigaGrezza[]}
+            gruppi={TABELLE_FINTE.gruppi.map(g => ({ id: g.id, name: g.name, ambito: g.ambito ?? 'personale' }))}
+            categorie={TABELLE_FINTE.categorie.map(x => ({ id: x.id, name: x.name, group_id: x.group_id ?? '' }))}
+            canoniche={TABELLE_FINTE.categorieCanoniche}
+            sottoCanoniche={TABELLE_FINTE.sottocategorieCanoniche}
+            camere={TABELLE_FINTE.camere}
+            pagine={(TABELLE_DEMO.ricevute as { id: string; document_id: string | null; storage_path?: string; page_order?: number; mime_type?: string | null }[])
+              .filter(r => r.document_id === revisioneId && r.storage_path)
+              .map(r => ({ id: r.id, storage_path: r.storage_path!, page_order: r.page_order ?? 1, tipo: r.mime_type }))}
+            firmaUrl={async () => PAGINA_SVG}
+            cliente={fattureServer.cliente}
+            deposito={depositoProva}
+            fatto={esito => {
+              if (esito === 'salvato') { setNotaRevisione('salvate nelle tabelle finte: chiudi e riapri per vedere originali e correzioni conservati'); ricarica(); return }
+              if (esito === 'confermato') setNotaRevisione('fattura confermata come GIÀ PAGATA (finto): la spesa è nel conto alla data del pagamento')
+              if (esito === 'approvata') setNotaRevisione('fattura APPROVATA da pagare (finto): nello scadenzario e nell\'Impegnato, ZERO spese')
+              if (esito === 'scartato') setNotaRevisione('documento scartato (finto)')
+              if (esito === 'verifica') setNotaRevisione('da ricontrollare: riapri il documento — modifiche e responsabilità sono custodite')
+              setRevisioneId(null); ricarica()
+            }}
+            chiudi={() => setRevisioneId(null)} />
+        )
+      })()}
+      {fatturaId && (() => {
+        const dettaglio = dettaglioFattura(TABELLE_DEMO, fatturaId, oggi)
+        if (!dettaglio) return null
+        return (
+          <FatturaSheet dettaglio={dettaglio} oggi={oggi}
+            apriFoto={dettaglio.pagine.length ? () => setNotaRevisione(`(finto) qui si aprirebbero le ${dettaglio.pagine.length} pagine`) : undefined}
+            paga={dettaglio.stato === 'da_pagare' ? richiesta => pagatore.paga(fatturaId, richiesta, oggi) : undefined}
+            fatto={esito => {
+              setFatturaId(null)
+              if (esito === 'pagata') setNotaRevisione('fattura PAGATA (finto): la spesa è nel conto alla data del pagamento, l\'Impegnato è sceso')
+              if (esito === 'verifica') setNotaRevisione('da ricontrollare: riapri la fattura — se risulta pagata è andata')
+              ricarica()
+            }}
+            chiudi={() => setFatturaId(null)} />
+        )
+      })()}
+      {notaRevisione && !revisioneId && !fatturaId && (
         <div className="fixed inset-x-4 z-[70] bottom-[calc(env(safe-area-inset-bottom)+16px)] max-w-md mx-auto px-4 py-3 text-[13px] font-semibold text-center"
           style={{ background: '#141E19', color: '#F6F6F3', borderRadius: '0.75rem' }}
           onClick={() => setNotaRevisione(null)} role="status">

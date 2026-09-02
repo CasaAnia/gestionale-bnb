@@ -23,6 +23,7 @@ import type { StatoRevisione, TracciaRevisione } from './revisione.ts'
 import { correzioniDa, tracciaDa, vincoliVuoti } from './revisione.ts'
 import type { DepositoRevisione } from './revisioneDurevole.ts'
 import {
+  approvaFatturaRevisione, confermaFatturaPagataRevisione,
   confermaRevisione, fermaOperazione, pendenzaNonDimostrata, salvaModifiche,
   scartaRevisione, type ClienteRevisione, type EsitoRevisione,
 } from './revisioneScrittura.ts'
@@ -57,6 +58,10 @@ export type OrchestrazioneRevisione = {
   conferma(s: StatoRevisione): Promise<EsitoRevisione>
   scarta(s: StatoRevisione, motivo: string): Promise<EsitoScarto>
   apertura(documentId: string): Promise<AperturaRevisione>
+  // FATTURE (Fase 5): approvazione «da pagare» (zero spese) e conferma
+  // «già pagata» (spese con expense_date = data del pagamento)
+  approvaFattura(s: StatoRevisione): Promise<EsitoRevisione>
+  confermaFatturaPagata(s: StatoRevisione, dataPagamento: string, metodo: string): Promise<EsitoRevisione>
 }
 
 // ---- percorso LEGACY: delega pura, nessun comportamento nuovo -------------
@@ -66,8 +71,16 @@ export function orchestrazioneLegacy(cliente: ClienteRevisione, deposito: Deposi
     conferma: s => confermaRevisione(cliente, deposito, s),
     scarta: (s, motivo) => scartaRevisione(cliente, deposito, s, motivo),
     apertura: async () => ({ risolte: 0, avvisi: [], revPerDocumento: {} }),
+    approvaFattura: s => approvaFatturaRevisione(cliente, deposito, s),
+    confermaFatturaPagata: (s, data, metodo) => confermaFatturaPagataRevisione(cliente, deposito, s, data, metodo),
   }
 }
+
+// il percorso a CONTRATTO non copre ancora le tre RPC fattura (rientreranno
+// versionate con la transizione, che è un blocco separato e non autorizzato):
+// un rifiuto ESPLICITO, mai una scrittura fuori contratto
+export const MESSAGGIO_FATTURE_FUORI_CONTRATTO =
+  'le fatture non sono ancora coperte dal contratto di revisione: questo percorso le rifiuta (rientreranno con la transizione, da autorizzare a parte) — nessuna scrittura è partita'
 
 // ---- PRESIDIO per documento (condiviso nel contesto della pagina) ---------
 // Chi lo tiene lavora da solo sul documento; chi lo trova occupato NON
@@ -577,6 +590,8 @@ export function orchestrazioneContratto(dip: ServiziContratto & {
     scarta: (s, motivo) => conPresidio<EsitoScarto>(s.documentId,
       () => ({ ok: false, errore: MESSAGGIO_PRESIDIO }),
       () => scartaInterno(s, motivo)),
+    approvaFattura: async s => ({ ok: false, stato: s, errore: MESSAGGIO_FATTURE_FUORI_CONTRATTO }),
+    confermaFatturaPagata: async s => ({ ok: false, stato: s, errore: MESSAGGIO_FATTURE_FUORI_CONTRATTO }),
     apertura: async (documentId) => {
       const esito = await riconciliaContratto({ cliente, depositoRevisione, depositoOperazioni, ponte, hasher }, documentId)
       const raggiunta = esito.revPerDocumento[documentId]

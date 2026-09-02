@@ -17,7 +17,7 @@
 // NON ancora collegato alle pagine ufficiali (dipende dalla 0022).
 // ============================================================================
 import {
-  caricaConToken, preparaRipresa, registraOperazione,
+  caricaConToken, pagineDi, preparaRipresa, registraOperazione,
   type ChiusuraOperazione, type ClienteIdempotente, type EsitoIdempotente,
   type Hasher, type RipresaToken,
 } from './registrazioneIdempotente.ts'
@@ -55,6 +55,11 @@ export function depositoInMemoria(): DepositoRiprese & { contenuto: () => Operaz
 type Memoria = Pick<Storage, 'getItem' | 'setItem'>
 
 const AMBITI = ['personale', 'azienda'], KINDS = ['scontrino', 'fattura', 'altro']
+const paginaValida = (p: unknown) => typeof p === 'object' && p !== null
+  && typeof (p as Record<string, unknown>).percorso === 'string'
+  && typeof (p as Record<string, unknown>).sha256 === 'string'
+  && typeof (p as Record<string, unknown>).mime === 'string'
+  && Number.isInteger((p as Record<string, unknown>).page_order)
 function operazioneValida(x: unknown): x is OperazioneDurevole {
   if (typeof x !== 'object' || x === null) return false
   const o = x as Record<string, unknown>
@@ -63,6 +68,8 @@ function operazioneValida(x: unknown): x is OperazioneDurevole {
     && typeof o.nomeFile === 'string'
     && KINDS.includes(o.kind as string) && AMBITI.includes(o.ambito as string)
     && (o.nota === null || typeof o.nota === 'string')
+    // pagine multiple (Fase 5): facoltative; se ci sono, ogni pagina è intera
+    && (o.pagine === undefined || (Array.isArray(o.pagine) && o.pagine.length > 0 && o.pagine.every(paginaValida)))
 }
 
 // lettura con TRE esiti distinti: vuoto vero (chiave assente), contenuto
@@ -155,11 +162,16 @@ export function creaControllore(
   }
 
   return {
-    // nuovo caricamento: manifesto fissato e PERSISTITO prima dell'upload
-    async avvia(foto: FotoDaCaricare, ambito: 'personale' | 'azienda', nota: string | null): Promise<EsitoAvvio> {
-      const prep = await preparaRipresa(foto, adesso, idCasuale, hasher)
+    // nuovo caricamento: manifesto fissato e PERSISTITO prima dell'upload.
+    // Più foto = UN documento a più pagine (Fase 5); `kind` esplicito per
+    // segnare una fattura già al caricamento
+    async avvia(foto: FotoDaCaricare | FotoDaCaricare[], ambito: 'personale' | 'azienda', nota: string | null,
+      kind?: 'scontrino' | 'fattura' | 'altro'): Promise<EsitoAvvio> {
+      const fotos = Array.isArray(foto) ? foto : [foto]
+      const prep = await preparaRipresa(fotos, adesso, idCasuale, hasher, kind)
       if (!prep.ok) return { ok: false, errore: prep.errore, riprovabile: true, chiusura: 'da_ritentare' }
-      const op: OperazioneDurevole = { ...prep.ripresa, ambito, nota, nomeFile: foto.nomeFile }
+      const nomeFile = fotos.length > 1 ? `${fotos[0]?.nomeFile ?? 'documento'} (+${fotos.length - 1})` : fotos[0].nomeFile
+      const op: OperazioneDurevole = { ...prep.ripresa, ambito, nota, nomeFile }
       const salvataggio = await deposito.salva(op)
       if (salvataggio.errore)
         return { ok: false, errore: `non riesco a salvare la ripresa (${salvataggio.errore}): NON carico la foto, riprova`, riprovabile: true, chiusura: 'da_ritentare' }
@@ -173,8 +185,8 @@ export function creaControllore(
     // recupero di un'operazione pendente. Senza file: si completa se il
     // token è registrato o se il file è già nel bucket (impronta verificata);
     // altrimenti si chiede di riselezionare il file, che viene riconfrontato.
-    async riprendi(op: OperazioneDurevole, foto?: FotoDaCaricare): Promise<EsitoIdempotente> {
-      if (foto)
+    async riprendi(op: OperazioneDurevole, foto?: FotoDaCaricare | FotoDaCaricare[]): Promise<EsitoIdempotente> {
+      if (foto && (!Array.isArray(foto) || foto.length > 0))
         return chiudiOConserva(op, await caricaConToken(cliente, foto, op.ambito, op.nota, op, hasher))
       // 1) già registrata? (la RPC risponde "ripetuta" col manifesto)
       try {
@@ -184,16 +196,22 @@ export function creaControllore(
       } catch (e) {
         return chiudiOConserva(op, { ok: false, errore: `non riesco a verificare l'operazione (${String((e as Error).message ?? e)}): riprova`, riprovabile: true, chiusura: 'da_verificare', ripresa: op })
       }
-      // 2) non registrata: il file era già stato caricato?
-      const dentro: { esiste?: boolean; sha?: string; errore?: string } =
-        await cliente.improntaFile(op.percorso).catch(() => ({ errore: 'verifica non riuscita' }))
-      if (dentro.errore)
-        return chiudiOConserva(op, { ok: false, errore: `non riesco a verificare il file caricato (${dentro.errore}): riprova`, riprovabile: true, chiusura: 'da_verificare', ripresa: op })
-      if (!dentro.esiste)
-        return chiudiOConserva(op, { ok: false, errore: `serve di nuovo il file «${op.nomeFile}»: riselezionalo per completare il caricamento (verrà riconosciuto dall'impronta)`, riprovabile: false, serveFile: true, chiusura: 'in_attesa_del_file', ripresa: op })
-      if (dentro.sha !== op.sha256)
-        return chiudiOConserva(op, { ok: false, errore: 'al percorso dell\'operazione c\'è un contenuto DIVERSO dalla foto attesa: non registro e non tocco nulla — segnalalo', riprovabile: false, chiusura: 'da_verificare', ripresa: op })
-      // 3) file giusto già nel bucket: si registra e basta (niente upload)
+      // 2) non registrata: i file erano già stati caricati? (TUTTE le pagine)
+      const pagine = pagineDi(op)
+      for (const pag of pagine) {
+        const dove = pagine.length > 1 ? ` (pagina ${pag.page_order})` : ''
+        const dentro: { esiste?: boolean; sha?: string; errore?: string } =
+          await cliente.improntaFile(pag.percorso).catch(() => ({ errore: 'verifica non riuscita' }))
+        if (dentro.errore)
+          return chiudiOConserva(op, { ok: false, errore: `non riesco a verificare il file caricato${dove} (${dentro.errore}): riprova`, riprovabile: true, chiusura: 'da_verificare', ripresa: op })
+        if (!dentro.esiste)
+          return chiudiOConserva(op, { ok: false, errore: pagine.length > 1
+            ? `servono di nuovo le pagine di «${op.nomeFile}» (manca almeno la pagina ${pag.page_order}): riselezionale tutte per completare il caricamento (verranno riconosciute dall'impronta, in qualsiasi ordine)`
+            : `serve di nuovo il file «${op.nomeFile}»: riselezionalo per completare il caricamento (verrà riconosciuto dall'impronta)`, riprovabile: false, serveFile: true, chiusura: 'in_attesa_del_file', ripresa: op })
+        if (dentro.sha !== pag.sha256)
+          return chiudiOConserva(op, { ok: false, errore: `al percorso dell'operazione${dove} c'è un contenuto DIVERSO dalla foto attesa: non registro e non tocco nulla — segnalalo`, riprovabile: false, chiusura: 'da_verificare', ripresa: op })
+      }
+      // 3) file giusti già nel bucket: si registra e basta (niente upload)
       return chiudiOConserva(op, await registraOperazione(cliente, op, op.ambito, op.nota))
     },
   }

@@ -22,13 +22,14 @@ import { Chip, Etichetta, Foglio } from './mattoni'
 import type { PaginaFoto } from './FotoSheet'
 import {
   aggiungiRiga, applicaVincoli, apriRevisione, avvisoCoerenzaRiga,
-  blocchiConferma, bozzaCorrente, dubbiDi, eVincolato, modificaBozza,
+  blocchiConferma, blocchiFattura, bozzaCorrente, documentoCorrente, dubbiDi,
+  eVincolato, eVincolatoDocumento, modificaBozza, modificaDocumento,
   modificaRiga, modificaTotale, modifichePendenti, quadratura,
   riconciliaPresa, riconosciRigaIncerta, rigaCorrente,
   scegliCanonicaBozza, scegliCanonicaRiga, scegliSottoCanonicaBozza,
   scegliSottoCanonicaRiga, togliRigaNuova, totaliSorella, tracciaDa,
   vincoliVuoti,
-  type BozzaGrezza, type RigaGrezza, type StatoRevisione,
+  type BozzaGrezza, type DocumentoGrezzoRevisione, type RigaGrezza, type SceltaFattura, type StatoRevisione,
 } from '@/lib/spese/revisione'
 import type { ClienteRevisione, EsitoRevisione } from '@/lib/spese/revisioneScrittura'
 import { orchestrazioneLegacy, type AperturaRevisione, type OrchestrazioneRevisione } from '@/lib/spese/orchestrazioneRevisione'
@@ -39,14 +40,21 @@ import {
   type RegolaCampo, type RegolaImporto, type RegolaNumero,
 } from '@/lib/spese/campiImporto'
 import { creaGuardiaInvio } from '@/lib/spese/scrittura'
-import { etichettaMetodo } from '@/lib/spese/adattatore'
+import { etichettaMetodo, oggiARoma } from '@/lib/spese/adattatore'
 
 const eurCent = (c: number) => (c / 100).toFixed(2).replace('.', ',') + ' €'
 const METODI = ['contanti', 'carta_personale', 'carta_attivita', 'bonifico', 'altro']
 const NATURE = [['ordinaria', 'Ordinaria'], ['ricorrente', 'Ricorrente'], ['straordinaria', 'Straordinaria']] as const
+const TIPI = [['scontrino', 'Scontrino'], ['fattura', 'Fattura'], ['altro', 'Altro']] as const
 
 type PropsRevisione = {
-  documento: { id: string; supplier?: string | null; kind: string; status?: string | null; doc_total: number | null; note?: string | null }
+  // la testata (Fase 5): tipo, fornitore, numero, data e scadenza come li
+  // restituisce il database ORA; gli originali custoditi hanno la precedenza
+  documento: {
+    id: string; supplier?: string | null; kind: string; status?: string | null; doc_total: number | null; note?: string | null
+    invoice_number?: string | null; document_date?: string | null; due_date?: string | null
+  }
+  oggi?: string                     // per i controlli sulle date (default: oggi a Roma)
   bozze: BozzaGrezza[]
   righe: RigaGrezza[]
   gruppi: { id: string; name: string; ambito?: string | null }[]
@@ -62,9 +70,14 @@ type PropsRevisione = {
   // assente = legacy, identico a prima; presente = orchestrazione a
   // contratto (con la riconciliazione delle pendenze all'apertura)
   orchestrazione?: OrchestrazioneRevisione
-  fatto: (esito: 'confermato' | 'scartato' | 'salvato' | 'verifica') => void   // ricarica la pagina
+  fatto: (esito: 'confermato' | 'approvata' | 'scartato' | 'salvato' | 'verifica') => void   // ricarica la pagina
   chiudi: () => void
 }
+
+const testataDi = (d: PropsRevisione['documento']): DocumentoGrezzoRevisione => ({
+  kind: d.kind, supplier: d.supplier ?? null, invoice_number: d.invoice_number ?? null,
+  document_date: d.document_date ?? null, due_date: d.due_date ?? null,
+})
 
 // ---- guscio: prima si legge la CUSTODIA; se è illeggibile ci si FERMA -----
 // (aprire con gli originali presi dal database sembrerebbe innocuo, ma dopo
@@ -194,7 +207,7 @@ export function RevisioneSheet(props: PropsRevisione) {
               setErrorePresa(`${presa.motivo} — chiudi e ricarica per vederlo al suo posto`)
               return
             }
-            let stato = apriRevisione(documento.id, documento.doc_total, props.bozze, props.righe, lettura.traccia ?? null)
+            let stato = apriRevisione(documento.id, documento.doc_total, props.bozze, props.righe, lettura.traccia ?? null, testataDi(documento))
             if (presa.esito === 'vincolata') stato = applicaVincoli(stato, presa.vincoli)
             const r = deposito.salva(tracciaDa(stato))
             if (r.errore) setErrorePresa(`non riesco a prendere in carico il documento (${r.errore}): riprova`)
@@ -209,12 +222,16 @@ export function RevisioneSheet(props: PropsRevisione) {
     )
   }
   return <RevisioneAperta {...props} aperturaIniziale={riconciliazione} statoIniziale={
-    preso ?? apriRevisione(documento.id, documento.doc_total, props.bozze, props.righe, lettura.traccia ?? null)
+    preso ?? apriRevisione(documento.id, documento.doc_total, props.bozze, props.righe, lettura.traccia ?? null, testataDi(documento))
   } />
 }
 
-function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanoniche, camere, pagine, firmaUrl, cliente, deposito, orchestrazione, fatto, chiudi, statoIniziale, aperturaIniziale }: PropsRevisione & { statoIniziale: StatoRevisione; aperturaIniziale: AperturaRevisione }) {
+function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanoniche, camere, pagine, firmaUrl, cliente, deposito, orchestrazione, fatto, chiudi, statoIniziale, aperturaIniziale, oggi: oggiProp }: PropsRevisione & { statoIniziale: StatoRevisione; aperturaIniziale: AperturaRevisione }) {
   const [stato, setStato] = useState<StatoRevisione>(statoIniziale)
+  const oggi = oggiProp ?? oggiARoma()
+  // FATTURE (Fase 5): la scelta «da pagare» / «già pagata» vive solo nella
+  // schermata (non è un campo del documento): decide QUALE RPC chiamare
+  const [pagamento, setPagamento] = useState<{ esito: 'da_pagare' | 'pagata'; data: string; metodo: string | null }>({ esito: 'da_pagare', data: oggi, metodo: null })
   const [avvisoCustodia, setAvvisoCustodia] = useState<string | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
   // la riconciliazione dell'apertura parla da subito: qualcosa di
@@ -259,7 +276,14 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
   // la somma VERA delle righe (quadraturaDocumento la azzera quando manca
   // il totale: a schermo sarebbe fuorviante)
   const sommaCent = stato.bozze.reduce((a, b) => a + totaliSorella(stato, b.id).totaleCent, 0)
-  const blocchi = blocchiConferma(stato, ambitoDi, sottoCanoniche)
+  const testata = documentoCorrente(stato)
+  const eFattura = testata.kind === 'fattura'
+  const sceltaFattura: SceltaFattura = pagamento.esito === 'da_pagare'
+    ? { esito: 'da_pagare' }
+    : { esito: 'pagata', dataPagamento: pagamento.data || null, metodo: pagamento.metodo }
+  const blocchi = eFattura
+    ? blocchiFattura(stato, ambitoDi, sottoCanoniche, sceltaFattura, oggi)
+    : blocchiConferma(stato, ambitoDi, sottoCanoniche)
   const invalidi = [...new Set(Object.values(testi)
     .map(v => interpretaCampo(v.regola, v.testo))
     .filter(e => e.tipo === 'invalido')
@@ -426,25 +450,42 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
                 style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }}>
                 Salva
               </button>
-              <button disabled={fermo || blocchi.length > 0 || invalidi.length > 0}
-                onClick={() => esegui(async () => {
-                  const r = await orch.conferma(stato)
-                  if (r.ok) fatto('confermato')
-                  return r
-                })}
-                className="flex-[2] min-h-12 text-[15px] font-bold text-white disabled:opacity-50"
-                style={{ background: t.verde, borderRadius: t.rPill }}>
-                {lavoro ? 'Un attimo…' : 'Conferma le spese'}
-              </button>
+              {eFattura ? (
+                <button disabled={fermo || blocchi.length > 0 || invalidi.length > 0}
+                  onClick={() => esegui(async () => {
+                    // due RPC diverse: approvazione SENZA spese, oppure
+                    // conferma «già pagata» con data e metodo espliciti
+                    const r = pagamento.esito === 'da_pagare'
+                      ? await orch.approvaFattura(stato)
+                      : await orch.confermaFatturaPagata(stato, pagamento.data, pagamento.metodo ?? '')
+                    if (r.ok) fatto(pagamento.esito === 'da_pagare' ? 'approvata' : 'confermato')
+                    return r
+                  })}
+                  className="flex-[2] min-h-12 text-[15px] font-bold text-white disabled:opacity-50"
+                  style={{ background: t.terracotta, borderRadius: t.rPill }}>
+                  {lavoro ? 'Un attimo…' : pagamento.esito === 'da_pagare' ? 'Approva: da pagare' : 'Conferma: già pagata'}
+                </button>
+              ) : (
+                <button disabled={fermo || blocchi.length > 0 || invalidi.length > 0}
+                  onClick={() => esegui(async () => {
+                    const r = await orch.conferma(stato)
+                    if (r.ok) fatto('confermato')
+                    return r
+                  })}
+                  className="flex-[2] min-h-12 text-[15px] font-bold text-white disabled:opacity-50"
+                  style={{ background: t.verde, borderRadius: t.rPill }}>
+                  {lavoro ? 'Un attimo…' : 'Conferma le spese'}
+                </button>
+              )}
             </div>
           )}
         </div>
       }>
       <p className={`${DISPLAY} text-[19px] mb-0.5`} style={{ color: t.inchiostro }}>
-        {documento.supplier || 'Documento da rivedere'}
+        {(eFattura ? testata.supplier : documento.supplier) || 'Documento da rivedere'}
       </p>
       <p className="text-[12px] mb-3" style={{ color: t.sub }}>
-        {documento.kind === 'scontrino' ? 'scontrino' : documento.kind} in revisione
+        {testata.kind === 'scontrino' ? 'scontrino' : testata.kind === 'fattura' ? 'fattura' : 'documento'} in revisione
         {documento.note ? ` · nota: ${documento.note}` : ''}
       </p>
 
@@ -490,6 +531,90 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
             </button>
           ))}
         </div>
+      )}
+
+      {/* ---- tipo di documento: una fattura arrivata come foto o PDF si
+          riconosce qui; il tipo è un campo del documento (grant 0021) ---- */}
+      <Etichetta>Che documento è</Etichetta>
+      <div className="flex gap-1.5 flex-wrap mb-3">
+        {TIPI.map(([v, nome]) => (
+          <Chip key={v} attivo={testata.kind === v} colore={v === 'fattura' ? t.terracotta : t.verde}
+            onClick={() => { if (!eVincolatoDocumento(stato, 'kind')) setStato(s => modificaDocumento(s, { kind: v })) }}>
+            {nome}
+          </Chip>
+        ))}
+      </div>
+
+      {eFattura && (
+        <section className="mb-3 p-3" style={{ background: t.carta, borderRadius: t.r, border: t.bordoCarta, boxShadow: t.ombra }}>
+          <Etichetta>Dati della fattura (Casa Ania)</Etichetta>
+          <div className="flex gap-2 mb-2">
+            <div className="flex-1 min-w-0">
+              <Etichetta>Fornitore</Etichetta>
+              <input value={testata.supplier ?? ''} disabled={eVincolatoDocumento(stato, 'supplier')}
+                placeholder="es. Lavanderia Girasole"
+                onChange={e => setStato(s => modificaDocumento(s, { supplier: e.target.value }))}
+                className="w-full min-w-0 min-h-11 px-3 text-[13.5px] outline-none"
+                style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <Etichetta>Numero</Etichetta>
+              <input value={testata.invoice_number ?? ''} disabled={eVincolatoDocumento(stato, 'invoice_number')}
+                placeholder="es. 44/2026"
+                onChange={e => setStato(s => modificaDocumento(s, { invoice_number: e.target.value }))}
+                className="w-full min-w-0 min-h-11 px-3 text-[13.5px] outline-none"
+                style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
+            </div>
+          </div>
+          <div className="flex gap-2 mb-2">
+            <div className="flex-1 min-w-0">
+              <Etichetta>Data della fattura</Etichetta>
+              <input type="date" value={testata.document_date ?? ''} disabled={eVincolatoDocumento(stato, 'document_date')}
+                onChange={e => setStato(s => modificaDocumento(s, { document_date: e.target.value || null }))}
+                className="w-full min-w-0 min-h-11 px-2 text-[13.5px] outline-none appearance-none"
+                style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <Etichetta>Scadenza{pagamento.esito === 'da_pagare' ? ' (obbligatoria)' : ' (se c\'è)'}</Etichetta>
+              <input type="date" value={testata.due_date ?? ''} disabled={eVincolatoDocumento(stato, 'due_date')}
+                onChange={e => setStato(s => modificaDocumento(s, { due_date: e.target.value || null }))}
+                className="w-full min-w-0 min-h-11 px-2 text-[13.5px] outline-none appearance-none"
+                style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
+            </div>
+          </div>
+          <Etichetta>Pagamento</Etichetta>
+          <div className="flex gap-1.5 flex-wrap mb-2">
+            <Chip attivo={pagamento.esito === 'da_pagare'} colore={t.terracotta}
+              onClick={() => setPagamento(p => ({ ...p, esito: 'da_pagare' }))}>Ancora da pagare</Chip>
+            <Chip attivo={pagamento.esito === 'pagata'} colore={t.terracotta}
+              onClick={() => setPagamento(p => ({ ...p, esito: 'pagata' }))}>Già pagata</Chip>
+          </div>
+          {pagamento.esito === 'da_pagare' ? (
+            <p className="text-[11.5px] px-1" style={{ color: t.sub }}>
+              approvarla la mette nello scadenzario e nell&apos;Impegnato: NESSUNA spesa finché non la segni pagata
+            </p>
+          ) : (
+            <>
+              <div className="mb-2">
+                <Etichetta>Data del pagamento</Etichetta>
+                <input type="date" value={pagamento.data} max={oggi}
+                  onChange={e => setPagamento(p => ({ ...p, data: e.target.value }))}
+                  className="w-full min-w-0 min-h-11 px-2 text-[13.5px] outline-none appearance-none"
+                  style={{ background: t.velo, border: t.bordoCarta, borderRadius: t.rPill, color: t.inchiostro }} />
+                <p className="text-[11px] mt-1 px-1" style={{ color: t.sub }}>la spesa conta nel mese di questa data, non in quello della fattura</p>
+              </div>
+              <Etichetta>Metodo di pagamento (obbligatorio)</Etichetta>
+              <div className="flex gap-1.5 flex-wrap">
+                {METODI.map(m => (
+                  <Chip key={m} attivo={pagamento.metodo === m} colore={t.terracotta}
+                    onClick={() => setPagamento(p => ({ ...p, metodo: m }))}>
+                    {etichettaMetodo(m)}
+                  </Chip>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
       )}
 
       {/* ---- totale documento, modificabile (il riepilogo vive nel piede) ---- */}
@@ -569,7 +694,7 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
             </div>
             {ambito === 'azienda' && (
               <>
-                <Etichetta>Metodo di pagamento (obbligatorio)</Etichetta>
+                <Etichetta>{eFattura ? 'Metodo di pagamento (per una fattura si sceglie al pagamento)' : 'Metodo di pagamento (obbligatorio)'}</Etichetta>
                 <div className="flex gap-1.5 flex-wrap mb-2">
                   {METODI.map(m => (
                     <Chip key={m} attivo={c.payment_method === m} colore={accento}
@@ -629,7 +754,7 @@ function RevisioneAperta({ documento, gruppi, categorie, canoniche, sottoCanonic
                   </div>
                   <p className="text-[10.5px] px-3" style={{ color: t.sub }}>
                     {r.user_added ? 'aggiunta a mano · ' : ''}
-                    {r.raw_name && r.raw_name !== rc.name ? `sullo scontrino: «${r.raw_name}»` : ''}
+                    {r.raw_name && r.raw_name !== rc.name ? `${eFattura ? 'sulla fattura' : 'sullo scontrino'}: «${r.raw_name}»` : ''}
                     {rc.qty !== 1 ? ` · ×${testoNumero(rc.qty)}` : ''}
                     {rc.excluded ? ' · esclusa dal conto' : ''}
                   </p>

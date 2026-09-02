@@ -22,11 +22,14 @@
 // ============================================================================
 import type { StatoRevisione, TracciaRevisione } from './revisione.ts'
 import { correzioniDa, payloadRigaNuova, tracciaDa, vincoliVuoti } from './revisione.ts'
-import type { ModificaBozza, ModificaRiga, OperazioneInCorsa, RigaNuova } from './revisione.ts'
+import type { ModificaBozza, ModificaDocumento, ModificaRiga, OperazioneInCorsa, RigaNuova } from './revisione.ts'
 import type { DepositoRevisione } from './revisioneDurevole.ts'
 
 export type ClienteRevisione = {
   aggiornaDocTotale(documentId: string, totale: number | null): Promise<{ errore?: string; righe?: number }>
+  // la TESTATA (Fase 5): solo le colonne concesse dalla 0021 su
+  // family_documents (kind, supplier, invoice_number, document_date, due_date)
+  aggiornaDocumento(documentId: string, campi: ModificaDocumento): Promise<{ errore?: string; righe?: number }>
   aggiornaBozza(id: string, campi: ModificaBozza): Promise<{ errore?: string; righe?: number }>
   aggiornaRiga(id: string, campi: ModificaRiga): Promise<{ errore?: string; righe?: number }>
   // incerto=true quando NON si può sapere se l'inserimento è avvenuto
@@ -35,6 +38,11 @@ export type ClienteRevisione = {
   // le RPC atomiche esistenti — MAI insert diretti nelle spese definitive
   confermaDocumento(documentId: string, correzioni: Record<string, unknown>[]): Promise<{ ids?: string[]; errore?: string }>
   scartaDocumento(documentId: string, motivo: string): Promise<{ errore?: string }>
+  // le tre RPC delle FATTURE (0020, Fase 5): approvazione senza spese,
+  // pagamento di una fattura approvata, conferma di una già pagata
+  approvaFattura(documentId: string, correzioni: Record<string, unknown>[]): Promise<{ errore?: string }>
+  pagaFattura(documentId: string, dataPagamento: string, metodo: string, correzioni: Record<string, unknown>[]): Promise<{ ids?: string[]; errore?: string }>
+  confermaFatturaPagata(documentId: string, dataPagamento: string, metodo: string, correzioni: Record<string, unknown>[]): Promise<{ ids?: string[]; errore?: string }>
 }
 
 // l'esito porta sempre lo STATO aggiornato (id delle righe inserite,
@@ -117,6 +125,15 @@ export async function salvaModifiche(
       if (r.errore) return chiudi(esitoErrore(stato, 'totale non salvato', r.errore))
       if ((r.righe ?? 0) < 1) return chiudi({ ok: false, stato, errore: 'totale non salvato: nessuna riga toccata (documento protetto o sparito)' })
     }
+    // la testata del documento (tipo, fornitore, numero, date): un solo
+    // UPDATE sulle colonne concesse dalla 0021
+    if (Object.keys(stato.modificheDocumento).length > 0) {
+      const stop = fermaOperazione(deposito, stato)
+      if (stop) return { ok: false, stato, errore: stop }
+      const r = await cliente.aggiornaDocumento(stato.documentId, stato.modificheDocumento)
+      if (r.errore) return chiudi(esitoErrore(stato, 'i dati del documento non sono stati salvati', r.errore))
+      if ((r.righe ?? 0) < 1) return chiudi({ ok: false, stato, errore: 'i dati del documento non sono stati salvati: nessuna riga toccata (documento protetto o sparito)' })
+    }
     for (const [id, campi] of Object.entries(stato.modificheBozze)) {
       if (Object.keys(campi).length === 0) continue
       const stop = fermaOperazione(deposito, stato)
@@ -181,38 +198,88 @@ export async function salvaModifiche(
 export async function confermaRevisione(
   cliente: ClienteRevisione, deposito: DepositoRevisione, s: StatoRevisione,
 ): Promise<EsitoRevisione> {
+  return chiusuraViaRpc(cliente, deposito, s, {
+    tipo: 'conferma', nome: 'conferma', articolo: 'la',
+    statoAtteso: 'confermato', pretendeSpese: true,
+    invia: stato => cliente.confermaDocumento(stato.documentId, correzioniDa(stato)),
+  })
+}
+
+// ---- FATTURE (Fase 5): approvazione «da pagare» e conferma «già pagata» ----
+// Stesso protocollo della conferma: pendenze non dimostrate e vincoli
+// bloccano, PRIMA si salvano le modifiche (testata compresa), poi la RPC
+// atomica con le correzioni. L'approvazione NON crea spese (la RPC
+// restituisce void): il successo è l'assenza di errore; la conferma
+// «già pagata» crea le spese e deve restituirle (zero = incerto, mai un
+// successo). In entrambi i casi la revisione si chiude e la traccia si
+// toglie (documento non più modificabile: approvata_da_pagare/confermato).
+export async function approvaFatturaRevisione(
+  cliente: ClienteRevisione, deposito: DepositoRevisione, s: StatoRevisione,
+): Promise<EsitoRevisione> {
+  return chiusuraViaRpc(cliente, deposito, s, {
+    tipo: 'approvazione', nome: 'approvazione', articolo: 'l\'',
+    statoAtteso: 'approvato da pagare', pretendeSpese: false,
+    invia: stato => cliente.approvaFattura(stato.documentId, correzioniDa(stato)),
+  })
+}
+
+export async function confermaFatturaPagataRevisione(
+  cliente: ClienteRevisione, deposito: DepositoRevisione, s: StatoRevisione,
+  dataPagamento: string, metodo: string,
+): Promise<EsitoRevisione> {
+  return chiusuraViaRpc(cliente, deposito, s, {
+    tipo: 'conferma', nome: 'conferma', articolo: 'la',
+    statoAtteso: 'confermato', pretendeSpese: true,
+    invia: stato => cliente.confermaFatturaPagata(stato.documentId, dataPagamento, metodo, correzioniDa(stato)),
+  })
+}
+
+type ChiusuraRpc = {
+  tipo: 'conferma' | 'approvazione'
+  nome: string
+  articolo: string
+  statoAtteso: string
+  pretendeSpese: boolean
+  invia: (stato: StatoRevisione) => Promise<{ ids?: string[]; errore?: string }>
+}
+
+async function chiusuraViaRpc(
+  cliente: ClienteRevisione, deposito: DepositoRevisione, s: StatoRevisione, op: ChiusuraRpc,
+): Promise<EsitoRevisione> {
+  const laOp = `${op.articolo}${op.nome}`
   const pendenza = pendenzaNonDimostrata(s)
   if (pendenza)
-    return { ok: false, stato: s, errore: `la conferma è bloccata: l'invio della voce «${pendenza.name}» è senza esito dimostrato — si sblocca col contratto idempotente (proposta 0023)` }
+    return { ok: false, stato: s, errore: `${laOp} è bloccata: l'invio della voce «${pendenza.name}» è senza esito dimostrato — si sblocca col contratto idempotente (proposta 0023)` }
   if (!vincoliVuoti(s.vincoli))
-    return { ok: false, stato: s, errore: 'la conferma è bloccata: alcuni campi sono vincolati da un salvataggio precedente senza esito riferibile (lo scarto resta possibile)' }
+    return { ok: false, stato: s, errore: `${laOp} è bloccata: alcuni campi sono vincolati da un salvataggio precedente senza esito riferibile (lo scarto resta possibile)` }
   const salvataggio = await salvaModifiche(cliente, deposito, s)
   if (!salvataggio.ok) return salvataggio
   const stato = salvataggio.stato
   const avvisi = salvataggio.avviso ? [salvataggio.avviso] : []
-  const annotata = deposito.salva({ ...tracciaDa(stato), inCorso: { tipo: 'conferma', generazione: stato.generazione } })
+  const annotata = deposito.salva({ ...tracciaDa(stato), inCorso: { tipo: op.tipo, generazione: stato.generazione } })
   if (annotata.errore)
-    return { ok: false, stato, errore: `non riesco ad annotare la conferma in custodia (${annotata.errore}): non la avvio` }
+    return { ok: false, stato, errore: `non riesco ad annotare ${laOp} in custodia (${annotata.errore}): non la avvio` }
   const stop = fermaOperazione(deposito, stato)
   if (stop) return { ok: false, stato, errore: stop }
+  const incerto = (msg: string): EsitoRevisione => ({
+    ok: false, stato, incerto: true,
+    errore: `${op.nome} dall'esito incerto (${msg}): NON riprovare alla cieca — chiudi e ricontrolla: se il documento risulta ${op.statoAtteso} è andata (la RPC è idempotente)`,
+  })
   try {
-    const r = await cliente.confermaDocumento(stato.documentId, correzioniDa(stato))
+    const r = await op.invia(stato)
     if (r.errore) {
-      if (rete(r.errore))
-        return { ok: false, stato, incerto: true, errore: `conferma dall'esito incerto (${r.errore}): NON riprovare alla cieca — chiudi e ricontrolla: se il documento risulta confermato è andata (la RPC è idempotente)` }
+      if (rete(r.errore)) return incerto(r.errore)
       deposito.salva(tracciaDa(stato))                  // rifiuto definitivo: l'annotazione si toglie
       return { ok: false, stato, errore: r.errore }
     }
-    if (!r.ids || r.ids.length === 0)
-      return { ok: false, stato, errore: 'la conferma non ha restituito le spese create: verifica lo stato prima di riprovare', incerto: true }
+    if (op.pretendeSpese && (!r.ids || r.ids.length === 0))
+      return { ok: false, stato, errore: `${laOp} non ha restituito le spese create: verifica lo stato prima di riprovare`, incerto: true }
     const pulizia = deposito.rimuovi(stato.documentId, stato.generazione)
-    if (pulizia.errore) avvisi.push(`documento confermato, ma la traccia locale non è stata rimossa (${pulizia.errore})`)
+    if (pulizia.errore) avvisi.push(`documento ${op.statoAtteso}, ma la traccia locale non è stata rimossa (${pulizia.errore})`)
     return { ok: true, stato, avviso: avvisi.length ? avvisi.join(' · ') : undefined }
   } catch (e) {
     const msg = String((e as Error).message ?? e)
-    return rete(msg)
-      ? { ok: false, stato, incerto: true, errore: `conferma dall'esito incerto (${msg}): NON riprovare alla cieca — chiudi e ricontrolla: se il documento risulta confermato è andata (la RPC è idempotente)` }
-      : { ok: false, stato, errore: msg }
+    return rete(msg) ? incerto(msg) : { ok: false, stato, errore: msg }
   }
 }
 

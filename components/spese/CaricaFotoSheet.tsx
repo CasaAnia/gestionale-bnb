@@ -8,10 +8,10 @@
 // gli effetti, con ambito/token/manifesto ORIGINALI, e stati distinti:
 // da ritentare · da verificare · file da riselezionare · pulizia pendente.
 // ============================================================================
-import { X, Plus, TriangleAlert, CircleCheck, CopyX, RefreshCw, FileQuestion, Eraser, FileText } from 'lucide-react'
+import { X, Plus, TriangleAlert, CircleCheck, CopyX, RefreshCw, FileQuestion, Eraser, FileText, Layers, Landmark } from 'lucide-react'
 import { TEMA as t, DISPLAY } from './tema'
 import { Etichetta, Foglio } from './mattoni'
-import { inviabilePagina, rimovibilePagina, type VocePagina } from '@/lib/spese/codaPagina'
+import { inviabilePagina, rimovibilePagina, unibiliPagina, type VocePagina } from '@/lib/spese/codaPagina'
 import type { Ambito } from '@/lib/spese/types'
 
 export type VoceUI = VocePagina & { url?: string }
@@ -40,7 +40,7 @@ function spiega(v: VocePagina): string {
   return ''
 }
 
-export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, depositoErrore, togli, riseleziona, aggiungiAltri, salvaTutte, chiudi }: {
+export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, depositoErrore, togli, riseleziona, aggiungiAltri, salvaTutte, chiudi, unisci, separa, segnaFattura }: {
   ambito: Ambito
   coda: VoceUI[]
   salvando: boolean
@@ -52,10 +52,19 @@ export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, deposit
   aggiungiAltri: () => void
   salvaTutte: () => void
   chiudi: () => void
+  // Fase 5: più foto = UN documento (fattura a più pagine); «è una fattura»
+  unisci?: () => void
+  separa?: () => void
+  segnaFattura?: (fattura: boolean) => void
 }) {
   const accento = ambito === 'azienda' ? t.terracotta : t.verde
   const pronte = coda.filter(inviabilePagina).length
   const tutteSalvate = coda.length > 0 && coda.every(c => c.stato === 'salvata')
+  // le voci NUOVE (mai inviate) su cui valgono le scelte di unione e tipo
+  const nuove = coda.filter(c => c.stato === 'in_attesa' && !!c.file && !c.op)
+  const unita = nuove.find(c => (c.altreFile?.length ?? 0) > 0)
+  const unibili = unibiliPagina(coda)
+  const fattura = nuove.length > 0 && nuove.every(c => c.kind === 'fattura')
 
   return (
     <Foglio aria="Carica foto e documenti" chiudi={chiudi} scorrevole
@@ -82,6 +91,38 @@ export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, deposit
         </p>
       )}
 
+      {nuove.length > 0 && (unisci || segnaFattura) && (
+        <div className="mb-3 p-3 flex flex-col gap-2" style={{ background: t.carta, borderRadius: t.r, border: t.bordoCarta }}>
+          {unisci && separa && (unibili >= 2 || unita) && (
+            <label className="flex items-center gap-2.5 min-h-11 text-[13.5px] font-semibold" style={{ color: t.inchiostro }}>
+              <input type="checkbox" checked={!!unita} onChange={e => (e.target.checked ? unisci() : separa())}
+                className="w-5 h-5" style={{ accentColor: accento }} />
+              <span className="flex-1">
+                {unita
+                  ? `Un solo documento di ${unita.pagine ?? (unita.altreFile!.length + 1)} pagine`
+                  : `Sono ${unibili} pagine dello stesso documento`}
+                <span className="block text-[11.5px] font-normal" style={{ color: t.sub }}>
+                  {unita ? 'togli la spunta per caricarle come documenti separati' : 'es. una fattura fotografata su più pagine: un documento, N foto'}
+                </span>
+              </span>
+              <Layers size={16} style={{ color: t.sub }} />
+            </label>
+          )}
+          {segnaFattura && ambito === 'azienda' && (
+            <label className="flex items-center gap-2.5 min-h-11 text-[13.5px] font-semibold" style={{ color: t.inchiostro }}>
+              <input type="checkbox" checked={fattura} onChange={e => segnaFattura(e.target.checked)}
+                className="w-5 h-5" style={{ accentColor: accento }} />
+              <span className="flex-1">È una fattura
+                <span className="block text-[11.5px] font-normal" style={{ color: t.sub }}>
+                  in revisione chiederà fornitore, numero, date e se è già pagata; niente spese finché non è pagata
+                </span>
+              </span>
+              <Landmark size={16} style={{ color: t.sub }} />
+            </label>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-2 mb-3">
         {coda.map(c => {
           const bollino = BOLLINI[c.stato]
@@ -102,6 +143,18 @@ export function CaricaFotoSheet({ ambito, coda, salvando, nota, setNota, deposit
               {bollino && (
                 <span title={bollino.titolo} className="absolute top-1 left-1 grid place-items-center w-6 h-6"
                   style={{ background: bollino.sfondo, color: '#fff', borderRadius: 99 }}><bollino.Icona size={14} /></span>
+              )}
+              {(c.pagine ?? (c.altreFile ? c.altreFile.length + 1 : 1)) > 1 && (
+                <span className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 px-1.5 text-[9.5px] font-bold text-white"
+                  style={{ background: 'rgba(20,25,20,.75)', borderRadius: 99 }}>
+                  <Layers size={10} /> {c.pagine ?? (c.altreFile!.length + 1)} pag.
+                </span>
+              )}
+              {c.kind === 'fattura' && (
+                <span className="absolute top-1 right-1 inline-flex items-center gap-0.5 px-1.5 text-[9.5px] font-bold text-white"
+                  style={{ background: t.terracotta, borderRadius: 99 }}>
+                  <Landmark size={10} /> fattura
+                </span>
               )}
               {c.ambito !== ambito && (
                 <span className="absolute bottom-1 left-1 px-1.5 text-[9.5px] font-bold text-white"

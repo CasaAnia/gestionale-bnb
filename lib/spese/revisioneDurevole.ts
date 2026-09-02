@@ -40,11 +40,17 @@ function tracciaValida(x: unknown): x is TracciaRevisione {
   const inCorso = t.inCorso as Record<string, unknown> | null | undefined
   const vincoli = t.vincoli as Record<string, unknown> | undefined
   if (vincoli !== undefined && (typeof vincoli !== 'object' || vincoli === null || Array.isArray(vincoli)
-    || !archivioDiListe(vincoli.bozze) || !archivioDiListe(vincoli.righe))) return false
+    || !archivioDiListe(vincoli.bozze) || !archivioDiListe(vincoli.righe)
+    || (vincoli.documento !== undefined && !(Array.isArray(vincoli.documento)
+      && vincoli.documento.every(c => typeof c === 'string'))))) return false
+  // testata del documento (Fase 5): facoltativa, ma se c'è dev'essere un oggetto
+  const oggettoFacoltativo = (x: unknown) => x === undefined
+    || (typeof x === 'object' && x !== null && !Array.isArray(x))
+  if (!oggettoFacoltativo(t.originaliDocumento) || !oggettoFacoltativo(t.modificheDocumento)) return false
   return typeof t.documentId === 'string'
     && (t.generazione === undefined || typeof t.generazione === 'number')
     && (inCorso == null || (typeof inCorso === 'object' && !Array.isArray(inCorso)
-      && ['salva', 'conferma', 'scarto'].includes(inCorso.tipo as string)
+      && ['salva', 'conferma', 'scarto', 'approvazione'].includes(inCorso.tipo as string)
       && typeof inCorso.generazione === 'number'))
     && (t.docTotaleCent === null || typeof t.docTotaleCent === 'number')
     && (t.docTotaleOriginaleCent === null || typeof t.docTotaleOriginaleCent === 'number')
