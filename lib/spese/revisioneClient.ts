@@ -11,7 +11,11 @@
 import { payloadRigaNuova } from './revisione.ts'
 import type { ClienteRevisione } from './revisioneScrittura.ts'
 
-type Risposta = { data: unknown; error: { message: string } | null }
+type Risposta = { data: unknown; error: { message: string; code?: string } | null }
+// il CODICE (SQLSTATE o codice PostgREST) è la prova di rifiuto delle RPC
+// fattura: si riporta com'è, quando il gateway lo dà
+const rifiuto = (error: { message: string; code?: string }) =>
+  ({ errore: error.message, ...(error.code ? { codice: error.code } : {}) })
 export type SupabaseRevisione = {
   from(tabella: string): {
     update(campi: Record<string, unknown>): {
@@ -79,14 +83,14 @@ export function creaClienteRevisione(supabase: SupabaseRevisione): ClienteRevisi
       const { error } = await supabase.rpc('approva_fattura_da_pagare', {
         p_document_id: documentId, p_correzioni: correzioni,
       })
-      return error ? { errore: error.message } : {}
+      return error ? rifiuto(error) : {}
     },
     async pagaFattura(documentId, dataPagamento, metodo, correzioni) {
       const { data, error } = await supabase.rpc('paga_fattura', {
         p_document_id: documentId, p_data_pagamento: dataPagamento,
         p_payment_method: metodo, p_correzioni: correzioni,
       })
-      if (error) return { errore: error.message }
+      if (error) return rifiuto(error)
       return { ids: Array.isArray(data) ? (data as string[]) : [] }
     },
     async confermaFatturaPagata(documentId, dataPagamento, metodo, correzioni) {
@@ -94,7 +98,7 @@ export function creaClienteRevisione(supabase: SupabaseRevisione): ClienteRevisi
         p_document_id: documentId, p_data_pagamento: dataPagamento,
         p_payment_method: metodo, p_correzioni: correzioni,
       })
-      if (error) return { errore: error.message }
+      if (error) return rifiuto(error)
       return { ids: Array.isArray(data) ? (data as string[]) : [] }
     },
   }

@@ -216,7 +216,7 @@ test('doppio clic sull\'approvazione: una sola RPC', async () => {
 
 test('approvazione: errore certo = rifiuto con messaggio e annotazione tolta; rete restituita e risposta persa = INCERTO con annotazione conservata', async () => {
   const s = fattura()
-  const certo = clienteFinto({ approvaFattura: { errore: 'Scadenza mancante' } })
+  const certo = clienteFinto({ approvaFattura: { errore: 'Scadenza mancante', codice: 'P0001' } })
   const dep1 = depositoRevisioneInMemoria()
   const e1 = await approvaFatturaRevisione(certo.cliente, dep1, s)
   assert.equal(e1.ok, false)
@@ -266,7 +266,7 @@ test('già pagata: conferma_fattura_pagata con data e metodo espliciti; zero spe
   const e0 = await confermaFatturaPagataRevisione(zero.cliente, depositoRevisioneInMemoria(), s, '2026-09-01', 'bonifico')
   assert.ok(!e0.ok && e0.incerto && e0.errore.includes('non ha restituito le spese'))
 
-  const rifiuto = clienteFinto({ confermaFatturaPagata: { errore: 'Metodo di pagamento obbligatorio e valido per una fattura già pagata' } })
+  const rifiuto = clienteFinto({ confermaFatturaPagata: { errore: 'Metodo di pagamento obbligatorio e valido per una fattura già pagata', codice: 'P0001' } })
   const er = await confermaFatturaPagataRevisione(rifiuto.cliente, depositoRevisioneInMemoria(), s, '2026-09-01', 'bonifico')
   assert.ok(!er.ok && !er.incerto && er.errore.includes('Metodo'))
 })

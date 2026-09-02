@@ -40,9 +40,12 @@ export type ClienteRevisione = {
   scartaDocumento(documentId: string, motivo: string): Promise<{ errore?: string }>
   // le tre RPC delle FATTURE (0020, Fase 5): approvazione senza spese,
   // pagamento di una fattura approvata, conferma di una già pagata
-  approvaFattura(documentId: string, correzioni: Record<string, unknown>[]): Promise<{ errore?: string }>
-  pagaFattura(documentId: string, dataPagamento: string, metodo: string, correzioni: Record<string, unknown>[]): Promise<{ ids?: string[]; errore?: string }>
-  confermaFatturaPagata(documentId: string, dataPagamento: string, metodo: string, correzioni: Record<string, unknown>[]): Promise<{ ids?: string[]; errore?: string }>
+  // `codice` = SQLSTATE (o codice PostgREST) riportato dal gateway: è l'UNICA
+  // prova che la RPC sia stata davvero rifiutata; un errore senza codice
+  // (proxy, gateway, testo libero) è un esito INCERTO
+  approvaFattura(documentId: string, correzioni: Record<string, unknown>[]): Promise<{ errore?: string; codice?: string }>
+  pagaFattura(documentId: string, dataPagamento: string, metodo: string, correzioni: Record<string, unknown>[]): Promise<{ ids?: string[]; errore?: string; codice?: string }>
+  confermaFatturaPagata(documentId: string, dataPagamento: string, metodo: string, correzioni: Record<string, unknown>[]): Promise<{ ids?: string[]; errore?: string; codice?: string }>
 }
 
 // l'esito porta sempre lo STATO aggiornato (id delle righe inserite,
@@ -218,7 +221,7 @@ export async function approvaFatturaRevisione(
 ): Promise<EsitoRevisione> {
   return chiusuraViaRpc(cliente, deposito, s, {
     tipo: 'approvazione', nome: 'approvazione', articolo: 'l\'',
-    statoAtteso: 'approvato da pagare', pretendeSpese: false,
+    statoAtteso: 'approvato da pagare', pretendeSpese: false, provaDiRifiuto: true,
     invia: stato => cliente.approvaFattura(stato.documentId, correzioniDa(stato)),
   })
 }
@@ -229,7 +232,7 @@ export async function confermaFatturaPagataRevisione(
 ): Promise<EsitoRevisione> {
   return chiusuraViaRpc(cliente, deposito, s, {
     tipo: 'conferma', nome: 'conferma', articolo: 'la',
-    statoAtteso: 'confermato', pretendeSpese: true,
+    statoAtteso: 'confermato', pretendeSpese: true, provaDiRifiuto: true,
     invia: stato => cliente.confermaFatturaPagata(stato.documentId, dataPagamento, metodo, correzioniDa(stato)),
   })
 }
@@ -240,7 +243,11 @@ type ChiusuraRpc = {
   articolo: string
   statoAtteso: string
   pretendeSpese: boolean
-  invia: (stato: StatoRevisione) => Promise<{ ids?: string[]; errore?: string }>
+  // FATTURE: un errore restituito vale come rifiuto SOLO con un codice
+  // applicativo (SQLSTATE); senza, la responsabilità resta in custodia
+  // (esito incerto). Il percorso legacy della conferma resta com'era.
+  provaDiRifiuto?: boolean
+  invia: (stato: StatoRevisione) => Promise<{ ids?: string[]; errore?: string; codice?: string }>
 }
 
 async function chiusuraViaRpc(
@@ -269,6 +276,8 @@ async function chiusuraViaRpc(
     const r = await op.invia(stato)
     if (r.errore) {
       if (rete(r.errore)) return incerto(r.errore)
+      if (op.provaDiRifiuto && !r.codice)
+        return incerto(`${r.errore} — nessun codice applicativo: non è dimostrato che la RPC sia stata rifiutata`)
       deposito.salva(tracciaDa(stato))                  // rifiuto definitivo: l'annotazione si toglie
       return { ok: false, stato, errore: r.errore }
     }

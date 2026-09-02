@@ -81,3 +81,75 @@ test('D2 il servizio finto fa ROLLBACK totale quando il corpo della RPC fallisce
   assert.match(bis.errore ?? '', /negativ/i)
   assert.equal(t.documenti[0].status, 'approvata_da_pagare')
 })
+
+// ---- D3/D4: la prova di rifiuto è il codice applicativo (SQLSTATE) ---------
+import { approvaFatturaRevisione, confermaFatturaPagataRevisione, type ClienteRevisione } from './revisioneScrittura.ts'
+import { depositoRevisioneInMemoria } from './revisioneDurevole.ts'
+import { creaPagatore } from './fatturePagamento.ts'
+import { creaClienteRevisione, type SupabaseRevisione } from './revisioneClient.ts'
+
+function clienteChe(risposta: { errore?: string; codice?: string; ids?: string[] }): ClienteRevisione {
+  const ok1 = async () => ({ righe: 1 })
+  return {
+    aggiornaDocTotale: ok1, aggiornaDocumento: ok1, aggiornaBozza: ok1, aggiornaRiga: ok1,
+    aggiungiRiga: async () => ({ id: 'x' }),
+    confermaDocumento: async () => ({ ids: ['x'] }),
+    scartaDocumento: async () => ({}),
+    approvaFattura: async () => risposta,
+    pagaFattura: async () => risposta,
+    confermaFatturaPagata: async () => risposta,
+  }
+}
+
+test('D3 un errore SENZA codice applicativo («Bad Gateway») è un esito INCERTO: annotazione conservata, niente «riprova»', async () => {
+  const t = tabelleConSorellaNegativa()
+  t.bozze.pop(); t.documenti[0].doc_total = 10
+  const stato = statoDa(t)
+  const gateway = clienteChe({ errore: 'Bad Gateway' })
+
+  const dep1 = depositoRevisioneInMemoria()
+  const a = await approvaFatturaRevisione(gateway, dep1, stato)
+  assert.equal(a.ok, false); assert.equal(a.incerto, true)
+  assert.match(a.errore, /nessun codice applicativo/)
+  assert.equal(dep1.leggi('doc-f').traccia?.inCorso?.tipo, 'approvazione', 'la responsabilità resta custodita fino alla rilettura')
+
+  const dep2 = depositoRevisioneInMemoria()
+  const c = await confermaFatturaPagataRevisione(gateway, dep2, statoDa(t), OGGI, 'bonifico')
+  assert.equal(c.ok, false); assert.equal(c.incerto, true)
+  assert.equal(dep2.leggi('doc-f').traccia?.inCorso?.tipo, 'conferma')
+
+  const p = await creaPagatore(gateway).paga('doc-f', { dataPagamento: OGGI, metodo: 'bonifico' }, OGGI)
+  assert.equal(p.ok, false); assert.equal(p.incerto, true)
+})
+
+test('D3-bis con il codice applicativo il rifiuto è CERTO: annotazione tolta, messaggio della RPC, nessun incerto', async () => {
+  const t = tabelleConSorellaNegativa()
+  t.bozze.pop(); t.documenti[0].doc_total = 10
+  const rifiuto = clienteChe({ errore: 'Scadenza mancante', codice: 'P0001' })
+  const dep = depositoRevisioneInMemoria()
+  const a = await approvaFatturaRevisione(rifiuto, dep, statoDa(t))
+  assert.equal(a.ok, false); assert.ok(!a.incerto); assert.equal(a.errore, 'Scadenza mancante')
+  assert.equal(dep.leggi('doc-f').traccia?.inCorso, undefined)
+  const p = await creaPagatore(rifiuto).paga('doc-f', { dataPagamento: OGGI, metodo: 'bonifico' }, OGGI)
+  assert.deepEqual(p, { ok: false, errore: 'Scadenza mancante' })
+  // il servizio finto rigoroso rifiuta CON codice (come il gateway vero)
+  const server = creaServerFattureFinto(tabelleConSorellaNegativa())
+  const r = await server.cliente.approvaFattura('doc-f', [])
+  assert.equal(r.codice, 'P0001')
+})
+
+test('D4 il cliente vero riporta error.code come codice; senza code niente codice (e quindi incerto a valle)', async () => {
+  const conCode: SupabaseRevisione = {
+    from: () => { throw new Error('non usato') },
+    rpc: async () => ({ data: null, error: { message: 'Stato non valido per il pagamento', code: 'P0001' } }),
+  }
+  const senza: SupabaseRevisione = {
+    from: () => { throw new Error('non usato') },
+    rpc: async () => ({ data: null, error: { message: '<html>502 Bad Gateway</html>' } }),
+  }
+  assert.deepEqual(await creaClienteRevisione(conCode).pagaFattura('d', OGGI, 'bonifico', []), { errore: 'Stato non valido per il pagamento', codice: 'P0001' })
+  assert.deepEqual(await creaClienteRevisione(conCode).approvaFattura('d', []), { errore: 'Stato non valido per il pagamento', codice: 'P0001' })
+  assert.deepEqual(await creaClienteRevisione(senza).confermaFatturaPagata('d', OGGI, 'bonifico', []), { errore: '<html>502 Bad Gateway</html>' })
+  const p = await creaPagatore(creaClienteRevisione(senza)).paga('d', { dataPagamento: OGGI, metodo: 'bonifico' }, OGGI)
+  assert.equal(p.ok, false); assert.equal(p.incerto, true)
+})

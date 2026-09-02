@@ -162,17 +162,19 @@ export function creaServerFattureFinto(t: TabelleGrezze, opzioni: {
 
   // il rivestimento di ogni RPC: guasti PRIMA (senza effetti) o DOPO
   // (effetto reale con risposta persa/vuota), errori SQL → errore restituito
-  const rpc = async <T extends { ids?: string[] }>(nome: string, argomenti: unknown, corpo: () => T): Promise<T | { errore: string }> => {
+  // i rifiuti della RPC portano il CODICE applicativo (P0001 = raise
+  // exception), come fa il gateway vero; l'errore di rete NON ha codice
+  const rpc = async <T extends { ids?: string[] }>(nome: string, argomenti: unknown, corpo: () => T): Promise<T | { errore: string; codice?: string }> => {
     chiamate.push({ rpc: nome, argomenti })
     await attendi()
     const g = guasto()
-    if (g === 'errore') return { errore: 'Quadratura non esatta: righe+arrotondamento=0 cent, documento=1 cent (simulata dal finto)' }
+    if (g === 'errore') return { errore: 'Quadratura non esatta: righe+arrotondamento=0 cent, documento=1 cent (simulata dal finto)', codice: 'P0001' }
     if (g === 'rete') return { errore: 'Failed to fetch (finto: errore di rete restituito)' }
     // TRANSAZIONE: il corpo lavora sulle tabelle vere; se lancia a metà,
     // TUTTO torna com'era (come il rollback della RPC), mai effetti parziali
     const foto = fotografia()
     let esito: T
-    try { esito = corpo() } catch (e) { ripristina(foto); return { errore: (e as Error).message } }
+    try { esito = corpo() } catch (e) { ripristina(foto); return { errore: (e as Error).message, codice: 'P0001' } }
     if (g === 'persa') throw new Error('Failed to fetch (finto: risposta persa DOPO l\'effetto reale)')
     if (g === 'zero') return { ...esito, ids: [] }
     return esito
@@ -264,7 +266,7 @@ export function creaServerFattureFinto(t: TabelleGrezze, opzioni: {
         d.status = 'approvata_da_pagare'      // NESSUNA spesa
         return {}
       })
-      return 'errore' in r ? { errore: r.errore } : {}
+      return 'errore' in r ? { errore: r.errore, ...(r.codice ? { codice: r.codice } : {}) } : {}
     },
     pagaFattura: (documentId, data, metodo, correzioniRpc) => rpc('paga_fattura', { documentId, data, metodo, correzioni: correzioniRpc }, () => {
       const d = doc(documentId); if (!d) throw new Error('Documento inesistente')

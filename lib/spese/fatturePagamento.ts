@@ -8,7 +8,8 @@
 //  · un doppio tocco sulla stessa fattura NON parte (presidio per documento);
 //  · gli esiti sono onesti: errore RESTITUITO = rifiuto; errore di rete,
 //    eccezione o risposta senza spese = INCERTO (chiudi e ricontrolla — la
-//    RPC è idempotente, ma non si riprova alla cieca).
+//    RPC è idempotente, ma non si riprova alla cieca); un errore RESTITUITO
+//    conta come rifiuto SOLO con il codice applicativo (SQLSTATE).
 // ============================================================================
 import { METODI_VALIDI } from './fatture.ts'
 import { dataIsoValida } from './revisione.ts'
@@ -46,8 +47,10 @@ export function creaPagatore(cliente: Pick<ClienteRevisione, 'pagaFattura'>) {
       try {
         const r = await cliente.pagaFattura(documentId, richiesta.dataPagamento!, richiesta.metodo!, [])
         if (r.errore) {
-          if (rete(r.errore))
-            return { ok: false, incerto: true, errore: `pagamento dall'esito incerto (${r.errore}): NON riprovare alla cieca — chiudi e ricontrolla: se la fattura risulta pagata è andata (la RPC è idempotente)` }
+          // rifiuto DIMOSTRATO solo da un codice applicativo (SQLSTATE): un
+          // «Bad Gateway» o un testo libero non dicono se la RPC è passata
+          if (rete(r.errore) || !r.codice)
+            return { ok: false, incerto: true, errore: `pagamento dall'esito incerto (${r.errore}${r.codice ? '' : ' — nessun codice applicativo'}): NON riprovare alla cieca — chiudi e ricontrolla: se la fattura risulta pagata è andata (la RPC è idempotente)` }
           return { ok: false, errore: r.errore }
         }
         if (!r.ids || r.ids.length === 0)
