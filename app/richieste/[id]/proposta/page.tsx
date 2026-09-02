@@ -72,6 +72,9 @@ export default function PropostaPage() {
   // Dopo l'apertura di WhatsApp: barra «L'hai inviata?» finché Ania non risponde
   const [chiediConferma, setChiediConferma] = useState(false)
   const barraRef = useRef<HTMLDivElement>(null)
+  // Sul telefono l'app può ricaricarsi al ritorno da WhatsApp: l'attesa della
+  // risposta (e il testo inviato) restano nel browser finché Ania non risponde.
+  const chiavePendente = `ca_proposta_pendente_${id}`
   const [immagineFatta, setImmagineFatta] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imgRef = useRef<HTMLDivElement>(null)
@@ -161,8 +164,28 @@ export default function PropostaPage() {
     setErrore(null); setAvviso(null)
     if (manca0025) { setErrore(AVVISO_0025); return }
     if (!telefono) { setErrore('Nessun numero di telefono sulla richiesta: aggiungilo prima di inviare.'); return }
+    try { window.localStorage.setItem(chiavePendente, JSON.stringify({ testo: testoFinale })) } catch { /* senza memoria la barra vive solo in pagina */ }
     openWhatsApp(telefono, testoFinale)
     setChiediConferma(true)
+  }
+
+  // Ripresa dopo un ricaricamento: se c'è un invio in sospeso, la barra torna
+  useEffect(() => {
+    if (!id || loading || !richiesta) return
+    let salvato: { testo?: string } | null = null
+    try { salvato = JSON.parse(window.localStorage.getItem(chiavePendente) || 'null') } catch { salvato = null }
+    if (!salvato) return
+    const testoSalvato = salvato.testo
+    const t = setTimeout(() => {
+      setChiediConferma(true)
+      if (testoSalvato && richiesta.stato !== 'proposta_inviata') setTestoModificato(prev => prev ?? testoSalvato)
+    }, 0)
+    return () => clearTimeout(t)
+  }, [id, loading, richiesta, chiavePendente])
+
+  function rispostaNo() {
+    try { window.localStorage.removeItem(chiavePendente) } catch { /* niente */ }
+    setChiediConferma(false)
   }
 
   // Al ritorno nella schermata la barra torna in vista
@@ -180,6 +203,7 @@ export default function PropostaPage() {
     const r = await segnaPropostaInviata(richiesta.id, testoFinale, soluzione)
     setOccupato(null)
     if (r.error) { setErrore(`Stato non aggiornato: ${r.error}`); return }
+    try { window.localStorage.removeItem(chiavePendente) } catch { /* niente */ }
     setChiediConferma(false)
     setRichiesta({ ...richiesta, stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at, proposta_testo: testoFinale, proposta_soluzione: soluzione })
   }
@@ -309,7 +333,7 @@ export default function PropostaPage() {
               className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-green-mid text-cream-text disabled:opacity-50 active:opacity-80">
               {occupato === 'invio' ? 'Salvo…' : 'Sì, inviata'}
             </button>
-            <button type="button" onClick={() => setChiediConferma(false)} disabled={occupato === 'invio'}
+            <button type="button" onClick={rispostaNo} disabled={occupato === 'invio'}
               className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-white text-green-dark border disabled:opacity-50" style={{ borderColor: BORDO }}>
               No
             </button>
