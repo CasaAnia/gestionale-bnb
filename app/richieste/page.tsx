@@ -20,7 +20,7 @@ import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
 import {
   CANALE_LABEL, STATO_LABEL, eAperta, inArchivio, ordinaRichieste, nottiRichiesta, nomeCompleto,
-  formatIntervallo, oraArrivo, tempoTrascorso, avvisoFerma, daGuardare, type Richiesta, type OrdineRichieste,
+  formatIntervallo, oraArrivo, tempoTrascorso, avvisoFerma, daGuardare, nuoveDalSito, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
 
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
@@ -71,7 +71,7 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
         {r.rooms?.name || 'qualsiasi camera'}
       </p>
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-stone mt-1.5">
-        <span className="inline-flex items-center gap-1"><IconaCanale canale={r.canale} />{CANALE_LABEL[r.canale]}</span>
+        <span className="inline-flex items-center gap-1"><IconaCanale canale={r.canale} />{CANALE_LABEL[r.canale]}{r.canale === 'web' && r.origine && <span className="text-[10px] uppercase tracking-wide text-brass">· {r.origine}</span>}</span>
         <span aria-hidden>·</span>
         <span>{oraArrivo(r.created_at, adesso)}</span>
         {r.stato === 'proposta_inviata' && r.proposta_inviata_at && (
@@ -131,6 +131,8 @@ function Richieste() {
   const [ordine, setOrdine] = useState<OrdineRichieste>('durata')
   // «N da guardare»: filtro sulle ferme (in attesa > 24 h, proposta > 48 h, arrivo passato)
   const [soloDaGuardare, setSoloDaGuardare] = useState(false)
+  // «N nuove dal sito»: richieste web arrivate dopo l'ultima apertura di questa pagina (localStorage)
+  const [nuoveWeb, setNuoveWeb] = useState(0)
   const [mese, setMese] = useState(() => meseCorrente())
   const [loading, setLoading] = useState(true)
   const [errori, setErrori] = useState<string[]>([])
@@ -189,6 +191,17 @@ function Richieste() {
   }, [])
 
   useEffect(() => {
+    if (loading) return
+    const CHIAVE = 'ca_richieste_ultima_visita'
+    let ultima: string | null = null
+    try { ultima = window.localStorage.getItem(CHIAVE) } catch { ultima = null }
+    const n = nuoveDalSito(tutte, ultima).length
+    const t = setTimeout(() => setNuoveWeb(n), 0)
+    try { window.localStorage.setItem(CHIAVE, new Date().toISOString()) } catch { /* senza memoria il conteggio riparte ogni volta */ }
+    return () => clearTimeout(t)
+  }, [loading, tutte])
+
+  useEffect(() => {
     if (loading || !apriId) return
     document.getElementById(`richiesta-${apriId}`)?.scrollIntoView({ block: 'center' })
   }, [loading, apriId])
@@ -230,6 +243,11 @@ function Richieste() {
         <h1 className="text-[22px] text-green-dark leading-tight" style={FRAUNCES}>Richieste di prenotazione</h1>
         <InterruttoreVista vista={vista} onChange={setVista} />
       </div>
+      {!loading && nuoveWeb > 0 && (
+        <p className="chip-in inline-flex items-center gap-1.5 mb-3 mr-2 rounded-full px-3 py-1.5 text-sm font-semibold bg-green-mid text-cream-text">
+          <Globe size={14} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
+        </p>
+      )}
       {!loading && ferme.length > 0 && (
         <button type="button" onClick={() => setSoloDaGuardare(v => !v)} aria-pressed={soloDaGuardare}
           className={`chip-in inline-flex items-center gap-1.5 mb-3 rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors ${soloDaGuardare ? 'text-cream-text' : 'bg-white'}`}

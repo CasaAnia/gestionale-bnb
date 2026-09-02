@@ -22,6 +22,7 @@ export interface Richiesta {
   proposta_inviata_at: string | null
   chiusa_at: string | null
   prenotazione_id: string | null
+  origine?: string | null        // dal sito: "google", "diretto"… (migrazione 0028)
   rooms?: { name: string } | null
 }
 
@@ -149,4 +150,9 @@ export function avvisoFerma(r: Pick<Richiesta, 'stato' | 'arrivo' | 'created_at'
 
 export function daGuardare<T extends Pick<Richiesta, 'stato' | 'arrivo' | 'created_at' | 'proposta_inviata_at'>>(lista: T[], adesso: Date = new Date()): T[] {
   return lista.filter(r => avvisoFerma(r, adesso) !== null)
+}
+
+// Richieste dal sito arrivate dopo l'ultima apertura della pagina
+export function nuoveDalSito<T extends Pick<Richiesta, 'canale' | 'created_at'>>(lista: T[], ultimaVisita: string | null): T[] {
+  return lista.filter(r => r.canale === 'web' && (!ultimaVisita || r.created_at > ultimaVisita))
 }

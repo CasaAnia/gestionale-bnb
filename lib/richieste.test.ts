@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare,
+  formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare, nuoveDalSito,
   type Richiesta,
 } from './richieste.ts'
 
@@ -76,4 +76,12 @@ test('richieste ferme: soglie 24 h / 48 h e arrivo passato, mai sulle chiuse', (
   assert.equal(avvisoFerma(richiesta({ arrivo: '2026-09-01', partenza: '2026-09-03' }), adesso), 'arrivo passato')
   assert.equal(avvisoFerma(richiesta({ stato: 'rifiutata', created_at: ore(500) }), adesso), null)
   assert.equal(daGuardare([richiesta({ created_at: ore(30) }), richiesta({}), richiesta({ arrivo: '2026-08-30', partenza: '2026-08-31' })], adesso).length, 2)
+})
+
+test('nuove dal sito: solo canale web dopo l\'ultima visita; senza visita tutte le web', () => {
+  const web1 = richiesta({ canale: 'web', created_at: '2026-09-02T08:00:00Z' })
+  const web2 = richiesta({ canale: 'web', created_at: '2026-09-02T10:00:00Z' })
+  const tel = richiesta({ canale: 'telefono', created_at: '2026-09-02T10:30:00Z' })
+  assert.equal(nuoveDalSito([web1, web2, tel], '2026-09-02T09:00:00Z').length, 1)
+  assert.equal(nuoveDalSito([web1, web2, tel], null).length, 2)
 })

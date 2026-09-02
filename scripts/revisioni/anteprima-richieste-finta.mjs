@@ -58,10 +58,10 @@ const bookings = [
 ].map(b => ({ extra_bed: false, extra_bed_dates: [], price_per_night: 70, extra_bed_total: 0, total_amount: 140, source: 'diretta', guest_name: null, notes: null, cancelled_at: null, cancelled_reason: null, group_id: null, pagato: false, bonifico: false, created_at: ora, updated_at: ora, ...b }))
 
 function richiesta(x) {
-  return { id: randomUUID(), created_at: ora, camera_id: null, telefono: null, note: null, stato: 'in_attesa', proposta_inviata_at: null, chiusa_at: null, prenotazione_id: null, proposta_testo: null, proposta_soluzione: null, motivo_rifiuto: null, ...x }
+  return { id: randomUUID(), created_at: ora, camera_id: null, telefono: null, note: null, stato: 'in_attesa', proposta_inviata_at: null, chiusa_at: null, prenotazione_id: null, proposta_testo: null, proposta_soluzione: null, motivo_rifiuto: null, origine: null, ...x }
 }
 const richieste = [
-  richiesta({ nome: 'Anna', cognome: 'Rossi', arrivo: giorni(11), partenza: giorni(13), persone: 2, canale: 'web', created_at: fa(20) }),
+  richiesta({ nome: 'Anna', cognome: 'Rossi', arrivo: giorni(11), partenza: giorni(13), persone: 2, canale: 'web', created_at: fa(20), origine: 'google' }),
   richiesta({ nome: 'Marek', cognome: 'Kowalski', arrivo: giorni(20), partenza: giorni(25), persone: 3, camera_id: ROOM.lena, canale: 'whatsapp', telefono: '+39 333 000 0002', created_at: fa(60 * 11) }),
   richiesta({ nome: 'Luca', cognome: 'Bianchi', arrivo: giorni(5), partenza: giorni(6), persone: 1, canale: 'telefono', created_at: fa(60 * 30), stato: 'proposta_inviata', proposta_inviata_at: fa(60 * 3) }),
   // Sovrapposta a Rossi (stessa riga «qualsiasi»): nel calendario diventano una barra sola «2 richieste ⇄»
