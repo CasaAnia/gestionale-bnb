@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Globe, Phone, MessageCircle, ChevronDown } from 'lucide-react'
@@ -115,7 +115,12 @@ function RigaArchivio({ r, adesso, evidenziata = false }: { r: Richiesta; adesso
   )
 }
 
-export default function Richieste() {
+// useSearchParams (?apri=) richiede un confine Suspense per la pagina statica
+export default function Page() {
+  return <Suspense><Richieste /></Suspense>
+}
+
+function Richieste() {
   const router = useRouter()
   // ?apri=<id>: arrivo dalla scheda prenotazione, archivio aperto e riga evidenziata
   const apriId = useSearchParams().get('apri')
