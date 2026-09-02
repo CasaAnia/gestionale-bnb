@@ -11,7 +11,7 @@
 // può essere il giorno di arrivo dell'altro).
 import { ROOM_NUMBER_BY_NAME } from './roomTypes.ts'
 
-export type CameraMinima = { id: string; name: string; active?: boolean }
+export type CameraMinima = { id: string; name: string; active?: boolean | null }
 export type PrenotazioneMinima = { room_id: string; check_in: string; check_out: string; status: string }
 
 export const STATI_CHE_OCCUPANO = new Set(['confermata', 'completata'])

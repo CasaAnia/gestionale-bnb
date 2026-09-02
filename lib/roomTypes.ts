@@ -47,6 +47,22 @@ export function lettoInclusoNellaCamera(seg: any, nottiTot: number): boolean {
   return ebNotti === nottiTot
 }
 
+// Descrizione del bagno usata nei messaggi al cliente (conferma WhatsApp,
+// scheda prenotazione, proposta): un'unica formula per tutti.
+export function bagnoDesc(room: { bathroom_type?: string | null } | null | undefined): string {
+  if (room?.bathroom_type === 'privato_interno') return "privato, all'interno della camera"
+  if (room?.bathroom_type === 'privato_esterno') return 'privato esterno, chiuso a chiave, a circa 1 metro dalla camera'
+  return ''
+}
+
+// Descrizione breve della camera per i messaggi: "Amelia, singola, bagno privato, all'interno della camera"
+export function descrizioneBreveCamera(room: { name?: string | null; bathroom_type?: string | null } | null | undefined): string {
+  const nome = room?.name || ''
+  const tip = (ROOM_TYPE_BY_NAME[nome] || '').toLowerCase()
+  const bagno = bagnoDesc(room)
+  return [nome, tip, bagno ? `bagno ${bagno}` : ''].filter(Boolean).join(', ')
+}
+
 // Slug della pagina della camera su casaaniarozzano.it (/camere/<slug>)
 export const ROOM_SLUG_BY_NAME: Record<string, string> = {
   Amelia: 'singola',

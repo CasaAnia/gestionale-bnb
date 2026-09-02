@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { toPng } from 'html-to-image'
-import { roomWithType, ROOM_SLUG_BY_NAME, lettoInclusoNellaCamera } from '@/lib/roomTypes'
+import { roomWithType, ROOM_SLUG_BY_NAME, lettoInclusoNellaCamera, bagnoDesc } from '@/lib/roomTypes'
 import { lettoDaComunicare } from '@/lib/tariffe'
 import { NOME_STRUTTURA, CITTA_STRUTTURA, SITO_URL, SITO_DISPLAY, TELEFONO_DISPLAY, INDIRIZZO, INDIRIZZO_NOTA } from '@/lib/config'
 import { nomeOspite } from '@/lib/guestName'
@@ -56,11 +56,6 @@ function formatGiornoMese(dateStr: string) {
   return new Date(y, m - 1, d).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
 }
 
-function bagnoDesc(room: { bathroom_type?: string | null } | null | undefined) {
-  if (room?.bathroom_type === 'privato_interno') return "privato, all'interno della camera"
-  if (room?.bathroom_type === 'privato_esterno') return 'privato esterno, chiuso a chiave, a circa 1 metro dalla camera'
-  return ''
-}
 
 export default function ConfermaWhatsApp({ booking, groupBookings, payments = [], onClose }: { booking: PrenotazioneConferma; groupBookings: PrenotazioneConferma[]; payments?: PagamentoConferma[]; onClose: () => void }) {
   const imgRef = useRef<HTMLDivElement>(null)
