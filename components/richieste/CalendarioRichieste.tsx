@@ -9,7 +9,7 @@ import {
   COLORE_OGGI, COLORE_DOMENICA, COLORE_GRIGLIA, COLORE_SEPARATORE, COLORE_RICHIESTA_TESTO,
   contestoColori, segmentiBarra, indiciIntervallo, type PrenotazioneBarra,
 } from '@/lib/calendarioBarre'
-import { giorniDelMese, etichettaMese, spostaMese, chiaveRiga, RIGA_QUALSIASI } from '@/lib/richiesteCalendario'
+import { giorniDelMese, etichettaMese, spostaMese, chiaveRiga, RIGA_QUALSIASI, gruppiSovrapposti, unioneIntervalli, sovrapposizioni } from '@/lib/richiesteCalendario'
 import type { Richiesta } from '@/lib/richieste'
 import type { Vista } from '@/lib/richiesteVista'
 
@@ -86,8 +86,6 @@ export default function CalendarioRichieste(p: Props) {
   ]
 
   const N = giorni.length
-  const attenua = (id: string) => p.evidenziata != null && p.evidenziata !== id
-
   function apri(e: MouseEvent, gruppo: Richiesta[]) {
     e.stopPropagation()
     p.onApri?.(gruppo, { x: e.clientX, y: e.clientY })
@@ -145,24 +143,40 @@ export default function CalendarioRichieste(p: Props) {
     })
   }
 
+  // Badge ⇄ ottone: richieste sovrapposte fra loro, o singola che si
+  // sovrappone a una confermata (se confermata, va in conflitto).
+  const badge = (
+    <span aria-label="si sovrappone" style={{ flexShrink: 0, background: OTTONE, color: '#F5EFE4', borderRadius: 999, fontSize: 9, fontWeight: 700, lineHeight: '14px', height: 14, minWidth: 16, padding: '0 4px', textAlign: 'center' }}>⇄</span>
+  )
+
   function barreRichieste(chiave: string, ri: number) {
-    return (richiestePerRiga.get(chiave) || []).flatMap(r => {
-      const idx = indiciIntervallo(r.arrivo, r.partenza, giorni)
+    const lista = richiestePerRiga.get(chiave) || []
+    return gruppiSovrapposti(lista).flatMap(gruppo => {
+      const unione = gruppo.length > 1 ? unioneIntervalli(gruppo) : gruppo[0]
+      const idx = indiciIntervallo(unione.arrivo, unione.partenza, giorni)
       if (!idx) return []
-      const selezionata = p.evidenziata === r.id
+      const ids = gruppo.map(r => r.id)
+      const selezionata = p.evidenziata != null && ids.includes(p.evidenziata)
+      const conflittoConfermate = gruppo.length === 1 && sovrapposizioni(gruppo[0], p.prenotazioni, [], camere).prenotazioni.length > 0
+      const conBadge = gruppo.length > 1 || conflittoConfermate
+      const testo = gruppo.length > 1 ? `${gruppo.length} richieste` : etichettaRichiesta(gruppo[0], p.layout === 'mobile')
+      const titolo = gruppo.length > 1 ? gruppo.map(r => etichettaRichiesta(r)).join(' · ') : etichettaRichiesta(gruppo[0])
+      const mobile = p.layout === 'mobile'
       return [(
-        <button key={r.id} type="button" onClick={e => apri(e, [r])} title={etichettaRichiesta(r)}
+        <button key={ids.join('+')} type="button" onClick={e => apri(e, gruppo)} title={titolo}
           style={{
             ...geometria(idx.start, idx.end, ri, true, true),
             background: 'transparent', border: `1.5px dashed ${OTTONE}`, borderRadius: 6,
-            color: COLORE_RICHIESTA_TESTO, fontSize: p.layout === 'desktop' ? 11 : 10, fontWeight: 600, textAlign: 'left',
-            padding: p.layout === 'desktop' ? '0 6px' : '2px 3px', display: 'flex', alignItems: p.layout === 'desktop' ? 'center' : 'flex-start',
+            color: COLORE_RICHIESTA_TESTO, fontSize: mobile ? 10 : 11, fontWeight: 600, textAlign: 'left',
+            padding: mobile ? '2px 3px' : '0 6px', display: 'flex', gap: 4,
+            flexDirection: mobile ? 'column' : 'row', alignItems: mobile ? 'flex-start' : 'center',
             whiteSpace: 'nowrap', overflow: 'hidden', cursor: 'pointer', zIndex: selezionata ? 8 : 7,
-            opacity: attenua(r.id) ? 0.3 : 1,
+            opacity: p.evidenziata != null && !selezionata ? 0.3 : 1,
             boxShadow: selezionata ? '0 3px 10px rgba(31,61,47,0.45)' : 'none',
             transition: 'opacity 0.15s, box-shadow 0.15s',
           }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{etichettaRichiesta(r, p.layout === 'mobile')}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', flex: mobile ? undefined : 1 }}>{testo}</span>
+          {conBadge && badge}
         </button>
       )]
     })

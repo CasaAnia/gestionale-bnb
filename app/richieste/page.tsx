@@ -4,11 +4,13 @@ import Link from 'next/link'
 import { Globe, Phone, MessageCircle, ChevronDown } from 'lucide-react'
 import BackBar from '@/components/BackBar'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
-import CalendarioRichieste from '@/components/richieste/CalendarioRichieste'
+import CalendarioRichieste, { type Ancora } from '@/components/richieste/CalendarioRichieste'
+import PannelloRichieste from '@/components/richieste/PannelloRichieste'
 import { supabase } from '@/lib/supabase'
 import { fetchRichieste } from '@/lib/richiesteDati'
 import { useVista, useDesktop } from '@/lib/richiesteVista'
-import { meseCorrente, richiesteAperte } from '@/lib/richiesteCalendario'
+import { meseCorrente, richiesteAperte, sovrapposizioni } from '@/lib/richiesteCalendario'
+import { nomeOspite } from '@/lib/guestName'
 import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
 import {
@@ -39,12 +41,21 @@ function IconaCanale({ canale }: { canale: Richiesta['canale'] }) {
   return <Phone {...props} />
 }
 
-function RigaRichiesta({ r, adesso }: { r: Richiesta; adesso: Date }) {
+// Badge ⇄ ottone: la richiesta si sovrappone a una confermata o a un'altra aperta
+function BadgeSovrapposta() {
+  return (
+    <span aria-label="si sovrappone" className="inline-flex items-center justify-center shrink-0 rounded-full text-[10px] font-bold leading-none h-[16px] min-w-[18px] px-1" style={{ background: '#A9884E', color: '#F5EFE4' }}>⇄</span>
+  )
+}
+
+function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona }: { r: Richiesta; adesso: Date; conflitti: string[]; selezionata: boolean; onSeleziona: () => void }) {
   const n = nottiRichiesta(r)
   return (
-    <li className="bg-white rounded-xl border border-card-border shadow-sm p-4 leading-snug">
+    <li>
+    <button type="button" onClick={onSeleziona} aria-pressed={selezionata}
+      className={`w-full text-left bg-white rounded-xl border border-card-border p-4 leading-snug transition-shadow ${selezionata ? 'shadow-md bg-sage/40' : 'shadow-sm'}`}>
       <div className="flex items-baseline justify-between gap-3">
-        <p className="font-medium text-[15px] text-green-dark truncate">{nomeCompleto(r)}</p>
+        <p className="font-medium text-[15px] text-green-dark truncate inline-flex items-center gap-1.5 min-w-0"><span className="truncate">{nomeCompleto(r)}</span>{conflitti.length > 0 && <BadgeSovrapposta />}</p>
         <p className="shrink-0 text-sm font-semibold text-brass">{n === 1 ? '1 notte' : `${n} notti`}</p>
       </div>
       <p className="text-sm text-green-dark mt-1">
@@ -65,6 +76,10 @@ function RigaRichiesta({ r, adesso }: { r: Richiesta; adesso: Date }) {
           </>
         )}
       </p>
+      {conflitti.length > 0 && (
+        <p className="text-xs mt-1" style={{ color: '#7a5f2c' }} title={conflitti.join(' · ')}>si sovrappone con {conflitti.join(', ')}</p>
+      )}
+    </button>
     </li>
   )
 }
@@ -99,6 +114,9 @@ export default function Richieste() {
   const desktop = useDesktop()
   // Sul telefono si vede una sezione alla volta: calendario o lista.
   const [sezione, setSezione] = useState<'calendario' | 'lista'>('calendario')
+  // Richiesta selezionata dalla lista (evidenziata nel calendario) e pannello «chi c'è dentro»
+  const [selezionata, setSelezionata] = useState<string | null>(null)
+  const [pannello, setPannello] = useState<{ gruppo: Richiesta[]; ancora: Ancora } | null>(null)
   const mostraCalendario = desktop || sezione === 'calendario'
   const mostraLista = desktop || sezione === 'lista'
 
@@ -137,6 +155,19 @@ export default function Richieste() {
     () => (vista === 'presunta' ? richiesteAperte(tutte, mese) : []),
     [tutte, mese, vista],
   )
+
+  // Sovrapposizioni di ogni richiesta aperta: con confermate (nome ospite) e altre aperte (cognome)
+  const conflittiDi = useMemo(() => {
+    const m = new Map<string, string[]>()
+    for (const r of aperte) {
+      const s = sovrapposizioni(r, prenotazioni, aperte, camere)
+      m.set(r.id, [
+        ...s.prenotazioni.map(b => `${nomeOspite(b)} (${formatIntervallo(b.check_in, b.check_out)})`),
+        ...s.richieste.map(x => `${x.cognome} (${formatIntervallo(x.arrivo, x.partenza)})`),
+      ])
+    }
+    return m
+  }, [aperte, prenotazioni, camere])
 
   const nuovaRichiesta = (extra = '') => (
     <Link href="/richieste/nuova" className={`${BOTTONE_PIENO} ${extra}`}>+ Nuova richiesta</Link>
@@ -180,7 +211,8 @@ export default function Richieste() {
           ) : (
             <CalendarioRichieste
               mese={mese} onMese={setMese} camere={camere} prenotazioni={prenotazioni} richieste={richiesteCalendario}
-              acconti={acconti} vista={vista} layout={desktop ? 'desktop' : 'mobile'} oggi={oggiIso()} />
+              acconti={acconti} vista={vista} layout={desktop ? 'desktop' : 'mobile'} oggi={oggiIso()}
+              evidenziata={selezionata} onApri={(gruppo, ancora) => setPannello({ gruppo, ancora })} />
           )}
           <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>
             {vista === 'presunta' ? 'Tratteggiato = richieste in attesa. Tocca una barra per vedere chi c’è dentro.' : 'Solo confermate: queste non si toccano.'}
@@ -209,7 +241,10 @@ export default function Richieste() {
             </div>
           ) : (
             <ul className="flex flex-col gap-3">
-              {aperte.map(r => <RigaRichiesta key={r.id} r={r} adesso={adesso} />)}
+              {aperte.map(r => (
+                <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []}
+                  selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} />
+              ))}
             </ul>
           )}
 
@@ -230,6 +265,10 @@ export default function Richieste() {
           )}
         </section>
       </div>
+
+      {pannello && (
+        <PannelloRichieste gruppo={pannello.gruppo} ancora={pannello.ancora} layout={desktop ? 'desktop' : 'mobile'} adesso={adesso} onChiudi={() => setPannello(null)} />
+      )}
     </div>
   )
 }
