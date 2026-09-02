@@ -83,6 +83,14 @@ export function creaServerFattureFinto(t: TabelleGrezze, opzioni: {
     const attive = bozzeAttive(documentId)
     if (!attive.length) throw new Error('Nessuna bozza attiva: documento senza bozze o con bozze scartate/in errore')
     if (attive.some(b => !b.group_id)) throw new Error('Bozza senza gruppo: assegnare il gruppo prima di approvare')
+    // parte negativa dopo l'arrotondamento: la stessa regola che
+    // spese_crea_da_bozze applica al pagamento, anticipata all'approvazione
+    // (nella 0020 manca: proposta 0030 in supabase/proposte)
+    for (const b of attive) {
+      const righe = t.righeBozza.filter(r => r.draft_id === b.id && !r.excluded)
+      const amountCent = righe.reduce((s, r) => s + cent(r.amount), 0) + (b.arrotondamento_cent ?? 0)
+      if (amountCent < 0) throw new Error(`Importo sorella negativo (${amountCent / 100}) dopo l'arrotondamento: non valido`)
+    }
     quadratura(documentId, d.doc_total)
   }
 

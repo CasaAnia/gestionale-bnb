@@ -511,6 +511,12 @@ function blocchiComuni(
   }
   for (const b of s.bozze) {
     const c = bozzaCorrente(s, b.id)
+    // una parte NEGATIVA (arrotondamento più grande delle sue righe) non può
+    // diventare una spesa: spese_crea_da_bozze la rifiuta al pagamento, quindi
+    // va fermata QUI, prima che una fattura venga approvata «da pagare» e
+    // resti bloccata per sempre
+    if (totaliSorella(s, b.id).totaleCent < 0)
+      blocchi.push('una parte ha un importo negativo dopo l\'arrotondamento: correggi righe o arrotondamento')
     if (!c.group_id) { blocchi.push('una parte non ha il destinatario (gruppo): assegnalo'); continue }
     const ambitoParte = ambitoDelGruppo(c.group_id)
     if (metodoPerBozza && ambitoParte === 'azienda' && !c.payment_method)
