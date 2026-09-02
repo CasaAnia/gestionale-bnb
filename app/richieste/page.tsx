@@ -133,7 +133,7 @@ export default function Richieste() {
   const [vista, setVista] = useVista()
   const desktop = useDesktop()
   // Sul telefono si vede una sezione alla volta: calendario o lista.
-  const [sezione, setSezione] = useState<'calendario' | 'lista'>('calendario')
+  const [sezione, setSezione] = useState<'calendario' | 'lista'>(() => (apriId ? 'lista' : 'calendario'))
   // Richiesta selezionata dalla lista (evidenziata nel calendario) e pannello «chi c'è dentro»
   const [selezionata, setSelezionata] = useState<string | null>(null)
   const [pannello, setPannello] = useState<{ gruppo: Richiesta[]; ancora: Ancora } | null>(null)
