@@ -1,4 +1,75 @@
-# Consegna attiva — Richieste, pezzo 6: testi definitivi, condizioni di pagamento, alternativa Amelia, immagine con la notte scoperta
+# STATO IN 10 RIGHE (aggiornato il 02/09/2026, pezzo 7) — da incollare a un altro assistente
+
+1. Gestionale Casa Ania (Next.js su Vercel, Supabase progetto tnsaa…vwv): sezione Richieste pezzi 1–7 su `main`, pezzi 1–6 in produzione e verificati da Ania.
+2. Migrazioni applicate a mano in produzione: 0024, 0025, 0027 (RPC conferma_richiesta), 0028, 0029 (condizioni di pagamento). In supabase/proposte restano 0023 e 0026 (RLS), NON applicate.
+3. Sito casaaniarozzano.it (repo sito-casaania, HEAD da91e37): il modulo /prenota manda le richieste a POST /api/richieste/web con RICHIESTE_WEB_SECRET; non crea più prenotazioni; ripiego = Pushover «NON entrata nel gestionale» (email spenta per scelta di Ania).
+4. Proposte: unico generatore lib/richiesteTesti.generaProposta (testi del Lei BLOCCATI), condizioni scelte da Ania a ogni richiesta (mai preselezionate), alternativa Amelia con interruttore, immagine con la notte scoperta.
+5. Conferma: SOLO la RPC conferma_richiesta (una transazione, ricontrollo camera e pool delle 2 brande, ospite, bookings per segmento, cascata «date assegnate a altro cliente», idempotente). Provata in locale sulla SQL vera con PGlite (lib/richiesteConfermaRpc.test.ts).
+6. Contratto sito → gestionale verificato con evidenze in docs/verifica-5B.md (401/400/429, doppioni, limite IP, nessun dato personale nei log).
+7. In corso: niente. Prossimi pezzi: pulizia del flusso vecchio (prenotazioni in_attesa source sito_web nel calendario principale), riepilogo pre-bonifico con la regola di cancellazione (lib/condizioniPrenotazione).
+8. Strumenti locali: anteprima senza rete `gestionale-bnb-anteprima-richieste-finta` (porta 3214, finto Supabase, endpoint web con segreto «prova-locale»); `node scripts/verifica-consegna.mjs --base <sha>`; suite `npm test` (441 test, con PGlite).
+9. Regole: nessun invio reale in sviluppo; migrazioni solo a mano da Ania; il calendario principale non si tocca; commit separati per blocco; push su main autorizzato dalle consegne.
+10. 🔴 Azioni aperte per Ania: prova manuale della cascata dal telefono (guida in fondo alla scheda del pezzo 7) e annullamento della prenotazione di prova; il blocco Codex «quadrupla nera» (ramo correzioni-prenotazioni-quadrupla-date) attende ancora la sua autorizzazione.
+
+---
+
+# Consegna attiva — Richieste, pezzo 7: prova della cascata e verifica del contratto sito → gestionale
+
+Pezzo di verifica: nessuna funzione nuova, nessuna correzione necessaria
+(tutte le prove sono passate al primo giro). Base: `b4fbe6d` (pezzo 6).
+
+## Casi di accettazione
+
+| ID | Sequenza e atteso | Livello di prova | Esito |
+| --- | --- | --- | --- |
+| C01 | Lena libera 10–13 ott; R1 (2 persone, 10–13) e R2 (2 persone, 11–13) per Lena: entrambe ricevono il caso A per Lena, anche con l'altra richiesta aperta nel database. | test locale, ricerca pura | VERDE |
+| C02 | Conferma di R1 con R2 spuntata: booking Lena 10–13 confermata 240 €, ospite creato dal telefono, R1 confermata con prenotazione_id, R2 rifiutata con «date assegnate a altro cliente». | RPC VERA (SQL 0027) in PGlite | VERDE |
+| C03 | R2 NON spuntata, confermata dopo R1: errore «Camera Lena non più disponibile la notte del 11 novembre», bookings e guests invariati, R2 resta proposta_inviata. | RPC vera in PGlite | VERDE |
+| C04 | Secondo tocco su «Crea prenotazione» per R1 (con e senza lista): stessa prenotazione, nessun doppione di bookings o guests. | RPC vera in PGlite | VERDE |
+| C05 | Pool brande: quadrupla confermata in Lena (2 brande) → Allegra per 3 persone «Letti aggiuntivi esauriti la notte del 20 dicembre (camera Allegra)», nulla scritto; extra_bed senza date conteggiato; Allegra a 3 persone con 1 branda libera passa con extra_bed_dates. La ricerca del gestionale, coerente, non propone la matrimoniale a 3 con il pool esaurito. | RPC vera in PGlite + ricerca pura | VERDE |
+| C06 | Senza proposta inviata → «Nessuna proposta inviata»; caso completo → «non contiene camere». | RPC vera in PGlite | VERDE |
+| C07 | Contratto sito → gestionale: 9 voci, tutte conformi con evidenze. | docs/verifica-5B.md | VERDE |
+| C08 | Endpoint locale: 401 senza/con segreto errato, 400 su JSON e dati invalidi, 201, 200 doppione, 429 dopo 10 dallo stesso IP; bookings invariate. | anteprima finta + curl | VERDE |
+
+## Prove di consegna
+
+- `npm test` 441/441 (6 nuovi sulla RPC), TypeScript e lint del delta verdi.
+- La RPC gira in PGlite (Postgres 17 in WebAssembly, dipendenza di solo
+  sviluppo `@electric-sql/pglite`): il SQL della funzione è letto dal file
+  della migrazione 0027, le tabelle sono una replica minima con le colonne
+  toccate, `auth.uid()` è un finto utente loggato. Non è il server Supabase:
+  RLS, grant e concorrenza fra connessioni non sono coperti qui (lo script
+  `supabase/test/0027_conferma_richiesta.test.sql` resta per l'editor SQL).
+
+## Commit
+
+a `9cea837` test della cascata e delle brande · b nessuna correzione necessaria ·
+c `f5c598c` verifica del contratto con evidenze · d (questo) stato in 10 righe e scheda.
+
+## 🔴 Guida per la prova manuale di Ania (dal telefono)
+
+1. Richieste → «+ Nuova richiesta»: «Prova Uno», 2 persone, una camera libera
+   (es. Lena) su due notti future, telefono tuo. Salva. Ripeti con «Prova Due»,
+   stesse date e stessa camera.
+2. Apri Prova Uno → «Invia proposta»: scegli una condizione (es. All'arrivo),
+   «Apri WhatsApp e invia» (puoi non inviare davvero), poi «Sì, inviata».
+   Fai lo stesso per Prova Due.
+3. Su Prova Uno tocca «Conferma → crea la prenotazione»: nella finestra deve
+   comparire «Prova Due» già spuntata sotto «Altre richieste per le stesse date».
+   Tocca «Crea prenotazione».
+4. Verifica: si apre la scheda della prenotazione con il toast «Prenotazione
+   creata da richiesta» e la riga «Nata dalla richiesta del … via …»;
+   in Richieste → archivio, Prova Due è «rifiutata» col motivo «date assegnate
+   a altro cliente»; nel calendario principale la camera risulta occupata.
+5. Prova del blocco: su Prova Due (se la riapri) o su una terza richiesta
+   con le stesse date, «Conferma» deve fermarsi con «Camera … non più
+   disponibile la notte del …» e il link «Prepara una nuova proposta».
+6. Alla fine: apri la prenotazione di prova e annullala (Annulla), così il
+   calendario torna libero. Le richieste di prova restano in archivio.
+
+---
+
+# Blocco precedente — Richieste, pezzo 6: testi definitivi, condizioni di pagamento, alternativa Amelia, immagine con la notte scoperta
 
 Pezzi 1–5A della sezione Richieste in produzione (autorità). Questo blocco
 chiude i testi delle proposte e le condizioni di pagamento scelte da Ania.
