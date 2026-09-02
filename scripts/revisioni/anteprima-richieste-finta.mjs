@@ -51,6 +51,8 @@ const bookings = [
   { id: 'bbbbbbbb-0005-4000-8000-000000000005', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(2), check_out: giorni(4), num_guests: 3, status: 'confermata', group_id: 'gggggggg-0001-4000-8000-000000000001', extra_bed: true, extra_bed_dates: [giorni(2), giorni(3)], guest_name: 'Cambio Camera' },
   { id: 'bbbbbbbb-0006-4000-8000-000000000006', room_id: ROOM.allegra, guest_id: guests[0].id, check_in: giorni(4), check_out: giorni(6), num_guests: 3, status: 'confermata', group_id: 'gggggggg-0001-4000-8000-000000000001', guest_name: 'Cambio Camera' },
   { id: 'bbbbbbbb-0007-4000-8000-000000000007', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(21), check_out: giorni(23), num_guests: 2, status: 'completata', guest_name: 'Sotto Richiesta' },
+  // Quadrupla in Lena: prende ENTRAMBI i letti del pool per le notti +14 e +15
+  { id: 'bbbbbbbb-0008-4000-8000-000000000008', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(14), check_out: giorni(16), num_guests: 4, status: 'confermata', extra_bed: true, extra_bed_dates: [giorni(14), giorni(15)], extra_bed_total: 20, guest_name: 'Quadrupla Piena' },
   { id: 'bbbbbbbb-0003-4000-8000-000000000003', room_id: ROOM.allegra, guest_id: guests[0].id, check_in: giorni(10), check_out: giorni(12), num_guests: 2, status: 'in_attesa' },
   { id: 'bbbbbbbb-0004-4000-8000-000000000004', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(10), check_out: giorni(12), num_guests: 2, status: 'annullata' },
 ].map(b => ({ extra_bed: false, extra_bed_dates: [], price_per_night: 70, extra_bed_total: 0, total_amount: 140, source: 'diretta', guest_name: null, notes: null, cancelled_at: null, cancelled_reason: null, group_id: null, pagato: false, bonifico: false, created_at: ora, updated_at: ora, ...b }))
@@ -64,6 +66,8 @@ const richieste = [
   richiesta({ nome: 'Luca', cognome: 'Bianchi', arrivo: giorni(5), partenza: giorni(6), persone: 1, canale: 'telefono', created_at: fa(60 * 30), stato: 'proposta_inviata', proposta_inviata_at: fa(60 * 3) }),
   // Sovrapposta a Rossi (stessa riga «qualsiasi»): nel calendario diventano una barra sola «2 richieste ⇄»
   richiesta({ nome: 'Piotr', cognome: 'Nowak', arrivo: giorni(12), partenza: giorni(14), persone: 2, canale: 'telefono', telefono: '+39 333 000 0009', created_at: fa(90) }),
+  // 3 persone nelle notti della quadrupla: nessun letto libero → Allegra non basta (atteso «Completo» o parziale)
+  richiesta({ nome: 'Tre', cognome: 'Persone', arrivo: giorni(14), partenza: giorni(16), persone: 3, camera_id: ROOM.allegra, canale: 'telefono', telefono: '+44 7700 900123', created_at: fa(30) }),
   richiesta({ nome: 'Sara', cognome: 'Verdi', arrivo: giorni(30), partenza: giorni(35), persone: 4, canale: 'web', created_at: fa(5), note: 'Chiede due camere vicine' }),
   richiesta({ nome: 'Paolo', cognome: 'Neri', arrivo: giorni(-3), partenza: giorni(-1), persone: 2, canale: 'telefono', created_at: fa(60 * 24 * 8), stato: 'confermata', chiusa_at: fa(60 * 24 * 7) }),
   richiesta({ nome: 'Giulia', cognome: 'Gallo', arrivo: giorni(2), partenza: giorni(4), persone: 2, canale: 'whatsapp', created_at: fa(60 * 24 * 2), stato: 'rifiutata', chiusa_at: fa(60 * 24) }),
