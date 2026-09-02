@@ -4,6 +4,7 @@ import { validaRichiestaWeb, stessaRichiesta, consentiIp, FINESTRA_DOPPIONI_MIN 
 import { formatIntervallo } from '@/lib/richieste'
 import { inviaATutti } from '@/lib/inviaPush'
 import { registraPush } from '@/lib/pushLog'
+import { inviaPushover } from '@/lib/pushover'
 
 // Ingresso delle richieste dal modulo del sito casaaniarozzano.it (pezzo 5A).
 //
@@ -103,5 +104,15 @@ export async function POST(req: NextRequest) {
     log('avviso', `push non inviata: ${(e as Error)?.message?.slice(0, 80) ?? 'errore'}`)
   }
 
-  return NextResponse.json({ id, push }, { status: 201 })
+  // Avviso sonoro Pushover (la web push su iPhone è muta), miglior sforzo
+  let pushover: { inviato: boolean; motivo?: string } = { inviato: false }
+  try {
+    const base = (process.env.NEXT_PUBLIC_GESTIONALE_URL ?? 'https://gestionale-bnb-tau.vercel.app').replace(/\/$/, '')
+    pushover = await inviaPushover('🏡 Nuova richiesta Casa Ania', `${d.cognome} ${d.nome}, ${formatIntervallo(d.arrivo, d.partenza)}, ${d.persone} ${d.persone === 1 ? 'persona' : 'persone'}`, `${base}/richieste/${id}`)
+    if (!pushover.inviato) log('avviso', `pushover non inviato: ${pushover.motivo ?? ''}`)
+  } catch (e) {
+    log('avviso', `pushover: ${(e as Error)?.message?.slice(0, 80) ?? 'errore'}`)
+  }
+
+  return NextResponse.json({ id, push, pushover: pushover.inviato }, { status: 201 })
 }
