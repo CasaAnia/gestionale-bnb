@@ -1,19 +1,79 @@
-# STATO IN 10 RIGHE (aggiornato il 02/09/2026, pezzo 7) — da incollare a un altro assistente
+# STATO IN 10 RIGHE (aggiornato il 02/09/2026, revisione Fase 5 fatture) — da incollare a un altro assistente
 
-1. Gestionale Casa Ania (Next.js su Vercel, Supabase progetto tnsaa…vwv): sezione Richieste pezzi 1–7 su `main`, pezzi 1–6 in produzione e verificati da Ania.
-2. Migrazioni applicate a mano in produzione: 0024, 0025, 0027 (RPC conferma_richiesta), 0028, 0029 (condizioni di pagamento). In supabase/proposte restano 0023 e 0026 (RLS), NON applicate.
-3. Sito casaaniarozzano.it (repo sito-casaania, HEAD da91e37): il modulo /prenota manda le richieste a POST /api/richieste/web con RICHIESTE_WEB_SECRET; non crea più prenotazioni; ripiego = Pushover «NON entrata nel gestionale» (email spenta per scelta di Ania).
-4. Proposte: unico generatore lib/richiesteTesti.generaProposta (testi del Lei BLOCCATI), condizioni scelte da Ania a ogni richiesta (mai preselezionate), alternativa Amelia con interruttore, immagine con la notte scoperta.
-5. Conferma: SOLO la RPC conferma_richiesta (una transazione, ricontrollo camera e pool delle 2 brande, ospite, bookings per segmento, cascata «date assegnate a altro cliente», idempotente). Provata in locale sulla SQL vera con PGlite (lib/richiesteConfermaRpc.test.ts).
-6. Contratto sito → gestionale verificato con evidenze in docs/verifica-5B.md (401/400/429, doppioni, limite IP, nessun dato personale nei log).
-7. In corso: niente. Prossimi pezzi: pulizia del flusso vecchio (prenotazioni in_attesa source sito_web nel calendario principale), riepilogo pre-bonifico con la regola di cancellazione (lib/condizioniPrenotazione).
-8. Strumenti locali: anteprima senza rete `gestionale-bnb-anteprima-richieste-finta` (porta 3214, finto Supabase, endpoint web con segreto «prova-locale»); `node scripts/verifica-consegna.mjs --base <sha>`; suite `npm test` (441 test, con PGlite).
-9. Regole: nessun invio reale in sviluppo; migrazioni solo a mano da Ania; il calendario principale non si tocca; commit separati per blocco; push su main autorizzato dalle consegne.
-10. 🔴 Azioni aperte per Ania: prova manuale della cascata dal telefono (guida in fondo alla scheda del pezzo 7) e annullamento della prenotazione di prova; il blocco Codex «quadrupla nera» (ramo correzioni-prenotazioni-quadrupla-date) attende ancora la sua autorizzazione.
+1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste è completa (pezzi 1–7, in produzione); il modulo Spese nuovo (Panoramica/Movimenti/Documenti/Analisi, flusso «solo bozze», revisione) è in produzione con il percorso di scrittura su `legacy` (`lib/spese/percorso.ts`, non toccare).
+2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029. In `supabase/proposte` NON applicate: 0023 (chiave idempotente), 0026 (RLS richieste), 0030 (vincoli server fatture: parte negativa, data futura).
+3. Branch `fatture-fase5` (da `main` b3746f4): la Fase 5 fatture di Casa Ania ricostruita dal candidato 1219138 (analisi in docs/fatture-fase5-analisi.md) + 4 correzioni della revisione avversaria (D1 parte negativa, D2 rollback del finto, D3/D4 prova di rifiuto = codice SQLSTATE, D5 proposta SQL). Push SOLO di questo branch: Vercel ne fa una preview, main non cambia.
+4. Fatture: testata in revisione (tipo, fornitore, numero, data, scadenza) custodita, correzioni SOLO via RPC 0020 (`approva_fattura_da_pagare` = zero spese/Impegnato/scadenzario; `conferma_fattura_pagata` e `paga_fattura` = una spesa per parte alla data reale del pagamento); dettaglio leggibile dopo il pagamento; PDF/foto multipagina.
+5. Robustezza: replay e doppio tocco = una sola spesa (presidio + RPC idempotente); errore con codice = rifiuto certo; errore senza codice, rete, risposta persa, zero spese = INCERTO con «Chiudi e ricontrolla» e responsabilità custodita.
+6. Prove: suite 485/485 (44 nuovi + 5 avversari + 3 riproduzioni Codex), `verifica-consegna --base b3746f4`, build, UI a 320/390/1280 sull'anteprima finta `/nuove-spese` (porta 3213). Nessuna migrazione applicata, nessun accesso remoto, nessuna scrittura reale.
+7. Richieste (pezzi 1–7): generatore unico lib/richiesteTesti, condizioni scelte da Ania, conferma via RPC conferma_richiesta (provata in PGlite), contratto sito→gestionale verificato (docs/verifica-5B.md).
+8. Strumenti: `gestionale-bnb-anteprima-prenotazioni-finta` (3213, spese e prenotazioni finte), `gestionale-bnb-anteprima-richieste-finta` (3214, richieste + endpoint web con segreto locale), `npm test`, `node scripts/verifica-consegna.mjs --base <sha>`.
+9. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale non si tocca; un commit per correzione; mai modificare gli assert dei test esistenti; il contratto di revisione resta `legacy` fino alla transizione autorizzata.
+10. 🔴 Azioni aperte per Ania: provare la preview Vercel di `fatture-fase5` (solo lettura/dati di prova), decidere se unire il branch a main, valutare la proposta 0030; prova manuale della cascata Richieste dal telefono.
 
 ---
 
-# Consegna attiva — Richieste, pezzo 7: prova della cascata e verifica del contratto sito → gestionale
+# Consegna attiva — Fase 5: fatture di Casa Ania (revisione avversaria, branch `fatture-fase5`)
+
+## Identità e perimetro
+
+- Base: `main` = `b3746f4` (Richieste pezzo 7). Candidato precedente
+  `1219138` (branch `fase5-fatture-casa-ania`, base `671a677`): analizzato in
+  `docs/fatture-fase5-analisi.md`, NON unito alla cieca, ricostruito con
+  cherry-pick pulito (unico conflitto: questa scheda).
+- Branch: `fatture-fase5`. Stato: VERIFICATO IN LOCALE, PUSH DEL SOLO BRANCH
+  (preview Vercel), NESSUN DEPLOY IN PRODUZIONE. Unione a main = decisione di Ania.
+- Revisore avversario: Claude (02/09/2026), con le tre riproduzioni
+  indipendenti di Codex (`scripts/revisioni/fase5-fatture-1219138.test.mjs`,
+  0/3 verdi sul candidato, 3/3 dopo le correzioni).
+- Perimetro invariato rispetto al candidato: fatture SOLO Casa Ania, RPC 0020,
+  percorso del contratto di revisione su `legacy` (non toccato), nessuna
+  migrazione applicata, nessun accesso remoto, nessun secondo utente.
+
+## Casi di accettazione (ogni voce con il test che la dimostra)
+
+| ID | Voce richiesta | Prova | Esito |
+| --- | --- | --- | --- |
+| V01 | Fatture solo Casa Ania: una parte con gruppo Casa Mia blocca; «È una fattura» solo in ambito azienda. | `fattureFlusso` F07, `fattureRevisione` «camera e ambito coerenti» | VERDE |
+| V02 | Documento foto o PDF, anche multipagina, anteprima leggibile. | `caricamentoPagine` (7 test: token unico, `-pN`, riselezione per impronta, doppione); `FotoSheet` PDF in iframe; UI: «pagina 1 / pagina 2» nella revisione di Impianti Rossi | VERDE (foglio di caricamento con file veri non provato: serve un selettore di file) |
+| V03 | Testata custodita, correzioni solo via RPC: originali intatti, correzioni senza `draft_id`, Salva = un solo UPDATE sulle colonne concesse dalla 0021, zero righe ≠ successo. | `fattureRevisione` (testata, riapertura, vincoli, Salva), `fattureVista` «creaClienteRevisione» | VERDE |
+| V04 | «Da pagare»: zero spese, Impegnato e scadenzario. | F01, F02, `fattureVista` adattatore | VERDE |
+| V05 | «Già pagata»: data non futura e metodo obbligatori (a schermo e nel finto). | F05, `fattureRevisione` «già pagata»; UI: 31/12/2026 bloccata con messaggio, «Conferma» disabilitato | VERDE (lato SQL solo con la proposta 0030) |
+| V06 | Pagamento successivo: UNA spesa alla data reale. | F03, F04 | VERDE |
+| V07 | Fattura di agosto pagata a settembre → Speso di settembre, agosto invariato. | F03 (esplicito) | VERDE |
+| V08 | Replay, doppio tocco, risposta persa, errore dalla RPC, zero righe: mai doppioni, stati parziali o falsi successi. | F04, F04-bis, «doppio clic», D2 (rollback del finto), D3/D4 (errore senza codice = incerto), Codex R1-bis/R2 | VERDE dopo le correzioni |
+| V09 | Quadratura al centesimo, arrotondamento esplicito. | F06, D1 (parte negativa), Codex R1 | VERDE dopo la correzione |
+| V10 | Dettaglio leggibile dopo il pagamento (importo, data, metodo, documento). | F03, `fattureVista` «dettaglioFattura»; UI: «pagata Oggi · Bonifico», «Fatture pagate» | VERDE |
+| V11 | Nessuna scrittura alle spese che aggiri le RPC. | ispezione: nel branch nessun insert nuovo su `family_expenses` (restano le scritture preesistenti delle spese MANUALI senza documento, fuori perimetro); `fattureRevisione` «orchestrazione: … il contratto le RIFIUTA» | VERDE |
+| V12 | Query storiche complete e paginate; errori a schermo; nessun catch silenzioso. | `fonte.leggiTutto` a pagine di 1.000 con ordine esplicito (preesistente); esiti incerti sempre dichiarati; nessun catch muto nei file nuovi | VERDE |
+| V13 | UI a 320, 390 e 1280 px sull'anteprima finta. | Documenti, dettaglio/pagamento (Vetraio Colombo scaduta → pagata con Bonifico), revisione fattura (Impianti Rossi, «Già pagata», data futura bloccata): nessuno scorrimento orizzontale (scrollWidth = viewport) | VERDE |
+
+## Correzioni (un commit ciascuna, riproduzione PRIMA)
+
+- D1 parte negativa dopo l'arrotondamento: blocco a schermo + nel finto; SQL nella proposta 0030.
+- D2 il servizio finto fa rollback totale quando il corpo della RPC fallisce.
+- D3/D4 la prova di rifiuto è il codice applicativo; `revisioneClient` riporta `error.code`; senza codice = incerto (fatture); legacy invariato.
+- D5 proposta 0030 (non applicata): parte negativa in `valida_fattura`, data futura in `paga_fattura`/`conferma_fattura_pagata`.
+
+## Prove di consegna
+
+- `npm test` 485/485 (441 di main + 39 del candidato + 5 avversari); Codex 3/3.
+- `node scripts/verifica-consegna.mjs --base b3746f4` e `next build`: esito nel resoconto.
+- UI sull'anteprima finta con click simulati via JavaScript sui bottoni veri.
+
+## Limiti aperti
+
+- Prove locali e simulate: RPC vere, RLS, lock e concorrenza restano da provare
+  nel passaggio autorizzato (la RPC 0020 non gira in PGlite qui: dipende da
+  `private.is_app_member`, `app_members` e dallo schema 0020/0021 completo).
+- Il percorso a contratto non copre le tre RPC fattura (rifiuto esplicito).
+- L'elaboratore non propone la testata (proposta in `proposte/`).
+- Regole D1 e D5 lato server solo con la 0030, da autorizzare.
+- Foglio di caricamento con file veri non provato in UI.
+
+---
+
+# Blocco precedente — Richieste, pezzo 7: prova della cascata e verifica del contratto sito → gestionale
 
 Pezzo di verifica: nessuna funzione nuova, nessuna correzione necessaria
 (tutte le prove sono passate al primo giro). Base: `b4fbe6d` (pezzo 6).
@@ -154,112 +214,7 @@ C con la notte scoperta anche nell'immagine, interruttore Amelia.
 
 ---
 
-# Blocco precedente (Codex, in attesa di autorizzazione) — prenotazioni: quadrupla nera e date stabili
+# Blocco precedente — prenotazioni: quadrupla nera e date stabili
 
-Il banner «Da controllare» fra mesi diversi è online e archiviato in
-`CONSEGNE-ARCHIVIO-BANNER-DA-CONTROLLARE.md`. Questo blocco corregge due
-regressioni segnalate da Ania nella gestione delle prenotazioni.
-
-## Identità e perimetro
-
-- Base tecnica: `6d44d69` (modifica del telefono della nuova prenotazione già
-  presente e mantenuta intatta).
-- Candidato implementato: `a8b4495`. Candidato fermo dopo revisione: HEAD di
-  `correzioni-prenotazioni-quadrupla-date`, figlio di `a8b4495` (solo scheda,
-  strumento di anteprima e voce di avvio: codice applicativo identico).
-- Stato: VERIFICATO IN LOCALE — revisione consolidata di Claude verde del
-  02/09/2026, nessun bloccante; PRONTO PER PASSAGGIO AUTORIZZATO. Nessun push
-  e nessun deploy senza autorizzazione esplicita di Ania.
-- Implementatore: Codex. Revisore: Claude (giro unico, 02/09/2026).
-- Requisito colore: il terracotta significa che è occupato un solo letto del
-  pool comune; il nero significa che entrambi i letti sono occupati e non se
-  ne può aggiungere un altro. Una quadrupla in Lena occupa da sola entrambi.
-- Requisito date: check-in e check-out non devono sovrapporsi su iPhone né
-  nella nuova prenotazione né in modifica/prolungamento.
-- Perimetro tecnico: calcolo puro e condiviso del pool letti, colori del
-  calendario, lettura disponibilità in nuova/modifica prenotazione e classi
-  protettive dei campi data. Nessuna query di scrittura nuova, nessuna
-  modifica a dati, schema o permessi.
-
-## Casi di accettazione
-
-| ID | Sequenza e atteso | Livello di prova | Esito |
-| --- | --- | --- | --- |
-| P01 | 0 letti = colore normale; 1/2 = terracotta; 2/2 o più = nero. Anche la riga riepilogativa dei letti mostra 2/2 in nero con testo bianco. | funzioni pure + integrazione pagina | VERDE: `calendarioLetti.test.ts` controlla stati, colori e collegamento effettivo della pagina. |
-| P02 | Lena con 3 ospiti occupa 1 letto; Lena quadrupla occupa 2 letti e quindi la sua barra è nera. Due prenotazioni da un letto sovrapposte danno lo stesso nero. | funzioni pure | VERDE: `tariffe.test.ts` confronta la regola del calendario con la tariffa da 1 a 4 ospiti. |
-| P03 | Le prenotazioni storiche con `extra_bed=true` e senza giorni espliciti restano conteggiate correttamente. | funzione pura + query | VERDE: test dedicato e campo `extra_bed` incluso nelle letture di nuova/modifica. |
-| P04 | A 320–390 px le due date restano dentro le rispettive colonne nella nuova prenotazione; modifica e prolungamento conservano la stessa protezione già introdotta. | regressione sul sorgente | VERDE: wrapper `min-w-0` e input `min-w-0 appearance-none` verificati su entrambi i percorsi. |
-| P05 | Nessun cambiamento ai conti, alle prenotazioni esistenti o al database; niente pubblicazione. | ispezione + suite | VERDE: solo letture già esistenti ampliate col campo necessario; nessun accesso remoto o scrittura. |
-
-## Prove di consegna
-
-- Test mirati del blocco.
-- Suite applicazione completa, TypeScript e build di produzione.
-- `node scripts/verifica-consegna.mjs --base 6d44d69` sul candidato pulito.
-
-## Revisione consolidata di Claude (02/09/2026, candidato `a8b4495`)
-
-Esito: NESSUN BLOCCANTE. Assert dei test esistenti non toccati.
-
-Controlli tecnici sull'albero fermo `a8b4495`:
-
-- Diff `6d44d69..a8b4495` letto per intero (9 file). Il telefono modificabile
-  del cliente nuovo (base `6d44d69`) è intatto: il diff non tocca quella parte.
-- `node scripts/verifica-consegna.mjs --base 6d44d69`: VERIFICHE_TECNICHE_OK
-  (suite, regressioni delle revisioni, strumenti locali, TypeScript, lint).
-- `next build`: exit 0, 27 pagine generate.
-- Pulizia dei tipi del calendario: solo tipizzazione di `any` preesistenti,
-  copia dell'array camere prima dell'ordinamento e aggiornamento del ref
-  `vaiA` spostato in un effetto dichiarato PRIMA dell'effetto che lo usa (gli
-  effetti corrono in ordine di dichiarazione): nessun cambio di comportamento.
-- Regola del pool: `lettiPoolPrenotazione` conta 0/1/2, con `extra_bed=true`
-  senza date o con sole date esplicite; il calendario colora sul TOTALE della
-  notte (niente più sottrazione della prenotazione corrente); la nuova
-  prenotazione legge anche `extra_bed` e usa la stessa funzione. La pagina di
-  modifica non è nel diff e mantiene la sua regola locale identica.
-
-Prove UI reali senza rete, con lo strumento aggiunto in questa revisione
-(`scripts/revisioni/anteprima-prenotazioni-finta.mjs`: finto Supabase locale
-con login e PostgREST minimale su 5 prenotazioni sintetiche; le scritture
-sono rifiutate; voce `gestionale-bnb-anteprima-prenotazioni-finta` in
-`.claude/launch.json`). Nessuna richiesta al progetto Supabase vero.
-
-| Caso | Prova a 390 px | Esito |
-| --- | --- | --- |
-| Quadrupla Lena 3–5 set (2 letti da sola) | barra `rgb(31,41,55)` su entrambe le notti; riga letti `2/2` sfondo nero, testo `white` | VERDE |
-| Allegra 3 ospiti + Ambra 3 ospiti il 7 set; solo Ambra l'8 | 7 set: entrambe le barre nere e `2/2` nero; 8 set: barra terracotta e `1/2` bianco/marrone | VERDE |
-| Storica Amelia `extra_bed=true` senza date, PAGATA, 10–12 set | strisce terracotta/verde il 10; strisce nere/verde l'11 (pool esaurito da Lena bonifico) | VERDE |
-| Lena 3 ospiti con BONIFICO l'11 set | strisce nere/viola; `2/2` nero | VERDE |
-| Legenda | «1 letto extra occupato» terracotta e «2/2 letti occupati» nero | VERDE |
-| Nuova prenotazione, caselle data | 390 px: check-in 33–191, check-out 199–357; 320 px: 33–156 e 164–287; nessuna sovrapposizione, ciascuna dentro la propria colonna, nessuno scorrimento orizzontale | VERDE |
-| Nuova, Lena 4 ospiti 7–9 set | 7 e 8 set neri (2+2 e 1+2 > 2), Salva disabilitato | VERDE |
-| Nuova, Lena 3 ospiti 7–9 set | 7 set nero, 8 set selezionabile (1+1 = 2), Salva disabilitato finché resta il 7 | VERDE |
-| Nuova, Allegra 3 ospiti 3–5 set | 3 e 4 set neri per la sola quadrupla; Salva disabilitato | VERDE |
-
-Limiti dichiarati:
-
-- La sovrapposizione delle caselle data è un comportamento del Safari di
-  iPhone: nel pannello Chromium si verifica solo il layout (colonne, larghezze,
-  classi `min-w-0 appearance-none`); la conferma finale resta sull'iPhone di
-  Ania dopo la pubblicazione. Modifica e prolungamento sono coperti dal test
-  sul sorgente (protezione già presente nella base).
-- Nella prima scheda del pannello i click restavano bloccati: il login è stato
-  inviato con l'handler del modulo; il percorso della nuova prenotazione è
-  stato ripetuto in una seconda scheda con click reali; camera, date e ospiti
-  impostati con `form_input` (stessi eventi della digitazione).
-- Nessuna prova su dati reali: vietato l'accesso remoto in questa revisione.
-
-MIGLIORIE registrate (non condizionano l'approvazione):
-
-- M1 (preesistente): in nuova prenotazione i giorni bloccati ma auto-selezionati
-  appaiono come chip neri senza avviso testuale; l'unico segnale è Salva
-  disabilitato. Un avviso esplicito aiuterebbe su telefono.
-- M2 (documentazione): P03 cita «letture di nuova/modifica», ma solo la nuova
-  è nel diff; la modifica conserva la regola locale identica. Unificarla su
-  `lettiPoolPrenotazione` è una pulizia futura, non un difetto.
-
-## Prossimo passo
-
-🔴 Ania autorizza la pubblicazione (push su `main` + deploy Vercel) del
-candidato fermo. Dopo la pubblicazione: controllo su iPhone delle due caselle
-data e di una quadrupla in Lena sul calendario vero.
+Pubblicato su main in `671a677` (`a8b4495`) e archiviato in
+`CONSEGNE-ARCHIVIO-PRENOTAZIONI-QUADRUPLA-DATE.md`.
