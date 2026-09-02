@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Globe, Phone, MessageCircle, ChevronDown } from 'lucide-react'
 import BackBar from '@/components/BackBar'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
@@ -8,6 +9,8 @@ import CalendarioRichieste, { type Ancora } from '@/components/richieste/Calenda
 import PannelloRichieste from '@/components/richieste/PannelloRichieste'
 import AzioniRichiesta from '@/components/richieste/AzioniRichiesta'
 import ConfermaDialog from '@/components/richieste/ConfermaDialog'
+import FinestraConferma from '@/components/richieste/FinestraConferma'
+import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import { supabase } from '@/lib/supabase'
 import { fetchRichieste, rifiutaRichiesta } from '@/lib/richiesteDati'
 import { useVista, useDesktop } from '@/lib/richiesteVista'
@@ -50,7 +53,7 @@ function BadgeSovrapposta() {
   )
 }
 
-function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiuta }: { r: Richiesta; adesso: Date; conflitti: string[]; selezionata: boolean; onSeleziona: () => void; onRifiuta: (r: Richiesta) => void }) {
+function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiuta, onConferma }: { r: Richiesta; adesso: Date; conflitti: string[]; selezionata: boolean; onSeleziona: () => void; onRifiuta: (r: Richiesta) => void; onConferma: (r: Richiesta) => void }) {
   const n = nottiRichiesta(r)
   return (
     <li>
@@ -81,7 +84,7 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
       {conflitti.length > 0 && (
         <p className="text-xs mt-1" style={{ color: '#7a5f2c' }} title={conflitti.join(' · ')}>si sovrappone con {conflitti.join(', ')}</p>
       )}
-      <AzioniRichiesta r={r} onRifiuta={onRifiuta} />
+      <AzioniRichiesta r={r} onRifiuta={onRifiuta} onConferma={onConferma} />
     </div>
     </li>
   )
@@ -104,6 +107,7 @@ function RigaArchivio({ r, adesso }: { r: Richiesta; adesso: Date }) {
 }
 
 export default function Richieste() {
+  const router = useRouter()
   const [tutte, setTutte] = useState<Richiesta[]>([])
   const [camere, setCamere] = useState<Room[]>([])
   const [prenotazioni, setPrenotazioni] = useState<PrenotazioneBarra[]>([])
@@ -122,6 +126,8 @@ export default function Richieste() {
   const [pannello, setPannello] = useState<{ gruppo: Richiesta[]; ancora: Ancora } | null>(null)
   // Rifiuto: finestra di conferma, poi aggiornamento locale della riga
   const [daRifiutare, setDaRifiutare] = useState<Richiesta | null>(null)
+  // Conferma → prenotazione (finestra «Creare la prenotazione?», poi la scheda)
+  const [daConfermare, setDaConfermare] = useState<RichiestaConProposta | null>(null)
   const [rifiutando, setRifiutando] = useState(false)
 
   async function confermaRifiuto() {
@@ -262,7 +268,7 @@ export default function Richieste() {
             <ul className="flex flex-col gap-3">
               {aperte.map(r => (
                 <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []}
-                  selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} onRifiuta={setDaRifiutare} />
+                  selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} onRifiuta={setDaRifiutare} onConferma={r => setDaConfermare(r as RichiestaConProposta)} />
               ))}
             </ul>
           )}
@@ -286,7 +292,11 @@ export default function Richieste() {
       </div>
 
       {pannello && pannello.gruppo.length > 0 && (
-        <PannelloRichieste gruppo={pannello.gruppo} ancora={pannello.ancora} layout={desktop ? 'desktop' : 'mobile'} adesso={adesso} onChiudi={() => setPannello(null)} onRifiuta={setDaRifiutare} />
+        <PannelloRichieste gruppo={pannello.gruppo} ancora={pannello.ancora} layout={desktop ? 'desktop' : 'mobile'} adesso={adesso} onChiudi={() => setPannello(null)} onRifiuta={setDaRifiutare} onConferma={r => { setPannello(null); setDaConfermare(r as RichiestaConProposta) }} />
+      )}
+      {daConfermare && (
+        <FinestraConferma richiesta={daConfermare} aperte={aperte} layout={desktop ? 'desktop' : 'mobile'}
+          onChiudi={() => setDaConfermare(null)} onCreata={id => router.push(`/prenotazioni/${id}?da=richiesta`)} />
       )}
       {daRifiutare && (
         <ConfermaDialog titolo={`Rifiutare la richiesta di ${nomeCompleto(daRifiutare)}?`} testo="Nessun messaggio parte da qui."

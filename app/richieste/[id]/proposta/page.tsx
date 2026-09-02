@@ -4,9 +4,11 @@ import { useParams, useRouter } from 'next/navigation'
 import { Globe, Phone, MessageCircle, X } from 'lucide-react'
 import BackBar from '@/components/BackBar'
 import ConfermaDialog from '@/components/richieste/ConfermaDialog'
+import FinestraConferma from '@/components/richieste/FinestraConferma'
+import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
 import { supabase } from '@/lib/supabase'
-import { fetchRichiesta, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, AVVISO_0025 } from '@/lib/richiesteDati'
+import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, AVVISO_0025 } from '@/lib/richiesteDati'
 import { proponiSoluzioni, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
 import { componiBozza, prezzo as fmtPrezzo } from '@/lib/richiesteTesti'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
@@ -65,6 +67,7 @@ export default function PropostaPage() {
   const [pannelloCambia, setPannelloCambia] = useState(false)
   const [daSostituire, setDaSostituire] = useState<number | null>(null)
   const [daRifiutare, setDaRifiutare] = useState(false)
+  const [confermando, setConfermando] = useState<{ aperte: Richiesta[] } | null>(null)
   const [occupato, setOccupato] = useState<'invio' | 'rifiuto' | 'immagine' | null>(null)
   // Dopo l'apertura di WhatsApp: barra «L'hai inviata?» finché Ania non risponde
   const [chiediConferma, setChiediConferma] = useState(false)
@@ -317,6 +320,12 @@ export default function PropostaPage() {
       <p className="text-xs text-center mt-2" style={{ color: GRIGIO_NOTA }}>
         {inviata ? `Proposta inviata ${richiesta.proposta_inviata_at ? tempoTrascorso(richiesta.proposta_inviata_at, adesso) : ''}. Un nuovo invio, confermato, aggiorna l’ora.` : 'Dopo l’invio, confermato con «Sì, inviata», la richiesta passa a ‘Proposta inviata’.'}
       </p>
+      {inviata && (
+        <button type="button" onClick={async () => { const { data } = await fetchRichieste(); setConfermando({ aperte: data }) }}
+          className="w-full mt-3 rounded-xl py-3 text-[15px] font-semibold bg-white text-green-dark border active:bg-sage" style={{ borderColor: BORDO }}>
+          Conferma → crea la prenotazione
+        </button>
+      )}
       <div className="text-center mt-6">
         <button type="button" onClick={() => setDaRifiutare(true)} className="text-xs underline underline-offset-2" style={{ color: GRIGIO_NOTA }}>Rifiuta subito</button>
       </div>
@@ -373,6 +382,10 @@ export default function PropostaPage() {
       {daSostituire !== null && (
         <ConfermaDialog titolo="Sostituire il testo modificato?" testo="La bozza verrà rigenerata con la nuova soluzione e le modifiche a mano andranno perse."
           conferma="Sostituisci" onConferma={() => { setIndice(daSostituire); setTestoModificato(null); setDaSostituire(null); setPannelloCambia(false) }} onAnnulla={() => setDaSostituire(null)} />
+      )}
+      {confermando && (
+        <FinestraConferma richiesta={richiesta as RichiestaConProposta} aperte={confermando.aperte} layout={desktop ? 'desktop' : 'mobile'}
+          onChiudi={() => setConfermando(null)} onCreata={id => router.push(`/prenotazioni/${id}?da=richiesta`)} />
       )}
       {daRifiutare && (
         <ConfermaDialog titolo={`Rifiutare la richiesta di ${nomeCompleto(richiesta)}?`} testo="Nessun messaggio parte da qui." conferma="Rifiuta" occupato={occupato === 'rifiuto'}

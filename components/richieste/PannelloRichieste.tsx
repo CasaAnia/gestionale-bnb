@@ -16,6 +16,7 @@ type Props = {
   adesso: Date
   onChiudi: () => void
   onRifiuta: (r: Richiesta) => void
+  onConferma: (r: Richiesta) => void
 }
 
 function IconaCanale({ canale }: { canale: Richiesta['canale'] }) {
@@ -25,7 +26,7 @@ function IconaCanale({ canale }: { canale: Richiesta['canale'] }) {
   return <Phone {...props} />
 }
 
-export default function PannelloRichieste({ gruppo, ancora, layout, adesso, onChiudi, onRifiuta }: Props) {
+export default function PannelloRichieste({ gruppo, ancora, layout, adesso, onChiudi, onRifiuta, onConferma }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onChiudi() }
     window.addEventListener('keydown', onKey)
@@ -55,7 +56,7 @@ export default function PannelloRichieste({ gruppo, ancora, layout, adesso, onCh
               <span aria-hidden>·</span>
               <span className={r.stato === 'proposta_inviata' ? 'text-green-mid font-semibold' : ''}>{STATO_LABEL[r.stato]}</span>
             </p>
-            <AzioniRichiesta r={r} onRifiuta={onRifiuta} compatto />
+            <AzioniRichiesta r={r} onRifiuta={onRifiuta} onConferma={onConferma} compatto />
           </li>
         )
       })}

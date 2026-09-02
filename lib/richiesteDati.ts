@@ -90,3 +90,17 @@ export async function segnaPropostaInviata(id: string, testo: string, soluzione:
   if (!data || data.length === 0) return { proposta_inviata_at, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere stata chiusa.' }
   return { proposta_inviata_at, error: null }
 }
+
+// Conferma: SOLO la RPC (transazione unica lato database). Torna l'id della
+// prenotazione creata (o esistente, se già confermata) oppure il testo dell'errore.
+export async function confermaRichiesta(id: string, rifiutaAnche: string[]): Promise<{ prenotazioneId: string | null; error: string | null }> {
+  const { data, error } = await supabase.rpc('conferma_richiesta', { p_richiesta_id: id, p_rifiuta_anche: rifiutaAnche.length ? rifiutaAnche : null })
+  if (error) {
+    if (/conferma_richiesta|schema cache|function/i.test(error.message || '') && /not find|does not exist|PGRST202/i.test(`${error.code} ${error.message}`)) {
+      return { prenotazioneId: null, error: 'Va applicata la migrazione 0027 (funzione conferma_richiesta).' }
+    }
+    return { prenotazioneId: null, error: error.message || 'errore sconosciuto' }
+  }
+  if (!data || typeof data !== 'string') return { prenotazioneId: null, error: 'La conferma non ha restituito la prenotazione.' }
+  return { prenotazioneId: data, error: null }
+}

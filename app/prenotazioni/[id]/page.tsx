@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { roomWithType, lettoInclusoNellaCamera } from '@/lib/roomTypes'
 import { tariffaCamera, totaleLetto, lettoDaComunicare } from '@/lib/tariffe'
@@ -384,6 +384,14 @@ ${firmaFormale}`
 // openWhatsApp vive in lib/whatsapp.ts (condiviso con la proposta alle richieste)
 
 export default function BookingDetail() {
+  // Arrivo dalla conferma di una richiesta (?da=richiesta): toast discreto per qualche secondo
+  const searchParams = useSearchParams()
+  const [toastRichiesta, setToastRichiesta] = useState(() => searchParams.get('da') === 'richiesta')
+  useEffect(() => {
+    if (!toastRichiesta) return
+    const t = setTimeout(() => setToastRichiesta(false), 4000)
+    return () => clearTimeout(t)
+  }, [toastRichiesta])
   const { id } = useParams()
   const router = useRouter()
   const [booking, setBooking] = useState<any>(null)
@@ -1016,6 +1024,11 @@ export default function BookingDetail() {
       {/* Riserva sul calendario: Ania entra quasi sempre da lì e non vuole mai
           finire sull'elenco prenotazioni quando il ritorno vero non è possibile */}
       <BackBar href="/calendario" />
+      {toastRichiesta && (
+        <div role="status" className="chip-in fixed left-4 right-4 top-14 lg:top-4 lg:left-auto lg:w-80 z-[60] bg-green-dark text-cream-text text-sm rounded-xl px-4 py-2.5 shadow-lg">
+          Prenotazione creata da richiesta
+        </div>
+      )}
       <div className="flex items-center gap-3 mb-4">
         <h1 className="font-serif text-xl text-green-dark">Prenotazione</h1>
         {booking.source === 'sito_web' && (

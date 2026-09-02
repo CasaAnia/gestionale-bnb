@@ -58,7 +58,7 @@ const bookings = [
 ].map(b => ({ extra_bed: false, extra_bed_dates: [], price_per_night: 70, extra_bed_total: 0, total_amount: 140, source: 'diretta', guest_name: null, notes: null, cancelled_at: null, cancelled_reason: null, group_id: null, pagato: false, bonifico: false, created_at: ora, updated_at: ora, ...b }))
 
 function richiesta(x) {
-  return { id: randomUUID(), created_at: ora, camera_id: null, telefono: null, note: null, stato: 'in_attesa', proposta_inviata_at: null, chiusa_at: null, prenotazione_id: null, proposta_testo: null, proposta_soluzione: null, ...x }
+  return { id: randomUUID(), created_at: ora, camera_id: null, telefono: null, note: null, stato: 'in_attesa', proposta_inviata_at: null, chiusa_at: null, prenotazione_id: null, proposta_testo: null, proposta_soluzione: null, motivo_rifiuto: null, ...x }
 }
 const richieste = [
   richiesta({ nome: 'Anna', cognome: 'Rossi', arrivo: giorni(11), partenza: giorni(13), persone: 2, canale: 'web', created_at: fa(20) }),
@@ -190,6 +190,44 @@ const finto = createServer(async (req, res) => {
     const out = nuove.map(r => applicaSelect('richieste', r, select))
     if ((req.headers.accept || '').includes('vnd.pgrst.object')) return rispondi(res, 201, out[0])
     return rispondi(res, 201, out)
+  }
+  // RPC conferma_richiesta: stessa logica della 0027, semplificata, in memoria
+  if (url.pathname === '/rest/v1/rpc/conferma_richiesta' && req.method === 'POST') {
+    const { p_richiesta_id, p_rifiuta_anche } = JSON.parse(await leggiCorpo(req) || '{}')
+    const r = richieste.find(x => x.id === p_richiesta_id)
+    const errore = (message) => rispondi(res, 400, { code: 'P0001', message, details: null, hint: null })
+    if (!r) return errore('Richiesta non trovata')
+    if (r.stato === 'confermata') return rispondi(res, 200, r.prenotazione_id)
+    if (r.stato !== 'proposta_inviata' || !r.proposta_soluzione) return errore('Nessuna proposta inviata')
+    const seg = r.proposta_soluzione.segmenti || []
+    if (seg.length === 0) return errore('La proposta inviata non contiene camere (caso «completo»): niente da confermare')
+    const MESI = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre']
+    for (const s of seg) {
+      for (let t = Date.parse(s.arrivo + 'T00:00:00Z'); t < Date.parse(s.partenza + 'T00:00:00Z'); t += 86400000) {
+        const g = new Date(t).toISOString().slice(0, 10)
+        if (bookings.some(b => b.room_id === s.camera.id && ['confermata', 'completata'].includes(b.status) && b.check_in <= g && b.check_out > g)) {
+          const d = new Date(t)
+          return errore(`Camera ${s.camera.name} non più disponibile la notte del ${d.getUTCDate()} ${MESI[d.getUTCMonth()]}`)
+        }
+      }
+    }
+    const tel = (r.telefono || '').replace(/\D/g, '')
+    let guest = guests.find(g => (g.phone || '').replace(/\D/g, '') === tel && tel)
+    if (!guest) { guest = { id: randomUUID(), phone: tel, full_name: `${r.nome} ${r.cognome}`.trim(), email: null, rating: 'normale', notes: null, created_at: ora, updated_at: ora }; guests.push(guest) }
+    const group_id = randomUUID()
+    let primo = null
+    for (const s of [...seg].sort((a, b) => a.arrivo.localeCompare(b.arrivo))) {
+      const id = randomUUID()
+      bookings.push({ id, room_id: s.camera.id, guest_id: guest.id, check_in: s.arrivo, check_out: s.partenza, num_guests: r.persone, extra_bed: s.lettoTotale > 0, extra_bed_dates: [], price_per_night: s.prezzoNotte, extra_bed_total: s.lettoTotale, total_amount: s.totale, status: 'confermata', source: r.canale === 'web' ? 'sito_web' : r.canale === 'whatsapp' ? 'whatsapp' : 'diretta', guest_name: `${r.nome} ${r.cognome}`.trim(), notes: r.note, cancelled_at: null, cancelled_reason: null, group_id, pagato: false, bonifico: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      if (!primo) primo = id
+    }
+    Object.assign(r, { stato: 'confermata', chiusa_at: new Date().toISOString(), prenotazione_id: primo })
+    for (const id of (p_rifiuta_anche || [])) {
+      const x = richieste.find(q => q.id === id && q.id !== r.id && ['in_attesa', 'proposta_inviata'].includes(q.stato))
+      if (x) Object.assign(x, { stato: 'rifiutata', chiusa_at: new Date().toISOString(), motivo_rifiuto: 'date assegnate a altro cliente' })
+    }
+    console.log(`[finto supabase] conferma_richiesta ${r.cognome} → prenotazione ${primo}, rifiutate ${(p_rifiuta_anche || []).length}`)
+    return rispondi(res, 200, primo)
   }
   if (m && m[1] === 'richieste' && req.method === 'PATCH') {
     const corpo = JSON.parse(await leggiCorpo(req) || '{}')
