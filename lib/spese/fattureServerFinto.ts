@@ -149,6 +149,17 @@ export function creaServerFattureFinto(t: TabelleGrezze, opzioni: {
   const speseGiaConfermate = (documentId: string) =>
     t.bozze.filter(b => b.document_id === documentId && b.expense_id).map(b => b.expense_id!)
 
+  // fotografia e ripristino IN PLACE delle tabelle (gli array sono condivisi
+  // con chi legge: si svuotano e si riempiono, mai sostituiti)
+  const TABELLE = ['documenti', 'bozze', 'righeBozza', 'spese', 'righe', 'ponte'] as const
+  const fotografia = () => Object.fromEntries(TABELLE.map(k => [k, structuredClone(t[k])])) as Record<typeof TABELLE[number], unknown[]>
+  const ripristina = (foto: Record<typeof TABELLE[number], unknown[]>) => {
+    for (const k of TABELLE) {
+      const arr = t[k] as unknown[]
+      arr.splice(0, arr.length, ...structuredClone(foto[k]))
+    }
+  }
+
   // il rivestimento di ogni RPC: guasti PRIMA (senza effetti) o DOPO
   // (effetto reale con risposta persa/vuota), errori SQL → errore restituito
   const rpc = async <T extends { ids?: string[] }>(nome: string, argomenti: unknown, corpo: () => T): Promise<T | { errore: string }> => {
@@ -157,8 +168,11 @@ export function creaServerFattureFinto(t: TabelleGrezze, opzioni: {
     const g = guasto()
     if (g === 'errore') return { errore: 'Quadratura non esatta: righe+arrotondamento=0 cent, documento=1 cent (simulata dal finto)' }
     if (g === 'rete') return { errore: 'Failed to fetch (finto: errore di rete restituito)' }
+    // TRANSAZIONE: il corpo lavora sulle tabelle vere; se lancia a metà,
+    // TUTTO torna com'era (come il rollback della RPC), mai effetti parziali
+    const foto = fotografia()
     let esito: T
-    try { esito = corpo() } catch (e) { return { errore: (e as Error).message } }
+    try { esito = corpo() } catch (e) { ripristina(foto); return { errore: (e as Error).message } }
     if (g === 'persa') throw new Error('Failed to fetch (finto: risposta persa DOPO l\'effetto reale)')
     if (g === 'zero') return { ...esito, ids: [] }
     return esito

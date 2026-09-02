@@ -64,3 +64,20 @@ test('D1 una parte negativa dopo l\'arrotondamento blocca PRIMA dell\'approvazio
   assert.equal(t.spese.length, 0)
   assert.equal(t.documenti[0].status, 'in_revisione')
 })
+
+test('D2 il servizio finto fa ROLLBACK totale quando il corpo della RPC fallisce a metà (nessun effetto parziale)', async () => {
+  const t = tabelleConSorellaNegativa()
+  t.documenti[0].status = 'approvata_da_pagare'   // approvata prima della regola D1
+  const server = creaServerFattureFinto(t)
+  const prima = structuredClone({ documenti: t.documenti, spese: t.spese, righe: t.righe, ponte: t.ponte, bozze: t.bozze })
+  const pagamento = await server.cliente.pagaFattura('doc-f', OGGI, 'bonifico', [])
+  assert.match(pagamento.errore ?? '', /negativ/i)
+  assert.deepEqual({ documenti: t.documenti, spese: t.spese, righe: t.righe, ponte: t.ponte, bozze: t.bozze }, prima,
+    'la prima parte era già stata scritta: il finto deve annullare tutto')
+  // gli array restano gli STESSI oggetti (chi li tiene in mano continua a vederli)
+  assert.equal(t.spese.length, 0)
+  // un secondo tentativo trova lo stesso stato e lo stesso rifiuto: niente accumulo
+  const bis = await server.cliente.pagaFattura('doc-f', OGGI, 'bonifico', [])
+  assert.match(bis.errore ?? '', /negativ/i)
+  assert.equal(t.documenti[0].status, 'approvata_da_pagare')
+})
