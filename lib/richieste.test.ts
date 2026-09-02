@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore,
+  formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare,
   type Richiesta,
 } from './richieste.ts'
 
@@ -64,4 +64,16 @@ test('nome e spiegazione degli errori', () => {
   assert.match(spiegaErrore({ code: 'PGRST205', message: "Could not find the table 'public.richieste' in the schema cache" }), /migrazione 0024/)
   assert.equal(spiegaErrore({ message: 'permission denied' }), 'permission denied')
   assert.equal(spiegaErrore(null), '')
+})
+
+test('richieste ferme: soglie 24 h / 48 h e arrivo passato, mai sulle chiuse', () => {
+  const ore = (n: number) => new Date(adesso.getTime() - n * 3600000).toISOString()
+  assert.equal(avvisoFerma(richiesta({ created_at: ore(23) }), adesso), null)
+  assert.equal(avvisoFerma(richiesta({ created_at: ore(30) }), adesso), 'ferma da 1 giorno')
+  assert.equal(avvisoFerma(richiesta({ created_at: ore(60) }), adesso), 'ferma da 2 giorni')
+  assert.equal(avvisoFerma(richiesta({ stato: 'proposta_inviata', created_at: ore(100), proposta_inviata_at: ore(47) }), adesso), null)
+  assert.equal(avvisoFerma(richiesta({ stato: 'proposta_inviata', created_at: ore(100), proposta_inviata_at: ore(50) }), adesso), 'ferma da 2 giorni')
+  assert.equal(avvisoFerma(richiesta({ arrivo: '2026-09-01', partenza: '2026-09-03' }), adesso), 'arrivo passato')
+  assert.equal(avvisoFerma(richiesta({ stato: 'rifiutata', created_at: ore(500) }), adesso), null)
+  assert.equal(daGuardare([richiesta({ created_at: ore(30) }), richiesta({}), richiesta({ arrivo: '2026-08-30', partenza: '2026-08-31' })], adesso).length, 2)
 })

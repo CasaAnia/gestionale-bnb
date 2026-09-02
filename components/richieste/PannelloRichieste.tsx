@@ -2,7 +2,7 @@
 import { useEffect } from 'react'
 import { Globe, Phone, MessageCircle, X } from 'lucide-react'
 import {
-  CANALE_LABEL, STATO_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, type Richiesta,
+  CANALE_LABEL, STATO_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, avvisoFerma, type Richiesta,
 } from '@/lib/richieste'
 import type { Ancora } from './CalendarioRichieste'
 import AzioniRichiesta from './AzioniRichiesta'
@@ -55,6 +55,7 @@ export default function PannelloRichieste({ gruppo, ancora, layout, adesso, onCh
               <span>{oraArrivo(r.created_at, adesso)}</span>
               <span aria-hidden>·</span>
               <span className={r.stato === 'proposta_inviata' ? 'text-green-mid font-semibold' : ''}>{STATO_LABEL[r.stato]}</span>
+              {avvisoFerma(r, adesso) && <><span aria-hidden>·</span><span className="font-semibold text-brass">{avvisoFerma(r, adesso)}</span></>}
             </p>
             <AzioniRichiesta r={r} onRifiuta={onRifiuta} onConferma={onConferma} compatto />
           </li>

@@ -130,3 +130,23 @@ export function spiegaErrore(e: { code?: string; message?: string } | null | und
     return 'La tabella «richieste» non esiste ancora su Supabase: va applicata la migrazione 0024.'
   return e.message || 'errore sconosciuto'
 }
+
+// ── Richieste ferme (avvisi, mai chiusure automatiche) ─────────────────────
+export const ORE_ATTESA_FERMA = 24        // in attesa da più di 24 ore
+export const ORE_PROPOSTA_FERMA = 48      // proposta inviata da più di 48 ore
+
+// "ferma da 3 ore" · "ferma da 2 giorni" · "arrivo passato" · null se tutto ok
+export function avvisoFerma(r: Pick<Richiesta, 'stato' | 'arrivo' | 'created_at' | 'proposta_inviata_at'>, adesso: Date = new Date()): string | null {
+  if (!eAperta(r)) return null
+  const oggi = `${adesso.getFullYear()}-${due(adesso.getMonth() + 1)}-${due(adesso.getDate())}`
+  if (r.arrivo < oggi) return 'arrivo passato'
+  const da = r.stato === 'proposta_inviata' ? (r.proposta_inviata_at ?? r.created_at) : r.created_at
+  const soglia = r.stato === 'proposta_inviata' ? ORE_PROPOSTA_FERMA : ORE_ATTESA_FERMA
+  const ore = (adesso.getTime() - new Date(da).getTime()) / 3600000
+  if (!(ore > soglia)) return null
+  return `ferma da ${tempoTrascorso(da, adesso).replace(/ fa$/, '')}`
+}
+
+export function daGuardare<T extends Pick<Richiesta, 'stato' | 'arrivo' | 'created_at' | 'proposta_inviata_at'>>(lista: T[], adesso: Date = new Date()): T[] {
+  return lista.filter(r => avvisoFerma(r, adesso) !== null)
+}

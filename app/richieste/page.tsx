@@ -20,7 +20,7 @@ import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
 import {
   CANALE_LABEL, STATO_LABEL, eAperta, inArchivio, ordinaRichieste, nottiRichiesta, nomeCompleto,
-  formatIntervallo, oraArrivo, tempoTrascorso, type Richiesta, type OrdineRichieste,
+  formatIntervallo, oraArrivo, tempoTrascorso, avvisoFerma, daGuardare, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
 
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
@@ -80,6 +80,12 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
             <span className="text-green-mid font-semibold">proposta inviata {tempoTrascorso(r.proposta_inviata_at, adesso)}</span>
           </>
         )}
+        {avvisoFerma(r, adesso) && (
+          <>
+            <span aria-hidden>·</span>
+            <span className="font-semibold text-brass">{avvisoFerma(r, adesso)}</span>
+          </>
+        )}
       </p>
       {conflitti.length > 0 && (
         <p className="text-xs mt-1" style={{ color: '#7a5f2c' }} title={conflitti.join(' · ')}>si sovrappone con {conflitti.join(', ')}</p>
@@ -113,6 +119,8 @@ export default function Richieste() {
   const [prenotazioni, setPrenotazioni] = useState<PrenotazioneBarra[]>([])
   const [acconti, setAcconti] = useState<Record<string, number>>({})
   const [ordine, setOrdine] = useState<OrdineRichieste>('durata')
+  // «N da guardare»: filtro sulle ferme (in attesa > 24 h, proposta > 48 h, arrivo passato)
+  const [soloDaGuardare, setSoloDaGuardare] = useState(false)
   const [mese, setMese] = useState(() => meseCorrente())
   const [loading, setLoading] = useState(true)
   const [errori, setErrori] = useState<string[]>([])
@@ -171,6 +179,8 @@ export default function Richieste() {
   }, [])
 
   const aperte = useMemo(() => ordinaRichieste(tutte.filter(eAperta), ordine), [tutte, ordine])
+  const ferme = useMemo(() => daGuardare(aperte, adesso), [aperte, adesso])
+  const mostrate = soloDaGuardare ? ferme : aperte
   const archivio = useMemo(
     () => tutte.filter(r => inArchivio(r, adesso)).sort((a, b) => (b.chiusa_at ?? b.created_at).localeCompare(a.chiusa_at ?? a.created_at)),
     [tutte, adesso],
@@ -205,6 +215,13 @@ export default function Richieste() {
         <h1 className="text-[22px] text-green-dark leading-tight" style={FRAUNCES}>Richieste di prenotazione</h1>
         <InterruttoreVista vista={vista} onChange={setVista} />
       </div>
+      {!loading && ferme.length > 0 && (
+        <button type="button" onClick={() => setSoloDaGuardare(v => !v)} aria-pressed={soloDaGuardare}
+          className={`chip-in inline-flex items-center gap-1.5 mb-3 rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors ${soloDaGuardare ? 'text-cream-text' : 'bg-white'}`}
+          style={soloDaGuardare ? { background: '#A9884E', borderColor: '#A9884E' } : { color: '#A9884E', borderColor: '#A9884E' }}>
+          {ferme.length} da guardare{soloDaGuardare ? ' · mostra tutte' : ''}
+        </button>
+      )}
       {!desktop && (
         <>
           {nuovaRichiesta('w-full mb-3')}
@@ -259,14 +276,14 @@ export default function Richieste() {
 
           {loading ? (
             <div className="text-center py-10 text-stone">Caricamento…</div>
-          ) : aperte.length === 0 ? (
+          ) : mostrate.length === 0 ? (
             <div className="text-center py-12 flex flex-col items-center gap-4">
-              <p className="text-stone">Nessuna richiesta in attesa</p>
-              <Link href="/richieste/nuova" className={BOTTONE_PIENO}>Nuova richiesta</Link>
+              <p className="text-stone">{soloDaGuardare ? 'Nessuna richiesta ferma' : 'Nessuna richiesta in attesa'}</p>
+              {!soloDaGuardare && <Link href="/richieste/nuova" className={BOTTONE_PIENO}>Nuova richiesta</Link>}
             </div>
           ) : (
             <ul className="flex flex-col gap-3">
-              {aperte.map(r => (
+              {mostrate.map(r => (
                 <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []}
                   selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} onRifiuta={setDaRifiutare} onConferma={r => setDaConfermare(r as RichiestaConProposta)} />
               ))}
