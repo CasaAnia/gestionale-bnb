@@ -106,7 +106,8 @@ export default function PropostaPage() {
     : (soluzioni[Math.min(indice, Math.max(0, soluzioni.length - 1))] ?? null)
   const bozzaGenerata = richiesta && soluzione ? componiBozza(richiesta, soluzione) : ''
   const testoFinale = inviata && richiesta?.proposta_testo ? richiesta.proposta_testo : (testoModificato ?? bozzaGenerata)
-  const telefono = normalizzaTelefono(richiesta?.telefono)
+  const telefonoNorm = normalizzaTelefono(richiesta?.telefono)
+  const telefono = telefonoNorm.numero
   const completo = soluzione?.caso === 'completo'
   const modoEffettivo = completo || soluzione === null ? 'testo' : modo
 
@@ -229,7 +230,7 @@ export default function PropostaPage() {
       </p>
       <p className="text-sm mt-1.5">
         {richiesta.telefono
-          ? <span className="text-green-dark">{richiesta.telefono}</span>
+          ? <span className="text-green-dark">{richiesta.telefono}{telefonoNorm.avviso && <span className="ml-2 text-xs font-semibold text-[#8C3B2E]">{telefonoNorm.avviso}</span>}</span>
           : <span className="text-[#8C3B2E] font-semibold">Nessun numero di telefono</span>}
       </p>
     </div>

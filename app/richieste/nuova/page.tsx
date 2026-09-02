@@ -6,6 +6,7 @@ import BackBar from '@/components/BackBar'
 import { supabase } from '@/lib/supabase'
 import { frasiDisponibilita, notti, ordinaCamere, type PrenotazioneMinima } from '@/lib/disponibilita'
 import { spiegaErrore, type CanaleRichiesta } from '@/lib/richieste'
+import { normalizzaTelefono, telefonoLeggibile } from '@/lib/whatsapp'
 
 type Camera = { id: string; name: string; active: boolean; has_extra_bed?: boolean | null; base_price?: number | string | null; double_price?: number | string | null }
 
@@ -84,7 +85,8 @@ export default function NuovaRichiesta() {
       persone,
       camera_id: cameraId || null,
       canale,
-      telefono: telefono.trim() || null,
+      // Stessa normalizzazione della proposta WhatsApp: +prefisso e cifre
+      telefono: telefonoLeggibile(normalizzaTelefono(telefono)) || null,
       note: note.trim() || null,
       stato: 'in_attesa',
     }).select('id').single()
@@ -171,6 +173,14 @@ export default function NuovaRichiesta() {
         <div>
           <p className={ETICHETTA}>Telefono / WhatsApp</p>
           <input type="tel" inputMode="tel" value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="+39 333 1234567" className={INPUT} />
+          {telefono.trim() && (() => {
+            const t = normalizzaTelefono(telefono)
+            return (
+              <p className={`text-xs mt-1 ${t.avviso ? 'text-[#8C3B2E] font-semibold' : 'text-stone'}`}>
+                {t.avviso ? `${t.avviso} · verrà salvato come ${telefonoLeggibile(t)}` : `Verrà salvato come ${telefonoLeggibile(t)}`}
+              </p>
+            )
+          })()}
         </div>
 
         <div>
