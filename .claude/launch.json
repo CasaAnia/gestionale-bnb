@@ -37,6 +37,14 @@
         "scripts/revisioni/anteprima-prenotazioni-finta.mjs"
       ],
       "port": 3213
+    },
+    {
+      "name": "gestionale-bnb-anteprima-richieste-finta",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/revisioni/anteprima-richieste-finta.mjs"
+      ],
+      "port": 3214
     }
   ]
 }
