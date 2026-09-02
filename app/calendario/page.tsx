@@ -6,6 +6,15 @@ import { buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite, nomeDiverso } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
+import { EXTRA_BED_MAX } from '@/lib/tariffe'
+import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
+import type { Booking, Guest, Room } from '@/lib/types'
+import {
+  COLORE_LETTO_PARZIALE,
+  COLORE_LETTI_ESAURITI,
+  coloreLettiPerGiorno,
+  statoLettiAggiuntivi,
+} from '@/lib/calendarioLetti'
 import BackLink from '@/components/BackLink'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -23,16 +32,25 @@ const NAME_W_MOBILE = gs(110)
 const NAME_W_DESKTOP = gs(180)
 const DAYS_TOTAL = 365
 const DAYS_BEFORE = 180
-const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
-const EXTRA_BED_MAX = 2
-
 // Colori delle barre per stato di pagamento (attenuati)
 const COLOR_PRENOTAZIONE = '#7D9DB0' // blu — prenotazione normale (paga in contanti all'arrivo)
 const COLOR_BONIFICO = '#9B8EC4'     // viola — bonifico in attesa
 const COLOR_PAGATO = '#6C9A7C'       // verde — già pagato
-const RED = '#C58A67'
-const BLACK = '#1f2937'
 const HEADER_BG = '#ffffff'
+
+type CalendarBooking = Omit<Booking, 'guests' | 'rooms'> & {
+  guests?: Guest | null
+  rooms?: Room | null
+  extra_bed_dates?: string[] | null
+  pagato?: boolean | null
+  bonifico?: boolean | null
+  color?: string | null
+}
+
+type PaymentRow = {
+  booking_id: string
+  amount: number | string
+}
 
 function addDays(date: Date, n: number) {
   const d = new Date(date)
@@ -60,8 +78,8 @@ function lblDate(ci: string, co: string) {
 export default function Calendario() {
   const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [rooms, setRooms] = useState<any[]>([])
-  const [bookings, setBookings] = useState<any[]>([])
+  const [rooms, setRooms] = useState<Room[]>([])
+  const [bookings, setBookings] = useState<CalendarBooking[]>([])
   const [loading, setLoading] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
 
@@ -72,8 +90,8 @@ export default function Calendario() {
   // in alto e la barra tratteggiata sulle loro date.
   const webRequests = useMemo(
     () => bookings
-      .filter((b: any) => b.status === 'in_attesa' && b.source === 'sito_web')
-      .sort((a: any, b: any) => a.check_in.localeCompare(b.check_in)),
+      .filter(b => b.status === 'in_attesa' && b.source === 'sito_web')
+      .sort((a, b) => a.check_in.localeCompare(b.check_in)),
     [bookings]
   )
 
@@ -137,8 +155,8 @@ export default function Calendario() {
   // data, qualunque sia il segmento su cui l'acconto è stato registrato.
   const paidNightsByBooking = useMemo(() => {
     const map: Record<string, number> = {}
-    const groups: Record<string, any[]> = {}
-    bookings.forEach((b: any) => { const k = b.group_id || b.id; (groups[k] = groups[k] || []).push(b) })
+    const groups: Record<string, CalendarBooking[]> = {}
+    bookings.forEach(b => { const k = b.group_id || b.id; (groups[k] = groups[k] || []).push(b) })
     Object.values(groups).forEach(segs => {
       let money = segs.reduce((s, b) => s + (accontiByBooking[b.id] || 0), 0)
       if (money <= 0) return
@@ -164,15 +182,15 @@ export default function Calendario() {
       supabase.from('bookings').select('*, guests(id, full_name, phone, rating)').neq('status', 'annullata'),
       supabase.from('payments').select('booking_id, amount'),
     ]).then(([{ data: r }, { data: b }, { data: p }]) => {
-      const sorted = (r || []).sort((a: any, b: any) => {
+      const sorted = ([...(r || [])] as Room[]).sort((a, b) => {
         const ai = ROOM_ORDER.findIndex(o => a.name.includes(o))
         const bi = ROOM_ORDER.findIndex(o => b.name.includes(o))
         return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
       })
       setRooms(sorted)
-      setBookings(b || [])
+      setBookings((b || []) as CalendarBooking[])
       const sums: Record<string, number> = {}
-      for (const x of p || []) sums[x.booking_id] = (sums[x.booking_id] || 0) + Number(x.amount)
+      for (const x of (p || []) as PaymentRow[]) sums[x.booking_id] = (sums[x.booking_id] || 0) + Number(x.amount)
       setAccontiByBooking(sums)
       setLoading(false)
     })
@@ -191,22 +209,27 @@ export default function Calendario() {
     const t = query.trim()
     if (!t) return []
     return bookings
-      .filter((b: any) => matchPrenotazione(b, t))
-      .sort((a: any, b: any) => a.check_in.localeCompare(b.check_in))
+      .filter(b => matchPrenotazione(b, t))
+      .sort((a, b) => a.check_in.localeCompare(b.check_in))
   }, [bookings, query])
-  const matchedIds = useMemo(() => new Set(matches.map((m: any) => m.id)), [matches])
+  const matchedIds = useMemo(() => new Set(matches.map(m => m.id)), [matches])
   const cercando = query.trim() !== ''
   const searchAttiva = matches.length > 0
-  const currentMatch: any = searchAttiva ? matches[Math.min(matchIdx, matches.length - 1)] : null
+  const currentMatch: CalendarBooking | null = searchAttiva ? matches[Math.min(matchIdx, matches.length - 1)] : null
   const clientiDiversi = useMemo(
-    () => new Set(matches.map((m: any) => m.guests?.id || m.id)).size,
+    () => new Set(matches.map(m => m.guests?.id || m.id)).size,
     [matches]
   )
+
+  function dayIndex(dateStr: string) {
+    const d = strToDate(dateStr)
+    return Math.round((d.getTime() - startDate.getTime()) / 86400000)
+  }
 
   // Va al risultato i: estende l'intervallo se la prenotazione sta fuori,
   // poi fa scorrere il calendario alla sua data (dopo il render, via effect)
   function vaiA(i: number) {
-    const m: any = matches[i]
+    const m = matches[i]
     if (!m) return
     setMatchIdx(i)
     setMenuAperto(false)
@@ -222,7 +245,9 @@ export default function Calendario() {
     setScrollTarget(m.check_in)
   }
   const vaiARef = useRef(vaiA)
-  vaiARef.current = vaiA
+  useEffect(() => {
+    vaiARef.current = vaiA
+  })
 
   // Nuova ricerca: salto automatico al primo risultato
   useEffect(() => {
@@ -258,11 +283,6 @@ export default function Calendario() {
     setVisibleMonth(prev => (prev === label ? prev : label))
   }
 
-  function dayIndex(dateStr: string) {
-    const d = strToDate(dateStr)
-    return Math.round((d.getTime() - startDate.getTime()) / 86400000)
-  }
-
   function bookingsForRoom(roomId: string) {
     return bookings.filter(b =>
       b.room_id === roomId &&
@@ -271,7 +291,7 @@ export default function Calendario() {
     )
   }
 
-  function getExtraBedDays(booking: any): Set<string> {
+  function getExtraBedDays(booking: CalendarBooking): Set<string> {
     if (booking.extra_bed_dates && booking.extra_bed_dates.length > 0) return new Set(booking.extra_bed_dates)
     if (booking.extra_bed) {
       const s = new Set<string>()
@@ -286,16 +306,14 @@ export default function Calendario() {
   const extraBedsMap = new Map<string, number>()
   for (const b of bookings) {
     const extraDays = getExtraBedDays(b)
-    const contrib = b.room_id === LENA_ID && b.num_guests >= 4 ? 2 : 1
+    const contrib = lettiPoolPrenotazione(b)
     for (const day of extraDays) extraBedsMap.set(day, (extraBedsMap.get(day) || 0) + contrib)
   }
 
-  function getDayColor(booking: any, dateStr: string): string {
+  function getDayColor(booking: CalendarBooking, dateStr: string): string {
     const extraDays = getExtraBedDays(booking)
-    const contrib = booking.room_id === LENA_ID && booking.num_guests >= 4 ? 2 : 1
     const hasExtra = extraDays.has(dateStr)
-    const others = (extraBedsMap.get(dateStr) || 0) - contrib
-    const bedColor = others >= 2 ? BLACK : RED
+    const bedColor = coloreLettiPerGiorno(extraBedsMap, dateStr)
 
     if (booking.pagato) {
       if (!hasExtra) return COLOR_PAGATO
@@ -366,11 +384,12 @@ export default function Calendario() {
 
         {/* Risultati della ricerca */}
         {searchAttiva && (() => {
+          if (!currentMatch) return null
           const m = currentMatch
           const stessoCliente = clientiDiversi === 1
-          const roomShort = (id: string) => (rooms.find((r: any) => r.id === id)?.name || '').split(' ').slice(-1)[0]
-          const tel4 = (x: any) => (x.guests?.phone || '').replace(/\D/g, '').slice(-4)
-          const voce = (x: any) => `${lblDate(x.check_in, x.check_out)} · ${roomShort(x.room_id)}`
+          const roomShort = (id: string) => (rooms.find(r => r.id === id)?.name || '').split(' ').slice(-1)[0]
+          const tel4 = (x: CalendarBooking) => (x.guests?.phone || '').replace(/\D/g, '').slice(-4)
+          const voce = (x: CalendarBooking) => `${lblDate(x.check_in, x.check_out)} · ${roomShort(x.room_id)}`
           return (
             <div className="mt-2">
               {matches.length === 1 ? (
@@ -416,7 +435,7 @@ export default function Calendario() {
 
                   {/* Desktop: riquadri in fila */}
                   <div className="hidden lg:flex gap-1.5 mt-1.5 overflow-x-auto pb-1">
-                    {matches.map((x: any, i: number) => (
+                    {matches.map((x, i) => (
                       <button
                         key={x.id}
                         onClick={() => vaiA(i)}
@@ -432,7 +451,7 @@ export default function Calendario() {
                   {/* Elenco a comparsa: sta SOPRA il calendario, non lo spinge in basso */}
                   {menuAperto && (
                     <div className="absolute left-4 right-4 z-50 mt-1 bg-white border border-card-border rounded-xl shadow-lg p-1">
-                      {matches.map((x: any, i: number) => (
+                      {matches.map((x, i) => (
                         <button
                           key={x.id}
                           onClick={() => vaiA(i)}
@@ -464,7 +483,7 @@ export default function Calendario() {
                 <span className="text-[13px] font-bold text-green-dark">{webRequests.length} richieste dal sito</span>
                 <span className="ml-auto text-[11px] text-gray-400 font-semibold">tocca per vedere</span>
               </div>
-            ) : webRequests.map((b: any) => (
+            ) : webRequests.map(b => (
               <div key={b.id}
                 onClick={() => {
                   if (!scrollRef.current) return
@@ -477,7 +496,7 @@ export default function Calendario() {
                     <span className="font-semibold">{nomeOspite(b)}</span>
                     {' · '}
                     {b.check_in?.slice(5).split('-').reverse().join('/')} → {b.check_out?.slice(5).split('-').reverse().join('/')}
-                    {rooms.find((r: any) => r.id === b.room_id)?.name ? ` · ${rooms.find((r: any) => r.id === b.room_id).name}` : ''}
+                    {rooms.find(r => r.id === b.room_id)?.name ? ` · ${rooms.find(r => r.id === b.room_id)?.name}` : ''}
                   </span>
                   {/* Numero già in archivio con un altro nominativo: avviso rosso su
                       riga propria, mai troncato (su mobile lo spazio è poco) */}
@@ -625,7 +644,7 @@ export default function Calendario() {
                   </div>
 
                   {/* Barre prenotazioni */}
-                  {bookingsForRoom(room.id).flatMap((booking: any) => {
+                  {bookingsForRoom(room.id).flatMap(booking => {
                     const startIdx = Math.max(0, dayIndex(booking.check_in))
                     const endIdx = Math.min(daysTotal, dayIndex(booking.check_out))
                     if (endIdx - startIdx <= 0) return []
@@ -760,12 +779,12 @@ export default function Calendario() {
                   {days.map((d, i) => {
                     const dateStr = toStr(d)
                     const count = extraBedsMap.get(dateStr) || 0
-                    const isFull = count >= EXTRA_BED_MAX
+                    const isFull = statoLettiAggiuntivi(count) === 'esauriti'
                     const isToday = dateStr === todayStr
                     return (
-                      <div key={i} style={{ width: CELL_W, minWidth: CELL_W, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isFull ? '#F6E4DE' : isToday ? '#F3ECD8' : 'white', borderLeft: isToday ? '2px solid #F3ECD8' : '1px solid #ECE8DD' }}>
+                      <div key={i} style={{ width: CELL_W, minWidth: CELL_W, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isFull ? COLORE_LETTI_ESAURITI : isToday ? '#F3ECD8' : 'white', borderLeft: isToday && !isFull ? '2px solid #F3ECD8' : '1px solid #ECE8DD' }}>
                         {count > 0 && (
-                          <span style={{ fontSize: isDesktop ? gs(11) : gs(8), fontWeight: 700, color: isFull ? RED : '#7A4B22' }}>
+                          <span style={{ fontSize: isDesktop ? gs(11) : gs(8), fontWeight: 700, color: isFull ? 'white' : '#7A4B22' }}>
                             {count}/{EXTRA_BED_MAX}
                           </span>
                         )}
@@ -795,8 +814,12 @@ export default function Calendario() {
           <span className="text-xs text-gray-500">Pagato</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: RED }} />
-          <span className="text-xs text-gray-500">Letto extra</span>
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: COLORE_LETTO_PARZIALE }} />
+          <span className="text-xs text-gray-500">1 letto extra occupato</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: COLORE_LETTI_ESAURITI }} />
+          <span className="text-xs text-gray-500">2/2 letti occupati</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div style={{ width: 12, height: 12, borderRadius: 3, background: 'white', border: '1.5px dashed #2D6A4F' }} />

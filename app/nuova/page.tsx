@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
 import { tariffaCamera, totaleLetto } from '@/lib/tariffe'
+import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
 import { contoSoggiorno } from '@/lib/conto'
 import { smartBack, returnToSicuro } from '@/lib/navHistory'
 
@@ -78,9 +79,6 @@ function NuovaPrenotazione() {
   const [lettiOccupati, setLettiOccupati] = useState(0)
   const [extraBedsPerDay, setExtraBedsPerDay] = useState<Record<string, number>>({})
   const checkOutRef = useRef<HTMLInputElement>(null)
-  const timeRef = useRef<HTMLInputElement>(null)
-  const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
-
   function getDaysBetween(checkIn: string, checkOut: string): string[] {
     if (!checkIn || !checkOut) return []
     const days: string[] = []
@@ -269,7 +267,7 @@ function NuovaPrenotazione() {
         .eq('room_id', room_id).neq('status', 'annullata')
         .lt('check_in', check_out).gt('check_out', check_in),
       supabase.from('bookings')
-        .select('id, room_id, num_guests, extra_bed_dates, check_in, check_out').eq('extra_bed', true).neq('status', 'annullata')
+        .select('id, room_id, num_guests, extra_bed, extra_bed_dates, check_in, check_out').eq('extra_bed', true).neq('status', 'annullata')
         .lt('check_in', check_out).gt('check_out', check_in),
     ])
     if (conf && conf.length > 0) {
@@ -281,7 +279,7 @@ function NuovaPrenotazione() {
     const perDay: Record<string, number> = {}
     for (const b of letti || []) {
       const bDays = b.extra_bed_dates?.length > 0 ? b.extra_bed_dates : getDaysBetween(b.check_in, b.check_out)
-      const contrib = b.room_id === LENA_ID && b.num_guests >= 4 ? 2 : 1
+      const contrib = lettiPoolPrenotazione(b)
       for (const day of bDays) perDay[day] = (perDay[day] || 0) + contrib
     }
     setExtraBedsPerDay(perDay)
@@ -557,8 +555,10 @@ function NuovaPrenotazione() {
               ))}
             </select>
 
+            {/* I campi data nativi di iPhone hanno una larghezza minima propria:
+                min-w-0 + appearance-none impediscono alle due caselle di sovrapporsi. */}
             <div className="grid grid-cols-2 gap-2 mb-3">
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm text-gray-500 mb-1">Check-in</p>
                 <input type="date" defaultValue={form.check_in}
                   onChange={e => {
@@ -569,14 +569,14 @@ function NuovaPrenotazione() {
                     setForm(f => ({ ...f, check_in: newCheckIn, check_out: newCheckOut }))
                     checkDisponibilita(form.room_id, newCheckIn, newCheckOut)
                   }}
-                  className="w-full border border-card-border rounded-lg p-2 text-sm" />
+                  className="w-full min-w-0 appearance-none bg-white border border-card-border rounded-lg p-2 text-sm" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm text-gray-500 mb-1">Check-out</p>
                 <input type="date" ref={checkOutRef} defaultValue={form.check_out} min={form.check_in ? addOneDay(form.check_in) : undefined} onChange={e => {
                   setForm({...form, check_out: e.target.value})
                   checkDisponibilita(form.room_id, form.check_in, e.target.value)
-                }} className="w-full border border-card-border rounded-lg p-2 text-sm" />
+                }} className="w-full min-w-0 appearance-none bg-white border border-card-border rounded-lg p-2 text-sm" />
               </div>
             </div>
 
@@ -653,7 +653,7 @@ function NuovaPrenotazione() {
                             const [y, m, d] = day.split('-').map(Number)
                             const date = new Date(y, m - 1, d)
                             const isSelected = form.extra_bed_dates.includes(day)
-                            const thisContrib = form.room_id === LENA_ID && form.num_guests >= 4 ? 2 : 1
+                            const thisContrib = lettiPoolPrenotazione({ ...form, extra_bed: true })
                             const othersOnDay = extraBedsPerDay[day] || 0
                             const isBlocked = othersOnDay + thisContrib > 2
                             return (
@@ -770,7 +770,7 @@ function NuovaPrenotazione() {
             </div>
           )}
 
-          <button onClick={save} disabled={saving || !form.room_id || !form.check_in || !form.check_out || notti() <= 0 || !!conflitto || (form.extra_bed && form.extra_bed_dates.some(day => { const contrib = form.room_id === LENA_ID && form.num_guests >= 4 ? 2 : 1; return (extraBedsPerDay[day] || 0) + contrib > 2 }))}
+          <button onClick={save} disabled={saving || !form.room_id || !form.check_in || !form.check_out || notti() <= 0 || !!conflitto || (form.extra_bed && form.extra_bed_dates.some(day => { const contrib = lettiPoolPrenotazione({ ...form, extra_bed: true }); return (extraBedsPerDay[day] || 0) + contrib > 2 }))}
             className="w-full bg-green-mid text-white rounded-xl py-3 font-semibold disabled:opacity-50">
             {saving ? 'Salvataggio...' : '✅ Salva prenotazione'}
           </button>

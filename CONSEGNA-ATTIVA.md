@@ -1,45 +1,44 @@
-# Consegna attiva — banner «Da controllare» fra mesi diversi
+# Consegna attiva — prenotazioni: quadrupla nera e date stabili
 
-Il blocco «elaborazione solo bozze» è CHIUSO (verbale e storico in
-`CONSEGNE-ARCHIVIO-ELABORAZIONE-BOZZE.md`); il rilascio del modulo è
-online dal 01/09/2026 (RUNBOOK-RILASCIO-SPESE.md). Questo blocco
-corregge il primo difetto trovato in produzione.
+Il banner «Da controllare» fra mesi diversi è online e archiviato in
+`CONSEGNE-ARCHIVIO-BANNER-DA-CONTROLLARE.md`. Questo blocco corregge due
+regressioni segnalate da Ania nella gestione delle prenotazioni.
 
 ## Identità e perimetro
 
-- Base: `d0bb327` (il candidato pubblicato).
-- Stato: PRONTO PER REVISIONE — implementato il 01/09/2026 su richiesta
-  esplicita dell'utente; esiti nella tabella.
-- Implementatore: Claude. Revisore: Codex.
-- DIFETTO REALE (01/09/2026): oggi è settembre, il documento Caleffi del
-  30/08 era in revisione; il banner della Panoramica indicava «1
-  movimento da controllare», ma il tocco portava in Movimenti col
-  filtro sul mese corrente e la voce spariva («Nessun movimento con
-  questi filtri»).
-- REQUISITO: toccando il banner si arriva in DOCUMENTI e si vedono
-  TUTTE le bozze attive promesse dal banner, di qualunque mese; numero
-  e card coincidono; i filtri temporali di Panoramica, Movimenti e
-  Analisi NON cambiano comportamento; i documenti chiusi possono
-  continuare a rispettare la vista attuale; NESSUNA modifica a dati o
-  database.
-- Perimetro tecnico: solo `components/spese/SpeseShell.tsx`
-  (destinazione del banner) + regressione in
-  `lib/spese/adattatore.test.ts`. Niente altro.
+- Base tecnica: `6d44d69` (modifica del telefono della nuova prenotazione già
+  presente e mantenuta intatta).
+- Stato: IMPLEMENTATO IN LOCALE — pronto per la revisione di Claude; nessun
+  push e nessun deploy.
+- Implementatore: Codex. Revisore richiesto: Claude.
+- Requisito colore: il terracotta significa che è occupato un solo letto del
+  pool comune; il nero significa che entrambi i letti sono occupati e non se
+  ne può aggiungere un altro. Una quadrupla in Lena occupa da sola entrambi.
+- Requisito date: check-in e check-out non devono sovrapporsi su iPhone né
+  nella nuova prenotazione né in modifica/prolungamento.
+- Perimetro tecnico: calcolo puro e condiviso del pool letti, colori del
+  calendario, lettura disponibilità in nuova/modifica prenotazione e classi
+  protettive dei campi data. Nessuna query di scrittura nuova, nessuna
+  modifica a dati, schema o permessi.
 
 ## Casi di accettazione
 
 | ID | Sequenza e atteso | Livello di prova | Esito |
 | --- | --- | --- | --- |
-| F01 | Regressione ESATTA agosto→settembre: bozze in revisione datate agosto viste il 01/09 → il conteggio del banner e le card «Da controllare» di Documenti COINCIDONO; il vecchio arrivo (Movimenti, filtro mese corrente + Da controllare) le nasconderebbe tutte (filtri temporali INVARIATI per requisito). | test locale | Test «REGRESSIONE agosto→settembre» in adattatore.test.ts: banner n>0, card = n, applicaFiltri(mese corrente) = 0. VERDE (52/52 nella suite del file). |
-| F02 | Giro UI a 390 px: tocco sul banner della Panoramica → si atterra nella scheda DOCUMENTI, blocco «Da controllare» con conteggio e card visibili; nessun filtro di Movimenti toccato. | schermata simulata | Dev server, demo ?elabora=1 a 390 px: tocco sul banner «1 movimento da controllare» → scheda Documenti, «DA CONTROLLARE · 1» con la card «Mercato di Rozzano · 12,50 € · 2 campi dubbi»; console pulita. VERDE. |
-| F03 | Nessuna modifica a dati/database; nessun altro comportamento cambiato (Panoramica/Movimenti/Analisi identici). | ispezione + suite | Delta = 1 funzione di navigazione + 1 test; niente scritture, niente query nuove. Suite completa e cancello comune verdi. VERDE. |
+| P01 | 0 letti = colore normale; 1/2 = terracotta; 2/2 o più = nero. Anche la riga riepilogativa dei letti mostra 2/2 in nero con testo bianco. | funzioni pure + integrazione pagina | VERDE: `calendarioLetti.test.ts` controlla stati, colori e collegamento effettivo della pagina. |
+| P02 | Lena con 3 ospiti occupa 1 letto; Lena quadrupla occupa 2 letti e quindi la sua barra è nera. Due prenotazioni da un letto sovrapposte danno lo stesso nero. | funzioni pure | VERDE: `tariffe.test.ts` confronta la regola del calendario con la tariffa da 1 a 4 ospiti. |
+| P03 | Le prenotazioni storiche con `extra_bed=true` e senza giorni espliciti restano conteggiate correttamente. | funzione pura + query | VERDE: test dedicato e campo `extra_bed` incluso nelle letture di nuova/modifica. |
+| P04 | A 320–390 px le due date restano dentro le rispettive colonne nella nuova prenotazione; modifica e prolungamento conservano la stessa protezione già introdotta. | regressione sul sorgente | VERDE: wrapper `min-w-0` e input `min-w-0 appearance-none` verificati su entrambi i percorsi. |
+| P05 | Nessun cambiamento ai conti, alle prenotazioni esistenti o al database; niente pubblicazione. | ispezione + suite | VERDE: solo letture già esistenti ampliate col campo necessario; nessun accesso remoto o scrittura. |
 
 ## Prove di consegna
 
-- `node scripts/verifica-consegna.mjs --base origin/main` su albero
-  fermo; build una volta sul candidato finale. Esiti nel resoconto.
+- Test mirati del blocco.
+- Suite applicazione completa, TypeScript e build di produzione.
+- `node scripts/verifica-consegna.mjs --base 6d44d69` sul candidato pulito.
 
 ## Prossimo passo
 
-Codex revisiona in un giro consolidato; nessun push o deploy senza
-nuova autorizzazione esplicita. A seguire: Fase 5 — fatture Casa Ania.
+Claude revisiona il candidato in un solo giro consolidato senza modificare gli
+assert dei test. Pubblicazione soltanto dopo revisione verde e autorizzazione
+esplicita di Ania.
