@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { validaRichiestaWeb, stessaRichiesta, consentiIp, FINESTRA_DOPPIONI_MIN } from '@/lib/richiesteWeb'
+import { formatIntervallo } from '@/lib/richieste'
+import { inviaATutti } from '@/lib/inviaPush'
+import { registraPush } from '@/lib/pushLog'
 
 // Ingresso delle richieste dal modulo del sito casaaniarozzano.it (pezzo 5A).
 //
@@ -10,6 +13,8 @@ import { validaRichiestaWeb, stessaRichiesta, consentiIp, FINESTRA_DOPPIONI_MIN 
 //  · limite per IP: 10 richieste in 10 minuti → 429;
 //  · crea la richiesta (canale web, in attesa) con il service role: qui non c'è
 //    un utente loggato e l'unica porta è il segreto;
+//  · notifica push ai telefoni registrati, miglior sforzo: se fallisce la
+//    richiesta è creata comunque.
 // Nessun messaggio al cliente parte da qui. Nei log MAI nome, telefono o note.
 
 const pulisci = (v: string | null | undefined) => (v ?? '').replace(/\s+/g, '')
@@ -85,5 +90,18 @@ export async function POST(req: NextRequest) {
   }
   const id = inserita.data.id as string
 
-  return NextResponse.json({ id }, { status: 201 })
+  // Notifica push (miglior sforzo)
+  let push: { inviate: number; errori: number } = { inviate: 0, errori: 0 }
+  try {
+    const titolo = 'Nuova richiesta dal sito'
+    const corpoPush = `${d.cognome} ${d.nome}, ${formatIntervallo(d.arrivo, d.partenza)}, ${d.persone} ${d.persone === 1 ? 'persona' : 'persone'}`
+    const e = await inviaATutti(supabase, { title: titolo, body: corpoPush, url: `/richieste/${id}` })
+    await registraPush(supabase, 'richiesta_web', titolo, corpoPush, { richiesta_id: id, rimosse: e.rimosse, errori: e.errori }, e.inviate)
+    push = { inviate: e.inviate, errori: e.errori.length }
+    if (e.errori.length) log('avviso', `push con errori: ${e.errori.length}`)
+  } catch (e) {
+    log('avviso', `push non inviata: ${(e as Error)?.message?.slice(0, 80) ?? 'errore'}`)
+  }
+
+  return NextResponse.json({ id, push }, { status: 201 })
 }
