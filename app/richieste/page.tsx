@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Globe, Phone, MessageCircle, ChevronDown } from 'lucide-react'
 import BackBar from '@/components/BackBar'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
@@ -96,10 +96,10 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
   )
 }
 
-function RigaArchivio({ r, adesso }: { r: Richiesta; adesso: Date }) {
+function RigaArchivio({ r, adesso, evidenziata = false }: { r: Richiesta; adesso: Date; evidenziata?: boolean }) {
   const colore = r.stato === 'confermata' ? '#6C9A7C' : '#8C3B2E'
   return (
-    <li className="flex items-baseline justify-between gap-3 py-2.5 border-b-[0.5px] border-border-soft last:border-b-0 text-sm">
+    <li id={`richiesta-${r.id}`} className={`flex items-baseline justify-between gap-3 py-2.5 -mx-2 px-2 border-b-[0.5px] border-border-soft last:border-b-0 text-sm ${evidenziata ? 'bg-sage/50 rounded-lg' : ''}`}>
       <div className="min-w-0">
         <p className="text-green-dark truncate">{nomeCompleto(r)}</p>
         <p className="text-xs text-stone">{formatIntervallo(r.arrivo, r.partenza)} · {r.persone} {r.persone === 1 ? 'persona' : 'persone'} · {CANALE_LABEL[r.canale]}</p>
@@ -107,6 +107,9 @@ function RigaArchivio({ r, adesso }: { r: Richiesta; adesso: Date }) {
       <span className="shrink-0 inline-flex items-center gap-1.5 text-xs text-green-dark">
         <span className="w-2 h-2 rounded-full" style={{ background: colore }} />
         {STATO_LABEL[r.stato]}{r.chiusa_at ? ` · ${oraArrivo(r.chiusa_at, adesso)}` : ''}
+        {r.stato === 'confermata' && r.prenotazione_id && (
+          <Link href={`/prenotazioni/${r.prenotazione_id}`} className="ml-1 underline underline-offset-2 text-green-mid" onClick={e => e.stopPropagation()}>scheda</Link>
+        )}
       </span>
     </li>
   )
@@ -114,6 +117,8 @@ function RigaArchivio({ r, adesso }: { r: Richiesta; adesso: Date }) {
 
 export default function Richieste() {
   const router = useRouter()
+  // ?apri=<id>: arrivo dalla scheda prenotazione, archivio aperto e riga evidenziata
+  const apriId = useSearchParams().get('apri')
   const [tutte, setTutte] = useState<Richiesta[]>([])
   const [camere, setCamere] = useState<Room[]>([])
   const [prenotazioni, setPrenotazioni] = useState<PrenotazioneBarra[]>([])
@@ -177,6 +182,11 @@ export default function Richieste() {
       setLoading(false)
     })
   }, [])
+
+  useEffect(() => {
+    if (loading || !apriId) return
+    document.getElementById(`richiesta-${apriId}`)?.scrollIntoView({ block: 'center' })
+  }, [loading, apriId])
 
   const aperte = useMemo(() => ordinaRichieste(tutte.filter(eAperta), ordine), [tutte, ordine])
   const ferme = useMemo(() => daGuardare(aperte, adesso), [aperte, adesso])
@@ -291,7 +301,7 @@ export default function Richieste() {
           )}
 
           {!loading && (
-            <details className="group mt-8">
+            <details className="group mt-8" open={!!apriId && archivio.some(r => r.id === apriId) ? true : undefined}>
               <summary className="list-none cursor-pointer flex items-center justify-between py-2 text-sm text-stone select-none [&::-webkit-details-marker]:hidden">
                 <span>Archivio <span className="text-xs">({archivio.length})</span></span>
                 <ChevronDown size={16} strokeWidth={1.8} className="transition-transform group-open:rotate-180" aria-hidden />
@@ -300,7 +310,7 @@ export default function Richieste() {
                 <p className="text-sm text-stone py-2">Nessuna richiesta chiusa negli ultimi 90 giorni.</p>
               ) : (
                 <ul className="bg-white rounded-xl border border-card-border px-4 mt-1">
-                  {archivio.map(r => <RigaArchivio key={r.id} r={r} adesso={adesso} />)}
+                  {archivio.map(r => <RigaArchivio key={r.id} r={r} adesso={adesso} evidenziata={r.id === apriId} />)}
                 </ul>
               )}
             </details>

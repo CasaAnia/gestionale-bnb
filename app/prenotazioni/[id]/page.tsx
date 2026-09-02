@@ -387,6 +387,8 @@ export default function BookingDetail() {
   // Arrivo dalla conferma di una richiesta (?da=richiesta): toast discreto per qualche secondo
   const searchParams = useSearchParams()
   const [toastRichiesta, setToastRichiesta] = useState(() => searchParams.get('da') === 'richiesta')
+  // Traccia: la richiesta da cui è nata questa prenotazione (pezzo 4), se c'è
+  const [richiestaOrigine, setRichiestaOrigine] = useState<{ id: string; created_at: string; canale: string } | null>(null)
   useEffect(() => {
     if (!toastRichiesta) return
     const t = setTimeout(() => setToastRichiesta(false), 4000)
@@ -526,6 +528,15 @@ export default function BookingDetail() {
           .then(({ data: others }) => {
             setOtherBookings((others || []).filter((x: any) => !(b.group_id && x.group_id === b.group_id)))
           })
+      }
+      // Richiesta di prenotazione da cui è nata (prenotazione_id = primo segmento
+      // del gruppo). La tabella richieste può non esistere ancora: nessun avviso.
+      if (b?.id) {
+        supabase.from('richieste')
+          .select('id, created_at, canale')
+          .eq('prenotazione_id', b.id)
+          .maybeSingle()
+          .then(({ data: ric }) => { if (ric) setRichiestaOrigine(ric as { id: string; created_at: string; canale: string }) })
       }
       // Carica le altre prenotazioni del gruppo (cambio camera)
       if (b?.group_id) {
@@ -1039,6 +1050,12 @@ export default function BookingDetail() {
           <button onClick={() => setEditing(false)} className="text-gray-500 text-sm">Annulla</button>
         )}
       </div>
+      {richiestaOrigine && (
+        <p className="text-xs -mt-2 mb-3" style={{ color: '#6b6b60' }}>
+          Nata dalla richiesta del {new Date(richiestaOrigine.created_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })} via {richiestaOrigine.canale === 'web' ? 'sito' : richiestaOrigine.canale === 'whatsapp' ? 'WhatsApp' : 'telefono'}
+          {' · '}<Link href={`/richieste?apri=${richiestaOrigine.id}`} className="underline underline-offset-2">vedi in archivio</Link>
+        </p>
+      )}
 
       {/* Su desktop: contenuto a sinistra, pannello Azioni a destra. Su mobile tutto in colonna come prima. */}
       <div className={editing ? 'lg:max-w-2xl' : 'lg:flex lg:items-start lg:gap-5'}>
