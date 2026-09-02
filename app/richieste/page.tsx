@@ -6,8 +6,10 @@ import BackBar from '@/components/BackBar'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
 import CalendarioRichieste, { type Ancora } from '@/components/richieste/CalendarioRichieste'
 import PannelloRichieste from '@/components/richieste/PannelloRichieste'
+import AzioniRichiesta from '@/components/richieste/AzioniRichiesta'
+import ConfermaDialog from '@/components/richieste/ConfermaDialog'
 import { supabase } from '@/lib/supabase'
-import { fetchRichieste } from '@/lib/richiesteDati'
+import { fetchRichieste, rifiutaRichiesta } from '@/lib/richiesteDati'
 import { useVista, useDesktop } from '@/lib/richiesteVista'
 import { meseCorrente, richiesteAperte, sovrapposizioni } from '@/lib/richiesteCalendario'
 import { nomeOspite } from '@/lib/guestName'
@@ -48,12 +50,12 @@ function BadgeSovrapposta() {
   )
 }
 
-function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona }: { r: Richiesta; adesso: Date; conflitti: string[]; selezionata: boolean; onSeleziona: () => void }) {
+function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiuta }: { r: Richiesta; adesso: Date; conflitti: string[]; selezionata: boolean; onSeleziona: () => void; onRifiuta: (r: Richiesta) => void }) {
   const n = nottiRichiesta(r)
   return (
     <li>
-    <button type="button" onClick={onSeleziona} aria-pressed={selezionata}
-      className={`w-full text-left bg-white rounded-xl border border-card-border p-4 leading-snug transition-shadow ${selezionata ? 'shadow-md bg-sage/40' : 'shadow-sm'}`}>
+    <div role="button" tabIndex={0} onClick={onSeleziona} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeleziona() } }} aria-pressed={selezionata}
+      className={`w-full text-left bg-white rounded-xl border border-card-border p-4 leading-snug transition-shadow cursor-pointer ${selezionata ? 'shadow-md bg-sage/40' : 'shadow-sm'}`}>
       <div className="flex items-baseline justify-between gap-3">
         <p className="font-medium text-[15px] text-green-dark truncate inline-flex items-center gap-1.5 min-w-0"><span className="truncate">{nomeCompleto(r)}</span>{conflitti.length > 0 && <BadgeSovrapposta />}</p>
         <p className="shrink-0 text-sm font-semibold text-brass">{n === 1 ? '1 notte' : `${n} notti`}</p>
@@ -79,7 +81,8 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona }: { r: 
       {conflitti.length > 0 && (
         <p className="text-xs mt-1" style={{ color: '#7a5f2c' }} title={conflitti.join(' · ')}>si sovrappone con {conflitti.join(', ')}</p>
       )}
-    </button>
+      <AzioniRichiesta r={r} onRifiuta={onRifiuta} />
+    </div>
     </li>
   )
 }
@@ -117,6 +120,22 @@ export default function Richieste() {
   // Richiesta selezionata dalla lista (evidenziata nel calendario) e pannello «chi c'è dentro»
   const [selezionata, setSelezionata] = useState<string | null>(null)
   const [pannello, setPannello] = useState<{ gruppo: Richiesta[]; ancora: Ancora } | null>(null)
+  // Rifiuto: finestra di conferma, poi aggiornamento locale della riga
+  const [daRifiutare, setDaRifiutare] = useState<Richiesta | null>(null)
+  const [rifiutando, setRifiutando] = useState(false)
+
+  async function confermaRifiuto() {
+    if (!daRifiutare) return
+    setRifiutando(true)
+    const { chiusa_at, error } = await rifiutaRichiesta(daRifiutare.id)
+    setRifiutando(false)
+    if (error) { setErrori(e => [...e.filter(x => !x.startsWith('rifiuto')), `rifiuto: ${error}`]); setDaRifiutare(null); return }
+    const id = daRifiutare.id
+    setTutte(lista => lista.map(r => (r.id === id ? { ...r, stato: 'rifiutata', chiusa_at } : r)))
+    setPannello(pan => (pan ? { ...pan, gruppo: pan.gruppo.filter(r => r.id !== id) } : pan))
+    setSelezionata(s => (s === id ? null : s))
+    setDaRifiutare(null)
+  }
   const mostraCalendario = desktop || sezione === 'calendario'
   const mostraLista = desktop || sezione === 'lista'
 
@@ -243,7 +262,7 @@ export default function Richieste() {
             <ul className="flex flex-col gap-3">
               {aperte.map(r => (
                 <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []}
-                  selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} />
+                  selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} onRifiuta={setDaRifiutare} />
               ))}
             </ul>
           )}
@@ -266,8 +285,12 @@ export default function Richieste() {
         </section>
       </div>
 
-      {pannello && (
-        <PannelloRichieste gruppo={pannello.gruppo} ancora={pannello.ancora} layout={desktop ? 'desktop' : 'mobile'} adesso={adesso} onChiudi={() => setPannello(null)} />
+      {pannello && pannello.gruppo.length > 0 && (
+        <PannelloRichieste gruppo={pannello.gruppo} ancora={pannello.ancora} layout={desktop ? 'desktop' : 'mobile'} adesso={adesso} onChiudi={() => setPannello(null)} onRifiuta={setDaRifiutare} />
+      )}
+      {daRifiutare && (
+        <ConfermaDialog titolo={`Rifiutare la richiesta di ${nomeCompleto(daRifiutare)}?`} testo="Nessun messaggio parte da qui."
+          conferma="Rifiuta" occupato={rifiutando} onConferma={confermaRifiuto} onAnnulla={() => { if (!rifiutando) setDaRifiutare(null) }} />
       )}
     </div>
   )

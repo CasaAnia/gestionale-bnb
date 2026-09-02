@@ -45,3 +45,17 @@ export function useRichiesteCount(refreshKey?: string): number {
   }, [refreshKey])
   return count
 }
+
+// Rifiuto: stato rifiutata e ora di chiusura. Nessun messaggio parte da qui.
+// Torna il testo dell'errore (mostrato a schermo) oppure null.
+export async function rifiutaRichiesta(id: string): Promise<{ chiusa_at: string; error: string | null }> {
+  const chiusa_at = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('richieste')
+    .update({ stato: 'rifiutata', chiusa_at })
+    .eq('id', id)
+    .select('id')
+  if (error) return { chiusa_at, error: spiegaErrore(error) }
+  if (!data || data.length === 0) return { chiusa_at, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere già stata chiusa.' }
+  return { chiusa_at, error: null }
+}

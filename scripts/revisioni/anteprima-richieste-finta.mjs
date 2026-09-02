@@ -187,6 +187,17 @@ const finto = createServer(async (req, res) => {
     if ((req.headers.accept || '').includes('vnd.pgrst.object')) return rispondi(res, 201, out[0])
     return rispondi(res, 201, out)
   }
+  if (m && m[1] === 'richieste' && req.method === 'PATCH') {
+    const corpo = JSON.parse(await leggiCorpo(req) || '{}')
+    const bersaglio = interroga('richieste', new URL(url.pathname + url.search.replace(/([?&])select=[^&]*/, '$1'), `http://127.0.0.1:${PORTA_FINTO}`))
+    const ids = new Set(bersaglio.map(r => r.id))
+    const toccate = richieste.filter(r => ids.has(r.id))
+    if (corpo.stato === 'errore') return rispondi(res, 500, { code: 'FINTO', message: 'aggiornamento fallito (simulato)', details: null, hint: null })
+    toccate.forEach(r => Object.assign(r, corpo))
+    console.log(`[finto supabase] PATCH richieste: ${toccate.length} riga/e →`, JSON.stringify(corpo).slice(0, 80))
+    const select = url.searchParams.get('select') || '*'
+    return rispondi(res, 200, toccate.map(r => applicaSelect('richieste', r, select)))
+  }
   if (m) return rispondi(res, 403, { code: 'ANTEPRIMA', message: 'scrittura non ammessa nella preview sintetica' })
   rispondi(res, 404, { message: `non gestito: ${req.method} ${url.pathname}` })
 })

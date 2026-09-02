@@ -5,6 +5,7 @@ import {
   CANALE_LABEL, STATO_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, type Richiesta,
 } from '@/lib/richieste'
 import type { Ancora } from './CalendarioRichieste'
+import AzioniRichiesta from './AzioniRichiesta'
 
 // Pannello «chi c'è dentro»: bottom sheet sul telefono, popover accanto alla
 // barra su desktop. Solo lettura: i pulsanti d'azione arrivano nel pezzo 5.
@@ -14,6 +15,7 @@ type Props = {
   layout: 'desktop' | 'mobile'
   adesso: Date
   onChiudi: () => void
+  onRifiuta: (r: Richiesta) => void
 }
 
 function IconaCanale({ canale }: { canale: Richiesta['canale'] }) {
@@ -23,7 +25,7 @@ function IconaCanale({ canale }: { canale: Richiesta['canale'] }) {
   return <Phone {...props} />
 }
 
-export default function PannelloRichieste({ gruppo, ancora, layout, adesso, onChiudi }: Props) {
+export default function PannelloRichieste({ gruppo, ancora, layout, adesso, onChiudi, onRifiuta }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onChiudi() }
     window.addEventListener('keydown', onKey)
@@ -53,6 +55,7 @@ export default function PannelloRichieste({ gruppo, ancora, layout, adesso, onCh
               <span aria-hidden>·</span>
               <span className={r.stato === 'proposta_inviata' ? 'text-green-mid font-semibold' : ''}>{STATO_LABEL[r.stato]}</span>
             </p>
+            <AzioniRichiesta r={r} onRifiuta={onRifiuta} compatto />
           </li>
         )
       })}
