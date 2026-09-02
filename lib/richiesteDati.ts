@@ -59,3 +59,31 @@ export async function rifiutaRichiesta(id: string): Promise<{ chiusa_at: string;
   if (!data || data.length === 0) return { chiusa_at, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere già stata chiusa.' }
   return { chiusa_at, error: null }
 }
+
+export async function fetchRichiesta(id: string): Promise<{ data: Richiesta | null; error: string | null }> {
+  const { data, error } = await supabase.from('richieste').select('*, rooms(name)').eq('id', id).maybeSingle()
+  if (error) return { data: null, error: spiegaErrore(error) }
+  return { data: (data as unknown as Richiesta) ?? null, error: data ? null : 'Richiesta non trovata.' }
+}
+
+// Al tocco su «Apri WhatsApp e invia»: stato proposta_inviata, ora, bozza e
+// soluzione inviate. Se le colonne della 0025 non ci sono ancora, lo stato
+// cambia comunque e si avvisa che la bozza non è stata archiviata.
+export async function segnaPropostaInviata(id: string, testo: string, soluzione: unknown): Promise<{ proposta_inviata_at: string; error: string | null; avviso: string | null }> {
+  const proposta_inviata_at = new Date().toISOString()
+  const completo = await supabase.from('richieste')
+    .update({ stato: 'proposta_inviata', proposta_inviata_at, proposta_testo: testo, proposta_soluzione: soluzione })
+    .eq('id', id).select('id')
+  if (!completo.error) {
+    if (!completo.data || completo.data.length === 0) return { proposta_inviata_at, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere stata chiusa.', avviso: null }
+    return { proposta_inviata_at, error: null, avviso: null }
+  }
+  const colonnaMancante = /proposta_testo|proposta_soluzione|schema cache|column/i.test(completo.error.message || '')
+  if (!colonnaMancante) return { proposta_inviata_at, error: spiegaErrore(completo.error), avviso: null }
+  const ridotto = await supabase.from('richieste')
+    .update({ stato: 'proposta_inviata', proposta_inviata_at })
+    .eq('id', id).select('id')
+  if (ridotto.error) return { proposta_inviata_at, error: spiegaErrore(ridotto.error), avviso: null }
+  if (!ridotto.data || ridotto.data.length === 0) return { proposta_inviata_at, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere stata chiusa.', avviso: null }
+  return { proposta_inviata_at, error: null, avviso: 'Stato aggiornato, ma la bozza non è stata archiviata: va applicata la migrazione 0025.' }
+}

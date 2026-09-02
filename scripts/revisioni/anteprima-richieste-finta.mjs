@@ -31,14 +31,14 @@ const ora = new Date().toISOString()
 const fa = (min) => new Date(Date.now() - min * 60000).toISOString()
 const giorni = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10)
 
-function camera(id, name, bathroom_type) {
-  return { id, name, bathroom_type, bathroom_note: null, base_price: 70, has_extra_bed: true, extra_bed_price: 10, active: true, created_at: ora }
+function camera(id, name, bathroom_type, base_price = 80, extra_bed_price = 10, double_price = null) {
+  return { id, name, bathroom_type, bathroom_note: null, base_price, has_extra_bed: true, extra_bed_price, double_price, active: true, created_at: ora }
 }
 const rooms = [
-  camera(ROOM.amelia, 'Amelia', 'privato_interno'),
+  camera(ROOM.amelia, 'Amelia', 'privato_interno', 70, 5),
   camera(ROOM.allegra, 'Allegra', 'privato_interno'),
   camera(ROOM.ambra, 'Ambra', 'privato_interno'),
-  camera(ROOM.lena, 'Lena', 'privato_esterno'),
+  camera(ROOM.lena, 'Lena', 'privato_esterno', 80, 10, 90),
   { ...camera('44444444-4444-4444-8444-444444444444', 'Camera 1', 'privato_interno'), active: false },
 ]
 const guests = [{ id: 'aaaaaaaa-0001-4000-8000-000000000001', phone: '+39 333 000 0001', full_name: 'Ospite Finto', email: null, rating: 'normale', notes: null, created_at: ora, updated_at: ora }]
