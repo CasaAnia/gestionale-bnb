@@ -17,6 +17,16 @@ import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
+// Endpoint POST /api/richieste/web provabile in locale (pezzo 7, verifica 5B):
+// segreto LOCALE «prova-locale» (mai quello vero), service key finta (il finto
+// non la controlla) e chiavi Pushover NON valide, così da questa anteprima non
+// può partire nessun avviso reale. Le variabili già nel processo vincono su
+// .env.local. Prova: curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3214/api/richieste/web → 401
+process.env.RICHIESTE_WEB_SECRET ??= 'prova-locale'
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= 'chiave-service-finta'
+process.env.PUSHOVER_TOKEN ??= 'token-non-valido-prova-locale'
+process.env.PUSHOVER_USER ??= 'utente-non-valido-prova-locale'
+
 const PORTA_FINTO = Number(process.env.PORTA_FINTO || 54330)
 const PORTA_APP = Number(process.env.PORTA_APP || 3214)
 const radice = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
