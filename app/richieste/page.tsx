@@ -97,6 +97,10 @@ export default function Richieste() {
   const [adesso] = useState(() => new Date())
   const [vista, setVista] = useVista()
   const desktop = useDesktop()
+  // Sul telefono si vede una sezione alla volta: calendario o lista.
+  const [sezione, setSezione] = useState<'calendario' | 'lista'>('calendario')
+  const mostraCalendario = desktop || sezione === 'calendario'
+  const mostraLista = desktop || sezione === 'lista'
 
   useEffect(() => {
     // Stesse letture del calendario principale (camere attive, prenotazioni
@@ -145,7 +149,22 @@ export default function Richieste() {
         <h1 className="text-[22px] text-green-dark leading-tight" style={FRAUNCES}>Richieste di prenotazione</h1>
         <InterruttoreVista vista={vista} onChange={setVista} />
       </div>
-      {!desktop && nuovaRichiesta('w-full mb-4')}
+      {!desktop && (
+        <>
+          {nuovaRichiesta('w-full mb-3')}
+          <div className="flex gap-2 mb-4" role="tablist" aria-label="Sezione">
+            {([['calendario', 'Calendario'], ['lista', 'Lista']] as const).map(([k, label]) => (
+              <button key={k} type="button" role="tab" aria-selected={sezione === k} onClick={() => setSezione(k)}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${sezione === k ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-card-border'}`}>
+                {label}
+                {k === 'lista' && !loading && aperte.length > 0 && (
+                  <span className={`text-xs font-bold ${sezione === k ? 'text-cream-text' : 'text-brass'}`}>{aperte.length}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {errori.length > 0 && (
         <div className="mb-4 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">
@@ -155,7 +174,7 @@ export default function Richieste() {
 
       <div className="md:grid md:grid-cols-[3fr_2fr] md:gap-5 md:items-start">
         {/* Calendario */}
-        <section>
+        <section hidden={!mostraCalendario}>
           {loading ? (
             <div className="bg-white rounded-xl border border-card-border text-center py-10 text-stone">Caricamento…</div>
           ) : (
@@ -169,7 +188,7 @@ export default function Richieste() {
         </section>
 
         {/* Lista */}
-        <section className="mt-6 md:mt-0">
+        <section hidden={!mostraLista} className="md:mt-0">
           {desktop && <div className="mb-3">{nuovaRichiesta('w-full')}</div>}
           <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar">
             <span className="text-xs text-stone shrink-0">Ordina per</span>

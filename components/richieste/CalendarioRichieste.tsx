@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, type MouseEvent } from 'react'
+import { useMemo, type CSSProperties, type MouseEvent } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
@@ -31,19 +31,36 @@ type Props = {
 }
 
 const OTTONE = '#A9884E'
+// Desktop: camere in righe, giorni in colonne
 const NAME_W = 96
 const ROW_H = 44
 const HEADER_H = 40
+// Mobile: giorni in righe, camere in colonne strette (deve stare in 390 px)
+const DAY_W = 44
+const DAY_H = 26
+const HEADER_H_MOBILE = 34
 const GIORNI_BREVI = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab']
 
 function giornoSettimana(iso: string): number {
   return new Date(iso + 'T00:00:00Z').getUTCDay()
 }
 
-export function etichettaRichiesta(r: Richiesta): string {
-  const iniziale = r.nome.trim() ? `${r.nome.trim()[0]}.` : ''
-  return `${r.cognome.trim()} ${iniziale} · ${r.stato === 'proposta_inviata' ? 'inviata' : 'attesa'}`
+// Taglio a incastro per le barre verticali (mobile): il soggiorno arriva da
+// un'altra camera (taglio in alto) o prosegue altrove (taglio in basso).
+function clipVerticale(tagliaSopra: boolean, tagliaSotto: boolean): string {
+  if (tagliaSopra && tagliaSotto) return 'polygon(0 0, 100% 8px, 100% 100%, 0 calc(100% - 8px))'
+  if (tagliaSopra) return 'polygon(0 0, 100% 8px, 100% 100%, 0 100%)'
+  if (tagliaSotto) return 'polygon(0 0, 100% 0, 100% 100%, 0 calc(100% - 8px))'
+  return 'none'
 }
+
+export function etichettaRichiesta(r: Richiesta, breve = false): string {
+  const iniziale = r.nome.trim() ? `${r.nome.trim()[0]}.` : ''
+  const chi = `${r.cognome.trim()} ${iniziale}`.trim()
+  return breve ? chi : `${chi} · ${r.stato === 'proposta_inviata' ? 'inviata' : 'attesa'}`
+}
+
+type Riga = { chiave: string; nome: string; numero: string; camera: CameraCalendario | null }
 
 export default function CalendarioRichieste(p: Props) {
   const giorni = useMemo(() => giorniDelMese(p.mese), [p.mese])
@@ -62,8 +79,8 @@ export default function CalendarioRichieste(p: Props) {
     for (const r of p.richieste) { const k = chiaveRiga(r.camera_id); if (!m.has(k)) m.set(k, []); m.get(k)!.push(r) }
     return m
   }, [p.richieste])
-  const rigaQualsiasi = (richiestePerRiga.get(RIGA_QUALSIASI)?.length ?? 0) > 0
-  const righe: { chiave: string; nome: string; numero: string; camera: CameraCalendario | null }[] = [
+  const rigaQualsiasi = p.vista === 'presunta' && (richiestePerRiga.get(RIGA_QUALSIASI)?.length ?? 0) > 0
+  const righe: Riga[] = [
     ...camere.map(c => ({ chiave: c.id, nome: c.name, numero: ROOM_NUMBER_BY_NAME[c.name] || '', camera: c })),
     ...(rigaQualsiasi ? [{ chiave: RIGA_QUALSIASI, nome: 'Qualsiasi camera', numero: '', camera: null }] : []),
   ]
@@ -76,33 +93,50 @@ export default function CalendarioRichieste(p: Props) {
     p.onApri?.(gruppo, { x: e.clientX, y: e.clientY })
   }
 
-  // ── Barre di una riga (desktop: orizzontali) ──────────────────────────────
-  function barrePrenotazioni(camera: CameraCalendario) {
+  // Geometria di una barra da `start` a `end` (indici dei giorni) nella riga/colonna `ri`
+  function geometria(start: number, end: number, ri: number, primo: boolean, ultimo: boolean): CSSProperties {
+    if (p.layout === 'desktop') {
+      return {
+        position: 'absolute', top: 6, height: ROW_H - 12,
+        left: `calc(${NAME_W}px + (100% - ${NAME_W}px) * ${start / N} + ${primo ? 2 : 0}px)`,
+        width: `calc((100% - ${NAME_W}px) * ${(end - start) / N} - ${(primo ? 2 : 0) + (ultimo ? 2 : 0)}px)`,
+      }
+    }
+    const cols = righe.length
+    return {
+      position: 'absolute',
+      left: `calc(${DAY_W}px + (100% - ${DAY_W}px) * ${ri / cols} + 2px)`,
+      width: `calc((100% - ${DAY_W}px) / ${cols} - 4px)`,
+      top: start * DAY_H + (primo ? 2 : 0),
+      height: (end - start) * DAY_H - (primo ? 2 : 0) - (ultimo ? 2 : 0),
+    }
+  }
+
+  function barrePrenotazioni(camera: CameraCalendario, ri: number) {
     return p.prenotazioni.filter(b => b.room_id === camera.id).flatMap(b => {
       const segmenti = segmentiBarra(b, giorni, ctx)
       if (segmenti.length === 0) return []
-      const chainKey = catene.chainKeyOf[b.id]
       const entra = inEntrata.has(b.id), esce = inUscita.has(b.id)
       return segmenti.map((s, i) => {
         const primo = i === 0, ultimo = i === segmenti.length - 1
-        const tagliaSx = primo && entra, tagliaDx = ultimo && esce
-        const arrSx = primo && !tagliaSx, arrDx = ultimo && !tagliaDx
+        const tagliaInizio = primo && entra, tagliaFine = ultimo && esce
+        const arrInizio = primo && !tagliaInizio, arrFine = ultimo && !tagliaFine
+        const raggi = p.layout === 'desktop'
+          ? `${arrInizio ? 6 : 0}px ${arrFine ? 6 : 0}px ${arrFine ? 6 : 0}px ${arrInizio ? 6 : 0}px`
+          : `${arrInizio ? 6 : 0}px ${arrInizio ? 6 : 0}px ${arrFine ? 6 : 0}px ${arrFine ? 6 : 0}px`
         return (
           <div key={`${b.id}-${i}`} title={`${nomeOspite(b)} · ${b.check_in} → ${b.check_out}`}
             style={{
-              position: 'absolute', top: 6, height: ROW_H - 12,
-              left: `calc(${NAME_W}px + (100% - ${NAME_W}px) * ${s.start / N} + ${primo ? 2 : 0}px)`,
-              width: `calc((100% - ${NAME_W}px) * ${(s.end - s.start) / N} - ${(primo ? 2 : 0) + (ultimo ? 2 : 0)}px)`,
-              background: s.color,
-              borderRadius: `${arrSx ? 6 : 0}px ${arrDx ? 6 : 0}px ${arrDx ? 6 : 0}px ${arrSx ? 6 : 0}px`,
-              clipPath: chainClipPath(tagliaSx, tagliaDx),
-              overflow: 'hidden', display: 'flex', alignItems: 'center',
+              ...geometria(s.start, s.end, ri, primo, ultimo),
+              background: s.color, borderRadius: raggi,
+              clipPath: p.layout === 'desktop' ? chainClipPath(tagliaInizio, tagliaFine) : clipVerticale(tagliaInizio, tagliaFine),
+              overflow: 'hidden', display: 'flex', alignItems: p.layout === 'desktop' ? 'center' : 'flex-start',
               boxShadow: '0 1px 3px rgba(0,0,0,0.2)', zIndex: 5,
               opacity: p.evidenziata != null ? 0.3 : 1, transition: 'opacity 0.15s',
             }}>
             {primo && (
-              <span style={{ color: 'white', fontSize: 11, fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {entra ? '⇄ ' : ''}{nomeOspite(b)}{esce ? ' ⇄' : ''}{chainKey ? '' : ''}
+              <span style={{ color: 'white', fontSize: p.layout === 'desktop' ? 11 : 10, fontWeight: 600, padding: p.layout === 'desktop' ? '0 6px' : '3px 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                {entra ? '⇄ ' : ''}{nomeOspite(b)}{esce ? ' ⇄' : ''}
               </span>
             )}
           </div>
@@ -111,7 +145,7 @@ export default function CalendarioRichieste(p: Props) {
     })
   }
 
-  function barreRichieste(chiave: string) {
+  function barreRichieste(chiave: string, ri: number) {
     return (richiestePerRiga.get(chiave) || []).flatMap(r => {
       const idx = indiciIntervallo(r.arrivo, r.partenza, giorni)
       if (!idx) return []
@@ -119,73 +153,117 @@ export default function CalendarioRichieste(p: Props) {
       return [(
         <button key={r.id} type="button" onClick={e => apri(e, [r])} title={etichettaRichiesta(r)}
           style={{
-            position: 'absolute', top: 6, height: ROW_H - 12,
-            left: `calc(${NAME_W}px + (100% - ${NAME_W}px) * ${idx.start / N} + 2px)`,
-            width: `calc((100% - ${NAME_W}px) * ${(idx.end - idx.start) / N} - 4px)`,
+            ...geometria(idx.start, idx.end, ri, true, true),
             background: 'transparent', border: `1.5px dashed ${OTTONE}`, borderRadius: 6,
-            color: COLORE_RICHIESTA_TESTO, fontSize: 11, fontWeight: 600, textAlign: 'left', padding: '0 6px',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer', zIndex: selezionata ? 8 : 7,
+            color: COLORE_RICHIESTA_TESTO, fontSize: p.layout === 'desktop' ? 11 : 10, fontWeight: 600, textAlign: 'left',
+            padding: p.layout === 'desktop' ? '0 6px' : '2px 3px', display: 'flex', alignItems: p.layout === 'desktop' ? 'center' : 'flex-start',
+            whiteSpace: 'nowrap', overflow: 'hidden', cursor: 'pointer', zIndex: selezionata ? 8 : 7,
             opacity: attenua(r.id) ? 0.3 : 1,
             boxShadow: selezionata ? '0 3px 10px rgba(31,61,47,0.45)' : 'none',
             transition: 'opacity 0.15s, box-shadow 0.15s',
           }}>
-          {etichettaRichiesta(r)}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{etichettaRichiesta(r, p.layout === 'mobile')}</span>
         </button>
       )]
     })
   }
 
+  const navigazione = (
+    <div className="flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: COLORE_SEPARATORE }}>
+      <button type="button" onClick={() => p.onMese(spostaMese(p.mese, -1))} aria-label="Mese precedente"
+        className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
+        <ChevronLeft size={20} strokeWidth={2} aria-hidden />
+      </button>
+      <span className="font-serif text-[17px] text-green-dark">{etichettaMese(p.mese)}</span>
+      <button type="button" onClick={() => p.onMese(spostaMese(p.mese, 1))} aria-label="Mese successivo"
+        className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
+        <ChevronRight size={20} strokeWidth={2} aria-hidden />
+      </button>
+    </div>
+  )
+
+  // ── DESKTOP: camere in righe, giorni in colonne ───────────────────────────
+  if (p.layout === 'desktop') {
+    return (
+      <div className="bg-white rounded-xl border border-card-border overflow-hidden">
+        {navigazione}
+        <div style={{ display: 'grid', gridTemplateColumns: `${NAME_W}px repeat(${N}, minmax(0, 1fr))`, height: HEADER_H, borderBottom: `2px solid ${COLORE_SEPARATORE}` }}>
+          <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}` }} />
+          {giorni.map(g => {
+            const oggi = g === p.oggi, dom = giornoSettimana(g) === 0
+            return (
+              <div key={g} style={{ background: oggi ? COLORE_OGGI : 'transparent', borderLeft: `1px solid ${COLORE_GRIGLIA}`, textAlign: 'center', paddingTop: 4, minWidth: 0 }}>
+                <div style={{ fontSize: 8, fontWeight: 600, color: dom ? '#C58A67' : '#5c6b60', lineHeight: 1 }}>{GIORNI_BREVI[giornoSettimana(g)].slice(0, 2)}</div>
+                <div style={{
+                  fontSize: 12, fontWeight: 700, margin: '2px auto 0', width: 20, height: 20, lineHeight: '20px', borderRadius: '50%',
+                  color: oggi ? 'white' : dom ? '#C58A67' : '#1F3D2F', background: oggi ? '#2D6A4F' : 'transparent',
+                }}>{Number(g.slice(8))}</div>
+              </div>
+            )
+          })}
+        </div>
+        {righe.map((riga, ri) => (
+          <div key={riga.chiave} style={{ position: 'relative', height: ROW_H, borderBottom: `1px solid ${COLORE_GRIGLIA}`, borderTop: riga.chiave === RIGA_QUALSIASI ? `2px solid ${COLORE_SEPARATORE}` : undefined }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `${NAME_W}px repeat(${N}, minmax(0, 1fr))`, height: '100%' }}>
+              <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}`, display: 'flex', alignItems: 'center', gap: 5, padding: '0 6px', minWidth: 0, background: 'white' }}>
+                {riga.numero && <span className="font-serif" style={{ fontSize: 10, color: OTTONE }}>{riga.numero}</span>}
+                <span className={riga.camera ? 'font-serif' : ''} style={{ fontSize: riga.camera ? 13 : 10, fontWeight: 600, color: riga.camera ? '#1F3D2F' : COLORE_RICHIESTA_TESTO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.15 }}>
+                  {riga.nome}
+                </span>
+              </div>
+              {giorni.map(g => {
+                const oggi = g === p.oggi, dom = giornoSettimana(g) === 0
+                return <div key={g} style={{ background: oggi ? COLORE_OGGI : dom ? COLORE_DOMENICA : ri % 2 === 0 ? 'white' : COLORE_DOMENICA, borderLeft: `1px solid ${COLORE_GRIGLIA}` }} />
+              })}
+            </div>
+            {riga.camera && barrePrenotazioni(riga.camera, ri)}
+            {p.vista === 'presunta' && barreRichieste(riga.chiave, ri)}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // ── MOBILE: giorni in righe (colonna a sinistra), camere in colonne ───────
+  const cols = righe.length
+  const colonne = `${DAY_W}px repeat(${cols}, minmax(0, 1fr))`
   return (
     <div className="bg-white rounded-xl border border-card-border overflow-hidden">
-      {/* Navigazione mese */}
-      <div className="flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: COLORE_SEPARATORE }}>
-        <button type="button" onClick={() => p.onMese(spostaMese(p.mese, -1))} aria-label="Mese precedente"
-          className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
-          <ChevronLeft size={20} strokeWidth={2} aria-hidden />
-        </button>
-        <span className="font-serif text-[17px] text-green-dark">{etichettaMese(p.mese)}</span>
-        <button type="button" onClick={() => p.onMese(spostaMese(p.mese, 1))} aria-label="Mese successivo"
-          className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
-          <ChevronRight size={20} strokeWidth={2} aria-hidden />
-        </button>
-      </div>
-
-      {/* Intestazione giorni */}
-      <div style={{ display: 'grid', gridTemplateColumns: `${NAME_W}px repeat(${N}, minmax(0, 1fr))`, height: HEADER_H, borderBottom: `2px solid ${COLORE_SEPARATORE}` }}>
+      {navigazione}
+      <div style={{ display: 'grid', gridTemplateColumns: colonne, height: HEADER_H_MOBILE, borderBottom: `2px solid ${COLORE_SEPARATORE}` }}>
         <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}` }} />
-        {giorni.map(g => {
+        {righe.map(riga => (
+          <div key={riga.chiave} style={{ borderLeft: `1px solid ${COLORE_GRIGLIA}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 0, padding: '0 2px' }}>
+            {riga.numero && <span className="font-serif" style={{ fontSize: 8, color: OTTONE, lineHeight: 1 }}>{riga.numero}</span>}
+            <span className={riga.camera ? 'font-serif' : ''} style={{ fontSize: riga.camera ? 12 : 9, fontWeight: 600, color: riga.camera ? '#1F3D2F' : COLORE_RICHIESTA_TESTO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', lineHeight: 1.2 }}>
+              {riga.camera ? riga.nome : 'Qualsiasi'}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div style={{ position: 'relative', height: N * DAY_H }}>
+        {giorni.map((g, gi) => {
           const oggi = g === p.oggi, dom = giornoSettimana(g) === 0
           return (
-            <div key={g} style={{ background: oggi ? COLORE_OGGI : 'transparent', borderLeft: `1px solid ${COLORE_GRIGLIA}`, textAlign: 'center', paddingTop: 4, minWidth: 0 }}>
-              <div style={{ fontSize: 8, fontWeight: 600, color: dom ? '#C58A67' : '#5c6b60', lineHeight: 1 }}>{GIORNI_BREVI[giornoSettimana(g)].slice(0, 2)}</div>
-              <div style={{
-                fontSize: 12, fontWeight: 700, margin: '2px auto 0', width: 20, height: 20, lineHeight: '20px', borderRadius: '50%',
-                color: oggi ? 'white' : dom ? '#C58A67' : '#1F3D2F', background: oggi ? '#2D6A4F' : 'transparent',
-              }}>{Number(g.slice(8))}</div>
+            <div key={g} style={{ display: 'grid', gridTemplateColumns: colonne, height: DAY_H, borderBottom: `1px solid ${COLORE_GRIGLIA}`, background: oggi ? COLORE_OGGI : dom ? COLORE_DOMENICA : gi % 2 === 0 ? 'white' : 'transparent' }}>
+              <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, background: oggi ? COLORE_OGGI : 'white' }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: dom ? '#C58A67' : '#5c6b60' }}>{GIORNI_BREVI[giornoSettimana(g)]}</span>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, width: 18, height: 18, lineHeight: '18px', textAlign: 'center', borderRadius: '50%',
+                  color: oggi ? 'white' : dom ? '#C58A67' : '#1F3D2F', background: oggi ? '#2D6A4F' : 'transparent',
+                }}>{Number(g.slice(8))}</span>
+              </div>
+              {righe.map(riga => <div key={riga.chiave} style={{ borderLeft: `1px solid ${COLORE_GRIGLIA}` }} />)}
             </div>
           )
         })}
-      </div>
-
-      {/* Righe */}
-      {righe.map((riga, ri) => (
-        <div key={riga.chiave} style={{ position: 'relative', height: ROW_H, borderBottom: `1px solid ${COLORE_GRIGLIA}`, borderTop: riga.chiave === RIGA_QUALSIASI ? `2px solid ${COLORE_SEPARATORE}` : undefined }}>
-          <div style={{ display: 'grid', gridTemplateColumns: `${NAME_W}px repeat(${N}, minmax(0, 1fr))`, height: '100%' }}>
-            <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}`, display: 'flex', alignItems: 'center', gap: 5, padding: '0 6px', minWidth: 0, background: 'white' }}>
-              {riga.numero && <span className="font-serif" style={{ fontSize: 10, color: OTTONE }}>{riga.numero}</span>}
-              <span className={riga.camera ? 'font-serif' : ''} style={{ fontSize: riga.camera ? 13 : 10, fontWeight: 600, color: riga.camera ? '#1F3D2F' : COLORE_RICHIESTA_TESTO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.15 }}>
-                {riga.nome}
-              </span>
-            </div>
-            {giorni.map(g => {
-              const oggi = g === p.oggi, dom = giornoSettimana(g) === 0
-              return <div key={g} style={{ background: oggi ? COLORE_OGGI : dom ? COLORE_DOMENICA : ri % 2 === 0 ? 'white' : COLORE_DOMENICA, borderLeft: `1px solid ${COLORE_GRIGLIA}` }} />
-            })}
+        {righe.map((riga, ri) => (
+          <div key={riga.chiave}>
+            {riga.camera && barrePrenotazioni(riga.camera, ri)}
+            {p.vista === 'presunta' && barreRichieste(riga.chiave, ri)}
           </div>
-          {riga.camera && barrePrenotazioni(riga.camera)}
-          {p.vista === 'presunta' && barreRichieste(riga.chiave)}
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
