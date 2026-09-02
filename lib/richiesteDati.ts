@@ -66,24 +66,27 @@ export async function fetchRichiesta(id: string): Promise<{ data: Richiesta | nu
   return { data: (data as unknown as Richiesta) ?? null, error: data ? null : 'Richiesta non trovata.' }
 }
 
-// Al tocco su «Apri WhatsApp e invia»: stato proposta_inviata, ora, bozza e
-// soluzione inviate. Se le colonne della 0025 non ci sono ancora, lo stato
-// cambia comunque e si avvisa che la bozza non è stata archiviata.
-export async function segnaPropostaInviata(id: string, testo: string, soluzione: unknown): Promise<{ proposta_inviata_at: string; error: string | null; avviso: string | null }> {
+// Dopo «Sì, inviata»: stato proposta_inviata, ora, bozza e soluzione in UN solo
+// aggiornamento. Se le colonne della 0025 mancano, l'aggiornamento fallisce
+// per intero (lo stato NON cambia) e si spiega cosa applicare: mai una
+// proposta registrata senza testo e soluzione.
+export const AVVISO_0025 = 'Va applicata la migrazione 0025 (colonne proposta_testo e proposta_soluzione).'
+
+export function manca0025(e: { code?: string; message?: string } | null | undefined): boolean {
+  return !!e && (/proposta_testo|proposta_soluzione/i.test(e.message || '') || e.code === 'PGRST204' || e.code === '42703')
+}
+
+// La riga letta ha le colonne della 0025? (select * le include solo se esistono)
+export function colonne0025Presenti(riga: Record<string, unknown> | null | undefined): boolean {
+  return !!riga && 'proposta_testo' in riga && 'proposta_soluzione' in riga
+}
+
+export async function segnaPropostaInviata(id: string, testo: string, soluzione: unknown): Promise<{ proposta_inviata_at: string; error: string | null }> {
   const proposta_inviata_at = new Date().toISOString()
-  const completo = await supabase.from('richieste')
+  const { data, error } = await supabase.from('richieste')
     .update({ stato: 'proposta_inviata', proposta_inviata_at, proposta_testo: testo, proposta_soluzione: soluzione })
-    .eq('id', id).select('id')
-  if (!completo.error) {
-    if (!completo.data || completo.data.length === 0) return { proposta_inviata_at, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere stata chiusa.', avviso: null }
-    return { proposta_inviata_at, error: null, avviso: null }
-  }
-  const colonnaMancante = /proposta_testo|proposta_soluzione|schema cache|column/i.test(completo.error.message || '')
-  if (!colonnaMancante) return { proposta_inviata_at, error: spiegaErrore(completo.error), avviso: null }
-  const ridotto = await supabase.from('richieste')
-    .update({ stato: 'proposta_inviata', proposta_inviata_at })
-    .eq('id', id).select('id')
-  if (ridotto.error) return { proposta_inviata_at, error: spiegaErrore(ridotto.error), avviso: null }
-  if (!ridotto.data || ridotto.data.length === 0) return { proposta_inviata_at, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere stata chiusa.', avviso: null }
-  return { proposta_inviata_at, error: null, avviso: 'Stato aggiornato, ma la bozza non è stata archiviata: va applicata la migrazione 0025.' }
+    .eq('id', id).select('id, proposta_testo')
+  if (error) return { proposta_inviata_at, error: manca0025(error) ? AVVISO_0025 : spiegaErrore(error) }
+  if (!data || data.length === 0) return { proposta_inviata_at, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere stata chiusa.' }
+  return { proposta_inviata_at, error: null }
 }

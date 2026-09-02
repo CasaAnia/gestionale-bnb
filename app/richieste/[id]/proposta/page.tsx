@@ -6,7 +6,7 @@ import BackBar from '@/components/BackBar'
 import ConfermaDialog from '@/components/richieste/ConfermaDialog'
 import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
 import { supabase } from '@/lib/supabase'
-import { fetchRichiesta, rifiutaRichiesta, segnaPropostaInviata } from '@/lib/richiesteDati'
+import { fetchRichiesta, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, AVVISO_0025 } from '@/lib/richiesteDati'
 import { proponiSoluzioni, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
 import { componiBozza, prezzo as fmtPrezzo } from '@/lib/richiesteTesti'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
@@ -55,6 +55,7 @@ export default function PropostaPage() {
   const [loading, setLoading] = useState(true)
   const [errore, setErrore] = useState<string | null>(null)
   const [avviso, setAvviso] = useState<string | null>(null)
+  const [manca0025, setManca0025] = useState(false)
   const [adesso] = useState(() => new Date())
 
   // Soluzione scelta e bozza (null = quella generata; stringa = modificata a mano)
@@ -86,6 +87,7 @@ export default function PropostaPage() {
       if (r.error) errs.push(`camere: ${r.error.message}`)
       if (b.error) errs.push(`prenotazioni: ${b.error.message}`)
       setRichiesta(ric.data as typeof richiesta)
+      setManca0025(!!ric.data && !colonne0025Presenti(ric.data as unknown as Record<string, unknown>))
       setCamere((r.data || []) as Room[])
       setPrenotazioni((b.data || []) as PrenotazioneOccupante[])
       setErrore(errs.length ? errs.join(' · ') : null)
@@ -153,6 +155,7 @@ export default function PropostaPage() {
   function invia() {
     if (!richiesta || !soluzione) return
     setErrore(null); setAvviso(null)
+    if (manca0025) { setErrore(AVVISO_0025); return }
     if (!telefono) { setErrore('Nessun numero di telefono sulla richiesta: aggiungilo prima di inviare.'); return }
     openWhatsApp(telefono, testoFinale)
     setChiediConferma(true)
@@ -290,7 +293,7 @@ export default function PropostaPage() {
       {errore && <div role="alert" className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore}</div>}
       {avviso && <div role="status" className="mt-3 bg-sand border border-card-border rounded-xl p-3 text-sm text-green-dark">{avviso}</div>}
 
-      <button type="button" onClick={invia} disabled={!!occupato || !soluzione || chiediConferma} className={`${PIENO} mt-4`}>
+      <button type="button" onClick={invia} disabled={!!occupato || !soluzione || chiediConferma || manca0025} className={`${PIENO} mt-4`}>
         <IconaWhatsApp />
         {inviata ? 'Invia di nuovo' : (modoEffettivo === 'immagine' ? '2 · Apri WhatsApp e invia' : 'Apri WhatsApp e invia')}
       </button>
@@ -323,6 +326,11 @@ export default function PropostaPage() {
     <div className="p-4">
       <BackBar href="/richieste" />
       <h1 className="text-[22px] text-green-dark leading-tight mb-3" style={FRAUNCES}>Proposta per {nomeCompleto(richiesta)}</h1>
+      {manca0025 && (
+        <div role="alert" className="mb-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">
+          {AVVISO_0025} Finché manca, la proposta non può essere registrata.
+        </div>
+      )}
 
       <div className="md:grid md:grid-cols-[2fr_3fr] md:gap-5 md:items-start">
         <section>
