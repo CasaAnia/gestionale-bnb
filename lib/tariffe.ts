@@ -42,6 +42,18 @@ export function tariffaCamera(room: any, numOspiti: number): TariffaCamera {
   return { prezzoNotte: base, lettiPool: 1, lettoAddebitato: true }
 }
 
+// Capienza massima di una camera con il letto aggiuntivo: le stesse soglie di
+// tariffaCamera (Amelia parte da 1 posto, le altre da 2; il letto aggiunge 1,
+// Lena arriva a 4). Senza letto aggiuntivo resta la capienza base.
+export function capienzaBase(room: { name?: string | null } | null | undefined): number {
+  return room?.name === 'Amelia' ? 1 : 2
+}
+export function capienzaCamera(room: { name?: string | null; has_extra_bed?: boolean | null } | null | undefined): number {
+  const base = capienzaBase(room)
+  if (!room?.has_extra_bed) return base
+  return room.name === 'Lena' ? 4 : base + 1
+}
+
 // Se accanto al nome della camera va scritto "+ letto aggiuntivo".
 // Per Lena MAI: la camera è già venduta come tripla, quindi "Tripla + letto aggiuntivo"
 // sarebbe sbagliato (a 4 ospiti il letto in più compare comunque fra i costi).

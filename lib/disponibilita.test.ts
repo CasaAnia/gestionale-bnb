@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { notti, camereLibere, frasiDisponibilita, elencoNomi } from './disponibilita.ts'
+import { LENA_ID } from './lettiAggiuntivi.ts'
 
 const camere = [
   { id: 'lena', name: 'Lena', active: true },
@@ -49,4 +50,21 @@ test('elenco nomi con la e finale', () => {
   assert.equal(elencoNomi(['Lena']), 'Lena')
   assert.equal(elencoNomi(['Amelia', 'Lena']), 'Amelia e Lena')
   assert.equal(elencoNomi(['Amelia', 'Ambra', 'Lena']), 'Amelia, Ambra e Lena')
+})
+
+test('riga indicativa con persone e letti aggiuntivi condivisi', () => {
+  const camereComplete = [
+    { id: 'amelia', name: 'Amelia', active: true, has_extra_bed: true, base_price: 70 },
+    { id: 'allegra', name: 'Allegra', active: true, has_extra_bed: true, base_price: 80 },
+    { id: 'ambra', name: 'Ambra', active: true, has_extra_bed: true, base_price: 80 },
+    { id: LENA_ID, name: 'Lena', active: true, has_extra_bed: true, base_price: 80, double_price: 90 },
+  ]
+  const quadrupla = { room_id: LENA_ID, check_in: '2026-09-13', check_out: '2026-09-15', status: 'confermata', num_guests: 4, extra_bed: true, extra_bed_dates: ['2026-09-13', '2026-09-14'] }
+  assert.equal(frasiDisponibilita(camereComplete, [quadrupla], '2026-09-13', '2026-09-15', 3),
+    '2 notti · Lena occupata, Amelia, Allegra e Ambra senza posto per 3')
+  // Amelia parte da 1 posto: per 2 persone le serve un letto, e non ce n'è
+  assert.equal(frasiDisponibilita(camereComplete, [quadrupla], '2026-09-13', '2026-09-15', 2),
+    '2 notti · Allegra e Ambra libere, Lena occupata, Amelia senza posto per 2')
+  assert.equal(frasiDisponibilita(camereComplete, [], '2026-09-13', '2026-09-15', 2), '2 notti · tutte le camere libere')
+  assert.equal(frasiDisponibilita(camereComplete, [], '2026-09-13', '2026-09-15', 5), '2 notti · Amelia, Allegra, Ambra e Lena senza posto per 5')
 })

@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { frasiDisponibilita, notti, ordinaCamere, type PrenotazioneMinima } from '@/lib/disponibilita'
 import { spiegaErrore, type CanaleRichiesta } from '@/lib/richieste'
 
-type Camera = { id: string; name: string; active: boolean }
+type Camera = { id: string; name: string; active: boolean; has_extra_bed?: boolean | null; base_price?: number | string | null; double_price?: number | string | null }
 
 const INPUT = 'w-full min-w-0 appearance-none bg-white border border-card-border rounded-lg p-3 text-[15px] focus:outline-none focus:border-green-mid'
 const ETICHETTA = 'text-sm text-stone mb-1'
@@ -35,7 +35,7 @@ export default function NuovaRichiesta() {
   const [errore, setErrore] = useState<string | null>(null)
 
   useEffect(() => {
-    supabase.from('rooms').select('id, name, active').eq('active', true).then(({ data, error }) => {
+    supabase.from('rooms').select('id, name, active, has_extra_bed, base_price, double_price').eq('active', true).then(({ data, error }) => {
       if (error) setErrore(`Camere non caricate: ${error.message}`)
       setCamere(ordinaCamere((data || []) as Camera[]))
     })
@@ -51,7 +51,7 @@ export default function NuovaRichiesta() {
     const chiave = `${arrivo}|${partenza}`
     let alive = true
     supabase.from('bookings')
-      .select('room_id, check_in, check_out, status')
+      .select('room_id, check_in, check_out, status, num_guests, extra_bed, extra_bed_dates')
       .in('status', ['confermata', 'completata'])
       .lt('check_in', partenza).gt('check_out', arrivo)
       .then(({ data, error }) => {
@@ -62,7 +62,7 @@ export default function NuovaRichiesta() {
   }, [arrivo, partenza, dateValide])
 
   const rigaDisponibilita = dateValide && occupazione && occupazione.chiave === `${arrivo}|${partenza}`
-    ? (occupazione.errore ? `${notti(arrivo, partenza)} notti · disponibilità non leggibile (${occupazione.errore})` : frasiDisponibilita(camere, occupazione.prenotazioni, arrivo, partenza))
+    ? (occupazione.errore ? `${notti(arrivo, partenza)} notti · disponibilità non leggibile (${occupazione.errore})` : frasiDisponibilita(camere, occupazione.prenotazioni, arrivo, partenza, persone))
     : (dateValide ? `${notti(arrivo, partenza) === 1 ? '1 notte' : `${notti(arrivo, partenza)} notti`} · controllo le camere…` : '')
 
   function cambiaArrivo(v: string) {

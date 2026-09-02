@@ -11,7 +11,8 @@
 //  C manca_mezzo    inizio e fine coperti, una o più notti scoperte in mezzo
 //  D manca_estremo  un periodo continuo che parte dopo o finisce prima
 //  E completo       nulla copre almeno la metà delle notti
-import { tariffaCamera, totaleLetto } from './tariffe.ts'
+import { tariffaCamera, totaleLetto, capienzaCamera } from './tariffe.ts'
+import { lettiOccupatiPerNotte, cameraOspita, type PrenotazioneLetti } from './lettiAggiuntivi.ts'
 import { contoSoggiorno } from './conto.ts'
 import { ordinaCamere, STATI_CHE_OCCUPANO } from './disponibilita.ts'
 import { giorniTra } from './richiesteCalendario.ts'
@@ -27,7 +28,8 @@ export type CameraListino = {
   active?: boolean | null
 }
 export type RichiestaProposta = { arrivo: string; partenza: string; persone: number; camera_id: string | null }
-export type PrenotazioneOccupante = { room_id: string; check_in: string; check_out: string; status: string }
+// num_guests / extra_bed / extra_bed_dates: i letti aggiuntivi già presi (pool condiviso da 2)
+export type PrenotazioneOccupante = { room_id: string; check_in: string; check_out: string; status: string } & Partial<PrenotazioneLetti>
 
 export type CasoSoluzione = 'completa' | 'cambio' | 'manca_mezzo' | 'manca_estremo' | 'completo'
 
@@ -60,13 +62,7 @@ export const ETICHETTA_CASO: Record<CasoSoluzione, string> = {
 
 export const MAX_SOLUZIONI = 5
 
-// Capienza massima: le stesse soglie delle tariffe (Amelia parte da 1 posto,
-// le altre da 2; il letto aggiuntivo aggiunge 1, Lena arriva a 4).
-export function capienzaCamera(camera: CameraListino): number {
-  const base = camera.name === 'Amelia' ? 1 : 2
-  if (!camera.has_extra_bed) return base
-  return camera.name === 'Lena' ? 4 : base + 1
-}
+export { capienzaCamera }
 
 // Prezzo di un segmento con le regole della conferma: tariffa a notte per
 // persone, letto aggiuntivo per tutte le notti quando addebitato, totale dal conto.
@@ -108,10 +104,15 @@ export function proponiSoluzioni(
   ]
   const preferita = (c: CameraListino) => c.id === richiesta.camera_id
   const occupanti = prenotazioniConfermate.filter(p => STATI_CHE_OCCUPANO.has(p.status))
-  // libera[camera][i] = la camera è libera nella notte notti[i]
+  // Letti aggiuntivi già assegnati alle confermate, notte per notte (pool da 2)
+  const lettiPresi = lettiOccupatiPerNotte(occupanti)
+  // libera[camera][i] = nella notte notti[i] la camera non è occupata E può
+  // ospitare `persone` (capienza + letti aggiuntivi liberi quella notte)
   const libera = new Map<string, boolean[]>()
   for (const c of candidate) {
-    libera.set(c.id, notti.map(g => !occupanti.some(p => p.room_id === c.id && p.check_in <= g && p.check_out > g)))
+    libera.set(c.id, notti.map(g =>
+      !occupanti.some(p => p.room_id === c.id && p.check_in <= g && p.check_out > g)
+      && cameraOspita(c, persone, [g], lettiPresi)))
   }
   const liberaTra = (c: CameraListino, da: number, a: number) => {
     const l = libera.get(c.id)!

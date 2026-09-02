@@ -76,7 +76,7 @@ export default function PropostaPage() {
     Promise.all([
       fetchRichiesta(id),
       supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings').select('room_id, check_in, check_out, status').in('status', ['confermata', 'completata']),
+      supabase.from('bookings').select('room_id, check_in, check_out, status, num_guests, extra_bed, extra_bed_dates').in('status', ['confermata', 'completata']),
     ]).then(([ric, r, b]) => {
       const errs: string[] = []
       if (ric.error) errs.push(ric.error)

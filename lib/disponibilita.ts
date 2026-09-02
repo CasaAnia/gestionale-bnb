@@ -10,9 +10,11 @@
 // check_in < partenza && check_out > arrivo (il giorno di partenza di uno
 // può essere il giorno di arrivo dell'altro).
 import { ROOM_NUMBER_BY_NAME } from './roomTypes.ts'
+import { cameraOspita, lettiOccupatiPerNotte, type PrenotazioneLetti } from './lettiAggiuntivi.ts'
 
-export type CameraMinima = { id: string; name: string; active?: boolean | null }
-export type PrenotazioneMinima = { room_id: string; check_in: string; check_out: string; status: string }
+export type CameraMinima = { id: string; name: string; active?: boolean | null; has_extra_bed?: boolean | null; base_price?: number | string | null; double_price?: number | string | null }
+// num_guests / extra_bed / extra_bed_dates servono per i letti aggiuntivi condivisi
+export type PrenotazioneMinima = { room_id: string; check_in: string; check_out: string; status: string } & Partial<PrenotazioneLetti>
 
 export const STATI_CHE_OCCUPANO = new Set(['confermata', 'completata'])
 
@@ -33,19 +35,33 @@ export function ordinaCamere<T extends CameraMinima>(camere: T[]): T[] {
   return [...camere].sort((a, b) => num(a).localeCompare(num(b)))
 }
 
+export function giorniTra(arrivo: string, partenza: string): string[] {
+  const out: string[] = []
+  let t = Date.parse(arrivo + 'T00:00:00Z')
+  const fine = Date.parse(partenza + 'T00:00:00Z')
+  while (t < fine) { out.push(new Date(t).toISOString().slice(0, 10)); t += 86400000 }
+  return out
+}
+
+// libere = nessun soggiorno confermato sovrapposto E posto per `persone` in
+// ogni notte (capienza + letti aggiuntivi non già presi da altre camere);
+// occupate = un soggiorno confermato le occupa; escluse = libere ma senza
+// posto per quel numero di persone.
 export function camereLibere<T extends CameraMinima>(
-  camere: T[], prenotazioni: PrenotazioneMinima[], arrivo: string, partenza: string,
-): { libere: T[]; occupate: T[] } {
+  camere: T[], prenotazioni: PrenotazioneMinima[], arrivo: string, partenza: string, persone = 1,
+): { libere: T[]; occupate: T[]; escluse: T[] } {
   const attive = ordinaCamere(camere.filter(c => c.active !== false))
-  const occupateId = new Set(
-    prenotazioni
-      .filter(p => STATI_CHE_OCCUPANO.has(p.status) && siSovrappone(p, arrivo, partenza))
-      .map(p => p.room_id),
-  )
-  return {
-    libere: attive.filter(c => !occupateId.has(c.id)),
-    occupate: attive.filter(c => occupateId.has(c.id)),
+  const confermate = prenotazioni.filter(p => STATI_CHE_OCCUPANO.has(p.status))
+  const occupateId = new Set(confermate.filter(p => siSovrappone(p, arrivo, partenza)).map(p => p.room_id))
+  const notti = giorniTra(arrivo, partenza)
+  const lettiPresi = lettiOccupatiPerNotte(confermate.map(p => ({ ...p, room_id: p.room_id })))
+  const libere: T[] = [], occupate: T[] = [], escluse: T[] = []
+  for (const c of attive) {
+    if (occupateId.has(c.id)) occupate.push(c)
+    else if (cameraOspita(c, persone, notti, lettiPresi)) libere.push(c)
+    else escluse.push(c)
   }
+  return { libere, occupate, escluse }
 }
 
 // "Amelia", "Amelia e Lena", "Amelia, Allegra e Lena"
@@ -56,19 +72,18 @@ export function elencoNomi(nomi: string[]): string {
 
 // Riga indicativa sotto le date: "2 notti · Allegra libera, Amelia e Ambra occupate"
 export function frasiDisponibilita(
-  camere: CameraMinima[], prenotazioni: PrenotazioneMinima[], arrivo: string, partenza: string,
+  camere: CameraMinima[], prenotazioni: PrenotazioneMinima[], arrivo: string, partenza: string, persone = 1,
 ): string {
   const n = notti(arrivo, partenza)
   if (n === 0) return ''
-  const { libere, occupate } = camereLibere(camere, prenotazioni, arrivo, partenza)
+  const { libere, occupate, escluse } = camereLibere(camere, prenotazioni, arrivo, partenza, persone)
   const nottiTesto = n === 1 ? '1 notte' : `${n} notti`
-  let stato: string
-  if (camere.length === 0) stato = 'camere non caricate'
-  else if (occupate.length === 0) stato = 'tutte le camere libere'
-  else if (libere.length === 0) stato = 'tutte le camere occupate'
-  else {
-    stato = `${elencoNomi(libere.map(c => c.name))} ${libere.length === 1 ? 'libera' : 'libere'}, `
-      + `${elencoNomi(occupate.map(c => c.name))} ${occupate.length === 1 ? 'occupata' : 'occupate'}`
-  }
-  return `${nottiTesto} · ${stato}`
+  const parti: string[] = []
+  if (camere.length === 0) return `${nottiTesto} · camere non caricate`
+  if (occupate.length === 0 && escluse.length === 0) return `${nottiTesto} · tutte le camere libere`
+  if (libere.length === 0 && escluse.length === 0) return `${nottiTesto} · tutte le camere occupate`
+  if (libere.length > 0) parti.push(`${elencoNomi(libere.map(c => c.name))} ${libere.length === 1 ? 'libera' : 'libere'}`)
+  if (occupate.length > 0) parti.push(`${elencoNomi(occupate.map(c => c.name))} ${occupate.length === 1 ? 'occupata' : 'occupate'}`)
+  if (escluse.length > 0) parti.push(`${elencoNomi(escluse.map(c => c.name))} senza posto per ${persone}`)
+  return `${nottiTesto} · ${parti.join(', ')}`
 }
