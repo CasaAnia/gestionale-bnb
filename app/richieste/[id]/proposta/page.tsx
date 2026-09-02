@@ -10,7 +10,7 @@ import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
 import { supabase } from '@/lib/supabase'
 import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, AVVISO_0025, MOTIVI_RIFIUTO } from '@/lib/richiesteDati'
 import { proponiSoluzioni, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
-import { componiBozza, prezzo as fmtPrezzo } from '@/lib/richiesteTesti'
+import { generaProposta, prezzo as fmtPrezzo } from '@/lib/richiesteTesti'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import { lettoDaComunicare } from '@/lib/tariffe'
 import { openWhatsApp, normalizzaTelefono } from '@/lib/whatsapp'
@@ -110,7 +110,7 @@ export default function PropostaPage() {
   const soluzione: Soluzione | null = inviata && richiesta?.proposta_soluzione
     ? richiesta.proposta_soluzione
     : (soluzioni[Math.min(indice, Math.max(0, soluzioni.length - 1))] ?? null)
-  const bozzaGenerata = richiesta && soluzione ? componiBozza(richiesta, soluzione) : ''
+  const bozzaGenerata = richiesta && soluzione ? generaProposta({ richiesta, soluzione, condizione: null }) : ''
   const testoFinale = inviata && richiesta?.proposta_testo ? richiesta.proposta_testo : (testoModificato ?? bozzaGenerata)
   const telefonoNorm = normalizzaTelefono(richiesta?.telefono)
   const telefono = telefonoNorm.numero

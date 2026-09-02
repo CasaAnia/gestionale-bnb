@@ -194,3 +194,57 @@ export function proponiSoluzioni(
   if (utili.length === 0) return [soluzione('completo', [], notti)]
   return utili.slice(0, MAX_SOLUZIONI)
 }
+
+// ── Disponibilità di una singola camera su un periodo ───────────────────────
+// Stessa regola di proponiSoluzioni: nessuna confermata/completata sovrapposta
+// e posto per `persone` in ogni notte (capienza + pool dei letti condivisi).
+export function cameraDisponibile(
+  camera: CameraListino, arrivo: string, partenza: string, persone: number, prenotazioniConfermate: PrenotazioneOccupante[],
+): boolean {
+  const notti = giorniTra(arrivo, partenza)
+  if (notti.length === 0 || camera.active === false || capienzaCamera(camera) < persone) return false
+  const occupanti = prenotazioniConfermate.filter(p => STATI_CHE_OCCUPANO.has(p.status))
+  if (occupanti.some(p => p.room_id === camera.id && notti.some(g => p.check_in <= g && p.check_out > g))) return false
+  return cameraOspita(camera, persone, notti, lettiOccupatiPerNotte(occupanti))
+}
+
+// ── Alternativa ad Amelia (pezzo 6) ─────────────────────────────────────────
+// Blocco facoltativo, attivato da Ania con un interruttore. Si può offrire solo se:
+//  · la soluzione è un UNICO segmento nella camera Amelia (con più segmenti
+//    lo «stesso periodo» non è definito: scelta prudente, niente alternativa);
+//  · il soggiorno proposto è di almeno NOTTI_MINIME_ALTERNATIVA_AMELIA notti;
+//  · Ambra o Allegra è libera per lo stesso periodo con le stesse persone;
+//  · la differenza a notte è positiva (tutto dalle tariffe reali, in centesimi).
+export const NOTTI_MINIME_ALTERNATIVA_AMELIA = 3
+export const CAMERE_ALTERNATIVE_AMELIA = ['Allegra', 'Ambra']
+
+export type AlternativaAmelia = {
+  camera: CameraListino
+  differenzaNotteCentesimi: number   // in più a notte rispetto ad Amelia, letto compreso
+  prezzoTotaleCentesimi: number      // prezzo complessivo nella camera alternativa
+}
+
+const cent = (n: number) => Math.round(n * 100)
+
+export function alternativaAmelia(
+  richiesta: { persone: number },
+  soluzione: Soluzione,
+  camere: CameraListino[],
+  prenotazioniConfermate: PrenotazioneOccupante[],
+): AlternativaAmelia | null {
+  if (soluzione.segmenti.length !== 1) return null
+  const s = soluzione.segmenti[0]
+  if (s.camera.name !== 'Amelia' || s.notti < NOTTI_MINIME_ALTERNATIVA_AMELIA) return null
+  const persone = Math.max(1, Number(richiesta.persone) || 1)
+  const ameliaNotte = cent(s.prezzoNotte) + Math.round(cent(s.lettoTotale) / s.notti)
+  for (const nome of CAMERE_ALTERNATIVE_AMELIA) {
+    const c = camere.find(x => x.name === nome)
+    if (!c || !cameraDisponibile(c, s.arrivo, s.partenza, persone, prenotazioniConfermate)) continue
+    const alt = segmento(c, s.arrivo, s.partenza, persone)
+    const altNotte = cent(alt.prezzoNotte) + Math.round(cent(alt.lettoTotale) / alt.notti)
+    const differenza = altNotte - ameliaNotte
+    if (differenza <= 0) continue
+    return { camera: c, differenzaNotteCentesimi: differenza, prezzoTotaleCentesimi: cent(alt.totale) }
+  }
+  return null
+}
