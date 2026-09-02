@@ -8,9 +8,10 @@ import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
 import { supabase } from '@/lib/supabase'
-import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, AVVISO_0025, MOTIVI_RIFIUTO } from '@/lib/richiesteDati'
-import { proponiSoluzioni, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
-import { generaProposta, prezzo as fmtPrezzo } from '@/lib/richiesteTesti'
+import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, colonne0029Presenti, AVVISO_0025, AVVISO_0029, MOTIVI_RIFIUTO, type CondizioniSalvate } from '@/lib/richiesteDati'
+import { proponiSoluzioni, alternativaAmelia, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
+import { generaProposta, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, type Condizione } from '@/lib/richiesteTesti'
+import { CONDIZIONI_PAGAMENTO, ETICHETTA_CONDIZIONE, caparraDefault, type CondizionePagamento } from '@/lib/condizioniPrenotazione'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import { lettoDaComunicare } from '@/lib/tariffe'
 import { openWhatsApp, normalizzaTelefono } from '@/lib/whatsapp'
@@ -51,13 +52,14 @@ export default function PropostaPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const desktop = useDesktop()
-  const [richiesta, setRichiesta] = useState<Richiesta & { proposta_testo?: string | null; proposta_soluzione?: Soluzione | null } | null>(null)
+  const [richiesta, setRichiesta] = useState<Richiesta & { proposta_testo?: string | null; proposta_soluzione?: Soluzione | null } & Partial<CondizioniSalvate> | null>(null)
   const [camere, setCamere] = useState<Room[]>([])
   const [prenotazioni, setPrenotazioni] = useState<PrenotazioneOccupante[]>([])
   const [loading, setLoading] = useState(true)
   const [errore, setErrore] = useState<string | null>(null)
   const [avviso, setAvviso] = useState<string | null>(null)
   const [manca0025, setManca0025] = useState(false)
+  const [manca0029, setManca0029] = useState(false)
   const [adesso] = useState(() => new Date())
 
   // Soluzione scelta e bozza (null = quella generata; stringa = modificata a mano)
@@ -65,7 +67,13 @@ export default function PropostaPage() {
   const [testoModificato, setTestoModificato] = useState<string | null>(null)
   const [modo, setModo] = useState<'testo' | 'immagine'>('testo')
   const [pannelloCambia, setPannelloCambia] = useState(false)
-  const [daSostituire, setDaSostituire] = useState<number | null>(null)
+  // Azione rimandata finché Ania non conferma di voler perdere il testo modificato a mano
+  const [azioneSospesa, setAzioneSospesa] = useState<(() => void) | null>(null)
+  // Condizioni di pagamento (pezzo 6): NESSUNA preselezione, le sceglie Ania ogni volta.
+  const [condizioneTipo, setCondizioneTipo] = useState<CondizionePagamento | null>(null)
+  const [caparraTesto, setCaparraTesto] = useState('')          // euro digitati ("70" · "72,50")
+  const [condizioneTesto, setCondizioneTesto] = useState('')    // paragrafo della personalizzata
+  const [ameliaAttiva, setAmeliaAttiva] = useState(false)       // interruttore, spento di default
   const [daRifiutare, setDaRifiutare] = useState(false)
   const [confermando, setConfermando] = useState<{ aperte: Richiesta[] } | null>(null)
   const [occupato, setOccupato] = useState<'invio' | 'rifiuto' | 'immagine' | null>(null)
@@ -94,6 +102,7 @@ export default function PropostaPage() {
       if (b.error) errs.push(`prenotazioni: ${b.error.message}`)
       setRichiesta(ric.data as typeof richiesta)
       setManca0025(!!ric.data && !colonne0025Presenti(ric.data as unknown as Record<string, unknown>))
+      setManca0029(!!ric.data && !colonne0029Presenti(ric.data as unknown as Record<string, unknown>))
       setCamere((r.data || []) as Room[])
       setPrenotazioni((b.data || []) as PrenotazioneOccupante[])
       setErrore(errs.length ? errs.join(' · ') : null)
@@ -110,11 +119,43 @@ export default function PropostaPage() {
   const soluzione: Soluzione | null = inviata && richiesta?.proposta_soluzione
     ? richiesta.proposta_soluzione
     : (soluzioni[Math.min(indice, Math.max(0, soluzioni.length - 1))] ?? null)
-  const bozzaGenerata = richiesta && soluzione ? generaProposta({ richiesta, soluzione, condizione: null }) : ''
+  const completo = soluzione?.caso === 'completo'
+  const totaleCent = soluzione ? centesimiTotale(soluzione) : 0
+  // Alternativa ad Amelia: solo se le condizioni del blocco sono soddisfatte (calcolo puro)
+  const amelia = useMemo(
+    () => (richiesta && soluzione && !inviata ? alternativaAmelia(richiesta, soluzione, camere, prenotazioni) : null),
+    [richiesta, soluzione, camere, prenotazioni, inviata],
+  )
+  const caparraCent = centesimi(caparraTesto.replace(',', '.'))
+  // Condizione scelta e controllo: senza scelta (o con importo/testo mancante) niente invio
+  const condizione: Condizione | null =
+    condizioneTipo === 'arrivo' ? { tipo: 'arrivo' }
+    : condizioneTipo === 'caparra' ? { tipo: 'caparra', caparraCentesimi: caparraCent }
+    : condizioneTipo === 'completo' ? { tipo: 'completo' }
+    : condizioneTipo === 'personalizzata' ? { tipo: 'personalizzata', testo: condizioneTesto }
+    : null
+  const problemaCondizione: string | null = completo ? null
+    : condizioneTipo === null ? 'Scegli le condizioni di pagamento'
+    : condizioneTipo === 'caparra' && !(caparraCent > 0) ? "Scrivi l'importo della caparra"
+    : condizioneTipo === 'caparra' && caparraCent > totaleCent ? 'La caparra supera il totale'
+    : condizioneTipo === 'personalizzata' && condizioneTesto.trim() === '' ? 'Scrivi le condizioni di pagamento'
+    : null
+  const bozzaGenerata = richiesta && soluzione
+    ? generaProposta({ richiesta, soluzione, condizione: problemaCondizione ? null : condizione, amelia: ameliaAttiva ? amelia : null })
+    : ''
   const testoFinale = inviata && richiesta?.proposta_testo ? richiesta.proposta_testo : (testoModificato ?? bozzaGenerata)
   const telefonoNorm = normalizzaTelefono(richiesta?.telefono)
   const telefono = telefonoNorm.numero
-  const completo = soluzione?.caso === 'completo'
+  const mancaMigrazione = manca0025 ? AVVISO_0025 : manca0029 ? AVVISO_0029 : null
+  // Cosa si salva con «Sì, inviata» (nel caso E nessuna condizione)
+  const condizioniSalvate: CondizioniSalvate = completo || !condizione
+    ? { condizione_pagamento: null, caparra_centesimi: null, condizione_testo: null, amelia_alternativa: false }
+    : {
+      condizione_pagamento: condizione.tipo,
+      caparra_centesimi: condizione.tipo === 'caparra' ? condizione.caparraCentesimi : null,
+      condizione_testo: condizione.tipo === 'personalizzata' ? condizione.testo.trim() : null,
+      amelia_alternativa: ameliaAttiva && amelia !== null,
+    }
   const modoEffettivo = completo || soluzione === null ? 'testo' : modo
 
   // La textarea cresce col contenuto
@@ -153,18 +194,35 @@ export default function PropostaPage() {
     return { seg, righe, totale, lettoAggiuntivo }
   }, [richiesta, soluzione])
 
-  function scegli(i: number) {
-    if (testoModificato !== null && testoModificato !== bozzaGenerata) { setDaSostituire(i); return }
-    setIndice(i); setTestoModificato(null); setPannelloCambia(false)
+  // Le azioni che rigenerano la bozza chiedono conferma se il testo è stato modificato a mano
+  function conConferma(azione: () => void) {
+    if (testoModificato !== null && testoModificato !== bozzaGenerata) { setAzioneSospesa(() => azione); return }
+    azione()
   }
+  function scegli(i: number) {
+    conConferma(() => {
+      // Nuova soluzione → si ricomincia dalle condizioni: mai una scelta trascinata da un'altra soluzione
+      setIndice(i); setTestoModificato(null); setPannelloCambia(false)
+      setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false)
+    })
+  }
+  function scegliCondizione(tipo: CondizionePagamento) {
+    conConferma(() => {
+      setCondizioneTipo(tipo)
+      // Caparra: precompilata col 50% del totale, ma modificabile
+      if (tipo === 'caparra' && caparraTesto === '') setCaparraTesto(fmtPrezzo(caparraDefault(totaleCent) / 100))
+    })
+  }
+  function cambiaAmelia(attiva: boolean) { conConferma(() => setAmeliaAttiva(attiva)) }
 
   // Apre WhatsApp e basta: lo stato NON cambia qui. Cambia solo con «Sì, inviata».
   function invia() {
     if (!richiesta || !soluzione) return
     setErrore(null); setAvviso(null)
-    if (manca0025) { setErrore(AVVISO_0025); return }
+    if (mancaMigrazione) { setErrore(mancaMigrazione); return }
+    if (!inviata && problemaCondizione) { setErrore(problemaCondizione); return }
     if (!telefono) { setErrore('Nessun numero di telefono sulla richiesta: aggiungilo prima di inviare.'); return }
-    try { window.localStorage.setItem(chiavePendente, JSON.stringify({ testo: testoFinale })) } catch { /* senza memoria la barra vive solo in pagina */ }
+    try { window.localStorage.setItem(chiavePendente, JSON.stringify({ testo: testoFinale, condizioni: condizioniSalvate })) } catch { /* senza memoria la barra vive solo in pagina */ }
     openWhatsApp(telefono, testoFinale)
     setChiediConferma(true)
   }
@@ -172,13 +230,23 @@ export default function PropostaPage() {
   // Ripresa dopo un ricaricamento: se c'è un invio in sospeso, la barra torna
   useEffect(() => {
     if (!id || loading || !richiesta) return
-    let salvato: { testo?: string } | null = null
+    let salvato: { testo?: string; condizioni?: Partial<CondizioniSalvate> } | null = null
     try { salvato = JSON.parse(window.localStorage.getItem(chiavePendente) || 'null') } catch { salvato = null }
     if (!salvato) return
     const testoSalvato = salvato.testo
+    const condSalvate = salvato.condizioni
     const t = setTimeout(() => {
       setChiediConferma(true)
-      if (testoSalvato && richiesta.stato !== 'proposta_inviata') setTestoModificato(prev => prev ?? testoSalvato)
+      if (richiesta.stato !== 'proposta_inviata') {
+        if (testoSalvato) setTestoModificato(prev => prev ?? testoSalvato)
+        // Anche le condizioni scelte tornano, così «Sì, inviata» salva quel che è partito
+        if (condSalvate?.condizione_pagamento) {
+          setCondizioneTipo(condSalvate.condizione_pagamento)
+          if (condSalvate.caparra_centesimi) setCaparraTesto(fmtPrezzo(condSalvate.caparra_centesimi / 100))
+          if (condSalvate.condizione_testo) setCondizioneTesto(condSalvate.condizione_testo)
+          setAmeliaAttiva(!!condSalvate.amelia_alternativa)
+        }
+      }
     }, 0)
     return () => clearTimeout(t)
   }, [id, loading, richiesta, chiavePendente])
@@ -200,12 +268,12 @@ export default function PropostaPage() {
   async function confermaInviata() {
     if (!richiesta || !soluzione) return
     setErrore(null); setAvviso(null); setOccupato('invio')
-    const r = await segnaPropostaInviata(richiesta.id, testoFinale, soluzione)
+    const r = await segnaPropostaInviata(richiesta.id, testoFinale, soluzione, condizioniSalvate)
     setOccupato(null)
     if (r.error) { setErrore(`Stato non aggiornato: ${r.error}`); return }
     try { window.localStorage.removeItem(chiavePendente) } catch { /* niente */ }
     setChiediConferma(false)
-    setRichiesta({ ...richiesta, stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at, proposta_testo: testoFinale, proposta_soluzione: soluzione })
+    setRichiesta({ ...richiesta, stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at, proposta_testo: testoFinale, proposta_soluzione: soluzione, ...condizioniSalvate })
   }
 
   async function rifiuta(motivo?: string) {
@@ -275,6 +343,53 @@ export default function PropostaPage() {
     </div>
   )
 
+  // Riepilogo della condizione salvata (proposta già inviata)
+  const condizioneInviata = inviata ? condizioneDaColonne(richiesta) : null
+  const riassuntoCondizione = condizioneInviata
+    ? `${ETICHETTA_CONDIZIONE[condizioneInviata.tipo]}${condizioneInviata.tipo === 'caparra' ? ` ${formattaEuro(condizioneInviata.caparraCentesimi)}` : ''}${richiesta.amelia_alternativa ? ' · con alternativa ad Amelia' : ''}`
+    : null
+
+  const condizioni = !inviata && soluzione && !completo && (
+    <div className="mt-3" role="group" aria-label="Condizioni di pagamento">
+      <p className="text-sm font-semibold text-green-dark mb-2">Condizioni di pagamento</p>
+      <div className="flex flex-wrap gap-2">
+        {CONDIZIONI_PAGAMENTO.map(tipo => (
+          <button key={tipo} type="button" onClick={() => scegliCondizione(tipo)} aria-pressed={condizioneTipo === tipo}
+            className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${condizioneTipo === tipo ? 'bg-green-mid text-cream-text' : 'bg-white text-green-dark border border-card-border'}`}>
+            {ETICHETTA_CONDIZIONE[tipo]}
+          </button>
+        ))}
+      </div>
+      {condizioneTipo === 'caparra' && (
+        <div className="mt-2.5">
+          <label className="block text-xs mb-1" style={{ color: GRIGIO_NOTA }} htmlFor="caparra">Caparra confirmatoria (€) · proposta al {fmtPrezzo(caparraDefault(totaleCent) / 100)} €, cioè il 50% di {fmtPrezzo(totaleCent / 100)} €</label>
+          <input id="caparra" type="text" inputMode="decimal" value={caparraTesto} onChange={e => setCaparraTesto(e.target.value)} aria-label="Importo della caparra in euro"
+            className="w-full min-w-0 appearance-none bg-white rounded-xl px-3 py-2.5 text-[15px] text-green-dark focus:outline-none focus:border-green-mid" style={{ border: `1px solid ${BORDO}` }} />
+          {problemaCondizione && problemaCondizione !== 'Scegli le condizioni di pagamento' && <p className="text-xs mt-1 font-semibold text-[#8C3B2E]">{problemaCondizione}</p>}
+        </div>
+      )}
+      {condizioneTipo === 'personalizzata' && (
+        <div className="mt-2.5">
+          <label className="block text-xs mb-1" style={{ color: GRIGIO_NOTA }} htmlFor="condizione-testo">Scrivi il paragrafo delle condizioni: la chiusura «Grazie mille, Ania – Casa Ania» viene aggiunta da sola</label>
+          <textarea id="condizione-testo" value={condizioneTesto} onChange={e => setCondizioneTesto(e.target.value)} rows={4} aria-label="Condizioni di pagamento personalizzate"
+            className="w-full bg-white rounded-xl p-3 text-[13px] text-green-dark leading-relaxed resize-none focus:outline-none focus:border-green-mid" style={{ border: `1px solid ${BORDO}` }} />
+        </div>
+      )}
+      {amelia && (
+        <div className="mt-3 flex items-center justify-between gap-3 bg-white rounded-xl px-3 py-2.5" style={{ border: `1px solid ${BORDO}` }}>
+          <span className="min-w-0">
+            <span className="block text-sm font-medium text-green-dark">Aggiungi alternativa Ambra/Allegra</span>
+            <span className="block text-xs" style={{ color: GRIGIO_NOTA }}>{amelia.camera.name}, {formattaEuro(amelia.differenzaNotteCentesimi)} in più a notte · totale {formattaEuro(amelia.prezzoTotaleCentesimi)}</span>
+          </span>
+          <button type="button" role="switch" aria-checked={ameliaAttiva} aria-label="Aggiungi alternativa Ambra/Allegra" onClick={() => cambiaAmelia(!ameliaAttiva)}
+            className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${ameliaAttiva ? 'bg-green-mid' : 'bg-border-soft'}`}>
+            <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${ameliaAttiva ? 'translate-x-5' : ''}`} aria-hidden />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+
   const bozza = (
     <div>
       {!inviata && (
@@ -288,7 +403,10 @@ export default function PropostaPage() {
         </div>
       )}
       {inviata ? (
-        <div className="bg-white rounded-xl p-3 text-[13px] text-green-dark whitespace-pre-wrap leading-relaxed" style={{ border: `1px solid ${BORDO}` }}>{testoFinale}</div>
+        <>
+          <div className="bg-white rounded-xl p-3 text-[13px] text-green-dark whitespace-pre-wrap leading-relaxed" style={{ border: `1px solid ${BORDO}` }}>{testoFinale}</div>
+          {riassuntoCondizione && <p className="text-xs mt-1.5" style={{ color: GRIGIO_NOTA }}>Condizioni inviate: {riassuntoCondizione}</p>}
+        </>
       ) : (
         <textarea ref={textareaRef} value={testoFinale} onChange={e => setTestoModificato(e.target.value)} rows={6} spellCheck={false}
           aria-label="Bozza del messaggio"
@@ -321,9 +439,9 @@ export default function PropostaPage() {
       {errore && <div role="alert" className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore}</div>}
       {avviso && <div role="status" className="mt-3 bg-sand border border-card-border rounded-xl p-3 text-sm text-green-dark">{avviso}</div>}
 
-      <button type="button" onClick={invia} disabled={!!occupato || !soluzione || chiediConferma || manca0025} className={`${PIENO} mt-4`}>
+      <button type="button" onClick={invia} disabled={!!occupato || !soluzione || chiediConferma || !!mancaMigrazione || (!inviata && !!problemaCondizione)} className={`${PIENO} mt-4`}>
         <IconaWhatsApp />
-        {inviata ? 'Invia di nuovo' : (modoEffettivo === 'immagine' ? '2 · Apri WhatsApp e invia' : 'Apri WhatsApp e invia')}
+        {inviata ? 'Invia di nuovo' : problemaCondizione ? problemaCondizione : (modoEffettivo === 'immagine' ? '2 · Apri WhatsApp e invia' : 'Apri WhatsApp e invia')}
       </button>
       {chiediConferma && (
         <div ref={barraRef} role="group" aria-label="Conferma dell'invio" className="scheda-in mt-3 bg-white rounded-xl p-3" style={{ border: `1px solid ${BORDO}` }}>
@@ -360,9 +478,9 @@ export default function PropostaPage() {
     <div className="p-4">
       <BackBar href="/richieste" />
       <h1 className="text-[22px] text-green-dark leading-tight mb-3" style={FRAUNCES}>Proposta per {nomeCompleto(richiesta)}</h1>
-      {manca0025 && (
+      {mancaMigrazione && (
         <div role="alert" className="mb-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">
-          {AVVISO_0025} Finché manca, la proposta non può essere registrata.
+          {mancaMigrazione} Finché manca, la proposta non può essere registrata.
         </div>
       )}
 
@@ -370,6 +488,7 @@ export default function PropostaPage() {
         <section>
           {riepilogo}
           {caso}
+          {condizioni}
         </section>
         <section className="mt-4 md:mt-0">
           {bozza}
@@ -403,9 +522,9 @@ export default function PropostaPage() {
         </div>
       )}
 
-      {daSostituire !== null && (
-        <ConfermaDialog titolo="Sostituire il testo modificato?" testo="La bozza verrà rigenerata con la nuova soluzione e le modifiche a mano andranno perse."
-          conferma="Sostituisci" onConferma={() => { setIndice(daSostituire); setTestoModificato(null); setDaSostituire(null); setPannelloCambia(false) }} onAnnulla={() => setDaSostituire(null)} />
+      {azioneSospesa && (
+        <ConfermaDialog titolo="Sostituire il testo modificato?" testo="La bozza verrà rigenerata con la nuova scelta e le modifiche a mano andranno perse."
+          conferma="Sostituisci" onConferma={() => { azioneSospesa(); setTestoModificato(null); setAzioneSospesa(null) }} onAnnulla={() => setAzioneSospesa(null)} />
       )}
       {confermando && (
         <FinestraConferma richiesta={richiesta as RichiestaConProposta} aperte={confermando.aperte} layout={desktop ? 'desktop' : 'mobile'}

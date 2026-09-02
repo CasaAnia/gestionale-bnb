@@ -53,12 +53,17 @@ const bookings = [
   { id: 'bbbbbbbb-0007-4000-8000-000000000007', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(21), check_out: giorni(23), num_guests: 2, status: 'completata', guest_name: 'Sotto Richiesta' },
   // Quadrupla in Lena: prende ENTRAMBI i letti del pool per le notti +14 e +15
   { id: 'bbbbbbbb-0008-4000-8000-000000000008', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(14), check_out: giorni(16), num_guests: 4, status: 'confermata', extra_bed: true, extra_bed_dates: [giorni(14), giorni(15)], extra_bed_total: 20, guest_name: 'Quadrupla Piena' },
+  // Tutte e quattro le camere occupate la notte +51: la richiesta Lis 50–53 dà il caso C con la notte scoperta in mezzo
+  { id: 'bbbbbbbb-0009-4000-8000-000000000009', room_id: ROOM.amelia, guest_id: guests[0].id, check_in: giorni(51), check_out: giorni(52), num_guests: 1, status: 'confermata', guest_name: 'Buco Amelia' },
+  { id: 'bbbbbbbb-0010-4000-8000-000000000010', room_id: ROOM.allegra, guest_id: guests[0].id, check_in: giorni(51), check_out: giorni(52), num_guests: 2, status: 'confermata', guest_name: 'Buco Allegra' },
+  { id: 'bbbbbbbb-0011-4000-8000-000000000011', room_id: ROOM.ambra, guest_id: guests[0].id, check_in: giorni(51), check_out: giorni(52), num_guests: 2, status: 'confermata', guest_name: 'Buco Ambra' },
+  { id: 'bbbbbbbb-0012-4000-8000-000000000012', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(51), check_out: giorni(52), num_guests: 2, status: 'confermata', guest_name: 'Buco Lena' },
   { id: 'bbbbbbbb-0003-4000-8000-000000000003', room_id: ROOM.allegra, guest_id: guests[0].id, check_in: giorni(10), check_out: giorni(12), num_guests: 2, status: 'in_attesa' },
   { id: 'bbbbbbbb-0004-4000-8000-000000000004', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(10), check_out: giorni(12), num_guests: 2, status: 'annullata' },
 ].map(b => ({ extra_bed: false, extra_bed_dates: [], price_per_night: 70, extra_bed_total: 0, total_amount: 140, source: 'diretta', guest_name: null, notes: null, cancelled_at: null, cancelled_reason: null, group_id: null, pagato: false, bonifico: false, created_at: ora, updated_at: ora, ...b }))
 
 function richiesta(x) {
-  return { id: randomUUID(), created_at: ora, camera_id: null, telefono: null, note: null, stato: 'in_attesa', proposta_inviata_at: null, chiusa_at: null, prenotazione_id: null, proposta_testo: null, proposta_soluzione: null, motivo_rifiuto: null, origine: null, ...x }
+  return { id: randomUUID(), created_at: ora, camera_id: null, telefono: null, note: null, stato: 'in_attesa', proposta_inviata_at: null, chiusa_at: null, prenotazione_id: null, proposta_testo: null, proposta_soluzione: null, motivo_rifiuto: null, origine: null, condizione_pagamento: null, caparra_centesimi: null, condizione_testo: null, amelia_alternativa: false, ...x }
 }
 const richieste = [
   richiesta({ nome: 'Anna', cognome: 'Rossi', arrivo: giorni(11), partenza: giorni(13), persone: 2, canale: 'web', created_at: fa(20), origine: 'google' }),
@@ -68,6 +73,10 @@ const richieste = [
   richiesta({ nome: 'Piotr', cognome: 'Nowak', arrivo: giorni(12), partenza: giorni(14), persone: 2, canale: 'telefono', telefono: '+39 333 000 0009', created_at: fa(90) }),
   // 3 persone nelle notti della quadrupla: nessun letto libero → Allegra non basta (atteso «Completo» o parziale)
   richiesta({ nome: 'Tre', cognome: 'Persone', arrivo: giorni(14), partenza: giorni(16), persone: 3, camera_id: ROOM.allegra, canale: 'telefono', telefono: '+44 7700 900123', created_at: fa(30) }),
+  // Pezzo 6: 1 persona per 3 notti con tutto libero → caso A in Amelia con l'alternativa Allegra disponibile
+  richiesta({ nome: 'Ewa', cognome: 'Lis', arrivo: giorni(40), partenza: giorni(43), persone: 1, canale: 'whatsapp', telefono: '+48 600 000 000', created_at: fa(12) }),
+  // Pezzo 6: notte +51 tutta occupata → caso C (notte scoperta in mezzo) anche nell'immagine
+  richiesta({ nome: 'Jan', cognome: 'Buco', arrivo: giorni(50), partenza: giorni(53), persone: 1, canale: 'telefono', telefono: '+39 333 000 0050', created_at: fa(8) }),
   richiesta({ nome: 'Sara', cognome: 'Verdi', arrivo: giorni(30), partenza: giorni(35), persone: 4, canale: 'web', created_at: fa(5), note: 'Chiede due camere vicine' }),
   richiesta({ nome: 'Paolo', cognome: 'Neri', arrivo: giorni(-3), partenza: giorni(-1), persone: 2, canale: 'telefono', created_at: fa(60 * 24 * 8), stato: 'confermata', chiusa_at: fa(60 * 24 * 7) }),
   richiesta({ nome: 'Giulia', cognome: 'Gallo', arrivo: giorni(2), partenza: giorni(4), persone: 2, canale: 'whatsapp', created_at: fa(60 * 24 * 2), stato: 'rifiutata', chiusa_at: fa(60 * 24) }),

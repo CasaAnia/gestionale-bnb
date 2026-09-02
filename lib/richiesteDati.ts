@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import { STATI_APERTI, spiegaErrore, type Richiesta } from './richieste'
+import type { CondizionePagamento } from './condizioniPrenotazione'
 
 // Tutte le richieste con il nome della camera. Gli errori tornano al
 // chiamante come testo: la pagina li mostra, mai catch silenziosi.
@@ -86,12 +87,33 @@ export function colonne0025Presenti(riga: Record<string, unknown> | null | undef
   return !!riga && 'proposta_testo' in riga && 'proposta_soluzione' in riga
 }
 
-export async function segnaPropostaInviata(id: string, testo: string, soluzione: unknown): Promise<{ proposta_inviata_at: string; error: string | null }> {
+// Pezzo 6: insieme alla bozza si salvano le condizioni di pagamento scelte da
+// Ania (migrazione 0029). Stessa regola della 0025: colonne assenti → nessun
+// salvataggio e avviso a schermo.
+export const AVVISO_0029 = 'Va applicata la migrazione 0029 (colonne condizione_pagamento, caparra_centesimi, condizione_testo, amelia_alternativa).'
+export const COLONNE_0029 = ['condizione_pagamento', 'caparra_centesimi', 'condizione_testo', 'amelia_alternativa'] as const
+
+export type CondizioniSalvate = {
+  condizione_pagamento: CondizionePagamento | null
+  caparra_centesimi: number | null
+  condizione_testo: string | null
+  amelia_alternativa: boolean
+}
+
+export function manca0029(e: { code?: string; message?: string } | null | undefined): boolean {
+  return !!e && (new RegExp(COLONNE_0029.join('|'), 'i').test(e.message || '') || e.code === 'PGRST204' || e.code === '42703')
+}
+
+export function colonne0029Presenti(riga: Record<string, unknown> | null | undefined): boolean {
+  return !!riga && COLONNE_0029.every(c => c in riga)
+}
+
+export async function segnaPropostaInviata(id: string, testo: string, soluzione: unknown, condizioni: CondizioniSalvate): Promise<{ proposta_inviata_at: string; error: string | null }> {
   const proposta_inviata_at = new Date().toISOString()
   const { data, error } = await supabase.from('richieste')
-    .update({ stato: 'proposta_inviata', proposta_inviata_at, proposta_testo: testo, proposta_soluzione: soluzione })
+    .update({ stato: 'proposta_inviata', proposta_inviata_at, proposta_testo: testo, proposta_soluzione: soluzione, ...condizioni })
     .eq('id', id).select('id, proposta_testo')
-  if (error) return { proposta_inviata_at, error: manca0025(error) ? AVVISO_0025 : spiegaErrore(error) }
+  if (error) return { proposta_inviata_at, error: manca0025(error) ? AVVISO_0025 : manca0029(error) ? AVVISO_0029 : spiegaErrore(error) }
   if (!data || data.length === 0) return { proposta_inviata_at, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere stata chiusa.' }
   return { proposta_inviata_at, error: null }
 }
