@@ -45,8 +45,12 @@ const guests = [{ id: 'aaaaaaaa-0001-4000-8000-000000000001', phone: '+39 333 00
 // Prenotazioni intorno a fra 10 giorni: Amelia e Ambra occupate, Allegra in
 // attesa (NON conta), Lena annullata (NON conta).
 const bookings = [
-  { id: 'bbbbbbbb-0001-4000-8000-000000000001', room_id: ROOM.amelia, guest_id: guests[0].id, check_in: giorni(9), check_out: giorni(12), num_guests: 2, status: 'confermata' },
-  { id: 'bbbbbbbb-0002-4000-8000-000000000002', room_id: ROOM.ambra, guest_id: guests[0].id, check_in: giorni(11), check_out: giorni(13), num_guests: 1, status: 'confermata' },
+  { id: 'bbbbbbbb-0001-4000-8000-000000000001', room_id: ROOM.amelia, guest_id: guests[0].id, check_in: giorni(9), check_out: giorni(12), num_guests: 2, status: 'confermata', pagato: true, guest_name: 'Pagata Piena' },
+  { id: 'bbbbbbbb-0002-4000-8000-000000000002', room_id: ROOM.ambra, guest_id: guests[0].id, check_in: giorni(11), check_out: giorni(13), num_guests: 1, status: 'confermata', bonifico: true, guest_name: 'Bonifico Attesa' },
+  // Cambio camera: stesso group_id, Lena poi Allegra
+  { id: 'bbbbbbbb-0005-4000-8000-000000000005', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(2), check_out: giorni(4), num_guests: 3, status: 'confermata', group_id: 'gggggggg-0001-4000-8000-000000000001', extra_bed: true, extra_bed_dates: [giorni(2), giorni(3)], guest_name: 'Cambio Camera' },
+  { id: 'bbbbbbbb-0006-4000-8000-000000000006', room_id: ROOM.allegra, guest_id: guests[0].id, check_in: giorni(4), check_out: giorni(6), num_guests: 3, status: 'confermata', group_id: 'gggggggg-0001-4000-8000-000000000001', guest_name: 'Cambio Camera' },
+  { id: 'bbbbbbbb-0007-4000-8000-000000000007', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(21), check_out: giorni(23), num_guests: 2, status: 'completata', guest_name: 'Sotto Richiesta' },
   { id: 'bbbbbbbb-0003-4000-8000-000000000003', room_id: ROOM.allegra, guest_id: guests[0].id, check_in: giorni(10), check_out: giorni(12), num_guests: 2, status: 'in_attesa' },
   { id: 'bbbbbbbb-0004-4000-8000-000000000004', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(10), check_out: giorni(12), num_guests: 2, status: 'annullata' },
 ].map(b => ({ extra_bed: false, extra_bed_dates: [], price_per_night: 70, extra_bed_total: 0, total_amount: 140, source: 'diretta', guest_name: null, notes: null, cancelled_at: null, cancelled_reason: null, group_id: null, pagato: false, bonifico: false, created_at: ora, updated_at: ora, ...b }))
@@ -64,7 +68,8 @@ const richieste = [
   richiesta({ nome: 'Vecchia', cognome: 'Chiusa', arrivo: giorni(-120), partenza: giorni(-118), persone: 1, canale: 'web', created_at: fa(60 * 24 * 130), stato: 'confermata', chiusa_at: fa(60 * 24 * 120) }),
 ]
 
-const tabelle = { rooms, guests, bookings, richieste, payments: [] }
+const payments = [{ id: 'pppppppp-0001-4000-8000-000000000001', booking_id: 'bbbbbbbb-0006-4000-8000-000000000006', amount: 70 }]
+const tabelle = { rooms, guests, bookings, richieste, payments }
 const chiaveEsterna = {
   bookings: { guests: 'guest_id', rooms: 'room_id' },
   richieste: { rooms: 'camera_id' },

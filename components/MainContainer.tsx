@@ -5,11 +5,12 @@ import { usePathname } from 'next/navigation'
 // media (moduli e liste si leggono meglio raccolti). Calendario, Arrivi e
 // Statistiche restano a piena larghezza: hanno griglie e grafici che chiedono
 // spazio.
-const FULL_WIDTH = ['/calendario', '/arrivi', '/statistiche']
+// Richieste: calendario e lista affiancati chiedono tutta la larghezza.
+const FULL_WIDTH = ['/calendario', '/arrivi', '/statistiche', '/richieste']
 
 // Su desktop il contenuto è ingrandito del 20%. Calendario e Arrivi sono
 // esclusi: le loro griglie hanno già un ingrandimento proprio (GRID_SCALE).
-const NO_ZOOM = ['/calendario', '/arrivi']
+const NO_ZOOM = ['/calendario', '/arrivi', '/richieste']
 
 export default function MainContainer({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
