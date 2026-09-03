@@ -73,7 +73,7 @@ const bookings = [
 ].map(b => ({ extra_bed: false, extra_bed_dates: [], price_per_night: 70, extra_bed_total: 0, total_amount: 140, source: 'diretta', guest_name: null, notes: null, cancelled_at: null, cancelled_reason: null, group_id: null, pagato: false, bonifico: false, created_at: ora, updated_at: ora, ...b }))
 
 function richiesta(x) {
-  return { id: randomUUID(), created_at: ora, camera_id: null, telefono: null, note: null, stato: 'in_attesa', proposta_inviata_at: null, chiusa_at: null, prenotazione_id: null, proposta_testo: null, proposta_soluzione: null, motivo_rifiuto: null, origine: null, condizione_pagamento: null, caparra_centesimi: null, condizione_testo: null, amelia_alternativa: false, ...x }
+  return { id: randomUUID(), created_at: ora, camera_id: null, telefono: null, note: null, stato: 'in_attesa', proposta_inviata_at: null, chiusa_at: null, prenotazione_id: null, proposta_testo: null, proposta_soluzione: null, motivo_rifiuto: null, origine: null, condizione_pagamento: null, caparra_centesimi: null, condizione_testo: null, amelia_alternativa: false, persone_per_notte: null, proposte_precedenti: [], proposta_alternative: null, ...x }
 }
 const richieste = [
   richiesta({ nome: 'Anna', cognome: 'Rossi', arrivo: giorni(11), partenza: giorni(13), persone: 2, canale: 'web', created_at: fa(20), origine: 'google' }),
@@ -87,6 +87,8 @@ const richieste = [
   richiesta({ nome: 'Ewa', cognome: 'Lis', arrivo: giorni(40), partenza: giorni(43), persone: 1, canale: 'whatsapp', telefono: '+48 600 000 000', created_at: fa(12) }),
   // Pezzo 6: notte +51 tutta occupata → caso C (notte scoperta in mezzo) anche nell'immagine
   richiesta({ nome: 'Jan', cognome: 'Buco', arrivo: giorni(50), partenza: giorni(53), persone: 1, canale: 'telefono', telefono: '+39 333 000 0050', created_at: fa(8) }),
+  // Pezzo 9: il caso reale — in 2 la prima notte (il marito poi viene ricoverato), poi da sola per 3 notti
+  richiesta({ nome: 'Marta', cognome: 'Ricovero', arrivo: giorni(60), partenza: giorni(64), persone: 2, persone_per_notte: [2, 1, 1, 1], canale: 'telefono', telefono: '+39 333 000 0060', created_at: fa(3) }),
   richiesta({ nome: 'Sara', cognome: 'Verdi', arrivo: giorni(30), partenza: giorni(35), persone: 4, canale: 'web', created_at: fa(5), note: 'Chiede due camere vicine' }),
   richiesta({ nome: 'Paolo', cognome: 'Neri', arrivo: giorni(-3), partenza: giorni(-1), persone: 2, canale: 'telefono', created_at: fa(60 * 24 * 8), stato: 'confermata', chiusa_at: fa(60 * 24 * 7) }),
   richiesta({ nome: 'Giulia', cognome: 'Gallo', arrivo: giorni(2), partenza: giorni(4), persone: 2, canale: 'whatsapp', created_at: fa(60 * 24 * 2), stato: 'rifiutata', chiusa_at: fa(60 * 24) }),

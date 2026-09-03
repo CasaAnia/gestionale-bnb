@@ -23,6 +23,7 @@ export interface Richiesta {
   chiusa_at: string | null
   prenotazione_id: string | null
   origine?: string | null        // dal sito: "google", "diretto"… (migrazione 0028)
+  persone_per_notte?: number[] | null   // pezzo 9 (migrazione 0031): un intero per notte, null = tutte uguali a persone
   rooms?: { name: string } | null
 }
 
@@ -155,4 +156,66 @@ export function daGuardare<T extends Pick<Richiesta, 'stato' | 'arrivo' | 'creat
 // Richieste dal sito arrivate dopo l'ultima apertura della pagina
 export function nuoveDalSito<T extends Pick<Richiesta, 'canale' | 'created_at'>>(lista: T[], ultimaVisita: string | null): T[] {
   return lista.filter(r => r.canale === 'web' && (!ultimaVisita || r.created_at > ultimaVisita))
+}
+
+// ── Persone notte per notte (pezzo 9) ──────────────────────────────────────
+// "17: 2 · 18–20: 1" · attraverso i mesi "30 set: 2 · 1–2 ott: 1"
+export function riassuntoPersone(arrivo: string, persone: number[]): string {
+  if (persone.length === 0) return ''
+  const giorni: { g: number; m: number }[] = []
+  let t = Date.parse(arrivo + 'T00:00:00Z')
+  for (let i = 0; i < persone.length; i++, t += 86400000) { const d = new Date(t); giorni.push({ g: d.getUTCDate(), m: d.getUTCMonth() }) }
+  const piuMesi = new Set(giorni.map(x => x.m)).size > 1
+  const etich = (i: number) => `${giorni[i].g}${piuMesi ? ` ${MESI[giorni[i].m]}` : ''}`
+  const gruppi: string[] = []
+  let da = 0
+  for (let i = 1; i <= persone.length; i++) {
+    if (i === persone.length || persone[i] !== persone[da]) {
+      const a = i - 1
+      const stessoMese = giorni[da].m === giorni[a].m
+      const intervallo = da === a ? etich(da) : (stessoMese && piuMesi ? `${giorni[da].g}–${giorni[a].g} ${MESI[giorni[a].m]}` : `${etich(da).split(' ')[0]}${piuMesi && !stessoMese ? ` ${MESI[giorni[da].m]}` : ''}–${etich(a)}`)
+      gruppi.push(`${intervallo}: ${persone[da]}`)
+      da = i
+    }
+  }
+  return gruppi.join(' · ')
+}
+
+// ── Modifica di una richiesta (pezzo 9) ────────────────────────────────────
+// Si modificano solo le richieste aperte. Se la richiesta aveva una proposta
+// inviata e cambiano date, persone o camera, la proposta non vale più: lo
+// stato torna in_attesa e la proposta finisce nello storico. Telefono, note e
+// canale non toccano lo stato.
+export type ValoriModifica = {
+  nome: string; cognome: string; arrivo: string; partenza: string; persone: number
+  persone_per_notte: number[] | null; camera_id: string | null; telefono: string | null; note: string | null; canale: CanaleRichiesta
+}
+export type PropostaPrecedente = { testo: string | null; soluzione: unknown; inviata_at: string | null; superata_at: string }
+export const AVVISO_PROPOSTA_SUPERATA = 'La proposta inviata si riferiva ai dati precedenti: rigenera e reinvia la proposta'
+export const modificabile = (r: { stato: StatoRichiesta }) => r.stato === 'in_attesa' || r.stato === 'proposta_inviata'
+
+export function pianoModifica(
+  originale: Pick<Richiesta, 'stato' | 'arrivo' | 'partenza' | 'persone' | 'camera_id'> & { persone_per_notte?: number[] | null; proposta_testo?: string | null; proposta_soluzione?: unknown; proposta_inviata_at?: string | null; proposte_precedenti?: PropostaPrecedente[] | null },
+  nuovi: ValoriModifica,
+  adesso: Date = new Date(),
+): { campi: Record<string, unknown>; propostaSuperata: boolean; avviso: string | null; errore: string | null } {
+  if (!modificabile(originale)) return { campi: {}, propostaSuperata: false, avviso: null, errore: 'Una richiesta confermata o rifiutata non si modifica.' }
+  const stesso = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+  const sostanziale = !stesso(originale.arrivo, nuovi.arrivo) || !stesso(originale.partenza, nuovi.partenza)
+    || Number(originale.persone) !== Number(nuovi.persone) || !stesso(originale.persone_per_notte ?? null, nuovi.persone_per_notte)
+    || !stesso(originale.camera_id ?? null, nuovi.camera_id)
+  const campi: Record<string, unknown> = { ...nuovi }
+  const propostaSuperata = originale.stato === 'proposta_inviata' && sostanziale
+  if (propostaSuperata) {
+    campi.stato = 'in_attesa'
+    campi.proposta_inviata_at = null
+    campi.proposta_testo = null
+    campi.proposta_soluzione = null
+    campi.proposta_alternative = null
+    campi.proposte_precedenti = [
+      ...(originale.proposte_precedenti ?? []),
+      { testo: originale.proposta_testo ?? null, soluzione: originale.proposta_soluzione ?? null, inviata_at: originale.proposta_inviata_at ?? null, superata_at: adesso.toISOString() },
+    ]
+  }
+  return { campi, propostaSuperata, avviso: propostaSuperata ? AVVISO_PROPOSTA_SUPERATA : null, errore: null }
 }

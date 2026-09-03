@@ -3,7 +3,7 @@
 // navigazione. La logica pura (ordinamento, testi) sta in lib/richieste.ts.
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
-import { STATI_APERTI, spiegaErrore, type Richiesta } from './richieste'
+import { STATI_APERTI, spiegaErrore, pianoModifica, type Richiesta, type ValoriModifica, type PropostaPrecedente } from './richieste'
 import type { CondizionePagamento } from './condizioniPrenotazione'
 
 // Tutte le richieste con il nome della camera. Gli errori tornano al
@@ -108,14 +108,70 @@ export function colonne0029Presenti(riga: Record<string, unknown> | null | undef
   return !!riga && COLONNE_0029.every(c => c in riga)
 }
 
-export async function segnaPropostaInviata(id: string, testo: string, soluzione: unknown, condizioni: CondizioniSalvate): Promise<{ proposta_inviata_at: string; error: string | null }> {
+// Pezzo 9: nel caso A con più camere libere il messaggio le elenca tutte; le
+// soluzioni elencate si salvano in proposta_alternative (0031) per la scelta
+// alla conferma. Senza alternative la colonna non viene toccata (tollera la
+// migrazione mancante).
+export async function segnaPropostaInviata(id: string, testo: string, soluzione: unknown, condizioni: CondizioniSalvate, alternative?: unknown[] | null): Promise<{ proposta_inviata_at: string; error: string | null }> {
   const proposta_inviata_at = new Date().toISOString()
   const { data, error } = await supabase.from('richieste')
-    .update({ stato: 'proposta_inviata', proposta_inviata_at, proposta_testo: testo, proposta_soluzione: soluzione, ...condizioni })
+    .update({ stato: 'proposta_inviata', proposta_inviata_at, proposta_testo: testo, proposta_soluzione: soluzione, ...condizioni, ...(alternative && alternative.length > 1 ? { proposta_alternative: alternative } : {}) })
     .eq('id', id).select('id, proposta_testo')
-  if (error) return { proposta_inviata_at, error: manca0025(error) ? AVVISO_0025 : manca0029(error) ? AVVISO_0029 : spiegaErrore(error) }
+  if (error) return { proposta_inviata_at, error: manca0025(error) ? AVVISO_0025 : manca0029(error) ? AVVISO_0029 : manca0031(error) ? AVVISO_0031 : spiegaErrore(error) }
   if (!data || data.length === 0) return { proposta_inviata_at, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere stata chiusa.' }
   return { proposta_inviata_at, error: null }
+}
+
+// ── Pezzo 9: persone notte per notte, modifica, alternative (migrazione 0031) ──
+export const AVVISO_0031 = 'Va applicata la migrazione 0031 (colonne persone_per_notte, proposte_precedenti, proposta_alternative).'
+export const COLONNE_0031 = ['persone_per_notte', 'proposte_precedenti', 'proposta_alternative'] as const
+
+export function manca0031(e: { code?: string; message?: string } | null | undefined): boolean {
+  return !!e && (new RegExp(COLONNE_0031.join('|'), 'i').test(e.message || '') || e.code === 'PGRST204' || e.code === '42703')
+}
+export function colonne0031Presenti(riga: Record<string, unknown> | null | undefined): boolean {
+  return !!riga && COLONNE_0031.every(c => c in riga)
+}
+
+// Nuova richiesta: persone_per_notte va nel payload SOLO se non uniforme
+// (così senza la 0031 le richieste «normali» si salvano ancora; quelle con
+// persone variabili spiegano cosa manca).
+export async function creaRichiesta(v: ValoriModifica): Promise<{ id: string | null; error: string | null }> {
+  const { persone_per_notte, ...resto } = v
+  const { data, error } = await supabase.from('richieste')
+    .insert({ ...resto, stato: 'in_attesa', ...(persone_per_notte ? { persone_per_notte } : {}) })
+    .select('id').single()
+  if (error) return { id: null, error: persone_per_notte && manca0031(error) ? AVVISO_0031 : spiegaErrore(error) }
+  if (!data?.id) return { id: null, error: 'Salvataggio non confermato dal database: la richiesta potrebbe non essere stata registrata.' }
+  return { id: data.id, error: null }
+}
+
+// Modifica: un solo UPDATE con il piano puro (lib/richieste.pianoModifica).
+// Se la proposta inviata viene superata, lo stato torna in_attesa e la
+// proposta precedente finisce in proposte_precedenti: senza la 0031 l'update
+// fallisce per intero e lo si dice.
+export async function aggiornaRichiesta(
+  originale: Richiesta & { persone_per_notte?: number[] | null; proposta_testo?: string | null; proposta_soluzione?: unknown; proposte_precedenti?: PropostaPrecedente[] | null },
+  nuovi: ValoriModifica,
+): Promise<{ error: string | null; avviso: string | null }> {
+  const piano = pianoModifica(originale, nuovi)
+  if (piano.errore) return { error: piano.errore, avviso: null }
+  const campi = { ...piano.campi }
+  // persone_per_notte null va scritto (torna uniforme) solo se la colonna esiste
+  if (campi.persone_per_notte == null && !('persone_per_notte' in originale)) delete campi.persone_per_notte
+  const { data, error } = await supabase.from('richieste').update(campi).eq('id', originale.id).in('stato', STATI_APERTI).select('id')
+  if (error) return { error: manca0031(error) ? AVVISO_0031 : spiegaErrore(error), avviso: null }
+  if (!data || data.length === 0) return { error: 'Nessuna riga aggiornata: la richiesta potrebbe essere stata chiusa nel frattempo.', avviso: null }
+  return { error: null, avviso: piano.avviso }
+}
+
+// Alla conferma di un caso A con più camere: la camera scelta dal cliente
+// diventa la soluzione da confermare (la RPC legge solo proposta_soluzione)
+export async function scegliSoluzioneInviata(id: string, soluzione: unknown): Promise<{ error: string | null }> {
+  const { data, error } = await supabase.from('richieste').update({ proposta_soluzione: soluzione }).eq('id', id).eq('stato', 'proposta_inviata').select('id')
+  if (error) return { error: spiegaErrore(error) }
+  if (!data || data.length === 0) return { error: 'Nessuna riga aggiornata: la richiesta non è più in «proposta inviata».' }
+  return { error: null }
 }
 
 // Conferma: SOLO la RPC (transazione unica lato database). Torna l'id della

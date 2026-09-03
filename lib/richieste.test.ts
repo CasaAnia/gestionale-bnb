@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare, nuoveDalSito,
-  type Richiesta,
+  riassuntoPersone, pianoModifica, type Richiesta,
 } from './richieste.ts'
 
 const locale = (a: number, m: number, g: number, h = 12, min = 0) => new Date(a, m - 1, g, h, min)
@@ -84,4 +84,33 @@ test('nuove dal sito: solo canale web dopo l\'ultima visita; senza visita tutte 
   const tel = richiesta({ canale: 'telefono', created_at: '2026-09-02T10:30:00Z' })
   assert.equal(nuoveDalSito([web1, web2, tel], '2026-09-02T09:00:00Z').length, 1)
   assert.equal(nuoveDalSito([web1, web2, tel], null).length, 2)
+})
+
+// ── pezzo 9 ─────────────────────────────────────────────────────────────────
+test('riassuntoPersone: gruppi di notti uguali, anche attraverso i mesi', () => {
+  assert.equal(riassuntoPersone('2026-09-17', [2, 1, 1, 1]), '17: 2 · 18–20: 1')
+  assert.equal(riassuntoPersone('2026-09-17', [2, 2, 2, 2]), '17–20: 2')
+  assert.equal(riassuntoPersone('2026-09-17', [1]), '17: 1')
+  assert.equal(riassuntoPersone('2026-09-17', [3, 2, 3, 3]), '17: 3 · 18: 2 · 19–20: 3')
+  assert.equal(riassuntoPersone('2026-09-30', [2, 1, 1]), '30 set: 2 · 1–2 ott: 1')
+  assert.equal(riassuntoPersone('2026-09-29', [2, 2, 1]), '29–30 set: 2 · 1 ott: 1')
+})
+
+test('pianoModifica: date/persone/camera su una proposta inviata → in_attesa e storico; telefono/note/canale non cambiano lo stato; chiuse non modificabili', () => {
+  const base = { stato: 'proposta_inviata' as const, arrivo: '2026-09-17', partenza: '2026-09-21', persone: 2, camera_id: null, persone_per_notte: null, proposta_testo: 'ciao', proposta_soluzione: { caso: 'completa' }, proposta_inviata_at: '2026-09-02T10:00:00Z', proposte_precedenti: [] }
+  const nuovi = { nome: 'A', cognome: 'B', arrivo: '2026-09-17', partenza: '2026-09-21', persone: 2, persone_per_notte: null, camera_id: null, telefono: '+39333', note: null, canale: 'telefono' as const }
+  const adesso = new Date('2026-09-03T08:00:00Z')
+  const solo = pianoModifica(base, nuovi, adesso)
+  assert.equal(solo.propostaSuperata, false); assert.equal(solo.avviso, null); assert.equal(solo.campi.stato, undefined)
+  const persone = pianoModifica(base, { ...nuovi, persone_per_notte: [2, 1, 1, 1] }, adesso)
+  assert.equal(persone.propostaSuperata, true)
+  assert.equal(persone.avviso, 'La proposta inviata si riferiva ai dati precedenti: rigenera e reinvia la proposta')
+  assert.equal(persone.campi.stato, 'in_attesa'); assert.equal(persone.campi.proposta_testo, null); assert.equal(persone.campi.proposta_soluzione, null)
+  assert.deepEqual(persone.campi.proposte_precedenti, [{ testo: 'ciao', soluzione: { caso: 'completa' }, inviata_at: '2026-09-02T10:00:00Z', superata_at: '2026-09-03T08:00:00.000Z' }])
+  assert.equal(pianoModifica(base, { ...nuovi, camera_id: 'amelia' }, adesso).propostaSuperata, true)
+  assert.equal(pianoModifica(base, { ...nuovi, partenza: '2026-09-22' }, adesso).propostaSuperata, true)
+  // in attesa: le stesse modifiche non toccano lo stato né lo storico
+  const attesa = pianoModifica({ ...base, stato: 'in_attesa' }, { ...nuovi, persone: 3 }, adesso)
+  assert.equal(attesa.propostaSuperata, false); assert.equal(attesa.campi.proposte_precedenti, undefined)
+  assert.match(pianoModifica({ ...base, stato: 'confermata' }, nuovi, adesso).errore ?? '', /non si modifica/)
 })
