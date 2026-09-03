@@ -2,7 +2,7 @@
 import { useEffect } from 'react'
 import { Globe, Phone, MessageCircle, X } from 'lucide-react'
 import {
-  CANALE_LABEL, STATO_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, avvisoFerma, type Richiesta,
+  CANALE_LABEL, STATO_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, avvisoFerma, riassuntoPersone, type Richiesta,
 } from '@/lib/richieste'
 import type { Ancora } from './CalendarioRichieste'
 import AzioniRichiesta from './AzioniRichiesta'
@@ -46,7 +46,7 @@ export default function PannelloRichieste({ gruppo, ancora, layout, adesso, onCh
             </div>
             <p className="text-sm text-green-dark mt-0.5">
               {formatIntervallo(r.arrivo, r.partenza)}<span className="text-stone"> · </span>
-              {r.persone} {r.persone === 1 ? 'persona' : 'persone'}<span className="text-stone"> · </span>
+              {r.persone_per_notte ? riassuntoPersone(r.arrivo, r.persone_per_notte) : `${r.persone} ${r.persone === 1 ? 'persona' : 'persone'}`}<span className="text-stone"> · </span>
               {r.rooms?.name || 'qualsiasi camera'}
             </p>
             <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-stone mt-1">

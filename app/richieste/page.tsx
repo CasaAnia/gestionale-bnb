@@ -20,7 +20,7 @@ import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
 import {
   CANALE_LABEL, STATO_LABEL, eAperta, inArchivio, ordinaRichieste, nottiRichiesta, nomeCompleto,
-  formatIntervallo, oraArrivo, tempoTrascorso, avvisoFerma, daGuardare, nuoveDalSito, type Richiesta, type OrdineRichieste,
+  formatIntervallo, oraArrivo, tempoTrascorso, avvisoFerma, daGuardare, nuoveDalSito, riassuntoPersone, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
 
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
@@ -66,7 +66,7 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
       <p className="text-sm text-green-dark mt-1">
         {formatIntervallo(r.arrivo, r.partenza)}
         <span className="text-stone"> · </span>
-        {r.persone} {r.persone === 1 ? 'persona' : 'persone'}
+        {r.persone_per_notte ? riassuntoPersone(r.arrivo, r.persone_per_notte) : `${r.persone} ${r.persone === 1 ? 'persona' : 'persone'}`}
         <span className="text-stone"> · </span>
         {r.rooms?.name || 'qualsiasi camera'}
       </p>

@@ -4,8 +4,9 @@ import { useRouter } from 'next/navigation'
 import type { Richiesta } from '@/lib/richieste'
 
 // Pulsanti sotto una richiesta (lista e pannello del calendario):
-//  in_attesa        → «Invia proposta» (pieno) + «Rifiuta» (contorno)
-//  proposta_inviata → «Conferma» (pieno: apre «Creare la prenotazione?») + «Rifiuta»
+//  in_attesa        → «Invia proposta» (pieno) + «Modifica» + «Rifiuta» (contorno)
+//  proposta_inviata → «Conferma» (pieno: apre «Creare la prenotazione?») + «Modifica» + «Rifiuta»
+// «Modifica» (pezzo 9) apre /richieste/<id>/modifica: stesso modulo della nuova, precompilato.
 // Rifiuto e conferma veri (con le loro finestre) li gestisce chi contiene.
 type Props = { r: Richiesta; onRifiuta: (r: Richiesta) => void; onConferma: (r: Richiesta) => void; compatto?: boolean }
 
@@ -29,6 +30,9 @@ export default function AzioniRichiesta({ r, onRifiuta, onConferma, compatto = f
         ) : (
           <button type="button" onClick={e => { ferma(e); onConferma(r) }} className={`${PIENO} ${misura}`}>Conferma</button>
         )}
+        <button type="button" onClick={e => { ferma(e); router.push(`/richieste/${r.id}/modifica`) }} className={`${CONTORNO} ${misura}`} style={{ borderColor: '#C9BFA8' }}>
+          Modifica
+        </button>
         <button type="button" onClick={e => { ferma(e); onRifiuta(r) }} className={`${CONTORNO} ${misura}`} style={{ borderColor: '#C9BFA8' }}>
           Rifiuta
         </button>
