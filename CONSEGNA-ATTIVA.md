@@ -1,15 +1,70 @@
-# STATO IN 10 RIGHE (aggiornato il 02/09/2026, pezzo 7) — da incollare a un altro assistente
+# STATO IN 10 RIGHE (aggiornato il 03/09/2026, Richieste pezzo 9) — da incollare a un altro assistente
 
-1. Gestionale Casa Ania (Next.js su Vercel, Supabase progetto tnsaa…vwv): sezione Richieste pezzi 1–7 su `main`, pezzi 1–6 in produzione e verificati da Ania.
-2. Migrazioni applicate a mano in produzione: 0024, 0025, 0027 (RPC conferma_richiesta), 0028, 0029 (condizioni di pagamento). In supabase/proposte restano 0023 e 0026 (RLS), NON applicate.
-3. Sito casaaniarozzano.it (repo sito-casaania, HEAD da91e37): il modulo /prenota manda le richieste a POST /api/richieste/web con RICHIESTE_WEB_SECRET; non crea più prenotazioni; ripiego = Pushover «NON entrata nel gestionale» (email spenta per scelta di Ania).
-4. Proposte: unico generatore lib/richiesteTesti.generaProposta (testi del Lei BLOCCATI), condizioni scelte da Ania a ogni richiesta (mai preselezionate), alternativa Amelia con interruttore, immagine con la notte scoperta.
-5. Conferma: SOLO la RPC conferma_richiesta (una transazione, ricontrollo camera e pool delle 2 brande, ospite, bookings per segmento, cascata «date assegnate a altro cliente», idempotente). Provata in locale sulla SQL vera con PGlite (lib/richiesteConfermaRpc.test.ts).
-6. Contratto sito → gestionale verificato con evidenze in docs/verifica-5B.md (401/400/429, doppioni, limite IP, nessun dato personale nei log).
-7. In corso: niente. Ultimo blocco su main (03/09/2026): avviso di connessione in tutta l'app (lib/connessione.ts, components/AvvisoConnessione.tsx), home senza zeri finti e ricerca cliente che non scambia più un errore di rete per «nuovo cliente». Prossimi pezzi: pulizia del flusso vecchio (prenotazioni in_attesa source sito_web nel calendario principale), riepilogo pre-bonifico con la regola di cancellazione (lib/condizioniPrenotazione).
-8. Strumenti locali: anteprima senza rete `gestionale-bnb-anteprima-richieste-finta` (porta 3214, finto Supabase, endpoint web con segreto «prova-locale»); `node scripts/verifica-consegna.mjs --base <sha>`; suite `npm test` (441 test, con PGlite).
-9. Regole: nessun invio reale in sviluppo; migrazioni solo a mano da Ania; il calendario principale non si tocca; commit separati per blocco; push su main autorizzato dalle consegne.
-10. 🔴 Azioni aperte per Ania: prova manuale della cascata dal telefono (guida in fondo alla scheda del pezzo 7) e annullamento della prenotazione di prova; il blocco Codex «quadrupla nera» (ramo correzioni-prenotazioni-quadrupla-date) attende ancora la sua autorizzazione.
+1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9 (modifica, persone notte per notte, caso A a più camere con link e elisione); il modulo Spese nuovo è in produzione con la scrittura su `legacy` (non toccare).
+2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029. 🔴 0031 (persone_per_notte, proposte_precedenti, proposta_alternative + conferma_richiesta notte per notte) DA APPLICARE. In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
+3. Branch `fatture-fase5` (Fase 5 fatture ricostruita + 4 correzioni avversarie): in attesa della decisione di Ania (unione a main); main non lo contiene.
+4. Richieste: modulo unico components/richieste/ModuloRichiesta (nuova e modifica) con la striscia delle notti (components/StrisciaNotti, estratta dalle caselle del letto extra della scheda prenotazione); la modifica di una richiesta con proposta inviata (date/persone/camera) la riporta in_attesa con avviso e storico in proposte_precedenti.
+5. Proposte: generatore unico lib/richiesteTesti (apertura a capo, caso A «soltanto la camera» o «ho N camere libere», link casaaniarozzano.it/camere/[slug], elisione «dal 4 all'8», riga «Nel dettaglio» con persone variabili); B, C, E e caparra/completo invariati. Nel caso A a più camere il messaggio le elenca tutte (proposta_alternative) e alla conferma Ania sceglie la camera accettata.
+6. Ricerca e prezzo per notte (lib/richiesteProposta): capienza e pool delle 2 brande con le persone di ogni notte, tariffe vere in centesimi, letto solo dove serve; conferma_richiesta 0031 fa lo stesso lato server (provata in PGlite).
+7. Prove: suite 455/455, tsc, lint del delta, build, UI a 320/390 sull'anteprima finta (porta 3214: Marta Ricovero [2,1,1,1] = caso reale). Nessun invio reale, nessuna scrittura remota.
+8. Strumenti: `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email, inviare il modulo via JS nel pannello), `gestionale-bnb-anteprima-prenotazioni-finta` (3213), `npm test`, `node scripts/verifica-consegna.mjs --base <sha>`.
+9. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale non si tocca; un commit per blocco; mai modificare gli assert dei test esistenti; il contratto di revisione resta `legacy`.
+10. 🔴 Azioni aperte per Ania: applicare la 0031, poi la prova dal telefono (modifica della richiesta 17–21 con 2 poi 1, proposta Amelia+Ambra col dettaglio, link e «dal 4 all'8»); decidere su fatture-fase5 e sulla 0030; prossimi pezzi: pulizia del flusso vecchio, riepilogo pre-bonifico.
+
+---
+
+# Consegna attiva — Richieste, pezzo 9: modifica, persone notte per notte, link della camera, elisione
+
+Base `94d4acc` (main con l'avviso di connessione, dopo il pezzo 7). Caso
+reale: ospite dal 17 al 21, in 2 la prima notte poi da sola (Amelia con il
+secondo letto la prima notte, oppure Ambra).
+
+## Casi di accettazione
+
+| ID | Voce | Prova | Esito |
+| --- | --- | --- | --- |
+| N01 | «Modifica» in lista, pannello e proposta per in_attesa/proposta_inviata; modulo precompilato (nome, cognome, date, persone con striscia, camera, telefono, note, canale); confermate/rifiutate non si modificano. | `richieste.test` pianoModifica; UI 390: modifica di «Ricovero Marta» precompilata con la striscia [2,1,1,1] | VERDE |
+| N02 | Proposta inviata + cambio di date/persone/camera → in_attesa, avviso «La proposta inviata si riferiva ai dati precedenti: rigenera e reinvia la proposta», storico in proposte_precedenti; telefono/note/canale non toccano lo stato. | `pianoModifica` (5 casi); UI 390: modifica di «Bianchi» (proposta inviata, persone 1→2) → avviso con «Rigenera la proposta», nel finto stato in_attesa e storico con testo e soluzione | VERDE |
+| N03 | Striscia delle notti sotto «Persone»: caselle con data e numero, tocco cicla 1→max (capienza massima con brande = 4), frecce da tastiera, riga «17: 2 · 18–20: 1», a capo oltre le 7 notti, nessuno scorrimento a 320/390. | `riassuntoPersone` (6 casi); UI 390 e 320 (scrollWidth = viewport) | VERDE |
+| N04 | persone_per_notte salvato solo se non uniforme; richieste web con persone uniche → null; senza la 0031 avviso e nessun salvataggio. | `creaRichiesta`/`aggiornaRichiesta` (manca0031); endpoint web invariato | VERDE (avviso non riprodotto a schermo) |
+| N05 | Ricerca: capienza e pool per notte con le persone di quella notte; prezzo per notte con le tariffe vere in centesimi, letto solo dove serve; ogni camera del caso A col suo totale. Test 17–21 [2,1,1,1]: Amelia 285 € (75 + 3×70, letto solo il 17), Ambra 320 €, matrimoniale a 3 la prima notte = branda solo quella notte. | `richiesteProposta.test` (3 test nuovi) | VERDE |
+| N06 | RPC conferma_richiesta 0031: letto aggiuntivo solo nelle notti che lo richiedono, num_guests = massimo, pool per notte, array incoerente rifiutato. | `richiesteConfermaRpc.test` in PGlite (SQL vera della 0031) | VERDE |
+| N07 | Testo: «Nel dettaglio: 1 notte in due con secondo letto a 75 € a notte, 3 notti in una a 70 € a notte» (singolare/plurale); immagine con la striscia «Persone notte per notte» quando cambiano. | `richiesteTesti.test`; UI: testo e anteprima immagine di Marta | VERDE |
+| N08 | Link «Qui può vedere le foto e i dettagli della camera: casaaniarozzano.it/camere/[slug]» dopo il prezzo (slug verificati nel repo del sito: singola, allegra, ambra, lena; senza pagina niente riga). | test; UI: un link per camera nel testo di Marta | VERDE |
+| N09 | Elisione: «dal 4 all'8», «dal 10 all'11», «dall'8 al 10», «all'1», «all'18», «all'28», «al 31», «al 3», «al 15», «l'8». | test per 1, 8, 11, 18, 28, 31 | VERDE |
+| N10 | Caso A esatto: una camera («è disponibile soltanto la camera…, Il prezzo per le n notti è di…») e più camere («ho due camere libere che posso proporle: – Nome, descrizione: prezzo per le n notti»), apertura a capo, condizione all'arrivo e 3 ore nuove («una delle camere»); B, C, E, caparra e completo invariati. | test esatti su stringa intera | VERDE |
+| N11 | Caso A a più camere: «Sì, inviata» salva proposta_alternative; in «Creare la prenotazione?» la scelta della camera accettata (mai preselezionata) diventa proposta_soluzione prima della RPC. | `scegliSoluzioneInviata`, FinestraConferma | VERDE (scelta non provata a schermo) |
+
+## Decisioni prese in autonomia (comportamento prudente)
+
+- L'elisione vale anche per «dal» («dall'8 al 10»), non solo per «al».
+- L'apertura a capo vale per A, B e C; il caso E resta identico (bloccato).
+- Il link della camera compare solo nel caso A (testo esatto dato); in B e C
+  le righe restano invariate, salvo la riga «nel dettaglio» quando le persone
+  del segmento cambiano (altrimenti «al prezzo di X € a notte» sarebbe falso).
+- Con più camere nel caso A il blocco «alternativa Amelia» non compare (le
+  alternative sono già elencate) e la caparra si calcola sulla camera scelta.
+- Alternativa Amelia con persone variabili solo se la differenza a notte è
+  costante (il testo promette «X € in più a notte»).
+- `persone` resta il valore base del modulo; la RPC usa il massimo per
+  num_guests. Un array persone_per_notte di lunghezza diversa dalle notti è un
+  errore a schermo, mai un ripiego.
+- La scheda prenotazione conserva la sua fila di caselle: StrisciaNotti è
+  l'estrazione di quel markup, ricollegarla lì è una pulizia futura.
+
+## Prove di consegna
+
+- `npm test` 455/455; tsc; lint del delta; `verifica-consegna --base 94d4acc`
+  e `next build`: esito nel resoconto.
+- UI sull'anteprima finta (porta 3214) con click via JavaScript.
+
+## Limiti aperti
+
+- Migrazione 0031 non applicata: finché manca, persone variabili, modifiche
+  con proposta inviata e proposte a più camere non si salvano (avviso).
+- Le richieste web arrivano con persone uniche (per notte solo dal gestionale).
+- La scelta della camera alla conferma non è stata provata a schermo.
+- Il calendario principale e la scheda prenotazione non cambiano.
 
 ---
 
@@ -56,7 +111,7 @@ Il ricaricamento dell'app senza alcuna rete resta nelle mani di Safari
 
 ---
 
-# Consegna attiva — Richieste, pezzo 7: prova della cascata e verifica del contratto sito → gestionale
+# Blocco precedente — Richieste, pezzo 7: prova della cascata e verifica del contratto sito → gestionale
 
 Pezzo di verifica: nessuna funzione nuova, nessuna correzione necessaria
 (tutte le prove sono passate al primo giro). Base: `b4fbe6d` (pezzo 6).
