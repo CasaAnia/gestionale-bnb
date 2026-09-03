@@ -2,11 +2,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { X } from 'lucide-react'
-import { ETICHETTA_CASO } from '@/lib/richiesteProposta'
+import { ETICHETTA_CASO, type Soluzione } from '@/lib/richiesteProposta'
 import { richiesteInConflitto, erroreDiDisponibilita, conLettoExtra, type RichiestaConProposta } from '@/lib/richiesteConferma'
-import { confermaRichiesta } from '@/lib/richiesteDati'
+import { confermaRichiesta, scegliSoluzioneInviata } from '@/lib/richiesteDati'
 import { prezzo as fmtPrezzo, dalAl } from '@/lib/richiesteTesti'
-import { nomeCompleto, formatIntervallo, nottiRichiesta, type Richiesta } from '@/lib/richieste'
+import { nomeCompleto, formatIntervallo, nottiRichiesta, riassuntoPersone, type Richiesta } from '@/lib/richieste'
 
 // «Creare la prenotazione?»: bottom sheet sul telefono, finestra su desktop.
 // Riepilogo della soluzione INVIATA, altre richieste aperte sulle stesse date
@@ -23,7 +23,13 @@ const BORDO = '#C9BFA8'
 const OTTONE = '#A9884E'
 
 export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, onCreata }: Props) {
-  const sol = richiesta.proposta_soluzione ?? null
+  // Pezzo 9: se il messaggio elencava più camere (caso A), Ania sceglie qui
+  // quella accettata dal cliente; la scelta diventa proposta_soluzione PRIMA
+  // della RPC (che legge solo quella). Nessuna preselezione se ce n'è più di una.
+  const alternative: Soluzione[] = (richiesta as { proposta_alternative?: Soluzione[] | null }).proposta_alternative ?? []
+  const piuCamere = alternative.length > 1
+  const [scelta, setScelta] = useState<number | null>(piuCamere ? null : 0)
+  const sol = piuCamere ? (scelta === null ? null : alternative[scelta]) : (richiesta.proposta_soluzione ?? null)
   const conflitti = useMemo(() => (sol ? richiesteInConflitto(sol, aperte, richiesta.id) : []), [sol, aperte, richiesta.id])
   const [spuntate, setSpuntate] = useState<Set<string>>(() => new Set(conflitti.map(c => c.id)))
   const [occupato, setOccupato] = useState(false)
@@ -38,6 +44,11 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
   async function crea() {
     if (occupato) return          // secondo tocco: niente doppioni (e la RPC è idempotente)
     setErrore(null); setOccupato(true)
+    if (piuCamere) {
+      if (!sol) { setErrore('Scegli la camera accettata dal cliente.'); setOccupato(false); return }
+      const scelto = await scegliSoluzioneInviata(richiesta.id, sol)
+      if (scelto.error) { setErrore(`Camera non registrata: ${scelto.error}`); setOccupato(false); return }
+    }
     const r = await confermaRichiesta(richiesta.id, [...spuntate])
     if (r.error || !r.prenotazioneId) { setErrore(r.error || 'Conferma non riuscita.'); setOccupato(false); return }
     onCreata(r.prenotazioneId)
@@ -49,7 +60,21 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
         <p className="text-[17px] text-green-dark" style={{ fontFamily: 'var(--font-fraunces), Georgia, serif' }}>Creare la prenotazione?</p>
         <button type="button" onClick={onChiudi} disabled={occupato} aria-label="Chiudi" className="w-9 h-9 -mr-2 flex items-center justify-center text-stone disabled:opacity-40"><X size={18} strokeWidth={2} aria-hidden /></button>
       </div>
-      <p className="text-sm text-green-dark">{nomeCompleto(richiesta)} · {richiesta.persone} {richiesta.persone === 1 ? 'persona' : 'persone'}</p>
+      <p className="text-sm text-green-dark">{nomeCompleto(richiesta)} · {richiesta.persone_per_notte ? riassuntoPersone(richiesta.arrivo, richiesta.persone_per_notte) : `${richiesta.persone} ${richiesta.persone === 1 ? 'persona' : 'persone'}`}</p>
+
+      {piuCamere && (
+        <div className="mt-3" role="group" aria-label="Camera accettata dal cliente">
+          <p className="text-xs font-semibold text-stone mb-1.5">Il messaggio proponeva {alternative.length} camere: quale ha scelto il cliente?</p>
+          <div className="flex flex-wrap gap-2">
+            {alternative.map((a, i) => (
+              <button key={i} type="button" onClick={() => setScelta(i)} aria-pressed={scelta === i} disabled={occupato}
+                className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${scelta === i ? 'bg-green-mid text-cream-text' : 'bg-white text-green-dark border border-card-border'}`}>
+                {a.segmenti[0]?.camera.name} · {fmtPrezzo(a.prezzoTotale)} €
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {sol ? (
         <div className="mt-3 bg-cream rounded-xl p-3 text-sm text-green-dark">
@@ -68,7 +93,7 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
           </p>
         </div>
       ) : (
-        <p className="mt-3 text-sm font-semibold" style={{ color: OTTONE }}>Nessuna proposta inviata: prima va inviata una proposta.</p>
+        <p className="mt-3 text-sm font-semibold" style={{ color: OTTONE }}>{piuCamere ? 'Scegli la camera accettata dal cliente.' : 'Nessuna proposta inviata: prima va inviata una proposta.'}</p>
       )}
 
       {conflitti.length > 0 && (

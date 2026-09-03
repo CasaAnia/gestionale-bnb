@@ -38,16 +38,18 @@ create table public.richieste (
   proposta_inviata_at timestamptz, chiusa_at timestamptz, prenotazione_id uuid references public.bookings(id),
   proposta_testo text, proposta_soluzione jsonb, origine text,
   condizione_pagamento text, caparra_centesimi integer, condizione_testo text, amelia_alternativa boolean not null default false,
+  persone_per_notte jsonb, proposte_precedenti jsonb not null default '[]'::jsonb, proposta_alternative jsonb,
   constraint richieste_partenza_dopo_arrivo check (partenza > arrivo));
 `
 
-// Dalla migrazione 0027 si prende SOLO la definizione della funzione (dalla
-// create or replace alla fine del corpo $$;): niente notify, grant o select di verifica.
-function sqlFunzione0027(): string {
-  const file = readFileSync(new URL('../supabase/migrations/0027_conferma_richiesta.sql', import.meta.url), 'utf8')
+// Dalle migrazioni 0027 e 0031 si prende SOLO la definizione della funzione
+// (dalla create or replace alla fine del corpo $$;): niente notify, grant o
+// select di verifica. La 0031 sostituisce la 0027 (persone notte per notte).
+function sqlFunzione(migrazione: string): string {
+  const file = readFileSync(new URL(`../supabase/migrations/${migrazione}`, import.meta.url), 'utf8')
   const inizio = file.indexOf('create or replace function public.conferma_richiesta')
   const fine = file.indexOf('$$;', inizio) + 3
-  assert.ok(inizio > 0 && fine > inizio, 'funzione non trovata nella 0027')
+  assert.ok(inizio > 0 && fine > inizio, `funzione non trovata nella ${migrazione}`)
   return file.slice(inizio, fine)
 }
 
@@ -56,7 +58,8 @@ before(async () => {
   db = new PGlite()
   await db.exec(SCHEMA)
   await db.exec('alter table public.richieste add column if not exists motivo_rifiuto text;')
-  await db.exec(sqlFunzione0027())
+  await db.exec(sqlFunzione('0027_conferma_richiesta.sql'))
+  await db.exec(sqlFunzione('0031_richieste_persone_per_notte.sql'))
   for (const c of CAMERE) {
     await db.query('insert into public.rooms (id, name, bathroom_type, base_price, has_extra_bed, extra_bed_price, double_price) values ($1,$2,$3,$4,$5,$6,$7)',
       [c.id, c.name, c.bathroom_type, c.base_price, c.has_extra_bed, c.extra_bed_price, c.double_price])
@@ -64,12 +67,12 @@ before(async () => {
 })
 after(async () => { await db?.close() })
 
-type R = { nome: string; cognome: string; arrivo: string; partenza: string; persone: number; camera_id: string | null; telefono: string }
+type R = { nome: string; cognome: string; arrivo: string; partenza: string; persone: number; camera_id: string | null; telefono: string; persone_per_notte?: number[] | null }
 async function inserisci(r: R, stato: 'in_attesa' | 'proposta_inviata', soluzione: Soluzione | null): Promise<string> {
   const { rows } = await db.query<{ id: string }>(
-    `insert into public.richieste (nome, cognome, arrivo, partenza, persone, camera_id, canale, telefono, stato, proposta_inviata_at, proposta_testo, proposta_soluzione)
-     values ($1,$2,$3,$4,$5,$6,'telefono',$7,$8, case when $8 = 'proposta_inviata' then now() end, case when $8 = 'proposta_inviata' then 'bozza' end, $9) returning id`,
-    [r.nome, r.cognome, r.arrivo, r.partenza, r.persone, r.camera_id, r.telefono, stato, soluzione ? JSON.stringify(soluzione) : null])
+    `insert into public.richieste (nome, cognome, arrivo, partenza, persone, camera_id, canale, telefono, stato, proposta_inviata_at, proposta_testo, proposta_soluzione, persone_per_notte)
+     values ($1,$2,$3,$4,$5,$6,'telefono',$7,$8, case when $8 = 'proposta_inviata' then now() end, case when $8 = 'proposta_inviata' then 'bozza' end, $9, $10) returning id`,
+    [r.nome, r.cognome, r.arrivo, r.partenza, r.persone, r.camera_id, r.telefono, stato, soluzione ? JSON.stringify(soluzione) : null, r.persone_per_notte ? JSON.stringify(r.persone_per_notte) : null])
   return rows[0].id
 }
 async function prenotazioniConfermate(): Promise<PrenotazioneOccupante[]> {
@@ -186,4 +189,37 @@ test('senza proposta inviata o caso «completo»: nessuna conferma possibile', a
   const completo: Soluzione = { caso: 'completo', segmenti: [], nottiTotali: 2, nottiCoperte: 0, nottiMancanti: ['2032-01-10', '2032-01-11'], prezzoTotale: 0 }
   const idE = await inserisci({ ...r, telefono: '+39 333 000 0098' }, 'proposta_inviata', completo)
   assert.match(await confermaFallisce(idE, null), /non contiene camere/)
+})
+
+test('0031) persone notte per notte: Amelia [2,1,1,1] → letto aggiuntivo SOLO la prima notte, num_guests 2; il pool si controlla notte per notte', async () => {
+  const guest = (await db.query<{ id: string }>('select id from public.guests limit 1')).rows[0].id
+  // Quadrupla in Lena SOLO la notte del 18 gennaio 2033: entrambe le brande prese quella notte
+  await db.query(`insert into public.bookings (room_id, guest_id, check_in, check_out, num_guests, extra_bed, extra_bed_dates, price_per_night, extra_bed_total, total_amount, status, source)
+    values ($1, $2, '2033-01-18', '2033-01-19', 4, true, '["2033-01-18"]'::jsonb, 90, 10, 100, 'confermata', 'diretta')`, [LENA_ID, guest])
+  // in 2 la prima notte (17), poi da sola: la branda serve solo il 17 → passa
+  const r: R = { nome: 'Coppia', cognome: 'Poi Sola', arrivo: '2033-01-17', partenza: '2033-01-21', persone: 2, camera_id: AMELIA.id, telefono: '+39 333 000 3301', persone_per_notte: [2, 1, 1, 1] }
+  const sol = proponiSoluzioni({ ...r, persone_per_notte: r.persone_per_notte }, CAMERE, await prenotazioniConfermate())[0]
+  assert.equal(sol.caso, 'completa'); assert.equal(sol.segmenti[0].camera.name, 'Amelia')
+  const id = await inserisci(r, 'proposta_inviata', sol)
+  const b = await conferma(id, null)
+  const riga = (await db.query<{ num_guests: number; extra_bed: boolean; extra_bed_dates: string[]; total_amount: string; price_per_night: string; extra_bed_total: string }>(
+    'select num_guests, extra_bed, extra_bed_dates, total_amount::text, price_per_night::text, extra_bed_total::text from public.bookings where id = $1', [b])).rows[0]
+  assert.deepEqual(riga, { num_guests: 2, extra_bed: true, extra_bed_dates: ['2033-01-17'], total_amount: '285.00', price_per_night: '70.00', extra_bed_total: '5.00' })
+  // in 2 la SECONDA notte, quella della quadrupla (stessa situazione a marzo, con Amelia libera):
+  // la branda non c'è → la RPC si ferma senza scrivere
+  await db.query(`insert into public.bookings (room_id, guest_id, check_in, check_out, num_guests, extra_bed, extra_bed_dates, price_per_night, extra_bed_total, total_amount, status, source)
+    values ($1, $2, '2033-03-18', '2033-03-19', 4, true, '["2033-03-18"]'::jsonb, 90, 10, 100, 'confermata', 'diretta')`, [LENA_ID, guest])
+  const r3: R = { ...r, arrivo: '2033-03-17', partenza: '2033-03-21', telefono: '+39 333 000 3303', persone_per_notte: [1, 2, 1, 1] }
+  const bookings = await conta('bookings')
+  // la ricerca, coerente, non propone Amelia (pool esaurito il 18 con 2 persone); la soluzione «vecchia» la proponeva
+  assert.ok(proponiSoluzioni(r3, CAMERE, await prenotazioniConfermate()).every(s => s.caso !== 'completa' || s.segmenti[0].camera.name !== 'Amelia'))
+  const solAmelia = proponiSoluzioni(r3, CAMERE, [])[0]
+  assert.equal(solAmelia.segmenti[0].camera.name, 'Amelia')
+  const id3 = await inserisci(r3, 'proposta_inviata', solAmelia)
+  assert.match(await confermaFallisce(id3, null), /Letti aggiuntivi esauriti la notte del 18 marzo \(camera Amelia\)/)
+  assert.equal(await conta('bookings'), bookings)
+  // array sbagliato (lunghezza diversa dalle notti) → rifiuto chiaro
+  const r4: R = { ...r, telefono: '+39 333 000 3304', arrivo: '2033-02-01', partenza: '2033-02-03', persone_per_notte: [2, 1, 1] }
+  const id4 = await inserisci(r4, 'proposta_inviata', proponiSoluzioni({ ...r4, persone_per_notte: null }, CAMERE, [])[0])
+  assert.match(await confermaFallisce(id4, null), /Persone per notte non valide: servono 2 valori/)
 })

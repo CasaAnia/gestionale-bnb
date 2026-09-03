@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { proponiSoluzioni, capienzaCamera, segmento } from './richiesteProposta.ts'
+import { proponiSoluzioni, capienzaCamera, segmento, prezziNottiCentesimi, personePerNotte, alternativaAmelia } from './richiesteProposta.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
 
 const AMELIA = { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5, active: true }
@@ -122,4 +122,58 @@ test('letti aggiuntivi condivisi: la quadrupla in Lena prende entrambi i letti',
   const unLetto = { room_id: 'ambra', check_in: '2026-09-13', check_out: '2026-09-15', status: 'confermata', num_guests: 3, extra_bed: true, extra_bed_dates: ['2026-09-13', '2026-09-14'] }
   assert.equal(proponiSoluzioni({ arrivo: '2026-09-13', partenza: '2026-09-15', persone: 3, camera_id: 'allegra' }, CAMERE, [unLetto])[0].caso, 'completa')
   assert.equal(proponiSoluzioni({ arrivo: '2026-09-13', partenza: '2026-09-15', persone: 4, camera_id: LENA_ID }, CAMERE, [unLetto])[0].caso, 'completo')
+})
+
+// ── pezzo 9: persone notte per notte ────────────────────────────────────────
+test('pezzo 9: 17–21 con [2,1,1,1] — Amelia con secondo letto solo la prima notte, Ambra 4 notti matrimoniale, totali per notte in centesimi', () => {
+  const r = { arrivo: '2026-09-17', partenza: '2026-09-21', persone: 2, camera_id: null, persone_per_notte: [2, 1, 1, 1] }
+  const camere = [AMELIA, ALLEGRA, AMBRA, LENA]
+  const sol = proponiSoluzioni(r, camere, [])
+  assert.ok(sol.every(s => s.caso === 'completa'))
+  const amelia = sol.find(s => s.segmenti[0].camera.name === 'Amelia')!
+  assert.equal(amelia.prezzoTotale, 285)                              // 1 × (70 + 5) + 3 × 70
+  assert.deepEqual(amelia.segmenti[0].personeNotti, [2, 1, 1, 1])
+  assert.deepEqual(amelia.segmenti[0].lettoNotti, ['2026-09-17'])
+  assert.equal(amelia.segmenti[0].prezzoNotte, 70); assert.equal(amelia.segmenti[0].lettoTotale, 5)
+  assert.deepEqual(prezziNottiCentesimi(amelia.segmenti[0]), [7500, 7000, 7000, 7000])
+  const ambra = sol.find(s => s.segmenti[0].camera.name === 'Ambra')!
+  assert.equal(ambra.prezzoTotale, 320)                               // 4 × 80, nessun letto
+  assert.deepEqual(ambra.segmenti[0].lettoNotti, [])
+  // una matrimoniale a 3 persone la prima notte: branda SOLO quella notte
+  const tre = proponiSoluzioni({ ...r, persone: 3, persone_per_notte: [3, 2, 2, 2] }, camere, []).find(s => s.segmenti[0].camera.name === 'Ambra')!
+  assert.deepEqual(tre.segmenti[0].lettoNotti, ['2026-09-17'])
+  assert.equal(tre.prezzoTotale, 330)                                 // 90 + 3 × 80
+  assert.deepEqual(prezziNottiCentesimi(tre.segmenti[0]), [9000, 8000, 8000, 8000])
+  // Lena a 3 poi 2: la tariffa cambia per notte, nessun letto addebitato
+  const lena = proponiSoluzioni({ ...r, persone: 3, persone_per_notte: [3, 2, 2, 2] }, camere, []).find(s => s.segmenti[0].camera.name === 'Lena')!
+  assert.equal(lena.prezzoTotale, 330); assert.deepEqual(lena.segmenti[0].lettoNotti, []); assert.equal(lena.segmenti[0].prezzoNotte, 80); assert.equal(lena.segmenti[0].lettoTotale, 10)
+})
+
+test('pezzo 9: il pool delle brande si controlla notte per notte con le persone di quella notte', () => {
+  const camere = [AMELIA, ALLEGRA, AMBRA, LENA]
+  // quadrupla in Lena SOLO il 18: entrambe le brande prese quella notte
+  const occ = [{ room_id: LENA.id, check_in: '2026-09-18', check_out: '2026-09-19', status: 'confermata', num_guests: 4, extra_bed: true, extra_bed_dates: ['2026-09-18'] }]
+  const r = { arrivo: '2026-09-17', partenza: '2026-09-21', persone: 2, camera_id: null }
+  // in 2 SOLO il 17: Amelia va bene (la branda serve il 17, libera)
+  assert.ok(proponiSoluzioni({ ...r, persone_per_notte: [2, 1, 1, 1] }, camere, occ).some(s => s.caso === 'completa' && s.segmenti[0].camera.name === 'Amelia'))
+  // in 2 il 18: Amelia non può (branda esaurita quella notte), Ambra/Allegra sì senza branda
+  const s18 = proponiSoluzioni({ ...r, persone_per_notte: [1, 2, 1, 1] }, camere, occ)
+  assert.ok(!s18.some(s => s.caso === 'completa' && s.segmenti[0].camera.name === 'Amelia'))
+  assert.ok(s18.some(s => s.caso === 'completa' && s.segmenti[0].camera.name === 'Ambra'))
+  // array di lunghezza sbagliata: errore esplicito, mai un ripiego
+  assert.throws(() => proponiSoluzioni({ ...r, persone_per_notte: [2, 1] }, camere, occ), /Persone per notte non valide: servono 4/)
+  assert.deepEqual(personePerNotte({ ...r, persone_per_notte: null }), [2, 2, 2, 2])
+  // capienza per notte: 3 persone una notte in Amelia (max 2) → Amelia esclusa
+  assert.ok(!proponiSoluzioni({ ...r, persone: 3, persone_per_notte: [3, 1, 1, 1] }, camere, []).some(s => s.segmenti.some(x => x.camera.name === 'Amelia')))
+})
+
+test('pezzo 9: alternativa Amelia con persone variabili solo se la differenza a notte è costante', () => {
+  const camere = [AMELIA, ALLEGRA, AMBRA, LENA]
+  const r = { arrivo: '2026-09-17', partenza: '2026-09-21', persone: 2, camera_id: null, persone_per_notte: [2, 1, 1, 1] }
+  const amelia = proponiSoluzioni(r, camere, []).find(s => s.segmenti[0].camera.name === 'Amelia')!
+  // Amelia 75/70/70/70 vs Allegra 80/80/80/80: differenze 5/10/10/10 → non costante → nessun blocco
+  assert.equal(alternativaAmelia(r, amelia, camere, []), null)
+  const uniforme = { ...r, persone: 1, persone_per_notte: [1, 1, 1, 1] }
+  const a = alternativaAmelia(uniforme, proponiSoluzioni(uniforme, camere, [])[0], camere, [])
+  assert.equal(a?.differenzaNotteCentesimi, 1000)
 })
