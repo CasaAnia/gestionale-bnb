@@ -41,6 +41,7 @@ type Props = {
   lettoAggiuntivo?: boolean          // caso singolo: "+ letto aggiuntivo" accanto alla camera
   bonifico?: DatiBonifico            // solo con pagamento = 'bonifico'
   nottiNonDisponibili?: string[]     // proposta, caso C: notti richieste ma scoperte (giorni ISO)
+  personeNotti?: { giorno: string; persone: number }[]   // pezzo 9: persone di ogni notte (mostrate solo se cambiano)
 }
 
 // Data breve per il "biglietto": giorno della settimana + giorno + mese, senza anno
@@ -56,7 +57,7 @@ function notti(cin: string, cout: string) {
   return Math.round((new Date(cout).getTime() - new Date(cin).getTime()) / 86400000)
 }
 
-export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, numOspiti, righeCosti, totale, pagamento, lettoAggiuntivo = false, bonifico, nottiNonDisponibili = [] }: Props) {
+export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, numOspiti, righeCosti, totale, pagamento, lettoAggiuntivo = false, bonifico, nottiNonDisponibili = [], personeNotti = [] }: Props) {
   const intestazione = variante === 'conferma'
     ? { badge: 'BENVENUTI', titolo: 'Prenotazione confermata' }
     : { badge: 'PROPOSTA', titolo: 'Proposta di soggiorno' }
@@ -71,6 +72,9 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
     : null
   const nottiTot = linea ? segmenti.reduce((n, s) => n + notti(s.check_in, s.check_out), 0) : notti(cin, cout)
   const nottiScoperteTot = linea ? linea.reduce((n, b) => n + (b.tipo === 'vuoto' ? b.notti.length : 0), 0) : 0
+  // persone che cambiano da una notte all'altra (pezzo 9): la striscia compare solo allora
+  const personeVariano = variante === 'proposta' && personeNotti.length > 1 && personeNotti.some(x => x.persone !== personeNotti[0].persone)
+  const giornoBreve = (iso: string) => `${Number(iso.slice(8, 10))} ${['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'][Number(iso.slice(5, 7)) - 1]}`
   const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
   const ricevuto = bonifico?.ricevuto ?? 0
   const importoBonifico = bonifico?.importo ?? totale
@@ -150,6 +154,22 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
               <div style={{ fontSize: 32, color: '#3a3a35', marginTop: 24, lineHeight: 1.15 }}>entro le 10:00</div>
             </div>
           </div>
+          )}
+
+          {/* PERSONE NOTTE PER NOTTE (solo quando cambiano) */}
+          {personeVariano && (
+            <div style={{ marginBottom: 30 }}>
+              <p style={{ fontSize: 32, letterSpacing: 3, color: '#3a3a35', fontWeight: 700, margin: '0 0 14px' }}>PERSONE NOTTE PER NOTTE</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                {personeNotti.map(x => (
+                  <div key={x.giorno} style={{ minWidth: 118, padding: '16px 12px', background: 'white', border: '2px solid #e3ddd0', borderRadius: 16, textAlign: 'center' }}>
+                    <div style={{ fontSize: 28, color: '#3a3a35' }}>{giornoBreve(x.giorno)}</div>
+                    <div style={{ fontSize: 44, fontWeight: 700, color: '#1F3D2F', lineHeight: 1.1 }}>{x.persone}</div>
+                    <div style={{ fontSize: 26, color: '#3a3a35' }}>{x.persone === 1 ? 'persona' : 'persone'}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* NOTTI · OSPITI */}

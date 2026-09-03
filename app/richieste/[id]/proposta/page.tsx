@@ -8,17 +8,19 @@ import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
 import { supabase } from '@/lib/supabase'
-import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, colonne0029Presenti, AVVISO_0025, AVVISO_0029, MOTIVI_RIFIUTO, type CondizioniSalvate } from '@/lib/richiesteDati'
-import { proponiSoluzioni, alternativaAmelia, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
-import { generaProposta, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, nottiScoperte, type Condizione } from '@/lib/richiesteTesti'
+import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, colonne0029Presenti, colonne0031Presenti, AVVISO_0025, AVVISO_0029, AVVISO_0031, MOTIVI_RIFIUTO, type CondizioniSalvate } from '@/lib/richiesteDati'
+import { proponiSoluzioni, alternativaAmelia, personePerNotte, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
+import { generaProposta, camereDelCasoA, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, nottiScoperte, type Condizione } from '@/lib/richiesteTesti'
 import { CONDIZIONI_PAGAMENTO, ETICHETTA_CONDIZIONE, caparraDefault, type CondizionePagamento } from '@/lib/condizioniPrenotazione'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import { lettoDaComunicare } from '@/lib/tariffe'
 import { openWhatsApp, normalizzaTelefono } from '@/lib/whatsapp'
 import { salvaImmagine, copiaImmagine, isMobile } from '@/lib/immaginePng'
 import { useDesktop } from '@/lib/richiesteVista'
+import { giorniTra } from '@/lib/richiesteCalendario'
+import Link from 'next/link'
 import {
-  CANALE_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, tempoTrascorso, type Richiesta,
+  CANALE_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, tempoTrascorso, riassuntoPersone, modificabile, type Richiesta,
 } from '@/lib/richieste'
 import type { Room } from '@/lib/types'
 
@@ -52,7 +54,7 @@ export default function PropostaPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const desktop = useDesktop()
-  const [richiesta, setRichiesta] = useState<Richiesta & { proposta_testo?: string | null; proposta_soluzione?: Soluzione | null } & Partial<CondizioniSalvate> | null>(null)
+  const [richiesta, setRichiesta] = useState<Richiesta & { proposta_testo?: string | null; proposta_soluzione?: Soluzione | null; proposta_alternative?: Soluzione[] | null } & Partial<CondizioniSalvate> | null>(null)
   const [camere, setCamere] = useState<Room[]>([])
   const [prenotazioni, setPrenotazioni] = useState<PrenotazioneOccupante[]>([])
   const [loading, setLoading] = useState(true)
@@ -60,6 +62,7 @@ export default function PropostaPage() {
   const [avviso, setAvviso] = useState<string | null>(null)
   const [manca0025, setManca0025] = useState(false)
   const [manca0029, setManca0029] = useState(false)
+  const [manca0031, setManca0031] = useState(false)
   const [adesso] = useState(() => new Date())
 
   // Soluzione scelta e bozza (null = quella generata; stringa = modificata a mano)
@@ -103,6 +106,7 @@ export default function PropostaPage() {
       setRichiesta(ric.data as typeof richiesta)
       setManca0025(!!ric.data && !colonne0025Presenti(ric.data as unknown as Record<string, unknown>))
       setManca0029(!!ric.data && !colonne0029Presenti(ric.data as unknown as Record<string, unknown>))
+      setManca0031(!!ric.data && !colonne0031Presenti(ric.data as unknown as Record<string, unknown>))
       setCamere((r.data || []) as Room[])
       setPrenotazioni((b.data || []) as PrenotazioneOccupante[])
       setErrore(errs.length ? errs.join(' · ') : null)
@@ -110,10 +114,13 @@ export default function PropostaPage() {
     })
   }, [id])
 
-  const soluzioni = useMemo(
-    () => (richiesta ? proponiSoluzioni(richiesta, camere, prenotazioni) : []),
-    [richiesta, camere, prenotazioni],
-  )
+  // La ricerca può rifiutare dati incoerenti (persone per notte diverse dalle
+  // notti): l'errore va a schermo, mai un ripiego silenzioso
+  const { soluzioni, erroreRicerca } = useMemo(() => {
+    if (!richiesta) return { soluzioni: [] as Soluzione[], erroreRicerca: null as string | null }
+    try { return { soluzioni: proponiSoluzioni(richiesta, camere, prenotazioni), erroreRicerca: null } }
+    catch (e) { return { soluzioni: [] as Soluzione[], erroreRicerca: String((e as Error).message ?? e) } }
+  }, [richiesta, camere, prenotazioni])
   const inviata = richiesta?.stato === 'proposta_inviata'
   // Già inviata: si rilegge quel che è partito (testo e soluzione archiviati)
   const soluzione: Soluzione | null = inviata && richiesta?.proposta_soluzione
@@ -140,13 +147,21 @@ export default function PropostaPage() {
     : condizioneTipo === 'caparra' && caparraCent > totaleCent ? 'La caparra supera il totale'
     : condizioneTipo === 'personalizzata' && condizioneTesto.trim() === '' ? 'Scrivi le condizioni di pagamento'
     : null
+  // Caso A con più camere libere (pezzo 9): il messaggio le elenca tutte;
+  // già inviata: quelle archiviate in proposta_alternative
+  const alternative = useMemo(() => {
+    if (!soluzione || soluzione.caso !== 'completa') return null
+    if (inviata) return richiesta?.proposta_alternative ?? null
+    return camereDelCasoA(soluzione, soluzioni.filter(s => s.caso === 'completa'))
+  }, [soluzione, soluzioni, inviata, richiesta])
   const bozzaGenerata = richiesta && soluzione
-    ? generaProposta({ richiesta, soluzione, condizione: problemaCondizione ? null : condizione, amelia: ameliaAttiva ? amelia : null })
+    ? generaProposta({ richiesta, soluzione, condizione: problemaCondizione ? null : condizione, amelia: ameliaAttiva ? amelia : null, alternative })
     : ''
   const testoFinale = inviata && richiesta?.proposta_testo ? richiesta.proposta_testo : (testoModificato ?? bozzaGenerata)
   const telefonoNorm = normalizzaTelefono(richiesta?.telefono)
   const telefono = telefonoNorm.numero
-  const mancaMigrazione = manca0025 ? AVVISO_0025 : manca0029 ? AVVISO_0029 : null
+  // La 0031 è necessaria solo se il messaggio elenca più camere (proposta_alternative da salvare)
+  const mancaMigrazione = manca0025 ? AVVISO_0025 : manca0029 ? AVVISO_0029 : manca0031 && (alternative?.length ?? 0) > 1 ? AVVISO_0031 : null
   // Cosa si salva con «Sì, inviata» (nel caso E nessuna condizione)
   const condizioniSalvate: CondizioniSalvate = completo || !condizione
     ? { condizione_pagamento: null, caparra_centesimi: null, condizione_testo: null, amelia_alternativa: false }
@@ -192,7 +207,9 @@ export default function PropostaPage() {
     const { righe, totale } = righeCostiSegmenti(seg, seg.length > 1)
     const lettoAggiuntivo = seg.length === 1 && lettoDaComunicare(seg[0])
     // Caso C: le notti scoperte vanno nell'immagine come spazi vuoti (mai un soggiorno continuo)
-    return { seg, righe, totale, lettoAggiuntivo, nottiNonDisponibili: nottiScoperte(richiesta, soluzione) }
+    let personeNotti: { giorno: string; persone: number }[] = []
+    try { personeNotti = giorniTra(richiesta.arrivo, richiesta.partenza).map((giorno, i) => ({ giorno, persone: personePerNotte(richiesta)[i] })) } catch { personeNotti = [] }
+    return { seg, righe, totale, lettoAggiuntivo, nottiNonDisponibili: nottiScoperte(richiesta, soluzione), personeNotti }
   }, [richiesta, soluzione])
 
   // Le azioni che rigenerano la bozza chiedono conferma se il testo è stato modificato a mano
@@ -269,12 +286,12 @@ export default function PropostaPage() {
   async function confermaInviata() {
     if (!richiesta || !soluzione) return
     setErrore(null); setAvviso(null); setOccupato('invio')
-    const r = await segnaPropostaInviata(richiesta.id, testoFinale, soluzione, condizioniSalvate)
+    const r = await segnaPropostaInviata(richiesta.id, testoFinale, soluzione, condizioniSalvate, alternative)
     setOccupato(null)
     if (r.error) { setErrore(`Stato non aggiornato: ${r.error}`); return }
     try { window.localStorage.removeItem(chiavePendente) } catch { /* niente */ }
     setChiediConferma(false)
-    setRichiesta({ ...richiesta, stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at, proposta_testo: testoFinale, proposta_soluzione: soluzione, ...condizioniSalvate })
+    setRichiesta({ ...richiesta, stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at, proposta_testo: testoFinale, proposta_soluzione: soluzione, proposta_alternative: alternative && alternative.length > 1 ? alternative : null, ...condizioniSalvate })
   }
 
   async function rifiuta(motivo?: string) {
@@ -313,7 +330,7 @@ export default function PropostaPage() {
         <span className="text-stone"> · </span>
         <span className="font-semibold text-brass">{n === 1 ? '1 notte' : `${n} notti`}</span>
         <span className="text-stone"> · </span>
-        {richiesta.persone} {richiesta.persone === 1 ? 'persona' : 'persone'}
+        {richiesta.persone_per_notte ? riassuntoPersone(richiesta.arrivo, richiesta.persone_per_notte) : `${richiesta.persone} ${richiesta.persone === 1 ? 'persona' : 'persone'}`}
       </p>
       <p className="text-sm text-green-dark mt-1">Camera richiesta: <span className="font-medium">{richiesta.rooms?.name || 'qualsiasi'}</span></p>
       <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-stone mt-1.5">
@@ -324,6 +341,9 @@ export default function PropostaPage() {
           <><span aria-hidden>·</span><span className="text-green-mid font-semibold">proposta inviata {tempoTrascorso(richiesta.proposta_inviata_at, adesso)}</span></>
         )}
       </p>
+      {modificabile(richiesta) && (
+        <Link href={`/richieste/${richiesta.id}/modifica`} className="inline-block mt-2 text-sm font-semibold text-green-mid underline underline-offset-2">Modifica la richiesta</Link>
+      )}
       <p className="text-sm mt-1.5">
         {richiesta.telefono
           ? <span className="text-green-dark">{richiesta.telefono}{telefonoNorm.avviso && <span className="ml-2 text-xs font-semibold text-[#8C3B2E]">{telefonoNorm.avviso}</span>}</span>
@@ -424,7 +444,7 @@ export default function PropostaPage() {
           <div ref={el => { if (el) setScala(el.clientWidth / IMG_W) }} className="w-full rounded-xl overflow-hidden border border-card-border bg-white" style={{ height: imgH ? imgH * scala : undefined }}>
             <div style={{ transform: `scale(${scala})`, transformOrigin: 'top left', width: IMG_W }}>
               <ImmagineSoggiorno imgRef={imgRef} variante="proposta" nome={richiesta.nome.trim()} segmenti={immagine.seg} numOspiti={richiesta.persone}
-                righeCosti={immagine.righe} totale={immagine.totale} pagamento="contanti" lettoAggiuntivo={immagine.lettoAggiuntivo} nottiNonDisponibili={immagine.nottiNonDisponibili} />
+                righeCosti={immagine.righe} totale={immagine.totale} pagamento="contanti" lettoAggiuntivo={immagine.lettoAggiuntivo} nottiNonDisponibili={immagine.nottiNonDisponibili} personeNotti={immagine.personeNotti} />
             </div>
           </div>
           <button type="button" onClick={immagineSuDispositivo} disabled={!!occupato}
@@ -483,6 +503,9 @@ export default function PropostaPage() {
         <div role="alert" className="mb-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">
           {mancaMigrazione} Finché manca, la proposta non può essere registrata.
         </div>
+      )}
+      {erroreRicerca && (
+        <div role="alert" className="mb-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{erroreRicerca}</div>
       )}
 
       <div className="md:grid md:grid-cols-[2fr_3fr] md:gap-5 md:items-start">
