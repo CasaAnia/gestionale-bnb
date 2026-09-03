@@ -8,6 +8,7 @@ import ScrollToTop from '@/components/ScrollToTop'
 import NavTracker from '@/components/NavTracker'
 import WebRequestAlert from '@/components/WebRequestAlert'
 import RinnovoNotifiche from '@/components/RinnovoNotifiche'
+import AvvisoConnessione from '@/components/AvvisoConnessione'
 
 const nunitoSans = Nunito_Sans({ subsets: ['latin'], variable: '--font-nunito-sans', display: 'swap' })
 const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', weight: ['400', '600'], style: ['normal', 'italic'], display: 'swap' })
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <NavTracker />
         <MobileTopBar />
         <main className="min-h-screen pt-12 lg:pt-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-48">
+          <AvvisoConnessione />
           <MainContainer>{children}</MainContainer>
         </main>
         <BottomNav />

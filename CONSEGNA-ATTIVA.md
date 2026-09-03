@@ -6,10 +6,53 @@
 4. Proposte: unico generatore lib/richiesteTesti.generaProposta (testi del Lei BLOCCATI), condizioni scelte da Ania a ogni richiesta (mai preselezionate), alternativa Amelia con interruttore, immagine con la notte scoperta.
 5. Conferma: SOLO la RPC conferma_richiesta (una transazione, ricontrollo camera e pool delle 2 brande, ospite, bookings per segmento, cascata «date assegnate a altro cliente», idempotente). Provata in locale sulla SQL vera con PGlite (lib/richiesteConfermaRpc.test.ts).
 6. Contratto sito → gestionale verificato con evidenze in docs/verifica-5B.md (401/400/429, doppioni, limite IP, nessun dato personale nei log).
-7. In corso: niente. Prossimi pezzi: pulizia del flusso vecchio (prenotazioni in_attesa source sito_web nel calendario principale), riepilogo pre-bonifico con la regola di cancellazione (lib/condizioniPrenotazione).
+7. In corso: niente. Ultimo blocco su main (03/09/2026): avviso di connessione in tutta l'app (lib/connessione.ts, components/AvvisoConnessione.tsx), home senza zeri finti e ricerca cliente che non scambia più un errore di rete per «nuovo cliente». Prossimi pezzi: pulizia del flusso vecchio (prenotazioni in_attesa source sito_web nel calendario principale), riepilogo pre-bonifico con la regola di cancellazione (lib/condizioniPrenotazione).
 8. Strumenti locali: anteprima senza rete `gestionale-bnb-anteprima-richieste-finta` (porta 3214, finto Supabase, endpoint web con segreto «prova-locale»); `node scripts/verifica-consegna.mjs --base <sha>`; suite `npm test` (441 test, con PGlite).
 9. Regole: nessun invio reale in sviluppo; migrazioni solo a mano da Ania; il calendario principale non si tocca; commit separati per blocco; push su main autorizzato dalle consegne.
 10. 🔴 Azioni aperte per Ania: prova manuale della cascata dal telefono (guida in fondo alla scheda del pezzo 7) e annullamento della prenotazione di prova; il blocco Codex «quadrupla nera» (ramo correzioni-prenotazioni-quadrupla-date) attende ancora la sua autorizzazione.
+
+---
+
+# Consegna — Avviso di connessione (03/09/2026)
+
+Origine: il 3 settembre, a Casa Ania, il telefono ha perso la linea mentre
+Ania inseriva un cliente dalla ricerca per nome. L'app si è bloccata su
+«Ricerca...», riaperta mostrava la home con TUTTI gli importi a zero (come
+se fossero veri) e poi il messaggio del login «Non riesco a raggiungere il
+server». Cinque minuti di spavento. Richiesta di Ania: controllare tutto e,
+quando manca la linea, dirlo chiaramente.
+
+## Cosa c'era
+
+- Le pagine ignoravano `error` delle letture Supabase: senza rete `data` è
+  `null`, `[]` dopo il ripiego, quindi zeri e liste vuote presentati come dati.
+- Nella nuova prenotazione un errore di rete nella ricerca valeva «nessun
+  risultato» → «➕ Nuovo cliente» (rischio doppioni) e, con una richiesta
+  appesa, il tasto restava su «Ricerca...» senza fine.
+- Nessun tempo massimo alle richieste: una rete «mezza morta» tiene l'app
+  ferma finché il sistema non taglia la connessione.
+
+## Cosa c'è ora
+
+| ID | Caso | Prova | Esito |
+| --- | --- | --- | --- |
+| A01 | Ogni richiesta a Supabase passa dal fetch sorvegliato: 30 s massimo (120 s per i file degli scontrini), poi `TimeoutError`. | lib/connessione.test.ts | VERDE |
+| A02 | Errore di rete (Chrome «Failed to fetch», iPhone «Load failed», Firefox, Node) o tempo scaduto → stato «server irraggiungibile»; una risposta qualsiasi lo riporta a «raggiunto»; ascoltatori avvisati solo ai cambi. | lib/connessione.test.ts | VERDE |
+| A03 | Un annullamento voluto dall'app (signal esterno) non accende l'avviso. | lib/connessione.test.ts | VERDE |
+| A04 | Avviso in alto in tutta l'app (tranne /login), sticky sotto la barra del titolo, nel flusso della pagina (non copre nulla): «Il server non risponde» oppure «Nessuna connessione a internet» quando il telefono è offline (`navigator.onLine`). «Riprova» fa una lettura leggera: se risponde ricarica, altrimenti «Ancora niente». | anteprima finta 3213 con fetch spento dal browser | VERDE |
+| A05 | Home: se una delle tre letture fallisce → scheda «Dati non disponibili» con il motivo e «Riprova» (ricarica solo i dati), MAI zeri. | anteprima finta | VERDE |
+| A06 | Nuova prenotazione: ricerca per nome e per telefono con errore di rete → messaggio «Non riesco a cercare il cliente: nessuna connessione al server…», si resta sulla ricerca, tasto di nuovo attivo; nessun «nuovo cliente» finto. `single()` → `maybeSingle()` sui contatti extra (nessuna riga non è un errore). | anteprima finta | VERDE |
+| A07 | Con la rete: ricerca per nome che non trova nessuno → «Nuovo cliente» con il nome già scritto e il telefono da aggiungere nel campo (correzione del 01/09, commit 6d44d69), comportamento invariato. | lettura del codice | VERDE |
+
+Prove: `npm test` 448/448 (7 nuovi), `tsc --noEmit` pulito, lint del delta
+senza nuovi rilievi (i 37 di app/page.tsx sono preesistenti, tipi `any`).
+
+Limiti: il ritardo prima del messaggio può arrivare a ~10 s quando il client
+Supabase sta anche rinnovando il token (riprova da solo con attese
+crescenti); le altre pagine (prenotazioni, calendario, clienti) mostrano
+l'avviso in alto ma le loro liste restano vuote finché non torna la linea.
+Il ricaricamento dell'app senza alcuna rete resta nelle mani di Safari
+(pagina non caricabile): il gestionale non è ancora un'app offline.
 
 ---
 

@@ -6,6 +6,7 @@ import type { Booking, Expense } from '@/lib/types'
 import { getUpcomingRoomChanges, buildChangeGroups } from '@/lib/roomChanges'
 import { nomeOspite } from '@/lib/guestName'
 import { useDemoMode } from '@/lib/useDemoMode'
+import { messaggioErroreDati } from '@/lib/connessione'
 
 function fmt(n: number) { return n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 function today() { return new Date().toISOString().split('T')[0] }
@@ -20,22 +21,43 @@ function italianDate() {
 export default function Dashboard() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  // Errore di caricamento (rete o server): la home NON mostra mai zeri al
+  // posto dei numeri veri, mostra il messaggio e il tasto «Riprova».
+  const [errore, setErrore] = useState<string | null>(null)
+  const [tentativo, setTentativo] = useState(0)
   const demo = useDemoMode()
 
   useEffect(() => {
     async function load() {
+      try {
+        await carica()
+      } catch (err) {
+        setErrore(messaggioErroreDati(err))
+        setLoading(false)
+      }
+    }
+    async function carica() {
       const td = today()
       const tmr = tomorrow()
       const ms = monthStart()
       const me = monthEnd()
       const ys = yearStart()
 
-      const [{ data: bookings }, { data: expenses }, { data: payments }] = await Promise.all([
+      const [rb, re, rp] = await Promise.all([
         supabase.from('bookings').select('*, rooms(name), guests(full_name, phone)'),
         // Spese del B&B = spese dei gruppi con ambito 'azienda' (Casa Granata/Casa Ania).
         supabase.from('family_expenses').select('expense_date, amount, family_groups!inner(ambito)').eq('family_groups.ambito', 'azienda'),
         supabase.from('payments').select('booking_id, amount'),
       ])
+      const erroreLettura = rb.error || re.error || rp.error
+      if (erroreLettura) {
+        setErrore(messaggioErroreDati(erroreLettura))
+        setLoading(false)
+        return
+      }
+      const { data: bookings } = rb
+      const { data: expenses } = re
+      const { data: payments } = rp
 
       const b: any[] = bookings || []
       const e: any[] = expenses || []
@@ -148,10 +170,17 @@ export default function Dashboard() {
         .sort((a, b) => b.residuo - a.residuo)
 
       setData({ entrateMese, incassatoMese, daIncassareMese, speseMese, profittoMese, tariffaMedia, checkInOggi, checkOutOggi, checkInDomani, checkOutDomani, roomChangesOggi, roomChangesDomani, camereOccupate, occupazioneMese, td, daIncassare })
+      setErrore(null)
       setLoading(false)
     }
     load()
-  }, [])
+  }, [tentativo])
+
+  function riprova() {
+    setErrore(null)
+    setLoading(true)
+    setTentativo(t => t + 1)
+  }
 
   // Righe di un giorno (arrivi, partenze, cambi camera). Il prefisso rende le key
   // uniche tra le sezioni Oggi e Domani (una prenotazione può arrivare oggi e
@@ -195,6 +224,16 @@ export default function Dashboard() {
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
+      ) : errore ? (
+        <div role="alert" className="scheda-in rounded-xl p-5 shadow-sm" style={{ background: '#F4E6DF', color: '#7A3B22' }}>
+          <p className="font-serif text-lg mb-1">Dati non disponibili</p>
+          <p className="text-[13.5px] mb-4" style={{ color: '#8a5049' }}>{errore}</p>
+          <button onClick={riprova}
+            className="w-full rounded-xl bg-white py-3 text-[14px] font-semibold shadow-sm transition-transform duration-100 active:scale-[0.98]"
+            style={{ color: '#7A3B22' }}>
+            Riprova
+          </button>
+        </div>
       ) : (
         <>
           {(() => {

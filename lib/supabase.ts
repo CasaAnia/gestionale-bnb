@@ -1,4 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr'
+import { creaFetchSorvegliato } from './connessione'
 
 // Client del browser. Usa createBrowserClient (non createClient) perché deve
 // leggere e scrivere il cookie di sessione: è quel cookie che fa arrivare a
@@ -8,7 +9,10 @@ import { createBrowserClient } from '@supabase/ssr'
 // dentro la chiave fa fallire ogni richiesta.
 const pulisci = (v: string | undefined) => (v ?? '').replace(/\s+/g, '')
 
+// Ogni richiesta passa dal fetch sorvegliato (lib/connessione.ts): tempo
+// massimo di risposta e avviso «server non raggiungibile» in tutta l'app.
 export const supabase = createBrowserClient(
   pulisci(process.env.NEXT_PUBLIC_SUPABASE_URL),
-  pulisci(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  pulisci(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+  { global: { fetch: creaFetchSorvegliato() } }
 )

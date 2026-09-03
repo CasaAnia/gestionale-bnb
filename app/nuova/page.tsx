@@ -7,6 +7,7 @@ import { tariffaCamera, totaleLetto } from '@/lib/tariffe'
 import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
 import { contoSoggiorno } from '@/lib/conto'
 import { smartBack, returnToSicuro } from '@/lib/navHistory'
+import { messaggioErroreDati } from '@/lib/connessione'
 
 // forme MINIME delle righe lette da Supabase (solo i campi usati qui)
 type ClienteRiga = {
@@ -74,6 +75,10 @@ function NuovaPrenotazione() {
   const [savedGroupId, setSavedGroupId] = useState<string | null>(null)
   const [savedCheckOut, setSavedCheckOut] = useState<string | null>(null)
   const [searchLoading, setSearchLoading] = useState(false)
+  // Ricerca fallita (rete o server): si dice e si resta sulla ricerca. Prima
+  // un errore di rete passava per «nessun risultato» e proponeva «nuovo
+  // cliente»: rischio di doppioni e, senza linea, tasto bloccato su «Ricerca...».
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [openHistory, setOpenHistory] = useState<Set<string>>(new Set())
   const [conflitto, setConflitto] = useState<string | null>(null)
   const [lettiOccupati, setLettiOccupati] = useState(0)
@@ -112,7 +117,8 @@ function NuovaPrenotazione() {
   }, [])
 
   async function loadGuestById(guestId: string) {
-    const { data: g } = await supabase.from('guests').select('*').eq('id', guestId).single()
+    const { data: g, error } = await supabase.from('guests').select('*').eq('id', guestId).single()
+    if (error) { setSearchError(messaggioErroreDati(error, 'caricare il cliente')); return }
     if (g) {
       setGuest(g)
       setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
@@ -125,18 +131,29 @@ function NuovaPrenotazione() {
   async function searchByName() {
     if (!searchName.trim()) return
     setSearchLoading(true)
-    const q = searchName.trim()
+    setSearchError(null)
+    try {
+      await cercaPerNome(searchName.trim())
+    } catch (err) {
+      setSearchError(messaggioErroreDati(err, 'cercare il cliente'))
+    } finally {
+      setSearchLoading(false)
+    }
+  }
 
+  async function cercaPerNome(q: string) {
     // cerca tra i clienti principali
-    const { data: guestMatches } = await supabase.from('guests').select('*').ilike('full_name', `%${q}%`).order('created_at', { ascending: false }).limit(10)
+    const { data: guestMatches, error: e1 } = await supabase.from('guests').select('*').ilike('full_name', `%${q}%`).order('created_at', { ascending: false }).limit(10)
+    if (e1) { setSearchError(messaggioErroreDati(e1, 'cercare il cliente')); return }
 
     // cerca tra i nomi secondari nelle prenotazioni
-    const { data: extraMatches } = await supabase.from('bookings')
+    const { data: extraMatches, error: e2 } = await supabase.from('bookings')
       .select('*, guests(*)')
       .or(`extra_phone_1_name.ilike.%${q}%,extra_phone_2_name.ilike.%${q}%`)
       .neq('status', 'annullata')
       .order('check_in', { ascending: false })
       .limit(5)
+    if (e2) { setSearchError(messaggioErroreDati(e2, 'cercare il cliente')); return }
 
     // unisci i risultati (evita duplicati per id)
     const seen = new Set<string>()
@@ -161,7 +178,6 @@ function NuovaPrenotazione() {
       setNameResults([])
       setStep('cliente')
     }
-    setSearchLoading(false)
   }
 
   async function selectGuestFromList(g: ClienteRiga) {
@@ -176,9 +192,21 @@ function NuovaPrenotazione() {
   async function searchPhone() {
     if (!phone.trim()) return
     setSearchLoading(true)
+    setSearchError(null)
+    try {
+      await cercaPerTelefono()
+    } catch (err) {
+      setSearchError(messaggioErroreDati(err, 'cercare il cliente'))
+    } finally {
+      setSearchLoading(false)
+    }
+  }
+
+  async function cercaPerTelefono() {
     const raw = phone.trim().replace(/\D/g, '')
     const t = raw.startsWith('39') ? raw : `39${raw}`
-    const { data: existingGuest } = await supabase.from('guests').select('*').eq('phone', t).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    const { data: existingGuest, error: e1 } = await supabase.from('guests').select('*').eq('phone', t).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    if (e1) { setSearchError(messaggioErroreDati(e1, 'cercare il cliente')); return }
     if (existingGuest) {
       setGuest(existingGuest)
       setGuestForm({ full_name: existingGuest.full_name || '', email: existingGuest.email || '', rating: existingGuest.rating })
@@ -187,13 +215,15 @@ function NuovaPrenotazione() {
     } else {
       // cerca nei contatti extra (prova sia con che senza prefisso 39)
       const tShort = t.startsWith('39') ? t.slice(2) : t
-      const { data: extraMatch } = await supabase.from('bookings')
+      // maybeSingle e non single: «nessuna riga» qui è normale, non un errore
+      const { data: extraMatch, error: e2 } = await supabase.from('bookings')
         .select('*, guests(*)')
         .or(`extra_phone_1.eq.${t},extra_phone_2.eq.${t},extra_phone_1.eq.${tShort},extra_phone_2.eq.${tShort}`)
         .neq('status', 'annullata')
         .order('check_in', { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
+      if (e2) { setSearchError(messaggioErroreDati(e2, 'cercare il cliente')); return }
       if (extraMatch?.guests) {
         const g = extraMatch.guests
         setGuest(g)
@@ -206,7 +236,6 @@ function NuovaPrenotazione() {
         setGuestHistory([])
       }
     }
-    setSearchLoading(false)
     setStep('cliente')
   }
 
@@ -399,6 +428,12 @@ function NuovaPrenotazione() {
               {searchLoading ? 'Ricerca...' : 'Cerca →'}
             </button>
           </div>
+
+          {searchError && (
+            <div role="alert" className="scheda-in rounded-xl px-4 py-3 shadow-sm text-[13.5px]" style={{ background: '#F4E6DF', color: '#7A3B22' }}>
+              {searchError}
+            </div>
+          )}
 
           <div className="flex items-center gap-3 px-1">
             <div className="flex-1 h-px bg-gray-200" />
