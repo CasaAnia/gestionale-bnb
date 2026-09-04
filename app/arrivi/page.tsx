@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getUpcomingRoomChanges, buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite } from '@/lib/guestName'
+import { matchPrenotazione } from '@/lib/ricerca'
 import { testoNavetta } from '@/lib/navetta'
 import BackLink from '@/components/BackLink'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -85,6 +86,17 @@ export default function Arrivi() {
   }, [])
 
   const [primoVisibile, setPrimoVisibile] = useState(DAYS_BEFORE)
+  // Ricerca per nome o telefono (stesso campo del Calendario, dal Mac): gli
+  // arrivi trovati restano pieni, gli altri si attenuano; si scorre al primo.
+  const [query, setQuery] = useState('')
+  const matches = useMemo(() => {
+    const t = query.trim()
+    if (!t) return []
+    return bookings.filter((b: any) => matchPrenotazione(b, t)).sort((a: any, b: any) => a.check_in.localeCompare(b.check_in))
+  }, [bookings, query])
+  const matchedIds = useMemo(() => new Set(matches.map((m: any) => m.id)), [matches])
+  const cercando = query.trim() !== ''
+  const searchAttiva = matches.length > 0
   const [modo, setModo] = useState<ModoGriglia>('quindici')
   useEffect(() => {
     let v: string | null = null
@@ -178,6 +190,13 @@ export default function Arrivi() {
     setModo(m)
     try { window.localStorage.setItem(CHIAVE_MODO, m) } catch { /* niente memoria */ }
   }
+  function cambiaRicerca(v: string) {
+    setQuery(v)
+    const t = v.trim()
+    if (!t) return
+    const primo = bookings.filter((b: any) => matchPrenotazione(b, t)).sort((a: any, b: any) => a.check_in.localeCompare(b.check_in))[0]
+    if (primo) vaiAIndice(dayIndex(primo.check_in) - 1)
+  }
   function vaiAIndice(idx: number) {
     scrollRef.current?.scrollTo({ left: Math.max(0, Math.min(days.length - 1, idx)) * CELL_W, behavior: 'smooth' })
   }
@@ -250,7 +269,27 @@ export default function Arrivi() {
       <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 lg:pt-4 pb-2 bg-cream/95 backdrop-blur-sm">
         <BackLink href="/" />
         {/* Dal Mac il titolo della pagina, con le stesse distanze delle Richieste (16 px sotto «Indietro», riga alta 44 px, 16 px prima del riquadro) */}
-        {isDesktop && <div className="flex items-center mt-4 mb-2 min-h-[44px]"><h1 className="text-[22px] text-green-dark leading-tight" style={FRAUNCES}>Arrivi</h1></div>}
+        {isDesktop && (
+          <div className="flex items-center gap-4 mt-4 mb-2 min-h-[44px]">
+            <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Arrivi</h1>
+            {/* Stesso campo di ricerca del Calendario, stesso punto e stessa misura */}
+            <div className="flex items-center gap-2 w-[360px] bg-white border rounded-full px-3 py-1.5" style={{ borderColor: '#C9BFA8' }}>
+              <span aria-hidden className="text-[13px]">🔎</span>
+              <input type="search" enterKeyHint="search" value={query} onChange={e => cambiaRicerca(e.target.value)} placeholder="Cerca nome o telefono…"
+                className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-green-dark placeholder:text-stone [&::-webkit-search-cancel-button]:hidden" />
+              {query !== '' && (
+                <button onClick={() => cambiaRicerca('')} aria-label="Chiudi ricerca"
+                  className="shrink-0 w-6 h-6 rounded-full bg-cream text-green-dark text-[12px] font-bold leading-none transition-transform duration-100 active:scale-[0.9]">✕</button>
+              )}
+            </div>
+          </div>
+        )}
+        {isDesktop && cercando && matches.length === 0 && (
+          <div className="text-[13.5px] font-bold" style={{ color: '#8c6a52' }}>Nessun arrivo trovato nei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</div>
+        )}
+        {isDesktop && searchAttiva && (
+          <div className="text-[13px] font-bold text-green-dark truncate">🔎 {matches.length === 1 ? nomeOspite(matches[0]) : `${matches.length} arrivi trovati`}</div>
+        )}
       </div>
 
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
@@ -445,8 +484,10 @@ export default function Arrivi() {
                           flexDirection: 'column',
                           justifyContent: 'center',
                           overflow: 'hidden',
-                          zIndex: 5,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                          zIndex: searchAttiva && matchedIds.has(booking.id) ? 15 : 5,
+                          opacity: searchAttiva && !matchedIds.has(booking.id) ? 0.3 : 1,
+                          boxShadow: searchAttiva && matchedIds.has(booking.id) ? '0 3px 10px rgba(31,61,47,0.45)' : '0 1px 3px rgba(0,0,0,0.2)',
+                          transition: 'opacity 0.15s, box-shadow 0.15s',
                         }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 8, maxWidth: '100%' }}>
                           {/* Orario — o freccine ⇄ se è l'arrivo di un cambio camera */}
