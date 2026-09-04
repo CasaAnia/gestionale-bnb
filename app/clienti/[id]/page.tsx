@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
+import DocumentiCliente from '@/components/DocumentiCliente'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
@@ -129,6 +130,9 @@ export default function ClienteDetail() {
           </p>
         </div>
       )}
+
+      {/* Documenti d'identità (05/09/2026): stanno sul cliente; la prenotazione mostra solo «Documenti · N» */}
+      <DocumentiCliente guestId={String(id)} />
 
       {/* Storico prenotazioni */}
       <p className="font-semibold mb-3">Storico prenotazioni</p>

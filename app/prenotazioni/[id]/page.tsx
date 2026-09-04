@@ -10,6 +10,7 @@ import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 import { openWhatsApp } from '@/lib/whatsapp'
 import BackBar from '@/components/BackBar'
+import { RigaDocumentiPrenotazione } from '@/components/DocumentiCliente'
 import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio } from '@/lib/guestName'
 import { causaleBonifico } from '@/lib/causale'
 import { contoSoggiorno, residuoDaPagare } from '@/lib/conto'
@@ -1423,6 +1424,8 @@ export default function BookingDetail() {
             </a>
           )}
           {guest?.email && <p className="text-sm text-gray-600 mb-1">✉️ {guest.email}</p>}
+          {/* Documenti del cliente: riga discreta, apre la scheda cliente */}
+          <RigaDocumentiPrenotazione guestId={guest?.id} />
           {guest?.rating && guest.rating !== 'normale' && (
             <p className="text-sm font-semibold mb-1">{RATING_LABEL[guest.rating]}</p>
           )}
