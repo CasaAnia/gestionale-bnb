@@ -1027,14 +1027,7 @@ export default function Calendario() {
           <div style={{ width: 12, height: 12, borderRadius: 3, background: 'white', border: '1.5px dashed #2D6A4F' }} />
           <span className="text-xs text-gray-500">Dal sito (da confermare)</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div style={{ position: 'relative', width: 32, height: 16, flexShrink: 0 }}>
-            <div style={{ position: 'absolute', left: 0, top: 0, width: 16, height: 16, background: COLOR_PRENOTAZIONE, clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }} />
-            <div style={{ position: 'absolute', left: 16, top: 0, width: 16, height: 16, background: COLOR_PRENOTAZIONE, clipPath: 'polygon(0 0, 100% 0, 100% 100%, 6px 100%)' }} />
-            <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', fontSize: 8, fontWeight: 700, color: 'white' }}>⇄</span>
-          </div>
-          <span className="text-xs text-gray-500">Cambio camera (1° tocco: abbina · 2° tocco: apri)</span>
-        </div>
+        {/* Niente voce «Cambio camera» nella legenda (richiesta di Ania, 04/09/2026): le barre tagliate a incastro si spiegano da sole */}
         <span className="ml-auto text-[9px] text-gray-300">v. {process.env.NEXT_PUBLIC_BUILD_TAG}</span>
       </div>
     </div>
