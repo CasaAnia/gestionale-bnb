@@ -955,7 +955,7 @@ export default function Calendario() {
             {(() => {
               const rowTop = HEADER_H + rooms.length * ROW_H
               return (
-                <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: EXTRA_ROW_H, display: 'flex', borderTop: '2px solid #D6CFBD' }}>
+                <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: EXTRA_ROW_H, display: 'flex', borderTop: '2px solid #D6CFBD', borderBottom: '2px solid #D6CFBD' }}>
                   <div style={{ width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10, background: 'white', borderRight: '2px solid #D6CFBD', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <span style={{ fontSize: isDesktop ? gs(10) : gs(8), fontWeight: 700, color: '#7A4B22', background: '#F1E0CE', borderRadius: 4, padding: '1px 5px' }}>
                       🛏 extra

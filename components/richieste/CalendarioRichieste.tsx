@@ -266,7 +266,7 @@ export default function CalendarioRichieste(p: Props) {
           })}
         </div>
         {righe.map((riga, ri) => (
-          <div key={riga.chiave} style={{ position: 'relative', height: ROW_H, borderBottom: `1px solid ${COLORE_GRIGLIA}`, borderTop: riga.chiave === RIGA_QUALSIASI ? `2px solid ${COLORE_SEPARATORE}` : undefined }}>
+          <div key={riga.chiave} style={{ position: 'relative', height: ROW_H, borderBottom: ri === righe.length - 1 ? `2px solid ${COLORE_SEPARATORE}` : `1px solid ${COLORE_GRIGLIA}`, borderTop: riga.chiave === RIGA_QUALSIASI ? `2px solid ${COLORE_SEPARATORE}` : undefined }}>
             <div style={{ display: 'grid', gridTemplateColumns: `${NAME_W}px repeat(${N}, minmax(0, 1fr))`, height: '100%' }}>
               <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}`, display: 'flex', alignItems: 'center', gap: 5, padding: '0 6px', minWidth: 0, background: 'white' }}>
                 {riga.numero && <span className="font-serif" style={{ fontSize: 10, color: OTTONE }}>{riga.numero}</span>}
