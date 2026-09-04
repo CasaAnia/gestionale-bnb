@@ -324,10 +324,11 @@ export default function Arrivi() {
         </>
       )}
 
+      {/* Dal Mac niente barra di scorrimento visibile sotto la griglia (sembrava un'ombra
+          diversa dalle Richieste): si scorre con due dita, con le frecce e con i mesi */}
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
-        {/* Dal Mac niente barra di scorrimento visibile sotto la griglia (sembrava un'ombra diversa dalle Richieste): si scorre con due dita, le frecce e i mesi */}
         <div ref={scrollRef} onScroll={updateVisibleMonth} className={`overflow-auto flex-1 lg:flex-none ${isDesktop ? 'no-scrollbar' : ''}`} style={{ WebkitOverflowScrolling: 'touch' }}>
           <div style={{ width: totalW, position: 'relative', height: totalH }}>
 
