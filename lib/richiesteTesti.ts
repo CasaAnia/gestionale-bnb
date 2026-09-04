@@ -208,6 +208,22 @@ export function camereDelCasoA(soluzione: Soluzione, alternative?: Soluzione[] |
 
 const fraseNotti = (n: number) => (n === 1 ? 'la notte' : `le ${n} notti`)
 
+// Pezzo 10: nella composizione manuale (B e C) il link di ogni camera usata,
+// una volta sola per camera, come blocco dopo le righe dei segmenti. Le
+// soluzioni automatiche B e C restano senza link (testi bloccati dal pezzo 9).
+function linkCamere(sol: Soluzione): string[] {
+  if (!sol.manuale) return []
+  const visti = new Set<string>()
+  const righe: string[] = []
+  for (const s of sol.segmenti) {
+    if (visti.has(s.camera.id)) continue
+    visti.add(s.camera.id)
+    const link = rigaLinkCamera(s.camera)
+    if (link) righe.push(link)
+  }
+  return righe.length ? [righe.join('\n')] : []
+}
+
 function casoA(richiesta: { arrivo: string; partenza: string }, camere: Soluzione[]): string {
   const periodo = dalAl(richiesta.arrivo, richiesta.partenza)
   if (camere.length === 1) {
@@ -230,14 +246,14 @@ export function corpo(richiesta: { arrivo: string; partenza: string }, sol: Solu
     case 'completa':
       return casoA(richiesta, camereDelCasoA(sol, alternative))
     case 'cambio': {
-      const [s1, s2] = sol.segmenti
-      return `${INTRO_SOLUZIONE}
-
-Per tutto il periodo, ${dalAl(richiesta.arrivo, richiesta.partenza)}, posso ospitarla prevedendo un cambio di camera durante il soggiorno:
-
-${rigaSegmento(s1)};
-
-${rigaSegmento(s2)}.`
+      // uno o più cambi (pezzo 10): una riga per segmento, «;» fra le righe e «.» alla fine
+      const righe = sol.segmenti.map((s, i) => `${rigaSegmento(s)}${i === sol.segmenti.length - 1 ? '.' : ';'}`)
+      return [
+        INTRO_SOLUZIONE,
+        `Per tutto il periodo, ${dalAl(richiesta.arrivo, richiesta.partenza)}, posso ospitarla prevedendo un cambio di camera durante il soggiorno:`,
+        ...righe,
+        ...linkCamere(sol),
+      ].join('\n\n')
     }
     case 'manca_mezzo':
     case 'manca_estremo': {
@@ -250,6 +266,7 @@ ${rigaSegmento(s2)}.`
         ...(cambio ? ['Per coprire il maggior numero possibile di notti, la soluzione prevede anche un cambio di camera:'] : []),
         ...righe,
         `Resterebbe da trovare un'altra sistemazione soltanto per ${scoperte.length === 1 ? 'la notte non disponibile' : 'le notti non disponibili'}, cioè ${elencoDateConArticolo(scoperte)}.`,
+        ...linkCamere(sol),
       ].join('\n\n')
     }
     case 'completo':
@@ -301,7 +318,7 @@ ${FIRMA}`
 // `alternative` (pezzo 9): nel caso A le altre camere libere da elencare;
 // con più camere il blocco Amelia non ha senso (le alternative sono già lì).
 export function generaProposta({ richiesta, soluzione, condizione, amelia, alternative }: {
-  richiesta: RichiestaTesto & { persone?: number }
+  richiesta: RichiestaTesto & { persone?: number; persone_per_notte?: number[] | null }
   soluzione: Soluzione
   condizione: Condizione | null
   amelia?: AlternativaAmelia | null

@@ -382,3 +382,97 @@ test('dalla ricerca alla proposta: caso reale di Sawicka 2–5 settembre (caso C
   assert.match(t, /soltanto per la notte non disponibile, cioè il 2 settembre\./)
   assert.doesNotMatch(t, /\bti\b|\btuo\b|proporti|ospitarti/)
 })
+
+// ── pezzo 10: composizione manuale («Scelgo io») ────────────────────────────
+import { soluzioneDaComposizione } from './richiesteComposizione.ts'
+import { LENA_ID } from './lettiAggiuntivi.ts'
+
+const LENA_VERA = { ...LENA, id: LENA_ID }
+const CAMERE_10 = [AMELIA, ALLEGRA, AMBRA, LENA_VERA]
+const R10 = { nome: 'Marta', arrivo: '2026-09-17', partenza: '2026-09-21', persone: 2, camera_id: null, persone_per_notte: [2, 3, 3, 3] }
+const AP10 = 'Gentile Marta,\ngrazie per aver pensato a Casa Ania per il suo soggiorno.'
+
+test('composizione A: una camera «libera» diversa da quella automatica → caso A con una camera, persone variabili', () => {
+  const s = soluzioneDaComposizione(R10, CAMERE_10, ['ambra', 'ambra', 'ambra', 'ambra'])
+  assert.equal(generaProposta({ richiesta: R10, soluzione: s, condizione: null }), `${AP10}
+
+Ho verificato le date che mi ha indicato: dal 17 al 21 settembre è disponibile soltanto la camera Ambra, matrimoniale con aggiunta del terzo letto e bagno privato, all'interno della camera. Il prezzo per le 4 notti è di 350 €. Nel dettaglio: 1 notte in due a 80 € a notte, 3 notti in tre con terzo letto a 90 € a notte.
+${LINK('ambra')}`)
+})
+
+test('composizione B con un cambio: Amelia la prima notte, Ambra le altre; dettaglio per segmento e due link', () => {
+  const s = soluzioneDaComposizione(R10, CAMERE_10, ['amelia', 'ambra', 'ambra', 'ambra'])
+  assert.equal(generaProposta({ richiesta: R10, soluzione: s, condizione: ARRIVO }), `${AP10}
+
+${INTRO_SOLUZIONE}
+
+Per tutto il periodo, dal 17 al 21 settembre, posso ospitarla prevedendo un cambio di camera durante il soggiorno:
+
+– dal 17 all'18 settembre, nella camera Amelia, singola con aggiunta del secondo letto e bagno privato, all'interno della camera, al prezzo di 75 € a notte;
+
+– dall'18 al 21 settembre, nella camera Ambra, matrimoniale con aggiunta del terzo letto e bagno privato, all'interno della camera, al prezzo di 90 € a notte.
+
+${LINK('singola')}
+${LINK('ambra')}
+
+${COND_ARRIVO}`)
+})
+
+test('composizione B con due cambi: tre segmenti, tre righe, link una volta per camera', () => {
+  const s = soluzioneDaComposizione(R10, CAMERE_10, ['amelia', 'ambra', 'ambra', LENA_ID])
+  assert.equal(generaProposta({ richiesta: R10, soluzione: s, condizione: null }), `${AP10}
+
+${INTRO_SOLUZIONE}
+
+Per tutto il periodo, dal 17 al 21 settembre, posso ospitarla prevedendo un cambio di camera durante il soggiorno:
+
+– dal 17 all'18 settembre, nella camera Amelia, singola con aggiunta del secondo letto e bagno privato, all'interno della camera, al prezzo di 75 € a notte;
+
+– dall'18 al 20 settembre, nella camera Ambra, matrimoniale con aggiunta del terzo letto e bagno privato, all'interno della camera, al prezzo di 90 € a notte;
+
+– dal 20 al 21 settembre, nella camera Lena, tripla con bagno privato esterno, chiuso a chiave, a circa 1 metro dalla camera, al prezzo di 90 € a notte.
+
+${LINK('singola')}
+${LINK('ambra')}
+${LINK('lena')}`)
+  // Ambra torna dopo Lena: il link resta uno per camera
+  const ritorno = soluzioneDaComposizione(R10, CAMERE_10, ['ambra', LENA_ID, 'ambra', 'ambra'])
+  const t = generaProposta({ richiesta: R10, soluzione: ritorno, condizione: null })
+  assert.equal((t.match(/casaaniarozzano\.it\/camere\/ambra/g) || []).length, 1)
+  assert.equal(ritorno.segmenti.length, 3)
+})
+
+test('composizione C: notte scoperta in mezzo, segmenti con persone variabili nel dettaglio', () => {
+  const s = soluzioneDaComposizione(R10, CAMERE_10, ['amelia', null, 'ambra', 'ambra'])
+  assert.equal(generaProposta({ richiesta: R10, soluzione: s, condizione: null }), `${AP10}
+
+${INTRO_SOLUZIONE}
+
+Per l'intero periodo non ho purtroppo una soluzione continuativa, ma posso ospitarla per la maggior parte del soggiorno.
+
+Per coprire il maggior numero possibile di notti, la soluzione prevede anche un cambio di camera:
+
+– dal 17 all'18 settembre, nella camera Amelia, singola con aggiunta del secondo letto e bagno privato, all'interno della camera, al prezzo di 75 € a notte;
+
+– dal 19 al 21 settembre, nella camera Ambra, matrimoniale con aggiunta del terzo letto e bagno privato, all'interno della camera, al prezzo di 90 € a notte.
+
+Resterebbe da trovare un'altra sistemazione soltanto per la notte non disponibile, cioè l'18 settembre.
+
+${LINK('singola')}
+${LINK('ambra')}`)
+  // un segmento con persone che cambiano al suo interno: riga «nel dettaglio»
+  const misto = soluzioneDaComposizione({ ...R10, persone_per_notte: [2, 3, 3, 2] }, CAMERE_10, ['ambra', 'ambra', 'ambra', null])
+  assert.match(generaProposta({ richiesta: { ...R10, persone_per_notte: [2, 3, 3, 2] }, soluzione: misto, condizione: null }),
+    /– dal 17 al 20 settembre, nella camera Ambra, matrimoniale con aggiunta del terzo letto e bagno privato, all'interno della camera, al prezzo complessivo di 260 € per 3 notti \(nel dettaglio: 1 notte in due a 80 € a notte, 2 notti in tre con terzo letto a 90 € a notte\)\./)
+})
+
+test('prezzo a mano nel testo: «Nel dettaglio» e il totale riportano i prezzi scritti da Ania', () => {
+  const s = soluzioneDaComposizione(R10, CAMERE_10, ['ambra', 'ambra', 'ambra', 'ambra'], [6000, null, null, 8500])
+  assert.equal(s.prezzoTotale, 60 + 90 + 90 + 85)
+  assert.equal(dettaglioPersone(s.segmenti[0]), 'Nel dettaglio: 1 notte in due a 60 € a notte, 2 notti in tre con terzo letto a 90 € a notte, 1 notte in tre con terzo letto a 85 € a notte.')
+  assert.match(generaProposta({ richiesta: R10, soluzione: s, condizione: null }), /Il prezzo per le 4 notti è di 325 €\. Nel dettaglio: 1 notte in due a 60 € a notte/)
+  // prezzo a mano su tutte le notti di una camera, persone uniformi → il prezzo a notte della riga B usa quello
+  const r2 = { ...R10, persone: 2, persone_per_notte: null }
+  const b = soluzioneDaComposizione(r2, CAMERE_10, ['amelia', 'ambra', 'ambra', 'ambra'], [null, 7000, 7000, 7000])
+  assert.match(generaProposta({ richiesta: r2, soluzione: b, condizione: null }), /– dall'18 al 21 settembre, nella camera Ambra, matrimoniale con bagno privato, all'interno della camera, al prezzo di 70 € a notte\./)
+})

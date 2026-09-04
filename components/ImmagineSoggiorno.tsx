@@ -5,6 +5,7 @@ import { NOME_STRUTTURA, CITTA_STRUTTURA, SITO_DISPLAY, TELEFONO_DISPLAY, INDIRI
 import { fmtEuro, type RigaCosto } from '@/lib/riepilogoCosti'
 import { lineaSoggiorno } from '@/lib/richiesteImmagine'
 import { dalAl, elencoDate } from '@/lib/richiesteTesti'
+import { riassuntoPerNotte } from '@/lib/richieste'
 
 // Immagine WhatsApp del soggiorno (1080px, identità visiva del sito): la STESSA
 // per la conferma di prenotazione e per la proposta a una richiesta. Il markup
@@ -42,6 +43,7 @@ type Props = {
   bonifico?: DatiBonifico            // solo con pagamento = 'bonifico'
   nottiNonDisponibili?: string[]     // proposta, caso C: notti richieste ma scoperte (giorni ISO)
   personeNotti?: { giorno: string; persone: number }[]   // pezzo 9: persone di ogni notte (mostrate solo se cambiano)
+  lineaSempre?: boolean              // pezzo 10: composizione manuale a più camere → linea del soggiorno anche senza notti scoperte
 }
 
 // Data breve per il "biglietto": giorno della settimana + giorno + mese, senza anno
@@ -57,7 +59,7 @@ function notti(cin: string, cout: string) {
   return Math.round((new Date(cout).getTime() - new Date(cin).getTime()) / 86400000)
 }
 
-export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, numOspiti, righeCosti, totale, pagamento, lettoAggiuntivo = false, bonifico, nottiNonDisponibili = [], personeNotti = [] }: Props) {
+export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, numOspiti, righeCosti, totale, pagamento, lettoAggiuntivo = false, bonifico, nottiNonDisponibili = [], personeNotti = [], lineaSempre = false }: Props) {
   const intestazione = variante === 'conferma'
     ? { badge: 'BENVENUTI', titolo: 'Prenotazione confermata' }
     : { badge: 'PROPOSTA', titolo: 'Proposta di soggiorno' }
@@ -67,7 +69,7 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
   const cin = segmenti[0].check_in
   const cout = segmenti[segmenti.length - 1].check_out
   // Linea del soggiorno (solo proposta con notti scoperte): le notti contate sono quelle a Casa Ania
-  const linea = variante === 'proposta' && nottiNonDisponibili.length > 0
+  const linea = variante === 'proposta' && (nottiNonDisponibili.length > 0 || (lineaSempre && segmenti.length > 1))
     ? lineaSoggiorno(segmenti.map(s => ({ arrivo: s.check_in, partenza: s.check_out, seg: s })), nottiNonDisponibili)
     : null
   const nottiTot = linea ? segmenti.reduce((n, s) => n + notti(s.check_in, s.check_out), 0) : notti(cin, cout)
@@ -125,6 +127,16 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
                   <div style={{ fontSize: 32, color: '#3a3a35', marginTop: 10, lineHeight: 1.35 }}>
                     {b.notti} {b.notti === 1 ? 'notte' : 'notti'} · Camera {roomWithType(b.segmento.seg.rooms?.name)}{bagnoDesc(b.segmento.seg.rooms) ? ` · bagno ${bagnoDesc(b.segmento.seg.rooms)}` : ''}
                   </div>
+                  {(() => {
+                    const mie = personeNotti.filter(x => x.giorno >= b.arrivo && x.giorno < b.partenza)
+                    if (mie.length === 0) return null
+                    const uniformi = mie.every(x => x.persone === mie[0].persone)
+                    return (
+                      <div style={{ fontSize: 30, color: '#3a3a35', marginTop: 8, lineHeight: 1.3 }}>
+                        {uniformi ? `${mie[0].persone} ${mie[0].persone === 1 ? 'persona' : 'persone'}` : `persone: ${riassuntoPerNotte(mie[0].giorno, mie.map(x => x.persone))}`}
+                      </div>
+                    )
+                  })()}
                   <div style={{ fontSize: 30, color: '#3a3a35', marginTop: 12, lineHeight: 1.15 }}>Check-in 15:00 – 20:00 · Check-out entro le 10:00</div>
                 </div>
               ) : (

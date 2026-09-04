@@ -68,6 +68,8 @@ const bookings = [
   { id: 'bbbbbbbb-0010-4000-8000-000000000010', room_id: ROOM.allegra, guest_id: guests[0].id, check_in: giorni(51), check_out: giorni(52), num_guests: 2, status: 'confermata', guest_name: 'Buco Allegra' },
   { id: 'bbbbbbbb-0011-4000-8000-000000000011', room_id: ROOM.ambra, guest_id: guests[0].id, check_in: giorni(51), check_out: giorni(52), num_guests: 2, status: 'confermata', guest_name: 'Buco Ambra' },
   { id: 'bbbbbbbb-0012-4000-8000-000000000012', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(51), check_out: giorni(52), num_guests: 2, status: 'confermata', guest_name: 'Buco Lena' },
+  // Pezzo 10: Lena occupata le notti +71/+72/+73 → per la richiesta «Composta» (in 2 poi in 3) l'automatico propone Ambra/Allegra e il riquadro spiega Lena e Amelia
+  { id: 'bbbbbbbb-0013-4000-8000-000000000013', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(71), check_out: giorni(74), num_guests: 2, status: 'confermata', guest_name: 'Occupa Lena' },
   { id: 'bbbbbbbb-0003-4000-8000-000000000003', room_id: ROOM.allegra, guest_id: guests[0].id, check_in: giorni(10), check_out: giorni(12), num_guests: 2, status: 'in_attesa' },
   { id: 'bbbbbbbb-0004-4000-8000-000000000004', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(10), check_out: giorni(12), num_guests: 2, status: 'annullata' },
 ].map(b => ({ extra_bed: false, extra_bed_dates: [], price_per_night: 70, extra_bed_total: 0, total_amount: 140, source: 'diretta', guest_name: null, notes: null, cancelled_at: null, cancelled_reason: null, group_id: null, pagato: false, bonifico: false, created_at: ora, updated_at: ora, ...b }))
@@ -89,6 +91,8 @@ const richieste = [
   richiesta({ nome: 'Jan', cognome: 'Buco', arrivo: giorni(50), partenza: giorni(53), persone: 1, canale: 'telefono', telefono: '+39 333 000 0050', created_at: fa(8) }),
   // Pezzo 9: il caso reale — in 2 la prima notte (il marito poi viene ricoverato), poi da sola per 3 notti
   richiesta({ nome: 'Marta', cognome: 'Ricovero', arrivo: giorni(60), partenza: giorni(64), persone: 2, persone_per_notte: [2, 1, 1, 1], canale: 'telefono', telefono: '+39 333 000 0060', created_at: fa(3) }),
+  // Pezzo 10: il caso reale 17–21 con [2,3,3,3]: in 2 la prima notte, poi in 3
+  richiesta({ nome: 'Ewa', cognome: 'Composta', arrivo: giorni(70), partenza: giorni(74), persone: 2, persone_per_notte: [2, 3, 3, 3], canale: 'whatsapp', telefono: '+39 333 000 0070', created_at: fa(2) }),
   richiesta({ nome: 'Sara', cognome: 'Verdi', arrivo: giorni(30), partenza: giorni(35), persone: 4, canale: 'web', created_at: fa(5), note: 'Chiede due camere vicine' }),
   richiesta({ nome: 'Paolo', cognome: 'Neri', arrivo: giorni(-3), partenza: giorni(-1), persone: 2, canale: 'telefono', created_at: fa(60 * 24 * 8), stato: 'confermata', chiusa_at: fa(60 * 24 * 7) }),
   richiesta({ nome: 'Giulia', cognome: 'Gallo', arrivo: giorni(2), partenza: giorni(4), persone: 2, canale: 'whatsapp', created_at: fa(60 * 24 * 2), stato: 'rifiutata', chiusa_at: fa(60 * 24) }),
