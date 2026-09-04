@@ -44,23 +44,41 @@ test('costanti: chiusura, descrizioni brevi e tipi, link, frase delle 3 ore', ()
   assert.equal(fraseTreOre('nessuna'), ORE('confermare'))
 })
 
-test('date con l\'elisione (1, 8, 11, 18, 28, 31), mesi diversi, «la notte del», righe brevi', () => {
+test('elisione SOLO per 1, 8, 11 (uno, otto, undici) in tutte le forme: al/dal/del; mai per 18, 21, 28, 31', () => {
+  const casi: [number, string, string, string][] = [
+    [1, "all'1", "dall'1", "dell'1"], [8, "all'8", "dall'8", "dell'8"], [11, "all'11", "dall'11", "dell'11"],
+    [18, 'al 18', 'dal 18', 'del 18'], [21, 'al 21', 'dal 21', 'del 21'], [28, 'al 28', 'dal 28', 'del 28'], [31, 'al 31', 'dal 31', 'del 31'],
+  ]
+  for (const [g, al, dal, del] of casi) {
+    assert.equal(conPreposizione('al', g), al); assert.equal(conPreposizione('dal', g), dal); assert.equal(conPreposizione('del', g), del)
+  }
+  assert.equal(dalAl('2026-09-17', '2026-09-18'), 'dal 17 al 18 settembre')
+  assert.equal(dalAl('2026-09-18', '2026-09-21'), 'dal 18 al 21 settembre')
+  assert.equal(dalAl('2026-09-28', '2026-09-30'), 'dal 28 al 30 settembre')
+  assert.equal(dalAl('2026-09-01', '2026-09-08'), "dall'1 all'8 settembre")
+  assert.equal(dalAl('2026-09-11', '2026-09-21'), "dall'11 al 21 settembre")
+  assert.equal(notteDel(['2026-09-18']), 'la notte del 18 settembre')
+  assert.equal(notteDel(['2026-09-11']), "la notte dell'11 settembre")
+  assert.equal(notteDel(['2026-09-01']), "la notte dell'1 settembre")
+})
+
+test('date con l\'elisione, mesi diversi, «la notte del», righe brevi', () => {
   assert.equal(dalAl('2026-09-17', '2026-09-21'), 'dal 17 al 21 settembre')
   assert.equal(dalAl('2026-09-04', '2026-09-08'), "dal 4 all'8 settembre")
   assert.equal(dalAl('2026-10-10', '2026-10-11'), "dal 10 all'11 ottobre")
   assert.equal(dalAl('2026-09-08', '2026-09-10'), "dall'8 al 10 settembre")
   assert.equal(dalAl('2026-09-30', '2026-10-02'), 'dal 30 settembre al 2 ottobre')
   assert.equal(dalAl('2026-12-30', '2027-01-02'), 'dal 30 dicembre 2026 al 2 gennaio 2027')
-  for (const [g, atteso] of [[1, "all'1"], [8, "all'8"], [11, "all'11"], [18, "all'18"], [28, "all'28"], [31, 'al 31'], [3, 'al 3'], [15, 'al 15']] as [number, string][]) {
+  for (const [g, atteso] of [[1, "all'1"], [8, "all'8"], [11, "all'11"], [18, "al 18"], [28, "al 28"], [31, 'al 31'], [3, 'al 3'], [15, 'al 15']] as [number, string][]) {
     assert.equal(conPreposizione('al', g), atteso)
   }
   assert.equal(conPreposizione('del', 8), "dell'8"); assert.equal(conPreposizione('il', 14), 'il 14')
-  assert.equal(notteDel(['2026-09-18']), "la notte dell'18 settembre")
+  assert.equal(notteDel(['2026-09-18']), "la notte del 18 settembre")
   assert.equal(notteDel(['2026-09-19', '2026-09-20']), 'le notti del 19 e 20 settembre')
   assert.equal(notteDel(['2026-09-30', '2026-10-01']), 'le notti del 30 settembre e 1 ottobre')
   assert.equal(elencoDate(['2026-09-14', '2026-09-15', '2026-09-16']), '14, 15 e 16 settembre')
   const periodo = { arrivo: '2026-09-17', partenza: '2026-09-21' }
-  assert.equal(dalAlBreve('2026-09-17', '2026-09-18', periodo), "dal 17 all'18")
+  assert.equal(dalAlBreve('2026-09-17', '2026-09-18', periodo), "dal 17 al 18")
   assert.equal(dalAlBreve('2026-09-30', '2026-10-01', { arrivo: '2026-09-29', partenza: '2026-10-02' }), "dal 30 settembre all'1 ottobre")
 })
 
@@ -127,10 +145,10 @@ ${LINK('singola')}`)
   assert.equal(fraseLettoInPiu(ultima.segmenti[0]), "Per l'ultima notte, in cui sarete in due, posso aggiungere un letto in più.")
   assert.equal(dettaglioParlato(ultima.segmenti[0], R17), "Le prime tre notti in una a 70 €, l'ultima notte in due a 75 € a notte.")
   const mezzo = proponiSoluzioni({ ...R17, persone_per_notte: [1, 2, 1, 1] }, [AMELIA], [])[0]
-  assert.equal(fraseLettoInPiu(mezzo.segmenti[0]), "Per la notte dell'18 settembre, in cui sarete in due, posso aggiungere un letto in più.")
+  assert.equal(fraseLettoInPiu(mezzo.segmenti[0]), "Per la notte del 18 settembre, in cui sarete in due, posso aggiungere un letto in più.")
   assert.equal(dettaglioParlato(mezzo.segmenti[0], R17), 'La prima notte in una a 70 €, la notte seguente in due a 75 €, le ultime due notti in una a 70 € a notte.')
   const quattro = proponiSoluzioni({ ...R17, persone_per_notte: [2, 1, 2, 1] }, [AMELIA], [])[0]
-  assert.equal(dettaglioParlato(quattro.segmenti[0], R17), "Dal 17 all'18 in due a 75 €, dall'18 al 19 in una a 70 €, dal 19 al 20 in due a 75 €, dal 20 al 21 in una a 70 € a notte.")
+  assert.equal(dettaglioParlato(quattro.segmenti[0], R17), "Dal 17 al 18 in due a 75 €, dal 18 al 19 in una a 70 €, dal 19 al 20 in due a 75 €, dal 20 al 21 in una a 70 € a notte.")
   // letto in più tutte le notti tranne la prima (2,3,3,3 in Ambra)
   assert.equal(fraseLettoInPiu(proponiSoluzioni(R17, [AMBRA], [])[0].segmenti[0]), 'Per le notti in cui sarete in tre posso aggiungere un letto in più.')
   assert.equal(fraseLettoInPiu(segmento(AMELIA, '2026-09-17', '2026-09-21', 1)), null)
@@ -176,9 +194,9 @@ test('caso B un cambio: Amelia la prima notte, Ambra le altre (persone 2,3,3,3)'
 
 Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre non ho una camera libera per tutto il periodo, ma posso ospitarla comunque con un cambio di camera durante il soggiorno:
 
-– dal 17 all'18 in Amelia, una singola, con un letto in più: 75 € a notte
+– dal 17 al 18 in Amelia, una singola, con un letto in più: 75 € a notte
 
-– dall'18 al 21 in Ambra, una matrimoniale, con un letto in più: 90 € a notte
+– dal 18 al 21 in Ambra, una matrimoniale, con un letto in più: 90 € a notte
 
 Il cambio di camera lo faccio io al mattino, non deve pensare a nulla. Il prezzo per le 4 notti è di 345 €.
 
@@ -193,9 +211,9 @@ test('caso B due cambi con Lena (eccezione del bagno) e «qualche cambio di came
 
 Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre non ho una camera libera per tutto il periodo, ma posso ospitarla comunque con qualche cambio di camera durante il soggiorno:
 
-– dal 17 all'18 in Amelia, una singola, con un letto in più: 75 € a notte
+– dal 17 al 18 in Amelia, una singola, con un letto in più: 75 € a notte
 
-– dall'18 al 20 in Ambra, una matrimoniale, con un letto in più: 90 € a notte
+– dal 18 al 20 in Ambra, una matrimoniale, con un letto in più: 90 € a notte
 
 – dal 20 al 21 in Lena, una tripla con il bagno privato appena fuori dalla porta, chiuso a chiave: 90 € a notte
 
@@ -211,9 +229,9 @@ test('caso B con persone variabili in un segmento: «in tre a 90 € a notte, po
 
 Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre non ho una camera libera per tutto il periodo, ma posso ospitarla comunque con un cambio di camera durante il soggiorno:
 
-– dal 17 all'18 in Amelia, una singola, con un letto in più: 75 € a notte
+– dal 17 al 18 in Amelia, una singola, con un letto in più: 75 € a notte
 
-– dall'18 al 21 in Ambra, una matrimoniale, con un letto in più: in tre a 90 € a notte, poi in due a 80 € a notte
+– dal 18 al 21 in Ambra, una matrimoniale, con un letto in più: in tre a 90 € a notte, poi in due a 80 € a notte
 
 Il cambio di camera lo faccio io al mattino, non deve pensare a nulla. Il prezzo per le 4 notti è di 335 €.
 
@@ -225,11 +243,11 @@ test('caso C notte in mezzo, stessa camera: una riga sola con «e»', () => {
   const s = soluzioneDaComposizione(r, CAMERE, ['ambra', null, 'ambra', 'ambra'])
   assert.equal(generaProposta({ richiesta: r, soluzione: s, condizione: ARRIVO }), `${apertura('Anna')}
 
-Ho verificato le date che mi ha indicato. Purtroppo per la notte dell'18 settembre siamo al completo, ma posso ospitarla per il resto del soggiorno:
+Ho verificato le date che mi ha indicato. Purtroppo per la notte del 18 settembre siamo al completo, ma posso ospitarla per il resto del soggiorno:
 
-– dal 17 all'18 e dal 19 al 21 in Ambra, una matrimoniale: 80 € a notte
+– dal 17 al 18 e dal 19 al 21 in Ambra, una matrimoniale: 80 € a notte
 
-Mi dispiace per la notte dell'18 settembre, per la quale dovrebbe trovare un'altra soluzione nelle vicinanze. Sarei comunque felice di ospitarla per le altre 3 notti, al prezzo di 240 €.
+Mi dispiace per la notte del 18 settembre, per la quale dovrebbe trovare un'altra soluzione nelle vicinanze. Sarei comunque felice di ospitarla per le altre 3 notti, al prezzo di 240 €.
 
 ${LINK('ambra')}
 
@@ -244,7 +262,7 @@ test('caso C notte all\'inizio e due notti alla fine (plurale, «per le quali»)
 
 Ho verificato le date che mi ha indicato. Purtroppo per la notte del 17 settembre siamo al completo, ma posso ospitarla per il resto del soggiorno:
 
-– dall'18 al 21 in Ambra, una matrimoniale: 80 € a notte
+– dal 18 al 21 in Ambra, una matrimoniale: 80 € a notte
 
 Mi dispiace per la notte del 17 settembre, per la quale dovrebbe trovare un'altra soluzione nelle vicinanze. Sarei comunque felice di ospitarla per le altre 3 notti, al prezzo di 240 €.
 
@@ -276,15 +294,15 @@ test('caso C con cambio camera: righe separate, «Il cambio di camera lo faccio 
   const s = soluzioneDaComposizione(r, CAMERE, ['amelia', null, 'ambra', 'ambra'])
   assert.equal(generaProposta({ richiesta: r, soluzione: s, condizione: null }), `${apertura('Anna')}
 
-Ho verificato le date che mi ha indicato. Purtroppo per la notte dell'18 settembre siamo al completo, ma posso ospitarla per il resto del soggiorno:
+Ho verificato le date che mi ha indicato. Purtroppo per la notte del 18 settembre siamo al completo, ma posso ospitarla per il resto del soggiorno:
 
-– dal 17 all'18 in Amelia, una singola: 70 € a notte
+– dal 17 al 18 in Amelia, una singola: 70 € a notte
 
 – dal 19 al 21 in Ambra, una matrimoniale: 80 € a notte
 
 Il cambio di camera lo faccio io al mattino, non deve pensare a nulla.
 
-Mi dispiace per la notte dell'18 settembre, per la quale dovrebbe trovare un'altra soluzione nelle vicinanze. Sarei comunque felice di ospitarla per le altre 3 notti, al prezzo di 230 €.
+Mi dispiace per la notte del 18 settembre, per la quale dovrebbe trovare un'altra soluzione nelle vicinanze. Sarei comunque felice di ospitarla per le altre 3 notti, al prezzo di 230 €.
 
 ${LINK_CAMERE}`)
 })

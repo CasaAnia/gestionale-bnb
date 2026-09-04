@@ -66,8 +66,10 @@ export const centesimiTotale = (sol: Soluzione) => centesimi(sol.prezzoTotale)
 
 // ── Date in italiano, con l'elisione ────────────────────────────────────────
 const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
-// i giorni che si leggono con la vocale davanti: uno, otto, undici, diciotto, ventotto
-const ELISI = new Set([1, 8, 11, 18, 28])
+// L'apostrofo SOLO quando il numero inizia per vocale nella pronuncia italiana:
+// 1 (uno), 8 (otto), 11 (undici). «Diciotto» e «ventotto» iniziano per
+// consonante (d, v): «al 18», «dal 28» (blocco 1 del 04/09/2026).
+const ELISI = new Set([1, 8, 11])
 export const conPreposizione = (prep: 'dal' | 'al' | 'il' | 'del', g: number): string =>
   ELISI.has(g) ? `${prep === 'il' ? '' : prep}l'${g}` : `${prep} ${g}`
 
