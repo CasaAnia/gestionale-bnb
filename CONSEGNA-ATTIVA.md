@@ -1,19 +1,97 @@
-# STATO IN 10 RIGHE (aggiornato il 04/09/2026, Richieste pezzo 11) — da incollare a un altro assistente
+# STATO IN 10 RIGHE (aggiornato il 04/09/2026, pomeriggio) — da incollare a un altro assistente
 
-1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11; il modulo Spese nuovo è in produzione con la scrittura su `legacy` (non toccare).
-2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031. In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture). Il pezzo 11 non ha migrazioni.
-3. Branch `fatture-fase5` (Fase 5 fatture ricostruita + 4 correzioni avversarie): in attesa della decisione di Ania (unione a main); main non lo contiene.
-4. Richieste: modulo unico (nuova e modifica) con la striscia delle notti; proposta con ricerca automatica, «Altre camere» con i motivi, «Scelgo io» notte per notte e prezzo a mano; conferma via RPC 0031 (per notte).
-5. TESTI DEFINITIVI (pezzo 11, bloccati da Ania il 04/09/2026) in lib/richiesteTesti + lib/descrizioniCamere: apertura a capo, caso A una/più camere («è disponibile soltanto Ambra, una camera matrimoniale con il bagno in camera», «un letto in più», dettaglio parlato), B con «Il cambio di camera lo faccio io al mattino», C con «Mi dispiace per la notte del…», E, condizioni 1–4, 3 ore in tre varianti, chiusura. NON modificarli senza Ania. Le proposte già inviate restano in proposta_testo.
-6. Immagine «Testo + immagine»: stesse date e stessi importi del testo («80 €», «72,50 €») nella proposta; la conferma di prenotazione è invariata.
-7. Prove: suite 459/459, tsc, lint del delta, build, UI a 320/390/1280 sull'anteprima finta (porta 3214). Nessun invio reale, nessuna scrittura remota.
-8. Strumenti: `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email, modulo di login via JS nel pannello), `gestionale-bnb-anteprima-prenotazioni-finta` (3213), `npm test`, `node scripts/verifica-consegna.mjs --base <sha>`.
-9. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano; un commit per blocco; mai modificare gli assert dei test esistenti; il contratto di revisione resta `legacy`.
-10. 🔴 Azioni aperte per Ania: prova dal telefono dei testi definitivi (17–21 con 2,3,3,3 in Ambra = esempio esatto; due camere libere; cambio camera con Lena); decidere su fatture-fase5 e sulla 0030; prossimi: pulizia del flusso vecchio, riepilogo pre-bonifico.
+1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
+2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031. In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
+3. Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) e branch `statistiche` (solo fondamenta pure, senza interfaccia): entrambi in attesa della decisione di Ania; main non li contiene.
+4. Blocco 1 (04/09): elisione solo per 1, 8, 11 («all'8», «al 18»). Blocco 2: /richieste da desktop con calendario «Mese / 2 settimane», lista ariosa, intestazione su una riga; telefono invariato. Blocco 3: web-push tolto dal sito, docs senza secondo utente, scheda «prove in 10 minuti».
+5. Proposte: ricerca automatica invariata (caso A poi B/C/E, per notte), «Altre camere» con i motivi, «Scelgo io» notte per notte con prezzo a mano; conferma solo via RPC 0031 (per notte).
+6. Sito casaaniarozzano.it (repo sito-casaania): il modulo /prenota manda le richieste a POST /api/richieste/web; nessuna prenotazione nasce dal sito; ripiego Pushover.
+7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
+8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
+9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`.
+10. 🔴 Azioni aperte per Ania: prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche e 0030.
 
 ---
 
-# Consegna attiva — Richieste, pezzo 11: testi DEFINITIVI delle proposte (bloccati da Ania il 04/09/2026)
+# Come provare la sezione Richieste dal telefono in 10 minuti (04/09/2026)
+
+Tutto sul gestionale vero, con richieste di prova che alla fine si rifiutano.
+Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
+
+1. Richieste → «+ Nuova richiesta»: nome Candida, cognome Prova, arrivo 17
+   settembre, partenza 21, Persone 2. Nella striscia tocca 18, 19 e 20 finché
+   mostrano 3 (sotto: «17: 2 · 18–20: 3»). Camera: Ambra. Salva.
+2. Su Candida Prova tocca «Invia proposta», poi il chip «All'arrivo». Il testo
+   deve essere IDENTICO a questo (confronta parola per parola):
+   «Gentile Candida,» a capo «grazie per aver pensato a Casa Ania per il suo
+   soggiorno.» — riga vuota — «Ho verificato le date che mi ha indicato. Dal 17
+   al 21 settembre è disponibile soltanto Ambra, una camera matrimoniale con il
+   bagno in camera. Per le notti in cui sarete in tre posso aggiungere un letto
+   in più.» — riga vuota — «Il prezzo per le 4 notti è di 350 €. La prima notte
+   in due a 80 €, le altre tre notti in tre a 90 € a notte.» — riga vuota —
+   «Qui può vedere le foto e i dettagli della camera:
+   casaaniarozzano.it/camere/ambra» — riga vuota — «Il pagamento avviene
+   all'arrivo, alla consegna delle chiavi, per l'intero soggiorno: in contanti
+   oppure con bonifico istantaneo.» — riga vuota — «Se desidera confermare la
+   camera, la prego di farmelo sapere entro 3 ore da questo messaggio.
+   Trascorso questo tempo, dovrò verificare nuovamente la disponibilità.» —
+   riga vuota — «Resto a disposizione per qualsiasi informazione.» — riga vuota
+   — «Grazie mille,» a capo «Ania – Casa Ania».
+3. Tocca «Modifica la richiesta», Camera «Qualsiasi», Salva → «Invia
+   proposta»: il testo dice «ho due camere libere che posso proporle:» con le
+   righe «– Allegra, …» e «– Ambra, …» e «Se desidera confermare una delle
+   camere». Sotto il caso c'è il riquadro «Altre camere» con i motivi (es.
+   «Amelia senza posto per 3 (18–20 set)»).
+4. Tocca «Scelgo io»: 4 caselle. Tocca il 17 finché mostra «Amelia»; tocca il
+   20 finché mostra «Lena» (se Lena è libera). Sotto: «17: Amelia · 18–19:
+   Ambra · 20: Lena» e il totale. Il testo diventa il cambio di camera con
+   «qualche cambio di camera», la riga di Lena dice «una tripla con il bagno
+   privato appena fuori dalla porta, chiuso a chiave» e poi «Il cambio di
+   camera lo faccio io al mattino, non deve pensare a nulla.»
+5. Tieni premuta la casella del 17: «Prezzo della notte», scrivi 60, «Applica».
+   La casella prende il bordo ottone, compare «prezzo modificato», il totale
+   scende di 15 € e la riga di Amelia dice «60 € a notte». «Ripristina
+   tariffa» rimette 75 €.
+6. «Testo + immagine»: nell'immagine gli importi sono scritti come nel testo
+   («80 €», non «80,00 €»).
+7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
+   «Altro». Fine.
+
+---
+
+# Consegna attiva — incarico del 04/09/2026: elisione, /richieste da desktop, pulizia e documentazione (blocchi 1–3, main)
+
+## Casi di accettazione
+
+| ID | Voce | Prova | Esito |
+| --- | --- | --- | --- |
+| B1 | Apostrofo solo per 1, 8, 11 in tutte le forme (al/dal/del); 18, 21, 28, 31 senza; l'esempio di Candida identico. | `richiesteTesti.test` (casi espliciti) | VERDE |
+| B2a | Calendario desktop: selettore «Mese / 2 settimane» (default 2 settimane su desktop, mese sul telefono, in localStorage); a 2 settimane colonne ≥ 72 px con «Cognome N.» intero e scorrimento con la colonna di oggi in vista; nel mese tooltip con nome completo, date, persone, camera, stato. | UI 1280/1440 + test degli helper | VERDE |
+| B2b | Lista da 768 px: righe ariose, nome in Fraunces 16 px, dettagli 13 px, pulsanti a destra su una riga, badge ⇄ e «si sovrappone con…» su riga propria in ottone; lista ≥ 380 px; fra 768 e 1100 px calendario sopra e lista sotto. | UI 1280/1440/900 | VERDE |
+| B2c | Intestazione desktop su una riga: titolo, «N nuove dal sito», «N da guardare», Reale/Presunta, «+ Nuova richiesta». | UI 1280 | VERDE |
+| B2d | Telefono (390 px) identico prima/dopo: calendario e lista confrontati con screenshot dell'anteprima finta. | screenshot prima/dopo | VERDE |
+| B3a | Sito: dipendenza web-push (+ @types) rimossa; tsc e 9 test verdi; push su main del sito (4b4884b). | repo sito-casaania | VERDE |
+| B3b | Nessun riferimento a un secondo utente o a «Ivan» nella documentazione dei due repo (in PROGETTO.md resta solo la nota storica «"Ivan" era un'imprecisione» sull'intestatario del bonifico, che non è un utente). | grep | VERDE |
+| B3c | STATO IN 10 RIGHE aggiornato e scheda «in 10 minuti». | questo file | VERDE |
+
+## Scelte da confermare con Ania (blocco 2)
+
+- A 1280 px il calendario a 2 settimane mostra circa 7 giorni per volta e
+  scorre in orizzontale (colonne larghe per le etichette intere); se preferisce
+  vedere tutti i 14 giorni senza scorrere, basta abbassare COL_MIN_QUINDICI o
+  scegliere «Mese».
+- La finestra a 2 settimane parte 3 giorni prima di oggi.
+- «+ Nuova richiesta» su desktop è nell'intestazione (non più sopra la lista).
+- Fra 768 e 1100 px calendario sopra e lista sotto (prima erano affiancati).
+
+## Limiti
+
+- Le prove UI sono sull'anteprima finta con dati sintetici; il tooltip è un
+  `title` nativo (compare dopo un attimo al passaggio del mouse).
+
+---
+
+# Blocco precedente — Richieste, pezzo 11: testi DEFINITIVI delle proposte (bloccati da Ania il 04/09/2026)
 
 Base `870ef77` (pezzo 10). Sostituiscono per intero i testi del pezzo 6 e le
 modifiche del pezzo 9. Nessuna modifica alla ricerca delle soluzioni né alla RPC.
