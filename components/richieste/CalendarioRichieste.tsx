@@ -10,7 +10,7 @@ import {
   contestoColori, segmentiBarra, indiciIntervallo, type PrenotazioneBarra,
 } from '@/lib/calendarioBarre'
 import { giorniDelMese, etichettaMese, spostaMese, chiaveRiga, RIGA_QUALSIASI, gruppiSovrapposti, unioneIntervalli, sovrapposizioni, giorniDaInizio, spostaGiorni, etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
-import { nomeCompleto, formatIntervallo, riassuntoPersone, scadenzaProposta, STATO_LABEL, type Richiesta } from '@/lib/richieste'
+import { nomeCompleto, nomeBreve, formatIntervallo, riassuntoPersone, scadenzaProposta, STATO_LABEL, type Richiesta } from '@/lib/richieste'
 import type { Vista } from '@/lib/richiesteVista'
 
 export type CameraCalendario = { id: string; name: string; active?: boolean }
@@ -42,7 +42,7 @@ type Props = {
 const OTTONE = '#A9884E'
 // Desktop: camere in righe, giorni in colonne
 const NAME_W = 96
-const COL_MIN_QUINDICI = 72   // a 2 settimane ogni giorno ha almeno 72 px: «Cognome N.» intero anche su una notte; se non ci sta, scorre
+const COL_MIN_QUINDICI = 72   // a 2 settimane ogni giorno ha almeno 72 px: «Nome C.» intero anche su una notte; se non ci sta, scorre
 const ROW_H = 44
 const HEADER_H = 40
 // Mobile: giorni in righe, camere in colonne strette (deve stare in 390 px)
@@ -64,9 +64,9 @@ function clipVerticale(tagliaSopra: boolean, tagliaSotto: boolean): string {
   return 'none'
 }
 
+// Etichetta della barra: «Anna R.» (nomeBreve), con lo stato se c'è spazio
 export function etichettaRichiesta(r: Richiesta, breve = false): string {
-  const iniziale = r.nome.trim() ? `${r.nome.trim()[0]}.` : ''
-  const chi = `${r.cognome.trim()} ${iniziale}`.trim()
+  const chi = nomeBreve(r)
   return breve ? chi : `${chi} · ${r.stato === 'proposta_inviata' ? 'inviata' : 'attesa'}`
 }
 // Tooltip al passaggio del mouse (desktop): nome completo, date, persone, stato;
@@ -190,7 +190,7 @@ export default function CalendarioRichieste(p: Props) {
       const selezionata = p.evidenziata != null && ids.includes(p.evidenziata)
       const conflittoConfermate = gruppo.length === 1 && sovrapposizioni(gruppo[0], p.prenotazioni, [], camere).prenotazioni.length > 0
       const conBadge = gruppo.length > 1 || conflittoConfermate
-      // a 2 settimane le colonne sono larghe: «Cognome N.» intero; nel mese
+      // a 2 settimane le colonne sono larghe: «Nome C.» intero; nel mese
       // l'etichetta resta e il tooltip dice tutto
       const testo = gruppo.length > 1 ? `${gruppo.length} richieste` : etichettaRichiesta(gruppo[0], p.layout === 'mobile' || modo === 'quindici')
       const titolo = gruppo.map(r => tooltipRichiesta(r, p.adesso)).join('\n')

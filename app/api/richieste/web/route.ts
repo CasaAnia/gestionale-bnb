@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { validaRichiestaWeb, stessaRichiesta, consentiIp, FINESTRA_DOPPIONI_MIN } from '@/lib/richiesteWeb'
-import { formatIntervallo } from '@/lib/richieste'
+import { formatIntervallo, nomeCompleto } from '@/lib/richieste'
 import { inviaATutti } from '@/lib/inviaPush'
 import { registraPush } from '@/lib/pushLog'
 import { inviaPushover } from '@/lib/pushover'
@@ -91,11 +91,13 @@ export async function POST(req: NextRequest) {
   }
   const id = inserita.data.id as string
 
+  // Testo delle notifiche (push e Pushover): «Nome Cognome», come ovunque nel gestionale
+  const corpoPush = `${nomeCompleto(d)}, ${formatIntervallo(d.arrivo, d.partenza)}, ${d.persone} ${d.persone === 1 ? 'persona' : 'persone'}`
+
   // Notifica push (miglior sforzo)
   let push: { inviate: number; errori: number } = { inviate: 0, errori: 0 }
   try {
     const titolo = 'Nuova richiesta dal sito'
-    const corpoPush = `${d.cognome} ${d.nome}, ${formatIntervallo(d.arrivo, d.partenza)}, ${d.persone} ${d.persone === 1 ? 'persona' : 'persone'}`
     const e = await inviaATutti(supabase, { title: titolo, body: corpoPush, url: `/richieste/${id}` })
     await registraPush(supabase, 'richiesta_web', titolo, corpoPush, { richiesta_id: id, rimosse: e.rimosse, errori: e.errori }, e.inviate)
     push = { inviate: e.inviate, errori: e.errori.length }
@@ -108,7 +110,7 @@ export async function POST(req: NextRequest) {
   let pushover: { inviato: boolean; motivo?: string } = { inviato: false }
   try {
     const base = (process.env.NEXT_PUBLIC_GESTIONALE_URL ?? 'https://gestionale-bnb-tau.vercel.app').replace(/\/$/, '')
-    pushover = await inviaPushover('🏡 Nuova richiesta Casa Ania', `${d.cognome} ${d.nome}, ${formatIntervallo(d.arrivo, d.partenza)}, ${d.persone} ${d.persone === 1 ? 'persona' : 'persone'}`, `${base}/richieste/${id}`)
+    pushover = await inviaPushover('🏡 Nuova richiesta Casa Ania', corpoPush, `${base}/richieste/${id}`)
     if (!pushover.inviato) log('avviso', `pushover non inviato: ${pushover.motivo ?? ''}`)
   } catch (e) {
     log('avviso', `pushover: ${(e as Error)?.message?.slice(0, 80) ?? 'errore'}`)

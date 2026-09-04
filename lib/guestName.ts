@@ -52,3 +52,22 @@ export function nomiPrecedenti(b: any, altrePrenotazioni: any[] = []): string[] 
   }
   return nomi
 }
+
+// ── Nome e cognome separati (tabella richieste) ────────────────────────────
+// Ovunque il gestionale mostra un cliente lo scrive «Nome Cognome», mai
+// «Cognome Nome»: lista e calendario delle Richieste, dettaglio, proposta,
+// pannello, tooltip, push e Pushover. Nome o cognome vuoti non lasciano spazi
+// doppi. I dati salvati non cambiano: cambia solo l'ordine con cui entrano
+// nei testi. (Le prenotazioni hanno già un campo unico, guests.full_name.)
+export function nomeCompleto(c: { nome?: string | null; cognome?: string | null }): string {
+  return [c.nome, c.cognome].map(x => (x || '').trim()).filter(Boolean).join(' ').replace(/\s+/g, ' ')
+}
+
+// Versione corta per gli spazi stretti (barre del calendario): «Anna R.»,
+// mai «Rossi A.». Senza cognome resta il nome, senza nome resta il cognome.
+export function nomeBreve(c: { nome?: string | null; cognome?: string | null }): string {
+  const nome = (c.nome || '').trim(), cognome = (c.cognome || '').trim()
+  if (!cognome) return nome
+  if (!nome) return cognome
+  return `${nome} ${cognome[0]}.`
+}

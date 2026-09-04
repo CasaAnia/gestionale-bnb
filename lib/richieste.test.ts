@@ -60,7 +60,7 @@ test('archivio: solo chiuse negli ultimi 90 giorni; conteggio delle aperte', () 
 })
 
 test('nome e spiegazione degli errori', () => {
-  assert.equal(nomeCompleto({ nome: ' Anna ', cognome: 'Rossi' }), 'Rossi Anna')
+  assert.equal(nomeCompleto({ nome: ' Anna ', cognome: 'Rossi' }), 'Anna Rossi')
   assert.match(spiegaErrore({ code: 'PGRST205', message: "Could not find the table 'public.richieste' in the schema cache" }), /migrazione 0024/)
   assert.equal(spiegaErrore({ message: 'permission denied' }), 'permission denied')
   assert.equal(spiegaErrore(null), '')

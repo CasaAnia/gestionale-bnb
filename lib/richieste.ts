@@ -66,9 +66,8 @@ export function formatIntervallo(arrivo: string, partenza: string): string {
   return `${a.giorno} ${MESI[a.mese - 1]} ${a.anno} – ${p.giorno} ${MESI[p.mese - 1]} ${p.anno}`
 }
 
-export function nomeCompleto(r: { nome: string; cognome: string }): string {
-  return `${r.cognome.trim()} ${r.nome.trim()}`.trim()
-}
+// «Nome Cognome» ovunque: la funzione unica sta in lib/guestName.ts
+export { nomeCompleto, nomeBreve } from './guestName.ts'
 
 const due = (n: number) => String(n).padStart(2, '0')
 const stessoGiorno = (a: Date, b: Date) =>

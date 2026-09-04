@@ -61,7 +61,7 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
     <div role="button" tabIndex={0} onClick={onSeleziona} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeleziona() } }} aria-pressed={selezionata}
       className={`w-full text-left bg-white rounded-xl border border-card-border p-4 md:px-5 md:py-4 leading-snug transition-shadow cursor-pointer ${selezionata ? 'shadow-md bg-sage/40' : 'shadow-sm'}`}>
       <div className="flex items-baseline justify-between gap-3">
-        {/* desktop (blocco 2b): cognome e nome in Fraunces 16 px; il badge ⇄ va sulla riga propria */}
+        {/* desktop (blocco 2b): «Nome Cognome» in Fraunces 16 px; il badge ⇄ va sulla riga propria */}
         <p className="font-medium text-[15px] md:font-serif md:text-[16px] text-green-dark truncate inline-flex items-center gap-1.5 min-w-0"><span className="truncate">{nomeCompleto(r)}</span>{conflitti.length > 0 && <span className="md:hidden inline-flex"><BadgeSovrapposta /></span>}</p>
         <p className="shrink-0 text-sm font-semibold text-brass">{n === 1 ? '1 notte' : `${n} notti`}</p>
       </div>
@@ -241,14 +241,14 @@ function Richieste() {
     [tutte, mese, vista, desktop, modoCalendario, inizio],
   )
 
-  // Sovrapposizioni di ogni richiesta aperta: con confermate (nome ospite) e altre aperte (cognome)
+  // Sovrapposizioni di ogni richiesta aperta: con confermate (nome ospite) e altre aperte («Nome Cognome»)
   const conflittiDi = useMemo(() => {
     const m = new Map<string, string[]>()
     for (const r of aperte) {
       const s = sovrapposizioni(r, prenotazioni, aperte, camere)
       m.set(r.id, [
         ...s.prenotazioni.map(b => `${nomeOspite(b)} (${formatIntervallo(b.check_in, b.check_out)})`),
-        ...s.richieste.map(x => `${x.cognome} (${formatIntervallo(x.arrivo, x.partenza)})`),
+        ...s.richieste.map(x => `${nomeCompleto(x)} (${formatIntervallo(x.arrivo, x.partenza)})`),
       ])
     }
     return m
