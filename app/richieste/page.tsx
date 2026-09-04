@@ -58,19 +58,20 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
   return (
     <li>
     <div role="button" tabIndex={0} onClick={onSeleziona} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeleziona() } }} aria-pressed={selezionata}
-      className={`w-full text-left bg-white rounded-xl border border-card-border p-4 leading-snug transition-shadow cursor-pointer ${selezionata ? 'shadow-md bg-sage/40' : 'shadow-sm'}`}>
+      className={`w-full text-left bg-white rounded-xl border border-card-border p-4 md:px-5 md:py-4 leading-snug transition-shadow cursor-pointer ${selezionata ? 'shadow-md bg-sage/40' : 'shadow-sm'}`}>
       <div className="flex items-baseline justify-between gap-3">
-        <p className="font-medium text-[15px] text-green-dark truncate inline-flex items-center gap-1.5 min-w-0"><span className="truncate">{nomeCompleto(r)}</span>{conflitti.length > 0 && <BadgeSovrapposta />}</p>
+        {/* desktop (blocco 2b): cognome e nome in Fraunces 16 px; il badge ⇄ va sulla riga propria */}
+        <p className="font-medium text-[15px] md:font-serif md:text-[16px] text-green-dark truncate inline-flex items-center gap-1.5 min-w-0"><span className="truncate">{nomeCompleto(r)}</span>{conflitti.length > 0 && <span className="md:hidden inline-flex"><BadgeSovrapposta /></span>}</p>
         <p className="shrink-0 text-sm font-semibold text-brass">{n === 1 ? '1 notte' : `${n} notti`}</p>
       </div>
-      <p className="text-sm text-green-dark mt-1">
+      <p className="text-sm md:text-[13px] text-green-dark mt-1 md:mt-1.5">
         {formatIntervallo(r.arrivo, r.partenza)}
         <span className="text-stone"> · </span>
         {r.persone_per_notte ? riassuntoPersone(r.arrivo, r.persone_per_notte) : `${r.persone} ${r.persone === 1 ? 'persona' : 'persone'}`}
         <span className="text-stone"> · </span>
         {r.rooms?.name || 'qualsiasi camera'}
       </p>
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-stone mt-1.5">
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs md:text-[13px] text-stone mt-1.5">
         <span className="inline-flex items-center gap-1"><IconaCanale canale={r.canale} />{CANALE_LABEL[r.canale]}{r.canale === 'web' && r.origine && <span className="text-[10px] uppercase tracking-wide text-brass">· {r.origine}</span>}</span>
         <span aria-hidden>·</span>
         <span>{oraArrivo(r.created_at, adesso)}</span>
@@ -88,7 +89,10 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
         )}
       </p>
       {conflitti.length > 0 && (
-        <p className="text-xs mt-1" style={{ color: '#7a5f2c' }} title={conflitti.join(' · ')}>si sovrappone con {conflitti.join(', ')}</p>
+        <p className="text-xs md:text-[13px] mt-1 md:mt-2 md:inline-flex md:items-center md:gap-1.5" style={{ color: '#7a5f2c' }} title={conflitti.join(' · ')}>
+          <span className="hidden md:inline-flex"><BadgeSovrapposta /></span>
+          <span className="md:font-semibold md:text-brass">si sovrappone con {conflitti.join(', ')}</span>
+        </p>
       )}
       <AzioniRichiesta r={r} onRifiuta={onRifiuta} onConferma={onConferma} />
     </div>
@@ -298,7 +302,7 @@ function Richieste() {
         </div>
       )}
 
-      <div className="md:grid md:grid-cols-[3fr_2fr] md:gap-5 md:items-start">
+      <div className="min-[1100px]:grid min-[1100px]:grid-cols-[minmax(0,3fr)_minmax(380px,2fr)] min-[1100px]:gap-5 min-[1100px]:items-start">
         {/* Calendario */}
         <section hidden={!mostraCalendario}>
           {loading ? (
@@ -316,7 +320,7 @@ function Richieste() {
         </section>
 
         {/* Lista */}
-        <section hidden={!mostraLista} className="md:mt-0">
+        <section hidden={!mostraLista} className="mt-4 min-[1100px]:mt-0">
           {desktop && <div className="mb-3">{nuovaRichiesta('w-full')}</div>}
           <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar">
             <span className="text-xs text-stone shrink-0">Ordina per</span>

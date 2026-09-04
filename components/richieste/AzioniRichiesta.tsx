@@ -10,8 +10,9 @@ import type { Richiesta } from '@/lib/richieste'
 // Rifiuto e conferma veri (con le loro finestre) li gestisce chi contiene.
 type Props = { r: Richiesta; onRifiuta: (r: Richiesta) => void; onConferma: (r: Richiesta) => void; compatto?: boolean }
 
-const PIENO = 'flex-1 inline-flex items-center justify-center rounded-xl bg-green-mid text-cream-text font-semibold active:opacity-80 transition-opacity'
-const CONTORNO = 'flex-1 inline-flex items-center justify-center rounded-xl bg-white text-green-dark font-semibold border active:bg-sage transition-colors'
+// desktop (blocco 2b): pulsanti allineati a destra su una riga, larghezza dal contenuto
+const PIENO = 'flex-1 md:flex-none md:px-5 inline-flex items-center justify-center rounded-xl bg-green-mid text-cream-text font-semibold active:opacity-80 transition-opacity'
+const CONTORNO = 'flex-1 md:flex-none md:px-5 inline-flex items-center justify-center rounded-xl bg-white text-green-dark font-semibold border active:bg-sage transition-colors'
 
 export default function AzioniRichiesta({ r, onRifiuta, onConferma, compatto = false }: Props) {
   const router = useRouter()
@@ -22,7 +23,7 @@ export default function AzioniRichiesta({ r, onRifiuta, onConferma, compatto = f
 
   return (
     <div className="mt-3" onClick={ferma}>
-      <div className="flex gap-2">
+      <div className="flex gap-2 md:justify-end">
         {r.stato === 'in_attesa' ? (
           <button type="button" onClick={e => { ferma(e); router.push(`/richieste/${r.id}/proposta`) }} className={`${PIENO} ${misura}`}>
             Invia proposta
