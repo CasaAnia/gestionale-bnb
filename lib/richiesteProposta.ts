@@ -14,6 +14,7 @@
 import { tariffaCamera, totaleLetto, capienzaCamera } from './tariffe.ts'
 import { lettiOccupatiPerNotte, cameraOspita, type PrenotazioneLetti } from './lettiAggiuntivi.ts'
 import { contoSoggiorno } from './conto.ts'
+import { prezzoNotti } from './prezzoNotti.ts'
 import { ordinaCamere, STATI_CHE_OCCUPANO } from './disponibilita.ts'
 import { giorniTra } from './richiesteCalendario.ts'
 
@@ -103,19 +104,10 @@ export function segmento(camera: CameraListino, arrivo: string, partenza: string
   const notti = giorni.length
   const personeNotti = Array.isArray(persone) ? persone.slice(0, notti) : Array.from({ length: notti }, () => persone)
   if (personeNotti.length !== notti) throw new Error(`Segmento ${arrivo}–${partenza}: servono ${notti} valori di persone, trovati ${personeNotti.length}`)
-  const cent = (n: number | string | null | undefined) => Math.round(Number(n || 0) * 100)
-  let totaleCent = 0
-  let minNotteCent = Infinity
-  const lettoNotti: string[] = []
-  personeNotti.forEach((p, i) => {
-    const t = tariffaCamera(camera, p)
-    const letto = totaleLetto(camera, p, 1)
-    if (letto > 0) lettoNotti.push(giorni[i])
-    totaleCent += cent(t.prezzoNotte) + cent(letto)
-    minNotteCent = Math.min(minNotteCent, cent(t.prezzoNotte))
-  })
-  const prezzoNotte = notti ? minNotteCent / 100 : 0
-  const lettoTotale = (totaleCent - minNotteCent * notti) / 100
+  // Il letto viene addebitato nelle notti in cui le persone lo richiedono; il
+  // conto notte per notte è quello condiviso con le prenotazioni (lib/prezzoNotti)
+  const lettoNotti = giorni.filter((_, i) => totaleLetto(camera, personeNotti[i], 1) > 0)
+  const { prezzoNotte, lettoTotale } = prezzoNotti(camera, giorni, personeNotti, lettoNotti)
   const conto = contoSoggiorno({ check_in: arrivo, check_out: partenza, price_per_night: prezzoNotte, extra_bed_total: lettoTotale })
   return { camera, arrivo, partenza, notti, prezzoNotte, lettoTotale, totale: conto.totale, personeNotti, lettoNotti }
 }

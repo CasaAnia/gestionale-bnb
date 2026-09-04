@@ -4,7 +4,9 @@ import { supabase } from '@/lib/supabase'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { roomWithType, lettoInclusoNellaCamera } from '@/lib/roomTypes'
-import { tariffaCamera, totaleLetto, lettoDaComunicare } from '@/lib/tariffe'
+import { tariffaCamera, lettoDaComunicare } from '@/lib/tariffe'
+import { prezzoPrenotazione, riallineaTariffa, tariffaFormDaSalvato, testoDettaglioNotti, dettaglioNottiSalvato } from '@/lib/prezzoNotti'
+import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 import { openWhatsApp } from '@/lib/whatsapp'
 import BackBar from '@/components/BackBar'
@@ -89,7 +91,11 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
     const prezzoNotte = lettoInclusoNellaCamera(s, n)
       ? Number(s.price_per_night) + Number(s.rooms?.extra_bed_price || 0)
       : Number(s.price_per_night)
-    return `   ${i + 1}. *${roomWithType(s.rooms?.name) || 'Camera'}*: ${formatDateIT(s.check_in)} → ${formatDateIT(s.check_out)} (${n} ${n === 1 ? 'notte' : 'notti'}) – €${prezzoNotte.toFixed(0)}/notte`
+    // Tariffa diversa fra le notti (persone che cambiano): dettaglio per notte
+    // al posto di un «/notte» unico che sarebbe falso
+    const dett = dettaglioNottiSalvato(s.rooms, s)
+    const prezzoTesto = dett ? testoDettaglioNotti(dett, x => `€${x}`) : `€${prezzoNotte.toFixed(0)}/notte`
+    return `   ${i + 1}. *${roomWithType(s.rooms?.name) || 'Camera'}*: ${formatDateIT(s.check_in)} → ${formatDateIT(s.check_out)} (${n} ${n === 1 ? 'notte' : 'notti'}) – ${prezzoTesto}`
   }).join('\n') : ''
 
   // Riepilogo costi dal conto unico: righe di dettaglio a prezzo pieno e, solo
@@ -97,51 +103,13 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   // dato storico il dettaglio non torna col totale autorevole, si rinuncia
   // allo spezzettamento e si mostra una riga unica: tutte le schermate devono
   // dire lo stesso totale.
+  // Righe dal conto unico (lib/riepilogoCosti, la stessa funzione dell'immagine
+  // WhatsApp e della proposta): «etichetta: importo», sconto fra le linee
   const fmtEuro = (n: number) => n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
-  let totaleRighe = 0
-  const righeCosti: string[] = []
-  for (const s of segmenti) {
-    const conto = contoSoggiorno(s)
-    const n = conto.notti
-    const prezzo = Number(s.price_per_night)
-    const nomeCamera = `Camera ${roomWithType(s.rooms?.name) || ''}`.trim()
-    totaleRighe += conto.totale
-    const righeSegmento: string[] = []
-    let sommaDettaglio = 0
-    // Lena con 3 ospiti: il terzo letto è parte della tripla, una riga sola tutto compreso
-    if (lettoInclusoNellaCamera(s, n)) {
-      const totCamera = prezzo * n + Number(s.extra_bed_total || 0)
-      sommaDettaglio += totCamera
-      righeSegmento.push(n > 1
-        ? `${nomeCamera} (${n} notti × ${fmtEuro(totCamera / n)}): ${fmtEuro(totCamera)}`
-        : `${nomeCamera}: ${fmtEuro(totCamera)}`)
-    } else {
-      const subCamera = prezzo * n
-      sommaDettaglio += subCamera
-      righeSegmento.push(n > 1
-        ? `${nomeCamera} (${n} notti × ${fmtEuro(prezzo)}): ${fmtEuro(subCamera)}`
-        : `${nomeCamera}: ${fmtEuro(subCamera)}`)
-      const ebTot = Number(s.extra_bed_total || 0)
-      if (s.extra_bed && ebTot > 0) {
-        const ebNotti = s.extra_bed_dates?.length > 0 ? s.extra_bed_dates.length : n
-        const ebPrezzo = Number(s.rooms?.extra_bed_price || 0)
-        const label = isGruppo ? `Letto supplementare – ${s.rooms?.name || ''}`.trim() : 'Letto supplementare'
-        righeSegmento.push(ebNotti > 1 && Math.abs(ebNotti * ebPrezzo - ebTot) < 0.005
-          ? `${label} (${ebNotti} notti × ${fmtEuro(ebPrezzo)}): ${fmtEuro(ebTot)}`
-          : `${label}: ${fmtEuro(ebTot)}`)
-        sommaDettaglio += ebTot
-      }
-    }
-    if (Math.abs(sommaDettaglio - conto.prezzoPieno) > 0.005) {
-      // Dato storico discordante: riga unica col totale autorevole
-      righeCosti.push(`${nomeCamera} (${n} ${n === 1 ? 'notte' : 'notti'}): ${fmtEuro(conto.totale)}`)
-    } else {
-      righeCosti.push(...righeSegmento)
-      if (conto.sconto > 0.005) {
-        righeCosti.push(`━━━━━━━━━━━━━━\n*Sconto a lei riservato: −${fmtEuro(conto.sconto)}*\n━━━━━━━━━━━━━━`)
-      }
-    }
-  }
+  const { righe: righeConto, totale: totaleRighe } = righeCostiSegmenti(segmenti, isGruppo)
+  const righeCosti = righeConto.map(r => r.sconto
+    ? `━━━━━━━━━━━━━━\n*Sconto a lei riservato: −${fmtEuro(-r.amount)}*\n━━━━━━━━━━━━━━`
+    : `${r.label}: ${fmtEuro(r.amount)}`)
   const riepilogoCosti = `💶 RIEPILOGO COSTI
 ${righeCosti.join('\n')}
 *Totale soggiorno: ${fmtEuro(totaleRighe)}*`
@@ -494,7 +462,11 @@ export default function BookingDetail() {
         room_id: b.room_id, check_in: b.check_in, check_out: b.check_out,
         check_in_time: b.check_in_time || '',
         shuttle: b.shuttle || '',
-        num_guests: b.num_guests, extra_bed: b.extra_bed, extra_bed_dates: b.extra_bed_dates || (b.extra_bed ? getDaysBetween(b.check_in, b.check_out) : []), price_per_night: Number(b.price_per_night),
+        num_guests: b.num_guests, extra_bed: b.extra_bed, extra_bed_dates: b.extra_bed_dates || (b.extra_bed ? getDaysBetween(b.check_in, b.check_out) : []),
+        // Tariffa della notte più economica (lib/prezzoNotti): le righe salvate
+        // col vecchio calcolo a persone massime vengono riallineate, così il
+        // salvataggio ricalcola il totale notte per notte
+        price_per_night: tariffaFormDaSalvato(b.rooms, b),
         discount_type: b.discount_type || null,
         discount_value: b.discount_value ?? null,
         notes: b.notes || '',
@@ -599,11 +571,23 @@ export default function BookingDetail() {
 
   // Conto del form di modifica: sempre in modalità RICALCOLO (senza totale
   // salvato), così l'anteprima mostra il prezzo che verrebbe scritto salvando
-  function contoEdit(senzaSconto = false) {
+  // Conto NOTTE PER NOTTE del form (lib/prezzoNotti): nelle notti col letto
+  // ci sono num_guests persone, nelle altre la capienza base; extra_bed_total
+  // è tutto ciò che supera la tariffa × notti (0 se il letto è compreso, Lena a 3)
+  function contoNottiEdit() {
     const room = rooms.find(r => r.id === editForm.room_id)
-    const ebDays = editForm.extra_bed_dates?.length || 0
-    // Il letto non si addebita quando è già compreso nella tariffa (Lena fino a 3 ospiti)
-    const extraBedTotal = totaleLetto(room, editForm.num_guests, ebDays)
+    return prezzoPrenotazione(room, { ...editForm, extra_bed_dates: editForm.extra_bed ? (editForm.extra_bed_dates || []) : [] })
+  }
+
+  // Campo «Tariffa/notte» dopo una modifica di date o notti col letto: se
+  // seguiva il listino continua a seguirlo, se scritto a mano resta
+  function tariffaDopo(dopo: Record<string, unknown>) {
+    const room = rooms.find(r => r.id === editForm.room_id)
+    return riallineaTariffa(room, editForm, { ...editForm, ...dopo })
+  }
+
+  function contoEdit(senzaSconto = false) {
+    const extraBedTotal = contoNottiEdit().lettoTotale
     return contoSoggiorno({
       check_in: editForm.check_in, check_out: editForm.check_out,
       price_per_night: editForm.price_per_night, extra_bed_total: extraBedTotal,
@@ -714,10 +698,8 @@ export default function BookingDetail() {
     }
     setSaveEditError('')
     setSaving(true)
-    const room = rooms.find(r => r.id === editForm.room_id)
-    const ebDays = editForm.extra_bed_dates?.length || 0
-    // Il letto non si addebita quando è già compreso nella tariffa (Lena fino a 3 ospiti)
-    const extraBedTotal = totaleLetto(room, editForm.num_guests, ebDays)
+    // Conto notte per notte (lib/prezzoNotti): letto e differenze di tariffa
+    const extraBedTotal = contoNottiEdit().lettoTotale
     // Regola lettura vs ricalcolo: il totale si ricalcola SOLO se è cambiato
     // un campo economico (o c'è uno sconto attivo). Cambiare una nota non
     // deve reinterpretare un totale storico salvato.
@@ -841,7 +823,9 @@ export default function BookingDetail() {
     const plan = kept.map(c => {
       const days = getDaysBetween(c.s, c.e)
       const ebDates = (c.seg.extra_bed_dates || []).filter((d: string) => days.includes(d))
-      const extraBedTotal = ebDates.length * Number(c.seg.rooms?.extra_bed_price || 0)
+      // Conto notte per notte con le nuove date (lib/prezzoNotti): letto solo
+      // dove addebitato e differenze di tariffa se le persone cambiano
+      const extraBedTotal = prezzoPrenotazione(c.seg.rooms, { ...c.seg, check_in: c.s, check_out: c.e, extra_bed_dates: ebDates }).lettoTotale
       // Totale dal conto unico: la percentuale segue le nuove notti; il totale
       // concordato resta se ancora sotto il nuovo prezzo pieno, altrimenti
       // decade e lo si dice in anteprima (mai in silenzio)
@@ -1131,14 +1115,14 @@ export default function BookingDetail() {
                 const newIn = e.target.value
                 // Se il check-out manca o cadrebbe prima/uguale al nuovo check-in, spostalo a una notte dopo
                 const newOut = newIn && (!editForm.check_out || editForm.check_out <= newIn) ? nextDay(newIn) : editForm.check_out
-                setEditForm({ ...editForm, check_in: newIn, check_out: newOut })
+                setEditForm({ ...editForm, check_in: newIn, check_out: newOut, price_per_night: tariffaDopo({ check_in: newIn, check_out: newOut }) })
                 checkDisponibilita(editForm.room_id, newIn, newOut)
               }} className="w-full min-w-0 appearance-none bg-white border border-card-border rounded-lg p-2 text-sm" />
             </div>
             <div className="min-w-0">
               <p className="text-xs text-gray-500 mb-1">Check-out</p>
               <input type="date" value={editForm.check_out} min={editForm.check_in ? nextDay(editForm.check_in) : undefined} onChange={e => {
-                setEditForm({ ...editForm, check_out: e.target.value })
+                setEditForm({ ...editForm, check_out: e.target.value, price_per_night: tariffaDopo({ check_out: e.target.value }) })
                 checkDisponibilita(editForm.room_id, editForm.check_in, e.target.value)
               }} className="w-full min-w-0 appearance-none bg-white border border-card-border rounded-lg p-2 text-sm" />
             </div>
@@ -1199,7 +1183,8 @@ export default function BookingDetail() {
                 </div>
                 <button onClick={() => {
                   const newVal = !editForm.extra_bed
-                  setEditForm({ ...editForm, extra_bed: newVal, extra_bed_dates: newVal ? getDaysBetween(editForm.check_in, editForm.check_out) : [] })
+                  const dates = newVal ? getDaysBetween(editForm.check_in, editForm.check_out) : []
+                  setEditForm({ ...editForm, extra_bed: newVal, extra_bed_dates: dates, price_per_night: tariffaDopo({ extra_bed: newVal, extra_bed_dates: dates }) })
                 }}
                   className={`w-12 h-6 rounded-full transition-colors ${editForm.extra_bed ? 'bg-[#C58A67]' : 'bg-gray-200'}`}>
                   <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.extra_bed ? 'translate-x-6' : ''}`} />
@@ -1222,7 +1207,7 @@ export default function BookingDetail() {
                             const dates = isSelected
                               ? (editForm.extra_bed_dates || []).filter((x: string) => x !== day)
                               : [...(editForm.extra_bed_dates || []), day]
-                            setEditForm({ ...editForm, extra_bed_dates: dates })
+                            setEditForm({ ...editForm, extra_bed_dates: dates, price_per_night: tariffaDopo({ extra_bed_dates: dates }) })
                           }}
                           className="px-2 py-1 rounded text-xs font-semibold border transition-colors"
                           style={{ background: isBlocked ? '#1f2937' : isSelected ? '#ef4444' : 'white', color: isBlocked || isSelected ? 'white' : '#6b7280', borderColor: isBlocked ? '#1f2937' : isSelected ? '#ef4444' : '#e5e7eb', opacity: isBlocked && !isSelected ? 0.6 : 1 }}>
@@ -1375,7 +1360,11 @@ export default function BookingDetail() {
             const nuovoTotale = ricalcolo ? c.totale : totaleSalvato
             return (
               <div className="bg-sage rounded-lg p-3 mb-3 text-sm">
-                <p className="text-gray-600">{c.notti} notti × €{editForm.price_per_night}{c.sconto > 0 ? ` − sconto €${c.sconto.toLocaleString('it-IT')}` : ''}</p>
+                <p className="text-gray-600">{(() => {
+                  // Tariffa diversa fra le notti: dettaglio per notte tutto compreso
+                  const cn = contoNottiEdit()
+                  return cn.tariffaUniforme ? `${c.notti} notti × €${editForm.price_per_night}` : testoDettaglioNotti(cn.notti, n => `€${n}`)
+                })()}{c.sconto > 0 ? ` − sconto €${c.sconto.toLocaleString('it-IT')}` : ''}</p>
                 <p className="font-bold text-green-mid text-lg">Totale: €{nuovoTotale.toLocaleString('it-IT')}</p>
                 {ricalcolo && Math.abs(nuovoTotale - totaleSalvato) > 0.005 && (
                   <p className="text-xs mt-1" style={{ color: '#8a4f2f' }}>
@@ -1473,7 +1462,13 @@ export default function BookingDetail() {
             <div><span className="text-gray-500">Notti</span><p className="font-semibold">{notti}</p></div>
             <div><span className="text-gray-500">Ospiti</span><p className="font-semibold">{booking.num_guests}</p></div>
             {!booking.discount_type && (<>
-              <div><span className="text-gray-500">Tariffa/notte</span><p className="font-semibold">€{Number(booking.price_per_night).toFixed(0)}</p></div>
+              {(() => {
+                // Persone diverse fra le notti: il dettaglio al posto di una tariffa unica
+                const dett = dettaglioNottiSalvato(booking.rooms, booking)
+                return dett
+                  ? <div className="col-span-2"><span className="text-gray-500">Tariffa</span><p className="font-semibold">{testoDettaglioNotti(dett, n => `€${n}`)}</p></div>
+                  : <div><span className="text-gray-500">Tariffa/notte</span><p className="font-semibold">€{Number(booking.price_per_night).toFixed(0)}</p></div>
+              })()}
               <div><span className="text-gray-500">Totale</span><p className="font-bold text-green-mid">€{Number(booking.total_amount).toFixed(0)}</p></div>
             </>)}
           </div>
@@ -1484,7 +1479,10 @@ export default function BookingDetail() {
             return (
               <div className="bg-white border border-card-border rounded-xl p-3 mb-3 text-sm">
                 <div className="flex justify-between items-baseline py-0.5">
-                  <span className="text-gray-500">Prezzo pieno <span className="text-xs">({c.notti} × €{Number(booking.price_per_night).toFixed(0)}{Number(booking.extra_bed_total) > 0 ? ' + letto' : ''})</span></span>
+                  <span className="text-gray-500">Prezzo pieno <span className="text-xs">({(() => {
+                    const dett = dettaglioNottiSalvato(booking.rooms, booking)
+                    return dett ? testoDettaglioNotti(dett, n => `€${n}`) : `${c.notti} × €${Number(booking.price_per_night).toFixed(0)}${Number(booking.extra_bed_total) > 0 ? ' + letto' : ''}`
+                  })()})</span></span>
                   <span className="font-semibold">€{c.prezzoPieno.toLocaleString('it-IT')}</span>
                 </div>
                 <div className="flex justify-between items-baseline rounded-lg px-2 py-1 my-1" style={{ background: '#E7EFE9' }}>
@@ -1616,7 +1614,10 @@ export default function BookingDetail() {
                     <span className="text-[#5B4E82] text-xs">{i + 1}.</span>
                     <div className="flex-1">
                       <span className={`text-sm font-semibold ${isCurrent ? 'text-[#4A3F6B]' : 'text-[#5B4E82]'}`}>{gb.rooms?.name}</span>
-                      <span className="text-xs text-[#5B4E82] ml-2">{gb.check_in} → {gb.check_out} ({n} notti) · €{Number(gb.price_per_night).toFixed(0)}/notte</span>
+                      <span className="text-xs text-[#5B4E82] ml-2">{gb.check_in} → {gb.check_out} ({n} notti) · {(() => {
+                        const dett = dettaglioNottiSalvato(gb.rooms, gb)
+                        return dett ? testoDettaglioNotti(dett, x => `€${x}`) : `€${Number(gb.price_per_night).toFixed(0)}/notte`
+                      })()}</span>
                     </div>
                     {isCurrent
                       ? <span className="text-xs bg-[#EFEAF7] text-[#4A3F6B] px-2 py-0.5 rounded-full font-bold">qui</span>

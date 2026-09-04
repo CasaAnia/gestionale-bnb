@@ -9,7 +9,7 @@ import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
 import { supabase } from '@/lib/supabase'
 import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, colonne0029Presenti, colonne0031Presenti, AVVISO_0025, AVVISO_0029, AVVISO_0031, MOTIVI_RIFIUTO, type CondizioniSalvate } from '@/lib/richiesteDati'
-import { proponiSoluzioni, alternativaAmelia, personePerNotte, motiviEsclusione, testoMotivo, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
+import { proponiSoluzioni, alternativaAmelia, personePerNotte, prezziNottiCentesimi, motiviEsclusione, testoMotivo, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
 import { camereAmmesseNotte, cameraSuccessiva, composizioneDaSoluzione, soluzioneDaComposizione, prezziTariffaPerNotte, applicaATutteLeNotti, totaleCentesimi, type Composizione, type PrezziManuali } from '@/lib/richiesteComposizione'
 import StrisciaNotti, { etichettaNotte } from '@/components/StrisciaNotti'
 import { generaProposta, camereDelCasoA, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, nottiScoperte, type Condizione } from '@/lib/richiesteTesti'
@@ -226,6 +226,11 @@ export default function PropostaPage() {
       extra_bed_total: s.lettoTotale,
       num_guests: richiesta.persone,
       rooms: s.camera,
+      // pezzo 9/10: persone di ogni notte, notti col letto addebitato e, se
+      // scritti a mano, i prezzi effettivi: le righe dicono gli stessi numeri del testo
+      persone_notti: s.personeNotti && s.personeNotti.length === s.notti ? s.personeNotti : null,
+      extra_bed_dates: s.lettoNotti ?? null,
+      prezzi_notti: s.prezzo_manuale ? prezziNottiCentesimi(s).map(c => c / 100) : null,
     }))
     const { righe, totale } = righeCostiSegmenti(seg, seg.length > 1, n => formattaEuro(centesimi(n)))
     const lettoAggiuntivo = seg.length === 1 && lettoDaComunicare(seg[0])

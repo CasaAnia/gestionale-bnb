@@ -3,7 +3,8 @@ import { useEffect, useState, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
-import { tariffaCamera, totaleLetto } from '@/lib/tariffe'
+import { tariffaCamera } from '@/lib/tariffe'
+import { prezzoPrenotazione, riallineaTariffa, testoDettaglioNotti, dettaglioNottiSalvato } from '@/lib/prezzoNotti'
 import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
 import { contoSoggiorno } from '@/lib/conto'
 import { smartBack, returnToSicuro } from '@/lib/navHistory'
@@ -18,6 +19,7 @@ type SoggiornoRiga = {
   id: string; status: string; check_in: string; check_out: string
   total_amount: number | string; price_per_night: number | string
   num_guests: number; extra_bed?: boolean | null; notes?: string | null
+  extra_bed_dates?: string[] | null; extra_bed_total?: number | string | null
   cancelled_reason?: string | null; pagato?: boolean | null
   bonifico?: boolean | null; guest_name?: string | null
   extra_phone_1_name?: string | null; chi_e?: string | null
@@ -249,11 +251,26 @@ function NuovaPrenotazione() {
     }).totale
   }
 
-  // Il letto non si addebita quando è già compreso nella tariffa (Lena fino a 3 ospiti)
+  // Conto NOTTE PER NOTTE (lib/prezzoNotti): nelle notti col letto ci sono
+  // num_guests persone, nelle altre la capienza base; la tariffa del form è
+  // quella della notte più economica. Con persone uguali è il conto di sempre.
+  function contoNotti() {
+    const room = rooms.find(r => r.id === form.room_id)
+    return prezzoPrenotazione(room, { ...form, extra_bed_dates: form.extra_bed ? form.extra_bed_dates : [] })
+  }
+
+  // Letto e differenze di tariffa fra le notti: tutto ciò che supera tariffa × notti
+  // (0 quando il letto è già compreso nella tariffa: Lena fino a 3 ospiti)
   function extraBedTotal() {
     if (!form.extra_bed) return 0
-    const room = rooms.find(r => r.id === form.room_id)
-    return totaleLetto(room, form.num_guests, form.extra_bed_dates.length)
+    return contoNotti().lettoTotale
+  }
+
+  // Campo «Tariffa/notte» dopo una modifica di date o notti col letto: se
+  // seguiva il listino continua a seguirlo, se scritto a mano resta
+  function tariffaDopo(f: typeof form, dopo: Partial<typeof form>) {
+    const room = rooms.find(r => r.id === (dopo.room_id ?? f.room_id))
+    return riallineaTariffa(room, f, { ...f, ...dopo })
   }
 
   function parseDate(s: string) { return new Date(s.replace(/-/g, '/')) }
@@ -510,7 +527,10 @@ function NuovaPrenotazione() {
                         <div className="bg-[#F6F2EA] rounded-lg p-3 mb-2 ml-5 text-xs space-y-1">
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[#1F3D2F]">
                             <span>👥 {h.num_guests} {h.num_guests === 1 ? 'ospite' : 'ospiti'}</span>
-                            <span className="font-semibold">€{Number(h.total_amount).toFixed(0)} <span className="font-normal text-gray-500">({notti}n × €{Number(h.price_per_night).toFixed(0)})</span></span>
+                            <span className="font-semibold">€{Number(h.total_amount).toFixed(0)} <span className="font-normal text-gray-500">({(() => {
+                              const dett = dettaglioNottiSalvato(rooms.find(r => r.name === h.rooms?.name), h)
+                              return dett ? testoDettaglioNotti(dett, n => `€${n}`) : `${notti}n × €${Number(h.price_per_night).toFixed(0)}`
+                            })()})</span></span>
                             {h.extra_bed && <span className="flex items-center gap-1.5 font-medium"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: '#C58A67' }} />Letto extra</span>}
                           </div>
                           {h.notes
@@ -601,7 +621,7 @@ function NuovaPrenotazione() {
                     if (!newCheckIn) return
                     const newCheckOut = addOneDay(newCheckIn)
                     if (checkOutRef.current) checkOutRef.current.value = newCheckOut
-                    setForm(f => ({ ...f, check_in: newCheckIn, check_out: newCheckOut }))
+                    setForm(f => ({ ...f, check_in: newCheckIn, check_out: newCheckOut, price_per_night: tariffaDopo(f, { check_in: newCheckIn, check_out: newCheckOut }) }))
                     checkDisponibilita(form.room_id, newCheckIn, newCheckOut)
                   }}
                   className="w-full min-w-0 appearance-none bg-white border border-card-border rounded-lg p-2 text-sm" />
@@ -609,7 +629,7 @@ function NuovaPrenotazione() {
               <div className="min-w-0">
                 <p className="text-sm text-gray-500 mb-1">Check-out</p>
                 <input type="date" ref={checkOutRef} defaultValue={form.check_out} min={form.check_in ? addOneDay(form.check_in) : undefined} onChange={e => {
-                  setForm({...form, check_out: e.target.value})
+                  setForm({...form, check_out: e.target.value, price_per_night: tariffaDopo(form, { check_out: e.target.value })})
                   checkDisponibilita(form.room_id, form.check_in, e.target.value)
                 }} className="w-full min-w-0 appearance-none bg-white border border-card-border rounded-lg p-2 text-sm" />
               </div>
@@ -674,7 +694,8 @@ function NuovaPrenotazione() {
                       </div>
                       <button onClick={() => {
                         const newVal = !form.extra_bed
-                        setForm({...form, extra_bed: newVal, extra_bed_dates: newVal ? getDaysBetween(form.check_in, form.check_out) : []})
+                        const dates = newVal ? getDaysBetween(form.check_in, form.check_out) : []
+                        setForm({...form, extra_bed: newVal, extra_bed_dates: dates, price_per_night: tariffaDopo(form, { extra_bed: newVal, extra_bed_dates: dates })})
                       }}
                         className={`w-12 h-6 rounded-full transition-colors ${form.extra_bed ? 'bg-[#C58A67]' : 'bg-gray-200'}`}>
                         <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${form.extra_bed ? 'translate-x-6' : ''}`} />
@@ -697,7 +718,7 @@ function NuovaPrenotazione() {
                                   const dates = isSelected
                                     ? form.extra_bed_dates.filter(x => x !== day)
                                     : [...form.extra_bed_dates, day]
-                                  setForm({ ...form, extra_bed_dates: dates })
+                                  setForm({ ...form, extra_bed_dates: dates, price_per_night: tariffaDopo(form, { extra_bed_dates: dates }) })
                                 }}
                                 className="px-2 py-1 rounded text-xs font-semibold border transition-colors"
                                 style={{ background: isBlocked ? '#1f2937' : isSelected ? '#ef4444' : 'white', color: isBlocked || isSelected ? 'white' : '#6b7280', borderColor: isBlocked ? '#1f2937' : isSelected ? '#ef4444' : '#e5e7eb', opacity: isBlocked && !isSelected ? 0.6 : 1 }}>
@@ -793,8 +814,15 @@ function NuovaPrenotazione() {
           {notti() > 0 && form.price_per_night > 0 && (
             <div className={`rounded-xl p-4 border mb-4 ${form.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-sage border-card-border'}`}>
               <p className="font-semibold text-gray-700 mb-1">Riepilogo</p>
-              <p className="text-sm text-gray-600">{notti()} notti × €{form.price_per_night}</p>
-              {form.extra_bed && <p className="text-sm text-[#7A4B22]">+ Letto agg.: €{extraBedTotal().toFixed(0)}</p>}
+              {(() => {
+                // Tariffa diversa fra le notti (persone che cambiano): dettaglio per
+                // notte tutto compreso, mai un «prezzo a notte» unico che sarebbe falso
+                const c = contoNotti()
+                return c.tariffaUniforme ? <>
+                  <p className="text-sm text-gray-600">{notti()} notti × €{form.price_per_night}</p>
+                  {form.extra_bed && <p className="text-sm text-[#7A4B22]">+ Letto agg.: €{extraBedTotal().toFixed(0)}</p>}
+                </> : <p className="text-sm text-gray-600">{testoDettaglioNotti(c.notti, n => `€${n}`)}</p>
+              })()}
               <p className="font-serif text-2xl text-green-dark mt-1">Totale: €{calcTotal().toFixed(0)}</p>
             </div>
           )}

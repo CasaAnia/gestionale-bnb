@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
+import { prezzoPrenotazione } from '@/lib/prezzoNotti'
 import { useRouter } from 'next/navigation'
 import { buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
@@ -164,17 +165,19 @@ export default function Calendario() {
       const ordinati = [...segs].sort((a, b) => a.check_in.localeCompare(b.check_in))
       if (money >= totale) { ordinati.forEach(b => { map[b.id] = -1 }); return }
       for (const b of ordinati) {
-        const prezzo = Number(b.price_per_night)
-        const notti = Math.round((strToDate(b.check_out).getTime() - strToDate(b.check_in).getTime()) / 86400000)
-        if (prezzo <= 0) continue
-        const coperte = Math.min(notti, Math.floor(money / prezzo))
+        // Tariffa di ogni notte (lib/prezzoNotti): con persone che cambiano da
+        // una notte all'altra ogni notte ha il suo prezzo, non una media
+        const tariffe = prezzoPrenotazione(rooms.find(r => r.id === b.room_id) ?? b.rooms, b).notti.map(x => x.tariffa)
+        const notti = tariffe.length
+        if (notti === 0 || tariffe.some(t => t <= 0)) continue
+        let coperte = 0
+        while (coperte < notti && money >= tariffe[coperte]) { money -= tariffe[coperte]; coperte++ }
         if (coperte > 0) map[b.id] = coperte
-        money -= coperte * prezzo
         if (coperte < notti) break
       }
     })
     return map
-  }, [bookings, accontiByBooking])
+  }, [bookings, accontiByBooking, rooms])
 
   useEffect(() => {
     Promise.all([

@@ -5,6 +5,7 @@
 // totale autorevole, riga unica: l'immagine deve dire lo stesso totale della scheda.
 import { roomWithType, lettoInclusoNellaCamera } from './roomTypes.ts'
 import { contoSoggiorno } from './conto.ts'
+import { giorniSoggiorno, nottiConLetto, personePerNottePrenotazione, prezzoNotti, testoDettaglioNotti, type CameraTariffa, type NotteSoggiorno } from './prezzoNotti.ts'
 
 export type RigaCosto = { label: string; amount: number; sconto?: boolean }
 
@@ -19,11 +20,34 @@ export type SegmentoCosto = {
   discount_value?: number | string | null
   total_amount?: number | string | null
   num_guests?: number | string | null
-  rooms?: { name?: string | null; extra_bed_price?: number | string | null } | null
+  // Proposte (pezzo 9/10): persone di ogni notte e, se scritti a mano, i
+  // prezzi effettivi per notte. Le prenotazioni salvate non li hanno: le
+  // persone si ricavano da num_guests + extra_bed_dates (lib/prezzoNotti)
+  persone_notti?: number[] | null
+  prezzi_notti?: number[] | null
+  rooms?: (CameraTariffa & { extra_bed_price?: number | string | null }) | null
 }
 
 export function fmtEuro(n: number) {
   return n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+}
+
+// Dettaglio notte per notte di un segmento, SOLO quando la tariffa della
+// camera cambia fra le notti (Lena in 2 poi in 3): altrimenti null e il
+// segmento si mostra come sempre (prezzo × notti, letto a parte se addebitato).
+// Con prezzi scritti a mano (proposte) contano quelli: dettaglio se non uguali.
+export function dettaglioNottiSegmento(s: SegmentoCosto): NotteSoggiorno[] | null {
+  const giorni = giorniSoggiorno(s.check_in, s.check_out)
+  if (giorni.length === 0) return null
+  const persone = s.persone_notti && s.persone_notti.length === giorni.length
+    ? s.persone_notti.map(Number)
+    : personePerNottePrenotazione(s.rooms, s)
+  if (s.prezzi_notti && s.prezzi_notti.length === giorni.length) {
+    const notti = giorni.map((giorno, i) => ({ giorno, persone: persone[i], tariffa: Number(s.prezzi_notti![i]), letto: 0, prezzo: Number(s.prezzi_notti![i]) }))
+    return notti.every(x => x.prezzo === notti[0].prezzo) ? null : notti
+  }
+  const pn = prezzoNotti(s.rooms, giorni, persone, nottiConLetto(s), s.price_per_night)
+  return pn.tariffaUniforme ? null : pn.notti
 }
 
 // `fmt` (pezzo 11): come scrivere gli importi nelle etichette («2 notti × 70,00 €»);
@@ -39,8 +63,15 @@ export function righeCostiSegmenti(segmenti: SegmentoCosto[], isGruppo: boolean,
     totale += conto.totale
     const righeSegmento: RigaCosto[] = []
     let sommaDettaglio = 0
+    const dettaglio = dettaglioNottiSegmento(s)
+    // Tariffa diversa fra le notti (persone che cambiano): una riga sola col
+    // dettaglio per notte, mai un «prezzo a notte» unico che sarebbe falso
+    if (dettaglio) {
+      const totCamera = Math.round(dettaglio.reduce((t, x) => t + x.prezzo, 0) * 100) / 100
+      sommaDettaglio += totCamera
+      righeSegmento.push({ label: `${nomeCamera} (${testoDettaglioNotti(dettaglio, fmt)})`, amount: totCamera })
     // Lena con 3 ospiti: il terzo letto è parte della tripla, una riga sola tutto compreso
-    if (lettoInclusoNellaCamera(s, n)) {
+    } else if (lettoInclusoNellaCamera(s, n)) {
       const totCamera = prezzo * n + Number(s.extra_bed_total || 0)
       sommaDettaglio += totCamera
       righeSegmento.push({
