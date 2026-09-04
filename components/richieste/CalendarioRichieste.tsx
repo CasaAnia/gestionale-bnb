@@ -28,6 +28,7 @@ type Props = {
   inizio?: string                       // primo giorno della finestra a 2 settimane (YYYY-MM-DD)
   onInizio?: (iso: string) => void
   camere: CameraCalendario[]
+  compatto?: boolean                    // telefono in orizzontale: colonne più strette, 14 giorni senza scorrere
   adesso?: Date                        // per il timer della proposta nel tooltip (default: ora)
   prenotazioni: PrenotazioneBarra[]     // solo confermate/completate
   richieste: Richiesta[]                // aperte nel mese; vuoto in vista Reale
@@ -255,7 +256,8 @@ export default function CalendarioRichieste(p: Props) {
   // ── Camere in righe, giorni in colonne (Mac e, dal 05/09/2026, anche telefono) ──
   if (orizzontale) {
     const mobile = p.layout === 'mobile'
-    const colMin = mobile ? (modo === 'quindici' ? COL_MIN_QUINDICI_TELEFONO : COL_MIN_MESE_TELEFONO) : (modo === 'quindici' ? COL_MIN_QUINDICI : 0)
+    // compatto (telefono in orizzontale): niente larghezza minima, i 14 giorni riempiono lo schermo
+    const colMin = mobile ? (modo === 'quindici' ? (p.compatto ? 52 : COL_MIN_QUINDICI_TELEFONO) : COL_MIN_MESE_TELEFONO) : (modo === 'quindici' && !p.compatto ? COL_MIN_QUINDICI : 0)
     return (
       <div className="bg-white rounded-xl border border-card-border shadow-sm overflow-hidden">
         {navigazione}

@@ -74,3 +74,16 @@ input[type="week"] {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Telefono girato in orizzontale (05/09/2026, richiesta di Ania): sulle pagine
+   con la griglia (Richieste, Calendario, Arrivi) resta solo il calendario a
+   tutto schermo. La pagina accende body[data-schermo-intero] finché è aperta;
+   qui spariscono le barre e i margini che le facevano posto. */
+@media (orientation: landscape) and (max-height: 520px) {
+  body[data-schermo-intero] .barra-alta,
+  body[data-schermo-intero] .barra-bassa { display: none !important; }
+  body[data-schermo-intero] main.contenuto { padding-top: 0 !important; padding-bottom: 0 !important; }
+  body[data-schermo-intero] .top-12 { top: 0 !important; }
+  /* il contenitore «telefono» è largo al massimo 512 px: in orizzontale la griglia prende tutto lo schermo */
+  body[data-schermo-intero] .max-w-lg { max-width: none !important; }
+}

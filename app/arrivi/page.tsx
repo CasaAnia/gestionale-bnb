@@ -8,6 +8,7 @@ import { nomeOspite } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { testoNavetta } from '@/lib/navetta'
 import BackLink from '@/components/BackLink'
+import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
 
@@ -66,6 +67,8 @@ export default function Arrivi() {
   const [bookings, setBookings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
+  const orizzontale = useOrizzontaleTelefono()
+  useSchermoIntero()
   const [popup, setPopup] = useState<{ id: string; name: string; time: string; shuttle: string } | null>(null)
   const [showStorico, setShowStorico] = useState(false)
   const [savingTime, setSavingTime] = useState(false)
@@ -79,7 +82,8 @@ export default function Arrivi() {
   const [visibleMonth, setVisibleMonth] = useState(() => fmtMonth(new Date()))
 
   useEffect(() => {
-    const check = () => setIsDesktop(window.innerWidth >= 1024)
+    // Telefono girato in orizzontale: griglia del Mac (compatta) a tutto schermo
+    const check = () => setIsDesktop(window.innerWidth >= 1024 || window.matchMedia(MEDIA_ORIZZONTALE_TELEFONO).matches)
     check()
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
@@ -264,9 +268,9 @@ export default function Arrivi() {
   })
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0">
+    <div className={`flex flex-col ${orizzontale ? 'h-auto' : 'h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0'}`}>
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
-      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 lg:pt-4 pb-2 bg-cream/95 backdrop-blur-sm">
+      <div className={`shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 lg:pt-4 pb-2 bg-cream/95 backdrop-blur-sm ${orizzontale ? 'hidden' : ''}`}>
         <BackLink href="/" />
         {/* Dal Mac il titolo della pagina, con le stesse distanze delle Richieste (16 px sotto «Indietro», riga alta 44 px, 16 px prima del riquadro) */}
         {isDesktop && (
@@ -294,7 +298,7 @@ export default function Arrivi() {
 
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
-      <div className="flex flex-col flex-1 min-h-0 lg:flex-none lg:mx-4 lg:mb-6 lg:bg-white lg:rounded-xl lg:border lg:border-card-border lg:shadow-sm lg:overflow-hidden">
+      <div className={`flex flex-col ${isDesktop ? `flex-none ${orizzontale ? 'm-2' : 'mx-4 mb-6'} bg-white rounded-xl border border-card-border shadow-sm overflow-hidden` : 'flex-1 min-h-0'}`}>
       {!loading && isDesktop && (
         <>
           {/* Riga di navigazione: la stessa del calendario delle Richieste */}
@@ -329,7 +333,7 @@ export default function Arrivi() {
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
-        <div ref={scrollRef} onScroll={updateVisibleMonth} className={`overflow-auto flex-1 lg:flex-none ${isDesktop ? 'no-scrollbar' : ''}`} style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div ref={scrollRef} onScroll={updateVisibleMonth} className={`overflow-auto ${isDesktop ? 'flex-none no-scrollbar' : 'flex-1'}`} style={{ WebkitOverflowScrolling: 'touch' }}>
           <div style={{ width: totalW, position: 'relative', height: totalH }}>
 
             {/* ── HEADER MESI: titolo sticky + nome del mese nuovo in ottone al 1° del mese ── */}
@@ -652,7 +656,7 @@ export default function Arrivi() {
         )
       })()}
       </div>
-      {!loading && isDesktop && (
+      {!loading && isDesktop && !orizzontale && (
         <div className="shrink-0 flex items-center gap-3 px-4 pb-5">
           <button type="button" onClick={() => vaiAIndice(DAYS_BEFORE - 1)}
             className="rounded-full border border-green-mid bg-white text-green-mid text-[13px] font-bold px-3.5 py-1.5 active:bg-sage">Oggi</button>

@@ -14,7 +14,7 @@ import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import { supabase } from '@/lib/supabase'
 import { fetchRichieste, rifiutaRichiesta, MOTIVI_RIFIUTO } from '@/lib/richiesteDati'
-import { useVista, useDesktop, useAdesso } from '@/lib/richiesteVista'
+import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
 import { nomeOspite } from '@/lib/guestName'
 import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
@@ -155,6 +155,10 @@ function Richieste() {
   const adesso = useAdesso()
   const [vista, setVista] = useVista()
   const desktop = useDesktop()
+  // Telefono in orizzontale: solo il calendario, a tutto schermo
+  // (a 844 px il telefono girato conta già come «desktop»: la griglia del Mac riempie lo schermo)
+  const orizzontale = useOrizzontaleTelefono()
+  useSchermoIntero()
   // Default «2 settimane» ovunque (dal 05/09/2026 anche sul telefono, che ha la stessa griglia del Mac)
   const modoCalendario: ModoCalendario = modoScelto ?? 'quindici'
   function cambiaModo(m: ModoCalendario) {
@@ -185,7 +189,7 @@ function Richieste() {
   }
   // Dal 05/09/2026 calendario e lista sono sempre entrambi visibili, anche sul telefono
   const mostraCalendario = true
-  const mostraLista = true
+  const mostraLista = !orizzontale
 
   useEffect(() => {
     // Stesse letture del calendario principale (camere attive, prenotazioni
@@ -263,7 +267,7 @@ function Richieste() {
       <BackBar href="/" />
       {/* Intestazione: su desktop (blocco 2c) titolo, Reale/Presunta, Nuova richiesta e
           contatori su UNA riga con spaziatura uniforme; sul telefono com'era */}
-      {desktop ? (
+      {orizzontale ? null : desktop ? (
         <div className="flex items-center flex-wrap gap-4 mb-4 min-h-[44px]">
           <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Richieste di prenotazione</h1>
           {!loading && nuoveWeb > 0 && (
@@ -307,12 +311,14 @@ function Richieste() {
               mese={mese} onMese={setMese} modo={modoCalendario} onModo={cambiaModo} inizio={inizio} onInizio={setInizio}
               camere={camere} prenotazioni={prenotazioni} richieste={richiesteCalendario}
               acconti={acconti} vista={vista} layout={desktop ? 'desktop' : 'mobile'} oggi={oggiIso()} adesso={adesso}
-              evidenziata={selezionata} onApri={(gruppo, ancora) => setPannello({ gruppo, ancora })} />
+              compatto={orizzontale} evidenziata={selezionata} onApri={(gruppo, ancora) => setPannello({ gruppo, ancora })} />
           )}
-          <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>
-            {vista === 'presunta' ? 'Tratteggiato = richieste in attesa. Tocca una barra per vedere chi c’è dentro.' : 'Solo confermate: queste non si toccano.'}
-          </p>
-          {!desktop && (
+          {!orizzontale && (
+            <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>
+              {vista === 'presunta' ? 'Tratteggiato = richieste in attesa. Tocca una barra per vedere chi c’è dentro.' : 'Solo confermate: queste non si toccano.'}
+            </p>
+          )}
+          {!desktop && !orizzontale && (
             <>
               <div className="flex items-center justify-between gap-3 mt-4">
                 <InterruttoreVista vista={vista} onChange={setVista} />

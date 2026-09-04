@@ -17,6 +17,7 @@ import {
   statoLettiAggiuntivi,
 } from '@/lib/calendarioLetti'
 import BackLink from '@/components/BackLink'
+import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
 
@@ -106,6 +107,8 @@ export default function Calendario() {
   const [bookings, setBookings] = useState<CalendarBooking[]>([])
   const [loading, setLoading] = useState(true)
   const [isDesktop, setIsDesktop] = useState(false)
+  const orizzontale = useOrizzontaleTelefono()
+  useSchermoIntero()
 
   // Catene di cambio camera (per group_id o per stesso ospite/date contigue) e relative transizioni
   const changeGroups = useMemo(() => buildChangeGroups(bookings), [bookings])
@@ -170,7 +173,8 @@ export default function Calendario() {
   const primoGiornoRef = useRef<number | null>(null)
 
   useEffect(() => {
-    const check = () => setIsDesktop(window.innerWidth >= 1024)
+    // Telefono girato in orizzontale: griglia del Mac (compatta) a tutto schermo
+    const check = () => setIsDesktop(window.innerWidth >= 1024 || window.matchMedia(MEDIA_ORIZZONTALE_TELEFONO).matches)
     check()
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
@@ -462,9 +466,9 @@ export default function Calendario() {
   })
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0">
+    <div className={`flex flex-col ${orizzontale ? 'h-auto' : 'h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0'}`}>
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
-      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 lg:pt-4 pb-2 bg-cream/95 backdrop-blur-sm">
+      <div className={`shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 lg:pt-4 pb-2 bg-cream/95 backdrop-blur-sm ${orizzontale ? 'hidden' : ''}`}>
         {/* Dal Mac come nelle Richieste: «← Indietro» sopra, poi il titolo della
             pagina a sinistra e la ricerca a destra; sul telefono tutto su una riga */}
         {isDesktop ? (
@@ -662,7 +666,7 @@ export default function Calendario() {
 
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
-      <div className="flex flex-col flex-1 min-h-0 lg:flex-none lg:mx-4 lg:mb-6 lg:bg-white lg:rounded-xl lg:border lg:border-card-border lg:shadow-sm lg:overflow-hidden">
+      <div className={`flex flex-col ${isDesktop ? `flex-none ${orizzontale ? 'm-2' : 'mx-4 mb-6'} bg-white rounded-xl border border-card-border shadow-sm overflow-hidden` : 'flex-1 min-h-0'}`}>
       {!loading && isDesktop && (
         <>
           {/* Riga di navigazione: la stessa del calendario delle Richieste */}
@@ -695,7 +699,7 @@ export default function Calendario() {
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
-        <div ref={scrollRef} onScroll={updateVisibleMonth} className={`overflow-auto flex-1 lg:flex-none ${isDesktop ? 'no-scrollbar' : ''}`} style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div ref={scrollRef} onScroll={updateVisibleMonth} className={`overflow-auto ${isDesktop ? 'flex-none no-scrollbar' : 'flex-1'}`} style={{ WebkitOverflowScrolling: 'touch' }}>
           <div style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
 
             {/* ── HEADER MESI: titolo sticky + nome del mese nuovo in ottone al 1° del mese ── */}
@@ -983,7 +987,7 @@ export default function Calendario() {
       )}
       </div>
       {/* Sotto il calendario (come vuole Ania): «Oggi» e i 12 mesi cliccabili, un clic su «gen» e sei a gennaio */}
-      {!loading && isDesktop && (
+      {!loading && isDesktop && !orizzontale && (
         <div className="shrink-0 flex items-center gap-1.5 px-4 pb-5 overflow-x-auto no-scrollbar">
           <button type="button" onClick={() => vaiAData(todayStr)}
             className="rounded-full border border-green-mid bg-white text-green-mid text-[13px] font-bold px-3.5 py-1.5 active:bg-sage">Oggi</button>
@@ -1002,7 +1006,7 @@ export default function Calendario() {
       )}
 
       {/* Legenda: solo su desktop — sul telefono ruba spazio al calendario */}
-      <div className="shrink-0 px-4 pb-4 hidden lg:flex flex-wrap gap-3 items-center">
+      <div className={`shrink-0 px-4 pb-4 hidden ${orizzontale ? '' : 'lg:flex'} flex-wrap gap-3 items-center`}>
         <div className="flex items-center gap-1.5">
           <div style={{ width: 12, height: 12, borderRadius: 3, background: COLOR_PRENOTAZIONE }} />
           <span className="text-xs text-gray-500">Prenotazione</span>

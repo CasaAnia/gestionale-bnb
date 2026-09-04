@@ -70,7 +70,7 @@ export default function BottomNav() {
   return (
     <>
       {/* Mobile: bottom navigation crema & ottone */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-sidebar border-t-[0.5px] border-[#E9E2D2] z-50"
+      <nav className="barra-bassa lg:hidden fixed bottom-0 left-0 right-0 bg-sidebar border-t-[0.5px] border-[#E9E2D2] z-50"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="flex justify-around items-stretch h-[70px] max-w-lg mx-auto">
           {mobileNavItems.map(item => {

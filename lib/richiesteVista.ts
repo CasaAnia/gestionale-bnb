@@ -51,3 +51,22 @@ export function useAdesso(intervalloMs = 60000): Date {
   }, [intervalloMs])
   return adesso
 }
+
+// Telefono girato in orizzontale (schermo basso): sulle pagine con la griglia
+// resta solo il calendario a tutto schermo (globals.css, body[data-schermo-intero]).
+export const MEDIA_ORIZZONTALE_TELEFONO = '(orientation: landscape) and (max-height: 520px)'
+export function useOrizzontaleTelefono(): boolean {
+  return useSyncExternalStore(
+    cb => { const mq = window.matchMedia(MEDIA_ORIZZONTALE_TELEFONO); mq.addEventListener('change', cb); return () => mq.removeEventListener('change', cb) },
+    () => window.matchMedia(MEDIA_ORIZZONTALE_TELEFONO).matches,
+    () => false,
+  )
+}
+// Finché la pagina è aperta, il body porta data-schermo-intero: in orizzontale
+// il CSS nasconde barra alta, barra bassa e margini. In verticale non cambia nulla.
+export function useSchermoIntero(): void {
+  useEffect(() => {
+    document.body.dataset.schermoIntero = '1'
+    return () => { delete document.body.dataset.schermoIntero }
+  }, [])
+}
