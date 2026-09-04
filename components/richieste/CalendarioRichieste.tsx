@@ -246,7 +246,7 @@ export default function CalendarioRichieste(p: Props) {
   // ── DESKTOP: camere in righe, giorni in colonne ───────────────────────────
   if (p.layout === 'desktop') {
     return (
-      <div className="bg-white rounded-xl border border-card-border overflow-hidden">
+      <div className="bg-white rounded-xl border border-card-border shadow-sm overflow-hidden">
         {navigazione}
         <div ref={scorrevole} style={{ overflowX: modo === 'quindici' ? 'auto' : 'hidden' }}>
         <div style={{ minWidth: modo === 'quindici' ? NAME_W + N * COL_MIN_QUINDICI : undefined }}>

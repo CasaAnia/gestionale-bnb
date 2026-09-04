@@ -294,7 +294,7 @@ export default function Arrivi() {
 
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
-      <div className="flex flex-col flex-1 min-h-0 lg:flex-none lg:mx-4 lg:mb-6 lg:bg-white lg:rounded-xl lg:border lg:border-card-border lg:overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 lg:flex-none lg:mx-4 lg:mb-6 lg:bg-white lg:rounded-xl lg:border lg:border-card-border lg:shadow-sm lg:overflow-hidden">
       {!loading && isDesktop && (
         <>
           {/* Riga di navigazione: la stessa del calendario delle Richieste */}
