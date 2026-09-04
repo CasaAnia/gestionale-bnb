@@ -42,7 +42,7 @@ type Props = {
 
 const OTTONE = '#A9884E'
 // Desktop: camere in righe, giorni in colonne
-const NAME_W = 96
+const NAME_W = 84   // solo il nome della camera, senza numero
 const COL_MIN_QUINDICI = 72   // a 2 settimane ogni giorno ha almeno 72 px: «Nome C.» intero anche su una notte; se non ci sta, scorre
 // Telefono (05/09/2026, richiesta di Ania): stessa griglia del Mac — camere in
 // righe, giorni in colonne — che scorre di lato dentro il riquadro. Colonna
@@ -283,7 +283,7 @@ export default function CalendarioRichieste(p: Props) {
           <div key={riga.chiave} style={{ position: 'relative', height: ROW_H, borderBottom: ri === righe.length - 1 ? `2px solid ${COLORE_SEPARATORE}` : `1px solid ${COLORE_GRIGLIA}`, borderTop: riga.chiave === RIGA_QUALSIASI ? `2px solid ${COLORE_SEPARATORE}` : undefined }}>
             <div style={{ display: 'grid', gridTemplateColumns: `${nameW}px repeat(${N}, minmax(0, 1fr))`, height: '100%' }}>
               <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}`, display: 'flex', alignItems: 'center', gap: 5, padding: '0 6px', minWidth: 0, background: 'white', position: 'sticky', left: 0, zIndex: 10 }}>
-                {riga.numero && p.layout === 'desktop' && <span className="font-serif" style={{ fontSize: 10, color: OTTONE }}>{riga.numero}</span>}
+                {/* niente numero 01–04: solo il nome della camera, ovunque (05/09/2026) */}
                 <span className={riga.camera ? 'font-serif' : ''} style={{ fontSize: riga.camera ? (p.layout === 'mobile' ? 12 : 13) : 10, fontWeight: 600, color: riga.camera ? '#1F3D2F' : COLORE_RICHIESTA_TESTO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.15 }}>
                   {riga.nome}
                 </span>

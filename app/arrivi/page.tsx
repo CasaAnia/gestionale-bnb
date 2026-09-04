@@ -30,7 +30,7 @@ const ROW_H_DESKTOP = 44
 const HEADER_MONTH_H_DESKTOP = 0
 const HEADER_DAY_H_DESKTOP = 40
 const NAME_W_MOBILE = 80   // telefono (05/09/2026): solo il nome della camera, senza numero né descrizione
-const NAME_W_DESKTOP = 96
+const NAME_W_DESKTOP = 84   // solo il nome della camera, senza numero
 // Selettore «Mese | 2 settimane» (stessa scelta ricordata del Calendario)
 type ModoGriglia = 'mese' | 'quindici'
 const COLONNE_VISIBILI: Record<ModoGriglia, number> = { mese: 30, quindici: GIORNI_QUINDICINA }
@@ -405,11 +405,7 @@ export default function Arrivi() {
                       background: 'white', borderRight: '2px solid #D6CFBD',
                       display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px',
                     }}>
-                      {isDesktop && (
-                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: 10, color: 'var(--color-brass)', flexShrink: 0 }}>
-                          {ROOM_NUMBER_BY_NAME[shortName] || ''}
-                        </span>
-                      )}
+                      {/* niente numero 01–04: solo il nome della camera, ovunque (05/09/2026) */}
                       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                         <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 13 : 12, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {shortName}
