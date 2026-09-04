@@ -21,6 +21,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
+const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
 
 // Fattore di ingrandimento della griglia (1 = originale). Scala misure e testi.
 const GRID_SCALE = 1.2
@@ -464,29 +465,58 @@ export default function Calendario() {
     <div className="flex flex-col h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0">
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
       <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 pb-2 bg-cream/95 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <BackLink href="/" />
-          {/* Ricerca compatta: una riga sola quando non si cerca */}
-          <div className="flex items-center gap-2 flex-1 min-w-0 bg-white border border-card-border rounded-full px-3 py-1.5">
-            <span aria-hidden className="text-[13px]">🔎</span>
-            <input
-              type="search"
-              enterKeyHint="search"
-              value={query}
-              onChange={e => cambiaRicerca(e.target.value)}
-              placeholder="Cerca nome o telefono…"
-              className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-green-dark placeholder:text-gray-400 [&::-webkit-search-cancel-button]:hidden"
-            />
-            {query !== '' && (
-              <button
-                onClick={() => cambiaRicerca('')}
-                aria-label="Chiudi ricerca"
-                className="shrink-0 w-6 h-6 rounded-full bg-cream text-green-dark text-[12px] font-bold leading-none transition-transform duration-100 active:scale-[0.9]">
-                ✕
-              </button>
-            )}
+        {/* Dal Mac come nelle Richieste: «← Indietro» sopra, poi il titolo della
+            pagina a sinistra e la ricerca a destra; sul telefono tutto su una riga */}
+        {isDesktop ? (
+          <>
+            <BackLink href="/" />
+            <div className="flex items-center gap-4 mt-3">
+              <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Calendario</h1>
+              <div className="flex items-center gap-2 flex-1 min-w-0 lg:flex-none lg:w-[360px] bg-white border border-card-border rounded-full px-3 py-1.5">
+                <span aria-hidden className="text-[13px]">🔎</span>
+                <input
+                  type="search"
+                  enterKeyHint="search"
+                  value={query}
+                  onChange={e => cambiaRicerca(e.target.value)}
+                  placeholder="Cerca nome o telefono…"
+                  className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-green-dark placeholder:text-gray-400 [&::-webkit-search-cancel-button]:hidden"
+                />
+                {query !== '' && (
+                  <button
+                    onClick={() => cambiaRicerca('')}
+                    aria-label="Chiudi ricerca"
+                    className="shrink-0 w-6 h-6 rounded-full bg-cream text-green-dark text-[12px] font-bold leading-none transition-transform duration-100 active:scale-[0.9]">
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center gap-2">
+            <BackLink href="/" />
+            <div className="flex items-center gap-2 flex-1 min-w-0 lg:flex-none lg:w-[360px] bg-white border border-card-border rounded-full px-3 py-1.5">
+              <span aria-hidden className="text-[13px]">🔎</span>
+              <input
+                type="search"
+                enterKeyHint="search"
+                value={query}
+                onChange={e => cambiaRicerca(e.target.value)}
+                placeholder="Cerca nome o telefono…"
+                className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-green-dark placeholder:text-gray-400 [&::-webkit-search-cancel-button]:hidden"
+              />
+              {query !== '' && (
+                <button
+                  onClick={() => cambiaRicerca('')}
+                  aria-label="Chiudi ricerca"
+                  className="shrink-0 w-6 h-6 rounded-full bg-cream text-green-dark text-[12px] font-bold leading-none transition-transform duration-100 active:scale-[0.9]">
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Nessun risultato: messaggio semplice, calendario normale */}
         {cercando && matches.length === 0 && (
@@ -655,22 +685,6 @@ export default function Calendario() {
                 <ChevronRight size={20} strokeWidth={2} aria-hidden />
               </button>
             </div>
-          </div>
-          {/* Riga sottile: «Oggi» e i 12 mesi cliccabili (un clic su «gen» e sei a gennaio) */}
-          <div className="shrink-0 flex items-center gap-1 px-3 py-1.5 border-b border-card-border overflow-x-auto no-scrollbar">
-            <button type="button" onClick={() => vaiAData(todayStr)}
-              className="rounded-full border border-green-mid bg-white text-green-mid text-[11px] font-bold px-2.5 py-1 active:bg-sage">Oggi</button>
-            <span className="w-px h-4 mx-1.5" style={{ background: '#D6CFBD' }} />
-            {mesiCliccabili.map(m => {
-              const attivo = visibleMonth === fmtMonth(strToDate(m.iso))
-              return (
-                <span key={m.iso} className="inline-flex items-center">
-                  {m.nuovoAnno && <span className="font-serif text-[10px] text-brass px-1.5 tracking-wider">{m.anno}</span>}
-                  <button type="button" onClick={() => vaiAData(m.iso, 0)} aria-pressed={attivo}
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors ${attivo ? 'bg-green-mid text-cream-text' : 'text-stone'}`}>{m.label}</button>
-                </span>
-              )
-            })}
           </div>
         </>
       )}
@@ -967,6 +981,24 @@ export default function Calendario() {
         </div>
       )}
       </div>
+      {/* Sotto il calendario (come vuole Ania): «Oggi» e i 12 mesi cliccabili, un clic su «gen» e sei a gennaio */}
+      {!loading && isDesktop && (
+        <div className="shrink-0 flex items-center gap-1 px-4 pb-2 overflow-x-auto no-scrollbar">
+          <button type="button" onClick={() => vaiAData(todayStr)}
+            className="rounded-full border border-green-mid bg-white text-green-mid text-[11px] font-bold px-2.5 py-1 active:bg-sage">Oggi</button>
+          <span className="w-px h-4 mx-1.5" style={{ background: '#D6CFBD' }} />
+          {mesiCliccabili.map(m => {
+            const attivo = visibleMonth === fmtMonth(strToDate(m.iso))
+            return (
+              <span key={m.iso} className="inline-flex items-center">
+                {m.nuovoAnno && <span className="font-serif text-[10px] text-brass px-1.5 tracking-wider">{m.anno}</span>}
+                <button type="button" onClick={() => vaiAData(m.iso, 0)} aria-pressed={attivo}
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors ${attivo ? 'bg-green-mid text-cream-text' : 'text-stone'}`}>{m.label}</button>
+              </span>
+            )
+          })}
+        </div>
+      )}
 
       {/* Legenda: solo su desktop — sul telefono ruba spazio al calendario */}
       <div className="shrink-0 px-4 pb-2 hidden lg:flex flex-wrap gap-3 items-center">

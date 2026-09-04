@@ -11,6 +11,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
+const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
 // Fattore di ingrandimento della griglia (1 = originale). Scala misure e testi.
 const GRID_SCALE = 1.2
 function gs(n: number) { return Math.round(n * GRID_SCALE) }
@@ -246,7 +247,11 @@ export default function Arrivi() {
   return (
     <div className="flex flex-col h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0">
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
-      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 pb-2 bg-cream/95 backdrop-blur-sm"><BackLink href="/" /></div>
+      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 pb-2 bg-cream/95 backdrop-blur-sm">
+        <BackLink href="/" />
+        {/* Dal Mac il titolo della pagina, come «Richieste di prenotazione» */}
+        {isDesktop && <h1 className="text-[22px] text-green-dark leading-tight mt-3" style={FRAUNCES}>Arrivi</h1>}
+      </div>
 
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
@@ -276,11 +281,6 @@ export default function Arrivi() {
                 <ChevronRight size={20} strokeWidth={2} aria-hidden />
               </button>
             </div>
-          </div>
-          <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-card-border">
-            <button type="button" onClick={() => vaiAIndice(DAYS_BEFORE - 1)}
-              className="rounded-full border border-green-mid bg-white text-green-mid text-[11px] font-bold px-2.5 py-1 active:bg-sage">Oggi</button>
-            <span className="text-[11px] text-stone">arrivi dei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</span>
           </div>
         </>
       )}
@@ -610,6 +610,13 @@ export default function Arrivi() {
         )
       })()}
       </div>
+      {!loading && isDesktop && (
+        <div className="shrink-0 flex items-center gap-2 px-4 pb-2">
+          <button type="button" onClick={() => vaiAIndice(DAYS_BEFORE - 1)}
+            className="rounded-full border border-green-mid bg-white text-green-mid text-[11px] font-bold px-2.5 py-1 active:bg-sage">Oggi</button>
+          <span className="text-[11px] text-stone">arrivi dei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</span>
+        </div>
+      )}
 
       {/* Legenda */}
       <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border lg:bg-transparent lg:border-0 lg:pt-0 flex gap-4 items-center">
