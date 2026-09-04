@@ -161,6 +161,10 @@ export function nuoveDalSito<T extends Pick<Richiesta, 'canale' | 'created_at'>>
 // ── Persone notte per notte (pezzo 9) ──────────────────────────────────────
 // "17: 2 · 18–20: 1" · attraverso i mesi "30 set: 2 · 1–2 ott: 1"
 export function riassuntoPersone(arrivo: string, persone: number[]): string {
+  return riassuntoPerNotte(arrivo, persone)
+}
+// Stessa compressione per QUALSIASI valore per notte (pezzo 10: "17: Amelia · 18–20: Ambra")
+export function riassuntoPerNotte(arrivo: string, persone: (number | string)[]): string {
   if (persone.length === 0) return ''
   const giorni: { g: number; m: number }[] = []
   let t = Date.parse(arrivo + 'T00:00:00Z')

@@ -64,6 +64,10 @@ export type SegmentoSoluzione = {
   // pezzo 9 (facoltativi: le soluzioni salvate prima non li hanno)
   personeNotti?: number[]   // persone in ogni notte del segmento
   lettoNotti?: string[]     // notti (ISO) in cui il letto aggiuntivo viene ADDEBITATO
+  // pezzo 10: prezzo EFFETTIVO di ogni notte in centesimi (tariffa, oppure
+  // scritto a mano da Ania) e il flag «prezzo scritto a mano»
+  prezziNottiCentesimi?: number[]
+  prezzo_manuale?: boolean
 }
 
 export type Soluzione = {
@@ -73,6 +77,7 @@ export type Soluzione = {
   nottiCoperte: number
   nottiMancanti: string[]   // notti (giorni ISO) non coperte, in ordine
   prezzoTotale: number
+  manuale?: boolean         // pezzo 10: composta a mano da Ania («Scelgo io»)
 }
 
 export const ETICHETTA_CASO: Record<CasoSoluzione, string> = {
@@ -271,8 +276,10 @@ export type AlternativaAmelia = {
 
 const cent = (n: number | string | null | undefined) => Math.round(Number(n || 0) * 100)
 
-// Prezzo di ogni notte di un segmento (tariffa + letto se addebitato), in centesimi
+// Prezzo di ogni notte di un segmento in centesimi: quello salvato (tariffa
+// o scritto a mano, pezzo 10) se c'è, altrimenti tariffa + letto se addebitato
 export function prezziNottiCentesimi(s: SegmentoSoluzione): number[] {
+  if (s.prezziNottiCentesimi && s.prezziNottiCentesimi.length === s.notti) return s.prezziNottiCentesimi
   const giorni = giorniTra(s.arrivo, s.partenza)
   const persone = personeSegmento(s)
   const letto = new Set(s.lettoNotti ?? (s.lettoTotale > 0 ? giorni : []))
@@ -311,4 +318,93 @@ export function alternativaAmelia(
     return { camera: c, differenzaNotteCentesimi: differenza, prezzoTotaleCentesimi: cent(alt.totale) }
   }
   return null
+}
+
+// ── Pezzo 10: prezzi a mano e motivi di esclusione ──────────────────────────
+// Ricalcola prezzoNotte / lettoTotale / totale di un segmento dai prezzi per
+// notte (centesimi): price_per_night = notte più economica, extra_bed_total =
+// resto, così contoSoggiorno (price × notti + letto) torna esatto e la RPC
+// crea la prenotazione con quei prezzi (stesso meccanismo della conferma).
+export function conPrezziNotti(s: SegmentoSoluzione, prezziCent: number[], manuale: boolean): SegmentoSoluzione {
+  if (prezziCent.length !== s.notti) throw new Error(`Segmento ${s.arrivo}–${s.partenza}: servono ${s.notti} prezzi, trovati ${prezziCent.length}`)
+  if (prezziCent.some(p => !Number.isInteger(p) || p < 0)) throw new Error('Prezzi per notte non validi: servono centesimi interi da 0 in su')
+  const minimo = prezziCent.length ? Math.min(...prezziCent) : 0
+  const totaleCent = prezziCent.reduce((a, b) => a + b, 0)
+  return {
+    ...s,
+    prezzoNotte: minimo / 100,
+    lettoTotale: (totaleCent - minimo * s.notti) / 100,
+    totale: totaleCent / 100,
+    prezziNottiCentesimi: prezziCent,
+    ...(manuale ? { prezzo_manuale: true } : {}),
+  }
+}
+
+// "19 set" · "18–20 set" · "17 set, 19–20 set" · "30 set–1 ott"
+const MESI_BREVI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
+export function compattaDate(giorni: string[]): string {
+  const ordinati = [...new Set(giorni)].sort()
+  if (ordinati.length === 0) return ''
+  const etich = (iso: string) => `${Number(iso.slice(8, 10))} ${MESI_BREVI[Number(iso.slice(5, 7)) - 1]}`
+  const dopo = (iso: string) => new Date(Date.parse(iso + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10)
+  const gruppi: string[] = []
+  let da = ordinati[0], a = ordinati[0]
+  const chiudi = () => {
+    if (da === a) gruppi.push(etich(da))
+    else if (da.slice(0, 7) === a.slice(0, 7)) gruppi.push(`${Number(da.slice(8, 10))}–${etich(a)}`)
+    else gruppi.push(`${etich(da)}–${etich(a)}`)
+  }
+  for (const g of ordinati.slice(1)) {
+    if (g === dopo(a)) { a = g; continue }
+    chiudi(); da = g; a = g
+  }
+  chiudi()
+  return gruppi.join(', ')
+}
+
+export type MotivoEsclusione =
+  | { stato: 'occupata'; notti: string[] }
+  | { stato: 'senza_posto'; notti: string[]; persone: number }
+  | { stato: 'brande_esaurite'; notti: string[] }
+  | { stato: 'libera'; notti: [] }
+export type CameraConMotivo = { camera: CameraListino; motivo: MotivoEsclusione }
+
+// Perché una camera NON è proponibile per il periodo (solo confermate, persone
+// per notte): occupata (notti), senza posto per N (notti in cui capienza base
+// + brande non basta), brande esaurite (libera ma pool già preso), oppure
+// libera. Un solo motivo per camera, il più «forte» (occupata > senza posto >
+// brande), con le sue notti.
+export function motiviEsclusione(
+  richiesta: RichiestaProposta,
+  camere: CameraListino[],
+  prenotazioniConfermate: PrenotazioneOccupante[],
+): CameraConMotivo[] {
+  const notti = giorniTra(richiesta.arrivo, richiesta.partenza)
+  const persone = personePerNotte(richiesta)
+  const occupanti = prenotazioniConfermate.filter(p => STATI_CHE_OCCUPANO.has(p.status))
+  const lettiPresi = lettiOccupatiPerNotte(occupanti)
+  return ordinaCamere(camere.filter(c => c.active !== false)).map(camera => {
+    const occupate: string[] = [], senzaPosto: string[] = [], brande: string[] = []
+    let personeMax = 0
+    notti.forEach((g, i) => {
+      if (occupanti.some(p => p.room_id === camera.id && p.check_in <= g && p.check_out > g)) { occupate.push(g); return }
+      if (persone[i] > capienzaCamera(camera)) { senzaPosto.push(g); personeMax = Math.max(personeMax, persone[i]); return }
+      if (!cameraOspita(camera, persone[i], [g], lettiPresi)) brande.push(g)
+    })
+    const motivo: MotivoEsclusione = occupate.length ? { stato: 'occupata', notti: occupate }
+      : senzaPosto.length ? { stato: 'senza_posto', notti: senzaPosto, persone: personeMax }
+        : brande.length ? { stato: 'brande_esaurite', notti: brande }
+          : { stato: 'libera', notti: [] }
+    return { camera, motivo }
+  })
+}
+
+// "occupata 18–20 set" · "senza posto per 3 (18–20 set)" · "brande esaurite 19 set" · "libera"
+export function testoMotivo(m: MotivoEsclusione): string {
+  switch (m.stato) {
+    case 'occupata': return `occupata ${compattaDate(m.notti)}`
+    case 'senza_posto': return `senza posto per ${m.persone} (${compattaDate(m.notti)})`
+    case 'brande_esaurite': return `brande esaurite ${compattaDate(m.notti)}`
+    case 'libera': return 'libera'
+  }
 }
