@@ -1,26 +1,22 @@
-// Testi delle proposte alle richieste (pezzi 6 e 9): UNICO generatore, puro e
-// componibile. Lo usano l'anteprima, il testo che parte su WhatsApp, l'immagine
-// e il testo archiviato in richieste.proposta_testo. Nessuna copia altrove.
+// Testi delle proposte alle richieste — DEFINITIVI, bloccati da Ania il
+// 04/09/2026 (pezzo 11; sostituiscono per intero quelli dei pezzi 6 e 9).
+// UNICO generatore, puro e componibile: lo usano l'anteprima, il testo che
+// parte su WhatsApp, l'immagine e il testo archiviato in proposta_testo.
 //
 //   generaProposta({ richiesta, soluzione, condizione, amelia, alternative }) → testo
 //
-// Regole fisse: sempre del Lei, apertura con «Gentile», tono caldo e diretto,
-// righe vuote fra camere o periodi diversi. La proposta NON è una prenotazione:
-// nei casi A–C il cliente ha ORE_RISPOSTA_PROPOSTA ore per rispondere, nel
-// caso E nessun limite. Le condizioni di pagamento le sceglie Ania per ogni
-// richiesta (mai preselezionate): senza condizione il testo si ferma prima
-// della chiusura. Amelia è la camera più piccola; solo Allegra ha il balconcino.
-// Importi sempre in centesimi (interi), mai float; formattazione italiana
-// «1.234,50 €», senza decimali quando sono zero («140 €»).
-// Pezzo 9: date con l'elisione («dal 4 all'8 settembre»), link della pagina
-// della camera sul sito, caso A con una o più camere libere, riga «Nel
-// dettaglio» quando le persone cambiano da una notte all'altra.
+// Stile: sempre il Lei; apertura «Gentile [Nome],⏎grazie…»; niente due punti
+// nel corpo (solo davanti a un elenco); il nome della camera da solo («è
+// disponibile soltanto Ambra»); «un letto in più»; date con l'elisione («dal 4
+// all'8», «dal 17 al 21 settembre», «dal 30 settembre al 2 ottobre»); importi
+// in centesimi («350 €», «72,50 €»); una riga vuota fra i paragrafi e fra le
+// righe con trattino. Le descrizioni brevi stanno in lib/descrizioniCamere.
 // Le proposte già inviate restano quelle salvate in proposta_testo.
-import { ROOM_TYPE_BY_NAME, ROOM_SLUG_BY_NAME, bagnoDesc } from './roomTypes.ts'
-import { capienzaBase, tariffaCamera } from './tariffe.ts'
+import { ROOM_SLUG_BY_NAME } from './roomTypes.ts'
 import { giorniTra } from './richiesteCalendario.ts'
+import { DESCRIZIONI_CAMERE, LETTO_IN_PIU, SITO_CAMERE } from './descrizioniCamere.ts'
 import { ORE_RISPOSTA_PROPOSTA, ORE_RISERVA_BONIFICO, GIORNI_PREAVVISO_CANCELLAZIONE, type CondizionePagamento } from './condizioniPrenotazione.ts'
-import { personeSegmento, prezziNottiCentesimi, personeMassime, personeUniformi, type Soluzione, type SegmentoSoluzione, type AlternativaAmelia } from './richiesteProposta.ts'
+import { personeSegmento, prezziNottiCentesimi, type Soluzione, type SegmentoSoluzione, type AlternativaAmelia } from './richiesteProposta.ts'
 
 export type Condizione =
   | { tipo: 'arrivo' }
@@ -31,7 +27,7 @@ export type Condizione =
 export type RichiestaTesto = { nome: string; arrivo: string; partenza: string }
 
 export const FIRMA = 'Grazie mille,\nAnia – Casa Ania'
-export const SITO_CAMERE = 'casaaniarozzano.it/camere'
+export { SITO_CAMERE }
 
 // ── Importi in centesimi ────────────────────────────────────────────────────
 export function centesimi(euro: number | string | null | undefined): number {
@@ -61,8 +57,7 @@ export function prezzo(n: number): string {
   return formattaEuro(centesimi(n)).replace(/ €$/, '')
 }
 
-// Prezzo a notte di un segmento, letto aggiuntivo compreso, in centesimi
-// (con persone uniformi; con persone variabili vale la riga «Nel dettaglio»)
+// Prezzo a notte di un segmento, letto compreso, in centesimi (con persone uniformi)
 export function centesimiNotte(s: SegmentoSoluzione): number {
   const letto = s.notti > 0 ? Math.round(centesimi(s.lettoTotale) / s.notti) : 0
   return centesimi(s.prezzoNotte) + letto
@@ -73,7 +68,7 @@ export const centesimiTotale = (sol: Soluzione) => centesimi(sol.prezzoTotale)
 const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
 // i giorni che si leggono con la vocale davanti: uno, otto, undici, diciotto, ventotto
 const ELISI = new Set([1, 8, 11, 18, 28])
-export const conPreposizione = (prep: 'dal' | 'al' | 'il', g: number): string =>
+export const conPreposizione = (prep: 'dal' | 'al' | 'il' | 'del', g: number): string =>
   ELISI.has(g) ? `${prep === 'il' ? '' : prep}l'${g}` : `${prep} ${g}`
 
 function parti(iso: string) { const [a, m, g] = iso.split('-').map(Number); return { a, m, g } }
@@ -94,6 +89,15 @@ export function dalAl(arrivo: string, partenza: string): string {
   return `${dal} ${al} ${MESI[A.m - 1]}`
 }
 
+// Nelle righe con trattino e nel dettaglio: solo i giorni («dal 17 al 18») se
+// il tratto sta nello stesso mese del periodo richiesto; altrimenti con i mesi
+export function dalAlBreve(arrivo: string, partenza: string, periodo: { arrivo: string; partenza: string }): string {
+  const A = parti(arrivo), P = parti(partenza), R = parti(periodo.arrivo), Q = parti(periodo.partenza)
+  const stessoMese = A.m === P.m && A.a === P.a && R.m === Q.m && R.a === Q.a && A.m === R.m
+  if (!stessoMese) return dalAl(arrivo, partenza)
+  return `${conPreposizione('dal', A.g)} ${conPreposizione('al', P.g)}`
+}
+
 // Elenco di giorni: "14 settembre" · "14 e 15 settembre" · "14, 15 e 16 settembre" · "30 settembre e 1 ottobre"
 export function elencoDate(giorni: string[]): string {
   if (giorni.length === 0) return ''
@@ -107,84 +111,138 @@ export function elencoDate(giorni: string[]): string {
   const congiunzione = (voci: string[]) => voci.length <= 1 ? voci.join('') : `${voci.slice(0, -1).join(', ')} e ${voci[voci.length - 1]}`
   return congiunzione(gruppi.map(gr => `${congiunzione(gr.giorni.map(String))} ${MESI[gr.mese - 1]}`))
 }
-// "il 14 settembre" · "l'8 settembre" · "il 14 e 15 settembre"
-export const elencoDateConArticolo = (giorni: string[]): string =>
-  giorni.length === 0 ? '' : `${conPreposizione('il', parti(giorni[0]).g)}${elencoDate(giorni).slice(String(parti(giorni[0]).g).length)}`
+// "la notte del 18 settembre" · "la notte dell'8 settembre" · "le notti del 14 e 15 settembre"
+export function notteDel(giorni: string[]): string {
+  if (giorni.length === 0) return ''
+  const primo = parti(giorni[0]).g
+  return `${giorni.length === 1 ? 'la notte' : 'le notti'} ${conPreposizione('del', primo)}${elencoDate(giorni).slice(String(primo).length)}`
+}
 
 export const nottiTesto = (n: number) => (n === 1 ? '1 notte' : `${n} notti`)
 const maiuscola = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-const PAROLE = ['', 'una', 'due', 'tre', 'quattro', 'cinque', 'sei']
+const PAROLE = ['', 'una', 'due', 'tre', 'quattro', 'cinque', 'sei', 'sette', 'otto', 'nove', 'dieci']
 const inParole = (n: number) => PAROLE[n] ?? String(n)
+// «per le 4 notti» · «per la notte»
+const perLeNotti = (n: number) => (n === 1 ? 'per la notte' : `per le ${n} notti`)
 
-// ── Descrizione della camera, dai dati ──────────────────────────────────────
-// "singola con bagno privato, all'interno della camera"
-// "matrimoniale con balconcino e bagno privato, all'interno della camera" (solo Allegra)
-// "singola con aggiunta del secondo letto e bagno privato, all'interno della camera"
-const ORDINALI = ['', 'primo', 'secondo', 'terzo', 'quarto']
-const ordinaleLetto = (camera: SegmentoSoluzione['camera']) => ORDINALI[camera.name === 'Lena' ? 4 : capienzaBase(camera) + 1]
-export function descrizioneCamera(camera: SegmentoSoluzione['camera'], persone: number): string {
-  const nome = camera.name || ''
-  const tipo = (ROOM_TYPE_BY_NAME[nome] || 'camera').toLowerCase()
-  const pezzi: string[] = []
-  if (nome === 'Allegra') pezzi.push('balconcino')
-  const { lettoAddebitato } = tariffaCamera(camera, persone)
-  // Amelia: secondo letto · Allegra/Ambra: terzo · Lena (tripla): quarto
-  if (lettoAddebitato) pezzi.push(`aggiunta del ${ordinaleLetto(camera)} letto`)
-  const bagno = bagnoDesc(camera)
-  if (bagno) pezzi.push(`bagno ${bagno}`)
-  if (pezzi.length === 0) return tipo
-  return `${tipo} con ${pezzi.length === 1 ? pezzi[0] : `${pezzi.slice(0, -1).join(', ')} e ${pezzi[pezzi.length - 1]}`}`
+// ── Camere: descrizioni brevi e link ────────────────────────────────────────
+const slugDi = (camera: { name?: string | null }) => (camera.name ? ROOM_SLUG_BY_NAME[camera.name] : undefined)
+export function descrizioneBreve(camera: { name?: string | null }): string {
+  const slug = slugDi(camera)
+  return (slug && DESCRIZIONI_CAMERE[slug]?.breve) || 'una camera'
 }
-
-// Link della pagina della camera sul sito (mappa già usata per le richieste
-// web); senza pagina niente riga
+export function tipoCamera(camera: { name?: string | null }): string {
+  const slug = slugDi(camera)
+  return (slug && DESCRIZIONI_CAMERE[slug]?.tipo) || 'una camera'
+}
 export function rigaLinkCamera(camera: { name?: string | null }): string | null {
-  const slug = camera.name ? ROOM_SLUG_BY_NAME[camera.name] : undefined
+  const slug = slugDi(camera)
   return slug ? `Qui può vedere le foto e i dettagli della camera: ${SITO_CAMERE}/${slug}` : null
 }
-
-// «Nel dettaglio: 1 notte in due con secondo letto a 75 € a notte, 3 notti in
-// una a 70 € a notte.» — solo quando le persone cambiano da una notte all'altra
-export function dettaglioPersone(s: SegmentoSoluzione): string | null {
-  const persone = personeSegmento(s)
-  if (personeUniformi(persone)) return null
-  const prezzi = prezziNottiCentesimi(s)
-  const giorni = giorniTra(s.arrivo, s.partenza)
-  const letto = new Set(s.lettoNotti ?? [])
-  const gruppi: { persone: number; prezzo: number; letto: boolean; notti: number }[] = []
-  persone.forEach((p, i) => {
-    const conLetto = letto.has(giorni[i])
-    const g = gruppi.find(x => x.persone === p && x.prezzo === prezzi[i] && x.letto === conLetto)
-    if (g) g.notti++
-    else gruppi.push({ persone: p, prezzo: prezzi[i], letto: conLetto, notti: 1 })
-  })
-  return `Nel dettaglio: ${gruppi.map(g =>
-    `${g.notti} ${g.notti === 1 ? 'notte' : 'notti'} in ${inParole(g.persone)}${g.letto ? ` con ${ordinaleLetto(s.camera)} letto` : ''} a ${formattaEuro(g.prezzo)} a notte`,
-  ).join(', ')}.`
+export const RIGA_LINK_CAMERE = `Qui può vedere le foto e i dettagli delle camere: ${SITO_CAMERE}`
+// Una camera sola → la sua pagina; più camere → la pagina delle camere
+function rigaLink(sol: Soluzione): string | null {
+  const camere = [...new Set(sol.segmenti.map(s => s.camera.id))]
+  if (camere.length === 1) return rigaLinkCamera(sol.segmenti[0].camera)
+  return camere.length > 1 ? RIGA_LINK_CAMERE : null
 }
 
-// "– dal 13 al 14 settembre, nella camera Amelia, singola con …, al prezzo di 70 € a notte"
-// (con persone variabili: prezzo complessivo del periodo e riga «nel dettaglio»)
-function rigaSegmento(s: SegmentoSoluzione): string {
+// ── Gruppi di notti (persone e prezzo uguali, consecutive) ──────────────────
+type Gruppo = { da: number; a: number; notti: number; persone: number; prezzo: number }
+function gruppiNotti(s: SegmentoSoluzione): Gruppo[] {
   const persone = personeSegmento(s)
-  const testa = `– ${dalAl(s.arrivo, s.partenza)}, nella camera ${s.camera.name}, ${descrizioneCamera(s.camera, personeMassime(persone))}`
-  const dettaglio = dettaglioPersone(s)
-  if (!dettaglio) return `${testa}, al prezzo di ${formattaEuro(centesimiNotte(s))} a notte`
-  return `${testa}, al prezzo complessivo di ${formattaEuro(centesimi(s.totale))} per ${nottiTesto(s.notti)} (${dettaglio.charAt(0).toLowerCase()}${dettaglio.slice(1, -1)})`
+  const prezzi = prezziNottiCentesimi(s)
+  const out: Gruppo[] = []
+  persone.forEach((p, i) => {
+    const ultimo = out[out.length - 1]
+    if (ultimo && ultimo.persone === p && ultimo.prezzo === prezzi[i]) { ultimo.a = i; ultimo.notti++ }
+    else out.push({ da: i, a: i, notti: 1, persone: p, prezzo: prezzi[i] })
+  })
+  return out
+}
+const prezzoUniforme = (s: SegmentoSoluzione): number | null => {
+  const prezzi = prezziNottiCentesimi(s)
+  return prezzi.every(p => p === prezzi[0]) ? prezzi[0] : null
+}
+
+// Dettaglio per notte in italiano parlato (caso A), oppure null se non varia:
+// «La prima notte in due a 80 €, le altre tre notti in tre a 90 € a notte.»
+// Fino a tre gruppi: prima/prime, seguente/i, altre/ultime; oltre, le date.
+export function dettaglioParlato(s: SegmentoSoluzione, periodo: { arrivo: string; partenza: string }): string | null {
+  const gruppi = gruppiNotti(s)
+  if (gruppi.length <= 1) return null
+  const giorni = giorniTra(s.arrivo, s.partenza)
+  const inA = (g: Gruppo) => `in ${inParole(g.persone)} a ${formattaEuro(g.prezzo)}`
+  let pezzi: string[]
+  if (gruppi.length > 3) {
+    pezzi = gruppi.map(g => `${dalAlBreve(giorni[g.da], g.a + 1 < giorni.length ? giorni[g.a + 1] : s.partenza, periodo)} ${inA(g)}`)
+  } else {
+    pezzi = gruppi.map((g, k) => {
+      const ultimo = k === gruppi.length - 1
+      const etichetta = k === 0
+        ? (g.notti === 1 ? 'la prima notte' : `le prime ${inParole(g.notti)} notti`)
+        : ultimo
+          ? (g.notti === 1 ? "l'ultima notte" : `le ${gruppi.length === 2 ? 'altre' : 'ultime'} ${inParole(g.notti)} notti`)
+          : (g.notti === 1 ? 'la notte seguente' : `le ${inParole(g.notti)} notti seguenti`)
+      return `${etichetta} ${inA(g)}`
+    })
+  }
+  return `${maiuscola(pezzi.join(', '))} a notte.`
+}
+
+// Frase del letto in più (caso A): solo se in qualche notte il letto serve
+export function fraseLettoInPiu(s: SegmentoSoluzione): string | null {
+  const letto = s.lettoNotti ?? []
+  if (letto.length === 0) return null
+  const giorni = giorniTra(s.arrivo, s.partenza)
+  const persone = personeSegmento(s)
+  const indici = letto.map(g => giorni.indexOf(g)).filter(i => i >= 0)
+  const p = inParole(Math.max(...indici.map(i => persone[i])))
+  if (indici.length === 1) {
+    const i = indici[0]
+    const quando = i === 0 ? 'la prima notte' : i === giorni.length - 1 ? "l'ultima notte" : notteDel([giorni[i]])
+    return `Per ${quando}, in cui sarete in ${p}, posso aggiungere ${LETTO_IN_PIU}.`
+  }
+  return `Per le notti in cui sarete in ${p} posso aggiungere ${LETTO_IN_PIU}.`
+}
+
+// Prezzo della riga con trattino (casi B e C): «80 € a notte», oppure per
+// gruppi «in due a 80 € a notte, poi in tre a 90 € a notte»
+function prezzoRiga(gruppi: Gruppo[]): string {
+  if (gruppi.every(g => g.prezzo === gruppi[0].prezzo && g.persone === gruppi[0].persone)) return `${formattaEuro(gruppi[0].prezzo)} a notte`
+  const personeVariano = gruppi.some(g => g.persone !== gruppi[0].persone)
+  return gruppi.map(g => `${personeVariano ? `in ${inParole(g.persone)} ` : ''}a ${formattaEuro(g.prezzo)} a notte`).join(', poi ')
+}
+// «in Amelia, una singola, con un letto in più»
+function camereRiga(s: SegmentoSoluzione): string {
+  const letto = (s.lettoNotti ?? []).length > 0 ? `, con ${LETTO_IN_PIU}` : ''
+  return `in ${s.camera.name}, ${tipoCamera(s.camera)}${letto}`
+}
+const rigaSegmento = (s: SegmentoSoluzione, periodo: { arrivo: string; partenza: string }) =>
+  `– ${dalAlBreve(s.arrivo, s.partenza, periodo)} ${camereRiga(s)}: ${prezzoRiga(gruppiNotti(s))}`
+
+// «Il prezzo per le 4 notti è di 350 €.» + dettaglio, oppure «…, a 80 € a notte.»
+function paragrafoPrezzo(sol: Soluzione, s: SegmentoSoluzione, periodo: { arrivo: string; partenza: string }): string {
+  const base = `Il prezzo ${perLeNotti(s.notti)} è di ${formattaEuro(centesimiTotale(sol))}`
+  const dettaglio = dettaglioParlato(s, periodo)
+  if (dettaglio) return `${base}. ${dettaglio}`
+  const uniforme = prezzoUniforme(s)
+  if (s.notti > 1 && uniforme !== null) return `${base}, a ${formattaEuro(uniforme)} a notte.`
+  return `${base}.`
 }
 
 // ── Blocchi del messaggio ───────────────────────────────────────────────────
 export function apertura(nome: string): string {
   return `Gentile ${nome.trim()},\ngrazie per aver pensato a Casa Ania per il suo soggiorno.`
 }
-export const INTRO_SOLUZIONE = 'Ho appena verificato la disponibilità per le date che mi ha indicato e posso proporle questa soluzione:'
+const HO_VERIFICATO = 'Ho verificato le date che mi ha indicato.'
 
-export function casoE(nome: string): string {
-  return `Gentile ${nome.trim()}, grazie per aver pensato a Casa Ania per il suo soggiorno.
+export function casoE(richiesta: RichiestaTesto): string {
+  return `${apertura(richiesta.nome)}
 
-Mi dispiace, ma per le date che mi ha indicato siamo al completo e non ho una soluzione alternativa da poterle proporre.
+${HO_VERIFICATO} Purtroppo ${dalAl(richiesta.arrivo, richiesta.partenza)} siamo al completo e non ho una soluzione da poterle proporre.
 
-Spero di poterla accogliere in futuro.
+Mi dispiace davvero. Spero di poterla accogliere in un'altra occasione.
 
 ${FIRMA}`
 }
@@ -206,117 +264,119 @@ export function camereDelCasoA(soluzione: Soluzione, alternative?: Soluzione[] |
   return out
 }
 
-const fraseNotti = (n: number) => (n === 1 ? 'la notte' : `le ${n} notti`)
+type Blocchi = { paragrafi: string[]; oreVariante: 'camera' | 'camere' | 'nessuna' }
 
-// Pezzo 10: nella composizione manuale (B e C) il link di ogni camera usata,
-// una volta sola per camera, come blocco dopo le righe dei segmenti. Le
-// soluzioni automatiche B e C restano senza link (testi bloccati dal pezzo 9).
-function linkCamere(sol: Soluzione): string[] {
-  if (!sol.manuale) return []
-  const visti = new Set<string>()
-  const righe: string[] = []
-  for (const s of sol.segmenti) {
-    if (visti.has(s.camera.id)) continue
-    visti.add(s.camera.id)
-    const link = rigaLinkCamera(s.camera)
-    if (link) righe.push(link)
-  }
-  return righe.length ? [righe.join('\n')] : []
-}
-
-function casoA(richiesta: { arrivo: string; partenza: string }, camere: Soluzione[]): string {
-  const periodo = dalAl(richiesta.arrivo, richiesta.partenza)
+function casoA(richiesta: RichiestaTesto, camere: Soluzione[]): Blocchi {
+  const periodo = { arrivo: richiesta.arrivo, partenza: richiesta.partenza }
+  const testa = `${HO_VERIFICATO} ${maiuscola(dalAl(richiesta.arrivo, richiesta.partenza))}`
   if (camere.length === 1) {
     const s = camere[0].segmenti[0]
-    const dettaglio = dettaglioPersone(s)
+    const letto = fraseLettoInPiu(s)
     const link = rigaLinkCamera(s.camera)
-    return `Ho verificato le date che mi ha indicato: ${periodo} è disponibile soltanto la camera ${s.camera.name}, ${descrizioneCamera(s.camera, personeMassime(personeSegmento(s)))}. Il prezzo per ${fraseNotti(s.notti)} è di ${formattaEuro(centesimiTotale(camere[0]))}.${dettaglio ? ` ${dettaglio}` : ''}${link ? `\n${link}` : ''}`
+    return {
+      oreVariante: 'camera',
+      paragrafi: [
+        `${testa} è disponibile soltanto ${s.camera.name}, ${descrizioneBreve(s.camera)}.${letto ? ` ${letto}` : ''}`,
+        paragrafoPrezzo(camere[0], s, periodo),
+        ...(link ? [link] : []),
+      ],
+    }
   }
   const righe = camere.map(c => {
     const s = c.segmenti[0]
-    const dettaglio = dettaglioPersone(s)
+    const letto = fraseLettoInPiu(s)
     const link = rigaLinkCamera(s.camera)
-    return `– ${s.camera.name}, ${descrizioneCamera(s.camera, personeMassime(personeSegmento(s)))}: ${formattaEuro(centesimiTotale(c))} per ${fraseNotti(s.notti)}.${dettaglio ? ` ${dettaglio}` : ''}${link ? `\n${link}` : ''}`
+    return `– ${s.camera.name}, ${descrizioneBreve(s.camera)}.${letto ? ` ${letto}` : ''} ${paragrafoPrezzo(c, s, periodo)}${link ? `\n${link}` : ''}`
   })
-  return `Ho verificato le date che mi ha indicato: ${periodo} ho ${inParole(camere.length)} camere libere che posso proporle:\n${righe.join('\n')}`
-}
-
-export function corpo(richiesta: { arrivo: string; partenza: string }, sol: Soluzione, alternative?: Soluzione[] | null): string {
-  switch (sol.caso) {
-    case 'completa':
-      return casoA(richiesta, camereDelCasoA(sol, alternative))
-    case 'cambio': {
-      // uno o più cambi (pezzo 10): una riga per segmento, «;» fra le righe e «.» alla fine
-      const righe = sol.segmenti.map((s, i) => `${rigaSegmento(s)}${i === sol.segmenti.length - 1 ? '.' : ';'}`)
-      return [
-        INTRO_SOLUZIONE,
-        `Per tutto il periodo, ${dalAl(richiesta.arrivo, richiesta.partenza)}, posso ospitarla prevedendo un cambio di camera durante il soggiorno:`,
-        ...righe,
-        ...linkCamere(sol),
-      ].join('\n\n')
-    }
-    case 'manca_mezzo':
-    case 'manca_estremo': {
-      const scoperte = nottiScoperte(richiesta, sol)
-      const cambio = new Set(sol.segmenti.map(s => s.camera.id)).size > 1
-      const righe = sol.segmenti.map((s, i) => `${rigaSegmento(s)}${i === sol.segmenti.length - 1 ? '.' : ';'}`)
-      return [
-        INTRO_SOLUZIONE,
-        `Per l'intero periodo non ho purtroppo una soluzione continuativa, ma posso ospitarla per la maggior parte del soggiorno.`,
-        ...(cambio ? ['Per coprire il maggior numero possibile di notti, la soluzione prevede anche un cambio di camera:'] : []),
-        ...righe,
-        `Resterebbe da trovare un'altra sistemazione soltanto per ${scoperte.length === 1 ? 'la notte non disponibile' : 'le notti non disponibili'}, cioè ${elencoDateConArticolo(scoperte)}.`,
-        ...linkCamere(sol),
-      ].join('\n\n')
-    }
-    case 'completo':
-      return ''
+  return {
+    oreVariante: 'camere',
+    paragrafi: [`${testa} ho ${inParole(camere.length)} camere libere che posso proporle:`, ...righe],
   }
 }
 
+function casoB(richiesta: RichiestaTesto, sol: Soluzione): Blocchi {
+  const periodo = { arrivo: richiesta.arrivo, partenza: richiesta.partenza }
+  const cambi = sol.segmenti.length - 1
+  const link = rigaLink(sol)
+  return {
+    oreVariante: 'nessuna',
+    paragrafi: [
+      `${HO_VERIFICATO} ${maiuscola(dalAl(richiesta.arrivo, richiesta.partenza))} non ho una camera libera per tutto il periodo, ma posso ospitarla comunque con ${cambi > 1 ? 'qualche cambio' : 'un cambio'} di camera durante il soggiorno:`,
+      ...sol.segmenti.map(s => rigaSegmento(s, periodo)),
+      `Il cambio di camera lo faccio io al mattino, non deve pensare a nulla. Il prezzo ${perLeNotti(sol.nottiCoperte)} è di ${formattaEuro(centesimiTotale(sol))}.`,
+      ...(link ? [link] : []),
+    ],
+  }
+}
+
+function casoC(richiesta: RichiestaTesto, sol: Soluzione): Blocchi {
+  const periodo = { arrivo: richiesta.arrivo, partenza: richiesta.partenza }
+  const scoperte = nottiScoperte(richiesta, sol)
+  const camere = [...new Set(sol.segmenti.map(s => s.camera.id))]
+  let righe: string[]
+  if (camere.length === 1) {
+    // stessa camera: UNA riga sola, i tratti uniti con «e»; i gruppi di prezzo su tutte le notti coperte
+    const unito: SegmentoSoluzione = {
+      ...sol.segmenti[0], notti: sol.nottiCoperte,
+      personeNotti: sol.segmenti.flatMap(s => personeSegmento(s)),
+      prezziNottiCentesimi: sol.segmenti.flatMap(s => prezziNottiCentesimi(s)),
+      lettoNotti: sol.segmenti.flatMap(s => s.lettoNotti ?? []),
+    }
+    righe = [`– ${sol.segmenti.map(s => dalAlBreve(s.arrivo, s.partenza, periodo)).join(' e ')} ${camereRiga(unito)}: ${prezzoRiga(gruppiNotti(unito))}`]
+  } else {
+    righe = sol.segmenti.map(s => rigaSegmento(s, periodo))
+  }
+  const link = rigaLink(sol)
+  const nottiCoperte = sol.nottiCoperte
+  return {
+    oreVariante: 'nessuna',
+    paragrafi: [
+      `${HO_VERIFICATO} Purtroppo per ${notteDel(scoperte)} siamo al completo, ma posso ospitarla per il resto del soggiorno:`,
+      ...righe,
+      ...(camere.length > 1 ? ['Il cambio di camera lo faccio io al mattino, non deve pensare a nulla.'] : []),
+      `Mi dispiace per ${notteDel(scoperte)}, per ${scoperte.length === 1 ? 'la quale' : 'le quali'} dovrebbe trovare un'altra soluzione nelle vicinanze. Sarei comunque felice di ospitarla per ${nottiCoperte === 1 ? "l'altra notte" : `le altre ${nottiCoperte} notti`}, al prezzo di ${formattaEuro(centesimiTotale(sol))}.`,
+      ...(link ? [link] : []),
+    ],
+  }
+}
+
+// Blocco Amelia (pezzo 6, riscritto nello stile del pezzo 11)
 export function bloccoAmelia(sol: Soluzione, amelia: AlternativaAmelia): string {
   const notti = sol.segmenti.reduce((s, x) => s + x.notti, 0)
-  return `Visto che si tratta di un soggiorno di ${notti} notti, ci tengo però a indicarle anche un'alternativa. Amelia è la nostra camera più piccola e, per una permanenza più lunga, potrebbe risultare meno comoda. Con ${formattaEuro(amelia.differenzaNotteCentesimi)} in più a notte posso invece proporle la camera ${amelia.camera.name}, una camera matrimoniale più spaziosa. Il prezzo complessivo sarebbe di ${formattaEuro(amelia.prezzoTotaleCentesimi)}.`
+  return `Visto che si tratta di un soggiorno di ${notti} notti, le segnalo anche un'alternativa. Amelia è la nostra camera più piccola e per una permanenza più lunga potrebbe risultare meno comoda. Con ${formattaEuro(amelia.differenzaNotteCentesimi)} in più a notte posso proporle ${amelia.camera.name}, ${descrizioneBreve(amelia.camera)}. Il prezzo per le ${notti} notti sarebbe di ${formattaEuro(amelia.prezzoTotaleCentesimi)}.`
 }
 
-export function bloccoCondizione(condizione: Condizione, totaleCentesimi: number, piuCamere = false): string {
-  const ore = ORE_RISPOSTA_PROPOSTA
+export function bloccoCondizione(condizione: Condizione, totaleCentesimi: number): string {
   switch (condizione.tipo) {
     case 'arrivo':
-      return `Il pagamento avviene all'arrivo, alla consegna delle chiavi, per l'intero soggiorno: in contanti oppure con bonifico istantaneo.
-
-Se desidera confermare ${piuCamere ? 'una delle camere' : 'la camera'}, la prego di farmelo sapere entro ${ore} ore da questo messaggio. Trascorso questo tempo, dovrò verificare nuovamente la disponibilità.
-
-Resto a disposizione per qualsiasi informazione.
-
-${FIRMA}`
+      return `Il pagamento avviene all'arrivo, alla consegna delle chiavi, per l'intero soggiorno: in contanti oppure con bonifico istantaneo.`
     case 'caparra':
-      return `Se desidera accettare questa proposta, le chiedo di farmelo sapere entro ${ore} ore dalla ricezione del messaggio.
+      return `Per confermare la prenotazione le chiedo una caparra di ${formattaEuro(condizione.caparraCentesimi)}, pari al ${percentuale(condizione.caparraCentesimi, totaleCentesimi)}% del totale, da versare con bonifico. Dopo la sua risposta le invierò i dati per il bonifico e terrò la camera a sua disposizione per ${ORE_RISERVA_BONIFICO} ore. Il saldo si paga all'arrivo, alla consegna delle chiavi, in contanti oppure con bonifico istantaneo.
 
-Dopo la sua risposta le invierò il riepilogo della prenotazione con i dati per effettuare il versamento della caparra confirmatoria di ${formattaEuro(condizione.caparraCentesimi)}, pari al ${percentuale(condizione.caparraCentesimi, totaleCentesimi)}% dell'importo complessivo, e terrò la camera a sua disposizione per ${ORE_RISERVA_BONIFICO} ore, in attesa del bonifico. Il restante importo potrà essere saldato all'arrivo, in contanti oppure tramite bonifico istantaneo.
+In caso di cancellazione o cambio di date, la prego di avvisarmi almeno ${GIORNI_PREAVVISO_CANCELLAZIONE} giorni prima dell'arrivo. Con un preavviso inferiore, o in caso di mancato arrivo, la caparra verrà trattenuta.
 
-In caso di cancellazione o richiesta di modifica delle date, le chiedo di avvisarmi almeno ${GIORNI_PREAVVISO_CANCELLAZIONE} giorni prima dell'orario previsto di arrivo. Con un preavviso inferiore, oppure in caso di mancato arrivo, la caparra confirmatoria verrà trattenuta e non potrà essere trasferita a un soggiorno successivo.
-
-La prenotazione sarà confermata definitivamente al ricevimento della caparra.
-
-${FIRMA}`
+La prenotazione sarà confermata definitivamente al ricevimento della caparra.`
     case 'completo':
-      return `Se desidera accettare questa proposta, le chiedo di farmelo sapere entro ${ore} ore dalla ricezione del messaggio.
+      return `Per confermare la prenotazione le chiedo il pagamento anticipato dell'intero soggiorno, ${formattaEuro(totaleCentesimi)}, con bonifico. Dopo la sua risposta le invierò i dati per il bonifico e terrò la camera a sua disposizione per ${ORE_RISERVA_BONIFICO} ore.
 
-Dopo la sua risposta le invierò i dati per effettuare il pagamento anticipato dell'intero soggiorno, pari a ${formattaEuro(totaleCentesimi)}, e terrò la camera a sua disposizione per ${ORE_RISERVA_BONIFICO} ore, in attesa del bonifico.
+In caso di cancellazione con almeno ${GIORNI_PREAVVISO_CANCELLAZIONE} giorni di preavviso le restituisco l'intero importo. Con un preavviso inferiore, o in caso di mancato arrivo, l'importo non viene restituito. Se invece ha bisogno di spostare le date, la prenotazione si può trasferire a un altro periodo, in base alla disponibilità.
 
-La prenotazione sarà confermata definitivamente al ricevimento del pagamento.
-
-${FIRMA}`
+La prenotazione sarà confermata definitivamente al ricevimento del pagamento.`
     case 'personalizzata':
-      return `${condizione.testo.trim()}\n\n${FIRMA}`
+      return condizione.testo.trim()
   }
 }
 
-// Totale su cui si calcolano caparra e pagamento completo: la soluzione
-// scelta; l'alternativa Amelia NON cambia il totale (è solo un'indicazione).
-// `alternative` (pezzo 9): nel caso A le altre camere libere da elencare;
-// con più camere il blocco Amelia non ha senso (le alternative sono già lì).
+// La frase delle 3 ore, nelle tre varianti
+export function fraseTreOre(variante: 'camera' | 'camere' | 'nessuna'): string {
+  const cosa = variante === 'camera' ? 'confermare la camera' : variante === 'camere' ? 'confermare una delle camere' : 'confermare'
+  return `Se desidera ${cosa}, la prego di farmelo sapere entro ${ORE_RISPOSTA_PROPOSTA} ore da questo messaggio. Trascorso questo tempo, dovrò verificare nuovamente la disponibilità.`
+}
+export const CHIUSURA = `Resto a disposizione per qualsiasi informazione.\n\n${FIRMA}`
+
+// Ordine dei paragrafi (A–C): apertura → caso (→ prezzo → link) → [Amelia]
+// → condizione → 3 ore → chiusura; senza condizione il testo si ferma dopo
+// il caso (e l'eventuale blocco Amelia). Caso E: messaggio intero a sé.
 export function generaProposta({ richiesta, soluzione, condizione, amelia, alternative }: {
   richiesta: RichiestaTesto & { persone?: number; persone_per_notte?: number[] | null }
   soluzione: Soluzione
@@ -324,13 +384,15 @@ export function generaProposta({ richiesta, soluzione, condizione, amelia, alter
   amelia?: AlternativaAmelia | null
   alternative?: Soluzione[] | null
 }): string {
-  if (soluzione.caso === 'completo') return casoE(richiesta.nome)
+  if (soluzione.caso === 'completo') return casoE(richiesta)
   const camereA = camereDelCasoA(soluzione, alternative)
-  const piuCamere = camereA.length > 1
-  const blocchi = [apertura(richiesta.nome), corpo(richiesta, soluzione, alternative)]
-  if (amelia && !piuCamere) blocchi.push(bloccoAmelia(soluzione, amelia))
-  if (condizione) blocchi.push(bloccoCondizione(condizione, centesimiTotale(soluzione), piuCamere))
-  return blocchi.join('\n\n')
+  const blocchi: Blocchi = soluzione.caso === 'completa' ? casoA(richiesta, camereA)
+    : soluzione.caso === 'cambio' ? casoB(richiesta, soluzione)
+      : casoC(richiesta, soluzione)
+  const paragrafi = [apertura(richiesta.nome), ...blocchi.paragrafi]
+  if (amelia && camereA.length === 1) paragrafi.push(bloccoAmelia(soluzione, amelia))
+  if (condizione) paragrafi.push(bloccoCondizione(condizione, centesimiTotale(soluzione)), fraseTreOre(blocchi.oreVariante), CHIUSURA)
+  return paragrafi.join('\n\n')
 }
 
 // Da colonne salvate (richieste.condizione_pagamento …) all'oggetto del generatore
