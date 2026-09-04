@@ -263,21 +263,45 @@ function Richieste() {
   return (
     <div className="p-4">
       <BackBar href="/" />
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <h1 className="text-[22px] text-green-dark leading-tight" style={FRAUNCES}>Richieste di prenotazione</h1>
-        <InterruttoreVista vista={vista} onChange={setVista} />
-      </div>
-      {!loading && nuoveWeb > 0 && (
-        <p className="chip-in inline-flex items-center gap-1.5 mb-3 mr-2 rounded-full px-3 py-1.5 text-sm font-semibold bg-green-mid text-cream-text">
-          <Globe size={14} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
-        </p>
-      )}
-      {!loading && ferme.length > 0 && (
-        <button type="button" onClick={() => setSoloDaGuardare(v => !v)} aria-pressed={soloDaGuardare}
-          className={`chip-in inline-flex items-center gap-1.5 mb-3 rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors ${soloDaGuardare ? 'text-cream-text' : 'bg-white'}`}
-          style={soloDaGuardare ? { background: '#A9884E', borderColor: '#A9884E' } : { color: '#A9884E', borderColor: '#A9884E' }}>
-          {ferme.length} da guardare{soloDaGuardare ? ' · mostra tutte' : ''}
-        </button>
+      {/* Intestazione: su desktop (blocco 2c) titolo, Reale/Presunta, Nuova richiesta e
+          contatori su UNA riga con spaziatura uniforme; sul telefono com'era */}
+      {desktop ? (
+        <div className="flex items-center flex-wrap gap-4 mb-4">
+          <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Richieste di prenotazione</h1>
+          {!loading && nuoveWeb > 0 && (
+            <p className="chip-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold bg-green-mid text-cream-text">
+              <Globe size={14} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
+            </p>
+          )}
+          {!loading && ferme.length > 0 && (
+            <button type="button" onClick={() => setSoloDaGuardare(v => !v)} aria-pressed={soloDaGuardare}
+              className={`chip-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors ${soloDaGuardare ? 'text-cream-text' : 'bg-white'}`}
+              style={soloDaGuardare ? { background: '#A9884E', borderColor: '#A9884E' } : { color: '#A9884E', borderColor: '#A9884E' }}>
+              {ferme.length} da guardare{soloDaGuardare ? ' · mostra tutte' : ''}
+            </button>
+          )}
+          <InterruttoreVista vista={vista} onChange={setVista} />
+          {nuovaRichiesta('py-2.5')}
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h1 className="text-[22px] text-green-dark leading-tight" style={FRAUNCES}>Richieste di prenotazione</h1>
+            <InterruttoreVista vista={vista} onChange={setVista} />
+          </div>
+          {!loading && nuoveWeb > 0 && (
+            <p className="chip-in inline-flex items-center gap-1.5 mb-3 mr-2 rounded-full px-3 py-1.5 text-sm font-semibold bg-green-mid text-cream-text">
+              <Globe size={14} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
+            </p>
+          )}
+          {!loading && ferme.length > 0 && (
+            <button type="button" onClick={() => setSoloDaGuardare(v => !v)} aria-pressed={soloDaGuardare}
+              className={`chip-in inline-flex items-center gap-1.5 mb-3 rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors ${soloDaGuardare ? 'text-cream-text' : 'bg-white'}`}
+              style={soloDaGuardare ? { background: '#A9884E', borderColor: '#A9884E' } : { color: '#A9884E', borderColor: '#A9884E' }}>
+              {ferme.length} da guardare{soloDaGuardare ? ' · mostra tutte' : ''}
+            </button>
+          )}
+        </>
       )}
       {!desktop && (
         <>
@@ -321,7 +345,6 @@ function Richieste() {
 
         {/* Lista */}
         <section hidden={!mostraLista} className="mt-4 min-[1100px]:mt-0">
-          {desktop && <div className="mb-3">{nuovaRichiesta('w-full')}</div>}
           <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar">
             <span className="text-xs text-stone shrink-0">Ordina per</span>
             {ORDINI.map(o => (
