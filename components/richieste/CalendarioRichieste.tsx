@@ -47,7 +47,7 @@ const COL_MIN_QUINDICI = 72   // a 2 settimane ogni giorno ha almeno 72 px: «No
 // righe, giorni in colonne — che scorre di lato dentro il riquadro. Colonna
 // camere più stretta e colonne minime più piccole; la variante «giorni in
 // righe» di prima resta nel file, non più usata.
-const NAME_W_TELEFONO = 92   // «02 Allegra» intero a 12 px
+const NAME_W_TELEFONO = 66   // solo il nome («Allegra» a 12 px), senza numero: è la colonna meno utile
 const COL_MIN_QUINDICI_TELEFONO = 60
 const COL_MIN_MESE_TELEFONO = 40
 const ROW_H = 44
@@ -159,7 +159,7 @@ export default function CalendarioRichieste(p: Props) {
         const primo = i === 0, ultimo = i === segmenti.length - 1
         const tagliaInizio = primo && entra, tagliaFine = ultimo && esce
         const arrInizio = primo && !tagliaInizio, arrFine = ultimo && !tagliaFine
-        const raggi = p.layout === 'desktop'
+        const raggi = orizzontale
           ? `${arrInizio ? 6 : 0}px ${arrFine ? 6 : 0}px ${arrFine ? 6 : 0}px ${arrInizio ? 6 : 0}px`
           : `${arrInizio ? 6 : 0}px ${arrInizio ? 6 : 0}px ${arrFine ? 6 : 0}px ${arrFine ? 6 : 0}px`
         return (
@@ -167,8 +167,8 @@ export default function CalendarioRichieste(p: Props) {
             style={{
               ...geometria(s.start, s.end, ri, primo, ultimo),
               background: s.color, borderRadius: raggi,
-              clipPath: p.layout === 'desktop' ? chainClipPath(tagliaInizio, tagliaFine) : clipVerticale(tagliaInizio, tagliaFine),
-              overflow: 'hidden', display: 'flex', alignItems: p.layout === 'desktop' ? 'center' : 'flex-start',
+              clipPath: orizzontale ? chainClipPath(tagliaInizio, tagliaFine) : clipVerticale(tagliaInizio, tagliaFine),
+              overflow: 'hidden', display: 'flex', alignItems: orizzontale ? 'center' : 'flex-start',
               boxShadow: '0 1px 3px rgba(0,0,0,0.2)', zIndex: 5,
               opacity: p.evidenziata != null ? 0.3 : 1, transition: 'opacity 0.15s',
             }}>
@@ -281,7 +281,7 @@ export default function CalendarioRichieste(p: Props) {
           <div key={riga.chiave} style={{ position: 'relative', height: ROW_H, borderBottom: ri === righe.length - 1 ? `2px solid ${COLORE_SEPARATORE}` : `1px solid ${COLORE_GRIGLIA}`, borderTop: riga.chiave === RIGA_QUALSIASI ? `2px solid ${COLORE_SEPARATORE}` : undefined }}>
             <div style={{ display: 'grid', gridTemplateColumns: `${nameW}px repeat(${N}, minmax(0, 1fr))`, height: '100%' }}>
               <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}`, display: 'flex', alignItems: 'center', gap: 5, padding: '0 6px', minWidth: 0, background: 'white', position: 'sticky', left: 0, zIndex: 10 }}>
-                {riga.numero && <span className="font-serif" style={{ fontSize: 10, color: OTTONE }}>{riga.numero}</span>}
+                {riga.numero && p.layout === 'desktop' && <span className="font-serif" style={{ fontSize: 10, color: OTTONE }}>{riga.numero}</span>}
                 <span className={riga.camera ? 'font-serif' : ''} style={{ fontSize: riga.camera ? (p.layout === 'mobile' ? 12 : 13) : 10, fontWeight: 600, color: riga.camera ? '#1F3D2F' : COLORE_RICHIESTA_TESTO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.15 }}>
                   {riga.nome}
                 </span>

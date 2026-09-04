@@ -29,7 +29,7 @@ const HEADER_MONTH_H_MOBILE = gs(40)
 const HEADER_MONTH_H_DESKTOP = 0
 const HEADER_DAY_H_MOBILE = gs(50)
 const HEADER_DAY_H_DESKTOP = 40
-const NAME_W_MOBILE = gs(110)
+const NAME_W_MOBILE = 80   // telefono (05/09/2026): solo il nome della camera, senza numero né descrizione
 const NAME_W_DESKTOP = 96
 // Selettore «Mese | 2 settimane» (stessa scelta ricordata del Calendario)
 type ModoGriglia = 'mese' | 'quindici'
@@ -174,7 +174,7 @@ export default function Arrivi() {
       }
       updateVisibleMonth()
     }
-  }, [loading, CELL_W])
+  }, [loading, CELL_W, isDesktop])
 
   useEffect(() => {
     if (loading || !scrollRef.current) return
@@ -349,10 +349,11 @@ export default function Arrivi() {
               <div style={{ width: NAME_W, minWidth: NAME_W, height: HEADER_H, position: 'sticky', left: 0, zIndex: 32, background: HEADER_BG, borderRight: '2px solid #D6CFBD', borderBottom: '2px solid #D6CFBD', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '0 8px' }}>
                 {!isDesktop && (
                   <>
-                    <span style={{ fontSize: gs(11), fontWeight: 600, letterSpacing: '2px', textIndent: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
-                      {visibleMonth.split(' ')[0]}
+                    {/* colonna stretta (80 px): mese abbreviato a 3 lettere */}
+                    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '2px', textIndent: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                      {visibleMonth.split(' ')[0].slice(0, 3)}
                     </span>
-                    <span style={{ fontFamily: 'Georgia, serif', fontSize: gs(22), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
+                    <span style={{ fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
                       {visibleMonth.split(' ')[1]}
                     </span>
                   </>
@@ -422,18 +423,15 @@ export default function Arrivi() {
                       background: 'white', borderRight: '2px solid #D6CFBD',
                       display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px',
                     }}>
-                      <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 10 : gs(10), color: 'var(--color-brass)', flexShrink: 0 }}>
-                        {ROOM_NUMBER_BY_NAME[shortName] || ''}
-                      </span>
+                      {isDesktop && (
+                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: 10, color: 'var(--color-brass)', flexShrink: 0 }}>
+                          {ROOM_NUMBER_BY_NAME[shortName] || ''}
+                        </span>
+                      )}
                       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 13 : gs(13), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: 13, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {shortName}
                         </span>
-                        {!isDesktop && (
-                          <span style={{ fontSize: gs(8), color: 'var(--color-stone)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {(ROOM_DESC_BY_NAME[shortName] || '').split(' · ')[0]}
-                          </span>
-                        )}
                       </span>
                     </div>
                       )
