@@ -26,7 +26,9 @@ export function fmtEuro(n: number) {
   return n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 }
 
-export function righeCostiSegmenti(segmenti: SegmentoCosto[], isGruppo: boolean): { righe: RigaCosto[]; totale: number } {
+// `fmt` (pezzo 11): come scrivere gli importi nelle etichette («2 notti × 70,00 €»);
+// la proposta passa il formato del testo («70 €»), la conferma tiene fmtEuro
+export function righeCostiSegmenti(segmenti: SegmentoCosto[], isGruppo: boolean, fmt: (n: number) => string = fmtEuro): { righe: RigaCosto[]; totale: number } {
   const righeCosti: RigaCosto[] = []
   let totale = 0
   for (const s of segmenti) {
@@ -42,13 +44,13 @@ export function righeCostiSegmenti(segmenti: SegmentoCosto[], isGruppo: boolean)
       const totCamera = prezzo * n + Number(s.extra_bed_total || 0)
       sommaDettaglio += totCamera
       righeSegmento.push({
-        label: n > 1 ? `${nomeCamera} (${n} notti × ${fmtEuro(totCamera / n)})` : nomeCamera,
+        label: n > 1 ? `${nomeCamera} (${n} notti × ${fmt(totCamera / n)})` : nomeCamera,
         amount: totCamera,
       })
     } else {
       sommaDettaglio += prezzo * n
       righeSegmento.push({
-        label: n > 1 ? `${nomeCamera} (${n} notti × ${fmtEuro(prezzo)})` : nomeCamera,
+        label: n > 1 ? `${nomeCamera} (${n} notti × ${fmt(prezzo)})` : nomeCamera,
         amount: prezzo * n,
       })
       const ebTot = Number(s.extra_bed_total || 0)
@@ -57,7 +59,7 @@ export function righeCostiSegmenti(segmenti: SegmentoCosto[], isGruppo: boolean)
         const ebPrezzo = Number(s.rooms?.extra_bed_price || 0)
         const showMolt = ebNotti > 1 && Math.abs(ebNotti * ebPrezzo - ebTot) < 0.005
         const base = isGruppo ? `Letto supplementare – ${s.rooms?.name || ''}`.trim() : 'Letto supplementare'
-        righeSegmento.push({ label: showMolt ? `${base} (${ebNotti} notti × ${fmtEuro(ebPrezzo)})` : base, amount: ebTot })
+        righeSegmento.push({ label: showMolt ? `${base} (${ebNotti} notti × ${fmt(ebPrezzo)})` : base, amount: ebTot })
         sommaDettaglio += ebTot
       }
     }

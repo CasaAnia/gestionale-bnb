@@ -44,6 +44,7 @@ type Props = {
   nottiNonDisponibili?: string[]     // proposta, caso C: notti richieste ma scoperte (giorni ISO)
   personeNotti?: { giorno: string; persone: number }[]   // pezzo 9: persone di ogni notte (mostrate solo se cambiano)
   lineaSempre?: boolean              // pezzo 10: composizione manuale a più camere → linea del soggiorno anche senza notti scoperte
+  formattaImporto?: (euro: number) => string   // pezzo 11: nella proposta gli importi come nel testo («350 €», «72,50 €»); la conferma tiene fmtEuro
 }
 
 // Data breve per il "biglietto": giorno della settimana + giorno + mese, senza anno
@@ -59,7 +60,7 @@ function notti(cin: string, cout: string) {
   return Math.round((new Date(cout).getTime() - new Date(cin).getTime()) / 86400000)
 }
 
-export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, numOspiti, righeCosti, totale, pagamento, lettoAggiuntivo = false, bonifico, nottiNonDisponibili = [], personeNotti = [], lineaSempre = false }: Props) {
+export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, numOspiti, righeCosti, totale, pagamento, lettoAggiuntivo = false, bonifico, nottiNonDisponibili = [], personeNotti = [], lineaSempre = false, formattaImporto }: Props) {
   const intestazione = variante === 'conferma'
     ? { badge: 'BENVENUTI', titolo: 'Prenotazione confermata' }
     : { badge: 'PROPOSTA', titolo: 'Proposta di soggiorno' }
@@ -78,6 +79,7 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
   const personeVariano = variante === 'proposta' && personeNotti.length > 1 && personeNotti.some(x => x.persone !== personeNotti[0].persone)
   const giornoBreve = (iso: string) => `${Number(iso.slice(8, 10))} ${['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'][Number(iso.slice(5, 7)) - 1]}`
   const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
+  const euro = formattaImporto ?? fmtEuro
   const ricevuto = bonifico?.ricevuto ?? 0
   const importoBonifico = bonifico?.importo ?? totale
   const causale = bonifico?.causale ?? ''
@@ -235,17 +237,17 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
             {righeCosti.map((r, i) => r.sconto ? (
               <div key={i} style={{ ...S.row, background: '#E7EFE9', borderRadius: 14, padding: '12px 16px', margin: '6px 0' }}>
                 <span style={{ fontSize: 32, fontWeight: 700, color: '#1F3D2F', flexShrink: 1, minWidth: 0, lineHeight: 1.35 }}>{r.label}</span>
-                <span style={{ fontSize: 36, fontWeight: 700, color: '#2D6A4F', flexShrink: 0 }}>−{fmtEuro(-r.amount)}</span>
+                <span style={{ fontSize: 36, fontWeight: 700, color: '#2D6A4F', flexShrink: 0 }}>−{euro(-r.amount)}</span>
               </div>
             ) : (
               <div key={i} style={S.row}>
                 <span style={{ ...S.label, color: '#3a3a35', flexShrink: 1, minWidth: 0, lineHeight: 1.35 }}>{r.label}</span>
-                <span style={{ ...S.value, flexShrink: 0 }}>{fmtEuro(r.amount)}</span>
+                <span style={{ ...S.value, flexShrink: 0 }}>{euro(r.amount)}</span>
               </div>
             ))}
             <div style={{ ...S.row, borderTop: '2px solid #e3ddd0', marginTop: 12, paddingTop: 26 }}>
               <span style={{ fontSize: 32, fontWeight: 700, color: '#1F3D2F' }}>Totale soggiorno</span>
-              <span style={{ fontSize: 44, fontWeight: 700, color: '#2D6A4F' }}>{fmtEuro(totale)}</span>
+              <span style={{ fontSize: 44, fontWeight: 700, color: '#2D6A4F' }}>{euro(totale)}</span>
             </div>
             {pagamento === 'contanti' && variante === 'conferma' && (
               <p style={{ fontSize: 34, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.5, margin: '18px 0 0' }}>

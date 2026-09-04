@@ -227,7 +227,7 @@ export default function PropostaPage() {
       num_guests: richiesta.persone,
       rooms: s.camera,
     }))
-    const { righe, totale } = righeCostiSegmenti(seg, seg.length > 1)
+    const { righe, totale } = righeCostiSegmenti(seg, seg.length > 1, n => formattaEuro(centesimi(n)))
     const lettoAggiuntivo = seg.length === 1 && lettoDaComunicare(seg[0])
     // Caso C: le notti scoperte vanno nell'immagine come spazi vuoti (mai un soggiorno continuo)
     let personeNotti: { giorno: string; persone: number }[] = []
@@ -566,7 +566,7 @@ export default function PropostaPage() {
           <div ref={el => { if (el) setScala(el.clientWidth / IMG_W) }} className="w-full rounded-xl overflow-hidden border border-card-border bg-white" style={{ height: imgH ? imgH * scala : undefined }}>
             <div style={{ transform: `scale(${scala})`, transformOrigin: 'top left', width: IMG_W }}>
               <ImmagineSoggiorno imgRef={imgRef} variante="proposta" nome={richiesta.nome.trim()} segmenti={immagine.seg} numOspiti={richiesta.persone}
-                righeCosti={immagine.righe} totale={immagine.totale} pagamento="contanti" lettoAggiuntivo={immagine.lettoAggiuntivo} nottiNonDisponibili={immagine.nottiNonDisponibili} personeNotti={immagine.personeNotti} lineaSempre={!!soluzione?.manuale} />
+                righeCosti={immagine.righe} totale={immagine.totale} pagamento="contanti" lettoAggiuntivo={immagine.lettoAggiuntivo} nottiNonDisponibili={immagine.nottiNonDisponibili} personeNotti={immagine.personeNotti} lineaSempre={!!soluzione?.manuale} formattaImporto={n => formattaEuro(centesimi(n))} />
             </div>
           </div>
           <button type="button" onClick={immagineSuDispositivo} disabled={!!occupato}
