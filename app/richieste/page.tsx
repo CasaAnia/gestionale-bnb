@@ -376,17 +376,36 @@ function Richieste() {
 
         {/* Lista */}
         <section hidden={!mostraLista} className="mt-4 md:mt-7">
-          <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar">
-            <span className="text-[11px] uppercase text-brass shrink-0" style={{ letterSpacing: '2px' }}>{soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}</span>
-            {!loading && <span className="text-[13px] text-stone shrink-0">{mostrate.length}</span>}
-            <span className="flex-1 h-px" style={{ background: 'var(--color-card-border)' }} />
-            <span className="text-xs text-stone shrink-0">Ordina per</span>
-            {ORDINI.map(o => (
-              <button key={o.chiave} type="button" onClick={() => setOrdine(o.chiave)} aria-pressed={ordine === o.chiave}
-                className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${ordine === o.chiave ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-card-border'}`}>
-                {o.label}
-              </button>
-            ))}
+          {/* Sul telefono (05/09/2026, richiesta di Ania) due righe: prima «Ordina per …»,
+              sotto «RICHIESTE APERTE · N»; sul Mac tutto su una riga come prima */}
+          <div className={`mb-4 ${desktop ? 'flex items-center gap-2' : 'flex flex-col gap-2.5'}`}>
+            {!desktop && (
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                <span className="text-xs text-stone shrink-0">Ordina per</span>
+                {ORDINI.map(o => (
+                  <button key={o.chiave} type="button" onClick={() => setOrdine(o.chiave)} aria-pressed={ordine === o.chiave}
+                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${ordine === o.chiave ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-card-border'}`}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="text-[11px] uppercase text-brass shrink-0" style={{ letterSpacing: '2px' }}>{soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}</span>
+              {!loading && <span className="text-[13px] text-stone shrink-0">{mostrate.length}</span>}
+              <span className="flex-1 h-px" style={{ background: 'var(--color-card-border)' }} />
+            </div>
+            {desktop && (
+              <>
+                <span className="text-xs text-stone shrink-0">Ordina per</span>
+                {ORDINI.map(o => (
+                  <button key={o.chiave} type="button" onClick={() => setOrdine(o.chiave)} aria-pressed={ordine === o.chiave}
+                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${ordine === o.chiave ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-card-border'}`}>
+                    {o.label}
+                  </button>
+                ))}
+              </>
+            )}
           </div>
 
           {loading ? (
