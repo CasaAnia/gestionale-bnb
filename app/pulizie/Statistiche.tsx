@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
 import { NOTTI_CAMBIO, CUTOFF_STORICO, addDaysStr, diffDays, pulizieAutomatiche, NOTA_AUTOMATICA_TOLTA, type Decisione } from '@/lib/pulizie'
+import { riassuntoInterventi, testoMediaGiorno, testoOgniGiorni, testoDettaglio } from '@/lib/pulizieStatistiche'
 
 // Soggiorni senza mai cambio biancheria: lo storico stimato è "1 cambio ogni
 // 4 notti", ma per questi sappiamo che il cambio non è mai stato fatto.
@@ -140,9 +141,10 @@ export default function Statistiche({ rooms, bookings, events, td }:
   }))
   const maxConteggio = Math.max(1, ...perCamera.map(c => Math.max(c.pulizie, c.cambi)))
 
-  // "In media una pulizia ogni X giorni" sui giorni già trascorsi del periodo
-  const giorniTrascorsi = Math.max(1, diffDays((fine < td ? fine : td), inizio) + 1)
-  const ogniQuanti = pulizieP.length > 0 ? giorniTrascorsi / pulizieP.length : null
+  // Dato principale (04/09/2026): TOTALE INTERVENTI = pulizie (a mano e
+  // automatiche) + cambi biancheria, con la media al giorno sui giorni già
+  // trascorsi del periodo; sotto, in piccolo, «di cui N pulizie, N cambi»
+  const riassunto = riassuntoInterventi(pulizie, cambi, inizio, fine, td)
   const top = perCamera.reduce((a, b) => (b.pulizie + b.cambi > a.pulizie + a.cambi ? b : a), perCamera[0])
   const ritardoMedio = ritardi.length > 0 ? Math.round((ritardi.reduce((a, b) => a + b, 0) / ritardi.length) * 10) / 10 : null
 
@@ -169,15 +171,10 @@ export default function Statistiche({ rooms, bookings, events, td }:
           className="shrink-0 rounded-full border border-card-border bg-white w-9 h-9 text-green-dark font-bold">›</button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 mb-3">
-        <div className="bg-white rounded-[10px] border border-card-border p-3.5">
-          <p className="text-xs text-gray-500">Pulizie fatte</p>
-          <p className="font-serif text-3xl text-green-dark mt-0.5">{pulizieP.length}</p>
-        </div>
-        <div className="bg-white rounded-[10px] border border-card-border p-3.5">
-          <p className="text-xs text-gray-500">Cambi biancheria</p>
-          <p className="font-serif text-3xl text-green-dark mt-0.5">{cambiP.length}</p>
-        </div>
+      <div className="bg-white rounded-[10px] border border-card-border p-3.5 mb-3">
+        <p className="text-xs text-gray-500">Interventi</p>
+        <p className="font-serif text-3xl text-green-dark mt-0.5">{riassunto.interventi}</p>
+        <p className="text-[11px] text-stone mt-0.5">{testoDettaglio(riassunto)}</p>
       </div>
 
       {(rimandateP.length > 0 || saltateP.length > 0) && (
@@ -225,18 +222,19 @@ export default function Statistiche({ rooms, bookings, events, td }:
 
       <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
         <p className="text-sm text-green-dark">
-          {ogniQuanti == null ? 'Nessuna pulizia in questo periodo'
-            : Math.round(ogniQuanti * 10) / 10 <= 1 ? <>In media <span className="font-bold">una pulizia al giorno</span></>
-            : <>In media una pulizia ogni <span className="font-bold">{(Math.round(ogniQuanti * 10) / 10).toLocaleString('it-IT')}</span> giorni</>}
+          {riassunto.alGiorno === null ? testoMediaGiorno(riassunto)
+            : <>In media <span className="font-bold">{riassunto.alGiorno === 1 ? 'un intervento' : `${riassunto.alGiorno.toLocaleString('it-IT')} interventi`}</span> al giorno</>}
         </p>
+        {testoOgniGiorni(riassunto) && <p className="text-[11px] text-stone mt-0.5">{testoOgniGiorni(riassunto)}</p>}
         {top && top.pulizie + top.cambi > 0 && (
           <p className="text-sm text-green-dark mt-1">
-            Camera più impegnativa: <span className="font-bold">{top.shortName}</span> ({top.pulizie + top.cambi} lavori)
+            Camera più impegnativa: <span className="font-bold">{top.shortName}</span> ({top.pulizie + top.cambi} {top.pulizie + top.cambi === 1 ? 'intervento' : 'interventi'})
           </p>
         )}
       </div>
 
       <p className="text-[11px] text-stone leading-relaxed">
+        Gli interventi sommano pulizie e cambi biancheria: ogni cambio vale uno.
         Fino al 23 agosto 2026 i numeri sono ricostruiti dalle prenotazioni (una
         pulizia per ogni partenza, un cambio stimato ogni {NOTTI_CAMBIO} notti; il
         soggiorno lungo di Giovanna in Amelia è escluso perché il cambio non è mai
