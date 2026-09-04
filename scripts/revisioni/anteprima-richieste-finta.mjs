@@ -80,7 +80,9 @@ function richiesta(x) {
 const richieste = [
   richiesta({ nome: 'Anna', cognome: 'Rossi', arrivo: giorni(11), partenza: giorni(13), persone: 2, canale: 'web', created_at: fa(20), origine: 'google' }),
   richiesta({ nome: 'Marek', cognome: 'Kowalski', arrivo: giorni(20), partenza: giorni(25), persone: 3, camera_id: ROOM.lena, canale: 'whatsapp', telefono: '+39 333 000 0002', created_at: fa(60 * 11) }),
-  richiesta({ nome: 'Luca', cognome: 'Bianchi', arrivo: giorni(5), partenza: giorni(6), persone: 1, canale: 'telefono', created_at: fa(60 * 30), stato: 'proposta_inviata', proposta_inviata_at: fa(60 * 3) }),
+  richiesta({ nome: 'Luca', cognome: 'Bianchi', arrivo: giorni(5), partenza: giorni(6), persone: 1, canale: 'telefono', created_at: fa(60 * 30), stato: 'proposta_inviata', proposta_inviata_at: fa(60 * 3 + 20) }),
+  // Timer della proposta: inviata 45 minuti fa → «scade tra 2 h 15 min» in verde (Bianchi, sopra, è scaduta da 20 min → ottone)
+  richiesta({ nome: 'Marta', cognome: 'Verdi', arrivo: giorni(30), partenza: giorni(32), persone: 2, camera_id: ROOM.ambra, canale: 'whatsapp', telefono: '+39 333 000 0031', created_at: fa(60 * 2), stato: 'proposta_inviata', proposta_inviata_at: fa(45) }),
   // Sovrapposta a Rossi (stessa riga «qualsiasi»): nel calendario diventano una barra sola «2 richieste ⇄»
   richiesta({ nome: 'Piotr', cognome: 'Nowak', arrivo: giorni(12), partenza: giorni(14), persone: 2, canale: 'telefono', telefono: '+39 333 000 0009', created_at: fa(90) }),
   // 3 persone nelle notti della quadrupla: nessun letto libero → Allegra non basta (atteso «Completo» o parziale)

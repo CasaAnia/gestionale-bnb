@@ -10,7 +10,7 @@ import {
   contestoColori, segmentiBarra, indiciIntervallo, type PrenotazioneBarra,
 } from '@/lib/calendarioBarre'
 import { giorniDelMese, etichettaMese, spostaMese, chiaveRiga, RIGA_QUALSIASI, gruppiSovrapposti, unioneIntervalli, sovrapposizioni, giorniDaInizio, spostaGiorni, etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
-import { nomeCompleto, formatIntervallo, riassuntoPersone, STATO_LABEL, type Richiesta } from '@/lib/richieste'
+import { nomeCompleto, formatIntervallo, riassuntoPersone, scadenzaProposta, STATO_LABEL, type Richiesta } from '@/lib/richieste'
 import type { Vista } from '@/lib/richiesteVista'
 
 export type CameraCalendario = { id: string; name: string; active?: boolean }
@@ -28,6 +28,7 @@ type Props = {
   inizio?: string                       // primo giorno della finestra a 2 settimane (YYYY-MM-DD)
   onInizio?: (iso: string) => void
   camere: CameraCalendario[]
+  adesso?: Date                        // per il timer della proposta nel tooltip (default: ora)
   prenotazioni: PrenotazioneBarra[]     // solo confermate/completate
   richieste: Richiesta[]                // aperte nel mese; vuoto in vista Reale
   acconti: Record<string, number>
@@ -68,10 +69,13 @@ export function etichettaRichiesta(r: Richiesta, breve = false): string {
   const chi = `${r.cognome.trim()} ${iniziale}`.trim()
   return breve ? chi : `${chi} · ${r.stato === 'proposta_inviata' ? 'inviata' : 'attesa'}`
 }
-// Tooltip al passaggio del mouse (desktop): nome completo, date, persone, stato
-export function tooltipRichiesta(r: Richiesta): string {
+// Tooltip al passaggio del mouse (desktop): nome completo, date, persone, stato;
+// con la proposta inviata al posto dello stato c'è il timer delle 3 ore
+// («Proposta inviata · scade tra 2 h 15 min» / «… scaduta 20 min fa»).
+export function tooltipRichiesta(r: Richiesta, adesso: Date = new Date()): string {
   const persone = r.persone_per_notte ? riassuntoPersone(r.arrivo, r.persone_per_notte) : `${r.persone} ${r.persone === 1 ? 'persona' : 'persone'}`
-  return `${nomeCompleto(r)} · ${formatIntervallo(r.arrivo, r.partenza)} · ${persone} · ${r.rooms?.name || 'qualsiasi camera'} · ${STATO_LABEL[r.stato]}`
+  const stato = scadenzaProposta(r, adesso)?.testo ?? STATO_LABEL[r.stato]
+  return `${nomeCompleto(r)} · ${formatIntervallo(r.arrivo, r.partenza)} · ${persone} · ${r.rooms?.name || 'qualsiasi camera'} · ${stato}`
 }
 
 type Riga = { chiave: string; nome: string; numero: string; camera: CameraCalendario | null }
@@ -189,7 +193,7 @@ export default function CalendarioRichieste(p: Props) {
       // a 2 settimane le colonne sono larghe: «Cognome N.» intero; nel mese
       // l'etichetta resta e il tooltip dice tutto
       const testo = gruppo.length > 1 ? `${gruppo.length} richieste` : etichettaRichiesta(gruppo[0], p.layout === 'mobile' || modo === 'quindici')
-      const titolo = gruppo.map(r => tooltipRichiesta(r)).join('\n')
+      const titolo = gruppo.map(r => tooltipRichiesta(r, p.adesso)).join('\n')
       const mobile = p.layout === 'mobile'
       return [(
         <button key={ids.join('+')} type="button" onClick={e => apri(e, gruppo)} title={titolo}

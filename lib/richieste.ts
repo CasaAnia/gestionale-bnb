@@ -1,6 +1,7 @@
 // Richieste di prenotazione (pezzo 1 di 8): tipi, ordinamento e testi.
 // Funzioni pure, senza Supabase: si provano con `node --test`.
 // La parte che parla col database sta in lib/richiesteDati.ts.
+import { ORE_RISPOSTA_PROPOSTA } from './condizioniPrenotazione.ts'
 
 export type StatoRichiesta = 'in_attesa' | 'proposta_inviata' | 'confermata' | 'rifiutata'
 export type CanaleRichiesta = 'web' | 'telefono' | 'whatsapp'
@@ -149,8 +150,57 @@ export function avvisoFerma(r: Pick<Richiesta, 'stato' | 'arrivo' | 'created_at'
   return `ferma da ${tempoTrascorso(da, adesso).replace(/ fa$/, '')}`
 }
 
+// «N da guardare»: le ferme più le proposte scadute (3 ore dall'invio).
 export function daGuardare<T extends Pick<Richiesta, 'stato' | 'arrivo' | 'created_at' | 'proposta_inviata_at'>>(lista: T[], adesso: Date = new Date()): T[] {
-  return lista.filter(r => avvisoFerma(r, adesso) !== null)
+  return lista.filter(r => avvisoFerma(r, adesso) !== null || scadenzaProposta(r, adesso)?.scaduta === true)
+}
+
+// ── Scadenza della proposta (timer delle 3 ore) ────────────────────────────
+// La proposta dice «entro 3 ore da questo messaggio» (lib/richiesteTesti):
+// qui si conta dallo stesso numero, a partire da proposta_inviata_at, che
+// viene scritto SOLO da «Sì, inviata» (mai dall'arrivo della richiesta).
+// Alla scadenza la richiesta resta com'è: nessuna chiusura, nessun avviso;
+// cambiano solo testo e colore (verde finché manca tempo, ottone dopo).
+export const ORE_SCADENZA_PROPOSTA = ORE_RISPOSTA_PROPOSTA
+
+export type ScadenzaProposta = { scaduta: boolean; testo: string }
+
+// "2 h 15 min" · "45 min" · "2 h"
+function durataMinuti(minuti: number): string {
+  const h = Math.floor(minuti / 60), m = minuti % 60
+  if (h === 0) return `${m} min`
+  return m === 0 ? `${h} h` : `${h} h ${m} min`
+}
+
+// Giorni di calendario fra due date (a mezzanotte, nel fuso del telefono)
+function giorniDiCalendario(da: Date, a: Date): number {
+  const inizio = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  return Math.round((inizio(a) - inizio(da)) / 86400000)
+}
+
+// "Proposta inviata · scade tra 2 h 15 min" · "… scade tra 45 min" (verde)
+// "Proposta inviata · scaduta 20 min fa" · "… scaduta 3 h fa" · "… scaduta ieri"
+// · "… scaduta 2 giorni fa" (ottone). null per le richieste in attesa o
+// senza l'ora dell'invio: lì non compare nulla.
+export function scadenzaProposta(r: Pick<Richiesta, 'stato' | 'proposta_inviata_at'>, adesso: Date = new Date()): ScadenzaProposta | null {
+  if (r.stato !== 'proposta_inviata' || !r.proposta_inviata_at) return null
+  const inviata = new Date(r.proposta_inviata_at).getTime()
+  if (Number.isNaN(inviata)) return null
+  const scadenza = inviata + ORE_SCADENZA_PROPOSTA * 3600000
+  const resto = scadenza - adesso.getTime()
+  // Per difetto verso l'alto: con 2 h 14 min 30 s si legge ancora «2 h 15 min»
+  if (resto > 0) return { scaduta: false, testo: `Proposta inviata · scade tra ${durataMinuti(Math.ceil(resto / 60000))}` }
+  const minuti = Math.floor(-resto / 60000)
+  const quandoScaduta = new Date(scadenza)
+  let quando: string
+  if (minuti < 1) quando = 'adesso'
+  else if (minuti < 60) quando = `${minuti} min fa`
+  else if (stessoGiorno(quandoScaduta, adesso)) quando = `${Math.floor(minuti / 60)} h fa`
+  else {
+    const giorni = giorniDiCalendario(quandoScaduta, adesso)
+    quando = giorni === 1 ? 'ieri' : `${giorni} giorni fa`
+  }
+  return { scaduta: true, testo: `Proposta inviata · scaduta ${quando}` }
 }
 
 // Richieste dal sito arrivate dopo l'ultima apertura della pagina

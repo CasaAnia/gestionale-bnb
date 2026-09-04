@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare, nuoveDalSito,
-  riassuntoPersone, pianoModifica, type Richiesta,
+  riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta,
 } from './richieste.ts'
 
 const locale = (a: number, m: number, g: number, h = 12, min = 0) => new Date(a, m - 1, g, h, min)
@@ -113,4 +113,52 @@ test('pianoModifica: date/persone/camera su una proposta inviata → in_attesa e
   const attesa = pianoModifica({ ...base, stato: 'in_attesa' }, { ...nuovi, persone: 3 }, adesso)
   assert.equal(attesa.propostaSuperata, false); assert.equal(attesa.campi.proposte_precedenti, undefined)
   assert.match(pianoModifica({ ...base, stato: 'confermata' }, nuovi, adesso).errore ?? '', /non si modifica/)
+})
+
+// ── Timer della proposta (3 ore da «Sì, inviata») ───────────────────────────
+test('scadenzaProposta: niente sulle richieste in attesa o senza ora di invio', () => {
+  assert.equal(scadenzaProposta(richiesta({}), adesso), null)
+  assert.equal(scadenzaProposta(richiesta({ stato: 'proposta_inviata', proposta_inviata_at: null }), adesso), null)
+  assert.equal(scadenzaProposta(richiesta({ stato: 'confermata', proposta_inviata_at: locale(2026, 9, 2, 8, 0).toISOString() }), adesso), null)
+})
+
+test('scadenzaProposta: tempo che manca, in verde', () => {
+  const inviata = (h: number, m: number) => richiesta({ stato: 'proposta_inviata', proposta_inviata_at: locale(2026, 9, 2, h, m).toISOString() })
+  assert.deepEqual(scadenzaProposta(inviata(8, 15), adesso), { scaduta: false, testo: 'Proposta inviata · scade tra 2 h 15 min' })
+  assert.deepEqual(scadenzaProposta(inviata(6, 45), adesso), { scaduta: false, testo: 'Proposta inviata · scade tra 45 min' })
+  assert.deepEqual(scadenzaProposta(inviata(8, 0), adesso), { scaduta: false, testo: 'Proposta inviata · scade tra 2 h' })
+  assert.deepEqual(scadenzaProposta(inviata(6, 1), adesso), { scaduta: false, testo: 'Proposta inviata · scade tra 1 min' })
+  // secondi in mezzo: si arrotonda verso l'alto, mai un minuto in meno del vero
+  const conSecondi = richiesta({ stato: 'proposta_inviata', proposta_inviata_at: new Date(locale(2026, 9, 2, 8, 15).getTime() - 30000).toISOString() })
+  assert.equal(scadenzaProposta(conSecondi, adesso)?.testo, 'Proposta inviata · scade tra 2 h 15 min')
+})
+
+test('scadenzaProposta: scaduta, in ottone', () => {
+  const inviata = (h: number, m: number) => richiesta({ stato: 'proposta_inviata', proposta_inviata_at: locale(2026, 9, 2, h, m).toISOString() })
+  assert.deepEqual(scadenzaProposta(inviata(6, 0), adesso), { scaduta: true, testo: 'Proposta inviata · scaduta adesso' })
+  assert.deepEqual(scadenzaProposta(inviata(5, 40), adesso), { scaduta: true, testo: 'Proposta inviata · scaduta 20 min fa' })
+  assert.deepEqual(scadenzaProposta(inviata(3, 0), adesso), { scaduta: true, testo: 'Proposta inviata · scaduta 3 h fa' })
+  assert.deepEqual(scadenzaProposta(inviata(2, 30), adesso), { scaduta: true, testo: 'Proposta inviata · scaduta 3 h fa' })
+})
+
+test('scadenzaProposta: cambio di giorno', () => {
+  const a = (g: number, h: number, m: number) => locale(2026, 9, g, h, m)
+  const inviata = (d: Date) => richiesta({ stato: 'proposta_inviata', proposta_inviata_at: d.toISOString() })
+  // scaduta ieri sera alle 22:30, oggi sono le 9: «ieri», non «10 h fa»
+  assert.equal(scadenzaProposta(inviata(a(1, 19, 30)), adesso)?.testo, 'Proposta inviata · scaduta ieri')
+  // scaduta alle 23:50, sono le 00:10: contano i minuti, non il giorno
+  assert.equal(scadenzaProposta(inviata(a(2, 20, 50)), a(3, 0, 10))?.testo, 'Proposta inviata · scaduta 20 min fa')
+  // scaduta alle 23:00, sono le 01:30 del giorno dopo: «ieri»
+  assert.equal(scadenzaProposta(inviata(a(2, 20, 0)), a(3, 1, 30))?.testo, 'Proposta inviata · scaduta ieri')
+  // il tempo che manca attraversa la mezzanotte senza problemi
+  assert.equal(scadenzaProposta(inviata(a(2, 22, 0)), a(2, 23, 30))?.testo, 'Proposta inviata · scade tra 1 h 30 min')
+  // più giorni
+  assert.equal(scadenzaProposta(inviata(locale(2026, 8, 30, 10, 0)), adesso)?.testo, 'Proposta inviata · scaduta 3 giorni fa')
+})
+
+test('daGuardare include le proposte scadute, non quelle ancora valide', () => {
+  const valida = richiesta({ stato: 'proposta_inviata', created_at: locale(2026, 9, 2, 8, 0).toISOString(), proposta_inviata_at: locale(2026, 9, 2, 8, 15).toISOString() })
+  const scaduta = richiesta({ stato: 'proposta_inviata', created_at: locale(2026, 9, 2, 5, 0).toISOString(), proposta_inviata_at: locale(2026, 9, 2, 5, 40).toISOString() })
+  assert.deepEqual(daGuardare([valida, scaduta, richiesta({})], adesso), [scaduta])
+  assert.equal(avvisoFerma(scaduta, adesso), null)   // l'avviso «ferma da» resta quello delle 48 ore
 })

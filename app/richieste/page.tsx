@@ -8,19 +8,20 @@ import InterruttoreVista from '@/components/richieste/InterruttoreVista'
 import CalendarioRichieste, { type Ancora, type ModoCalendario } from '@/components/richieste/CalendarioRichieste'
 import PannelloRichieste from '@/components/richieste/PannelloRichieste'
 import AzioniRichiesta from '@/components/richieste/AzioniRichiesta'
+import RigaScadenza from '@/components/richieste/RigaScadenza'
 import ConfermaDialog from '@/components/richieste/ConfermaDialog'
 import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import { supabase } from '@/lib/supabase'
 import { fetchRichieste, rifiutaRichiesta, MOTIVI_RIFIUTO } from '@/lib/richiesteDati'
-import { useVista, useDesktop } from '@/lib/richiesteVista'
+import { useVista, useDesktop, useAdesso } from '@/lib/richiesteVista'
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
 import { nomeOspite } from '@/lib/guestName'
 import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
 import {
   CANALE_LABEL, STATO_LABEL, eAperta, inArchivio, ordinaRichieste, nottiRichiesta, nomeCompleto,
-  formatIntervallo, oraArrivo, tempoTrascorso, avvisoFerma, daGuardare, nuoveDalSito, riassuntoPersone, type Richiesta, type OrdineRichieste,
+  formatIntervallo, oraArrivo, avvisoFerma, daGuardare, nuoveDalSito, riassuntoPersone, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
 
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
@@ -71,16 +72,12 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
         <span className="text-stone"> · </span>
         {r.rooms?.name || 'qualsiasi camera'}
       </p>
+      {/* timer delle 3 ore (solo proposta inviata): sostituisce il vecchio «proposta inviata N minuti fa» */}
+      <RigaScadenza r={r} adesso={adesso} className="mt-1.5" />
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs md:text-[13px] text-stone mt-1.5">
         <span className="inline-flex items-center gap-1"><IconaCanale canale={r.canale} />{CANALE_LABEL[r.canale]}{r.canale === 'web' && r.origine && <span className="text-[10px] uppercase tracking-wide text-brass">· {r.origine}</span>}</span>
         <span aria-hidden>·</span>
         <span>{oraArrivo(r.created_at, adesso)}</span>
-        {r.stato === 'proposta_inviata' && r.proposta_inviata_at && (
-          <>
-            <span aria-hidden>·</span>
-            <span className="text-green-mid font-semibold">proposta inviata {tempoTrascorso(r.proposta_inviata_at, adesso)}</span>
-          </>
-        )}
         {avvisoFerma(r, adesso) && (
           <>
             <span aria-hidden>·</span>
@@ -133,7 +130,7 @@ function Richieste() {
   const [prenotazioni, setPrenotazioni] = useState<PrenotazioneBarra[]>([])
   const [acconti, setAcconti] = useState<Record<string, number>>({})
   const [ordine, setOrdine] = useState<OrdineRichieste>('durata')
-  // «N da guardare»: filtro sulle ferme (in attesa > 24 h, proposta > 48 h, arrivo passato)
+  // «N da guardare»: filtro sulle ferme (in attesa > 24 h, proposta > 48 h, arrivo passato) e sulle proposte scadute (3 h dall'invio)
   const [soloDaGuardare, setSoloDaGuardare] = useState(false)
   // «N nuove dal sito»: richieste web arrivate dopo l'ultima apertura di questa pagina (localStorage)
   const [nuoveWeb, setNuoveWeb] = useState(0)
@@ -154,7 +151,8 @@ function Richieste() {
   }, [])
   const [loading, setLoading] = useState(true)
   const [errori, setErrori] = useState<string[]>([])
-  const [adesso] = useState(() => new Date())
+  // avanza ogni minuto: timer della proposta, «da guardare» e archivio si aggiornano da soli
+  const adesso = useAdesso()
   const [vista, setVista] = useVista()
   const desktop = useDesktop()
   const modoCalendario: ModoCalendario = modoScelto ?? (desktop ? 'quindici' : 'mese')
@@ -335,7 +333,7 @@ function Richieste() {
             <CalendarioRichieste
               mese={mese} onMese={setMese} modo={modoCalendario} onModo={cambiaModo} inizio={inizio} onInizio={setInizio}
               camere={camere} prenotazioni={prenotazioni} richieste={richiesteCalendario}
-              acconti={acconti} vista={vista} layout={desktop ? 'desktop' : 'mobile'} oggi={oggiIso()}
+              acconti={acconti} vista={vista} layout={desktop ? 'desktop' : 'mobile'} oggi={oggiIso()} adesso={adesso}
               evidenziata={selezionata} onApri={(gruppo, ancora) => setPannello({ gruppo, ancora })} />
           )}
           <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>

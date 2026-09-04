@@ -6,6 +6,7 @@ import {
 } from '@/lib/richieste'
 import type { Ancora } from './CalendarioRichieste'
 import AzioniRichiesta from './AzioniRichiesta'
+import RigaScadenza from './RigaScadenza'
 
 // Pannello «chi c'è dentro»: bottom sheet sul telefono, popover accanto alla
 // barra su desktop. Solo lettura: i pulsanti d'azione arrivano nel pezzo 5.
@@ -53,10 +54,11 @@ export default function PannelloRichieste({ gruppo, ancora, layout, adesso, onCh
               <span className="inline-flex items-center gap-1"><IconaCanale canale={r.canale} />{CANALE_LABEL[r.canale]}</span>
               <span aria-hidden>·</span>
               <span>{oraArrivo(r.created_at, adesso)}</span>
-              <span aria-hidden>·</span>
-              <span className={r.stato === 'proposta_inviata' ? 'text-green-mid font-semibold' : ''}>{STATO_LABEL[r.stato]}</span>
+              {/* con la proposta inviata lo stato lo dice la riga del timer qui sotto */}
+              {r.stato !== 'proposta_inviata' && <><span aria-hidden>·</span><span>{STATO_LABEL[r.stato]}</span></>}
               {avvisoFerma(r, adesso) && <><span aria-hidden>·</span><span className="font-semibold text-brass">{avvisoFerma(r, adesso)}</span></>}
             </p>
+            <RigaScadenza r={r} adesso={adesso} className="mt-1" />
             <AzioniRichiesta r={r} onRifiuta={onRifiuta} onConferma={onConferma} compatto />
           </li>
         )

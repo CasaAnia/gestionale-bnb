@@ -18,7 +18,8 @@ import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import { lettoDaComunicare } from '@/lib/tariffe'
 import { openWhatsApp, normalizzaTelefono } from '@/lib/whatsapp'
 import { salvaImmagine, copiaImmagine, isMobile } from '@/lib/immaginePng'
-import { useDesktop } from '@/lib/richiesteVista'
+import { useDesktop, useAdesso } from '@/lib/richiesteVista'
+import RigaScadenza from '@/components/richieste/RigaScadenza'
 import { giorniTra } from '@/lib/richiesteCalendario'
 import Link from 'next/link'
 import {
@@ -65,7 +66,7 @@ export default function PropostaPage() {
   const [manca0025, setManca0025] = useState(false)
   const [manca0029, setManca0029] = useState(false)
   const [manca0031, setManca0031] = useState(false)
-  const [adesso] = useState(() => new Date())
+  const adesso = useAdesso()   // avanza ogni minuto: timer della proposta
 
   // Soluzione scelta e bozza (null = quella generata; stringa = modificata a mano)
   const [indice, setIndice] = useState(0)
@@ -391,10 +392,9 @@ export default function PropostaPage() {
         <span className="inline-flex items-center gap-1"><IconaCanale canale={richiesta.canale} />{CANALE_LABEL[richiesta.canale]}</span>
         <span aria-hidden>·</span>
         <span>{oraArrivo(richiesta.created_at, adesso)}</span>
-        {richiesta.stato === 'proposta_inviata' && richiesta.proposta_inviata_at && (
-          <><span aria-hidden>·</span><span className="text-green-mid font-semibold">proposta inviata {tempoTrascorso(richiesta.proposta_inviata_at, adesso)}</span></>
-        )}
       </p>
+      {/* timer delle 3 ore: stesso testo della lista e del tooltip del calendario */}
+      <RigaScadenza r={richiesta} adesso={adesso} className="mt-1.5" />
       {modificabile(richiesta) && (
         <Link href={`/richieste/${richiesta.id}/modifica`} className="inline-block mt-2 text-sm font-semibold text-green-mid underline underline-offset-2">Modifica la richiesta</Link>
       )}
