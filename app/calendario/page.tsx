@@ -563,8 +563,11 @@ export default function Calendario() {
         )}
       </div>
 
+      {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
+          delle Richieste, con la barra di navigazione come prima riga del riquadro */}
+      <div className="flex flex-col flex-1 min-h-0 lg:flex-none lg:mx-4 lg:mb-3 lg:bg-white lg:rounded-xl lg:border lg:border-card-border lg:overflow-hidden">
       {!loading && isDesktop && (
-        <div className="shrink-0 flex items-center gap-2 px-4 pb-2.5">
+        <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-card-border">
           <button type="button" onClick={() => scorriDiGiorni(-GIORNI_SALTO_FRECCE)} aria-label="Due settimane prima"
             className="w-9 h-9 flex items-center justify-center rounded-[10px] border border-card-border bg-white text-green-mid text-lg leading-none active:bg-sage">‹</button>
           <span className="text-[11px] text-stone">2 settimane</span>
@@ -592,7 +595,7 @@ export default function Calendario() {
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
-        <div ref={scrollRef} onScroll={updateVisibleMonth} className="overflow-auto flex-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div ref={scrollRef} onScroll={updateVisibleMonth} className="overflow-auto flex-1 lg:flex-none" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div style={{ width: totalW, position: 'relative', height: totalH }} onClick={() => setSelectedGroupId(null)}>
 
             {/* ── HEADER MESI: titolo sticky + nome del mese nuovo in ottone al 1° del mese ── */}
@@ -880,9 +883,10 @@ export default function Calendario() {
           </div>
         </div>
       )}
+      </div>
 
       {/* Legenda: solo su desktop — sul telefono ruba spazio al calendario */}
-      <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border hidden lg:flex flex-wrap gap-3 items-center">
+      <div className="shrink-0 px-4 pb-2 hidden lg:flex flex-wrap gap-3 items-center">
         <div className="flex items-center gap-1.5">
           <div style={{ width: 12, height: 12, borderRadius: 3, background: COLOR_PRENOTAZIONE }} />
           <span className="text-xs text-gray-500">Prenotazione</span>

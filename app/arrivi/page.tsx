@@ -15,11 +15,17 @@ function gs(n: number) { return Math.round(n * GRID_SCALE) }
 const CELL_W_MOBILE = gs(56)
 const CELL_W_DESKTOP = gs(84)
 const ROW_H_MOBILE = gs(64)
-const ROW_H_DESKTOP = gs(84)
-const HEADER_MONTH_H = gs(40)
-const HEADER_DAY_H = gs(50)
+// Dal Mac (04/09/2026): stessa griglia leggera del Calendario e delle Richieste
+// — righe 54, colonna camere 116 senza descrizione (tooltip), intestazione
+// compatta, barre su una riga. Sul telefono le misure di sempre.
+const ROW_H_DESKTOP = 54
+const HEADER_MONTH_H_MOBILE = gs(40)
+const HEADER_MONTH_H_DESKTOP = 26
+const HEADER_DAY_H_MOBILE = gs(50)
+const HEADER_DAY_H_DESKTOP = 48
 const NAME_W_MOBILE = gs(110)
-const NAME_W_DESKTOP = gs(180)
+const NAME_W_DESKTOP = 116
+const GIORNI_SALTO_FRECCE = 14
 const DAYS_TOTAL = 90
 const DAYS_BEFORE = 7
 const HEADER_BG = '#ffffff'
@@ -71,6 +77,8 @@ export default function Arrivi() {
 
   const CELL_W = isDesktop ? CELL_W_DESKTOP : CELL_W_MOBILE
   const ROW_H = isDesktop ? ROW_H_DESKTOP : ROW_H_MOBILE
+  const HEADER_MONTH_H = isDesktop ? HEADER_MONTH_H_DESKTOP : HEADER_MONTH_H_MOBILE
+  const HEADER_DAY_H = isDesktop ? HEADER_DAY_H_DESKTOP : HEADER_DAY_H_MOBILE
   const HEADER_H = HEADER_MONTH_H + HEADER_DAY_H
   const NAME_W = isDesktop ? NAME_W_DESKTOP : NAME_W_MOBILE
 
@@ -185,10 +193,26 @@ export default function Arrivi() {
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
       <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 pb-2 bg-cream/95 backdrop-blur-sm"><BackLink href="/" /></div>
 
+      {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
+          delle Richieste, con la barra di navigazione come prima riga del riquadro */}
+      <div className="flex flex-col flex-1 min-h-0 lg:flex-none lg:mx-4 lg:mb-3 lg:bg-white lg:rounded-xl lg:border lg:border-card-border lg:overflow-hidden">
+      {!loading && isDesktop && (
+        <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-card-border">
+          <button type="button" onClick={() => scrollRef.current?.scrollBy({ left: -GIORNI_SALTO_FRECCE * CELL_W, behavior: 'smooth' })} aria-label="Due settimane prima"
+            className="w-9 h-9 flex items-center justify-center rounded-[10px] border border-card-border bg-white text-green-mid text-lg leading-none active:bg-sage">‹</button>
+          <span className="text-[11px] text-stone">2 settimane</span>
+          <button type="button" onClick={() => scrollRef.current?.scrollBy({ left: GIORNI_SALTO_FRECCE * CELL_W, behavior: 'smooth' })} aria-label="Due settimane dopo"
+            className="w-9 h-9 flex items-center justify-center rounded-[10px] border border-card-border bg-white text-green-mid text-lg leading-none active:bg-sage">›</button>
+          <span className="font-serif text-[22px] text-green-dark ml-2 whitespace-nowrap">{visibleMonth}</span>
+          <button type="button" onClick={() => scrollRef.current?.scrollTo({ left: Math.max(0, DAYS_BEFORE * CELL_W - Math.round(CELL_W * 1.5)), behavior: 'smooth' })}
+            className="ml-2 rounded-full border border-green-mid bg-white text-green-mid text-xs font-bold px-3 py-1.5 active:bg-sage">Oggi</button>
+          <span className="ml-auto text-xs text-stone">arrivi dei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</span>
+        </div>
+      )}
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
-        <div ref={scrollRef} onScroll={updateVisibleMonth} className="overflow-auto flex-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div ref={scrollRef} onScroll={updateVisibleMonth} className="overflow-auto flex-1 lg:flex-none" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div style={{ width: totalW, position: 'relative', height: totalH }}>
 
             {/* ── HEADER MESI: titolo sticky + nome del mese nuovo in ottone al 1° del mese ── */}
@@ -206,12 +230,16 @@ export default function Arrivi() {
                 </div>
               ))}
               <div style={{ width: NAME_W, minWidth: NAME_W, height: HEADER_H, position: 'sticky', left: 0, zIndex: 32, background: HEADER_BG, borderRight: '2px solid #D6CFBD', borderBottom: '2px solid #D6CFBD', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '0 8px' }}>
-                <span style={{ fontSize: isDesktop ? gs(12) : gs(11), fontWeight: 600, letterSpacing: '2px', textIndent: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
-                  {visibleMonth.split(' ')[0]}
-                </span>
-                <span style={{ fontFamily: 'Georgia, serif', fontSize: isDesktop ? gs(24) : gs(22), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
-                  {visibleMonth.split(' ')[1]}
-                </span>
+                {!isDesktop && (
+                  <>
+                    <span style={{ fontSize: gs(11), fontWeight: 600, letterSpacing: '2px', textIndent: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                      {visibleMonth.split(' ')[0]}
+                    </span>
+                    <span style={{ fontFamily: 'Georgia, serif', fontSize: gs(22), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
+                      {visibleMonth.split(' ')[1]}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -227,16 +255,16 @@ export default function Arrivi() {
                     background: isToday ? '#F3ECD8' : 'transparent',
                     borderLeft: '1px solid #ECE8DD',
                   }}>
-                    <div style={{ fontSize: isDesktop ? gs(10) : gs(8), fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2 }}>
+                    <div style={{ fontSize: isDesktop ? 10 : gs(8), fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2 }}>
                       {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop ? 3 : 2)}
                     </div>
                     <div style={{
-                      fontSize: isDesktop ? gs(15) : gs(12), fontWeight: 700,
+                      fontSize: isDesktop ? 13 : gs(12), fontWeight: 700,
                       color: isToday ? 'white' : (isSun ? '#C58A67' : '#1F3D2F'),
                       background: isToday ? '#2D6A4F' : 'transparent',
                       borderRadius: '50%',
-                      width: isDesktop ? gs(26) : gs(20), height: isDesktop ? gs(26) : gs(20),
-                      lineHeight: isDesktop ? `${gs(26)}px` : `${gs(20)}px`,
+                      width: isDesktop ? 24 : gs(20), height: isDesktop ? 24 : gs(20),
+                      lineHeight: isDesktop ? '24px' : `${gs(20)}px`,
                       margin: '0 auto',
                     }}>
                       {d.getDate()}
@@ -272,21 +300,23 @@ export default function Arrivi() {
                     {(() => {
                       const shortName = room.name.split(' ').slice(-1)[0]
                       return (
-                    <div style={{
+                    <div title={isDesktop ? (ROOM_DESC_BY_NAME[shortName] || '') : undefined} style={{
                       width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10,
                       background: 'white', borderRight: '2px solid #D6CFBD',
                       display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px',
                     }}>
-                      <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? gs(12) : gs(10), color: 'var(--color-brass)', flexShrink: 0 }}>
+                      <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 12 : gs(10), color: 'var(--color-brass)', flexShrink: 0 }}>
                         {ROOM_NUMBER_BY_NAME[shortName] || ''}
                       </span>
                       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? gs(16) : gs(13), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 15 : gs(13), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {shortName}
                         </span>
-                        <span style={{ fontSize: isDesktop ? gs(10) : gs(8), color: 'var(--color-stone)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {isDesktop ? (ROOM_DESC_BY_NAME[shortName] || '') : (ROOM_DESC_BY_NAME[shortName] || '').split(' · ')[0]}
-                        </span>
+                        {!isDesktop && (
+                          <span style={{ fontSize: gs(8), color: 'var(--color-stone)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {(ROOM_DESC_BY_NAME[shortName] || '').split(' · ')[0]}
+                          </span>
+                        )}
                       </span>
                     </div>
                       )
@@ -346,13 +376,13 @@ export default function Arrivi() {
                           {/* Orario — o freccine ⇄ se è l'arrivo di un cambio camera */}
                           <span style={{
                             color: isCambio ? 'white' : (time ? '#1F3D2F' : 'white'),
-                            fontSize: isCambio ? (isDesktop ? gs(16) : gs(13)) : (isDesktop ? gs(13) : gs(10)),
+                            fontSize: isCambio ? (isDesktop ? 15 : gs(13)) : (isDesktop ? 12 : gs(10)),
                             fontWeight: 800,
                             whiteSpace: 'nowrap',
                             flexShrink: 0,
                             lineHeight: 1,
                             textAlign: 'center',
-                            minWidth: isCambio ? (isDesktop ? gs(50) : gs(37)) : undefined,
+                            minWidth: isCambio ? (isDesktop ? 44 : gs(37)) : undefined,
                             background: isCambio ? 'rgba(255,255,255,0.30)' : (time ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.35)'),
                             borderRadius: 4,
                             padding: '1px 5px',
@@ -360,15 +390,19 @@ export default function Arrivi() {
                             {isCambio ? '⇄' : (time || '?')}
                           </span>
                           {/* Nome */}
-                          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? gs(13) : gs(10), fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? 13 : gs(10), fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                             {nomeOspite(booking)}{hasOutgoing ? ' ⇄' : ''}
                           </span>
+                          {/* Sul Mac la navetta sta in linea: la barra resta su una riga */}
+                          {isDesktop && !isCambio && booking.shuttle === 'si' && (
+                            <span style={{ background: 'rgba(255,255,255,0.92)', borderRadius: 4, padding: '1px 5px', lineHeight: 1.25, fontSize: 10, whiteSpace: 'nowrap', flexShrink: 0 }}>🚌</span>
+                          )}
                         </div>
                         {/* Navetta sotto l'orario, SOLO se confermata e solo l'icona:
                             ogni 🚌 nella griglia significa una cosa sola. "No" e
                             "Da definire" non mostrano nulla qui (restano nel popup
                             e nei promemoria). */}
-                        {!isCambio && booking.shuttle === 'si' && (
+                        {!isDesktop && !isCambio && booking.shuttle === 'si' && (
                           <div style={{ display: 'flex', paddingLeft: 8, marginTop: 3 }}>
                             <span style={{
                               background: 'rgba(255,255,255,0.92)',
@@ -499,9 +533,10 @@ export default function Arrivi() {
         </div>
         )
       })()}
+      </div>
 
       {/* Legenda */}
-      <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border flex gap-4 items-center">
+      <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border lg:bg-transparent lg:border-0 lg:pt-0 flex gap-4 items-center">
         <div className="flex items-center gap-1.5">
           <div style={{ width: 14, height: 14, borderRadius: 3, background: '#7D9DB0' }} />
           <span className="text-xs text-gray-500">Orario arrivo</span>
