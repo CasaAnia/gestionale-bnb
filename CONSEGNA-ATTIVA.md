@@ -1,19 +1,55 @@
-# STATO IN 10 RIGHE (aggiornato il 03/09/2026, Richieste pezzo 9) — da incollare a un altro assistente
+# STATO IN 10 RIGHE (aggiornato il 03/09/2026, Richieste pezzo 10) — da incollare a un altro assistente
 
-1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9 (modifica, persone notte per notte, caso A a più camere con link e elisione); il modulo Spese nuovo è in produzione con la scrittura su `legacy` (non toccare).
-2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029. 🔴 0031 (persone_per_notte, proposte_precedenti, proposta_alternative + conferma_richiesta notte per notte) DA APPLICARE. In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
+1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7, 9 e 10 (altre camere con i motivi, «Scelgo io» notte per notte, prezzo a mano); il modulo Spese nuovo è in produzione con la scrittura su `legacy` (non toccare).
+2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031 (verificata via REST il 03/09/2026). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture). Il pezzo 10 non ha migrazioni.
 3. Branch `fatture-fase5` (Fase 5 fatture ricostruita + 4 correzioni avversarie): in attesa della decisione di Ania (unione a main); main non lo contiene.
-4. Richieste: modulo unico components/richieste/ModuloRichiesta (nuova e modifica) con la striscia delle notti (components/StrisciaNotti, estratta dalle caselle del letto extra della scheda prenotazione); la modifica di una richiesta con proposta inviata (date/persone/camera) la riporta in_attesa con avviso e storico in proposte_precedenti.
-5. Proposte: generatore unico lib/richiesteTesti (apertura a capo, caso A «soltanto la camera» o «ho N camere libere», link casaaniarozzano.it/camere/[slug], elisione «dal 4 all'8», riga «Nel dettaglio» con persone variabili); B, C, E e caparra/completo invariati. Nel caso A a più camere il messaggio le elenca tutte (proposta_alternative) e alla conferma Ania sceglie la camera accettata.
-6. Ricerca e prezzo per notte (lib/richiesteProposta): capienza e pool delle 2 brande con le persone di ogni notte, tariffe vere in centesimi, letto solo dove serve; conferma_richiesta 0031 fa lo stesso lato server (provata in PGlite).
-7. Prove: suite 455/455, tsc, lint del delta, build, UI a 320/390 sull'anteprima finta (porta 3214: Marta Ricovero [2,1,1,1] = caso reale). Nessun invio reale, nessuna scrittura remota.
-8. Strumenti: `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email, inviare il modulo via JS nel pannello), `gestionale-bnb-anteprima-prenotazioni-finta` (3213), `npm test`, `node scripts/verifica-consegna.mjs --base <sha>`.
-9. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale non si tocca; un commit per blocco; mai modificare gli assert dei test esistenti; il contratto di revisione resta `legacy`.
-10. 🔴 Azioni aperte per Ania: applicare la 0031, poi la prova dal telefono (modifica della richiesta 17–21 con 2 poi 1, proposta Amelia+Ambra col dettaglio, link e «dal 4 all'8»); decidere su fatture-fase5 e sulla 0030; prossimi pezzi: pulizia del flusso vecchio, riepilogo pre-bonifico.
+4. Richieste: modulo unico components/richieste/ModuloRichiesta (nuova e modifica) con la striscia delle notti (components/StrisciaNotti, ora generica: persone per notte nel modulo, camera per notte in «Scelgo io»); la modifica di una richiesta con proposta inviata la riporta in_attesa con storico.
+5. Proposte: ricerca automatica invariata (lib/richiesteProposta: caso A poi B/C/E, per notte); riquadro «Altre camere» con i motivi (motiviEsclusione); «Scelgo io» (lib/richiesteComposizione) compone la soluzione notte per notte con prezzo dalle tariffe o a mano (prezziNottiCentesimi, prezzo_manuale), salvata come le altre (manuale: true) e confermata dalla stessa RPC 0031.
+6. Testi: generatore unico lib/richiesteTesti (apertura a capo, caso A una/più camere con link, elisione, «Nel dettaglio»; per le composizioni manuali B con più cambi, C con notti scoperte e link di ogni camera). Testi automatici B/C/E e caparra/completo bloccati.
+7. Prove: suite 465/465, tsc, lint del delta, build, UI a 320/390 sull'anteprima finta (porta 3214: «Composta» [2,3,3,3] con Lena occupata). Nessun invio reale, nessuna scrittura remota.
+8. Strumenti: `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email, modulo di login via JS nel pannello), `gestionale-bnb-anteprima-prenotazioni-finta` (3213), `npm test`, `node scripts/verifica-consegna.mjs --base <sha>`.
+9. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale e la RPC non si toccano; un commit per blocco; mai modificare gli assert dei test esistenti; il contratto di revisione resta `legacy`.
+10. 🔴 Azioni aperte per Ania: prova dal telefono del pezzo 10 sulla richiesta 17–21 (altre camere, «Scelgo io» Amelia+Ambra, prezzo a mano); decidere su fatture-fase5 e sulla 0030; prossimi pezzi: pulizia del flusso vecchio, riepilogo pre-bonifico.
 
 ---
 
-# Consegna attiva — Richieste, pezzo 9: modifica, persone notte per notte, link della camera, elisione
+# Consegna attiva — Richieste, pezzo 10: «Altre camere» con i motivi e «Scelgo io» notte per notte
+
+Base `4ef87dc` (pezzo 9). Caso reale: 17–21 in 2 poi in 3; l'automatico
+proponeva solo Ambra senza dire perché non Amelia (senza posto per 3) né
+Lena (occupata), e non c'era modo di comporre «17 in Amelia, 18–20 in Lena».
+
+## Casi di accettazione
+
+| ID | Voce | Prova | Esito |
+| --- | --- | --- | --- |
+| S01 | Riquadro «Altre camere» sempre visibile con una riga per camera non usata: «occupata 18–20 set», «senza posto per 3 (18–20 set)», «brande esaurite 19 set», «libera»; solo confermate e persone per notte. | `richiesteComposizione.test` motiviEsclusione (4 motivi, caso reale, priorità occupata > senza posto, in_attesa ignorate); UI 390: «Amelia senza posto per 3 (14–16 nov) · Ambra libera · Lena occupata 14–16 nov» | VERDE |
+| S02 | «Cambia» sempre presente; con una sola soluzione «Nessun'altra soluzione automatica». | UI | VERDE |
+| S03 | «Scelgo io»: striscia riusata (StrisciaNotti generica), casella = data, camera, persone, prezzo; tocco = camera ammessa successiva (libera, con posto per le persone di quella notte, brande), «nessuna» in coda; menu a tendina su desktop; parte dalla soluzione corrente; «Torna alla proposta automatica». | `camereAmmesseNotte`, `cameraSuccessiva`, `composizioneDaSoluzione`; UI 390: da Allegra×4 a «13: Amelia · 14–16: Ambra · totale 345 €», caso «Cambio camera» | VERDE |
+| S04 | Riassunto compresso e totale in centesimi ricalcolato a ogni tocco con le tariffe vere, secondo letto solo dove serve. | `soluzioneDaComposizione` (A camera diversa 350 €, B 345 €, B due cambi, C buco, estremo, completo) | VERDE |
+| S05 | Composizione = soluzione a tutti gli effetti (`manuale: true`, stessi segmenti), salvata con «Sì, inviata» e confermata dalla RPC senza modifiche. | struttura identica (segmento/conPrezziNotti); RPC 0031 ricontrolla camera e brande per segmento | VERDE (conferma di una composizione non provata a schermo) |
+| S06 | Prezzo a mano: tocco lungo (matita su desktop) → campo in euro; Applica, Applica a tutte le notti di questa camera, Ripristina tariffa; bordo ottone e «prezzo modificato». | test (una notte, tutte, ripristino, flag e prezzi nel segmento); UI 390: 13 nov a 60 € → totale 330 € e riga «al prezzo di 60 € a notte» nel testo | VERDE |
+| S07 | Testo della composizione: A (camera diversa), B con uno o più cambi (una riga per segmento), C con notti scoperte, «Nel dettaglio» per segmento con persone variabili e prezzi a mano, link una volta per camera. | 5 test esatti in `richiesteTesti.test` | VERDE |
+| S08 | Immagine: linea del soggiorno con i segmenti, camera e persone per notte; notti scoperte come nel pezzo 6. | UI: «Testo + immagine» della composizione mostra SOGGIORNO NON CONTINUO con «Dal 13 al 14 novembre … 2 persone» e «Dal 14 al 17 novembre … 3 persone» | VERDE |
+| S09 | 320/390 px senza scorrimento laterale; la striscia va a capo. | UI | VERDE |
+
+## Decisioni prese in autonomia
+
+- Un solo motivo per camera nel riquadro, il più forte (occupata > senza posto > brande), con le sue notti.
+- Il link di ogni camera compare nei testi B/C solo per le composizioni manuali; i testi automatici B/C restano bloccati come dal pezzo 9.
+- Con una composizione manuale non si elencano «alternative» del caso A e il blocco Amelia segue le regole di sempre.
+- «Ripristina tariffa» agisce sulla notte in modifica; cambiando camera a una notte il suo prezzo a mano decade.
+- Commit: la logica (a, b) e la schermata (c) sono divisi per file, non per funzione, perché riquadro, striscia e prezzo vivono nella stessa pagina.
+
+## Limiti aperti
+
+- La conferma di una composizione manuale non è stata provata a schermo (la RPC ricontrolla comunque camera e brande).
+- Il tocco lungo è simulato nel pannello con eventi pointer; la prova vera è sull'iPhone.
+- Nessuna migrazione: le colonne del pezzo 9 bastano.
+
+---
+
+# Blocco precedente — Richieste, pezzo 9: modifica, persone notte per notte, link della camera, elisione
 
 Base `94d4acc` (main con l'avviso di connessione, dopo il pezzo 7). Caso
 reale: ospite dal 17 al 21, in 2 la prima notte poi da sola (Amelia con il
