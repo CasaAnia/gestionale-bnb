@@ -303,8 +303,8 @@ function Richieste() {
       )}
 
       <div className="min-[1100px]:grid min-[1100px]:grid-cols-[minmax(0,3fr)_minmax(380px,2fr)] min-[1100px]:gap-5 min-[1100px]:items-start">
-        {/* Calendario */}
-        <section hidden={!mostraCalendario}>
+        {/* Calendario (min-w-0: a 2 settimane scorre dentro la sua colonna, non allarga la griglia) */}
+        <section hidden={!mostraCalendario} className="min-w-0">
           {loading ? (
             <div className="bg-white rounded-xl border border-card-border text-center py-10 text-stone">Caricamento…</div>
           ) : (

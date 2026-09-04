@@ -41,7 +41,7 @@ type Props = {
 const OTTONE = '#A9884E'
 // Desktop: camere in righe, giorni in colonne
 const NAME_W = 96
-const COL_MIN_QUINDICI = 64   // a 2 settimane ogni giorno ha almeno 64 px: «Cognome N.» intero; se non ci sta, scorre
+const COL_MIN_QUINDICI = 72   // a 2 settimane ogni giorno ha almeno 72 px: «Cognome N.» intero anche su una notte; se non ci sta, scorre
 const ROW_H = 44
 const HEADER_H = 40
 // Mobile: giorni in righe, camere in colonne strette (deve stare in 390 px)
@@ -197,7 +197,7 @@ export default function CalendarioRichieste(p: Props) {
             ...geometria(idx.start, idx.end, ri, true, true),
             background: 'transparent', border: `1.5px dashed ${OTTONE}`, borderRadius: 6,
             color: COLORE_RICHIESTA_TESTO, fontSize: mobile ? 10 : 11, fontWeight: 600, textAlign: 'left',
-            padding: mobile ? '2px 3px' : '0 6px', display: 'flex', gap: 4,
+            padding: mobile ? '2px 3px' : modo === 'quindici' ? '0 4px' : '0 6px', display: 'flex', gap: 4,
             flexDirection: mobile ? 'column' : 'row', alignItems: mobile ? 'flex-start' : 'center',
             whiteSpace: 'nowrap', overflow: 'hidden', cursor: 'pointer', zIndex: selezionata ? 8 : 7,
             opacity: p.evidenziata != null && !selezionata ? 0.3 : 1,
