@@ -287,7 +287,8 @@ export default function Arrivi() {
 
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
-      <div className={`flex flex-col flex-none ${orizzontale ? 'm-2' : 'mx-4 mb-6'} bg-white rounded-xl border border-card-border shadow-sm overflow-hidden`}>
+      {/* stesse distanze delle Richieste: riquadro, 12 px, riga «Oggi · mesi» allineata alla colonna delle camere */}
+      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : 'mx-4'} bg-white rounded-xl border border-card-border shadow-sm overflow-hidden`}>
       {!loading && (
         <>
           {/* Riga di navigazione: la stessa del calendario delle Richieste */}
@@ -621,7 +622,7 @@ export default function Arrivi() {
       </div>
       {!loading && (
         <RigaMesi mesi={mesiCliccabili(today, 4).filter(m => dayIndex(m.iso) < DAYS_TOTAL)} attivo={toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)}
-          onMese={m => vaiAIndice(dayIndex(m.iso))} onOggi={() => vaiAIndice(DAYS_BEFORE - 1)} nota={`arrivi dei prossimi ${DAYS_TOTAL - DAYS_BEFORE} giorni`} className="shrink-0 px-4 pt-3 pb-5" />
+          onMese={m => vaiAIndice(dayIndex(m.iso))} onOggi={() => vaiAIndice(DAYS_BEFORE - 1)} nota={`arrivi dei prossimi ${DAYS_TOTAL - DAYS_BEFORE} giorni`} className={`shrink-0 pt-3 pb-4 ${orizzontale ? 'px-2' : 'px-4'}`} />
       )}
 
       {/* Niente legenda in Arrivi (richiesta di Ania, 04/09/2026): i simboli si spiegano da soli */}

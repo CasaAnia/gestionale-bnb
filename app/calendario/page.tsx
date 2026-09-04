@@ -618,7 +618,8 @@ export default function Calendario() {
 
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
-      <div className={`flex flex-col flex-none ${orizzontale ? 'm-2' : 'mx-4 mb-6'} bg-white rounded-xl border border-card-border shadow-sm overflow-hidden`}>
+      {/* stesse distanze delle Richieste: riquadro, 12 px, riga «Oggi · mesi» allineata alla colonna delle camere */}
+      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : 'mx-4'} bg-white rounded-xl border border-card-border shadow-sm overflow-hidden`}>
       {!loading && (
         <>
           {/* Riga di navigazione: la stessa del calendario delle Richieste */}
@@ -920,7 +921,7 @@ export default function Calendario() {
       </div>
       {/* Sotto il calendario: «Oggi» e i 12 mesi cliccabili (riga condivisa con Arrivi e Richieste), telefono e Mac */}
       {!loading && (
-        <RigaMesi mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={() => vaiAData(todayStr)} className="shrink-0 px-4 pt-3 pb-5" />
+        <RigaMesi mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={() => vaiAData(todayStr)} className={`shrink-0 pt-3 pb-4 ${orizzontale ? 'px-2' : 'px-4'}`} />
       )}
 
       {/* Legenda: solo su desktop — sul telefono ruba spazio al calendario */}
