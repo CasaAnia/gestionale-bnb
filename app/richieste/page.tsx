@@ -348,7 +348,8 @@ function Richieste() {
               {vista === 'presunta' ? 'Tratteggiato = richieste in attesa. Tocca una barra per vedere chi c’è dentro.' : 'Solo confermate: queste non si toccano.'}
             </p>
           )}
-          {!desktop && !orizzontale && (
+          {/* Telefono, dritto e girato (05/09/2026): Reale/Presunta, «+ Nuova richiesta» e contatori sotto il calendario */}
+          {(!desktop || orizzontale) && (
             <>
               <div className="flex items-center justify-between gap-3 mt-4">
                 <InterruttoreVista vista={vista} onChange={setVista} />
