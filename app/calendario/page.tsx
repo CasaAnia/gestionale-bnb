@@ -1021,7 +1021,7 @@ export default function Calendario() {
         </div>
         <div className="flex items-center gap-1.5">
           <div style={{ width: 12, height: 12, borderRadius: 3, background: COLORE_LETTI_ESAURITI }} />
-          <span className="text-xs text-gray-500">2/2 letti occupati</span>
+          <span className="text-xs text-gray-500">2 letti extra occupati</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div style={{ width: 12, height: 12, borderRadius: 3, background: 'white', border: '1.5px dashed #2D6A4F' }} />
