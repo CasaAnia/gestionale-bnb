@@ -148,3 +148,40 @@ export function unioneIntervalli(gruppo: Intervallo[]): Intervallo {
     partenza: gruppo.reduce((m, r) => (r.partenza > m ? r.partenza : m), gruppo[0].partenza),
   }
 }
+
+// ── Vista a 2 settimane (blocco 2, 04/09/2026) ──────────────────────────────
+// Su desktop il calendario può mostrare 14 giorni invece del mese: colonne
+// larghe, etichette intere. Tutto in stringhe ISO, nessun fuso orario.
+export const GIORNI_QUINDICINA = 14
+
+export function spostaGiorni(iso: string, delta: number): string {
+  return new Date(Date.parse(iso + 'T00:00:00Z') + delta * 86400000).toISOString().slice(0, 10)
+}
+
+export function giorniDaInizio(inizio: string, n: number = GIORNI_QUINDICINA): string[] {
+  return Array.from({ length: n }, (_, i) => spostaGiorni(inizio, i))
+}
+
+// All'apertura la colonna di oggi è sempre visibile: la finestra parte 3
+// giorni prima di oggi, così si vedono anche gli arrivi imminenti
+export function inizioQuindicina(oggi: string): string {
+  return spostaGiorni(oggi, -3)
+}
+
+// "4 – 17 set 2026" · "28 set – 11 ott 2026" · "28 dic 2026 – 10 gen 2027"
+export function etichettaPeriodo(giorni: string[]): string {
+  if (giorni.length === 0) return ''
+  const MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
+  const p = (iso: string) => { const [a, m, g] = iso.split('-').map(Number); return { a, m, g } }
+  const da = p(giorni[0]), a = p(giorni[giorni.length - 1])
+  if (da.a === a.a && da.m === a.m) return `${da.g} – ${a.g} ${MESI[a.m - 1]} ${a.a}`
+  if (da.a === a.a) return `${da.g} ${MESI[da.m - 1]} – ${a.g} ${MESI[a.m - 1]} ${a.a}`
+  return `${da.g} ${MESI[da.m - 1]} ${da.a} – ${a.g} ${MESI[a.m - 1]} ${a.a}`
+}
+
+// Richieste aperte che toccano almeno un giorno della finestra
+export function richiesteNelPeriodo<T extends Pick<Richiesta, 'stato'> & Intervallo>(richieste: T[], giorni: string[]): T[] {
+  if (giorni.length === 0) return []
+  const finestra = { arrivo: giorni[0], partenza: spostaGiorni(giorni[giorni.length - 1], 1) }
+  return richieste.filter(r => eAperta(r) && condividonoGiorni(r, finestra))
+}

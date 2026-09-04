@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, type CSSProperties, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, type CSSProperties, type MouseEvent } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
@@ -9,16 +9,24 @@ import {
   COLORE_OGGI, COLORE_DOMENICA, COLORE_GRIGLIA, COLORE_SEPARATORE, COLORE_RICHIESTA_TESTO,
   contestoColori, segmentiBarra, indiciIntervallo, type PrenotazioneBarra,
 } from '@/lib/calendarioBarre'
-import { giorniDelMese, etichettaMese, spostaMese, chiaveRiga, RIGA_QUALSIASI, gruppiSovrapposti, unioneIntervalli, sovrapposizioni } from '@/lib/richiesteCalendario'
-import type { Richiesta } from '@/lib/richieste'
+import { giorniDelMese, etichettaMese, spostaMese, chiaveRiga, RIGA_QUALSIASI, gruppiSovrapposti, unioneIntervalli, sovrapposizioni, giorniDaInizio, spostaGiorni, etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
+import { nomeCompleto, formatIntervallo, riassuntoPersone, STATO_LABEL, type Richiesta } from '@/lib/richieste'
 import type { Vista } from '@/lib/richiesteVista'
 
 export type CameraCalendario = { id: string; name: string; active?: boolean }
 export type Ancora = { x: number; y: number }
 
+// Modo del calendario desktop (blocco 2, 04/09/2026): «mese» oppure «2
+// settimane» (colonne larghe, etichette intere). Sul telefono resta il mese.
+export type ModoCalendario = 'mese' | 'quindici'
+
 type Props = {
   mese: string
   onMese: (m: string) => void
+  modo?: ModoCalendario                 // default 'mese'
+  onModo?: (m: ModoCalendario) => void
+  inizio?: string                       // primo giorno della finestra a 2 settimane (YYYY-MM-DD)
+  onInizio?: (iso: string) => void
   camere: CameraCalendario[]
   prenotazioni: PrenotazioneBarra[]     // solo confermate/completate
   richieste: Richiesta[]                // aperte nel mese; vuoto in vista Reale
@@ -33,6 +41,7 @@ type Props = {
 const OTTONE = '#A9884E'
 // Desktop: camere in righe, giorni in colonne
 const NAME_W = 96
+const COL_MIN_QUINDICI = 64   // a 2 settimane ogni giorno ha almeno 64 px: «Cognome N.» intero; se non ci sta, scorre
 const ROW_H = 44
 const HEADER_H = 40
 // Mobile: giorni in righe, camere in colonne strette (deve stare in 390 px)
@@ -59,11 +68,17 @@ export function etichettaRichiesta(r: Richiesta, breve = false): string {
   const chi = `${r.cognome.trim()} ${iniziale}`.trim()
   return breve ? chi : `${chi} · ${r.stato === 'proposta_inviata' ? 'inviata' : 'attesa'}`
 }
+// Tooltip al passaggio del mouse (desktop): nome completo, date, persone, stato
+export function tooltipRichiesta(r: Richiesta): string {
+  const persone = r.persone_per_notte ? riassuntoPersone(r.arrivo, r.persone_per_notte) : `${r.persone} ${r.persone === 1 ? 'persona' : 'persone'}`
+  return `${nomeCompleto(r)} · ${formatIntervallo(r.arrivo, r.partenza)} · ${persone} · ${r.rooms?.name || 'qualsiasi camera'} · ${STATO_LABEL[r.stato]}`
+}
 
 type Riga = { chiave: string; nome: string; numero: string; camera: CameraCalendario | null }
 
 export default function CalendarioRichieste(p: Props) {
-  const giorni = useMemo(() => giorniDelMese(p.mese), [p.mese])
+  const modo: ModoCalendario = p.layout === 'desktop' && p.modo === 'quindici' && p.inizio ? 'quindici' : 'mese'
+  const giorni = useMemo(() => (modo === 'quindici' ? giorniDaInizio(p.inizio!, GIORNI_QUINDICINA) : giorniDelMese(p.mese)), [modo, p.inizio, p.mese])
   const camere = useMemo(() => ordinaCamere(p.camere.filter(c => c.active !== false)), [p.camere])
   const ctx = useMemo(() => contestoColori(p.prenotazioni, p.acconti), [p.prenotazioni, p.acconti])
   const catene = useMemo(() => buildChangeGroups(p.prenotazioni), [p.prenotazioni])
@@ -86,6 +101,18 @@ export default function CalendarioRichieste(p: Props) {
   ]
 
   const N = giorni.length
+  // A 2 settimane il calendario può essere più largo dello spazio: scorre in
+  // orizzontale e all'apertura porta in vista la colonna di oggi
+  const scorrevole = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = scorrevole.current
+    if (!el || modo !== 'quindici') return
+    const i = giorni.indexOf(p.oggi)
+    if (i < 0) { el.scrollLeft = 0; return }
+    const larghezzaGiorno = (el.scrollWidth - NAME_W) / N
+    const centro = NAME_W + larghezzaGiorno * (i + 0.5)
+    el.scrollLeft = Math.max(0, centro - el.clientWidth / 2)
+  }, [modo, giorni, p.oggi, N])
   function apri(e: MouseEvent, gruppo: Richiesta[]) {
     e.stopPropagation()
     p.onApri?.(gruppo, { x: e.clientX, y: e.clientY })
@@ -123,7 +150,7 @@ export default function CalendarioRichieste(p: Props) {
           ? `${arrInizio ? 6 : 0}px ${arrFine ? 6 : 0}px ${arrFine ? 6 : 0}px ${arrInizio ? 6 : 0}px`
           : `${arrInizio ? 6 : 0}px ${arrInizio ? 6 : 0}px ${arrFine ? 6 : 0}px ${arrFine ? 6 : 0}px`
         return (
-          <div key={`${b.id}-${i}`} title={`${nomeOspite(b)} · ${b.check_in} → ${b.check_out}`}
+          <div key={`${b.id}-${i}`} title={`${nomeOspite(b)} · ${formatIntervallo(b.check_in, b.check_out)} · ${b.num_guests ?? ''} ${Number(b.num_guests) === 1 ? 'persona' : 'persone'}`.replace(' ·  ', ' · ')}
             style={{
               ...geometria(s.start, s.end, ri, primo, ultimo),
               background: s.color, borderRadius: raggi,
@@ -133,7 +160,7 @@ export default function CalendarioRichieste(p: Props) {
               opacity: p.evidenziata != null ? 0.3 : 1, transition: 'opacity 0.15s',
             }}>
             {primo && (
-              <span style={{ color: 'white', fontSize: p.layout === 'desktop' ? 11 : 10, fontWeight: 600, padding: p.layout === 'desktop' ? '0 6px' : '3px 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+              <span style={{ color: 'white', fontSize: p.layout === 'desktop' ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, padding: p.layout === 'desktop' ? '0 6px' : '3px 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
                 {entra ? '⇄ ' : ''}{nomeOspite(b)}{esce ? ' ⇄' : ''}
               </span>
             )}
@@ -159,8 +186,10 @@ export default function CalendarioRichieste(p: Props) {
       const selezionata = p.evidenziata != null && ids.includes(p.evidenziata)
       const conflittoConfermate = gruppo.length === 1 && sovrapposizioni(gruppo[0], p.prenotazioni, [], camere).prenotazioni.length > 0
       const conBadge = gruppo.length > 1 || conflittoConfermate
-      const testo = gruppo.length > 1 ? `${gruppo.length} richieste` : etichettaRichiesta(gruppo[0], p.layout === 'mobile')
-      const titolo = gruppo.length > 1 ? gruppo.map(r => etichettaRichiesta(r)).join(' · ') : etichettaRichiesta(gruppo[0])
+      // a 2 settimane le colonne sono larghe: «Cognome N.» intero; nel mese
+      // l'etichetta resta e il tooltip dice tutto
+      const testo = gruppo.length > 1 ? `${gruppo.length} richieste` : etichettaRichiesta(gruppo[0], p.layout === 'mobile' || modo === 'quindici')
+      const titolo = gruppo.map(r => tooltipRichiesta(r)).join('\n')
       const mobile = p.layout === 'mobile'
       return [(
         <button key={ids.join('+')} type="button" onClick={e => apri(e, gruppo)} title={titolo}
@@ -182,17 +211,31 @@ export default function CalendarioRichieste(p: Props) {
     })
   }
 
+  const indietro = () => (modo === 'quindici' ? p.onInizio?.(spostaGiorni(p.inizio!, -GIORNI_QUINDICINA)) : p.onMese(spostaMese(p.mese, -1)))
+  const avanti = () => (modo === 'quindici' ? p.onInizio?.(spostaGiorni(p.inizio!, GIORNI_QUINDICINA)) : p.onMese(spostaMese(p.mese, 1)))
   const navigazione = (
     <div className="flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: COLORE_SEPARATORE }}>
-      <button type="button" onClick={() => p.onMese(spostaMese(p.mese, -1))} aria-label="Mese precedente"
+      <button type="button" onClick={indietro} aria-label={modo === 'quindici' ? 'Due settimane prima' : 'Mese precedente'}
         className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
         <ChevronLeft size={20} strokeWidth={2} aria-hidden />
       </button>
-      <span className="font-serif text-[17px] text-green-dark">{etichettaMese(p.mese)}</span>
-      <button type="button" onClick={() => p.onMese(spostaMese(p.mese, 1))} aria-label="Mese successivo"
-        className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
-        <ChevronRight size={20} strokeWidth={2} aria-hidden />
-      </button>
+      <span className="font-serif text-[17px] text-green-dark">{modo === 'quindici' ? etichettaPeriodo(giorni) : etichettaMese(p.mese)}</span>
+      <div className="flex items-center gap-1">
+        {p.layout === 'desktop' && p.onModo && (
+          <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border bg-white p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
+            {([['mese', 'Mese'], ['quindici', '2 settimane']] as const).map(([v, label]) => (
+              <button key={v} type="button" onClick={() => p.onModo!(v)} aria-pressed={modo === v}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${modo === v ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        <button type="button" onClick={avanti} aria-label={modo === 'quindici' ? 'Due settimane dopo' : 'Mese successivo'}
+          className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
+          <ChevronRight size={20} strokeWidth={2} aria-hidden />
+        </button>
+      </div>
     </div>
   )
 
@@ -201,13 +244,15 @@ export default function CalendarioRichieste(p: Props) {
     return (
       <div className="bg-white rounded-xl border border-card-border overflow-hidden">
         {navigazione}
+        <div ref={scorrevole} style={{ overflowX: modo === 'quindici' ? 'auto' : 'hidden' }}>
+        <div style={{ minWidth: modo === 'quindici' ? NAME_W + N * COL_MIN_QUINDICI : undefined }}>
         <div style={{ display: 'grid', gridTemplateColumns: `${NAME_W}px repeat(${N}, minmax(0, 1fr))`, height: HEADER_H, borderBottom: `2px solid ${COLORE_SEPARATORE}` }}>
           <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}` }} />
           {giorni.map(g => {
             const oggi = g === p.oggi, dom = giornoSettimana(g) === 0
             return (
               <div key={g} style={{ background: oggi ? COLORE_OGGI : 'transparent', borderLeft: `1px solid ${COLORE_GRIGLIA}`, textAlign: 'center', paddingTop: 4, minWidth: 0 }}>
-                <div style={{ fontSize: 8, fontWeight: 600, color: dom ? '#C58A67' : '#5c6b60', lineHeight: 1 }}>{GIORNI_BREVI[giornoSettimana(g)].slice(0, 2)}</div>
+                <div style={{ fontSize: modo === 'quindici' ? 10 : 8, fontWeight: 600, color: dom ? '#C58A67' : '#5c6b60', lineHeight: 1 }}>{modo === 'quindici' ? GIORNI_BREVI[giornoSettimana(g)] : GIORNI_BREVI[giornoSettimana(g)].slice(0, 2)}</div>
                 <div style={{
                   fontSize: 12, fontWeight: 700, margin: '2px auto 0', width: 20, height: 20, lineHeight: '20px', borderRadius: '50%',
                   color: oggi ? 'white' : dom ? '#C58A67' : '#1F3D2F', background: oggi ? '#2D6A4F' : 'transparent',
@@ -234,6 +279,8 @@ export default function CalendarioRichieste(p: Props) {
             {p.vista === 'presunta' && barreRichieste(riga.chiave, ri)}
           </div>
         ))}
+        </div>
+        </div>
       </div>
     )
   }

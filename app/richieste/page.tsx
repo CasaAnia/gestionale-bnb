@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Globe, Phone, MessageCircle, ChevronDown } from 'lucide-react'
 import BackBar from '@/components/BackBar'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
-import CalendarioRichieste, { type Ancora } from '@/components/richieste/CalendarioRichieste'
+import CalendarioRichieste, { type Ancora, type ModoCalendario } from '@/components/richieste/CalendarioRichieste'
 import PannelloRichieste from '@/components/richieste/PannelloRichieste'
 import AzioniRichiesta from '@/components/richieste/AzioniRichiesta'
 import ConfermaDialog from '@/components/richieste/ConfermaDialog'
@@ -14,7 +14,7 @@ import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import { supabase } from '@/lib/supabase'
 import { fetchRichieste, rifiutaRichiesta, MOTIVI_RIFIUTO } from '@/lib/richiesteDati'
 import { useVista, useDesktop } from '@/lib/richiesteVista'
-import { meseCorrente, richiesteAperte, sovrapposizioni } from '@/lib/richiesteCalendario'
+import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
 import { nomeOspite } from '@/lib/guestName'
 import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
@@ -134,11 +134,31 @@ function Richieste() {
   // «N nuove dal sito»: richieste web arrivate dopo l'ultima apertura di questa pagina (localStorage)
   const [nuoveWeb, setNuoveWeb] = useState(0)
   const [mese, setMese] = useState(() => meseCorrente())
+  // Calendario desktop (blocco 2): «Mese» o «2 settimane», ricordato nel browser;
+  // default 2 settimane su desktop, mese sul telefono. All'apertura la
+  // finestra contiene sempre la colonna di oggi.
+  const CHIAVE_MODO = 'ca_richieste_calendario_modo'
+  const [modoScelto, setModoScelto] = useState<ModoCalendario | null>(null)
+  const [inizio, setInizio] = useState(() => inizioQuindicina(oggiIso()))
+  useEffect(() => {
+    // lettura della memoria del browser dopo il primo disegno (mai durante)
+    let v: string | null = null
+    try { v = window.localStorage.getItem(CHIAVE_MODO) } catch { v = null }
+    const scelto = v === 'mese' || v === 'quindici' ? v : null
+    const t = setTimeout(() => { if (scelto) setModoScelto(scelto) }, 0)
+    return () => clearTimeout(t)
+  }, [])
   const [loading, setLoading] = useState(true)
   const [errori, setErrori] = useState<string[]>([])
   const [adesso] = useState(() => new Date())
   const [vista, setVista] = useVista()
   const desktop = useDesktop()
+  const modoCalendario: ModoCalendario = modoScelto ?? (desktop ? 'quindici' : 'mese')
+  function cambiaModo(m: ModoCalendario) {
+    setModoScelto(m)
+    if (m === 'quindici') setInizio(inizioQuindicina(oggiIso()))
+    try { window.localStorage.setItem(CHIAVE_MODO, m) } catch { /* niente memoria: vale per questa apertura */ }
+  }
   // Sul telefono si vede una sezione alla volta: calendario o lista.
   const [sezione, setSezione] = useState<'calendario' | 'lista'>(() => (apriId ? 'lista' : 'calendario'))
   // Richiesta selezionata dalla lista (evidenziata nel calendario) e pannello «chi c'è dentro»
@@ -215,8 +235,8 @@ function Richieste() {
   )
   // Vista Reale: nessuna richiesta, in nessuna forma.
   const richiesteCalendario = useMemo(
-    () => (vista === 'presunta' ? richiesteAperte(tutte, mese) : []),
-    [tutte, mese, vista],
+    () => (vista !== 'presunta' ? [] : desktop && modoCalendario === 'quindici' ? richiesteNelPeriodo(tutte, giorniDaInizio(inizio)) : richiesteAperte(tutte, mese)),
+    [tutte, mese, vista, desktop, modoCalendario, inizio],
   )
 
   // Sovrapposizioni di ogni richiesta aperta: con confermate (nome ospite) e altre aperte (cognome)
@@ -285,7 +305,8 @@ function Richieste() {
             <div className="bg-white rounded-xl border border-card-border text-center py-10 text-stone">Caricamento…</div>
           ) : (
             <CalendarioRichieste
-              mese={mese} onMese={setMese} camere={camere} prenotazioni={prenotazioni} richieste={richiesteCalendario}
+              mese={mese} onMese={setMese} modo={modoCalendario} onModo={cambiaModo} inizio={inizio} onInizio={setInizio}
+              camere={camere} prenotazioni={prenotazioni} richieste={richiesteCalendario}
               acconti={acconti} vista={vista} layout={desktop ? 'desktop' : 'mobile'} oggi={oggiIso()}
               evidenziata={selezionata} onApri={(gruppo, ancora) => setPannello({ gruppo, ancora })} />
           )}
