@@ -20,18 +20,14 @@ const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
 // Fattore di ingrandimento della griglia (1 = originale). Scala misure e testi.
 const GRID_SCALE = 1.2
 function gs(n: number) { return Math.round(n * GRID_SCALE) }
-const CELL_W_MOBILE = gs(56)
 const CELL_W_DESKTOP = gs(84)
-const ROW_H_MOBILE = gs(64)
 // Dal Mac (04/09/2026): stessa griglia leggera del Calendario e delle Richieste
 // — righe 54, colonna camere 116 senza descrizione (tooltip), intestazione
 // compatta, barre su una riga. Sul telefono le misure di sempre.
 // Misure IDENTICHE al calendario delle Richieste e al Calendario: righe 44,
 // giorni 40, camere 96, testi 11–13; niente striscia dei mesi sopra i giorni.
 const ROW_H_DESKTOP = 44
-const HEADER_MONTH_H_MOBILE = gs(40)
 const HEADER_MONTH_H_DESKTOP = 0
-const HEADER_DAY_H_MOBILE = gs(50)
 const HEADER_DAY_H_DESKTOP = 40
 const NAME_W_MOBILE = 80   // telefono (05/09/2026): solo il nome della camera, senza numero né descrizione
 const NAME_W_DESKTOP = 96
@@ -114,14 +110,15 @@ export default function Arrivi() {
   const [larghezzaGriglia, setLarghezzaGriglia] = useState(0)
   const primoGiornoRef = useRef<number | null>(null)
   // Dal Mac le colonne riempiono il riquadro: 14 giorni (2 settimane) o 30 (mese)
-  const CELL_W = isDesktop
-    ? (larghezzaGriglia > 0 ? Math.max(LARGHEZZA_MIN_COLONNA, Math.floor((larghezzaGriglia - NAME_W_DESKTOP) / COLONNE_VISIBILI[modo])) : CELL_W_DESKTOP)
-    : CELL_W_MOBILE
-  const ROW_H = isDesktop ? ROW_H_DESKTOP : ROW_H_MOBILE
-  const HEADER_MONTH_H = isDesktop ? HEADER_MONTH_H_DESKTOP : HEADER_MONTH_H_MOBILE
-  const HEADER_DAY_H = isDesktop ? HEADER_DAY_H_DESKTOP : HEADER_DAY_H_MOBILE
-  const HEADER_H = HEADER_MONTH_H + HEADER_DAY_H
+  // Griglia del Mac OVUNQUE (05/09/2026): sul telefono colonna camere 80 px e
+  // colonne di almeno 60 px (40 a mese) che scorrono di lato dentro il riquadro.
   const NAME_W = isDesktop ? NAME_W_DESKTOP : NAME_W_MOBILE
+  const colonnaMin = isDesktop ? LARGHEZZA_MIN_COLONNA : (modo === 'quindici' ? 60 : 40)
+  const CELL_W = larghezzaGriglia > 0 ? Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])) : (isDesktop ? CELL_W_DESKTOP : 60)
+  const ROW_H = ROW_H_DESKTOP
+  const HEADER_MONTH_H = HEADER_MONTH_H_DESKTOP
+  const HEADER_DAY_H = HEADER_DAY_H_DESKTOP
+  const HEADER_H = HEADER_MONTH_H + HEADER_DAY_H
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -177,7 +174,7 @@ export default function Arrivi() {
         primoGiornoRef.current = null
       } else {
         // Dal Mac colonne intere (un giorno di contesto a sinistra); sul telefono com'era
-        scrollRef.current.scrollLeft = isDesktop ? (DAYS_BEFORE - 1) * CELL_W : DAYS_BEFORE * CELL_W - 80
+        scrollRef.current.scrollLeft = (DAYS_BEFORE - 1) * CELL_W
       }
       updateVisibleMonth()
     }
@@ -271,7 +268,7 @@ export default function Arrivi() {
   })
 
   return (
-    <div className={`flex flex-col ${orizzontale ? 'h-auto' : 'h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0'}`}>
+    <div className="flex flex-col">
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
       <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm">
         <BackLink href="/" />
@@ -290,8 +287,8 @@ export default function Arrivi() {
 
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
-      <div className={`flex flex-col ${isDesktop ? `flex-none ${orizzontale ? 'm-2' : 'mx-4 mb-6'} bg-white rounded-xl border border-card-border shadow-sm overflow-hidden` : 'flex-1 min-h-0'}`}>
-      {!loading && isDesktop && (
+      <div className={`flex flex-col flex-none ${orizzontale ? 'm-2' : 'mx-4 mb-6'} bg-white rounded-xl border border-card-border shadow-sm overflow-hidden`}>
+      {!loading && (
         <>
           {/* Riga di navigazione: la stessa del calendario delle Richieste */}
           <div className="shrink-0 flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: '#D6CFBD' }}>
@@ -299,14 +296,14 @@ export default function Arrivi() {
               className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
               <ChevronLeft size={20} strokeWidth={2} aria-hidden />
             </button>
-            <span className="font-serif text-[17px] text-green-dark">
+            <span className={`font-serif text-green-dark whitespace-nowrap ${isDesktop ? 'text-[17px]' : 'text-[14px]'}`}>
               {modo === 'quindici' ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)) : visibleMonth}
             </span>
             <div className="flex items-center gap-1">
               <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border bg-white p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
                 {([['mese', 'Mese'], ['quindici', '2 settimane']] as const).map(([v, label]) => (
                   <button key={v} type="button" onClick={() => cambiaModo(v)} aria-pressed={modo === v}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${modo === v ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
+                    className={`rounded-full whitespace-nowrap font-semibold transition-colors ${isDesktop ? 'px-3 py-1 text-xs' : 'px-2 py-1 text-[11px]'} ${modo === v ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
                     {label}
                   </button>
                 ))}
@@ -325,7 +322,7 @@ export default function Arrivi() {
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
-        <div ref={scrollRef} onScroll={updateVisibleMonth} className={`overflow-auto ${isDesktop ? 'flex-none no-scrollbar' : 'flex-1'}`} style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div ref={scrollRef} onScroll={updateVisibleMonth} className="overflow-auto flex-none no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div style={{ width: totalW, position: 'relative', height: totalH }}>
 
             {/* ── HEADER MESI: titolo sticky + nome del mese nuovo in ottone al 1° del mese ── */}
@@ -343,17 +340,6 @@ export default function Arrivi() {
                 </div>
               ))}
               <div style={{ width: NAME_W, minWidth: NAME_W, height: HEADER_H, position: 'sticky', left: 0, zIndex: 32, background: HEADER_BG, borderRight: '2px solid #D6CFBD', borderBottom: '2px solid #D6CFBD', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '0 8px' }}>
-                {!isDesktop && (
-                  <>
-                    {/* colonna stretta (80 px): mese abbreviato a 3 lettere */}
-                    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '2px', textIndent: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
-                      {visibleMonth.split(' ')[0].slice(0, 3)}
-                    </span>
-                    <span style={{ fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
-                      {visibleMonth.split(' ')[1]}
-                    </span>
-                  </>
-                )}
               </div>
             </div>
 
@@ -369,16 +355,16 @@ export default function Arrivi() {
                     background: isToday ? '#F3ECD8' : 'transparent',
                     borderLeft: '1px solid #ECE8DD',
                   }}>
-                    <div style={{ fontSize: isDesktop ? (modo === 'quindici' ? 10 : 8) : gs(8), fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2, lineHeight: 1 }}>
-                      {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop && modo === 'quindici' ? 3 : 2)}
+                    <div style={{ fontSize: modo === 'quindici' ? 10 : 8, fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2, lineHeight: 1 }}>
+                      {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, modo === 'quindici' ? 3 : 2)}
                     </div>
                     <div style={{
                       fontSize: 12, fontWeight: 700,
                       color: isToday ? 'white' : (isSun ? '#C58A67' : '#1F3D2F'),
                       background: isToday ? '#2D6A4F' : 'transparent',
                       borderRadius: '50%',
-                      width: isDesktop ? 20 : gs(20), height: isDesktop ? 20 : gs(20),
-                      lineHeight: isDesktop ? '20px' : `${gs(20)}px`,
+                      width: 20, height: 20,
+                      lineHeight: '20px',
                       margin: '0 auto',
                     }}>
                       {d.getDate()}
@@ -414,7 +400,7 @@ export default function Arrivi() {
                     {(() => {
                       const shortName = room.name.split(' ').slice(-1)[0]
                       return (
-                    <div title={isDesktop ? (ROOM_DESC_BY_NAME[shortName] || '') : undefined} style={{
+                    <div title={ROOM_DESC_BY_NAME[shortName] || ''} style={{
                       width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10,
                       background: 'white', borderRight: '2px solid #D6CFBD',
                       display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px',
@@ -425,7 +411,7 @@ export default function Arrivi() {
                         </span>
                       )}
                       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: 13, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 13 : 12, fontWeight: 600, color: '#1F3D2F', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {shortName}
                         </span>
                       </span>
@@ -442,7 +428,7 @@ export default function Arrivi() {
                           style={{
                             width: CELL_W, minWidth: CELL_W, height: '100%',
                             background: isToday ? '#F3ECD8' : isSun ? '#F7F3E8' : (isEven ? 'white' : '#F7F3E8'),
-                            borderLeft: isToday && !isDesktop ? '2px solid #F3ECD8' : '1px solid #ECE8DD',
+                            borderLeft: '1px solid #ECE8DD',
                           }} />
                       )
                     })}
@@ -489,14 +475,14 @@ export default function Arrivi() {
                           {/* Orario — o freccine ⇄ se è l'arrivo di un cambio camera */}
                           <span style={{
                             color: isCambio ? 'white' : (time ? '#1F3D2F' : 'white'),
-                            fontSize: isCambio ? 12 : (isDesktop ? 11 : gs(10)),
+                            fontSize: isCambio ? 12 : 11,
                             fontWeight: 800,
                             whiteSpace: 'nowrap',
                             flexShrink: 0,
                             lineHeight: 1,
                             textAlign: 'center',
                             // Riquadro «⇄» del cambio camera un 20% più corto di prima (richiesta di Ania, 04/09/2026: 44 → 40 → 36)
-                            minWidth: isCambio ? (isDesktop ? 36 : gs(30)) : undefined,
+                            minWidth: isCambio ? 36 : undefined,
                             background: isCambio ? 'rgba(255,255,255,0.30)' : (time ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.35)'),
                             borderRadius: 4,
                             padding: '1px 5px',
@@ -504,11 +490,11 @@ export default function Arrivi() {
                             {isCambio ? '⇄' : (time || '?')}
                           </span>
                           {/* Nome */}
-                          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : gs(10), fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                             {nomeOspite(booking)}{hasOutgoing ? ' ⇄' : ''}
                           </span>
                           {/* Sul Mac la navetta sta in linea: la barra resta su una riga */}
-                          {isDesktop && !isCambio && booking.shuttle === 'si' && (
+                          {!isCambio && booking.shuttle === 'si' && (
                             <span style={{ background: 'rgba(255,255,255,0.92)', borderRadius: 4, padding: '1px 5px', lineHeight: 1.25, fontSize: 10, whiteSpace: 'nowrap', flexShrink: 0 }}>🚌</span>
                           )}
                         </div>
@@ -516,17 +502,6 @@ export default function Arrivi() {
                             ogni 🚌 nella griglia significa una cosa sola. "No" e
                             "Da definire" non mostrano nulla qui (restano nel popup
                             e nei promemoria). */}
-                        {!isDesktop && !isCambio && booking.shuttle === 'si' && (
-                          <div style={{ display: 'flex', paddingLeft: 8, marginTop: 3 }}>
-                            <span style={{
-                              background: 'rgba(255,255,255,0.92)',
-                              borderRadius: 4, padding: '1px 5px', lineHeight: 1.25,
-                              fontSize: isDesktop ? gs(11) : gs(9), whiteSpace: 'nowrap',
-                            }}>
-                              🚌
-                            </span>
-                          </div>
-                        )}
                       </div>
                     )
                   })}
