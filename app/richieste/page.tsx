@@ -155,14 +155,13 @@ function Richieste() {
   const adesso = useAdesso()
   const [vista, setVista] = useVista()
   const desktop = useDesktop()
-  const modoCalendario: ModoCalendario = modoScelto ?? (desktop ? 'quindici' : 'mese')
+  // Default «2 settimane» ovunque (dal 05/09/2026 anche sul telefono, che ha la stessa griglia del Mac)
+  const modoCalendario: ModoCalendario = modoScelto ?? 'quindici'
   function cambiaModo(m: ModoCalendario) {
     setModoScelto(m)
     if (m === 'quindici') setInizio(inizioQuindicina(oggiIso()))
     try { window.localStorage.setItem(CHIAVE_MODO, m) } catch { /* niente memoria: vale per questa apertura */ }
   }
-  // Sul telefono si vede una sezione alla volta: calendario o lista.
-  const [sezione, setSezione] = useState<'calendario' | 'lista'>(() => (apriId ? 'lista' : 'calendario'))
   // Richiesta selezionata dalla lista (evidenziata nel calendario) e pannello «chi c'è dentro»
   const [selezionata, setSelezionata] = useState<string | null>(null)
   const [pannello, setPannello] = useState<{ gruppo: Richiesta[]; ancora: Ancora } | null>(null)
@@ -184,8 +183,9 @@ function Richieste() {
     setSelezionata(s => (s === id ? null : s))
     setDaRifiutare(null)
   }
-  const mostraCalendario = desktop || sezione === 'calendario'
-  const mostraLista = desktop || sezione === 'lista'
+  // Dal 05/09/2026 calendario e lista sono sempre entrambi visibili, anche sul telefono
+  const mostraCalendario = true
+  const mostraLista = true
 
   useEffect(() => {
     // Stesse letture del calendario principale (camere attive, prenotazioni
@@ -237,8 +237,8 @@ function Richieste() {
   )
   // Vista Reale: nessuna richiesta, in nessuna forma.
   const richiesteCalendario = useMemo(
-    () => (vista !== 'presunta' ? [] : desktop && modoCalendario === 'quindici' ? richiesteNelPeriodo(tutte, giorniDaInizio(inizio)) : richiesteAperte(tutte, mese)),
-    [tutte, mese, vista, desktop, modoCalendario, inizio],
+    () => (vista !== 'presunta' ? [] : modoCalendario === 'quindici' ? richiesteNelPeriodo(tutte, giorniDaInizio(inizio)) : richiesteAperte(tutte, mese)),
+    [tutte, mese, vista, modoCalendario, inizio],
   )
 
   // Sovrapposizioni di ogni richiesta aperta: con confermate (nome ospite) e altre aperte («Nome Cognome»)
@@ -282,40 +282,9 @@ function Richieste() {
           {nuovaRichiesta('py-2.5')}
         </div>
       ) : (
-        <>
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <h1 className="text-[22px] text-green-dark leading-tight" style={FRAUNCES}>Richieste di prenotazione</h1>
-            <InterruttoreVista vista={vista} onChange={setVista} />
-          </div>
-          {!loading && nuoveWeb > 0 && (
-            <p className="chip-in inline-flex items-center gap-1.5 mb-3 mr-2 rounded-full px-3 py-1.5 text-sm font-semibold bg-green-mid text-cream-text">
-              <Globe size={14} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
-            </p>
-          )}
-          {!loading && ferme.length > 0 && (
-            <button type="button" onClick={() => setSoloDaGuardare(v => !v)} aria-pressed={soloDaGuardare}
-              className={`chip-in inline-flex items-center gap-1.5 mb-3 rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors ${soloDaGuardare ? 'text-cream-text' : 'bg-white'}`}
-              style={soloDaGuardare ? { background: '#A9884E', borderColor: '#A9884E' } : { color: '#A9884E', borderColor: '#A9884E' }}>
-              {ferme.length} da guardare{soloDaGuardare ? ' · mostra tutte' : ''}
-            </button>
-          )}
-        </>
-      )}
-      {!desktop && (
-        <>
-          {nuovaRichiesta('w-full mb-3')}
-          <div className="flex gap-2 mb-4" role="tablist" aria-label="Sezione">
-            {([['calendario', 'Calendario'], ['lista', 'Lista']] as const).map(([k, label]) => (
-              <button key={k} type="button" role="tab" aria-selected={sezione === k} onClick={() => setSezione(k)}
-                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${sezione === k ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-card-border'}`}>
-                {label}
-                {k === 'lista' && !loading && aperte.length > 0 && (
-                  <span className={`text-xs font-bold ${sezione === k ? 'text-cream-text' : 'text-brass'}`}>{aperte.length}</span>
-                )}
-              </button>
-            ))}
-          </div>
-        </>
+        /* Telefono (05/09/2026, richiesta di Ania): stessa struttura del Mac — titolo,
+           calendario, poi Reale/Presunta e «+ Nuova richiesta», contatori e lista */
+        <h1 className="text-[22px] text-green-dark leading-tight mb-3" style={FRAUNCES}>Richieste di prenotazione</h1>
       )}
 
       {errori.length > 0 && (
@@ -343,18 +312,38 @@ function Richieste() {
           <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>
             {vista === 'presunta' ? 'Tratteggiato = richieste in attesa. Tocca una barra per vedere chi c’è dentro.' : 'Solo confermate: queste non si toccano.'}
           </p>
+          {!desktop && (
+            <>
+              <div className="flex items-center justify-between gap-3 mt-4">
+                <InterruttoreVista vista={vista} onChange={setVista} />
+                {nuovaRichiesta('py-2.5')}
+              </div>
+              {!loading && (nuoveWeb > 0 || ferme.length > 0) && (
+                <div className="flex flex-wrap items-center gap-2 mt-3">
+                  {nuoveWeb > 0 && (
+                    <p className="chip-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold bg-green-mid text-cream-text">
+                      <Globe size={14} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
+                    </p>
+                  )}
+                  {ferme.length > 0 && (
+                    <button type="button" onClick={() => setSoloDaGuardare(v => !v)} aria-pressed={soloDaGuardare}
+                      className={`chip-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors ${soloDaGuardare ? 'text-cream-text' : 'bg-white'}`}
+                      style={soloDaGuardare ? { background: '#A9884E', borderColor: '#A9884E' } : { color: '#A9884E', borderColor: '#A9884E' }}>
+                      {ferme.length} da guardare{soloDaGuardare ? ' · mostra tutte' : ''}
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </section>
 
         {/* Lista */}
         <section hidden={!mostraLista} className="mt-4 md:mt-7">
           <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar">
-            {desktop && (
-              <>
-                <span className="text-[11px] uppercase text-brass shrink-0" style={{ letterSpacing: '2px' }}>{soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}</span>
-                {!loading && <span className="text-[13px] text-stone shrink-0">{mostrate.length}</span>}
-                <span className="flex-1 h-px" style={{ background: 'var(--color-card-border)' }} />
-              </>
-            )}
+            <span className="text-[11px] uppercase text-brass shrink-0" style={{ letterSpacing: '2px' }}>{soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}</span>
+            {!loading && <span className="text-[13px] text-stone shrink-0">{mostrate.length}</span>}
+            <span className="flex-1 h-px" style={{ background: 'var(--color-card-border)' }} />
             <span className="text-xs text-stone shrink-0">Ordina per</span>
             {ORDINI.map(o => (
               <button key={o.chiave} type="button" onClick={() => setOrdine(o.chiave)} aria-pressed={ordine === o.chiave}

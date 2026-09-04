@@ -43,6 +43,13 @@ const OTTONE = '#A9884E'
 // Desktop: camere in righe, giorni in colonne
 const NAME_W = 96
 const COL_MIN_QUINDICI = 72   // a 2 settimane ogni giorno ha almeno 72 px: «Nome C.» intero anche su una notte; se non ci sta, scorre
+// Telefono (05/09/2026, richiesta di Ania): stessa griglia del Mac — camere in
+// righe, giorni in colonne — che scorre di lato dentro il riquadro. Colonna
+// camere più stretta e colonne minime più piccole; la variante «giorni in
+// righe» di prima resta nel file, non più usata.
+const NAME_W_TELEFONO = 92   // «02 Allegra» intero a 12 px
+const COL_MIN_QUINDICI_TELEFONO = 60
+const COL_MIN_MESE_TELEFONO = 40
 const ROW_H = 44
 const HEADER_H = 40
 // Mobile: giorni in righe, camere in colonne strette (deve stare in 390 px)
@@ -81,7 +88,9 @@ export function tooltipRichiesta(r: Richiesta, adesso: Date = new Date()): strin
 type Riga = { chiave: string; nome: string; numero: string; camera: CameraCalendario | null }
 
 export default function CalendarioRichieste(p: Props) {
-  const modo: ModoCalendario = p.layout === 'desktop' && p.modo === 'quindici' && p.inizio ? 'quindici' : 'mese'
+  const orizzontale = true   // false = torna la vecchia griglia verticale sul telefono
+  const modo: ModoCalendario = p.modo === 'quindici' && p.inizio ? 'quindici' : 'mese'
+  const nameW = p.layout === 'desktop' ? NAME_W : NAME_W_TELEFONO
   const giorni = useMemo(() => (modo === 'quindici' ? giorniDaInizio(p.inizio!, GIORNI_QUINDICINA) : giorniDelMese(p.mese)), [modo, p.inizio, p.mese])
   const camere = useMemo(() => ordinaCamere(p.camere.filter(c => c.active !== false)), [p.camere])
   const ctx = useMemo(() => contestoColori(p.prenotazioni, p.acconti), [p.prenotazioni, p.acconti])
@@ -113,10 +122,10 @@ export default function CalendarioRichieste(p: Props) {
     if (!el || modo !== 'quindici') return
     const i = giorni.indexOf(p.oggi)
     if (i < 0) { el.scrollLeft = 0; return }
-    const larghezzaGiorno = (el.scrollWidth - NAME_W) / N
-    const centro = NAME_W + larghezzaGiorno * (i + 0.5)
+    const larghezzaGiorno = (el.scrollWidth - nameW) / N
+    const centro = nameW + larghezzaGiorno * (i + 0.5)
     el.scrollLeft = Math.max(0, centro - el.clientWidth / 2)
-  }, [modo, giorni, p.oggi, N])
+  }, [modo, giorni, p.oggi, N, nameW])
   function apri(e: MouseEvent, gruppo: Richiesta[]) {
     e.stopPropagation()
     p.onApri?.(gruppo, { x: e.clientX, y: e.clientY })
@@ -124,11 +133,11 @@ export default function CalendarioRichieste(p: Props) {
 
   // Geometria di una barra da `start` a `end` (indici dei giorni) nella riga/colonna `ri`
   function geometria(start: number, end: number, ri: number, primo: boolean, ultimo: boolean): CSSProperties {
-    if (p.layout === 'desktop') {
+    if (orizzontale) {
       return {
         position: 'absolute', top: 6, height: ROW_H - 12,
-        left: `calc(${NAME_W}px + (100% - ${NAME_W}px) * ${start / N} + ${primo ? 2 : 0}px)`,
-        width: `calc((100% - ${NAME_W}px) * ${(end - start) / N} - ${(primo ? 2 : 0) + (ultimo ? 2 : 0)}px)`,
+        left: `calc(${nameW}px + (100% - ${nameW}px) * ${start / N} + ${primo ? 2 : 0}px)`,
+        width: `calc((100% - ${nameW}px) * ${(end - start) / N} - ${(primo ? 2 : 0) + (ultimo ? 2 : 0)}px)`,
       }
     }
     const cols = righe.length
@@ -223,13 +232,13 @@ export default function CalendarioRichieste(p: Props) {
         className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
         <ChevronLeft size={20} strokeWidth={2} aria-hidden />
       </button>
-      <span className="font-serif text-[17px] text-green-dark">{modo === 'quindici' ? etichettaPeriodo(giorni) : etichettaMese(p.mese)}</span>
+      <span className={`font-serif text-green-dark whitespace-nowrap ${p.layout === 'mobile' ? 'text-[14px]' : 'text-[17px]'}`}>{modo === 'quindici' ? etichettaPeriodo(giorni) : etichettaMese(p.mese)}</span>
       <div className="flex items-center gap-1">
-        {p.layout === 'desktop' && p.onModo && (
+        {p.onModo && (
           <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border bg-white p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
             {([['mese', 'Mese'], ['quindici', '2 settimane']] as const).map(([v, label]) => (
               <button key={v} type="button" onClick={() => p.onModo!(v)} aria-pressed={modo === v}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${modo === v ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
+                className={`rounded-full whitespace-nowrap font-semibold transition-colors ${p.layout === 'mobile' ? 'px-2 py-1 text-[11px]' : 'px-3 py-1 text-xs'} ${modo === v ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
                 {label}
               </button>
             ))}
@@ -243,15 +252,18 @@ export default function CalendarioRichieste(p: Props) {
     </div>
   )
 
-  // ── DESKTOP: camere in righe, giorni in colonne ───────────────────────────
-  if (p.layout === 'desktop') {
+  // ── Camere in righe, giorni in colonne (Mac e, dal 05/09/2026, anche telefono) ──
+  if (orizzontale) {
+    const mobile = p.layout === 'mobile'
+    const colMin = mobile ? (modo === 'quindici' ? COL_MIN_QUINDICI_TELEFONO : COL_MIN_MESE_TELEFONO) : (modo === 'quindici' ? COL_MIN_QUINDICI : 0)
     return (
       <div className="bg-white rounded-xl border border-card-border shadow-sm overflow-hidden">
         {navigazione}
-        <div ref={scorrevole} style={{ overflowX: modo === 'quindici' ? 'auto' : 'hidden' }}>
-        <div style={{ minWidth: modo === 'quindici' ? NAME_W + N * COL_MIN_QUINDICI : undefined }}>
-        <div style={{ display: 'grid', gridTemplateColumns: `${NAME_W}px repeat(${N}, minmax(0, 1fr))`, height: HEADER_H, borderBottom: `2px solid ${COLORE_SEPARATORE}` }}>
-          <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}` }} />
+        <div ref={scorrevole} className={mobile ? 'no-scrollbar' : undefined} style={{ overflowX: colMin > 0 ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ minWidth: colMin > 0 ? nameW + N * colMin : undefined }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `${nameW}px repeat(${N}, minmax(0, 1fr))`, height: HEADER_H, borderBottom: `2px solid ${COLORE_SEPARATORE}` }}>
+          {/* angolo e colonna dei nomi restano fermi a sinistra quando la griglia scorre di lato */}
+          <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}`, position: 'sticky', left: 0, zIndex: 12, background: 'white' }} />
           {giorni.map(g => {
             const oggi = g === p.oggi, dom = giornoSettimana(g) === 0
             return (
@@ -267,10 +279,10 @@ export default function CalendarioRichieste(p: Props) {
         </div>
         {righe.map((riga, ri) => (
           <div key={riga.chiave} style={{ position: 'relative', height: ROW_H, borderBottom: ri === righe.length - 1 ? `2px solid ${COLORE_SEPARATORE}` : `1px solid ${COLORE_GRIGLIA}`, borderTop: riga.chiave === RIGA_QUALSIASI ? `2px solid ${COLORE_SEPARATORE}` : undefined }}>
-            <div style={{ display: 'grid', gridTemplateColumns: `${NAME_W}px repeat(${N}, minmax(0, 1fr))`, height: '100%' }}>
-              <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}`, display: 'flex', alignItems: 'center', gap: 5, padding: '0 6px', minWidth: 0, background: 'white' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `${nameW}px repeat(${N}, minmax(0, 1fr))`, height: '100%' }}>
+              <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}`, display: 'flex', alignItems: 'center', gap: 5, padding: '0 6px', minWidth: 0, background: 'white', position: 'sticky', left: 0, zIndex: 10 }}>
                 {riga.numero && <span className="font-serif" style={{ fontSize: 10, color: OTTONE }}>{riga.numero}</span>}
-                <span className={riga.camera ? 'font-serif' : ''} style={{ fontSize: riga.camera ? 13 : 10, fontWeight: 600, color: riga.camera ? '#1F3D2F' : COLORE_RICHIESTA_TESTO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.15 }}>
+                <span className={riga.camera ? 'font-serif' : ''} style={{ fontSize: riga.camera ? (p.layout === 'mobile' ? 12 : 13) : 10, fontWeight: 600, color: riga.camera ? '#1F3D2F' : COLORE_RICHIESTA_TESTO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.15 }}>
                   {riga.nome}
                 </span>
               </div>
@@ -289,7 +301,7 @@ export default function CalendarioRichieste(p: Props) {
     )
   }
 
-  // ── MOBILE: giorni in righe (colonna a sinistra), camere in colonne ───────
+  // ── Variante di prima sul telefono: giorni in righe, camere in colonne (non più usata dal 05/09/2026) ──
   const cols = righe.length
   const colonne = `${DAY_W}px repeat(${cols}, minmax(0, 1fr))`
   return (
