@@ -247,10 +247,10 @@ export default function Arrivi() {
   return (
     <div className="flex flex-col h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0">
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
-      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 pb-2 bg-cream/95 backdrop-blur-sm">
+      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 lg:pt-4 pb-2 bg-cream/95 backdrop-blur-sm">
         <BackLink href="/" />
-        {/* Dal Mac il titolo della pagina, come «Richieste di prenotazione» */}
-        {isDesktop && <h1 className="text-[22px] text-green-dark leading-tight mt-3" style={FRAUNCES}>Arrivi</h1>}
+        {/* Dal Mac il titolo della pagina, con le stesse distanze delle Richieste (16 px sotto «Indietro», riga alta 44 px, 16 px prima del riquadro) */}
+        {isDesktop && <div className="flex items-center mt-4 mb-2 min-h-[44px]"><h1 className="text-[22px] text-green-dark leading-tight" style={FRAUNCES}>Arrivi</h1></div>}
       </div>
 
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario

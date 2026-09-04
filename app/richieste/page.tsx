@@ -264,7 +264,7 @@ function Richieste() {
       {/* Intestazione: su desktop (blocco 2c) titolo, Reale/Presunta, Nuova richiesta e
           contatori su UNA riga con spaziatura uniforme; sul telefono com'era */}
       {desktop ? (
-        <div className="flex items-center flex-wrap gap-4 mb-4">
+        <div className="flex items-center flex-wrap gap-4 mb-4 min-h-[44px]">
           <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Richieste di prenotazione</h1>
           {!loading && nuoveWeb > 0 && (
             <p className="chip-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold bg-green-mid text-cream-text">

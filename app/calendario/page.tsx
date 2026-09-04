@@ -464,13 +464,14 @@ export default function Calendario() {
   return (
     <div className="flex flex-col h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0">
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
-      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 pb-2 bg-cream/95 backdrop-blur-sm">
+      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 lg:pt-4 pb-2 bg-cream/95 backdrop-blur-sm">
         {/* Dal Mac come nelle Richieste: «← Indietro» sopra, poi il titolo della
             pagina a sinistra e la ricerca a destra; sul telefono tutto su una riga */}
         {isDesktop ? (
           <>
             <BackLink href="/" />
-            <div className="flex items-center gap-4 mt-3">
+            {/* Stesse distanze della pagina Richieste: 16 px sotto «Indietro», riga alta 44 px, 16 px prima del riquadro */}
+            <div className="flex items-center gap-4 mt-4 mb-2 min-h-[44px]">
               <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Calendario</h1>
               <div className="flex items-center gap-2 flex-1 min-w-0 lg:flex-none lg:w-[360px] bg-white border border-card-border rounded-full px-3 py-1.5">
                 <span aria-hidden className="text-[13px]">🔎</span>
