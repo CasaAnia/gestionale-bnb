@@ -193,9 +193,9 @@ function Richieste() {
     setSelezionata(s => (s === id ? null : s))
     setDaRifiutare(null)
   }
-  // Dal 05/09/2026 calendario e lista sono sempre entrambi visibili, anche sul telefono
+  // Dal 05/09/2026 calendario e lista sono sempre entrambi visibili, anche sul telefono (e girato: «porta tutto», Ania)
   const mostraCalendario = true
-  const mostraLista = !orizzontale
+  const mostraLista = true
 
   useEffect(() => {
     // Stesse letture del calendario principale (camere attive, prenotazioni
@@ -343,11 +343,9 @@ function Richieste() {
           <RigaMesi mesi={mesiCliccabili(new Date())} attivo={modoCalendario === 'quindici' ? inizio.slice(0, 7) : mese}
             onMese={m => (modoCalendario === 'quindici' ? setInizio(m.iso) : setMese(m.chiave))}
             onOggi={() => (modoCalendario === 'quindici' ? setInizio(inizioQuindicina(oggiIso())) : setMese(meseCorrente()))} className="mt-3" />
-          {!orizzontale && (
-            <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>
-              {vista === 'presunta' ? 'Tratteggiato = richieste in attesa. Tocca una barra per vedere chi c’è dentro.' : 'Solo confermate: queste non si toccano.'}
-            </p>
-          )}
+          <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>
+            {vista === 'presunta' ? 'Tratteggiato = richieste in attesa. Tocca una barra per vedere chi c’è dentro.' : 'Solo confermate: queste non si toccano.'}
+          </p>
           {/* Telefono, dritto e girato (05/09/2026): Reale/Presunta, «+ Nuova richiesta» e contatori sotto il calendario */}
           {(!desktop || orizzontale) && (
             <>
