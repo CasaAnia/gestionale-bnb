@@ -412,7 +412,7 @@ export default function Arrivi() {
               const isEven = ri % 2 === 0
               return (
                 <div key={room.id}>
-                  <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: ROW_H, display: 'flex', borderBottom: ri === rooms.length - 1 ? '2px solid #D6CFBD' : '1px solid #ECE8DD' }}>
+                  <div style={{ position: 'absolute', top: rowTop, left: 0, width: totalW, height: ROW_H, display: 'flex', borderBottom: ri === rooms.length - 1 && !isDesktop ? '2px solid #D6CFBD' : '1px solid #ECE8DD' }}>
                     {/* Nome camera */}
                     {(() => {
                       const shortName = room.name.split(' ').slice(-1)[0]
