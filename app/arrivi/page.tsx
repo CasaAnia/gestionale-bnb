@@ -7,6 +7,8 @@ import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite } from '@/lib/guestName'
 import { testoNavetta } from '@/lib/navetta'
 import BackLink from '@/components/BackLink'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 // Fattore di ingrandimento della griglia (1 = originale). Scala misure e testi.
@@ -18,14 +20,20 @@ const ROW_H_MOBILE = gs(64)
 // Dal Mac (04/09/2026): stessa griglia leggera del Calendario e delle Richieste
 // — righe 54, colonna camere 116 senza descrizione (tooltip), intestazione
 // compatta, barre su una riga. Sul telefono le misure di sempre.
-const ROW_H_DESKTOP = 54
+// Misure IDENTICHE al calendario delle Richieste e al Calendario: righe 44,
+// giorni 40, camere 96, testi 11–13; niente striscia dei mesi sopra i giorni.
+const ROW_H_DESKTOP = 44
 const HEADER_MONTH_H_MOBILE = gs(40)
-const HEADER_MONTH_H_DESKTOP = 26
+const HEADER_MONTH_H_DESKTOP = 0
 const HEADER_DAY_H_MOBILE = gs(50)
-const HEADER_DAY_H_DESKTOP = 48
+const HEADER_DAY_H_DESKTOP = 40
 const NAME_W_MOBILE = gs(110)
-const NAME_W_DESKTOP = 116
-const GIORNI_SALTO_FRECCE = 14
+const NAME_W_DESKTOP = 96
+// Selettore «Mese | 2 settimane» (stessa scelta ricordata del Calendario)
+type ModoGriglia = 'mese' | 'quindici'
+const COLONNE_VISIBILI: Record<ModoGriglia, number> = { mese: 30, quindici: GIORNI_QUINDICINA }
+const CHIAVE_MODO = 'ca_calendario_modo'
+const LARGHEZZA_MIN_COLONNA = 28
 const DAYS_TOTAL = 90
 const DAYS_BEFORE = 7
 const HEADER_BG = '#ffffff'
@@ -75,7 +83,20 @@ export default function Arrivi() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  const CELL_W = isDesktop ? CELL_W_DESKTOP : CELL_W_MOBILE
+  const [primoVisibile, setPrimoVisibile] = useState(DAYS_BEFORE)
+  const [modo, setModo] = useState<ModoGriglia>('quindici')
+  useEffect(() => {
+    let v: string | null = null
+    try { v = window.localStorage.getItem(CHIAVE_MODO) } catch { v = null }
+    const t = setTimeout(() => { if (v === 'mese' || v === 'quindici') setModo(v) }, 0)
+    return () => clearTimeout(t)
+  }, [])
+  const [larghezzaGriglia, setLarghezzaGriglia] = useState(0)
+  const primoGiornoRef = useRef<number | null>(null)
+  // Dal Mac le colonne riempiono il riquadro: 14 giorni (2 settimane) o 30 (mese)
+  const CELL_W = isDesktop
+    ? (larghezzaGriglia > 0 ? Math.max(LARGHEZZA_MIN_COLONNA, Math.floor((larghezzaGriglia - NAME_W_DESKTOP) / COLONNE_VISIBILI[modo])) : CELL_W_DESKTOP)
+    : CELL_W_MOBILE
   const ROW_H = isDesktop ? ROW_H_DESKTOP : ROW_H_MOBILE
   const HEADER_MONTH_H = isDesktop ? HEADER_MONTH_H_DESKTOP : HEADER_MONTH_H_MOBILE
   const HEADER_DAY_H = isDesktop ? HEADER_DAY_H_DESKTOP : HEADER_DAY_H_MOBILE
@@ -131,16 +152,50 @@ export default function Arrivi() {
 
   useEffect(() => {
     if (!loading && scrollRef.current) {
-      scrollRef.current.scrollLeft = DAYS_BEFORE * CELL_W - 80
+      if (primoGiornoRef.current !== null) {
+        scrollRef.current.scrollLeft = primoGiornoRef.current * CELL_W
+        primoGiornoRef.current = null
+      } else {
+        // Dal Mac colonne intere (un giorno di contesto a sinistra); sul telefono com'era
+        scrollRef.current.scrollLeft = isDesktop ? (DAYS_BEFORE - 1) * CELL_W : DAYS_BEFORE * CELL_W - 80
+      }
       updateVisibleMonth()
     }
   }, [loading, CELL_W])
+
+  useEffect(() => {
+    if (loading || !scrollRef.current) return
+    const el = scrollRef.current
+    const ro = new ResizeObserver(() => setLarghezzaGriglia(el.clientWidth))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [loading])
+
+  function cambiaModo(m: ModoGriglia) {
+    if (m === modo) return
+    primoGiornoRef.current = Math.max(0, Math.floor((scrollRef.current?.scrollLeft ?? 0) / CELL_W))
+    setModo(m)
+    try { window.localStorage.setItem(CHIAVE_MODO, m) } catch { /* niente memoria */ }
+  }
+  function vaiAIndice(idx: number) {
+    scrollRef.current?.scrollTo({ left: Math.max(0, Math.min(days.length - 1, idx)) * CELL_W, behavior: 'smooth' })
+  }
+  // Frecce ‹ ›: a 2 settimane spostano di 14 giorni, a mese vanno al 1° del mese prima/dopo (entro i 90 giorni)
+  function freccia(direzione: -1 | 1) {
+    if (modo === 'quindici') { scrollRef.current?.scrollBy({ left: direzione * GIORNI_QUINDICINA * CELL_W, behavior: 'smooth' }); return }
+    const d = days[Math.min(days.length - 1, Math.max(0, primoVisibile))]
+    const primo = new Date(d.getFullYear(), d.getMonth() + (direzione === 1 ? 1 : (d.getDate() === 1 ? -1 : 0)), 1)
+    vaiAIndice(Math.round((primo.getTime() - startDate.getTime()) / 86400000))
+  }
 
   function updateVisibleMonth() {
     const sl = scrollRef.current?.scrollLeft ?? 0
     const idx = Math.min(days.length - 1, Math.max(0, Math.floor(sl / CELL_W)))
     const label = fmtMonth(days[idx])
     setVisibleMonth(prev => (prev === label ? prev : label))
+    // Per l'etichetta «1 – 14 set» conta il primo giorno visibile per più di metà
+    const primo = Math.min(days.length - 1, Math.max(0, Math.round(sl / CELL_W)))
+    setPrimoVisibile(prev => (prev === primo ? prev : primo))
   }
 
   // Salva insieme orario e navetta: un solo pannello, un solo dato condiviso
@@ -197,18 +252,39 @@ export default function Arrivi() {
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
       <div className="flex flex-col flex-1 min-h-0 lg:flex-none lg:mx-4 lg:mb-3 lg:bg-white lg:rounded-xl lg:border lg:border-card-border lg:overflow-hidden">
       {!loading && isDesktop && (
-        <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-card-border">
-          <button type="button" onClick={() => scrollRef.current?.scrollBy({ left: -GIORNI_SALTO_FRECCE * CELL_W, behavior: 'smooth' })} aria-label="Due settimane prima"
-            className="w-9 h-9 flex items-center justify-center rounded-[10px] border border-card-border bg-white text-green-mid text-lg leading-none active:bg-sage">‹</button>
-          <span className="text-[11px] text-stone">2 settimane</span>
-          <button type="button" onClick={() => scrollRef.current?.scrollBy({ left: GIORNI_SALTO_FRECCE * CELL_W, behavior: 'smooth' })} aria-label="Due settimane dopo"
-            className="w-9 h-9 flex items-center justify-center rounded-[10px] border border-card-border bg-white text-green-mid text-lg leading-none active:bg-sage">›</button>
-          <span className="font-serif text-[22px] text-green-dark ml-2 whitespace-nowrap">{visibleMonth}</span>
-          <button type="button" onClick={() => scrollRef.current?.scrollTo({ left: Math.max(0, DAYS_BEFORE * CELL_W - Math.round(CELL_W * 1.5)), behavior: 'smooth' })}
-            className="ml-2 rounded-full border border-green-mid bg-white text-green-mid text-xs font-bold px-3 py-1.5 active:bg-sage">Oggi</button>
-          <span className="ml-auto text-xs text-stone">arrivi dei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</span>
-        </div>
+        <>
+          {/* Riga di navigazione: la stessa del calendario delle Richieste */}
+          <div className="shrink-0 flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: '#D6CFBD' }}>
+            <button type="button" onClick={() => freccia(-1)} aria-label={modo === 'quindici' ? 'Due settimane prima' : 'Mese precedente'}
+              className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
+              <ChevronLeft size={20} strokeWidth={2} aria-hidden />
+            </button>
+            <span className="font-serif text-[17px] text-green-dark">
+              {modo === 'quindici' ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)) : visibleMonth}
+            </span>
+            <div className="flex items-center gap-1">
+              <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border bg-white p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
+                {([['mese', 'Mese'], ['quindici', '2 settimane']] as const).map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => cambiaModo(v)} aria-pressed={modo === v}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${modo === v ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={() => freccia(1)} aria-label={modo === 'quindici' ? 'Due settimane dopo' : 'Mese successivo'}
+                className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
+                <ChevronRight size={20} strokeWidth={2} aria-hidden />
+              </button>
+            </div>
+          </div>
+          <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-card-border">
+            <button type="button" onClick={() => vaiAIndice(DAYS_BEFORE - 1)}
+              className="rounded-full border border-green-mid bg-white text-green-mid text-[11px] font-bold px-2.5 py-1 active:bg-sage">Oggi</button>
+            <span className="text-[11px] text-stone">arrivi dei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</span>
+          </div>
+        </>
       )}
+
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
@@ -217,7 +293,7 @@ export default function Arrivi() {
 
             {/* ── HEADER MESI: titolo sticky + nome del mese nuovo in ottone al 1° del mese ── */}
             <div style={{ position: 'sticky', top: 0, zIndex: 31, display: 'flex', height: HEADER_MONTH_H, background: HEADER_BG }}>
-              {monthGroups.map((mg, i) => i === 0 ? null : (
+              {HEADER_MONTH_H > 0 && monthGroups.map((mg, i) => i === 0 ? null : (
                 <div key={i} style={{
                   position: 'absolute',
                   left: NAME_W + mg.startIdx * CELL_W + 6,
@@ -255,16 +331,16 @@ export default function Arrivi() {
                     background: isToday ? '#F3ECD8' : 'transparent',
                     borderLeft: '1px solid #ECE8DD',
                   }}>
-                    <div style={{ fontSize: isDesktop ? 10 : gs(8), fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2 }}>
-                      {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop ? 3 : 2)}
+                    <div style={{ fontSize: isDesktop ? (modo === 'quindici' ? 10 : 8) : gs(8), fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2, lineHeight: 1 }}>
+                      {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop && modo === 'quindici' ? 3 : 2)}
                     </div>
                     <div style={{
-                      fontSize: isDesktop ? 13 : gs(12), fontWeight: 700,
+                      fontSize: 12, fontWeight: 700,
                       color: isToday ? 'white' : (isSun ? '#C58A67' : '#1F3D2F'),
                       background: isToday ? '#2D6A4F' : 'transparent',
                       borderRadius: '50%',
-                      width: isDesktop ? 24 : gs(20), height: isDesktop ? 24 : gs(20),
-                      lineHeight: isDesktop ? '24px' : `${gs(20)}px`,
+                      width: isDesktop ? 20 : gs(20), height: isDesktop ? 20 : gs(20),
+                      lineHeight: isDesktop ? '20px' : `${gs(20)}px`,
                       margin: '0 auto',
                     }}>
                       {d.getDate()}
@@ -305,11 +381,11 @@ export default function Arrivi() {
                       background: 'white', borderRight: '2px solid #D6CFBD',
                       display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px',
                     }}>
-                      <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 12 : gs(10), color: 'var(--color-brass)', flexShrink: 0 }}>
+                      <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 10 : gs(10), color: 'var(--color-brass)', flexShrink: 0 }}>
                         {ROOM_NUMBER_BY_NAME[shortName] || ''}
                       </span>
                       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 15 : gs(13), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 13 : gs(13), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {shortName}
                         </span>
                         {!isDesktop && (
@@ -331,7 +407,7 @@ export default function Arrivi() {
                           style={{
                             width: CELL_W, minWidth: CELL_W, height: '100%',
                             background: isToday ? '#F3ECD8' : isSun ? '#F7F3E8' : (isEven ? 'white' : '#F7F3E8'),
-                            borderLeft: isToday ? '2px solid #F3ECD8' : '1px solid #ECE8DD',
+                            borderLeft: isToday && !isDesktop ? '2px solid #F3ECD8' : '1px solid #ECE8DD',
                           }} />
                       )
                     })}
@@ -376,7 +452,7 @@ export default function Arrivi() {
                           {/* Orario — o freccine ⇄ se è l'arrivo di un cambio camera */}
                           <span style={{
                             color: isCambio ? 'white' : (time ? '#1F3D2F' : 'white'),
-                            fontSize: isCambio ? (isDesktop ? 15 : gs(13)) : (isDesktop ? 12 : gs(10)),
+                            fontSize: isCambio ? (isDesktop ? 13 : gs(13)) : (isDesktop ? 11 : gs(10)),
                             fontWeight: 800,
                             whiteSpace: 'nowrap',
                             flexShrink: 0,
@@ -390,7 +466,7 @@ export default function Arrivi() {
                             {isCambio ? '⇄' : (time || '?')}
                           </span>
                           {/* Nome */}
-                          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? 13 : gs(10), fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : gs(10), fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                             {nomeOspite(booking)}{hasOutgoing ? ' ⇄' : ''}
                           </span>
                           {/* Sul Mac la navetta sta in linea: la barra resta su una riga */}

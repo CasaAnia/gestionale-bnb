@@ -17,6 +17,8 @@ import {
   statoLettiAggiuntivi,
 } from '@/lib/calendarioLetti'
 import BackLink from '@/components/BackLink'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
@@ -32,15 +34,25 @@ const ROW_H_MOBILE = gs(64)
 // intestazione compatta. Sopra la griglia la barra «‹ 2 settimane › · Mese ·
 // Oggi · mesi cliccabili». Lo scorrimento continuo su tutto l'anno resta.
 // Sul telefono le misure sono quelle di sempre.
-const ROW_H_DESKTOP = 54
+// Misure IDENTICHE al calendario delle Richieste (components/richieste/CalendarioRichieste):
+// righe 44, intestazione dei giorni 40, colonna camere 96, testi 11–13 px.
+// Niente striscia dei mesi sopra i giorni: il periodo lo dice la riga di
+// navigazione («1 – 14 set 2026» oppure «Settembre 2026»), come nelle Richieste.
+const ROW_H_DESKTOP = 44
 const HEADER_MONTH_H_MOBILE = gs(40)
-const HEADER_MONTH_H_DESKTOP = 26
+const HEADER_MONTH_H_DESKTOP = 0
 const HEADER_DAY_H_MOBILE = gs(50)
-const HEADER_DAY_H_DESKTOP = 48
+const HEADER_DAY_H_DESKTOP = 40
 const NAME_W_MOBILE = gs(110)
-const NAME_W_DESKTOP = 116
-const GIORNI_SALTO_FRECCE = 14   // le frecce ‹ › spostano di due settimane
-const MESI_CLICCABILI = 12       // striscia dei mesi: da quello corrente in avanti
+const NAME_W_DESKTOP = 96
+const MESI_CLICCABILI = 12       // riga sottile dei mesi: da quello corrente in avanti
+// Selettore «Mese | 2 settimane» come nelle Richieste: qui cambia la larghezza
+// delle colonne (30 o 14 giorni nella larghezza del riquadro), lo scorrimento
+// continuo su tutto l'anno resta. La scelta è ricordata nel browser.
+type ModoGriglia = 'mese' | 'quindici'
+const COLONNE_VISIBILI: Record<ModoGriglia, number> = { mese: 30, quindici: GIORNI_QUINDICINA }
+const CHIAVE_MODO = 'ca_calendario_modo'
+const LARGHEZZA_MIN_COLONNA = 28
 const DAYS_TOTAL = 365
 const DAYS_BEFORE = 180
 // Colori delle barre per stato di pagamento (attenuati)
@@ -141,6 +153,20 @@ export default function Calendario() {
     return l.charAt(0).toUpperCase() + l.slice(1)
   }
   const [visibleMonth, setVisibleMonth] = useState(() => fmtMonth(new Date()))
+  // Indice del primo giorno in vista (per l'etichetta «1 – 14 set 2026» e le frecce a mesi)
+  const [primoVisibile, setPrimoVisibile] = useState(DAYS_BEFORE)
+  // Modo della griglia dal Mac (mese / 2 settimane), letto dal browser dopo il primo disegno
+  const [modo, setModo] = useState<ModoGriglia>('quindici')
+  useEffect(() => {
+    let v: string | null = null
+    try { v = window.localStorage.getItem(CHIAVE_MODO) } catch { v = null }
+    const t = setTimeout(() => { if (v === 'mese' || v === 'quindici') setModo(v) }, 0)
+    return () => clearTimeout(t)
+  }, [])
+  // Larghezza del riquadro (per calcolare le colonne): misurata sul contenitore che scorre
+  const [larghezzaGriglia, setLarghezzaGriglia] = useState(0)
+  // Primo giorno da tenere in vista quando cambiano le colonne (cambio di modo)
+  const primoGiornoRef = useRef<number | null>(null)
 
   useEffect(() => {
     const check = () => setIsDesktop(window.innerWidth >= 1024)
@@ -149,7 +175,10 @@ export default function Calendario() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  const CELL_W = isDesktop ? CELL_W_DESKTOP : CELL_W_MOBILE
+  // Dal Mac le colonne riempiono il riquadro: 14 giorni (2 settimane) o 30 (mese)
+  const CELL_W = isDesktop
+    ? (larghezzaGriglia > 0 ? Math.max(LARGHEZZA_MIN_COLONNA, Math.floor((larghezzaGriglia - NAME_W_DESKTOP) / COLONNE_VISIBILI[modo])) : CELL_W_DESKTOP)
+    : CELL_W_MOBILE
   const ROW_H = isDesktop ? ROW_H_DESKTOP : ROW_H_MOBILE
   const HEADER_MONTH_H = isDesktop ? HEADER_MONTH_H_DESKTOP : HEADER_MONTH_H_MOBILE
   const HEADER_DAY_H = isDesktop ? HEADER_DAY_H_DESKTOP : HEADER_DAY_H_MOBILE
@@ -217,9 +246,32 @@ export default function Calendario() {
 
   useEffect(() => {
     if (!loading && scrollRef.current) {
-      scrollRef.current.scrollLeft = DAYS_BEFORE * CELL_W - 80
+      if (primoGiornoRef.current !== null) {
+        scrollRef.current.scrollLeft = primoGiornoRef.current * CELL_W
+        primoGiornoRef.current = null
+      } else {
+        // Dal Mac colonne intere (un giorno di contesto a sinistra); sul telefono com'era
+        scrollRef.current.scrollLeft = isDesktop ? (DAYS_BEFORE - 1) * CELL_W : DAYS_BEFORE * CELL_W - 80
+      }
     }
   }, [loading, CELL_W])
+
+  // Misura il riquadro (e la rimisura quando la finestra cambia)
+  useEffect(() => {
+    if (loading || !scrollRef.current) return
+    const el = scrollRef.current
+    const misura = () => setLarghezzaGriglia(el.clientWidth)
+    const ro = new ResizeObserver(misura)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [loading])
+
+  function cambiaModo(m: ModoGriglia) {
+    if (m === modo) return
+    primoGiornoRef.current = Math.max(0, Math.floor((scrollRef.current?.scrollLeft ?? 0) / CELL_W))
+    setModo(m)
+    try { window.localStorage.setItem(CHIAVE_MODO, m) } catch { /* niente memoria: vale per questa apertura */ }
+  }
 
   // Risultati della ricerca: TUTTE le prenotazioni corrispondenti in archivio,
   // anche lontane mesi, in ordine di arrivo. Stessa logica della pagina
@@ -280,6 +332,17 @@ export default function Calendario() {
   function scorriDiGiorni(n: number) {
     scrollRef.current?.scrollBy({ left: n * CELL_W, behavior: 'smooth' })
   }
+  // Frecce ‹ ›: a 2 settimane spostano di 14 giorni, a mese vanno al 1° del mese prima/dopo
+  function freccia(direzione: -1 | 1) {
+    if (modo === 'quindici') { scorriDiGiorni(direzione * GIORNI_QUINDICINA); return }
+    const d = days[Math.min(days.length - 1, Math.max(0, primoVisibile))]
+    const primo = new Date(d.getFullYear(), d.getMonth() + (direzione === 1 ? 1 : (d.getDate() === 1 ? -1 : 0)), 1)
+    vaiAData(toStr(primo), 0)
+  }
+  // Etichetta al centro della riga di navigazione, come nelle Richieste
+  const etichettaVista = modo === 'quindici'
+    ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr))
+    : visibleMonth
   // I 12 mesi cliccabili: da quello corrente in avanti, con l'anno quando cambia
   // (12 voci: si ricalcolano a ogni disegno, costa nulla)
   const mesiCliccabili: { iso: string; label: string; anno: number; nuovoAnno: boolean }[] = []
@@ -326,6 +389,9 @@ export default function Calendario() {
     const idx = Math.min(days.length - 1, Math.max(0, Math.floor(sl / CELL_W)))
     const label = fmtMonth(days[idx])
     setVisibleMonth(prev => (prev === label ? prev : label))
+    // Per l'etichetta «1 – 14 set» conta il primo giorno visibile per più di metà
+    const primo = Math.min(days.length - 1, Math.max(0, Math.round(sl / CELL_W)))
+    setPrimoVisibile(prev => (prev === primo ? prev : primo))
   }
 
   function bookingsForRoom(roomId: string) {
@@ -567,29 +633,46 @@ export default function Calendario() {
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
       <div className="flex flex-col flex-1 min-h-0 lg:flex-none lg:mx-4 lg:mb-3 lg:bg-white lg:rounded-xl lg:border lg:border-card-border lg:overflow-hidden">
       {!loading && isDesktop && (
-        <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-card-border">
-          <button type="button" onClick={() => scorriDiGiorni(-GIORNI_SALTO_FRECCE)} aria-label="Due settimane prima"
-            className="w-9 h-9 flex items-center justify-center rounded-[10px] border border-card-border bg-white text-green-mid text-lg leading-none active:bg-sage">‹</button>
-          <span className="text-[11px] text-stone">2 settimane</span>
-          <button type="button" onClick={() => scorriDiGiorni(GIORNI_SALTO_FRECCE)} aria-label="Due settimane dopo"
-            className="w-9 h-9 flex items-center justify-center rounded-[10px] border border-card-border bg-white text-green-mid text-lg leading-none active:bg-sage">›</button>
-          <span className="font-serif text-[22px] text-green-dark ml-2 whitespace-nowrap">{visibleMonth}</span>
-          <button type="button" onClick={() => vaiAData(todayStr)}
-            className="ml-2 rounded-full border border-green-mid bg-white text-green-mid text-xs font-bold px-3 py-1.5 active:bg-sage">Oggi</button>
-          {/* Striscia dei mesi: un clic e il calendario scorre lì; il mese acceso segue lo scorrimento */}
-          <div className="ml-auto flex items-center gap-0.5 bg-white border border-card-border rounded-full p-1 overflow-x-auto no-scrollbar">
+        <>
+          {/* Riga di navigazione: la stessa del calendario delle Richieste */}
+          <div className="shrink-0 flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: '#D6CFBD' }}>
+            <button type="button" onClick={() => freccia(-1)} aria-label={modo === 'quindici' ? 'Due settimane prima' : 'Mese precedente'}
+              className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
+              <ChevronLeft size={20} strokeWidth={2} aria-hidden />
+            </button>
+            <span className="font-serif text-[17px] text-green-dark">{etichettaVista}</span>
+            <div className="flex items-center gap-1">
+              <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border bg-white p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
+                {([['mese', 'Mese'], ['quindici', '2 settimane']] as const).map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => cambiaModo(v)} aria-pressed={modo === v}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${modo === v ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={() => freccia(1)} aria-label={modo === 'quindici' ? 'Due settimane dopo' : 'Mese successivo'}
+                className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
+                <ChevronRight size={20} strokeWidth={2} aria-hidden />
+              </button>
+            </div>
+          </div>
+          {/* Riga sottile: «Oggi» e i 12 mesi cliccabili (un clic su «gen» e sei a gennaio) */}
+          <div className="shrink-0 flex items-center gap-1 px-3 py-1.5 border-b border-card-border overflow-x-auto no-scrollbar">
+            <button type="button" onClick={() => vaiAData(todayStr)}
+              className="rounded-full border border-green-mid bg-white text-green-mid text-[11px] font-bold px-2.5 py-1 active:bg-sage">Oggi</button>
+            <span className="w-px h-4 mx-1.5" style={{ background: '#D6CFBD' }} />
             {mesiCliccabili.map(m => {
               const attivo = visibleMonth === fmtMonth(strToDate(m.iso))
               return (
                 <span key={m.iso} className="inline-flex items-center">
-                  {m.nuovoAnno && <span className="font-serif text-[10px] text-brass px-1.5 pt-0.5 tracking-wider">{m.anno}</span>}
+                  {m.nuovoAnno && <span className="font-serif text-[10px] text-brass px-1.5 tracking-wider">{m.anno}</span>}
                   <button type="button" onClick={() => vaiAData(m.iso, 0)} aria-pressed={attivo}
-                    className={`rounded-full px-2.5 py-1.5 text-xs font-semibold transition-colors ${attivo ? 'bg-green-mid text-cream-text' : 'text-stone'}`}>{m.label}</button>
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors ${attivo ? 'bg-green-mid text-cream-text' : 'text-stone'}`}>{m.label}</button>
                 </span>
               )
             })}
           </div>
-        </div>
+        </>
       )}
 
       {loading ? (
@@ -600,7 +683,7 @@ export default function Calendario() {
 
             {/* ── HEADER MESI: titolo sticky + nome del mese nuovo in ottone al 1° del mese ── */}
             <div style={{ position: 'sticky', top: 0, zIndex: 31, display: 'flex', height: HEADER_MONTH_H, background: HEADER_BG }}>
-              {monthGroups.map((mg, i) => i === 0 ? null : (
+              {HEADER_MONTH_H > 0 && monthGroups.map((mg, i) => i === 0 ? null : (
                 <div key={i} style={{
                   position: 'absolute',
                   left: NAME_W + mg.startIdx * CELL_W + 6,
@@ -639,16 +722,16 @@ export default function Calendario() {
                     background: isToday ? '#F3ECD8' : 'transparent',
                     borderLeft: '1px solid #ECE8DD',
                   }}>
-                    <div style={{ fontSize: isDesktop ? 10 : gs(8), fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2 }}>
-                      {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop ? 3 : 2)}
+                    <div style={{ fontSize: isDesktop ? (modo === 'quindici' ? 10 : 8) : gs(8), fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2, lineHeight: 1 }}>
+                      {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop && modo === 'quindici' ? 3 : 2)}
                     </div>
                     <div style={{
-                      fontSize: isDesktop ? 13 : gs(12), fontWeight: 700,
+                      fontSize: 12, fontWeight: 700,
                       color: isToday ? 'white' : (isSun ? '#C58A67' : '#1F3D2F'),
                       background: isToday ? '#2D6A4F' : 'transparent',
                       borderRadius: '50%',
-                      width: isDesktop ? 24 : gs(20), height: isDesktop ? 24 : gs(20),
-                      lineHeight: isDesktop ? '24px' : `${gs(20)}px`,
+                      width: isDesktop ? 20 : gs(20), height: isDesktop ? 20 : gs(20),
+                      lineHeight: isDesktop ? '20px' : `${gs(20)}px`,
                       margin: '0 auto',
                     }}>
                       {d.getDate()}
@@ -689,11 +772,11 @@ export default function Calendario() {
                       background: 'white', borderRight: '2px solid #D6CFBD',
                       display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px',
                     }}>
-                      <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 12 : gs(10), color: 'var(--color-brass)', flexShrink: 0 }}>
+                      <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 10 : gs(10), color: 'var(--color-brass)', flexShrink: 0 }}>
                         {ROOM_NUMBER_BY_NAME[shortName] || ''}
                       </span>
                       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 15 : gs(13), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 13 : gs(13), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {shortName}
                         </span>
                         {/* Sul Mac la descrizione sta nel tooltip: la griglia resta leggera */}
@@ -717,7 +800,7 @@ export default function Calendario() {
                           style={{
                             width: CELL_W, minWidth: CELL_W, height: '100%',
                             background: isToday ? '#F3ECD8' : isSun ? '#F7F3E8' : (isEven ? 'white' : '#F7F3E8'),
-                            borderLeft: isToday ? '2px solid #F3ECD8' : '1px solid #ECE8DD',
+                            borderLeft: isToday && !isDesktop ? '2px solid #F3ECD8' : '1px solid #ECE8DD',
                             cursor: 'pointer',
                           }} />
                       )
@@ -822,11 +905,11 @@ export default function Calendario() {
                               {booking.source === 'sito_web' && !isWebPending && (
                                 <span style={{ position: 'absolute', top: 1.5, left: 1.5, width: isDesktop ? gs(13) : gs(11), height: isDesktop ? gs(13) : gs(11), borderRadius: '50%', background: '#1F3D2F', border: '1px solid rgba(255,255,255,0.9)', color: '#fff', fontSize: isDesktop ? gs(7) : gs(6), lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, pointerEvents: 'none' }}>🌐</span>
                               )}
-                              <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? 13 : gs(10), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                              <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : gs(10), fontWeight: 600, paddingLeft: isDesktop ? 6 : 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                                 {hasIncoming ? '⇄ ' : ''}{guestName}{hasOutgoing ? ' ⇄' : ''}
                                 {/* Sul Mac le icone stanno in coda al nome, piccole: la barra resta su una riga */}
                                 {isDesktop && (isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed) && (
-                                  <span style={{ fontSize: 10, marginLeft: 6, opacity: 0.95 }}>{isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏' : ''}</span>
+                                  <span style={{ fontSize: 9, marginLeft: 5, opacity: 0.95 }}>{isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏' : ''}</span>
                                 )}
                               </span>
                               {/* La scritta resta solo sulla richiesta da confermare

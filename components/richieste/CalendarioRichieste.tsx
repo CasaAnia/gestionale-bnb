@@ -40,12 +40,11 @@ type Props = {
 }
 
 const OTTONE = '#A9884E'
-// Desktop: camere in righe, giorni in colonne. Misure +20% (04/09/2026, richiesta
-// di Ania dal Mac): righe 54, intestazione 48, testi 13–15 px. Telefono invariato.
-const NAME_W = 116
-const COL_MIN_QUINDICI = 80   // a 2 settimane ogni giorno ha almeno 80 px: «Nome C.» intero anche su una notte; se non ci sta, scorre
-const ROW_H = 54
-const HEADER_H = 48
+// Desktop: camere in righe, giorni in colonne
+const NAME_W = 96
+const COL_MIN_QUINDICI = 72   // a 2 settimane ogni giorno ha almeno 72 px: «Nome C.» intero anche su una notte; se non ci sta, scorre
+const ROW_H = 44
+const HEADER_H = 40
 // Mobile: giorni in righe, camere in colonne strette (deve stare in 390 px)
 const DAY_W = 44
 const DAY_H = 26
@@ -127,7 +126,7 @@ export default function CalendarioRichieste(p: Props) {
   function geometria(start: number, end: number, ri: number, primo: boolean, ultimo: boolean): CSSProperties {
     if (p.layout === 'desktop') {
       return {
-        position: 'absolute', top: 7, height: ROW_H - 14,
+        position: 'absolute', top: 6, height: ROW_H - 12,
         left: `calc(${NAME_W}px + (100% - ${NAME_W}px) * ${start / N} + ${primo ? 2 : 0}px)`,
         width: `calc((100% - ${NAME_W}px) * ${(end - start) / N} - ${(primo ? 2 : 0) + (ultimo ? 2 : 0)}px)`,
       }
@@ -165,7 +164,7 @@ export default function CalendarioRichieste(p: Props) {
               opacity: p.evidenziata != null ? 0.3 : 1, transition: 'opacity 0.15s',
             }}>
             {primo && (
-              <span style={{ color: 'white', fontSize: p.layout === 'desktop' ? (modo === 'quindici' ? 14 : 13) : 10, fontWeight: 600, padding: p.layout === 'desktop' ? '0 8px' : '3px 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+              <span style={{ color: 'white', fontSize: p.layout === 'desktop' ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, padding: p.layout === 'desktop' ? '0 6px' : '3px 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
                 {entra ? '⇄ ' : ''}{nomeOspite(b)}{esce ? ' ⇄' : ''}
               </span>
             )}
@@ -201,8 +200,8 @@ export default function CalendarioRichieste(p: Props) {
           style={{
             ...geometria(idx.start, idx.end, ri, true, true),
             background: 'transparent', border: `1.5px dashed ${OTTONE}`, borderRadius: 6,
-            color: COLORE_RICHIESTA_TESTO, fontSize: mobile ? 10 : 13, fontWeight: 600, textAlign: 'left',
-            padding: mobile ? '2px 3px' : modo === 'quindici' ? '0 6px' : '0 7px', display: 'flex', gap: 5,
+            color: COLORE_RICHIESTA_TESTO, fontSize: mobile ? 10 : 11, fontWeight: 600, textAlign: 'left',
+            padding: mobile ? '2px 3px' : modo === 'quindici' ? '0 4px' : '0 6px', display: 'flex', gap: 4,
             flexDirection: mobile ? 'column' : 'row', alignItems: mobile ? 'flex-start' : 'center',
             whiteSpace: 'nowrap', overflow: 'hidden', cursor: 'pointer', zIndex: selezionata ? 8 : 7,
             opacity: p.evidenziata != null && !selezionata ? 0.3 : 1,
@@ -257,9 +256,9 @@ export default function CalendarioRichieste(p: Props) {
             const oggi = g === p.oggi, dom = giornoSettimana(g) === 0
             return (
               <div key={g} style={{ background: oggi ? COLORE_OGGI : 'transparent', borderLeft: `1px solid ${COLORE_GRIGLIA}`, textAlign: 'center', paddingTop: 4, minWidth: 0 }}>
-                <div style={{ fontSize: modo === 'quindici' ? 12 : 10, fontWeight: 600, color: dom ? '#C58A67' : '#5c6b60', lineHeight: 1 }}>{modo === 'quindici' ? GIORNI_BREVI[giornoSettimana(g)] : GIORNI_BREVI[giornoSettimana(g)].slice(0, 2)}</div>
+                <div style={{ fontSize: modo === 'quindici' ? 10 : 8, fontWeight: 600, color: dom ? '#C58A67' : '#5c6b60', lineHeight: 1 }}>{modo === 'quindici' ? GIORNI_BREVI[giornoSettimana(g)] : GIORNI_BREVI[giornoSettimana(g)].slice(0, 2)}</div>
                 <div style={{
-                  fontSize: 13, fontWeight: 700, margin: '3px auto 0', width: 24, height: 24, lineHeight: '24px', borderRadius: '50%',
+                  fontSize: 12, fontWeight: 700, margin: '2px auto 0', width: 20, height: 20, lineHeight: '20px', borderRadius: '50%',
                   color: oggi ? 'white' : dom ? '#C58A67' : '#1F3D2F', background: oggi ? '#2D6A4F' : 'transparent',
                 }}>{Number(g.slice(8))}</div>
               </div>
@@ -269,9 +268,9 @@ export default function CalendarioRichieste(p: Props) {
         {righe.map((riga, ri) => (
           <div key={riga.chiave} style={{ position: 'relative', height: ROW_H, borderBottom: `1px solid ${COLORE_GRIGLIA}`, borderTop: riga.chiave === RIGA_QUALSIASI ? `2px solid ${COLORE_SEPARATORE}` : undefined }}>
             <div style={{ display: 'grid', gridTemplateColumns: `${NAME_W}px repeat(${N}, minmax(0, 1fr))`, height: '100%' }}>
-              <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}`, display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px', minWidth: 0, background: 'white' }}>
-                {riga.numero && <span className="font-serif" style={{ fontSize: 12, color: OTTONE }}>{riga.numero}</span>}
-                <span className={riga.camera ? 'font-serif' : ''} style={{ fontSize: riga.camera ? 15 : 12, fontWeight: 600, color: riga.camera ? '#1F3D2F' : COLORE_RICHIESTA_TESTO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.15 }}>
+              <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}`, display: 'flex', alignItems: 'center', gap: 5, padding: '0 6px', minWidth: 0, background: 'white' }}>
+                {riga.numero && <span className="font-serif" style={{ fontSize: 10, color: OTTONE }}>{riga.numero}</span>}
+                <span className={riga.camera ? 'font-serif' : ''} style={{ fontSize: riga.camera ? 13 : 10, fontWeight: 600, color: riga.camera ? '#1F3D2F' : COLORE_RICHIESTA_TESTO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.15 }}>
                   {riga.nome}
                 </span>
               </div>
