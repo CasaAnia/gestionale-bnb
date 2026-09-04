@@ -26,11 +26,21 @@ function gs(n: number) { return Math.round(n * GRID_SCALE) }
 const CELL_W_MOBILE = gs(56)
 const CELL_W_DESKTOP = gs(84)
 const ROW_H_MOBILE = gs(64)
-const ROW_H_DESKTOP = gs(84)
-const HEADER_MONTH_H = gs(40)
-const HEADER_DAY_H = gs(50)
+// Dal Mac (blocco 5, 04/09/2026, mockup approvato da Ania): griglia LEGGERA
+// come il calendario delle Richieste — righe 54 px, colonna camere 116 px senza
+// descrizione (resta nel tooltip), barre col solo nome e icone piccole in linea,
+// intestazione compatta. Sopra la griglia la barra «‹ 2 settimane › · Mese ·
+// Oggi · mesi cliccabili». Lo scorrimento continuo su tutto l'anno resta.
+// Sul telefono le misure sono quelle di sempre.
+const ROW_H_DESKTOP = 54
+const HEADER_MONTH_H_MOBILE = gs(40)
+const HEADER_MONTH_H_DESKTOP = 26
+const HEADER_DAY_H_MOBILE = gs(50)
+const HEADER_DAY_H_DESKTOP = 48
 const NAME_W_MOBILE = gs(110)
-const NAME_W_DESKTOP = gs(180)
+const NAME_W_DESKTOP = 116
+const GIORNI_SALTO_FRECCE = 14   // le frecce ‹ › spostano di due settimane
+const MESI_CLICCABILI = 12       // striscia dei mesi: da quello corrente in avanti
 const DAYS_TOTAL = 365
 const DAYS_BEFORE = 180
 // Colori delle barre per stato di pagamento (attenuati)
@@ -120,6 +130,10 @@ export default function Calendario() {
   // Data da raggiungere dopo il prossimo render (così lo scroll usa gli
   // indici dell'intervallo già esteso, mai tentativi)
   const [scrollTarget, setScrollTarget] = useState<string | null>(null)
+  // Quante colonne lasciare a sinistra della data raggiunta: 1,5 (un po' di
+  // contesto) per ricerca e «Oggi», 0 per i mesi cliccabili, così il 1° del
+  // mese è la prima colonna e l'etichetta sopra dice proprio quel mese.
+  const margineScroll = useRef(1.5)
 
   // Titolo sticky mese+anno: segue il mese più a sinistra attualmente in vista
   function fmtMonth(d: Date) {
@@ -137,6 +151,8 @@ export default function Calendario() {
 
   const CELL_W = isDesktop ? CELL_W_DESKTOP : CELL_W_MOBILE
   const ROW_H = isDesktop ? ROW_H_DESKTOP : ROW_H_MOBILE
+  const HEADER_MONTH_H = isDesktop ? HEADER_MONTH_H_DESKTOP : HEADER_MONTH_H_MOBILE
+  const HEADER_DAY_H = isDesktop ? HEADER_DAY_H_DESKTOP : HEADER_DAY_H_MOBILE
   const HEADER_H = HEADER_MONTH_H + HEADER_DAY_H
   const NAME_W = isDesktop ? NAME_W_DESKTOP : NAME_W_MOBILE
   const EXTRA_ROW_H = isDesktop ? gs(28) : gs(22)
@@ -247,6 +263,31 @@ export default function Calendario() {
     }
     setScrollTarget(m.check_in)
   }
+  // Salto a una data (striscia dei mesi, «Oggi»): come vaiA, ma senza ricerca.
+  // Se la data sta fuori dall'intervallo disegnato lo estende, poi scorre.
+  function vaiAData(iso: string, margine = 1.5) {
+    margineScroll.current = margine
+    const idx = dayIndex(iso)
+    if (idx < 0) {
+      const extra = -idx + 10
+      setDaysBefore(v => v + extra)
+      setDaysTotal(v => v + extra)
+    } else if (idx + 35 > daysTotal) {
+      setDaysTotal(idx + 45)
+    }
+    setScrollTarget(iso)
+  }
+  function scorriDiGiorni(n: number) {
+    scrollRef.current?.scrollBy({ left: n * CELL_W, behavior: 'smooth' })
+  }
+  // I 12 mesi cliccabili: da quello corrente in avanti, con l'anno quando cambia
+  // (12 voci: si ricalcolano a ogni disegno, costa nulla)
+  const mesiCliccabili: { iso: string; label: string; anno: number; nuovoAnno: boolean }[] = []
+  for (let i = 0; i < MESI_CLICCABILI; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth() + i, 1)
+    mesiCliccabili.push({ iso: toStr(d), label: MESI_BREVI[d.getMonth()], anno: d.getFullYear(), nuovoAnno: i > 0 && d.getMonth() === 0 })
+  }
+
   const vaiARef = useRef(vaiA)
   useEffect(() => {
     vaiARef.current = vaiA
@@ -260,7 +301,8 @@ export default function Calendario() {
   // Lo scroll parte solo a intervallo già ridisegnato: posizione esatta, mai tentativi
   useEffect(() => {
     if (!scrollTarget || !scrollRef.current) return
-    scrollRef.current.scrollTo({ left: Math.max(0, dayIndex(scrollTarget) * CELL_W - Math.round(CELL_W * 1.5)), behavior: 'smooth' })
+    scrollRef.current.scrollTo({ left: Math.max(0, dayIndex(scrollTarget) * CELL_W - Math.round(CELL_W * margineScroll.current)), behavior: 'smooth' })
+    margineScroll.current = 1.5
     setScrollTarget(null)
   }, [scrollTarget, daysBefore, daysTotal, CELL_W]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -521,6 +563,32 @@ export default function Calendario() {
         )}
       </div>
 
+      {!loading && isDesktop && (
+        <div className="shrink-0 flex items-center gap-2 px-4 pb-2.5">
+          <button type="button" onClick={() => scorriDiGiorni(-GIORNI_SALTO_FRECCE)} aria-label="Due settimane prima"
+            className="w-9 h-9 flex items-center justify-center rounded-[10px] border border-card-border bg-white text-green-mid text-lg leading-none active:bg-sage">‹</button>
+          <span className="text-[11px] text-stone">2 settimane</span>
+          <button type="button" onClick={() => scorriDiGiorni(GIORNI_SALTO_FRECCE)} aria-label="Due settimane dopo"
+            className="w-9 h-9 flex items-center justify-center rounded-[10px] border border-card-border bg-white text-green-mid text-lg leading-none active:bg-sage">›</button>
+          <span className="font-serif text-[22px] text-green-dark ml-2 whitespace-nowrap">{visibleMonth}</span>
+          <button type="button" onClick={() => vaiAData(todayStr)}
+            className="ml-2 rounded-full border border-green-mid bg-white text-green-mid text-xs font-bold px-3 py-1.5 active:bg-sage">Oggi</button>
+          {/* Striscia dei mesi: un clic e il calendario scorre lì; il mese acceso segue lo scorrimento */}
+          <div className="ml-auto flex items-center gap-0.5 bg-white border border-card-border rounded-full p-1 overflow-x-auto no-scrollbar">
+            {mesiCliccabili.map(m => {
+              const attivo = visibleMonth === fmtMonth(strToDate(m.iso))
+              return (
+                <span key={m.iso} className="inline-flex items-center">
+                  {m.nuovoAnno && <span className="font-serif text-[10px] text-brass px-1.5 pt-0.5 tracking-wider">{m.anno}</span>}
+                  <button type="button" onClick={() => vaiAData(m.iso, 0)} aria-pressed={attivo}
+                    className={`rounded-full px-2.5 py-1.5 text-xs font-semibold transition-colors ${attivo ? 'bg-green-mid text-cream-text' : 'text-stone'}`}>{m.label}</button>
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
@@ -542,12 +610,16 @@ export default function Calendario() {
                 </div>
               ))}
               <div style={{ width: NAME_W, minWidth: NAME_W, height: HEADER_H, position: 'sticky', left: 0, zIndex: 32, background: HEADER_BG, borderRight: '2px solid #D6CFBD', borderBottom: '2px solid #D6CFBD', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '0 8px' }}>
-                <span style={{ fontSize: isDesktop ? gs(12) : gs(11), fontWeight: 600, letterSpacing: '2px', textIndent: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
-                  {visibleMonth.split(' ')[0]}
-                </span>
-                <span style={{ fontFamily: 'Georgia, serif', fontSize: isDesktop ? gs(24) : gs(22), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
-                  {visibleMonth.split(' ')[1]}
-                </span>
+                {!isDesktop && (
+                  <>
+                    <span style={{ fontSize: gs(11), fontWeight: 600, letterSpacing: '2px', textIndent: '2px', color: '#A9884E', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                      {visibleMonth.split(' ')[0]}
+                    </span>
+                    <span style={{ fontFamily: 'Georgia, serif', fontSize: gs(22), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
+                      {visibleMonth.split(' ')[1]}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -564,16 +636,16 @@ export default function Calendario() {
                     background: isToday ? '#F3ECD8' : 'transparent',
                     borderLeft: '1px solid #ECE8DD',
                   }}>
-                    <div style={{ fontSize: isDesktop ? gs(10) : gs(8), fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2 }}>
+                    <div style={{ fontSize: isDesktop ? 10 : gs(8), fontWeight: 600, color: isSun ? '#C58A67' : '#5c6b60', marginBottom: 2 }}>
                       {d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, isDesktop ? 3 : 2)}
                     </div>
                     <div style={{
-                      fontSize: isDesktop ? gs(15) : gs(12), fontWeight: 700,
+                      fontSize: isDesktop ? 13 : gs(12), fontWeight: 700,
                       color: isToday ? 'white' : (isSun ? '#C58A67' : '#1F3D2F'),
                       background: isToday ? '#2D6A4F' : 'transparent',
                       borderRadius: '50%',
-                      width: isDesktop ? gs(26) : gs(20), height: isDesktop ? gs(26) : gs(20),
-                      lineHeight: isDesktop ? `${gs(26)}px` : `${gs(20)}px`,
+                      width: isDesktop ? 24 : gs(20), height: isDesktop ? 24 : gs(20),
+                      lineHeight: isDesktop ? '24px' : `${gs(20)}px`,
                       margin: '0 auto',
                     }}>
                       {d.getDate()}
@@ -609,21 +681,24 @@ export default function Calendario() {
                     {(() => {
                       const shortName = room.name.split(' ').slice(-1)[0]
                       return (
-                    <div style={{
+                    <div title={isDesktop ? (ROOM_DESC_BY_NAME[shortName] || '') : undefined} style={{
                       width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10,
                       background: 'white', borderRight: '2px solid #D6CFBD',
                       display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px',
                     }}>
-                      <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? gs(12) : gs(10), color: 'var(--color-brass)', flexShrink: 0 }}>
+                      <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 12 : gs(10), color: 'var(--color-brass)', flexShrink: 0 }}>
                         {ROOM_NUMBER_BY_NAME[shortName] || ''}
                       </span>
                       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? gs(16) : gs(13), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: isDesktop ? 15 : gs(13), fontWeight: 600, color: '#1F3D2F', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {shortName}
                         </span>
-                        <span style={{ fontSize: isDesktop ? gs(10) : gs(8), color: 'var(--color-stone)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {isDesktop ? (ROOM_DESC_BY_NAME[shortName] || '') : (ROOM_DESC_BY_NAME[shortName] || '').split(' · ')[0]}
-                        </span>
+                        {/* Sul Mac la descrizione sta nel tooltip: la griglia resta leggera */}
+                        {!isDesktop && (
+                          <span style={{ fontSize: gs(8), color: 'var(--color-stone)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {(ROOM_DESC_BY_NAME[shortName] || '').split(' · ')[0]}
+                          </span>
+                        )}
                       </span>
                     </div>
                       )
@@ -744,8 +819,12 @@ export default function Calendario() {
                               {booking.source === 'sito_web' && !isWebPending && (
                                 <span style={{ position: 'absolute', top: 1.5, left: 1.5, width: isDesktop ? gs(13) : gs(11), height: isDesktop ? gs(13) : gs(11), borderRadius: '50%', background: '#1F3D2F', border: '1px solid rgba(255,255,255,0.9)', color: '#fff', fontSize: isDesktop ? gs(7) : gs(6), lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, pointerEvents: 'none' }}>🌐</span>
                               )}
-                              <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? gs(13) : gs(10), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                              <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? 13 : gs(10), fontWeight: 600, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                                 {hasIncoming ? '⇄ ' : ''}{guestName}{hasOutgoing ? ' ⇄' : ''}
+                                {/* Sul Mac le icone stanno in coda al nome, piccole: la barra resta su una riga */}
+                                {isDesktop && (isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed) && (
+                                  <span style={{ fontSize: 10, marginLeft: 6, opacity: 0.95 }}>{isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏' : ''}</span>
+                                )}
                               </span>
                               {/* La scritta resta solo sulla richiesta da confermare
                                   (barra bianca): sulle confermate parla il pallino */}
@@ -754,8 +833,8 @@ export default function Calendario() {
                                   🌐 dal sito
                                 </span>
                               )}
-                              {(isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed) && (
-                                <span style={{ fontSize: isDesktop ? gs(12) : gs(9), paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
+                              {!isDesktop && (isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed) && (
+                                <span style={{ fontSize: gs(9), paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
                                   {isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏 ' : ''}
                                 </span>
                               )}
