@@ -255,7 +255,7 @@ export default function Arrivi() {
 
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
-      <div className="flex flex-col flex-1 min-h-0 lg:flex-none lg:mx-4 lg:mb-3 lg:bg-white lg:rounded-xl lg:border lg:border-card-border lg:overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 lg:flex-none lg:mx-4 lg:mb-6 lg:bg-white lg:rounded-xl lg:border lg:border-card-border lg:overflow-hidden">
       {!loading && isDesktop && (
         <>
           {/* Riga di navigazione: la stessa del calendario delle Richieste */}
@@ -611,15 +611,15 @@ export default function Arrivi() {
       })()}
       </div>
       {!loading && isDesktop && (
-        <div className="shrink-0 flex items-center gap-2 px-4 pb-2">
+        <div className="shrink-0 flex items-center gap-3 px-4 pb-5">
           <button type="button" onClick={() => vaiAIndice(DAYS_BEFORE - 1)}
-            className="rounded-full border border-green-mid bg-white text-green-mid text-[11px] font-bold px-2.5 py-1 active:bg-sage">Oggi</button>
-          <span className="text-[11px] text-stone">arrivi dei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</span>
+            className="rounded-full border border-green-mid bg-white text-green-mid text-[13px] font-bold px-3.5 py-1.5 active:bg-sage">Oggi</button>
+          <span className="text-[13px] text-stone">arrivi dei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</span>
         </div>
       )}
 
       {/* Legenda */}
-      <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border lg:bg-transparent lg:border-0 lg:pt-0 flex gap-4 items-center">
+      <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border lg:bg-transparent lg:border-0 lg:pt-0 lg:pb-4 flex gap-4 items-center">
         <div className="flex items-center gap-1.5">
           <div style={{ width: 14, height: 14, borderRadius: 3, background: '#7D9DB0' }} />
           <span className="text-xs text-gray-500">Orario arrivo</span>

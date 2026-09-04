@@ -473,7 +473,7 @@ export default function Calendario() {
             {/* Stesse distanze della pagina Richieste: 16 px sotto «Indietro», riga alta 44 px, 16 px prima del riquadro */}
             <div className="flex items-center gap-4 mt-4 mb-2 min-h-[44px]">
               <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Calendario</h1>
-              <div className="flex items-center gap-2 flex-1 min-w-0 lg:flex-none lg:w-[360px] bg-white border border-card-border rounded-full px-3 py-1.5">
+              <div className="flex items-center gap-2 flex-1 min-w-0 lg:flex-none lg:w-[360px] bg-white border rounded-full px-3 py-1.5" style={{ borderColor: '#C9BFA8' }}>
                 <span aria-hidden className="text-[13px]">🔎</span>
                 <input
                   type="search"
@@ -481,7 +481,7 @@ export default function Calendario() {
                   value={query}
                   onChange={e => cambiaRicerca(e.target.value)}
                   placeholder="Cerca nome o telefono…"
-                  className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-green-dark placeholder:text-gray-400 [&::-webkit-search-cancel-button]:hidden"
+                  className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-green-dark placeholder:text-stone [&::-webkit-search-cancel-button]:hidden"
                 />
                 {query !== '' && (
                   <button
@@ -497,7 +497,7 @@ export default function Calendario() {
         ) : (
           <div className="flex items-center gap-2">
             <BackLink href="/" />
-            <div className="flex items-center gap-2 flex-1 min-w-0 lg:flex-none lg:w-[360px] bg-white border border-card-border rounded-full px-3 py-1.5">
+            <div className="flex items-center gap-2 flex-1 min-w-0 lg:flex-none lg:w-[360px] bg-white border rounded-full px-3 py-1.5" style={{ borderColor: '#C9BFA8' }}>
               <span aria-hidden className="text-[13px]">🔎</span>
               <input
                 type="search"
@@ -505,7 +505,7 @@ export default function Calendario() {
                 value={query}
                 onChange={e => cambiaRicerca(e.target.value)}
                 placeholder="Cerca nome o telefono…"
-                className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-green-dark placeholder:text-gray-400 [&::-webkit-search-cancel-button]:hidden"
+                className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-green-dark placeholder:text-stone [&::-webkit-search-cancel-button]:hidden"
               />
               {query !== '' && (
                 <button
@@ -662,7 +662,7 @@ export default function Calendario() {
 
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
-      <div className="flex flex-col flex-1 min-h-0 lg:flex-none lg:mx-4 lg:mb-3 lg:bg-white lg:rounded-xl lg:border lg:border-card-border lg:overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 lg:flex-none lg:mx-4 lg:mb-6 lg:bg-white lg:rounded-xl lg:border lg:border-card-border lg:overflow-hidden">
       {!loading && isDesktop && (
         <>
           {/* Riga di navigazione: la stessa del calendario delle Richieste */}
@@ -984,17 +984,17 @@ export default function Calendario() {
       </div>
       {/* Sotto il calendario (come vuole Ania): «Oggi» e i 12 mesi cliccabili, un clic su «gen» e sei a gennaio */}
       {!loading && isDesktop && (
-        <div className="shrink-0 flex items-center gap-1 px-4 pb-2 overflow-x-auto no-scrollbar">
+        <div className="shrink-0 flex items-center gap-1.5 px-4 pb-5 overflow-x-auto no-scrollbar">
           <button type="button" onClick={() => vaiAData(todayStr)}
-            className="rounded-full border border-green-mid bg-white text-green-mid text-[11px] font-bold px-2.5 py-1 active:bg-sage">Oggi</button>
-          <span className="w-px h-4 mx-1.5" style={{ background: '#D6CFBD' }} />
+            className="rounded-full border border-green-mid bg-white text-green-mid text-[13px] font-bold px-3.5 py-1.5 active:bg-sage">Oggi</button>
+          <span className="w-px h-5 mx-2" style={{ background: '#D6CFBD' }} />
           {mesiCliccabili.map(m => {
             const attivo = visibleMonth === fmtMonth(strToDate(m.iso))
             return (
               <span key={m.iso} className="inline-flex items-center">
-                {m.nuovoAnno && <span className="font-serif text-[10px] text-brass px-1.5 tracking-wider">{m.anno}</span>}
+                {m.nuovoAnno && <span className="font-serif text-[11px] text-brass px-2 tracking-wider">{m.anno}</span>}
                 <button type="button" onClick={() => vaiAData(m.iso, 0)} aria-pressed={attivo}
-                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors ${attivo ? 'bg-green-mid text-cream-text' : 'text-stone'}`}>{m.label}</button>
+                  className={`rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors ${attivo ? 'bg-green-mid text-cream-text' : 'text-green-dark hover:bg-sage'}`}>{m.label}</button>
               </span>
             )
           })}
@@ -1002,7 +1002,7 @@ export default function Calendario() {
       )}
 
       {/* Legenda: solo su desktop — sul telefono ruba spazio al calendario */}
-      <div className="shrink-0 px-4 pb-2 hidden lg:flex flex-wrap gap-3 items-center">
+      <div className="shrink-0 px-4 pb-4 hidden lg:flex flex-wrap gap-3 items-center">
         <div className="flex items-center gap-1.5">
           <div style={{ width: 12, height: 12, borderRadius: 3, background: COLOR_PRENOTAZIONE }} />
           <span className="text-xs text-gray-500">Prenotazione</span>
