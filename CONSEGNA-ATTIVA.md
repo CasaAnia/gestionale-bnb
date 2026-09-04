@@ -1,19 +1,54 @@
-# STATO IN 10 RIGHE (aggiornato il 03/09/2026, Richieste pezzo 10) — da incollare a un altro assistente
+# STATO IN 10 RIGHE (aggiornato il 04/09/2026, Richieste pezzo 11) — da incollare a un altro assistente
 
-1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7, 9 e 10 (altre camere con i motivi, «Scelgo io» notte per notte, prezzo a mano); il modulo Spese nuovo è in produzione con la scrittura su `legacy` (non toccare).
-2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031 (verificata via REST il 03/09/2026). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture). Il pezzo 10 non ha migrazioni.
+1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11; il modulo Spese nuovo è in produzione con la scrittura su `legacy` (non toccare).
+2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031. In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture). Il pezzo 11 non ha migrazioni.
 3. Branch `fatture-fase5` (Fase 5 fatture ricostruita + 4 correzioni avversarie): in attesa della decisione di Ania (unione a main); main non lo contiene.
-4. Richieste: modulo unico components/richieste/ModuloRichiesta (nuova e modifica) con la striscia delle notti (components/StrisciaNotti, ora generica: persone per notte nel modulo, camera per notte in «Scelgo io»); la modifica di una richiesta con proposta inviata la riporta in_attesa con storico.
-5. Proposte: ricerca automatica invariata (lib/richiesteProposta: caso A poi B/C/E, per notte); riquadro «Altre camere» con i motivi (motiviEsclusione); «Scelgo io» (lib/richiesteComposizione) compone la soluzione notte per notte con prezzo dalle tariffe o a mano (prezziNottiCentesimi, prezzo_manuale), salvata come le altre (manuale: true) e confermata dalla stessa RPC 0031.
-6. Testi: generatore unico lib/richiesteTesti (apertura a capo, caso A una/più camere con link, elisione, «Nel dettaglio»; per le composizioni manuali B con più cambi, C con notti scoperte e link di ogni camera). Testi automatici B/C/E e caparra/completo bloccati.
-7. Prove: suite 465/465, tsc, lint del delta, build, UI a 320/390 sull'anteprima finta (porta 3214: «Composta» [2,3,3,3] con Lena occupata). Nessun invio reale, nessuna scrittura remota.
+4. Richieste: modulo unico (nuova e modifica) con la striscia delle notti; proposta con ricerca automatica, «Altre camere» con i motivi, «Scelgo io» notte per notte e prezzo a mano; conferma via RPC 0031 (per notte).
+5. TESTI DEFINITIVI (pezzo 11, bloccati da Ania il 04/09/2026) in lib/richiesteTesti + lib/descrizioniCamere: apertura a capo, caso A una/più camere («è disponibile soltanto Ambra, una camera matrimoniale con il bagno in camera», «un letto in più», dettaglio parlato), B con «Il cambio di camera lo faccio io al mattino», C con «Mi dispiace per la notte del…», E, condizioni 1–4, 3 ore in tre varianti, chiusura. NON modificarli senza Ania. Le proposte già inviate restano in proposta_testo.
+6. Immagine «Testo + immagine»: stesse date e stessi importi del testo («80 €», «72,50 €») nella proposta; la conferma di prenotazione è invariata.
+7. Prove: suite 459/459, tsc, lint del delta, build, UI a 320/390/1280 sull'anteprima finta (porta 3214). Nessun invio reale, nessuna scrittura remota.
 8. Strumenti: `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email, modulo di login via JS nel pannello), `gestionale-bnb-anteprima-prenotazioni-finta` (3213), `npm test`, `node scripts/verifica-consegna.mjs --base <sha>`.
-9. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale e la RPC non si toccano; un commit per blocco; mai modificare gli assert dei test esistenti; il contratto di revisione resta `legacy`.
-10. 🔴 Azioni aperte per Ania: prova dal telefono del pezzo 10 sulla richiesta 17–21 (altre camere, «Scelgo io» Amelia+Ambra, prezzo a mano); decidere su fatture-fase5 e sulla 0030; prossimi pezzi: pulizia del flusso vecchio, riepilogo pre-bonifico.
+9. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano; un commit per blocco; mai modificare gli assert dei test esistenti; il contratto di revisione resta `legacy`.
+10. 🔴 Azioni aperte per Ania: prova dal telefono dei testi definitivi (17–21 con 2,3,3,3 in Ambra = esempio esatto; due camere libere; cambio camera con Lena); decidere su fatture-fase5 e sulla 0030; prossimi: pulizia del flusso vecchio, riepilogo pre-bonifico.
 
 ---
 
-# Consegna attiva — Richieste, pezzo 10: «Altre camere» con i motivi e «Scelgo io» notte per notte
+# Consegna attiva — Richieste, pezzo 11: testi DEFINITIVI delle proposte (bloccati da Ania il 04/09/2026)
+
+Base `870ef77` (pezzo 10). Sostituiscono per intero i testi del pezzo 6 e le
+modifiche del pezzo 9. Nessuna modifica alla ricerca delle soluzioni né alla RPC.
+
+## Casi di accettazione (tutti su stringa intera)
+
+| ID | Voce | Prova | Esito |
+| --- | --- | --- | --- |
+| T01 | Esempio esatto di Ania: A una camera, 2,3,3,3 in Ambra, all'arrivo. | `richiesteTesti.test` | VERDE |
+| T02 | A una camera con persone fisse («, a 70 € a notte»), letto in più una notte (prima / ultima / in mezzo), tutte le notti tranne la prima, dettaglio parlato fino a tre gruppi e con le date oltre. | test | VERDE |
+| T03 | A due camere e tre camere (riga vuota fra le camere, «una delle camere»). | test | VERDE |
+| T04 | B un cambio, B due cambi con Lena (frase del bagno anche nella riga, «qualche cambio»), B con persone variabili in un segmento («in tre a 90 € a notte, poi in due a 80 € a notte»). | test | VERDE |
+| T05 | C notte in mezzo stessa camera (riga unica con «e»), C notte all'inizio, C due notti alla fine («per le quali»), C con cambio camera («Il cambio di camera lo faccio io…», link delle camere); la ricerca automatica (caso D interno) usa lo stesso modello. | test | VERDE |
+| T06 | E intero, senza condizione né 3 ore. | test | VERDE |
+| T07 | Condizioni 1–4, 3 ore nelle tre varianti, chiusura; elisione 1/8/11/18/28/31 e «dell'8»; mesi diversi; notte singola; importi con decimali. | test | VERDE |
+| T08 | Blocco Amelia nello stile nuovo, fra il link e la condizione. | `richiesteTestiAmelia.test` | VERDE |
+| T09 | Immagine: stesse date e stessi importi del testo («80 €»); conferma invariata. | UI 390 | VERDE |
+| T10 | UI a 320, 390 e 1280 px senza scorrimento laterale. | anteprima finta | VERDE |
+
+## Decisioni prese in autonomia
+
+- Nelle righe con trattino e nel dettaglio le date sono solo i giorni («dal 17 all'18») se nello stesso mese del periodo; con mesi diversi compaiono i mesi.
+- Dettaglio parlato: gruppi consecutivi (persone e prezzo uguali); 2 gruppi → «la prima notte / le prime N notti» + «l'ultima notte / le altre N notti»; 3 gruppi → in mezzo «la notte seguente / le N notti seguenti» e alla fine «le ultime N notti»; oltre 3 → le date.
+- Letto in più una notte in mezzo: «Per la notte del 18 settembre, in cui sarete in due, …».
+- Caso C con una sola notte coperta: «per l'altra notte».
+- La firma resta «Grazie mille,⏎Ania – Casa Ania» (nel testo consegnato l'a capo era perso).
+- «Niente due punti nel corpo»: restano quelli davanti agli elenchi e nella condizione 1 così com'è nel testo di Ania.
+
+## Limiti aperti
+
+- Nessuno funzionale; le proposte già inviate restano quelle salvate.
+
+---
+
+# Blocco precedente — Richieste, pezzo 10: «Altre camere» con i motivi e «Scelgo io» notte per notte
 
 Base `4ef87dc` (pezzo 9). Caso reale: 17–21 in 2 poi in 3; l'automatico
 proponeva solo Ambra senza dire perché non Amelia (senza posto per 3) né
