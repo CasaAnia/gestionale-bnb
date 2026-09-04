@@ -9,8 +9,8 @@ import {
   attive, pulizieAperte, prossimoArrivo, prioritaDi, testoArrivo, cicloCambio,
   partenzaAperta, cambioCameraIn, continuaDa, cambioCameraOut,
   soggiornoContinuativo, todayStr, addDaysStr, diffDays, cronologiaCamera,
-  NOTTI_CAMBIO, GIORNI_PREAVVISO,
-  type Pulizia, type Priorita, type Decisione, type VoceCronologia,
+  pulizieAutomatiche, NOTTI_CAMBIO, GIORNI_PREAVVISO, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA,
+  type Pulizia, type Priorita, type Decisione, type VoceCronologia, type PuliziaAutomatica, type TipoPulizia,
 } from '@/lib/pulizie'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -51,7 +51,17 @@ const badgeStyle: Record<string, { background: string; color: string }> = {
   'da pulire': { background: '#EFD9C7', color: '#8a4f2f' },
   'cambio biancheria': { background: '#EDE6D6', color: '#5a6b3f' },
   '⇄ cambio camera': { background: '#EDE6D6', color: '#5a6b3f' },
+  // pulizia registrata da sola al cambio ospite (regola del 04/09/2026)
+  automatica: { background: '#F1E9D6', color: '#7a5f2c' },
 }
+
+const TIPO_LABEL: Record<TipoPulizia, string> = { fine_soggiorno: 'fine soggiorno', soggiorno: 'cambio biancheria', cambio_camera: 'cambio camera' }
+// Quante righe mostra il registro «Ultime pulizie»
+const RIGHE_REGISTRO = 12
+
+// Una riga del registro: pulizia segnata a mano (tabella cleanings) oppure
+// automatica (calcolata dalle prenotazioni, correggibile)
+type VoceRegistro = { chiave: string; data: string; roomId: string; tipo: TipoPulizia; ospite: string; auto: PuliziaAutomatica | null }
 
 type RigaCamera = {
   room: any
@@ -80,6 +90,8 @@ export default function Pulizie() {
   // Riquadro aperto di Rimanda/Salta: chiave pulizia → { azione, data proposta }
   const [azione, setAzione] = useState<Record<string, { tipo: 'rimanda' | 'salta'; data: string }>>({})
   const [spiegaAperta, setSpiegaAperta] = useState<Record<string, boolean>>({})
+  // Correzione di un'automatica nel registro: chiave → data scelta per «cambia data»
+  const [correzione, setCorrezione] = useState<Record<string, string>>({})
   const td = todayStr()
 
   useEffect(() => {
@@ -183,6 +195,22 @@ export default function Pulizie() {
     return out.sort((a, b) => (a.priorita ? RANK[a.priorita] : 9) - (b.priorita ? RANK[b.priorita] : 9))
   }, [rooms, prenotazioni, events, td, tabellaOk])
 
+  // Registro «Ultime pulizie»: segnate a mano + automatiche dei cambi ospite,
+  // le più recenti in alto. Le automatiche portano l'etichetta e i comandi
+  // per correggerle (data diversa, oppure «non fatta»).
+  const registro: VoceRegistro[] = useMemo(() => {
+    const voci: VoceRegistro[] = []
+    for (const e of events) {
+      if (e.stato !== 'fatta') continue
+      const b = e.booking_id ? bookings.find(x => x.id === e.booking_id) : null
+      voci.push({ chiave: `m:${e.id ?? `${e.room_id}:${e.data_prevista}`}`, data: e.data_effettiva || e.data_prevista, roomId: e.room_id, tipo: e.tipo, ospite: b ? nomeOspite(b) : '', auto: null })
+    }
+    for (const a of pulizieAutomatiche(prenotazioni, events, td)) {
+      voci.push({ chiave: `a:${a.partenza.id}`, data: a.data, roomId: a.roomId, tipo: a.tipo, ospite: nomeOspite(a.partenza), auto: a })
+    }
+    return voci.sort((x, y) => y.data.localeCompare(x.data) || x.chiave.localeCompare(y.chiave)).slice(0, RIGHE_REGISTRO)
+  }, [events, bookings, prenotazioni, td])
+
   const righeOggi = righe.filter(r => r.aperte.length > 0)
   const righeProssimi = righe.filter(r => r.aperte.length === 0 && r.prossimo)
   const giorniProssimi = Array.from(new Set(righeProssimi.map(r => r.prossimo!.date))).sort()
@@ -198,7 +226,7 @@ export default function Pulizie() {
   // Registra una decisione nella tabella cleanings. Se la tabella non c'è
   // ancora (migrazione 0018 da incollare a mano), per il cambio 4 notti si
   // ripiega sul vecchio linen_next_date così nulla si blocca.
-  async function registra(p: Pulizia, stato: 'fatta' | 'rimandata' | 'saltata', dati: { data_effettiva?: string; prossima_data?: string }) {
+  async function registra(p: Pulizia, stato: 'fatta' | 'rimandata' | 'saltata', dati: { data_effettiva?: string; prossima_data?: string }, note: string | null = null) {
     const k = chiave(p.roomId, p.tipo)
     if (saving) return
     setSaving(k)
@@ -211,6 +239,7 @@ export default function Pulizie() {
       data_effettiva: dati.data_effettiva ?? null,
       prossima_data: dati.prossima_data ?? null,
       cambio_biancheria: stato === 'fatta',
+      ...(note ? { note } : {}),
     }
     const { data, error } = await supabase.from('cleanings').insert(riga).select().single()
     if (!error && data) {
@@ -228,6 +257,20 @@ export default function Pulizie() {
     }
     setAzione(a => { const { [k]: _, ...resto } = a; return resto })
     setSaving(null)
+  }
+
+  // Correzione di un'automatica: si scrive nella tabella cleanings una riga
+  // legata alla partenza (con la nota), che da quel momento comanda al posto
+  // del calcolo automatico. «Cambia data» = fatta a mano nella data scelta;
+  // «Non fatta» = la pulizia non c'è stata (non conta nelle statistiche).
+  function puliziaDaAutomatica(a: PuliziaAutomatica): Pulizia {
+    return { roomId: a.roomId, tipo: a.tipo, booking: a.partenza, prevista: a.data, due: a.data, ritardo: 0, rinvii: [] }
+  }
+  async function correggiAutomatica(v: VoceRegistro, modo: 'data' | 'tolta') {
+    if (!v.auto) return
+    if (modo === 'data') await registra(puliziaDaAutomatica(v.auto), 'fatta', { data_effettiva: correzione[v.chiave] || v.data }, NOTA_AUTOMATICA_CORRETTA)
+    else await registra(puliziaDaAutomatica(v.auto), 'saltata', {}, NOTA_AUTOMATICA_TOLTA)
+    setCorrezione(c => { const { [v.chiave]: _, ...resto } = c; return resto })
   }
 
   // Un cambio 4 notti dei prossimi giorni può essere anticipato: si crea una
@@ -378,8 +421,16 @@ export default function Pulizie() {
                       in ritardo di {p.ritardo} {p.ritardo === 1 ? 'giorno' : 'giorni'}
                     </span>
                   )}
+                  {p.automatica && (
+                    <span className="text-[11px] font-bold rounded-full px-2 py-0.5" style={badgeStyle.automatica}>automatica</span>
+                  )}
                 </div>
-                {controlli(p)}
+                {p.automatica ? (
+                  <p className="text-xs text-stone mt-1.5">
+                    Cambio ospite: la pulizia è registrata da sola con la data di oggi, non c&apos;è nulla da segnare.
+                    Se serve la correggi nel registro «Ultime pulizie» qui sotto.
+                  </p>
+                ) : controlli(p)}
                 {p.booking.notes && (
                   <p className="text-sm text-green-mid italic mt-2">“{p.booking.notes}”</p>
                 )}
@@ -473,6 +524,57 @@ export default function Pulizie() {
             </>
           )}
         </>
+      )}
+
+      {!loading && registro.length > 0 && (
+        <div className="mt-6">
+          {sezioneTitolo('Ultime pulizie', 'segnate da te e automatiche')}
+          <div className="bg-white rounded-[10px] border border-card-border px-4">
+            {registro.map(v => {
+              const nome = shortNameOf(v.roomId)
+              const disab = !!saving
+              const aperta = correzione[v.chiave] !== undefined
+              return (
+                <div key={v.chiave} className="py-2.5 border-b-[0.5px] border-border-soft last:border-b-0">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
+                    <span className="font-semibold text-green-dark shrink-0" style={{ fontVariantNumeric: 'tabular-nums' }}>{dataBreve(v.data)}</span>
+                    <span className="font-serif text-green-dark">{nome}</span>
+                    <span className="text-xs text-stone">{TIPO_LABEL[v.tipo]}{v.ospite ? ` · ${v.ospite}` : ''}</span>
+                    {v.auto && <span className="text-[11px] font-bold rounded-full px-2 py-0.5" style={badgeStyle.automatica}>automatica</span>}
+                  </div>
+                  {v.auto && (
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      {aperta ? (
+                        <>
+                          <span className="text-xs text-stone">Fatta il</span>
+                          <input type="date" value={correzione[v.chiave]} max={td}
+                            onChange={e => setCorrezione({ ...correzione, [v.chiave]: e.target.value })}
+                            className="border border-card-border rounded-lg px-2 py-1 text-xs bg-white" />
+                          <button onClick={() => correggiAutomatica(v, 'data')} disabled={disab || !correzione[v.chiave]}
+                            className="rounded-full text-xs font-bold px-3 py-1.5 text-white disabled:opacity-50" style={{ background: '#2D6A4F' }}>Conferma</button>
+                          <button onClick={() => setCorrezione(c => { const { [v.chiave]: _, ...resto } = c; return resto })} disabled={disab}
+                            className="text-xs text-gray-500 px-2 py-1.5">Annulla</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => setCorrezione({ ...correzione, [v.chiave]: v.data })} disabled={disab}
+                            className="rounded-full border border-card-border bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{ color: '#5a6b3f' }}>Cambia data</button>
+                          <button onClick={() => correggiAutomatica(v, 'tolta')} disabled={disab}
+                            className="rounded-full border border-card-border bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{ color: '#8a4f2f' }}>Non fatta</button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-[11px] text-stone mt-2 leading-relaxed">
+            «Automatica» = cambio ospite: un ospite parte e un altro arriva lo stesso giorno o il giorno dopo,
+            la camera è stata rifatta in mezzo e la pulizia si registra da sola con la data della partenza.
+            Se una prenotazione si sposta o si annulla, sparisce da sola.
+          </p>
+        </div>
       )}
 
       {!loading && <Statistiche rooms={rooms} bookings={prenotazioni} events={events} td={td} />}

@@ -40,6 +40,7 @@ export type Decisione = {
   data_effettiva?: string | null
   prossima_data?: string | null
   cambio_biancheria?: boolean
+  note?: string | null     // NOTA_AUTOMATICA_* quando la riga corregge una pulizia automatica
   created_at?: string
 }
 
@@ -56,6 +57,8 @@ export type Pulizia = {
   ritardo: number         // giorni di ritardo rispetto a oggi (0 = non scaduta)
   rinvii: Decisione[]     // rimandi registrati per questa pulizia
   cambioCameraVerso?: any // per chi parte spostandosi in un'altra camera
+  automatica?: boolean    // cambio ospite: già registrata da sola, non c'è nulla da segnare
+  arrivoAutomatico?: any  // la prenotazione che arriva lo stesso giorno o il giorno dopo
 }
 
 export type ProssimoArrivo = {
@@ -271,6 +274,68 @@ export function prioritaDi(pulizia: Pulizia, arrivo: ProssimoArrivo | null): Pri
   return 'nessuna_fretta'
 }
 
+// ------------------------------------------------- cambio ospite automatico
+
+// Regola (04/09/2026): quando in una camera un ospite parte e un altro
+// arriva lo stesso giorno o il giorno dopo, la camera è stata per forza
+// rifatta in mezzo. Quella pulizia si considera FATTA da sola, con la data
+// della partenza, senza che Ania la segni. Vale solo per prenotazioni
+// confermate/completate (mai richieste in attesa) e non è mai salvata: si
+// ricalcola dalle prenotazioni, così se una prenotazione si sposta o si
+// annulla la pulizia automatica sparisce, e se nasce un nuovo cambio
+// compare. Negli altri casi (partenza senza arrivo vicino, 4 notti) nulla
+// cambia: si segna a mano come prima.
+export const GIORNI_CAMBIO_OSPITE = 1
+// Note delle righe cleanings con cui Ania corregge un'automatica
+export const NOTA_AUTOMATICA_CORRETTA = 'automatica: data corretta'
+export const NOTA_AUTOMATICA_TOLTA = 'automatica: non fatta'
+
+export type PuliziaAutomatica = {
+  roomId: string
+  tipo: TipoPulizia
+  partenza: any           // chi parte (il check-out vero del soggiorno)
+  arrivo: any             // chi entra lo stesso giorno o il giorno dopo
+  data: string            // = partenza.check_out
+}
+
+// Il nuovo ospite che entra nella stessa camera entro GIORNI_CAMBIO_OSPITE
+// dalla partenza (escluso il prolungamento dello stesso ospite).
+export function arrivoDopoPartenza(bookings: any[], partenza: any): any | null {
+  if (continuaIn(bookings, partenza)) return null
+  const limite = addDaysStr(partenza.check_out, GIORNI_CAMBIO_OSPITE)
+  return bookings
+    .filter(b => b.id !== partenza.id && b.room_id === partenza.room_id && b.check_in >= partenza.check_out && b.check_in <= limite && !continuaDa(bookings, b))
+    .sort((a, b) => a.check_in.localeCompare(b.check_in))[0] || null
+}
+
+// La pulizia di questa partenza è automatica? No se Ania ha già deciso
+// qualcosa per lei (fatta a mano, rimandata, saltata, corretta o tolta) o
+// se nello stesso giorno c'è già una pulizia segnata a mano nella camera.
+export function cambioOspiteAutomatico(bookings: any[], partenza: any, events: Decisione[]): PuliziaAutomatica | null {
+  const arrivo = arrivoDopoPartenza(bookings, partenza)
+  if (!arrivo) return null
+  const decisa = (events || []).some(e => e.booking_id === partenza.id && (e.tipo === 'fine_soggiorno' || e.tipo === 'cambio_camera'))
+  if (decisa) return null
+  const manualeStessoGiorno = (events || []).some(e => e.room_id === partenza.room_id && e.stato === 'fatta' && (e.data_effettiva || e.data_prevista) === partenza.check_out)
+  if (manualeStessoGiorno) return null
+  return { roomId: partenza.room_id, tipo: cambioCameraOut(bookings, partenza) ? 'cambio_camera' : 'fine_soggiorno', partenza, arrivo, data: partenza.check_out }
+}
+
+// Tutte le pulizie automatiche già avvenute (partenza fino a `oggi`), dal
+// CUTOFF_STORICO in poi: prima di quella data le statistiche stimano già una
+// pulizia per ogni partenza, e conterebbero due volte. Anche il passato
+// recente rientra, così i conteggi delle settimane scorse tornano giusti.
+export function pulizieAutomatiche(tutteLePrenotazioni: any[], events: Decisione[], oggi: string): PuliziaAutomatica[] {
+  const bookings = attive(tutteLePrenotazioni)
+  const out: PuliziaAutomatica[] = []
+  for (const b of bookings) {
+    if (b.check_out > oggi || b.check_out < CUTOFF_STORICO) continue
+    const a = cambioOspiteAutomatico(bookings, b, events)
+    if (a) out.push(a)
+  }
+  return out.sort((x, y) => x.data.localeCompare(y.data) || String(x.roomId).localeCompare(String(y.roomId)))
+}
+
 // ------------------------------------------------------- pulizie di un giorno
 
 // Le pulizie aperte di una camera al giorno `oggi` (fine soggiorno rimasti
@@ -280,11 +345,16 @@ export function pulizieAperte(bookings: any[], roomId: string, oggi: string, eve
 
   const fs = partenzaAperta(bookings, roomId, oggi, events)
   if (fs && fs.due <= oggi) {
+    // Cambio ospite: la pulizia è già registrata da sola. Resta in «Oggi»
+    // come lavoro della giornata (con la priorità dell'arrivo) ma senza
+    // pulsanti e mai «in ritardo».
+    const auto = cambioOspiteAutomatico(bookings, fs.partenza, events)
     out.push({
       roomId, tipo: fs.tipo, booking: fs.partenza,
       prevista: fs.partenza.check_out, due: fs.due,
-      ritardo: Math.max(0, diffDays(oggi, fs.due)),
+      ritardo: auto ? 0 : Math.max(0, diffDays(oggi, fs.due)),
       rinvii: fs.rinvii, cambioCameraVerso: fs.cambioCameraVerso,
+      ...(auto ? { automatica: true, arrivoAutomatico: auto.arrivo } : {}),
     })
   }
 
@@ -492,6 +562,7 @@ export function calcolaNotifica(rooms: any[], tutteLePrenotazioni: any[], events
     // Arretrati: aperti con scadenza oggi o prima. Compaiono come contesto,
     // col loro ritardo vero, solo in coda a una notifica che parte comunque.
     for (const p of pulizieAperte(bookings, room.id, oggi, events)) {
+      if (p.automatica) continue   // cambio ospite: registrata da sola, mai un arretrato
       const giorni = diffDays(oggi, p.due)
       const label = p.tipo === 'soggiorno' ? 'pulizia 4 notti' : p.tipo === 'cambio_camera' ? 'cambio camera' : 'fine soggiorno'
       const ritardoTxt = giorni === 0 ? 'era per oggi' : giorni === 1 ? 'in ritardo di 1 giorno' : `in ritardo di ${giorni} giorni`

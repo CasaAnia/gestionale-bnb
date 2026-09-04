@@ -1,7 +1,7 @@
 'use client'
 import { useMemo, useState } from 'react'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
-import { NOTTI_CAMBIO, CUTOFF_STORICO, addDaysStr, diffDays, type Decisione } from '@/lib/pulizie'
+import { NOTTI_CAMBIO, CUTOFF_STORICO, addDaysStr, diffDays, pulizieAutomatiche, NOTA_AUTOMATICA_TOLTA, type Decisione } from '@/lib/pulizie'
 
 // Soggiorni senza mai cambio biancheria: lo storico stimato è "1 cambio ogni
 // 4 notti", ma per questi sappiamo che il cambio non è mai stato fatto.
@@ -41,7 +41,11 @@ type Evento = { roomId: string; date: string }
 //    per ogni partenza, un cambio ogni 4 notti di soggiorno);
 //  - DAL confine in poi: la tabella cleanings, cioè le pulizie realmente
 //    segnate da Ania. Numeri veri, non più stimati — comprese rimandate
-//    e saltate, che prima non lasciavano traccia.
+//    e saltate, che prima non lasciavano traccia — PIÙ le pulizie
+//    automatiche dei cambi ospite (partenza e nuovo arrivo lo stesso giorno
+//    o il giorno dopo: lib/pulizie, regola del 04/09/2026), anche nelle
+//    settimane passate. Una pulizia segnata a mano lo stesso giorno nella
+//    stessa camera non si conta due volte (lo garantisce pulizieAutomatiche).
 export default function Statistiche({ rooms, bookings, events, td }:
   { rooms: any[]; bookings: any[]; events: Decisione[]; td: string }) {
   const [periodo, setPeriodo] = useState<Periodo>('mese')
@@ -109,10 +113,14 @@ export default function Statistiche({ rooms, bookings, events, td }:
       } else if (e.stato === 'rimandata') {
         rimandate.push({ roomId: e.room_id, date: e.data_prevista })
         if (e.prossima_data) ritardi.push(diffDays(e.prossima_data, e.data_prevista))
-      } else if (e.stato === 'saltata') {
+      } else if (e.stato === 'saltata' && e.note !== NOTA_AUTOMATICA_TOLTA) {
+        // «non fatta» su un'automatica toglie solo quella: non è una saltata concordata
         saltate.push({ roomId: e.room_id, date: e.data_prevista })
       }
     }
+
+    // --- Cambi ospite automatici (dal confine in poi, fino a oggi) ---
+    for (const a of pulizieAutomatiche(bookings, events, td)) pulizie.push({ roomId: a.roomId, date: a.data })
 
     return { pulizie, cambi, rimandate, saltate, ritardi }
   }, [rooms, bookings, events, td])
@@ -232,8 +240,9 @@ export default function Statistiche({ rooms, bookings, events, td }:
         Fino al 23 agosto 2026 i numeri sono ricostruiti dalle prenotazioni (una
         pulizia per ogni partenza, un cambio stimato ogni {NOTTI_CAMBIO} notti; il
         soggiorno lungo di Giovanna in Amelia è escluso perché il cambio non è mai
-        stato fatto). Dal 24 agosto contano solo le pulizie segnate davvero
-        nella pagina, comprese rimandate e saltate.
+        stato fatto). Dal 24 agosto contano le pulizie segnate davvero nella
+        pagina, comprese rimandate e saltate, più quelle automatiche dei cambi
+        ospite (partenza e nuovo arrivo lo stesso giorno o il giorno dopo).
       </p>
     </div>
   )

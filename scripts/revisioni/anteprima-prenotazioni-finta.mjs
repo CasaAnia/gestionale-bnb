@@ -61,6 +61,12 @@ const guests = [
   ospite('aaaaaaaa-0005-4000-8000-000000000005', 'Bonifico Lena', '+39 333 000 0005'),
   ospite('aaaaaaaa-0006-4000-8000-000000000006', 'Due Poi Tre', '+39 333 000 0006'),
   ospite('aaaaaaaa-0007-4000-8000-000000000007', 'Vecchio Calcolo', '+39 333 000 0007'),
+  ospite('aaaaaaaa-0008-4000-8000-000000000008', 'Primo Allegra', '+39 333 000 0008'),
+  ospite('aaaaaaaa-0009-4000-8000-000000000009', 'Secondo Allegra', '+39 333 000 0009'),
+  ospite('aaaaaaaa-0010-4000-8000-000000000010', 'Primo Ambra', '+39 333 000 0010'),
+  ospite('aaaaaaaa-0011-4000-8000-000000000011', 'Secondo Ambra', '+39 333 000 0011'),
+  ospite('aaaaaaaa-0012-4000-8000-000000000012', 'Parte Oggi', '+39 333 000 0012'),
+  ospite('aaaaaaaa-0013-4000-8000-000000000013', 'Arriva Oggi', '+39 333 000 0013'),
 ]
 
 let n = 0
@@ -96,10 +102,22 @@ const bookings = [
   // Stessa situazione salvata col vecchio calcolo (tariffa a 3 su entrambe le notti)
   prenotazione(ROOM.lena, guests[6].id, '2026-09-18', '2026-09-20', 3,
     { extra_bed: true, extra_bed_dates: ['2026-09-19'], price_per_night: 90, extra_bed_total: 0, total_amount: 180 }),
+  // Pulizie automatiche (04/09/2026): Allegra, partenza il 1° set e nuovo arrivo il 2 →
+  // pulizia automatica del 1° set; il secondo parte il 4 senza arrivo vicino → la segna Ania
+  prenotazione(ROOM.allegra, guests[7].id, '2026-08-29', '2026-09-01', 2, { status: 'completata' }),
+  prenotazione(ROOM.allegra, guests[8].id, '2026-09-02', '2026-09-04', 2),
+  // Ambra: partenza e arrivo lo stesso giorno (2 set) → automatica del 2 set
+  prenotazione(ROOM.ambra, guests[9].id, '2026-08-30', '2026-09-02', 2, { status: 'completata' }),
+  prenotazione(ROOM.ambra, guests[10].id, '2026-09-02', '2026-09-06', 2),
+  // Amelia: partenza e arrivo OGGI (4 set) → in «Oggi» la card ha l'etichetta «automatica», niente pulsanti, priorità URGENTE
+  prenotazione(ROOM.amelia, guests[11].id, '2026-09-01', '2026-09-04', 1),
+  prenotazione(ROOM.amelia, guests[12].id, '2026-09-04', '2026-09-07', 1, { check_in_time: '15:00' }),
 ]
 const payments = []
+// Storico pulizie (migrazione 0018): vuoto, così la pagina Pulizie mostra solo le automatiche
+const cleanings = []
 
-const tabelle = { rooms, guests, bookings, payments }
+const tabelle = { rooms, guests, bookings, payments, cleanings }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
 
 // --- PostgREST minimale ---------------------------------------------------
