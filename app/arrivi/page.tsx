@@ -458,8 +458,8 @@ export default function Arrivi() {
                             flexShrink: 0,
                             lineHeight: 1,
                             textAlign: 'center',
-                            // Riquadro «⇄» del cambio camera un 10% più corto (richiesta di Ania, 04/09/2026)
-                            minWidth: isCambio ? (isDesktop ? 40 : gs(33)) : undefined,
+                            // Riquadro «⇄» del cambio camera un 20% più corto di prima (richiesta di Ania, 04/09/2026: 44 → 40 → 36)
+                            minWidth: isCambio ? (isDesktop ? 36 : gs(30)) : undefined,
                             background: isCambio ? 'rgba(255,255,255,0.30)' : (time ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.35)'),
                             borderRadius: 4,
                             padding: '1px 5px',
