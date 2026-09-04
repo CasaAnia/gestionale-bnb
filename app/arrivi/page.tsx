@@ -452,13 +452,14 @@ export default function Arrivi() {
                           {/* Orario — o freccine ⇄ se è l'arrivo di un cambio camera */}
                           <span style={{
                             color: isCambio ? 'white' : (time ? '#1F3D2F' : 'white'),
-                            fontSize: isCambio ? (isDesktop ? 13 : gs(13)) : (isDesktop ? 11 : gs(10)),
+                            fontSize: isCambio ? (isDesktop ? 12 : gs(12)) : (isDesktop ? 11 : gs(10)),
                             fontWeight: 800,
                             whiteSpace: 'nowrap',
                             flexShrink: 0,
                             lineHeight: 1,
                             textAlign: 'center',
-                            minWidth: isCambio ? (isDesktop ? 44 : gs(37)) : undefined,
+                            // Riquadro «⇄» del cambio camera un 10% più corto (richiesta di Ania, 04/09/2026)
+                            minWidth: isCambio ? (isDesktop ? 40 : gs(33)) : undefined,
                             background: isCambio ? 'rgba(255,255,255,0.30)' : (time ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.35)'),
                             borderRadius: 4,
                             padding: '1px 5px',
