@@ -324,8 +324,12 @@ function Richieste() {
         </div>
       )}
 
-      <div className="min-[1100px]:grid min-[1100px]:grid-cols-[minmax(0,3fr)_minmax(380px,2fr)] min-[1100px]:gap-5 min-[1100px]:items-start">
-        {/* Calendario (min-w-0: a 2 settimane scorre dentro la sua colonna, non allarga la griglia) */}
+      {/* Dal Mac (blocco 4, 04/09/2026, scelta di Ania sul mockup): calendario a
+          TUTTA larghezza sopra, lista delle richieste sotto in schede su due
+          colonne. Prima erano affiancati e il calendario del mese aveva 30
+          colonne minuscole coi nomi tagliati. Sul telefono invariato. */}
+      <div>
+        {/* Calendario (min-w-0: a 2 settimane scorre dentro il proprio riquadro) */}
         <section hidden={!mostraCalendario} className="min-w-0">
           {loading ? (
             <div className="bg-white rounded-xl border border-card-border text-center py-10 text-stone">Caricamento…</div>
@@ -342,8 +346,15 @@ function Richieste() {
         </section>
 
         {/* Lista */}
-        <section hidden={!mostraLista} className="mt-4 min-[1100px]:mt-0">
+        <section hidden={!mostraLista} className="mt-4 md:mt-7">
           <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar">
+            {desktop && (
+              <>
+                <span className="text-[11px] uppercase text-brass shrink-0" style={{ letterSpacing: '2px' }}>{soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}</span>
+                {!loading && <span className="text-[13px] text-stone shrink-0">{mostrate.length}</span>}
+                <span className="flex-1 h-px" style={{ background: 'var(--color-card-border)' }} />
+              </>
+            )}
             <span className="text-xs text-stone shrink-0">Ordina per</span>
             {ORDINI.map(o => (
               <button key={o.chiave} type="button" onClick={() => setOrdine(o.chiave)} aria-pressed={ordine === o.chiave}
@@ -356,12 +367,19 @@ function Richieste() {
           {loading ? (
             <div className="text-center py-10 text-stone">Caricamento…</div>
           ) : mostrate.length === 0 ? (
-            <div className="text-center py-12 flex flex-col items-center gap-4">
-              <p className="text-stone">{soloDaGuardare ? 'Nessuna richiesta ferma' : 'Nessuna richiesta in attesa'}</p>
-              {!soloDaGuardare && <Link href="/richieste/nuova" className={BOTTONE_PIENO}>Nuova richiesta</Link>}
-            </div>
+            desktop ? (
+              <div className="flex items-center gap-4 rounded-xl border border-dashed border-border-soft px-5 py-3.5 text-sm text-stone">
+                <span>{soloDaGuardare ? 'Nessuna richiesta ferma' : 'Nessuna richiesta in attesa'}</span>
+                {!soloDaGuardare && <Link href="/richieste/nuova" className="rounded-[10px] border border-green-mid text-green-mid bg-white px-3.5 py-1.5 text-[13px] font-semibold">+ Nuova richiesta</Link>}
+              </div>
+            ) : (
+              <div className="text-center py-12 flex flex-col items-center gap-4">
+                <p className="text-stone">{soloDaGuardare ? 'Nessuna richiesta ferma' : 'Nessuna richiesta in attesa'}</p>
+                {!soloDaGuardare && <Link href="/richieste/nuova" className={BOTTONE_PIENO}>Nuova richiesta</Link>}
+              </div>
+            )
           ) : (
-            <ul className="flex flex-col gap-3">
+            <ul className="flex flex-col gap-3 min-[1100px]:grid min-[1100px]:grid-cols-2 min-[1100px]:items-start">
               {mostrate.map(r => (
                 <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []}
                   selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} onRifiuta={setDaRifiutare} onConferma={r => setDaConfermare(r as RichiestaConProposta)} />
@@ -370,7 +388,7 @@ function Richieste() {
           )}
 
           {!loading && (
-            <details className="group mt-8" open={!!apriId && archivio.some(r => r.id === apriId) ? true : undefined}>
+            <details className="group mt-6" open={!!apriId && archivio.some(r => r.id === apriId) ? true : undefined}>
               <summary className="list-none cursor-pointer flex items-center justify-between py-2 text-sm text-stone select-none [&::-webkit-details-marker]:hidden">
                 <span>Archivio <span className="text-xs">({archivio.length})</span></span>
                 <ChevronDown size={16} strokeWidth={1.8} className="transition-transform group-open:rotate-180" aria-hidden />
