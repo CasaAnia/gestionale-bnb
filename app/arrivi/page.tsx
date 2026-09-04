@@ -618,32 +618,7 @@ export default function Arrivi() {
         </div>
       )}
 
-      {/* Legenda */}
-      <div className="shrink-0 px-4 py-2 bg-white border-t border-card-border lg:bg-transparent lg:border-0 lg:pt-0 lg:pb-4 flex gap-4 items-center">
-        <div className="flex items-center gap-1.5">
-          <div style={{ width: 14, height: 14, borderRadius: 3, background: '#7D9DB0' }} />
-          <span className="text-xs text-gray-500">Orario arrivo</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div style={{ width: 14, height: 14, borderRadius: 3, background: '#7D9DB0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 8, fontWeight: 700, color: 'white' }}>?</span>
-          </div>
-          <span className="text-xs text-gray-500">Orario non inserito</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div style={{ position: 'relative', width: 32, height: 16, flexShrink: 0 }}>
-            <div style={{ position: 'absolute', left: 0, top: 0, width: 16, height: 16, background: '#7D9DB0', clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }} />
-            <div style={{ position: 'absolute', left: 16, top: 0, width: 16, height: 16, background: '#7D9DB0', clipPath: 'polygon(0 0, 100% 0, 100% 100%, 6px 100%)' }} />
-            <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', fontSize: 8, fontWeight: 700, color: 'white' }}>⇄</span>
-          </div>
-          <span className="text-xs text-gray-500">Cambio camera</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span style={{ fontSize: 11 }}>🚌</span>
-          <span className="text-xs text-gray-500">Navetta confermata</span>
-        </div>
-        <span className="ml-auto text-[9px] text-gray-300">v. {process.env.NEXT_PUBLIC_BUILD_TAG}</span>
-      </div>
+      {/* Niente legenda in Arrivi (richiesta di Ania, 04/09/2026): i simboli si spiegano da soli */}
     </div>
   )
 }
