@@ -18,6 +18,10 @@
 //   10–12 set Amelia 3 ospiti, extra_bed=true SENZA extra_bed_dates (storica),
 //             PAGATA                                → righe a strisce
 //   11 set    + Lena 3 ospiti, BONIFICO             → 2/2: strisce con nero
+// Persone che cambiano da una notte all'altra (4 set 2026, Lena tripla 90 €):
+//   14–16 set Lena in 2 poi in 3, salvata NOTTE PER NOTTE (80 + 90 = 170)
+//   18–20 set Lena in 2 poi in 3, salvata col VECCHIO calcolo (2 × 90 = 180):
+//             la scheda mostra il totale salvato; «Modifica» ricalcola 170
 import { createServer } from 'node:http'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -36,14 +40,14 @@ const ROOM = {
 }
 const ora = '2026-09-01T10:00:00+02:00'
 
-function camera(id, name, base_price, has_extra_bed, bathroom_type) {
-  return { id, name, bathroom_type, bathroom_note: null, base_price, has_extra_bed, extra_bed_price: 10, active: true, created_at: ora }
+function camera(id, name, base_price, has_extra_bed, bathroom_type, double_price = null) {
+  return { id, name, bathroom_type, bathroom_note: null, base_price, has_extra_bed, extra_bed_price: 10, double_price, active: true, created_at: ora }
 }
 const rooms = [
   camera(ROOM.amelia, 'Amelia', 50, true, 'privato_interno'),
   camera(ROOM.allegra, 'Allegra', 70, true, 'privato_interno'),
   camera(ROOM.ambra, 'Ambra', 70, true, 'privato_interno'),
-  camera(ROOM.lena, 'Lena', 80, true, 'privato_esterno'),
+  camera(ROOM.lena, 'Lena', 80, true, 'privato_esterno', 90),
 ]
 
 function ospite(id, full_name, phone) {
@@ -55,6 +59,8 @@ const guests = [
   ospite('aaaaaaaa-0003-4000-8000-000000000003', 'Coppia Ambra', '+39 333 000 0003'),
   ospite('aaaaaaaa-0004-4000-8000-000000000004', 'Storico Amelia', '+39 333 000 0004'),
   ospite('aaaaaaaa-0005-4000-8000-000000000005', 'Bonifico Lena', '+39 333 000 0005'),
+  ospite('aaaaaaaa-0006-4000-8000-000000000006', 'Due Poi Tre', '+39 333 000 0006'),
+  ospite('aaaaaaaa-0007-4000-8000-000000000007', 'Vecchio Calcolo', '+39 333 000 0007'),
 ]
 
 let n = 0
@@ -84,6 +90,12 @@ const bookings = [
     { extra_bed: true, extra_bed_dates: null, extra_bed_total: 20, pagato: true }),
   prenotazione(ROOM.lena, guests[4].id, '2026-09-11', '2026-09-12', 3,
     { extra_bed: true, extra_bed_dates: ['2026-09-11'], extra_bed_total: 10, bonifico: true }),
+  // Lena in 2 la prima notte e in 3 la seconda: 80 + 90 = 170 (notte più economica + resto)
+  prenotazione(ROOM.lena, guests[5].id, '2026-09-14', '2026-09-16', 3,
+    { extra_bed: true, extra_bed_dates: ['2026-09-15'], price_per_night: 80, extra_bed_total: 10, total_amount: 170 }),
+  // Stessa situazione salvata col vecchio calcolo (tariffa a 3 su entrambe le notti)
+  prenotazione(ROOM.lena, guests[6].id, '2026-09-18', '2026-09-20', 3,
+    { extra_bed: true, extra_bed_dates: ['2026-09-19'], price_per_night: 90, extra_bed_total: 0, total_amount: 180 }),
 ]
 const payments = []
 

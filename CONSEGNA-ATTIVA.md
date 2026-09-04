@@ -59,6 +59,65 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
 
 ---
 
+# Consegna — Prezzo notte per notte quando le persone cambiano (04/09/2026, sera, main)
+
+Caso reale: Lena, 2 notti, prima notte in 2 e seconda in 3. Il letto in più
+era segnato solo sulla seconda notte ma il prezzo applicava 90 € a entrambe
+(180 €). Ora 80 + 90 = 170 €. Con persone uguali in tutte le notti il conto
+è IDENTICO a prima (test dedicato).
+
+- Fonte unica: `lib/prezzoNotti.ts`. Le persone di ogni notte di una
+  prenotazione vengono da num_guests + extra_bed_dates (la stessa fonte dei
+  letti aggiuntivi): nelle notti col letto num_guests persone, nelle altre la
+  capienza base; senza notti col letto, num_guests ovunque (regola di sempre).
+- Salvataggio SENZA migrazione, stessa convenzione della RPC 0031:
+  price_per_night = tariffa della notte più economica, extra_bed_total =
+  resto, total_amount = somma delle notti. `contoSoggiorno` resta esatto.
+- Il campo «Tariffa/notte» del form segue il listino della notte più economica
+  (si riallinea togliendo/aggiungendo notti col letto o cambiando date); se
+  scritto a mano resta e sposta tutte le notti della stessa differenza.
+- Ricalcolo: cambiare le notti col letto è già un campo economico (le date
+  del letto erano nel confronto); all'apertura di «Modifica» una riga salvata
+  col vecchio calcolo (tariffa a persone massime) viene riallineata, così il
+  salvataggio ricalcola e l'anteprima dice «Da €180 a €170».
+- Dove la tariffa non è uniforme si mostra il dettaglio («1 notte in 2 a
+  80 €, 1 notte in 3 a 90 €») al posto di un prezzo a notte: scheda (lettura,
+  modifica, cambio camera), storico cliente in /nuova, riepilogo di /nuova,
+  conferma WhatsApp (testo e immagine, stessa funzione `righeCostiSegmenti`
+  ora usata anche dal testo della scheda), immagine della proposta. Uniforme
+  = come oggi. Il calendario conta le notti coperte dagli acconti con la
+  tariffa di ogni notte.
+- Proposte: `segmento()` usa la stessa funzione (numeri invariati, test di
+  uguaglianza proposta ↔ prenotazione). Testi definitivi non toccati.
+
+## Casi di accettazione (lib/prezzoNotti.test.ts, 12 test)
+persone costanti invariato (Lena 2/3/4, Ambra 2/3, Amelia 1/2) · Lena 2 poi 3
+= 170 · 3 poi 2 = 170 · 2-3-2 = 250 · Lena a 4 = 100 a notte (2 poi 4 = 180)
+· Ambra letto una notte sola invariato · tariffa a mano · proposta =
+prenotazione · righe del riepilogo (mista, uniforme, riga vecchia col bug →
+totale salvato) · riallineamento del campo tariffa · persone dai letti · testo.
+
+## Prove
+`npm test` 473 verdi (461 + 12), `tsc` pulito, lint del delta senza nuovi
+rilievi (31 pre-esistenti nelle due pagine). UI sull'anteprima finta 3213
+(dati aggiunti: «Due Poi Tre» 14–16 set salvata nel modo nuovo, «Vecchio
+Calcolo» 18–20 set col bug): scheda «Tariffa: 1 notte in 2 a €80, 1 notte in
+3 a €90 · Totale €170»; modifica: aggiungendo la notte 14 → 90 e 180,
+togliendola → 80 e 170, a mano 85 → 85/95; riga vecchia: lettura 90/180,
+modifica → 80 e «Da €180 a €170 (ricalcolato dai nuovi dati)»; conferma
+WhatsApp testo e immagine «Camera Lena – Tripla (1 notte in 2 a 80,00 €, 1
+notte in 3 a 90,00 €): 170,00 €»; /nuova a 3 notti con letto solo il 24 →
+«2 notti in 2 a €80, 1 notte in 3 a €90 · Totale €250»; calendario carica.
+Nessun salvataggio reale (la preview rifiuta le scritture). Build non rieseguita.
+
+## Limiti
+- La riga già salvata col bug resta 180 € finché Ania non apre «Modifica» e
+  salva (il totale salvato è autorevole): nessun dato viene riscritto da solo.
+- Nel cambio date di un soggiorno con cambio camera il letto di Lena a 3 non
+  viene più addebitato a parte (prima 10 €/notte in più: era un errore).
+
+---
+
 # Consegna attiva — incarico del 04/09/2026: elisione, /richieste da desktop, pulizia e documentazione (blocchi 1–3, main)
 
 ## Casi di accettazione
