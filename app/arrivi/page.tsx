@@ -8,6 +8,9 @@ import { nomeOspite } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { testoNavetta } from '@/lib/navetta'
 import BackLink from '@/components/BackLink'
+import CampoRicerca from '@/components/CampoRicerca'
+import RigaMesi from '@/components/RigaMesi'
+import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
@@ -270,28 +273,17 @@ export default function Arrivi() {
   return (
     <div className={`flex flex-col ${orizzontale ? 'h-auto' : 'h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0'}`}>
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
-      <div className={`shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 lg:pt-4 pb-2 bg-cream/95 backdrop-blur-sm ${orizzontale ? 'hidden' : ''}`}>
+      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm">
         <BackLink href="/" />
-        {/* Dal Mac il titolo della pagina, con le stesse distanze delle Richieste (16 px sotto «Indietro», riga alta 44 px, 16 px prima del riquadro) */}
-        {isDesktop && (
-          <div className="flex items-center gap-4 mt-4 mb-2 min-h-[44px]">
-            <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Arrivi</h1>
-            {/* Stesso campo di ricerca del Calendario, stesso punto e stessa misura */}
-            <div className="flex items-center gap-2 w-[360px] bg-white border rounded-full px-3 py-1.5" style={{ borderColor: '#C9BFA8' }}>
-              <span aria-hidden className="text-[13px]">🔎</span>
-              <input type="search" enterKeyHint="search" value={query} onChange={e => cambiaRicerca(e.target.value)} placeholder="Cerca nome o telefono…"
-                className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-green-dark placeholder:text-stone [&::-webkit-search-cancel-button]:hidden" />
-              {query !== '' && (
-                <button onClick={() => cambiaRicerca('')} aria-label="Chiudi ricerca"
-                  className="shrink-0 w-6 h-6 rounded-full bg-cream text-green-dark text-[12px] font-bold leading-none transition-transform duration-100 active:scale-[0.9]">✕</button>
-              )}
-            </div>
-          </div>
-        )}
-        {isDesktop && cercando && matches.length === 0 && (
+        {/* Titolo + «Cerca nome o telefono…» come nel Calendario: Mac e telefono girato in riga, dritto in colonna */}
+        <div className={`mt-4 mb-2 ${isDesktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
+          <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Arrivi</h1>
+          <CampoRicerca value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />
+        </div>
+        {cercando && matches.length === 0 && (
           <div className="text-[13.5px] font-bold" style={{ color: '#8c6a52' }}>Nessun arrivo trovato nei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</div>
         )}
-        {isDesktop && searchAttiva && (
+        {searchAttiva && (
           <div className="text-[13px] font-bold text-green-dark truncate">🔎 {matches.length === 1 ? nomeOspite(matches[0]) : `${matches.length} arrivi trovati`}</div>
         )}
       </div>
@@ -497,7 +489,7 @@ export default function Arrivi() {
                           {/* Orario — o freccine ⇄ se è l'arrivo di un cambio camera */}
                           <span style={{
                             color: isCambio ? 'white' : (time ? '#1F3D2F' : 'white'),
-                            fontSize: isCambio ? (isDesktop ? 12 : gs(12)) : (isDesktop ? 11 : gs(10)),
+                            fontSize: isCambio ? 12 : (isDesktop ? 11 : gs(10)),
                             fontWeight: 800,
                             whiteSpace: 'nowrap',
                             flexShrink: 0,
@@ -656,12 +648,9 @@ export default function Arrivi() {
         )
       })()}
       </div>
-      {!loading && isDesktop && !orizzontale && (
-        <div className="shrink-0 flex items-center gap-3 px-4 pb-5">
-          <button type="button" onClick={() => vaiAIndice(DAYS_BEFORE - 1)}
-            className="rounded-full border border-green-mid bg-white text-green-mid text-[13px] font-bold px-3.5 py-1.5 active:bg-sage">Oggi</button>
-          <span className="text-[13px] text-stone">arrivi dei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</span>
-        </div>
+      {!loading && (
+        <RigaMesi mesi={mesiCliccabili(today, 4).filter(m => dayIndex(m.iso) < DAYS_TOTAL)} attivo={toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)}
+          onMese={m => vaiAIndice(dayIndex(m.iso))} onOggi={() => vaiAIndice(DAYS_BEFORE - 1)} nota={`arrivi dei prossimi ${DAYS_TOTAL - DAYS_BEFORE} giorni`} className="shrink-0 px-4 pt-3 pb-5" />
       )}
 
       {/* Niente legenda in Arrivi (richiesta di Ania, 04/09/2026): i simboli si spiegano da soli */}

@@ -9,6 +9,10 @@ import CalendarioRichieste, { type Ancora, type ModoCalendario } from '@/compone
 import PannelloRichieste from '@/components/richieste/PannelloRichieste'
 import AzioniRichiesta from '@/components/richieste/AzioniRichiesta'
 import RigaScadenza from '@/components/richieste/RigaScadenza'
+import CampoRicerca from '@/components/CampoRicerca'
+import RigaMesi from '@/components/RigaMesi'
+import { mesiCliccabili } from '@/lib/mesiCliccabili'
+import { matchNome, matchTelefono } from '@/lib/ricerca'
 import ConfermaDialog from '@/components/richieste/ConfermaDialog'
 import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
@@ -130,6 +134,8 @@ function Richieste() {
   const [prenotazioni, setPrenotazioni] = useState<PrenotazioneBarra[]>([])
   const [acconti, setAcconti] = useState<Record<string, number>>({})
   const [ordine, setOrdine] = useState<OrdineRichieste>('durata')
+  // «Cerca nome o telefono…» (05/09/2026): filtra la lista; con un solo risultato lo evidenzia anche nel calendario
+  const [query, setQuery] = useState('')
   // «N da guardare»: filtro sulle ferme (in attesa > 24 h, proposta > 48 h, arrivo passato) e sulle proposte scadute (3 h dall'invio)
   const [soloDaGuardare, setSoloDaGuardare] = useState(false)
   // «N nuove dal sito»: richieste web arrivate dopo l'ultima apertura di questa pagina (localStorage)
@@ -234,7 +240,18 @@ function Richieste() {
 
   const aperte = useMemo(() => ordinaRichieste(tutte.filter(eAperta), ordine), [tutte, ordine])
   const ferme = useMemo(() => daGuardare(aperte, adesso), [aperte, adesso])
-  const mostrate = soloDaGuardare ? ferme : aperte
+  const cercaTra = (lista: Richiesta[], q: string) => {
+    const t = q.trim()
+    if (!t) return lista
+    return lista.filter(r => matchNome([r.nome, r.cognome, nomeCompleto(r)], t) || matchTelefono(r.telefono, t))
+  }
+  const trovate = useMemo(() => cercaTra(aperte, query), [aperte, query])
+  const mostrate = soloDaGuardare ? cercaTra(ferme, query) : trovate
+  function cambiaRicerca(v: string) {
+    setQuery(v)
+    const t = cercaTra(aperte, v)
+    setSelezionata(v.trim() && t.length === 1 ? t[0].id : null)
+  }
   const archivio = useMemo(
     () => tutte.filter(r => inArchivio(r, adesso)).sort((a, b) => (b.chiusa_at ?? b.created_at).localeCompare(a.chiusa_at ?? a.created_at)),
     [tutte, adesso],
@@ -267,7 +284,7 @@ function Richieste() {
       <BackBar href="/" />
       {/* Intestazione: su desktop (blocco 2c) titolo, Reale/Presunta, Nuova richiesta e
           contatori su UNA riga con spaziatura uniforme; sul telefono com'era */}
-      {orizzontale ? null : desktop ? (
+      {desktop && !orizzontale ? (
         <div className="flex items-center flex-wrap gap-4 mb-4 min-h-[44px]">
           <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Richieste di prenotazione</h1>
           {!loading && nuoveWeb > 0 && (
@@ -283,12 +300,22 @@ function Richieste() {
             </button>
           )}
           <InterruttoreVista vista={vista} onChange={setVista} />
+          <CampoRicerca value={query} onChange={cambiaRicerca} className="w-[260px]" />
           {nuovaRichiesta('py-2.5')}
         </div>
+      ) : orizzontale ? (
+        /* Telefono girato: titolo e ricerca sulla stessa riga, come sul Mac */
+        <div className="flex items-center gap-4 mb-3 min-h-[44px]">
+          <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Richieste di prenotazione</h1>
+          <CampoRicerca value={query} onChange={cambiaRicerca} className="flex-1 max-w-[360px]" />
+        </div>
       ) : (
-        /* Telefono (05/09/2026, richiesta di Ania): stessa struttura del Mac — titolo,
-           calendario, poi Reale/Presunta e «+ Nuova richiesta», contatori e lista */
-        <h1 className="text-[22px] text-green-dark leading-tight mb-3" style={FRAUNCES}>Richieste di prenotazione</h1>
+        /* Telefono dritto (05/09/2026): stessa struttura del Mac — titolo e ricerca,
+           calendario, mesi, poi Reale/Presunta e «+ Nuova richiesta», contatori e lista */
+        <div className="flex flex-col gap-2 mb-3">
+          <h1 className="text-[22px] text-green-dark leading-tight" style={FRAUNCES}>Richieste di prenotazione</h1>
+          <CampoRicerca value={query} onChange={cambiaRicerca} className="w-full" />
+        </div>
       )}
 
       {errori.length > 0 && (
@@ -313,6 +340,9 @@ function Richieste() {
               acconti={acconti} vista={vista} layout={desktop ? 'desktop' : 'mobile'} oggi={oggiIso()} adesso={adesso}
               compatto={orizzontale} evidenziata={selezionata} onApri={(gruppo, ancora) => setPannello({ gruppo, ancora })} />
           )}
+          <RigaMesi mesi={mesiCliccabili(new Date())} attivo={modoCalendario === 'quindici' ? inizio.slice(0, 7) : mese}
+            onMese={m => (modoCalendario === 'quindici' ? setInizio(m.iso) : setMese(m.chiave))}
+            onOggi={() => (modoCalendario === 'quindici' ? setInizio(inizioQuindicina(oggiIso())) : setMese(meseCorrente()))} className="mt-3" />
           {!orizzontale && (
             <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>
               {vista === 'presunta' ? 'Tratteggiato = richieste in attesa. Tocca una barra per vedere chi c’è dentro.' : 'Solo confermate: queste non si toccano.'}

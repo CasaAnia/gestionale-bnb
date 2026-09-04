@@ -17,6 +17,9 @@ import {
   statoLettiAggiuntivi,
 } from '@/lib/calendarioLetti'
 import BackLink from '@/components/BackLink'
+import CampoRicerca from '@/components/CampoRicerca'
+import RigaMesi from '@/components/RigaMesi'
+import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
@@ -349,12 +352,9 @@ export default function Calendario() {
     ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr))
     : visibleMonth
   // I 12 mesi cliccabili: da quello corrente in avanti, con l'anno quando cambia
-  // (12 voci: si ricalcolano a ogni disegno, costa nulla)
-  const mesiCliccabili: { iso: string; label: string; anno: number; nuovoAnno: boolean }[] = []
-  for (let i = 0; i < MESI_CLICCABILI; i++) {
-    const d = new Date(today.getFullYear(), today.getMonth() + i, 1)
-    mesiCliccabili.push({ iso: toStr(d), label: MESI_BREVI[d.getMonth()], anno: d.getFullYear(), nuovoAnno: i > 0 && d.getMonth() === 0 })
-  }
+  // Striscia dei mesi (condivisa con Arrivi e Richieste) e mese del primo giorno in vista
+  const mesi = mesiCliccabili(today, MESI_CLICCABILI)
+  const meseVisibile = toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)
 
   const vaiARef = useRef(vaiA)
   useEffect(() => {
@@ -468,60 +468,14 @@ export default function Calendario() {
   return (
     <div className={`flex flex-col ${orizzontale ? 'h-auto' : 'h-[calc(100dvh-3rem-5.5rem-env(safe-area-inset-bottom))] lg:h-screen lg:pb-0'}`}>
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
-      <div className={`shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-3 lg:pt-4 pb-2 bg-cream/95 backdrop-blur-sm ${orizzontale ? 'hidden' : ''}`}>
-        {/* Dal Mac come nelle Richieste: «← Indietro» sopra, poi il titolo della
-            pagina a sinistra e la ricerca a destra; sul telefono tutto su una riga */}
-        {isDesktop ? (
-          <>
-            <BackLink href="/" />
-            {/* Stesse distanze della pagina Richieste: 16 px sotto «Indietro», riga alta 44 px, 16 px prima del riquadro */}
-            <div className="flex items-center gap-4 mt-4 mb-2 min-h-[44px]">
-              <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Calendario</h1>
-              <div className="flex items-center gap-2 flex-1 min-w-0 lg:flex-none lg:w-[360px] bg-white border rounded-full px-3 py-1.5" style={{ borderColor: '#C9BFA8' }}>
-                <span aria-hidden className="text-[13px]">🔎</span>
-                <input
-                  type="search"
-                  enterKeyHint="search"
-                  value={query}
-                  onChange={e => cambiaRicerca(e.target.value)}
-                  placeholder="Cerca nome o telefono…"
-                  className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-green-dark placeholder:text-stone [&::-webkit-search-cancel-button]:hidden"
-                />
-                {query !== '' && (
-                  <button
-                    onClick={() => cambiaRicerca('')}
-                    aria-label="Chiudi ricerca"
-                    className="shrink-0 w-6 h-6 rounded-full bg-cream text-green-dark text-[12px] font-bold leading-none transition-transform duration-100 active:scale-[0.9]">
-                    ✕
-                  </button>
-                )}
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex items-center gap-2">
-            <BackLink href="/" />
-            <div className="flex items-center gap-2 flex-1 min-w-0 lg:flex-none lg:w-[360px] bg-white border rounded-full px-3 py-1.5" style={{ borderColor: '#C9BFA8' }}>
-              <span aria-hidden className="text-[13px]">🔎</span>
-              <input
-                type="search"
-                enterKeyHint="search"
-                value={query}
-                onChange={e => cambiaRicerca(e.target.value)}
-                placeholder="Cerca nome o telefono…"
-                className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-green-dark placeholder:text-stone [&::-webkit-search-cancel-button]:hidden"
-              />
-              {query !== '' && (
-                <button
-                  onClick={() => cambiaRicerca('')}
-                  aria-label="Chiudi ricerca"
-                  className="shrink-0 w-6 h-6 rounded-full bg-cream text-green-dark text-[12px] font-bold leading-none transition-transform duration-100 active:scale-[0.9]">
-                  ✕
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm">
+        <BackLink href="/" />
+        {/* Titolo + «Cerca nome o telefono…» (05/09/2026): Mac e telefono girato sulla
+            stessa riga, telefono dritto uno sotto l'altro. Stesse distanze delle Richieste. */}
+        <div className={`mt-4 mb-2 ${isDesktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
+          <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Calendario</h1>
+          <CampoRicerca value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />
+        </div>
 
         {/* Nessun risultato: messaggio semplice, calendario normale */}
         {cercando && matches.length === 0 && (
@@ -986,23 +940,9 @@ export default function Calendario() {
         </div>
       )}
       </div>
-      {/* Sotto il calendario (come vuole Ania): «Oggi» e i 12 mesi cliccabili, un clic su «gen» e sei a gennaio */}
-      {!loading && isDesktop && !orizzontale && (
-        <div className="shrink-0 flex items-center gap-1.5 px-4 pb-5 overflow-x-auto no-scrollbar">
-          <button type="button" onClick={() => vaiAData(todayStr)}
-            className="rounded-full border border-green-mid bg-white text-green-mid text-[13px] font-bold px-3.5 py-1.5 active:bg-sage">Oggi</button>
-          <span className="w-px h-5 mx-2" style={{ background: '#D6CFBD' }} />
-          {mesiCliccabili.map(m => {
-            const attivo = visibleMonth === fmtMonth(strToDate(m.iso))
-            return (
-              <span key={m.iso} className="inline-flex items-center">
-                {m.nuovoAnno && <span className="font-serif text-[11px] text-brass px-2 tracking-wider">{m.anno}</span>}
-                <button type="button" onClick={() => vaiAData(m.iso, 0)} aria-pressed={attivo}
-                  className={`rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors ${attivo ? 'bg-green-mid text-cream-text' : 'text-green-dark hover:bg-sage'}`}>{m.label}</button>
-              </span>
-            )
-          })}
-        </div>
+      {/* Sotto il calendario: «Oggi» e i 12 mesi cliccabili (riga condivisa con Arrivi e Richieste), telefono e Mac */}
+      {!loading && (
+        <RigaMesi mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={() => vaiAData(todayStr)} className="shrink-0 px-4 pt-3 pb-5" />
       )}
 
       {/* Legenda: solo su desktop — sul telefono ruba spazio al calendario */}
