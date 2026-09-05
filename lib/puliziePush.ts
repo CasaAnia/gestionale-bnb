@@ -13,24 +13,29 @@
 //    visibili nella pagina Pulizie);
 //  - ogni invio viene registrato in push_log con i dati usati per il
 //    calcolo, così un pop-up strano si spiega a posteriori.
-import { calcolaNotifica, todayStr, type Notifica } from './pulizie'
+import { calcolaNotifica, todayStr, type Notifica, type Decisione } from './pulizie'
 import { inviaATutti } from './inviaPush'
 import { registraPush } from './pushLog'
+import { type Riga, pretendi } from './cronLettura'
 
 // Calcola le pulizie in scadenza domani e invia la notifica.
 // `oggi` di default è la data corrente (il cron gira alle 14 UTC = pomeriggio
 // italiano, quindi la data UTC coincide con quella italiana).
 export async function inviaPulizieNotification(supabase: any, oggi?: string) {
   const giorno = oggi ?? todayStr()
-  const [{ data: rooms }, { data: bookings }, { data: events }] = await Promise.all([
+  // Parte 3 (05/09/2026): ogni lettura controlla error (pretendi lancia
+  // ErroreLetturaCron e la route risponde 500): una tabella non leggibile
+  // non è più «nessuna pulizia domani». La 0018 (cleanings) è applicata.
+  const [rRooms, rBookings, rEvents] = await Promise.all([
     supabase.from('rooms').select('*').eq('active', true),
     supabase.from('bookings').select('*, guests(full_name)').neq('status', 'annullata'),
-    // Tabella dello storico (migrazione 0018): finché non esiste, `data`
-    // arriva null e il calcolo usa solo linen_next_date (vecchio comportamento)
     supabase.from('cleanings').select('*'),
   ])
+  const rooms = pretendi<Riga[]>(rRooms, 'leggere le camere')
+  const bookings = pretendi<Riga[]>(rBookings, 'leggere le prenotazioni')
+  const events = pretendi<Decisione[]>(rEvents, 'leggere lo storico delle pulizie')
 
-  const notifica: Notifica = calcolaNotifica(rooms || [], bookings || [], events || [], giorno)
+  const notifica: Notifica = calcolaNotifica(rooms, bookings, events, giorno)
 
   if (notifica.domani.length === 0) {
     return { sent: 0, camere: 0, message: 'Nessuna pulizia in scadenza domani', inRitardo: notifica.inRitardo.length }

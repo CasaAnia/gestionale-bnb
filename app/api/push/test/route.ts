@@ -3,6 +3,7 @@ import webpush from 'web-push'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { isCronAuthorized } from '@/lib/cronAuth'
 import { inviaATutti } from '@/lib/inviaPush'
+import { statoPerEsitoInvio } from '@/lib/cronLettura'
 
 webpush.setVapidDetails(
   'mailto:amerigogranata@gmail.com',
@@ -26,7 +27,10 @@ export async function GET(req: NextRequest) {
   // Risposta esplicita: dice quanti telefoni hanno ricevuto, quanti indirizzi
   // scaduti sono stati ripuliti e cosa è andato storto sugli altri, invece di
   // fermarsi al primo errore come faceva prima.
+  // Parte 3 (05/09/2026): se non è partito niente e ci sono errori
+  // (sottoscrizioni non lette, servizio giù) la risposta è 500, mai 200
   return NextResponse.json({
+    ok: statoPerEsitoInvio(esito) === 200,
     inviate: esito.inviate,
     rimosseScadute: esito.rimosse,
     errori: esito.errori,
@@ -36,5 +40,5 @@ export async function GET(req: NextRequest) {
         : esito.inviate === 0 && esito.errori.length === 0
           ? 'Nessun telefono registrato: attiva le notifiche da Impostazioni.'
           : undefined,
-  })
+  }, { status: statoPerEsitoInvio(esito) })
 }

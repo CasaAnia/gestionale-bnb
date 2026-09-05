@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import BackBar from '@/components/BackBar'
 import { nomeOspite } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
+import { leggiConEsito } from '@/lib/prenotazioneScritture'
+import AvvisoAzione from '@/components/AvvisoAzione'
 
 // Pallino di stato discreto: colori coerenti con il calendario
 const STATUS_DOT: Record<string, string> = {
@@ -30,18 +32,31 @@ export default function Prenotazioni() {
   const [filter, setFilter] = useState<'tutte' | 'attive' | 'annullate'>('attive')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  // Parte 3 (05/09/2026): un errore di lettura mostra l'avviso con Riprova,
+  // mai «Nessuna prenotazione» al posto di un errore
+  const [errore, setErrore] = useState<string | null>(null)
+  const [tentativo, setTentativo] = useState(0)
 
   useEffect(() => {
-    async function load() {
-      const { data } = await supabase
-        .from('bookings')
-        .select('*, rooms(name), guests(full_name, phone, rating)')
-        .order('check_in', { ascending: false })
-      setBookings(data || [])
-      setLoading(false)
-    }
-    load()
-  }, [])
+    let vivo = true
+    leggiConEsito<Record<string, unknown>[]>(() => supabase
+      .from('bookings')
+      .select('*, rooms(name), guests(full_name, phone, rating)')
+      .order('check_in', { ascending: false }), 'caricare le prenotazioni')
+      .then(({ data, errore }) => {
+        if (!vivo) return
+        if (errore) { setErrore(errore); setLoading(false); return }
+        setBookings(data || [])
+        setLoading(false)
+      })
+    return () => { vivo = false }
+  }, [tentativo])
+
+  function riprova() {
+    setErrore(null)
+    setLoading(true)
+    setTentativo(t => t + 1)
+  }
 
   const filtered = bookings.filter(b => {
     if (!matchPrenotazione(b, search)) return false
@@ -87,6 +102,8 @@ export default function Prenotazioni() {
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
+      ) : errore ? (
+        <AvvisoAzione testo={errore} onRiprova={riprova} />
       ) : filtered.length === 0 ? (
         <div className="text-center py-10 text-gray-400">
           {search.trim() ? <>Nessun risultato per «{search.trim()}»</> : 'Nessuna prenotazione'}

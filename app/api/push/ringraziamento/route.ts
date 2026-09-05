@@ -6,6 +6,7 @@ import { nomePerMessaggio } from '@/lib/guestName'
 import { inviaATutti } from '@/lib/inviaPush'
 import { registraPush } from '@/lib/pushLog'
 import { attive } from '@/lib/pulizie'
+import { type Riga, pretendi, rispostaErroreCron, statoPerEsitoInvio } from '@/lib/cronLettura'
 
 function todayStr() {
   const d = new Date()
@@ -48,17 +49,19 @@ export async function GET(req: NextRequest) {
 
   const oggi = todayStr()
 
+  // Parte 3 (05/09/2026): lettura con error controllato → 500 col motivo
+  try {
   // Servono tutte le prenotazioni attive (non solo quelle in partenza oggi) per
   // ricostruire le catene dei cambi camera con la stessa logica del resto dell'app.
   // Solo confermate/completate: il 23/08/2026 una richiesta dal sito rimasta
   // "in attesa" ha generato un ringraziamento per un ospite mai esistito
   // (Caso 2 dell'audit) — le richieste in attesa non sono ospiti.
-  const { data: tutte } = await supabase
+  const tutte = pretendi<Riga[]>(await supabase
     .from('bookings')
     .select('*, rooms(name), guests(full_name, phone)')
-    .neq('status', 'annullata')
+    .neq('status', 'annullata'), 'leggere le prenotazioni')
 
-  const bookings = attive(tutte || [])
+  const bookings = attive(tutte)
   const partenzeOggi = bookings.filter((b: any) => b.check_out === oggi)
 
   if (partenzeOggi.length === 0) {
@@ -116,5 +119,11 @@ export async function GET(req: NextRequest) {
     { giorno: oggi, partenze: partenzeVere.map((b: any) => ({ id: b.id, nome: b.guest_name || b.guests?.full_name, status: b.status })) },
     esito.inviate)
 
-  return NextResponse.json({ sent: esito.inviate, partenze: partenzeVere.length })
+  const status = statoPerEsitoInvio(esito)
+  return NextResponse.json({ ok: status === 200, sent: esito.inviate, partenze: partenzeVere.length, rimosse: esito.rimosse, errori: esito.errori }, { status })
+  } catch (e) {
+    const r = rispostaErroreCron(e)
+    if (r) return NextResponse.json(r.body, { status: r.status })
+    throw e
+  }
 }

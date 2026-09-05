@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { percorsoDocumento, tipoAccettato, misureRidotte, dimensioneLeggibile, etichettaLeggibile, rigaDocumenti } from './documentiCliente.ts'
+import { percorsoDocumento, tipoAccettato, misureRidotte, dimensioneLeggibile, etichettaLeggibile, rigaDocumenti, raccogliAnteprime, MESSAGGIO_ANTEPRIME } from './documentiCliente.ts'
 
 test('percorso nel bucket: cartella del cliente, estensione dal tipo, mai dal nome', () => {
   assert.equal(percorsoDocumento('g1', 'd1', 'image/jpeg'), 'g1/d1.jpg')
@@ -33,4 +33,17 @@ test('dimensione leggibile ed etichette', () => {
   assert.equal(rigaDocumenti(0), 'Nessun documento')
   assert.equal(rigaDocumenti(1), 'Documenti · 1')
   assert.equal(rigaDocumenti(3), 'Documenti · 3')
+})
+
+// Parte 3, pezzo 3 (05/09/2026): anteprime con URL firmato non ottenuto
+test('raccogliAnteprime: un URL firmato con errore non è una casella vuota silenziosa', () => {
+  const r = raccogliAnteprime([
+    { id: 'a', url: 'https://x/a', error: null },
+    { id: 'b', url: null, error: { message: 'Object not found' } },
+    { id: 'c', url: undefined, error: null },
+  ])
+  assert.deepEqual(r.urls, { a: 'https://x/a' })
+  assert.equal(r.mancanti, 2)
+  assert.equal(r.errore, MESSAGGIO_ANTEPRIME)
+  assert.deepEqual(raccogliAnteprime([{ id: 'a', url: 'https://x/a', error: null }]), { urls: { a: 'https://x/a' }, mancanti: 0, errore: null })
 })

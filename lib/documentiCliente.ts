@@ -61,6 +61,23 @@ export function dimensioneLeggibile(byte: number | null | undefined): string {
 }
 
 // Testo della riga discreta nella scheda prenotazione
+// Anteprime (URL firmati): raccoglie quelle riuscite e dice se qualcuna è
+// mancata — parte 3 (05/09/2026): un'anteprima non ottenuta non è un vuoto
+// silenzioso, il componente mostra l'avviso con Riprova.
+export const MESSAGGIO_ANTEPRIME = 'Non riesco a mostrare le anteprime dei documenti, riprova'
+
+export function raccogliAnteprime(
+  risultati: { id: string; url: string | null | undefined; error: unknown }[],
+): { urls: Record<string, string>; mancanti: number; errore: string | null } {
+  const urls: Record<string, string> = {}
+  let mancanti = 0
+  for (const r of risultati) {
+    if (r.error || !r.url) mancanti++
+    else urls[r.id] = r.url
+  }
+  return { urls, mancanti, errore: mancanti > 0 ? MESSAGGIO_ANTEPRIME : null }
+}
+
 export function rigaDocumenti(n: number): string {
   return n === 0 ? 'Nessun documento' : n === 1 ? 'Documenti · 1' : `Documenti · ${n}`
 }

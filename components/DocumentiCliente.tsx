@@ -3,9 +3,10 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import {
-  ETICHETTE, LATO_MAX, etichettaLeggibile, percorsoDocumento, tipoAccettato, misureRidotte, dimensioneLeggibile, rigaDocumenti,
+  ETICHETTE, LATO_MAX, etichettaLeggibile, percorsoDocumento, tipoAccettato, misureRidotte, dimensioneLeggibile, rigaDocumenti, raccogliAnteprime,
   type DocumentoCliente, type EtichettaDocumento, type LatoDocumento,
 } from '@/lib/documentiCliente'
+import AvvisoAzione from '@/components/AvvisoAzione'
 
 // Documenti d'identità del cliente (05/09/2026, richiesta di Ania): foto dal
 // telefono, ridotte e salvate nel bucket privato «documenti» (migrazione
@@ -44,6 +45,29 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
   const [lato, setLato] = useState<LatoDocumento | null>(null)
   const [daCancellare, setDaCancellare] = useState<DocumentoCliente | null>(null)
   const [aperto, setAperto] = useState<string | null>(null)   // URL firmato a schermo intero
+  // Parte 3 (05/09/2026): anteprime non ottenute → avviso con Riprova, non caselle vuote
+  const [erroreAnteprime, setErroreAnteprime] = useState<string | null>(null)
+
+  // URL firmati per le anteprime (un'ora): ogni risposta controlla error
+  async function caricaAnteprime(lista: DocumentoCliente[]): Promise<{ urls: Record<string, string>; errore: string | null }> {
+    const risultati = []
+    for (const d of lista) {
+      try {
+        const { data: u, error } = await supabase.storage.from(BUCKET).createSignedUrl(d.percorso, 3600)
+        risultati.push({ id: d.id, url: u?.signedUrl, error })
+      } catch (e) {
+        risultati.push({ id: d.id, url: null, error: e ?? new Error('errore sconosciuto') })
+      }
+    }
+    return raccogliAnteprime(risultati)
+  }
+
+  async function riprovaAnteprime() {
+    setErroreAnteprime(null)
+    const { urls, errore } = await caricaAnteprime(documenti)
+    setAnteprime(urls)
+    setErroreAnteprime(errore)
+  }
 
   useEffect(() => {
     let vivo = true
@@ -53,13 +77,8 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
       const lista = (data || []) as DocumentoCliente[]
       setDocumenti(lista)
       setLoading(false)
-      // URL firmati per le anteprime (un'ora)
-      const urls: Record<string, string> = {}
-      for (const d of lista) {
-        const { data: u } = await supabase.storage.from(BUCKET).createSignedUrl(d.percorso, 3600)
-        if (u?.signedUrl) urls[d.id] = u.signedUrl
-      }
-      if (vivo) setAnteprime(urls)
+      const { urls, errore } = await caricaAnteprime(lista)
+      if (vivo) { setAnteprime(urls); setErroreAnteprime(errore) }
     })
     return () => { vivo = false }
   }, [guestId])
@@ -79,8 +98,9 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
       if (e2) { await supabase.storage.from(BUCKET).remove([percorso]); throw e2 }
       const doc = data as DocumentoCliente
       setDocumenti(l => [...l, doc])
-      const { data: u } = await supabase.storage.from(BUCKET).createSignedUrl(percorso, 3600)
-      if (u?.signedUrl) setAnteprime(a => ({ ...a, [doc.id]: u.signedUrl }))
+      const { data: u, error: e3 } = await supabase.storage.from(BUCKET).createSignedUrl(percorso, 3600)
+      if (e3 || !u?.signedUrl) setErroreAnteprime(raccogliAnteprime([{ id: doc.id, url: u?.signedUrl, error: e3 }]).errore)
+      else setAnteprime(a => ({ ...a, [doc.id]: u.signedUrl }))
     } catch (e) {
       const err = e as { code?: string; message?: string }
       setErrore(manca0032(err) ? AVVISO_0032 : `Caricamento non riuscito: ${err?.message || 'errore sconosciuto'}`)
@@ -108,6 +128,7 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
 
       {!avviso && (
         <>
+          {erroreAnteprime && <AvvisoAzione testo={erroreAnteprime} onRiprova={riprovaAnteprime} className="mb-2" />}
           {loading ? (
             <p className="text-sm text-stone">Caricamento…</p>
           ) : documenti.length === 0 ? (

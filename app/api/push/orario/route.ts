@@ -5,6 +5,7 @@ import { inviaATutti } from '@/lib/inviaPush'
 import { registraPush } from '@/lib/pushLog'
 import { attive, addDaysStr, todayStr } from '@/lib/pulizie'
 import { cosaManca } from '@/lib/navetta'
+import { type Riga, pretendi, rispostaErroreCron, statoPerEsitoInvio } from '@/lib/cronLettura'
 
 // Cron delle 15 UTC (17:00 italiane d'estate): promemoria delle informazioni
 // operative mancanti per gli arrivi di domani. Regola di Ania (24/08/2026):
@@ -18,10 +19,12 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient()
   const tomorrowStr = addDaysStr(todayStr(), 1)
 
+  // Parte 3 (05/09/2026): letture con error controllato → 500 col motivo
+  try {
   // Arrivi di domani (solo confermate: le "in attesa" non sono ospiti) e
   // partenze di domani, per riconoscere i cambi camera: chi si sposta da
   // una camera all'altra è già in struttura, niente da chiedere.
-  const [{ data: arriviRaw }, { data: uscite }] = await Promise.all([
+  const [rArrivi, rUscite] = await Promise.all([
     supabase.from('bookings')
       .select('*, rooms(name), guests(full_name, phone)')
       .eq('check_in', tomorrowStr)
@@ -31,9 +34,11 @@ export async function GET(req: NextRequest) {
       .eq('check_out', tomorrowStr)
       .neq('status', 'annullata'),
   ])
+  const arriviRaw = pretendi<Riga[]>(rArrivi, 'leggere gli arrivi di domani')
+  const uscite = pretendi<Riga[]>(rUscite, 'leggere le partenze di domani')
 
-  const inCasa = new Set(attive(uscite || []).map((b: any) => b.guest_id).filter(Boolean))
-  const daChiedere = attive(arriviRaw || [])
+  const inCasa = new Set(attive(uscite).map((b: any) => b.guest_id).filter(Boolean))
+  const daChiedere = attive(arriviRaw)
     .filter((b: any) => !inCasa.has(b.guest_id))
     .map((b: any) => ({ b, manca: cosaManca(b) }))
     .filter(x => x.manca !== null)
@@ -57,5 +62,11 @@ export async function GET(req: NextRequest) {
     { giorno: tomorrowStr, ospiti: daChiedere.map(({ b, manca }) => ({ id: b.id, manca })) },
     esito.inviate)
 
-  return NextResponse.json({ sent: esito.inviate, bookings: daChiedere.length })
+  const status = statoPerEsitoInvio(esito)
+  return NextResponse.json({ ok: status === 200, sent: esito.inviate, bookings: daChiedere.length, rimosse: esito.rimosse, errori: esito.errori }, { status })
+  } catch (e) {
+    const r = rispostaErroreCron(e)
+    if (r) return NextResponse.json(r.body, { status: r.status })
+    throw e
+  }
 }
