@@ -6,6 +6,8 @@ import BackBar from '@/components/BackBar'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { useDemoMode } from '@/lib/useDemoMode'
 import { hasDemoPin, setDemoPin, enableDemo, disableDemo } from '@/lib/demoMode'
+import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
+import AvvisoAzione from '@/components/AvvisoAzione'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
 
@@ -22,6 +24,9 @@ export default function Impostazioni() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<string, any>>({})
+  // Errori di salvataggio visibili, parte 2 (05/09/2026): le tariffe cambiano
+  // a schermo solo se salvate; con un errore le modifiche restano in bozza
+  const [erroreCamera, setErroreCamera] = useState<Record<string, string | null>>({})
   const [notifStatus, setNotifStatus] = useState<'idle' | 'loading' | 'ok' | 'denied'>('idle')
   // Motivo del fallimento: prima l'attivazione falliva in silenzio e non si
   // capiva se era il permesso del telefono o la sessione scaduta
@@ -102,10 +107,19 @@ export default function Impostazioni() {
     const changes = edits[room.id]
     if (!changes) return
     setSaving(room.id)
-    await supabase.from('rooms').update(changes).eq('id', room.id)
-    setRooms(rooms.map(r => r.id === room.id ? { ...r, ...changes } : r))
-    setEdits(prev => { const n = { ...prev }; delete n[room.id]; return n })
-    setSaving(null)
+    setErroreCamera(prev => ({ ...prev, [room.id]: null }))
+    try {
+      const errore = await scriviPoiAggiorna(
+        () => supabase.from('rooms').update(changes).eq('id', room.id),
+        () => {
+          setRooms(rooms.map(r => r.id === room.id ? { ...r, ...changes } : r))
+          setEdits(prev => { const n = { ...prev }; delete n[room.id]; return n })
+        },
+      )
+      setErroreCamera(prev => ({ ...prev, [room.id]: errore }))
+    } finally {
+      setSaving(null)
+    }
   }
 
   const BATHROOM_LABELS: Record<string, string> = { privato_interno: '🚿 Privato in camera', privato_esterno: '🚶 Privato esterno' }
@@ -175,6 +189,7 @@ export default function Impostazioni() {
                   {saving === room.id ? 'Salvataggio...' : '💾 Salva modifiche'}
                 </button>
               )}
+              {edits[room.id] && erroreCamera[room.id] && <AvvisoAzione testo={erroreCamera[room.id]!} className="mt-2" />}
             </div>
           )})}
         </div>
