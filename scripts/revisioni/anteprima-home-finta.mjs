@@ -65,7 +65,8 @@ const rooms = [
 let g = 0
 function ospite(full_name, phone) {
   g += 1
-  return { id: `aaaaaaaa-${due(g).padStart(4, '0')}-4000-8000-${String(g).padStart(12, '0')}`, phone, full_name, email: null, document_type: null, document_number: null, nationality: null, birth_date: null, birth_place: null, rating: 'normale', notes: null, created_at: ora, updated_at: ora }
+  // guests.phone come in produzione: sole cifre col prefisso (RPC e nuova prenotazione)
+  return { id: `aaaaaaaa-${due(g).padStart(4, '0')}-4000-8000-${String(g).padStart(12, '0')}`, phone: phone ? phone.replace(/\D/g, '') : phone, full_name, email: null, document_type: null, document_number: null, nationality: null, birth_date: null, birth_place: null, rating: 'normale', notes: null, created_at: ora, updated_at: ora }
 }
 const G = {
   anna: ospite('Anna Rossi', '+39 333 000 0001'),
@@ -137,11 +138,13 @@ function richiesta(nome, cognome, stato, arrivo, partenza, created_at, proposta_
 // Provenienza (08/09/2026): colonne della proposta 0036 sulle richieste/prenotazioni e tabella strutture;
 // GET /finto/senza-strutture?on=1 simula la 0036 NON applicata (campo nascosto con avviso)
 const strutture = ['Umana', 'Nida', 'RB (Rosa Bianca)', 'Elyse', 'BM (Borgo Manzoni)'].map(nome => ({ nome, created_at: ora }))
-for (const b of bookings) { b.provenienza = b.provenienza ?? 'non_so'; b.struttura_nome = b.struttura_nome ?? null }
-bookings.find(b => b.guest_id === G.giulio.id).provenienza = 'altra_struttura'; bookings.find(b => b.guest_id === G.giulio.id).struttura_nome = 'Nida'
-bookings.find(b => b.guest_id === G.sara.id).provenienza = 'altra_struttura'; bookings.find(b => b.guest_id === G.sara.id).struttura_nome = 'Umana'
-bookings.find(b => b.guest_id === G.elena.id).provenienza = 'google'
-bookings.find(b => b.guest_id === G.anna.id).provenienza = 'passaparola'
+// 0037 (08/09/2026, sera): la provenienza sta sul CLIENTE (guests), non più sulle prenotazioni
+for (const g of guests) { g.provenienza = 'non_so'; g.struttura_nome = null }
+G.giulio.provenienza = 'altra_struttura'; G.giulio.struttura_nome = 'Nida'
+G.sara.provenienza = 'altra_struttura'; G.sara.struttura_nome = 'Umana'
+G.elena.provenienza = 'google'
+G.anna.provenienza = 'passaparola'
+G.oggiOut.provenienza = 'altra_struttura'; G.oggiOut.struttura_nome = 'Nida'
 const richieste = [
   richiesta('Carla', 'Conti', 'in_attesa', O(8), O(11), oreFa(72)),
   richiesta('Dario', 'Deluca', 'proposta_inviata', O(12), O(14), oreFa(30), oreFa(5)),

@@ -6,23 +6,25 @@
 // Non obbligatorio. Senza la proposta 0036 il campo resta nascosto e compare
 // l'avviso «serve la migrazione». Nessun colore nuovo.
 import { useState } from 'react'
-import { PROVENIENZE, AVVISO_0036, suggerimentiDaMostrare, strutturaNota, type Provenienza, type StrutturaNota } from '@/lib/provenienza'
+import { PROVENIENZE, AVVISO_0037, suggerimentiDaMostrare, strutturaNota, type Provenienza, type StrutturaNota } from '@/lib/provenienza'
 
 export type ValoreProvenienza = { provenienza: Provenienza; struttura: string }
 
-export default function CampoProvenienza({ valore, onChange, strutture, disponibile, compatto }: {
+export default function CampoProvenienza({ valore, onChange, strutture, disponibile, compatto, nota, avvisoNonDisponibile }: {
   valore: ValoreProvenienza
   onChange: (v: ValoreProvenienza) => void
   strutture: StrutturaNota[]
   disponibile: boolean        // false = migrazione 0036 non applicata
   compatto?: boolean          // chip più piccoli (scheda prenotazione e nuova prenotazione)
+  nota?: string | null        // accanto all'etichetta: «Già stato da noi · N soggiorni»
+  avvisoNonDisponibile?: string | null   // quale migrazione manca (0036 o 0037)
 }) {
   const [aperto, setAperto] = useState(false)
   if (!disponibile) {
     return (
       <div data-provenienza="non-disponibile">
         <p className="text-sm text-stone mb-1">Come ci ha trovato</p>
-        <p className="text-xs text-stone">{AVVISO_0036}</p>
+        <p className="text-xs text-stone">{avvisoNonDisponibile ?? AVVISO_0037}</p>
       </div>
     )
   }
@@ -35,7 +37,8 @@ export default function CampoProvenienza({ valore, onChange, strutture, disponib
   const nuovo = valore.struttura.trim() && !strutturaNota(valore.struttura, strutture)
   return (
     <div data-provenienza={valore.provenienza}>
-      <p className={compatto ? 'text-sm text-gray-500 mb-1' : 'text-sm text-stone mb-1'}>Come ci ha trovato</p>
+      <p className={`${compatto ? 'text-sm text-gray-500' : 'text-sm text-stone'} mb-1 flex flex-wrap items-center gap-2`}>Come ci ha trovato
+        {nota && <span data-gia-stato className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-sage text-green-mid whitespace-nowrap">{nota}</span>}</p>
       <div className="flex flex-wrap gap-2">
         {PROVENIENZE.map(p => (
           <button key={p.chiave} type="button" aria-pressed={valore.provenienza === p.chiave} className={chip(valore.provenienza === p.chiave)}

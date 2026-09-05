@@ -14,7 +14,9 @@ import { leggiConEsito } from '@/lib/prenotazioneScritture'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import CampoProvenienza from '@/components/CampoProvenienza'
 import { campiProvenienza, type Provenienza, type StrutturaNota } from '@/lib/provenienza'
-import { leggiStrutture, ricordaStruttura } from '@/lib/provenienzaDati'
+import { leggiStrutture, ricordaStruttura, salvaProvenienzaCliente, cercaClientePerTelefono } from '@/lib/provenienzaDati'
+import { normalizzaProvenienza } from '@/lib/provenienza'
+import { etichettaGiaStato } from '@/lib/clienteCheTorna'
 
 // forme MINIME delle righe lette da Supabase (solo i campi usati qui)
 type ClienteRiga = {
@@ -87,11 +89,26 @@ function NuovaPrenotazione() {
   const [provenienza, setProvenienza] = useState<{ provenienza: Provenienza; struttura: string }>({ provenienza: 'non_so', struttura: '' })
   const [strutture, setStrutture] = useState<{ disponibile: boolean; lista: StrutturaNota[] }>({ disponibile: false, lista: [] })
   const [avvisoProvenienza, setAvvisoProvenienza] = useState<string | null>(null)
+  const [giaStato, setGiaStato] = useState<string | null>(null)
   useEffect(() => {
     let vivo = true
     leggiStrutture().then(r => { if (vivo) { setStrutture({ disponibile: r.disponibile, lista: r.strutture }); if (r.errore) setAvvisoProvenienza(r.errore) } })
     return () => { vivo = false }
   }, [])
+  // Cliente esistente: chip precompilati con la SUA provenienza e «Già stato da noi · N»
+  useEffect(() => {
+    let vivo = true
+    // Non in modo sincrono nell'effetto (regola react-hooks): al giro dopo
+    const t = setTimeout(() => {
+      if (!vivo) return
+      if (!guest) { setGiaStato(null); return }
+      const g = guest as unknown as Record<string, unknown>
+      if ('provenienza' in g) setProvenienza({ provenienza: normalizzaProvenienza(g.provenienza), struttura: (g.struttura_nome as string) ?? '' })
+      const d = new Date(); const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      cercaClientePerTelefono(String(g.phone ?? ''), iso).then(c => { if (vivo) setGiaStato(c ? etichettaGiaStato(c.soggiorniConclusi) : null) })
+    }, 0)
+    return () => { vivo = false; clearTimeout(t) }
+  }, [guest])
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedGroupId, setSavedGroupId] = useState<string | null>(null)
@@ -370,7 +387,8 @@ function NuovaPrenotazione() {
     if (!guestId) {
       const rawP = phone.trim().replace(/\D/g, '')
       const formattedPhone = rawP ? (rawP.startsWith('39') ? rawP : `39${rawP}`) : null
-      const { data: newGuest, error: guestError } = await supabase.from('guests').insert({ phone: formattedPhone, full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating }).select().single()
+      // Cliente nuovo: la provenienza nasce con lui (solo a 0037 applicata)
+      const { data: newGuest, error: guestError } = await supabase.from('guests').insert({ phone: formattedPhone, full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating, ...(strutture.disponibile ? campiProvenienza(provenienza.provenienza, provenienza.struttura) : {}) }).select().single()
       if (guestError || !newGuest) {
         setSaveError(`Errore creazione cliente: ${guestError?.message || 'sconosciuto'}`)
         setSaving(false)
@@ -401,14 +419,17 @@ function NuovaPrenotazione() {
       num_guests: form.num_guests, extra_bed: form.extra_bed_dates.length > 0, extra_bed_dates: form.extra_bed_dates, price_per_night: Number(form.price_per_night),
       extra_bed_total: ebt, total_amount: calcTotal(), notes: form.notes || null, status: 'confermata', source: form.source,
       bonifico: form.bonifico, pagato: false, group_id: groupId,
-      // Provenienza: solo a migrazione 0036 applicata (tabella strutture presente)
-      ...(strutture.disponibile ? campiProvenienza(provenienza.provenienza, provenienza.struttura) : {}),
       extra_phone_1_name: form.extra_phone_1_name || null,
       // chi_e incluso solo se valorizzato: così il salvataggio funziona anche se la colonna non è ancora stata creata su Supabase
       ...(form.chi_e ? { chi_e: form.chi_e } : {}),
       // navetta: stessa regola (vuoto = "da definire", non si salva nulla)
       ...(form.shuttle ? { shuttle: form.shuttle } : {}),
     })
+    // Cliente esistente: la provenienza è la sua e vale per tutti i suoi soggiorni
+    if (!bookingError && strutture.disponibile && guest?.id) {
+      const errCliente = await salvaProvenienzaCliente(guest.id, campiProvenienza(provenienza.provenienza, provenienza.struttura))
+      if (errCliente) setAvvisoProvenienza(`Prenotazione salvata, ma la provenienza del cliente non è stata aggiornata: ${errCliente}`)
+    }
     // Nome di struttura nuovo → entra nell'elenco (non blocca il salvataggio)
     if (!bookingError && strutture.disponibile && provenienza.provenienza === 'altra_struttura') {
       const errStruttura = await ricordaStruttura(provenienza.struttura, strutture.lista)
@@ -831,7 +852,7 @@ function NuovaPrenotazione() {
             </div>
 
             <div className="mb-3">
-              <CampoProvenienza compatto valore={provenienza} onChange={setProvenienza} strutture={strutture.lista} disponibile={strutture.disponibile} />
+              <CampoProvenienza compatto valore={provenienza} onChange={setProvenienza} strutture={strutture.lista} disponibile={strutture.disponibile} nota={giaStato} />
               {avvisoProvenienza && <p className="text-xs text-stone mt-1">{avvisoProvenienza}</p>}
             </div>
 

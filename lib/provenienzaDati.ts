@@ -56,7 +56,11 @@ export type ClienteTrovato = { id: string; full_name: string | null; provenienza
 export async function cercaClientePerTelefono(telefono: string, oggi: string): Promise<ClienteTrovato | null> {
   const cifre = normalizzaTelefono(telefono).numero
   if (!cifre || cifre.length < 8) return null
-  const { data, error } = await supabase.from('guests').select('*').ilike('phone', `%${cifre.slice(-9)}%`).limit(5)
+  // In produzione guests.phone è a sole cifre (RPC e nuova prenotazione): prima
+  // l'uguaglianza esatta, poi un ripiego sulle ultime cifre per le schede
+  // vecchie scritte con spazi o prefisso
+  let { data, error } = await supabase.from('guests').select('*').eq('phone', cifre).limit(1)
+  if (!error && (!data || data.length === 0)) ({ data, error } = await supabase.from('guests').select('*').ilike('phone', `%${cifre.slice(-4)}`).limit(20))
   if (error || !data) return null
   const g = data.find(x => normalizzaTelefono(x.phone).numero === cifre) as Record<string, unknown> | undefined
   if (!g) return null

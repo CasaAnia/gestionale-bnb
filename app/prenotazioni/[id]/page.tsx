@@ -23,8 +23,8 @@ import { oggiARoma } from '@/lib/spese/adattatore'
 import { saldoMancanteCent, METODI_PAGAMENTO, eseguiSegnaPagato, eseguiRegistraAcconto, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, type MetodoPagamento, type MovimentoSaldo, type AccontoPendente } from '@/lib/statistiche'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import CampoProvenienza from '@/components/CampoProvenienza'
-import { campiProvenienza, normalizzaProvenienza, testoProvenienza, type StrutturaNota } from '@/lib/provenienza'
-import { leggiStrutture, ricordaStruttura } from '@/lib/provenienzaDati'
+import { campiProvenienza, provenienzaDi, testoProvenienza, clienteConProvenienza, type StrutturaNota } from '@/lib/provenienza'
+import { leggiStrutture, ricordaStruttura, salvaProvenienzaCliente } from '@/lib/provenienzaDati'
 import { soggiorniPrecedenti, etichettaGiaStato, type SoggiornoStorico } from '@/lib/clienteCheTorna'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
@@ -511,8 +511,8 @@ export default function BookingDetail() {
         color: b.color || '',
         bonifico: b.bonifico || false,
         source: b.source || 'diretta',
-        // Provenienza (0036): presente solo se la colonna esiste sulla riga
-        provenienza: normalizzaProvenienza(b.provenienza), struttura: b.struttura_nome || '',
+        // Provenienza del CLIENTE (0037), con ripiego sul valore vecchio della prenotazione (0036)
+        provenienza: provenienzaDi(b).provenienza, struttura: provenienzaDi(b).struttura_nome || '',
         extra_phone_1: b.extra_phone_1 || '',
         extra_phone_1_name: b.extra_phone_1_name || '',
         chi_e: b.chi_e || '',
@@ -887,8 +887,6 @@ export default function BookingDetail() {
       color: editForm.color || null,
       bonifico: editForm.bonifico || false,
       source: editForm.source || 'diretta',
-      // Provenienza: solo a colonne migrate (0036), come chi_e
-      ...(booking.provenienza !== undefined ? campiProvenienza(editForm.provenienza, editForm.struttura) : {}),
       extra_phone_1: editForm.extra_phone_1 ? normalizePhone(editForm.extra_phone_1) : null,
       extra_phone_1_name: editForm.extra_phone_1_name || null,
       // chi_e incluso solo se la colonna esiste già sul DB o se è stato valorizzato: gli altri salvataggi non si bloccano prima della migrazione
@@ -909,10 +907,15 @@ export default function BookingDetail() {
     }
     setSaveEditError(null)
     setAvvisoScheda(null)
-    // Nome di struttura nuovo → entra nell'elenco (non blocca il salvataggio)
-    if (booking.provenienza !== undefined && editForm.provenienza === 'altra_struttura') {
-      const errStruttura = await ricordaStruttura(editForm.struttura, strutture.lista)
-      if (errStruttura) setAvvisoScheda(`Salvato, ma il nome della struttura non è stato aggiunto all'elenco: ${errStruttura}`)
+    // La provenienza è del CLIENTE (0037): vale per tutti i suoi soggiorni, passati e futuri
+    if (clienteConProvenienza(booking.guests) && booking.guest_id && strutture.disponibile) {
+      const campi = campiProvenienza(editForm.provenienza, editForm.struttura)
+      const errCliente = await salvaProvenienzaCliente(booking.guest_id, campi, () => setBooking({ ...booking, guests: { ...booking.guests, ...campi } }))
+      if (errCliente) setAvvisoScheda(`Salvato, ma la provenienza del cliente non è stata aggiornata: ${errCliente}`)
+      else if (editForm.provenienza === 'altra_struttura') {
+        const errStruttura = await ricordaStruttura(editForm.struttura, strutture.lista)
+        if (errStruttura) setAvvisoScheda(`Salvato, ma il nome della struttura non è stato aggiunto all'elenco: ${errStruttura}`)
+      }
     }
     const guestId = booking.guest_id || booking.guests?.id
     let avvisoCliente: string | null = null
@@ -1222,8 +1225,8 @@ export default function BookingDetail() {
           <button onClick={() => setEditing(false)} className="text-gray-500 text-sm">Annulla</button>
         )}
       </div>
-      {!editing && booking.provenienza !== undefined && (
-        <p className="text-xs -mt-2 mb-3" style={{ color: '#6b6b60' }} data-provenienza-scheda>Come ci ha trovato: <span className="font-semibold text-green-dark">{testoProvenienza(booking)}</span></p>
+      {!editing && (clienteConProvenienza(booking.guests) || booking.provenienza !== undefined) && (
+        <p className="text-xs -mt-2 mb-3" style={{ color: '#6b6b60' }} data-provenienza-scheda>Come ci ha trovato: <span className="font-semibold text-green-dark">{testoProvenienza(provenienzaDi(booking))}</span> <span className="text-gray-400">· del cliente, vale per tutti i suoi soggiorni</span></p>
       )}
       {richiestaOrigine && (
         <p className="text-xs -mt-2 mb-3" style={{ color: '#6b6b60' }}>
@@ -1523,7 +1526,7 @@ export default function BookingDetail() {
           <div className="mb-3">
             <CampoProvenienza compatto valore={{ provenienza: editForm.provenienza || 'non_so', struttura: editForm.struttura || '' }}
               onChange={x => setEditForm({ ...editForm, provenienza: x.provenienza, struttura: x.struttura })}
-              strutture={strutture.lista} disponibile={booking.provenienza !== undefined && strutture.disponibile} />
+              strutture={strutture.lista} disponibile={clienteConProvenienza(booking.guests) && strutture.disponibile} />
           </div>
 
           <input value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })}

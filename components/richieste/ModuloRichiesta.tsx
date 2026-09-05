@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import StrisciaNotti from '@/components/StrisciaNotti'
 import { supabase } from '@/lib/supabase'
@@ -10,7 +10,8 @@ import { riassuntoPersone, type CanaleRichiesta, type ValoriModifica } from '@/l
 import { normalizzaTelefono, telefonoLeggibile } from '@/lib/whatsapp'
 import CampoProvenienza from '@/components/CampoProvenienza'
 import { campiProvenienza, normalizzaProvenienza, type Provenienza, type StrutturaNota } from '@/lib/provenienza'
-import { leggiStrutture, ricordaStruttura } from '@/lib/provenienzaDati'
+import { leggiStrutture, ricordaStruttura, cercaClientePerTelefono, salvaProvenienzaCliente, type ClienteTrovato } from '@/lib/provenienzaDati'
+import { etichettaGiaStato } from '@/lib/clienteCheTorna'
 
 // Il modulo della richiesta (pezzo 9): lo STESSO per «Nuova richiesta» e per
 // «Modifica» (precompilato). Sotto «Persone», appena arrivo e partenza sono
@@ -87,6 +88,29 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
     return () => { vivo = false }
   }, [])
 
+  // Provenienza del CLIENTE (0037): se il telefono è di un cliente esistente
+  // i chip si precompilano con la sua provenienza (una volta per cliente) e
+  // accanto compare «Già stato da noi · N soggiorni»
+  const [cliente, setCliente] = useState<ClienteTrovato | null>(null)
+  const precompilatoPer = useRef<string | null>(null)
+  useEffect(() => {
+    const tel = v.telefono.trim()
+    let vivo = true
+    const t = setTimeout(() => {
+      if (!tel) { setCliente(null); return }
+      const oggi = new Date(); const iso = `${oggi.getFullYear()}-${String(oggi.getMonth() + 1).padStart(2, '0')}-${String(oggi.getDate()).padStart(2, '0')}`
+      cercaClientePerTelefono(tel, iso).then(c => {
+        if (!vivo) return
+        setCliente(c)
+        if (c && c.conColonne && precompilatoPer.current !== c.id) {
+          precompilatoPer.current = c.id
+          setV(x => ({ ...x, provenienza: normalizzaProvenienza(c.provenienza), struttura: c.struttura_nome ?? '' }))
+        }
+      })
+    }, 400)
+    return () => { vivo = false; clearTimeout(t) }
+  }, [v.telefono])
+
   useEffect(() => {
     supabase.from('rooms').select('id, name, active, has_extra_bed, base_price, double_price').eq('active', true).then(({ data, error }) => {
       if (error) setErrore(`Camere non caricate: ${error.message}`)
@@ -138,6 +162,11 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
     if (v.personePerNotte && v.personePerNotte.length !== nottiN) { setErrore('La striscia delle notti non corrisponde alle date: ricontrolla le persone per notte.'); return }
     setSaving(true)
     const e = await onSalva(valoriDaSalvare({ ...v, personePerNotte: normalizzaPersonePerNotte(v.personePerNotte, persone, nottiN) }, strutture.disponibile))
+    // La provenienza è del cliente: se esiste già, si aggiorna la sua (vale per tutti i suoi soggiorni)
+    if (!e && strutture.disponibile && cliente?.conColonne) {
+      const errCliente = await salvaProvenienzaCliente(cliente.id, campiProvenienza(v.provenienza, v.struttura))
+      if (errCliente) setAvviso(`Richiesta salvata, ma la provenienza del cliente non è stata aggiornata: ${errCliente}`)
+    }
     // Nome di struttura nuovo → entra nell'elenco (non blocca il salvataggio)
     if (!e && strutture.disponibile && v.provenienza === 'altra_struttura') {
       const errStruttura = await ricordaStruttura(v.struttura, strutture.lista)
@@ -163,7 +192,8 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
         </div>
 
         <CampoProvenienza valore={{ provenienza: v.provenienza, struttura: v.struttura }} onChange={x => setV(y => ({ ...y, provenienza: x.provenienza, struttura: x.struttura }))}
-          strutture={strutture.lista} disponibile={strutture.disponibile} />
+          strutture={strutture.lista} disponibile={strutture.disponibile}
+          nota={cliente ? (etichettaGiaStato(cliente.soggiorniConclusi) ?? `Cliente già in archivio${cliente.full_name ? `: ${cliente.full_name}` : ''}`) : null} />
         {avviso && <p className="text-xs text-stone">{avviso}</p>}
 
         <div className="grid grid-cols-2 gap-2">
