@@ -57,7 +57,7 @@ test('tre numeri: senza prenotazioni tutto a zero ma le camere restano', () => {
 
 // ── Striscia della settimana: STESSA regola della pagina Pulizie (08/09/2026) ──
 import { strisciaSettimane, etichettaGiornoBreve, ultimoGiornoStriscia, testoCasella } from './numeriOggi.ts'
-import { conteggioGiorno, statoCameraGiorno, pulizieAperte, attive, type Decisione } from './pulizie.ts'
+import { conteggioGiorno, statoCameraGiorno, pulizieAperte, attive, cicloCambio, type Decisione } from './pulizie.ts'
 
 const CAMERE = [{ id: 'amelia' }, { id: 'allegra' }, { id: 'ambra' }, { id: 'lena' }]
 let seq = 0
@@ -144,4 +144,63 @@ test('etichette e limiti della striscia', () => {
   assert.equal(etichettaGiornoBreve('2026-09-05'), 'sab 5')
   assert.equal(etichettaGiornoBreve('2026-10-01'), 'gio 1')
   assert.equal(ultimoGiornoStriscia('2026-09-05'), '2026-10-02')
+})
+
+// ── Rettifiche di Pulizie (08/09/2026, segnalazione di Ania): saltata, rimandata, aggiunta a mano ──
+test('cambio biancheria SALTATO in Pulizie: non conta e non riappare quel giorno; le 4 notti ripartono dalla data proposta come nella pagina', () => {
+  seq = 0
+  const oggi = '2026-09-05'
+  // Caso vero di Ambra (dati di produzione del 05/09/2026): soggiorno continuativo 6 ago → 1 set → 7 set,
+  // cambi biancheria fatti il 23 e 27 ago e il 1° set, poi quello del 5 set SALTATO (proposta 9 set) perché
+  // la cliente cambia camera il 7
+  const bookings = [
+    pren('ambra', '2026-08-06', '2026-09-01', { guest_id: 'rosa' }),
+    pren('ambra', '2026-09-01', '2026-09-07', { guest_id: 'rosa' }),
+    pren('amelia', '2026-09-07', '2026-09-11', { guest_id: 'rosa' }),     // cambio camera il 7
+  ]
+  const fatte: Decisione[] = [
+    { id: 'a1', room_id: 'ambra', booking_id: 'p1', tipo: 'soggiorno', stato: 'fatta', data_prevista: '2026-08-27', data_effettiva: '2026-08-27', created_at: '2026-08-27T19:23:00Z' },
+    { id: 'a2', room_id: 'ambra', booking_id: 'p2', tipo: 'soggiorno', stato: 'fatta', data_prevista: '2026-08-31', data_effettiva: '2026-09-01', created_at: '2026-09-01T12:51:00Z' },
+  ]
+  const saltata: Decisione = { id: 'a3', room_id: 'ambra', booking_id: 'p2', tipo: 'soggiorno', stato: 'saltata', data_prevista: '2026-09-05', prossima_data: '2026-09-09', created_at: '2026-09-05T08:20:00Z' }
+  // Prima del salto: il cambio del 5 (1° set + 4 notti) è da fare oggi
+  const prima = strisciaSettimane(CAMERE, bookings, fatte, oggi)
+  assert.deepEqual([prima[0].daFare, prima[0].fatte], [1, 0])
+  assert.equal(statoCameraGiorno(attive(bookings), 'ambra', oggi, oggi, fatte), 'da_fare')
+  // Dopo il salto: oggi «—», il cambio non riappare (la proposta del 9 cade dopo la partenza del 7 → nessun cambio),
+  // il 7 resta la partenza/cambio camera da fare
+  const dopo = strisciaSettimane(CAMERE, bookings, [...fatte, saltata], oggi)
+  assert.deepEqual(testoCasella(dopo[0]), { testo: '—', tono: 'niente' })
+  assert.equal(statoCameraGiorno(attive(bookings), 'ambra', '2026-09-06', oggi, [...fatte, saltata]), 'nessuna')
+  assert.equal(statoCameraGiorno(attive(bookings), 'ambra', '2026-09-09', oggi, [...fatte, saltata]), 'nessuna')
+  assert.equal(statoCameraGiorno(attive(bookings), 'ambra', '2026-09-07', oggi, [...fatte, saltata]), 'da_fare')
+  // Stesso dato della pagina Pulizie: cicloCambio dice «nessun cambio» dopo il salto
+  assert.equal(cicloCambio(attive(bookings), bookings[1], [...fatte, saltata]).due, null)
+  // Salto con partenza lontana: le 4 notti ripartono dalla data proposta (9 set), come nella pagina
+  const lungo = [pren('lena', '2026-09-01', '2026-09-20', { guest_id: 'lunga' })]
+  const salto: Decisione = { id: 's1', room_id: 'lena', booking_id: 'p4', tipo: 'soggiorno', stato: 'saltata', data_prevista: '2026-09-05', prossima_data: '2026-09-09', created_at: '2026-09-05T08:00:00Z' }
+  const s = strisciaSettimane(CAMERE, lungo, [salto], oggi)
+  assert.equal(s.find(g => g.giorno === '2026-09-05')!.daFare, 0)
+  assert.equal(s.find(g => g.giorno === '2026-09-09')!.daFare, 1)
+  assert.equal(cicloCambio(attive(lungo), lungo[0], [salto]).due, '2026-09-09')
+})
+
+test('cambio biancheria RIMANDATO: conta solo nel giorno di destinazione; aggiunto a mano: fatta quel giorno e le 4 notti ripartono da lì', () => {
+  seq = 0
+  const oggi = '2026-09-05'
+  const lungo = [pren('lena', '2026-09-01', '2026-09-20', { guest_id: 'lunga' })]
+  const rimandata: Decisione = { id: 'r1', room_id: 'lena', booking_id: 'p1', tipo: 'soggiorno', stato: 'rimandata', data_prevista: '2026-09-05', prossima_data: '2026-09-07', created_at: '2026-09-05T08:00:00Z' }
+  const s = strisciaSettimane(CAMERE, lungo, [rimandata], oggi)
+  assert.equal(s[0].daFare, 0)                                        // non più oggi
+  assert.equal(s.find(g => g.giorno === '2026-09-07')!.daFare, 1)     // nel giorno nuovo
+  assert.equal(s.find(g => g.giorno === '2026-09-09')!.daFare, 0)
+  // Aggiunta a mano (fatta il 6): «✓» il 6 e prossimo cambio il 10
+  const fattaAMano: Decisione = { id: 'f1', room_id: 'lena', booking_id: 'p1', tipo: 'soggiorno', stato: 'fatta', data_prevista: '2026-09-05', data_effettiva: '2026-09-06', created_at: '2026-09-06T09:00:00Z' }
+  const m = strisciaSettimane(CAMERE, lungo, [rimandata, fattaAMano], oggi)
+  assert.deepEqual(testoCasella(m.find(g => g.giorno === '2026-09-06')!), { testo: '✓', tono: 'fatto' })
+  assert.equal(m.find(g => g.giorno === '2026-09-07')!.daFare, 0)
+  assert.equal(m.find(g => g.giorno === '2026-09-10')!.daFare, 1)
+  assert.equal(cicloCambio(attive(lungo), lungo[0], [rimandata, fattaAMano]).due, '2026-09-10')
+  // Stessi dati → striscia = pagina, giorno per giorno
+  for (const g of m) assert.deepEqual([g.daFare, g.fatte], (c => [c.daFare, c.fatte])(conteggioGiorno(CAMERE, lungo, [rimandata, fattaAMano], g.giorno, oggi)), g.giorno)
 })
