@@ -1,5 +1,6 @@
 'use client'
 import { Suspense, useEffect, useMemo, useState } from 'react'
+import { soggiorniPrecedenti, etichettaGiaStato } from '@/lib/clienteCheTorna'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Globe, Phone, MessageCircle, ChevronDown } from 'lucide-react'
@@ -59,7 +60,7 @@ function BadgeSovrapposta() {
   )
 }
 
-function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiuta, onConferma }: { r: Richiesta; adesso: Date; conflitti: string[]; selezionata: boolean; onSeleziona: () => void; onRifiuta: (r: Richiesta) => void; onConferma: (r: Richiesta) => void }) {
+function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiuta, onConferma, giaStato }: { r: Richiesta; adesso: Date; conflitti: string[]; selezionata: boolean; onSeleziona: () => void; onRifiuta: (r: Richiesta) => void; onConferma: (r: Richiesta) => void; giaStato?: string | null }) {
   const n = nottiRichiesta(r)
   return (
     <li>
@@ -67,7 +68,9 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
       className={`w-full text-left bg-white rounded-xl border border-[#C9BFA8] shadow-sm p-4 md:px-5 md:py-4 leading-snug transition-shadow cursor-pointer ${selezionata ? 'shadow-md bg-sage/40' : 'shadow-sm'}`}>
       <div className="flex items-baseline justify-between gap-3">
         {/* desktop (blocco 2b): «Nome Cognome» in Fraunces 16 px; il badge ⇄ va sulla riga propria */}
-        <p className="font-medium text-[15px] md:font-serif md:text-[16px] text-green-dark truncate inline-flex items-center gap-1.5 min-w-0"><span className="truncate">{nomeCompleto(r)}</span>{conflitti.length > 0 && <span className="md:hidden inline-flex"><BadgeSovrapposta /></span>}</p>
+        <p className="font-medium text-[15px] md:font-serif md:text-[16px] text-green-dark truncate inline-flex items-center gap-1.5 min-w-0"><span className="truncate">{nomeCompleto(r)}</span>{conflitti.length > 0 && <span className="md:hidden inline-flex"><BadgeSovrapposta /></span>}
+          {/* Cliente che torna (08/09/2026): non è una provenienza, è un'etichetta */}
+          {giaStato && <span data-gia-stato className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-sage text-green-mid whitespace-nowrap">{giaStato}</span>}</p>
         <p className="shrink-0 text-sm font-semibold text-brass">{n === 1 ? '1 notte' : `${n} notti`}</p>
       </div>
       <p className="text-sm md:text-[13px] text-green-dark mt-1 md:mt-1.5">
@@ -436,7 +439,7 @@ function Richieste() {
           ) : (
             <ul className="flex flex-col gap-3 min-[1100px]:grid min-[1100px]:grid-cols-2 min-[1100px]:items-start">
               {mostrate.map(r => (
-                <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []}
+                <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []} giaStato={etichettaGiaStato(soggiorniPrecedenti({ nome: r.nome, cognome: r.cognome, telefono: r.telefono }, prenotazioni, oggiIso()))}
                   selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} onRifiuta={setDaRifiutare} onConferma={r => setDaConfermare(r as RichiestaConProposta)} />
               ))}
             </ul>

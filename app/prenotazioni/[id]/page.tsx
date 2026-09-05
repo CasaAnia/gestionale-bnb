@@ -25,6 +25,7 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import CampoProvenienza from '@/components/CampoProvenienza'
 import { campiProvenienza, normalizzaProvenienza, testoProvenienza, type StrutturaNota } from '@/lib/provenienza'
 import { leggiStrutture, ricordaStruttura } from '@/lib/provenienzaDati'
+import { soggiorniPrecedenti, etichettaGiaStato } from '@/lib/clienteCheTorna'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -367,6 +368,9 @@ export default function BookingDetail() {
   // Altre prenotazioni dello stesso ospite (anche annullate): se ha mandato
   // più richieste dal sito, magari una sbagliata, da qui si ritrovano tutte
   const [otherBookings, setOtherBookings] = useState<any[]>([])
+  // Cliente che torna (08/09/2026): soggiorni conclusi dello stesso telefono
+  // o dello stesso nome e cognome, anche su un'altra scheda cliente
+  const [omonimi, setOmonimi] = useState<any[]>([])
   // Conferma della richiesta dal sito: un solo tocco, poi il bottone sparisce
   const [confirming, setConfirming] = useState(false)
   const [erroreConferma, setErroreConferma] = useState<string | null>(null)
@@ -526,6 +530,13 @@ export default function BookingDetail() {
       setRooms(sorted)
       // Altre prenotazioni dello stesso ospite, escluse quelle del gruppo
       // (i segmenti del cambio camera sono lo stesso soggiorno)
+      // Stesso nome e cognome su un'altra scheda cliente (lettura tollerante: se fallisce resta solo il telefono)
+      const nomeIntero = (b?.guest_name || b?.guests?.full_name || '').trim()
+      if (nomeIntero) {
+        supabase.from('bookings').select('id, group_id, guest_id, check_in, check_out, status, guest_name, guests!inner(full_name, phone)')
+          .ilike('guests.full_name', nomeIntero).in('status', ['confermata', 'completata'])
+          .then(({ data: om }) => setOmonimi(om || []))
+      }
       if (b?.guest_id) {
         supabase.from('bookings')
           .select('id, check_in, check_out, status, group_id, source, guest_name, rooms(name)')
@@ -1197,6 +1208,12 @@ export default function BookingDetail() {
       )}
       <div className="flex items-center gap-3 mb-4">
         <h1 className="font-serif text-xl text-green-dark">Prenotazione</h1>
+        {(() => {
+          const persona = { guest_id: booking.guest_id, telefono: booking.guests?.phone, full_name: booking.guest_name || booking.guests?.full_name }
+          const storico = [...otherBookings.map((x: any) => ({ ...x, guest_id: booking.guest_id })), ...omonimi]
+          const testo = etichettaGiaStato(soggiorniPrecedenti(persona, storico, oggiARoma(), booking.group_id || booking.id))
+          return testo ? <span data-gia-stato className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-sage text-green-mid whitespace-nowrap">{testo}</span> : null
+        })()}
         {booking.source === 'sito_web' && (
           <span className="text-xs font-bold rounded-full px-3 py-1 shadow-sm" style={{ background: '#2D6A4F', color: '#fff' }}>🌐 Dal sito</span>
         )}
