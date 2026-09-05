@@ -68,7 +68,7 @@ function calcola(d: DatiHome, td: string, tmr: string, ms: string, nms: string) 
   const daInc = daIncassare(d.prenotazioniConMovimenti, d.tuttiPagamenti).map(g => ({ ...g, guest: nomeDi.get(g.id) || g.nomi || 'Ospite' }))
 
   // R6: finché lo storico è da ricostruire la voce si chiama «Incassi registrati»
-  const voceIncassi = etichettaIncassi(pianoRicostruzione(d.ricostruzione.prenotazioni, d.ricostruzione.pagamenti).movimenti.length)
+  const voceIncassi = etichettaIncassi(pianoRicostruzione(d.ricostruzione.prenotazioni, d.ricostruzione.pagamenti, d.ricostruzione.oggi).movimenti.length)
 
   return { cassa, indici, voceIncassi, checkInOggi, checkOutOggi, checkInDomani, checkOutDomani, roomChangesOggi, roomChangesDomani, td, daIncassare: daInc }
 }
@@ -93,7 +93,7 @@ export default function Dashboard() {
     const nms = nextMonthStart()
     // Si legge il mese; se domani cade nel mese dopo, si allunga di un giorno per «Domani»
     const fine = spostaGiorni(tmr, 1) > nms ? spostaGiorni(tmr, 1) : nms
-    leggiDatiHome(ms, fine).then(({ data: d, errore: e }) => {
+    leggiDatiHome(ms, fine, td).then(({ data: d, errore: e }) => {
       if (!vivo) return
       if (e || !d) { setErrore(e ?? 'Non riesco a caricare i dati, riprova'); setLoading(false); return }
       setData(calcola(d, td, tmr, ms, nms))

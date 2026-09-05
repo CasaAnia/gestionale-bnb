@@ -8,7 +8,8 @@ import { leggiDatiStatistiche, type DatiStatistiche } from '@/lib/statisticheDat
 import { supabase } from '@/lib/supabase'
 import { nomeOspite } from '@/lib/guestName'
 import { messaggioNonSalvato } from '@/lib/scritturaSicura'
-import { cassaIntervallo, incassiCent, occupazioneIntervallo, ricaviPerCamera, scontiPeriodo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi, rpcMancante, type Occupazione } from '@/lib/statistiche'
+import { isErroreDiRete } from '@/lib/connessione'
+import { cassaIntervallo, incassiCent, occupazioneIntervallo, ricaviPerCamera, scontiPeriodo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi, rpcMancante, vociPerRpc, validaEsitoRicostruzione, type Occupazione } from '@/lib/statistiche'
 
 // «Statistiche, numeri corretti» (05/09/2026): NESSUNA formula in questa
 // pagina. Ogni numero viene da lib/statistiche (funzioni pure, testate) sui
@@ -139,7 +140,7 @@ export default function Statistiche() {
   useEffect(() => {
     let vivo = true
     const [da, a] = chiaveLettura.split('|')
-    leggiDatiStatistiche(da, a).then(({ data: d, errore: e }) => {
+    leggiDatiStatistiche(da, a, todayStr()).then(({ data: d, errore: e }) => {
       if (!vivo) return
       if (e) { setErrore(e); setData(null); setLoading(false); return }
       setData(d)
@@ -199,25 +200,32 @@ export default function Statistiche() {
   const maxIncassi = Math.max(...rows.map(r => r.incassi), 1)
 
   // R6: piano di ricostruzione (funzione pura) ed etichetta della voce Incassi
-  const piano = data ? pianoRicostruzione(data.ricostruzione.prenotazioni, data.ricostruzione.pagamenti) : { movimenti: [], totaleCent: 0 }
+  const piano = data ? pianoRicostruzione(data.ricostruzione.prenotazioni, data.ricostruzione.pagamenti, data.ricostruzione.oggi) : { movimenti: [], totaleCent: 0, esclusi: [] }
   const voceIncassi = etichettaIncassi(piano.movimenti.length)
   const nomeDi = new Map((data?.ricostruzione.prenotazioni ?? []).map(b => [b.id, nomeOspite(b)]))
 
-  // Scrittura in un'unica transazione (RPC ricostruisci_incassi, proposta 0033):
-  // rilanciarla non crea doppioni. Senza la 0033 la RPC manca e lo si dice.
+  // R9: alla RPC ricostruisci_incassi (proposta 0033) vanno SOLO identità e
+  // chiavi del piano approvato; il server blocca, rilegge, ricalcola e scrive
+  // il saldo effettivo in un'unica transazione. Una risposta di rete persa non
+  // autorizza «nulla è stato scritto»: esito INCERTO, si rilegge e si
+  // verifica il piano prima di dire com'è andata.
   async function confermaRicostruzione() {
     if (ricostruendo || piano.movimenti.length === 0) return
     setRicostruendo(true)
     setErroreRicostruzione(null)
+    setEsitoRicostruzione(null)
+    const voci = vociPerRpc(piano)
     try {
-      const p_movimenti = piano.movimenti.map(m => ({ chiave_operazione: m.chiave_operazione, booking_id: m.booking_id, amount: m.amount, paid_on: m.paid_on, method: m.method, origine: m.origine }))
-      const { data: r, error: e } = await supabase.rpc('ricostruisci_incassi', { p_movimenti })
+      const { data: r, error: e } = await supabase.rpc('ricostruisci_incassi', { p_piano: voci })
       if (e) {
-        setErroreRicostruzione(rpcMancante(e) ? 'Serve la migrazione 0033 (proposta in supabase/proposte) prima di ricostruire: nulla è stato scritto' : `${messaggioNonSalvato(e)}: nulla è stato scritto`)
+        if (rpcMancante(e, 'ricostruisci_incassi')) { setErroreRicostruzione('Serve la migrazione 0033 (proposta in supabase/proposte) prima di ricostruire: nulla è stato scritto'); return }
+        if (isErroreDiRete(e)) { setEsitoRicostruzione('Non so se la ricostruzione è stata scritta (risposta persa): rileggo e ricontrollo il piano'); riprova(); return }
+        setErroreRicostruzione(`${messaggioNonSalvato(e)}: la ricostruzione è stata annullata per intero`)
         return
       }
-      const esito = r as { scritti?: number; saltati?: number } | null
-      setEsitoRicostruzione(`Ricostruzione eseguita: ${esito?.scritti ?? 0} movimenti scritti${esito?.saltati ? `, ${esito.saltati} già presenti` : ''}`)
+      const esito = validaEsitoRicostruzione(r, voci.length)
+      if (!esito) { setEsitoRicostruzione('Risposta del server non riconosciuta: rileggo e ricontrollo il piano prima di dare la ricostruzione per fatta'); riprova(); return }
+      setEsitoRicostruzione(`Ricostruzione eseguita: ${esito.scritti} movimenti scritti${esito.saltati ? `, ${esito.saltati} già presenti` : ''}${esito.nulla ? `, ${esito.nulla} già coperti` : ''} — rileggo per conferma`)
       riprova()
     } finally {
       setRicostruendo(false)
@@ -289,7 +297,7 @@ export default function Statistiche() {
           {piano.movimenti.length > 0 && (
             <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
               <p className="text-sm font-semibold text-gray-600">Storico incassi da ricostruire</p>
-              <p className="text-xs text-gray-400 mb-3">soggiorni segnati pagati senza un pagamento registrato che copra il totale: la ricostruzione crea un movimento «all’arrivo (ricostruito)» con la data di arrivo</p>
+              <p className="text-xs text-gray-400 mb-3">soggiorni conclusi senza un pagamento registrato che copra il totale (regola: si è sempre pagato all’arrivo): la ricostruzione crea un movimento «all’arrivo (ricostruito)» con la data di arrivo; l’importo lo ricalcola il server al momento della scrittura</p>
               <div className="rounded-lg border border-[#C9BFA8] overflow-hidden">
                 {piano.movimenti.map(m => (
                   <div key={m.chiave_operazione} className="flex items-center justify-between gap-2 px-3 py-2 text-sm border-b border-gray-50 last:border-b-0">
@@ -297,6 +305,7 @@ export default function Statistiche() {
                       <span className="font-medium text-green-dark">{nomeDi.get(m.booking_id) || m.nomi || 'Ospite'}</span>
                       <span className="text-gray-500"> · {m.arrivo} → {m.partenza}</span>
                       {m.registratiCent > 0 && <span className="text-gray-400 text-xs"> · acconti €{euro(m.registratiCent)}</span>}
+                      <span className="block text-[11px] text-gray-400">{m.motivo === 'concluso_non_segnato' ? 'concluso, non segnato pagato' : 'segnato pagato senza movimenti'}</span>
                     </span>
                     <span className="font-semibold text-green-mid whitespace-nowrap">€{(m.amount).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
@@ -311,6 +320,11 @@ export default function Statistiche() {
                 {ricostruendo ? 'Scrivo...' : `Conferma la ricostruzione (${piano.movimenti.length} ${piano.movimenti.length === 1 ? 'movimento' : 'movimenti'}, €${euro(piano.totaleCent)})`}
               </button>
               {erroreRicostruzione && <AvvisoAzione testo={erroreRicostruzione} className="mt-2" />}
+              {piano.esclusi.length > 0 && (
+                <p className="text-[11px] text-gray-400 mt-3">
+                  Fuori dal piano perché non conclusi: {piano.esclusi.map(e => `${nomeDi.get(e.soggiorno) || e.nomi || 'Ospite'} (${e.perche === 'in_corso' ? 'in corso' : 'futuro'}, ${e.arrivo} → ${e.partenza})`).join(' · ')}
+                </p>
+              )}
             </div>
           )}
 
