@@ -15,9 +15,11 @@ import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio } from '@/lib
 import { causaleBonifico } from '@/lib/causale'
 import { contoSoggiorno, residuoDaPagare } from '@/lib/conto'
 import { smartBack } from '@/lib/navHistory'
-import { scriviPoiAggiorna, messaggioNonSalvato, MESSAGGIO_NON_SALVATO } from '@/lib/scritturaSicura'
+import { scriviPoiAggiorna, messaggioNonSalvato } from '@/lib/scritturaSicura'
 import { salvaInSequenza, leggiConEsito, MESSAGGIO_RILETTURA } from '@/lib/prenotazioneScritture'
-import { movimentoSaldo, saldoMancanteCent, METODI_PAGAMENTO, type MetodoPagamento } from '@/lib/statistiche'
+import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
+import { oggiARoma } from '@/lib/spese/adattatore'
+import { saldoMancanteCent, METODI_PAGAMENTO, eseguiSegnaPagato, rpcMancante, type MetodoPagamento, type MovimentoSaldo } from '@/lib/statistiche'
 import AvvisoAzione from '@/components/AvvisoAzione'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
@@ -711,38 +713,60 @@ export default function BookingDetail() {
   // Segmenti del soggiorno (cambio camera = più righe) per il conto del saldo
   const segmentiSoggiorno = () => (groupBookings.length > 0 ? groupBookings : [booking])
 
-  // «Segna come pagato»: 1) movimento del saldo mancante in payments (se resta
-  // qualcosa da registrare); 2) flag pagato. Se il movimento non si scrive il
-  // flag NON cambia e compare l'avviso; se il flag non si scrive dopo il
-  // movimento, l'avviso lo dice e il secondo tentativo scrive solo il flag
-  // (il saldo mancante è ormai zero).
+  // «Segna come pagato» — R1 (revisione di f4d5474): contratto con RECUPERO
+  // DELL'ESITO (lib/statistiche/pagato.eseguiSegnaPagato): prima si rileggono i
+  // pagamenti del soggiorno dal server (se la rilettura fallisce ci si ferma:
+  // mai «pagamento assente»), il saldo si calcola sui dati riletti, il
+  // movimento si scrive con una chiave stabile (RPC segna_pagato della 0033
+  // se c'è, altrimenti INSERT), poi il flag. Una risposta persa non crea un
+  // secondo movimento: al tocco dopo la rilettura lo trova e il saldo è zero.
   async function segnaPagato() {
     if (segnandoPagato) return
     setSegnandoPagato(true)
     setErrorePagato(null)
+    const ids: string[] = segmentiSoggiorno().map((b: { id: string }) => b.id)
+    const chiave = chiavePagatoStabile()
     try {
-      const movimento = movimentoSaldo(segmentiSoggiorno(), acconti, new Date().toISOString().split('T')[0], metodoPagato, booking.id)
-      let nuovoMovimento: Record<string, unknown> | null = null
-      if (movimento) {
-        const { data, error } = await supabase.from('payments').insert(movimento).select().single()
-        if (error) { setErrorePagato(`${MESSAGGIO_NON_SALVATO}: il pagamento non è stato registrato`); return }
-        nuovoMovimento = data
-      }
-      const errore = await scriviPoiAggiorna(
-        () => supabase.from('bookings').update({ pagato: true }).eq('id', id),
-        () => {
-          setBooking({ ...booking, pagato: true })
-          if (nuovoMovimento) setAcconti(a => [...a, nuovoMovimento])
-          setFinestraPagato(false)
+      const esito = await eseguiSegnaPagato(segmentiSoggiorno(), oggiARoma(), metodoPagato, booking.id, chiave, {
+        rileggiPagamenti: () => supabase.from('payments').select('*').in('booking_id', ids).order('paid_on'),
+        inserisci: async (m: MovimentoSaldo) => {
+          // Con la 0033 applicata: RPC atomica e idempotente (scrive anche il flag)
+          const rpc = await supabase.rpc('segna_pagato', { p_booking_id: m.booking_id, p_chiave: m.chiave_operazione, p_metodo: m.method, p_paid_on: m.paid_on })
+          if (!rpc.error) {
+            const id = (rpc.data as { movimento_id?: string | null } | null)?.movimento_id ?? null
+            return { data: id ? { id, booking_id: m.booking_id, amount: m.amount, method: m.method, paid_on: m.paid_on } : null, error: null }
+          }
+          if (!rpcMancante(rpc.error)) return { data: null, error: rpc.error }
+          // Senza la 0033: INSERT semplice (la protezione è la rilettura prima di ogni tentativo)
+          const { data, error } = await supabase.from('payments').insert({ booking_id: m.booking_id, amount: m.amount, method: m.method, paid_on: m.paid_on }).select().single()
+          return { data, error }
         },
-      )
-      if (errore) {
-        if (nuovoMovimento) setAcconti(a => [...a, nuovoMovimento])
-        setErrorePagato(nuovoMovimento ? 'Pagamento registrato, ma non segnato come pagato: riprova' : errore)
-      }
+        segnaFlag: () => supabase.from('bookings').update({ pagato: true }).eq('id', id),
+      })
+      if (esito.pagamenti) setAcconti(esito.pagamenti)
+      if (esito.esito === 'errore') { setErrorePagato(esito.messaggio); return }
+      dimenticaChiavePagato()
+      setBooking({ ...booking, pagato: true })
+      setFinestraPagato(false)
     } finally {
       setSegnandoPagato(false)
     }
+  }
+
+  // Chiave stabile del tentativo di «Segna come pagato» per questa
+  // prenotazione: resta nella memoria del telefono finché l'operazione non
+  // riesce, così un ritentativo (anche dopo WhatsApp) usa la STESSA chiave
+  // e la RPC della 0033 non può scrivere due movimenti.
+  function chiavePagatoStabile(): string {
+    const k = `ca_pagato_chiave_${id}`
+    const salvata = leggiMemoria(() => localStorage, k)
+    if (salvata) return salvata
+    const nuova = crypto.randomUUID()
+    scriviMemoria(() => localStorage, k, nuova)
+    return nuova
+  }
+  function dimenticaChiavePagato() {
+    try { localStorage.removeItem(`ca_pagato_chiave_${id}`) } catch { /* senza memoria non c'è nulla da togliere */ }
   }
 
   // Applica lo sconto SENZA toccare la tariffa a notte: si salvano solo
