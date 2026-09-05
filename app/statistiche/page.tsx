@@ -185,13 +185,15 @@ export default function Statistiche() {
     const mesi = Array.from({ length: 12 }, (_, m) => {
       const da = `${anno}-${String(m + 1).padStart(2, '0')}-01`
       if (da > oggi) return null
-      return occupazioneIntervallo(da, primoDelMeseDopo(da.slice(0, 7)), data.camere, data.prenotazioni)
+      return occupazioneIntervallo(da, primoDelMeseDopo(da.slice(0, 7)), data.camere, data.prenotazioni, data.fuoriServizio.intervalli)
     })
     return { anno, mesi }
   })() : null
 
   // Ricavi per camera dell'anno letto (competenza fino a stanotte), solo camere attive
-  const roomStats = data ? ricaviPerCamera(ref.getFullYear(), todayStr(), data.camere, data.prenotazioni) : null
+  const roomStats = data ? ricaviPerCamera(ref.getFullYear(), todayStr(), data.camere, data.prenotazioni, data.fuoriServizio.intervalli) : null
+  // R12: finché la tabella dei periodi (0034) non c'è, il limite resta scritto accanto ai dati
+  const limiteFuoriServizio = data && !data.fuoriServizio.registrati ? 'i periodi di fuori servizio non sono ancora registrati (proposta 0034)' : null
   const siteStats = data ? buildSiteFunnel(data.eventiSito as SiteEvent[], period, ref) : null
   const label = periodLabel(ref, period)
   const current = isCurrentPeriod(ref, period)
@@ -467,7 +469,7 @@ export default function Statistiche() {
           {occ && (
             <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
               <p className="text-sm font-semibold text-gray-600">Occupazione</p>
-              <p className="text-xs text-gray-400 mb-3">notti vendute su notti vendibili delle camere attive, mese per mese — verde più intenso = più pieno</p>
+              <p className="text-xs text-gray-400 mb-3">notti vendute su notti vendibili delle camere in servizio, mese per mese — verde più intenso = più pieno{limiteFuoriServizio ? ` · ${limiteFuoriServizio}` : ''}</p>
               <div className="overflow-x-auto">
                 <table className="border-separate w-full" style={{ borderSpacing: 2, tableLayout: 'fixed' }}>
                   <thead>
@@ -514,7 +516,7 @@ export default function Statistiche() {
           {roomStats && (
             <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
               <p className="text-sm font-semibold text-gray-600">Ricavi per camera</p>
-              <p className="text-xs text-gray-400 mb-3">anno {roomStats.anno} · {roomStats.annoPassato ? 'tutto l’anno' : 'notti dormite fino a oggi'} · valore dei soggiorni confermati diviso sulle notti, non gli incassi{roomStats.limite ? ` · occupazione ${roomStats.limite}` : ''}</p>
+              <p className="text-xs text-gray-400 mb-3">anno {roomStats.anno} · {roomStats.annoPassato ? 'tutto l’anno' : 'notti dormite fino a oggi'} · valore dei soggiorni confermati diviso sulle notti, non gli incassi{limiteFuoriServizio ? ` · occupazione sui giorni in servizio dall’inizio dell’anno: ${limiteFuoriServizio}` : ''}</p>
               {roomStats.lista.map((s, i) => (
                 <div key={s.name} className={i > 0 ? 'mt-3' : ''}>
                   <div className="flex justify-between items-baseline">

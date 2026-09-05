@@ -11,8 +11,8 @@
 // ============================================================================
 import { prenotazioneValida, type CameraStat, type FuoriServizio, type PrenotazioneStat } from './tipi.ts'
 import { ricavoPerNotteCent } from './intervallo.ts'
-import { nottiTra, spostaGiorni } from './periodo.ts'
-import { nottiChiuse } from './fuoriServizio.ts'
+import { spostaGiorni } from './periodo.ts'
+import { giorniVendibiliCamera } from './fuoriServizio.ts'
 
 export type RicaviCamera = { room_id: string; name: string; notti: number; ricaviCent: number; mensiliCent: number[]; giorniVendibili: number; occupazionePerMille: number; adrCent: number }
 
@@ -34,13 +34,12 @@ export function ricaviPerCamera(anno: number, oggi: string, camere: CameraStat[]
   const meseCorrente = anno < annoOggi ? 11 : Number(oggi.slice(5, 7)) - 1
   const tetto = anno < annoOggi ? `${anno + 1}-01-01` : spostaGiorni(oggi, 1)   // notti fino a stanotte compresa
   const da = `${anno}-01-01`
-  const attive = camere.filter(c => c.active !== false)
+  // R12: camere in servizio nell'anno (finestra fra le date della 0034; senza
+  // date vale il flag active), giorni vendibili meno le chiusure
+  const attive = camere.filter(c => giorniVendibiliCamera(c, da, tetto, fuoriServizio) > 0 || (c.active !== false && !c.fuori_servizio_dal))
   const stats = new Map<string, RicaviCamera>()
-  const vendibili = new Map<string, number>()
   for (const c of attive) {
-    const inizio = c.in_servizio_dal && c.in_servizio_dal > da ? c.in_servizio_dal : da
-    vendibili.set(c.id, Math.max(0, nottiTra(inizio, tetto) - nottiChiuse(fuoriServizio, c.id, inizio, tetto)))
-    stats.set(c.id, { room_id: c.id, name: c.name, notti: 0, ricaviCent: 0, mensiliCent: Array(12).fill(0), giorniVendibili: vendibili.get(c.id)!, occupazionePerMille: 0, adrCent: 0 })
+    stats.set(c.id, { room_id: c.id, name: c.name, notti: 0, ricaviCent: 0, mensiliCent: Array(12).fill(0), giorniVendibili: giorniVendibiliCamera(c, da, tetto, fuoriServizio), occupazionePerMille: 0, adrCent: 0 })
   }
   let primaNotte: string | null = null
   for (const b of prenotazioni.filter(prenotazioneValida)) {

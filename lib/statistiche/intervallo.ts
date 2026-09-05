@@ -14,7 +14,7 @@
 // ============================================================================
 import { cent, prenotazioneValida, type CameraStat, type FuoriServizio, type PagamentoStat, type PrenotazioneStat } from './tipi.ts'
 import { nottiNellIntervallo, nottiTra, spostaGiorni } from './periodo.ts'
-import { nottiChiuse } from './fuoriServizio.ts'
+import { giorniVendibiliCamera } from './fuoriServizio.ts'
 
 export type Intervallo = { da: string; a: string }   // [da, a)
 
@@ -66,15 +66,14 @@ export function cassaIntervallo(prenotazioni: PrenotazioneStat[], pagamenti: Pag
 
 export const giorniIntervallo = (da: string, a: string) => Math.max(0, nottiTra(da, a))
 
-// Notti vendibili = per ogni giorno le camere attive, meno le notti fuori
-// servizio (struttura FuoriServizio, oggi vuota: proposta supabase/proposte/0034)
+// Notti vendibili = per ogni giorno le camere in servizio (fra in_servizio_dal
+// e fuori_servizio_dal, proposta 0034), meno le notti di fuori servizio
+// (intervalli sovrapposti contati una volta, R7)
 export function nottiVendibili(da: string, a: string, camere: CameraStat[], fuoriServizio: FuoriServizio[] = []): { totali: number; perCamera: Record<string, number> } {
-  const giorni = giorniIntervallo(da, a)
   const perCamera: Record<string, number> = {}
-  for (const c of camere.filter(x => x.active !== false)) {
-    // R7: intervalli sovrapposti contano una volta sola (lib/statistiche/fuoriServizio)
-    const chiuse = nottiChiuse(fuoriServizio, c.id, da, a)
-    perCamera[c.id] = Math.max(0, giorni - Math.min(giorni, chiuse))
+  for (const c of camere) {
+    const g = giorniVendibiliCamera(c, da, a, fuoriServizio)
+    if (g > 0 || (c.active !== false && !c.fuori_servizio_dal)) perCamera[c.id] = g
   }
   return { totali: Object.values(perCamera).reduce((s, n) => s + n, 0), perCamera }
 }

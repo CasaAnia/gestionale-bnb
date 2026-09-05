@@ -7,7 +7,7 @@
 // lib/statistiche: qui nessuna formula.
 import { supabase } from './supabase'
 import { messaggioLetturaNonRiuscita } from './prenotazioneScritture'
-import { raccogliPagine, raccogliBlocchi, aBlocchi, type CameraStat, type PagamentoStat } from './statistiche'
+import { raccogliPagine, raccogliBlocchi, aBlocchi, mappaChiusure, type CameraStat, type PagamentoStat, type FuoriServizio } from './statistiche'
 import type { SpesaPagata } from './statistiche/intervallo'
 import type { PrenotazioneSconto } from './statistiche/sconti'
 import type { SiteEvent } from './siteStats'
@@ -49,8 +49,31 @@ export function leggiSpese(da: string, a: string, cosa = 'caricare le spese') {
     .order('expense_date', { ascending: true }).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: SpesaPagata[] | null; error: unknown }>)
 }
 
-export function leggiCamere(cosa = 'caricare le camere') {
-  return pagine<CameraStat>(cosa, (offset, limite) => supabase.from('rooms').select('id, name, active').order('name').range(offset, offset + limite - 1))
+// Colonna/tabella non ancora migrata? (PostgREST: colonna sconosciuta / tabella assente)
+const colonnaAssente = (e: unknown) => { const c = String((e as { code?: unknown })?.code ?? ''); return c === '42703' || c === 'PGRST204' }
+const tabellaAssente = (e: unknown) => { const c = String((e as { code?: unknown })?.code ?? ''); return c === '42P01' || c === 'PGRST205' }
+
+// R12: camere con le date di entrata/uscita dal servizio (proposta 0034);
+// senza le colonne (prima della 0034) si ripiega su id, name, active
+export async function leggiCamere(cosa = 'caricare le camere'): Promise<Esito<CameraStat[]> & { conDate: boolean }> {
+  const conDate = await raccogliPagine<CameraStat>((offset, limite) => supabase.from('rooms').select('id, name, active, in_servizio_dal, fuori_servizio_dal').order('name').range(offset, offset + limite - 1))
+  if (!conDate.error) return { data: conDate.data, errore: null, conDate: true }
+  if (!colonnaAssente(conDate.error)) return { data: null, errore: messaggioLetturaNonRiuscita(conDate.error, cosa), conDate: false }
+  const base = await pagine<CameraStat>(cosa, (offset, limite) => supabase.from('rooms').select('id, name, active').order('name').range(offset, offset + limite - 1))
+  return { ...base, conDate: false }
+}
+
+// R12: periodi di fuori servizio (room_closures, proposta 0034), a pagine.
+// Tabella assente = «periodi non registrati» (dichiarato, non un errore);
+// ogni altro errore è visibile.
+export type LetturaFuoriServizio = { intervalli: FuoriServizio[]; registrati: boolean }
+export async function leggiFuoriServizio(cosa = 'caricare i periodi di fuori servizio'): Promise<Esito<LetturaFuoriServizio>> {
+  const r = await raccogliPagine<{ room_id: string; da: string; a: string; motivo: string | null }>((offset, limite) => supabase.from('room_closures').select('room_id, da, a, motivo').order('da').range(offset, offset + limite - 1))
+  if (r.error) {
+    if (tabellaAssente(r.error)) return { data: { intervalli: [], registrati: false }, errore: null }
+    return { data: null, errore: messaggioLetturaNonRiuscita(r.error, cosa) }
+  }
+  return { data: { intervalli: mappaChiusure(r.data), registrati: true }, errore: null }
 }
 
 export function leggiEventiSito(da: string, a: string, cosa = 'caricare le visite del sito') {
@@ -97,23 +120,23 @@ export async function leggiRicostruzione(oggi: string): Promise<Esito<DatiRicost
   return { data: { prenotazioni, pagamenti: pag.data!, oggi }, errore: null }
 }
 
-export type DatiStatistiche = { prenotazioni: PrenotazioneSconto[]; pagamenti: PagamentoStat[]; spese: SpesaPagata[]; camere: CameraStat[]; eventiSito: SiteEvent[]; ricostruzione: DatiRicostruzione }
+export type DatiStatistiche = { prenotazioni: PrenotazioneSconto[]; pagamenti: PagamentoStat[]; spese: SpesaPagata[]; camere: CameraStat[]; eventiSito: SiteEvent[]; ricostruzione: DatiRicostruzione; fuoriServizio: LetturaFuoriServizio }
 
 // Tutto ciò che serve alla pagina Statistiche per [da, a); il primo errore ferma tutto
 export async function leggiDatiStatistiche(da: string, a: string, oggi: string): Promise<Esito<DatiStatistiche>> {
-  const [p, pag, sp, cam, ev, ric] = await Promise.all([leggiPrenotazioni(da, a), leggiPagamenti(da, a), leggiSpese(da, a), leggiCamere(), leggiEventiSito(da, a), leggiRicostruzione(oggi)])
-  const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ev.errore ?? ric.errore
+  const [p, pag, sp, cam, ev, ric, fs] = await Promise.all([leggiPrenotazioni(da, a), leggiPagamenti(da, a), leggiSpese(da, a), leggiCamere(), leggiEventiSito(da, a), leggiRicostruzione(oggi), leggiFuoriServizio()])
+  const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ev.errore ?? ric.errore ?? fs.errore
   if (errore) return { data: null, errore }
-  return { data: { prenotazioni: p.data!, pagamenti: pag.data!, spese: sp.data!, camere: cam.data!, eventiSito: ev.data!, ricostruzione: ric.data! }, errore: null }
+  return { data: { prenotazioni: p.data!, pagamenti: pag.data!, spese: sp.data!, camere: cam.data!, eventiSito: ev.data!, ricostruzione: ric.data!, fuoriServizio: fs.data! }, errore: null }
 }
 
-export type DatiHome = { prenotazioni: PrenotazioneSconto[]; pagamentiMese: PagamentoStat[]; tuttiPagamenti: PagamentoStat[]; prenotazioniConMovimenti: PrenotazioneSconto[]; spese: SpesaPagata[]; camere: CameraStat[]; ricostruzione: DatiRicostruzione }
+export type DatiHome = { prenotazioni: PrenotazioneSconto[]; pagamentiMese: PagamentoStat[]; tuttiPagamenti: PagamentoStat[]; prenotazioniConMovimenti: PrenotazioneSconto[]; spese: SpesaPagata[]; camere: CameraStat[]; ricostruzione: DatiRicostruzione; fuoriServizio: LetturaFuoriServizio }
 
 // Home: il mese [da, a) più i soggiorni con movimenti registrati (per «Da incassare»)
 export async function leggiDatiHome(da: string, a: string, oggi: string): Promise<Esito<DatiHome>> {
   const colonne = '*, rooms(name), guests(full_name, phone)'
-  const [p, pag, sp, cam, ric] = await Promise.all([leggiPrenotazioni(da, a, colonne), leggiTuttiPagamenti(), leggiSpese(da, a), leggiCamere(), leggiRicostruzione(oggi)])
-  const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ric.errore
+  const [p, pag, sp, cam, ric, fs] = await Promise.all([leggiPrenotazioni(da, a, colonne), leggiTuttiPagamenti(), leggiSpese(da, a), leggiCamere(), leggiRicostruzione(oggi), leggiFuoriServizio()])
+  const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ric.errore ?? fs.errore
   if (errore) return { data: null, errore }
   // R5: gli ID si leggono a BLOCCHI (mai un taglio silenzioso a 500)
   const perBlocchi = (colonna: 'id' | 'group_id', ids: string[]) => leggiPrenotazioniPerBlocchi(colonna, ids, colonne, 'caricare le prenotazioni da incassare')
@@ -136,5 +159,5 @@ export async function leggiDatiHome(da: string, a: string, oggi: string): Promis
   }
   const visti = new Set<string>()
   const conMovimenti = [...p.data!, ...fuori, ...segmenti].filter(b => (visti.has(b.id) ? false : (visti.add(b.id), true)))
-  return { data: { prenotazioni: p.data!, pagamentiMese: pag.data!.filter(x => !!x.paid_on && x.paid_on >= da && x.paid_on < a), tuttiPagamenti: pag.data!, prenotazioniConMovimenti: conMovimenti, spese: sp.data!, camere: cam.data!, ricostruzione: ric.data! }, errore: null }
+  return { data: { prenotazioni: p.data!, pagamentiMese: pag.data!.filter(x => !!x.paid_on && x.paid_on >= da && x.paid_on < a), tuttiPagamenti: pag.data!, prenotazioniConMovimenti: conMovimenti, spese: sp.data!, camere: cam.data!, ricostruzione: ric.data!, fuoriServizio: fs.data! }, errore: null }
 }

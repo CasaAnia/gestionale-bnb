@@ -23,9 +23,12 @@ export type PrenotazioneStat = {
 
 export type PagamentoStat = { booking_id: string; amount: number | string; paid_on: string | null }
 
-// in_servizio_dal: data documentata di entrata in servizio (oggi non esiste in
-// rooms: resta null e vale l'inizio dell'anno)
-export type CameraStat = { id: string; name: string; active?: boolean | null; in_servizio_dal?: string | null }
+// in_servizio_dal / fuori_servizio_dal (proposta 0034): la camera è vendibile
+// SOLO nei giorni fra le due date (null = da sempre / ancora in servizio).
+// Senza le colonne (prima della 0034) valgono null e resta il flag active:
+// active = false senza data esclude la camera per intero (comportamento
+// storico, dichiarato come limite).
+export type CameraStat = { id: string; name: string; active?: boolean | null; in_servizio_dal?: string | null; fuori_servizio_dal?: string | null }
 
 // Camera FUORI SERVIZIO in un periodo [da, a): oggi non esiste una tabella; la
 // struttura è definita qui e vuota (TODO: tabella `room_closures` o campo in

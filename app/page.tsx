@@ -62,7 +62,7 @@ function calcola(d: DatiHome, td: string, tmr: string, ms: string, nms: string) 
   // I quattro significati del mese (lib/statistiche/intervallo)
   const cassa = cassaIntervallo(d.prenotazioni, d.pagamentiMese, d.spese, ms, nms)
   // Occupazione = notti vendute ÷ notti vendibili (camere attive); ADR = tariffa media
-  const indici = indiciIntervallo(ms, nms, d.camere, d.prenotazioni)
+  const indici = indiciIntervallo(ms, nms, d.camere, d.prenotazioni, d.fuoriServizio.intervalli)
   // Da incassare: soggiorni con movimenti registrati ma non saldati
   const nomeDi = new Map(d.prenotazioniConMovimenti.map((b: any) => [b.id, nomeOspite(b)]))
   const daInc = daIncassare(d.prenotazioniConMovimenti, d.tuttiPagamenti).map(g => ({ ...g, guest: nomeDi.get(g.id) || g.nomi || 'Ospite' }))

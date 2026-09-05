@@ -15,8 +15,9 @@ const scheda = readFileSync(new URL('../../app/prenotazioni/[id]/page.tsx', impo
 const nuova = readFileSync(new URL('../../app/nuova/page.tsx', import.meta.url), 'utf8')
 
 test('R2: nessun percorso diretto a pagato = true fuori da Segna come pagato', () => {
-  assert.equal((scheda.match(/pagato: true/g) ?? []).length, 2, 'attesi solo segnaFlag (update) e setBooking dopo l\'esito')
-  assert.ok(scheda.includes("segnaFlag: () => supabase.from('bookings').update({ pagato: true })"))
+  assert.equal((scheda.match(/pagato: true/g) ?? []).length, 3, 'attesi solo il flag del ripiego (update su tutti i segmenti) e i due aggiornamenti locali dopo l\'esito')
+  assert.ok(scheda.includes("supabase.from('bookings').update({ pagato: true }).in('id', ids).select('id')"))
+  assert.ok(scheda.includes("setGroupBookings(gs => gs.map((g: { pagato?: boolean }) => ({ ...g, pagato: true })))"))
   assert.equal(scheda.includes('editForm.pagato'), false)
   assert.equal(scheda.includes('pagato: editForm'), false)
   assert.equal(nuova.includes('pagato: true'), false)
