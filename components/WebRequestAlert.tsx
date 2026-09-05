@@ -6,8 +6,14 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { fetchWebRequests, type WebRequest } from '@/lib/webRequests'
+import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 
 const DISMISS_KEY = 'ca_webreq_dismissed'
+// Memoria della sessione: NON è Supabase. Se il browser la nega (navigazione
+// privata, spazio esaurito) il ripiego è esplicito e prudente: la finestra si
+// ripropone a ogni apertura del gestionale (parte 3, 05/09/2026), mai un
+// errore a schermo per una cosa del browser.
+const memoria = () => sessionStorage
 
 function fmtData(s: string) {
   const [, m, d] = s.split('-')
@@ -42,9 +48,8 @@ export default function WebRequestAlert() {
       setRequests(reqs)
       if (reqs.length === 0) return
       const firma = reqs.map(r => r.id).sort().join(',')
-      try {
-        if (sessionStorage.getItem(DISMISS_KEY) === firma) return
-      } catch {}
+      // Senza memoria leggiMemoria torna null ≠ firma → la finestra si apre
+      if (leggiMemoria(memoria, DISMISS_KEY) === firma) return
       setOpen(true)
     })
   }, [])
@@ -53,9 +58,9 @@ export default function WebRequestAlert() {
   const primo = requests[0]
 
   function chiudi() {
-    try {
-      sessionStorage.setItem(DISMISS_KEY, requests!.map(r => r.id).sort().join(','))
-    } catch {}
+    // Se la scrittura non riesce la finestra si chiude lo stesso e tornerà
+    // alla prossima apertura: ripiego voluto, nessun avviso
+    scriviMemoria(memoria, DISMISS_KEY, requests!.map(r => r.id).sort().join(','))
     setOpen(false)
   }
 
