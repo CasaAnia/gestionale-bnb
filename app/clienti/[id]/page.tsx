@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
@@ -10,6 +11,7 @@ import CampoProvenienza from '@/components/CampoProvenienza'
 import { campiProvenienza, normalizzaProvenienza, rigaCliente, clienteConProvenienza, type StrutturaNota } from '@/lib/provenienza'
 import { leggiStrutture, ricordaStruttura } from '@/lib/provenienzaDati'
 import { soggiorniConclusi } from '@/lib/clienteCheTorna'
+import { righeStorico, testoCamere } from '@/lib/storicoCliente'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
 import { storicoCliente, prenotazioneValida } from '@/lib/statistiche'
 
@@ -216,32 +218,35 @@ export default function ClienteDetail() {
         <p className="text-gray-400 text-sm text-center py-4">Nessuna prenotazione</p>
       ) : (
         <div className="flex flex-col gap-2">
-          {bookings.map(b => (
-            <div key={b.id} className={`rounded-xl p-3 border ${b.status === 'annullata' ? 'bg-gray-50 border-card-border opacity-60' : b.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-white border-card-border'}`}>
+          {/* Una riga per SOGGIORNO (cambio camera = riga sola con le camere), toccabile: apre la scheda
+              della prenotazione, che con ?da=cliente torna qui con «← Indietro» (08/09/2026) */}
+          {righeStorico(bookings).map(r => (
+            <Link key={r.chiave} href={`/prenotazioni/${r.prenotazioneId}?da=cliente&cliente=${id}`} data-riga-storico={r.chiave}
+              className={`block rounded-xl p-3 border transition-transform duration-100 active:scale-[0.99] ${r.status === 'annullata' ? 'bg-gray-50 border-card-border opacity-60' : r.extra_bed ? 'bg-[#F1E0CE] border-[#E7CDAE]' : 'bg-white border-card-border'}`}>
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="font-medium text-sm">{b.rooms?.name}</p>
-                  <p className="text-xs text-gray-500">{b.check_in} → {b.check_out}</p>
+                  <p className="font-medium text-sm">{testoCamere(r)}{r.camere.length > 1 && <span className="text-xs text-gray-500 font-normal"> · cambio camera</span>}</p>
+                  <p className="text-xs text-gray-500">{r.check_in} → {r.check_out}</p>
                   {/* Arrivo registrato: mai inventare — se manca l'orario lo si dice,
                       la navetta compare solo se davvero salvata (mai "no" per il vuoto) */}
-                  {b.status !== 'annullata' && arrivoVero(b) && (
+                  {r.status !== 'annullata' && arrivoVero(r.segmenti[0]) && (
                     <p className="text-xs mt-0.5">
-                      {b.check_in_time
-                        ? <span className="text-green-dark">arrivo <span className="font-bold">{b.check_in_time}</span></span>
+                      {r.segmenti[0].check_in_time
+                        ? <span className="text-green-dark">arrivo <span className="font-bold">{r.segmenti[0].check_in_time}</span></span>
                         : <span className="text-gray-400">orario non registrato</span>}
-                      {b.shuttle === 'si' && ' · 🚌'}
-                      {b.shuttle === 'no' && <span className="text-gray-500"> · no navetta</span>}
+                      {r.segmenti[0].shuttle === 'si' && ' · 🚌'}
+                      {r.segmenti[0].shuttle === 'no' && <span className="text-gray-500"> · no navetta</span>}
                     </p>
                   )}
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-sm">€{Number(b.total_amount).toFixed(0)}</p>
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${b.status === 'annullata' ? 'bg-[#F6E4DE] text-[#8C3B2E]' : b.status === 'completata' ? 'bg-gray-100 text-gray-600' : 'bg-sage text-green-dark'}`}>{b.status}</span>
+                  <p className="font-semibold text-sm">€{Math.round(r.totaleCent / 100)}</p>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${r.status === 'annullata' ? 'bg-[#F6E4DE] text-[#8C3B2E]' : r.status === 'completata' ? 'bg-gray-100 text-gray-600' : 'bg-sage text-green-dark'}`}>{r.status}</span>
                 </div>
               </div>
-              {b.extra_bed && <p className="text-xs text-[#7A4B22] mt-1">🛏 Letto aggiuntivo</p>}
-              {b.status === 'annullata' && b.cancelled_reason && <p className="text-xs text-gray-400 mt-1">Motivo: {b.cancelled_reason}</p>}
-            </div>
+              {r.extra_bed && <p className="text-xs text-[#7A4B22] mt-1">🛏 Letto aggiuntivo</p>}
+              {r.status === 'annullata' && r.cancelled_reason && <p className="text-xs text-gray-400 mt-1">Motivo: {r.cancelled_reason}</p>}
+            </Link>
           ))}
         </div>
       )}

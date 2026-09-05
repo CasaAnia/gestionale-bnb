@@ -1202,7 +1202,8 @@ export default function BookingDetail() {
     <div className="p-4">
       {/* Riserva sul calendario: Ania entra quasi sempre da lì e non vuole mai
           finire sull'elenco prenotazioni quando il ritorno vero non è possibile */}
-      <BackBar href="/calendario" />
+      {/* Dallo storico della scheda cliente (?da=cliente&cliente=<id>) «← Indietro» torna al cliente (08/09/2026) */}
+      <BackBar href={searchParams.get('da') === 'cliente' && /^[\w-]{1,64}$/.test(searchParams.get('cliente') || '') ? `/clienti/${searchParams.get('cliente')}` : '/calendario'} />
       {avvisoScheda && !cancelDone && <AvvisoAzione testo={avvisoScheda} className="mb-3" />}
       {toastRichiesta && (
         <div role="status" className="chip-in fixed left-4 right-4 top-14 lg:top-4 lg:left-auto lg:w-80 z-[60] bg-green-dark text-cream-text text-sm rounded-xl px-4 py-2.5 shadow-lg">

@@ -139,7 +139,8 @@ function richiesta(nome, cognome, stato, arrivo, partenza, created_at, proposta_
 // GET /finto/senza-strutture?on=1 simula la 0036 NON applicata (campo nascosto con avviso)
 const strutture = ['Umana', 'Nida', 'RB (Rosa Bianca)', 'Elyse', 'BM (Borgo Manzoni)'].map(nome => ({ nome, created_at: ora }))
 // 0037 (08/09/2026, sera): la provenienza sta sul CLIENTE (guests), non più sulle prenotazioni
-for (const g of guests) { g.provenienza = 'non_so'; g.struttura_nome = null }
+for (const g of guests) { g.provenienza = 'non_so'; g.struttura_nome = null; g.vuole_ricevuta = false }   // 0038: ricevuta a sé
+G.anna.vuole_ricevuta = true; G.giulio.vuole_ricevuta = true; G.lucia.rating = 'ottimo'; G.lucia.vuole_ricevuta = true
 G.giulio.provenienza = 'altra_struttura'; G.giulio.struttura_nome = 'Nida'
 G.sara.provenienza = 'altra_struttura'; G.sara.struttura_nome = 'Umana'
 G.elena.provenienza = 'google'
