@@ -263,7 +263,11 @@ export default function CalendarioRichieste(p: Props) {
   if (orizzontale) {
     const mobile = p.layout === 'mobile'
     // compatto (telefono in orizzontale): niente larghezza minima, i 14 giorni riempiono lo schermo
-    const colMin = mobile ? (modo === 'quindici' ? (p.compatto ? 52 : COL_MIN_QUINDICI_TELEFONO) : COL_MIN_MESE_TELEFONO) : (modo === 'quindici' && !p.compatto ? COL_MIN_QUINDICI : 0)
+    // Telefono girato a mese (scelta di Ania, 05/09/2026): tutti i 31 giorni
+    // nella larghezza, come in Calendario e Arrivi (nessun minimo per colonna)
+    const colMin = mobile
+      ? (modo === 'quindici' ? (p.compatto ? 52 : COL_MIN_QUINDICI_TELEFONO) : (p.compatto ? 0 : COL_MIN_MESE_TELEFONO))
+      : (modo === 'quindici' && !p.compatto ? COL_MIN_QUINDICI : 0)
     return (
       <div className="bg-white rounded-xl border border-card-border shadow-sm overflow-hidden">
         {navigazione}

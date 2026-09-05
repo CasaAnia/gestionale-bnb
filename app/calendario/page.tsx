@@ -51,7 +51,7 @@ const MESI_CLICCABILI = 12       // riga sottile dei mesi: da quello corrente in
 // delle colonne (30 o 14 giorni nella larghezza del riquadro), lo scorrimento
 // continuo su tutto l'anno resta. La scelta è ricordata nel browser.
 type ModoGriglia = 'mese' | 'quindici'
-const COLONNE_VISIBILI: Record<ModoGriglia, number> = { mese: 30, quindici: GIORNI_QUINDICINA }
+const COLONNE_VISIBILI: Record<ModoGriglia, number> = { mese: 31, quindici: GIORNI_QUINDICINA }   // 31: a mese si vede il mese intero (05/09/2026)
 const CHIAVE_MODO = 'ca_calendario_modo'
 const LARGHEZZA_MIN_COLONNA = 28
 const DAYS_TOTAL = 365
@@ -187,7 +187,10 @@ export default function Calendario() {
   // girato, quella stretta delle Richieste (uguale nelle tre pagine, 05/09/2026)
   const colonnaLarga = isDesktop && !orizzontale
   const NAME_W = colonnaLarga ? NAME_W_DESKTOP : NAME_W_MOBILE
-  const colonnaMin = isDesktop ? LARGHEZZA_MIN_COLONNA : (modo === 'quindici' ? 60 : 40)
+  // Telefono girato a mese (scelta di Ania, 05/09/2026): tutti i 31 giorni
+  // nella larghezza dello schermo, senza scorrimento di lato (colonne da ~20 px:
+  // i numeri restano leggibili, i nomi sulle barre si riducono a una lettera).
+  const colonnaMin = isDesktop ? (orizzontale && modo === 'mese' ? 0 : LARGHEZZA_MIN_COLONNA) : (modo === 'quindici' ? 60 : 40)
   const CELL_W = larghezzaGriglia > 0 ? Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])) : (isDesktop ? CELL_W_DESKTOP : 60)
   const ROW_H = ROW_H_DESKTOP
   const HEADER_MONTH_H = HEADER_MONTH_H_DESKTOP
