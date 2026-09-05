@@ -4,6 +4,9 @@ import { supabase } from '@/lib/supabase'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
 import DocumentiCliente from '@/components/DocumentiCliente'
+import AvvisoAzione from '@/components/AvvisoAzione'
+import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
+import { leggiConEsito } from '@/lib/prenotazioneScritture'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
@@ -19,28 +22,76 @@ export default function ClienteDetail() {
   const [form, setForm] = useState<any>({})
   const [saving, setSaving] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
+  // Errori di salvataggio visibili, parte 2 (05/09/2026): ogni chiamata
+  // controlla error; con un errore lo stato locale non cambia e compare
+  // l'avviso vicino all'azione (niente «Cliente non trovato» per un errore di rete).
+  const [erroreCaricamento, setErroreCaricamento] = useState<string | null>(null)
+  const [tentativo, setTentativo] = useState(0)
+  const [erroreSalva, setErroreSalva] = useState<string | null>(null)
+  const [eliminando, setEliminando] = useState(false)
+  const [erroreElimina, setErroreElimina] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([
-      supabase.from('guests').select('*').eq('id', id).single(),
-      supabase.from('bookings').select('*, rooms(name)').eq('guest_id', id).order('check_in', { ascending: false }),
-    ]).then(([{ data: g }, { data: b }]) => {
-      setGuest(g); setForm(g || {}); setBookings(b || []); setLoading(false)
+    let vivo = true
+    leggiConEsito<{ cliente: Record<string, unknown> | null; prenotazioni: Record<string, unknown>[] }>(async () => {
+      const [rg, rb] = await Promise.all([
+        supabase.from('guests').select('*').eq('id', id).maybeSingle(),
+        supabase.from('bookings').select('*, rooms(name)').eq('guest_id', id).order('check_in', { ascending: false }),
+      ])
+      if (rg.error) return { data: null, error: rg.error }
+      if (rb.error) return { data: null, error: rb.error }
+      return { data: { cliente: rg.data, prenotazioni: rb.data || [] }, error: null }
+    }, 'caricare il cliente').then(({ data, errore }) => {
+      if (!vivo) return
+      if (errore) { setErroreCaricamento(errore); setLoading(false); return }
+      setGuest(data?.cliente ?? null); setForm(data?.cliente || {}); setBookings(data?.prenotazioni || []); setLoading(false)
     })
-  }, [id])
+    return () => { vivo = false }
+  }, [id, tentativo])
+
+  function riprovaCaricamento() {
+    setErroreCaricamento(null)
+    setLoading(true)
+    setTentativo(t => t + 1)
+  }
 
   async function deleteGuest() {
-    await supabase.from('guests').delete().eq('id', id)
-    router.push('/clienti')
+    if (eliminando) return
+    setEliminando(true)
+    setErroreElimina(null)
+    try {
+      const errore = await scriviPoiAggiorna(
+        () => supabase.from('guests').delete().eq('id', id),
+        () => router.push('/clienti'),
+      )
+      setErroreElimina(errore)
+    } finally {
+      setEliminando(false)
+    }
   }
 
   async function save() {
+    if (saving) return
     setSaving(true)
-    await supabase.from('guests').update({ full_name: form.full_name, phone: form.phone, email: form.email, rating: form.rating, notes: form.notes }).eq('id', id)
-    setGuest({ ...guest, ...form }); setEditing(false); setSaving(false)
+    setErroreSalva(null)
+    try {
+      const errore = await scriviPoiAggiorna(
+        () => supabase.from('guests').update({ full_name: form.full_name, phone: form.phone, email: form.email, rating: form.rating, notes: form.notes }).eq('id', id),
+        () => { setGuest({ ...guest, ...form }); setEditing(false) },
+      )
+      setErroreSalva(errore)
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) return <div className="p-4 text-center py-10 text-gray-400">Caricamento...</div>
+  if (erroreCaricamento) return (
+    <div className="p-4">
+      <BackBar href="/clienti" />
+      <AvvisoAzione testo={erroreCaricamento} onRiprova={riprovaCaricamento} />
+    </div>
+  )
   if (!guest) return <div className="p-4 text-center py-10 text-gray-400">Cliente non trovato</div>
 
   const confermateCompletate = bookings.filter(b => b.status !== 'annullata')
@@ -89,6 +140,7 @@ export default function ClienteDetail() {
             <button onClick={save} disabled={saving} className="w-full bg-green-mid text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
               {saving ? 'Salvataggio...' : 'Salva'}
             </button>
+            {erroreSalva && <AvvisoAzione testo={erroreSalva} className="mt-2" />}
           </>
         ) : (
           <>
@@ -181,7 +233,8 @@ export default function ClienteDetail() {
           <div className="bg-white rounded-2xl p-4 w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <h2 className="font-bold mb-2">Elimina cliente</h2>
             <p className="text-sm text-gray-500 mb-4">Sei sicuro? Questa azione non si può annullare. Le prenotazioni associate rimarranno nel sistema.</p>
-            <button onClick={deleteGuest} className="w-full bg-[#B5502F] text-white rounded-xl py-3 font-semibold mb-2">Sì, elimina</button>
+            <button onClick={deleteGuest} disabled={eliminando} className="w-full bg-[#B5502F] text-white rounded-xl py-3 font-semibold mb-2 disabled:opacity-60">{eliminando ? 'Elimino...' : 'Sì, elimina'}</button>
+            {erroreElimina && <AvvisoAzione testo={erroreElimina} className="mb-2" />}
             <button onClick={() => setShowDelete(false)} className="w-full text-gray-500 py-2 text-sm">Annulla</button>
           </div>
         </div>
