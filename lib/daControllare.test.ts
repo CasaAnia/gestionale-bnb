@@ -17,28 +17,41 @@ const r = (id: string, stato: string, arrivo: string, created_at: string, propos
   ({ id, stato, arrivo, partenza: '2026-09-25', created_at, proposta_inviata_at, nome: 'Anna', cognome: 'Rossi' })
 
 // ── Richieste ──────────────────────────────────────────────────────────────
-test('richieste: in attesa da più di 48 ore compare, da meno no', () => {
+// Requisito del 07/09/2026: in «Da controllare» compaiono TUTTE le richieste
+// aperte (prima solo quelle ferme da più di 48 ore); a parità di durata le in
+// attesa vanno dalla più vecchia.
+test('richieste: tutte le aperte compaiono; in attesa dalla più vecchia a parità di durata', () => {
   const ore49 = new Date(ADESSO.getTime() - 49 * 3600000).toISOString()
   const ore47 = new Date(ADESSO.getTime() - 47 * 3600000).toISOString()
-  const out = eccezioniRichieste([r('lenta', 'in_attesa', '2026-09-20', ore49), r('fresca', 'in_attesa', '2026-09-20', ore47)], OGGI, ADESSO)
-  assert.deepEqual(out.map(e => [e.chiave, e.urgenza, e.motivo]), [['richiesta:lenta', 'normale', 'In attesa da 2 giorni senza proposta']])
+  const min20 = new Date(ADESSO.getTime() - 20 * 60000).toISOString()
+  const out = eccezioniRichieste([r('fresca', 'in_attesa', '2026-09-20', ore47), r('lenta', 'in_attesa', '2026-09-20', ore49), r('nuova', 'in_attesa', '2026-09-20', min20)], OGGI, ADESSO)
+  assert.deepEqual(out.map(e => [e.chiave, e.urgenza, e.motivo]), [
+    ['richiesta:lenta', 'normale', 'In attesa da 2 giorni senza proposta'],
+    ['richiesta:fresca', 'normale', 'In attesa da 1 giorno senza proposta'],
+    ['richiesta:nuova', 'normale', 'In attesa da 20 min senza proposta'],
+  ])
   assert.equal(out[0].titolo, 'Anna Rossi · 20–25 set')
   assert.equal(out[0].bottone, 'Apri richiesta')
   assert.equal(out[0].rimandabile, true)
 })
 
-test('richieste: proposta scaduta (oltre le 3 ore) è urgenza alta; non scaduta non compare', () => {
+// Requisito del 07/09/2026: anche la proposta inviata non ancora scaduta
+// compare (normale, col tempo che resta); la scaduta è alta e viene prima.
+test('richieste: proposta scaduta (oltre le 3 ore) è urgenza alta e precede quella in scadenza, che compare normale', () => {
   const ore4 = new Date(ADESSO.getTime() - 4 * 3600000).toISOString()
   const ore2 = new Date(ADESSO.getTime() - 2 * 3600000).toISOString()
   const vecchia = '2026-09-10T08:00:00+02:00'
-  const out = eccezioniRichieste([r('scad', 'proposta_inviata', '2026-09-20', vecchia, ore4), r('viva', 'proposta_inviata', '2026-09-20', vecchia, ore2)], OGGI, ADESSO)
-  assert.deepEqual(out.map(e => [e.chiave, e.urgenza]), [['richiesta:scad', 'alta']])
+  const out = eccezioniRichieste([r('viva', 'proposta_inviata', '2026-09-20', vecchia, ore2), r('scad', 'proposta_inviata', '2026-09-20', vecchia, ore4)], OGGI, ADESSO)
+  assert.deepEqual(out.map(e => [e.chiave, e.urgenza]), [['richiesta:scad', 'alta'], ['richiesta:viva', 'normale']])
   assert.equal(out[0].motivo, 'Proposta scaduta 1 h fa senza conferma né rifiuto')
+  assert.equal(out[1].motivo, 'Proposta inviata · scade tra 1 h')
 })
 
-test('richieste: proposta inviata senza ora di invio non conta come scaduta anche se vecchia', () => {
+// Requisito del 07/09/2026: compare comunque (è aperta), ma senza ora di
+// invio non può essere «scaduta»: resta normale, senza linea ottone.
+test('richieste: proposta inviata senza ora di invio compare normale, mai come scaduta', () => {
   const out = eccezioniRichieste([r('x', 'proposta_inviata', '2026-09-20', '2026-09-01T08:00:00+02:00', null)], OGGI, ADESSO)
-  assert.deepEqual(out, [])
+  assert.deepEqual(out.map(e => [e.chiave, e.urgenza, e.motivo, e.whatsapp]), [['richiesta:x', 'normale', 'Proposta inviata, in attesa di risposta', undefined]])
 })
 
 test('richieste: arrivo passato e ancora aperta compare (anche con proposta scaduta, una voce sola); chiusa mai', () => {
@@ -49,7 +62,7 @@ test('richieste: arrivo passato e ancora aperta compare (anche con proposta scad
   ], OGGI, ADESSO)
   assert.equal(out.length, 1)
   assert.equal(out[0].chiave, 'richiesta:passata')
-  assert.equal(out[0].urgenza, 'normale')
+  assert.equal(out[0].urgenza, 'alta')   // linea ottone anche sugli arrivi passati (07/09/2026)
   assert.equal(out[0].motivo, 'Arrivo del 10 set già passato e richiesta ancora aperta')
 })
 
@@ -111,10 +124,12 @@ test('pagamenti: pagato senza alcun movimento (storico da ricostruire) NON compa
 })
 
 // ── Calendario ─────────────────────────────────────────────────────────────
-test('calendario: due confermate sulla stessa camera nella stessa notte → urgenza alta sul primo giorno in comune', () => {
+// Dal 07/09/2026 la sovrapposizione è un controllo nascosto: niente linea
+// ottone (urgenza normale), compare in fondo solo se si verifica.
+test('calendario: due confermate sulla stessa camera nella stessa notte → voce (normale) sul primo giorno in comune', () => {
   const out = eccezioniCalendario([b('a', 'amelia', '2026-09-15', '2026-09-17', 140), b('d', 'amelia', '2026-09-16', '2026-09-18', 140)])
   assert.equal(out.length, 1)
-  assert.equal(out[0].urgenza, 'alta')
+  assert.equal(out[0].urgenza, 'normale')
   assert.equal(out[0].titolo, 'amelia · Ospite a e Ospite d · notte del 16 set')
   assert.deepEqual(out[0].destinazione, { tipo: 'calendario', giorno: '2026-09-16' })
   assert.equal(out[0].chiave, 'sovrapposizione:a:d')
@@ -148,7 +163,7 @@ test('calendario: letti aggiuntivi oltre i 2 del pool nella stessa notte; 2 su 2
     b('l', 'allegra', '2026-09-20', '2026-09-22', 100, { extra_bed_dates: ['2026-09-20', '2026-09-21'], num_guests: 3 }),
   ])
   assert.equal(troppi.length, 1)
-  assert.equal(troppi[0].urgenza, 'alta')
+  assert.equal(troppi[0].urgenza, 'normale')   // controllo nascosto (07/09/2026)
   assert.equal(troppi[0].titolo, 'Letti aggiuntivi · 3 su 2 · notti 20–21 set')
   assert.deepEqual(troppi[0].destinazione, { tipo: 'calendario', giorno: '2026-09-20' })
 })
@@ -200,15 +215,43 @@ test('rinvii: una richiesta rimandata sparisce finché oggi < fino_a e riappare 
   assert.deepEqual(applicaRinvii(lista, undefined, OGGI).map(e => e.chiave), ['richiesta:1', 'arrivo:2'])
 })
 
-test('ordine: prima urgenza alta, poi la data più vicina a oggi (passata o futura)', () => {
+// Requisito del 07/09/2026: sezioni nell'ordine richieste → arrivi →
+// pagamenti → fatture → calendario in fondo; dentro la sezione l'ordine resta
+// quello della sua regola (ordinamento stabile).
+test('ordine: richieste, arrivi, pagamenti, fatture, calendario in fondo; dentro la sezione l\'ordine di arrivo resta', () => {
   const out = ordinaEccezioni([
-    ecc('n-lontana', 'fattura', 'normale', '2026-08-01'),
-    ecc('a-lontana', 'calendario', 'alta', '2026-10-01'),
-    ecc('n-vicina', 'pagamento', 'normale', '2026-09-14'),
-    ecc('a-vicina', 'arrivo', 'alta', '2026-09-16'),
-    ecc('n-futura', 'richiesta', 'normale', '2026-09-17'),
-  ], OGGI)
-  assert.deepEqual(out.map(e => e.chiave), ['a-vicina', 'a-lontana', 'n-vicina', 'n-futura', 'n-lontana'])
+    ecc('f', 'fattura', 'normale', '2026-08-01'),
+    ecc('c', 'calendario', 'normale', '2026-10-01'),
+    ecc('p1', 'pagamento', 'normale', '2026-09-14'),
+    ecc('a', 'arrivo', 'alta', '2026-09-16'),
+    ecc('r2', 'richiesta', 'normale', '2026-09-17'),
+    ecc('p2', 'pagamento', 'normale', '2026-09-01'),
+    ecc('r1', 'richiesta', 'alta', '2026-09-30'),
+  ])
+  assert.deepEqual(out.map(e => e.chiave), ['r2', 'r1', 'a', 'p1', 'p2', 'f', 'c'])
+})
+
+test('ordine delle richieste: durata decrescente; a parità arrivo passato, poi scaduta, poi in scadenza più vicina, poi in attesa più vecchia', () => {
+  const inviata = (oreFa: number) => new Date(ADESSO.getTime() - oreFa * 3600000).toISOString()
+  const creata = (oreFa: number) => new Date(ADESSO.getTime() - oreFa * 3600000).toISOString()
+  const lista: RichiestaDC[] = [
+    { ...r('corta-scaduta', 'proposta_inviata', '2026-09-20', creata(30), inviata(5)), partenza: '2026-09-21' },          // 1 notte, scaduta
+    { ...r('lunga-attesa', 'in_attesa', '2026-09-20', creata(1)), partenza: '2026-09-27' },                              // 7 notti, in attesa
+    { ...r('media-attesa-vecchia', 'in_attesa', '2026-09-20', creata(50)), partenza: '2026-09-23' },                    // 3 notti
+    { ...r('media-attesa-nuova', 'in_attesa', '2026-09-20', creata(2)), partenza: '2026-09-23' },                       // 3 notti
+    { ...r('media-in-scadenza-vicina', 'proposta_inviata', '2026-09-20', creata(10), inviata(2.5)), partenza: '2026-09-23' },   // scade tra 30 min
+    { ...r('media-in-scadenza-lontana', 'proposta_inviata', '2026-09-20', creata(10), inviata(0.5)), partenza: '2026-09-23' },  // scade tra 2 h 30
+    { ...r('media-scaduta-recente', 'proposta_inviata', '2026-09-20', creata(10), inviata(4)), partenza: '2026-09-23' },        // scaduta 1 h fa
+    { ...r('media-scaduta-vecchia', 'proposta_inviata', '2026-09-20', creata(30), inviata(20)), partenza: '2026-09-23' },       // scaduta 17 h fa
+    { ...r('media-arrivo-passato', 'in_attesa', '2026-09-10', creata(200)), partenza: '2026-09-13' },                   // 3 notti, arrivo passato
+  ]
+  const out = eccezioniRichieste(lista, OGGI, ADESSO)
+  assert.deepEqual(out.map(e => e.chiave.replace('richiesta:', '')), [
+    'lunga-attesa',
+    'media-arrivo-passato', 'media-scaduta-vecchia', 'media-scaduta-recente', 'media-in-scadenza-vicina', 'media-in-scadenza-lontana', 'media-attesa-vecchia', 'media-attesa-nuova',
+    'corta-scaduta',
+  ])
+  assert.deepEqual(out.map(e => e.urgenza), ['normale', 'alta', 'alta', 'alta', 'normale', 'normale', 'normale', 'normale', 'alta'])
 })
 
 test('testi: striscia, conteggi per tipo con singolare/plurale, riga «tutto a posto»', () => {
@@ -217,12 +260,14 @@ test('testi: striscia, conteggi per tipo con singolare/plurale, riga «tutto a p
   ]
   assert.equal(titoloStriscia(lista), '4 cose da controllare')
   assert.equal(titoloStriscia(lista.slice(0, 1)), '1 cosa da controllare')
-  assert.equal(rigaConteggi(lista), '1 sovrapposizione · 2 richieste ferme · 1 pagamento incompleto')
-  assert.deepEqual(conteggiPerTipo(lista), [{ tipo: 'calendario', n: 1 }, { tipo: 'richiesta', n: 2 }, { tipo: 'pagamento', n: 1 }])
+  // Conteggi nello stesso ordine delle sezioni (07/09/2026)
+  assert.equal(rigaConteggi(lista), '2 richieste aperte · 1 pagamento · 1 sovrapposizione')
+  assert.equal(rigaConteggi([...lista, ecc('a', 'arrivo', 'alta', OGGI), ecc('p2', 'pagamento', 'normale', OGGI)]), '2 richieste aperte · 1 arrivo senza orario · 2 pagamenti · 1 sovrapposizione')
+  assert.deepEqual(conteggiPerTipo(lista), [{ tipo: 'richiesta', n: 2 }, { tipo: 'pagamento', n: 1 }, { tipo: 'calendario', n: 1 }])
   assert.equal(rigaAPosto(lista), 'Arrivi di domani e fatture: tutto a posto')
-  assert.equal(rigaAPosto([ecc('a', 'arrivo', 'alta', OGGI)]), 'Calendario, richieste, pagamenti e fatture: tutto a posto')
+  assert.equal(rigaAPosto([ecc('a', 'arrivo', 'alta', OGGI)]), 'Richieste, pagamenti, fatture e calendario: tutto a posto')
   assert.equal(rigaAPosto([...lista, ecc('a', 'arrivo', 'alta', OGGI), ecc('f', 'fattura', 'normale', OGGI)]), null)
-  assert.equal(rigaAPosto([]), 'Calendario, richieste, pagamenti, arrivi di domani e fatture: tutto a posto')
+  assert.equal(rigaAPosto([]), 'Richieste, arrivi di domani, pagamenti, fatture e calendario: tutto a posto')
 })
 
 test('destinazioni: ogni bottone porta al punto esatto', () => {
@@ -234,7 +279,7 @@ test('destinazioni: ogni bottone porta al punto esatto', () => {
   assert.equal(hrefDestinazione({ tipo: 'fattura', documentoId: 'd' }), '/spese?documento=d')
 })
 
-test('insieme: tutte le regole, rinvii applicati, ordine alta → vicina; stato vuoto → nessuna eccezione', () => {
+test('insieme: tutte le regole, rinvii applicati, ordine delle sezioni; stato vuoto → nessuna eccezione', () => {
   const stato = {
     oggi: OGGI, adesso: ADESSO,
     richieste: [
@@ -253,16 +298,17 @@ test('insieme: tutte le regole, rinvii applicati, ordine alta → vicina; stato 
     rinvii: [{ chiave: 'richiesta:rimandata', fino_a: '2026-09-16' }],
   }
   const out = daControllareHome(stato)
+  // Ordine del 07/09/2026: richieste (durata: «ferma» 20–25 = 5 notti, «scaduta» 22–25 = 3), arrivi, pagamenti, fatture, calendario in fondo
   assert.deepEqual(out.map(e => e.chiave), [
-    'sovrapposizione:a:d',        // alta, domani (stesso giorno di arrivo:dom: ordine alfabetico del titolo, «amelia» < «Ospite»)
-    'arrivo:dom',                 // alta, domani
-    'richiesta:scaduta',          // alta, 22 set
-    'pagamento:vecchio',          // normale, 12 set (3 giorni)
-    'richiesta:ferma',            // normale, 20 set (5 giorni), «Anna Rossi» prima di «Enel»
-    'fattura:f1',                 // normale, 10 set (5 giorni)
+    'richiesta:ferma',
+    'richiesta:scaduta',
+    'arrivo:dom',
+    'pagamento:vecchio',
+    'fattura:f1',
+    'sovrapposizione:a:d',
   ])
   assert.equal(titoloStriscia(out), '6 cose da controllare')
-  assert.equal(rigaConteggi(out), '1 sovrapposizione · 2 richieste ferme · 1 pagamento incompleto · 1 arrivo senza orario · 1 fattura scaduta')
+  assert.equal(rigaConteggi(out), '2 richieste aperte · 1 arrivo senza orario · 1 pagamento · 1 fattura scaduta · 1 sovrapposizione')
   assert.equal(rigaAPosto(out), null)
   assert.deepEqual(daControllareHome({ oggi: OGGI, adesso: ADESSO, richieste: [], prenotazioni: [], pagamenti: [], documenti: [] }), [])
 })

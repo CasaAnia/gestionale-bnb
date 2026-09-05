@@ -7,9 +7,11 @@
 // Supabase e senza orologio: `oggi` e `adesso` arrivano dal chiamante.
 //
 // Regole (incarico del 06/09/2026):
-//  Richieste  in attesa da più di 48 ore senza proposta; proposta inviata e
-//             scaduta (3 ore, lib/richieste.scadenzaProposta) senza risposta;
-//             richiesta aperta con l'arrivo già passato.
+//  Richieste  TUTTE le aperte (07/09/2026): in attesa, proposta inviata in
+//             scadenza, proposta scaduta (3 ore, lib/richieste.scadenzaProposta),
+//             arrivo già passato. Ordine: durata del soggiorno decrescente,
+//             a parità la prima a scadere (arrivo passato, proposta scaduta,
+//             in scadenza più vicina, in attesa dalla più vecchia).
 //  Pagamenti  soggiorno concluso segnato pagato ma con movimenti che non
 //             coprono il totale; movimenti oltre il totale; soggiorno
 //             concluso da più di un giorno e non segnato pagato.
@@ -17,11 +19,12 @@
 //             notte; letti aggiuntivi oltre i 2 del pool nella stessa notte.
 //  Arrivi     arrivo di domani senza orario.
 //  Fatture    scadenza passata e non pagata (approvata_da_pagare).
-// Urgenza alta: sovrapposizioni (camere e letti), proposta scaduta, arrivo di
-// domani senza orario. Ordine: prima l'urgenza alta, poi la data più vicina
-// a oggi.
+// Urgenza alta (linea ottone): proposta scaduta, arrivo passato, arrivo di
+// domani senza orario. Ordine delle sezioni (07/09/2026): richieste, arrivi,
+// pagamenti, fatture; le sovrapposizioni del calendario restano un controllo
+// nascosto che compare IN FONDO solo se mai si verifica.
 // ============================================================================
-import { scadenzaProposta, nomeCompleto, formatIntervallo, STATI_APERTI, type StatoRichiesta } from './richieste.ts'
+import { scadenzaProposta, nomeCompleto, formatIntervallo, nottiRichiesta, STATI_APERTI, ORE_SCADENZA_PROPOSTA, type StatoRichiesta } from './richieste.ts'
 import { nomeOspite } from './guestName.ts'
 import { spostaGiorni } from './statistiche/periodo.ts'
 import { cent, prenotazioneValida, type PrenotazioneStat, type PagamentoStat, type DocumentoStat } from './statistiche/tipi.ts'
@@ -31,7 +34,6 @@ import { EXTRA_BED_MAX } from './tariffe.ts'
 import { normalizzaTelefono } from './whatsapp.ts'
 import { whatsappRichiestaOrario, waHrefTesto } from './messaggiWhatsApp.ts'
 
-export const ORE_ATTESA_SENZA_PROPOSTA = 48
 export const GIORNI_CONCLUSO_NON_PAGATO = 1
 
 export type TipoEccezione = 'calendario' | 'richiesta' | 'pagamento' | 'arrivo' | 'fattura'
@@ -114,34 +116,49 @@ function giorniTesto(ore: number): string {
   const g = Math.floor(ore / 24)
   if (g >= 1) return g === 1 ? '1 giorno' : `${g} giorni`
   const h = Math.floor(ore)
+  if (h === 0) return `${Math.max(1, Math.floor(ore * 60))} min`
   return h === 1 ? '1 ora' : `${h} ore`
 }
 
 // ── Richieste ───────────────────────────────────────────────────────────────
+// Tutte le aperte. Per l'ordine ogni voce porta durata (notti) e «quando
+// scade»: arrivo passato prima di tutto, poi proposta scaduta (dalla più
+// vecchia), poi in scadenza (la più vicina), poi in attesa (dalla più vecchia).
+type ClasseRichiesta = 'arrivo_passato' | 'scaduta' | 'in_scadenza' | 'in_attesa'
+const RANGO_CLASSE: Record<ClasseRichiesta, number> = { arrivo_passato: 0, scaduta: 1, in_scadenza: 2, in_attesa: 3 }
+type VoceRichiesta = { eccezione: Eccezione; notti: number; classe: ClasseRichiesta; quando: number }
+
 export function eccezioniRichieste(richieste: RichiestaDC[], oggi: string, adesso: Date): Eccezione[] {
-  const out: Eccezione[] = []
+  const voci: VoceRichiesta[] = []
   for (const r of richieste) {
     if (!STATI_APERTI.includes(r.stato as StatoRichiesta)) continue   // chiusa: mai
     const chi = nomeCompleto(r) || 'Richiesta'
     const base = { chiave: `richiesta:${r.id}`, tipo: 'richiesta' as const, data: r.arrivo, bottone: 'Apri richiesta', destinazione: { tipo: 'richiesta' as const, id: r.id }, rimandabile: true }
     const titolo = `${chi} · ${formatIntervallo(r.arrivo, r.partenza)}`
+    const notti = nottiRichiesta(r)
+    const creata = new Date(r.created_at).getTime()
+    const numero = normalizzaTelefono(r.telefono).numero
     if (r.arrivo < oggi) {
-      out.push({ ...base, urgenza: 'normale', titolo, motivo: `Arrivo del ${giornoBreve(r.arrivo)} già passato e richiesta ancora aperta` })
+      voci.push({ notti, classe: 'arrivo_passato', quando: creata, eccezione: { ...base, urgenza: 'alta', titolo, motivo: `Arrivo del ${giornoBreve(r.arrivo)} già passato e richiesta ancora aperta` } })
       continue
     }
     if (r.stato === 'proposta_inviata') {
       const s = scadenzaProposta({ stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at }, adesso)
+      const scadenza = r.proposta_inviata_at ? new Date(r.proposta_inviata_at).getTime() + ORE_SCADENZA_PROPOSTA * 3600000 : creata
       if (s?.scaduta) {
-        const numero = normalizzaTelefono(r.telefono).numero
+        // Chat senza testo: Ania scrive a mano (ritocchi del 07/09/2026)
         const whatsapp = numero ? { href: waHrefTesto(numero, ''), numero, testo: '', principale: false } : undefined
-        out.push({ ...base, urgenza: 'alta', titolo, motivo: `${s.testo.replace('Proposta inviata · ', 'Proposta ')} senza conferma né rifiuto`, whatsapp })
+        voci.push({ notti, classe: 'scaduta', quando: scadenza, eccezione: { ...base, urgenza: 'alta', titolo, motivo: `${s.testo.replace('Proposta inviata · ', 'Proposta ')} senza conferma né rifiuto`, whatsapp } })
+      } else {
+        voci.push({ notti, classe: 'in_scadenza', quando: scadenza, eccezione: { ...base, urgenza: 'normale', titolo, motivo: s ? s.testo : 'Proposta inviata, in attesa di risposta' } })
       }
       continue
     }
-    const ore = oreTra(r.created_at, adesso)
-    if (ore > ORE_ATTESA_SENZA_PROPOSTA) out.push({ ...base, urgenza: 'normale', titolo, motivo: `In attesa da ${giorniTesto(ore)} senza proposta` })
+    voci.push({ notti, classe: 'in_attesa', quando: creata, eccezione: { ...base, urgenza: 'normale', titolo, motivo: `In attesa da ${giorniTesto(oreTra(r.created_at, adesso))} senza proposta` } })
   }
-  return out
+  return voci.sort((a, b) =>
+    (b.notti - a.notti) || (RANGO_CLASSE[a.classe] - RANGO_CLASSE[b.classe]) || (a.quando - b.quando) || a.eccezione.titolo.localeCompare(b.eccezione.titolo),
+  ).map(v => v.eccezione)
 }
 
 // ── Pagamenti ───────────────────────────────────────────────────────────────
@@ -199,7 +216,8 @@ export function eccezioniPagamenti(prenotazioni: PrenotazioneDC[], pagamenti: Pa
 }
 
 // ── Calendario ──────────────────────────────────────────────────────────────
-// Un cambio camera (stesso soggiorno, camere diverse, una segue l'altra) non è
+// Controllo nascosto (07/09/2026): niente linea ottone, compare in fondo solo
+// se mai si verifica. Un cambio camera (stesso soggiorno, camere diverse, una segue l'altra) non è
 // una sovrapposizione: le camere sono diverse, oppure la partenza coincide
 // con l'arrivo (fine <= inizio → nessuna notte in comune).
 export function eccezioniCalendario(prenotazioni: PrenotazioneDC[]): Eccezione[] {
@@ -214,7 +232,7 @@ export function eccezioniCalendario(prenotazioni: PrenotazioneDC[]): Eccezione[]
     const notti = Math.round((Date.parse(fine + 'T00:00:00Z') - Date.parse(da + 'T00:00:00Z')) / 86400000)
     const quando = notti === 1 ? `notte del ${giornoBreve(da)}` : `notti ${formatIntervallo(da, spostaGiorni(fine, -1))}`
     out.push({
-      chiave: `sovrapposizione:${[a.id, b.id].sort().join(':')}`, tipo: 'calendario', urgenza: 'alta', data: da,
+      chiave: `sovrapposizione:${[a.id, b.id].sort().join(':')}`, tipo: 'calendario', urgenza: 'normale', data: da,
       titolo: `${nomeCamera(a)} · ${nomeOspite(a)} e ${nomeOspite(b)} · ${quando}`,
       motivo: 'Due prenotazioni confermate sulla stessa camera nella stessa notte',
       bottone: 'Apri calendario', destinazione: { tipo: 'calendario', giorno: da }, rimandabile: false,
@@ -229,7 +247,7 @@ export function eccezioniCalendario(prenotazioni: PrenotazioneDC[]): Eccezione[]
     if (!corrente) return
     const quando = corrente.da === corrente.a ? `notte del ${giornoBreve(corrente.da)}` : `notti ${formatIntervallo(corrente.da, corrente.a)}`
     out.push({
-      chiave: `letti:${corrente.da}`, tipo: 'calendario', urgenza: 'alta', data: corrente.da,
+      chiave: `letti:${corrente.da}`, tipo: 'calendario', urgenza: 'normale', data: corrente.da,
       titolo: `Letti aggiuntivi · ${corrente.n} su ${EXTRA_BED_MAX} · ${quando}`,
       motivo: 'Più letti aggiuntivi di quanti ce ne sono in casa',
       bottone: 'Apri calendario', destinazione: { tipo: 'calendario', giorno: corrente.da }, rimandabile: false,
@@ -290,14 +308,13 @@ export function applicaRinvii(eccezioni: Eccezione[], rinvii: Rinvio[] | undefin
   return eccezioni.filter(e => !(e.rimandabile && nascoste.has(e.chiave)))
 }
 
-const distanza = (iso: string, oggi: string) => Math.abs(Date.parse(iso + 'T00:00:00Z') - Date.parse(oggi + 'T00:00:00Z'))
+// Ordine delle sezioni (07/09/2026): richieste, arrivi, pagamenti, fatture,
+// calendario in fondo. Dentro ogni sezione resta l'ordine deciso dalla sua
+// regola (ordinamento stabile).
+const ORDINE_TIPI: TipoEccezione[] = ['richiesta', 'arrivo', 'pagamento', 'fattura', 'calendario']
 
-export function ordinaEccezioni(eccezioni: Eccezione[], oggi: string): Eccezione[] {
-  return [...eccezioni].sort((a, b) => {
-    if (a.urgenza !== b.urgenza) return a.urgenza === 'alta' ? -1 : 1
-    const d = distanza(a.data, oggi) - distanza(b.data, oggi)
-    return d !== 0 ? d : a.titolo.localeCompare(b.titolo)
-  })
+export function ordinaEccezioni(eccezioni: Eccezione[]): Eccezione[] {
+  return [...eccezioni].sort((a, b) => ORDINE_TIPI.indexOf(a.tipo) - ORDINE_TIPI.indexOf(b.tipo))
 }
 
 export function daControllareHome(stato: StatoDaControllare): Eccezione[] {
@@ -308,7 +325,7 @@ export function daControllareHome(stato: StatoDaControllare): Eccezione[] {
     ...eccezioniArrivi(stato.prenotazioni, stato.oggi),
     ...eccezioniFatture(stato.documenti, stato.oggi),
   ]
-  return ordinaEccezioni(applicaRinvii(tutte, stato.rinvii, stato.oggi), stato.oggi)
+  return ordinaEccezioni(applicaRinvii(tutte, stato.rinvii, stato.oggi))
 }
 
 // Fino a quando nasconde un «Rimanda» fatto oggi: il giorno dopo
@@ -316,19 +333,18 @@ export const finoADomani = (oggi: string) => spostaGiorni(oggi, 1)
 
 // ── Testi della striscia e della riga «tutto a posto» ───────────────────────
 const CONTEGGIO: Record<TipoEccezione, [string, string]> = {
-  calendario: ['sovrapposizione', 'sovrapposizioni'],
-  richiesta: ['richiesta ferma', 'richieste ferme'],
-  pagamento: ['pagamento incompleto', 'pagamenti incompleti'],
+  richiesta: ['richiesta aperta', 'richieste aperte'],
   arrivo: ['arrivo senza orario', 'arrivi senza orario'],
+  pagamento: ['pagamento', 'pagamenti'],
   fattura: ['fattura scaduta', 'fatture scadute'],
+  calendario: ['sovrapposizione', 'sovrapposizioni'],
 }
-const ORDINE_TIPI: TipoEccezione[] = ['calendario', 'richiesta', 'pagamento', 'arrivo', 'fattura']
 
 export function conteggiPerTipo(eccezioni: Eccezione[]): { tipo: TipoEccezione; n: number }[] {
   return ORDINE_TIPI.map(tipo => ({ tipo, n: eccezioni.filter(e => e.tipo === tipo).length })).filter(x => x.n > 0)
 }
 
-// «1 sovrapposizione · 2 richieste ferme · 1 pagamento incompleto»
+// «3 richieste aperte · 1 arrivo senza orario · 1 pagamento» (stesso ordine delle sezioni)
 export function rigaConteggi(eccezioni: Eccezione[]): string {
   return conteggiPerTipo(eccezioni).map(({ tipo, n }) => `${n} ${CONTEGGIO[tipo][n === 1 ? 0 : 1]}`).join(' · ')
 }
