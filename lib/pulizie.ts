@@ -571,3 +571,41 @@ export function calcolaNotifica(rooms: any[], tutteLePrenotazioni: any[], events
   }
   return { domani: righeDomani, inRitardo: righeRitardo }
 }
+
+// ------------------------------------------- lavori di UN giorno (Home + Pulizie)
+
+// Le pulizie previste in una camera in un GIORNO preciso, con la stessa regola
+// della pagina Pulizie (08/09/2026, striscia della settimana in Home):
+//  · per oggi: le pulizie aperte (pulizieAperte: partenza/cambio camera con
+//    scadenza oggi o in ritardo, cambio biancheria scaduto o in scadenza oggi);
+//  · per un giorno futuro: partenze e cambi camera la cui scadenza — dopo
+//    gli eventuali rimandi di Ania — cade quel giorno e non sono già chiusi,
+//    più il cambio biancheria (ogni 4 notti, rettifiche comprese) che scade
+//    quel giorno per chi resta in camera.
+// Un arrivo in una camera vuota non è un lavoro (la camera è già pronta);
+// l'arrivo per cambio camera conta sulla camera LASCIATA (tipo cambio_camera).
+type Prenotazioni = Parameters<typeof pulizieAperte>[0]
+export function pulizieDelGiorno(bookings: Prenotazioni, roomId: string, giorno: string, oggi: string, events: Decisione[]): Pulizia[] {
+  if (giorno <= oggi) return giorno === oggi ? pulizieAperte(bookings, roomId, oggi, events) : []
+  const out: Pulizia[] = []
+  const partenze = bookings
+    .filter(b => b.room_id === roomId && b.check_out <= giorno && b.check_out >= CUTOFF_STORICO && !continuaIn(bookings, b))
+  for (const p of partenze) {
+    const st = statoFineSoggiorno(bookings, p, events)
+    if (st.chiusa || st.due !== giorno) continue
+    out.push({ roomId, tipo: st.tipo, booking: p, prevista: p.check_out, due: st.due, ritardo: 0, rinvii: st.rinvii, cambioCameraVerso: st.cambioCameraVerso })
+  }
+  const inCorso = bookings.find(b => b.room_id === roomId && b.check_in <= giorno && b.check_out > giorno) || null
+  if (inCorso) {
+    const ciclo = cicloCambio(bookings, inCorso, events)
+    if (ciclo.due === giorno) out.push({ roomId, tipo: 'soggiorno', booking: inCorso, prevista: ciclo.prevista || ciclo.due, due: ciclo.due, ritardo: 0, rinvii: ciclo.rinvii })
+  }
+  return out
+}
+
+// Quante camere hanno almeno un lavoro quel giorno (ogni camera una volta):
+// è IL numero della striscia in Home e quello della pagina Pulizie.
+export function camereDaPreparareGiorno(rooms: { id: string }[], tutteLePrenotazioni: Prenotazioni, events: Decisione[], giorno: string, oggi: string): number {
+  const bookings = attive(tutteLePrenotazioni)
+  return rooms.filter(r => pulizieDelGiorno(bookings, r.id, giorno, oggi, events).length > 0).length
+}

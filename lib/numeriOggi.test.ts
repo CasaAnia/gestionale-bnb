@@ -55,34 +55,83 @@ test('tre numeri: senza prenotazioni tutto a zero ma le camere restano', () => {
   assert.deepEqual(numeriOggi([], camere, OGGI), { arriviOggi: 0, partenzeOggi: 0, camereOccupate: 0, camereTotali: 4 })
 })
 
-// ── Striscia della settimana (07/09/2026) ──────────────────────────────────
-import { camereDaPreparare, strisciaSettimane, etichettaGiornoBreve, ultimoGiornoStriscia } from './numeriOggi.ts'
+// ── Striscia della settimana: STESSA regola della pagina Pulizie (08/09/2026) ──
+import { strisciaSettimane, etichettaGiornoBreve, ultimoGiornoStriscia } from './numeriOggi.ts'
+import { pulizieAperte, pulizieDelGiorno, camereDaPreparareGiorno, statoFineSoggiorno, cicloCambio, attive, continuaIn, CUTOFF_STORICO, type Decisione } from './pulizie.ts'
 
-test('camere da preparare: partenze + arrivi, ogni camera una volta; cambio camera = camera lasciata + camera nuova', () => {
-  const pren = [
-    b('p', 'amelia', '2026-09-02', '2026-09-06'),                          // parte il 6 da Amelia
-    b('a', 'amelia', '2026-09-06', '2026-09-09'),                          // arriva il 6 in Amelia: stessa camera = 1
-    b('s1', 'ambra', '2026-09-03', '2026-09-06', { group_id: 'g' }),       // cambio camera il 6: Ambra lasciata
-    b('s2', 'lena', '2026-09-06', '2026-09-08', { group_id: 'g' }),        // … Lena nuova
-    b('x', 'allegra', '2026-09-06', '2026-09-07', { status: 'in_attesa' }),   // esclusa
-    b('y', 'allegra', '2026-09-06', '2026-09-07', { status: 'annullata' }),   // esclusa
+const CAMERE = [{ id: 'amelia' }, { id: 'allegra' }, { id: 'ambra' }, { id: 'lena' }]
+let seq = 0
+const pren = (room_id: string, check_in: string, check_out: string, over: Record<string, unknown> = {}) =>
+  ({ id: `p${++seq}`, room_id, guest_id: `g${seq}`, check_in, check_out, status: 'confermata', linen_next_date: null, ...over })
+
+// Scenario (oggi 2026-09-05): partenza il 7 (Amelia), cambio camera il 9 (Ambra → Lena,
+// stesso ospite), soggiorno lungo in Allegra dal 3 al 20 (cambio biancheria il 7, poi
+// rettifica di Ania: fatta l'8 → prossimo il 12), partenza dell'11 (Lena) rimandata al 13,
+// in attesa e annullata mai contate, partenza di oggi in Ambra già segnata fatta.
+const SCENARIO = () => {
+  seq = 0
+  const bookings = [
+    pren('amelia', '2026-09-04', '2026-09-07'),
+    pren('ambra', '2026-09-05', '2026-09-09', { guest_id: 'lucia' }),
+    pren('lena', '2026-09-09', '2026-09-11', { guest_id: 'lucia' }),           // cambio camera il 9
+    pren('allegra', '2026-09-03', '2026-09-20'),                              // soggiorno lungo
+    pren('lena', '2026-09-20', '2026-09-22', { status: 'in_attesa' }),
+    pren('amelia', '2026-09-10', '2026-09-12', { status: 'annullata' }),
+    pren('ambra', '2026-09-02', '2026-09-05', { guest_id: 'oggiOut' }),       // parte oggi
   ]
-  assert.equal(camereDaPreparare(pren, '2026-09-06'), 3)   // amelia, ambra, lena
-  assert.equal(camereDaPreparare(pren, '2026-09-07'), 0)
-  assert.equal(camereDaPreparare(pren, '2026-09-08'), 1)   // lena (partenza s2)
-  assert.equal(camereDaPreparare(pren, '2026-09-09'), 1)   // amelia (partenza a)
+  const events: Decisione[] = [
+    { id: 'e1', room_id: 'allegra', booking_id: 'p4', tipo: 'soggiorno', stato: 'fatta', data_prevista: '2026-09-07', data_effettiva: '2026-09-08', created_at: '2026-09-08T10:00:00Z' },
+    { id: 'e2', room_id: 'lena', booking_id: 'p3', tipo: 'fine_soggiorno', stato: 'rimandata', data_prevista: '2026-09-11', prossima_data: '2026-09-13', created_at: '2026-09-05T09:00:00Z' },
+    { id: 'e3', room_id: 'ambra', booking_id: 'p7', tipo: 'fine_soggiorno', stato: 'fatta', data_prevista: '2026-09-05', data_effettiva: '2026-09-05', created_at: '2026-09-05T11:00:00Z' },
+  ]
+  return { bookings, events }
+}
+
+test('striscia = pagina Pulizie: per ognuno dei 28 giorni il numero coincide col conteggio delle camere con un lavoro', () => {
+  const { bookings, events } = SCENARIO()
+  const oggi = '2026-09-05'
+  const s = strisciaSettimane(CAMERE, bookings, events, oggi)
+  assert.equal(s.length, 28)
+  // Conteggio «come la pagina»: oggi = camere con pulizie aperte; dopo = camere con una
+  // partenza/cambio camera in scadenza quel giorno (rimandi compresi) o un cambio biancheria
+  const attive_ = attive(bookings)
+  for (const g of s) {
+    const attesa = CAMERE.filter(r => {
+      if (g.giorno === oggi) return pulizieAperte(attive_, r.id, oggi, events).length > 0
+      const partenza = attive_.some(b => b.room_id === r.id && b.check_out <= g.giorno && b.check_out >= CUTOFF_STORICO && !continuaIn(attive_, b)
+        && (() => { const st = statoFineSoggiorno(attive_, b, events); return !st.chiusa && st.due === g.giorno })())
+      const inCorso = attive_.find(b => b.room_id === r.id && b.check_in <= g.giorno && b.check_out > g.giorno)
+      const biancheria = !!inCorso && cicloCambio(attive_, inCorso, events).due === g.giorno
+      return partenza || biancheria
+    }).length
+    assert.equal(g.camere, attesa, `giorno ${g.giorno}`)
+    assert.equal(g.camere, camereDaPreparareGiorno(CAMERE, bookings, events, g.giorno, oggi), `funzione condivisa, giorno ${g.giorno}`)
+  }
+  // I valori attesi dello scenario, a mano
+  const per = Object.fromEntries(s.map(g => [g.giorno, g.camere]))
+  assert.equal(per['2026-09-05'], 0)   // la partenza di oggi in Ambra è già segnata fatta
+  assert.equal(per['2026-09-07'], 1)   // Amelia parte; il cambio biancheria di Allegra è stato fatto l'8 (rettifica)
+  assert.equal(per['2026-09-09'], 1)   // Ambra: cambio camera (Lucia va in Lena); Lena non conta (arrivo)
+  assert.equal(per['2026-09-11'], 0)   // partenza da Lena rimandata…
+  assert.equal(per['2026-09-13'], 1)   // …al 13
+  assert.equal(per['2026-09-12'], 1)   // Allegra: cambio biancheria (8 + 4 notti)
+  assert.equal(per['2026-09-20'], 1)   // Allegra parte (l'in attesa in Lena non conta)
+  assert.equal(per['2026-09-06'], 0)
+  assert.deepEqual(s.filter(g => g.inizioSettimana).map(g => g.giorno), ['2026-09-12', '2026-09-19', '2026-09-26'])
+  assert.equal(s[0].oggi, true); assert.equal(s.filter(g => g.oggi).length, 1)
 })
 
-test('striscia: 28 giorni da oggi, oggi evidenziato, divisorio a ogni settimana, etichette «sab 6»', () => {
-  const s = strisciaSettimane([b('a', 'amelia', '2026-09-05', '2026-09-08')], '2026-09-05')
-  assert.equal(s.length, 28)
-  assert.equal(s[0].giorno, '2026-09-05'); assert.equal(s[0].oggi, true); assert.equal(s[0].camere, 1)
-  assert.equal(s[3].giorno, '2026-09-08'); assert.equal(s[3].camere, 1)
-  assert.equal(s[27].giorno, '2026-10-02')
-  assert.deepEqual(s.filter(g => g.inizioSettimana).map(g => g.giorno), ['2026-09-12', '2026-09-19', '2026-09-26'])
-  assert.equal(s.filter(g => g.oggi).length, 1)
+test('lavori di un giorno: partenza e arrivo nella stessa camera = 1; cambio camera conta la camera lasciata; oggi include i ritardi', () => {
+  seq = 0
+  const bookings = [
+    pren('amelia', '2026-09-02', '2026-09-06'), pren('amelia', '2026-09-06', '2026-09-08'),   // stessa camera: 1
+    pren('ambra', '2026-09-01', '2026-09-03'),                                                // partenza il 3, mai segnata: in ritardo oggi
+  ]
+  assert.equal(camereDaPreparareGiorno(CAMERE, bookings, [], '2026-09-06', '2026-09-05'), 1)
+  assert.deepEqual(pulizieDelGiorno(attive(bookings), 'amelia', '2026-09-06', '2026-09-05', []).map(p => p.tipo), ['fine_soggiorno'])
+  assert.equal(camereDaPreparareGiorno(CAMERE, bookings, [], '2026-09-05', '2026-09-05'), 1)   // Ambra in ritardo
+  assert.deepEqual(pulizieDelGiorno(attive(bookings), 'ambra', '2026-09-05', '2026-09-05', []).map(p => [p.tipo, p.ritardo]), [['fine_soggiorno', 2]])
   assert.equal(etichettaGiornoBreve('2026-09-05'), 'sab 5')
-  assert.equal(etichettaGiornoBreve('2026-09-06'), 'dom 6')
   assert.equal(etichettaGiornoBreve('2026-10-01'), 'gio 1')
   assert.equal(ultimoGiornoStriscia('2026-09-05'), '2026-10-02')
 })

@@ -48,30 +48,25 @@ export function numeriOggi(prenotazioni: PrenotazioneOggi[], camere: CameraOggi[
 // camera di oggi (entrambi i segmenti toccano oggi).
 export const testoOccupate = (n: NumeriOggi) => `${n.camereOccupate} su ${n.camereTotali}`
 
-// ── Striscia della settimana (07/09/2026) ──────────────────────────────────
-// Camere da preparare in un giorno = camere con una partenza quel giorno ∪
-// camere con un arrivo quel giorno, ogni camera contata una volta (partenza
-// e arrivo nella stessa camera lo stesso giorno = 1; un cambio camera conta
-// la camera lasciata e quella nuova). Solo confermate/completate.
+// ── Striscia della settimana (07/09/2026; regola delle Pulizie dall'08/09) ──
+// Camere da preparare in un giorno = STESSA regola della pagina Pulizie
+// (lib/pulizie.camereDaPreparareGiorno): partenze e cambi camera con la
+// scadenza quel giorno (rimandi di Ania compresi), cambi biancheria ogni 4
+// notti dei soggiorni lunghi (rettifiche registrate comprese), ogni camera
+// contata una volta al giorno. Così Home e Pulizie dicono sempre lo stesso numero.
+import { camereDaPreparareGiorno, type Decisione } from './pulizie.ts'
+
 export const GIORNI_STRISCIA = 28
 export const GIORNI_VISIBILI_TELEFONO = 7
 export const GIORNI_VISIBILI_MAC = 14
 
-export function camereDaPreparare(prenotazioni: PrenotazioneOggi[], giorno: string): number {
-  const camere = new Set<string>()
-  for (const b of prenotazioni.filter(prenotazioneValida)) {
-    if (b.check_out === giorno || b.check_in === giorno) camere.add(b.room_id)
-  }
-  return camere.size
-}
-
 export type GiornoStriscia = { giorno: string; camere: number; oggi: boolean; inizioSettimana: boolean }
 
-export function strisciaSettimane(prenotazioni: PrenotazioneOggi[], oggi: string, giorni = GIORNI_STRISCIA): GiornoStriscia[] {
+export function strisciaSettimane(rooms: { id: string }[], prenotazioni: Parameters<typeof camereDaPreparareGiorno>[1], events: Decisione[], oggi: string, giorni = GIORNI_STRISCIA): GiornoStriscia[] {
   const out: GiornoStriscia[] = []
   for (let i = 0; i < giorni; i++) {
     const giorno = new Date(Date.parse(oggi + 'T00:00:00Z') + i * 86400000).toISOString().slice(0, 10)
-    out.push({ giorno, camere: camereDaPreparare(prenotazioni, giorno), oggi: i === 0, inizioSettimana: i > 0 && i % 7 === 0 })
+    out.push({ giorno, camere: camereDaPreparareGiorno(rooms, prenotazioni, events, giorno, oggi), oggi: i === 0, inizioSettimana: i > 0 && i % 7 === 0 })
   }
   return out
 }
