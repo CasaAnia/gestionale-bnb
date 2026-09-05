@@ -1424,8 +1424,9 @@ export default function BookingDetail() {
             </a>
           )}
           {guest?.email && <p className="text-sm text-gray-600 mb-1">✉️ {guest.email}</p>}
-          {/* Documenti del cliente: riga discreta, apre la scheda cliente */}
-          <RigaDocumentiPrenotazione guestId={guest?.id} />
+          {/* Documenti del cliente: riga discreta, apre la scheda cliente;
+              dopo il telefono sta sulla stessa riga, con un po' d'aria (Ania, 05/09/2026) */}
+          <RigaDocumentiPrenotazione guestId={guest?.id} className={guest?.phone ? 'ml-4' : ''} />
           {guest?.rating && guest.rating !== 'normale' && (
             <p className="text-sm font-semibold mb-1">{RATING_LABEL[guest.rating]}</p>
           )}
@@ -1843,8 +1844,9 @@ export default function BookingDetail() {
         <aside className="hidden lg:block lg:flex-1 lg:sticky lg:top-6">
           <div className="bg-white rounded-xl border border-card-border p-4">
             <p className="text-[11px] uppercase mb-3" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>Messaggi</p>
+            {/* Verde pieno come «+ Nuova richiesta» nelle Richieste (Ania, 05/09/2026) */}
             <button onClick={() => setShowConferma(true)}
-              className="w-full rounded-xl py-2 text-sm font-semibold mb-2" style={{ background: '#DCE8DD', color: '#2f6a4d' }}>
+              className="w-full inline-flex items-center justify-center bg-green-mid text-cream-text rounded-xl px-5 py-3 font-semibold text-[15px] active:opacity-80 transition-opacity mb-2">
               Conferma WhatsApp (immagine + testo)
             </button>
             <p className="font-semibold text-green-dark mt-4 mb-1.5 text-sm">💬 WhatsApp Ania</p>

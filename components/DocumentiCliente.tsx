@@ -189,7 +189,7 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
 
 // Riga discreta per la scheda prenotazione: «Documenti · 2» → scheda cliente.
 // Se la migrazione 0032 non c'è ancora non mostra nulla.
-export function RigaDocumentiPrenotazione({ guestId }: { guestId: string | null | undefined }) {
+export function RigaDocumentiPrenotazione({ guestId, className = '' }: { guestId: string | null | undefined; className?: string }) {
   const [n, setN] = useState<number | null>(null)
   useEffect(() => {
     if (!guestId) return
@@ -200,7 +200,7 @@ export function RigaDocumentiPrenotazione({ guestId }: { guestId: string | null 
   }, [guestId])
   if (!guestId || n === null) return null
   return (
-    <Link href={`/clienti/${guestId}#documenti`} className="inline-flex items-center gap-1.5 text-sm text-stone underline underline-offset-2 decoration-dotted mb-1">
+    <Link href={`/clienti/${guestId}#documenti`} className={`inline-flex items-center gap-1.5 text-sm text-stone underline underline-offset-2 decoration-dotted mb-1 ${className}`}>
       🪪 {rigaDocumenti(n)}
     </Link>
   )
