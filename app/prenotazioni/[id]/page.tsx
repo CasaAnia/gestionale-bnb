@@ -498,7 +498,6 @@ export default function BookingDetail() {
         notes: b.notes || '',
         color: b.color || '',
         bonifico: b.bonifico || false,
-        pagato: b.pagato || false,
         source: b.source || 'diretta',
         extra_phone_1: b.extra_phone_1 || '',
         extra_phone_1_name: b.extra_phone_1_name || '',
@@ -841,7 +840,6 @@ export default function BookingDetail() {
       notes: editForm.notes || null,
       color: editForm.color || null,
       bonifico: editForm.bonifico || false,
-      pagato: editForm.pagato || false,
       source: editForm.source || 'diretta',
       extra_phone_1: editForm.extra_phone_1 ? normalizePhone(editForm.extra_phone_1) : null,
       extra_phone_1_name: editForm.extra_phone_1_name || null,
@@ -1508,15 +1506,13 @@ export default function BookingDetail() {
             )
           })()}
 
-          {/* Pagato per ultimo: è la spunta finale, dopo tutti i conti */}
-          <div onClick={() => setEditForm({ ...editForm, pagato: !editForm.pagato })}
-            className="flex items-center justify-between bg-[#EAF0F3] rounded-lg p-3 mb-3 border border-[#D7E3E8] cursor-pointer active:opacity-70">
+          {/* R2 (revisione di f4d5474): da qui «pagato» NON si cambia più. L'unico
+              modo per dichiarare un soggiorno pagato è «Segna come pagato», che
+              registra il movimento (importo, data, metodo) prima del flag. */}
+          <div className="flex items-center justify-between bg-[#EAF0F3] rounded-lg p-3 mb-3 border border-[#D7E3E8]">
             <div>
-              <p className="text-sm font-semibold text-[#3D5A66]">✅ Pagato</p>
-              <p className="text-xs text-[#3D5A66]">Segna come pagamento ricevuto</p>
-            </div>
-            <div className={`w-12 h-6 rounded-full transition-colors flex items-center ${editForm.pagato ? 'bg-[#7D9DB0]' : 'bg-gray-200'}`}>
-              <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${editForm.pagato ? 'translate-x-6' : ''}`} />
+              <p className="text-sm font-semibold text-[#3D5A66]">{booking.pagato ? '✅ Pagato' : 'Non ancora pagato'}</p>
+              <p className="text-xs text-[#3D5A66]">{booking.pagato ? 'i movimenti stanno nel conto del soggiorno' : 'si segna dalla scheda con «Segna come pagato», che registra il pagamento'}</p>
             </div>
           </div>
 
