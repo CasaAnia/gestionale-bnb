@@ -117,6 +117,8 @@ const bookings = [
   // Le scritture qui sono rifiutate (403): «Conferma prenotazione» deve
   // mostrare «Non salvato, riprova» e lasciare la scheda in attesa.
   prenotazione(ROOM.ambra, guests[13].id, '2026-09-22', '2026-09-24', 2, { status: 'in_attesa', source: 'sito_web' }),
+  // Parte 2 (05/09/2026): prenotazione annullata per provare «Motivo annullamento» → Salva rifiutato
+  prenotazione(ROOM.allegra, guests[13].id, '2026-08-20', '2026-08-22', 2, { status: 'annullata', cancelled_at: ora, cancelled_reason: 'Prova' }),
 ]
 const payments = []
 // Storico pulizie (migrazione 0018): vuoto, così la pagina Pulizie mostra solo le automatiche

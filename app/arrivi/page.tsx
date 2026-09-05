@@ -14,6 +14,8 @@ import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA, GIORNI_PRIMA_OGGI } from '@/lib/richiesteCalendario'
+import { salvaOrarioENavetta } from '@/lib/arrivoOrario'
+import AvvisoAzione from '@/components/AvvisoAzione'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
@@ -71,6 +73,9 @@ export default function Arrivi() {
   const [popup, setPopup] = useState<{ id: string; name: string; time: string; shuttle: string } | null>(null)
   const [showStorico, setShowStorico] = useState(false)
   const [savingTime, setSavingTime] = useState(false)
+  // Errori di salvataggio visibili, parte 2 (05/09/2026): avviso nel pannello
+  // al posto dell'alert del browser; con errore il pannello resta aperto
+  const [erroreOrario, setErroreOrario] = useState<string | null>(null)
   const popupTimeRef = useRef<HTMLInputElement>(null)
 
   // Titolo sticky mese+anno: segue il mese più a sinistra attualmente in vista (come nel calendario)
@@ -242,20 +247,33 @@ export default function Arrivi() {
   // con il modulo prenotazione. Se la colonna shuttle non esiste ancora
   // (migrazione 0019 da incollare), l'orario si salva comunque.
   async function saveTime() {
-    if (!popup) return
+    if (!popup || savingTime) return
     setSavingTime(true)
+    setErroreOrario(null)
     const time = popup.time
     const shuttle = popup.shuttle || null
-    const { error } = await supabase.from('bookings').update({ check_in_time: time || null, shuttle }).eq('id', popup.id)
-    if (error) {
-      await supabase.from('bookings').update({ check_in_time: time || null }).eq('id', popup.id)
-      if (popup.shuttle) alert('Orario salvato, ma la navetta no: va incollata la migrazione 0019 su Supabase.')
-      setBookings(bookings.map(b => b.id === popup.id ? { ...b, check_in_time: time || null } : b))
-    } else {
-      setBookings(bookings.map(b => b.id === popup.id ? { ...b, check_in_time: time || null, shuttle } : b))
+    const id = popup.id
+    try {
+      const esito = await salvaOrarioENavetta(
+        () => supabase.from('bookings').update({ check_in_time: time || null, shuttle }).eq('id', id),
+        () => supabase.from('bookings').update({ check_in_time: time || null }).eq('id', id),
+        !!popup.shuttle,
+      )
+      if (esito.esito === 'errore') {
+        // Nulla è cambiato: il pannello resta aperto con l'avviso, il bottone torna attivo
+        setErroreOrario(esito.messaggio)
+        return
+      }
+      if (esito.esito === 'solo_orario') {
+        setBookings(bookings.map(b => b.id === id ? { ...b, check_in_time: time || null } : b))
+        if (esito.messaggio) { setErroreOrario(esito.messaggio); return }
+      } else {
+        setBookings(bookings.map(b => b.id === id ? { ...b, check_in_time: time || null, shuttle } : b))
+      }
+      setPopup(null)
+    } finally {
+      setSavingTime(false)
     }
-    setSavingTime(false)
-    setPopup(null)
   }
 
   function dayIndex(dateStr: string) {
@@ -631,6 +649,7 @@ export default function Arrivi() {
                 {savingTime ? 'Salvo...' : 'Salva'}
               </button>
             </div>
+            {erroreOrario && <AvvisoAzione testo={erroreOrario} className="mt-2" />}
           </div>
         </div>
         )
