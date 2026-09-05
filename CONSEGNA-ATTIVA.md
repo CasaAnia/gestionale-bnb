@@ -79,6 +79,26 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
 
 ---
 
+# Consegna — Provenienza: le strutture si vedono sempre al tocco (08/09/2026, sera, main)
+
+- Segnalazione di Ania: toccando «Altra struttura» non comparivano più le
+  strutture da scegliere. CAUSA: con un nome già completo nel campo (es.
+  «Nida») i suggerimenti erano filtrati per quel testo e Nida stessa esclusa
+  perché uguale → nessun bottone. In produzione la 0036 risulta GIÀ applicata
+  (5 strutture, colonne presenti, 3 prenotazioni con struttura), sito a 2668f87.
+- `9d0c064` — lib/provenienza.suggerimentiDaMostrare: se il campo è vuoto o
+  contiene un nome noto si mostrano TUTTE le strutture (ordine per ospiti
+  portati, poi alfabetico) con quella attuale evidenziata in verde; scrivendo
+  un testo nuovo si filtrano, e se nessuna corrisponde tornano tutte. Il
+  campo apre l'elenco anche al tocco (onClick), non solo al focus. Test.
+- Anteprima a 390 px: con «Nida» nel campo → Nida (evidenziata), Umana, BM,
+  Elyse, RB; tocco su «Elyse» → campo «Elyse» e, riaperto, Elyse evidenziata.
+- Suite 669/669, TypeScript OK, lint 0 rilievi, `next build` OK (Compiled successfully su `9d0c064`).
+  Nessuna migrazione. La tendina unica chiesta prima è stata annullata su
+  richiesta di Ania (mai pubblicata).
+
+---
+
 # Consegna — Provenienza dell'ospite (08/09/2026, main)
 
 Base `4ad06da`. Un commit per pezzo. Migrazione SOLO come bozza
