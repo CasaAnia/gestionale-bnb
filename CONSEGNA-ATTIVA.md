@@ -2,7 +2,7 @@
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
-3. Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); la revisione Codex di f4d5474 (R1–R7) è corretta nel candidato LOCALE `574824c` NON pubblicato (scheda in cima: pagato con recupero dell'esito, ricostruzione incassi storici dietro tasto, proposte 0033/0034 non applicate) e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
+3. Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); le revisioni Codex di f4d5474 (R1–R7) e di 3248064 (R8–R13) sono corrette nel candidato LOCALE NON pubblicato (scheda in cima: contratto unico dei pagamenti con chiave custodita e RPC idempotenti, ricostruzione storica ricalcolata dal server, fuori servizio collegato ai KPI; proposte 0033/0034 NON applicate, collaudo concorrente su PostgreSQL vero ancora da fare) e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
 4. Blocco 1 (04/09): elisione solo per 1, 8, 11 («all'8», «al 18»). Blocco 2: /richieste da desktop con calendario «Mese / 2 settimane», lista ariosa, intestazione su una riga; telefono invariato. Blocco 4 (04/09 sera, scelta di Ania sul mockup A): da desktop calendario a TUTTA larghezza sopra e lista sotto in schede su due colonne (≥1100 px), riga di sezione «RICHIESTE APERTE · N — Ordina per», vuoto = riga sottile tratteggiata con «+ Nuova richiesta»; niente più due colonne affiancate. Calendario desktop +20% (righe 54, intestazione 48, camere 15 px, barre 13–14 px, colonna camere 116, colonne 2 settimane ≥ 80 px); telefono invariato. Blocco 3: web-push tolto dal sito, docs senza secondo utente, scheda «prove in 10 minuti».
 5. Proposte: ricerca automatica invariata (caso A poi B/C/E, per notte), «Altre camere» con i motivi, «Scelgo io» notte per notte con prezzo a mano; conferma solo via RPC 0031 (per notte).
    Documenti dei clienti (05/09, scelta di Ania, «fallo direttamente, mai cancellare dopo la partenza»): components/DocumentiCliente (scheda cliente: foto dal telefono ridotte a 1600 px JPEG, PDF, etichetta e fronte/retro, anteprime con URL firmati 1 h, elimina con conferma; RigaDocumentiPrenotazione «Documenti · N» nella scheda prenotazione → /clienti/<id>#documenti), lib/documentiCliente (funzioni pure, 4 test), migrazione 0032; senza migrazione la sezione avvisa e non salva.
@@ -75,6 +75,89 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — Statistiche, revisione Codex di 3248064 (R8–R13): candidato LOCALE, NON pubblicato
+
+Stato: PRONTO PER REVISIONE (Codex). Nessun push, nessun deploy, nessun SQL
+applicato, nessun accesso remoto, nessuna modifica a dati o permessi. Le
+proposte 0033 e 0034 restano in `supabase/proposte/` fuori dalle migrazioni
+operative. Decisione di Ania (definitiva, non rimessa in discussione): ogni
+vecchio soggiorno svolto è stato pagato all'arrivo → la ricostruzione storica
+è voluta e ora è riferibile, atomica e verificabile.
+
+## VERIFICATO LOCALMENTE (un commit per rilievo sopra 3248064)
+
+- R13 `dc51d7d` — `raccogliPagine`: tetto di pagine con l'ultima pagina
+  piena → `ErroreLetturaIncompleta`, mai lista «completa» (test 50 × 1.000).
+- R11 `68e7232` — `ricaviPerCamera`: media al mese da gennaio (o dal mese
+  documentato di entrata in servizio); test: prima prenotazione in agosto,
+  oggi agosto → 8 mesi, oggi settembre → 9.
+- R8/R9/R10 server `6c9e621` — proposta 0033 riscritta: `payments.soggiorno`
+  (identità canonica) accanto alla chiave; stessa chiave su altro soggiorno →
+  `CHIAVE_RIUSATA` a zero effetti; chiave nulla / metodo sconosciuto /
+  prenotazione non confermata → errore (mai «pagato» su in_attesa);
+  `blocca_soggiorno` = advisory lock + FOR UPDATE ordinato; `segna_pagato` e
+  `registra_acconto` ricalcolano nel database e verificano le righe;
+  `ricostruisci_incassi` riceve SOLO `{ soggiorno, chiave }`, blocca, rilegge,
+  ricalcola, scrive il saldo effettivo, rifiuta non conclusi/non validi,
+  tutto-o-niente, esiti strutturati; EXECUTE revocato a PUBLIC. PGlite in
+  sequenza (8 test) con le riproduzioni R8 (chiave riusata → D resta non
+  pagata) e R9 (piano 200, acconto 50 prima → scrive 150, totale 200).
+- R10/R8 client `8a65ca4` — un solo contratto (`eseguiSegnaPagato`,
+  `eseguiRegistraAcconto`): chiave custodita PRIMA dell'invio (memoria
+  negata → nessuna richiesta), rilettura prima di ogni tentativo, RPC che
+  scrive anche il flag (nessun secondo PATCH, anche a saldo zero) o ripiego
+  INSERT + flag su TUTTI i segmenti con righe verificate; `rpcMancante(e,
+  nome)` solo per la funzione esatta; risposta nulla/malformata ≠ successo.
+  10 controprove: risposta persa (INSERT e RPC), richiesta in volo alla
+  riapertura, localStorage negato, rilettura fallita, RPC nulla/malformata,
+  42703/42P01, flag a zero righe, doppio tocco e due schede, acconto con
+  risposta persa e con memoria negata.
+- R9 client `6bd0f8f` — piano con TUTTI i soggiorni conclusi non coperti
+  (motivo: segnato pagato senza movimenti / concluso non segnato), in corso e
+  futuri fuori ed elencati; alla RPC solo identità e chiavi; esito convalidato
+  (`validaEsitoRicostruzione`); rete persa → «Non so se la ricostruzione è
+  stata scritta: rileggo e ricontrollo il piano» (mai «nulla è stato scritto»).
+- R12 `983d4ed` — proposta 0034 completa (date di servizio sulle camere,
+  room_closures con RLS attiva e politiche per authenticated, revoke ad
+  anon/PUBLIC), `leggiCamere` con ripiego senza colonne, `leggiFuoriServizio`
+  a pagine (tabella assente = «non registrati», altri errori visibili),
+  periodi passati a Home, intervalli, mesi e ricavi per camera; archivio di
+  una camera = data (il passato resta). Catena database → lettura → KPI in
+  PGlite (4 test). NESSUNA schermata per i periodi. R7 NON è operativa.
+
+Prove UI (anteprima finta, 390 e 1280 px): quattro schede, «Incassi
+registrati · storico da ricostruire», sezione di ricostruzione con motivi,
+Segna come pagato con INSERT applicato e risposta persa → un solo movimento.
+
+Prove tecniche sul candidato: suite 613/613 (17 test nuovi oltre a 3248064),
+`tsc` OK, `next build` OK, lint dei file toccati 48 = 48 sulla base
+(nessun rilievo nuovo), assert esistenti invariati.
+
+## DA COLLAUDARE SU POSTGRESQL VERO (non fatto qui: nessun Postgres locale)
+
+- `scripts/collaudo-0033/concorrenza.mjs` con `DATABASE_URL` di un database
+  ISOLATO: due `segna_pagato` concorrenti da segmenti diversi → un movimento;
+  due ricostruzioni concorrenti con chiavi diverse → una scrive; chiave
+  riusata → `CHIAVE_RIUSATA`. Senza DATABASE_URL lo script esce con
+  «DA COLLAUDARE» (codice 2). PGlite prova solo la sequenza.
+- Politiche RLS della 0034 con un utente `authenticated` vero e con `anon`.
+
+## DA AUTORIZZARE (Ania, dopo la revisione di Codex)
+
+- Applicazione delle proposte 0033 e 0034 dopo il collaudo isolato.
+- Push e deploy del candidato.
+- Esecuzione della ricostruzione (tasto in Statistiche, dopo la 0033).
+
+## Limiti aperti
+
+- Senza la 0033 il ripiego INSERT protegge solo con la rilettura prima di
+  ogni tentativo (non è atomico lato database).
+- Nel finto server la tabella room_closures «esiste» vuota: il limite «periodi
+  non registrati» si vede solo in produzione (PGRST205).
+- Nessuna schermata (pannello nascosto): prove dal DOM e dalla rete.
 
 ---
 

@@ -237,7 +237,7 @@ export default function Dashboard() {
               <p className="text-[11px] leading-tight text-gray-500 mt-1">
                 {data.indici.anomalia
                   ? <span className="font-semibold text-green-dark">{TESTO_ANOMALIA_OCCUPAZIONE}: {data.indici.nottiVendute} notti su {data.indici.nottiVendibili}</span>
-                  : <>notti vendute su notti vendibili delle camere attive ({data.indici.nottiVendute} su {data.indici.nottiVendibili})</>}
+                  : <>notti vendute su notti vendibili delle camere in servizio ({data.indici.nottiVendute} su {data.indici.nottiVendibili})</>}
               </p>
             </div>
             <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm">
