@@ -2,7 +2,7 @@
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
-3. «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima; RITOCCHI dello stesso giorno: sezione IN CIMA sopra i numeri del giorno, «WhatsApp» sugli arrivi senza orario col testo «Richiesta orario» di lib/messaggiWhatsApp condiviso con la scheda, «WhatsApp» senza testo sulle proposte scadute): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
+3. HOME (07/09/2026): in cima TRE NUMERI (arrivi oggi, partenze oggi, camere occupate stanotte su quelle attive; lib/numeriOggi, giorno di Roma, trattini + Riprova su errore), poi «DA CONTROLLARE» col NUOVO ORDINE (tutte le richieste aperte per durata e scadenza, arrivi senza orario, pagamenti, fatture, sovrapposizioni in fondo senza urgenza). «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima; RITOCCHI dello stesso giorno: sezione IN CIMA sopra i numeri del giorno, «WhatsApp» sugli arrivi senza orario col testo «Richiesta orario» di lib/messaggiWhatsApp condiviso con la scheda, «WhatsApp» senza testo sulle proposte scadute): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
    Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); le revisioni Codex (R1–R13) sono corrette, collaudate su PostgreSQL 16 locale (sessioni concorrenti, ruoli) con 4 difetti trovati e corretti, e PUBBLICATE il 06/09/2026 (scheda in cima); le proposte 0033/0034 restano da applicare a mano da Ania (guida in 5 righe nella scheda); il codice pubblicato funziona anche prima delle proposte e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
 4. Blocco 1 (04/09): elisione solo per 1, 8, 11 («all'8», «al 18»). Blocco 2: /richieste da desktop con calendario «Mese / 2 settimane», lista ariosa, intestazione su una riga; telefono invariato. Blocco 4 (04/09 sera, scelta di Ania sul mockup A): da desktop calendario a TUTTA larghezza sopra e lista sotto in schede su due colonne (≥1100 px), riga di sezione «RICHIESTE APERTE · N — Ordina per», vuoto = riga sottile tratteggiata con «+ Nuova richiesta»; niente più due colonne affiancate. Calendario desktop +20% (righe 54, intestazione 48, camere 15 px, barre 13–14 px, colonna camere 116, colonne 2 settimane ≥ 80 px); telefono invariato. Blocco 3: web-push tolto dal sito, docs senza secondo utente, scheda «prove in 10 minuti».
 5. Proposte: ricerca automatica invariata (caso A poi B/C/E, per notte), «Altre camere» con i motivi, «Scelgo io» notte per notte con prezzo a mano; conferma solo via RPC 0031 (per notte).
@@ -76,6 +76,59 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — Home: tre numeri in cima e nuovo ordine di «Da controllare» (07/09/2026, main)
+
+Base `d3fe7f0`. Un commit per pezzo. Nessuna migrazione.
+
+## FATTO E DIMOSTRATO
+
+- Pezzo 1 `b4b1cae` — tre riquadri affiancati SOPRA TUTTO nella Home
+  (components/NumeriOggi, stile delle schede: bianco, bordo #C9BFA8, ombra;
+  numero in Fraunces, etichetta in Nunito Sans): «Arrivi oggi», «Partenze
+  oggi», «Camere occupate» «N su 4» (4 = camere attive). Toccabili: arrivi e
+  partenze → /arrivi (che parte da oggi), camere → /calendario?giorno=oggi.
+  lib/numeriOggi (pure, 5 test): solo confermate/completate; un cambio
+  camera di oggi (stesso soggiorno per group_id o stesso cliente, con la
+  stessa regola della riga «⇄ CAMBIO», lib/roomChanges) non è né arrivo né
+  partenza; camera occupata contata una volta anche con dati sporchi; in
+  attesa/annullate escluse; giorno di Roma (oggiARoma: 00:30 italiane del 5
+  = 5, non 4). lib/numeriOggiDati: lettura a pagine delle prenotazioni che
+  toccano oggi + camere; errore → trattino al posto di ogni numero + avviso
+  «Non riesco a leggere arrivi, partenze e camere di oggi» con Riprova, mai
+  uno zero; rilettura al ritorno in primo piano (a mezzanotte «oggi» cambia).
+- Pezzo 2 `5c642ab` — nuovo ordine di «Da controllare» (lib/daControllare):
+  1) TUTTE le richieste aperte (in attesa con «In attesa da 20 min / 3 ore /
+  2 giorni senza proposta», proposta inviata con «scade tra …», proposta
+  scaduta, arrivo passato), ordinate per durata del soggiorno decrescente e,
+  a parità, la prima a scadere: arrivo passato, proposta scaduta (dalla più
+  vecchia), in scadenza (la più vicina), in attesa (dalla più vecchia);
+  linea ottone solo su scadute e arrivi passati; 2) arrivi di domani senza
+  orario (ottone); 3) pagamenti; 4) fatture; in fondo, senza ottone, le
+  sovrapposizioni di camera/letti solo se mai si verificano. Riga dei
+  conteggi nello stesso ordine («3 richieste aperte · 2 arrivi senza orario ·
+  2 pagamenti · 1 fattura scaduta · 2 sovrapposizioni»). Test riscritti sul
+  nuovo requisito (con il motivo nel commento) + 2 test sull'ordine (sezioni;
+  durata, scadenza, parità); tolta la soglia delle 48 ore.
+- Anteprima finta (scenario esteso: «Arriva Oggi», «Parte Oggi», interruttore
+  /finto/errore-oggi) a 390 e 1280 px: «1 · 1 · 2 su 4» con i link giusti,
+  sopra «Da controllare»; con l'errore simulato tre trattini + avviso, e
+  «Riprova» rimette i numeri; l'elenco nel nuovo ordine con la linea ottone
+  solo su Dario (scaduta) e sugli arrivi senza orario.
+- Suite 653/653, TypeScript OK, lint dei file toccati senza rilievi nuovi
+  (nuovi file 0, Home 20 = 20), `next build` OK (Compiled successfully su `5c642ab`).
+
+## LIMITI APERTI
+
+- «Arrivi oggi» e «Partenze oggi» aprono /arrivi che parte già da oggi
+  (nessun parametro nuovo): se un giorno la pagina Arrivi cambierà la prima
+  casella, servirà ?giorno= anche lì.
+- Il cambio camera riconosciuto dal solo cliente (guest_id) segue la stessa
+  euristica della riga «⇄ CAMBIO»: due prenotazioni dello stesso cliente
+  che si toccano in camere diverse contano come un unico soggiorno.
+- Sul sito pubblicato verifica senza accesso (login di Ania).
 
 ---
 
