@@ -291,3 +291,15 @@ test('statistiche: «N pagamenti da controllare» conta solo i pagamenti, null s
   assert.equal(testoPagamentiDaControllare([ecc('s', 'calendario', 'alta', OGGI)]), null)
   assert.equal(testoPagamentiDaControllare([]), null)
 })
+
+test('posizione (07/09/2026): in Home la sezione «Da controllare» sta SOPRA i numeri del giorno', async () => {
+  const { readFileSync } = await import('node:fs')
+  const home = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8')
+  const sezione = home.indexOf('<DaControllare />')
+  assert.ok(sezione > 0, 'la Home monta DaControllare')
+  assert.ok(sezione < home.indexOf("renderEventi('oggi'"), 'prima di Oggi/Domani')
+  assert.ok(sezione < home.indexOf('Ricavi per soggiorno'), 'prima dei numeri del mese')
+  assert.ok(sezione < home.indexOf('{loading ?'), 'fuori dal ramo di caricamento dei numeri')
+  const componente = readFileSync(new URL('../components/DaControllare.tsx', import.meta.url), 'utf8')
+  assert.ok(componente.includes("if (dc.stato === 'caricamento') return null"), 'durante il controllo nessuno spazio in cima')
+})

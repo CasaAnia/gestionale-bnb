@@ -163,6 +163,11 @@ export default function Dashboard() {
         </Link>
       )}
 
+      {/* «Da controllare» (versione B, 06/09/2026; in cima dal 07/09/2026): striscia
+          con i conteggi e sezione delle eccezioni SOPRA i numeri del giorno; con
+          zero eccezioni non occupa spazio (components/DaControllare) */}
+      <DaControllare />
+
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : errore ? (
@@ -247,10 +252,6 @@ export default function Dashboard() {
               <p className="text-[11px] leading-tight text-gray-500 mt-1">ricavi per soggiorno diviso le notti vendute nel mese</p>
             </div>
           </div>
-
-          {/* «Da controllare» (versione B, 06/09/2026): sotto i numeri del giorno,
-              striscia con i conteggi e sezione delle eccezioni (components/DaControllare) */}
-          <DaControllare />
 
           <div className="grid grid-cols-2 gap-2">
             <Link href="/prenotazioni" className="bg-white rounded-[10px] p-3 text-center border border-[#C9BFA8] shadow-sm">

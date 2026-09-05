@@ -38,9 +38,9 @@ export default function DaControllare() {
     if (msg) setAvvisi(a => ({ ...a, [e.chiave]: msg }))
   }
 
-  if (dc.stato === 'caricamento') {
-    return <p className="text-[13px] mb-4" style={{ color: 'var(--color-stone)' }}>Controllo se c&apos;è qualcosa da sistemare…</p>
-  }
+  // In cima alla Home (ritocchi del 07/09/2026): durante il controllo non si
+  // occupa spazio; con zero eccezioni la Home resta com'è
+  if (dc.stato === 'caricamento') return null
   if (dc.stato === 'errore') {
     return <AvvisoAzione testo={dc.errore} onRiprova={dc.ricarica} className="mb-4" />
   }
