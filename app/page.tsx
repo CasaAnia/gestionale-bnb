@@ -162,15 +162,7 @@ export default function Dashboard() {
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : errore ? (
-        <div role="alert" className="scheda-in rounded-xl p-5 shadow-sm" style={{ background: '#F4E6DF', color: '#7A3B22' }}>
-          <p className="font-serif text-lg mb-1">Dati non disponibili</p>
-          <p className="text-[13.5px] mb-4" style={{ color: '#8a5049' }}>{errore}</p>
-          <button onClick={riprova}
-            className="w-full rounded-xl bg-white py-3 text-[14px] font-semibold shadow-sm transition-transform duration-100 active:scale-[0.98]"
-            style={{ color: '#7A3B22' }}>
-            Riprova
-          </button>
-        </div>
+        <AvvisoAzione testo={errore} onRiprova={riprova} />
       ) : (
         <>
           {(() => {
