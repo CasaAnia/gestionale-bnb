@@ -11,10 +11,25 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import AvvisoAzione from './AvvisoAzione'
 import { useDaControllare } from '@/lib/daControllareDati'
-import { ETICHETTA_TIPO, hrefDestinazione, rigaAPosto, rigaConteggi, titoloStriscia, type Eccezione } from '@/lib/daControllare'
+import { ETICHETTA_TIPO, hrefDestinazione, rigaAPosto, rigaConteggi, titoloStriscia, type Eccezione, type LinkWhatsAppEccezione } from '@/lib/daControllare'
+import { openWhatsApp } from '@/lib/whatsapp'
 
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
 export const ID_SEZIONE = 'da-controllare'
+const BOTTONE_PIENO = 'inline-flex items-center rounded-lg bg-green-mid text-white px-3.5 py-2 text-[13px] font-semibold shadow-sm transition-transform duration-100 active:scale-[0.97]'
+const BOTTONE_GHOST = 'inline-flex items-center rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-transform duration-100 active:scale-[0.97]'
+
+// Chat WhatsApp con l'ospite: stesso link wa.me e stessa apertura
+// (lib/whatsapp.openWhatsApp) della scheda prenotazione
+function BottoneWhatsApp({ wa }: { wa: LinkWhatsAppEccezione }) {
+  return (
+    <a href={wa.href} target="_blank" rel="noopener noreferrer" data-whatsapp={wa.principale ? 'pieno' : 'ghost'}
+      onClick={e => { e.preventDefault(); openWhatsApp(wa.numero, wa.testo) }}
+      className={wa.principale ? BOTTONE_PIENO : BOTTONE_GHOST} style={wa.principale ? undefined : { color: '#2D6A4F' }}>
+      WhatsApp
+    </a>
+  )
+}
 
 export default function DaControllare() {
   const dc = useDaControllare()
@@ -65,11 +80,13 @@ export default function DaControllare() {
             <p className="text-[10px] uppercase tracking-[1.5px] text-brass">{ETICHETTA_TIPO[e.tipo]}</p>
             <p className="text-[15px] font-semibold text-green-dark leading-snug mt-0.5">{e.titolo}</p>
             <p className="text-[12.5px] leading-snug mt-0.5" style={{ color: 'var(--color-stone)' }}>{e.motivo}</p>
-            <div className="flex items-center gap-3 mt-2.5">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2.5">
+              {e.whatsapp?.principale && <BottoneWhatsApp wa={e.whatsapp} />}
               <Link href={hrefDestinazione(e.destinazione)}
-                className="inline-flex items-center rounded-lg bg-green-mid text-white px-3.5 py-2 text-[13px] font-semibold shadow-sm transition-transform duration-100 active:scale-[0.97]">
+                className={e.whatsapp?.principale ? BOTTONE_GHOST : BOTTONE_PIENO} style={e.whatsapp?.principale ? { color: '#2D6A4F' } : undefined}>
                 {e.bottone}
               </Link>
+              {e.whatsapp && !e.whatsapp.principale && <BottoneWhatsApp wa={e.whatsapp} />}
               {e.rimandabile && (
                 <button type="button" onClick={() => rimanda(e)} disabled={rimandando === e.chiave}
                   className="text-[13px] font-semibold px-2 py-2 rounded-lg transition-transform duration-100 active:scale-[0.97] disabled:opacity-60"

@@ -14,11 +14,12 @@
 //   Calendario  Amelia: «Anna Rossi» O−1→O+3 e «Marco Bianchi» O+1→O+4 → sovrapposte (alta)
 //               Letti: O+10 tre camere con letto aggiuntivo → 3 su 2 (alta)
 //               Cambio camera: «Lucia Verdi» Ambra O+5→O+7 poi Lena O+7→O+9 (stesso gruppo): NON compare
-//   Arrivi      «Marco Bianchi» arriva domani senza orario (alta); «Paola Neri» domani con orario: no
+//   Arrivi      «Marco Bianchi» arriva domani senza orario (alta, WhatsApp + Apri arrivo);
+//               «Senza Numero» domani senza orario e senza telefono (solo Apri arrivo); «Paola Neri» con orario: no
 //   Pagamenti   «Giulio Gallo» Allegra O−6→O−4 pagato=true con movimenti 100 su 160 → Registra saldo
 //               «Sara Sarti» Ambra O−12→O−10 non pagata → Registra saldo
 //               «Elena Esposito» Lena O−20→O−18 pagata e coperta → NON compare
-//   Richieste   «Carla Conti» in attesa da 3 giorni; «Dario Deluca» proposta scaduta 5 ore fa (alta);
+//   Richieste   «Carla Conti» in attesa da 3 giorni; «Dario Deluca» proposta scaduta 5 ore fa (alta, WhatsApp ghost);
 //               «Franca Fabbri» in attesa da 1 ora → no; «Gino Galli» confermata → no
 //   Fatture     «Enel» 95,50 € scaduta il O−5; «Iren» in scadenza O+10 → no
 //   Rinvii      tabella da_controllare_rinvii IN MEMORIA (upsert accettato);
@@ -74,6 +75,7 @@ const G = {
   letto1: ospite('Letto Uno', '+39 333 000 0008'),
   letto2: ospite('Letto Due', '+39 333 000 0009'),
   letto3: ospite('Letto Tre', '+39 333 000 0010'),
+  senza: ospite('Senza Numero', null),      // arriva domani senza orario e SENZA telefono (ritocchi 07/09/2026)
 }
 const guests = Object.values(G)
 
@@ -99,6 +101,7 @@ const bookings = [
   prenotazione(ROOM.ambra, G.lucia.id, O(5), O(7), 2, { group_id: GRUPPO_LUCIA, total_amount: 140 }),
   prenotazione(ROOM.lena, G.lucia.id, O(7), O(9), 2, { group_id: GRUPPO_LUCIA, total_amount: 160 }),
   prenotazione(ROOM.allegra, G.paola.id, O(1), O(3), 2, { check_in_time: '16:30' }),
+  prenotazione(ROOM.lena, G.senza.id, O(1), O(2), 1, { total_amount: 80 }),                    // domani, senza orario né numero
   prenotazione(ROOM.allegra, G.giulio.id, O(-6), O(-4), 2, { status: 'completata', pagato: true }),
   prenotazione(ROOM.ambra, G.sara.id, O(-12), O(-10), 2, { status: 'completata' }),
   prenotazione(ROOM.lena, G.elena.id, O(-20), O(-18), 2, { status: 'completata', pagato: true }),

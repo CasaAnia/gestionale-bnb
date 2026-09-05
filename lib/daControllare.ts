@@ -28,6 +28,7 @@ import { cent, prenotazioneValida, type PrenotazioneStat, type PagamentoStat, ty
 import { incongruenzePagamenti } from './statistiche/pagato.ts'
 import { lettiOccupatiPerNotte } from './lettiAggiuntivi.ts'
 import { EXTRA_BED_MAX } from './tariffe.ts'
+import { whatsappRichiestaOrario } from './messaggiWhatsApp.ts'
 
 export const ORE_ATTESA_SENZA_PROPOSTA = 48
 export const GIORNI_CONCLUSO_NON_PAGATO = 1
@@ -54,7 +55,12 @@ export type Eccezione = {
   bottone: string
   destinazione: Destinazione
   rimandabile: boolean    // solo le richieste hanno «Rimanda»
+  // Ritocchi del 07/09/2026: chat WhatsApp con l'ospite. Negli arrivi senza
+  // orario è il bottone PIENO col testo «Richiesta orario» della scheda
+  // (lib/messaggiWhatsApp, stesso link); assente senza numero di telefono.
+  whatsapp?: LinkWhatsAppEccezione
 }
+export type LinkWhatsAppEccezione = { href: string; numero: string; testo: string; principale: boolean }
 
 export const ETICHETTA_TIPO: Record<TipoEccezione, string> = {
   calendario: 'Calendario', richiesta: 'Richiesta', pagamento: 'Pagamento', arrivo: 'Arrivo', fattura: 'Fattura',
@@ -76,7 +82,7 @@ export type PrenotazioneDC = PrenotazioneStat & {
   extra_bed_dates?: string[] | null
   check_in_time?: string | null
   rooms?: { name: string } | null
-  guests?: { full_name?: string | null } | null
+  guests?: { full_name?: string | null; phone?: string | null } | null
 }
 
 // Rinvio di una voce (solo richieste): la chiave resta nascosta finché
@@ -231,12 +237,16 @@ export function eccezioniArrivi(prenotazioni: PrenotazioneDC[], oggi: string): E
     .filter(b => b.check_in === domani && !(b.check_in_time ?? '').trim())
     .filter(b => !valide.some(o => o.id !== b.id && !!b.group_id && o.group_id === b.group_id && o.check_out === b.check_in))
     .sort((a, b) => nomeCamera(a).localeCompare(nomeCamera(b)))
-    .map(b => ({
-      chiave: `arrivo:${b.id}`, tipo: 'arrivo' as const, urgenza: 'alta' as const, data: b.check_in,
-      titolo: `${nomeOspite(b)} · ${nomeCamera(b)} · domani`,
-      motivo: 'Arrivo di domani senza orario',
-      bottone: 'Apri arrivo', destinazione: { tipo: 'arrivo' as const, prenotazioneId: b.id }, rimandabile: false,
-    }))
+    .map(b => {
+      const wa = whatsappRichiestaOrario(b)
+      return {
+        chiave: `arrivo:${b.id}`, tipo: 'arrivo' as const, urgenza: 'alta' as const, data: b.check_in,
+        titolo: `${nomeOspite(b)} · ${nomeCamera(b)} · domani`,
+        motivo: wa ? 'Arrivo di domani senza orario' : 'Arrivo di domani senza orario e senza numero di telefono',
+        bottone: 'Apri arrivo', destinazione: { tipo: 'arrivo' as const, prenotazioneId: b.id }, rimandabile: false,
+        whatsapp: wa ? { ...wa, principale: true } : undefined,
+      }
+    })
 }
 
 // ── Fatture ─────────────────────────────────────────────────────────────────

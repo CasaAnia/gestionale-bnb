@@ -9,8 +9,10 @@ import {
 const OGGI = '2026-09-15'
 const ADESSO = new Date('2026-09-15T12:00:00+02:00')
 
+// Ogni prenotazione di prova ha il telefono della scheda cliente (come in
+// produzione): dal 07/09/2026 un arrivo SENZA numero ha un motivo diverso
 const b = (id: string, camera: string, check_in: string, check_out: string, total: number, extra: Partial<PrenotazioneDC> = {}): PrenotazioneDC =>
-  ({ id, room_id: camera, rooms: { name: `Camera ${camera}` }, guest_name: `Ospite ${id}`, check_in, check_out, total_amount: total, status: 'confermata', ...extra })
+  ({ id, room_id: camera, rooms: { name: `Camera ${camera}` }, guest_name: `Ospite ${id}`, guests: { full_name: null, phone: '+39 333 000 0000' }, check_in, check_out, total_amount: total, status: 'confermata', ...extra })
 const r = (id: string, stato: string, arrivo: string, created_at: string, proposta_inviata_at: string | null = null): RichiestaDC =>
   ({ id, stato, arrivo, partenza: '2026-09-25', created_at, proposta_inviata_at, nome: 'Anna', cognome: 'Rossi' })
 
@@ -302,4 +304,20 @@ test('posizione (07/09/2026): in Home la sezione «Da controllare» sta SOPRA i 
   assert.ok(sezione < home.indexOf('{loading ?'), 'fuori dal ramo di caricamento dei numeri')
   const componente = readFileSync(new URL('../components/DaControllare.tsx', import.meta.url), 'utf8')
   assert.ok(componente.includes("if (dc.stato === 'caricamento') return null"), 'durante il controllo nessuno spazio in cima')
+})
+
+test('arrivi (07/09/2026): con numero → WhatsApp pieno col testo «Richiesta orario» della scheda; senza numero → niente WhatsApp e motivo esplicito', async () => {
+  const { whatsappRichiestaOrario } = await import('./messaggiWhatsApp.ts')
+  const conNumero = b('n', 'amelia', '2026-09-16', '2026-09-18', 100, { guests: { full_name: 'Anna Rossi', phone: '+39 333 123 4567' }, guest_name: null })
+  const senzaNumero = b('s', 'ambra', '2026-09-16', '2026-09-18', 100, { guests: { full_name: 'Bruno Bianchi', phone: '' }, guest_name: null })
+  const out = eccezioniArrivi([conNumero, senzaNumero], OGGI)
+  assert.equal(out.length, 2)
+  const n = out.find(e => e.chiave === 'arrivo:n')!, s = out.find(e => e.chiave === 'arrivo:s')!
+  assert.equal(n.motivo, 'Arrivo di domani senza orario')
+  assert.equal(n.bottone, 'Apri arrivo')
+  assert.deepEqual(n.whatsapp, { ...whatsappRichiestaOrario(conNumero)!, principale: true })
+  assert.ok(n.whatsapp!.testo.startsWith('Gentile Anna Rossi,'))
+  assert.equal(n.whatsapp!.href, `https://wa.me/393331234567?text=${encodeURIComponent(n.whatsapp!.testo)}`)
+  assert.equal(s.whatsapp, undefined)
+  assert.equal(s.motivo, 'Arrivo di domani senza orario e senza numero di telefono')
 })

@@ -9,6 +9,7 @@ import { prezzoPrenotazione, riallineaTariffa, tariffaFormDaSalvato, testoDettag
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 import { openWhatsApp } from '@/lib/whatsapp'
+import { messaggioRichiestaOrario, numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
 import BackBar from '@/components/BackBar'
 import { RigaDocumentiPrenotazione } from '@/components/DocumentiCliente'
 import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio } from '@/lib/guestName'
@@ -278,21 +279,8 @@ Ania`
   }
 
   if (type === 'richiesta_orario') {
-    return `Gentile ${name},
-
-il suo arrivo si avvicina e vorrei organizzare al meglio la sua accoglienza. 😊
-
-Quando le sarà possibile, può indicarmi anche indicativamente a che ora pensa di arrivare?
-
-Le ricordo che il check-in è previsto dalle 15:00 alle 20:00.
-
-Se pensa di arrivare prima delle 15:00 o dopo le 20:00, mi avvisi pure per tempo, così possiamo organizzarci.
-
-🏠 Tutte le informazioni utili per il soggiorno:
-https://www.casaaniarozzano.it/info?v=7
-
-A presto,
-Ania`
+    // Testo unico con la Home «Da controllare» (lib/messaggiWhatsApp)
+    return messaggioRichiestaOrario(name)
   }
 
   if (type === 'libero') {
@@ -1137,10 +1125,8 @@ export default function BookingDetail() {
 
   // Link WhatsApp condivisi tra la versione mobile e il pannello Azioni desktop
   type WaTipo = 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero'
-  const rawPhone = (booking.guests?.phone || '').replace(/\D/g, '')
-  const waPhone = rawPhone ? (rawPhone.startsWith('39') ? rawPhone : `39${rawPhone}`) : null
-  const waHref = (type: WaTipo) =>
-    `https://wa.me/${waPhone}?text=${encodeURIComponent(buildWhatsappMsg(booking, type, groupBookings, acconti))}`
+  const waPhone = numeroWhatsAppPrenotazione(booking.guests?.phone)
+  const waHref = (type: WaTipo) => waHrefTesto(waPhone ?? '', buildWhatsappMsg(booking, type, groupBookings, acconti))
   const waClick = (type: WaTipo, preferBusiness: boolean = false) => (e: React.MouseEvent) => {
     e.preventDefault()
     openWhatsApp(waPhone!, buildWhatsappMsg(booking, type, groupBookings, acconti), preferBusiness)
