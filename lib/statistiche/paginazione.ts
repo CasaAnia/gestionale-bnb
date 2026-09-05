@@ -1,16 +1,31 @@
 // Letture a pagine: Supabase/PostgREST tronca a 1.000 righe per chiamata.
 // `raccogliPagine` chiede pagine di `limite` righe finché ne arrivano meno del
 // limite; al primo errore si ferma e lo riporta (mai una lista parziale che
-// sembra completa). Nessun import di Supabase: il chiamante passa la pagina.
+// sembra completa). R13: se si raggiunge il tetto di pagine con l'ultima
+// pagina PIENA il risultato è INCOMPLETO e torna come errore esplicito, mai
+// come lista completa. Nessun import di Supabase: il chiamante passa la pagina.
 export const LIMITE_PAGINA = 1000
+export const MASSIMO_PAGINE = 50
+
+export class ErroreLetturaIncompleta extends Error {
+  readonly righe: number
+  readonly pagine: number
+  constructor(righe: number, pagine: number) {
+    super(`Lettura incompleta: ${righe} righe in ${pagine} pagine e ce ne sono altre`)
+    this.name = 'ErroreLetturaIncompleta'
+    this.righe = righe
+    this.pagine = pagine
+  }
+}
 
 export async function raccogliPagine<T>(
   pagina: (offset: number, limite: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
   limite = LIMITE_PAGINA,
-  massimoPagine = 50,
+  massimoPagine = MASSIMO_PAGINE,
 ): Promise<{ data: T[]; error: unknown; pagine: number }> {
   const tutte: T[] = []
   let pagine = 0
+  let ultimaPiena = false
   for (let offset = 0; pagine < massimoPagine; offset += limite) {
     let r: { data: T[] | null; error: unknown }
     try { r = await pagina(offset, limite) } catch (e) { return { data: [], error: e ?? new Error('errore sconosciuto'), pagine } }
@@ -18,8 +33,11 @@ export async function raccogliPagine<T>(
     if (r.error) return { data: [], error: r.error, pagine }
     const righe = r.data ?? []
     tutte.push(...righe)
-    if (righe.length < limite) break
+    ultimaPiena = righe.length >= limite
+    if (!ultimaPiena) break
   }
+  // Tetto raggiunto con l'ultima pagina piena: potrebbero esserci altre righe
+  if (ultimaPiena && pagine >= massimoPagine) return { data: [], error: new ErroreLetturaIncompleta(tutte.length, pagine), pagine }
   return { data: tutte, error: null, pagine }
 }
 

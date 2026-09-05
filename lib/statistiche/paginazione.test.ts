@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { raccogliPagine, aBlocchi, raccogliBlocchi } from './paginazione.ts'
+import { raccogliPagine, aBlocchi, raccogliBlocchi, ErroreLetturaIncompleta } from './paginazione.ts'
 
 test('oltre 1.000 righe: chiede più pagine finché ne arrivano meno del limite', async () => {
   const righe = Array.from({ length: 2350 }, (_, i) => ({ i }))
@@ -48,4 +48,16 @@ test('R5: errore nel secondo blocco → nessun risultato parziale presentato com
   const ecc = await raccogliBlocchi(blocchi, async () => { throw new TypeError('Failed to fetch') }, (x: { id: string }) => x.id)
   assert.deepEqual(ecc.data, [])
   assert.deepEqual(aBlocchi([], 100), [])
+})
+
+test('R13: tetto di pagine raggiunto con l\'ultima pagina piena → errore esplicito di incompletezza, mai lista «completa»', async () => {
+  const r = await raccogliPagine(async (offset, limite) => ({ data: Array.from({ length: limite }, (_, i) => offset + i), error: null }), 1000, 50)
+  assert.deepEqual(r.data, [])
+  assert.ok(r.error instanceof ErroreLetturaIncompleta)
+  assert.match(String((r.error as Error).message), /Lettura incompleta: 50000 righe in 50 pagine/)
+  assert.equal(r.pagine, 50)
+  // tetto raggiunto ma ultima pagina NON piena → completo
+  const ok = await raccogliPagine(async (offset, limite) => ({ data: offset >= 2000 ? [1] : Array.from({ length: limite }, (_, i) => offset + i), error: null }), 1000, 3)
+  assert.equal(ok.error, null)
+  assert.equal(ok.data.length, 2001)
 })
