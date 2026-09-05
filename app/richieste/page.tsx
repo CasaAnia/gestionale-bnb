@@ -465,7 +465,7 @@ function Richieste() {
       )}
       {daConfermare && (
         <FinestraConferma richiesta={daConfermare} aperte={aperte} layout={desktop ? 'desktop' : 'mobile'}
-          onChiudi={() => setDaConfermare(null)} onCreata={id => router.push(`/prenotazioni/${id}?da=richiesta`)} />
+          onChiudi={() => setDaConfermare(null)} onCreata={(id, avviso) => router.push(`/prenotazioni/${id}?da=richiesta${avviso ? `&avviso=${encodeURIComponent(avviso)}` : ''}`)} />
       )}
       {daRifiutare && (
         <ConfermaDialog titolo={`Rifiutare la richiesta di ${nomeCompleto(daRifiutare)}?`} testo="Nessun messaggio parte da qui."

@@ -682,7 +682,7 @@ export default function PropostaPage() {
       )}
       {confermando && (
         <FinestraConferma richiesta={richiesta as RichiestaConProposta} aperte={confermando.aperte} layout={desktop ? 'desktop' : 'mobile'}
-          onChiudi={() => setConfermando(null)} onCreata={id => router.push(`/prenotazioni/${id}?da=richiesta`)} />
+          onChiudi={() => setConfermando(null)} onCreata={(id, avviso) => router.push(`/prenotazioni/${id}?da=richiesta${avviso ? `&avviso=${encodeURIComponent(avviso)}` : ''}`)} />
       )}
       {daRifiutare && (
         <ConfermaDialog titolo={`Rifiutare la richiesta di ${nomeCompleto(richiesta)}?`} testo="Nessun messaggio parte da qui." conferma="Rifiuta" occupato={occupato === 'rifiuto'} scelte={MOTIVI_RIFIUTO}

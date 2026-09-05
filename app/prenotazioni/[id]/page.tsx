@@ -387,7 +387,8 @@ export default function BookingDetail() {
   // sta in cima alla scheda (rilettura fallita dopo un salvataggio riuscito,
   // cliente non aggiornato, log WhatsApp non registrato); gli altri stanno
   // accanto alla loro azione.
-  const [avvisoScheda, setAvvisoScheda] = useState<string | null>(null)
+  // ?avviso= arriva dalla conferma di una richiesta (provenienza non copiata, 0036)
+  const [avvisoScheda, setAvvisoScheda] = useState<string | null>(() => searchParams.get('avviso'))
   const [erroreSoggiorno, setErroreSoggiorno] = useState<string | null>(null)
   const [erroreCambioCamera, setErroreCambioCamera] = useState<string | null>(null)
   const [erroreAnnulla, setErroreAnnulla] = useState<string | null>(null)

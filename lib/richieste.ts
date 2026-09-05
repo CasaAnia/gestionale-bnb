@@ -24,6 +24,8 @@ export interface Richiesta {
   chiusa_at: string | null
   prenotazione_id: string | null
   origine?: string | null        // dal sito: "google", "diretto"… (migrazione 0028)
+  provenienza?: string | null    // google | passaparola | altra_struttura | non_so (proposta 0036)
+  struttura_nome?: string | null // solo con altra_struttura (proposta 0036)
   persone_per_notte?: number[] | null   // pezzo 9 (migrazione 0031): un intero per notte, null = tutte uguali a persone
   rooms?: { name: string } | null
 }
@@ -242,6 +244,8 @@ export function riassuntoPerNotte(arrivo: string, persone: (number | string)[]):
 export type ValoriModifica = {
   nome: string; cognome: string; arrivo: string; partenza: string; persone: number
   persone_per_notte: number[] | null; camera_id: string | null; telefono: string | null; note: string | null; canale: CanaleRichiesta
+  // Provenienza (08/09/2026, proposta 0036): assenti nel payload se la migrazione non c'è
+  provenienza?: string; struttura_nome?: string | null
 }
 export type PropostaPrecedente = { testo: string | null; soluzione: unknown; inviata_at: string | null; superata_at: string }
 export const AVVISO_PROPOSTA_SUPERATA = 'La proposta inviata si riferiva ai dati precedenti: rigenera e reinvia la proposta'

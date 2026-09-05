@@ -6,6 +6,7 @@ import { supabase } from './supabase'
 import { STATI_APERTI, spiegaErrore, pianoModifica, type Richiesta, type ValoriModifica, type PropostaPrecedente } from './richieste'
 import type { CondizionePagamento } from './condizioniPrenotazione'
 import { contaConEsito, statoDopoConteggio, CONTATORE_IN_CARICAMENTO, type EsitoContatore, type StatoContatore } from './richiesteContatore'
+import { manca0036, AVVISO_0036 } from './provenienza'
 
 // Tutte le richieste con il nome della camera. Gli errori tornano al
 // chiamante come testo: la pagina li mostra, mai catch silenziosi.
@@ -158,14 +159,22 @@ export function colonne0031Presenti(riga: Record<string, unknown> | null | undef
 // Nuova richiesta: persone_per_notte va nel payload SOLO se non uniforme
 // (così senza la 0031 le richieste «normali» si salvano ancora; quelle con
 // persone variabili spiegano cosa manca).
-export async function creaRichiesta(v: ValoriModifica): Promise<{ id: string | null; error: string | null }> {
-  const { persone_per_notte, ...resto } = v
-  const { data, error } = await supabase.from('richieste')
-    .insert({ ...resto, stato: 'in_attesa', ...(persone_per_notte ? { persone_per_notte } : {}) })
-    .select('id').single()
+// Provenienza (0036): se le colonne mancano si ritenta senza e si avvisa,
+// la richiesta entra comunque.
+export async function creaRichiesta(v: ValoriModifica): Promise<{ id: string | null; error: string | null; avviso?: string | null }> {
+  const { persone_per_notte, provenienza, struttura_nome, ...resto } = v
+  const base: Record<string, unknown> = { ...resto, stato: 'in_attesa', ...(persone_per_notte ? { persone_per_notte } : {}) }
+  const conProvenienza = provenienza !== undefined
+  const payload: Record<string, unknown> = conProvenienza ? { ...base, provenienza, struttura_nome: struttura_nome ?? null } : base
+  let { data, error } = await supabase.from('richieste').insert(payload).select('id').single()
+  let avviso: string | null = null
+  if (error && conProvenienza && manca0036(error)) {
+    avviso = AVVISO_0036
+    ;({ data, error } = await supabase.from('richieste').insert(base).select('id').single())
+  }
   if (error) return { id: null, error: persone_per_notte && manca0031(error) ? AVVISO_0031 : spiegaErrore(error) }
   if (!data?.id) return { id: null, error: 'Salvataggio non confermato dal database: la richiesta potrebbe non essere stata registrata.' }
-  return { id: data.id, error: null }
+  return { id: data.id, error: null, avviso }
 }
 
 // Modifica: un solo UPDATE con il piano puro (lib/richieste.pianoModifica).
@@ -181,6 +190,9 @@ export async function aggiornaRichiesta(
   const campi = { ...piano.campi }
   // persone_per_notte null va scritto (torna uniforme) solo se la colonna esiste
   if (campi.persone_per_notte == null && !('persone_per_notte' in originale)) delete campi.persone_per_notte
+  // Provenienza (0036): si scrive solo se la colonna esiste sulla riga letta
+  if (!('provenienza' in originale)) { delete campi.provenienza; delete campi.struttura_nome }
+  else if (campi.provenienza === undefined) { delete campi.provenienza; delete campi.struttura_nome }
   const { data, error } = await supabase.from('richieste').update(campi).eq('id', originale.id).in('stato', STATI_APERTI).select('id')
   if (error) return { error: manca0031(error) ? AVVISO_0031 : spiegaErrore(error), avviso: null }
   if (!data || data.length === 0) return { error: 'Nessuna riga aggiornata: la richiesta potrebbe essere stata chiusa nel frattempo.', avviso: null }

@@ -1,0 +1,97 @@
+// ============================================================================
+// PROVENIENZA DELL'OSPITE (08/09/2026): «Come ci ha trovato» su richieste e
+// prenotazioni. Valori fissi (google, passaparola, altra_struttura, non_so),
+// nome della struttura solo con altra_struttura, elenco dei nomi noti con i
+// suggerimenti ordinati per ospiti già portati. Funzioni pure, senza Supabase;
+// le colonne arrivano con la proposta 0036 (prima: campo nascosto + avviso).
+// ============================================================================
+
+export type Provenienza = 'google' | 'passaparola' | 'altra_struttura' | 'non_so'
+export const PROVENIENZE: { chiave: Provenienza; label: string }[] = [
+  { chiave: 'google', label: 'Google' },
+  { chiave: 'passaparola', label: 'Passaparola' },
+  { chiave: 'altra_struttura', label: 'Altra struttura' },
+  { chiave: 'non_so', label: 'Non so' },
+]
+export const PROVENIENZA_DEFAULT: Provenienza = 'non_so'
+export const PROVENIENZA_DAL_SITO: Provenienza = 'google'
+export const ETICHETTA_PROVENIENZA: Record<Provenienza, string> = Object.fromEntries(PROVENIENZE.map(p => [p.chiave, p.label])) as Record<Provenienza, string>
+
+// I nomi già noti, precaricati anche dalla 0036 (stesso elenco)
+export const STRUTTURE_NOTE = ['Umana', 'Nida', 'RB (Rosa Bianca)', 'Elyse', 'BM (Borgo Manzoni)']
+
+export const AVVISO_0036 = 'Serve la migrazione 0036 (provenienza e strutture): il campo «Come ci ha trovato» sarà disponibile dopo'
+
+export function normalizzaProvenienza(x: unknown): Provenienza {
+  return PROVENIENZE.some(p => p.chiave === x) ? (x as Provenienza) : PROVENIENZA_DEFAULT
+}
+
+export type CampiProvenienza = { provenienza: Provenienza; struttura_nome: string | null }
+
+// Dai valori del modulo ai campi da salvare: la struttura vale SOLO con «Altra struttura»
+export function campiProvenienza(provenienza: unknown, struttura: string | null | undefined): CampiProvenienza {
+  const p = normalizzaProvenienza(provenienza)
+  const nome = (struttura ?? '').trim().replace(/\s+/g, ' ')
+  return { provenienza: p, struttura_nome: p === 'altra_struttura' && nome ? nome : null }
+}
+
+// Colonne o tabella della 0036 assenti (PostgREST: colonna sconosciuta, tabella non in cache)
+export function manca0036(e: { code?: string; message?: string } | null | undefined): boolean {
+  if (!e) return false
+  const codice = String(e.code ?? ''), msg = String(e.message ?? '')
+  if (codice === 'PGRST205' || codice === '42P01') return /strutture/i.test(msg) || true
+  return (codice === '42703' || codice === 'PGRST204') && /provenienza|struttura_nome/i.test(msg)
+}
+export const colonne0036Presenti = (riga: Record<string, unknown> | null | undefined) => !!riga && 'provenienza' in riga
+
+// Suggerimenti mentre si scrive: i nomi noti che contengono il testo, ordinati
+// per ospiti già portati (più in alto chi ne ha portati di più), poi per nome.
+// Con testo vuoto: tutto l'elenco nello stesso ordine.
+export type StrutturaNota = { nome: string; ospiti: number }
+const piano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+
+export function suggerimentiStrutture(testo: string, note: StrutturaNota[], massimo = 6): StrutturaNota[] {
+  const t = piano(testo)
+  return [...note]
+    .filter(s => !t || piano(s.nome).includes(t))
+    .sort((a, b) => b.ospiti - a.ospiti || a.nome.localeCompare(b.nome, 'it'))
+    .slice(0, massimo)
+}
+
+// Il nome scritto è già fra i noti? (senza distinguere maiuscole e accenti)
+export function strutturaNota(nome: string, note: { nome: string }[]): string | null {
+  const t = piano(nome)
+  return note.find(s => piano(s.nome) === t)?.nome ?? null
+}
+
+// Elenco dei noti con gli ospiti già portati, contati dalle prenotazioni
+// (soggiorni con struttura_nome): ogni soggiorno una volta (group_id o id)
+export function strutturePerOspiti(nomiNoti: string[], prenotazioni: { id: string; group_id?: string | null; provenienza?: string | null; struttura_nome?: string | null; status?: string }[]): StrutturaNota[] {
+  const conteggio = new Map<string, Set<string>>()
+  for (const b of prenotazioni) {
+    if (b.status && b.status !== 'confermata' && b.status !== 'completata') continue
+    if (b.provenienza !== 'altra_struttura' || !b.struttura_nome) continue
+    const k = piano(b.struttura_nome)
+    if (!conteggio.has(k)) conteggio.set(k, new Set())
+    conteggio.get(k)!.add(b.group_id || b.id)
+  }
+  const nomi = [...nomiNoti]
+  for (const b of prenotazioni) if (b.provenienza === 'altra_struttura' && b.struttura_nome && !strutturaNota(b.struttura_nome, nomi.map(n => ({ nome: n })))) nomi.push(b.struttura_nome.trim())
+  return nomi.map(nome => ({ nome, ospiti: conteggio.get(piano(nome))?.size ?? 0 }))
+}
+
+// Alla conferma di una richiesta: i campi da copiare sulla prenotazione
+export function campiDaCopiareAllaPrenotazione(r: { provenienza?: string | null; struttura_nome?: string | null }): CampiProvenienza {
+  return campiProvenienza(r.provenienza, r.struttura_nome)
+}
+
+// Riga della richiesta dal modulo del sito: provenienza google in automatico
+export function conProvenienzaDalSito<T extends Record<string, unknown>>(riga: T): T & CampiProvenienza {
+  return { ...riga, provenienza: PROVENIENZA_DAL_SITO, struttura_nome: null }
+}
+
+// Testo per le schede: «Google» · «Altra struttura · Umana» · «Non so»
+export function testoProvenienza(c: { provenienza?: string | null; struttura_nome?: string | null }): string {
+  const p = normalizzaProvenienza(c.provenienza)
+  return p === 'altra_struttura' && c.struttura_nome ? `${ETICHETTA_PROVENIENZA[p]} · ${c.struttura_nome}` : ETICHETTA_PROVENIENZA[p]
+}

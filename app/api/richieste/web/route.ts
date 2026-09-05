@@ -5,6 +5,7 @@ import { formatIntervallo, nomeCompleto } from '@/lib/richieste'
 import { inviaATutti } from '@/lib/inviaPush'
 import { registraPush } from '@/lib/pushLog'
 import { inviaPushover } from '@/lib/pushover'
+import { conProvenienzaDalSito, manca0036 } from '@/lib/provenienza'
 
 // Ingresso delle richieste dal modulo del sito casaaniarozzano.it (pezzo 5A).
 //
@@ -79,7 +80,14 @@ export async function POST(req: NextRequest) {
     nome: d.nome, cognome: d.cognome, arrivo: d.arrivo, partenza: d.partenza, persone: d.persone,
     camera_id: d.camera_id, canale: 'web', telefono: d.telefono, note: d.note, stato: 'in_attesa',
   }
-  let inserita = await supabase.from('richieste').insert(d.origine ? { ...riga, origine: d.origine } : riga).select('id').single()
+  // Provenienza (0036): dal modulo del sito è google in automatico; senza la
+  // colonna la richiesta entra comunque (come per origine della 0028)
+  const conOrigine = d.origine ? { ...riga, origine: d.origine } : riga
+  let inserita = await supabase.from('richieste').insert(conProvenienzaDalSito(conOrigine)).select('id').single()
+  if (inserita.error && manca0036(inserita.error)) {
+    log('avviso', 'colonne provenienza assenti: applicare la proposta 0036')
+    inserita = await supabase.from('richieste').insert(conOrigine).select('id').single()
+  }
   if (inserita.error && d.origine && /origine/i.test(inserita.error.message || '')) {
     // Colonna della 0028 non ancora applicata: la richiesta entra comunque, l'origine si perde (avvisato nel log)
     log('avviso', 'colonna origine assente: applicare la migrazione 0028')

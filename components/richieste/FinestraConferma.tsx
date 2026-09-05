@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 import { ETICHETTA_CASO, type Soluzione } from '@/lib/richiesteProposta'
 import { richiesteInConflitto, erroreDiDisponibilita, conLettoExtra, type RichiestaConProposta } from '@/lib/richiesteConferma'
 import { confermaRichiesta, scegliSoluzioneInviata } from '@/lib/richiesteDati'
+import { copiaProvenienzaSuPrenotazione } from '@/lib/provenienzaDati'
 import { prezzo as fmtPrezzo, dalAl } from '@/lib/richiesteTesti'
 import { nomeCompleto, formatIntervallo, nottiRichiesta, riassuntoPersone, type Richiesta } from '@/lib/richieste'
 
@@ -16,7 +17,7 @@ type Props = {
   aperte: Richiesta[]
   layout: 'desktop' | 'mobile'
   onChiudi: () => void
-  onCreata: (prenotazioneId: string) => void
+  onCreata: (prenotazioneId: string, avviso?: string | null) => void   // avviso: provenienza non copiata (0036)
 }
 
 const BORDO = '#C9BFA8'
@@ -51,7 +52,10 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
     }
     const r = await confermaRichiesta(richiesta.id, [...spuntate])
     if (r.error || !r.prenotazioneId) { setErrore(r.error || 'Conferma non riuscita.'); setOccupato(false); return }
-    onCreata(r.prenotazioneId)
+    // Provenienza (0036): passa alla prenotazione appena creata; se non riesce
+    // la prenotazione resta valida e lo si dice nella scheda
+    const avvisoProvenienza = 'provenienza' in richiesta ? await copiaProvenienzaSuPrenotazione(richiesta, r.prenotazioneId) : null
+    onCreata(r.prenotazioneId, avvisoProvenienza)
   }
 
   const corpo = (
