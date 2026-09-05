@@ -94,3 +94,55 @@ end;
 $$;
 
 -- grant execute on function public.segna_pagato(uuid, uuid, text, date) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- R6 — RICOSTRUZIONE UNA TANTUM DEGLI INCASSI STORICI (stessa proposta 0033)
+-- ----------------------------------------------------------------------------
+-- Regola di Casa Ania: si è sempre pagato all'arrivo. Il gestionale prepara
+-- il piano (lib/statistiche/ricostruzione.pianoRicostruzione: per ogni
+-- soggiorno con pagato = true e movimenti che non coprono il totale, un
+-- movimento con data = arrivo, importo = totale − registrati, metodo
+-- «all'arrivo (ricostruito)», origine 'ricostruito', chiave stabile). Ania lo
+-- vede in Statistiche e lo conferma: questa RPC scrive TUTTO in un'unica
+-- transazione; una chiave già presente non viene riscritta (rilanciare non
+-- crea doppioni). Torna quante righe ha scritto e quante ha saltato.
+
+create or replace function public.ricostruisci_incassi(p_movimenti jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_m        jsonb;
+  v_scritti  int := 0;
+  v_saltati  int := 0;
+  v_id       uuid;
+begin
+  if auth.uid() is null and session_user <> 'postgres' then
+    raise exception 'Non autenticato';
+  end if;
+  if p_movimenti is null or pg_catalog.jsonb_typeof(p_movimenti) <> 'array' then
+    raise exception 'Piano non valido';
+  end if;
+
+  for v_m in select * from pg_catalog.jsonb_array_elements(p_movimenti) loop
+    if (v_m->>'origine') is distinct from 'ricostruito' then
+      raise exception 'Solo movimenti ricostruiti';
+    end if;
+    if not exists (select 1 from public.bookings where id = (v_m->>'booking_id')::uuid and status in ('confermata', 'completata')) then
+      raise exception 'Prenotazione % non valida', v_m->>'booking_id';
+    end if;
+    insert into public.payments (booking_id, amount, method, paid_on, chiave_operazione, origine)
+    values ((v_m->>'booking_id')::uuid, (v_m->>'amount')::numeric, coalesce(v_m->>'method', 'all''arrivo (ricostruito)'), (v_m->>'paid_on')::date, (v_m->>'chiave_operazione')::uuid, 'ricostruito')
+    on conflict (chiave_operazione) where chiave_operazione is not null do nothing
+    returning id into v_id;
+    if v_id is null then v_saltati := v_saltati + 1; else v_scritti := v_scritti + 1; end if;
+    v_id := null;
+  end loop;
+
+  return pg_catalog.jsonb_build_object('scritti', v_scritti, 'saltati', v_saltati);
+end;
+$$;
+
+-- grant execute on function public.ricostruisci_incassi(jsonb) to authenticated;

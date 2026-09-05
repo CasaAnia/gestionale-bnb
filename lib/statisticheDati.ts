@@ -58,34 +58,64 @@ export function leggiEventiSito(da: string, a: string, cosa = 'caricare le visit
     .gte('created_at', `${da}T00:00:00`).lt('created_at', `${a}T00:00:00`).order('created_at', { ascending: true }).range(offset, offset + limite - 1))
 }
 
-export type DatiStatistiche = { prenotazioni: PrenotazioneSconto[]; pagamenti: PagamentoStat[]; spese: SpesaPagata[]; camere: CameraStat[]; eventiSito: SiteEvent[] }
+// Prenotazioni a blocchi di ID (R5): ogni blocco a pagine, tutto raccolto e deduplicato, stop al primo errore
+async function leggiPrenotazioniPerBlocchi(colonna: 'id' | 'group_id', ids: string[], colonne: string, cosa: string): Promise<Esito<PrenotazioneSconto[]>> {
+  const r = await raccogliBlocchi<PrenotazioneSconto, string>(aBlocchi(ids), blocco =>
+    raccogliPagine<PrenotazioneSconto>((offset, limite) => supabase.from('bookings').select(colonne)
+      .in('status', STATI_LETTI).in(colonna, blocco).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>),
+    b => b.id)
+  if (r.error) return { data: null, errore: messaggioLetturaNonRiuscita(r.error, cosa) }
+  return { data: r.data, errore: null }
+}
+
+// R6: base per il piano di ricostruzione degli incassi storici — tutte le
+// prenotazioni confermate/completate con pagato = true (colonne minime),
+// i segmenti dei loro gruppi e tutti i movimenti. È l'unica lettura che
+// guarda tutto lo storico: serve a dire se lo storico è da ricostruire.
+export type DatiRicostruzione = { prenotazioni: PrenotazioneSconto[]; pagamenti: PagamentoStat[] }
+
+export async function leggiRicostruzione(): Promise<Esito<DatiRicostruzione>> {
+  const colonne = 'id, group_id, room_id, check_in, check_out, total_amount, status, pagato, guest_name, guests(full_name)'
+  const cosa = 'caricare lo storico dei pagamenti'
+  const [p, pag] = await Promise.all([
+    pagine<PrenotazioneSconto>(cosa, (offset, limite) => supabase.from('bookings').select(colonne)
+      .in('status', STATI_LETTI).eq('pagato', true).order('check_in', { ascending: true }).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>),
+    leggiTuttiPagamenti(cosa),
+  ])
+  const errore = p.errore ?? pag.errore
+  if (errore) return { data: null, errore }
+  const gruppi = [...new Set(p.data!.map(b => b.group_id).filter(Boolean) as string[])]
+  let segmenti: PrenotazioneSconto[] = []
+  if (gruppi.length > 0) {
+    const r = await leggiPrenotazioniPerBlocchi('group_id', gruppi, colonne, cosa)
+    if (r.errore) return { data: null, errore: r.errore }
+    segmenti = r.data!
+  }
+  const visti = new Set<string>()
+  const prenotazioni = [...p.data!, ...segmenti].filter(b => (visti.has(b.id) ? false : (visti.add(b.id), true)))
+  return { data: { prenotazioni, pagamenti: pag.data! }, errore: null }
+}
+
+export type DatiStatistiche = { prenotazioni: PrenotazioneSconto[]; pagamenti: PagamentoStat[]; spese: SpesaPagata[]; camere: CameraStat[]; eventiSito: SiteEvent[]; ricostruzione: DatiRicostruzione }
 
 // Tutto ciò che serve alla pagina Statistiche per [da, a); il primo errore ferma tutto
 export async function leggiDatiStatistiche(da: string, a: string): Promise<Esito<DatiStatistiche>> {
-  const [p, pag, sp, cam, ev] = await Promise.all([leggiPrenotazioni(da, a), leggiPagamenti(da, a), leggiSpese(da, a), leggiCamere(), leggiEventiSito(da, a)])
-  const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ev.errore
+  const [p, pag, sp, cam, ev, ric] = await Promise.all([leggiPrenotazioni(da, a), leggiPagamenti(da, a), leggiSpese(da, a), leggiCamere(), leggiEventiSito(da, a), leggiRicostruzione()])
+  const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ev.errore ?? ric.errore
   if (errore) return { data: null, errore }
-  return { data: { prenotazioni: p.data!, pagamenti: pag.data!, spese: sp.data!, camere: cam.data!, eventiSito: ev.data! }, errore: null }
+  return { data: { prenotazioni: p.data!, pagamenti: pag.data!, spese: sp.data!, camere: cam.data!, eventiSito: ev.data!, ricostruzione: ric.data! }, errore: null }
 }
 
-export type DatiHome = { prenotazioni: PrenotazioneSconto[]; pagamentiMese: PagamentoStat[]; tuttiPagamenti: PagamentoStat[]; prenotazioniConMovimenti: PrenotazioneSconto[]; spese: SpesaPagata[]; camere: CameraStat[] }
+export type DatiHome = { prenotazioni: PrenotazioneSconto[]; pagamentiMese: PagamentoStat[]; tuttiPagamenti: PagamentoStat[]; prenotazioniConMovimenti: PrenotazioneSconto[]; spese: SpesaPagata[]; camere: CameraStat[]; ricostruzione: DatiRicostruzione }
 
 // Home: il mese [da, a) più i soggiorni con movimenti registrati (per «Da incassare»)
 export async function leggiDatiHome(da: string, a: string): Promise<Esito<DatiHome>> {
   const colonne = '*, rooms(name), guests(full_name, phone)'
-  const [p, pag, sp, cam] = await Promise.all([leggiPrenotazioni(da, a, colonne), leggiTuttiPagamenti(), leggiSpese(da, a), leggiCamere()])
-  const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore
+  const [p, pag, sp, cam, ric] = await Promise.all([leggiPrenotazioni(da, a, colonne), leggiTuttiPagamenti(), leggiSpese(da, a), leggiCamere(), leggiRicostruzione()])
+  const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ric.errore
   if (errore) return { data: null, errore }
-  // R5: gli ID si leggono a BLOCCHI (mai un taglio silenzioso a 500): ogni
-  // blocco a pagine, tutti i risultati raccolti e deduplicati, stop al primo errore
-  const perBlocchi = async (colonna: 'id' | 'group_id', ids: string[]) => {
-    const r = await raccogliBlocchi<PrenotazioneSconto, string>(aBlocchi(ids), blocco =>
-      raccogliPagine<PrenotazioneSconto>((offset, limite) => supabase.from('bookings').select(colonne)
-        .in('status', STATI_LETTI).in(colonna, blocco).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>),
-      b => b.id)
-    if (r.error) return { data: null, errore: messaggioLetturaNonRiuscita(r.error, 'caricare le prenotazioni da incassare') }
-    return { data: r.data, errore: null }
-  }
+  // R5: gli ID si leggono a BLOCCHI (mai un taglio silenzioso a 500)
+  const perBlocchi = (colonna: 'id' | 'group_id', ids: string[]) => leggiPrenotazioniPerBlocchi(colonna, ids, colonne, 'caricare le prenotazioni da incassare')
   const idsMese = new Set(p.data!.map(b => b.id))
   const idsFuori = [...new Set(pag.data!.map(x => x.booking_id))].filter(id => !idsMese.has(id))
   let fuori: PrenotazioneSconto[] = []
@@ -105,5 +135,5 @@ export async function leggiDatiHome(da: string, a: string): Promise<Esito<DatiHo
   }
   const visti = new Set<string>()
   const conMovimenti = [...p.data!, ...fuori, ...segmenti].filter(b => (visti.has(b.id) ? false : (visti.add(b.id), true)))
-  return { data: { prenotazioni: p.data!, pagamentiMese: pag.data!.filter(x => !!x.paid_on && x.paid_on >= da && x.paid_on < a), tuttiPagamenti: pag.data!, prenotazioniConMovimenti: conMovimenti, spese: sp.data!, camere: cam.data! }, errore: null }
+  return { data: { prenotazioni: p.data!, pagamentiMese: pag.data!.filter(x => !!x.paid_on && x.paid_on >= da && x.paid_on < a), tuttiPagamenti: pag.data!, prenotazioniConMovimenti: conMovimenti, spese: sp.data!, camere: cam.data!, ricostruzione: ric.data! }, errore: null }
 }

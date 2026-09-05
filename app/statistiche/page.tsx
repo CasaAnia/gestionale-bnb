@@ -5,7 +5,10 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
 import { buildSiteFunnel, type SiteEvent } from '@/lib/siteStats'
 import { leggiDatiStatistiche, type DatiStatistiche } from '@/lib/statisticheDati'
-import { cassaIntervallo, incassiCent, occupazioneIntervallo, ricaviPerCamera, scontiPeriodo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, type Occupazione } from '@/lib/statistiche'
+import { supabase } from '@/lib/supabase'
+import { nomeOspite } from '@/lib/guestName'
+import { messaggioNonSalvato } from '@/lib/scritturaSicura'
+import { cassaIntervallo, incassiCent, occupazioneIntervallo, ricaviPerCamera, scontiPeriodo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi, rpcMancante, type Occupazione } from '@/lib/statistiche'
 
 // «Statistiche, numeri corretti» (05/09/2026): NESSUNA formula in questa
 // pagina. Ogni numero viene da lib/statistiche (funzioni pure, testate) sui
@@ -125,6 +128,10 @@ export default function Statistiche() {
   const [loading, setLoading] = useState(true)
   const [errore, setErrore] = useState<string | null>(null)
   const [tentativo, setTentativo] = useState(0)
+  // R6: ricostruzione una tantum degli incassi storici (dietro il tasto di Ania)
+  const [ricostruendo, setRicostruendo] = useState(false)
+  const [erroreRicostruzione, setErroreRicostruzione] = useState<string | null>(null)
+  const [esitoRicostruzione, setEsitoRicostruzione] = useState<string | null>(null)
 
   // Si rilegge quando cambia l'anno letto (frecce o periodo): solo quel periodo
   const lettura = intervalloLettura(ref, period)
@@ -191,6 +198,32 @@ export default function Statistiche() {
   const rows = calcPeriod()
   const maxIncassi = Math.max(...rows.map(r => r.incassi), 1)
 
+  // R6: piano di ricostruzione (funzione pura) ed etichetta della voce Incassi
+  const piano = data ? pianoRicostruzione(data.ricostruzione.prenotazioni, data.ricostruzione.pagamenti) : { movimenti: [], totaleCent: 0 }
+  const voceIncassi = etichettaIncassi(piano.movimenti.length)
+  const nomeDi = new Map((data?.ricostruzione.prenotazioni ?? []).map(b => [b.id, nomeOspite(b)]))
+
+  // Scrittura in un'unica transazione (RPC ricostruisci_incassi, proposta 0033):
+  // rilanciarla non crea doppioni. Senza la 0033 la RPC manca e lo si dice.
+  async function confermaRicostruzione() {
+    if (ricostruendo || piano.movimenti.length === 0) return
+    setRicostruendo(true)
+    setErroreRicostruzione(null)
+    try {
+      const p_movimenti = piano.movimenti.map(m => ({ chiave_operazione: m.chiave_operazione, booking_id: m.booking_id, amount: m.amount, paid_on: m.paid_on, method: m.method, origine: m.origine }))
+      const { data: r, error: e } = await supabase.rpc('ricostruisci_incassi', { p_movimenti })
+      if (e) {
+        setErroreRicostruzione(rpcMancante(e) ? 'Serve la migrazione 0033 (proposta in supabase/proposte) prima di ricostruire: nulla è stato scritto' : `${messaggioNonSalvato(e)}: nulla è stato scritto`)
+        return
+      }
+      const esito = r as { scritti?: number; saltati?: number } | null
+      setEsitoRicostruzione(`Ricostruzione eseguita: ${esito?.scritti ?? 0} movimenti scritti${esito?.saltati ? `, ${esito.saltati} già presenti` : ''}`)
+      riprova()
+    } finally {
+      setRicostruendo(false)
+    }
+  }
+
   return (
     <div className="p-4">
       <BackBar href="/" />
@@ -233,9 +266,9 @@ export default function Statistiche() {
               <p className="text-[10px] leading-tight text-gray-400 mt-0.5">valore delle prenotazioni confermate, diviso sulle notti dormite nel periodo</p>
             </div>
             <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm">
-              <p className="text-xs text-gray-500">Incassi</p>
+              <p className="text-xs text-gray-500">{voceIncassi.etichetta}</p>
               <p className="font-bold text-green-mid text-base">€{euro(totali.incassiCent)}</p>
-              <p className="text-[10px] leading-tight text-gray-400 mt-0.5">pagamenti registrati, per data di pagamento</p>
+              <p className="text-[10px] leading-tight text-gray-400 mt-0.5">pagamenti registrati, per data di pagamento{voceIncassi.avviso ? <> · <span className="font-semibold text-green-dark">{voceIncassi.avviso}</span></> : null}</p>
             </div>
             <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm">
               <p className="text-xs text-gray-500">Spese</p>
@@ -248,6 +281,38 @@ export default function Statistiche() {
               <p className="text-[10px] leading-tight text-gray-400 mt-0.5">incassi meno spese del periodo</p>
             </div>
           </div>
+
+          {esitoRicostruzione && <AvvisoAzione testo={esitoRicostruzione} className="mb-4" />}
+
+          {/* R6: storico incassi da ricostruire — elenco e totale, scrittura solo
+              con il tasto di conferma, in un'unica operazione idempotente */}
+          {piano.movimenti.length > 0 && (
+            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
+              <p className="text-sm font-semibold text-gray-600">Storico incassi da ricostruire</p>
+              <p className="text-xs text-gray-400 mb-3">soggiorni segnati pagati senza un pagamento registrato che copra il totale: la ricostruzione crea un movimento «all’arrivo (ricostruito)» con la data di arrivo</p>
+              <div className="rounded-lg border border-[#C9BFA8] overflow-hidden">
+                {piano.movimenti.map(m => (
+                  <div key={m.chiave_operazione} className="flex items-center justify-between gap-2 px-3 py-2 text-sm border-b border-gray-50 last:border-b-0">
+                    <span className="min-w-0">
+                      <span className="font-medium text-green-dark">{nomeDi.get(m.booking_id) || m.nomi || 'Ospite'}</span>
+                      <span className="text-gray-500"> · {m.arrivo} → {m.partenza}</span>
+                      {m.registratiCent > 0 && <span className="text-gray-400 text-xs"> · acconti €{euro(m.registratiCent)}</span>}
+                    </span>
+                    <span className="font-semibold text-green-mid whitespace-nowrap">€{(m.amount).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between px-3 py-2 text-sm bg-gray-50 font-semibold">
+                  <span className="text-gray-600">Totale · {piano.movimenti.length} {piano.movimenti.length === 1 ? 'movimento' : 'movimenti'}</span>
+                  <span className="text-green-dark">€{(piano.totaleCent / 100).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+              <button type="button" onClick={confermaRicostruzione} disabled={ricostruendo}
+                className="w-full mt-3 bg-green-mid text-white rounded-xl py-3 font-semibold disabled:opacity-60">
+                {ricostruendo ? 'Scrivo...' : `Conferma la ricostruzione (${piano.movimenti.length} ${piano.movimenti.length === 1 ? 'movimento' : 'movimenti'}, €${euro(piano.totaleCent)})`}
+              </button>
+              {erroreRicostruzione && <AvvisoAzione testo={erroreRicostruzione} className="mt-2" />}
+            </div>
+          )}
 
           {siteStats && (
             <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">

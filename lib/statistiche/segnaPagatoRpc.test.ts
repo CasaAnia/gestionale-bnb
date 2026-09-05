@@ -76,3 +76,19 @@ test('prenotazione in attesa: il totale non conta (saldo 0), prenotazione inesis
   assert.equal(Number(r.importo), 0)
   await assert.rejects(db.query(`select public.segna_pagato('ffffffff-0000-4000-8000-000000000000', $1)`, ['eeeeeeee-0004-4000-8000-000000000004']), /Prenotazione non trovata/)
 })
+
+// R6 — la RPC ricostruisci_incassi della stessa proposta: piano scritto in
+// una transazione; rilanciarlo non crea doppioni; movimenti non ricostruiti rifiutati
+test('R6: ricostruisci_incassi scrive il piano una volta sola (seconda esecuzione: 0 scritti)', async () => {
+  const D = 'bbbbbbbb-0004-4000-8000-000000000004'
+  await db.query(`insert into public.bookings (id, room_id, guest_id, check_in, check_out, total_amount, status, pagato) values ($1, $2, $3, '2026-06-01', '2026-06-03', 160, 'completata', true)`, [D, R1, G])
+  const piano = JSON.stringify([{ chiave_operazione: 'eeeeeeee-0009-4000-8000-000000000009', booking_id: D, amount: 160, paid_on: '2026-06-01', method: "all'arrivo (ricostruito)", origine: 'ricostruito' }])
+  const r1 = (await db.query<{ r: { scritti: number; saltati: number } }>('select public.ricostruisci_incassi($1::jsonb) as r', [piano])).rows[0].r
+  assert.deepEqual(r1, { scritti: 1, saltati: 0 })
+  const r2 = (await db.query<{ r: { scritti: number; saltati: number } }>('select public.ricostruisci_incassi($1::jsonb) as r', [piano])).rows[0].r
+  assert.deepEqual(r2, { scritti: 0, saltati: 1 })
+  const righe = (await db.query<{ amount: string; origine: string; method: string }>('select amount, origine, method from public.payments where booking_id = $1', [D])).rows
+  assert.equal(righe.length, 1)
+  assert.deepEqual([Number(righe[0].amount), righe[0].origine, righe[0].method], [160, 'ricostruito', "all'arrivo (ricostruito)"])
+  await assert.rejects(db.query('select public.ricostruisci_incassi($1::jsonb)', [JSON.stringify([{ chiave_operazione: 'eeeeeeee-0010-4000-8000-000000000010', booking_id: D, amount: 1, paid_on: '2026-06-01', origine: 'reale' }])]), /Solo movimenti ricostruiti/)
+})

@@ -7,7 +7,7 @@ import { useDemoMode } from '@/lib/useDemoMode'
 import { useRichiesteWeb } from '@/lib/webRequests'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { leggiDatiHome, type DatiHome } from '@/lib/statisticheDati'
-import { cassaIntervallo, daIncassare, indiciIntervallo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE } from '@/lib/statistiche'
+import { cassaIntervallo, daIncassare, indiciIntervallo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi } from '@/lib/statistiche'
 
 // «Statistiche, numeri corretti» (05/09/2026): NESSUNA formula in questa
 // pagina. I numeri del mese vengono da lib/statistiche sui dati del solo mese
@@ -67,7 +67,10 @@ function calcola(d: DatiHome, td: string, tmr: string, ms: string, nms: string) 
   const nomeDi = new Map(d.prenotazioniConMovimenti.map((b: any) => [b.id, nomeOspite(b)]))
   const daInc = daIncassare(d.prenotazioniConMovimenti, d.tuttiPagamenti).map(g => ({ ...g, guest: nomeDi.get(g.id) || g.nomi || 'Ospite' }))
 
-  return { cassa, indici, checkInOggi, checkOutOggi, checkInDomani, checkOutDomani, roomChangesOggi, roomChangesDomani, td, daIncassare: daInc }
+  // R6: finché lo storico è da ricostruire la voce si chiama «Incassi registrati»
+  const voceIncassi = etichettaIncassi(pianoRicostruzione(d.ricostruzione.prenotazioni, d.ricostruzione.pagamenti).movimenti.length)
+
+  return { cassa, indici, voceIncassi, checkInOggi, checkOutOggi, checkInDomani, checkOutDomani, roomChangesOggi, roomChangesDomani, td, daIncassare: daInc }
 }
 
 export default function Dashboard() {
@@ -210,9 +213,9 @@ export default function Dashboard() {
                 <p className="text-[11px] leading-tight text-gray-500 mt-1">valore delle prenotazioni confermate, diviso sulle notti dormite nel mese</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1">Incassi</p>
+                <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1">{data.voceIncassi.etichetta}</p>
                 <p className="font-serif text-2xl text-green-dark">€{euro(data.cassa.incassiCent)}</p>
-                <p className="text-[11px] leading-tight text-gray-500 mt-1">pagamenti registrati nel mese, per data di pagamento</p>
+                <p className="text-[11px] leading-tight text-gray-500 mt-1">pagamenti registrati nel mese, per data di pagamento{data.voceIncassi.avviso ? <> · <span className="font-semibold text-green-dark">{data.voceIncassi.avviso}</span></> : null}</p>
               </div>
             </div>
           </div>
