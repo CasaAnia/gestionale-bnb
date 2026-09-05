@@ -432,7 +432,7 @@ export default function BookingDetail() {
   // Conto del soggiorno (acconti). accontiOk=false se la tabella payments non è ancora migrata
   const [acconti, setAcconti] = useState<any[]>([])
   const [accontiOk, setAccontiOk] = useState(true)
-  const [accontoForm, setAccontoForm] = useState({ amount: '', method: 'contanti', paid_on: new Date().toISOString().split('T')[0] })
+  const [accontoForm, setAccontoForm] = useState({ amount: '', method: 'contanti', paid_on: oggiARoma() })
   const [savingAcconto, setSavingAcconto] = useState(false)
   const [accontoError, setAccontoError] = useState<string | null>(null)
   const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
@@ -568,7 +568,7 @@ export default function BookingDetail() {
       .select().single()
     if (!error && data) {
       setAcconti([...acconti, data].sort((a, b) => a.paid_on.localeCompare(b.paid_on)))
-      setAccontoForm({ amount: '', method: 'contanti', paid_on: new Date().toISOString().split('T')[0] })
+      setAccontoForm({ amount: '', method: 'contanti', paid_on: oggiARoma() })
       setAccontoError(null)
     } else {
       setAccontoError(error?.message || 'Errore di salvataggio')
