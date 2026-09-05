@@ -2,7 +2,7 @@
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
-3. PROVENIENZA DELL'OSPITE (08/09/2026, main, scheda in cima): proposta 0036 NON applicata (🔴 Ania) — «Come ci ha trovato» (google/passaparola/altra_struttura/non_so + struttura) su richieste e prenotazioni, tabella strutture, dal sito = google, copia alla conferma; «Già stato da noi · N soggiorni» accanto al nome; Statistiche «Da dove arrivano gli ospiti». Da controllare: arrivo senza orario con «Chiedi orario» · «Apri chat» · «Apri arrivo» (stessi bottoni nella finestra Arrivi). HOME (07/09/2026): in cima TRE NUMERI (arrivi oggi, partenze oggi, occupate stanotte su quelle attive; lib/numeriOggi, giorno di Roma, trattini + Riprova su errore, cifre come Incassi/Spese), poi la STRISCIA DELLA SETTIMANA (28 giorni da oggi; dall'08/09 SOLO le pulizie ancora da fare con la stessa regola/fonte della pagina Pulizie — lib/pulizie.conteggioGiorno —, «✓» se tutte fatte, «—» se niente; tocco → Pulizie ?giorno=), poi «DA CONTROLLARE» col NUOVO ORDINE (tutte le richieste aperte per durata e scadenza, arrivi senza orario, pagamenti, fatture, sovrapposizioni in fondo senza urgenza). «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima; RITOCCHI dello stesso giorno: sezione IN CIMA sopra i numeri del giorno, «WhatsApp» sugli arrivi senza orario col testo «Richiesta orario» di lib/messaggiWhatsApp condiviso con la scheda, «WhatsApp» senza testo sulle proposte scadute): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
+3. PROVENIENZA DEL CLIENTE (08/09/2026, sera, main, scheda in cima): la provenienza appartiene al CLIENTE (guests, proposta 0037 da applicare 🔴 Ania; la 0036 è applicata), retroattiva su tutti i suoi soggiorni; chip in richieste/prenotazioni/scheda cliente che modificano il cliente; Statistiche con riga per fonte e ritorni. Storia: «Come ci ha trovato» (google/passaparola/altra_struttura/non_so + struttura) su richieste e prenotazioni, tabella strutture, dal sito = google, copia alla conferma; «Già stato da noi · N soggiorni» accanto al nome; Statistiche «Da dove arrivano gli ospiti». Da controllare: arrivo senza orario con «Chiedi orario» · «Apri chat» · «Apri arrivo» (stessi bottoni nella finestra Arrivi). HOME (07/09/2026): in cima TRE NUMERI (arrivi oggi, partenze oggi, occupate stanotte su quelle attive; lib/numeriOggi, giorno di Roma, trattini + Riprova su errore, cifre come Incassi/Spese), poi la STRISCIA DELLA SETTIMANA (28 giorni da oggi; dall'08/09 SOLO le pulizie ancora da fare con la stessa regola/fonte della pagina Pulizie — lib/pulizie.conteggioGiorno —, «✓» se tutte fatte, «—» se niente; tocco → Pulizie ?giorno=), poi «DA CONTROLLARE» col NUOVO ORDINE (tutte le richieste aperte per durata e scadenza, arrivi senza orario, pagamenti, fatture, sovrapposizioni in fondo senza urgenza). «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima; RITOCCHI dello stesso giorno: sezione IN CIMA sopra i numeri del giorno, «WhatsApp» sugli arrivi senza orario col testo «Richiesta orario» di lib/messaggiWhatsApp condiviso con la scheda, «WhatsApp» senza testo sulle proposte scadute): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
    Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); le revisioni Codex (R1–R13) sono corrette, collaudate su PostgreSQL 16 locale (sessioni concorrenti, ruoli) con 4 difetti trovati e corretti, e PUBBLICATE il 06/09/2026 (scheda in cima); le proposte 0033/0034 restano da applicare a mano da Ania (guida in 5 righe nella scheda); il codice pubblicato funziona anche prima delle proposte e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
 4. Blocco 1 (04/09): elisione solo per 1, 8, 11 («all'8», «al 18»). Blocco 2: /richieste da desktop con calendario «Mese / 2 settimane», lista ariosa, intestazione su una riga; telefono invariato. Blocco 4 (04/09 sera, scelta di Ania sul mockup A): da desktop calendario a TUTTA larghezza sopra e lista sotto in schede su due colonne (≥1100 px), riga di sezione «RICHIESTE APERTE · N — Ordina per», vuoto = riga sottile tratteggiata con «+ Nuova richiesta»; niente più due colonne affiancate. Calendario desktop +20% (righe 54, intestazione 48, camere 15 px, barre 13–14 px, colonna camere 116, colonne 2 settimane ≥ 80 px); telefono invariato. Blocco 3: web-push tolto dal sito, docs senza secondo utente, scheda «prove in 10 minuti».
 5. Proposte: ricerca automatica invariata (caso A poi B/C/E, per notte), «Altre camere» con i motivi, «Scelgo io» notte per notte con prezzo a mano; conferma solo via RPC 0031 (per notte).
@@ -76,6 +76,82 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — Provenienza del cliente, retroattiva (08/09/2026, sera, main)
+
+Base `396e8ad`. Un commit per pezzo. Migrazione SOLO come bozza
+(`supabase/proposte/0037_provenienza_cliente.BOZZA.sql`) da applicare a mano DOPO
+la 0036 (già in produzione). REGOLA: la provenienza appartiene al CLIENTE; un
+cliente arrivato da Nida resta di Nida per sempre, ritorni compresi, e vale
+anche per il passato. Prima della 0037 il campo resta nascosto con l'avviso
+«Serve la migrazione 0037» e nessun salvataggio si blocca.
+
+## FATTO E DIMOSTRATO
+
+- Pezzo 1 `b27b819` — dati. Bozza 0037: guests.provenienza (default non_so)
+  e guests.struttura_nome; migrazione dei dati della 0036 (per ogni cliente la
+  provenienza della sua prenotazione più vecchia — check_in, poi created_at —
+  che ne ha una); via le colonne da bookings; richieste.provenienza resta come
+  valore provvisorio di chi non è ancora cliente. lib/provenienza:
+  provenienzaDi (dal cliente; prima della 0037 ripiego sul valore 0036 della
+  prenotazione), provenienzaClienteDaPrenotazioni (stessa regola della SQL,
+  testata), provenienzaRichiestaDalSito (cliente nuovo → google, esistente →
+  resta la sua), daApplicareAlCliente (alla conferma la provenienza
+  provvisoria va sul cliente solo se lui non ne ha una), rigaCliente.
+  lib/provenienzaDati: strutture con i CLIENTI portati, salvaProvenienzaCliente
+  (avviso 0037 se mancano le colonne), cercaClientePerTelefono (cifre esatte,
+  poi ripiego sulle ultime cifre), applicaProvenienzaAlCliente. Modulo del
+  sito: cerca il cliente dal telefono; nuovo → google, esistente → la sua.
+- Pezzo 2 `6d59b13` — i chip restano uguali ma modificano il CLIENTE: nuova
+  richiesta (telefono di un cliente esistente → chip precompilati con la sua
+  provenienza, «Già stato da noi · N soggiorni» accanto all'etichetta; al
+  salvataggio si aggiorna il cliente, la richiesta tiene il provvisorio),
+  nuova prenotazione (cliente esistente → precompilati e aggiornati; cliente
+  nuovo → nasce con la provenienza; niente più sulla prenotazione), scheda
+  prenotazione (chip dal cliente, salvati sul cliente con scritturaSicura, riga
+  «Come ci ha trovato: … · del cliente, vale per tutti i suoi soggiorni»).
+- Pezzo 3 `664a133` — Statistiche «Da dove arrivano gli ospiti» per il
+  periodo: una riga per fonte (ogni struttura per nome, Google, Passaparola,
+  Non so) con clienti, soggiorni, di cui ritorni (cliente con un soggiorno
+  concluso prima di quell'arrivo), ricavi per soggiorno (lib/statistiche, solo
+  confermate, cambio camera contato una volta), ordinate per ricavi; via la
+  riga «Già stati da noi». Sotto «Strutture»: soggiorni e ricavi di ciascuna
+  nell'anno letto. Letture con guests(*) (periodo e storico). 2 test (conteggi
+  con ritorni, ereditarietà: la prenotazione con un valore vecchio segue il
+  cliente; prima della 0037 vale il valore 0036).
+- Pezzo 4 `a500fda` — scheda cliente: sotto il nome «da Nida · 1 soggiorno ·
+  160 €» (fonte, soggiorni conclusi uno per gruppo, ricavi totali) e gli stessi
+  chip in modifica salvati col cliente (nome nuovo → elenco strutture).
+- Anteprima finta (clienti con provenienza, prenotazioni senza) a 390 e 1280
+  px: scheda di Giulio «da Nida · 1 soggiorno · 160 €» e chip precompilati in
+  modifica; scheda prenotazione «Altra struttura · Nida · del cliente…»;
+  nuova richiesta col telefono di Giulio → «Altra struttura» + «Nida» + «Già
+  stato da noi · 1 soggiorno»; Statistiche: righe Non so 8/8/0/€1400,
+  Passaparola 1/1/0/€320, Nida 1/1/0/€160, Google 0, Totale 10/10/0/€1880 e
+  «Strutture: Nida 2 · €320, Umana 1 · €160».
+- Suite 674/674, TypeScript OK, lint dei file toccati senza rilievi nuovi
+  (nuovi 0; modulo 0 = 0, nuova 1 = 1, scheda 28 = 28, cliente 4 = 4,
+  statistiche 0 = 0), `next build` OK (Compiled successfully su `a500fda`).
+
+## LIMITI APERTI
+
+- Finché la 0037 non è applicata il campo è nascosto ovunque (anche dove
+  prima si vedeva con la 0036): l'avviso lo dice.
+- Un cliente tornato con una scheda a nome e telefono diversi non è
+  riconosciuto come ritorno; l'omonimia conta solo nella scheda prenotazione.
+- Sul sito pubblicato verifica senza accesso (login di Ania).
+
+## 🔴 AZIONE PER ANIA
+
+Applicare la bozza 0037 nell'editor SQL di Supabase (produzione), dopo la 0036.
+Per copiarla negli appunti dal Mac:
+
+    cat ~/gestionale-bnb/supabase/proposte/0037_provenienza_cliente.BOZZA.sql | pbcopy
+
+poi incollare nell'editor SQL ed eseguire; la verifica in fondo deve dare 2
+righe su guests e 0 su bookings, più il conteggio dei clienti per provenienza.
 
 ---
 
