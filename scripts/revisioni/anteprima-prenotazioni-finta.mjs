@@ -67,6 +67,7 @@ const guests = [
   ospite('aaaaaaaa-0011-4000-8000-000000000011', 'Secondo Ambra', '+39 333 000 0011'),
   ospite('aaaaaaaa-0012-4000-8000-000000000012', 'Parte Oggi', '+39 333 000 0012'),
   ospite('aaaaaaaa-0013-4000-8000-000000000013', 'Arriva Oggi', '+39 333 000 0013'),
+  ospite('aaaaaaaa-0014-4000-8000-000000000014', 'Richiesta Dal Sito', '+39 333 000 0014'),
 ]
 
 let n = 0
@@ -112,6 +113,10 @@ const bookings = [
   // Amelia: partenza e arrivo OGGI (4 set) → in «Oggi» la card ha l'etichetta «automatica», niente pulsanti, priorità URGENTE
   prenotazione(ROOM.amelia, guests[11].id, '2026-09-01', '2026-09-04', 1),
   prenotazione(ROOM.amelia, guests[12].id, '2026-09-04', '2026-09-07', 1, { check_in_time: '15:00' }),
+  // Errori di salvataggio visibili (05/09/2026): richiesta dal sito in attesa.
+  // Le scritture qui sono rifiutate (403): «Conferma prenotazione» deve
+  // mostrare «Non salvato, riprova» e lasciare la scheda in attesa.
+  prenotazione(ROOM.ambra, guests[13].id, '2026-09-22', '2026-09-24', 2, { status: 'in_attesa', source: 'sito_web' }),
 ]
 const payments = []
 // Storico pulizie (migrazione 0018): vuoto, così la pagina Pulizie mostra solo le automatiche

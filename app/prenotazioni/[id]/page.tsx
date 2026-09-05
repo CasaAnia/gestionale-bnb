@@ -15,6 +15,8 @@ import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio } from '@/lib
 import { causaleBonifico } from '@/lib/causale'
 import { contoSoggiorno, residuoDaPagare } from '@/lib/conto'
 import { smartBack } from '@/lib/navHistory'
+import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
+import AvvisoAzione from '@/components/AvvisoAzione'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -372,6 +374,7 @@ export default function BookingDetail() {
   const [otherBookings, setOtherBookings] = useState<any[]>([])
   // Conferma della richiesta dal sito: un solo tocco, poi il bottone sparisce
   const [confirming, setConfirming] = useState(false)
+  const [erroreConferma, setErroreConferma] = useState<string | null>(null)
   // Sconto V4: un solo sconto per prenotazione (percentuale o totale
   // concordato), salvato nei campi discount_type/discount_value. La tariffa
   // a notte non viene MAI toccata dallo sconto.
@@ -640,19 +643,22 @@ export default function BookingDetail() {
   // Conferma la richiesta (tutti i segmenti se c'è un cambio camera).
   // L'update filtra su status=in_attesa: anche premuto due volte per
   // sbaglio non tocca nulla che sia già confermato
+  // Errori di salvataggio visibili (05/09/2026): lo stato «confermata» sullo
+  // schermo cambia SOLO se l'update è riuscito; con un errore il bottone
+  // torna attivo e compare «Non salvato, riprova» sotto di lui.
   async function confermaPrenotazione() {
     if (confirming) return
     setConfirming(true)
+    setErroreConferma(null)
     try {
-      if (booking.group_id) {
-        await supabase.from('bookings').update({ status: 'confermata' })
-          .eq('group_id', booking.group_id).eq('status', 'in_attesa')
-      } else {
-        await supabase.from('bookings').update({ status: 'confermata' })
-          .eq('id', id).eq('status', 'in_attesa')
-      }
-      setBooking({ ...booking, status: 'confermata' })
-      setGroupBookings(gs => gs.map((g: any) => g.status === 'in_attesa' ? { ...g, status: 'confermata' } : g))
+      const scrivi = () => booking.group_id
+        ? supabase.from('bookings').update({ status: 'confermata' }).eq('group_id', booking.group_id).eq('status', 'in_attesa')
+        : supabase.from('bookings').update({ status: 'confermata' }).eq('id', id).eq('status', 'in_attesa')
+      const errore = await scriviPoiAggiorna(scrivi, () => {
+        setBooking({ ...booking, status: 'confermata' })
+        setGroupBookings(gs => gs.map((g: any) => g.status === 'in_attesa' ? { ...g, status: 'confermata' } : g))
+      })
+      setErroreConferma(errore)
     } finally {
       setConfirming(false)
     }
@@ -1749,6 +1755,9 @@ export default function BookingDetail() {
               style={{ background: '#2D6A4F' }}>
               {confirming ? 'Confermo...' : '✅ Conferma prenotazione'}
             </button>
+          )}
+          {booking.status === 'in_attesa' && erroreConferma && (
+            <AvvisoAzione testo={erroreConferma} />
           )}
           <button onClick={() => { setScontoDecisione(null); setScontoPct(''); setScontoTot(''); setScontoInfo(''); setEditing(true) }}
             className="w-full bg-green-mid text-white lg:bg-transparent lg:border lg:border-green-mid lg:text-green-mid rounded-xl py-3 font-semibold">
