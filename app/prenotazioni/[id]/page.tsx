@@ -27,7 +27,7 @@ import { campiProvenienza, provenienzaDi, testoProvenienza, clienteConProvenienz
 import { leggiStrutture, ricordaStruttura, salvaProvenienzaCliente } from '@/lib/provenienzaDati'
 import { soggiorniPrecedenti, etichettaGiaStato, type SoggiornoStorico } from '@/lib/clienteCheTorna'
 
-const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
+import { valutazioneDi, vuoleRicevuta, ETICHETTA_VALUTAZIONE, ETICHETTA_RICEVUTA_BREVE } from '@/lib/valutazione'
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
 function normalizePhone(p: string) {
@@ -1613,7 +1613,10 @@ export default function BookingDetail() {
         <div className={`rounded-xl p-5 border mb-4 border-[#C9BFA8] shadow-sm bg-white`}>
           {/* Cliente in testa: nome, telefono con chiamata diretta, poi camera */}
           <div className="flex justify-between items-start gap-2 mb-2">
-            <p className="font-bold text-lg min-w-0">{nomeOspite(booking)}</p>
+            <p className="font-bold text-lg min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1">{nomeOspite(booking)}
+              {/* Ricevuta separata dalla valutazione (08/09/2026): il segno sta accanto al nome */}
+              {vuoleRicevuta(guest) && <span data-ricevuta className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-sage text-green-mid whitespace-nowrap">{ETICHETTA_RICEVUTA_BREVE}</span>}
+            </p>
             <Link href={`/clienti/${guest?.id}?edit=1`} className="text-green-mid text-sm shrink-0 pt-1">✏️ Modifica</Link>
           </div>
           {guest?.phone && (
@@ -1626,8 +1629,8 @@ export default function BookingDetail() {
           {/* Documenti del cliente: riga discreta, apre la scheda cliente;
               dopo il telefono sta sulla stessa riga, con un po' d'aria (Ania, 05/09/2026) */}
           <RigaDocumentiPrenotazione guestId={guest?.id} className={guest?.phone ? 'ml-4' : ''} />
-          {guest?.rating && guest.rating !== 'normale' && (
-            <p className="text-sm font-semibold mb-1">{RATING_LABEL[guest.rating]}</p>
+          {valutazioneDi(guest) !== 'normale' && (
+            <p className="text-sm font-semibold mb-1">{ETICHETTA_VALUTAZIONE[valutazioneDi(guest)]}</p>
           )}
           {(booking.extra_phone_1 || booking.extra_phone_1_name) && (
             <p className="text-sm text-gray-600 mb-1">

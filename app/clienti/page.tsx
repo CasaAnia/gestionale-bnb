@@ -4,8 +4,8 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import BackBar from '@/components/BackBar'
 
-const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
-const RATING_LABEL: Record<string, string> = { ottimo: '⭐', problematico: '⚠️', vuole_ricevuta: '🧾', normale: '' }
+import { valutazioneDi, vuoleRicevuta, COLORE_VALUTAZIONE, ETICHETTA_RICEVUTA_BREVE } from '@/lib/valutazione'
+const RATING_LABEL: Record<string, string> = { ottimo: '⭐', problematico: '⚠️', normale: '' }
 
 export default function Clienti() {
   const [guests, setGuests] = useState<any[]>([])
@@ -47,11 +47,12 @@ export default function Clienti() {
                 <p className="text-sm text-gray-500">📞 {g.phone}</p>
               </div>
               <div className="flex items-center gap-2">
-                {g.rating !== 'normale' && (
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${RATING_COLOR[g.rating]}`}>
-                    {RATING_LABEL[g.rating]} {g.rating}
+                {valutazioneDi(g) !== 'normale' && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${COLORE_VALUTAZIONE[valutazioneDi(g)]}`}>
+                    {RATING_LABEL[valutazioneDi(g)]} {valutazioneDi(g)}
                   </span>
                 )}
+                {vuoleRicevuta(g) && <span data-ricevuta className="text-xs px-2 py-0.5 rounded-full font-semibold bg-sage text-green-mid">{ETICHETTA_RICEVUTA_BREVE}</span>}
                 <span className="text-gray-300">›</span>
               </div>
             </Link>

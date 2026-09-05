@@ -12,6 +12,7 @@ import CampoProvenienza from '@/components/CampoProvenienza'
 import { campiProvenienza, normalizzaProvenienza, type Provenienza, type StrutturaNota } from '@/lib/provenienza'
 import { leggiStrutture, ricordaStruttura, cercaClientePerTelefono, salvaProvenienzaCliente, type ClienteTrovato } from '@/lib/provenienzaDati'
 import { etichettaGiaStato } from '@/lib/clienteCheTorna'
+import { ETICHETTA_RICEVUTA_BREVE } from '@/lib/valutazione'
 
 // Il modulo della richiesta (pezzo 9): lo STESSO per «Nuova richiesta» e per
 // «Modifica» (precompilato). Sotto «Persone», appena arrivo e partenza sono
@@ -193,7 +194,8 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
 
         <CampoProvenienza valore={{ provenienza: v.provenienza, struttura: v.struttura }} onChange={x => setV(y => ({ ...y, provenienza: x.provenienza, struttura: x.struttura }))}
           strutture={strutture.lista} disponibile={strutture.disponibile}
-          nota={cliente ? (etichettaGiaStato(cliente.soggiorniConclusi) ?? `Cliente già in archivio${cliente.full_name ? `: ${cliente.full_name}` : ''}`) : null} />
+          nota={cliente ? (etichettaGiaStato(cliente.soggiorniConclusi) ?? `Cliente già in archivio${cliente.full_name ? `: ${cliente.full_name}` : ''}`) : null}
+          nota2={cliente?.ricevuta ? ETICHETTA_RICEVUTA_BREVE : null} />
         {avviso && <p className="text-xs text-stone">{avviso}</p>}
 
         <div className="grid grid-cols-2 gap-2">

@@ -8,6 +8,7 @@ import { raccogliPagine } from './statistiche/paginazione'
 import { scriviPoiAggiorna } from './scritturaSicura'
 import { messaggioLetturaNonRiuscita } from './prenotazioneScritture'
 import { normalizzaTelefono } from './whatsapp'
+import { vuoleRicevuta } from './valutazione'
 import { manca0036, strutturePerOspiti, strutturaNota, daApplicareAlCliente, AVVISO_0036, AVVISO_0037, type StrutturaNota, type CampiProvenienza } from './provenienza'
 
 export type LetturaStrutture =
@@ -52,7 +53,7 @@ export async function salvaProvenienzaCliente(guestId: string, campi: CampiProve
 
 // Cliente esistente per telefono (cifre), con provenienza e soggiorni
 // conclusi: per precompilare i chip nella nuova richiesta
-export type ClienteTrovato = { id: string; full_name: string | null; provenienza: string | null; struttura_nome: string | null; soggiorniConclusi: number; conColonne: boolean }
+export type ClienteTrovato = { id: string; full_name: string | null; provenienza: string | null; struttura_nome: string | null; soggiorniConclusi: number; conColonne: boolean; ricevuta: boolean }
 export async function cercaClientePerTelefono(telefono: string, oggi: string): Promise<ClienteTrovato | null> {
   const cifre = normalizzaTelefono(telefono).numero
   if (!cifre || cifre.length < 8) return null
@@ -66,7 +67,7 @@ export async function cercaClientePerTelefono(telefono: string, oggi: string): P
   if (!g) return null
   const b = await supabase.from('bookings').select('id, group_id, check_out, status').eq('guest_id', g.id as string).in('status', ['confermata', 'completata']).lte('check_out', oggi)
   const gruppi = new Set((b.data || []).map(x => x.group_id || x.id))
-  return { id: g.id as string, full_name: (g.full_name as string) ?? null, provenienza: (g.provenienza as string) ?? null, struttura_nome: (g.struttura_nome as string) ?? null, soggiorniConclusi: gruppi.size, conColonne: 'provenienza' in g }
+  return { id: g.id as string, full_name: (g.full_name as string) ?? null, provenienza: (g.provenienza as string) ?? null, struttura_nome: (g.struttura_nome as string) ?? null, soggiorniConclusi: gruppi.size, conColonne: 'provenienza' in g, ricevuta: vuoleRicevuta(g as { rating?: string | null; vuole_ricevuta?: boolean | null }) }
 }
 
 // Alla conferma di una richiesta: la provenienza provvisoria della richiesta

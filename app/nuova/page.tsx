@@ -42,8 +42,8 @@ type CameraRiga = {
   matrimoniale_price?: number | string | null
 }
 
-const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
-const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
+import CampoValutazione from '@/components/CampoValutazione'
+import { valutazioneDi, vuoleRicevuta, payloadValutazione, colonnaRicevutaPresente, ETICHETTA_VALUTAZIONE, COLORE_VALUTAZIONE, ETICHETTA_RICEVUTA, ETICHETTA_RICEVUTA_BREVE, type Valutazione } from '@/lib/valutazione'
 
 export default function NuovaPrenotazionePage() {
   return <Suspense><NuovaPrenotazione /></Suspense>
@@ -84,7 +84,7 @@ function NuovaPrenotazione() {
   const [erroreCliente, setErroreCliente] = useState<string | null>(null)
   const [rooms, setRooms] = useState<CameraRiga[]>([])
   const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', shuttle: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '', bonifico: false, source: 'diretta', extra_phone_1_name: '', chi_e: '' })
-  const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
+  const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as Valutazione, ricevuta: false })
   // Provenienza (08/09/2026): «Come ci ha trovato»; salvata solo se la 0036 è applicata
   const [provenienza, setProvenienza] = useState<{ provenienza: Provenienza; struttura: string }>({ provenienza: 'non_so', struttura: '' })
   const [strutture, setStrutture] = useState<{ disponibile: boolean; lista: StrutturaNota[] }>({ disponibile: false, lista: [] })
@@ -171,7 +171,7 @@ function NuovaPrenotazione() {
     if (error) { setSearchError(messaggioErroreDati(error, 'caricare il cliente')); return }
     if (g) {
       setGuest(g)
-      setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
+      setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: valutazioneDi(g), ricevuta: vuoleRicevuta(g) })
       await caricaStorico(g.id)
       setStep('cliente')
     }
@@ -213,7 +213,7 @@ function NuovaPrenotazione() {
     if (combined.length === 1) {
       const g = combined[0]
       setGuest(g)
-      setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
+      setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: valutazioneDi(g), ricevuta: vuoleRicevuta(g) })
       await caricaStorico(g.id)
       setNameResults([])
       setStep('cliente')
@@ -221,7 +221,7 @@ function NuovaPrenotazione() {
       setNameResults(combined)
     } else {
       setGuest(null)
-      setGuestForm({ full_name: q, email: '', rating: 'normale' })
+      setGuestForm({ full_name: q, email: '', rating: 'normale', ricevuta: false })
       setGuestHistory([])
       setNameResults([])
       setStep('cliente')
@@ -230,7 +230,7 @@ function NuovaPrenotazione() {
 
   async function selectGuestFromList(g: ClienteRiga) {
     setGuest(g)
-    setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
+    setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: valutazioneDi(g), ricevuta: vuoleRicevuta(g) })
     await caricaStorico(g.id)
     setNameResults([])
     setStep('cliente')
@@ -256,7 +256,7 @@ function NuovaPrenotazione() {
     if (e1) { setSearchError(messaggioErroreDati(e1, 'cercare il cliente')); return }
     if (existingGuest) {
       setGuest(existingGuest)
-      setGuestForm({ full_name: existingGuest.full_name || '', email: existingGuest.email || '', rating: existingGuest.rating })
+      setGuestForm({ full_name: existingGuest.full_name || '', email: existingGuest.email || '', rating: valutazioneDi(existingGuest), ricevuta: vuoleRicevuta(existingGuest) })
       await caricaStorico(existingGuest.id)
     } else {
       // cerca nei contatti extra (prova sia con che senza prefisso 39)
@@ -273,11 +273,11 @@ function NuovaPrenotazione() {
       if (extraMatch?.guests) {
         const g = extraMatch.guests
         setGuest(g)
-        setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
+        setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: valutazioneDi(g), ricevuta: vuoleRicevuta(g) })
         await caricaStorico(g.id)
       } else {
         setGuest(null)
-        setGuestForm({ full_name: '', email: '', rating: 'normale' })
+        setGuestForm({ full_name: '', email: '', rating: 'normale', ricevuta: false })
         setGuestHistory([])
       }
     }
@@ -388,7 +388,10 @@ function NuovaPrenotazione() {
       const rawP = phone.trim().replace(/\D/g, '')
       const formattedPhone = rawP ? (rawP.startsWith('39') ? rawP : `39${rawP}`) : null
       // Cliente nuovo: la provenienza nasce con lui (solo a 0037 applicata)
-      const { data: newGuest, error: guestError } = await supabase.from('guests').insert({ phone: formattedPhone, full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating, ...(strutture.disponibile ? campiProvenienza(provenienza.provenienza, provenienza.struttura) : {}) }).select().single()
+      const baseCliente = { phone: formattedPhone, full_name: guestForm.full_name || null, email: guestForm.email || null, ...(strutture.disponibile ? campiProvenienza(provenienza.provenienza, provenienza.struttura) : {}) }
+      // Valutazione + ricevuta (0038): colonna nuova se c'è, altrimenti la forma vecchia
+      let { data: newGuest, error: guestError } = await supabase.from('guests').insert({ ...baseCliente, ...payloadValutazione(guestForm.rating, guestForm.ricevuta, true) }).select().single()
+      if (guestError && /vuole_ricevuta/i.test(guestError.message || '')) ({ data: newGuest, error: guestError } = await supabase.from('guests').insert({ ...baseCliente, ...payloadValutazione(guestForm.rating, guestForm.ricevuta, false) }).select().single())
       if (guestError || !newGuest) {
         setSaveError(`Errore creazione cliente: ${guestError?.message || 'sconosciuto'}`)
         setSaving(false)
@@ -401,7 +404,7 @@ function NuovaPrenotazione() {
       setErroreCliente(null)
       const idCliente = guestId
       const errore = await scriviPoiAggiorna(
-        () => supabase.from('guests').update({ full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating }).eq('id', idCliente),
+        () => supabase.from('guests').update({ full_name: guestForm.full_name || null, email: guestForm.email || null, ...payloadValutazione(guestForm.rating, guestForm.ricevuta, colonnaRicevutaPresente(guest as unknown as { vuole_ricevuta?: boolean })) }).eq('id', idCliente),
         () => {},
       )
       if (errore) {
@@ -559,7 +562,7 @@ function NuovaPrenotazione() {
             <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
               <div className="flex items-center justify-between mb-2">
                 <p className="font-bold text-green-dark">✅ Cliente trovato</p>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${RATING_COLOR[guest.rating]}`}>{RATING_LABEL[guest.rating]}</span>
+                <span className="flex flex-col items-end gap-1"><span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${COLORE_VALUTAZIONE[valutazioneDi(guest)]}`}>{ETICHETTA_VALUTAZIONE[valutazioneDi(guest)]}</span>{vuoleRicevuta(guest) && <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-sage text-green-mid">{ETICHETTA_RICEVUTA}</span>}</span>
               </div>
               <p className="font-semibold">{guest.full_name || phone}</p>
               <p className="text-sm text-gray-500">📞 {guest.phone}</p>
@@ -637,15 +640,7 @@ function NuovaPrenotazione() {
               placeholder="Nome e cognome" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" />
             <input value={guestForm.email} onChange={e => setGuestForm({...guestForm, email: e.target.value})}
               placeholder="Email (opzionale)" className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" type="email" />
-            <p className="text-sm font-semibold mb-2">Valutazione cliente</p>
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(RATING_LABEL).map(([k, v]) => (
-                <button key={k} onClick={() => setGuestForm({...guestForm, rating: k})}
-                  className={`text-xs py-2 px-3 rounded-lg font-medium border transition-colors ${guestForm.rating === k ? 'bg-green-mid text-white border-green-mid' : 'bg-white text-gray-600 border-card-border'}`}>
-                  {v}
-                </button>
-              ))}
-            </div>
+            <CampoValutazione valutazione={guestForm.rating} ricevuta={guestForm.ricevuta} onChange={v => setGuestForm({ ...guestForm, rating: v.valutazione, ricevuta: v.ricevuta })} />
           </div>
 
           <button onClick={() => setStep('dettagli')} className="w-full bg-green-mid text-white rounded-xl py-3 font-semibold">
@@ -852,7 +847,7 @@ function NuovaPrenotazione() {
             </div>
 
             <div className="mb-3">
-              <CampoProvenienza compatto valore={provenienza} onChange={setProvenienza} strutture={strutture.lista} disponibile={strutture.disponibile} nota={giaStato} />
+              <CampoProvenienza compatto valore={provenienza} onChange={setProvenienza} strutture={strutture.lista} disponibile={strutture.disponibile} nota={giaStato} nota2={guest && vuoleRicevuta(guest) ? ETICHETTA_RICEVUTA_BREVE : null} />
               {avvisoProvenienza && <p className="text-xs text-stone mt-1">{avvisoProvenienza}</p>}
             </div>
 

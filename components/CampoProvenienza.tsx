@@ -10,13 +10,14 @@ import { PROVENIENZE, AVVISO_0037, suggerimentiDaMostrare, strutturaNota, type P
 
 export type ValoreProvenienza = { provenienza: Provenienza; struttura: string }
 
-export default function CampoProvenienza({ valore, onChange, strutture, disponibile, compatto, nota, avvisoNonDisponibile }: {
+export default function CampoProvenienza({ valore, onChange, strutture, disponibile, compatto, nota, nota2, avvisoNonDisponibile }: {
   valore: ValoreProvenienza
   onChange: (v: ValoreProvenienza) => void
   strutture: StrutturaNota[]
   disponibile: boolean        // false = migrazione 0036 non applicata
   compatto?: boolean          // chip più piccoli (scheda prenotazione e nuova prenotazione)
   nota?: string | null        // accanto all'etichetta: «Già stato da noi · N soggiorni»
+  nota2?: string | null       // seconda etichetta: «Ricevuta»
   avvisoNonDisponibile?: string | null   // quale migrazione manca (0036 o 0037)
 }) {
   const [aperto, setAperto] = useState(false)
@@ -38,7 +39,8 @@ export default function CampoProvenienza({ valore, onChange, strutture, disponib
   return (
     <div data-provenienza={valore.provenienza}>
       <p className={`${compatto ? 'text-sm text-gray-500' : 'text-sm text-stone'} mb-1 flex flex-wrap items-center gap-2`}>Come ci ha trovato
-        {nota && <span data-gia-stato className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-sage text-green-mid whitespace-nowrap">{nota}</span>}</p>
+        {nota && <span data-gia-stato className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-sage text-green-mid whitespace-nowrap">{nota}</span>}
+        {nota2 && <span data-ricevuta className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-sage text-green-mid whitespace-nowrap">{nota2}</span>}</p>
       <div className="flex flex-wrap gap-2">
         {PROVENIENZE.map(p => (
           <button key={p.chiave} type="button" aria-pressed={valore.provenienza === p.chiave} className={chip(valore.provenienza === p.chiave)}

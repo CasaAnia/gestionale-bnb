@@ -19,6 +19,7 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import { idDaParametro } from '@/lib/daControllare'
 import { BottoniOrario } from '@/components/BottoniWhatsApp'
 import { whatsappRichiestaOrario } from '@/lib/messaggiWhatsApp'
+import { vuoleRicevuta, BADGE_RICEVUTA, ETICHETTA_RICEVUTA_BREVE } from '@/lib/valutazione'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
@@ -174,7 +175,7 @@ export default function Arrivi() {
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
       supabase.from('bookings')
-        .select('*, guests(full_name, phone)')
+        .select('*, guests(*)')
         .in('status', ['confermata', 'completata']),
     ]).then(([{ data: r }, { data: b }]) => {
       const sorted = (r || []).sort((a: any, b: any) => {
@@ -541,7 +542,7 @@ export default function Arrivi() {
                           </span>
                           {/* Nome */}
                           <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                            {nomeOspite(booking)}{hasOutgoing ? ' ⇄' : ''}
+                            {nomeOspite(booking)}{hasOutgoing ? ' ⇄' : ''}{vuoleRicevuta(booking.guests) ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
                           </span>
                           {/* Sul Mac la navetta sta in linea: la barra resta su una riga */}
                           {!isCambio && booking.shuttle === 'si' && (
@@ -596,7 +597,8 @@ export default function Arrivi() {
         return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4" onClick={() => setPopup(null)}>
           <div className="bg-white rounded-2xl p-5 w-full max-w-lg" onClick={e => e.stopPropagation()}>
-            <p className="font-bold text-lg mb-1">{popup.name}</p>
+            <p className="font-bold text-lg mb-1 flex flex-wrap items-center gap-2">{popup.name}
+              {vuoleRicevuta(bookings.find(b => b.id === popup.id)?.guests) && <span data-ricevuta className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-sage text-green-mid">{ETICHETTA_RICEVUTA_BREVE}</span>}</p>
             <p className="text-sm text-gray-500 mb-4">
               {popup.time || 'Orario da definire'} · {testoNavetta((popup.shuttle || null) as any)}
             </p>

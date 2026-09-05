@@ -13,8 +13,8 @@ import { soggiorniConclusi } from '@/lib/clienteCheTorna'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
 import { storicoCliente, prenotazioneValida } from '@/lib/statistiche'
 
-const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
-const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
+import CampoValutazione from '@/components/CampoValutazione'
+import { valutazioneDi, vuoleRicevuta, payloadValutazione, colonnaRicevutaPresente, ETICHETTA_VALUTAZIONE, COLORE_VALUTAZIONE, ETICHETTA_RICEVUTA } from '@/lib/valutazione'
 
 export default function ClienteDetail() {
   const { id } = useParams()
@@ -56,7 +56,7 @@ export default function ClienteDetail() {
     }, 'caricare il cliente').then(({ data, errore }) => {
       if (!vivo) return
       if (errore) { setErroreCaricamento(errore); setLoading(false); return }
-      setGuest(data?.cliente ?? null); setForm(data?.cliente || {}); setBookings(data?.prenotazioni || []); setLoading(false)
+      setGuest(data?.cliente ?? null); setForm(data?.cliente ? { ...data.cliente, rating: valutazioneDi(data.cliente), ricevuta: vuoleRicevuta(data.cliente) } : {}); setBookings(data?.prenotazioni || []); setLoading(false)
     })
     return () => { vivo = false }
   }, [id, tentativo])
@@ -88,8 +88,9 @@ export default function ClienteDetail() {
     setErroreSalva(null)
     try {
       const errore = await scriviPoiAggiorna(
-        () => supabase.from('guests').update({ full_name: form.full_name, phone: form.phone, email: form.email, rating: form.rating, notes: form.notes, ...(clienteConProvenienza(guest) && strutture.disponibile ? campiProvenienza(form.provenienza, form.struttura_nome) : {}) }).eq('id', id),
-        () => { setGuest({ ...guest, ...form }); setEditing(false) },
+        // Valutazione a tre voci + ricevuta a sé (0038); prima della 0038 la forma vecchia (payloadValutazione)
+        () => supabase.from('guests').update({ full_name: form.full_name, phone: form.phone, email: form.email, notes: form.notes, ...payloadValutazione(valutazioneDi(form), !!form.ricevuta, colonnaRicevutaPresente(guest)), ...(clienteConProvenienza(guest) && strutture.disponibile ? campiProvenienza(form.provenienza, form.struttura_nome) : {}) }).eq('id', id),
+        () => { setGuest({ ...guest, ...form, ...payloadValutazione(valutazioneDi(form), !!form.ricevuta, colonnaRicevutaPresente(guest)) }); setEditing(false) },
       )
       setErroreSalva(errore)
       // Nome di struttura nuovo → entra nell'elenco (non blocca il salvataggio)
@@ -147,14 +148,8 @@ export default function ClienteDetail() {
               placeholder="Email" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" type="email" />
             <textarea value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})}
               placeholder="Note..." className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" rows={2} />
-            <p className="text-sm font-semibold mb-2">Valutazione</p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {Object.entries(RATING_LABEL).map(([k, v]) => (
-                <button key={k} onClick={() => setForm({...form, rating: k})}
-                  className={`text-xs py-2 px-3 rounded-lg font-medium border ${form.rating === k ? 'bg-green-mid text-white border-green-mid' : 'bg-white text-gray-600 border-card-border'}`}>
-                  {v}
-                </button>
-              ))}
+            <div className="mb-3">
+              <CampoValutazione titolo="Valutazione" valutazione={valutazioneDi(form)} ricevuta={!!form.ricevuta} onChange={v => setForm({ ...form, rating: v.valutazione, ricevuta: v.ricevuta })} />
             </div>
             <div className="mb-3">
               <CampoProvenienza compatto valore={{ provenienza: normalizzaProvenienza(form.provenienza), struttura: form.struttura_nome || '' }}
@@ -176,7 +171,10 @@ export default function ClienteDetail() {
                 <p className="text-gray-500 text-sm">📞 {guest.phone}</p>
                 {guest.email && <p className="text-gray-500 text-sm">✉️ {guest.email}</p>}
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full font-semibold ${RATING_COLOR[guest.rating]}`}>{RATING_LABEL[guest.rating]}</span>
+              <span className="flex flex-col items-end gap-1">
+                <span className={`text-xs px-2 py-1 rounded-full font-semibold ${COLORE_VALUTAZIONE[valutazioneDi(guest)]}`}>{ETICHETTA_VALUTAZIONE[valutazioneDi(guest)]}</span>
+                {vuoleRicevuta(guest) && <span data-ricevuta className="text-xs px-2 py-1 rounded-full font-semibold bg-sage text-green-mid">{ETICHETTA_RICEVUTA}</span>}
+              </span>
             </div>
             {guest.notes && <p className="text-sm text-gray-600 italic mt-2">📝 {guest.notes}</p>}
           </>

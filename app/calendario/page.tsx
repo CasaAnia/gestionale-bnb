@@ -24,6 +24,7 @@ import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } 
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA, inizioQuindicina } from '@/lib/richiesteCalendario'
 import { giornoDaParametro } from '@/lib/daControllare'
+import { vuoleRicevuta as clienteVuoleRicevuta, BADGE_RICEVUTA } from '@/lib/valutazione'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
@@ -805,7 +806,7 @@ export default function Calendario() {
                     const guestName = booking.guest_name || booking.guests?.full_name || booking.guests?.phone || ''
                     const isOttimo = booking.guests?.rating === 'ottimo'
                     const isEsclusiva = booking.color === '#f97316'
-                    const vuoleRicevuta = booking.guests?.rating === 'vuole_ricevuta'
+                    const vuoleRicevuta = clienteVuoleRicevuta(booking.guests)
                     const hasExtraBed = booking.extra_bed || (booking.extra_bed_dates && booking.extra_bed_dates.length > 0)
                     const chainKey = changeGroups.chainKeyOf[booking.id]
                     const isMultiRoom = !!chainKey
@@ -896,7 +897,7 @@ export default function Calendario() {
                                 <span style={{ position: 'absolute', top: 1.5, left: 1.5, width: 12, height: 12, borderRadius: '50%', background: '#1F3D2F', border: '1px solid rgba(255,255,255,0.9)', color: '#fff', fontSize: 7, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, pointerEvents: 'none' }}>🌐</span>
                               )}
                               <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                                {hasIncoming ? '⇄ ' : ''}{guestName}{hasOutgoing ? ' ⇄' : ''}
+                                {hasIncoming ? '⇄ ' : ''}{guestName}{hasOutgoing ? ' ⇄' : ''}{vuoleRicevuta ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
                               </span>
                               {/* Le iconcine stanno SOTTO il nome, piccole (Ania, 05/09/2026): così si
                                   vedono anche quando il nome è lungo e finisce coi puntini */}

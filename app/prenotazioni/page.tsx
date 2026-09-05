@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { vuoleRicevuta } from '@/lib/valutazione'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -138,7 +139,7 @@ export default function Prenotazioni() {
               {b.guests?.rating === 'problematico' && (
                 <p className="text-xs text-[#8C3B2E] mt-1 font-semibold">⚠️ Cliente problematico</p>
               )}
-              {b.guests?.rating === 'vuole_ricevuta' && (
+              {vuoleRicevuta(b.guests) && (
                 <p className="text-xs text-green-mid mt-1 font-semibold">🧾 Vuole ricevuta</p>
               )}
             </div>
