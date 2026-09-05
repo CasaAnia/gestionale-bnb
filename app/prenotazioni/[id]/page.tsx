@@ -19,7 +19,7 @@ import { scriviPoiAggiorna, messaggioNonSalvato } from '@/lib/scritturaSicura'
 import { salvaInSequenza, leggiConEsito, MESSAGGIO_RILETTURA } from '@/lib/prenotazioneScritture'
 import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 import { oggiARoma } from '@/lib/spese/adattatore'
-import { saldoMancanteCent, METODI_PAGAMENTO, eseguiSegnaPagato, rpcMancante, type MetodoPagamento, type MovimentoSaldo } from '@/lib/statistiche'
+import { saldoMancanteCent, METODI_PAGAMENTO, eseguiSegnaPagato, eseguiRegistraAcconto, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, type MetodoPagamento, type MovimentoSaldo, type AccontoPendente } from '@/lib/statistiche'
 import AvvisoAzione from '@/components/AvvisoAzione'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
@@ -559,21 +559,42 @@ export default function BookingDetail() {
     })
   }, [booking?.id, groupBookings.length])
 
+  // Acconto a mano — stesso contratto di «Segna come pagato» (R10): chiave
+  // custodita prima dell'invio, rilettura, RPC registra_acconto (idempotente)
+  // o INSERT; un pendente con risposta persa viene riconosciuto fra i riletti.
   async function aggiungiAcconto() {
     const amount = parseFloat(accontoForm.amount)
     if (!amount || amount <= 0 || savingAcconto) return
     setSavingAcconto(true)
-    const { data, error } = await supabase.from('payments')
-      .insert({ booking_id: booking.id, amount, method: accontoForm.method, paid_on: accontoForm.paid_on })
-      .select().single()
-    if (!error && data) {
-      setAcconti([...acconti, data].sort((a, b) => a.paid_on.localeCompare(b.paid_on)))
+    const chiaveMemoria = `ca_acconto_pendente_${booking.id}`
+    const ids: string[] = segmentiSoggiorno().map((b: { id: string }) => b.id)
+    try {
+      const esito = await eseguiRegistraAcconto(booking.id, amount, accontoForm.method, accontoForm.paid_on, {
+        leggiPendente: () => { const t = leggiMemoria(() => localStorage, chiaveMemoria); try { return t ? JSON.parse(t) as AccontoPendente : null } catch { return null } },
+        custodisci: p => scriviMemoria(() => localStorage, chiaveMemoria, JSON.stringify(p)),
+        dimentica: () => { try { localStorage.removeItem(chiaveMemoria) } catch { /* niente */ } },
+        rileggiPagamenti: () => supabase.from('payments').select('*').in('booking_id', ids).order('paid_on'),
+        scrivi: async (p: AccontoPendente, bookingId: string) => {
+          const rpc = await supabase.rpc('registra_acconto', { p_booking_id: bookingId, p_chiave: p.chiave, p_amount: p.amount, p_metodo: p.method, p_paid_on: p.paid_on })
+          if (!rpc.error) {
+            const r = rpc.data as { movimento_id?: unknown; importo?: unknown } | null
+            if (!r || typeof r.movimento_id !== 'string') return { data: null, error: new ErroreRispostaMalformata() }
+            return { data: { id: r.movimento_id, booking_id: bookingId, amount: p.amount, method: p.method, paid_on: p.paid_on }, error: null }
+          }
+          if (!rpcMancante(rpc.error, 'registra_acconto')) return { data: null, error: rpc.error }
+          const { data, error } = await supabase.from('payments').insert({ booking_id: bookingId, amount: p.amount, method: p.method, paid_on: p.paid_on }).select().single()
+          return { data, error }
+        },
+        adesso: () => new Date().toISOString(),
+        nuovaChiave: () => crypto.randomUUID(),
+      })
+      if (esito.esito === 'errore') { setAccontoError(esito.messaggio); return }
+      setAcconti([...esito.pagamenti].sort((a, b) => String(a.paid_on).localeCompare(String(b.paid_on))))
       setAccontoForm({ amount: '', method: 'contanti', paid_on: oggiARoma() })
       setAccontoError(null)
-    } else {
-      setAccontoError(error?.message || 'Errore di salvataggio')
+    } finally {
+      setSavingAcconto(false)
     }
-    setSavingAcconto(false)
   }
 
   async function eliminaAcconto(pid: string) {
@@ -712,40 +733,44 @@ export default function BookingDetail() {
   // Segmenti del soggiorno (cambio camera = più righe) per il conto del saldo
   const segmentiSoggiorno = () => (groupBookings.length > 0 ? groupBookings : [booking])
 
-  // «Segna come pagato» — R1 (revisione di f4d5474): contratto con RECUPERO
-  // DELL'ESITO (lib/statistiche/pagato.eseguiSegnaPagato): prima si rileggono i
-  // pagamenti del soggiorno dal server (se la rilettura fallisce ci si ferma:
-  // mai «pagamento assente»), il saldo si calcola sui dati riletti, il
-  // movimento si scrive con una chiave stabile (RPC segna_pagato della 0033
-  // se c'è, altrimenti INSERT), poi il flag. Una risposta persa non crea un
-  // secondo movimento: al tocco dopo la rilettura lo trova e il saldo è zero.
+  // «Segna come pagato» — contratto unico dei movimenti (lib/statistiche/pagato,
+  // revisioni R1/R8/R10): chiave custodita PRIMA dell'invio, rilettura dei
+  // pagamenti prima di ogni tentativo, RPC segna_pagato della 0033 (atomica,
+  // ricalcola il saldo e scrive il flag: nessun secondo PATCH) oppure, senza
+  // RPC, INSERT + flag su TUTTI i segmenti con verifica delle righe toccate.
   async function segnaPagato() {
     if (segnandoPagato) return
     setSegnandoPagato(true)
     setErrorePagato(null)
     const ids: string[] = segmentiSoggiorno().map((b: { id: string }) => b.id)
-    const chiave = chiavePagatoStabile()
     try {
-      const esito = await eseguiSegnaPagato(segmentiSoggiorno(), oggiARoma(), metodoPagato, booking.id, chiave, {
+      const esito = await eseguiSegnaPagato(segmentiSoggiorno(), oggiARoma(), metodoPagato, booking.id, {
+        custodisciChiave: chiavePagatoStabile,
         rileggiPagamenti: () => supabase.from('payments').select('*').in('booking_id', ids).order('paid_on'),
-        inserisci: async (m: MovimentoSaldo) => {
-          // Con la 0033 applicata: RPC atomica e idempotente (scrive anche il flag)
-          const rpc = await supabase.rpc('segna_pagato', { p_booking_id: m.booking_id, p_chiave: m.chiave_operazione, p_metodo: m.method, p_paid_on: m.paid_on })
+        scrivi: async (chiave: string, m: MovimentoSaldo | null) => {
+          const rpc = await supabase.rpc('segna_pagato', { p_booking_id: booking.id, p_chiave: chiave, p_metodo: metodoPagato, p_paid_on: oggiARoma() })
           if (!rpc.error) {
-            const id = (rpc.data as { movimento_id?: string | null } | null)?.movimento_id ?? null
-            return { data: id ? { id, booking_id: m.booking_id, amount: m.amount, method: m.method, paid_on: m.paid_on } : null, error: null }
+            const valido = validaEsitoSegnaPagato(rpc.data)
+            if (!valido) return { data: null, error: new ErroreRispostaMalformata(), flagScritto: false }
+            const riga = valido.movimento_id ? { id: valido.movimento_id, booking_id: booking.id, amount: valido.importo, method: metodoPagato, paid_on: oggiARoma() } : null
+            return { data: riga, error: null, flagScritto: true }
           }
-          if (!rpcMancante(rpc.error)) return { data: null, error: rpc.error }
-          // Senza la 0033: INSERT semplice (la protezione è la rilettura prima di ogni tentativo)
+          if (!rpcMancante(rpc.error, 'segna_pagato')) return { data: null, error: rpc.error, flagScritto: false }
+          // Ripiego senza la 0033: INSERT semplice (la protezione è la rilettura prima di ogni tentativo)
+          if (!m) return { data: null, error: null, flagScritto: false }
           const { data, error } = await supabase.from('payments').insert({ booking_id: m.booking_id, amount: m.amount, method: m.method, paid_on: m.paid_on }).select().single()
-          return { data, error }
+          return { data, error, flagScritto: false }
         },
-        segnaFlag: () => supabase.from('bookings').update({ pagato: true }).eq('id', id),
+        segnaFlag: async () => {
+          const { data, error } = await supabase.from('bookings').update({ pagato: true }).in('id', ids).select('id')
+          return { error, righe: data?.length ?? 0 }
+        },
       })
       if (esito.pagamenti) setAcconti(esito.pagamenti)
       if (esito.esito === 'errore') { setErrorePagato(esito.messaggio); return }
       dimenticaChiavePagato()
       setBooking({ ...booking, pagato: true })
+      setGroupBookings(gs => gs.map((g: { pagato?: boolean }) => ({ ...g, pagato: true })))
       setFinestraPagato(false)
     } finally {
       setSegnandoPagato(false)
@@ -753,16 +778,16 @@ export default function BookingDetail() {
   }
 
   // Chiave stabile del tentativo di «Segna come pagato» per questa
-  // prenotazione: resta nella memoria del telefono finché l'operazione non
-  // riesce, così un ritentativo (anche dopo WhatsApp) usa la STESSA chiave
-  // e la RPC della 0033 non può scrivere due movimenti.
-  function chiavePagatoStabile(): string {
+  // prenotazione: custodita nella memoria del telefono PRIMA dell'invio e
+  // riusata finché l'operazione non riesce (anche dopo WhatsApp o una
+  // riapertura con la richiesta ancora in volo). Memoria negata → null →
+  // nessuna richiesta parte.
+  function chiavePagatoStabile(): string | null {
     const k = `ca_pagato_chiave_${id}`
     const salvata = leggiMemoria(() => localStorage, k)
     if (salvata) return salvata
     const nuova = crypto.randomUUID()
-    scriviMemoria(() => localStorage, k, nuova)
-    return nuova
+    return scriviMemoria(() => localStorage, k, nuova) ? nuova : null
   }
   function dimenticaChiavePagato() {
     try { localStorage.removeItem(`ca_pagato_chiave_${id}`) } catch { /* senza memoria non c'è nulla da togliere */ }
