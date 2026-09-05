@@ -79,6 +79,21 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
 
 ---
 
+# Consegna — «Da controllare», tre bottoni su una riga (08/09/2026, sera, main)
+
+- Bottoni della sezione compatti e uguali per tutte le voci (12 px, meno
+  padding, icona WhatsApp 13 px, nessun a capo interno): «Chiedi orario» ·
+  «Apri chat» · «Apri arrivo» stanno su UNA riga a 390 px; sotto i 360 px
+  «Apri chat» → «Chat» e «Apri arrivo» → «Arrivo» (solo lì, testi invariati
+  altrove). Rimanda con la stessa misura. components/BottoniWhatsApp
+  (EtichettaBreve) e components/DaControllare.
+- Prova nell'anteprima a 320, 360 e 390 px: i tre bottoni sullo stesso rigo
+  (una sola riga per ogni voce della sezione, 11 voci); a 320 px «Chat» e
+  «Arrivo», larghezze 106 + 59 + 50 su 258 px disponibili.
+- Suite 674/674, TypeScript OK, lint 0 rilievi, `next build` OK.
+
+---
+
 # Consegna — Provenienza del cliente, retroattiva (08/09/2026, sera, main)
 
 Base `396e8ad`. Un commit per pezzo. Migrazione SOLO come bozza

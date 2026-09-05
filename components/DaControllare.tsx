@@ -12,7 +12,7 @@ import Link from 'next/link'
 import AvvisoAzione from './AvvisoAzione'
 import { useDaControllare } from '@/lib/daControllareDati'
 import { ETICHETTA_TIPO, hrefDestinazione, rigaAPosto, rigaConteggi, titoloStriscia, type Eccezione } from '@/lib/daControllare'
-import { BottoneWhatsApp, BOTTONE_PIENO, BOTTONE_GHOST, ETICHETTA_CHIEDI_ORARIO, ETICHETTA_APRI_CHAT } from './BottoniWhatsApp'
+import { BottoneWhatsApp, EtichettaBreve, BOTTONE_PIENO, BOTTONE_GHOST, ETICHETTA_CHIEDI_ORARIO, ETICHETTA_APRI_CHAT } from './BottoniWhatsApp'
 
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
 export const ID_SEZIONE = 'da-controllare'
@@ -66,18 +66,18 @@ export default function DaControllare() {
             <p className="text-[10px] uppercase tracking-[1.5px] text-brass">{ETICHETTA_TIPO[e.tipo]}</p>
             <p className="text-[15px] font-semibold text-green-dark leading-snug mt-0.5">{e.titolo}</p>
             <p className="text-[12.5px] leading-snug mt-0.5" style={{ color: 'var(--color-stone)' }}>{e.motivo}</p>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2.5">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mt-2.5" data-bottoni>
               {/* Arrivo senza orario (08/09/2026): «Chiedi orario» (pieno) · «Apri chat» (ghost) · «Apri arrivo» (ghost) */}
               {e.whatsapp?.principale && <BottoneWhatsApp href={e.whatsapp.href} numero={e.whatsapp.numero} testo={e.whatsapp.testo} etichetta={ETICHETTA_CHIEDI_ORARIO} pieno tipo="chiedi-orario" />}
               {e.whatsappChat && <BottoneWhatsApp href={e.whatsappChat.href} numero={e.whatsappChat.numero} testo="" etichetta={ETICHETTA_APRI_CHAT} pieno={false} tipo="apri-chat" />}
               <Link href={hrefDestinazione(e.destinazione)}
                 className={e.whatsapp?.principale ? BOTTONE_GHOST : BOTTONE_PIENO} style={e.whatsapp?.principale ? { color: '#2D6A4F' } : undefined}>
-                {e.bottone}
+                {e.tipo === 'arrivo' ? <EtichettaBreve testo={e.bottone} /> : e.bottone}
               </Link>
               {e.whatsapp && !e.whatsapp.principale && <BottoneWhatsApp href={e.whatsapp.href} numero={e.whatsapp.numero} testo="" etichetta={ETICHETTA_APRI_CHAT} pieno={false} tipo="apri-chat" />}
               {e.rimandabile && (
                 <button type="button" onClick={() => rimanda(e)} disabled={rimandando === e.chiave}
-                  className="text-[13px] font-semibold px-2 py-2 rounded-lg transition-transform duration-100 active:scale-[0.97] disabled:opacity-60"
+                  className="text-[12px] font-semibold px-2 py-1.5 rounded-lg whitespace-nowrap transition-transform duration-100 active:scale-[0.97] disabled:opacity-60"
                   style={{ color: 'var(--color-stone)' }}>
                   {rimandando === e.chiave ? 'Rimando…' : 'Rimanda'}
                 </button>
