@@ -2,7 +2,7 @@
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
-3. Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee) e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
+3. Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); la revisione Codex di f4d5474 (R1–R7) è corretta nel candidato LOCALE `574824c` NON pubblicato (scheda in cima: pagato con recupero dell'esito, ricostruzione incassi storici dietro tasto, proposte 0033/0034 non applicate) e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
 4. Blocco 1 (04/09): elisione solo per 1, 8, 11 («all'8», «al 18»). Blocco 2: /richieste da desktop con calendario «Mese / 2 settimane», lista ariosa, intestazione su una riga; telefono invariato. Blocco 4 (04/09 sera, scelta di Ania sul mockup A): da desktop calendario a TUTTA larghezza sopra e lista sotto in schede su due colonne (≥1100 px), riga di sezione «RICHIESTE APERTE · N — Ordina per», vuoto = riga sottile tratteggiata con «+ Nuova richiesta»; niente più due colonne affiancate. Calendario desktop +20% (righe 54, intestazione 48, camere 15 px, barre 13–14 px, colonna camere 116, colonne 2 settimane ≥ 80 px); telefono invariato. Blocco 3: web-push tolto dal sito, docs senza secondo utente, scheda «prove in 10 minuti».
 5. Proposte: ricerca automatica invariata (caso A poi B/C/E, per notte), «Altre camere» con i motivi, «Scelgo io» notte per notte con prezzo a mano; conferma solo via RPC 0031 (per notte).
    Documenti dei clienti (05/09, scelta di Ania, «fallo direttamente, mai cancellare dopo la partenza»): components/DocumentiCliente (scheda cliente: foto dal telefono ridotte a 1600 px JPEG, PDF, etichetta e fronte/retro, anteprime con URL firmati 1 h, elimina con conferma; RigaDocumentiPrenotazione «Documenti · N» nella scheda prenotazione → /clienti/<id>#documenti), lib/documentiCliente (funzioni pure, 4 test), migrazione 0032; senza migrazione la sezione avvisa e non salva.
@@ -75,6 +75,85 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — Statistiche, revisione Codex di f4d5474 (R1–R7): candidato LOCALE `574824c`, NON pubblicato
+
+Stato: PRONTO PER REVISIONE (Codex). Nessun push, nessun deploy, nessun SQL
+applicato, nessun accesso remoto. Un commit per rilievo sopra `f4d5474`.
+
+- R1 `932ff33` — «Segna come pagato» con recupero dell'esito
+  (`lib/statistiche/pagato.eseguiSegnaPagato`): prima di ogni tentativo
+  rilegge i pagamenti del soggiorno (rilettura fallita → si ferma, mai
+  «pagamento assente»), calcola il saldo sui dati riletti, scrive il
+  movimento con chiave stabile (RPC `segna_pagato` della 0033 se c'è,
+  altrimenti INSERT), poi il flag. Chiave per prenotazione in localStorage
+  finché l'operazione non riesce. Proposta `supabase/proposte/0033_pagamenti_
+  idempotenti.BOZZA.sql` (chiave_operazione unique, origine, RPC atomica).
+- R2 `42f90b1` — via il selettore `editForm.pagato` e il campo dall'update
+  di Modifica: riga di sola lettura. Unico percorso = Segna come pagato.
+- R3 `8ba85ca` — `oggiARoma` per movimento e acconti; niente toISOString.
+- R4 `6952ff4` — occupazione per camera = notti ÷ giorni vendibili della
+  camera (inizio anno o `in_servizio_dal`, fino a stanotte, meno chiusure);
+  limite mostrato accanto al dato finché i fuori servizio non esistono.
+- R5 `f2daf70` — ID a blocchi da 100 (`aBlocchi`, `raccogliBlocchi`):
+  tutti raccolti, deduplicati, stop al primo errore senza parziali.
+- R6 `05c083f` — ricostruzione una tantum (`pianoRicostruzione`): movimento
+  «all'arrivo (ricostruito)», origine 'ricostruito', chiave stabile per
+  soggiorno; schermata in Statistiche con elenco, totale e tasto di
+  conferma; RPC `ricostruisci_incassi` (0033) in un'unica transazione,
+  on conflict → nessun doppione; voce «Incassi registrati · storico da
+  ricostruire» in Home e Statistiche finché il piano non è vuoto.
+- R7 `574824c` — modello FuoriServizio, `tratteChiuse`/`nottiChiuse`
+  (sovrapposti contati una volta) usati da intervallo, mese e camere;
+  proposta `supabase/proposte/0034_room_closures.BOZZA.sql` (via da docs/).
+
+## Riproduzioni sul percorso effettivo (anteprima finta, 390 px)
+
+| ID | Prova | Esito |
+| --- | --- | --- |
+| R1a | Finto server che APPLICA l'INSERT del saldo ma perde la risposta: primo tocco → avviso «Non salvato, riprova: il pagamento non è stato registrato», 1 movimento sul server; secondo tocco → GET payments (recupero), NESSUN nuovo POST, PATCH pagato, finestra chiusa, bonifico non più «in attesa»; movimenti sul server: 1 (160 €) | VERDE (DOM e rete) |
+| R1b | Stesso caso nel test puro (pagatoContratto.test): un solo movimento, flag pagato; rilettura fallita → nessuna scrittura | VERDE (4 test) |
+| R1c | RPC segna_pagato in PGlite: stessa chiave due volte → un movimento; chiave diversa dopo il saldo → nulla; in_attesa → saldo 0 | VERDE (3 test) |
+| R2 | Modifica: riga «Non ancora pagato / si segna dalla scheda…» senza interruttore; controprova sul codice: `pagato: true` solo nel segnaFlag di Segna come pagato, niente `editForm.pagato` | VERDE (DOM + test) |
+| R3 | 5/9 22:30 UTC = 6/9 00:30 a Roma → paid_on 2026-09-06 (ora legale e solare) | VERDE (test) |
+| R4 | Anno da gennaio, prima prenotazione in agosto → 30 notti su 243 giorni = 12 % (non 100 %); a schermo «5 notti · 2% occupazione su 248 giorni» + limite nel sottotitolo (prima: 63 % e 88 %) | VERDE (test + DOM) |
+| R5 | 501 ID → 6 blocchi tutti letti e deduplicati; errore nel secondo blocco → nessun parziale | VERDE (test) |
+| R6a | Piano: senza acconti, acconto parziale, coperto, annullato, in attesa, cambio camera, doppia esecuzione | VERDE (3 test) |
+| R6b | Statistiche: «Incassi registrati · storico da ricostruire», sezione con «Storico Amelia · 2026-09-10 → 2026-09-12 · €160,00», totale, tasto «Conferma la ricostruzione (1 movimento, €160)»; RPC assente (PGRST202 simulata) → «Serve la migrazione 0033… nulla è stato scritto»; Home «INCASSI REGISTRATI · storico da ricostruire» | VERDE (DOM 390 e 1280) |
+| R6c | RPC ricostruisci_incassi in PGlite: prima esecuzione 1 scritto, seconda 0 scritti / 1 saltato, riga unica con origine 'ricostruito'; movimento non ricostruito rifiutato | VERDE (test) |
+| R7 | Intervalli sovrapposti/contigui/sconfinanti → 15 notti chiuse (non 18); notti vendibili e del mese sottraggono la stessa notte una volta | VERDE (2 test) |
+
+## Prove tecniche
+
+- `node scripts/verifica-consegna.mjs --base f4d5474` su `574824c`: Suite
+  applicazione (596 test, 19 nuovi) OK, Regressioni OK, Strumenti locali OK,
+  TypeScript OK; «Lint dei file modificati» STOP con 48 rilievi = gli stessi
+  48 dei file toccati sulla base f4d5474 (nessun rilievo nuovo). Assert dei
+  test esistenti invariati.
+- `next build`: compilato. UI a 390 e 1280 px sull'anteprima finta.
+
+## Ciò che richiede migrazione e autorizzazione (NON applicato)
+
+- `supabase/proposte/0033_pagamenti_idempotenti.BOZZA.sql`: colonne
+  `payments.chiave_operazione` (unique) e `payments.origine`; RPC
+  `segna_pagato` (atomica, idempotente) e `ricostruisci_incassi` (una
+  transazione, nessun doppione). Senza di essa: Segna come pagato usa il
+  contratto di recupero (rilettura + INSERT) e la ricostruzione dello storico
+  NON può partire (il tasto lo dice).
+- `supabase/proposte/0034_room_closures.BOZZA.sql`: periodi di fuori
+  servizio per camera; senza, il denominatore usa solo `rooms.active`.
+- Push e deploy: dopo la revisione di Codex.
+
+## Limiti aperti
+
+- La riproduzione R1a nel pannello è con fetch sostituito da javascript_tool
+  (il finto server rifiuta le scritture); la RPC è provata solo in PGlite.
+- `aggiungiAcconto` (acconti a mano) ha ancora INSERT diretto senza chiave:
+  stesso rischio di doppione dopo risposta persa, fuori dai rilievi.
+- `in_servizio_dal` non esiste in `rooms`: vale l'inizio dell'anno.
+- Nessuna schermata (pannello nascosto): prove dal DOM e dalla rete.
 
 ---
 
