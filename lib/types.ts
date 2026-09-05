@@ -12,7 +12,7 @@ export interface Room {
   created_at: string
 }
 
-export type GuestRating = 'ottimo' | 'problematico' | 'vuole_ricevuta' | 'normale'
+export type GuestRating = 'ottimo' | 'problematico' | 'vuole_ricevuta' | 'normale'   // 'vuole_ricevuta' = forma vecchia, prima della 0038 (lib/valutazione)
 
 export interface Guest {
   id: string
