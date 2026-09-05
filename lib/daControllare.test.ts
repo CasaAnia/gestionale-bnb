@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   daControllareHome, eccezioniRichieste, eccezioniPagamenti, eccezioniCalendario, eccezioniArrivi, eccezioniFatture,
-  applicaRinvii, ordinaEccezioni, rigaConteggi, titoloStriscia, rigaAPosto, hrefDestinazione, finoADomani, conteggiPerTipo,
+  applicaRinvii, ordinaEccezioni, rigaConteggi, titoloStriscia, rigaAPosto, hrefDestinazione, finoADomani, conteggiPerTipo, euroTesto,
   type PrenotazioneDC, type RichiestaDC, type Eccezione,
 } from './daControllare.ts'
 
@@ -335,4 +335,32 @@ test('richieste (07/09/2026): proposta scaduta con telefono → WhatsApp ghost s
   assert.equal(out[0].rimandabile, true)
   assert.equal(out[1].whatsapp, undefined)
   assert.equal(out[2].whatsapp, undefined)
+})
+
+// Falso positivo trovato in produzione il 07/09/2026: Anna (3 segmenti, 90 +
+// 170 + 1120 = 1380 €, movimenti 500 + 500 + 380 = 1380 €) e Rosa (1700 €,
+// movimenti 500 + 600 + 600) hanno i movimenti che coprono il totale ma la
+// colonna `pagato` è false: comparivano come «non segnato pagato» e «Registra
+// saldo» non aveva nulla da registrare. Un soggiorno saldato dai movimenti è
+// pagato, qualunque sia il flag.
+test('pagamenti (07/09/2026): soggiorno concluso con movimenti che coprono il totale NON compare anche se pagato=false; parziale sì, con gli importi', () => {
+  const OGGI_PROD = '2026-09-05'
+  const anna = [
+    b('6b01e39d', 'allegra', '2026-07-27', '2026-07-28', 90, { group_id: '53f4cc1d', pagato: false }),
+    b('d946cd26', 'lena', '2026-07-28', '2026-07-30', 170, { group_id: '53f4cc1d', pagato: false }),
+    b('6f030c8c', 'allegra', '2026-07-30', '2026-08-13', 1120, { group_id: '53f4cc1d', pagato: false }),
+  ]
+  const rosa = [b('4804b0d6', 'ambra', '2026-08-06', '2026-09-01', 1700, { pagato: false })]
+  const movimenti = [
+    { booking_id: '6f030c8c', amount: 500, paid_on: '2026-07-30' }, { booking_id: '6f030c8c', amount: 500, paid_on: '2026-08-05' }, { booking_id: '6f030c8c', amount: 380, paid_on: '2026-08-12' },
+    { booking_id: '4804b0d6', amount: 500, paid_on: '2026-08-16' }, { booking_id: '4804b0d6', amount: 600, paid_on: '2026-08-23' }, { booking_id: '4804b0d6', amount: 600, paid_on: '2026-09-01' },
+  ]
+  assert.deepEqual(eccezioniPagamenti([...anna, ...rosa], movimenti, OGGI_PROD), [])
+  // Con un movimento in meno Rosa compare, e il motivo dice quanto manca
+  const parziale = eccezioniPagamenti([...anna, ...rosa], movimenti.slice(0, 5), OGGI_PROD)
+  // (importi con euroTesto: il separatore delle migliaia dipende dall'ICU di Node)
+  assert.deepEqual(parziale.map(e => [e.chiave, e.motivo, e.bottone]), [['pagamento:4804b0d6', `Soggiorno concluso il 1 set: registrati ${euroTesto(110000)} su ${euroTesto(170000)}`, 'Registra saldo']])
+  // Movimenti «ricostruiti» (origine della 0033) contano come gli altri
+  const ricostruito = [{ booking_id: '4804b0d6', amount: 1700, paid_on: '2026-08-06', origine: 'ricostruito' } as { booking_id: string; amount: number; paid_on: string }]
+  assert.deepEqual(eccezioniPagamenti(rosa, ricostruito, OGGI_PROD), [])
 })

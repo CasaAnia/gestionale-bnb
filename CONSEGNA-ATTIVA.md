@@ -79,6 +79,52 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
 
 ---
 
+# Consegna — «Da controllare», falso positivo nei Pagamenti (07/09/2026, main)
+
+Segnalazione di Ania: Anna e Rosa comparivano come «Soggiorno concluso … e
+non segnato pagato» pur essendo saldate; «Registra saldo» non aveva nulla da
+registrare. Indagine in SOLA LETTURA sui dati di produzione (chiave di
+servizio dal .env.local, nessuna scrittura), poi la regola di
+lib/daControllare riprodotta su quei dati esatti.
+
+## CAUSA
+
+- Anna: soggiorno di 3 segmenti (group 53f4cc1d: 90 + 170 + 1120 = 1380 €),
+  movimenti reali 500 + 500 + 380 = 1380 €, `pagato` = false su tutti i
+  segmenti. Rosa: 1 segmento da 1700 €, movimenti 500 + 600 + 600 = 1700 €,
+  `pagato` = false. I movimenti coprono il totale: il gestionale li mostra
+  saldati e «Segna come pagato» non ha nulla da registrare.
+- La regola «concluso da più di un giorno e non segnato pagato» guardava
+  SOLO la colonna `pagato`, non i movimenti. Le altre ipotesi sono escluse
+  sui dati: i movimenti «ricostruito» (123 su 138) sono letti e sommati come
+  gli altri; il totale è quello del soggiorno intero (segmenti del gruppo a
+  blocchi); centesimi coerenti; i movimenti si leggono TUTTI, non solo nel
+  periodo; il campo è `payments.amount`, lo stesso di «Segna come pagato».
+
+## CORRETTO
+
+- lib/daControllare.eccezioniPagamenti: la terza regola si accende solo se
+  i movimenti registrati (di qualunque origine) sono MENO del totale del
+  soggiorno; il motivo dice quanto manca («registrati 1.100 € su 1.700 €»),
+  o «non segnato pagato» se non c'è nessun movimento. Le regole «pagato ma
+  incompleto» e «oltre il totale» restano com'erano.
+- Test di regressione con i dati esatti di Anna e Rosa (0 eccezioni), con un
+  movimento in meno (compare con gli importi) e con un movimento
+  «ricostruito» (conta come gli altri). Suite 647/647.
+- Verifica in sola lettura sugli ultimi 31 giorni in produzione: 12
+  soggiorni conclusi, tutti coperti dai movimenti (10 con flag true, Anna e
+  Rosa con flag false) → 0 eccezioni nei Pagamenti; la Home oggi mostra solo
+  2 arrivi di domani senza orario (veri).
+- TypeScript OK, lint dei file toccati 0 rilievi, `next build` OK.
+
+## LIMITI APERTI
+
+- Anna e Rosa restano con `pagato` = false nel database (dato, non codice):
+  se Ania vuole il flag allineato basta «Segna come pagato» dalla scheda,
+  che registra solo il flag. Nessuna scrittura fatta da qui.
+
+---
+
 # Consegna — «Da controllare», ritocchi dopo la prova (07/09/2026, main)
 
 Base `6fa76a6`. Un commit per pezzo. Nessuna migrazione.

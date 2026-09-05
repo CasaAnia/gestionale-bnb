@@ -174,6 +174,7 @@ export function eccezioniPagamenti(prenotazioni: PrenotazioneDC[], pagamenti: Pa
   for (const s of soggiorni(prenotazioni)) {
     const concluso = s.ultimaPartenza <= oggi
     const inc = incongruenze.get(s.chiave)
+    const idsSegmenti = new Set(s.segmenti.map(b => b.id))
     const base = { chiave: `pagamento:${s.chiave}`, tipo: 'pagamento' as const, urgenza: 'normale' as const, data: s.ultimaPartenza, rimandabile: false }
     const titolo = `${s.nome} · ${nomeCamera(s.segmenti[0])} · ${formatIntervallo(s.segmenti[0].check_in, s.ultimaPartenza)}`
     if (inc?.tipo === 'pagamenti_oltre_il_totale') {
@@ -181,7 +182,17 @@ export function eccezioniPagamenti(prenotazioni: PrenotazioneDC[], pagamenti: Pa
     } else if (concluso && inc?.tipo === 'pagato_ma_incompleto') {
       out.push({ ...base, titolo, motivo: `Segnato pagato ma i movimenti coprono ${euroTesto(inc.pagatoCent)} su ${euroTesto(inc.totaleCent)}`, bottone: 'Registra saldo', destinazione: { tipo: 'saldo', prenotazioneId: s.primoId } })
     } else if (!s.pagato && s.ultimaPartenza <= limiteConcluso && s.totaleCent > 0) {
-      out.push({ ...base, titolo, motivo: `Soggiorno concluso il ${giornoBreve(s.ultimaPartenza)} e non segnato pagato`, bottone: 'Registra saldo', destinazione: { tipo: 'saldo', prenotazioneId: s.primoId } })
+      // Falso positivo corretto il 07/09/2026 (Anna e Rosa in produzione): un
+      // soggiorno i cui movimenti coprono già il totale È pagato anche se la
+      // colonna `pagato` è rimasta false (il gestionale lo mostra saldato e
+      // «Segna come pagato» non avrebbe nulla da registrare). Conta ciò che
+      // manca davvero: totale meno movimenti registrati, di qualunque origine.
+      const registratiCent = pagamenti.filter(p => idsSegmenti.has(p.booking_id)).reduce((x, p) => x + cent(p.amount), 0)
+      if (registratiCent >= s.totaleCent) continue
+      const motivo = registratiCent > 0
+        ? `Soggiorno concluso il ${giornoBreve(s.ultimaPartenza)}: registrati ${euroTesto(registratiCent)} su ${euroTesto(s.totaleCent)}`
+        : `Soggiorno concluso il ${giornoBreve(s.ultimaPartenza)} e non segnato pagato`
+      out.push({ ...base, titolo, motivo, bottone: 'Registra saldo', destinazione: { tipo: 'saldo', prenotazioneId: s.primoId } })
     }
   }
   return out
