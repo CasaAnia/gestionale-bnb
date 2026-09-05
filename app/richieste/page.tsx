@@ -17,7 +17,8 @@ import ConfermaDialog from '@/components/richieste/ConfermaDialog'
 import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import { supabase } from '@/lib/supabase'
-import { fetchRichieste, rifiutaRichiesta, MOTIVI_RIFIUTO } from '@/lib/richiesteDati'
+import { fetchRichieste, rifiutaRichiesta, MOTIVI_RIFIUTO, ricaricaRichiesteAperte } from '@/lib/richiesteDati'
+import AvvisoAzione from '@/components/AvvisoAzione'
 import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
 import { nomeOspite } from '@/lib/guestName'
@@ -157,6 +158,8 @@ function Richieste() {
   }, [])
   const [loading, setLoading] = useState(true)
   const [errori, setErrori] = useState<string[]>([])
+  // Parte 3 (05/09/2026): «Riprova» ricarica la pagina E il contatore della barra
+  const [tentativo, setTentativo] = useState(0)
   // avanza ogni minuto: timer della proposta, «da guardare» e archivio si aggiornano da soli
   const adesso = useAdesso()
   const [vista, setVista] = useVista()
@@ -220,7 +223,18 @@ function Richieste() {
       setErrori(errs)
       setLoading(false)
     })
-  }, [])
+  }, [tentativo])
+
+  // Con la lettura delle richieste fallita la lista non mostra «Nessuna
+  // richiesta…»: un errore non è mai «nessuna richiesta» (parte 3)
+  const richiesteNonLette = errori.some(e => e.startsWith('richieste:'))
+
+  function riprovaCaricamento() {
+    setErrori([])
+    setLoading(true)
+    setTentativo(t => t + 1)
+    void ricaricaRichiesteAperte(true)
+  }
 
   useEffect(() => {
     if (loading) return
@@ -319,9 +333,7 @@ function Richieste() {
       )}
 
       {errori.length > 0 && (
-        <div className="mb-4 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">
-          Non riesco a leggere alcuni dati: {errori.join(' · ')}
-        </div>
+        <AvvisoAzione testo={`Non riesco a leggere alcuni dati: ${errori.join(' · ')}`} onRiprova={riprovaCaricamento} className="mb-4" />
       )}
 
       {/* Dal Mac (blocco 4, 04/09/2026, scelta di Ania sul mockup): calendario a
@@ -409,7 +421,7 @@ function Richieste() {
 
           {loading ? (
             <div className="text-center py-10 text-stone">Caricamento…</div>
-          ) : mostrate.length === 0 ? (
+          ) : mostrate.length === 0 && !richiesteNonLette ? (
             desktop ? (
               <div className="flex items-center gap-4 rounded-xl border border-dashed border-border-soft px-5 py-3.5 text-sm text-stone">
                 <span>{soloDaGuardare ? 'Nessuna richiesta ferma' : 'Nessuna richiesta in attesa'}</span>
@@ -437,7 +449,7 @@ function Richieste() {
                 <ChevronDown size={16} strokeWidth={1.8} className="transition-transform group-open:rotate-180" aria-hidden />
               </summary>
               {archivio.length === 0 ? (
-                <p className="text-sm text-stone py-2">Nessuna richiesta chiusa negli ultimi 90 giorni.</p>
+                <p className="text-sm text-stone py-2">{richiesteNonLette ? 'Richieste non lette.' : 'Nessuna richiesta chiusa negli ultimi 90 giorni.'}</p>
               ) : (
                 <ul className="bg-white rounded-xl border border-[#C9BFA8] shadow-sm px-4 mt-1">
                   {archivio.map(r => <RigaArchivio key={r.id} r={r} adesso={adesso} evidenziata={r.id === apriId} />)}

@@ -1,10 +1,11 @@
 'use client'
 // Richieste di prenotazione: letture dal database e contatore per la
 // navigazione. La logica pura (ordinamento, testi) sta in lib/richieste.ts.
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { supabase } from './supabase'
 import { STATI_APERTI, spiegaErrore, pianoModifica, type Richiesta, type ValoriModifica, type PropostaPrecedente } from './richieste'
 import type { CondizionePagamento } from './condizioniPrenotazione'
+import { contaConEsito, statoDopoConteggio, CONTATORE_IN_CARICAMENTO, type EsitoContatore, type StatoContatore } from './richiesteContatore'
 
 // Tutte le richieste con il nome della camera. Gli errori tornano al
 // chiamante come testo: la pagina li mostra, mai catch silenziosi.
@@ -17,34 +18,55 @@ export async function fetchRichieste(): Promise<{ data: Richiesta[]; error: stri
   return { data: (data || []) as unknown as Richiesta[], error: null }
 }
 
-export async function contaRichiesteAperte(): Promise<number> {
-  const { count, error } = await supabase
+// Errori di salvataggio visibili, parte 3 (05/09/2026): il contatore non
+// torna più 0 su errore (0 = «nessuna richiesta»); l'esito porta il
+// messaggio e la barra mostra «!». La navigazione continua a funzionare.
+export function contaRichiesteAperte(): Promise<EsitoContatore> {
+  return contaConEsito(() => supabase
     .from('richieste')
     .select('id', { count: 'exact', head: true })
-    .in('stato', STATI_APERTI)
-  // Il contatore è un dettaglio della barra: se la tabella manca la
-  // navigazione deve continuare a funzionare (la pagina spiega l'errore).
-  if (error) return 0
-  return count ?? 0
+    .in('stato', STATI_APERTI))
+}
+
+// Stato UNICO per tutta l'app (come lib/webRequests): la barra, la pagina
+// Richieste e «Riprova» leggono e aggiornano lo stesso contatore.
+let statoContatore: StatoContatore = CONTATORE_IN_CARICAMENTO
+const ascoltatori = new Set<() => void>()
+
+function iscrivi(fn: () => void): () => void {
+  ascoltatori.add(fn)
+  return () => { ascoltatori.delete(fn) }
+}
+
+function pubblica(s: StatoContatore) {
+  statoContatore = s
+  for (const fn of ascoltatori) fn()
+}
+
+// Rilegge il contatore; con `daCapo` mostra prima «caricamento» (Riprova),
+// altrimenti lo stato attuale resta finché non arriva la risposta.
+export async function ricaricaRichiesteAperte(daCapo = false): Promise<void> {
+  if (daCapo) pubblica(CONTATORE_IN_CARICAMENTO)
+  const esito = await contaRichiesteAperte()
+  pubblica(statoDopoConteggio(statoContatore, esito))
 }
 
 // Contatore in attesa/proposta inviata, riaggiornato quando la pagina torna
-// in primo piano e a ogni navigazione (refreshKey), come useWebRequestCount.
-export function useRichiesteCount(refreshKey?: string): number {
-  const [count, setCount] = useState(0)
+// in primo piano e a ogni navigazione (refreshKey), come useRichiesteWeb.
+export function useRichiesteAperte(refreshKey?: string): StatoContatore & { ricarica: () => void } {
+  const stato = useSyncExternalStore(iscrivi, () => statoContatore, () => CONTATORE_IN_CARICAMENTO)
   useEffect(() => {
-    let alive = true
-    const load = () => contaRichiesteAperte().then(n => { if (alive) setCount(n) })
+    const load = () => { void ricaricaRichiesteAperte() }
     load()
     window.addEventListener('focus', load)
     document.addEventListener('visibilitychange', load)
     return () => {
-      alive = false
       window.removeEventListener('focus', load)
       document.removeEventListener('visibilitychange', load)
     }
   }, [refreshKey])
-  return count
+  const ricarica = useCallback(() => { void ricaricaRichiesteAperte(true) }, [])
+  return { ...stato, ricarica }
 }
 
 // Rifiuto: stato rifiutata e ora di chiusura. Nessun messaggio parte da qui.

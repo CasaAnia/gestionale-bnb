@@ -6,7 +6,7 @@ import { useDemoMode } from '@/lib/useDemoMode'
 import { returnToSicuro } from '@/lib/navHistory'
 import { isHiddenPath } from '@/lib/demoMode'
 import { useRichiesteWeb } from '@/lib/webRequests'
-import { useRichiesteCount } from '@/lib/richiesteDati'
+import { useRichiesteAperte } from '@/lib/richiesteDati'
 
 // Max 5 tasti: devono restare grossi e comodi da toccare (a 390 px ognuno ha
 // 78 px). Le Statistiche/Report si raggiungono dalla Home (card), quindi non
@@ -66,7 +66,9 @@ export default function BottomNav() {
   const richiesteWeb = useRichiesteWeb(pathname)
   const webCount: number | '!' = richiesteWeb.stato === 'errore' ? '!' : richiesteWeb.richieste.length
   // Richieste di prenotazione in attesa o con proposta inviata (tabella richieste).
-  const richiesteCount = useRichiesteCount(pathname)
+  // Parte 3 (05/09/2026): stesso bollino «!» del Calendario quando la lettura fallisce
+  const richiesteAperte = useRichiesteAperte(pathname)
+  const richiesteCount: number | '!' = richiesteAperte.stato === 'errore' ? '!' : richiesteAperte.count
   if (pathname === '/login') return null
   const visible = (href: string) => !(demo && isHiddenPath(href))
   return (
