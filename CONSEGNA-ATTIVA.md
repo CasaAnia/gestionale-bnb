@@ -2,7 +2,7 @@
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
-3. HOME (07/09/2026): in cima TRE NUMERI (arrivi oggi, partenze oggi, occupate stanotte su quelle attive; lib/numeriOggi, giorno di Roma, trattini + Riprova su errore, cifre come Incassi/Spese), poi la STRISCIA DELLA SETTIMANA (28 giorni da oggi; dall'08/09 SOLO le pulizie ancora da fare con la stessa regola/fonte della pagina Pulizie — lib/pulizie.conteggioGiorno —, «✓» se tutte fatte, «—» se niente; tocco → Pulizie ?giorno=), poi «DA CONTROLLARE» col NUOVO ORDINE (tutte le richieste aperte per durata e scadenza, arrivi senza orario, pagamenti, fatture, sovrapposizioni in fondo senza urgenza). «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima; RITOCCHI dello stesso giorno: sezione IN CIMA sopra i numeri del giorno, «WhatsApp» sugli arrivi senza orario col testo «Richiesta orario» di lib/messaggiWhatsApp condiviso con la scheda, «WhatsApp» senza testo sulle proposte scadute): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
+3. PROVENIENZA DELL'OSPITE (08/09/2026, main, scheda in cima): proposta 0036 NON applicata (🔴 Ania) — «Come ci ha trovato» (google/passaparola/altra_struttura/non_so + struttura) su richieste e prenotazioni, tabella strutture, dal sito = google, copia alla conferma; «Già stato da noi · N soggiorni» accanto al nome; Statistiche «Da dove arrivano gli ospiti». Da controllare: arrivo senza orario con «Chiedi orario» · «Apri chat» · «Apri arrivo» (stessi bottoni nella finestra Arrivi). HOME (07/09/2026): in cima TRE NUMERI (arrivi oggi, partenze oggi, occupate stanotte su quelle attive; lib/numeriOggi, giorno di Roma, trattini + Riprova su errore, cifre come Incassi/Spese), poi la STRISCIA DELLA SETTIMANA (28 giorni da oggi; dall'08/09 SOLO le pulizie ancora da fare con la stessa regola/fonte della pagina Pulizie — lib/pulizie.conteggioGiorno —, «✓» se tutte fatte, «—» se niente; tocco → Pulizie ?giorno=), poi «DA CONTROLLARE» col NUOVO ORDINE (tutte le richieste aperte per durata e scadenza, arrivi senza orario, pagamenti, fatture, sovrapposizioni in fondo senza urgenza). «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima; RITOCCHI dello stesso giorno: sezione IN CIMA sopra i numeri del giorno, «WhatsApp» sugli arrivi senza orario col testo «Richiesta orario» di lib/messaggiWhatsApp condiviso con la scheda, «WhatsApp» senza testo sulle proposte scadute): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
    Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); le revisioni Codex (R1–R13) sono corrette, collaudate su PostgreSQL 16 locale (sessioni concorrenti, ruoli) con 4 difetti trovati e corretti, e PUBBLICATE il 06/09/2026 (scheda in cima); le proposte 0033/0034 restano da applicare a mano da Ania (guida in 5 righe nella scheda); il codice pubblicato funziona anche prima delle proposte e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
 4. Blocco 1 (04/09): elisione solo per 1, 8, 11 («all'8», «al 18»). Blocco 2: /richieste da desktop con calendario «Mese / 2 settimane», lista ariosa, intestazione su una riga; telefono invariato. Blocco 4 (04/09 sera, scelta di Ania sul mockup A): da desktop calendario a TUTTA larghezza sopra e lista sotto in schede su due colonne (≥1100 px), riga di sezione «RICHIESTE APERTE · N — Ordina per», vuoto = riga sottile tratteggiata con «+ Nuova richiesta»; niente più due colonne affiancate. Calendario desktop +20% (righe 54, intestazione 48, camere 15 px, barre 13–14 px, colonna camere 116, colonne 2 settimane ≥ 80 px); telefono invariato. Blocco 3: web-push tolto dal sito, docs senza secondo utente, scheda «prove in 10 minuti».
 5. Proposte: ricerca automatica invariata (caso A poi B/C/E, per notte), «Altre camere» con i motivi, «Scelgo io» notte per notte con prezzo a mano; conferma solo via RPC 0031 (per notte).
@@ -76,6 +76,128 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — Provenienza dell'ospite (08/09/2026, main)
+
+Base `4ad06da`. Un commit per pezzo. Migrazione SOLO come bozza
+(`supabase/proposte/0036_provenienza_ospite.BOZZA.sql`), da applicare a mano da
+Ania: prima di allora tutto funziona con il campo nascosto e l'avviso «Serve la
+migrazione 0036». Stile esistente: chip come quelli del canale, nessun colore nuovo.
+
+## FATTO E DIMOSTRATO
+
+- Pezzo 1 `496fcee` — dati. Bozza 0036: richieste.provenienza e bookings.provenienza
+  (google | passaparola | altra_struttura | non_so, default non_so), struttura_nome
+  (solo con altra_struttura), tabella `strutture` precaricata (Umana, Nida,
+  RB (Rosa Bianca), Elyse, BM (Borgo Manzoni)) con RLS solo authenticated.
+  lib/provenienza (pure, 5 test): valori e default, struttura solo con
+  altra_struttura, suggerimenti per ospiti già portati, nome nuovo che entra
+  nell'elenco, riconoscimento delle colonne/tabella assenti (42703/PGRST204/
+  PGRST205), riga dal sito con provenienza = google, campi da copiare alla
+  conferma. lib/provenienzaDati: strutture con i conteggi (soggiorni con
+  struttura_nome, uno per gruppo), nome nuovo (upsert idempotente), copia sulla
+  prenotazione (tutti i segmenti del gruppo) con avviso se le colonne mancano.
+  Richieste: i campi entrano nel payload solo a colonne presenti (creazione:
+  ritentativo senza campi + avviso; modifica: solo se la riga letta ha la
+  colonna). Modulo del sito: `provenienza = google` in automatico, con ripiego
+  senza colonna come per `origine` (0028). Conferma (FinestraConferma): dopo la
+  RPC la provenienza passa alla prenotazione; se non riesce la scheda si apre
+  con l'avviso (`?avviso=`), la prenotazione resta valida.
+- Pezzo 2 `5733d89` — components/CampoProvenienza sotto il canale nella nuova
+  richiesta (e modifica), nella nuova prenotazione e nella scheda prenotazione
+  (in modifica; in vista la riga «Come ci ha trovato: Altra struttura · Nida»);
+  con «Altra struttura» il campo «Quale struttura» con i suggerimenti mentre si
+  scrive (ordinati per ospiti portati, poi per nome; «ni» trova Nida e BM (Borgo
+  Manzoni)), nome nuovo accettato scrivendolo e aggiunto all'elenco al
+  salvataggio (non blocca; avviso se non riesce). Non obbligatorio. Senza 0036:
+  campo nascosto con l'avviso, nessun payload con le colonne nuove.
+- Pezzo 3 `f2f37b9` + `423c358` — cliente che torna (NON una provenienza):
+  lib/clienteCheTorna (2 test): stessa persona per telefono (cifre) o per nome e
+  cognome (senza maiuscole, accenti, ordine delle parole), solo soggiorni
+  CONCLUSI, uno per gruppo, escluso il soggiorno in esame. Etichetta «Già stato
+  da noi · N soggiorni» nella lista Richieste e accanto al titolo della scheda
+  prenotazione (stesso cliente + omonimi su altre schede, lettura tollerante).
+- Pezzo 4 `4e93976` — Statistiche: riquadro «Da dove arrivano gli ospiti» per il
+  periodo scelto (lib/statistiche/provenienza, 2 test): righe Altra struttura
+  (con ogni struttura sotto), Google, Passaparola, Non so e, a parte, «Già stati
+  da noi»; per riga soggiorni confermati (un soggiorno = gruppo) e ricavi per
+  soggiorno (ricaviSoggiornoCent: notti dormite nel periodo). Letture con
+  l'ospite (telefono e nome) e guest_id anche nello storico della ricostruzione.
+- Anteprima finta a 390 px (strutture, provenienze e un cliente che torna nel
+  finto): nuova richiesta con i 4 chip, «Quale struttura» con «Nida · 1» e
+  «BM (Borgo Manzoni)» digitando «ni», «Nome nuovo» con «Villa Nuova»; con
+  la tabella assente l'avviso «Serve la migrazione 0036»; nuova prenotazione
+  con il campo sotto «Il cliente è arrivato da»; scheda di Giulio con «Come ci
+  ha trovato: Altra struttura · Nida»; lista Richieste con «Già stato da noi ·
+  1 soggiorno» su Giulio Gallo; Statistiche col riquadro (Passaparola 1 ·
+  €320, Non so 9 · €1560, Già stati 0).
+- Suite 668/668, TypeScript OK, lint dei file toccati senza rilievi nuovi
+  (nuovi file 0; scheda 28 = 28, nuova 1 = 1, richieste 0, statistiche 0),
+  `next build` OK (Compiled successfully su `a8ad89c` + `423c358`).
+
+## LIMITI APERTI
+
+- La copia alla conferma è un UPDATE dopo la RPC (la RPC conferma_richiesta
+  non cambia): se la rete cade fra i due, la prenotazione nasce senza
+  provenienza e la scheda lo dice (si corregge in modifica).
+- L'etichetta «Già stato da noi» sta nella lista Richieste e nella scheda
+  prenotazione; non ancora nel dettaglio richiesta, nella proposta e nella
+  lista Prenotazioni.
+- In Statistiche il cambio biancheria/«Già stati» usa lo storico letto per la
+  ricostruzione (soggiorni conclusi): un cliente tornato con una scheda a nome
+  diverso e telefono diverso non è riconosciuto.
+- Sul sito pubblicato verifica senza accesso (login di Ania).
+
+## 🔴 AZIONE PER ANIA
+
+Applicare la bozza 0036 nell'editor SQL di Supabase (progetto di produzione).
+Per copiarla negli appunti dal Mac:
+
+    cat ~/gestionale-bnb/supabase/proposte/0036_provenienza_ospite.BOZZA.sql | pbcopy
+
+poi incollare nell'editor SQL ed eseguire; la verifica in fondo deve dare 4
+colonne e 5 strutture. Da quel momento il campo «Come ci ha trovato» compare.
+
+---
+
+# Consegna — «Da controllare», arrivo senza orario: tre bottoni WhatsApp (08/09/2026, main)
+
+- `a8ad89c` — components/BottoniWhatsApp condiviso: «Chiedi orario» (pieno,
+  icona WhatsApp, chat col messaggio «Richiesta orario» già scritto, come
+  prima), «Apri chat» (ghost, icona, chat senza testo), poi «Apri arrivo»
+  (ghost). Senza numero i due WhatsApp non compaiono. Stessi bottoni, nomi e
+  icone nella finestra dell'orario del pannello Arrivi (che non aveva ancora
+  link WhatsApp: aggiunti lì). Le proposte scadute usano «Apri chat» con la
+  stessa icona. Test sui tre link (href di Chiedi orario = quello della scheda,
+  Apri chat = wa.me/<numero>, Apri arrivo = /arrivi?apri=<id>; senza numero
+  solo il terzo). Anteprima a 390 px: Home con i tre bottoni su Marco Bianchi e
+  il solo «Apri arrivo» su «Senza Numero»; finestra Arrivi con i due WhatsApp.
+
+---
+
+# Consegna — Striscia della settimana: rispettare le pulizie saltate (08/09/2026, main)
+
+## CAUSA
+
+- Sui dati di produzione del 05/09 (sola lettura): il cambio biancheria di
+  Ambra del 5 set è registrato «saltato → proposta 9 set» (Rosa cambia camera
+  il 7). Il calcolo condiviso (lib/pulizie.statoCameraGiorno, pubblicato con
+  `aa22913` alle 19:23) legge già lo stato registrato tramite cicloCambio:
+  oggi «—», domani «✓», il 7 «2» (partenza/cambio camera, non biancheria); il
+  cambio saltato non compare in nessun giorno. La versione vista da Ania era
+  quella precedente (partenze ∪ arrivi, senza rettifiche) o la Home non ancora
+  ricaricata dopo il salto.
+
+## FATTO
+
+- `39c3ddb` — nessuna modifica al calcolo; test aggiunti: cambio biancheria
+  SALTATO non conta e non riappare (caso vero di Ambra), le 4 notti ripartono
+  dalla data proposta (salto con partenza lontana → 9 set), RIMANDATO conta
+  solo nel giorno di destinazione, AGGIUNTO A MANO = «✓» quel giorno e riparte
+  da lì (10 set); stessi dati → striscia = funzione della pagina giorno per
+  giorno.
 
 ---
 
