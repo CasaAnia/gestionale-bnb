@@ -109,6 +109,9 @@ test('R10: registra_acconto idempotente per chiave; importo non valido e chiave 
   await assert.rejects(db.query(`select public.registra_acconto($1, $2, 0, 'contanti')`, [E, K(8)]), /IMPORTO_NON_VALIDO/)
   await assert.rejects(db.query(`select public.registra_acconto($1, $2, 10, 'contanti')`, [D, K(7)]), /CHIAVE_RIUSATA/)
   await assert.rejects(db.query(`select public.registra_acconto($1, $2, 10, 'contanti')`, [C, K(9)]), /PRENOTAZIONE_NON_MODIFICABILE/)
+  // difetto 4 (collaudo): il metodo «all'arrivo (ricostruito)» non è dichiarabile da un client
+  await assert.rejects(db.query(`select public.registra_acconto($1, $2, 10, $3)`, [E, K(15), "all'arrivo (ricostruito)"]), /METODO_SCONOSCIUTO/)
+  await assert.rejects(db.query(`select public.segna_pagato($1, $2, $3)`, [D, K(16), "all'arrivo (ricostruito)"]), /METODO_SCONOSCIUTO/)
 })
 
 test('R9 riproduzione: piano preparato a 200 €, acconto da 50 arrivato prima del tocco → il server scrive 150 (ricalcolo), totale 200 non 250', async () => {

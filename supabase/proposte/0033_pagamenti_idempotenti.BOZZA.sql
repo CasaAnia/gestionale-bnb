@@ -50,9 +50,12 @@ begin
 end;
 $$;
 
+-- Metodi che un CLIENT può dichiarare: il metodo «all'arrivo (ricostruito)» lo
+-- scrive solo ricostruisci_incassi (difetto 4 del collaudo: un client non deve
+-- etichettare come ricostruito un movimento reale)
 create or replace function public.metodo_pagamento_valido(p_metodo text)
 returns boolean language sql immutable as $$
-  select p_metodo in ('contanti', 'bonifico', 'carta', 'altro', 'all''arrivo (ricostruito)')
+  select p_metodo in ('contanti', 'bonifico', 'carta', 'altro')
 $$;
 
 -- ----------------------------------------------------------------------------
