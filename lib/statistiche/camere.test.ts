@@ -19,7 +19,7 @@ test('ricavi per camera: competenza notte per notte fino a stanotte, solo confer
   assert.deepEqual([amelia.notti, amelia.ricaviCent, amelia.mensiliCent[7], amelia.mensiliCent[8]], [3, 10000, 6667, 3333])
   assert.deepEqual([lena.notti, lena.ricaviCent, lena.mensiliCent[8]], [2, 20000, 20000])
   assert.equal(r.lista[0].name, 'Lena')
-  assert.deepEqual([r.primoMese, r.meseCorrente, r.numMesi, r.annoPassato], [7, 8, 2, false])
+  assert.deepEqual([r.primoMese, r.meseCorrente, r.numMesi, r.annoPassato], [0, 8, 9, false])   // R11: da gennaio
   assert.equal(lena.adrCent, 10000)
   // R4: denominatore = giorni vendibili dall'inizio dell'anno a stanotte (1/1 → 6/9 escluso = 248), non dalla prima notte venduta
   assert.equal(lena.giorniVendibili, 248)
@@ -35,7 +35,11 @@ test('R4 obbligatorio: anno iniziato a gennaio, prima prenotazione in agosto →
   assert.equal(amelia.notti, 30)
   assert.equal(amelia.giorniVendibili, 243)                 // 1/1 → 1/9 escluso
   assert.equal(amelia.occupazionePerMille, Math.round(30 * 1000 / 243))   // 123 ‰, non 1000 ‰
-  assert.equal(r.primoMese, 7)
+  // R11 obbligatorio: la media al mese comprende gennaio–agosto (8 mesi), non parte da agosto
+  assert.deepEqual([r.primoMese, r.meseCorrente, r.numMesi], [0, 7, 8])
+  assert.equal(Math.round(amelia.ricaviCent / r.numMesi), Math.round(300000 / 8))
+  const set = ricaviPerCamera(2026, '2026-09-15', CAMERE, lista)!
+  assert.deepEqual([set.primoMese, set.meseCorrente, set.numMesi], [0, 8, 9])   // oggi settembre → gennaio–settembre
 })
 
 test('R4: entrata in servizio documentata e periodi di fuori servizio riducono i giorni vendibili (sovrapposti contati una volta)', () => {
@@ -47,12 +51,14 @@ test('R4: entrata in servizio documentata e periodi di fuori servizio riducono i
   assert.equal(r.lista[0].giorniVendibili, 21)
   assert.equal(r.lista[0].occupazionePerMille, Math.round(2 * 1000 / 21))
   assert.equal(r.limite, null)
+  // R11: entrata in servizio a marzo → la media parte da marzo (1 mese a fine marzo)
+  assert.deepEqual([r.primoMese, r.numMesi], [2, 1])
 })
 
 test('anno passato: tutti i 12 mesi; anno futuro: null; nessuna notte: null', () => {
   const lista = [pren('a', 'r1', '2025-12-30', '2026-01-02', 300)]
   const p = ricaviPerCamera(2025, '2026-09-05', CAMERE, lista)!
-  assert.deepEqual([p.lista[0].notti, p.lista[0].ricaviCent, p.annoPassato, p.meseCorrente], [2, 20000, true, 11])
+  assert.deepEqual([p.lista[0].notti, p.lista[0].ricaviCent, p.annoPassato, p.meseCorrente, p.primoMese, p.numMesi], [2, 20000, true, 11, 0, 12])
   assert.equal(ricaviPerCamera(2027, '2026-09-05', CAMERE, lista), null)
   assert.equal(ricaviPerCamera(2024, '2026-09-05', CAMERE, lista), null)
 })

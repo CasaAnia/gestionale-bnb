@@ -21,7 +21,7 @@ export const LIMITE_OCCUPAZIONE_CAMERE = 'sui giorni dall’inizio dell’anno: 
 export type RicaviPerCamera = {
   anno: number
   lista: RicaviCamera[]           // ordinata per ricavi, solo camere con notti
-  primoMese: number               // indice 0–11 del primo mese con notti
+  primoMese: number               // indice 0–11 del primo mese VENDIBILE (gennaio o entrata in servizio), non del primo venduto
   meseCorrente: number            // ultimo mese contato (0–11)
   numMesi: number
   annoPassato: boolean
@@ -60,6 +60,11 @@ export function ricaviPerCamera(anno: number, oggi: string, camere: CameraStat[]
     s.occupazionePerMille = s.giorniVendibili > 0 ? Math.round(s.notti * 1000 / s.giorniVendibili) : 0
     s.adrCent = Math.round(s.ricaviCent / s.notti)
   }
-  const primoMese = Number(primaNotte.slice(5, 7)) - 1
-  return { anno, lista, primoMese, meseCorrente, numMesi: meseCorrente - primoMese + 1, annoPassato: anno < annoOggi, limite: fuoriServizio.length === 0 ? LIMITE_OCCUPAZIONE_CAMERE : null }
+  // R11: la media per mese conta TUTTI i mesi vendibili dell'anno (da gennaio,
+  // o dal mese documentato di entrata in servizio della prima camera attiva),
+  // non dalla prima notte venduta: i mesi senza vendite pesano sulla media
+  const inizi = attive.map(c => (c.in_servizio_dal && c.in_servizio_dal > da ? c.in_servizio_dal : da))
+  const inizioAnno = inizi.length ? inizi.sort()[0] : da
+  const primoMese = inizioAnno.slice(0, 4) === String(anno) ? Number(inizioAnno.slice(5, 7)) - 1 : 0
+  return { anno, lista, primoMese, meseCorrente, numMesi: Math.max(1, meseCorrente - primoMese + 1), annoPassato: anno < annoOggi, limite: fuoriServizio.length === 0 ? LIMITE_OCCUPAZIONE_CAMERE : null }
 }
