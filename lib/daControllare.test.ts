@@ -283,3 +283,11 @@ test('parametri di arrivo dalla Home: solo valori ben formati', async () => {
   assert.equal(idDaParametro('?apri=%3Cscript%3E', 'apri'), null)
   assert.equal(idDaParametro('?altro=x', 'apri'), null)
 })
+
+test('statistiche: «N pagamenti da controllare» conta solo i pagamenti, null senza incongruenze', async () => {
+  const { testoPagamentiDaControllare } = await import('./daControllare.ts')
+  assert.equal(testoPagamentiDaControllare([ecc('p1', 'pagamento', 'normale', OGGI), ecc('s', 'calendario', 'alta', OGGI)]), '1 pagamento da controllare')
+  assert.equal(testoPagamentiDaControllare([ecc('p1', 'pagamento', 'normale', OGGI), ecc('p2', 'pagamento', 'normale', OGGI)]), '2 pagamenti da controllare')
+  assert.equal(testoPagamentiDaControllare([ecc('s', 'calendario', 'alta', OGGI)]), null)
+  assert.equal(testoPagamentiDaControllare([]), null)
+})

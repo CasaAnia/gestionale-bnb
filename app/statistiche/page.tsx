@@ -1,10 +1,14 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import BackBar from '@/components/BackBar'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
 import { buildSiteFunnel, type SiteEvent } from '@/lib/siteStats'
 import { leggiDatiStatistiche, type DatiStatistiche } from '@/lib/statisticheDati'
+import { useDaControllare } from '@/lib/daControllareDati'
+import { testoPagamentiDaControllare } from '@/lib/daControllare'
+import { ID_SEZIONE } from '@/components/DaControllare'
 import { supabase } from '@/lib/supabase'
 import { nomeOspite } from '@/lib/guestName'
 import { messaggioNonSalvato } from '@/lib/scritturaSicura'
@@ -133,6 +137,10 @@ export default function Statistiche() {
   const [ricostruendo, setRicostruendo] = useState(false)
   const [erroreRicostruzione, setErroreRicostruzione] = useState<string | null>(null)
   const [esitoRicostruzione, setEsitoRicostruzione] = useState<string | null>(null)
+  // Da controllare (06/09/2026): stesso stato condiviso della Home, così il
+  // numero accanto a Incassi coincide con la sezione a cui il link porta
+  const daControllare = useDaControllare()
+  const pagamentiDaControllare = daControllare.stato === 'pronto' ? testoPagamentiDaControllare(daControllare.eccezioni) : null
 
   // Si rilegge quando cambia l'anno letto (frecce o periodo): solo quel periodo
   const lettura = intervalloLettura(ref, period)
@@ -279,6 +287,9 @@ export default function Statistiche() {
               <p className="text-xs text-gray-500">{voceIncassi.etichetta}</p>
               <p className="font-bold text-green-mid text-base">€{euro(totali.incassiCent)}</p>
               <p className="text-[10px] leading-tight text-gray-400 mt-0.5">pagamenti registrati, per data di pagamento{voceIncassi.avviso ? <> · <span className="font-semibold text-green-dark">{voceIncassi.avviso}</span></> : null}</p>
+              {pagamentiDaControllare && (
+                <Link href={`/#${ID_SEZIONE}`} className="inline-block mt-1.5 text-[11px] font-semibold text-brass underline decoration-dotted underline-offset-2">{pagamentiDaControllare}</Link>
+              )}
             </div>
             <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm">
               <p className="text-xs text-gray-500">Spese</p>

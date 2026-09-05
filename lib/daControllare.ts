@@ -369,3 +369,12 @@ export function idDaParametro(search: string, nome: string): string | null {
   const v = (new URLSearchParams(search).get(nome) ?? '').trim()
   return v && /^[\w-]{1,64}$/.test(v) ? v : null
 }
+
+// ── Statistiche: link accanto a Incassi ─────────────────────────────────────
+// «1 pagamento da controllare» · «3 pagamenti da controllare» · null senza
+// incongruenze (stesso conteggio della Home: stato condiviso).
+export function testoPagamentiDaControllare(eccezioni: Eccezione[]): string | null {
+  const n = eccezioni.filter(e => e.tipo === 'pagamento').length
+  if (n === 0) return null
+  return n === 1 ? '1 pagamento da controllare' : `${n} pagamenti da controllare`
+}
