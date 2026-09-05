@@ -2,7 +2,7 @@
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
-3. HOME (07/09/2026): in cima TRE NUMERI (arrivi oggi, partenze oggi, camere occupate stanotte su quelle attive; lib/numeriOggi, giorno di Roma, trattini + Riprova su errore), poi «DA CONTROLLARE» col NUOVO ORDINE (tutte le richieste aperte per durata e scadenza, arrivi senza orario, pagamenti, fatture, sovrapposizioni in fondo senza urgenza). «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima; RITOCCHI dello stesso giorno: sezione IN CIMA sopra i numeri del giorno, «WhatsApp» sugli arrivi senza orario col testo «Richiesta orario» di lib/messaggiWhatsApp condiviso con la scheda, «WhatsApp» senza testo sulle proposte scadute): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
+3. HOME (07/09/2026): in cima TRE NUMERI (arrivi oggi, partenze oggi, occupate stanotte su quelle attive; lib/numeriOggi, giorno di Roma, trattini + Riprova su errore, cifre come Incassi/Spese), poi la STRISCIA DELLA SETTIMANA (28 giorni da oggi, camere da preparare per giorno, tocco → Pulizie ?giorno=), poi «DA CONTROLLARE» col NUOVO ORDINE (tutte le richieste aperte per durata e scadenza, arrivi senza orario, pagamenti, fatture, sovrapposizioni in fondo senza urgenza). «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima; RITOCCHI dello stesso giorno: sezione IN CIMA sopra i numeri del giorno, «WhatsApp» sugli arrivi senza orario col testo «Richiesta orario» di lib/messaggiWhatsApp condiviso con la scheda, «WhatsApp» senza testo sulle proposte scadute): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
    Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); le revisioni Codex (R1–R13) sono corrette, collaudate su PostgreSQL 16 locale (sessioni concorrenti, ruoli) con 4 difetti trovati e corretti, e PUBBLICATE il 06/09/2026 (scheda in cima); le proposte 0033/0034 restano da applicare a mano da Ania (guida in 5 righe nella scheda); il codice pubblicato funziona anche prima delle proposte e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
 4. Blocco 1 (04/09): elisione solo per 1, 8, 11 («all'8», «al 18»). Blocco 2: /richieste da desktop con calendario «Mese / 2 settimane», lista ariosa, intestazione su una riga; telefono invariato. Blocco 4 (04/09 sera, scelta di Ania sul mockup A): da desktop calendario a TUTTA larghezza sopra e lista sotto in schede su due colonne (≥1100 px), riga di sezione «RICHIESTE APERTE · N — Ordina per», vuoto = riga sottile tratteggiata con «+ Nuova richiesta»; niente più due colonne affiancate. Calendario desktop +20% (righe 54, intestazione 48, camere 15 px, barre 13–14 px, colonna camere 116, colonne 2 settimane ≥ 80 px); telefono invariato. Blocco 3: web-push tolto dal sito, docs senza secondo utente, scheda «prove in 10 minuti».
 5. Proposte: ricerca automatica invariata (caso A poi B/C/E, per notte), «Altre camere» con i motivi, «Scelgo io» notte per notte con prezzo a mano; conferma solo via RPC 0031 (per notte).
@@ -76,6 +76,66 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — Home: tre numeri, striscia della settimana, ordine di «Da controllare» (07/09/2026, sera, main)
+
+Base `033685f`. Un commit per pezzo. Nessuna migrazione. Regola tipografica
+rispettata: tutte le cifre nuove usano `font-serif text-2xl text-green-dark`,
+ESATTAMENTE come Incassi/Spese/Saldo (Georgia 24 px, peso 400, #1F3D2F,
+verificato con getComputedStyle nell'anteprima); niente Fraunces, nessun
+colore nuovo.
+
+## FATTO E DIMOSTRATO
+
+- Pezzo 1 `c61fcfe` — i tre riquadri («Arrivi oggi», «Partenze oggi»,
+  «Occupate stanotte» «N su 4») erano già in cima dalla consegna precedente
+  (`b4b1cae`: solo confermate, cambio camera contato una volta, giorno di
+  Roma, trattini + Riprova su errore, 5 test); qui le cifre passano da
+  Fraunces al carattere delle altre cifre della Home e l'etichetta diventa
+  «Occupate stanotte».
+- Pezzo 2 ``df65bf9`` — striscia della settimana (components/StrisciaSettimana)
+  sotto i tre numeri e sopra «Da controllare»: didascalia piccola in grigio
+  «Camere da preparare nei prossimi 7 giorni» (un tocco riporta a oggi),
+  28 caselle da oggi che scorrono di lato col dito (7 visibili sul telefono,
+  14 sul Mac, scatto per casella), giorno in alto («sab 5»), sotto le camere
+  da preparare = camere con una partenza ∪ camere con un arrivo quel giorno,
+  ogni camera contata una volta (partenza e arrivo nella stessa camera = 1,
+  cambio camera = camera lasciata + camera nuova); «—» in grigio attenuato
+  senza lavoro; oggi su #F3ECD8 con bordo ottone; divisorio ottone sottile a
+  ogni settimana (12, 19, 26 set); un tocco apre /pulizie?giorno=AAAA-MM-GG
+  che scorre al blocco di quel giorno (Oggi o Prossimi; senza pulizie quel
+  giorno resta in cima). Lettura unica a 28 giorni per numeri e striscia
+  (lib/numeriOggiDati); con errore o in caricamento la striscia non compare.
+  lib/numeriOggi: camereDaPreparare, strisciaSettimane, etichettaGiornoBreve
+  (2 test: cambio camera, stessa camera, in attesa/annullate escluse, 28
+  giorni, divisori, etichette).
+- Pezzo 3 — nuovo ordine di «Da controllare»: GIÀ su main dalla consegna
+  precedente (`5c642ab`), identico al requisito (tutte le aperte per durata
+  decrescente e poi arrivo passato / scaduta / in scadenza più vicina / in
+  attesa più vecchia; ottone solo su scadute e arrivi passati; arrivi senza
+  orario; pagamenti; fatture; sovrapposizioni in fondo senza ottone; conteggi
+  nello stesso ordine). Ricontrollato nell'anteprima: nessuna modifica
+  necessaria, nessun commit nuovo.
+- Anteprima finta a 390 e 1280 px: «1 · 1 · 2 su 4» con le cifre uguali a
+  quelle di Incassi; striscia «sab 5: 2 · dom 6: 3 · lun 7: 1 · mar 8: 2 ·
+  mer 9: 1 · gio 10: 1 · ven 11: —», 28 caselle, oggi evidenziato, divisori
+  il 12/19/26, tocco sulla casella → /pulizie?giorno=2026-09-06 aperta sul
+  blocco «Domani»; scorsa in fondo e tocco sulla didascalia → torna a oggi;
+  sul Mac 14 caselle in vista.
+- Suite 655/655, TypeScript OK, lint dei file toccati senza rilievi nuovi
+  (nuovi file 0, pulizie 13 = 13, Home 20 = 20), `next build` OK (Compiled successfully su `df65bf9`).
+
+## LIMITI APERTI
+
+- Lo scorrimento della striscia e il salto in Pulizie sono diretti (non
+  «smooth»): nel pannello di prova le animazioni di scorrimento non partono,
+  e il salto diretto è comunque più sicuro con «riduci movimento».
+- «Camere da preparare» segue la regola dell'incarico (partenze ∪ arrivi),
+  non il calcolo delle pulizie automatiche/cambi biancheria della pagina
+  Pulizie: i due numeri possono differire nei giorni con cambio biancheria.
+- Sul sito pubblicato verifica senza accesso (login di Ania).
 
 ---
 
