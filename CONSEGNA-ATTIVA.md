@@ -1,8 +1,8 @@
-# STATO IN 10 RIGHE (aggiornato il 05/09/2026, notte) — da incollare a un altro assistente
+# STATO IN 10 RIGHE (aggiornato il 06/09/2026, notte) — da incollare a un altro assistente
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
-3. Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) e branch `statistiche` (solo fondamenta pure, senza interfaccia): entrambi in attesa della decisione di Ania; main non li contiene.
+3. Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee) e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
 4. Blocco 1 (04/09): elisione solo per 1, 8, 11 («all'8», «al 18»). Blocco 2: /richieste da desktop con calendario «Mese / 2 settimane», lista ariosa, intestazione su una riga; telefono invariato. Blocco 4 (04/09 sera, scelta di Ania sul mockup A): da desktop calendario a TUTTA larghezza sopra e lista sotto in schede su due colonne (≥1100 px), riga di sezione «RICHIESTE APERTE · N — Ordina per», vuoto = riga sottile tratteggiata con «+ Nuova richiesta»; niente più due colonne affiancate. Calendario desktop +20% (righe 54, intestazione 48, camere 15 px, barre 13–14 px, colonna camere 116, colonne 2 settimane ≥ 80 px); telefono invariato. Blocco 3: web-push tolto dal sito, docs senza secondo utente, scheda «prove in 10 minuti».
 5. Proposte: ricerca automatica invariata (caso A poi B/C/E, per notte), «Altre camere» con i motivi, «Scelgo io» notte per notte con prezzo a mano; conferma solo via RPC 0031 (per notte).
    Documenti dei clienti (05/09, scelta di Ania, «fallo direttamente, mai cancellare dopo la partenza»): components/DocumentiCliente (scheda cliente: foto dal telefono ridotte a 1600 px JPEG, PDF, etichetta e fronte/retro, anteprime con URL firmati 1 h, elimina con conferma; RigaDocumentiPrenotazione «Documenti · N» nella scheda prenotazione → /clienti/<id>#documenti), lib/documentiCliente (funzioni pure, 4 test), migrazione 0032; senza migrazione la sezione avvisa e non salva.
@@ -75,6 +75,103 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — Statistiche, numeri corretti (05/09/2026, notte, main)
+
+Obiettivo: ogni numero di Statistiche e Home è corretto e ha un significato
+esplicito; nessun grafico o KPI nuovo. Il branch `statistiche` (df316f4) è
+stato unito a main con un merge pulito (`5a4a5ee`); da lì tutti i calcoli
+passano da `lib/statistiche` (funzioni pure, 32 test) e le letture da
+`lib/statisticheDati` (solo il periodo, a pagine, errori come testo).
+
+- Pezzo 0 — merge `5a4a5ee` + `a42ad8d` (intervallo, camere, sconti,
+  cliente, pagato, paginazione; 20 test con i casi di bordo: cambio camera a
+  metà, in_attesa mescolate, acconto + saldo, pagamento in un mese diverso
+  dal soggiorno, camera fuori servizio, periodo vuoto, sovrapposizione).
+- Pezzo 1 — `09221f5`: solo confermate/completate ovunque (query con
+  `status in (confermata, completata)`; in_attesa e annullate mai); storico
+  cliente: «Soggiorni» per group_id, totale speso solo confermate.
+- Pezzo 2 — `e7c6895`: quattro voci identiche in Home e Statistiche, con
+  la riga di spiegazione: «Ricavi per soggiorno» (valore delle prenotazioni
+  diviso sulle notti dormite), «Incassi» (movimenti di payments per data di
+  pagamento), «Spese» (per data di pagamento: paid_at, altrimenti
+  expense_date), «Saldo di cassa» (incassi meno spese; era «Profitto»);
+  «Rendimento camere» → «Ricavi per camera»; grafico e tabella = Incassi /
+  Spese / Saldo di cassa; Tariffa media = ADR del mese.
+- Pezzo 3 — `eb0e7e4`: occupazione = notti vendute ÷ notti vendibili delle
+  camere ATTIVE per giorno (`rooms.active`), mai «4 × giorni»; oltre il
+  100 % non si blocca: cella «104!» e riga «Settembre: sovrapposizione da
+  controllare (125 notti su 120)», in Home la spiegazione diventa l'anomalia;
+  `docs/bozza-migrazione-room_closures.sql` NON applicata (periodi di fuori
+  servizio per camera).
+- Pezzo 4 — `3e00098`: «Segna come pagato» mostra il saldo mancante e i
+  metodi (contanti, bonifico, carta, altro), registra PRIMA il movimento in
+  payments (data di oggi) e POI il flag; movimento rifiutato → flag invariato
+  e «Non salvato, riprova: il pagamento non è stato registrato»;
+  `incongruenzePagamenti` solo funzione e test (niente pannello).
+- Pezzo 5 — `00b52e2` + `134afae`: letture solo del periodo (anno letto
+  per Statistiche, mese allungato a domani per Home), `raccogliPagine` oltre
+  le 1.000 righe (mai liste parziali), ogni errore → AvvisoAzione + Riprova
+  in entrambe le pagine, mai uno zero credibile.
+- Pezzo 6 — dentro `a42ad8d`: `indiciIntervallo` (occupazione = vendute ÷
+  vendibili, ADR = ricavi camere ÷ notti vendute, RevPAR = ricavi camere ÷
+  notti vendibili, notti libere), testato, non mostrato.
+
+## Numeri che sono cambiati (dati finti di settembre 2026, oggi 05/09)
+
+| Voce | Prima | Dopo | Motivo |
+| --- | --- | --- | --- |
+| Home «Entrate mese» → «Ricavi per soggiorno» | 1.950 € | 1.843 € | prima: totale delle prenotazioni con check-in nel mese, compresa una richiesta in attesa (160 €) e i soggiorni a cavallo per intero; ora: solo confermate, ripartite sulle notti dormite nel mese |
+| Home «Profitto» → «Saldo di cassa» | entrate − spese | incassi − spese (0 €) | il profitto mescolava competenza e cassa; il saldo è cassa contro cassa |
+| Home/Statistiche «Occupazione» | 23 % (27 notti su 4 × 30) | 21 % (25 su 120 delle camere attive) | 2 notti in attesa non contano; denominatore = camere attive |
+| Home «Tariffa media» | 81 € (media di price_per_night) | 74 € (ADR: ricavi ÷ notti vendute) | la media dei listini non pesava le notti né gli sconti/letti |
+| Statistiche «Entrate» → «Incassi» | saldo PRESUNTO alla consegna delle chiavi per i soggiorni senza righe (regola 24/07) | solo movimenti registrati in payments (0 € nei dati finti) | il brief definisce Incassi = movimenti per data di pagamento; da oggi «Segna come pagato» registra il movimento, quindi i nuovi incassi saranno completi; lo storico senza righe NON compare più negli incassi (vedi azione per Ania) |
+| Statistiche «Rendimento camere» → «Ricavi per camera» | «incassi» pro-quota, con le in attesa | ricavi per soggiorno, solo confermate, camere attive | stesso significato dei ricavi |
+| Occupazione (tabella anni × mesi) | tutti gli anni, bloccata a 100 | solo l'anno letto, anomalia esplicita oltre il 100 | letture del solo periodo; mai un valore falsato |
+| Storico cliente «Soggiorni» | righe (segmenti) non annullate | soggiorni per group_id, solo confermate | un cambio camera è un soggiorno |
+
+## Casi di accettazione
+
+| ID | Prova | Esito |
+| --- | --- | --- |
+| H01 | Home e Statistiche mostrano gli STESSI numeri di settembre (1.843 / 0 / 0 / 0, occupazione 21 % = 25 su 120, ADR 74) | VERDE (DOM 390 e 1280 px) |
+| H02 | Statistiche: quattro schede con spiegazione, tabella Incassi/Spese/Saldo di cassa, «Ricavi per camera», nessuno scorrimento orizzontale a 390 | VERDE (DOM 390 e 1280) |
+| H03 | Occupazione oltre il 100 % (prenotazioni quintuplicate via fetch): cella «104!» e «Settembre: sovrapposizione da controllare (125 notti su 120)» | VERDE (DOM 390) |
+| H04 | Segna come pagato: finestra con «Registro un pagamento di €160,00…», metodi, Conferma → POST payments rifiutato (403) → avviso, flag invariato, nessun PATCH | VERDE (DOM e rete 390) |
+| H05 | Home con lettura incassi senza rete: nessuna scheda con zeri, AvvisoAzione «Non riesco a caricare gli incassi: nessuna connessione» + Riprova → schede | VERDE (DOM 390) |
+| H06 | Statistiche con errore di lettura → AvvisoAzione + Riprova | VERDE per costruzione (stessa funzione della Home); non riprodotto a schermo |
+| H07 | Casi di bordo delle funzioni pure (elenco sopra) | VERDE (32 test) |
+
+## Prove tecniche
+
+- `node scripts/verifica-consegna.mjs --base 55576fd` su `3e00098`: Suite
+  applicazione (577 test, 32 nuovi) OK, Regressioni OK, Strumenti locali OK,
+  TypeScript OK; «Lint dei file modificati» STOP con 52 rilievi contro i 70
+  degli stessi file sulla base (18 in meno: le formule con `any` delle pagine
+  sono sparite); nessun rilievo nuovo; librerie nuove pulite.
+- `next build` sul candidato: compilato.
+- UI a 390 e 1280 px sull'anteprima finta (settembre 2026, nessun pagamento
+  e nessuna spesa nei dati finti).
+- Nessuna migrazione applicata; lib/spese solo letta (family_expenses:
+  expense_date, amount, paid_at).
+
+## Limiti aperti
+
+- «Incassi» ora conta SOLO i movimenti registrati: i soggiorni passati
+  pagati alla consegna delle chiavi senza riga in payments (regola 24/07)
+  non compaiono più negli incassi né nel saldo di cassa. Le incongruenze
+  «pagato senza movimenti» sono già elencabili (`incongruenzePagamenti`) ma
+  senza pannello: decisione di Ania se registrare a mano lo storico o
+  accettare che gli incassi partano da oggi.
+- Fuori servizio per camera: solo il flag `rooms.active` senza date; la
+  bozza SQL in docs/ resta da decidere.
+- «Spese» legge family_expenses con `paid_at`/`expense_date` ma non la
+  parte spese nuova (in corso): da riallineare quando quella chiude.
+- La tabella dell'occupazione mostra solo l'anno letto (prima tutti gli
+  anni): scelta del brief «mai tutto lo storico»; le frecce cambiano anno.
+- Nessuna schermata (come sempre in questo pannello): prove dal DOM.
 
 ---
 
