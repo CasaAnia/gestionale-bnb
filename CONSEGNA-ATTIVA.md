@@ -2,7 +2,7 @@
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
-3. Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); le revisioni Codex di f4d5474 (R1–R7) e di 3248064 (R8–R13) sono corrette nel candidato LOCALE NON pubblicato (scheda in cima: contratto unico dei pagamenti con chiave custodita e RPC idempotenti, ricostruzione storica ricalcolata dal server, fuori servizio collegato ai KPI; proposte 0033/0034 NON applicate, collaudo concorrente su PostgreSQL vero ancora da fare) e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
+3. Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); le revisioni Codex (R1–R13) sono corrette, collaudate su PostgreSQL 16 locale (sessioni concorrenti, ruoli) con 4 difetti trovati e corretti, e PUBBLICATE il 06/09/2026 (scheda in cima); le proposte 0033/0034 restano da applicare a mano da Ania (guida in 5 righe nella scheda); il codice pubblicato funziona anche prima delle proposte e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
 4. Blocco 1 (04/09): elisione solo per 1, 8, 11 («all'8», «al 18»). Blocco 2: /richieste da desktop con calendario «Mese / 2 settimane», lista ariosa, intestazione su una riga; telefono invariato. Blocco 4 (04/09 sera, scelta di Ania sul mockup A): da desktop calendario a TUTTA larghezza sopra e lista sotto in schede su due colonne (≥1100 px), riga di sezione «RICHIESTE APERTE · N — Ordina per», vuoto = riga sottile tratteggiata con «+ Nuova richiesta»; niente più due colonne affiancate. Calendario desktop +20% (righe 54, intestazione 48, camere 15 px, barre 13–14 px, colonna camere 116, colonne 2 settimane ≥ 80 px); telefono invariato. Blocco 3: web-push tolto dal sito, docs senza secondo utente, scheda «prove in 10 minuti».
 5. Proposte: ricerca automatica invariata (caso A poi B/C/E, per notte), «Altre camere» con i motivi, «Scelgo io» notte per notte con prezzo a mano; conferma solo via RPC 0031 (per notte).
    Documenti dei clienti (05/09, scelta di Ania, «fallo direttamente, mai cancellare dopo la partenza»): components/DocumentiCliente (scheda cliente: foto dal telefono ridotte a 1600 px JPEG, PDF, etichetta e fronte/retro, anteprime con URL firmati 1 h, elimina con conferma; RigaDocumentiPrenotazione «Documenti · N» nella scheda prenotazione → /clienti/<id>#documenti), lib/documentiCliente (funzioni pure, 4 test), migrazione 0032; senza migrazione la sezione avvisa e non salva.
@@ -75,6 +75,91 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — Statistiche: collaudo su PostgreSQL 16, autorevisione e RILASCIO (06/09/2026, main)
+
+Codex non disponibile: revisione finale fatta qui con lo stesso rigore. Base
+d18ede8 (codice 983d4ed), origin/main f4d5474. Esito reale in
+`scripts/collaudo-0033/ESITO-2026-09-06.txt`.
+
+## VERIFICATO SU POSTGRESQL 16 (Homebrew, locale, porta 5433, database `collaudo_0033`)
+
+- `scripts/collaudo-0033/applica-migrazioni.mjs`: stub dichiarati di Supabase
+  (ruoli anon/authenticated/service_role, auth.uid() dal JWT, storage, utente
+  finto) → 0001–0020 OK → `supabase/bootstrap_owner.sql` → 0021–0032 OK →
+  DRIFT documentato (bookings.pagato, bonifico, guest_name, extra_bed_dates,
+  contatti extra, color, check_in_time: in produzione senza migrazione) →
+  proposte 0033 e 0034 OK; la 0033 è riapplicabile senza errori.
+- `scripts/collaudo-0033/concorrenza.mjs` (output reale):
+  1. due segna_pagato concorrenti (segmenti diversi, chiavi diverse) → un
+     solo movimento da 340, flag su entrambi — movimenti=1 totale=340.00
+     importi=0,340 flag=true;
+  2. due ricostruzioni concorrenti (chiavi diverse) → una scrive 100, l'altra
+     «nulla_da_scrivere» — scritti=1 nulla=1 movimenti=1 totale=100.00;
+  3. stessa chiave su altro soggiorno → CHIAVE_RIUSATA, movimenti=2 invariati;
+  4. anon (SET ROLE da un login non superuser): «permission denied for
+     function segna_pagato» e «permission denied for table room_closures»;
+  5. authenticated senza JWT → NON_AUTENTICATO; con JWT → RPC ok (stessa
+     chiave → stesso movimento, importo 340), room_closures scrivibile e
+     leggibile (chiusure=1).
+- Prove avversarie in SQL sul database migrato (T1–T10): annullata e in
+  attesa → PRENOTAZIONE_NON_MODIFICABILE e pagato resta false; gruppo con un
+  segmento annullato da 999 → saldo 340; stessa chiave dall'altro segmento →
+  stesso movimento; registra_acconto con chiave del gruppo → CHIAVE_RIUSATA;
+  acconto 50 fra piano (200) e conferma → ricostruzione scrive 150, totale
+  200; batch con soggiorno futuro → SOGGIORNO_NON_CONCLUSO e 0 righe per il
+  primo; in attesa/annullato → SOGGIORNO_NON_VALIDO; 0034: vincoli sugli
+  intervalli e archivio con data (active resta true).
+
+## AUTOREVISIONE AVVERSARIA (tentativi → esito)
+
+- chiave riusata fra soggiorni (segna_pagato, registra_acconto, ricostruzione) → rifiutata, zero effetti;
+- segmenti dello stesso soggiorno (stessa chiave, chiavi diverse, concorrenti) → un solo movimento;
+- acconto arrivato fra piano e conferma → il server ricalcola (150, non 200);
+- in_attesa / annullata pagate → impossibile (errore) e non contate nei totali;
+- risposta persa a ogni passo (INSERT, RPC, flag, acconto) → rilettura + chiave → nessun doppione (12 test del contratto);
+- doppia scheda e doppio tocco → una sola scrittura;
+- localStorage negato → nessuna richiesta;
+- RPC assente (PGRST202 con il nome) → ripiego o messaggio «serve la 0033»; risposta nulla/malformata → non è successo; 42703/42P01 → errore visibile;
+- UPDATE a zero righe nel ripiego → errore;
+- paginazione troncata → ErroreLetturaIncompleta;
+- archivio camera → data, il passato resta (catena PGlite);
+- DIFETTI TROVATI E CORRETTI (riproduzione prima, poi correzione, un commit ciascuno):
+  1. `9466570` anon conservava EXECUTE sulle RPC 0033 per i privilegi predefiniti di Supabase (revoke esplicito);
+  2. `650adba` acconto pendente riconosciuto con l'orologio del telefono (telefono avanti → doppione): ora per conteggio delle righe uguali;
+  3. `b3d087d` riga doppia a schermo dopo un ritentativo con la stessa chiave (solo a schermo);
+  4. `4c80e78` un client poteva dichiarare il metodo «all'arrivo (ricostruito)» (ora solo contanti/bonifico/carta/altro).
+
+## PROVE TECNICHE DEL RILASCIO
+
+- `verifica-consegna --base f4d5474` su `4c80e78`: suite 615/615, regressioni
+  e strumenti OK, TypeScript OK; lint dei file toccati 48 = 48 sulla base
+  (nessun rilievo nuovo); `next build` OK; albero pulito.
+- Anteprima finta a 390 e 1280 px con la produzione simulata SENZA 0033/0034
+  (room_closures → PGRST205, colonne rooms → 42703): Home e Statistiche
+  senza avvisi, limite «periodi di fuori servizio non registrati (proposta
+  0034)» visibile, tasto di ricostruzione presente; con RPC assente
+  (PGRST202) il tasto dice «Serve la migrazione 0033…».
+
+## LIMITI APERTI
+
+- Il collaudo usa stub di Supabase (auth/storage/ruoli) e il drift delle
+  colonne di bookings aggiunto a mano: lo schema di produzione andrebbe
+  registrato in una migrazione vera (fuori da questo incarico).
+- PostgREST in produzione deve rispondere PGRST202 per una RPC assente (è
+  il comportamento documentato): il messaggio «serve la 0033» dipende da questo.
+- Nessuna schermata per i periodi di fuori servizio (incarico separato).
+- Nessuna schermata catturata: prove dal DOM e dalla rete.
+
+## 🔴 GUIDA PER ANIA (SQL Editor di Supabase, 5 righe)
+
+1. Apri SQL Editor → incolla TUTTO `supabase/proposte/0033_pagamenti_idempotenti.BOZZA.sql` → Run (si può rilanciare senza danni).
+2. Poi incolla TUTTO `supabase/proposte/0034_room_closures.BOZZA.sql` → Run (dopo la 0033, mai prima).
+3. Apri Statistiche sul telefono: la voce «Incassi registrati · storico da ricostruire» mostra l'elenco dei soggiorni conclusi da ricostruire con il totale.
+4. Tocca «Conferma la ricostruzione» UNA volta: compare «Ricostruzione eseguita: N movimenti scritti — rileggo per conferma» e la voce torna «Incassi» senza avviso.
+5. Da lì «Segna come pagato» e gli acconti passano dalle RPC (nessun doppione anche con la rete che cade); i periodi di fuori servizio si registreranno con la schermata dell'incarico successivo.
 
 ---
 
