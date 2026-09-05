@@ -1020,14 +1020,6 @@ export default function BookingDetail() {
     router.push(`/nuova?guest_id=${guestId}&group_id=${groupId}&check_in=${lastCheckOut}&returnTo=/prenotazioni/${id}`)
   }
 
-  async function markComplete() {
-    const errore = await scriviPoiAggiorna(
-      () => supabase.from('bookings').update({ status: 'completata' }).eq('id', id),
-      () => setBooking({ ...booking, status: 'completata' }),
-    )
-    setAvvisoScheda(errore)
-  }
-
   // Annullamento: con un errore la finestra resta aperta con l'avviso (niente
   // alert del browser) e la prenotazione resta com'è. Il log WhatsApp è
   // secondario: se non si scrive lo si dice nella schermata di conferma.
@@ -1052,19 +1044,6 @@ export default function BookingDetail() {
     }
   }
 
-  function sendWhatsapp(type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') {
-    const rawPhone = booking.guests?.phone?.replace(/\D/g, '')
-    const phone = rawPhone?.startsWith('39') ? rawPhone : `39${rawPhone}`
-    const msg = buildWhatsappMsg(booking, type, groupBookings, acconti)
-    supabase.from('booking_whatsapp_log').insert({ booking_id: id, message_type: type, message_text: msg, sent: false })
-    const a = document.createElement('a')
-    a.href = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
-    a.target = '_blank'
-    a.rel = 'noopener'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-  }
 
   if (loading) return <div className="p-4 text-center py-10 text-gray-400">Caricamento...</div>
   if (!booking) return <div className="p-4 text-center py-10 text-gray-400">Prenotazione non trovata</div>
