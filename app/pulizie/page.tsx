@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite } from '@/lib/guestName'
 import BackBar from '@/components/BackBar'
+import { giornoDaParametro } from '@/lib/daControllare'
 import {
   attive, pulizieAperte, prossimoArrivo, prioritaDi, testoArrivo, cicloCambio,
   partenzaAperta, cambioCameraIn, continuaDa, cambioCameraOut,
@@ -93,6 +94,15 @@ export default function Pulizie() {
   // Correzione di un'automatica nel registro: chiave → data scelta per «cambia data»
   const [correzione, setCorrezione] = useState<Record<string, string>>({})
   const td = todayStr()
+  // Dalla striscia della settimana in Home (07/09/2026): ?giorno=AAAA-MM-GG
+  // porta al blocco di quel giorno (Oggi o uno dei Prossimi); senza blocco
+  // (nessuna pulizia quel giorno) la pagina resta in cima
+  useEffect(() => {
+    if (loading) return
+    const giorno = giornoDaParametro(window.location.search)
+    if (!giorno) return
+    document.getElementById(`pulizie-giorno-${giorno}`)?.scrollIntoView({ behavior: 'auto', block: 'start' })
+  }, [loading])
 
   useEffect(() => {
     let localLinen: Record<string, string> = {}
@@ -511,6 +521,7 @@ export default function Pulizie() {
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
         <>
+          <div id={`pulizie-giorno-${td}`} className="scroll-mt-20" />
           {sezioneTitolo('Oggi')}
           {righeOggi.length === 0 ? (
             <div className="rounded-[10px] border border-dashed border-card-border p-5 text-center mb-6">
@@ -529,7 +540,7 @@ export default function Pulizie() {
               {giorniProssimi.map(g => {
                 const h = intestazioneGiorno(g, td)
                 return (
-                  <div key={g} className="mb-4">
+                  <div key={g} id={`pulizie-giorno-${g}`} className="mb-4 scroll-mt-20">
                     <div className="flex items-baseline gap-2 mb-2">
                       <span className="text-[11px] uppercase" style={{ letterSpacing: '2px', color: '#8a9488' }}>{h.label}</span>
                       {h.sub && <span className="text-xs text-stone">{h.sub}</span>}

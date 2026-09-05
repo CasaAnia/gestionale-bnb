@@ -10,6 +10,7 @@ import Link from 'next/link'
 import AvvisoAzione from './AvvisoAzione'
 import { useNumeriOggi } from '@/lib/numeriOggiDati'
 import { testoOccupate } from '@/lib/numeriOggi'
+import StrisciaSettimana from './StrisciaSettimana'
 
 function Riquadro({ href, etichetta, valore, coda }: { href: string; etichetta: string; valore: string; coda?: string }) {
   return (
@@ -36,6 +37,8 @@ export default function NumeriOggi() {
         </div>
         {n.stato === 'errore' && <AvvisoAzione testo={n.errore} onRiprova={n.ricarica} className="mt-2" />}
       </section>
+      {/* Striscia della settimana: stessa lettura dei tre numeri (28 giorni); con errore o in caricamento non compare */}
+      {pronto && <StrisciaSettimana giorni={n.settimana} />}
     </>
   )
 }

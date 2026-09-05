@@ -47,3 +47,39 @@ export function numeriOggi(prenotazioni: PrenotazioneOggi[], camere: CameraOggi[
 // oggi (check_in ≤ oggi ≤ check_out) bastano anche per riconoscere i cambi
 // camera di oggi (entrambi i segmenti toccano oggi).
 export const testoOccupate = (n: NumeriOggi) => `${n.camereOccupate} su ${n.camereTotali}`
+
+// ── Striscia della settimana (07/09/2026) ──────────────────────────────────
+// Camere da preparare in un giorno = camere con una partenza quel giorno ∪
+// camere con un arrivo quel giorno, ogni camera contata una volta (partenza
+// e arrivo nella stessa camera lo stesso giorno = 1; un cambio camera conta
+// la camera lasciata e quella nuova). Solo confermate/completate.
+export const GIORNI_STRISCIA = 28
+export const GIORNI_VISIBILI_TELEFONO = 7
+export const GIORNI_VISIBILI_MAC = 14
+
+export function camereDaPreparare(prenotazioni: PrenotazioneOggi[], giorno: string): number {
+  const camere = new Set<string>()
+  for (const b of prenotazioni.filter(prenotazioneValida)) {
+    if (b.check_out === giorno || b.check_in === giorno) camere.add(b.room_id)
+  }
+  return camere.size
+}
+
+export type GiornoStriscia = { giorno: string; camere: number; oggi: boolean; inizioSettimana: boolean }
+
+export function strisciaSettimane(prenotazioni: PrenotazioneOggi[], oggi: string, giorni = GIORNI_STRISCIA): GiornoStriscia[] {
+  const out: GiornoStriscia[] = []
+  for (let i = 0; i < giorni; i++) {
+    const giorno = new Date(Date.parse(oggi + 'T00:00:00Z') + i * 86400000).toISOString().slice(0, 10)
+    out.push({ giorno, camere: camereDaPreparare(prenotazioni, giorno), oggi: i === 0, inizioSettimana: i > 0 && i % 7 === 0 })
+  }
+  return out
+}
+
+// «sab 6» — giorno della settimana breve, senza fuso orario
+const GIORNI_SETTIMANA = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab']
+export function etichettaGiornoBreve(iso: string): string {
+  const d = new Date(iso + 'T00:00:00Z')
+  return `${GIORNI_SETTIMANA[d.getUTCDay()]} ${d.getUTCDate()}`
+}
+export const ultimoGiornoStriscia = (oggi: string, giorni = GIORNI_STRISCIA) => new Date(Date.parse(oggi + 'T00:00:00Z') + (giorni - 1) * 86400000).toISOString().slice(0, 10)
