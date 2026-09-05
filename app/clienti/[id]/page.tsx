@@ -7,6 +7,7 @@ import DocumentiCliente from '@/components/DocumentiCliente'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
+import { storicoCliente, prenotazioneValida } from '@/lib/statistiche'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const RATING_COLOR: Record<string, string> = { ottimo: 'bg-sage text-green-dark', problematico: 'bg-[#F6E4DE] text-[#8C3B2E]', vuole_ricevuta: 'bg-sage text-green-mid', normale: 'bg-gray-100 text-gray-600' }
@@ -94,9 +95,11 @@ export default function ClienteDetail() {
   )
   if (!guest) return <div className="p-4 text-center py-10 text-gray-400">Cliente non trovato</div>
 
-  const confermateCompletate = bookings.filter(b => b.status !== 'annullata')
-  const annullate = bookings.filter(b => b.status === 'annullata')
-  const totaleSpeso = confermateCompletate.reduce((s: number, b: any) => s + Number(b.total_amount), 0)
+  // Statistiche, numeri corretti (05/09/2026): «Soggiorni» conta i soggiorni
+  // (group_id, un cambio camera = 1) delle sole prenotazioni confermate;
+  // in_attesa esclusa; annullate contate a parte (lib/statistiche/cliente)
+  const confermateCompletate = bookings.filter(prenotazioneValida)
+  const storico = storicoCliente(bookings)
 
   // Storico arrivi (24/08/2026): solo dati realmente registrati, mai ricostruiti.
   // Un segmento preceduto da un altro con check-out uguale al suo check-in
@@ -160,15 +163,15 @@ export default function ClienteDetail() {
       {/* Statistiche cliente */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm text-center">
-          <p className="font-serif text-xl text-green-dark">{confermateCompletate.length}</p>
+          <p className="font-serif text-xl text-green-dark">{storico.soggiorni}</p>
           <p className="text-xs text-gray-500">Soggiorni</p>
         </div>
         <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm text-center">
-          <p className="font-serif text-xl text-green-dark">€{totaleSpeso.toFixed(0)}</p>
+          <p className="font-serif text-xl text-green-dark">€{Math.round(storico.totaleSpesoCent / 100)}</p>
           <p className="text-xs text-gray-500">Totale speso</p>
         </div>
         <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm text-center">
-          <p className="font-serif text-xl text-[#8C3B2E]">{annullate.length}</p>
+          <p className="font-serif text-xl text-[#8C3B2E]">{storico.annullate}</p>
           <p className="text-xs text-gray-500">Annullate</p>
         </div>
       </div>
