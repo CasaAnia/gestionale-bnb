@@ -8,6 +8,9 @@ import { giorniTra } from '@/lib/richiesteCalendario'
 import { capienzaCamera } from '@/lib/tariffe'
 import { riassuntoPersone, type CanaleRichiesta, type ValoriModifica } from '@/lib/richieste'
 import { normalizzaTelefono, telefonoLeggibile } from '@/lib/whatsapp'
+import CampoProvenienza from '@/components/CampoProvenienza'
+import { campiProvenienza, normalizzaProvenienza, type Provenienza, type StrutturaNota } from '@/lib/provenienza'
+import { leggiStrutture, ricordaStruttura } from '@/lib/provenienzaDati'
 
 // Il modulo della richiesta (pezzo 9): lo STESSO per «Nuova richiesta» e per
 // «Modifica» (precompilato). Sotto «Persone», appena arrivo e partenza sono
@@ -26,6 +29,9 @@ export type ValoriModulo = {
   cameraId: string
   telefono: string
   note: string
+  // Provenienza (08/09/2026): «Come ci ha trovato» + nome della struttura
+  provenienza: Provenienza
+  struttura: string
 }
 
 const INPUT = 'w-full min-w-0 appearance-none bg-white border border-[#C9BFA8] shadow-sm rounded-lg p-3 text-[15px] focus:outline-none focus:border-green-mid'
@@ -38,16 +44,18 @@ function giornoDopo(iso: string): string {
   return Number.isNaN(t) ? '' : new Date(t + 86400000).toISOString().slice(0, 10)
 }
 
-export const VALORI_VUOTI: ValoriModulo = { canale: 'telefono', nome: '', cognome: '', arrivo: '', partenza: '', persone: 1, personePerNotte: null, cameraId: '', telefono: '', note: '' }
+export const VALORI_VUOTI: ValoriModulo = { canale: 'telefono', nome: '', cognome: '', arrivo: '', partenza: '', persone: 1, personePerNotte: null, cameraId: '', telefono: '', note: '', provenienza: 'non_so', struttura: '' }
 
 // Dai valori del modulo a quelli da salvare (stessa normalizzazione del telefono della proposta WhatsApp)
-export function valoriDaSalvare(v: ValoriModulo): ValoriModifica {
+// conProvenienza = colonne della 0036 disponibili: solo allora i campi entrano nel payload
+export function valoriDaSalvare(v: ValoriModulo, conProvenienza = false): ValoriModifica {
   return {
     nome: v.nome.trim(), cognome: v.cognome.trim(), arrivo: v.arrivo, partenza: v.partenza,
     persone: v.persone, persone_per_notte: v.personePerNotte,
     camera_id: v.cameraId || null, canale: v.canale,
     telefono: telefonoLeggibile(normalizzaTelefono(v.telefono)) || null,
     note: v.note.trim() || null,
+    ...(conProvenienza ? campiProvenienza(v.provenienza, v.struttura) : {}),
   }
 }
 
@@ -68,7 +76,16 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
   const [occupazione, setOccupazione] = useState<{ chiave: string; prenotazioni: PrenotazioneMinima[]; errore: string | null } | null>(null)
   const [saving, setSaving] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
+  const [avviso, setAvviso] = useState<string | null>(null)
+  // Strutture note (0036): disponibile = false finché la migrazione non c'è
+  const [strutture, setStrutture] = useState<{ disponibile: boolean; lista: StrutturaNota[] }>({ disponibile: false, lista: [] })
   const set = <K extends keyof ValoriModulo>(k: K, val: ValoriModulo[K]) => setV(x => ({ ...x, [k]: val }))
+
+  useEffect(() => {
+    let vivo = true
+    leggiStrutture().then(r => { if (vivo) { setStrutture({ disponibile: r.disponibile, lista: r.strutture }); if (r.errore) setAvviso(r.errore) } })
+    return () => { vivo = false }
+  }, [])
 
   useEffect(() => {
     supabase.from('rooms').select('id, name, active, has_extra_bed, base_price, double_price').eq('active', true).then(({ data, error }) => {
@@ -120,7 +137,12 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
     if (partenza <= arrivo) { setErrore('La partenza deve essere almeno una notte dopo l’arrivo.'); return }
     if (v.personePerNotte && v.personePerNotte.length !== nottiN) { setErrore('La striscia delle notti non corrisponde alle date: ricontrolla le persone per notte.'); return }
     setSaving(true)
-    const e = await onSalva(valoriDaSalvare({ ...v, personePerNotte: normalizzaPersonePerNotte(v.personePerNotte, persone, nottiN) }))
+    const e = await onSalva(valoriDaSalvare({ ...v, personePerNotte: normalizzaPersonePerNotte(v.personePerNotte, persone, nottiN) }, strutture.disponibile))
+    // Nome di struttura nuovo → entra nell'elenco (non blocca il salvataggio)
+    if (!e && strutture.disponibile && v.provenienza === 'altra_struttura') {
+      const errStruttura = await ricordaStruttura(v.struttura, strutture.lista)
+      if (errStruttura) setAvviso(`Richiesta salvata, ma il nome della struttura non è stato aggiunto all'elenco: ${errStruttura}`)
+    }
     setSaving(false)
     if (e) setErrore(e)
   }
@@ -139,6 +161,10 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
             ))}
           </div>
         </div>
+
+        <CampoProvenienza valore={{ provenienza: v.provenienza, struttura: v.struttura }} onChange={x => setV(y => ({ ...y, provenienza: x.provenienza, struttura: x.struttura }))}
+          strutture={strutture.lista} disponibile={strutture.disponibile} />
+        {avviso && <p className="text-xs text-stone">{avviso}</p>}
 
         <div className="grid grid-cols-2 gap-2">
           <div className="min-w-0">
@@ -241,11 +267,12 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
 }
 
 // Da una richiesta salvata ai valori del modulo (per «Modifica»)
-export function valoriDaRichiesta(r: { canale: CanaleRichiesta; nome: string; cognome: string; arrivo: string; partenza: string; persone: number; persone_per_notte?: number[] | null; camera_id: string | null; telefono: string | null; note: string | null }): ValoriModulo {
+export function valoriDaRichiesta(r: { canale: CanaleRichiesta; nome: string; cognome: string; arrivo: string; partenza: string; persone: number; persone_per_notte?: number[] | null; camera_id: string | null; telefono: string | null; note: string | null; provenienza?: string | null; struttura_nome?: string | null }): ValoriModulo {
   const n = giorniTra(r.arrivo, r.partenza).length
   return {
     canale: r.canale, nome: r.nome, cognome: r.cognome, arrivo: r.arrivo, partenza: r.partenza, persone: Number(r.persone) || 1,
     personePerNotte: Array.isArray(r.persone_per_notte) && r.persone_per_notte.length === n ? r.persone_per_notte : null,
     cameraId: r.camera_id ?? '', telefono: r.telefono ?? '', note: r.note ?? '',
+    provenienza: normalizzaProvenienza(r.provenienza), struttura: r.struttura_nome ?? '',
   }
 }

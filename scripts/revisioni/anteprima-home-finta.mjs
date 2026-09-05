@@ -134,19 +134,29 @@ function richiesta(nome, cognome, stato, arrivo, partenza, created_at, proposta_
   r += 1
   return { id: `eeeeeeee-${String(r).padStart(4, '0')}-4000-8000-${String(r).padStart(12, '0')}`, created_at, nome, cognome, arrivo, partenza, persone: 2, camera_id: null, canale: 'telefono', telefono: '+39 333 111 0000', note: null, stato, proposta_inviata_at, chiusa_at: null, prenotazione_id: null, origine: null, persone_per_notte: null, proposta_testo: null, proposta_soluzione: null }
 }
+// Provenienza (08/09/2026): colonne della proposta 0036 sulle richieste/prenotazioni e tabella strutture;
+// GET /finto/senza-strutture?on=1 simula la 0036 NON applicata (campo nascosto con avviso)
+const strutture = ['Umana', 'Nida', 'RB (Rosa Bianca)', 'Elyse', 'BM (Borgo Manzoni)'].map(nome => ({ nome, created_at: ora }))
+for (const b of bookings) { b.provenienza = b.provenienza ?? 'non_so'; b.struttura_nome = b.struttura_nome ?? null }
+bookings.find(b => b.guest_id === G.giulio.id).provenienza = 'altra_struttura'; bookings.find(b => b.guest_id === G.giulio.id).struttura_nome = 'Nida'
+bookings.find(b => b.guest_id === G.sara.id).provenienza = 'altra_struttura'; bookings.find(b => b.guest_id === G.sara.id).struttura_nome = 'Umana'
+bookings.find(b => b.guest_id === G.elena.id).provenienza = 'google'
+bookings.find(b => b.guest_id === G.anna.id).provenienza = 'passaparola'
 const richieste = [
   richiesta('Carla', 'Conti', 'in_attesa', O(8), O(11), oreFa(72)),
   richiesta('Dario', 'Deluca', 'proposta_inviata', O(12), O(14), oreFa(30), oreFa(5)),
   richiesta('Franca', 'Fabbri', 'in_attesa', O(15), O(17), oreFa(1)),
   richiesta('Gino', 'Galli', 'confermata', O(2), O(4), oreFa(100)),
 ]
+for (const r of richieste) { r.provenienza = 'non_so'; r.struttura_nome = null }
+richieste[1].provenienza = 'altra_struttura'; richieste[1].struttura_nome = 'Nida'
 const family_documents = [
   { id: 'ffffffff-0001-4000-8000-000000000001', kind: 'fattura', status: 'approvata_da_pagare', doc_total: 95.5, supplier: 'Enel', invoice_number: '123', document_date: O(-30), due_date: O(-5), upload_ambito: 'azienda', error_message: null, note: null, doc_total_derivato: false, created_at: ora },
   { id: 'ffffffff-0002-4000-8000-000000000002', kind: 'fattura', status: 'approvata_da_pagare', doc_total: 40, supplier: 'Iren', invoice_number: '456', document_date: O(-10), due_date: O(10), upload_ambito: 'azienda', error_message: null, note: null, doc_total_derivato: false, created_at: ora },
 ]
 const da_controllare_rinvii = []
 
-const tabelle = { rooms, guests, bookings, payments, cleanings, richieste, family_documents, da_controllare_rinvii }
+const tabelle = { rooms, guests, bookings, payments, cleanings, richieste, family_documents, da_controllare_rinvii, strutture }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
 
 // --- PostgREST minimale ---------------------------------------------------
@@ -246,6 +256,7 @@ let senzaRinvii = process.env.FINTO_SENZA_RINVII === '1'
 let erroreRichieste = process.env.FINTO_ERRORE_RICHIESTE === '1'
 // Tre numeri (07/09/2026): GET /finto/errore-oggi?on=1 fa fallire la lettura delle prenotazioni di oggi (check_in=lte.…)
 let erroreOggi = process.env.FINTO_ERRORE_OGGI === '1'
+let senzaStrutture = process.env.FINTO_SENZA_STRUTTURE === '1'
 
 const finto = createServer(async (req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORTA_FINTO}`)
@@ -253,6 +264,10 @@ const finto = createServer(async (req, res) => {
   if (url.pathname === '/finto/senza-rinvii') { senzaRinvii = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senzaRinvii }) }
   if (url.pathname === '/finto/errore-richieste') { erroreRichieste = url.searchParams.get('on') === '1'; return rispondi(res, 200, { erroreRichieste }) }
   if (url.pathname === '/finto/errore-oggi') { erroreOggi = url.searchParams.get('on') === '1'; return rispondi(res, 200, { erroreOggi }) }
+  if (url.pathname === '/finto/senza-strutture') { senzaStrutture = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senzaStrutture }) }
+  if (senzaStrutture && url.pathname === '/rest/v1/strutture') {
+    return rispondi(res, 404, { code: 'PGRST205', message: "Could not find the table 'public.strutture' in the schema cache", details: null, hint: null })
+  }
   if (erroreOggi && url.pathname === '/rest/v1/bookings' && (url.searchParams.get('check_in') || '').startsWith('lte.')) {
     return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla lettura delle prenotazioni di oggi', details: null, hint: null })
   }

@@ -22,6 +22,9 @@ import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 import { oggiARoma } from '@/lib/spese/adattatore'
 import { saldoMancanteCent, METODI_PAGAMENTO, eseguiSegnaPagato, eseguiRegistraAcconto, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, type MetodoPagamento, type MovimentoSaldo, type AccontoPendente } from '@/lib/statistiche'
 import AvvisoAzione from '@/components/AvvisoAzione'
+import CampoProvenienza from '@/components/CampoProvenienza'
+import { campiProvenienza, normalizzaProvenienza, testoProvenienza, type StrutturaNota } from '@/lib/provenienza'
+import { leggiStrutture, ricordaStruttura } from '@/lib/provenienzaDati'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -389,6 +392,13 @@ export default function BookingDetail() {
   // accanto alla loro azione.
   // ?avviso= arriva dalla conferma di una richiesta (provenienza non copiata, 0036)
   const [avvisoScheda, setAvvisoScheda] = useState<string | null>(() => searchParams.get('avviso'))
+  // Strutture note per «Come ci ha trovato» (0036)
+  const [strutture, setStrutture] = useState<{ disponibile: boolean; lista: StrutturaNota[] }>({ disponibile: false, lista: [] })
+  useEffect(() => {
+    let vivo = true
+    leggiStrutture().then(r => { if (vivo) setStrutture({ disponibile: r.disponibile, lista: r.strutture }) })
+    return () => { vivo = false }
+  }, [])
   const [erroreSoggiorno, setErroreSoggiorno] = useState<string | null>(null)
   const [erroreCambioCamera, setErroreCambioCamera] = useState<string | null>(null)
   const [erroreAnnulla, setErroreAnnulla] = useState<string | null>(null)
@@ -497,6 +507,8 @@ export default function BookingDetail() {
         color: b.color || '',
         bonifico: b.bonifico || false,
         source: b.source || 'diretta',
+        // Provenienza (0036): presente solo se la colonna esiste sulla riga
+        provenienza: normalizzaProvenienza(b.provenienza), struttura: b.struttura_nome || '',
         extra_phone_1: b.extra_phone_1 || '',
         extra_phone_1_name: b.extra_phone_1_name || '',
         chi_e: b.chi_e || '',
@@ -864,6 +876,8 @@ export default function BookingDetail() {
       color: editForm.color || null,
       bonifico: editForm.bonifico || false,
       source: editForm.source || 'diretta',
+      // Provenienza: solo a colonne migrate (0036), come chi_e
+      ...(booking.provenienza !== undefined ? campiProvenienza(editForm.provenienza, editForm.struttura) : {}),
       extra_phone_1: editForm.extra_phone_1 ? normalizePhone(editForm.extra_phone_1) : null,
       extra_phone_1_name: editForm.extra_phone_1_name || null,
       // chi_e incluso solo se la colonna esiste già sul DB o se è stato valorizzato: gli altri salvataggi non si bloccano prima della migrazione
@@ -884,6 +898,11 @@ export default function BookingDetail() {
     }
     setSaveEditError(null)
     setAvvisoScheda(null)
+    // Nome di struttura nuovo → entra nell'elenco (non blocca il salvataggio)
+    if (booking.provenienza !== undefined && editForm.provenienza === 'altra_struttura') {
+      const errStruttura = await ricordaStruttura(editForm.struttura, strutture.lista)
+      if (errStruttura) setAvvisoScheda(`Salvato, ma il nome della struttura non è stato aggiunto all'elenco: ${errStruttura}`)
+    }
     const guestId = booking.guest_id || booking.guests?.id
     let avvisoCliente: string | null = null
     if (guestId) {
@@ -1186,6 +1205,9 @@ export default function BookingDetail() {
           <button onClick={() => setEditing(false)} className="text-gray-500 text-sm">Annulla</button>
         )}
       </div>
+      {!editing && booking.provenienza !== undefined && (
+        <p className="text-xs -mt-2 mb-3" style={{ color: '#6b6b60' }} data-provenienza-scheda>Come ci ha trovato: <span className="font-semibold text-green-dark">{testoProvenienza(booking)}</span></p>
+      )}
       {richiestaOrigine && (
         <p className="text-xs -mt-2 mb-3" style={{ color: '#6b6b60' }}>
           Nata dalla richiesta del {new Date(richiestaOrigine.created_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })} via {richiestaOrigine.canale === 'web' ? 'sito' : richiestaOrigine.canale === 'whatsapp' ? 'WhatsApp' : 'telefono'}
@@ -1479,6 +1501,12 @@ export default function BookingDetail() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="mb-3">
+            <CampoProvenienza compatto valore={{ provenienza: editForm.provenienza || 'non_so', struttura: editForm.struttura || '' }}
+              onChange={x => setEditForm({ ...editForm, provenienza: x.provenienza, struttura: x.struttura })}
+              strutture={strutture.lista} disponibile={booking.provenienza !== undefined && strutture.disponibile} />
           </div>
 
           <input value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })}

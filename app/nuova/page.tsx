@@ -12,6 +12,9 @@ import { messaggioErroreDati } from '@/lib/connessione'
 import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
 import AvvisoAzione from '@/components/AvvisoAzione'
+import CampoProvenienza from '@/components/CampoProvenienza'
+import { campiProvenienza, type Provenienza, type StrutturaNota } from '@/lib/provenienza'
+import { leggiStrutture, ricordaStruttura } from '@/lib/provenienzaDati'
 
 // forme MINIME delle righe lette da Supabase (solo i campi usati qui)
 type ClienteRiga = {
@@ -80,6 +83,15 @@ function NuovaPrenotazione() {
   const [rooms, setRooms] = useState<CameraRiga[]>([])
   const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', shuttle: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '', bonifico: false, source: 'diretta', extra_phone_1_name: '', chi_e: '' })
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
+  // Provenienza (08/09/2026): «Come ci ha trovato»; salvata solo se la 0036 è applicata
+  const [provenienza, setProvenienza] = useState<{ provenienza: Provenienza; struttura: string }>({ provenienza: 'non_so', struttura: '' })
+  const [strutture, setStrutture] = useState<{ disponibile: boolean; lista: StrutturaNota[] }>({ disponibile: false, lista: [] })
+  const [avvisoProvenienza, setAvvisoProvenienza] = useState<string | null>(null)
+  useEffect(() => {
+    let vivo = true
+    leggiStrutture().then(r => { if (vivo) { setStrutture({ disponibile: r.disponibile, lista: r.strutture }); if (r.errore) setAvvisoProvenienza(r.errore) } })
+    return () => { vivo = false }
+  }, [])
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedGroupId, setSavedGroupId] = useState<string | null>(null)
@@ -389,12 +401,19 @@ function NuovaPrenotazione() {
       num_guests: form.num_guests, extra_bed: form.extra_bed_dates.length > 0, extra_bed_dates: form.extra_bed_dates, price_per_night: Number(form.price_per_night),
       extra_bed_total: ebt, total_amount: calcTotal(), notes: form.notes || null, status: 'confermata', source: form.source,
       bonifico: form.bonifico, pagato: false, group_id: groupId,
+      // Provenienza: solo a migrazione 0036 applicata (tabella strutture presente)
+      ...(strutture.disponibile ? campiProvenienza(provenienza.provenienza, provenienza.struttura) : {}),
       extra_phone_1_name: form.extra_phone_1_name || null,
       // chi_e incluso solo se valorizzato: così il salvataggio funziona anche se la colonna non è ancora stata creata su Supabase
       ...(form.chi_e ? { chi_e: form.chi_e } : {}),
       // navetta: stessa regola (vuoto = "da definire", non si salva nulla)
       ...(form.shuttle ? { shuttle: form.shuttle } : {}),
     })
+    // Nome di struttura nuovo → entra nell'elenco (non blocca il salvataggio)
+    if (!bookingError && strutture.disponibile && provenienza.provenienza === 'altra_struttura') {
+      const errStruttura = await ricordaStruttura(provenienza.struttura, strutture.lista)
+      if (errStruttura) setAvvisoProvenienza(`Prenotazione salvata, ma il nome della struttura non è stato aggiunto all'elenco: ${errStruttura}`)
+    }
     setSaving(false)
     if (bookingError) {
       setSaveError(`Errore salvataggio prenotazione: ${bookingError.message}`)
@@ -809,6 +828,11 @@ function NuovaPrenotazione() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="mb-3">
+              <CampoProvenienza compatto valore={provenienza} onChange={setProvenienza} strutture={strutture.lista} disponibile={strutture.disponibile} />
+              {avvisoProvenienza && <p className="text-xs text-stone mt-1">{avvisoProvenienza}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-2 mb-3">
