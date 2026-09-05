@@ -17,6 +17,8 @@ import { etichettaPeriodo, GIORNI_QUINDICINA, GIORNI_PRIMA_OGGI } from '@/lib/ri
 import { salvaOrarioENavetta } from '@/lib/arrivoOrario'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { idDaParametro } from '@/lib/daControllare'
+import { BottoniOrario } from '@/components/BottoniWhatsApp'
+import { whatsappRichiestaOrario } from '@/lib/messaggiWhatsApp'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
@@ -598,6 +600,8 @@ export default function Arrivi() {
             <p className="text-sm text-gray-500 mb-4">
               {popup.time || 'Orario da definire'} · {testoNavetta((popup.shuttle || null) as any)}
             </p>
+            {/* Stessi bottoni WhatsApp della Home (08/09/2026): «Chiedi orario» · «Apri chat»; senza numero non compaiono */}
+            {(() => { const wa = whatsappRichiestaOrario(bookings.find(b => b.id === popup.id) || {}); return wa ? <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-4" data-whatsapp-arrivi><BottoniOrario wa={wa} /></div> : null })()}
             <input
               type="text" inputMode="numeric" placeholder="HH:MM"
               value={popup.time}

@@ -410,3 +410,18 @@ test('pagamenti (07/09/2026): soggiorno concluso con movimenti che coprono il to
   const ricostruito = [{ booking_id: '4804b0d6', amount: 1700, paid_on: '2026-08-06', origine: 'ricostruito' } as { booking_id: string; amount: number; paid_on: string }]
   assert.deepEqual(eccezioniPagamenti(rosa, ricostruito, OGGI_PROD), [])
 })
+
+test('arrivo senza orario (08/09/2026): tre link — «Chiedi orario» col testo della scheda, «Apri chat» senza testo, «Apri arrivo»; senza numero solo il terzo', async () => {
+  const { whatsappRichiestaOrario } = await import('./messaggiWhatsApp.ts')
+  const conNumero = b('n', 'amelia', '2026-09-16', '2026-09-18', 100, { guests: { full_name: 'Anna Rossi', phone: '+39 333 123 4567' }, guest_name: null })
+  const senzaNumero = b('s', 'ambra', '2026-09-16', '2026-09-18', 100, { guests: { full_name: 'Bruno Bianchi', phone: '' }, guest_name: null })
+  const [n, s] = [eccezioniArrivi([conNumero], OGGI)[0], eccezioniArrivi([senzaNumero], OGGI)[0]]
+  const wa = whatsappRichiestaOrario(conNumero)!
+  assert.equal(n.whatsapp!.href, wa.href)                                   // Chiedi orario: testo «Richiesta orario» già scritto
+  assert.equal(n.whatsapp!.principale, true)
+  assert.equal(n.whatsappChat!.href, 'https://wa.me/393331234567')          // Apri chat: senza testo
+  assert.equal(n.whatsappChat!.testo, '')
+  assert.equal(hrefDestinazione(n.destinazione), '/arrivi?apri=n')          // Apri arrivo
+  assert.equal(s.whatsapp, undefined); assert.equal(s.whatsappChat, undefined)
+  assert.equal(hrefDestinazione(s.destinazione), '/arrivi?apri=s')
+})

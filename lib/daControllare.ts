@@ -63,6 +63,8 @@ export type Eccezione = {
   // (lib/messaggiWhatsApp, stesso link); nelle proposte scadute è un ghost
   // senza testo (Ania scrive a mano). Assente senza numero di telefono.
   whatsapp?: LinkWhatsAppEccezione
+  // Arrivi (08/09/2026): la chat senza testo («Apri chat»), accanto a «Chiedi orario»
+  whatsappChat?: LinkWhatsAppEccezione
 }
 export type LinkWhatsAppEccezione = { href: string; numero: string; testo: string; principale: boolean }
 
@@ -281,6 +283,7 @@ export function eccezioniArrivi(prenotazioni: PrenotazioneDC[], oggi: string): E
         motivo: wa ? 'Arrivo di domani senza orario' : 'Arrivo di domani senza orario e senza numero di telefono',
         bottone: 'Apri arrivo', destinazione: { tipo: 'arrivo' as const, prenotazioneId: b.id }, rimandabile: false,
         whatsapp: wa ? { ...wa, principale: true } : undefined,
+        whatsappChat: wa ? { href: waHrefTesto(wa.numero, ''), numero: wa.numero, testo: '', principale: false } : undefined,
       }
     })
 }

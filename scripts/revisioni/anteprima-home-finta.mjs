@@ -147,6 +147,7 @@ const richieste = [
   richiesta('Dario', 'Deluca', 'proposta_inviata', O(12), O(14), oreFa(30), oreFa(5)),
   richiesta('Franca', 'Fabbri', 'in_attesa', O(15), O(17), oreFa(1)),
   richiesta('Gino', 'Galli', 'confermata', O(2), O(4), oreFa(100)),
+  { ...richiesta('Giulio', 'Gallo', 'in_attesa', O(20), O(23), oreFa(3)), telefono: '+39 333 000 0005' },   // cliente che torna (08/09/2026): stesso telefono di Giulio, un soggiorno concluso
 ]
 for (const r of richieste) { r.provenienza = 'non_so'; r.struttura_nome = null }
 richieste[1].provenienza = 'altra_struttura'; richieste[1].struttura_nome = 'Nida'
