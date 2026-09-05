@@ -6,6 +6,7 @@
 // ============================================================================
 import { cent, prenotazioneValida, type CameraStat, type FuoriServizio, type PrenotazioneStat } from './tipi.ts'
 import { giorniDelMese, nottiNellIntervallo, nottiTra, primoGiorno, primoGiornoDopo } from './periodo.ts'
+import { nottiChiuse } from './fuoriServizio.ts'
 
 export function nottiDisponibili(mese: string, camere: CameraStat[], fuoriServizio: FuoriServizio[] = []): { totali: number; perCamera: Record<string, number>; chiuse: number } {
   const da = primoGiorno(mese), a = primoGiornoDopo(mese)
@@ -13,7 +14,7 @@ export function nottiDisponibili(mese: string, camere: CameraStat[], fuoriServiz
   const perCamera: Record<string, number> = {}
   let chiuse = 0
   for (const c of camere.filter(x => x.active !== false)) {
-    const fs = fuoriServizio.filter(f => f.room_id === c.id).reduce((s, f) => s + nottiNellIntervallo(f.da, f.a, da, a), 0)
+    const fs = nottiChiuse(fuoriServizio, c.id, da, a)   // R7: sovrapposizioni contate una volta
     const disponibili = Math.max(0, giorni - Math.min(giorni, fs))
     perCamera[c.id] = disponibili
     chiuse += giorni - disponibili

@@ -1,4 +1,11 @@
--- BOZZA, NON APPLICATA (05/09/2026) — «Statistiche, numeri corretti», pezzo 3.
+-- ============================================================================
+-- 0034 — PERIODI DI FUORI SERVIZIO PER CAMERA — ***PROPOSTA/BOZZA***
+-- ============================================================================
+-- STATO: NON APPLICATA. Vive in supabase/proposte/ (revisione Codex di
+-- f4d5474, rilievo R7): fuori dalle migrazioni operative, da eseguire a mano
+-- nell'editor SQL solo dopo l'autorizzazione di Ania. Modello: intervalli per
+-- camera [da, a) con motivo; lib/statistiche/fuoriServizio conta le notti
+-- chiuse UNA volta anche se gli intervalli si sovrappongono.
 --
 -- Oggi le notti vendibili si calcolano con il flag rooms.active (camera
 -- attiva sì/no, senza date): una camera chiusa per lavori per dieci giorni
