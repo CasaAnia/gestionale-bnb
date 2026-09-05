@@ -248,7 +248,7 @@ export default function Calendario() {
   useEffect(() => {
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings').select('*, guests(id, full_name, phone, rating)').neq('status', 'annullata'),
+      supabase.from('bookings').select('*, guests(*)').neq('status', 'annullata'),
       supabase.from('payments').select('booking_id, amount'),
     ]).then(([{ data: r }, { data: b }, { data: p }]) => {
       const sorted = ([...(r || [])] as Room[]).sort((a, b) => {
