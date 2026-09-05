@@ -9,6 +9,8 @@ import { leggiDatiStatistiche, type DatiStatistiche } from '@/lib/statisticheDat
 import { useDaControllare } from '@/lib/daControllareDati'
 import { testoPagamentiDaControllare } from '@/lib/daControllare'
 import { ID_SEZIONE } from '@/components/DaControllare'
+import { daDoveArrivano, type PrenotazioneProvenienza } from '@/lib/statistiche/provenienza'
+import { AVVISO_0036 } from '@/lib/provenienza'
 import { supabase } from '@/lib/supabase'
 import { nomeOspite } from '@/lib/guestName'
 import { messaggioNonSalvato } from '@/lib/scritturaSicura'
@@ -179,6 +181,8 @@ export default function Statistiche() {
 
   const intervallo = intervalloPeriodo(ref, period)
   const totali = data ? cassaIntervallo(data.prenotazioni, data.pagamenti, data.spese, intervallo.da, intervallo.a) : null
+  // Da dove arrivano gli ospiti (08/09/2026): periodo scelto, storico = soggiorni conclusi (per «Già stati da noi»)
+  const provenienze = data ? daDoveArrivano(data.prenotazioni as PrenotazioneProvenienza[], [...data.ricostruzione.prenotazioni, ...data.prenotazioni] as PrenotazioneProvenienza[], intervallo.da, intervallo.a) : null
 
   // Sconti concessi nel periodo (mese o anno): pro-quota sulle notti dormite (lib/statistiche/sconti)
   const sconti = data && period !== 'settimana'
@@ -545,6 +549,32 @@ export default function Statistiche() {
                   </p>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Da dove arrivano gli ospiti (08/09/2026): soggiorni e ricavi per soggiorno per provenienza; «Già stati da noi» a parte */}
+          {provenienze && (
+            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4" data-provenienze>
+              <p className="text-sm font-semibold text-gray-600">Da dove arrivano gli ospiti</p>
+              <p className="text-xs text-gray-400 mb-3">{period === 'settimana' ? 'settimana' : period === 'mese' ? 'mese' : 'anno'} scelto · soggiorni confermati e ricavi per soggiorno (notti dormite nel periodo){!provenienze.colonnePresenti ? ` · ${AVVISO_0036}` : ''}</p>
+              {provenienze.righe.map(r => (
+                <div key={r.chiave} className="mt-2 first:mt-0">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-sm font-medium text-green-dark">{r.label}</span>
+                    <span className="text-sm text-gray-600"><span className="font-semibold text-green-mid">{r.soggiorni}</span> {r.soggiorni === 1 ? 'soggiorno' : 'soggiorni'} · €{euro(r.ricaviCent)}</span>
+                  </div>
+                  {r.sotto?.map(s => (
+                    <div key={s.chiave} className="flex justify-between items-baseline pl-4 mt-0.5">
+                      <span className="text-[13px] text-gray-600">{s.label}</span>
+                      <span className="text-[13px] text-gray-500">{s.soggiorni} · €{euro(s.ricaviCent)}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              <div className="flex justify-between items-baseline mt-3 pt-2 border-t border-dashed border-[#C9BFA8]" data-gia-stati>
+                <span className="text-sm font-medium text-green-dark">{provenienze.giaStati.label} <span className="text-xs text-gray-400">(a parte)</span></span>
+                <span className="text-sm text-gray-600"><span className="font-semibold text-green-mid">{provenienze.giaStati.soggiorni}</span> {provenienze.giaStati.soggiorni === 1 ? 'soggiorno' : 'soggiorni'} · €{euro(provenienze.giaStati.ricaviCent)}</span>
+              </div>
             </div>
           )}
 
