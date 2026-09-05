@@ -240,8 +240,9 @@ export default function Dashboard() {
             const hasOggi = data.checkInOggi.length > 0 || data.checkOutOggi.length > 0 || data.roomChangesOggi.length > 0
             const hasDomani = data.checkInDomani.length > 0 || data.checkOutDomani.length > 0 || data.roomChangesDomani.length > 0
             if (!hasOggi && !hasDomani) return null
+          {/* Riquadri come nella scheda prenotazione e nel campo «Cerca nome»: bianchi, bordo #C9BFA8, ombra leggera (Ania, 05/09/2026) */}
             return (
-              <div className="bg-white rounded-[10px] border border-card-border p-3 mb-4">
+              <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-3 mb-4">
                 {hasOggi && (
                   <>
                     <p className="text-[11px] uppercase mb-2.5 text-brass" style={{ letterSpacing: '2px' }}>Oggi</p>
@@ -260,7 +261,7 @@ export default function Dashboard() {
           })()}
 
           {data.daIncassare?.length > 0 && (
-            <div className="bg-white rounded-[10px] border border-card-border p-3 mb-4">
+            <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-3 mb-4">
               <p className="text-[11px] uppercase mb-1.5 text-brass" style={{ letterSpacing: '2px' }}>💶 Da incassare</p>
               {data.daIncassare.map((g: any) => (
                 <Link key={g.id} href={`/prenotazioni/${g.id}`} className="flex items-center justify-between py-1.5 border-t border-card-border text-sm">
@@ -271,7 +272,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          <div className="bg-white rounded-[10px] p-5 border border-card-border mb-3">
+          <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm mb-3">
             <div className="flex items-baseline justify-between mb-1.5">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Entrate mese</p>
               <p className="text-xs text-gray-500">totale €{fmt(data.entrateMese)}</p>
@@ -289,46 +290,46 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="bg-white rounded-[10px] p-5 border border-card-border">
+            <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Profitto mese</p>
               <p className={`font-serif text-2xl ${data.profittoMese >= 0 ? 'text-green-dark' : 'text-[#8C3B2E]'}`}>€{fmt(data.profittoMese)}</p>
             </div>
-            <div className="bg-white rounded-[10px] p-5 border border-card-border">
+            <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Spese mese</p>
               <p className="font-serif text-2xl text-[#8C3B2E]">€{fmt(data.speseMese)}</p>
             </div>
-            <div className="bg-white rounded-[10px] p-5 border border-card-border">
+            <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Camere occupate</p>
               <p className="font-serif text-2xl text-green-dark">{data.occupazioneMese}<span className="text-base text-gray-400">% mese</span></p>
             </div>
-            <div className="bg-white rounded-[10px] p-5 border border-card-border">
+            <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Tariffa media</p>
               <p className="font-serif text-2xl text-green-dark">€{fmt(data.tariffaMedia)}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <Link href="/prenotazioni" className="bg-sage rounded-[10px] p-3 text-center border border-card-border">
+            <Link href="/prenotazioni" className="bg-white rounded-[10px] p-3 text-center border border-[#C9BFA8] shadow-sm">
               <div className="text-2xl">📅</div>
               <div className="text-xs font-semibold text-green-dark mt-1">Prenotazioni</div>
             </Link>
-            <Link href="/statistiche" className="bg-sand rounded-[10px] p-3 text-center border border-card-border">
+            <Link href="/statistiche" className="bg-white rounded-[10px] p-3 text-center border border-[#C9BFA8] shadow-sm">
               <div className="text-2xl">📊</div>
               <div className="text-xs font-semibold text-green-dark mt-1">Statistiche</div>
             </Link>
             {!demo && (
-              <Link href="/spese" className="bg-[#F4E6DF] rounded-[10px] p-3 text-center border border-card-border">
+              <Link href="/spese" className="bg-white rounded-[10px] p-3 text-center border border-[#C9BFA8] shadow-sm">
                 <div className="text-2xl">💶</div>
                 <div className="text-xs font-semibold text-[#7A3B22] mt-1">Spese B&B</div>
               </Link>
             )}
             {!demo && (
-              <Link href="/spese-famiglia" className="bg-[#F4E6DF] rounded-[10px] p-3 text-center border border-card-border">
+              <Link href="/spese-famiglia" className="bg-white rounded-[10px] p-3 text-center border border-[#C9BFA8] shadow-sm">
                 <div className="text-2xl">👛</div>
                 <div className="text-xs font-semibold text-[#7A3B22] mt-1">Spese Famiglia</div>
               </Link>
             )}
-            <Link href="/impostazioni" className="bg-white rounded-[10px] p-3 text-center border border-card-border">
+            <Link href="/impostazioni" className="bg-white rounded-[10px] p-3 text-center border border-[#C9BFA8] shadow-sm">
               <div className="text-2xl">🔔</div>
               <div className="text-xs font-semibold text-green-dark mt-1">Impostazioni e notifiche</div>
             </Link>
