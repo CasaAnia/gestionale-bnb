@@ -44,7 +44,7 @@ const CELL_W_DESKTOP = gs(84)
 const ROW_H_DESKTOP = 44
 const HEADER_MONTH_H_DESKTOP = 0
 const HEADER_DAY_H_DESKTOP = 40
-const NAME_W_MOBILE = 80   // telefono (05/09/2026): solo il nome della camera, senza numero né descrizione
+const NAME_W_MOBILE = 66   // telefono (05/09/2026): come le Richieste, uguale in Calendario/Arrivi/Richieste (richiesta di Ania)
 const NAME_W_DESKTOP = 84   // solo il nome della camera, senza numero
 const MESI_CLICCABILI = 12       // riga sottile dei mesi: da quello corrente in avanti
 // Selettore «Mese | 2 settimane» come nelle Richieste: qui cambia la larghezza
@@ -183,7 +183,10 @@ export default function Calendario() {
   // Griglia del Mac OVUNQUE (05/09/2026, richiesta di Ania): sul telefono stessa
   // griglia, colonna camere 80 px, colonne di almeno 60 px (40 a mese) che
   // scorrono di lato col dito dentro il riquadro.
-  const NAME_W = isDesktop ? NAME_W_DESKTOP : NAME_W_MOBILE
+  // Colonna delle camere: larga solo sul Mac vero; sul telefono, dritto o
+  // girato, quella stretta delle Richieste (uguale nelle tre pagine, 05/09/2026)
+  const colonnaLarga = isDesktop && !orizzontale
+  const NAME_W = colonnaLarga ? NAME_W_DESKTOP : NAME_W_MOBILE
   const colonnaMin = isDesktop ? LARGHEZZA_MIN_COLONNA : (modo === 'quindici' ? 60 : 40)
   const CELL_W = larghezzaGriglia > 0 ? Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])) : (isDesktop ? CELL_W_DESKTOP : 60)
   const ROW_H = ROW_H_DESKTOP
@@ -734,7 +737,7 @@ export default function Calendario() {
                     <div title={ROOM_DESC_BY_NAME[shortName] || ''} style={{
                       width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10,
                       background: 'white', borderRight: '2px solid #D6CFBD',
-                      display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px',
+                      display: 'flex', alignItems: 'center', gap: 6, padding: colonnaLarga ? '0 8px' : '0 6px',
                     }}>
                       {/* niente numero 01–04: solo il nome della camera, ovunque (05/09/2026) */}
                       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -921,7 +924,7 @@ export default function Calendario() {
       </div>
       {/* Sotto il calendario: «Oggi» e i 12 mesi cliccabili (riga condivisa con Arrivi e Richieste), telefono e Mac */}
       {!loading && (
-        <RigaMesi mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={() => vaiAData(todayStr)} className={`shrink-0 pt-3 pb-4 ${orizzontale ? 'px-2' : 'px-4'}`} />
+        <RigaMesi colonna={NAME_W} mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={() => vaiAData(todayStr)} className={`shrink-0 pt-3 pb-4 ${orizzontale ? 'px-2' : 'px-4'}`} />
       )}
 
       {/* Legenda: solo su desktop — sul telefono ruba spazio al calendario */}

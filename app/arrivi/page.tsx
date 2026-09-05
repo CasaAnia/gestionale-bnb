@@ -29,7 +29,7 @@ const CELL_W_DESKTOP = gs(84)
 const ROW_H_DESKTOP = 44
 const HEADER_MONTH_H_DESKTOP = 0
 const HEADER_DAY_H_DESKTOP = 40
-const NAME_W_MOBILE = 80   // telefono (05/09/2026): solo il nome della camera, senza numero né descrizione
+const NAME_W_MOBILE = 66   // telefono (05/09/2026): come le Richieste, uguale in Calendario/Arrivi/Richieste (richiesta di Ania)
 const NAME_W_DESKTOP = 84   // solo il nome della camera, senza numero
 // Selettore «Mese | 2 settimane» (stessa scelta ricordata del Calendario)
 type ModoGriglia = 'mese' | 'quindici'
@@ -112,7 +112,10 @@ export default function Arrivi() {
   // Dal Mac le colonne riempiono il riquadro: 14 giorni (2 settimane) o 30 (mese)
   // Griglia del Mac OVUNQUE (05/09/2026): sul telefono colonna camere 80 px e
   // colonne di almeno 60 px (40 a mese) che scorrono di lato dentro il riquadro.
-  const NAME_W = isDesktop ? NAME_W_DESKTOP : NAME_W_MOBILE
+  // Colonna delle camere: larga solo sul Mac vero; sul telefono, dritto o
+  // girato, quella stretta delle Richieste (uguale nelle tre pagine, 05/09/2026)
+  const colonnaLarga = isDesktop && !orizzontale
+  const NAME_W = colonnaLarga ? NAME_W_DESKTOP : NAME_W_MOBILE
   const colonnaMin = isDesktop ? LARGHEZZA_MIN_COLONNA : (modo === 'quindici' ? 60 : 40)
   const CELL_W = larghezzaGriglia > 0 ? Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])) : (isDesktop ? CELL_W_DESKTOP : 60)
   const ROW_H = ROW_H_DESKTOP
@@ -404,7 +407,7 @@ export default function Arrivi() {
                     <div title={ROOM_DESC_BY_NAME[shortName] || ''} style={{
                       width: NAME_W, minWidth: NAME_W, position: 'sticky', left: 0, zIndex: 10,
                       background: 'white', borderRight: '2px solid #D6CFBD',
-                      display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px',
+                      display: 'flex', alignItems: 'center', gap: 6, padding: colonnaLarga ? '0 8px' : '0 6px',
                     }}>
                       {/* niente numero 01–04: solo il nome della camera, ovunque (05/09/2026) */}
                       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -621,7 +624,7 @@ export default function Arrivi() {
       })()}
       </div>
       {!loading && (
-        <RigaMesi mesi={mesiCliccabili(today, 4).filter(m => dayIndex(m.iso) < DAYS_TOTAL)} attivo={toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)}
+        <RigaMesi colonna={NAME_W} mesi={mesiCliccabili(today, 4).filter(m => dayIndex(m.iso) < DAYS_TOTAL)} attivo={toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)}
           onMese={m => vaiAIndice(dayIndex(m.iso))} onOggi={() => vaiAIndice(DAYS_BEFORE - 1)} nota={`arrivi dei prossimi ${DAYS_TOTAL - DAYS_BEFORE} giorni`} className={`shrink-0 pt-3 pb-4 ${orizzontale ? 'px-2' : 'px-4'}`} />
       )}
 

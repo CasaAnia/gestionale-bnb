@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Globe, Phone, MessageCircle, ChevronDown } from 'lucide-react'
 import BackBar from '@/components/BackBar'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
-import CalendarioRichieste, { type Ancora, type ModoCalendario } from '@/components/richieste/CalendarioRichieste'
+import CalendarioRichieste, { larghezzaColonnaCamere, type Ancora, type ModoCalendario } from '@/components/richieste/CalendarioRichieste'
 import PannelloRichieste from '@/components/richieste/PannelloRichieste'
 import AzioniRichiesta from '@/components/richieste/AzioniRichiesta'
 import RigaScadenza from '@/components/richieste/RigaScadenza'
@@ -340,7 +340,7 @@ function Richieste() {
               acconti={acconti} vista={vista} layout={desktop ? 'desktop' : 'mobile'} oggi={oggiIso()} adesso={adesso}
               compatto={orizzontale} evidenziata={selezionata} onApri={(gruppo, ancora) => setPannello({ gruppo, ancora })} />
           )}
-          <RigaMesi mesi={mesiCliccabili(new Date())} attivo={modoCalendario === 'quindici' ? inizio.slice(0, 7) : mese}
+          <RigaMesi colonna={larghezzaColonnaCamere(desktop ? 'desktop' : 'mobile', orizzontale)} mesi={mesiCliccabili(new Date())} attivo={modoCalendario === 'quindici' ? inizio.slice(0, 7) : mese}
             onMese={m => (modoCalendario === 'quindici' ? setInizio(m.iso) : setMese(m.chiave))}
             onOggi={() => (modoCalendario === 'quindici' ? setInizio(inizioQuindicina(oggiIso())) : setMese(meseCorrente()))} className="mt-3" />
           <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>

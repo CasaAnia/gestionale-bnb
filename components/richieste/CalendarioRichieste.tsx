@@ -48,7 +48,13 @@ const COL_MIN_QUINDICI = 72   // a 2 settimane ogni giorno ha almeno 72 px: «No
 // righe, giorni in colonne — che scorre di lato dentro il riquadro. Colonna
 // camere più stretta e colonne minime più piccole; la variante «giorni in
 // righe» di prima resta nel file, non più usata.
-const NAME_W_TELEFONO = 66   // solo il nome («Allegra» a 12 px), senza numero: è la colonna meno utile
+const NAME_W_TELEFONO = 66
+// Larghezza della colonna delle camere: larga solo sul Mac vero; sul telefono,
+// dritto o girato (compatto), quella stretta, uguale in Calendario/Arrivi/Richieste
+// (richiesta di Ania, 05/09/2026). Esportata per allineare la riga «Oggi · mesi».
+export function larghezzaColonnaCamere(layout: 'desktop' | 'mobile', compatto?: boolean): number {
+  return layout === 'desktop' && !compatto ? NAME_W : NAME_W_TELEFONO
+}   // solo il nome («Allegra» a 12 px), senza numero: è la colonna meno utile
 const COL_MIN_QUINDICI_TELEFONO = 60
 const COL_MIN_MESE_TELEFONO = 40
 const ROW_H = 44
@@ -91,7 +97,7 @@ type Riga = { chiave: string; nome: string; numero: string; camera: CameraCalend
 export default function CalendarioRichieste(p: Props) {
   const orizzontale = true   // false = torna la vecchia griglia verticale sul telefono
   const modo: ModoCalendario = p.modo === 'quindici' && p.inizio ? 'quindici' : 'mese'
-  const nameW = p.layout === 'desktop' ? NAME_W : NAME_W_TELEFONO
+  const nameW = larghezzaColonnaCamere(p.layout, p.compatto)
   const giorni = useMemo(() => (modo === 'quindici' ? giorniDaInizio(p.inizio!, GIORNI_QUINDICINA) : giorniDelMese(p.mese)), [modo, p.inizio, p.mese])
   const camere = useMemo(() => ordinaCamere(p.camere.filter(c => c.active !== false)), [p.camere])
   const ctx = useMemo(() => contestoColori(p.prenotazioni, p.acconti), [p.prenotazioni, p.acconti])
