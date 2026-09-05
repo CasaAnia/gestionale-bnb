@@ -63,3 +63,17 @@ export function eraGiaStato(b: SoggiornoStorico, storico: SoggiornoStorico[]): b
   const persona: PersonaRicerca = { guest_id: b.guest_id, telefono: b.guests?.phone, full_name: b.guest_name || b.guests?.full_name }
   return soggiorniPrecedenti(persona, storico, b.check_in, b.group_id || b.id) > 0
 }
+
+// Scheda cliente (08/09/2026): soggiorni CONCLUSI (uno per gruppo) e ricavi
+// totali (somma dei totali delle prenotazioni di quei soggiorni)
+export function soggiorniConclusi(prenotazioni: (SoggiornoStorico & { total_amount?: number | string | null })[], oggi: string): { n: number; ricaviCent: number } {
+  const gruppi = new Map<string, number>()
+  for (const b of prenotazioni) {
+    if (b.status !== 'confermata' && b.status !== 'completata') continue
+    if (b.check_out > oggi) continue
+    const k = b.group_id || b.id
+    const v = Number(b.total_amount)
+    gruppi.set(k, (gruppi.get(k) ?? 0) + (Number.isFinite(v) ? Math.round(v * 100) : 0))
+  }
+  return { n: gruppi.size, ricaviCent: [...gruppi.values()].reduce((s, x) => s + x, 0) }
+}

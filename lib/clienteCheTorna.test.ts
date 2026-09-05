@@ -41,3 +41,15 @@ test('statistiche: «già stato» = un soggiorno concluso PRIMA del check-in di 
   assert.equal(eraGiaStato(storico[3], storico), true)     // Marco: il secondo soggiorno
   assert.equal(eraGiaStato(storico[2], storico), false)
 })
+
+test('scheda cliente: soggiorni conclusi (uno per gruppo) e ricavi totali', async () => {
+  const { soggiorniConclusi } = await import('./clienteCheTorna.ts')
+  const r = soggiorniConclusi([
+    { id: 'a', check_in: '2026-07-01', check_out: '2026-07-05', status: 'completata', total_amount: 400 },
+    { id: 'b1', group_id: 'g', check_in: '2026-08-01', check_out: '2026-08-03', status: 'confermata', total_amount: 100 },
+    { id: 'b2', group_id: 'g', check_in: '2026-08-03', check_out: '2026-08-05', status: 'confermata', total_amount: 140 },
+    { id: 'f', check_in: '2026-09-10', check_out: '2026-09-12', status: 'confermata', total_amount: 999 },   // futuro
+    { id: 'x', check_in: '2026-06-01', check_out: '2026-06-03', status: 'annullata', total_amount: 999 },
+  ], '2026-09-05')
+  assert.deepEqual(r, { n: 2, ricaviCent: 64000 })
+})

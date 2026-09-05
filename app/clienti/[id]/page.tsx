@@ -6,6 +6,10 @@ import BackBar from '@/components/BackBar'
 import DocumentiCliente from '@/components/DocumentiCliente'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
+import CampoProvenienza from '@/components/CampoProvenienza'
+import { campiProvenienza, normalizzaProvenienza, rigaCliente, clienteConProvenienza, type StrutturaNota } from '@/lib/provenienza'
+import { leggiStrutture, ricordaStruttura } from '@/lib/provenienzaDati'
+import { soggiorniConclusi } from '@/lib/clienteCheTorna'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
 import { storicoCliente, prenotazioneValida } from '@/lib/statistiche'
 
@@ -31,6 +35,13 @@ export default function ClienteDetail() {
   const [erroreSalva, setErroreSalva] = useState<string | null>(null)
   const [eliminando, setEliminando] = useState(false)
   const [erroreElimina, setErroreElimina] = useState<string | null>(null)
+  // Provenienza del cliente (0037): i chip anche qui; strutture note per i suggerimenti
+  const [strutture, setStrutture] = useState<{ disponibile: boolean; lista: StrutturaNota[]; avviso: string | null }>({ disponibile: false, lista: [], avviso: null })
+  useEffect(() => {
+    let vivo = true
+    leggiStrutture().then(r => { if (vivo) setStrutture({ disponibile: r.disponibile, lista: r.strutture, avviso: r.avviso ?? r.errore }) })
+    return () => { vivo = false }
+  }, [])
 
   useEffect(() => {
     let vivo = true
@@ -77,10 +88,15 @@ export default function ClienteDetail() {
     setErroreSalva(null)
     try {
       const errore = await scriviPoiAggiorna(
-        () => supabase.from('guests').update({ full_name: form.full_name, phone: form.phone, email: form.email, rating: form.rating, notes: form.notes }).eq('id', id),
+        () => supabase.from('guests').update({ full_name: form.full_name, phone: form.phone, email: form.email, rating: form.rating, notes: form.notes, ...(clienteConProvenienza(guest) && strutture.disponibile ? campiProvenienza(form.provenienza, form.struttura_nome) : {}) }).eq('id', id),
         () => { setGuest({ ...guest, ...form }); setEditing(false) },
       )
       setErroreSalva(errore)
+      // Nome di struttura nuovo → entra nell'elenco (non blocca il salvataggio)
+      if (!errore && clienteConProvenienza(guest) && strutture.disponibile && form.provenienza === 'altra_struttura') {
+        const errStruttura = await ricordaStruttura(form.struttura_nome, strutture.lista)
+        if (errStruttura) setErroreSalva(`Salvato, ma il nome della struttura non è stato aggiunto all'elenco: ${errStruttura}`)
+      }
     } finally {
       setSaving(false)
     }
@@ -140,6 +156,11 @@ export default function ClienteDetail() {
                 </button>
               ))}
             </div>
+            <div className="mb-3">
+              <CampoProvenienza compatto valore={{ provenienza: normalizzaProvenienza(form.provenienza), struttura: form.struttura_nome || '' }}
+                onChange={x => setForm({ ...form, provenienza: x.provenienza, struttura_nome: x.struttura })}
+                strutture={strutture.lista} disponibile={clienteConProvenienza(guest) && strutture.disponibile} avvisoNonDisponibile={strutture.avviso} />
+            </div>
             <button onClick={save} disabled={saving} className="w-full bg-green-mid text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
               {saving ? 'Salvataggio...' : 'Salva'}
             </button>
@@ -150,6 +171,8 @@ export default function ClienteDetail() {
             <div className="flex justify-between items-start mb-2">
               <div>
                 <p className="font-bold text-lg">{guest.full_name || 'Senza nome'}</p>
+                {/* Fonte del cliente, soggiorni conclusi e ricavi totali (08/09/2026) */}
+                {clienteConProvenienza(guest) && (() => { const c = soggiorniConclusi(bookings, oggiStr); return <p className="text-sm text-green-mid font-semibold" data-riga-cliente>{rigaCliente(guest, c.n, c.ricaviCent)}</p> })()}
                 <p className="text-gray-500 text-sm">📞 {guest.phone}</p>
                 {guest.email && <p className="text-gray-500 text-sm">✉️ {guest.email}</p>}
               </div>
