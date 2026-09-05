@@ -5,7 +5,7 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
 import { buildSiteFunnel, type SiteEvent } from '@/lib/siteStats'
 import { leggiDatiStatistiche, type DatiStatistiche } from '@/lib/statisticheDati'
-import { cassaIntervallo, incassiCent, occupazioneIntervallo, ricaviPerCamera, scontiPeriodo, spostaGiorni, type Occupazione } from '@/lib/statistiche'
+import { cassaIntervallo, incassiCent, occupazioneIntervallo, ricaviPerCamera, scontiPeriodo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, type Occupazione } from '@/lib/statistiche'
 
 // «Statistiche, numeri corretti» (05/09/2026): NESSUNA formula in questa
 // pagina. Ogni numero viene da lib/statistiche (funzioni pure, testate) sui
@@ -388,7 +388,7 @@ export default function Statistiche() {
           {occ && (
             <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
               <p className="text-sm font-semibold text-gray-600">Occupazione</p>
-              <p className="text-xs text-gray-400 mb-3">% di camere occupate sul mese — verde più intenso = più pieno</p>
+              <p className="text-xs text-gray-400 mb-3">notti vendute su notti vendibili delle camere attive, mese per mese — verde più intenso = più pieno</p>
               <div className="overflow-x-auto">
                 <table className="border-separate w-full" style={{ borderSpacing: 2, tableLayout: 'fixed' }}>
                   <thead>
@@ -404,11 +404,13 @@ export default function Statistiche() {
                       <td className="text-[10px] text-gray-500 pr-1 whitespace-nowrap">{occ.anno}</td>
                       {occ.mesi.map((v, m) => {
                         if (v == null) return <td key={m} className="rounded" style={{ height: 26, background: '#F6F2EA' }} />
+                        // Oltre il 100 % non si blocca a 100: la cella dice il numero vero
+                        // e sotto la tabella compare «sovrapposizione da controllare»
                         return (
-                          <td key={m} title={`${MESI_NOMI[m]} ${occ.anno}: ${v.percento}% (${v.nottiVendute} notti su ${v.nottiVendibili})`}
-                            className="text-center text-[10px] rounded"
-                            style={{ height: 26, background: occColor(v.percento), color: v.percento >= 55 ? '#fff' : '#1F3D2F' }}>
-                            {v.percento}
+                          <td key={m} title={`${MESI_NOMI[m]} ${occ.anno}: ${v.percento}% (${v.nottiVendute} notti su ${v.nottiVendibili})${v.anomalia ? ` — ${TESTO_ANOMALIA_OCCUPAZIONE}` : ''}`}
+                            className={`text-center text-[10px] rounded ${v.anomalia ? 'font-bold' : ''}`}
+                            style={v.anomalia ? { height: 26, background: '#F6F2EA', color: '#1F3D2F', outline: '1px solid #C9BFA8' } : { height: 26, background: occColor(v.percento), color: v.percento >= 55 ? '#fff' : '#1F3D2F' }}>
+                            {v.anomalia ? `${v.percento}!` : v.percento}
                           </td>
                         )
                       })}
@@ -421,6 +423,11 @@ export default function Statistiche() {
                 <div className="flex-1 h-2 rounded-full" style={{ background: `linear-gradient(to right, ${occColor(0)}, ${occColor(50)}, ${occColor(100)})` }} />
                 <span className="text-[10px] text-gray-400">100%</span>
               </div>
+              {occ.mesi.some(v => v?.anomalia) && (
+                <div role="alert" className="mt-3 rounded-lg px-3 py-2 text-[12px] font-semibold" style={{ background: '#F6F2EA', border: '1px solid #C9BFA8', color: '#1F3D2F' }}>
+                  {occ.mesi.map((v, m) => v?.anomalia ? `${MESI_NOMI[m]}: ${TESTO_ANOMALIA_OCCUPAZIONE} (${v.nottiVendute} notti su ${v.nottiVendibili})` : null).filter(Boolean).join(' · ')}
+                </div>
+              )}
             </div>
           )}
 
