@@ -1,4 +1,4 @@
-# STATO IN 10 RIGHE (aggiornato il 05/09/2026, sera) — da incollare a un altro assistente
+# STATO IN 10 RIGHE (aggiornato il 05/09/2026, notte) — da incollare a un altro assistente
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
@@ -21,6 +21,7 @@
    Pulizie automatiche (04/09 sera): partenza + nuovo arrivo lo stesso giorno o il giorno dopo nella stessa camera (solo confermate) = pulizia FATTA da sola con la data della partenza, calcolata dalle prenotazioni (lib/pulizie: pulizieAutomatiche, nessuna migrazione, sparisce se la prenotazione cambia); in «Oggi» resta come lavoro con etichetta «automatica» e senza pulsanti, mai «in ritardo»; nuovo registro «Ultime pulizie» (manuali + automatiche) con «Cambia data» / «Non fatta» (righe cleanings con note automatica:*); statistiche contano manuali + automatiche dal 24/08, mai doppioni lo stesso giorno; 4 notti e partenze senza arrivo vicino invariate; 7 test.
    Nomi (04/09 sera): ovunque «Nome Cognome», mai «Cognome Nome» (lib/guestName: nomeCompleto e nomeBreve «Anna R.» per le barre; riesportate da lib/richieste); dati e testi bloccati intatti.
    Timer della proposta (04/09 sera): sulle richieste in «proposta inviata» una riga con l'orologio, «Proposta inviata · scade tra 2 h 15 min» (verde) poi «… scaduta 20 min fa / 3 h fa / ieri» (ottone), in lista, dettaglio, pannello e tooltip del calendario; conta da proposta_inviata_at (solo «Sì, inviata», colonna già in 0024, nessuna migrazione), si aggiorna ogni minuto (useAdesso), le scadute entrano in «N da guardare»; alla scadenza nessuna chiusura né notifica (lib/richieste: scadenzaProposta, 5 test).
+   Errori di salvataggio visibili, parte 3 = CHIUSURA (05/09/2026, notte): scheda COMPLETATA salvo lib/spese (parte spese in corso). Bollino Richieste «!» con stato unico e Riprova (lib/richiesteContatore), push con delete controllato e route che rispondono 500 su lettura fallita (lib/cronLettura), lista prenotazioni e anteprime documenti con avviso + Riprova, memoria del browser con ripiego esplicito (lib/memoriaBrowser), sendWhatsapp/markComplete rimosse (codice morto).
    Errori di salvataggio visibili, parte 2 (05/09/2026, sera): scheda cliente (elimina/modifica/caricamento), scheda prenotazione (rilettura con esito → mai «Prenotazione non trovata» dopo un salvataggio riuscito, date del soggiorno in sequenza, cambio camera, motivo, annullamento senza alert), tariffe in Impostazioni, /nuova (cliente esistente e storico), Arrivi (orario/navetta senza alert); lib/prenotazioneScritture e lib/arrivoOrario; restano spese, richiesteDati, push e WebRequestAlert.
    Errori di salvataggio visibili (05/09/2026, pomeriggio): Conferma prenotazione e Segna come pagato cambiano lo schermo solo a scrittura riuscita (lib/scritturaSicura + components/AvvisoAzione «Non salvato, riprova»); richieste dal sito con tre stati in home (caricamento / nessuna / errore con Riprova) e bollino «!» sulla barra (lib/richiesteDalSito, lib/webRequests con stato unico); ricognizione del pezzo 4 (13 punti, NON corretti) nella scheda qui sotto.
 6. Sito casaaniarozzano.it (repo sito-casaania): il modulo /prenota manda le richieste a POST /api/richieste/web; nessuna prenotazione nasce dal sito; ripiego Pushover.
@@ -74,6 +75,81 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — Errori di salvataggio visibili, parte 3: CHIUSURA (05/09/2026, sera, main)
+
+Scheda «errori di salvataggio visibili» COMPLETATA (parti 1, 2 e 3), con la
+sola eccezione di `lib/spese` (parte spese in corso: `lib/spese/dati.ts:79-114`
+sette scritture void e `:51` return null restano per l'incarico che chiude le
+spese). Stessa regola e stessi mattoni: `lib/scritturaSicura`,
+`lib/prenotazioneScritture.leggiConEsito`, `components/AvvisoAzione`.
+
+- Pezzo 1 — `lib/richiesteContatore` (pura, 4 test) + `lib/richiesteDati`:
+  contaRichiesteAperte torna l'esito (mai 0 su errore); stato UNICO per
+  tutta l'app con `useRichiesteAperte` e `ricaricaRichiesteAperte`; barra:
+  bollino «!» sulle Richieste; pagina Richieste: avviso in AvvisoAzione con
+  «Riprova» (ricarica pagina e contatore) e niente «Nessuna richiesta in
+  attesa» quando le richieste non sono lette. Commit `6e29de8`.
+- Pezzo 2 — `lib/inviaPush` (4 test con finto client e finto invio): lettura
+  delle sottoscrizioni controllata (errore esplicito, non «zero telefoni»),
+  delete delle scadute controllato (se fallisce conta negli errori, non tra
+  le rimosse), VAPID configurato alla prima chiamata; `lib/pushLog`: error
+  letto e scritto nel log del server, catch voluto e spiegato. Commit `f3ca1c9`.
+- Pezzo 3 — `app/prenotazioni` lista con leggiConEsito (avviso + Riprova,
+  mai «Nessuna prenotazione» su errore); `components/DocumentiCliente`
+  anteprime con error controllato → «Non riesco a mostrare le anteprime dei
+  documenti, riprova» + Riprova (`raccogliAnteprime`, 1 test);
+  `lib/cronLettura` (4 test) per `/api/push/send|orario|ringraziamento|
+  pulizie|test` e `lib/puliziePush`: lettura fallita → 500 col motivo,
+  invio a zero telefoni con errori → 500, mai 200 su un fallimento.
+  Commit `677dd68`.
+- Pezzo 4 — `lib/memoriaBrowser` (4 test) + `components/WebRequestAlert`:
+  via i catch vuoti su sessionStorage; ripiego esplicito e commentato
+  (senza memoria la finestra si ripropone a ogni apertura, «Dopo» chiude
+  comunque, nessun avviso perché è il browser). Commit `72f81b6`.
+- Pezzo 5 — `app/prenotazioni/[id]`: sendWhatsapp e markComplete RIMOSSE.
+  Verifica: sendWhatsapp non chiamata dal commit 5a3cf49 (bottoni WhatsApp
+  diventati link diretti waHref/waClick per Safari) e il suo insert nel log
+  non attendeva l'esito; markComplete scollegata dal commit 5574a59
+  («Completata» tolto su richiesta di Ania), nessun altro codice assegna lo
+  stato completata. Nessun cambiamento di comportamento, due avvisi lint in
+  meno. Commit `095b05f`.
+
+## Casi di accettazione
+
+| ID | Prova | Esito |
+| --- | --- | --- |
+| G01 | Home: bollino Richieste «!» quando il conteggio fallisce (nel finto il HEAD risponde 403); Calendario «1» | VERDE (DOM 390 px) |
+| G02 | Pagina Richieste con lettura richieste senza rete (fetch sostituito): avviso «Non riesco a leggere alcuni dati: richieste…» + Riprova, bollino «!», nessun «Nessuna richiesta in attesa»; Riprova con rete → avviso via, bollino «2» (conteggio finto) anche sulla barra | VERDE (DOM 390 px) |
+| G03 | inviaATutti: scaduta + delete rifiutato → errori, rimosse 0; lettura sottoscrizioni fallita → errore esplicito, nessun invio; 500 dal servizio → errori | VERDE (test) |
+| G04 | Lista prenotazioni senza rete → «Non riesco a caricare le prenotazioni: nessuna connessione» + Riprova, nessun «Nessuna prenotazione»; Riprova → 14 schede | VERDE (DOM 390 px) |
+| G05 | Documenti: un documento (finto) con URL firmato negato → riga presente, casella «…», avviso «Non riesco a mostrare le anteprime…» + Riprova; Riprova con firma ok → immagine, avviso via | VERDE (DOM 390 px) |
+| G06 | Route push: lettura fallita → ErroreLetturaCron → 500 col motivo; data null → fallita; invio a zero con errori → 500, parziale → 200 | VERDE (test `cronLettura`; route non chiamabili in locale senza CRON_SECRET) |
+| G07 | Finestra richieste con sessionStorage negato: «Dopo» la chiude senza eccezioni; alla riapertura si ripropone (firma non ricordata) | VERDE (DOM 390 px) |
+| G08 | Scheda prenotazione dopo la rimozione: nome, 36 link WhatsApp, «Annulla prenotazione» presenti | VERDE (DOM 390 px) |
+
+## Prove tecniche
+
+- `node scripts/verifica-consegna.mjs --base 2886305` su `095b05f`: Suite
+  applicazione (545 test, 17 nuovi) OK, Regressioni OK, Strumenti locali OK,
+  TypeScript OK; «Lint dei file modificati» STOP con 45 rilievi contro i 47
+  degli stessi file sulla base (tutti preesistenti, due in meno): nessun
+  rilievo nuovo; librerie nuove pulite.
+- `next build` sul candidato: compilato.
+- UI a 390 px sull'anteprima finta (rete assente simulata da javascript_tool).
+- Nessuna migrazione, nessun cambiamento di schema, nessuna scrittura reale.
+
+## Limiti aperti
+
+- Nessuna schermata (come nelle parti 1 e 2): prove dal DOM e dalla rete.
+- Le route `/api/push/*` sono provate solo con i test delle funzioni pure:
+  in locale non hanno CRON_SECRET e in produzione una chiamata invierebbe
+  notifiche vere.
+- Il bollino Richieste nell'anteprima finta è «!» di suo (il finto rifiuta
+  le HEAD): il «2» del caso G02 viene da una risposta finta di conteggio.
+- ECCEZIONE annotata: `lib/spese` non toccata (parte spese in corso).
 
 ---
 
