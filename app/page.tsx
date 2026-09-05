@@ -7,6 +7,7 @@ import { useDemoMode } from '@/lib/useDemoMode'
 import { useRichiesteWeb } from '@/lib/webRequests'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import DaControllare from '@/components/DaControllare'
+import NumeriOggi from '@/components/NumeriOggi'
 import { leggiDatiHome, type DatiHome } from '@/lib/statisticheDati'
 import { cassaIntervallo, daIncassare, indiciIntervallo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi } from '@/lib/statistiche'
 
@@ -162,6 +163,9 @@ export default function Dashboard() {
           <span className="font-normal" style={{ color: 'var(--color-stone)' }}> · {richiesteWeb.richieste[0].guest_name}{richiesteWeb.richieste.length > 1 ? ' e altre' : ''}</span>
         </Link>
       )}
+
+      {/* Tre numeri di oggi SOPRA TUTTO (07/09/2026): arrivi, partenze, camere occupate stanotte */}
+      <NumeriOggi />
 
       {/* «Da controllare» (versione B, 06/09/2026; in cima dal 07/09/2026): striscia
           con i conteggi e sezione delle eccezioni SOPRA i numeri del giorno; con

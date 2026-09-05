@@ -22,10 +22,12 @@
 //   Richieste   «Carla Conti» in attesa da 3 giorni; «Dario Deluca» proposta scaduta 5 ore fa (alta, WhatsApp ghost);
 //               «Franca Fabbri» in attesa da 1 ora → no; «Gino Galli» confermata → no
 //   Fatture     «Enel» 95,50 € scaduta il O−5; «Iren» in scadenza O+10 → no
+//   Tre numeri  arrivi oggi 1 («Arriva Oggi»), partenze oggi 1 («Parte Oggi»), camere occupate stanotte 2 su 4 (Amelia, Allegra)
 //   Rinvii      tabella da_controllare_rinvii IN MEMORIA (upsert accettato);
 //               GET /finto/senza-rinvii?on=1 la fa sparire (PGRST205) per provare l'avviso
 //   Errore      GET /finto/errore-richieste?on=1 fa fallire la lettura di `richieste`
-//               («Non riesco a controllare, riprova»)
+//               («Non riesco a controllare, riprova»); GET /finto/errore-oggi?on=1 fa fallire
+//               la lettura dei tre numeri (trattini + avviso con Riprova)
 import { createServer } from 'node:http'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -76,6 +78,8 @@ const G = {
   letto2: ospite('Letto Due', '+39 333 000 0009'),
   letto3: ospite('Letto Tre', '+39 333 000 0010'),
   senza: ospite('Senza Numero', null),      // arriva domani senza orario e SENZA telefono (ritocchi 07/09/2026)
+  oggiIn: ospite('Arriva Oggi', '+39 333 000 0011'),
+  oggiOut: ospite('Parte Oggi', '+39 333 000 0012'),
 }
 const guests = Object.values(G)
 
@@ -102,6 +106,8 @@ const bookings = [
   prenotazione(ROOM.lena, G.lucia.id, O(7), O(9), 2, { group_id: GRUPPO_LUCIA, total_amount: 160 }),
   prenotazione(ROOM.allegra, G.paola.id, O(1), O(3), 2, { check_in_time: '16:30' }),
   prenotazione(ROOM.lena, G.senza.id, O(1), O(2), 1, { total_amount: 80 }),                    // domani, senza orario né numero
+  prenotazione(ROOM.allegra, G.oggiIn.id, O(0), O(1), 2, { check_in_time: '15:00' }),          // tre numeri: arriva oggi
+  prenotazione(ROOM.ambra, G.oggiOut.id, O(-3), O(0), 2, { pagato: true }),                    // tre numeri: parte oggi
   prenotazione(ROOM.allegra, G.giulio.id, O(-6), O(-4), 2, { status: 'completata', pagato: true }),
   prenotazione(ROOM.ambra, G.sara.id, O(-12), O(-10), 2, { status: 'completata' }),
   prenotazione(ROOM.lena, G.elena.id, O(-20), O(-18), 2, { status: 'completata', pagato: true }),
@@ -231,12 +237,18 @@ function leggiCorpo(req) {
 // Interruttori (senza riavviare): GET /finto/senza-rinvii?on=1|0 · GET /finto/errore-richieste?on=1|0
 let senzaRinvii = process.env.FINTO_SENZA_RINVII === '1'
 let erroreRichieste = process.env.FINTO_ERRORE_RICHIESTE === '1'
+// Tre numeri (07/09/2026): GET /finto/errore-oggi?on=1 fa fallire la lettura delle prenotazioni di oggi (check_in=lte.…)
+let erroreOggi = process.env.FINTO_ERRORE_OGGI === '1'
 
 const finto = createServer(async (req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORTA_FINTO}`)
   if (req.method === 'OPTIONS') return rispondi(res, 204)
   if (url.pathname === '/finto/senza-rinvii') { senzaRinvii = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senzaRinvii }) }
   if (url.pathname === '/finto/errore-richieste') { erroreRichieste = url.searchParams.get('on') === '1'; return rispondi(res, 200, { erroreRichieste }) }
+  if (url.pathname === '/finto/errore-oggi') { erroreOggi = url.searchParams.get('on') === '1'; return rispondi(res, 200, { erroreOggi }) }
+  if (erroreOggi && url.pathname === '/rest/v1/bookings' && (url.searchParams.get('check_in') || '').startsWith('lte.')) {
+    return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla lettura delle prenotazioni di oggi', details: null, hint: null })
+  }
   if (url.pathname === '/auth/v1/token') return rispondi(res, 200, sessione())
   if (url.pathname === '/auth/v1/user') return rispondi(res, 200, utente)
   if (url.pathname === '/auth/v1/logout') return rispondi(res, 204)
