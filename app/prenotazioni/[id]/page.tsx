@@ -15,7 +15,8 @@ import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio } from '@/lib
 import { causaleBonifico } from '@/lib/causale'
 import { contoSoggiorno, residuoDaPagare } from '@/lib/conto'
 import { smartBack } from '@/lib/navHistory'
-import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
+import { scriviPoiAggiorna, messaggioNonSalvato } from '@/lib/scritturaSicura'
+import { salvaInSequenza, leggiConEsito, MESSAGGIO_RILETTURA } from '@/lib/prenotazioneScritture'
 import AvvisoAzione from '@/components/AvvisoAzione'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
@@ -377,6 +378,17 @@ export default function BookingDetail() {
   const [erroreConferma, setErroreConferma] = useState<string | null>(null)
   const [segnandoPagato, setSegnandoPagato] = useState(false)
   const [errorePagato, setErrorePagato] = useState<string | null>(null)
+  // Parte 2 (05/09/2026): avvisi delle altre azioni della scheda. avvisoScheda
+  // sta in cima alla scheda (rilettura fallita dopo un salvataggio riuscito,
+  // cliente non aggiornato, log WhatsApp non registrato); gli altri stanno
+  // accanto alla loro azione.
+  const [avvisoScheda, setAvvisoScheda] = useState<string | null>(null)
+  const [erroreSoggiorno, setErroreSoggiorno] = useState<string | null>(null)
+  const [erroreCambioCamera, setErroreCambioCamera] = useState<string | null>(null)
+  const [erroreAnnulla, setErroreAnnulla] = useState<string | null>(null)
+  const [annullando, setAnnullando] = useState(false)
+  const [erroreMotivo, setErroreMotivo] = useState<string | null>(null)
+  const [salvandoMotivo, setSalvandoMotivo] = useState(false)
   // Sconto V4: un solo sconto per prenotazione (percentuale o totale
   // concordato), salvato nei campi discount_type/discount_value. La tariffa
   // a notte non viene MAI toccata dallo sconto.
@@ -645,6 +657,30 @@ export default function BookingDetail() {
   // Conferma la richiesta (tutti i segmenti se c'è un cambio camera).
   // L'update filtra su status=in_attesa: anche premuto due volte per
   // sbaglio non tocca nulla che sia già confermato
+  // Rilettura della scheda dopo un salvataggio riuscito: lo stato cambia SOLO
+  // se la lettura riesce; altrimenti torna il messaggio e il chiamante applica
+  // in locale quello che ha appena salvato («Prenotazione non trovata» non
+  // deve mai comparire per un errore di rete dopo un salvataggio riuscito).
+  async function rileggiScheda(): Promise<string | null> {
+    type Riga = Record<string, unknown> & { group_id?: string | null }
+    const letto = await leggiConEsito<Riga>(
+      () => supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single(),
+      'ricaricare la scheda')
+    if (letto.errore || !letto.data) return MESSAGGIO_RILETTURA
+    const scheda = letto.data
+    let gruppo: Riga[] | null = null
+    if (scheda.group_id) {
+      const g = await leggiConEsito<Riga[]>(
+        () => supabase.from('bookings').select('*, rooms(*)').eq('group_id', scheda.group_id).neq('status', 'annullata').order('check_in', { ascending: true }),
+        'ricaricare la scheda')
+      if (g.errore) return MESSAGGIO_RILETTURA
+      gruppo = g.data || []
+    }
+    setBooking(scheda)
+    if (gruppo) setGroupBookings(gruppo)
+    return null
+  }
+
   // Errori di salvataggio visibili (05/09/2026): lo stato «confermata» sullo
   // schermo cambia SOLO se l'update è riuscito; con un errore il bottone
   // torna attivo e compare «Non salvato, riprova» sotto di lui.
@@ -775,9 +811,11 @@ export default function BookingDetail() {
       return
     }
     setSaveEditError(null)
+    setAvvisoScheda(null)
     const guestId = booking.guest_id || booking.guests?.id
+    let avvisoCliente: string | null = null
     if (guestId) {
-      await supabase.from('guests').update({
+      const { error: erroreCliente } = await supabase.from('guests').update({
         // La scheda cliente (condivisa da tutte le prenotazioni del numero) non
         // viene più rinominata da qui: prende il nome solo se ne è senza.
         // Finché guest_name non è migrata resta il vecchio comportamento.
@@ -787,17 +825,13 @@ export default function BookingDetail() {
         phone: editForm.guest_phone || booking.guests?.phone || null,
         email: editForm.guest_email || booking.guests?.email || null,
       }).eq('id', guestId)
+      if (erroreCliente) avvisoCliente = 'Prenotazione salvata, ma i dati del cliente no: riprova dalla scheda cliente.'
     }
-    const { data: updated } = await supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single()
-    setBooking(updated)
-    if (updated?.group_id) {
-      const { data: grp } = await supabase.from('bookings')
-        .select('*, rooms(*)')
-        .eq('group_id', updated.group_id)
-        .neq('status', 'annullata')
-        .order('check_in', { ascending: true })
-      setGroupBookings(grp || [])
-    }
+    // Prenotazione salvata: se la rilettura fallisce si mostra quello che si è
+    // appena salvato, con l'avviso, mai «Prenotazione non trovata»
+    const erroreRilettura = await rileggiScheda()
+    if (erroreRilettura) setBooking({ ...booking, ...updates })
+    setAvvisoScheda([avvisoCliente, erroreRilettura].filter(Boolean).join(' ') || null)
     setEditing(false)
     setSaving(false)
   }
@@ -816,9 +850,12 @@ export default function BookingDetail() {
       discount_type: null, discount_value: null,
       total_amount: pieno, updated_at: new Date().toISOString(),
     }).eq('id', id)
-    if (!error) {
-      const { data: updated } = await supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single()
-      setBooking(updated)
+    if (error) {
+      setAvvisoScheda(messaggioNonSalvato(error))
+    } else {
+      const erroreRilettura = await rileggiScheda()
+      if (erroreRilettura) setBooking({ ...booking, discount_type: null, discount_value: null, total_amount: pieno })
+      setAvvisoScheda(erroreRilettura)
       setEditForm((f: any) => ({ ...f, discount_type: null, discount_value: null }))
     }
     setConfermaRimuoviSconto(false)
@@ -901,9 +938,14 @@ export default function BookingDetail() {
     const plan = computeStayPlan(groupBookings, stayForm.check_in, stayForm.check_out)
     if (plan.error || stayConflict) return
     setSavingStay(true)
+    setErroreSoggiorno(null)
+    setAvvisoScheda(null)
     const now = new Date().toISOString()
+    // Un update per segmento, uno dopo l'altro: al primo errore ci si ferma e
+    // l'avviso dice se qualcosa era già stato salvato (lib/prenotazioneScritture)
+    const scritture: Array<() => PromiseLike<{ error: unknown }>> = []
     for (const seg of plan.kept) {
-      await supabase.from('bookings').update({
+      scritture.push(() => supabase.from('bookings').update({
         check_in: seg.check_in,
         check_out: seg.check_out,
         extra_bed: seg.extra_bed_dates.length > 0,
@@ -917,15 +959,22 @@ export default function BookingDetail() {
           discount_value: seg.discount_value,
         } : {}),
         updated_at: now,
-      }).eq('id', seg.id)
+      }).eq('id', seg.id))
     }
     for (const seg of plan.removed) {
-      await supabase.from('bookings').update({
+      scritture.push(() => supabase.from('bookings').update({
         status: 'annullata',
         cancelled_at: now,
         cancelled_reason: 'Camera non più necessaria: date del soggiorno modificate',
         updated_at: now,
-      }).eq('id', seg.id)
+      }).eq('id', seg.id))
+    }
+    const { errore } = await salvaInSequenza(scritture)
+    if (errore) {
+      // Il modulo resta aperto con le date scelte, il bottone torna attivo
+      setErroreSoggiorno(errore)
+      setSavingStay(false)
+      return
     }
     setEditingStay(false)
     // Se il segmento aperto è stato annullato, passa al primo segmento rimasto
@@ -934,21 +983,35 @@ export default function BookingDetail() {
       router.replace(`/prenotazioni/${plan.kept[0].id}`)
       return
     }
-    const [{ data: updated }, { data: grp }] = await Promise.all([
-      supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single(),
-      supabase.from('bookings').select('*, rooms(*)').eq('group_id', booking.group_id).neq('status', 'annullata').order('check_in', { ascending: true }),
-    ])
-    setBooking(updated)
-    setGroupBookings(grp || [])
+    const erroreRilettura = await rileggiScheda()
+    if (erroreRilettura) {
+      // Salvato ma non riletto: si applica in locale il piano appena scritto
+      type Segmento = { id: string; check_in: string; check_out: string; extra_bed_dates: string[]; extra_bed_total: number; total: number }
+      const locale = (seg: Segmento) => ({
+        ...(groupBookings.find(g => g.id === seg.id) || {}),
+        check_in: seg.check_in, check_out: seg.check_out,
+        extra_bed: seg.extra_bed_dates.length > 0, extra_bed_dates: seg.extra_bed_dates,
+        extra_bed_total: seg.extra_bed_total, total_amount: seg.total,
+      })
+      setGroupBookings(plan.kept.map(locale))
+      const mio = plan.kept.find(k => k.id === id)
+      if (mio) setBooking({ ...booking, ...locale(mio) })
+      setAvvisoScheda(erroreRilettura)
+    }
     setSavingStay(false)
   }
 
   async function addRoomChange() {
     let groupId = booking.group_id
+    setErroreCambioCamera(null)
     if (!groupId) {
-      groupId = crypto.randomUUID()
-      await supabase.from('bookings').update({ group_id: groupId }).eq('id', id)
-      setBooking({ ...booking, group_id: groupId })
+      const nuovo = crypto.randomUUID()
+      const errore = await scriviPoiAggiorna(
+        () => supabase.from('bookings').update({ group_id: nuovo }).eq('id', id),
+        () => setBooking({ ...booking, group_id: nuovo }),
+      )
+      if (errore) { setErroreCambioCamera(errore); return }
+      groupId = nuovo
     }
     const lastCheckOut = groupBookings.length > 0
       ? [...groupBookings].sort((a, z) => z.check_out.localeCompare(a.check_out))[0].check_out
@@ -958,22 +1021,35 @@ export default function BookingDetail() {
   }
 
   async function markComplete() {
-    await supabase.from('bookings').update({ status: 'completata' }).eq('id', id)
-    setBooking({ ...booking, status: 'completata' })
+    const errore = await scriviPoiAggiorna(
+      () => supabase.from('bookings').update({ status: 'completata' }).eq('id', id),
+      () => setBooking({ ...booking, status: 'completata' }),
+    )
+    setAvvisoScheda(errore)
   }
 
+  // Annullamento: con un errore la finestra resta aperta con l'avviso (niente
+  // alert del browser) e la prenotazione resta com'è. Il log WhatsApp è
+  // secondario: se non si scrive lo si dice nella schermata di conferma.
   async function cancelBooking() {
-    const { error } = await supabase.from('bookings').update({ status: 'annullata', cancelled_at: new Date().toISOString(), cancelled_reason: cancelReason }).eq('id', id)
-    if (error) {
-      alert('Non sono riuscito ad annullare la prenotazione. Riprova tra un momento.')
-      return
+    if (annullando) return
+    setAnnullando(true)
+    setErroreAnnulla(null)
+    try {
+      const errore = await scriviPoiAggiorna(
+        () => supabase.from('bookings').update({ status: 'annullata', cancelled_at: new Date().toISOString(), cancelled_reason: cancelReason }).eq('id', id),
+        () => setBooking({ ...booking, status: 'annullata' }),
+      )
+      if (errore) { setErroreAnnulla(errore); return }
+      const msg = buildWhatsappMsg(booking, 'annullamento', groupBookings, acconti)
+      const { error: erroreLog } = await supabase.from('booking_whatsapp_log').insert({ booking_id: id, message_type: 'annullamento', message_text: msg, sent: false })
+      setAvvisoScheda(erroreLog ? 'Prenotazione annullata, ma il messaggio non è stato registrato nello storico WhatsApp.' : null)
+      setShowCancel(false)
+      window.scrollTo({ top: 0 })
+      setCancelDone(true)
+    } finally {
+      setAnnullando(false)
     }
-    const msg = buildWhatsappMsg(booking, 'annullamento', groupBookings, acconti)
-    await supabase.from('booking_whatsapp_log').insert({ booking_id: id, message_type: 'annullamento', message_text: msg, sent: false })
-    setBooking({ ...booking, status: 'annullata' })
-    setShowCancel(false)
-    window.scrollTo({ top: 0 })
-    setCancelDone(true)
   }
 
   function sendWhatsapp(type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto') {
@@ -1030,6 +1106,7 @@ export default function BookingDetail() {
       <div className="scheda-in bg-[#DCE8DD] text-[#2f6a4d] rounded-2xl px-8 py-8 shadow-lg text-center w-full max-w-xs">
         <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-white/70 flex items-center justify-center text-2xl font-bold">✓</div>
         <p className="font-semibold text-lg leading-snug">La prenotazione è stata cancellata</p>
+        {avvisoScheda && <AvvisoAzione testo={avvisoScheda} className="mt-3 text-left" />}
         {/* Torna alla pagina vera di provenienza (calendario, arrivi, elenco…),
             come il pulsante Indietro; l'elenco è solo la riserva */}
         <button type="button" onClick={() => smartBack(router, '/calendario')} className="inline-block mt-5 rounded-lg px-4 py-2 text-sm font-semibold bg-white/80 transition-transform duration-100 active:scale-[0.97]">
@@ -1044,6 +1121,7 @@ export default function BookingDetail() {
       {/* Riserva sul calendario: Ania entra quasi sempre da lì e non vuole mai
           finire sull'elenco prenotazioni quando il ritorno vero non è possibile */}
       <BackBar href="/calendario" />
+      {avvisoScheda && !cancelDone && <AvvisoAzione testo={avvisoScheda} className="mb-3" />}
       {toastRichiesta && (
         <div role="status" className="chip-in fixed left-4 right-4 top-14 lg:top-4 lg:left-auto lg:w-80 z-[60] bg-green-dark text-cream-text text-sm rounded-xl px-4 py-2.5 shadow-lg">
           Prenotazione creata da richiesta
@@ -1719,6 +1797,7 @@ export default function BookingDetail() {
                           className="w-full bg-green-mid text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50 mb-1">
                           {savingStay ? 'Salvataggio...' : '💾 Conferma nuove date'}
                         </button>
+                        {erroreSoggiorno && <AvvisoAzione testo={erroreSoggiorno} className="mb-1" />}
                         <button onClick={() => setEditingStay(false)} className="w-full text-[#5B4E82] py-1.5 text-xs">
                           Annulla
                         </button>
@@ -1734,6 +1813,7 @@ export default function BookingDetail() {
               <button onClick={addRoomChange} className="w-full bg-[#9B8EC4] text-white font-semibold text-xs py-2 px-1 rounded-xl mt-3">
                 ➕ Cambio camera
               </button>
+              {erroreCambioCamera && <AvvisoAzione testo={erroreCambioCamera} className="mt-2" />}
               <p className="text-[11px] text-gray-500 mt-1.5 px-1 leading-snug">
                 Per cambiare la tariffa di questo soggiorno usa &quot;Modifica&quot; qui sopra, campo &quot;Tariffa/notte&quot;.
               </p>
@@ -1749,14 +1829,23 @@ export default function BookingDetail() {
                   placeholder="Aggiungi motivo..."
                   className="flex-1 border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm text-[#8C3B2E]"
                 />
-                <button onClick={async () => {
+                <button disabled={salvandoMotivo} onClick={async () => {
                   const val = (document.getElementById('cancel-reason-input') as HTMLInputElement)?.value
-                  await supabase.from('bookings').update({ cancelled_reason: val }).eq('id', id)
-                  setBooking({ ...booking, cancelled_reason: val })
-                }} className="bg-[#F6E4DE] text-[#8C3B2E] px-3 py-2 rounded-lg text-sm font-semibold">
-                  Salva
+                  setSalvandoMotivo(true)
+                  setErroreMotivo(null)
+                  try {
+                    setErroreMotivo(await scriviPoiAggiorna(
+                      () => supabase.from('bookings').update({ cancelled_reason: val }).eq('id', id),
+                      () => setBooking({ ...booking, cancelled_reason: val }),
+                    ))
+                  } finally {
+                    setSalvandoMotivo(false)
+                  }
+                }} className="bg-[#F6E4DE] text-[#8C3B2E] px-3 py-2 rounded-lg text-sm font-semibold disabled:opacity-60">
+                  {salvandoMotivo ? 'Salvo...' : 'Salva'}
                 </button>
               </div>
+              {erroreMotivo && <AvvisoAzione testo={erroreMotivo} className="mt-2" />}
             </div>
           )}
         </div>
@@ -1900,7 +1989,8 @@ export default function BookingDetail() {
           <div className="bg-white rounded-2xl p-4 w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <h2 className="font-bold mb-3">Motivo annullamento</h2>
             <input value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Es. cliente ha cancellato..." className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" />
-            <button onClick={cancelBooking} className="w-full bg-[#B5502F] text-white rounded-xl py-3 font-semibold mb-2">Conferma annullamento</button>
+            <button onClick={cancelBooking} disabled={annullando} className="w-full bg-[#B5502F] text-white rounded-xl py-3 font-semibold mb-2 disabled:opacity-60">{annullando ? 'Annullo...' : 'Conferma annullamento'}</button>
+            {erroreAnnulla && <AvvisoAzione testo={erroreAnnulla} className="mb-2" />}
             <button onClick={() => setShowCancel(false)} className="w-full text-gray-500 py-2 text-sm">Annulla</button>
           </div>
         </div>
