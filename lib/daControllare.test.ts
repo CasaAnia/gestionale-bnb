@@ -264,3 +264,22 @@ test('insieme: tutte le regole, rinvii applicati, ordine alta → vicina; stato 
   assert.equal(rigaAPosto(out), null)
   assert.deepEqual(daControllareHome({ oggi: OGGI, adesso: ADESSO, richieste: [], prenotazioni: [], pagamenti: [], documenti: [] }), [])
 })
+
+test('periodo di lettura e tabella dei rinvii assente', async () => {
+  const { periodoDaControllare, tabellaRinviiAssente } = await import('./daControllare.ts')
+  assert.deepEqual(periodoDaControllare(OGGI), { da: '2026-08-15', a: '2026-11-16' })
+  assert.equal(tabellaRinviiAssente({ code: 'PGRST205', message: 'Could not find the table' }), true)
+  assert.equal(tabellaRinviiAssente({ code: '42P01' }), true)
+  assert.equal(tabellaRinviiAssente({ code: '42501', message: 'permission denied' }), false)
+  assert.equal(tabellaRinviiAssente(null), false)
+})
+
+test('parametri di arrivo dalla Home: solo valori ben formati', async () => {
+  const { giornoDaParametro, idDaParametro } = await import('./daControllare.ts')
+  assert.equal(giornoDaParametro('?giorno=2026-09-16'), '2026-09-16')
+  assert.equal(giornoDaParametro('?giorno=domani'), null)
+  assert.equal(giornoDaParametro(''), null)
+  assert.equal(idDaParametro('?apri=aaaaaaaa-0001-4000-8000-000000000001', 'apri'), 'aaaaaaaa-0001-4000-8000-000000000001')
+  assert.equal(idDaParametro('?apri=%3Cscript%3E', 'apri'), null)
+  assert.equal(idDaParametro('?altro=x', 'apri'), null)
+})

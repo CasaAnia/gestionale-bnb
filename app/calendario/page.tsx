@@ -23,6 +23,7 @@ import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA, inizioQuindicina } from '@/lib/richiesteCalendario'
+import { giornoDaParametro } from '@/lib/daControllare'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
@@ -170,6 +171,8 @@ export default function Calendario() {
   const [larghezzaGriglia, setLarghezzaGriglia] = useState(0)
   // Primo giorno da tenere in vista quando cambiano le colonne (cambio di modo)
   const primoGiornoRef = useRef<number | null>(null)
+  // Da controllare in Home (06/09/2026): «Apri calendario» arriva con ?giorno=AAAA-MM-GG
+  const giornoUrlRef = useRef<string | null | undefined>(undefined)
 
   useEffect(() => {
     // Telefono girato in orizzontale: griglia del Mac (compatta) a tutto schermo
@@ -263,7 +266,17 @@ export default function Calendario() {
 
   useEffect(() => {
     if (!loading && scrollRef.current) {
-      if (primoGiornoRef.current !== null) {
+      if (giornoUrlRef.current === undefined) giornoUrlRef.current = giornoDaParametro(window.location.search)
+      if (giornoUrlRef.current) {
+        // Giorno chiesto dalla Home: se è già disegnato la griglia parte dal giorno
+        // prima (posizione diretta, come per «oggi»), altrimenti vaiAData estende
+        // l'intervallo e scorre; una volta misurato il riquadro il parametro non
+        // comanda più (frecce, modo)
+        const idx = dayIndex(giornoUrlRef.current)
+        if (idx >= 0 && idx + 3 <= daysTotal) scrollRef.current.scrollLeft = Math.max(0, idx - 1) * CELL_W
+        else vaiAData(giornoUrlRef.current, 1)
+        if (larghezzaGriglia > 0 && idx >= 0) giornoUrlRef.current = null
+      } else if (primoGiornoRef.current !== null) {
         scrollRef.current.scrollLeft = primoGiornoRef.current * CELL_W
         primoGiornoRef.current = null
       } else {

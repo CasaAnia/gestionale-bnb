@@ -16,6 +16,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA, GIORNI_PRIMA_OGGI } from '@/lib/richiesteCalendario'
 import { salvaOrarioENavetta } from '@/lib/arrivoOrario'
 import AvvisoAzione from '@/components/AvvisoAzione'
+import { idDaParametro } from '@/lib/daControllare'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
@@ -114,6 +115,8 @@ export default function Arrivi() {
   }, [])
   const [larghezzaGriglia, setLarghezzaGriglia] = useState(0)
   const primoGiornoRef = useRef<number | null>(null)
+  // Da controllare in Home (06/09/2026): ?apri=<id> → giorno di arrivo da cui far partire la griglia
+  const apriUrlRef = useRef<string | null>(null)
   // Dal Mac le colonne riempiono il riquadro: 14 giorni (2 settimane) o 30 (mese)
   // Griglia del Mac OVUNQUE (05/09/2026): sul telefono colonna camere 80 px e
   // colonne di almeno 60 px (40 a mese) che scorrono di lato dentro il riquadro.
@@ -179,13 +182,27 @@ export default function Arrivi() {
       })
       setRooms(sorted)
       setBookings(b || [])
+      // Da controllare in Home (06/09/2026): «Apri arrivo» arriva con ?apri=<id>
+      // e trova la finestra dell'orario già aperta su quella prenotazione
+      const apri = idDaParametro(window.location.search, 'apri')
+      const daAprire = apri ? (b || []).find((x: { id: string }) => x.id === apri) : null
+      if (daAprire) {
+        apriUrlRef.current = daAprire.check_in
+        setShowStorico(false)
+        setPopup({ id: daAprire.id, name: nomeOspite(daAprire), time: daAprire.check_in_time || '', shuttle: daAprire.shuttle || '' })
+      }
       setLoading(false)
     })
   }, [])
 
   useEffect(() => {
     if (!loading && scrollRef.current) {
-      if (primoGiornoRef.current !== null) {
+      if (apriUrlRef.current) {
+        // Arrivo chiesto dalla Home: la griglia parte dal giorno prima; una
+        // volta misurato il riquadro il parametro non comanda più (frecce, modo)
+        scrollRef.current.scrollLeft = Math.max(0, days.findIndex(d => toStr(d) === apriUrlRef.current) - 1) * CELL_W
+        if (larghezzaGriglia > 0) apriUrlRef.current = null
+      } else if (primoGiornoRef.current !== null) {
         scrollRef.current.scrollLeft = primoGiornoRef.current * CELL_W
         primoGiornoRef.current = null
       } else {

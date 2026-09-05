@@ -6,6 +6,7 @@ import { nomeOspite } from '@/lib/guestName'
 import { useDemoMode } from '@/lib/useDemoMode'
 import { useRichiesteWeb } from '@/lib/webRequests'
 import AvvisoAzione from '@/components/AvvisoAzione'
+import DaControllare from '@/components/DaControllare'
 import { leggiDatiHome, type DatiHome } from '@/lib/statisticheDati'
 import { cassaIntervallo, daIncassare, indiciIntervallo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi } from '@/lib/statistiche'
 
@@ -246,6 +247,10 @@ export default function Dashboard() {
               <p className="text-[11px] leading-tight text-gray-500 mt-1">ricavi per soggiorno diviso le notti vendute nel mese</p>
             </div>
           </div>
+
+          {/* «Da controllare» (versione B, 06/09/2026): sotto i numeri del giorno,
+              striscia con i conteggi e sezione delle eccezioni (components/DaControllare) */}
+          <DaControllare />
 
           <div className="grid grid-cols-2 gap-2">
             <Link href="/prenotazioni" className="bg-white rounded-[10px] p-3 text-center border border-[#C9BFA8] shadow-sm">

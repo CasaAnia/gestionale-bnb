@@ -339,3 +339,33 @@ export function hrefDestinazione(d: Destinazione): string {
     case 'fattura': return `/spese?documento=${d.documentoId}`
   }
 }
+
+// ── Periodo di lettura e tabella dei rinvii ────────────────────────────────
+// La Home legge SOLO un periodo (mai tutto lo storico): le prenotazioni che
+// toccano [oggi − 31, oggi + 62) bastano per pagamenti di soggiorni appena
+// conclusi, arrivi di domani e sovrapposizioni dei prossimi due mesi.
+export const GIORNI_INDIETRO = 31
+export const GIORNI_AVANTI = 62
+export function periodoDaControllare(oggi: string): { da: string; a: string } {
+  return { da: spostaGiorni(oggi, -GIORNI_INDIETRO), a: spostaGiorni(oggi, GIORNI_AVANTI) }
+}
+
+// Tabella `da_controllare_rinvii` (proposta 0035) non ancora applicata:
+// PostgREST risponde PGRST205 (tabella non nel catalogo) o 42P01. In quel
+// caso «Rimanda» non è disponibile e lo si dice; ogni altro errore è visibile.
+export const TABELLA_RINVII = 'da_controllare_rinvii'
+export const AVVISO_RINVII_NON_DISPONIBILI = 'Rimanda non disponibile: va applicata la proposta 0035 (tabella dei rinvii)'
+export function tabellaRinviiAssente(e: unknown): boolean {
+  const c = String((e as { code?: unknown })?.code ?? '')
+  return c === 'PGRST205' || c === '42P01'
+}
+
+// ── Parametri di arrivo dalla Home (?giorno=, ?apri=, ?azione=, ?documento=) ─
+export function giornoDaParametro(search: string): string | null {
+  const g = new URLSearchParams(search).get('giorno')
+  return g && /^\d{4}-\d{2}-\d{2}$/.test(g) ? g : null
+}
+export function idDaParametro(search: string, nome: string): string | null {
+  const v = (new URLSearchParams(search).get(nome) ?? '').trim()
+  return v && /^[\w-]{1,64}$/.test(v) ? v : null
+}

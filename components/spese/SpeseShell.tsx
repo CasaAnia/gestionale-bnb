@@ -31,10 +31,11 @@ const SEZIONI: [SezioneSpese, string][] = [
 ]
 const OPZIONI_VUOTE: OpzioniFiltri = { periodi: [], categorie: [], metodi: [] }
 
-export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = 'panoramica', filtriApertiIniziale = false, riprova, aggiungi, notaAggiungi, sopra, apriFoto, eliminaSpesa, gestisciBudget, analisiOperativa, cambiaContesto, inSospeso, riprendiCaricamenti, apriRevisione }: {
+export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = 'panoramica', filtriApertiIniziale = false, riprova, aggiungi, notaAggiungi, sopra, apriFoto, eliminaSpesa, gestisciBudget, analisiOperativa, cambiaContesto, inSospeso, riprendiCaricamenti, apriRevisione, documentoEvidenziato }: {
   dati: StatoDati<DatiSpese>
   contestoIniziale?: Contesto
   sezioneIniziale?: SezioneSpese
+  documentoEvidenziato?: string             // Home «Da controllare»: fattura da portare in vista
   filtriApertiIniziale?: boolean
   riprova?: () => void
   aggiungi?: (voce: VoceAggiungi) => void   // richiamo sicuro del vecchio inserimento (opzionale)
@@ -150,7 +151,7 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
                   apriFoto={apriFoto} eliminaSpesa={eliminaSpesa} />
               )}
               {sezione === 'documenti' && (
-                <DocumentiTab documenti={perContestoDocumenti(dati.dati.documenti, contesto)}
+                <DocumentiTab documenti={perContestoDocumenti(dati.dati.documenti, contesto)} evidenziato={documentoEvidenziato}
                   apriFoto={apriFoto ? d => apriFoto(d.id) : undefined}
                   apriRevisione={apriRevisione ? d => apriRevisione(d.id) : undefined} />
               )}

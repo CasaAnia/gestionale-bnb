@@ -75,11 +75,13 @@ const serviziContratto = (): ServiziContratto => ({
   ponte: ponteContrattoDurevole(),
 })
 
-export default function SpesePagina({ ambito }: { ambito: Ambito }) {
-  return <DemoGate><Pagina ambito={ambito} /></DemoGate>
+export default function SpesePagina({ ambito, documentoEvidenziato }: { ambito: Ambito; documentoEvidenziato?: string }) {
+  return <DemoGate><Pagina ambito={ambito} documentoEvidenziato={documentoEvidenziato} /></DemoGate>
 }
 
-function Pagina({ ambito }: { ambito: Ambito }) {
+// documentoEvidenziato: dalla Home «Da controllare» (06/09/2026) si atterra in
+// Documenti con la fattura scaduta in vista
+function Pagina({ ambito, documentoEvidenziato }: { ambito: Ambito; documentoEvidenziato?: string }) {
   const router = useRouter()
   const [fonte, setFonte] = useState<FonteCompleta | null>(null)
   const [dati, setDati] = useState<StatoDati<DatiSpese>>({ stato: 'caricamento' })
@@ -312,6 +314,7 @@ function Pagina({ ambito }: { ambito: Ambito }) {
   return (
     <>
       <SpeseShell dati={dati} contestoIniziale={contesto} riprova={ricarica}
+        sezioneIniziale={documentoEvidenziato ? 'documenti' : undefined} documentoEvidenziato={documentoEvidenziato}
         aggiungi={aggiungi}
         inSospeso={coda.filter(v => v.op).length}
         riprendiCaricamenti={() => setFoglioCaricaAperto(true)}

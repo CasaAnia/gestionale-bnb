@@ -3,7 +3,7 @@
 // schema nuovo — scontrini in coda e in revisione, fatture da pagare e
 // pagate, confermati, scartati, errori. Segnala i documenti senza foto e
 // i campi dubbi. In questa fase è una vista: nessuna azione di scrittura.
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import {
   Camera, CameraOff, Receipt, Landmark, CalendarClock, Layers,
   TriangleAlert, CircleAlert, CircleCheck, ChevronRight, Ban,
@@ -32,11 +32,17 @@ function Blocco({ titolo, docs, vuoto, children }: {
 
 const bordoSopra = (i: number) => (i > 0 ? { borderTop: `1px solid ${t.bordo}` } : undefined)
 
-export function DocumentiTab({ documenti, apriRevisione, apriFoto }: {
+export function DocumentiTab({ documenti, apriRevisione, apriFoto, evidenziato }: {
   documenti: DocumentoVista[]
   apriRevisione?: (d: DocumentoVista) => void
   apriFoto?: (d: DocumentoVista) => void      // 3.2B: apre le fotografie
+  evidenziato?: string                        // Home «Da controllare» (06/09/2026): fattura da portare in vista
 }) {
+  // La fattura chiesta dalla Home scorre in vista (nessun bordo: solo posizione e ombra leggera)
+  useEffect(() => {
+    if (!evidenziato) return
+    document.getElementById(`documento-${evidenziato}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [evidenziato, documenti.length])
   const toccaFoto = (d: DocumentoVista) =>
     apriFoto && !d.senzaFoto ? () => apriFoto(d) : undefined
   const per = (s: StatoDocumento) => documenti.filter(d => d.stato === s)
@@ -81,8 +87,9 @@ export function DocumentiTab({ documenti, apriRevisione, apriFoto }: {
 
       <Blocco titolo="Fatture da pagare" docs={per('da_pagare')} vuoto="Nessuna fattura in attesa: tutto pagato.">
         {(d, i) => (
-          <div key={d.id} className="flex items-center gap-3 min-h-12" style={bordoSopra(i)}>
-            <span className="grid place-items-center w-9 h-9 shrink-0" style={{ background: t.terraTenue, color: t.terracotta, borderRadius: t.rIcona }}>
+          <div key={d.id} id={`documento-${d.id}`} className={`flex items-center gap-3 min-h-12 ${d.id === evidenziato ? 'rounded-lg px-2 -mx-2 shadow-sm' : ''}`}
+            style={d.id === evidenziato ? { ...bordoSopra(i), background: t.terraTenue } : bordoSopra(i)}>
+            <span className="grid place-items-center w-9 h-9 shrink-0" style={{ background: d.id === evidenziato ? '#fff' : t.terraTenue, color: t.terracotta, borderRadius: t.rIcona }}>
               <Landmark size={16} />
             </span>
             <span className="flex-1 min-w-0">

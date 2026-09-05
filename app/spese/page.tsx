@@ -9,5 +9,7 @@ export default async function SpeseBnBPage({ searchParams }: {
 }) {
   const sp = await searchParams
   if (sp.vecchia !== undefined) return <SpeseTracker ambito="azienda" title="Spese B&B" />
-  return <SpesePagina ambito="azienda" />
+  // Da controllare in Home (06/09/2026): «Apri fattura» arriva con ?documento=<id>
+  const documento = typeof sp.documento === 'string' && /^[\w-]{1,64}$/.test(sp.documento) ? sp.documento : undefined
+  return <SpesePagina ambito="azienda" documentoEvidenziato={documento} />
 }

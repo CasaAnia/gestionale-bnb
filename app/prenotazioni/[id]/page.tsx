@@ -384,7 +384,16 @@ export default function BookingDetail() {
   // Statistiche, numeri corretti — pezzo 4 (05/09/2026): «Segna come pagato»
   // registra PRIMA il movimento del saldo mancante (totale del soggiorno meno
   // i movimenti già registrati, data di oggi, metodo scelto qui), POI il flag.
-  const [finestraPagato, setFinestraPagato] = useState(false)
+  // Da controllare in Home (06/09/2026): «Registra saldo» arriva con
+  // ?azione=pagato e trova «Segna come pagato» già aperto, anche se il
+  // soggiorno è già segnato pagato o non è un bonifico: il saldo mancante
+  // lo ricalcola la scheda dai movimenti riletti (stesso contratto).
+  const daHomePagato = searchParams.get('azione') === 'pagato'
+  const [finestraPagato, setFinestraPagato] = useState(daHomePagato)
+  useEffect(() => {
+    if (!daHomePagato || !booking?.id) return
+    document.getElementById('segna-pagato')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [daHomePagato, booking?.id])
   const [metodoPagato, setMetodoPagato] = useState<MetodoPagamento>('bonifico')
   // Parte 2 (05/09/2026): avvisi delle altre azioni della scheda. avvisoScheda
   // sta in cima alla scheda (rilettura fallita dopo un salvataggio riuscito,
@@ -1968,8 +1977,8 @@ export default function BookingDetail() {
           «pagato» sullo schermo solo se l'update è riuscito; altrimenti il
           bottone torna attivo con «Non salvato, riprova» sotto. La logica
           pagato/movimenti non cambia. */}
-      {!editing && booking.bonifico && !booking.pagato && booking.status !== 'annullata' && (
-        <div className="mb-4 space-y-2">
+      {!editing && booking.status !== 'annullata' && ((booking.bonifico && !booking.pagato) || daHomePagato) && (
+        <div id="segna-pagato" className="mb-4 space-y-2">
           {!finestraPagato ? (
             <button onClick={() => { setErrorePagato(null); setFinestraPagato(true) }}
               className="w-full bg-[#7D9DB0] text-white lg:bg-[#EAF0F3] lg:text-[#3D5A66] rounded-xl py-3 font-semibold">
