@@ -375,6 +375,8 @@ export default function BookingDetail() {
   // Conferma della richiesta dal sito: un solo tocco, poi il bottone sparisce
   const [confirming, setConfirming] = useState(false)
   const [erroreConferma, setErroreConferma] = useState<string | null>(null)
+  const [segnandoPagato, setSegnandoPagato] = useState(false)
+  const [errorePagato, setErrorePagato] = useState<string | null>(null)
   // Sconto V4: un solo sconto per prenotazione (percentuale o totale
   // concordato), salvato nei campi discount_type/discount_value. La tariffa
   // a notte non viene MAI toccata dallo sconto.
@@ -661,6 +663,22 @@ export default function BookingDetail() {
       setErroreConferma(errore)
     } finally {
       setConfirming(false)
+    }
+  }
+
+  // «Segna come pagato» (bonifico ricevuto): stessa regola della conferma.
+  async function segnaPagato() {
+    if (segnandoPagato) return
+    setSegnandoPagato(true)
+    setErrorePagato(null)
+    try {
+      const errore = await scriviPoiAggiorna(
+        () => supabase.from('bookings').update({ pagato: true }).eq('id', id),
+        () => setBooking({ ...booking, pagato: true }),
+      )
+      setErrorePagato(errore)
+    } finally {
+      setSegnandoPagato(false)
     }
   }
 
@@ -1806,14 +1824,18 @@ export default function BookingDetail() {
         </div>
       )}
 
-      {/* Quick pagato toggle */}
+      {/* Quick pagato toggle. Errori di salvataggio visibili (05/09/2026):
+          «pagato» sullo schermo solo se l'update è riuscito; altrimenti il
+          bottone torna attivo con «Non salvato, riprova» sotto. La logica
+          pagato/movimenti non cambia. */}
       {!editing && booking.bonifico && !booking.pagato && booking.status !== 'annullata' && (
-        <button onClick={async () => {
-          await supabase.from('bookings').update({ pagato: true }).eq('id', id)
-          setBooking({ ...booking, pagato: true })
-        }} className="w-full bg-[#7D9DB0] text-white lg:bg-[#EAF0F3] lg:text-[#3D5A66] rounded-xl py-3 font-semibold mb-4">
-          ✅ Segna come pagato
-        </button>
+        <div className="mb-4 space-y-2">
+          <button onClick={segnaPagato} disabled={segnandoPagato}
+            className="w-full bg-[#7D9DB0] text-white lg:bg-[#EAF0F3] lg:text-[#3D5A66] rounded-xl py-3 font-semibold disabled:opacity-60">
+            {segnandoPagato ? 'Salvo...' : '✅ Segna come pagato'}
+          </button>
+          {errorePagato && <AvvisoAzione testo={errorePagato} />}
+        </div>
       )}
 
       {/* WhatsApp (mobile; su desktop sta nel pannello Azioni) */}
