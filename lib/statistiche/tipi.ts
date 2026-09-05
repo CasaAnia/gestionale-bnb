@@ -31,7 +31,7 @@ export type CameraStat = { id: string; name: string; active?: boolean | null }
 export type FuoriServizio = { room_id: string; da: string; a: string; motivo?: string | null }
 export const FUORI_SERVIZIO_VUOTO: FuoriServizio[] = []
 
-export type SpesaStat = { expense_date: string; amount: number | string }
+export type SpesaStat = { expense_date: string; amount: number | string; paid_at?: string | null }
 
 export type RichiestaStat = {
   id: string
