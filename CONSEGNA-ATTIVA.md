@@ -1,4 +1,4 @@
-# STATO IN 10 RIGHE (aggiornato il 04/09/2026, pomeriggio) — da incollare a un altro assistente
+# STATO IN 10 RIGHE (aggiornato il 05/09/2026, pomeriggio) — da incollare a un altro assistente
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
@@ -21,6 +21,7 @@
    Pulizie automatiche (04/09 sera): partenza + nuovo arrivo lo stesso giorno o il giorno dopo nella stessa camera (solo confermate) = pulizia FATTA da sola con la data della partenza, calcolata dalle prenotazioni (lib/pulizie: pulizieAutomatiche, nessuna migrazione, sparisce se la prenotazione cambia); in «Oggi» resta come lavoro con etichetta «automatica» e senza pulsanti, mai «in ritardo»; nuovo registro «Ultime pulizie» (manuali + automatiche) con «Cambia data» / «Non fatta» (righe cleanings con note automatica:*); statistiche contano manuali + automatiche dal 24/08, mai doppioni lo stesso giorno; 4 notti e partenze senza arrivo vicino invariate; 7 test.
    Nomi (04/09 sera): ovunque «Nome Cognome», mai «Cognome Nome» (lib/guestName: nomeCompleto e nomeBreve «Anna R.» per le barre; riesportate da lib/richieste); dati e testi bloccati intatti.
    Timer della proposta (04/09 sera): sulle richieste in «proposta inviata» una riga con l'orologio, «Proposta inviata · scade tra 2 h 15 min» (verde) poi «… scaduta 20 min fa / 3 h fa / ieri» (ottone), in lista, dettaglio, pannello e tooltip del calendario; conta da proposta_inviata_at (solo «Sì, inviata», colonna già in 0024, nessuna migrazione), si aggiorna ogni minuto (useAdesso), le scadute entrano in «N da guardare»; alla scadenza nessuna chiusura né notifica (lib/richieste: scadenzaProposta, 5 test).
+   Errori di salvataggio visibili (05/09/2026, pomeriggio): Conferma prenotazione e Segna come pagato cambiano lo schermo solo a scrittura riuscita (lib/scritturaSicura + components/AvvisoAzione «Non salvato, riprova»); richieste dal sito con tre stati in home (caricamento / nessuna / errore con Riprova) e bollino «!» sulla barra (lib/richiesteDalSito, lib/webRequests con stato unico); ricognizione del pezzo 4 (13 punti, NON corretti) nella scheda qui sotto.
 6. Sito casaaniarozzano.it (repo sito-casaania): il modulo /prenota manda le richieste a POST /api/richieste/web; nessuna prenotazione nasce dal sito; ripiego Pushover.
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
@@ -72,6 +73,112 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — Errori di salvataggio visibili (05/09/2026, pomeriggio, main)
+
+Difetto: alcune azioni aggiornavano lo schermo senza guardare `error` nella
+risposta di Supabase. Ania poteva credere di aver confermato una camera o
+segnato un bonifico come pagato quando sul server non era cambiato nulla; un
+errore di lettura delle richieste dal sito appariva come «nessuna richiesta».
+
+Regola applicata: ogni chiamata controlla `error`; con un errore lo stato
+locale NON cambia, il bottone torna attivo e compare un messaggio in italiano
+vicino all'azione (verde scuro #1F3D2F su crema #F6F2EA, bordo #C9BFA8,
+`components/AvvisoAzione`), niente alert del browser, nessun catch vuoto.
+
+- Pezzo 1 — Conferma prenotazione (`app/prenotazioni/[id]`): passa da
+  `scriviPoiAggiorna` (`lib/scritturaSicura`, 7 test): «confermata» sullo
+  schermo solo a update riuscito; altrimenti «Non salvato, riprova» sotto il
+  bottone, che torna attivo. Commit `6441a36`.
+- Pezzo 2 — Segna come pagato: stessa regola, bottone disattivato durante il
+  salvataggio («Salvo...»); logica pagato/movimenti invariata. Commit `2e05cb8`.
+- Pezzo 3 — Richieste dal sito (`lib/richiesteDalSito` pura con 5 test,
+  `lib/webRequests` con stato unico per tutta l'app): la lettura torna sempre
+  `{ richieste, errore }`, mai `[]` su errore. Home: riga sotto la data con
+  TRE stati («Controllo le richieste dal sito…», «Nessuna richiesta dal sito
+  da confermare.», «🌐 N richieste dal sito da confermare · Nome» → Calendario)
+  e con l'errore il riquadro «Non riesco a caricare le richieste dal sito,
+  riprova» + «Riprova» (senza rete: «…: nessuna connessione»). Barra: bollino
+  «!» sul Calendario quando la lettura fallisce. La finestra all'apertura non
+  si apre con un errore. Commit `a3d393c`.
+- Pezzo 4 — Ricognizione (NON corretta, elenco nel resoconto della sessione e
+  qui sotto).
+
+## Casi di accettazione
+
+| ID | Prova | Esito |
+| --- | --- | --- |
+| E01 | Conferma con update rifiutato (anteprima finta, PATCH 403): avviso «Non salvato, riprova», bottone attivo, scheda ancora in attesa; test `scritturaSicura` | VERDE (DOM e rete a 390 px) |
+| E02 | Conferma riuscita: stato confermata, nessun avviso | VERDE (test; a schermo non riproducibile nella finta, che rifiuta ogni scrittura) |
+| E03 | Segna come pagato con update rifiutato: avviso, bottone attivo, bonifico ancora in attesa | VERDE (DOM e rete a 390 px) |
+| E04 | Home con lettura richieste fallita (interruttore `GET /finto/errore-richieste-web?on=1`): riquadro crema con «Riprova», bollino «!», finestra chiusa, dati della home comunque mostrati | VERDE (390 px) |
+| E05 | «Riprova» dopo il ripristino: riga «1 richiesta dal sito…» e bollino «1» anche sulla barra (stato condiviso) | VERDE (390 px) |
+| E06 | Zero richieste → «Nessuna richiesta dal sito da confermare.»; errore dopo lettura riuscita → le richieste già mostrate restano | VERDE (test `richiesteDalSito`) |
+| E07 | Eccezione di rete (fetch) → messaggio con «nessuna connessione», nessun catch silenzioso | VERDE (test) |
+
+## Prove tecniche
+
+- `node scripts/verifica-consegna.mjs --base a2c6f67` su `a3d393c`: Suite
+  applicazione (511 test, di cui 12 nuovi) OK, Regressioni delle revisioni OK,
+  Strumenti locali OK, TypeScript senza emissione OK; «Lint dei file
+  modificati» STOP con 67 rilievi = i 30 di `app/prenotazioni/[id]/page.tsx`
+  + i 37 di `app/page.tsx` già presenti sulla base (conteggio identico file
+  per file); i file nuovi (`lib/scritturaSicura`, `lib/richiesteDalSito`,
+  `lib/webRequests`, `components/AvvisoAzione`, `BottomNav`,
+  `WebRequestAlert`, anteprima finta) sono puliti.
+- `next build` sul candidato: compilato, 30 pagine generate.
+- UI a 390 px sull'anteprima finta `gestionale-bnb-anteprima-prenotazioni-finta`
+  (3213, dati sintetici, scritture rifiutate con 403): casi E01, E03, E04, E05.
+- Nessuna migrazione, nessun cambiamento di schema, nessuna scrittura reale.
+
+## Limiti aperti
+
+- Nessuna schermata: il pannello del browser era nascosto (immagini a metà) e
+  Chrome headless in questo ambiente resta appeso su `captureScreenshot`; le
+  prove a 390 px sono dal DOM (testi, colori calcolati, `disabled`) e dalla rete.
+- Il caso «scrittura riuscita» non è riproducibile a schermo nell'anteprima
+  finta (solo lettura): coperto dai test.
+- Lo stato «Controllo le richieste dal sito…» dura pochi ms in locale: coperto
+  dal test dello stato iniziale, non osservato a schermo.
+- Lint: `app/prenotazioni/[id]/page.tsx` (30 rilievi) e `app/page.tsx` (37)
+  avevano già gli stessi rilievi prima dell'incarico (`any`, import inutili):
+  nessuno nuovo, ma il passo «Lint dei file modificati» del verificatore resta
+  rosso finché quei file non vengono ripuliti.
+
+## Pezzo 4 — stesso difetto altrove (da correggere in un incarico dedicato, per rischio)
+
+1. `app/clienti/[id]/page.tsx:33` `deleteGuest` e `:39` `save`: delete/update
+   dei clienti senza controllo, poi navigazione o stato locale aggiornato.
+2. `app/prenotazioni/[id]/page.tsx:906-927` `saveStayEdit`: update dei segmenti
+   (date, annullamenti) senza controllo, poi rilettura senza `error` (`:936`).
+3. `app/prenotazioni/[id]/page.tsx:780` update del cliente dentro `saveEdit`
+   e `:791` rilettura `const { data: updated }` senza `error` → `setBooking(null)`
+   («Prenotazione non trovata») se la rilettura fallisce dopo un salvataggio riuscito.
+4. `app/prenotazioni/[id]/page.tsx:950` `addRoomChange` (group_id), `:961`
+   `markComplete`, `:972` insert nel log WhatsApp, `:1754` motivo annullamento.
+5. `app/impostazioni/page.tsx:105` `saveRoom`: tariffe camere aggiornate a
+   schermo anche se l'update fallisce.
+6. `app/nuova/page.tsx:355` update del cliente esistente prima dell'insert
+   della prenotazione.
+7. `app/arrivi/page.tsx:251` secondo tentativo senza controllo (ripiego 0019)
+   con `alert` del browser.
+8. `lib/spese/dati.ts:79-114` (`eliminaScontrino`, `aggiornaNotaScontrino`,
+   `inserisciSpesa`, `eliminaSpesa`, `salvaBudget`, `aggiornaBudget`,
+   `eliminaBudget`): funzioni `void` senza esito, i chiamanti non possono
+   sapere se hanno scritto; `:51` `return null` su errore (sezione nascosta).
+9. `lib/richiesteDati.ts:27` `contaRichiesteAperte` → `return 0` su errore
+   (bollino Richieste = «zero» anche con la lettura fallita).
+10. `lib/pushLog.ts:19` `catch {}` sull'insert del log push (voluto: non
+    blocca la notifica) e `lib/inviaPush.ts:47` delete senza controllo.
+11. Letture senza `error` (`const { data } = await supabase…`): `app/nuova`
+    (storico cliente ×5), `app/prenotazioni/page.tsx:36`, `app/api/push/*`,
+    `components/DocumentiCliente` e `lib/spese` (URL firmati).
+12. `components/WebRequestAlert.tsx:47,58` `catch {}` su sessionStorage
+    (memoria del browser, non Supabase): da annotare con un commento.
+13. Alert del browser ancora presenti: `cancelBooking` (`app/prenotazioni/[id]`),
+    `app/arrivi/page.tsx:253`.
 
 ---
 
