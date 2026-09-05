@@ -117,7 +117,10 @@ export async function eseguiSegnaPagato(
   if (r.error) return { esito: 'errore', fase: 'movimento', messaggio: r.error instanceof ErroreRispostaMalformata ? MESSAGGIO_RISPOSTA_MALFORMATA : MESSAGGIO_MOVIMENTO_NON_REGISTRATO, pagamenti }
   const scritto: PagamentoStat | null = r.data ?? (movimento ? { booking_id: movimento.booking_id, amount: movimento.amount, paid_on: movimento.paid_on } : null)
   const flagScritto = r.flagScritto
-  const dopo = scritto && !pagamenti.includes(scritto) ? [...pagamenti, scritto] : pagamenti
+  // La riga scritta entra nella lista una volta sola: dopo un ritentativo con
+  // la stessa chiave la RPC torna il movimento GIÀ presente fra i riletti
+  const giaInLista = (r: PagamentoStat & { id?: string }) => pagamenti.some((p: PagamentoStat & { id?: string }) => (p.id && r.id) ? p.id === r.id : (Math.round(Number(p.amount) * 100) === Math.round(Number(r.amount) * 100) && p.paid_on === r.paid_on && p.booking_id === r.booking_id))
+  const dopo = scritto && !giaInLista(scritto) ? [...pagamenti, scritto] : pagamenti
   if (!flagScritto) {
     let f: { error: unknown; righe: number }
     try { f = await deps.segnaFlag() } catch (e) { f = { error: e ?? new Error('errore sconosciuto'), righe: 0 } }

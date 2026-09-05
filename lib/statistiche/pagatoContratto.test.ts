@@ -225,3 +225,12 @@ test('difetto 2: orologio del telefono avanti rispetto al server → l\'acconto 
   assert.equal(r.esito === 'ok' && r.giaApplicato, false)
   assert.equal(srv2.store.filter(p => Number(p.amount) === 60).length, 2)
 })
+
+test('difetto 3: ritentativo con la stessa chiave dopo una risposta persa → la lista dei pagamenti a schermo non ha righe doppie', async () => {
+  const srv = server({ perdiRisposteInsert: 1, rpc: true })
+  const s = scheda(srv)
+  await eseguiSegnaPagato(seg, '2026-09-05', 'contanti', 'a', s)
+  const secondo = await eseguiSegnaPagato(seg, '2026-09-05', 'contanti', 'a', s)
+  assert.equal(secondo.esito, 'ok')
+  assert.equal(secondo.esito === 'ok' && secondo.pagamenti.length, 2, 'acconto iniziale + saldo: mai la stessa riga due volte')
+})
