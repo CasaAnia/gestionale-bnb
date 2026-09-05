@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 import { ETICHETTA_CASO, type Soluzione } from '@/lib/richiesteProposta'
 import { richiesteInConflitto, erroreDiDisponibilita, conLettoExtra, type RichiestaConProposta } from '@/lib/richiesteConferma'
 import { confermaRichiesta, scegliSoluzioneInviata } from '@/lib/richiesteDati'
-import { copiaProvenienzaSuPrenotazione } from '@/lib/provenienzaDati'
+import { applicaProvenienzaAlCliente } from '@/lib/provenienzaDati'
 import { prezzo as fmtPrezzo, dalAl } from '@/lib/richiesteTesti'
 import { nomeCompleto, formatIntervallo, nottiRichiesta, riassuntoPersone, type Richiesta } from '@/lib/richieste'
 
@@ -52,9 +52,10 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
     }
     const r = await confermaRichiesta(richiesta.id, [...spuntate])
     if (r.error || !r.prenotazioneId) { setErrore(r.error || 'Conferma non riuscita.'); setOccupato(false); return }
-    // Provenienza (0036): passa alla prenotazione appena creata; se non riesce
-    // la prenotazione resta valida e lo si dice nella scheda
-    const avvisoProvenienza = 'provenienza' in richiesta ? await copiaProvenienzaSuPrenotazione(richiesta, r.prenotazioneId) : null
+    // Provenienza (0037): quella provvisoria della richiesta va sul CLIENTE
+    // della prenotazione creata (se lui non ne ha già una); se non riesce la
+    // prenotazione resta valida e lo si dice nella scheda
+    const avvisoProvenienza = 'provenienza' in richiesta ? await applicaProvenienzaAlCliente(richiesta, r.prenotazioneId) : null
     onCreata(r.prenotazioneId, avvisoProvenienza)
   }
 

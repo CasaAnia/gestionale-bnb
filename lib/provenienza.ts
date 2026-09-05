@@ -110,3 +110,63 @@ export function suggerimentiDaMostrare(testo: string, note: StrutturaNota[]): { 
   const filtrate = suggerimentiStrutture(testo, note, note.length)
   return { lista: filtrate.length ? filtrate : tutte, attuale: null }
 }
+
+// ── Provenienza SUL CLIENTE (0037, 08/09/2026) ──────────────────────────────
+// La provenienza appartiene al cliente (guests.provenienza / struttura_nome):
+// vale per tutte le sue prenotazioni, passate e future. Le prenotazioni la
+// leggono dal cliente; le richieste tengono un valore provvisorio finché il
+// cliente non esiste. Prima della 0037 il campo è nascosto con l'avviso.
+export const AVVISO_0037 = 'Serve la migrazione 0037 (provenienza sul cliente): il campo «Come ci ha trovato» sarà disponibile dopo'
+export const mancaColonneProvenienza = manca0036
+
+export type ClienteProvenienza = { provenienza?: string | null; struttura_nome?: string | null } | null | undefined
+export type PrenotazioneConCliente = { provenienza?: string | null; struttura_nome?: string | null; guests?: ClienteProvenienza }
+
+// Il cliente ha le colonne della 0037?
+export const clienteConProvenienza = (g: ClienteProvenienza): boolean => !!g && 'provenienza' in g
+
+// Provenienza di una prenotazione: quella del cliente; se il cliente non ha
+// ancora le colonne (prima della 0037) resta il valore vecchio sulla
+// prenotazione (0036), altrimenti non_so
+export function provenienzaDi(b: PrenotazioneConCliente): CampiProvenienza {
+  if (clienteConProvenienza(b.guests)) return campiProvenienza(b.guests!.provenienza, b.guests!.struttura_nome)
+  return campiProvenienza(b.provenienza, b.struttura_nome)
+}
+
+// Migrazione 0036 → cliente (stessa regola della bozza SQL): la provenienza
+// della prenotazione PIÙ VECCHIA (check_in, poi created_at) che ne ha una
+export function provenienzaClienteDaPrenotazioni(prenotazioni: { check_in: string; created_at?: string | null; provenienza?: string | null; struttura_nome?: string | null }[]): CampiProvenienza {
+  const conProvenienza = prenotazioni
+    .filter(b => normalizzaProvenienza(b.provenienza) !== 'non_so')
+    .sort((a, b) => a.check_in.localeCompare(b.check_in) || String(a.created_at ?? '9999').localeCompare(String(b.created_at ?? '9999')))   // created_at nullo per ultimo, come in SQL
+  return conProvenienza.length ? campiProvenienza(conProvenienza[0].provenienza, conProvenienza[0].struttura_nome) : { provenienza: PROVENIENZA_DEFAULT, struttura_nome: null }
+}
+
+// Modulo del sito: cliente nuovo → google; cliente esistente → resta la sua
+export function provenienzaRichiestaDalSito(clienteEsistente: ClienteProvenienza): CampiProvenienza {
+  if (!clienteEsistente) return { provenienza: PROVENIENZA_DAL_SITO, struttura_nome: null }
+  return campiProvenienza(clienteEsistente.provenienza, clienteEsistente.struttura_nome)
+}
+
+// Alla conferma di una richiesta: cosa scrivere sul cliente della prenotazione
+// creata. Se il cliente ha già una provenienza (diversa da non_so) resta la
+// sua; altrimenti prende quella provvisoria della richiesta. null = nulla da scrivere.
+export function daApplicareAlCliente(richiesta: { provenienza?: string | null; struttura_nome?: string | null }, cliente: ClienteProvenienza): CampiProvenienza | null {
+  const dellaRichiesta = campiProvenienza(richiesta.provenienza, richiesta.struttura_nome)
+  if (dellaRichiesta.provenienza === 'non_so') return null
+  if (cliente && normalizzaProvenienza(cliente.provenienza) !== 'non_so') return null
+  return dellaRichiesta
+}
+
+// Scheda cliente, sotto il nome: «da Nida · 4 soggiorni · 640 €»
+export function testoFonte(c: { provenienza?: string | null; struttura_nome?: string | null }): string {
+  const { provenienza, struttura_nome } = campiProvenienza(c.provenienza, c.struttura_nome)
+  if (provenienza === 'altra_struttura') return struttura_nome ? `da ${struttura_nome}` : 'da altra struttura'
+  if (provenienza === 'google') return 'da Google'
+  if (provenienza === 'passaparola') return 'da passaparola'
+  return 'provenienza non nota'
+}
+export function rigaCliente(c: { provenienza?: string | null; struttura_nome?: string | null }, soggiorniConclusi: number, ricaviCent: number): string {
+  const euro = `${Math.round(ricaviCent / 100).toLocaleString('it-IT')} €`
+  return `${testoFonte(c)} · ${soggiorniConclusi} ${soggiorniConclusi === 1 ? 'soggiorno' : 'soggiorni'} · ${euro}`
+}

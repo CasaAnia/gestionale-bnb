@@ -71,3 +71,46 @@ test('«Quale struttura» attivo: con un nome già completo si vedono TUTTE le s
   assert.equal(suggerimentiDaMostrare('ros', note).attuale, null)
   assert.equal(suggerimentiDaMostrare('Villa Nuova', note).lista.length, 5)   // nome nuovo: si vedono comunque tutte
 })
+
+// ── Provenienza sul cliente (0037) ──────────────────────────────────────────
+test('migrazione 0036 → cliente: la provenienza della prenotazione più vecchia che ne ha una; senza nessuna → non so', async () => {
+  const { provenienzaClienteDaPrenotazioni } = await import('./provenienza.ts')
+  assert.deepEqual(provenienzaClienteDaPrenotazioni([
+    { check_in: '2026-09-01', provenienza: 'google' },
+    { check_in: '2026-07-01', provenienza: 'non_so' },
+    { check_in: '2026-08-01', provenienza: 'altra_struttura', struttura_nome: 'Nida' },
+    { check_in: '2026-08-01', created_at: '2026-06-01T00:00:00Z', provenienza: 'passaparola' },   // stesso check_in: creata prima → vince
+  ]), { provenienza: 'passaparola', struttura_nome: null })
+  assert.deepEqual(provenienzaClienteDaPrenotazioni([{ check_in: '2026-08-01', provenienza: 'altra_struttura', struttura_nome: 'Nida' }]), { provenienza: 'altra_struttura', struttura_nome: 'Nida' })
+  assert.deepEqual(provenienzaClienteDaPrenotazioni([{ check_in: '2026-08-01', provenienza: 'non_so' }, { check_in: '2026-09-01' }]), { provenienza: 'non_so', struttura_nome: null })
+})
+
+test('ereditarietà retroattiva: la prenotazione legge la provenienza dal cliente (anche una vecchia); prima della 0037 resta il valore della 0036', async () => {
+  const { provenienzaDi, clienteConProvenienza } = await import('./provenienza.ts')
+  const cliente = { provenienza: 'altra_struttura', struttura_nome: 'Nida' }
+  assert.deepEqual(provenienzaDi({ provenienza: 'google', guests: cliente }), { provenienza: 'altra_struttura', struttura_nome: 'Nida' })   // il cliente vince sulla prenotazione
+  assert.deepEqual(provenienzaDi({ guests: cliente }), { provenienza: 'altra_struttura', struttura_nome: 'Nida' })
+  assert.deepEqual(provenienzaDi({ provenienza: 'google', guests: { full_name: 'Anna' } as never }), { provenienza: 'google', struttura_nome: null })   // cliente senza colonne (pre-0037)
+  assert.deepEqual(provenienzaDi({ guests: null }), { provenienza: 'non_so', struttura_nome: null })
+  assert.equal(clienteConProvenienza({ provenienza: 'non_so' }), true)
+  assert.equal(clienteConProvenienza({}), false)
+})
+
+test('modulo del sito: cliente nuovo → google; cliente esistente → resta la sua', async () => {
+  const { provenienzaRichiestaDalSito } = await import('./provenienza.ts')
+  assert.deepEqual(provenienzaRichiestaDalSito(null), { provenienza: 'google', struttura_nome: null })
+  assert.deepEqual(provenienzaRichiestaDalSito({ provenienza: 'altra_struttura', struttura_nome: 'Umana' }), { provenienza: 'altra_struttura', struttura_nome: 'Umana' })
+  assert.deepEqual(provenienzaRichiestaDalSito({ provenienza: 'non_so' }), { provenienza: 'non_so', struttura_nome: null })
+})
+
+test('conferma: la provenienza della richiesta va sul cliente solo se lui non ne ha una; scheda cliente «da Nida · 4 soggiorni · 640 €»', async () => {
+  const { daApplicareAlCliente, rigaCliente, testoFonte } = await import('./provenienza.ts')
+  assert.deepEqual(daApplicareAlCliente({ provenienza: 'google' }, null), { provenienza: 'google', struttura_nome: null })
+  assert.deepEqual(daApplicareAlCliente({ provenienza: 'google' }, { provenienza: 'non_so' }), { provenienza: 'google', struttura_nome: null })
+  assert.equal(daApplicareAlCliente({ provenienza: 'google' }, { provenienza: 'altra_struttura', struttura_nome: 'Nida' }), null)
+  assert.equal(daApplicareAlCliente({ provenienza: 'non_so' }, null), null)
+  assert.equal(rigaCliente({ provenienza: 'altra_struttura', struttura_nome: 'Nida' }, 4, 64000), 'da Nida · 4 soggiorni · 640 €')
+  assert.equal(rigaCliente({ provenienza: 'google' }, 1, 8050), 'da Google · 1 soggiorno · 81 €')
+  assert.equal(testoFonte({ provenienza: 'passaparola' }), 'da passaparola')
+  assert.equal(testoFonte({}), 'provenienza non nota')
+})

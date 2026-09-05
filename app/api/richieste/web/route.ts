@@ -5,7 +5,7 @@ import { formatIntervallo, nomeCompleto } from '@/lib/richieste'
 import { inviaATutti } from '@/lib/inviaPush'
 import { registraPush } from '@/lib/pushLog'
 import { inviaPushover } from '@/lib/pushover'
-import { conProvenienzaDalSito, manca0036 } from '@/lib/provenienza'
+import { provenienzaRichiestaDalSito, manca0036 } from '@/lib/provenienza'
 
 // Ingresso delle richieste dal modulo del sito casaaniarozzano.it (pezzo 5A).
 //
@@ -80,10 +80,17 @@ export async function POST(req: NextRequest) {
     nome: d.nome, cognome: d.cognome, arrivo: d.arrivo, partenza: d.partenza, persone: d.persone,
     camera_id: d.camera_id, canale: 'web', telefono: d.telefono, note: d.note, stato: 'in_attesa',
   }
-  // Provenienza (0036): dal modulo del sito è google in automatico; senza la
-  // colonna la richiesta entra comunque (come per origine della 0028)
+  // Provenienza (0037): cliente nuovo → google; cliente già esistente (stesso
+  // telefono) → resta la sua. Senza le colonne la richiesta entra comunque
+  // (come per origine della 0028).
   const conOrigine = d.origine ? { ...riga, origine: d.origine } : riga
-  let inserita = await supabase.from('richieste').insert(conProvenienzaDalSito(conOrigine)).select('id').single()
+  let clienteEsistente: { provenienza?: string | null; struttura_nome?: string | null } | null = null
+  if (d.telefonoCifre) {
+    const { data: candidati } = await supabase.from('guests').select('*').ilike('phone', `%${d.telefonoCifre.slice(-9)}%`).limit(5)
+    const trovato = (candidati || []).find(g => String(g.phone || '').replace(/\D/g, '').replace(/^0+/, '') === d.telefonoCifre || String(g.phone || '').replace(/\D/g, '') === d.telefonoCifre)
+    if (trovato && 'provenienza' in trovato) clienteEsistente = trovato as { provenienza?: string | null; struttura_nome?: string | null }
+  }
+  let inserita = await supabase.from('richieste').insert({ ...conOrigine, ...provenienzaRichiestaDalSito(clienteEsistente) }).select('id').single()
   if (inserita.error && manca0036(inserita.error)) {
     log('avviso', 'colonne provenienza assenti: applicare la proposta 0036')
     inserita = await supabase.from('richieste').insert(conOrigine).select('id').single()
