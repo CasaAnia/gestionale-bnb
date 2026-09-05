@@ -58,3 +58,16 @@ test('colonne/tabella della 0036 assenti riconosciute; testi delle schede', () =
   assert.equal(testoProvenienza({ provenienza: 'google' }), 'Google')
   assert.equal(testoProvenienza({}), 'Non so')
 })
+
+test('«Quale struttura» attivo: con un nome già completo si vedono TUTTE le strutture con quella attuale evidenziata (difetto di Ania, 08/09/2026)', async () => {
+  const { suggerimentiDaMostrare } = await import('./provenienza.ts')
+  const note = [{ nome: 'Umana', ospiti: 1 }, { nome: 'Nida', ospiti: 2 }, { nome: 'RB (Rosa Bianca)', ospiti: 0 }, { nome: 'Elyse', ospiti: 0 }, { nome: 'BM (Borgo Manzoni)', ospiti: 0 }]
+  const conNida = suggerimentiDaMostrare('Nida', note)
+  assert.deepEqual(conNida.lista.map(s => s.nome), ['Nida', 'Umana', 'BM (Borgo Manzoni)', 'Elyse', 'RB (Rosa Bianca)'])
+  assert.equal(conNida.attuale, 'Nida')
+  assert.equal(suggerimentiDaMostrare('nida', note).attuale, 'Nida')
+  assert.equal(suggerimentiDaMostrare('', note).lista.length, 5)
+  assert.deepEqual(suggerimentiDaMostrare('ros', note).lista.map(s => s.nome), ['RB (Rosa Bianca)'])
+  assert.equal(suggerimentiDaMostrare('ros', note).attuale, null)
+  assert.equal(suggerimentiDaMostrare('Villa Nuova', note).lista.length, 5)   // nome nuovo: si vedono comunque tutte
+})

@@ -95,3 +95,18 @@ export function testoProvenienza(c: { provenienza?: string | null; struttura_nom
   const p = normalizzaProvenienza(c.provenienza)
   return p === 'altra_struttura' && c.struttura_nome ? `${ETICHETTA_PROVENIENZA[p]} · ${c.struttura_nome}` : ETICHETTA_PROVENIENZA[p]
 }
+
+// Cosa mostrare sotto «Quale struttura» quando il campo è attivo (08/09/2026,
+// difetto visto da Ania): con un nome già completo nel campo (es. «Nida») il
+// filtro per testo lasciava solo Nida, esclusa perché uguale → nessun
+// bottone. Regola: se il testo è un nome noto (o vuoto) si mostrano TUTTE le
+// strutture nell'ordine dei suggerimenti; altrimenti quelle che contengono il
+// testo, e se non ce n'è nessuna di nuovo tutte. `attuale` = il nome noto già
+// nel campo, da evidenziare.
+export function suggerimentiDaMostrare(testo: string, note: StrutturaNota[]): { lista: StrutturaNota[]; attuale: string | null } {
+  const attuale = strutturaNota(testo, note)
+  const tutte = suggerimentiStrutture('', note, note.length)
+  if (attuale || !testo.trim()) return { lista: tutte, attuale }
+  const filtrate = suggerimentiStrutture(testo, note, note.length)
+  return { lista: filtrate.length ? filtrate : tutte, attuale: null }
+}

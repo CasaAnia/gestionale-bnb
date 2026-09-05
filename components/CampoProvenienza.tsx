@@ -6,7 +6,7 @@
 // Non obbligatorio. Senza la proposta 0036 il campo resta nascosto e compare
 // l'avviso «serve la migrazione». Nessun colore nuovo.
 import { useState } from 'react'
-import { PROVENIENZE, AVVISO_0036, suggerimentiStrutture, strutturaNota, type Provenienza, type StrutturaNota } from '@/lib/provenienza'
+import { PROVENIENZE, AVVISO_0036, suggerimentiDaMostrare, strutturaNota, type Provenienza, type StrutturaNota } from '@/lib/provenienza'
 
 export type ValoreProvenienza = { provenienza: Provenienza; struttura: string }
 
@@ -29,7 +29,9 @@ export default function CampoProvenienza({ valore, onChange, strutture, disponib
   const chip = (attivo: boolean) => compatto
     ? `px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${attivo ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-[#C9BFA8]'}`
     : `rounded-full text-sm font-semibold px-4 py-2 transition-colors ${attivo ? 'bg-green-mid text-cream-text' : 'border border-[#C9BFA8] bg-white text-stone'}`
-  const suggerimenti = suggerimentiStrutture(valore.struttura, strutture).filter(s => s.nome !== valore.struttura)
+  // Al tocco nel campo si vedono sempre le strutture (tutte se il nome è già
+  // completo, quella attuale evidenziata); filtrate solo mentre si scrive un testo nuovo
+  const { lista: suggerimenti, attuale } = suggerimentiDaMostrare(valore.struttura, strutture)
   const nuovo = valore.struttura.trim() && !strutturaNota(valore.struttura, strutture)
   return (
     <div data-provenienza={valore.provenienza}>
@@ -46,15 +48,15 @@ export default function CampoProvenienza({ valore, onChange, strutture, disponib
         <div className="mt-2">
           <p className={compatto ? 'text-sm text-gray-500 mb-1' : 'text-sm text-stone mb-1'}>Quale struttura</p>
           <input value={valore.struttura} onChange={e => { onChange({ ...valore, struttura: e.target.value }); setAperto(true) }}
-            onFocus={() => setAperto(true)} onBlur={() => setTimeout(() => setAperto(false), 150)}
+            onFocus={() => setAperto(true)} onClick={() => setAperto(true)} onBlur={() => setTimeout(() => setAperto(false), 150)}
             autoComplete="off" autoCapitalize="words" placeholder="Nome della struttura" aria-label="Quale struttura"
             className="w-full min-w-0 appearance-none bg-white border border-[#C9BFA8] shadow-sm rounded-lg p-3 text-[15px] focus:outline-none focus:border-green-mid" />
           {aperto && suggerimenti.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-1.5" role="listbox" aria-label="Strutture note">
               {suggerimenti.map(s => (
-                <button key={s.nome} type="button" role="option" aria-selected={false}
-                  onMouseDown={e => e.preventDefault()} onClick={() => { onChange({ ...valore, struttura: s.nome }); setAperto(false) }}
-                  className="rounded-full text-[13px] px-3 py-1 border border-[#C9BFA8] bg-white text-green-dark">
+                <button key={s.nome} type="button" role="option" aria-selected={s.nome === attuale}
+                  onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()} onClick={() => { onChange({ ...valore, struttura: s.nome }); setAperto(false) }}
+                  className={`rounded-full text-[13px] px-3 py-1 border transition-colors ${s.nome === attuale ? 'bg-green-mid text-white border-green-mid' : 'border-[#C9BFA8] bg-white text-green-dark'}`}>
                   {s.nome}{s.ospiti > 0 && <span className="text-stone"> · {s.ospiti}</span>}
                 </button>
               ))}
