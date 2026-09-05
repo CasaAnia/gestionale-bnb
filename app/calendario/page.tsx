@@ -22,7 +22,7 @@ import RigaMesi from '@/components/RigaMesi'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
+import { etichettaPeriodo, GIORNI_QUINDICINA, inizioQuindicina } from '@/lib/richiesteCalendario'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
@@ -187,11 +187,16 @@ export default function Calendario() {
   // girato, quella stretta delle Richieste (uguale nelle tre pagine, 05/09/2026)
   const colonnaLarga = isDesktop && !orizzontale
   const NAME_W = colonnaLarga ? NAME_W_DESKTOP : NAME_W_MOBILE
-  // Telefono girato a mese (scelta di Ania, 05/09/2026): tutti i 31 giorni
-  // nella larghezza dello schermo, senza scorrimento di lato (colonne da ~20 px:
-  // i numeri restano leggibili, i nomi sulle barre si riducono a una lettera).
-  const colonnaMin = isDesktop ? (orizzontale && modo === 'mese' ? 0 : LARGHEZZA_MIN_COLONNA) : (modo === 'quindici' ? 60 : 40)
-  const CELL_W = larghezzaGriglia > 0 ? Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])) : (isDesktop ? CELL_W_DESKTOP : 60)
+  // Telefono girato (scelta di Ania, 05/09/2026): a mese tutti i 31 giorni e a
+  // 2 settimane tutte le 14 caselle nella larghezza dello schermo, senza
+  // scorrimento di lato e senza caselle a metà (colonne da ~20 px a mese: i
+  // numeri restano leggibili, i nomi sulle barre si riducono a una lettera).
+  const colonnaMin = isDesktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : (modo === 'quindici' ? 60 : 40)
+  // Senza minimo (telefono girato a mese) la colonna NON si arrotonda: così
+  // in vista ci sono esattamente 31 caselle, non 31 e qualcosa (Ania, 05/09/2026)
+  const CELL_W = larghezzaGriglia > 0
+    ? (colonnaMin === 0 ? (larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo] : Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])))
+    : (isDesktop ? CELL_W_DESKTOP : 60)
   const ROW_H = ROW_H_DESKTOP
   const HEADER_MONTH_H = HEADER_MONTH_H_DESKTOP
   const HEADER_DAY_H = HEADER_DAY_H_DESKTOP
@@ -262,11 +267,14 @@ export default function Calendario() {
         scrollRef.current.scrollLeft = primoGiornoRef.current * CELL_W
         primoGiornoRef.current = null
       } else {
-        // Dal Mac colonne intere (un giorno di contesto a sinistra); sul telefono com'era
-        scrollRef.current.scrollLeft = (DAYS_BEFORE - 1) * CELL_W
+        // Stessa prima casella delle Richieste e degli Arrivi (Ania, 05/09/2026):
+        // a 2 settimane 3 giorni prima di oggi, a mese il 1° del mese
+        scrollRef.current.scrollLeft = Math.max(0, dayIndex(primaCasellaOggi())) * CELL_W
       }
+      // L'etichetta «2 – 15 set» deve dire subito la posizione vera (come negli Arrivi)
+      updateVisibleMonth()
     }
-  }, [loading, CELL_W, isDesktop])
+  }, [loading, CELL_W, isDesktop]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Misura il riquadro (e la rimisura quando la finestra cambia)
   useEffect(() => {
@@ -341,6 +349,12 @@ export default function Calendario() {
     }
     setScrollTarget(iso)
   }
+  // Prima casella quando si torna a oggi: 3 giorni prima di oggi a 2 settimane
+  // (come le Richieste), il 1° del mese a mese. Caselle intere, mai a metà.
+  function primaCasellaOggi(): string {
+    return modo === 'quindici' ? inizioQuindicina(todayStr) : `${todayStr.slice(0, 7)}-01`
+  }
+  function vaiAOggi() { vaiAData(primaCasellaOggi(), 0) }
   function scorriDiGiorni(n: number) {
     scrollRef.current?.scrollBy({ left: n * CELL_W, behavior: 'smooth' })
   }
@@ -373,7 +387,7 @@ export default function Calendario() {
   // Lo scroll parte solo a intervallo già ridisegnato: posizione esatta, mai tentativi
   useEffect(() => {
     if (!scrollTarget || !scrollRef.current) return
-    scrollRef.current.scrollTo({ left: Math.max(0, dayIndex(scrollTarget) * CELL_W - Math.round(CELL_W * margineScroll.current)), behavior: 'smooth' })
+    scrollRef.current.scrollTo({ left: Math.max(0, (dayIndex(scrollTarget) - margineScroll.current) * CELL_W), behavior: 'smooth' })
     margineScroll.current = 1.5
     setScrollTarget(null)
   }, [scrollTarget, daysBefore, daysTotal, CELL_W]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -388,7 +402,7 @@ export default function Calendario() {
       if (daysBefore !== DAYS_BEFORE || daysTotal !== DAYS_TOTAL) {
         setDaysBefore(DAYS_BEFORE)
         setDaysTotal(DAYS_TOTAL)
-        setScrollTarget(todayStr)
+        vaiAOggi()
       }
     }
   }
@@ -927,7 +941,7 @@ export default function Calendario() {
       </div>
       {/* Sotto il calendario: «Oggi» e i 12 mesi cliccabili (riga condivisa con Arrivi e Richieste), telefono e Mac */}
       {!loading && (
-        <RigaMesi colonna={NAME_W} mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={() => vaiAData(todayStr)} className={`shrink-0 pt-3 pb-4 ${orizzontale ? 'px-2' : 'px-4'}`} />
+        <RigaMesi colonna={NAME_W} mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={vaiAOggi} className={`shrink-0 pt-3 pb-4 ${orizzontale ? 'px-2' : 'px-4'}`} />
       )}
 
       {/* Legenda: solo su desktop — sul telefono ruba spazio al calendario */}

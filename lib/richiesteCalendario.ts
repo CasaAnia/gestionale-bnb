@@ -164,8 +164,11 @@ export function giorniDaInizio(inizio: string, n: number = GIORNI_QUINDICINA): s
 
 // All'apertura la colonna di oggi è sempre visibile: la finestra parte 3
 // giorni prima di oggi, così si vedono anche gli arrivi imminenti
+// Quante caselle prima di oggi nella vista a 2 settimane: uguale in
+// Richieste, Calendario e Arrivi (scelta di Ania, 05/09/2026)
+export const GIORNI_PRIMA_OGGI = 3
 export function inizioQuindicina(oggi: string): string {
-  return spostaGiorni(oggi, -3)
+  return spostaGiorni(oggi, -GIORNI_PRIMA_OGGI)
 }
 
 // "4 – 17 set 2026" · "28 set – 11 ott 2026" · "28 dic 2026 – 10 gen 2027"

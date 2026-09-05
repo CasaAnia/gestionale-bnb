@@ -9,7 +9,7 @@ import {
   COLORE_OGGI, COLORE_DOMENICA, COLORE_GRIGLIA, COLORE_SEPARATORE, COLORE_RICHIESTA_TESTO,
   contestoColori, segmentiBarra, indiciIntervallo, type PrenotazioneBarra,
 } from '@/lib/calendarioBarre'
-import { giorniDelMese, etichettaMese, spostaMese, chiaveRiga, RIGA_QUALSIASI, gruppiSovrapposti, unioneIntervalli, sovrapposizioni, giorniDaInizio, spostaGiorni, etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
+import { etichettaMese, spostaMese, chiaveRiga, RIGA_QUALSIASI, gruppiSovrapposti, unioneIntervalli, sovrapposizioni, giorniDaInizio, spostaGiorni, etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
 import { nomeCompleto, nomeBreve, formatIntervallo, riassuntoPersone, scadenzaProposta, STATO_LABEL, type Richiesta } from '@/lib/richieste'
 import type { Vista } from '@/lib/richiesteVista'
 
@@ -48,6 +48,7 @@ const COL_MIN_QUINDICI = 72   // a 2 settimane ogni giorno ha almeno 72 px: «No
 // righe, giorni in colonne — che scorre di lato dentro il riquadro. Colonna
 // camere più stretta e colonne minime più piccole; la variante «giorni in
 // righe» di prima resta nel file, non più usata.
+const CASELLE_MESE = 31   // colonne della vista a mese, sempre 31 come in Calendario/Arrivi
 const NAME_W_TELEFONO = 66
 // Larghezza della colonna delle camere: larga solo sul Mac vero; sul telefono,
 // dritto o girato (compatto), quella stretta, uguale in Calendario/Arrivi/Richieste
@@ -98,7 +99,9 @@ export default function CalendarioRichieste(p: Props) {
   const orizzontale = true   // false = torna la vecchia griglia verticale sul telefono
   const modo: ModoCalendario = p.modo === 'quindici' && p.inizio ? 'quindici' : 'mese'
   const nameW = larghezzaColonnaCamere(p.layout, p.compatto)
-  const giorni = useMemo(() => (modo === 'quindici' ? giorniDaInizio(p.inizio!, GIORNI_QUINDICINA) : giorniDelMese(p.mese)), [modo, p.inizio, p.mese])
+  // A mese sempre 31 caselle dal 1° (nei mesi corti si vedono i primi giorni
+  // del mese dopo): stesso numero di colonne di Calendario e Arrivi (Ania, 05/09/2026)
+  const giorni = useMemo(() => (modo === 'quindici' ? giorniDaInizio(p.inizio!, GIORNI_QUINDICINA) : giorniDaInizio(`${p.mese}-01`, CASELLE_MESE)), [modo, p.inizio, p.mese])
   const camere = useMemo(() => ordinaCamere(p.camere.filter(c => c.active !== false)), [p.camere])
   const ctx = useMemo(() => contestoColori(p.prenotazioni, p.acconti), [p.prenotazioni, p.acconti])
   const catene = useMemo(() => buildChangeGroups(p.prenotazioni), [p.prenotazioni])
@@ -263,10 +266,10 @@ export default function CalendarioRichieste(p: Props) {
   if (orizzontale) {
     const mobile = p.layout === 'mobile'
     // compatto (telefono in orizzontale): niente larghezza minima, i 14 giorni riempiono lo schermo
-    // Telefono girato a mese (scelta di Ania, 05/09/2026): tutti i 31 giorni
-    // nella larghezza, come in Calendario e Arrivi (nessun minimo per colonna)
+    // Telefono girato (compatto, scelta di Ania, 05/09/2026): a mese 31 caselle e
+    // a 2 settimane 14, tutte nella larghezza come in Calendario e Arrivi
     const colMin = mobile
-      ? (modo === 'quindici' ? (p.compatto ? 52 : COL_MIN_QUINDICI_TELEFONO) : (p.compatto ? 0 : COL_MIN_MESE_TELEFONO))
+      ? (p.compatto ? 0 : (modo === 'quindici' ? COL_MIN_QUINDICI_TELEFONO : COL_MIN_MESE_TELEFONO))
       : (modo === 'quindici' && !p.compatto ? COL_MIN_QUINDICI : 0)
     return (
       <div className="bg-white rounded-xl border border-card-border shadow-sm overflow-hidden">

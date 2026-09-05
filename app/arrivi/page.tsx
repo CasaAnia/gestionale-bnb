@@ -13,7 +13,7 @@ import RigaMesi from '@/components/RigaMesi'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
+import { etichettaPeriodo, GIORNI_QUINDICINA, GIORNI_PRIMA_OGGI } from '@/lib/richiesteCalendario'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
@@ -116,11 +116,16 @@ export default function Arrivi() {
   // girato, quella stretta delle Richieste (uguale nelle tre pagine, 05/09/2026)
   const colonnaLarga = isDesktop && !orizzontale
   const NAME_W = colonnaLarga ? NAME_W_DESKTOP : NAME_W_MOBILE
-  // Telefono girato a mese (scelta di Ania, 05/09/2026): tutti i 31 giorni
-  // nella larghezza dello schermo, senza scorrimento di lato (colonne da ~20 px:
-  // i numeri restano leggibili, i nomi sulle barre si riducono a una lettera).
-  const colonnaMin = isDesktop ? (orizzontale && modo === 'mese' ? 0 : LARGHEZZA_MIN_COLONNA) : (modo === 'quindici' ? 60 : 40)
-  const CELL_W = larghezzaGriglia > 0 ? Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])) : (isDesktop ? CELL_W_DESKTOP : 60)
+  // Telefono girato (scelta di Ania, 05/09/2026): a mese tutti i 31 giorni e a
+  // 2 settimane tutte le 14 caselle nella larghezza dello schermo, senza
+  // scorrimento di lato e senza caselle a metà (colonne da ~20 px a mese: i
+  // numeri restano leggibili, i nomi sulle barre si riducono a una lettera).
+  const colonnaMin = isDesktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : (modo === 'quindici' ? 60 : 40)
+  // Senza minimo (telefono girato a mese) la colonna NON si arrotonda: così
+  // in vista ci sono esattamente 31 caselle, non 31 e qualcosa (Ania, 05/09/2026)
+  const CELL_W = larghezzaGriglia > 0
+    ? (colonnaMin === 0 ? (larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo] : Math.max(colonnaMin, Math.floor((larghezzaGriglia - NAME_W) / COLONNE_VISIBILI[modo])))
+    : (isDesktop ? CELL_W_DESKTOP : 60)
   const ROW_H = ROW_H_DESKTOP
   const HEADER_MONTH_H = HEADER_MONTH_H_DESKTOP
   const HEADER_DAY_H = HEADER_DAY_H_DESKTOP
@@ -179,8 +184,8 @@ export default function Arrivi() {
         scrollRef.current.scrollLeft = primoGiornoRef.current * CELL_W
         primoGiornoRef.current = null
       } else {
-        // Dal Mac colonne intere (un giorno di contesto a sinistra); sul telefono com'era
-        scrollRef.current.scrollLeft = (DAYS_BEFORE - 1) * CELL_W
+        // Stessa prima casella di Calendario e Richieste (Ania, 05/09/2026)
+        scrollRef.current.scrollLeft = indiceOggi() * CELL_W
       }
       updateVisibleMonth()
     }
@@ -206,6 +211,11 @@ export default function Arrivi() {
     if (!t) return
     const primo = bookings.filter((b: any) => matchPrenotazione(b, t)).sort((a: any, b: any) => a.check_in.localeCompare(b.check_in))[0]
     if (primo) vaiAIndice(dayIndex(primo.check_in) - 1)
+  }
+  // Prima casella quando si torna a oggi: 3 giorni prima di oggi a 2 settimane,
+  // il 1° del mese a mese (entro i 7 giorni di storia della pagina)
+  function indiceOggi(): number {
+    return modo === 'quindici' ? DAYS_BEFORE - GIORNI_PRIMA_OGGI : Math.max(0, DAYS_BEFORE - (today.getDate() - 1))
   }
   function vaiAIndice(idx: number) {
     scrollRef.current?.scrollTo({ left: Math.max(0, Math.min(days.length - 1, idx)) * CELL_W, behavior: 'smooth' })
@@ -628,7 +638,7 @@ export default function Arrivi() {
       </div>
       {!loading && (
         <RigaMesi colonna={NAME_W} mesi={mesiCliccabili(today, 4).filter(m => dayIndex(m.iso) < DAYS_TOTAL)} attivo={toStr(days[Math.min(days.length - 1, Math.max(0, primoVisibile))]).slice(0, 7)}
-          onMese={m => vaiAIndice(dayIndex(m.iso))} onOggi={() => vaiAIndice(DAYS_BEFORE - 1)} nota={`arrivi dei prossimi ${DAYS_TOTAL - DAYS_BEFORE} giorni`} className={`shrink-0 pt-3 pb-4 ${orizzontale ? 'px-2' : 'px-4'}`} />
+          onMese={m => vaiAIndice(dayIndex(m.iso))} onOggi={() => vaiAIndice(indiceOggi())} nota={`arrivi dei prossimi ${DAYS_TOTAL - DAYS_BEFORE} giorni`} className={`shrink-0 pt-3 pb-4 ${orizzontale ? 'px-2' : 'px-4'}`} />
       )}
 
       {/* Niente legenda in Arrivi (richiesta di Ania, 04/09/2026): i simboli si spiegano da soli */}
