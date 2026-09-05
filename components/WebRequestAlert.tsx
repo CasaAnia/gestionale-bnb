@@ -35,7 +35,10 @@ export default function WebRequestAlert() {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    fetchWebRequests().then(reqs => {
+    fetchWebRequests().then(({ richieste: reqs, errore }) => {
+      // Con un errore di lettura la finestra non si apre: l'errore è visibile
+      // nella home e col «!» sul bollino della barra, mai come «nessuna richiesta».
+      if (errore) return
       setRequests(reqs)
       if (reqs.length === 0) return
       const firma = reqs.map(r => r.id).sort().join(',')

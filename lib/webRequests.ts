@@ -1,72 +1,65 @@
 'use client'
 // Richieste arrivate dal sito e ancora da confermare (Ania chiama sempre il
-// cliente prima di confermare). Usate da: pallino sulla barra, avviso sul
-// calendario e finestra all'apertura del gestionale.
-import { useEffect, useState } from 'react'
+// cliente prima di confermare). Usate da: pallino sulla barra, riga nella
+// home e finestra all'apertura del gestionale.
+//
+// Errori di salvataggio visibili (05/09/2026): la lettura torna sempre un
+// esito con `errore`; lo schermo distingue caricamento, nessuna richiesta ed
+// errore (mai una lista vuota al posto di un errore). La logica pura sta in
+// lib/richiesteDalSito.ts (testata con un finto). Lo stato è UNO per tutta
+// l'app: «Riprova» nella home aggiorna anche il bollino della barra.
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { supabase } from './supabase'
-import { nomeOspite, nomeDiverso } from './guestName'
+import { caricaRichiesteWeb, statoDopoLettura, RICHIESTE_WEB_IN_CARICAMENTO, type EsitoRichiesteWeb, type StatoRichiesteWeb } from './richiesteDalSito'
 
-export type WebRequest = {
-  id: string
-  check_in: string
-  check_out: string
-  num_guests: number
-  total_amount: number
-  room_name: string
-  guest_name: string
-  guest_phone: string
-  // Il numero è già in archivio con un nominativo diverso da quello della
-  // richiesta: nome_archivio è quello della scheda, per l'avviso rosso
-  nome_diverso: boolean
-  nome_archivio: string
-}
+export type { WebRequest, StatoRichiesteWeb } from './richiesteDalSito'
 
-export async function fetchWebRequests(): Promise<WebRequest[]> {
-  // Prima con bookings.guest_name (nome della singola richiesta); se la
-  // colonna non è ancora migrata si ripiega sulla query di prima.
-  const query = (cols: string) => supabase
+export function fetchWebRequests(): Promise<EsitoRichiesteWeb> {
+  return caricaRichiesteWeb(cols => supabase
     .from('bookings')
     .select(cols)
     .eq('status', 'in_attesa')
     .eq('source', 'sito_web')
-    .order('check_in', { ascending: true })
-  let { data, error }: { data: any[] | null; error: any } =
-    await query('id, check_in, check_out, num_guests, total_amount, guest_name, rooms(name), guests(full_name, phone)')
-  if (error) {
-    ;({ data, error } = await query('id, check_in, check_out, num_guests, total_amount, rooms(name), guests(full_name, phone)'))
-  }
-  // Se la query fallisce niente avvisi: il gestionale deve continuare a
-  // funzionare come prima.
-  if (error || !data) return []
-  return data.map((b: any) => ({
-    id: b.id,
-    check_in: b.check_in,
-    check_out: b.check_out,
-    num_guests: b.num_guests,
-    total_amount: Number(b.total_amount) || 0,
-    room_name: b.rooms?.name?.split(' ').slice(-1)[0] || 'Camera',
-    guest_name: nomeOspite(b),
-    guest_phone: b.guests?.phone || '',
-    nome_diverso: nomeDiverso(b),
-    nome_archivio: b.guests?.full_name || '',
-  }))
+    .order('check_in', { ascending: true }))
 }
 
-// Conteggio con aggiornamento quando la pagina torna in primo piano: sul
-// telefono il gestionale resta aperto per giorni, il numero non deve invecchiare.
-export function useWebRequestCount(refreshKey?: string): number {
-  const [count, setCount] = useState(0)
+let statoCondiviso: StatoRichiesteWeb = RICHIESTE_WEB_IN_CARICAMENTO
+const ascoltatori = new Set<() => void>()
+
+function iscrivi(fn: () => void): () => void {
+  ascoltatori.add(fn)
+  return () => { ascoltatori.delete(fn) }
+}
+
+function pubblica(s: StatoRichiesteWeb) {
+  statoCondiviso = s
+  for (const fn of ascoltatori) fn()
+}
+
+// Rilegge le richieste e aggiorna tutti i componenti in ascolto. Con
+// `daCapo` mostra prima «caricamento» (tasto «Riprova»); altrimenti lo stato
+// attuale resta finché non arriva la risposta (aggiornamenti in sottofondo).
+export async function ricaricaRichiesteWeb(daCapo = false): Promise<void> {
+  if (daCapo) pubblica(RICHIESTE_WEB_IN_CARICAMENTO)
+  const esito = await fetchWebRequests()
+  pubblica(statoDopoLettura(statoCondiviso, esito))
+}
+
+// Stato delle richieste dal sito con aggiornamento quando la pagina torna in
+// primo piano e a ogni navigazione (refreshKey): sul telefono il gestionale
+// resta aperto per giorni, il numero non deve invecchiare.
+export function useRichiesteWeb(refreshKey?: string): StatoRichiesteWeb & { ricarica: () => void } {
+  const stato = useSyncExternalStore(iscrivi, () => statoCondiviso, () => RICHIESTE_WEB_IN_CARICAMENTO)
   useEffect(() => {
-    let alive = true
-    const load = () => fetchWebRequests().then(r => { if (alive) setCount(r.length) })
+    const load = () => { void ricaricaRichiesteWeb() }
     load()
     window.addEventListener('focus', load)
     document.addEventListener('visibilitychange', load)
     return () => {
-      alive = false
       window.removeEventListener('focus', load)
       document.removeEventListener('visibilitychange', load)
     }
   }, [refreshKey])
-  return count
+  const ricarica = useCallback(() => { void ricaricaRichiesteWeb(true) }, [])
+  return { ...stato, ricarica }
 }

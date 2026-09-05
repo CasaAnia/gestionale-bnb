@@ -215,9 +215,21 @@ function rispondi(res, stato, corpo, extra = {}) {
   res.end(corpo === undefined ? '' : JSON.stringify(corpo))
 }
 
+// Errori di salvataggio visibili (05/09/2026): interruttore per far fallire
+// la lettura delle richieste dal sito (bookings con source=eq.sito_web).
+// Si accende/spegne senza riavviare: GET /finto/errore-richieste-web?on=1|0
+let erroreRichiesteWeb = process.env.FINTO_ERRORE_RICHIESTE_WEB === '1'
+
 const finto = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORTA_FINTO}`)
   if (req.method === 'OPTIONS') return rispondi(res, 204)
+  if (url.pathname === '/finto/errore-richieste-web') {
+    erroreRichiesteWeb = url.searchParams.get('on') === '1'
+    return rispondi(res, 200, { erroreRichiesteWeb })
+  }
+  if (erroreRichiesteWeb && url.pathname === '/rest/v1/bookings' && url.searchParams.get('source') === 'eq.sito_web') {
+    return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla lettura delle richieste dal sito', details: null, hint: null })
+  }
   if (url.pathname === '/auth/v1/token') return rispondi(res, 200, sessione())
   if (url.pathname === '/auth/v1/user') return rispondi(res, 200, utente)
   if (url.pathname === '/auth/v1/logout') return rispondi(res, 204)

@@ -5,7 +5,7 @@ import { House, CalendarDays, Inbox, DoorOpen, Sparkles, ClipboardList, Plus, Us
 import { useDemoMode } from '@/lib/useDemoMode'
 import { returnToSicuro } from '@/lib/navHistory'
 import { isHiddenPath } from '@/lib/demoMode'
-import { useWebRequestCount } from '@/lib/webRequests'
+import { useRichiesteWeb } from '@/lib/webRequests'
 import { useRichiesteCount } from '@/lib/richiesteDati'
 
 // Max 5 tasti: devono restare grossi e comodi da toccare (a 390 px ognuno ha
@@ -48,7 +48,8 @@ const desktopNavGroups = [
 ]
 
 // Bollino rosso mattone con il numero di richieste dal sito da confermare.
-function RequestBadge({ count, className }: { count: number; className?: string }) {
+// Con «!» la lettura è fallita: un errore non deve mai sembrare «nessuna richiesta».
+function RequestBadge({ count, className }: { count: number | '!'; className?: string }) {
   if (count === 0) return null
   return (
     <span className={`chip-in min-w-[17px] h-[17px] px-1 rounded-full bg-[#C0563B] text-white text-[10.5px] font-bold leading-none inline-flex items-center justify-center ${className || ''}`}>
@@ -62,7 +63,8 @@ export default function BottomNav() {
   const demo = useDemoMode()
   // La chiave cambia a ogni navigazione: il conteggio si riaggiorna anche
   // quando Ania conferma una richiesta e torna indietro.
-  const webCount = useWebRequestCount(pathname)
+  const richiesteWeb = useRichiesteWeb(pathname)
+  const webCount: number | '!' = richiesteWeb.stato === 'errore' ? '!' : richiesteWeb.richieste.length
   // Richieste di prenotazione in attesa o con proposta inviata (tabella richieste).
   const richiesteCount = useRichiesteCount(pathname)
   if (pathname === '/login') return null

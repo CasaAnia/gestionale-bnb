@@ -7,6 +7,8 @@ import { getUpcomingRoomChanges, buildChangeGroups } from '@/lib/roomChanges'
 import { nomeOspite } from '@/lib/guestName'
 import { useDemoMode } from '@/lib/useDemoMode'
 import { messaggioErroreDati } from '@/lib/connessione'
+import { useRichiesteWeb } from '@/lib/webRequests'
+import AvvisoAzione from '@/components/AvvisoAzione'
 
 function fmt(n: number) { return n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 function today() { return new Date().toISOString().split('T')[0] }
@@ -26,6 +28,9 @@ export default function Dashboard() {
   const [errore, setErrore] = useState<string | null>(null)
   const [tentativo, setTentativo] = useState(0)
   const demo = useDemoMode()
+  // Richieste dal sito: tre stati distinti sullo schermo (caricamento,
+  // nessuna richiesta, errore di lettura). Errori visibili, 05/09/2026.
+  const richiesteWeb = useRichiesteWeb()
 
   useEffect(() => {
     async function load() {
@@ -221,6 +226,19 @@ export default function Dashboard() {
         <h1 className="font-serif text-2xl text-green-dark">Buongiorno, Ania</h1>
         <p className="text-sm text-gray-500 capitalize">{italianDate()}</p>
       </div>
+
+      {richiesteWeb.stato === 'errore' ? (
+        <AvvisoAzione testo={richiesteWeb.errore} onRiprova={richiesteWeb.ricarica} className="mb-4" />
+      ) : richiesteWeb.stato === 'caricamento' ? (
+        <p className="text-[13px] mb-4" style={{ color: 'var(--color-stone)' }}>Controllo le richieste dal sito…</p>
+      ) : richiesteWeb.richieste.length === 0 ? (
+        <p className="text-[13px] mb-4" style={{ color: 'var(--color-stone)' }}>Nessuna richiesta dal sito da confermare.</p>
+      ) : (
+        <Link href="/calendario" className="block bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm px-3 py-2.5 mb-4 text-sm font-semibold text-green-dark">
+          🌐 {richiesteWeb.richieste.length === 1 ? '1 richiesta dal sito da confermare' : `${richiesteWeb.richieste.length} richieste dal sito da confermare`}
+          <span className="font-normal" style={{ color: 'var(--color-stone)' }}> · {richiesteWeb.richieste[0].guest_name}{richiesteWeb.richieste.length > 1 ? ' e altre' : ''}</span>
+        </Link>
+      )}
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
