@@ -9,8 +9,8 @@ import { leggiDatiStatistiche, type DatiStatistiche } from '@/lib/statisticheDat
 import { useDaControllare } from '@/lib/daControllareDati'
 import { testoPagamentiDaControllare } from '@/lib/daControllare'
 import { ID_SEZIONE } from '@/components/DaControllare'
-import { daDoveArrivano, type PrenotazioneProvenienza } from '@/lib/statistiche/provenienza'
-import { AVVISO_0036 } from '@/lib/provenienza'
+import { daDoveArrivano, struttureDellAnno, type PrenotazioneProvenienza } from '@/lib/statistiche/provenienza'
+import { AVVISO_0037 } from '@/lib/provenienza'
 import { supabase } from '@/lib/supabase'
 import { nomeOspite } from '@/lib/guestName'
 import { messaggioNonSalvato } from '@/lib/scritturaSicura'
@@ -181,8 +181,9 @@ export default function Statistiche() {
 
   const intervallo = intervalloPeriodo(ref, period)
   const totali = data ? cassaIntervallo(data.prenotazioni, data.pagamenti, data.spese, intervallo.da, intervallo.a) : null
-  // Da dove arrivano gli ospiti (08/09/2026): periodo scelto, storico = soggiorni conclusi (per «Già stati da noi»)
+  // Da dove arrivano gli ospiti (08/09/2026): periodo scelto; storico = soggiorni conclusi (per i ritorni); strutture dell'anno letto
   const provenienze = data ? daDoveArrivano(data.prenotazioni as PrenotazioneProvenienza[], [...data.ricostruzione.prenotazioni, ...data.prenotazioni] as PrenotazioneProvenienza[], intervallo.da, intervallo.a) : null
+  const strutture = data ? struttureDellAnno(data.prenotazioni as PrenotazioneProvenienza[], ref.getFullYear()) : null
 
   // Sconti concessi nel periodo (mese o anno): pro-quota sulle notti dormite (lib/statistiche/sconti)
   const sconti = data && period !== 'settimana'
@@ -552,29 +553,45 @@ export default function Statistiche() {
             </div>
           )}
 
-          {/* Da dove arrivano gli ospiti (08/09/2026): soggiorni e ricavi per soggiorno per provenienza; «Già stati da noi» a parte */}
+          {/* Da dove arrivano gli ospiti (08/09/2026, sera): la provenienza è del cliente (0037);
+              una riga per fonte con clienti, soggiorni, di cui ritorni, ricavi per soggiorno; ordinate per ricavi */}
           {provenienze && (
             <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4" data-provenienze>
               <p className="text-sm font-semibold text-gray-600">Da dove arrivano gli ospiti</p>
-              <p className="text-xs text-gray-400 mb-3">{period === 'settimana' ? 'settimana' : period === 'mese' ? 'mese' : 'anno'} scelto · soggiorni confermati e ricavi per soggiorno (notti dormite nel periodo){!provenienze.colonnePresenti ? ` · ${AVVISO_0036}` : ''}</p>
+              <p className="text-xs text-gray-400 mb-3">{period === 'settimana' ? 'settimana' : period === 'mese' ? 'mese' : 'anno'} scelto · fonte del cliente, valida anche per i suoi soggiorni passati · ricavi per soggiorno sulle notti nel periodo{!provenienze.colonnePresenti ? ` · ${AVVISO_0037}` : ''}</p>
+              <div className="grid text-[11px] text-gray-400 pb-1 border-b border-card-border" style={{ gridTemplateColumns: '1fr 52px 60px 56px 70px' }}>
+                <span>Fonte</span><span className="text-right">Clienti</span><span className="text-right">Soggiorni</span><span className="text-right">di cui ritorni</span><span className="text-right">Ricavi</span>
+              </div>
               {provenienze.righe.map(r => (
-                <div key={r.chiave} className="mt-2 first:mt-0">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-sm font-medium text-green-dark">{r.label}</span>
-                    <span className="text-sm text-gray-600"><span className="font-semibold text-green-mid">{r.soggiorni}</span> {r.soggiorni === 1 ? 'soggiorno' : 'soggiorni'} · €{euro(r.ricaviCent)}</span>
-                  </div>
-                  {r.sotto?.map(s => (
-                    <div key={s.chiave} className="flex justify-between items-baseline pl-4 mt-0.5">
-                      <span className="text-[13px] text-gray-600">{s.label}</span>
-                      <span className="text-[13px] text-gray-500">{s.soggiorni} · €{euro(s.ricaviCent)}</span>
-                    </div>
-                  ))}
+                <div key={r.chiave} className="grid items-baseline py-1.5 border-b border-card-border last:border-b-0 text-sm" style={{ gridTemplateColumns: '1fr 52px 60px 56px 70px' }} data-fonte={r.chiave}>
+                  <span className="font-medium text-green-dark truncate">{r.label}</span>
+                  <span className="text-right text-gray-600">{r.clienti}</span>
+                  <span className="text-right text-gray-600">{r.soggiorni}</span>
+                  <span className="text-right text-gray-500">{r.ritorni}</span>
+                  <span className="text-right font-semibold text-green-mid">€{euro(r.ricaviCent)}</span>
                 </div>
               ))}
-              <div className="flex justify-between items-baseline mt-3 pt-2 border-t border-dashed border-[#C9BFA8]" data-gia-stati>
-                <span className="text-sm font-medium text-green-dark">{provenienze.giaStati.label} <span className="text-xs text-gray-400">(a parte)</span></span>
-                <span className="text-sm text-gray-600"><span className="font-semibold text-green-mid">{provenienze.giaStati.soggiorni}</span> {provenienze.giaStati.soggiorni === 1 ? 'soggiorno' : 'soggiorni'} · €{euro(provenienze.giaStati.ricaviCent)}</span>
+              <div className="grid items-baseline pt-2 mt-1 border-t border-dashed border-[#C9BFA8] text-sm" style={{ gridTemplateColumns: '1fr 52px 60px 56px 70px' }} data-fonte="totale">
+                <span className="font-medium text-green-dark">Totale</span>
+                <span className="text-right text-gray-600">{provenienze.totale.clienti}</span>
+                <span className="text-right text-gray-600">{provenienze.totale.soggiorni}</span>
+                <span className="text-right text-gray-500">{provenienze.totale.ritorni}</span>
+                <span className="text-right font-semibold text-green-mid">€{euro(provenienze.totale.ricaviCent)}</span>
               </div>
+            </div>
+          )}
+
+          {/* Strutture: soggiorni e ricavi di ciascuna nell'anno in corso */}
+          {strutture && strutture.length > 0 && (
+            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-3" data-strutture-anno>
+              <p className="text-sm font-semibold text-gray-600">Strutture</p>
+              <p className="text-xs text-gray-400 mb-2">anno {ref.getFullYear()} · soggiorni e ricavi per soggiorno di ciascuna struttura</p>
+              {strutture.map(st => (
+                <div key={st.nome} className="flex justify-between items-baseline py-1 text-sm">
+                  <span className="text-green-dark">{st.nome}</span>
+                  <span className="text-gray-600">{st.soggiorni} {st.soggiorni === 1 ? 'soggiorno' : 'soggiorni'} · <span className="font-semibold text-green-mid">€{euro(st.ricaviCent)}</span></span>
+                </div>
+              ))}
             </div>
           )}
 

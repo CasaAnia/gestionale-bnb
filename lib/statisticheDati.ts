@@ -99,7 +99,7 @@ async function leggiPrenotazioniPerBlocchi(colonna: 'id' | 'group_id', ids: stri
 export type DatiRicostruzione = { prenotazioni: PrenotazioneSconto[]; pagamenti: PagamentoStat[]; oggi: string }
 
 export async function leggiRicostruzione(oggi: string): Promise<Esito<DatiRicostruzione>> {
-  const colonne = 'id, group_id, guest_id, room_id, check_in, check_out, total_amount, status, pagato, guest_name, guests(full_name, phone)'
+  const colonne = 'id, group_id, guest_id, room_id, check_in, check_out, total_amount, status, pagato, guest_name, guests(*)'
   const cosa = 'caricare lo storico dei pagamenti'
   const [p, pag] = await Promise.all([
     pagine<PrenotazioneSconto>(cosa, (offset, limite) => supabase.from('bookings').select(colonne)
@@ -125,7 +125,7 @@ export type DatiStatistiche = { prenotazioni: PrenotazioneSconto[]; pagamenti: P
 // Tutto ciò che serve alla pagina Statistiche per [da, a); il primo errore ferma tutto
 export async function leggiDatiStatistiche(da: string, a: string, oggi: string): Promise<Esito<DatiStatistiche>> {
   // Provenienza (08/09/2026): con l'ospite (telefono e nome) per «Da dove arrivano gli ospiti» e «Già stati da noi»
-  const [p, pag, sp, cam, ev, ric, fs] = await Promise.all([leggiPrenotazioni(da, a, '*, guests(full_name, phone)'), leggiPagamenti(da, a), leggiSpese(da, a), leggiCamere(), leggiEventiSito(da, a), leggiRicostruzione(oggi), leggiFuoriServizio()])
+  const [p, pag, sp, cam, ev, ric, fs] = await Promise.all([leggiPrenotazioni(da, a, '*, guests(*)'), leggiPagamenti(da, a), leggiSpese(da, a), leggiCamere(), leggiEventiSito(da, a), leggiRicostruzione(oggi), leggiFuoriServizio()])
   const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ev.errore ?? ric.errore ?? fs.errore
   if (errore) return { data: null, errore }
   return { data: { prenotazioni: p.data!, pagamenti: pag.data!, spese: sp.data!, camere: cam.data!, eventiSito: ev.data!, ricostruzione: ric.data!, fuoriServizio: fs.data! }, errore: null }
