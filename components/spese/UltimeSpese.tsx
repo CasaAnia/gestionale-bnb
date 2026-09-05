@@ -27,7 +27,7 @@ export default function UltimeSpese({
       <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">{showAll ? (isMese ? `Tutte le spese di ${monthLabel(month)}` : `Tutte le spese ${periodLabel}`) : 'Ultime spese'}</p>
       <div className="flex flex-col gap-2">
         {(showAll ? [...speseMese] : [...speseMese].slice(0, 5)).map(r => (
-          <div key={r.id} className="bg-white rounded-xl p-3 border border-card-border flex items-center justify-between">
+          <div key={r.id} className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm flex items-center justify-between">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 {r.group_id && groups.length > 1 && (

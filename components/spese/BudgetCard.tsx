@@ -22,7 +22,7 @@ export default function BudgetCard({
   onEditBudget: (b: Budget) => void
 }) {
   return (
-    <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
+    <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-4 mb-3">
       <div className="flex items-center justify-between mb-3">
         <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Budget di {monthLabel(month)}</p>
         <button onClick={() => setShowBudgetForm(!showBudgetForm)}
@@ -31,7 +31,7 @@ export default function BudgetCard({
       {showBudgetForm && (
         <div className="flex gap-2 mb-3">
           <select value={budgetForm.category_name} onChange={e => setBudgetForm({ ...budgetForm, category_name: e.target.value })}
-            className="flex-1 border border-card-border rounded-lg p-2 text-sm min-w-0">
+            className="flex-1 border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm min-w-0">
             <option value="">Categoria…</option>
             {catNames.map(n => <option key={n} value={n}>{n}</option>)}
           </select>

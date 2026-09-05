@@ -86,36 +86,36 @@ export default function FiltriSchede({
           {isMese ? (
             <div className="flex items-center justify-center gap-4 mb-3">
               <button onClick={() => cambiaMese(-1)} aria-label="Mese precedente"
-                className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">‹</button>
+                className="w-8 h-8 rounded-full bg-white border border-[#C9BFA8] text-green-mid">‹</button>
               <span className="font-serif text-base text-green-dark capitalize min-w-[130px] text-center">
                 {new Date(month + '-01T00:00:00').toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
               </span>
               <button onClick={() => cambiaMese(1)} aria-label="Mese successivo"
-                className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">›</button>
+                className="w-8 h-8 rounded-full bg-white border border-[#C9BFA8] text-green-mid">›</button>
             </div>
           ) : periodMode === 'settimana' ? (
             <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
               <span className="text-sm text-gray-500">Settimana dal</span>
               <input type="date" value={weekAnchor} onChange={e => { setWeekAnchor(e.target.value); chiudiDettaglio() }}
-                className="border border-card-border rounded-lg p-2 text-sm bg-white" />
+                className="border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm bg-white" />
               <span className="text-xs text-gray-400">{giornoBreve(periodStart)} → {giornoBreve(periodEnd)}</span>
             </div>
           ) : periodMode === 'anno' ? (
             <div className="flex items-center justify-center gap-4 mb-3">
               <button onClick={() => { setYear(String(Number(year) - 1)); chiudiDettaglio() }} aria-label="Anno precedente"
-                className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">‹</button>
+                className="w-8 h-8 rounded-full bg-white border border-[#C9BFA8] text-green-mid">‹</button>
               <span className="font-serif text-base text-green-dark min-w-[80px] text-center">{year}</span>
               <button onClick={() => { setYear(String(Number(year) + 1)); chiudiDettaglio() }} aria-label="Anno successivo"
-                className="w-8 h-8 rounded-full bg-white border border-card-border text-green-mid">›</button>
+                className="w-8 h-8 rounded-full bg-white border border-[#C9BFA8] text-green-mid">›</button>
             </div>
           ) : (
             <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
               <span className="text-sm text-gray-500">Dal</span>
               <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); chiudiDettaglio() }}
-                className="border border-card-border rounded-lg p-2 text-sm bg-white" />
+                className="border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm bg-white" />
               <span className="text-sm text-gray-500">al</span>
               <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); chiudiDettaglio() }}
-                className="border border-card-border rounded-lg p-2 text-sm bg-white" />
+                className="border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm bg-white" />
             </div>
           )}
         </>

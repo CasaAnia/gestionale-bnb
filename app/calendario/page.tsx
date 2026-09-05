@@ -531,7 +531,7 @@ export default function Calendario() {
                     <button
                       onClick={() => vaiA((matchIdx - 1 + matches.length) % matches.length)}
                       aria-label="Risultato precedente"
-                      className="shrink-0 w-11 h-11 rounded-[10px] border border-card-border bg-white text-green-mid text-xl font-bold leading-none transition-transform duration-100 active:scale-[0.95]">
+                      className="shrink-0 w-11 h-11 rounded-[10px] border border-[#C9BFA8] shadow-sm bg-white text-green-mid text-xl font-bold leading-none transition-transform duration-100 active:scale-[0.95]">
                       ‹
                     </button>
                     <button
@@ -546,7 +546,7 @@ export default function Calendario() {
                     <button
                       onClick={() => vaiA((matchIdx + 1) % matches.length)}
                       aria-label="Risultato successivo"
-                      className="shrink-0 w-11 h-11 rounded-[10px] border border-card-border bg-white text-green-mid text-xl font-bold leading-none transition-transform duration-100 active:scale-[0.95]">
+                      className="shrink-0 w-11 h-11 rounded-[10px] border border-[#C9BFA8] shadow-sm bg-white text-green-mid text-xl font-bold leading-none transition-transform duration-100 active:scale-[0.95]">
                       ›
                     </button>
                   </div>
@@ -568,7 +568,7 @@ export default function Calendario() {
 
                   {/* Elenco a comparsa: sta SOPRA il calendario, non lo spinge in basso */}
                   {menuAperto && (
-                    <div className="absolute left-4 right-4 z-50 mt-1 bg-white border border-card-border rounded-xl shadow-lg p-1">
+                    <div className="absolute left-4 right-4 z-50 mt-1 bg-white border border-[#C9BFA8] shadow-sm rounded-xl shadow-lg p-1">
                       {matches.map((x, i) => (
                         <button
                           key={x.id}
@@ -639,7 +639,7 @@ export default function Calendario() {
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
       {/* stesse distanze delle Richieste: riquadro, 12 px, riga «Oggi · mesi» allineata alla colonna delle camere */}
-      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : 'mx-4'} bg-white rounded-xl border border-card-border shadow-sm overflow-hidden`}>
+      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : 'mx-4'} bg-white rounded-xl border border-[#C9BFA8] shadow-sm overflow-hidden`}>
       {!loading && (
         <>
           {/* Riga di navigazione: la stessa del calendario delle Richieste */}
@@ -884,11 +884,14 @@ export default function Calendario() {
                               )}
                               <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                                 {hasIncoming ? '⇄ ' : ''}{guestName}{hasOutgoing ? ' ⇄' : ''}
-                                {/* Sul Mac le icone stanno in coda al nome, piccole: la barra resta su una riga */}
-                                {(isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed) && (
-                                  <span style={{ fontSize: 9, marginLeft: 5, opacity: 0.95 }}>{isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏' : ''}</span>
-                                )}
                               </span>
+                              {/* Le iconcine stanno SOTTO il nome, piccole (Ania, 05/09/2026): così si
+                                  vedono anche quando il nome è lungo e finisce coi puntini */}
+                              {(isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed) && (
+                                <span style={{ display: 'block', fontSize: 9, lineHeight: 1.2, paddingLeft: 6, opacity: 0.95, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                                  {isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏' : ''}
+                                </span>
+                              )}
                               {/* La scritta resta solo sulla richiesta da confermare
                                   (barra bianca): sulle confermate parla il pallino */}
                               {isWebPending && (

@@ -15,14 +15,14 @@ export default function DomandaTab({ chat, domanda, setDomanda, domandeVeloci, o
     <>
       <div className="flex flex-col gap-2.5 mb-3">
         {chat.length === 0 && (
-          <div className="self-start max-w-[88%] bg-white border border-card-border rounded-2xl rounded-bl-md px-4 py-2.5 text-sm leading-relaxed">
+          <div className="self-start max-w-[88%] bg-white border border-[#C9BFA8] shadow-sm rounded-2xl rounded-bl-md px-4 py-2.5 text-sm leading-relaxed">
             Chiedimi quello che vuoi sulle vostre spese: una persona, una voce, un negozio, un mese… anche insieme. 💬
           </div>
         )}
         {chat.map((b, i) => (
           <div key={i} className={b.io
             ? 'self-end max-w-[88%] bg-green-mid text-white rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed'
-            : 'self-start max-w-[88%] bg-white border border-card-border rounded-2xl rounded-bl-md px-4 py-2.5 text-sm leading-relaxed'}>
+            : 'self-start max-w-[88%] bg-white border border-[#C9BFA8] shadow-sm rounded-2xl rounded-bl-md px-4 py-2.5 text-sm leading-relaxed'}>
             {b.t}
           </div>
         ))}
@@ -39,7 +39,7 @@ export default function DomandaTab({ chat, domanda, setDomanda, domandeVeloci, o
         <input value={domanda} onChange={e => setDomanda(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') onChiedi(domanda) }}
           placeholder="Scrivi (o detta) la domanda…"
-          className="flex-1 border border-card-border rounded-xl p-2.5 text-sm bg-white" />
+          className="flex-1 border border-[#C9BFA8] shadow-sm rounded-xl p-2.5 text-sm bg-white" />
         <button onClick={() => onChiedi(domanda)} disabled={!domanda.trim()}
           className="bg-green-mid text-white rounded-xl px-4 font-bold disabled:opacity-40">➤</button>
       </div>

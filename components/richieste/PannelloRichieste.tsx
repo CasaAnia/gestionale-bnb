@@ -91,7 +91,7 @@ export default function PannelloRichieste({ gruppo, ancora, layout, adesso, onCh
   return (
     <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label={titolo}>
       <div className="absolute inset-0" onClick={onChiudi} />
-      <div className="scheda-in absolute bg-white rounded-xl border border-card-border shadow-lg px-4 pt-3 pb-2 max-h-[60vh] overflow-y-auto" style={{ left, top, width: W }}>
+      <div className="scheda-in absolute bg-white rounded-xl border border-[#C9BFA8] shadow-sm shadow-lg px-4 pt-3 pb-2 max-h-[60vh] overflow-y-auto" style={{ left, top, width: W }}>
         <div className="flex items-center justify-between mb-1">
           <p className="text-sm font-semibold text-green-dark">{titolo}</p>
           <button type="button" onClick={onChiudi} aria-label="Chiudi" className="w-8 h-8 -mr-2 flex items-center justify-center text-stone">

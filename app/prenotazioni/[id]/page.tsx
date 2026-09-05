@@ -1047,7 +1047,7 @@ export default function BookingDetail() {
       <div className={editing ? '' : 'lg:flex-[1.6] lg:min-w-0'}>
       {/* MODALITÀ MODIFICA */}
       {editing ? (
-        <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
+        <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
           <p className="font-semibold mb-3 text-green-mid">✏️ Modifica prenotazione</p>
 
           <p className="text-xs text-gray-500 mb-1">Nome cliente</p>
@@ -1103,7 +1103,7 @@ export default function BookingDetail() {
               extra_bed: letto,
               extra_bed_dates: letto ? getDaysBetween(editForm.check_in, editForm.check_out) : [] })
             checkDisponibilita(newRoomId, editForm.check_in, editForm.check_out)
-          }} className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm">
+          }} className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 mb-3 text-sm">
             {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
 
@@ -1118,14 +1118,14 @@ export default function BookingDetail() {
                 const newOut = newIn && (!editForm.check_out || editForm.check_out <= newIn) ? nextDay(newIn) : editForm.check_out
                 setEditForm({ ...editForm, check_in: newIn, check_out: newOut, price_per_night: tariffaDopo({ check_in: newIn, check_out: newOut }) })
                 checkDisponibilita(editForm.room_id, newIn, newOut)
-              }} className="w-full min-w-0 appearance-none bg-white border border-card-border rounded-lg p-2 text-sm" />
+              }} className="w-full min-w-0 appearance-none bg-white border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
             </div>
             <div className="min-w-0">
               <p className="text-xs text-gray-500 mb-1">Check-out</p>
               <input type="date" value={editForm.check_out} min={editForm.check_in ? nextDay(editForm.check_in) : undefined} onChange={e => {
                 setEditForm({ ...editForm, check_out: e.target.value, price_per_night: tariffaDopo({ check_out: e.target.value }) })
                 checkDisponibilita(editForm.room_id, editForm.check_in, e.target.value)
-              }} className="w-full min-w-0 appearance-none bg-white border border-card-border rounded-lg p-2 text-sm" />
+              }} className="w-full min-w-0 appearance-none bg-white border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
             </div>
           </div>
 
@@ -1139,7 +1139,7 @@ export default function BookingDetail() {
                 setEditForm({ ...editForm, check_in_time: v })
               }}
               maxLength={5}
-              className="w-full border border-card-border rounded-lg p-2 text-sm" />
+              className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
           </div>
 
           <div className="mb-3">
@@ -1147,7 +1147,7 @@ export default function BookingDetail() {
             <div className="flex gap-1.5">
               {([['', 'Da definire'], ['si', 'Sì'], ['no', 'No']] as const).map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setEditForm({ ...editForm, shuttle: v })}
-                  className={`rounded-full text-sm font-semibold px-4 py-1.5 ${editForm.shuttle === v ? 'text-white' : 'border border-card-border bg-white text-stone'}`}
+                  className={`rounded-full text-sm font-semibold px-4 py-1.5 ${editForm.shuttle === v ? 'text-white' : 'border border-[#C9BFA8] bg-white text-stone'}`}
                   style={editForm.shuttle === v ? { background: '#2D6A4F' } : undefined}>
                   {label}
                 </button>
@@ -1166,12 +1166,12 @@ export default function BookingDetail() {
                 const autoLetto = lettiPool > 0
                 const autoDates = autoLetto ? getDaysBetween(editForm.check_in, editForm.check_out) : []
                 setEditForm({ ...editForm, num_guests: n, extra_bed: autoLetto, extra_bed_dates: autoDates, price_per_night: room ? prezzoNotte : editForm.price_per_night })
-              }} className="w-full border border-card-border rounded-lg p-2 text-sm" />
+              }} className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-1">Tariffa/notte €</p>
               <input type="number" min={0} value={editForm.price_per_night} onChange={e => setEditForm({ ...editForm, price_per_night: parseFloat(e.target.value) })}
-                className="w-full border border-card-border rounded-lg p-2 text-sm" />
+                className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
             </div>
           </div>
 
@@ -1242,12 +1242,12 @@ export default function BookingDetail() {
           {/* Sconto V4: un solo sconto (percentuale O totale concordato), la
               tariffa a notte non si tocca mai. Visibile solo a colonne migrate */}
           {booking.discount_type !== undefined && calcNotti(editForm.check_in, editForm.check_out) > 0 && (
-            <div className="border border-card-border rounded-lg p-3 mb-3">
+            <div className="border border-[#C9BFA8] shadow-sm rounded-lg p-3 mb-3">
               <p className="text-xs text-gray-500 mb-2">Sconto {editForm.discount_type && <span className="font-semibold" style={{ color: '#2D6A4F' }}>(attivo: {editForm.discount_type === 'percentage' ? `−${editForm.discount_value}%` : `totale concordato €${editForm.discount_value}`})</span>}</p>
               <div className="flex gap-2 items-center mb-2">
                 <input type="number" inputMode="decimal" min={1} max={99} placeholder="%"
                   value={scontoPct} onChange={e => setScontoPct(e.target.value)}
-                  className="w-20 border border-card-border rounded-lg p-2 text-sm" />
+                  className="w-20 border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
                 <button type="button" onClick={applicaScontoPct}
                   className="bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
                   disabled={!parseFloat(scontoPct.replace(',', '.'))}>
@@ -1257,7 +1257,7 @@ export default function BookingDetail() {
               <div className="flex gap-2 items-center">
                 <input type="number" inputMode="decimal" min={1} placeholder="Porta il totale a €"
                   value={scontoTot} onChange={e => setScontoTot(e.target.value)}
-                  className="w-40 border border-card-border rounded-lg p-2 text-sm" />
+                  className="w-40 border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
                 <button type="button" onClick={applicaScontoTot}
                   className="bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
                   disabled={!parseFloat(scontoTot.replace(',', '.'))}>
@@ -1306,7 +1306,7 @@ export default function BookingDetail() {
           )}
 
           <div onClick={() => setEditForm({ ...editForm, bonifico: !editForm.bonifico })}
-            className="flex items-center justify-between bg-sage rounded-lg p-3 mb-3 border border-card-border cursor-pointer active:opacity-70">
+            className="flex items-center justify-between bg-white rounded-lg p-3 mb-3 border border-[#C9BFA8] shadow-sm cursor-pointer active:opacity-70">
             <div>
               <p className="text-sm font-semibold text-green-dark">🏦 Pagamento tramite bonifico</p>
               <p className="text-xs text-green-mid">La conferma includerà l'IBAN</p>
@@ -1323,7 +1323,7 @@ export default function BookingDetail() {
             <div className="flex gap-2">
               {([['diretta', 'Diretta'], ['sito_web', '🌐 Sito'], ['whatsapp', 'WhatsApp']] as const).map(([val, label]) => (
                 <button key={val} type="button" onClick={() => setEditForm({ ...editForm, source: val })}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${editForm.source === val ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-card-border'}`}>
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${editForm.source === val ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-[#C9BFA8]'}`}>
                   {label}
                 </button>
               ))}
@@ -1591,15 +1591,15 @@ export default function BookingDetail() {
                   <input type="number" inputMode="decimal" min={0} placeholder="€"
                     value={accontoForm.amount}
                     onChange={e => setAccontoForm({ ...accontoForm, amount: e.target.value })}
-                    className="w-20 border border-card-border rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
+                    className="w-20 border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
                   <select value={accontoForm.method} onChange={e => setAccontoForm({ ...accontoForm, method: e.target.value })}
-                    className="border border-card-border rounded-lg p-2 text-sm bg-white">
+                    className="border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm bg-white">
                     <option value="contanti">💵 Contanti</option>
                     <option value="bonifico">🏦 Bonifico</option>
                   </select>
                   <input type="date" value={accontoForm.paid_on}
                     onChange={e => setAccontoForm({ ...accontoForm, paid_on: e.target.value })}
-                    className="basis-full sm:basis-0 sm:flex-1 sm:min-w-0 border border-card-border rounded-lg p-2 text-sm bg-white" />
+                    className="basis-full sm:basis-0 sm:flex-1 sm:min-w-0 border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm bg-white" />
                   <button onClick={aggiungiAcconto} disabled={savingAcconto || !parseFloat(accontoForm.amount)}
                     className="basis-full sm:basis-auto sm:shrink-0 bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40">
                     {savingAcconto ? '...' : (<>+<span className="sm:hidden"> Aggiungi</span></>)}
@@ -1723,7 +1723,7 @@ export default function BookingDetail() {
                   defaultValue={booking.cancelled_reason || ''}
                   id="cancel-reason-input"
                   placeholder="Aggiungi motivo..."
-                  className="flex-1 border border-card-border rounded-lg p-2 text-sm text-[#8C3B2E]"
+                  className="flex-1 border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm text-[#8C3B2E]"
                 />
                 <button onClick={async () => {
                   const val = (document.getElementById('cancel-reason-input') as HTMLInputElement)?.value

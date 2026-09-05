@@ -10,7 +10,7 @@ export default function SpeseFisseCard({ month, fisse, fisseTot }: {
   fisseTot: number
 }) {
   return (
-    <div className="bg-white rounded-[10px] border border-card-border p-4 mb-3">
+    <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-4 mb-3">
       <div className="flex items-center justify-between mb-2">
         <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Spese fisse del mese</p>
         <span className="font-serif text-lg text-[#8C3B2E]">{eur(fisseTot)}</span>

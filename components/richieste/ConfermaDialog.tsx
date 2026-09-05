@@ -36,14 +36,14 @@ export default function ConfermaDialog({ titolo, testo, conferma, annulla = 'Ann
             <div className="flex flex-wrap gap-1.5">
               {scelte.map(v => (
                 <button key={v} type="button" onClick={() => setScelta(s => (s === v ? null : v))} aria-pressed={scelta === v} disabled={occupato}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${scelta === v ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-card-border'}`}>
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${scelta === v ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-[#C9BFA8]'}`}>
                   {v}
                 </button>
               ))}
             </div>
             {scelta === 'Altro' && (
               <input value={altro} onChange={e => setAltro(e.target.value)} maxLength={80} placeholder="Due parole…" autoFocus
-                className="mt-2 w-full bg-white border border-card-border rounded-lg p-2.5 text-sm focus:outline-none focus:border-green-mid" />
+                className="mt-2 w-full bg-white border border-[#C9BFA8] shadow-sm rounded-lg p-2.5 text-sm focus:outline-none focus:border-green-mid" />
             )}
           </div>
         )}

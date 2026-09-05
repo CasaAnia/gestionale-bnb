@@ -22,11 +22,11 @@ export default function CalendarioTab({
 }) {
   return (
     <>
-      <div className="bg-white rounded-xl p-4 border border-card-border mb-3 text-center">
+      <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-3 text-center">
         <p className="font-serif text-4xl text-[#8C3B2E]">{eur(totMese)}</p>
         <p className="text-xs text-gray-400">{Object.keys(perGiorno).length} giorni con spese</p>
       </div>
-      <div className="bg-white rounded-xl p-3 border border-card-border mb-3">
+      <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm mb-3">
         <div className="grid grid-cols-7 gap-1.5">
           {['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'].map(d => (
             <div key={d} className="text-center text-[10px] uppercase text-brass py-0.5">{d}</div>

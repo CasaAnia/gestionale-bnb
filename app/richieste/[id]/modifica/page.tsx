@@ -41,7 +41,7 @@ export default function ModificaRichiesta() {
       <div className="p-4">
         <BackBar href="/richieste" />
         <h1 className="text-[22px] text-green-dark leading-tight mb-3" style={FRAUNCES}>Richiesta modificata</h1>
-        <div role="status" className="bg-sand border border-card-border rounded-xl p-3 text-sm text-green-dark">{avviso}</div>
+        <div role="status" className="bg-white border border-[#C9BFA8] shadow-sm rounded-xl p-3 text-sm text-green-dark">{avviso}</div>
         <Link href={`/richieste/${richiesta.id}/proposta`} className="block w-full mt-4 text-center bg-green-mid text-cream-text rounded-xl py-3.5 font-semibold text-[15px]">Rigenera la proposta</Link>
         <Link href="/richieste" className="block w-full mt-2 text-center bg-white text-green-dark rounded-xl py-3 font-semibold text-sm border" style={{ borderColor: '#C9BFA8' }}>Torna alle richieste</Link>
       </div>

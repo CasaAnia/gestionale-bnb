@@ -69,7 +69,7 @@ export default function Prenotazioni() {
         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔎</span>
         <input value={search} onChange={e => setSearch(e.target.value)} type="search" inputMode="search"
           placeholder="Cerca per nome o telefono…"
-          className="w-full bg-white border border-card-border rounded-xl pl-10 pr-9 py-2.5 text-[15px] shadow-sm focus:outline-none focus:border-green-mid" />
+          className="w-full bg-white border border-[#C9BFA8] shadow-sm rounded-xl pl-10 pr-9 py-2.5 text-[15px] shadow-sm focus:outline-none focus:border-green-mid" />
         {search && (
           <button onClick={() => setSearch('')} aria-label="Cancella ricerca"
             className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 px-2 py-1 text-sm">✕</button>
@@ -79,7 +79,7 @@ export default function Prenotazioni() {
       <div className="flex gap-2 mb-4">
         {(['attive', 'tutte', 'annullate'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${filter === f ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-card-border'}`}>
+            className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${filter === f ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-[#C9BFA8]'}`}>
             {f}
           </button>
         ))}

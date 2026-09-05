@@ -304,7 +304,7 @@ export default function Arrivi() {
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
       {/* stesse distanze delle Richieste: riquadro, 12 px, riga «Oggi · mesi» allineata alla colonna delle camere */}
-      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : 'mx-4'} bg-white rounded-xl border border-card-border shadow-sm overflow-hidden`}>
+      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : 'mx-4'} bg-white rounded-xl border border-[#C9BFA8] shadow-sm overflow-hidden`}>
       {!loading && (
         <>
           {/* Riga di navigazione: la stessa del calendario delle Richieste */}
@@ -572,13 +572,13 @@ export default function Arrivi() {
                 setPopup({ ...popup, time: v })
               }}
               maxLength={5}
-              className="w-full border border-card-border rounded-xl p-3 text-2xl font-bold text-center mb-3"
+              className="w-full border border-[#C9BFA8] shadow-sm rounded-xl p-3 text-2xl font-bold text-center mb-3"
             />
             <p className="text-xs text-gray-500 mb-1.5">🚌 Navetta</p>
             <div className="flex gap-1.5 mb-4">
               {([['', 'Da definire'], ['si', 'Sì'], ['no', 'No']] as const).map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setPopup({ ...popup, shuttle: v })}
-                  className={`flex-1 rounded-full text-sm font-semibold py-2 ${popup.shuttle === v ? 'text-white' : 'border border-card-border bg-white text-stone'}`}
+                  className={`flex-1 rounded-full text-sm font-semibold py-2 ${popup.shuttle === v ? 'text-white' : 'border border-[#C9BFA8] bg-white text-stone'}`}
                   style={popup.shuttle === v ? { background: '#2D6A4F' } : undefined}>
                   {label}
                 </button>
@@ -603,7 +603,7 @@ export default function Arrivi() {
                   {ultimoConOra && (
                     <button type="button"
                       onClick={() => setPopup({ ...popup, time: ultimoConOra.check_in_time, shuttle: ultimoConOra.shuttle || popup.shuttle })}
-                      className="text-xs font-semibold rounded-full border border-card-border bg-white px-3 py-1"
+                      className="text-xs font-semibold rounded-full border border-[#C9BFA8] bg-white px-3 py-1"
                       style={{ color: '#2D6A4F' }}>
                       Usa come l&apos;ultima volta
                     </button>

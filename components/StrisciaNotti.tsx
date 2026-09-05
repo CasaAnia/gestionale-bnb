@@ -98,13 +98,13 @@ export default function StrisciaNotti<T extends number | string | null>({
             {menu && (
               <select aria-label={`Camera della notte del ${etichettaNotte(g)}`} value={String(v ?? '')} disabled={disabilitata}
                 onChange={e => { const o = menu.find(x => String(x.valore ?? '') === e.target.value); if (o) imposta(i, o.valore) }}
-                className="mt-1 w-full text-[11px] bg-white border border-card-border rounded-md px-1 py-0.5 text-green-dark">
+                className="mt-1 w-full text-[11px] bg-white border border-[#C9BFA8] shadow-sm rounded-md px-1 py-0.5 text-green-dark">
                 {menu.map(o => <option key={String(o.valore ?? 'null')} value={String(o.valore ?? '')}>{o.etichetta}</option>)}
               </select>
             )}
             {onLungo && menuDesktop && (
               <button type="button" aria-label={`Prezzo della notte del ${etichettaNotte(g)}`} onClick={() => onLungo(i)}
-                className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-white border border-card-border flex items-center justify-center text-stone">
+                className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-white border border-[#C9BFA8] flex items-center justify-center text-stone">
                 <Pencil size={11} aria-hidden />
               </button>
             )}

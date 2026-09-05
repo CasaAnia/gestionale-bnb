@@ -60,7 +60,7 @@ export default function ListaVoci({ voci, max, subcats, onOpenReceipt }: {
         .sort((a, b) => sortDi(a.s) - sortDi(b.s))
     : [{ s: '', list: righe }]
   return (
-    <div className="bg-white rounded-xl p-3 border border-card-border mb-3">
+    <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm mb-3">
       {persone.length > 1 && (
         <div className="flex gap-1.5 flex-wrap pb-2 mb-1">
           {persone.map(([g, tot]) => {

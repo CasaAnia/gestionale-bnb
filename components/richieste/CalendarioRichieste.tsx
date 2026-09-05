@@ -272,7 +272,7 @@ export default function CalendarioRichieste(p: Props) {
       ? (p.compatto ? 0 : (modo === 'quindici' ? COL_MIN_QUINDICI_TELEFONO : COL_MIN_MESE_TELEFONO))
       : (modo === 'quindici' && !p.compatto ? COL_MIN_QUINDICI : 0)
     return (
-      <div className="bg-white rounded-xl border border-card-border shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#C9BFA8] shadow-sm overflow-hidden">
         {navigazione}
         <div ref={scorrevole} className={mobile ? 'no-scrollbar' : undefined} style={{ overflowX: colMin > 0 ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch' }}>
         <div style={{ minWidth: colMin > 0 ? nameW + N * colMin : undefined }}>
@@ -320,7 +320,7 @@ export default function CalendarioRichieste(p: Props) {
   const cols = righe.length
   const colonne = `${DAY_W}px repeat(${cols}, minmax(0, 1fr))`
   return (
-    <div className="bg-white rounded-xl border border-card-border overflow-hidden">
+    <div className="bg-white rounded-xl border border-[#C9BFA8] shadow-sm overflow-hidden">
       {navigazione}
       <div style={{ display: 'grid', gridTemplateColumns: colonne, height: HEADER_H_MOBILE, borderBottom: `2px solid ${COLORE_SEPARATORE}` }}>
         <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}` }} />

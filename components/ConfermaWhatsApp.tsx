@@ -248,14 +248,14 @@ Ania`
         <div className="flex gap-2 mb-3">
           {(['contanti', 'bonifico'] as const).map(p => (
             <button key={p} onClick={() => setPagamento(p)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${pagamento === p ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-card-border'}`}>
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${pagamento === p ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-[#C9BFA8]'}`}>
               {p === 'contanti' ? 'Contanti all’arrivo' : 'Bonifico anticipato'}
             </button>
           ))}
         </div>
 
         <p className="text-xs text-gray-500 mb-2">Anteprima dell&apos;immagine</p>
-        <div ref={frameRef} className="rounded-xl overflow-hidden border border-card-border mb-3 bg-white"
+        <div ref={frameRef} className="rounded-xl overflow-hidden border border-[#C9BFA8] shadow-sm mb-3 bg-white"
           style={{ height: imgH ? imgH * scale : undefined }}>
           <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: IMG_W }}>
 
@@ -288,11 +288,11 @@ Ania`
         )}
         <div className="flex gap-2 mb-4">
           <button onClick={condividi} disabled={!!busy}
-            className="flex-1 border border-card-border bg-white text-gray-600 rounded-xl py-2 font-semibold text-xs disabled:opacity-50">
+            className="flex-1 border border-[#C9BFA8] shadow-sm bg-white text-gray-600 rounded-xl py-2 font-semibold text-xs disabled:opacity-50">
             {busy === 'share' ? 'Preparo…' : 'Condividi'}
           </button>
           <button onClick={scarica} disabled={!!busy}
-            className="flex-1 border border-card-border bg-white text-gray-600 rounded-xl py-2 font-semibold text-xs disabled:opacity-50">
+            className="flex-1 border border-[#C9BFA8] shadow-sm bg-white text-gray-600 rounded-xl py-2 font-semibold text-xs disabled:opacity-50">
             {busy === 'download' ? 'Preparo…' : 'Scarica'}
           </button>
         </div>
@@ -328,7 +328,7 @@ Ania`
         {/* Riserva: testo da copiare a mano */}
         <details className="mb-4">
           <summary className="text-xs text-gray-500 cursor-pointer mb-2">Il testo del messaggio (se serve copiarlo a mano)</summary>
-          <div className="bg-white border border-card-border rounded-xl p-3 mb-2 text-sm text-gray-700 whitespace-pre-wrap">
+          <div className="bg-white border border-[#C9BFA8] shadow-sm rounded-xl p-3 mb-2 text-sm text-gray-700 whitespace-pre-wrap">
             {testoMessaggio}
           </div>
           <button onClick={copiaTesto}

@@ -39,24 +39,24 @@ export default function NuovoCliente() {
         <h1 className="font-serif text-xl text-green-dark">Nuovo cliente</h1>
       </div>
 
-      <div className="bg-white rounded-xl p-4 border border-card-border space-y-3">
+      <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm space-y-3">
         <div>
           <p className="text-sm text-gray-500 mb-1">Nome e cognome</p>
           <input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })}
             placeholder="Nome e cognome" autoFocus
-            className="w-full border border-card-border rounded-lg p-3 text-sm focus:outline-none focus:border-green-mid" />
+            className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-3 text-sm focus:outline-none focus:border-green-mid" />
         </div>
         <div>
           <p className="text-sm text-gray-500 mb-1">Telefono (opzionale)</p>
           <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
             placeholder="+39 333 1234567"
-            className="w-full border border-card-border rounded-lg p-3 text-sm focus:outline-none focus:border-green-mid" />
+            className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-3 text-sm focus:outline-none focus:border-green-mid" />
         </div>
         <div>
           <p className="text-sm text-gray-500 mb-1">Email (opzionale)</p>
           <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
             placeholder="email@esempio.it"
-            className="w-full border border-card-border rounded-lg p-3 text-sm focus:outline-none focus:border-green-mid" />
+            className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-3 text-sm focus:outline-none focus:border-green-mid" />
         </div>
         <div>
           <p className="text-sm text-gray-500 mb-2">Valutazione</p>

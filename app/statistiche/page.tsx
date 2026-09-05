@@ -354,14 +354,14 @@ export default function Statistiche() {
       <div className="flex gap-2 mb-3">
         {(['settimana', 'mese', 'anno'] as const).map(p => (
           <button key={p} onClick={() => setPeriod(p)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${period === p ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-card-border'}`}>
+            className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${period === p ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-[#C9BFA8]'}`}>
             {p}
           </button>
         ))}
       </div>
 
       {/* Frecce per cambiare periodo; tocco sull'etichetta = torna a oggi */}
-      <div className="flex items-center justify-between bg-white rounded-xl border border-card-border mb-4">
+      <div className="flex items-center justify-between bg-white rounded-xl border border-[#C9BFA8] shadow-sm mb-4">
         <button type="button" aria-label={`${period} precedente`} onClick={() => setRef(shiftRef(ref, period, -1))}
           className="px-5 py-1.5 text-2xl leading-none self-stretch text-green-dark active:bg-gray-50 rounded-l-xl">‹</button>
         <button type="button" onClick={() => setRef(new Date())} disabled={current}
@@ -378,22 +378,22 @@ export default function Statistiche() {
       ) : (
         <>
           <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="bg-white rounded-xl p-3 border border-card-border text-center">
+            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm text-center">
               <p className="text-xs text-gray-500 mb-1">Entrate</p>
               <p className="font-bold text-green-mid text-sm">€{fmt(totalRevenue)}</p>
             </div>
-            <div className="bg-white rounded-xl p-3 border border-card-border text-center">
+            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm text-center">
               <p className="text-xs text-gray-500 mb-1">Spese</p>
               <p className="font-bold text-[#8C3B2E] text-sm">€{fmt(totalExpenses)}</p>
             </div>
-            <div className="bg-white rounded-xl p-3 border border-card-border text-center">
+            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm text-center">
               <p className="text-xs text-gray-500 mb-1">Profitto</p>
               <p className={`font-bold text-sm ${totalProfit >= 0 ? 'text-green-mid' : 'text-[#8C3B2E]'}`}>€{fmt(totalProfit)}</p>
             </div>
           </div>
 
           {siteStats && (
-            <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
+            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                   <p className="text-sm font-semibold text-gray-600">Sito e richieste</p>
@@ -465,7 +465,7 @@ export default function Statistiche() {
           )}
 
           {/* Grafico a barre */}
-          <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
+          <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
             <p className="text-sm font-semibold text-gray-600 mb-3">Entrate per {period}</p>
             <div className="flex items-end gap-1" style={{ height: 120 }}>
               {rows.map((r, i) => (
@@ -483,7 +483,7 @@ export default function Statistiche() {
           </div>
 
           {/* Tabella riepilogo */}
-          <div className="bg-white rounded-xl border border-card-border overflow-hidden">
+          <div className="bg-white rounded-xl border border-[#C9BFA8] shadow-sm overflow-hidden">
             <div className="grid grid-cols-4 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500">
               <span>Periodo</span><span className="text-right">Entrate</span><span className="text-right">Spese</span><span className="text-right">Profitto</span>
             </div>
@@ -503,7 +503,7 @@ export default function Statistiche() {
           {/* Sconti concessi: valore pieno, sconti, valore dopo sconto, incassato.
               Attribuiti alle notti dormite del periodo, dal conto unico */}
           {sconti && (
-            <div className="bg-white rounded-xl p-4 border border-card-border mt-4">
+            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
               <p className="text-sm font-semibold text-gray-600">Sconti concessi</p>
               <p className="text-xs text-gray-400 mb-3">{period === 'mese' ? label : `anno ${label}`} · valori attribuiti alle notti del periodo</p>
               <div className="flex justify-between text-sm py-1.5 border-b border-gray-50">
@@ -527,7 +527,7 @@ export default function Statistiche() {
 
           {/* Occupazione: heatmap anni × mesi (% di camere occupate sul mese) */}
           {occ && occ.years.length > 0 && (
-            <div className="bg-white rounded-xl p-4 border border-card-border mt-4">
+            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
               <p className="text-sm font-semibold text-gray-600">Occupazione</p>
               <p className="text-xs text-gray-400 mb-3">% di camere occupate sul mese — verde più intenso = più pieno</p>
               <div className="overflow-x-auto">
@@ -570,7 +570,7 @@ export default function Statistiche() {
 
           {/* Rendimento camere: classifica dell'anno in corso (incassi pro-quota a notte) */}
           {roomStats && (
-            <div className="bg-white rounded-xl p-4 border border-card-border mt-4">
+            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
               <p className="text-sm font-semibold text-gray-600">Rendimento camere</p>
               <p className="text-xs text-gray-400 mb-3">anno {roomStats.year} · {roomStats.annoPassato ? 'tutto l’anno' : 'incassi e notti fino a oggi'}</p>
               {roomStats.list.map((s, i) => (
@@ -600,10 +600,10 @@ export default function Statistiche() {
             const gridCols = { display: 'grid', gridTemplateColumns: `44px repeat(${cols.length}, 1fr)` } as const
             const months = Array.from({ length: roomStats.numMonths }, (_, k) => roomStats.firstMonthIdx + k)
             return (
-              <div className="bg-white rounded-xl p-4 border border-card-border mt-4">
+              <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
                 <p className="text-sm font-semibold text-gray-600">Camera del mese</p>
                 <p className="text-xs text-gray-400 mb-3">incasso di ogni camera, mese per mese — in verde la migliore del mese</p>
-                <div className="rounded-lg border border-card-border overflow-hidden">
+                <div className="rounded-lg border border-[#C9BFA8] shadow-sm overflow-hidden">
                   <div className="bg-gray-50 px-2 py-2 text-xs font-semibold text-gray-500" style={gridCols}>
                     <span></span>
                     {cols.map(s => <span key={s.name} className="text-right truncate">{s.name}</span>)}

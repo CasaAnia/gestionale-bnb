@@ -327,7 +327,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   if (needsSetup) return (
     <div className="p-4">
       <BackBar href="/" />
-      <div className="bg-white rounded-[10px] border border-card-border p-5 text-sm text-green-dark">
+      <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-5 text-sm text-green-dark">
         <p className="font-serif text-lg mb-2">{title}</p>
         <p className="text-gray-600">La sezione è pronta, ma manca un passaggio: applicare la migrazione del database.</p>
         <p className="text-gray-600 mt-2">Apri Supabase → SQL Editor e incolla il file <code className="bg-sand px-1 rounded">0007_spese_famiglia.sql</code>, poi ricarica.</p>

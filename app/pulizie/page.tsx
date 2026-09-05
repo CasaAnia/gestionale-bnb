@@ -302,20 +302,20 @@ export default function Pulizie() {
           <span className="text-xs text-gray-500">Fatta il</span>
           <input type="date" value={fattoIl[k] || td}
             onChange={e => setFattoIl({ ...fattoIl, [k]: e.target.value })}
-            className="border border-card-border rounded-lg px-2 py-1 text-xs bg-white" />
+            className="border border-[#C9BFA8] shadow-sm rounded-lg px-2 py-1 text-xs bg-white" />
           <button onClick={() => registra(p, 'fatta', { data_effettiva: fattoIl[k] || td })} disabled={disab}
             className="rounded-full text-xs font-bold px-3 py-1.5 text-white disabled:opacity-50"
             style={{ background: '#2D6A4F' }}>
             ✓ Fatta
           </button>
           <button onClick={() => setAzione({ ...azione, [k]: { tipo: 'rimanda', data: addDaysStr(td, 1) } })} disabled={disab}
-            className="rounded-full border border-card-border bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50"
+            className="rounded-full border border-[#C9BFA8] bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50"
             style={{ color: '#5a6b3f', opacity: aperta?.tipo === 'rimanda' ? 0.5 : 1 }}>
             Rimanda
           </button>
           {p.tipo === 'soggiorno' && (
             <button onClick={() => setAzione({ ...azione, [k]: { tipo: 'salta', data: addDaysStr(p.due, NOTTI_CAMBIO) } })} disabled={disab}
-              className="rounded-full border border-card-border bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50"
+              className="rounded-full border border-[#C9BFA8] bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50"
               style={{ color: '#8a4f2f', opacity: aperta?.tipo === 'salta' ? 0.5 : 1 }}>
               Salta
             </button>
@@ -336,7 +336,7 @@ export default function Pulizie() {
                 </span>
                 <input type="date" value={aperta.data} min={addDaysStr(td, aperta.tipo === 'rimanda' ? 1 : 0)}
                   onChange={e => setAzione({ ...azione, [k]: { ...aperta, data: e.target.value } })}
-                  className="border border-card-border rounded-lg px-2 py-1 text-xs bg-white" />
+                  className="border border-[#C9BFA8] shadow-sm rounded-lg px-2 py-1 text-xs bg-white" />
               </>
             )}
             <button onClick={() => registra(p, aperta.tipo === 'rimanda' ? 'rimandata' : 'saltata', { prossima_data: aperta.data })} disabled={disab}
@@ -406,7 +406,7 @@ export default function Pulizie() {
     const { room, shortName, aperte, arrivo, priorita } = riga
     const prio = priorita ? PRIORITA_STYLE[priorita] : null
     return (
-      <div key={room.id} className="bg-white rounded-[10px] border border-card-border p-4">
+      <div key={room.id} className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-4">
         <div className="flex items-start gap-3">
           <span className="font-serif text-sm text-brass pt-0.5">{ROOM_NUMBER_BY_NAME[shortName] || ''}</span>
           <div className="min-w-0 flex-1">
@@ -473,7 +473,7 @@ export default function Pulizie() {
   const cardProssimo = (riga: RigaCamera) => {
     const { room, shortName, prossimo, cambioProssimo } = riga
     return (
-      <div key={room.id} className="bg-white rounded-[10px] border border-card-border p-3.5">
+      <div key={room.id} className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-3.5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-serif text-xs text-brass">{ROOM_NUMBER_BY_NAME[shortName] || ''}</span>
           <span className="font-serif text-base text-green-dark leading-tight">{shortName}</span>
@@ -548,7 +548,7 @@ export default function Pulizie() {
       {!loading && registro.length > 0 && (
         <div className="mt-6">
           {sezioneTitolo('Ultime pulizie', 'segnate da te e automatiche')}
-          <div className="bg-white rounded-[10px] border border-card-border px-4">
+          <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm px-4">
             {registro.map(v => {
               const nome = shortNameOf(v.roomId)
               const disab = !!saving
@@ -568,7 +568,7 @@ export default function Pulizie() {
                           <span className="text-xs text-stone">Fatta il</span>
                           <input type="date" value={correzione[v.chiave]} max={td}
                             onChange={e => setCorrezione({ ...correzione, [v.chiave]: e.target.value })}
-                            className="border border-card-border rounded-lg px-2 py-1 text-xs bg-white" />
+                            className="border border-[#C9BFA8] shadow-sm rounded-lg px-2 py-1 text-xs bg-white" />
                           <button onClick={() => correggiAutomatica(v, 'data')} disabled={disab || !correzione[v.chiave]}
                             className="rounded-full text-xs font-bold px-3 py-1.5 text-white disabled:opacity-50" style={{ background: '#2D6A4F' }}>Conferma</button>
                           <button onClick={() => setCorrezione(c => { const { [v.chiave]: _, ...resto } = c; return resto })} disabled={disab}
@@ -577,9 +577,9 @@ export default function Pulizie() {
                       ) : (
                         <>
                           <button onClick={() => setCorrezione({ ...correzione, [v.chiave]: v.data })} disabled={disab}
-                            className="rounded-full border border-card-border bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{ color: '#5a6b3f' }}>Cambia data</button>
+                            className="rounded-full border border-[#C9BFA8] bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{ color: '#5a6b3f' }}>Cambia data</button>
                           <button onClick={() => correggiAutomatica(v, 'tolta')} disabled={disab}
-                            className="rounded-full border border-card-border bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{ color: '#8a4f2f' }}>Non fatta</button>
+                            className="rounded-full border border-[#C9BFA8] bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{ color: '#8a4f2f' }}>Non fatta</button>
                         </>
                       )}
                     </div>

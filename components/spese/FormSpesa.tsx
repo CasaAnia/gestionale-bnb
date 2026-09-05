@@ -26,12 +26,12 @@ export default function FormSpesa({
   onSave: () => void
 }) {
   return (
-    <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
+    <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
       <p className="font-semibold mb-3">Nuova spesa</p>
 
       <div className="grid grid-cols-2 gap-2 mb-2">
         <input type="date" value={form.expense_date} onChange={e => setForm({ ...form, expense_date: e.target.value })}
-          className="border border-card-border rounded-lg p-2 text-sm" />
+          className="border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
         <input inputMode="decimal" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}
           placeholder="Importo €" className="border border-card-border rounded-lg p-2 text-sm" />
       </div>
@@ -48,12 +48,12 @@ export default function FormSpesa({
 
       <div className="grid grid-cols-2 gap-2 mb-2">
         <select value={form.group_id} onChange={e => { setForm({ ...form, group_id: e.target.value, category_id: '' }); setAutoGroup(null) }}
-          className="border border-card-border rounded-lg p-2 text-sm">
+          className="border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm">
           <option value="">Gruppo…</option>
           {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
         </select>
         <select value={form.category_id} onChange={e => setForm({ ...form, category_id: e.target.value, subcategory: '' })}
-          disabled={!form.group_id} className="border border-card-border rounded-lg p-2 text-sm disabled:opacity-50">
+          disabled={!form.group_id} className="border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm disabled:opacity-50">
           <option value="">Categoria…</option>
           {catsForGroup.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
@@ -65,7 +65,7 @@ export default function FormSpesa({
         if (!opts.length) return null
         return (
           <select value={form.subcategory} onChange={e => setForm({ ...form, subcategory: e.target.value })}
-            className="w-full border border-card-border rounded-lg p-2 text-sm mb-2">
+            className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm mb-2">
             <option value="">Sottocategoria…</option>
             {opts.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
           </select>

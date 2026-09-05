@@ -63,7 +63,7 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
   return (
     <li>
     <div role="button" tabIndex={0} onClick={onSeleziona} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeleziona() } }} aria-pressed={selezionata}
-      className={`w-full text-left bg-white rounded-xl border border-card-border p-4 md:px-5 md:py-4 leading-snug transition-shadow cursor-pointer ${selezionata ? 'shadow-md bg-sage/40' : 'shadow-sm'}`}>
+      className={`w-full text-left bg-white rounded-xl border border-[#C9BFA8] shadow-sm p-4 md:px-5 md:py-4 leading-snug transition-shadow cursor-pointer ${selezionata ? 'shadow-md bg-sage/40' : 'shadow-sm'}`}>
       <div className="flex items-baseline justify-between gap-3">
         {/* desktop (blocco 2b): «Nome Cognome» in Fraunces 16 px; il badge ⇄ va sulla riga propria */}
         <p className="font-medium text-[15px] md:font-serif md:text-[16px] text-green-dark truncate inline-flex items-center gap-1.5 min-w-0"><span className="truncate">{nomeCompleto(r)}</span>{conflitti.length > 0 && <span className="md:hidden inline-flex"><BadgeSovrapposta /></span>}</p>
@@ -332,7 +332,7 @@ function Richieste() {
         {/* Calendario (min-w-0: a 2 settimane scorre dentro il proprio riquadro) */}
         <section hidden={!mostraCalendario} className="min-w-0">
           {loading ? (
-            <div className="bg-white rounded-xl border border-card-border text-center py-10 text-stone">Caricamento…</div>
+            <div className="bg-white rounded-xl border border-[#C9BFA8] shadow-sm text-center py-10 text-stone">Caricamento…</div>
           ) : (
             <CalendarioRichieste
               mese={mese} onMese={setMese} modo={modoCalendario} onModo={cambiaModo} inizio={inizio} onInizio={setInizio}
@@ -383,7 +383,7 @@ function Richieste() {
                 <span className="text-xs text-stone shrink-0">Ordina per</span>
                 {ORDINI.map(o => (
                   <button key={o.chiave} type="button" onClick={() => setOrdine(o.chiave)} aria-pressed={ordine === o.chiave}
-                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${ordine === o.chiave ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-card-border'}`}>
+                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${ordine === o.chiave ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-[#C9BFA8]'}`}>
                     {o.label}
                   </button>
                 ))}
@@ -399,7 +399,7 @@ function Richieste() {
                 <span className="text-xs text-stone shrink-0">Ordina per</span>
                 {ORDINI.map(o => (
                   <button key={o.chiave} type="button" onClick={() => setOrdine(o.chiave)} aria-pressed={ordine === o.chiave}
-                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${ordine === o.chiave ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-card-border'}`}>
+                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${ordine === o.chiave ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-[#C9BFA8]'}`}>
                     {o.label}
                   </button>
                 ))}
@@ -439,7 +439,7 @@ function Richieste() {
               {archivio.length === 0 ? (
                 <p className="text-sm text-stone py-2">Nessuna richiesta chiusa negli ultimi 90 giorni.</p>
               ) : (
-                <ul className="bg-white rounded-xl border border-card-border px-4 mt-1">
+                <ul className="bg-white rounded-xl border border-[#C9BFA8] shadow-sm px-4 mt-1">
                   {archivio.map(r => <RigaArchivio key={r.id} r={r} adesso={adesso} evidenziata={r.id === apriId} />)}
                 </ul>
               )}

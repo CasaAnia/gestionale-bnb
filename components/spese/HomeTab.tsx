@@ -63,7 +63,7 @@ export default function HomeTab({
   return (
     <>
       {/* Speso del periodo + ritmo + linea (ritmo e linea solo per mese) */}
-      <div className="bg-white rounded-xl p-4 border border-card-border mb-3 text-center">
+      <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-3 text-center">
         <p className="text-xs text-gray-400">Speso {periodLabel}</p>
         <p className="font-serif text-4xl text-[#8C3B2E]">{eur(totMese)}</p>
         {isMese && isCurrentMonth && (
@@ -86,7 +86,7 @@ export default function HomeTab({
       {/* IL CONTO DEL CAFFÈ */}
       {caffeMese.tot > 0 && (
         <button onClick={() => apriDettaglio(`☕ I caffè di ${monthLabel(month)} · ${eur2(caffeMese.tot)}`, caffeMese.voci)}
-          className="w-full bg-sand rounded-xl px-4 py-3 border border-card-border mb-3 text-left transition active:scale-[0.99]">
+          className="w-full bg-white rounded-xl px-4 py-3 border border-[#C9BFA8] shadow-sm mb-3 text-left transition active:scale-[0.99]">
           <p className="text-sm text-green-dark">
             ☕ <b>{caffeMese.nC} caffè{caffeMese.nK > 0 ? ` e ${caffeMese.nK} cappuccini` : ''}</b> fuori casa questo mese
           </p>
@@ -102,7 +102,7 @@ export default function HomeTab({
         {tessere.map(t => (
           <button key={t.cat}
             onClick={() => apriDettaglio(`${icona(t.cat)} ${t.cat} · ${eur(t.tot)}`, vociMese.filter(v => v.cat === t.cat))}
-            className="bg-white rounded-xl p-3 border border-card-border text-left transition active:scale-[0.98]">
+            className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm text-left transition active:scale-[0.98]">
             <p className="text-xl">{icona(t.cat)}</p>
             <p className="text-xs text-green-dark mt-0.5">{t.cat}</p>
             <p className="font-serif text-lg text-[#8C3B2E]">

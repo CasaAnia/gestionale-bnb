@@ -28,7 +28,7 @@ export type ValoriModulo = {
   note: string
 }
 
-const INPUT = 'w-full min-w-0 appearance-none bg-white border border-card-border rounded-lg p-3 text-[15px] focus:outline-none focus:border-green-mid'
+const INPUT = 'w-full min-w-0 appearance-none bg-white border border-[#C9BFA8] shadow-sm rounded-lg p-3 text-[15px] focus:outline-none focus:border-green-mid'
 const ETICHETTA = 'text-sm text-stone mb-1'
 const MAX_PERSONE_SENZA_CAMERE = 4
 
@@ -127,13 +127,13 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
 
   return (
     <>
-      <div className="bg-white rounded-xl p-4 border border-card-border space-y-3">
+      <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm space-y-3">
         <div>
           <p className={ETICHETTA}>Canale</p>
           <div className="flex gap-2">
             {([['telefono', 'Telefono'], ['whatsapp', 'WhatsApp'], ...(v.canale === 'web' ? [['web', 'Dal sito']] : [])] as [CanaleRichiesta, string][]).map(([c, label]) => (
               <button key={c} type="button" onClick={() => set('canale', c)} aria-pressed={v.canale === c}
-                className={`flex-1 rounded-full text-sm font-semibold px-4 py-2 transition-colors ${v.canale === c ? 'bg-green-mid text-cream-text' : 'border border-card-border bg-white text-stone'}`}>
+                className={`flex-1 rounded-full text-sm font-semibold px-4 py-2 transition-colors ${v.canale === c ? 'bg-green-mid text-cream-text' : 'border border-[#C9BFA8] bg-white text-stone'}`}>
                 {label}
               </button>
             ))}
@@ -175,7 +175,7 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
         <div className="grid grid-cols-2 gap-2">
           <div className="min-w-0">
             <p className={ETICHETTA}>Persone</p>
-            <div className="flex items-center border border-card-border rounded-lg overflow-hidden h-[50px]">
+            <div className="flex items-center border border-[#C9BFA8] shadow-sm rounded-lg overflow-hidden h-[50px]">
               <button type="button" onClick={() => cambiaPersone(Math.max(1, persone - 1))} disabled={persone <= 1} aria-label="Una persona in meno"
                 className="w-12 h-full flex items-center justify-center text-green-dark disabled:opacity-30 active:bg-sage transition-colors">
                 <Minus size={18} strokeWidth={2} aria-hidden />

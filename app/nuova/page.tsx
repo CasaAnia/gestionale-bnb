@@ -431,13 +431,13 @@ function NuovaPrenotazione() {
       {/* Step 1: telefono o nome */}
       {step === 'telefono' && (
         <div className="space-y-3">
-          <div className="bg-white rounded-xl p-4 border border-card-border">
+          <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm">
             <p className="font-semibold mb-3">📞 Cerca per telefono</p>
             <input
               type="tel" value={phone} onChange={e => setPhone(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && searchPhone()}
               placeholder="+39 333 1234567"
-              className="w-full border border-card-border rounded-lg p-3 text-lg mb-3 focus:outline-none focus:border-green-mid"
+              className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-3 text-lg mb-3 focus:outline-none focus:border-green-mid"
               autoFocus
             />
             <button onClick={searchPhone} disabled={!phone.trim() || searchLoading}
@@ -458,13 +458,13 @@ function NuovaPrenotazione() {
             <div className="flex-1 h-px bg-gray-200" />
           </div>
 
-          <div className="bg-white rounded-xl p-4 border border-card-border">
+          <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm">
             <p className="font-semibold mb-3">👤 Cerca per nome</p>
             <input
               type="text" value={searchName} onChange={e => { setSearchName(e.target.value); setNameResults([]) }}
               onKeyDown={e => e.key === 'Enter' && searchByName()}
               placeholder="Nome e cognome"
-              className="w-full border border-card-border rounded-lg p-3 text-lg mb-3 focus:outline-none focus:border-green-mid"
+              className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-3 text-lg mb-3 focus:outline-none focus:border-green-mid"
             />
             <button onClick={searchByName} disabled={!searchName.trim() || searchLoading}
               className="w-full bg-gray-700 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
@@ -475,7 +475,7 @@ function NuovaPrenotazione() {
                 <p className="text-sm text-gray-500 mb-2">Più clienti trovati — seleziona:</p>
                 {nameResults.map(g => (
                   <button key={g.id} onClick={() => selectGuestFromList(g)}
-                    className="w-full text-left px-3 py-2 rounded-lg border border-card-border mb-1.5 hover:bg-sage active:bg-sage">
+                    className="w-full text-left px-3 py-2 rounded-lg border border-[#C9BFA8] shadow-sm mb-1.5 hover:bg-sage active:bg-sage">
                     <p className="font-semibold text-sm">{g.full_name}</p>
                     <p className="text-xs text-gray-400">📞 {g.phone || '—'}</p>
                   </button>
@@ -490,7 +490,7 @@ function NuovaPrenotazione() {
       {step === 'cliente' && (
         <div>
           {guest ? (
-            <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
+            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
               <div className="flex items-center justify-between mb-2">
                 <p className="font-bold text-green-dark">✅ Cliente trovato</p>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${RATING_COLOR[guest.rating]}`}>{RATING_LABEL[guest.rating]}</span>
@@ -547,7 +547,7 @@ function NuovaPrenotazione() {
               )}
             </div>
           ) : (
-            <div className="bg-sage rounded-xl p-4 border border-card-border mb-4">
+            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
               <p className="font-semibold text-green-mid mb-1">➕ Nuovo cliente</p>
               {/* Quello che hai scritto nella ricerca resta qui: dal telefono
                   il numero è già compilato; dal NOME il numero si aggiunge
@@ -557,12 +557,12 @@ function NuovaPrenotazione() {
                 <span className="text-sm text-green-mid">📞</span>
                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
                   placeholder="Numero di telefono"
-                  className="flex-1 border border-card-border rounded-lg p-2 text-sm bg-white" />
+                  className="flex-1 border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm bg-white" />
               </div>
             </div>
           )}
 
-          <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
+          <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
             <p className="font-semibold mb-3">{guest ? 'Aggiorna dati' : 'Dati cliente'}</p>
             <input value={guestForm.full_name} onChange={e => setGuestForm({...guestForm, full_name: e.target.value})}
               placeholder="Nome e cognome" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" />
@@ -588,7 +588,7 @@ function NuovaPrenotazione() {
       {/* Step 3: dettagli prenotazione */}
       {step === 'dettagli' && (
         <div>
-          <div className="bg-white rounded-xl p-4 border border-card-border mb-4">
+          <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
             <p className="font-semibold mb-3">Dettagli prenotazione</p>
 
             <p className="text-sm text-gray-500 mb-1">Camera</p>
@@ -603,7 +603,7 @@ function NuovaPrenotazione() {
                 extra_bed: letto,
                 extra_bed_dates: letto ? getDaysBetween(form.check_in, form.check_out) : []})
               checkDisponibilita(newRoomId, form.check_in, form.check_out)
-            }} className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm">
+            }} className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 mb-3 text-sm">
               <option value="">Seleziona camera</option>
               {rooms.map(r => (
                 <option key={r.id} value={r.id}>{r.name} — €{r.base_price}/notte{r.bathroom_type === 'privato_esterno' ? ' (bagno esterno)' : ''}</option>
@@ -624,14 +624,14 @@ function NuovaPrenotazione() {
                     setForm(f => ({ ...f, check_in: newCheckIn, check_out: newCheckOut, price_per_night: tariffaDopo(f, { check_in: newCheckIn, check_out: newCheckOut }) }))
                     checkDisponibilita(form.room_id, newCheckIn, newCheckOut)
                   }}
-                  className="w-full min-w-0 appearance-none bg-white border border-card-border rounded-lg p-2 text-sm" />
+                  className="w-full min-w-0 appearance-none bg-white border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
               </div>
               <div className="min-w-0">
                 <p className="text-sm text-gray-500 mb-1">Check-out</p>
                 <input type="date" ref={checkOutRef} defaultValue={form.check_out} min={form.check_in ? addOneDay(form.check_in) : undefined} onChange={e => {
                   setForm({...form, check_out: e.target.value, price_per_night: tariffaDopo(form, { check_out: e.target.value })})
                   checkDisponibilita(form.room_id, form.check_in, e.target.value)
-                }} className="w-full min-w-0 appearance-none bg-white border border-card-border rounded-lg p-2 text-sm" />
+                }} className="w-full min-w-0 appearance-none bg-white border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
               </div>
             </div>
 
@@ -645,7 +645,7 @@ function NuovaPrenotazione() {
                   setForm({...form, check_in_time: v})
                 }}
                 maxLength={5}
-                className="w-full border border-card-border rounded-lg p-2 text-sm" />
+                className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
             </div>
 
             <div className="mb-3">
@@ -653,7 +653,7 @@ function NuovaPrenotazione() {
               <div className="flex gap-1.5">
                 {([['', 'Da definire'], ['si', 'Sì'], ['no', 'No']] as const).map(([v, label]) => (
                   <button key={v} type="button" onClick={() => setForm({ ...form, shuttle: v })}
-                    className={`rounded-full text-sm font-semibold px-4 py-1.5 ${form.shuttle === v ? 'text-white' : 'border border-card-border bg-white text-stone'}`}
+                    className={`rounded-full text-sm font-semibold px-4 py-1.5 ${form.shuttle === v ? 'text-white' : 'border border-[#C9BFA8] bg-white text-stone'}`}
                     style={form.shuttle === v ? { background: '#2D6A4F' } : undefined}>
                     {label}
                   </button>
@@ -673,12 +673,12 @@ function NuovaPrenotazione() {
                   const autoDates = autoLetto ? getDaysBetween(form.check_in, form.check_out) : []
                   setForm({...form, num_guests: n, extra_bed: autoLetto, extra_bed_dates: autoDates, price_per_night: room ? prezzoNotte : form.price_per_night})
                 }}
-                  className="w-full border border-card-border rounded-lg p-2 text-sm" />
+                  className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
               </div>
               <div>
                 <p className="text-sm text-gray-500 mb-1">Tariffa/notte €</p>
                 <input type="number" min={0} value={form.price_per_night} onChange={e => setForm({...form, price_per_night: parseFloat(e.target.value)})}
-                  className="w-full border border-card-border rounded-lg p-2 text-sm" />
+                  className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
               </div>
             </div>
 
@@ -757,7 +757,7 @@ function NuovaPrenotazione() {
             })()}
 
             <div onClick={() => setForm({...form, bonifico: !form.bonifico})}
-              className="flex items-center justify-between bg-sage rounded-lg p-3 mb-3 border border-card-border cursor-pointer active:opacity-70">
+              className="flex items-center justify-between bg-white rounded-lg p-3 mb-3 border border-[#C9BFA8] shadow-sm cursor-pointer active:opacity-70">
               <div>
                 <p className="text-sm font-semibold text-green-dark">🏦 Pagamento tramite bonifico</p>
                 <p className="text-xs text-green-mid">La conferma includerà l&apos;IBAN</p>
@@ -775,7 +775,7 @@ function NuovaPrenotazione() {
               <div className="flex gap-2">
                 {([['diretta', 'Diretta'], ['sito_web', '🌐 Sito'], ['whatsapp', 'WhatsApp']] as const).map(([val, label]) => (
                   <button key={val} type="button" onClick={() => setForm({ ...form, source: val })}
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${form.source === val ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-card-border'}`}>
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${form.source === val ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-[#C9BFA8]'}`}>
                     {label}
                   </button>
                 ))}

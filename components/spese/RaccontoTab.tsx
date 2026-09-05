@@ -28,7 +28,7 @@ export default function RaccontoTab({
 }) {
   return (
     <>
-      <div className="bg-white rounded-xl p-4 border border-card-border mb-3 text-[15px] leading-relaxed text-green-dark">
+      <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-3 text-[15px] leading-relaxed text-green-dark">
         <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-2">
           {isMese ? `Il racconto di ${monthLabel(month)}` : `Il racconto · ${periodLabel}`}
         </p>
@@ -56,7 +56,7 @@ export default function RaccontoTab({
       </div>
 
       {groups.length > 1 && (
-        <div className="bg-white rounded-xl p-4 border border-card-border mb-3">
+        <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-3">
           <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-3">Chi ha speso cosa</p>
           <div className="flex flex-col gap-2.5">
             {racconto.gruppi.map(([g, tot]) => (

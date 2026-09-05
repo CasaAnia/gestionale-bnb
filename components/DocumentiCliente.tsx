@@ -98,7 +98,7 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
   }
 
   return (
-    <div id="documenti" className="bg-white rounded-xl p-4 border border-card-border mb-4">
+    <div id="documenti" className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
       <div className="flex items-center justify-between gap-3 mb-2">
         <p className="font-semibold text-green-dark">Documenti</p>
         {!loading && !avviso && <span className="text-xs text-stone">{rigaDocumenti(documenti.length)}</span>}
@@ -115,7 +115,7 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
           ) : (
             <ul className="grid grid-cols-2 gap-2 mb-3">
               {documenti.map(d => (
-                <li key={d.id} className="rounded-lg border border-card-border overflow-hidden bg-cream">
+                <li key={d.id} className="rounded-lg border border-[#C9BFA8] shadow-sm overflow-hidden bg-cream">
                   <button type="button" onClick={() => anteprime[d.id] && setAperto(anteprime[d.id])} className="block w-full aspect-[4/3] bg-sand" aria-label={`Apri ${etichettaLeggibile(d)}`}>
                     {anteprime[d.id] ? (
                       d.percorso.endsWith('.pdf')
@@ -139,7 +139,7 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
           {/* Aggiunta: tipo di documento, lato, poi il pulsante che apre fotocamera/galleria */}
           <div className="flex flex-wrap items-center gap-1.5 mb-2">
             <select value={etichetta} onChange={e => setEtichetta(e.target.value as EtichettaDocumento)}
-              className="border border-card-border rounded-lg px-2 py-1.5 text-xs bg-white text-green-dark">
+              className="border border-[#C9BFA8] shadow-sm rounded-lg px-2 py-1.5 text-xs bg-white text-green-dark">
               {ETICHETTE.map(e => <option key={e.chiave} value={e.chiave}>{e.label}</option>)}
             </select>
             {(['fronte', 'retro'] as const).map(l => (
@@ -161,7 +161,7 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
       {daCancellare && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-green-dark/30" onClick={() => setDaCancellare(null)} />
-          <div className="relative bg-white rounded-xl p-4 w-full max-w-sm border border-card-border shadow-md">
+          <div className="relative bg-white rounded-xl p-4 w-full max-w-sm border border-[#C9BFA8] shadow-sm shadow-md">
             <p className="font-semibold text-green-dark mb-1">Eliminare questo documento?</p>
             <p className="text-sm text-stone mb-3">{etichettaLeggibile(daCancellare)} · non si può recuperare.</p>
             <div className="flex gap-2">

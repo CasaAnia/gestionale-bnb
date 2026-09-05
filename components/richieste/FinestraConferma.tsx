@@ -68,7 +68,7 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
           <div className="flex flex-wrap gap-2">
             {alternative.map((a, i) => (
               <button key={i} type="button" onClick={() => setScelta(i)} aria-pressed={scelta === i} disabled={occupato}
-                className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${scelta === i ? 'bg-green-mid text-cream-text' : 'bg-white text-green-dark border border-card-border'}`}>
+                className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${scelta === i ? 'bg-green-mid text-cream-text' : 'bg-white text-green-dark border border-[#C9BFA8]'}`}>
                 {a.segmenti[0]?.camera.name} · {fmtPrezzo(a.prezzoTotale)} €
               </button>
             ))}

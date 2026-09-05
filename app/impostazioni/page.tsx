@@ -125,7 +125,7 @@ export default function Impostazioni() {
           {rooms.map(room => {
             const shortName = room.name.split(' ').slice(-1)[0]
             return (
-            <div key={room.id} className="bg-white rounded-xl p-5 border border-card-border shadow-sm">
+            <div key={room.id} className="bg-white rounded-xl p-5 border border-[#C9BFA8] shadow-sm">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-baseline gap-2">
                   <span className="font-serif text-sm" style={{ color: 'var(--color-brass)' }}>{ROOM_NUMBER_BY_NAME[shortName] || ''}</span>
@@ -144,13 +144,13 @@ export default function Impostazioni() {
                   <p className="text-xs text-gray-500 mb-1">Prezzo base/notte €</p>
                   <input type="number" min={0} value={val(room, 'base_price')}
                     onChange={e => edit(room.id, 'base_price', parseFloat(e.target.value))}
-                    className="w-full border border-card-border rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
+                    className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Letto agg. €/notte</p>
                   <input type="number" min={0} value={val(room, 'extra_bed_price')}
                     onChange={e => edit(room.id, 'extra_bed_price', parseFloat(e.target.value))}
-                    className="w-full border border-card-border rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
+                    className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
                 </div>
               </div>
               {room.double_price !== null && room.double_price !== undefined && (
@@ -158,7 +158,7 @@ export default function Impostazioni() {
                   <p className="text-xs text-gray-500 mb-1">👥 Prezzo 2 ospiti €/notte</p>
                   <input type="number" min={0} value={val(room, 'double_price')}
                     onChange={e => edit(room.id, 'double_price', parseFloat(e.target.value))}
-                    className="w-full border border-card-border rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
+                    className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
                 </div>
               )}
               {room.matrimoniale_price !== null && room.matrimoniale_price !== undefined && (
@@ -166,7 +166,7 @@ export default function Impostazioni() {
                   <p className="text-xs text-gray-500 mb-1">💑 Uso matrimoniale €/notte</p>
                   <input type="number" min={0} value={val(room, 'matrimoniale_price')}
                     onChange={e => edit(room.id, 'matrimoniale_price', parseFloat(e.target.value))}
-                    className="w-full border border-card-border rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
+                    className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
                 </div>
               )}
               {edits[room.id] && (
@@ -182,7 +182,7 @@ export default function Impostazioni() {
       )}
 
       {/* Notifiche push */}
-      <div className="mt-6 bg-white rounded-xl p-4 border border-card-border">
+      <div className="mt-6 bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm">
         <p className="font-semibold mb-1">🔔 Notifiche arrivi</p>
         <p className="text-xs text-gray-500 mb-3">Ricevi una notifica ogni giorno alle 15:00 con gli arrivi del giorno successivo e i letti da preparare.</p>
         {notifStatus === 'ok' ? (
@@ -191,7 +191,7 @@ export default function Impostazioni() {
           <div className="space-y-2">
             <div className="bg-[#F6E4DE] text-[#8C3B2E] rounded-lg px-3 py-2 text-sm">{notifErr || 'Attivazione non riuscita: riprova.'}</div>
             <button onClick={() => { setNotifErr(''); setNotifStatus('idle') }}
-              className="w-full border border-card-border rounded-xl py-2 text-sm font-semibold">
+              className="w-full border border-[#C9BFA8] shadow-sm rounded-xl py-2 text-sm font-semibold">
               Riprova
             </button>
           </div>
@@ -204,7 +204,7 @@ export default function Impostazioni() {
       </div>
 
       {/* Modalità dimostrazione */}
-      <div className="mt-6 bg-white rounded-xl p-4 border border-card-border">
+      <div className="mt-6 bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm">
         <p className="font-semibold mb-1">🫥 Modalità dimostrazione</p>
         <p className="text-xs text-gray-500 mb-3">
           Nasconde le sezioni <b>Spese</b> e <b>Spese Famiglia</b> quando fai vedere il gestionale a qualcuno.
@@ -216,7 +216,7 @@ export default function Impostazioni() {
             <div className="bg-[#F3ECD8] text-[#7A5C1E] rounded-lg px-3 py-2 text-sm font-semibold mb-2">🫥 Attiva — le spese sono nascoste</div>
             <input inputMode="numeric" type="password" value={exitPin}
               onChange={e => { setExitPin(e.target.value); setExitErr(false) }} placeholder="PIN per uscire"
-              className="w-full border border-card-border rounded-lg p-2.5 text-center tracking-widest mb-2" />
+              className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2.5 text-center tracking-widest mb-2" />
             {exitErr && <p className="text-xs text-[#8C3B2E] mb-2">PIN errato</p>}
             <button type="submit" className="w-full bg-green-mid text-white rounded-xl py-2.5 font-semibold">Esci dalla dimostrazione</button>
           </form>
@@ -227,9 +227,9 @@ export default function Impostazioni() {
               <div className="flex gap-2">
                 <input inputMode="numeric" type="password" value={newPin}
                   onChange={e => setNewPin(e.target.value)} placeholder="PIN"
-                  className="flex-1 border border-card-border rounded-lg p-2.5 text-center tracking-widest" />
+                  className="flex-1 border border-[#C9BFA8] shadow-sm rounded-lg p-2.5 text-center tracking-widest" />
                 <button onClick={salvaPin} disabled={newPin.trim().length < 4}
-                  className="border border-card-border text-green-dark rounded-lg px-4 font-semibold text-sm disabled:opacity-50">
+                  className="border border-[#C9BFA8] shadow-sm text-green-dark rounded-lg px-4 font-semibold text-sm disabled:opacity-50">
                   {pinSaved ? '✅' : 'Salva'}
                 </button>
               </div>
@@ -244,7 +244,7 @@ export default function Impostazioni() {
       </div>
 
       {/* Accesso */}
-      <div className="mt-6 bg-white rounded-xl p-4 border border-card-border">
+      <div className="mt-6 bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm">
         <p className="font-semibold mb-1">🔒 Accesso</p>
         <p className="text-xs text-gray-500 mb-3">
           Il gestionale è protetto da password. Esci se usi un telefono o un computer non tuo.
@@ -255,7 +255,7 @@ export default function Impostazioni() {
             router.replace('/login')
             router.refresh()
           }}
-          className="w-full border border-card-border text-green-dark rounded-xl py-2.5 font-semibold"
+          className="w-full border border-[#C9BFA8] shadow-sm text-green-dark rounded-xl py-2.5 font-semibold"
         >
           Esci
         </button>
