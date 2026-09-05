@@ -79,6 +79,37 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
 
 ---
 
+# Consegna — «Da controllare», pulizia non registrata prima di un arrivo (08/09/2026, sera, main)
+
+- Nuovo tipo «Pulizia» in lib/daControllare (eccezioniPulizie): per ogni
+  arrivo confermato di OGGI o DOMANI (non i prolungamenti) la voce compare se
+  lib/pulizie.statoCameraGiorno — la regola dietro conteggioGiorno, nessun
+  calcolo duplicato — dice «da fare» per quella camera in quel giorno:
+  partenza precedente non segnata, cambio camera, cambio biancheria, con le
+  rettifiche di Ania e la pulizia automatica alla partenza (nuovo ospite
+  entro il giorno dopo) già considerate. Alta con linea ottone se l'arrivo è
+  oggi, normale se domani. Titolo «Allegra · arrivo domani di Paola Neri,
+  ore 16:30», riga «La pulizia dopo la partenza precedente non risulta
+  registrata», un solo bottone «Apri pulizie» → /pulizie?giorno=<giorno>.
+  Posizione: dopo «arrivo senza orario», prima dei pagamenti; conteggio «N
+  pulizie non registrate» nella striscia; «Pulizie» nella riga «tutto a
+  posto». Sparisce da sola quando la pulizia viene segnata fatta. La Home
+  legge anche `cleanings` (tabella assente = nessuna decisione, come la
+  pagina Pulizie).
+- Test (2): pulizia segnata → non compare; automatica alla partenza (arrivo
+  lo stesso giorno o il giorno dopo) → non compare; cambio biancheria
+  saltato → non compare; partenza di tre giorni fa mai segnata + arrivo oggi
+  → alta; partenza domani non segnata + arrivo domani → normale; partenza
+  di ieri col cambio biancheria non fatto + arrivo domani → compare;
+  prolungamento e in attesa mai; segnata dopo → sparisce; ordine e conteggi.
+- Anteprima a 390 px: «Allegra · arrivo domani di Paola Neri, ore 16:30»
+  (normale) fra gli arrivi senza orario e i pagamenti, striscia «… · 1
+  pulizia non registrata · …».
+- Suite 676/676, TypeScript OK, lint 0 rilievi sui file toccati, `next build`
+  OK. Nessuna migrazione.
+
+---
+
 # Consegna — «Da controllare», tre bottoni su una riga (08/09/2026, sera, main)
 
 - Bottoni della sezione compatti e uguali per tutte le voci (12 px, meno

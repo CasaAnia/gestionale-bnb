@@ -264,10 +264,12 @@ test('testi: striscia, conteggi per tipo con singolare/plurale, riga «tutto a p
   assert.equal(rigaConteggi(lista), '2 richieste aperte · 1 pagamento · 1 sovrapposizione')
   assert.equal(rigaConteggi([...lista, ecc('a', 'arrivo', 'alta', OGGI), ecc('p2', 'pagamento', 'normale', OGGI)]), '2 richieste aperte · 1 arrivo senza orario · 2 pagamenti · 1 sovrapposizione')
   assert.deepEqual(conteggiPerTipo(lista), [{ tipo: 'richiesta', n: 2 }, { tipo: 'pagamento', n: 1 }, { tipo: 'calendario', n: 1 }])
-  assert.equal(rigaAPosto(lista), 'Arrivi di domani e fatture: tutto a posto')
-  assert.equal(rigaAPosto([ecc('a', 'arrivo', 'alta', OGGI)]), 'Richieste, pagamenti, fatture e calendario: tutto a posto')
-  assert.equal(rigaAPosto([...lista, ecc('a', 'arrivo', 'alta', OGGI), ecc('f', 'fattura', 'normale', OGGI)]), null)
-  assert.equal(rigaAPosto([]), 'Richieste, arrivi di domani, pagamenti, fatture e calendario: tutto a posto')
+  // Dal 08/09/2026 (sera) c'è anche il tipo «pulizia»
+  assert.equal(rigaAPosto(lista), 'Arrivi di domani, pulizie e fatture: tutto a posto')
+  assert.equal(rigaAPosto([ecc('a', 'arrivo', 'alta', OGGI)]), 'Richieste, pulizie, pagamenti, fatture e calendario: tutto a posto')
+  assert.equal(rigaAPosto([...lista, ecc('a', 'arrivo', 'alta', OGGI), ecc('f', 'fattura', 'normale', OGGI)]), 'Pulizie: tutto a posto')
+  assert.equal(rigaAPosto([...lista, ecc('a', 'arrivo', 'alta', OGGI), ecc('f', 'fattura', 'normale', OGGI), ecc('pu', 'pulizia', 'alta', OGGI)]), null)
+  assert.equal(rigaAPosto([]), 'Richieste, arrivi di domani, pulizie, pagamenti, fatture e calendario: tutto a posto')
 })
 
 test('destinazioni: ogni bottone porta al punto esatto', () => {
@@ -309,7 +311,7 @@ test('insieme: tutte le regole, rinvii applicati, ordine delle sezioni; stato vu
   ])
   assert.equal(titoloStriscia(out), '6 cose da controllare')
   assert.equal(rigaConteggi(out), '2 richieste aperte · 1 arrivo senza orario · 1 pagamento · 1 fattura scaduta · 1 sovrapposizione')
-  assert.equal(rigaAPosto(out), null)
+  assert.equal(rigaAPosto(out), 'Pulizie: tutto a posto')   // nessuna pulizia non registrata nello scenario
   assert.deepEqual(daControllareHome({ oggi: OGGI, adesso: ADESSO, richieste: [], prenotazioni: [], pagamenti: [], documenti: [] }), [])
 })
 
@@ -424,4 +426,68 @@ test('arrivo senza orario (08/09/2026): tre link — «Chiedi orario» col testo
   assert.equal(hrefDestinazione(n.destinazione), '/arrivi?apri=n')          // Apri arrivo
   assert.equal(s.whatsapp, undefined); assert.equal(s.whatsappChat, undefined)
   assert.equal(hrefDestinazione(s.destinazione), '/arrivi?apri=s')
+})
+
+// ── Pulizia non registrata prima di un arrivo (08/09/2026, sera) ───────────
+test('pulizia prima di un arrivo: compare solo se la camera ha una pulizia prevista non segnata; oggi alta, domani normale; bottone «Apri pulizie» sul giorno', async () => {
+  const { eccezioniPulizie, MOTIVO_PULIZIA_NON_REGISTRATA } = await import('./daControllare.ts')
+  type Dec = import('./pulizie.ts').Decisione
+  const fatta = (id: string, room_id: string, booking_id: string, giorno: string): Dec => ({ id, room_id, booking_id, tipo: 'fine_soggiorno', stato: 'fatta', data_prevista: giorno, data_effettiva: giorno, created_at: `${giorno}T12:00:00Z` })
+  const pren = [
+    // Amelia: partenza il 12 (tre giorni fa, quindi NON automatica) mai segnata, arrivo OGGI → alta
+    b('am-out', 'amelia', '2026-09-10', '2026-09-12', 100, { guest_id: 'g1' }),
+    b('am-in', 'amelia', '2026-09-15', '2026-09-18', 100, { guest_id: 'g2', check_in_time: '15:30' }),
+    // Ambra: partenza il 14 SEGNATA fatta, arrivo oggi → non compare
+    b('ab-out', 'ambra', '2026-09-10', '2026-09-14', 100, { guest_id: 'g3' }),
+    b('ab-in', 'ambra', '2026-09-15', '2026-09-17', 100, { guest_id: 'g4' }),
+    // Allegra: partenza DOMANI non segnata e arrivo domani → normale
+    b('al-out', 'allegra', '2026-09-12', '2026-09-16', 100, { guest_id: 'g5' }),
+    b('al-in', 'allegra', '2026-09-16', '2026-09-19', 100, { guest_id: 'g6' }),
+    // Lena: partenza oggi con arrivo oggi = pulizia AUTOMATICA alla partenza → non compare
+    b('le-out', 'lena', '2026-09-12', '2026-09-15', 100, { guest_id: 'g7' }),
+    b('le-in', 'lena', '2026-09-15', '2026-09-17', 100, { guest_id: 'g8' }),
+    // Ambra bis: partenza IERI con arrivo oggi = automatica anche questa (entro il giorno dopo) → non compare
+    b('ab2-out', 'ambra2', '2026-09-10', '2026-09-14', 100, { guest_id: 'g10' }),
+    b('ab2-in', 'ambra2', '2026-09-15', '2026-09-17', 100, { guest_id: 'g11' }),
+    // Prolungamento (stesso ospite, stessa camera, date contigue): non è un arrivo
+    b('pro-1', 'ambra', '2026-09-17', '2026-09-19', 100, { guest_id: 'g4' }),
+    // Arrivo in attesa: mai
+    b('att', 'allegra', '2026-09-15', '2026-09-16', 100, { guest_id: 'g9', status: 'in_attesa' }),
+  ]
+  const out = eccezioniPulizie(pren, [fatta('f1', 'ambra', 'ab-out', '2026-09-14')], OGGI)
+  assert.deepEqual(out.map(e => [e.chiave, e.urgenza, e.titolo, e.motivo, e.bottone, hrefDestinazione(e.destinazione)]), [
+    ['pulizia:am-in', 'alta', 'amelia · arrivo oggi di Ospite am-in, ore 15:30', MOTIVO_PULIZIA_NON_REGISTRATA, 'Apri pulizie', '/pulizie?giorno=2026-09-15'],
+    ['pulizia:al-in', 'normale', 'allegra · arrivo domani di Ospite al-in', MOTIVO_PULIZIA_NON_REGISTRATA, 'Apri pulizie', '/pulizie?giorno=2026-09-16'],
+  ])
+  // Segnata fatta anche quella di Amelia → sparisce da sola
+  const dopo = eccezioniPulizie(pren, [fatta('f1', 'ambra', 'ab-out', '2026-09-14'), fatta('f2', 'amelia', 'am-out', '2026-09-14')], OGGI)
+  assert.deepEqual(dopo.map(e => e.chiave), ['pulizia:al-in'])
+  // Senza decisioni: Ambra (partenza del 14 mai segnata, ma arrivo il 15 = automatica) resta fuori, Amelia e Allegra dentro
+  assert.deepEqual(eccezioniPulizie(pren, [], OGGI).map(e => e.chiave), ['pulizia:am-in', 'pulizia:al-in'])
+})
+
+test('pulizia prima di un arrivo: cambio biancheria saltato non conta; cambio biancheria della partenza non fatto e partenza non segnata → compare; ordine e conteggi', async () => {
+  const { eccezioniPulizie } = await import('./daControllare.ts')
+  type Dec = import('./pulizie.ts').Decisione
+  // Lena: soggiorno lungo 3 → 15 (oggi) con cambio biancheria del 7 SALTATO (proposta 11) e partenza oggi
+  // segnata fatta; arrivo oggi → non compare
+  const lungo = [
+    b('l-out', 'lena', '2026-09-03', '2026-09-15', 100, { guest_id: 'h1' }),
+    b('l-in', 'lena', '2026-09-15', '2026-09-18', 100, { guest_id: 'h2' }),
+  ]
+  const saltata: Dec = { id: 's1', room_id: 'lena', booking_id: 'l-out', tipo: 'soggiorno', stato: 'saltata', data_prevista: '2026-09-07', prossima_data: '2026-09-11', created_at: '2026-09-07T08:00:00Z' }
+  const partenzaFatta: Dec = { id: 'p1', room_id: 'lena', booking_id: 'l-out', tipo: 'fine_soggiorno', stato: 'fatta', data_prevista: '2026-09-15', data_effettiva: '2026-09-15', created_at: '2026-09-15T09:00:00Z' }
+  assert.deepEqual(eccezioniPulizie(lungo, [saltata, partenzaFatta], OGGI), [])
+  // Stessa camera, partenza del 14 (ieri) con il cambio biancheria non fatto e la partenza mai segnata, arrivo domani → compare
+  const ieri = [
+    b('i-out', 'lena', '2026-09-03', '2026-09-14', 100, { guest_id: 'h3' }),
+    b('i-in', 'lena', '2026-09-16', '2026-09-18', 100, { guest_id: 'h4' }),
+  ]
+  const conBiancheria = eccezioniPulizie(ieri, [], OGGI)
+  assert.deepEqual(conBiancheria.map(e => [e.chiave, e.urgenza]), [['pulizia:i-in', 'normale']])
+  // Ordine delle sezioni e conteggi: dopo gli arrivi senza orario, prima dei pagamenti
+  const ordinate = ordinaEccezioni([ecc('p', 'pagamento', 'normale', OGGI), ecc('pu', 'pulizia', 'alta', OGGI), ecc('a', 'arrivo', 'alta', OGGI)])
+  assert.deepEqual(ordinate.map(e => e.chiave), ['a', 'pu', 'p'])
+  assert.equal(rigaConteggi([ecc('pu', 'pulizia', 'alta', OGGI), ecc('pu2', 'pulizia', 'normale', OGGI)]), '2 pulizie non registrate')
+  assert.equal(rigaAPosto([ecc('pu', 'pulizia', 'alta', OGGI)]), 'Richieste, arrivi di domani, pagamenti, fatture e calendario: tutto a posto')
 })
