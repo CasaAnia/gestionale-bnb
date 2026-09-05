@@ -25,7 +25,7 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import CampoProvenienza from '@/components/CampoProvenienza'
 import { campiProvenienza, normalizzaProvenienza, testoProvenienza, type StrutturaNota } from '@/lib/provenienza'
 import { leggiStrutture, ricordaStruttura } from '@/lib/provenienzaDati'
-import { soggiorniPrecedenti, etichettaGiaStato } from '@/lib/clienteCheTorna'
+import { soggiorniPrecedenti, etichettaGiaStato, type SoggiornoStorico } from '@/lib/clienteCheTorna'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -370,7 +370,7 @@ export default function BookingDetail() {
   const [otherBookings, setOtherBookings] = useState<any[]>([])
   // Cliente che torna (08/09/2026): soggiorni conclusi dello stesso telefono
   // o dello stesso nome e cognome, anche su un'altra scheda cliente
-  const [omonimi, setOmonimi] = useState<any[]>([])
+  const [omonimi, setOmonimi] = useState<SoggiornoStorico[]>([])
   // Conferma della richiesta dal sito: un solo tocco, poi il bottone sparisce
   const [confirming, setConfirming] = useState(false)
   const [erroreConferma, setErroreConferma] = useState<string | null>(null)
@@ -535,7 +535,7 @@ export default function BookingDetail() {
       if (nomeIntero) {
         supabase.from('bookings').select('id, group_id, guest_id, check_in, check_out, status, guest_name, guests!inner(full_name, phone)')
           .ilike('guests.full_name', nomeIntero).in('status', ['confermata', 'completata'])
-          .then(({ data: om }) => setOmonimi(om || []))
+          .then(({ data: om }) => setOmonimi((om || []) as unknown as SoggiornoStorico[]))
       }
       if (b?.guest_id) {
         supabase.from('bookings')
@@ -1210,7 +1210,7 @@ export default function BookingDetail() {
         <h1 className="font-serif text-xl text-green-dark">Prenotazione</h1>
         {(() => {
           const persona = { guest_id: booking.guest_id, telefono: booking.guests?.phone, full_name: booking.guest_name || booking.guests?.full_name }
-          const storico = [...otherBookings.map((x: any) => ({ ...x, guest_id: booking.guest_id })), ...omonimi]
+          const storico: SoggiornoStorico[] = [...otherBookings.map(x => ({ ...x, guest_id: booking.guest_id })), ...omonimi]
           const testo = etichettaGiaStato(soggiorniPrecedenti(persona, storico, oggiARoma(), booking.group_id || booking.id))
           return testo ? <span data-gia-stato className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-sage text-green-mid whitespace-nowrap">{testo}</span> : null
         })()}
