@@ -1413,7 +1413,7 @@ export default function BookingDetail() {
         /* Tutti i riquadri bianchi col bordo del campo «Cerca nome» (#C9BFA8), stessa intensità
            ovunque (Ania, 05/09/2026); il letto aggiuntivo resta segnalato dalla sua riga marroncina */
         /* VISUALIZZAZIONE NORMALE */
-        <div className={`rounded-xl p-5 border mb-4 border-[#C9BFA8] bg-white`}>
+        <div className={`rounded-xl p-5 border mb-4 border-[#C9BFA8] shadow-sm bg-white`}>
           {/* Cliente in testa: nome, telefono con chiamata diretta, poi camera */}
           <div className="flex justify-between items-start gap-2 mb-2">
             <p className="font-bold text-lg min-w-0">{nomeOspite(booking)}</p>
@@ -1454,7 +1454,7 @@ export default function BookingDetail() {
           )}
           <p className="text-gray-500 mt-4 mb-1.5">{booking.rooms?.name}</p>
           {booking.check_in_time && (
-            <div className="bg-sage border border-[#C9BFA8] rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
+            <div className="bg-sage border border-[#C9BFA8] shadow-sm rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
               <span className="text-2xl">🕐</span>
               <div>
                 <p className="text-xs text-green-mid font-medium">Orario arrivo previsto</p>
@@ -1483,7 +1483,7 @@ export default function BookingDetail() {
           {booking.discount_type && (() => {
             const c = contoSoggiorno(booking)
             return (
-              <div className="bg-white border border-[#C9BFA8] rounded-xl p-3 mb-3 text-sm">
+              <div className="bg-white border border-[#C9BFA8] shadow-sm rounded-xl p-3 mb-3 text-sm">
                 <div className="flex justify-between items-baseline py-0.5">
                   <span className="text-gray-500">Prezzo pieno <span className="text-xs">({(() => {
                     const dett = dettaglioNottiSalvato(booking.rooms, booking)
@@ -1560,7 +1560,7 @@ export default function BookingDetail() {
             const ricevuto = acconti.reduce((s, a) => s + Number(a.amount), 0)
             const residuo = totaleDovuto - ricevuto
             return (
-              <div className="mt-3 bg-white border border-[#C9BFA8] rounded-xl p-3">
+              <div className="mt-3 bg-white border border-[#C9BFA8] shadow-sm rounded-xl p-3">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[11px] uppercase" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>Conto del soggiorno</p>
                   {ricevuto > 0 && (residuo <= 0
@@ -1765,7 +1765,7 @@ export default function BookingDetail() {
       {/* Altre prenotazioni dello stesso ospite: per ritrovare al volo
           tutte le richieste fatte con lo stesso numero */}
       {!editing && otherBookings.length > 0 && (
-        <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] mb-4">
+        <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
           <p className="font-semibold mb-1">Altre prenotazioni di questo ospite</p>
           {otherBookings.map((ob: any) => {
             // "In attesa" = riga intera rosso mattone: il bollino da solo
@@ -1828,11 +1828,11 @@ export default function BookingDetail() {
               className="w-full bg-green-dark text-white rounded-xl py-3 font-semibold mb-3">
               Conferma WhatsApp (immagine + testo)
             </button>
-            <div className="bg-sage rounded-xl p-3 border border-[#C9BFA8] mb-2">
+            <div className="bg-sage rounded-xl p-3 border border-[#C9BFA8] shadow-sm mb-2">
               <p className="font-semibold text-green-dark mb-1.5 text-sm">💬 WhatsApp Ania</p>
               {renderButtons(false)}
             </div>
-            <div className="bg-[#F4E6DF] rounded-xl p-3 border border-[#C9BFA8] mb-4">
+            <div className="bg-[#F4E6DF] rounded-xl p-3 border border-[#C9BFA8] shadow-sm mb-4">
               <p className="font-semibold text-[#7A3B22] mb-1.5 text-sm">💼 WhatsApp Business</p>
               {renderButtons(true)}
             </div>
@@ -1844,7 +1844,7 @@ export default function BookingDetail() {
       {/* Pannello Comunicazioni (solo desktop): tutto ciò che si manda al cliente, in colori tenui */}
       {!editing && waPhone && (
         <aside className="hidden lg:block lg:flex-1 lg:sticky lg:top-6">
-          <div className="bg-white rounded-xl border border-[#C9BFA8] p-4">
+          <div className="bg-white rounded-xl border border-[#C9BFA8] shadow-sm p-4">
             <p className="text-[11px] uppercase mb-3" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>Messaggi</p>
             {/* Verde pieno come «+ Nuova richiesta» nelle Richieste (Ania, 05/09/2026) */}
             <button onClick={() => setShowConferma(true)}
