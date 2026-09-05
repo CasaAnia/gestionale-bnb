@@ -435,7 +435,7 @@ export default function Statistiche() {
           {roomStats && (
             <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
               <p className="text-sm font-semibold text-gray-600">Ricavi per camera</p>
-              <p className="text-xs text-gray-400 mb-3">anno {roomStats.anno} · {roomStats.annoPassato ? 'tutto l’anno' : 'notti dormite fino a oggi'} · valore dei soggiorni confermati diviso sulle notti, non gli incassi</p>
+              <p className="text-xs text-gray-400 mb-3">anno {roomStats.anno} · {roomStats.annoPassato ? 'tutto l’anno' : 'notti dormite fino a oggi'} · valore dei soggiorni confermati diviso sulle notti, non gli incassi{roomStats.limite ? ` · occupazione ${roomStats.limite}` : ''}</p>
               {roomStats.lista.map((s, i) => (
                 <div key={s.name} className={i > 0 ? 'mt-3' : ''}>
                   <div className="flex justify-between items-baseline">
@@ -449,7 +449,7 @@ export default function Statistiche() {
                     <div className="h-1.5 rounded-full" style={{ width: `${Math.max(3, (s.ricaviCent / roomStats.lista[0].ricaviCent) * 100)}%`, background: i === 0 ? '#2D6A4F' : '#6C9A7C' }} />
                   </div>
                   <p className="text-[11px] text-gray-400">
-                    {s.notti} notti · {Math.round(s.occupazionePerMille / 10)}% occupazione · media €{euro(s.adrCent)}/notte
+                    {s.notti} notti · {Math.round(s.occupazionePerMille / 10)}% occupazione su {s.giorniVendibili} giorni · media €{euro(s.adrCent)}/notte
                   </p>
                 </div>
               ))}
