@@ -1828,11 +1828,11 @@ export default function BookingDetail() {
               className="w-full bg-green-dark text-white rounded-xl py-3 font-semibold mb-3">
               Conferma WhatsApp (immagine + testo)
             </button>
-            <div className="bg-sage rounded-xl p-3 border border-[#C9BFA8] shadow-sm mb-2">
+            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm mb-2">
               <p className="font-semibold text-green-dark mb-1.5 text-sm">💬 WhatsApp Ania</p>
               {renderButtons(false)}
             </div>
-            <div className="bg-[#F4E6DF] rounded-xl p-3 border border-[#C9BFA8] shadow-sm mb-4">
+            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm mb-4">
               <p className="font-semibold text-[#7A3B22] mb-1.5 text-sm">💼 WhatsApp Business</p>
               {renderButtons(true)}
             </div>
