@@ -1,8 +1,9 @@
-# STATO IN 10 RIGHE (aggiornato il 06/09/2026, notte) — da incollare a un altro assistente
+# STATO IN 10 RIGHE (aggiornato il 07/09/2026) — da incollare a un altro assistente
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
-3. Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); le revisioni Codex (R1–R13) sono corrette, collaudate su PostgreSQL 16 locale (sessioni concorrenti, ruoli) con 4 difetti trovati e corretti, e PUBBLICATE il 06/09/2026 (scheda in cima); le proposte 0033/0034 restano da applicare a mano da Ania (guida in 5 righe nella scheda); il codice pubblicato funziona anche prima delle proposte e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
+3. «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
+   Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); le revisioni Codex (R1–R13) sono corrette, collaudate su PostgreSQL 16 locale (sessioni concorrenti, ruoli) con 4 difetti trovati e corretti, e PUBBLICATE il 06/09/2026 (scheda in cima); le proposte 0033/0034 restano da applicare a mano da Ania (guida in 5 righe nella scheda); il codice pubblicato funziona anche prima delle proposte e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
 4. Blocco 1 (04/09): elisione solo per 1, 8, 11 («all'8», «al 18»). Blocco 2: /richieste da desktop con calendario «Mese / 2 settimane», lista ariosa, intestazione su una riga; telefono invariato. Blocco 4 (04/09 sera, scelta di Ania sul mockup A): da desktop calendario a TUTTA larghezza sopra e lista sotto in schede su due colonne (≥1100 px), riga di sezione «RICHIESTE APERTE · N — Ordina per», vuoto = riga sottile tratteggiata con «+ Nuova richiesta»; niente più due colonne affiancate. Calendario desktop +20% (righe 54, intestazione 48, camere 15 px, barre 13–14 px, colonna camere 116, colonne 2 settimane ≥ 80 px); telefono invariato. Blocco 3: web-push tolto dal sito, docs senza secondo utente, scheda «prove in 10 minuti».
 5. Proposte: ricerca automatica invariata (caso A poi B/C/E, per notte), «Altre camere» con i motivi, «Scelgo io» notte per notte con prezzo a mano; conferma solo via RPC 0031 (per notte).
    Documenti dei clienti (05/09, scelta di Ania, «fallo direttamente, mai cancellare dopo la partenza»): components/DocumentiCliente (scheda cliente: foto dal telefono ridotte a 1600 px JPEG, PDF, etichetta e fronte/retro, anteprime con URL firmati 1 h, elimina con conferma; RigaDocumentiPrenotazione «Documenti · N» nella scheda prenotazione → /clienti/<id>#documenti), lib/documentiCliente (funzioni pure, 4 test), migrazione 0032; senza migrazione la sezione avvisa e non salva.
@@ -28,7 +29,7 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`.
-10. 🔴 Azioni aperte per Ania: prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche e 0030.
+10. 🔴 Azioni aperte per Ania: applicare la proposta 0035 (tabella dei rinvii, per «Rimanda»); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034.
 
 ---
 
@@ -75,6 +76,102 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — «Da controllare» in Home, versione B (07/09/2026, main)
+
+Incarico del 06/09/2026: elenco di ECCEZIONI, non di attività. Base
+`b3ea260`. Ogni voce: etichetta del tipo in ottone, titolo (chi, cosa,
+quando), una riga col perché, UN bottone che porta al punto esatto da
+sistemare; le voci spariscono da sole quando il problema si risolve nella
+sua sezione (nessuna spunta «fatto», nessuna notifica nuova, nessuna pagina
+separata). Un commit per pezzo.
+
+## FATTO E DIMOSTRATO
+
+- Pezzo 1 `5cea06b` — lib/daControllare (pure): eccezioniRichieste (in
+  attesa > 48 h senza proposta; proposta scaduta oltre le 3 ore, con
+  lib/richieste.scadenzaProposta; arrivo passato e ancora aperta),
+  eccezioniPagamenti (concluso e pagato ma movimenti < totale, via
+  incongruenzePagamenti; movimenti > totale; concluso da > 1 giorno e non
+  pagato — un soggiorno = group_id, totale dei segmenti), eccezioniCalendario
+  (due confermate stessa camera stessa notte; letti oltre i 2 del pool con
+  lib/lettiAggiuntivi, notti consecutive in una voce), eccezioniArrivi
+  (domani senza orario, cambio camera escluso), eccezioniFatture
+  (approvata_da_pagare con scadenza passata, sola lettura). Urgenza alta:
+  sovrapposizioni (camere e letti), proposta scaduta, arrivo domani senza
+  orario; ordine alta → data più vicina a oggi → titolo. Rinvii, conteggi
+  («1 sovrapposizione · 2 richieste ferme · …»), riga «tutto a posto», href
+  dei bottoni. Casi di bordo nei test: cambio camera ≠ sovrapposizione,
+  partenza = arrivo nella stessa camera, richiesta chiusa, pagato coperto,
+  proposta senza ora di invio, arrivo con orario vuoto, fattura in scadenza
+  oggi, in attesa/annullata mai contate. 24 test.
+- Pezzo 2 `3f4ab7f` — Home: sotto i numeri del giorno la striscia su
+  #F3ECD8 «N cose da controllare» (Fraunces) + conteggi per tipo, poi la
+  sezione «Da controllare» (voci ordinate per urgenza, linea ottone a
+  sinistra per l'urgenza alta, bottone verde, «Rimanda» ghost solo sulle
+  richieste, riga tratteggiata «… tutto a posto» in fondo); zero eccezioni
+  = né striscia né sezione; lettura fallita = «Non riesco a controllare,
+  riprova» + Riprova (mai un «tutto a posto» finto). lib/daControllareDati:
+  stato UNICO condiviso (useSyncExternalStore, come le richieste dal sito),
+  letture del solo periodo oggi−31/+62 a pagine (paginazione di
+  lib/statistiche) + segmenti dei gruppi a blocchi, movimenti, fatture
+  scadute, rinvii; «Rimanda» = upsert su `da_controllare_rinvii` con
+  lib/scritturaSicura (lo schermo cambia solo a scrittura riuscita), memoria
+  lato server fino a domani; tabella assente (PGRST205/42P01) → avviso
+  «Rimanda non disponibile: va applicata la proposta 0035», tutto il resto
+  funziona. Punti d'ingresso: /richieste/<id>; /prenotazioni/<id>?azione=pagato
+  apre «Segna come pagato» (anche se già pagato o non bonifico, con scroll);
+  /calendario?giorno=AAAA-MM-GG parte dal giorno prima (estende l'intervallo
+  se serve); /arrivi?apri=<id> apre la finestra dell'orario su quella
+  prenotazione; /spese?documento=<id> atterra in Documenti con la fattura in
+  vista (sfondo terracotta tenue, nessun bordo). Proposta
+  `supabase/proposte/0035_rinvii_da_controllare.BOZZA.sql` (tabella, RLS
+  solo authenticated). Anteprima finta `scripts/revisioni/anteprima-home-finta.mjs`
+  (porta 3215, date relative a oggi, rinvii in memoria, interruttori
+  /finto/senza-rinvii e /finto/errore-richieste).
+- Pezzo 3 `85372ae` — Statistiche: sotto la voce Incassi il link «N
+  pagamenti da controllare» (solo con incongruenze, stesso stato condiviso
+  della Home) verso `/#da-controllare`; la Home scorre alla sezione.
+- Prove UI sull'anteprima finta (scenario: sovrapposizione Amelia, letti 3
+  su 2, arrivo domani senza orario, pagato 100 su 160, concluso non pagato,
+  richiesta ferma da 3 giorni, proposta scaduta, fattura Enel scaduta;
+  controesempi: cambio camera, arrivo con orario, pagato coperto, richiesta
+  fresca, confermata, fattura in scadenza) a 390 e 1280 px: striscia «8 cose
+  da controllare · 2 sovrapposizioni · 2 richieste ferme · 2 pagamenti
+  incompleti · 1 arrivo senza orario · 1 fattura scaduta», ordine alta →
+  vicina; «Rimanda» su una richiesta → 7 voci, rinvio arrivato al server con
+  fino_a = domani, dopo la ricarica resta nascosta; tabella dei rinvii
+  assente → avviso sotto la voce, elenco intatto; errore sulle richieste →
+  «Non riesco a controllare, riprova», nessuna sezione, Riprova ripristina;
+  i quattro punti d'ingresso verificati (calendario scorre al 14 set per il
+  15, Arrivi con la finestra di Marco Bianchi aperta, scheda con «Registro
+  un pagamento di €60,00», Spese in Documenti con la fattura Enel
+  evidenziata); Statistiche con «2 pagamenti da controllare» → /#da-controllare.
+- Suite completa 639/639, TypeScript OK, lint dei file toccati senza
+  rilievi nuovi (nuovi file 0; calendario 0 vs 3 sulla base, arrivi 17 vs 21,
+  gli altri uguali), `next build` OK (Compiled successfully, `85372ae` + documenti).
+
+## LIMITI APERTI
+
+- «Rimanda» richiede la proposta 0035 applicata a mano (🔴 Ania); fino ad
+  allora il bottone risponde con l'avviso e non scrive nulla.
+- I soggiorni segnati pagati SENZA alcun movimento (storico prima del
+  05/09) NON compaiono: li tratta la ricostruzione una tantum delle
+  Statistiche («storico da ricostruire»), altrimenti la Home si riempirebbe
+  di decine di voci storiche. Scelta dichiarata, da confermare con Ania.
+- «Movimenti oltre il totale» porta alla scheda prenotazione con «Apri
+  prenotazione» (non a «Segna come pagato», che non può togliere soldi).
+- La lettura guarda solo oggi−31/+62 giorni: un soggiorno concluso da più
+  di un mese e mai pagato o una sovrapposizione fra tre mesi non compaiono
+  finché non entrano nel periodo.
+- Lo scorrimento morbido (Home → sezione, scheda → «Segna come pagato»,
+  Spese → fattura) non si può esercitare nel pannello nascosto di questo
+  Mac: verificato con lo scorrimento diretto (posizione giusta) e sul
+  calendario con la posizione diretta.
+- Sul sito pubblicato la verifica è senza accesso (login di Ania): vedi il
+  resoconto.
 
 ---
 
