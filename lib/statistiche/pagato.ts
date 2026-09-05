@@ -131,7 +131,11 @@ export class ErroreRispostaMalformata extends Error {
 }
 
 // --- acconti (R10): stesso contratto ----------------------------------------
-export type AccontoPendente = { chiave: string; amount: number; method: string; paid_on: string; creato: string }
+// giaPresenti: quante righe uguali (importo, metodo, data) c'erano PRIMA di
+// scrivere: se alla rilettura ce n'è una in più, il pendente è stato applicato.
+// Non si usa l'orologio del telefono (difetto 2 del collaudo: un telefono
+// avanti rispetto al server faceva sembrare «vecchia» la riga appena scritta).
+export type AccontoPendente = { chiave: string; amount: number; method: string; paid_on: string; creato: string; giaPresenti: number }
 
 export type DepsRegistraAcconto = {
   // legge/scrive la custodia sul telefono: null = memoria negata
@@ -149,28 +153,36 @@ export type EsitoRegistraAcconto =
   | { esito: 'ok'; movimento: PagamentoStat; giaApplicato: boolean; pagamenti: PagamentoStat[] }
   | { esito: 'errore'; fase: 'custodia' | 'rilettura' | 'movimento'; messaggio: string; pagamenti: PagamentoStat[] | null }
 
+const stessaRiga = (p: { amount: number; method: string; paid_on: string }, r: PagamentoStat & { method?: string }) =>
+  Math.round(Number(r.amount) * 100) === Math.round(p.amount * 100) && r.paid_on === p.paid_on && (r.method === undefined || r.method === p.method)
+
 // Un acconto pendente (chiave custodita, risposta persa) conta come applicato
-// se fra i pagamenti riletti c'è una riga uguale creata dopo la custodia
-function pendenteApplicato(p: AccontoPendente, riletti: (PagamentoStat & { method?: string; created_at?: string })[]): PagamentoStat | null {
-  return riletti.find(r => Math.round(Number(r.amount) * 100) === Math.round(p.amount * 100) && r.paid_on === p.paid_on && (r.method === undefined || r.method === p.method) && (!r.created_at || r.created_at >= p.creato)) ?? null
+// se fra i riletti le righe uguali sono PIÙ di quante ce n'erano alla custodia
+function pendenteApplicato(p: AccontoPendente, riletti: (PagamentoStat & { method?: string })[]): PagamentoStat | null {
+  const uguali = riletti.filter(r => stessaRiga(p, r))
+  return uguali.length > (p.giaPresenti ?? 0) ? uguali[uguali.length - 1] : null
 }
 
 export async function eseguiRegistraAcconto(
   bookingId: string, amount: number, method: string, paid_on: string, deps: DepsRegistraAcconto,
 ): Promise<EsitoRegistraAcconto> {
-  // 1. custodia PRIMA dell'invio (se c'è già un pendente identico si riusa la sua chiave)
-  const precedente = deps.leggiPendente()
-  const pendente: AccontoPendente = precedente && precedente.amount === amount && precedente.method === method && precedente.paid_on === paid_on
-    ? precedente
-    : { chiave: deps.nuovaChiave(), amount, method, paid_on, creato: deps.adesso() }
-  if (!deps.custodisci(pendente)) return { esito: 'errore', fase: 'custodia', messaggio: MESSAGGIO_CUSTODIA_CHIAVE, pagamenti: null }
-  // 2. rilettura
+  // 1. rilettura (è una lettura: la richiesta di SCRITTURA parte solo dopo la custodia)
   let riletti: { data: (PagamentoStat & { method?: string; created_at?: string })[] | null; error: unknown }
   try { riletti = await deps.rileggiPagamenti() } catch (e) { riletti = { data: null, error: e ?? new Error('errore sconosciuto') } }
   if (riletti.error || !riletti.data) return { esito: 'errore', fase: 'rilettura', messaggio: MESSAGGIO_RILETTURA_PAGAMENTI, pagamenti: null }
-  // 3. pendente già applicato (risposta persa la volta prima)?
-  const applicato = precedente === pendente ? pendenteApplicato(pendente, riletti.data) : null
-  if (applicato) { deps.dimentica(); return { esito: 'ok', movimento: applicato, giaApplicato: true, pagamenti: riletti.data } }
+  // 2. pendente precedente identico (risposta persa la volta prima)? già applicato → fine
+  const precedente = deps.leggiPendente()
+  const stesso = !!precedente && precedente.amount === amount && precedente.method === method && precedente.paid_on === paid_on
+  if (stesso && precedente) {
+    const applicato = pendenteApplicato(precedente, riletti.data)
+    if (applicato) { deps.dimentica(); return { esito: 'ok', movimento: applicato, giaApplicato: true, pagamenti: riletti.data } }
+  }
+  // 3. custodia PRIMA dell'invio: stessa chiave del pendente identico, altrimenti nuova,
+  //    con il conteggio delle righe uguali già presenti
+  const pendente: AccontoPendente = stesso && precedente
+    ? precedente
+    : { chiave: deps.nuovaChiave(), amount, method, paid_on, creato: deps.adesso(), giaPresenti: riletti.data.filter(r => stessaRiga({ amount, method, paid_on }, r)).length }
+  if (!deps.custodisci(pendente)) return { esito: 'errore', fase: 'custodia', messaggio: MESSAGGIO_CUSTODIA_CHIAVE, pagamenti: null }
   // 4. scrittura (RPC idempotente per chiave, o INSERT)
   let r: { data: PagamentoStat | null; error: unknown }
   try { r = await deps.scrivi(pendente, bookingId) } catch (e) { r = { data: null, error: e ?? new Error('errore sconosciuto') } }

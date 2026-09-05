@@ -50,7 +50,7 @@ function scheda(srv: ReturnType<typeof server>, opz: { memoriaNegata?: boolean; 
       memoria.set('chiave', k)
       return k
     },
-    rileggiPagamenti: async () => srv.st.rilettureFallite-- > 0 ? { data: null, error: new TypeError('Failed to fetch') } : { data: [...srv.store], error: null },
+    rileggiPagamenti: async () => srv.st.rilettureFallite-- > 0 ? { data: null, error: new TypeError('Failed to fetch') } : { data: srv.store.map(p => ({ ...p })), error: null },
     scrivi: (k, m) => srv.scrivi(k, m),
     segnaFlag: async () => { srv.st.patch++; srv.st.pagato = 2; return { error: null, righe: 2 } },
   }
@@ -161,7 +161,7 @@ function depsAcconto(srv: ReturnType<typeof server>, opz: { negata?: boolean; pe
     leggiPendente: () => memoria.get('p') ?? null,
     custodisci: p => { if (opz.negata) return false; memoria.set('p', p); return true },
     dimentica: () => { memoria.delete('p') },
-    rileggiPagamenti: async () => ({ data: [...srv.store], error: null }),
+    rileggiPagamenti: async () => ({ data: srv.store.map(p => ({ ...p })), error: null }),
     scrivi: async (p, bookingId) => {
       d.chiamate++
       const riga = { booking_id: bookingId, amount: p.amount, paid_on: p.paid_on, method: p.method, chiave: p.chiave, created_at: '2026-09-05T12:00:00Z' }
@@ -203,4 +203,25 @@ test('acconto: memoria negata → nessuna richiesta; percorso normale → una ri
   assert.equal(ok2.esito, 'ok')
   assert.notEqual(srv.store[srv.store.length - 1].chiave, chiave1)
   assert.equal(srv.store.length, 3)
+})
+
+// ---- autorevisione (collaudo del 06/09/2026) ----
+test('difetto 2: orologio del telefono avanti rispetto al server → l\'acconto applicato con risposta persa deve essere riconosciuto lo stesso (nessun doppione)', async () => {
+  const srv = server()
+  const d = depsAcconto(srv, { perdi: 1 })
+  d.adesso = () => '2026-09-05T12:30:00Z'     // il telefono è 30 minuti AVANTI: il server scriverà created_at 12:00
+  const primo = await eseguiRegistraAcconto('a', 60, 'contanti', '2026-09-05', d)
+  assert.equal(primo.esito, 'errore')
+  assert.equal(srv.store.filter(p => Number(p.amount) === 60).length, 1)
+  const secondo = await eseguiRegistraAcconto('a', 60, 'contanti', '2026-09-05', d)
+  assert.equal(secondo.esito, 'ok')
+  assert.equal(secondo.esito === 'ok' && secondo.giaApplicato, true)
+  assert.equal(srv.store.filter(p => Number(p.amount) === 60).length, 1, 'un secondo movimento da 60 sarebbe un doppione')
+  // e un acconto IDENTICO già esistente da prima NON deve essere scambiato per il pendente
+  const srv2 = server()
+  srv2.store.push({ booking_id: 'a', amount: 60, paid_on: '2026-09-05', method: 'contanti', created_at: '2026-09-01T10:00:00Z' })
+  const d2 = depsAcconto(srv2)
+  const r = await eseguiRegistraAcconto('a', 60, 'contanti', '2026-09-05', d2)
+  assert.equal(r.esito === 'ok' && r.giaApplicato, false)
+  assert.equal(srv2.store.filter(p => Number(p.amount) === 60).length, 2)
 })
