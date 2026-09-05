@@ -28,7 +28,8 @@ import { cent, prenotazioneValida, type PrenotazioneStat, type PagamentoStat, ty
 import { incongruenzePagamenti } from './statistiche/pagato.ts'
 import { lettiOccupatiPerNotte } from './lettiAggiuntivi.ts'
 import { EXTRA_BED_MAX } from './tariffe.ts'
-import { whatsappRichiestaOrario } from './messaggiWhatsApp.ts'
+import { normalizzaTelefono } from './whatsapp.ts'
+import { whatsappRichiestaOrario, waHrefTesto } from './messaggiWhatsApp.ts'
 
 export const ORE_ATTESA_SENZA_PROPOSTA = 48
 export const GIORNI_CONCLUSO_NON_PAGATO = 1
@@ -57,7 +58,8 @@ export type Eccezione = {
   rimandabile: boolean    // solo le richieste hanno «Rimanda»
   // Ritocchi del 07/09/2026: chat WhatsApp con l'ospite. Negli arrivi senza
   // orario è il bottone PIENO col testo «Richiesta orario» della scheda
-  // (lib/messaggiWhatsApp, stesso link); assente senza numero di telefono.
+  // (lib/messaggiWhatsApp, stesso link); nelle proposte scadute è un ghost
+  // senza testo (Ania scrive a mano). Assente senza numero di telefono.
   whatsapp?: LinkWhatsAppEccezione
 }
 export type LinkWhatsAppEccezione = { href: string; numero: string; testo: string; principale: boolean }
@@ -75,6 +77,7 @@ export type RichiestaDC = {
   proposta_inviata_at: string | null
   nome?: string | null
   cognome?: string | null
+  telefono?: string | null
 }
 
 export type PrenotazioneDC = PrenotazioneStat & {
@@ -128,7 +131,11 @@ export function eccezioniRichieste(richieste: RichiestaDC[], oggi: string, adess
     }
     if (r.stato === 'proposta_inviata') {
       const s = scadenzaProposta({ stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at }, adesso)
-      if (s?.scaduta) out.push({ ...base, urgenza: 'alta', titolo, motivo: `${s.testo.replace('Proposta inviata · ', 'Proposta ')} senza conferma né rifiuto` })
+      if (s?.scaduta) {
+        const numero = normalizzaTelefono(r.telefono).numero
+        const whatsapp = numero ? { href: waHrefTesto(numero, ''), numero, testo: '', principale: false } : undefined
+        out.push({ ...base, urgenza: 'alta', titolo, motivo: `${s.testo.replace('Proposta inviata · ', 'Proposta ')} senza conferma né rifiuto`, whatsapp })
+      }
       continue
     }
     const ore = oreTra(r.created_at, adesso)

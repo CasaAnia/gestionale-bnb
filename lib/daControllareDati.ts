@@ -64,7 +64,7 @@ async function leggiPrenotazioni(da: string, a: string): Promise<Esito<Prenotazi
 
 function leggiRichieste() {
   return pagine<RichiestaDC>('controllare le richieste', (offset, limite) => supabase.from('richieste')
-    .select('id, nome, cognome, arrivo, partenza, stato, created_at, proposta_inviata_at').in('stato', STATI_APERTI)
+    .select('id, nome, cognome, telefono, arrivo, partenza, stato, created_at, proposta_inviata_at').in('stato', STATI_APERTI)
     .order('created_at', { ascending: true }).range(offset, offset + limite - 1))
 }
 

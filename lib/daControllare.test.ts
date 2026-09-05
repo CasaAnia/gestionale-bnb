@@ -321,3 +321,18 @@ test('arrivi (07/09/2026): con numero → WhatsApp pieno col testo «Richiesta o
   assert.equal(s.whatsapp, undefined)
   assert.equal(s.motivo, 'Arrivo di domani senza orario e senza numero di telefono')
 })
+
+test('richieste (07/09/2026): proposta scaduta con telefono → WhatsApp ghost senza testo; senza telefono niente; le altre richieste mai', () => {
+  const ore4 = new Date(ADESSO.getTime() - 4 * 3600000).toISOString()
+  const vecchia = '2026-09-10T08:00:00+02:00'
+  const out = eccezioniRichieste([
+    { ...r('con', 'proposta_inviata', '2026-09-20', vecchia, ore4), telefono: '+39 333 123 4567' },
+    { ...r('senza', 'proposta_inviata', '2026-09-21', vecchia, ore4), telefono: null },
+    { ...r('ferma', 'in_attesa', '2026-09-22', '2026-09-10T08:00:00+02:00'), telefono: '+39 333 123 4567' },
+  ], OGGI, ADESSO)
+  assert.deepEqual(out.map(e => e.chiave), ['richiesta:con', 'richiesta:senza', 'richiesta:ferma'])
+  assert.deepEqual(out[0].whatsapp, { href: 'https://wa.me/393331234567', numero: '393331234567', testo: '', principale: false })
+  assert.equal(out[0].rimandabile, true)
+  assert.equal(out[1].whatsapp, undefined)
+  assert.equal(out[2].whatsapp, undefined)
+})
