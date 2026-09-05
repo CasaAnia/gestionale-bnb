@@ -1,0 +1,61 @@
+# Collaudo su PostgreSQL 16.15 (Homebrew, locale, porta 5433) — 06/09/2026
+
+## applica-migrazioni.mjs (database vuoto → 0001–0032 + bootstrap owner + drift + 0033 + 0034)
+OK — stub Supabase (ruoli, auth, storage)
+OK — 0001_init.sql
+OK — 0002_group_id.sql
+OK — 0003_chi_e.sql
+OK — 0004_pulizie.sql
+OK — 0005_cambio_biancheria.sql
+OK — 0006_acconti.sql
+OK — 0007_spese_famiglia.sql
+OK — 0008_scontrini.sql
+OK — 0009_ambito_azienda.sql
+OK — 0010_rinomina_casa_ania.sql
+OK — 0011_scontrini_ambito.sql
+OK — 0012_dettaglio_prodotti.sql
+OK — 0013_budget_spese.sql
+OK — 0014_categoria_voci.sql
+OK — 0015_riordino_categorie.sql
+OK — 0016_servizi.sql
+OK — 0017_sconti.sql
+OK — 0018_pulizie_storico.sql
+OK — 0019_navetta.sql
+OK — 0020_rifacimento_spese_schema.sql
+OK — supabase/bootstrap_owner.sql
+OK — 0021_protezione_family.sql
+OK — 0022_caricamento_idempotente.sql
+OK — 0024_richieste.sql
+OK — 0025_richieste_proposta.sql
+OK — 0027_conferma_richiesta.sql
+OK — 0028_richieste_origine.sql
+OK — 0029_richieste_condizioni.sql
+OK — 0031_richieste_persone_per_notte.sql
+OK — 0032_documenti_cliente.sql
+OK — drift: colonne di bookings presenti in produzione senza migrazione
+OK — proposta 0033_pagamenti_idempotenti.BOZZA.sql
+OK — proposta 0034_room_closures.BOZZA.sql
+
+## ACL prima/dopo la correzione delle revoche (has_function_privilege anon)
+prima:
+registra_acconto|t
+ricostruisci_incassi|t
+segna_pagato|t
+dopo (proname|anon|authenticated):
+blocca_soggiorno|f|f
+registra_acconto|f|t
+ricostruisci_incassi|f|t
+segna_pagato|f|t
+soggiorno_di|f|f
+
+## concorrenza.mjs
+OK — 1. due segna_pagato concorrenti (segmenti diversi, chiavi diverse) → un solo movimento da 340, flag su entrambi
+      movimenti=1 totale=340.00 importi=0,340 flag=true
+OK — 2. due ricostruzioni concorrenti (chiavi diverse) → una scrive 100, l’altra «nulla_da_scrivere»
+      scritti=1 nulla=1 movimenti=1 totale=100.00
+OK — 3. stessa chiave su altro soggiorno → CHIAVE_RIUSATA, nessun movimento in più
+      errore="CHIAVE_RIUSATA" movimenti=2
+OK — 4. anon: EXECUTE negato sulle RPC 0033 e lettura negata su room_closures
+      rpc="permission denied for function segna_pagato" tabella="permission denied for table room_closures"
+OK — 5. authenticated: senza JWT → NON_AUTENTICATO; con JWT → RPC ok (stessa chiave → stesso movimento), room_closures scrivibile e leggibile
+      senzaJwt="NON_AUTENTICATO" importo=340 chiusure=1

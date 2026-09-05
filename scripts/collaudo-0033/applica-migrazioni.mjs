@@ -57,6 +57,24 @@ for (const f of migrazioni) {
   // Come in produzione: dopo la 0020 e prima della 0021 il bootstrap dell'owner (script manuale del progetto)
   if (f.startsWith('0020_')) await esegui('supabase/bootstrap_owner.sql', readFileSync(new URL('../../supabase/bootstrap_owner.sql', import.meta.url), 'utf8'))
 }
+// DRIFT DOCUMENTATO (collaudo del 06/09/2026): in produzione queste colonne di
+// bookings esistono (le usa il gestionale: pagato, bonifico, nome della
+// prenotazione, letto per notte, contatti extra, colore, orario di arrivo) ma
+// sono state aggiunte a mano nell'editor SQL senza un file di migrazione. Qui
+// si aggiungono con «if not exists» per avere lo stesso schema della
+// produzione; da registrare in una migrazione vera (fuori da questo incarico).
+await esegui('drift: colonne di bookings presenti in produzione senza migrazione', `
+alter table public.bookings add column if not exists pagato boolean not null default false;
+alter table public.bookings add column if not exists bonifico boolean not null default false;
+alter table public.bookings add column if not exists guest_name text;
+alter table public.bookings add column if not exists extra_bed_dates jsonb;
+alter table public.bookings add column if not exists extra_phone_1 text;
+alter table public.bookings add column if not exists extra_phone_1_name text;
+alter table public.bookings add column if not exists extra_phone_2 text;
+alter table public.bookings add column if not exists extra_phone_2_name text;
+alter table public.bookings add column if not exists color text;
+alter table public.bookings add column if not exists check_in_time text;
+`)
 for (const f of ['0033_pagamenti_idempotenti.BOZZA.sql', '0034_room_closures.BOZZA.sql']) {
   const sql = readFileSync(new URL(`../../supabase/proposte/${f}`, import.meta.url), 'utf8')
   await esegui(`proposta ${f}`, sql)
