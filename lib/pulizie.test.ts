@@ -360,3 +360,23 @@ test('AUTOMATICA · caso Allegra: partenza, arrivo il giorno dopo, partenza oggi
   const totali = pulizieAutomatiche([primo, secondo], fatta, oggi).length + fatta.filter(e => e.stato === 'fatta').length
   assert.equal(totali, 2)
 })
+
+// Caso Rosa Macauda (5 settembre 2026, regola confermata da Ania): con un
+// cambio camera la nuova camera è consegnata pulita, quindi il conteggio
+// delle 4 notti riparte dal giorno del trasloco. Una pulizia saltata nella
+// camera vecchia resta lì e non viaggia con l'ospite.
+test('cambio camera: il ciclo delle 4 notti riparte dal trasloco, il salto resta nella camera vecchia', () => {
+  const ambra = prenotazione({ guest_id: 'g-rosa', guest_name: 'Rosa', room_id: AMBRA, check_in: '2026-09-01', check_out: '2026-09-07' })
+  const amelia = prenotazione({ guest_id: 'g-rosa', guest_name: 'Rosa', room_id: AMELIA, check_in: '2026-09-07', check_out: '2026-09-15' })
+  const saltata = decisione({ room_id: AMBRA, booking_id: ambra.id, tipo: 'soggiorno', stato: 'saltata', data_prevista: '2026-09-05', prossima_data: '2026-09-09' })
+  // Ambra: dopo il salto non c'è altro cambio prima della partenza
+  assert.equal(cicloCambio([ambra, amelia], ambra, [saltata]).due, null)
+  assert.deepEqual(pulizieAperte([ambra, amelia], AMBRA, '2026-09-06', [saltata]), [])
+  // Amelia: 7 + 4 = 11, non il 9 proposto dal salto in Ambra
+  assert.equal(cicloCambio([ambra, amelia], amelia, [saltata]).due, '2026-09-11')
+  assert.deepEqual(pulizieAperte([ambra, amelia], AMELIA, '2026-09-09', [saltata]), [])
+  assert.equal(pulizieAperte([ambra, amelia], AMELIA, '2026-09-11', [saltata])[0]?.tipo, 'soggiorno')
+  // Se il soggiorno nella nuova camera dura esattamente 4 notti, nessun cambio
+  const breve = { ...amelia, check_out: '2026-09-11' }
+  assert.equal(cicloCambio([ambra, breve], breve, [saltata]).due, null)
+})
