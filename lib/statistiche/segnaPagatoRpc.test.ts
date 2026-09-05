@@ -11,6 +11,8 @@ const SCHEMA = `
 create schema auth;
 create function auth.uid() returns uuid language sql as 'select ''cccccccc-0000-4000-8000-000000000000''::uuid';
 create role authenticated; create role anon; create role service_role;
+-- come su Supabase: i privilegi predefiniti dello schema public danno EXECUTE anche ad anon
+alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
 create table public.rooms (id uuid primary key, name text not null);
 create table public.guests (id uuid primary key, phone text not null unique, full_name text);
 create table public.bookings (
@@ -138,8 +140,13 @@ test('R9: tutto-o-niente sul batch (soggiorno futuro → nessuna riga scritta), 
   await assert.rejects(db.query('select public.ricostruisci_incassi($1::jsonb)', [JSON.stringify([{ soggiorno: D }])]), /VOCE_NON_VALIDA/)
 })
 
-test('R8: permessi — EXECUTE tolto a PUBLIC e concesso ad authenticated', async () => {
-  const acl = (await db.query<{ proacl: string | null }>(`select proacl::text as proacl from pg_proc where proname = 'segna_pagato'`)).rows[0].proacl ?? ''
-  assert.match(acl, /authenticated=X/)
-  assert.doesNotMatch(acl, /^\{=X/)
+test('R8: permessi — EXECUTE ad authenticated e service_role, MAI ad anon o PUBLIC anche con i privilegi predefiniti di Supabase; helper non eseguibili dai client', async () => {
+  for (const f of ['segna_pagato', 'registra_acconto', 'ricostruisci_incassi']) {
+    const r = (await db.query<{ anon: boolean; auth: boolean; pub: boolean }>(`select has_function_privilege('anon', oid, 'execute') as anon, has_function_privilege('authenticated', oid, 'execute') as auth, has_function_privilege('public', oid, 'execute') as pub from pg_proc where proname = $1`, [f])).rows[0]
+    assert.deepEqual([f, r.anon, r.auth, r.pub], [f, false, true, false])
+  }
+  for (const f of ['soggiorno_di', 'blocca_soggiorno', 'metodo_pagamento_valido']) {
+    const r = (await db.query<{ anon: boolean; auth: boolean }>(`select has_function_privilege('anon', oid, 'execute') as anon, has_function_privilege('authenticated', oid, 'execute') as auth from pg_proc where proname = $1`, [f])).rows[0]
+    assert.deepEqual([f, r.anon, r.auth], [f, false, false])
+  }
 })

@@ -246,13 +246,18 @@ begin
 end;
 $$;
 
--- Permessi: niente EXECUTE implicito a PUBLIC
-revoke execute on function public.soggiorno_di(uuid) from public;
-revoke execute on function public.blocca_soggiorno(text) from public;
-revoke execute on function public.metodo_pagamento_valido(text) from public;
-revoke execute on function public.segna_pagato(uuid, uuid, text, date) from public;
-revoke execute on function public.registra_acconto(uuid, uuid, numeric, text, date) from public;
-revoke execute on function public.ricostruisci_incassi(jsonb) from public;
+-- Permessi: niente EXECUTE implicito a PUBLIC. Su Supabase i privilegi
+-- PREDEFINITI dello schema public concedono EXECUTE anche ad anon e
+-- authenticated: il solo «revoke from public» NON basta (trovato nel
+-- collaudo su PostgreSQL 16 con gli stessi default), quindi si revoca
+-- esplicitamente da anon; gli helper si revocano a tutti (li usano solo le
+-- funzioni security definer, che girano come proprietario).
+revoke execute on function public.soggiorno_di(uuid) from public, anon, authenticated, service_role;
+revoke execute on function public.blocca_soggiorno(text) from public, anon, authenticated, service_role;
+revoke execute on function public.metodo_pagamento_valido(text) from public, anon, authenticated, service_role;
+revoke execute on function public.segna_pagato(uuid, uuid, text, date) from public, anon;
+revoke execute on function public.registra_acconto(uuid, uuid, numeric, text, date) from public, anon;
+revoke execute on function public.ricostruisci_incassi(jsonb) from public, anon;
 grant execute on function public.segna_pagato(uuid, uuid, text, date) to authenticated, service_role;
 grant execute on function public.registra_acconto(uuid, uuid, numeric, text, date) to authenticated, service_role;
 grant execute on function public.ricostruisci_incassi(jsonb) to authenticated, service_role;
