@@ -9,6 +9,9 @@ import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
 import { contoSoggiorno } from '@/lib/conto'
 import { smartBack, returnToSicuro } from '@/lib/navHistory'
 import { messaggioErroreDati } from '@/lib/connessione'
+import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
+import { leggiConEsito } from '@/lib/prenotazioneScritture'
+import AvvisoAzione from '@/components/AvvisoAzione'
 
 // forme MINIME delle righe lette da Supabase (solo i campi usati qui)
 type ClienteRiga = {
@@ -69,6 +72,11 @@ function NuovaPrenotazione() {
   const [nameResults, setNameResults] = useState<ClienteRiga[]>([])
   const [guest, setGuest] = useState<ClienteRiga | null>(null)
   const [guestHistory, setGuestHistory] = useState<SoggiornoRiga[]>([])
+  // Errori di salvataggio visibili, parte 2 (05/09/2026): lo storico del
+  // cliente con errore lo dice (con Riprova) invece di sembrare vuoto; l'update
+  // del cliente esistente è controllato prima di inserire la prenotazione
+  const [erroreStorico, setErroreStorico] = useState<string | null>(null)
+  const [erroreCliente, setErroreCliente] = useState<string | null>(null)
   const [rooms, setRooms] = useState<CameraRiga[]>([])
   const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', shuttle: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '', bonifico: false, source: 'diretta', extra_phone_1_name: '', chi_e: '' })
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as string })
@@ -118,14 +126,24 @@ function NuovaPrenotazione() {
     if (preselectedGuestId) loadGuestById(preselectedGuestId)
   }, [])
 
+  // Storico soggiorni del cliente: con un errore la lista resta vuota MA
+  // compare l'avviso con «Riprova» (lib/prenotazioneScritture.leggiConEsito)
+  async function caricaStorico(guestId: string) {
+    setErroreStorico(null)
+    const { data, errore } = await leggiConEsito<SoggiornoRiga[]>(
+      () => supabase.from('bookings').select('*, rooms(name)').eq('guest_id', guestId).order('check_in', { ascending: false }),
+      'caricare lo storico del cliente')
+    setGuestHistory(errore ? [] : (data || []))
+    setErroreStorico(errore)
+  }
+
   async function loadGuestById(guestId: string) {
     const { data: g, error } = await supabase.from('guests').select('*').eq('id', guestId).single()
     if (error) { setSearchError(messaggioErroreDati(error, 'caricare il cliente')); return }
     if (g) {
       setGuest(g)
       setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
-      const { data: history } = await supabase.from('bookings').select('*, rooms(name)').eq('guest_id', g.id).order('check_in', { ascending: false })
-      setGuestHistory(history || [])
+      await caricaStorico(g.id)
       setStep('cliente')
     }
   }
@@ -167,8 +185,7 @@ function NuovaPrenotazione() {
       const g = combined[0]
       setGuest(g)
       setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
-      const { data: history } = await supabase.from('bookings').select('*, rooms(name)').eq('guest_id', g.id).order('check_in', { ascending: false })
-      setGuestHistory(history || [])
+      await caricaStorico(g.id)
       setNameResults([])
       setStep('cliente')
     } else if (combined.length > 1) {
@@ -185,8 +202,7 @@ function NuovaPrenotazione() {
   async function selectGuestFromList(g: ClienteRiga) {
     setGuest(g)
     setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
-    const { data: history } = await supabase.from('bookings').select('*, rooms(name)').eq('guest_id', g.id).order('check_in', { ascending: false })
-    setGuestHistory(history || [])
+    await caricaStorico(g.id)
     setNameResults([])
     setStep('cliente')
   }
@@ -212,8 +228,7 @@ function NuovaPrenotazione() {
     if (existingGuest) {
       setGuest(existingGuest)
       setGuestForm({ full_name: existingGuest.full_name || '', email: existingGuest.email || '', rating: existingGuest.rating })
-      const { data: history } = await supabase.from('bookings').select('*, rooms(name)').eq('guest_id', existingGuest.id).order('check_in', { ascending: false })
-      setGuestHistory(history || [])
+      await caricaStorico(existingGuest.id)
     } else {
       // cerca nei contatti extra (prova sia con che senza prefisso 39)
       const tShort = t.startsWith('39') ? t.slice(2) : t
@@ -230,8 +245,7 @@ function NuovaPrenotazione() {
         const g = extraMatch.guests
         setGuest(g)
         setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: g.rating })
-        const { data: history } = await supabase.from('bookings').select('*, rooms(name)').eq('guest_id', g.id).order('check_in', { ascending: false })
-        setGuestHistory(history || [])
+        await caricaStorico(g.id)
       } else {
         setGuest(null)
         setGuestForm({ full_name: '', email: '', rating: 'normale' })
@@ -352,7 +366,19 @@ function NuovaPrenotazione() {
       }
       guestId = newGuest.id
     } else {
-      await supabase.from('guests').update({ full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating }).eq('id', guestId)
+      // Cliente esistente: se i suoi dati non si salvano, la prenotazione NON
+      // viene inserita (mai una prenotazione con un cliente non aggiornato senza dirlo)
+      setErroreCliente(null)
+      const idCliente = guestId
+      const errore = await scriviPoiAggiorna(
+        () => supabase.from('guests').update({ full_name: guestForm.full_name || null, email: guestForm.email || null, rating: guestForm.rating }).eq('id', idCliente),
+        () => {},
+      )
+      if (errore) {
+        setErroreCliente(`${errore}: i dati del cliente non sono stati salvati`)
+        setSaving(false)
+        return
+      }
     }
     const ebt = extraBedTotal()
     // Se è un cambio camera usa il group_id esistente, altrimenti ne crea uno nuovo
@@ -498,6 +524,9 @@ function NuovaPrenotazione() {
               <p className="font-semibold">{guest.full_name || phone}</p>
               <p className="text-sm text-gray-500">📞 {guest.phone}</p>
               {guest.email && <p className="text-sm text-gray-500">✉️ {guest.email}</p>}
+              {erroreStorico && guest && (
+                <AvvisoAzione testo={erroreStorico} onRiprova={() => { void caricaStorico(guest.id) }} className="mt-3" />
+              )}
               {guestHistory.length > 0 && (
                 <div className="mt-3 border-t border-card-border pt-3">
                   <p className="text-[11px] uppercase mb-2 text-brass" style={{ letterSpacing: '2px' }}>Storico soggiorni ({guestHistory.length})</p>
@@ -832,6 +861,7 @@ function NuovaPrenotazione() {
               ❌ {saveError}
             </div>
           )}
+          {erroreCliente && <AvvisoAzione testo={erroreCliente} className="mb-4" />}
 
           <button onClick={save} disabled={saving || !form.room_id || !form.check_in || !form.check_out || notti() <= 0 || !!conflitto || (form.extra_bed && form.extra_bed_dates.some(day => { const contrib = lettiPoolPrenotazione({ ...form, extra_bed: true }); return (extraBedsPerDay[day] || 0) + contrib > 2 }))}
             className="w-full bg-green-mid text-white rounded-xl py-3 font-semibold disabled:opacity-50">
