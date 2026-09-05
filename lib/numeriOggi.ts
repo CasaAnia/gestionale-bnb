@@ -49,26 +49,33 @@ export function numeriOggi(prenotazioni: PrenotazioneOggi[], camere: CameraOggi[
 export const testoOccupate = (n: NumeriOggi) => `${n.camereOccupate} su ${n.camereTotali}`
 
 // ── Striscia della settimana (07/09/2026; regola delle Pulizie dall'08/09) ──
-// Camere da preparare in un giorno = STESSA regola della pagina Pulizie
-// (lib/pulizie.camereDaPreparareGiorno): partenze e cambi camera con la
-// scadenza quel giorno (rimandi di Ania compresi), cambi biancheria ogni 4
-// notti dei soggiorni lunghi (rettifiche registrate comprese), ogni camera
-// contata una volta al giorno. Così Home e Pulizie dicono sempre lo stesso numero.
-import { camereDaPreparareGiorno, type Decisione } from './pulizie.ts'
+// Ogni giorno: STESSA regola e stessa fonte della pagina Pulizie
+// (lib/pulizie.conteggioGiorno): quante camere hanno pulizie ancora da fare
+// (il numero) e quante le hanno tutte fatte («✓»); niente = «—».
+import { conteggioGiorno, type Decisione } from './pulizie.ts'
 
 export const GIORNI_STRISCIA = 28
 export const GIORNI_VISIBILI_TELEFONO = 7
 export const GIORNI_VISIBILI_MAC = 14
 
-export type GiornoStriscia = { giorno: string; camere: number; oggi: boolean; inizioSettimana: boolean }
+export type GiornoStriscia = { giorno: string; daFare: number; fatte: number; oggi: boolean; inizioSettimana: boolean }
 
-export function strisciaSettimane(rooms: { id: string }[], prenotazioni: Parameters<typeof camereDaPreparareGiorno>[1], events: Decisione[], oggi: string, giorni = GIORNI_STRISCIA): GiornoStriscia[] {
+export function strisciaSettimane(rooms: { id: string }[], prenotazioni: Parameters<typeof conteggioGiorno>[1], events: Decisione[], oggi: string, giorni = GIORNI_STRISCIA): GiornoStriscia[] {
   const out: GiornoStriscia[] = []
   for (let i = 0; i < giorni; i++) {
     const giorno = new Date(Date.parse(oggi + 'T00:00:00Z') + i * 86400000).toISOString().slice(0, 10)
-    out.push({ giorno, camere: camereDaPreparareGiorno(rooms, prenotazioni, events, giorno, oggi), oggi: i === 0, inizioSettimana: i > 0 && i % 7 === 0 })
+    const c = conteggioGiorno(rooms, prenotazioni, events, giorno, oggi)
+    out.push({ giorno, daFare: c.daFare, fatte: c.fatte, oggi: i === 0, inizioSettimana: i > 0 && i % 7 === 0 })
   }
   return out
+}
+
+// Cosa mostra la casella: il numero delle pulizie da fare, «✓» se tutte
+// fatte, «—» se non c'è nulla
+export function testoCasella(g: Pick<GiornoStriscia, 'daFare' | 'fatte'>): { testo: string; tono: 'numero' | 'fatto' | 'niente' } {
+  if (g.daFare > 0) return { testo: String(g.daFare), tono: 'numero' }
+  if (g.fatte > 0) return { testo: '✓', tono: 'fatto' }
+  return { testo: '—', tono: 'niente' }
 }
 
 // «sab 6» — giorno della settimana breve, senza fuso orario

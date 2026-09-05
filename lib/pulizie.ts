@@ -574,38 +574,69 @@ export function calcolaNotifica(rooms: any[], tutteLePrenotazioni: any[], events
 
 // ------------------------------------------- lavori di UN giorno (Home + Pulizie)
 
-// Le pulizie previste in una camera in un GIORNO preciso, con la stessa regola
-// della pagina Pulizie (08/09/2026, striscia della settimana in Home):
-//  · per oggi: le pulizie aperte (pulizieAperte: partenza/cambio camera con
-//    scadenza oggi o in ritardo, cambio biancheria scaduto o in scadenza oggi);
-//  · per un giorno futuro: partenze e cambi camera la cui scadenza — dopo
-//    gli eventuali rimandi di Ania — cade quel giorno e non sono già chiusi,
-//    più il cambio biancheria (ogni 4 notti, rettifiche comprese) che scade
-//    quel giorno per chi resta in camera.
-// Un arrivo in una camera vuota non è un lavoro (la camera è già pronta);
-// l'arrivo per cambio camera conta sulla camera LASCIATA (tipo cambio_camera).
+// Stato di una camera in un GIORNO preciso, con la stessa regola e la stessa
+// fonte della pagina Pulizie (08/09/2026, striscia della settimana in Home):
+//  · partenze e cambi camera con la scadenza quel giorno (rimandi di Ania
+//    compresi): da fare finché non sono segnati fatti/saltati; per oggi anche
+//    quelli in ritardo (come la sezione «Oggi»); la pulizia AUTOMATICA alla
+//    partenza (nuovo ospite nella stessa camera entro il giorno dopo, già
+//    avvenuta) vale come fatta;
+//  · cambio biancheria ogni 4 notti (rettifiche registrate comprese): da fare
+//    quando scade quel giorno (per oggi anche se scaduto), fatta se segnata
+//    fatta con data effettiva quel giorno;
+//  · arrivi (non prolungamenti): la camera conta come FATTA se è già pulita e
+//    segnata (l'ultima partenza precedente è chiusa o automatica, o non ce
+//    n'è), altrimenti come da fare.
+// Ogni camera conta UNA volta al giorno: «da fare» vince su «fatta».
+export type StatoCameraGiorno = 'da_fare' | 'fatta' | 'nessuna'
+export type ConteggioGiorno = { daFare: number; fatte: number }
 type Prenotazioni = Parameters<typeof pulizieAperte>[0]
-export function pulizieDelGiorno(bookings: Prenotazioni, roomId: string, giorno: string, oggi: string, events: Decisione[]): Pulizia[] {
-  if (giorno <= oggi) return giorno === oggi ? pulizieAperte(bookings, roomId, oggi, events) : []
-  const out: Pulizia[] = []
-  const partenze = bookings
-    .filter(b => b.room_id === roomId && b.check_out <= giorno && b.check_out >= CUTOFF_STORICO && !continuaIn(bookings, b))
+
+export function statoCameraGiorno(bookings: Prenotazioni, roomId: string, giorno: string, oggi: string, events: Decisione[]): StatoCameraGiorno {
+  if (giorno < oggi) return 'nessuna'
+  let daFare = false, fatta = false
+  const segna = (fattaQuesta: boolean) => { if (fattaQuesta) fatta = true; else daFare = true }
+  const chiusaOAutomatica = (partenza: Prenotazioni[number]) => {
+    const st = statoFineSoggiorno(bookings, partenza, events)
+    return st.chiusa || (partenza.check_out <= oggi && !!cambioOspiteAutomatico(bookings, partenza, events))
+  }
+
+  // Partenze e cambi camera
+  const partenze = bookings.filter(b => b.room_id === roomId && b.check_out <= giorno && b.check_out >= CUTOFF_STORICO && !continuaIn(bookings, b))
   for (const p of partenze) {
     const st = statoFineSoggiorno(bookings, p, events)
-    if (st.chiusa || st.due !== giorno) continue
-    out.push({ roomId, tipo: st.tipo, booking: p, prevista: p.check_out, due: st.due, ritardo: 0, rinvii: st.rinvii, cambioCameraVerso: st.cambioCameraVerso })
+    if (st.due === giorno) segna(chiusaOAutomatica(p))
   }
+  if (giorno === oggi) {
+    // In ritardo (come «Oggi» della pagina): l'ultima partenza aperta con scadenza passata
+    const fs = partenzaAperta(bookings, roomId, oggi, events)
+    if (fs && fs.due < oggi) segna(!!cambioOspiteAutomatico(bookings, fs.partenza, events))
+  }
+
+  // Cambio biancheria
   const inCorso = bookings.find(b => b.room_id === roomId && b.check_in <= giorno && b.check_out > giorno) || null
   if (inCorso) {
     const ciclo = cicloCambio(bookings, inCorso, events)
-    if (ciclo.due === giorno) out.push({ roomId, tipo: 'soggiorno', booking: inCorso, prevista: ciclo.prevista || ciclo.due, due: ciclo.due, ritardo: 0, rinvii: ciclo.rinvii })
+    if (ciclo.due === giorno || (giorno === oggi && ciclo.due !== null && ciclo.due < oggi)) segna(false)
   }
-  return out
+  if ((events || []).some(e => e.room_id === roomId && e.tipo === 'soggiorno' && e.stato === 'fatta' && (e.data_effettiva || e.data_prevista) === giorno)) segna(true)
+
+  // Arrivi: la camera è pronta?
+  const arrivi = bookings.filter(b => b.room_id === roomId && b.check_in === giorno && !continuaDa(bookings, b))
+  if (arrivi.length > 0) {
+    const precedente = bookings
+      .filter(b => b.room_id === roomId && b.check_out <= giorno && !continuaIn(bookings, b) && !arrivi.some(a => a.id === b.id))
+      .sort((a, b) => a.check_out.localeCompare(b.check_out)).slice(-1)[0]
+    const pronta = !precedente || precedente.check_out < CUTOFF_STORICO || chiusaOAutomatica(precedente)
+    segna(pronta)
+  }
+  return daFare ? 'da_fare' : fatta ? 'fatta' : 'nessuna'
 }
 
-// Quante camere hanno almeno un lavoro quel giorno (ogni camera una volta):
-// è IL numero della striscia in Home e quello della pagina Pulizie.
-export function camereDaPreparareGiorno(rooms: { id: string }[], tutteLePrenotazioni: Prenotazioni, events: Decisione[], giorno: string, oggi: string): number {
+// Quante camere hanno pulizie ancora da fare e quante le hanno tutte fatte
+// quel giorno: È IL numero della striscia in Home e della pagina Pulizie.
+export function conteggioGiorno(rooms: { id: string }[], tutteLePrenotazioni: Prenotazioni, events: Decisione[], giorno: string, oggi: string): ConteggioGiorno {
   const bookings = attive(tutteLePrenotazioni)
-  return rooms.filter(r => pulizieDelGiorno(bookings, r.id, giorno, oggi, events).length > 0).length
+  const stati = rooms.map(r => statoCameraGiorno(bookings, r.id, giorno, oggi, events))
+  return { daFare: stati.filter(s => s === 'da_fare').length, fatte: stati.filter(s => s === 'fatta').length }
 }

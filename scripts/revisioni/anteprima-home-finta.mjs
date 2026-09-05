@@ -23,6 +23,7 @@
 //               «Franca Fabbri» in attesa da 1 ora → no; «Gino Galli» confermata → no
 //   Fatture     «Enel» 95,50 € scaduta il O−5; «Iren» in scadenza O+10 → no
 //   Tre numeri  arrivi oggi 1 («Arriva Oggi»), partenze oggi 1 («Parte Oggi»), camere occupate stanotte 2 su 4 (Amelia, Allegra)
+//   Striscia    oggi «✓» (Ambra fatta, Allegra pronta per l'arrivo), domani «1» (parte «Arriva Oggi» da Allegra)
 //   Rinvii      tabella da_controllare_rinvii IN MEMORIA (upsert accettato);
 //               GET /finto/senza-rinvii?on=1 la fa sparire (PGRST205) per provare l'avviso
 //   Errore      GET /finto/errore-richieste?on=1 fa fallire la lettura di `richieste`
@@ -120,7 +121,13 @@ const payments = [
   { id: 'dddddddd-0001-4000-8000-000000000001', booking_id: P(G.giulio.id), amount: 100, method: 'contanti', paid_on: O(-6), created_at: ora },
   { id: 'dddddddd-0002-4000-8000-000000000002', booking_id: P(G.elena.id), amount: 160, method: 'bonifico', paid_on: O(-20), created_at: ora },
 ]
-const cleanings = []
+// Pulizie segnate (08/09/2026, striscia «solo da fare»): la partenza di Giulio da Allegra
+// e quella di «Parte Oggi» da Ambra sono fatte → oggi la casella mostra «✓»; domani
+// resta da fare la partenza di «Arriva Oggi» da Allegra → «1»
+const cleanings = [
+  { id: 'cccccccc-0001-4000-8000-000000000001', room_id: ROOM.allegra, booking_id: P(G.giulio.id), tipo: 'fine_soggiorno', stato: 'fatta', data_prevista: O(-4), data_effettiva: O(-4), prossima_data: null, cambio_biancheria: true, note: null, created_at: new Date(adesso.getTime() - 4 * 86400000).toISOString() },
+  { id: 'cccccccc-0002-4000-8000-000000000002', room_id: ROOM.ambra, booking_id: P(G.oggiOut.id), tipo: 'fine_soggiorno', stato: 'fatta', data_prevista: O(0), data_effettiva: O(0), prossima_data: null, cambio_biancheria: true, note: null, created_at: adesso.toISOString() },
+]
 
 let r = 0
 function richiesta(nome, cognome, stato, arrivo, partenza, created_at, proposta_inviata_at = null) {

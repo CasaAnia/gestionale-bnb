@@ -10,7 +10,7 @@ import {
   attive, pulizieAperte, prossimoArrivo, prioritaDi, testoArrivo, cicloCambio,
   partenzaAperta, cambioCameraIn, continuaDa, cambioCameraOut,
   soggiornoContinuativo, todayStr, addDaysStr, diffDays, cronologiaCamera,
-  pulizieAutomatiche, camereDaPreparareGiorno, NOTTI_CAMBIO, GIORNI_PREAVVISO, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA,
+  pulizieAutomatiche, conteggioGiorno, NOTTI_CAMBIO, GIORNI_PREAVVISO, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA,
   type Pulizia, type Priorita, type Decisione, type VoceCronologia, type PuliziaAutomatica, type TipoPulizia,
 } from '@/lib/pulizie'
 
@@ -224,8 +224,9 @@ export default function Pulizie() {
   const righeOggi = righe.filter(r => r.aperte.length > 0)
   const righeProssimi = righe.filter(r => r.aperte.length === 0 && r.prossimo)
   const giorniProssimi = Array.from(new Set(righeProssimi.map(r => r.prossimo!.date))).sort()
-  // Stesso numero della striscia in Home (lib/pulizie.camereDaPreparareGiorno, 08/09/2026)
-  const daRifare = camereDaPreparareGiorno(rooms, prenotazioni, events, td, td)
+  // Stesso numero della striscia in Home (lib/pulizie.conteggioGiorno, 08/09/2026):
+  // le camere con pulizie ancora da fare oggi (le automatiche valgono come fatte)
+  const daRifare = conteggioGiorno(rooms, prenotazioni, events, td, td).daFare
 
   const shortNameOf = (id: string) => {
     const r = rooms.find(rr => rr.id === id)
@@ -541,13 +542,14 @@ export default function Pulizie() {
               {giorniProssimi.map(g => {
                 const h = intestazioneGiorno(g, td)
                 // Camere con un lavoro quel giorno: lo stesso numero della striscia in Home
-                const n = camereDaPreparareGiorno(rooms, prenotazioni, events, g, td)
+                const c = conteggioGiorno(rooms, prenotazioni, events, g, td)
+                const n = c.daFare
                 return (
-                  <div key={g} id={`pulizie-giorno-${g}`} className="mb-4 scroll-mt-20" data-camere-giorno={n}>
+                  <div key={g} id={`pulizie-giorno-${g}`} className="mb-4 scroll-mt-20" data-camere-giorno={n} data-fatte-giorno={c.fatte}>
                     <div className="flex items-baseline gap-2 mb-2">
                       <span className="text-[11px] uppercase" style={{ letterSpacing: '2px', color: '#8a9488' }}>{h.label}</span>
                       {h.sub && <span className="text-xs text-stone">{h.sub}</span>}
-                      {n > 0 && <span className="text-xs text-stone">· {n === 1 ? '1 camera' : `${n} camere`}</span>}
+                      {n > 0 ? <span className="text-xs text-stone">· {n === 1 ? '1 camera da fare' : `${n} camere da fare`}</span> : c.fatte > 0 ? <span className="text-xs text-stone">· tutte fatte ✓</span> : null}
                     </div>
                     <div className="flex flex-col gap-3">
                       {righeProssimi.filter(r => r.prossimo!.date === g).map(riga => cardProssimo(riga))}
