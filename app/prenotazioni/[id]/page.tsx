@@ -15,8 +15,9 @@ import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio } from '@/lib
 import { causaleBonifico } from '@/lib/causale'
 import { contoSoggiorno, residuoDaPagare } from '@/lib/conto'
 import { smartBack } from '@/lib/navHistory'
-import { scriviPoiAggiorna, messaggioNonSalvato } from '@/lib/scritturaSicura'
+import { scriviPoiAggiorna, messaggioNonSalvato, MESSAGGIO_NON_SALVATO } from '@/lib/scritturaSicura'
 import { salvaInSequenza, leggiConEsito, MESSAGGIO_RILETTURA } from '@/lib/prenotazioneScritture'
+import { movimentoSaldo, saldoMancanteCent, METODI_PAGAMENTO, type MetodoPagamento } from '@/lib/statistiche'
 import AvvisoAzione from '@/components/AvvisoAzione'
 
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐ Ottimo', problematico: '⚠️ Problematico', vuole_ricevuta: '🧾 Vuole ricevuta', normale: '👤 Normale' }
@@ -378,6 +379,11 @@ export default function BookingDetail() {
   const [erroreConferma, setErroreConferma] = useState<string | null>(null)
   const [segnandoPagato, setSegnandoPagato] = useState(false)
   const [errorePagato, setErrorePagato] = useState<string | null>(null)
+  // Statistiche, numeri corretti — pezzo 4 (05/09/2026): «Segna come pagato»
+  // registra PRIMA il movimento del saldo mancante (totale del soggiorno meno
+  // i movimenti già registrati, data di oggi, metodo scelto qui), POI il flag.
+  const [finestraPagato, setFinestraPagato] = useState(false)
+  const [metodoPagato, setMetodoPagato] = useState<MetodoPagamento>('bonifico')
   // Parte 2 (05/09/2026): avvisi delle altre azioni della scheda. avvisoScheda
   // sta in cima alla scheda (rilettura fallita dopo un salvataggio riuscito,
   // cliente non aggiornato, log WhatsApp non registrato); gli altri stanno
@@ -702,17 +708,38 @@ export default function BookingDetail() {
     }
   }
 
-  // «Segna come pagato» (bonifico ricevuto): stessa regola della conferma.
+  // Segmenti del soggiorno (cambio camera = più righe) per il conto del saldo
+  const segmentiSoggiorno = () => (groupBookings.length > 0 ? groupBookings : [booking])
+
+  // «Segna come pagato»: 1) movimento del saldo mancante in payments (se resta
+  // qualcosa da registrare); 2) flag pagato. Se il movimento non si scrive il
+  // flag NON cambia e compare l'avviso; se il flag non si scrive dopo il
+  // movimento, l'avviso lo dice e il secondo tentativo scrive solo il flag
+  // (il saldo mancante è ormai zero).
   async function segnaPagato() {
     if (segnandoPagato) return
     setSegnandoPagato(true)
     setErrorePagato(null)
     try {
+      const movimento = movimentoSaldo(segmentiSoggiorno(), acconti, new Date().toISOString().split('T')[0], metodoPagato, booking.id)
+      let nuovoMovimento: Record<string, unknown> | null = null
+      if (movimento) {
+        const { data, error } = await supabase.from('payments').insert(movimento).select().single()
+        if (error) { setErrorePagato(`${MESSAGGIO_NON_SALVATO}: il pagamento non è stato registrato`); return }
+        nuovoMovimento = data
+      }
       const errore = await scriviPoiAggiorna(
         () => supabase.from('bookings').update({ pagato: true }).eq('id', id),
-        () => setBooking({ ...booking, pagato: true }),
+        () => {
+          setBooking({ ...booking, pagato: true })
+          if (nuovoMovimento) setAcconti(a => [...a, nuovoMovimento])
+          setFinestraPagato(false)
+        },
       )
-      setErrorePagato(errore)
+      if (errore) {
+        if (nuovoMovimento) setAcconti(a => [...a, nuovoMovimento])
+        setErrorePagato(nuovoMovimento ? 'Pagamento registrato, ma non segnato come pagato: riprova' : errore)
+      }
     } finally {
       setSegnandoPagato(false)
     }
@@ -1898,10 +1925,44 @@ export default function BookingDetail() {
           pagato/movimenti non cambia. */}
       {!editing && booking.bonifico && !booking.pagato && booking.status !== 'annullata' && (
         <div className="mb-4 space-y-2">
-          <button onClick={segnaPagato} disabled={segnandoPagato}
-            className="w-full bg-[#7D9DB0] text-white lg:bg-[#EAF0F3] lg:text-[#3D5A66] rounded-xl py-3 font-semibold disabled:opacity-60">
-            {segnandoPagato ? 'Salvo...' : '✅ Segna come pagato'}
-          </button>
+          {!finestraPagato ? (
+            <button onClick={() => { setErrorePagato(null); setFinestraPagato(true) }}
+              className="w-full bg-[#7D9DB0] text-white lg:bg-[#EAF0F3] lg:text-[#3D5A66] rounded-xl py-3 font-semibold">
+              ✅ Segna come pagato
+            </button>
+          ) : (() => {
+            const mancante = saldoMancanteCent(segmentiSoggiorno(), acconti)
+            return (
+              <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm">
+                <p className="text-sm font-semibold text-green-dark">Segna come pagato</p>
+                <p className="text-[12px] text-gray-500 mt-0.5">
+                  {mancante > 0
+                    ? <>Registro un pagamento di <span className="font-semibold text-green-dark">€{(mancante / 100).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> con la data di oggi (il saldo che manca), poi segno la prenotazione come pagata.</>
+                    : <>I pagamenti registrati coprono già il totale: segno solo la prenotazione come pagata.</>}
+                </p>
+                {mancante > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {METODI_PAGAMENTO.map(m => (
+                      <button key={m.chiave} type="button" onClick={() => setMetodoPagato(m.chiave)} aria-pressed={metodoPagato === m.chiave}
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold border ${metodoPagato === m.chiave ? 'bg-green-mid text-white border-green-mid' : 'bg-white text-gray-600 border-[#C9BFA8]'}`}>
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2 mt-3">
+                  <button onClick={segnaPagato} disabled={segnandoPagato}
+                    className="flex-1 bg-[#7D9DB0] text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
+                    {segnandoPagato ? 'Salvo...' : 'Conferma'}
+                  </button>
+                  <button type="button" onClick={() => { setFinestraPagato(false); setErrorePagato(null) }} disabled={segnandoPagato}
+                    className="flex-1 bg-white text-gray-600 rounded-xl py-2.5 text-sm font-semibold border border-[#C9BFA8]">
+                    Annulla
+                  </button>
+                </div>
+              </div>
+            )
+          })()}
           {errorePagato && <AvvisoAzione testo={errorePagato} />}
         </div>
       )}
