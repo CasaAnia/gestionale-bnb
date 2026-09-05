@@ -1,23 +1,73 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
-import type { Booking, Expense } from '@/lib/types'
 import { getUpcomingRoomChanges, buildChangeGroups } from '@/lib/roomChanges'
 import { nomeOspite } from '@/lib/guestName'
 import { useDemoMode } from '@/lib/useDemoMode'
-import { messaggioErroreDati } from '@/lib/connessione'
 import { useRichiesteWeb } from '@/lib/webRequests'
 import AvvisoAzione from '@/components/AvvisoAzione'
+import { leggiDatiHome, type DatiHome } from '@/lib/statisticheDati'
+import { cassaIntervallo, daIncassare, indiciIntervallo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE } from '@/lib/statistiche'
 
-function fmt(n: number) { return n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
-function today() { return new Date().toISOString().split('T')[0] }
-function tomorrow() { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0] }
+// «Statistiche, numeri corretti» (05/09/2026): NESSUNA formula in questa
+// pagina. I numeri del mese vengono da lib/statistiche sui dati del solo mese
+// (lib/statisticheDati), solo prenotazioni confermate/completate; gli stessi
+// quattro significati delle Statistiche. Denaro in centesimi → euro solo qui.
+const euro = (cent: number) => (cent / 100).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+function ymd(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+function today() { return ymd(new Date()) }
+function tomorrow() { return spostaGiorni(today(), 1) }
 function monthStart() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
-function monthEnd() { const d = new Date(); const last = new Date(d.getFullYear(), d.getMonth()+1, 0); return last.toISOString().split('T')[0] }
-function yearStart() { return `${new Date().getFullYear()}-01-01` }
+function nextMonthStart() { const d = new Date(); const n = new Date(d.getFullYear(), d.getMonth() + 1, 1); return ymd(n) }
 function italianDate() {
   return new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+// Tutti i numeri da lib/statistiche; qui solo la scelta delle righe da mostrare
+function calcola(d: DatiHome, td: string, tmr: string, ms: string, nms: string) {
+  const active: any[] = d.prenotazioni
+  const roomNameById: Record<string, string> = {}
+  active.forEach((x: any) => { if (x.rooms?.name) roomNameById[x.room_id] = x.rooms.name.split(' ').slice(-1)[0] })
+  const roomChanges = getUpcomingRoomChanges(active, roomNameById, [td, tmr])
+
+  // Un cambio camera di oggi non è né un check-in né un check-out: il segmento in
+  // arrivo (to) e quello in partenza (from) vanno tolti dalle liste e mostrati solo
+  // nella riga dedicata "⇄ CAMBIO".
+  const byId = new Map(active.map((x: any) => [x.id, x]))
+  const { edges } = buildChangeGroups(active)
+  const cambioInIds = new Set<string>()
+  const cambioOutIds = new Set<string>()
+  const cambioInDomaniIds = new Set<string>()
+  const cambioOutDomaniIds = new Set<string>()
+  for (const e of edges) {
+    const from: any = byId.get(e.fromId)
+    const to: any = byId.get(e.toId)
+    if (!from || !to) continue
+    if (to.check_in === td) {
+      cambioInIds.add(to.id)
+      if (from.check_out === td) cambioOutIds.add(from.id)
+    }
+    if (to.check_in === tmr) {
+      cambioInDomaniIds.add(to.id)
+      if (from.check_out === tmr) cambioOutDomaniIds.add(from.id)
+    }
+  }
+  const checkInOggi = active.filter((x: any) => x.check_in === td && !cambioInIds.has(x.id))
+  const checkOutOggi = active.filter((x: any) => x.check_out === td && !cambioOutIds.has(x.id))
+  const checkInDomani = active.filter((x: any) => x.check_in === tmr && !cambioInDomaniIds.has(x.id))
+  const checkOutDomani = active.filter((x: any) => x.check_out === tmr && !cambioOutDomaniIds.has(x.id))
+  const roomChangesOggi = roomChanges.filter((m: any) => m.date === td)
+  const roomChangesDomani = roomChanges.filter((m: any) => m.date === tmr)
+
+  // I quattro significati del mese (lib/statistiche/intervallo)
+  const cassa = cassaIntervallo(d.prenotazioni, d.pagamentiMese, d.spese, ms, nms)
+  // Occupazione = notti vendute ÷ notti vendibili (camere attive); ADR = tariffa media
+  const indici = indiciIntervallo(ms, nms, d.camere, d.prenotazioni)
+  // Da incassare: soggiorni con movimenti registrati ma non saldati
+  const nomeDi = new Map(d.prenotazioniConMovimenti.map((b: any) => [b.id, nomeOspite(b)]))
+  const daInc = daIncassare(d.prenotazioniConMovimenti, d.tuttiPagamenti).map(g => ({ ...g, guest: nomeDi.get(g.id) || g.nomi || 'Ospite' }))
+
+  return { cassa, indici, checkInOggi, checkOutOggi, checkInDomani, checkOutDomani, roomChangesOggi, roomChangesDomani, td, daIncassare: daInc }
 }
 
 export default function Dashboard() {
@@ -33,152 +83,21 @@ export default function Dashboard() {
   const richiesteWeb = useRichiesteWeb()
 
   useEffect(() => {
-    async function load() {
-      try {
-        await carica()
-      } catch (err) {
-        setErrore(messaggioErroreDati(err))
-        setLoading(false)
-      }
-    }
-    async function carica() {
-      const td = today()
-      const tmr = tomorrow()
-      const ms = monthStart()
-      const me = monthEnd()
-      const ys = yearStart()
-
-      const [rb, re, rp] = await Promise.all([
-        supabase.from('bookings').select('*, rooms(name), guests(full_name, phone)'),
-        // Spese del B&B = spese dei gruppi con ambito 'azienda' (Casa Granata/Casa Ania).
-        supabase.from('family_expenses').select('expense_date, amount, family_groups!inner(ambito)').eq('family_groups.ambito', 'azienda'),
-        supabase.from('payments').select('booking_id, amount'),
-      ])
-      const erroreLettura = rb.error || re.error || rp.error
-      if (erroreLettura) {
-        setErrore(messaggioErroreDati(erroreLettura))
-        setLoading(false)
-        return
-      }
-      const { data: bookings } = rb
-      const { data: expenses } = re
-      const { data: payments } = rp
-
-      const b: any[] = bookings || []
-      const e: any[] = expenses || []
-
-      const active = b.filter((x: any) => x.status !== 'annullata')
-      const camereOccupate = active.filter((x: any) => x.check_in <= td && x.check_out > td).length
-
-      // Percentuale di occupazione del mese corrente: notti-camera occupate su notti-camera
-      // disponibili (4 camere × giorni del mese). Ogni soggiorno conta solo le notti che
-      // cadono dentro il mese.
-      const now = new Date()
-      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-      const nm = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-      const nextMonthStart = `${nm.getFullYear()}-${String(nm.getMonth() + 1).padStart(2, '0')}-01`
-      const nightsInMonth = (ci: string, co: string) => {
-        const s = ci > ms ? ci : ms
-        const e = co < nextMonthStart ? co : nextMonthStart
-        if (e <= s) return 0
-        return Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86400000)
-      }
-      const notteCamereMese = active.reduce((sum: number, x: any) => sum + nightsInMonth(x.check_in, x.check_out), 0)
-      const occupazioneMese = daysInMonth > 0 ? Math.round((notteCamereMese / (4 * daysInMonth)) * 100) : 0
-
-      const roomNameById: Record<string, string> = {}
-      active.forEach((x: any) => { if (x.rooms?.name) roomNameById[x.room_id] = x.rooms.name.split(' ').slice(-1)[0] })
-      const roomChanges = getUpcomingRoomChanges(active, roomNameById, [td, tmr])
-
-      // Un cambio camera di oggi non è né un check-in né un check-out: il segmento in
-      // arrivo (to) e quello in partenza (from) vanno tolti dalle liste e mostrati solo
-      // nella riga dedicata "⇄ CAMBIO".
-      const byId = new Map(active.map((x: any) => [x.id, x]))
-      const { edges } = buildChangeGroups(active)
-      const cambioInIds = new Set<string>()
-      const cambioOutIds = new Set<string>()
-      const cambioInDomaniIds = new Set<string>()
-      const cambioOutDomaniIds = new Set<string>()
-      for (const e of edges) {
-        const from: any = byId.get(e.fromId)
-        const to: any = byId.get(e.toId)
-        if (!from || !to) continue
-        if (to.check_in === td) {
-          cambioInIds.add(to.id)
-          if (from.check_out === td) cambioOutIds.add(from.id)
-        }
-        if (to.check_in === tmr) {
-          cambioInDomaniIds.add(to.id)
-          if (from.check_out === tmr) cambioOutDomaniIds.add(from.id)
-        }
-      }
-      const checkInOggi = active.filter((x: any) => x.check_in === td && !cambioInIds.has(x.id))
-      const checkOutOggi = active.filter((x: any) => x.check_out === td && !cambioOutIds.has(x.id))
-      const checkInDomani = active.filter((x: any) => x.check_in === tmr && !cambioInDomaniIds.has(x.id))
-      const checkOutDomani = active.filter((x: any) => x.check_out === tmr && !cambioOutDomaniIds.has(x.id))
-      const roomChangesOggi = roomChanges.filter((m: any) => m.date === td)
-      const roomChangesDomani = roomChanges.filter((m: any) => m.date === tmr)
-
-      const bMese = active.filter((x: any) => x.check_in >= ms && x.check_in <= me)
-      const entrateMese = bMese.reduce((s: number, x: any) => s + Number(x.total_amount), 0)
-
-      // Già incassato / da incassare del mese. Da noi si paga tutto all'arrivo, quindi
-      // una prenotazione iniziata conta come incassata per intero — tranne quando ci
-      // sono acconti registrati (vale quello che è stato segnato ricevuto) o un
-      // bonifico ancora in attesa. I segmenti di un cambio camera (stesso group_id)
-      // sono un unico soggiorno: gli acconti possono stare su un segmento qualsiasi.
-      const accontiPerBooking: Record<string, number> = {}
-      for (const p of payments || []) accontiPerBooking[p.booking_id] = (accontiPerBooking[p.booking_id] || 0) + Number(p.amount)
-      const accontiPerGruppo: Record<string, number> = {}
-      for (const x of active) {
-        const key = x.group_id || x.id
-        accontiPerGruppo[key] = (accontiPerGruppo[key] || 0) + (accontiPerBooking[x.id] || 0)
-      }
-      const gruppiMese: Record<string, any[]> = {}
-      for (const x of bMese) {
-        const key = x.group_id || x.id
-        ;(gruppiMese[key] = gruppiMese[key] || []).push(x)
-      }
-      let incassatoMese = 0
-      for (const [key, segs] of Object.entries(gruppiMese)) {
-        const dovuto = segs.reduce((s: number, x: any) => s + Number(x.total_amount), 0)
-        const ricevuto = accontiPerGruppo[key] || 0
-        if (ricevuto > 0) incassatoMese += Math.min(ricevuto, dovuto)
-        else incassatoMese += segs.reduce((s: number, x: any) => {
-          if (x.pagato) return s + Number(x.total_amount)
-          if (x.bonifico) return s // bonifico in attesa: non ancora incassato
-          return x.check_in <= td ? s + Number(x.total_amount) : s
-        }, 0)
-      }
-      const daIncassareMese = Math.max(0, entrateMese - incassatoMese)
-      const speseAnno = e.filter((x: any) => x.expense_date >= ys).reduce((s: number, x: any) => s + Number(x.amount), 0)
-      const speseMese = e.filter((x: any) => x.expense_date >= ms && x.expense_date <= me).reduce((s: number, x: any) => s + Number(x.amount), 0)
-      const profittoMese = entrateMese - speseMese
-
-      const completate = active.filter((x: any) => x.price_per_night > 0)
-      const tariffaMedia = completate.length > 0 ? completate.reduce((s: number, x: any) => s + Number(x.price_per_night), 0) / completate.length : 0
-
-      // Da incassare: soggiorni con acconti registrati ma non ancora saldati.
-      // I segmenti di un cambio camera (stesso group_id) contano come un unico soggiorno.
-      const accontiSum: Record<string, number> = {}
-      for (const p of payments || []) accontiSum[p.booking_id] = (accontiSum[p.booking_id] || 0) + Number(p.amount)
-      const gruppi: Record<string, { id: string; guest: string; dovuto: number; ricevuto: number }> = {}
-      for (const b of active) {
-        const key = b.group_id || b.id
-        if (!gruppi[key]) gruppi[key] = { id: b.id, guest: nomeOspite(b), dovuto: 0, ricevuto: 0 }
-        gruppi[key].dovuto += Number(b.total_amount)
-        gruppi[key].ricevuto += accontiSum[b.id] || 0
-      }
-      const daIncassare = Object.values(gruppi)
-        .filter(g => g.ricevuto > 0 && g.dovuto - g.ricevuto > 0.5)
-        .map(g => ({ ...g, residuo: g.dovuto - g.ricevuto }))
-        .sort((a, b) => b.residuo - a.residuo)
-
-      setData({ entrateMese, incassatoMese, daIncassareMese, speseMese, profittoMese, tariffaMedia, checkInOggi, checkOutOggi, checkInDomani, checkOutDomani, roomChangesOggi, roomChangesDomani, camereOccupate, occupazioneMese, td, daIncassare })
+    let vivo = true
+    const td = today()
+    const tmr = tomorrow()
+    const ms = monthStart()
+    const nms = nextMonthStart()
+    // Si legge il mese; se domani cade nel mese dopo, si allunga di un giorno per «Domani»
+    const fine = spostaGiorni(tmr, 1) > nms ? spostaGiorni(tmr, 1) : nms
+    leggiDatiHome(ms, fine).then(({ data: d, errore: e }) => {
+      if (!vivo) return
+      if (e || !d) { setErrore(e ?? 'Non riesco a caricare i dati, riprova'); setLoading(false); return }
+      setData(calcola(d, td, tmr, ms, nms))
       setErrore(null)
       setLoading(false)
-    }
-    load()
+    })
+    return () => { vivo = false }
   }, [tentativo])
 
   function riprova() {
@@ -284,45 +203,52 @@ export default function Dashboard() {
               {data.daIncassare.map((g: any) => (
                 <Link key={g.id} href={`/prenotazioni/${g.id}`} className="flex items-center justify-between py-1.5 border-t border-card-border text-sm">
                   <span className="font-medium text-green-dark">{g.guest}</span>
-                  <span className="font-bold" style={{ color: '#8a4f2f' }}>€{g.residuo.toFixed(0)}</span>
+                  <span className="font-bold" style={{ color: '#8a4f2f' }}>€{euro(g.residuoCent)}</span>
                 </Link>
               ))}
             </div>
           )}
 
+          {/* Quattro significati separati, identici alle Statistiche (05/09/2026) */}
           <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm mb-3">
-            <div className="flex items-baseline justify-between mb-1.5">
-              <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Entrate mese</p>
-              <p className="text-xs text-gray-500">totale €{fmt(data.entrateMese)}</p>
-            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-xs text-gray-500 mb-0.5">Già incassato</p>
-                <p className="font-serif text-2xl text-green-dark">€{fmt(data.incassatoMese)}</p>
+                <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1">Ricavi per soggiorno</p>
+                <p className="font-serif text-2xl text-green-dark">€{euro(data.cassa.ricaviCent)}</p>
+                <p className="text-[11px] leading-tight text-gray-500 mt-1">valore delle prenotazioni confermate, diviso sulle notti dormite nel mese</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-0.5">Da incassare</p>
-                <p className="font-serif text-2xl" style={{ color: data.daIncassareMese > 0 ? '#8a4f2f' : 'var(--color-green-dark)' }}>€{fmt(data.daIncassareMese)}</p>
+                <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1">Incassi</p>
+                <p className="font-serif text-2xl text-green-dark">€{euro(data.cassa.incassiCent)}</p>
+                <p className="text-[11px] leading-tight text-gray-500 mt-1">pagamenti registrati nel mese, per data di pagamento</p>
               </div>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm">
-              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Profitto mese</p>
-              <p className={`font-serif text-2xl ${data.profittoMese >= 0 ? 'text-green-dark' : 'text-[#8C3B2E]'}`}>€{fmt(data.profittoMese)}</p>
+              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Saldo di cassa</p>
+              <p className={`font-serif text-2xl ${data.cassa.saldoCent >= 0 ? 'text-green-dark' : 'text-[#8C3B2E]'}`}>€{euro(data.cassa.saldoCent)}</p>
+              <p className="text-[11px] leading-tight text-gray-500 mt-1">incassi meno spese del mese</p>
             </div>
             <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm">
-              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Spese mese</p>
-              <p className="font-serif text-2xl text-[#8C3B2E]">€{fmt(data.speseMese)}</p>
+              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Spese</p>
+              <p className="font-serif text-2xl text-[#8C3B2E]">€{euro(data.cassa.speseCent)}</p>
+              <p className="text-[11px] leading-tight text-gray-500 mt-1">spese del B&amp;B, per data di pagamento</p>
             </div>
             <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm">
-              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Camere occupate</p>
-              <p className="font-serif text-2xl text-green-dark">{data.occupazioneMese}<span className="text-base text-gray-400">% mese</span></p>
+              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Occupazione</p>
+              <p className="font-serif text-2xl text-green-dark">{data.indici.percento}<span className="text-base text-gray-400">% mese</span></p>
+              <p className="text-[11px] leading-tight text-gray-500 mt-1">
+                {data.indici.anomalia
+                  ? <span className="font-semibold text-green-dark">{TESTO_ANOMALIA_OCCUPAZIONE}: {data.indici.nottiVendute} notti su {data.indici.nottiVendibili}</span>
+                  : <>notti vendute su notti vendibili delle camere attive ({data.indici.nottiVendute} su {data.indici.nottiVendibili})</>}
+              </p>
             </div>
             <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Tariffa media</p>
-              <p className="font-serif text-2xl text-green-dark">€{fmt(data.tariffaMedia)}</p>
+              <p className="font-serif text-2xl text-green-dark">€{euro(data.indici.adrCent)}</p>
+              <p className="text-[11px] leading-tight text-gray-500 mt-1">ricavi per soggiorno diviso le notti vendute nel mese</p>
             </div>
           </div>
 

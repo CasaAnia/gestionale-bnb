@@ -224,18 +224,28 @@ export default function Statistiche() {
         <AvvisoAzione testo={errore ?? 'Non riesco a caricare le statistiche, riprova'} onRiprova={riprova} />
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm text-center">
-              <p className="text-xs text-gray-500 mb-1">Entrate</p>
-              <p className="font-bold text-green-mid text-sm">€{euro(totali.incassiCent)}</p>
+          {/* Quattro significati separati, identici alla Home (05/09/2026):
+              ricavi per soggiorno (competenza), incassi (cassa), spese (cassa), saldo */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm">
+              <p className="text-xs text-gray-500">Ricavi per soggiorno</p>
+              <p className="font-bold text-green-dark text-base">€{euro(totali.ricaviCent)}</p>
+              <p className="text-[10px] leading-tight text-gray-400 mt-0.5">valore delle prenotazioni confermate, diviso sulle notti dormite nel periodo</p>
             </div>
-            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm text-center">
-              <p className="text-xs text-gray-500 mb-1">Spese</p>
-              <p className="font-bold text-[#8C3B2E] text-sm">€{euro(totali.speseCent)}</p>
+            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm">
+              <p className="text-xs text-gray-500">Incassi</p>
+              <p className="font-bold text-green-mid text-base">€{euro(totali.incassiCent)}</p>
+              <p className="text-[10px] leading-tight text-gray-400 mt-0.5">pagamenti registrati, per data di pagamento</p>
             </div>
-            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm text-center">
-              <p className="text-xs text-gray-500 mb-1">Profitto</p>
-              <p className={`font-bold text-sm ${totali.saldoCent >= 0 ? 'text-green-mid' : 'text-[#8C3B2E]'}`}>€{euro(totali.saldoCent)}</p>
+            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm">
+              <p className="text-xs text-gray-500">Spese</p>
+              <p className="font-bold text-[#8C3B2E] text-base">€{euro(totali.speseCent)}</p>
+              <p className="text-[10px] leading-tight text-gray-400 mt-0.5">spese del B&amp;B, per data di pagamento</p>
+            </div>
+            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm">
+              <p className="text-xs text-gray-500">Saldo di cassa</p>
+              <p className={`font-bold text-base ${totali.saldoCent >= 0 ? 'text-green-mid' : 'text-[#8C3B2E]'}`}>€{euro(totali.saldoCent)}</p>
+              <p className="text-[10px] leading-tight text-gray-400 mt-0.5">incassi meno spese del periodo</p>
             </div>
           </div>
 
@@ -313,7 +323,8 @@ export default function Statistiche() {
 
           {/* Grafico a barre */}
           <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
-            <p className="text-sm font-semibold text-gray-600 mb-3">Entrate per {period}</p>
+            <p className="text-sm font-semibold text-gray-600">Incassi per {period}</p>
+            <p className="text-xs text-gray-400 mb-3">pagamenti registrati, nel giorno in cui sono arrivati</p>
             <div className="flex items-end gap-1" style={{ height: 120 }}>
               {rows.map((r, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
@@ -332,7 +343,7 @@ export default function Statistiche() {
           {/* Tabella riepilogo */}
           <div className="bg-white rounded-xl border border-[#C9BFA8] shadow-sm overflow-hidden">
             <div className="grid grid-cols-4 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500">
-              <span>Periodo</span><span className="text-right">Entrate</span><span className="text-right">Spese</span><span className="text-right">Profitto</span>
+              <span>Periodo</span><span className="text-right">Incassi</span><span className="text-right">Spese</span><span className="text-right">Saldo di cassa</span>
             </div>
             {rows.filter(r => r.incassi > 0 || r.spese > 0).map((r, i) => (
               <div key={i} className="grid grid-cols-4 px-3 py-2 text-sm border-t border-gray-50">
@@ -366,7 +377,7 @@ export default function Statistiche() {
                 <span className="font-semibold text-green-mid">€{euro(sconti.valoreCent)}</span>
               </div>
               <div className="flex justify-between text-sm py-1.5">
-                <span className="text-gray-600">Incassato realmente</span>
+                <span className="text-gray-600">Incassi nel periodo (pagamenti registrati)</span>
                 <span className="font-bold text-green-mid">€{euro(sconti.incassatoCent)}</span>
               </div>
             </div>
@@ -416,8 +427,8 @@ export default function Statistiche() {
           {/* Rendimento camere: classifica dell'anno in corso (incassi pro-quota a notte) */}
           {roomStats && (
             <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
-              <p className="text-sm font-semibold text-gray-600">Rendimento camere</p>
-              <p className="text-xs text-gray-400 mb-3">anno {roomStats.anno} · {roomStats.annoPassato ? 'tutto l’anno' : 'incassi e notti fino a oggi'}</p>
+              <p className="text-sm font-semibold text-gray-600">Ricavi per camera</p>
+              <p className="text-xs text-gray-400 mb-3">anno {roomStats.anno} · {roomStats.annoPassato ? 'tutto l’anno' : 'notti dormite fino a oggi'} · valore dei soggiorni confermati diviso sulle notti, non gli incassi</p>
               {roomStats.lista.map((s, i) => (
                 <div key={s.name} className={i > 0 ? 'mt-3' : ''}>
                   <div className="flex justify-between items-baseline">
@@ -447,7 +458,7 @@ export default function Statistiche() {
             return (
               <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
                 <p className="text-sm font-semibold text-gray-600">Camera del mese</p>
-                <p className="text-xs text-gray-400 mb-3">incasso di ogni camera, mese per mese — in verde la migliore del mese</p>
+                <p className="text-xs text-gray-400 mb-3">ricavi per soggiorno di ogni camera, mese per mese — in verde la migliore del mese</p>
                 <div className="rounded-lg border border-[#C9BFA8] shadow-sm overflow-hidden">
                   <div className="bg-gray-50 px-2 py-2 text-xs font-semibold text-gray-500" style={gridCols}>
                     <span></span>
@@ -474,7 +485,7 @@ export default function Statistiche() {
                   </div>
                 </div>
                 <p className="text-[11px] text-gray-400 mt-2">
-                  Media = incasso al mese, calcolata su tutti i mesi da {MESI_NOMI[roomStats.primoMese]} a {MESI_NOMI[roomStats.meseCorrente]}
+                  Media = ricavi al mese, calcolata su tutti i mesi da {MESI_NOMI[roomStats.primoMese]} a {MESI_NOMI[roomStats.meseCorrente]}
                 </p>
               </div>
             )
