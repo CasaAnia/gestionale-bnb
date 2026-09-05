@@ -7,7 +7,7 @@
 // lib/statistiche: qui nessuna formula.
 import { supabase } from './supabase'
 import { messaggioLetturaNonRiuscita } from './prenotazioneScritture'
-import { raccogliPagine, type CameraStat, type PagamentoStat } from './statistiche'
+import { raccogliPagine, raccogliBlocchi, aBlocchi, type CameraStat, type PagamentoStat } from './statistiche'
 import type { SpesaPagata } from './statistiche/intervallo'
 import type { PrenotazioneSconto } from './statistiche/sconti'
 import type { SiteEvent } from './siteStats'
@@ -76,12 +76,21 @@ export async function leggiDatiHome(da: string, a: string): Promise<Esito<DatiHo
   const [p, pag, sp, cam] = await Promise.all([leggiPrenotazioni(da, a, colonne), leggiTuttiPagamenti(), leggiSpese(da, a), leggiCamere()])
   const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore
   if (errore) return { data: null, errore }
+  // R5: gli ID si leggono a BLOCCHI (mai un taglio silenzioso a 500): ogni
+  // blocco a pagine, tutti i risultati raccolti e deduplicati, stop al primo errore
+  const perBlocchi = async (colonna: 'id' | 'group_id', ids: string[]) => {
+    const r = await raccogliBlocchi<PrenotazioneSconto, string>(aBlocchi(ids), blocco =>
+      raccogliPagine<PrenotazioneSconto>((offset, limite) => supabase.from('bookings').select(colonne)
+        .in('status', STATI_LETTI).in(colonna, blocco).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>),
+      b => b.id)
+    if (r.error) return { data: null, errore: messaggioLetturaNonRiuscita(r.error, 'caricare le prenotazioni da incassare') }
+    return { data: r.data, errore: null }
+  }
   const idsMese = new Set(p.data!.map(b => b.id))
   const idsFuori = [...new Set(pag.data!.map(x => x.booking_id))].filter(id => !idsMese.has(id))
   let fuori: PrenotazioneSconto[] = []
   if (idsFuori.length > 0) {
-    const r = await pagine<PrenotazioneSconto>('caricare le prenotazioni da incassare', (offset, limite) => supabase.from('bookings').select(colonne)
-      .in('status', STATI_LETTI).in('id', idsFuori.slice(0, 500)).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>)
+    const r = await perBlocchi('id', idsFuori)
     if (r.errore) return { data: null, errore: r.errore }
     fuori = r.data!
   }
@@ -90,8 +99,7 @@ export async function leggiDatiHome(da: string, a: string): Promise<Esito<DatiHo
   const gruppi = new Set([...p.data!, ...fuori].filter(b => pag.data!.some(x => x.booking_id === b.id)).map(b => b.group_id).filter(Boolean) as string[])
   let segmenti: PrenotazioneSconto[] = []
   if (gruppi.size > 0) {
-    const r = await pagine<PrenotazioneSconto>('caricare le prenotazioni da incassare', (offset, limite) => supabase.from('bookings').select(colonne)
-      .in('status', STATI_LETTI).in('group_id', [...gruppi].slice(0, 500)).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>)
+    const r = await perBlocchi('group_id', [...gruppi])
     if (r.errore) return { data: null, errore: r.errore }
     segmenti = r.data!
   }

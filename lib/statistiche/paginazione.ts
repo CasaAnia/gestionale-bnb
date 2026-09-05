@@ -22,3 +22,34 @@ export async function raccogliPagine<T>(
   }
   return { data: tutte, error: null, pagine }
 }
+
+// R5 (revisione di f4d5474): un filtro `in (...)` di PostgREST con centinaia
+// di ID finisce nell'URL; si spezza in blocchi e si raccolgono TUTTI i
+// risultati, senza mai tagliare in silenzio.
+export const DIMENSIONE_BLOCCO_ID = 100
+
+export function aBlocchi<T>(lista: T[], dimensione = DIMENSIONE_BLOCCO_ID): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < lista.length; i += Math.max(1, dimensione)) out.push(lista.slice(i, i + Math.max(1, dimensione)))
+  return out
+}
+
+// Legge blocco per blocco; al primo errore si ferma e NON torna righe
+// parziali; le righe si deduplicano per chiave.
+export async function raccogliBlocchi<T, K>(
+  blocchi: K[][],
+  leggi: (blocco: K[]) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  chiave: (riga: T) => string,
+): Promise<{ data: T[]; error: unknown; blocchi: number }> {
+  const viste = new Set<string>()
+  const tutte: T[] = []
+  let letti = 0
+  for (const blocco of blocchi) {
+    let r: { data: T[] | null; error: unknown }
+    try { r = await leggi(blocco) } catch (e) { return { data: [], error: e ?? new Error('errore sconosciuto'), blocchi: letti } }
+    letti++
+    if (r.error) return { data: [], error: r.error, blocchi: letti }
+    for (const riga of r.data ?? []) { const k = chiave(riga); if (!viste.has(k)) { viste.add(k); tutte.push(riga) } }
+  }
+  return { data: tutte, error: null, blocchi: letti }
+}
