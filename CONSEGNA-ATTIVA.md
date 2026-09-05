@@ -79,6 +79,59 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
 
 ---
 
+# Consegna — Scheda cliente: ricevuta separata dalla valutazione, storico apribile (08/09/2026, sera, main)
+
+Base `d836d16`. Un commit per pezzo. Bozza SQL 0038 da applicare a mano; prima
+della migrazione tutto funziona come oggi (il gestionale legge e scrive anche la
+forma vecchia, «vuole_ricevuta» come voce della valutazione).
+
+## FATTO
+
+- Pezzo 1 `2fae31f` — dati. Bozza `supabase/proposte/0038_ricevuta_separata.BOZZA.sql`:
+  guests.vuole_ricevuta (default false); migrazione: chi aveva la voce
+  «Vuole ricevuta» passa a ricevuta = sì e valutazione «normale» (le tre voci
+  restano Ottimo / Normale / Problematico); voce tolta dai valori ammessi.
+  lib/valutazione (3 test): valutazioneDi (tre voci; la voce vecchia vale
+  normale), vuoleRicevuta (colonna nuova O voce vecchia), migraValutazione
+  (stessa regola della SQL), payloadValutazione (dopo la 0038 le due colonne;
+  prima la forma vecchia: rating = 'vuole_ricevuta' con la ricevuta sì).
+- Pezzo 2 `5666003` + ``028cb47`` — dove si vede, tutto derivato dal cliente:
+  components/CampoValutazione (interruttore «Vuole ricevuta» SOPRA la
+  valutazione a tre voci: non si escludono più) nella scheda cliente in
+  modifica, nel nuovo cliente e nella nuova prenotazione (inserimento con la
+  colonna nuova, ripiego sulla forma vecchia se manca); etichetta «Ricevuta»
+  accanto al nome (stile di «Già stato da noi») nella nuova richiesta e nella
+  nuova prenotazione appena il cliente è riconosciuto dal telefono, nella
+  scheda prenotazione accanto al nome, nell'elenco clienti e nella finestra
+  dell'orario degli Arrivi; badge «R» sulle barre di Calendario e Arrivi come
+  il ⇄ del cambio camera (il 🧾 sotto il nome resta: nulla smette di
+  mostrarla); Calendario e Arrivi leggono il cliente intero (guests(*)).
+- Pezzo 3 `58e4c76` — storico della scheda cliente: una riga per soggiorno
+  (lib/storicoCliente.righeStorico, 2 test: cambio camera = riga sola con
+  «Ambra → Lena», totale e camere dai segmenti validi, dal più recente),
+  ogni riga apre la scheda della prenotazione (?da=cliente&cliente=<id>) e
+  «← Indietro» torna al cliente (indietro vero, o il cliente come riserva
+  con un link diretto).
+- Anteprima a 390 e 1280 px (clienti con ricevuta e valutazione nel finto):
+  scheda di Lucia con «⭐ Ottimo» e «🧾 Vuole ricevuta» in vista, in modifica
+  l'interruttore sopra la valutazione; storico «Ambra → Lena · cambio
+  camera» → scheda prenotazione con «Ricevuta» accanto al nome → «← Indietro»
+  → cliente; elenco clienti con «Ricevuta» su Giulio, Lucia, Anna; Calendario
+  e Arrivi con «R» sulle barre (Anna, Giulio, Lucia) e «Ricevuta» nella
+  finestra dell'orario.
+- Suite 681/681, TypeScript OK, lint dei file toccati senza rilievi nuovi (14
+  file confrontati con la base, tutti uguali; nuovi 0), `next build` OK.
+
+## 🔴 AZIONE PER ANIA
+
+Applicare la bozza 0038 nell'editor SQL di Supabase (produzione):
+
+    cat ~/gestionale-bnb/supabase/proposte/0038_ricevuta_separata.BOZZA.sql | pbcopy
+
+poi incollare ed eseguire; la verifica in fondo deve dare 0 «ancora_vecchi».
+
+---
+
 # Consegna — «Da controllare», pulizia non registrata prima di un arrivo (08/09/2026, sera, main)
 
 - Nuovo tipo «Pulizia» in lib/daControllare (eccezioniPulizie): per ogni
