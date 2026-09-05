@@ -1,4 +1,4 @@
-# STATO IN 10 RIGHE (aggiornato il 05/09/2026, pomeriggio) — da incollare a un altro assistente
+# STATO IN 10 RIGHE (aggiornato il 05/09/2026, sera) — da incollare a un altro assistente
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
@@ -21,6 +21,7 @@
    Pulizie automatiche (04/09 sera): partenza + nuovo arrivo lo stesso giorno o il giorno dopo nella stessa camera (solo confermate) = pulizia FATTA da sola con la data della partenza, calcolata dalle prenotazioni (lib/pulizie: pulizieAutomatiche, nessuna migrazione, sparisce se la prenotazione cambia); in «Oggi» resta come lavoro con etichetta «automatica» e senza pulsanti, mai «in ritardo»; nuovo registro «Ultime pulizie» (manuali + automatiche) con «Cambia data» / «Non fatta» (righe cleanings con note automatica:*); statistiche contano manuali + automatiche dal 24/08, mai doppioni lo stesso giorno; 4 notti e partenze senza arrivo vicino invariate; 7 test.
    Nomi (04/09 sera): ovunque «Nome Cognome», mai «Cognome Nome» (lib/guestName: nomeCompleto e nomeBreve «Anna R.» per le barre; riesportate da lib/richieste); dati e testi bloccati intatti.
    Timer della proposta (04/09 sera): sulle richieste in «proposta inviata» una riga con l'orologio, «Proposta inviata · scade tra 2 h 15 min» (verde) poi «… scaduta 20 min fa / 3 h fa / ieri» (ottone), in lista, dettaglio, pannello e tooltip del calendario; conta da proposta_inviata_at (solo «Sì, inviata», colonna già in 0024, nessuna migrazione), si aggiorna ogni minuto (useAdesso), le scadute entrano in «N da guardare»; alla scadenza nessuna chiusura né notifica (lib/richieste: scadenzaProposta, 5 test).
+   Errori di salvataggio visibili, parte 2 (05/09/2026, sera): scheda cliente (elimina/modifica/caricamento), scheda prenotazione (rilettura con esito → mai «Prenotazione non trovata» dopo un salvataggio riuscito, date del soggiorno in sequenza, cambio camera, motivo, annullamento senza alert), tariffe in Impostazioni, /nuova (cliente esistente e storico), Arrivi (orario/navetta senza alert); lib/prenotazioneScritture e lib/arrivoOrario; restano spese, richiesteDati, push e WebRequestAlert.
    Errori di salvataggio visibili (05/09/2026, pomeriggio): Conferma prenotazione e Segna come pagato cambiano lo schermo solo a scrittura riuscita (lib/scritturaSicura + components/AvvisoAzione «Non salvato, riprova»); richieste dal sito con tre stati in home (caricamento / nessuna / errore con Riprova) e bollino «!» sulla barra (lib/richiesteDalSito, lib/webRequests con stato unico); ricognizione del pezzo 4 (13 punti, NON corretti) nella scheda qui sotto.
 6. Sito casaaniarozzano.it (repo sito-casaania): il modulo /prenota manda le richieste a POST /api/richieste/web; nessuna prenotazione nasce dal sito; ripiego Pushover.
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
@@ -73,6 +74,94 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — Errori di salvataggio visibili, parte 2 (05/09/2026, sera, main)
+
+Seconda tornata sulla stessa regola della scheda qui sotto: ogni scrittura o
+lettura su Supabase controlla `error`; con errore lo stato locale NON cambia,
+il bottone torna attivo, l'avviso compare vicino all'azione
+(`components/AvvisoAzione`, testi «Non salvato, riprova» / «Non riesco a …»);
+niente alert del browser, niente catch vuoti, niente liste vuote o null al
+posto di un errore. Librerie riusate: `lib/scritturaSicura`; nuove funzioni
+pure senza import di Supabase: `lib/prenotazioneScritture` (salvaInSequenza,
+leggiConEsito) e `lib/arrivoOrario` (salvaOrarioENavetta).
+
+- Pezzo 1 — `app/clienti/[id]`: «Sì, elimina» e «Salva» con esito; anche il
+  caricamento («Non riesco a caricare il cliente…» + Riprova invece di
+  «Cliente non trovato» per un errore di rete). Commit `0d464eb`.
+- Pezzo 2 — `app/prenotazioni/[id]`: `rileggiScheda` (dopo un salvataggio
+  riuscito la rilettura aggiorna solo se riesce, altrimenti mostra quello che
+  si è appena salvato con «Salvato, ma non riesco a ricaricare la scheda:
+  riaprila…», mai «Prenotazione non trovata»), usata da Modifica, Rimuovi
+  sconto e date del soggiorno; update del cliente in Modifica controllato;
+  date del soggiorno con `salvaInSequenza` («Non salvato, riprova» o «Salvato
+  solo in parte, riprova e controlla le date di ogni camera»); cambio camera,
+  completata, motivo dell'annullamento con `scriviPoiAggiorna`; annullamento
+  senza alert (avviso nella finestra, «Annullo...»), log WhatsApp non scritto
+  segnalato nella schermata di conferma. Commit `d13eb33`.
+- Pezzo 3 — `app/impostazioni` saveRoom: tariffe a schermo solo se salvate,
+  modifiche in bozza con l'avviso. Commit `16abb14`.
+- Pezzo 4 — `app/nuova`: update del cliente esistente controllato prima
+  dell'insert (con errore niente prenotazione); 5 letture dello storico in
+  `caricaStorico` con «Non riesco a caricare lo storico del cliente…» +
+  Riprova. Commit `cc47291`.
+- Pezzo 5 — `app/arrivi` saveTime: secondo tentativo (solo orario) con
+  esito; niente alert; con errore il pannello resta aperto. Commit `0c99645`.
+
+## Casi di accettazione
+
+| ID | Prova | Esito |
+| --- | --- | --- |
+| F01 | Cliente: Salva rifiutato (403) → «Non salvato, riprova», modulo aperto, nome invariato; Sì, elimina rifiutato → avviso nella finestra, URL invariato | VERDE (DOM 390 px) |
+| F02 | Cliente: caricamento senza rete (fetch sostituito) → «Non riesco a caricare il cliente: nessuna connessione» + Riprova; Riprova con rete → scheda | VERDE (DOM 390 px) |
+| F03 | Prenotazione: annullamento rifiutato → avviso nella finestra, prenotazione ancora confermata, bottone attivo; cambio camera rifiutato → avviso, nessuna navigazione; motivo annullamento rifiutato → avviso | VERDE (DOM 390 px) |
+| F04 | Prenotazione: Modifica con update finto riuscito (fetch sostituito, PATCH 204) e rilettura senza rete → scheda visibile coi dati salvati + «Salvato, ma non riesco a ricaricare la scheda…», mai «Prenotazione non trovata» | VERDE (DOM 390 px) |
+| F05 | Date del soggiorno: primo segmento rifiutato → nessun update, «Non salvato, riprova»; secondo rifiutato → «Salvato solo in parte…»; rilettura fallita → dati locali dal piano | VERDE (test; a schermo non riproducibile: i dati finti non hanno cambi camera) |
+| F06 | Impostazioni: Salva rifiutato → avviso, tariffa mostrata invariata (50), bozza 55 conservata, bottone attivo | VERDE (DOM 390 px) |
+| F07 | Nuova: cliente esistente, Salva prenotazione con update cliente rifiutato → «Non salvato, riprova: i dati del cliente non sono stati salvati», nessun POST su bookings, bottone attivo | VERDE (DOM e rete 390 px) |
+| F08 | Nuova: storico del cliente senza rete → avviso + Riprova | VERDE (test `leggiConEsito`; a schermo non riprodotto, vedi limiti) |
+| F09 | Arrivi: Salva orario+navetta con entrambi i tentativi rifiutati → avviso nel pannello, pannello aperto, bottone attivo; colonna shuttle assente e orario salvato → avviso 0019 nel pannello | VERDE (DOM 390 px il primo; test il secondo) |
+
+## Prove tecniche
+
+- `node scripts/verifica-consegna.mjs --base e2a5316` su `0c99645`: Suite
+  applicazione (528 test, 17 nuovi: prenotazioneScritture 7, arrivoOrario 3,
+  scritturaSicura.parte2 7) OK, Regressioni delle revisioni OK, Strumenti
+  locali OK, TypeScript senza emissione OK; «Lint dei file modificati» STOP
+  con 63 rilievi = gli stessi 63 dei 5 file sulla base e2a5316 (confronto
+  fatto sugli stessi file: nessun rilievo nuovo); le librerie nuove sono pulite.
+- `next build` sul candidato: compilato, 30 pagine generate.
+- UI a 390 px sull'anteprima finta (3213, scritture rifiutate con 403; rete
+  assente simulata sostituendo fetch da javascript_tool; interruttore
+  `/finto/errore-richieste-web` invariato): casi F01–F04, F06, F07, F09.
+- Nessuna migrazione, nessun cambiamento di schema, nessuna scrittura reale.
+
+## Limiti aperti
+
+- Nessuna schermata (stessi motivi della parte 1): prove dal DOM e dalla rete.
+- F08 non riprodotto a schermo: nel pannello nascosto /nuova aperta
+  direttamente resta sul segnaposto di Suspense (anche sul codice di base,
+  non dipende dalle modifiche); con la navigazione interna funziona ma la
+  ricerca finta non ha permesso di osservare l'avviso in tempo. Coperto dal
+  test e dallo stesso schema del cliente (F02).
+- F05 e il ramo «solo orario» di F09 solo con i test (dati finti senza cambi
+  camera; il finto rifiuta ogni scrittura, non una sola colonna).
+- Lint: i file toccati conservano ESATTAMENTE i rilievi di prima (clienti 6,
+  prenotazioni 30, impostazioni 7, nuova 2, arrivi 22, tutti `any` e simili
+  preesistenti); il passo lint del verificatore resta rosso per quelli.
+
+## Punti residui (da un incarico successivo, per scelta del brief)
+
+- `lib/spese/dati.ts:79-114` (7 funzioni di scrittura void, `:51` return null) — parte spese in corso.
+- `lib/richiesteDati.ts:27` contaRichiesteAperte → 0 su errore (bollino Richieste).
+- `lib/pushLog.ts:19` catch {} (voluto) e `lib/inviaPush.ts:47` delete senza controllo.
+- `components/WebRequestAlert.tsx:47,58` catch {} su sessionStorage (browser).
+- Letture senza `error` restanti: `app/prenotazioni/page.tsx:36`, `app/api/push/*`,
+  `components/DocumentiCliente` e `lib/spese` (URL firmati).
+- `app/prenotazioni/[id]` sendWhatsapp (funzione non usata) inserisce nel log
+  senza attendere l'esito; `markComplete` non è collegato a nessun bottone.
 
 ---
 
