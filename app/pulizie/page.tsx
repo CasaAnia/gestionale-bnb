@@ -287,6 +287,15 @@ export default function Pulizie() {
     const k = chiave(p.roomId, p.tipo)
     const aperta = azione[k]
     const disab = saving === k
+    // Salto di una pulizia 4 notti: se la data proposta (scaduta + 4) cade
+    // il giorno della partenza o dopo, non c'è nessun'altra pulizia del ciclo
+    // (la camera si rifà comunque al cambio ospite / cambio camera). Meglio
+    // dirlo che proporre una data che poi non comparirà mai (caso Rosa, 5/9/2026).
+    let fineSalto: { data: string; verso: any | null } | null = null
+    if (aperta?.tipo === 'salta' && p.tipo === 'soggiorno') {
+      const { fine } = soggiornoContinuativo(prenotazioni, p.booking)
+      if (aperta.data >= fine.check_out) fineSalto = { data: fine.check_out, verso: cambioCameraOut(prenotazioni, fine) }
+    }
     return (
       <div className="mt-2">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -314,12 +323,22 @@ export default function Pulizie() {
         </div>
         {aperta && (
           <div className="flex flex-wrap items-center gap-1.5 mt-2 rounded-lg p-2" style={{ background: '#F5F1E8' }}>
-            <span className="text-xs text-gray-600">
-              {aperta.tipo === 'rimanda' ? 'Rimanda al' : 'Salta questa · prossima il'}
-            </span>
-            <input type="date" value={aperta.data} min={addDaysStr(td, aperta.tipo === 'rimanda' ? 1 : 0)}
-              onChange={e => setAzione({ ...azione, [k]: { ...aperta, data: e.target.value } })}
-              className="border border-card-border rounded-lg px-2 py-1 text-xs bg-white" />
+            {fineSalto ? (
+              <span className="text-xs text-gray-600">
+                Salta questa · nessun&rsquo;altra prima {fineSalto.verso
+                  ? <>del cambio camera del <b>{dataBreve(fineSalto.data)}</b> (va in {shortNameOf(fineSalto.verso.room_id)})</>
+                  : <>della partenza del <b>{dataBreve(fineSalto.data)}</b></>}
+              </span>
+            ) : (
+              <>
+                <span className="text-xs text-gray-600">
+                  {aperta.tipo === 'rimanda' ? 'Rimanda al' : 'Salta questa · prossima il'}
+                </span>
+                <input type="date" value={aperta.data} min={addDaysStr(td, aperta.tipo === 'rimanda' ? 1 : 0)}
+                  onChange={e => setAzione({ ...azione, [k]: { ...aperta, data: e.target.value } })}
+                  className="border border-card-border rounded-lg px-2 py-1 text-xs bg-white" />
+              </>
+            )}
             <button onClick={() => registra(p, aperta.tipo === 'rimanda' ? 'rimandata' : 'saltata', { prossima_data: aperta.data })} disabled={disab}
               className="rounded-full text-xs font-bold px-3 py-1.5 text-white disabled:opacity-50"
               style={{ background: aperta.tipo === 'rimanda' ? '#5a6b3f' : '#8a4f2f' }}>
