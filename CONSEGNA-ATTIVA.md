@@ -29,7 +29,7 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`.
-10. 🔴 Azioni aperte per Ania: applicare la MIGRAZIONE 0040 (opzione di 3 ore: stato «chiusa», notifica di scadenza dal database con pg_cron, serve il CRON_SECRET di Vercel nel file). 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034.
+10. 🔴 Azioni aperte per Ania: applicare la MIGRAZIONE 0040 (opzione di 3 ore: stato «chiusa», notifica di scadenza dal database con pg_cron, serve il CRON_SECRET di Vercel nel file) e aggiornare il segreto CRON_SECRET del repo GitHub col valore di Vercel (pezzo F: controllo ogni 5 minuti da GitHub Actions, oggi risponde 401). 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034.
 
 ---
 
@@ -125,6 +125,14 @@ giorno) e l'«Archivio» diventa la linguetta «Chiuse».
   Allegra) e Nora (stesse notti → blocco), Dario scaduto ed Elisa (nota
   «era in opzione»), Ugo (chiusa da sola) e Vera (rifiutata) nelle Chiuse,
   PATCH sulle richieste in memoria per Riapri.
+- F `31b3fd7` (seconda chat, 06/09 ore 16) — .github/workflows/richieste-scadenze.yml:
+  lo STESSO controllo ogni 5 minuti anche da GitHub Actions (repo pubblico,
+  gratis, minuti 2-7-12… per non coincidere col job pg_cron), POST alla route
+  con «Authorization: Bearer» dal segreto CRON_SECRET del repo; la route è
+  idempotente, i due controlli convivono. Così la notifica funziona anche se
+  Ania applica della 0040 solo la parte 1 (colonne), senza pg_cron/pg_net.
+  Primo lancio a mano: HTTP 401 → il CRON_SECRET di .env.local NON è quello
+  di Vercel: il segreto del repo va aggiornato (azione qui sotto).
 Prove: lib 706 test, TypeScript OK, lint del delta 0→0, `next build` OK;
 anteprima a 390 px: nota di blocco e «Altre camere» in ottone su Nora, nota
 «era in opzione» su Elisa, route 401 senza segreto.
@@ -141,6 +149,11 @@ proposta non cambia (testi bloccati intatti).
    in fondo devono comparire le due colonne e il job «richieste-scadenze»
    con active = true:
    cat ~/gestionale-bnb/supabase/migrations/0040_opzione_tre_ore.sql | pbcopy
+3. (pezzo F) GitHub → repo CasaAnia/gestionale-bnb → Settings → Secrets and
+   variables → Actions → CRON_SECRET → Update: incolla lo stesso valore di
+   Vercel. Poi Actions → «Richieste – scadenze delle proposte» → Run workflow:
+   deve finire verde con «HTTP 200». Finché resta 401 il controllo da GitHub
+   non fa nulla (e non fa danni).
 
 ## Prove dal telefono in 10 minuti — opzione di 3 ore
 1. Crea due richieste di prova con le stesse notti (es. 17–20 del mese prossimo).
