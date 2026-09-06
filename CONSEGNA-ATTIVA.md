@@ -33,6 +33,28 @@
 
 ---
 
+# Consegna — Iniziali maiuscole nei dati del cliente (06/09/2026, sera, main)
+
+Richiesta di Ania: «quando inserisco dati cliente da qualsiasi parte nel
+gestionale voglio che inizino sempre con la maiuscola anche se non lo faccio
+io». Un commit, nessuna migrazione.
+
+- lib/maiuscole (pure, 3 test): conIniziali / conInizialiONull — la prima
+  lettera di ogni parola (anche dopo trattino e apostrofo) diventa maiuscola,
+  il resto resta come scritto («liliana micali» → «Liliana Micali», «arturo
+  d'iorio» → «Arturo D'Iorio», «McDonald» e «LILIANA» intatti, accenti e
+  lettere polacche ok), spazi in più tolti.
+- Applicata AL SALVATAGGIO in tutti i punti dove entra un nome: nuova
+  prenotazione (cliente nuovo, cliente esistente, nome del contatto 2),
+  scheda prenotazione in modifica (nome sulla prenotazione, nome della scheda
+  cliente quando è vuota, contatti 2 e 3), scheda cliente, nuovo cliente,
+  «Cambia cliente» (nome e cognome), nuova/modifica richiesta (nome e
+  cognome), richieste dal sito (nome e cognome scritti dall'ospite).
+- I dati già salvati NON vengono toccati: vale da ora in poi.
+- Prove: `npm test` 724/724, tsc pulito, lint del delta pulito, `next build` ok.
+
+---
+
 # Consegna — «Cambia cliente» nella scheda prenotazione (06/09/2026, sera, main)
 
 Incarico di Ania. Il caso: prenotazione inserita a nome della struttura che

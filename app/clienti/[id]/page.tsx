@@ -1,4 +1,5 @@
 'use client'
+import { conInizialiONull } from '@/lib/maiuscole'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -91,7 +92,7 @@ export default function ClienteDetail() {
     try {
       const errore = await scriviPoiAggiorna(
         // Valutazione a tre voci + ricevuta a sé (0038); prima della 0038 la forma vecchia (payloadValutazione)
-        () => supabase.from('guests').update({ full_name: form.full_name, phone: form.phone, email: form.email, notes: form.notes, ...payloadValutazione(valutazioneDi(form), !!form.ricevuta, colonnaRicevutaPresente(guest)), ...(clienteConProvenienza(guest) && strutture.disponibile ? campiProvenienza(form.provenienza, form.struttura_nome) : {}) }).eq('id', id),
+        () => supabase.from('guests').update({ full_name: conInizialiONull(form.full_name), phone: form.phone, email: form.email, notes: form.notes, ...payloadValutazione(valutazioneDi(form), !!form.ricevuta, colonnaRicevutaPresente(guest)), ...(clienteConProvenienza(guest) && strutture.disponibile ? campiProvenienza(form.provenienza, form.struttura_nome) : {}) }).eq('id', id),
         () => { setGuest({ ...guest, ...form, ...payloadValutazione(valutazioneDi(form), !!form.ricevuta, colonnaRicevutaPresente(guest)) }); setEditing(false) },
       )
       setErroreSalva(errore)

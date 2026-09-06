@@ -1,4 +1,5 @@
 'use client'
+import { conInizialiONull } from '@/lib/maiuscole'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -22,7 +23,7 @@ export default function NuovoCliente() {
     setError(null)
     const rawP = form.phone.trim().replace(/\D/g, '')
     const formattedPhone = rawP ? (rawP.startsWith('39') ? rawP : `39${rawP}`) : null
-    const base = { full_name: form.full_name.trim() || null, phone: formattedPhone, email: form.email.trim() || null }
+    const base = { full_name: conInizialiONull(form.full_name), phone: formattedPhone, email: form.email.trim() || null }
     // Colonna nuova (0038) se c'è; altrimenti la forma vecchia, così nulla si blocca
     let { data, error: err } = await supabase.from('guests').insert({ ...base, ...payloadValutazione(form.rating, form.ricevuta, true) }).select().single()
     if (err && /vuole_ricevuta/i.test(err.message || '')) ({ data, error: err } = await supabase.from('guests').insert({ ...base, ...payloadValutazione(form.rating, form.ricevuta, false) }).select().single())

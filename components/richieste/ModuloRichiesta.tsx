@@ -1,4 +1,5 @@
 'use client'
+import { conIniziali } from '@/lib/maiuscole'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import StrisciaNotti from '@/components/StrisciaNotti'
@@ -52,7 +53,7 @@ export const VALORI_VUOTI: ValoriModulo = { canale: 'telefono', nome: '', cognom
 // conProvenienza = colonne della 0036 disponibili: solo allora i campi entrano nel payload
 export function valoriDaSalvare(v: ValoriModulo, conProvenienza = false): ValoriModifica {
   return {
-    nome: v.nome.trim(), cognome: v.cognome.trim(), arrivo: v.arrivo, partenza: v.partenza,
+    nome: conIniziali(v.nome), cognome: conIniziali(v.cognome), arrivo: v.arrivo, partenza: v.partenza,
     persone: v.persone, persone_per_notte: v.personePerNotte,
     camera_id: v.cameraId || null, canale: v.canale,
     telefono: telefonoLeggibile(normalizzaTelefono(v.telefono)) || null,

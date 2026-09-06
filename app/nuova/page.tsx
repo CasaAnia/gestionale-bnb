@@ -1,4 +1,5 @@
 'use client'
+import { conInizialiONull } from '@/lib/maiuscole'
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -388,7 +389,7 @@ function NuovaPrenotazione() {
       const rawP = phone.trim().replace(/\D/g, '')
       const formattedPhone = rawP ? (rawP.startsWith('39') ? rawP : `39${rawP}`) : null
       // Cliente nuovo: la provenienza nasce con lui (solo a 0037 applicata)
-      const baseCliente = { phone: formattedPhone, full_name: guestForm.full_name || null, email: guestForm.email || null, ...(strutture.disponibile ? campiProvenienza(provenienza.provenienza, provenienza.struttura) : {}) }
+      const baseCliente = { phone: formattedPhone, full_name: conInizialiONull(guestForm.full_name), email: guestForm.email || null, ...(strutture.disponibile ? campiProvenienza(provenienza.provenienza, provenienza.struttura) : {}) }
       // Valutazione + ricevuta (0038): colonna nuova se c'è, altrimenti la forma vecchia
       let { data: newGuest, error: guestError } = await supabase.from('guests').insert({ ...baseCliente, ...payloadValutazione(guestForm.rating, guestForm.ricevuta, true) }).select().single()
       if (guestError && /vuole_ricevuta/i.test(guestError.message || '')) ({ data: newGuest, error: guestError } = await supabase.from('guests').insert({ ...baseCliente, ...payloadValutazione(guestForm.rating, guestForm.ricevuta, false) }).select().single())
@@ -404,7 +405,7 @@ function NuovaPrenotazione() {
       setErroreCliente(null)
       const idCliente = guestId
       const errore = await scriviPoiAggiorna(
-        () => supabase.from('guests').update({ full_name: guestForm.full_name || null, email: guestForm.email || null, ...payloadValutazione(guestForm.rating, guestForm.ricevuta, colonnaRicevutaPresente(guest as unknown as { vuole_ricevuta?: boolean })) }).eq('id', idCliente),
+        () => supabase.from('guests').update({ full_name: conInizialiONull(guestForm.full_name), email: guestForm.email || null, ...payloadValutazione(guestForm.rating, guestForm.ricevuta, colonnaRicevutaPresente(guest as unknown as { vuole_ricevuta?: boolean })) }).eq('id', idCliente),
         () => {},
       )
       if (errore) {
@@ -422,7 +423,7 @@ function NuovaPrenotazione() {
       num_guests: form.num_guests, extra_bed: form.extra_bed_dates.length > 0, extra_bed_dates: form.extra_bed_dates, price_per_night: Number(form.price_per_night),
       extra_bed_total: ebt, total_amount: calcTotal(), notes: form.notes || null, status: 'confermata', source: form.source,
       bonifico: form.bonifico, pagato: false, group_id: groupId,
-      extra_phone_1_name: form.extra_phone_1_name || null,
+      extra_phone_1_name: conInizialiONull(form.extra_phone_1_name),
       // chi_e incluso solo se valorizzato: così il salvataggio funziona anche se la colonna non è ancora stata creata su Supabase
       ...(form.chi_e ? { chi_e: form.chi_e } : {}),
       // navetta: stessa regola (vuoto = "da definire", non si salva nulla)

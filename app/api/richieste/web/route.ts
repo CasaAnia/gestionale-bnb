@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { conIniziali } from '@/lib/maiuscole'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { validaRichiestaWeb, stessaRichiesta, consentiIp, FINESTRA_DOPPIONI_MIN } from '@/lib/richiesteWeb'
 import { formatIntervallo, nomeCompleto } from '@/lib/richieste'
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
   }
 
   const riga: Record<string, unknown> = {
-    nome: d.nome, cognome: d.cognome, arrivo: d.arrivo, partenza: d.partenza, persone: d.persone,
+    nome: conIniziali(d.nome), cognome: conIniziali(d.cognome), arrivo: d.arrivo, partenza: d.partenza, persone: d.persone,
     camera_id: d.camera_id, canale: 'web', telefono: d.telefono, note: d.note, stato: 'in_attesa',
   }
   // Provenienza (0037): cliente nuovo → google; cliente già esistente (stesso

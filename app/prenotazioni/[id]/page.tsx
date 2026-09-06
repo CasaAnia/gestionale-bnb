@@ -1,4 +1,5 @@
 'use client'
+import { conInizialiONull } from '@/lib/maiuscole'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -912,14 +913,14 @@ export default function BookingDetail() {
       bonifico: editForm.bonifico || false,
       source: editForm.source || 'diretta',
       extra_phone_1: editForm.extra_phone_1 ? normalizePhone(editForm.extra_phone_1) : null,
-      extra_phone_1_name: editForm.extra_phone_1_name || null,
+      extra_phone_1_name: conInizialiONull(editForm.extra_phone_1_name),
       // chi_e incluso solo se la colonna esiste già sul DB o se è stato valorizzato: gli altri salvataggi non si bloccano prima della migrazione
       ...(booking.chi_e !== undefined || editForm.chi_e ? { chi_e: editForm.chi_e || null } : {}),
       extra_phone_2: editForm.extra_phone_2 ? normalizePhone(editForm.extra_phone_2) : null,
-      extra_phone_2_name: editForm.extra_phone_2_name || null,
+      extra_phone_2_name: conInizialiONull(editForm.extra_phone_2_name),
       // Il nome modificato qui vale per QUESTA prenotazione (bookings.guest_name),
       // non rinomina la scheda cliente. Incluso solo a colonna migrata, come chi_e.
-      ...(booking.guest_name !== undefined ? { guest_name: editForm.guest_name?.trim() || null } : {}),
+      ...(booking.guest_name !== undefined ? { guest_name: conInizialiONull(editForm.guest_name) } : {}),
       updated_at: new Date().toISOString(),
     }
     // Se il DB rifiuta l'update (es. colonna mancante) il salvataggio NON deve sembrare riuscito
@@ -949,8 +950,8 @@ export default function BookingDetail() {
         // viene più rinominata da qui: prende il nome solo se ne è senza.
         // Finché guest_name non è migrata resta il vecchio comportamento.
         full_name: booking.guest_name === undefined
-          ? (editForm.guest_name || booking.guests?.full_name || null)
-          : (booking.guests?.full_name || editForm.guest_name?.trim() || null),
+          ? (conInizialiONull(editForm.guest_name) || booking.guests?.full_name || null)
+          : (booking.guests?.full_name || conInizialiONull(editForm.guest_name)),
         phone: editForm.guest_phone || booking.guests?.phone || null,
         email: editForm.guest_email || booking.guests?.email || null,
       }).eq('id', guestId)

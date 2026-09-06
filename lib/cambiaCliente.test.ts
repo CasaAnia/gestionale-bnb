@@ -62,6 +62,8 @@ test('nuovo cliente: «Nome Cognome» prima il nome, telefono a cifre col 39, pr
   assert.deepEqual(nuovoClienteDaModulo(m, true), { ok: true, campi: { full_name: 'Anna Kowalska', phone: '393331234567', provenienza: 'altra_struttura', struttura_nome: 'Nida' } })
   assert.deepEqual(nuovoClienteDaModulo({ ...m, telefono: '3331234567' }, false), { ok: true, campi: { full_name: 'Anna Kowalska', phone: '393331234567' } })
   assert.deepEqual(nuovoClienteDaModulo({ ...m, cognome: '' }, false), { ok: true, campi: { full_name: 'Anna', phone: '393331234567' } })
+  // Iniziali maiuscole anche se scritte in minuscolo (Ania, 06/09/2026)
+  assert.equal((nuovoClienteDaModulo({ ...m, nome: 'liliana', cognome: 'micali' }, false) as { ok: true; campi: { full_name: string } }).campi.full_name, 'Liliana Micali')
 })
 
 test('nuovo cliente: senza nome o telefono non si crea nulla, con un messaggio chiaro', () => {

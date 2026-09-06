@@ -17,6 +17,7 @@
 // ============================================================================
 import { scriviPoiAggiorna, type RispostaScrittura } from './scritturaSicura.ts'
 import { nomeCompleto } from './guestName.ts'
+import { conIniziali } from './maiuscole.ts'
 import { matchNome, matchTelefono } from './ricerca.ts'
 import { normalizzaTelefono } from './whatsapp.ts'
 import { campiProvenienza, strutturaNota, type Provenienza, type CampiProvenienza } from './provenienza.ts'
@@ -97,7 +98,7 @@ export const ERRORE_TELEFONO_CORTO = 'Controlla il telefono: sembra incompleto'
 // sole cifre col prefisso 39 come nel resto del gestionale, provenienza solo
 // se le colonne della 0037 esistono (conProvenienza).
 export function nuovoClienteDaModulo(m: ModuloNuovoCliente, conProvenienza: boolean): { ok: true; campi: CampiNuovoCliente } | { ok: false; errore: string } {
-  const full_name = nomeCompleto(m)
+  const full_name = nomeCompleto({ nome: conIniziali(m.nome), cognome: conIniziali(m.cognome) })
   if (!full_name) return { ok: false, errore: ERRORE_NOME_MANCANTE }
   const t = normalizzaTelefono(m.telefono)
   if (!t.numero) return { ok: false, errore: ERRORE_TELEFONO_MANCANTE }
