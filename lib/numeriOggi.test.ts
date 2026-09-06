@@ -56,7 +56,7 @@ test('tre numeri: senza prenotazioni tutto a zero ma le camere restano', () => {
 })
 
 // ── Striscia della settimana: STESSA regola della pagina Pulizie (08/09/2026) ──
-import { strisciaSettimane, etichettaGiornoBreve, ultimoGiornoStriscia, testoCasella } from './numeriOggi.ts'
+import { strisciaSettimane, etichettaGiornoBreve, ultimoGiornoStriscia, testoCasella, cambiCameraPerGiorno, simboliCambi } from './numeriOggi.ts'
 import { conteggioGiorno, statoCameraGiorno, pulizieAperte, attive, cicloCambio, type Decisione } from './pulizie.ts'
 
 const CAMERE = [{ id: 'amelia' }, { id: 'allegra' }, { id: 'ambra' }, { id: 'lena' }]
@@ -203,4 +203,37 @@ test('cambio biancheria RIMANDATO: conta solo nel giorno di destinazione; aggiun
   assert.equal(cicloCambio(attive(lungo), lungo[0], [rimandata, fattaAMano]).due, '2026-09-10')
   // Stessi dati → striscia = pagina, giorno per giorno
   for (const g of m) assert.deepEqual([g.daFare, g.fatte], (c => [c.daFare, c.fatte])(conteggioGiorno(CAMERE, lungo, [rimandata, fattaAMano], g.giorno, oggi)), g.giorno)
+})
+
+// Segnale ⇄ dei cambi camera nella striscia (incarico del 06/09/2026)
+test('cambi camera per giorno: 0, 1, 2, 3; un arrivo di un altro ospite lo stesso giorno non conta; i numeri della striscia non cambiano', () => {
+  const oggi = '2026-09-05'
+  const pren = [
+    // 1 cambio il 7: Anna Ambra → Lena
+    b('a1', 'ambra', '2026-09-05', '2026-09-07', { group_id: 'ga' }), b('a2', 'lena', '2026-09-07', '2026-09-09', { group_id: 'ga' }),
+    // arrivo di un altro ospite il 7: non è un cambio
+    b('x', 'amelia', '2026-09-07', '2026-09-09'),
+    // 2 cambi il 10: Bruno (stesso guest_id, senza group_id) e Carla (group_id)
+    b('b1', 'amelia', '2026-09-09', '2026-09-10', { guest_id: 'bruno' }), b('b2', 'allegra', '2026-09-10', '2026-09-12', { guest_id: 'bruno' }),
+    b('c1', 'lena', '2026-09-09', '2026-09-10', { group_id: 'gc' }), b('c2', 'ambra', '2026-09-10', '2026-09-11', { group_id: 'gc' }),
+    // 3 cambi il 15
+    b('d1', 'amelia', '2026-09-13', '2026-09-15', { group_id: 'gd' }), b('d2', 'lena', '2026-09-15', '2026-09-17', { group_id: 'gd' }),
+    b('e1', 'allegra', '2026-09-13', '2026-09-15', { group_id: 'ge' }), b('e2', 'amelia', '2026-09-15', '2026-09-16', { group_id: 'ge' }),
+    b('f1', 'ambra', '2026-09-12', '2026-09-15', { group_id: 'gf' }), b('f2', 'allegra', '2026-09-15', '2026-09-18', { group_id: 'gf' }),
+    // annullata: mai
+    b('z1', 'lena', '2026-09-20', '2026-09-21', { group_id: 'gz', status: 'annullata' }), b('z2', 'ambra', '2026-09-21', '2026-09-22', { group_id: 'gz', status: 'annullata' }),
+  ]
+  const cambi = cambiCameraPerGiorno(pren)
+  assert.deepEqual(cambi, { '2026-09-07': 1, '2026-09-10': 2, '2026-09-15': 3 })
+  const s = strisciaSettimane(camere.filter(c => c.active), pren, [], oggi)
+  assert.equal(s[0].cambi, 0); assert.equal(s[2].cambi, 1); assert.equal(s[5].cambi, 2); assert.equal(s[10].cambi, 3)
+  // i numeri delle camere da preparare restano quelli del calcolo condiviso
+  const senza = strisciaSettimane(camere.filter(c => c.active), pren.filter(p => !p.group_id && !p.guest_id), [], oggi)
+  assert.ok(s.every(g => typeof g.daFare === 'number' && (g.cambi === 0 || g.daFare >= 1)), 'un cambio conta già tra le camere da preparare')
+  assert.equal(senza[2].cambi, 0)
+  assert.deepEqual(simboliCambi(0), { sopra: false, centro: false, sotto: false })
+  assert.deepEqual(simboliCambi(1), { sopra: false, centro: false, sotto: true })
+  assert.deepEqual(simboliCambi(2), { sopra: true, centro: false, sotto: true })
+  assert.deepEqual(simboliCambi(3), { sopra: true, centro: true, sotto: true })
+  assert.deepEqual(simboliCambi(5), { sopra: true, centro: true, sotto: true })
 })

@@ -9,7 +9,11 @@
 // (font-serif text-2xl text-green-dark), nessun colore nuovo.
 import { useRef } from 'react'
 import Link from 'next/link'
-import { etichettaGiornoBreve, testoCasella, type GiornoStriscia } from '@/lib/numeriOggi'
+import { etichettaGiornoBreve, testoCasella, simboliCambi, type GiornoStriscia } from '@/lib/numeriOggi'
+
+// Segnale ⇄ dei cambi camera (06/09/2026): ottone, grassetto, 13 px; lo spazio sopra e
+// sotto il numero è sempre riservato, così le caselle restano uguali e i numeri allineati
+const CAMBIO = { color: '#A9884E', fontWeight: 700, fontSize: 13, lineHeight: '14px', height: 14 } as const
 
 export const DIDASCALIA_STRISCIA = 'Camere da preparare nei prossimi 7 giorni'
 
@@ -21,15 +25,20 @@ export default function StrisciaSettimana({ giorni }: { giorni: GiornoStriscia[]
     <section className="mb-4" data-striscia-settimana>
       <button type="button" onClick={tornaAOggi} className="text-[12px] mb-1 text-left" style={{ color: 'var(--color-stone)' }}>{DIDASCALIA_STRISCIA}</button>
       <div ref={scorrevole} className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory border-b border-card-border">
-        {giorni.map(g => { const c = testoCasella(g); return (
+        {giorni.map(g => { const c = testoCasella(g); const s = simboliCambi(g.cambi); return (
           <Link key={g.giorno} href={`/pulizie?giorno=${g.giorno}`} data-giorno={g.giorno} data-camere={g.daFare} data-fatte={g.fatte} data-tono={c.tono}
-            className="snap-start shrink-0 basis-[14.2857%] lg:basis-[7.1428%] flex flex-col items-center justify-center py-2 min-h-[58px]"
+            className="snap-start shrink-0 basis-[14.2857%] lg:basis-[7.1428%] flex flex-col items-center justify-center py-1.5"
             style={{
               ...(g.oggi ? { boxShadow: 'inset 0 -2px 0 #A9884E' } : {}),
               ...(g.inizioSettimana ? { borderLeft: '1px solid rgba(169,136,78,0.55)' } : {}),
             }}>
             <span className="text-[11px] leading-none" style={{ color: g.oggi ? '#1F3D2F' : 'var(--color-stone)' }}>{etichettaGiornoBreve(g.giorno)}</span>
-            <span className={`numero-classico mt-1 ${c.tono === 'numero' ? 'text-green-dark' : 'text-gray-400'}`}>{c.testo}</span>
+            <span aria-hidden data-cambi-sopra={s.sopra ? 1 : 0} style={CAMBIO}>{s.sopra ? '⇄' : ''}</span>
+            <span className={`numero-classico relative ${c.tono === 'numero' ? 'text-green-dark' : 'text-gray-400'}`} data-cambi={g.cambi}>
+              {c.testo}
+              {s.centro && <span aria-hidden className="absolute inset-0 flex items-center justify-center" style={{ ...CAMBIO, height: undefined, lineHeight: 1 }}>⇄</span>}
+            </span>
+            <span aria-hidden data-cambi-sotto={s.sotto ? 1 : 0} style={CAMBIO}>{s.sotto ? '⇄' : ''}</span>
           </Link>
         ) })}
       </div>

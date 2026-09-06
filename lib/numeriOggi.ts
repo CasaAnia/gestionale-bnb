@@ -58,14 +58,35 @@ export const GIORNI_STRISCIA = 28
 export const GIORNI_VISIBILI_TELEFONO = 7
 export const GIORNI_VISIBILI_MAC = 14
 
-export type GiornoStriscia = { giorno: string; daFare: number; fatte: number; oggi: boolean; inizioSettimana: boolean }
+export type GiornoStriscia = { giorno: string; daFare: number; fatte: number; oggi: boolean; inizioSettimana: boolean; cambi: number }
+
+// Cambi camera per giorno (incarico del 06/09/2026): un ospite che quel giorno
+// passa da una camera a un'altra (catene di lib/roomChanges, stesse del
+// Calendario). Contano già tra le camere da preparare: qui solo il segnale ⇄.
+export function cambiCameraPerGiorno(prenotazioni: { id: string; room_id: string; check_in: string; check_out: string; status?: string; group_id?: string | null; guest_id?: string | null }[]): Record<string, number> {
+  const valide = prenotazioni.filter(b => !b.status || prenotazioneValida(b as Parameters<typeof prenotazioneValida>[0]))
+  const perId = new Map(valide.map(b => [b.id, b]))
+  const out: Record<string, number> = {}
+  for (const e of buildChangeGroups(valide).edges) {
+    const a = perId.get(e.toId)
+    if (!a) continue
+    out[a.check_in] = (out[a.check_in] ?? 0) + 1
+  }
+  return out
+}
+
+// Dove stanno i ⇄ nella casella: 1 = sotto, 2 = sotto e sopra, 3+ = anche al centro sul numero
+export function simboliCambi(cambi: number): { sopra: boolean; centro: boolean; sotto: boolean } {
+  return { sotto: cambi >= 1, sopra: cambi >= 2, centro: cambi >= 3 }
+}
 
 export function strisciaSettimane(rooms: { id: string }[], prenotazioni: Parameters<typeof conteggioGiorno>[1], events: Decisione[], oggi: string, giorni = GIORNI_STRISCIA): GiornoStriscia[] {
   const out: GiornoStriscia[] = []
+  const cambi = cambiCameraPerGiorno(prenotazioni as Parameters<typeof cambiCameraPerGiorno>[0])
   for (let i = 0; i < giorni; i++) {
     const giorno = new Date(Date.parse(oggi + 'T00:00:00Z') + i * 86400000).toISOString().slice(0, 10)
     const c = conteggioGiorno(rooms, prenotazioni, events, giorno, oggi)
-    out.push({ giorno, daFare: c.daFare, fatte: c.fatte, oggi: i === 0, inizioSettimana: i > 0 && i % 7 === 0 })
+    out.push({ giorno, daFare: c.daFare, fatte: c.fatte, oggi: i === 0, inizioSettimana: i > 0 && i % 7 === 0, cambi: cambi[giorno] ?? 0 })
   }
   return out
 }

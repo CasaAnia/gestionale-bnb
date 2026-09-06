@@ -99,6 +99,14 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
   sul lato sinistro tagliato SOLO i simboli (⭐ 🧾 🛏 🌐) si spostano a
   destra di 14 px, il nome resta. Test in lib/coloriCambio.test.ts.
   Commit 90d5ffd, 69b4295, a490f57, bd573bf, 6c6a4be, 60bfc03.
+- Striscia della settimana in Home: segnale ⇄ dei cambi camera (incarico
+  del 06/09/2026): lib/numeriOggi.cambiCameraPerGiorno (catene di
+  lib/roomChanges, conteggio per giorno di arrivo nella nuova camera) e
+  simboliCambi (1 → sotto il numero, 2 → sotto e sopra, 3+ → anche al
+  centro); GiornoStriscia ha `cambi`; ottone #A9884E, grassetto, 13 px;
+  spazio sopra e sotto sempre riservato (caselle uguali, numeri allineati);
+  i numeri non cambiano. Test con 0/1/2/3 cambi, arrivo di un altro ospite
+  lo stesso giorno e annullate. Un commit.
 - Prova WhatsApp (dalle 13:37 alle 22:00): lettura di WhatsApp Desktop con
   computer-use ogni 30 minuti, solo lettura; stile e osservazioni in
   memoria (feedback_whatsapp_stile_ania).
