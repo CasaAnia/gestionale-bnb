@@ -847,6 +847,8 @@ export default function Calendario() {
                       const segH = ROW_H - insetV * 2
                       const clipPath = cutLeft || cutRight ? percorsoBarraArrotondata(segW, segH, cutLeft, cutRight) : undefined
                       const tinta = coloreCatena[booking.id]
+                      // Lato sinistro tagliato: nome e simboli (⭐ 🧾 🛏 🌐) spostati a destra, così si vedono per intero (Ania, 06/09/2026)
+                      const rientro = cutLeft ? 14 : 0
                       const leftRounded = isFirst && !cutLeft
                       const rightRounded = isLast && !cutRight
                       return (
@@ -900,22 +902,22 @@ export default function Calendario() {
                                   Sulla richiesta ancora da confermare parla già la
                                   scritta «dal sito»: lì il pallino non si mostra */}
                               {booking.source === 'sito_web' && !isWebPending && (
-                                <span style={{ position: 'absolute', top: 1.5, left: 1.5, width: 12, height: 12, borderRadius: '50%', background: '#1F3D2F', border: '1px solid rgba(255,255,255,0.9)', color: '#fff', fontSize: 7, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, pointerEvents: 'none' }}>🌐</span>
+                                <span style={{ position: 'absolute', top: 1.5, left: 1.5 + rientro, width: 12, height: 12, borderRadius: '50%', background: '#1F3D2F', border: '1px solid rgba(255,255,255,0.9)', color: '#fff', fontSize: 7, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, pointerEvents: 'none' }}>🌐</span>
                               )}
-                              <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                              <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, paddingLeft: 6 + rientro, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                                 {guestName}{vuoleRicevuta ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
                               </span>
                               {/* Le iconcine stanno SOTTO il nome, piccole (Ania, 05/09/2026): così si
                                   vedono anche quando il nome è lungo e finisce coi puntini */}
                               {(isEsclusiva || isOttimo || vuoleRicevuta || hasExtraBed) && (
-                                <span style={{ display: 'block', fontSize: 9, lineHeight: 1.2, paddingLeft: 6, opacity: 0.95, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                                <span style={{ display: 'block', fontSize: 9, lineHeight: 1.2, paddingLeft: 6 + rientro, opacity: 0.95, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                                   {isEsclusiva ? '🔒 ' : ''}{isOttimo ? '⭐ ' : ''}{vuoleRicevuta ? '🧾 ' : ''}{hasExtraBed ? '🛏' : ''}
                                 </span>
                               )}
                               {/* La scritta resta solo sulla richiesta da confermare
                                   (barra bianca): sulle confermate parla il pallino */}
                               {isWebPending && (
-                                <span style={{ color: '#2D6A4F', fontSize: 9, fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
+                                <span style={{ color: '#2D6A4F', fontSize: 9, fontWeight: 600, paddingLeft: 6 + rientro, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
                                   🌐 dal sito
                                 </span>
                               )}

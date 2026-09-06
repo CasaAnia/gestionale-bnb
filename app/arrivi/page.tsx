@@ -528,7 +528,7 @@ export default function Arrivi() {
                         {/* Pezzetto tagliato colorato: la barra è già ritagliata (clipPath), quindi del cuneo resta solo una striscia di 4 px lungo il taglio (Ania: «meno marcato») */}
                         {tinta && hasOutgoing && <span aria-hidden data-cuneo="uscita" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(18px 0, 100% 0, 100% 100%, 6px 100%)', opacity: 0.9, pointerEvents: 'none' }} />}
                         {tinta && hasIncoming && <span aria-hidden data-cuneo="arrivo" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(0 0, 4px 0, 16px 100%, 12px 100%)', opacity: 0.9, pointerEvents: 'none' }} />}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 8, maxWidth: '100%', position: 'relative' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: hasIncoming ? 20 : 8, maxWidth: '100%', position: 'relative' }}>
                           {/* Orario. Cambio camera (Ania, 06/09/2026): NESSUN simbolo, si vede già dal taglio della barra */}
                           {!isCambio && <span style={{
                             color: isCambio ? 'white' : (time ? '#1F3D2F' : 'white'),

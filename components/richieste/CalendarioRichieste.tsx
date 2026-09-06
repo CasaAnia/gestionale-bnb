@@ -188,7 +188,7 @@ export default function CalendarioRichieste(p: Props) {
             {orizzontale && tinta && tagliaFine && <span aria-hidden data-cuneo="uscita" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(18px 0, 100% 0, 100% 100%, 6px 100%)', opacity: 0.9, pointerEvents: 'none' }} />}
             {orizzontale && tinta && tagliaInizio && <span aria-hidden data-cuneo="arrivo" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(0 0, 4px 0, 16px 100%, 12px 100%)', opacity: 0.9, pointerEvents: 'none' }} />}
             {primo && (
-              <span style={{ color: 'white', fontSize: p.layout === 'desktop' ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, padding: p.layout === 'desktop' ? '0 6px' : '3px 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', position: 'relative' }}>
+              <span style={{ color: 'white', fontSize: p.layout === 'desktop' ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, padding: p.layout === 'desktop' ? '0 6px' : '3px 4px', paddingLeft: (p.layout === 'desktop' ? 6 : 4) + (orizzontale && tagliaInizio ? 12 : 0), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', position: 'relative' }}>
                 {nomeOspite(b)}
               </span>
             )}
