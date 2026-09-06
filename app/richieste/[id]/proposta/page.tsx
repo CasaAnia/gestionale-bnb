@@ -19,6 +19,7 @@ import { lettoDaComunicare } from '@/lib/tariffe'
 import { openWhatsApp, normalizzaTelefono } from '@/lib/whatsapp'
 import { salvaImmagine, copiaImmagine, isMobile } from '@/lib/immaginePng'
 import { useDesktop, useAdesso } from '@/lib/richiesteVista'
+import { opzioniAttive, opzioniScadute, occupantiDaOpzioni, notaOpzioni, opzioniSovrapposte, oraRoma, type RichiestaOpzione } from '@/lib/opzioni'
 import RigaScadenza from '@/components/richieste/RigaScadenza'
 import { giorniTra } from '@/lib/richiesteCalendario'
 import Link from 'next/link'
@@ -72,6 +73,8 @@ export default function PropostaPage() {
   const [testoModificato, setTestoModificato] = useState<string | null>(null)
   const [modo, setModo] = useState<'testo' | 'immagine'>('testo')
   const [pannelloCambia, setPannelloCambia] = useState(false)
+  // Opzione di 3 ore (06/09/2026): le altre richieste con proposta inviata tengono in opzione camere e notti
+  const [altreProposte, setAltreProposte] = useState<RichiestaOpzione[]>([])
   // Azione rimandata finché Ania non conferma di voler perdere il testo modificato a mano
   const [azioneSospesa, setAzioneSospesa] = useState<(() => void) | null>(null)
   // Condizioni di pagamento (pezzo 6): NESSUNA preselezione, le sceglie Ania ogni volta.
@@ -106,29 +109,38 @@ export default function PropostaPage() {
       fetchRichiesta(id),
       supabase.from('rooms').select('*').eq('active', true),
       supabase.from('bookings').select('room_id, check_in, check_out, status, num_guests, extra_bed, extra_bed_dates').in('status', ['confermata', 'completata']),
-    ]).then(([ric, r, b]) => {
+      supabase.from('richieste').select('id, nome, cognome, stato, proposta_inviata_at, proposta_soluzione, proposta_alternative').eq('stato', 'proposta_inviata'),
+    ]).then(([ric, r, b, ap]) => {
       const errs: string[] = []
       if (ric.error) errs.push(ric.error)
       if (r.error) errs.push(`camere: ${r.error.message}`)
       if (b.error) errs.push(`prenotazioni: ${b.error.message}`)
+      if (ap.error) errs.push(`opzioni: ${ap.error.message}`)
       setRichiesta(ric.data as typeof richiesta)
       setManca0025(!!ric.data && !colonne0025Presenti(ric.data as unknown as Record<string, unknown>))
       setManca0029(!!ric.data && !colonne0029Presenti(ric.data as unknown as Record<string, unknown>))
       setManca0031(!!ric.data && !colonne0031Presenti(ric.data as unknown as Record<string, unknown>))
       setCamere((r.data || []) as Room[])
       setPrenotazioni((b.data || []) as PrenotazioneOccupante[])
+      setAltreProposte((ap.data || []) as unknown as RichiestaOpzione[])
       setErrore(errs.length ? errs.join(' · ') : null)
       setLoading(false)
     })
   }, [id])
 
+  // Opzioni delle ALTRE richieste: attive (meno di 3 ore) bloccano camere e notti come
+  // fossero confermate; scadute solo segnalate. La richiesta stessa non si blocca da sola.
+  const opzAttive = useMemo(() => opzioniAttive(altreProposte, adesso, id), [altreProposte, adesso, id])
+  const opzScadute = useMemo(() => opzioniScadute(altreProposte, adesso, id), [altreProposte, adesso, id])
+  const prenotazioniConOpzioni = useMemo(() => [...prenotazioni, ...occupantiDaOpzioni(opzAttive)], [prenotazioni, opzAttive])
+  const notaOpz = useMemo(() => (richiesta ? notaOpzioni(richiesta, camere, prenotazioni, opzAttive, opzScadute) : null), [richiesta, camere, prenotazioni, opzAttive, opzScadute])
   // La ricerca può rifiutare dati incoerenti (persone per notte diverse dalle
   // notti): l'errore va a schermo, mai un ripiego silenzioso
   const { soluzioni, erroreRicerca } = useMemo(() => {
     if (!richiesta) return { soluzioni: [] as Soluzione[], erroreRicerca: null as string | null }
-    try { return { soluzioni: proponiSoluzioni(richiesta, camere, prenotazioni), erroreRicerca: null } }
+    try { return { soluzioni: proponiSoluzioni(richiesta, camere, prenotazioniConOpzioni), erroreRicerca: null } }
     catch (e) { return { soluzioni: [] as Soluzione[], erroreRicerca: String((e as Error).message ?? e) } }
-  }, [richiesta, camere, prenotazioni])
+  }, [richiesta, camere, prenotazioniConOpzioni])
   const inviata = richiesta?.stato === 'proposta_inviata'
   // Già inviata: si rilegge quel che è partito (testo e soluzione archiviati)
   const soluzioneAuto: Soluzione | null = inviata && richiesta?.proposta_soluzione
@@ -146,15 +158,20 @@ export default function PropostaPage() {
     if (!richiesta || camere.length === 0) return []
     try {
       const usate = new Set((soluzione?.segmenti ?? []).map(s => s.camera.id))
-      return motiviEsclusione(richiesta, camere, prenotazioni).filter(x => !usate.has(x.camera.id))
+      return motiviEsclusione(richiesta, camere, prenotazioniConOpzioni).filter(x => !usate.has(x.camera.id))
     } catch { return [] }
-  }, [richiesta, camere, prenotazioni, soluzione])
+  }, [richiesta, camere, prenotazioniConOpzioni, soluzione])
+  // Camere in opzione sulle notti richieste: nelle «Altre camere» si legge il perché vero
+  const motivoOpzione = useMemo(() => {
+    if (!richiesta) return new Map<string, string>()
+    return new Map(opzioniSovrapposte(opzAttive, richiesta.arrivo, richiesta.partenza).map(o => [o.cameraId, `in opzione fino alle ${oraRoma(o.scadenza)} per ${o.ospite}`]))
+  }, [richiesta, opzAttive])
   const completo = soluzione?.caso === 'completo'
   const totaleCent = soluzione ? centesimiTotale(soluzione) : 0
   // Alternativa ad Amelia: solo se le condizioni del blocco sono soddisfatte (calcolo puro)
   const amelia = useMemo(
-    () => (richiesta && soluzione && !inviata ? alternativaAmelia(richiesta, soluzione, camere, prenotazioni) : null),
-    [richiesta, soluzione, camere, prenotazioni, inviata],
+    () => (richiesta && soluzione && !inviata ? alternativaAmelia(richiesta, soluzione, camere, prenotazioniConOpzioni) : null),
+    [richiesta, soluzione, camere, prenotazioniConOpzioni, inviata],
   )
   const caparraCent = centesimi(caparraTesto.replace(',', '.'))
   // Condizione scelta e controllo: senza scelta (o con importo/testo mancante) niente invio
@@ -428,7 +445,7 @@ export default function PropostaPage() {
         {altreCamere.map(x => (
           <li key={x.camera.id} className="flex items-baseline justify-between gap-3 py-1">
             <span className="font-medium">{x.camera.name}</span>
-            <span className={`text-right ${x.motivo.stato === 'libera' ? 'text-green-mid' : 'text-stone'}`}>{testoMotivo(x.motivo)}</span>
+            <span className={`text-right ${motivoOpzione.has(x.camera.id) ? 'text-brass' : x.motivo.stato === 'libera' ? 'text-green-mid' : 'text-stone'}`}>{motivoOpzione.get(x.camera.id) ?? testoMotivo(x.motivo)}</span>
           </li>
         ))}
       </ul>
@@ -445,13 +462,13 @@ export default function PropostaPage() {
       <StrisciaNotti<string | null> arrivo={richiesta.arrivo} partenza={richiesta.partenza} valori={composizione} aria="Camera notte per notte"
         onChange={v => { setComposizione(v); setPrezziManuali(p => p.map((x, k) => (v[k] === composizione[k] ? x : null))); setPrezzoEditor(null) }}
         cicla={(v, verso, i) => {
-          const ammesse = camereAmmesseNotte(i, richiesta, camere, prenotazioni)
+          const ammesse = camereAmmesseNotte(i, richiesta, camere, prenotazioniConOpzioni)
           if (verso === 1) return cameraSuccessiva(v, ammesse)
           const ids: (string | null)[] = [...ammesse.map(c => c.id), null]
           const k = ids.indexOf(v)
           return ids[(k <= 0 ? ids.length : k) - 1]
         }}
-        opzioni={i => [...camereAmmesseNotte(i, richiesta, camere, prenotazioni).map(c => ({ valore: c.id as string | null, etichetta: c.name })), { valore: null, etichetta: 'nessuna' }]}
+        opzioni={i => [...camereAmmesseNotte(i, richiesta, camere, prenotazioniConOpzioni).map(c => ({ valore: c.id as string | null, etichetta: c.name })), { valore: null, etichetta: 'nessuna' }]}
         menuDesktop={desktop}
         mostra={(v, i) => ({
           centro: nomeCamera(v),
@@ -638,6 +655,10 @@ export default function PropostaPage() {
         <section>
           {riepilogo}
           {caso}
+          {/* Nota ottone delle opzioni (blocco entro le 3 ore, oppure opzione scaduta) */}
+          {!inviata && notaOpz && (
+            <div role="note" data-nota-opzioni={notaOpz.tipo} className="mt-3 rounded-r-lg px-3 py-2.5 text-sm text-green-dark leading-snug" style={{ borderLeft: '3px solid #A9884E', background: '#F3ECD8' }}>{notaOpz.testo}</div>
+          )}
           {altre}
           {scelgoIo}
           {condizioni}
