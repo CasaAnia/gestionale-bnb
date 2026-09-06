@@ -79,6 +79,32 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
 
 ---
 
+# Consegna — Ritocchi del pomeriggio del 06/09/2026 (main), scelte di Ania
+
+- Caratteri: numeri della Home, titoli di pagina (30 px), «N cose da
+  controllare» e titoli in riga (22 px), data in cima ai calendari e nomi
+  nelle liste tornano in GEORGIA (`--font-serif` = Georgia; `.ed-titolo`
+  e `.ed-titolo-medio` in Georgia; `.numero-classico`, `.titolo-classico`).
+  Il Fraunces leggero «dava fastidio»; resta solo dove esplicito (finestra
+  di conferma, scheda del recupero biancheria). Commit 4bc0cbc, ff70b86,
+  d183cd4.
+- Cambio camera in Arrivi, Calendario e calendario delle Richieste
+  (lib/roomChanges): via il simbolo ⇄ dalle barre; il pezzetto tagliato ha
+  una striscia colorata di 5 px, stessa tinta per le due metà dello stesso
+  soggiorno (`coloriCatene`: ottone, verde scuro, ruggine, blu ardesia, in
+  ordine di data del primo segmento, poi si ricomincia; nessuna legenda,
+  per volere di Ania); in Arrivi e Calendario il lato tagliato ha gli
+  angoli arrotondati (`percorsoBarraArrotondata`, clip-path path() in
+  pixel; nelle Richieste le colonne sono in percentuale: taglio dritto);
+  sul lato sinistro tagliato SOLO i simboli (⭐ 🧾 🛏 🌐) si spostano a
+  destra di 14 px, il nome resta. Test in lib/coloriCambio.test.ts.
+  Commit 90d5ffd, 69b4295, a490f57, bd573bf, 6c6a4be, 60bfc03.
+- Prova WhatsApp (dalle 13:37 alle 22:00): lettura di WhatsApp Desktop con
+  computer-use ogni 30 minuti, solo lettura; stile e osservazioni in
+  memoria (feedback_whatsapp_stile_ania).
+
+---
+
 # Consegna — Stile editoriale «B» (06/09/2026, main)
 
 Ania ha chiesto di «lucidare» il gestionale (esclusivo, all'avanguardia,
