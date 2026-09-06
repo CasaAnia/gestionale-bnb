@@ -41,3 +41,18 @@ test('stima i moduli non conclusi senza produrre numeri negativi', () => {
   const result = buildSiteFunnel(events, 'settimana', new Date('2026-08-28T12:00:00+02:00'))
   assert.equal(result.nonConcluseStimate, 1)
 })
+
+test('«oggi» conta solo gli eventi del giorno di riferimento (06/09/2026, richiesta di Ania)', () => {
+  const events = [
+    event('visita', '2026-08-28T00:30:00+02:00'),
+    event('visita', '2026-08-28T23:30:00+02:00', { pagina: '/prenota' }),
+    event('richiesta_inviata', '2026-08-28T15:00:00+02:00'),
+    event('visita', '2026-08-27T23:59:00+02:00'),
+    event('richiesta_inviata', '2026-08-29T00:01:00+02:00'),
+  ]
+  const result = buildSiteFunnel(events, 'oggi', new Date('2026-08-28T12:00:00+02:00'))
+  assert.equal(result.visite, 2)
+  assert.equal(result.paginaPrenota, 1)
+  assert.equal(result.richiesteInviate, 1)
+  assert.equal(result.conversioneVisita, 50)
+})

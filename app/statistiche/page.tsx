@@ -70,10 +70,15 @@ const primoDelMeseDopo = (mese: string) => {
   return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
 }
 
-type Periodo = 'settimana' | 'mese' | 'anno'
+// «oggi» (06/09/2026, richiesta di Ania): il solo giorno scelto, per vedere la situazione aggiornata
+type Periodo = 'oggi' | 'settimana' | 'mese' | 'anno'
+
+// Nome del periodo nei testi: «giorno scelto», «settimana precedente»…
+const nomePeriodo = (p: Periodo) => p === 'oggi' ? 'giorno' : p
 
 // Intervallo [da, a) del periodo scelto
 function intervalloPeriodo(ref: Date, period: Periodo): { da: string; a: string } {
+  if (period === 'oggi') { const g = ymd(ref); return { da: g, a: spostaGiorni(g, 1) } }
   if (period === 'settimana') { const g = getWeekDays(ref); return { da: g[0], a: spostaGiorni(g[6], 1) } }
   if (period === 'mese') { const g = getMonthDays(ref); return { da: g[0], a: spostaGiorni(g[g.length - 1], 1) } }
   return { da: `${ref.getFullYear()}-01-01`, a: `${ref.getFullYear() + 1}-01-01` }
@@ -90,7 +95,8 @@ function intervalloLettura(ref: Date, period: Periodo): { da: string; a: string 
 // Sposta la data di riferimento di un periodo avanti (+1) o indietro (−1).
 function shiftRef(ref: Date, period: Periodo, dir: 1 | -1) {
   const d = new Date(ref)
-  if (period === 'settimana') d.setDate(d.getDate() + 7 * dir)
+  if (period === 'oggi') d.setDate(d.getDate() + dir)
+  else if (period === 'settimana') d.setDate(d.getDate() + 7 * dir)
   else if (period === 'mese') { d.setDate(1); d.setMonth(d.getMonth() + dir) }
   else { d.setDate(1); d.setFullYear(d.getFullYear() + dir) }
   return d
@@ -99,13 +105,18 @@ function shiftRef(ref: Date, period: Periodo, dir: 1 | -1) {
 // Vero se oggi cade nel periodo di `ref` (in quel caso la freccia avanti è spenta).
 function isCurrentPeriod(ref: Date, period: Periodo) {
   const now = new Date()
+  if (period === 'oggi') return ymd(ref) === ymd(now)
   if (period === 'settimana') return ymd(mondayOf(ref)) === ymd(mondayOf(now))
   if (period === 'mese') return ref.getFullYear() === now.getFullYear() && ref.getMonth() === now.getMonth()
   return ref.getFullYear() === now.getFullYear()
 }
 
-// Etichetta del periodo mostrata fra le frecce: «1–7 set 2026», «Settembre 2026», «2026».
+// Etichetta del periodo mostrata fra le frecce: «Oggi · sabato 6 set 2026», «1–7 set 2026», «Settembre 2026», «2026».
 function periodLabel(ref: Date, period: Periodo) {
+  if (period === 'oggi') {
+    const giorno = ref.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }).replace('.', '')
+    return isCurrentPeriod(ref, period) ? `Oggi · ${giorno}` : giorno
+  }
   if (period === 'anno') return String(ref.getFullYear())
   if (period === 'mese') return `${MESI_NOMI[ref.getMonth()]} ${ref.getFullYear()}`
   const a = mondayOf(ref)
@@ -186,6 +197,7 @@ export default function Statistiche() {
       const c = cassaIntervallo(data.prenotazioni, data.pagamenti, data.spese, da, a)
       return { label, ricavi: c.ricaviCent, incassi: c.incassiCent, spese: c.speseCent, saldo: c.saldoCent }
     }
+    if (period === 'oggi') { const g = ymd(ref); return [riga(current ? 'Oggi' : new Date(g).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }).replace('.', ''), g, spostaGiorni(g, 1))] }
     if (period === 'settimana') return getWeekDays(ref).map(day => riga(new Date(day).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' }), day, spostaGiorni(day, 1)))
     if (period === 'mese') return getMonthDays(ref).map(day => riga(new Date(day).getDate().toString(), day, spostaGiorni(day, 1)))
     return getYearMonths(ref).map(month => riga(new Date(month + '-01').toLocaleDateString('it-IT', { month: 'short' }), `${month}-01`, primoDelMeseDopo(month)))
@@ -200,7 +212,7 @@ export default function Statistiche() {
   const strutture = data ? struttureDellAnno(data.prenotazioni as PrenotazioneProvenienza[], ref.getFullYear()) : null
 
   // Sconti concessi nel periodo (mese o anno): pro-quota sulle notti dormite (lib/statistiche/sconti)
-  const sconti = data && period !== 'settimana'
+  const sconti = data && (period === 'mese' || period === 'anno')
     ? { ...scontiPeriodo(data.prenotazioni, intervallo.da, intervallo.a), incassatoCent: incassiCent(data.pagamenti, intervallo.da, intervallo.a) }
     : null
 
@@ -267,7 +279,7 @@ export default function Statistiche() {
       <h1 className="ed-titolo-medio mb-4 max-lg:hidden">Statistiche</h1>
 
       <div className="flex gap-2 mb-3">
-        {(['settimana', 'mese', 'anno'] as const).map(p => (
+        {(['oggi', 'settimana', 'mese', 'anno'] as const).map(p => (
           <button key={p} onClick={() => setPeriod(p)}
             className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${period === p ? 'bg-green-mid text-white' : 'text-stone border border-[#C9BFA8]'}`}>
             {p}
@@ -277,14 +289,14 @@ export default function Statistiche() {
 
       {/* Frecce per cambiare periodo; tocco sull'etichetta = torna a oggi */}
       <div className="flex items-center justify-between bg-white rounded-xl border border-[#C9BFA8] shadow-sm mb-4">
-        <button type="button" aria-label={`${period} precedente`} onClick={() => setRef(shiftRef(ref, period, -1))}
+        <button type="button" aria-label={`${nomePeriodo(period)} precedente`} onClick={() => setRef(shiftRef(ref, period, -1))}
           className="px-5 py-1.5 text-2xl leading-none self-stretch text-green-dark active:bg-gray-50 rounded-l-xl">‹</button>
         <button type="button" onClick={() => setRef(new Date())} disabled={current}
           className="flex-1 py-2.5 text-sm font-semibold text-green-dark text-center">
           {label}
           {!current && <span className="block text-[10px] font-normal text-gray-400">tocca per tornare a oggi</span>}
         </button>
-        <button type="button" aria-label={`${period} successivo`} onClick={() => setRef(shiftRef(ref, period, 1))} disabled={current}
+        <button type="button" aria-label={`${nomePeriodo(period)} successivo`} onClick={() => setRef(shiftRef(ref, period, 1))} disabled={current}
           className={`px-5 py-1.5 text-2xl leading-none self-stretch rounded-r-xl ${current ? 'text-gray-300' : 'text-green-dark active:bg-gray-50'}`}>›</button>
       </div>
 
@@ -432,8 +444,8 @@ export default function Statistiche() {
             </div>
           )}
 
-          {/* Grafico a barre */}
-          <div className="ed-riga py-4 mb-4">
+          {/* Grafico a barre (non per «oggi»: una barra sola non dice niente, resta la tabella) */}
+          {period !== 'oggi' && <div className="ed-riga py-4 mb-4">
             <p className="text-sm font-semibold text-gray-600">Incassi per {period}</p>
             <p className="text-xs text-gray-400 mb-3">pagamenti registrati, nel giorno in cui sono arrivati</p>
             <div className="flex items-end gap-1" style={{ height: 120 }}>
@@ -449,7 +461,7 @@ export default function Statistiche() {
                 </div>
               ))}
             </div>
-          </div>
+          </div>}
 
           {/* Tabella riepilogo */}
           <div className="bg-white rounded-xl border border-card-border overflow-hidden">
@@ -572,7 +584,7 @@ export default function Statistiche() {
           {provenienze && (
             <div className="ed-riga py-4 mt-4" data-provenienze>
               <p className="text-sm font-semibold text-gray-600">Da dove arrivano gli ospiti</p>
-              <p className="text-xs text-gray-400 mb-3">{period === 'settimana' ? 'settimana' : period === 'mese' ? 'mese' : 'anno'} scelto · fonte del cliente, valida anche per i suoi soggiorni passati · ricavi per soggiorno sulle notti nel periodo{!provenienze.colonnePresenti ? ` · ${AVVISO_0037}` : ''}</p>
+              <p className="text-xs text-gray-400 mb-3">{nomePeriodo(period)} scelto · fonte del cliente, valida anche per i suoi soggiorni passati · ricavi per soggiorno sulle notti nel periodo{!provenienze.colonnePresenti ? ` · ${AVVISO_0037}` : ''}</p>
               <div className="grid text-[11px] text-gray-400 pb-1 border-b border-card-border" style={{ gridTemplateColumns: '1fr 52px 60px 56px 70px' }}>
                 <span>Fonte</span><span className="text-right">Clienti</span><span className="text-right">Soggiorni</span><span className="text-right">di cui ritorni</span><span className="text-right">Ricavi</span>
               </div>
@@ -613,7 +625,7 @@ export default function Statistiche() {
           {biancheria && (
             <div className="ed-riga py-4 mt-3" data-biancheria-recuperata>
               <p className="text-sm font-semibold text-gray-600">Biancheria recuperata</p>
-              <p className="text-xs text-gray-400 mb-2">{period === 'settimana' ? 'settimana' : period === 'mese' ? 'mese' : 'anno'} scelto · pezzi non usati dagli ospiti e tornati puliti{!recuperi?.tabella ? ` · ${AVVISO_0039}` : recuperi?.errore ? ` · ${recuperi.errore}` : ''}</p>
+              <p className="text-xs text-gray-400 mb-2">{nomePeriodo(period)} scelto · pezzi non usati dagli ospiti e tornati puliti{!recuperi?.tabella ? ` · ${AVVISO_0039}` : recuperi?.errore ? ` · ${recuperi.errore}` : ''}</p>
               {biancheriaTotale === 0 ? (
                 <p className="text-sm text-gray-400 py-1">Niente recuperato in questo periodo</p>
               ) : (

@@ -33,6 +33,29 @@
 
 ---
 
+# Consegna — Statistiche, periodo «Oggi» (06/09/2026, notte, main)
+
+Richiesta di Ania: nelle Statistiche, soprattutto in «Sito e richieste»,
+vedere la situazione aggiornata. Scelta col bottone: periodo «Oggi» accanto a
+settimana/mese/anno. Un commit, nessuna migrazione.
+
+- Quarta linguetta «Oggi»: tutto il resoconto (ricavi per soggiorno, incassi,
+  spese, saldo, Sito e richieste, provenienze, biancheria recuperata, tabella
+  incassi/spese) sul solo giorno scelto; frecce ‹ › di un giorno alla volta,
+  etichetta «Oggi · domenica 6 set 2026» (o «sabato 5 set 2026» + «tocca per
+  tornare a oggi»); il grafico a barre non compare (una barra sola non dice
+  niente), la riga della tabella si chiama «Oggi» (o «5 set»); «Sconti
+  concessi» resta solo per mese e anno, come prima.
+- lib/siteStats: StatsPeriod con «oggi» (mezzanotte → mezzanotte), 1 test
+  nuovo (3 in tutto nel file).
+- Prove: 725 test, tsc, lint dei file toccati senza rilievi, next build ok;
+  anteprima finta 3215 a 390 px: linguetta, etichetta, freccia indietro,
+  sottotitolo di «Sito e richieste», tabella senza grafico.
+- Limite: la finta non ha eventi del sito di oggi, quindi i numeri visti in
+  anteprima sono zeri; la logica è coperta dal test.
+
+---
+
 # Consegna — Iniziali maiuscole nei dati del cliente (06/09/2026, sera, main)
 
 Richiesta di Ania: «quando inserisco dati cliente da qualsiasi parte nel

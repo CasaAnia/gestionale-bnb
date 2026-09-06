@@ -1,4 +1,5 @@
-export type StatsPeriod = 'settimana' | 'mese' | 'anno'
+// «oggi» (06/09/2026, richiesta di Ania): il solo giorno di `now`, per vedere la situazione aggiornata
+export type StatsPeriod = 'oggi' | 'settimana' | 'mese' | 'anno'
 
 export type SiteEvent = {
   tipo: string
@@ -25,7 +26,9 @@ function periodBounds(period: StatsPeriod, now: Date) {
   const start = new Date(now)
   start.setHours(0, 0, 0, 0)
 
-  if (period === 'settimana') {
+  if (period === 'oggi') {
+    // nessuno spostamento: dalla mezzanotte di oggi
+  } else if (period === 'settimana') {
     const day = start.getDay()
     start.setDate(start.getDate() - (day === 0 ? 6 : day - 1))
   } else if (period === 'mese') {
@@ -35,7 +38,8 @@ function periodBounds(period: StatsPeriod, now: Date) {
   }
 
   const end = new Date(start)
-  if (period === 'settimana') end.setDate(end.getDate() + 7)
+  if (period === 'oggi') end.setDate(end.getDate() + 1)
+  else if (period === 'settimana') end.setDate(end.getDate() + 7)
   else if (period === 'mese') end.setMonth(end.getMonth() + 1)
   else end.setFullYear(end.getFullYear() + 1)
   return { start, end }
