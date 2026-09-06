@@ -79,6 +79,29 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
 
 ---
 
+# Consegna — Home «Da controllare»: i cambi camera non sono arrivi (06/09/2026, main)
+
+- Richiesta di Ania: «quando c'è cambio stanza non mi compare negli arrivi
+  in Home, non è urgente». Sui dati veri: Rosa Macauda, Ambra 1–7 set poi
+  Amelia 7–11 con DUE prenotazioni non collegate (group_id diversi): la
+  regola vecchia (stesso group_id) la mostrava come «arrivo di domani senza
+  orario».
+- lib/daControllare.eCambioCamera: è cambio camera anche una prenotazione
+  separata della STESSA PERSONA (stesso cliente, telefono o nome —
+  lib/clienteCheTorna.stessaPersona) che finisce il giorno dell'arrivo;
+  eccezioniArrivi la esclude. Chi è partito ieri e torna domani resta un
+  arrivo vero. Test nuovo (Rosa per cliente, Nida per telefono, omonimo per
+  nome, arrivo vero, ritorno dopo un giorno); i telefoni finti del test ora
+  sono unici per prenotazione (prima erano tutti uguali), nessun assert
+  toccato.
+- Anteprima finta: «Parte Oggi» ha una seconda prenotazione in Lena da oggi
+  senza orario → NON compare tra gli arrivi senza orario (restano 3);
+  in Pulizie non registrate compare ancora, perché la camera nuova va
+  comunque preparata. Provato a 390 px.
+- Suite 685/685, TypeScript OK, lint del delta 0→0, `next build` OK.
+
+---
+
 # Consegna — Home «Da controllare»: navetta confermata senza orario (06/09/2026, main)
 
 - Richiesta di Ania: «vuole la navetta ma non ho ancora il suo orario»,

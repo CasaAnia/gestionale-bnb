@@ -11,8 +11,11 @@ const ADESSO = new Date('2026-09-15T12:00:00+02:00')
 
 // Ogni prenotazione di prova ha il telefono della scheda cliente (come in
 // produzione): dal 07/09/2026 un arrivo SENZA numero ha un motivo diverso
+// Telefono diverso per ogni prenotazione (dal 06/09/2026 la regola del cambio camera
+// riconosce la stessa persona anche dal telefono: un numero unico li farebbe tutti «cambi»)
+const telefonoDi = (id: string) => `+39 3${String(Math.abs([...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)) % 1e8).padStart(8, '0')}`
 const b = (id: string, camera: string, check_in: string, check_out: string, total: number, extra: Partial<PrenotazioneDC> = {}): PrenotazioneDC =>
-  ({ id, room_id: camera, rooms: { name: `Camera ${camera}` }, guest_name: `Ospite ${id}`, guests: { full_name: null, phone: '+39 333 000 0000' }, check_in, check_out, total_amount: total, status: 'confermata', ...extra })
+  ({ id, room_id: camera, rooms: { name: `Camera ${camera}` }, guest_name: `Ospite ${id}`, guests: { full_name: null, phone: telefonoDi(id) }, check_in, check_out, total_amount: total, status: 'confermata', ...extra })
 const r = (id: string, stato: string, arrivo: string, created_at: string, proposta_inviata_at: string | null = null): RichiestaDC =>
   ({ id, stato, arrivo, partenza: '2026-09-25', created_at, proposta_inviata_at, nome: 'Anna', cognome: 'Rossi' })
 
@@ -522,4 +525,20 @@ test('arrivi senza orario: navetta confermata segnalata, «no» e «da definire�
     ['arrivo:senzaNavetta', undefined, 'Arrivo di oggi senza orario'],
     ['arrivo:daDefinire', undefined, 'Arrivo di domani senza orario'],
   ])
+})
+
+// Ania, 06/09/2026: «i cambi stanza non sono urgenti» — anche con due prenotazioni
+// NON collegate (caso Rosa: Ambra 1–7, poi Amelia 7–11, stesso cliente)
+test('arrivi senza orario: il cambio camera della stessa persona non compare, anche senza group_id', () => {
+  const out = eccezioniArrivi([
+    b('rosaPrima', 'ambra', '2026-09-10', '2026-09-16', 300, { guest_id: 'g-rosa', guest_name: 'Rosa Macauda' }),
+    b('rosaDopo', 'amelia', '2026-09-16', '2026-09-20', 200, { guest_id: 'g-rosa', guest_name: 'Rosa Macauda' }),     // domani, stesso cliente → cambio
+    b('nidaPrima', 'amelia', '2026-09-14', '2026-09-15', 100, { guest_name: 'Nida', guests: { full_name: null, phone: '+39 333 111 2222' } }),
+    b('nidaDopo', 'allegra', '2026-09-15', '2026-09-16', 100, { guest_name: 'Nida', guests: { full_name: null, phone: '+39 333 111 2222' } }),  // oggi, stesso telefono → cambio
+    b('omonimo', 'lena', '2026-09-16', '2026-09-18', 100, { guest_name: 'Rosa Macauda', guests: { full_name: null, phone: '+39 333 999 0000' } }),   // stesso nome di chi parte il 16 → cambio (anche senza cliente né telefono)
+    b('vero', 'ambra', '2026-09-16', '2026-09-18', 100, { guest_name: 'Marco Bianchi', guests: { full_name: null, phone: '+39 333 000 1111' } }),   // arrivo vero: nessuna sua prenotazione finisce il 16
+    b('ieriParte', 'ambra', '2026-09-13', '2026-09-15', 100, { guest_name: 'Luca Neri', guests: { full_name: null, phone: '+39 333 000 2222' } }),
+    b('lucaDomani', 'lena', '2026-09-16', '2026-09-17', 100, { guest_name: 'Luca Neri', guests: { full_name: null, phone: '+39 333 000 2222' } }),  // Luca è partito ieri, torna domani: arrivo vero
+  ], OGGI)
+  assert.deepEqual(out.map(e => e.chiave), ['arrivo:vero', 'arrivo:lucaDomani'])
 })

@@ -110,6 +110,7 @@ const bookings = [
   prenotazione(ROOM.lena, G.senza.id, O(1), O(2), 1, { total_amount: 80 }),                    // domani, senza orario né numero
   prenotazione(ROOM.allegra, G.oggiIn.id, O(0), O(1), 2, { shuttle: 'si' }),                    // tre numeri: arriva oggi; SENZA orario → voce in Da controllare (06/09/2026); una notte con navetta → ombra ottone in Arrivi
   prenotazione(ROOM.ambra, G.oggiOut.id, O(-3), O(0), 2, { pagato: true }),                    // tre numeri: parte oggi
+  prenotazione(ROOM.lena, G.oggiOut.id, O(0), O(1), 2),                                        // stessa persona, prenotazione SEPARATA che parte da Ambra oggi = cambio camera (caso Rosa, 06/09/2026): NON compare tra gli arrivi senza orario
   prenotazione(ROOM.allegra, G.giulio.id, O(-6), O(-4), 2, { status: 'completata', pagato: true }),
   prenotazione(ROOM.ambra, G.sara.id, O(-12), O(-10), 2, { status: 'completata' }),
   prenotazione(ROOM.lena, G.elena.id, O(-20), O(-18), 2, { status: 'completata', pagato: true }),

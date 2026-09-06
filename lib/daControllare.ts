@@ -34,6 +34,7 @@ import { EXTRA_BED_MAX } from './tariffe.ts'
 import { statoCameraGiorno, attive, continuaDa, type Decisione } from './pulizie.ts'
 import { normalizzaTelefono } from './whatsapp.ts'
 import { whatsappRichiestaOrario, waHrefTesto } from './messaggiWhatsApp.ts'
+import { stessaPersona } from './clienteCheTorna.ts'
 
 export const GIORNI_CONCLUSO_NON_PAGATO = 1
 
@@ -278,12 +279,23 @@ export function eccezioniCalendario(prenotazioni: PrenotazioneDC[]): Eccezione[]
 // cambio camera: l'ospite è già in casa, l'orario non serve.
 // Dal 06/09/2026 (Ania: «è sparito Arturo che arriva oggi senza orario») la
 // regola copre OGGI e DOMANI: quelli di oggi vengono prima.
+// Dal 06/09/2026 (Ania: «i cambi stanza non sono urgenti, non voglio vederli»)
+// conta come cambio camera anche una prenotazione SEPARATA della stessa
+// persona (stesso cliente, telefono o nome — lib/clienteCheTorna.stessaPersona)
+// che finisce il giorno dell'arrivo: caso Rosa, Ambra 1–7 poi Amelia 7–11 con
+// due prenotazioni non collegate.
+export function eCambioCamera(b: PrenotazioneDC, valide: PrenotazioneDC[]): boolean {
+  const persona = { guest_id: b.guest_id, telefono: b.guests?.phone, full_name: b.guest_name || b.guests?.full_name }
+  return valide.some(o => o.id !== b.id && o.check_out === b.check_in
+    && ((!!b.group_id && o.group_id === b.group_id) || stessaPersona(persona, o)))
+}
+
 export function eccezioniArrivi(prenotazioni: PrenotazioneDC[], oggi: string): Eccezione[] {
   const domani = spostaGiorni(oggi, 1)
   const valide = prenotazioni.filter(prenotazioneValida)
   return valide
     .filter(b => (b.check_in === oggi || b.check_in === domani) && !(b.check_in_time ?? '').trim())
-    .filter(b => !valide.some(o => o.id !== b.id && !!b.group_id && o.group_id === b.group_id && o.check_out === b.check_in))
+    .filter(b => !eCambioCamera(b, valide))
     .sort((a, b) => a.check_in.localeCompare(b.check_in) || nomeCamera(a).localeCompare(nomeCamera(b)))
     .map(b => {
       const wa = whatsappRichiestaOrario(b)
