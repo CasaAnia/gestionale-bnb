@@ -847,7 +847,7 @@ export default function Calendario() {
                       const segH = ROW_H - insetV * 2
                       const clipPath = cutLeft || cutRight ? percorsoBarraArrotondata(segW, segH, cutLeft, cutRight) : undefined
                       const tinta = coloreCatena[booking.id]
-                      // Lato sinistro tagliato: nome e simboli (⭐ 🧾 🛏 🌐) spostati a destra, così si vedono per intero (Ania, 06/09/2026)
+                      // Lato sinistro tagliato: SOLO i simboli (⭐ 🧾 🛏 🌐) spostati a destra, il nome resta al suo posto (Ania, 06/09/2026)
                       const rientro = cutLeft ? 14 : 0
                       const leftRounded = isFirst && !cutLeft
                       const rightRounded = isLast && !cutRight
@@ -891,8 +891,8 @@ export default function Calendario() {
                               : isSelected ? '0 2px 8px rgba(0,0,0,0.25)' : '0 1px 3px rgba(0,0,0,0.2)',
                             transition: 'opacity 0.15s, box-shadow 0.15s',
                           }}>
-                          {tinta && cutRight && <span aria-hidden data-cuneo="uscita" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(18px 0, 100% 0, 100% 100%, 6px 100%)', opacity: 0.9, pointerEvents: 'none' }} />}
-                          {tinta && cutLeft && <span aria-hidden data-cuneo="arrivo" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(0 0, 4px 0, 16px 100%, 12px 100%)', opacity: 0.9, pointerEvents: 'none' }} />}
+                          {tinta && cutRight && <span aria-hidden data-cuneo="uscita" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(17px 0, 100% 0, 100% 100%, 5px 100%)', opacity: 1, pointerEvents: 'none' }} />}
+                          {tinta && cutLeft && <span aria-hidden data-cuneo="arrivo" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(0 0, 5px 0, 17px 100%, 12px 100%)', opacity: 1, pointerEvents: 'none' }} />}
                           {isFirst && (
                             <>
                               {/* Pallino di provenienza: il cliente è arrivato dal sito.
@@ -904,7 +904,7 @@ export default function Calendario() {
                               {booking.source === 'sito_web' && !isWebPending && (
                                 <span style={{ position: 'absolute', top: 1.5, left: 1.5 + rientro, width: 12, height: 12, borderRadius: '50%', background: '#1F3D2F', border: '1px solid rgba(255,255,255,0.9)', color: '#fff', fontSize: 7, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, pointerEvents: 'none' }}>🌐</span>
                               )}
-                              <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, paddingLeft: 6 + rientro, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                              <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                                 {guestName}{vuoleRicevuta ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
                               </span>
                               {/* Le iconcine stanno SOTTO il nome, piccole (Ania, 05/09/2026): così si
@@ -917,7 +917,7 @@ export default function Calendario() {
                               {/* La scritta resta solo sulla richiesta da confermare
                                   (barra bianca): sulle confermate parla il pallino */}
                               {isWebPending && (
-                                <span style={{ color: '#2D6A4F', fontSize: 9, fontWeight: 600, paddingLeft: 6 + rientro, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
+                                <span style={{ color: '#2D6A4F', fontSize: 9, fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.3 }}>
                                   🌐 dal sito
                                 </span>
                               )}

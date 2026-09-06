@@ -115,9 +115,11 @@ export function getUpcomingRoomChanges(
 // Colore del «pezzetto tagliato» (Ania, 06/09/2026): con più cambi camera nello
 // stesso giorno, la parte obliqua della barra che parte e quella della barra che
 // arriva hanno lo stesso colore, così si vede quale segue quale. Quattro tinte
-// già in uso nel gestionale (ottone, oro scuro, oliva, ruggine), assegnate alle
+// già in uso nel gestionale, assegnate alle
 // catene in ordine di data del primo segmento; oltre la quarta si ricomincia.
-export const COLORI_CAMBIO = ['#A9884E', '#7A5C1E', '#5a6b3f', '#8a4f2f']
+// Dal pomeriggio del 06/09/2026: tinte ben distinte anche dal telefono (Ania: «più intensi»):
+// ottone, verde scuro, ruggine, blu ardesia — tutte già in uso nel gestionale
+export const COLORI_CAMBIO = ['#A9884E', '#1F3D2F', '#8C3B2E', '#41637A']
 
 // id prenotazione → colore della sua catena (solo le prenotazioni con cambio camera)
 type PrenotazioneCatena = { id: string; room_id: string; check_in: string; check_out: string; group_id?: string | null; guest_id?: string | null }
