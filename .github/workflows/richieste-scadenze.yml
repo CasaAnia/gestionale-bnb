@@ -1,0 +1,48 @@
+# Opzione di 3 ore (06/09/2026): controllo ogni 5 minuti delle proposte scadute,
+# anche col gestionale chiuso. Chiama la route /api/richieste/scadenze del
+# gestionale (notifica Pushover di scadenza, una sola volta per richiesta, e
+# chiusura automatica 24 h dopo). Stessa route chiamata da pg_cron con la
+# migrazione 0040: la route è idempotente, i due controlli possono convivere.
+# Il repo è pubblico, quindi le esecuzioni non costano nulla. Il segreto
+# CRON_SECRET è quello del progetto Vercel (Settings → Secrets del repo).
+#
+# Minuti 2, 7, 12… (non 0, 5, 10) per non coincidere col job pg_cron.
+name: Richieste – scadenze delle proposte
+
+on:
+  schedule:
+    - cron: '2-59/5 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: richieste-scadenze
+  cancel-in-progress: false
+
+jobs:
+  controllo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Chiama /api/richieste/scadenze
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          URL: https://gestionale-bnb-tau.vercel.app/api/richieste/scadenze
+        run: |
+          set -u
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::Manca il segreto CRON_SECRET nel repo GitHub"
+            exit 1
+          fi
+          codice=$(curl -sS -o risposta.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H 'Content-Type: application/json' \
+            --max-time 60 "${URL}") || { echo "::error::curl non riuscito"; exit 1; }
+          echo "HTTP ${codice}"
+          cat risposta.json; echo
+          case "${codice}" in
+            200) ;;
+            207) echo "::warning::Controllo eseguito con errori parziali (vedi la risposta)" ;;
+            *) echo "::error::La route ha risposto ${codice}"; exit 1 ;;
+          esac
