@@ -19,6 +19,20 @@ export async function fetchRichieste(): Promise<{ data: Richiesta[]; error: stri
   return { data: (data || []) as unknown as Richiesta[], error: null }
 }
 
+// «Riapri» dalla linguetta Chiuse (06/09/2026): la richiesta torna in attesa,
+// senza proposta né chiusura; prima della 0040 le colonne nuove non ci sono e
+// si azzerano solo quelle vecchie.
+export async function riapriRichiesta(id: string): Promise<{ error: string | null }> {
+  const base = { stato: 'in_attesa', chiusa_at: null, proposta_inviata_at: null, motivo_rifiuto: null }
+  let { data, error } = await supabase.from('richieste').update({ ...base, chiusura_motivo: null, scadenza_notificata_at: null }).eq('id', id).select('id')
+  if (error && /chiusura_motivo|scadenza_notificata_at/i.test(error.message || '')) {
+    ;({ data, error } = await supabase.from('richieste').update(base).eq('id', id).select('id'))
+  }
+  if (error) return { error: spiegaErrore(error) }
+  if (!data || data.length === 0) return { error: 'Nessuna riga aggiornata: la richiesta non c\'è più.' }
+  return { error: null }
+}
+
 // Errori di salvataggio visibili, parte 3 (05/09/2026): il contatore non
 // torna più 0 su errore (0 = «nessuna richiesta»); l'esito porta il
 // messaggio e la barra mostra «!». La navigazione continua a funzionare.

@@ -18,7 +18,7 @@ import ConfermaDialog from '@/components/richieste/ConfermaDialog'
 import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import { supabase } from '@/lib/supabase'
-import { fetchRichieste, rifiutaRichiesta, MOTIVI_RIFIUTO, ricaricaRichiesteAperte } from '@/lib/richiesteDati'
+import { fetchRichieste, rifiutaRichiesta, riapriRichiesta, MOTIVI_RIFIUTO, ricaricaRichiesteAperte } from '@/lib/richiesteDati'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
@@ -26,7 +26,7 @@ import { nomeOspite } from '@/lib/guestName'
 import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
 import {
-  CANALE_LABEL, STATO_LABEL, eAperta, inArchivio, ordinaRichieste, nottiRichiesta, nomeCompleto,
+  CANALE_LABEL, eAperta, inArchivio, rigaChiusa, riapribile, ordinaRichieste, nottiRichiesta, nomeCompleto,
   formatIntervallo, oraArrivo, avvisoFerma, daGuardare, nuoveDalSito, riassuntoPersone, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
 
@@ -104,21 +104,25 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
   )
 }
 
-function RigaArchivio({ r, adesso, evidenziata = false }: { r: Richiesta; adesso: Date; evidenziata?: boolean }) {
-  const colore = r.stato === 'confermata' ? '#6C9A7C' : '#8C3B2E'
+// Linguetta «Chiuse» (06/09/2026): riga di stato in ottone (scaduta, chiusa da sola),
+// grigia (rifiutata da te) o verde (confermata) e «Riapri» che riporta in attesa
+function RigaChiusa({ r, adesso, evidenziata = false, onRiapri, riaprendo }: { r: Richiesta; adesso: Date; evidenziata?: boolean; onRiapri: (r: Richiesta) => void; riaprendo: boolean }) {
+  const stato = rigaChiusa(r, adesso)
+  const colore = stato.tono === 'ottone' ? '#A9884E' : stato.tono === 'verde' ? '#6C9A7C' : 'var(--color-stone)'
   return (
-    <li id={`richiesta-${r.id}`} className={`flex items-baseline justify-between gap-3 py-2.5 -mx-2 px-2 border-b-[0.5px] border-border-soft last:border-b-0 text-sm ${evidenziata ? 'bg-sage/50 rounded-lg' : ''}`}>
+    <li id={`richiesta-${r.id}`} data-chiusa={stato.tono} className={`flex items-center justify-between gap-3 py-2.5 -mx-2 px-2 border-b-[0.5px] border-border-soft last:border-b-0 text-sm ${evidenziata ? 'bg-sage/50 rounded-lg' : ''}`}>
       <div className="min-w-0">
         <p className="text-green-dark truncate">{nomeCompleto(r)}</p>
         <p className="text-xs text-stone">{formatIntervallo(r.arrivo, r.partenza)} · {r.persone} {r.persone === 1 ? 'persona' : 'persone'} · {CANALE_LABEL[r.canale]}</p>
+        <p className="text-xs font-semibold mt-0.5" style={{ color: colore }}>{stato.testo}
+          {r.stato === 'confermata' && r.prenotazione_id && (
+            <Link href={`/prenotazioni/${r.prenotazione_id}`} className="ml-1.5 font-normal underline underline-offset-2 text-green-mid" onClick={e => e.stopPropagation()}>scheda</Link>
+          )}
+        </p>
       </div>
-      <span className="shrink-0 inline-flex items-center gap-1.5 text-xs text-green-dark">
-        <span className="w-2 h-2 rounded-full" style={{ background: colore }} />
-        {STATO_LABEL[r.stato]}{r.chiusa_at ? ` · ${oraArrivo(r.chiusa_at, adesso)}` : ''}
-        {r.stato === 'confermata' && r.prenotazione_id && (
-          <Link href={`/prenotazioni/${r.prenotazione_id}`} className="ml-1 underline underline-offset-2 text-green-mid" onClick={e => e.stopPropagation()}>scheda</Link>
-        )}
-      </span>
+      {riapribile(r) && (
+        <button type="button" onClick={() => onRiapri(r)} disabled={riaprendo} className="ed-pillola-tenue shrink-0 text-green-dark" data-riapri>{riaprendo ? 'Riapro…' : 'Riapri'}</button>
+      )}
     </li>
   )
 }
@@ -185,6 +189,17 @@ function Richieste() {
   // Conferma → prenotazione (finestra «Creare la prenotazione?», poi la scheda)
   const [daConfermare, setDaConfermare] = useState<RichiestaConProposta | null>(null)
   const [rifiutando, setRifiutando] = useState(false)
+  // «Riapri» dalla linguetta Chiuse (06/09/2026)
+  const [riaprendo, setRiaprendo] = useState<string | null>(null)
+  async function riapri(r: Richiesta) {
+    if (riaprendo) return
+    setRiaprendo(r.id)
+    const { error } = await riapriRichiesta(r.id)
+    setRiaprendo(null)
+    if (error) { setErrori(e => [...e.filter(x => !x.startsWith('riapertura')), `riapertura: ${error}`]); return }
+    setTutte(lista => lista.map(x => (x.id === r.id ? { ...x, stato: 'in_attesa', chiusa_at: null, proposta_inviata_at: null, chiusura_motivo: null, scadenza_notificata_at: null } : x)))
+    void ricaricaRichiesteAperte()
+  }
 
   async function confermaRifiuto(motivo?: string) {
     if (!daRifiutare) return
@@ -447,16 +462,17 @@ function Richieste() {
           {!loading && (
             <details className="group mt-6" open={!!apriId && archivio.some(r => r.id === apriId) ? true : undefined}>
               <summary className="list-none cursor-pointer flex items-center justify-between py-2 text-sm text-stone select-none [&::-webkit-details-marker]:hidden">
-                <span>Archivio <span className="text-xs">({archivio.length})</span></span>
+                <span>Chiuse <span className="text-xs">({archivio.length})</span></span>
                 <ChevronDown size={16} strokeWidth={1.8} className="transition-transform group-open:rotate-180" aria-hidden />
               </summary>
               {archivio.length === 0 ? (
-                <p className="text-sm text-stone py-2">{richiesteNonLette ? 'Richieste non lette.' : 'Nessuna richiesta chiusa negli ultimi 90 giorni.'}</p>
+                <p className="text-sm text-stone py-2">{richiesteNonLette ? 'Richieste non lette.' : 'Nessuna richiesta chiusa negli ultimi 3 giorni.'}</p>
               ) : (
                 <ul className="mt-1">
-                  {archivio.map(r => <RigaArchivio key={r.id} r={r} adesso={adesso} evidenziata={r.id === apriId} />)}
+                  {archivio.map(r => <RigaChiusa key={r.id} r={r} adesso={adesso} evidenziata={r.id === apriId} onRiapri={riapri} riaprendo={riaprendo === r.id} />)}
                 </ul>
               )}
+              <p className="text-[11px] text-stone pt-2">Dopo 3 giorni spariscono da sole.</p>
             </details>
           )}
         </section>

@@ -43,7 +43,9 @@ export const STATI_CHIUSI: StatoRichiesta[] = ['confermata', 'rifiutata', 'chius
 export const eRifiutata = (r: { stato: string; chiusura_motivo?: string | null }) => r.stato === 'rifiutata' || (r.stato === 'chiusa' && r.chiusura_motivo === 'rifiutata')
 // Scaduta e chiusa da sola (0040)
 export const eScadutaChiusa = (r: { stato: string; chiusura_motivo?: string | null }) => r.stato === 'chiusa' && r.chiusura_motivo === 'scaduta'
-export const GIORNI_ARCHIVIO = 90
+// Linguetta «Chiuse» (06/09/2026, era «Archivio» a 90 giorni): le chiuse restano visibili
+// per 3 giorni dalla chiusura, poi spariscono da sole (restano nel database)
+export const GIORNI_ARCHIVIO = 3
 
 export const CANALE_LABEL: Record<CanaleRichiesta, string> = {
   web: 'dal sito',
@@ -126,13 +128,35 @@ export function ordinaRichieste<T extends Richiesta>(lista: T[], ordine: OrdineR
 
 export const eAperta = (r: { stato: StatoRichiesta }) => STATI_APERTI.includes(r.stato)
 
-// In archivio: chiuse (confermate o rifiutate) negli ultimi 90 giorni.
+// In «Chiuse»: confermate, rifiutate o chiuse da sole negli ultimi 3 giorni.
 // Se manca chiusa_at (dato vecchio) si guarda l'arrivo della richiesta.
 export function inArchivio(r: Pick<Richiesta, 'stato' | 'chiusa_at' | 'created_at'>, adesso: Date = new Date()): boolean {
   if (!STATI_CHIUSI.includes(r.stato)) return false
   const riferimento = new Date(r.chiusa_at ?? r.created_at).getTime()
   return adesso.getTime() - riferimento <= GIORNI_ARCHIVIO * 86400000
 }
+
+// Riga di stato nella linguetta «Chiuse» (06/09/2026):
+//  · scaduta e chiusa da sola → «Scaduta, chiusa da sola ieri alle 16:40» (ottone)
+//  · rifiutata da Ania → «Rifiutata da te · 4 set» (grigio)
+//  · confermata → «Confermata · 4 set» (verde)
+export type RigaChiusa = { testo: string; tono: 'ottone' | 'grigio' | 'verde' }
+function quandoChiusa(chiusaAt: string | null, adesso: Date, conOra: boolean): string {
+  if (!chiusaAt) return ''
+  const d = new Date(chiusaAt)
+  if (Number.isNaN(d.getTime())) return ''
+  const ieri = new Date(adesso); ieri.setDate(ieri.getDate() - 1)
+  const giorno = stessoGiorno(d, adesso) ? 'oggi' : stessoGiorno(d, ieri) ? 'ieri' : `${d.getDate()} ${MESI[d.getMonth()]}`
+  return conOra ? `${giorno} alle ${due(d.getHours())}:${due(d.getMinutes())}` : giorno
+}
+export function rigaChiusa(r: Pick<Richiesta, 'stato' | 'chiusa_at' | 'chiusura_motivo'>, adesso: Date = new Date()): RigaChiusa {
+  if (eScadutaChiusa(r)) { const q = quandoChiusa(r.chiusa_at, adesso, true); return { testo: `Scaduta, chiusa da sola${q ? ` ${q}` : ''}`, tono: 'ottone' } }
+  if (eRifiutata(r)) { const q = quandoChiusa(r.chiusa_at, adesso, false); return { testo: `Rifiutata da te${q ? ` · ${q}` : ''}`, tono: 'grigio' } }
+  const q = quandoChiusa(r.chiusa_at, adesso, false)
+  return { testo: `Confermata${q ? ` · ${q}` : ''}`, tono: 'verde' }
+}
+// Si può riaprire (torna in attesa): le rifiutate e le chiuse da sole, non le confermate
+export const riapribile = (r: { stato: string }) => r.stato === 'rifiutata' || r.stato === 'chiusa'
 
 export function contaAperte(lista: { stato: StatoRichiesta }[]): number {
   return lista.filter(eAperta).length

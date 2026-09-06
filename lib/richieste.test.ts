@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare, nuoveDalSito,
+  formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare, nuoveDalSito, rigaChiusa, riapribile, eRifiutata,
   riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta,
 } from './richieste.ts'
 
@@ -47,14 +47,16 @@ test('ordinamento: durata decrescente, a parità la più vecchia prima', () => {
   assert.deepEqual(ordinaRichieste([a, b, c], 'persone').map(r => r.id), ['a', 'c', 'b'])
 })
 
-test('archivio: solo chiuse negli ultimi 90 giorni; conteggio delle aperte', () => {
+test('chiuse: solo negli ultimi 3 giorni (dal 06/09/2026, prima 90); conteggio delle aperte', () => {
   const chiusaIeri = richiesta({ stato: 'confermata', chiusa_at: locale(2026, 9, 1).toISOString() })
   const chiusaVecchia = richiesta({ stato: 'rifiutata', chiusa_at: locale(2026, 5, 1).toISOString() })
   const senzaData = richiesta({ stato: 'rifiutata', chiusa_at: null, created_at: locale(2026, 8, 1).toISOString() })
+  const chiusaDaSola = richiesta({ stato: 'chiusa', chiusura_motivo: 'scaduta', chiusa_at: locale(2026, 8, 31).toISOString() })
   const aperta = richiesta({ stato: 'proposta_inviata' })
   assert.equal(inArchivio(chiusaIeri, adesso), true)
   assert.equal(inArchivio(chiusaVecchia, adesso), false)
-  assert.equal(inArchivio(senzaData, adesso), true)
+  assert.equal(inArchivio(senzaData, adesso), false)   // attesa aggiornata il 06/09/2026: creata il 1° agosto, oltre i 3 giorni
+  assert.equal(inArchivio(chiusaDaSola, adesso), true)
   assert.equal(inArchivio(aperta, adesso), false)
   assert.equal(contaAperte([chiusaIeri, aperta, richiesta({})]), 2)
 })
@@ -161,4 +163,15 @@ test('daGuardare include le proposte scadute, non quelle ancora valide', () => {
   const scaduta = richiesta({ stato: 'proposta_inviata', created_at: locale(2026, 9, 2, 5, 0).toISOString(), proposta_inviata_at: locale(2026, 9, 2, 5, 40).toISOString() })
   assert.deepEqual(daGuardare([valida, scaduta, richiesta({})], adesso), [scaduta])
   assert.equal(avvisoFerma(scaduta, adesso), null)   // l'avviso «ferma da» resta quello delle 48 ore
+})
+
+// Linguetta «Chiuse» (06/09/2026): riga di stato e «Riapri»
+test('chiuse: riga di stato ottone/grigia/verde e chi si può riaprire', () => {
+  const ieriSera = locale(2026, 9, 1, 16, 40).toISOString()
+  assert.deepEqual(rigaChiusa({ stato: 'chiusa', chiusura_motivo: 'scaduta', chiusa_at: ieriSera }, adesso), { testo: 'Scaduta, chiusa da sola ieri alle 16:40', tono: 'ottone' })
+  assert.deepEqual(rigaChiusa({ stato: 'chiusa', chiusura_motivo: 'rifiutata', chiusa_at: locale(2026, 8, 30, 10, 0).toISOString() }, adesso), { testo: 'Rifiutata da te · 30 ago', tono: 'grigio' })
+  assert.deepEqual(rigaChiusa({ stato: 'rifiutata', chiusa_at: locale(2026, 9, 2, 8, 0).toISOString() }, adesso), { testo: 'Rifiutata da te · oggi', tono: 'grigio' })
+  assert.deepEqual(rigaChiusa({ stato: 'confermata', chiusa_at: ieriSera }, adesso), { testo: 'Confermata · ieri', tono: 'verde' })
+  assert.equal(riapribile({ stato: 'chiusa' }), true); assert.equal(riapribile({ stato: 'rifiutata' }), true); assert.equal(riapribile({ stato: 'confermata' }), false)
+  assert.equal(eRifiutata({ stato: 'chiusa', chiusura_motivo: 'scaduta' }), false); assert.equal(eRifiutata({ stato: 'rifiutata' }), true)
 })
