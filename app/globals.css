@@ -97,22 +97,24 @@ input[type="week"] {
    vocabolario grafico delle pagine; i riquadri restano solo dove servono
    davvero (griglie del calendario, finestre sovrapposte: .ed-riquadro).
    ──────────────────────────────────────────────────────────────────────── */
+/* Titoli di pagina (Ania, 06/09/2026 pomeriggio): il Fraunces leggero «dà
+   fastidio»; tutti i titoli e le righe-titolo usano il carattere di prima
+   (Georgia, peso normale), stessa misura su tutte le pagine: 30 px il
+   titolo di pagina, 22 px i titoli in riga (accanto alla ricerca, «N cose
+   da controllare», Statistiche). */
 .ed-titolo {
-  font-family: var(--font-fraunces), Georgia, serif;
-  font-weight: 300;
-  font-size: 32px;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  color: var(--color-green-dark);
-  font-variation-settings: "opsz" 144;
-}
-@media (min-width: 1024px) { .ed-titolo { font-size: 36px; } }
-.ed-titolo-medio {
-  font-family: var(--font-fraunces), Georgia, serif;
-  font-weight: 300;
-  font-size: 24px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 400;
+  font-size: 30px;
   line-height: 1.1;
   letter-spacing: -0.01em;
+  color: var(--color-green-dark);
+}
+.ed-titolo-medio {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.15;
   color: var(--color-green-dark);
 }
 /* Riga sotto il titolo: data o sottotitolo in maiuscoletto ottone */
