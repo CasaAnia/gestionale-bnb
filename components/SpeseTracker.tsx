@@ -327,7 +327,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   if (needsSetup) return (
     <div className="p-4">
       <BackBar href="/" />
-      <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-5 text-sm text-green-dark">
+      <div className="ed-riga py-5 text-sm text-green-dark">
         <p className="font-serif text-lg mb-2">{title}</p>
         <p className="text-gray-600">La sezione è pronta, ma manca un passaggio: applicare la migrazione del database.</p>
         <p className="text-gray-600 mt-2">Apri Supabase → SQL Editor e incolla il file <code className="bg-sand px-1 rounded">0007_spese_famiglia.sql</code>, poi ricarica.</p>
@@ -338,7 +338,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   return (
     <div className="p-4 pb-24">
       <BackBar href="/" />
-      <h1 className="font-serif text-xl text-green-dark max-lg:hidden mb-4">{title}</h1>
+      <h1 className="ed-titolo-medio max-lg:hidden mb-4">{title}</h1>
 
       {/* SCONTRINI DA LEGGERE */}
       <ScontriniBlock receipts={receipts} receiptUrls={receiptUrls} staged={staged}

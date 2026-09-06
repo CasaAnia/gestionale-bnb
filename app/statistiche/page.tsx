@@ -264,12 +264,12 @@ export default function Statistiche() {
   return (
     <div className="p-4">
       <BackBar href="/" />
-      <h1 className="font-serif text-xl text-green-dark mb-4 max-lg:hidden">Statistiche</h1>
+      <h1 className="ed-titolo-medio mb-4 max-lg:hidden">Statistiche</h1>
 
       <div className="flex gap-2 mb-3">
         {(['settimana', 'mese', 'anno'] as const).map(p => (
           <button key={p} onClick={() => setPeriod(p)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${period === p ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-[#C9BFA8]'}`}>
+            className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${period === p ? 'bg-green-mid text-white' : 'text-stone border border-[#C9BFA8]'}`}>
             {p}
           </button>
         ))}
@@ -297,12 +297,12 @@ export default function Statistiche() {
           {/* Quattro significati separati, identici alla Home (05/09/2026):
               ricavi per soggiorno (competenza), incassi (cassa), spese (cassa), saldo */}
           <div className="grid grid-cols-2 gap-2 mb-4">
-            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm">
+            <div className="ed-riga py-3">
               <p className="text-xs text-gray-500">Ricavi per soggiorno</p>
               <p className="font-bold text-green-dark text-base">€{euro(totali.ricaviCent)}</p>
               <p className="text-[10px] leading-tight text-gray-400 mt-0.5">valore delle prenotazioni confermate, diviso sulle notti dormite nel periodo</p>
             </div>
-            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm">
+            <div className="ed-riga py-3">
               <p className="text-xs text-gray-500">{voceIncassi.etichetta}</p>
               <p className="font-bold text-green-mid text-base">€{euro(totali.incassiCent)}</p>
               <p className="text-[10px] leading-tight text-gray-400 mt-0.5">pagamenti registrati, per data di pagamento{voceIncassi.avviso ? <> · <span className="font-semibold text-green-dark">{voceIncassi.avviso}</span></> : null}</p>
@@ -310,12 +310,12 @@ export default function Statistiche() {
                 <Link href={`/#${ID_SEZIONE}`} className="inline-block mt-1.5 text-[11px] font-semibold text-brass underline decoration-dotted underline-offset-2">{pagamentiDaControllare}</Link>
               )}
             </div>
-            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm">
+            <div className="ed-riga py-3">
               <p className="text-xs text-gray-500">Spese</p>
               <p className="font-bold text-[#8C3B2E] text-base">€{euro(totali.speseCent)}</p>
               <p className="text-[10px] leading-tight text-gray-400 mt-0.5">spese del B&amp;B, per data di pagamento</p>
             </div>
-            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm">
+            <div className="ed-riga py-3">
               <p className="text-xs text-gray-500">Saldo di cassa</p>
               <p className={`font-bold text-base ${totali.saldoCent >= 0 ? 'text-green-mid' : 'text-[#8C3B2E]'}`}>€{euro(totali.saldoCent)}</p>
               <p className="text-[10px] leading-tight text-gray-400 mt-0.5">incassi meno spese del periodo</p>
@@ -327,7 +327,7 @@ export default function Statistiche() {
           {/* R6: storico incassi da ricostruire — elenco e totale, scrittura solo
               con il tasto di conferma, in un'unica operazione idempotente */}
           {piano.movimenti.length > 0 && (
-            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
+            <div className="ed-riga py-4 mb-4">
               <p className="text-sm font-semibold text-gray-600">Storico incassi da ricostruire</p>
               <p className="text-xs text-gray-400 mb-3">soggiorni conclusi senza un pagamento registrato che copra il totale (regola: si è sempre pagato all’arrivo): la ricostruzione crea un movimento «all’arrivo (ricostruito)» con la data di arrivo; l’importo lo ricalcola il server al momento della scrittura</p>
               <div className="rounded-lg border border-[#C9BFA8] overflow-hidden">
@@ -361,7 +361,7 @@ export default function Statistiche() {
           )}
 
           {siteStats && (
-            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
+            <div className="ed-riga py-4 mb-4">
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                   <p className="text-sm font-semibold text-gray-600">Sito e richieste</p>
@@ -433,7 +433,7 @@ export default function Statistiche() {
           )}
 
           {/* Grafico a barre */}
-          <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
+          <div className="ed-riga py-4 mb-4">
             <p className="text-sm font-semibold text-gray-600">Incassi per {period}</p>
             <p className="text-xs text-gray-400 mb-3">pagamenti registrati, nel giorno in cui sono arrivati</p>
             <div className="flex items-end gap-1" style={{ height: 120 }}>
@@ -452,7 +452,7 @@ export default function Statistiche() {
           </div>
 
           {/* Tabella riepilogo */}
-          <div className="bg-white rounded-xl border border-[#C9BFA8] shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-card-border overflow-hidden">
             <div className="grid grid-cols-4 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500">
               <span>Periodo</span><span className="text-right">Incassi</span><span className="text-right">Spese</span><span className="text-right">Saldo di cassa</span>
             </div>
@@ -472,7 +472,7 @@ export default function Statistiche() {
           {/* Sconti concessi: valore pieno, sconti, valore dopo sconto, incassato.
               Attribuiti alle notti dormite del periodo, dal conto unico */}
           {sconti && (
-            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
+            <div className="ed-riga py-4 mt-4">
               <p className="text-sm font-semibold text-gray-600">Sconti concessi</p>
               <p className="text-xs text-gray-400 mb-3">{period === 'mese' ? label : `anno ${label}`} · valori attribuiti alle notti del periodo</p>
               <div className="flex justify-between text-sm py-1.5 border-b border-gray-50">
@@ -497,7 +497,7 @@ export default function Statistiche() {
           {/* Occupazione dell'anno letto, mese per mese: notti vendute ÷ notti vendibili
               (camere attive per ogni giorno). Oltre il 100 % non si blocca: è un'anomalia */}
           {occ && (
-            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
+            <div className="ed-riga py-4 mt-4">
               <p className="text-sm font-semibold text-gray-600">Occupazione</p>
               <p className="text-xs text-gray-400 mb-3">notti vendute su notti vendibili delle camere in servizio, mese per mese — verde più intenso = più pieno{limiteFuoriServizio ? ` · ${limiteFuoriServizio}` : ''}</p>
               <div className="overflow-x-auto">
@@ -544,7 +544,7 @@ export default function Statistiche() {
 
           {/* Rendimento camere: classifica dell'anno in corso (incassi pro-quota a notte) */}
           {roomStats && (
-            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
+            <div className="ed-riga py-4 mt-4">
               <p className="text-sm font-semibold text-gray-600">Ricavi per camera</p>
               <p className="text-xs text-gray-400 mb-3">anno {roomStats.anno} · {roomStats.annoPassato ? 'tutto l’anno' : 'notti dormite fino a oggi'} · valore dei soggiorni confermati diviso sulle notti, non gli incassi{limiteFuoriServizio ? ` · occupazione sui giorni in servizio dall’inizio dell’anno: ${limiteFuoriServizio}` : ''}</p>
               {roomStats.lista.map((s, i) => (
@@ -570,7 +570,7 @@ export default function Statistiche() {
           {/* Da dove arrivano gli ospiti (08/09/2026, sera): la provenienza è del cliente (0037);
               una riga per fonte con clienti, soggiorni, di cui ritorni, ricavi per soggiorno; ordinate per ricavi */}
           {provenienze && (
-            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4" data-provenienze>
+            <div className="ed-riga py-4 mt-4" data-provenienze>
               <p className="text-sm font-semibold text-gray-600">Da dove arrivano gli ospiti</p>
               <p className="text-xs text-gray-400 mb-3">{period === 'settimana' ? 'settimana' : period === 'mese' ? 'mese' : 'anno'} scelto · fonte del cliente, valida anche per i suoi soggiorni passati · ricavi per soggiorno sulle notti nel periodo{!provenienze.colonnePresenti ? ` · ${AVVISO_0037}` : ''}</p>
               <div className="grid text-[11px] text-gray-400 pb-1 border-b border-card-border" style={{ gridTemplateColumns: '1fr 52px 60px 56px 70px' }}>
@@ -597,7 +597,7 @@ export default function Statistiche() {
 
           {/* Strutture: soggiorni e ricavi di ciascuna nell'anno in corso */}
           {strutture && strutture.length > 0 && (
-            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-3" data-strutture-anno>
+            <div className="ed-riga py-4 mt-3" data-strutture-anno>
               <p className="text-sm font-semibold text-gray-600">Strutture</p>
               <p className="text-xs text-gray-400 mb-2">anno {ref.getFullYear()} · soggiorni e ricavi per soggiorno di ciascuna struttura</p>
               {strutture.map(st => (
@@ -611,7 +611,7 @@ export default function Statistiche() {
 
           {/* Biancheria recuperata (06/09/2026): pezzi NON usati dagli ospiti e recuperati puliti, per voce nel periodo */}
           {biancheria && (
-            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-3" data-biancheria-recuperata>
+            <div className="ed-riga py-4 mt-3" data-biancheria-recuperata>
               <p className="text-sm font-semibold text-gray-600">Biancheria recuperata</p>
               <p className="text-xs text-gray-400 mb-2">{period === 'settimana' ? 'settimana' : period === 'mese' ? 'mese' : 'anno'} scelto · pezzi non usati dagli ospiti e tornati puliti{!recuperi?.tabella ? ` · ${AVVISO_0039}` : recuperi?.errore ? ` · ${recuperi.errore}` : ''}</p>
               {biancheriaTotale === 0 ? (
@@ -636,10 +636,10 @@ export default function Statistiche() {
             const gridCols = { display: 'grid', gridTemplateColumns: `44px repeat(${cols.length}, 1fr)` } as const
             const months = Array.from({ length: roomStats.numMesi }, (_, k) => roomStats.primoMese + k)
             return (
-              <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-4">
+              <div className="ed-riga py-4 mt-4">
                 <p className="text-sm font-semibold text-gray-600">Camera del mese</p>
                 <p className="text-xs text-gray-400 mb-3">ricavi per soggiorno di ogni camera, mese per mese — in verde la migliore del mese</p>
-                <div className="rounded-lg border border-[#C9BFA8] shadow-sm overflow-hidden">
+                <div className="rounded-lg border border-card-border overflow-hidden">
                   <div className="bg-gray-50 px-2 py-2 text-xs font-semibold text-gray-500" style={gridCols}>
                     <span></span>
                     {cols.map(s => <span key={s.name} className="text-right truncate">{s.name}</span>)}

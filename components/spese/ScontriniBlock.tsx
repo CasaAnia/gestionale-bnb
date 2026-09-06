@@ -23,7 +23,7 @@ export default function ScontriniBlock({
   onDelete: (r: Receipt) => void
 }) {
   return (
-    <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
+    <div className="ed-riga py-4 mb-4">
       <div className="flex items-center justify-between mb-3">
         <p className="font-semibold">📷 Scontrini</p>
         {receipts.length > 0 && (
@@ -78,7 +78,7 @@ export default function ScontriniBlock({
           </div>
           <textarea value={receiptNote} onChange={e => onReceiptNote(e.target.value)} rows={2}
             placeholder="Nota:"
-            className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm mb-2 resize-none" />
+            className="w-full ed-campo p-2 text-sm mb-2 resize-none" />
           <button onClick={onSaveStaged} disabled={uploading}
             className="w-full bg-green-mid text-white rounded-xl py-2.5 font-semibold disabled:opacity-50">
             {uploading ? 'Salvataggio…' : `💾 Salva ${staged.length > 1 ? staged.length + ' scontrini' : 'scontrino'}`}

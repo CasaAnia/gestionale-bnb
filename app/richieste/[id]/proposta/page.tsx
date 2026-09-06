@@ -27,7 +27,6 @@ import {
 } from '@/lib/richieste'
 import type { Room } from '@/lib/types'
 
-const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
 const BORDO = '#C9BFA8'
 const GRIGIO_NOTA = '#6b6b60'
 const PIENO = 'w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-mid text-cream-text font-semibold text-[15px] py-3.5 active:opacity-80 transition-opacity disabled:opacity-50'
@@ -379,7 +378,7 @@ export default function PropostaPage() {
   const n = nottiRichiesta(richiesta)
 
   const riepilogo = (
-    <div className="bg-white rounded-xl border border-[#C9BFA8] shadow-sm p-4 leading-snug">
+    <div className="ed-riga py-4 leading-snug">
       <p className="text-[15px] text-green-dark">
         {formatIntervallo(richiesta.arrivo, richiesta.partenza)}
         <span className="text-stone"> · </span>
@@ -423,7 +422,7 @@ export default function PropostaPage() {
 
   // ── Altre camere (pezzo 10): sempre visibile, con il motivo ──────────────
   const altre = altreCamere.length > 0 && (
-    <div className="mt-3 bg-white rounded-xl border border-[#C9BFA8] shadow-sm px-3 py-2.5">
+    <div className="mt-3 ed-riga py-2.5">
       <p className="text-xs font-semibold text-stone mb-1">Altre camere</p>
       <ul className="text-sm text-green-dark divide-y-[0.5px] divide-border-soft">
         {altreCamere.map(x => (
@@ -438,7 +437,7 @@ export default function PropostaPage() {
 
   // ── «Scelgo io» (pezzo 10): striscia camera per notte + prezzo a mano ────
   const scelgoIo = manuale && !inviata && richiesta && (
-    <div className="mt-3 bg-white rounded-xl border border-[#C9BFA8] shadow-sm p-3" role="group" aria-label="Scelgo io">
+    <div className="mt-3 ed-riga py-3" role="group" aria-label="Scelgo io">
       <div className="flex items-center justify-between gap-2 mb-2">
         <p className="text-sm font-semibold text-green-dark">Scelgo io · tocca una notte per cambiare camera</p>
         <button type="button" onClick={tornaAutomatica} className="shrink-0 text-xs font-semibold text-green-mid underline underline-offset-2">Torna alla proposta automatica</button>
@@ -568,7 +567,7 @@ export default function PropostaPage() {
       {modoEffettivo === 'immagine' && immagine && !inviata && (
         <div className="mt-3">
           <p className="text-xs mb-1.5" style={{ color: GRIGIO_NOTA }}>Anteprima dell’immagine</p>
-          <div ref={el => { if (el) setScala(el.clientWidth / IMG_W) }} className="w-full rounded-xl overflow-hidden border border-[#C9BFA8] shadow-sm bg-white" style={{ height: imgH ? imgH * scala : undefined }}>
+          <div ref={el => { if (el) setScala(el.clientWidth / IMG_W) }} className="w-full rounded-xl overflow-hidden border border-card-border" style={{ height: imgH ? imgH * scala : undefined }}>
             <div style={{ transform: `scale(${scala})`, transformOrigin: 'top left', width: IMG_W }}>
               <ImmagineSoggiorno imgRef={imgRef} variante="proposta" nome={richiesta.nome.trim()} segmenti={immagine.seg} numOspiti={richiesta.persone}
                 righeCosti={immagine.righe} totale={immagine.totale} pagamento="contanti" lettoAggiuntivo={immagine.lettoAggiuntivo} nottiNonDisponibili={immagine.nottiNonDisponibili} personeNotti={immagine.personeNotti} lineaSempre={!!soluzione?.manuale} formattaImporto={n => formattaEuro(centesimi(n))} />
@@ -585,7 +584,7 @@ export default function PropostaPage() {
       )}
 
       {errore && <div role="alert" className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore}</div>}
-      {avviso && <div role="status" className="mt-3 bg-white border border-[#C9BFA8] shadow-sm rounded-xl p-3 text-sm text-green-dark">{avviso}</div>}
+      {avviso && <div role="status" className="mt-3 bg-white ed-campo rounded-xl p-3 text-sm text-green-dark">{avviso}</div>}
 
       <button type="button" onClick={invia} disabled={!!occupato || !soluzione || chiediConferma || !!mancaMigrazione || (!inviata && !!problemaCondizione)} className={`${PIENO} mt-4`}>
         <IconaWhatsApp />
@@ -625,7 +624,7 @@ export default function PropostaPage() {
   return (
     <div className="p-4">
       <BackBar href="/richieste" />
-      <h1 className="text-[22px] text-green-dark leading-tight mb-3" style={FRAUNCES}>Proposta per {nomeCompleto(richiesta)}</h1>
+      <h1 className="ed-titolo-medio mb-3">Proposta per {nomeCompleto(richiesta)}</h1>
       {mancaMigrazione && (
         <div role="alert" className="mb-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">
           {mancaMigrazione} Finché manca, la proposta non può essere registrata.

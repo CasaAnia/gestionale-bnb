@@ -11,7 +11,7 @@ export default function NuovaRichiesta() {
   return (
     <div className="p-4">
       <BackBar href="/richieste" />
-      <h1 className="text-[22px] text-green-dark leading-tight mb-4 max-lg:hidden" style={{ fontFamily: 'var(--font-fraunces), Georgia, serif' }}>Nuova richiesta</h1>
+      <h1 className="ed-titolo-medio mb-4 max-lg:hidden">Nuova richiesta</h1>
       <ModuloRichiesta etichettaSalva="Salva richiesta" notaSotto="Va in «In attesa». Nessun messaggio parte da qui."
         onSalva={async valori => {
           const r = await creaRichiesta(valori)

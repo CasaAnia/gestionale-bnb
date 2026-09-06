@@ -39,7 +39,7 @@ export default function DomandaTab({ chat, domanda, setDomanda, domandeVeloci, o
         <input value={domanda} onChange={e => setDomanda(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') onChiedi(domanda) }}
           placeholder="Scrivi (o detta) la domanda…"
-          className="flex-1 border border-[#C9BFA8] shadow-sm rounded-xl p-2.5 text-sm bg-white" />
+          className="flex-1 ed-campo rounded-xl p-2.5 text-sm bg-white" />
         <button onClick={() => onChiedi(domanda)} disabled={!domanda.trim()}
           className="bg-green-mid text-white rounded-xl px-4 font-bold disabled:opacity-40">➤</button>
       </div>

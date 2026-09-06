@@ -11,7 +11,7 @@ function occorrenze(testo: string, frammento: string) {
 
 test('nuova prenotazione protegge entrambe le caselle data dalla larghezza minima di iPhone', () => {
   assert.ok(occorrenze(nuova, '<div className="min-w-0">') >= 2)
-  assert.ok(occorrenze(nuova, 'w-full min-w-0 appearance-none bg-white') >= 2)
+  assert.ok(occorrenze(nuova, 'w-full min-w-0 appearance-none ed-campo') >= 2   /* attesa aggiornata il 06/09/2026: stile editoriale, i campi sono trasparenti (ed-campo) invece di bg-white; la protezione min-w-0 + appearance-none resta */)
 })
 
 test('modifica e prolungamento mantengono la stessa protezione delle caselle data', () => {

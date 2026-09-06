@@ -30,8 +30,8 @@ export default function CampoProvenienza({ valore, onChange, strutture, disponib
     )
   }
   const chip = (attivo: boolean) => compatto
-    ? `px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${attivo ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-[#C9BFA8]'}`
-    : `rounded-full text-sm font-semibold px-4 py-2 transition-colors ${attivo ? 'bg-green-mid text-cream-text' : 'border border-[#C9BFA8] bg-white text-stone'}`
+    ? `px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${attivo ? 'bg-green-mid text-white' : 'text-stone border border-[#C9BFA8]'}`
+    : `rounded-full text-sm font-semibold px-4 py-2 transition-colors ${attivo ? 'bg-green-mid text-cream-text' : 'border border-[#C9BFA8] text-stone'}`
   // Al tocco nel campo si vedono sempre le strutture (tutte se il nome è già
   // completo, quella attuale evidenziata); filtrate solo mentre si scrive un testo nuovo
   const { lista: suggerimenti, attuale } = suggerimentiDaMostrare(valore.struttura, strutture)
@@ -55,7 +55,7 @@ export default function CampoProvenienza({ valore, onChange, strutture, disponib
           <input value={valore.struttura} onChange={e => { onChange({ ...valore, struttura: e.target.value }); setAperto(true) }}
             onFocus={() => setAperto(true)} onClick={() => setAperto(true)} onBlur={() => setTimeout(() => setAperto(false), 150)}
             autoComplete="off" autoCapitalize="words" placeholder="Nome della struttura" aria-label="Quale struttura"
-            className="w-full min-w-0 appearance-none bg-white border border-[#C9BFA8] shadow-sm rounded-lg p-3 text-[15px] focus:outline-none focus:border-green-mid" />
+            className="w-full min-w-0 appearance-none bg-white ed-campo p-3 text-[15px] focus:outline-none focus:border-green-mid" />
           {aperto && suggerimenti.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-1.5" role="listbox" aria-label="Strutture note">
               {suggerimenti.map(s => (
