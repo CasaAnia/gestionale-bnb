@@ -29,7 +29,7 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`.
-10. 🔴 Azioni aperte per Ania: applicare la MIGRAZIONE 0040 (opzione di 3 ore: stato «chiusa», notifica di scadenza dal database con pg_cron, serve il CRON_SECRET di Vercel nel file) e aggiornare il segreto CRON_SECRET del repo GitHub col valore di Vercel (pezzo F: controllo ogni 5 minuti da GitHub Actions, oggi risponde 401). 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034.
+10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è DISATTIVATO (segreto del repo non aggiornato → 401): facoltativo, per riattivarlo aggiornare il segreto CRON_SECRET del repo e `gh workflow enable richieste-scadenze.yml`. 🔴 Azioni aperte per Ania: nessuna per l'opzione di 3 ore. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034.
 
 ---
 
@@ -154,6 +154,10 @@ proposta non cambia (testi bloccati intatti).
    Vercel. Poi Actions → «Richieste – scadenze delle proposte» → Run workflow:
    deve finire verde con «HTTP 200». Finché resta 401 il controllo da GitHub
    non fa nulla (e non fa danni).
+   ESITO 06/09 ore 17: 0040 applicata, job rifatto con un segreto NUOVO (quello
+   vecchio su Vercel non era rileggibile), Vercel aggiornato e ripubblicato;
+   workflow GitHub DISATTIVATO (`gh workflow disable`) finché il segreto del
+   repo non viene aggiornato: passo facoltativo, il database fa già tutto.
 
 ## Prove dal telefono in 10 minuti — opzione di 3 ore
 1. Crea due richieste di prova con le stesse notti (es. 17–20 del mese prossimo).
