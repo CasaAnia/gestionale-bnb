@@ -2,7 +2,8 @@
 
 @theme {
   --font-sans: var(--font-nunito-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-serif: Georgia, serif;
+  /* Stile editoriale (06/09/2026, scelta di Ania): tutti i serif sono Fraunces */
+  --font-serif: var(--font-fraunces), Georgia, serif;
 
   --color-cream: #FBF9F4;
   --color-sidebar: #F6F2EA;
@@ -87,3 +88,116 @@ input[type="week"] {
   /* il contenitore «telefono» è largo al massimo 512 px: in orizzontale la griglia prende tutto lo schermo */
   body[data-schermo-intero] .max-w-lg { max-width: none !important; }
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+   STILE EDITORIALE (06/09/2026, scelta di Ania fra quattro mockup: «B»).
+   Come una rivista: niente riquadri bianchi, righe sottili crema e ottone,
+   titoli Fraunces grandi e leggeri, numeri grandi, pillole. Nessun colore
+   nuovo: crema, verde, ottone, pietra. Le classi qui sotto sono l'unico
+   vocabolario grafico delle pagine; i riquadri restano solo dove servono
+   davvero (griglie del calendario, finestre sovrapposte: .ed-riquadro).
+   ──────────────────────────────────────────────────────────────────────── */
+.ed-titolo {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-weight: 300;
+  font-size: 32px;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--color-green-dark);
+  font-variation-settings: "opsz" 144;
+}
+@media (min-width: 1024px) { .ed-titolo { font-size: 36px; } }
+.ed-titolo-medio {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-weight: 300;
+  font-size: 24px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--color-green-dark);
+}
+/* Riga sotto il titolo: data o sottotitolo in maiuscoletto ottone */
+.ed-sotto {
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-brass);
+}
+/* Etichetta di sezione con la riga sottile che continua a destra */
+.ed-sezione {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-brass);
+}
+.ed-sezione::after { content: ""; flex: 1; height: 1px; background: var(--color-brass); opacity: 0.45; }
+.ed-sezione > small { font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--color-stone); }
+/* Righe di una lista: separate da un filo crema, la prima con un filo ottone */
+.ed-lista > * { border-top: 1px solid var(--color-card-border); }
+.ed-lista-ottone > *:first-child { border-top: 1px solid rgba(169, 136, 78, 0.55); }
+.ed-riga { padding: 12px 0; border-top: 1px solid var(--color-card-border); }
+.ed-riga-ottone { padding: 14px 0 0; border-top: 1px solid rgba(169, 136, 78, 0.55); }
+/* Numero grande, cifre allineate */
+.ed-numero {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-weight: 300;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-green-dark);
+  font-variation-settings: "opsz" 144;
+}
+.ed-numero-medio {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-weight: 300;
+  font-size: 26px;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-green-dark);
+}
+/* Pillole: piena (azione principale), contorno verde (secondaria), tenue (terziaria) */
+.ed-pillola, .ed-pillola-contorno, .ed-pillola-tenue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 14px;
+  min-height: 36px;
+  white-space: nowrap;
+  transition: transform 100ms, opacity 100ms;
+}
+.ed-pillola:active, .ed-pillola-contorno:active, .ed-pillola-tenue:active { transform: scale(0.97); }
+.ed-pillola { background: var(--color-green-mid); color: #fff; }
+.ed-pillola-contorno { background: transparent; color: var(--color-green-mid); border: 1px solid var(--color-green-mid); }
+.ed-pillola-tenue { background: transparent; color: var(--color-stone); border: 1px solid #C9BFA8; }
+.ed-pillola:disabled, .ed-pillola-contorno:disabled, .ed-pillola-tenue:disabled { opacity: 0.55; }
+/* Etichetta a pillola col solo contorno (stati: da pulire, urgente, canale…) */
+.ed-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  background: transparent;
+  border: 1px solid #C9BFA8;
+  white-space: nowrap;
+}
+/* Campo di testo/data: trasparente col solo filo */
+.ed-campo {
+  background: transparent;
+  border: 1px solid #C9BFA8;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--color-green-dark);
+}
+.ed-campo:focus { outline: none; border-color: var(--color-green-mid); }
+/* Riquadro dove serve davvero (griglie, finestre): bianco, filo crema, senza ombra */
+.ed-riquadro { background: #fff; border: 1px solid var(--color-card-border); border-radius: 12px; }

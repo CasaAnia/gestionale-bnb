@@ -11,7 +11,7 @@ import RinnovoNotifiche from '@/components/RinnovoNotifiche'
 import AvvisoConnessione from '@/components/AvvisoConnessione'
 
 const nunitoSans = Nunito_Sans({ subsets: ['latin'], variable: '--font-nunito-sans', display: 'swap' })
-const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', weight: ['400', '600'], style: ['normal', 'italic'], display: 'swap' })
+const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', weight: ['300', '400', '500', '600'], style: ['normal', 'italic'], display: 'swap' })
 const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope', weight: ['400', '500', '600', '700'], display: 'swap' })
 
 export const metadata: Metadata = {
