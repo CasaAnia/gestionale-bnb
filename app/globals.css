@@ -2,8 +2,10 @@
 
 @theme {
   --font-sans: var(--font-nunito-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  /* Stile editoriale (06/09/2026, scelta di Ania): tutti i serif sono Fraunces */
-  --font-serif: var(--font-fraunces), Georgia, serif;
+  /* Serif di base = Georgia, come prima del 06/09/2026: Ania preferisce Georgia
+     per date, numeri, nomi e titoli (prova con i mockup del pomeriggio). Fraunces
+     resta solo dove è scritto esplicitamente (var(--font-fraunces)). */
+  --font-serif: Georgia, serif;
 
   --color-cream: #FBF9F4;
   --color-sidebar: #F6F2EA;
