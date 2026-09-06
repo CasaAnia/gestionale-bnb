@@ -150,13 +150,13 @@ export default function Statistiche({ rooms, bookings, events, td }:
 
   return (
     <div className="mt-8">
-      <h2 className="font-serif text-xl text-green-dark mb-1">Statistiche</h2>
-      <p className="text-sm text-gray-500 mb-3">Quante volte sono state rifatte le camere</p>
+      <h2 className="ed-titolo-medio mb-1">Statistiche</h2>
+      <p className="ed-sotto mb-4">Quante volte sono state rifatte le camere</p>
 
       <div className="flex gap-1.5 mb-3">
         {(['settimana', 'mese', 'anno'] as Periodo[]).map(p => (
           <button key={p} onClick={() => { setPeriodo(p); setOffset(0) }}
-            className={`rounded-full text-xs font-semibold px-3.5 py-1.5 capitalize transition-colors ${periodo === p ? 'text-cream-text' : 'border border-[#C9BFA8] bg-white text-stone'}`}
+            className={`rounded-full text-xs font-semibold px-3.5 py-1.5 capitalize transition-colors ${periodo === p ? 'text-cream-text' : 'border border-[#C9BFA8] text-stone'}`}
             style={periodo === p ? { background: '#2D6A4F' } : undefined}>
             {p}
           </button>
@@ -165,38 +165,38 @@ export default function Statistiche({ rooms, bookings, events, td }:
 
       <div className="flex items-center justify-center gap-4 mb-3">
         <button onClick={() => setOffset(offset - 1)} aria-label="Periodo precedente"
-          className="shrink-0 rounded-full border border-[#C9BFA8] bg-white w-9 h-9 text-green-dark font-bold">‹</button>
-        <span className="text-lg text-green-dark capitalize text-center min-w-[120px]" style={{ fontFamily: 'Georgia, serif', fontWeight: 600 }}>{label}</span>
+          className="shrink-0 rounded-full border border-[#C9BFA8] w-9 h-9 text-green-dark font-bold">‹</button>
+        <span className="font-serif text-xl text-green-dark capitalize text-center min-w-[120px]" style={{ fontWeight: 400 }}>{label}</span>
         <button onClick={() => { if (offset < 0) setOffset(offset + 1) }} aria-label="Periodo successivo"
-          className="shrink-0 rounded-full border border-[#C9BFA8] bg-white w-9 h-9 text-green-dark font-bold">›</button>
+          className="shrink-0 rounded-full border border-[#C9BFA8] w-9 h-9 text-green-dark font-bold">›</button>
       </div>
 
-      <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-3.5 mb-3">
-        <p className="text-xs text-gray-500">Interventi</p>
-        <p className="font-serif text-3xl text-green-dark mt-0.5">{riassunto.interventi}</p>
+      <div className="ed-riga-ottone pb-3 mb-1">
+        <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Interventi</p>
+        <p className="ed-numero mt-1.5">{riassunto.interventi}</p>
         <p className="text-[11px] text-stone mt-0.5">{testoDettaglio(riassunto)}</p>
       </div>
 
       {(rimandateP.length > 0 || saltateP.length > 0) && (
-        <div className="grid grid-cols-2 gap-2.5 mb-3">
-          <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-3.5">
-            <p className="text-xs text-gray-500">Rimandate</p>
-            <p className="font-serif text-3xl text-green-dark mt-0.5">{rimandateP.length}</p>
+        <div className="grid grid-cols-2 gap-x-3 mb-1">
+          <div className="ed-riga">
+            <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Rimandate</p>
+            <p className="ed-numero-medio mt-1.5">{rimandateP.length}</p>
             {ritardoMedio != null && (
               <p className="text-[11px] text-stone mt-0.5">rinvio medio {ritardoMedio.toLocaleString('it-IT')} {ritardoMedio === 1 ? 'giorno' : 'giorni'}</p>
             )}
           </div>
-          <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-3.5">
-            <p className="text-xs text-gray-500">Saltate</p>
-            <p className="font-serif text-3xl text-green-dark mt-0.5">{saltateP.length}</p>
+          <div className="ed-riga">
+            <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Saltate</p>
+            <p className="ed-numero-medio mt-1.5">{saltateP.length}</p>
             <p className="text-[11px] text-stone mt-0.5">concordate con l&apos;ospite</p>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-4 mb-3">
+      <div className="ed-riga py-4">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs text-gray-500">Per camera</p>
+          <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Per camera</p>
           <p className="text-[11px] text-stone">
             <span className="inline-block w-2 h-2 rounded-full align-middle mr-1" style={{ background: '#6C9A7C' }} />pulizie
             <span className="inline-block w-2 h-2 rounded-full align-middle ml-2.5 mr-1" style={{ background: '#7C857A' }} />cambi
@@ -220,7 +220,7 @@ export default function Statistiche({ rooms, bookings, events, td }:
         ))}
       </div>
 
-      <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-4 mb-3">
+      <div className="ed-riga py-4 mb-1">
         <p className="text-sm text-green-dark">
           {riassunto.alGiorno === null ? testoMediaGiorno(riassunto)
             : <>In media <span className="font-bold">{riassunto.alGiorno === 1 ? 'un intervento' : `${riassunto.alGiorno.toLocaleString('it-IT')} interventi`}</span> al giorno</>}

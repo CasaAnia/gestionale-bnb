@@ -44,19 +44,20 @@ function intestazioneGiorno(date: string, td: string) {
 
 // Etichette e colori delle priorità (audit 24/08/2026): niente bordi neri,
 // solo tinte piene coerenti con l'identità del gestionale.
-const PRIORITA_STYLE: Record<Priorita, { label: string; background: string; color: string }> = {
-  urgente: { label: 'URGENTE', background: '#E8C4B0', color: '#7a3a1d' },
-  alta: { label: 'ALTA', background: '#EFD9C7', color: '#8a4f2f' },
-  flessibile: { label: 'FLESSIBILE', background: '#DFE9E0', color: '#2D6A4F' },
-  nessuna_fretta: { label: 'NESSUNA FRETTA', background: '#EDEAE2', color: '#7A7466' },
+// Stile editoriale (06/09/2026): pillole col solo contorno, stesso colore del testo
+const PRIORITA_STYLE: Record<Priorita, { label: string; background: string; color: string; border: string }> = {
+  urgente: { label: 'URGENTE', background: 'transparent', color: '#7a3a1d', border: '1px solid #C9A791' },
+  alta: { label: 'ALTA', background: 'transparent', color: '#8a4f2f', border: '1px solid #D9BFA8' },
+  flessibile: { label: 'FLESSIBILE', background: 'transparent', color: '#2D6A4F', border: '1px solid #B7CDBD' },
+  nessuna_fretta: { label: 'NESSUNA FRETTA', background: 'transparent', color: '#7A7466', border: '1px solid #C9BFA8' },
 }
 
-const badgeStyle: Record<string, { background: string; color: string }> = {
-  'da pulire': { background: '#EFD9C7', color: '#8a4f2f' },
-  'cambio biancheria': { background: '#EDE6D6', color: '#5a6b3f' },
-  '⇄ cambio camera': { background: '#EDE6D6', color: '#5a6b3f' },
+const badgeStyle: Record<string, { background: string; color: string; border: string }> = {
+  'da pulire': { background: 'transparent', color: '#8a4f2f', border: '1px solid #D9BFA8' },
+  'cambio biancheria': { background: 'transparent', color: '#5a6b3f', border: '1px solid #C9BFA8' },
+  '⇄ cambio camera': { background: 'transparent', color: '#5a6b3f', border: '1px solid #C9BFA8' },
   // pulizia registrata da sola al cambio ospite (regola del 04/09/2026)
-  automatica: { background: '#F1E9D6', color: '#7a5f2c' },
+  automatica: { background: 'transparent', color: '#7a5f2c', border: '1px solid #D8C89E' },
 }
 
 const TIPO_LABEL: Record<TipoPulizia, string> = { fine_soggiorno: 'fine soggiorno', soggiorno: 'cambio biancheria', cambio_camera: 'cambio camera' }
@@ -347,26 +348,26 @@ export default function Pulizie() {
           <span className="text-xs text-gray-500">Fatta il</span>
           <input type="date" value={fattoIl[k] || td}
             onChange={e => setFattoIl({ ...fattoIl, [k]: e.target.value })}
-            className="border border-[#C9BFA8] shadow-sm rounded-lg px-2 py-1 text-xs bg-white" />
+            className="ed-campo text-xs py-1" />
           {/* Recupero biancheria (06/09/2026): «Pulita» (pieno) e «Pulita + recuperato» (contorno) al posto di «✓ Fatta» */}
           <button onClick={() => registra(p, 'fatta', { data_effettiva: fattoIl[k] || td })} disabled={disab} data-pulita
-            className="rounded-full text-xs font-bold px-3.5 text-white disabled:opacity-50"
-            style={{ minHeight: 40, background: '#2D6A4F' }}>
+            className="ed-pillola disabled:opacity-50"
+            style={{ minHeight: 40 }}>
             Pulita
           </button>
           <button onClick={() => pulitaConRecupero(p, fattoIl[k] || td)} disabled={disab} data-pulita-recuperato
-            className="rounded-full text-xs font-bold px-3.5 bg-white disabled:opacity-50"
-            style={{ minHeight: 40, color: '#2D6A4F', border: '1px solid #2D6A4F' }}>
+            className="ed-pillola-contorno disabled:opacity-50"
+            style={{ minHeight: 40 }}>
             Pulita + recuperato
           </button>
           <button onClick={() => setAzione({ ...azione, [k]: { tipo: 'rimanda', data: addDaysStr(td, 1) } })} disabled={disab}
-            className="rounded-full border border-[#C9BFA8] bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50"
+            className="ed-pillola-tenue disabled:opacity-50"
             style={{ color: '#5a6b3f', opacity: aperta?.tipo === 'rimanda' ? 0.5 : 1 }}>
             Rimanda
           </button>
           {p.tipo === 'soggiorno' && (
             <button onClick={() => setAzione({ ...azione, [k]: { tipo: 'salta', data: addDaysStr(p.due, NOTTI_CAMBIO) } })} disabled={disab}
-              className="rounded-full border border-[#C9BFA8] bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50"
+              className="ed-pillola-tenue disabled:opacity-50"
               style={{ color: '#8a4f2f', opacity: aperta?.tipo === 'salta' ? 0.5 : 1 }}>
               Salta
             </button>
@@ -387,11 +388,11 @@ export default function Pulizie() {
                 </span>
                 <input type="date" value={aperta.data} min={addDaysStr(td, aperta.tipo === 'rimanda' ? 1 : 0)}
                   onChange={e => setAzione({ ...azione, [k]: { ...aperta, data: e.target.value } })}
-                  className="border border-[#C9BFA8] shadow-sm rounded-lg px-2 py-1 text-xs bg-white" />
+                  className="ed-campo text-xs py-1" />
               </>
             )}
             <button onClick={() => registra(p, aperta.tipo === 'rimanda' ? 'rimandata' : 'saltata', { prossima_data: aperta.data })} disabled={disab}
-              className="rounded-full text-xs font-bold px-3 py-1.5 text-white disabled:opacity-50"
+              className="ed-pillola disabled:opacity-50"
               style={{ background: aperta.tipo === 'rimanda' ? '#5a6b3f' : '#8a4f2f' }}>
               Conferma
             </button>
@@ -445,11 +446,7 @@ export default function Pulizie() {
   )
 
   const sezioneTitolo = (titolo: string, sub?: string) => (
-    <div className="flex items-center gap-2 mb-2.5">
-      <span className="text-[11px] uppercase text-brass" style={{ letterSpacing: '2px' }}>{titolo}</span>
-      {sub && <span className="text-xs text-stone">{sub}</span>}
-      <span className="flex-1 h-px" style={{ background: 'var(--color-card-border)' }} />
-    </div>
+    <div className="ed-sezione mb-2.5">{titolo}{sub && <small>{sub}</small>}</div>
   )
 
   // Card della sezione "Oggi": la camera ha almeno una pulizia da fare
@@ -457,15 +454,15 @@ export default function Pulizie() {
     const { room, shortName, aperte, arrivo, priorita } = riga
     const prio = priorita ? PRIORITA_STYLE[priorita] : null
     return (
-      <div key={room.id} className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-4">
+      <div key={room.id} className="ed-riga py-4">
         <div className="flex items-start gap-3">
           <span className="font-serif text-sm text-brass pt-0.5">{ROOM_NUMBER_BY_NAME[shortName] || ''}</span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-serif text-lg text-green-dark leading-tight">{shortName}</span>
+              <span className="font-serif text-xl text-green-dark leading-tight">{shortName}</span>
               <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={badgeStyle['da pulire']}>da pulire</span>
               {prio && (
-                <span className="text-[11px] font-bold rounded-full px-2.5 py-0.5" style={{ background: prio.background, color: prio.color, letterSpacing: '0.5px' }}>{prio.label}</span>
+                <span className="text-[11px] font-bold rounded-full px-2.5 py-0.5" style={{ background: prio.background, color: prio.color, border: prio.border, letterSpacing: '0.5px' }}>{prio.label}</span>
               )}
             </div>
             <p className="text-[11px] text-stone mt-0.5">{ROOM_DESC_BY_NAME[shortName] || ''}</p>
@@ -524,7 +521,7 @@ export default function Pulizie() {
   const cardProssimo = (riga: RigaCamera) => {
     const { room, shortName, prossimo, cambioProssimo } = riga
     return (
-      <div key={room.id} className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-3.5">
+      <div key={room.id} className="ed-riga py-3.5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-serif text-xs text-brass">{ROOM_NUMBER_BY_NAME[shortName] || ''}</span>
           <span className="font-serif text-base text-green-dark leading-tight">{shortName}</span>
@@ -546,8 +543,8 @@ export default function Pulizie() {
     <div className="p-4">
       <BackBar href="/" />
 
-      <h1 className="text-2xl text-green-dark capitalize" style={{ fontFamily: 'Georgia, serif', fontWeight: 600 }}>{italianDate()}</h1>
-      <p className="text-sm text-gray-500 mb-4">
+      <h1 className="ed-titolo capitalize">{italianDate()}</h1>
+      <p className="ed-sotto mt-2 mb-5">
         {loading ? ' ' : daRifare === 0 ? 'Nessuna camera da rifare oggi' : daRifare === 1 ? '1 camera da rifare oggi' : `${daRifare} camere da rifare oggi`}
       </p>
 
@@ -570,7 +567,7 @@ export default function Pulizie() {
               <p className="text-xs text-stone mt-0.5">tutto pulito · guarda i prossimi qui sotto</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3 mb-6">
+            <div className="mb-6">
               {righeOggi.map(riga => cardOggi(riga))}
             </div>
           )}
@@ -586,11 +583,11 @@ export default function Pulizie() {
                 return (
                   <div key={g} id={`pulizie-giorno-${g}`} className="mb-4 scroll-mt-20" data-camere-giorno={n} data-fatte-giorno={c.fatte}>
                     <div className="flex items-baseline gap-2 mb-2">
-                      <span className="text-[11px] uppercase" style={{ letterSpacing: '2px', color: '#8a9488' }}>{h.label}</span>
+                      <span className="text-[11px] uppercase" style={{ letterSpacing: '2px', color: 'var(--color-brass)' }}>{h.label}</span>
                       {h.sub && <span className="text-xs text-stone">{h.sub}</span>}
                       {n > 0 ? <span className="text-xs text-stone">· {n === 1 ? '1 camera da fare' : `${n} camere da fare`}</span> : c.fatte > 0 ? <span className="text-xs text-stone">· tutte fatte ✓</span> : null}
                     </div>
-                    <div className="flex flex-col gap-3">
+                    <div>
                       {righeProssimi.filter(r => r.prossimo!.date === g).map(riga => cardProssimo(riga))}
                     </div>
                   </div>
@@ -604,13 +601,13 @@ export default function Pulizie() {
       {!loading && registro.length > 0 && (
         <div className="mt-6">
           {sezioneTitolo('Ultime pulizie', 'segnate da te e automatiche')}
-          <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm px-4">
+          <div>
             {registro.map(v => {
               const nome = shortNameOf(v.roomId)
               const disab = !!saving
               const aperta = correzione[v.chiave] !== undefined
               return (
-                <div key={v.chiave} className="py-2.5 border-b-[0.5px] border-border-soft last:border-b-0">
+                <div key={v.chiave} className="ed-riga py-2.5">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
                     <span className="font-semibold text-green-dark shrink-0" style={{ fontVariantNumeric: 'tabular-nums' }}>{dataBreve(v.data)}</span>
                     <span className="font-serif text-green-dark">{nome}</span>
@@ -631,18 +628,18 @@ export default function Pulizie() {
                           <span className="text-xs text-stone">Fatta il</span>
                           <input type="date" value={correzione[v.chiave]} max={td}
                             onChange={e => setCorrezione({ ...correzione, [v.chiave]: e.target.value })}
-                            className="border border-[#C9BFA8] shadow-sm rounded-lg px-2 py-1 text-xs bg-white" />
+                            className="ed-campo text-xs py-1" />
                           <button onClick={() => correggiAutomatica(v, 'data')} disabled={disab || !correzione[v.chiave]}
-                            className="rounded-full text-xs font-bold px-3 py-1.5 text-white disabled:opacity-50" style={{ background: '#2D6A4F' }}>Conferma</button>
+                            className="ed-pillola disabled:opacity-50" style={{ background: '#2D6A4F' }}>Conferma</button>
                           <button onClick={() => setCorrezione(c => { const { [v.chiave]: _, ...resto } = c; return resto })} disabled={disab}
                             className="text-xs text-gray-500 px-2 py-1.5">Annulla</button>
                         </>
                       ) : (
                         <>
                           <button onClick={() => setCorrezione({ ...correzione, [v.chiave]: v.data })} disabled={disab}
-                            className="rounded-full border border-[#C9BFA8] bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{ color: '#5a6b3f' }}>Cambia data</button>
+                            className="ed-pillola-tenue disabled:opacity-50" style={{ color: '#5a6b3f' }}>Cambia data</button>
                           <button onClick={() => correggiAutomatica(v, 'tolta')} disabled={disab}
-                            className="rounded-full border border-[#C9BFA8] bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50" style={{ color: '#8a4f2f' }}>Non fatta</button>
+                            className="ed-pillola-tenue disabled:opacity-50" style={{ color: '#8a4f2f' }}>Non fatta</button>
                         </>
                       )}
                     </div>
