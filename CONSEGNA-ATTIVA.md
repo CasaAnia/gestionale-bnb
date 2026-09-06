@@ -29,7 +29,7 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`.
-10. 🔴 Azioni aperte per Ania: applicare la proposta 0035 (tabella dei rinvii, per «Rimanda»); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034.
+10. 🔴 Azioni aperte per Ania: applicare la MIGRAZIONE 0039 (recupero biancheria, supabase/migrations) e la proposta 0035 (tabella dei rinvii, per «Rimanda»); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034.
 
 ---
 
@@ -76,6 +76,63 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — Recupero biancheria (06/09/2026, main) — 🔴 migrazione 0039 da applicare
+
+Incarico di Ania: quando segna una camera pulita può annotare, solo se
+serve, i pezzi di biancheria che l'ospite NON ha usato e ha recuperato
+puliti (mai il set completo). Quattro commit, suite verde a ogni passo.
+
+1. `3d356c8` — supabase/migrations/0039_biancheria_recuperata.sql (tabella
+   biancheria_recuperata: cleaning_id UNICO → cleanings, room_id, booking_id,
+   data, otto contatori con default 0 e check sui massimi — federe 4,
+   lenzuolo sotto/sopra 1, telo doccia 2, asciugamano viso/mani 2, tappetino
+   doccia 1, tappeto bagno 1 —, RLS coi membri dell'app come la 0021);
+   lib/biancheria pura (VOCI in due gruppi, tocca = +1 fino al massimo poi 0,
+   normalizza, riassunto «Recuperato: 2 federe, telo doccia» con i plurali,
+   testoTotale, sommaPerVoce/nelPeriodo, tabellaBiancheriaAssente) — 7 test.
+2. `9ba8fae` — components/SchedaRecupero («Camera · non usato e recuperato»,
+   sottotitolo, gruppi LENZUOLA / ASCIUGAMANI in ottone, chip a pillola alti
+   40 px: verde pieno + pallino ottone col numero quando > 0, totale a
+   sinistra, «Salva» a destra, avviso «Non salvato, riprova» + Riprova nella
+   scheda); lib/biancheriaDati (leggiRecuperi per periodo,
+   leggiRecuperiDellePulizie, salvaRecupero = UN upsert su cleaning_id via
+   lib/scritturaSicura; tabella assente in lettura = nessuna riga).
+3. `64c9510` — «Pulita» (pieno #2D6A4F) e «Pulita + recuperato» (contorno)
+   in Home «Da controllare» (voce pulizia: la voce porta con sé la pulizia da
+   segnare — campo `pulizia` di lib/daControllare, test —; scrive in
+   cleanings via lib/pulizieScritture con esito controllato, poi Home e
+   striscia si rileggono — lib/numeriOggiDati.ricaricaNumeriOggiOvunque —;
+   «Apri pulizie» resta come ghost) e nella pagina Pulizie al posto di
+   «✓ Fatta» (data «Fatta il», Rimanda e Salta invariati); nel registro
+   «Ultime pulizie» la riga mostra «Recuperato: …» in piccolo, tocco =
+   riapre la scheda per correggere. La pulizia resta segnata anche se il
+   recupero non si salva. Finto Supabase: cleanings POST e biancheria
+   in memoria, GET /finto/senza-biancheria?on=1 → PGRST205.
+4. (questo) — Statistiche: riquadro «Biancheria recuperata» sotto Strutture,
+   totali per voce nel periodo scelto (stessa finestra di lettura), «Niente
+   recuperato in questo periodo», avviso 0039 se la tabella manca.
+
+Provato sull'anteprima finta a 390 px (DOM + schermate): Home → «Pulita +
+recuperato» → la voce sparisce, la striscia di oggi passa a «✓», la scheda
+si apre; Pulizie → «Pulita + recuperato» su Amelia → scheda, Federa ×2 e
+Telo doccia → «3 pezzi recuperati» → Salva → nel registro «Recuperato: 2
+federe, telo doccia», tocco → scheda con i valori; tabella spenta → «Non
+salvato, riprova» + Riprova, riassunto invariato; tabella riaccesa →
+Riprova salva. Statistiche: federe 2, teli doccia 1, asciugamani viso 1.
+Suite 694/694, TypeScript OK, lint del delta 0→0 (Pulizie 13→13),
+`next build` OK.
+
+Limiti: la striscia della settimana in Home resta a numeri (niente tasti
+per camera: non ha righe per camera); i tasti stanno nella voce «pulizia
+non registrata» di Da controllare. Il recupero si aggiunge solo dalla
+scheda aperta con «Pulita + recuperato» o riaprendo un riassunto esistente.
+
+🔴 AZIONE PER ANIA — applicare la 0039 (SQL Editor di Supabase, progetto di
+produzione), poi controllare la select in fondo (rls_attiva = true, policy = 1):
+  cat supabase/migrations/0039_biancheria_recuperata.sql | pbcopy
 
 ---
 
