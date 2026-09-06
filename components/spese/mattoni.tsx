@@ -46,16 +46,20 @@ export function Foglio({ aria, chiudi, children, scorrevole, piede }: {
   )
 }
 
+// Stile editoriale (06/09/2026, scelta di Ania): la «card» è una riga separata da un
+// filo crema, senza sfondo bianco, ombra né raggio; il padding laterale dei chiamanti
+// (px-4) viene tolto così i contenuti si allineano al titolo. Con `tinta` resta lo
+// sfondo tenue (avvisi), ma sempre senza ombra.
 export const Card = ({ children, className = '', tinta }: { children: ReactNode; className?: string; tinta?: string }) => (
-  <div className={className}
-    style={{ background: tinta || t.carta, borderRadius: t.r, boxShadow: t.ombra, border: t.bordoCarta }}>
+  <div className={`${className.replace(/\bpx-[\d.]+\b/g, '')} px-0`}
+    style={{ background: tinta || 'transparent', borderRadius: tinta ? t.r : 0, borderTop: tinta ? 'none' : `1px solid ${t.bordo}`, padding: tinta ? '12px 14px' : undefined }}>
     {children}
   </div>
 )
 
 export const Etichetta = ({ children, extra }: { children: ReactNode; extra?: string }) => (
   <p className={`text-[11px] uppercase tracking-[0.12em] font-semibold mb-2 ${extra ?? ''}`}
-    style={{ color: t.sub }}>{children}</p>
+    style={{ color: t.oro }}>{children}</p>
 )
 
 export const Barra = ({ quota, colore }: { quota: number; colore: string }) => (
@@ -72,7 +76,7 @@ export const Chip = ({ attivo, children, tono = 'accento', colore = t.verde, onC
     className="inline-flex items-center gap-1 min-h-11 px-3.5 text-[13px] font-semibold"
     style={attivo
       ? { background: tono === 'accento' ? colore : t.inchiostro, color: '#fff', borderRadius: t.rPill }
-      : { background: t.carta, color: t.inchiostro, border: `1px solid ${t.bordo}`, borderRadius: t.rPill }}>
+      : { background: 'transparent', color: t.inchiostro, border: `1px solid #C9BFA8`, borderRadius: t.rPill }}>
     {children}
   </button>
 )

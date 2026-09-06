@@ -11,7 +11,7 @@
 // ============================================================================
 import { useMemo, useState, type ReactNode } from 'react'
 import { Plus } from 'lucide-react'
-import { TEMA as t, DISPLAY } from './tema'
+import { TEMA as t } from './tema'
 import { PanoramicaMia, PanoramicaAnia } from './PanoramicaTab'
 import { MovimentiTab } from './MovimentiTab'
 import { DocumentiTab } from './DocumentiTab'
@@ -99,8 +99,9 @@ export function SpeseShell({ dati, contestoIniziale = 'mia', sezioneIniziale = '
       <div className="shrink-0 w-full max-w-md mx-auto px-4">
         {/* selettore di contesto: un confine reale per tutte le sezioni */}
         <div className="flex items-center justify-between pt-4 pb-3">
-          <h1 className={`${DISPLAY} text-[22px] leading-none`} style={{ color: t.inchiostro }}>Spese</h1>
-          <div className="flex p-0.5" style={{ background: t.velo, borderRadius: t.rPill }}>
+          {/* Stile editoriale (06/09/2026): titolo come le altre pagine, interruttore a pillola col solo filo */}
+          <h1 className="ed-titolo" style={{ color: t.inchiostro }}>Spese</h1>
+          <div className="flex p-0.5" style={{ border: '1px solid #C9BFA8', borderRadius: t.rPill }}>
             {([['mia', 'Casa Mia'], ['ania', 'Casa Ania']] as const).map(([id, nome]) => (
               <button key={id} onClick={() => cambiaContesto ? cambiaContesto(id) : setContesto(id)}
                 aria-pressed={contesto === id}
