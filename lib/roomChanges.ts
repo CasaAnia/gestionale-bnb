@@ -135,3 +135,23 @@ export function coloriCatene(bookings: PrenotazioneCatena[]): Record<string, str
   for (const b of bookings) { const k = chainKeyOf[b.id]; if (k) out[b.id] = colore.get(k)! }
   return out
 }
+
+// Barra del cambio camera con gli angoli ARROTONDATI anche sul lato tagliato
+// (Ania, 06/09/2026: «arrotondato come le altre barre»). clip-path path() vuole
+// pixel assoluti: si calcola dalla larghezza e altezza della barra. Ogni
+// vertice del parallelogramma viene smussato con una curva di raggio `raggio`.
+export function percorsoBarraArrotondata(w: number, h: number, cutLeft: boolean, cutRight: boolean, raggio = 6, taglio = 12): string {
+  const v = [[0, 0], [w, 0], [cutRight ? w - taglio : w, h], [cutLeft ? taglio : 0, h]]
+  const n = v.length
+  const parti: string[] = []
+  for (let i = 0; i < n; i++) {
+    const p = v[(i + n - 1) % n], c = v[i], q = v[(i + 1) % n]
+    const verso = (a: number[], b: number[]) => { const d = Math.hypot(b[0] - a[0], b[1] - a[1]); return [(b[0] - a[0]) / d, (b[1] - a[1]) / d, d] }
+    const [ux, uy, dp] = verso(c, p), [vx, vy, dq] = verso(c, q)
+    const rr = Math.min(raggio, dp / 2, dq / 2)
+    const a = [c[0] + ux * rr, c[1] + uy * rr], b = [c[0] + vx * rr, c[1] + vy * rr]
+    const f = (x: number) => Math.round(x * 10) / 10
+    parti.push((i === 0 ? `M ${f(a[0])} ${f(a[1])}` : `L ${f(a[0])} ${f(a[1])}`) + ` Q ${f(c[0])} ${f(c[1])} ${f(b[0])} ${f(b[1])}`)
+  }
+  return `path('${parti.join(' ')} Z')`
+}

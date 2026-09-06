@@ -1,7 +1,7 @@
 // Colore del pezzetto tagliato dei cambi camera (Ania, 06/09/2026)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { coloriCatene, COLORI_CAMBIO } from './roomChanges.ts'
+import { coloriCatene, COLORI_CAMBIO, percorsoBarraArrotondata } from './roomChanges.ts'
 
 const b = (id: string, room_id: string, check_in: string, check_out: string, extra: Record<string, unknown> = {}) => ({ id, room_id, check_in, check_out, ...extra })
 
@@ -26,4 +26,14 @@ test('oltre quattro catene si ricomincia dal primo colore', () => {
   const colori = coloriCatene(pren)
   assert.equal(colori.c0a, COLORI_CAMBIO[0]); assert.equal(colori.c3a, COLORI_CAMBIO[3]); assert.equal(colori.c4a, COLORI_CAMBIO[0])
   assert.equal(COLORI_CAMBIO.length, 4)
+})
+
+test('barra tagliata con angoli arrotondati: path() in pixel, quattro curve, taglio di 12 px sul lato giusto', () => {
+  const p = percorsoBarraArrotondata(100, 32, false, true)
+  assert.ok(p.startsWith("path('M ") && p.endsWith(" Z')"))
+  assert.equal((p.match(/ Q /g) || []).length, 4)
+  assert.ok(p.includes('Q 100 0'))      // angolo in alto a destra intero
+  assert.ok(p.includes('Q 88 32'))      // in basso a destra rientrato di 12 px
+  const s = percorsoBarraArrotondata(100, 32, true, false)
+  assert.ok(s.includes('Q 12 32') && s.includes('Q 0 0'))
 })

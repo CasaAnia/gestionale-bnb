@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getUpcomingRoomChanges, buildChangeGroups, chainClipPath, coloriCatene } from '@/lib/roomChanges'
+import { getUpcomingRoomChanges, buildChangeGroups, coloriCatene, percorsoBarraArrotondata } from '@/lib/roomChanges'
 import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
@@ -512,8 +512,9 @@ export default function Arrivi() {
                           width: barWidth,
                           height: ROW_H - 12,
                           background: '#7D9DB0',
-                          borderRadius: `${hasIncoming ? 0 : 6}px ${hasOutgoing ? 0 : 6}px ${hasOutgoing ? 0 : 6}px ${hasIncoming ? 0 : 6}px`,
-                          clipPath: chainClipPath(hasIncoming, hasOutgoing),
+                          borderRadius: 6,
+                          // Lato tagliato con gli angoli arrotondati come le altre barre (Ania, 06/09/2026)
+                          clipPath: hasIncoming || hasOutgoing ? percorsoBarraArrotondata(barWidth, ROW_H - 12, hasIncoming, hasOutgoing) : undefined,
                           cursor: 'pointer',
                           display: 'flex',
                           flexDirection: 'column',
