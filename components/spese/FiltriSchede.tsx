@@ -97,7 +97,7 @@ export default function FiltriSchede({
             <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
               <span className="text-sm text-gray-500">Settimana dal</span>
               <input type="date" value={weekAnchor} onChange={e => { setWeekAnchor(e.target.value); chiudiDettaglio() }}
-                className="ed-campo p-2 text-sm bg-white" />
+                className="border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm bg-white" />
               <span className="text-xs text-gray-400">{giornoBreve(periodStart)} → {giornoBreve(periodEnd)}</span>
             </div>
           ) : periodMode === 'anno' ? (
@@ -112,10 +112,10 @@ export default function FiltriSchede({
             <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
               <span className="text-sm text-gray-500">Dal</span>
               <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); chiudiDettaglio() }}
-                className="ed-campo p-2 text-sm bg-white" />
+                className="border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm bg-white" />
               <span className="text-sm text-gray-500">al</span>
               <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); chiudiDettaglio() }}
-                className="ed-campo p-2 text-sm bg-white" />
+                className="border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm bg-white" />
             </div>
           )}
         </>
