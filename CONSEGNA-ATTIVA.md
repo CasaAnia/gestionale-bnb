@@ -29,7 +29,7 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`.
-10. 🔴 Azioni aperte per Ania: applicare la MIGRAZIONE 0039 (recupero biancheria, supabase/migrations). Le 0035, 0037 e 0038 risultano APPLICATE in produzione (verifica in sola lettura del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034.
+10. 🔴 Azioni aperte per Ania: nessuna migrazione in sospeso — 0035, 0037, 0038 e 0039 (recupero biancheria) APPLICATE in produzione (verifiche in sola lettura del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034.
 
 ---
 
@@ -79,7 +79,7 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
 
 ---
 
-# Consegna — Recupero biancheria (06/09/2026, main) — 🔴 migrazione 0039 da applicare
+# Consegna — Recupero biancheria (06/09/2026, main) — migrazione 0039 APPLICATA da Ania il 06/09/2026 (tabella con 15 colonne, anon bloccato: verificato)
 
 Incarico di Ania: quando segna una camera pulita può annotare, solo se
 serve, i pezzi di biancheria che l'ospite NON ha usato e ha recuperato
