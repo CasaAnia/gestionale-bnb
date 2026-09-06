@@ -272,19 +272,22 @@ export function eccezioniCalendario(prenotazioni: PrenotazioneDC[]): Eccezione[]
 // ── Arrivi ──────────────────────────────────────────────────────────────────
 // Un segmento che comincia dove finisce un altro dello stesso soggiorno è un
 // cambio camera: l'ospite è già in casa, l'orario non serve.
+// Dal 06/09/2026 (Ania: «è sparito Arturo che arriva oggi senza orario») la
+// regola copre OGGI e DOMANI: quelli di oggi vengono prima.
 export function eccezioniArrivi(prenotazioni: PrenotazioneDC[], oggi: string): Eccezione[] {
   const domani = spostaGiorni(oggi, 1)
   const valide = prenotazioni.filter(prenotazioneValida)
   return valide
-    .filter(b => b.check_in === domani && !(b.check_in_time ?? '').trim())
+    .filter(b => (b.check_in === oggi || b.check_in === domani) && !(b.check_in_time ?? '').trim())
     .filter(b => !valide.some(o => o.id !== b.id && !!b.group_id && o.group_id === b.group_id && o.check_out === b.check_in))
-    .sort((a, b) => nomeCamera(a).localeCompare(nomeCamera(b)))
+    .sort((a, b) => a.check_in.localeCompare(b.check_in) || nomeCamera(a).localeCompare(nomeCamera(b)))
     .map(b => {
       const wa = whatsappRichiestaOrario(b)
+      const quando = b.check_in === oggi ? 'oggi' : 'domani'
       return {
         chiave: `arrivo:${b.id}`, tipo: 'arrivo' as const, urgenza: 'alta' as const, data: b.check_in,
-        titolo: `${nomeOspite(b)} · ${nomeCamera(b)} · domani`,
-        motivo: wa ? 'Arrivo di domani senza orario' : 'Arrivo di domani senza orario e senza numero di telefono',
+        titolo: `${nomeOspite(b)} · ${nomeCamera(b)} · ${quando}`,
+        motivo: wa ? `Arrivo di ${quando} senza orario` : `Arrivo di ${quando} senza orario e senza numero di telefono`,
         bottone: 'Apri arrivo', destinazione: { tipo: 'arrivo' as const, prenotazioneId: b.id }, rimandabile: false,
         whatsapp: wa ? { ...wa, principale: true } : undefined,
         whatsappChat: wa ? { href: waHrefTesto(wa.numero, ''), numero: wa.numero, testo: '', principale: false } : undefined,
@@ -396,7 +399,7 @@ export function titoloStriscia(eccezioni: Eccezione[]): string {
 }
 
 const A_POSTO: Record<TipoEccezione, string> = {
-  calendario: 'Calendario', richiesta: 'Richieste', pagamento: 'Pagamenti', arrivo: 'Arrivi di domani', pulizia: 'Pulizie', fattura: 'Fatture',
+  calendario: 'Calendario', richiesta: 'Richieste', pagamento: 'Pagamenti', arrivo: 'Arrivi di oggi e domani', pulizia: 'Pulizie', fattura: 'Fatture',
 }
 function elenco(voci: string[]): string {
   if (voci.length <= 1) return voci.join('')

@@ -79,6 +79,22 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
 
 ---
 
+# Consegna — «Da controllare», arrivo senza orario anche OGGI (06/09/2026, main)
+
+- Segnalazione di Ania: la voce di Arturo (arrivo senza orario) è sparita
+  dalla Home. CAUSA: la regola copriva solo gli arrivi di DOMANI; il giorno
+  dell'arrivo la voce usciva. Sui dati veri: Arturo D'Iorio, Allegra, arrivo
+  06/09, orario vuoto, confermato.
+- lib/daControllare.eccezioniArrivi: ora copre OGGI e DOMANI; quelli di oggi
+  vengono prima; titolo «… · oggi», motivo «Arrivo di oggi senza orario»,
+  stessi bottoni (Chiedi orario · Apri chat · Apri arrivo), urgenza alta;
+  riga «tutto a posto» con «Arrivi di oggi e domani». Test nuovo (caso
+  Arturo) e attese aggiornate dove la regola è cambiata. Anteprima a 390 px:
+  «Arriva Oggi · Allegra · oggi» prima di quelli di domani.
+- Suite 682/682, TypeScript OK, lint 0 rilievi, `next build` OK.
+
+---
+
 # Consegna — Scheda cliente: ricevuta separata dalla valutazione, storico apribile (08/09/2026, sera, main)
 
 Base `d836d16`. Un commit per pezzo. Bozza SQL 0038 da applicare a mano; prima

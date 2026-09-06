@@ -169,7 +169,8 @@ test('calendario: letti aggiuntivi oltre i 2 del pool nella stessa notte; 2 su 2
 })
 
 // ── Arrivi ─────────────────────────────────────────────────────────────────
-test('arrivi: arrivo di domani senza orario → alta; con orario, oggi o cambio camera no', () => {
+// Dal 06/09/2026 anche l'arrivo di OGGI senza orario compare (prima solo domani)
+test('arrivi: arrivo di oggi o domani senza orario → alta; con orario o cambio camera no', () => {
   const out = eccezioniArrivi([
     b('senza', 'amelia', '2026-09-16', '2026-09-18', 100),
     b('con', 'ambra', '2026-09-16', '2026-09-18', 100, { check_in_time: '15:00' }),
@@ -179,11 +180,12 @@ test('arrivi: arrivo di domani senza orario → alta; con orario, oggi o cambio 
     b('c2', 'amelia', '2026-09-16', '2026-09-18', 100, { group_id: 'g' }),   // cambio camera: già in casa
     b('att', 'ambra', '2026-09-16', '2026-09-18', 100, { status: 'in_attesa' }),
   ], OGGI)
-  assert.deepEqual(out.map(e => e.chiave), ['arrivo:senza', 'arrivo:vuoto'])
-  assert.equal(out[0].urgenza, 'alta')
-  assert.equal(out[0].titolo, 'Ospite senza · amelia · domani')
-  assert.equal(out[0].motivo, 'Arrivo di domani senza orario')
-  assert.deepEqual(out[0].destinazione, { tipo: 'arrivo', prenotazioneId: 'senza' })
+  assert.deepEqual(out.map(e => e.chiave), ['arrivo:oggi', 'arrivo:senza', 'arrivo:vuoto'])   // oggi prima di domani
+  assert.equal(out[0].titolo, 'Ospite oggi · allegra · oggi'); assert.equal(out[0].motivo, 'Arrivo di oggi senza orario')
+  assert.equal(out[1].urgenza, 'alta')
+  assert.equal(out[1].titolo, 'Ospite senza · amelia · domani')
+  assert.equal(out[1].motivo, 'Arrivo di domani senza orario')
+  assert.deepEqual(out[1].destinazione, { tipo: 'arrivo', prenotazioneId: 'senza' })
 })
 
 // ── Fatture ────────────────────────────────────────────────────────────────
@@ -265,11 +267,11 @@ test('testi: striscia, conteggi per tipo con singolare/plurale, riga «tutto a p
   assert.equal(rigaConteggi([...lista, ecc('a', 'arrivo', 'alta', OGGI), ecc('p2', 'pagamento', 'normale', OGGI)]), '2 richieste aperte · 1 arrivo senza orario · 2 pagamenti · 1 sovrapposizione')
   assert.deepEqual(conteggiPerTipo(lista), [{ tipo: 'richiesta', n: 2 }, { tipo: 'pagamento', n: 1 }, { tipo: 'calendario', n: 1 }])
   // Dal 08/09/2026 (sera) c'è anche il tipo «pulizia»
-  assert.equal(rigaAPosto(lista), 'Arrivi di domani, pulizie e fatture: tutto a posto')
+  assert.equal(rigaAPosto(lista), 'Arrivi di oggi e domani, pulizie e fatture: tutto a posto')
   assert.equal(rigaAPosto([ecc('a', 'arrivo', 'alta', OGGI)]), 'Richieste, pulizie, pagamenti, fatture e calendario: tutto a posto')
   assert.equal(rigaAPosto([...lista, ecc('a', 'arrivo', 'alta', OGGI), ecc('f', 'fattura', 'normale', OGGI)]), 'Pulizie: tutto a posto')
   assert.equal(rigaAPosto([...lista, ecc('a', 'arrivo', 'alta', OGGI), ecc('f', 'fattura', 'normale', OGGI), ecc('pu', 'pulizia', 'alta', OGGI)]), null)
-  assert.equal(rigaAPosto([]), 'Richieste, arrivi di domani, pulizie, pagamenti, fatture e calendario: tutto a posto')
+  assert.equal(rigaAPosto([]), 'Richieste, arrivi di oggi e domani, pulizie, pagamenti, fatture e calendario: tutto a posto')
 })
 
 test('destinazioni: ogni bottone porta al punto esatto', () => {
@@ -304,13 +306,14 @@ test('insieme: tutte le regole, rinvii applicati, ordine delle sezioni; stato vu
   assert.deepEqual(out.map(e => e.chiave), [
     'richiesta:ferma',
     'richiesta:scaduta',
+    'arrivo:a',                   // alta, arriva OGGI senza orario (dal 06/09/2026)
     'arrivo:dom',
     'pagamento:vecchio',
     'fattura:f1',
     'sovrapposizione:a:d',
   ])
-  assert.equal(titoloStriscia(out), '6 cose da controllare')
-  assert.equal(rigaConteggi(out), '2 richieste aperte · 1 arrivo senza orario · 1 pagamento · 1 fattura scaduta · 1 sovrapposizione')
+  assert.equal(titoloStriscia(out), '7 cose da controllare')
+  assert.equal(rigaConteggi(out), '2 richieste aperte · 2 arrivi senza orario · 1 pagamento · 1 fattura scaduta · 1 sovrapposizione')
   assert.equal(rigaAPosto(out), 'Pulizie: tutto a posto')   // nessuna pulizia non registrata nello scenario
   assert.deepEqual(daControllareHome({ oggi: OGGI, adesso: ADESSO, richieste: [], prenotazioni: [], pagamenti: [], documenti: [] }), [])
 })
@@ -489,5 +492,19 @@ test('pulizia prima di un arrivo: cambio biancheria saltato non conta; cambio bi
   const ordinate = ordinaEccezioni([ecc('p', 'pagamento', 'normale', OGGI), ecc('pu', 'pulizia', 'alta', OGGI), ecc('a', 'arrivo', 'alta', OGGI)])
   assert.deepEqual(ordinate.map(e => e.chiave), ['a', 'pu', 'p'])
   assert.equal(rigaConteggi([ecc('pu', 'pulizia', 'alta', OGGI), ecc('pu2', 'pulizia', 'normale', OGGI)]), '2 pulizie non registrate')
-  assert.equal(rigaAPosto([ecc('pu', 'pulizia', 'alta', OGGI)]), 'Richieste, arrivi di domani, pagamenti, fatture e calendario: tutto a posto')
+  assert.equal(rigaAPosto([ecc('pu', 'pulizia', 'alta', OGGI)]), 'Richieste, arrivi di oggi e domani, pagamenti, fatture e calendario: tutto a posto')
+})
+
+// Ania, 06/09/2026: Arturo arrivava «domani» e la voce c'era; il giorno dopo arrivava «oggi» ed era sparita
+test('arrivi senza orario: anche quelli di OGGI, prima di quelli di domani (caso Arturo)', () => {
+  const out = eccezioniArrivi([
+    b('domani', 'ambra', '2026-09-16', '2026-09-18', 100),
+    b('arturo', 'allegra', '2026-09-15', '2026-09-18', 100),     // arriva oggi, senza orario
+    b('conOra', 'lena', '2026-09-15', '2026-09-17', 100, { check_in_time: '10:45' }),
+    b('dopodomani', 'amelia', '2026-09-17', '2026-09-19', 100),
+  ], OGGI)
+  assert.deepEqual(out.map(e => [e.chiave, e.titolo, e.motivo, e.urgenza]), [
+    ['arrivo:arturo', 'Ospite arturo · allegra · oggi', 'Arrivo di oggi senza orario', 'alta'],
+    ['arrivo:domani', 'Ospite domani · ambra · domani', 'Arrivo di domani senza orario', 'alta'],
+  ])
 })
