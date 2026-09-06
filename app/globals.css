@@ -225,3 +225,8 @@ input[type="week"] {
   letter-spacing: -0.01em;
   color: var(--color-green-dark);
 }
+
+/* Finestre e fogli che si aprono sopra la pagina (06/09/2026, sera): crema col filo,
+   come il resto, invece del bianco */
+.ed-foglio { background: #FBF9F4; border: 1px solid #C9BFA8; }
+.ed-velo { background: rgba(31, 61, 47, 0.45); }

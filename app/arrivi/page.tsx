@@ -600,8 +600,8 @@ export default function Arrivi() {
         }
         const navettaTxt = (b: any) => b.shuttle === 'si' ? ' · 🚌' : b.shuttle === 'no' ? ' · no navetta' : ''
         return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4" onClick={() => setPopup(null)}>
-          <div className="bg-white rounded-2xl p-5 w-full max-w-lg" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 ed-velo flex items-center justify-center z-[60] p-4" onClick={() => setPopup(null)}>
+          <div className="ed-foglio rounded-2xl p-5 w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <p className="font-bold text-lg mb-1 flex flex-wrap items-center gap-2">{popup.name}
               {vuoleRicevuta(bookings.find(b => b.id === popup.id)?.guests) && <span data-ricevuta className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-sage text-green-mid">{ETICHETTA_RICEVUTA_BREVE}</span>}</p>
             <p className="text-sm text-gray-500 mb-4">

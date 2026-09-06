@@ -69,8 +69,8 @@ export default function PannelloRichieste({ gruppo, ancora, layout, adesso, onCh
   if (layout === 'mobile') {
     return (
       <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label={titolo}>
-        <div className="velo-in absolute inset-0 bg-green-dark/30" onClick={onChiudi} />
-        <div className="scheda-in absolute left-0 right-0 bottom-0 bg-white rounded-t-2xl px-4 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))] max-h-[75dvh] overflow-y-auto shadow-lg">
+        <div className="velo-in absolute inset-0 ed-velo" onClick={onChiudi} />
+        <div className="scheda-in absolute left-0 right-0 bottom-0 ed-foglio rounded-t-2xl px-4 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))] max-h-[75dvh] overflow-y-auto shadow-lg">
           <div className="w-10 h-1 rounded-full bg-border-soft mx-auto mb-3" aria-hidden />
           <div className="flex items-center justify-between mb-1">
             <p className="text-sm font-semibold text-green-dark">{titolo}</p>

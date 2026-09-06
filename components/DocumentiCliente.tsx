@@ -181,8 +181,8 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
 
       {daCancellare && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-green-dark/30" onClick={() => setDaCancellare(null)} />
-          <div className="relative bg-white rounded-xl p-4 w-full max-w-sm border border-card-border shadow-md">
+          <div className="absolute inset-0 ed-velo" onClick={() => setDaCancellare(null)} />
+          <div className="relative ed-foglio rounded-xl p-4 w-full max-w-sm shadow-md">
             <p className="font-semibold text-green-dark mb-1">Eliminare questo documento?</p>
             <p className="text-sm text-stone mb-3">{etichettaLeggibile(daCancellare)} · non si può recuperare.</p>
             <div className="flex gap-2">

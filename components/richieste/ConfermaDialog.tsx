@@ -26,8 +26,8 @@ export default function ConfermaDialog({ titolo, testo, conferma, annulla = 'Ann
   }, [onAnnulla])
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={titolo}>
-      <div className="velo-in absolute inset-0 bg-green-dark/30" onClick={onAnnulla} />
-      <div className="scheda-in relative bg-white rounded-2xl shadow-lg p-5 w-full max-w-sm">
+      <div className="velo-in absolute inset-0 ed-velo" onClick={onAnnulla} />
+      <div className="scheda-in relative ed-foglio rounded-2xl shadow-lg p-5 w-full max-w-sm">
         <p className="text-[15px] font-medium text-green-dark leading-snug">{titolo}</p>
         {testo && <p className="text-sm text-stone mt-1.5">{testo}</p>}
         {scelte && scelte.length > 0 && (

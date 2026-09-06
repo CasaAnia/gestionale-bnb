@@ -145,8 +145,8 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
   if (layout === 'mobile') {
     return (
       <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Creare la prenotazione?">
-        <div className="velo-in absolute inset-0 bg-green-dark/30" onClick={() => { if (!occupato) onChiudi() }} />
-        <div className="scheda-in absolute left-0 right-0 bottom-0 bg-white rounded-t-2xl px-4 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))] max-h-[85dvh] overflow-y-auto shadow-lg">
+        <div className="velo-in absolute inset-0 ed-velo" onClick={() => { if (!occupato) onChiudi() }} />
+        <div className="scheda-in absolute left-0 right-0 bottom-0 ed-foglio rounded-t-2xl px-4 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))] max-h-[85dvh] overflow-y-auto shadow-lg">
           <div className="w-10 h-1 rounded-full bg-border-soft mx-auto mb-3" aria-hidden />
           {corpo}
         </div>
@@ -155,8 +155,8 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
   }
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Creare la prenotazione?">
-      <div className="velo-in absolute inset-0 bg-green-dark/30" onClick={() => { if (!occupato) onChiudi() }} />
-      <div className="scheda-in relative bg-white rounded-2xl shadow-lg p-5 w-full max-w-md max-h-[85vh] overflow-y-auto">{corpo}</div>
+      <div className="velo-in absolute inset-0 ed-velo" onClick={() => { if (!occupato) onChiudi() }} />
+      <div className="scheda-in relative ed-foglio rounded-2xl shadow-lg p-5 w-full max-w-md max-h-[85vh] overflow-y-auto">{corpo}</div>
     </div>
   )
 }

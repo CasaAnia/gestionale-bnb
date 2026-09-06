@@ -671,8 +671,8 @@ export default function PropostaPage() {
       {/* Altre soluzioni trovate */}
       {pannelloCambia && (
         <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Altre soluzioni">
-          <div className="velo-in absolute inset-0 bg-green-dark/30" onClick={() => setPannelloCambia(false)} />
-          <div className={`scheda-in absolute bg-white shadow-lg overflow-y-auto ${desktop ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl w-[420px] max-h-[70vh] p-4' : 'left-0 right-0 bottom-0 rounded-t-2xl px-4 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))] max-h-[75dvh]'}`}>
+          <div className="velo-in absolute inset-0 ed-velo" onClick={() => setPannelloCambia(false)} />
+          <div className={`scheda-in absolute ed-foglio shadow-lg overflow-y-auto ${desktop ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl w-[420px] max-h-[70vh] p-4' : 'left-0 right-0 bottom-0 rounded-t-2xl px-4 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))] max-h-[75dvh]'}`}>
             {!desktop && <div className="w-10 h-1 rounded-full bg-border-soft mx-auto mb-3" aria-hidden />}
             <div className="flex items-center justify-between mb-1">
               <p className="text-sm font-semibold text-green-dark">Soluzioni trovate</p>

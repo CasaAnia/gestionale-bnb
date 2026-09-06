@@ -238,7 +238,7 @@ Ania`
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[70] overflow-y-auto" onClick={onClose}>
+    <div className="fixed inset-0 ed-velo z-[70] overflow-y-auto" onClick={onClose}>
       <div className="bg-cream w-full max-w-lg mx-auto min-h-full p-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="ed-titolo-medio">Conferma WhatsApp</h2>
@@ -328,7 +328,7 @@ Ania`
         {/* Riserva: testo da copiare a mano */}
         <details className="mb-4">
           <summary className="text-xs text-gray-500 cursor-pointer mb-2">Il testo del messaggio (se serve copiarlo a mano)</summary>
-          <div className="bg-white ed-campo rounded-xl p-3 mb-2 text-sm text-gray-700 whitespace-pre-wrap">
+          <div className="ed-campo rounded-xl p-3 mb-2 text-sm text-gray-700 whitespace-pre-wrap">
             {testoMessaggio}
           </div>
           <button onClick={copiaTesto}

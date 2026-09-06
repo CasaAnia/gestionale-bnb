@@ -116,9 +116,9 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
   const campo = 'w-full min-w-0 appearance-none bg-white ed-campo p-3 text-[15px] focus:outline-none focus:border-green-mid'
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[70] sm:p-4" onClick={() => { if (!salvando) onClose() }}>
+    <div className="fixed inset-0 ed-velo flex items-end sm:items-center justify-center z-[70] sm:p-4" onClick={() => { if (!salvando) onClose() }}>
       <div role="dialog" aria-labelledby="cambia-cliente-titolo" data-cambia-cliente
-        className="scheda-in bg-white rounded-t-2xl sm:rounded-2xl p-4 pb-[max(16px,env(safe-area-inset-bottom))] w-full max-w-lg max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        className="scheda-in ed-foglio rounded-t-2xl sm:rounded-2xl p-4 pb-[max(16px,env(safe-area-inset-bottom))] w-full max-w-lg max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h2 id="cambia-cliente-titolo" className="ed-titolo-medio">Cambia cliente</h2>
         <p className="text-sm text-stone mt-1 mb-3">
           Solo questa prenotazione passa a un altro cliente. <span className="font-semibold text-green-dark">{nomeVecchio}</span> resta com’è, con le sue altre prenotazioni; date, prezzo, note, letti e pagamenti non cambiano.
