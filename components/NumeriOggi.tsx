@@ -18,11 +18,11 @@ import StrisciaSettimana from './StrisciaSettimana'
 // sotto i 360 px). Richiesta di Ania dell'08/09/2026.
 function Riquadro({ href, etichetta, codaEtichetta, valore, coda }: { href: string; etichetta: string; codaEtichetta?: string; valore: string; coda?: string }) {
   return (
-    <Link href={href} className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm px-2.5 py-2.5 min-w-0 min-h-[68px] flex flex-col justify-between transition-transform duration-100 active:scale-[0.98]">
-      <p className="font-serif text-2xl text-green-dark leading-none whitespace-nowrap" data-numero={valore}>
-        {valore}{coda && <span className="text-base text-gray-400"> {coda}</span>}
+    <Link href={href} className="px-1 py-3 min-w-0 flex flex-col items-center justify-between transition-transform duration-100 active:scale-[0.98] first:border-l-0 border-l border-card-border">
+      <p className="ed-numero whitespace-nowrap" data-numero={valore}>
+        {valore}{coda && <span className="text-[14px] text-gray-400 font-sans"> {coda}</span>}
       </p>
-      <p className="text-[9px] uppercase tracking-[0.5px] text-brass leading-none whitespace-nowrap overflow-hidden mt-2" data-etichetta>
+      <p className="text-[9px] uppercase tracking-[1.5px] text-stone leading-none whitespace-nowrap overflow-hidden mt-2.5" data-etichetta>
         {etichetta}{codaEtichetta && <span className="max-[359px]:hidden"> {codaEtichetta}</span>}
       </p>
     </Link>
@@ -36,7 +36,8 @@ export default function NumeriOggi() {
   return (
     <>
       <section className="mb-4" data-stato={n.stato}>
-        <div className="grid grid-cols-3 gap-2">
+        {/* Stile editoriale (06/09/2026): tre numeri fra due fili ottone, separati da fili crema */}
+        <div className="grid grid-cols-3" style={{ borderTop: '1px solid rgba(169,136,78,0.55)', borderBottom: '1px solid rgba(169,136,78,0.55)' }}>
           <Riquadro href="/arrivi" etichetta="Arrivi" codaEtichetta="oggi" valore={pronto ? String(n.numeri.arriviOggi) : trattino} />
           <Riquadro href="/arrivi" etichetta="Partenze" codaEtichetta="oggi" valore={pronto ? String(n.numeri.partenzeOggi) : trattino} />
           <Riquadro href={`/calendario?giorno=${n.oggi}`} etichetta="Occupate" valore={pronto ? String(n.numeri.camereOccupate) : trattino} coda={pronto ? testoOccupate(n.numeri).replace(/^\d+ /, '') : undefined} />

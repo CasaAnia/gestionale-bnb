@@ -19,17 +19,17 @@ export default function StrisciaSettimana({ giorni }: { giorni: GiornoStriscia[]
   const tornaAOggi = () => scorrevole.current?.scrollTo({ left: 0, behavior: 'auto' })
   return (
     <section className="mb-4" data-striscia-settimana>
-      <button type="button" onClick={tornaAOggi} className="text-[12px] text-gray-500 mb-1.5 text-left">{DIDASCALIA_STRISCIA}</button>
-      <div ref={scorrevole} className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory rounded-[10px] bg-white border border-[#C9BFA8] shadow-sm">
+      <button type="button" onClick={tornaAOggi} className="text-[12px] mb-1 text-left" style={{ color: 'var(--color-stone)' }}>{DIDASCALIA_STRISCIA}</button>
+      <div ref={scorrevole} className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory border-b border-card-border">
         {giorni.map(g => { const c = testoCasella(g); return (
           <Link key={g.giorno} href={`/pulizie?giorno=${g.giorno}`} data-giorno={g.giorno} data-camere={g.daFare} data-fatte={g.fatte} data-tono={c.tono}
-            className="snap-start shrink-0 basis-[14.2857%] lg:basis-[7.1428%] flex flex-col items-center justify-center py-2 min-h-[58px] rounded-[8px]"
+            className="snap-start shrink-0 basis-[14.2857%] lg:basis-[7.1428%] flex flex-col items-center justify-center py-2 min-h-[58px]"
             style={{
-              ...(g.oggi ? { background: '#F3ECD8', boxShadow: 'inset 0 0 0 1px #A9884E' } : {}),
-              ...(g.inizioSettimana ? { borderLeft: '1px solid #A9884E' } : {}),
+              ...(g.oggi ? { boxShadow: 'inset 0 -2px 0 #A9884E' } : {}),
+              ...(g.inizioSettimana ? { borderLeft: '1px solid rgba(169,136,78,0.55)' } : {}),
             }}>
             <span className="text-[11px] leading-none" style={{ color: g.oggi ? '#1F3D2F' : 'var(--color-stone)' }}>{etichettaGiornoBreve(g.giorno)}</span>
-            <span className={`font-serif text-2xl leading-tight mt-1 ${c.tono === 'numero' ? 'text-green-dark' : 'text-gray-400'}`}>{c.testo}</span>
+            <span className={`font-serif text-2xl leading-tight mt-1 ${c.tono === 'numero' ? 'text-green-dark' : 'text-gray-400'}`} style={{ fontWeight: 300 }}>{c.testo}</span>
           </Link>
         ) })}
       </div>

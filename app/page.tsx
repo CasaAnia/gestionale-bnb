@@ -146,9 +146,10 @@ export default function Dashboard() {
 
   return (
     <div className="p-4">
-      <div className="mb-4">
-        <h1 className="font-serif text-2xl text-green-dark">Buongiorno, Ania</h1>
-        <p className="text-sm text-gray-500 capitalize">{italianDate()}</p>
+      {/* Stile editoriale (06/09/2026): titolo grande e leggero, data in maiuscoletto ottone */}
+      <div className="mb-5">
+        <h1 className="ed-titolo">Buongiorno,<br />Ania</h1>
+        <p className="ed-sotto mt-2">{italianDate()}</p>
       </div>
 
       {richiesteWeb.stato === 'errore' ? (
@@ -158,7 +159,7 @@ export default function Dashboard() {
       ) : richiesteWeb.richieste.length === 0 ? (
         <p className="text-[13px] mb-4" style={{ color: 'var(--color-stone)' }}>Nessuna richiesta dal sito da confermare.</p>
       ) : (
-        <Link href="/calendario" className="block bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm px-3 py-2.5 mb-4 text-sm font-semibold text-green-dark">
+        <Link href="/calendario" className="block ed-riga-ottone pb-3 mb-4 text-sm font-semibold text-green-dark">
           🌐 {richiesteWeb.richieste.length === 1 ? '1 richiesta dal sito da confermare' : `${richiesteWeb.richieste.length} richieste dal sito da confermare`}
           <span className="font-normal" style={{ color: 'var(--color-stone)' }}> · {richiesteWeb.richieste[0].guest_name}{richiesteWeb.richieste.length > 1 ? ' e altre' : ''}</span>
         </Link>
@@ -182,19 +183,18 @@ export default function Dashboard() {
             const hasOggi = data.checkInOggi.length > 0 || data.checkOutOggi.length > 0 || data.roomChangesOggi.length > 0
             const hasDomani = data.checkInDomani.length > 0 || data.checkOutDomani.length > 0 || data.roomChangesDomani.length > 0
             if (!hasOggi && !hasDomani) return null
-          {/* Riquadri come nella scheda prenotazione e nel campo «Cerca nome»: bianchi, bordo #C9BFA8, ombra leggera (Ania, 05/09/2026) */}
             return (
-              <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-3 mb-4">
+              <div className="mb-5">
                 {hasOggi && (
                   <>
-                    <p className="text-[11px] uppercase mb-2.5 text-brass" style={{ letterSpacing: '2px' }}>Oggi</p>
+                    <p className="ed-sezione mb-2">Oggi</p>
                     {renderEventi('oggi', data.checkInOggi, data.checkOutOggi, data.roomChangesOggi)}
                   </>
                 )}
                 {hasDomani && (
                   <>
-                    {hasOggi && <div className="border-t border-card-border mt-3 mb-2.5" />}
-                    <p className="text-[11px] uppercase mb-2.5" style={{ letterSpacing: '2px', color: '#8a9488' }}>Domani</p>
+                    {hasOggi && <div className="mt-4" />}
+                    <p className="ed-sezione mb-2" style={{ color: '#8a9488' }}>Domani</p>
                     {renderEventi('domani', data.checkInDomani, data.checkOutDomani, data.roomChangesDomani)}
                   </>
                 )}
@@ -203,8 +203,8 @@ export default function Dashboard() {
           })()}
 
           {data.daIncassare?.length > 0 && (
-            <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm p-3 mb-4">
-              <p className="text-[11px] uppercase mb-1.5 text-brass" style={{ letterSpacing: '2px' }}>💶 Da incassare</p>
+            <div className="mb-5">
+              <p className="ed-sezione mb-1">Da incassare</p>
               {data.daIncassare.map((g: any) => (
                 <Link key={g.id} href={`/prenotazioni/${g.id}`} className="flex items-center justify-between py-1.5 border-t border-card-border text-sm">
                   <span className="font-medium text-green-dark">{g.guest}</span>
@@ -215,73 +215,57 @@ export default function Dashboard() {
           )}
 
           {/* Quattro significati separati, identici alle Statistiche (05/09/2026) */}
-          <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm mb-3">
+          <p className="ed-sezione mb-1">Il mese</p>
+          <div className="py-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1">Ricavi per soggiorno</p>
-                <p className="font-serif text-2xl text-green-dark">€{euro(data.cassa.ricaviCent)}</p>
+                <p className="ed-numero-medio">€{euro(data.cassa.ricaviCent)}</p>
                 <p className="text-[11px] leading-tight text-gray-500 mt-1">valore delle prenotazioni confermate, diviso sulle notti dormite nel mese</p>
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1">{data.voceIncassi.etichetta}</p>
-                <p className="font-serif text-2xl text-green-dark">€{euro(data.cassa.incassiCent)}</p>
+                <p className="ed-numero-medio">€{euro(data.cassa.incassiCent)}</p>
                 <p className="text-[11px] leading-tight text-gray-500 mt-1">pagamenti registrati nel mese, per data di pagamento{data.voceIncassi.avviso ? <> · <span className="font-semibold text-green-dark">{data.voceIncassi.avviso}</span></> : null}</p>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm">
+          <div className="grid grid-cols-2 gap-x-3 mb-5">
+            <div className="ed-riga">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Saldo di cassa</p>
-              <p className={`font-serif text-2xl ${data.cassa.saldoCent >= 0 ? 'text-green-dark' : 'text-[#8C3B2E]'}`}>€{euro(data.cassa.saldoCent)}</p>
+              <p className={`ed-numero-medio ${data.cassa.saldoCent >= 0 ? '' : 'text-[#8C3B2E]'}`}>€{euro(data.cassa.saldoCent)}</p>
               <p className="text-[11px] leading-tight text-gray-500 mt-1">incassi meno spese del mese</p>
             </div>
-            <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm">
+            <div className="ed-riga">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Spese</p>
-              <p className="font-serif text-2xl text-[#8C3B2E]">€{euro(data.cassa.speseCent)}</p>
+              <p className="ed-numero-medio text-[#8C3B2E]">€{euro(data.cassa.speseCent)}</p>
               <p className="text-[11px] leading-tight text-gray-500 mt-1">spese del B&amp;B, per data di pagamento</p>
             </div>
-            <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm">
+            <div className="ed-riga">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Occupazione</p>
-              <p className="font-serif text-2xl text-green-dark">{data.indici.percento}<span className="text-base text-gray-400">% mese</span></p>
+              <p className="ed-numero-medio">{data.indici.percento}<span className="text-base text-gray-400">% mese</span></p>
               <p className="text-[11px] leading-tight text-gray-500 mt-1">
                 {data.indici.anomalia
                   ? <span className="font-semibold text-green-dark">{TESTO_ANOMALIA_OCCUPAZIONE}: {data.indici.nottiVendute} notti su {data.indici.nottiVendibili}</span>
                   : <>notti vendute su notti vendibili delle camere in servizio ({data.indici.nottiVendute} su {data.indici.nottiVendibili})</>}
               </p>
             </div>
-            <div className="bg-white rounded-[10px] p-5 border border-[#C9BFA8] shadow-sm">
+            <div className="ed-riga">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Tariffa media</p>
-              <p className="font-serif text-2xl text-green-dark">€{euro(data.indici.adrCent)}</p>
+              <p className="ed-numero-medio">€{euro(data.indici.adrCent)}</p>
               <p className="text-[11px] leading-tight text-gray-500 mt-1">ricavi per soggiorno diviso le notti vendute nel mese</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <Link href="/prenotazioni" className="bg-white rounded-[10px] p-3 text-center border border-[#C9BFA8] shadow-sm">
-              <div className="text-2xl">📅</div>
-              <div className="text-xs font-semibold text-green-dark mt-1">Prenotazioni</div>
-            </Link>
-            <Link href="/statistiche" className="bg-white rounded-[10px] p-3 text-center border border-[#C9BFA8] shadow-sm">
-              <div className="text-2xl">📊</div>
-              <div className="text-xs font-semibold text-green-dark mt-1">Statistiche</div>
-            </Link>
-            {!demo && (
-              <Link href="/spese" className="bg-white rounded-[10px] p-3 text-center border border-[#C9BFA8] shadow-sm">
-                <div className="text-2xl">💶</div>
-                <div className="text-xs font-semibold text-[#7A3B22] mt-1">Spese B&B</div>
-              </Link>
-            )}
-            {!demo && (
-              <Link href="/spese-famiglia" className="bg-white rounded-[10px] p-3 text-center border border-[#C9BFA8] shadow-sm">
-                <div className="text-2xl">👛</div>
-                <div className="text-xs font-semibold text-[#7A3B22] mt-1">Spese Famiglia</div>
-              </Link>
-            )}
-            <Link href="/impostazioni" className="bg-white rounded-[10px] p-3 text-center border border-[#C9BFA8] shadow-sm">
-              <div className="text-2xl">🔔</div>
-              <div className="text-xs font-semibold text-green-dark mt-1">Impostazioni e notifiche</div>
-            </Link>
+          {/* Scorciatoie: righe editoriali, niente emoji né riquadri */}
+          <p className="ed-sezione mb-1">Vai a</p>
+          <div className="ed-lista">
+            <Link href="/prenotazioni" className="flex items-center justify-between py-3 text-[15px] text-green-dark"><span className="font-serif">Prenotazioni</span><span className="text-brass">→</span></Link>
+            <Link href="/statistiche" className="flex items-center justify-between py-3 text-[15px] text-green-dark"><span className="font-serif">Statistiche</span><span className="text-brass">→</span></Link>
+            {!demo && <Link href="/spese" className="flex items-center justify-between py-3 text-[15px] text-green-dark"><span className="font-serif">Spese B&B</span><span className="text-brass">→</span></Link>}
+            {!demo && <Link href="/spese-famiglia" className="flex items-center justify-between py-3 text-[15px] text-green-dark"><span className="font-serif">Spese Famiglia</span><span className="text-brass">→</span></Link>}
+            <Link href="/impostazioni" className="flex items-center justify-between py-3 text-[15px] text-green-dark"><span className="font-serif">Impostazioni e notifiche</span><span className="text-brass">→</span></Link>
           </div>
         </>
       )}

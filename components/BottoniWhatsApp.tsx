@@ -11,8 +11,9 @@ import { waHrefTesto, type LinkWhatsApp } from '@/lib/messaggiWhatsApp'
 // Bottoni di «Da controllare» (08/09/2026, sera): compatti, uguali per tutte le
 // voci, così «Chiedi orario» · «Apri chat» · «Apri arrivo» stanno su UNA riga
 // anche a 390 px; sotto i 360 px «Apri chat» → «Chat» e «Apri arrivo» → «Arrivo»
-export const BOTTONE_PIENO = 'inline-flex items-center gap-1 rounded-lg bg-green-mid text-white px-2.5 py-1.5 text-[12px] font-semibold shadow-sm whitespace-nowrap transition-transform duration-100 active:scale-[0.97]'
-export const BOTTONE_GHOST = 'inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold whitespace-nowrap transition-transform duration-100 active:scale-[0.97]'
+// Stile editoriale (06/09/2026): pillole
+export const BOTTONE_PIENO = 'inline-flex items-center gap-1 rounded-full bg-green-mid text-white px-3 py-1.5 text-[12px] font-semibold whitespace-nowrap transition-transform duration-100 active:scale-[0.97]'
+export const BOTTONE_GHOST = 'inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[12px] font-semibold whitespace-nowrap transition-transform duration-100 active:scale-[0.97]'
 
 // «Apri chat» / «Apri arrivo»: sotto i 360 px resta solo la seconda parola, maiuscola
 export function EtichettaBreve({ testo }: { testo: string }) {

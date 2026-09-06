@@ -20,7 +20,6 @@ import type { Decisione } from '@/lib/pulizie'
 import { ETICHETTA_TIPO, PAROLA_NAVETTA, hrefDestinazione, rigaAPosto, rigaConteggi, titoloStriscia, type Eccezione } from '@/lib/daControllare'
 import { BottoneWhatsApp, EtichettaBreve, BOTTONE_PIENO, BOTTONE_GHOST, ETICHETTA_CHIEDI_ORARIO, ETICHETTA_APRI_CHAT } from './BottoniWhatsApp'
 
-const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
 export const ID_SEZIONE = 'da-controllare'
 
 export default function DaControllare() {
@@ -83,17 +82,18 @@ export default function DaControllare() {
   return (
     <section id={ID_SEZIONE} className="mb-4 scroll-mt-20">
       {/* Striscia: «N cose da controllare» + conteggi per tipo */}
-      <div className="rounded-[10px] px-3.5 py-3 mb-3" style={{ background: '#F3ECD8' }}>
-        <p className="text-[19px] leading-tight text-green-dark" style={FRAUNCES}>{titoloStriscia(eccezioni)}</p>
+      {/* Stile editoriale (06/09/2026): filo ottone e titolo leggero al posto del riquadro sabbia */}
+      <div className="ed-riga-ottone pb-3 mb-3">
+        <p className="ed-titolo-medio">{titoloStriscia(eccezioni)}</p>
         <p className="text-[12.5px] mt-1" style={{ color: 'var(--color-stone)' }}>{rigaConteggi(eccezioni)}</p>
       </div>
 
-      <p className="text-[11px] uppercase mb-2 text-brass" style={{ letterSpacing: '2px' }}>Da controllare</p>
-      <div className="bg-white rounded-[10px] border border-[#C9BFA8] shadow-sm overflow-hidden">
+      <p className="ed-sezione mb-1">Da controllare</p>
+      <div>
         {eccezioni.map((e, i) => (
           <div key={e.chiave} data-urgenza={e.urgenza}
-            className={`px-3.5 py-3 ${i > 0 ? 'border-t border-card-border' : ''}`}
-            style={e.urgenza === 'alta' ? { boxShadow: 'inset 3px 0 0 #A9884E' } : undefined}>
+            className={`py-3 ${i > 0 ? 'border-t border-card-border' : ''}`}
+            style={e.urgenza === 'alta' ? { borderLeft: '2px solid #A9884E', paddingLeft: 10 } : undefined}>
             <p className="text-[10px] uppercase tracking-[1.5px] text-brass">{ETICHETTA_TIPO[e.tipo]}</p>
             <p className="text-[15px] font-semibold text-green-dark leading-snug mt-0.5">{e.titolo}</p>
             <p className="text-[12.5px] leading-snug mt-0.5" style={{ color: 'var(--color-stone)' }}>
@@ -109,13 +109,13 @@ export default function DaControllare() {
               {e.pulizia && (
                 <>
                   <button type="button" onClick={() => segnaPulita(e, false)} disabled={segnando === e.chiave} data-pulita
-                    className="rounded-lg px-3.5 text-[13px] font-semibold text-white shadow-sm transition-transform duration-100 active:scale-[0.97] disabled:opacity-60"
-                    style={{ minHeight: 40, background: '#2D6A4F' }}>
+                    className="ed-pillola text-[13px] disabled:opacity-60"
+                    style={{ minHeight: 40 }}>
                     {segnando === e.chiave ? 'Segno…' : 'Pulita'}
                   </button>
                   <button type="button" onClick={() => segnaPulita(e, true)} disabled={segnando === e.chiave} data-pulita-recuperato
-                    className="rounded-lg px-3.5 text-[13px] font-semibold bg-white transition-transform duration-100 active:scale-[0.97] disabled:opacity-60"
-                    style={{ minHeight: 40, color: '#2D6A4F', border: '1px solid #2D6A4F' }}>
+                    className="ed-pillola-contorno text-[13px] disabled:opacity-60"
+                    style={{ minHeight: 40 }}>
                     Pulita + recuperato
                   </button>
                 </>
@@ -137,7 +137,7 @@ export default function DaControllare() {
           </div>
         ))}
         {aPosto && (
-          <p className="mx-3.5 py-2.5 text-[12.5px] border-t border-dashed border-[#C9BFA8]" style={{ color: 'var(--color-stone)' }}>{aPosto}</p>
+          <p className="py-2.5 text-[12.5px] border-t border-dashed border-[#C9BFA8]" style={{ color: 'var(--color-stone)' }}>{aPosto}</p>
         )}
       </div>
       {scheda && <SchedaRecupero camera={scheda.camera} iniziale={vuoto()} onSalva={salvaScheda} onChiudi={() => setScheda(null)} />}
