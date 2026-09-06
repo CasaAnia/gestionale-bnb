@@ -31,7 +31,7 @@ import { cent, prenotazioneValida, type PrenotazioneStat, type PagamentoStat, ty
 import { incongruenzePagamenti } from './statistiche/pagato.ts'
 import { lettiOccupatiPerNotte } from './lettiAggiuntivi.ts'
 import { EXTRA_BED_MAX } from './tariffe.ts'
-import { statoCameraGiorno, statoFineSoggiorno, cambioOspiteAutomatico, attive, continuaDa, continuaIn, type Decisione } from './pulizie.ts'
+import { statoCameraGiorno, statoFineSoggiorno, cambioOspiteAutomatico, attive, continuaDa, continuaIn, CUTOFF_STORICO, type Decisione, type TipoPulizia } from './pulizie.ts'
 import { normalizzaTelefono } from './whatsapp.ts'
 import { whatsappRichiestaOrario, waHrefTesto } from './messaggiWhatsApp.ts'
 import { stessaPersona } from './clienteCheTorna.ts'
@@ -71,6 +71,10 @@ export type Eccezione = {
   // Arrivi (06/09/2026, scelta di Ania): l'ospite ha la navetta confermata ma
   // manca ancora l'orario → la Home aggiunge « · navetta» in ottone al motivo
   navetta?: boolean
+  // Pulizie (06/09/2026, recupero biancheria): la pulizia da segnare con «Pulita»
+  // / «Pulita + recuperato» direttamente dalla Home. Assente quando la camera è
+  // da fare solo per un cambio biancheria: resta «Apri pulizie».
+  pulizia?: PuliziaDaSegnareDC
 }
 export type LinkWhatsAppEccezione = { href: string; numero: string; testo: string; principale: boolean }
 
@@ -331,6 +335,7 @@ export const PAROLA_NAVETTA = 'navetta'
 // Sparisce da sola quando la pulizia viene segnata fatta.
 export const MOTIVO_PULIZIA_NON_REGISTRATA = 'La pulizia dopo la partenza precedente non risulta registrata'
 export const MOTIVO_PULIZIA_PARTENZA_IERI = 'La pulizia dopo la partenza di ieri non risulta registrata'
+export type PuliziaDaSegnareDC = { room_id: string; booking_id: string | null; tipo: TipoPulizia; data_prevista: string; camera: string }
 
 export function eccezioniPulizie(prenotazioni: PrenotazioneDC[], pulizie: Decisione[] | undefined, oggi: string): Eccezione[] {
   const bookings = attive(prenotazioni)
@@ -340,11 +345,20 @@ export function eccezioniPulizie(prenotazioni: PrenotazioneDC[], pulizie: Decisi
   for (const b of arrivi) {
     if (statoCameraGiorno(bookings, b.room_id, oggi, oggi, events) !== 'da_fare') continue
     const ore = (b.check_in_time ?? '').trim()
+    // L'ultima partenza della camera prima dell'arrivo (stessa scelta dell'ultimo
+    // blocco di statoCameraGiorno): se non è chiusa né automatica è la pulizia da segnare
+    const precedente = bookings
+      .filter(x => x.room_id === b.room_id && x.check_out <= oggi && x.check_out >= CUTOFF_STORICO && !continuaIn(bookings, x) && !arrivi.some(a => a.id === x.id))
+      .sort((x, y) => x.check_out.localeCompare(y.check_out)).slice(-1)[0]
+    const st = precedente ? statoFineSoggiorno(bookings, precedente, events) : null
+    const pulizia = precedente && st && !st.chiusa && !cambioOspiteAutomatico(bookings, precedente, events)
+      ? { room_id: b.room_id, booking_id: precedente.id ?? null, tipo: st.tipo, data_prevista: st.due, camera: nomeCamera(b) } : undefined
     out.push({
       chiave: `pulizia:${b.id}`, tipo: 'pulizia', urgenza: 'alta', data: oggi,
       titolo: `${nomeCamera(b)} · arrivo oggi di ${nomeOspite(b)}${ore ? `, ore ${ore}` : ''}`,
       motivo: MOTIVO_PULIZIA_NON_REGISTRATA,
       bottone: 'Apri pulizie', destinazione: { tipo: 'pulizie', giorno: oggi }, rimandabile: false,
+      pulizia,
     })
   }
   const ieri = spostaGiorni(oggi, -1)
@@ -358,6 +372,7 @@ export function eccezioniPulizie(prenotazioni: PrenotazioneDC[], pulizie: Decisi
       titolo: `${nomeCamera(p)} · ${st.tipo === 'cambio_camera' ? 'cambio camera' : 'partenza'} di ieri di ${nomeOspite(p)}`,
       motivo: MOTIVO_PULIZIA_PARTENZA_IERI,
       bottone: 'Apri pulizie', destinazione: { tipo: 'pulizie', giorno: oggi }, rimandabile: false,
+      pulizia: { room_id: p.room_id, booking_id: p.id ?? null, tipo: st.tipo, data_prevista: st.due, camera: nomeCamera(p) },
     })
   }
   return out

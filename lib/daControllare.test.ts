@@ -570,3 +570,20 @@ test('pulizie: partenza di ieri non registrata compare oggi; segnata, rimandata,
   // Segnata fatta → sparisce da sola
   assert.deepEqual(eccezioniPulizie(pren, [dec('x1', 'ambra', 'b-out', 'fatta'), dec('x2', 'allegra', 'c-out', 'rimandata', '2026-09-17'), dec('x3', 'amelia', 'a-out', 'fatta'), { ...dec('x4', 'lena3', 'g-out', 'fatta'), tipo: 'cambio_camera' }], OGGI).map(e => e.chiave), [])
 })
+
+// Recupero biancheria (06/09/2026): la voce porta con sé la pulizia da segnare con «Pulita»
+test('pulizie: la voce indica la pulizia da segnare (partenza aperta o di ieri); solo cambio biancheria → nessuna', async () => {
+  const { eccezioniPulizie } = await import('./daControllare.ts')
+  const pren = [
+    b('am-out', 'amelia', '2026-09-10', '2026-09-12', 100, { guest_id: 'g1' }),                      // partenza del 12 mai segnata
+    b('am-in', 'amelia', '2026-09-15', '2026-09-18', 100, { guest_id: 'g2' }),                       // arrivo oggi → pulizia = quella partenza
+    b('ie-out', 'ambra', '2026-09-11', '2026-09-14', 100, { guest_id: 'g3' }),                       // partenza di ieri, camera vuota
+    b('cb', 'lena', '2026-09-03', '2026-09-20', 100, { guest_id: 'g4' }),                            // soggiorno lungo: cambio biancheria scaduto
+    b('cb-in', 'lena2', '2026-09-15', '2026-09-17', 100, { guest_id: 'g5' }),
+  ]
+  const out = eccezioniPulizie(pren, [], OGGI)
+  const perChiave = Object.fromEntries(out.map(e => [e.chiave, e.pulizia]))
+  assert.deepEqual(perChiave['pulizia:am-in'], { room_id: 'amelia', booking_id: 'am-out', tipo: 'fine_soggiorno', data_prevista: '2026-09-12', camera: 'amelia' })
+  assert.deepEqual(perChiave['pulizia:partenza:ie-out'], { room_id: 'ambra', booking_id: 'ie-out', tipo: 'fine_soggiorno', data_prevista: '2026-09-14', camera: 'ambra' })
+  assert.equal(out.some(e => e.chiave === 'pulizia:cb-in'), false)   // lena2 non ha partenze: niente voce
+})

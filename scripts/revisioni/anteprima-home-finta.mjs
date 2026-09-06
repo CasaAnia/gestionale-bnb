@@ -24,6 +24,8 @@
 //   Fatture     «Enel» 95,50 € scaduta il O−5; «Iren» in scadenza O+10 → no
 //   Tre numeri  arrivi oggi 1 («Arriva Oggi»), partenze oggi 1 («Parte Oggi»), camere occupate stanotte 2 su 4 (Amelia, Allegra)
 //   Striscia    oggi «✓» (Ambra fatta, Allegra pronta per l'arrivo), domani «1» (parte «Arriva Oggi» da Allegra)
+//   Biancheria  cleanings POST e biancheria_recuperata (upsert) IN MEMORIA (06/09/2026);
+//               GET /finto/senza-biancheria?on=1 → PGRST205 sulla biancheria
 //   Rinvii      tabella da_controllare_rinvii IN MEMORIA (upsert accettato);
 //               GET /finto/senza-rinvii?on=1 la fa sparire (PGRST205) per provare l'avviso
 //   Errore      GET /finto/errore-richieste?on=1 fa fallire la lettura di `richieste`
@@ -163,8 +165,12 @@ const family_documents = [
   { id: 'ffffffff-0002-4000-8000-000000000002', kind: 'fattura', status: 'approvata_da_pagare', doc_total: 40, supplier: 'Iren', invoice_number: '456', document_date: O(-10), due_date: O(10), upload_ambito: 'azienda', error_message: null, note: null, doc_total_derivato: false, created_at: ora },
 ]
 const da_controllare_rinvii = []
+// Recupero biancheria (06/09/2026): tabella IN MEMORIA, upsert per cleaning_id;
+// GET /finto/senza-biancheria?on=1 la fa sparire (PGRST205) per provare «Non salvato, riprova»
+const biancheria_recuperata = []
+let senzaBiancheria = false
 
-const tabelle = { rooms, guests, bookings, payments, cleanings, richieste, family_documents, da_controllare_rinvii, strutture }
+const tabelle = { rooms, guests, bookings, payments, cleanings, richieste, family_documents, da_controllare_rinvii, strutture, biancheria_recuperata }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
 
 // --- PostgREST minimale ---------------------------------------------------
@@ -273,6 +279,10 @@ const finto = createServer(async (req, res) => {
   if (url.pathname === '/finto/errore-richieste') { erroreRichieste = url.searchParams.get('on') === '1'; return rispondi(res, 200, { erroreRichieste }) }
   if (url.pathname === '/finto/errore-oggi') { erroreOggi = url.searchParams.get('on') === '1'; return rispondi(res, 200, { erroreOggi }) }
   if (url.pathname === '/finto/senza-strutture') { senzaStrutture = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senzaStrutture }) }
+  if (url.pathname === '/finto/senza-biancheria') { senzaBiancheria = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senzaBiancheria }) }
+  if (senzaBiancheria && url.pathname === '/rest/v1/biancheria_recuperata') {
+    return rispondi(res, 404, { code: 'PGRST205', message: "Could not find the table 'public.biancheria_recuperata' in the schema cache", details: null, hint: null })
+  }
   if (senzaStrutture && url.pathname === '/rest/v1/strutture') {
     return rispondi(res, 404, { code: 'PGRST205', message: "Could not find the table 'public.strutture' in the schema cache", details: null, hint: null })
   }
@@ -310,6 +320,31 @@ const finto = createServer(async (req, res) => {
     }
     console.log(`[finto supabase] rinvii: ${da_controllare_rinvii.map(x => `${x.chiave}→${x.fino_a}`).join(', ')}`)
     return rispondi(res, 201, righe)
+  }
+  // Pulizie segnate dalla Home o dalla pagina Pulizie (06/09/2026): insert in memoria con id nuovo
+  if (m && m[1] === 'cleanings' && req.method === 'POST') {
+    const corpo = await leggiCorpo(req)
+    const righe = (Array.isArray(corpo) ? corpo : [corpo]).map(r => ({ id: `cccccccc-9${String(cleanings.length + 1).padStart(3, '0')}-4000-8000-${String(Date.now()).slice(-12)}`, prossima_data: null, note: null, created_at: new Date().toISOString(), ...r }))
+    cleanings.push(...righe)
+    console.log(`[finto supabase] pulizia segnata: ${righe.map(r => `${r.room_id} ${r.tipo} ${r.data_effettiva}`).join(', ')}`)
+    const singola = (req.headers.accept || '').includes('vnd.pgrst.object')
+    return rispondi(res, 201, singola ? righe[0] : righe)
+  }
+  // Recupero biancheria: upsert su cleaning_id
+  if (m && m[1] === 'biancheria_recuperata' && req.method === 'POST') {
+    const corpo = await leggiCorpo(req)
+    const righe = Array.isArray(corpo) ? corpo : [corpo]
+    const salvate = []
+    for (const riga of righe) {
+      if (!riga?.cleaning_id) return rispondi(res, 400, { code: '23502', message: 'cleaning_id mancante' })
+      const i = biancheria_recuperata.findIndex(x => x.cleaning_id === riga.cleaning_id)
+      const nuova = { id: i >= 0 ? biancheria_recuperata[i].id : `bbbbbbbb-${String(biancheria_recuperata.length + 1).padStart(4, '0')}-4000-8000-000000000000`, created_at: i >= 0 ? biancheria_recuperata[i].created_at : new Date().toISOString(), ...riga }
+      if (i >= 0) biancheria_recuperata[i] = nuova; else biancheria_recuperata.push(nuova)
+      salvate.push(nuova)
+    }
+    console.log(`[finto supabase] biancheria: ${salvate.map(x => `${x.cleaning_id.slice(0, 13)} federe=${x.federe} telo=${x.telo_doccia}`).join(', ')}`)
+    const singola = (req.headers.accept || '').includes('vnd.pgrst.object')
+    return rispondi(res, 201, singola ? salvate[0] : salvate)
   }
   if (m) return rispondi(res, 403, { code: 'ANTEPRIMA', message: 'scrittura non ammessa nella preview sintetica' })
   rispondi(res, 404, { message: `non gestito: ${req.method} ${url.pathname}` })

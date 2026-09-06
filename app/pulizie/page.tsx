@@ -6,6 +6,9 @@ import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite } from '@/lib/guestName'
 import BackBar from '@/components/BackBar'
 import { giornoDaParametro } from '@/lib/daControllare'
+import SchedaRecupero from '@/components/SchedaRecupero'
+import { salvaRecupero, leggiRecuperiDellePulizie } from '@/lib/biancheriaDati'
+import { riassunto, vuoto, normalizza, type Recupero, type Contatori } from '@/lib/biancheria'
 import {
   attive, pulizieAperte, prossimoArrivo, prioritaDi, testoArrivo, cicloCambio,
   partenzaAperta, cambioCameraIn, continuaDa, cambioCameraOut,
@@ -62,7 +65,7 @@ const RIGHE_REGISTRO = 12
 
 // Una riga del registro: pulizia segnata a mano (tabella cleanings) oppure
 // automatica (calcolata dalle prenotazioni, correggibile)
-type VoceRegistro = { chiave: string; data: string; roomId: string; tipo: TipoPulizia; ospite: string; auto: PuliziaAutomatica | null }
+type VoceRegistro = { chiave: string; data: string; roomId: string; tipo: TipoPulizia; ospite: string; auto: PuliziaAutomatica | null; evento?: Decisione }
 
 type RigaCamera = {
   room: any
@@ -93,6 +96,9 @@ export default function Pulizie() {
   const [spiegaAperta, setSpiegaAperta] = useState<Record<string, boolean>>({})
   // Correzione di un'automatica nel registro: chiave → data scelta per «cambia data»
   const [correzione, setCorrezione] = useState<Record<string, string>>({})
+  // Recupero biancheria (06/09/2026): righe per pulizia (cleaning_id) e scheda aperta
+  const [recuperi, setRecuperi] = useState<Record<string, Recupero>>({})
+  const [scheda, setScheda] = useState<{ camera: string; riga: Decisione } | null>(null)
   const td = todayStr()
   // Dalla striscia della settimana in Home (07/09/2026): ?giorno=AAAA-MM-GG
   // porta al blocco di quel giorno (Oggi o uno dei Prossimi); senza blocco
@@ -127,6 +133,26 @@ export default function Pulizie() {
   }, [])
 
   const prenotazioni = useMemo(() => attive(bookings), [bookings])
+
+  // Recuperi delle pulizie segnate (per il riassunto nel registro); tabella
+  // assente (0039 non applicata) = nessun riassunto, nessun errore
+  const idPulizie = useMemo(() => events.filter(e => e.stato === 'fatta' && e.id).map(e => e.id as string).sort().join(','), [events])
+  useEffect(() => {
+    if (!idPulizie) return
+    let vivo = true
+    leggiRecuperiDellePulizie(idPulizie.split(',')).then(({ righe }) => {
+      if (!vivo) return
+      setRecuperi(Object.fromEntries(righe.map(r => [r.cleaning_id, r])))
+    })
+    return () => { vivo = false }
+  }, [idPulizie])
+
+  async function salvaScheda(valori: Contatori): Promise<string | null> {
+    if (!scheda?.riga.id) return 'Non salvato, riprova'
+    const { errore, salvato } = await salvaRecupero({ cleaning_id: scheda.riga.id, room_id: scheda.riga.room_id, booking_id: scheda.riga.booking_id, data: scheda.riga.data_effettiva || scheda.riga.data_prevista, ...valori })
+    if (!errore && salvato) { setRecuperi(r => ({ ...r, [salvato.cleaning_id]: salvato })); setScheda(null) }
+    return errore
+  }
 
   const righe: RigaCamera[] = useMemo(() => {
     const shortOf = (id: string) => {
@@ -213,7 +239,7 @@ export default function Pulizie() {
     for (const e of events) {
       if (e.stato !== 'fatta') continue
       const b = e.booking_id ? bookings.find(x => x.id === e.booking_id) : null
-      voci.push({ chiave: `m:${e.id ?? `${e.room_id}:${e.data_prevista}`}`, data: e.data_effettiva || e.data_prevista, roomId: e.room_id, tipo: e.tipo, ospite: b ? nomeOspite(b) : '', auto: null })
+      voci.push({ chiave: `m:${e.id ?? `${e.room_id}:${e.data_prevista}`}`, data: e.data_effettiva || e.data_prevista, roomId: e.room_id, tipo: e.tipo, ospite: b ? nomeOspite(b) : '', auto: null, evento: e })
     }
     for (const a of pulizieAutomatiche(prenotazioni, events, td)) {
       voci.push({ chiave: `a:${a.partenza.id}`, data: a.data, roomId: a.roomId, tipo: a.tipo, ospite: nomeOspite(a.partenza), auto: a })
@@ -238,9 +264,9 @@ export default function Pulizie() {
   // Registra una decisione nella tabella cleanings. Se la tabella non c'è
   // ancora (migrazione 0018 da incollare a mano), per il cambio 4 notti si
   // ripiega sul vecchio linen_next_date così nulla si blocca.
-  async function registra(p: Pulizia, stato: 'fatta' | 'rimandata' | 'saltata', dati: { data_effettiva?: string; prossima_data?: string }, note: string | null = null) {
+  async function registra(p: Pulizia, stato: 'fatta' | 'rimandata' | 'saltata', dati: { data_effettiva?: string; prossima_data?: string }, note: string | null = null): Promise<Decisione | null> {
     const k = chiave(p.roomId, p.tipo)
-    if (saving) return
+    if (saving) return null
     setSaving(k)
     const riga: Decisione = {
       room_id: p.roomId,
@@ -269,6 +295,13 @@ export default function Pulizie() {
     }
     setAzione(a => { const { [k]: _, ...resto } = a; return resto })
     setSaving(null)
+    return !error && data ? (data as Decisione) : null
+  }
+
+  // «Pulita + recuperato»: segna la pulizia e, se scritta, apre la scheda della biancheria
+  async function pulitaConRecupero(p: Pulizia, data_effettiva: string) {
+    const riga = await registra(p, 'fatta', { data_effettiva })
+    if (riga) setScheda({ camera: shortNameOf(p.roomId), riga })
   }
 
   // Correzione di un'automatica: si scrive nella tabella cleanings una riga
@@ -315,10 +348,16 @@ export default function Pulizie() {
           <input type="date" value={fattoIl[k] || td}
             onChange={e => setFattoIl({ ...fattoIl, [k]: e.target.value })}
             className="border border-[#C9BFA8] shadow-sm rounded-lg px-2 py-1 text-xs bg-white" />
-          <button onClick={() => registra(p, 'fatta', { data_effettiva: fattoIl[k] || td })} disabled={disab}
-            className="rounded-full text-xs font-bold px-3 py-1.5 text-white disabled:opacity-50"
-            style={{ background: '#2D6A4F' }}>
-            ✓ Fatta
+          {/* Recupero biancheria (06/09/2026): «Pulita» (pieno) e «Pulita + recuperato» (contorno) al posto di «✓ Fatta» */}
+          <button onClick={() => registra(p, 'fatta', { data_effettiva: fattoIl[k] || td })} disabled={disab} data-pulita
+            className="rounded-full text-xs font-bold px-3.5 text-white disabled:opacity-50"
+            style={{ minHeight: 40, background: '#2D6A4F' }}>
+            Pulita
+          </button>
+          <button onClick={() => pulitaConRecupero(p, fattoIl[k] || td)} disabled={disab} data-pulita-recuperato
+            className="rounded-full text-xs font-bold px-3.5 bg-white disabled:opacity-50"
+            style={{ minHeight: 40, color: '#2D6A4F', border: '1px solid #2D6A4F' }}>
+            Pulita + recuperato
           </button>
           <button onClick={() => setAzione({ ...azione, [k]: { tipo: 'rimanda', data: addDaysStr(td, 1) } })} disabled={disab}
             className="rounded-full border border-[#C9BFA8] bg-cream text-xs font-bold px-3 py-1.5 disabled:opacity-50"
@@ -578,6 +617,13 @@ export default function Pulizie() {
                     <span className="text-xs text-stone">{TIPO_LABEL[v.tipo]}{v.ospite ? ` · ${v.ospite}` : ''}</span>
                     {v.auto && <span className="text-[11px] font-bold rounded-full px-2 py-0.5" style={badgeStyle.automatica}>automatica</span>}
                   </div>
+                  {/* Riassunto del recupero biancheria; tocco = riapre la scheda per correggere */}
+                  {v.evento?.id && recuperi[v.evento.id] && riassunto(recuperi[v.evento.id]) && (
+                    <button type="button" onClick={() => setScheda({ camera: nome, riga: v.evento! })} disabled={disab} data-riassunto-recupero
+                      className="mt-0.5 text-[11px] text-left underline decoration-dotted underline-offset-2" style={{ color: 'var(--color-brass)' }}>
+                      {riassunto(recuperi[v.evento.id])}
+                    </button>
+                  )}
                   {v.auto && (
                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                       {aperta ? (
@@ -614,6 +660,11 @@ export default function Pulizie() {
       )}
 
       {!loading && <Statistiche rooms={rooms} bookings={prenotazioni} events={events} td={td} />}
+
+      {scheda && (
+        <SchedaRecupero camera={scheda.camera} iniziale={scheda.riga.id && recuperi[scheda.riga.id] ? normalizza(recuperi[scheda.riga.id]) : vuoto()}
+          onSalva={salvaScheda} onChiudi={() => setScheda(null)} />
+      )}
     </div>
   )
 }

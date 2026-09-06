@@ -43,6 +43,11 @@ export async function leggiNumeriOggi(oggi: string): Promise<{ numeri: NumeriOgg
 
 // Si rilegge al ritorno in primo piano: sul telefono il gestionale resta
 // aperto per giorni e a mezzanotte «oggi» cambia.
+// Chi segna una pulizia da un'altra parte della Home (Da controllare, 06/09/2026)
+// chiede la rilettura: la striscia della settimana cambia subito
+const ascoltatoriRicarica = new Set<() => void>()
+export function ricaricaNumeriOggiOvunque() { for (const fn of ascoltatoriRicarica) fn() }
+
 export function useNumeriOggi(): StatoNumeriOggi & { ricarica: () => void } {
   const [stato, setStato] = useState<StatoNumeriOggi>(() => ({ stato: 'caricamento', oggi: oggiARoma() }))
   const [tentativo, setTentativo] = useState(0)
@@ -58,7 +63,8 @@ export function useNumeriOggi(): StatoNumeriOggi & { ricarica: () => void } {
     const onFocus = () => { void load() }
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onFocus)
-    return () => { vivo = false; window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onFocus) }
+    ascoltatoriRicarica.add(onFocus)
+    return () => { vivo = false; window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onFocus); ascoltatoriRicarica.delete(onFocus) }
   }, [tentativo])
   const ricarica = useCallback(() => { setStato(s => ({ stato: 'caricamento', oggi: s.oggi })); setTentativo(t => t + 1) }, [])
   return { ...stato, ricarica }
