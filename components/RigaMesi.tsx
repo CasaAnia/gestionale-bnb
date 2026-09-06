@@ -21,7 +21,7 @@ export default function RigaMesi({ mesi, attivo, onMese, onOggi, nota, colonna, 
     <div className={`flex items-center ${className}`}>
       <div className="relative shrink-0 flex items-center justify-center self-stretch" style={{ width: larghezzaOggi, minWidth: larghezzaOggi }}>
         <button type="button" onClick={onOggi}
-          className="rounded-full border border-green-mid bg-white text-green-mid text-[13px] font-bold px-3 py-1.5 active:bg-sage">Oggi</button>
+          className="rounded-full border border-green-mid text-green-mid text-[13px] font-bold px-3 py-1.5 active:bg-sage">Oggi</button>
         <span aria-hidden className="absolute top-1/2 -translate-y-1/2 right-0 h-5" style={{ width: 2, background: COLORE_TRATTINO }} />
       </div>
       <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar pl-2">

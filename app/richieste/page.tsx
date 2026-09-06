@@ -30,7 +30,6 @@ import {
   formatIntervallo, oraArrivo, avvisoFerma, daGuardare, nuoveDalSito, riassuntoPersone, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
 
-const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
 const ORDINI: { chiave: OrdineRichieste; label: string }[] = [
   { chiave: 'durata', label: 'durata' },
   { chiave: 'arrivo', label: 'arrivo' },
@@ -65,7 +64,7 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
   return (
     <li>
     <div role="button" tabIndex={0} onClick={onSeleziona} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeleziona() } }} aria-pressed={selezionata}
-      className={`w-full text-left bg-white rounded-xl border border-[#C9BFA8] shadow-sm p-4 md:px-5 md:py-4 leading-snug transition-shadow cursor-pointer ${selezionata ? 'shadow-md bg-sage/40' : 'shadow-sm'}`}>
+      className={`w-full text-left py-4 leading-snug cursor-pointer border-t border-card-border transition-colors ${selezionata ? 'bg-sage/40 rounded-lg px-3 -mx-3' : ''}`}>
       <div className="flex items-baseline justify-between gap-3">
         {/* desktop (blocco 2b): «Nome Cognome» in Fraunces 16 px; il badge ⇄ va sulla riga propria */}
         <p className="font-medium text-[15px] md:font-serif md:text-[16px] text-green-dark truncate inline-flex items-center gap-1.5 min-w-0"><span className="truncate">{nomeCompleto(r)}</span>{conflitti.length > 0 && <span className="md:hidden inline-flex"><BadgeSovrapposta /></span>}
@@ -303,7 +302,7 @@ function Richieste() {
           contatori su UNA riga con spaziatura uniforme; sul telefono com'era */}
       {desktop && !orizzontale ? (
         <div className="flex items-center flex-wrap gap-4 mb-4 min-h-[44px]">
-          <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Richieste di prenotazione</h1>
+          <h1 className="ed-titolo-medio mr-auto">Richieste di prenotazione</h1>
           {!loading && nuoveWeb > 0 && (
             <p className="chip-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold bg-green-mid text-cream-text">
               <Globe size={14} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
@@ -323,14 +322,14 @@ function Richieste() {
       ) : orizzontale ? (
         /* Telefono girato: titolo e ricerca sulla stessa riga, come sul Mac */
         <div className="flex items-center gap-4 mb-3 min-h-[44px]">
-          <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Richieste di prenotazione</h1>
+          <h1 className="ed-titolo-medio mr-auto">Richieste di prenotazione</h1>
           <CampoRicerca value={query} onChange={cambiaRicerca} className="flex-1 max-w-[360px]" />
         </div>
       ) : (
         /* Telefono dritto (05/09/2026): stessa struttura del Mac — titolo e ricerca,
            calendario, mesi, poi Reale/Presunta e «+ Nuova richiesta», contatori e lista */
         <div className="flex flex-col gap-2 mb-3">
-          <h1 className="text-[22px] text-green-dark leading-tight" style={FRAUNCES}>Richieste di prenotazione</h1>
+          <h1 className="ed-titolo">Richieste di prenotazione</h1>
           <CampoRicerca value={query} onChange={cambiaRicerca} className="w-full" />
         </div>
       )}
@@ -347,7 +346,7 @@ function Richieste() {
         {/* Calendario (min-w-0: a 2 settimane scorre dentro il proprio riquadro) */}
         <section hidden={!mostraCalendario} className="min-w-0">
           {loading ? (
-            <div className="bg-white rounded-xl border border-[#C9BFA8] shadow-sm text-center py-10 text-stone">Caricamento…</div>
+            <div className="text-center py-10 text-stone">Caricamento…</div>
           ) : (
             <CalendarioRichieste
               mese={mese} onMese={setMese} modo={modoCalendario} onModo={cambiaModo} inizio={inizio} onInizio={setInizio}
@@ -398,7 +397,7 @@ function Richieste() {
                 <span className="text-xs text-stone shrink-0">Ordina per</span>
                 {ORDINI.map(o => (
                   <button key={o.chiave} type="button" onClick={() => setOrdine(o.chiave)} aria-pressed={ordine === o.chiave}
-                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${ordine === o.chiave ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-[#C9BFA8]'}`}>
+                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${ordine === o.chiave ? 'bg-green-mid text-cream-text' : 'text-stone border border-[#C9BFA8]'}`}>
                     {o.label}
                   </button>
                 ))}
@@ -407,14 +406,14 @@ function Richieste() {
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <span className="text-[11px] uppercase text-brass shrink-0" style={{ letterSpacing: '2px' }}>{soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}</span>
               {!loading && <span className="text-[13px] text-stone shrink-0">{mostrate.length}</span>}
-              <span className="flex-1 h-px" style={{ background: 'var(--color-card-border)' }} />
+              <span className="flex-1 h-px" style={{ background: 'rgba(169,136,78,0.45)' }} />
             </div>
             {desktop && (
               <>
                 <span className="text-xs text-stone shrink-0">Ordina per</span>
                 {ORDINI.map(o => (
                   <button key={o.chiave} type="button" onClick={() => setOrdine(o.chiave)} aria-pressed={ordine === o.chiave}
-                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${ordine === o.chiave ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-[#C9BFA8]'}`}>
+                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${ordine === o.chiave ? 'bg-green-mid text-cream-text' : 'text-stone border border-[#C9BFA8]'}`}>
                     {o.label}
                   </button>
                 ))}
@@ -437,7 +436,7 @@ function Richieste() {
               </div>
             )
           ) : (
-            <ul className="flex flex-col gap-3 min-[1100px]:grid min-[1100px]:grid-cols-2 min-[1100px]:items-start">
+            <ul className="flex flex-col min-[1100px]:grid min-[1100px]:grid-cols-2 min-[1100px]:gap-x-8 min-[1100px]:items-start">
               {mostrate.map(r => (
                 <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []} giaStato={etichettaGiaStato(soggiorniPrecedenti({ nome: r.nome, cognome: r.cognome, telefono: r.telefono }, prenotazioni, oggiIso()))}
                   selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} onRifiuta={setDaRifiutare} onConferma={r => setDaConfermare(r as RichiestaConProposta)} />
@@ -454,7 +453,7 @@ function Richieste() {
               {archivio.length === 0 ? (
                 <p className="text-sm text-stone py-2">{richiesteNonLette ? 'Richieste non lette.' : 'Nessuna richiesta chiusa negli ultimi 90 giorni.'}</p>
               ) : (
-                <ul className="bg-white rounded-xl border border-[#C9BFA8] shadow-sm px-4 mt-1">
+                <ul className="mt-1">
                   {archivio.map(r => <RigaArchivio key={r.id} r={r} adesso={adesso} evidenziata={r.id === apriId} />)}
                 </ul>
               )}

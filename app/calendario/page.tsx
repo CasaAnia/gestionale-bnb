@@ -27,7 +27,6 @@ import { giornoDaParametro } from '@/lib/daControllare'
 import { vuoleRicevuta as clienteVuoleRicevuta, BADGE_RICEVUTA } from '@/lib/valutazione'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
-const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
 
 // Fattore di ingrandimento della griglia (1 = originale). Scala misure e testi.
 const GRID_SCALE = 1.2
@@ -505,7 +504,7 @@ export default function Calendario() {
         {/* Titolo + «Cerca nome o telefono…» (05/09/2026): Mac e telefono girato sulla
             stessa riga, telefono dritto uno sotto l'altro. Stesse distanze delle Richieste. */}
         <div className={`mt-4 mb-2 ${isDesktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
-          <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Calendario</h1>
+          <h1 className={isDesktop ? 'ed-titolo-medio mr-auto' : 'ed-titolo'}>Calendario</h1>
           <CampoRicerca value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />
         </div>
 
@@ -545,12 +544,12 @@ export default function Calendario() {
                     <button
                       onClick={() => vaiA((matchIdx - 1 + matches.length) % matches.length)}
                       aria-label="Risultato precedente"
-                      className="shrink-0 w-11 h-11 rounded-[10px] border border-[#C9BFA8] shadow-sm bg-white text-green-mid text-xl font-bold leading-none transition-transform duration-100 active:scale-[0.95]">
+                      className="shrink-0 w-11 h-11 rounded-full border border-[#C9BFA8] text-green-mid text-xl font-bold leading-none transition-transform duration-100 active:scale-[0.95]">
                       ‹
                     </button>
                     <button
                       onClick={() => setScrollTarget(m.check_in)}
-                      className="flex-1 min-w-0 rounded-[10px] bg-green-mid text-white px-2 py-1 text-center transition-transform duration-100 active:scale-[0.98]">
+                      className="flex-1 min-w-0 rounded-full bg-green-mid text-white px-2 py-1 text-center transition-transform duration-100 active:scale-[0.98]">
                       <span className="block text-[11px] font-extrabold tracking-[1.5px] uppercase opacity-90">{matchIdx + 1} di {matches.length}</span>
                       <span className="block text-[13.5px] font-extrabold truncate">{voce(m)}</span>
                       {!stessoCliente && (
@@ -560,7 +559,7 @@ export default function Calendario() {
                     <button
                       onClick={() => vaiA((matchIdx + 1) % matches.length)}
                       aria-label="Risultato successivo"
-                      className="shrink-0 w-11 h-11 rounded-[10px] border border-[#C9BFA8] shadow-sm bg-white text-green-mid text-xl font-bold leading-none transition-transform duration-100 active:scale-[0.95]">
+                      className="shrink-0 w-11 h-11 rounded-full border border-[#C9BFA8] text-green-mid text-xl font-bold leading-none transition-transform duration-100 active:scale-[0.95]">
                       ›
                     </button>
                   </div>
@@ -582,7 +581,7 @@ export default function Calendario() {
 
                   {/* Elenco a comparsa: sta SOPRA il calendario, non lo spinge in basso */}
                   {menuAperto && (
-                    <div className="absolute left-4 right-4 z-50 mt-1 bg-white border border-[#C9BFA8] shadow-sm rounded-xl shadow-lg p-1">
+                    <div className="absolute left-4 right-4 z-50 mt-1 ed-riquadro shadow-lg p-1">
                       {matches.map((x, i) => (
                         <button
                           key={x.id}
@@ -653,18 +652,18 @@ export default function Calendario() {
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
       {/* stesse distanze delle Richieste: riquadro, 12 px, riga «Oggi · mesi» allineata alla colonna delle camere */}
-      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : 'mx-4'} bg-white rounded-xl border border-[#C9BFA8] shadow-sm overflow-hidden`}>
+      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : 'mx-4'} ed-riquadro overflow-hidden`}>
       {!loading && (
         <>
           {/* Riga di navigazione: la stessa del calendario delle Richieste */}
-          <div className="shrink-0 flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: '#D6CFBD' }}>
+          <div className="shrink-0 flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: 'var(--color-card-border)' }}>
             <button type="button" onClick={() => freccia(-1)} aria-label={modo === 'quindici' ? 'Due settimane prima' : 'Mese precedente'}
               className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
               <ChevronLeft size={20} strokeWidth={2} aria-hidden />
             </button>
             <span className={`font-serif text-green-dark whitespace-nowrap ${isDesktop ? 'text-[17px]' : 'text-[14px]'}`}>{etichettaVista}</span>
             <div className="flex items-center gap-1">
-              <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border bg-white p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
+              <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
                 {([['mese', 'Mese'], ['quindici', '2 settimane']] as const).map(([v, label]) => (
                   <button key={v} type="button" onClick={() => cambiaModo(v)} aria-pressed={modo === v}
                     className={`rounded-full whitespace-nowrap font-semibold transition-colors ${isDesktop ? 'px-3 py-1 text-xs' : 'px-2 py-1 text-[11px]'} ${modo === v ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>

@@ -22,7 +22,6 @@ import { whatsappRichiestaOrario } from '@/lib/messaggiWhatsApp'
 import { vuoleRicevuta, BADGE_RICEVUTA, ETICHETTA_RICEVUTA_BREVE } from '@/lib/valutazione'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
-const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
 // Fattore di ingrandimento della griglia (1 = originale). Scala misure e testi.
 const GRID_SCALE = 1.2
 function gs(n: number) { return Math.round(n * GRID_SCALE) }
@@ -328,7 +327,7 @@ export default function Arrivi() {
         <BackLink href="/" />
         {/* Titolo + «Cerca nome o telefono…» come nel Calendario: Mac e telefono girato in riga, dritto in colonna */}
         <div className={`mt-4 mb-2 ${isDesktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
-          <h1 className="text-[22px] text-green-dark leading-tight mr-auto" style={FRAUNCES}>Arrivi</h1>
+          <h1 className={isDesktop ? 'ed-titolo-medio mr-auto' : 'ed-titolo'}>Arrivi</h1>
           <CampoRicerca value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />
         </div>
         {cercando && matches.length === 0 && (
@@ -342,11 +341,11 @@ export default function Arrivi() {
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
       {/* stesse distanze delle Richieste: riquadro, 12 px, riga «Oggi · mesi» allineata alla colonna delle camere */}
-      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : 'mx-4'} bg-white rounded-xl border border-[#C9BFA8] shadow-sm overflow-hidden`}>
+      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : 'mx-4'} ed-riquadro overflow-hidden`}>
       {!loading && (
         <>
           {/* Riga di navigazione: la stessa del calendario delle Richieste */}
-          <div className="shrink-0 flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: '#D6CFBD' }}>
+          <div className="shrink-0 flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: 'var(--color-card-border)' }}>
             <button type="button" onClick={() => freccia(-1)} aria-label={modo === 'quindici' ? 'Due settimane prima' : 'Mese precedente'}
               className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
               <ChevronLeft size={20} strokeWidth={2} aria-hidden />
@@ -355,7 +354,7 @@ export default function Arrivi() {
               {modo === 'quindici' ? etichettaPeriodo(days.slice(Math.max(0, primoVisibile), Math.max(0, primoVisibile) + GIORNI_QUINDICINA).map(toStr)) : visibleMonth}
             </span>
             <div className="flex items-center gap-1">
-              <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border bg-white p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
+              <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
                 {([['mese', 'Mese'], ['quindici', '2 settimane']] as const).map(([v, label]) => (
                   <button key={v} type="button" onClick={() => cambiaModo(v)} aria-pressed={modo === v}
                     className={`rounded-full whitespace-nowrap font-semibold transition-colors ${isDesktop ? 'px-3 py-1 text-xs' : 'px-2 py-1 text-[11px]'} ${modo === v ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
@@ -612,13 +611,13 @@ export default function Arrivi() {
                 setPopup({ ...popup, time: v })
               }}
               maxLength={5}
-              className="w-full border border-[#C9BFA8] shadow-sm rounded-xl p-3 text-2xl font-bold text-center mb-3"
+              className="w-full ed-campo rounded-xl p-3 text-2xl font-bold text-center mb-3"
             />
             <p className="text-xs text-gray-500 mb-1.5">🚌 Navetta</p>
             <div className="flex gap-1.5 mb-4">
               {([['', 'Da definire'], ['si', 'Sì'], ['no', 'No']] as const).map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setPopup({ ...popup, shuttle: v })}
-                  className={`flex-1 rounded-full text-sm font-semibold py-2 ${popup.shuttle === v ? 'text-white' : 'border border-[#C9BFA8] bg-white text-stone'}`}
+                  className={`flex-1 rounded-full text-sm font-semibold py-2 ${popup.shuttle === v ? 'text-white' : 'border border-[#C9BFA8] text-stone'}`}
                   style={popup.shuttle === v ? { background: '#2D6A4F' } : undefined}>
                   {label}
                 </button>
@@ -643,7 +642,7 @@ export default function Arrivi() {
                   {ultimoConOra && (
                     <button type="button"
                       onClick={() => setPopup({ ...popup, time: ultimoConOra.check_in_time, shuttle: ultimoConOra.shuttle || popup.shuttle })}
-                      className="text-xs font-semibold rounded-full border border-[#C9BFA8] bg-white px-3 py-1"
+                      className="text-xs font-semibold rounded-full border border-[#C9BFA8] px-3 py-1"
                       style={{ color: '#2D6A4F' }}>
                       Usa come l&apos;ultima volta
                     </button>
