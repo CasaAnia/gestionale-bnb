@@ -135,11 +135,11 @@ export default function ClienteDetail() {
     <div className="p-4">
       <BackBar href="/clienti" />
       <div className="flex items-center gap-3 mb-4">
-        <h1 className="font-serif text-xl text-green-dark flex-1">Cliente</h1>
+        <h1 className="ed-titolo-medio flex-1">Cliente</h1>
         <button onClick={() => setEditing(!editing)} className="text-green-mid text-sm font-semibold">{editing ? 'Annulla' : 'Modifica'}</button>
       </div>
 
-      <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
+      <div className="ed-riga py-4 mb-4">
         {editing ? (
           <>
             <input value={form.full_name || ''} onChange={e => setForm({...form, full_name: e.target.value})}
@@ -185,15 +185,15 @@ export default function ClienteDetail() {
 
       {/* Statistiche cliente */}
       <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm text-center">
-          <p className="font-serif text-xl text-green-dark">{storico.soggiorni}</p>
+        <div className="ed-riga py-3 text-center">
+          <p className="ed-titolo-medio">{storico.soggiorni}</p>
           <p className="text-xs text-gray-500">Soggiorni</p>
         </div>
-        <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm text-center">
-          <p className="font-serif text-xl text-green-dark">€{Math.round(storico.totaleSpesoCent / 100)}</p>
+        <div className="ed-riga py-3 text-center">
+          <p className="ed-titolo-medio">€{Math.round(storico.totaleSpesoCent / 100)}</p>
           <p className="text-xs text-gray-500">Totale speso</p>
         </div>
-        <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm text-center">
+        <div className="ed-riga py-3 text-center">
           <p className="font-serif text-xl text-[#8C3B2E]">{storico.annullate}</p>
           <p className="text-xs text-gray-500">Annullate</p>
         </div>
@@ -201,7 +201,7 @@ export default function ClienteDetail() {
 
       {/* Ultimi arrivi: solo orari realmente registrati, dal più recente */}
       {ultimiArrivi.length > 0 && (
-        <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm mb-4">
+        <div className="ed-riga py-3 mb-4">
           <p className="text-xs text-gray-500">Ultimi arrivi</p>
           <p className="text-sm font-bold text-green-dark mt-0.5">
             {ultimiArrivi.map(b => `${b.check_in_time}${b.shuttle === 'si' ? ' 🚌' : ''}`).join(' · ')}

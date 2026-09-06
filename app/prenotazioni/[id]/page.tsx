@@ -1211,7 +1211,7 @@ export default function BookingDetail() {
         </div>
       )}
       <div className="flex items-center gap-3 mb-4">
-        <h1 className="font-serif text-xl text-green-dark">Prenotazione</h1>
+        <h1 className="ed-titolo-medio">Prenotazione</h1>
         {(() => {
           const persona = { guest_id: booking.guest_id, telefono: booking.guests?.phone, full_name: booking.guest_name || booking.guests?.full_name }
           const storico: SoggiornoStorico[] = [...otherBookings.map(x => ({ ...x, guest_id: booking.guest_id })), ...omonimi]
@@ -1241,7 +1241,7 @@ export default function BookingDetail() {
       <div className={editing ? '' : 'lg:flex-[1.6] lg:min-w-0'}>
       {/* MODALITÀ MODIFICA */}
       {editing ? (
-        <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
+        <div className="ed-riga py-4 mb-4">
           <p className="font-semibold mb-3 text-green-mid">✏️ Modifica prenotazione</p>
 
           <p className="text-xs text-gray-500 mb-1">Nome cliente</p>
@@ -1297,7 +1297,7 @@ export default function BookingDetail() {
               extra_bed: letto,
               extra_bed_dates: letto ? getDaysBetween(editForm.check_in, editForm.check_out) : [] })
             checkDisponibilita(newRoomId, editForm.check_in, editForm.check_out)
-          }} className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 mb-3 text-sm">
+          }} className="w-full ed-campo p-2 mb-3 text-sm">
             {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
 
@@ -1312,14 +1312,14 @@ export default function BookingDetail() {
                 const newOut = newIn && (!editForm.check_out || editForm.check_out <= newIn) ? nextDay(newIn) : editForm.check_out
                 setEditForm({ ...editForm, check_in: newIn, check_out: newOut, price_per_night: tariffaDopo({ check_in: newIn, check_out: newOut }) })
                 checkDisponibilita(editForm.room_id, newIn, newOut)
-              }} className="w-full min-w-0 appearance-none bg-white border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
+              }} className="w-full min-w-0 appearance-none ed-campo p-2 text-sm" />
             </div>
             <div className="min-w-0">
               <p className="text-xs text-gray-500 mb-1">Check-out</p>
               <input type="date" value={editForm.check_out} min={editForm.check_in ? nextDay(editForm.check_in) : undefined} onChange={e => {
                 setEditForm({ ...editForm, check_out: e.target.value, price_per_night: tariffaDopo({ check_out: e.target.value }) })
                 checkDisponibilita(editForm.room_id, editForm.check_in, e.target.value)
-              }} className="w-full min-w-0 appearance-none bg-white border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
+              }} className="w-full min-w-0 appearance-none ed-campo p-2 text-sm" />
             </div>
           </div>
 
@@ -1333,7 +1333,7 @@ export default function BookingDetail() {
                 setEditForm({ ...editForm, check_in_time: v })
               }}
               maxLength={5}
-              className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
+              className="w-full ed-campo p-2 text-sm" />
           </div>
 
           <div className="mb-3">
@@ -1341,7 +1341,7 @@ export default function BookingDetail() {
             <div className="flex gap-1.5">
               {([['', 'Da definire'], ['si', 'Sì'], ['no', 'No']] as const).map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setEditForm({ ...editForm, shuttle: v })}
-                  className={`rounded-full text-sm font-semibold px-4 py-1.5 ${editForm.shuttle === v ? 'text-white' : 'border border-[#C9BFA8] bg-white text-stone'}`}
+                  className={`rounded-full text-sm font-semibold px-4 py-1.5 ${editForm.shuttle === v ? 'text-white' : 'border border-[#C9BFA8] text-stone'}`}
                   style={editForm.shuttle === v ? { background: '#2D6A4F' } : undefined}>
                   {label}
                 </button>
@@ -1360,12 +1360,12 @@ export default function BookingDetail() {
                 const autoLetto = lettiPool > 0
                 const autoDates = autoLetto ? getDaysBetween(editForm.check_in, editForm.check_out) : []
                 setEditForm({ ...editForm, num_guests: n, extra_bed: autoLetto, extra_bed_dates: autoDates, price_per_night: room ? prezzoNotte : editForm.price_per_night })
-              }} className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
+              }} className="w-full ed-campo p-2 text-sm" />
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-1">Tariffa/notte €</p>
               <input type="number" min={0} value={editForm.price_per_night} onChange={e => setEditForm({ ...editForm, price_per_night: parseFloat(e.target.value) })}
-                className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
+                className="w-full ed-campo p-2 text-sm" />
             </div>
           </div>
 
@@ -1436,12 +1436,12 @@ export default function BookingDetail() {
           {/* Sconto V4: un solo sconto (percentuale O totale concordato), la
               tariffa a notte non si tocca mai. Visibile solo a colonne migrate */}
           {booking.discount_type !== undefined && calcNotti(editForm.check_in, editForm.check_out) > 0 && (
-            <div className="border border-[#C9BFA8] shadow-sm rounded-lg p-3 mb-3">
+            <div className="ed-riga py-3 mb-3">
               <p className="text-xs text-gray-500 mb-2">Sconto {editForm.discount_type && <span className="font-semibold" style={{ color: '#2D6A4F' }}>(attivo: {editForm.discount_type === 'percentage' ? `−${editForm.discount_value}%` : `totale concordato €${editForm.discount_value}`})</span>}</p>
               <div className="flex gap-2 items-center mb-2">
                 <input type="number" inputMode="decimal" min={1} max={99} placeholder="%"
                   value={scontoPct} onChange={e => setScontoPct(e.target.value)}
-                  className="w-20 border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
+                  className="w-20 ed-campo p-2 text-sm" />
                 <button type="button" onClick={applicaScontoPct}
                   className="bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
                   disabled={!parseFloat(scontoPct.replace(',', '.'))}>
@@ -1451,7 +1451,7 @@ export default function BookingDetail() {
               <div className="flex gap-2 items-center">
                 <input type="number" inputMode="decimal" min={1} placeholder="Porta il totale a €"
                   value={scontoTot} onChange={e => setScontoTot(e.target.value)}
-                  className="w-40 border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm" />
+                  className="w-40 ed-campo p-2 text-sm" />
                 <button type="button" onClick={applicaScontoTot}
                   className="bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
                   disabled={!parseFloat(scontoTot.replace(',', '.'))}>
@@ -1500,7 +1500,7 @@ export default function BookingDetail() {
           )}
 
           <div onClick={() => setEditForm({ ...editForm, bonifico: !editForm.bonifico })}
-            className="flex items-center justify-between bg-white rounded-lg p-3 mb-3 border border-[#C9BFA8] shadow-sm cursor-pointer active:opacity-70">
+            className="flex items-center justify-between ed-riga py-3 mb-3 cursor-pointer active:opacity-70">
             <div>
               <p className="text-sm font-semibold text-green-dark">🏦 Pagamento tramite bonifico</p>
               <p className="text-xs text-green-mid">La conferma includerà l'IBAN</p>
@@ -1517,7 +1517,7 @@ export default function BookingDetail() {
             <div className="flex gap-2">
               {([['diretta', 'Diretta'], ['sito_web', '🌐 Sito'], ['whatsapp', 'WhatsApp']] as const).map(([val, label]) => (
                 <button key={val} type="button" onClick={() => setEditForm({ ...editForm, source: val })}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${editForm.source === val ? 'bg-green-mid text-white' : 'bg-white text-gray-600 border border-[#C9BFA8]'}`}>
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${editForm.source === val ? 'bg-green-mid text-white' : 'text-stone border border-[#C9BFA8]'}`}>
                   {label}
                 </button>
               ))}
@@ -1611,7 +1611,7 @@ export default function BookingDetail() {
         /* Tutti i riquadri bianchi col bordo del campo «Cerca nome» (#C9BFA8), stessa intensità
            ovunque (Ania, 05/09/2026); il letto aggiuntivo resta segnalato dalla sua riga marroncina */
         /* VISUALIZZAZIONE NORMALE */
-        <div className={`rounded-xl p-5 border mb-4 border-[#C9BFA8] shadow-sm bg-white`}>
+        <div className={`ed-riga py-5 mb-4`}>
           {/* Cliente in testa: nome, telefono con chiamata diretta, poi camera */}
           <div className="flex justify-between items-start gap-2 mb-2">
             <p className="font-bold text-lg min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1">{nomeOspite(booking)}
@@ -1655,11 +1655,11 @@ export default function BookingDetail() {
           )}
           <p className="text-gray-500 mt-4 mb-1.5">{booking.rooms?.name}</p>
           {booking.check_in_time && (
-            <div className="bg-sage border border-[#C9BFA8] shadow-sm rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
+            <div className="bg-sage rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
               <span className="text-2xl">🕐</span>
               <div>
                 <p className="text-xs text-green-mid font-medium">Orario arrivo previsto</p>
-                <p className="font-serif text-xl text-green-dark">{booking.check_in_time}</p>
+                <p className="ed-titolo-medio">{booking.check_in_time}</p>
               </div>
             </div>
           )}
@@ -1684,7 +1684,7 @@ export default function BookingDetail() {
           {booking.discount_type && (() => {
             const c = contoSoggiorno(booking)
             return (
-              <div className="bg-white border border-[#C9BFA8] shadow-sm rounded-xl p-3 mb-3 text-sm">
+              <div className="ed-riga py-3 mb-3 text-sm">
                 <div className="flex justify-between items-baseline py-0.5">
                   <span className="text-gray-500">Prezzo pieno <span className="text-xs">({(() => {
                     const dett = dettaglioNottiSalvato(booking.rooms, booking)
@@ -1761,7 +1761,7 @@ export default function BookingDetail() {
             const ricevuto = acconti.reduce((s, a) => s + Number(a.amount), 0)
             const residuo = totaleDovuto - ricevuto
             return (
-              <div className="mt-3 bg-white border border-[#C9BFA8] shadow-sm rounded-xl p-3">
+              <div className="mt-3 ed-riga py-3">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[11px] uppercase" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>Conto del soggiorno</p>
                   {ricevuto > 0 && (residuo <= 0
@@ -1792,15 +1792,15 @@ export default function BookingDetail() {
                   <input type="number" inputMode="decimal" min={0} placeholder="€"
                     value={accontoForm.amount}
                     onChange={e => setAccontoForm({ ...accontoForm, amount: e.target.value })}
-                    className="w-20 border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm focus:outline-none focus:border-green-mid" />
+                    className="w-20 ed-campo p-2 text-sm focus:outline-none focus:border-green-mid" />
                   <select value={accontoForm.method} onChange={e => setAccontoForm({ ...accontoForm, method: e.target.value })}
-                    className="border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm bg-white">
+                    className="ed-campo p-2 text-sm">
                     <option value="contanti">💵 Contanti</option>
                     <option value="bonifico">🏦 Bonifico</option>
                   </select>
                   <input type="date" value={accontoForm.paid_on}
                     onChange={e => setAccontoForm({ ...accontoForm, paid_on: e.target.value })}
-                    className="basis-full sm:basis-0 sm:flex-1 sm:min-w-0 border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm bg-white" />
+                    className="basis-full sm:basis-0 sm:flex-1 sm:min-w-0 ed-campo p-2 text-sm" />
                   <button onClick={aggiungiAcconto} disabled={savingAcconto || !parseFloat(accontoForm.amount)}
                     className="basis-full sm:basis-auto sm:shrink-0 bg-green-mid text-white rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40">
                     {savingAcconto ? '...' : (<>+<span className="sm:hidden"> Aggiungi</span></>)}
@@ -1854,14 +1854,14 @@ export default function BookingDetail() {
                       <input type="date" value={stayForm.check_in} onChange={e => {
                         setStayForm({ ...stayForm, check_in: e.target.value })
                         checkStayConflict(e.target.value, stayForm.check_out)
-                      }} className="w-full min-w-0 appearance-none border border-[#D9D0EA] rounded-lg p-2 text-sm bg-white" />
+                      }} className="w-full min-w-0 appearance-none border border-[#D9D0EA] rounded-lg p-2 text-sm" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs text-[#5B4E82] mb-1">Partenza</p>
                       <input type="date" value={stayForm.check_out} onChange={e => {
                         setStayForm({ ...stayForm, check_out: e.target.value })
                         checkStayConflict(stayForm.check_in, e.target.value)
-                      }} className="w-full min-w-0 appearance-none border border-[#D9D0EA] rounded-lg p-2 text-sm bg-white" />
+                      }} className="w-full min-w-0 appearance-none border border-[#D9D0EA] rounded-lg p-2 text-sm" />
                     </div>
                   </div>
                   {(() => {
@@ -1926,7 +1926,7 @@ export default function BookingDetail() {
                   defaultValue={booking.cancelled_reason || ''}
                   id="cancel-reason-input"
                   placeholder="Aggiungi motivo..."
-                  className="flex-1 border border-[#C9BFA8] shadow-sm rounded-lg p-2 text-sm text-[#8C3B2E]"
+                  className="flex-1 ed-campo p-2 text-sm text-[#8C3B2E]"
                 />
                 <button disabled={salvandoMotivo} onClick={async () => {
                   const val = (document.getElementById('cancel-reason-input') as HTMLInputElement)?.value
@@ -1980,7 +1980,7 @@ export default function BookingDetail() {
       {/* Altre prenotazioni dello stesso ospite: per ritrovare al volo
           tutte le richieste fatte con lo stesso numero */}
       {!editing && otherBookings.length > 0 && (
-        <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mb-4">
+        <div className="ed-riga py-4 mb-4">
           <p className="font-semibold mb-1">Altre prenotazioni di questo ospite</p>
           {otherBookings.map((ob: any) => {
             // "In attesa" = riga intera rosso mattone: il bollino da solo
@@ -2026,7 +2026,7 @@ export default function BookingDetail() {
           ) : (() => {
             const mancante = saldoMancanteCent(segmentiSoggiorno(), acconti)
             return (
-              <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm">
+              <div className="ed-riga py-3">
                 <p className="text-sm font-semibold text-green-dark">Segna come pagato</p>
                 <p className="text-[12px] text-gray-500 mt-0.5">
                   {mancante > 0
@@ -2037,7 +2037,7 @@ export default function BookingDetail() {
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {METODI_PAGAMENTO.map(m => (
                       <button key={m.chiave} type="button" onClick={() => setMetodoPagato(m.chiave)} aria-pressed={metodoPagato === m.chiave}
-                        className={`rounded-full px-3 py-1.5 text-xs font-semibold border ${metodoPagato === m.chiave ? 'bg-green-mid text-white border-green-mid' : 'bg-white text-gray-600 border-[#C9BFA8]'}`}>
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold border ${metodoPagato === m.chiave ? 'bg-green-mid text-white border-green-mid' : 'text-stone border-[#C9BFA8]'}`}>
                         {m.label}
                       </button>
                     ))}
@@ -2049,7 +2049,7 @@ export default function BookingDetail() {
                     {segnandoPagato ? 'Salvo...' : 'Conferma'}
                   </button>
                   <button type="button" onClick={() => { setFinestraPagato(false); setErrorePagato(null) }} disabled={segnandoPagato}
-                    className="flex-1 bg-white text-gray-600 rounded-xl py-2.5 text-sm font-semibold border border-[#C9BFA8]">
+                    className="ed-pillola-tenue flex-1 text-sm">
                     Annulla
                   </button>
                 </div>
@@ -2081,11 +2081,11 @@ export default function BookingDetail() {
               className="w-full bg-green-dark text-white rounded-xl py-3 font-semibold mb-3">
               Conferma WhatsApp (immagine + testo)
             </button>
-            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm mb-2">
+            <div className="ed-riga py-3 mb-2">
               <p className="font-semibold text-green-dark mb-1.5 text-sm">💬 WhatsApp Ania</p>
               {renderButtons(false)}
             </div>
-            <div className="bg-white rounded-xl p-3 border border-[#C9BFA8] shadow-sm mb-4">
+            <div className="ed-riga py-3 mb-4">
               <p className="font-semibold text-[#7A3B22] mb-1.5 text-sm">💼 WhatsApp Business</p>
               {renderButtons(true)}
             </div>
@@ -2097,7 +2097,7 @@ export default function BookingDetail() {
       {/* Pannello Comunicazioni (solo desktop): tutto ciò che si manda al cliente, in colori tenui */}
       {!editing && waPhone && (
         <aside className="hidden lg:block lg:flex-1 lg:sticky lg:top-6">
-          <div className="bg-white rounded-xl border border-[#C9BFA8] shadow-sm p-4">
+          <div className="ed-riga py-4">
             <p className="text-[11px] uppercase mb-3" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>Messaggi</p>
             {/* Verde pieno come «+ Nuova richiesta» nelle Richieste (Ania, 05/09/2026) */}
             <button onClick={() => setShowConferma(true)}

@@ -35,27 +35,27 @@ export default function NuovoCliente() {
     <div className="p-4">
       <BackBar href="/clienti" />
       <div className="flex items-center gap-3 mb-4">
-        <h1 className="font-serif text-xl text-green-dark">Nuovo cliente</h1>
+        <h1 className="ed-titolo-medio">Nuovo cliente</h1>
       </div>
 
-      <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm space-y-3">
+      <div className="ed-riga py-4 space-y-3">
         <div>
           <p className="text-sm text-gray-500 mb-1">Nome e cognome</p>
           <input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })}
             placeholder="Nome e cognome" autoFocus
-            className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-3 text-sm focus:outline-none focus:border-green-mid" />
+            className="w-full ed-campo p-3 text-sm focus:outline-none focus:border-green-mid" />
         </div>
         <div>
           <p className="text-sm text-gray-500 mb-1">Telefono (opzionale)</p>
           <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
             placeholder="+39 333 1234567"
-            className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-3 text-sm focus:outline-none focus:border-green-mid" />
+            className="w-full ed-campo p-3 text-sm focus:outline-none focus:border-green-mid" />
         </div>
         <div>
           <p className="text-sm text-gray-500 mb-1">Email (opzionale)</p>
           <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
             placeholder="email@esempio.it"
-            className="w-full border border-[#C9BFA8] shadow-sm rounded-lg p-3 text-sm focus:outline-none focus:border-green-mid" />
+            className="w-full ed-campo p-3 text-sm focus:outline-none focus:border-green-mid" />
         </div>
         <CampoValutazione titolo="Valutazione" valutazione={form.rating} ricevuta={form.ricevuta} onChange={v => setForm({ ...form, rating: v.valutazione, ricevuta: v.ricevuta })} />
       </div>

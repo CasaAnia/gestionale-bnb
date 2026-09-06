@@ -26,12 +26,12 @@ export default function Clienti() {
     <div className="p-4">
       <BackBar href="/" />
       <div className="flex items-center justify-between mb-4">
-        <h1 className="font-serif text-xl text-green-dark max-lg:hidden">Clienti</h1>
+        <h1 className="ed-titolo-medio max-lg:hidden">Clienti</h1>
         <Link href="/clienti/nuovo" className="ml-auto bg-green-mid text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Nuovo</Link>
       </div>
       <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="🔍 Cerca per nome o telefono..."
-        className="w-full border border-[#C9BFA8] shadow-sm rounded-xl p-3 mb-4 text-sm focus:outline-none focus:border-green-mid" />
+        className="w-full ed-campo rounded-xl p-3 mb-4 text-sm focus:outline-none focus:border-green-mid" />
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
@@ -41,7 +41,7 @@ export default function Clienti() {
         <div className="flex flex-col gap-3">
           {filtered.map(g => (
             <Link key={g.id} href={`/clienti/${g.id}`}
-              className="bg-white rounded-xl p-5 border border-[#C9BFA8] shadow-sm flex items-center justify-between leading-relaxed">
+              className="ed-riga py-5 flex items-center justify-between leading-relaxed">
               <div>
                 <p className="font-semibold">{g.full_name || 'Senza nome'}</p>
                 <p className="text-sm text-gray-500">📞 {g.phone}</p>
