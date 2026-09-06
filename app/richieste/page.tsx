@@ -189,11 +189,11 @@ function Richieste() {
   async function confermaRifiuto(motivo?: string) {
     if (!daRifiutare) return
     setRifiutando(true)
-    const { chiusa_at, error } = await rifiutaRichiesta(daRifiutare.id, motivo)
+    const { chiusa_at, stato, error } = await rifiutaRichiesta(daRifiutare.id, motivo)
     setRifiutando(false)
     if (error) { setErrori(e => [...e.filter(x => !x.startsWith('rifiuto')), `rifiuto: ${error}`]); setDaRifiutare(null); return }
     const id = daRifiutare.id
-    setTutte(lista => lista.map(r => (r.id === id ? { ...r, stato: 'rifiutata', chiusa_at } : r)))
+    setTutte(lista => lista.map(r => (r.id === id ? { ...r, stato, chiusa_at, chiusura_motivo: stato === 'chiusa' ? 'rifiutata' : r.chiusura_motivo } : r)))
     setPannello(pan => (pan ? { ...pan, gruppo: pan.gruppo.filter(r => r.id !== id) } : pan))
     setSelezionata(s => (s === id ? null : s))
     setDaRifiutare(null)

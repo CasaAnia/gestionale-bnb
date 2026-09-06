@@ -13,9 +13,10 @@ export type ContiImbuto = { richieste: number; proposteInviate: number; conferma
 const conti = (lista: RichiestaStat[]): ContiImbuto => ({
   richieste: lista.length,
   // proposta inviata almeno una volta: stato proposta_inviata oppure chiusa dopo una proposta
-  proposteInviate: lista.filter(r => r.stato === 'proposta_inviata' || (!!r.proposta_inviata_at && (r.stato === 'confermata' || r.stato === 'rifiutata'))).length,
+  proposteInviate: lista.filter(r => r.stato === 'proposta_inviata' || (!!r.proposta_inviata_at && (r.stato === 'confermata' || r.stato === 'rifiutata' || r.stato === 'chiusa'))).length,
   confermate: lista.filter(r => r.stato === 'confermata').length,
-  rifiutate: lista.filter(r => r.stato === 'rifiutata').length,
+  // rifiutate da Ania: stato vecchio «rifiutata» o «chiusa» con motivo «rifiutata» (0040)
+  rifiutate: lista.filter(r => r.stato === 'rifiutata' || (r.stato === 'chiusa' && r.chiusura_motivo === 'rifiutata')).length,
   inAttesa: lista.filter(r => r.stato === 'in_attesa').length,
 })
 
@@ -53,11 +54,11 @@ export function imbutoRichieste(richieste: RichiestaStat[]): Imbuto {
     .map(r => Math.round((Date.parse(r.proposta_inviata_at!) - Date.parse(r.created_at)) / 60000))
     .filter(m => Number.isFinite(m) && m >= 0)
   const motivi: Record<string, number> = {}
-  for (const r of richieste.filter(x => x.stato === 'rifiutata')) {
+  for (const r of richieste.filter(x => x.stato === 'rifiutata' || (x.stato === 'chiusa' && x.chiusura_motivo === 'rifiutata'))) {
     const m = (r.motivo_rifiuto || 'non indicato').trim()
     motivi[m] = (motivi[m] ?? 0) + 1
   }
-  const conSoluzione = richieste.filter(r => r.proposta_soluzione && (r.stato === 'proposta_inviata' || r.stato === 'confermata' || r.stato === 'rifiutata'))
+  const conSoluzione = richieste.filter(r => r.proposta_soluzione && (r.stato === 'proposta_inviata' || r.stato === 'confermata' || r.stato === 'rifiutata' || r.stato === 'chiusa'))
   const manuali = conSoluzione.filter(r => r.proposta_soluzione?.manuale === true).length
   const prezzi = conSoluzione.filter(r => (r.proposta_soluzione?.segmenti ?? []).some(s => s.prezzo_manuale === true)).length
   return {

@@ -70,23 +70,27 @@ export function useRichiesteAperte(refreshKey?: string): StatoContatore & { rica
   return { ...stato, ricarica }
 }
 
-// Rifiuto: stato rifiutata e ora di chiusura. Nessun messaggio parte da qui.
+// Rifiuto: stato «chiusa» con motivo «rifiutata» (0040) e ora di chiusura;
+// prima della 0040 il database non conosce «chiusa» e si scrive «rifiutata»
+// come sempre. Nessun messaggio parte da qui. Libera all'istante l'opzione.
 // Torna il testo dell'errore (mostrato a schermo) oppure null.
 export const MOTIVI_RIFIUTO = ['Completo', 'Prezzo', 'Non ha più risposto', 'Altro']
 
-export async function rifiutaRichiesta(id: string, motivo?: string): Promise<{ chiusa_at: string; error: string | null }> {
+export async function rifiutaRichiesta(id: string, motivo?: string): Promise<{ chiusa_at: string; stato: 'chiusa' | 'rifiutata'; error: string | null }> {
   const chiusa_at = new Date().toISOString()
-  const { data, error } = await supabase
-    .from('richieste')
-    .update({ stato: 'rifiutata', chiusa_at, ...(motivo ? { motivo_rifiuto: motivo } : {}) })
-    .eq('id', id)
-    .select('id')
-  if (error) {
-    if (motivo && /motivo_rifiuto/i.test(error.message || '')) return { chiusa_at, error: 'Va applicata la migrazione 0027 (colonna motivo_rifiuto).' }
-    return { chiusa_at, error: spiegaErrore(error) }
+  const extra = motivo ? { motivo_rifiuto: motivo } : {}
+  let stato: 'chiusa' | 'rifiutata' = 'chiusa'
+  let { data, error } = await supabase.from('richieste').update({ stato, chiusura_motivo: 'rifiutata', chiusa_at, ...extra }).eq('id', id).select('id')
+  if (error && /chiusura_motivo|stato_check|violates check constraint/i.test(error.message || '')) {
+    stato = 'rifiutata'
+    ;({ data, error } = await supabase.from('richieste').update({ stato, chiusa_at, ...extra }).eq('id', id).select('id'))
   }
-  if (!data || data.length === 0) return { chiusa_at, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere già stata chiusa.' }
-  return { chiusa_at, error: null }
+  if (error) {
+    if (motivo && /motivo_rifiuto/i.test(error.message || '')) return { chiusa_at, stato, error: 'Va applicata la migrazione 0027 (colonna motivo_rifiuto).' }
+    return { chiusa_at, stato, error: spiegaErrore(error) }
+  }
+  if (!data || data.length === 0) return { chiusa_at, stato, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere già stata chiusa.' }
+  return { chiusa_at, stato, error: null }
 }
 
 export async function fetchRichiesta(id: string): Promise<{ data: Richiesta | null; error: string | null }> {

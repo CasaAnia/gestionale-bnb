@@ -157,7 +157,15 @@ const richieste = [
   richiesta('Franca', 'Fabbri', 'in_attesa', O(15), O(17), oreFa(1)),
   richiesta('Gino', 'Galli', 'confermata', O(2), O(4), oreFa(100)),
   { ...richiesta('Giulio', 'Gallo', 'in_attesa', O(20), O(23), oreFa(3)), telefono: '+39 333 000 0005' },   // cliente che torna (08/09/2026): stesso telefono di Giulio, un soggiorno concluso
+  // Opzione di 3 ore (06/09/2026): Elisa chiede notti su cui Dario ha una proposta SCADUTA (nota «era in opzione»);
+  // Marta ha una proposta inviata da 1 ora su Allegra e Nora chiede le stesse notti (nota di BLOCCO, Allegra non proponibile)
+  richiesta('Elisa', 'Esposito', 'in_attesa', O(13), O(15), oreFa(2)),
+  richiesta('Marta', 'Moro', 'proposta_inviata', O(15), O(17), oreFa(4), oreFa(1)),
+  richiesta('Nora', 'Neri', 'in_attesa', O(16), O(18), oreFa(1)),
 ]
+const segmentoFinto = (room_id, name, arrivo, partenza) => ({ camera: { id: room_id, name, base_price: 80, has_extra_bed: true, extra_bed_price: 10, active: true }, arrivo, partenza, notti: 2, prezzoNotte: 80, lettoTotale: 0, totale: 160 })
+richieste.find(x => x.nome === 'Dario').proposta_soluzione = { caso: 'completa', segmenti: [segmentoFinto(ROOM.ambra, 'Ambra', O(12), O(14))], nottiTotali: 2, nottiCoperte: 2, nottiMancanti: [], prezzoTotale: 160 }
+richieste.find(x => x.nome === 'Marta').proposta_soluzione = { caso: 'completa', segmenti: [segmentoFinto(ROOM.allegra, 'Allegra', O(15), O(17))], nottiTotali: 2, nottiCoperte: 2, nottiMancanti: [], prezzoTotale: 160 }
 for (const r of richieste) { r.provenienza = 'non_so'; r.struttura_nome = null }
 richieste[1].provenienza = 'altra_struttura'; richieste[1].struttura_nome = 'Nida'
 const family_documents = [

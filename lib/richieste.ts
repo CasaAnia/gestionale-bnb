@@ -3,7 +3,11 @@
 // La parte che parla col database sta in lib/richiesteDati.ts.
 import { ORE_RISPOSTA_PROPOSTA } from './condizioniPrenotazione.ts'
 
-export type StatoRichiesta = 'in_attesa' | 'proposta_inviata' | 'confermata' | 'rifiutata'
+// «chiusa» (migrazione 0040, 06/09/2026): chiusa da sola 24 h dopo la scadenza dell'opzione
+// (chiusura_motivo 'scaduta') oppure rifiutata da Ania (chiusura_motivo 'rifiutata').
+// Le righe vecchie restano 'rifiutata'.
+export type StatoRichiesta = 'in_attesa' | 'proposta_inviata' | 'confermata' | 'rifiutata' | 'chiusa'
+export type MotivoChiusura = 'scaduta' | 'rifiutata'
 export type CanaleRichiesta = 'web' | 'telefono' | 'whatsapp'
 export type OrdineRichieste = 'durata' | 'arrivo' | 'persone'
 
@@ -23,6 +27,8 @@ export interface Richiesta {
   proposta_inviata_at: string | null
   chiusa_at: string | null
   prenotazione_id: string | null
+  chiusura_motivo?: MotivoChiusura | null   // 0040
+  scadenza_notificata_at?: string | null    // 0040: notifica Pushover di scadenza già mandata
   origine?: string | null        // dal sito: "google", "diretto"… (migrazione 0028)
   provenienza?: string | null    // google | passaparola | altra_struttura | non_so (proposta 0036)
   struttura_nome?: string | null // solo con altra_struttura (proposta 0036)
@@ -31,7 +37,12 @@ export interface Richiesta {
 }
 
 export const STATI_APERTI: StatoRichiesta[] = ['in_attesa', 'proposta_inviata']
-export const STATI_CHIUSI: StatoRichiesta[] = ['confermata', 'rifiutata']
+export const STATI_CHIUSI: StatoRichiesta[] = ['confermata', 'rifiutata', 'chiusa']
+
+// Rifiutata da Ania: stato vecchio «rifiutata» oppure «chiusa» con motivo «rifiutata»
+export const eRifiutata = (r: { stato: string; chiusura_motivo?: string | null }) => r.stato === 'rifiutata' || (r.stato === 'chiusa' && r.chiusura_motivo === 'rifiutata')
+// Scaduta e chiusa da sola (0040)
+export const eScadutaChiusa = (r: { stato: string; chiusura_motivo?: string | null }) => r.stato === 'chiusa' && r.chiusura_motivo === 'scaduta'
 export const GIORNI_ARCHIVIO = 90
 
 export const CANALE_LABEL: Record<CanaleRichiesta, string> = {
@@ -45,6 +56,7 @@ export const STATO_LABEL: Record<StatoRichiesta, string> = {
   proposta_inviata: 'proposta inviata',
   confermata: 'confermata',
   rifiutata: 'rifiutata',
+  chiusa: 'chiusa',
 }
 
 const MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']

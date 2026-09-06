@@ -41,7 +41,8 @@ export type SpesaStat = { expense_date: string; amount: number | string; paid_at
 export type RichiestaStat = {
   id: string
   created_at: string
-  stato: string               // in_attesa | proposta_inviata | confermata | rifiutata
+  stato: string               // in_attesa | proposta_inviata | confermata | rifiutata | chiusa (0040)
+  chiusura_motivo?: string | null   // 0040: scaduta | rifiutata
   canale: string              // web | telefono | whatsapp
   origine?: string | null
   motivo_rifiuto?: string | null
