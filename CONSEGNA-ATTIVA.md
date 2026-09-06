@@ -79,6 +79,34 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
 
 ---
 
+# Consegna — Home «Da controllare»: pulizie mai con un giorno di anticipo (06/09/2026, main)
+
+- Regola di Ania (bottoni): «non li voglio vedere con anticipo di un giorno:
+  nella stessa giornata, oppure la giornata dopo se non sono state
+  registrate» + «anche partenza senza arrivo». Sui dati veri vedeva DUE
+  pulizie «urgenti» per gli arrivi di domani (Amelia e Ambra).
+- lib/daControllare.eccezioniPulizie, due casi, tutti e due di OGGI e alta:
+  1. arrivo di oggi in una camera con pulizia prevista non segnata (come
+     prima, ma SOLO oggi: via «arrivo domani» e l'urgenza «normale»);
+  2. partenza (o cambio camera: la camera lasciata va pulita) di IERI con
+     pulizia non registrata e nessun arrivo oggi in quella camera —
+     «Camera · partenza di ieri di Nome», motivo «La pulizia dopo la
+     partenza di ieri non risulta registrata», «Apri pulizie» su oggi.
+     Non compare se segnata fatta/saltata, rimandata a una data futura
+     (scelta di Ania) o automatica (arrivo entro il giorno dopo).
+- Attese aggiornate (regola cambiata, commentate nel test): la voce
+  «arrivo domani» sparisce dai due test del 08/09; la partenza del 14 con
+  arrivo il 16 ora compare come «partenza di ieri». Test nuovo con 9
+  prenotazioni (ieri non segnata / segnata / rimandata / automatica /
+  l'altro ieri / parte oggi / cambio camera ieri).
+- Anteprima finta: «Partita Ieri» (Amelia, partita ieri, mai registrata;
+  Anna ora arriva domani così Amelia è vuota oggi) → una sola voce
+  «Amelia · partenza di ieri di Partita Ieri»; nessuna voce per domani;
+  striscia di oggi «1». Provato a 390 px.
+- Suite 686/686, TypeScript OK, lint del delta 0→0, `next build` OK.
+
+---
+
 # Consegna — Home «Da controllare»: i cambi camera non sono arrivi (06/09/2026, main)
 
 - Richiesta di Ania: «quando c'è cambio stanza non mi compare negli arrivi

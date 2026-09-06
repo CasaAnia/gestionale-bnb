@@ -82,6 +82,7 @@ const G = {
   senza: ospite('Senza Numero', null),      // arriva domani senza orario e SENZA telefono (ritocchi 07/09/2026)
   oggiIn: ospite('Arriva Oggi', '+39 333 000 0011'),
   oggiOut: ospite('Parte Oggi', '+39 333 000 0012'),
+  ieriOut: ospite('Partita Ieri', '+39 333 000 0013'),   // partenza di ieri mai registrata, camera vuota oggi → voce «pulizia» (regola di Ania, 06/09/2026)
 }
 const guests = Object.values(G)
 
@@ -102,7 +103,8 @@ function prenotazione(room_id, guest_id, check_in, check_out, num_guests, extra)
 }
 const GRUPPO_LUCIA = 'cccccccc-1111-4000-8000-000000000001'
 const bookings = [
-  prenotazione(ROOM.amelia, G.anna.id, O(-1), O(3), 2, { total_amount: 320, check_in_time: '14:00' }),
+  prenotazione(ROOM.amelia, G.anna.id, O(1), O(3), 2, { total_amount: 320, check_in_time: '14:00' }),   // dal 06/09/2026 arriva DOMANI (prima O(-1)): così Amelia è vuota oggi
+  prenotazione(ROOM.amelia, G.ieriOut.id, O(-4), O(-1), 2, { status: 'completata', pagato: true }),   // partita IERI, pulizia mai registrata, nessun arrivo oggi → «Amelia · partenza di ieri»
   prenotazione(ROOM.amelia, G.marco.id, O(1), O(4), 2, { total_amount: 240 }),                 // sovrapposta + arrivo domani senza orario
   prenotazione(ROOM.ambra, G.lucia.id, O(5), O(7), 2, { group_id: GRUPPO_LUCIA, total_amount: 140 }),
   prenotazione(ROOM.lena, G.lucia.id, O(7), O(9), 2, { group_id: GRUPPO_LUCIA, total_amount: 160 }),

@@ -31,7 +31,7 @@ import { cent, prenotazioneValida, type PrenotazioneStat, type PagamentoStat, ty
 import { incongruenzePagamenti } from './statistiche/pagato.ts'
 import { lettiOccupatiPerNotte } from './lettiAggiuntivi.ts'
 import { EXTRA_BED_MAX } from './tariffe.ts'
-import { statoCameraGiorno, attive, continuaDa, type Decisione } from './pulizie.ts'
+import { statoCameraGiorno, statoFineSoggiorno, cambioOspiteAutomatico, attive, continuaDa, continuaIn, type Decisione } from './pulizie.ts'
 import { normalizzaTelefono } from './whatsapp.ts'
 import { whatsappRichiestaOrario, waHrefTesto } from './messaggiWhatsApp.ts'
 import { stessaPersona } from './clienteCheTorna.ts'
@@ -315,33 +315,50 @@ export function eccezioniArrivi(prenotazioni: PrenotazioneDC[], oggi: string): E
 // La parola in ottone dopo il motivo (stesso colore dell'ombra sotto l'orario in Arrivi)
 export const PAROLA_NAVETTA = 'navetta'
 
-// ── Pulizie non registrate prima di un arrivo (08/09/2026, sera) ───────────
-// Per ogni arrivo confermato di OGGI o DOMANI (non un prolungamento): se la
-// camera ha una pulizia prevista non ancora segnata fatta — partenza
-// precedente, cambio camera o cambio biancheria, con le rettifiche di Ania e
-// la pulizia automatica alla partenza già considerate — compare la voce.
-// Stesso calcolo della pagina Pulizie e della striscia (lib/pulizie.
-// statoCameraGiorno, la regola dietro conteggioGiorno): nessun calcolo qui.
-// Alta con linea ottone se l'arrivo è oggi, normale se domani. Sparisce da
-// sola quando la pulizia viene segnata fatta.
+// ── Pulizie non registrate (08/09/2026, sera; regola di Ania del 06/09/2026) ──
+// Mai con un giorno di anticipo: «sarà urgente domani, non oggi». Due casi,
+// tutti e due di OGGI e con la linea ottone:
+//  1. ARRIVO di oggi (non un prolungamento) in una camera con una pulizia
+//     prevista non ancora segnata fatta — partenza precedente, cambio camera o
+//     cambio biancheria, con le rettifiche di Ania e la pulizia automatica alla
+//     partenza già considerate (lib/pulizie.statoCameraGiorno, la stessa regola
+//     della pagina Pulizie e della striscia: nessun calcolo qui);
+//  2. PARTENZA di ieri (o cambio camera: la camera lasciata va pulita lo stesso;
+//     non un prolungamento) la cui pulizia non risulta registrata e nessun
+//     arrivo oggi in quella camera (altrimenti è il caso 1, o è automatica):
+//     «la giornata dopo, se non è stata registrata».
+//     Una pulizia rimandata a una data futura è una scelta di Ania: non compare.
+// Sparisce da sola quando la pulizia viene segnata fatta.
 export const MOTIVO_PULIZIA_NON_REGISTRATA = 'La pulizia dopo la partenza precedente non risulta registrata'
+export const MOTIVO_PULIZIA_PARTENZA_IERI = 'La pulizia dopo la partenza di ieri non risulta registrata'
 
 export function eccezioniPulizie(prenotazioni: PrenotazioneDC[], pulizie: Decisione[] | undefined, oggi: string): Eccezione[] {
   const bookings = attive(prenotazioni)
+  const events = pulizie ?? []
   const out: Eccezione[] = []
-  for (const giorno of [oggi, spostaGiorni(oggi, 1)]) {
-    const arrivi = bookings.filter(b => b.check_in === giorno && !continuaDa(bookings, b)).sort((a, b) => nomeCamera(a).localeCompare(nomeCamera(b)))
-    for (const b of arrivi) {
-      if (statoCameraGiorno(bookings, b.room_id, giorno, oggi, pulizie ?? []) !== 'da_fare') continue
-      const quando = giorno === oggi ? 'oggi' : 'domani'
-      const ore = (b.check_in_time ?? '').trim()
-      out.push({
-        chiave: `pulizia:${b.id}`, tipo: 'pulizia', urgenza: giorno === oggi ? 'alta' : 'normale', data: giorno,
-        titolo: `${nomeCamera(b)} · arrivo ${quando} di ${nomeOspite(b)}${ore ? `, ore ${ore}` : ''}`,
-        motivo: MOTIVO_PULIZIA_NON_REGISTRATA,
-        bottone: 'Apri pulizie', destinazione: { tipo: 'pulizie', giorno }, rimandabile: false,
-      })
-    }
+  const arrivi = bookings.filter(b => b.check_in === oggi && !continuaDa(bookings, b)).sort((a, b) => nomeCamera(a).localeCompare(nomeCamera(b)))
+  for (const b of arrivi) {
+    if (statoCameraGiorno(bookings, b.room_id, oggi, oggi, events) !== 'da_fare') continue
+    const ore = (b.check_in_time ?? '').trim()
+    out.push({
+      chiave: `pulizia:${b.id}`, tipo: 'pulizia', urgenza: 'alta', data: oggi,
+      titolo: `${nomeCamera(b)} · arrivo oggi di ${nomeOspite(b)}${ore ? `, ore ${ore}` : ''}`,
+      motivo: MOTIVO_PULIZIA_NON_REGISTRATA,
+      bottone: 'Apri pulizie', destinazione: { tipo: 'pulizie', giorno: oggi }, rimandabile: false,
+    })
+  }
+  const ieri = spostaGiorni(oggi, -1)
+  const partenze = bookings.filter(b => b.check_out === ieri && !continuaIn(bookings, b)).sort((a, b) => nomeCamera(a).localeCompare(nomeCamera(b)))
+  for (const p of partenze) {
+    if (arrivi.some(a => a.room_id === p.room_id)) continue
+    const st = statoFineSoggiorno(bookings, p, events)
+    if (st.chiusa || st.due > oggi || cambioOspiteAutomatico(bookings, p, events)) continue
+    out.push({
+      chiave: `pulizia:partenza:${p.id}`, tipo: 'pulizia', urgenza: 'alta', data: oggi,
+      titolo: `${nomeCamera(p)} · ${st.tipo === 'cambio_camera' ? 'cambio camera' : 'partenza'} di ieri di ${nomeOspite(p)}`,
+      motivo: MOTIVO_PULIZIA_PARTENZA_IERI,
+      bottone: 'Apri pulizie', destinazione: { tipo: 'pulizie', giorno: oggi }, rimandabile: false,
+    })
   }
   return out
 }
