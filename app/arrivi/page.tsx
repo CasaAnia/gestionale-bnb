@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getUpcomingRoomChanges, buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
+import { getUpcomingRoomChanges, buildChangeGroups, chainClipPath, coloriCatene } from '@/lib/roomChanges'
 import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
@@ -169,6 +169,8 @@ export default function Arrivi() {
     edges.forEach(e => { outgoing.add(e.fromId); incoming.add(e.toId) })
     return { outgoingIds: outgoing, incomingIds: incoming }
   }, [bookings])
+  // Colore del pezzetto tagliato: uguale per le due metà dello stesso soggiorno (Ania, 06/09/2026)
+  const coloreCatena = useMemo(() => coloriCatene(bookings), [bookings])
 
   useEffect(() => {
     Promise.all([
@@ -498,6 +500,7 @@ export default function Arrivi() {
                     // Il segmento in arrivo di un cambio camera non è un vero check-in con
                     // orario: al posto del "?" mostra le freccine ⇄ del cambio camera.
                     const isCambio = hasIncoming
+                    const tinta = coloreCatena[booking.id]
 
                     return (
                       <div key={booking.id}
@@ -521,7 +524,10 @@ export default function Arrivi() {
                           boxShadow: searchAttiva && matchedIds.has(booking.id) ? '0 3px 10px rgba(31,61,47,0.45)' : '0 1px 3px rgba(0,0,0,0.2)',
                           transition: 'opacity 0.15s, box-shadow 0.15s',
                         }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 8, maxWidth: '100%' }}>
+                        {/* Pezzetto tagliato colorato: la barra è già ritagliata (clipPath), quindi del cuneo resta solo una striscia di 4 px lungo il taglio (Ania: «meno marcato») */}
+                        {tinta && hasOutgoing && <span aria-hidden data-cuneo="uscita" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(18px 0, 100% 0, 100% 100%, 6px 100%)', opacity: 0.9, pointerEvents: 'none' }} />}
+                        {tinta && hasIncoming && <span aria-hidden data-cuneo="arrivo" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(0 0, 4px 0, 16px 100%, 12px 100%)', opacity: 0.9, pointerEvents: 'none' }} />}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 8, maxWidth: '100%', position: 'relative' }}>
                           {/* Orario. Cambio camera (Ania, 06/09/2026): NESSUN simbolo, si vede già dal taglio della barra */}
                           {!isCambio && <span style={{
                             color: isCambio ? 'white' : (time ? '#1F3D2F' : 'white'),

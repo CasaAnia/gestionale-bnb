@@ -111,3 +111,27 @@ export function getUpcomingRoomChanges(
   moves.sort((a, b) => a.date.localeCompare(b.date))
   return moves
 }
+
+// Colore del «pezzetto tagliato» (Ania, 06/09/2026): con più cambi camera nello
+// stesso giorno, la parte obliqua della barra che parte e quella della barra che
+// arriva hanno lo stesso colore, così si vede quale segue quale. Quattro tinte
+// già in uso nel gestionale (ottone, oro scuro, oliva, ruggine), assegnate alle
+// catene in ordine di data del primo segmento; oltre la quarta si ricomincia.
+export const COLORI_CAMBIO = ['#A9884E', '#7A5C1E', '#5a6b3f', '#8a4f2f']
+
+// id prenotazione → colore della sua catena (solo le prenotazioni con cambio camera)
+type PrenotazioneCatena = { id: string; room_id: string; check_in: string; check_out: string; group_id?: string | null; guest_id?: string | null }
+export function coloriCatene(bookings: PrenotazioneCatena[]): Record<string, string> {
+  const { chainKeyOf } = buildChangeGroups(bookings)
+  const inizio = new Map<string, string>()
+  for (const b of bookings) {
+    const k = chainKeyOf[b.id]
+    if (!k) continue
+    if (!inizio.has(k) || b.check_in < inizio.get(k)!) inizio.set(k, b.check_in)
+  }
+  const catene = [...inizio.entries()].sort((a, b) => a[1].localeCompare(b[1]) || a[0].localeCompare(b[0]))
+  const colore = new Map(catene.map(([k], i) => [k, COLORI_CAMBIO[i % COLORI_CAMBIO.length]]))
+  const out: Record<string, string> = {}
+  for (const b of bookings) { const k = chainKeyOf[b.id]; if (k) out[b.id] = colore.get(k)! }
+  return out
+}
