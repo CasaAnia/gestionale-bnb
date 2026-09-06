@@ -59,7 +59,7 @@ function LoginForm() {
   return (
     <form onSubmit={entra} className="w-full max-w-sm">
       <div className="text-center mb-8">
-        <h1 className="font-serif text-3xl text-green-dark">Casa Ania</h1>
+        <h1 className="ed-titolo" style={{ fontSize: 34 }}>Casa Ania</h1>
         <p
           className="text-[11px] uppercase mt-1"
           style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}
@@ -68,9 +68,10 @@ function LoginForm() {
         </p>
       </div>
 
-      <div className="bg-white rounded-xl p-5 border border-card-border shadow-sm">
+      {/* Stile editoriale (06/09/2026): niente riquadro, filo ottone in cima, campi col solo filo */}
+      <div className="ed-riga-ottone pt-5">
         <label className="block mb-4">
-          <span className="text-xs text-gray-500 mb-1 block">Email</span>
+          <span className="ed-sotto mb-1.5 block">Email</span>
           <input
             type="email"
             required
@@ -78,19 +79,19 @@ function LoginForm() {
             autoCapitalize="none"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-card-border rounded-lg p-3 text-base focus:outline-none focus:border-green-mid"
+            className="w-full ed-campo p-3 text-base focus:outline-none focus:border-green-mid"
           />
         </label>
 
         <label className="block mb-5">
-          <span className="text-xs text-gray-500 mb-1 block">Password</span>
+          <span className="ed-sotto mb-1.5 block">Password</span>
           <input
             type="password"
             required
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-card-border rounded-lg p-3 text-base focus:outline-none focus:border-green-mid"
+            className="w-full ed-campo p-3 text-base focus:outline-none focus:border-green-mid"
           />
         </label>
 
@@ -103,7 +104,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-green-mid text-white rounded-xl py-3 font-semibold disabled:opacity-50"
+          className="w-full ed-pillola text-[15px] py-3 disabled:opacity-50"
         >
           {loading ? 'Accesso...' : 'Entra'}
         </button>

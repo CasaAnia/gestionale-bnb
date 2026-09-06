@@ -73,7 +73,7 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
           <div className="flex flex-wrap gap-2">
             {alternative.map((a, i) => (
               <button key={i} type="button" onClick={() => setScelta(i)} aria-pressed={scelta === i} disabled={occupato}
-                className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${scelta === i ? 'bg-green-mid text-cream-text' : 'bg-white text-green-dark border border-[#C9BFA8]'}`}>
+                className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${scelta === i ? 'bg-green-mid text-cream-text' : 'text-green-dark border border-[#C9BFA8]'}`}>
                 {a.segmenti[0]?.camera.name} · {fmtPrezzo(a.prezzoTotale)} €
               </button>
             ))}
@@ -132,7 +132,7 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
 
       <div className="flex gap-2 mt-4">
         <button type="button" onClick={onChiudi} disabled={occupato}
-          className="flex-1 rounded-xl py-3 text-sm font-semibold text-green-dark bg-white border disabled:opacity-50" style={{ borderColor: BORDO }}>Annulla</button>
+          className="flex-1 rounded-full py-3 text-sm font-semibold text-green-dark border disabled:opacity-50" style={{ borderColor: BORDO }}>Annulla</button>
         <button type="button" onClick={crea} disabled={occupato || !sol} aria-busy={occupato}
           className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold bg-green-mid text-cream-text disabled:opacity-60 active:opacity-80">
           {occupato && <span aria-hidden className="inline-block w-4 h-4 rounded-full border-2 border-cream-text/40 border-t-cream-text animate-spin" />}
