@@ -22,6 +22,8 @@ import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 import { oggiARoma } from '@/lib/spese/adattatore'
 import { saldoMancanteCent, METODI_PAGAMENTO, eseguiSegnaPagato, eseguiRegistraAcconto, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, type MetodoPagamento, type MovimentoSaldo, type AccontoPendente } from '@/lib/statistiche'
 import AvvisoAzione from '@/components/AvvisoAzione'
+import CambiaCliente from '@/components/CambiaCliente'
+import type { ClienteBreve } from '@/lib/cambiaCliente'
 import CampoProvenienza from '@/components/CampoProvenienza'
 import { campiProvenienza, provenienzaDi, testoProvenienza, clienteConProvenienza, type StrutturaNota } from '@/lib/provenienza'
 import { leggiStrutture, ricordaStruttura, salvaProvenienzaCliente } from '@/lib/provenienzaDati'
@@ -355,7 +357,10 @@ export default function BookingDetail() {
   const searchParams = useSearchParams()
   const [toastRichiesta, setToastRichiesta] = useState(() => searchParams.get('da') === 'richiesta')
   // Traccia: la richiesta da cui è nata questa prenotazione (pezzo 4), se c'è
-  const [richiestaOrigine, setRichiestaOrigine] = useState<{ id: string; created_at: string; canale: string } | null>(null)
+  const [richiestaOrigine, setRichiestaOrigine] = useState<{ id: string; created_at: string; canale: string; proposta_inviata_at?: string | null } | null>(null)
+  // «Cambia cliente» (06/09/2026): finestra aperta e conferma dopo il cambio
+  const [showCambiaCliente, setShowCambiaCliente] = useState(false)
+  const [toastCambioCliente, setToastCambioCliente] = useState<string | null>(null)
   useEffect(() => {
     if (!toastRichiesta) return
     const t = setTimeout(() => setToastRichiesta(false), 4000)
@@ -551,10 +556,10 @@ export default function BookingDetail() {
       // del gruppo). La tabella richieste può non esistere ancora: nessun avviso.
       if (b?.id) {
         supabase.from('richieste')
-          .select('id, created_at, canale')
+          .select('id, created_at, canale, proposta_inviata_at')
           .eq('prenotazione_id', b.id)
           .maybeSingle()
-          .then(({ data: ric }) => { if (ric) setRichiestaOrigine(ric as { id: string; created_at: string; canale: string }) })
+          .then(({ data: ric }) => { if (ric) setRichiestaOrigine(ric as { id: string; created_at: string; canale: string; proposta_inviata_at?: string | null }) })
       }
       // Carica le altre prenotazioni del gruppo (cambio camera)
       if (b?.group_id) {
@@ -710,6 +715,25 @@ export default function BookingDetail() {
   // se la lettura riesce; altrimenti torna il messaggio e il chiamante applica
   // in locale quello che ha appena salvato («Prenotazione non trovata» non
   // deve mai comparire per un errore di rete dopo un salvataggio riuscito).
+  // Dopo «Cambia cliente» (scrittura già riuscita): la scheda passa al cliente
+  // nuovo, poi si rileggono altre prenotazioni e omonimi del cliente nuovo.
+  function dopoCambioCliente(cliente: ClienteBreve) {
+    setShowCambiaCliente(false)
+    const aggiornata = { ...booking, guest_id: cliente.id, ...('guest_name' in booking ? { guest_name: null } : {}), guests: { ...(booking.guests || {}), ...cliente } }
+    setBooking(aggiornata)
+    type Riga = Record<string, unknown>
+    setGroupBookings(gs => gs.map((g: Riga) => ({ ...g, guest_id: cliente.id, ...('guest_name' in g ? { guest_name: null } : {}) })))
+    setEditForm((f: Riga) => ({ ...f, guest_name: cliente.full_name || '', guest_phone: cliente.phone || '', guest_email: (cliente as { email?: string | null }).email || '', provenienza: provenienzaDi(aggiornata).provenienza, struttura: provenienzaDi(aggiornata).struttura_nome || '' }))
+    setOmonimi([])
+    supabase.from('bookings')
+      .select('id, check_in, check_out, status, group_id, source, guest_name, rooms(name)')
+      .eq('guest_id', cliente.id).neq('id', id).order('check_in', { ascending: false })
+      .then(({ data: others }) => setOtherBookings((others || []).filter((x: { group_id?: string | null }) => !(booking.group_id && x.group_id === booking.group_id))))
+    setToastCambioCliente(`Prenotazione passata a ${cliente.full_name || 'un altro cliente'}`)
+    setTimeout(() => setToastCambioCliente(null), 4000)
+    rileggiScheda().then(e => { if (e) setAvvisoScheda(e) })
+  }
+
   async function rileggiScheda(): Promise<string | null> {
     type Riga = Record<string, unknown> & { group_id?: string | null }
     const letto = await leggiConEsito<Riga>(
@@ -1210,6 +1234,11 @@ export default function BookingDetail() {
           Prenotazione creata da richiesta
         </div>
       )}
+      {toastCambioCliente && (
+        <div role="status" className="chip-in fixed left-4 right-4 top-14 lg:top-4 lg:left-auto lg:w-80 z-[60] bg-green-dark text-cream-text text-sm rounded-xl px-4 py-2.5 shadow-lg">
+          {toastCambioCliente}
+        </div>
+      )}
       <div className="flex items-center gap-3 mb-4">
         <h1 className="ed-titolo-medio">Prenotazione</h1>
         {(() => {
@@ -1618,7 +1647,13 @@ export default function BookingDetail() {
               {/* Ricevuta separata dalla valutazione (08/09/2026): il segno sta accanto al nome */}
               {vuoleRicevuta(guest) && <span data-ricevuta className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-sage text-green-mid whitespace-nowrap">{ETICHETTA_RICEVUTA_BREVE}</span>}
             </p>
-            <Link href={`/clienti/${guest?.id}?edit=1`} className="text-green-mid text-sm shrink-0 pt-1">✏️ Modifica</Link>
+            <span className="flex flex-col items-end gap-1 shrink-0 pt-1">
+              <Link href={`/clienti/${guest?.id}?edit=1`} className="text-green-mid text-sm">✏️ Modifica</Link>
+              {booking.status !== 'annullata' && (
+                <button type="button" onClick={() => setShowCambiaCliente(true)} data-cambia-cliente-apri
+                  className="text-sm text-stone underline underline-offset-2 decoration-dotted">Cambia cliente</button>
+              )}
+            </span>
           </div>
           {guest?.phone && (
             <a href={`tel:${(guest.phone || '').replace(/[^\d+]/g, '')}`}
@@ -2115,6 +2150,12 @@ export default function BookingDetail() {
 
       {showConferma && (
         <ConfermaWhatsApp booking={booking} groupBookings={groupBookings} payments={acconti} onClose={() => setShowConferma(false)} />
+      )}
+
+      {showCambiaCliente && (
+        <CambiaCliente booking={booking} segmenti={groupBookings.length > 1 ? groupBookings.length : 1} pagamenti={acconti.length}
+          confermaInviata={!!richiestaOrigine?.proposta_inviata_at} strutture={strutture}
+          onClose={() => setShowCambiaCliente(false)} onCambiato={dopoCambioCliente} />
       )}
 
       {showCancel && (

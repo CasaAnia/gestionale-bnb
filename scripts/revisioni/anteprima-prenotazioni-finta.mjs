@@ -68,7 +68,11 @@ const guests = [
   ospite('aaaaaaaa-0012-4000-8000-000000000012', 'Parte Oggi', '+39 333 000 0012'),
   ospite('aaaaaaaa-0013-4000-8000-000000000013', 'Arriva Oggi', '+39 333 000 0013'),
   ospite('aaaaaaaa-0014-4000-8000-000000000014', 'Richiesta Dal Sito', '+39 333 000 0014'),
+  // Cambia cliente (06/09/2026): la struttura «Nida» con provenienza sul cliente (0037)
+  { ...ospite('aaaaaaaa-0015-4000-8000-000000000015', 'Nida', '393803826118'), provenienza: 'altra_struttura', struttura_nome: 'Nida' },
+  { ...ospite('aaaaaaaa-0016-4000-8000-000000000016', 'Anna Kowalska', '393331234567'), provenienza: 'passaparola', struttura_nome: null },
 ]
+const NIDA = guests[14]
 
 let n = 0
 function prenotazione(room_id, guest_id, check_in, check_out, num_guests, extra) {
@@ -119,12 +123,24 @@ const bookings = [
   prenotazione(ROOM.ambra, guests[13].id, '2026-09-22', '2026-09-24', 2, { status: 'in_attesa', source: 'sito_web' }),
   // Parte 2 (05/09/2026): prenotazione annullata per provare «Motivo annullamento» → Salva rifiutato
   prenotazione(ROOM.allegra, guests[13].id, '2026-08-20', '2026-08-22', 2, { status: 'annullata', cancelled_at: ora, cancelled_reason: 'Prova' }),
+  // Cambia cliente (06/09/2026): prenotazione a nome della struttura Nida in Amelia
+  // (come quella vera del 6 set), col nome «Nida» anche sulla riga e 2 documenti
+  // caricati sul cliente Nida. Qui le scritture del cambio sono accettate in
+  // memoria (POST guests, PATCH bookings/documenti_cliente); interruttore
+  // GET /finto/errore-cambio-cliente?on=1 per far fallire il PATCH e vedere «Non salvato, riprova».
+  prenotazione(ROOM.amelia, NIDA.id, '2026-09-06', '2026-09-07', 2, { guest_name: 'Nida', price_per_night: 70, total_amount: 70, group_id: 'cccccccc-0016-4000-8000-000000000016', notes: 'Arriva verso le 18' }),
+  prenotazione(ROOM.allegra, NIDA.id, '2026-09-08', '2026-09-09', 2, { guest_name: 'Nida', price_per_night: 70, total_amount: 70 }),
 ]
+const documenti_cliente = [
+  { id: 'dddddddd-0001-4000-8000-000000000001', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0001-4000-8000-000000000001.jpg`, etichetta: 'carta_identita', lato: 'fronte', nome_file: 'IMG_1.jpeg', dimensione: 700000, created_at: ora },
+  { id: 'dddddddd-0002-4000-8000-000000000002', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0002-4000-8000-000000000002.jpg`, etichetta: 'carta_identita', lato: 'retro', nome_file: 'IMG_2.jpeg', dimensione: 700000, created_at: ora },
+]
+const strutture = [{ nome: 'Umana' }, { nome: 'Nida' }, { nome: 'RB (Rosa Bianca)' }, { nome: 'Elyse' }, { nome: 'BM (Borgo Manzoni)' }]
 const payments = []
 // Storico pulizie (migrazione 0018): vuoto, così la pagina Pulizie mostra solo le automatiche
 const cleanings = []
 
-const tabelle = { rooms, guests, bookings, payments, cleanings }
+const tabelle = { rooms, guests, bookings, payments, cleanings, documenti_cliente, strutture }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
 
 // --- PostgREST minimale ---------------------------------------------------
@@ -175,7 +191,8 @@ function applicaSelect(riga, select) {
   return out
 }
 
-function interroga(tabella, url) {
+// Le righe (vere, non copie) che passano i filtri dell'URL
+function righeFiltrate(tabella, url) {
   let righe = [...(tabelle[tabella] || [])]
   for (const [chiave, valore] of url.searchParams) {
     if (['select', 'order', 'limit', 'offset'].includes(chiave)) continue
@@ -183,6 +200,11 @@ function interroga(tabella, url) {
     if (!m) continue
     righe = righe.filter(r => confronta(r[chiave], m[1], m[2]))
   }
+  return righe
+}
+
+function interroga(tabella, url) {
+  let righe = righeFiltrate(tabella, url)
   const order = url.searchParams.get('order')
   if (order) {
     const [col, dir] = order.split('.')
@@ -221,6 +243,11 @@ function rispondi(res, stato, corpo, extra = {}) {
 // la lettura delle richieste dal sito (bookings con source=eq.sito_web).
 // Si accende/spegne senza riavviare: GET /finto/errore-richieste-web?on=1|0
 let erroreRichiesteWeb = process.env.FINTO_ERRORE_RICHIESTE_WEB === '1'
+// Cambia cliente (06/09/2026): quando è acceso il PATCH su bookings fallisce
+let erroreCambioCliente = false
+function leggiCorpo(req) {
+  return new Promise(resolve => { let t = ''; req.on('data', c => { t += c }); req.on('end', () => { try { resolve(t ? JSON.parse(t) : null) } catch { resolve(null) } }) })
+}
 
 const finto = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORTA_FINTO}`)
@@ -228,6 +255,10 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/finto/errore-richieste-web') {
     erroreRichiesteWeb = url.searchParams.get('on') === '1'
     return rispondi(res, 200, { erroreRichiesteWeb })
+  }
+  if (url.pathname === '/finto/errore-cambio-cliente') {
+    erroreCambioCliente = url.searchParams.get('on') === '1'
+    return rispondi(res, 200, { erroreCambioCliente })
   }
   if (erroreRichiesteWeb && url.pathname === '/rest/v1/bookings' && url.searchParams.get('source') === 'eq.sito_web') {
     return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla lettura delle richieste dal sito', details: null, hint: null })
@@ -245,6 +276,30 @@ const finto = createServer((req, res) => {
     }
     return rispondi(res, 200, righe, { 'Content-Range': `0-${righe.length}/${righe.length}` })
   }
+  // Cambia cliente (06/09/2026): le sole scritture accettate, in memoria
+  if (m && req.method === 'POST' && m[1] === 'guests') {
+    return leggiCorpo(req).then(corpo => {
+      const riga = Array.isArray(corpo) ? corpo[0] : corpo
+      if (!riga || !riga.phone) return rispondi(res, 400, { code: '23502', message: 'null value in column "phone"' })
+      if (guests.some(g => String(g.phone).replace(/\D/g, '') === String(riga.phone).replace(/\D/g, ''))) return rispondi(res, 409, { code: '23505', message: 'duplicate key value violates unique constraint "guests_phone_key"' })
+      const nuovo = { ...ospite(`aaaaaaaa-${String(guests.length + 1).padStart(4, '0')}-4000-8000-0000000000${String(guests.length + 1).padStart(2, '0')}`, riga.full_name ?? null, riga.phone), provenienza: 'non_so', struttura_nome: null, ...riga }
+      guests.push(nuovo)
+      const accept = req.headers.accept || ''
+      return rispondi(res, 201, accept.includes('vnd.pgrst.object') ? applicaSelect(nuovo, url.searchParams.get('select') || '*') : [applicaSelect(nuovo, url.searchParams.get('select') || '*')])
+    })
+  }
+  if (m && req.method === 'PATCH' && (m[1] === 'bookings' || m[1] === 'documenti_cliente')) {
+    return leggiCorpo(req).then(corpo => {
+      const chiavi = Object.keys(corpo || {})
+      if (m[1] === 'bookings' && chiavi.some(k => !['guest_id', 'guest_name'].includes(k))) return rispondi(res, 403, { code: 'ANTEPRIMA', message: 'scrittura non ammessa nella preview sintetica' })
+      if (m[1] === 'bookings' && erroreCambioCliente) return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sul cambio cliente' })
+      const righe = righeFiltrate(m[1], url)
+      for (const r of righe) Object.assign(r, corpo)
+      console.log(`[finto supabase] PATCH ${m[1]} ${righe.length} righe ←`, JSON.stringify(corpo))
+      return rispondi(res, 200, righe.map(r => applicaSelect(r, url.searchParams.get('select') || '*')))
+    })
+  }
+  if (m && req.method === 'POST' && m[1] === 'strutture') return rispondi(res, 201, [])
   if (m) {
     // Scritture: rifiutate apposta. L'anteprima è solo lettura di dati finti.
     return rispondi(res, 403, { code: 'ANTEPRIMA', message: 'scrittura non ammessa nella preview sintetica' })
