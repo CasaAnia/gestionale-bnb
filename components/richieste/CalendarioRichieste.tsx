@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useMemo, useRef, type CSSProperties, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, type CSSProperties, type MouseEvent , useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { buildChangeGroups, chainClipPath, coloriCatene } from '@/lib/roomChanges'
+import { buildChangeGroups, chainClipPath, coloriCatene, percorsoBarraArrotondata } from '@/lib/roomChanges'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite } from '@/lib/guestName'
 import { ordinaCamere } from '@/lib/disponibilita'
@@ -129,6 +129,18 @@ export default function CalendarioRichieste(p: Props) {
   // A 2 settimane il calendario può essere più largo dello spazio: scorre in
   // orizzontale e all'apertura porta in vista la colonna di oggi
   const scorrevole = useRef<HTMLDivElement>(null)
+  // Larghezza reale della griglia (le colonne sono in percentuale): serve per
+  // arrotondare gli angoli del taglio del cambio camera come in Calendario e Arrivi
+  const griglia = useRef<HTMLDivElement>(null)
+  const [larghezzaGriglia, setLarghezzaGriglia] = useState(0)
+  useEffect(() => {
+    const el = griglia.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setLarghezzaGriglia(el.clientWidth))
+    ro.observe(el)
+    setLarghezzaGriglia(el.clientWidth)
+    return () => ro.disconnect()
+  }, [])
   useEffect(() => {
     const el = scorrevole.current
     if (!el || modo !== 'quindici') return
@@ -172,6 +184,10 @@ export default function CalendarioRichieste(p: Props) {
         const primo = i === 0, ultimo = i === segmenti.length - 1
         const tagliaInizio = primo && entra, tagliaFine = ultimo && esce
         const arrInizio = primo && !tagliaInizio, arrFine = ultimo && !tagliaFine
+        // Angoli arrotondati anche sul lato tagliato (misura in pixel dalla larghezza reale)
+        const colW = larghezzaGriglia > 0 ? (larghezzaGriglia - nameW) / N : 0
+        const wPx = colW > 0 ? (s.end - s.start) * colW - (primo ? 2 : 0) - (ultimo ? 2 : 0) : 0
+        const clipArrotondato = orizzontale && (tagliaInizio || tagliaFine) && wPx > 0 ? percorsoBarraArrotondata(wPx, ROW_H - 12, tagliaInizio, tagliaFine) : null
         const raggi = orizzontale
           ? `${arrInizio ? 6 : 0}px ${arrFine ? 6 : 0}px ${arrFine ? 6 : 0}px ${arrInizio ? 6 : 0}px`
           : `${arrInizio ? 6 : 0}px ${arrInizio ? 6 : 0}px ${arrFine ? 6 : 0}px ${arrFine ? 6 : 0}px`
@@ -180,7 +196,7 @@ export default function CalendarioRichieste(p: Props) {
             style={{
               ...geometria(s.start, s.end, ri, primo, ultimo),
               background: s.color, borderRadius: raggi,
-              clipPath: orizzontale ? chainClipPath(tagliaInizio, tagliaFine) : clipVerticale(tagliaInizio, tagliaFine),
+              clipPath: clipArrotondato ?? (orizzontale ? chainClipPath(tagliaInizio, tagliaFine) : clipVerticale(tagliaInizio, tagliaFine)),
               overflow: 'hidden', display: 'flex', alignItems: orizzontale ? 'center' : 'flex-start',
               boxShadow: '0 1px 3px rgba(0,0,0,0.2)', zIndex: 5,
               opacity: p.evidenziata != null ? 0.3 : 1, transition: 'opacity 0.15s',
@@ -250,7 +266,7 @@ export default function CalendarioRichieste(p: Props) {
       <span className={`font-serif text-green-dark whitespace-nowrap ${p.layout === 'mobile' ? 'text-[14px]' : 'text-[17px]'}`}>{modo === 'quindici' ? etichettaPeriodo(giorni) : etichettaMese(p.mese)}</span>
       <div className="flex items-center gap-1">
         {p.onModo && (
-          <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border bg-white p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
+          <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
             {([['mese', 'Mese'], ['quindici', '2 settimane']] as const).map(([v, label]) => (
               <button key={v} type="button" onClick={() => p.onModo!(v)} aria-pressed={modo === v}
                 className={`rounded-full whitespace-nowrap font-semibold transition-colors ${p.layout === 'mobile' ? 'px-2 py-1 text-[11px]' : 'px-3 py-1 text-xs'} ${modo === v ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
@@ -277,10 +293,10 @@ export default function CalendarioRichieste(p: Props) {
       ? (p.compatto ? 0 : (modo === 'quindici' ? COL_MIN_QUINDICI_TELEFONO : COL_MIN_MESE_TELEFONO))
       : (modo === 'quindici' && !p.compatto ? COL_MIN_QUINDICI : 0)
     return (
-      <div className="overflow-hidden" style={{ borderTop: '1px solid rgba(169,136,78,0.55)', background: '#fff' }}>
+      <div className="overflow-hidden" style={{ borderTop: '1px solid rgba(169,136,78,0.55)' }}>
         {navigazione}
-        <div ref={scorrevole} className={mobile ? 'no-scrollbar' : undefined} style={{ overflowX: colMin > 0 ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch' }}>
-        <div style={{ minWidth: colMin > 0 ? nameW + N * colMin : undefined }}>
+        <div ref={scorrevole} className={mobile ? 'no-scrollbar' : undefined} style={{ overflowX: colMin > 0 ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch', background: '#fff' }}>
+        <div ref={griglia} style={{ minWidth: colMin > 0 ? nameW + N * colMin : undefined }}>
         <div style={{ display: 'grid', gridTemplateColumns: `${nameW}px repeat(${N}, minmax(0, 1fr))`, height: HEADER_H, borderBottom: `2px solid ${COLORE_SEPARATORE}` }}>
           {/* angolo e colonna dei nomi restano fermi a sinistra quando la griglia scorre di lato */}
           <div style={{ borderRight: `2px solid ${COLORE_SEPARATORE}`, position: 'sticky', left: 0, zIndex: 12, background: 'white' }} />
