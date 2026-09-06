@@ -10,6 +10,8 @@ import { useDaControllare } from '@/lib/daControllareDati'
 import { testoPagamentiDaControllare } from '@/lib/daControllare'
 import { ID_SEZIONE } from '@/components/DaControllare'
 import { daDoveArrivano, struttureDellAnno, type PrenotazioneProvenienza } from '@/lib/statistiche/provenienza'
+import { leggiRecuperi, type LetturaRecuperi } from '@/lib/biancheriaDati'
+import { sommaPerVoce, nelPeriodo, AVVISO_0039 } from '@/lib/biancheria'
 import { AVVISO_0037 } from '@/lib/provenienza'
 import { supabase } from '@/lib/supabase'
 import { nomeOspite } from '@/lib/guestName'
@@ -160,6 +162,16 @@ export default function Statistiche() {
     return () => { vivo = false }
   }, [chiaveLettura, tentativo])
 
+  // Biancheria recuperata (06/09/2026): stessa finestra di lettura delle altre
+  // voci; tabella assente (0039 non applicata) = riquadro con l'avviso, mai un errore
+  const [recuperi, setRecuperi] = useState<LetturaRecuperi | null>(null)
+  useEffect(() => {
+    let vivo = true
+    const [da, a] = chiaveLettura.split('|')
+    leggiRecuperi(da, a).then(r => { if (vivo) setRecuperi(r) })
+    return () => { vivo = false }
+  }, [chiaveLettura, tentativo])
+
   function riprova() {
     setErrore(null)
     setLoading(true)
@@ -180,6 +192,8 @@ export default function Statistiche() {
   }
 
   const intervallo = intervalloPeriodo(ref, period)
+  const biancheria = recuperi ? sommaPerVoce(nelPeriodo(recuperi.righe, intervallo.da, intervallo.a)) : null
+  const biancheriaTotale = biancheria ? biancheria.reduce((t, v) => t + v.n, 0) : 0
   const totali = data ? cassaIntervallo(data.prenotazioni, data.pagamenti, data.spese, intervallo.da, intervallo.a) : null
   // Da dove arrivano gli ospiti (08/09/2026): periodo scelto; storico = soggiorni conclusi (per i ritorni); strutture dell'anno letto
   const provenienze = data ? daDoveArrivano(data.prenotazioni as PrenotazioneProvenienza[], [...data.ricostruzione.prenotazioni, ...data.prenotazioni] as PrenotazioneProvenienza[], intervallo.da, intervallo.a) : null
@@ -592,6 +606,26 @@ export default function Statistiche() {
                   <span className="text-gray-600">{st.soggiorni} {st.soggiorni === 1 ? 'soggiorno' : 'soggiorni'} · <span className="font-semibold text-green-mid">€{euro(st.ricaviCent)}</span></span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Biancheria recuperata (06/09/2026): pezzi NON usati dagli ospiti e recuperati puliti, per voce nel periodo */}
+          {biancheria && (
+            <div className="bg-white rounded-xl p-4 border border-[#C9BFA8] shadow-sm mt-3" data-biancheria-recuperata>
+              <p className="text-sm font-semibold text-gray-600">Biancheria recuperata</p>
+              <p className="text-xs text-gray-400 mb-2">{period === 'settimana' ? 'settimana' : period === 'mese' ? 'mese' : 'anno'} scelto · pezzi non usati dagli ospiti e tornati puliti{!recuperi?.tabella ? ` · ${AVVISO_0039}` : recuperi?.errore ? ` · ${recuperi.errore}` : ''}</p>
+              {biancheriaTotale === 0 ? (
+                <p className="text-sm text-gray-400 py-1">Niente recuperato in questo periodo</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-x-4">
+                  {biancheria.map(v => (
+                    <div key={v.chiave} className="flex justify-between items-baseline py-1 text-sm">
+                      <span className="text-green-dark">{v.etichetta}</span>
+                      <span className={v.n > 0 ? 'font-semibold text-green-mid' : 'text-gray-400'}>{v.n}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
