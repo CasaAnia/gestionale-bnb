@@ -65,7 +65,8 @@ due commit, NESSUNA migrazione (solo colonne già in produzione).
   «Prenotazione passata a …». Errore → «Non salvato, riprova» con la scheda
   ferma su Nida; se il cliente nuovo era già stato creato resta selezionato e
   il secondo tentativo NON lo crea due volte (visto: un solo POST guests).
-- DOCUMENTI (scelta mia, da confermare): i documenti (0032) stanno sul
+- DOCUMENTI (CONFERMATO da Ania il 06/09/2026: «i documenti appartengono
+  alla persona, non alla struttura»): i documenti (0032) stanno sul
   CLIENTE, non sulla prenotazione. Stamattina Ania ha caricato 2 carte
   d'identità sulla scheda «Nida»: senza spostarle resterebbero su Nida. La
   finestra propone, già spuntato, «Sposta anche i 2 documenti caricati su
@@ -91,11 +92,6 @@ oggi alle 10:48 sulla scheda Nida. Percorso: scheda → «Cambia cliente» →
 Nida») → lasciare spuntato lo spostamento dei 2 documenti → «Crea e passa la
 prenotazione». Nida resta con le sue altre prenotazioni (8–9 set in
 Allegra, luglio, maggio). Lo stesso vale per l'8–9 set in Allegra quando arriva l'ospite.
-
-## 🔴 AZIONE PER ANIA
-
-- Dire se lo spostamento dei documenti proposto (spunta già attiva) va bene
-  o se preferisci che restino sempre sulla scheda della struttura.
 
 ---
 
