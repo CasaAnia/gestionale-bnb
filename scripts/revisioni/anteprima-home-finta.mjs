@@ -162,6 +162,9 @@ const richieste = [
   richiesta('Elisa', 'Esposito', 'in_attesa', O(13), O(15), oreFa(2)),
   richiesta('Marta', 'Moro', 'proposta_inviata', O(15), O(17), oreFa(4), oreFa(1)),
   richiesta('Nora', 'Neri', 'in_attesa', O(16), O(18), oreFa(1)),
+  // Linguetta «Chiuse» (06/09/2026): una scaduta e chiusa da sola ieri, una rifiutata oggi
+  { ...richiesta('Ugo', 'Uboldi', 'chiusa', O(9), O(11), oreFa(40), oreFa(30)), chiusura_motivo: 'scaduta', chiusa_at: oreFa(26) },
+  { ...richiesta('Vera', 'Valli', 'chiusa', O(10), O(12), oreFa(6)), chiusura_motivo: 'rifiutata', chiusa_at: oreFa(2), motivo_rifiuto: 'Prezzo' },
 ]
 const segmentoFinto = (room_id, name, arrivo, partenza) => ({ camera: { id: room_id, name, base_price: 80, has_extra_bed: true, extra_bed_price: 10, active: true }, arrivo, partenza, notti: 2, prezzoNotte: 80, lettoTotale: 0, totale: 160 })
 richieste.find(x => x.nome === 'Dario').proposta_soluzione = { caso: 'completa', segmenti: [segmentoFinto(ROOM.ambra, 'Ambra', O(12), O(14))], nottiTotali: 2, nottiCoperte: 2, nottiMancanti: [], prezzoTotale: 160 }
@@ -328,6 +331,17 @@ const finto = createServer(async (req, res) => {
     }
     console.log(`[finto supabase] rinvii: ${da_controllare_rinvii.map(x => `${x.chiave}→${x.fino_a}`).join(', ')}`)
     return rispondi(res, 201, righe)
+  }
+  // Richieste: Riapri / Rifiuta (06/09/2026) → PATCH in memoria sulla riga indicata da ?id=eq.<id>
+  if (m && m[1] === 'richieste' && req.method === 'PATCH') {
+    const corpo = await leggiCorpo(req)
+    const id = (url.searchParams.get('id') || '').replace(/^eq\./, '')
+    const riga = richieste.find(x => x.id === id)
+    if (!riga) return rispondi(res, 200, [])
+    Object.assign(riga, corpo)
+    console.log(`[finto supabase] richiesta ${riga.nome}: ${JSON.stringify(corpo)}`)
+    const singola = (req.headers.accept || '').includes('vnd.pgrst.object')
+    return rispondi(res, 200, singola ? riga : [riga])
   }
   // Pulizie segnate dalla Home o dalla pagina Pulizie (06/09/2026): insert in memoria con id nuovo
   if (m && m[1] === 'cleanings' && req.method === 'POST') {

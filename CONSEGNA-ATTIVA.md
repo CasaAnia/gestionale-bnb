@@ -2,7 +2,7 @@
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania; dal 06/09/2026 STILE EDITORIALE «B» scelto da Ania — classi ed-* in globals.css, Fraunces per tutti i serif, niente riquadri bianchi salvo griglie e finestre, Spese escluse): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
-3. PROVENIENZA DEL CLIENTE (08/09/2026, sera, main, scheda in cima): la provenienza appartiene al CLIENTE (guests, proposte 0036 e 0037 APPLICATE in produzione, verificate il 06/09/2026), retroattiva su tutti i suoi soggiorni; chip in richieste/prenotazioni/scheda cliente che modificano il cliente; Statistiche con riga per fonte e ritorni. Storia: «Come ci ha trovato» (google/passaparola/altra_struttura/non_so + struttura) su richieste e prenotazioni, tabella strutture, dal sito = google, copia alla conferma; «Già stato da noi · N soggiorni» accanto al nome; Statistiche «Da dove arrivano gli ospiti». Da controllare: arrivo senza orario con «Chiedi orario» · «Apri chat» · «Apri arrivo» (stessi bottoni nella finestra Arrivi). HOME (07/09/2026): in cima TRE NUMERI (arrivi oggi, partenze oggi, occupate stanotte su quelle attive; lib/numeriOggi, giorno di Roma, trattini + Riprova su errore, cifre come Incassi/Spese), poi la STRISCIA DELLA SETTIMANA (28 giorni da oggi; dall'08/09 SOLO le pulizie ancora da fare con la stessa regola/fonte della pagina Pulizie — lib/pulizie.conteggioGiorno —, «✓» se tutte fatte, «—» se niente; tocco → Pulizie ?giorno=), poi «DA CONTROLLARE» col NUOVO ORDINE (tutte le richieste aperte per durata e scadenza, arrivi senza orario, pagamenti, fatture, sovrapposizioni in fondo senza urgenza). «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima; RITOCCHI dello stesso giorno: sezione IN CIMA sopra i numeri del giorno, «WhatsApp» sugli arrivi senza orario col testo «Richiesta orario» di lib/messaggiWhatsApp condiviso con la scheda, «WhatsApp» senza testo sulle proposte scadute): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
+3. OPZIONE DI 3 ORE (06/09/2026, main, scheda in cima): una proposta inviata tiene in opzione camere e notti per 3 ore (lib/opzioni), la bozza per un'altra richiesta le evita con nota ottone; scaduta → Pushover dal database (0040, pg_cron ogni 5 minuti → /api/richieste/scadenze) e chiusura automatica dopo 24 h; Rifiuta → «chiusa/rifiutata»; linguetta «Chiuse» (3 giorni, Riapri) al posto dell'Archivio. PROVENIENZA DEL CLIENTE (08/09/2026, sera, main, scheda in cima): la provenienza appartiene al CLIENTE (guests, proposte 0036 e 0037 APPLICATE in produzione, verificate il 06/09/2026), retroattiva su tutti i suoi soggiorni; chip in richieste/prenotazioni/scheda cliente che modificano il cliente; Statistiche con riga per fonte e ritorni. Storia: «Come ci ha trovato» (google/passaparola/altra_struttura/non_so + struttura) su richieste e prenotazioni, tabella strutture, dal sito = google, copia alla conferma; «Già stato da noi · N soggiorni» accanto al nome; Statistiche «Da dove arrivano gli ospiti». Da controllare: arrivo senza orario con «Chiedi orario» · «Apri chat» · «Apri arrivo» (stessi bottoni nella finestra Arrivi). HOME (07/09/2026): in cima TRE NUMERI (arrivi oggi, partenze oggi, occupate stanotte su quelle attive; lib/numeriOggi, giorno di Roma, trattini + Riprova su errore, cifre come Incassi/Spese), poi la STRISCIA DELLA SETTIMANA (28 giorni da oggi; dall'08/09 SOLO le pulizie ancora da fare con la stessa regola/fonte della pagina Pulizie — lib/pulizie.conteggioGiorno —, «✓» se tutte fatte, «—» se niente; tocco → Pulizie ?giorno=), poi «DA CONTROLLARE» col NUOVO ORDINE (tutte le richieste aperte per durata e scadenza, arrivi senza orario, pagamenti, fatture, sovrapposizioni in fondo senza urgenza). «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima; RITOCCHI dello stesso giorno: sezione IN CIMA sopra i numeri del giorno, «WhatsApp» sugli arrivi senza orario col testo «Richiesta orario» di lib/messaggiWhatsApp condiviso con la scheda, «WhatsApp» senza testo sulle proposte scadute): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
    Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); le revisioni Codex (R1–R13) sono corrette, collaudate su PostgreSQL 16 locale (sessioni concorrenti, ruoli) con 4 difetti trovati e corretti, e PUBBLICATE il 06/09/2026 (scheda in cima); le proposte 0033/0034 restano da applicare a mano da Ania (guida in 5 righe nella scheda); il codice pubblicato funziona anche prima delle proposte e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
 4. Blocco 1 (04/09): elisione solo per 1, 8, 11 («all'8», «al 18»). Blocco 2: /richieste da desktop con calendario «Mese / 2 settimane», lista ariosa, intestazione su una riga; telefono invariato. Blocco 4 (04/09 sera, scelta di Ania sul mockup A): da desktop calendario a TUTTA larghezza sopra e lista sotto in schede su due colonne (≥1100 px), riga di sezione «RICHIESTE APERTE · N — Ordina per», vuoto = riga sottile tratteggiata con «+ Nuova richiesta»; niente più due colonne affiancate. Calendario desktop +20% (righe 54, intestazione 48, camere 15 px, barre 13–14 px, colonna camere 116, colonne 2 settimane ≥ 80 px); telefono invariato. Blocco 3: web-push tolto dal sito, docs senza secondo utente, scheda «prove in 10 minuti».
 5. Proposte: ricerca automatica invariata (caso A poi B/C/E, per notte), «Altre camere» con i motivi, «Scelgo io» notte per notte con prezzo a mano; conferma solo via RPC 0031 (per notte).
@@ -29,7 +29,7 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`.
-10. 🔴 Azioni aperte per Ania: nessuna migrazione in sospeso — 0035, 0037, 0038 e 0039 (recupero biancheria) APPLICATE in produzione (verifiche in sola lettura del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034.
+10. 🔴 Azioni aperte per Ania: applicare la MIGRAZIONE 0040 (opzione di 3 ore: stato «chiusa», notifica di scadenza dal database con pg_cron, serve il CRON_SECRET di Vercel nel file). 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034.
 
 ---
 
@@ -76,6 +76,93 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — «Opzione di 3 ore» nelle Richieste (06/09/2026, main) — 🔴 migrazione 0040 da applicare
+
+Incarico di Ania. Prima: il timer «scade tra / scaduta» era solo un'indicazione
+e la disponibilità per una nuova proposta si calcolava solo sulle prenotazioni
+confermate (rischio di due proposte sulla stessa camera nelle stesse notti).
+Due scelte prese con Ania: la notifica di scadenza parte DAL DATABASE (pg_cron
++ pg_net ogni 5 minuti, perché i cron di Vercel gratuiti girano una volta al
+giorno) e l'«Archivio» diventa la linguetta «Chiuse».
+
+- A `9617ca0` — supabase/migrations/0040_opzione_tre_ore.sql: stato «chiusa»
+  nel vincolo, colonne chiusura_motivo ('scaduta' | 'rifiutata') e
+  scadenza_notificata_at, indice, estensioni pg_cron e pg_net, job
+  «richieste-scadenze» ogni 5 minuti che chiama POST
+  /api/richieste/scadenze con «Authorization: Bearer CRON_SECRET».
+  lib/opzioni (pure, 4 test): opzioniAttive/opzioniScadute dalle richieste
+  con proposta inviata (tutte le camere della soluzione + alternative, senza
+  doppioni), occupantiDaOpzioni (le opzioni viste come confermate),
+  notaOpzioni (blocco con le camere libere / «Nessuna camera è proponibile» /
+  opzione scaduta), nottiInOpzione, oraRoma.
+- B `8622efa` — pagina della proposta: legge le altre richieste con proposta
+  inviata; bozza, «Altre camere», alternativa Amelia e «Scelgo io» si calcolano
+  su confermate + opzioni attive (la camera in opzione non compare mai nelle
+  soluzioni e nelle notti di «Scelgo io»); nota ottone (bordo sinistro
+  #A9884E, sfondo #F3ECD8) «Ambra è in opzione fino alle 16:40 per Mario
+  Rossi. Libere per tutto il periodo: Allegra.» oppure «Ambra era in opzione
+  per Mario Rossi, scaduta alle 16:40. Puoi proporla.»; nelle «Altre camere»
+  il motivo «in opzione fino alle … per …» in ottone. Le richieste solo «in
+  attesa» non bloccano nulla.
+- C `2629e7c` — app/api/richieste/scadenze (GET/POST, segreto dei cron):
+  proposte scadute da più di 3 ore e mai notificate → Pushover con suono
+  «siren» e priorità 2 (ripete ogni 60 s per un'ora finché Ania conferma),
+  testo «Proposta scaduta — Mario Rossi / Ambra 17–20 set. Controlla se ha
+  risposto.», poi scadenza_notificata_at (una sola volta); scadute da più di
+  24 ore → stato «chiusa», motivo «scaduta». lib/richiesteScadenze (pure, 3
+  test), lib/pushover con opzioni. Rifiuta → «chiusa» con motivo «rifiutata»
+  (prima della 0040 ripiega su «rifiutata»); statistiche (imbuto) contano le
+  rifiutate in entrambe le forme. Conferma resta sull'RPC atomica 0027.
+- D `006ed37` — linguetta «Chiuse» al posto dell'Archivio: ultimi 3 giorni,
+  riga di stato ottone «Scaduta, chiusa da sola ieri alle 16:40» / grigia
+  «Rifiutata da te · 4 set» / verde «Confermata · …», «Riapri» (torna in
+  attesa: via chiusura, proposta inviata, notifica), riga «Dopo 3 giorni
+  spariscono da sole»; attesa del test dei 90 giorni aggiornata a 3.
+- E (questo) — schede; anteprima finta con Marta (proposta inviata da 1 h su
+  Allegra) e Nora (stesse notti → blocco), Dario scaduto ed Elisa (nota
+  «era in opzione»), Ugo (chiusa da sola) e Vera (rifiutata) nelle Chiuse,
+  PATCH sulle richieste in memoria per Riapri.
+Prove: lib 706 test, TypeScript OK, lint del delta 0→0, `next build` OK;
+anteprima a 390 px: nota di blocco e «Altre camere» in ottone su Nora, nota
+«era in opzione» su Elisa, route 401 senza segreto.
+Limiti: la notifica e la chiusura automatica partono solo dopo la 0040 (senza
+il job non c'è nessun controllo); la route non è stata provata con Pushover
+vero (avrebbe mandato una notifica sul telefono di Ania); il testo della
+proposta non cambia (testi bloccati intatti).
+
+🔴 AZIONE PER ANIA — migrazione 0040, in due passi:
+1. Vercel → progetto gestionale-bnb → Settings → Environment Variables →
+   copia il valore di CRON_SECRET.
+2. Copia il file, incollalo nel SQL Editor di Supabase (produzione),
+   sostituisci INCOLLA_QUI_IL_CRON_SECRET con il valore copiato, Run;
+   in fondo devono comparire le due colonne e il job «richieste-scadenze»
+   con active = true:
+   cat ~/gestionale-bnb/supabase/migrations/0040_opzione_tre_ore.sql | pbcopy
+
+## Prove dal telefono in 10 minuti — opzione di 3 ore
+1. Crea due richieste di prova con le stesse notti (es. 17–20 del mese prossimo).
+2. Sulla prima: «Invia proposta» → WhatsApp → «Sì, inviata». In Lista compare
+   il timer «scade tra 3 h».
+3. Sulla seconda: «Invia proposta». Deve comparire la nota ottone «X è in
+   opzione fino alle … per <nome della prima>. Libere per tutto il periodo:
+   …»; la camera proposta alla prima non è mai nella bozza; in «Altre
+   camere» ha il motivo «in opzione fino alle …»; con «Scelgo io» quella
+   camera non si può assegnare su quelle notti.
+4. Scadenza simulata: sulla prima richiesta, con «Modifica» non serve; basta
+   aspettare le 3 ore oppure (solo per la prova) cambiare a mano
+   proposta_inviata_at nel database a 4 ore fa. Poi sulla seconda la nota
+   diventa «X era in opzione per …, scaduta alle …. Puoi proporla.» e la camera
+   torna proponibile; entro 5 minuti arriva la notifica Pushover «Proposta
+   scaduta — …» (suono diverso, ripete finché non la confermi).
+5. Rifiuta la prima: sparisce dalle aperte e compare in «Chiuse» con
+   «Rifiutata da te · oggi»; «Riapri» la riporta in attesa.
+6. Dopo 24 ore dalla scadenza la richiesta scaduta passa da sola in «Chiuse»
+   con «Scaduta, chiusa da sola … alle …»; dopo 3 giorni sparisce dalla
+   linguetta (resta nel database).
+7. Alla fine rifiuta o cancella le richieste di prova.
 
 ---
 
