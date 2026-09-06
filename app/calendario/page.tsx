@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { prezzoPrenotazione } from '@/lib/prezzoNotti'
 import { useRouter } from 'next/navigation'
-import { buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
+import { buildChangeGroups, coloriCatene, percorsoBarraArrotondata } from '@/lib/roomChanges'
 import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite, nomeDiverso } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
@@ -112,6 +112,8 @@ export default function Calendario() {
 
   // Catene di cambio camera (per group_id o per stesso ospite/date contigue) e relative transizioni
   const changeGroups = useMemo(() => buildChangeGroups(bookings), [bookings])
+  // Cambio camera come in Arrivi (Ania, 06/09/2026): niente freccine, pezzetto tagliato colorato e arrotondato
+  const coloreCatena = useMemo(() => coloriCatene(bookings), [bookings])
 
   // Richieste arrivate dal sito, ancora da confermare: hanno un avviso sticky
   // in alto e la barra tratteggiata sulle loro date.
@@ -841,7 +843,10 @@ export default function Calendario() {
                       const isLast = si === segments.length - 1
                       const cutLeft = isFirst && hasIncoming
                       const cutRight = isLast && hasOutgoing
-                      const clipPath = chainClipPath(cutLeft, cutRight)
+                      const segW = (seg.end - seg.start) * CELL_W - (isFirst ? insetH : 0) - (isLast ? insetH : 0)
+                      const segH = ROW_H - insetV * 2
+                      const clipPath = cutLeft || cutRight ? percorsoBarraArrotondata(segW, segH, cutLeft, cutRight) : undefined
+                      const tinta = coloreCatena[booking.id]
                       const leftRounded = isFirst && !cutLeft
                       const rightRounded = isLast && !cutRight
                       return (
@@ -866,8 +871,8 @@ export default function Calendario() {
                             position: 'absolute',
                             top: rowTop + insetV,
                             left: NAME_W + seg.start * CELL_W + (isFirst ? insetH : 0),
-                            width: (seg.end - seg.start) * CELL_W - (isFirst ? insetH : 0) - (isLast ? insetH : 0),
-                            height: ROW_H - insetV * 2,
+                            width: segW,
+                            height: segH,
                             background: isWebPending ? '#FFFFFF' : seg.color,
                             border: isWebPending ? '2px dashed #2D6A4F' : undefined,
                             borderRadius: `${leftRounded ? 6 : 0}px ${rightRounded ? 6 : 0}px ${rightRounded ? 6 : 0}px ${leftRounded ? 6 : 0}px`,
@@ -884,6 +889,8 @@ export default function Calendario() {
                               : isSelected ? '0 2px 8px rgba(0,0,0,0.25)' : '0 1px 3px rgba(0,0,0,0.2)',
                             transition: 'opacity 0.15s, box-shadow 0.15s',
                           }}>
+                          {tinta && cutRight && <span aria-hidden data-cuneo="uscita" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(18px 0, 100% 0, 100% 100%, 6px 100%)', opacity: 0.9, pointerEvents: 'none' }} />}
+                          {tinta && cutLeft && <span aria-hidden data-cuneo="arrivo" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(0 0, 4px 0, 16px 100%, 12px 100%)', opacity: 0.9, pointerEvents: 'none' }} />}
                           {isFirst && (
                             <>
                               {/* Pallino di provenienza: il cliente è arrivato dal sito.
@@ -896,7 +903,7 @@ export default function Calendario() {
                                 <span style={{ position: 'absolute', top: 1.5, left: 1.5, width: 12, height: 12, borderRadius: '50%', background: '#1F3D2F', border: '1px solid rgba(255,255,255,0.9)', color: '#fff', fontSize: 7, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, pointerEvents: 'none' }}>🌐</span>
                               )}
                               <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                                {hasIncoming ? '⇄ ' : ''}{guestName}{hasOutgoing ? ' ⇄' : ''}{vuoleRicevuta ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
+                                {guestName}{vuoleRicevuta ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
                               </span>
                               {/* Le iconcine stanno SOTTO il nome, piccole (Ania, 05/09/2026): così si
                                   vedono anche quando il nome è lungo e finisce coi puntini */}

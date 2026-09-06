@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useMemo, useRef, type CSSProperties, type MouseEvent } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { buildChangeGroups, chainClipPath } from '@/lib/roomChanges'
+import { buildChangeGroups, chainClipPath, coloriCatene } from '@/lib/roomChanges'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite } from '@/lib/guestName'
 import { ordinaCamere } from '@/lib/disponibilita'
@@ -105,6 +105,8 @@ export default function CalendarioRichieste(p: Props) {
   const camere = useMemo(() => ordinaCamere(p.camere.filter(c => c.active !== false)), [p.camere])
   const ctx = useMemo(() => contestoColori(p.prenotazioni, p.acconti), [p.prenotazioni, p.acconti])
   const catene = useMemo(() => buildChangeGroups(p.prenotazioni), [p.prenotazioni])
+  // Cambio camera come in Arrivi (Ania, 06/09/2026): niente freccine, pezzetto tagliato colorato
+  const coloreCatena = useMemo(() => coloriCatene(p.prenotazioni), [p.prenotazioni])
   const { inEntrata, inUscita } = useMemo(() => {
     const inEntrata = new Set<string>(), inUscita = new Set<string>()
     catene.edges.forEach(e => { inUscita.add(e.fromId); inEntrata.add(e.toId) })
@@ -165,6 +167,7 @@ export default function CalendarioRichieste(p: Props) {
       const segmenti = segmentiBarra(b, giorni, ctx)
       if (segmenti.length === 0) return []
       const entra = inEntrata.has(b.id), esce = inUscita.has(b.id)
+      const tinta = coloreCatena[b.id]
       return segmenti.map((s, i) => {
         const primo = i === 0, ultimo = i === segmenti.length - 1
         const tagliaInizio = primo && entra, tagliaFine = ultimo && esce
@@ -182,9 +185,11 @@ export default function CalendarioRichieste(p: Props) {
               boxShadow: '0 1px 3px rgba(0,0,0,0.2)', zIndex: 5,
               opacity: p.evidenziata != null ? 0.3 : 1, transition: 'opacity 0.15s',
             }}>
+            {orizzontale && tinta && tagliaFine && <span aria-hidden data-cuneo="uscita" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(18px 0, 100% 0, 100% 100%, 6px 100%)', opacity: 0.9, pointerEvents: 'none' }} />}
+            {orizzontale && tinta && tagliaInizio && <span aria-hidden data-cuneo="arrivo" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 22, background: tinta, clipPath: 'polygon(0 0, 4px 0, 16px 100%, 12px 100%)', opacity: 0.9, pointerEvents: 'none' }} />}
             {primo && (
-              <span style={{ color: 'white', fontSize: p.layout === 'desktop' ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, padding: p.layout === 'desktop' ? '0 6px' : '3px 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
-                {entra ? '⇄ ' : ''}{nomeOspite(b)}{esce ? ' ⇄' : ''}
+              <span style={{ color: 'white', fontSize: p.layout === 'desktop' ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, padding: p.layout === 'desktop' ? '0 6px' : '3px 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', position: 'relative' }}>
+                {nomeOspite(b)}
               </span>
             )}
           </div>
