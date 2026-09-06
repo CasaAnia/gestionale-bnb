@@ -18,7 +18,7 @@ export const PROVENIENZA_DAL_SITO: Provenienza = 'google'
 export const ETICHETTA_PROVENIENZA: Record<Provenienza, string> = Object.fromEntries(PROVENIENZE.map(p => [p.chiave, p.label])) as Record<Provenienza, string>
 
 // I nomi già noti, precaricati anche dalla 0036 (stesso elenco)
-export const STRUTTURE_NOTE = ['Umana', 'Nida', 'RB (Rosa Bianca)', 'Elyse', 'BM (Borgo Manzoni)']
+export const STRUTTURE_NOTE = ['Umana', 'Nida', 'RB (Rosa Bianca)', 'Elyse', 'BM (Borgo Manzoni)', 'Angela Appartamenti']
 
 export const AVVISO_0036 = 'Serve la migrazione 0036 (provenienza e strutture): il campo «Come ci ha trovato» sarà disponibile dopo'
 
