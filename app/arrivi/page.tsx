@@ -522,8 +522,8 @@ export default function Arrivi() {
                           transition: 'opacity 0.15s, box-shadow 0.15s',
                         }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 8, maxWidth: '100%' }}>
-                          {/* Orario — o freccine ⇄ se è l'arrivo di un cambio camera */}
-                          <span style={{
+                          {/* Orario. Cambio camera (Ania, 06/09/2026): NESSUN simbolo, si vede già dal taglio della barra */}
+                          {!isCambio && <span style={{
                             color: isCambio ? 'white' : (time ? '#1F3D2F' : 'white'),
                             fontSize: isCambio ? 12 : 11,
                             fontWeight: 800,
@@ -540,11 +540,11 @@ export default function Arrivi() {
                             // si vede anche nella casella da una notte, dove il 🚌 dopo il nome restava nascosto
                             boxShadow: ombraNavetta(booking.shuttle, isCambio),
                           }}>
-                            {isCambio ? '⇄' : (time || '?')}
-                          </span>
+                            {time || '?'}
+                          </span>}
                           {/* Nome */}
                           <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                            {nomeOspite(booking)}{hasOutgoing ? ' ⇄' : ''}{vuoleRicevuta(booking.guests) ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
+                            {nomeOspite(booking)}{vuoleRicevuta(booking.guests) ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
                           </span>
                         </div>
                         {/* Navetta SOLO se confermata, come ombra ottone sotto l'orario:
