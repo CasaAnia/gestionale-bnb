@@ -1,6 +1,6 @@
 # STATO IN 10 RIGHE (aggiornato il 07/09/2026) — da incollare a un altro assistente
 
-1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
+1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania; dal 06/09/2026 STILE EDITORIALE «B» scelto da Ania — classi ed-* in globals.css, Fraunces per tutti i serif, niente riquadri bianchi salvo griglie e finestre, Spese escluse): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
 3. PROVENIENZA DEL CLIENTE (08/09/2026, sera, main, scheda in cima): la provenienza appartiene al CLIENTE (guests, proposte 0036 e 0037 APPLICATE in produzione, verificate il 06/09/2026), retroattiva su tutti i suoi soggiorni; chip in richieste/prenotazioni/scheda cliente che modificano il cliente; Statistiche con riga per fonte e ritorni. Storia: «Come ci ha trovato» (google/passaparola/altra_struttura/non_so + struttura) su richieste e prenotazioni, tabella strutture, dal sito = google, copia alla conferma; «Già stato da noi · N soggiorni» accanto al nome; Statistiche «Da dove arrivano gli ospiti». Da controllare: arrivo senza orario con «Chiedi orario» · «Apri chat» · «Apri arrivo» (stessi bottoni nella finestra Arrivi). HOME (07/09/2026): in cima TRE NUMERI (arrivi oggi, partenze oggi, occupate stanotte su quelle attive; lib/numeriOggi, giorno di Roma, trattini + Riprova su errore, cifre come Incassi/Spese), poi la STRISCIA DELLA SETTIMANA (28 giorni da oggi; dall'08/09 SOLO le pulizie ancora da fare con la stessa regola/fonte della pagina Pulizie — lib/pulizie.conteggioGiorno —, «✓» se tutte fatte, «—» se niente; tocco → Pulizie ?giorno=), poi «DA CONTROLLARE» col NUOVO ORDINE (tutte le richieste aperte per durata e scadenza, arrivi senza orario, pagamenti, fatture, sovrapposizioni in fondo senza urgenza). «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima; RITOCCHI dello stesso giorno: sezione IN CIMA sopra i numeri del giorno, «WhatsApp» sugli arrivi senza orario col testo «Richiesta orario» di lib/messaggiWhatsApp condiviso con la scheda, «WhatsApp» senza testo sulle proposte scadute): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
    Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); le revisioni Codex (R1–R13) sono corrette, collaudate su PostgreSQL 16 locale (sessioni concorrenti, ruoli) con 4 difetti trovati e corretti, e PUBBLICATE il 06/09/2026 (scheda in cima); le proposte 0033/0034 restano da applicare a mano da Ania (guida in 5 righe nella scheda); il codice pubblicato funziona anche prima delle proposte e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
@@ -76,6 +76,51 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
    («80 €», non «80,00 €»).
 7. Chiudi senza inviare. Nella lista tocca «Rifiuta» su Candida Prova, motivo
    «Altro». Fine.
+
+---
+
+# Consegna — Stile editoriale «B» (06/09/2026, main)
+
+Ania ha chiesto di «lucidare» il gestionale (esclusivo, all'avanguardia,
+expensive). Metodo della skill «ricerca ispirazione»: ricerca su PMS di
+fascia alta e app «quiet luxury» (restrizione: uno-due caratteri, spazio,
+righe sottili, numeri grandi in serif, un solo accento), quattro mockup
+(A lucidatura fine, B editoriale, C verde profondo, D = A + titoli di B) e
+un confronto A/B sulla pagina Pulizie; Ania ha scelto **B · Editoriale**.
+
+Vocabolario grafico (app/globals.css, sezione «STILE EDITORIALE»): tutti i
+serif sono Fraunces (`--font-serif`, pesi 300–600); classi `ed-titolo`
+(32/36 px, peso 300), `ed-titolo-medio`, `ed-sotto` (maiuscoletto
+ottone), `ed-sezione` (etichetta con il filo che continua), `ed-riga` /
+`ed-riga-ottone` / `ed-lista` (righe separate da fili crema, la prima
+ottone), `ed-numero` / `ed-numero-medio` (Fraunces 300, cifre allineate),
+`ed-pillola` / `-contorno` / `-tenue`, `ed-badge` (solo contorno),
+`ed-campo` (trasparente col filo), `ed-riquadro` (solo griglie e finestre).
+Nessun colore nuovo. Commit, uno per pezzo:
+1. `02ffbf0` fondamenta (globals, layout, barra alta senza filo);
+2. `00800b8` Home (titolo su due righe, data in ottone, tre numeri fra fili
+   ottone, striscia senza riquadro con oggi sottolineato, Da controllare a
+   righe con pillole, «Il mese» e «Vai a» a righe senza emoji);
+3. `306b6ae` Pulizie (+ statistiche pulizie);
+4. `e26dc5d` Richieste, Calendario, Arrivi (griglie in `ed-riquadro`,
+   ricerca trasparente con icona lucide, chip col solo contorno);
+5. `9bd0737` Clienti, scheda cliente, nuovo cliente, Prenotazioni, scheda
+   prenotazione, Nuova;
+6. `cee0082` Statistiche, Impostazioni, richieste (scheda, proposta,
+   modifica, nuova), componenti condivisi; lista Prenotazioni a righe;
+   attesa del test di layout aggiornata (campi `ed-campo` al posto di
+   bg-white: la protezione min-w-0 + appearance-none resta);
+7. (questo) il modulo Spese resta com'era (grafica propria).
+Prove: anteprima finta a 390 px (Home intera, Pulizie, Richieste, Arrivi,
+Calendario, Clienti, Prenotazioni, scheda prenotazione, Nuova, Statistiche,
+Impostazioni) e a 1280 px (Home, Pulizie, Richieste); suite 694/694,
+TypeScript OK, lint del delta invariato file per file, `next build` OK.
+Nota tecnica: dopo aver toccato globals.css il `next dev` dell'anteprima
+serviva il CSS vecchio (cache di Turbopack): risolto con `rm -rf .next` e
+riavvio.
+Limiti: Spese (B&B e Famiglia) invariate; i pannelli sovrapposti (arrivi,
+documenti, conferma WhatsApp) restano bianchi per stacco; l'orizzontale del
+telefono non riprovato.
 
 ---
 
