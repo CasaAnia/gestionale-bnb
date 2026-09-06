@@ -2,7 +2,7 @@
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania; dal 06/09/2026 STILE EDITORIALE «B» scelto da Ania — classi ed-* in globals.css, Fraunces per tutti i serif, niente riquadri bianchi salvo griglie e finestre, Spese escluse): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
-3. OPZIONE DI 3 ORE (06/09/2026, main, scheda in cima): una proposta inviata tiene in opzione camere e notti per 3 ore (lib/opzioni), la bozza per un'altra richiesta le evita con nota ottone; scaduta → Pushover dal database (0040, pg_cron ogni 5 minuti → /api/richieste/scadenze) e chiusura automatica dopo 24 h; Rifiuta → «chiusa/rifiutata»; linguetta «Chiuse» (3 giorni, Riapri) al posto dell'Archivio. PROVENIENZA DEL CLIENTE (08/09/2026, sera, main, scheda in cima): la provenienza appartiene al CLIENTE (guests, proposte 0036 e 0037 APPLICATE in produzione, verificate il 06/09/2026), retroattiva su tutti i suoi soggiorni; chip in richieste/prenotazioni/scheda cliente che modificano il cliente; Statistiche con riga per fonte e ritorni. Storia: «Come ci ha trovato» (google/passaparola/altra_struttura/non_so + struttura) su richieste e prenotazioni, tabella strutture, dal sito = google, copia alla conferma; «Già stato da noi · N soggiorni» accanto al nome; Statistiche «Da dove arrivano gli ospiti». Da controllare: arrivo senza orario con «Chiedi orario» · «Apri chat» · «Apri arrivo» (stessi bottoni nella finestra Arrivi). HOME (07/09/2026): in cima TRE NUMERI (arrivi oggi, partenze oggi, occupate stanotte su quelle attive; lib/numeriOggi, giorno di Roma, trattini + Riprova su errore, cifre come Incassi/Spese), poi la STRISCIA DELLA SETTIMANA (28 giorni da oggi; dall'08/09 SOLO le pulizie ancora da fare con la stessa regola/fonte della pagina Pulizie — lib/pulizie.conteggioGiorno —, «✓» se tutte fatte, «—» se niente; tocco → Pulizie ?giorno=), poi «DA CONTROLLARE» col NUOVO ORDINE (tutte le richieste aperte per durata e scadenza, arrivi senza orario, pagamenti, fatture, sovrapposizioni in fondo senza urgenza). «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima; RITOCCHI dello stesso giorno: sezione IN CIMA sopra i numeri del giorno, «WhatsApp» sugli arrivi senza orario col testo «Richiesta orario» di lib/messaggiWhatsApp condiviso con la scheda, «WhatsApp» senza testo sulle proposte scadute): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
+3. CAMBIA CLIENTE (06/09/2026 sera, main, scheda in cima): dalla scheda prenotazione «Cambia cliente» sposta QUELLA prenotazione (tutti i segmenti del soggiorno) su un cliente esistente o nuovo scrivendo solo guest_id (+ guest_name azzerato), cliente vecchio intatto, documenti spostabili con spunta (lib/cambiaCliente, 15 test); la «Nida» di oggi in Amelia si sistema da lì. OPZIONE DI 3 ORE (06/09/2026, main, scheda in cima): una proposta inviata tiene in opzione camere e notti per 3 ore (lib/opzioni), la bozza per un'altra richiesta le evita con nota ottone; scaduta → Pushover dal database (0040, pg_cron ogni 5 minuti → /api/richieste/scadenze) e chiusura automatica dopo 24 h; Rifiuta → «chiusa/rifiutata»; linguetta «Chiuse» (3 giorni, Riapri) al posto dell'Archivio. PROVENIENZA DEL CLIENTE (08/09/2026, sera, main, scheda in cima): la provenienza appartiene al CLIENTE (guests, proposte 0036 e 0037 APPLICATE in produzione, verificate il 06/09/2026), retroattiva su tutti i suoi soggiorni; chip in richieste/prenotazioni/scheda cliente che modificano il cliente; Statistiche con riga per fonte e ritorni. Storia: «Come ci ha trovato» (google/passaparola/altra_struttura/non_so + struttura) su richieste e prenotazioni, tabella strutture, dal sito = google, copia alla conferma; «Già stato da noi · N soggiorni» accanto al nome; Statistiche «Da dove arrivano gli ospiti». Da controllare: arrivo senza orario con «Chiedi orario» · «Apri chat» · «Apri arrivo» (stessi bottoni nella finestra Arrivi). HOME (07/09/2026): in cima TRE NUMERI (arrivi oggi, partenze oggi, occupate stanotte su quelle attive; lib/numeriOggi, giorno di Roma, trattini + Riprova su errore, cifre come Incassi/Spese), poi la STRISCIA DELLA SETTIMANA (28 giorni da oggi; dall'08/09 SOLO le pulizie ancora da fare con la stessa regola/fonte della pagina Pulizie — lib/pulizie.conteggioGiorno —, «✓» se tutte fatte, «—» se niente; tocco → Pulizie ?giorno=), poi «DA CONTROLLARE» col NUOVO ORDINE (tutte le richieste aperte per durata e scadenza, arrivi senza orario, pagamenti, fatture, sovrapposizioni in fondo senza urgenza). «DA CONTROLLARE» in Home (versione B, 07/09/2026, main, scheda in cima; RITOCCHI dello stesso giorno: sezione IN CIMA sopra i numeri del giorno, «WhatsApp» sugli arrivi senza orario col testo «Richiesta orario» di lib/messaggiWhatsApp condiviso con la scheda, «WhatsApp» senza testo sulle proposte scadute): elenco di ECCEZIONI (calendario, richieste, pagamenti, arrivi, fatture) da lib/daControllare (pure, 24 test) + lib/daControllareDati (stato condiviso, periodo oggi−31/+62 a pagine); ogni voce ha UN bottone al punto esatto (calendario ?giorno, arrivi ?apri, scheda ?azione=pagato, spese ?documento); «Rimanda» sulle richieste scrive nella tabella della proposta 0035 (NON applicata: senza tabella l'avviso dice che va applicata); nelle Statistiche «N pagamenti da controllare» accanto a Incassi. Anteprima finta: `gestionale-bnb-anteprima-home-finta` (3215).
    Branch `fatture-fase5` (Fase 5 fatture + 4 correzioni avversarie) in attesa della decisione di Ania; il branch `statistiche` è stato UNITO a main il 05/09/2026 (merge 5a4a5ee); le revisioni Codex (R1–R13) sono corrette, collaudate su PostgreSQL 16 locale (sessioni concorrenti, ruoli) con 4 difetti trovati e corretti, e PUBBLICATE il 06/09/2026 (scheda in cima); le proposte 0033/0034 restano da applicare a mano da Ania (guida in 5 righe nella scheda); il codice pubblicato funziona anche prima delle proposte e da lì Statistiche e Home calcolano tutto in lib/statistiche (scheda «Statistiche, numeri corretti» qui sotto: quattro voci Ricavi per soggiorno / Incassi / Spese / Saldo di cassa, occupazione sulle camere attive con anomalia oltre il 100 %, Segna come pagato con movimento).
 4. Blocco 1 (04/09): elisione solo per 1, 8, 11 («all'8», «al 18»). Blocco 2: /richieste da desktop con calendario «Mese / 2 settimane», lista ariosa, intestazione su una riga; telefono invariato. Blocco 4 (04/09 sera, scelta di Ania sul mockup A): da desktop calendario a TUTTA larghezza sopra e lista sotto in schede su due colonne (≥1100 px), riga di sezione «RICHIESTE APERTE · N — Ordina per», vuoto = riga sottile tratteggiata con «+ Nuova richiesta»; niente più due colonne affiancate. Calendario desktop +20% (righe 54, intestazione 48, camere 15 px, barre 13–14 px, colonna camere 116, colonne 2 settimane ≥ 80 px); telefono invariato. Blocco 3: web-push tolto dal sito, docs senza secondo utente, scheda «prove in 10 minuti».
 5. Proposte: ricerca automatica invariata (caso A poi B/C/E, per notte), «Altre camere» con i motivi, «Scelgo io» notte per notte con prezzo a mano; conferma solo via RPC 0031 (per notte).
@@ -30,6 +30,72 @@
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`.
 10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034.
+
+---
+
+# Consegna — «Cambia cliente» nella scheda prenotazione (06/09/2026, sera, main)
+
+Incarico di Ania. Il caso: prenotazione inserita a nome della struttura che
+manda l'ospite («Nida») perché al telefono mancano i dati della persona;
+all'arrivo QUELLA SOLA prenotazione passa a un cliente vero. Base `ded6fff`,
+due commit, NESSUNA migrazione (solo colonne già in produzione).
+
+## FATTO E DIMOSTRATO
+
+- A `35d86b3` — lib/cambiaCliente (pure, 15 test) + lib/cambiaClienteDati.
+  Si scrive SOLO bookings.guest_id (+ guest_name azzerato, così vale il nome
+  del cliente nuovo e non scatta l'avviso rosso «numero già usato»); il
+  cliente di partenza non entra in nessuna scrittura; date, prezzo, note,
+  letti, persone per notte, pagamenti restano identici (test «il resto è
+  identico»). Con un cambio camera passano tutti i segmenti del soggiorno
+  (group_id), altrimenti resterebbe diviso fra due clienti. Salvataggio via
+  scritturaSicura + controllo «almeno una riga toccata». Cliente nuovo:
+  «Nome Cognome» (prima il nome), telefono a cifre col 39 come nel resto del
+  gestionale, telefono già in archivio → «Questo telefono è già di un cliente
+  in archivio: cercalo fra i clienti esistenti» (guests.phone è UNIQUE).
+  Provenienza proposta: se il cliente di partenza è una struttura
+  («Altra struttura → Nida», o un nome noto) → «Altra struttura → Nida».
+- B `2b5691e` — scheda prenotazione: «Cambia cliente» sotto «✏️ Modifica»
+  accanto al nome (non sulle annullate). Finestra: «Cliente esistente»
+  (ricerca nome o telefono, il cliente attuale mai in lista) | «Nuovo cliente»
+  (nome, cognome, telefono, «Come ci ha trovato» coi chip soliti). Avvisi
+  non bloccanti: conferma già inviata (proposta_inviata_at della richiesta
+  d'origine), N movimenti di pagamento, cambio camera. A scrittura riuscita:
+  nome, telefono, provenienza e altre prenotazioni si aggiornano, toast
+  «Prenotazione passata a …». Errore → «Non salvato, riprova» con la scheda
+  ferma su Nida; se il cliente nuovo era già stato creato resta selezionato e
+  il secondo tentativo NON lo crea due volte (visto: un solo POST guests).
+- DOCUMENTI (scelta mia, da confermare): i documenti (0032) stanno sul
+  CLIENTE, non sulla prenotazione. Stamattina Ania ha caricato 2 carte
+  d'identità sulla scheda «Nida»: senza spostarle resterebbero su Nida. La
+  finestra propone, già spuntato, «Sposta anche i 2 documenti caricati su
+  Nida al cliente nuovo» (cambia solo documenti_cliente.guest_id, il file
+  resta dov'è; le anteprime leggono `percorso`). Se lo spostamento fallisce
+  dopo il cambio riuscito: «Prenotazione passata al cliente nuovo, ma i
+  documenti non sono stati spostati» con «Riprova» o «Lascia i documenti dove sono».
+- Prove: `npm test` 721/721, tsc pulito, lint del delta pulito, `next build`
+  ok. UI sull'anteprima finta `gestionale-bnb-anteprima-prenotazioni-finta`
+  (3213): scenario Nida in Amelia 6–7 set con 2 documenti; cambio su cliente
+  esistente (PATCH bookings con soli guest_id/guest_name sul group_id, PATCH
+  documenti), cliente nuovo con provenienza già su Nida, errore simulato
+  (`/finto/errore-cambio-cliente?on=1`) → «Non salvato, riprova», telefono
+  390 px con la finestra sopra la barra bassa.
+
+## LA PRENOTAZIONE «NIDA» DI OGGI IN AMELIA (6–7 set, letta in produzione)
+
+Sì, si sistema dal tasto nuovo: cliente «Nida» (tel. 393803826118, «Altra
+struttura → Nida»), nome «Nida» anche sulla riga (guest_name), nessun
+pagamento, nessuna nota, nessuna richiesta d'origine, 2 documenti caricati
+oggi alle 10:48 sulla scheda Nida. Percorso: scheda → «Cambia cliente» →
+«Nuovo cliente» (nome, cognome, telefono; provenienza già «Altra struttura →
+Nida») → lasciare spuntato lo spostamento dei 2 documenti → «Crea e passa la
+prenotazione». Nida resta con le sue altre prenotazioni (8–9 set in
+Allegra, luglio, maggio). Lo stesso vale per l'8–9 set in Allegra quando arriva l'ospite.
+
+## 🔴 AZIONE PER ANIA
+
+- Dire se lo spostamento dei documenti proposto (spunta già attiva) va bene
+  o se preferisci che restino sempre sulla scheda della struttura.
 
 ---
 
