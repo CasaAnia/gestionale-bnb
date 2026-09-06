@@ -106,9 +106,9 @@ const bookings = [
   prenotazione(ROOM.amelia, G.marco.id, O(1), O(4), 2, { total_amount: 240 }),                 // sovrapposta + arrivo domani senza orario
   prenotazione(ROOM.ambra, G.lucia.id, O(5), O(7), 2, { group_id: GRUPPO_LUCIA, total_amount: 140 }),
   prenotazione(ROOM.lena, G.lucia.id, O(7), O(9), 2, { group_id: GRUPPO_LUCIA, total_amount: 160 }),
-  prenotazione(ROOM.allegra, G.paola.id, O(1), O(3), 2, { check_in_time: '16:30' }),
+  prenotazione(ROOM.allegra, G.paola.id, O(1), O(3), 2, { check_in_time: '16:30', shuttle: 'si' }),
   prenotazione(ROOM.lena, G.senza.id, O(1), O(2), 1, { total_amount: 80 }),                    // domani, senza orario né numero
-  prenotazione(ROOM.allegra, G.oggiIn.id, O(0), O(1), 2),                                       // tre numeri: arriva oggi; SENZA orario → voce in Da controllare (06/09/2026)
+  prenotazione(ROOM.allegra, G.oggiIn.id, O(0), O(1), 2, { shuttle: 'si' }),                    // tre numeri: arriva oggi; SENZA orario → voce in Da controllare (06/09/2026); una notte con navetta → ombra ottone in Arrivi
   prenotazione(ROOM.ambra, G.oggiOut.id, O(-3), O(0), 2, { pagato: true }),                    // tre numeri: parte oggi
   prenotazione(ROOM.allegra, G.giulio.id, O(-6), O(-4), 2, { status: 'completata', pagato: true }),
   prenotazione(ROOM.ambra, G.sara.id, O(-12), O(-10), 2, { status: 'completata' }),

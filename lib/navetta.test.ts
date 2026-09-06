@@ -1,7 +1,7 @@
 // Test della navetta (regole fissate da Ania il 24/08/2026)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { testoNavetta, suffissoNavettaNotifica, cosaManca } from './navetta.ts'
+import { testoNavetta, suffissoNavettaNotifica, cosaManca, ombraNavetta, OMBRA_NAVETTA } from './navetta.ts'
 
 test('i tre stati hanno testi distinti e il vuoto è "da definire"', () => {
   assert.equal(testoNavetta('si'), '🚌 Navetta')
@@ -26,4 +26,13 @@ test('promemoria delle 17: parte nei tre casi e tace quando è tutto definito', 
   // colonna non ancora migrata: vale solo l'orario, come prima
   assert.equal(cosaManca({ check_in_time: '15:30' }), null)
   assert.equal(cosaManca({ check_in_time: null }), 'manca orario')
+})
+
+test('griglia Arrivi: ombra ottone sotto l\'orario solo con navetta confermata, mai sul cambio camera', () => {
+  assert.equal(ombraNavetta('si'), OMBRA_NAVETTA)
+  assert.equal(ombraNavetta('no'), undefined)
+  assert.equal(ombraNavetta(null), undefined)
+  assert.equal(ombraNavetta(undefined), undefined)
+  assert.equal(ombraNavetta('si', true), undefined)
+  assert.match(OMBRA_NAVETTA, /#A9884E/)
 })

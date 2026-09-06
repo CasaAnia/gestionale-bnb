@@ -79,6 +79,26 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
 
 ---
 
+# Consegna — Arrivi: navetta come ombra ottone sotto l'orario (06/09/2026, main)
+
+- Segnalazione di Ania: nella griglia Arrivi il 🚌 stava DOPO il nome e nella
+  casella da una notte (una sola colonna) restava nascosto dal taglio della
+  barra. Provate quattro varianti sull'anteprima finta (🚌 dentro l'orario,
+  seconda riga, cornice ottone, orario pieno ottone, ombra ottone): scelta
+  l'OMBRA OTTONE sotto il riquadro dell'orario, proposta da lei.
+- app/arrivi/page.tsx: navetta «sì» = `boxShadow` ottone (#A9884E, 3 px,
+  lib/navetta.ombraNavetta / OMBRA_NAVETTA) sul riquadro dell'orario, anche
+  quando l'orario manca («?»); niente sul riquadro «⇄» del cambio camera;
+  «no» e «da definire» non mostrano nulla, come prima. Tolto il 🚌 dopo il
+  nome (unico segno = ombra). Pannello con «🚌 Navetta», scheda cliente e
+  promemoria invariati. Test nuovo in lib/navetta.test.ts (5 casi).
+- Anteprima finta: «Arriva Oggi» (una notte, Allegra) e Paola con navetta.
+  Verificato nel DOM a 390 px: ombra rgb(169,136,78) 0 3px sulla barra da
+  56 px e su quella da 116 px, nessuna ombra sulle altre né sul «⇄».
+- Suite 683/683, TypeScript OK, lint del delta invariato, `next build` OK.
+
+---
+
 # Consegna — «Da controllare», arrivo senza orario anche OGGI (06/09/2026, main)
 
 - Segnalazione di Ania: la voce di Arturo (arrivo senza orario) è sparita

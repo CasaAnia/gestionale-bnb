@@ -36,3 +36,12 @@ export function cosaManca(b: any): string | null {
   if (mancaNavetta) return 'navetta da definire'
   return null
 }
+
+// Griglia Arrivi (scelta di Ania, 06/09/2026): niente 🚌 dopo il nome — nella
+// casella da una notte restava nascosto — ma un'ombra ottone sotto il riquadro
+// dell'orario, visibile anche quando la barra è larga una sola cella.
+// Solo per il «sì»; mai sul riquadro «⇄» del cambio camera.
+export const OMBRA_NAVETTA = '0 3px 0 #A9884E'
+export function ombraNavetta(s: Navetta, cambio = false): string | undefined {
+  return !cambio && s === 'si' ? OMBRA_NAVETTA : undefined
+}

@@ -6,7 +6,7 @@ import { getUpcomingRoomChanges, buildChangeGroups, chainClipPath } from '@/lib/
 import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
-import { testoNavetta } from '@/lib/navetta'
+import { testoNavetta, ombraNavetta } from '@/lib/navetta'
 import BackLink from '@/components/BackLink'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi from '@/components/RigaMesi'
@@ -537,6 +537,9 @@ export default function Arrivi() {
                             background: isCambio ? 'rgba(255,255,255,0.30)' : (time ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.35)'),
                             borderRadius: 4,
                             padding: '1px 5px',
+                            // Navetta confermata = ombra ottone sotto l'orario (scelta di Ania, 06/09/2026):
+                            // si vede anche nella casella da una notte, dove il 🚌 dopo il nome restava nascosto
+                            boxShadow: ombraNavetta(booking.shuttle, isCambio),
                           }}>
                             {isCambio ? '⇄' : (time || '?')}
                           </span>
@@ -544,13 +547,9 @@ export default function Arrivi() {
                           <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                             {nomeOspite(booking)}{hasOutgoing ? ' ⇄' : ''}{vuoleRicevuta(booking.guests) ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
                           </span>
-                          {/* Sul Mac la navetta sta in linea: la barra resta su una riga */}
-                          {!isCambio && booking.shuttle === 'si' && (
-                            <span style={{ background: 'rgba(255,255,255,0.92)', borderRadius: 4, padding: '1px 5px', lineHeight: 1.25, fontSize: 10, whiteSpace: 'nowrap', flexShrink: 0 }}>🚌</span>
-                          )}
                         </div>
-                        {/* Navetta sotto l'orario, SOLO se confermata e solo l'icona:
-                            ogni 🚌 nella griglia significa una cosa sola. "No" e
+                        {/* Navetta SOLO se confermata, come ombra ottone sotto l'orario:
+                            ogni ombra nella griglia significa una cosa sola. "No" e
                             "Da definire" non mostrano nulla qui (restano nel popup
                             e nei promemoria). */}
                       </div>
