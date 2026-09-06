@@ -508,3 +508,18 @@ test('arrivi senza orario: anche quelli di OGGI, prima di quelli di domani (caso
     ['arrivo:domani', 'Ospite domani · ambra · domani', 'Arrivo di domani senza orario', 'alta'],
   ])
 })
+
+// Ania, 06/09/2026: «vuole la navetta ma non ho ancora il suo orario» → la voce lo dice col colore
+test('arrivi senza orario: navetta confermata segnalata, «no» e «da definire» no', () => {
+  const out = eccezioniArrivi([
+    b('conNavetta', 'allegra', '2026-09-15', '2026-09-16', 80, { shuttle: 'si' }),
+    b('senzaNavetta', 'ambra', '2026-09-15', '2026-09-17', 100, { shuttle: 'no' }),
+    b('daDefinire', 'lena', '2026-09-16', '2026-09-18', 100, { shuttle: null }),
+    b('conOraENavetta', 'amelia', '2026-09-15', '2026-09-17', 100, { shuttle: 'si', check_in_time: '15:00' }),
+  ], OGGI)
+  assert.deepEqual(out.map(e => [e.chiave, e.navetta, e.motivo]), [
+    ['arrivo:conNavetta', true, 'Arrivo di oggi senza orario'],
+    ['arrivo:senzaNavetta', undefined, 'Arrivo di oggi senza orario'],
+    ['arrivo:daDefinire', undefined, 'Arrivo di domani senza orario'],
+  ])
+})

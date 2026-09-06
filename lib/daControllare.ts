@@ -67,6 +67,9 @@ export type Eccezione = {
   whatsapp?: LinkWhatsAppEccezione
   // Arrivi (08/09/2026): la chat senza testo («Apri chat»), accanto a «Chiedi orario»
   whatsappChat?: LinkWhatsAppEccezione
+  // Arrivi (06/09/2026, scelta di Ania): l'ospite ha la navetta confermata ma
+  // manca ancora l'orario → la Home aggiunge « · navetta» in ottone al motivo
+  navetta?: boolean
 }
 export type LinkWhatsAppEccezione = { href: string; numero: string; testo: string; principale: boolean }
 
@@ -91,6 +94,7 @@ export type PrenotazioneDC = PrenotazioneStat & {
   extra_bed?: boolean | null
   extra_bed_dates?: string[] | null
   check_in_time?: string | null
+  shuttle?: string | null
   rooms?: { name: string } | null
   guests?: { full_name?: string | null; phone?: string | null } | null
 }
@@ -291,9 +295,13 @@ export function eccezioniArrivi(prenotazioni: PrenotazioneDC[], oggi: string): E
         bottone: 'Apri arrivo', destinazione: { tipo: 'arrivo' as const, prenotazioneId: b.id }, rimandabile: false,
         whatsapp: wa ? { ...wa, principale: true } : undefined,
         whatsappChat: wa ? { href: waHrefTesto(wa.numero, ''), numero: wa.numero, testo: '', principale: false } : undefined,
+        navetta: b.shuttle === 'si' || undefined,
       }
     })
 }
+
+// La parola in ottone dopo il motivo (stesso colore dell'ombra sotto l'orario in Arrivi)
+export const PAROLA_NAVETTA = 'navetta'
 
 // ── Pulizie non registrate prima di un arrivo (08/09/2026, sera) ───────────
 // Per ogni arrivo confermato di OGGI o DOMANI (non un prolungamento): se la

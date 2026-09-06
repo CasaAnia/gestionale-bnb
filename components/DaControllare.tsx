@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import AvvisoAzione from './AvvisoAzione'
 import { useDaControllare } from '@/lib/daControllareDati'
-import { ETICHETTA_TIPO, hrefDestinazione, rigaAPosto, rigaConteggi, titoloStriscia, type Eccezione } from '@/lib/daControllare'
+import { ETICHETTA_TIPO, PAROLA_NAVETTA, hrefDestinazione, rigaAPosto, rigaConteggi, titoloStriscia, type Eccezione } from '@/lib/daControllare'
 import { BottoneWhatsApp, EtichettaBreve, BOTTONE_PIENO, BOTTONE_GHOST, ETICHETTA_CHIEDI_ORARIO, ETICHETTA_APRI_CHAT } from './BottoniWhatsApp'
 
 const FRAUNCES = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
@@ -65,7 +65,11 @@ export default function DaControllare() {
             style={e.urgenza === 'alta' ? { boxShadow: 'inset 3px 0 0 #A9884E' } : undefined}>
             <p className="text-[10px] uppercase tracking-[1.5px] text-brass">{ETICHETTA_TIPO[e.tipo]}</p>
             <p className="text-[15px] font-semibold text-green-dark leading-snug mt-0.5">{e.titolo}</p>
-            <p className="text-[12.5px] leading-snug mt-0.5" style={{ color: 'var(--color-stone)' }}>{e.motivo}</p>
+            <p className="text-[12.5px] leading-snug mt-0.5" style={{ color: 'var(--color-stone)' }}>
+              {e.motivo}
+              {/* Navetta confermata senza orario (06/09/2026): la parola in ottone, lo stesso segno dell'ombra in Arrivi */}
+              {e.navetta && <> · <span data-navetta className="font-bold text-brass">{PAROLA_NAVETTA}</span></>}
+            </p>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mt-2.5" data-bottoni>
               {/* Arrivo senza orario (08/09/2026): «Chiedi orario» (pieno) · «Apri chat» (ghost) · «Apri arrivo» (ghost) */}
               {e.whatsapp?.principale && <BottoneWhatsApp href={e.whatsapp.href} numero={e.whatsapp.numero} testo={e.whatsapp.testo} etichetta={ETICHETTA_CHIEDI_ORARIO} pieno tipo="chiedi-orario" />}

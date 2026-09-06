@@ -79,6 +79,24 @@ Nessun messaggio parte se non tocchi «Apri WhatsApp e invia».
 
 ---
 
+# Consegna — Home «Da controllare»: navetta confermata senza orario (06/09/2026, main)
+
+- Richiesta di Ania: «vuole la navetta ma non ho ancora il suo orario»,
+  da capire col colore senza aggiungere altro. Scelta (bottoni): la parola
+  «navetta» in ottone e grassetto in coda al motivo.
+- lib/daControllare.eccezioniArrivi: campo `navetta: true` quando
+  bookings.shuttle = 'si' (mai per «no» o «da definire»); il motivo resta
+  «Arrivo di oggi senza orario». components/DaControllare: «… · navetta»
+  con la parola in ottone (text-brass, stesso colore dell'ombra in Arrivi).
+  PrenotazioneDC ha `shuttle` (le prenotazioni si leggono con `*`).
+- Test nuovo (4 prenotazioni: sì / no / da definire / con orario): solo la
+  prima ha navetta=true; quella con orario non compare. Anteprima finta a
+  390 px: «Arriva Oggi · Allegra · oggi — Arrivo di oggi senza orario ·
+  navetta», le altre voci senza.
+- Suite 684/684, TypeScript OK, lint del delta 0→0, `next build` OK.
+
+---
+
 # Consegna — Arrivi: navetta come ombra ottone sotto l'orario (06/09/2026, main)
 
 - Segnalazione di Ania: nella griglia Arrivi il 🚌 stava DOPO il nome e nella
