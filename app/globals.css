@@ -201,3 +201,23 @@ input[type="week"] {
 .ed-campo:focus { outline: none; border-color: var(--color-green-mid); }
 /* Riquadro dove serve davvero (griglie, finestre): bianco, filo crema, senza ombra */
 .ed-riquadro { background: #fff; border: 1px solid var(--color-card-border); border-radius: 12px; }
+
+/* Home (richiesta di Ania, 06/09/2026, dopo lo stile editoriale): i numeri
+   tornano al carattere di prima (Georgia, peso normale, 24 px); il saluto
+   nello stesso carattere, da decidere. */
+.numero-classico {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--color-green-dark);
+  font-variant-numeric: tabular-nums;
+}
+.titolo-classico {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--color-green-dark);
+}

@@ -148,7 +148,7 @@ export default function Dashboard() {
     <div className="p-4">
       {/* Stile editoriale (06/09/2026): titolo grande e leggero, data in maiuscoletto ottone */}
       <div className="mb-5">
-        <h1 className="ed-titolo">Buongiorno,<br />Ania</h1>
+        <h1 className="titolo-classico">Buongiorno,<br />Ania</h1>
         <p className="ed-sotto mt-2">{italianDate()}</p>
       </div>
 
@@ -220,12 +220,12 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1">Ricavi per soggiorno</p>
-                <p className="ed-numero-medio">€{euro(data.cassa.ricaviCent)}</p>
+                <p className="numero-classico">€{euro(data.cassa.ricaviCent)}</p>
                 <p className="text-[11px] leading-tight text-gray-500 mt-1">valore delle prenotazioni confermate, diviso sulle notti dormite nel mese</p>
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1">{data.voceIncassi.etichetta}</p>
-                <p className="ed-numero-medio">€{euro(data.cassa.incassiCent)}</p>
+                <p className="numero-classico">€{euro(data.cassa.incassiCent)}</p>
                 <p className="text-[11px] leading-tight text-gray-500 mt-1">pagamenti registrati nel mese, per data di pagamento{data.voceIncassi.avviso ? <> · <span className="font-semibold text-green-dark">{data.voceIncassi.avviso}</span></> : null}</p>
               </div>
             </div>
@@ -234,17 +234,17 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 gap-x-3 mb-5">
             <div className="ed-riga">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Saldo di cassa</p>
-              <p className={`ed-numero-medio ${data.cassa.saldoCent >= 0 ? '' : 'text-[#8C3B2E]'}`}>€{euro(data.cassa.saldoCent)}</p>
+              <p className={`numero-classico ${data.cassa.saldoCent >= 0 ? '' : 'text-[#8C3B2E]'}`}>€{euro(data.cassa.saldoCent)}</p>
               <p className="text-[11px] leading-tight text-gray-500 mt-1">incassi meno spese del mese</p>
             </div>
             <div className="ed-riga">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Spese</p>
-              <p className="ed-numero-medio text-[#8C3B2E]">€{euro(data.cassa.speseCent)}</p>
+              <p className="numero-classico text-[#8C3B2E]">€{euro(data.cassa.speseCent)}</p>
               <p className="text-[11px] leading-tight text-gray-500 mt-1">spese del B&amp;B, per data di pagamento</p>
             </div>
             <div className="ed-riga">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Occupazione</p>
-              <p className="ed-numero-medio">{data.indici.percento}<span className="text-base text-gray-400">% mese</span></p>
+              <p className="numero-classico">{data.indici.percento}<span className="text-base text-gray-400">% mese</span></p>
               <p className="text-[11px] leading-tight text-gray-500 mt-1">
                 {data.indici.anomalia
                   ? <span className="font-semibold text-green-dark">{TESTO_ANOMALIA_OCCUPAZIONE}: {data.indici.nottiVendute} notti su {data.indici.nottiVendibili}</span>
@@ -253,7 +253,7 @@ export default function Dashboard() {
             </div>
             <div className="ed-riga">
               <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Tariffa media</p>
-              <p className="ed-numero-medio">€{euro(data.indici.adrCent)}</p>
+              <p className="numero-classico">€{euro(data.indici.adrCent)}</p>
               <p className="text-[11px] leading-tight text-gray-500 mt-1">ricavi per soggiorno diviso le notti vendute nel mese</p>
             </div>
           </div>

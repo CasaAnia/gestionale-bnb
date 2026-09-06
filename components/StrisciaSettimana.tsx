@@ -29,7 +29,7 @@ export default function StrisciaSettimana({ giorni }: { giorni: GiornoStriscia[]
               ...(g.inizioSettimana ? { borderLeft: '1px solid rgba(169,136,78,0.55)' } : {}),
             }}>
             <span className="text-[11px] leading-none" style={{ color: g.oggi ? '#1F3D2F' : 'var(--color-stone)' }}>{etichettaGiornoBreve(g.giorno)}</span>
-            <span className={`font-serif text-2xl leading-tight mt-1 ${c.tono === 'numero' ? 'text-green-dark' : 'text-gray-400'}`} style={{ fontWeight: 300 }}>{c.testo}</span>
+            <span className={`numero-classico mt-1 ${c.tono === 'numero' ? 'text-green-dark' : 'text-gray-400'}`}>{c.testo}</span>
           </Link>
         ) })}
       </div>

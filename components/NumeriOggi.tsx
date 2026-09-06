@@ -19,7 +19,7 @@ import StrisciaSettimana from './StrisciaSettimana'
 function Riquadro({ href, etichetta, codaEtichetta, valore, coda }: { href: string; etichetta: string; codaEtichetta?: string; valore: string; coda?: string }) {
   return (
     <Link href={href} className="px-1 py-3 min-w-0 flex flex-col items-center justify-between transition-transform duration-100 active:scale-[0.98] first:border-l-0 border-l border-card-border">
-      <p className="ed-numero whitespace-nowrap" data-numero={valore}>
+      <p className="numero-classico whitespace-nowrap" data-numero={valore}>
         {valore}{coda && <span className="text-[14px] text-gray-400 font-sans"> {coda}</span>}
       </p>
       <p className="text-[9px] uppercase tracking-[1.5px] text-stone leading-none whitespace-nowrap overflow-hidden mt-2.5" data-etichetta>
