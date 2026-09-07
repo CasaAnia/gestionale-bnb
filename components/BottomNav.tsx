@@ -7,6 +7,7 @@ import { returnToSicuro } from '@/lib/navHistory'
 import { isHiddenPath } from '@/lib/demoMode'
 import { useRichiesteWeb } from '@/lib/webRequests'
 import { useRichiesteAperte } from '@/lib/richiesteDati'
+import { COLOR_PRENOTAZIONE } from '@/lib/calendarioMobile'
 
 // Max 5 tasti: devono restare grossi e comodi da toccare (a 390 px ognuno ha
 // 78 px). Le Statistiche/Report si raggiungono dalla Home (card), quindi non
@@ -49,10 +50,13 @@ const desktopNavGroups = [
 
 // Bollino rosso mattone con il numero di richieste dal sito da confermare.
 // Con «!» la lettura è fallita: un errore non deve mai sembrare «nessuna richiesta».
-function RequestBadge({ count, className }: { count: number | '!'; className?: string }) {
+// Blu (lo stesso blu delle prenotazioni nel Calendario) per le richieste già
+// gestite in attesa di risposta (Ania, 07/09/2026): sotto il rosso, nessuna urgenza.
+const COLORE_BOLLINO = { rosso: '#C0563B', blu: COLOR_PRENOTAZIONE } as const
+function RequestBadge({ count, className, colore = 'rosso' }: { count: number | '!'; className?: string; colore?: keyof typeof COLORE_BOLLINO }) {
   if (count === 0) return null
   return (
-    <span className={`chip-in min-w-[17px] h-[17px] px-1 rounded-full bg-[#C0563B] text-white text-[10.5px] font-bold leading-none inline-flex items-center justify-center ${className || ''}`}>
+    <span data-bollino={colore} className={`chip-in min-w-[17px] h-[17px] px-1 rounded-full text-white text-[10.5px] font-bold leading-none inline-flex items-center justify-center ${className || ''}`} style={{ background: COLORE_BOLLINO[colore] }}>
       {count}
     </span>
   )
@@ -65,10 +69,13 @@ export default function BottomNav() {
   // quando Ania conferma una richiesta e torna indietro.
   const richiesteWeb = useRichiesteWeb(pathname)
   const webCount: number | '!' = richiesteWeb.stato === 'errore' ? '!' : richiesteWeb.richieste.length
-  // Richieste di prenotazione in attesa o con proposta inviata (tabella richieste).
+  // Richieste di prenotazione (tabella richieste), Ania 07/09/2026: rosso col numero
+  // SOLO delle nuove da gestire (in attesa); blu, sotto, quelle con proposta inviata
+  // ancora in attesa di risposta; le scadute non hanno bollino (restano nella pagina).
   // Parte 3 (05/09/2026): stesso bollino «!» del Calendario quando la lettura fallisce
   const richiesteAperte = useRichiesteAperte(pathname)
-  const richiesteCount: number | '!' = richiesteAperte.stato === 'errore' ? '!' : richiesteAperte.count
+  const richiesteCount: number | '!' = richiesteAperte.stato === 'errore' ? '!' : richiesteAperte.bollini.nuove
+  const inAttesaRisposta = richiesteAperte.stato === 'errore' ? 0 : richiesteAperte.bollini.inAttesaRisposta
   if (pathname === '/login') return null
   const visible = (href: string) => !(demo && isHiddenPath(href))
   return (
@@ -90,7 +97,11 @@ export default function BottomNav() {
                     <RequestBadge count={webCount} className="absolute -top-1.5 -right-2.5" />
                   )}
                   {item.href === '/richieste' && (
-                    <RequestBadge count={richiesteCount} className="absolute -top-1.5 -right-2.5" />
+                    <>
+                      <RequestBadge count={richiesteCount} className="absolute -top-1.5 -right-2.5" />
+                      {/* Blu sotto il rosso (o al suo posto se non ci sono nuove) */}
+                      <RequestBadge count={inAttesaRisposta} colore="blu" className={`absolute -right-2.5 ${richiesteCount === 0 ? '-top-1.5' : 'top-[12px]'}`} />
+                    </>
                   )}
                 </span>
                 <span className="text-[12px] font-medium leading-none">{item.label}</span>
@@ -133,6 +144,7 @@ export default function BottomNav() {
                     <span>{item.label}</span>
                     {item.href === '/calendario' && <RequestBadge count={webCount} />}
                     {item.href === '/richieste' && <RequestBadge count={richiesteCount} />}
+                    {item.href === '/richieste' && <RequestBadge count={inAttesaRisposta} colore="blu" />}
                   </Link>
                 )
               })}

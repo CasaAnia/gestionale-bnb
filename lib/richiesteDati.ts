@@ -1,12 +1,12 @@
 'use client'
 // Richieste di prenotazione: letture dal database e contatore per la
 // navigazione. La logica pura (ordinamento, testi) sta in lib/richieste.ts.
-import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { MotivoRifiuto } from './motivoRifiuto'
 import { supabase } from './supabase'
 import { STATI_APERTI, spiegaErrore, pianoModifica, type Richiesta, type ValoriModifica, type PropostaPrecedente } from './richieste'
 import type { CondizionePagamento } from './condizioniPrenotazione'
-import { contaConEsito, statoDopoConteggio, CONTATORE_IN_CARICAMENTO, type EsitoContatore, type StatoContatore } from './richiesteContatore'
+import { contaConEsito, statoDopoConteggio, bolliniRichieste, CONTATORE_IN_CARICAMENTO, type EsitoContatore, type StatoContatore, type Bollini, type RigaAperta } from './richiesteContatore'
 import { manca0036, AVVISO_0036 } from './provenienza'
 
 // Tutte le richieste con il nome della camera. Gli errori tornano al
@@ -37,11 +37,13 @@ export async function riapriRichiesta(id: string): Promise<{ error: string | nul
 // Errori di salvataggio visibili, parte 3 (05/09/2026): il contatore non
 // torna più 0 su errore (0 = «nessuna richiesta»); l'esito porta il
 // messaggio e la barra mostra «!». La navigazione continua a funzionare.
+// Dal 07/09/2026 si leggono le righe aperte (stato e ora della proposta):
+// i bollini rosso/blu si calcolano in lib/richiesteContatore.bolliniRichieste.
 export function contaRichiesteAperte(): Promise<EsitoContatore> {
   return contaConEsito(() => supabase
     .from('richieste')
-    .select('id', { count: 'exact', head: true })
-    .in('stato', STATI_APERTI))
+    .select('stato, proposta_inviata_at')
+    .in('stato', STATI_APERTI) as unknown as PromiseLike<{ data: RigaAperta[] | null; error: unknown }>)
 }
 
 // Stato UNICO per tutta l'app (come lib/webRequests): la barra, la pagina
@@ -69,20 +71,26 @@ export async function ricaricaRichiesteAperte(daCapo = false): Promise<void> {
 
 // Contatore in attesa/proposta inviata, riaggiornato quando la pagina torna
 // in primo piano e a ogni navigazione (refreshKey), come useRichiesteWeb.
-export function useRichiesteAperte(refreshKey?: string): StatoContatore & { ricarica: () => void } {
+// I bollini (rosso nuove, blu in attesa di risposta) si ricalcolano anche
+// ogni minuto senza rete, così il blu sparisce da solo quando la proposta scade.
+const MINUTO = 60000
+export function useRichiesteAperte(refreshKey?: string): StatoContatore & { bollini: Bollini; ricarica: () => void } {
   const stato = useSyncExternalStore(iscrivi, () => statoContatore, () => CONTATORE_IN_CARICAMENTO)
+  const [, setBattito] = useState(0)
   useEffect(() => {
     const load = () => { void ricaricaRichiesteAperte() }
     load()
     window.addEventListener('focus', load)
     document.addEventListener('visibilitychange', load)
+    const timer = window.setInterval(() => setBattito(b => b + 1), MINUTO)
     return () => {
       window.removeEventListener('focus', load)
       document.removeEventListener('visibilitychange', load)
+      window.clearInterval(timer)
     }
   }, [refreshKey])
   const ricarica = useCallback(() => { void ricaricaRichiesteAperte(true) }, [])
-  return { ...stato, ricarica }
+  return { ...stato, bollini: bolliniRichieste(stato.righe), ricarica }
 }
 
 // Rifiuto: stato «chiusa» con motivo «rifiutata» (0040) e ora di chiusura;
