@@ -68,6 +68,8 @@ export type Eccezione = {
   whatsapp?: LinkWhatsAppEccezione
   // Arrivi (08/09/2026): la chat senza testo («Apri chat»), accanto a «Chiedi orario»
   whatsappChat?: LinkWhatsAppEccezione
+  // Richieste (Ania, 07/09/2026): la nota scritta dal cliente, sotto il motivo
+  nota?: string
   // Arrivi (06/09/2026, scelta di Ania): l'ospite ha la navetta confermata ma
   // manca ancora l'orario → la Home aggiunge « · navetta» in ottone al motivo
   navetta?: boolean
@@ -91,6 +93,7 @@ export type RichiestaDC = {
   proposta_inviata_at: string | null
   nome?: string | null
   cognome?: string | null
+  note?: string | null     // nota del cliente (dal sito o a mano), mostrata in Home dal 07/09/2026
   telefono?: string | null
 }
 
@@ -148,7 +151,8 @@ export function eccezioniRichieste(richieste: RichiestaDC[], oggi: string, adess
   for (const r of richieste) {
     if (!STATI_APERTI.includes(r.stato as StatoRichiesta)) continue   // chiusa: mai
     const chi = nomeCompleto(r) || 'Richiesta'
-    const base = { chiave: `richiesta:${r.id}`, tipo: 'richiesta' as const, data: r.arrivo, bottone: 'Apri richiesta', destinazione: { tipo: 'richiesta' as const, id: r.id }, rimandabile: true }
+    const nota = (r.note ?? '').trim()
+    const base = { chiave: `richiesta:${r.id}`, tipo: 'richiesta' as const, data: r.arrivo, bottone: 'Apri richiesta', destinazione: { tipo: 'richiesta' as const, id: r.id }, rimandabile: true, ...(nota ? { nota } : {}) }
     const titolo = `${chi} · ${formatIntervallo(r.arrivo, r.partenza)}`
     const notti = nottiRichiesta(r)
     const creata = new Date(r.created_at).getTime()

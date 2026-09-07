@@ -8,6 +8,7 @@
 // Zero eccezioni = né striscia né sezione. Lettura fallita = «Non riesco a
 // controllare, riprova» + Riprova, mai un «tutto a posto» finto.
 import { useEffect, useState } from 'react'
+import NotaCliente from './richieste/NotaCliente'
 import Link from 'next/link'
 import AvvisoAzione from './AvvisoAzione'
 import { useDaControllare, ricaricaDaControllare } from '@/lib/daControllareDati'
@@ -101,6 +102,8 @@ export default function DaControllare() {
               {/* Navetta confermata senza orario (06/09/2026): la parola in ottone, lo stesso segno dell'ombra in Arrivi */}
               {e.navetta && <> · <span data-navetta className="font-bold text-brass">{PAROLA_NAVETTA}</span></>}
             </p>
+            {/* Nota del cliente nella richiesta (Ania, 07/09/2026): sotto il motivo, come nella pagina Richieste */}
+            <NotaCliente note={e.nota} piccola className="mt-1" />
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mt-2.5" data-bottoni>
               {/* Arrivo senza orario (08/09/2026): «Chiedi orario» (pieno) · «Apri chat» (ghost) · «Apri arrivo» (ghost) */}
               {e.whatsapp?.principale && <BottoneWhatsApp href={e.whatsapp.href} numero={e.whatsapp.numero} testo={e.whatsapp.testo} etichetta={ETICHETTA_CHIEDI_ORARIO} pieno tipo="chiedi-orario" />}

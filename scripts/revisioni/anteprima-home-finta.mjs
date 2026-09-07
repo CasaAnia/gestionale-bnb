@@ -178,6 +178,8 @@ const richieste = [
   { ...richiesta('Sandro', 'Sala', 'chiusa', O(7), O(9), oreFa(90)), camera_id: ROOM.allegra, chiusura_motivo: 'rifiutata', chiusa_at: oreFa(12), motivo_rifiuto: 'non_risposto' },
 ]
 const segmentoFinto = (room_id, name, arrivo, partenza) => ({ camera: { id: room_id, name, base_price: 80, has_extra_bed: true, extra_bed_price: 10, active: true }, arrivo, partenza, notti: 2, prezzoNotte: 80, lettoTotale: 0, totale: 160 })
+// Nota del cliente (07/09/2026): in Home sotto il motivo, in rosso
+richieste.find(x => x.nome === 'Carla').note = 'Arriviamo dopo le 21, partenza il 14 mattina'
 richieste.find(x => x.nome === 'Dario').proposta_soluzione = { caso: 'completa', segmenti: [segmentoFinto(ROOM.ambra, 'Ambra', O(12), O(14))], nottiTotali: 2, nottiCoperte: 2, nottiMancanti: [], prezzoTotale: 160 }
 richieste.find(x => x.nome === 'Marta').proposta_soluzione = { caso: 'completa', segmenti: [segmentoFinto(ROOM.allegra, 'Allegra', O(15), O(17))], nottiTotali: 2, nottiCoperte: 2, nottiMancanti: [], prezzoTotale: 160 }
 richieste.find(x => x.nome === 'Olga').proposta_soluzione = { caso: 'completa', segmenti: [segmentoFinto(ROOM.lena, 'Lena', O(3), O(5))], nottiTotali: 2, nottiCoperte: 2, nottiMancanti: [], prezzoTotale: 160 }

@@ -38,6 +38,23 @@ test('richieste: tutte le aperte compaiono; in attesa dalla più vecchia a parit
   assert.equal(out[0].rimandabile, true)
 })
 
+// Nota del cliente in Home (Ania, 07/09/2026): la nota della richiesta va sotto il motivo,
+// in tutti i casi (in attesa, proposta inviata, scaduta); senza nota (o solo spazi) niente
+test('richieste: la nota del cliente arriva nella voce di Home, senza nota il campo manca', () => {
+  const ore1 = new Date(ADESSO.getTime() - 3600000).toISOString()
+  const conNota = { ...r('n1', 'in_attesa', '2026-09-20', ore1), note: '  Arriviamo dopo le 21, partenza il 14 mattina ' }
+  const inviata = { ...r('n2', 'proposta_inviata', '2026-09-21', ore1), proposta_inviata_at: ore1, note: 'Chiede il letto aggiuntivo' }
+  const vuota = { ...r('n3', 'in_attesa', '2026-09-22', ore1), note: '   ' }
+  const senza = r('n4', 'in_attesa', '2026-09-23', ore1)
+  const out = eccezioniRichieste([conNota, inviata, vuota, senza], OGGI, ADESSO)
+  const per = Object.fromEntries(out.map(e => [e.chiave, e.nota]))
+  assert.equal(per['richiesta:n1'], 'Arriviamo dopo le 21, partenza il 14 mattina')
+  assert.equal(per['richiesta:n2'], 'Chiede il letto aggiuntivo')
+  assert.equal(per['richiesta:n3'], undefined)
+  assert.equal(per['richiesta:n4'], undefined)
+  assert.ok(!('nota' in out.find(e => e.chiave === 'richiesta:n4')!), 'senza nota il campo non c\'è')
+})
+
 // Requisito del 07/09/2026: anche la proposta inviata non ancora scaduta
 // compare (normale, col tempo che resta); la scaduta è alta e viene prima.
 test('richieste: proposta scaduta (oltre le 3 ore) è urgenza alta e precede quella in scadenza, che compare normale', () => {
