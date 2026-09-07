@@ -29,7 +29,62 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`.
-10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs.
+10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione.
+
+---
+
+# Consegna — Cronologia delle modifiche alle prenotazioni (07/09/2026, main) — 🔴 proposta 0042 da applicare
+
+Incarico del 07/09/2026, pezzo 2: registro delle modifiche importanti alle
+prenotazioni (camera, date, totale, sconto, pagamenti aggiunti o eliminati,
+annullamento, cambio cliente) con quando, cosa, valore prima e dopo; sezione
+«Cronologia» in fondo alla scheda prenotazione, solo lettura, nessun
+ripristino. Un commit, nessuna migrazione applicata.
+
+- supabase/proposte/0042_cronologia_prenotazioni.BOZZA.sql: tabella
+  public.booking_events (booking_id, soggiorno = group_id o id, created_at,
+  tipo, prima e dopo in jsonb LEGGIBILE con nomi di camera e cliente, autore
+  = auth.uid()); due trigger — bookings after update di room_id, check_in,
+  check_out, total_amount, discount_type, discount_value, status, guest_id
+  (una riga per campo cambiato; l'annullamento solo quando lo stato DIVENTA
+  annullata) e payments after insert/delete (compresi i movimenti scritti
+  dalle RPC della 0033). RLS: solo i membri dell'app leggono
+  (private.is_app_member); ad authenticated è concesso il SOLO select, quindi
+  il client NON può inserire, modificare o cancellare nel registro: scrive
+  solo il database. SCELTA DICHIARATA: la traccia nasce dal database e non
+  dal client, così ogni scrittura che passa dalle funzioni sicure dell'app
+  (lib/scritturaSicura, lib/prenotazioneScritture, lib/cambiaCliente) o dalle
+  RPC lascia la riga senza che l'app debba ricordarsene, e nessuna riga può
+  essere fabbricata «in chiaro» dal browser.
+- lib/cronologiaTrigger.test (PGlite, 5 test): la 0042 VERA letta dal file
+  applicata su uno schema minimo — un update di sole note non scrive nulla;
+  camera+date+totale+sconto nello stesso update = quattro righe con prima e
+  dopo; pagamento aggiunto ed eliminato, annullamento col motivo, cambio
+  cliente coi nomi; annullare un'annullata non aggiunge righe; il soggiorno
+  segue group_id; grant del solo SELECT e RLS attiva.
+- lib/cronologia (puro, 3 test): «5 set 14:20» (anno solo se diverso),
+  descrizioni «camera Ambra → Lena», «date 5–7 set → 5–8 set», «totale €160
+  → €200», «sconto nessuno → 10 %», «pagamento aggiunto €100 contanti (5 set)»,
+  «pagamento eliminato …», «annullata: motivo», «cliente Anna Rossi → Marco
+  Bianchi»; righe dalla più recente, col nome della camera del segmento nei
+  cambi camera. lib/cronologiaDati.leggiCronologia: tabella assente =
+  «registro non acceso» (avviso, mai un errore), altri errori visibili.
+- Scheda prenotazione: sezione «CRONOLOGIA» in fondo alla colonna principale
+  (dopo i blocchi WhatsApp del telefono), «Nessuna modifica registrata» se
+  vuota, AvvisoAzione + Riprova su errore di lettura; si rilegge dopo ogni
+  salvataggio riuscito (rilettura della prenotazione) e dopo un acconto.
+- Prove: 747 test, tsc, lint dei file toccati (la scheda prenotazione resta ai 28 rilievi già presenti), next build ok; anteprima
+  finta 3213 (cinque righe finte sulla prima prenotazione, interruttore
+  /finto/senza-cronologia?on=1 per la tabella assente) a 390 e 1280 px.
+- Limiti: prima della 0042 non c'è NESSUNA riga (il registro parte da
+  quando viene applicata, il passato non si ricostruisce); i pagamenti
+  eliminati dalle RPC di ricostruzione non esistono (le RPC solo inseriscono);
+  gli update che passano da colonne diverse da quelle elencate (note, orario,
+  navetta, telefoni) non entrano nel registro, per scelta.
+
+🔴 AZIONE PER ANIA: incollare supabase/proposte/0042_cronologia_prenotazioni.BOZZA.sql
+nel SQL Editor del progetto di produzione e controllare le due select in
+fondo (rls_attiva = true, policy = 1, due trigger).
 
 ---
 

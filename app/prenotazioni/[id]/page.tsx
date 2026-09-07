@@ -29,6 +29,8 @@ import CampoProvenienza from '@/components/CampoProvenienza'
 import { campiProvenienza, provenienzaDi, testoProvenienza, clienteConProvenienza, type StrutturaNota } from '@/lib/provenienza'
 import { leggiStrutture, ricordaStruttura, salvaProvenienzaCliente } from '@/lib/provenienzaDati'
 import { soggiorniPrecedenti, etichettaGiaStato, type SoggiornoStorico } from '@/lib/clienteCheTorna'
+import { righeCronologia, AVVISO_0042 } from '@/lib/cronologia'
+import { leggiCronologia, type LetturaCronologia } from '@/lib/cronologiaDati'
 
 import { valutazioneDi, vuoleRicevuta, ETICHETTA_VALUTAZIONE, ETICHETTA_RICEVUTA_BREVE } from '@/lib/valutazione'
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -585,6 +587,21 @@ export default function BookingDetail() {
       setAcconti(data || [])
     })
   }, [booking?.id, groupBookings.length])
+
+  // Cronologia delle modifiche (07/09/2026): righe scritte dai trigger della
+  // proposta 0042 per tutti i segmenti del soggiorno; si rilegge dopo ogni
+  // salvataggio riuscito (la scheda rilegge la prenotazione → cambia tentativo)
+  const [cronologia, setCronologia] = useState<LetturaCronologia | null>(null)
+  const [tentativoCronologia, setTentativoCronologia] = useState(0)
+  // Chiave di rilettura: segmenti del soggiorno + ultimo salvataggio + numero di acconti
+  const chiaveCronologia = booking ? `${(groupBookings.length > 0 ? groupBookings : [booking]).map((b: { id: string }) => b.id).join(',')}|${booking.updated_at ?? ''}|${acconti.length}|${tentativoCronologia}` : ''
+  useEffect(() => {
+    if (!chiaveCronologia) return
+    let vivo = true
+    const ids = chiaveCronologia.split('|')[0].split(',').filter(Boolean)
+    leggiCronologia(ids).then(r => { if (vivo) setCronologia(r) })
+    return () => { vivo = false }
+  }, [chiaveCronologia])
 
   // Acconto a mano — stesso contratto di «Segna come pagato» (R10): chiave
   // custodita prima dell'invio, rilettura, RPC registra_acconto (idempotente)
@@ -2125,6 +2142,35 @@ export default function BookingDetail() {
               <p className="font-semibold text-[#7A3B22] mb-1.5 text-sm">💼 WhatsApp Business</p>
               {renderButtons(true)}
             </div>
+          </div>
+        )
+      })()}
+
+      {/* Cronologia (07/09/2026): solo lettura, righe scritte dal database (proposta 0042) */}
+      {!editing && cronologia && (() => {
+        const nomeSegmento = (bid: string) => (groupBookings.length > 1 ? (groupBookings.find((b: { id: string }) => b.id === bid)?.rooms?.name ?? null) : null)
+        const righe = righeCronologia(cronologia.eventi, new Date(), nomeSegmento)
+        return (
+          <div className="ed-riga py-4 mb-4" data-cronologia>
+            <p className="text-[11px] uppercase mb-2" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>Cronologia</p>
+            {cronologia.errore ? (
+              <AvvisoAzione testo={cronologia.errore} onRiprova={() => setTentativoCronologia(t => t + 1)} />
+            ) : !cronologia.registrata ? (
+              <p className="text-xs text-stone">{AVVISO_0042}</p>
+            ) : righe.length === 0 ? (
+              <p className="text-xs text-stone">Nessuna modifica registrata.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {righe.map(r => (
+                  <li key={r.id} className="text-sm text-green-dark leading-snug">
+                    <span className="text-stone tabular-nums">{r.quando}</span>
+                    <span className="text-stone"> · </span>
+                    {r.segmento && <span className="text-stone">{r.segmento} · </span>}
+                    <span>{r.cosa}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )
       })()}

@@ -140,7 +140,18 @@ const payments = []
 // Storico pulizie (migrazione 0018): vuoto, così la pagina Pulizie mostra solo le automatiche
 const cleanings = []
 
-const tabelle = { rooms, guests, bookings, payments, cleanings, documenti_cliente, strutture }
+// Cronologia (07/09/2026, proposta 0042): righe che in produzione scrivono i trigger.
+// Sulla prima prenotazione (Lena, 3–5 set): cambio camera, date, totale, un acconto e il cambio cliente.
+// GET /finto/senza-cronologia?on=1 simula la 0042 NON applicata (tabella assente → avviso nella scheda).
+const evento = (i, booking_id, minutiFa, tipo, prima, dopo) => ({ id: `99999999-${String(i).padStart(4, '0')}-4000-8000-000000000000`, n: i, booking_id, soggiorno: booking_id, created_at: new Date(Date.parse(ora) - minutiFa * 60000).toISOString(), tipo, prima, dopo, autore: null })
+const booking_events = [
+  evento(1, bookings[0].id, 60 * 50, 'camera', { camera: 'Ambra' }, { camera: 'Lena' }),
+  evento(2, bookings[0].id, 60 * 50, 'date', { check_in: '2026-09-03', check_out: '2026-09-04' }, { check_in: '2026-09-03', check_out: '2026-09-05' }),
+  evento(3, bookings[0].id, 60 * 50, 'totale', { totale: 80 }, { totale: 180 }),
+  evento(4, bookings[0].id, 60 * 26, 'pagamento_aggiunto', null, { importo: 50, metodo: 'contanti', data: '2026-08-31' }),
+  evento(5, bookings[0].id, 60 * 3, 'cliente', { cliente: 'Vecchio Nome', guest_id: null }, { cliente: guests[0].full_name, guest_id: guests[0].id }),
+]
+const tabelle = { rooms, guests, bookings, payments, cleanings, documenti_cliente, strutture, booking_events }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
 
 // --- PostgREST minimale ---------------------------------------------------
@@ -241,6 +252,7 @@ function rispondi(res, stato, corpo, extra = {}) {
 
 // Errori di salvataggio visibili (05/09/2026): interruttore per far fallire
 // la lettura delle richieste dal sito (bookings con source=eq.sito_web).
+let senzaCronologia = process.env.FINTO_SENZA_CRONOLOGIA === '1'
 // Si accende/spegne senza riavviare: GET /finto/errore-richieste-web?on=1|0
 let erroreRichiesteWeb = process.env.FINTO_ERRORE_RICHIESTE_WEB === '1'
 // Cambia cliente (06/09/2026): quando è acceso il PATCH su bookings fallisce
@@ -255,6 +267,10 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/finto/errore-richieste-web') {
     erroreRichiesteWeb = url.searchParams.get('on') === '1'
     return rispondi(res, 200, { erroreRichiesteWeb })
+  }
+  if (url.pathname === '/finto/senza-cronologia') { senzaCronologia = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senzaCronologia }) }
+  if (senzaCronologia && url.pathname === '/rest/v1/booking_events') {
+    return rispondi(res, 404, { code: 'PGRST205', message: "Could not find the table 'public.booking_events' in the schema cache", details: null, hint: null })
   }
   if (url.pathname === '/finto/errore-cambio-cliente') {
     erroreCambioCliente = url.searchParams.get('on') === '1'
