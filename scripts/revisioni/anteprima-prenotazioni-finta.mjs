@@ -283,6 +283,12 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/auth/v1/user') return rispondi(res, 200, utente)
   if (url.pathname === '/auth/v1/logout') return rispondi(res, 204)
   const m = url.pathname.match(/^\/rest\/v1\/(\w+)$/)
+  // HEAD con count=exact (07/09/2026): il conteggio dei documenti del cliente nella
+  // scheda prenotazione (RigaDocumentiPrenotazione) legge solo Content-Range
+  if (m && req.method === 'HEAD') {
+    const righe = interroga(m[1], url)
+    return rispondi(res, 200, undefined, { 'Content-Range': `0-${righe.length}/${righe.length}` })
+  }
   if (m && req.method === 'GET') {
     const righe = interroga(m[1], url)
     const accept = req.headers.accept || ''

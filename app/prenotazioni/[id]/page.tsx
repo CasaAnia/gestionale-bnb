@@ -1680,9 +1680,6 @@ export default function BookingDetail() {
             </a>
           )}
           {guest?.email && <p className="text-sm text-gray-600 mb-1">✉️ {guest.email}</p>}
-          {/* Documenti del cliente: riga discreta, apre la scheda cliente;
-              dopo il telefono sta sulla stessa riga, con un po' d'aria (Ania, 05/09/2026) */}
-          <RigaDocumentiPrenotazione guestId={guest?.id} className={guest?.phone ? 'ml-4' : ''} />
           {valutazioneDi(guest) !== 'normale' && (
             <p className="text-sm font-semibold mb-1">{ETICHETTA_VALUTAZIONE[valutazioneDi(guest)]}</p>
           )}
@@ -1706,7 +1703,14 @@ export default function BookingDetail() {
               <p className="text-sm font-bold" style={{ color: '#C0392B' }}>{nomiPrecedenti(booking, otherBookings).join(' · ')}</p>
             </div>
           )}
-          <p className="text-gray-500 mt-4 mb-1.5">{booking.rooms?.name}</p>
+          {/* Documenti del cliente (Ania, 07/09/2026): a destra sulla riga della camera,
+              non più attaccato al telefono né subito sotto «Cambia cliente» (rischio di
+              toccare il link sbagliato): telefono ed email stanno in mezzo tra il link e
+              «Cambia cliente». Senza documenti la riga della camera resta com'è. */}
+          <div className="flex justify-between items-center gap-2 mt-4 mb-1.5" data-riga-camera>
+            <p className="text-gray-500">{booking.rooms?.name}</p>
+            <RigaDocumentiPrenotazione guestId={guest?.id} />
+          </div>
           {booking.check_in_time && (
             <div className="bg-sage rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
               <span className="text-2xl">🕐</span>
