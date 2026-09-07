@@ -14,7 +14,8 @@ import type { MotivoRifiuto } from '@/lib/motivoRifiuto'
 import { proponiSoluzioni, alternativaAmelia, personePerNotte, prezziNottiCentesimi, motiviEsclusione, testoMotivo, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
 import { camereAmmesseNotte, cameraSuccessiva, composizioneDaSoluzione, soluzioneDaComposizione, prezziTariffaPerNotte, applicaATutteLeNotti, totaleCentesimi, type Composizione, type PrezziManuali } from '@/lib/richiesteComposizione'
 import StrisciaNotti, { etichettaNotte } from '@/components/StrisciaNotti'
-import { generaProposta, camereDelCasoA, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, nottiScoperte, type Condizione } from '@/lib/richiesteTesti'
+import { generaProposta, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, nottiScoperte, type Condizione } from '@/lib/richiesteTesti'
+import { alternativeDaElencare } from '@/lib/richiesteScelta'
 import { CONDIZIONI_PAGAMENTO, ETICHETTA_CONDIZIONE, caparraDefault, type CondizionePagamento } from '@/lib/condizioniPrenotazione'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import { lettoDaComunicare } from '@/lib/tariffe'
@@ -73,6 +74,8 @@ export default function PropostaPage() {
 
   // Soluzione scelta e bozza (null = quella generata; stringa = modificata a mano)
   const [indice, setIndice] = useState(0)
+  // Ania ha toccato una soluzione in «Cambia»: il messaggio propone quella camera sola, mai l'elenco (07/09/2026)
+  const [sceltaDiAnia, setSceltaDiAnia] = useState(false)
   const [testoModificato, setTestoModificato] = useState<string | null>(null)
   const [modo, setModo] = useState<'testo' | 'immagine'>('testo')
   const [pannelloCambia, setPannelloCambia] = useState(false)
@@ -190,13 +193,14 @@ export default function PropostaPage() {
     : condizioneTipo === 'caparra' && caparraCent > totaleCent ? 'La caparra supera il totale'
     : condizioneTipo === 'personalizzata' && condizioneTesto.trim() === '' ? 'Scrivi le condizioni di pagamento'
     : null
-  // Caso A con più camere libere (pezzo 9): il messaggio le elenca tutte;
-  // già inviata: quelle archiviate in proposta_alternative
+  // Caso A con più camere libere (pezzo 9): il messaggio le elenca tutte SOLO
+  // se nessuno ha scelto (né Ania in «Cambia» o «Scelgo io», né il cliente con
+  // una camera libera: lib/richiesteScelta); già inviata: quelle archiviate
   const alternative = useMemo(() => {
     if (!soluzione || soluzione.caso !== 'completa' || soluzione.manuale) return null
     if (inviata) return richiesta?.proposta_alternative ?? null
-    return camereDelCasoA(soluzione, soluzioni.filter(s => s.caso === 'completa'))
-  }, [soluzione, soluzioni, inviata, richiesta])
+    return alternativeDaElencare(soluzione, soluzioni, { cameraRichiesta: richiesta?.camera_id ?? null, sceltaDiAnia })
+  }, [soluzione, soluzioni, inviata, richiesta, sceltaDiAnia])
   const bozzaGenerata = richiesta && soluzione
     ? generaProposta({ richiesta, soluzione, condizione: problemaCondizione ? null : condizione, amelia: ameliaAttiva ? amelia : null, alternative })
     : ''
@@ -268,7 +272,7 @@ export default function PropostaPage() {
   function scegli(i: number) {
     conConferma(() => {
       // Nuova soluzione → si ricomincia dalle condizioni: mai una scelta trascinata da un'altra soluzione
-      setIndice(i); setTestoModificato(null); setPannelloCambia(false); setManuale(false); setPrezzoEditor(null)
+      setIndice(i); setSceltaDiAnia(true); setTestoModificato(null); setPannelloCambia(false); setManuale(false); setPrezzoEditor(null)
       setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false)
     })
   }
