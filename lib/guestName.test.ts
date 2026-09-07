@@ -14,6 +14,15 @@ test('nomeCompleto: solo nome, solo cognome, niente', () => {
   assert.equal(nomeCompleto({ nome: '', cognome: 'Rossi' }), 'Rossi')
   assert.equal(nomeCompleto({ nome: ' ', cognome: null }), '')
   assert.equal(nomeCompleto({}), '')
+  assert.equal(nomeCompleto({ nome: null, cognome: undefined }), '')
+})
+
+test('nomeCompleto: scheda cliente col campo unico full_name (già «Nome Cognome»), ripulito', () => {
+  assert.equal(nomeCompleto({ full_name: '  Mario   Rossi ' }), 'Mario Rossi')
+  assert.equal(nomeCompleto({ full_name: null }), '')
+  // nome e cognome separati vincono sul campo unico
+  assert.equal(nomeCompleto({ nome: 'Anna', cognome: 'Rossi', full_name: 'Rossi Anna' }), 'Anna Rossi')
+  assert.equal(nomeCompleto({ nome: '', cognome: '', full_name: 'Luca Bianchi' }), 'Luca Bianchi')
 })
 
 test('nomeBreve: «Nome C.» per le barre strette', () => {

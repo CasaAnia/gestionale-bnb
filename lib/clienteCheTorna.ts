@@ -7,6 +7,7 @@
 // maiuscole, accenti e ordine delle parole («Rossi Anna» = «Anna Rossi»).
 // ============================================================================
 import { normalizzaTelefono } from './whatsapp.ts'
+import { nomeCompleto } from './guestName.ts'
 
 export type PersonaRicerca = { telefono?: string | null; nome?: string | null; cognome?: string | null; full_name?: string | null; guest_id?: string | null }
 export type SoggiornoStorico = {
@@ -24,7 +25,7 @@ const piano = (s: string | null | undefined) => (s ?? '').toLowerCase().normaliz
 const cifre = (t: string | null | undefined) => normalizzaTelefono(t).numero
 
 export function chiaveNome(p: PersonaRicerca): string {
-  return piano(p.full_name || `${p.nome ?? ''} ${p.cognome ?? ''}`)
+  return piano(nomeCompleto(p))
 }
 
 // Stessa persona? telefono uguale (cifre), oppure nome e cognome uguali

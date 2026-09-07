@@ -16,6 +16,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
+import { nomeCompleto } from '../../lib/guestName.ts'
 
 // Endpoint POST /api/richieste/web provabile in locale (pezzo 7, verifica 5B):
 // segreto LOCALE «prova-locale» (mai quello vero), service key finta (il finto
@@ -240,12 +241,12 @@ const finto = createServer(async (req, res) => {
     }
     const tel = (r.telefono || '').replace(/\D/g, '')
     let guest = guests.find(g => (g.phone || '').replace(/\D/g, '') === tel && tel)
-    if (!guest) { guest = { id: randomUUID(), phone: tel, full_name: `${r.nome} ${r.cognome}`.trim(), email: null, rating: 'normale', notes: null, created_at: ora, updated_at: ora }; guests.push(guest) }
+    if (!guest) { guest = { id: randomUUID(), phone: tel, full_name: nomeCompleto(r), email: null, rating: 'normale', notes: null, created_at: ora, updated_at: ora }; guests.push(guest) }
     const group_id = randomUUID()
     let primo = null
     for (const s of [...seg].sort((a, b) => a.arrivo.localeCompare(b.arrivo))) {
       const id = randomUUID()
-      bookings.push({ id, room_id: s.camera.id, guest_id: guest.id, check_in: s.arrivo, check_out: s.partenza, num_guests: r.persone, extra_bed: s.lettoTotale > 0, extra_bed_dates: [], price_per_night: s.prezzoNotte, extra_bed_total: s.lettoTotale, total_amount: s.totale, status: 'confermata', source: r.canale === 'web' ? 'sito_web' : r.canale === 'whatsapp' ? 'whatsapp' : 'diretta', guest_name: `${r.nome} ${r.cognome}`.trim(), notes: r.note, cancelled_at: null, cancelled_reason: null, group_id, pagato: false, bonifico: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      bookings.push({ id, room_id: s.camera.id, guest_id: guest.id, check_in: s.arrivo, check_out: s.partenza, num_guests: r.persone, extra_bed: s.lettoTotale > 0, extra_bed_dates: [], price_per_night: s.prezzoNotte, extra_bed_total: s.lettoTotale, total_amount: s.totale, status: 'confermata', source: r.canale === 'web' ? 'sito_web' : r.canale === 'whatsapp' ? 'whatsapp' : 'diretta', guest_name: nomeCompleto(r), notes: r.note, cancelled_at: null, cancelled_reason: null, group_id, pagato: false, bonifico: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       if (!primo) primo = id
     }
     Object.assign(r, { stato: 'confermata', chiusa_at: new Date().toISOString(), prenotazione_id: primo })

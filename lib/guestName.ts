@@ -53,14 +53,20 @@ export function nomiPrecedenti(b: any, altrePrenotazioni: any[] = []): string[] 
   return nomi
 }
 
-// ── Nome e cognome separati (tabella richieste) ────────────────────────────
+// ── Nome e cognome: UNICA funzione che li mette insieme ─────────────────────
 // Ovunque il gestionale mostra un cliente lo scrive «Nome Cognome», mai
 // «Cognome Nome»: lista e calendario delle Richieste, dettaglio, proposta,
-// pannello, tooltip, push e Pushover. Nome o cognome vuoti non lasciano spazi
-// doppi. I dati salvati non cambiano: cambia solo l'ordine con cui entrano
-// nei testi. (Le prenotazioni hanno già un campo unico, guests.full_name.)
-export function nomeCompleto(c: { nome?: string | null; cognome?: string | null }): string {
-  return [c.nome, c.cognome].map(x => (x || '').trim()).filter(Boolean).join(' ').replace(/\s+/g, ' ')
+// pannello, tooltip, push e Pushover, cambio cliente, confronto «già stato».
+// Nome o cognome vuoti non lasciano spazi doppi. I dati salvati non cambiano:
+// cambia solo l'ordine con cui entrano nei testi. La scheda cliente (guests)
+// ha un campo unico, full_name, già scritto «Nome Cognome»: se non ci sono
+// nome e cognome separati vale quello, ripulito dagli spazi.
+// Regola fissa (Ania, 04 e 07/09/2026): nessun altro punto del codice deve
+// concatenare nome e cognome da sé — lo controlla lib/ordineNomi.test.ts.
+export function nomeCompleto(c: { nome?: string | null; cognome?: string | null; full_name?: string | null }): string {
+  const pezzi = [c.nome, c.cognome].map(x => (x || '').trim()).filter(Boolean)
+  const testo = pezzi.length ? pezzi.join(' ') : (c.full_name || '')
+  return testo.replace(/\s+/g, ' ').trim()
 }
 
 // Versione corta per gli spazi stretti (barre del calendario): «Anna R.»,

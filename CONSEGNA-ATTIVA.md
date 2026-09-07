@@ -61,6 +61,40 @@ Supabase diversi).
   campo con cursore fermo dopo una correzione in mezzo, salvata e mostrata
   in lista «Maria Rosa D'Angelo Rossi-Bianchi». Nessuna migrazione.
 
+
+# «Nome Cognome» ovunque, funzione unica e test sui sorgenti (07/09/2026, sera, main)
+
+Ania: «in diversi punti compare ancora cognome e poi nome». Ricerca completa
+su app, components, lib, supabase, scripts (concatenazioni, template, [a, b],
+select/order, SQL con ||, ordinamenti): il codice componeva già «Nome
+Cognome» quasi ovunque (lib/guestName.nomeCompleto dal 04/09, riesportata da
+lib/richieste; RPC 0027/0031 «nome || ' ' || cognome»). Le schede cliente
+(guests) hanno un campo unico full_name: se una scheda mostra «Cognome Nome»
+è il testo salvato in quella scheda (da correggere lì), non un difetto di
+composizione. Corretti i punti rimasti fuori dalla funzione unica:
+
+- lib/guestName.nomeCompleto accetta anche { full_name } (scheda cliente):
+  nome/cognome vincono, altrimenti full_name ripulito; mai spazi doppi.
+- lib/clienteCheTorna.chiaveNome: concatenazione a mano → nomeCompleto.
+- scripts/revisioni/anteprima-richieste-finta.mjs: due `${nome} ${cognome}`
+  (full_name e guest_name della prenotazione finta) → nomeCompleto.
+- Già giusti (verificati): calendario Richieste (nomeBreve «Anna R.» e
+  tooltip), lista/chiuse/pannello/proposta/rifiuto/conferma delle Richieste,
+  Home «Da controllare» (lib/daControllare), opzioni (lib/opzioni), push e
+  Pushover dal sito (route web) e scadenze (lib/richiesteScadenze), cambio
+  cliente (lib/cambiaCliente), RPC conferma_richiesta; Calendario, Home,
+  Arrivi, Partenze, Pulizie, scheda prenotazione, lista/scheda clienti,
+  Statistiche, WhatsApp/immagine, push orario/ringraziamento, causale e
+  ricerca usano il campo unico (nomeOspite / full_name) senza ricomporlo.
+  Ordinamenti: nessuna lista di clienti in ordine alfabetico (clienti per
+  data di creazione, cambio cliente per full_name); moduli con Nome prima di
+  Cognome (Richieste, Cambia cliente), campi unici «Nome e cognome».
+- Test: lib/guestName (+ full_name) e NUOVO lib/ordineNomi.test.ts che legge
+  i sorgenti e fallisce se torna «cognome + nome» (TS, script, SQL) o una
+  concatenazione nome+cognome fuori da lib/guestName, o un modulo con
+  Cognome prima di Nome (ha scovato subito la seconda riga del finto).
+  Suite 807 verde, tsc ok, lint senza differenze. Nessuna migrazione.
+
 ---
 
 # Backup reale e ripristino provato (07/09/2026, sera) — piano Free verificato, PUBBLICATO (1032674)
