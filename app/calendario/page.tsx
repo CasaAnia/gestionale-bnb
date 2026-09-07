@@ -696,7 +696,7 @@ export default function Calendario() {
               className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
               <ChevronLeft size={20} strokeWidth={2} aria-hidden />
             </button>
-            <span className={`cifre-allineate text-green-dark whitespace-nowrap ${isDesktop ? 'text-[17px]' : 'text-[14px]'}`}>{etichettaVista}</span>
+            <span className={`font-serif text-green-dark whitespace-nowrap ${isDesktop ? 'text-[17px]' : 'text-[14px]'}`}>{etichettaVista}</span>
             <div className="flex items-center gap-1">
               <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
                 {([['mese', 'Mese'], ['quindici', '2 settimane']] as const).map(([v, label]) => (
