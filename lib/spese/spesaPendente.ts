@@ -25,6 +25,7 @@ export const MESSAGGIO_INCERTO = 'Non so se la spesa è stata salvata (risposta 
 export const MESSAGGIO_NON_SALVATA = 'Non salvato, riprova'
 export const MESSAGGIO_RILETTURA = 'Non riesco a controllare se la spesa era già salvata: riprova'
 export const MESSAGGIO_CUSTODIA = 'Non riesco a custodire il tentativo nel browser: spesa non inviata'
+export const MESSAGGIO_PENDENTE = 'Prima di salvare una spesa diversa, usa «Riprova» per controllare quella precedente: il suo salvataggio è ancora da verificare'
 
 export function leggiPendente(testo: string | null, ambito: string): SpesaPendente | null {
   if (!testo) return null
@@ -70,13 +71,17 @@ export const _azzeraInCorso = () => { inCorso = new Set() }
 
 // `payload` nuovo (dal modulo) oppure null = riprendi il pendente custodito
 export async function eseguiInserimentoSpesa(ambito: string, payload: Record<string, unknown> | null, deps: DepsInserimento): Promise<EsitoInserimento> {
+  if (inCorso.has(ambito)) return { esito: 'in_corso' }
   const precedente = deps.leggiPendente()
+  // Un solo posto in memoria: non sostituire MAI un tentativo ancora incerto.
+  if (precedente && payload && JSON.stringify(precedente.payload) !== JSON.stringify(payload)) {
+    return { esito: 'incerto', id: precedente.id, messaggio: MESSAGGIO_PENDENTE }
+  }
   const pendente: SpesaPendente | null = payload
     ? (precedente && JSON.stringify(precedente.payload) === JSON.stringify(payload) ? precedente : { id: deps.nuovoId(), payload, creato: deps.adesso(), ambito })
     : precedente
   if (!pendente) return { esito: 'non_salvata', id: '', messaggio: MESSAGGIO_NON_SALVATA }
-  if (inCorso.has(pendente.id)) return { esito: 'in_corso' }
-  inCorso.add(pendente.id)
+  inCorso.add(ambito)
   try {
     // custodia PRIMA dell'invio
     if (!deps.custodisci(pendente)) return { esito: 'non_salvata', id: pendente.id, messaggio: MESSAGGIO_CUSTODIA }
@@ -89,12 +94,22 @@ export async function eseguiInserimentoSpesa(ambito: string, payload: Record<str
     let r: { error: unknown }
     try { r = await deps.inserisci(pendente.id, pendente.payload) } catch (e) { r = { error: e ?? new Error('errore sconosciuto') } }
     if (!r.error) { deps.dimentica(); return { esito: 'salvata', id: pendente.id, giaPresente: false } }
-    if (eChiaveDuplicata(r.error)) { deps.dimentica(); return { esito: 'salvata', id: pendente.id, giaPresente: true } }
+    if (eChiaveDuplicata(r.error)) {
+      // 23505 può riguardare un altro vincolo: serve ritrovare proprio questo ID.
+      try {
+        const verifica = await deps.esiste(pendente.id)
+        if (!verifica.error && verifica.data && verifica.data.length > 0) {
+          deps.dimentica()
+          return { esito: 'salvata', id: pendente.id, giaPresente: true }
+        }
+      } catch { /* esito ancora da verificare: la custodia resta */ }
+      return { esito: 'incerto', id: pendente.id, messaggio: MESSAGGIO_RILETTURA }
+    }
     if (isErroreDiRete(r.error) || !eRifiutoCerto(r.error)) return { esito: 'incerto', id: pendente.id, messaggio: MESSAGGIO_INCERTO }
     // rifiuto certo (permessi, vincolo): la custodia si toglie, si può correggere e rimandare
     deps.dimentica()
     return { esito: 'non_salvata', id: pendente.id, messaggio: MESSAGGIO_NON_SALVATA }
   } finally {
-    inCorso.delete(pendente.id)
+    inCorso.delete(ambito)
   }
 }

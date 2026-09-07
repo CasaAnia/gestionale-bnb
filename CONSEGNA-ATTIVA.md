@@ -29,7 +29,76 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`, `ca_calendario_posizione` (sessionStorage, 07/09/2026: giorno da cui ripartire tornando dalla scheda).
-10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase da confermare (NON verificato: vedi docs/backup.md §1). CALENDARIO TELEFONO (pezzo 4): legenda dal «?», tocco 44 px sulle barre, ritorno alla stessa posizione dalla scheda. DRIFT (pezzo 5): proposta 0043 con le 10 colonne di bookings già in produzione, usata dal collaudo locale. lib/spese (pezzo 6): le 7 scritture void e la lettura a null del tracker vecchio hanno l'esito visibile (scritturaSicura + AvvisoAzione). INCARICO DEL 07/09/2026 COMPLETO: 6 pezzi + parti 2 e 3, tutti su main. REVISIONE del 07/09 (Codex, sei rilievi R1–R6): corretti in locale (scheda in cima), 775 test, VERIFICATO IN LOCALE, push NON fatto (passaggio autorizzato da Ania).
+10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase da confermare (NON verificato: vedi docs/backup.md §1). CALENDARIO TELEFONO (pezzo 4): legenda dal «?», tocco 44 px sulle barre, ritorno alla stessa posizione dalla scheda. DRIFT (pezzo 5): proposta 0043 con le 10 colonne di bookings già in produzione, usata dal collaudo locale. lib/spese (pezzo 6): le 7 scritture void e la lettura a null del tracker vecchio hanno l'esito visibile (scritturaSicura + AvvisoAzione). INCARICO DEL 07/09/2026 COMPLETO: 6 pezzi + parti 2 e 3, tutti su main. REVISIONE del 07/09 (Codex, sei rilievi R1–R6): corretti in 1b87fc4 e finiti in produzione col push di 5386800 (non era il passaggio autorizzato: vedi PROGETTO.md, si toglie con `git revert 1b87fc4`). INTEGRAZIONE CODEX (07/09/2026, sera, scheda in cima): patch R1/R6 su sei file (pendente mai sovrascritto, 23505 valido solo con rilettura dell'ID, modulo e Chiudi bloccati finché non si riconcilia, comandi backup in zsh), riverificata su 5386800 (790 test, verifica-consegna OK), COMMIT LOCALE, push da autorizzare (verifica locale e pubblicazione tenute distinte).
+
+---
+
+# Integrazione Codex — recupero spese e comandi backup (07/09/2026)
+
+Base iniziale `00dba9b`; integrazione su `1b87fc4`, dopo avere verificato che
+le modifiche concorrenti non toccavano i cinque file della patch. Su richiesta
+dell’utente («aiutalo a lavorare più che puoi, cambia metodo») Codex ha preparato
+e provato le correzioni in una copia isolata, poi le ha riportate qui con accesso
+ai file autorizzato. Nessun commit, push, deploy o intervento su Supabase.
+
+- R1: un payload diverso NON sostituisce più la spesa ancora incerta nella
+  singola chiave di memoria. Guardia per ambito anche se cambia l’importo
+  durante una risposta tardiva. Modulo e Chiudi disabilitati fino alla
+  riconciliazione; Riprova disponibile. Un 23505 vale come successo soltanto
+  se la rilettura ritrova proprio l’ID della spesa.
+- Il vecchio test accettava due righe perché presumeva che il pendente
+  precedente restasse «custodito a parte»: veniva invece sovrascritto.
+  L’attesa è stata corretta per rispettare R1. Aggiunte due regressioni:
+  vincolo duplicato senza riga e importo diverso durante risposta tardiva.
+- R6: comandi zsh provati con valore finto; URL presente; unset della chiave
+  DOPO il confronto dei contenuti. Nessuna chiave reale usata.
+- Sulla copia iniziale: 27 test mirati (compresi i 4 del server PostgREST),
+  altri test della suite eseguiti senza server: 773/773. Totale suite 777
+  (773 + 4). TypeScript OK, lint senza nuovi rilievi (4 avvisi nel tracker,
+  2 avvisi img già presenti in ScontriniBlock).
+- UI vera, solo dati sintetici: 390 px, 12 € con risposta 503 e campi/Chiudi
+  bloccati; riapertura riconciliata, seconda riapertura pulita. 1280 px,
+  seconda spesa 13 €, totale 25 € e 2 righe. Famiglia a 390 px: 7 €, una riga.
+- Integrazione su `1b87fc4` + modifiche locali: `verifica-consegna.mjs
+  --base 1b87fc4` OK per suite applicazione, regressioni revisioni, strumenti
+  locali, TypeScript e lint dei file modificati. Build OK sulla copia con
+  gli stessi sorgenti e sole variabili sintetiche; `git diff --check` OK.
+  Le prove non sono attribuibili al solo commit `1b87fc4`. Dopo i controlli
+  è stata completata soltanto questa scheda, senza ritoccare il codice.
+- Durante la consegna è arrivato `5386800` (Richieste), già su origin/main:
+  modifica tre file estranei alla patch Codex. I cinque file della patch
+  restano identici a quelli collaudati. I controlli sopra non attestano le
+  nuove modifiche alle Richieste; nessun commit o push eseguito da Codex.
+- Il ripristino su PostgreSQL 16 resta una prova riferita dall’autore:
+  non ripetuta da Codex perché il server locale era spento e la sandbox
+  impedisce l’avvio di un nuovo cluster (memoria condivisa). Percorso
+  PostgREST verificato con server sintetico; Supabase reale non verificato.
+  Restano primo backup reale con confronto contenuti e lettura del piano.
+
+File Codex: lib/spese/spesaPendente.ts e test, components/SpeseTracker.tsx,
+components/spese/ScontriniBlock.tsx, docs/backup.md, questa scheda.
+
+## Integrazione riletta e riverificata (07/09/2026, sera, Claude)
+
+- Diff dei sei file riletto: nessun conflitto con 5386800 (tre file estranei);
+  la patch è rimasta com'era, nessun ritocco al codice. Logica confermata:
+  `inCorso` per ambito; un payload diverso col pendente ancora custodito
+  torna «incerto» con MESSAGGIO_PENDENTE (Riprova riconcilia il precedente);
+  23505 → «salvata» solo se `esiste(id)` ritrova la riga, altrimenti «incerto»
+  con la custodia che resta; nel tracker `spesaIncerta` blocca «Aggiungi»/
+  «Chiudi» e il modulo (fieldset disabled) finché un tentativo non torna
+  salvato o rifiutato; la riconciliazione alla riapertura passa dallo stesso
+  `inviaSpesa(null)`. `read -rs 'VAR?prompt'` è la forma giusta in zsh
+  (in zsh `read -p` legge dal coprocesso, non dalla tastiera).
+- Prove ripetute sull'albero VERO (5386800 + patch), non sulla copia:
+  `node --test lib/spese/spesaPendente.test.ts` 9/9;
+  `node scripts/verifica-consegna.mjs --base 5386800` OK (suite applicazione,
+  regressioni, strumenti locali, TypeScript, lint dei file modificati);
+  `npm test` 790/790; `git diff --check` OK.
+- NON ripetute (nessuna modifica dopo le prove di Codex): UI a 390/1280,
+  build, ripristino PostgreSQL. Restano come documentate sopra.
+- Stato: COMMIT LOCALE su main, NON spinto. Pubblicazione = passaggio a parte
+  da autorizzare (dopo il push involontario di 1b87fc4 con 5386800).
 
 ---
 

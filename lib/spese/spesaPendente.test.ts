@@ -124,14 +124,45 @@ test('rilettura che non riesce = incerto (mai «Non salvato»); rifiuto certo de
   assert.equal(b.memoria.size, 1)
 })
 
-test('payload diverso dal pendente custodito = tentativo nuovo con ID nuovo (il vecchio incerto resta da riconciliare a parte)', async () => {
+// L'attesa precedente accettava due righe, ma l'unica chiave localStorage
+// veniva sovrascritta: il vecchio incerto NON restava custodito a parte.
+test('una modifica non sovrascrive il pendente: prima si riconcilia la spesa precedente', async () => {
   const srv = servizio(); const b = browser(); const deps = b.deps('azienda', srv)
   srv.perdi(true)
   await eseguiInserimentoSpesa('azienda', SPESA, deps)
   srv.perdi(false)
   const r = await eseguiInserimentoSpesa('azienda', { ...SPESA, amount: 30 }, deps)
-  assert.deepEqual(r, { esito: 'salvata', id: 'id-2', giaPresente: false })
+  assert.equal(r.esito, 'incerto')
+  assert.equal(deps.leggiPendente()?.id, 'id-1')
+  assert.equal(deps.leggiPendente()?.payload.amount, 12)
+  assert.equal(srv.righe.size, 1)
+  assert.equal((await eseguiInserimentoSpesa('azienda', null, deps)).esito, 'salvata')
+  assert.equal(b.memoria.size, 0)
+  // Una nuova spesa è possibile dopo aver risolto il primo tentativo.
+  assert.equal((await eseguiInserimentoSpesa('azienda', { ...SPESA, amount: 30 }, deps)).esito, 'salvata')
   assert.equal(srv.righe.size, 2)
+})
+
+test('un vincolo duplicato senza la riga richiesta non è prova di salvataggio', async () => {
+  const srv = servizio(); const b = browser(); const deps = b.deps('azienda', srv)
+  const r = await eseguiInserimentoSpesa('azienda', SPESA, {
+    ...deps, inserisci: async () => ({ error: { code: '23505', message: 'another unique constraint' } }),
+  })
+  assert.equal(r.esito, 'incerto')
+  assert.equal(srv.righe.size, 0)
+  assert.equal(deps.leggiPendente()?.id, 'id-1')
+})
+
+test('un secondo importo mentre la risposta è in volo non avvia un altro tentativo', async () => {
+  const srv = servizio(); const b = browser(); const deps = b.deps('azienda', srv)
+  const blocco = srv.ritarda()
+  const primo = eseguiInserimentoSpesa('azienda', SPESA, deps)
+  await new Promise(r => setTimeout(r, 10))
+  assert.equal((await eseguiInserimentoSpesa('azienda', { ...SPESA, amount: 30 }, deps)).esito, 'in_corso')
+  assert.equal(deps.leggiPendente()?.id, 'id-1')
+  srv.sblocca(); await blocco; await primo
+  assert.equal(srv.righe.size, 1)
+  assert.equal(b.memoria.size, 0)
 })
 
 test('leggiPendente: testo rotto, ambito diverso o campi mancanti → null', () => {

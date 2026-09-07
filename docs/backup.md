@@ -102,14 +102,21 @@ export SUPABASE_URL="https://tnsaaoxlcldeltowhvwv.supabase.co"
 
 # 2) chiave service_role SENZA lasciarla nei file né nella cronologia:
 #    read -s la legge dalla tastiera senza mostrarla e senza registrarla
-read -s -p "Incolla la chiave service_role: " SUPABASE_SERVICE_ROLE_KEY; echo; export SUPABASE_SERVICE_ROLE_KEY
+read -rs 'SUPABASE_SERVICE_ROLE_KEY?Incolla la chiave service_role: ' && export SUPABASE_SERVICE_ROLE_KEY
 
 # 3) esportazione
 node scripts/backup-locale.mjs
 
-# 4) alla fine, via la chiave dalla sessione
+# 4) verifica subito il file appena creato, con le stesse variabili
+node scripts/backup-verifica.mjs backup/NOME-DEL-FILE.json --confronta contenuti
+
+# 5) solo DOPO la verifica, via la chiave dalla sessione
 unset SUPABASE_SERVICE_ROLE_KEY
 ```
+
+I comandi sono per **zsh**, il terminale del Mac: sostituire `NOME-DEL-FILE.json`
+con il nome stampato dall'esportazione. La sintassi `read -s -p` è di Bash
+e in zsh non legge la chiave. Se la lettura viene annullata, fermarsi.
 
 La chiave si copia da Supabase → Settings → API → `service_role`. Con
 `read -s` non compare sullo schermo, non finisce nella cronologia di zsh e

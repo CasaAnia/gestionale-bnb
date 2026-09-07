@@ -85,6 +85,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   const [form, setForm] = useState(blankForm())
   const [autoGroup, setAutoGroup] = useState<string | null>(null) // regola prodotto scattata
   const [saving, setSaving] = useState(false)
+  const [spesaIncerta, setSpesaIncerta] = useState(false)
 
   // Scontrini fotografati, in attesa che Claude li legga.
   const [receipts, setReceipts] = useState<Receipt[]>([])
@@ -240,6 +241,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     const esito = await eseguiInserimentoSpesa(ambito, payload, depsSpesa())
     setSaving(false)
     if (esito.esito === 'in_corso') return
+    setSpesaIncerta(esito.esito === 'incerto')
     if (esito.esito === 'salvata') {
       setAvviso(esito.giaPresente ? { testo: 'La spesa era già stata salvata: nessun doppione' } : null)
       setForm(blankForm()); setAutoGroup(null); setShowForm(false); load()
@@ -406,14 +408,18 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
         receiptNote={receiptNote} uploading={uploading} showForm={showForm}
         onStagePhotos={stagePhotos} onRemoveStaged={removeStaged} onSaveStaged={saveStaged}
         onReceiptNote={setReceiptNote}
-        onToggleForm={() => { setShowForm(!showForm); setForm(blankForm()); setAutoGroup(null) }}
+        formBloccato={saving || spesaIncerta}
+        onToggleForm={() => { if (saving || spesaIncerta) return; setShowForm(!showForm); setForm(blankForm()); setAutoGroup(null) }}
         onEditNote={editReceiptNote} onDelete={deleteReceipt} />
 
       {/* FORM */}
+      {spesaIncerta && <p className="text-sm text-stone mb-2">Prima di modificare questa spesa, usa Riprova per verificare il salvataggio.</p>}
       {showForm && (
+        <fieldset disabled={saving || spesaIncerta}>
         <FormSpesa form={form} setForm={setForm} autoGroup={autoGroup} setAutoGroup={setAutoGroup}
           groups={groups} catsForGroup={catsForGroup} subcats={subcats} stores={stores}
           saving={saving} catName={catName} applyRules={applyRules} onSave={save} />
+        </fieldset>
       )}
 
       {/* LE 4 SCHEDE + DI CHI + PERIODO */}

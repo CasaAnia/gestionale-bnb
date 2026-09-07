@@ -5,7 +5,7 @@ import type { Receipt } from '@/lib/spese/types'
 // in attesa che Claude le legga. (Estratto da SpeseTracker.tsx in Fase 1:
 // stesse classi, testi e comportamento.)
 export default function ScontriniBlock({
-  receipts, receiptUrls, staged, receiptNote, uploading, showForm,
+  receipts, receiptUrls, staged, receiptNote, uploading, showForm, formBloccato = false,
   onStagePhotos, onRemoveStaged, onSaveStaged, onReceiptNote, onToggleForm, onEditNote, onDelete,
 }: {
   receipts: Receipt[]
@@ -14,6 +14,7 @@ export default function ScontriniBlock({
   receiptNote: string
   uploading: boolean
   showForm: boolean
+  formBloccato?: boolean
   onStagePhotos: (files: FileList) => void
   onRemoveStaged: (i: number) => void
   onSaveStaged: () => void
@@ -41,7 +42,7 @@ export default function ScontriniBlock({
           </label>
           {/* Alternative usate di rado: piccole, sotto */}
           <div className="grid grid-cols-3 gap-2 mt-2">
-            <button onClick={onToggleForm}
+            <button onClick={onToggleForm} disabled={formBloccato}
               className="ed-pillola-tenue text-xs transition active:scale-[0.97]">
               {showForm ? '✕ Chiudi' : '＋ Aggiungi'}
             </button>
