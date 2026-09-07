@@ -29,7 +29,51 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`.
-10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione.
+10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase da confermare (probabile Free = nessun backup automatico).
+
+---
+
+# Consegna — Backup: verifica documentata e scripts locali (07/09/2026, main) — 🔴 piano Supabase da confermare
+
+Incarico del 07/09/2026, pezzo 3. Un commit, nessuna migrazione, niente
+eseguito sulla produzione.
+
+- docs/backup.md: cosa prevede Supabase per piano (Free: NESSUN backup
+  automatico; Pro 7 giorni; Team 14; Enterprise 30; PITR a pagamento), come
+  si chiede un ripristino (Database → Backups → Restore, progetto fermo
+  durante il ripristino, niente ripristino di una sola tabella), cosa NON è
+  coperto (file dello Storage — scontrini e documenti —, segreti su Vercel,
+  job pg_cron da ricontrollare, modifiche dopo l'ultimo backup, codice su
+  GitHub), limiti degli script.
+- LIMITE DICHIARATO: il piano di QUESTO progetto non l'ho potuto leggere
+  (il pannello Supabase vuole il login di Ania; il Chrome collegato non era
+  raggiungibile; nessun token salvato sul Mac). Il documento spiega dove
+  guardarlo in 10 secondi (Settings → Billing, o Database → Backups). Dalla
+  regola «nessun nuovo abbonamento» il progetto è quasi certamente Free →
+  il solo backup è quello locale.
+- scripts/backup-locale.mjs: esporta tutte le tabelle di public in
+  backup/gestionale-backup-AAAA-MM-GG-HHMM.json (cartella in .gitignore);
+  da Supabase con SUPABASE_SERVICE_ROLE_KEY letta SOLO dall'ambiente (mai
+  stampata né scritta; guardia che rifiuta di scrivere un file che la
+  contenga; nel file resta solo l'host), oppure --postgres con DATABASE_URL
+  (collaudo). scripts/backup-verifica.mjs: rilegge il file e controlla
+  struttura, conteggi, impronta SHA-256; --confronta ricalcola i conteggi
+  dalla sorgente. scripts/backup-comune.mjs: parte pura condivisa.
+- Prove: lib/backup.test (5 test) nella suite; collaudo REALE sul PostgreSQL
+  16 locale (porta 5433, database migrato con applica-migrazioni.mjs, una
+  prenotazione e un acconto): 30 tabelle / 217 righe esportate, verifica OK
+  con conteggi identici; importo alterato nel file → impronta diversa; riga
+  tolta → conteggio e impronta; riga aggiunta nel database → --confronta la
+  segnala; senza variabili lo script si ferma senza rete. Dettagli in
+  docs/backup.md §4.
+- Non fatto (da autorizzare): copia dei file dello Storage, esecuzione
+  automatica, script di ripristino dal JSON.
+
+🔴 AZIONE PER ANIA: aprire Supabase → Settings → Billing e dirmi il piano
+(Free o Pro): se è Free, fare il primo backup locale con
+`SUPABASE_SERVICE_ROLE_KEY='…' node scripts/backup-locale.mjs` seguito da
+`node scripts/backup-verifica.mjs <file> --confronta` (istruzioni in
+docs/backup.md §4) e ripeterlo prima di ogni migrazione.
 
 ---
 

@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Backup locali del gestionale (scripts/backup-locale.mjs): mai nel repository
+backup/
