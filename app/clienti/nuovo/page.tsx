@@ -1,5 +1,5 @@
 'use client'
-import { conInizialiONull } from '@/lib/maiuscole'
+import { conInizialiONull, maiuscoleNelCampo } from '@/lib/maiuscole'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -42,8 +42,8 @@ export default function NuovoCliente() {
       <div className="ed-riga py-4 space-y-3">
         <div>
           <p className="text-sm text-gray-500 mb-1">Nome e cognome</p>
-          <input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })}
-            placeholder="Nome e cognome" autoFocus
+          <input value={form.full_name} onChange={e => setForm({ ...form, full_name: maiuscoleNelCampo(e.target) })}
+            placeholder="Nome e cognome" autoFocus autoCapitalize="words" autoComplete="off"
             className="w-full ed-campo p-3 text-sm focus:outline-none focus:border-green-mid" />
         </div>
         <div>

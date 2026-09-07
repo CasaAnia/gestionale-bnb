@@ -1,5 +1,5 @@
 'use client'
-import { conInizialiONull } from '@/lib/maiuscole'
+import { conInizialiONull, maiuscoleNelCampo } from '@/lib/maiuscole'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -1296,8 +1296,8 @@ export default function BookingDetail() {
           <p className="font-semibold mb-3 text-green-mid">✏️ Modifica prenotazione</p>
 
           <p className="text-xs text-gray-500 mb-1">Nome cliente</p>
-          <input value={editForm.guest_name} onChange={e => setEditForm({ ...editForm, guest_name: e.target.value })}
-            placeholder="Nome e cognome" className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" />
+          <input value={editForm.guest_name} onChange={e => setEditForm({ ...editForm, guest_name: maiuscoleNelCampo(e.target) })}
+            placeholder="Nome e cognome" autoCapitalize="words" autoComplete="off" className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" />
 
           <div className="grid grid-cols-2 gap-2 mb-3">
             <div>

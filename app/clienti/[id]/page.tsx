@@ -1,5 +1,5 @@
 'use client'
-import { conInizialiONull } from '@/lib/maiuscole'
+import { conInizialiONull, maiuscoleNelCampo } from '@/lib/maiuscole'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -143,8 +143,8 @@ export default function ClienteDetail() {
       <div className="ed-riga py-4 mb-4">
         {editing ? (
           <>
-            <input value={form.full_name || ''} onChange={e => setForm({...form, full_name: e.target.value})}
-              placeholder="Nome e cognome" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" />
+            <input value={form.full_name || ''} onChange={e => setForm({...form, full_name: maiuscoleNelCampo(e.target)})}
+              placeholder="Nome e cognome" autoCapitalize="words" autoComplete="off" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" />
             <input value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})}
               placeholder="Telefono" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" type="tel" />
             <input value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})}

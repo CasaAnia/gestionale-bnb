@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import CampoProvenienza from '@/components/CampoProvenienza'
 import { nomeOspite } from '@/lib/guestName'
+import { maiuscoleNelCampo } from '@/lib/maiuscole'
 import { normalizzaTelefono, telefonoLeggibile } from '@/lib/whatsapp'
 import { type StrutturaNota } from '@/lib/provenienza'
 import {
@@ -170,11 +171,11 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <p className="text-sm text-gray-500 mb-1">Nome</p>
-                <input value={modulo.nome} onChange={e => setModulo({ ...modulo, nome: e.target.value })} autoCapitalize="words" autoComplete="off" placeholder="Nome" aria-label="Nome" className={campo} />
+                <input value={modulo.nome} onChange={e => setModulo({ ...modulo, nome: maiuscoleNelCampo(e.target) })} autoCapitalize="words" autoComplete="off" placeholder="Nome" aria-label="Nome" className={campo} />
               </div>
               <div>
                 <p className="text-sm text-gray-500 mb-1">Cognome</p>
-                <input value={modulo.cognome} onChange={e => setModulo({ ...modulo, cognome: e.target.value })} autoCapitalize="words" autoComplete="off" placeholder="Cognome" aria-label="Cognome" className={campo} />
+                <input value={modulo.cognome} onChange={e => setModulo({ ...modulo, cognome: maiuscoleNelCampo(e.target) })} autoCapitalize="words" autoComplete="off" placeholder="Cognome" aria-label="Cognome" className={campo} />
               </div>
             </div>
             <div>

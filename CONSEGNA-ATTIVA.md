@@ -1,4 +1,4 @@
-# STATO IN 10 RIGHE (aggiornato il 07/09/2026, sera) — da incollare a un altro assistente
+# STATO IN 10 RIGHE (aggiornato il 07/09/2026, notte) — da incollare a un altro assistente
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania; dal 06/09/2026 STILE EDITORIALE «B» scelto da Ania — classi ed-* in globals.css, Georgia per titoli/numeri/nomi, niente riquadri bianchi salvo griglie e finestre, Spese comprese dalla sera): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
@@ -30,6 +30,36 @@
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`, `ca_calendario_posizione` (sessionStorage, 07/09/2026: giorno da cui ripartire tornando dalla scheda).
 10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase VERIFICATO il 07/09/2026 sera dal pannello = Free, nessun backup né PITR dal pannello; PRIMO BACKUP REALE fatto (backup/gestionale-backup-2026-09-07-1954.json, 34 tabelle, 3.137 righe, verifica contenuti OK) e RIPRISTINO PROVATO in un PostgreSQL 16 isolato con lo stesso file (identico; scheda «Backup reale» in cima; difetto del confronto fra sorgenti corretto in backup-lettura con test); ESCLUSI i file dello Storage (8 documenti + 83 scontrini) e 5 oggetti di produzione senza migrazione (push_subscriptions, site_events, bookings.pushover_notified_at, rooms.double_price/matrimoniale_price). CALENDARIO TELEFONO (pezzo 4): legenda dal «?», tocco 44 px sulle barre, ritorno alla stessa posizione dalla scheda. DRIFT (pezzo 5): proposta 0043 con le 10 colonne di bookings già in produzione, usata dal collaudo locale. lib/spese (pezzo 6): le 7 scritture void e la lettura a null del tracker vecchio hanno l'esito visibile (scritturaSicura + AvvisoAzione). INCARICO DEL 07/09/2026 COMPLETO: 6 pezzi + parti 2 e 3, tutti su main. REVISIONE del 07/09 (Codex, sei rilievi R1–R6): corretti in 1b87fc4 e finiti in produzione col push di 5386800 (non era il passaggio autorizzato: vedi PROGETTO.md, si toglie con `git revert 1b87fc4`). INTEGRAZIONE CODEX (07/09/2026, sera, scheda in cima): patch R1/R6 su sei file (pendente mai sovrascritto, 23505 valido solo con rilettura dell'ID, modulo e Chiudi bloccati finché non si riconcilia, comandi backup in zsh), riverificata su 5386800 (790 test, verifica-consegna OK), poi PUBBLICATA col via libera di Ania: commit 154fbce, deploy Vercel Production riuscito (17:33 UTC).
+
+
+# Iniziali maiuscole ANCHE NEL CAMPO mentre si scrive (07/09/2026, sera, main)
+
+Segnalazione di Ania: «stamattina funzionava, adesso scrivo il nome in
+minuscolo e resta in minuscolo». Causa trovata: nessun commit di oggi ha
+tolto la funzione (tutte le chiamate a conIniziali di f9dbe73 sono intatte,
+verificato con git diff f9dbe73..HEAD); la maiuscola scattava SOLO al
+salvataggio, e nel campo dipendeva dalla tastiera dell'iPhone
+(autocapitalize="words"), presente in Nuova/Modifica richiesta e Cambia
+cliente ma NON nei campi unici «Nome e cognome» di Nuovo cliente, Nuova
+prenotazione, scheda cliente e scheda prenotazione: lì il campo restava in
+minuscolo finché non si salvava (e il salvato era maiuscolo → campo e
+Supabase diversi).
+
+- lib/maiuscole: conInizialiDigitando (stessa regola, senza togliere spazi) e
+  maiuscoleNelCampo(input) da usare nell'onChange: corregge il valore nel
+  campo tenendo il cursore dov'era e torna il valore per lo stato; così campo
+  e valore salvato coincidono (conIniziali resta al salvataggio).
+- Applicata in: Nuovo cliente, scheda cliente (Modifica), Nuova prenotazione
+  (Dati cliente / Aggiorna dati), scheda prenotazione (Modifica → Nome
+  cliente), Cambia cliente (Nome, Cognome), Nuova/Modifica richiesta (Nome,
+  Cognome); autocapitalize="words" + autocomplete="off" anche sui campi unici.
+- Regola: prima lettera di ogni parola maiuscola, il resto invariato;
+  «D'Angelo» e «Rossi-Bianchi» restano così, «d'angelo» → «D'Angelo».
+- Test: lib/maiuscole (7, con cursore e coincidenza campo/salvato); suite
+  807 verde, tsc ok, lint senza differenze; provato sull'anteprima finta
+  delle Richieste (3214): «maria rosa d'angelo» → «Maria Rosa D'Angelo» nel
+  campo con cursore fermo dopo una correzione in mezzo, salvata e mostrata
+  in lista «Maria Rosa D'Angelo Rossi-Bianchi». Nessuna migrazione.
 
 ---
 

@@ -1,5 +1,5 @@
 'use client'
-import { conIniziali } from '@/lib/maiuscole'
+import { conIniziali, maiuscoleNelCampo } from '@/lib/maiuscole'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import StrisciaNotti from '@/components/StrisciaNotti'
@@ -202,11 +202,11 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
         <div className="grid grid-cols-2 gap-2">
           <div className="min-w-0">
             <p className={ETICHETTA}>Nome</p>
-            <input value={v.nome} onChange={e => set('nome', e.target.value)} autoComplete="off" autoCapitalize="words" placeholder="Anna" className={INPUT} />
+            <input value={v.nome} onChange={e => set('nome', maiuscoleNelCampo(e.target))} autoComplete="off" autoCapitalize="words" placeholder="Anna" className={INPUT} />
           </div>
           <div className="min-w-0">
             <p className={ETICHETTA}>Cognome</p>
-            <input value={v.cognome} onChange={e => set('cognome', e.target.value)} autoComplete="off" autoCapitalize="words" placeholder="Rossi" className={INPUT} />
+            <input value={v.cognome} onChange={e => set('cognome', maiuscoleNelCampo(e.target))} autoComplete="off" autoCapitalize="words" placeholder="Rossi" className={INPUT} />
           </div>
         </div>
 

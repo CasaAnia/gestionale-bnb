@@ -25,3 +25,49 @@ test('vuoto e null: stringa vuota, oppure null per le colonne facoltative', () =
   assert.equal(conInizialiONull('  '), null)
   assert.equal(conInizialiONull('mamma'), 'Mamma')
 })
+
+// ── Nel campo, mentre si scrive (07/09/2026) ────────────────────────────────
+import { conInizialiDigitando, maiuscoleNelCampo } from './maiuscole.ts'
+
+test('mentre si scrive: prima lettera di ogni parola, il resto invariato, spazi conservati', () => {
+  assert.equal(conInizialiDigitando('m'), 'M')
+  assert.equal(conInizialiDigitando('mario '), 'Mario ')          // lo spazio finale resta: si sta per scrivere il cognome
+  assert.equal(conInizialiDigitando('mario rossi'), 'Mario Rossi')
+  assert.equal(conInizialiDigitando('maria  luisa'), 'Maria  Luisa')
+  assert.equal(conInizialiDigitando('de luca'), 'De Luca')
+  assert.equal(conInizialiDigitando('McDonald'), 'McDonald')
+  assert.equal(conInizialiDigitando('LILIANA'), 'LILIANA')
+  assert.equal(conInizialiDigitando(''), '')
+})
+
+test('apostrofi e trattini: D\'Angelo e Rossi-Bianchi restano così, in minuscolo diventano così', () => {
+  assert.equal(conInizialiDigitando("D'Angelo"), "D'Angelo")
+  assert.equal(conInizialiDigitando('Rossi-Bianchi'), 'Rossi-Bianchi')
+  assert.equal(conInizialiDigitando("d'angelo"), "D'Angelo")
+  assert.equal(conInizialiDigitando('rossi-bianchi'), 'Rossi-Bianchi')
+  assert.equal(conInizialiDigitando("anna d’angelo"), "Anna D’Angelo")   // apostrofo tipografico dell'iPhone
+  assert.equal(conIniziali("d'angelo"), "D'Angelo")
+  assert.equal(conIniziali('rossi-bianchi'), 'Rossi-Bianchi')
+  assert.equal(conIniziali("D'Angelo"), "D'Angelo")
+  assert.equal(conIniziali('Rossi-Bianchi'), 'Rossi-Bianchi')
+})
+
+test('campo e valore salvato coincidono: conIniziali di ciò che si vede nel campo non cambia più nulla (a parte gli spazi)', () => {
+  for (const scritto of ['mario rossi', "arturo d'iorio", 'rosa-maria de luca', 'łukasz nowak']) {
+    const nelCampo = conInizialiDigitando(scritto)
+    assert.equal(conIniziali(nelCampo), nelCampo)
+  }
+  assert.equal(conIniziali(conInizialiDigitando('mario ')), 'Mario')
+})
+
+test('maiuscoleNelCampo: corregge il campo e tiene il cursore dov\'era', () => {
+  const chiamate: Array<[number, number]> = []
+  const campo = { value: 'mario ro', selectionStart: 3, selectionEnd: 3, setSelectionRange: (a: number, b: number) => chiamate.push([a, b]) }
+  assert.equal(maiuscoleNelCampo(campo), 'Mario Ro')
+  assert.equal(campo.value, 'Mario Ro')
+  assert.deepEqual(chiamate, [[3, 3]])
+  // già a posto: il campo non viene toccato e il cursore non viene mosso
+  const fermo = { value: 'Mario Rossi', selectionStart: 11, selectionEnd: 11, setSelectionRange: (a: number, b: number) => chiamate.push([a, b]) }
+  assert.equal(maiuscoleNelCampo(fermo), 'Mario Rossi')
+  assert.equal(chiamate.length, 1)
+})

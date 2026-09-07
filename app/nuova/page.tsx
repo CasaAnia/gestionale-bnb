@@ -1,5 +1,5 @@
 'use client'
-import { conInizialiONull } from '@/lib/maiuscole'
+import { conInizialiONull, maiuscoleNelCampo } from '@/lib/maiuscole'
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -637,8 +637,8 @@ function NuovaPrenotazione() {
 
           <div className="ed-riga py-4 mb-4">
             <p className="font-semibold mb-3">{guest ? 'Aggiorna dati' : 'Dati cliente'}</p>
-            <input value={guestForm.full_name} onChange={e => setGuestForm({...guestForm, full_name: e.target.value})}
-              placeholder="Nome e cognome" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" />
+            <input value={guestForm.full_name} onChange={e => setGuestForm({...guestForm, full_name: maiuscoleNelCampo(e.target)})}
+              placeholder="Nome e cognome" autoCapitalize="words" autoComplete="off" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" />
             <input value={guestForm.email} onChange={e => setGuestForm({...guestForm, email: e.target.value})}
               placeholder="Email (opzionale)" className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" type="email" />
             <CampoValutazione valutazione={guestForm.rating} ricevuta={guestForm.ricevuta} onChange={v => setGuestForm({ ...guestForm, rating: v.valutazione, ricevuta: v.ricevuta })} />
