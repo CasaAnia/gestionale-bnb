@@ -28,8 +28,48 @@
 6. Sito casaaniarozzano.it (repo sito-casaania): il modulo /prenota manda le richieste a POST /api/richieste/web; nessuna prenotazione nasce dal sito; ripiego Pushover.
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
-9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`.
-10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase da confermare (probabile Free = nessun backup automatico).
+9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`, `ca_calendario_posizione` (sessionStorage, 07/09/2026: giorno da cui ripartire tornando dalla scheda).
+10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase da confermare (probabile Free = nessun backup automatico). CALENDARIO TELEFONO (pezzo 4): legenda dal «?», tocco 44 px sulle barre, ritorno alla stessa posizione dalla scheda.
+
+---
+
+# Consegna — Calendario sul telefono: legenda «?», tocco 44 px, ritorno alla stessa posizione (07/09/2026, main)
+
+Incarico del 07/09/2026, pezzo 4. Un commit, nessuna migrazione.
+
+- Legenda: bottone «?» (44×44, aria-label «Legenda») in alto a destra sulla
+  riga di «← Indietro», che apre components/LegendaCalendario.PannelloLegenda
+  (velo + foglio dal basso sul telefono, scheda centrata sul Mac, Escape e
+  «Chiudi» a 44 px) con le sei voci; sul telefono la legenda in riga in fondo
+  alla pagina NON c'è più (la griglia non perde spazio), dal Mac resta com'era
+  (stesse voci da lib/calendarioMobile.VOCI_LEGENDA, unica fonte dei colori
+  blu/viola/verde usati anche dalle barre). Niente voce «Cambio camera»
+  (Ania, 04/09/2026): il pannello lo spiega in una riga.
+- Tocco: sul telefono ogni barra (alta 32 px) ha sopra un'area invisibile
+  alta 44 px (lib/calendarioMobile.areaTocco: 6 px sopra e 6 sotto), stessa
+  larghezza e stesso tocco della barra (evidenzia la catena / apre la
+  scheda); la barra non cambia aspetto. Dal Mac niente area in più.
+- Ritorno: prima di aprire una scheda prenotazione il Calendario salva in
+  sessionStorage (ca_calendario_posizione, via lib/memoriaBrowser) il primo
+  giorno in vista; al rientro (Indietro = cronologia del browser, componente
+  rimontato) la griglia riparte da quel giorno — stesso mese e stessa
+  posizione —, la memoria si consuma subito (vale una volta sola); con
+  ?giorno= dalla Home vince il parametro; memoria negata = si riparte da
+  oggi come prima.
+- lib/calendarioMobile (puro): VOCI_LEGENDA, areaTocco, codifica/indice
+  della posizione; lib/calendarioMobile.test (4 test) con le prove di layout
+  sul sorgente (bottone, legenda solo dal Mac, data-tocco, ricordaPosizione
+  prima di ogni apertura, «Chiudi» a 44 px).
+- Prove: 756 test, tsc, lint dei file toccati senza rilievi, next build ok;
+  anteprima finta 3213 con Chrome headless a 320, 390 e 1280 px: «?»
+  presente, legenda in riga assente sul telefono e presente dal Mac, 20 aree
+  di tocco alte 44 px (larghezza minima 56 px a 2 settimane), pannello con le
+  sei voci; andata e ritorno reale (scroll a 720 px → tocco su una barra →
+  scheda → history.back → scroll di nuovo a 720 px, memoria consumata).
+- Limite: l'area di tocco copre anche i 6 px di cella libera sopra e sotto
+  la barra (lì il tocco apre la prenotazione, non «nuova»); a mese sul
+  telefono le colonne sono 40 px, quindi la barra da una notte resta larga
+  40 px (l'altezza è garantita, la larghezza no).
 
 ---
 

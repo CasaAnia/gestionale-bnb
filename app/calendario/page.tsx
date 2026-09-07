@@ -11,7 +11,6 @@ import { EXTRA_BED_MAX } from '@/lib/tariffe'
 import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
 import type { Booking, Guest, Room } from '@/lib/types'
 import {
-  COLORE_LETTO_PARZIALE,
   COLORE_LETTI_ESAURITI,
   coloreLettiPerGiorno,
   statoLettiAggiuntivi,
@@ -25,6 +24,9 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA, inizioQuindicina } from '@/lib/richiesteCalendario'
 import { giornoDaParametro } from '@/lib/daControllare'
 import { vuoleRicevuta as clienteVuoleRicevuta, BADGE_RICEVUTA } from '@/lib/valutazione'
+import { VociLegenda, PannelloLegenda } from '@/components/LegendaCalendario'
+import { areaTocco, CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, COLOR_PRENOTAZIONE, COLOR_BONIFICO, COLOR_PAGATO } from '@/lib/calendarioMobile'
+import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
 
@@ -58,9 +60,7 @@ const LARGHEZZA_MIN_COLONNA = 28
 const DAYS_TOTAL = 365
 const DAYS_BEFORE = 180
 // Colori delle barre per stato di pagamento (attenuati)
-const COLOR_PRENOTAZIONE = '#7D9DB0' // blu — prenotazione normale (paga in contanti all'arrivo)
-const COLOR_BONIFICO = '#9B8EC4'     // viola — bonifico in attesa
-const COLOR_PAGATO = '#6C9A7C'       // verde — già pagato
+// Colori delle barre: blu prenotazione, viola bonifico in attesa, verde pagato — da lib/calendarioMobile (stessa fonte della legenda)
 const HEADER_BG = '#ffffff'
 
 type CalendarBooking = Omit<Booking, 'guests' | 'rooms'> & {
@@ -175,6 +175,10 @@ export default function Calendario() {
   const primoGiornoRef = useRef<number | null>(null)
   // Da controllare in Home (06/09/2026): «Apri calendario» arriva con ?giorno=AAAA-MM-GG
   const giornoUrlRef = useRef<string | null | undefined>(undefined)
+  // Telefono (07/09/2026): legenda nel pannello «?» in alto a destra; posizione
+  // da riprendere tornando dalla scheda prenotazione (sessionStorage, una volta sola)
+  const [legendaAperta, setLegendaAperta] = useState(false)
+  const posizioneRef = useRef<string | null | undefined>(undefined)
 
   useEffect(() => {
     // Telefono girato in orizzontale: griglia del Mac (compatta) a tutto schermo
@@ -281,6 +285,11 @@ export default function Calendario() {
       } else if (primoGiornoRef.current !== null) {
         scrollRef.current.scrollLeft = primoGiornoRef.current * CELL_W
         primoGiornoRef.current = null
+      } else if (posizioneSalvata() !== null) {
+        // Rientro dalla scheda prenotazione (07/09/2026): stesso giorno (e mese) di
+        // prima; la memoria si consuma alla prima lettura (una volta sola), il
+        // valore resta nel ref finché il riquadro viene misurato
+        scrollRef.current.scrollLeft = (posizioneSalvata() ?? 0) * CELL_W
       } else {
         // Stessa prima casella delle Richieste e degli Arrivi (Ania, 05/09/2026):
         // a 2 settimane 3 giorni prima di oggi, a mese il 1° del mese
@@ -422,6 +431,25 @@ export default function Calendario() {
     }
   }
 
+  // Posizione da riprendere (07/09/2026): il primo giorno in vista, salvato
+  // prima di aprire una scheda prenotazione; memoria negata = si riparte da oggi
+  function ricordaPosizione() {
+    const sl = scrollRef.current?.scrollLeft ?? 0
+    const idx = Math.min(days.length - 1, Math.max(0, Math.round(sl / CELL_W)))
+    const giorno = days[idx] ? toStr(days[idx]) : ''
+    if (codificaPosizione(giorno)) scriviMemoria(() => sessionStorage, CHIAVE_POSIZIONE, giorno)
+  }
+
+  // Indice della colonna salvata (null se niente o giorno non disegnato); la
+  // chiave si toglie subito dalla memoria, così vale solo per questo rientro
+  function posizioneSalvata(): number | null {
+    if (posizioneRef.current === undefined) {
+      posizioneRef.current = leggiMemoria(() => sessionStorage, CHIAVE_POSIZIONE)
+      try { sessionStorage.removeItem(CHIAVE_POSIZIONE) } catch { /* memoria negata */ }
+    }
+    return indicePosizione(posizioneRef.current, days.map(toStr))
+  }
+
   function updateVisibleMonth() {
     const sl = scrollRef.current?.scrollLeft ?? 0
     const idx = Math.min(days.length - 1, Math.max(0, Math.floor(sl / CELL_W)))
@@ -502,7 +530,12 @@ export default function Calendario() {
     <div className="flex flex-col">
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
       <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm">
-        <BackLink href="/" />
+        <div className="flex items-center justify-between">
+          <BackLink href="/" />
+          {/* Legenda a pannello (07/09/2026): «?» in alto a destra, così sul telefono la griglia non perde spazio */}
+          <button type="button" aria-label="Legenda" title="Legenda" onClick={() => setLegendaAperta(true)}
+            className="w-11 h-11 -my-2 -mr-2 rounded-full flex items-center justify-center text-green-dark font-serif text-[20px] leading-none active:bg-sage/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-mid">?</button>
+        </div>
         {/* Titolo + «Cerca nome o telefono…» (05/09/2026): Mac e telefono girato sulla
             stessa riga, telefono dritto uno sotto l'altro. Stesse distanze delle Richieste. */}
         <div className={`mt-4 mb-2 ${isDesktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
@@ -851,8 +884,31 @@ export default function Calendario() {
                       const rientro = cutLeft ? 14 : 0
                       const leftRounded = isFirst && !cutLeft
                       const rightRounded = isLast && !cutRight
+                      // Sul telefono la barra (32 px) è difficile da toccare: un'area
+                      // invisibile alta 44 px (lib/calendarioMobile.areaTocco) sopra la
+                      // barra, stessa larghezza, stesso tocco (07/09/2026)
+                      const tocco = !isDesktop ? areaTocco(rowTop + insetV, segH) : null
+                      const apri = (e: React.MouseEvent) => {
+                            if (isMultiRoom && !searchAttiva) {
+                              e.stopPropagation()
+                              if (selectedGroupId === chainKey) {
+                                ricordaPosizione()
+                                router.push(`/prenotazioni/${booking.id}`)
+                              } else {
+                                setSelectedGroupId(chainKey)
+                              }
+                            } else {
+                              ricordaPosizione()
+                              router.push(`/prenotazioni/${booking.id}`)
+                            }
+                      }
                       return (
-                        <div key={`${booking.id}-${si}`}
+                        <div key={`${booking.id}-${si}`} style={{ display: 'contents' }}>
+                        {tocco && (
+                          <div data-tocco aria-hidden onClick={apri}
+                            style={{ position: 'absolute', top: tocco.top, height: tocco.height, left: NAME_W + seg.start * CELL_W + (isFirst ? insetH : 0), width: segW, zIndex: isCurrent ? 17 : isSelected ? 16 : 6, cursor: 'pointer', background: 'transparent' }} />
+                        )}
+                        <div
                           onClick={(e) => {
                             // Con la ricerca attiva vince la ricerca: il tocco
                             // apre direttamente la scheda, senza il passaggio
@@ -861,11 +917,13 @@ export default function Calendario() {
                               e.stopPropagation()
                               // Primo tocco: evidenzia la catena. Secondo tocco sul segmento evidenziato: apre il dettaglio.
                               if (selectedGroupId === chainKey) {
+                                ricordaPosizione()
                                 router.push(`/prenotazioni/${booking.id}`)
                               } else {
                                 setSelectedGroupId(chainKey)
                               }
                             } else {
+                              ricordaPosizione()
                               router.push(`/prenotazioni/${booking.id}`)
                             }
                           }}
@@ -924,6 +982,7 @@ export default function Calendario() {
                             </>
                           )}
                         </div>
+                        </div>
                       )
                     })
                   })}
@@ -969,35 +1028,15 @@ export default function Calendario() {
         <RigaMesi colonna={NAME_W} mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={vaiAOggi} className={`shrink-0 pt-3 pb-4 ${orizzontale ? 'px-2' : 'px-4'}`} />
       )}
 
-      {/* Legenda: solo su desktop — sul telefono ruba spazio al calendario */}
-      <div className={`shrink-0 px-4 pb-4 ${orizzontale ? 'hidden' : 'flex'} flex-wrap gap-3 items-center`}>
-        <div className="flex items-center gap-1.5">
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: COLOR_PRENOTAZIONE }} />
-          <span className="text-xs text-gray-500">Prenotazione</span>
+      {/* Legenda in riga solo dal Mac (07/09/2026): sul telefono sta nel pannello «?» */}
+      {isDesktop && !orizzontale && (
+        <div className="shrink-0 px-4 pb-4 flex flex-wrap gap-3 items-center">
+          <VociLegenda />
+          {/* Niente voce «Cambio camera» nella legenda (richiesta di Ania, 04/09/2026): le barre tagliate a incastro si spiegano da sole */}
+          <span className="ml-auto text-[9px] text-gray-300">v. {process.env.NEXT_PUBLIC_BUILD_TAG}</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: COLOR_BONIFICO }} />
-          <span className="text-xs text-gray-500">Bonifico attesa</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: COLOR_PAGATO }} />
-          <span className="text-xs text-gray-500">Pagato</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: COLORE_LETTO_PARZIALE }} />
-          <span className="text-xs text-gray-500">1 letto extra occupato</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: COLORE_LETTI_ESAURITI }} />
-          <span className="text-xs text-gray-500">2 letti extra occupati</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: 'white', border: '1.5px dashed #2D6A4F' }} />
-          <span className="text-xs text-gray-500">Dal sito (da confermare)</span>
-        </div>
-        {/* Niente voce «Cambio camera» nella legenda (richiesta di Ania, 04/09/2026): le barre tagliate a incastro si spiegano da sole */}
-        <span className="ml-auto text-[9px] text-gray-300">v. {process.env.NEXT_PUBLIC_BUILD_TAG}</span>
-      </div>
+      )}
+      {legendaAperta && <PannelloLegenda onChiudi={() => setLegendaAperta(false)} />}
     </div>
   )
 }
