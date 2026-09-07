@@ -1802,11 +1802,13 @@ export default function BookingDetail() {
             </div>
           )}
           {/* Nota scritta dal cliente nel modulo del sito (o da Ania): deve
-              saltare all'occhio, non nascondersi in fondo alla card */}
+              saltare all'occhio, non nascondersi in fondo alla card. Dal
+              07/09/2026 anche il testo è rosso (#C0392B), come la nota nelle
+              Richieste e in Home (Ania: «rossa dappertutto») */}
           {booking.notes && (
-            <div className="rounded-r-xl px-3.5 py-2.5" style={{ background: '#FDF2EF', borderLeft: '4px solid #C0392B' }}>
+            <div data-nota-cliente className="rounded-r-xl px-3.5 py-2.5" style={{ background: '#FDF2EF', borderLeft: '4px solid #C0392B' }}>
               <p className="text-[11px] font-extrabold tracking-widest mb-1" style={{ color: '#C0392B' }}>NOTA DEL CLIENTE</p>
-              <p className="text-[15px] text-green-dark leading-relaxed whitespace-pre-wrap">{booking.notes}</p>
+              <p className="text-[15px] font-semibold leading-relaxed whitespace-pre-wrap" style={{ color: '#C0392B' }}>{booking.notes}</p>
             </div>
           )}
 
