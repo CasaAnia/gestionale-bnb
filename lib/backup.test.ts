@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { nomeFileBackup, componiEsportazione, verificaEsportazione, improntaTabelle, confrontaConteggi, contieneSegreto, serializzaStabile, VERSIONE_ESPORTAZIONE } from '../scripts/backup-comune.mjs'
-import { controllaCompletezza, confrontaRighe, chiaviDaOpenApi } from '../scripts/backup-lettura.mjs'
+import { controllaCompletezza, confrontaRighe, chiaviDaOpenApi, tipiDaOpenApi } from '../scripts/backup-lettura.mjs'
 
 const rooms = [{ id: 'r1', name: 'Ambra' }]
 const bookings = [{ id: 'b1', room_id: 'r1', total_amount: '160.00' }, { id: 'b2', room_id: 'r1', total_amount: '80.00' }]
@@ -69,6 +69,39 @@ test('confronto col database: conteggi (tabelle in più/in meno) e contenuti rig
   const vivo = [{ id: 1, v: 'a' }, { id: 2, v: 'B' }, { id: 4, v: 'd' }]
   assert.deepEqual(confrontaRighe('t', ['id'], file, vivo), ['t: 1 righe del database mancano nel file', 't: 1 righe del file non sono più nel database', 't: 1 righe con contenuto diverso'])
   assert.deepEqual(confrontaRighe('t', ['id'], file, file), [])
+})
+
+// Primo backup reale (07/09/2026): il file viene da PostgREST, il database
+// ripristinato si legge con node-pg → stessi valori, scrittura diversa. La
+// forma canonica dipende dal TIPO della colonna, mai dall'aspetto del testo
+// (tre falsi «uguali» riprodotti da Codex la sera stessa: telefono, numero
+// grande, testo con la T).
+test('confronto per tipo reale: numeri equivalenti e timestamptz in fusi diversi (microsecondi compresi) sono uguali; testo, numeri grandi e JSON restano esatti', () => {
+  const tipi = { id: 'text', prezzo: 'numeric', quando: 'timestamp with time zone', locale: 'timestamp without time zone', giorno: 'date', extra: 'jsonb', tel: 'text', grande: 'bigint', testo: 'text' }
+  const daPostgrest = [{ id: 'a', prezzo: 80, quando: '2026-08-29T07:57:37.71277+00:00', locale: '2026-09-07T10:00:00', giorno: '2026-09-07', extra: { b: 1, a: [1, 2] }, tel: '0123', grande: 12, testo: '2026-09-07 10:00:00', nota: null }]
+  const daPostgres = [{ id: 'a', prezzo: '80.00', quando: '2026-08-29 09:57:37.71277+02', locale: '2026-09-07 10:00:00', giorno: '2026-09-07', extra: { a: [1, 2], b: 1 }, tel: '0123', grande: '12', testo: '2026-09-07 10:00:00', nota: null }]
+  const con = (cambio: Record<string, unknown>) => confrontaRighe('t', ['id'], daPostgrest, [{ ...daPostgres[0], ...cambio }], tipi)
+  assert.deepEqual(con({}), [])
+  // valori davvero diversi: un centesimo, un microsecondo, un giorno
+  assert.deepEqual(con({ prezzo: '80.01' }), ['t: 1 righe con contenuto diverso'])
+  assert.deepEqual(con({ quando: '2026-08-29 09:57:37.71278+02' }), ['t: 1 righe con contenuto diverso'])
+  assert.deepEqual(con({ giorno: '2026-09-08' }), ['t: 1 righe con contenuto diverso'])
+  // REGRESSIONI (Codex, 07/09/2026): il tipo decide, non l'aspetto
+  assert.deepEqual(con({ tel: '123' }), ['t: 1 righe con contenuto diverso'], 'telefono: «0123» ≠ «123» (text)')
+  assert.deepEqual(confrontaRighe('t', ['id'], [{ id: 'a', grande: '9007199254740992' }], [{ id: 'a', grande: '9007199254740993' }], tipi), ['t: 1 righe con contenuto diverso'], 'bigint oltre 2^53: mai via Number')
+  assert.deepEqual(confrontaRighe('t', ['id'], [{ id: 'a', grande: '9007199254740993' }], [{ id: 'a', grande: '09007199254740993' }], tipi), [], 'bigint: zero iniziale canonicalizzato come testo')
+  assert.deepEqual(con({ testo: '2026-09-07T10:00:00' }), ['t: 1 righe con contenuto diverso'], 'campo text: la T non è uno spazio')
+  assert.deepEqual(con({ extra: { a: [1, 2], b: '1' } }), ['t: 1 righe con contenuto diverso'], 'JSON: 1 e «1» restano diversi')
+  // numeri equivalenti in forme diverse (solo per colonne numeriche)
+  assert.deepEqual(confrontaRighe('t', ['id'], [{ id: 'a', prezzo: 1e21 }], [{ id: 'a', prezzo: '1000000000000000000000' }], tipi), [])
+  assert.deepEqual(confrontaRighe('t', ['id'], [{ id: 'a', prezzo: -0.5 }], [{ id: 'a', prezzo: '-0.500' }], tipi), [])
+  assert.deepEqual(confrontaRighe('t', ['id'], [{ id: 'a', prezzo: 0 }], [{ id: 'a', prezzo: '-0.0' }], tipi), [])
+  assert.deepEqual(confrontaRighe('t', ['id'], [{ id: 'a', prezzo: '1e-07' }], [{ id: 'a', prezzo: '0.0000001' }], tipi), [])
+  // Z e +00:00 sono lo stesso istante; a cavallo di mezzanotte il giorno cambia col fuso
+  assert.deepEqual(confrontaRighe('t', ['id'], [{ id: 'a', quando: '2026-09-07T23:30:00Z' }], [{ id: 'a', quando: '2026-09-08 01:30:00+02' }], tipi), [])
+  // senza tipi: confronto esatto (comportamento precedente)
+  assert.deepEqual(confrontaRighe('t', ['id'], [{ id: 'a', prezzo: 80 }], [{ id: 'a', prezzo: '80' }]), ['t: 1 righe con contenuto diverso'])
+  assert.deepEqual(tipiDaOpenApi({ definitions: { rooms: { properties: { id: { format: 'uuid' }, base_price: { format: 'numeric' }, name: {} } } } }), { rooms: { id: 'uuid', base_price: 'numeric', name: null } })
 })
 
 test('chiave primaria dall’OpenAPI di PostgREST (R2): app_members ha user_id, non id; le viste senza chiave si ordinano su tutte le colonne', () => {

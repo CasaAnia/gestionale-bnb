@@ -1,4 +1,4 @@
-# Backup del gestionale — cosa esiste, cosa no, come si fa (07/09/2026, rivisto dopo la revisione)
+# Backup del gestionale — cosa esiste, cosa no, come si fa (07/09/2026, rivisto dopo la revisione; primo backup reale e ripristino la sera stessa, §6b)
 
 Verifica documentata del pezzo 3 dell'incarico del 07/09/2026, corretta con
 i rilievi R2, R3 e R6 della revisione dello stesso giorno. Progetto Supabase
@@ -20,20 +20,21 @@ Frase chiave: «Pro Plan projects can access the last 7 days of daily
 backups». Per i progetti Free la guida dice di esportare a mano (`supabase
 db dump`) e tenere copie fuori da Supabase.
 
-**Il piano di QUESTO progetto NON è stato verificato.** Il pannello Supabase
-richiede il login di Ania; nessun token di gestione è salvato sul Mac
-(giustamente). Quindi la conclusione onesta è: **backup accessibili e
-ripristinabili del progetto ancora da accertare**. Non si può scrivere
-«Free = nessun backup» come certezza: se il piano è Free, i backup
-eventualmente conservati da Supabase non sono accessibili dal pannello e non
-sono garantiti; se è Pro, ci sono 7 giorni di backup giornalieri.
+**Piano di QUESTO progetto: Free — VERIFICATO il 07/09/2026 dal pannello**
+(sessione Chrome già autenticata, sola lettura, nessuna modifica):
 
-Per saperlo in 10 secondi: Dashboard → progetto → **Settings → Billing**
-(voce «Plan»), oppure **Database → Backups**: se compare un elenco di backup
-giornalieri il piano è almeno Pro.
+- Organizzazioni: «amerigogranata@gmail.com's Org · Free Plan · 2 projects»;
+- progetto «Gestionale Casa Ania Rozzano» → Database → Backups → Scheduled
+  backups: «Free Plan does not include project backups. Upgrade to the Pro
+  Plan for up to 7 days of scheduled backups.»;
+- Point in time: «Point in Time Recovery is a Pro Plan add-on … Starts at
+  $100/month».
 
-Finché non è accertato, il solo backup su cui contare è quello locale
-descritto sotto.
+Conclusione: **nessun backup accessibile o ripristinabile dal pannello**. Gli
+eventuali 7 backup giornalieri che Supabase dice di conservare per i progetti
+Free non sono visibili né garantiti, e comparirebbero solo dopo un passaggio a
+Pro (25 $/mese). Il solo backup su cui contare è quello locale descritto
+sotto, fatto il 07/09/2026 e provato col ripristino (§6b).
 
 ## 2. Come si chiede un ripristino (se il piano ha i backup)
 
@@ -118,6 +119,17 @@ I comandi sono per **zsh**, il terminale del Mac: sostituire `NOME-DEL-FILE.json
 con il nome stampato dall'esportazione. La sintassi `read -s -p` è di Bash
 e in zsh non legge la chiave. Se la lettura viene annullata, fermarsi.
 
+Se la chiave è già in `.env.local` (riga `SUPABASE_SERVICE_ROLE_KEY=`, file
+ignorato da git), si può passare all'ambiente senza scriverla né mostrarla,
+al posto del passo 2:
+
+```bash
+export SUPABASE_SERVICE_ROLE_KEY="$(sed -n 's/^SUPABASE_SERVICE_ROLE_KEY=//p' .env.local | tr -d '"')"
+```
+
+(così è stato fatto il primo backup reale del 07/09/2026: la chiave non è
+passata da chat, file nuovi, log né cronologia).
+
 La chiave si copia da Supabase → Settings → API → `service_role`. Con
 `read -s` non compare sullo schermo, non finisce nella cronologia di zsh e
 non viene scritta in nessun file; lo script non la stampa mai e rifiuta di
@@ -197,9 +209,80 @@ database `collaudo_ripristino` migrato e vuoto:
   incompleto; il confronto «contenuti» scopre una riga cambiata che i soli
   conteggi non vedono.
 
-Il percorso PostgREST **contro Supabase vero non è stato eseguito** (nessuna
-lettura in produzione in questo giro, per scelta): il primo backup reale lo
-fa Ania coi comandi del §5 e lo verifica con `--confronta contenuti`.
+Il percorso PostgREST contro Supabase vero è stato eseguito il 07/09/2026
+sera: vedi §6b.
+
+## 6b. Primo backup REALE e ripristino provato (07/09/2026, sera) — distinto dal collaudo sintetico del §6
+
+Il §6 usava un database locale con dati inventati (218 righe). Qui invece:
+
+**Esportazione dalla produzione** (PostgREST con la service key, sola lettura,
+nessuna scrittura né SQL in produzione): `backup/gestionale-backup-2026-09-07-1954.json`,
+34 tabelle, 3.137 righe, 1,1 MB, completezza controllata tabella per tabella,
+nessuna chiave nel file (controllato). Il file sta in `backup/` (ignorato da
+git, `git check-ignore` confermato) su un Mac con FileVault attivo.
+`backup-verifica.mjs --confronta contenuti` contro la produzione, subito
+dopo: INTEGRITÀ OK, COMPLETEZZA OK, CONFRONTO OK (contenuti identici).
+
+**Ripristino in un database isolato** (PostgreSQL 16.15 Homebrew, cluster
+NUOVO creato con `initdb` in una cartella temporanea, porta 5433, solo TCP su
+127.0.0.1, `LC_ALL=C`; database `collaudo_ripristino`; produzione mai toccata):
+
+1. schema con `scripts/collaudo-0033/applica-migrazioni.mjs` (0001–0039,
+   bootstrap owner, proposte 0043, 0033, 0034); la **0040 fallisce in locale**
+   perché `pg_cron` non c'è: applicata a mano solo la parte 1 (righe 1–23:
+   vincolo stato, `chiusura_motivo`, `scadenza_notificata_at`, indice);
+2. proposte **0035, 0036, 0037, 0038** applicate con `psql` perché in
+   produzione ci sono già (tabelle `da_controllare_rinvii`, `strutture`,
+   colonne provenienza e `vuole_ricevuta`);
+3. **drift senza migrazione** scoperto dal confronto colonne file ↔ database:
+   tabelle `push_subscriptions` (id, endpoint, subscription, updated_at) e
+   `site_events` (id, tipo, pagina, created_at, fonte, campagna), colonne
+   `bookings.pushover_notified_at` (timestamptz) e `rooms.double_price`,
+   `rooms.matrimoniale_price` (numeric): esistono in produzione, non in
+   `supabase/migrations` né in una proposta. Tipi letti dall'OpenAPI di
+   PostgREST e create a mano nel database di collaudo. Senza questo passo il
+   ripristino SALTA le due tabelle (dichiarandolo) e scarta le tre colonne;
+4. `backup-ripristino.mjs --conferma --svuota`: 34 tabelle, 3.137 righe;
+5. `backup-verifica.mjs --confronta contenuti --postgres` contro il database
+   RIPRISTINATO: **OK, contenuti identici** (con la correzione qui sotto);
+6. prove avversarie sul database ripristinato (vedi sotto): tutte rilevate;
+   poi ripristinato di nuovo → identico.
+
+**Difetto dimostrato e corretto** (`scripts/backup-lettura.mjs`, `normalizzaValore`
+per TIPO di colonna; `backup-verifica.mjs` passa i tipi della tabella viva;
+test in `lib/backup.test`): il primo confronto dava «contenuto diverso» su 25
+tabelle perché PostgREST scrive i numeri come numeri e i timestamptz in UTC
+(`2026-08-29T07:57:37.71277+00:00`), mentre node-pg dà i `numeric` come stringhe
+(`80.00`) e i timestamptz nel fuso della sessione (`2026-08-29 09:57:37.71277+02`).
+La forma canonica dipende dal **tipo reale della colonna** (campo `format`
+dell'OpenAPI di PostgREST, `data_type` di `information_schema` per PostgreSQL),
+mai dall'aspetto del testo: una prima versione «a vista» accettava tre falsi
+uguali riprodotti da Codex (telefono `0123` = `123`, `9007199254740992` =
+`9007199254740993` passando da `Number`, testo `2026-09-07 10:00:00` =
+`2026-09-07T10:00:00`) ed è stata sostituita prima della pubblicazione. Ora:
+colonne numeriche canonicalizzate come **testo** (zeri iniziali/finali, segno,
+forma esponenziale; mai `Number`, i bigint restano esatti); `timestamp with
+time zone` in UTC coi decimali dei secondi come sono (microsecondi conservati);
+`timestamp without time zone` solo col separatore; **testo, date e JSON esatti**
+(i JSON in ordine stabile delle chiavi perché il file li scrive ordinati e
+`jsonb` no; `1` e `"1"` dentro un JSON restano diversi). Senza tipi il
+confronto è esatto come prima. Prove sul database ripristinato: prezzo +0,01,
+un microsecondo su un timestamptz, uno zero davanti a un nome, una riga tolta →
+tutte rilevate; poi ripristinato di nuovo → identico.
+
+**Cosa questa prova dimostra**: dal file si recuperano TUTTE le righe delle 34
+tabelle di `public` (prenotazioni, clienti, pagamenti, richieste, spese con
+voci e documenti, pulizie, log, eventi del sito…) dentro un database che ha
+lo schema giusto. **Cosa resta escluso** (confermato sul file vero):
+
+- i **file dello Storage**: gli 8 documenti dei clienti (`documenti_cliente`),
+  le 83 foto degli scontrini (`family_receipts`) e gli 83 `family_documents`
+  sono nel file solo come righe (nome, bucket, percorso): i file veri stanno
+  nei bucket `documenti` e `scontrini` e NON sono copiati da nessuna parte;
+- schema, funzioni/RPC, trigger, policy RLS, `auth.users` (l'accesso di
+  Ania), job pg_cron della 0040, segreti, sequenze;
+- le modifiche fatte dopo le 19:54 del 07/09/2026.
 
 ## 7. Limiti dichiarati
 
@@ -211,5 +294,10 @@ fa Ania coi comandi del §5 e lo verifica con `--confronta contenuti`.
 - Niente file dello Storage, niente schema/funzioni/policy/auth (vedi §4).
 - Nessuna esecuzione automatica: a mano, prima di ogni migrazione e almeno
   una volta a settimana; tenere una seconda copia in un posto diverso.
-- Il ripristino è provato solo in locale: in produzione il ripristino si
-  fa dal pannello Supabase (§2) se il piano lo permette.
+- Il ripristino è provato solo in locale (§6 sintetico, §6b col file vero):
+  in produzione il pannello Supabase (§2) NON lo permette col piano Free.
+- Cinque oggetti di produzione (§6b punto 3) non hanno migrazione nel
+  repository: prima di un ripristino da zero vanno messi in una proposta di
+  drift (come la 0043), altrimenti il ripristino li salta o li scarta.
+- I file dello Storage non hanno nessuna copia: da decidere (copia locale dei
+  bucket con la service key, oppure accettarne la perdita).

@@ -35,7 +35,7 @@ export async function confrontaConSorgente(doc, riepilogo, sorgente, conContenut
       const nelFile = doc.tabelle[t.nome]
       if (!nelFile) continue
       const { righe } = await sorgente.leggi(t)
-      differenze.push(...confrontaRighe(t.nome, t.chiave, nelFile.dati, righe))
+      differenze.push(...confrontaRighe(t.nome, t.chiave, nelFile.dati, righe, t.tipi))   // tipi della tabella viva: confronto per tipo reale
     }
   }
   return differenze

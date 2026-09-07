@@ -29,7 +29,77 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`, `ca_calendario_posizione` (sessionStorage, 07/09/2026: giorno da cui ripartire tornando dalla scheda).
-10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase da confermare (NON verificato: vedi docs/backup.md §1). CALENDARIO TELEFONO (pezzo 4): legenda dal «?», tocco 44 px sulle barre, ritorno alla stessa posizione dalla scheda. DRIFT (pezzo 5): proposta 0043 con le 10 colonne di bookings già in produzione, usata dal collaudo locale. lib/spese (pezzo 6): le 7 scritture void e la lettura a null del tracker vecchio hanno l'esito visibile (scritturaSicura + AvvisoAzione). INCARICO DEL 07/09/2026 COMPLETO: 6 pezzi + parti 2 e 3, tutti su main. REVISIONE del 07/09 (Codex, sei rilievi R1–R6): corretti in 1b87fc4 e finiti in produzione col push di 5386800 (non era il passaggio autorizzato: vedi PROGETTO.md, si toglie con `git revert 1b87fc4`). INTEGRAZIONE CODEX (07/09/2026, sera, scheda in cima): patch R1/R6 su sei file (pendente mai sovrascritto, 23505 valido solo con rilettura dell'ID, modulo e Chiudi bloccati finché non si riconcilia, comandi backup in zsh), riverificata su 5386800 (790 test, verifica-consegna OK), poi PUBBLICATA col via libera di Ania: commit 154fbce, deploy Vercel Production riuscito (17:33 UTC).
+10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase VERIFICATO il 07/09/2026 sera dal pannello = Free, nessun backup né PITR dal pannello; PRIMO BACKUP REALE fatto (backup/gestionale-backup-2026-09-07-1954.json, 34 tabelle, 3.137 righe, verifica contenuti OK) e RIPRISTINO PROVATO in un PostgreSQL 16 isolato con lo stesso file (identico; scheda «Backup reale» in cima; difetto del confronto fra sorgenti corretto in backup-lettura con test); ESCLUSI i file dello Storage (8 documenti + 83 scontrini) e 5 oggetti di produzione senza migrazione (push_subscriptions, site_events, bookings.pushover_notified_at, rooms.double_price/matrimoniale_price). CALENDARIO TELEFONO (pezzo 4): legenda dal «?», tocco 44 px sulle barre, ritorno alla stessa posizione dalla scheda. DRIFT (pezzo 5): proposta 0043 con le 10 colonne di bookings già in produzione, usata dal collaudo locale. lib/spese (pezzo 6): le 7 scritture void e la lettura a null del tracker vecchio hanno l'esito visibile (scritturaSicura + AvvisoAzione). INCARICO DEL 07/09/2026 COMPLETO: 6 pezzi + parti 2 e 3, tutti su main. REVISIONE del 07/09 (Codex, sei rilievi R1–R6): corretti in 1b87fc4 e finiti in produzione col push di 5386800 (non era il passaggio autorizzato: vedi PROGETTO.md, si toglie con `git revert 1b87fc4`). INTEGRAZIONE CODEX (07/09/2026, sera, scheda in cima): patch R1/R6 su sei file (pendente mai sovrascritto, 23505 valido solo con rilettura dell'ID, modulo e Chiudi bloccati finché non si riconcilia, comandi backup in zsh), riverificata su 5386800 (790 test, verifica-consegna OK), poi PUBBLICATA col via libera di Ania: commit 154fbce, deploy Vercel Production riuscito (17:33 UTC).
+
+---
+
+# Backup reale e ripristino provato (07/09/2026, sera) — piano Free verificato, commit locale
+
+Stato: FATTO in locale, nessuna scrittura in produzione, nessun SQL applicato,
+nessun servizio nuovo. Lavoro concorrente: cfb4801 (Home, pulizie di oggi)
+arrivato prima dell'inizio, albero pulito; i file toccati qui sono solo
+scripts/backup-lettura.mjs, lib/backup.test.ts, docs/backup.md, questa scheda.
+
+## Esiti effettivi
+
+1. **Piano Supabase** (letto dal pannello con la sessione Chrome già
+   autenticata, sola lettura): organizzazione «Free Plan · 2 projects»;
+   Database → Backups: «Free Plan does not include project backups»; Point in
+   time: aggiunta del piano Pro da 100 $/mese. Nessun backup dal pannello.
+2. **Primo backup reale**: `backup/gestionale-backup-2026-09-07-1954.json`
+   (34 tabelle, 3.137 righe, 1,1 MB, impronta f9c0faa2…), in `backup/`
+   ignorato da git (check-ignore confermato), Mac con FileVault attivo, nessuna
+   chiave dentro il file. Chiave passata all'ambiente dal `.env.local` con
+   `sed` (mai stampata, mai in chat/log/cronologia) invece del `read -s`,
+   perché lo strumento non ha una tastiera: variante annotata in docs §5.
+   `backup-verifica --confronta contenuti` contro la produzione: tre livelli OK.
+3. **Ripristino con il file vero** in un PostgreSQL 16.15 NUOVO (initdb in una
+   cartella temporanea, porta 5433, solo TCP, LC_ALL=C — i primi due avvii
+   erano caduti per il percorso del socket troppo lungo e per il locale di
+   macOS), database `collaudo_ripristino` con lo schema da
+   applica-migrazioni.mjs + 0040 parte 1 a mano (pg_cron assente in locale)
+   + proposte 0035–0038 (in produzione ci sono) + 5 oggetti di drift creati a
+   mano coi tipi dell'OpenAPI: 34 tabelle, 3.137 righe ripristinate; verifica
+   `--confronta contenuti --postgres` contro il RIPRISTINATO: **identico**.
+   Prove avversarie (ripetute dopo la correzione per tipo): prezzo +0,01,
+   un microsecondo su un timestamptz, uno zero davanti a un nome, riga tolta →
+   tutte rilevate; poi ripristinato di nuovo → identico. Cluster fermato.
+4. **Difetto dimostrato e corretto** (unico ritocco al codice, in
+   scripts/backup-lettura + una riga in backup-verifica che passa i tipi): il
+   confronto riga per riga dava «contenuto diverso» su 25 tabelle per numeri
+   come stringhe e timestamptz in fusi diversi fra PostgREST e node-pg. La
+   prima versione normalizzava «a vista» e Codex ha riprodotto tre falsi uguali
+   (telefono «0123»/«123», «9007199254740992»/«…993» via Number, testo con la
+   T/spazio): rifatta PER TIPO REALE di colonna (format dell'OpenAPI /
+   data_type di information_schema): numeri canonicalizzati come testo senza
+   Number, timestamptz in UTC coi microsecondi, timestamp solo separatore,
+   testo/date/JSON esatti; senza tipi confronto esatto. Test con le tre
+   regressioni + i casi validi (80 = «80.00», 1e21, −0,5, fusi diversi con
+   microsecondi, mezzanotte a cavallo del fuso). Suite 797/797,
+   verifica-consegna --base cfb4801 OK, diff --check OK.
+5. **Distinzione** dal collaudo sintetico del §6 di docs/backup.md: quello
+   usava 218 righe inventate e lo stesso lettore da entrambi i lati; questo usa
+   il file di produzione e scopre sia il drift sia il difetto del confronto.
+
+## Recuperabile / escluso (sul file vero)
+
+- Recuperabile: tutte le righe delle 34 tabelle di `public`, in un database
+  che abbia già lo schema (migrazioni + proposte applicate + drift).
+- ESCLUSO: i file dello Storage (8 documenti dei clienti, 83 foto di
+  scontrini, 83 family_documents: nel file solo le righe con i percorsi);
+  schema, RPC, trigger, policy, `auth.users`, job pg_cron, segreti, sequenze;
+  tutto ciò che cambia dopo le 19:54 del 07/09/2026.
+
+## Punti ancora aperti
+
+- Drift senza migrazione: `push_subscriptions`, `site_events`,
+  `bookings.pushover_notified_at`, `rooms.double_price`,
+  `rooms.matrimoniale_price` → proposta di drift come la 0043 (da scrivere).
+- Copia dei file dello Storage: nessuna; da decidere se farla (script con la
+  service key sui bucket `documenti` e `scontrini`) o accettare la perdita.
+- Il backup resta manuale (docs §7): ripeterlo prima di ogni migrazione e
+  almeno una volta a settimana; seconda copia su un altro disco.
+- Push di questo commit: passaggio separato, da autorizzare.
 
 ---
 

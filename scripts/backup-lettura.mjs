@@ -25,7 +25,74 @@ const ESCLUSE = new Set(['schema_migrations', 'supabase_migrations'])
 export function chiaveRiga(riga, chiave) {
   return chiave.length > 0 ? chiave.map(c => String(riga?.[c] ?? '')).join('') : serializzaStabile(riga)
 }
-export const improntaRiga = riga => createHash('sha256').update(serializzaStabile(riga)).digest('hex')
+// Valori UGUALI scritti in modo diverso dalle due sorgenti (scoperto col primo
+// backup reale del 07/09/2026, verificato contro il database ripristinato):
+// PostgREST manda i numeri come numeri JSON e i timestamptz in UTC
+// («2026-08-29T07:57:37.71277+00:00»); node-pg, coi testi del server, manda i
+// numeric come stringhe («80», «80.00») e i timestamptz nel fuso della sessione
+// («2026-08-29 09:57:37.71277+02»). La forma canonica dipende dal TIPO REALE
+// della colonna (OpenAPI di PostgREST o information_schema), mai dall'aspetto
+// del testo: un telefono «0123» resta diverso da «123», un testo con la T
+// resta diverso da uno con lo spazio. I numeri si canonicalizzano come TESTO
+// (zeri iniziali/finali, segno, forma esponenziale) senza passare da Number:
+// «9007199254740992» e «9007199254740993» restano diversi. Gli istanti con
+// fuso vanno in UTC coi decimali dei secondi come sono (i microsecondi
+// restano); quelli senza fuso cambiano solo il separatore. Testo, date, JSON e
+// tutto il resto: confronto esatto (i JSON in ordine stabile delle chiavi,
+// perché il file li scrive con le chiavi ordinate e jsonb no).
+export function categoriaTipo(tipo) {
+  const t = String(tipo || '').toLowerCase().replace(/\(.*\)/, '').trim()
+  if (/^(numeric|decimal|integer|bigint|smallint|double precision|real)$/.test(t)) return 'numero'
+  if (t === 'timestamp with time zone') return 'istante'
+  if (t === 'timestamp without time zone') return 'istante_locale'
+  return null
+}
+// «1.5e+21» → «1500000000000000000000», «1e-07» → «0.0000001»: spostamento
+// testuale della virgola, nessuna aritmetica in virgola mobile
+function senzaEsponente(s) {
+  const m = /^([+-]?)(\d+)(?:\.(\d+))?e([+-]?\d+)$/i.exec(s)
+  if (!m) return s
+  const cifre = m[2] + (m[3] || ''); const esp = Number(m[4]); let punto = m[2].length + esp
+  let intero, dec
+  if (punto <= 0) { intero = '0'; dec = '0'.repeat(-punto) + cifre }
+  else if (punto >= cifre.length) { intero = cifre + '0'.repeat(punto - cifre.length); dec = '' }
+  else { intero = cifre.slice(0, punto); dec = cifre.slice(punto) }
+  return m[1] + intero + (dec ? '.' + dec : '')
+}
+export function numeroCanonico(v) {
+  let s = typeof v === 'number' ? (Number.isInteger(v) && !Number.isSafeInteger(v) ? BigInt(v).toString() : String(v)) : String(v).trim()
+  s = senzaEsponente(s)
+  const m = /^([+-])?0*(\d*)(?:\.(\d*?)0*)?$/.exec(s)
+  if (!m || !/\d/.test(s)) return s   // NaN, Infinity, testo non numerico: esatto («0.0» e «-0.0» sono zero)
+  const intero = m[2] || '0'; const dec = m[3] || ''
+  const negativo = m[1] === '-' && !(intero === '0' && dec === '')
+  return (negativo ? '-' : '') + intero + (dec ? '.' + dec : '')
+}
+const ISTANTE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|[+-]\d{2}(?::?\d{2})?)?$/
+export function istanteCanonico(v, conFuso) {
+  if (typeof v !== 'string') return v
+  const m = ISTANTE.exec(v)
+  if (!m) return v
+  const frazione = (m[7] || '').replace(/0+$/, '').replace(/^\.$/, '')
+  if (!conFuso || !m[8]) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}${frazione}`
+  let scarto = 0
+  if (m[8] !== 'Z') { const segno = m[8][0] === '-' ? -1 : 1; const cifre = m[8].slice(1).replace(':', ''); scarto = segno * (Number(cifre.slice(0, 2)) * 60 + Number(cifre.slice(2) || 0)) }
+  // secondi interi con Date.UTC (aritmetica intera sui millisecondi), decimali come testo
+  const ms = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6])) - scarto * 60000
+  return new Date(ms).toISOString().slice(0, 19) + frazione + 'Z'
+}
+export function normalizzaValore(v, tipo) {
+  if (v === null || v === undefined) return v
+  switch (categoriaTipo(tipo)) {
+    case 'numero': return typeof v === 'number' || typeof v === 'string' ? numeroCanonico(v) : v
+    case 'istante': return istanteCanonico(v, true)
+    case 'istante_locale': return istanteCanonico(v, false)
+    default: return v
+  }
+}
+// `tipi` = { colonna: tipo SQL } della tabella viva; senza tipi confronto esatto
+const normalizzaRiga = (riga, tipi) => Object.fromEntries(Object.entries(riga ?? {}).map(([c, v]) => [c, normalizzaValore(v, tipi?.[c])]))
+export const improntaRiga = (riga, tipi) => createHash('sha256').update(serializzaStabile(normalizzaRiga(riga, tipi))).digest('hex')
 
 // Controllo di completezza di una tabella letta dalla sorgente
 export function controllaCompletezza(nome, righe, attese, chiave) {
@@ -46,9 +113,9 @@ export function controllaCompletezza(nome, righe, attese, chiave) {
 }
 
 // Confronto riga per riga di due letture della stessa tabella (per chiave)
-export function confrontaRighe(nome, chiave, righeFile, righeVive) {
-  const a = new Map(righeFile.map(r => [chiaveRiga(r, chiave), improntaRiga(r)]))
-  const b = new Map(righeVive.map(r => [chiaveRiga(r, chiave), improntaRiga(r)]))
+export function confrontaRighe(nome, chiave, righeFile, righeVive, tipi) {
+  const a = new Map(righeFile.map(r => [chiaveRiga(r, chiave), improntaRiga(r, tipi)]))
+  const b = new Map(righeVive.map(r => [chiaveRiga(r, chiave), improntaRiga(r, tipi)]))
   let mancanti = 0, inPiu = 0, diverse = 0
   for (const [k, h] of b) { if (!a.has(k)) mancanti++; else if (a.get(k) !== h) diverse++ }
   for (const k of a.keys()) if (!b.has(k)) inPiu++
@@ -77,6 +144,13 @@ export function chiaviDaOpenApi(api) {
   return out.sort((x, y) => x.nome.localeCompare(y.nome))
 }
 
+// Tipo SQL di ogni colonna dall'OpenAPI (campo `format`), per il confronto per tipo
+export function tipiDaOpenApi(api) {
+  const out = {}
+  for (const [nome, def] of Object.entries(api?.definitions || {})) out[nome] = Object.fromEntries(Object.entries(def.properties || {}).map(([c, p]) => [c, p.format || null]))
+  return out
+}
+
 export function sorgentePostgrest({ url, chiave, pagina = PAGINA, fetchImpl = fetch }) {
   const base = url.replace(/\/$/, '')
   const testate = { apikey: chiave, Authorization: `Bearer ${chiave}`, 'Accept-Profile': 'public' }
@@ -92,7 +166,8 @@ export function sorgentePostgrest({ url, chiave, pagina = PAGINA, fetchImpl = fe
       const api = await (await chiama('/')).json()
       const t = chiaviDaOpenApi(api)
       if (t.length === 0) throw new Error('PostgREST non espone nessuna tabella: controlla URL e chiave')
-      return t
+      const tipi = tipiDaOpenApi(api)
+      return t.map(x => ({ ...x, tipi: tipi[x.nome] || {} }))
     },
     async conta(nome) {
       const r = await chiama(`/${nome}?select=*`, { Prefer: 'count=exact', 'Range-Unit': 'items', Range: '0-0' }, 'HEAD')
@@ -146,11 +221,12 @@ export async function sorgentePostgres({ urlDb }) {
                            join unnest(i.indkey) with ordinality k(attnum, ord) on true
                            join pg_attribute a on a.attrelid = c.oid and a.attnum = k.attnum
                           where i.indisprimary and n.nspname = 'public' and c.relname = t.table_name), '{}') as chiave,
-               (select array_agg(column_name::text order by ordinal_position) from information_schema.columns c where c.table_schema = 'public' and c.table_name = t.table_name) as colonne
+               (select array_agg(column_name::text order by ordinal_position) from information_schema.columns c where c.table_schema = 'public' and c.table_name = t.table_name) as colonne,
+               (select jsonb_object_agg(column_name, data_type) from information_schema.columns c where c.table_schema = 'public' and c.table_name = t.table_name) as tipi
           from information_schema.tables t
          where t.table_schema = 'public' and t.table_type = 'BASE TABLE'
          order by t.table_name`)
-      return rows.filter(r => !ESCLUSE.has(r.nome)).map(r => ({ nome: r.nome, chiave: r.chiave, ordine: r.chiave.length > 0 ? r.chiave : r.colonne, senzaChiave: r.chiave.length === 0 }))
+      return rows.filter(r => !ESCLUSE.has(r.nome)).map(r => ({ nome: r.nome, chiave: r.chiave, ordine: r.chiave.length > 0 ? r.chiave : r.colonne, senzaChiave: r.chiave.length === 0, tipi: r.tipi || {} }))
     },
     async conta(nome) {
       const r = await client.query(`select count(*)::int as n from ${q(nome)}`)
