@@ -95,6 +95,51 @@ composizione. Corretti i punti rimasti fuori dalla funzione unica:
   Cognome prima di Nome (ha scovato subito la seconda riga del finto).
   Suite 807 verde, tsc ok, lint senza differenze. Nessuna migrazione.
 
+
+# Nuova prenotazione: «duplicate key … guests_phone_key» (07/09/2026, notte, main)
+
+Ania: cliente nuova, prima camera salvata bene, poi «Aggiungi cambio camera»
+per un giorno in più in un'altra camera → «Errore creazione cliente: duplicate
+key value violates unique constraint guests_phone_key». Non era la prima volta.
+
+Cause (due, stessa radice: guests.phone è UNIQUE e la pagina creava una
+seconda scheda con lo stesso numero):
+1. Dopo il PRIMO salvataggio di un cliente nuovo la pagina non «ricordava» la
+   scheda appena creata (guestId era una variabile locale di save(), lo stato
+   `guest` restava null): il cambio camera aggiunto subito dopo ripeteva
+   l'insert in guests → 23505. Per questo la prima camera passava e la
+   seconda no.
+2. Da «Cerca per nome» senza risultato (nome scritto diverso da come è
+   salvato: «Rossi Mario»/«Mario Rossi», accento, refuso) si arriva a «Nuovo
+   cliente» e si scrive il numero: se il numero è già di una scheda, insert →
+   23505. La ricerca per telefono invece la trovava.
+
+Correzione (scelta di Ania coi bottoni: «Usa la scheda esistente»):
+- lib/clienteTelefono (puro, 5 test): stessoNumero (cifre, con o senza 39, in
+  qualunque forma salvata: «+39 333 000 0001» = «393330000001»),
+  schemaRicercaTelefono (ilike sulle ultime 9 cifre separate da %),
+  schedaConNumero, nomeSuPrenotazione (il nome scritto, se diverso da quello
+  della scheda, resta su QUESTA prenotazione in bookings.guest_name: la scheda
+  non si rinomina), testoClienteRiconosciuto. lib/clienteTelefonoDati:
+  cercaSchedaPerTelefono (ilike + riverifica con stessoNumero).
+- app/nuova: riconosciNumero() all'uscita dal campo «Numero di telefono» di
+  «Nuovo cliente» e, per sicurezza, al salvataggio; con 23505 sull'insert si
+  ricerca ancora e si usa la scheda trovata; dopo un insert riuscito la scheda
+  nuova resta agganciata (setGuest) così il cambio camera la riusa. Sotto
+  «Cliente trovato» la riga rossa: «Numero già in archivio: uso la scheda di
+  Anna Kowalska. «Giulia Bianchi» resta come nome di questa prenotazione, la
+  scheda non cambia.»
+- Finto Supabase delle prenotazioni: filtro `or=(…)` (prima ignorato: ogni
+  ricerca «trovava» qualcuno nei contatti extra), POST bookings e PATCH guests
+  in memoria, per provare il flusso intero.
+- Prove headless (schermata.mjs, 390 px) sul finto: A) numero nuovo → prima
+  camera Lena salvata → «Aggiungi cambio camera» → Amelia salvata, entrambe
+  sul cliente 0017 (una scheda sola, log del finto); B) in «Nuovo cliente»
+  nome «giulia bianchi» + numero di Anna Kowalska → all'uscita dal campo
+  «Cliente trovato» con la riga rossa → salvata su Anna con guest_name
+  «Giulia Bianchi». Suite 812 verde, tsc ok, lint senza differenze. Nessuna
+  migrazione.
+
 ---
 
 # Backup reale e ripristino provato (07/09/2026, sera) — piano Free verificato, PUBBLICATO (1032674)

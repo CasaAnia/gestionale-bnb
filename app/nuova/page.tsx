@@ -18,6 +18,8 @@ import { campiProvenienza, type Provenienza, type StrutturaNota } from '@/lib/pr
 import { leggiStrutture, ricordaStruttura, salvaProvenienzaCliente, cercaClientePerTelefono } from '@/lib/provenienzaDati'
 import { normalizzaProvenienza } from '@/lib/provenienza'
 import { etichettaGiaStato } from '@/lib/clienteCheTorna'
+import { nomeSuPrenotazione as calcolaNomeSuPrenotazione, testoClienteRiconosciuto } from '@/lib/clienteTelefono'
+import { cercaSchedaPerTelefono } from '@/lib/clienteTelefonoDati'
 
 // forme MINIME delle righe lette da Supabase (solo i campi usati qui)
 type ClienteRiga = {
@@ -83,6 +85,10 @@ function NuovaPrenotazione() {
   // del cliente esistente è controllato prima di inserire la prenotazione
   const [erroreStorico, setErroreStorico] = useState<string | null>(null)
   const [erroreCliente, setErroreCliente] = useState<string | null>(null)
+  // Cliente riconosciuto dal numero (07/09/2026, lib/clienteTelefono): il nome
+  // scritto nel modulo, se diverso dalla scheda, resta su QUESTA prenotazione
+  const [nomeSuPrenotazione, setNomeSuPrenotazione] = useState<string | null>(null)
+  const [avvisoRiconosciuto, setAvvisoRiconosciuto] = useState<string | null>(null)
   const [rooms, setRooms] = useState<CameraRiga[]>([])
   const [form, setForm] = useState({ room_id: preselectedRoomId, check_in: preselectedCheckIn, check_out: addOneDay(preselectedCheckIn), check_in_time: '', shuttle: '', num_guests: 1, extra_bed: false, extra_bed_dates: [] as string[], use_matrimoniale: false, price_per_night: 0, notes: '', bonifico: false, source: 'diretta', extra_phone_1_name: '', chi_e: '' })
   const [guestForm, setGuestForm] = useState({ full_name: '', email: '', rating: 'normale' as Valutazione, ricevuta: false })
@@ -167,7 +173,28 @@ function NuovaPrenotazione() {
     setErroreStorico(errore)
   }
 
+  function azzeraRiconoscimento() { setNomeSuPrenotazione(null); setAvvisoRiconosciuto(null) }
+
+  // Il numero scritto in «Nuovo cliente» è già di una scheda? Allora si usa
+  // quella (mai una seconda scheda con lo stesso telefono: guests.phone è
+  // UNIQUE e l'inserimento fallirebbe con «guests_phone_key»). Chiamata
+  // all'uscita dal campo e, per sicurezza, al salvataggio.
+  async function riconosciNumero(): Promise<{ scheda: ClienteRiga; nomeSu: string | null } | null> {
+    if (guest) return { scheda: guest, nomeSu: nomeSuPrenotazione }
+    if (!phone.trim()) return null
+    const { scheda } = await cercaSchedaPerTelefono<ClienteRiga>(phone)
+    if (!scheda) return null
+    const nomeSu = calcolaNomeSuPrenotazione(guestForm.full_name, scheda.full_name)
+    setNomeSuPrenotazione(nomeSu)
+    setAvvisoRiconosciuto(testoClienteRiconosciuto(scheda, nomeSu))
+    setGuest(scheda)
+    setGuestForm({ full_name: scheda.full_name || '', email: scheda.email || '', rating: valutazioneDi(scheda), ricevuta: vuoleRicevuta(scheda) })
+    await caricaStorico(scheda.id)
+    return { scheda, nomeSu }
+  }
+
   async function loadGuestById(guestId: string) {
+    azzeraRiconoscimento()
     const { data: g, error } = await supabase.from('guests').select('*').eq('id', guestId).single()
     if (error) { setSearchError(messaggioErroreDati(error, 'caricare il cliente')); return }
     if (g) {
@@ -192,6 +219,7 @@ function NuovaPrenotazione() {
   }
 
   async function cercaPerNome(q: string) {
+    azzeraRiconoscimento()
     // cerca tra i clienti principali
     const { data: guestMatches, error: e1 } = await supabase.from('guests').select('*').ilike('full_name', `%${q}%`).order('created_at', { ascending: false }).limit(10)
     if (e1) { setSearchError(messaggioErroreDati(e1, 'cercare il cliente')); return }
@@ -230,6 +258,7 @@ function NuovaPrenotazione() {
   }
 
   async function selectGuestFromList(g: ClienteRiga) {
+    azzeraRiconoscimento()
     setGuest(g)
     setGuestForm({ full_name: g.full_name || '', email: g.email || '', rating: valutazioneDi(g), ricevuta: vuoleRicevuta(g) })
     await caricaStorico(g.id)
@@ -251,6 +280,7 @@ function NuovaPrenotazione() {
   }
 
   async function cercaPerTelefono() {
+    azzeraRiconoscimento()
     const raw = phone.trim().replace(/\D/g, '')
     const t = raw.startsWith('39') ? raw : `39${raw}`
     const { data: existingGuest, error: e1 } = await supabase.from('guests').select('*').eq('phone', t).order('created_at', { ascending: false }).limit(1).maybeSingle()
@@ -385,6 +415,13 @@ function NuovaPrenotazione() {
     setSaving(true)
     setSaveError(null)
     let guestId = guest?.id
+    let nomeSuQuesta = nomeSuPrenotazione
+    // Numero già di una scheda? la si usa, senza rinominarla
+    let riconosciutaOra = false
+    if (!guestId) {
+      const esito = await riconosciNumero()
+      if (esito) { guestId = esito.scheda.id; nomeSuQuesta = esito.nomeSu; riconosciutaOra = true }
+    }
     if (!guestId) {
       const rawP = phone.trim().replace(/\D/g, '')
       const formattedPhone = rawP ? (rawP.startsWith('39') ? rawP : `39${rawP}`) : null
@@ -393,13 +430,24 @@ function NuovaPrenotazione() {
       // Valutazione + ricevuta (0038): colonna nuova se c'è, altrimenti la forma vecchia
       let { data: newGuest, error: guestError } = await supabase.from('guests').insert({ ...baseCliente, ...payloadValutazione(guestForm.rating, guestForm.ricevuta, true) }).select().single()
       if (guestError && /vuole_ricevuta/i.test(guestError.message || '')) ({ data: newGuest, error: guestError } = await supabase.from('guests').insert({ ...baseCliente, ...payloadValutazione(guestForm.rating, guestForm.ricevuta, false) }).select().single())
-      if (guestError || !newGuest) {
-        setSaveError(`Errore creazione cliente: ${guestError?.message || 'sconosciuto'}`)
-        setSaving(false)
-        return
+      // Telefono già in archivio (23505, es. scheda creata nel frattempo): si usa quella
+      if (guestError && guestError.code === '23505') {
+        const esito = await riconosciNumero()
+        if (esito) { guestId = esito.scheda.id; nomeSuQuesta = esito.nomeSu; riconosciutaOra = true }
       }
-      guestId = newGuest.id
-    } else {
+      if (!guestId) {
+        if (guestError || !newGuest) {
+          setSaveError(`Errore creazione cliente: ${guestError?.message || 'sconosciuto'}`)
+          setSaving(false)
+          return
+        }
+        guestId = newGuest.id
+        // La scheda appena creata resta agganciata: il cambio camera aggiunto
+        // dopo il salvataggio la riusa invece di crearne una seconda (bug del 07/09/2026)
+        setGuest(newGuest)
+        setGuestForm({ full_name: newGuest.full_name || '', email: newGuest.email || '', rating: valutazioneDi(newGuest), ricevuta: vuoleRicevuta(newGuest) })
+      }
+    } else if (!riconosciutaOra) {
       // Cliente esistente: se i suoi dati non si salvano, la prenotazione NON
       // viene inserita (mai una prenotazione con un cliente non aggiornato senza dirlo)
       setErroreCliente(null)
@@ -424,6 +472,8 @@ function NuovaPrenotazione() {
       extra_bed_total: ebt, total_amount: calcTotal(), notes: form.notes || null, status: 'confermata', source: form.source,
       bonifico: form.bonifico, pagato: false, group_id: groupId,
       extra_phone_1_name: conInizialiONull(form.extra_phone_1_name),
+      // nome scritto nel modulo diverso dalla scheda riconosciuta dal numero: vale per questa prenotazione
+      ...(nomeSuQuesta ? { guest_name: nomeSuQuesta } : {}),
       // chi_e incluso solo se valorizzato: così il salvataggio funziona anche se la colonna non è ancora stata creata su Supabase
       ...(form.chi_e ? { chi_e: form.chi_e } : {}),
       // navetta: stessa regola (vuoto = "da definire", non si salva nulla)
@@ -568,6 +618,7 @@ function NuovaPrenotazione() {
               <p className="font-semibold">{guest.full_name || phone}</p>
               <p className="text-sm text-gray-500">📞 {guest.phone}</p>
               {guest.email && <p className="text-sm text-gray-500">✉️ {guest.email}</p>}
+              {avvisoRiconosciuto && <p className="text-sm text-[#8C3B2E] mt-2">{avvisoRiconosciuto}</p>}
               {erroreStorico && guest && (
                 <AvvisoAzione testo={erroreStorico} onRiprova={() => { void caricaStorico(guest.id) }} className="mt-3" />
               )}
@@ -628,7 +679,7 @@ function NuovaPrenotazione() {
                   per nome non poteva più inserirlo). */}
               <div className="flex items-center gap-2">
                 <span className="text-sm text-green-mid">📞</span>
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} onBlur={() => { void riconosciNumero() }}
                   placeholder="Numero di telefono"
                   className="flex-1 ed-campo p-2 text-sm" />
               </div>

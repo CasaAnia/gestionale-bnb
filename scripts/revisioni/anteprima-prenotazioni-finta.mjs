@@ -215,6 +215,14 @@ function righeFiltrate(tabella, url) {
   let righe = [...(tabelle[tabella] || [])]
   for (const [chiave, valore] of url.searchParams) {
     if (['select', 'order', 'limit', 'offset'].includes(chiave)) continue
+    // or=(a.eq.x,b.ilike.%q%): basta che una condizione valga (07/09/2026:
+    // prima l'«or» veniva ignorato e la ricerca per nome/telefono della
+    // Nuova prenotazione «trovava» sempre qualcuno nei contatti extra)
+    if (chiave === 'or') {
+      const condizioni = valore.replace(/^\(|\)$/g, '').split(',').map(c => c.match(/^(\w+)\.(\w+)\.(.*)$/)).filter(Boolean)
+      righe = righe.filter(r => condizioni.some(([, col, op, att]) => confronta(r[col], op, att)))
+      continue
+    }
     const m = valore.match(/^(\w+)\.(.*)$/)
     if (!m) continue
     righe = righe.filter(r => confronta(r[chiave], m[1], m[2]))
@@ -336,7 +344,7 @@ const finto = createServer((req, res) => {
       return rispondi(res, 201, accept.includes('vnd.pgrst.object') ? applicaSelect(nuovo, url.searchParams.get('select') || '*') : [applicaSelect(nuovo, url.searchParams.get('select') || '*')])
     })
   }
-  if (m && req.method === 'PATCH' && (m[1] === 'bookings' || m[1] === 'documenti_cliente')) {
+  if (m && req.method === 'PATCH' && (m[1] === 'bookings' || m[1] === 'documenti_cliente' || m[1] === 'guests')) {
     return leggiCorpo(req).then(corpo => {
       const chiavi = Object.keys(corpo || {})
       if (m[1] === 'bookings' && chiavi.some(k => !['guest_id', 'guest_name'].includes(k))) return rispondi(res, 403, { code: 'ANTEPRIMA', message: 'scrittura non ammessa nella preview sintetica' })
@@ -356,6 +364,18 @@ const finto = createServer((req, res) => {
     })
   }
   if (m && req.method === 'POST' && m[1] === 'strutture') return rispondi(res, 201, [])
+  // Nuova prenotazione (07/09/2026): l'inserimento in bookings si accetta in
+  // memoria, per provare «prima camera → Aggiungi cambio camera → seconda camera»
+  if (m && req.method === 'POST' && m[1] === 'bookings') {
+    return leggiCorpo(req).then(corpo => {
+      const riga = Array.isArray(corpo) ? corpo[0] : corpo
+      if (!riga || !riga.room_id || !riga.guest_id) return rispondi(res, 400, { code: '23502', message: 'room_id o guest_id mancante' })
+      const nuova = prenotazione(riga.room_id, riga.guest_id, riga.check_in, riga.check_out, riga.num_guests ?? 1, { ...riga })
+      bookings.push(nuova)
+      console.log(`[finto supabase] +1 prenotazione (${nuova.room_id.slice(-4)}, ${nuova.check_in}, cliente ${nuova.guest_id.slice(-4)}, guest_name ${nuova.guest_name ?? '—'})`)
+      return rispondi(res, 201, [nuova])
+    })
+  }
   if (m) {
     // Scritture: rifiutate apposta. L'anteprima è solo lettura di dati finti.
     return rispondi(res, 403, { code: 'ANTEPRIMA', message: 'scrittura non ammessa nella preview sintetica' })
