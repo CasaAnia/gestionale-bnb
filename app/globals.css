@@ -207,15 +207,24 @@ input[type="week"] {
 .ed-riquadro { background: #fff; border: 1px solid var(--color-card-border); border-radius: 12px; }
 
 /* Home (richiesta di Ania, 06/09/2026, dopo lo stile editoriale): i numeri
-   tornano al carattere di prima (Georgia, peso normale, 24 px); il saluto
-   nello stesso carattere, da decidere. */
+   tornano al carattere di prima (peso normale, 24 px); il saluto nello
+   stesso carattere, da decidere.
+   Dal 07/09/2026 (scelta «A» di Ania): cifre ALLINEATE. Il Georgia ha solo
+   cifre antiche (6 e 8 salgono, 3 4 5 7 9 scendono) e ignora lining-nums,
+   perciò i numeri usano Fraunces, peso normale, con le cifre allineate. */
+.cifre-allineate {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-variation-settings: "opsz" 144;
+}
 .numero-classico {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--font-fraunces), Georgia, serif;
   font-weight: 400;
   font-size: 24px;
   line-height: 1.1;
   color: var(--color-green-dark);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-variation-settings: "opsz" 144;
 }
 .titolo-classico {
   font-family: Georgia, 'Times New Roman', serif;
