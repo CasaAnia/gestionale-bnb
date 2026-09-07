@@ -81,6 +81,21 @@ test('per camera chiesta: ordine Allegra, Ambra, Amelia, Lena, Qualsiasi; «non 
   assert.equal(r.alternativaNonAccettata, 1)
 })
 
+test('R5 (revisione 07/09/2026): «proposta un’alternativa, non hanno risposto o hanno detto no» esclude «data a un altro» e «altro motivo»', () => {
+  const lista = [
+    ric({ camera_id: 'r3', stato: 'chiusa', chiusura_motivo: 'rifiutata', motivo_rifiuto: 'data_ad_altro', ...proposta('r1') }),  // alternativa proposta, poi data a un altro
+    ric({ camera_id: 'r3', stato: 'rifiutata', motivo_rifiuto: 'Prezzo', ...proposta('r1') }),                                    // altro motivo
+    ric({ camera_id: 'r3', stato: 'chiusa', chiusura_motivo: 'rifiutata', motivo_rifiuto: 'detto_no', ...proposta('r1') }),       // ha detto di no → conta
+    ric({ camera_id: 'r3', stato: 'chiusa', chiusura_motivo: 'rifiutata', motivo_rifiuto: 'non_risposto', ...proposta('r1') }),   // non ha risposto → conta
+    ric({ camera_id: 'r3', stato: 'chiusa', chiusura_motivo: 'scaduta', ...proposta('r1') }),                                     // scaduta → conta
+  ]
+  const r = riquadroRichieste(lista, CAMERE, ...SET)
+  assert.equal(r.dateAdAltro, 1)
+  assert.equal(r.altroMotivo, 1)
+  assert.equal(r.alternativaNonAccettata, 3)
+  assert.equal(r.perCamera.find(c => c.nome === 'Ambra')?.nonEraLibera, 5)   // «non era libera» resta sull'assenza dalle proposte, a prescindere dall'esito
+})
+
 test('cambio camera nella soluzione: se una parte del soggiorno è nella camera chiesta conta comunque come «diversa»', () => {
   const lista = [ric({ camera_id: 'r3', stato: 'confermata', proposta_inviata_at: '2026-09-10T13:00:00', proposta_soluzione: { segmenti: [seg('r3'), seg('r4')] } })]
   const r = riquadroRichieste(lista, CAMERE, ...SET)

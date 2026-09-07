@@ -753,6 +753,10 @@ export default function BookingDetail() {
   }
 
   async function rileggiScheda(): Promise<string | null> {
+    // R4 (revisione 07/09/2026): ogni salvataggio riuscito passa da qui (modifica,
+    // sconto, date, cambio cliente): la cronologia si rilegge SEMPRE, anche
+    // quando updated_at non cambia (il cambio cliente scrive solo guest_id)
+    setTentativoCronologia(t => t + 1)
     type Riga = Record<string, unknown> & { group_id?: string | null }
     const letto = await leggiConEsito<Riga>(
       () => supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single(),
@@ -1155,7 +1159,7 @@ export default function BookingDetail() {
       const nuovo = crypto.randomUUID()
       const errore = await scriviPoiAggiorna(
         () => supabase.from('bookings').update({ group_id: nuovo }).eq('id', id),
-        () => setBooking({ ...booking, group_id: nuovo }),
+        () => { setBooking({ ...booking, group_id: nuovo }); setTentativoCronologia(t => t + 1) },
       )
       if (errore) { setErroreCambioCamera(errore); return }
       groupId = nuovo
@@ -1177,7 +1181,7 @@ export default function BookingDetail() {
     try {
       const errore = await scriviPoiAggiorna(
         () => supabase.from('bookings').update({ status: 'annullata', cancelled_at: new Date().toISOString(), cancelled_reason: cancelReason }).eq('id', id),
-        () => setBooking({ ...booking, status: 'annullata' }),
+        () => { setBooking({ ...booking, status: 'annullata' }); setTentativoCronologia(t => t + 1) },
       )
       if (errore) { setErroreAnnulla(errore); return }
       const msg = buildWhatsappMsg(booking, 'annullamento', groupBookings, acconti)

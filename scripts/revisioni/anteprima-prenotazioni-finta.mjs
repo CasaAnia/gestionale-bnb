@@ -23,6 +23,7 @@
 //   18–20 set Lena in 2 poi in 3, salvata col VECCHIO calcolo (2 × 90 = 180):
 //             la scheda mostra il totale salvato; «Modifica» ricalcola 170
 import { createServer } from 'node:http'
+import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -143,7 +144,7 @@ const cleanings = []
 // Cronologia (07/09/2026, proposta 0042): righe che in produzione scrivono i trigger.
 // Sulla prima prenotazione (Lena, 3–5 set): cambio camera, date, totale, un acconto e il cambio cliente.
 // GET /finto/senza-cronologia?on=1 simula la 0042 NON applicata (tabella assente → avviso nella scheda).
-const evento = (i, booking_id, minutiFa, tipo, prima, dopo) => ({ id: `99999999-${String(i).padStart(4, '0')}-4000-8000-000000000000`, n: i, booking_id, soggiorno: booking_id, created_at: new Date(Date.parse(ora) - minutiFa * 60000).toISOString(), tipo, prima, dopo, autore: null })
+const evento = (i, booking_id, minutiFa, tipo, prima, dopo) => ({ id: `99999999-${String(i).padStart(4, '0')}-4000-8000-000000000000`, n: i, booking_id, soggiorno: booking_id, created_at: new Date((minutiFa === 0 ? Date.now() : Date.parse(ora)) - minutiFa * 60000).toISOString(), tipo, prima, dopo, autore: null })
 const booking_events = [
   evento(1, bookings[0].id, 60 * 50, 'camera', { camera: 'Ambra' }, { camera: 'Lena' }),
   evento(2, bookings[0].id, 60 * 50, 'date', { check_in: '2026-09-03', check_out: '2026-09-04' }, { check_in: '2026-09-03', check_out: '2026-09-05' }),
@@ -151,7 +152,14 @@ const booking_events = [
   evento(4, bookings[0].id, 60 * 26, 'pagamento_aggiunto', null, { importo: 50, metodo: 'contanti', data: '2026-08-31' }),
   evento(5, bookings[0].id, 60 * 3, 'cliente', { cliente: 'Vecchio Nome', guest_id: null }, { cliente: guests[0].full_name, guest_id: guests[0].id }),
 ]
-const tabelle = { rooms, guests, bookings, payments, cleanings, documenti_cliente, strutture, booking_events }
+// R1 (revisione 07/09/2026): spese del tracker vecchio in memoria, con
+// GET /finto/perdi-risposta-spese?on=1 il POST SALVA la riga ma chiude la
+// connessione senza rispondere (risposta persa): «Riprova» deve riconciliare
+const family_groups = [{ id: 'eeeeeeee-0001-4000-8000-000000000001', name: 'Casa Ania', sort: 1, ambito: 'azienda', color: null, created_at: ora }]
+const family_categories = []
+const family_product_rules = []
+const family_expenses = []
+const tabelle = { rooms, guests, bookings, payments, cleanings, documenti_cliente, strutture, booking_events, family_groups, family_categories, family_product_rules, family_expenses }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
 
 // --- PostgREST minimale ---------------------------------------------------
@@ -253,6 +261,8 @@ function rispondi(res, stato, corpo, extra = {}) {
 // Errori di salvataggio visibili (05/09/2026): interruttore per far fallire
 // la lettura delle richieste dal sito (bookings con source=eq.sito_web).
 let senzaCronologia = process.env.FINTO_SENZA_CRONOLOGIA === '1'
+let perdiRispostaSpese = false
+let spese503 = false   // salva la riga ma risponde 503 (il gateway dice errore dopo che il database ha scritto)
 // Si accende/spegne senza riavviare: GET /finto/errore-richieste-web?on=1|0
 let erroreRichiesteWeb = process.env.FINTO_ERRORE_RICHIESTE_WEB === '1'
 // Cambia cliente (06/09/2026): quando è acceso il PATCH su bookings fallisce
@@ -272,6 +282,9 @@ const finto = createServer((req, res) => {
   if (senzaCronologia && url.pathname === '/rest/v1/booking_events') {
     return rispondi(res, 404, { code: 'PGRST205', message: "Could not find the table 'public.booking_events' in the schema cache", details: null, hint: null })
   }
+  if (url.pathname === '/finto/perdi-risposta-spese') { perdiRispostaSpese = url.searchParams.get('on') === '1'; return rispondi(res, 200, { perdiRispostaSpese }) }
+  if (url.pathname === '/finto/spese-503') { spese503 = url.searchParams.get('on') === '1'; return rispondi(res, 200, { spese503 }) }
+  if (url.pathname === '/finto/spese') return rispondi(res, 200, family_expenses)
   if (url.pathname === '/finto/errore-cambio-cliente') {
     erroreCambioCliente = url.searchParams.get('on') === '1'
     return rispondi(res, 200, { erroreCambioCliente })
@@ -288,6 +301,19 @@ const finto = createServer((req, res) => {
   if (m && req.method === 'HEAD') {
     const righe = interroga(m[1], url)
     return rispondi(res, 200, undefined, { 'Content-Range': `0-${righe.length}/${righe.length}` })
+  }
+  if (m && m[1] === 'family_expenses' && req.method === 'POST') {
+    return leggiCorpo(req).then(corpo => {
+      const righe = (Array.isArray(corpo) ? corpo : [corpo]).map(r => ({ id: randomUUID(), created_at: new Date().toISOString(), ...r }))
+      for (const r of righe) {
+        if (family_expenses.some(x => x.id === r.id)) return rispondi(res, 409, { code: '23505', message: 'duplicate key value violates unique constraint "family_expenses_pkey"' })
+        family_expenses.push(r)
+      }
+      console.log(`[finto supabase] spesa salvata: ${righe.map(r => `${r.id.slice(0, 8)} ${r.amount}`).join(', ')}${perdiRispostaSpese ? ' — RISPOSTA PERSA' : ''}`)
+      if (perdiRispostaSpese) { res.socket.destroy(); return }
+      if (spese503) return rispondi(res, 503, { message: 'upstream connect error' })
+      return rispondi(res, 201, righe)
+    })
   }
   if (m && req.method === 'GET') {
     const righe = interroga(m[1], url)
@@ -316,6 +342,14 @@ const finto = createServer((req, res) => {
       if (m[1] === 'bookings' && chiavi.some(k => !['guest_id', 'guest_name'].includes(k))) return rispondi(res, 403, { code: 'ANTEPRIMA', message: 'scrittura non ammessa nella preview sintetica' })
       if (m[1] === 'bookings' && erroreCambioCliente) return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sul cambio cliente' })
       const righe = righeFiltrate(m[1], url)
+      // R4 (revisione 07/09/2026): trigger sintetico della 0042 — il cambio cliente
+      // aggiunge DAVVERO una riga di cronologia, così la scheda deve rileggerla
+      if (m[1] === 'bookings' && 'guest_id' in corpo) {
+        for (const r of righe) {
+          const prima = guests.find(g => g.id === r.guest_id), dopo = guests.find(g => g.id === corpo.guest_id)
+          booking_events.push(evento(booking_events.length + 1, r.id, 0, 'cliente', { cliente: prima?.full_name ?? null, guest_id: r.guest_id }, { cliente: dopo?.full_name ?? null, guest_id: corpo.guest_id }))
+        }
+      }
       for (const r of righe) Object.assign(r, corpo)
       console.log(`[finto supabase] PATCH ${m[1]} ${righe.length} righe ←`, JSON.stringify(corpo))
       return rispondi(res, 200, righe.map(r => applicaSelect(r, url.searchParams.get('select') || '*')))

@@ -10,12 +10,15 @@
 //   · per camera chiesta (Allegra, Ambra, Amelia, Lena + «Qualsiasi»):
 //     chiesta, non era libera, diventata prenotazione. «Non era libera» =
 //     è stata inviata una proposta e la camera chiesta non compariva fra le
-//     camere proposte (soluzione + alternative);
+//     camere proposte (soluzione + alternative); il PERCHÉ (occupata o altro)
+//     non si misura e non si dice (R5);
 //   · «hanno accettato una camera diversa da quella chiesta: 5 su 8» =
 //     confermate con camera chiesta precisa la cui soluzione confermata non
 //     è tutta in quella camera, su tutte le confermate con camera precisa;
 //   · «proposta un'alternativa, non hanno risposto o hanno detto no» = camera
-//     chiesta non libera, proposta inviata, esito non confermato.
+//     chiesta assente dalle proposte, proposta inviata, esito SCADUTA o
+//     rifiuto con motivo «non ha risposto» / «ha detto di no»: «data a un
+//     altro» e «altro motivo» NON contano (R5, revisione del 07/09/2026).
 // Funzioni pure, nessun Supabase; i motivi passano da lib/motivoRifiuto.
 // ============================================================================
 import { normalizzaMotivoRifiuto } from '../motivoRifiuto.ts'
@@ -97,7 +100,9 @@ export function riquadroRichieste(richieste: RichiestaRiquadro[], camere: Camera
 
   const conCameraPrecisa = confermate.filter(r => !!r.camera_id)
   const diversa = conCameraPrecisa.filter(r => { const seg = segmentiSoluzione(r); return seg.length > 0 && !seg.every(s => s.camera?.id === r.camera_id) }).length
-  const alternativaNonAccettata = chiuse.filter(r => cameraNonEraLibera(r) && !eConfermata(r)).length
+  // Solo gli esiti che il testo descrive: scaduta senza risposta, «non ha risposto», «ha detto di no»
+  const nonRispostoODettoNo = (r: RichiestaRiquadro) => eScaduta(r) || (eRifiutata(r) && (motivo(r) === 'non_risposto' || motivo(r) === 'detto_no'))
+  const alternativaNonAccettata = chiuse.filter(r => cameraNonEraLibera(r) && nonRispostoODettoNo(r)).length
 
   return {
     arrivate: chiuse.length,

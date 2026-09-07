@@ -29,7 +29,131 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`, `ca_calendario_posizione` (sessionStorage, 07/09/2026: giorno da cui ripartire tornando dalla scheda).
-10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase da confermare (probabile Free = nessun backup automatico). CALENDARIO TELEFONO (pezzo 4): legenda dal «?», tocco 44 px sulle barre, ritorno alla stessa posizione dalla scheda. DRIFT (pezzo 5): proposta 0043 con le 10 colonne di bookings già in produzione, usata dal collaudo locale. lib/spese (pezzo 6): le 7 scritture void e la lettura a null del tracker vecchio hanno l'esito visibile (scritturaSicura + AvvisoAzione). INCARICO DEL 07/09/2026 COMPLETO: 6 pezzi + parti 2 e 3, tutti su main.
+10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase da confermare (NON verificato: vedi docs/backup.md §1). CALENDARIO TELEFONO (pezzo 4): legenda dal «?», tocco 44 px sulle barre, ritorno alla stessa posizione dalla scheda. DRIFT (pezzo 5): proposta 0043 con le 10 colonne di bookings già in produzione, usata dal collaudo locale. lib/spese (pezzo 6): le 7 scritture void e la lettura a null del tracker vecchio hanno l'esito visibile (scritturaSicura + AvvisoAzione). INCARICO DEL 07/09/2026 COMPLETO: 6 pezzi + parti 2 e 3, tutti su main. REVISIONE del 07/09 (Codex, sei rilievi R1–R6): corretti in locale (scheda in cima), 775 test, VERIFICATO IN LOCALE, push NON fatto (passaggio autorizzato da Ania).
+
+---
+
+# Consegna — Correzioni ai sei rilievi della revisione del 07/09/2026 (candidato revisionato 095cf85; SOLO locale, nessun push)
+
+Rapporto: ~/Documents/Codex/2026-09-07/ch/outputs/revisione-7-settembre.md (prove nel
+JSON accanto). Stato: VERIFICATO IN LOCALE, in attesa del passaggio autorizzato
+(push). Nessun SQL applicato, nessuna scrittura in produzione, nessun servizio.
+Lavoro concorrente: nessuno (albero pulito su 095cf85 all'inizio).
+
+## Rilievi risolti
+
+R1 (P1, spese duplicate con «Riprova») — lib/spese/spesaPendente (puro, 7 test
+  con un servizio finto che CONSERVA le righe): identità stabile del tentativo =
+  ID della riga generato dal client e custodito in localStorage
+  (ca_spesa_pendente_<ambito>) PRIMA dell'invio; rilettura dell'ID prima di ogni
+  invio; INSERT con l'ID (ripetuto → 23505 = già salvata); rete persa, 5xx o
+  errore senza codice SQL = esito INCERTO detto come tale («Non so se la spesa è
+  stata salvata…»), mai «Non salvato»; solo un codice SQL/PostgREST è un rifiuto
+  certo; doppio tocco bloccato (saving + guardia sull'ID in corso); alla
+  riapertura il pendente si riconcilia da solo. lib/spese/dati: inserisciSpesaConId
+  + esisteSpesa. Nessuna migrazione (family_expenses.id è già la chiave).
+  Riprodotto e chiuso il caso della revisione: 12 € → una sola riga.
+R2 (P1, verifica con select=id) — scripts/backup-lettura (nuovo, comune ai tre
+  script): conteggi con HEAD `select=*` + `Prefer: count=exact`, chiave primaria
+  vera dall'OpenAPI di PostgREST (`<pk/>`) o da pg_index; app_members (user_id)
+  esportata e confrontata; percorso PostgREST provato in lib/backupPostgrest.test
+  contro un server sintetico che risponde 400 a select=id come PostgREST vero.
+R3 (P1, backup incompleto «integro») — pagine con ORDINE STABILE sulla chiave
+  primaria e avanzamento sulle righe davvero restituite (taglio del server a
+  1.000); il file registra per tabella righe attese, chiave, righe lette;
+  l'esportazione si FERMA (file non scritto) se righe ≠ attese o chiavi doppie/
+  nulle; la verifica stampa TRE livelli distinti — INTEGRITÀ DEL FILE
+  (impronta, struttura), COMPLETEZZA DELL'ESPORTAZIONE (attese, chiavi),
+  CONFRONTO COL DATABASE (--confronta: conteggi; «contenuti»: riga per riga
+  sulla chiave: mancanti / in più / diverse). La riproduzione della revisione
+  (pagine sovrapposte, id 1001 assente) ora fa fermare l'esportazione. Limite
+  delle letture durante scritture concorrenti dichiarato in docs/backup.md §7.
+R4 (P2, cronologia dopo «Cambia cliente») — la cronologia si rilegge in
+  rileggiScheda() (chiamata da ogni salvataggio riuscito: modifica, sconto,
+  date, cambio cliente) e nei due successi senza rilettura (group_id,
+  annullamento); il finto 3213 aggiunge DAVVERO l'evento «cliente» al PATCH di
+  guest_id (trigger sintetico della 0042).
+R5 (P2, significato) — «Proposta un'alternativa, non hanno risposto o hanno
+  detto no» conta SOLO scadute + «non ha risposto» + «ha detto di no» («data a
+  un altro» e «altro motivo» esclusi; il testo lo dice); «Non era libera» =
+  camera chiesta assente dalle proposte, SENZA più «perché occupata». Test nuovo.
+R6 (P2, comando incompleto) — docs/backup.md §5: export dell'URL (non segreto)
+  + chiave letta con `read -s` (non compare, non va nella cronologia né nei
+  file) + unset finale; lo script dice esplicitamente che Node non legge
+  .env.local. Stesse variabili per --confronta.
+
+## Prove eseguite (tutte locali, dati sintetici)
+
+- Suite: 775/775 (era 761): +7 spesaPendente, +4 backupPostgrest, +1 R5,
+  backup.test riscritto sui tre livelli (7). Regressioni delle revisioni e
+  strumenti locali OK, TypeScript OK (scripts/verifica-consegna.mjs --base
+  095cf85). Lint del delta: 24 errori + 8 avvisi = gli stessi PREESISTENTI
+  (scheda prenotazione 24+4, tracker 4); nessun rilievo nuovo sui file
+  toccati (controllati uno a uno).
+- UI sull'anteprima finta 3213 con Chrome headless (schermata.mjs, ora con
+  --ricarica), a 390 px e 1280 px:
+  · R1: il finto salva e risponde 503 → «Non so se la spesa è stata salvata…»
+    + Riprova, modulo aperto, custodia presente, 1 riga; «Riprova» → «La spesa
+    era già stata salvata: nessun doppione», custodia tolta, 1 riga; risposta
+    persa (socket chiuso: Chrome ripete il POST, 23505) → «già salvata», 1
+    riga; riapertura con pendente → riconciliata da sola, 1 riga; SECONDA
+    riapertura → nessun avviso, nessun pendente; doppio tocco su Salva →
+    1 riga; rifiuto certo 403 → «Non salvato, riprova» col modulo aperto.
+  · R4: scheda con 5 righe di cronologia → Cambia cliente dalla UI (ricerca,
+    scelta, «Passa la prenotazione a …») → 6 righe SENZA riaprire, ultima
+    «cliente Famiglia Quadrupla → Coppia Allegra»; idem a 1280 (6 → 7).
+- Backup, collaudo reale su PostgreSQL 16 locale (porta 5433): export
+  --postgres (30 tabelle, 218 righe, app_members compresa) → verifica
+  --confronta contenuti OK sui tre livelli → RIPRISTINO in un database
+  isolato migrato e vuoto (backup-ripristino.mjs --conferma --svuota, 218
+  righe) → verifica --confronta contenuti contro il database RIPRISTINATO:
+  identico. Il primo giro del ripristino ha scoperto due difetti veri della
+  lettura Postgres (date scalate di un giorno, microsecondi persi): corretti
+  tenendo date/timestamp come testo, poi riprovato: identico. File alterato →
+  INTEGRITÀ NON OK; file con una riga tolta → COMPLETEZZA NON OK.
+- Controllo condiviso sul candidato finale (albero fermo, commit 264bf78 poi
+  ammesso con questa sola riga di documentazione, codice identico):
+  «OK — Suite applicazione», «OK — Regressioni delle revisioni», «OK —
+  Strumenti locali», «OK — TypeScript senza emissione»; «Lint dei file
+  modificati»: 32 problemi = 24 errori + 8 avvisi, TUTTI preesistenti (i 24
+  errori e 4 avvisi della scheda prenotazione esistono dalla base 274688a, i
+  4 avvisi del tracker pure); nessun rilievo nuovo nei file toccati. Per
+  questo il comando esce con VERIFICHE_FALLITE_O_INCOMPLETE: è il lint
+  storico, non una regressione.
+- Build (`next build`) eseguita UNA volta sul candidato finale: «Compiled
+  successfully», 30 pagine statiche generate (rete presente: i font di Google
+  sono stati scaricati; la revisione non era riuscita per rete limitata).
+
+## Cosa il JSON permette di recuperare (dichiarato in docs/backup.md §4)
+
+Le righe di tutte le tabelle di public, in un database che ha già lo schema.
+NON: schema SQL, funzioni/trigger/RPC, policy RLS, auth.users, file dello
+Storage, job pg_cron, sequenze. Non è un backup completo del progetto.
+
+## Documentazione corretta
+
+- docs/backup.md: piano Supabase NON verificato (Settings → Billing); «Free»
+  non equivale a «nessun backup» in assoluto (Supabase dice di conservarne
+  fino a 7 anche per Free, accessibili solo dopo un upgrade e senza garanzia);
+  comandi completi con URL; tre livelli di verifica; ripristino; limiti.
+- Le schede precedenti del 07/09 su backup e riquadro Richieste restano come
+  storia; valgono le correzioni di questa scheda.
+
+## Limiti residui
+
+- Percorso PostgREST provato contro un server sintetico fedele, NON contro
+  Supabase vero (nessuna lettura in produzione in questo giro): il primo
+  backup reale e la sua verifica «contenuti» li fa Ania (docs §5).
+- Letture non atomiche fra tabelle: dichiarato; «--confronta contenuti»
+  subito dopo l'export lo rivela.
+- Chrome ripete da solo un POST su connessione chiusa: il caso «rete persa»
+  dalla UI arriva come 23505 (riconciliato); il caso incerto puro è stato
+  provato con la risposta 503 dopo il salvataggio e nei test del modulo.
+- Il tracker vecchio resta codice in via di ritiro (?vecchia=1).
+
+🔴 AZIONE PER ANIA: dopo il push (che qui NON è stato fatto), primo backup reale
+coi comandi di docs/backup.md §5 e verifica con `--confronta contenuti`;
+leggere il piano in Settings → Billing e dirmelo.
 
 ---
 
@@ -141,8 +265,8 @@ Incarico del 07/09/2026, pezzo 4. Un commit, nessuna migrazione.
 Incarico del 07/09/2026, pezzo 3. Un commit, nessuna migrazione, niente
 eseguito sulla produzione.
 
-- docs/backup.md: cosa prevede Supabase per piano (Free: NESSUN backup
-  automatico; Pro 7 giorni; Team 14; Enterprise 30; PITR a pagamento), come
+- docs/backup.md: cosa prevede Supabase per piano (Free: backup non
+  accessibili dal pannello — rivisto dopo la revisione —; Pro 7 giorni; Team 14; Enterprise 30; PITR a pagamento), come
   si chiede un ripristino (Database → Backups → Restore, progetto fermo
   durante il ripristino, niente ripristino di una sola tabella), cosa NON è
   coperto (file dello Storage — scontrini e documenti —, segreti su Vercel,
@@ -151,9 +275,9 @@ eseguito sulla produzione.
 - LIMITE DICHIARATO: il piano di QUESTO progetto non l'ho potuto leggere
   (il pannello Supabase vuole il login di Ania; il Chrome collegato non era
   raggiungibile; nessun token salvato sul Mac). Il documento spiega dove
-  guardarlo in 10 secondi (Settings → Billing, o Database → Backups). Dalla
-  regola «nessun nuovo abbonamento» il progetto è quasi certamente Free →
-  il solo backup è quello locale.
+  guardarlo in 10 secondi (Settings → Billing, o Database → Backups).
+  [Corretto dopo la revisione: il piano resta NON verificato; «Free = nessun
+  backup» non è una certezza, vedi docs/backup.md §1.]
 - scripts/backup-locale.mjs: esporta tutte le tabelle di public in
   backup/gestionale-backup-AAAA-MM-GG-HHMM.json (cartella in .gitignore);
   da Supabase con SUPABASE_SERVICE_ROLE_KEY letta SOLO dall'ambiente (mai
@@ -254,7 +378,8 @@ migrazione.
   con chiesta / non era libera / prenotata. DEFINIZIONE dichiarata sotto la
   tabella: «non era libera» = è stata inviata una proposta e la camera
   chiesta non compariva fra quelle proposte (soluzione + alternative);
-  per «Qualsiasi» vale «—».
+  per «Qualsiasi» vale «—». [R5: il testo a schermo non dice più «perché
+  occupata».]
 - Due righe finali: «Hanno accettato una camera diversa da quella chiesta:
   N su M» (confermate con camera chiesta precisa la cui soluzione non è tutta
   in quella camera, su tutte le confermate con camera precisa) e «Proposta

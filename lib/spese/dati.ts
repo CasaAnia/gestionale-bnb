@@ -109,8 +109,16 @@ export async function urlFotoScontrino(receiptId: string): Promise<string | null
 }
 
 // ---- spese ----
-export function inserisciSpesa(payload: Record<string, unknown>): Promise<string | null> {
-  return scriviPoiAggiorna(() => supabase.from('family_expenses').insert(payload), () => {})
+// R1 (revisione 07/09/2026): l'INSERT porta l'ID generato dal client (identità
+// stabile del tentativo, lib/spese/spesaPendente); ripetuto con lo stesso ID
+// il database risponde 23505 = già salvata. La risposta cruda serve
+// all'orchestratore per distinguere rete persa, duplicato e rifiuto.
+export function inserisciSpesaConId(id: string, payload: Record<string, unknown>): PromiseLike<{ error: unknown }> {
+  return supabase.from('family_expenses').insert({ ...payload, id })
+}
+// La riga con quell'ID esiste? (rilettura prima di ogni invio e alla riapertura)
+export function esisteSpesa(id: string): PromiseLike<{ data: unknown[] | null; error: unknown }> {
+  return supabase.from('family_expenses').select('id').eq('id', id).limit(1)
 }
 
 export function eliminaSpesa(id: string): Promise<string | null> {

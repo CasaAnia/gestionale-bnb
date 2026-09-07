@@ -14,6 +14,7 @@
 //   --leggi "<js>"       JS il cui valore (JSON) viene stampato su stdout dopo lo scatto
 //   --intera             cattura tutta la pagina, non solo il viewport
 //   --attesa <ms>        attesa dopo il caricamento (default 2500)
+//   --ricarica "<js>"    dopo --prima ricarica la pagina, aspetta, esegue questo JS (prove di riapertura)
 // Esempio:
 //   node scripts/revisioni/schermata.mjs http://localhost:3214/richieste 390 844 /tmp/r.png --login \
 //     --prima "document.querySelector('button').click()" --leggi "document.title"
@@ -27,7 +28,7 @@ const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/M
 
 function argomenti(argv) {
   const [url, w, h, file, ...resto] = argv
-  const o = { url, width: Number(w), height: Number(h), file, login: false, prima: null, leggi: null, intera: false, attesa: 2500 }
+  const o = { url, width: Number(w), height: Number(h), file, login: false, prima: null, leggi: null, intera: false, attesa: 2500, ricarica: null }
   for (let i = 0; i < resto.length; i++) {
     const a = resto[i]
     if (a === '--login') o.login = true
@@ -35,6 +36,7 @@ function argomenti(argv) {
     else if (a === '--prima') o.prima = resto[++i]
     else if (a === '--leggi') o.leggi = resto[++i]
     else if (a === '--attesa') o.attesa = Number(resto[++i])
+    else if (a === '--ricarica') o.ricarica = resto[++i]
   }
   if (!url || !o.width || !o.height || !file) { console.error('Uso: schermata.mjs <url> <larghezza> <altezza> <file.png> [--login] [--prima js] [--leggi js] [--intera] [--attesa ms]'); process.exit(2) }
   return o
@@ -112,6 +114,13 @@ async function main() {
     }
     await dormi(o.attesa)
     if (o.prima) await valuta(o.prima)
+    if (o.ricarica !== null) {
+      const carico = cdp.aspetta('Page.loadEventFired', s)
+      await cdp.invia('Page.reload', {}, s)
+      await carico
+      await dormi(o.attesa)
+      await valuta(o.ricarica)
+    }
     const shot = await cdp.invia('Page.captureScreenshot', { format: 'png', captureBeyondViewport: o.intera }, s)
     writeFileSync(o.file, Buffer.from(shot.data, 'base64'))
     if (o.leggi) console.log(JSON.stringify(await valuta(o.leggi), null, 1))

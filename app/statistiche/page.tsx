@@ -512,10 +512,10 @@ export default function Statistiche() {
                   </div>
                 ))}
               </div>
-              <p className="text-[11px] text-gray-400 mt-1.5">«Non era libera» = la camera chiesta non compariva fra quelle proposte perché occupata nelle notti chieste.</p>
+              <p className="text-[11px] text-gray-400 mt-1.5">«Non era libera» = la camera chiesta non compariva fra quelle proposte (soluzione e alternative).</p>
               <div className="mt-3 space-y-1 text-xs text-gray-600">
                 <p>Hanno accettato una camera diversa da quella chiesta: <span className="font-semibold text-green-dark">{richiesteRiquadro.accettatoDiversa.si} su {richiesteRiquadro.accettatoDiversa.su}</span></p>
-                <p>Proposta un’alternativa, non hanno risposto o hanno detto no: <span className="font-semibold text-green-dark">{richiesteRiquadro.alternativaNonAccettata}</span></p>
+                <p>Proposta un’alternativa, non hanno risposto o hanno detto no: <span className="font-semibold text-green-dark">{richiesteRiquadro.alternativaNonAccettata}</span> <span className="text-gray-400">(senza «data a un altro» e «altro motivo»)</span></p>
               </div>
             </div>
           )}

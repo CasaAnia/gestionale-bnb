@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import BackBar from '@/components/BackBar'
 import AvvisoAzione from '@/components/AvvisoAzione'
+import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
+import { eseguiInserimentoSpesa, leggiPendente, chiaveMemoriaSpesa, type DepsInserimento } from '@/lib/spese/spesaPendente'
 import DemoGate from '@/components/DemoGate'
 import { isDemoMode } from '@/lib/demoMode'
 
@@ -218,10 +220,37 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     return current
   }
 
+  // R1 (revisione 07/09/2026): spesa a mano con identità stabile del tentativo
+  // (ID generato dal client e custodito in localStorage PRIMA dell'invio),
+  // rilettura prima di ogni invio, esito INCERTO detto come tale quando la
+  // risposta si perde; «Riprova» riconcilia e non raddoppia. Doppio tocco:
+  // `saving` + guardia dell'orchestratore.
+  const depsSpesa = (): DepsInserimento => ({
+    nuovoId: () => crypto.randomUUID(),
+    adesso: () => new Date().toISOString(),
+    leggiPendente: () => leggiPendente(leggiMemoria(() => localStorage, chiaveMemoriaSpesa(ambito)), ambito),
+    custodisci: p => scriviMemoria(() => localStorage, chiaveMemoriaSpesa(ambito), JSON.stringify(p)),
+    dimentica: () => { try { localStorage.removeItem(chiaveMemoriaSpesa(ambito)) } catch { /* memoria negata */ } },
+    esiste: dati.esisteSpesa,
+    inserisci: dati.inserisciSpesaConId,
+  })
+  async function inviaSpesa(payload: Record<string, unknown> | null) {
+    if (saving) return
+    setSaving(true)
+    const esito = await eseguiInserimentoSpesa(ambito, payload, depsSpesa())
+    setSaving(false)
+    if (esito.esito === 'in_corso') return
+    if (esito.esito === 'salvata') {
+      setAvviso(esito.giaPresente ? { testo: 'La spesa era già stata salvata: nessun doppione' } : null)
+      setForm(blankForm()); setAutoGroup(null); setShowForm(false); load()
+      return
+    }
+    // incerto (rete persa, rilettura fallita) o rifiuto certo: modulo aperto, avviso con Riprova che RICONCILIA (null = riprende il pendente)
+    setAvviso({ testo: esito.messaggio, riprova: () => inviaSpesa(esito.esito === 'incerto' ? null : payload) })
+  }
   async function save() {
     if (!form.amount || !form.expense_date) return
-    setSaving(true)
-    const errore = await dati.inserisciSpesa({
+    await inviaSpesa({
       expense_date: form.expense_date,
       amount: parseFloat(form.amount.replace(',', '.')),
       // Se c'è un solo gruppo (caso azienda) e non è stato scelto, lo assegno da solo.
@@ -233,12 +262,17 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       recurring: form.recurring,
       source: 'manuale',
     })
-    setSaving(false)
-    // Non salvata: il modulo resta aperto coi valori scritti, l'avviso ripete il salvataggio
-    if (errore) { setAvviso({ testo: errore, riprova: save }); return }
-    setAvviso(null)
-    setForm(blankForm()); setAutoGroup(null); setShowForm(false); load()
   }
+  // Riapertura: un tentativo rimasto incerto (custodia presente) si riconcilia
+  // subito, senza scrivere se la riga c'è già
+  useEffect(() => {
+    if (isDemoMode()) return
+    const pendente = leggiPendente(leggiMemoria(() => localStorage, chiaveMemoriaSpesa(ambito)), ambito)
+    if (!pendente) return
+    const t = setTimeout(() => { void inviaSpesa(null) }, 0)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ambito])
 
   async function del(id: string, giaConfermato = false) {
     if (!giaConfermato && !confirm('Eliminare questa spesa?')) return
