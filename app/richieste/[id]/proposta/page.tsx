@@ -23,6 +23,7 @@ import { salvaImmagine, copiaImmagine, isMobile } from '@/lib/immaginePng'
 import { useDesktop, useAdesso } from '@/lib/richiesteVista'
 import { opzioniAttive, opzioniScadute, occupantiDaOpzioni, notaOpzioni, opzioniSovrapposte, oraRoma, type RichiestaOpzione } from '@/lib/opzioni'
 import RigaScadenza from '@/components/richieste/RigaScadenza'
+import NotaCliente from '@/components/richieste/NotaCliente'
 import { giorniTra } from '@/lib/richiesteCalendario'
 import Link from 'next/link'
 import {
@@ -406,6 +407,8 @@ export default function PropostaPage() {
         {richiesta.persone_per_notte ? riassuntoPersone(richiesta.arrivo, richiesta.persone_per_notte) : `${richiesta.persone} ${richiesta.persone === 1 ? 'persona' : 'persone'}`}
       </p>
       <p className="text-sm text-green-dark mt-1">Camera richiesta: <span className="font-medium">{richiesta.rooms?.name || 'qualsiasi'}</span></p>
+      {/* Nota del cliente (Ania, 07/09/2026): prima si vedeva solo in «Modifica la richiesta» */}
+      <NotaCliente note={richiesta.note} className="mt-1" />
       <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-stone mt-1.5">
         <span className="inline-flex items-center gap-1"><IconaCanale canale={richiesta.canale} />{CANALE_LABEL[richiesta.canale]}</span>
         <span aria-hidden>·</span>

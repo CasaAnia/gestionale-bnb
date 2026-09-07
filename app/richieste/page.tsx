@@ -10,6 +10,7 @@ import CalendarioRichieste, { larghezzaColonnaCamere, type Ancora, type ModoCale
 import PannelloRichieste from '@/components/richieste/PannelloRichieste'
 import AzioniRichiesta from '@/components/richieste/AzioniRichiesta'
 import RigaScadenza from '@/components/richieste/RigaScadenza'
+import NotaCliente from '@/components/richieste/NotaCliente'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi from '@/components/RigaMesi'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
@@ -80,6 +81,8 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
         <span className="text-stone"> · </span>
         {r.rooms?.name || 'qualsiasi camera'}
       </p>
+      {/* Nota del cliente (Ania, 07/09/2026): prima si vedeva solo in «Modifica» */}
+      <NotaCliente note={r.note} className="mt-1" />
       {/* timer delle 3 ore (solo proposta inviata): sostituisce il vecchio «proposta inviata N minuti fa» */}
       <RigaScadenza r={r} adesso={adesso} className="mt-1.5" />
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs md:text-[13px] text-stone mt-1.5">
