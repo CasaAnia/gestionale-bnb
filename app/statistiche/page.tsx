@@ -17,7 +17,7 @@ import { supabase } from '@/lib/supabase'
 import { nomeOspite } from '@/lib/guestName'
 import { messaggioNonSalvato } from '@/lib/scritturaSicura'
 import { isErroreDiRete } from '@/lib/connessione'
-import { cassaIntervallo, incassiCent, occupazioneIntervallo, ricaviPerCamera, scontiPeriodo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi, rpcMancante, vociPerRpc, validaEsitoRicostruzione, type Occupazione } from '@/lib/statistiche'
+import { cassaIntervallo, incassiCent, occupazioneIntervallo, indiciIntervallo, indiciAnnoPrima, confrontoKpi, ricaviPerCamera, scontiPeriodo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi, rpcMancante, vociPerRpc, validaEsitoRicostruzione, type Occupazione } from '@/lib/statistiche'
 
 // «Statistiche, numeri corretti» (05/09/2026): NESSUNA formula in questa
 // pagina. Ogni numero viene da lib/statistiche (funzioni pure, testate) sui
@@ -207,6 +207,11 @@ export default function Statistiche() {
   const biancheria = recuperi ? sommaPerVoce(nelPeriodo(recuperi.righe, intervallo.da, intervallo.a)) : null
   const biancheriaTotale = biancheria ? biancheria.reduce((t, v) => t + v.n, 0) : 0
   const totali = data ? cassaIntervallo(data.prenotazioni, data.pagamenti, data.spese, intervallo.da, intervallo.a) : null
+  // KPI (07/09/2026): occupazione, tariffa media, notti libere del periodo da
+  // indiciIntervallo (stesse definizioni di tutto il resto) e confronto con lo
+  // stesso periodo dell'anno prima (vuoto se l'anno prima non ha prenotazioni)
+  const kpi = data ? indiciIntervallo(intervallo.da, intervallo.a, data.camere, data.prenotazioni, data.fuoriServizio.intervalli) : null
+  const confronto = data && kpi ? confrontoKpi(kpi, indiciAnnoPrima(intervallo, data.camere, data.prenotazioniAnnoPrima, data.fuoriServizio.intervalli)) : null
   // Da dove arrivano gli ospiti (08/09/2026): periodo scelto; storico = soggiorni conclusi (per i ritorni); strutture dell'anno letto
   const provenienze = data ? daDoveArrivano(data.prenotazioni as PrenotazioneProvenienza[], [...data.ricostruzione.prenotazioni, ...data.prenotazioni] as PrenotazioneProvenienza[], intervallo.da, intervallo.a) : null
   const strutture = data ? struttureDellAnno(data.prenotazioni as PrenotazioneProvenienza[], ref.getFullYear()) : null
@@ -333,6 +338,29 @@ export default function Statistiche() {
               <p className="text-[10px] leading-tight text-gray-400 mt-0.5">incassi meno spese del periodo</p>
             </div>
           </div>
+
+          {/* KPI del periodo (07/09/2026): tre riquadri più piccoli, valori di
+              indiciIntervallo; sotto ogni numero il confronto con lo stesso
+              periodo dell'anno prima, vuoto se l'anno prima non ha dati */}
+          {kpi && confronto && (
+            <div className="grid grid-cols-3 gap-2 mb-4" data-kpi>
+              <div className="ed-riga py-2.5">
+                <p className="text-xs text-gray-500">Occupazione</p>
+                <p className="font-bold text-green-dark text-base">{kpi.percento}%{kpi.anomalia && <span className="ml-1 text-[10px] font-normal text-brass">{TESTO_ANOMALIA_OCCUPAZIONE}</span>}</p>
+                <p className="text-[10px] leading-tight text-gray-400 mt-0.5 min-h-[1em]">{confronto.occupazione ?? '\u00a0'}</p>
+              </div>
+              <div className="ed-riga py-2.5">
+                <p className="text-xs text-gray-500">Tariffa media</p>
+                <p className="font-bold text-green-dark text-base">€{euro(kpi.adrCent)}</p>
+                <p className="text-[10px] leading-tight text-gray-400 mt-0.5 min-h-[1em]">{confronto.tariffaMedia ?? '\u00a0'}</p>
+              </div>
+              <div className="ed-riga py-2.5">
+                <p className="text-xs text-gray-500">Notti libere</p>
+                <p className="font-bold text-green-dark text-base">{kpi.nottiLibere}</p>
+                <p className="text-[10px] leading-tight text-gray-400 mt-0.5 min-h-[1em]">{confronto.nottiLibere ?? '\u00a0'}</p>
+              </div>
+            </div>
+          )}
 
           {esitoRicostruzione && <AvvisoAzione testo={esitoRicostruzione} className="mb-4" />}
 

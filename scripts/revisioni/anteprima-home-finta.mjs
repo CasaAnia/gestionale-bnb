@@ -121,11 +121,17 @@ const bookings = [
   prenotazione(ROOM.allegra, G.letto1.id, O(10), O(12), 3, { extra_bed: true, extra_bed_dates: [O(10), O(11)], extra_bed_total: 20, total_amount: 180 }),
   prenotazione(ROOM.ambra, G.letto2.id, O(10), O(12), 3, { extra_bed: true, extra_bed_dates: [O(10), O(11)], extra_bed_total: 20, total_amount: 180 }),
   prenotazione(ROOM.lena, G.letto3.id, O(10), O(11), 3, { extra_bed: true, extra_bed_dates: [O(10)], extra_bed_total: 10, total_amount: 100 }),
+  // KPI in Statistiche (07/09/2026): due soggiorni conclusi UN ANNO PRIMA, per il confronto «+N punti / −N € / era N»
+  prenotazione(ROOM.amelia, G.sara.id, O(-365 + 2), O(-365 + 6), 2, { status: 'completata', pagato: true, total_amount: 280 }),
+  prenotazione(ROOM.lena, G.elena.id, O(-365 + 10), O(-365 + 13), 2, { status: 'completata', pagato: true, total_amount: 270 }),
 ]
 const P = id => bookings.find(b => b.guest_id === id).id
 const payments = [
   { id: 'dddddddd-0001-4000-8000-000000000001', booking_id: P(G.giulio.id), amount: 100, method: 'contanti', paid_on: O(-6), created_at: ora },
   { id: 'dddddddd-0002-4000-8000-000000000002', booking_id: P(G.elena.id), amount: 160, method: 'bonifico', paid_on: O(-20), created_at: ora },
+  // i due soggiorni dell'anno prima sono saldati: non entrano nello «Storico incassi da ricostruire»
+  { id: 'dddddddd-0003-4000-8000-000000000003', booking_id: bookings[bookings.length - 2].id, amount: 280, method: 'contanti', paid_on: O(-365 + 2), created_at: ora },
+  { id: 'dddddddd-0004-4000-8000-000000000004', booking_id: bookings[bookings.length - 1].id, amount: 270, method: 'contanti', paid_on: O(-365 + 10), created_at: ora },
 ]
 // Pulizie segnate (08/09/2026, striscia «solo da fare»): la partenza di Giulio da Allegra
 // e quella di «Parte Oggi» da Ambra sono fatte → oggi la casella mostra «✓»; domani

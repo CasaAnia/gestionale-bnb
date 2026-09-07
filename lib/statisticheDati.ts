@@ -7,7 +7,7 @@
 // lib/statistiche: qui nessuna formula.
 import { supabase } from './supabase'
 import { messaggioLetturaNonRiuscita } from './prenotazioneScritture'
-import { raccogliPagine, raccogliBlocchi, aBlocchi, mappaChiusure, type CameraStat, type PagamentoStat, type FuoriServizio } from './statistiche'
+import { raccogliPagine, raccogliBlocchi, aBlocchi, mappaChiusure, intervalloAnnoPrima, type CameraStat, type PagamentoStat, type FuoriServizio } from './statistiche'
 import type { SpesaPagata } from './statistiche/intervallo'
 import type { PrenotazioneSconto } from './statistiche/sconti'
 import type { SiteEvent } from './siteStats'
@@ -120,15 +120,17 @@ export async function leggiRicostruzione(oggi: string): Promise<Esito<DatiRicost
   return { data: { prenotazioni, pagamenti: pag.data!, oggi }, errore: null }
 }
 
-export type DatiStatistiche = { prenotazioni: PrenotazioneSconto[]; pagamenti: PagamentoStat[]; spese: SpesaPagata[]; camere: CameraStat[]; eventiSito: SiteEvent[]; ricostruzione: DatiRicostruzione; fuoriServizio: LetturaFuoriServizio }
+export type DatiStatistiche = { prenotazioni: PrenotazioneSconto[]; prenotazioniAnnoPrima: PrenotazioneSconto[]; pagamenti: PagamentoStat[]; spese: SpesaPagata[]; camere: CameraStat[]; eventiSito: SiteEvent[]; ricostruzione: DatiRicostruzione; fuoriServizio: LetturaFuoriServizio }
 
 // Tutto ciò che serve alla pagina Statistiche per [da, a); il primo errore ferma tutto
 export async function leggiDatiStatistiche(da: string, a: string, oggi: string): Promise<Esito<DatiStatistiche>> {
   // Provenienza (08/09/2026): con l'ospite (telefono e nome) per «Da dove arrivano gli ospiti» e «Già stati da noi»
-  const [p, pag, sp, cam, ev, ric, fs] = await Promise.all([leggiPrenotazioni(da, a, '*, guests(*)'), leggiPagamenti(da, a), leggiSpese(da, a), leggiCamere(), leggiEventiSito(da, a), leggiRicostruzione(oggi), leggiFuoriServizio()])
-  const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ev.errore ?? ric.errore ?? fs.errore
+  // KPI (07/09/2026): lo stesso intervallo un anno prima, colonne minime, per il confronto sotto i tre numeri
+  const prima = intervalloAnnoPrima({ da, a })
+  const [p, pag, sp, cam, ev, ric, fs, pp] = await Promise.all([leggiPrenotazioni(da, a, '*, guests(*)'), leggiPagamenti(da, a), leggiSpese(da, a), leggiCamere(), leggiEventiSito(da, a), leggiRicostruzione(oggi), leggiFuoriServizio(), leggiPrenotazioni(prima.da, prima.a, 'id, group_id, room_id, check_in, check_out, status, total_amount', 'caricare le prenotazioni dell’anno prima')])
+  const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ev.errore ?? ric.errore ?? fs.errore ?? pp.errore
   if (errore) return { data: null, errore }
-  return { data: { prenotazioni: p.data!, pagamenti: pag.data!, spese: sp.data!, camere: cam.data!, eventiSito: ev.data!, ricostruzione: ric.data!, fuoriServizio: fs.data! }, errore: null }
+  return { data: { prenotazioni: p.data!, prenotazioniAnnoPrima: pp.data!, pagamenti: pag.data!, spese: sp.data!, camere: cam.data!, eventiSito: ev.data!, ricostruzione: ric.data!, fuoriServizio: fs.data! }, errore: null }
 }
 
 export type DatiHome = { prenotazioni: PrenotazioneSconto[]; pagamentiMese: PagamentoStat[]; tuttiPagamenti: PagamentoStat[]; prenotazioniConMovimenti: PrenotazioneSconto[]; spese: SpesaPagata[]; camere: CameraStat[]; ricostruzione: DatiRicostruzione; fuoriServizio: LetturaFuoriServizio }

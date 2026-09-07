@@ -33,6 +33,35 @@
 
 ---
 
+# Consegna — Statistiche, KPI del periodo con l'anno prima (07/09/2026, main)
+
+Incarico del 07/09/2026, pezzo 1: sotto i quattro riquadri una riga di tre
+riquadri più piccoli coi valori GIÀ calcolati da lib/statistiche.indiciIntervallo
+(stesse definizioni ovunque, nessuna formula nella pagina). Un commit, nessuna
+migrazione.
+
+- «Occupazione» (notti vendute ÷ vendibili, in %, con l'anomalia oltre il
+  100 % come nel resto), «Tariffa media» (ADR = ricavi camere ÷ notti
+  vendute) e «Notti libere» (vendibili − vendute) del periodo scelto (oggi,
+  settimana, mese, anno). Cifre con lo stesso carattere di Incassi/Spese/Saldo.
+- Sotto ogni numero, in grigio, il confronto con lo STESSO periodo dell'anno
+  prima: «+4 punti» / «−1 punto» / «−12 €» / «era 31»; «come l'anno prima»
+  se identico; VUOTO (spazio riservato) se l'anno prima non ha nessuna
+  prenotazione confermata/completata in quell'intervallo.
+- lib/statistiche/confronto (puro, 4 test): spostaAnni (29 febbraio → 28),
+  intervalloAnnoPrima, indiciAnnoPrima (null senza dati), confrontoKpi.
+- lib/statisticheDati.leggiDatiStatistiche legge in più le prenotazioni
+  dell'intervallo un anno prima (colonne minime, a pagine): campo
+  prenotazioniAnnoPrima di DatiStatistiche.
+- Prove: 729 test, tsc, lint dei file toccati, next build ok; anteprima
+  finta 3215 (con due soggiorni dell'anno prima aggiunti allo scenario) a
+  390 e 1280 px: «23 % · +17 punti», «€87 · +8 €», «93 · era 113».
+- Limite: il confronto usa le camere e i periodi di fuori servizio di oggi
+  anche per l'anno prima (in_servizio_dal/fuori_servizio_dal della 0034 li
+  rispettano quando ci saranno).
+
+---
+
 # Consegna — Statistiche, periodo «Oggi» (06/09/2026, notte, main)
 
 Richiesta di Ania: nelle Statistiche, soprattutto in «Sito e richieste»,
