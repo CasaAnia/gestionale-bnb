@@ -3,8 +3,11 @@
 // controllare»: didascalia piccola in grigio, poi 28 caselle da oggi che
 // scorrono di lato col dito (7 visibili sul telefono, 14 sul Mac), giorno in
 // alto («sab 6») e sotto le camere con pulizie ancora da fare quel giorno;
-// «✓» attenuato se sono tutte fatte, «—» attenuato se non c'è nulla; oggi su #F3ECD8 con bordo ottone; divisorio ottone sottile
-// fra una settimana e l'altra. Un tocco apre Pulizie su quel giorno; un tocco
+// «✓» attenuato se sono tutte fatte, «—» attenuato se non c'è nulla; la casella
+// di oggi (07/09/2026) su verde chiarissimo #E9F0EA con gli angoli arrotondati
+// dei riquadri della Home e «Oggi» in grassetto verde #2D6A4F al posto del
+// giorno, senza bordi né altri colori (numero, «—», «✓» e ⇄ come le altre);
+// divisorio ottone sottile fra una settimana e l'altra. Un tocco apre Pulizie su quel giorno; un tocco
 // sulla didascalia riporta a oggi. Cifre come le altre della Home
 // (font-serif text-2xl text-green-dark), nessun colore nuovo.
 import { useRef } from 'react'
@@ -14,6 +17,9 @@ import { etichettaGiornoBreve, testoCasella, simboliCambi, type GiornoStriscia }
 // Segnale ⇄ dei cambi camera (06/09/2026): ottone, grassetto, 13 px; lo spazio sopra e
 // sotto il numero è sempre riservato, così le caselle restano uguali e i numeri allineati
 const CAMBIO = { color: '#A9884E', fontWeight: 700, fontSize: 13, lineHeight: '14px', height: 14 } as const
+
+// Casella di oggi (07/09/2026): verde chiarissimo, angoli come .ed-riquadro (12 px), «Oggi» in grassetto verde
+const OGGI = { sfondo: '#E9F0EA', testo: '#2D6A4F', raggio: 12 } as const
 
 export const DIDASCALIA_STRISCIA = 'Camere da preparare nei prossimi 7 giorni'
 
@@ -29,10 +35,10 @@ export default function StrisciaSettimana({ giorni }: { giorni: GiornoStriscia[]
           <Link key={g.giorno} href={`/pulizie?giorno=${g.giorno}`} data-giorno={g.giorno} data-camere={g.daFare} data-fatte={g.fatte} data-tono={c.tono}
             className="snap-start shrink-0 basis-[14.2857%] lg:basis-[7.1428%] flex flex-col items-center justify-center py-1.5"
             style={{
-              ...(g.oggi ? { boxShadow: 'inset 0 -2px 0 #A9884E' } : {}),
+              ...(g.oggi ? { background: OGGI.sfondo, borderRadius: OGGI.raggio } : {}),
               ...(g.inizioSettimana ? { borderLeft: '1px solid rgba(169,136,78,0.55)' } : {}),
             }}>
-            <span className="text-[11px] leading-none" style={{ color: g.oggi ? '#1F3D2F' : 'var(--color-stone)' }}>{etichettaGiornoBreve(g.giorno)}</span>
+            <span className="text-[11px] leading-none" style={g.oggi ? { color: OGGI.testo, fontWeight: 700 } : { color: 'var(--color-stone)' }}>{g.oggi ? 'Oggi' : etichettaGiornoBreve(g.giorno)}</span>
             <span aria-hidden data-cambi-sopra={s.sopra ? 1 : 0} style={CAMBIO}>{s.sopra ? '⇄' : ''}</span>
             <span className={`numero-classico relative ${c.tono === 'numero' ? 'text-green-dark' : 'text-gray-400'}`} data-cambi={g.cambi}>
               {c.testo}
