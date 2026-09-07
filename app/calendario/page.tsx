@@ -17,7 +17,7 @@ import {
 } from '@/lib/calendarioLetti'
 import BackLink from '@/components/BackLink'
 import CampoRicerca from '@/components/CampoRicerca'
-import RigaMesi from '@/components/RigaMesi'
+import RigaMesi, { BORDO_RIQUADRO } from '@/components/RigaMesi'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -178,6 +178,7 @@ export default function Calendario() {
   // Telefono (07/09/2026): legenda nel pannello «?» in alto a destra; posizione
   // da riprendere tornando dalla scheda prenotazione (sessionStorage, una volta sola)
   const [legendaAperta, setLegendaAperta] = useState(false)
+  const legendaInRiga = isDesktop && !orizzontale
   const posizioneRef = useRef<string | null | undefined>(undefined)
 
   useEffect(() => {
@@ -532,9 +533,6 @@ export default function Calendario() {
       <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <BackLink href="/" />
-          {/* Legenda a pannello (07/09/2026): «?» in alto a destra, così sul telefono la griglia non perde spazio */}
-          <button type="button" aria-label="Legenda" title="Legenda" onClick={() => setLegendaAperta(true)}
-            className="w-11 h-11 -my-2 -mr-2 rounded-full flex items-center justify-center text-green-dark font-serif text-[20px] leading-none active:bg-sage/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-mid">?</button>
         </div>
         {/* Titolo + «Cerca nome o telefono…» (05/09/2026): Mac e telefono girato sulla
             stessa riga, telefono dritto uno sotto l'altro. Stesse distanze delle Richieste. */}
@@ -1025,11 +1023,21 @@ export default function Calendario() {
       </div>
       {/* Sotto il calendario: «Oggi» e i 12 mesi cliccabili (riga condivisa con Arrivi e Richieste), telefono e Mac */}
       {!loading && (
-        <RigaMesi colonna={NAME_W} mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={vaiAOggi} className={`shrink-0 pt-3 pb-4 ${orizzontale ? 'px-2' : 'px-4'}`} />
+        <RigaMesi colonna={NAME_W} mesi={mesi} attivo={meseVisibile} onMese={m => vaiAData(m.iso, 0)} onOggi={vaiAOggi} className={`shrink-0 pt-3 ${legendaInRiga ? 'pb-4' : 'pb-1'} ${orizzontale ? 'px-2' : 'px-4'}`} />
+      )}
+      {/* Legenda a pannello dove non c'è quella in riga (Ania, 07/09/2026): il «?» sta
+          SOTTO «Oggi», centrato nella stessa colonna, non più in alto accanto a «Indietro» */}
+      {!loading && !legendaInRiga && (
+        <div className={`shrink-0 flex pb-3 ${orizzontale ? 'px-2' : 'px-4'}`}>
+          <div className="shrink-0 flex justify-center" style={{ width: BORDO_RIQUADRO + NAME_W, minWidth: BORDO_RIQUADRO + NAME_W }}>
+            <button type="button" aria-label="Legenda" title="Legenda" onClick={() => setLegendaAperta(true)}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-green-mid font-serif text-[18px] leading-none active:bg-sage/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-mid">?</button>
+          </div>
+        </div>
       )}
 
-      {/* Legenda in riga solo dal Mac (07/09/2026): sul telefono sta nel pannello «?» */}
-      {isDesktop && !orizzontale && (
+      {/* Legenda in riga solo dal Mac (07/09/2026): sul telefono sta nel pannello «?» sotto «Oggi» */}
+      {legendaInRiga && (
         <div className="shrink-0 px-4 pb-4 flex flex-wrap gap-3 items-center">
           <VociLegenda />
           {/* Niente voce «Cambio camera» nella legenda (richiesta di Ania, 04/09/2026): le barre tagliate a incastro si spiegano da sole */}
