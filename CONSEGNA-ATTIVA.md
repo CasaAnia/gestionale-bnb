@@ -33,7 +33,7 @@
 
 ---
 
-# Backup reale e ripristino provato (07/09/2026, sera) — piano Free verificato, commit locale
+# Backup reale e ripristino provato (07/09/2026, sera) — piano Free verificato, PUBBLICATO (1032674)
 
 Stato: FATTO in locale, nessuna scrittura in produzione, nessun SQL applicato,
 nessun servizio nuovo. Lavoro concorrente: cfb4801 (Home, pulizie di oggi)
@@ -99,7 +99,7 @@ scripts/backup-lettura.mjs, lib/backup.test.ts, docs/backup.md, questa scheda.
   service key sui bucket `documenti` e `scontrini`) o accettare la perdita.
 - Il backup resta manuale (docs §7): ripeterlo prima di ogni migrazione e
   almeno una volta a settimana; seconda copia su un altro disco.
-- Push di questo commit: passaggio separato, da autorizzare.
+- Pubblicazione: commit 1032674 spinto col via libera di Ania dopo la correzione per tipo, deploy Vercel Production riuscito (19:36 UTC); il file di backup resta solo sul Mac.
 
 ---
 
