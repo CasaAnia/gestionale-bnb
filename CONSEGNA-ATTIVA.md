@@ -1,4 +1,4 @@
-# STATO IN 10 RIGHE (aggiornato il 07/09/2026) — da incollare a un altro assistente
+# STATO IN 10 RIGHE (aggiornato il 07/09/2026, sera) — da incollare a un altro assistente
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania; dal 06/09/2026 STILE EDITORIALE «B» scelto da Ania — classi ed-* in globals.css, Georgia per titoli/numeri/nomi, niente riquadri bianchi salvo griglie e finestre, Spese comprese dalla sera): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
 2. Migrazioni applicate a mano: 0001–0022, 0024, 0025, 0027, 0028, 0029, 0031, 0032 (documenti dei clienti, applicata da Ania il 05/09/2026, bucket «documenti» privato creato). In `supabase/proposte` NON applicate: 0023, 0026 (RLS), 0030 (vincoli server fatture).
@@ -29,7 +29,67 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`.
-10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034.
+10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs.
+
+---
+
+# Consegna — Riquadro «Richieste» in Statistiche (07/09/2026, main)
+
+Incarico di Ania (parte 3 di tre; la parte 1, il segnale ⇄ nella striscia
+della settimana, era già su main dal 06/09/2026, commit 97825f7). Nuovo
+riquadro nella pagina Statistiche per il periodo scelto (stessi selettori e
+frecce degli altri riquadri), dopo «Sito e richieste». Un commit, nessuna
+migrazione.
+
+- Titolo «Richieste · settembre» (a mese; «2026» ad anno; l'etichetta del
+  periodo negli altri casi), sottotitolo «dal sito, da telefono e WhatsApp»
+  seguito, se ci sono, da «N ancora in corso, non contate».
+- Righe: Arrivate (riga separata da un filo ottone), Diventate prenotazioni
+  con la percentuale in ottone, Scadute senza risposta (chiuse per scadenza +
+  rifiutate «non ha risposto»), Ha detto di no, Date a un altro, Altro
+  motivo (compresi i rifiuti vecchi «Completo/Prezzo/Altro» e senza codice).
+- Tabella «Per camera chiesta»: Allegra, Ambra, Amelia, Lena, «Qualsiasi»
+  con chiesta / non era libera / prenotata. DEFINIZIONE dichiarata sotto la
+  tabella: «non era libera» = è stata inviata una proposta e la camera
+  chiesta non compariva fra quelle proposte (soluzione + alternative);
+  per «Qualsiasi» vale «—».
+- Due righe finali: «Hanno accettato una camera diversa da quella chiesta:
+  N su M» (confermate con camera chiesta precisa la cui soluzione non è tutta
+  in quella camera, su tutte le confermate con camera precisa) e «Proposta
+  un'alternativa, non hanno risposto o hanno detto no: N» (camera chiesta
+  non libera, proposta inviata, esito diverso da confermata).
+- Le richieste IN CORSO (in attesa, proposta inviata) non contano in nessun
+  numero: la scelta è scritta nel sottotitolo.
+- lib/statistiche/richiesteRiquadro (puro, 6 test): giorno locale della
+  created_at, conteggi, per camera, camera diversa, alternative; i motivi
+  passano da lib/motivoRifiuto (codici nuovi e testi vecchi).
+- lib/statisticheDati.leggiRichiesteStat: richieste arrivate nell'intervallo
+  letto (un giorno in più per lato), colonne minime; senza proposta_alternative
+  (prima della 0031) si ripiega senza la colonna. Campo richieste di
+  DatiStatistiche.
+- Prove: 739 test, tsc, lint dei file toccati, next build ok; anteprima
+  finta 3215 (quattro richieste chiuse aggiunte allo scenario: Olga Ambra→Lena
+  confermata, Pia Ambra con proposta Amelia «ha detto di no», Rita Lena «data
+  a un altro», Sandro Allegra «non ha risposto») a 390 e 1280 px: 7 arrivate,
+  2 prenotazioni 29 %, 2 scadute senza risposta, 1/1/1, Ambra 2 chieste ·
+  2 non libere · 1 prenotata, «1 su 1», alternativa non accettata 1.
+
+## Prove dal telefono in 10 minuti — rifiuto con motivo e riquadro Richieste (07/09/2026)
+1. Home → striscia della settimana: nei giorni con un cambio camera c'è il
+   ⇄ ottone sotto il numero (parte 1, già in produzione).
+2. Richieste → crea «Prova Motivo» (2 persone, notti libere, camera Ambra).
+3. Sulla riga premi «Rifiuta»: si apre «Perché la rifiuti?» col nome, le
+   date e «Ambra»; «Rifiuta» in basso è spento. Tocca «Ha detto di no»: il
+   bottone diventa verde pieno e «Rifiuta» si accende. Premi «Rifiuta».
+4. Apri «Chiuse» in fondo: la riga dice «Rifiutata da te · ha detto di no ·
+   oggi». «Riapri» la riporta in attesa (il motivo resta salvato ma non si
+   vede: al prossimo rifiuto lo scegli di nuovo).
+5. Rifiutala di nuovo con «Non ha risposto».
+6. Statistiche → mese: sotto «Sito e richieste» c'è «Richieste · settembre»
+   con Arrivate, «Scadute senza risposta» che conta anche la prova, la
+   tabella per camera con Ambra chiesta 1. Le richieste ancora aperte sono
+   solo nel sottotitolo («N ancora in corso, non contate»).
+7. Alla fine la prova resta in «Chiuse» tre giorni e poi sparisce da sola.
 
 ---
 

@@ -17,7 +17,7 @@ import { supabase } from '@/lib/supabase'
 import { nomeOspite } from '@/lib/guestName'
 import { messaggioNonSalvato } from '@/lib/scritturaSicura'
 import { isErroreDiRete } from '@/lib/connessione'
-import { cassaIntervallo, incassiCent, occupazioneIntervallo, indiciIntervallo, indiciAnnoPrima, confrontoKpi, ricaviPerCamera, scontiPeriodo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi, rpcMancante, vociPerRpc, validaEsitoRicostruzione, type Occupazione } from '@/lib/statistiche'
+import { cassaIntervallo, incassiCent, occupazioneIntervallo, indiciIntervallo, indiciAnnoPrima, confrontoKpi, riquadroRichieste, ricaviPerCamera, scontiPeriodo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi, rpcMancante, vociPerRpc, validaEsitoRicostruzione, type Occupazione } from '@/lib/statistiche'
 
 // «Statistiche, numeri corretti» (05/09/2026): NESSUNA formula in questa
 // pagina. Ogni numero viene da lib/statistiche (funzioni pure, testate) sui
@@ -239,6 +239,9 @@ export default function Statistiche() {
   // R12: finché la tabella dei periodi (0034) non c'è, il limite resta scritto accanto ai dati
   const limiteFuoriServizio = data && !data.fuoriServizio.registrati ? 'i periodi di fuori servizio non sono ancora registrati (proposta 0034)' : null
   const siteStats = data ? buildSiteFunnel(data.eventiSito as SiteEvent[], period, ref) : null
+  // Riquadro «Richieste» (07/09/2026): richieste arrivate nel periodo e ormai chiuse (lib/statistiche/richiesteRiquadro)
+  const richiesteRiquadro = data ? riquadroRichieste(data.richieste, data.camere, intervallo.da, intervallo.a) : null
+  const titoloRichieste = period === 'mese' ? MESI_NOMI[ref.getMonth()].toLowerCase() : period === 'anno' ? String(ref.getFullYear()) : periodLabel(ref, period)
   const label = periodLabel(ref, period)
   const current = isCurrentPeriod(ref, period)
 
@@ -469,6 +472,51 @@ export default function Statistiche() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Riquadro «Richieste» (07/09/2026): arrivate nel periodo e chiuse; le in corso non contano */}
+          {richiesteRiquadro && (
+            <div className="ed-riga py-4 mb-4" data-richieste>
+              <p className="text-sm font-semibold text-gray-600">Richieste · {titoloRichieste}</p>
+              <p className="text-xs text-gray-400 mb-3">dal sito, da telefono e WhatsApp{richiesteRiquadro.inCorso > 0 ? ` · ${richiesteRiquadro.inCorso} ancora in corso, non ${richiesteRiquadro.inCorso === 1 ? 'contata' : 'contate'}` : ''}</p>
+              <div className="text-sm">
+                <div className="flex items-baseline justify-between py-1.5 border-b border-[#C9BFA8]">
+                  <span className="text-gray-600">Arrivate</span>
+                  <span className="font-bold text-green-dark text-base">{richiesteRiquadro.arrivate}</span>
+                </div>
+                {([
+                  ['Diventate prenotazioni', richiesteRiquadro.diventatePrenotazioni, `${richiesteRiquadro.percentoPrenotazioni}%`],
+                  ['Scadute senza risposta', richiesteRiquadro.scaduteSenzaRisposta, null],
+                  ['Ha detto di no', richiesteRiquadro.dettoNo, null],
+                  ['Date a un altro', richiesteRiquadro.dateAdAltro, null],
+                  ['Altro motivo', richiesteRiquadro.altroMotivo, null],
+                ] as [string, number, string | null][]).map(([voce, n, extra]) => (
+                  <div key={voce} className="flex items-baseline justify-between py-1.5 border-b border-gray-100 last:border-b-0">
+                    <span className="text-gray-600">{voce}</span>
+                    <span className="font-semibold text-green-dark">{n}{extra && <span className="ml-1.5 text-xs font-semibold text-brass">{extra}</span>}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs font-semibold text-gray-500 mt-4 mb-1.5">Per camera chiesta</p>
+              <div className="rounded-lg border border-[#C9BFA8] overflow-hidden text-xs">
+                <div className="grid grid-cols-[1fr_0.8fr_1.1fr_1fr] gap-x-1.5 bg-gray-50 px-2 py-1.5 font-semibold text-gray-500 leading-tight">
+                  <span>Camera</span><span className="text-right">Chiesta</span><span className="text-right">Non era libera</span><span className="text-right">Prenotata</span>
+                </div>
+                {richiesteRiquadro.perCamera.map(c => (
+                  <div key={c.nome} className="grid grid-cols-[1fr_0.8fr_1.1fr_1fr] gap-x-1.5 px-2 py-1.5 border-t border-gray-100">
+                    <span className="text-gray-600">{c.nome}</span>
+                    <span className="text-right font-semibold text-green-dark">{c.chiesta}</span>
+                    <span className="text-right font-semibold text-green-dark">{c.nonEraLibera === null ? '—' : c.nonEraLibera}</span>
+                    <span className="text-right font-semibold text-green-mid">{c.diventata}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1.5">«Non era libera» = la camera chiesta non compariva fra quelle proposte perché occupata nelle notti chieste.</p>
+              <div className="mt-3 space-y-1 text-xs text-gray-600">
+                <p>Hanno accettato una camera diversa da quella chiesta: <span className="font-semibold text-green-dark">{richiesteRiquadro.accettatoDiversa.si} su {richiesteRiquadro.accettatoDiversa.su}</span></p>
+                <p>Proposta un’alternativa, non hanno risposto o hanno detto no: <span className="font-semibold text-green-dark">{richiesteRiquadro.alternativaNonAccettata}</span></p>
+              </div>
             </div>
           )}
 

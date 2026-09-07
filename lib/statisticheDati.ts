@@ -7,7 +7,7 @@
 // lib/statistiche: qui nessuna formula.
 import { supabase } from './supabase'
 import { messaggioLetturaNonRiuscita } from './prenotazioneScritture'
-import { raccogliPagine, raccogliBlocchi, aBlocchi, mappaChiusure, intervalloAnnoPrima, type CameraStat, type PagamentoStat, type FuoriServizio } from './statistiche'
+import { raccogliPagine, raccogliBlocchi, aBlocchi, mappaChiusure, intervalloAnnoPrima, spostaGiorni, type CameraStat, type PagamentoStat, type FuoriServizio, type RichiestaRiquadro } from './statistiche'
 import type { SpesaPagata } from './statistiche/intervallo'
 import type { PrenotazioneSconto } from './statistiche/sconti'
 import type { SiteEvent } from './siteStats'
@@ -81,6 +81,24 @@ export function leggiEventiSito(da: string, a: string, cosa = 'caricare le visit
     .gte('created_at', `${da}T00:00:00`).lt('created_at', `${a}T00:00:00`).order('created_at', { ascending: true }).range(offset, offset + limite - 1))
 }
 
+// Riquadro «Richieste» (07/09/2026): le richieste ARRIVATE in [da, a) con
+// le colonne che servono ai conteggi (stato, motivi, camera chiesta,
+// proposta e alternative). created_at è un timestamp: si legge un giorno in
+// più per lato e il giorno locale lo decide lib/statistiche/richiesteRiquadro.
+// Prima della 0031 (proposta_alternative assente) si ripiega senza la colonna.
+const COLONNE_RICHIESTE = 'id, created_at, stato, chiusura_motivo, motivo_rifiuto, camera_id, proposta_inviata_at, proposta_soluzione'
+export async function leggiRichiesteStat(da: string, a: string, cosa = 'caricare le richieste'): Promise<Esito<RichiestaRiquadro[]>> {
+  const query = (colonne: string) => raccogliPagine<RichiestaRiquadro>((offset, limite) => supabase.from('richieste').select(colonne)
+    .gte('created_at', `${spostaGiorni(da, -1)}T00:00:00`).lt('created_at', `${spostaGiorni(a, 1)}T00:00:00`)
+    .order('created_at', { ascending: true }).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: RichiestaRiquadro[] | null; error: unknown }>)
+  const completa = await query(`${COLONNE_RICHIESTE}, proposta_alternative`)
+  if (!completa.error) return { data: completa.data, errore: null }
+  if (!colonnaAssente(completa.error)) return { data: null, errore: messaggioLetturaNonRiuscita(completa.error, cosa) }
+  const base = await query(COLONNE_RICHIESTE)
+  if (base.error) return { data: null, errore: messaggioLetturaNonRiuscita(base.error, cosa) }
+  return { data: base.data, errore: null }
+}
+
 // Prenotazioni a blocchi di ID (R5): ogni blocco a pagine, tutto raccolto e deduplicato, stop al primo errore
 async function leggiPrenotazioniPerBlocchi(colonna: 'id' | 'group_id', ids: string[], colonne: string, cosa: string): Promise<Esito<PrenotazioneSconto[]>> {
   const r = await raccogliBlocchi<PrenotazioneSconto, string>(aBlocchi(ids), blocco =>
@@ -120,17 +138,17 @@ export async function leggiRicostruzione(oggi: string): Promise<Esito<DatiRicost
   return { data: { prenotazioni, pagamenti: pag.data!, oggi }, errore: null }
 }
 
-export type DatiStatistiche = { prenotazioni: PrenotazioneSconto[]; prenotazioniAnnoPrima: PrenotazioneSconto[]; pagamenti: PagamentoStat[]; spese: SpesaPagata[]; camere: CameraStat[]; eventiSito: SiteEvent[]; ricostruzione: DatiRicostruzione; fuoriServizio: LetturaFuoriServizio }
+export type DatiStatistiche = { prenotazioni: PrenotazioneSconto[]; prenotazioniAnnoPrima: PrenotazioneSconto[]; pagamenti: PagamentoStat[]; spese: SpesaPagata[]; camere: CameraStat[]; eventiSito: SiteEvent[]; ricostruzione: DatiRicostruzione; fuoriServizio: LetturaFuoriServizio; richieste: RichiestaRiquadro[] }
 
 // Tutto ciò che serve alla pagina Statistiche per [da, a); il primo errore ferma tutto
 export async function leggiDatiStatistiche(da: string, a: string, oggi: string): Promise<Esito<DatiStatistiche>> {
   // Provenienza (08/09/2026): con l'ospite (telefono e nome) per «Da dove arrivano gli ospiti» e «Già stati da noi»
   // KPI (07/09/2026): lo stesso intervallo un anno prima, colonne minime, per il confronto sotto i tre numeri
   const prima = intervalloAnnoPrima({ da, a })
-  const [p, pag, sp, cam, ev, ric, fs, pp] = await Promise.all([leggiPrenotazioni(da, a, '*, guests(*)'), leggiPagamenti(da, a), leggiSpese(da, a), leggiCamere(), leggiEventiSito(da, a), leggiRicostruzione(oggi), leggiFuoriServizio(), leggiPrenotazioni(prima.da, prima.a, 'id, group_id, room_id, check_in, check_out, status, total_amount', 'caricare le prenotazioni dell’anno prima')])
-  const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ev.errore ?? ric.errore ?? fs.errore ?? pp.errore
+  const [p, pag, sp, cam, ev, ric, fs, pp, rq] = await Promise.all([leggiPrenotazioni(da, a, '*, guests(*)'), leggiPagamenti(da, a), leggiSpese(da, a), leggiCamere(), leggiEventiSito(da, a), leggiRicostruzione(oggi), leggiFuoriServizio(), leggiPrenotazioni(prima.da, prima.a, 'id, group_id, room_id, check_in, check_out, status, total_amount', 'caricare le prenotazioni dell’anno prima'), leggiRichiesteStat(da, a)])
+  const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ev.errore ?? ric.errore ?? fs.errore ?? pp.errore ?? rq.errore
   if (errore) return { data: null, errore }
-  return { data: { prenotazioni: p.data!, prenotazioniAnnoPrima: pp.data!, pagamenti: pag.data!, spese: sp.data!, camere: cam.data!, eventiSito: ev.data!, ricostruzione: ric.data!, fuoriServizio: fs.data! }, errore: null }
+  return { data: { prenotazioni: p.data!, prenotazioniAnnoPrima: pp.data!, pagamenti: pag.data!, spese: sp.data!, camere: cam.data!, eventiSito: ev.data!, ricostruzione: ric.data!, fuoriServizio: fs.data!, richieste: rq.data! }, errore: null }
 }
 
 export type DatiHome = { prenotazioni: PrenotazioneSconto[]; pagamentiMese: PagamentoStat[]; tuttiPagamenti: PagamentoStat[]; prenotazioniConMovimenti: PrenotazioneSconto[]; spese: SpesaPagata[]; camere: CameraStat[]; ricostruzione: DatiRicostruzione; fuoriServizio: LetturaFuoriServizio }

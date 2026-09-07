@@ -171,10 +171,17 @@ const richieste = [
   // Linguetta «Chiuse» (06/09/2026): una scaduta e chiusa da sola ieri, una rifiutata oggi
   { ...richiesta('Ugo', 'Uboldi', 'chiusa', O(9), O(11), oreFa(40), oreFa(30)), chiusura_motivo: 'scaduta', chiusa_at: oreFa(26) },
   { ...richiesta('Vera', 'Valli', 'chiusa', O(10), O(12), oreFa(6)), chiusura_motivo: 'rifiutata', chiusa_at: oreFa(2), motivo_rifiuto: 'Prezzo' },
+  // Riquadro «Richieste» in Statistiche (07/09/2026): chiuse di questo mese con camera chiesta e proposte
+  { ...richiesta('Olga', 'Orsi', 'confermata', O(3), O(5), oreFa(60), oreFa(50)), camera_id: ROOM.ambra, chiusa_at: oreFa(45) },          // Ambra chiesta, Lena accettata (camera diversa)
+  { ...richiesta('Pia', 'Pini', 'chiusa', O(4), O(6), oreFa(70), oreFa(65)), camera_id: ROOM.ambra, chiusura_motivo: 'rifiutata', chiusa_at: oreFa(20), motivo_rifiuto: 'detto_no' },   // Ambra chiesta, proposta Amelia, ha detto di no
+  { ...richiesta('Rita', 'Riva', 'chiusa', O(6), O(8), oreFa(80)), camera_id: ROOM.lena, chiusura_motivo: 'rifiutata', chiusa_at: oreFa(10), motivo_rifiuto: 'data_ad_altro' },
+  { ...richiesta('Sandro', 'Sala', 'chiusa', O(7), O(9), oreFa(90)), camera_id: ROOM.allegra, chiusura_motivo: 'rifiutata', chiusa_at: oreFa(12), motivo_rifiuto: 'non_risposto' },
 ]
 const segmentoFinto = (room_id, name, arrivo, partenza) => ({ camera: { id: room_id, name, base_price: 80, has_extra_bed: true, extra_bed_price: 10, active: true }, arrivo, partenza, notti: 2, prezzoNotte: 80, lettoTotale: 0, totale: 160 })
 richieste.find(x => x.nome === 'Dario').proposta_soluzione = { caso: 'completa', segmenti: [segmentoFinto(ROOM.ambra, 'Ambra', O(12), O(14))], nottiTotali: 2, nottiCoperte: 2, nottiMancanti: [], prezzoTotale: 160 }
 richieste.find(x => x.nome === 'Marta').proposta_soluzione = { caso: 'completa', segmenti: [segmentoFinto(ROOM.allegra, 'Allegra', O(15), O(17))], nottiTotali: 2, nottiCoperte: 2, nottiMancanti: [], prezzoTotale: 160 }
+richieste.find(x => x.nome === 'Olga').proposta_soluzione = { caso: 'completa', segmenti: [segmentoFinto(ROOM.lena, 'Lena', O(3), O(5))], nottiTotali: 2, nottiCoperte: 2, nottiMancanti: [], prezzoTotale: 160 }
+richieste.find(x => x.nome === 'Pia').proposta_soluzione = { caso: 'completa', segmenti: [segmentoFinto(ROOM.amelia, 'Amelia', O(4), O(6))], nottiTotali: 2, nottiCoperte: 2, nottiMancanti: [], prezzoTotale: 160 }
 for (const r of richieste) { r.provenienza = 'non_so'; r.struttura_nome = null }
 richieste[1].provenienza = 'altra_struttura'; richieste[1].struttura_nome = 'Nida'
 const family_documents = [
