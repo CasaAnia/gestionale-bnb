@@ -15,30 +15,34 @@ import { leggiCamere, STATI_LETTI } from './statisticheDati'
 import { oggiARoma } from './spese/adattatore'
 import { numeriOggi, strisciaSettimane, type NumeriOggi, type PrenotazioneOggi, type GiornoStriscia } from './numeriOggi'
 import { CUTOFF_STORICO, type Decisione } from './pulizie'
+import { pulizieDiOggi, type VocePuliziaOggi } from './pulizieOggi'
+import { ordinaCamere } from './disponibilita'
 
 export const MESSAGGIO_NUMERI_NON_LETTI = 'Non riesco a leggere arrivi, partenze e camere di oggi'
 
 export type StatoNumeriOggi =
   | { stato: 'caricamento'; oggi: string }
   | { stato: 'errore'; oggi: string; errore: string }
-  | { stato: 'pronto'; oggi: string; numeri: NumeriOggi; settimana: GiornoStriscia[] }
+  | { stato: 'pronto'; oggi: string; numeri: NumeriOggi; settimana: GiornoStriscia[]; pulizieOggi: VocePuliziaOggi[] }
 
-export async function leggiNumeriOggi(oggi: string): Promise<{ numeri: NumeriOggi | null; settimana: GiornoStriscia[]; errore: string | null }> {
+export async function leggiNumeriOggi(oggi: string): Promise<{ numeri: NumeriOggi | null; settimana: GiornoStriscia[]; pulizieOggi: VocePuliziaOggi[]; errore: string | null }> {
   // Tutte le colonne (come la pagina Pulizie: servono guest_id, linen_next_date…)
   // e tutte le prenotazioni dal CUTOFF_STORICO delle pulizie in poi
   const [p, cam, ev] = await Promise.all([
-    raccogliPagine<PrenotazioneOggi>((offset, limite) => supabase.from('bookings').select('*')
+    // con la scheda cliente (nome nelle righe di «Pulizie di oggi», come la pagina Pulizie)
+    raccogliPagine<PrenotazioneOggi>((offset, limite) => supabase.from('bookings').select('*, guests(full_name, phone)')
       .in('status', STATI_LETTI).gte('check_out', CUTOFF_STORICO).range(offset, offset + limite - 1)),
     leggiCamere(),
     raccogliPagine<Decisione>((offset, limite) => supabase.from('cleanings').select('*').order('created_at').range(offset, offset + limite - 1)),
   ])
-  if (p.error) return { numeri: null, settimana: [], errore: messaggioLetturaNonRiuscita(p.error, 'leggere le prenotazioni di oggi') }
-  if (cam.errore || !cam.data) return { numeri: null, settimana: [], errore: cam.errore ?? MESSAGGIO_NUMERI_NON_LETTI }
+  if (p.error) return { numeri: null, settimana: [], pulizieOggi: [], errore: messaggioLetturaNonRiuscita(p.error, 'leggere le prenotazioni di oggi') }
+  if (cam.errore || !cam.data) return { numeri: null, settimana: [], pulizieOggi: [], errore: cam.errore ?? MESSAGGIO_NUMERI_NON_LETTI }
   // Stessa scelta della pagina Pulizie: senza la tabella cleanings (0018) si
   // va avanti senza decisioni registrate
   const events: Decisione[] = ev.error ? [] : ev.data
   const attive = cam.data.filter(c => c.active !== false)
-  return { numeri: numeriOggi(p.data, cam.data, oggi), settimana: strisciaSettimane(attive, p.data, events, oggi), errore: null }
+  // «Pulizie di oggi» (07/09/2026): stessa lettura, camere nell'ordine della casa (lib/pulizieOggi, puro)
+  return { numeri: numeriOggi(p.data, cam.data, oggi), settimana: strisciaSettimane(attive, p.data, events, oggi), pulizieOggi: pulizieDiOggi(ordinaCamere(attive), p.data, events, oggi), errore: null }
 }
 
 // Si rilegge al ritorno in primo piano: sul telefono il gestionale resta
@@ -55,9 +59,9 @@ export function useNumeriOggi(): StatoNumeriOggi & { ricarica: () => void } {
     let vivo = true
     const load = async () => {
       const oggi = oggiARoma()
-      const { numeri, settimana, errore } = await leggiNumeriOggi(oggi)
+      const { numeri, settimana, pulizieOggi, errore } = await leggiNumeriOggi(oggi)
       if (!vivo) return
-      setStato(errore || !numeri ? { stato: 'errore', oggi, errore: MESSAGGIO_NUMERI_NON_LETTI } : { stato: 'pronto', oggi, numeri, settimana })
+      setStato(errore || !numeri ? { stato: 'errore', oggi, errore: MESSAGGIO_NUMERI_NON_LETTI } : { stato: 'pronto', oggi, numeri, settimana, pulizieOggi })
     }
     void load()
     const onFocus = () => { void load() }

@@ -367,6 +367,15 @@ const finto = createServer(async (req, res) => {
     const singola = (req.headers.accept || '').includes('vnd.pgrst.object')
     return rispondi(res, 201, singola ? righe[0] : righe)
   }
+  // «Non fatta» dalla Home (07/09/2026): DELETE ?id=eq.… in memoria (e via il recupero collegato, come la 0039)
+  if (m && m[1] === 'cleanings' && req.method === 'DELETE') {
+    const id = (url.searchParams.get('id') || '').replace(/^eq\./, '')
+    const i = cleanings.findIndex(c => c.id === id)
+    if (i >= 0) cleanings.splice(i, 1)
+    for (let k = biancheria_recuperata.length - 1; k >= 0; k--) if (biancheria_recuperata[k].cleaning_id === id) biancheria_recuperata.splice(k, 1)
+    console.log(`[finto supabase] pulizia tolta: ${id} (${i >= 0 ? 'cancellata' : 'non trovata'})`)
+    return rispondi(res, 204)
+  }
   // Recupero biancheria: upsert su cleaning_id
   if (m && m[1] === 'biancheria_recuperata' && req.method === 'POST') {
     const corpo = await leggiCorpo(req)

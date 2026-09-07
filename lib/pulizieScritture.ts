@@ -22,3 +22,12 @@ export async function segnaPuliziaFatta(p: PuliziaDaSegnare, data_effettiva: str
   )
   return { errore, riga: errore ? null : scritta }
 }
+
+// «Non fatta» dalla Home (07/09/2026): la riga «fatta» segnata oggi si
+// cancella (l'eventuale recupero biancheria collegato va via con lei, 0039
+// on delete cascade). Stesso esito controllato: lo schermo cambia solo se
+// il server ha cancellato davvero.
+export async function annullaPuliziaFatta(id: string): Promise<{ errore: string | null }> {
+  const errore = await scriviPoiAggiorna(() => supabase.from('cleanings').delete().eq('id', id), () => {})
+  return { errore }
+}

@@ -8,6 +8,8 @@ import { useRichiesteWeb } from '@/lib/webRequests'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import DaControllare from '@/components/DaControllare'
 import NumeriOggi from '@/components/NumeriOggi'
+import PulizieOggi from '@/components/PulizieOggi'
+import { useNumeriOggi } from '@/lib/numeriOggiDati'
 import { leggiDatiHome, type DatiHome } from '@/lib/statisticheDati'
 import { cassaIntervallo, daIncassare, indiciIntervallo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi } from '@/lib/statistiche'
 
@@ -76,6 +78,8 @@ function calcola(d: DatiHome, td: string, tmr: string, ms: string, nms: string) 
 }
 
 export default function Dashboard() {
+  // Numeri di oggi, striscia della settimana e «Pulizie di oggi»: una sola lettura (07/09/2026)
+  const numeriOggi = useNumeriOggi()
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   // Errore di caricamento (rete o server): la home NON mostra mai zeri al
@@ -166,12 +170,16 @@ export default function Dashboard() {
       )}
 
       {/* Tre numeri di oggi SOPRA TUTTO (07/09/2026): arrivi, partenze, camere occupate stanotte */}
-      <NumeriOggi />
+      <NumeriOggi dati={numeriOggi} />
 
       {/* «Da controllare» (versione B, 06/09/2026; in cima dal 07/09/2026): striscia
           con i conteggi e sezione delle eccezioni SOPRA i numeri del giorno; con
           zero eccezioni non occupa spazio (components/DaControllare) */}
       <DaControllare />
+
+      {/* «Pulizie di oggi» (Ania, 07/09/2026): le pulizie della giornata da spuntare
+          dalla Home, stessa lettura dei numeri e della striscia; senza pulizie non compare */}
+      <PulizieOggi dati={numeriOggi} />
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>

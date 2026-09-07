@@ -8,7 +8,7 @@
 // trattino al posto del numero + avviso con Riprova, mai uno zero finto.
 import Link from 'next/link'
 import AvvisoAzione from './AvvisoAzione'
-import { useNumeriOggi } from '@/lib/numeriOggiDati'
+import type { useNumeriOggi } from '@/lib/numeriOggiDati'
 import { testoOccupate } from '@/lib/numeriOggi'
 import StrisciaSettimana from './StrisciaSettimana'
 
@@ -31,8 +31,9 @@ function Riquadro({ href, etichetta, codaEtichetta, valore, coda }: { href: stri
   )
 }
 
-export default function NumeriOggi() {
-  const n = useNumeriOggi()
+// Dal 07/09/2026 la lettura la fa la Home (useNumeriOggi) e la passa qui e a
+// «Pulizie di oggi»: una sola lettura per i numeri, la striscia e la lista
+export default function NumeriOggi({ dati: n }: { dati: ReturnType<typeof useNumeriOggi> }) {
   const pronto = n.stato === 'pronto'
   const trattino = '–'
   return (
