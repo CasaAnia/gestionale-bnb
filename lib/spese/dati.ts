@@ -3,7 +3,15 @@
 // semantica, stessa tolleranza alle migrazioni non ancora applicate
 // (0012/0013/0014/0015). La logica pura di filtro sta in ambito.ts.
 import { supabase } from '@/lib/supabase'
+import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
+import { esitoLettura, type EsitoLettura } from './esito'
 import type { Ambito, Group, Category, Rule, Fx, Receipt, Item, Subcat, Budget } from './types'
+
+// Residui (07/09/2026, pezzo 6): le scritture tornano l'esito di
+// lib/scritturaSicura (null = salvato, altrimenti il testo «Non salvato,
+// riprova…» da mostrare con AvvisoAzione); nessuna scrittura resta «void».
+// Il percorso legacy del contratto di revisione e la logica delle spese NON
+// cambiano: stesse query, solo esito e avviso.
 
 // ---- caricamento base (tabelle principali; 0007 assente ⇒ needsSetup) ----
 export async function caricaBase() {
@@ -45,11 +53,16 @@ export async function caricaBudgets(ambito: Ambito): Promise<{ ok: boolean; budg
 }
 
 // ---- scontrini fotografati, in attesa che Claude li legga ----
-export async function caricaScontriniDaLeggere(ambito: Ambito): Promise<Receipt[] | null> {
-  const { data, error } = await supabase.from('family_receipts')
-    .select('*').eq('status', 'da_leggere').eq('ambito', ambito).order('uploaded_at', { ascending: false })
-  if (error) return null // tabella/bucket non ancora pronti: la sezione resta nascosta
-  return (data || []) as Receipt[]
+// Esito esplicito (07/09/2026): `assente` = tabella non ancora creata (la
+// sezione resta nascosta, com'era); `errore` = rete/permessi, da mostrare.
+export async function caricaScontriniDaLeggere(ambito: Ambito): Promise<EsitoLettura<Receipt>> {
+  try {
+    const r = await supabase.from('family_receipts')
+      .select('*').eq('status', 'da_leggere').eq('ambito', ambito).order('uploaded_at', { ascending: false })
+    return esitoLettura<Receipt>({ data: r.data as Receipt[] | null, error: r.error }, 'caricare gli scontrini')
+  } catch (err) {
+    return esitoLettura<Receipt>({ data: null, error: err }, 'caricare gli scontrini')
+  }
 }
 
 // Anteprime: link firmati temporanei (il bucket è privato).
@@ -74,13 +87,17 @@ export async function salvaFotoScontrino(file: File, note: string | null, ambito
   return true
 }
 
-export async function eliminaScontrino(r: Receipt) {
-  await supabase.storage.from('scontrini').remove([r.storage_path])
-  await supabase.from('family_receipts').delete().eq('id', r.id)
+// Prima la riga, poi il file: se la riga non si cancella il file resta (e la
+// foto si rivede); se resta solo il file orfano non è un danno per Ania.
+export async function eliminaScontrino(r: Receipt): Promise<string | null> {
+  const errore = await scriviPoiAggiorna(() => supabase.from('family_receipts').delete().eq('id', r.id), () => {})
+  if (errore) return errore
+  await supabase.storage.from('scontrini').remove([r.storage_path])   // file orfano tollerato
+  return null
 }
 
-export async function aggiornaNotaScontrino(id: string, note: string | null) {
-  await supabase.from('family_receipts').update({ note }).eq('id', id)
+export function aggiornaNotaScontrino(id: string, note: string | null): Promise<string | null> {
+  return scriviPoiAggiorna(() => supabase.from('family_receipts').update({ note }).eq('id', id), () => {})
 }
 
 // Link firmato al volo per la foto collegata a una spesa (null se manca).
@@ -92,24 +109,24 @@ export async function urlFotoScontrino(receiptId: string): Promise<string | null
 }
 
 // ---- spese ----
-export async function inserisciSpesa(payload: Record<string, unknown>) {
-  await supabase.from('family_expenses').insert(payload)
+export function inserisciSpesa(payload: Record<string, unknown>): Promise<string | null> {
+  return scriviPoiAggiorna(() => supabase.from('family_expenses').insert(payload), () => {})
 }
 
-export async function eliminaSpesa(id: string) {
-  await supabase.from('family_expenses').delete().eq('id', id)
+export function eliminaSpesa(id: string): Promise<string | null> {
+  return scriviPoiAggiorna(() => supabase.from('family_expenses').delete().eq('id', id), () => {})
 }
 
 // ---- budget ----
-export async function salvaBudget(ambito: Ambito, category_name: string, monthly_amount: number) {
-  await supabase.from('family_budgets')
-    .upsert({ ambito, category_name, monthly_amount }, { onConflict: 'ambito,category_name' })
+export function salvaBudget(ambito: Ambito, category_name: string, monthly_amount: number): Promise<string | null> {
+  return scriviPoiAggiorna(() => supabase.from('family_budgets')
+    .upsert({ ambito, category_name, monthly_amount }, { onConflict: 'ambito,category_name' }), () => {})
 }
 
-export async function aggiornaBudget(id: string, monthly_amount: number) {
-  await supabase.from('family_budgets').update({ monthly_amount }).eq('id', id)
+export function aggiornaBudget(id: string, monthly_amount: number): Promise<string | null> {
+  return scriviPoiAggiorna(() => supabase.from('family_budgets').update({ monthly_amount }).eq('id', id), () => {})
 }
 
-export async function eliminaBudget(id: string) {
-  await supabase.from('family_budgets').delete().eq('id', id)
+export function eliminaBudget(id: string): Promise<string | null> {
+  return scriviPoiAggiorna(() => supabase.from('family_budgets').delete().eq('id', id), () => {})
 }

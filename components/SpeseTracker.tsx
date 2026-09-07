@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import BackBar from '@/components/BackBar'
+import AvvisoAzione from '@/components/AvvisoAzione'
 import DemoGate from '@/components/DemoGate'
 import { isDemoMode } from '@/lib/demoMode'
 
@@ -93,11 +94,16 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
 
   // L'accesso a Supabase vive in lib/spese/dati.ts (estratto in Fase 1,
   // stesse query); il filtro per ambito in lib/spese/ambito.ts (puro).
+  // Esito visibile (07/09/2026, pezzo 6): un solo avviso in cima, con Riprova
+  // che ripete l'ultima azione fallita; lo stato locale cambia solo a
+  // scrittura riuscita (lib/scritturaSicura), come nel resto del gestionale.
+  const [avviso, setAvviso] = useState<{ testo: string; riprova?: () => void } | null>(null)
   async function loadReceipts() {
-    const list = await dati.caricaScontriniDaLeggere(ambito)
-    if (list === null) return // tabella/bucket non ancora pronti: la sezione resta nascosta
-    setReceipts(list)
-    setReceiptUrls(await dati.urlFirmatiScontrini(list))
+    const esito = await dati.caricaScontriniDaLeggere(ambito)
+    if (esito.assente) return // tabella/bucket non ancora pronti: la sezione resta nascosta, com'era
+    if (esito.errore) { setAvviso({ testo: esito.errore, riprova: loadReceipts }); return }
+    setReceipts(esito.righe)
+    setReceiptUrls(await dati.urlFirmatiScontrini(esito.righe))
   }
 
   async function load() {
@@ -162,19 +168,26 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     loadReceipts()
   }
 
-  async function deleteReceipt(r: Receipt) {
-    if (!confirm('Eliminare questa foto?')) return
-    await dati.eliminaScontrino(r)
-    setReceipts(receipts.filter(x => x.id !== r.id))
+  async function deleteReceipt(r: Receipt, giaConfermato = false) {
+    if (!giaConfermato && !confirm('Eliminare questa foto?')) return
+    const errore = await dati.eliminaScontrino(r)
+    if (errore) { setAvviso({ testo: errore, riprova: () => deleteReceipt(r, true) }); return }
+    setAvviso(null)
+    setReceipts(prev => prev.filter(x => x.id !== r.id))
   }
 
   // Aggiunge/modifica la nota di uno scontrino già caricato.
-  async function editReceiptNote(r: Receipt) {
-    const nota = prompt('Nota per questo scontrino (indicazioni per me):', r.note || '')
-    if (nota === null) return
-    const value = nota.trim() || null
-    await dati.aggiornaNotaScontrino(r.id, value)
-    setReceipts(receipts.map(x => x.id === r.id ? { ...x, note: value } : x))
+  async function editReceiptNote(r: Receipt, valorePronto?: string | null) {
+    let value: string | null
+    if (valorePronto === undefined) {
+      const nota = prompt('Nota per questo scontrino (indicazioni per me):', r.note || '')
+      if (nota === null) return
+      value = nota.trim() || null
+    } else value = valorePronto
+    const errore = await dati.aggiornaNotaScontrino(r.id, value)
+    if (errore) { setAvviso({ testo: errore, riprova: () => editReceiptNote(r, value) }); return }
+    setAvviso(null)
+    setReceipts(prev => prev.map(x => x.id === r.id ? { ...x, note: value } : x))
   }
 
   // Riapre la foto dello scontrino collegato a una spesa (link firmato al volo).
@@ -208,7 +221,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
   async function save() {
     if (!form.amount || !form.expense_date) return
     setSaving(true)
-    await dati.inserisciSpesa({
+    const errore = await dati.inserisciSpesa({
       expense_date: form.expense_date,
       amount: parseFloat(form.amount.replace(',', '.')),
       // Se c'è un solo gruppo (caso azienda) e non è stato scelto, lo assegno da solo.
@@ -220,13 +233,19 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
       recurring: form.recurring,
       source: 'manuale',
     })
-    setForm(blankForm()); setAutoGroup(null); setShowForm(false); setSaving(false); load()
+    setSaving(false)
+    // Non salvata: il modulo resta aperto coi valori scritti, l'avviso ripete il salvataggio
+    if (errore) { setAvviso({ testo: errore, riprova: save }); return }
+    setAvviso(null)
+    setForm(blankForm()); setAutoGroup(null); setShowForm(false); load()
   }
 
-  async function del(id: string) {
-    if (!confirm('Eliminare questa spesa?')) return
-    await dati.eliminaSpesa(id)
-    setRows(rows.filter(r => r.id !== id))
+  async function del(id: string, giaConfermato = false) {
+    if (!giaConfermato && !confirm('Eliminare questa spesa?')) return
+    const errore = await dati.eliminaSpesa(id)
+    if (errore) { setAvviso({ testo: errore, riprova: () => del(id, true) }); return }
+    setAvviso(null)
+    setRows(prev => prev.filter(r => r.id !== id))
   }
 
   // ---- budget mensili ----
@@ -234,15 +253,22 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     const name = budgetForm.category_name
     const amt = parseFloat(budgetForm.amount.replace(',', '.'))
     if (!name || !amt) return
-    await dati.salvaBudget(ambito, name, amt)
+    const errore = await dati.salvaBudget(ambito, name, amt)
+    if (errore) { setAvviso({ testo: errore, riprova: saveBudget }); return }
+    setAvviso(null)
     setBudgetForm({ category_name: '', amount: '' }); setShowBudgetForm(false); load()
   }
-  async function editBudget(b: Budget) {
-    const v = prompt(`Budget mensile per "${b.category_name}" (vuoto per toglierlo):`, String(b.monthly_amount))
-    if (v === null) return
+  async function editBudget(b: Budget, valorePronto?: string) {
+    let v: string
+    if (valorePronto === undefined) {
+      const risposta = prompt(`Budget mensile per "${b.category_name}" (vuoto per toglierlo):`, String(b.monthly_amount))
+      if (risposta === null) return
+      v = risposta
+    } else v = valorePronto
     const amt = parseFloat(v.replace(',', '.'))
-    if (!v.trim() || !amt) await dati.eliminaBudget(b.id)
-    else await dati.aggiornaBudget(b.id, amt)
+    const errore = (!v.trim() || !amt) ? await dati.eliminaBudget(b.id) : await dati.aggiornaBudget(b.id, amt)
+    if (errore) { setAvviso({ testo: errore, riprova: () => editBudget(b, v) }); return }
+    setAvviso(null)
     load()
   }
 
@@ -339,6 +365,7 @@ function Tracker({ ambito, title }: { ambito: Ambito; title: string }) {
     <div className="p-4 pb-24">
       <BackBar href="/" />
       <h1 className="ed-titolo-medio max-lg:hidden mb-4">{title}</h1>
+      {avviso && <AvvisoAzione testo={avviso.testo} onRiprova={avviso.riprova} className="mb-4" />}
 
       {/* SCONTRINI DA LEGGERE */}
       <ScontriniBlock receipts={receipts} receiptUrls={receiptUrls} staged={staged}

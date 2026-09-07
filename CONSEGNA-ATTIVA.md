@@ -29,7 +29,43 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`, `ca_calendario_posizione` (sessionStorage, 07/09/2026: giorno da cui ripartire tornando dalla scheda).
-10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase da confermare (probabile Free = nessun backup automatico). CALENDARIO TELEFONO (pezzo 4): legenda dal «?», tocco 44 px sulle barre, ritorno alla stessa posizione dalla scheda. DRIFT (pezzo 5): proposta 0043 con le 10 colonne di bookings già in produzione, usata dal collaudo locale.
+10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase da confermare (probabile Free = nessun backup automatico). CALENDARIO TELEFONO (pezzo 4): legenda dal «?», tocco 44 px sulle barre, ritorno alla stessa posizione dalla scheda. DRIFT (pezzo 5): proposta 0043 con le 10 colonne di bookings già in produzione, usata dal collaudo locale. lib/spese (pezzo 6): le 7 scritture void e la lettura a null del tracker vecchio hanno l'esito visibile (scritturaSicura + AvvisoAzione). INCARICO DEL 07/09/2026 COMPLETO: 6 pezzi + parti 2 e 3, tutti su main.
+
+---
+
+# Consegna — Residui di lib/spese: esito visibile anche nel tracker vecchio (07/09/2026, main)
+
+Incarico del 07/09/2026, pezzo 6. Un commit, nessuna migrazione. Ricognizione
+prima di toccare: nessun lavoro in corso su lib/spese (ultimi commit solo
+grafici, branch rifacimento-spese fermo al 01/09 senza commit esclusivi);
+lib/spese/dati.ts è usato SOLO da components/SpeseTracker (il tracker
+vecchio, raggiungibile con ?vecchia=1), il modulo nuovo passa da
+lib/spese/scrittura + scritturaSupabase e non è stato toccato.
+
+- lib/spese/dati.ts: le 7 scritture che erano `void` (eliminaScontrino,
+  aggiornaNotaScontrino, inserisciSpesa, eliminaSpesa, salvaBudget,
+  aggiornaBudget, eliminaBudget) tornano `Promise<string | null>` tramite
+  lib/scritturaSicura.scriviPoiAggiorna (null = salvato, altrimenti «Non
+  salvato, riprova[: nessuna connessione]»); stesse query di prima, nessuna
+  logica cambiata. eliminaScontrino cancella PRIMA la riga e poi il file
+  (un file orfano è tollerato, una riga senza file no).
+- Il `return null` di caricaScontriniDaLeggere diventa un esito
+  {righe, assente, errore} (lib/spese/esito, puro, 2 test): tabella o bucket
+  non ancora creati = sezione nascosta com'era; rete o permessi = avviso con
+  Riprova, non più silenzio.
+- components/SpeseTracker: un solo AvvisoAzione in cima (sotto il titolo) con
+  «Riprova» che ripete l'ultima azione fallita (senza richiedere conferma o
+  prompt); lo stato locale cambia solo a scrittura riuscita (prima la riga
+  spariva o il modulo si chiudeva anche se il server non aveva salvato); il
+  modulo della spesa resta aperto coi valori scritti se il salvataggio
+  fallisce. Gli alert del caricamento foto (salvaFotoScontrino, già con
+  esito boolean) restano come sono: fuori dal perimetro dei «7 void».
+- Prove: 761 test, tsc, lint dei file toccati ai 4 avvisi già presenti,
+  next build ok; anteprima finta 3213 (le scritture rispondono 403):
+  /spese?vecchia=1 → «＋ Aggiungi» → importo 12 → Salva → «Non salvato,
+  riprova» + Riprova sotto il titolo, modulo ancora aperto con 12.
+- Limite: il tracker vecchio resta codice in via di ritiro (?vecchia=1);
+  qui è cambiato solo l'esito, non il flusso.
 
 ---
 
