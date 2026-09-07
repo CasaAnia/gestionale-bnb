@@ -12,6 +12,8 @@ import { useNumeriOggi } from '@/lib/numeriOggiDati'
 import { testoOccupate } from '@/lib/numeriOggi'
 import StrisciaSettimana from './StrisciaSettimana'
 
+// «2 su 4» tutto nello stesso carattere e colore del numero (Ania, 07/09/2026:
+// come «Occupazione» nelle Statistiche, niente «su 4» piccolo e grigio sfalsato).
 // Numero in alto ed etichetta in basso, riquadri di altezza uguale: i tre
 // numeri stanno sulla stessa linea di base e le etichette su UNA riga sola
 // anche a 320 px (carattere 9 px, spaziatura ridotta, «oggi» che sparisce
@@ -20,7 +22,7 @@ function Riquadro({ href, etichetta, codaEtichetta, valore, coda }: { href: stri
   return (
     <Link href={href} className="px-1 py-3 min-w-0 flex flex-col items-center justify-between transition-transform duration-100 active:scale-[0.98] first:border-l-0 border-l border-card-border">
       <p className="numero-classico whitespace-nowrap" data-numero={valore}>
-        {valore}{coda && <span className="text-[14px] text-gray-400 font-sans"> {coda}</span>}
+        {valore}{coda && <span data-coda> {coda}</span>}
       </p>
       <p className="text-[9px] uppercase tracking-[1.5px] text-stone leading-none whitespace-nowrap overflow-hidden mt-2.5" data-etichetta>
         {etichetta}{codaEtichetta && <span className="max-[359px]:hidden"> {codaEtichetta}</span>}
