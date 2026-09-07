@@ -29,7 +29,34 @@
 7. Prove: suite `npm test` (467 test), `tsc`, lint del delta, `next build`, `node scripts/verifica-consegna.mjs --base <sha>`; UI sull'anteprima finta `gestionale-bnb-anteprima-richieste-finta` (3214, login con qualsiasi email) e `gestionale-bnb-anteprima-prenotazioni-finta` (3213).
 8. Regole: nessun invio reale; migrazioni solo a mano da Ania; il calendario principale, la ricerca delle soluzioni e la RPC non si toccano senza un pezzo dedicato; un commit per blocco; mai modificare gli assert dei test esistenti.
 9. Memoria del browser: `ca_richieste_calendario_modo` (mese/quindici), `ca_richieste_ultima_visita`, `ca_proposta_pendente_<id>`, `ca_calendario_posizione` (sessionStorage, 07/09/2026: giorno da cui ripartire tornando dalla scheda).
-10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase da confermare (probabile Free = nessun backup automatico). CALENDARIO TELEFONO (pezzo 4): legenda dal «?», tocco 44 px sulle barre, ritorno alla stessa posizione dalla scheda.
+10. Migrazione 0040 APPLICATA da Ania il 06/09/2026 (ore 17): job pg_cron «richieste-scadenze» attivo con un CRON_SECRET NUOVO (il vecchio su Vercel era «sensibile», non rileggibile), Vercel aggiornato e ripubblicato (deploy 0b81f82). Il workflow GitHub del pezzo F è ATTIVO (segreto del repo aggiornato da Ania alle 20:41, lancio a mano → HTTP 200, 1 aperta, 0 notificate, 0 chiuse): due controlli ogni 5 minuti, database e GitHub, sulla stessa route idempotente. Azioni aperte per Ania sull'opzione di 3 ore: nessuna. 0035, 0037, 0038 e 0039 APPLICATE (verifiche del 06/09/2026); prove dal telefono (scheda «in 10 minuti» qui sotto); scelte «da confermare» del blocco 2; decisioni su fatture-fase5, statistiche, 0030, 0033/0034. INCARICO DEL 07/09/2026 (main): KPI in Statistiche con l'anno prima (pezzo 1), «Rifiuta con motivo» (finestra «Perché la rifiuti?», codici in motivo_rifiuto, Chiuse col motivo; proposta 0041 NON applicata, facoltativa) e riquadro «Richieste» in Statistiche (arrivate, esiti, per camera chiesta, camera diversa accettata); schermate con Chrome headless via scripts/revisioni/schermata.mjs. CRONOLOGIA (pezzo 2): proposta 0042 (tabella booking_events + trigger, sola lettura dal client) NON applicata, sezione in fondo alla scheda prenotazione. BACKUP (pezzo 3): docs/backup.md + scripts/backup-locale.mjs e backup-verifica.mjs collaudati in locale; piano Supabase da confermare (probabile Free = nessun backup automatico). CALENDARIO TELEFONO (pezzo 4): legenda dal «?», tocco 44 px sulle barre, ritorno alla stessa posizione dalla scheda. DRIFT (pezzo 5): proposta 0043 con le 10 colonne di bookings già in produzione, usata dal collaudo locale.
+
+---
+
+# Consegna — Drift di bookings registrato nella proposta 0043 (07/09/2026, main) — 🔴 da applicare quando vuole Ania (in produzione non cambia nulla)
+
+Incarico del 07/09/2026, pezzo 5. Un commit, nessuna migrazione applicata.
+
+- supabase/proposte/0043_drift_bookings.BOZZA.sql: le 10 colonne di bookings
+  che in produzione esistono senza un file di migrazione (pagato, bonifico,
+  guest_name, extra_bed_dates, extra_phone_1/_name, extra_phone_2/_name,
+  color, check_in_time), tutte con «add column if not exists», tipi dedotti
+  dal codice, verifica in fondo (10 righe). In produzione ogni riga trova la
+  colonna già presente e passa oltre: applicarla serve solo a far coincidere
+  i file con il database.
+- scripts/collaudo-0033/applica-migrazioni.mjs applica la 0043 dal file
+  (prima delle proposte 0033 e 0034) al posto dell'elenco scritto a mano:
+  il collaudo locale non deve più aggiungere le colonne da solo.
+- lib/driftBookings.test (PGlite, 3 test): la bozza elenca le 10 colonne
+  con «if not exists»; su una bookings «solo migrazioni» le crea coi tipi
+  giusti; applicata di nuovo non cambia nulla e i dati restano.
+- Prova sul PostgreSQL 16 locale: database nuovo → migrazioni 0001–0039 (la
+  0040 non passa in locale per pg_cron, come sempre) → 0043 OK → 0033 e 0034
+  OK; information_schema conta 10 colonne.
+
+🔴 AZIONE PER ANIA (quando vuole, non urgente): incollare
+supabase/proposte/0043_drift_bookings.BOZZA.sql nel SQL Editor e controllare
+che la select in fondo restituisca 10 righe.
 
 ---
 
