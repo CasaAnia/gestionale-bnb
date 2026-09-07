@@ -14,11 +14,12 @@ import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi from '@/components/RigaMesi'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { matchNome, matchTelefono } from '@/lib/ricerca'
-import ConfermaDialog from '@/components/richieste/ConfermaDialog'
+import RifiutaConMotivo from '@/components/richieste/RifiutaConMotivo'
+import type { MotivoRifiuto } from '@/lib/motivoRifiuto'
 import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import { supabase } from '@/lib/supabase'
-import { fetchRichieste, rifiutaRichiesta, riapriRichiesta, MOTIVI_RIFIUTO, ricaricaRichiesteAperte } from '@/lib/richiesteDati'
+import { fetchRichieste, rifiutaRichiesta, riapriRichiesta, ricaricaRichiesteAperte } from '@/lib/richiesteDati'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
@@ -201,14 +202,15 @@ function Richieste() {
     void ricaricaRichiesteAperte()
   }
 
-  async function confermaRifiuto(motivo?: string) {
+  // Rifiuta con motivo (07/09/2026): la finestra «Perché la rifiuti?» obbliga a scegliere il motivo
+  async function confermaRifiuto(motivo: MotivoRifiuto) {
     if (!daRifiutare) return
     setRifiutando(true)
     const { chiusa_at, stato, error } = await rifiutaRichiesta(daRifiutare.id, motivo)
     setRifiutando(false)
     if (error) { setErrori(e => [...e.filter(x => !x.startsWith('rifiuto')), `rifiuto: ${error}`]); setDaRifiutare(null); return }
     const id = daRifiutare.id
-    setTutte(lista => lista.map(r => (r.id === id ? { ...r, stato, chiusa_at, chiusura_motivo: stato === 'chiusa' ? 'rifiutata' : r.chiusura_motivo } : r)))
+    setTutte(lista => lista.map(r => (r.id === id ? { ...r, stato, chiusa_at, chiusura_motivo: stato === 'chiusa' ? 'rifiutata' : r.chiusura_motivo, motivo_rifiuto: motivo } : r)))
     setPannello(pan => (pan ? { ...pan, gruppo: pan.gruppo.filter(r => r.id !== id) } : pan))
     setSelezionata(s => (s === id ? null : s))
     setDaRifiutare(null)
@@ -486,8 +488,7 @@ function Richieste() {
           onChiudi={() => setDaConfermare(null)} onCreata={(id, avviso) => router.push(`/prenotazioni/${id}?da=richiesta${avviso ? `&avviso=${encodeURIComponent(avviso)}` : ''}`)} />
       )}
       {daRifiutare && (
-        <ConfermaDialog titolo={`Rifiutare la richiesta di ${nomeCompleto(daRifiutare)}?`} testo="Nessun messaggio parte da qui."
-          conferma="Rifiuta" occupato={rifiutando} scelte={MOTIVI_RIFIUTO} onConferma={confermaRifiuto} onAnnulla={() => { if (!rifiutando) setDaRifiutare(null) }} />
+        <RifiutaConMotivo richiesta={daRifiutare} occupato={rifiutando} onConferma={confermaRifiuto} onAnnulla={() => { if (!rifiutando) setDaRifiutare(null) }} />
       )}
     </div>
   )

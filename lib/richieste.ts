@@ -2,6 +2,7 @@
 // Funzioni pure, senza Supabase: si provano con `node --test`.
 // La parte che parla col database sta in lib/richiesteDati.ts.
 import { ORE_RISPOSTA_PROPOSTA } from './condizioniPrenotazione.ts'
+import { motivoRifiutoInParole } from './motivoRifiuto.ts'
 
 // «chiusa» (migrazione 0040, 06/09/2026): chiusa da sola 24 h dopo la scadenza dell'opzione
 // (chiusura_motivo 'scaduta') oppure rifiutata da Ania (chiusura_motivo 'rifiutata').
@@ -28,6 +29,7 @@ export interface Richiesta {
   chiusa_at: string | null
   prenotazione_id: string | null
   chiusura_motivo?: MotivoChiusura | null   // 0040
+  motivo_rifiuto?: string | null            // 0027; dal 07/09/2026 un codice di lib/motivoRifiuto (i testi vecchi si leggono lo stesso)
   scadenza_notificata_at?: string | null    // 0040: notifica Pushover di scadenza già mandata
   origine?: string | null        // dal sito: "google", "diretto"… (migrazione 0028)
   provenienza?: string | null    // google | passaparola | altra_struttura | non_so (proposta 0036)
@@ -149,9 +151,14 @@ function quandoChiusa(chiusaAt: string | null, adesso: Date, conOra: boolean): s
   const giorno = stessoGiorno(d, adesso) ? 'oggi' : stessoGiorno(d, ieri) ? 'ieri' : `${d.getDate()} ${MESI[d.getMonth()]}`
   return conOra ? `${giorno} alle ${due(d.getHours())}:${due(d.getMinutes())}` : giorno
 }
-export function rigaChiusa(r: Pick<Richiesta, 'stato' | 'chiusa_at' | 'chiusura_motivo'>, adesso: Date = new Date()): RigaChiusa {
+//  · rifiutata con motivo (07/09/2026) → «Rifiutata da te · ha detto di no · 4 set»
+export function rigaChiusa(r: Pick<Richiesta, 'stato' | 'chiusa_at' | 'chiusura_motivo' | 'motivo_rifiuto'>, adesso: Date = new Date()): RigaChiusa {
   if (eScadutaChiusa(r)) { const q = quandoChiusa(r.chiusa_at, adesso, true); return { testo: `Scaduta, chiusa da sola${q ? ` ${q}` : ''}`, tono: 'ottone' } }
-  if (eRifiutata(r)) { const q = quandoChiusa(r.chiusa_at, adesso, false); return { testo: `Rifiutata da te${q ? ` · ${q}` : ''}`, tono: 'grigio' } }
+  if (eRifiutata(r)) {
+    const q = quandoChiusa(r.chiusa_at, adesso, false)
+    const motivo = motivoRifiutoInParole(r.motivo_rifiuto)
+    return { testo: `Rifiutata da te${motivo ? ` · ${motivo}` : ''}${q ? ` · ${q}` : ''}`, tono: 'grigio' }
+  }
   const q = quandoChiusa(r.chiusa_at, adesso, false)
   return { testo: `Confermata${q ? ` · ${q}` : ''}`, tono: 'verde' }
 }

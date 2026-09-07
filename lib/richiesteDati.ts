@@ -2,6 +2,7 @@
 // Richieste di prenotazione: letture dal database e contatore per la
 // navigazione. La logica pura (ordinamento, testi) sta in lib/richieste.ts.
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import type { MotivoRifiuto } from './motivoRifiuto'
 import { supabase } from './supabase'
 import { STATI_APERTI, spiegaErrore, pianoModifica, type Richiesta, type ValoriModifica, type PropostaPrecedente } from './richieste'
 import type { CondizionePagamento } from './condizioniPrenotazione'
@@ -86,13 +87,14 @@ export function useRichiesteAperte(refreshKey?: string): StatoContatore & { rica
 
 // Rifiuto: stato «chiusa» con motivo «rifiutata» (0040) e ora di chiusura;
 // prima della 0040 il database non conosce «chiusa» e si scrive «rifiutata»
-// come sempre. Nessun messaggio parte da qui. Libera all'istante l'opzione.
+// come sempre. Dal 07/09/2026 il motivo è OBBLIGATORIO ed è un codice di
+// lib/motivoRifiuto (non_risposto, detto_no, data_ad_altro, altro) salvato in
+// motivo_rifiuto (colonna della 0027; la proposta 0041 aggiunge il vincolo).
+// Nessun messaggio parte da qui. Libera all'istante l'opzione.
 // Torna il testo dell'errore (mostrato a schermo) oppure null.
-export const MOTIVI_RIFIUTO = ['Completo', 'Prezzo', 'Non ha più risposto', 'Altro']
-
-export async function rifiutaRichiesta(id: string, motivo?: string): Promise<{ chiusa_at: string; stato: 'chiusa' | 'rifiutata'; error: string | null }> {
+export async function rifiutaRichiesta(id: string, motivo: MotivoRifiuto): Promise<{ chiusa_at: string; stato: 'chiusa' | 'rifiutata'; error: string | null }> {
   const chiusa_at = new Date().toISOString()
-  const extra = motivo ? { motivo_rifiuto: motivo } : {}
+  const extra = { motivo_rifiuto: motivo }
   let stato: 'chiusa' | 'rifiutata' = 'chiusa'
   let { data, error } = await supabase.from('richieste').update({ stato, chiusura_motivo: 'rifiutata', chiusa_at, ...extra }).eq('id', id).select('id')
   if (error && /chiusura_motivo|stato_check|violates check constraint/i.test(error.message || '')) {

@@ -8,7 +8,9 @@ import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
 import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
 import { supabase } from '@/lib/supabase'
-import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, colonne0029Presenti, colonne0031Presenti, AVVISO_0025, AVVISO_0029, AVVISO_0031, MOTIVI_RIFIUTO, type CondizioniSalvate } from '@/lib/richiesteDati'
+import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, colonne0029Presenti, colonne0031Presenti, AVVISO_0025, AVVISO_0029, AVVISO_0031, type CondizioniSalvate } from '@/lib/richiesteDati'
+import RifiutaConMotivo from '@/components/richieste/RifiutaConMotivo'
+import type { MotivoRifiuto } from '@/lib/motivoRifiuto'
 import { proponiSoluzioni, alternativaAmelia, personePerNotte, prezziNottiCentesimi, motiviEsclusione, testoMotivo, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
 import { camereAmmesseNotte, cameraSuccessiva, composizioneDaSoluzione, soluzioneDaComposizione, prezziTariffaPerNotte, applicaATutteLeNotti, totaleCentesimi, type Composizione, type PrezziManuali } from '@/lib/richiesteComposizione'
 import StrisciaNotti, { etichettaNotte } from '@/components/StrisciaNotti'
@@ -365,7 +367,7 @@ export default function PropostaPage() {
     setRichiesta({ ...richiesta, stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at, proposta_testo: testoFinale, proposta_soluzione: soluzione, proposta_alternative: alternative && alternative.length > 1 ? alternative : null, ...condizioniSalvate })
   }
 
-  async function rifiuta(motivo?: string) {
+  async function rifiuta(motivo: MotivoRifiuto) {
     if (!richiesta) return
     setOccupato('rifiuto')
     const { error } = await rifiutaRichiesta(richiesta.id, motivo)
@@ -705,8 +707,7 @@ export default function PropostaPage() {
           onChiudi={() => setConfermando(null)} onCreata={(id, avviso) => router.push(`/prenotazioni/${id}?da=richiesta${avviso ? `&avviso=${encodeURIComponent(avviso)}` : ''}`)} />
       )}
       {daRifiutare && (
-        <ConfermaDialog titolo={`Rifiutare la richiesta di ${nomeCompleto(richiesta)}?`} testo="Nessun messaggio parte da qui." conferma="Rifiuta" occupato={occupato === 'rifiuto'} scelte={MOTIVI_RIFIUTO}
-          onConferma={rifiuta} onAnnulla={() => { if (occupato !== 'rifiuto') setDaRifiutare(false) }} />
+        <RifiutaConMotivo richiesta={richiesta} occupato={occupato === 'rifiuto'} onConferma={rifiuta} onAnnulla={() => { if (occupato !== 'rifiuto') setDaRifiutare(false) }} />
       )}
     </div>
   )

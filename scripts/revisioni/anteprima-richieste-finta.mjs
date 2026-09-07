@@ -97,7 +97,7 @@ const richieste = [
   richiesta({ nome: 'Ewa', cognome: 'Composta', arrivo: giorni(70), partenza: giorni(74), persone: 2, persone_per_notte: [2, 3, 3, 3], canale: 'whatsapp', telefono: '+39 333 000 0070', created_at: fa(2) }),
   richiesta({ nome: 'Sara', cognome: 'Verdi', arrivo: giorni(30), partenza: giorni(35), persone: 4, canale: 'web', created_at: fa(5), note: 'Chiede due camere vicine' }),
   richiesta({ nome: 'Paolo', cognome: 'Neri', arrivo: giorni(-3), partenza: giorni(-1), persone: 2, canale: 'telefono', created_at: fa(60 * 24 * 8), stato: 'confermata', chiusa_at: fa(60 * 24 * 7) }),
-  richiesta({ nome: 'Giulia', cognome: 'Gallo', arrivo: giorni(2), partenza: giorni(4), persone: 2, canale: 'whatsapp', created_at: fa(60 * 24 * 2), stato: 'rifiutata', chiusa_at: fa(60 * 24) }),
+  richiesta({ nome: 'Giulia', cognome: 'Gallo', arrivo: giorni(2), partenza: giorni(4), persone: 2, canale: 'whatsapp', created_at: fa(60 * 24 * 2), stato: 'rifiutata', chiusa_at: fa(60 * 24), motivo_rifiuto: 'detto_no' }),   // rifiuto con motivo (07/09/2026): «Rifiutata da te · ha detto di no · …»
   richiesta({ nome: 'Vecchia', cognome: 'Chiusa', arrivo: giorni(-120), partenza: giorni(-118), persone: 1, canale: 'web', created_at: fa(60 * 24 * 130), stato: 'confermata', chiusa_at: fa(60 * 24 * 120) }),
 ]
 

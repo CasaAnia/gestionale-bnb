@@ -33,6 +33,53 @@
 
 ---
 
+# Consegna — Rifiuta con motivo (07/09/2026, main) — 🔴 proposta 0041 da valutare
+
+Incarico di Ania (parte 2 di tre): prima di chiudere una richiesta, una
+finestra «Perché la rifiuti?» con quattro bottoni larghi uno sotto l'altro;
+il motivo si salva sulla richiesta e la linguetta Chiuse lo dice in parole.
+Un commit.
+
+- components/richieste/RifiutaConMotivo: titolo, sottotitolo «Nome Cognome ·
+  13–15 set · Ambra» (o «qualsiasi camera»), bottoni «Non ha risposto» / «Ha
+  detto di no» / «L'ho data a un altro» / «Altro motivo» (48 px, verde pieno
+  quando scelto), sotto «Annulla» e «Rifiuta» verde pieno ATTIVO solo dopo la
+  scelta; Escape e velo chiudono. Usata da /richieste (lista) e dalla pagina
+  della proposta; il vecchio ConfermaDialog con i chip resta per «Sostituire il
+  testo modificato?».
+- lib/motivoRifiuto (puro, 4 test): codici non_risposto · detto_no ·
+  data_ad_altro · altro, testi dei bottoni, parole per la riga Chiuse,
+  normalizzaMotivoRifiuto per i valori vecchi («Non ha più risposto» →
+  non_risposto, «date assegnate a altro cliente» del rifiuto in cascata →
+  data_ad_altro, Completo/Prezzo/Altro → altro).
+- Salvataggio: lib/richiesteDati.rifiutaRichiesta(id, motivo) — il motivo è
+  obbligatorio e finisce in richieste.motivo_rifiuto, colonna che ESISTE dalla
+  0027 (prima teneva testi liberi). SCELTA DICHIARATA: nessuna colonna nuova,
+  perché avrebbe raddoppiato la stessa informazione; la proposta 0041 rende
+  stabile la cosa sul database (valori vecchi → codici, trigger che normalizza
+  ogni scrittura futura compresa quella della RPC conferma_richiesta, vincolo
+  sui quattro codici). Prima della 0041 tutto funziona già.
+- Linguetta Chiuse: «Rifiutata da te · ha detto di no · 4 set» (lib/richieste.
+  rigaChiusa legge motivo_rifiuto; senza motivo la riga resta com'era). La
+  chiusura automatica per scadenza resta «Scaduta, chiusa da sola…».
+- Prove: 733 test, tsc, lint dei file toccati, next build ok; anteprima finta
+  3214 a 390 e 1280 px con Chrome headless via CDP (scripts/revisioni/
+  schermata.mjs, nuovo: il pannello del browser dell'app resta nascosto e i
+  confini Suspense non si aprono): finestra con «Rifiuta» spento → scelta →
+  attivo → rifiuto salvato (PATCH in memoria) → riga «Rifiutata da te · non
+  ha risposto · oggi» nelle Chiuse, e «… · ha detto di no · ieri» sulla
+  richiesta finta di Giulia Gallo.
+- Statistiche: il conteggio dei motivi dell'imbuto (lib/statistiche/imbuto)
+  continua a leggere il valore grezzo; il riquadro «Richieste» della parte 3
+  usa i codici normalizzati.
+
+🔴 AZIONE PER ANIA (facoltativa, quando vuoi): incollare
+supabase/proposte/0041_motivo_rifiuto.BOZZA.sql nel SQL Editor del progetto
+di produzione e controllare le due select in fondo (nessuna riga «fuori dai
+codici»).
+
+---
+
 # Consegna — Statistiche, KPI del periodo con l'anno prima (07/09/2026, main)
 
 Incarico del 07/09/2026, pezzo 1: sotto i quattro riquadri una riga di tre
