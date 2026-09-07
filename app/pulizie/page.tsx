@@ -252,7 +252,8 @@ export default function Pulizie() {
   const righeProssimi = righe.filter(r => r.aperte.length === 0 && r.prossimo)
   const giorniProssimi = Array.from(new Set(righeProssimi.map(r => r.prossimo!.date))).sort()
   // Stesso numero della striscia in Home (lib/pulizie.conteggioGiorno, 08/09/2026):
-  // le camere con pulizie ancora da fare oggi (le automatiche valgono come fatte)
+  // le camere con pulizie ancora da fare oggi (automatiche comprese: sono
+  // lavoro della giornata finché non sono segnate, come le righe qui sotto)
   const daRifare = conteggioGiorno(rooms, prenotazioni, events, td, td).daFare
 
   const shortNameOf = (id: string) => {

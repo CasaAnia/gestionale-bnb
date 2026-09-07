@@ -96,8 +96,8 @@ test('striscia = pagina Pulizie: per ognuno dei 28 giorni da fare e fatte coinci
     const c = conteggioGiorno(CAMERE, bookings, events, g.giorno, oggi)
     assert.deepEqual([g.daFare, g.fatte], [c.daFare, c.fatte], `giorno ${g.giorno}`)
   }
-  // Oggi: le camere «da fare» sono quelle con pulizie aperte non automatiche (la sezione «Oggi» della pagina)
-  const aperteOggi = CAMERE.filter(r => pulizieAperte(attive(bookings), r.id, oggi, events).some(p => !p.automatica)).length
+  // Oggi: le camere «da fare» sono quelle con pulizie aperte, automatiche comprese (la sezione «Oggi» della pagina)
+  const aperteOggi = CAMERE.filter(r => pulizieAperte(attive(bookings), r.id, oggi, events).length > 0).length
   assert.equal(s[0].daFare, aperteOggi)
   const per = Object.fromEntries(s.map(g => [g.giorno, `${g.daFare}/${g.fatte}`]))
   assert.equal(per['2026-09-05'], '0/1')   // Ambra: partenza di oggi segnata fatta e arrivo di Lucia in camera pronta → ✓; le altre: nulla
@@ -127,10 +127,11 @@ test('caso di Ania (08/09/2026): due arrivi domani in camere già pulite e segna
   const domani = strisciaSettimane(CAMERE, bookings, fatte, oggi)[1]
   assert.deepEqual([domani.daFare, domani.fatte], [0, 2])
   assert.deepEqual(testoCasella(domani), { testo: '✓', tono: 'fatto' })
-  // Senza la seconda segnatura: la partenza di oggi in Ambra è automatica (nuovo ospite domani) → vale fatta lo stesso
+  // Senza la seconda segnatura: la partenza di oggi in Ambra è automatica (nuovo ospite domani) ma OGGI
+  // è ancora lavoro della giornata (sta in «Oggi» della pagina Pulizie); da domani vale fatta
   const senzaAmbra = strisciaSettimane(CAMERE, bookings, fatte.slice(0, 1), oggi)
-  assert.deepEqual([senzaAmbra[0].daFare, senzaAmbra[0].fatte], [0, 1])     // oggi: Ambra automatica = fatta
-  assert.deepEqual([senzaAmbra[1].daFare, senzaAmbra[1].fatte], [0, 2])
+  assert.deepEqual([senzaAmbra[0].daFare, senzaAmbra[0].fatte], [1, 0])     // oggi: Ambra da fare
+  assert.deepEqual([senzaAmbra[1].daFare, senzaAmbra[1].fatte], [0, 2])     // domani: automatica = fatta, camera pronta
   // Partita il 4 e MAI segnata, senza arrivo entro il giorno dopo: in ritardo oggi, e domani la camera dell'arrivo non è pronta
   const senzaAmelia = strisciaSettimane(CAMERE, bookings, fatte.slice(1), oggi)
   assert.equal(senzaAmelia[0].daFare, 1)      // Amelia in ritardo oggi
@@ -138,6 +139,66 @@ test('caso di Ania (08/09/2026): due arrivi domani in camere già pulite e segna
   assert.deepEqual(testoCasella(senzaAmelia[1]), { testo: '1', tono: 'numero' })
   assert.deepEqual(testoCasella({ daFare: 0, fatte: 0 }), { testo: '—', tono: 'niente' })
   assert.equal(statoCameraGiorno(attive(bookings), 'lena', '2026-09-06', oggi, fatte), 'nessuna')
+})
+
+// ── Bug del 07/09/2026: la casella di OGGI perdeva il conteggio (finestra che parte da oggi) ──
+// Caso vero: Rosa cambia camera oggi (Ambra → Amelia), in Ambra entra oggi un nuovo ospite, da
+// Amelia parte oggi chi c'era. La pagina Pulizie elenca Ambra e Amelia in «Oggi» (automatiche);
+// ieri la casella del 7 mostrava «2», oggi mostrava «✓» perché l'automatica valeva già fatta.
+const CASO_OGGI = () => {
+  seq = 0
+  return [
+    pren('ambra', '2026-09-01', '2026-09-07', { guest_id: 'rosa' }),
+    pren('amelia', '2026-09-07', '2026-09-11', { guest_id: 'rosa' }),     // cambio camera oggi
+    pren('ambra', '2026-09-07', '2026-09-11', { guest_id: 'nuovo' }),     // nuovo ospite in Ambra oggi
+    pren('amelia', '2026-09-06', '2026-09-07', { guest_id: 'parte' }),    // parte oggi da Amelia
+    pren('allegra', '2026-09-06', '2026-09-08'),
+  ]
+}
+
+test('finestra che parte da oggi con pulizie da fare oggi: la casella di oggi conta le stesse camere della sezione «Oggi» di Pulizie, come ieri', () => {
+  const bookings = CASO_OGGI()
+  const oggi = '2026-09-07'
+  const s = strisciaSettimane(CAMERE, bookings, [], oggi)
+  assert.equal(s[0].giorno, oggi); assert.equal(s[0].oggi, true)
+  assert.deepEqual([s[0].daFare, s[0].fatte, s[0].cambi], [2, 0, 1])
+  assert.deepEqual(testoCasella(s[0]), { testo: '2', tono: 'numero' })
+  // = pagina Pulizie: «N camere da rifare oggi» e le righe di «Oggi»
+  assert.equal(conteggioGiorno(CAMERE, bookings, [], oggi, oggi).daFare, 2)
+  const righeOggi = CAMERE.filter(r => pulizieAperte(attive(bookings), r.id, oggi, []).length > 0)
+  assert.deepEqual(righeOggi.map(r => r.id).sort(), ['ambra', 'amelia'])
+  // Ieri la stessa giornata mostrava già 2
+  assert.deepEqual(testoCasella(strisciaSettimane(CAMERE, bookings, [], '2026-09-06')[1]), { testo: '2', tono: 'numero' })
+  // Segnate fatte tutte e due → «✓»; una sola → «1»
+  const fatta = (id: string, room_id: string, booking_id: string): Decisione =>
+    ({ id, room_id, booking_id, tipo: 'cambio_camera', stato: 'fatta', data_prevista: oggi, data_effettiva: oggi, created_at: '2026-09-07T11:00:00Z' })
+  const una = strisciaSettimane(CAMERE, bookings, [fatta('f1', 'ambra', 'p1')], oggi)[0]
+  assert.deepEqual(testoCasella(una), { testo: '1', tono: 'numero' })
+  const due = strisciaSettimane(CAMERE, bookings, [fatta('f1', 'ambra', 'p1'), { ...fatta('f2', 'amelia', 'p4'), tipo: 'fine_soggiorno' }], oggi)[0]
+  assert.deepEqual(testoCasella(due), { testo: '✓', tono: 'fatto' })
+  // Domani (8): i cambi ospite di oggi sono passati e valgono fatti; resta la partenza da Allegra
+  const domani = strisciaSettimane(CAMERE, bookings, [], '2026-09-08')[0]
+  assert.deepEqual([domani.daFare, domani.fatte], [1, 0])
+  assert.equal(statoCameraGiorno(attive(bookings), 'ambra', '2026-09-08', '2026-09-08', []), 'nessuna')
+})
+
+test('vicino a mezzanotte in Europe/Rome: la prima casella è il giorno di Roma (non UTC) e conta le pulizie di quel giorno', () => {
+  const bookings = CASO_OGGI()
+  // 00:30 del 7 settembre a Roma = ancora 6 settembre in UTC
+  const istante = new Date('2026-09-06T22:30:00Z')
+  assert.equal(istante.toISOString().slice(0, 10), '2026-09-06')
+  const oggi = oggiARoma(istante)
+  assert.equal(oggi, '2026-09-07')
+  const s = strisciaSettimane(CAMERE, bookings, [], oggi)
+  assert.equal(s[0].giorno, '2026-09-07'); assert.equal(etichettaGiornoBreve(s[0].giorno), 'lun 7')
+  assert.deepEqual([s[0].daFare, s[0].fatte, s[0].cambi], [2, 0, 1])
+  assert.equal(s[1].giorno, '2026-09-08'); assert.equal(s.length, 28)
+  // 23:30 del 7 a Roma (21:30 UTC): stesso giorno, stesso conteggio
+  const sera = strisciaSettimane(CAMERE, bookings, [], oggiARoma(new Date('2026-09-07T21:30:00Z')))
+  assert.equal(sera[0].giorno, '2026-09-07'); assert.equal(sera[0].daFare, 2)
+  // Col giorno UTC (sbagliato) la casella di oggi sarebbe il 6 e le due pulizie del 7 finirebbero nella seconda
+  const utc = strisciaSettimane(CAMERE, bookings, [], istante.toISOString().slice(0, 10))
+  assert.equal(utc[0].giorno, '2026-09-06'); assert.equal(utc[1].daFare, 2)
 })
 
 test('etichette e limiti della striscia', () => {

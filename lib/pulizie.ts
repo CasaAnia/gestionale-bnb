@@ -579,8 +579,10 @@ export function calcolaNotifica(rooms: any[], tutteLePrenotazioni: any[], events
 //  · partenze e cambi camera con la scadenza quel giorno (rimandi di Ania
 //    compresi): da fare finché non sono segnati fatti/saltati; per oggi anche
 //    quelli in ritardo (come la sezione «Oggi»); la pulizia AUTOMATICA alla
-//    partenza (nuovo ospite nella stessa camera entro il giorno dopo, già
-//    avvenuta) vale come fatta;
+//    partenza (nuovo ospite nella stessa camera entro il giorno dopo) vale
+//    come fatta solo dal giorno DOPO la partenza: il giorno stesso è lavoro
+//    della giornata, come la sezione «Oggi» della pagina (correzione del
+//    07/09/2026: la casella di oggi mostrava «✓»/«—» con due camere da fare);
 //  · cambio biancheria ogni 4 notti (rettifiche registrate comprese): da fare
 //    quando scade quel giorno (per oggi anche se scaduto), fatta se segnata
 //    fatta con data effettiva quel giorno;
@@ -605,7 +607,11 @@ export function statoCameraGiorno(bookings: Prenotazioni, roomId: string, giorno
   const partenze = bookings.filter(b => b.room_id === roomId && b.check_out <= giorno && b.check_out >= CUTOFF_STORICO && !continuaIn(bookings, b))
   for (const p of partenze) {
     const st = statoFineSoggiorno(bookings, p, events)
-    if (st.due === giorno) segna(chiusaOAutomatica(p))
+    if (st.due !== giorno) continue
+    // Scadenza oggi: da fare finché Ania non la segna (fatta o saltata), anche
+    // se è un cambio ospite automatico — la pagina Pulizie la elenca in «Oggi».
+    // Nei giorni dopo l'automatica vale fatta (il nuovo ospite è già entrato).
+    segna(giorno === oggi ? st.chiusa : chiusaOAutomatica(p))
   }
   if (giorno === oggi) {
     // In ritardo (come «Oggi» della pagina): l'ultima partenza aperta con scadenza passata

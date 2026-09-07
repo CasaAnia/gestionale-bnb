@@ -351,7 +351,11 @@ export function eccezioniPulizie(prenotazioni: PrenotazioneDC[], pulizie: Decisi
       .filter(x => x.room_id === b.room_id && x.check_out <= oggi && x.check_out >= CUTOFF_STORICO && !continuaIn(bookings, x) && !arrivi.some(a => a.id === x.id))
       .sort((x, y) => x.check_out.localeCompare(y.check_out)).slice(-1)[0]
     const st = precedente ? statoFineSoggiorno(bookings, precedente, events) : null
-    const pulizia = precedente && st && !st.chiusa && !cambioOspiteAutomatico(bookings, precedente, events)
+    // Cambio ospite automatico (partenza oggi o ieri, nuovo ospite oggi): dal 07/09/2026
+    // la striscia e «Oggi» di Pulizie la contano come lavoro della giornata, ma qui NON è
+    // «non registrata» (si registra da sola): resta fuori, come vuole la regola del 06/09
+    if (precedente && st && !st.chiusa && cambioOspiteAutomatico(bookings, precedente, events)) continue
+    const pulizia = precedente && st && !st.chiusa
       ? { room_id: b.room_id, booking_id: precedente.id ?? null, tipo: st.tipo, data_prevista: st.due, camera: nomeCamera(b) } : undefined
     out.push({
       chiave: `pulizia:${b.id}`, tipo: 'pulizia', urgenza: 'alta', data: oggi,
