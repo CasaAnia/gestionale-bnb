@@ -181,6 +181,23 @@ input[type="week"] {
 .ed-pillola-contorno { background: transparent; color: var(--color-green-mid); border: 1px solid var(--color-green-mid); }
 .ed-pillola-tenue { background: transparent; color: var(--color-stone); border: 1px solid #C9BFA8; }
 .ed-pillola:disabled, .ed-pillola-contorno:disabled, .ed-pillola-tenue:disabled { opacity: 0.55; }
+/* Azioni nelle righe della Home: testo e filo sottile, con area di tocco comoda. */
+.ed-azione {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-green-dark);
+  text-decoration: underline;
+  text-decoration-color: var(--color-card-border);
+  text-underline-offset: 5px;
+  cursor: pointer;
+}
+.ed-azione:hover { text-decoration-color: var(--color-green-mid); }
+.ed-azione:focus-visible { outline: 2px solid var(--color-brass); outline-offset: 3px; }
+.ed-azione:disabled { opacity: 0.55; cursor: default; }
+.ed-azione-tenue { font-size: 12px; font-weight: 400; color: var(--color-stone); }
 /* Etichetta a pillola col solo contorno (stati: da pulire, urgente, canale…) */
 .ed-badge {
   display: inline-block;

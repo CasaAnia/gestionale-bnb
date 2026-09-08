@@ -1,3 +1,22 @@
+# Home pulizie: azioni dirette e scomparsa dopo la conferma (08/09/2026)
+
+**VERIFICATO IN LOCALE — ANTEPRIMA DA RIVEDERE CON ANIA, NON PUBBLICATO.**
+Base `e0ff1154d13ad2fb84fb839e2ed0cc3ead4f809f`, copia isolata `work/gestionale-pulizie-home`.
+Ania vuole vedere insieme l'anteprima prima di pubblicare. La Home mostra solo
+il lavoro da fare: **Pulita** conferma senza recuperi; **Pulita e recuperato**
+apre subito la selezione e salva entrambi insieme. Dopo il salvataggio la camera
+scompare anche ricaricando; rettifiche nella sezione Pulizie. Tolto il link
+«Tutte le pulizie e il resoconto». Comandi editoriali in testo, sottolineatura
+sottile, stessi colori; Rimanda/Salta secondari. Nessuna modifica SQL o ai dati reali.
+
+Regressione sul render React vero con custodia/SQL PGlite: due riaperture,
+conferma con e senza recupero, permanenza nel registro, lista vuota, stime
+storiche escluse e successivo ciclo a quattro notti. UI vera 390/1280: chiusura
+senza salvare, nove asciugamani per tre ospiti, salvataggio, ricarica, sparizione
+di Amelia e Ambra, recuperi nuovamente aperti dal registro. Suite completa,
+TypeScript, lint e build riusciti. Dettagli e confine della prova in
+`docs/pulizie-2026-09-08.md`. La consegna pubblicata precedente resta qui sotto.
+
 # Pulizie manuali e recuperi per ospite (08/09/2026)
 
 **PUBBLICATO E VERIFICATO ONLINE l’8 settembre 2026.** Vercel ha completato il deploy del commit `61d65e2` (codice pulizie `fb49707`); Home e resoconto verificati dalla sessione reale. **0045 APPLICATA E VERIFICATA**. Candidato `d9632e4`, integrato su main come `fb49707` con albero identico; base `38cb368`. L’utente ha confermato esplicitamente modifica di main, database, push GitHub e Vercel con «si» l’8 settembre: supera il precedente blocco automatico. Requisiti, prove e limiti in `docs/pulizie-2026-09-08.md`. Home editoriale: Pulita = zero recuperi, Recuperato facoltativo/modificabile, asciugamani per ospite del soggiorno pulito, ciclo dalla data effettiva + 4 notti e resoconto verificabile. Suite, TypeScript, lint e build riusciti. UI vera 390/1280: annulla, tre set, due rettifiche/riaperture, Pulita diretta, due rinvii, data effettiva + 4, salto, recupero tardivo e lettura guasta verificati. Concorrenza PostgreSQL reale non verificata (shmget impedito). CSV scaricato sia dalla preview sia dalla produzione e riconciliato con i totali a schermo.

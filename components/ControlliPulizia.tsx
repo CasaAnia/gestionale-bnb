@@ -12,13 +12,13 @@ import { ricaricaDaControllare } from '@/lib/daControllareDati'
 
 type Props = {
   camera: string; oggi: string; pulizia: Decisione; ultimaId: string | null
-  persone?: number | null; partenza?: string; scegliData?: boolean
+  persone?: number | null; partenza?: string; scegliData?: boolean; home?: boolean
   onSalvato?: (risposta: RispostaPulizia) => void
 }
 
 // Un solo percorso per Home, pulizie aperte e registro. Il recupero prima
 // della conferma viene scritto nella stessa transazione della pulizia.
-export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, persone, partenza, scegliData, onSalvato }: Props) {
+export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, persone, partenza, scegliData, home = false, onSalvato }: Props) {
   const [confermata, setConfermata] = useState<Decisione | null>(pulizia.id && pulizia.stato === 'fatta' ? pulizia : null)
   const [recupero, setRecupero] = useState<Recupero | null>(null)
   const [scheda, setScheda] = useState<{ valori: Contatori; limiti: Contatori; versione: string | null; persone: number } | null>(null)
@@ -105,14 +105,16 @@ export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, pers
 
   const riepilogo = recupero && riassunto(recupero)
   return <div className="mt-2" data-controlli-pulizia>
-    <div className="flex flex-wrap items-center gap-2">
+    <div className={`flex flex-wrap items-center ${home ? 'gap-x-6 gap-y-0' : 'gap-2'}`}>
       {confermata ? <span className="text-sm text-green-mid font-semibold" data-fatta>✓ Pulita</span> : <>
         {scegliData && <label className="text-xs text-stone">Fatta il <input aria-label={`Fatta il · ${camera}`} type="date" max={oggi} value={data} onChange={e => setData(e.target.value)} disabled={occupata || pendente} className="ed-campo text-xs py-1" /></label>}
-        <button type="button" onClick={() => void registra('fatta')} disabled={occupata || pendente} className="ed-pillola disabled:opacity-50" style={{ minHeight: 44 }} data-pulita>{occupata ? 'Salvo…' : 'Pulita'}</button>
+        <button type="button" onClick={() => void registra('fatta')} disabled={occupata || pendente} className={home ? 'ed-azione' : 'ed-pillola disabled:opacity-50'} style={{ minHeight: 44 }} data-pulita>{occupata ? 'Salvo…' : 'Pulita'}</button>
       </>}
-      <button type="button" onClick={() => void apriRecupero()} disabled={occupata || pendente} className="ed-pillola-contorno disabled:opacity-50" style={{ minHeight: 44 }} data-recuperato>{riepilogo ? 'Modifica recupero' : 'Recuperato'}</button>
-      {!confermata && <button type="button" onClick={() => setSposta({ stato: 'rimandata', data: addDaysStr(pulizia.data_prevista > oggi ? pulizia.data_prevista : oggi, 1) })} disabled={occupata || pendente} className="ed-pillola-tenue" style={{ minHeight: 44 }}>Rimanda</button>}
-      {!confermata && pulizia.tipo === 'soggiorno' && <button type="button" onClick={() => setSposta({ stato: 'saltata', data: addDaysStr(pulizia.data_prevista, 4) })} disabled={occupata || pendente} className="ed-pillola-tenue" style={{ minHeight: 44 }}>Salta</button>}
+      <button type="button" onClick={() => void apriRecupero()} disabled={occupata || pendente} className={home ? 'ed-azione' : 'ed-pillola-contorno disabled:opacity-50'} style={{ minHeight: 44 }} data-recuperato>{!confermata ? 'Pulita e recuperato' : riepilogo ? 'Modifica recupero' : 'Recuperato'}</button>
+      {!confermata && <div className={`flex items-center gap-5 ${home ? 'basis-full' : ''}`}>
+        <button type="button" onClick={() => setSposta({ stato: 'rimandata', data: addDaysStr(pulizia.data_prevista > oggi ? pulizia.data_prevista : oggi, 1) })} disabled={occupata || pendente} className={home ? 'ed-azione ed-azione-tenue' : 'ed-pillola-tenue'} style={{ minHeight: 44 }}>Rimanda</button>
+        {pulizia.tipo === 'soggiorno' && <button type="button" onClick={() => setSposta({ stato: 'saltata', data: addDaysStr(pulizia.data_prevista, 4) })} disabled={occupata || pendente} className={home ? 'ed-azione ed-azione-tenue' : 'ed-pillola-tenue'} style={{ minHeight: 44 }}>Salta</button>}
+      </div>}
     </div>
     {riepilogo && <p className="text-xs text-green-mid mt-2" data-riepilogo-recupero>{riepilogo}</p>}
     {partenza && confermata?.tipo === 'soggiorno' && confermata.data_effettiva && <p className="text-xs text-stone mt-2">{partenza && addDaysStr(confermata.data_effettiva, 4) >= partenza ? 'Nessun altro cambio prima della partenza.' : `Prossimo cambio: ${addDaysStr(confermata.data_effettiva, 4).split('-').reverse().join('/')}`}</p>}
