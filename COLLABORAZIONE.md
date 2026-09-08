@@ -25,6 +25,12 @@ anche dopo la scadenza; non rischiare i dati per inseguirla.
 
 ## 2. Prima del codice: definire cosa significa finito
 
+- Aggiornamento richiesto da Ania l'8 settembre: per le modifiche visibili
+  dell'interfaccia preparare e verificare l'anteprima, poi guardarla insieme
+  prima della pubblicazione. Conservare lo stile editoriale approvato anche
+  nei nuovi comandi. L'approvazione di una prova specifica vale per quella
+  versione: non riproporre la stessa conferma senza cambiamenti successivi.
+
 L'implementatore completa la scheda con 5–10 percorsi osservabili. Per ogni
 percorso: stato iniziale, azioni, guasto eventuale, esito atteso e livello
 di prova (test locale / schermata simulata / servizio isolato / produzione).

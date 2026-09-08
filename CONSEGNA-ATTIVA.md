@@ -1,8 +1,11 @@
 # Home pulizie: azioni dirette e scomparsa dopo la conferma (08/09/2026)
 
-**VERIFICATO IN LOCALE — ANTEPRIMA DA RIVEDERE CON ANIA, NON PUBBLICATO.**
+**ANTEPRIMA APPROVATA — PUBBLICAZIONE IN CORSO.** Ania ha controllato e
+confermato «ho controllato, mi sembra tutto apposto». Il candidato `b217cfa`
+è integrato su main come `a016e29` con albero identico; la pubblicazione rientra
+nel passaggio già autorizzato, ora completata anche la verifica insieme dell'anteprima.
 Base `e0ff1154d13ad2fb84fb839e2ed0cc3ead4f809f`, copia isolata `work/gestionale-pulizie-home`.
-Ania vuole vedere insieme l'anteprima prima di pubblicare. La Home mostra solo
+La Home mostra solo
 il lavoro da fare: **Pulita** conferma senza recuperi; **Pulita e recuperato**
 apre subito la selezione e salva entrambi insieme. Dopo il salvataggio la camera
 scompare anche ricaricando; rettifiche nella sezione Pulizie. Tolto il link
