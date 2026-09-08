@@ -1,4 +1,4 @@
--- BOZZA NON APPLICATA. Pulizia + recupero atomici, quantità per ospite,
+-- APPLICATA E VERIFICATA su produzione 08/09/2026 (vedi docs/pulizie-2026-09-08.md). Pulizia + recupero atomici, quantità per ospite,
 -- ritentativi idempotenti e conflitti espliciti. Nessuna ricostruzione storica.
 begin;
 alter table public.cleanings add column if not exists persone_servite integer;
