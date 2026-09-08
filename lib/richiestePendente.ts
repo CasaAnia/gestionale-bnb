@@ -1,0 +1,65 @@
+// Custodia dell'offerta aperta in WhatsApp: la conferma usa solo questa copia,
+// mai camere, prezzi o condizioni ricalcolati al ritorno nell'app.
+import type { Soluzione } from './richiesteProposta.ts'
+import type { CondizioniSalvate } from './richiesteDati.ts'
+
+export type PropostaPendente = {
+  testo: string
+  condizioni: CondizioniSalvate
+  soluzione: Soluzione | null // null: vecchio formato, non confermabile
+  alternative: Soluzione[] | null
+  confermataIl?: string // custodita al primo «Sì», anche se la risposta si perde
+}
+export const chiavePendente = (id: string) => `ca_proposta_pendente_${id}`
+type Memoria = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+const oggetto = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+const numero = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0
+const data = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
+const soluzioneValida = (s: unknown): s is Soluzione => {
+  if (!oggetto(s) || !['completa', 'cambio', 'manca_mezzo', 'manca_estremo', 'completo'].includes(String(s.caso))
+    || !Array.isArray(s.segmenti) || !numero(s.prezzoTotale) || !numero(s.nottiTotali) || !numero(s.nottiCoperte)
+    || !Array.isArray(s.nottiMancanti) || !s.nottiMancanti.every(data)) return false
+  if (s.caso !== 'completo' && !s.segmenti.length) return false
+  return s.segmenti.every(x => oggetto(x) && oggetto(x.camera) && typeof x.camera.id === 'string' && typeof x.camera.name === 'string'
+    && data(x.arrivo) && data(x.partenza) && x.arrivo < x.partenza
+    && numero(x.notti) && numero(x.prezzoNotte) && numero(x.lettoTotale) && numero(x.totale)
+    && (x.prezziNottiCentesimi === undefined || (Array.isArray(x.prezziNottiCentesimi) && x.prezziNottiCentesimi.length === x.notti && x.prezziNottiCentesimi.every(numero))))
+}
+const condizioniValide = (c: unknown): c is CondizioniSalvate => oggetto(c)
+  && [null, 'arrivo', 'caparra', 'completo', 'personalizzata'].includes(c.condizione_pagamento as string | null)
+  && (c.caparra_centesimi === null || numero(c.caparra_centesimi))
+  && (c.condizione_testo === null || typeof c.condizione_testo === 'string') && typeof c.amelia_alternativa === 'boolean'
+
+export function serializzaPendente(p: PropostaPendente): string { return JSON.stringify(p) }
+
+// Un vecchio pendente conserva il testo leggibile, ma non inventa la camera.
+export function leggiPendente(grezzo: string | null | undefined): PropostaPendente | null {
+  if (!grezzo) return null
+  let v: unknown
+  try { v = JSON.parse(grezzo) } catch { return null }
+  if (!oggetto(v) || typeof v.testo !== 'string' || !condizioniValide(v.condizioni)) return null
+  const alternativeValide = v.alternative === null || (Array.isArray(v.alternative) && v.alternative.length > 1 && v.alternative.every(soluzioneValida))
+  const completa = soluzioneValida(v.soluzione) && alternativeValide
+  if (v.confermataIl !== undefined && (typeof v.confermataIl !== 'string' || !Number.isFinite(Date.parse(v.confermataIl)))) return null
+  return { testo: v.testo, condizioni: v.condizioni, soluzione: completa ? v.soluzione as Soluzione : null,
+    alternative: completa ? v.alternative as Soluzione[] | null : null,
+    ...(typeof v.confermataIl === 'string' ? { confermataIl: v.confermataIl } : {}) }
+}
+
+export function datiPerConferma(p: PropostaPendente | null): (PropostaPendente & { soluzione: Soluzione }) | null {
+  return p?.soluzione ? { ...p, soluzione: p.soluzione } : null
+}
+
+// Un secondo tocco o un'altra scheda non possono sostituire un invio da chiarire.
+export function custodisciPendente(memoria: Memoria, chiave: string, p: PropostaPendente, precedente: PropostaPendente | null = null): void {
+  const prima = memoria.getItem(chiave)
+  if (prima !== (precedente ? serializzaPendente(precedente) : null)) throw new Error('C’è già un invio da chiarire. Riapri questa pagina prima di continuare.')
+  const testo = serializzaPendente(p)
+  memoria.setItem(chiave, testo)
+  if (memoria.getItem(chiave) !== testo) throw new Error('La copia della proposta non è stata conservata nel browser.')
+}
+
+export function eliminaPendente(memoria: Memoria, chiave: string): void {
+  memoria.removeItem(chiave)
+  if (memoria.getItem(chiave) !== null) throw new Error('La risposta non è stata conservata nel browser. Riprova.')
+}

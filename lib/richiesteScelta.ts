@@ -26,3 +26,18 @@ export function alternativeDaElencare(soluzione: Soluzione | null, soluzioni: So
   if (scelta.cameraRichiesta && soluzione.segmenti[0]?.camera.id === scelta.cameraRichiesta) return null
   return camereDelCasoA(soluzione, soluzioni.filter(s => s.caso === 'completa'))
 }
+
+// ── La scelta di Ania come CHIAVE, non come posizione ────────────────────────
+// Le soluzioni si ricalcolano ogni minuto e al ritorno in primo piano (le
+// opzioni di 3 ore scadono): se una camera si libera la lista si riordina e
+// una scelta ricordata come indice punterebbe a un'altra camera. La chiave
+// è il caso più le camere con le loro date.
+export function chiaveSoluzione(s: Soluzione): string {
+  return `${s.caso}|${s.segmenti.map(x => `${x.camera.id}:${x.arrivo}:${x.partenza}`).join('+')}`
+}
+// Una scelta sparita richiede una nuova scelta esplicita: nessun'altra camera
+// può prendere silenziosamente il suo posto. La prima vale solo all'apertura.
+export function soluzioneScelta(soluzioni: Soluzione[], chiave: string | null): { soluzione: Soluzione | null; trovata: boolean } {
+  const trovata = chiave !== null ? soluzioni.find(s => chiaveSoluzione(s) === chiave) ?? null : null
+  return { soluzione: chiave === null ? soluzioni[0] ?? null : trovata, trovata: trovata !== null }
+}

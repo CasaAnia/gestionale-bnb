@@ -161,12 +161,12 @@ export function colonne0029Presenti(riga: Record<string, unknown> | null | undef
 
 // Pezzo 9: nel caso A con più camere libere il messaggio le elenca tutte; le
 // soluzioni elencate si salvano in proposta_alternative (0031) per la scelta
-// alla conferma. Senza alternative la colonna non viene toccata (tollera la
-// migrazione mancante).
-export async function segnaPropostaInviata(id: string, testo: string, soluzione: unknown, condizioni: CondizioniSalvate, alternative?: unknown[] | null): Promise<{ proposta_inviata_at: string; error: string | null }> {
-  const proposta_inviata_at = new Date().toISOString()
+// alla conferma. null cancella le vecchie alternative; undefined omette la
+// colonna soltanto quando manca la migrazione. Il retry conserva l'ora scelta.
+export async function segnaPropostaInviata(id: string, testo: string, soluzione: unknown, condizioni: CondizioniSalvate, alternative?: unknown[] | null, confermataIl?: string): Promise<{ proposta_inviata_at: string; error: string | null }> {
+  const proposta_inviata_at = confermataIl ?? new Date().toISOString()
   const { data, error } = await supabase.from('richieste')
-    .update({ stato: 'proposta_inviata', proposta_inviata_at, proposta_testo: testo, proposta_soluzione: soluzione, ...condizioni, ...(alternative && alternative.length > 1 ? { proposta_alternative: alternative } : {}) })
+    .update({ stato: 'proposta_inviata', proposta_inviata_at, proposta_testo: testo, proposta_soluzione: soluzione, ...condizioni, ...(alternative !== undefined ? { proposta_alternative: alternative && alternative.length > 1 ? alternative : null } : {}) })
     .eq('id', id).select('id, proposta_testo')
   if (error) return { proposta_inviata_at, error: manca0025(error) ? AVVISO_0025 : manca0029(error) ? AVVISO_0029 : manca0031(error) ? AVVISO_0031 : spiegaErrore(error) }
   if (!data || data.length === 0) return { proposta_inviata_at, error: 'Nessuna riga aggiornata: la richiesta potrebbe essere stata chiusa.' }

@@ -15,7 +15,8 @@ import { proponiSoluzioni, alternativaAmelia, personePerNotte, prezziNottiCentes
 import { camereAmmesseNotte, cameraSuccessiva, composizioneDaSoluzione, soluzioneDaComposizione, prezziTariffaPerNotte, applicaATutteLeNotti, totaleCentesimi, type Composizione, type PrezziManuali } from '@/lib/richiesteComposizione'
 import StrisciaNotti, { etichettaNotte } from '@/components/StrisciaNotti'
 import { generaProposta, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, nottiScoperte, type Condizione } from '@/lib/richiesteTesti'
-import { alternativeDaElencare } from '@/lib/richiesteScelta'
+import { alternativeDaElencare, chiaveSoluzione, soluzioneScelta } from '@/lib/richiesteScelta'
+import { custodisciPendente, eliminaPendente, leggiPendente, datiPerConferma, type PropostaPendente } from '@/lib/richiestePendente'
 import { CONDIZIONI_PAGAMENTO, ETICHETTA_CONDIZIONE, caparraDefault, type CondizionePagamento } from '@/lib/condizioniPrenotazione'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import { lettoDaComunicare } from '@/lib/tariffe'
@@ -73,7 +74,9 @@ export default function PropostaPage() {
   const adesso = useAdesso()   // avanza ogni minuto: timer della proposta
 
   // Soluzione scelta e bozza (null = quella generata; stringa = modificata a mano)
-  const [indice, setIndice] = useState(0)
+  // La scelta di Ania è una CHIAVE (caso + camere + date, lib/richiesteScelta), non una
+  // posizione: le soluzioni si ricalcolano ogni minuto e si riordinano quando un'opzione scade
+  const [scelta, setScelta] = useState<string | null>(null)
   // Ania ha toccato una soluzione in «Cambia»: il messaggio propone quella camera sola, mai l'elenco (07/09/2026)
   const [sceltaDiAnia, setSceltaDiAnia] = useState(false)
   const [testoModificato, setTestoModificato] = useState<string | null>(null)
@@ -103,6 +106,11 @@ export default function PropostaPage() {
   // Sul telefono l'app può ricaricarsi al ritorno da WhatsApp: l'attesa della
   // risposta (e il testo inviato) restano nel browser finché Ania non risponde.
   const chiavePendente = `ca_proposta_pendente_${id}`
+  // Invio in sospeso ripristinato dopo un ricaricamento (lib/richiestePendente): porta
+  // soluzione e alternative ESATTE del messaggio partito; vive finché Ania non risponde Sì o No
+  const [pendente, setPendente] = useState<PropostaPendente | null>(null)
+  const salvataggioInCorso = useRef(false)
+  const modificaConsentita = !chiediConferma && richiesta?.stato !== 'proposta_inviata'
   const [immagineFatta, setImmagineFatta] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imgRef = useRef<HTMLDivElement>(null)
@@ -149,16 +157,19 @@ export default function PropostaPage() {
   }, [richiesta, camere, prenotazioniConOpzioni])
   const inviata = richiesta?.stato === 'proposta_inviata'
   // Già inviata: si rilegge quel che è partito (testo e soluzione archiviati)
+  const { soluzione: soluzioneTrovata, trovata: sceltaValida } = soluzioneScelta(soluzioni, scelta)
   const soluzioneAuto: Soluzione | null = inviata && richiesta?.proposta_soluzione
     ? richiesta.proposta_soluzione
-    : (soluzioni[Math.min(indice, Math.max(0, soluzioni.length - 1))] ?? null)
+    : soluzioneTrovata
+  const indiceScelto = soluzioni.indexOf(soluzioneTrovata as Soluzione)
+  const sceltaPersa = !inviata && !manuale && scelta !== null && !sceltaValida && !chiediConferma
   // «Scelgo io»: la soluzione nasce dalla composizione; un dato incoerente va a schermo
   const { soluzioneManuale, erroreComposizione } = useMemo(() => {
     if (!manuale || inviata || !richiesta) return { soluzioneManuale: null as Soluzione | null, erroreComposizione: null as string | null }
     try { return { soluzioneManuale: soluzioneDaComposizione(richiesta, camere, composizione, prezziManuali), erroreComposizione: null } }
     catch (e) { return { soluzioneManuale: null, erroreComposizione: String((e as Error).message ?? e) } }
   }, [manuale, inviata, richiesta, camere, composizione, prezziManuali])
-  const soluzione: Soluzione | null = manuale && !inviata ? soluzioneManuale : soluzioneAuto
+  const soluzione: Soluzione | null = chiediConferma ? pendente?.soluzione ?? null : manuale && !inviata ? soluzioneManuale : soluzioneAuto
   // «Altre camere»: perché le camere fuori dalla soluzione non sono state proposte
   const altreCamere = useMemo(() => {
     if (!richiesta || camere.length === 0) return []
@@ -197,20 +208,29 @@ export default function PropostaPage() {
   // se nessuno ha scelto (né Ania in «Cambia» o «Scelgo io», né il cliente con
   // una camera libera: lib/richiesteScelta); già inviata: quelle archiviate
   const alternative = useMemo(() => {
+    if (chiediConferma) return pendente?.alternative ?? null
     if (!soluzione || soluzione.caso !== 'completa' || soluzione.manuale) return null
     if (inviata) return richiesta?.proposta_alternative ?? null
-    return alternativeDaElencare(soluzione, soluzioni, { cameraRichiesta: richiesta?.camera_id ?? null, sceltaDiAnia })
-  }, [soluzione, soluzioni, inviata, richiesta, sceltaDiAnia])
+    // la scelta vale solo finché la soluzione scelta esiste ancora nella lista
+    return alternativeDaElencare(soluzione, soluzioni, { cameraRichiesta: richiesta?.camera_id ?? null, sceltaDiAnia: sceltaDiAnia && sceltaValida })
+  }, [soluzione, soluzioni, inviata, richiesta, sceltaDiAnia, sceltaValida, chiediConferma, pendente])
   const bozzaGenerata = richiesta && soluzione
     ? generaProposta({ richiesta, soluzione, condizione: problemaCondizione ? null : condizione, amelia: ameliaAttiva ? amelia : null, alternative })
     : ''
-  const testoFinale = inviata && richiesta?.proposta_testo ? richiesta.proposta_testo : (testoModificato ?? bozzaGenerata)
+  const testoFinale = chiediConferma ? pendente?.testo ?? '' : inviata && richiesta?.proposta_testo ? richiesta.proposta_testo : (testoModificato ?? bozzaGenerata)
   const telefonoNorm = normalizzaTelefono(richiesta?.telefono)
   const telefono = telefonoNorm.numero
   // La 0031 è necessaria solo se il messaggio elenca più camere (proposta_alternative da salvare)
+  // Cosa si archivia con «Sì, inviata»: dopo un ricaricamento vince il pendente (ciò che è partito)
+  const perConferma = datiPerConferma(pendente)
   const mancaMigrazione = manca0025 ? AVVISO_0025 : manca0029 ? AVVISO_0029 : manca0031 && (alternative?.length ?? 0) > 1 ? AVVISO_0031 : null
   // Cosa si salva con «Sì, inviata» (nel caso E nessuna condizione)
-  const condizioniSalvate: CondizioniSalvate = completo || !condizione
+  const condizioniSalvate: CondizioniSalvate = inviata && richiesta ? {
+    condizione_pagamento: richiesta.condizione_pagamento ?? null,
+    caparra_centesimi: richiesta.caparra_centesimi ?? null,
+    condizione_testo: richiesta.condizione_testo ?? null,
+    amelia_alternativa: richiesta.amelia_alternativa ?? false,
+  } : completo || !condizione
     ? { condizione_pagamento: null, caparra_centesimi: null, condizione_testo: null, amelia_alternativa: false }
     : {
       condizione_pagamento: condizione.tipo,
@@ -266,13 +286,14 @@ export default function PropostaPage() {
 
   // Le azioni che rigenerano la bozza chiedono conferma se il testo è stato modificato a mano
   function conConferma(azione: () => void) {
+    if (chiediConferma) return
     if (testoModificato !== null && testoModificato !== bozzaGenerata) { setAzioneSospesa(() => azione); return }
     azione()
   }
   function scegli(i: number) {
     conConferma(() => {
       // Nuova soluzione → si ricomincia dalle condizioni: mai una scelta trascinata da un'altra soluzione
-      setIndice(i); setSceltaDiAnia(true); setTestoModificato(null); setPannelloCambia(false); setManuale(false); setPrezzoEditor(null)
+      setScelta(chiaveSoluzione(soluzioni[i])); setSceltaDiAnia(true); setTestoModificato(null); setPannelloCambia(false); setManuale(false); setPrezzoEditor(null)
       setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false)
     })
   }
@@ -313,43 +334,71 @@ export default function PropostaPage() {
 
   // Apre WhatsApp e basta: lo stato NON cambia qui. Cambia solo con «Sì, inviata».
   function invia() {
-    if (!richiesta || !soluzione) return
+    if (!richiesta || !soluzione || chiediConferma) return
     setErrore(null); setAvviso(null)
     if (mancaMigrazione) { setErrore(mancaMigrazione); return }
     if (!inviata && problemaCondizione) { setErrore(problemaCondizione); return }
     if (!telefono) { setErrore('Nessun numero di telefono sulla richiesta: aggiungilo prima di inviare.'); return }
-    try { window.localStorage.setItem(chiavePendente, JSON.stringify({ testo: testoFinale, condizioni: condizioniSalvate })) } catch { /* senza memoria la barra vive solo in pagina */ }
-    openWhatsApp(telefono, testoFinale)
+    // Nel browser resta TUTTO il messaggio partito: testo, condizioni, soluzione e alternative
+    // (sul telefono l'app si ricarica al ritorno da WhatsApp e la memoria si perde)
+    const p: PropostaPendente = { testo: testoFinale, condizioni: condizioniSalvate, soluzione, alternative }
+    try { custodisciPendente(window.localStorage, chiavePendente, p) }
+    catch (e) { setErrore(`WhatsApp non aperto: non riesco a conservare la proposta. ${e instanceof Error ? e.message : 'Riprova.'}`); return }
+    setPendente(p)
     setChiediConferma(true)
+    openWhatsApp(telefono, testoFinale)
   }
 
   // Ripresa dopo un ricaricamento: se c'è un invio in sospeso, la barra torna
   useEffect(() => {
     if (!id || loading || !richiesta) return
-    let salvato: { testo?: string; condizioni?: Partial<CondizioniSalvate> } | null = null
-    try { salvato = JSON.parse(window.localStorage.getItem(chiavePendente) || 'null') } catch { salvato = null }
-    if (!salvato) return
-    const testoSalvato = salvato.testo
-    const condSalvate = salvato.condizioni
     const t = setTimeout(() => {
-      setChiediConferma(true)
-      if (richiesta.stato !== 'proposta_inviata') {
-        if (testoSalvato) setTestoModificato(prev => prev ?? testoSalvato)
-        // Anche le condizioni scelte tornano, così «Sì, inviata» salva quel che è partito
-        if (condSalvate?.condizione_pagamento) {
-          setCondizioneTipo(condSalvate.condizione_pagamento)
-          if (condSalvate.caparra_centesimi) setCaparraTesto(fmtPrezzo(condSalvate.caparra_centesimi / 100))
-          if (condSalvate.condizione_testo) setCondizioneTesto(condSalvate.condizione_testo)
-          setAmeliaAttiva(!!condSalvate.amelia_alternativa)
+      try {
+        const grezzo = window.localStorage.getItem(chiavePendente)
+        if (grezzo === null) return
+        const salvato = leggiPendente(grezzo)
+        // La risposta del salvataggio può essersi persa: la rilettura conferma
+        // l'operazione già riuscita, senza riavviare il timer dell'opzione.
+        if (salvato?.confermataIl && richiesta.proposta_inviata_at === salvato.confermataIl) {
+          eliminaPendente(window.localStorage, chiavePendente)
+          setPendente(null); setChiediConferma(false)
+          return
         }
+        setPendente(salvato)
+        setChiediConferma(true)
+      } catch {
+        setErrore('Non riesco a leggere o aggiornare la proposta conservata nel browser. Riapri questa pagina prima di continuare.')
+        setChiediConferma(true)
       }
     }, 0)
     return () => clearTimeout(t)
   }, [id, loading, richiesta, chiavePendente])
 
   function rispostaNo() {
-    try { window.localStorage.removeItem(chiavePendente) } catch { /* niente */ }
+    if (salvataggioInCorso.current) return
+    try { eliminaPendente(window.localStorage, chiavePendente) }
+    catch { setErrore('Non riesco a conservare la risposta nel browser. Riprova: l’invio resta da chiarire.'); return }
+    // Anche dopo un ricaricamento «No» riapre la stessa composizione e i prezzi.
+    if (pendente?.soluzione && richiesta && !inviata) {
+      const s = pendente.soluzione
+      setScelta(chiaveSoluzione(s)); setSceltaDiAnia(!pendente.alternative)
+      setManuale(!!s.manuale)
+      setComposizione(composizioneDaSoluzione(richiesta, s))
+      setPrezziManuali(giorniTra(richiesta.arrivo, richiesta.partenza).map(g => {
+        const segmento = s.segmenti.find(x => x.arrivo <= g && x.partenza > g)
+        return segmento?.prezzo_manuale ? prezziNottiCentesimi(segmento)[giorniTra(segmento.arrivo, g).length] : null
+      }))
+      setTestoModificato(pendente.testo)
+      setCondizioneTipo(pendente.condizioni.condizione_pagamento)
+      setCaparraTesto(pendente.condizioni.caparra_centesimi === null ? '' : fmtPrezzo(pendente.condizioni.caparra_centesimi / 100))
+      setCondizioneTesto(pendente.condizioni.condizione_testo ?? '')
+      setAmeliaAttiva(pendente.condizioni.amelia_alternativa)
+    } else if (!inviata) {
+      setTestoModificato(null); setCondizioneTipo(null)
+    }
+    setPendente(null)
     setChiediConferma(false)
+    setErrore(null)
   }
 
   // Al ritorno nella schermata la barra torna in vista
@@ -362,14 +411,23 @@ export default function PropostaPage() {
   }, [chiediConferma])
 
   async function confermaInviata() {
-    if (!richiesta || !soluzione) return
+    if (!richiesta || !perConferma || salvataggioInCorso.current || mancaMigrazione) return
+    salvataggioInCorso.current = true
     setErrore(null); setAvviso(null); setOccupato('invio')
-    const r = await segnaPropostaInviata(richiesta.id, testoFinale, soluzione, condizioniSalvate, alternative)
-    setOccupato(null)
-    if (r.error) { setErrore(`Stato non aggiornato: ${r.error}`); return }
-    try { window.localStorage.removeItem(chiavePendente) } catch { /* niente */ }
-    setChiediConferma(false)
-    setRichiesta({ ...richiesta, stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at, proposta_testo: testoFinale, proposta_soluzione: soluzione, proposta_alternative: alternative && alternative.length > 1 ? alternative : null, ...condizioniSalvate })
+    try {
+      const p = { ...perConferma, confermataIl: perConferma.confermataIl ?? new Date().toISOString() }
+      custodisciPendente(window.localStorage, chiavePendente, p, pendente)
+      setPendente(p)
+      const r = await segnaPropostaInviata(richiesta.id, p.testo, p.soluzione, p.condizioni, manca0031 ? undefined : p.alternative, p.confermataIl)
+      if (r.error) { setErrore(`Non ho conferma del salvataggio: ${r.error} La proposta è conservata: riprova «Sì, inviata» oppure riapri la pagina.`); return }
+      setRichiesta({ ...richiesta, stato: 'proposta_inviata', proposta_inviata_at: r.proposta_inviata_at, proposta_testo: p.testo, proposta_soluzione: p.soluzione, proposta_alternative: p.alternative, ...p.condizioni })
+      eliminaPendente(window.localStorage, chiavePendente)
+      setPendente(null); setChiediConferma(false)
+    } catch (e) {
+      setErrore(`Conferma da verificare: ${e instanceof Error ? e.message : 'Riprova.'} La proposta resta conservata; riapri la pagina per verificare l’esito.`)
+    } finally {
+      salvataggioInCorso.current = false; setOccupato(null)
+    }
   }
 
   async function rifiuta(motivo: MotivoRifiuto) {
@@ -420,7 +478,7 @@ export default function PropostaPage() {
       </p>
       {/* timer delle 3 ore: stesso testo della lista e del tooltip del calendario */}
       <RigaScadenza r={richiesta} adesso={adesso} className="mt-1.5" />
-      {modificabile(richiesta) && (
+      {modificabile(richiesta) && !chiediConferma && (
         <Link href={`/richieste/${richiesta.id}/modifica`} className="inline-block mt-2 text-sm font-semibold text-green-mid underline underline-offset-2">Modifica la richiesta</Link>
       )}
       <p className="text-sm mt-1.5">
@@ -437,10 +495,10 @@ export default function PropostaPage() {
       <span className="text-sm text-green-dark min-w-0 flex-1 truncate">
         {soluzione.segmenti.length > 0 ? <>{riassuntoSegmenti(soluzione)} · <span className="font-semibold">{fmtPrezzo(soluzione.prezzoTotale)} €</span></> : 'nessuna camera libera'}
       </span>
-      {!inviata && (
+      {modificaConsentita && (
         <button type="button" onClick={() => setPannelloCambia(true)} className="shrink-0 text-sm font-semibold text-green-mid underline underline-offset-2">Cambia</button>
       )}
-      {!inviata && !manuale && (
+      {modificaConsentita && !manuale && (
         <button type="button" onClick={apriScelgoIo} className="shrink-0 text-sm font-semibold text-green-mid underline underline-offset-2">Scelgo io</button>
       )}
     </div>
@@ -462,7 +520,7 @@ export default function PropostaPage() {
   )
 
   // ── «Scelgo io» (pezzo 10): striscia camera per notte + prezzo a mano ────
-  const scelgoIo = manuale && !inviata && richiesta && (
+  const scelgoIo = manuale && modificaConsentita && richiesta && (
     <div className="mt-3 ed-riga py-3" role="group" aria-label="Scelgo io">
       <div className="flex items-center justify-between gap-2 mb-2">
         <p className="text-sm font-semibold text-green-dark">Scelgo io · tocca una notte per cambiare camera</p>
@@ -517,12 +575,13 @@ export default function PropostaPage() {
   )
 
   // Riepilogo della condizione salvata (proposta già inviata)
-  const condizioneInviata = inviata ? condizioneDaColonne(richiesta) : null
+  const condizioniMostrate = chiediConferma ? pendente?.condizioni : inviata ? richiesta : null
+  const condizioneInviata = condizioniMostrate ? condizioneDaColonne(condizioniMostrate) : null
   const riassuntoCondizione = condizioneInviata
-    ? `${ETICHETTA_CONDIZIONE[condizioneInviata.tipo]}${condizioneInviata.tipo === 'caparra' ? ` ${formattaEuro(condizioneInviata.caparraCentesimi)}` : ''}${richiesta.amelia_alternativa ? ' · con alternativa ad Amelia' : ''}`
+    ? `${ETICHETTA_CONDIZIONE[condizioneInviata.tipo]}${condizioneInviata.tipo === 'caparra' ? ` ${formattaEuro(condizioneInviata.caparraCentesimi)}` : ''}${condizioniMostrate?.amelia_alternativa ? ' · con alternativa ad Amelia' : ''}`
     : null
 
-  const condizioni = !inviata && soluzione && !completo && (
+  const condizioni = modificaConsentita && soluzione && !completo && (
     <div className="mt-3" role="group" aria-label="Condizioni di pagamento">
       <p className="text-sm font-semibold text-green-dark mb-2">Condizioni di pagamento</p>
       <div className="flex flex-wrap gap-2">
@@ -565,7 +624,7 @@ export default function PropostaPage() {
 
   const bozza = (
     <div>
-      {!inviata && (
+      {modificaConsentita && (
         <div className="flex gap-2 mb-3">
           {([['testo', 'Solo testo'], ['immagine', 'Testo + immagine']] as const).map(([k, label]) => (
             <button key={k} type="button" onClick={() => setModo(k)} aria-pressed={modoEffettivo === k} disabled={k === 'immagine' && (completo || !immagine)}
@@ -575,7 +634,7 @@ export default function PropostaPage() {
           ))}
         </div>
       )}
-      {inviata ? (
+      {inviata || chiediConferma ? (
         <>
           <div className="bg-white rounded-xl p-3 text-[13px] text-green-dark whitespace-pre-wrap leading-relaxed" style={{ border: `1px solid ${BORDO}` }}>{testoFinale}</div>
           {riassuntoCondizione && <p className="text-xs mt-1.5" style={{ color: GRIGIO_NOTA }}>Condizioni inviate: {riassuntoCondizione}</p>}
@@ -586,11 +645,11 @@ export default function PropostaPage() {
           className="w-full bg-white rounded-xl p-3 text-[13px] text-green-dark leading-relaxed resize-none focus:outline-none focus:border-green-mid"
           style={{ border: `1px solid ${BORDO}` }} />
       )}
-      {!inviata && testoModificato !== null && testoModificato !== bozzaGenerata && (
+      {modificaConsentita && testoModificato !== null && testoModificato !== bozzaGenerata && (
         <p className="text-xs mt-1" style={{ color: GRIGIO_NOTA }}>Testo modificato a mano: ha la precedenza sulla bozza. <button type="button" className="underline" onClick={() => setTestoModificato(null)}>Ripristina la bozza</button></p>
       )}
 
-      {modoEffettivo === 'immagine' && immagine && !inviata && (
+      {modoEffettivo === 'immagine' && immagine && modificaConsentita && (
         <div className="mt-3">
           <p className="text-xs mb-1.5" style={{ color: GRIGIO_NOTA }}>Anteprima dell’immagine</p>
           <div ref={el => { if (el) setScala(el.clientWidth / IMG_W) }} className="w-full rounded-xl overflow-hidden border border-card-border" style={{ height: imgH ? imgH * scala : undefined }}>
@@ -614,35 +673,40 @@ export default function PropostaPage() {
 
       <button type="button" onClick={invia} disabled={!!occupato || !soluzione || chiediConferma || !!mancaMigrazione || (!inviata && !!problemaCondizione)} className={`${PIENO} mt-4`}>
         <IconaWhatsApp />
-        {inviata ? 'Invia di nuovo' : problemaCondizione ? problemaCondizione : (modoEffettivo === 'immagine' ? '2 · Apri WhatsApp e invia' : 'Apri WhatsApp e invia')}
+        {chiediConferma ? 'Invio da confermare' : inviata ? 'Invia di nuovo' : problemaCondizione ? problemaCondizione : (modoEffettivo === 'immagine' ? '2 · Apri WhatsApp e invia' : 'Apri WhatsApp e invia')}
       </button>
       {chiediConferma && (
         <div ref={barraRef} role="group" aria-label="Conferma dell'invio" className="scheda-in mt-3 bg-white rounded-xl p-3" style={{ border: `1px solid ${BORDO}` }}>
           <p className="text-sm font-medium text-green-dark mb-2">L’hai inviata?</p>
+          {perConferma && (
+            <p className="text-xs mb-2" style={{ color: GRIGIO_NOTA }} data-pendente>Proposta da confermare: {riassuntoSegmenti(perConferma.soluzione)}{perConferma.alternative && perConferma.alternative.length > 1 ? ` · ${perConferma.alternative.length} camere proposte` : ''}</p>
+          )}
+          {!perConferma && <p role="alert" className="text-sm mb-2 text-[#8C3B2E]">Questa vecchia bozza non conserva tutte le camere e i prezzi. Non posso registrarla in modo sicuro. Controlla il messaggio in WhatsApp, poi scarta l’attesa e ricomponi la proposta corretta.</p>}
           <div className="flex gap-2">
-            <button type="button" onClick={confermaInviata} disabled={occupato === 'invio'}
+            <button type="button" onClick={confermaInviata} disabled={occupato === 'invio' || !perConferma || !!mancaMigrazione}
               className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-green-mid text-cream-text disabled:opacity-50 active:opacity-80">
               {occupato === 'invio' ? 'Salvo…' : 'Sì, inviata'}
             </button>
-            <button type="button" onClick={rispostaNo} disabled={occupato === 'invio'}
+            <button type="button" onClick={rispostaNo} disabled={occupato === 'invio' || !!pendente?.confermataIl}
               className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-white text-green-dark border disabled:opacity-50" style={{ borderColor: BORDO }}>
-              No
+              {perConferma ? 'No' : 'Scarta attesa e ricomponi'}
             </button>
           </div>
           <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>Solo «Sì, inviata» segna la richiesta come proposta inviata.</p>
+          {pendente?.confermataIl && <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>Salvataggio da verificare: riprova «Sì, inviata» o riapri la pagina prima di scartare.</p>}
         </div>
       )}
       <p className="text-xs text-center mt-2" style={{ color: GRIGIO_NOTA }}>
         {inviata ? `Proposta inviata ${richiesta.proposta_inviata_at ? tempoTrascorso(richiesta.proposta_inviata_at, adesso) : ''}. Un nuovo invio, confermato, aggiorna l’ora.` : 'Dopo l’invio, confermato con «Sì, inviata», la richiesta passa a ‘Proposta inviata’.'}
       </p>
-      {inviata && (
+      {inviata && !chiediConferma && (
         <button type="button" onClick={async () => { const { data } = await fetchRichieste(); setConfermando({ aperte: data }) }}
           className="w-full mt-3 rounded-xl py-3 text-[15px] font-semibold bg-white text-green-dark border active:bg-sage" style={{ borderColor: BORDO }}>
           Conferma → crea la prenotazione
         </button>
       )}
       <div className="text-center mt-6">
-        <button type="button" onClick={() => setDaRifiutare(true)} className="text-xs underline underline-offset-2" style={{ color: GRIGIO_NOTA }}>Rifiuta subito</button>
+        <button type="button" onClick={() => setDaRifiutare(true)} disabled={chiediConferma} className="text-xs underline underline-offset-2 disabled:opacity-50" style={{ color: GRIGIO_NOTA }}>Rifiuta subito</button>
       </div>
     </div>
   )
@@ -659,6 +723,7 @@ export default function PropostaPage() {
       {erroreRicerca && (
         <div role="alert" className="mb-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{erroreRicerca}</div>
       )}
+      {sceltaPersa && <div role="alert" className="mb-3 rounded-xl bg-[#F6E4DE] p-3 text-sm text-[#8C3B2E]">La soluzione scelta non è più disponibile. <button type="button" onClick={() => setPannelloCambia(true)} className="underline font-semibold">Scegli un’altra soluzione</button></div>}
 
       <div className="md:grid md:grid-cols-[2fr_3fr] md:gap-5 md:items-start">
         <section>
@@ -691,8 +756,8 @@ export default function PropostaPage() {
             <ul className="divide-y-[0.5px] divide-border-soft">
               {soluzioni.map((s, i) => (
                 <li key={i}>
-                  <button type="button" onClick={() => scegli(i)} aria-pressed={i === indice} className={`w-full text-left py-3 flex items-start gap-3 ${i === indice ? 'opacity-100' : ''}`}>
-                    <span className={`shrink-0 rounded-full text-xs font-semibold px-2.5 py-0.5 ${i === indice ? 'bg-green-mid text-cream-text' : 'bg-sage text-green-dark'}`}>{ETICHETTA_CASO[s.caso]}</span>
+                  <button type="button" onClick={() => scegli(i)} aria-pressed={i === indiceScelto} className={`w-full text-left py-3 flex items-start gap-3 ${i === indiceScelto ? 'opacity-100' : ''}`}>
+                    <span className={`shrink-0 rounded-full text-xs font-semibold px-2.5 py-0.5 ${i === indiceScelto ? 'bg-green-mid text-cream-text' : 'bg-sage text-green-dark'}`}>{ETICHETTA_CASO[s.caso]}</span>
                     <span className="min-w-0 flex-1 text-sm text-green-dark">
                       <span className="block truncate">{riassuntoSegmenti(s)}</span>
                       <span className="block text-xs text-stone">{s.nottiCoperte} su {s.nottiTotali} notti · <span className="font-semibold text-brass">{fmtPrezzo(s.prezzoTotale)} €</span></span>

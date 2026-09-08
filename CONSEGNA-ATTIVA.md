@@ -1,3 +1,35 @@
+# Richieste: conservare la proposta scelta al ritorno da WhatsApp (08/09/2026)
+
+**VERIFICATO IN LOCALE; pubblicazione autorizzata l'08/09/2026 con «vai avanti».** Base `8b029fc5650410ada42c9f129d5e6e139ff0feff`; blocco = cinque file applicativi indicati sotto, più questa scheda. Claude aveva iniziato il blocco; l'utente ha autorizzato Codex a subentrare perché Claude ha esaurito i crediti. Alla ripresa dopo il blocco del Mac: file identici alla copia collaudata, remoto riletto e ancora sulla stessa base, nessun lavoro concorrente. Prove senza SQL, modifiche ai dati di produzione o messaggi reali.
+
+- Causa: prima del ritorno da WhatsApp restavano nel browser solo testo e condizioni. Al ricaricamento, «Sì, inviata» poteva archiviare Amelia e tutte le alternative pur mostrando un messaggio per la sola Ambra.
+- Correzione: `lib/richiestePendente.ts` conserva testo, condizioni, soluzione completa e alternative. La pagina propone e registra la stessa copia, con controlli di modifica sospesi fino alla risposta. «No» restituisce la composizione e i prezzi all'editor; la custodia si elimina solo con risposta conservata o salvataggio riuscito.
+- `lib/richiesteScelta.ts`: scelta per identità di camere/date, non per posizione nella lista; se scompare si richiede una nuova scelta. Una vecchia custodia incompleta resta leggibile ma non si conferma usando camere ricalcolate.
+- `lib/richiesteDati.ts`: una proposta singola cancella espressamente le alternative precedenti; il retry usa la stessa ora della prima conferma. Un reinvio mantiene le condizioni già archiviate. Compatibilità precedente alla 0031: colonna omessa solo se assente.
+- Doppi tocchi: custodia non sovrascrivibile e blocco sincrono del salvataggio. Memoria guasta: WhatsApp non viene aperto. Errore di risposta: offerta conservata; una rilettura riconosce il salvataggio già riuscito senza prolungare l'opzione.
+
+## Accettazione e prove
+
+| Percorso | Esito e prova |
+| --- | --- |
+| Tutte libere → Cambia → Ambra → All'arrivo → apertura WhatsApp simulata → ricarica → Sì | UI vera a 390 px: testo e riepilogo solo Ambra, 160 €, alternative nulle anche nella riga del servizio finto. |
+| Seconda riapertura → finestra Crea prenotazione | UI a 390 px: nessuna attesa residua, la finestra propone solo Ambra e 160 €. Nessuna prenotazione reale creata. |
+| Scelgo io → Amelia 75 € + Ambra 99 € → caparra 72,50 € → ricarica → No → reinvia → Sì | UI a 1280 px: composizione e prezzi recuperati nell'editor; riga del servizio finto identica, totale 174 €, caparra 7250 centesimi. |
+| Proposta già inviata → Invio di nuovo → Sì | UI a 1280 px: condizioni e prezzi manuali restano identici. |
+| 503 prima del salvataggio → ricarica → riprova Sì → seconda riapertura | UI a 390 px: errore visibile, recupero della sola Ambra, nessuna attesa residua. |
+| 503 dopo il salvataggio → due riaperture | UI a 390 px: esito incerto visibile, poi riconciliazione automatica e seconda riapertura pulita. |
+| Vecchia bozza senza soluzione; memoria piena; No e riapertura | UI a 390 px: Sì disabilitato con avviso; WhatsApp non aperto quando la custodia fallisce; scarto conservato. |
+| Nessuna scelta → offerta multipla; vecchie alternative → nuova offerta singola | UI a 390 px: quattro alternative conservate nel primo caso; nel secondo, nuova proposta e finestra di conferma solo Ambra. |
+| Lista riordinata, camera scelta scomparsa, doppia scrittura, deposito che ignora scrittura/cancellazione | Test locali in `lib/richiestePendente.test.ts`: scelta stabile oppure invio bloccato, errori espliciti, nessuna sostituzione della custodia. |
+
+Tecnica: 9 nuovi test della custodia + 6 di scelta superati; suite completa, regressioni delle revisioni, strumenti locali, TypeScript senza emissione e lint di tutti i file modificati **OK**, con `scripts/verifica-consegna.mjs --base 8b029fc` su albero fermo (impronta `a2b31ab1e085694f2a3a383dd859ebff2feadb0e637333b917e4142ddc5f3eb8`). Dopo questo controllo sono cambiati solo un commento esplicativo e questa scheda. `git diff --check` OK. Build **OK**, eseguita una volta sulla copia del candidato con ambiente sintetico e funzione WhatsApp originale ripristinata.
+
+Confine della prova: preview locale derivata da `scripts/revisioni/anteprima-richieste-finta.mjs`, dati esclusivamente sintetici. Nell'anteprima soltanto l'apertura esterna di WhatsApp è sostituita con una registrazione nel DOM; azioni, custodia e salvataggi della pagina sono reali contro il servizio finto. Non è una prova della PWA su iPhone né di Supabase/Vercel in produzione. Testi definitivi, ricerca delle disponibilità e RPC invariati. Server finto fermato.
+
+File del candidato: `app/richieste/[id]/proposta/page.tsx`, `lib/richiesteDati.ts`, `lib/richiesteScelta.ts`, `lib/richiestePendente.ts`, `lib/richiestePendente.test.ts`. Nessun intervento nel backup o nei dati dei clienti.
+
+Passaggio autorizzato: commit di questo blocco, push su main e controllo del deploy Vercel associato al commit. Questa scheda documenta le prove precedenti alla pubblicazione; l'esito del deploy è nel controllo Vercel su GitHub e nel resoconto finale del task. Nessuna migrazione necessaria.
+
 # STATO IN 10 RIGHE (aggiornato il 07/09/2026, notte) — da incollare a un altro assistente
 
 1. Gestionale Casa Ania (Next.js su Vercel, Supabase tnsaa…vwv, usato SOLO da Ania; dal 06/09/2026 STILE EDITORIALE «B» scelto da Ania — classi ed-* in globals.css, Georgia per titoli/numeri/nomi, niente riquadri bianchi salvo griglie e finestre, Spese comprese dalla sera): su `main` la sezione Richieste ha i pezzi 1–7 e 9–11 con i TESTI DEFINITIVI del 04/09 (lib/richiesteTesti + lib/descrizioniCamere: non toccarli senza Ania); il modulo Spese nuovo è in produzione con la scrittura su `legacy`.
