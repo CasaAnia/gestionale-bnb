@@ -11,8 +11,8 @@
 // Ordine: prima le da fare (più urgenti in cima, poi il ritardo), poi le
 // automatiche, poi le fatte nell'ordine in cui sono state segnate.
 import {
-  attive, pulizieAperte, prossimoArrivo, prioritaDi, continuaDa, continuaIn, statoFineSoggiorno, cambioOspiteAutomatico, diffDays, CUTOFF_STORICO,
-  type Decisione, type Priorita, type TipoPulizia,
+  confrontaDecisioni, attive, pulizieAperte, prossimoArrivo, prioritaDi, continuaDa, continuaIn, statoFineSoggiorno, cambioOspiteAutomatico, diffDays, CUTOFF_STORICO,
+  soggiornoContinuativo, type Decisione, type Priorita, type TipoPulizia,
 } from './pulizie.ts'
 import { nomeOspite } from './guestName.ts'
 
@@ -20,6 +20,9 @@ export type StatoVoce = 'da_fare' | 'automatica' | 'fatta'
 export type PuliziaDaSegnareOggi = { room_id: string; booking_id: string | null; tipo: TipoPulizia; data_prevista: string }
 
 export type VocePuliziaOggi = {
+  persone?: number | null
+  partenza?: string
+  ultimaId?: string | null
   chiave: string
   roomId: string
   camera: string            // nome breve («Ambra»)
@@ -57,7 +60,7 @@ type Prenotazioni = Parameters<typeof pulizieAperte>[0]
 export function pulizieDiOggi(rooms: Camera[], tutteLePrenotazioni: Prenotazioni, events: Decisione[], oggi: string): VocePuliziaOggi[] {
   const bookings = attive(tutteLePrenotazioni)
   const camere = rooms.filter(r => r.active !== false)
-  const breve = (id: string) => { const r = camere.find(x => x.id === id) ?? rooms.find(x => x.id === id); return r ? nomeBreve(r.name) : 'un’altra camera' }
+  const breve = (id: string | undefined) => { const r = camere.find(x => x.id === id) ?? rooms.find(x => x.id === id); return r ? nomeBreve(r.name) : 'un’altra camera' }
   const out: VocePuliziaOggi[] = []
   for (const room of camere) {
     const arrivo = prossimoArrivo(bookings, room.id, oggi)
@@ -125,9 +128,15 @@ export function pulizieDiOggi(rooms: Camera[], tutteLePrenotazioni: Prenotazioni
     }
   }
   const posto = (v: VocePuliziaOggi) => camere.findIndex(c => c.id === v.roomId)
+  for (const v of out) {
+    const b = tutteLePrenotazioni.find(x => x.id === (v.daSegnare?.booking_id ?? v.decisione?.booking_id))
+    v.persone = v.decisione?.persone_servite ?? (Number(b?.num_guests) || null)
+    v.partenza = b ? soggiornoContinuativo(bookings, b).fine.check_out : undefined
+    v.ultimaId = events.filter(e => e.room_id === v.roomId).sort((a, b) => confrontaDecisioni(b, a))[0]?.id ?? null
+  }
   return out.sort((a, b) => ORDINE_STATO[a.stato] - ORDINE_STATO[b.stato]
     || (a.stato === 'da_fare' ? RANK[a.priorita!] - RANK[b.priorita!] || b.ritardo - a.ritardo : 0)
-    || (a.stato === 'fatta' ? String(a.decisione?.created_at ?? '').localeCompare(String(b.decisione?.created_at ?? '')) : 0)
+    || (a.stato === 'fatta' ? confrontaDecisioni(a.decisione!, b.decisione!) : 0)
     || posto(a) - posto(b))
 }
 

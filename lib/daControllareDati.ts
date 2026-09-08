@@ -97,7 +97,7 @@ async function leggiTutto(oggi: string): Promise<Esito<Dati>> {
   const [ric, pren, pag, doc, rin, pul] = await Promise.all([leggiRichieste(), leggiPrenotazioni(da, a), leggiPagamenti(), leggiFattureScadute(oggi), leggiRinvii(oggi),
     // Decisioni di pulizia (cleanings): stessa scelta della pagina Pulizie e della striscia, tabella assente = nessuna decisione
     raccogliPagine<Decisione>((offset, limite) => supabase.from('cleanings').select('*').order('created_at').range(offset, offset + limite - 1))])
-  const errore = ric.errore ?? pren.errore ?? pag.errore ?? doc.errore ?? rin.errore
+  const errore = ric.errore ?? pren.errore ?? pag.errore ?? doc.errore ?? rin.errore ?? (pul.error ? messaggioLetturaNonRiuscita(pul.error, 'leggere le pulizie registrate') : null)
   if (errore) return { data: null, errore }
   return { data: { oggi, richieste: ric.data!, prenotazioni: pren.data!, pagamenti: pag.data!, documenti: doc.data!, rinvii: rin.data!.rinvii, rinviiDisponibili: rin.data!.disponibili, pulizie: pul.error ? [] : pul.data }, errore: null }
 }

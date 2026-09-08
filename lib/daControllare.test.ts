@@ -480,13 +480,16 @@ test('pulizia prima di un arrivo: compare solo se la camera ha una pulizia previ
   ]
   const out = eccezioniPulizie(pren, [fatta('f1', 'ambra', 'ab-out', '2026-09-14')], OGGI)
   assert.deepEqual(out.map(e => [e.chiave, e.urgenza, e.titolo, e.motivo, e.bottone, hrefDestinazione(e.destinazione)]), [
+    // 08/09: anche arrivo oggi/domani richiede conferma manuale.
+    ['pulizia:ab2-in', 'alta', 'ambra2 · arrivo oggi di Ospite ab2-in', MOTIVO_PULIZIA_NON_REGISTRATA, 'Apri pulizie', '/pulizie?giorno=2026-09-15'],
     ['pulizia:am-in', 'alta', 'amelia · arrivo oggi di Ospite am-in, ore 15:30', MOTIVO_PULIZIA_NON_REGISTRATA, 'Apri pulizie', '/pulizie?giorno=2026-09-15'],
+    ['pulizia:le-in', 'alta', 'lena · arrivo oggi di Ospite le-in', MOTIVO_PULIZIA_NON_REGISTRATA, 'Apri pulizie', '/pulizie?giorno=2026-09-15'],
   ])   // attesa aggiornata il 06/09/2026: la voce di Allegra (arrivo DOMANI) non c'è più
   // Segnata fatta anche quella di Amelia → sparisce da sola
   const dopo = eccezioniPulizie(pren, [fatta('f1', 'ambra', 'ab-out', '2026-09-14'), fatta('f2', 'amelia', 'am-out', '2026-09-14')], OGGI)
-  assert.deepEqual(dopo.map(e => e.chiave), [])
+  assert.deepEqual(dopo.map(e => e.chiave), ['pulizia:ab2-in', 'pulizia:le-in'])
   // Senza decisioni: Ambra (partenza del 14 mai segnata, ma arrivo il 15 = automatica) resta fuori, Amelia dentro; Allegra (domani) mai
-  assert.deepEqual(eccezioniPulizie(pren, [], OGGI).map(e => e.chiave), ['pulizia:am-in'])
+  assert.deepEqual(eccezioniPulizie(pren, [], OGGI).map(e => e.chiave), ['pulizia:ab-in', 'pulizia:ab2-in', 'pulizia:am-in', 'pulizia:le-in'])
 })
 
 test('pulizia prima di un arrivo: cambio biancheria saltato non conta; cambio biancheria della partenza non fatto e partenza non segnata → compare; ordine e conteggi', async () => {
@@ -563,7 +566,7 @@ test('arrivi senza orario: il cambio camera della stessa persona non compare, an
 
 // Ania, 06/09/2026: «non con un giorno di anticipo: nella stessa giornata, oppure la giornata
 // dopo se non è stata registrata» → partenza di IERI non segnata, senza arrivo oggi
-test('pulizie: partenza di ieri non registrata compare oggi; segnata, rimandata, automatica o con arrivo oggi no; domani mai', async () => {
+test('pulizie: partenza di ieri non registrata compare oggi; segnata o rimandata no; anche arrivo oggi richiede conferma; domani mai', async () => {
   const { eccezioniPulizie, MOTIVO_PULIZIA_PARTENZA_IERI } = await import('./daControllare.ts')
   type Dec = import('./pulizie.ts').Decisione
   const pren = [
@@ -581,11 +584,13 @@ test('pulizie: partenza di ieri non registrata compare oggi; segnata, rimandata,
     ({ id, room_id, booking_id, tipo: 'fine_soggiorno', stato, data_prevista: '2026-09-14', data_effettiva: stato === 'fatta' ? '2026-09-14' : null, prossima_data, created_at: '2026-09-14T12:00:00Z' })
   const out = eccezioniPulizie(pren, [dec('x1', 'ambra', 'b-out', 'fatta'), dec('x2', 'allegra', 'c-out', 'rimandata', '2026-09-17')], OGGI)
   assert.deepEqual(out.map(e => [e.chiave, e.urgenza, e.titolo, e.motivo, hrefDestinazione(e.destinazione)]), [
+    // 08/09: la vecchia automatica richiede ora conferma.
+    ['pulizia:d-in', 'alta', 'lena · arrivo oggi di Ospite d-in', 'La pulizia dopo la partenza precedente non risulta registrata', '/pulizie?giorno=2026-09-15'],
     ['pulizia:partenza:a-out', 'alta', 'amelia · partenza di ieri di Ospite a-out', MOTIVO_PULIZIA_PARTENZA_IERI, '/pulizie?giorno=2026-09-15'],
     ['pulizia:partenza:g-out', 'alta', 'lena3 · cambio camera di ieri di Ospite g-out', MOTIVO_PULIZIA_PARTENZA_IERI, '/pulizie?giorno=2026-09-15'],
   ])
   // Segnata fatta → sparisce da sola
-  assert.deepEqual(eccezioniPulizie(pren, [dec('x1', 'ambra', 'b-out', 'fatta'), dec('x2', 'allegra', 'c-out', 'rimandata', '2026-09-17'), dec('x3', 'amelia', 'a-out', 'fatta'), { ...dec('x4', 'lena3', 'g-out', 'fatta'), tipo: 'cambio_camera' }], OGGI).map(e => e.chiave), [])
+  assert.deepEqual(eccezioniPulizie(pren, [dec('x1', 'ambra', 'b-out', 'fatta'), dec('x2', 'allegra', 'c-out', 'rimandata', '2026-09-17'), dec('x3', 'amelia', 'a-out', 'fatta'), { ...dec('x4', 'lena3', 'g-out', 'fatta'), tipo: 'cambio_camera' }], OGGI).map(e => e.chiave), ['pulizia:d-in'])
 })
 
 // Recupero biancheria (06/09/2026): la voce porta con sé la pulizia da segnare con «Pulita»

@@ -18,7 +18,19 @@
 //   SALTA            → quella pulizia si chiude; la successiva è proposta
 //                      a prevista + 4, modificabile prima della conferma
 
+export type PrenotazionePulizie = {
+  id: string; room_id: string; check_in: string; check_out: string; status?: string
+  guest_id?: string | null; guest_name?: string | null; num_guests?: number | string | null
+  guests?: { full_name?: string | null; phone?: string | null } | null
+  linen_next_date?: string | null; check_in_time?: string | null; notes?: string | null; cleaned_at?: string | null
+  [campo: string]: unknown
+}
+export type CameraPulizie = { id: string; name: string; active?: boolean | null }
+
 export const NOTTI_CAMBIO = 4
+// Dalla richiesta dell'8 settembre: ogni nuova partenza richiede la conferma
+// di Ania. Le ricostruzioni precedenti conservano il loro confine storico.
+export const CONFERMA_MANUALE_DAL = '2026-09-08'
 // Con quanti giorni di anticipo mostrare il prossimo cambio (per anticiparlo)
 export const GIORNI_PREAVVISO = 2
 // Da questa data in poi le pulizie di fine soggiorno restano "aperte" finché
@@ -42,6 +54,15 @@ export type Decisione = {
   cambio_biancheria?: boolean
   note?: string | null     // NOTA_AUTOMATICA_* quando la riga corregge una pulizia automatica
   created_at?: string
+  persone_servite?: number | null
+}
+
+// PostgreSQL conserva i microsecondi; Date.parse da solo li tronca e il
+// confronto alfabetico inverte un secondo esatto e la sua frazione.
+export function confrontaDecisioni(a: Decisione, b: Decisione): number {
+  const ms = (e: Decisione) => Date.parse(e.created_at || '') || 0
+  const micro = (e: Decisione) => Number((e.created_at?.match(/\.(\d+)(?:Z|[+-]\d\d:\d\d)$/)?.[1] ?? '').padEnd(6, '0').slice(3, 6))
+  return ms(a) - ms(b) || micro(a) - micro(b) || String(a.id || '').localeCompare(String(b.id || ''))
 }
 
 export type TipoPulizia = 'fine_soggiorno' | 'soggiorno' | 'cambio_camera'
@@ -51,27 +72,26 @@ export type Priorita = 'urgente' | 'alta' | 'flessibile' | 'nessuna_fretta'
 export type Pulizia = {
   roomId: string
   tipo: TipoPulizia
-  booking: any            // partenza (fine soggiorno/cambio camera) o soggiorno in corso (4 notti)
+  booking: PrenotazionePulizie            // partenza (fine soggiorno/cambio camera) o soggiorno in corso (4 notti)
   prevista: string        // data prevista originale (partenza o scadenza del ciclo)
   due: string             // data attesa dopo eventuali rimandi
   ritardo: number         // giorni di ritardo rispetto a oggi (0 = non scaduta)
   rinvii: Decisione[]     // rimandi registrati per questa pulizia
-  cambioCameraVerso?: any // per chi parte spostandosi in un'altra camera
+  cambioCameraVerso?: PrenotazionePulizie | null // per chi parte spostandosi in un'altra camera
   automatica?: boolean    // cambio ospite: già registrata da sola, non c'è nulla da segnare
-  arrivoAutomatico?: any  // la prenotazione che arriva lo stesso giorno o il giorno dopo
+  arrivoAutomatico?: PrenotazionePulizie  // la prenotazione che arriva lo stesso giorno o il giorno dopo
 }
 
 export type ProssimoArrivo = {
-  booking: any
+  booking: PrenotazionePulizie
   giorni: number          // 0 = oggi, 1 = domani...
-  cambioDa: any | null    // prenotazione di provenienza se è un cambio camera
+  cambioDa: PrenotazionePulizie | null    // prenotazione di provenienza se è un cambio camera
 }
 
 // ---------------------------------------------------------------- date utili
 
 export function todayStr(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 }
 
 export function addDaysStr(s: string, n: number): string {
@@ -93,6 +113,9 @@ export function diffDays(a: string, b: string): number {
 // Le "in attesa" (richieste dal sito mai confermate) NON sono ospiti:
 // trattarle come tali ha prodotto la notifica fantasma di Anna Sawicka
 // del 23/08/2026 (Caso 2 dell'audit).
+// Compatibilità della funzione già condivisa anche dai cron e dalla contabilità:
+// preserva integralmente le righe di quelle letture, fuori da questo intervento.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function attive(bookings: any[]): any[] {
   return (bookings || []).filter(b => b.status === 'confermata' || b.status === 'completata')
 }
@@ -100,24 +123,24 @@ export function attive(bookings: any[]): any[] {
 // Prolungamenti: stesso ospite, stessa camera, date contigue = un unico
 // soggiorno (es. prenotazione separata per distinguere il pagamento).
 // Il confine non è né una partenza né un arrivo e le 4 notti non ripartono.
-export function continuaIn(bookings: any[], b: any) {
+export function continuaIn(bookings: PrenotazionePulizie[], b: PrenotazionePulizie) {
   return bookings.find(x => x.id !== b.id && x.room_id === b.room_id && b.guest_id && x.guest_id === b.guest_id && x.check_in === b.check_out) || null
 }
-export function continuaDa(bookings: any[], b: any) {
+export function continuaDa(bookings: PrenotazionePulizie[], b: PrenotazionePulizie) {
   return bookings.find(x => x.id !== b.id && x.room_id === b.room_id && b.guest_id && x.guest_id === b.guest_id && x.check_out === b.check_in) || null
 }
 
 // Cambio camera: stesso ospite che lo stesso giorno si sposta in un'altra camera.
-export function cambioCameraOut(bookings: any[], b: any) {
+export function cambioCameraOut(bookings: PrenotazionePulizie[], b: PrenotazionePulizie) {
   return bookings.find(x => x.id !== b.id && b.guest_id && x.guest_id === b.guest_id && x.check_in === b.check_out && x.room_id !== b.room_id) || null
 }
-export function cambioCameraIn(bookings: any[], b: any) {
+export function cambioCameraIn(bookings: PrenotazionePulizie[], b: PrenotazionePulizie) {
   return bookings.find(x => x.id !== b.id && b.guest_id && x.guest_id === b.guest_id && x.check_out === b.check_in && x.room_id !== b.room_id) || null
 }
 
 // Soggiorno continuativo attorno a una prenotazione: indietro fino al primo
 // segmento, avanti fino all'ultimo (prolungamenti già prenotati).
-export function soggiornoContinuativo(bookings: any[], b: any): { inizio: any; fine: any; tratto: any[] } {
+export function soggiornoContinuativo(bookings: PrenotazionePulizie[], b: PrenotazionePulizie): { inizio: PrenotazionePulizie; fine: PrenotazionePulizie; tratto: PrenotazionePulizie[] } {
   let inizio = b
   const tratto = [b]
   for (let prev = continuaDa(bookings, inizio); prev; prev = continuaDa(bookings, prev)) { inizio = prev; tratto.push(prev) }
@@ -133,7 +156,7 @@ export function soggiornoContinuativo(bookings: any[], b: any): { inizio: any; f
 function ultimaDecisione(events: Decisione[], bookingIds: Set<string>, tipi: TipoPulizia[]): Decisione | null {
   const propri = (events || [])
     .filter(e => e.booking_id && bookingIds.has(e.booking_id) && tipi.includes(e.tipo))
-    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || String(a.id || '').localeCompare(String(b.id || '')))
+    .sort(confrontaDecisioni)
   return propri.length ? propri[propri.length - 1] : null
 }
 
@@ -142,7 +165,7 @@ function ultimaDecisione(events: Decisione[], bookingIds: Set<string>, tipi: Tip
 function rinviiInCoda(events: Decisione[], bookingIds: Set<string>, tipi: TipoPulizia[]): Decisione[] {
   const propri = (events || [])
     .filter(e => e.booking_id && bookingIds.has(e.booking_id) && tipi.includes(e.tipo))
-    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || String(a.id || '').localeCompare(String(b.id || '')))
+    .sort(confrontaDecisioni)
   const coda: Decisione[] = []
   for (let i = propri.length - 1; i >= 0 && propri[i].stato === 'rimandata'; i--) coda.unshift(propri[i])
   return coda
@@ -162,7 +185,7 @@ export type CicloCambio = {
 // Precedenza: ultima decisione registrata (fatta → effettiva + 4;
 // saltata/rimandata → la data scelta) → poi linen_next_date (le decisioni
 // prese prima della tabella cleanings) → poi la regola base check-in + 4.
-export function cicloCambio(bookings: any[], inCorso: any, events: Decisione[]): CicloCambio {
+export function cicloCambio(bookings: PrenotazionePulizie[], inCorso: PrenotazionePulizie, events: Decisione[]): CicloCambio {
   const { inizio, fine, tratto } = soggiornoContinuativo(bookings, inCorso)
   const ids = new Set<string>(tratto.map(b => String(b.id)))
   const ev = ultimaDecisione(events, ids, ['soggiorno'])
@@ -200,16 +223,16 @@ export function cicloCambio(bookings: any[], inCorso: any, events: Decisione[]):
 // --------------------------------------------- fine soggiorno / cambio camera
 
 export type FineSoggiorno = {
-  partenza: any           // ultimo segmento del soggiorno (il check-out vero)
+  partenza: PrenotazionePulizie           // ultimo segmento del soggiorno (il check-out vero)
   tipo: TipoPulizia       // 'cambio_camera' se l'ospite si sposta, altrimenti 'fine_soggiorno'
-  cambioCameraVerso: any | null
+  cambioCameraVerso: PrenotazionePulizie | null
   chiusa: boolean         // già segnata fatta o saltata
   due: string             // check-out, oppure la data del rimando
   rinvii: Decisione[]
 }
 
 // Stato della pulizia legata a una partenza definitiva.
-export function statoFineSoggiorno(bookings: any[], partenza: any, events: Decisione[]): FineSoggiorno {
+export function statoFineSoggiorno(bookings: PrenotazionePulizie[], partenza: PrenotazionePulizie, events: Decisione[]): FineSoggiorno {
   const verso = cambioCameraOut(bookings, partenza)
   const tipo: TipoPulizia = verso ? 'cambio_camera' : 'fine_soggiorno'
   const ids = new Set<string>([String(partenza.id)])
@@ -223,23 +246,33 @@ export function statoFineSoggiorno(bookings: any[], partenza: any, events: Decis
 // Ultima partenza definitiva della camera con check-out <= oggi che può
 // essere ancora "aperta": dal CUTOFF_STORICO in poi, e solo se nessun nuovo
 // ospite è già arrivato dopo (in quel caso la camera era per forza pulita).
-export function partenzaAperta(bookings: any[], roomId: string, oggi: string, events: Decisione[]): FineSoggiorno | null {
+export function partenzaAperta(bookings: PrenotazionePulizie[], roomId: string, oggi: string, events: Decisione[]): FineSoggiorno | null {
   const partenze = bookings
     .filter(b => b.room_id === roomId && b.check_out <= oggi && b.check_out >= CUTOFF_STORICO && !continuaIn(bookings, b))
     .sort((a, b) => a.check_out.localeCompare(b.check_out))
   const ultima = partenze[partenze.length - 1]
   if (!ultima) return null
   const arrivatoDopo = bookings.some(b => b.room_id === roomId && b.check_in >= ultima.check_out && b.check_in <= oggi && !continuaDa(bookings, b))
-  if (arrivatoDopo && ultima.check_out < oggi) return null
+  if (arrivatoDopo && ultima.check_out < oggi && ultima.check_out < CONFERMA_MANUALE_DAL) return null
   const stato = statoFineSoggiorno(bookings, ultima, events)
   return stato.chiusa ? null : stato
+}
+
+// Tutte le partenze ancora da confermare dal nuovo metodo. Un nuovo
+// ospite o una seconda partenza non cancellano una conferma mancante.
+export function partenzeAperte(bookings: PrenotazionePulizie[], roomId: string, oggi: string, events: Decisione[]): FineSoggiorno[] {
+  const recenti = bookings.filter(b => b.room_id === roomId && b.check_out >= CONFERMA_MANUALE_DAL && b.check_out <= oggi && !continuaIn(bookings, b))
+    .map(b => statoFineSoggiorno(bookings, b, events)).filter(s => !s.chiusa)
+  const precedente = partenzaAperta(bookings, roomId, oggi, events)
+  if (precedente && precedente.partenza.check_out < CONFERMA_MANUALE_DAL) recenti.unshift(precedente)
+  return recenti.sort((a, b) => a.due.localeCompare(b.due))
 }
 
 // ------------------------------------------------------------ prossimo arrivo
 
 // Il prossimo ospite che entra nella camera (oggi o dopo), escludendo i
 // prolungamenti. Serve per la priorità e per la riga "Prossimo arrivo: ...".
-export function prossimoArrivo(bookings: any[], roomId: string, oggi: string): ProssimoArrivo | null {
+export function prossimoArrivo(bookings: PrenotazionePulizie[], roomId: string, oggi: string): ProssimoArrivo | null {
   const arrivo = bookings
     .filter(b => b.room_id === roomId && b.check_in >= oggi && !continuaDa(bookings, b))
     .sort((a, b) => a.check_in.localeCompare(b.check_in))[0]
@@ -293,14 +326,14 @@ export const NOTA_AUTOMATICA_TOLTA = 'automatica: non fatta'
 export type PuliziaAutomatica = {
   roomId: string
   tipo: TipoPulizia
-  partenza: any           // chi parte (il check-out vero del soggiorno)
-  arrivo: any             // chi entra lo stesso giorno o il giorno dopo
+  partenza: PrenotazionePulizie           // chi parte (il check-out vero del soggiorno)
+  arrivo: PrenotazionePulizie             // chi entra lo stesso giorno o il giorno dopo
   data: string            // = partenza.check_out
 }
 
 // Il nuovo ospite che entra nella stessa camera entro GIORNI_CAMBIO_OSPITE
 // dalla partenza (escluso il prolungamento dello stesso ospite).
-export function arrivoDopoPartenza(bookings: any[], partenza: any): any | null {
+export function arrivoDopoPartenza(bookings: PrenotazionePulizie[], partenza: PrenotazionePulizie): PrenotazionePulizie | null {
   if (continuaIn(bookings, partenza)) return null
   const limite = addDaysStr(partenza.check_out, GIORNI_CAMBIO_OSPITE)
   return bookings
@@ -311,7 +344,8 @@ export function arrivoDopoPartenza(bookings: any[], partenza: any): any | null {
 // La pulizia di questa partenza è automatica? No se Ania ha già deciso
 // qualcosa per lei (fatta a mano, rimandata, saltata, corretta o tolta) o
 // se nello stesso giorno c'è già una pulizia segnata a mano nella camera.
-export function cambioOspiteAutomatico(bookings: any[], partenza: any, events: Decisione[]): PuliziaAutomatica | null {
+export function cambioOspiteAutomatico(bookings: PrenotazionePulizie[], partenza: PrenotazionePulizie, events: Decisione[]): PuliziaAutomatica | null {
+  if (partenza.check_out >= CONFERMA_MANUALE_DAL) return null
   const arrivo = arrivoDopoPartenza(bookings, partenza)
   if (!arrivo) return null
   const decisa = (events || []).some(e => e.booking_id === partenza.id && (e.tipo === 'fine_soggiorno' || e.tipo === 'cambio_camera'))
@@ -325,7 +359,7 @@ export function cambioOspiteAutomatico(bookings: any[], partenza: any, events: D
 // CUTOFF_STORICO in poi: prima di quella data le statistiche stimano già una
 // pulizia per ogni partenza, e conterebbero due volte. Anche il passato
 // recente rientra, così i conteggi delle settimane scorse tornano giusti.
-export function pulizieAutomatiche(tutteLePrenotazioni: any[], events: Decisione[], oggi: string): PuliziaAutomatica[] {
+export function pulizieAutomatiche(tutteLePrenotazioni: PrenotazionePulizie[], events: Decisione[], oggi: string): PuliziaAutomatica[] {
   const bookings = attive(tutteLePrenotazioni)
   const out: PuliziaAutomatica[] = []
   for (const b of bookings) {
@@ -340,11 +374,10 @@ export function pulizieAutomatiche(tutteLePrenotazioni: any[], events: Decisione
 
 // Le pulizie aperte di una camera al giorno `oggi` (fine soggiorno rimasti
 // da fare + cambio 4 notti scaduto). È il cuore della sezione "Oggi".
-export function pulizieAperte(bookings: any[], roomId: string, oggi: string, events: Decisione[]): Pulizia[] {
+export function pulizieAperte(bookings: PrenotazionePulizie[], roomId: string, oggi: string, events: Decisione[]): Pulizia[] {
   const out: Pulizia[] = []
 
-  const fs = partenzaAperta(bookings, roomId, oggi, events)
-  if (fs && fs.due <= oggi) {
+  for (const fs of partenzeAperte(bookings, roomId, oggi, events).filter(s => s.due <= oggi)) {
     // Cambio ospite: la pulizia è già registrata da sola. Resta in «Oggi»
     // come lavoro della giornata (con la priorità dell'arrivo) ma senza
     // pulsanti e mai «in ritardo».
@@ -393,19 +426,18 @@ function dataIt(s: string): string {
 // Cronologia delle pulizie di una camera: il soggiorno in corso (ciclo delle
 // 4 notti compreso) e/o la pulizia di fine soggiorno ancora aperta.
 // Solo lettura: non tocca la logica di calcolo, la racconta.
-export function cronologiaCamera(bookings: any[], roomId: string, oggi: string, events: Decisione[], rooms: any[] = []): VoceCronologia[] {
+export function cronologiaCamera(bookings: PrenotazionePulizie[], roomId: string, oggi: string, events: Decisione[], rooms: CameraPulizie[] = []): VoceCronologia[] {
   const voci: (VoceCronologia & { ordine: number })[] = []
   let n = 0
   const push = (data: string, testo: string, registro: Registro) => voci.push({ data, testo, registro, ordine: n++ })
-  const nomeDi = (b: any) => b?.guest_name || b?.guests?.full_name || 'Ospite'
+  const nomeDi = (b: PrenotazionePulizie) => b?.guest_name || b?.guests?.full_name || 'Ospite'
   const shortOf = (id: string) => {
     const r = rooms.find(rr => rr.id === id)
     return r ? r.name.split(' ').slice(-1)[0] : 'un’altra camera'
   }
 
   // --- Pulizia di fine soggiorno ancora aperta (ospite già partito) ---
-  const fs = partenzaAperta(bookings, roomId, oggi, events)
-  if (fs) {
+  for (const fs of partenzeAperte(bookings, roomId, oggi, events)) {
     push(fs.partenza.check_in, `check-in di ${nomeDi(fs.partenza)}`, 'reale')
     push(fs.partenza.check_out, fs.cambioCameraVerso
       ? `${nomeDi(fs.partenza)} cambia camera → va in ${shortOf(fs.cambioCameraVerso.room_id)} · pulizia prevista`
@@ -426,7 +458,7 @@ export function cronologiaCamera(bookings: any[], roomId: string, oggi: string, 
     const ids = new Set<string>(tratto.map(b => String(b.id)))
     const propri = (events || [])
       .filter(e => e.booking_id && ids.has(e.booking_id) && e.tipo === 'soggiorno')
-      .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || String(a.id || '').localeCompare(String(b.id || '')))
+      .sort(confrontaDecisioni)
     const previsteRegistrate = new Set(propri.map(e => e.data_prevista))
 
     // Ricostruzione del vecchio sistema: a ritroso ogni 4 notti dall'ultima
@@ -498,7 +530,7 @@ export type RigaNotifica = {
 
 export type Notifica = { domani: RigaNotifica[]; inRitardo: RigaNotifica[] }
 
-function shortName(room: any): string {
+function shortName(room: Pick<CameraPulizie, 'name'>): string {
   return room.name.split(' ').slice(-1)[0]
 }
 
@@ -510,7 +542,8 @@ function etichettaPriorita(p: Priorita): string {
 // motivo, prossimo arrivo e priorità. Gli arretrati vanno in `inRitardo`
 // e vengono chiamati col loro nome — MAI più rietichettati "domani" ogni
 // sera (Caso 1 dell'audit del 24/08/2026).
-export function calcolaNotifica(rooms: any[], tutteLePrenotazioni: any[], events: Decisione[], oggi: string): Notifica {
+export function calcolaNotifica(camereLette: Record<string, unknown>[], tutteLePrenotazioni: Record<string, unknown>[], events: Decisione[], oggi: string): Notifica {
+  const rooms = camereLette as CameraPulizie[]
   const bookings = attive(tutteLePrenotazioni)
   const domani = addDaysStr(oggi, 1)
   const righeDomani: RigaNotifica[] = []
@@ -518,7 +551,7 @@ export function calcolaNotifica(rooms: any[], tutteLePrenotazioni: any[], events
 
   for (const room of rooms) {
     const nome = shortName(room)
-    const nomeDi = (b: any) => b?.guest_name || b?.guests?.full_name || 'Ospite'
+    const nomeDi = (b: PrenotazionePulizie) => b?.guest_name || b?.guests?.full_name || 'Ospite'
 
     // Pulizie che scadono domani: partenza domani (o rimandata a domani)...
     const partenzaDomani = bookings.find(b => b.room_id === room.id && b.check_out === domani && !continuaIn(bookings, b))
@@ -527,7 +560,7 @@ export function calcolaNotifica(rooms: any[], tutteLePrenotazioni: any[], events
       const st = statoFineSoggiorno(bookings, partenzaDomani, events)
       if (!st.chiusa) fsDomani = st
     }
-    const fsAperta = partenzaAperta(bookings, room.id, oggi, events)
+    const fsAperta = partenzeAperte(bookings, room.id, oggi, events).find(f => f.due === domani)
     if (!fsDomani && fsAperta && fsAperta.due === domani) fsDomani = fsAperta
 
     if (fsDomani) {
@@ -615,8 +648,7 @@ export function statoCameraGiorno(bookings: Prenotazioni, roomId: string, giorno
   }
   if (giorno === oggi) {
     // In ritardo (come «Oggi» della pagina): l'ultima partenza aperta con scadenza passata
-    const fs = partenzaAperta(bookings, roomId, oggi, events)
-    if (fs && fs.due < oggi) segna(!!cambioOspiteAutomatico(bookings, fs.partenza, events))
+    for (const fs of partenzeAperte(bookings, roomId, oggi, events).filter(s => s.due < oggi)) segna(!!cambioOspiteAutomatico(bookings, fs.partenza, events))
   }
 
   // Cambio biancheria

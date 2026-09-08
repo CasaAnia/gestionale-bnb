@@ -6,15 +6,18 @@ import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite } from '@/lib/guestName'
 import BackBar from '@/components/BackBar'
 import { giornoDaParametro } from '@/lib/daControllare'
-import SchedaRecupero from '@/components/SchedaRecupero'
-import { salvaRecupero, leggiRecuperiDellePulizie } from '@/lib/biancheriaDati'
-import { riassunto, vuoto, normalizza, type Recupero, type Contatori } from '@/lib/biancheria'
+import SalvataggiPulizie from '@/components/SalvataggiPulizie'
+import ControlliPulizia from '@/components/ControlliPulizia'
+import AvvisoAzione from '@/components/AvvisoAzione'
+import { raccogliPagine } from '@/lib/statistiche/paginazione'
+import { inviaOperazionePulizia } from '@/lib/pulizieServizio'
+import { type RispostaPulizia } from '@/lib/pulizieOperazioni'
 import {
-  attive, pulizieAperte, prossimoArrivo, prioritaDi, testoArrivo, cicloCambio,
-  partenzaAperta, cambioCameraIn, continuaDa, cambioCameraOut,
-  soggiornoContinuativo, todayStr, addDaysStr, diffDays, cronologiaCamera,
-  pulizieAutomatiche, conteggioGiorno, NOTTI_CAMBIO, GIORNI_PREAVVISO, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA,
-  type Pulizia, type Priorita, type Decisione, type VoceCronologia, type PuliziaAutomatica, type TipoPulizia,
+  confrontaDecisioni, attive, pulizieAperte, prossimoArrivo, prioritaDi, testoArrivo, cicloCambio,
+  partenzeAperte, cambioCameraIn, continuaDa, cambioCameraOut,
+  soggiornoContinuativo, todayStr, diffDays, cronologiaCamera,
+  pulizieAutomatiche, conteggioGiorno, GIORNI_PREAVVISO, NOTA_AUTOMATICA_CORRETTA, NOTA_AUTOMATICA_TOLTA,
+  type PrenotazionePulizie, type CameraPulizie, type Pulizia, type Priorita, type Decisione, type VoceCronologia, type PuliziaAutomatica, type TipoPulizia,
 } from '@/lib/pulizie'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -69,12 +72,12 @@ const RIGHE_REGISTRO = 12
 type VoceRegistro = { chiave: string; data: string; roomId: string; tipo: TipoPulizia; ospite: string; auto: PuliziaAutomatica | null; evento?: Decisione }
 
 type RigaCamera = {
-  room: any
+  room: CameraPulizie
   shortName: string
   aperte: Pulizia[]                       // pulizie da fare oggi (o in ritardo)
   arrivo: ReturnType<typeof prossimoArrivo>
   priorita: Priorita | null               // la più alta tra le pulizie aperte
-  cambioProssimo: { due: string; booking: any } | null // cambio 4 notti nei prossimi giorni (anticipabile)
+  cambioProssimo: { due: string; booking: PrenotazionePulizie } | null // cambio 4 notti nei prossimi giorni (anticipabile)
   prossimo: { date: string; badges: string[]; testo: string } | null
   cronologia: VoceCronologia[]            // pannello "perché questa data?"
 }
@@ -82,24 +85,16 @@ type RigaCamera = {
 const RANK: Record<Priorita, number> = { urgente: 0, alta: 1, flessibile: 2, nessuna_fretta: 3 }
 
 export default function Pulizie() {
-  const [rooms, setRooms] = useState<any[]>([])
-  const [bookings, setBookings] = useState<any[]>([])
+  const [rooms, setRooms] = useState<CameraPulizie[]>([])
+  const [bookings, setBookings] = useState<PrenotazionePulizie[]>([])
   const [events, setEvents] = useState<Decisione[]>([])
-  // false = la tabella cleanings non esiste ancora (migrazione 0018 da
-  // incollare nell'editor SQL): i pulsanti ripiegano su linen_next_date
-  const [tabellaOk, setTabellaOk] = useState(true)
+  const [errore, setErrore] = useState<string | null>(null)
+  const [rilettura, setRilettura] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
-  // Data del campo "Fatta il" per ogni pulizia (default oggi)
-  const [fattoIl, setFattoIl] = useState<Record<string, string>>({})
-  // Riquadro aperto di Rimanda/Salta: chiave pulizia → { azione, data proposta }
-  const [azione, setAzione] = useState<Record<string, { tipo: 'rimanda' | 'salta'; data: string }>>({})
   const [spiegaAperta, setSpiegaAperta] = useState<Record<string, boolean>>({})
   // Correzione di un'automatica nel registro: chiave → data scelta per «cambia data»
   const [correzione, setCorrezione] = useState<Record<string, string>>({})
-  // Recupero biancheria (06/09/2026): righe per pulizia (cleaning_id) e scheda aperta
-  const [recuperi, setRecuperi] = useState<Record<string, Recupero>>({})
-  const [scheda, setScheda] = useState<{ camera: string; riga: Decisione } | null>(null)
   const td = todayStr()
   // Dalla striscia della settimana in Home (07/09/2026): ?giorno=AAAA-MM-GG
   // porta al blocco di quel giorno (Oggi o uno dei Prossimi); senza blocco
@@ -112,47 +107,32 @@ export default function Pulizie() {
   }, [loading])
 
   useEffect(() => {
+    let viva = true
     let localLinen: Record<string, string> = {}
-    try { localLinen = JSON.parse(localStorage.getItem(LOCAL_LINEN_KEY) || '{}') } catch { /* ignora */ }
+    try { localLinen = JSON.parse(localStorage.getItem(LOCAL_LINEN_KEY) || '{}') } catch { /* solo vecchie date */ }
     Promise.all([
-      supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings').select('*, guests(full_name, phone)').neq('status', 'annullata'),
-      supabase.from('cleanings').select('*').order('created_at'),
-    ]).then(([{ data: r }, { data: b }, ev]) => {
-      const sorted = (r || []).sort((a: any, b: any) => {
-        const ai = ROOM_ORDER.findIndex(o => a.name.includes(o))
-        const bi = ROOM_ORDER.findIndex(o => b.name.includes(o))
+      raccogliPagine<CameraPulizie>((o, n) => supabase.from('rooms').select('*').order('id').range(o, o + n - 1)),
+      raccogliPagine<PrenotazionePulizie>((o, n) => supabase.from('bookings').select('*, guests(full_name, phone)').neq('status', 'annullata').order('id').range(o, o + n - 1)),
+      raccogliPagine<Decisione>((o, n) => supabase.from('cleanings').select('*').order('created_at').order('id').range(o, o + n - 1)),
+    ]).then(([r, b, ev]) => {
+      if (!viva) return
+      if (r.error || b.error || ev.error) { setErrore('Non riesco a leggere tutte le pulizie. Riprova.'); setLoading(false); return }
+      setRooms(r.data.sort((a, b) => {
+        const ai = ROOM_ORDER.findIndex(o => a.name.includes(o)), bi = ROOM_ORDER.findIndex(o => b.name.includes(o))
         return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
-      })
-      setRooms(sorted)
-      // Le date del vecchio salvataggio locale valgono solo dove la colonna è vuota
-      setBookings((b || []).map((x: any) => x.linen_next_date || !localLinen[x.id] ? x : { ...x, linen_next_date: localLinen[x.id] }))
-      if (ev.error) setTabellaOk(false)
-      else setEvents((ev.data || []) as Decisione[])
-      setLoading(false)
-    })
-  }, [])
+      }))
+      setBookings(b.data.map(x => x.linen_next_date || !localLinen[x.id] ? x : { ...x, linen_next_date: localLinen[x.id] }))
+      setEvents(ev.data); setLoading(false)
+    }).catch(() => { if (viva) { setErrore('Non riesco a leggere tutte le pulizie. Riprova.'); setLoading(false) } })
+    return () => { viva = false }
+  }, [rilettura])
 
   const prenotazioni = useMemo(() => attive(bookings), [bookings])
-
-  // Recuperi delle pulizie segnate (per il riassunto nel registro); tabella
-  // assente (0039 non applicata) = nessun riassunto, nessun errore
-  const idPulizie = useMemo(() => events.filter(e => e.stato === 'fatta' && e.id).map(e => e.id as string).sort().join(','), [events])
-  useEffect(() => {
-    if (!idPulizie) return
-    let vivo = true
-    leggiRecuperiDellePulizie(idPulizie.split(',')).then(({ righe }) => {
-      if (!vivo) return
-      setRecuperi(Object.fromEntries(righe.map(r => [r.cleaning_id, r])))
-    })
-    return () => { vivo = false }
-  }, [idPulizie])
-
-  async function salvaScheda(valori: Contatori): Promise<string | null> {
-    if (!scheda?.riga.id) return 'Non salvato, riprova'
-    const { errore, salvato } = await salvaRecupero({ cleaning_id: scheda.riga.id, room_id: scheda.riga.room_id, booking_id: scheda.riga.booking_id, data: scheda.riga.data_effettiva || scheda.riga.data_prevista, ...valori })
-    if (!errore && salvato) { setRecuperi(r => ({ ...r, [salvato.cleaning_id]: salvato })); setScheda(null) }
-    return errore
+  const ultimaId = (camera: string) => events.filter(e => e.room_id === camera).sort((a, b) => confrontaDecisioni(b, a))[0]?.id ?? null
+  function ricaricaPagina() { setLoading(true); setErrore(null); setRilettura(x => x + 1) }
+  function aggiornato(r: RispostaPulizia) {
+    setEvents(ev => [...ev.filter(e => e.id !== r.pulizia.id), r.pulizia])
+    ricaricaPagina()
   }
 
   const righe: RigaCamera[] = useMemo(() => {
@@ -160,7 +140,7 @@ export default function Pulizie() {
       const r = rooms.find(rr => rr.id === id)
       return r ? r.name.split(' ').slice(-1)[0] : 'un’altra camera'
     }
-    const out: RigaCamera[] = rooms.map(room => {
+    const out: RigaCamera[] = rooms.filter(room => room.active !== false).map(room => {
       const aperte = pulizieAperte(prenotazioni, room.id, td, events)
       const arrivo = prossimoArrivo(prenotazioni, room.id, td)
       const priorita = aperte.length > 0
@@ -169,7 +149,7 @@ export default function Pulizie() {
 
       const inCorso = prenotazioni.find(b => b.room_id === room.id && b.check_in <= td && b.check_out > td) || null
       const ciclo = inCorso ? cicloCambio(prenotazioni, inCorso, events) : null
-      const cambioProssimo = ciclo?.due && ciclo.due > td && diffDays(ciclo.due, td) <= GIORNI_PREAVVISO
+      const cambioProssimo = inCorso && ciclo?.due && ciclo.due > td && diffDays(ciclo.due, td) <= GIORNI_PREAVVISO
         ? { due: ciclo.due, booking: inCorso }
         : null
 
@@ -177,7 +157,7 @@ export default function Pulizie() {
       // con la distinzione netta tra eventi reali, date ricostruite dal
       // vecchio sistema e prossima scadenza calcolata (lib/pulizie.ts)
       const cronologia = cronologiaCamera(prenotazioni, room.id, td, events, rooms)
-      const fsAperta = partenzaAperta(prenotazioni, room.id, td, events)
+      const partenze = partenzeAperte(prenotazioni, room.id, td, events)
 
       // "Prossimi": il primo lavoro futuro previsto in questa camera
       type Ev = { date: string; badge: string | null; testo: string }
@@ -187,7 +167,7 @@ export default function Pulizie() {
         const rimandata = ciclo.rinvii.length > 0 ? ` · rimandata dal ${dataBreve(ciclo.prevista!)}` : ''
         eventi.push({ date: ciclo.due, badge: 'cambio biancheria', testo: (g ? `${g} resta · solo lenzuola` : 'solo lenzuola') + rimandata })
       }
-      if (fsAperta && fsAperta.due > td) {
+      for (const fsAperta of partenze.filter(p => p.due > td)) {
         eventi.push({
           date: fsAperta.due, badge: 'da pulire',
           testo: `rimandata dal ${dataBreve(fsAperta.partenza.check_out)} · era partito ${nomeOspite(fsAperta.partenza)}`,
@@ -230,7 +210,7 @@ export default function Pulizie() {
     })
     // Oggi: prima le più urgenti; a parità, l'ordine fisso delle camere
     return out.sort((a, b) => (a.priorita ? RANK[a.priorita] : 9) - (b.priorita ? RANK[b.priorita] : 9))
-  }, [rooms, prenotazioni, events, td, tabellaOk])
+  }, [rooms, prenotazioni, events, td])
 
   // Registro «Ultime pulizie»: segnate a mano + automatiche dei cambi ospite,
   // le più recenti in alto. Le automatiche portano l'etichetta e i comandi
@@ -261,49 +241,17 @@ export default function Pulizie() {
     return r ? r.name.split(' ').slice(-1)[0] : 'un’altra camera'
   }
 
-  const chiave = (roomId: string, tipo: string) => `${roomId}:${tipo}`
-
-  // Registra una decisione nella tabella cleanings. Se la tabella non c'è
-  // ancora (migrazione 0018 da incollare a mano), per il cambio 4 notti si
-  // ripiega sul vecchio linen_next_date così nulla si blocca.
-  async function registra(p: Pulizia, stato: 'fatta' | 'rimandata' | 'saltata', dati: { data_effettiva?: string; prossima_data?: string }, note: string | null = null): Promise<Decisione | null> {
-    const k = chiave(p.roomId, p.tipo)
+  async function registra(p: Pulizia, stato: 'fatta' | 'saltata', dati: { data_effettiva?: string; prossima_data?: string }, note: string): Promise<Decisione | null> {
     if (saving) return null
-    setSaving(k)
-    const riga: Decisione = {
-      room_id: p.roomId,
-      booking_id: p.booking.id,
-      tipo: p.tipo,
-      stato,
-      data_prevista: p.due,
-      data_effettiva: dati.data_effettiva ?? null,
-      prossima_data: dati.prossima_data ?? null,
-      cambio_biancheria: stato === 'fatta',
-      ...(note ? { note } : {}),
-    }
-    const { data, error } = await supabase.from('cleanings').insert(riga).select().single()
-    if (!error && data) {
-      setEvents(ev => [...ev, data as Decisione])
-    } else if (p.tipo === 'soggiorno') {
-      // Vecchio meccanismo: linen_next_date = prossima scadenza del ciclo
-      const next = stato === 'fatta' ? addDaysStr(dati.data_effettiva!, NOTTI_CAMBIO) : dati.prossima_data!
-      const { error: e2 } = await supabase.from('bookings').update({ linen_next_date: next }).eq('id', p.booking.id)
-      if (!e2) setBookings(bs => bs.map(x => x.id === p.booking.id ? { ...x, linen_next_date: next } : x))
-      else alert('Salvataggio non riuscito: controlla la connessione.')
-      setTabellaOk(false)
-    } else {
-      alert('Salvataggio non riuscito: la migrazione 0018 è già stata incollata su Supabase?')
-      setTabellaOk(false)
-    }
-    setAzione(a => { const { [k]: _, ...resto } = a; return resto })
+    setSaving(p.roomId)
+    const riga: Decisione = { room_id: p.roomId, booking_id: p.booking.id, tipo: p.tipo, stato,
+      data_prevista: p.due, data_effettiva: dati.data_effettiva ?? null, prossima_data: dati.prossima_data ?? null,
+      cambio_biancheria: stato === 'fatta', note, persone_servite: Number(p.booking.num_guests) || null }
+    const r = await inviaOperazionePulizia(p.roomId, { azione: 'registra', ultima_id: ultimaId(p.roomId), pulizia: riga, recupero: null })
     setSaving(null)
-    return !error && data ? (data as Decisione) : null
-  }
-
-  // «Pulita + recuperato»: segna la pulizia e, se scritta, apre la scheda della biancheria
-  async function pulitaConRecupero(p: Pulizia, data_effettiva: string) {
-    const riga = await registra(p, 'fatta', { data_effettiva })
-    if (riga) setScheda({ camera: shortNameOf(p.roomId), riga })
+    if (r.errore) { setErrore(r.errore); return null }
+    if (r.risposta) aggiornato(r.risposta)
+    return r.risposta?.pulizia ?? null
   }
 
   // Correzione di un'automatica: si scrive nella tabella cleanings una riga
@@ -317,7 +265,7 @@ export default function Pulizie() {
     if (!v.auto) return
     if (modo === 'data') await registra(puliziaDaAutomatica(v.auto), 'fatta', { data_effettiva: correzione[v.chiave] || v.data }, NOTA_AUTOMATICA_CORRETTA)
     else await registra(puliziaDaAutomatica(v.auto), 'saltata', {}, NOTA_AUTOMATICA_TOLTA)
-    setCorrezione(c => { const { [v.chiave]: _, ...resto } = c; return resto })
+    setCorrezione(c => { const resto = { ...c }; delete resto[v.chiave]; return resto })
   }
 
   // Un cambio 4 notti dei prossimi giorni può essere anticipato: si crea una
@@ -329,83 +277,12 @@ export default function Pulizie() {
     }
   }
 
-  // Pulsanti Fatta / Rimanda / Salta di una pulizia
-  const controlli = (p: Pulizia) => {
-    const k = chiave(p.roomId, p.tipo)
-    const aperta = azione[k]
-    const disab = saving === k
-    // Salto di una pulizia 4 notti: se la data proposta (scaduta + 4) cade
-    // il giorno della partenza o dopo, non c'è nessun'altra pulizia del ciclo
-    // (la camera si rifà comunque al cambio ospite / cambio camera). Meglio
-    // dirlo che proporre una data che poi non comparirà mai (caso Rosa, 5/9/2026).
-    let fineSalto: { data: string; verso: any | null } | null = null
-    if (aperta?.tipo === 'salta' && p.tipo === 'soggiorno') {
-      const { fine } = soggiornoContinuativo(prenotazioni, p.booking)
-      if (aperta.data >= fine.check_out) fineSalto = { data: fine.check_out, verso: cambioCameraOut(prenotazioni, fine) }
-    }
-    return (
-      <div className="mt-2">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-gray-500">Fatta il</span>
-          <input type="date" value={fattoIl[k] || td}
-            onChange={e => setFattoIl({ ...fattoIl, [k]: e.target.value })}
-            className="ed-campo text-xs py-1" />
-          {/* Recupero biancheria (06/09/2026): «Pulita» (pieno) e «Pulita + recuperato» (contorno) al posto di «✓ Fatta» */}
-          <button onClick={() => registra(p, 'fatta', { data_effettiva: fattoIl[k] || td })} disabled={disab} data-pulita
-            className="ed-pillola disabled:opacity-50"
-            style={{ minHeight: 40 }}>
-            Pulita
-          </button>
-          <button onClick={() => pulitaConRecupero(p, fattoIl[k] || td)} disabled={disab} data-pulita-recuperato
-            className="ed-pillola-contorno disabled:opacity-50"
-            style={{ minHeight: 40 }}>
-            Pulita + recuperato
-          </button>
-          <button onClick={() => setAzione({ ...azione, [k]: { tipo: 'rimanda', data: addDaysStr(td, 1) } })} disabled={disab}
-            className="ed-pillola-tenue disabled:opacity-50"
-            style={{ color: '#5a6b3f', opacity: aperta?.tipo === 'rimanda' ? 0.5 : 1 }}>
-            Rimanda
-          </button>
-          {p.tipo === 'soggiorno' && (
-            <button onClick={() => setAzione({ ...azione, [k]: { tipo: 'salta', data: addDaysStr(p.due, NOTTI_CAMBIO) } })} disabled={disab}
-              className="ed-pillola-tenue disabled:opacity-50"
-              style={{ color: '#8a4f2f', opacity: aperta?.tipo === 'salta' ? 0.5 : 1 }}>
-              Salta
-            </button>
-          )}
-        </div>
-        {aperta && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-2 rounded-lg p-2" style={{ background: '#F5F1E8' }}>
-            {fineSalto ? (
-              <span className="text-xs text-gray-600">
-                Salta questa · nessun&rsquo;altra prima {fineSalto.verso
-                  ? <>del cambio camera del <b>{dataBreve(fineSalto.data)}</b> (va in {shortNameOf(fineSalto.verso.room_id)})</>
-                  : <>della partenza del <b>{dataBreve(fineSalto.data)}</b></>}
-              </span>
-            ) : (
-              <>
-                <span className="text-xs text-gray-600">
-                  {aperta.tipo === 'rimanda' ? 'Rimanda al' : 'Salta questa · prossima il'}
-                </span>
-                <input type="date" value={aperta.data} min={addDaysStr(td, aperta.tipo === 'rimanda' ? 1 : 0)}
-                  onChange={e => setAzione({ ...azione, [k]: { ...aperta, data: e.target.value } })}
-                  className="ed-campo text-xs py-1" />
-              </>
-            )}
-            <button onClick={() => registra(p, aperta.tipo === 'rimanda' ? 'rimandata' : 'saltata', { prossima_data: aperta.data })} disabled={disab}
-              className="ed-pillola disabled:opacity-50"
-              style={{ background: aperta.tipo === 'rimanda' ? '#5a6b3f' : '#8a4f2f' }}>
-              Conferma
-            </button>
-            <button onClick={() => setAzione(a => { const { [k]: _, ...resto } = a; return resto })} disabled={disab}
-              className="text-xs text-gray-500 px-2 py-1.5">
-              Annulla
-            </button>
-          </div>
-        )}
-      </div>
-    )
-  }
+  const controlli = (p: Pulizia) => <ControlliPulizia
+    key={`${p.roomId}:${p.booking.id}:${p.tipo}:${p.due}`} camera={shortNameOf(p.roomId)} oggi={td}
+    pulizia={{ room_id: p.roomId, booking_id: p.booking.id, tipo: p.tipo, stato: 'fatta', data_prevista: p.due }}
+    ultimaId={ultimaId(p.roomId)} persone={Number(p.booking.num_guests) || null} scegliData
+    partenza={p.tipo === 'soggiorno' ? soggiornoContinuativo(prenotazioni, p.booking).fine.check_out : undefined}
+    onSalvato={aggiornato} />
 
   // Stili dei tre registri della cronologia: un evento reale, una data
   // ricostruita dal vecchio sistema e una scadenza futura non si devono
@@ -469,7 +346,7 @@ export default function Pulizie() {
             <p className="text-[11px] text-stone mt-0.5">{ROOM_DESC_BY_NAME[shortName] || ''}</p>
 
             {aperte.map(p => (
-              <div key={p.tipo} className="mt-2">
+              <div key={`${p.tipo}:${p.booking.id}:${p.due}`} className="mt-2">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {p.tipo === 'soggiorno' && (
                     <span className="text-xs font-bold rounded-full px-2.5 py-0.5" style={badgeStyle['cambio biancheria']}>cambio biancheria</span>
@@ -546,17 +423,12 @@ export default function Pulizie() {
 
       <h1 className="ed-titolo capitalize">{italianDate()}</h1>
       <p className="ed-sotto mt-2 mb-5">
-        {loading ? ' ' : daRifare === 0 ? 'Nessuna camera da rifare oggi' : daRifare === 1 ? '1 camera da rifare oggi' : `${daRifare} camere da rifare oggi`}
+        {loading || errore ? ' ' : daRifare === 0 ? 'Nessuna camera da rifare oggi' : daRifare === 1 ? '1 camera da rifare oggi' : `${daRifare} camere da rifare oggi`}
       </p>
 
-      {!loading && !tabellaOk && (
-        <div className="rounded-[10px] p-3 mb-4 text-xs" style={{ background: '#F6E4DE', color: '#8C3B2E' }}>
-          Lo storico pulizie non è ancora attivo: va incollata la migrazione 0018
-          nell&apos;editor SQL di Supabase. Nel frattempo tutto funziona col vecchio sistema.
-        </div>
-      )}
-
-      {loading ? (
+      <SalvataggiPulizie onVerificato={ricaricaPagina} />
+      {errore && <AvvisoAzione testo={errore} onRiprova={ricaricaPagina} className="my-4" />}
+      {loading || errore ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : (
         <>
@@ -599,7 +471,7 @@ export default function Pulizie() {
         </>
       )}
 
-      {!loading && registro.length > 0 && (
+      {!loading && !errore && registro.length > 0 && (
         <div className="mt-6">
           {sezioneTitolo('Ultime pulizie', 'segnate da te e automatiche')}
           <div>
@@ -615,13 +487,8 @@ export default function Pulizie() {
                     <span className="text-xs text-stone">{TIPO_LABEL[v.tipo]}{v.ospite ? ` · ${v.ospite}` : ''}</span>
                     {v.auto && <span className="text-[11px] font-bold rounded-full px-2 py-0.5" style={badgeStyle.automatica}>automatica</span>}
                   </div>
-                  {/* Riassunto del recupero biancheria; tocco = riapre la scheda per correggere */}
-                  {v.evento?.id && recuperi[v.evento.id] && riassunto(recuperi[v.evento.id]) && (
-                    <button type="button" onClick={() => setScheda({ camera: nome, riga: v.evento! })} disabled={disab} data-riassunto-recupero
-                      className="mt-0.5 text-[11px] text-left underline decoration-dotted underline-offset-2" style={{ color: 'var(--color-brass)' }}>
-                      {riassunto(recuperi[v.evento.id])}
-                    </button>
-                  )}
+                  {v.evento?.id && <ControlliPulizia camera={nome} oggi={td} pulizia={v.evento} ultimaId={ultimaId(v.roomId)}
+                    persone={v.evento.persone_servite ?? (Number(bookings.find(b => b.id === v.evento?.booking_id)?.num_guests) || null)} onSalvato={aggiornato} />}
                   {v.auto && (
                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                       {aperta ? (
@@ -632,7 +499,7 @@ export default function Pulizie() {
                             className="ed-campo text-xs py-1" />
                           <button onClick={() => correggiAutomatica(v, 'data')} disabled={disab || !correzione[v.chiave]}
                             className="ed-pillola disabled:opacity-50" style={{ background: '#2D6A4F' }}>Conferma</button>
-                          <button onClick={() => setCorrezione(c => { const { [v.chiave]: _, ...resto } = c; return resto })} disabled={disab}
+                          <button onClick={() => setCorrezione(c => { const resto = { ...c }; delete resto[v.chiave]; return resto })} disabled={disab}
                             className="text-xs text-gray-500 px-2 py-1.5">Annulla</button>
                         </>
                       ) : (
@@ -650,19 +517,13 @@ export default function Pulizie() {
             })}
           </div>
           <p className="text-[11px] text-stone mt-2 leading-relaxed">
-            «Automatica» = cambio ospite: un ospite parte e un altro arriva lo stesso giorno o il giorno dopo,
-            la camera è stata rifatta in mezzo e la pulizia si registra da sola con la data della partenza.
-            Se una prenotazione si sposta o si annulla, sparisce da sola.
+            Le automatiche precedenti all’8 settembre sono stime del vecchio sistema, ricostruite dalle prenotazioni. Le nuove pulizie richiedono la tua conferma.
           </p>
         </div>
       )}
 
-      {!loading && <Statistiche rooms={rooms} bookings={prenotazioni} events={events} td={td} />}
+      {!loading && !errore && <Statistiche rooms={rooms} bookings={prenotazioni} events={events} td={td} />}
 
-      {scheda && (
-        <SchedaRecupero camera={scheda.camera} iniziale={scheda.riga.id && recuperi[scheda.riga.id] ? normalizza(recuperi[scheda.riga.id]) : vuoto()}
-          onSalva={salvaScheda} onChiudi={() => setScheda(null)} />
-      )}
     </div>
   )
 }

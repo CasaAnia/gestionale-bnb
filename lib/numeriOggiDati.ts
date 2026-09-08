@@ -39,7 +39,8 @@ export async function leggiNumeriOggi(oggi: string): Promise<{ numeri: NumeriOgg
   if (cam.errore || !cam.data) return { numeri: null, settimana: [], pulizieOggi: [], errore: cam.errore ?? MESSAGGIO_NUMERI_NON_LETTI }
   // Stessa scelta della pagina Pulizie: senza la tabella cleanings (0018) si
   // va avanti senza decisioni registrate
-  const events: Decisione[] = ev.error ? [] : ev.data
+  if (ev.error) return { numeri: null, settimana: [], pulizieOggi: [], errore: messaggioLetturaNonRiuscita(ev.error, 'leggere le pulizie registrate') }
+  const events: Decisione[] = ev.data
   const attive = cam.data.filter(c => c.active !== false)
   // «Pulizie di oggi» (07/09/2026): stessa lettura, camere nell'ordine della casa (lib/pulizieOggi, puro)
   return { numeri: numeriOggi(p.data, cam.data, oggi), settimana: strisciaSettimane(attive, p.data, events, oggi), pulizieOggi: pulizieDiOggi(ordinaCamere(attive), p.data, events, oggi), errore: null }

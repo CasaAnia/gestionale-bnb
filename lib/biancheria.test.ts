@@ -1,10 +1,10 @@
 // Recupero biancheria (06/09/2026): limiti, tocco dei chip, riassunto e plurali
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { vuoto, tocca, normalizza, totale, testoTotale, riassunto, elencoVoci, sommaPerVoce, nelPeriodo, tabellaBiancheriaAssente, LIMITE, VOCI, CHIAVI } from './biancheria.ts'
+import { vuoto, tocca, normalizza, totale, testoTotale, riassunto, elencoVoci, sommaPerVoce, nelPeriodo, tabellaBiancheriaAssente, LIMITE, VOCI, CHIAVI, limitiRecupero, validaRecupero } from './biancheria.ts'
 
-test('limiti: federe 4, lenzuola e tappeti 1, teli e asciugamani 2; otto voci in due gruppi', () => {
-  assert.deepEqual(LIMITE, { federe: 4, lenzuolo_sotto: 1, lenzuolo_sopra: 1, telo_doccia: 2, asciugamano_viso: 2, asciugamano_mani: 2, tappetino_doccia: 1, tappeto_bagno: 1 })
+test('limiti: federe 4, lenzuola e tappeti 1, limite di sicurezza asciugamani 16; otto voci in due gruppi', () => {
+  assert.deepEqual(LIMITE, { federe: 4, lenzuolo_sotto: 1, lenzuolo_sopra: 1, telo_doccia: 16, asciugamano_viso: 16, asciugamano_mani: 16, tappetino_doccia: 1, tappeto_bagno: 1 })
   assert.equal(CHIAVI.length, 8)
   assert.deepEqual(VOCI.filter(v => v.gruppo === 'lenzuola').map(v => v.chip), ['Federa', 'Sotto', 'Sopra'])
   assert.deepEqual(VOCI.filter(v => v.gruppo === 'asciugamani').map(v => v.chip), ['Telo doccia', 'Viso', 'Mani', 'Tappetino doccia', 'Tappeto bagno'])
@@ -17,12 +17,12 @@ test('tocco: +1 fino al massimo, poi torna a 0', () => {
   v = tocca(v, 'lenzuolo_sotto'); assert.equal(v.lenzuolo_sotto, 0)      // max 1 → torna a 0
   for (let i = 1; i <= 4; i++) { v = tocca(v, 'federe'); assert.equal(v.federe, i) }
   v = tocca(v, 'federe'); assert.equal(v.federe, 0)                      // max 4 → torna a 0
-  v = tocca(tocca(tocca(v, 'telo_doccia'), 'telo_doccia'), 'telo_doccia'); assert.equal(v.telo_doccia, 0)
+  v = tocca(tocca(tocca(v, 'telo_doccia', limitiRecupero(2)), 'telo_doccia', limitiRecupero(2)), 'telo_doccia', limitiRecupero(2)); assert.equal(v.telo_doccia, 0)
 })
 
-test('normalizza: valori letti da fuori restano nei limiti, mai negativi, mancanti = 0', () => {
+test('normalizza: non tronca quantità già salvate, mai negativi, mancanti = 0', () => {
   const n = normalizza({ federe: 9, telo_doccia: -1, tappeto_bagno: '1', asciugamano_viso: 'x' })
-  assert.equal(n.federe, 4); assert.equal(n.telo_doccia, 0); assert.equal(n.tappeto_bagno, 1); assert.equal(n.asciugamano_viso, 0); assert.equal(n.lenzuolo_sopra, 0)
+  assert.equal(n.federe, 9); assert.equal(n.telo_doccia, 0); assert.equal(n.tappeto_bagno, 1); assert.equal(n.asciugamano_viso, 0); assert.equal(n.lenzuolo_sopra, 0)
   assert.deepEqual(normalizza(null), vuoto())
 })
 
@@ -56,4 +56,18 @@ test('tabella assente = migrazione 0039 non applicata (PGRST205 / 42P01), altri 
   assert.equal(tabellaBiancheriaAssente({ code: '42P01' }), true)
   assert.equal(tabellaBiancheriaAssente({ code: '42501' }), false)
   assert.equal(tabellaBiancheriaAssente(null), false)
+})
+
+// Requisito 08/09: superato il vecchio limite fisso di due, non i limiti per ospite.
+test('due set completi = sei pezzi; tre = nove, persistono senza troncamento', () => {
+  for (const persone of [2, 3, 4]) {
+    let valori = vuoto()
+    const limiti = limitiRecupero(persone)
+    for (const k of ['telo_doccia', 'asciugamano_viso', 'asciugamano_mani'] as const) {
+      for (let n = 0; n < persone; n++) valori = tocca(valori, k, limiti)
+    }
+    assert.equal(totale(normalizza(valori)), persone * 3)
+    assert.equal(validaRecupero(valori, limiti), null)
+    assert.ok(validaRecupero({ ...valori, telo_doccia: persone + 1 }, limiti))
+  }
 })

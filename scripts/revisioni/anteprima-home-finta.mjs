@@ -31,6 +31,7 @@
 //   Errore      GET /finto/errore-richieste?on=1 fa fallire la lettura di `richieste`
 //               («Non riesco a controllare, riprova»); GET /finto/errore-oggi?on=1 fa fallire
 //               la lettura dei tre numeri (trattini + avviso con Riprova)
+import { databasePulizieFinto } from './pulizie-db-finto.mjs'
 import { createServer } from 'node:http'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -196,6 +197,22 @@ const da_controllare_rinvii = []
 const biancheria_recuperata = []
 let senzaBiancheria = false
 
+// Scenario dedicato alle pulizie, attivato solo nel collaudo locale.
+let dbPulizie = null
+let perdiRispostaPulizia = false
+if (process.env.FINTO_PULIZIE_SQL === '1') {
+  bookings.splice(0, bookings.length,
+    prenotazione(ROOM.amelia, G.oggiOut.id, O(-4), O(0), 3, { pagato: true }),
+    prenotazione(ROOM.amelia, G.anna.id, O(1), O(4), 2, {}),
+    prenotazione(ROOM.ambra, G.ieriOut.id, O(-3), O(0), 2, { pagato: true }),
+    prenotazione(ROOM.allegra, G.lucia.id, O(-7), O(15), 3, {}),
+    prenotazione(ROOM.lena, G.elena.id, O(-10), O(10), 2, {}))
+  cleanings.splice(0, cleanings.length, { id: 'cccccccc-0003-4000-8000-000000000003', room_id: ROOM.lena,
+    booking_id: bookings[4].id, tipo: 'soggiorno', stato: 'fatta', data_prevista: O(-6), data_effettiva: O(-4),
+    prossima_data: null, cambio_biancheria: true, created_at: new Date(adesso.getTime() - 4 * 86400000).toISOString() })
+  dbPulizie = await databasePulizieFinto(rooms, bookings, cleanings)
+}
+
 const tabelle = { rooms, guests, bookings, payments, cleanings, richieste, family_documents, da_controllare_rinvii, strutture, biancheria_recuperata }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
 
@@ -255,12 +272,17 @@ function interroga(tabella, url) {
     righe = righe.filter(x => confronta(x[chiave], m[1], m[2]))
   }
   const order = url.searchParams.get('order')
-  if (order) {
-    const [col, dir] = order.split('.')
-    righe.sort((a, b) => (String(a[col]) < String(b[col]) ? -1 : 1) * (dir === 'desc' ? -1 : 1))
-  }
-  const limit = url.searchParams.get('limit')
-  if (limit) righe = righe.slice(0, Number(limit))
+  if (order) righe.sort((a, b) => {
+    for (const part of order.split(',')) {
+      const [col, dir] = part.split('.')
+      const delta = String(a[col] ?? '').localeCompare(String(b[col] ?? '')) * (dir === 'desc' ? -1 : 1)
+      if (delta) return delta
+    }
+    return 0
+  })
+  const offset = Number(url.searchParams.get('offset') || 0)
+  const limit = Number(url.searchParams.get('limit') || 1000)
+  righe = righe.slice(offset, offset + limit)
   return righe.map(x => applicaSelect(x, url.searchParams.get('select') || '*'))
 }
 
@@ -314,6 +336,19 @@ const finto = createServer(async (req, res) => {
   }
   if (erroreOggi && url.pathname === '/rest/v1/bookings' && (url.searchParams.get('check_in') || '').startsWith('lte.')) {
     return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla lettura delle prenotazioni di oggi', details: null, hint: null })
+  }
+  if (url.pathname === '/finto/perdi-risposta-pulizia') { perdiRispostaPulizia = true; return rispondi(res, 200, { pronto: true }) }
+  if (url.pathname === '/rest/v1/rpc/gestisci_pulizia' && req.method === 'POST') {
+    if (!dbPulizie) return rispondi(res, 404, { code: 'PGRST202', message: 'Attivare FINTO_PULIZIE_SQL=1' })
+    const corpo = await leggiCorpo(req)
+    try {
+      const result = (await dbPulizie.query('select gestisci_pulizia($1,$2::jsonb) as r', [corpo.p_operazione, JSON.stringify(corpo.p_richiesta)])).rows[0].r
+      const c = (await dbPulizie.query('select row_to_json(c) as r from cleanings c')).rows.map(x => x.r)
+      const b = (await dbPulizie.query('select row_to_json(b) as r from biancheria_recuperata b')).rows.map(x => x.r)
+      cleanings.splice(0, cleanings.length, ...c); biancheria_recuperata.splice(0, biancheria_recuperata.length, ...b)
+      if (perdiRispostaPulizia) { perdiRispostaPulizia = false; res.destroy(); return }
+      return rispondi(res, 200, result)
+    } catch (e) { return rispondi(res, 400, { code: e.code, message: e.message }) }
   }
   if (url.pathname === '/auth/v1/token') return rispondi(res, 200, sessione())
   if (url.pathname === '/auth/v1/user') return rispondi(res, 200, utente)
@@ -398,7 +433,7 @@ const finto = createServer(async (req, res) => {
 
 finto.listen(PORTA_FINTO, '127.0.0.1', () => {
   console.log(`[finto supabase] http://127.0.0.1:${PORTA_FINTO} (oggi ${ymd(adesso)}, ${bookings.length} prenotazioni, ${richieste.length} richieste)`)
-  const next = spawn(path.join(radice, 'node_modules', '.bin', 'next'), ['dev', '-p', String(PORTA_APP)], {
+  const next = spawn(path.join(radice, 'node_modules', '.bin', 'next'), ['dev', '--webpack', '-p', String(PORTA_APP)], {
     cwd: radice,
     stdio: 'inherit',
     env: {

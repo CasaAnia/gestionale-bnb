@@ -1,247 +1,94 @@
 'use client'
-import { useMemo, useState } from 'react'
-import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
-import { NOTTI_CAMBIO, CUTOFF_STORICO, addDaysStr, diffDays, pulizieAutomatiche, NOTA_AUTOMATICA_TOLTA, type Decisione } from '@/lib/pulizie'
-import { riassuntoInterventi, testoMediaGiorno, testoOgniGiorni, testoDettaglio } from '@/lib/pulizieStatistiche'
+import { useEffect, useMemo, useState } from 'react'
+import ControlliPulizia from '@/components/ControlliPulizia'
+import AvvisoAzione from '@/components/AvvisoAzione'
+import { leggiRecuperiDellePulizie } from '@/lib/biancheriaDati'
+import { type Recupero, type VoceBiancheria } from '@/lib/biancheria'
+import { confrontaDecisioni, addDaysStr, type CameraPulizie, type PrenotazionePulizie, type Decisione } from '@/lib/pulizie'
+import { confrontoPeriodoPulizie, csvPulizie, periodoPulizie, resocontoPulizie, TIPI_PULIZIA, type PeriodoPulizie } from '@/lib/pulizieResoconto'
 
-// Soggiorni senza mai cambio biancheria: lo storico stimato è "1 cambio ogni
-// 4 notti", ma per questi sappiamo che il cambio non è mai stato fatto.
-// Giovanna Ricci, Amelia, 4 maggio – 13 giugno 2026 (40 notti).
-const SOGGIORNI_SENZA_CAMBIO = ['9d539f6d-85c8-4da6-9da6-7aaa74dce042']
+const dataBreve = (s: string) => s.split('-').reverse().join('/')
+const numero = (n: number | null) => n === null ? '—' : n.toLocaleString('it-IT', { maximumFractionDigits: 1 })
 
-type Periodo = 'settimana' | 'mese' | 'anno'
-
-// Intervallo [inizio, fine] del periodo scelto; offset 0 = corrente, -1 = precedente...
-function intervallo(periodo: Periodo, offset: number): { inizio: string; fine: string; label: string } {
-  const oggi = new Date()
-  if (periodo === 'settimana') {
-    const lun = new Date(oggi)
-    lun.setDate(oggi.getDate() - ((oggi.getDay() + 6) % 7) + offset * 7)
-    const dom = new Date(lun)
-    dom.setDate(lun.getDate() + 6)
-    const s = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    const label = `${lun.getDate()} ${lun.toLocaleDateString('it-IT', { month: 'long' })} – ${dom.getDate()} ${dom.toLocaleDateString('it-IT', { month: 'long' })}`
-    return { inizio: s(lun), fine: s(dom), label }
-  }
-  if (periodo === 'mese') {
-    const m = new Date(oggi.getFullYear(), oggi.getMonth() + offset, 1)
-    const fine = new Date(m.getFullYear(), m.getMonth() + 1, 0)
-    const s = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    return { inizio: s(m), fine: s(fine), label: m.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }) }
-  }
-  const anno = oggi.getFullYear() + offset
-  return { inizio: `${anno}-01-01`, fine: `${anno}-12-31`, label: String(anno) }
-}
-
-type Evento = { roomId: string; date: string }
-
-// Statistiche di pulizie e cambi biancheria, in fondo alla pagina Pulizie.
-//
-// Due fonti, con un confine netto (CUTOFF_STORICO, 24/08/2026):
-//  - PRIMA del confine: stime dalle prenotazioni, come da sempre (una pulizia
-//    per ogni partenza, un cambio ogni 4 notti di soggiorno);
-//  - DAL confine in poi: la tabella cleanings, cioè le pulizie realmente
-//    segnate da Ania. Numeri veri, non più stimati — comprese rimandate
-//    e saltate, che prima non lasciavano traccia — PIÙ le pulizie
-//    automatiche dei cambi ospite (partenza e nuovo arrivo lo stesso giorno
-//    o il giorno dopo: lib/pulizie, regola del 04/09/2026), anche nelle
-//    settimane passate. Una pulizia segnata a mano lo stesso giorno nella
-//    stessa camera non si conta due volte (lo garantisce pulizieAutomatiche).
-export default function Statistiche({ rooms, bookings, events, td }:
-  { rooms: any[]; bookings: any[]; events: Decisione[]; td: string }) {
-  const [periodo, setPeriodo] = useState<Periodo>('mese')
+export default function Statistiche({ rooms, bookings, events, td }: { rooms: CameraPulizie[]; bookings: PrenotazionePulizie[]; events: Decisione[]; td: string }) {
+  const [tipo, setTipo] = useState<PeriodoPulizie>('mese')
   const [offset, setOffset] = useState(0)
-
-  const { pulizie, cambi, rimandate, saltate, ritardi } = useMemo(() => {
-    const pulizie: Evento[] = []
-    const cambi: Evento[] = []
-    const rimandate: Evento[] = []
-    const saltate: Evento[] = []
-    const ritardi: number[] = []   // giorni di rinvio di ogni "rimandata" (per la media)
-
-    // --- Stime per il passato (prima del confine) ---
-    for (const room of rooms) {
-      const own = bookings
-        .filter(b => b.room_id === room.id)
-        .sort((a, b) => a.check_in.localeCompare(b.check_in))
-      // Unisce i prolungamenti in soggiorni continuativi
-      const soggiorni: any[][] = []
-      for (const b of own) {
-        const ultimo = soggiorni[soggiorni.length - 1]
-        const coda = ultimo?.[ultimo.length - 1]
-        if (coda && coda.guest_id && coda.guest_id === b.guest_id && coda.check_out === b.check_in) ultimo.push(b)
-        else soggiorni.push([b])
-      }
-      // Una pulizia per ogni soggiorno concluso prima del confine (al cambio
-      // ospite la pulizia c'è sempre stata). Dal confine in poi contano solo
-      // le pulizie segnate davvero.
-      const conclusi = soggiorni.filter(s => s[s.length - 1].check_out <= td && s[s.length - 1].check_out < CUTOFF_STORICO)
-      conclusi.forEach(s => {
-        const coda = s[s.length - 1]
-        const cleanedAt = s.map(x => x.cleaned_at).filter(Boolean).sort().slice(-1)[0]
-        let date = cleanedAt ? cleanedAt.slice(0, 10) : coda.check_out
-        // Una pulizia segnata in ritardo non può cadere dopo l'arrivo dell'ospite
-        // successivo: la camera era per forza già pulita a quell'arrivo
-        const arrivoDopo = soggiorni[soggiorni.indexOf(s) + 1]?.[0]?.check_in
-        if (arrivoDopo && date > arrivoDopo) date = arrivoDopo
-        pulizie.push({ roomId: room.id, date })
-      })
-      for (const s of soggiorni) {
-        if (s.some(x => SOGGIORNI_SENZA_CAMBIO.includes(x.id))) continue
-        const inizio = s[0].check_in
-        const fine = s[s.length - 1].check_out
-        // Cambi stimati SOLO fino al confine: da lì in poi valgono le decisioni vere
-        const limite = CUTOFF_STORICO < fine ? CUTOFF_STORICO : fine
-        const linen = s.map(x => x.linen_next_date).filter(Boolean).sort().slice(-1)[0]
-        if (linen) {
-          for (let d = addDaysStr(linen, -NOTTI_CAMBIO); d > inizio; d = addDaysStr(d, -NOTTI_CAMBIO)) {
-            if (d < limite && d <= td) cambi.push({ roomId: room.id, date: d })
-          }
-        } else {
-          for (let d = addDaysStr(inizio, NOTTI_CAMBIO); d < limite && d <= td; d = addDaysStr(d, NOTTI_CAMBIO)) {
-            cambi.push({ roomId: room.id, date: d })
-          }
-        }
-      }
-    }
-
-    // --- Dati veri (tabella cleanings) ---
-    for (const e of events) {
-      if (e.stato === 'fatta') {
-        const date = e.data_effettiva || e.data_prevista
-        if (e.tipo === 'soggiorno') cambi.push({ roomId: e.room_id, date })
-        else pulizie.push({ roomId: e.room_id, date })
-      } else if (e.stato === 'rimandata') {
-        rimandate.push({ roomId: e.room_id, date: e.data_prevista })
-        if (e.prossima_data) ritardi.push(diffDays(e.prossima_data, e.data_prevista))
-      } else if (e.stato === 'saltata' && e.note !== NOTA_AUTOMATICA_TOLTA) {
-        // «non fatta» su un'automatica toglie solo quella: non è una saltata concordata
-        saltate.push({ roomId: e.room_id, date: e.data_prevista })
-      }
-    }
-
-    // --- Cambi ospite automatici (dal confine in poi, fino a oggi) ---
-    for (const a of pulizieAutomatiche(bookings, events, td)) pulizie.push({ roomId: a.roomId, date: a.data })
-
-    return { pulizie, cambi, rimandate, saltate, ritardi }
-  }, [rooms, bookings, events, td])
-
-  const { inizio, fine, label } = intervallo(periodo, offset)
-  const nelPeriodo = (e: Evento) => e.date >= inizio && e.date <= fine
-  const pulizieP = pulizie.filter(nelPeriodo)
-  const cambiP = cambi.filter(nelPeriodo)
-  const rimandateP = rimandate.filter(nelPeriodo)
-  const saltateP = saltate.filter(nelPeriodo)
-
-  const perCamera = rooms.map(room => ({
-    room,
-    shortName: room.name.split(' ').slice(-1)[0],
-    pulizie: pulizieP.filter(e => e.roomId === room.id).length,
-    cambi: cambiP.filter(e => e.roomId === room.id).length,
-  }))
-  const maxConteggio = Math.max(1, ...perCamera.map(c => Math.max(c.pulizie, c.cambi)))
-
-  // Dato principale (04/09/2026): TOTALE INTERVENTI = pulizie (a mano e
-  // automatiche) + cambi biancheria, con la media al giorno sui giorni già
-  // trascorsi del periodo; sotto, in piccolo, «di cui N pulizie, N cambi»
-  const riassunto = riassuntoInterventi(pulizie, cambi, inizio, fine, td)
-  const top = perCamera.reduce((a, b) => (b.pulizie + b.cambi > a.pulizie + a.cambi ? b : a), perCamera[0])
-  const ritardoMedio = ritardi.length > 0 ? Math.round((ritardi.reduce((a, b) => a + b, 0) / ritardi.length) * 10) / 10 : null
-
-  return (
-    <div className="mt-8">
-      <h2 className="ed-titolo-medio mb-1">Statistiche</h2>
-      <p className="ed-sotto mb-4">Quante volte sono state rifatte le camere</p>
-
-      <div className="flex gap-1.5 mb-3">
-        {(['settimana', 'mese', 'anno'] as Periodo[]).map(p => (
-          <button key={p} onClick={() => { setPeriodo(p); setOffset(0) }}
-            className={`rounded-full text-xs font-semibold px-3.5 py-1.5 capitalize transition-colors ${periodo === p ? 'text-cream-text' : 'border border-[#C9BFA8] text-stone'}`}
-            style={periodo === p ? { background: '#2D6A4F' } : undefined}>
-            {p}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex items-center justify-center gap-4 mb-3">
-        <button onClick={() => setOffset(offset - 1)} aria-label="Periodo precedente"
-          className="shrink-0 rounded-full border border-[#C9BFA8] w-9 h-9 text-green-dark font-bold">‹</button>
-        <span className="font-serif text-xl text-green-dark capitalize text-center min-w-[120px]" style={{ fontWeight: 400 }}>{label}</span>
-        <button onClick={() => { if (offset < 0) setOffset(offset + 1) }} aria-label="Periodo successivo"
-          className="shrink-0 rounded-full border border-[#C9BFA8] w-9 h-9 text-green-dark font-bold">›</button>
-      </div>
-
-      <div className="ed-riga-ottone pb-3 mb-1">
-        <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Interventi</p>
-        <p className="ed-numero mt-1.5">{riassunto.interventi}</p>
-        <p className="text-[11px] text-stone mt-0.5">{testoDettaglio(riassunto)}</p>
-      </div>
-
-      {(rimandateP.length > 0 || saltateP.length > 0) && (
-        <div className="grid grid-cols-2 gap-x-3 mb-1">
-          <div className="ed-riga">
-            <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Rimandate</p>
-            <p className="ed-numero-medio mt-1.5">{rimandateP.length}</p>
-            {ritardoMedio != null && (
-              <p className="text-[11px] text-stone mt-0.5">rinvio medio {ritardoMedio.toLocaleString('it-IT')} {ritardoMedio === 1 ? 'giorno' : 'giorni'}</p>
-            )}
-          </div>
-          <div className="ed-riga">
-            <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Saltate</p>
-            <p className="ed-numero-medio mt-1.5">{saltateP.length}</p>
-            <p className="text-[11px] text-stone mt-0.5">concordate con l&apos;ospite</p>
-          </div>
-        </div>
-      )}
-
-      <div className="ed-riga py-4">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-[10px] uppercase tracking-[1.5px] text-brass">Per camera</p>
-          <p className="text-[11px] text-stone">
-            <span className="inline-block w-2 h-2 rounded-full align-middle mr-1" style={{ background: '#6C9A7C' }} />pulizie
-            <span className="inline-block w-2 h-2 rounded-full align-middle ml-2.5 mr-1" style={{ background: '#7C857A' }} />cambi
-          </p>
-        </div>
-        {perCamera.map(({ room, shortName, pulizie, cambi }) => (
-          <div key={room.id} className="mb-3 last:mb-0">
-            <div className="flex items-baseline gap-2">
-              <span className="font-serif text-sm text-brass">{ROOM_NUMBER_BY_NAME[shortName] || ''}</span>
-              <span className="font-serif text-green-dark">{shortName}</span>
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <div className="h-1.5 rounded-full" style={{ background: '#6C9A7C', width: `${(pulizie / maxConteggio) * 82}%`, minWidth: pulizie > 0 ? 6 : 0 }} />
-              <span className="text-xs font-semibold text-green-dark">{pulizie}</span>
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <div className="h-1.5 rounded-full" style={{ background: '#7C857A', width: `${(cambi / maxConteggio) * 82}%`, minWidth: cambi > 0 ? 6 : 0 }} />
-              <span className="text-xs font-semibold text-stone">{cambi}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="ed-riga py-4 mb-1">
-        <p className="text-sm text-green-dark">
-          {riassunto.alGiorno === null ? testoMediaGiorno(riassunto)
-            : <>In media <span className="font-bold">{riassunto.alGiorno === 1 ? 'un intervento' : `${riassunto.alGiorno.toLocaleString('it-IT')} interventi`}</span> al giorno</>}
-        </p>
-        {testoOgniGiorni(riassunto) && <p className="text-[11px] text-stone mt-0.5">{testoOgniGiorni(riassunto)}</p>}
-        {top && top.pulizie + top.cambi > 0 && (
-          <p className="text-sm text-green-dark mt-1">
-            Camera più impegnativa: <span className="font-bold">{top.shortName}</span> ({top.pulizie + top.cambi} {top.pulizie + top.cambi === 1 ? 'intervento' : 'interventi'})
-          </p>
-        )}
-      </div>
-
-      <p className="text-[11px] text-stone leading-relaxed">
-        Gli interventi sommano pulizie e cambi biancheria: ogni cambio vale uno.
-        Fino al 23 agosto 2026 i numeri sono ricostruiti dalle prenotazioni (una
-        pulizia per ogni partenza, un cambio stimato ogni {NOTTI_CAMBIO} notti; il
-        soggiorno lungo di Giovanna in Amelia è escluso perché il cambio non è mai
-        stato fatto). Dal 24 agosto contano le pulizie segnate davvero nella
-        pagina, comprese rimandate e saltate, più quelle automatiche dei cambi
-        ospite (partenza e nuovo arrivo lo stesso giorno o il giorno dopo).
-      </p>
+  const [lettura, setLettura] = useState<{ chiave: string; righe: Recupero[] } | null>(null)
+  const [errore, setErrore] = useState<string | null>(null)
+  const [tentativo, setTentativo] = useState(0)
+  const [camera, setCamera] = useState('')
+  const [voce, setVoce] = useState<VoceBiancheria | ''>('')
+  const [intervento, setIntervento] = useState('')
+  const [registro, setRegistro] = useState(false)
+  const ids = events.filter(e => e.stato === 'fatta' && e.id).map(e => e.id!).sort().join(',')
+  const recuperi = lettura?.chiave === `${ids}:${tentativo}` ? lettura.righe : null
+  useEffect(() => {
+    let viva = true
+    leggiRecuperiDellePulizie(ids ? ids.split(',') : []).then(r => {
+      if (!viva) return
+      if (r.errore || !r.tabella) setErrore(r.errore || 'Non riesco a leggere la biancheria recuperata.')
+      else { setErrore(null); setLettura({ chiave: `${ids}:${tentativo}`, righe: r.righe }) }
+    }).catch(() => { if (viva) setErrore('Non riesco a leggere la biancheria recuperata.') })
+    return () => { viva = false }
+  }, [ids, tentativo])
+  const periodo = periodoPulizie(tipo, offset, td), precedente = confrontoPeriodoPulizie(tipo, offset, td)
+  const report = useMemo(() => resocontoPulizie(rooms, bookings, events, recuperi, periodo.da, periodo.fino, td), [rooms, bookings, events, recuperi, periodo.da, periodo.fino, td])
+  const confronto = useMemo(() => resocontoPulizie(rooms, bookings, events, recuperi, precedente.da, precedente.fino, td), [rooms, bookings, events, recuperi, precedente.da, precedente.fino, td])
+  const nome = (id: string) => rooms.find(r => r.id === id)?.name.split(' ').slice(-1)[0] ?? 'Camera non disponibile'
+  const ultimaId = (id: string) => events.filter(e => e.room_id === id).sort((a, b) => confrontaDecisioni(b, a))[0]?.id ?? null
+  const label = tipo === 'mese' ? new Date(`${periodo.da}T12:00:00Z`).toLocaleDateString('it-IT', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : tipo === 'anno' ? periodo.da.slice(0, 4) : `${dataBreve(periodo.da)} – ${dataBreve(addDaysStr(periodo.fino, -1))}`
+  function apri(cam = '', v: VoceBiancheria | '' = '', t = '') { setCamera(cam); setVoce(v); setIntervento(t); setRegistro(true) }
+  function esporta() {
+    const blob = new Blob([csvPulizie(report, rooms)], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob), a = document.createElement('a')
+    a.href = url; a.download = `Casa-Ania-pulizie-${periodo.da}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+  const righe = report.righe.filter(r => (!camera || r.pulizia.room_id === camera) && (!voce || (r.recupero?.[voce] ?? 0) > 0) && (!intervento || r.pulizia.tipo === intervento))
+  return <section id="statistiche" className="mt-8 scroll-mt-20" data-resoconto-pulizie>
+    <h2 className="ed-titolo-medio">Il resoconto delle pulizie</h2>
+    <p className="ed-sotto mb-4">Interventi confermati e biancheria recuperata</p>
+    <div className="flex flex-wrap gap-2 mb-3">{(['settimana', 'mese', 'anno'] as const).map(t => <button type="button" key={t} onClick={() => { setTipo(t); setOffset(0); setRegistro(false) }} className={tipo === t ? 'ed-pillola capitalize' : 'ed-pillola-contorno capitalize'}>{t}</button>)}</div>
+    <div className="flex items-center justify-between gap-3 mb-4">
+      <button type="button" className="ed-pillola-contorno" aria-label="Periodo precedente" onClick={() => { setOffset(x => x - 1); setRegistro(false) }}>‹</button>
+      <p className="font-serif text-xl text-green-dark capitalize text-center">{label}</p>
+      <button type="button" className="ed-pillola-contorno disabled:opacity-40" aria-label="Periodo successivo" disabled={offset >= 0} onClick={() => { setOffset(x => x + 1); setRegistro(false) }}>›</button>
     </div>
-  )
+    <div className="grid grid-cols-2 gap-4 border-t border-brass pt-3">
+      <button type="button" className="text-left" onClick={() => apri()}><span className="ed-sezione">Interventi confermati</span><span className="ed-numero block mt-2" data-totale-interventi>{report.fatte.length}</span></button>
+      <button type="button" className="text-left" onClick={() => apri()} disabled={recuperi === null}><span className="ed-sezione">Pezzi recuperati</span><span className="ed-numero block mt-2" data-totale-recuperi>{numero(report.pezzi)}</span></button>
+    </div>
+    {errore && <AvvisoAzione testo={errore} onRiprova={() => setTentativo(x => x + 1)} className="mt-3" />}
+    <p className="text-xs text-stone mt-2">{report.conRecuperi === null ? (errore ? 'Recuperi non disponibili.' : 'Lettura dei recuperi…') : `${report.conRecuperi} interventi con recuperi su ${report.fatte.length} confermati.`}</p>
+    <div className="flex flex-wrap gap-x-4 gap-y-2 py-3">{report.perTipo.map(t => <button type="button" key={t.tipo} className="text-xs text-stone underline underline-offset-4" onClick={() => apri('', '', t.tipo)}>{TIPI_PULIZIA[t.tipo]} · {t.n}</button>)}</div>
+    <p className="text-xs text-stone border-t border-card-border py-3">Confronto con {dataBreve(precedente.da)} – {dataBreve(addDaysStr(precedente.fino, -1))}: {confronto.fatte.length} interventi confermati ({confronto.stime.length} stimati a parte), {numero(confronto.pezzi)} pezzi. Notti occupate: {report.notti} nel periodo scelto, {confronto.notti} nel precedente.</p>
+    {report.stime.length > 0 && <details className="text-xs text-stone border-t border-card-border py-3"><summary className="cursor-pointer">{report.stime.length} interventi ricostruiti dallo storico, separati dai confermati</summary><p className="mt-2">Sono stime del vecchio sistema; possono cambiare se si correggono le prenotazioni.</p>{report.stime.map((r, i) => <p key={i} className="mt-1">{dataBreve(r.date)} · {nome(r.roomId)} · {TIPI_PULIZIA[r.tipo]}</p>)}</details>}
+    <div className="ed-riga py-4"><p className="ed-sezione mb-2">Per camera</p>
+      <div className="grid grid-cols-[1fr_70px_65px_50px] text-[11px] text-stone mb-1"><span>Camera</span><span className="text-right">Interventi</span><span className="text-right">Pezzi</span><span className="text-right">Notti</span></div>
+      {report.perCamera.map(r => <button type="button" key={r.room.id} onClick={() => apri(r.room.id)} className="grid grid-cols-[1fr_70px_65px_50px] w-full text-left py-2 border-t border-card-border text-sm"><span className="font-serif text-green-dark">{nome(r.room.id)}</span><span className="text-right">{r.interventi}</span><span className="text-right text-green-mid">{numero(r.pezzi)}</span><span className="text-right text-stone">{r.notti}</span></button>)}
+    </div>
+    <div className="ed-riga py-4"><p className="ed-sezione mb-2">Che cosa hai recuperato</p>
+      {report.perVoce ? <div className="grid grid-cols-2 gap-x-5">{report.perVoce.map(v => <button type="button" key={v.chiave} onClick={() => apri('', v.chiave)} className="flex justify-between text-left gap-2 py-2 text-sm border-b border-card-border"><span className="text-stone">{v.etichetta}</span><span className="text-green-mid font-semibold">{v.n}</span></button>)}</div> : <p className="text-xs text-stone">{errore ? 'Conteggi non disponibili.' : 'Caricamento…'}</p>}
+    </div>
+    <details className="ed-riga py-4"><summary className="cursor-pointer"><span className="ed-sezione">Spostamenti e salti</span><p className="text-sm text-green-dark mt-2">{report.spostate.length} pulizie spostate · {report.numeroRinvii} rinvii · {report.saltate.length} saltate</p></summary>
+      <p className="text-xs text-stone mt-2">Rinvio complessivo medio: {numero(report.rinvioMedio)} giorni. Il periodo è quello della prima data prevista.</p>
+      {report.spostate.map((g, i) => <p key={i} className="text-xs mt-2">{nome(g.roomId)} · dal {dataBreve(g.prevista)} al {dataBreve(g.prossima)} · {g.rinvii.length} rinvii, {g.giorni} giorni</p>)}
+      {report.saltate.map((r, i) => <p key={`s${i}`} className="text-xs mt-2">{nome(r.room_id)} · saltata la pulizia del {dataBreve(r.data_prevista)}</p>)}
+    </details>
+    <details className="ed-riga py-4"><summary className="cursor-pointer"><span className="ed-sezione">Cadenza effettiva</span><p className="text-sm text-green-dark mt-2">{report.cadenza === null ? 'Servono almeno due cambi nello stesso soggiorno' : `In media ${numero(report.cadenza)} notti tra i cambi`}</p></summary>
+      <p className="text-xs text-stone mt-2">Intervalli fra due cambi confermati nella stessa camera e nello stesso soggiorno. Conta il periodo in cui è stato fatto il secondo.</p>
+      {report.intervalli.map((r, i) => <p key={i} className="text-xs mt-2">{nome(r.roomId)} · {dataBreve(r.da)} → {dataBreve(r.a)} · {r.notti} notti</p>)}
+    </details>
+    {report.avvisi.map(a => <AvvisoAzione key={a} testo={a} className="mt-2" />)}
+    <div className="flex flex-wrap gap-2 mt-4"><button type="button" className="ed-pillola" onClick={() => { if (registro) setRegistro(false); else apri() }}>{registro ? 'Chiudi registro' : 'Apri registro del periodo'}</button><button type="button" className="ed-pillola-contorno" onClick={esporta} disabled={recuperi === null}>Esporta resoconto</button></div>
+    {registro && <div className="mt-4" data-registro-mese>
+      <div className="flex flex-wrap gap-2 mb-3"><select className="ed-campo text-xs max-w-full" aria-label="Filtra camera" value={camera} onChange={e => setCamera(e.target.value)}><option value="">Tutte le camere</option>{rooms.map(r => <option key={r.id} value={r.id}>{nome(r.id)}</option>)}</select>
+        <select className="ed-campo text-xs max-w-full" aria-label="Filtra recupero" value={voce} onChange={e => setVoce(e.target.value as VoceBiancheria | '')}><option value="">Tutti i recuperi</option>{report.perVoce?.map(v => <option key={v.chiave} value={v.chiave}>{v.etichetta}</option>)}</select>
+        <select className="ed-campo text-xs max-w-full" aria-label="Filtra intervento" value={intervento} onChange={e => setIntervento(e.target.value)}><option value="">Tutti gli interventi</option>{report.perTipo.map(v => <option key={v.tipo} value={v.tipo}>{TIPI_PULIZIA[v.tipo]}</option>)}</select></div>
+      <p className="text-xs text-stone mb-2">{righe.length} interventi · {numero(recuperi === null ? null : righe.reduce((n, r) => n + (voce ? r.recupero?.[voce] ?? 0 : r.pezzi ?? 0), 0))} pezzi{voce ? ' del tipo scelto' : ''}</p>
+      {righe.map((r, i) => <div key={r.pulizia.id ?? i} className="py-3 border-t border-card-border"><p className="font-serif text-lg text-green-dark">{nome(r.pulizia.room_id)} · {dataBreve(r.pulizia.data_effettiva || r.pulizia.data_prevista)}</p><p className="text-xs text-stone">{TIPI_PULIZIA[r.pulizia.tipo]}</p>
+        <ControlliPulizia camera={nome(r.pulizia.room_id)} oggi={td} pulizia={r.pulizia} ultimaId={ultimaId(r.pulizia.room_id)} persone={r.pulizia.persone_servite ?? (Number(bookings.find(b => b.id === r.pulizia.booking_id)?.num_guests) || null)} onSalvato={() => setTentativo(x => x + 1)} />
+        {r.recupero?.updated_at && <p className="text-[11px] text-stone mt-2">Recupero aggiornato il {new Date(r.recupero.updated_at).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}</p>}
+      </div>)}
+    </div>}
+  </section>
 }

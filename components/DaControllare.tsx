@@ -11,13 +11,7 @@ import { useEffect, useState } from 'react'
 import NotaCliente from './richieste/NotaCliente'
 import Link from 'next/link'
 import AvvisoAzione from './AvvisoAzione'
-import { useDaControllare, ricaricaDaControllare } from '@/lib/daControllareDati'
-import { ricaricaNumeriOggiOvunque } from '@/lib/numeriOggiDati'
-import { segnaPuliziaFatta } from '@/lib/pulizieScritture'
-import { salvaRecupero } from '@/lib/biancheriaDati'
-import { vuoto, type Contatori } from '@/lib/biancheria'
-import SchedaRecupero from './SchedaRecupero'
-import type { Decisione } from '@/lib/pulizie'
+import { useDaControllare } from '@/lib/daControllareDati'
 import { ETICHETTA_TIPO, PAROLA_NAVETTA, hrefDestinazione, rigaAPosto, rigaConteggi, titoloStriscia, type Eccezione } from '@/lib/daControllare'
 import { BottoneWhatsApp, EtichettaBreve, BOTTONE_PIENO, BOTTONE_GHOST, ETICHETTA_CHIEDI_ORARIO, ETICHETTA_APRI_CHAT } from './BottoniWhatsApp'
 
@@ -28,10 +22,6 @@ export default function DaControllare() {
   // Avviso vicino alla voce (Rimanda non riuscito o non disponibile)
   const [avvisi, setAvvisi] = useState<Record<string, string>>({})
   const [rimandando, setRimandando] = useState<string | null>(null)
-  // Recupero biancheria (06/09/2026): «Pulita» / «Pulita + recuperato» sulla voce pulizia
-  const [segnando, setSegnando] = useState<string | null>(null)
-  const [scheda, setScheda] = useState<{ camera: string; riga: Decisione } | null>(null)
-
   // Dalle Statistiche («N pagamenti da controllare») si arriva con #da-controllare
   const pronto = dc.stato === 'pronto'
   useEffect(() => {
@@ -46,28 +36,6 @@ export default function DaControllare() {
     const msg = await dc.rimanda(e.chiave)
     setRimandando(null)
     if (msg) setAvvisi(a => ({ ...a, [e.chiave]: msg }))
-  }
-
-  // Segna la pulizia fatta oggi (riga in cleanings, esito controllato); poi Home
-  // e striscia si rileggono e la voce sparisce da sola. Con `recupero` apre la
-  // scheda della biancheria: se quel salvataggio fallisce la pulizia resta segnata.
-  async function segnaPulita(e: Eccezione, recupero: boolean) {
-    if (segnando || !e.pulizia || dc.stato !== 'pronto') return
-    setSegnando(e.chiave)
-    setAvvisi(a => { const { [e.chiave]: _via, ...resto } = a; void _via; return resto })
-    const { errore, riga } = await segnaPuliziaFatta(e.pulizia, dc.oggi)
-    setSegnando(null)
-    if (errore || !riga) { setAvvisi(a => ({ ...a, [e.chiave]: errore ?? 'Non salvato, riprova' })); return }
-    void ricaricaDaControllare()
-    ricaricaNumeriOggiOvunque()
-    if (recupero) setScheda({ camera: e.pulizia.camera, riga })
-  }
-
-  async function salvaScheda(valori: Contatori): Promise<string | null> {
-    if (!scheda?.riga.id) return 'Non salvato, riprova'
-    const { errore } = await salvaRecupero({ cleaning_id: scheda.riga.id, room_id: scheda.riga.room_id, booking_id: scheda.riga.booking_id, data: scheda.riga.data_effettiva || scheda.riga.data_prevista, ...valori })
-    if (!errore) setScheda(null)
-    return errore
   }
 
   // In cima alla Home (ritocchi del 07/09/2026): durante il controllo non si
@@ -108,24 +76,9 @@ export default function DaControllare() {
               {/* Arrivo senza orario (08/09/2026): «Chiedi orario» (pieno) · «Apri chat» (ghost) · «Apri arrivo» (ghost) */}
               {e.whatsapp?.principale && <BottoneWhatsApp href={e.whatsapp.href} numero={e.whatsapp.numero} testo={e.whatsapp.testo} etichetta={ETICHETTA_CHIEDI_ORARIO} pieno tipo="chiedi-orario" />}
               {e.whatsappChat && <BottoneWhatsApp href={e.whatsappChat.href} numero={e.whatsappChat.numero} testo="" etichetta={ETICHETTA_APRI_CHAT} pieno={false} tipo="apri-chat" />}
-              {/* Pulizia non registrata (06/09/2026): «Pulita» (pieno) · «Pulita + recuperato» (contorno) · «Apri pulizie» */}
-              {e.pulizia && (
-                <>
-                  <button type="button" onClick={() => segnaPulita(e, false)} disabled={segnando === e.chiave} data-pulita
-                    className="ed-pillola text-[13px] disabled:opacity-60"
-                    style={{ minHeight: 40 }}>
-                    {segnando === e.chiave ? 'Segno…' : 'Pulita'}
-                  </button>
-                  <button type="button" onClick={() => segnaPulita(e, true)} disabled={segnando === e.chiave} data-pulita-recuperato
-                    className="ed-pillola-contorno text-[13px] disabled:opacity-60"
-                    style={{ minHeight: 40 }}>
-                    Pulita + recuperato
-                  </button>
-                </>
-              )}
-              <Link href={hrefDestinazione(e.destinazione)}
+              <Link href={e.pulizia ? "#pulizie-oggi" : hrefDestinazione(e.destinazione)}
                 className={e.whatsapp?.principale || e.pulizia ? BOTTONE_GHOST : BOTTONE_PIENO} style={e.whatsapp?.principale || e.pulizia ? { color: '#2D6A4F' } : undefined}>
-                {e.tipo === 'arrivo' ? <EtichettaBreve testo={e.bottone} /> : e.bottone}
+                {e.pulizia ? 'Vai alla pulizia' : e.tipo === 'arrivo' ? <EtichettaBreve testo={e.bottone} /> : e.bottone}
               </Link>
               {e.whatsapp && !e.whatsapp.principale && <BottoneWhatsApp href={e.whatsapp.href} numero={e.whatsapp.numero} testo="" etichetta={ETICHETTA_APRI_CHAT} pieno={false} tipo="apri-chat" />}
               {e.rimandabile && (
@@ -143,7 +96,6 @@ export default function DaControllare() {
           <p className="py-2.5 text-[12.5px] border-t border-dashed border-[#C9BFA8]" style={{ color: 'var(--color-stone)' }}>{aPosto}</p>
         )}
       </div>
-      {scheda && <SchedaRecupero camera={scheda.camera} iniziale={vuoto()} onSalva={salvaScheda} onChiudi={() => setScheda(null)} />}
     </section>
   )
 }

@@ -1,3 +1,4 @@
+import type { PrenotazionePulizie } from './pulizie.ts'
 // Matrice di test dell'audit Pulizie (24 agosto 2026), approvata da Ania.
 // Gira con `npm test`. I due casi reali del 23 agosto sono in fondo:
 // se una modifica futura li rompe, si vede qui prima di pubblicare.
@@ -20,7 +21,7 @@ const rooms = [
 ]
 
 let seq = 0
-function prenotazione(over: any) {
+function prenotazione(over: Pick<PrenotazionePulizie, 'room_id' | 'check_in' | 'check_out'> & Partial<PrenotazionePulizie>) {
   return {
     id: `b${++seq}`, guest_id: over.guest_id ?? `g${seq}`, guest_name: over.guest_name ?? `Ospite ${seq}`,
     status: 'confermata', linen_next_date: null, check_in_time: null, ...over,
@@ -341,7 +342,8 @@ test('AUTOMATICA · solo prenotazioni confermate, mai richieste in attesa; prolu
   const f1 = prenotazione({ room_id: LENA, check_in: '2026-09-10', check_out: '2026-09-12' })
   const f2 = prenotazione({ room_id: LENA, check_in: '2026-09-12', check_out: '2026-09-14' })
   assert.equal(pulizieAutomatiche([f1, f2], [], '2026-09-04').length, 0)
-  assert.equal(pulizieAutomatiche([f1, f2], [], '2026-09-12').length, 1)
+  // Richiesta 08/09: le nuove partenze richiedono sempre la conferma manuale.
+  assert.equal(pulizieAutomatiche([f1, f2], [], '2026-09-12').length, 0)
   // prima del confine storico le statistiche stimano già una pulizia per partenza
   const v1 = prenotazione({ room_id: LENA, check_in: '2026-08-10', check_out: '2026-08-12' })
   const v2 = prenotazione({ room_id: LENA, check_in: '2026-08-12', check_out: '2026-08-14' })

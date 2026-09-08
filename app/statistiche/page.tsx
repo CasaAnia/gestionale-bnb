@@ -175,11 +175,12 @@ export default function Statistiche() {
 
   // Biancheria recuperata (06/09/2026): stessa finestra di lettura delle altre
   // voci; tabella assente (0039 non applicata) = riquadro con l'avviso, mai un errore
-  const [recuperi, setRecuperi] = useState<LetturaRecuperi | null>(null)
+  const [recuperiLetti, setRecuperiLetti] = useState<{ chiave: string; esito: LetturaRecuperi } | null>(null)
+  const recuperi = recuperiLetti?.chiave === `${chiaveLettura}:${tentativo}` ? recuperiLetti.esito : null
   useEffect(() => {
     let vivo = true
     const [da, a] = chiaveLettura.split('|')
-    leggiRecuperi(da, a).then(r => { if (vivo) setRecuperi(r) })
+    leggiRecuperi(da, a).then(r => { if (vivo) setRecuperiLetti({ chiave: `${chiaveLettura}:${tentativo}`, esito: r }) }).catch(() => { if (vivo) setRecuperiLetti({ chiave: `${chiaveLettura}:${tentativo}`, esito: { righe: [], tabella: true, errore: 'Non riesco a leggere la biancheria recuperata.' } }) })
     return () => { vivo = false }
   }, [chiaveLettura, tentativo])
 
@@ -204,7 +205,7 @@ export default function Statistiche() {
   }
 
   const intervallo = intervalloPeriodo(ref, period)
-  const biancheria = recuperi ? sommaPerVoce(nelPeriodo(recuperi.righe, intervallo.da, intervallo.a)) : null
+  const biancheria = recuperi && recuperi.tabella && !recuperi.errore ? sommaPerVoce(nelPeriodo(recuperi.righe, intervallo.da, intervallo.a)) : null
   const biancheriaTotale = biancheria ? biancheria.reduce((t, v) => t + v.n, 0) : 0
   const totali = data ? cassaIntervallo(data.prenotazioni, data.pagamenti, data.spese, intervallo.da, intervallo.a) : null
   // KPI (07/09/2026): occupazione, tariffa media, notti libere del periodo da
@@ -698,6 +699,7 @@ export default function Statistiche() {
           )}
 
           {/* Biancheria recuperata (06/09/2026): pezzi NON usati dagli ospiti e recuperati puliti, per voce nel periodo */}
+          {recuperi && (recuperi.errore || !recuperi.tabella) && <AvvisoAzione testo={recuperi.errore || AVVISO_0039} onRiprova={riprova} className="mt-3" />}
           {biancheria && (
             <div className="ed-riga py-4 mt-3" data-biancheria-recuperata>
               <p className="text-sm font-semibold text-gray-600">Biancheria recuperata</p>

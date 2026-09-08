@@ -1,3 +1,7 @@
+# Pulizie manuali e recuperi per ospite (08/09/2026)
+
+IMPLEMENTATO NELLA COPIA ISOLATA; VERIFICHE TECNICHE LOCALI RIUSCITE. Requisiti, prove e limiti in `docs/pulizie-2026-09-08.md`. Base `38cb368`. Home editoriale: Pulita = zero recuperi, Recuperato facoltativo/modificabile, asciugamani per ospite del soggiorno pulito, ciclo dalla data effettiva + 4 notti e resoconto verificabile. Suite, TypeScript, lint e build riusciti. UI a 390 px/desktop in sospeso: Mac bloccato; concorrenza PostgreSQL reale non verificata (shmget impedito). Proposta 0045 non applicata. Nessuna pubblicazione o modifica del repository/database originali. Non dichiarare concluso il collaudo a schermo.
+
 # Notti disponibili: tutte insieme oppure selezione libera (08/09/2026)
 
 **PUBBLICATO E VERIFICATO ONLINE l'08/09/2026.** Codice gestionale `c9fc523` (Vercel Production riuscito alle 16:29 UTC), sito `cb8e812` (16:30 UTC). GET autenticata del gestionale → 200 e `nottiRichieste: true`; senza autenticazione → 401. Su `www.casaaniarozzano.it/prenota` sono serviti i nuovi file e il titolo approvato. API pubblica, soltanto `checkOnly: true`: periodo parzialmente disponibile → due periodi, 15 notti; scelta di tutte le 15 e scelta separata 18/09, 20/09, 04/10 → stessi elenchi esatti nelle soluzioni; zero notti → 400. Nessun invio WhatsApp, richiesta o prenotazione di prova in produzione. Le prove UI complete a 390/1280 restano quelle locali documentate sotto.

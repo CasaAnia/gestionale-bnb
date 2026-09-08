@@ -16,6 +16,7 @@ export type Recupero = Contatori & {
   booking_id: string | null
   data: string            // giorno della pulizia (AAAA-MM-GG)
   created_at?: string
+  updated_at?: string
 }
 
 // Ordine di comparsa nella scheda e nei riassunti
@@ -23,9 +24,9 @@ export const VOCI: { chiave: VoceBiancheria; gruppo: Gruppo; chip: string; singo
   { chiave: 'federe', gruppo: 'lenzuola', chip: 'Federa', singolare: 'federa', plurale: 'federe', max: 4 },
   { chiave: 'lenzuolo_sotto', gruppo: 'lenzuola', chip: 'Sotto', singolare: 'lenzuolo sotto', plurale: 'lenzuola sotto', max: 1 },
   { chiave: 'lenzuolo_sopra', gruppo: 'lenzuola', chip: 'Sopra', singolare: 'lenzuolo sopra', plurale: 'lenzuola sopra', max: 1 },
-  { chiave: 'telo_doccia', gruppo: 'asciugamani', chip: 'Telo doccia', singolare: 'telo doccia', plurale: 'teli doccia', max: 2 },
-  { chiave: 'asciugamano_viso', gruppo: 'asciugamani', chip: 'Viso', singolare: 'asciugamano viso', plurale: 'asciugamani viso', max: 2 },
-  { chiave: 'asciugamano_mani', gruppo: 'asciugamani', chip: 'Mani', singolare: 'asciugamano mani', plurale: 'asciugamani mani', max: 2 },
+  { chiave: 'telo_doccia', gruppo: 'asciugamani', chip: 'Telo doccia', singolare: 'telo doccia', plurale: 'teli doccia', max: 16 },
+  { chiave: 'asciugamano_viso', gruppo: 'asciugamani', chip: 'Viso', singolare: 'asciugamano viso', plurale: 'asciugamani viso', max: 16 },
+  { chiave: 'asciugamano_mani', gruppo: 'asciugamani', chip: 'Mani', singolare: 'asciugamano mani', plurale: 'asciugamani mani', max: 16 },
   { chiave: 'tappetino_doccia', gruppo: 'asciugamani', chip: 'Tappetino doccia', singolare: 'tappetino doccia', plurale: 'tappetini doccia', max: 1 },
   { chiave: 'tappeto_bagno', gruppo: 'asciugamani', chip: 'Tappeto bagno', singolare: 'tappeto bagno', plurale: 'tappeti bagno', max: 1 },
 ]
@@ -34,7 +35,7 @@ export const CHIAVI: VoceBiancheria[] = VOCI.map(v => v.chiave)
 export const LIMITE: Record<VoceBiancheria, number> = Object.fromEntries(VOCI.map(v => [v.chiave, v.max])) as Record<VoceBiancheria, number>
 
 export const TITOLO_SCHEDA = 'non usato e recuperato'
-export const SOTTOTITOLO_SCHEDA = 'Tocca una volta per ogni pezzo, ritocca per togliere'
+export const SOTTOTITOLO_SCHEDA = 'Tocca soltanto i pezzi recuperati'
 export const NIENTE_RECUPERATO = 'Niente recuperato'
 
 export function vuoto(): Contatori {
@@ -42,17 +43,17 @@ export function vuoto(): Contatori {
 }
 
 // Un tocco sul chip: +1 fino al massimo, poi torna a 0 (così si toglie)
-export function tocca(valori: Contatori, chiave: VoceBiancheria): Contatori {
+export function tocca(valori: Contatori, chiave: VoceBiancheria, limiti: Contatori = LIMITE): Contatori {
   const n = (valori[chiave] ?? 0) + 1
-  return { ...valori, [chiave]: n > LIMITE[chiave] ? 0 : n }
+  return { ...valori, [chiave]: n > limiti[chiave] ? 0 : n }
 }
 
-// Riporta nei limiti un valore letto da fuori (mai sopra il massimo, mai negativo)
+// Rilegge le quantità salvate senza troncarle ai vecchi limiti della UI.
 export function normalizza(valori: Partial<Record<VoceBiancheria, unknown>> | null | undefined): Contatori {
   const out = vuoto()
   for (const c of CHIAVI) {
     const n = Math.floor(Number(valori?.[c] ?? 0))
-    out[c] = Number.isFinite(n) ? Math.min(Math.max(n, 0), LIMITE[c]) : 0
+    out[c] = Number.isFinite(n) ? Math.max(n, 0) : 0
   }
   return out
 }
@@ -93,3 +94,17 @@ export function tabellaBiancheriaAssente(e: unknown): boolean {
   return c === 'PGRST205' || c === '42P01'
 }
 export const AVVISO_0039 = 'Recupero biancheria non disponibile: va applicata la migrazione 0039'
+
+// I tre asciugamani dipendono dagli ospiti del soggiorno pulito.
+// Una quantità già conservata resta visibile anche se la prenotazione cambia.
+export function limitiRecupero(persone: number | null | undefined, iniziale: Partial<Contatori> = {}): Contatori {
+  const n = Number.isInteger(persone) && Number(persone) > 0 ? Number(persone) : 16
+  const out = { ...LIMITE, telo_doccia: n, asciugamano_viso: n, asciugamano_mani: n }
+  for (const k of CHIAVI) out[k] = Math.max(out[k], iniziale[k] ?? 0)
+  return out
+}
+
+export function validaRecupero(valori: Contatori, limiti: Contatori): string | null {
+  return CHIAVI.some(k => !Number.isInteger(valori[k]) || valori[k] < 0 || valori[k] > limiti[k])
+    ? 'Controlla le quantità recuperate rispetto alla dotazione della camera.' : null
+}
