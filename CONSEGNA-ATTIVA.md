@@ -1,3 +1,11 @@
+# Nota del cliente: rosso solo sul contenuto (08/09/2026)
+
+Richiesta dell'utente dopo la prova riuscita delle proposte: lasciare in rosso solo la nota, non tutta la riga. Base `9df4bc7`, modifica limitata a `components/richieste/NotaCliente.tsx`: etichetta «Nota del cliente:» nel colore `stone`, solo il contenuto tra virgolette mantiene `#C0392B`. Componente condiviso da lista Richieste, proposta e Da controllare in Home; testo, dati, dimensioni e logica invariati.
+
+Verifiche: render React del componente con nota sintetica e senza nota, controllo degli stili; suite completa, regressioni, strumenti locali, TypeScript e lint OK (`verifica-consegna --base 9df4bc7`); build della copia con ambiente sintetico OK, rigenerata dopo problemi della cache dell'anteprima. Prova visiva nel browser locale non completata: anteprima prima 404, poi errori di connessione; non dichiarata verificata a 390/1280. Nessun dato o messaggio reale. Pubblicazione del ritocco richiesta dall'utente; esito Vercel nel controllo del commit e nel resoconto finale.
+
+Pubblicazione **AUTORIZZATA** dall'utente l'08/09/2026 con «certo», in risposta alla richiesta esplicita di mettere online il ritocco. Esito del push e del deploy nel controllo del commit e nel resoconto finale.
+
 # Richieste: conservare la proposta scelta al ritorno da WhatsApp (08/09/2026)
 
 **VERIFICATO IN LOCALE; pubblicazione autorizzata l'08/09/2026 con «vai avanti».** Base `8b029fc5650410ada42c9f129d5e6e139ff0feff`; blocco = cinque file applicativi indicati sotto, più questa scheda. Claude aveva iniziato il blocco; l'utente ha autorizzato Codex a subentrare perché Claude ha esaurito i crediti. Alla ripresa dopo il blocco del Mac: file identici alla copia collaudata, remoto riletto e ancora sulla stessa base, nessun lavoro concorrente. Prove senza SQL, modifiche ai dati di produzione o messaggi reali.
