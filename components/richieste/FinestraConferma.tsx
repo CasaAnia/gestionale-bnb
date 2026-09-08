@@ -7,7 +7,7 @@ import { richiesteInConflitto, erroreDiDisponibilita, conLettoExtra, type Richie
 import { confermaRichiesta, scegliSoluzioneInviata } from '@/lib/richiesteDati'
 import { applicaProvenienzaAlCliente } from '@/lib/provenienzaDati'
 import { prezzo as fmtPrezzo, dalAl } from '@/lib/richiesteTesti'
-import { nomeCompleto, formatIntervallo, nottiRichiesta, riassuntoPersone, type Richiesta } from '@/lib/richieste'
+import { nomeCompleto, formatDateRichiesta, nottiRichiesta, riassuntoPersone, type Richiesta } from '@/lib/richieste'
 
 // «Creare la prenotazione?»: bottom sheet sul telefono, finestra su desktop.
 // Riepilogo della soluzione INVIATA, altre richieste aperte sulle stesse date
@@ -111,7 +111,7 @@ export default function FinestraConferma({ richiesta, aperte, layout, onChiudi, 
                   <input type="checkbox" checked={spuntate.has(c.id)} disabled={occupato}
                     onChange={e => setSpuntate(prev => { const n = new Set(prev); if (e.target.checked) n.add(c.id); else n.delete(c.id); return n })}
                     className="mt-0.5 h-4 w-4 accent-[#2D6A4F]" />
-                  <span><span className="font-medium">{nomeCompleto(c)}</span> · {formatIntervallo(c.arrivo, c.partenza)} · {nottiRichiesta(c)} {nottiRichiesta(c) === 1 ? 'notte' : 'notti'} · {c.rooms?.name || 'qualsiasi camera'}</span>
+                  <span><span className="font-medium">{nomeCompleto(c)}</span> · {formatDateRichiesta(c)} · {nottiRichiesta(c)} {nottiRichiesta(c) === 1 ? 'notte' : 'notti'} · {c.rooms?.name || 'qualsiasi camera'}</span>
                 </label>
               </li>
             ))}

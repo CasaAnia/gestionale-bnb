@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { MOTIVI_RIFIUTO_SCELTE, type MotivoRifiuto } from '@/lib/motivoRifiuto'
-import { formatIntervallo, nomeCompleto, type Richiesta } from '@/lib/richieste'
+import { formatDateRichiesta, nomeCompleto, type Richiesta } from '@/lib/richieste'
 
 // «Perché la rifiuti?» (07/09/2026): finestra prima di chiudere una richiesta.
 // Quattro bottoni larghi uno sotto l'altro, «Rifiuta» (verde pieno) attivo
@@ -28,7 +28,7 @@ export default function RifiutaConMotivo({ richiesta, occupato = false, onConfer
       <div className="velo-in absolute inset-0 ed-velo" onClick={() => { if (!occupato) onAnnulla() }} />
       <div className="scheda-in relative ed-foglio rounded-2xl shadow-lg p-5 w-full max-w-sm">
         <p className="ed-titolo-medio">{titolo}</p>
-        <p className="text-sm text-stone mt-1">{nomeCompleto(richiesta)} · {formatIntervallo(richiesta.arrivo, richiesta.partenza)} · {camera}</p>
+        <p className="text-sm text-stone mt-1">{nomeCompleto(richiesta)} · {formatDateRichiesta(richiesta)} · {camera}</p>
         <div className="mt-4 space-y-2" role="group" aria-label="Motivo">
           {MOTIVI_RIFIUTO_SCELTE.map(s => {
             const attivo = motivo === s.codice

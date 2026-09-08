@@ -5,6 +5,7 @@ import { Minus, Plus } from 'lucide-react'
 import StrisciaNotti from '@/components/StrisciaNotti'
 import { supabase } from '@/lib/supabase'
 import { frasiDisponibilita, notti, ordinaCamere, type PrenotazioneMinima } from '@/lib/disponibilita'
+import { selezioneNottiValida, elencoNotti } from '@/lib/nottiRichieste'
 import { giorniTra } from '@/lib/richiesteCalendario'
 import { capienzaCamera } from '@/lib/tariffe'
 import { riassuntoPersone, type CanaleRichiesta, type ValoriModifica } from '@/lib/richieste'
@@ -28,6 +29,7 @@ export type ValoriModulo = {
   nome: string; cognome: string
   arrivo: string; partenza: string
   persone: number
+  nottiRichieste?: string[] | null
   personePerNotte: number[] | null
   cameraId: string
   telefono: string
@@ -55,6 +57,7 @@ export function valoriDaSalvare(v: ValoriModulo, conProvenienza = false): Valori
   return {
     nome: conIniziali(v.nome), cognome: conIniziali(v.cognome), arrivo: v.arrivo, partenza: v.partenza,
     persone: v.persone, persone_per_notte: v.personePerNotte,
+    ...(v.nottiRichieste != null ? { notti_richieste: v.nottiRichieste } : {}),
     camera_id: v.cameraId || null, canale: v.canale,
     telefono: telefonoLeggibile(normalizzaTelefono(v.telefono)) || null,
     note: v.note.trim() || null,
@@ -144,15 +147,15 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
 
   const personeMax = v.personePerNotte ? Math.max(...v.personePerNotte) : persone
   const rigaDisponibilita = dateValide && occupazione && occupazione.chiave === `${arrivo}|${partenza}`
-    ? (occupazione.errore ? `${nottiN} notti · disponibilità non leggibile (${occupazione.errore})` : frasiDisponibilita(camere, occupazione.prenotazioni, arrivo, partenza, personeMax))
+    ? (v.nottiRichieste ? `${v.nottiRichieste.length} notti scelte: disponibilità verificata nella proposta` : occupazione.errore ? `${nottiN} notti · disponibilità non leggibile (${occupazione.errore})` : frasiDisponibilita(camere, occupazione.prenotazioni, arrivo, partenza, personeMax))
     : (dateValide ? `${nottiN === 1 ? '1 notte' : `${nottiN} notti`} · controllo le camere…` : '')
 
   // Le date cambiano → le notti cambiano: la striscia riparte da «Persone»
   // (una striscia con un numero diverso di caselle sarebbe un dato incoerente)
   function cambiaArrivo(val: string) {
-    setV(x => ({ ...x, arrivo: val, partenza: val && (!x.partenza || x.partenza <= val) ? giornoDopo(val) : x.partenza, personePerNotte: null }))
+    setV(x => { const fine = val && (!x.partenza || x.partenza <= val) ? giornoDopo(val) : x.partenza; return { ...x, arrivo: val, partenza: fine, personePerNotte: null, ...(x.nottiRichieste != null ? { nottiRichieste: x.nottiRichieste.filter(g => g >= val && g < fine) } : {}) } })
   }
-  function cambiaPartenza(val: string) { setV(x => ({ ...x, partenza: val, personePerNotte: null })) }
+  function cambiaPartenza(val: string) { setV(x => ({ ...x, partenza: val, personePerNotte: null, ...(x.nottiRichieste != null ? { nottiRichieste: x.nottiRichieste.filter(g => g >= x.arrivo && g < val) } : {}) })) }
   function cambiaPersone(n: number) { setV(x => ({ ...x, persone: n, personePerNotte: null })) }
   const valoriStriscia = v.personePerNotte ?? Array.from({ length: nottiN }, () => persone)
 
@@ -161,6 +164,7 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
     if (!v.nome.trim() || !v.cognome.trim()) { setErrore('Nome e cognome sono obbligatori.'); return }
     if (!arrivo || !partenza) { setErrore('Indica arrivo e partenza.'); return }
     if (partenza <= arrivo) { setErrore('La partenza deve essere almeno una notte dopo l’arrivo.'); return }
+    if (v.nottiRichieste != null && !selezioneNottiValida(v.nottiRichieste, arrivo, partenza)) { setErrore('Seleziona almeno una notte compresa nelle date della richiesta.'); return }
     if (v.personePerNotte && v.personePerNotte.length !== nottiN) { setErrore('La striscia delle notti non corrisponde alle date: ricontrolla le persone per notte.'); return }
     setSaving(true)
     const e = await onSalva(valoriDaSalvare({ ...v, personePerNotte: normalizzaPersonePerNotte(v.personePerNotte, persone, nottiN) }, strutture.disponibile))
@@ -255,13 +259,21 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
           </div>
         </div>
 
+        {dateValide && v.nottiRichieste != null && <div className="rounded-xl border border-green-mid p-3">
+          <p className="font-semibold text-sm mb-2">Richiesta soltanto per le notti selezionate</p>
+          <div className="flex flex-wrap gap-2">{giorniTra(arrivo, partenza).map(g => <button type="button" role="checkbox" aria-checked={v.nottiRichieste!.includes(g)} key={g}
+            onClick={() => setV(x => ({ ...x, nottiRichieste: x.nottiRichieste!.includes(g) ? x.nottiRichieste!.filter(n => n !== g) : [...x.nottiRichieste!, g].sort() }))}
+            className={`min-h-11 px-3 rounded-lg border text-sm ${v.nottiRichieste!.includes(g) ? 'bg-green-mid text-white' : 'bg-white'}`}>{Number(g.slice(8))}/{Number(g.slice(5,7))}</button>)}</div>
+          <p className="text-xs mt-2">Notti del {elencoNotti(v.nottiRichieste)}. Le altre sono escluse.</p>
+        </div>}
+
         {dateValide && (
           <div>
             <p className={ETICHETTA}>Persone notte per notte <span className="text-xs">· tocca una notte per cambiarla (1–{maxPersone})</span></p>
-            <StrisciaNotti arrivo={arrivo} partenza={partenza} valori={valoriStriscia} min={1} max={maxPersone}
-              onChange={vals => set('personePerNotte', normalizzaPersonePerNotte(vals, persone, nottiN))} />
+            <StrisciaNotti arrivo={arrivo} partenza={partenza} nottiSelezionate={v.nottiRichieste ?? undefined} valori={v.nottiRichieste ? v.nottiRichieste.map(g => valoriStriscia[giorniTra(arrivo, partenza).indexOf(g)]) : valoriStriscia} min={1} max={maxPersone}
+              onChange={vals => { const tutte = v.nottiRichieste ? giorniTra(arrivo, partenza).map((g, i) => { const k = v.nottiRichieste!.indexOf(g); return k < 0 ? valoriStriscia[i] : vals[k] }) : vals; set('personePerNotte', normalizzaPersonePerNotte(tutte, persone, nottiN)) }} />
             <p className="text-xs text-green-dark mt-1.5" aria-live="polite">
-              {riassuntoPersone(arrivo, valoriStriscia)}
+              {v.nottiRichieste ? 'Persone indicate solo per le notti scelte' : riassuntoPersone(arrivo, valoriStriscia)}
               {v.personePerNotte ? '' : ` · tutte le notti in ${persone}`}
             </p>
           </div>
@@ -300,10 +312,11 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
 }
 
 // Da una richiesta salvata ai valori del modulo (per «Modifica»)
-export function valoriDaRichiesta(r: { canale: CanaleRichiesta; nome: string; cognome: string; arrivo: string; partenza: string; persone: number; persone_per_notte?: number[] | null; camera_id: string | null; telefono: string | null; note: string | null; provenienza?: string | null; struttura_nome?: string | null }): ValoriModulo {
+export function valoriDaRichiesta(r: { canale: CanaleRichiesta; nome: string; cognome: string; arrivo: string; partenza: string; persone: number; persone_per_notte?: number[] | null; notti_richieste?: string[] | null; camera_id: string | null; telefono: string | null; note: string | null; provenienza?: string | null; struttura_nome?: string | null }): ValoriModulo {
   const n = giorniTra(r.arrivo, r.partenza).length
   return {
     canale: r.canale, nome: r.nome, cognome: r.cognome, arrivo: r.arrivo, partenza: r.partenza, persone: Number(r.persone) || 1,
+    nottiRichieste: r.notti_richieste,
     personePerNotte: Array.isArray(r.persone_per_notte) && r.persone_per_notte.length === n ? r.persone_per_notte : null,
     cameraId: r.camera_id ?? '', telefono: r.telefono ?? '', note: r.note ?? '',
     provenienza: normalizzaProvenienza(r.provenienza), struttura: r.struttura_nome ?? '',

@@ -24,6 +24,7 @@ export type Opzione<T> = { valore: T; etichetta: string }
 type Props<T extends number | string | null> = {
   arrivo: string
   partenza: string
+  nottiSelezionate?: string[]
   valori: T[]                      // uno per notte, lungo quanto giorniTra(arrivo, partenza)
   onChange: (valori: T[]) => void
   // valore successivo/precedente per la notte i (default: numeri da min a max)
@@ -43,9 +44,9 @@ type Props<T extends number | string | null> = {
 }
 
 export default function StrisciaNotti<T extends number | string | null>({
-  arrivo, partenza, valori, onChange, cicla, min = 1, max = 4, mostra, unita = () => 'pers.', opzioni, menuDesktop = false, onLungo, disabilitata = false, aria = 'Notte per notte',
+  arrivo, partenza, nottiSelezionate, valori, onChange, cicla, min = 1, max = 4, mostra, unita = () => 'pers.', opzioni, menuDesktop = false, onLungo, disabilitata = false, aria = 'Notte per notte',
 }: Props<T>) {
-  const notti = giorniTra(arrivo, partenza)
+  const notti = nottiSelezionate ?? giorniTra(arrivo, partenza)
   const refs = useRef<(HTMLButtonElement | null)[]>([])
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lungoScattato = useRef(false)

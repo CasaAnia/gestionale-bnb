@@ -8,10 +8,11 @@
 //
 // Convenzione sui giorni: un soggiorno occupa le notti da `arrivo` (compreso)
 // a `partenza` (esclusa). Chi parte il 12 e chi arriva il 12 NON si toccano.
+import { nottiDellaRichiesta, type DateRichiesta } from './nottiRichieste.ts'
 import { STATI_CHE_OCCUPANO } from './disponibilita.ts'
 import { eAperta, type Richiesta } from './richieste.ts'
 
-export type Intervallo = { arrivo: string; partenza: string }
+export type Intervallo = DateRichiesta
 export type PrenotazioneCalendario = {
   id: string
   room_id: string
@@ -21,10 +22,13 @@ export type PrenotazioneCalendario = {
   guest_name?: string | null
   guests?: { full_name?: string | null; phone?: string | null } | null
 }
-export type RichiestaCalendario = Pick<Richiesta, 'id' | 'arrivo' | 'partenza' | 'camera_id' | 'stato'>
+export type RichiestaCalendario = Pick<Richiesta, 'id' | 'arrivo' | 'partenza' | 'camera_id' | 'stato' | 'notti_richieste'>
 
 export function condividonoGiorni(a: Intervallo, b: Intervallo): boolean {
-  return a.arrivo < b.partenza && b.arrivo < a.partenza
+  if (!(a.arrivo < b.partenza && b.arrivo < a.partenza)) return false
+  if (!a.notti_richieste && !b.notti_richieste) return true
+  const nottiB = new Set(nottiDellaRichiesta(b))
+  return nottiDellaRichiesta(a).some(n => nottiB.has(n))
 }
 
 // Riga del calendario su cui vive una richiesta: la camera scelta, oppure
@@ -97,7 +101,7 @@ export function sovrapposizioni<P extends PrenotazioneCalendario, R extends Rich
   altreRichieste: R[],
   camere?: { id: string }[],
 ): Sovrapposizioni<P, R> {
-  const me = { arrivo: richiesta.arrivo, partenza: richiesta.partenza }
+  const me = richiesta
   const confermate = prenotazioniConfermate(prenotazioni)
     .filter(p => condividonoGiorni({ arrivo: p.check_in, partenza: p.check_out }, me))
   const richieste = altreRichieste.filter(r =>
@@ -109,7 +113,7 @@ export function sovrapposizioni<P extends PrenotazioneCalendario, R extends Rich
   if (!camere || camere.length === 0) return { prenotazioni: [], richieste }
   const idCamere = new Set(camere.map(c => c.id))
   const piene = new Set<P>()
-  for (const giorno of giorniTra(richiesta.arrivo, richiesta.partenza)) {
+  for (const giorno of nottiDellaRichiesta(richiesta)) {
     const quelGiorno = confermate.filter(p => idCamere.has(p.room_id) && p.check_in <= giorno && p.check_out > giorno)
     const occupate = new Set(quelGiorno.map(p => p.room_id))
     if (occupate.size >= idCamere.size) quelGiorno.forEach(p => piene.add(p))

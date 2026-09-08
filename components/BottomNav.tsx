@@ -99,8 +99,9 @@ export default function BottomNav() {
                   {item.href === '/richieste' && (
                     <>
                       <RequestBadge count={richiesteCount} className="absolute -top-1.5 -right-2.5" />
-                      {/* Blu sotto il rosso (o al suo posto se non ci sono nuove) */}
-                      <RequestBadge count={inAttesaRisposta} colore="blu" className={`absolute -right-2.5 ${richiesteCount === 0 ? '-top-1.5' : 'top-[12px]'}`} />
+                      {/* Blu sempre nel suo posto sotto il rosso: se il rosso manca,
+                          il vuoto resta visibile e il blu non risale. */}
+                      <RequestBadge count={inAttesaRisposta} colore="blu" className="absolute -right-2.5 top-[12px]" />
                     </>
                   )}
                 </span>

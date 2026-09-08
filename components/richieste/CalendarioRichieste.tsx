@@ -9,8 +9,9 @@ import {
   COLORE_OGGI, COLORE_DOMENICA, COLORE_GRIGLIA, COLORE_SEPARATORE, COLORE_RICHIESTA_TESTO,
   contestoColori, segmentiBarra, indiciIntervallo, type PrenotazioneBarra,
 } from '@/lib/calendarioBarre'
-import { etichettaMese, spostaMese, chiaveRiga, RIGA_QUALSIASI, gruppiSovrapposti, unioneIntervalli, sovrapposizioni, giorniDaInizio, spostaGiorni, etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
-import { nomeCompleto, nomeBreve, formatIntervallo, riassuntoPersone, scadenzaProposta, STATO_LABEL, type Richiesta } from '@/lib/richieste'
+import { nottiDellaRichiesta, periodiDelleNotti } from '@/lib/nottiRichieste'
+import { etichettaMese, spostaMese, chiaveRiga, RIGA_QUALSIASI, gruppiSovrapposti, sovrapposizioni, giorniDaInizio, spostaGiorni, etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
+import { nomeCompleto, nomeBreve, formatIntervallo, formatDateRichiesta, riassuntoPersone, scadenzaProposta, STATO_LABEL, type Richiesta } from '@/lib/richieste'
 import type { Vista } from '@/lib/richiesteVista'
 
 export type CameraCalendario = { id: string; name: string; active?: boolean }
@@ -90,7 +91,7 @@ export function etichettaRichiesta(r: Richiesta, breve = false): string {
 export function tooltipRichiesta(r: Richiesta, adesso: Date = new Date()): string {
   const persone = r.persone_per_notte ? riassuntoPersone(r.arrivo, r.persone_per_notte) : `${r.persone} ${r.persone === 1 ? 'persona' : 'persone'}`
   const stato = scadenzaProposta(r, adesso)?.testo ?? STATO_LABEL[r.stato]
-  return `${nomeCompleto(r)} · ${formatIntervallo(r.arrivo, r.partenza)} · ${persone} · ${r.rooms?.name || 'qualsiasi camera'} · ${stato}`
+  return `${nomeCompleto(r)} · ${formatDateRichiesta(r)} · ${persone} · ${r.rooms?.name || 'qualsiasi camera'} · ${stato}`
 }
 
 type Riga = { chiave: string; nome: string; numero: string; camera: CameraCalendario | null }
@@ -223,9 +224,6 @@ export default function CalendarioRichieste(p: Props) {
   function barreRichieste(chiave: string, ri: number) {
     const lista = richiestePerRiga.get(chiave) || []
     return gruppiSovrapposti(lista).flatMap(gruppo => {
-      const unione = gruppo.length > 1 ? unioneIntervalli(gruppo) : gruppo[0]
-      const idx = indiciIntervallo(unione.arrivo, unione.partenza, giorni)
-      if (!idx) return []
       const ids = gruppo.map(r => r.id)
       const selezionata = p.evidenziata != null && ids.includes(p.evidenziata)
       const conflittoConfermate = gruppo.length === 1 && sovrapposizioni(gruppo[0], p.prenotazioni, [], camere).prenotazioni.length > 0
@@ -235,8 +233,11 @@ export default function CalendarioRichieste(p: Props) {
       const testo = gruppo.length > 1 ? `${gruppo.length} richieste` : etichettaRichiesta(gruppo[0], p.layout === 'mobile' || modo === 'quindici')
       const titolo = gruppo.map(r => tooltipRichiesta(r, p.adesso)).join('\n')
       const mobile = p.layout === 'mobile'
-      return [(
-        <button key={ids.join('+')} type="button" onClick={e => apri(e, gruppo)} title={titolo}
+      return periodiDelleNotti(gruppo.flatMap(r => nottiDellaRichiesta(r))).flatMap(periodo => {
+        const idx = indiciIntervallo(periodo.arrivo, periodo.partenza, giorni)
+        if (!idx) return []
+        return [(
+        <button key={ids.join('+') + periodo.arrivo} type="button" onClick={e => apri(e, gruppo)} title={titolo}
           style={{
             ...geometria(idx.start, idx.end, ri, true, true),
             background: 'transparent', border: `1.5px dashed ${OTTONE}`, borderRadius: 6,
@@ -252,6 +253,7 @@ export default function CalendarioRichieste(p: Props) {
           {conBadge && badge}
         </button>
       )]
+      })
     })
   }
 

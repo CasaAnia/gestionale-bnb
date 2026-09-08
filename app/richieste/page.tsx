@@ -29,7 +29,7 @@ import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
 import {
   CANALE_LABEL, eAperta, inArchivio, rigaChiusa, riapribile, ordinaRichieste, nottiRichiesta, nomeCompleto,
-  formatIntervallo, oraArrivo, avvisoFerma, daGuardare, nuoveDalSito, riassuntoPersone, type Richiesta, type OrdineRichieste,
+  formatIntervallo, formatDateRichiesta, oraArrivo, avvisoFerma, daGuardare, nuoveDalSito, riassuntoPersone, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
 
 const ORDINI: { chiave: OrdineRichieste; label: string }[] = [
@@ -75,7 +75,7 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
         <p className="shrink-0 text-sm font-semibold text-brass">{n === 1 ? '1 notte' : `${n} notti`}</p>
       </div>
       <p className="text-sm md:text-[13px] text-green-dark mt-1 md:mt-1.5">
-        {formatIntervallo(r.arrivo, r.partenza)}
+        {formatDateRichiesta(r)}
         <span className="text-stone"> · </span>
         {r.persone_per_notte ? riassuntoPersone(r.arrivo, r.persone_per_notte) : `${r.persone} ${r.persone === 1 ? 'persona' : 'persone'}`}
         <span className="text-stone"> · </span>
@@ -117,7 +117,7 @@ function RigaChiusa({ r, adesso, evidenziata = false, onRiapri, riaprendo }: { r
     <li id={`richiesta-${r.id}`} data-chiusa={stato.tono} className={`flex items-center justify-between gap-3 py-2.5 -mx-2 px-2 border-b-[0.5px] border-border-soft last:border-b-0 text-sm ${evidenziata ? 'bg-sage/50 rounded-lg' : ''}`}>
       <div className="min-w-0">
         <p className="text-green-dark truncate">{nomeCompleto(r)}</p>
-        <p className="text-xs text-stone">{formatIntervallo(r.arrivo, r.partenza)} · {r.persone} {r.persone === 1 ? 'persona' : 'persone'} · {CANALE_LABEL[r.canale]}</p>
+        <p className="text-xs text-stone">{formatDateRichiesta(r)} · {r.persone} {r.persone === 1 ? 'persona' : 'persone'} · {CANALE_LABEL[r.canale]}</p>
         <p className="text-xs font-semibold mt-0.5" style={{ color: colore }}>{stato.testo}
           {r.stato === 'confermata' && r.prenotazione_id && (
             <Link href={`/prenotazioni/${r.prenotazione_id}`} className="ml-1.5 font-normal underline underline-offset-2 text-green-mid" onClick={e => e.stopPropagation()}>scheda</Link>

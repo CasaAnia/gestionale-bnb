@@ -83,17 +83,33 @@ test('D manca inizio: prima notte occupata ovunque, poi Amelia libera', () => {
   assert.equal(sol[0].prezzoTotale, 140)
 })
 
-test('E completo: meno della metà delle notti coperte', () => {
+test('disponibilità parziale: anche una sola notte libera viene proposta', () => {
   const sol = proponiSoluzioni(ric(1, null), CAMERE, [
     occ('amelia', '2026-09-12', '2026-09-15'),
     occ('allegra', '2026-09-12', '2026-09-16'),
     occ('ambra', '2026-09-12', '2026-09-16'),
     occ(LENA_ID, '2026-09-12', '2026-09-16'),
   ])
-  assert.equal(sol.length, 1)
-  assert.equal(sol[0].caso, 'completo')
-  assert.deepEqual(sol[0].segmenti, [])
-  assert.deepEqual(sol[0].nottiMancanti, ['2026-09-13', '2026-09-14', '2026-09-15'])
+  assert.equal(sol[0].caso, 'manca_estremo')
+  assert.equal(sol[0].nottiCoperte, 1)
+  assert.deepEqual(sol[0].nottiMancanti, ['2026-09-13', '2026-09-14'])
+})
+
+test('disponibilità parziale: 4 notti richieste e 3 libere nella camera richiesta', () => {
+  const sol = proponiSoluzioni(
+    { arrivo: '2026-09-13', partenza: '2026-09-17', persone: 1, camera_id: 'amelia' },
+    CAMERE,
+    [
+      occ('amelia', '2026-09-13', '2026-09-14'),
+      occ('allegra', '2026-09-12', '2026-09-18'),
+      occ('ambra', '2026-09-12', '2026-09-18'),
+      occ(LENA_ID, '2026-09-12', '2026-09-18'),
+    ],
+  )
+  assert.equal(sol[0].caso, 'manca_estremo')
+  assert.equal(sol[0].segmenti[0].camera.id, 'amelia')
+  assert.equal(sol[0].nottiCoperte, 3)
+  assert.deepEqual(sol[0].nottiMancanti, ['2026-09-13'])
 })
 
 test('capienza: con 4 persone resta solo Lena; con 3 Amelia è esclusa', () => {

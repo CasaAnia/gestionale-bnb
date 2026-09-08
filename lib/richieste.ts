@@ -1,6 +1,7 @@
 // Richieste di prenotazione (pezzo 1 di 8): tipi, ordinamento e testi.
 // Funzioni pure, senza Supabase: si provano con `node --test`.
 // La parte che parla col database sta in lib/richiesteDati.ts.
+import { nottiDellaRichiesta, elencoNotti, type DateRichiesta } from './nottiRichieste.ts'
 import { ORE_RISPOSTA_PROPOSTA } from './condizioniPrenotazione.ts'
 import { motivoRifiutoInParole } from './motivoRifiuto.ts'
 
@@ -34,6 +35,7 @@ export interface Richiesta {
   origine?: string | null        // dal sito: "google", "diretto"… (migrazione 0028)
   provenienza?: string | null    // google | passaparola | altra_struttura | non_so (proposta 0036)
   struttura_nome?: string | null // solo con altra_struttura (proposta 0036)
+  notti_richieste?: string[] | null
   persone_per_notte?: number[] | null   // pezzo 9 (migrazione 0031): un intero per notte, null = tutte uguali a persone
   rooms?: { name: string } | null
 }
@@ -71,9 +73,11 @@ function parti(iso: string): { anno: number; mese: number; giorno: number } {
   return { anno: a, mese: m, giorno: g }
 }
 
-export function nottiRichiesta(r: { arrivo: string; partenza: string }): number {
-  const n = Math.round((Date.parse(r.partenza + 'T00:00:00Z') - Date.parse(r.arrivo + 'T00:00:00Z')) / 86400000)
-  return Number.isFinite(n) && n > 0 ? n : 0
+export function nottiRichiesta(r: DateRichiesta): number {
+  return nottiDellaRichiesta(r).length
+}
+export function formatDateRichiesta(r: DateRichiesta): string {
+  return r.notti_richieste ? `Notti del ${elencoNotti(nottiDellaRichiesta(r))}` : formatIntervallo(r.arrivo, r.partenza)
 }
 
 // "13–15 set" · "30 set – 2 ott" · "30 dic 2026 – 2 gen 2027"
@@ -288,14 +292,14 @@ export type ValoriModifica = {
   nome: string; cognome: string; arrivo: string; partenza: string; persone: number
   persone_per_notte: number[] | null; camera_id: string | null; telefono: string | null; note: string | null; canale: CanaleRichiesta
   // Provenienza (08/09/2026, proposta 0036): assenti nel payload se la migrazione non c'è
-  provenienza?: string; struttura_nome?: string | null
+  provenienza?: string; struttura_nome?: string | null; notti_richieste?: string[] | null
 }
 export type PropostaPrecedente = { testo: string | null; soluzione: unknown; inviata_at: string | null; superata_at: string }
 export const AVVISO_PROPOSTA_SUPERATA = 'La proposta inviata si riferiva ai dati precedenti: rigenera e reinvia la proposta'
 export const modificabile = (r: { stato: StatoRichiesta }) => r.stato === 'in_attesa' || r.stato === 'proposta_inviata'
 
 export function pianoModifica(
-  originale: Pick<Richiesta, 'stato' | 'arrivo' | 'partenza' | 'persone' | 'camera_id'> & { persone_per_notte?: number[] | null; proposta_testo?: string | null; proposta_soluzione?: unknown; proposta_inviata_at?: string | null; proposte_precedenti?: PropostaPrecedente[] | null },
+  originale: Pick<Richiesta, 'stato' | 'arrivo' | 'partenza' | 'persone' | 'camera_id'> & { notti_richieste?: string[] | null; persone_per_notte?: number[] | null; proposta_testo?: string | null; proposta_soluzione?: unknown; proposta_inviata_at?: string | null; proposte_precedenti?: PropostaPrecedente[] | null },
   nuovi: ValoriModifica,
   adesso: Date = new Date(),
 ): { campi: Record<string, unknown>; propostaSuperata: boolean; avviso: string | null; errore: string | null } {
@@ -304,6 +308,7 @@ export function pianoModifica(
   const sostanziale = !stesso(originale.arrivo, nuovi.arrivo) || !stesso(originale.partenza, nuovi.partenza)
     || Number(originale.persone) !== Number(nuovi.persone) || !stesso(originale.persone_per_notte ?? null, nuovi.persone_per_notte)
     || !stesso(originale.camera_id ?? null, nuovi.camera_id)
+    || (nuovi.notti_richieste !== undefined && !stesso(originale.notti_richieste, nuovi.notti_richieste))
   const campi: Record<string, unknown> = { ...nuovi }
   const propostaSuperata = originale.stato === 'proposta_inviata' && sostanziale
   if (propostaSuperata) {

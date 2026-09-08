@@ -2,6 +2,7 @@
 // mappa della camera, riconoscimento dei doppioni e limite per IP. Nessun
 // accesso a rete o database: la route app/api/richieste/web fa il resto.
 import { normalizzaTelefono, telefonoLeggibile } from './whatsapp.ts'
+import { selezioneNottiValida, nottiDellaRichiesta } from './nottiRichieste.ts'
 import { ROOM_SLUG_BY_NAME } from './roomTypes.ts'
 
 export type RichiestaWebValida = {
@@ -15,6 +16,7 @@ export type RichiestaWebValida = {
   telefonoCifre: string      // "393331234567"
   note: string | null
   origine: string | null
+  notti_richieste?: string[]
 }
 export type EsitoValidazione = { ok: true; dati: RichiestaWebValida } | { ok: false; errore: string }
 
@@ -50,6 +52,7 @@ export function validaRichiestaWeb(corpo: unknown, oggi: string, camere: { id: s
   if (!dataValida(partenza)) return { ok: false, errore: 'Data di partenza non valida (atteso AAAA-MM-GG)' }
   if (partenza <= arrivo) return { ok: false, errore: 'La partenza deve essere dopo l’arrivo' }
   if (arrivo < oggi) return { ok: false, errore: 'La data di arrivo è nel passato' }
+  if (b.notti_richieste != null && !selezioneNottiValida(b.notti_richieste, arrivo, partenza)) return { ok: false, errore: 'Notti richieste non valide' }
   const persone = Number(b.persone)
   if (!Number.isInteger(persone) || persone < 1 || persone > PERSONE_MAX) return { ok: false, errore: `Persone: da 1 a ${PERSONE_MAX}` }
   const tel = normalizzaTelefono(typeof b.telefono === 'string' ? b.telefono : '')
@@ -61,16 +64,17 @@ export function validaRichiestaWeb(corpo: unknown, oggi: string, camere: { id: s
   const origine = testo(b.origine, 40) || null
   return {
     ok: true,
-    dati: { nome, cognome, arrivo, partenza, persone, camera_id: mappaCamera(b.camera, camere), telefono: telefonoLeggibile(tel), telefonoCifre: tel.numero, note, origine },
+    dati: { nome, cognome, arrivo, partenza, persone, camera_id: mappaCamera(b.camera, camere), telefono: telefonoLeggibile(tel), telefonoCifre: tel.numero, note, origine, ...(b.notti_richieste != null ? { notti_richieste: b.notti_richieste as string[] } : {}) },
   }
 }
 
 // Doppione: stesse date e stesso telefono (solo cifre) oppure stesso nome+cognome
 export function stessaRichiesta(
-  nuova: Pick<RichiestaWebValida, 'nome' | 'cognome' | 'arrivo' | 'partenza' | 'telefonoCifre'>,
-  esistente: { nome: string; cognome: string; arrivo: string; partenza: string; telefono: string | null },
+  nuova: Pick<RichiestaWebValida, 'nome' | 'cognome' | 'arrivo' | 'partenza' | 'telefonoCifre' | 'notti_richieste'>,
+  esistente: { nome: string; cognome: string; arrivo: string; partenza: string; telefono: string | null; notti_richieste?: string[] | null },
 ): boolean {
   if (esistente.arrivo !== nuova.arrivo || esistente.partenza !== nuova.partenza) return false
+  if (JSON.stringify(nottiDellaRichiesta(nuova)) !== JSON.stringify(nottiDellaRichiesta(esistente))) return false
   const cifre = (esistente.telefono || '').replace(/\D/g, '')
   if (cifre && cifre === nuova.telefonoCifre) return true
   const n = (s: string) => s.trim().toLowerCase()

@@ -6,6 +6,7 @@
 // brande), la soluzione risultante (stessa struttura di proposta_soluzione,
 // con `manuale: true`) e i prezzi a mano. Logica pura: si prova in node.
 // ============================================================================
+import { nottiDellaRichiesta, giornoDopo, type DateRichiesta } from './nottiRichieste.ts'
 import { capienzaCamera } from './tariffe.ts'
 import { cameraOspita, lettiOccupatiPerNotte } from './lettiAggiuntivi.ts'
 import { ordinaCamere, STATI_CHE_OCCUPANO } from './disponibilita.ts'
@@ -26,7 +27,7 @@ export type PrezziManuali = (number | null)[]         // centesimi per notte, nu
 export function camereAmmesseNotte(
   i: number, richiesta: RichiestaProposta, camere: CameraListino[], prenotazioniConfermate: PrenotazioneOccupante[],
 ): CameraListino[] {
-  const notti = giorniTra(richiesta.arrivo, richiesta.partenza)
+  const notti = nottiDellaRichiesta(richiesta)
   const persone = personePerNotte(richiesta)
   const g = notti[i]
   if (!g) return []
@@ -48,8 +49,8 @@ export function cameraSuccessiva(attuale: string | null, ammesse: CameraListino[
 }
 
 // Composizione iniziale dalla soluzione automatica corrente (camera per notte)
-export function composizioneDaSoluzione(richiesta: { arrivo: string; partenza: string }, sol: Soluzione | null): Composizione {
-  const notti = giorniTra(richiesta.arrivo, richiesta.partenza)
+export function composizioneDaSoluzione(richiesta: DateRichiesta, sol: Soluzione | null): Composizione {
+  const notti = nottiDellaRichiesta(richiesta)
   return notti.map(g => sol?.segmenti.find(s => s.arrivo <= g && s.partenza > g)?.camera.id ?? null)
 }
 
@@ -62,18 +63,18 @@ export function composizioneDaSoluzione(richiesta: { arrivo: string; partenza: s
 export function soluzioneDaComposizione(
   richiesta: RichiestaProposta, camere: CameraListino[], composizione: Composizione, prezziManuali: PrezziManuali = [],
 ): Soluzione {
-  const notti = giorniTra(richiesta.arrivo, richiesta.partenza)
+  const notti = nottiDellaRichiesta(richiesta)
   if (composizione.length !== notti.length) throw new Error(`Composizione non valida: servono ${notti.length} notti, trovate ${composizione.length}`)
   const persone = personePerNotte(richiesta)
   const segmenti: SegmentoSoluzione[] = []
   let da = 0
   for (let i = 1; i <= notti.length; i++) {
-    if (i === notti.length || composizione[i] !== composizione[da]) {
+    if (i === notti.length || composizione[i] !== composizione[da] || notti[i] !== giornoDopo(notti[i - 1])) {
       const id = composizione[da]
       if (id !== null) {
         const camera = camere.find(c => c.id === id)
         if (!camera) throw new Error(`Camera ${id} non trovata`)
-        const partenza = i < notti.length ? notti[i] : richiesta.partenza
+        const partenza = giornoDopo(notti[i - 1])
         let s = segmento(camera, notti[da], partenza, persone.slice(da, i))
         const tariffe = prezziNottiCentesimi(s)
         const manuali = prezziManuali.slice(da, i)
@@ -92,7 +93,7 @@ export function soluzioneDaComposizione(
   const ultimaCoperta = notti.length - 1 - [...notti].reverse().findIndex(n => coperte.has(n))
   const internaScoperta = primaCoperta >= 0 && notti.slice(primaCoperta, ultimaCoperta + 1).some(n => !coperte.has(n))
   const caso: Soluzione['caso'] = segmenti.length === 0 ? 'completo'
-    : nottiMancanti.length === 0 ? (camereUsate.size === 1 && segmenti.length === 1 ? 'completa' : 'cambio')
+    : richiesta.notti_richieste ? 'separata' : nottiMancanti.length === 0 ? (camereUsate.size === 1 && segmenti.length === 1 ? 'completa' : 'cambio')
       : internaScoperta ? 'manca_mezzo' : 'manca_estremo'
   return {
     caso, segmenti, manuale: true,
@@ -107,7 +108,7 @@ export const totaleCentesimi = (sol: Soluzione) => Math.round(sol.prezzoTotale *
 // Prezzo di tariffa di ogni notte della composizione (centesimi; null = notte scoperta)
 export function prezziTariffaPerNotte(richiesta: RichiestaProposta, camere: CameraListino[], composizione: Composizione): (number | null)[] {
   const sol = soluzioneDaComposizione(richiesta, camere, composizione)
-  const notti = giorniTra(richiesta.arrivo, richiesta.partenza)
+  const notti = nottiDellaRichiesta(richiesta)
   const perGiorno = new Map<string, number>()
   for (const s of sol.segmenti) {
     const giorni = giorniTra(s.arrivo, s.partenza)

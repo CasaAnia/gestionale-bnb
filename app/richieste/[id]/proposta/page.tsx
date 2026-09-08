@@ -26,10 +26,11 @@ import { useDesktop, useAdesso } from '@/lib/richiesteVista'
 import { opzioniAttive, opzioniScadute, occupantiDaOpzioni, notaOpzioni, opzioniSovrapposte, oraRoma, type RichiestaOpzione } from '@/lib/opzioni'
 import RigaScadenza from '@/components/richieste/RigaScadenza'
 import NotaCliente from '@/components/richieste/NotaCliente'
+import { nottiDellaRichiesta } from '@/lib/nottiRichieste'
 import { giorniTra } from '@/lib/richiesteCalendario'
 import Link from 'next/link'
 import {
-  CANALE_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, tempoTrascorso, riassuntoPersone, riassuntoPerNotte, modificabile, type Richiesta,
+  CANALE_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, formatDateRichiesta, oraArrivo, tempoTrascorso, riassuntoPersone, riassuntoPerNotte, modificabile, type Richiesta,
 } from '@/lib/richieste'
 import type { Room } from '@/lib/types'
 
@@ -79,6 +80,9 @@ export default function PropostaPage() {
   const [scelta, setScelta] = useState<string | null>(null)
   // Ania ha toccato una soluzione in «Cambia»: il messaggio propone quella camera sola, mai l'elenco (07/09/2026)
   const [sceltaDiAnia, setSceltaDiAnia] = useState(false)
+  // Caso E scelto a mano: Ania può inviare il messaggio «siamo al completo»
+  // anche quando il calcolo ha trovato una disponibilità (decisione umana).
+  const [forzaNessunaDisponibilita, setForzaNessunaDisponibilita] = useState(false)
   const [testoModificato, setTestoModificato] = useState<string | null>(null)
   const [modo, setModo] = useState<'testo' | 'immagine'>('testo')
   const [pannelloCambia, setPannelloCambia] = useState(false)
@@ -169,15 +173,24 @@ export default function PropostaPage() {
     try { return { soluzioneManuale: soluzioneDaComposizione(richiesta, camere, composizione, prezziManuali), erroreComposizione: null } }
     catch (e) { return { soluzioneManuale: null, erroreComposizione: String((e as Error).message ?? e) } }
   }, [manuale, inviata, richiesta, camere, composizione, prezziManuali])
-  const soluzione: Soluzione | null = chiediConferma ? pendente?.soluzione ?? null : manuale && !inviata ? soluzioneManuale : soluzioneAuto
+  const soluzioneBase: Soluzione | null = chiediConferma ? pendente?.soluzione ?? null : manuale && !inviata ? soluzioneManuale : soluzioneAuto
+  const soluzioneNessuna: Soluzione | null = richiesta ? {
+    caso: 'completo',
+    segmenti: [],
+    nottiTotali: nottiRichiesta(richiesta),
+    nottiCoperte: 0,
+    nottiMancanti: nottiDellaRichiesta(richiesta),
+    prezzoTotale: 0,
+  } : null
+  const soluzione: Soluzione | null = !chiediConferma && forzaNessunaDisponibilita ? soluzioneNessuna : soluzioneBase
   // «Altre camere»: perché le camere fuori dalla soluzione non sono state proposte
   const altreCamere = useMemo(() => {
-    if (!richiesta || camere.length === 0) return []
+    if (forzaNessunaDisponibilita || !richiesta || camere.length === 0) return []
     try {
       const usate = new Set((soluzione?.segmenti ?? []).map(s => s.camera.id))
       return motiviEsclusione(richiesta, camere, prenotazioniConOpzioni).filter(x => !usate.has(x.camera.id))
     } catch { return [] }
-  }, [richiesta, camere, prenotazioniConOpzioni, soluzione])
+  }, [forzaNessunaDisponibilita, richiesta, camere, prenotazioniConOpzioni, soluzione])
   // Camere in opzione sulle notti richieste: nelle «Altre camere» si legge il perché vero
   const motivoOpzione = useMemo(() => {
     if (!richiesta) return new Map<string, string>()
@@ -280,7 +293,7 @@ export default function PropostaPage() {
     const lettoAggiuntivo = seg.length === 1 && lettoDaComunicare(seg[0])
     // Caso C: le notti scoperte vanno nell'immagine come spazi vuoti (mai un soggiorno continuo)
     let personeNotti: { giorno: string; persone: number }[] = []
-    try { personeNotti = giorniTra(richiesta.arrivo, richiesta.partenza).map((giorno, i) => ({ giorno, persone: personePerNotte(richiesta)[i] })) } catch { personeNotti = [] }
+    try { personeNotti = nottiDellaRichiesta(richiesta).map((giorno, i) => ({ giorno, persone: personePerNotte(richiesta)[i] })) } catch { personeNotti = [] }
     return { seg, righe, totale, lettoAggiuntivo, nottiNonDisponibili: nottiScoperte(richiesta, soluzione), personeNotti }
   }, [richiesta, soluzione])
 
@@ -294,6 +307,7 @@ export default function PropostaPage() {
     conConferma(() => {
       // Nuova soluzione → si ricomincia dalle condizioni: mai una scelta trascinata da un'altra soluzione
       setScelta(chiaveSoluzione(soluzioni[i])); setSceltaDiAnia(true); setTestoModificato(null); setPannelloCambia(false); setManuale(false); setPrezzoEditor(null)
+      setForzaNessunaDisponibilita(false)
       setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false)
     })
   }
@@ -302,13 +316,26 @@ export default function PropostaPage() {
     if (!richiesta) return
     conConferma(() => {
       setComposizione(composizioneDaSoluzione(richiesta, soluzioneAuto))
-      setPrezziManuali(giorniTra(richiesta.arrivo, richiesta.partenza).map(() => null))
+      setPrezziManuali(nottiDellaRichiesta(richiesta).map(() => null))
       setManuale(true); setPrezzoEditor(null); setTestoModificato(null)
+      setForzaNessunaDisponibilita(false)
       setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false)
     })
   }
   function tornaAutomatica() {
-    conConferma(() => { setManuale(false); setPrezzoEditor(null); setTestoModificato(null); setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false) })
+    conConferma(() => { setManuale(false); setForzaNessunaDisponibilita(false); setPrezzoEditor(null); setTestoModificato(null); setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false) })
+  }
+  function scegliNessunaDisponibilita() {
+    conConferma(() => {
+      setForzaNessunaDisponibilita(true)
+      setScelta(null); setSceltaDiAnia(false); setManuale(false); setPrezzoEditor(null); setTestoModificato(null)
+      setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false); setPannelloCambia(false)
+    })
+  }
+  function tornaAlleDisponibilita() {
+    conConferma(() => {
+      setForzaNessunaDisponibilita(false); setTestoModificato(null); setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false)
+    })
   }
   const nomeCamera = (id: string | null) => (id === null ? 'nessuna' : (camere.find(c => c.id === id)?.name ?? '?'))
   const prezziTariffa = useMemo(() => {
@@ -383,8 +410,9 @@ export default function PropostaPage() {
       const s = pendente.soluzione
       setScelta(chiaveSoluzione(s)); setSceltaDiAnia(!pendente.alternative)
       setManuale(!!s.manuale)
+      setForzaNessunaDisponibilita(s.caso === 'completo' && s.segmenti.length === 0)
       setComposizione(composizioneDaSoluzione(richiesta, s))
-      setPrezziManuali(giorniTra(richiesta.arrivo, richiesta.partenza).map(g => {
+      setPrezziManuali(nottiDellaRichiesta(richiesta).map(g => {
         const segmento = s.segmenti.find(x => x.arrivo <= g && x.partenza > g)
         return segmento?.prezzo_manuale ? prezziNottiCentesimi(segmento)[giorniTra(segmento.arrivo, g).length] : null
       }))
@@ -462,7 +490,7 @@ export default function PropostaPage() {
   const riepilogo = (
     <div className="ed-riga py-4 leading-snug">
       <p className="text-[15px] text-green-dark">
-        {formatIntervallo(richiesta.arrivo, richiesta.partenza)}
+        {formatDateRichiesta(richiesta)}
         <span className="text-stone"> · </span>
         <span className="font-semibold text-brass">{n === 1 ? '1 notte' : `${n} notti`}</span>
         <span className="text-stone"> · </span>
@@ -501,6 +529,11 @@ export default function PropostaPage() {
       {modificaConsentita && !manuale && (
         <button type="button" onClick={apriScelgoIo} className="shrink-0 text-sm font-semibold text-green-mid underline underline-offset-2">Scelgo io</button>
       )}
+      {modificaConsentita && (
+        <button type="button" onClick={forzaNessunaDisponibilita ? tornaAlleDisponibilita : scegliNessunaDisponibilita} className="shrink-0 text-sm font-semibold text-green-mid underline underline-offset-2">
+          {forzaNessunaDisponibilita ? 'Torna alle disponibilità' : 'Nessuna disponibilità'}
+        </button>
+      )}
     </div>
   )
 
@@ -526,7 +559,7 @@ export default function PropostaPage() {
         <p className="text-sm font-semibold text-green-dark">Scelgo io · tocca una notte per cambiare camera</p>
         <button type="button" onClick={tornaAutomatica} className="shrink-0 text-xs font-semibold text-green-mid underline underline-offset-2">Torna alla proposta automatica</button>
       </div>
-      <StrisciaNotti<string | null> arrivo={richiesta.arrivo} partenza={richiesta.partenza} valori={composizione} aria="Camera notte per notte"
+      <StrisciaNotti<string | null> arrivo={richiesta.arrivo} partenza={richiesta.partenza} nottiSelezionate={richiesta.notti_richieste ?? undefined} valori={composizione} aria="Camera notte per notte"
         onChange={v => { setComposizione(v); setPrezziManuali(p => p.map((x, k) => (v[k] === composizione[k] ? x : null))); setPrezzoEditor(null) }}
         cicla={(v, verso, i) => {
           const ammesse = camereAmmesseNotte(i, richiesta, camere, prenotazioniConOpzioni)
@@ -553,7 +586,7 @@ export default function PropostaPage() {
       {erroreComposizione && <div role="alert" className="mt-2 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-2.5 text-sm text-[#8C3B2E]">{erroreComposizione}</div>}
       {prezzoEditor !== null && composizione[prezzoEditor] !== null && (
         <div className="mt-3 bg-sand rounded-xl p-3" role="group" aria-label="Prezzo a mano">
-          <p className="text-sm font-semibold text-green-dark mb-1.5">Prezzo della notte del {etichettaNotte(giorniTra(richiesta.arrivo, richiesta.partenza)[prezzoEditor])} · {nomeCamera(composizione[prezzoEditor])}</p>
+          <p className="text-sm font-semibold text-green-dark mb-1.5">Prezzo della notte del {etichettaNotte(nottiDellaRichiesta(richiesta)[prezzoEditor])} · {nomeCamera(composizione[prezzoEditor])}</p>
           <p className="text-xs mb-1.5" style={{ color: GRIGIO_NOTA }}>Tariffa: {prezziTariffa[prezzoEditor] != null ? `${fmtPrezzo((prezziTariffa[prezzoEditor] as number) / 100)} €` : '—'} · scrivi il prezzo in euro (anche con decimali)</p>
           <input type="text" inputMode="decimal" value={prezzoTesto} onChange={e => setPrezzoTesto(e.target.value)} aria-label="Prezzo della notte in euro"
             className="w-full min-w-0 appearance-none bg-white rounded-xl px-3 py-2.5 text-[15px] text-green-dark focus:outline-none focus:border-green-mid" style={{ border: `1px solid ${BORDO}` }} />

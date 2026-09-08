@@ -10,12 +10,13 @@
 //  B cambio         due segmenti in camere diverse, un solo cambio
 //  C manca_mezzo    inizio e fine coperti, una o più notti scoperte in mezzo
 //  D manca_estremo  un periodo continuo che parte dopo o finisce prima
-//  E completo       nulla copre almeno la metà delle notti
+//  E completo       nessuna soluzione continuativa: si comunica il completo
 import { tariffaCamera, totaleLetto, capienzaCamera } from './tariffe.ts'
 import { lettiOccupatiPerNotte, cameraOspita, type PrenotazioneLetti } from './lettiAggiuntivi.ts'
 import { contoSoggiorno } from './conto.ts'
 import { prezzoNotti } from './prezzoNotti.ts'
 import { ordinaCamere, STATI_CHE_OCCUPANO } from './disponibilita.ts'
+import { nottiDellaRichiesta, periodiDelleNotti } from './nottiRichieste.ts'
 import { giorniTra } from './richiesteCalendario.ts'
 
 export type CameraListino = {
@@ -30,20 +31,22 @@ export type CameraListino = {
 }
 // persone_per_notte (pezzo 9): un intero per notte (null = tutte le notti
 // uguali a `persone`). Caso reale: in 2 la prima notte, poi in 1.
-export type RichiestaProposta = { arrivo: string; partenza: string; persone: number; camera_id: string | null; persone_per_notte?: number[] | null }
+export type RichiestaProposta = {
+  notti_richieste?: string[] | null; arrivo: string; partenza: string; persone: number; camera_id: string | null; persone_per_notte?: number[] | null }
 
 // Le persone di ogni notte della richiesta, sempre come array lungo quanto le
 // notti. Un array salvato con lunghezza diversa dalle notti è un dato
 // incoerente (date cambiate senza la striscia): errore esplicito, mai un
 // ripiego silenzioso.
-export function personePerNotte(r: { arrivo: string; partenza: string; persone: number; persone_per_notte?: number[] | null }): number[] {
+export function personePerNotte(r: { arrivo: string; partenza: string; persone: number; persone_per_notte?: number[] | null; notti_richieste?: string[] | null }): number[] {
   const n = giorniTra(r.arrivo, r.partenza).length
   const base = Math.max(1, Number(r.persone) || 1)
   const p = r.persone_per_notte
-  if (p == null) return Array.from({ length: n }, () => base)
+  if (p == null) return nottiDellaRichiesta(r).map(() => base)
   if (!Array.isArray(p) || p.length !== n || p.some(x => !Number.isInteger(x) || x < 1))
     throw new Error(`Persone per notte non valide: servono ${n} interi da 1 in su (trovati ${JSON.stringify(p)}). Modifica la richiesta e ricontrolla la striscia delle notti.`)
-  return p.map(x => Number(x))
+  const tutte = giorniTra(r.arrivo, r.partenza)
+  return nottiDellaRichiesta(r).map(g => Number(p[tutte.indexOf(g)]))
 }
 
 // Persone «di riferimento» per una lista di notti: il massimo (capienza, letti)
@@ -52,7 +55,7 @@ export const personeUniformi = (persone: number[]) => persone.every(x => x === p
 // num_guests / extra_bed / extra_bed_dates: i letti aggiuntivi già presi (pool condiviso da 2)
 export type PrenotazioneOccupante = { room_id: string; check_in: string; check_out: string; status: string } & Partial<PrenotazioneLetti>
 
-export type CasoSoluzione = 'completa' | 'cambio' | 'manca_mezzo' | 'manca_estremo' | 'completo'
+export type CasoSoluzione = 'completa' | 'cambio' | 'manca_mezzo' | 'manca_estremo' | 'completo' | 'separata'
 
 export type SegmentoSoluzione = {
   camera: CameraListino
@@ -82,6 +85,7 @@ export type Soluzione = {
 }
 
 export const ETICHETTA_CASO: Record<CasoSoluzione, string> = {
+  separata: 'Notti selezionate',
   completa: 'Disponibilità completa',
   cambio: 'Cambio camera',
   manca_mezzo: 'Manca una parte',
@@ -129,6 +133,18 @@ export function proponiSoluzioni(
   camere: CameraListino[],
   prenotazioniConfermate: PrenotazioneOccupante[],
 ): Soluzione[] {
+  if (richiesta.notti_richieste) {
+    const notti = nottiDellaRichiesta(richiesta)
+    const persone = personePerNotte(richiesta)
+    let combinazioni: SegmentoSoluzione[][] = [[]]
+    for (const p of periodiDelleNotti(notti)) {
+      const valori = giorniTra(p.arrivo, p.partenza).map(g => persone[notti.indexOf(g)])
+      const opzioni = proponiSoluzioni({ ...richiesta, ...p, notti_richieste: null, persone_per_notte: valori }, camere, prenotazioniConfermate)
+      combinazioni = combinazioni.flatMap(già => opzioni.map(o => [...già, ...o.segmenti]))
+        .sort((a, b) => b.reduce((n, s) => n + s.notti, 0) - a.reduce((n, s) => n + s.notti, 0)).slice(0, MAX_SOLUZIONI)
+    }
+    return combinazioni.map(segmenti => soluzione(segmenti.length ? 'separata' : 'completo', segmenti, notti))
+  }
   const notti = giorniTra(richiesta.arrivo, richiesta.partenza)
   const n = notti.length
   if (n === 0) return []
@@ -228,8 +244,10 @@ export function proponiSoluzioni(
   out.push(...estremi)
 
   // C e D insieme, la più coperta per prima (C prima di D a parità).
-  // E — soglia: meno della metà delle notti coperte = completo
-  const utili = out.filter(s => s.nottiCoperte * 2 >= n)
+  // Una disponibilità parziale è utile anche quando copre meno della metà:
+  // Ania può proporre le notti libere e lasciare all'ospite solo il pezzo
+  // mancante da cercare altrove.
+  const utili = out
     .sort((x, y) => y.nottiCoperte - x.nottiCoperte || Number(x.caso === 'manca_estremo') - Number(y.caso === 'manca_estremo'))
   if (utili.length === 0) return [soluzione('completo', [], notti)]
   return utili.slice(0, MAX_SOLUZIONI)
@@ -371,7 +389,7 @@ export function motiviEsclusione(
   camere: CameraListino[],
   prenotazioniConfermate: PrenotazioneOccupante[],
 ): CameraConMotivo[] {
-  const notti = giorniTra(richiesta.arrivo, richiesta.partenza)
+  const notti = nottiDellaRichiesta(richiesta)
   const persone = personePerNotte(richiesta)
   const occupanti = prenotazioniConfermate.filter(p => STATI_CHE_OCCUPANO.has(p.status))
   const lettiPresi = lettiOccupatiPerNotte(occupanti)

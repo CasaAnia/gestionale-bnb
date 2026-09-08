@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { conIniziali } from '@/lib/maiuscole'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { validaRichiestaWeb, stessaRichiesta, consentiIp, FINESTRA_DOPPIONI_MIN } from '@/lib/richiesteWeb'
-import { formatIntervallo, nomeCompleto } from '@/lib/richieste'
+import { formatDateRichiesta, nomeCompleto } from '@/lib/richieste'
 import { inviaATutti } from '@/lib/inviaPush'
 import { registraPush } from '@/lib/pushLog'
 import { inviaPushover } from '@/lib/pushover'
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   // Anti-doppioni: stessa richiesta negli ultimi 10 minuti
   const da = new Date(Date.now() - FINESTRA_DOPPIONI_MIN * 60000).toISOString()
   const { data: recenti, error: errRecenti } = await supabase.from('richieste')
-    .select('id, nome, cognome, arrivo, partenza, telefono')
+    .select('*')
     .eq('canale', 'web').gte('created_at', da)
   if (errRecenti) {
     log('500', `controllo doppioni fallito: ${errRecenti.code ?? ''}`)
@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
   const riga: Record<string, unknown> = {
     nome: conIniziali(d.nome), cognome: conIniziali(d.cognome), arrivo: d.arrivo, partenza: d.partenza, persone: d.persone,
     camera_id: d.camera_id, canale: 'web', telefono: d.telefono, note: d.note, stato: 'in_attesa',
+    ...(d.notti_richieste ? { notti_richieste: d.notti_richieste } : {}),
   }
   // Provenienza (0037): cliente nuovo → google; cliente già esistente (stesso
   // telefono) → resta la sua. Senza le colonne la richiesta entra comunque
@@ -108,7 +109,7 @@ export async function POST(req: NextRequest) {
   const id = inserita.data.id as string
 
   // Testo delle notifiche (push e Pushover): «Nome Cognome», come ovunque nel gestionale
-  const corpoPush = `${nomeCompleto(d)}, ${formatIntervallo(d.arrivo, d.partenza)}, ${d.persone} ${d.persone === 1 ? 'persona' : 'persone'}`
+  const corpoPush = `${nomeCompleto(d)}, ${formatDateRichiesta(d)}, ${d.persone} ${d.persone === 1 ? 'persona' : 'persone'}`
 
   // Notifica push (miglior sforzo)
   let push: { inviate: number; errori: number } = { inviate: 0, errori: 0 }
@@ -133,4 +134,13 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ id, push, pushover: pushover.inviato }, { status: 201 })
+}
+
+// Versione del contratto letta dal sito PRIMA di inviare notti separate.
+// Non basta avere il codice: anche la colonna deve essere disponibile.
+export async function GET(req: NextRequest) {
+  const atteso = pulisci(process.env.RICHIESTE_WEB_SECRET)
+  if (!atteso || req.headers.get('authorization') !== `Bearer ${atteso}`) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+  const { error } = await createAdminClient().from('richieste').select('notti_richieste').limit(0)
+  return NextResponse.json({ nottiRichieste: !error }, { status: error ? 503 : 200, headers: { 'Cache-Control': 'no-store' } })
 }

@@ -13,6 +13,7 @@
 // righe con trattino. Le descrizioni brevi stanno in lib/descrizioniCamere.
 // Le proposte già inviate restano quelle salvate in proposta_testo.
 import { ROOM_SLUG_BY_NAME } from './roomTypes.ts'
+import { nottiDellaRichiesta, elencoNotti, periodiDelleNotti, type DateRichiesta } from './nottiRichieste.ts'
 import { giorniTra } from './richiesteCalendario.ts'
 import { DESCRIZIONI_CAMERE, LETTO_IN_PIU, SITO_CAMERE } from './descrizioniCamere.ts'
 import { ORE_RISPOSTA_PROPOSTA, ORE_RISERVA_BONIFICO, GIORNI_PREAVVISO_CANCELLAZIONE, type CondizionePagamento } from './condizioniPrenotazione.ts'
@@ -24,7 +25,7 @@ export type Condizione =
   | { tipo: 'completo' }
   | { tipo: 'personalizzata'; testo: string }
 
-export type RichiestaTesto = { nome: string; arrivo: string; partenza: string }
+export type RichiestaTesto = DateRichiesta & { nome: string }
 
 export const FIRMA = 'Grazie mille,\nAnia – Casa Ania'
 export { SITO_CAMERE }
@@ -242,7 +243,7 @@ const HO_VERIFICATO = 'Ho verificato le date che mi ha indicato.'
 export function casoE(richiesta: RichiestaTesto): string {
   return `${apertura(richiesta.nome)}
 
-${HO_VERIFICATO} Purtroppo ${dalAl(richiesta.arrivo, richiesta.partenza)} siamo al completo e non ho una soluzione da poterle proporre.
+${HO_VERIFICATO} Purtroppo ${richiesta.notti_richieste ? `per le notti del ${elencoNotti(richiesta.notti_richieste)}` : dalAl(richiesta.arrivo, richiesta.partenza)} siamo al completo e non ho una soluzione da poterle proporre.
 
 Mi dispiace davvero. Spero di poterla accogliere in un'altra occasione.
 
@@ -250,9 +251,9 @@ ${FIRMA}`
 }
 
 // Notti richieste ma non coperte dalla soluzione (in ordine)
-export function nottiScoperte(richiesta: { arrivo: string; partenza: string }, sol: Soluzione): string[] {
+export function nottiScoperte(richiesta: DateRichiesta, sol: Soluzione): string[] {
   const coperte = new Set(sol.segmenti.flatMap(s => giorniTra(s.arrivo, s.partenza)))
-  return giorniTra(richiesta.arrivo, richiesta.partenza).filter(g => !coperte.has(g))
+  return nottiDellaRichiesta(richiesta).filter(g => !coperte.has(g))
 }
 
 // Le soluzioni da elencare nel caso A: la scelta più tutte le altre
@@ -388,7 +389,14 @@ export function generaProposta({ richiesta, soluzione, condizione, amelia, alter
 }): string {
   if (soluzione.caso === 'completo') return casoE(richiesta)
   const camereA = camereDelCasoA(soluzione, alternative)
-  const blocchi: Blocchi = soluzione.caso === 'completa' ? casoA(richiesta, camereA)
+  const blocchi: Blocchi = richiesta.notti_richieste ? { oreVariante: 'nessuna', paragrafi: [
+    `${HO_VERIFICATO} Per le notti del ${elencoNotti(richiesta.notti_richieste)} che ha selezionato posso proporle questi periodi:`,
+    ...soluzione.segmenti.map(s => rigaSegmento(s, richiesta)),
+    `Il prezzo ${perLeNotti(soluzione.nottiCoperte)} è di ${formattaEuro(centesimiTotale(soluzione))}.`,
+    ...(nottiScoperte(richiesta, soluzione).length ? [`Le notti del ${elencoNotti(nottiScoperte(richiesta, soluzione))} non sono più disponibili.`] : []),
+    ...(periodiDelleNotti(richiesta.notti_richieste).length > 1 ? ['Le notti tra un periodo e l’altro non sono incluse: in quei giorni dovrà lasciare la camera.'] : []),
+    ...(rigaLink(soluzione) ? [rigaLink(soluzione)!] : []),
+  ] } : soluzione.caso === 'completa' ? casoA(richiesta, camereA)
     : soluzione.caso === 'cambio' ? casoB(richiesta, soluzione)
       : casoC(richiesta, soluzione)
   const paragrafi = [apertura(richiesta.nome), ...blocchi.paragrafi]
