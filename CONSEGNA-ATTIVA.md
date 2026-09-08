@@ -1,6 +1,12 @@
 # Home pulizie: azioni dirette e scomparsa dopo la conferma (08/09/2026)
 
-**ANTEPRIMA APPROVATA — PUBBLICAZIONE IN CORSO.** Ania ha controllato e
+**PUBBLICATO E VERIFICATO ONLINE l'8 settembre 2026.** Vercel ha completato
+il deploy `cee53f6` (codice `a016e29`, candidato `b217cfa`). Home reale
+ricaricata: la pulizia già completata di Allegra e il link al resoconto sono
+assenti; la conferma resta nel registro Pulizie dell'8 settembre. Il resoconto
+reale contiene sette conferme e zero pezzi. Nessuna scrittura di prova.
+Deploy: https://vercel.com/casa-ania/gestionale-bnb/8iPdpQQsDeHyXZv4H8aGsbh41Jcf.
+Ania ha controllato e
 confermato «ho controllato, mi sembra tutto apposto». Il candidato `b217cfa`
 è integrato su main come `a016e29` con albero identico; la pubblicazione rientra
 nel passaggio già autorizzato, ora completata anche la verifica insieme dell'anteprima.
