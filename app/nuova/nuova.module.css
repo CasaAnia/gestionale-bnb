@@ -59,6 +59,10 @@
 .campo { appearance: none; -webkit-appearance: none; border: none; border-bottom: 2px solid transparent; background: transparent; text-align: left; font: inherit; font-size: 15px; font-weight: 600; color: var(--color-green-dark); padding: 3px 0 4px; min-width: 0; width: 100%; border-radius: 6px; }
 /* il campo che stai cambiando: fondo sabbia e filo verde, così si vede dove
    si sta scrivendo senza riempire la pagina di righe */
+/* Ania, 09/09/2026: niente icona del calendario accanto alla data. Il
+   calendario si apre lo stesso toccando il campo. */
+.campo::-webkit-calendar-picker-indicator { display: none; -webkit-appearance: none; opacity: 0; }
+.campo::-webkit-inner-spin-button, .campo::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .campo:focus { outline: none; background: var(--color-sand); border-bottom: 2px solid var(--color-green-mid); color: var(--color-green-mid); box-shadow: 0 0 0 6px var(--color-sand); }
 .campo::placeholder { color: var(--color-stone); font-weight: 400; }
 .campoSinistra { text-align: left; font-weight: 400; }
