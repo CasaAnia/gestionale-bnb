@@ -38,6 +38,10 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 const PORTA_FINTO = Number(process.env.PORTA_FINTO || 54330)
+// Di norma il finto Supabase sta su 127.0.0.1: lo vede solo questo Mac.
+// Con HOST_FINTO=<indirizzo di rete> si affaccia anche sulla rete di casa,
+// così l'anteprima si può aprire dal telefono (scripts/revisioni/anteprima-telefono.mjs).
+const HOST_FINTO = process.env.HOST_FINTO || '127.0.0.1'
 const PORTA_APP = Number(process.env.PORTA_APP || 3215)
 const radice = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 
@@ -431,14 +435,14 @@ const finto = createServer(async (req, res) => {
   rispondi(res, 404, { message: `non gestito: ${req.method} ${url.pathname}` })
 })
 
-finto.listen(PORTA_FINTO, '127.0.0.1', () => {
-  console.log(`[finto supabase] http://127.0.0.1:${PORTA_FINTO} (oggi ${ymd(adesso)}, ${bookings.length} prenotazioni, ${richieste.length} richieste)`)
+finto.listen(PORTA_FINTO, HOST_FINTO === '127.0.0.1' ? '127.0.0.1' : '0.0.0.0', () => {
+  console.log(`[finto supabase] http://${HOST_FINTO}:${PORTA_FINTO} (oggi ${ymd(adesso)}, ${bookings.length} prenotazioni, ${richieste.length} richieste)`)
   const next = spawn(path.join(radice, 'node_modules', '.bin', 'next'), ['dev', '--webpack', '-p', String(PORTA_APP)], {
     cwd: radice,
     stdio: 'inherit',
     env: {
       ...process.env,
-      NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${PORTA_FINTO}`,
+      NEXT_PUBLIC_SUPABASE_URL: `http://${HOST_FINTO}:${PORTA_FINTO}`,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: 'chiave-anon-finta',
     },
   })
