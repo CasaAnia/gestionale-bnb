@@ -2,7 +2,9 @@
    Le classi stanno qui e non in globals.css: l'anteprima non deve poter
    cambiare l'aspetto delle pagine vere. Colori: solo quelli del gestionale. */
 
-.pagina { max-width: 390px; margin: 0 auto; padding: 0 2px 120px; }
+.pagina { max-width: 430px; margin: 0 auto; padding: 4px 20px 40px; }
+/* Ania, 09/09/2026: il testo non deve mai toccare il bordo dello schermo.
+   Venti pixel di aria a destra e a sinistra, e niente che esca dal margine. */
 
 /* testata */
 .sotto { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--color-brass); }
@@ -88,7 +90,7 @@
 .seguito { margin-top: 12px; padding: 10px 0 0 12px; border-top: 1px solid var(--color-card-border); border-left: 1px solid rgba(169, 136, 78, 0.55); }
 
 /* la distinta del totale */
-.distinta { margin: 10px -18px 0; padding: 12px 18px 14px; background: var(--color-sidebar); border-top: 1px solid rgba(169, 136, 78, 0.55); border-bottom: 1px solid rgba(169, 136, 78, 0.55); }
+.distinta { margin: 10px 0 0; padding: 12px 14px 14px; border-radius: 10px; background: var(--color-sidebar); border-top: 1px solid rgba(169, 136, 78, 0.55); border-bottom: 1px solid rgba(169, 136, 78, 0.55); }
 .dRiga { display: flex; align-items: baseline; gap: 7px; padding: 3px 0; font-size: 12px; }
 .punti { flex: 1; border-bottom: 1px dotted #C9BFA8; transform: translateY(-4px); }
 .dImporto { font-family: Georgia, serif; font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -103,7 +105,7 @@
 .giaSotto { display: block; font-size: 12px; font-weight: 400; color: var(--color-stone); margin-top: 1px; }
 
 /* barra in fondo */
-.barra { margin: 22px -18px 0; padding: 12px 18px; border-top: 1px solid #C9BFA8; background: var(--color-sidebar); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.barra { margin: 22px 0 0; padding: 12px 14px; border-radius: 10px; border-top: 1px solid #C9BFA8; background: var(--color-sidebar); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .barra .pil, .barra .pilT { flex: 1; min-height: 44px; }
 
 /* avvisi */
