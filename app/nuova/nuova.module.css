@@ -43,13 +43,19 @@
 /* Ania, 09/09/2026: l'etichetta piccola sopra e il valore attaccato a
    sinistra. Col valore a destra «Nome ——— Anna» sembrava una riga sola, e
    Arrivo e Partenza si toccavano. */
-.campoBlocco { display: block; padding: 9px 0; border-top: 1px solid var(--color-card-border); min-width: 0; }
+/* Ania, 09/09/2026: «sono tantissime, sono troppe». Via la riga sotto ogni
+   valore e via la riga sopra ogni campo: a riposo restano solo l'etichetta in
+   ottone e il valore scuro. Una sola riga sottile apre il gruppo dei campi. */
+.campoBlocco { display: block; padding: 7px 0; min-width: 0; }
 .campoEti { display: block; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--color-brass); margin-bottom: 2px; }
-.campo { appearance: none; -webkit-appearance: none; border: none; background: transparent; border-bottom: 1px solid #C9BFA8; text-align: left; font: inherit; font-size: 15px; font-weight: 600; color: var(--color-green-dark); padding: 3px 0 5px; min-width: 0; width: 100%; }
-.campo:focus { outline: none; border-bottom: 2px solid var(--color-green-mid); color: var(--color-green-mid); }
+.campo { appearance: none; -webkit-appearance: none; border: none; border-bottom: 2px solid transparent; background: transparent; text-align: left; font: inherit; font-size: 15px; font-weight: 600; color: var(--color-green-dark); padding: 3px 0 4px; min-width: 0; width: 100%; border-radius: 6px; }
+/* il campo che stai cambiando: fondo sabbia e filo verde, così si vede dove
+   si sta scrivendo senza riempire la pagina di righe */
+.campo:focus { outline: none; background: var(--color-sand); border-bottom: 2px solid var(--color-green-mid); color: var(--color-green-mid); box-shadow: 0 0 0 6px var(--color-sand); }
 .campo::placeholder { color: var(--color-stone); font-weight: 400; }
 .campoSinistra { text-align: left; font-weight: 400; }
 .due { display: flex; gap: 22px; min-width: 0; }
+.blocco > .due:first-of-type, .seguito > .due:first-of-type { border-top: 1px solid var(--color-card-border); padding-top: 10px; margin-top: 4px; }
 .due > * { flex: 1; min-width: 0; }
 
 /* pillole e badge, come nel resto del gestionale */

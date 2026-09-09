@@ -530,7 +530,7 @@ function NuovaPrenotazione() {
               {bloccato.note || 'Nelle note interne c’è il motivo.'}<br />Non si può usare per una nuova prenotazione.
             </p>
           )}
-          <div className={s.azioni} style={{ borderTop: '1px solid var(--color-card-border)', marginTop: 2 }}>
+          <div className={s.azioni}>
             <button type="button" className={s.azione} onClick={() => {
               const testo = ricerca.trim()
               const cifre = /\d/.test(testo)
