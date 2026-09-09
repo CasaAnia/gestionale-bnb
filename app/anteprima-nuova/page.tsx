@@ -1,14 +1,14 @@
-// ANTEPRIMA NUOVA PRENOTAZIONE — prototipo visivo locale (09/09/2026).
+// ANTEPRIMA NUOVA PRENOTAZIONE — prototipo da guardare, non da usare.
 //
-// SOLO SVILUPPO: fuori dal dev locale risponde notFound(), come
-// /anteprima-spese. Dati esclusivamente sintetici: nessuna query a Supabase,
-// nessuna scrittura. Non tocca /nuova né /prenotazioni.
-import { notFound } from 'next/navigation'
+// Pubblicata su richiesta di Ania (09/09/2026) per poterla aprire dal
+// telefono: sta dietro al login del gestionale come tutto il resto, non è
+// collegata da nessun menù e i dati sono TUTTI sintetici (app/anteprima-nuova
+// /dati.ts). Nessuna query a Supabase, nessuna scrittura: il salvataggio
+// mostra soltanto quello che salverebbe. Non tocca /nuova né /prenotazioni.
 import AnteprimaNuova from './AnteprimaNuova'
 
-export const metadata = { title: 'Anteprima nuova prenotazione (solo sviluppo)' }
+export const metadata = { title: 'Anteprima nuova prenotazione' }
 
 export default function PaginaAnteprimaNuova() {
-  if (process.env.NODE_ENV !== 'development') notFound()
   return <AnteprimaNuova />
 }
