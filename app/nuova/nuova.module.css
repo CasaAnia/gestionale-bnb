@@ -47,7 +47,11 @@
    valore e via la riga sopra ogni campo: a riposo restano solo l'etichetta in
    ottone e il valore scuro. Una sola riga sottile apre il gruppo dei campi. */
 .campoBlocco { display: block; padding: 7px 0; min-width: 0; }
-.campoEti { display: block; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--color-brass); margin-bottom: 2px; }
+/* Ania, 09/09/2026: «abbiamo troppo dorato dappertutto, invece di dare solo
+   un tocco lo rende tutto omogeneo». Come nella scheda della prenotazione:
+   l'ottone resta ai titoli di sezione, le etichette dei campi sono grigie e
+   il valore è scuro. */
+.campoEti { display: block; font-size: 13px; color: var(--color-stone); margin-bottom: 1px; }
 .campo { appearance: none; -webkit-appearance: none; border: none; border-bottom: 2px solid transparent; background: transparent; text-align: left; font: inherit; font-size: 15px; font-weight: 600; color: var(--color-green-dark); padding: 3px 0 4px; min-width: 0; width: 100%; border-radius: 6px; }
 /* il campo che stai cambiando: fondo sabbia e filo verde, così si vede dove
    si sta scrivendo senza riempire la pagina di righe */
@@ -110,7 +114,7 @@
 
 /* le quattro righe già a posto */
 .gia { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 12px 0; border-top: 1px solid var(--color-card-border); min-width: 0; }
-.giaEti { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--color-brass); width: 100px; flex: none; }
+.giaEti { font-size: 13px; color: var(--color-stone); width: 96px; flex: none; }
 .giaValore { flex: 1; font-size: 14px; font-weight: 600; min-width: 0; }
 .giaVuota { font-weight: 400; color: var(--color-stone); }
 .giaSotto { display: block; font-size: 12px; font-weight: 400; color: var(--color-stone); margin-top: 1px; }

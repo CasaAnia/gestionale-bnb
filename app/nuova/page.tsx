@@ -751,8 +751,10 @@ function NuovaPrenotazione() {
                     </div>
                     <label className={s.campoBlocco} style={{ maxWidth: 130 }}>
                       <span className={s.campoEti}>Quanto costa</span>
+                      {/* con lo zero dentro, scrivendo 5 restava «05» (Ania, 09/09/2026):
+                          quando non costa niente il campo resta vuoto */}
                       <input type="number" inputMode="decimal" className={s.campo} placeholder="€"
-                        value={p.letto?.importo ?? ''}
+                        value={p.letto?.importo ? p.letto.importo : ''}
                         onChange={e => aggiorna(p.id, { letto: { importo: e.target.value === '' ? 0 : Number(e.target.value), criterio: p.letto?.criterio ?? 'notte' } })} />
                     </label>
                     <div className={s.pillole} style={{ marginTop: 4 }}>
