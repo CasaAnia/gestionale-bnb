@@ -53,6 +53,14 @@
         "scripts/revisioni/anteprima-home-finta.mjs"
       ],
       "port": 3215
+    },
+    {
+      "name": "gestionale-bnb-anteprima-telefono",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/revisioni/anteprima-telefono.mjs"
+      ],
+      "port": 3215
     }
   ]
 }
