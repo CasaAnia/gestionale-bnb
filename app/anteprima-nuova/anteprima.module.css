@@ -25,8 +25,8 @@
 
 /* righe di risultato */
 .risultato { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left; padding: 10px 0; border-top: 1px solid var(--color-card-border); }
-.risultatoNome { font-family: Georgia, serif; font-size: 17px; line-height: 1.2; }
-.risultatoTel { font-size: 12px; color: var(--color-stone); margin-top: 2px; }
+.risultatoNome { display: block; font-family: Georgia, serif; font-size: 17px; line-height: 1.2; }
+.risultatoTel { display: block; font-size: 12px; color: var(--color-stone); margin-top: 2px; }
 .spento { opacity: 0.55; }
 
 /* riga generica etichetta/valore */
