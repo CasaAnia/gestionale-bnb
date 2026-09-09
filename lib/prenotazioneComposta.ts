@@ -37,15 +37,18 @@ export function lettoDaRegole(camera: CameraComposta | null, ospiti: number): nu
   return totaleLetto(camera, ospiti, 1)
 }
 
-// Quanto proporre nel campo «Quanto costa» (Ania, 09/09/2026): cinque euro
-// sempre, in tutte le camere — «sotto i cinque non ha senso e dieci in Amelia
-// non lo posso mettere». Unica eccezione: dove il letto è già compreso nel
-// prezzo (Lena venduta come tripla) resta zero, altrimenti si pagherebbe due
-// volte lo stesso posto letto. Il numero resta modificabile.
-export const LETTO_PROPOSTO = 5
+// Quanto proporre nel campo «Quanto costa» (Ania, 09/09/2026): il prezzo del
+// letto della camera — cinque euro per la singola, dieci per le altre — perché
+// è quello che userà quasi sempre; quella volta che lo vende a meno lo cambia
+// a mano. Dove il posto letto è già dentro il prezzo (Lena venduta come tripla,
+// terzo ospite) resta zero: altrimenti si pagherebbe due volte.
 export function lettoProposto(camera: CameraComposta | null, ospiti: number): number {
-  if (ospiti > capienzaBase(camera)) return lettoDaRegole(camera, ospiti) > 0 ? LETTO_PROPOSTO : 0
-  return LETTO_PROPOSTO
+  const daRegole = lettoDaRegole(camera, ospiti)
+  if (daRegole > 0) return daRegole
+  if (ospiti > capienzaBase(camera)) return 0
+  // acceso a mano stando nella capienza (due persone che dormono separate):
+  // vale il prezzo del letto di quella camera
+  return Number(camera?.extra_bed_price ?? 0) || 0
 }
 
 export function costoLetto(p: PeriodoComposto, camera: CameraComposta | null): number {
