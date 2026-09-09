@@ -12,7 +12,7 @@ import BackBar from '@/components/BackBar'
 import CampoRicerca from '@/components/CampoRicerca'
 import s from './nuova.module.css'
 import {
-  conLettoAutomatico, contoPeriodo, dividiPerCambio, lettoProposto, notti as nottiPeriodo,
+  conLettoAutomatico, contoPeriodo, dividiPerCambio, lettoDaRivedere, lettoProposto, notti as nottiPeriodo,
   ospitiIniziali, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno,
   type CameraComposta, type PeriodoComposto,
 } from '@/lib/prenotazioneComposta'
@@ -21,6 +21,7 @@ import { capienzaCamera } from '@/lib/tariffe'
 import { lettiPoolPrenotazione, nottiLettoExtra } from '@/lib/lettiAggiuntivi'
 import { contoSoggiorno } from '@/lib/conto'
 import { conInizialiONull, maiuscoleNelCampo } from '@/lib/maiuscole'
+import { oraDigitata, oraCompleta } from '@/lib/ora'
 import { smartBack, returnToSicuro } from '@/lib/navHistory'
 import { messaggioErroreDati } from '@/lib/connessione'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
@@ -37,7 +38,7 @@ import {
 
 type ClienteRiga = {
   id: string; full_name: string | null; phone: string | null; email: string | null
-  rating: string; note?: string | null
+  rating: string; notes?: string | null
   provenienza?: string | null; struttura_nome?: string | null
 }
 type CameraRiga = CameraComposta & {
@@ -45,7 +46,7 @@ type CameraRiga = CameraComposta & {
   has_extra_bed?: boolean | null; extra_bed_price?: number | string | null
 }
 type RigaStorico = {
-  id: string; group_id: string | null; status: string; check_in: string; check_out: string
+  id: string; group_id: string | null; status: string; check_in: string; check_out: string; cancelled_reason?: string | null
   num_guests: number; total_amount: number | string; price_per_night: number | string
   extra_bed_total?: number | string | null; discount_type?: string | null; discount_value?: number | string | null
   rooms?: { name?: string | null } | null
@@ -53,6 +54,7 @@ type RigaStorico = {
 type SoggiornoConcluso = {
   chiave: string; dal: string; al: string; camere: string; ospiti: number
   notti: number; totale: number; pieno: number
+  annullata: boolean; motivo: string | null
 }
 type Contatto = { nome: string; chiE: string; telefono: string }
 type Accordo = {
@@ -71,18 +73,6 @@ function periodoBreve(dal: string, al: string) {
   const [yb, mb, db] = al.split('-').map(Number)
   return ma === mb && ya === yb ? `${da}→${db} ${MESI[mb - 1]} ${String(yb).slice(2)}` : `${da} ${MESI[ma - 1]}→${ggAnno(al)}`
 }
-// Ora scritta a mano (Ania, 09/09/2026: «la ruota che gira è scocciante,
-// preferisco scrivere 0-3-0-0»): si digitano solo le cifre e i due punti li
-// mette la pagina. Ore oltre 23 e minuti oltre 59 vengono riportati dentro.
-export function oraDigitata(testo: string): string {
-  const cifre = testo.replace(/\D/g, '').slice(0, 4)
-  if (cifre.length <= 2) return cifre
-  const ore = String(Math.min(23, Number(cifre.slice(0, 2)))).padStart(2, '0')
-  const minuti = cifre.slice(2)
-  return cifre.length === 3 ? `${ore}:${minuti}` : `${ore}:${String(Math.min(59, Number(minuti))).padStart(2, '0')}`
-}
-const oraCompleta = (t: string) => /^\d{2}:\d{2}$/.test(t)
-
 const ETICHETTA_ACCORDO: Record<Accordo['modo'], string> = {
   contanti: 'Contanti all’arrivo', bonifico_arrivo: 'Bonifico all’arrivo', bonifico_intero: 'Bonifico · intero importo',
   caparra_meta: 'Bonifico · caparra del 50%', caparra_libera: 'Bonifico · caparra personalizzata',
@@ -113,7 +103,11 @@ function NuovaPrenotazione() {
   const [cercando, setCercando] = useState(false)
   const [erroreRicerca, setErroreRicerca] = useState<string | null>(null)
   const [cliente, setCliente] = useState<ClienteRiga | null>(null)
-  const [bloccato, setBloccato] = useState<ClienteRiga | null>(null)
+  // Cliente problematico (Ania, 09/09/2026): NON si blocca. Si vede, con il
+  // motivo, e la scelta la fa lei sul momento: quasi sempre serve solo a
+  // sapere che con questa persona c'erano stati problemi.
+  const [problematico, setProblematico] = useState<ClienteRiga | null>(null)
+  const [problematicoOk, setProblematicoOk] = useState<string | null>(null)
   const [nuovo, setNuovo] = useState<{ nome: string; telefono: string; valutazione: Valutazione; ricevuta: boolean; nota: string } | null>(null)
   const [modifica, setModifica] = useState<{ nome: string; telefono: string; valutazione: Valutazione; ricevuta: boolean; nota: string } | null>(null)
   const [storico, setStorico] = useState<SoggiornoConcluso[]>([])
@@ -206,8 +200,10 @@ function NuovaPrenotazione() {
   async function caricaStorico(guestId: string) {
     setErroreStorico(null)
     const oggi = iso(new Date())
+    // Le annullate si vedono col loro motivo (Ania, 09/09/2026) ma non contano
+    // nei soggiorni conclusi né nel totale speso.
     const { data, errore } = await leggiConEsito<RigaStorico[]>(
-      () => supabase.from('bookings').select('*, rooms(name)').eq('guest_id', guestId).neq('status', 'annullata').lt('check_out', oggi).order('check_in', { ascending: false }),
+      () => supabase.from('bookings').select('*, rooms(name)').eq('guest_id', guestId).or(`check_out.lt.${oggi},status.eq.annullata`).order('check_in', { ascending: false }),
       'caricare i soggiorni precedenti')
     if (errore) { setStorico([]); setErroreStorico(errore); return }
     const gruppi = new Map<string, RigaStorico[]>()
@@ -218,8 +214,11 @@ function NuovaPrenotazione() {
     const lista: SoggiornoConcluso[] = [...gruppi.entries()].map(([chiave, righe]) => {
       const ordinate = [...righe].sort((a, b) => a.check_in.localeCompare(b.check_in))
       const conti = ordinate.map(r => contoSoggiorno(r))
+      const annullata = ordinate.every(r => r.status === 'annullata')
       return {
         chiave,
+        annullata,
+        motivo: ordinate.map(r => r.cancelled_reason).find(Boolean) ?? null,
         dal: ordinate[0].check_in,
         al: ordinate[ordinate.length - 1].check_out,
         camere: [...new Set(ordinate.map(r => r.rooms?.name || 'camera'))].join(' → '),
@@ -247,7 +246,6 @@ function NuovaPrenotazione() {
 
   function scriviRicerca(v: string) {
     setRicerca(v)
-    setBloccato(null)
     setRisultati([])
     if (timerRicerca.current) clearTimeout(timerRicerca.current)
     const testo = v.trim()
@@ -286,8 +284,9 @@ function NuovaPrenotazione() {
   }
 
   function scegliCliente(c: ClienteRiga) {
-    if (valutazioneDi(c) === 'problematico') { setBloccato(c); return }
-    setCliente(c); setBloccato(null); setRicerca(''); setRisultati([])
+    setProblematico(valutazioneDi(c) === 'problematico' ? c : null)
+    setProblematicoOk(null)
+    setCliente(c); setRicerca(''); setRisultati([])
     setNomeSuQuesta(null)
     const p = (c as unknown as Record<string, unknown>)
     if ('provenienza' in p) setProvenienza({ provenienza: normalizzaProvenienza(p.provenienza), struttura: (p.struttura_nome as string) ?? '' })
@@ -359,13 +358,20 @@ function NuovaPrenotazione() {
     const al = validi.map(p => p.checkOut).sort().slice(-1)[0]
     const controlla = async () => {
       if (validi.length === 0) { if (vivo) { setConflitti([]); setLettiAltrui(new Map()) } return }
-      const [{ data: occupate }, { data: conLetto }] = await Promise.all([
+      const [{ data: occupate, error: e1 }, { data: conLetto, error: e2 }] = await Promise.all([
         supabase.from('bookings').select('id, room_id, check_in, check_out, guest_name, rooms(name), guests(full_name)')
           .neq('status', 'annullata').lt('check_in', al).gt('check_out', dal),
         supabase.from('bookings').select('id, room_id, num_guests, extra_bed, extra_bed_dates, check_in, check_out')
           .eq('extra_bed', true).neq('status', 'annullata').lt('check_in', al).gt('check_out', dal),
       ])
       if (!vivo) return
+      // Una lettura fallita NON vuol dire «libero»: si dice, e il salvataggio
+      // si ferma finché non riesce (rilievo del 09/09/2026).
+      if (e1 || e2) {
+        setConflitti(['Disponibilità non verificata: la lettura delle altre prenotazioni non è riuscita. Riprova prima di salvare.'])
+        setLettiAltrui(new Map())
+        return
+      }
       const avvisi: string[] = []
       for (const p of validi) {
         for (const b of (occupate || []) as unknown as { room_id: string; check_in: string; check_out: string; guest_name?: string | null; rooms?: { name?: string } | null; guests?: { full_name?: string } | null }[]) {
@@ -402,8 +408,12 @@ function NuovaPrenotazione() {
 
   // ── salvataggio ───────────────────────────────────────────────────────────
   async function salva() {
+    if (salvando || salvata) return          // due tocchi non fanno due prenotazioni
     const guai = problemi(periodi, trovaCamera, lettiAltrui)
     if (!scelto) guai.unshift('Manca il cliente.')
+    if (cliente && valutazioneDi(cliente) === 'problematico' && problematicoOk !== cliente.id) {
+      guai.push('Con questo cliente c’erano stati problemi: conferma «Prenoto lo stesso» qui sopra, oppure scegline un altro.')
+    }
     if (nuovo && !nuovo.nome.trim()) guai.push('Del cliente nuovo serve il nome.')
     if (nuovo && !nuovo.telefono.trim()) guai.push('Del cliente nuovo serve il telefono.')
     if (nuovo && strutture.disponibile && !provenienza.provenienza) guai.push('Scegli come ci ha trovato.')
@@ -411,7 +421,7 @@ function NuovaPrenotazione() {
     if ((accordo.modo === 'caparra_meta' || accordo.modo === 'caparra_libera') && Boolean(accordo.data) !== Boolean(accordo.ora)) guai.push('Della caparra servono data e ora, oppure nessuna delle due.')
     if (accordo.ora && !oraCompleta(accordo.ora)) guai.push('L\'ora della caparra è incompleta: scrivi per esempio 18:00.')
     if (orario && !oraCompleta(orario)) guai.push('L\'orario di arrivo è incompleto: scrivi per esempio 15:30.')
-    if (accordo.modo === 'caparra_libera' && !accordo.importo) guai.push('Scrivi l’importo della caparra.')
+    if (accordo.modo === 'caparra_libera' && (!accordo.importo || !Number.isFinite(accordo.importo) || accordo.importo <= 0)) guai.push('La caparra deve essere un importo positivo.')
     if (accordo.modo === 'caparra_libera' && accordo.importo && totale !== null && accordo.importo > totale) guai.push('La caparra non può superare il totale.')
     if (conflitti.length > 0) guai.push(...conflitti)
     setErrori(guai)
@@ -426,6 +436,15 @@ function NuovaPrenotazione() {
         // Il numero è già di una scheda? si usa quella, senza crearne una seconda
         const { scheda } = await cercaSchedaPerTelefono<ClienteRiga>(nuovo.telefono)
         if (scheda) {
+          // Il numero riporta sempre la sua scheda, comunque sia scritto: se
+          // quella scheda è segnata problematica, si ferma e lo dice, invece
+          // di salvare in silenzio (rilievo del 09/09/2026).
+          if (valutazioneDi(scheda) === 'problematico' && problematicoOk !== scheda.id) {
+            setCliente(scheda); setProblematico(scheda); setNuovo(null)
+            setErrori([`Questo numero è già di ${scheda.full_name}, segnato come cliente con cui c’erano stati problemi: guarda l’avviso e conferma se vuoi prenotare lo stesso.`])
+            setSalvando(false)
+            return
+          }
           guestId = scheda.id
           nomeSu = calcolaNomeSuPrenotazione(nuovo.nome, scheda.full_name)
           setCliente(scheda)
@@ -434,7 +453,7 @@ function NuovaPrenotazione() {
           const telefono = cifre ? (cifre.startsWith('39') ? cifre : `39${cifre}`) : null
           const base = {
             phone: telefono, full_name: conInizialiONull(nuovo.nome), email: null,
-            ...(nuovo.nota.trim() ? { note: nuovo.nota.trim() } : {}),
+            ...(nuovo.nota.trim() ? { notes: nuovo.nota.trim() } : {}),
             ...(strutture.disponibile ? campiProvenienza(provenienza.provenienza ?? 'non_so', provenienza.struttura) : {}),
           }
           let { data: creato, error } = await supabase.from('guests').insert({ ...base, ...payloadValutazione(nuovo.valutazione, nuovo.ricevuta, true) }).select().single()
@@ -483,19 +502,29 @@ function NuovaPrenotazione() {
         ...(chi === 'altra' && contatti[1]?.telefono ? { extra_phone_2: contatti[1].telefono.replace(/\s/g, '') } : {}),
         ...campiSconto,
       }
-      const accordoCampi = {
-        accordo_pagamento: accordo.modo,
+      // L'accordo vale per l'intera prenotazione: la caparra si scrive UNA
+      // volta sola, sulla riga che arriva per prima. Copiata su ogni camera
+      // varrebbe il doppio (rilievo del 09/09/2026).
+      const accordoCampi = { accordo_pagamento: accordo.modo }
+      const caparraCampi = {
         ...(caparra ? { caparra_centesimi: Math.round(caparra * 100) } : {}),
         ...(accordo.data && accordo.ora ? { caparra_entro: `${accordo.data}T${accordo.ora}:00` } : {}),
       }
-      const righeDaSalvare = periodi.map(p => ({ ...rigaDaSalvare(p, trovaCamera(p.roomId)!, gruppoId.get(p.gruppo)!), ...comuni }))
+      const primaRiga = [...periodi].sort((a, b) => a.checkIn.localeCompare(b.checkIn))[0]?.id
+      const righeDaSalvare = periodi.map(p => ({
+        riga: { ...rigaDaSalvare(p, trovaCamera(p.roomId)!, gruppoId.get(p.gruppo)!), ...comuni },
+        prima: p.id === primaRiga,
+      }))
 
       // La proposta 0041 può non essere ancora applicata: in quel caso si
       // salva lo stesso, senza i campi dell'accordo, e lo si dice.
       let senzaAccordo = false
-      let { data: create, error } = await supabase.from('bookings').insert(righeDaSalvare.map(r => ({ ...r, ...accordoCampi }))).select('id, check_in')
-      if (error && /accordo_pagamento|caparra_centesimi|caparra_entro/i.test(error.message || '')) {
-        ({ data: create, error } = await supabase.from('bookings').insert(righeDaSalvare).select('id, check_in'))
+      const conAccordo = righeDaSalvare.map(({ riga, prima }) => ({ ...riga, ...accordoCampi, ...(prima ? caparraCampi : {}) }))
+      let { data: create, error } = await supabase.from('bookings').insert(conAccordo).select('id, check_in')
+      // Solo una colonna che non esiste (42703) fa riprovare senza accordo: un
+      // vincolo violato è un errore vero e va detto, non aggirato.
+      if (error && error.code === '42703') {
+        ({ data: create, error } = await supabase.from('bookings').insert(righeDaSalvare.map(x => x.riga)).select('id, check_in'))
         senzaAccordo = !error
       }
       if (error || !create || create.length === 0) {
@@ -549,7 +578,7 @@ function NuovaPrenotazione() {
           {risultati.map(c => {
             const no = valutazioneDi(c) === 'problematico'
             return (
-              <button key={c.id} type="button" className={`${s.risultato} ${no ? s.spento : ''}`} onClick={() => scegliCliente(c)}>
+              <button key={c.id} type="button" className={s.risultato} onClick={() => scegliCliente(c)}>
                 <span>
                   <span className={s.risultatoNome}>{c.full_name || 'senza nome'}</span>
                   <span className={s.risultatoTel}>{c.phone || 'senza telefono'}</span>
@@ -562,12 +591,6 @@ function NuovaPrenotazione() {
               </button>
             )
           })}
-          {bloccato && (
-            <p className={s.avviso}>
-              <b>{bloccato.full_name} è segnato come problematico.</b><br />
-              {bloccato.note || 'Nelle note interne c’è il motivo.'}<br />Non si può usare per una nuova prenotazione.
-            </p>
-          )}
           <div className={s.azioni}>
             <button type="button" className={s.azione} onClick={() => {
               const testo = ricerca.trim()
@@ -591,27 +614,44 @@ function NuovaPrenotazione() {
               {vuoleRicevuta(cliente) && <span className={s.badge}>Ricevuta</span>}
             </span>
           </div>
-          {cliente.note && <p className={s.nota} style={{ margin: '6px 0 0' }}>{cliente.note}</p>}
+          {cliente.notes && <p className={s.nota} style={{ margin: '6px 0 0' }}>{cliente.notes}</p>}
+          {problematico?.id === cliente.id && (
+            <div className={s.avviso}>
+              <b>Con {cliente.full_name} c&apos;erano stati problemi.</b><br />
+              {cliente.notes || 'Nelle note del cliente non c’è scritto il motivo.'}
+              <div className={s.azioni} style={{ marginTop: 4 }}>
+                {problematicoOk === cliente.id
+                  ? <span className={s.eti}>Va bene, prenoto lo stesso.</span>
+                  : <button type="button" className={s.azione} onClick={() => setProblematicoOk(cliente.id)}>Prenoto lo stesso</button>}
+                <button type="button" className={s.azione} onClick={() => { setCliente(null); setProblematico(null); setProblematicoOk(null); setStorico([]) }}>Scelgo un altro cliente</button>
+              </div>
+            </div>
+          )}
 
           <p className={s.sezione} style={{ marginTop: 16 }}>Soggiorni precedenti</p>
           {erroreStorico && <p className={s.avviso}>{erroreStorico}</p>}
           {!erroreStorico && storico.length === 0 && <p className={s.nota} style={{ marginTop: 10 }}>Nessun soggiorno concluso.</p>}
-          {storico.slice(0, 3).map(sg => (
-            <button key={sg.chiave} type="button" className={s.storico} onClick={() => setStoricoAperto(true)}>
+          {storico.slice(0, 4).map(sg => (
+            <button key={sg.chiave} type="button" className={s.storico} style={{ opacity: sg.annullata ? 0.75 : 1 }} onClick={() => setStoricoAperto(true)}>
               <span className={s.storicoData}>{periodoBreve(sg.dal, sg.al)}</span>
               <span className={s.storicoDato}>{sg.camere}</span>
-              <span className={s.storicoDato}>{sg.ospiti} osp</span>
-              <span className={s.storicoDato}>{sg.notti} × {Math.round(sg.totale / Math.max(1, sg.notti))}</span>
-              {sg.pieno > sg.totale + 0.005 && <span className={s.storicoPieno}>{Math.round(sg.pieno)}</span>}
-              <span className={`${s.storicoTotale} ${sg.pieno > sg.totale + 0.005 ? s.verde : ''}`}>{Math.round(sg.totale)} €</span>
+              {sg.annullata ? (
+                <span className={s.storicoDato} style={{ color: '#8C3B2E', whiteSpace: 'normal' }}>annullata · {sg.motivo || 'motivo non indicato'}</span>
+              ) : (<>
+                <span className={s.storicoDato}>{sg.ospiti} osp</span>
+                <span className={s.storicoDato}>{sg.notti} × {Math.round(sg.totale / Math.max(1, sg.notti))}</span>
+              </>)}
+              {!sg.annullata && sg.pieno > sg.totale + 0.005 && <span className={s.storicoPieno}>{Math.round(sg.pieno)}</span>}
+              <span className={`${s.storicoTotale} ${!sg.annullata && sg.pieno > sg.totale + 0.005 ? s.verde : ''}`}
+                style={sg.annullata ? { textDecoration: 'line-through', color: 'var(--color-stone)' } : undefined}>{Math.round(sg.totale)} €</span>
               <span className={s.freccia}>›</span>
             </button>
           ))}
           {storico.length > 0 && (
             <button type="button" className={s.storicoTot} onClick={() => setStoricoAperto(true)}>
-              <span className={s.eti}>{storico.length} soggiorni conclusi <span style={{ color: 'var(--color-brass)' }}>· aprili tutti</span></span>
+              <span className={s.eti}>{storico.filter(x => !x.annullata).length} soggiorni conclusi <span style={{ color: 'var(--color-brass)' }}>· aprili tutti</span></span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className={s.numero}>{Math.round(storico.reduce((t, x) => t + x.totale, 0)).toLocaleString('it-IT')} €</span>
+                <span className={s.numero}>{Math.round(storico.filter(x => !x.annullata).reduce((t, x) => t + x.totale, 0)).toLocaleString('it-IT')} €</span>
                 <span className={s.freccia}>›</span>
               </span>
             </button>
@@ -619,7 +659,7 @@ function NuovaPrenotazione() {
           <div className={s.azioni}>
             <button type="button" className={s.azione} onClick={() => setModifica({
               nome: cliente.full_name || '', telefono: cliente.phone || '',
-              valutazione: valutazioneDi(cliente), ricevuta: vuoleRicevuta(cliente), nota: cliente.note || '',
+              valutazione: valutazioneDi(cliente), ricevuta: vuoleRicevuta(cliente), nota: cliente.notes || '',
             })}>Modifica dati</button>
             <button type="button" className={s.azione} onClick={() => { setCliente(null); setStorico([]); setProvenienza({ provenienza: null, struttura: '' }) }}>Cambia cliente</button>
           </div>
@@ -820,6 +860,11 @@ function NuovaPrenotazione() {
           <button type="button" className={s.pilC} style={{ width: '100%', minHeight: 42 }} onClick={aggiungiCamera}>Aggiungi camera</button>
         </div>
         {conflitti.map((c, i) => <p key={i} className={s.avviso}>{c}</p>)}
+        {/* Un letto rimasto senza notti, o un importo a quota azzerato da un
+            cambio camera, non spariscono in silenzio: si dice (09/09/2026). */}
+        {lettoDaRivedere(periodi) && (
+          <p className={s.avviso}>Il letto aggiuntivo è da rivedere: dopo la modifica è rimasto senza notti o senza importo. Controlla i periodi qui sopra prima di salvare.</p>
+        )}
 
         <p className={s.sezione}>Sconto a lei riservato</p>
         <p className={s.sezioneNota}>Uno solo per prenotazione. La tariffa a notte non si tocca.</p>
@@ -1005,7 +1050,7 @@ function NuovaPrenotazione() {
             <p className={s.eti} style={{ fontSize: 11 }}>Totale</p>
             <p className={s.numeroPiccolo} style={{ color: totale === null ? 'var(--color-stone)' : undefined }}>{totale === null ? '—' : euro(totale)}</p>
           </div>
-          <button type="button" className={scelto ? s.pil : s.pilC} disabled={salvando} onClick={salva}>
+          <button type="button" className={scelto ? s.pil : s.pilC} disabled={salvando || salvata !== null} onClick={salva}>
             {salvando ? 'Salvo…' : scelto ? 'Salva prenotazione' : 'Scegli prima il cliente'}
           </button>
         </div>
@@ -1023,6 +1068,7 @@ function NuovaPrenotazione() {
                   <span className={`${s.numero} ${sg.pieno > sg.totale + 0.005 ? s.verde : ''}`} style={{ fontSize: 18 }}>{euro(sg.totale)}</span>
                 </div>
                 <p className={s.nota}>{ggAnno(sg.dal)} → {ggAnno(sg.al)} · {sg.notti} notti · {sg.ospiti} ospiti{sg.pieno > sg.totale + 0.005 ? ` · prezzo pieno ${euro(sg.pieno)}` : ''}</p>
+                {sg.annullata && <p className={s.nota} style={{ color: '#8C3B2E' }}>Annullata · {sg.motivo || 'motivo non indicato'}</p>}
               </div>
             ))}
             <button type="button" className={s.pilC} style={{ width: '100%', minHeight: 44, marginTop: 14 }} onClick={() => setStoricoAperto(false)}>Chiudi</button>
@@ -1062,11 +1108,11 @@ function NuovaPrenotazione() {
                 const { error } = await supabase.from('guests').update({
                   full_name: conInizialiONull(modifica.nome),
                   phone: cifre ? (cifre.startsWith('39') ? cifre : `39${cifre}`) : null,
-                  note: modifica.nota.trim() || null,
+                  notes: modifica.nota.trim() || null,
                   ...payloadValutazione(modifica.valutazione, modifica.ricevuta, colonnaRicevutaPresente(cliente as unknown as { vuole_ricevuta?: boolean })),
                 }).eq('id', cliente.id)
                 if (error) { setErrori([`I dati del cliente non sono stati salvati: ${error.message}`]); return }
-                setCliente({ ...cliente, full_name: conInizialiONull(modifica.nome), phone: modifica.telefono, note: modifica.nota.trim() || null, rating: modifica.valutazione })
+                setCliente({ ...cliente, full_name: conInizialiONull(modifica.nome), phone: modifica.telefono, notes: modifica.nota.trim() || null, rating: modifica.valutazione })
                 setModifica(null)
               }}>Salva modifica</button>
             </div>

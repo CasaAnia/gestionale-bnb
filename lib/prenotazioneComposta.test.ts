@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { conLettoAutomatico, contoPeriodo, costoLetto, lettoDaRegole, lettoProposto, dividiPerCambio, notti, ospitiIniziali, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
+import { conLettoAutomatico, contoPeriodo, costoLetto, lettoDaRegole, lettoDaRivedere, lettoProposto, dividiPerCambio, notti, ospitiIniziali, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
 
 const AMBRA: CameraComposta = { id: 'ambra', name: 'Ambra', base_price: 80, has_extra_bed: true, extra_bed_price: 10 }
 const AMELIA: CameraComposta = { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5 }
@@ -111,7 +111,7 @@ test('il prezzo del letto lo propongono le regole della camera', () => {
   assert.equal(lettoDaRegole(LENA, 4), 10)
   // accendendo il letto la proposta finisce nel periodo
   const acceso = conLettoAutomatico(periodo({ roomId: 'amelia', ospiti: 2 }), AMELIA)
-  assert.deepEqual(acceso.letto, { importo: 5, criterio: 'notte' })
+  assert.deepEqual(acceso.letto, { importo: 5, criterio: 'notte', auto: true })
 })
 
 test('il campo propone il letto della camera: 5 la singola, 10 le altre', () => {
@@ -148,4 +148,46 @@ test('col letto scelto la riga salvata resta nella convenzione di bookings', () 
   assert.equal(riga.extra_bed_total, 30)
   assert.equal(riga.total_amount, 270)
   assert.equal(riga.price_per_night * 3 + riga.extra_bed_total, riga.total_amount)
+})
+
+test('il letto chiesto a mano non sparisce cambiando le date (rilievo 5)', () => {
+  // due persone in matrimoniale che dormono separate, importo concordato
+  const aMano = periodo({ ospiti: 2, nottiLetto: ['2026-09-14', '2026-09-15', '2026-09-16'], letto: { importo: 15, criterio: 'notte' } })
+  const dopo = conLettoAutomatico({ ...aMano, checkOut: '2026-09-18' }, AMBRA)
+  assert.deepEqual(dopo.nottiLetto, ['2026-09-14', '2026-09-15', '2026-09-16'])
+  assert.deepEqual(dopo.letto, { importo: 15, criterio: 'notte' })
+  // quello acceso dalla pagina invece si spegne quando le persone rientrano
+  const automatico = conLettoAutomatico(periodo({ ospiti: 3 }), AMBRA)
+  assert.equal(automatico.letto?.auto, true)
+  assert.deepEqual(conLettoAutomatico({ ...automatico, ospiti: 2 }, AMBRA).nottiLetto, [])
+})
+
+test('il cambio camera non raddoppia il totale concordato del letto (rilievo 6)', () => {
+  const sei = periodo({ ospiti: 3, checkOut: '2026-09-20', nottiLetto: ['2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19'], letto: { importo: 20, criterio: 'totale' } })
+  const [primo, secondo] = dividiPerCambio(sei, '2026-09-17', 'amelia', 70, 'p9')
+  assert.equal(costoLetto(primo, AMBRA), 20)
+  assert.equal(costoLetto(secondo, AMELIA), 0)      // niente secondo addebito
+  assert.equal(lettoDaRivedere([primo, secondo]), true)
+  // «a notte» invece si divide da solo, senza niente da rivedere
+  const aNotte = { ...sei, letto: { importo: 10, criterio: 'notte' as const } }
+  const [a, b] = dividiPerCambio(aNotte, '2026-09-17', 'amelia', 70, 'p9')
+  assert.equal(costoLetto(a, AMBRA), 30)
+  assert.equal(costoLetto(b, AMELIA), 30)
+  assert.equal(lettoDaRivedere([a, b]), false)
+})
+
+test('spostare tutto il soggiorno non fa sparire il letto in silenzio', () => {
+  const p = periodo({ ospiti: 2, nottiLetto: ['2026-09-14', '2026-09-15'], letto: { importo: 20, criterio: 'totale' } })
+  const spostato = conLettoAutomatico({ ...p, checkIn: '2026-10-10', checkOut: '2026-10-14' }, AMBRA)
+  assert.deepEqual(spostato.nottiLetto, [])          // le vecchie notti non esistono più
+  assert.deepEqual(spostato.letto, { importo: 20, criterio: 'totale' })  // ma l'accordo resta
+  assert.equal(lettoDaRivedere([spostato]), true)    // e la pagina lo dice
+})
+
+test('letto solo dopo il cambio camera: l\'importo non si perde', () => {
+  const p = periodo({ ospiti: 2, checkOut: '2026-09-19', nottiLetto: ['2026-09-16', '2026-09-17'], letto: { importo: 20, criterio: 'totale' } })
+  const [primo, secondo] = dividiPerCambio(p, '2026-09-16', 'amelia', 70, 'p9')
+  assert.equal(costoLetto(primo, AMBRA), 0)
+  assert.equal(costoLetto(secondo, AMELIA), 20)      // prima diventava 0
+  assert.equal(lettoDaRivedere([primo, secondo]), false)
 })

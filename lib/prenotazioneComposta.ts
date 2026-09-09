@@ -17,7 +17,14 @@ export type CameraComposta = CameraTariffa & { id: string; name: string }
 // regole della camera (Amelia 5, Ambra e Allegra 10, Lena compreso fino a
 // tre): Ania può cambiarlo, anche per addebitarlo dove le regole non lo
 // prevedono (due persone che vogliono dormire separate).
-export type LettoScelto = { importo: number; criterio: 'notte' | 'ogni4' | 'totale' }
+export type LettoScelto = {
+  importo: number
+  criterio: 'notte' | 'ogni4' | 'totale'
+  // acceso dalla pagina perché le persone superano la capienza: solo questo si
+  // può spegnere da solo. Il letto chiesto a mano (due persone che vogliono
+  // dormire separate) non si tocca quando cambiano le date.
+  auto?: boolean
+}
 
 export type PeriodoComposto = {
   id: string
@@ -93,14 +100,17 @@ export function ospitiIniziali(camera: CameraComposta | null): number {
 export function conLettoAutomatico(p: PeriodoComposto, camera: CameraComposta | null): PeriodoComposto {
   const serve = Boolean(camera) && p.ospiti > capienzaBase(camera)
   const giorni = giorniSoggiorno(p.checkIn, p.checkOut)
-  if (!serve) return p.nottiLetto.length === 0 ? p : { ...p, nottiLetto: [], letto: null }
-  // già acceso su alcune notti scelte a mano: si tengono, solo ripulite dalle
-  // notti finite fuori dal periodo
   const dentro = p.nottiLetto.filter(n => giorni.includes(n))
+  if (!serve) {
+    // Il letto messo a mano resta: si ripuliscono solo le notti uscite dal
+    // periodo. Si spegne da solo soltanto quello acceso dalla pagina.
+    if (p.letto?.auto) return { ...p, nottiLetto: [], letto: null }
+    return dentro.length === p.nottiLetto.length ? p : { ...p, nottiLetto: dentro }
+  }
   return {
     ...p,
     nottiLetto: dentro.length > 0 ? dentro : giorni,
-    letto: p.letto ?? { importo: lettoProposto(camera, p.ospiti), criterio: 'notte' },
+    letto: p.letto ?? { importo: lettoProposto(camera, p.ospiti), criterio: 'notte', auto: true },
   }
 }
 
@@ -172,12 +182,38 @@ export function rigaDaSalvare(p: PeriodoComposto, camera: CameraComposta, groupI
 // di partenza, dal giorno del cambio in quella nuova. Le notti del letto
 // restano a chi le aveva davvero.
 export function dividiPerCambio(p: PeriodoComposto, dal: string, nuovaCamera: string, tariffa: number | null, idNuovo: string): [PeriodoComposto, PeriodoComposto] {
-  const primo: PeriodoComposto = { ...p, checkOut: dal, nottiLetto: p.nottiLetto.filter(n => n < dal) }
+  const nottiPrima = p.nottiLetto.filter(n => n < dal)
+  const nottiDopo = p.nottiLetto.filter(n => n >= dal)
+  // «A notte» si divide da solo. «Totale concordato» e «Ogni 4 notti» no: se
+  // si copiassero su tutti e due i periodi, spezzare il soggiorno farebbe
+  // pagare due volte. L'accordo resta sul primo periodo e il secondo parte da
+  // zero, così Ania decide se e quanto aggiungere.
+  const aQuota = Boolean(p.letto) && p.letto!.criterio !== 'notte'
+  // L'accordo segue le notti: se il letto è solo dopo il cambio, l'importo va
+  // al secondo periodo (prima si perdeva). Con le notti da tutte e due le
+  // parti e un importo a quota, l'accordo resta sul primo e il secondo parte
+  // da zero: lettoDaRivedere() lo fa dire alla pagina.
+  const soloDopo = nottiPrima.length === 0 && nottiDopo.length > 0
+  const primo: PeriodoComposto = { ...p, checkOut: dal, nottiLetto: nottiPrima, letto: nottiPrima.length > 0 ? p.letto : null }
   const secondo: PeriodoComposto = {
     ...p, id: idNuovo, roomId: nuovaCamera, checkIn: dal, checkOut: p.checkOut,
-    tariffa, nottiLetto: p.nottiLetto.filter(n => n >= dal),
+    tariffa, nottiLetto: nottiDopo,
+    letto: nottiDopo.length === 0 ? null
+      : soloDopo || !aQuota ? p.letto
+      : { importo: 0, criterio: p.letto!.criterio },
   }
   return [primo, secondo]
+}
+
+// C'è un letto aggiuntivo da rivedere? Due casi, e in tutti e due la pagina
+// lo dice invece di far sparire un accordo in silenzio:
+//  · un importo a quota rimasto a zero dopo un cambio camera;
+//  · un letto chiesto ma senza più nessuna notte (per esempio spostando tutto
+//    il soggiorno in altre date).
+export function lettoDaRivedere(periodi: PeriodoComposto[]): boolean {
+  return periodi.some(p =>
+    (p.nottiLetto.length > 0 && p.letto !== null && p.letto.criterio !== 'notte' && !p.letto.importo)
+    || (p.nottiLetto.length === 0 && p.letto !== null && !p.letto.auto))
 }
 
 // ── controlli prima di salvare ─────────────────────────────────────────────
