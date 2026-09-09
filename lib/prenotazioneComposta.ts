@@ -1,0 +1,159 @@
+// PRENOTAZIONE COMPOSTA (09/09/2026): una sola compilazione può contenere più
+// camere e, dentro una camera, più periodi legati da un cambio camera.
+//
+//  · periodi con lo stesso `gruppo`  = un solo soggiorno (cambio camera):
+//    finiscono su bookings con lo stesso group_id, come fa oggi la scheda;
+//  · gruppi diversi = camere in parallelo della stessa compilazione.
+//
+// Prezzi, letti e capienze vengono SEMPRE dalle regole già in uso
+// (lib/tariffe e lib/prezzoNotti): questa unità compone, non inventa listini.
+import { capienzaCamera, lettoDaComunicare, EXTRA_BED_MAX } from './tariffe.ts'
+import { giorniSoggiorno, prezzoPrenotazione, tariffaMinima, type CameraTariffa } from './prezzoNotti.ts'
+import { lettiPoolPrenotazione } from './lettiAggiuntivi.ts'
+
+export type CameraComposta = CameraTariffa & { id: string; name: string }
+
+export type PeriodoComposto = {
+  id: string
+  gruppo: string
+  roomId: string | null
+  checkIn: string
+  checkOut: string
+  ospiti: number
+  nottiLetto: string[]       // notti col letto aggiuntivo (vuoto = niente letto)
+  tariffa: number | null     // null = ancora da decidere; il listino la propone
+}
+
+export const round2 = (n: number) => Math.round(n * 100) / 100
+
+export function notti(p: PeriodoComposto): number {
+  return giorniSoggiorno(p.checkIn, p.checkOut).length
+}
+
+function comeBooking(p: PeriodoComposto) {
+  return {
+    check_in: p.checkIn, check_out: p.checkOut, num_guests: p.ospiti,
+    extra_bed: p.nottiLetto.length > 0, extra_bed_dates: p.nottiLetto,
+    price_per_night: p.tariffa,
+  }
+}
+
+// Tariffa che il campo deve mostrare quando Ania non l'ha scritta a mano.
+export function tariffaProposta(p: PeriodoComposto, camera: CameraComposta | null): number {
+  return tariffaMinima(camera, comeBooking(p))
+}
+
+export type ContoPeriodo = { totale: number; prezzoNotte: number; lettoTotale: number }
+
+// null quando manca un dato indispensabile: un valore che manca non vale zero.
+export function contoPeriodo(p: PeriodoComposto, camera: CameraComposta | null): ContoPeriodo | null {
+  if (!camera || notti(p) <= 0) return null
+  const conto = prezzoPrenotazione(camera, comeBooking(p))
+  return { totale: conto.totale, prezzoNotte: conto.prezzoNotte, lettoTotale: conto.lettoTotale }
+}
+
+export function totalePieno(periodi: PeriodoComposto[], camera: (id: string | null) => CameraComposta | null): number | null {
+  if (periodi.length === 0) return null
+  let somma = 0
+  for (const p of periodi) {
+    const c = contoPeriodo(p, camera(p.roomId))
+    if (c === null) return null
+    somma += c.totale
+  }
+  return round2(somma)
+}
+
+export type RigaConto = { etichetta: string; importo: number }
+
+export function righeConto(periodi: PeriodoComposto[], camera: (id: string | null) => CameraComposta | null): RigaConto[] {
+  const righe: RigaConto[] = []
+  for (const p of periodi) {
+    const c = camera(p.roomId)
+    const conto = contoPeriodo(p, c)
+    if (!c || !conto) continue
+    const n = notti(p)
+    righe.push({ etichetta: `${c.name} · ${n} ${n === 1 ? 'notte' : 'notti'}`, importo: round2(conto.totale - conto.lettoTotale) })
+    if (conto.lettoTotale > 0) {
+      righe.push({ etichetta: `Letto aggiuntivo · ${p.nottiLetto.length} ${p.nottiLetto.length === 1 ? 'notte' : 'notti'}`, importo: conto.lettoTotale })
+    }
+  }
+  return righe
+}
+
+// La riga da inserire in bookings: stessa convenzione di sempre
+// (price_per_night = notte più economica, extra_bed_total = tutto il resto).
+export function rigaDaSalvare(p: PeriodoComposto, camera: CameraComposta, groupId: string) {
+  const conto = prezzoPrenotazione(camera, comeBooking(p))
+  return {
+    room_id: camera.id,
+    check_in: p.checkIn,
+    check_out: p.checkOut,
+    num_guests: p.ospiti,
+    extra_bed: p.nottiLetto.length > 0,
+    extra_bed_dates: p.nottiLetto,
+    price_per_night: conto.prezzoNotte,
+    extra_bed_total: conto.lettoTotale,
+    total_amount: conto.totale,
+    group_id: groupId,
+  }
+}
+
+// Un cambio camera divide il periodo: fino al giorno del cambio nella camera
+// di partenza, dal giorno del cambio in quella nuova. Le notti del letto
+// restano a chi le aveva davvero.
+export function dividiPerCambio(p: PeriodoComposto, dal: string, nuovaCamera: string, tariffa: number | null, idNuovo: string): [PeriodoComposto, PeriodoComposto] {
+  const primo: PeriodoComposto = { ...p, checkOut: dal, nottiLetto: p.nottiLetto.filter(n => n < dal) }
+  const secondo: PeriodoComposto = {
+    ...p, id: idNuovo, roomId: nuovaCamera, checkIn: dal, checkOut: p.checkOut,
+    tariffa, nottiLetto: p.nottiLetto.filter(n => n >= dal),
+  }
+  return [primo, secondo]
+}
+
+// ── controlli prima di salvare ─────────────────────────────────────────────
+// Restituisce le cose da correggere, in italiano, una per riga.
+export function problemi(
+  periodi: PeriodoComposto[],
+  camera: (id: string | null) => CameraComposta | null,
+  lettiGiaOccupati: Map<string, number> = new Map(),
+): string[] {
+  const fuori: string[] = []
+  if (periodi.length === 0) fuori.push('Manca la camera.')
+  for (const p of periodi) {
+    const c = camera(p.roomId)
+    if (!c) { fuori.push('Una camera non è stata scelta.'); continue }
+    if (notti(p) <= 0) { fuori.push(`${c.name}: la partenza deve venire dopo l'arrivo.`); continue }
+    if (p.ospiti < 1) fuori.push(`${c.name}: gli ospiti non possono essere zero.`)
+    const max = capienzaCamera(c)
+    if (p.ospiti > max) fuori.push(`${c.name} tiene al massimo ${max} ${max === 1 ? 'persona' : 'persone'}.`)
+    for (const n of p.nottiLetto) {
+      if (!giorniSoggiorno(p.checkIn, p.checkOut).includes(n)) {
+        fuori.push(`${c.name}: una notte col letto aggiuntivo è fuori dal periodo.`)
+        break
+      }
+    }
+  }
+  // stessa camera due volte nelle stesse notti, dentro questa compilazione
+  const occupate = new Map<string, string>()
+  for (const p of periodi) {
+    const c = camera(p.roomId)
+    if (!c) continue
+    for (const g of giorniSoggiorno(p.checkIn, p.checkOut)) {
+      const chiave = `${c.id}|${g}`
+      if (occupate.has(chiave)) { fuori.push(`${c.name} risulta occupata due volte la notte del ${g.slice(8)}/${g.slice(5, 7)}.`); break }
+      occupate.set(chiave, p.id)
+    }
+  }
+  // i due letti della casa, contando anche le altre prenotazioni
+  const perNotte = new Map<string, number>(lettiGiaOccupati)
+  for (const p of periodi) {
+    const quanti = lettiPoolPrenotazione({ room_id: p.roomId, num_guests: p.ospiti, extra_bed: p.nottiLetto.length > 0, extra_bed_dates: p.nottiLetto })
+    if (quanti === 0) continue
+    for (const n of p.nottiLetto) perNotte.set(n, (perNotte.get(n) || 0) + quanti)
+  }
+  const troppi = [...perNotte.entries()].filter(([, q]) => q > EXTRA_BED_MAX).map(([g]) => `${g.slice(8)}/${g.slice(5, 7)}`)
+  if (troppi.length > 0) fuori.push(`I letti aggiuntivi sono ${EXTRA_BED_MAX}: troppi la notte del ${troppi.join(', ')}.`)
+  return fuori
+}
+
+export { lettoDaComunicare }

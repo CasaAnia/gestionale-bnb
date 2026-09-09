@@ -45,7 +45,7 @@
    Arrivo e Partenza si toccavano. */
 .campoBlocco { display: block; padding: 9px 0; border-top: 1px solid var(--color-card-border); min-width: 0; }
 .campoEti { display: block; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--color-brass); margin-bottom: 2px; }
-.campo { border: none; background: transparent; border-bottom: 1px solid #C9BFA8; text-align: left; font: inherit; font-size: 15px; font-weight: 600; color: var(--color-green-dark); padding: 3px 0 5px; min-width: 0; width: 100%; }
+.campo { appearance: none; -webkit-appearance: none; border: none; background: transparent; border-bottom: 1px solid #C9BFA8; text-align: left; font: inherit; font-size: 15px; font-weight: 600; color: var(--color-green-dark); padding: 3px 0 5px; min-width: 0; width: 100%; }
 .campo:focus { outline: none; border-bottom: 2px solid var(--color-green-mid); color: var(--color-green-mid); }
 .campo::placeholder { color: var(--color-stone); font-weight: 400; }
 .campoSinistra { text-align: left; font-weight: 400; }
