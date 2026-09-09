@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { conLettoAutomatico, contoPeriodo, costoLetto, lettoDaRegole, lettoDaRivedere, lettoProposto, dividiPerCambio, notti, ospitiIniziali, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
+import { conLettoAutomatico, contoPeriodo, costoLetto, lettoDaRegole, lettoDaRivedere, lettoProposto, periodiDaRivedere, dividiPerCambio, notti, ospitiIniziali, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
 
 const AMBRA: CameraComposta = { id: 'ambra', name: 'Ambra', base_price: 80, has_extra_bed: true, extra_bed_price: 10 }
 const AMELIA: CameraComposta = { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5 }
@@ -190,4 +190,17 @@ test('letto solo dopo il cambio camera: l\'importo non si perde', () => {
   assert.equal(costoLetto(primo, AMBRA), 0)
   assert.equal(costoLetto(secondo, AMELIA), 20)      // prima diventava 0
   assert.equal(lettoDaRivedere([primo, secondo]), false)
+})
+
+test('col letto da rivedere non si salva: prima si decide', () => {
+  const senzaNotti = periodo({ ospiti: 2, nottiLetto: [], letto: { importo: 20, criterio: 'totale' } })
+  assert.equal(periodiDaRivedere([senzaNotti]).length, 1)
+  assert.match(problemi([senzaNotti], dove)[0], /non ha più nessuna notte/)
+  const azzerato = periodo({ ospiti: 2, nottiLetto: ['2026-09-14'], letto: { importo: 0, criterio: 'ogni4' } })
+  assert.match(problemi([azzerato], dove)[0], /senza importo/)
+  // deciso: tenere l'importo sulle nuove notti → si salva
+  const deciso = { ...senzaNotti, nottiLetto: ['2026-09-14', '2026-09-15'] }
+  assert.deepEqual(problemi([deciso], dove), [])
+  // oppure togliere il letto
+  assert.deepEqual(problemi([{ ...senzaNotti, letto: null }], dove), [])
 })

@@ -12,7 +12,7 @@ import BackBar from '@/components/BackBar'
 import CampoRicerca from '@/components/CampoRicerca'
 import s from './nuova.module.css'
 import {
-  conLettoAutomatico, contoPeriodo, dividiPerCambio, lettoDaRivedere, lettoProposto, notti as nottiPeriodo,
+  conLettoAutomatico, contoPeriodo, dividiPerCambio, etichettaCriterio, lettoProposto, notti as nottiPeriodo, perche,
   ospitiIniziali, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno,
   type CameraComposta, type PeriodoComposto,
 } from '@/lib/prenotazioneComposta'
@@ -108,7 +108,7 @@ function NuovaPrenotazione() {
   // sapere che con questa persona c'erano stati problemi.
   const [problematico, setProblematico] = useState<ClienteRiga | null>(null)
   const [problematicoOk, setProblematicoOk] = useState<string | null>(null)
-  const [nuovo, setNuovo] = useState<{ nome: string; telefono: string; valutazione: Valutazione; ricevuta: boolean; nota: string } | null>(null)
+  const [nuovo, setNuovo] = useState<{ nome: string; telefono: string; valutazione: Valutazione; ricevuta: boolean; nota: string; motivo: string } | null>(null)
   const [modifica, setModifica] = useState<{ nome: string; telefono: string; valutazione: Valutazione; ricevuta: boolean; nota: string } | null>(null)
   const [storico, setStorico] = useState<SoggiornoConcluso[]>([])
   const [erroreStorico, setErroreStorico] = useState<string | null>(null)
@@ -454,6 +454,7 @@ function NuovaPrenotazione() {
           const base = {
             phone: telefono, full_name: conInizialiONull(nuovo.nome), email: null,
             ...(nuovo.nota.trim() ? { notes: nuovo.nota.trim() } : {}),
+            ...(nuovo.motivo.trim() ? { motivo_problematico: nuovo.motivo.trim() } : {}),
             ...(strutture.disponibile ? campiProvenienza(provenienza.provenienza ?? 'non_so', provenienza.struttura) : {}),
           }
           let { data: creato, error } = await supabase.from('guests').insert({ ...base, ...payloadValutazione(nuovo.valutazione, nuovo.ricevuta, true) }).select().single()
@@ -513,20 +514,42 @@ function NuovaPrenotazione() {
       const primaRiga = [...periodi].sort((a, b) => a.checkIn.localeCompare(b.checkIn))[0]?.id
       const righeDaSalvare = periodi.map(p => ({
         riga: { ...rigaDaSalvare(p, trovaCamera(p.roomId)!, gruppoId.get(p.gruppo)!), ...comuni },
+        // quanto e con quale criterio, così riaprendo l'accordo si rilegge
+        // com'è stato preso e non viene rifatto «a notte» (proposta 0045)
+        letto: p.letto && p.nottiLetto.length > 0
+          ? { extra_bed_importo: p.letto.importo, extra_bed_criterio: p.letto.criterio }
+          : { extra_bed_importo: null, extra_bed_criterio: null },
         prima: p.id === primaRiga,
       }))
 
       // La proposta 0041 può non essere ancora applicata: in quel caso si
       // salva lo stesso, senza i campi dell'accordo, e lo si dice.
-      let senzaAccordo = false
-      const conAccordo = righeDaSalvare.map(({ riga, prima }) => ({ ...riga, ...accordoCampi, ...(prima ? caparraCampi : {}) }))
-      let { data: create, error } = await supabase.from('bookings').insert(conAccordo).select('id, check_in')
-      // Solo una colonna che non esiste (42703) fa riprovare senza accordo: un
-      // vincolo violato è un errore vero e va detto, non aggirato.
-      if (error && error.code === '42703') {
-        ({ data: create, error } = await supabase.from('bookings').insert(righeDaSalvare.map(x => x.riga)).select('id, check_in'))
-        senzaAccordo = !error
+      // Le proposte 0041/0044/0045 possono non essere ancora applicate: si
+      // prova a salvare tutto e, se il database dice che una colonna non
+      // esiste (42703), si toglie SOLO quella e si riprova, tenendo il resto.
+      const mancanti: string[] = []
+      async function inserisci(righe: Record<string, unknown>[]) {
+        let tentativo = righe
+        for (let giro = 0; giro < 4; giro++) {
+          const esito = await supabase.from('bookings').insert(tentativo).select('id, check_in')
+          if (!esito.error || esito.error.code !== '42703') return esito
+          const colonna = /column "?([a-z_]+)"? .*does not exist/i.exec(esito.error.message || '')?.[1]
+          if (!colonna) return esito
+          mancanti.push(colonna)
+          tentativo = tentativo.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => k !== colonna)))
+        }
+        return await supabase.from('bookings').insert(tentativo).select('id, check_in')
       }
+      let senzaAccordo = false
+      // Una prenotazione sola, anche con più camere: tutte le righe portano lo
+      // stesso prenotazione_id (proposta 0044). group_id resta il legame dei
+      // periodi di un cambio camera.
+      const prenotazioneId = crypto.randomUUID()
+      const conAccordo = righeDaSalvare.map(({ riga, prima, letto }) => ({
+        ...riga, prenotazione_id: prenotazioneId, ...letto, ...accordoCampi, ...(prima ? caparraCampi : {}),
+      }))
+      const { data: create, error } = await inserisci(conAccordo)
+      senzaAccordo = mancanti.some(c => c.startsWith('accordo_') || c.startsWith('caparra_'))
       if (error || !create || create.length === 0) {
         setErrori([`La prenotazione non è stata salvata: ${error?.message || 'errore sconosciuto'}`])
         setSalvando(false); return
@@ -540,6 +563,9 @@ function NuovaPrenotazione() {
       const prima = [...create].sort((a, b) => String(a.check_in).localeCompare(String(b.check_in)))[0]
       // Se manca la proposta 0041 la caparra non è stata registrata: non si
       // porta via la pagina senza dirlo, altrimenti l'avviso non lo vede nessuno.
+      if (mancanti.length > 0 && !senzaAccordo) {
+        setAvvisoSalvataggio(`Prenotazione salvata. Non sono stati registrati: ${[...new Set(mancanti)].join(', ')} — servono le proposte SQL corrispondenti applicate su Supabase.`)
+      }
       if (senzaAccordo && caparra !== null) {
         setSalvata(String(prima.id))
         setAvvisoSalvataggio(`Prenotazione salvata, ma la caparra di ${euro(caparra)} e la sua scadenza NON sono state registrate: serve la proposta 0041 (accordo di pagamento) applicata su Supabase. Il resto (camere, prezzi, bonifico) c'è tutto.`)
@@ -595,7 +621,7 @@ function NuovaPrenotazione() {
             <button type="button" className={s.azione} onClick={() => {
               const testo = ricerca.trim()
               const cifre = /\d/.test(testo)
-              setNuovo({ nome: cifre ? '' : testo, telefono: cifre ? testo : '', valutazione: 'normale', ricevuta: false, nota: '' })
+              setNuovo({ nome: cifre ? '' : testo, telefono: cifre ? testo : '', valutazione: 'normale', ricevuta: false, nota: '', motivo: '' })
               setRicerca(''); setRisultati([])
             }}>Inserisci nuovo cliente</button>
           </div>
@@ -618,7 +644,7 @@ function NuovaPrenotazione() {
           {problematico?.id === cliente.id && (
             <div className={s.avviso}>
               <b>Con {cliente.full_name} c&apos;erano stati problemi.</b><br />
-              {cliente.notes || 'Nelle note del cliente non c’è scritto il motivo.'}
+              {(cliente as { motivo_problematico?: string | null }).motivo_problematico || cliente.notes || 'Nelle note del cliente non c’è scritto il motivo.'}
               <div className={s.azioni} style={{ marginTop: 4 }}>
                 {problematicoOk === cliente.id
                   ? <span className={s.eti}>Va bene, prenoto lo stesso.</span>
@@ -689,6 +715,13 @@ function NuovaPrenotazione() {
               <button type="button" className={nuovo.ricevuta ? s.pilC : s.pilT} onClick={() => setNuovo({ ...nuovo, ricevuta: !nuovo.ricevuta })}>Richiede ricevuta</button>
             </div>
           </div>
+          {nuovo.valutazione === 'problematico' && (
+            <div className={s.riga} style={{ display: 'block' }}>
+              <span className={s.campoEti}>Note interne · cosa è successo</span>
+              <textarea className={s.campo} rows={2} value={nuovo.motivo} onChange={e => setNuovo({ ...nuovo, motivo: e.target.value })}
+                placeholder="resta fra noi: non finisce mai nei messaggi" />
+            </div>
+          )}
           <div className={s.riga} style={{ display: 'block' }}>
             <span className={s.campoEti}>Nota del cliente · resta anche le prossime volte</span>
             <textarea className={s.campo} rows={2} value={nuovo.nota} onChange={e => setNuovo({ ...nuovo, nota: e.target.value })}
@@ -779,6 +812,25 @@ function NuovaPrenotazione() {
                     onChange={e => aggiorna(p.id, { tariffa: e.target.value === '' ? null : Number(e.target.value) })} /></label>
               </div>
 
+              {/* Un letto rimasto senza notti o senza importo non si salva in
+                  silenzio: qui si legge cos'è successo e si decide (09/09/2026). */}
+              {perche(p) && (
+                <div className={s.avviso}>
+                  {perche(p)}
+                  <div className={s.azioni} style={{ marginTop: 4 }}>
+                    {p.nottiLetto.length === 0 ? (
+                      <button type="button" className={s.azione} onClick={() => aggiorna(p.id, { nottiLetto: giorni, letto: p.letto })}>
+                        Tieni {p.letto?.importo} € {etichettaCriterio(p.letto!.criterio)} su queste notti
+                      </button>
+                    ) : (
+                      <button type="button" className={s.azione} onClick={() => aggiorna(p.id, { letto: { importo: lettoProposto(camera, p.ospiti), criterio: 'notte' } })}>
+                        Rimetti il prezzo della camera
+                      </button>
+                    )}
+                    <button type="button" className={s.azione} onClick={() => aggiorna(p.id, { nottiLetto: [], letto: null })}>Togli il letto</button>
+                  </div>
+                </div>
+              )}
               <div className={s.riga} style={{ alignItems: 'flex-start', borderTop: 'none', marginTop: 6 }}>
                 <button type="button" className={`${s.quadro} ${p.nottiLetto.length > 0 ? s.quadroOn : ''}`} aria-label="Letto aggiuntivo"
                   onClick={() => aggiorna(p.id, p.nottiLetto.length > 0
@@ -860,11 +912,7 @@ function NuovaPrenotazione() {
           <button type="button" className={s.pilC} style={{ width: '100%', minHeight: 42 }} onClick={aggiungiCamera}>Aggiungi camera</button>
         </div>
         {conflitti.map((c, i) => <p key={i} className={s.avviso}>{c}</p>)}
-        {/* Un letto rimasto senza notti, o un importo a quota azzerato da un
-            cambio camera, non spariscono in silenzio: si dice (09/09/2026). */}
-        {lettoDaRivedere(periodi) && (
-          <p className={s.avviso}>Il letto aggiuntivo è da rivedere: dopo la modifica è rimasto senza notti o senza importo. Controlla i periodi qui sopra prima di salvare.</p>
-        )}
+
 
         <p className={s.sezione}>Sconto a lei riservato</p>
         <p className={s.sezioneNota}>Uno solo per prenotazione. La tariffa a notte non si tocca.</p>

@@ -211,9 +211,29 @@ export function dividiPerCambio(p: PeriodoComposto, dal: string, nuovaCamera: st
 //  · un letto chiesto ma senza più nessuna notte (per esempio spostando tutto
 //    il soggiorno in altre date).
 export function lettoDaRivedere(periodi: PeriodoComposto[]): boolean {
-  return periodi.some(p =>
-    (p.nottiLetto.length > 0 && p.letto !== null && p.letto.criterio !== 'notte' && !p.letto.importo)
-    || (p.nottiLetto.length === 0 && p.letto !== null && !p.letto.auto))
+  return periodi.some(p => perche(p) !== null)
+}
+
+// Perché quel periodo è da rivedere, in parole. null = tutto a posto.
+export function perche(p: PeriodoComposto): string | null {
+  if (p.letto === null) return null
+  if (p.nottiLetto.length === 0 && !p.letto.auto) {
+    return `Il letto aggiuntivo era concordato a ${p.letto.importo} € (${etichettaCriterio(p.letto.criterio)}) ma non ha più nessuna notte.`
+  }
+  if (p.nottiLetto.length > 0 && p.letto.criterio !== 'notte' && !p.letto.importo) {
+    return `Qui il letto aggiuntivo è rimasto senza importo: dopo il cambio camera «${etichettaCriterio(p.letto.criterio)}» va deciso di nuovo.`
+  }
+  return null
+}
+
+export function etichettaCriterio(c: LettoScelto['criterio']): string {
+  return c === 'notte' ? 'a notte' : c === 'ogni4' ? 'ogni 4 notti' : 'totale concordato'
+}
+
+// I periodi col letto da rivedere: la pagina li segna e non lascia salvare
+// finché Ania non decide (tenere l'importo o togliere il letto).
+export function periodiDaRivedere(periodi: PeriodoComposto[]): { id: string; motivo: string }[] {
+  return periodi.flatMap(p => { const m = perche(p); return m ? [{ id: p.id, motivo: m }] : [] })
 }
 
 // ── controlli prima di salvare ─────────────────────────────────────────────
@@ -224,6 +244,9 @@ export function problemi(
   lettiGiaOccupati: Map<string, number> = new Map(),
 ): string[] {
   const fuori: string[] = []
+  // Un letto rimasto senza notti o senza importo NON si salva in silenzio:
+  // prima Ania decide (rilievo del 09/09/2026).
+  for (const { motivo } of periodiDaRivedere(periodi)) fuori.push(`${motivo} Scegli se tenerlo o toglierlo.`)
   if (periodi.length === 0) fuori.push('Manca la camera.')
   for (const p of periodi) {
     const c = camera(p.roomId)
