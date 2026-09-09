@@ -655,7 +655,10 @@ function NuovaPrenotazione() {
       )}
       {avvisoProvenienza && <p className={s.nota} style={{ marginTop: 6 }}>{avvisoProvenienza}</p>}
 
-      <div style={scelto ? undefined : { opacity: 0.45, pointerEvents: 'none' }}>
+      {/* Niente pagina sbiadita finché manca il cliente (Ania, 09/09/2026:
+          «non si legge nulla»): le camere e le date si compilano lo stesso,
+          per esempio arrivando dal calendario. È il salvataggio a fermarsi. */}
+      <div>
         <p className={s.sezione}>Camere e periodi</p>
         {periodi.map((p, indice) => {
           const seguito = indice > 0 && periodi[indice - 1].gruppo === p.gruppo
@@ -938,7 +941,9 @@ function NuovaPrenotazione() {
             <p className={s.eti} style={{ fontSize: 11 }}>Totale</p>
             <p className={s.numeroPiccolo} style={{ color: totale === null ? 'var(--color-stone)' : undefined }}>{totale === null ? '—' : euro(totale)}</p>
           </div>
-          <button type="button" className={s.pil} disabled={salvando} onClick={salva}>{salvando ? 'Salvo…' : 'Salva prenotazione'}</button>
+          <button type="button" className={scelto ? s.pil : s.pilC} disabled={salvando} onClick={salva}>
+            {salvando ? 'Salvo…' : scelto ? 'Salva prenotazione' : 'Scegli prima il cliente'}
+          </button>
         </div>
       </div>
 
