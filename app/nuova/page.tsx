@@ -492,8 +492,10 @@ function NuovaPrenotazione() {
   return (
     <div className={s.pagina}>
       <BackBar onClick={() => smartBack(router, returnTo)} />
-      <p className={s.sotto}>{new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      {/* Stessa testata della Home e di Pulizie (Ania, 09/09/2026): prima il
+          titolo grande, sotto la data in maiuscoletto ottone. */}
       <h1 className={s.titolo}>Nuova prenotazione</h1>
+      <p className={s.sotto} style={{ marginTop: 8 }}>{new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
 
       <CampoRicerca value={ricerca} onChange={scriviRicerca} className="mt-3" />
 
