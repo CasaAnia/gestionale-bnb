@@ -12,7 +12,7 @@ import BackBar from '@/components/BackBar'
 import CampoRicerca from '@/components/CampoRicerca'
 import s from './nuova.module.css'
 import {
-  conLettoAutomatico, contoPeriodo, dividiPerCambio, lettoDaRegole, notti as nottiPeriodo,
+  conLettoAutomatico, contoPeriodo, dividiPerCambio, lettoProposto, notti as nottiPeriodo,
   ospitiIniziali, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno,
   type CameraComposta, type PeriodoComposto,
 } from '@/lib/prenotazioneComposta'
@@ -727,7 +727,7 @@ function NuovaPrenotazione() {
                 <button type="button" className={`${s.quadro} ${p.nottiLetto.length > 0 ? s.quadroOn : ''}`} aria-label="Letto aggiuntivo"
                   onClick={() => aggiorna(p.id, p.nottiLetto.length > 0
                     ? { nottiLetto: [], letto: null }
-                    : { nottiLetto: giorni, letto: p.letto ?? { importo: lettoDaRegole(camera, p.ospiti), criterio: 'notte' } })} />
+                    : { nottiLetto: giorni, letto: p.letto ?? { importo: lettoProposto(camera, p.ospiti), criterio: 'notte' } })} />
                 <div style={{ flex: 1, marginLeft: -2 }}>
                   <b style={{ fontSize: 14 }}>Letto aggiuntivo</b>
                   <p className={s.nota} style={{ margin: '1px 0 0' }}>
@@ -760,7 +760,7 @@ function NuovaPrenotazione() {
                     <div className={s.pillole} style={{ marginTop: 4 }}>
                       {([['notte', 'A notte'], ['ogni4', 'Ogni 4 notti'], ['totale', 'Totale concordato']] as const).map(([k, t]) => (
                         <button key={k} type="button" className={(p.letto?.criterio ?? 'notte') === k ? s.pil : s.pilT}
-                          onClick={() => aggiorna(p.id, { letto: { importo: p.letto?.importo ?? lettoDaRegole(camera, p.ospiti), criterio: k } })}>{t}</button>
+                          onClick={() => aggiorna(p.id, { letto: { importo: p.letto?.importo ?? lettoProposto(camera, p.ospiti), criterio: k } })}>{t}</button>
                       ))}
                     </div>
                     </>

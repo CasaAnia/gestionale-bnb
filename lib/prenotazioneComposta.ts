@@ -31,16 +31,27 @@ export type PeriodoComposto = {
   tariffa: number | null     // null = ancora da decidere; il listino la propone
 }
 
-// Quanto costa una notte di letto secondo le regole della camera (0 quando è
+// Quanto costa una notte di letto secondo le regole delle camere (0 quando è
 // compreso, come il terzo posto di Lena).
 export function lettoDaRegole(camera: CameraComposta | null, ospiti: number): number {
   return totaleLetto(camera, ospiti, 1)
 }
 
+// Quanto proporre nel campo «Quanto costa» (Ania, 09/09/2026): cinque euro
+// sempre, in tutte le camere — «sotto i cinque non ha senso e dieci in Amelia
+// non lo posso mettere». Unica eccezione: dove il letto è già compreso nel
+// prezzo (Lena venduta come tripla) resta zero, altrimenti si pagherebbe due
+// volte lo stesso posto letto. Il numero resta modificabile.
+export const LETTO_PROPOSTO = 5
+export function lettoProposto(camera: CameraComposta | null, ospiti: number): number {
+  if (ospiti > capienzaBase(camera)) return lettoDaRegole(camera, ospiti) > 0 ? LETTO_PROPOSTO : 0
+  return LETTO_PROPOSTO
+}
+
 export function costoLetto(p: PeriodoComposto, camera: CameraComposta | null): number {
   const n = p.nottiLetto.length
   if (n === 0) return 0
-  const scelta = p.letto ?? { importo: lettoDaRegole(camera, p.ospiti), criterio: 'notte' as const }
+  const scelta = p.letto ?? { importo: lettoProposto(camera, p.ospiti), criterio: 'notte' as const }
   if (!scelta.importo) return 0
   if (scelta.criterio === 'totale') return round2(scelta.importo)
   if (scelta.criterio === 'ogni4') return round2(scelta.importo * Math.ceil(n / 4))
@@ -86,7 +97,7 @@ export function conLettoAutomatico(p: PeriodoComposto, camera: CameraComposta | 
   return {
     ...p,
     nottiLetto: dentro.length > 0 ? dentro : giorni,
-    letto: p.letto ?? { importo: lettoDaRegole(camera, p.ospiti), criterio: 'notte' },
+    letto: p.letto ?? { importo: lettoProposto(camera, p.ospiti), criterio: 'notte' },
   }
 }
 

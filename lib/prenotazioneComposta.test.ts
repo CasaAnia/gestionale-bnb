@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { conLettoAutomatico, contoPeriodo, costoLetto, lettoDaRegole, dividiPerCambio, notti, ospitiIniziali, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
+import { conLettoAutomatico, contoPeriodo, costoLetto, lettoDaRegole, lettoProposto, dividiPerCambio, notti, ospitiIniziali, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
 
 const AMBRA: CameraComposta = { id: 'ambra', name: 'Ambra', base_price: 80, has_extra_bed: true, extra_bed_price: 10 }
 const AMELIA: CameraComposta = { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5 }
@@ -17,12 +17,12 @@ test('la partenza chiude il periodo: 14→17 sono tre notti', () => {
   assert.equal(notti(periodo({ checkOut: '2026-09-14' })), 0)
 })
 
-test('il conto segue il listino delle camere, non un prezzo inventato', () => {
+test('la camera segue il listino, il letto i cinque euro proposti', () => {
   assert.deepEqual(contoPeriodo(periodo(), AMBRA), { totale: 240, prezzoNotte: 80, lettoTotale: 0 })
-  // terzo ospite: la tariffa resta 80 e il letto si addebita 10 a notte
+  // terzo ospite: la tariffa della camera resta 80 e il letto costa 5 a notte
   const conto = contoPeriodo(periodo({ ospiti: 3, nottiLetto: ['2026-09-14', '2026-09-15', '2026-09-16'] }), AMBRA)
-  assert.equal(conto?.totale, 270)
-  assert.equal(conto?.lettoTotale, 30)
+  assert.equal(conto?.lettoTotale, 15)
+  assert.equal(conto?.totale, 255)
 })
 
 test('Lena a tre ospiti: il letto occupa il pool ma non si addebita', () => {
@@ -57,8 +57,8 @@ test('il cambio camera divide solo quel periodo e si porta dietro le sue notti c
 test('la riga salvata usa la convenzione di sempre di bookings', () => {
   const riga = rigaDaSalvare(periodo({ ospiti: 3, nottiLetto: ['2026-09-14'] }), AMBRA, 'gruppo-1')
   assert.equal(riga.price_per_night, 80)
-  assert.equal(riga.extra_bed_total, 10)
-  assert.equal(riga.total_amount, 250)
+  assert.equal(riga.extra_bed_total, 5)
+  assert.equal(riga.total_amount, 245)
   assert.equal(riga.group_id, 'gruppo-1')
   assert.equal(riga.extra_bed, true)
 })
@@ -114,12 +114,26 @@ test('il prezzo del letto lo propongono le regole della camera', () => {
   assert.deepEqual(acceso.letto, { importo: 5, criterio: 'notte' })
 })
 
+test('il campo propone sempre cinque euro, tranne dove il letto è già compreso', () => {
+  assert.equal(lettoProposto(AMELIA, 2), 5)
+  assert.equal(lettoProposto(AMBRA, 3), 5)      // le regole direbbero 10: Ania vuole 5
+  assert.equal(lettoProposto(AMBRA, 2), 5)      // acceso a mano, due persone
+  assert.equal(lettoProposto(LENA, 3), 0)       // terzo posto gia' dentro la tripla
+  assert.equal(lettoProposto(LENA, 4), 5)
+  // e il conto segue la proposta, non piu' i 10 delle regole
+  const ambraInTre = conLettoAutomatico(periodo({ ospiti: 3 }), AMBRA)
+  assert.equal(contoPeriodo(ambraInTre, AMBRA)?.lettoTotale, 15)   // 3 notti x 5
+  assert.equal(contoPeriodo(ambraInTre, AMBRA)?.totale, 255)       // 3 x 80 + 15
+})
+
 test('Ania può addebitare il letto anche dove le regole non lo prevedono', () => {
-  // Lena in due che vogliono dormire separate: le regole non lo addebitano…
+  // Lena in due che vogliono dormire separate: le regole non lo addebiterebbero,
+  // ma il campo propone i cinque euro e il letto si paga
   const compreso = periodo({ roomId: LENA.id, ospiti: 2, nottiLetto: ['2026-09-14', '2026-09-15', '2026-09-16'] })
-  assert.equal(costoLetto(compreso, LENA), 0)
-  assert.equal(contoPeriodo(compreso, LENA)?.totale, 240)
-  // …con un importo scelto sì, e i tre criteri contano come dice Ania
+  assert.equal(lettoDaRegole(LENA, 2), 0)
+  assert.equal(costoLetto(compreso, LENA), 15)
+  assert.equal(contoPeriodo(compreso, LENA)?.totale, 255)
+  // …e con un importo scelto vale quello, coi tre criteri
   const aNotte = { ...compreso, letto: { importo: 10, criterio: 'notte' as const } }
   assert.equal(costoLetto(aNotte, LENA), 30)
   assert.equal(contoPeriodo(aNotte, LENA)?.totale, 270)
