@@ -9,8 +9,8 @@
 /* testata */
 .sotto { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--color-brass); }
 .titolo { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; font-size: 30px; line-height: 1.1; letter-spacing: -0.01em; margin: 6px 0 0; }
-.titoloMedio { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; font-size: 21px; line-height: 1.15; margin: 0; }
-.numero { font-family: Georgia, serif; font-weight: 400; font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.titoloMedio { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; font-size: 20px; line-height: 1.15; margin: 0; }
+.numero { font-family: Georgia, serif; font-weight: 400; font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .numeroGrande { font-family: Georgia, serif; font-weight: 400; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; }
 .numeroPiccolo { font-family: Georgia, serif; font-weight: 400; font-size: 16px; font-variant-numeric: tabular-nums; }
 
@@ -40,11 +40,16 @@
 .date { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--color-brass); margin-top: 2px; }
 
 /* campo «a filo»: niente riquadro, solo la riga sotto; tutta la riga si tocca */
-.campo { border: none; background: transparent; border-bottom: 1px solid #C9BFA8; text-align: right; font: inherit; font-size: 14px; font-weight: 600; color: var(--color-green-dark); padding: 4px 0 5px; min-width: 0; width: 100%; }
+/* Ania, 09/09/2026: l'etichetta piccola sopra e il valore attaccato a
+   sinistra. Col valore a destra «Nome ——— Anna» sembrava una riga sola, e
+   Arrivo e Partenza si toccavano. */
+.campoBlocco { display: block; padding: 9px 0; border-top: 1px solid var(--color-card-border); min-width: 0; }
+.campoEti { display: block; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--color-brass); margin-bottom: 2px; }
+.campo { border: none; background: transparent; border-bottom: 1px solid #C9BFA8; text-align: left; font: inherit; font-size: 15px; font-weight: 600; color: var(--color-green-dark); padding: 3px 0 5px; min-width: 0; width: 100%; }
 .campo:focus { outline: none; border-bottom: 2px solid var(--color-green-mid); color: var(--color-green-mid); }
 .campo::placeholder { color: var(--color-stone); font-weight: 400; }
 .campoSinistra { text-align: left; font-weight: 400; }
-.due { display: flex; gap: 14px; min-width: 0; }
+.due { display: flex; gap: 22px; min-width: 0; }
 .due > * { flex: 1; min-width: 0; }
 
 /* pillole e badge, come nel resto del gestionale */

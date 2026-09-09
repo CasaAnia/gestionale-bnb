@@ -59,6 +59,7 @@ export default function AnteprimaNuova() {
   const [bloccato, setBloccato] = useState<Cliente | null>(null)
   const [storicoAperto, setStoricoAperto] = useState(false)
   const [modifica, setModifica] = useState<Cliente | null>(null)
+  const [altraStruttura, setAltraStruttura] = useState(false)
   const risultati = useMemo(() => cerca(ricerca), [ricerca])
 
   // ── camere ────────────────────────────────────────────────────────────────
@@ -286,15 +287,15 @@ export default function AnteprimaNuova() {
         <>
           <p className={s.sezione}>Nuovo cliente</p>
           <div className={s.due} style={{ marginTop: 8 }}>
-            <label className={`${s.riga} ${s.rigaOttone}`}><span className={s.eti}>Nome</span>
+            <label className={s.campoBlocco}><span className={s.campoEti}>Nome</span>
               <input className={s.campo} value={nuovo.nome} onChange={e => setNuovo({ ...nuovo, nome: e.target.value })} /></label>
-            <label className={`${s.riga} ${s.rigaOttone}`}><span className={s.eti}>Cognome</span>
+            <label className={s.campoBlocco}><span className={s.campoEti}>Cognome</span>
               <input className={s.campo} value={nuovo.cognome} onChange={e => setNuovo({ ...nuovo, cognome: e.target.value })} /></label>
           </div>
-          <label className={s.riga}><span className={s.eti}>Telefono</span>
+          <label className={s.campoBlocco}><span className={s.campoEti}>Telefono</span>
             <input className={s.campo} inputMode="tel" value={nuovo.telefono} onChange={e => setNuovo({ ...nuovo, telefono: e.target.value })} /></label>
           <div className={s.riga} style={{ display: 'block' }}>
-            <span className={s.eti}>Valutazione</span>
+            <span className={s.campoEti}>Valutazione</span>
             <div className={s.pillole} style={{ marginTop: 8 }}>
               {(['ottimo', 'normale', 'problematico'] as Valutazione[]).map(v => (
                 <button key={v} type="button" className={nuovo.valutazione === v ? s.pil : s.pilT} onClick={() => setNuovo({ ...nuovo, valutazione: v })}>
@@ -305,7 +306,7 @@ export default function AnteprimaNuova() {
             </div>
           </div>
           <div className={s.riga} style={{ display: 'block' }}>
-            <span className={s.eti}>Come ci ha trovato · da scegliere</span>
+            <span className={s.campoEti}>Come ci ha trovato · da scegliere</span>
             <div className={s.pillole} style={{ marginTop: 8 }}>
               {(Object.keys(ETICHETTA_PROV) as Provenienza[]).map(p => (
                 <button key={p} type="button" className={nuovo.provenienza === p ? s.pil : s.pilT}
@@ -313,14 +314,28 @@ export default function AnteprimaNuova() {
               ))}
             </div>
             {nuovo.provenienza === 'struttura' && (
-              <label className={s.riga} style={{ borderTop: 'none' }}><span className={s.eti}>Quale struttura</span>
-                <input className={s.campo} list="strutture" value={nuovo.struttura} onChange={e => setNuovo({ ...nuovo, struttura: e.target.value })} placeholder="cerca o scrivine una nuova" />
-                <datalist id="strutture">{STRUTTURE.map(x => <option key={x} value={x} />)}</datalist>
-              </label>
+              <div className={s.riga} style={{ borderTop: 'none', display: 'block' }}>
+                <span className={s.campoEti}>Quale struttura</span>
+                <div className={s.pillole} style={{ marginTop: 8 }}>
+                  {STRUTTURE.map(x => (
+                    <button key={x} type="button" className={nuovo.struttura === x ? s.pil : s.pilT}
+                      onClick={() => { setNuovo({ ...nuovo, struttura: x }); setAltraStruttura(false) }}>{x}</button>
+                  ))}
+                  <button type="button" className={altraStruttura ? s.pilC : s.pilT}
+                    onClick={() => { setAltraStruttura(true); setNuovo({ ...nuovo, struttura: '' }) }}>Un&apos;altra…</button>
+                </div>
+                {altraStruttura && (
+                  <>
+                    <input className={`${s.campo} ${s.campoSinistra}`} style={{ marginTop: 10 }} autoCapitalize="words"
+                      value={nuovo.struttura} onChange={e => setNuovo({ ...nuovo, struttura: e.target.value })} placeholder="Nome della struttura" />
+                    <p className={s.nota}>Nome nuovo: si aggiunge all&apos;elenco al salvataggio.</p>
+                  </>
+                )}
+              </div>
             )}
           </div>
           <div className={s.riga} style={{ display: 'block' }}>
-            <span className={s.eti}>Nota del cliente · resta anche le prossime volte</span>
+            <span className={s.campoEti}>Nota del cliente · resta anche le prossime volte</span>
             <textarea className={s.campo} style={{ textAlign: 'left', fontWeight: 400, marginTop: 4 }} rows={2}
               value={nuovo.nota} onChange={e => setNuovo({ ...nuovo, nota: e.target.value })} placeholder="quello che va ricordato ogni volta" />
           </div>
@@ -353,15 +368,15 @@ export default function AnteprimaNuova() {
               </div>
 
               <div className={s.due} style={{ marginTop: 8 }}>
-                <label className={s.riga}><span className={s.eti}>Arrivo</span>
+                <label className={s.campoBlocco}><span className={s.campoEti}>Arrivo</span>
                   <input type="date" className={s.campo} value={p.arrivo} onChange={e => aggiornaPeriodo(p.id, { arrivo: e.target.value })} /></label>
-                <label className={s.riga}><span className={s.eti}>Partenza</span>
+                <label className={s.campoBlocco}><span className={s.campoEti}>Partenza</span>
                   <input type="date" className={s.campo} value={p.partenza} onChange={e => aggiornaPeriodo(p.id, { partenza: e.target.value })} /></label>
               </div>
               <div className={s.due}>
-                <label className={s.riga}><span className={s.eti}>Ospiti</span>
+                <label className={s.campoBlocco}><span className={s.campoEti}>Ospiti</span>
                   <input type="number" inputMode="numeric" min={1} className={s.campo} value={p.ospiti} onChange={e => aggiornaPeriodo(p.id, { ospiti: Number(e.target.value) })} /></label>
-                <label className={s.riga}><span className={s.eti}>Tariffa</span>
+                <label className={s.campoBlocco}><span className={s.campoEti}>Tariffa</span>
                   <input type="number" inputMode="decimal" className={s.campo} value={p.tariffa ?? ''} placeholder="€"
                     onChange={e => aggiornaPeriodo(p.id, { tariffa: e.target.value === '' ? null : Number(e.target.value) })} /></label>
               </div>
@@ -389,7 +404,7 @@ export default function AnteprimaNuova() {
                         ))}
                       </div>
                       <div className={s.due} style={{ marginTop: 2 }}>
-                        <label className={s.riga}><span className={s.eti}>Importo</span>
+                        <label className={s.campoBlocco}><span className={s.campoEti}>Importo</span>
                           <input type="number" inputMode="decimal" className={s.campo} value={p.letto.importo ?? ''} placeholder="€"
                             onChange={e => aggiornaLetto(p.id, { importo: e.target.value === '' ? null : Number(e.target.value) })} /></label>
                       </div>
@@ -408,15 +423,15 @@ export default function AnteprimaNuova() {
               {cambioSu === p.id ? (
                 <div className={s.seguito}>
                   <p className={s.sotto}>Cambio camera</p>
-                  <label className={s.riga} style={{ borderTop: 'none' }}><span className={s.eti}>Va in</span>
+                  <label className={s.campoBlocco} style={{ borderTop: 'none' }}><span className={s.campoEti}>Va in</span>
                     <select className={s.campo} value={cambio.cameraId} onChange={e => setCambio({ ...cambio, cameraId: e.target.value, tariffa: String(CAMERE.find(c => c.id === e.target.value)?.tariffa ?? '') })}>
                       <option value="">Scegli camera</option>
                       {CAMERE.filter(c => c.id !== p.cameraId).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                     </select></label>
                   <div className={s.due}>
-                    <label className={s.riga}><span className={s.eti}>Dal</span>
+                    <label className={s.campoBlocco}><span className={s.campoEti}>Dal</span>
                       <input type="date" className={s.campo} min={piuGiorni(p.arrivo, 1)} max={p.partenza} value={cambio.dal} onChange={e => setCambio({ ...cambio, dal: e.target.value })} /></label>
-                    <label className={s.riga}><span className={s.eti}>Tariffa</span>
+                    <label className={s.campoBlocco}><span className={s.campoEti}>Tariffa</span>
                       <input type="number" inputMode="decimal" className={s.campo} value={cambio.tariffa} placeholder="€" onChange={e => setCambio({ ...cambio, tariffa: e.target.value })} /></label>
                   </div>
                   <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
@@ -494,10 +509,10 @@ export default function AnteprimaNuova() {
         </button>
         {aperta === 'arrivo' && (
           <div style={{ paddingLeft: 2 }}>
-            <label className={s.riga}><span className={s.eti}>Orario previsto</span>
+            <label className={s.campoBlocco}><span className={s.campoEti}>Orario previsto</span>
               <input type="time" className={s.campo} style={{ maxWidth: 120 }} value={orario} onChange={e => setOrario(e.target.value)} /></label>
             <div className={s.riga} style={{ display: 'block' }}>
-              <span className={s.eti}>Navetta</span>
+              <span className={s.campoEti}>Navetta</span>
               <div className={s.pillole} style={{ marginTop: 8 }}>
                 {([['da_definire', 'Da definire'], ['si', 'Sì'], ['no', 'No']] as const).map(([k, t]) => (
                   <button key={k} type="button" className={navetta === k ? s.pil : s.pilT} onClick={() => setNavetta(k)}>{t}</button>
@@ -531,14 +546,14 @@ export default function AnteprimaNuova() {
             {(accordo.modo === 'caparra50' || accordo.modo === 'caparra_libera') && (
               <>
                 {accordo.modo === 'caparra_libera' && (
-                  <label className={s.riga}><span className={s.eti}>Importo caparra</span>
+                  <label className={s.campoBlocco}><span className={s.campoEti}>Importo caparra</span>
                     <input type="number" inputMode="decimal" className={s.campo} placeholder="€" value={accordo.importo ?? ''}
                       onChange={e => setAccordo({ ...accordo, importo: e.target.value === '' ? null : Number(e.target.value) })} /></label>
                 )}
                 <div className={s.due}>
-                  <label className={s.riga}><span className={s.eti}>Entro il</span>
+                  <label className={s.campoBlocco}><span className={s.campoEti}>Entro il</span>
                     <input type="date" className={s.campo} value={accordo.data} onChange={e => setAccordo({ ...accordo, data: e.target.value })} /></label>
-                  <label className={s.riga}><span className={s.eti}>Ora</span>
+                  <label className={s.campoBlocco}><span className={s.campoEti}>Ora</span>
                     <input type="time" className={s.campo} value={accordo.ora} onChange={e => setAccordo({ ...accordo, ora: e.target.value })} /></label>
                 </div>
                 <p className={s.nota}>In Home comparirà con il tempo che manca.</p>
@@ -571,15 +586,15 @@ export default function AnteprimaNuova() {
                   <div key={i}>
                     {i > 0 && <p className={s.sotto} style={{ marginTop: 12 }}>Secondo contatto</p>}
                     <div className={s.due}>
-                      <label className={s.riga}><span className={s.eti}>Nome</span>
+                      <label className={s.campoBlocco}><span className={s.campoEti}>Nome</span>
                         <input className={s.campo} value={c.nome} onChange={e => setContatti(cs => cs.map((x, j) => j === i ? { ...x, nome: e.target.value } : x))} /></label>
-                      <label className={s.riga}><span className={s.eti}>Cognome</span>
+                      <label className={s.campoBlocco}><span className={s.campoEti}>Cognome</span>
                         <input className={s.campo} value={c.cognome} onChange={e => setContatti(cs => cs.map((x, j) => j === i ? { ...x, cognome: e.target.value } : x))} /></label>
                     </div>
                     <div className={s.due}>
-                      <label className={s.riga}><span className={s.eti}>Chi è</span>
+                      <label className={s.campoBlocco}><span className={s.campoEti}>Chi è</span>
                         <input className={s.campo} value={c.chiE} placeholder="mamma, collega…" onChange={e => setContatti(cs => cs.map((x, j) => j === i ? { ...x, chiE: e.target.value } : x))} /></label>
-                      <label className={s.riga}><span className={s.eti}>Telefono</span>
+                      <label className={s.campoBlocco}><span className={s.campoEti}>Telefono</span>
                         <input className={s.campo} inputMode="tel" value={c.telefono} onChange={e => setContatti(cs => cs.map((x, j) => j === i ? { ...x, telefono: e.target.value } : x))} /></label>
                     </div>
                   </div>
@@ -651,15 +666,15 @@ export default function AnteprimaNuova() {
             <p className={s.sotto}>Stessa persona, dati corretti</p>
             <h2 className={s.titolo} style={{ fontSize: 24 }}>Modifica dati</h2>
             <div className={s.due} style={{ marginTop: 10 }}>
-              <label className={`${s.riga} ${s.rigaOttone}`}><span className={s.eti}>Nome</span>
+              <label className={s.campoBlocco}><span className={s.campoEti}>Nome</span>
                 <input className={s.campo} value={modifica.nome} onChange={e => setModifica({ ...modifica, nome: e.target.value })} /></label>
-              <label className={`${s.riga} ${s.rigaOttone}`}><span className={s.eti}>Cognome</span>
+              <label className={s.campoBlocco}><span className={s.campoEti}>Cognome</span>
                 <input className={s.campo} value={modifica.cognome} onChange={e => setModifica({ ...modifica, cognome: e.target.value })} /></label>
             </div>
-            <label className={s.riga}><span className={s.eti}>Telefono</span>
+            <label className={s.campoBlocco}><span className={s.campoEti}>Telefono</span>
               <input className={s.campo} inputMode="tel" value={modifica.telefono} onChange={e => setModifica({ ...modifica, telefono: e.target.value })} /></label>
             <div className={s.riga} style={{ display: 'block' }}>
-              <span className={s.eti}>Valutazione</span>
+              <span className={s.campoEti}>Valutazione</span>
               <div className={s.pillole} style={{ marginTop: 8 }}>
                 {(['ottimo', 'normale', 'problematico'] as Valutazione[]).map(v => (
                   <button key={v} type="button" className={modifica.valutazione === v ? s.pil : s.pilT} onClick={() => setModifica({ ...modifica, valutazione: v })}>
@@ -678,16 +693,24 @@ export default function AnteprimaNuova() {
               </div>
             )}
             <div className={s.riga} style={{ display: 'block' }}>
-              <span className={s.eti}>Come ci ha trovato</span>
+              <span className={s.campoEti}>Come ci ha trovato</span>
               <div className={s.pillole} style={{ marginTop: 8 }}>
                 {(Object.keys(ETICHETTA_PROV) as Provenienza[]).map(pv => (
                   <button key={pv} type="button" className={modifica.provenienza === pv ? s.pil : s.pilT}
                     onClick={() => setModifica({ ...modifica, provenienza: pv, struttura: pv === 'struttura' ? modifica.struttura : undefined })}>{ETICHETTA_PROV[pv]}</button>
                 ))}
               </div>
+              {modifica.provenienza === 'struttura' && (
+                <div className={s.pillole} style={{ marginTop: 8 }}>
+                  {STRUTTURE.map(x => (
+                    <button key={x} type="button" className={modifica.struttura === x ? s.pil : s.pilT}
+                      onClick={() => setModifica({ ...modifica, struttura: x })}>{x}</button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className={s.riga} style={{ display: 'block' }}>
-              <span className={s.eti}>Nota del cliente</span>
+              <span className={s.campoEti}>Nota del cliente</span>
               <textarea className={s.campo} style={{ textAlign: 'left', fontWeight: 400, marginTop: 4 }} rows={2}
                 value={modifica.nota ?? ''} onChange={e => setModifica({ ...modifica, nota: e.target.value })} />
             </div>
