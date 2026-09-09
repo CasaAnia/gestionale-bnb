@@ -12,8 +12,8 @@ import BackBar from '@/components/BackBar'
 import CampoRicerca from '@/components/CampoRicerca'
 import s from './nuova.module.css'
 import {
-  conLettoAutomatico, contoPeriodo, dividiPerCambio, notti as nottiPeriodo, ospitiIniziali,
-  problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno,
+  conLettoAutomatico, contoPeriodo, dividiPerCambio, lettoDaRegole, notti as nottiPeriodo,
+  ospitiIniziali, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno,
   type CameraComposta, type PeriodoComposto,
 } from '@/lib/prenotazioneComposta'
 import { giorniSoggiorno } from '@/lib/prezzoNotti'
@@ -118,7 +118,7 @@ function NuovaPrenotazione() {
   // ── camere e periodi ──────────────────────────────────────────────────────
   const [periodi, setPeriodi] = useState<PeriodoComposto[]>([{
     id: nuovoId(), gruppo: gruppoDaUrl || nuovoId(), roomId: cameraDaUrl || null,
-    checkIn: arrivoDaUrl, checkOut: piuUnGiorno(arrivoDaUrl), ospiti: 2, nottiLetto: [], tariffa: null,
+    checkIn: arrivoDaUrl, checkOut: piuUnGiorno(arrivoDaUrl), ospiti: 2, nottiLetto: [], letto: null, tariffa: null,
   }])
   const [cambioSu, setCambioSu] = useState<string | null>(null)
   const [cambio, setCambio] = useState({ roomId: '', dal: '', tariffa: '' })
@@ -313,7 +313,7 @@ function NuovaPrenotazione() {
     setPeriodi(ps => [...ps, {
       id: nuovoId(), gruppo: nuovoId(), roomId: null,
       checkIn: ultimo?.checkIn ?? arrivoDaUrl, checkOut: ultimo?.checkOut ?? piuUnGiorno(arrivoDaUrl),
-      ospiti: 2, nottiLetto: [], tariffa: null,
+      ospiti: 2, nottiLetto: [], letto: null, tariffa: null,
     }])
   }
   function rimuovi(id: string) { setPeriodi(ps => (ps.length > 1 ? ps.filter(p => p.id !== id) : ps)) }
@@ -725,15 +725,20 @@ function NuovaPrenotazione() {
 
               <div className={s.riga} style={{ alignItems: 'flex-start' }}>
                 <button type="button" className={`${s.quadro} ${p.nottiLetto.length > 0 ? s.quadroOn : ''}`} aria-label="Letto aggiuntivo"
-                  onClick={() => aggiorna(p.id, { nottiLetto: p.nottiLetto.length > 0 ? [] : giorni })} />
+                  onClick={() => aggiorna(p.id, p.nottiLetto.length > 0
+                    ? { nottiLetto: [], letto: null }
+                    : { nottiLetto: giorni, letto: p.letto ?? { importo: lettoDaRegole(camera, p.ospiti), criterio: 'notte' } })} />
                 <div style={{ flex: 1, marginLeft: -2 }}>
                   <b style={{ fontSize: 14 }}>Letto aggiuntivo</b>
                   <p className={s.nota} style={{ margin: '1px 0 0' }}>
-                    {p.nottiLetto.length > 0
-                      ? (conto && conto.lettoTotale > 0 ? 'Si paga nelle notti scelte.' : 'Occupa un letto della casa, ma non si addebita.')
-                      : 'Il prezzo lo decidono le regole della camera.'}
+                    {p.nottiLetto.length === 0
+                      ? 'Il prezzo lo propongono le regole della camera; puoi cambiarlo.'
+                      : conto && conto.lettoTotale > 0
+                        ? 'Si paga nelle notti scelte.'
+                        : 'Qui le regole non lo addebitano: scrivi un importo se vuoi farlo pagare.'}
                   </p>
                   {p.nottiLetto.length > 0 && (
+                    <>
                     <div className={s.notti}>
                       <button type="button" className={`${s.notte} ${p.nottiLetto.length === giorni.length ? s.notteOn : ''}`}
                         onClick={() => aggiorna(p.id, { nottiLetto: giorni })}>tutte le notti</button>
@@ -744,6 +749,19 @@ function NuovaPrenotazione() {
                         </button>
                       ))}
                     </div>
+                    <label className={s.campoBlocco} style={{ maxWidth: 130 }}>
+                      <span className={s.campoEti}>Quanto costa</span>
+                      <input type="number" inputMode="decimal" className={s.campo} placeholder="€"
+                        value={p.letto?.importo ?? ''}
+                        onChange={e => aggiorna(p.id, { letto: { importo: e.target.value === '' ? 0 : Number(e.target.value), criterio: p.letto?.criterio ?? 'notte' } })} />
+                    </label>
+                    <div className={s.pillole} style={{ marginTop: 4 }}>
+                      {([['notte', 'A notte'], ['ogni4', 'Ogni 4 notti'], ['totale', 'Totale concordato']] as const).map(([k, t]) => (
+                        <button key={k} type="button" className={(p.letto?.criterio ?? 'notte') === k ? s.pil : s.pilT}
+                          onClick={() => aggiorna(p.id, { letto: { importo: p.letto?.importo ?? lettoDaRegole(camera, p.ospiti), criterio: k } })}>{t}</button>
+                      ))}
+                    </div>
+                    </>
                   )}
                 </div>
                 {conto && conto.lettoTotale > 0 && <span className={s.numeroPiccolo}>{euro(conto.lettoTotale)}</span>}

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { conLettoAutomatico, contoPeriodo, dividiPerCambio, notti, ospitiIniziali, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
+import { conLettoAutomatico, contoPeriodo, costoLetto, lettoDaRegole, dividiPerCambio, notti, ospitiIniziali, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
 
 const AMBRA: CameraComposta = { id: 'ambra', name: 'Ambra', base_price: 80, has_extra_bed: true, extra_bed_price: 10 }
 const AMELIA: CameraComposta = { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5 }
@@ -9,7 +9,7 @@ const CAMERE = [AMBRA, AMELIA, LENA]
 const dove = (id: string | null) => CAMERE.find(c => c.id === id) ?? null
 
 function periodo(p: Partial<PeriodoComposto> = {}): PeriodoComposto {
-  return { id: 'p1', gruppo: 'g1', roomId: 'ambra', checkIn: '2026-09-14', checkOut: '2026-09-17', ospiti: 2, nottiLetto: [], tariffa: null, ...p }
+  return { id: 'p1', gruppo: 'g1', roomId: 'ambra', checkIn: '2026-09-14', checkOut: '2026-09-17', ospiti: 2, nottiLetto: [], letto: null, tariffa: null, ...p }
 }
 
 test('la partenza chiude il periodo: 14→17 sono tre notti', () => {
@@ -102,4 +102,36 @@ test('il letto aggiuntivo si accende da solo quando le persone superano la camer
   // notti scelte a mano: si rispettano
   const scelte = conLettoAutomatico(periodo({ roomId: 'amelia', ospiti: 2, nottiLetto: ['2026-09-15'] }), AMELIA)
   assert.deepEqual(scelte.nottiLetto, ['2026-09-15'])
+})
+
+test('il prezzo del letto lo propongono le regole della camera', () => {
+  assert.equal(lettoDaRegole(AMELIA, 2), 5)
+  assert.equal(lettoDaRegole(AMBRA, 3), 10)
+  assert.equal(lettoDaRegole(LENA, 3), 0)     // il terzo posto della tripla è compreso
+  assert.equal(lettoDaRegole(LENA, 4), 10)
+  // accendendo il letto la proposta finisce nel periodo
+  const acceso = conLettoAutomatico(periodo({ roomId: 'amelia', ospiti: 2 }), AMELIA)
+  assert.deepEqual(acceso.letto, { importo: 5, criterio: 'notte' })
+})
+
+test('Ania può addebitare il letto anche dove le regole non lo prevedono', () => {
+  // Lena in due che vogliono dormire separate: le regole non lo addebitano…
+  const compreso = periodo({ roomId: LENA.id, ospiti: 2, nottiLetto: ['2026-09-14', '2026-09-15', '2026-09-16'] })
+  assert.equal(costoLetto(compreso, LENA), 0)
+  assert.equal(contoPeriodo(compreso, LENA)?.totale, 240)
+  // …con un importo scelto sì, e i tre criteri contano come dice Ania
+  const aNotte = { ...compreso, letto: { importo: 10, criterio: 'notte' as const } }
+  assert.equal(costoLetto(aNotte, LENA), 30)
+  assert.equal(contoPeriodo(aNotte, LENA)?.totale, 270)
+  assert.equal(costoLetto({ ...compreso, letto: { importo: 20, criterio: 'ogni4' as const } }, LENA), 20)
+  assert.equal(costoLetto({ ...compreso, letto: { importo: 25, criterio: 'totale' as const } }, LENA), 25)
+})
+
+test('col letto scelto la riga salvata resta nella convenzione di bookings', () => {
+  const p = periodo({ roomId: LENA.id, ospiti: 2, nottiLetto: ['2026-09-14', '2026-09-15', '2026-09-16'], letto: { importo: 10, criterio: 'notte' } })
+  const riga = rigaDaSalvare(p, LENA, 'g')
+  assert.equal(riga.price_per_night, 80)
+  assert.equal(riga.extra_bed_total, 30)
+  assert.equal(riga.total_amount, 270)
+  assert.equal(riga.price_per_night * 3 + riga.extra_bed_total, riga.total_amount)
 })

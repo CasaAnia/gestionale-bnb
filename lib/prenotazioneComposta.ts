@@ -7,11 +7,17 @@
 //
 // Prezzi, letti e capienze vengono SEMPRE dalle regole già in uso
 // (lib/tariffe e lib/prezzoNotti): questa unità compone, non inventa listini.
-import { capienzaBase, capienzaCamera, lettoDaComunicare, EXTRA_BED_MAX } from './tariffe.ts'
+import { capienzaBase, capienzaCamera, lettoDaComunicare, totaleLetto, EXTRA_BED_MAX } from './tariffe.ts'
 import { giorniSoggiorno, prezzoPrenotazione, tariffaMinima, type CameraTariffa } from './prezzoNotti.ts'
 import { lettiPoolPrenotazione } from './lettiAggiuntivi.ts'
 
 export type CameraComposta = CameraTariffa & { id: string; name: string }
+
+// Come si paga il letto aggiuntivo. Il prezzo di partenza è quello delle
+// regole della camera (Amelia 5, Ambra e Allegra 10, Lena compreso fino a
+// tre): Ania può cambiarlo, anche per addebitarlo dove le regole non lo
+// prevedono (due persone che vogliono dormire separate).
+export type LettoScelto = { importo: number; criterio: 'notte' | 'ogni4' | 'totale' }
 
 export type PeriodoComposto = {
   id: string
@@ -21,7 +27,24 @@ export type PeriodoComposto = {
   checkOut: string
   ospiti: number
   nottiLetto: string[]       // notti col letto aggiuntivo (vuoto = niente letto)
+  letto: LettoScelto | null  // null = come dicono le regole della camera
   tariffa: number | null     // null = ancora da decidere; il listino la propone
+}
+
+// Quanto costa una notte di letto secondo le regole della camera (0 quando è
+// compreso, come il terzo posto di Lena).
+export function lettoDaRegole(camera: CameraComposta | null, ospiti: number): number {
+  return totaleLetto(camera, ospiti, 1)
+}
+
+export function costoLetto(p: PeriodoComposto, camera: CameraComposta | null): number {
+  const n = p.nottiLetto.length
+  if (n === 0) return 0
+  const scelta = p.letto ?? { importo: lettoDaRegole(camera, p.ospiti), criterio: 'notte' as const }
+  if (!scelta.importo) return 0
+  if (scelta.criterio === 'totale') return round2(scelta.importo)
+  if (scelta.criterio === 'ogni4') return round2(scelta.importo * Math.ceil(n / 4))
+  return round2(scelta.importo * n)
 }
 
 export const round2 = (n: number) => Math.round(n * 100) / 100
@@ -55,12 +78,16 @@ export function ospitiIniziali(camera: CameraComposta | null): number {
 // dentro la capienza si spegne.
 export function conLettoAutomatico(p: PeriodoComposto, camera: CameraComposta | null): PeriodoComposto {
   const serve = Boolean(camera) && p.ospiti > capienzaBase(camera)
-  const notti = giorniSoggiorno(p.checkIn, p.checkOut)
-  if (!serve) return p.nottiLetto.length === 0 ? p : { ...p, nottiLetto: [] }
+  const giorni = giorniSoggiorno(p.checkIn, p.checkOut)
+  if (!serve) return p.nottiLetto.length === 0 ? p : { ...p, nottiLetto: [], letto: null }
   // già acceso su alcune notti scelte a mano: si tengono, solo ripulite dalle
   // notti finite fuori dal periodo
-  const dentro = p.nottiLetto.filter(n => notti.includes(n))
-  return { ...p, nottiLetto: dentro.length > 0 ? dentro : notti }
+  const dentro = p.nottiLetto.filter(n => giorni.includes(n))
+  return {
+    ...p,
+    nottiLetto: dentro.length > 0 ? dentro : giorni,
+    letto: p.letto ?? { importo: lettoDaRegole(camera, p.ospiti), criterio: 'notte' },
+  }
 }
 
 export type ContoPeriodo = { totale: number; prezzoNotte: number; lettoTotale: number }
@@ -69,7 +96,11 @@ export type ContoPeriodo = { totale: number; prezzoNotte: number; lettoTotale: n
 export function contoPeriodo(p: PeriodoComposto, camera: CameraComposta | null): ContoPeriodo | null {
   if (!camera || notti(p) <= 0) return null
   const conto = prezzoPrenotazione(camera, comeBooking(p))
-  return { totale: conto.totale, prezzoNotte: conto.prezzoNotte, lettoTotale: conto.lettoTotale }
+  // Il conto della camera resta quello delle regole (anche notte per notte);
+  // il letto si sostituisce con quello scelto da Ania, se l'ha cambiato.
+  const senzaLetto = round2(conto.totale - conto.lettoTotale)
+  const letto = costoLetto(p, camera)
+  return { totale: round2(senzaLetto + letto), prezzoNotte: conto.prezzoNotte, lettoTotale: letto }
 }
 
 export function totalePieno(periodi: PeriodoComposto[], camera: (id: string | null) => CameraComposta | null): number | null {
@@ -103,7 +134,12 @@ export function righeConto(periodi: PeriodoComposto[], camera: (id: string | nul
 // La riga da inserire in bookings: stessa convenzione di sempre
 // (price_per_night = notte più economica, extra_bed_total = tutto il resto).
 export function rigaDaSalvare(p: PeriodoComposto, camera: CameraComposta, groupId: string) {
-  const conto = prezzoPrenotazione(camera, comeBooking(p))
+  const calcolato = contoPeriodo(p, camera)
+  const prezzoNotte = calcolato?.prezzoNotte ?? 0
+  const totale = calcolato?.totale ?? 0
+  // Convenzione di sempre di bookings: price_per_night è la notte più
+  // economica, extra_bed_total è tutto il resto (letto e differenze fra notti).
+  const conto = { prezzoNotte, totale, lettoTotale: round2(totale - prezzoNotte * notti(p)) }
   return {
     room_id: camera.id,
     check_in: p.checkIn,
