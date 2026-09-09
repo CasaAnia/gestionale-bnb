@@ -71,6 +71,18 @@ function periodoBreve(dal: string, al: string) {
   const [yb, mb, db] = al.split('-').map(Number)
   return ma === mb && ya === yb ? `${da}→${db} ${MESI[mb - 1]} ${String(yb).slice(2)}` : `${da} ${MESI[ma - 1]}→${ggAnno(al)}`
 }
+// Ora scritta a mano (Ania, 09/09/2026: «la ruota che gira è scocciante,
+// preferisco scrivere 0-3-0-0»): si digitano solo le cifre e i due punti li
+// mette la pagina. Ore oltre 23 e minuti oltre 59 vengono riportati dentro.
+export function oraDigitata(testo: string): string {
+  const cifre = testo.replace(/\D/g, '').slice(0, 4)
+  if (cifre.length <= 2) return cifre
+  const ore = String(Math.min(23, Number(cifre.slice(0, 2)))).padStart(2, '0')
+  const minuti = cifre.slice(2)
+  return cifre.length === 3 ? `${ore}:${minuti}` : `${ore}:${String(Math.min(59, Number(minuti))).padStart(2, '0')}`
+}
+const oraCompleta = (t: string) => /^\d{2}:\d{2}$/.test(t)
+
 const ETICHETTA_ACCORDO: Record<Accordo['modo'], string> = {
   contanti: 'Contanti all’arrivo', bonifico_arrivo: 'Bonifico all’arrivo', bonifico_intero: 'Bonifico · intero importo',
   caparra_meta: 'Bonifico · caparra del 50%', caparra_libera: 'Bonifico · caparra personalizzata',
@@ -397,6 +409,8 @@ function NuovaPrenotazione() {
     if (nuovo && strutture.disponibile && !provenienza.provenienza) guai.push('Scegli come ci ha trovato.')
     if (provenienza.provenienza === 'altra_struttura' && !provenienza.struttura.trim()) guai.push('Scegli o scrivi quale struttura.')
     if ((accordo.modo === 'caparra_meta' || accordo.modo === 'caparra_libera') && Boolean(accordo.data) !== Boolean(accordo.ora)) guai.push('Della caparra servono data e ora, oppure nessuna delle due.')
+    if (accordo.ora && !oraCompleta(accordo.ora)) guai.push('L\'ora della caparra è incompleta: scrivi per esempio 18:00.')
+    if (orario && !oraCompleta(orario)) guai.push('L\'orario di arrivo è incompleto: scrivi per esempio 15:30.')
     if (accordo.modo === 'caparra_libera' && !accordo.importo) guai.push('Scrivi l’importo della caparra.')
     if (accordo.modo === 'caparra_libera' && accordo.importo && totale !== null && accordo.importo > totale) guai.push('La caparra non può superare il totale.')
     if (conflitti.length > 0) guai.push(...conflitti)
@@ -459,7 +473,7 @@ function NuovaPrenotazione() {
         guest_id: guestId, status: 'confermata', source: 'diretta', pagato: false,
         bonifico: accordo.modo !== 'contanti',
         notes: note.trim() || null,
-        ...(orario ? { check_in_time: orario } : {}),
+        ...(oraCompleta(orario) ? { check_in_time: orario } : {}),
         ...(navetta ? { shuttle: navetta } : {}),
         ...(nomeSu ? { guest_name: nomeSu } : {}),
         ...(chi === 'altra' && contattoUno?.nome ? { extra_phone_1_name: conInizialiONull(contattoUno.nome) } : {}),
@@ -862,7 +876,8 @@ function NuovaPrenotazione() {
         {aperta === 'arrivo' && (
           <div>
             <label className={s.campoBlocco}><span className={s.campoEti}>Orario previsto</span>
-              <input type="time" className={s.campo} style={{ maxWidth: 130 }} value={orario} onChange={e => setOrario(e.target.value)} /></label>
+              <input type="text" inputMode="numeric" placeholder="es. 15:30" maxLength={5} className={s.campo} style={{ maxWidth: 130 }}
+                value={orario} onChange={e => setOrario(oraDigitata(e.target.value))} /></label>
             <div className={s.riga} style={{ display: 'block' }}>
               <span className={s.campoEti}>Navetta</span>
               <div className={s.pillole} style={{ marginTop: 8 }}>
@@ -904,7 +919,8 @@ function NuovaPrenotazione() {
                   <label className={s.campoBlocco}><span className={s.campoEti}>Entro il</span>
                     <input type="date" className={s.campo} value={accordo.data} onChange={e => setAccordo({ ...accordo, data: e.target.value })} /></label>
                   <label className={s.campoBlocco}><span className={s.campoEti}>Ora</span>
-                    <input type="time" className={s.campo} value={accordo.ora} onChange={e => setAccordo({ ...accordo, ora: e.target.value })} /></label>
+                    <input type="text" inputMode="numeric" placeholder="es. 18:00" maxLength={5} className={s.campo}
+                      value={accordo.ora} onChange={e => setAccordo({ ...accordo, ora: oraDigitata(e.target.value) })} /></label>
                 </div>
               </>
             )}
