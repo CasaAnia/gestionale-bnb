@@ -703,7 +703,9 @@ function NuovaPrenotazione() {
                     <option value="">Scegli camera</option>
                     {camere.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                  <p className={s.date}>{n > 0 ? `${gg(p.checkIn)} → ${gg(p.checkOut)} · ${n} ${n === 1 ? 'notte' : 'notti'}` : 'date da sistemare'}</p>
+                  {/* Ania, 09/09/2026: le date qui non servono, stanno subito
+                      sotto in Arrivo e Partenza. Resta solo quante notti, in grigio. */}
+                  <p className={s.date}>{n > 0 ? `${n} ${n === 1 ? 'notte' : 'notti'}` : 'date da sistemare'}</p>
                 </div>
                 <span className={s.numero}>{conto ? euro(conto.totale) : '—'}</span>
               </div>

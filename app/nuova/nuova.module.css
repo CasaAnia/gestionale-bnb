@@ -41,7 +41,7 @@
 .blocco { margin-top: 18px; }
 .bloccoSeparato { padding-top: 14px; border-top: 1px solid rgba(169, 136, 78, 0.55); }
 .bloccoTop { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.date { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--color-brass); margin-top: 2px; }
+.date { font-size: 13px; color: var(--color-stone); margin-top: 1px; }
 
 /* campo «a filo»: niente riquadro, solo la riga sotto; tutta la riga si tocca */
 /* Ania, 09/09/2026: l'etichetta piccola sopra e il valore attaccato a
