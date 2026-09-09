@@ -694,7 +694,7 @@ function NuovaPrenotazione() {
           const giorni = giorniSoggiorno(p.checkIn, p.checkOut)
           const proposta = camera ? tariffaProposta(p, camera) : null
           return (
-            <div key={p.id} className={seguito ? s.seguito : s.blocco}>
+            <div key={p.id} className={seguito ? s.seguito : `${s.blocco} ${indice > 0 ? s.bloccoSeparato : ''}`}>
               {seguito && <p className={s.sotto}>Poi si sposta</p>}
               <div className={s.bloccoTop}>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -723,7 +723,7 @@ function NuovaPrenotazione() {
                     onChange={e => aggiorna(p.id, { tariffa: e.target.value === '' ? null : Number(e.target.value) })} /></label>
               </div>
 
-              <div className={s.riga} style={{ alignItems: 'flex-start' }}>
+              <div className={s.riga} style={{ alignItems: 'flex-start', borderTop: 'none', marginTop: 6 }}>
                 <button type="button" className={`${s.quadro} ${p.nottiLetto.length > 0 ? s.quadroOn : ''}`} aria-label="Letto aggiuntivo"
                   onClick={() => aggiorna(p.id, p.nottiLetto.length > 0
                     ? { nottiLetto: [], letto: null }
@@ -789,7 +789,7 @@ function NuovaPrenotazione() {
                   </div>
                 </div>
               ) : (
-                <div className={s.azioni} style={{ borderTop: '1px solid var(--color-card-border)', marginTop: 8 }}>
+                <div className={s.azioni} style={{ marginTop: 4 }}>
                   <button type="button" className={s.azione} onClick={() => { setCambioSu(p.id); setCambio({ roomId: '', dal: '', tariffa: '' }) }}>Aggiungi cambio camera</button>
                   {seguito
                     ? <button type="button" className={s.azione} onClick={() => togliCambio(p.id)}>Togli il cambio</button>
@@ -800,18 +800,18 @@ function NuovaPrenotazione() {
           )
         })}
 
-        <div style={{ paddingTop: 14, borderTop: '1px solid var(--color-card-border)', marginTop: 14 }}>
+        <div style={{ marginTop: 18 }}>
           <button type="button" className={s.pilC} style={{ width: '100%', minHeight: 42 }} onClick={aggiungiCamera}>Aggiungi camera</button>
         </div>
         {conflitti.map((c, i) => <p key={i} className={s.avviso}>{c}</p>)}
 
         <p className={s.sezione}>Sconto a lei riservato</p>
         <p className={s.sezioneNota}>Uno solo per prenotazione. La tariffa a notte non si tocca.</p>
-        <div className={s.riga} style={{ borderTop: '1px solid rgba(169,136,78,.55)', gap: 8 }}>
+        <div className={s.riga} style={{ borderTop: 'none', gap: 8, marginTop: 4 }}>
           <input type="number" inputMode="decimal" className={s.campo} style={{ maxWidth: 90, textAlign: 'center' }} placeholder="%" value={pct} onChange={e => setPct(e.target.value)} />
           <button type="button" className={s.pil} disabled={!pct} onClick={applicaPct}>Applica %</button>
         </div>
-        <div className={s.riga} style={{ gap: 8 }}>
+        <div className={s.riga} style={{ borderTop: 'none', gap: 8 }}>
           <input type="number" inputMode="decimal" className={s.campo} placeholder="Porta il totale a €" value={target} onChange={e => setTarget(e.target.value)} />
           <button type="button" className={s.pilC} disabled={!target} onClick={applicaTarget}>Applica</button>
         </div>

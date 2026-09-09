@@ -35,7 +35,11 @@
 .riga { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--color-card-border); min-width: 0; }
 .rigaOttone { border-top: 1px solid rgba(169, 136, 78, 0.55); }
 .eti { font-size: 13px; color: var(--color-stone); white-space: nowrap; }
-.blocco { margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(169, 136, 78, 0.55); }
+/* Ania, 09/09/2026: dentro una camera c'erano cinque righe. Ne resta una
+   sola, quella che separa una camera dall'altra; la prima non ne ha bisogno,
+   ce l'ha già il titolo di sezione. */
+.blocco { margin-top: 18px; }
+.bloccoSeparato { padding-top: 14px; border-top: 1px solid rgba(169, 136, 78, 0.55); }
 .bloccoTop { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .date { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--color-brass); margin-top: 2px; }
 
@@ -59,7 +63,6 @@
 .campo::placeholder { color: var(--color-stone); font-weight: 400; }
 .campoSinistra { text-align: left; font-weight: 400; }
 .due { display: flex; gap: 22px; min-width: 0; }
-.blocco > .due:first-of-type, .seguito > .due:first-of-type { border-top: 1px solid var(--color-card-border); padding-top: 10px; margin-top: 4px; }
 .due > * { flex: 1; min-width: 0; }
 
 /* pillole e badge, come nel resto del gestionale */
