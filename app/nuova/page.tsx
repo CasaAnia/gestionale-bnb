@@ -12,8 +12,9 @@ import BackBar from '@/components/BackBar'
 import CampoRicerca from '@/components/CampoRicerca'
 import s from './nuova.module.css'
 import {
-  contoPeriodo, dividiPerCambio, notti as nottiPeriodo, problemi, rigaDaSalvare, righeConto,
-  tariffaProposta, totalePieno, type CameraComposta, type PeriodoComposto,
+  conLettoAutomatico, contoPeriodo, dividiPerCambio, notti as nottiPeriodo, ospitiIniziali,
+  problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno,
+  type CameraComposta, type PeriodoComposto,
 } from '@/lib/prenotazioneComposta'
 import { giorniSoggiorno } from '@/lib/prezzoNotti'
 import { capienzaCamera } from '@/lib/tariffe'
@@ -167,8 +168,19 @@ function NuovaPrenotazione() {
         return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
       })
       setCamere(lista)
+      // Arrivando dal calendario la camera è già scelta: applica le sue
+      // persone e il letto aggiuntivo come se l'avessi appena toccata.
+      if (cameraDaUrl) {
+        const camera = lista.find(c => c.id === cameraDaUrl) ?? null
+        setPeriodi(ps => ps.map((p, i) => (i === 0 && p.roomId === cameraDaUrl
+          ? conLettoAutomatico({ ...p, ospiti: ospitiIniziali(camera) }, camera)
+          : p)))
+      }
     })
     leggiStrutture().then(r => { setStrutture({ disponibile: r.disponibile, lista: r.strutture }); if (r.errore) setAvvisoProvenienza(r.errore) })
+    // camere e strutture si leggono una volta sola all'apertura; la camera che
+    // arriva dal calendario è nell'indirizzo e non cambia mentre sei qui
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function caricaCliente(id: string) {
@@ -275,14 +287,26 @@ function NuovaPrenotazione() {
     setPeriodi(ps => ps.map(p => {
       if (p.id !== id) return p
       const dopo = { ...p, ...dati }
-      // notti col letto sempre dentro il periodo
+      // notti col letto sempre dentro il periodo, e letto acceso da solo
+      // quando le persone superano la capienza della camera
       const dentro = giorniSoggiorno(dopo.checkIn, dopo.checkOut)
       dopo.nottiLetto = dopo.nottiLetto.filter(n => dentro.includes(n))
-      return dopo
+      const tocca = 'ospiti' in dati || 'checkIn' in dati || 'checkOut' in dati
+      return tocca ? conLettoAutomatico(dopo, trovaCamera(dopo.roomId)) : dopo
     }))
   }
+  // Scegliendo la camera si prendono le sue persone (Amelia una, le altre due)
+  // e, se servono, il letto aggiuntivo col suo prezzo. Se Ania aveva già
+  // scritto un numero suo diverso dal solito, quello resta.
   function scegliCamera(id: string, roomId: string) {
-    setPeriodi(ps => ps.map(p => (p.id === id ? { ...p, roomId, tariffa: p.tariffa } : p)))
+    const nuova = trovaCamera(roomId)
+    setPeriodi(ps => ps.map(p => {
+      if (p.id !== id) return p
+      const prima = trovaCamera(p.roomId)
+      const eraIlSolito = p.roomId === null || p.ospiti === ospitiIniziali(prima)
+      const ospiti = eraIlSolito ? ospitiIniziali(nuova) : Math.min(p.ospiti, capienzaCamera(nuova))
+      return conLettoAutomatico({ ...p, roomId, ospiti }, nuova)
+    }))
   }
   function aggiungiCamera() {
     const ultimo = periodi[periodi.length - 1]
@@ -543,7 +567,7 @@ function NuovaPrenotazione() {
 
       {cliente && (
         <>
-          <div className={`${s.riga} ${s.rigaOttone}`} style={{ alignItems: 'flex-start', paddingTop: 12 }}>
+          <div className={s.riga} style={{ alignItems: 'flex-start', paddingTop: 12, borderTop: 'none' }}>
             <span>
               <span className={s.titoloMedio} style={{ display: 'block' }}>{cliente.full_name || 'senza nome'}</span>
               <span className={s.risultatoTel}>{cliente.phone || 'senza telefono'}{provenienza.provenienza ? ` · ${ETICHETTA_PROVENIENZA[provenienza.provenienza]}${provenienza.struttura ? ` (${provenienza.struttura})` : ''}` : ''}</span>
@@ -624,7 +648,7 @@ function NuovaPrenotazione() {
 
       {/* Come ci ha trovato: obbligatoria solo per un cliente nuovo */}
       {scelto && strutture.disponibile && (
-        <div className={s.riga} style={{ display: 'block', borderTop: '1px solid var(--color-card-border)' }}>
+        <div className={s.riga} style={{ display: 'block', borderTop: 'none' }}>
           <span className={s.campoEti}>Come ci ha trovato{nuovo ? ' · da scegliere' : ''}</span>
           <div className={s.pillole} style={{ marginTop: 8 }}>
             {PROVENIENZE.map(p => (

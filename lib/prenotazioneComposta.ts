@@ -7,7 +7,7 @@
 //
 // Prezzi, letti e capienze vengono SEMPRE dalle regole già in uso
 // (lib/tariffe e lib/prezzoNotti): questa unità compone, non inventa listini.
-import { capienzaCamera, lettoDaComunicare, EXTRA_BED_MAX } from './tariffe.ts'
+import { capienzaBase, capienzaCamera, lettoDaComunicare, EXTRA_BED_MAX } from './tariffe.ts'
 import { giorniSoggiorno, prezzoPrenotazione, tariffaMinima, type CameraTariffa } from './prezzoNotti.ts'
 import { lettiPoolPrenotazione } from './lettiAggiuntivi.ts'
 
@@ -41,6 +41,26 @@ function comeBooking(p: PeriodoComposto) {
 // Tariffa che il campo deve mostrare quando Ania non l'ha scritta a mano.
 export function tariffaProposta(p: PeriodoComposto, camera: CameraComposta | null): number {
   return tariffaMinima(camera, comeBooking(p))
+}
+
+// Quante persone proporre appena si sceglie una camera: la sua capienza
+// senza letto aggiuntivo (Amelia è singola: una persona, non due).
+export function ospitiIniziali(camera: CameraComposta | null): number {
+  return capienzaBase(camera)
+}
+
+// Il letto aggiuntivo non si deve spuntare a mano: se le persone superano la
+// capienza della camera serve per forza, quindi si accende su tutte le notti
+// del periodo (e il prezzo lo mettono le regole della camera). Se tornano
+// dentro la capienza si spegne.
+export function conLettoAutomatico(p: PeriodoComposto, camera: CameraComposta | null): PeriodoComposto {
+  const serve = Boolean(camera) && p.ospiti > capienzaBase(camera)
+  const notti = giorniSoggiorno(p.checkIn, p.checkOut)
+  if (!serve) return p.nottiLetto.length === 0 ? p : { ...p, nottiLetto: [] }
+  // già acceso su alcune notti scelte a mano: si tengono, solo ripulite dalle
+  // notti finite fuori dal periodo
+  const dentro = p.nottiLetto.filter(n => notti.includes(n))
+  return { ...p, nottiLetto: dentro.length > 0 ? dentro : notti }
 }
 
 export type ContoPeriodo = { totale: number; prezzoNotte: number; lettoTotale: number }

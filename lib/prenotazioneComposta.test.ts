@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { contoPeriodo, dividiPerCambio, notti, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
+import { conLettoAutomatico, contoPeriodo, dividiPerCambio, notti, ospitiIniziali, problemi, rigaDaSalvare, righeConto, tariffaProposta, totalePieno, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
 
 const AMBRA: CameraComposta = { id: 'ambra', name: 'Ambra', base_price: 80, has_extra_bed: true, extra_bed_price: 10 }
 const AMELIA: CameraComposta = { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5 }
@@ -80,4 +80,26 @@ test('i controlli vedono capienza, date, doppioni e i due letti della casa', () 
 test('la tariffa proposta è quella di listino della notte più economica', () => {
   assert.equal(tariffaProposta(periodo(), AMBRA), 80)
   assert.equal(tariffaProposta(periodo({ ospiti: 1 }), AMELIA), 70)
+})
+
+test('appena si sceglie la camera le persone sono la sua capienza: Amelia una, le altre due', () => {
+  assert.equal(ospitiIniziali(AMELIA), 1)
+  assert.equal(ospitiIniziali(AMBRA), 2)
+  assert.equal(ospitiIniziali(LENA), 2)
+  assert.equal(ospitiIniziali(null), 2)
+})
+
+test('il letto aggiuntivo si accende da solo quando le persone superano la camera', () => {
+  // Amelia in due: serve il letto, su tutte le notti, e si paga
+  const due = conLettoAutomatico(periodo({ roomId: 'amelia', ospiti: 2 }), AMELIA)
+  assert.deepEqual(due.nottiLetto, ['2026-09-14', '2026-09-15', '2026-09-16'])
+  assert.equal(contoPeriodo(due, AMELIA)?.lettoTotale, 15)   // 3 notti × 5
+  assert.equal(contoPeriodo(due, AMELIA)?.totale, 225)       // 3 × 70 + 15
+  // tornando a una persona il letto si spegne
+  assert.deepEqual(conLettoAutomatico({ ...due, ospiti: 1 }, AMELIA).nottiLetto, [])
+  // Ambra in due sta nella capienza: niente letto
+  assert.deepEqual(conLettoAutomatico(periodo({ ospiti: 2 }), AMBRA).nottiLetto, [])
+  // notti scelte a mano: si rispettano
+  const scelte = conLettoAutomatico(periodo({ roomId: 'amelia', ospiti: 2, nottiLetto: ['2026-09-15'] }), AMELIA)
+  assert.deepEqual(scelte.nottiLetto, ['2026-09-15'])
 })
