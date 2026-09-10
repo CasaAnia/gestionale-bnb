@@ -33,7 +33,6 @@ import type { ClienteBreve } from '@/lib/cambiaCliente'
 import CampoProvenienza from '@/components/CampoProvenienza'
 import { campiProvenienza, provenienzaDi, testoProvenienza, clienteConProvenienza, normalizzaProvenienza, ETICHETTA_PROVENIENZA, type StrutturaNota } from '@/lib/provenienza'
 import { leggiStrutture, ricordaStruttura, salvaProvenienzaCliente } from '@/lib/provenienzaDati'
-import { soggiorniPrecedenti, etichettaGiaStato, type SoggiornoStorico } from '@/lib/clienteCheTorna'
 import { righeStorico } from '@/lib/storicoCliente'
 import { rigaDaSalvare, lettoProposto, type PeriodoComposto } from '@/lib/prenotazioneComposta'
 import { oraDigitata, oraCompleta } from '@/lib/ora'
@@ -70,8 +69,9 @@ function ComandoModifica({ aperto, onClick, etichetta = 'Modifica', nome }: { ap
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
       <button type="button" onClick={onClick} data-modifica={nome} aria-expanded={aperto}
-        className={v.azione} style={{ gap: 6, fontSize: 13, minHeight: 40, color: BLU_COMANDO, textDecorationColor: 'rgba(61, 90, 102, 0.4)' }}>
-        <Pencil size={14} strokeWidth={1.9} aria-hidden />{aperto ? 'Chiudi' : etichetta}
+        className={v.azione}
+        style={{ gap: 5, fontSize: 12.5, fontWeight: 500, minHeight: 40, color: BLU_COMANDO, opacity: 0.6, textDecorationColor: 'rgba(61, 90, 102, 0.25)' }}>
+        <Pencil size={13} strokeWidth={1.7} aria-hidden />{aperto ? 'Chiudi' : etichetta}
       </button>
     </div>
   )
@@ -411,7 +411,6 @@ export default function BookingDetail() {
   const [otherBookings, setOtherBookings] = useState<any[]>([])
   // Cliente che torna (08/09/2026): soggiorni conclusi dello stesso telefono
   // o dello stesso nome e cognome, anche su un'altra scheda cliente
-  const [omonimi, setOmonimi] = useState<SoggiornoStorico[]>([])
   // Conferma della richiesta dal sito: un solo tocco, poi il bottone sparisce
   const [confirming, setConfirming] = useState(false)
   const [erroreConferma, setErroreConferma] = useState<string | null>(null)
@@ -619,13 +618,6 @@ export default function BookingDetail() {
       setRooms(sorted)
       // Altre prenotazioni dello stesso ospite, escluse quelle del gruppo
       // (i segmenti del cambio camera sono lo stesso soggiorno)
-      // Stesso nome e cognome su un'altra scheda cliente (lettura tollerante: se fallisce resta solo il telefono)
-      const nomeIntero = (b?.guest_name || b?.guests?.full_name || '').trim()
-      if (nomeIntero) {
-        supabase.from('bookings').select('*, guests!inner(full_name, phone)')
-          .ilike('guests.full_name', nomeIntero)
-          .then(({ data: om }) => setOmonimi((om || []) as unknown as SoggiornoStorico[]))
-      }
       if (b?.guest_id) {
         supabase.from('bookings')
           .select('*, rooms(name)')
@@ -819,7 +811,6 @@ export default function BookingDetail() {
     setReservationBookings(rs => rs.map(r => ({ ...r, guest_id: cliente.id })))
     setGroupBookings(gs => gs.map((g: Riga) => ({ ...g, guest_id: cliente.id, ...('guest_name' in g ? { guest_name: null } : {}) })))
     setEditForm((f: Riga) => ({ ...f, guest_name: cliente.full_name || '', guest_phone: cliente.phone || '', guest_email: (cliente as { email?: string | null }).email || '', provenienza: provenienzaDi(aggiornata).provenienza, struttura: provenienzaDi(aggiornata).struttura_nome || '' }))
-    setOmonimi([])
     supabase.from('bookings')
       .select('*, rooms(name)')
       .eq('guest_id', cliente.id).neq('id', id).order('check_in', { ascending: false })
@@ -1732,14 +1723,14 @@ export default function BookingDetail() {
           {toastCambioCliente}
         </div>
       )}
+      {/* Il titolo grande «Prenotazione» non si vede più (Ania, 10/09/2026):
+          la barra in cima dice già «Prenotazioni», e la pagina comincia dai
+          soggiorni precedenti. Resta per chi usa il lettore di schermo. */}
       <div className="flex items-center gap-3" style={{ alignItems: 'center' }}>
-        <h1 className={v.titolo} style={{ lineHeight: 1 }}>Prenotazione</h1>
-        {(() => {
-          const persona = { guest_id: booking.guest_id, telefono: booking.guests?.phone, full_name: booking.guest_name || booking.guests?.full_name }
-          const storico: SoggiornoStorico[] = [...otherBookings.map(x => ({ ...x, guest_id: booking.guest_id })), ...omonimi]
-          const testo = etichettaGiaStato(soggiorniPrecedenti(persona, storico, oggiARoma(), chiavePrenotazione(booking)))
-          return testo ? <span data-gia-stato className={`${v.badge} ${v.badgeOttone}`} style={{ alignSelf: 'center', marginTop: 3, padding: '4px 12px' }}>{testo}</span> : null
-        })()}
+        <h1 className="sr-only">Prenotazione</h1>
+        {/* Il bollino «Già stato da noi · N soggiorni» non c'è più (Ania,
+            10/09/2026): lo stesso lo dice, con i numeri, il blocco «Soggiorni
+            precedenti» qui sotto. */}
         {booking.source === 'sito_web' && (
           <span className="text-xs font-bold rounded-full px-3 py-1 shadow-sm" style={{ background: '#2D6A4F', color: '#fff' }}>🌐 Dal sito</span>
         )}
@@ -2145,13 +2136,19 @@ export default function BookingDetail() {
             const concluse = tutte.filter(r => r.status !== 'annullata')
             const totale = concluse.reduce((t, r) => t + r.totaleCent, 0) / 100
             return (
-              <div style={{ marginBottom: 12 }}>
-                <p className={v.sezione} style={{ marginTop: 10, marginBottom: 0 }}>Soggiorni precedenti</p>
+              /* Ania, 10/09/2026: «la pagina parte con quello che hanno già
+                 fatto da noi, poi il nome è quello che devono ancora fare»:
+                 fra le due parti ci vuole un distacco. */
+              <div style={{ marginBottom: 30 }}>
+                <p className={v.sezione} style={{ marginTop: 4, marginBottom: 0 }}>Soggiorni precedenti</p>
                 {tutte.length === 0 && <p className={v.nota} style={{ marginTop: 4, fontSize: 11.5 }}>Nessun soggiorno prima di questo.</p>}
                 {/* Stessa riga della pagina di inserimento: date, camera, ospiti,
                     quanto è costata davvero la notte, il prezzo pieno barrato se
                     c'era uno sconto, e il totale (verde quando è scontato). */}
-                {tutte.slice(0, 4).map(r => {
+                {/* Dal più vecchio al più recente (Ania, 10/09/2026): si
+                    leggono in ordine di tempo, l'ultima visita in fondo.
+                    Restano comunque le quattro più recenti. */}
+                {tutte.slice(0, 4).reverse().map(r => {
                   const segmenti = r.segmenti as unknown as { num_guests?: number; check_in: string; check_out: string }[]
                   const notti = segmenti.reduce((t, x) => t + Math.round((new Date(x.check_out).getTime() - new Date(x.check_in).getTime()) / 86400000), 0)
                   const ospiti = Math.max(1, ...segmenti.map(x => Number(x.num_guests) || 1))
