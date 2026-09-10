@@ -2151,7 +2151,7 @@ export default function BookingDetail() {
                 {/* Stessa riga della pagina di inserimento: date, camera, ospiti,
                     quanto è costata davvero la notte, il prezzo pieno barrato se
                     c'era uno sconto, e il totale (verde quando è scontato). */}
-                {tutte.slice(0, 4).map((r, iStorico) => {
+                {tutte.slice(0, 4).map(r => {
                   const segmenti = r.segmenti as unknown as { num_guests?: number; check_in: string; check_out: string }[]
                   const notti = segmenti.reduce((t, x) => t + Math.round((new Date(x.check_out).getTime() - new Date(x.check_in).getTime()) / 86400000), 0)
                   const ospiti = Math.max(1, ...segmenti.map(x => Number(x.num_guests) || 1))
@@ -2161,7 +2161,7 @@ export default function BookingDetail() {
                   const annullata = r.status === 'annullata'
                   return (
                     <button key={r.chiave} type="button" className={v.storico}
-                      style={{ fontSize: 10.5, lineHeight: 1.25, gap: 6, padding: '3px 0', opacity: annullata ? 0.75 : 1, flexWrap: 'wrap', ...(iStorico === 0 ? { borderTop: 'none' } : {}) }}
+                      style={{ fontSize: 10.5, lineHeight: 1.25, gap: 6, padding: '3px 0', opacity: annullata ? 0.75 : 1, flexWrap: 'wrap', borderTop: 'none' }}
                       onClick={() => router.push(`/prenotazioni/${r.prenotazioneId}`)}>
                       <span className={v.storicoData}>{periodoBreve(r.check_in, r.check_out)}</span>
                       <span className={v.storicoDato}>{r.camere.join(' → ')}</span>
@@ -2179,10 +2179,11 @@ export default function BookingDetail() {
                   )
                 })}
                 {concluse.length > 0 && (
-                  <button type="button" className={v.storicoTot} style={{ paddingTop: 4, marginTop: 1, borderTop: '1px solid var(--color-card-border)' }} onClick={() => router.push(`/clienti/${guest?.id}`)}>
+                  <button type="button" className={v.storicoTot} style={{ paddingTop: 4, marginTop: 1, borderTop: 'none' }} onClick={() => router.push(`/clienti/${guest?.id}`)}>
                     <span className={v.eti} style={{ fontSize: 11 }}>{concluse.length} {concluse.length === 1 ? 'soggiorno concluso' : 'soggiorni conclusi'} <span style={{ color: 'var(--color-brass)' }}>· aprili tutti</span></span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span className={v.numeroPiccolo} style={{ fontSize: 14 }}>{Math.round(totale).toLocaleString('it-IT')} €</span>
+                      {/* Solo il totale un po' più grande (Ania, 10/09/2026) */}
+                      <span className={v.numeroPiccolo} style={{ fontSize: 19 }}>{Math.round(totale).toLocaleString('it-IT')} €</span>
                       <span className={v.freccia} style={{ fontSize: 11 }}>›</span>
                     </span>
                   </button>
@@ -2289,7 +2290,9 @@ export default function BookingDetail() {
               09/09/2026): se il dato manca la riga resta vuota. All'orario
               mancante pensa la Home, che il giorno prima lo mette fra le cose
               da controllare (lib/daControllare). */}
-          <div data-riquadro-arrivo style={{ background: 'var(--color-sage)', borderRadius: 12, padding: '12px 14px 6px', marginTop: 6 }}>
+          {/* Ania, 10/09/2026: il riquadro deve stare in mezzo, con lo stesso
+              spazio sopra e sotto (22 px, come fra le altre sezioni). */}
+          <div data-riquadro-arrivo style={{ background: 'var(--color-sage)', borderRadius: 12, padding: '12px 14px 8px', marginTop: 22 }}>
             {/* Ania, 10/09/2026: le due cose dell'arrivo affiancate, tutte e due
                 grandi uguali — l'orario a sinistra con l'orologio, la navetta a
                 destra col suo «sì» della stessa misura. Se un dato manca, la sua
@@ -2738,24 +2741,27 @@ export default function BookingDetail() {
                   <p className="text-xs text-[#8C3B2E] bg-[#F6E4DE] rounded-lg px-2 py-1.5 mb-2">❌ {accontoError}</p>
                 )}
                 <p className={v.campoEti} style={{ marginTop: 12 }}>Aggiungi pagamento</p>
-                <div className="flex flex-wrap sm:flex-nowrap gap-2 items-center" style={{ marginTop: 4 }}>
+                {/* Tutti e tre sulla stessa riga (Ania, 10/09/2026): importo,
+                    contanti o bonifico e la data; «Registra pagamento» sotto,
+                    a tutta larghezza. */}
+                <div className="flex flex-nowrap gap-1.5 items-center" style={{ marginTop: 4 }}>
                   <input type="number" inputMode="decimal" min={0} placeholder="€"
                     value={accontoForm.amount}
                     onChange={e => setAccontoForm({ ...accontoForm, amount: e.target.value })}
-                    className="w-20 ed-campo p-2 text-sm focus:outline-none focus:border-green-mid" />
+                    className="w-14 shrink-0 ed-campo p-2 text-sm focus:outline-none focus:border-green-mid" />
                   <select value={accontoForm.method} onChange={e => setAccontoForm({ ...accontoForm, method: e.target.value })}
-                    className="ed-campo p-2 text-sm">
+                    className="shrink-0 ed-campo p-2 text-sm">
                     <option value="contanti">Contanti</option>
                     <option value="bonifico">Bonifico</option>
                   </select>
                   <input type="date" value={accontoForm.paid_on}
                     onChange={e => setAccontoForm({ ...accontoForm, paid_on: e.target.value })}
-                    className="basis-full sm:basis-0 sm:flex-1 sm:min-w-0 ed-campo p-2 text-sm" />
-                  <button onClick={aggiungiAcconto} disabled={savingAcconto || !parseFloat(accontoForm.amount)}
-                    className={`${v.pil} basis-full sm:basis-auto sm:shrink-0`}>
-                    {savingAcconto ? 'Registro…' : 'Registra pagamento'}
-                  </button>
+                    className="flex-1 min-w-0 appearance-none ed-campo p-2 text-sm" />
                 </div>
+                <button onClick={aggiungiAcconto} disabled={savingAcconto || !parseFloat(accontoForm.amount)}
+                  className={v.pil} style={{ width: '100%', minHeight: 44, marginTop: 8 }}>
+                  {savingAcconto ? 'Registro…' : 'Registra pagamento'}
+                </button>
               </div>
             )
           })()}
@@ -2832,7 +2838,8 @@ export default function BookingDetail() {
                   <div style={{ paddingTop: 4 }}>
                     <span className={v.campoEti}>Soggiorna un&apos;altra persona</span>
                     {altri.map((x, i) => (
-                      <div key={i} className={v.riga} style={{ borderTop: i === 0 ? 'none' : undefined, display: 'block', paddingTop: 6 }}>
+                      // Niente righe fra una persona e l'altra (Ania, 10/09/2026)
+                      <div key={i} className={v.riga} style={{ borderTop: 'none', display: 'block', paddingTop: 6 }}>
                         <p className="font-semibold" style={{ color: BLU, fontSize: 15 }}>
                           {x.nome || 'senza nome'}
                           {x.chiE && <span style={{ color: BLU, fontWeight: 400, fontSize: 13 }}> · {x.chiE}</span>}
