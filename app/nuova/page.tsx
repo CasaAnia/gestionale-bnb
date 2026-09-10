@@ -5,6 +5,8 @@
 // il totale, e in fondo le quattro righe «già a posto» da toccare solo se
 // cambiano. I prezzi e i letti restano quelli delle regole di sempre
 // (lib/tariffe, lib/prezzoNotti): qui si compone, non si inventano listini.
+import { accordoPrenotazione, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
+import { righeStorico, testoCamere } from '@/lib/storicoCliente'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -22,6 +24,7 @@ import { lettiPoolPrenotazione, nottiLettoExtra } from '@/lib/lettiAggiuntivi'
 import { contoSoggiorno } from '@/lib/conto'
 import { conInizialiONull, maiuscoleNelCampo } from '@/lib/maiuscole'
 import { oraDigitata, oraCompleta } from '@/lib/ora'
+import { colonnaMancante } from '@/lib/colonnaMancante'
 import { smartBack, returnToSicuro } from '@/lib/navHistory'
 import { messaggioErroreDati } from '@/lib/connessione'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
@@ -38,7 +41,7 @@ import {
 
 type ClienteRiga = {
   id: string; full_name: string | null; phone: string | null; email: string | null
-  rating: string; notes?: string | null
+  rating: string; notes?: string | null; motivo_problematico?: string | null
   provenienza?: string | null; struttura_nome?: string | null
 }
 type CameraRiga = CameraComposta & {
@@ -46,7 +49,7 @@ type CameraRiga = CameraComposta & {
   has_extra_bed?: boolean | null; extra_bed_price?: number | string | null
 }
 type RigaStorico = {
-  id: string; group_id: string | null; status: string; check_in: string; check_out: string; cancelled_reason?: string | null
+  id: string; prenotazione_id?: string | null; group_id: string | null; status: string; check_in: string; check_out: string; cancelled_reason?: string | null
   num_guests: number; total_amount: number | string; price_per_night: number | string
   extra_bed_total?: number | string | null; discount_type?: string | null; discount_value?: number | string | null
   rooms?: { name?: string | null } | null
@@ -110,7 +113,8 @@ function NuovaPrenotazione() {
   const [problematico, setProblematico] = useState<ClienteRiga | null>(null)
   const [problematicoOk, setProblematicoOk] = useState<string | null>(null)
   const [nuovo, setNuovo] = useState<{ nome: string; telefono: string; valutazione: Valutazione; ricevuta: boolean; nota: string; motivo: string } | null>(null)
-  const [modifica, setModifica] = useState<{ nome: string; telefono: string; valutazione: Valutazione; ricevuta: boolean; nota: string } | null>(null)
+  const [modifica, setModifica] = useState<{ nome: string; telefono: string; valutazione: Valutazione; ricevuta: boolean; nota: string; motivo: string } | null>(null)
+  const [erroreModifica, setErroreModifica] = useState<string | null>(null)
   const [storico, setStorico] = useState<SoggiornoConcluso[]>([])
   const [erroreStorico, setErroreStorico] = useState<string | null>(null)
   const [storicoAperto, setStoricoAperto] = useState(false)
@@ -141,6 +145,9 @@ function NuovaPrenotazione() {
   const [orario, setOrario] = useState('')
   const [navetta, setNavetta] = useState<'' | 'si' | 'no'>('')
   const [accordo, setAccordo] = useState<Accordo>({ modo: 'contanti', importo: null, data: '', ora: '' })
+  const [accordoEsistente, setAccordoEsistente] = useState<RigaPrenotazione | null>(null)
+  const accordoCaricato = accordoEsistente?.prenotazione_id === prenotazioneDaUrl ? accordoEsistente : null
+  const [erroreAggiunta, setErroreAggiunta] = useState<string | null>(null)
   const [chi, setChi] = useState<'prenota' | 'altra'>('prenota')
   const [contatti, setContatti] = useState<Contatto[]>([{ nome: '', chiE: '', telefono: '' }])
   const [note, setNote] = useState('')
@@ -158,7 +165,7 @@ function NuovaPrenotazione() {
   }, [pieno, sconto])
   const totale = pieno === null ? null : Math.round((pieno - valoreSconto) * 100) / 100
   const righe = righeConto(periodi, trovaCamera)
-  const caparra = totale === null ? null
+  const caparra = prenotazioneDaUrl ? (accordoCaricato?.caparra_centesimi == null ? null : accordoCaricato.caparra_centesimi / 100) : totale === null ? null
     : accordo.modo === 'caparra_meta' ? Math.round(totale * 50) / 100
     : accordo.modo === 'caparra_libera' ? accordo.importo
     : null
@@ -196,41 +203,44 @@ function NuovaPrenotazione() {
     if (data) scegliCliente(data as ClienteRiga)
   }
 
-  // Storico: i soggiorni CONCLUSI, uno per gruppo (un cambio camera non è
-  // una seconda visita) e con quanto ha pagato davvero.
+  // La query comprende tutte le righe: filtrare le date prima di raggruppare
+  // farebbe sembrare finita una prenotazione con una camera ancora occupata.
   async function caricaStorico(guestId: string) {
     setErroreStorico(null)
     const oggi = iso(new Date())
-    // Le annullate si vedono col loro motivo (Ania, 09/09/2026) ma non contano
-    // nei soggiorni conclusi né nel totale speso.
     const { data, errore } = await leggiConEsito<RigaStorico[]>(
-      () => supabase.from('bookings').select('*, rooms(name)').eq('guest_id', guestId).or(`check_out.lt.${oggi},status.eq.annullata`).order('check_in', { ascending: false }),
+      () => supabase.from('bookings').select('*, rooms(name)').eq('guest_id', guestId).order('check_in', { ascending: false }),
       'caricare i soggiorni precedenti')
     if (errore) { setStorico([]); setErroreStorico(errore); return }
-    const gruppi = new Map<string, RigaStorico[]>()
-    for (const r of data || []) {
-      const k = r.group_id || r.id
-      gruppi.set(k, [...(gruppi.get(k) || []), r])
-    }
-    const lista: SoggiornoConcluso[] = [...gruppi.entries()].map(([chiave, righe]) => {
-      const ordinate = [...righe].sort((a, b) => a.check_in.localeCompare(b.check_in))
-      const conti = ordinate.map(r => contoSoggiorno(r))
-      const annullata = ordinate.every(r => r.status === 'annullata')
+    const lista: SoggiornoConcluso[] = righeStorico(data || []).filter(r => r.status === 'annullata' || r.segmenti.filter(s => s.status !== 'annullata').every(s => ['confermata','completata'].includes(s.status) && s.check_out <= oggi)).map(r => {
+      const contano = r.segmenti.filter(s => r.status === 'annullata' || s.status !== 'annullata') as RigaStorico[]
+      const conti = contano.map(s => contoSoggiorno(s))
       return {
-        chiave,
-        annullata,
-        motivo: ordinate.map(r => r.cancelled_reason).find(Boolean) ?? null,
-        dal: ordinate[0].check_in,
-        al: ordinate[ordinate.length - 1].check_out,
-        camere: [...new Set(ordinate.map(r => r.rooms?.name || 'camera'))].join(' → '),
-        ospiti: Math.max(...ordinate.map(r => Number(r.num_guests) || 1)),
-        notti: ordinate.reduce((t, r) => t + giorniSoggiorno(r.check_in, r.check_out).length, 0),
-        totale: Math.round(conti.reduce((t, c) => t + c.totale, 0) * 100) / 100,
-        pieno: Math.round(conti.reduce((t, c) => t + c.prezzoPieno, 0) * 100) / 100,
+        chiave: r.chiave, annullata: r.status === 'annullata', motivo: r.cancelled_reason,
+        dal: r.check_in, al: r.check_out, camere: testoCamere(r),
+        ospiti: Math.max(...contano.map(s => Number(s.num_guests) || 1)),
+        notti: new Set(contano.flatMap(s => giorniSoggiorno(s.check_in,s.check_out))).size,
+        totale: r.totaleCent / 100,
+        pieno: Math.round(conti.reduce((t,c) => t+c.prezzoPieno,0)*100)/100,
       }
-    }).sort((a, b) => b.dal.localeCompare(a.dal))
+    })
     setStorico(lista)
   }
+
+  useEffect(() => {
+    if (!prenotazioneDaUrl) return
+    let vivo = true
+    supabase.from('bookings').select('*').eq('prenotazione_id', prenotazioneDaUrl).order('check_in').then(({ data, error }) => {
+      if (!vivo) return
+      if (error || !data?.some(r => r.status !== 'annullata')) { setErroreAggiunta('Non riesco a leggere la prenotazione a cui aggiungere la camera. Riapri la sua scheda prima di proseguire.'); return }
+      const b = accordoPrenotazione(data as RigaPrenotazione[])!
+      setAccordoEsistente(b); setErroreAggiunta(null)
+      const d = b.caparra_entro ? new Date(b.caparra_entro) : null
+      setAccordo({ modo: (b.accordo_pagamento || (b.bonifico ? 'bonifico_arrivo' : 'contanti')) as Accordo['modo'], importo: b.caparra_centesimi == null ? null : b.caparra_centesimi/100,
+        data: d ? iso(d) : '', ora: d ? `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` : '' })
+    })
+    return () => { vivo=false }
+  }, [prenotazioneDaUrl])
 
   // ── ricerca cliente, come in Calendario, Arrivi e Richieste ───────────────
   // La ricerca parte dal campo (non da un effetto): si scrive, si aspetta un
@@ -412,6 +422,7 @@ function NuovaPrenotazione() {
     if (salvando || salvata) return          // due tocchi non fanno due prenotazioni
     const guai = problemi(periodi, trovaCamera, lettiAltrui)
     if (!scelto) guai.unshift('Manca il cliente.')
+    if (prenotazioneDaUrl && (!accordoCaricato || erroreAggiunta)) guai.push(erroreAggiunta || 'Attendi la lettura della prenotazione esistente.')
     if (cliente && valutazioneDi(cliente) === 'problematico' && problematicoOk !== cliente.id) {
       guai.push('Con questo cliente c’erano stati problemi: conferma «Prenoto lo stesso» qui sopra, oppure scegline un altro.')
     }
@@ -423,7 +434,7 @@ function NuovaPrenotazione() {
     if (accordo.ora && !oraCompleta(accordo.ora)) guai.push('L\'ora della caparra è incompleta: scrivi per esempio 18:00.')
     if (orario && !oraCompleta(orario)) guai.push('L\'orario di arrivo è incompleto: scrivi per esempio 15:30.')
     if (accordo.modo === 'caparra_libera' && (!accordo.importo || !Number.isFinite(accordo.importo) || accordo.importo <= 0)) guai.push('La caparra deve essere un importo positivo.')
-    if (accordo.modo === 'caparra_libera' && accordo.importo && totale !== null && accordo.importo > totale) guai.push('La caparra non può superare il totale.')
+    if (!prenotazioneDaUrl && accordo.modo === 'caparra_libera' && accordo.importo && totale !== null && accordo.importo > totale) guai.push('La caparra non può superare il totale.')
     if (conflitti.length > 0) guai.push(...conflitti)
     setErrori(guai)
     if (guai.length > 0) return
@@ -459,15 +470,17 @@ function NuovaPrenotazione() {
             ...(nuovo.motivo.trim() ? { motivo_problematico: nuovo.motivo.trim() } : {}),
             ...(strutture.disponibile ? campiProvenienza(provenienza.provenienza ?? 'non_so', provenienza.struttura) : {}),
           }
-          let { data: creato, error } = await supabase.from('guests').insert({ ...base, ...payloadValutazione(nuovo.valutazione, nuovo.ricevuta, true) }).select().single()
-          // motivo_problematico può non essere ancora stato aggiunto (proposta 0046)
-          if (error && (error.code === '42703' || error.code === 'PGRST204') && /motivo_problematico/.test(error.message || '')) {
-            mancantiCliente.push('motivo_problematico')
-            const { motivo_problematico: _via, ...senzaMotivo } = base as Record<string, unknown>
-            ;({ data: creato, error } = await supabase.from('guests').insert({ ...senzaMotivo, ...payloadValutazione(nuovo.valutazione, nuovo.ricevuta, true) }).select().single())
-          }
-          if (error && /vuole_ricevuta/i.test(error.message || '')) {
-            ({ data: creato, error } = await supabase.from('guests').insert({ ...base, ...payloadValutazione(nuovo.valutazione, nuovo.ricevuta, false) }).select().single())
+          let campiCliente: Record<string, unknown> = { ...base, ...payloadValutazione(nuovo.valutazione, nuovo.ricevuta, true) }
+          let { data: creato, error } = await supabase.from('guests').insert(campiCliente).select().single()
+          // Le colonne facoltative possono mancare insieme: ogni tentativo
+          // conserva le rimozioni precedenti, senza reinserire quella assente.
+          for (let giro = 0; error && giro < 2; giro++) {
+            const colonna = colonnaMancante(error)
+            if (!colonna || !['motivo_problematico', 'vuole_ricevuta'].includes(colonna) || !(colonna in campiCliente)) break
+            campiCliente = Object.fromEntries(Object.entries(campiCliente).filter(([k]) => k !== colonna))
+            if (colonna === 'motivo_problematico') mancantiCliente.push(colonna)
+            else campiCliente = { ...campiCliente, ...payloadValutazione(nuovo.valutazione, nuovo.ricevuta, false) }
+            ;({ data: creato, error } = await supabase.from('guests').insert(campiCliente).select().single())
           }
           if (error && error.code === '23505') {
             const { scheda: esistente } = await cercaSchedaPerTelefono<ClienteRiga>(nuovo.telefono)
@@ -496,10 +509,21 @@ function NuovaPrenotazione() {
         else campiSconto = { discount_type: 'percentage', discount_value: Math.round((1 - sconto.valore / pieno) * 10000) / 100 }
       }
 
+      // Rilettura prima di scrivere: una camera aggiunta eredita l'accordo
+      // già preso. Non crea una seconda caparra e non passa a contanti.
+      let accordoDaSalvare = accordo.modo
+      if (prenotazioneDaUrl) {
+        const { data, error } = await supabase.from('bookings').select('*').eq('prenotazione_id', prenotazioneDaUrl)
+        if (error || !data?.length || !data.some(r => r.status !== 'annullata') || data.some(r => r.guest_id !== guestId)) {
+          setErrori(['Non riesco a confermare la prenotazione e il cliente a cui aggiungere questa camera. Riapri la scheda.']); return
+        }
+        const esistente = accordoPrenotazione(data as RigaPrenotazione[])!
+        accordoDaSalvare = (esistente.accordo_pagamento || (esistente.bonifico ? 'bonifico_arrivo' : 'contanti')) as Accordo['modo']
+      }
       const contattoUno = contatti[0]
       const comuni = {
         guest_id: guestId, status: 'confermata', source: 'diretta', pagato: false,
-        bonifico: accordo.modo !== 'contanti',
+        bonifico: accordoDaSalvare !== 'contanti',
         notes: note.trim() || null,
         ...(oraCompleta(orario) ? { check_in_time: orario } : {}),
         ...(navetta ? { shuttle: navetta } : {}),
@@ -514,7 +538,7 @@ function NuovaPrenotazione() {
       // L'accordo vale per l'intera prenotazione: la caparra si scrive UNA
       // volta sola, sulla riga che arriva per prima. Copiata su ogni camera
       // varrebbe il doppio (rilievo del 09/09/2026).
-      const accordoCampi = { accordo_pagamento: accordo.modo }
+      const accordoCampi = { accordo_pagamento: accordoDaSalvare }
       const caparraCampi = {
         ...(caparra ? { caparra_centesimi: Math.round(caparra * 100) } : {}),
         ...(accordo.data && accordo.ora ? { caparra_entro: `${accordo.data}T${accordo.ora}:00` } : {}),
@@ -540,17 +564,15 @@ function NuovaPrenotazione() {
       // 42703, PostgREST risponde PGRST204 dalla sua cache dello schema. In
       // tutti e due i casi si toglie SOLO quella colonna e si riprova; importo
       // e criterio del letto vanno insieme, quindi si tolgono in coppia.
-      const nomeColonnaMancante = (e: { code?: string; message?: string } | null) => {
-        if (!e || (e.code !== '42703' && e.code !== 'PGRST204')) return null
-        return /column "?([a-z_.]+)"?[^a-z_]/i.exec(e.message || '')?.[1]?.split('.').pop() ?? null
-      }
       async function inserisci(righe: Record<string, unknown>[]) {
+        const facoltative = new Set(['prenotazione_id', 'extra_bed_importo', 'extra_bed_criterio', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro'])
         let tentativo = righe
-        for (let giro = 0; giro < 5; giro++) {
+        for (let giro = 0; giro < 6; giro++) {
           const esito = await supabase.from('bookings').insert(tentativo).select('id, check_in')
-          const colonna = nomeColonnaMancante(esito.error)
-          if (!colonna) return esito
-          const daTogliere = colonna.startsWith('extra_bed_') ? ['extra_bed_importo', 'extra_bed_criterio'] : [colonna]
+          const colonna = colonnaMancante(esito.error)
+          if (!colonna || !facoltative.has(colonna) || !tentativo.some(r => colonna in r)) return esito
+          if (colonna === 'prenotazione_id' && (prenotazioneDaUrl || new Set(periodi.map(p => p.gruppo)).size > 1)) return esito
+          const daTogliere = ['extra_bed_importo', 'extra_bed_criterio'].includes(colonna) ? ['extra_bed_importo', 'extra_bed_criterio'] : [colonna]
           mancanti.push(...daTogliere)
           tentativo = tentativo.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => !daTogliere.includes(k))))
         }
@@ -564,7 +586,7 @@ function NuovaPrenotazione() {
       // si resta nella stessa prenotazione, invece di crearne una seconda.
       const prenotazioneId = prenotazioneDaUrl || crypto.randomUUID()
       const conAccordo = righeDaSalvare.map(({ riga, prima, letto }) => ({
-        ...riga, prenotazione_id: prenotazioneId, ...letto, ...accordoCampi, ...(prima ? caparraCampi : {}),
+        ...riga, prenotazione_id: prenotazioneId, ...letto, ...accordoCampi, ...(prima && !prenotazioneDaUrl ? caparraCampi : {}),
       }))
       const { data: create, error } = await inserisci(conAccordo)
       senzaAccordo = mancanti.some(c => c.startsWith('accordo_') || c.startsWith('caparra_'))
@@ -601,6 +623,30 @@ function NuovaPrenotazione() {
       setErrori([messaggioErroreDati(err, 'salvare la prenotazione')])
       setSalvando(false)
     }
+  }
+
+  async function salvaDatiCliente() {
+    if (!modifica || !cliente) return
+    setErroreModifica(null)
+    const cifre = modifica.telefono.replace(/\D/g, '')
+    const motivo = modifica.motivo.trim() || null
+    const cambiaMotivo = motivo !== (cliente.motivo_problematico?.trim() || null)
+    const campi = {
+      full_name: conInizialiONull(modifica.nome),
+      phone: cifre ? (cifre.startsWith('39') ? cifre : `39${cifre}`) : null,
+      notes: modifica.nota.trim() || null,
+      ...(cambiaMotivo ? { motivo_problematico: motivo } : {}),
+      ...payloadValutazione(modifica.valutazione, modifica.ricevuta, colonnaRicevutaPresente(cliente as unknown as { vuole_ricevuta?: boolean })),
+    }
+    const { error } = await supabase.from('guests').update(campi).eq('id', cliente.id)
+    if (error) {
+      setErroreModifica(colonnaMancante(error) === 'motivo_problematico'
+        ? 'Il motivo interno non può ancora essere registrato. Nessuna modifica al cliente è stata salvata: il testo resta qui.'
+        : `I dati del cliente non sono stati salvati: ${error.message}`)
+      return
+    }
+    setCliente({ ...cliente, ...campi })
+    setModifica(null)
   }
 
   // ── pezzi ripetuti ────────────────────────────────────────────────────────
@@ -707,10 +753,11 @@ function NuovaPrenotazione() {
             </button>
           )}
           <div className={s.azioni}>
-            <button type="button" className={s.azione} onClick={() => setModifica({
+            <button type="button" className={s.azione} onClick={() => { setErroreModifica(null); setModifica({
               nome: cliente.full_name || '', telefono: cliente.phone || '',
               valutazione: valutazioneDi(cliente), ricevuta: vuoleRicevuta(cliente), nota: cliente.notes || '',
-            })}>Modifica dati</button>
+              motivo: cliente.motivo_problematico || '',
+            }) }}>Modifica dati</button>
             <button type="button" className={s.azione} onClick={() => { setCliente(null); setStorico([]); setProvenienza({ provenienza: null, struttura: '' }) }}>Cambia cliente</button>
           </div>
         </>
@@ -1006,7 +1053,7 @@ function NuovaPrenotazione() {
           </div>
         )}
 
-        <button type="button" className={s.gia} onClick={() => setAperta(aperta === 'pagamento' ? null : 'pagamento')}>
+        <button type="button" className={s.gia} onClick={() => { if (!prenotazioneDaUrl) setAperta(aperta === 'pagamento' ? null : 'pagamento') }}>
           <span className={s.giaEti}>Pagamento</span>
           <span className={s.giaValore}>{ETICHETTA_ACCORDO[accordo.modo]}
             <small className={s.giaSotto}>{caparra !== null
@@ -1014,7 +1061,8 @@ function NuovaPrenotazione() {
               : 'Nessuna caparra da chiedere'}</small></span>
           <span className={s.freccia}>{aperta === 'pagamento' ? '⌄' : '›'}</span>
         </button>
-        {aperta === 'pagamento' && (
+        {prenotazioneDaUrl && <p className={s.dNota}>{erroreAggiunta || 'Pagamento già concordato per tutta la prenotazione. Aggiungendo la camera, la caparra resta quella scelta: puoi rivederla dalla scheda.'}</p>}
+        {!prenotazioneDaUrl && aperta === 'pagamento' && (
           <div>
             {(Object.keys(ETICHETTA_ACCORDO) as Accordo['modo'][]).map(k => (
               <button key={k} type="button" className={s.scelta} onClick={() => setAccordo({ ...accordo, modo: k, importo: k === 'caparra_libera' ? accordo.importo : null })}>
@@ -1170,24 +1218,21 @@ function NuovaPrenotazione() {
               </div>
             </div>
             <div className={s.riga} style={{ display: 'block' }}>
-              <span className={s.campoEti}>{modifica.valutazione === 'problematico' ? 'Note interne · cosa è successo' : 'Nota del cliente'}</span>
+              <span className={s.campoEti}>Nota del cliente</span>
               <textarea className={s.campo} rows={2} value={modifica.nota} onChange={e => setModifica({ ...modifica, nota: e.target.value })} />
             </div>
+            {(modifica.valutazione === 'problematico' || modifica.motivo) && (
+              <div className={s.riga} style={{ display: 'block' }}>
+                <span className={s.campoEti}>Note interne · cosa è successo</span>
+                <textarea className={s.campo} rows={2} value={modifica.motivo} onChange={e => setModifica({ ...modifica, motivo: e.target.value })}
+                  placeholder="Riservato a noi, escluso dai messaggi al cliente" />
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
               <button type="button" className={s.pilT} style={{ minHeight: 44 }} onClick={() => setModifica(null)}>Annulla</button>
-              <button type="button" className={s.pil} style={{ flex: 1, minHeight: 44 }} onClick={async () => {
-                const cifre = modifica.telefono.replace(/\D/g, '')
-                const { error } = await supabase.from('guests').update({
-                  full_name: conInizialiONull(modifica.nome),
-                  phone: cifre ? (cifre.startsWith('39') ? cifre : `39${cifre}`) : null,
-                  notes: modifica.nota.trim() || null,
-                  ...payloadValutazione(modifica.valutazione, modifica.ricevuta, colonnaRicevutaPresente(cliente as unknown as { vuole_ricevuta?: boolean })),
-                }).eq('id', cliente.id)
-                if (error) { setErrori([`I dati del cliente non sono stati salvati: ${error.message}`]); return }
-                setCliente({ ...cliente, full_name: conInizialiONull(modifica.nome), phone: modifica.telefono, notes: modifica.nota.trim() || null, rating: modifica.valutazione })
-                setModifica(null)
-              }}>Salva modifica</button>
+              <button type="button" className={s.pil} style={{ flex: 1, minHeight: 44 }} onClick={salvaDatiCliente}>Salva modifica</button>
             </div>
+            {erroreModifica && <p role="alert" className={s.avviso}>{erroreModifica}</p>}
           </div>
         </div>
       )}

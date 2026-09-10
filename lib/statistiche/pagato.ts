@@ -115,7 +115,7 @@ export async function eseguiSegnaPagato(
   let r: EsitoScrittura
   try { r = await deps.scrivi(chiave, movimento) } catch (e) { r = { data: null, error: e ?? new Error('errore sconosciuto'), flagScritto: false } }
   if (r.error) return { esito: 'errore', fase: 'movimento', messaggio: r.error instanceof ErroreRispostaMalformata ? MESSAGGIO_RISPOSTA_MALFORMATA : MESSAGGIO_MOVIMENTO_NON_REGISTRATO, pagamenti }
-  const scritto: PagamentoStat | null = r.data ?? (movimento ? { booking_id: movimento.booking_id, amount: movimento.amount, paid_on: movimento.paid_on } : null)
+  const scritto: PagamentoStat | null = r.data ?? (!r.flagScritto && movimento ? { booking_id: movimento.booking_id, amount: movimento.amount, paid_on: movimento.paid_on } : null)
   const flagScritto = r.flagScritto
   // La riga scritta entra nella lista una volta sola: dopo un ritentativo con
   // la stessa chiave la RPC torna il movimento GIÀ presente fra i riletti

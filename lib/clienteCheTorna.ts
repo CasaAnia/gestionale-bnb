@@ -13,6 +13,7 @@ export type PersonaRicerca = { telefono?: string | null; nome?: string | null; c
 export type SoggiornoStorico = {
   id: string
   group_id?: string | null
+  prenotazione_id?: string | null
   guest_id?: string | null
   check_in: string
   check_out: string
@@ -38,19 +39,58 @@ export function stessaPersona(a: PersonaRicerca, b: { guest_id?: string | null; 
   return na === piano(b.guest_name) || na === piano(b.guests?.full_name)
 }
 
-// Soggiorni CONCLUSI (partenza ≤ oggi, confermati/completati) della stessa
-// persona, ogni soggiorno una volta (group_id o id); si esclude il soggiorno
-// in esame (escludi = group_id o id della prenotazione aperta).
-export function soggiorniPrecedenti(persona: PersonaRicerca, prenotazioni: SoggiornoStorico[], oggi: string, escludi?: string | null): number {
-  const gruppi = new Set<string>()
+// Un soggiorno solo, anche con più camere (10/09/2026): `prenotazione_id` tiene
+// insieme le camere parallele, `group_id` il cambio camera. Non si uniscono mai
+// righe per somiglianza di cliente o di date: conta solo quello che è scritto.
+const identita = (b: SoggiornoStorico) => b.prenotazione_id || b.group_id || b.id
+
+// I segmenti che contano: tutti quelli NON annullati. Un segmento ancora
+// «in attesa» non si può ignorare: fa parte della prenotazione.
+const attivi = (segmenti: SoggiornoStorico[]) =>
+  segmenti.filter(s => s.status !== 'annullata')
+
+const sistemato = (s: SoggiornoStorico) => s.status === 'confermata' || s.status === 'completata'
+
+// Concluso quando OGNI segmento non annullato è confermato/completato ED è
+// finito. Basta una camera parallela più lunga non ancora partita, o una
+// camera rimasta «in attesa», perché il soggiorno non conti.
+// Tutta annullata: non conta.
+function conclusa(segmenti: SoggiornoStorico[], oggi: string): boolean {
+  const vivi = attivi(segmenti)
+  return vivi.length > 0 && vivi.every(s => sistemato(s) && s.check_out <= oggi)
+}
+
+// La prenotazione aperta si esclude INTERA, comunque la si nomini: per la sua
+// identità, per il gruppo o per l'id di uno qualsiasi dei suoi segmenti.
+function esclusa(chiave: string, segmenti: SoggiornoStorico[], escludi?: string | null): boolean {
+  if (!escludi) return false
+  if (chiave === escludi) return true
+  return segmenti.some(s => s.id === escludi || s.group_id === escludi || s.prenotazione_id === escludi)
+}
+
+function raggruppa(prenotazioni: SoggiornoStorico[]): Map<string, SoggiornoStorico[]> {
+  const gruppi = new Map<string, SoggiornoStorico[]>()
   for (const b of prenotazioni) {
-    if (b.status !== 'confermata' && b.status !== 'completata') continue
-    if (b.check_out > oggi) continue
-    const chiave = b.group_id || b.id
-    if (escludi && (chiave === escludi || b.id === escludi)) continue
-    if (stessaPersona(persona, b)) gruppi.add(chiave)
+    const k = identita(b)
+    if (!gruppi.has(k)) gruppi.set(k, [])
+    gruppi.get(k)!.push(b)
   }
-  return gruppi.size
+  return gruppi
+}
+
+// Soggiorni CONCLUSI della stessa persona, ogni soggiorno una volta; si
+// esclude il soggiorno in esame. Il riconoscimento della persona è quello di
+// sempre, ma il raggruppamento viene PRIMA di tutto: una sola riga che
+// corrisponde sceglie la prenotazione, e poi si guardano TUTTI i suoi
+// segmenti. Così una camera intestata in modo diverso non sparisce dal conto.
+export function soggiorniPrecedenti(persona: PersonaRicerca, prenotazioni: SoggiornoStorico[], oggi: string, escludi?: string | null): number {
+  let n = 0
+  for (const [chiave, segmenti] of raggruppa(prenotazioni)) {
+    if (!segmenti.some(b => stessaPersona(persona, b))) continue
+    if (esclusa(chiave, segmenti, escludi)) continue
+    if (conclusa(segmenti, oggi)) n += 1
+  }
+  return n
 }
 
 export function etichettaGiaStato(n: number): string | null {
@@ -62,19 +102,21 @@ export function etichettaGiaStato(n: number): string | null {
 // noi prima di questo arrivo (un soggiorno concluso entro il suo check-in)?
 export function eraGiaStato(b: SoggiornoStorico, storico: SoggiornoStorico[]): boolean {
   const persona: PersonaRicerca = { guest_id: b.guest_id, telefono: b.guests?.phone, full_name: b.guest_name || b.guests?.full_name }
-  return soggiorniPrecedenti(persona, storico, b.check_in, b.group_id || b.id) > 0
+  return soggiorniPrecedenti(persona, storico, b.check_in, identita(b)) > 0
 }
 
-// Scheda cliente (08/09/2026): soggiorni CONCLUSI (uno per gruppo) e ricavi
-// totali (somma dei totali delle prenotazioni di quei soggiorni)
+// Scheda cliente (08/09/2026): soggiorni CONCLUSI (uno per prenotazione) e
+// ricavi totali (somma dei segmenti non annullati di quei soggiorni)
 export function soggiorniConclusi(prenotazioni: (SoggiornoStorico & { total_amount?: number | string | null })[], oggi: string): { n: number; ricaviCent: number } {
-  const gruppi = new Map<string, number>()
-  for (const b of prenotazioni) {
-    if (b.status !== 'confermata' && b.status !== 'completata') continue
-    if (b.check_out > oggi) continue
-    const k = b.group_id || b.id
-    const v = Number(b.total_amount)
-    gruppi.set(k, (gruppi.get(k) ?? 0) + (Number.isFinite(v) ? Math.round(v * 100) : 0))
+  let n = 0
+  let ricaviCent = 0
+  for (const segmenti of raggruppa(prenotazioni).values()) {
+    if (!conclusa(segmenti, oggi)) continue
+    n += 1
+    for (const s of attivi(segmenti)) {
+      const v = Number((s as { total_amount?: number | string | null }).total_amount)
+      ricaviCent += Number.isFinite(v) ? Math.round(v * 100) : 0
+    }
   }
-  return { n: gruppi.size, ricaviCent: [...gruppi.values()].reduce((s, x) => s + x, 0) }
+  return { n, ricaviCent }
 }

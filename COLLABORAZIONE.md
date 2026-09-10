@@ -5,6 +5,68 @@ il 5 settembre, senza nuovi abbonamenti. È un obiettivo operativo, non una
 garanzia di durata. Il codice e le prove restano patrimonio del progetto
 anche dopo la scadenza; non rischiare i dati per inseguirla.
 
+## 0. Coordinamento diretto Codex–Claude, richiesto da Ania il 10 settembre 2026
+
+Ania vuole intervenire sulle decisioni, senza assegnare ogni compito né
+trasportare prompt, rapporti o correzioni fra gli assistenti. Questa regola
+sostituisce la precedente divisione fissa «Claude implementa, Codex verifica».
+Vale per i lavori autorizzati di questo progetto nelle attività successive.
+
+### Responsabilità e passaggi
+
+- Codex coordina la consegna complessiva e mantiene breve la scheda attiva.
+  Assegna a Claude compiti delimitati in base al lavoro già noto; si occupa
+  direttamente dei difetti ricorrenti e dei passaggi più delicati. Entrambi
+  possono implementare o verificare secondo l'incarico scritto. Cambiare
+  l'esecutore di una correzione tecnica già autorizzata non richiede Ania.
+- Prima di iniziare un incarico annotare obiettivo osservabile, copia/base,
+  file o blocchi assegnati, responsabile, prove pertinenti e risultato atteso.
+  Un solo autore per file; per attività indipendenti usare copie separate.
+  Prima di trasferire controllare che la base non sia cambiata e preservare
+  sempre il lavoro altrui. Il passaggio di un file richiede presa in carico.
+- Messaggi tecnici diretti fra le attività esistenti Codex e Claude sono
+  autorizzati. Usare gli strumenti disponibili o la UI della conversazione
+  verificata; includere il percorso della consegna e chiedere riscontro lì.
+  Ania non deve copiare il messaggio. Questa autorizzazione riguarda soltanto
+  il coordinamento tecnico fra questi due assistenti, non messaggi a clienti
+  o altre persone. Usare dati sintetici; escludere credenziali e dati ospiti.
+- Scrivere un documento non consegna automaticamente un incarico. Distinguere
+  preparato, inviato, ricevuto, in corso e verificato. Verificare che il
+  messaggio sia stato inviato e che il destinatario abbia risposto prima di
+  dichiarare la presa in carico. Una sessione già aperta deve rileggere le
+  istruzioni aggiornate con un messaggio esplicito.
+- Per una correzione ricorrente passare il caso riproducibile all'altro
+  assistente con prove e file coinvolti; evitare ulteriori giri tramite Ania.
+  Se il canale non è disponibile, conservare la consegna e continuare il
+  lavoro indipendente. Coinvolgere Ania per riaprire l'accesso solo quando
+  il blocco è concreto e non risolvibile con gli strumenti disponibili.
+
+### Decisioni di Ania
+
+- Funzionamento richiesto, prezzi e regole commerciali, cambi di design
+  rispetto a quanto approvato, nuove spese o servizi, effetti sui dati reali,
+  migrazioni, cancellazioni, permessi e pubblicazione restano decisioni di
+  Ania quando non già autorizzate per quello specifico passaggio.
+- Scelte interne di codice, divisione del lavoro, correzioni locali,
+  controlli e prove pertinenti al lavoro concordato si risolvono fra noi.
+  Non chiedere ad Ania di scegliere nomi di campi, file, comandi o esecutore.
+- Prima di chiedere una decisione completare tutto il lavoro indipendente
+  necessario a mostrare un risultato concreto, con opzione raccomandata e
+  conseguenza pratica. Rispettare le approvazioni già date; un divieto del
+  sistema o un permesso mancante va spiegato, mai aggirato.
+- Codex consegna un riepilogo unico: cosa è pronto, cosa manca, cosa deve
+  decidere Ania. I dettagli tecnici restano nei rapporti condivisi.
+
+### Consumi e continuità
+
+Riutilizzare le prove, limitare i compiti a casi concreti e non rifare controlli
+passati senza nuove modifiche o dubbi. Nessuna nuova sottoscrizione, nuovo
+servizio o moltiplicazione di agenti è implicita in questo accordo.
+Le istruzioni persistono nel progetto, ma non attivano processi o risvegli:
+nessuna promessa di lavoro continuo a sessioni ferme. Automazioni e attività
+programmate si configurano soltanto quando richieste. Alla ripresa leggere
+la scheda e verificare la situazione effettiva prima di proseguire.
+
 ## 1. Un solo punto di passaggio
 
 - `CONSEGNA-ATTIVA.md` è la scheda breve del blocco corrente: perimetro,
@@ -15,10 +77,9 @@ anche dopo la scadenza; non rischiare i dati per inseguirla.
 - All'inizio controllare branch, HEAD e modifiche locali. Il candidato
   da revisionare deve essere identificato; una verifica su una versione
   diversa o mentre i file cambiano è INCOMPLETA, non un'approvazione.
-- Ruoli correnti: Claude implementa le correzioni del cablaggio, Codex
-  verifica e prepara criteri/strumenti. Cambiare ruolo solo esplicitamente.
-  Nessuna scrittura concorrente sullo stesso file. Non includere modifiche
-  altrui in un commit senza verificarne provenienza e accordo.
+- Ruoli: applicare il coordinamento diretto della sezione 0 e gli incarichi
+  correnti della scheda attiva. Nessuna scrittura concorrente sullo stesso
+  file; non includere modifiche altrui in un commit senza accordo.
 - Nessun nuovo agente, servizio o abbonamento necessario per questo metodo.
   Una sessione già aperta deve leggere esplicitamente i nuovi documenti;
   non presumere che abbia ricevuto un messaggio perché un file è cambiato.

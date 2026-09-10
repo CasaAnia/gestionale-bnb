@@ -1,4 +1,5 @@
 'use client'
+import { chiavePrenotazione, filtroPrenotazione, periodiCamera, leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, haCamereParallele, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import { conInizialiONull, maiuscoleNelCampo } from '@/lib/maiuscole'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -87,13 +88,13 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   // Per soggiorno con cambio camera usa il gruppo ordinato per check_in
   const segmenti = isGruppo ? [...gruppo].sort((a, z) => a.check_in.localeCompare(z.check_in)) : [b]
   const cin = segmenti[0].check_in
-  const cout = segmenti[segmenti.length - 1].check_out
+  const cout = segmenti.reduce((fine, s) => s.check_out > fine ? s.check_out : fine, segmenti[0].check_out)
   // Totale dal conto unico (LETTURA: il record salvato è autorevole per le
   // prenotazioni senza sconto, i dati storici non vengono reinterpretati)
   const totaleNum = segmenti.reduce((s, x) => s + contoSoggiorno(x).totale, 0)
   const notti = Math.round((new Date(cout).getTime() - new Date(cin).getTime()) / 86400000)
   const totale = totaleNum.toLocaleString('it-IT', { minimumFractionDigits: 2 })
-  const numOspiti = b.num_guests || 1
+  const numOspiti = [...new Set(segmenti.map(s => s.group_id || s.id))].reduce((somma, gruppo) => somma + Math.max(...segmenti.filter(s => (s.group_id || s.id) === gruppo).map(s => Number(s.num_guests) || 1)), 0)
   const ospiti = `${numOspiti} ${numOspiti === 1 ? 'adulto' : 'adulti'}`
   const cinF = formatDateIT(cin)
   const coutF = formatDateIT(cout)
@@ -106,7 +107,7 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   // oppure perché resta nella stessa camera a una tariffa diversa: l'intestazione deve
   // dire la cosa giusta, altrimenti al cliente annunciamo un cambio camera che non c'è.
   const camereDiverse = new Set(segmenti.map((s: any) => s.rooms?.name)).size > 1
-  const intestazioneSegmenti = camereDiverse
+  const intestazioneSegmenti = haCamereParallele(segmenti) ? 'Camere della prenotazione:' : camereDiverse
     ? 'Camere (cambio camera durante il soggiorno):'
     : 'Periodi del soggiorno:'
   const riepilogoCamere = isGruppo ? segmenti.map((s, i) => {
@@ -380,6 +381,14 @@ export default function BookingDetail() {
   const router = useRouter()
   const [booking, setBooking] = useState<any>(null)
   const [groupBookings, setGroupBookings] = useState<any[]>([])
+  const [reservationBookings, setReservationBookings] = useState<RigaPrenotazione[]>([])
+  const [errorePrenotazione, setErrorePrenotazione] = useState<string | null>(null)
+  // Gli editor di camera aggiornano soltanto il segmento scelto: il conto lo
+  // riconcilia con le altre camere senza sostituire i gruppi del cambio camera.
+  const righePrenotazione = reservationBookings.map(r => r.id === booking?.id ? booking : groupBookings.find(g => g.id === r.id) || r)
+  const prenotazioneOk = booking?.id === id && !errorePrenotazione && righePrenotazione.some(r => r.id === booking?.id)
+  const chiaveCamere = prenotazioneOk ? righePrenotazione.map(r => r.id).sort().join(',') : ''
+  const accordoComune = accordoPrenotazione(righePrenotazione) || booking
   // Altre prenotazioni dello stesso ospite (anche annullate): se ha mandato
   // più richieste dal sito, magari una sbagliata, da qui si ritrovano tutte
   const [otherBookings, setOtherBookings] = useState<any[]>([])
@@ -483,6 +492,8 @@ export default function BookingDetail() {
   // Conto del soggiorno (acconti). accontiOk=false se la tabella payments non è ancora migrata
   const [acconti, setAcconti] = useState<any[]>([])
   const [accontiOk, setAccontiOk] = useState(true)
+  const [chiavePagamentiLetti, setChiavePagamentiLetti] = useState('')
+  const contoPronto = accontiOk && Boolean(chiaveCamere) && chiavePagamentiLetti === chiaveCamere
   const [accontoForm, setAccontoForm] = useState({ amount: '', method: 'contanti', paid_on: oggiARoma() })
   const [savingAcconto, setSavingAcconto] = useState(false)
   const [accontoError, setAccontoError] = useState<string | null>(null)
@@ -530,11 +541,15 @@ export default function BookingDetail() {
   }
 
   useEffect(() => {
+    let vivo = true
     Promise.all([
       supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single(),
       supabase.from('rooms').select('*').eq('active', true),
-    ]).then(([{ data: b }, { data: r }]) => {
+    ]).then(async ([{ data: b, error }, { data: r }]) => {
+      if (!vivo) return
+      if (error) { setBooking(null); setErrorePrenotazione(ERRORE_CONTO_INCOMPLETO); setLoading(false); return }
       setBooking(b)
+      setReservationBookings([]); setGroupBookings([]); setErrorePrenotazione(null); setAccontiOk(false)
       setEditForm(b ? {
         room_id: b.room_id, check_in: b.check_in, check_out: b.check_out,
         check_in_time: b.check_in_time || '',
@@ -572,18 +587,18 @@ export default function BookingDetail() {
       // Stesso nome e cognome su un'altra scheda cliente (lettura tollerante: se fallisce resta solo il telefono)
       const nomeIntero = (b?.guest_name || b?.guests?.full_name || '').trim()
       if (nomeIntero) {
-        supabase.from('bookings').select('id, group_id, guest_id, check_in, check_out, status, guest_name, guests!inner(full_name, phone)')
-          .ilike('guests.full_name', nomeIntero).in('status', ['confermata', 'completata'])
+        supabase.from('bookings').select('*, guests!inner(full_name, phone)')
+          .ilike('guests.full_name', nomeIntero)
           .then(({ data: om }) => setOmonimi((om || []) as unknown as SoggiornoStorico[]))
       }
       if (b?.guest_id) {
         supabase.from('bookings')
-          .select('id, check_in, check_out, status, group_id, source, guest_name, rooms(name)')
+          .select('*, rooms(name)')
           .eq('guest_id', b.guest_id)
           .neq('id', id)
           .order('check_in', { ascending: false })
           .then(({ data: others }) => {
-            setOtherBookings((others || []).filter((x: any) => !(b.group_id && x.group_id === b.group_id)))
+            setOtherBookings((others || []).filter((x: any) => chiavePrenotazione(x) !== chiavePrenotazione(b)))
           })
       }
       // Richiesta di prenotazione da cui è nata (prenotazione_id = primo segmento
@@ -595,29 +610,33 @@ export default function BookingDetail() {
           .maybeSingle()
           .then(({ data: ric }) => { if (ric) setRichiestaOrigine(ric as { id: string; created_at: string; canale: string; proposta_inviata_at?: string | null }) })
       }
-      // Carica le altre prenotazioni del gruppo (cambio camera)
-      if (b?.group_id) {
-        supabase.from('bookings')
-          .select('*, rooms(*)')
-          .eq('group_id', b.group_id)
-          .neq('status', 'annullata')
-          .order('check_in', { ascending: true })
-          .then(({ data: grp }) => setGroupBookings(grp || []))
+      if (b) {
+        const conto = await leggiPrenotazioneUnica(b, f => supabase.from('bookings').select('*, rooms(*)').eq(f.colonna, f.valore).order('check_in'))
+        if (!vivo) return
+        setReservationBookings(conto.righe)
+        setGroupBookings(periodiCamera(b, conto.righe))
+        setErrorePrenotazione(conto.errore)
       }
       setLoading(false)
-    })
+    }).catch(() => { if (vivo) { setBooking(null); setErrorePrenotazione(ERRORE_CONTO_INCOMPLETO); setLoading(false) } })
+    return () => { vivo = false }
   }, [id])
 
-  // Carica gli acconti del soggiorno (tutti i segmenti se c'è un cambio camera)
+  // Rilettura su appartenenza effettiva, anche se cambia una camera a parità
+  // di numero di righe. Una risposta tardiva non sostituisce il conto corrente.
   useEffect(() => {
-    if (!booking) return
-    const ids = groupBookings.length > 1 ? groupBookings.map((b: any) => b.id) : [booking.id]
+    let vivo = true
+    if (!chiaveCamere) return
+    const ids = chiaveCamere.split(',')
     supabase.from('payments').select('*').in('booking_id', ids).order('paid_on').then(({ data, error }) => {
-      if (error) { setAccontiOk(false); return }
+      if (!vivo) return
+      if (error || !data) { setAccontiOk(false); return }
       setAccontiOk(true)
-      setAcconti(data || [])
+      setChiavePagamentiLetti(chiaveCamere)
+      setAcconti(data)
     })
-  }, [booking?.id, groupBookings.length])
+    return () => { vivo = false }
+  }, [chiaveCamere])
 
   // Cronologia delle modifiche (07/09/2026): righe scritte dai trigger della
   // proposta 0042 per tutti i segmenti del soggiorno; si rilegge dopo ogni
@@ -625,7 +644,7 @@ export default function BookingDetail() {
   const [cronologia, setCronologia] = useState<LetturaCronologia | null>(null)
   const [tentativoCronologia, setTentativoCronologia] = useState(0)
   // Chiave di rilettura: segmenti del soggiorno + ultimo salvataggio + numero di acconti
-  const chiaveCronologia = booking ? `${(groupBookings.length > 0 ? groupBookings : [booking]).map((b: { id: string }) => b.id).join(',')}|${booking.updated_at ?? ''}|${acconti.length}|${tentativoCronologia}` : ''
+  const chiaveCronologia = booking ? `${chiaveCamere}|${booking.updated_at ?? ''}|${acconti.length}|${tentativoCronologia}` : ''
   useEffect(() => {
     if (!chiaveCronologia) return
     let vivo = true
@@ -639,9 +658,9 @@ export default function BookingDetail() {
   // o INSERT; un pendente con risposta persa viene riconosciuto fra i riletti.
   async function aggiungiAcconto() {
     const amount = parseFloat(accontoForm.amount)
-    if (!amount || amount <= 0 || savingAcconto) return
+    if (!Number.isFinite(amount) || amount <= 0 || savingAcconto || !prenotazioneOk || !contoPronto) return
     setSavingAcconto(true)
-    const chiaveMemoria = `ca_acconto_pendente_${booking.id}`
+    const chiaveMemoria = `ca_acconto_pendente_${chiavePrenotazione(booking)}`
     const ids: string[] = segmentiSoggiorno().map((b: { id: string }) => b.id)
     try {
       const esito = await eseguiRegistraAcconto(booking.id, amount, accontoForm.method, accontoForm.paid_on, {
@@ -650,13 +669,14 @@ export default function BookingDetail() {
         dimentica: () => { try { localStorage.removeItem(chiaveMemoria) } catch { /* niente */ } },
         rileggiPagamenti: () => supabase.from('payments').select('*').in('booking_id', ids).order('paid_on'),
         scrivi: async (p: AccontoPendente, bookingId: string) => {
-          const rpc = await supabase.rpc('registra_acconto', { p_booking_id: bookingId, p_chiave: p.chiave, p_amount: p.amount, p_metodo: p.method, p_paid_on: p.paid_on })
+          const nomeRpc = booking.prenotazione_id ? 'registra_acconto_prenotazione' : 'registra_acconto'
+          const rpc = await supabase.rpc(nomeRpc, { p_booking_id: bookingId, p_chiave: p.chiave, p_amount: p.amount, p_metodo: p.method, p_paid_on: p.paid_on })
           if (!rpc.error) {
-            const r = rpc.data as { movimento_id?: unknown; importo?: unknown } | null
-            if (!r || typeof r.movimento_id !== 'string') return { data: null, error: new ErroreRispostaMalformata() }
-            return { data: { id: r.movimento_id, booking_id: bookingId, amount: p.amount, method: p.method, paid_on: p.paid_on }, error: null }
+            const r = rpc.data as { movimento_id?: unknown; importo?: unknown; soggiorno?: string; contratto?: string; booking_id?: string } | null
+            if (!r || typeof r.movimento_id !== 'string' || !Number.isFinite(Number(r.importo)) || Number(r.importo) !== p.amount || (booking.prenotazione_id && (r.contratto !== 'prenotazione_v1' || r.soggiorno !== chiavePrenotazione(booking)))) return { data: null, error: new ErroreRispostaMalformata() }
+            return { data: { id: r.movimento_id, booking_id: r.booking_id || bookingId, amount: Number(r.importo), method: p.method, paid_on: p.paid_on }, error: null }
           }
-          if (!rpcMancante(rpc.error, 'registra_acconto')) return { data: null, error: rpc.error }
+          if (booking.prenotazione_id || !rpcMancante(rpc.error, 'registra_acconto')) return { data: null, error: rpc.error }
           const { data, error } = await supabase.from('payments').insert({ booking_id: bookingId, amount: p.amount, method: p.method, paid_on: p.paid_on }).select().single()
           return { data, error }
         },
@@ -771,13 +791,14 @@ export default function BookingDetail() {
     const aggiornata = { ...booking, guest_id: cliente.id, ...('guest_name' in booking ? { guest_name: null } : {}), guests: { ...(booking.guests || {}), ...cliente } }
     setBooking(aggiornata)
     type Riga = Record<string, unknown>
+    setReservationBookings(rs => rs.map(r => ({ ...r, guest_id: cliente.id })))
     setGroupBookings(gs => gs.map((g: Riga) => ({ ...g, guest_id: cliente.id, ...('guest_name' in g ? { guest_name: null } : {}) })))
     setEditForm((f: Riga) => ({ ...f, guest_name: cliente.full_name || '', guest_phone: cliente.phone || '', guest_email: (cliente as { email?: string | null }).email || '', provenienza: provenienzaDi(aggiornata).provenienza, struttura: provenienzaDi(aggiornata).struttura_nome || '' }))
     setOmonimi([])
     supabase.from('bookings')
-      .select('id, check_in, check_out, status, group_id, source, guest_name, rooms(name)')
+      .select('*, rooms(name)')
       .eq('guest_id', cliente.id).neq('id', id).order('check_in', { ascending: false })
-      .then(({ data: others }) => setOtherBookings((others || []).filter((x: { group_id?: string | null }) => !(booking.group_id && x.group_id === booking.group_id))))
+      .then(({ data: others }) => setOtherBookings((others || []).filter((x: RigaPrenotazione) => chiavePrenotazione(x) !== chiavePrenotazione(booking))))
     setToastCambioCliente(`Prenotazione passata a ${cliente.full_name || 'un altro cliente'}`)
     setTimeout(() => setToastCambioCliente(null), 4000)
     rileggiScheda().then(e => { if (e) setAvvisoScheda(e) })
@@ -788,22 +809,17 @@ export default function BookingDetail() {
     // sconto, date, cambio cliente): la cronologia si rilegge SEMPRE, anche
     // quando updated_at non cambia (il cambio cliente scrive solo guest_id)
     setTentativoCronologia(t => t + 1)
-    type Riga = Record<string, unknown> & { group_id?: string | null }
-    const letto = await leggiConEsito<Riga>(
+    const letto = await leggiConEsito<RigaPrenotazione>(
       () => supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single(),
       'ricaricare la scheda')
-    if (letto.errore || !letto.data) return MESSAGGIO_RILETTURA
+    if (letto.errore || !letto.data) { setErrorePrenotazione(ERRORE_CONTO_INCOMPLETO); return MESSAGGIO_RILETTURA }
     const scheda = letto.data
-    let gruppo: Riga[] | null = null
-    if (scheda.group_id) {
-      const g = await leggiConEsito<Riga[]>(
-        () => supabase.from('bookings').select('*, rooms(*)').eq('group_id', scheda.group_id).neq('status', 'annullata').order('check_in', { ascending: true }),
-        'ricaricare la scheda')
-      if (g.errore) return MESSAGGIO_RILETTURA
-      gruppo = g.data || []
-    }
+    const conto = await leggiPrenotazioneUnica(scheda, f => supabase.from('bookings').select('*, rooms(*)').eq(f.colonna, f.valore).order('check_in'))
+    if (conto.errore) { setErrorePrenotazione(conto.errore); return MESSAGGIO_RILETTURA }
     setBooking(scheda)
-    if (gruppo) setGroupBookings(gruppo)
+    setReservationBookings(conto.righe)
+    setGroupBookings(periodiCamera(scheda, conto.righe))
+    setErrorePrenotazione(null)
     return null
   }
 
@@ -811,15 +827,16 @@ export default function BookingDetail() {
   // schermo cambia SOLO se l'update è riuscito; con un errore il bottone
   // torna attivo e compare «Non salvato, riprova» sotto di lui.
   async function confermaPrenotazione() {
-    if (confirming) return
+    if (confirming || !prenotazioneOk) return
     setConfirming(true)
     setErroreConferma(null)
     try {
-      const scrivi = () => booking.group_id
-        ? supabase.from('bookings').update({ status: 'confermata' }).eq('group_id', booking.group_id).eq('status', 'in_attesa')
-        : supabase.from('bookings').update({ status: 'confermata' }).eq('id', id).eq('status', 'in_attesa')
+      const f = filtroPrenotazione(booking)
+      const scrivi = () => supabase.from('bookings').update({ status: 'confermata' }).eq(f.colonna, f.valore).eq('status', 'in_attesa')
       const errore = await scriviPoiAggiorna(scrivi, () => {
         setBooking({ ...booking, status: 'confermata' })
+        setTentativoCronologia(t => t + 1)
+        setReservationBookings(rs => rs.map(r => r.status === 'in_attesa' ? { ...r, status: 'confermata' } : r))
         setGroupBookings(gs => gs.map((g: any) => g.status === 'in_attesa' ? { ...g, status: 'confermata' } : g))
       })
       setErroreConferma(errore)
@@ -829,7 +846,7 @@ export default function BookingDetail() {
   }
 
   // Segmenti del soggiorno (cambio camera = più righe) per il conto del saldo
-  const segmentiSoggiorno = () => (groupBookings.length > 0 ? groupBookings : [booking])
+  const segmentiSoggiorno = () => righePrenotazione.map(r => r.status === 'annullata' ? { ...r, total_amount: 0 } : r)
 
   // «Segna come pagato» — contratto unico dei movimenti (lib/statistiche/pagato,
   // revisioni R1/R8/R10): chiave custodita PRIMA dell'invio, rilettura dei
@@ -837,7 +854,7 @@ export default function BookingDetail() {
   // ricalcola il saldo e scrive il flag: nessun secondo PATCH) oppure, senza
   // RPC, INSERT + flag su TUTTI i segmenti con verifica delle righe toccate.
   async function segnaPagato() {
-    if (segnandoPagato) return
+    if (segnandoPagato || !prenotazioneOk || !contoPronto) return
     setSegnandoPagato(true)
     setErrorePagato(null)
     const ids: string[] = segmentiSoggiorno().map((b: { id: string }) => b.id)
@@ -846,14 +863,15 @@ export default function BookingDetail() {
         custodisciChiave: chiavePagatoStabile,
         rileggiPagamenti: () => supabase.from('payments').select('*').in('booking_id', ids).order('paid_on'),
         scrivi: async (chiave: string, m: MovimentoSaldo | null) => {
-          const rpc = await supabase.rpc('segna_pagato', { p_booking_id: booking.id, p_chiave: chiave, p_metodo: metodoPagato, p_paid_on: oggiARoma() })
+          const nomeRpc = booking.prenotazione_id ? 'segna_pagato_prenotazione' : 'segna_pagato'
+          const rpc = await supabase.rpc(nomeRpc, { p_booking_id: booking.id, p_chiave: chiave, p_metodo: metodoPagato, p_paid_on: oggiARoma() })
           if (!rpc.error) {
             const valido = validaEsitoSegnaPagato(rpc.data)
-            if (!valido) return { data: null, error: new ErroreRispostaMalformata(), flagScritto: false }
-            const riga = valido.movimento_id ? { id: valido.movimento_id, booking_id: booking.id, amount: valido.importo, method: metodoPagato, paid_on: oggiARoma() } : null
+            if (!valido || valido.soggiorno !== chiavePrenotazione(booking) || (booking.prenotazione_id && (rpc.data?.contratto !== 'prenotazione_v1' || valido.segmenti_aggiornati !== righePrenotazione.filter(r => ['confermata','completata'].includes(r.status)).length))) return { data: null, error: new ErroreRispostaMalformata(), flagScritto: false }
+            const riga = valido.movimento_id ? { id: valido.movimento_id, booking_id: rpc.data?.booking_id || booking.id, amount: valido.importo, method: metodoPagato, paid_on: oggiARoma() } : null
             return { data: riga, error: null, flagScritto: true }
           }
-          if (!rpcMancante(rpc.error, 'segna_pagato')) return { data: null, error: rpc.error, flagScritto: false }
+          if (booking.prenotazione_id || !rpcMancante(rpc.error, 'segna_pagato')) return { data: null, error: rpc.error, flagScritto: false }
           // Ripiego senza la 0033: INSERT semplice (la protezione è la rilettura prima di ogni tentativo)
           if (!m) return { data: null, error: null, flagScritto: false }
           const { data, error } = await supabase.from('payments').insert({ booking_id: m.booking_id, amount: m.amount, method: m.method, paid_on: m.paid_on }).select().single()
@@ -861,15 +879,22 @@ export default function BookingDetail() {
         },
         segnaFlag: async () => {
           const { data, error } = await supabase.from('bookings').update({ pagato: true }).in('id', ids).select('id')
-          return { error, righe: data?.length ?? 0 }
+          return { error: error || (data?.length !== ids.length ? new Error('Non tutte le camere sono state aggiornate') : null), righe: data?.length ?? 0 }
         },
       })
       if (esito.pagamenti) setAcconti(esito.pagamenti)
       if (esito.esito === 'errore') { setErrorePagato(esito.messaggio); return }
       dimenticaChiavePagato()
       setBooking({ ...booking, pagato: true })
+      setReservationBookings(rs => rs.map(r => ({ ...r, pagato: true })))
       setGroupBookings(gs => gs.map((g: { pagato?: boolean }) => ({ ...g, pagato: true })))
       setFinestraPagato(false)
+      // Il server può aver ricalcolato dopo un incasso da un altro dispositivo.
+      const riletti = await supabase.from('payments').select('*').in('booking_id', ids).order('paid_on')
+      if (riletti.error || !riletti.data) { setAccontiOk(false); setErrorePagato('Salvataggio riuscito, ma non riesco a rileggere il conto. Ricarica la scheda.') }
+      else setAcconti(riletti.data)
+      const erroreScheda = await rileggiScheda()
+      if (erroreScheda) setAvvisoScheda(erroreScheda)
     } finally {
       setSegnandoPagato(false)
     }
@@ -881,14 +906,14 @@ export default function BookingDetail() {
   // riapertura con la richiesta ancora in volo). Memoria negata → null →
   // nessuna richiesta parte.
   function chiavePagatoStabile(): string | null {
-    const k = `ca_pagato_chiave_${id}`
+    const k = `ca_pagato_chiave_${chiavePrenotazione(booking)}`
     const salvata = leggiMemoria(() => localStorage, k)
     if (salvata) return salvata
     const nuova = crypto.randomUUID()
     return scriviMemoria(() => localStorage, k, nuova) ? nuova : null
   }
   function dimenticaChiavePagato() {
-    try { localStorage.removeItem(`ca_pagato_chiave_${id}`) } catch { /* senza memoria non c'è nulla da togliere */ }
+    try { localStorage.removeItem(`ca_pagato_chiave_${chiavePrenotazione(booking)}`) } catch { /* senza memoria non c'è nulla da togliere */ }
   }
 
   // Applica lo sconto SENZA toccare la tariffa a notte: si salvano solo
@@ -1209,16 +1234,22 @@ export default function BookingDetail() {
   // alert del browser) e la prenotazione resta com'è. Il log WhatsApp è
   // secondario: se non si scrive lo si dice nella schermata di conferma.
   async function cancelBooking() {
-    if (annullando) return
+    if (annullando || !prenotazioneOk) return
+    if (!cancelReason.trim()) { setErroreAnnulla('Scrivi il motivo dell’annullamento.'); return }
     setAnnullando(true)
     setErroreAnnulla(null)
+    const f = filtroPrenotazione(booking)
+    const campiAnnulla = { status: 'annullata', cancelled_at: new Date().toISOString(), cancelled_reason: cancelReason.trim() }
     try {
       const errore = await scriviPoiAggiorna(
-        () => supabase.from('bookings').update({ status: 'annullata', cancelled_at: new Date().toISOString(), cancelled_reason: cancelReason }).eq('id', id),
-        () => { setBooking({ ...booking, status: 'annullata' }); setTentativoCronologia(t => t + 1) },
+        async () => {
+          const r = await supabase.from('bookings').update(campiAnnulla).eq(f.colonna, f.valore).neq('status', 'annullata').select('id')
+          return { error: r.error || (r.data?.length !== righePrenotazione.filter(x => x.status !== 'annullata').length ? new Error('Ricarica per verificare quali camere sono state annullate') : null) }
+        },
+        () => { setBooking({ ...booking, ...campiAnnulla }); setReservationBookings(rs => rs.map(r => r.status === 'annullata' ? r : { ...r, ...campiAnnulla })); setGroupBookings([]); setTentativoCronologia(t => t + 1) },
       )
       if (errore) { setErroreAnnulla(errore); return }
-      const msg = buildWhatsappMsg(booking, 'annullamento', groupBookings, acconti)
+      const msg = buildWhatsappMsg({ ...booking, bonifico: accordoComune.bonifico }, 'annullamento', righePrenotazione.filter(r => r.status !== 'annullata'), acconti)
       const { error: erroreLog } = await supabase.from('booking_whatsapp_log').insert({ booking_id: id, message_type: 'annullamento', message_text: msg, sent: false })
       setAvvisoScheda(erroreLog ? 'Prenotazione annullata, ma il messaggio non è stato registrato nello storico WhatsApp.' : null)
       setShowCancel(false)
@@ -1230,8 +1261,8 @@ export default function BookingDetail() {
   }
 
 
-  if (loading) return <div className="p-4 text-center py-10 text-gray-400">Caricamento...</div>
-  if (!booking) return <div className="p-4 text-center py-10 text-gray-400">Prenotazione non trovata</div>
+  if (loading || (booking && booking.id !== id)) return <div className="p-4 text-center py-10 text-gray-400">Caricamento...</div>
+  if (!booking) return <div className="p-4 text-center py-10 text-gray-400">{errorePrenotazione || 'Prenotazione non trovata'}</div>
 
   const notti = calcNotti(booking.check_in, booking.check_out)
   const guest = booking.guests
@@ -1247,7 +1278,7 @@ export default function BookingDetail() {
   ] as const
 
   function apriAccordo(totale: number) {
-    const b = booking as unknown as { accordo_pagamento?: string | null; caparra_centesimi?: number | null; caparra_entro?: string | null }
+    const b = accordoComune as unknown as { accordo_pagamento?: string | null; caparra_centesimi?: number | null; caparra_entro?: string | null }
     setAccordoModo(b.accordo_pagamento ?? (booking.bonifico ? 'bonifico_arrivo' : 'contanti'))
     setAccordoImporto(b.caparra_centesimi ? b.caparra_centesimi / 100 : Math.round(totale * 50) / 100)
     if (b.caparra_entro) {
@@ -1260,9 +1291,10 @@ export default function BookingDetail() {
   }
 
   async function salvaAccordo(totale: number) {
+    if (salvandoAccordo || !prenotazioneOk || !contoPronto) return
     const conCaparra = accordoModo === 'caparra_meta' || accordoModo === 'caparra_libera'
     const caparra = accordoModo === 'caparra_meta' ? Math.round(totale * 50) / 100 : accordoImporto
-    if (conCaparra && !caparra) { setErroreAccordo("Scrivi l'importo della caparra."); return }
+    if (conCaparra && (caparra == null || !Number.isFinite(caparra) || caparra <= 0)) { setErroreAccordo("Scrivi l'importo della caparra."); return }
     if (conCaparra && caparra && caparra > totale) { setErroreAccordo('La caparra non può superare il totale.'); return }
     if (Boolean(accordoData) !== Boolean(accordoOra)) { setErroreAccordo('Della scadenza servono data e ora, oppure nessuna delle due.'); return }
     if (accordoOra && !oraCompleta(accordoOra)) { setErroreAccordo("L'ora è incompleta: scrivi per esempio 18:00."); return }
@@ -1273,17 +1305,35 @@ export default function BookingDetail() {
       caparra_centesimi: conCaparra && caparra ? Math.round(caparra * 100) : null,
       caparra_entro: conCaparra && accordoData && accordoOra ? `${accordoData}T${accordoOra}:00` : null,
     }
-    let { error } = await supabase.from('bookings').update(campi).eq('id', id)
-    if (error && /accordo_pagamento|caparra_centesimi|caparra_entro/i.test(error.message || '')) {
-      ({ error } = await supabase.from('bookings').update({ bonifico: campi.bonifico }).eq('id', id))
-      if (!error) setErroreAccordo('Salvato il modo di pagamento. Caparra e scadenza no: serve la proposta 0041 applicata su Supabase.')
-    }
-    setSalvandoAccordo(false)
-    if (error) { setErroreAccordo(`Non salvato, riprova: ${error.message}`); return }
-    setBooking({ ...booking, ...campi })
-    setTentativoCronologia(t => t + 1)
-    if (!erroreAccordo) setAccordoAperto(false)
+    try {
+      const rpc = await supabase.rpc('salva_accordo_prenotazione', {
+        p_booking_id: booking.id, p_modo: accordoModo,
+        p_caparra_centesimi: campi.caparra_centesimi,
+        p_entro: campi.caparra_entro ? new Date(String(campi.caparra_entro)).toISOString() : null,
+      })
+      if (!rpc.error) {
+        if (rpc.data?.contratto !== 'prenotazione_v1' || rpc.data?.soggiorno !== chiavePrenotazione(booking)) {
+          setErroreAccordo('Risposta non riconosciuta: ricarica per verificare l’accordo.'); return
+        }
+        const errore = await rileggiScheda()
+        if (errore) { setErroreAccordo('Accordo salvato, ma non riesco a rileggerlo. Ricarica prima di altre modifiche.'); return }
+        setAccordoAperto(false)
+        return
+      }
+      // Solo la vecchia prenotazione a riga unica ha un ripiego sicuro.
+      if (booking.prenotazione_id || righePrenotazione.length !== 1 || !rpcMancante(rpc.error, 'salva_accordo_prenotazione')) {
+        setErroreAccordo('Accordo non salvato. Il conto unico deve essere attivato anche nel database, oppure la lettura va riprovata.'); return
+      }
+      const { error } = await supabase.from('bookings').update(campi).eq('id', id)
+      if (error) { setErroreAccordo(`Accordo non salvato: ${error.message}`); return }
+      setBooking({ ...booking, ...campi })
+      setReservationBookings(rs => rs.map(r => r.id === booking.id ? { ...r, ...campi } : r))
+      setTentativoCronologia(t => t + 1)
+      setAccordoAperto(false)
+    } catch { setErroreAccordo('Accordo non salvato o risposta non ricevuta: ricarica per verificarlo.') }
+    finally { setSalvandoAccordo(false) }
   }
+
 
   // ── letto aggiuntivo, modifica mirata ────────────────────────────────────
   function apriLetto() {
@@ -1308,6 +1358,11 @@ export default function BookingDetail() {
   }
 
   async function salvaLetto() {
+    if (salvandoLetto) return
+    if (lettoNotti.length > 0 && (lettoImporto === null || !Number.isFinite(lettoImporto) || lettoImporto < 0)) {
+      setErroreLetto('Scrivi un importo valido per il letto, anche zero se è compreso.')
+      return
+    }
     setSalvandoLetto(true)
     setErroreLetto(null)
     // I due letti della casa: contando anche le altre prenotazioni
@@ -1326,33 +1381,60 @@ export default function BookingDetail() {
     }
     const camera = { ...(booking.rooms as Record<string, unknown>), id: booking.room_id } as unknown as Parameters<typeof rigaDaSalvare>[1]
     const riga = rigaDaSalvare(periodo, camera, periodo.gruppo)
-    const conto = contoSoggiorno({ ...booking, extra_bed_total: riga.extra_bed_total })
+    // La modifica riguarda solo il letto. Nei vecchi conti senza uno sconto
+    // esplicito conserviamo il resto del prezzo concordato, applicando solo
+    // la differenza del supplemento. Gli sconti registrati seguono invece
+    // il calcolo condiviso; salvare solo il criterio non cambia il totale.
+    const vecchioLetto = Number(booking.extra_bed_total || 0)
+    const nuovoLetto = Number(riga.extra_bed_total)
+    const costoCambiato = vecchioLetto !== nuovoLetto
+    const totaleStorico = booking.total_amount == null ? NaN : Number(booking.total_amount)
+    const conto = contoSoggiorno({
+      ...booking,
+      extra_bed_total: riga.extra_bed_total,
+      total_amount: costoCambiato
+        ? (!booking.discount_type && Number.isFinite(totaleStorico) ? totaleStorico - vecchioLetto + nuovoLetto : undefined)
+        : booking.total_amount,
+    })
+    if (!Number.isFinite(conto.totale) || conto.totale < 0) {
+      setErroreLetto('Il nuovo supplemento porterebbe il totale sotto zero. Rivedi il prezzo concordato prima di salvare.')
+      setSalvandoLetto(false)
+      return
+    }
+    let campiSalvati: Record<string, unknown> = {
+      extra_bed: lettoNotti.length > 0,
+      extra_bed_dates: lettoNotti,
+      extra_bed_total: riga.extra_bed_total,
+      total_amount: conto.totale,
+      extra_bed_importo: lettoNotti.length > 0 ? lettoImporto : null,
+      extra_bed_criterio: lettoNotti.length > 0 ? lettoCriterio : null,
+    }
+    let accordoNonRegistrato = false
     const errore = await scriviPoiAggiorna(
       async () => {
-        const campi: Record<string, unknown> = {
-          extra_bed: lettoNotti.length > 0,
-          extra_bed_dates: lettoNotti,
-          extra_bed_total: riga.extra_bed_total,
-          total_amount: conto.totale,
-          extra_bed_importo: lettoNotti.length > 0 ? lettoImporto : null,
-          extra_bed_criterio: lettoNotti.length > 0 ? lettoCriterio : null,
-        }
-        const esito = await supabase.from('bookings').update(campi).eq('id', id)
+        const esito = await supabase.from('bookings').update(campiSalvati).eq('id', id)
         // colonne 0048 non ancora aggiunte: si salva il resto e lo si dice
         if (esito.error && (esito.error.code === '42703' || esito.error.code === 'PGRST204') && /extra_bed_(importo|criterio)/.test(esito.error.message || '')) {
-          setErroreLetto('Salvate notti e importo totale. Il criterio non è stato registrato: serve la proposta 0048 applicata su Supabase.')
-          const senza = Object.fromEntries(Object.entries(campi).filter(([k]) => k !== 'extra_bed_importo' && k !== 'extra_bed_criterio'))
-          return await supabase.from('bookings').update(senza).eq('id', id)
+          accordoNonRegistrato = true
+          campiSalvati = Object.fromEntries(Object.entries(campiSalvati).filter(([k]) => k !== 'extra_bed_importo' && k !== 'extra_bed_criterio'))
+          return await supabase.from('bookings').update(campiSalvati).eq('id', id)
         }
         return esito
       },
       () => {
-        setBooking({ ...booking, extra_bed: lettoNotti.length > 0, extra_bed_dates: lettoNotti, extra_bed_total: riga.extra_bed_total, total_amount: conto.totale })
+        setBooking({ ...booking, ...campiSalvati })
+        setGroupBookings(righe => righe.map(r => r.id === booking.id ? { ...r, ...campiSalvati } : r))
         setTentativoCronologia(t => t + 1)
       },
     )
     setSalvandoLetto(false)
     if (errore) { setErroreLetto(errore); return }
+    if (accordoNonRegistrato) {
+      setErroreLetto('Salvate notti e importo totale. Il criterio non è stato registrato: serve la proposta 0048 applicata su Supabase.')
+      setLettoAccordoVecchio(true)
+      return
+    }
+    setLettoAccordoVecchio(false)
     setLettoAperto(false)
   }
 
@@ -1364,8 +1446,8 @@ export default function BookingDetail() {
   function conclusiDelCliente() {
     const oggi = oggiARoma()
     return righeStorico(otherBookings as never[])
-      .filter(r => r.chiave !== (booking.group_id || booking.id))
-      .filter(r => r.status === 'annullata' || r.check_out < oggi)
+      .filter(r => r.chiave !== chiavePrenotazione(booking))
+      .filter(r => r.status === 'annullata' || r.segmenti.filter(s => s.status !== 'annullata').every(s => ['confermata','completata'].includes(s.status) && s.check_out <= oggi))
       .sort((a, z) => z.check_in.localeCompare(a.check_in))
   }
   const periodoBreve = (dal: string, al: string) => {
@@ -1379,27 +1461,39 @@ export default function BookingDetail() {
   // Link WhatsApp condivisi tra la versione mobile e il pannello Azioni desktop
   type WaTipo = 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero'
   const waPhone = numeroWhatsAppPrenotazione(booking.guests?.phone)
-  const waHref = (type: WaTipo) => waHrefTesto(waPhone ?? '', buildWhatsappMsg(booking, type, groupBookings, acconti))
+  const waHref = (type: WaTipo) => waHrefTesto(waPhone ?? '', buildWhatsappMsg({ ...booking, bonifico: accordoComune.bonifico }, type, righePrenotazione.filter(r => r.status !== 'annullata'), acconti))
   const waClick = (type: WaTipo, preferBusiness: boolean = false) => (e: React.MouseEvent) => {
     e.preventDefault()
-    openWhatsApp(waPhone!, buildWhatsappMsg(booking, type, groupBookings, acconti), preferBusiness)
+    openWhatsApp(waPhone!, buildWhatsappMsg({ ...booking, bonifico: accordoComune.bonifico }, type, righePrenotazione.filter(r => r.status !== 'annullata'), acconti), preferBusiness)
   }
-  // Bottoni WhatsApp in versione tenue per il pannello Azioni desktop
-  const renderWaChips = (preferBusiness: boolean) => (
-    <div className="grid grid-cols-2 gap-1.5">
-      <a href={waHref('conferma')} onClick={waClick('conferma', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>Conferma</a>
-      <a href={waHref('modifica')} onClick={waClick('modifica', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>Modifica</a>
-      <a href={waHref('dati_bonifico')} onClick={waClick('dati_bonifico', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>Dati bonifico</a>
-      <a href={waHref('pagamento_ricevuto')} onClick={waClick('pagamento_ricevuto', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>Pagamento</a>
-      <a href={waHref('promemoria_bonifico')} onClick={waClick('promemoria_bonifico', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>Promemoria bonifico</a>
-      <a href={waHref('libero')} onClick={waClick('libero', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EDEDED', color: '#444444' }}>Messaggio libero</a>
-      <a href={waHref('richiesta_orario')} onClick={waClick('richiesta_orario', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>Richiesta orario</a>
-      <a href={waHref('ringraziamento')} onClick={waClick('ringraziamento', preferBusiness)} target="_blank" rel="noopener noreferrer" className="block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#EAF0F3', color: '#3D5A66' }}>Ringraziamento</a>
-      <a href={waHref('annullamento')} onClick={waClick('annullamento', preferBusiness)} target="_blank" rel="noopener noreferrer" className="col-span-2 block text-center rounded-lg py-1.5 text-xs font-semibold" style={{ background: '#F6E4DE', color: '#8C3B2E' }}>Annullamento</a>
-    </div>
+  // Messaggi al cliente: stesso disegno sul telefono e nella colonna desktop
+  // (Ania, 09/09/2026: interruttore «WhatsApp Ania | Business» e pillole a filo,
+  // niente bottoni pieni azzurri). Comandi e testi identici nelle due viste.
+  const bloccoMessaggi = (
+    <>
+      <div role="group" aria-label="Quale WhatsApp" className="inline-flex rounded-full border p-0.5"
+        style={{ borderColor: '#C9BFA8', marginTop: 10 }}>
+        {([[false, 'WhatsApp Ania'], [true, 'Business']] as const).map(([val, label]) => (
+          <button key={label} type="button" onClick={() => setWaBusiness(val)} aria-pressed={waBusiness === val}
+            className={`rounded-full whitespace-nowrap font-semibold transition-colors px-3 py-1.5 text-xs ${waBusiness === val ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <button onClick={() => setShowConferma(true)}
+        className={v.pil} style={{ width: '100%', minHeight: 44, margin: '12px 0 12px' }}>
+        Conferma · immagine e testo
+      </button>
+      <div className="grid grid-cols-2 gap-2">
+        {([['conferma', 'Conferma'], ['modifica', 'Modifica'], ['dati_bonifico', 'Dati bonifico'], ['pagamento_ricevuto', 'Pagamento ricevuto'], ['promemoria_bonifico', 'Promemoria bonifico'], ['libero', 'Messaggio libero'], ['richiesta_orario', 'Richiesta orario'], ['ringraziamento', 'Ringraziamento']] as const).map(([tipo, testo]) => (
+          <a key={tipo} href={waHref(tipo)} onClick={waClick(tipo, waBusiness)} target="_blank" rel="noopener noreferrer"
+            className={v.pilC} style={{ minHeight: 40 }}>{testo}</a>
+        ))}
+        <a href={waHref('annullamento')} onClick={waClick('annullamento', waBusiness)} target="_blank" rel="noopener noreferrer"
+          className={v.pilT} style={{ gridColumn: 'span 2', minHeight: 40, color: '#8C3B2E', borderColor: '#8C3B2E' }}>Annullamento</a>
+      </div>
+    </>
   )
-  const waChipsAnia = renderWaChips(false)
-  const waChipsBusiness = renderWaChips(true)
 
   // Dopo l'annullamento la pagina si svuota: resta solo l'avviso di conferma
   if (cancelDone) return (
@@ -1439,7 +1533,7 @@ export default function BookingDetail() {
         {(() => {
           const persona = { guest_id: booking.guest_id, telefono: booking.guests?.phone, full_name: booking.guest_name || booking.guests?.full_name }
           const storico: SoggiornoStorico[] = [...otherBookings.map(x => ({ ...x, guest_id: booking.guest_id })), ...omonimi]
-          const testo = etichettaGiaStato(soggiorniPrecedenti(persona, storico, oggiARoma(), booking.group_id || booking.id))
+          const testo = etichettaGiaStato(soggiorniPrecedenti(persona, storico, oggiARoma(), chiavePrenotazione(booking)))
           return testo ? <span data-gia-stato className={`${v.badge} ${v.badgeOttone}`} style={{ alignSelf: 'center', marginTop: 3, padding: '4px 12px' }}>{testo}</span> : null
         })()}
         {booking.source === 'sito_web' && (
@@ -1939,7 +2033,10 @@ export default function BookingDetail() {
             <RigaDocumentiPrenotazione guestId={guest?.id} />
           </div>
           {valutazioneDi(guest) === 'problematico' && (
-            <p className={v.avviso}>{ETICHETTA_VALUTAZIONE.problematico}</p>
+            <div className={v.avviso}>
+              <p>{ETICHETTA_VALUTAZIONE.problematico}</p>
+              {guest?.motivo_problematico && <p>{guest.motivo_problematico}</p>}
+            </div>
           )}
 
           {/* Stesso numero, nominativo diverso: avviso persistente, ricalcolato
@@ -2166,13 +2263,26 @@ export default function BookingDetail() {
           )}
           {erroreCambioCamera && <AvvisoAzione testo={erroreCambioCamera} className="mt-2" />}
 
+          {prenotazioneOk && haCamereParallele(righePrenotazione) && (
+            <div className="mt-4">
+              <p className={v.sezione}>Camere della prenotazione</p>
+              {righePrenotazione.filter(r => r.status !== 'annullata').map(r => (
+                <div className={v.riga} key={r.id}>
+                  <span><strong>{r.rooms?.name || 'Camera'}</strong><br /><small>{formatDateShort(r.check_in)} → {formatDateShort(r.check_out)}</small></span>
+                  <span className={v.numeroPiccolo}>€{Number(r.total_amount).toLocaleString('it-IT', { minimumFractionDigits: 2 })}</span>
+                  {r.id === booking.id ? <span className={v.eti}>Aperta</span> : <Link className={v.azione} href={`/prenotazioni/${r.id}`}>Apri camera</Link>}
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Conto del soggiorno: acconti ricevuti e residuo */}
-          {accontiOk && booking.status !== 'annullata' && (() => {
-            const totaleDovuto = groupBookings.length > 1
-              ? groupBookings.reduce((s: number, x: any) => s + Number(x.total_amount), 0)
-              : Number(booking.total_amount)
-            const ricevuto = acconti.reduce((s, a) => s + Number(a.amount), 0)
-            const residuo = totaleDovuto - ricevuto
+          {(!prenotazioneOk || !contoPronto) && <AvvisoAzione testo={errorePrenotazione || "Lettura del conto in corso o non riuscita. Ricarica prima di registrare un pagamento."} />}
+          {prenotazioneOk && contoPronto && booking.status !== 'annullata' && (() => {
+            const conto = contoPrenotazione(righePrenotazione, acconti)
+            const totaleDovuto = conto.totaleCent / 100
+            const ricevuto = conto.ricevutiCent / 100
+            const residuo = conto.residuoCent / 100
             return (
               <div className="mt-4">
                 <p className={v.sezione}>Conto della prenotazione
@@ -2192,7 +2302,7 @@ export default function BookingDetail() {
                     I campi dell'accordo arrivano dalla proposta 0041; senza,
                     si legge la vecchia spunta «bonifico». */}
                 {(() => {
-                  const b = booking as unknown as { accordo_pagamento?: string | null; caparra_centesimi?: number | null; caparra_entro?: string | null }
+                  const b = accordoComune as unknown as { accordo_pagamento?: string | null; caparra_centesimi?: number | null; caparra_entro?: string | null }
                   const testo = {
                     contanti: 'Contanti all\'arrivo',
                     bonifico_arrivo: 'Bonifico all\'arrivo',
@@ -2539,7 +2649,7 @@ export default function BookingDetail() {
           «pagato» sullo schermo solo se l'update è riuscito; altrimenti il
           bottone torna attivo con «Non salvato, riprova» sotto. La logica
           pagato/movimenti non cambia. */}
-      {!editing && booking.status !== 'annullata' && ((booking.bonifico && !booking.pagato) || daHomePagato) && (
+      {!editing && prenotazioneOk && contoPronto && booking.status !== 'annullata' && ((accordoComune.bonifico && saldoMancanteCent(segmentiSoggiorno(), acconti) > 0) || daHomePagato) && (
         <div id="segna-pagato" className="mb-4 space-y-2">
           {!finestraPagato ? (
             <button onClick={() => { setErrorePagato(null); setFinestraPagato(true) }}
@@ -2583,43 +2693,18 @@ export default function BookingDetail() {
         </div>
       )}
 
-      {/* WhatsApp (mobile; su desktop sta nel pannello Azioni) */}
-      {!editing && waPhone && (() => {
-        const renderButtons = (preferBusiness: boolean) => (
-          <div className="grid grid-cols-2 gap-2">
-            {([['conferma', 'Conferma'], ['modifica', 'Modifica'], ['dati_bonifico', 'Dati bonifico'], ['pagamento_ricevuto', 'Pagamento ricevuto'], ['promemoria_bonifico', 'Promemoria bonifico'], ['libero', 'Messaggio libero'], ['richiesta_orario', 'Richiesta orario'], ['ringraziamento', 'Ringraziamento']] as const).map(([tipo, testo]) => (
-              <a key={tipo} href={waHref(tipo)} onClick={waClick(tipo, preferBusiness)} target="_blank" rel="noopener noreferrer"
-                className={v.pilC} style={{ minHeight: 40 }}>{testo}</a>
-            ))}
-            <a href={waHref('annullamento')} onClick={waClick('annullamento', preferBusiness)} target="_blank" rel="noopener noreferrer"
-              className={v.pilT} style={{ gridColumn: 'span 2', minHeight: 40, color: '#8C3B2E', borderColor: '#8C3B2E' }}>Annullamento</a>
-          </div>
-        )
-        return (
-          <div className="lg:hidden">
-            <p className={v.sezione}>Messaggi al cliente</p>
-            <div role="group" aria-label="Quale WhatsApp" className="inline-flex rounded-full border p-0.5"
-              style={{ borderColor: '#C9BFA8', marginTop: 10 }}>
-              {([[false, 'WhatsApp Ania'], [true, 'Business']] as const).map(([val, label]) => (
-                <button key={label} type="button" onClick={() => setWaBusiness(val)} aria-pressed={waBusiness === val}
-                  className={`rounded-full whitespace-nowrap font-semibold transition-colors px-3 py-1.5 text-xs ${waBusiness === val ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <button onClick={() => setShowConferma(true)}
-              className={v.pil} style={{ width: '100%', minHeight: 44, margin: '12px 0 12px' }}>
-              Conferma · immagine e testo
-            </button>
-            {renderButtons(waBusiness)}
-            <div style={{ height: 18 }} />
-          </div>
-        )
-      })()}
+      {/* Messaggi al cliente (telefono; su desktop lo stesso blocco sta nella colonna) */}
+      {!editing && waPhone && (
+        <div className="lg:hidden">
+          <p className={v.sezione}>Messaggi al cliente</p>
+          {bloccoMessaggi}
+          <div style={{ height: 18 }} />
+        </div>
+      )}
 
       {/* Cronologia (07/09/2026): solo lettura, righe scritte dal database (proposta 0042) */}
       {!editing && cronologia && (() => {
-        const nomeSegmento = (bid: string) => (groupBookings.length > 1 ? (groupBookings.find((b: { id: string }) => b.id === bid)?.rooms?.name ?? null) : null)
+        const nomeSegmento = (bid: string) => (righePrenotazione.length > 1 ? (righePrenotazione.find((b: { id: string }) => b.id === bid)?.rooms?.name ?? null) : null)
         const righe = righeCronologia(cronologia.eventi, new Date(), nomeSegmento)
         return (
           <div className="mb-4" data-cronologia>
@@ -2653,31 +2738,23 @@ export default function BookingDetail() {
       })()}
       </div>
 
-      {/* Pannello Comunicazioni (solo desktop): tutto ciò che si manda al cliente, in colori tenui */}
+      {/* Messaggi al cliente (solo desktop): stesso disegno e stessi comandi del telefono */}
       {!editing && waPhone && (
         <aside className="hidden lg:block lg:flex-1 lg:sticky lg:top-6">
           <div className="ed-riga py-4">
-            <p className="text-[11px] uppercase mb-3" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>Messaggi</p>
-            {/* Verde pieno come «+ Nuova richiesta» nelle Richieste (Ania, 05/09/2026) */}
-            <button onClick={() => setShowConferma(true)}
-              className="w-full inline-flex items-center justify-center bg-green-mid text-cream-text rounded-xl px-5 py-3 font-semibold text-[15px] active:opacity-80 transition-opacity mb-2">
-              Conferma WhatsApp (immagine + testo)
-            </button>
-            <p className="font-semibold text-green-dark mt-4 mb-1.5 text-sm">💬 WhatsApp Ania</p>
-            {waChipsAnia}
-            <p className="font-semibold text-[#7A3B22] mt-4 mb-1.5 text-sm">💼 WhatsApp Business</p>
-            {waChipsBusiness}
+            <p className={v.sezione} style={{ marginTop: 0 }}>Messaggi al cliente</p>
+            {bloccoMessaggi}
           </div>
         </aside>
       )}
       </div>
 
       {showConferma && (
-        <ConfermaWhatsApp booking={booking} groupBookings={groupBookings} payments={acconti} onClose={() => setShowConferma(false)} />
+        <ConfermaWhatsApp booking={{ ...booking, bonifico: accordoComune.bonifico }} groupBookings={righePrenotazione.filter(r => r.status !== 'annullata')} payments={acconti} onClose={() => setShowConferma(false)} />
       )}
 
-      {showCambiaCliente && (
-        <CambiaCliente booking={booking} segmenti={groupBookings.length > 1 ? groupBookings.length : 1} pagamenti={acconti.length}
+      {showCambiaCliente && prenotazioneOk && (
+        <CambiaCliente booking={booking} segmenti={righePrenotazione.length} pagamenti={acconti.length}
           confermaInviata={!!richiestaOrigine?.proposta_inviata_at} strutture={strutture}
           onClose={() => setShowCambiaCliente(false)} onCambiato={dopoCambioCliente} />
       )}

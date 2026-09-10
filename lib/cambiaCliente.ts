@@ -33,6 +33,7 @@ export type ClienteBreve = {
 export type PrenotazionePerCambio = {
   id: string
   guest_id?: string | null
+  prenotazione_id?: string | null
   group_id?: string | null
   guest_name?: string | null
   guests?: ClienteBreve | null
@@ -49,8 +50,8 @@ export function campiCambioCliente(b: PrenotazionePerCambio, nuovoGuestId: strin
 }
 
 // Quali righe: tutti i segmenti del soggiorno (group_id) oppure la sola riga
-export function filtroCambioCliente(b: PrenotazionePerCambio): { colonna: 'group_id' | 'id'; valore: string } {
-  return b.group_id ? { colonna: 'group_id', valore: b.group_id } : { colonna: 'id', valore: b.id }
+export function filtroCambioCliente(b: PrenotazionePerCambio): { colonna: 'prenotazione_id' | 'group_id' | 'id'; valore: string } {
+  return b.prenotazione_id ? { colonna: 'prenotazione_id', valore: b.prenotazione_id } : b.group_id ? { colonna: 'group_id', valore: b.group_id } : { colonna: 'id', valore: b.id }
 }
 
 // Stesso cliente di prima: niente da salvare
@@ -66,7 +67,7 @@ export function avvisiCambioCliente(x: { pagamenti: number; confermaInviata: boo
   if (x.pagamenti > 0) avvisi.push(x.pagamenti === 1
     ? 'C’è già un movimento di pagamento: resta sulla prenotazione e passa al cliente nuovo'
     : `Ci sono già ${x.pagamenti} movimenti di pagamento: restano sulla prenotazione e passano al cliente nuovo`)
-  if ((x.segmenti ?? 1) > 1) avvisi.push(`Il soggiorno ha un cambio camera (${x.segmenti} righe): passano tutte al cliente nuovo`)
+  if ((x.segmenti ?? 1) > 1) avvisi.push(`La prenotazione comprende ${x.segmenti} camere o periodi: passano tutti al cliente nuovo`)
   return avvisi
 }
 

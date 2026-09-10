@@ -10,6 +10,12 @@ Prima di lavorare leggi `COLLABORAZIONE.md` e `CONSEGNA-ATTIVA.md` nella
 radice di questo repository. `CLAUDE.md` importa questo file: il metodo
 è unico per Claude e Codex, senza copie divergenti.
 
+- Dal 10 settembre 2026: coordinamento diretto Codex–Claude secondo la
+  sezione 0 di `COLLABORAZIONE.md`. Codex assegna e raccoglie gli incarichi;
+  entrambi possono correggere codice nei blocchi assegnati. Ania interviene
+  sulle decisioni e autorizzazioni mancanti, senza fare da tramite tecnico.
+  Leggere la scheda per titolarità dei file; i ruoli si possono redistribuire
+  autonomamente nello stesso perimetro autorizzato.
 - Chi implementa consegna un percorso utente completo con prove, non solo
   moduli e conteggio dei test. Chi revisiona raccoglie i rilievi in un unico giro.
 - Un solo autore per file/blocco alla volta. Non modificare né includere

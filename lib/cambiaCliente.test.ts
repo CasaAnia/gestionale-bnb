@@ -45,7 +45,7 @@ test('avvisi: conferma inviata e pagamenti avvisano ma non bloccano; senza nulla
   assert.equal(a.length, 3)
   assert.match(a[0], /conferma è già stata inviata a Nida/)
   assert.match(a[1], /2 movimenti di pagamento/)
-  assert.match(a[2], /cambio camera/)
+  assert.match(a[2], /camere o periodi/)
   assert.match(avvisiCambioCliente({ pagamenti: 1, confermaInviata: false })[0], /un movimento di pagamento/)
 })
 
@@ -140,4 +140,8 @@ test('salvataggio riuscito: la prenotazione passa al cliente nuovo, il cliente v
   const { guest_id: _d, guest_name: _e, guests: _f, ...restoDopo } = booking
   void _a; void _b; void _c; void _d; void _e; void _f
   assert.deepEqual(restoDopo, restoPrima)
+})
+
+test('camere parallele e cambi camera passano insieme al cliente nuovo', () => {
+  assert.deepEqual(filtroCambioCliente({id:'a',group_id:'g',prenotazione_id:'p'}),{colonna:'prenotazione_id',valore:'p'})
 })

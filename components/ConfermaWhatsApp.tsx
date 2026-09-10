@@ -13,6 +13,8 @@ import { generaPng as generaPngDa } from '@/lib/immaginePng'
 
 // colonne migrate a mano (assenti dall'interfaccia Booking di lib/types)
 type PrenotazioneConferma = Booking & {
+  group_id?: string | null
+  prenotazione_id?: string | null
   bonifico?: boolean | null
   pagato?: boolean | null
   extra_bed_dates?: string[] | null
@@ -63,7 +65,7 @@ export default function ConfermaWhatsApp({ booking, groupBookings, payments = []
   const isGruppo = groupBookings.length > 1
   const segmenti = isGruppo ? [...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in)) : [booking]
   const cin = segmenti[0].check_in
-  const numOspiti = booking.num_guests || 1
+  const numOspiti = [...new Set(segmenti.map(s => s.group_id || s.id))].reduce((tot, g) => tot + Math.max(...segmenti.filter(s => (s.group_id || s.id) === g).map(s => Number(s.num_guests) || 1)), 0)
   const ospiti = `${numOspiti} ${numOspiti === 1 ? 'adulto' : 'adulti'}`
   // Alcune schede cliente portano caratteri invisibili residui davanti al nome
   // (es. U+FE0F di una vecchia emoji): il saluto deve risultare "Gentile Nome Cognome,"

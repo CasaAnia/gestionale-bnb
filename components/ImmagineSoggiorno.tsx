@@ -68,7 +68,7 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
   const principale = segmenti[0]
   const camereDiverse = new Set(segmenti.map(s => s.rooms?.name)).size > 1
   const cin = segmenti[0].check_in
-  const cout = segmenti[segmenti.length - 1].check_out
+  const cout = segmenti.reduce((fine, s) => s.check_out > fine ? s.check_out : fine, segmenti[0].check_out)
   // Linea del soggiorno (solo proposta con notti scoperte): le notti contate sono quelle a Casa Ania
   const linea = variante === 'proposta' && (nottiNonDisponibili.length > 0 || (lineaSempre && segmenti.length > 1))
     ? lineaSoggiorno(segmenti.map(s => ({ arrivo: s.check_in, partenza: s.check_out, seg: s })), nottiNonDisponibili)

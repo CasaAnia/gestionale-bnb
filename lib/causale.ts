@@ -13,7 +13,7 @@ function meseBreve(dateStr: string) {
 // I segmenti devono arrivare già ordinati per check_in (come nei chiamanti)
 export function causaleBonifico(segmenti: SegmentoCausale[], nomeOspite: string): string {
   const cin = segmenti[0].check_in
-  const cout = segmenti[segmenti.length - 1].check_out
+  const cout = segmenti.reduce((fine, s) => s.check_out > fine ? s.check_out : fine, segmenti[0].check_out)
   const cognome = nomeOspite.trim().split(' ').slice(-1)[0]
   const camere = [...new Set(segmenti.map(s => s.rooms?.name?.split(' ').slice(-1)[0]).filter(Boolean))].join(' + ')
   const date = cin.slice(0, 7) === cout.slice(0, 7)

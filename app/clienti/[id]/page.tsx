@@ -8,6 +8,7 @@ import BackBar from '@/components/BackBar'
 import DocumentiCliente from '@/components/DocumentiCliente'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { scriviPoiAggiorna } from '@/lib/scritturaSicura'
+import { colonnaMancante } from '@/lib/colonnaMancante'
 import CampoProvenienza from '@/components/CampoProvenienza'
 import { campiProvenienza, normalizzaProvenienza, rigaCliente, clienteConProvenienza, type StrutturaNota } from '@/lib/provenienza'
 import { leggiStrutture, ricordaStruttura } from '@/lib/provenienzaDati'
@@ -90,12 +91,28 @@ export default function ClienteDetail() {
     setSaving(true)
     setErroreSalva(null)
     try {
+      const motivo = String(form.motivo_problematico ?? '').trim() || null
+      const cambiaMotivo = motivo !== (String(guest.motivo_problematico ?? '').trim() || null)
+      const campi = {
+        full_name: conInizialiONull(form.full_name), phone: form.phone, email: form.email,
+        notes: form.notes,
+        ...(cambiaMotivo ? { motivo_problematico: motivo } : {}),
+        ...payloadValutazione(valutazioneDi(form), !!form.ricevuta, colonnaRicevutaPresente(guest)),
+        ...(clienteConProvenienza(guest) && strutture.disponibile ? campiProvenienza(form.provenienza, form.struttura_nome) : {}),
+      }
+      let motivoNonDisponibile = false
       const errore = await scriviPoiAggiorna(
         // Valutazione a tre voci + ricevuta a sé (0038); prima della 0038 la forma vecchia (payloadValutazione)
-        () => supabase.from('guests').update({ full_name: conInizialiONull(form.full_name), phone: form.phone, email: form.email, notes: form.notes, ...payloadValutazione(valutazioneDi(form), !!form.ricevuta, colonnaRicevutaPresente(guest)), ...(clienteConProvenienza(guest) && strutture.disponibile ? campiProvenienza(form.provenienza, form.struttura_nome) : {}) }).eq('id', id),
-        () => { setGuest({ ...guest, ...form, ...payloadValutazione(valutazioneDi(form), !!form.ricevuta, colonnaRicevutaPresente(guest)) }); setEditing(false) },
+        async () => {
+          const esito = await supabase.from('guests').update(campi).eq('id', id)
+          motivoNonDisponibile = colonnaMancante(esito.error) === 'motivo_problematico'
+          return esito
+        },
+        () => { setGuest({ ...guest, ...campi }); setEditing(false) },
       )
-      setErroreSalva(errore)
+      setErroreSalva(motivoNonDisponibile
+        ? 'Il motivo interno non può ancora essere registrato. Nessuna modifica al cliente è stata salvata: il testo resta qui.'
+        : errore)
       // Nome di struttura nuovo → entra nell'elenco (non blocca il salvataggio)
       if (!errore && clienteConProvenienza(guest) && strutture.disponibile && form.provenienza === 'altra_struttura') {
         const errStruttura = await ricordaStruttura(form.struttura_nome, strutture.lista)
@@ -149,11 +166,22 @@ export default function ClienteDetail() {
               placeholder="Telefono" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" type="tel" />
             <input value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})}
               placeholder="Email" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" type="email" />
-            <textarea value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})}
-              placeholder="Note..." className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" rows={2} />
+            <label className="block text-sm text-gray-600 mb-3">
+              Nota del cliente
+              <textarea value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})}
+                className="w-full border border-card-border rounded-lg p-2 mt-1 text-sm" rows={2} />
+            </label>
             <div className="mb-3">
               <CampoValutazione titolo="Valutazione" valutazione={valutazioneDi(form)} ricevuta={!!form.ricevuta} onChange={v => setForm({ ...form, rating: v.valutazione, ricevuta: v.ricevuta })} />
             </div>
+            {(valutazioneDi(form) === 'problematico' || form.motivo_problematico) && (
+              <label className="block text-sm text-gray-600 mb-3">
+                Note interne · cosa è successo
+                <textarea value={form.motivo_problematico || ''} onChange={e => setForm({ ...form, motivo_problematico: e.target.value })}
+                  placeholder="Riservato a noi, escluso dai messaggi al cliente"
+                  className="w-full border border-card-border rounded-lg p-2 mt-1 text-sm" rows={2} />
+              </label>
+            )}
             <div className="mb-3">
               <CampoProvenienza compatto valore={{ provenienza: normalizzaProvenienza(form.provenienza), struttura: form.struttura_nome || '' }}
                 onChange={x => setForm({ ...form, provenienza: x.provenienza, struttura_nome: x.struttura })}
@@ -180,6 +208,9 @@ export default function ClienteDetail() {
               </span>
             </div>
             {guest.notes && <p className="text-sm text-gray-600 italic mt-2">📝 {guest.notes}</p>}
+            {guest.motivo_problematico && (
+              <p className="text-sm text-[#8C3B2E] mt-2"><strong>Motivo interno:</strong> {guest.motivo_problematico}</p>
+            )}
           </>
         )}
       </div>
