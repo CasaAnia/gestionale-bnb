@@ -115,8 +115,11 @@ const bookings = [
   prenotazione(ROOM.lena, guests[4].id, '2026-09-11', '2026-09-12', 3,
     { extra_bed: true, extra_bed_dates: ['2026-09-11'], extra_bed_total: 10, bonifico: true }),
   // Lena in 2 la prima notte e in 3 la seconda: 80 + 90 = 170 (notte più economica + resto)
+  // In camera dorme un'altra persona (10/09/2026): serve per la sezione
+  // «Persone in arrivo», che si vede SOLO in questo caso.
   prenotazione(ROOM.lena, guests[5].id, '2026-09-14', '2026-09-16', 3,
-    { extra_bed: true, extra_bed_dates: ['2026-09-15'], price_per_night: 80, extra_bed_total: 10, total_amount: 170 }),
+    { extra_bed: true, extra_bed_dates: ['2026-09-15'], price_per_night: 80, extra_bed_total: 10, total_amount: 170,
+      extra_phone_1_name: 'Marco Riva', extra_phone_1: '393330000099', chi_e: 'il figlio' }),
   // Stessa situazione salvata col vecchio calcolo (tariffa a 3 su entrambe le notti)
   prenotazione(ROOM.lena, guests[6].id, '2026-09-18', '2026-09-20', 3,
     { extra_bed: true, extra_bed_dates: ['2026-09-19'], price_per_night: 90, extra_bed_total: 0, total_amount: 180 }),

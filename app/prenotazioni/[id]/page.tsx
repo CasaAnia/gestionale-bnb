@@ -2853,17 +2853,13 @@ export default function BookingDetail() {
             const BLU = '#7D9DB0'
             return (
               <>
-                <p className={v.sezione}>Persone in arrivo</p>
-                {altri.length === 0 ? (
-                  <div className={v.riga} style={{ borderTop: 'none', display: 'block' }}>
-                    <span className={v.campoEti}>Soggiorna chi prenota</span>
-                    <p className="font-semibold">{nomeOspite(booking)}</p>
-                    {guest?.phone && (
-                      <a href={`tel:${(guest.phone || '').replace(/[^\d+]/g, '')}`} className={v.risultatoTel}>{guest.phone}</a>
-                    )}
-                  </div>
-                ) : (
+                {/* Solo quando serve (Ania, 10/09/2026): se dorme chi ha
+                    prenotato non si scrive niente — il nome è già in cima e la
+                    pagina resta corta. La sezione compare soltanto quando in
+                    camera c'è un'altra persona. */}
+                {altri.length === 0 ? null : (
                   <div style={{ paddingTop: 4 }}>
+                    <p className={v.sezione}>Persone in arrivo</p>
                     <span className={v.campoEti}>Soggiorna un&apos;altra persona</span>
                     {altri.map((x, i) => (
                       // Niente righe fra una persona e l'altra (Ania, 10/09/2026)
