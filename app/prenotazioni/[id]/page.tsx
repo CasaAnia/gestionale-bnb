@@ -18,6 +18,7 @@ import BackBar from '@/components/BackBar'
 import { RigaDocumentiPrenotazione } from '@/components/DocumentiCliente'
 import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio } from '@/lib/guestName'
 import { causaleBonifico } from '@/lib/causale'
+import { GIORNI_PREAVVISO_CANCELLAZIONE } from '@/lib/condizioniPrenotazione'
 import { contoSoggiorno, residuoDaPagare } from '@/lib/conto'
 import { smartBack } from '@/lib/navHistory'
 import { scriviPoiAggiorna, messaggioNonSalvato } from '@/lib/scritturaSicura'
@@ -224,7 +225,7 @@ Per qualsiasi necessità sono a sua disposizione:
 342 700 4354 (anche WhatsApp)
 
 *CANCELLAZIONE*
-Cancellazione gratuita fino a 3 giorni prima dell'arrivo.
+Cancellazione gratuita fino a ${GIORNI_PREAVVISO_CANCELLAZIONE} giorni prima dell'arrivo.
 
 A presto,
 *Ania*
