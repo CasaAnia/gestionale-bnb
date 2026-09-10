@@ -9,6 +9,7 @@ import { nomeOspite } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
 import AvvisoAzione from '@/components/AvvisoAzione'
+import { periodoCompatto } from '@/lib/dateItaliane'
 
 // Pallino di stato discreto: colori coerenti con il calendario
 const STATUS_DOT: Record<string, string> = {
@@ -133,7 +134,7 @@ export default function Prenotazioni() {
                 </div>
               </div>
               <div className="flex items-center justify-between text-sm text-gray-500 pt-2 border-t-[0.5px] border-border-soft">
-                <span>{b.check_in} → {b.check_out} ({notti(b)} notti)</span>
+                <span>{periodoCompatto(b.check_in, b.check_out, { anno: true })} ({notti(b)} notti)</span>
                 <span className="font-semibold text-gray-800">€{Number(b.total_amount).toFixed(0)}</span>
               </div>
               {b.guests?.rating === 'problematico' && (

@@ -28,8 +28,12 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
-const PORTA_FINTO = Number(process.env.PORTA_FINTO || 54329)
-const PORTA_APP = Number(process.env.PORTA_APP || 3213)
+// La porta si può cambiare quando la 3213 è già occupata da un'altra prova:
+//   node scripts/revisioni/anteprima-prenotazioni-finta.mjs --porta 3216
+// (vale anche PORTA_APP). Il finto Supabase si sposta di conseguenza.
+const daRiga = (() => { const i = process.argv.indexOf('--porta'); return i > -1 ? Number(process.argv[i + 1]) : NaN })()
+const PORTA_APP = Number(daRiga || process.env.PORTA_APP || 3213)
+const PORTA_FINTO = Number(process.env.PORTA_FINTO || 54329 + (PORTA_APP - 3213))
 const radice = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
@@ -72,8 +76,15 @@ const guests = [
   // Cambia cliente (06/09/2026): la struttura «Nida» con provenienza sul cliente (0037)
   { ...ospite('aaaaaaaa-0015-4000-8000-000000000015', 'Nida', '393803826118'), provenienza: 'altra_struttura', struttura_nome: 'Nida' },
   { ...ospite('aaaaaaaa-0016-4000-8000-000000000016', 'Anna Kowalska', '393331234567'), provenienza: 'passaparola', struttura_nome: null },
+  // Cambio camera (10/09/2026): cliente che è già stato qui due volte e che
+  // adesso dorme in due camere nello stesso soggiorno. Serve per la prova
+  // della sezione «Soggiorno con cambio camera» e dei soggiorni precedenti.
+  { ...ospite('aaaaaaaa-0017-4000-8000-000000000017', 'Giulia Bianchi', '+39 333 000 0017'),
+    notes: 'Allergica alla polvere: niente coperte di lana.' },
 ]
 const NIDA = guests[14]
+const CAMBIO = guests[16]
+const GRUPPO_CAMBIO = 'cccccccc-0017-4000-8000-000000000017'
 
 let n = 0
 function prenotazione(room_id, guest_id, check_in, check_out, num_guests, extra) {
@@ -131,6 +142,15 @@ const bookings = [
   // GET /finto/errore-cambio-cliente?on=1 per far fallire il PATCH e vedere «Non salvato, riprova».
   prenotazione(ROOM.amelia, NIDA.id, '2026-09-06', '2026-09-07', 2, { guest_name: 'Nida', price_per_night: 70, total_amount: 70, group_id: 'cccccccc-0016-4000-8000-000000000016', notes: 'Arriva verso le 18' }),
   prenotazione(ROOM.allegra, NIDA.id, '2026-09-08', '2026-09-09', 2, { guest_name: 'Nida', price_per_night: 70, total_amount: 70 }),
+  // Cambio camera (10/09/2026): due soggiorni conclusi + un soggiorno solo su
+  // due camere (Lena, poi Ambra) con orario e navetta registrati.
+  prenotazione(ROOM.ambra, CAMBIO.id, '2026-06-12', '2026-06-15', 2, { status: 'completata', price_per_night: 70, total_amount: 210 }),
+  prenotazione(ROOM.allegra, CAMBIO.id, '2026-08-01', '2026-08-03', 2, { status: 'completata', price_per_night: 70, total_amount: 140 }),
+  prenotazione(ROOM.lena, CAMBIO.id, '2026-09-24', '2026-09-26', 2,
+    { group_id: GRUPPO_CAMBIO, price_per_night: 80, total_amount: 160, check_in_time: '18:30', shuttle: 'si', bonifico: true,
+      notes: 'Arriva in treno, chiede la navetta alle 18:30.' }),
+  prenotazione(ROOM.ambra, CAMBIO.id, '2026-09-26', '2026-09-28', 2,
+    { group_id: GRUPPO_CAMBIO, price_per_night: 70, total_amount: 140 }),
 ]
 const documenti_cliente = [
   { id: 'dddddddd-0001-4000-8000-000000000001', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0001-4000-8000-000000000001.jpg`, etichetta: 'carta_identita', lato: 'fronte', nome_file: 'IMG_1.jpeg', dimensione: 700000, created_at: ora },

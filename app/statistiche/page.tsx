@@ -18,6 +18,7 @@ import { nomeOspite } from '@/lib/guestName'
 import { messaggioNonSalvato } from '@/lib/scritturaSicura'
 import { isErroreDiRete } from '@/lib/connessione'
 import { cassaIntervallo, incassiCent, occupazioneIntervallo, indiciIntervallo, indiciAnnoPrima, confrontoKpi, riquadroRichieste, ricaviPerCamera, scontiPeriodo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi, rpcMancante, vociPerRpc, validaEsitoRicostruzione, type Occupazione } from '@/lib/statistiche'
+import { periodoCompatto } from '@/lib/dateItaliane'
 
 // «Statistiche, numeri corretti» (05/09/2026): NESSUNA formula in questa
 // pagina. Ogni numero viene da lib/statistiche (funzioni pure, testate) sui
@@ -379,7 +380,7 @@ export default function Statistiche() {
                   <div key={m.chiave_operazione} className="flex items-center justify-between gap-2 px-3 py-2 text-sm border-b border-gray-50 last:border-b-0">
                     <span className="min-w-0">
                       <span className="font-medium text-green-dark">{nomeDi.get(m.booking_id) || m.nomi || 'Ospite'}</span>
-                      <span className="text-gray-500"> · {m.arrivo} → {m.partenza}</span>
+                      <span className="text-gray-500"> · {periodoCompatto(m.arrivo, m.partenza, { anno: true })}</span>
                       {m.registratiCent > 0 && <span className="text-gray-400 text-xs"> · acconti €{euro(m.registratiCent)}</span>}
                       <span className="block text-[11px] text-gray-400">{m.motivo === 'concluso_non_segnato' ? 'concluso, non segnato pagato' : 'segnato pagato senza movimenti'}</span>
                     </span>
@@ -398,7 +399,7 @@ export default function Statistiche() {
               {erroreRicostruzione && <AvvisoAzione testo={erroreRicostruzione} className="mt-2" />}
               {piano.esclusi.length > 0 && (
                 <p className="text-[11px] text-gray-400 mt-3">
-                  Fuori dal piano perché non conclusi: {piano.esclusi.map(e => `${nomeDi.get(e.soggiorno) || e.nomi || 'Ospite'} (${e.perche === 'in_corso' ? 'in corso' : 'futuro'}, ${e.arrivo} → ${e.partenza})`).join(' · ')}
+                  Fuori dal piano perché non conclusi: {piano.esclusi.map(e => `${nomeDi.get(e.soggiorno) || e.nomi || 'Ospite'} (${e.perche === 'in_corso' ? 'in corso' : 'futuro'}, ${periodoCompatto(e.arrivo, e.partenza, { anno: true })})`).join(' · ')}
                 </p>
               )}
             </div>

@@ -14,6 +14,7 @@ import { campiProvenienza, normalizzaProvenienza, rigaCliente, clienteConProveni
 import { leggiStrutture, ricordaStruttura } from '@/lib/provenienzaDati'
 import { soggiorniConclusi } from '@/lib/clienteCheTorna'
 import { righeStorico, testoCamere } from '@/lib/storicoCliente'
+import { periodoCompatto } from '@/lib/dateItaliane'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
 import { storicoCliente, prenotazioneValida } from '@/lib/statistiche'
 
@@ -258,7 +259,7 @@ export default function ClienteDetail() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="font-medium text-sm">{testoCamere(r)}{r.camere.length > 1 && <span className="text-xs text-gray-500 font-normal"> · cambio camera</span>}</p>
-                  <p className="text-xs text-gray-500">{r.check_in} → {r.check_out}</p>
+                  <p className="text-xs text-gray-500">{periodoCompatto(r.check_in, r.check_out, { anno: true })}</p>
                   {/* Arrivo registrato: mai inventare — se manca l'orario lo si dice,
                       la navetta compare solo se davvero salvata (mai "no" per il vuoto) */}
                   {r.status !== 'annullata' && arrivoVero(r.segmenti[0]) && (

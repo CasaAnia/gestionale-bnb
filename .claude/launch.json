@@ -61,6 +61,16 @@
         "scripts/revisioni/anteprima-telefono.mjs"
       ],
       "port": 3215
+    },
+    {
+      "name": "gestionale-bnb-anteprima-prenotazioni-finta-3216",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/revisioni/anteprima-prenotazioni-finta.mjs",
+        "--porta",
+        "3216"
+      ],
+      "port": 3216
     }
   ]
 }

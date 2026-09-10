@@ -10,7 +10,7 @@ import { tariffaCamera, lettoDaComunicare } from '@/lib/tariffe'
 import { prezzoPrenotazione, riallineaTariffa, tariffaFormDaSalvato, testoDettaglioNotti, dettaglioNottiSalvato } from '@/lib/prezzoNotti'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
-import { MessageCircle, Phone } from 'lucide-react'
+import { MessageCircle, Phone, Pencil } from 'lucide-react'
 import v from '@/app/nuova/nuova.module.css'
 import { openWhatsApp } from '@/lib/whatsapp'
 import { messaggioRichiestaOrario, numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
@@ -18,6 +18,7 @@ import BackBar from '@/components/BackBar'
 import { RigaDocumentiPrenotazione } from '@/components/DocumentiCliente'
 import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio } from '@/lib/guestName'
 import { causaleBonifico } from '@/lib/causale'
+import { dataItaliana, periodoCompatto } from '@/lib/dateItaliane'
 import { GIORNI_PREAVVISO_CANCELLAZIONE } from '@/lib/condizioniPrenotazione'
 import { contoSoggiorno, residuoDaPagare } from '@/lib/conto'
 import { smartBack } from '@/lib/navHistory'
@@ -53,12 +54,24 @@ function formatDateIT(dateStr: string) {
   return date.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-// Data breve per il cliente: 20/08/2026 (mai il formato interno 2026-08-20)
+// Data breve per il cliente: 20/08/2026 (mai il formato interno 2026-08-20).
+// Il conto lo fa lib/dateItaliane, uguale per tutto il gestionale.
 const MESI_BREVI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
 
-function formatDateShort(dateStr: string) {
-  const [y, m, d] = dateStr.split('-')
-  return `${d}/${m}/${y}`
+const formatDateShort = (dateStr: string) => dataItaliana(dateStr)
+
+// Un comando solo per sezione (Ania, 10/09/2026): discreto ma riconoscibile,
+// sempre in fondo alla sezione che cambia, e mai doppio. Aperto diventa
+// «Chiudi», così non resta il dubbio su quale riquadro si stia toccando.
+function ComandoModifica({ aperto, onClick, etichetta = 'Modifica', nome }: { aperto: boolean; onClick: () => void; etichetta?: string; nome: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <button type="button" onClick={onClick} data-modifica={nome} aria-expanded={aperto}
+        className={v.azione} style={{ gap: 6, fontSize: 13, minHeight: 40 }}>
+        <Pencil size={14} strokeWidth={1.9} aria-hidden />{aperto ? 'Chiudi' : etichetta}
+      </button>
+    </div>
+  )
 }
 
 function bagnoDesc(room: any) {
@@ -451,6 +464,15 @@ export default function BookingDetail() {
   // cambiano qui sotto il letto aggiuntivo, senza aprire «Modifica
   // prenotazione». Il totale si rifà dalle notti nuove (tariffa già
   // concordata) e l'anteprima lo mostra prima di salvare.
+  // Arrivo: orario e navetta si cambiano dal riquadro azzurro, senza aprire
+  // tutta la prenotazione (Ania, 10/09/2026).
+  const [arrivoAperto, setArrivoAperto] = useState(false)
+  const [arrivoForm, setArrivoForm] = useState<{ ora: string; navetta: string }>({ ora: '', navetta: '' })
+  const [salvandoArrivo, setSalvandoArrivo] = useState(false)
+  const [erroreArrivo, setErroreArrivo] = useState<string | null>(null)
+  // Un solo comando in fondo a «Il soggiorno»: dentro ci stanno le modifiche
+  // già esistenti (date, letto, cambio camera), nessun comando doppio.
+  const [soggiornoAperto, setSoggiornoAperto] = useState(false)
   const [dateAperte, setDateAperte] = useState(false)
   const [dateForm, setDateForm] = useState<{ check_in: string; check_out: string }>({ check_in: '', check_out: '' })
   const [salvandoDate, setSalvandoDate] = useState(false)
@@ -536,7 +558,7 @@ export default function BookingDetail() {
     ])
     if (conf && conf.length > 0) {
       const b = conf[0] as any
-      setConflitto(`⚠️ ${b.rooms?.name || 'Camera'} già occupata dal ${b.check_in} al ${b.check_out} (${b.guest_name || b.guests?.full_name || 'altro cliente'})`)
+      setConflitto(`⚠️ ${b.rooms?.name || 'Camera'} già occupata dal ${dataItaliana(b.check_in)} al ${dataItaliana(b.check_out)} (${b.guest_name || b.guests?.full_name || 'altro cliente'})`)
     } else {
       setConflitto(null)
     }
@@ -1145,7 +1167,7 @@ export default function BookingDetail() {
         .lt('check_in', c.to).gt('check_out', c.from)
       if (data && data.length > 0) {
         const b = data[0] as any
-        setStayConflict(`⚠️ ${c.roomName} già occupata dal ${b.check_in} al ${b.check_out} (${b.guest_name || b.guests?.full_name || 'altro cliente'})`)
+        setStayConflict(`⚠️ ${c.roomName} già occupata dal ${dataItaliana(b.check_in)} al ${dataItaliana(b.check_out)} (${b.guest_name || b.guests?.full_name || 'altro cliente'})`)
         return
       }
     }
@@ -1445,7 +1467,7 @@ export default function BookingDetail() {
       return
     }
     setLettoAccordoVecchio(false)
-    setLettoAperto(false)
+    chiudiSoggiorno()
   }
 
   // ── date del soggiorno, modifica mirata ──────────────────────────────────
@@ -1588,7 +1610,71 @@ export default function BookingDetail() {
     )
     setSalvandoDate(false)
     if (errore) { setErroreDate(errore); return }
+    chiudiSoggiorno()
+  }
+
+  // ── arrivo: orario e navetta ─────────────────────────────────────────────
+  function apriArrivo() {
+    setArrivoForm({ ora: booking.check_in_time || '', navetta: booking.shuttle || '' })
+    setErroreArrivo(null)
+    setArrivoAperto(true)
+  }
+
+  async function salvaArrivo() {
+    if (salvandoArrivo) return
+    if (arrivoForm.ora && !oraCompleta(arrivoForm.ora)) {
+      setErroreArrivo('L\u2019orario si scrive con quattro cifre, per esempio 1830 diventa 18:30. Lascia vuoto se non lo sai ancora.')
+      return
+    }
+    setSalvandoArrivo(true)
+    setErroreArrivo(null)
+    // La navetta è una colonna arrivata dopo (come chi_e): se manca ancora si
+    // salva l'orario e lo si dice, invece di perdere tutto il salvataggio.
+    let campiSalvati: Record<string, unknown> = {
+      check_in_time: arrivoForm.ora || null,
+      shuttle: arrivoForm.navetta || null,
+    }
+    let navettaNonRegistrata = false
+    const errore = await scriviPoiAggiorna(
+      async () => {
+        const esito = await supabase.from('bookings').update(campiSalvati).eq('id', id)
+        if (esito.error && (esito.error.code === '42703' || esito.error.code === 'PGRST204') && /shuttle/.test(esito.error.message || '')) {
+          navettaNonRegistrata = true
+          campiSalvati = { check_in_time: arrivoForm.ora || null }
+          return await supabase.from('bookings').update(campiSalvati).eq('id', id)
+        }
+        return esito
+      },
+      () => {
+        setBooking({ ...booking, ...campiSalvati })
+        setGroupBookings(righe => righe.map(r => r.id === booking.id ? { ...r, ...campiSalvati } : r))
+        setTentativoCronologia(t => t + 1)
+      },
+    )
+    setSalvandoArrivo(false)
+    if (errore) { setErroreArrivo(errore); return }
+    if (navettaNonRegistrata) {
+      setErroreArrivo('Orario salvato. La navetta non è stata registrata: manca la colonna shuttle su Supabase.')
+      return
+    }
+    setArrivoAperto(false)
+  }
+
+  // Il comando in fondo a «Il soggiorno» apre insieme le modifiche già
+  // esistenti: date, letto aggiuntivo e cambio camera. Chiudendolo si chiude
+  // tutto, così non restano moduli aperti fuori vista.
+  function apriSoggiorno() {
+    if (booking.status !== 'annullata') {
+      if (groupBookings.length <= 1 && !haCamereParallele(righePrenotazione)) apriDate()
+      apriLetto()
+    }
+    setSoggiornoAperto(true)
+  }
+
+  function chiudiSoggiorno() {
     setDateAperte(false)
+    setLettoAperto(false)
+    setSoggiornoAperto(false)
   }
 
   // Soggiorni CONCLUSI del cliente, uno per gruppo: li usano sia il blocco in
@@ -2094,9 +2180,9 @@ export default function BookingDetail() {
             const concluse = tutte.filter(r => r.status !== 'annullata')
             const totale = concluse.reduce((t, r) => t + r.totaleCent, 0) / 100
             return (
-              <div style={{ marginBottom: 16 }}>
-                <p className={v.sezione} style={{ marginTop: 12 }}>Soggiorni precedenti</p>
-                {tutte.length === 0 && <p className={v.nota} style={{ marginTop: 6, fontSize: 12 }}>Nessun soggiorno prima di questo.</p>}
+              <div style={{ marginBottom: 12 }}>
+                <p className={v.sezione} style={{ marginTop: 10, marginBottom: 0 }}>Soggiorni precedenti</p>
+                {tutte.length === 0 && <p className={v.nota} style={{ marginTop: 4, fontSize: 11.5 }}>Nessun soggiorno prima di questo.</p>}
                 {/* Stessa riga della pagina di inserimento: date, camera, ospiti,
                     quanto è costata davvero la notte, il prezzo pieno barrato se
                     c'era uno sconto, e il totale (verde quando è scontato). */}
@@ -2109,7 +2195,7 @@ export default function BookingDetail() {
                   const scontato = pieno > totale + 0.005
                   const annullata = r.status === 'annullata'
                   return (
-                    <button key={r.chiave} type="button" className={v.storico} style={{ fontSize: 11, padding: '5px 0', opacity: annullata ? 0.75 : 1, flexWrap: 'wrap' }}
+                    <button key={r.chiave} type="button" className={v.storico} style={{ fontSize: 10.5, lineHeight: 1.25, gap: 6, padding: '3px 0', opacity: annullata ? 0.75 : 1, flexWrap: 'wrap' }}
                       onClick={() => router.push(`/prenotazioni/${r.prenotazioneId}`)}>
                       <span className={v.storicoData}>{periodoBreve(r.check_in, r.check_out)}</span>
                       <span className={v.storicoDato}>{r.camere.join(' → ')}</span>
@@ -2119,19 +2205,19 @@ export default function BookingDetail() {
                         <span className={v.storicoDato}>{ospiti} osp</span>
                         <span className={v.storicoDato}>{notti} × {Math.round(totale / Math.max(1, notti))}</span>
                       </>)}
-                      {!annullata && scontato && <span className={v.storicoPieno} style={{ fontSize: 11 }}>{Math.round(pieno)}</span>}
+                      {!annullata && scontato && <span className={v.storicoPieno} style={{ fontSize: 10.5 }}>{Math.round(pieno)}</span>}
                       <span className={`${v.storicoTotale} ${!annullata && scontato ? v.verde : ''}`}
-                        style={{ fontSize: 12, ...(annullata ? { textDecoration: 'line-through', color: 'var(--color-stone)' } : {}) }}>{Math.round(totale)} €</span>
-                      <span className={v.freccia} style={{ fontSize: 12 }}>›</span>
+                        style={{ fontSize: 11.5, ...(annullata ? { textDecoration: 'line-through', color: 'var(--color-stone)' } : {}) }}>{Math.round(totale)} €</span>
+                      <span className={v.freccia} style={{ fontSize: 11 }}>›</span>
                     </button>
                   )
                 })}
                 {concluse.length > 0 && (
-                  <button type="button" className={v.storicoTot} style={{ paddingTop: 6, borderTop: '1px solid var(--color-card-border)' }} onClick={() => router.push(`/clienti/${guest?.id}`)}>
-                    <span className={v.eti} style={{ fontSize: 12 }}>{concluse.length} {concluse.length === 1 ? 'soggiorno concluso' : 'soggiorni conclusi'} <span style={{ color: 'var(--color-brass)' }}>· aprili tutti</span></span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className={v.numeroPiccolo}>{Math.round(totale).toLocaleString('it-IT')} €</span>
-                      <span className={v.freccia} style={{ fontSize: 12 }}>›</span>
+                  <button type="button" className={v.storicoTot} style={{ paddingTop: 4, marginTop: 1, borderTop: '1px solid var(--color-card-border)' }} onClick={() => router.push(`/clienti/${guest?.id}`)}>
+                    <span className={v.eti} style={{ fontSize: 11 }}>{concluse.length} {concluse.length === 1 ? 'soggiorno concluso' : 'soggiorni conclusi'} <span style={{ color: 'var(--color-brass)' }}>· aprili tutti</span></span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span className={v.numeroPiccolo} style={{ fontSize: 14 }}>{Math.round(totale).toLocaleString('it-IT')} €</span>
+                      <span className={v.freccia} style={{ fontSize: 11 }}>›</span>
                     </span>
                   </button>
                 )}
@@ -2212,8 +2298,11 @@ export default function BookingDetail() {
               prenotazione (bookings.notes) col solo testo in rosso acceso. */}
           {guest?.notes && (
             <div className={v.riga} style={{ display: 'block', marginTop: 14, borderTop: 'none' }}>
+              {/* Ania, 10/09/2026: in rosso soltanto il testo della nota, non
+                  l'etichetta né lo sfondo. La nota della prenotazione resta
+                  com'era. */}
               <span className={v.campoEti}>Nota del cliente</span>
-              <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{guest.notes}</p>
+              <p className="text-[15px] leading-relaxed whitespace-pre-wrap" style={{ color: '#C0392B' }}>{guest.notes}</p>
             </div>
           )}
           {booking.notes && (
@@ -2224,25 +2313,31 @@ export default function BookingDetail() {
           )}
 
           {/* Arrivo prima del soggiorno (Ania, 09/09/2026): orario, navetta e la
-              possibilità di vedere com'erano andati gli arrivi precedenti. */}
+              possibilità di vedere com'erano andati gli arrivi precedenti.
+              Dal 10/09/2026 tornano dentro il riquadro azzurro chiaro del
+              gestionale (#EAF0F3), così l'arrivo si distingue subito dal
+              resto della scheda. */}
           <p className={v.sezione} style={{ marginTop: 22 }}>Arrivo</p>
           {/* Le due voci restano sempre, ma senza «da definire» (Ania,
               09/09/2026): se il dato manca la riga resta vuota. All'orario
               mancante pensa la Home, che il giorno prima lo mette fra le cose
               da controllare (lib/daControllare). */}
-          <div className={v.riga} style={{ borderTop: 'none', paddingTop: 6 }}>
-            <span className={v.eti}>Orario previsto</span>
-            {/* quando l'ora c'è si legge da lontano (Ania, 09/09/2026) */}
-            <span className={v.numeroGrande} style={{ fontSize: 28 }}>{booking.check_in_time || ''}</span>
-          </div>
-          <div className={v.riga} style={{ borderTop: 'none', paddingTop: 2 }}>
-            <span className={v.eti}>Navetta</span>
-            <span className="font-semibold text-sm">{booking.shuttle === 'si' ? 'sì' : booking.shuttle === 'no' ? 'no' : ''}</span>
-          </div>
-          <div className={v.azioni}>
-            <button type="button" className={v.azione} onClick={() => setStoricoArrivi(a => !a)}>
-              {storicoArrivi ? 'Chiudi' : 'Arrivi precedenti'}
-            </button>
+          <div data-riquadro-arrivo style={{ background: '#EAF0F3', border: '1px solid #D7E3E8', borderRadius: 12, padding: '10px 14px 6px', marginTop: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+              <span className={v.eti} style={{ color: '#3D5A66' }}>Orario previsto</span>
+              {/* quando l'ora c'è si legge da lontano (Ania, 09/09/2026) */}
+              <span className={v.numeroGrande} style={{ fontSize: 30, color: '#28454F' }}>{booking.check_in_time || ''}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginTop: 2 }}>
+              <span className={v.eti} style={{ color: '#3D5A66' }}>Navetta</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#28454F' }}>{booking.shuttle === 'si' ? 'sì' : booking.shuttle === 'no' ? 'no' : ''}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 4, borderTop: '1px solid #D7E3E8' }}>
+              <button type="button" className={v.azione} style={{ color: '#3D5A66', textDecorationColor: '#B9CDD6' }}
+                onClick={() => setStoricoArrivi(a => !a)}>
+                {storicoArrivi ? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'}
+              </button>
+            </div>
           </div>
           {storicoArrivi && (() => {
             const arrivi = conclusiDelCliente().filter(r => r.status !== 'annullata')
@@ -2265,6 +2360,39 @@ export default function BookingDetail() {
               </div>
             )
           })()}
+
+          {booking.status !== 'annullata' && (
+            <ComandoModifica nome="arrivo" aperto={arrivoAperto}
+              onClick={() => (arrivoAperto ? setArrivoAperto(false) : apriArrivo())} />
+          )}
+          {arrivoAperto && (
+            <div data-modulo-arrivo style={{ paddingBottom: 8 }}>
+              <div className={v.due}>
+                <label className={v.campoBlocco}>
+                  <span className={v.campoEti}>Orario previsto</span>
+                  <input type="text" inputMode="numeric" maxLength={5} placeholder="es. 18:30" className={v.campo}
+                    value={arrivoForm.ora} onChange={e => setArrivoForm({ ...arrivoForm, ora: oraDigitata(e.target.value) })} />
+                </label>
+                <div className={v.campoBlocco}>
+                  <span className={v.campoEti}>Navetta</span>
+                  <div className={v.pillole} style={{ marginTop: 2 }}>
+                    {([['si', 'Sì'], ['no', 'No'], ['', 'Non so']] as const).map(([val, testoNav]) => (
+                      <button key={testoNav} type="button" aria-pressed={arrivoForm.navetta === val}
+                        className={arrivoForm.navetta === val ? v.pil : v.pilT}
+                        onClick={() => setArrivoForm({ ...arrivoForm, navetta: val })}>{testoNav}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {erroreArrivo && <p className={v.avviso}>{erroreArrivo}</p>}
+              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }} disabled={salvandoArrivo} onClick={salvaArrivo}>
+                  {salvandoArrivo ? 'Salvo…' : 'Salva arrivo'}
+                </button>
+                <button type="button" className={v.pilT} style={{ minHeight: 42 }} onClick={() => setArrivoAperto(false)}>Annulla</button>
+              </div>
+            </div>
+          )}
 
           <p className={v.sezione} style={{ marginTop: 22 }}>Il soggiorno</p>
           {/* Stessa testa della pagina di inserimento: camera a sinistra,
@@ -2346,144 +2474,146 @@ export default function BookingDetail() {
           })()}
           <div className={v.riga}>
             <span className={v.eti}>Letto aggiuntivo</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span className={v.numeroPiccolo}>{booking.extra_bed ? `€${Number(booking.extra_bed_total).toFixed(0)}` : 'no'}</span>
-              {booking.status !== 'annullata' && (
-                <button type="button" className={v.azione} style={{ minHeight: 32, fontSize: 12 }}
-                  onClick={() => (lettoAperto ? setLettoAperto(false) : apriLetto())}>{lettoAperto ? 'chiudi' : 'modifica'}</button>
-              )}
-            </span>
+            <span className={v.numeroPiccolo}>{booking.extra_bed ? `€${Number(booking.extra_bed_total).toFixed(0)}` : 'no'}</span>
           </div>
-          {lettoAperto && (() => {
-            const giorni = getDaysBetween(booking.check_in, booking.check_out)
-            return (
-              <div style={{ paddingBottom: 8 }}>
-                <div className={v.notti}>
-                  <button type="button" className={`${v.notte} ${lettoNotti.length === giorni.length ? v.notteOn : ''}`}
-                    onClick={() => setLettoNotti(lettoNotti.length === giorni.length ? [] : giorni)}>tutte le notti</button>
-                  {giorni.map(g => (
-                    <button key={g} type="button" className={`${v.notte} ${lettoNotti.includes(g) ? v.notteOn : ''}`}
-                      onClick={() => setLettoNotti(lettoNotti.includes(g) ? lettoNotti.filter(x => x !== g) : [...lettoNotti, g].sort())}>
-                      {Number(g.slice(8))}
-                    </button>
-                  ))}
-                </div>
-                {lettoNotti.length > 0 && (
-                  <>
-                    <label className={v.campoBlocco} style={{ maxWidth: 130 }}>
-                      <span className={v.campoEti}>Quanto costa</span>
-                      <input type="number" inputMode="decimal" className={v.campo} placeholder="€"
-                        value={lettoImporto ? lettoImporto : ''} onChange={e => setLettoImporto(e.target.value === '' ? 0 : Number(e.target.value))} />
-                    </label>
-                    <div className={v.pillole} style={{ marginTop: 4 }}>
-                      {([['notte', 'A notte'], ['ogni4', 'Ogni 4 notti'], ['totale', 'Totale concordato']] as const).map(([k, t]) => (
-                        <button key={k} type="button" className={lettoCriterio === k ? v.pil : v.pilT} onClick={() => setLettoCriterio(k)}>{t}</button>
-                      ))}
-                    </div>
-                  </>
-                )}
-                {lettoAccordoVecchio && (
-                  <p className={v.nota}>Di questa prenotazione non è registrato con quale accordo era stato deciso il letto: qui sopra c&apos;è il conto per notte ricavato dal totale. Scegli il criterio giusto prima di salvare.</p>
-                )}
-                {erroreLetto && <p className={v.avviso}>{erroreLetto}</p>}
-                <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                  <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }} disabled={salvandoLetto} onClick={salvaLetto}>
-                    {salvandoLetto ? 'Salvo…' : 'Salva modifica'}
-                  </button>
-                  <button type="button" className={v.pilT} style={{ minHeight: 42 }} onClick={() => setLettoAperto(false)}>Annulla</button>
-                </div>
-              </div>
-            )
-          })()}
-          {/* Arrivo e partenza si cambiano da qui (Ania, 10/09/2026): stessa
-              «modifica» del letto aggiuntivo, subito sotto. Con un cambio
-              camera restano invece i comandi del soggiorno più in basso. */}
-          {booking.status !== 'annullata' && groupBookings.length <= 1 && !haCamereParallele(righePrenotazione) && (
-            <>
-              {/* Le date sono già scritte qui sopra, in «Il soggiorno»: qui
-                  basta il comando, senza ripeterle (a 390px andrebbero a capo) */}
-              <div className={v.riga}>
-                <span className={v.eti}>Arrivo e partenza</span>
-                <button type="button" className={v.azione} style={{ minHeight: 32, fontSize: 12 }}
-                  onClick={() => (dateAperte ? setDateAperte(false) : apriDate())}>{dateAperte ? 'chiudi' : 'modifica'}</button>
-              </div>
-              {dateAperte && (() => {
-                const piano = pianoDate(dateForm.check_in, dateForm.check_out)
-                const cambiate = dateForm.check_in !== booking.check_in || dateForm.check_out !== booking.check_out
-                return (
-                  <div style={{ paddingBottom: 8 }}>
-                    <div className={v.due}>
-                      <label className={v.campoBlocco}>
-                        <span className={v.campoEti}>Arrivo</span>
-                        <input type="date" className={v.campo} value={dateForm.check_in}
-                          onChange={e => {
-                            const nuovoIn = e.target.value
-                            const nuovoOut = nuovoIn && dateForm.check_out <= nuovoIn ? nextDay(nuovoIn) : dateForm.check_out
-                            cambiaDate(nuovoIn, nuovoOut)
-                          }} />
-                      </label>
-                      <label className={v.campoBlocco}>
-                        <span className={v.campoEti}>Partenza</span>
-                        <input type="date" className={v.campo} value={dateForm.check_out}
-                          min={dateForm.check_in ? nextDay(dateForm.check_in) : undefined}
-                          onChange={e => cambiaDate(dateForm.check_in, e.target.value)} />
-                      </label>
-                    </div>
-                    {piano && cambiate && (
-                      <p className={v.nota}>
-                        {piano.giorni.length} {piano.giorni.length === 1 ? 'notte' : 'notti'}
-                        {piano.nottiLetto.length > 0 ? ` · letto aggiuntivo su ${piano.nottiLetto.length} ${piano.nottiLetto.length === 1 ? 'notte' : 'notti'}` : ''}
-                        {' · nuovo totale €'}{piano.conto.totale.toLocaleString('it-IT')}
-                        {piano.conto.totale !== Number(booking.total_amount) ? ` (prima €${Number(booking.total_amount).toLocaleString('it-IT')})` : ''}
-                        {piano.conto.sconto > 0 ? ` · sconto mantenuto −€${piano.conto.sconto.toLocaleString('it-IT')}` : ''}
-                      </p>
-                    )}
-                    {piano && cambiate && !booking.discount_type && (() => {
-                      // Totale scritto a mano: rifacendo il conto non resta.
-                      // Meglio dirlo prima di salvare, che scoprirlo dopo.
-                      const primaPieno = contoSoggiorno({
-                        check_in: booking.check_in, check_out: booking.check_out,
-                        price_per_night: booking.price_per_night, extra_bed_total: booking.extra_bed_total,
-                      }).totale
-                      return Math.abs(primaPieno - Number(booking.total_amount)) > 0.005 ? (
-                        <p className={v.nota}>Il totale di prima era stato scritto a mano (€{Number(booking.total_amount).toLocaleString('it-IT')} invece di €{primaPieno.toLocaleString('it-IT')}): il nuovo viene dal calcolo.</p>
-                      ) : null
-                    })()}
-                    {!piano && <p className={v.avviso}>La partenza deve essere dopo l&apos;arrivo.</p>}
-                    {conflittoDate && <p className={v.avviso}>{conflittoDate}</p>}
-                    {erroreDate && <p className={v.avviso}>{erroreDate}</p>}
-                    <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                      <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }}
-                        disabled={salvandoDate || !piano || !cambiate || !!conflittoDate} onClick={salvaDate}>
-                        {salvandoDate ? 'Salvo…' : 'Salva modifica'}
-                      </button>
-                      <button type="button" className={v.pilT} style={{ minHeight: 42 }} onClick={() => setDateAperte(false)}>Annulla</button>
-                    </div>
-                  </div>
-                )
-              })()}
-            </>
-          )}
           {booking.bonifico && (
             <div className={v.riga}>
               <span className={v.eti}>Bonifico</span>
               <span className="font-semibold text-sm">{booking.pagato ? 'pagato' : 'in attesa di pagamento'}</span>
             </div>
           )}
-          {/* I comandi della camera stanno col soggiorno (Ania, 09/09/2026):
-              cambio camera per lo spostamento a metà soggiorno, «Aggiungi
-              camera» per una seconda camera dello stesso cliente, che si
-              compone nella pagina di inserimento e resta fra le sue prenotazioni. */}
-          {(booking.status === 'confermata' || booking.status === 'in_attesa') && (
-            <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-              <button onClick={addRoomChange} className={v.pilC} style={{ flex: 1, minHeight: 42 }}>Aggiungi cambio camera</button>
-              <button type="button" className={v.pilC} style={{ flex: 1, minHeight: 42 }}
-                onClick={() => router.push(`/nuova?guest_id=${booking.guest_id}&check_in=${booking.check_in}&prenotazione=${(booking as unknown as { prenotazione_id?: string | null }).prenotazione_id ?? booking.group_id ?? id}&returnTo=/prenotazioni/${id}`)}>
-                Aggiungi camera
+          {/* Un comando solo in fondo alla sezione (Ania, 10/09/2026): apre le
+              modifiche che c'erano già — arrivo e partenza, letto aggiuntivo,
+              cambio camera — senza sparpagliare tanti «modifica» per le righe.
+              Tocca soltanto questo soggiorno: il conto e l'arrivo hanno i loro. */}
+          {booking.status !== 'annullata' && (
+            <ComandoModifica nome="soggiorno" aperto={soggiornoAperto}
+              onClick={() => (soggiornoAperto ? chiudiSoggiorno() : apriSoggiorno())} />
+          )}
+          {soggiornoAperto && (
+            <div data-modulo-soggiorno style={{ paddingBottom: 8 }}>
+            {/* Arrivo e partenza (Ania, 10/09/2026): il modulo è già aperto,
+                senza un secondo «modifica» sulla riga. Con un cambio camera
+                le date di tutto il soggiorno restano più in basso. */}
+            {booking.status !== 'annullata' && groupBookings.length <= 1 && !haCamereParallele(righePrenotazione) && (
+              <>
+                <p className={v.campoEti} style={{ marginTop: 2 }}>Arrivo e partenza</p>
+                {dateAperte && (() => {
+                  const piano = pianoDate(dateForm.check_in, dateForm.check_out)
+                  const cambiate = dateForm.check_in !== booking.check_in || dateForm.check_out !== booking.check_out
+                  return (
+                    <div style={{ paddingBottom: 8 }}>
+                      <div className={v.due}>
+                        <label className={v.campoBlocco}>
+                          <span className={v.campoEti}>Arrivo</span>
+                          <input type="date" className={v.campo} value={dateForm.check_in}
+                            onChange={e => {
+                              const nuovoIn = e.target.value
+                              const nuovoOut = nuovoIn && dateForm.check_out <= nuovoIn ? nextDay(nuovoIn) : dateForm.check_out
+                              cambiaDate(nuovoIn, nuovoOut)
+                            }} />
+                        </label>
+                        <label className={v.campoBlocco}>
+                          <span className={v.campoEti}>Partenza</span>
+                          <input type="date" className={v.campo} value={dateForm.check_out}
+                            min={dateForm.check_in ? nextDay(dateForm.check_in) : undefined}
+                            onChange={e => cambiaDate(dateForm.check_in, e.target.value)} />
+                        </label>
+                      </div>
+                      {piano && cambiate && (
+                        <p className={v.nota}>
+                          {piano.giorni.length} {piano.giorni.length === 1 ? 'notte' : 'notti'}
+                          {piano.nottiLetto.length > 0 ? ` · letto aggiuntivo su ${piano.nottiLetto.length} ${piano.nottiLetto.length === 1 ? 'notte' : 'notti'}` : ''}
+                          {' · nuovo totale €'}{piano.conto.totale.toLocaleString('it-IT')}
+                          {piano.conto.totale !== Number(booking.total_amount) ? ` (prima €${Number(booking.total_amount).toLocaleString('it-IT')})` : ''}
+                          {piano.conto.sconto > 0 ? ` · sconto mantenuto −€${piano.conto.sconto.toLocaleString('it-IT')}` : ''}
+                        </p>
+                      )}
+                      {piano && cambiate && !booking.discount_type && (() => {
+                        // Totale scritto a mano: rifacendo il conto non resta.
+                        // Meglio dirlo prima di salvare, che scoprirlo dopo.
+                        const primaPieno = contoSoggiorno({
+                          check_in: booking.check_in, check_out: booking.check_out,
+                          price_per_night: booking.price_per_night, extra_bed_total: booking.extra_bed_total,
+                        }).totale
+                        return Math.abs(primaPieno - Number(booking.total_amount)) > 0.005 ? (
+                          <p className={v.nota}>Il totale di prima era stato scritto a mano (€{Number(booking.total_amount).toLocaleString('it-IT')} invece di €{primaPieno.toLocaleString('it-IT')}): il nuovo viene dal calcolo.</p>
+                        ) : null
+                      })()}
+                      {!piano && <p className={v.avviso}>La partenza deve essere dopo l&apos;arrivo.</p>}
+                      {conflittoDate && <p className={v.avviso}>{conflittoDate}</p>}
+                      {erroreDate && <p className={v.avviso}>{erroreDate}</p>}
+                      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                        <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }}
+                          disabled={salvandoDate || !piano || !cambiate || !!conflittoDate} onClick={salvaDate}>
+                          {salvandoDate ? 'Salvo…' : 'Salva arrivo e partenza'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </>
+            )}
+              <p className={v.campoEti} style={{ marginTop: 10 }}>Letto aggiuntivo</p>
+            {lettoAperto && (() => {
+              const giorni = getDaysBetween(booking.check_in, booking.check_out)
+              return (
+                <div style={{ paddingBottom: 8 }}>
+                  <div className={v.notti}>
+                    <button type="button" className={`${v.notte} ${lettoNotti.length === giorni.length ? v.notteOn : ''}`}
+                      onClick={() => setLettoNotti(lettoNotti.length === giorni.length ? [] : giorni)}>tutte le notti</button>
+                    {giorni.map(g => (
+                      <button key={g} type="button" className={`${v.notte} ${lettoNotti.includes(g) ? v.notteOn : ''}`}
+                        onClick={() => setLettoNotti(lettoNotti.includes(g) ? lettoNotti.filter(x => x !== g) : [...lettoNotti, g].sort())}>
+                        {Number(g.slice(8))}
+                      </button>
+                    ))}
+                  </div>
+                  {lettoNotti.length > 0 && (
+                    <>
+                      <label className={v.campoBlocco} style={{ maxWidth: 130 }}>
+                        <span className={v.campoEti}>Quanto costa</span>
+                        <input type="number" inputMode="decimal" className={v.campo} placeholder="€"
+                          value={lettoImporto ? lettoImporto : ''} onChange={e => setLettoImporto(e.target.value === '' ? 0 : Number(e.target.value))} />
+                      </label>
+                      <div className={v.pillole} style={{ marginTop: 4 }}>
+                        {([['notte', 'A notte'], ['ogni4', 'Ogni 4 notti'], ['totale', 'Totale concordato']] as const).map(([k, t]) => (
+                          <button key={k} type="button" className={lettoCriterio === k ? v.pil : v.pilT} onClick={() => setLettoCriterio(k)}>{t}</button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {lettoAccordoVecchio && (
+                    <p className={v.nota}>Di questa prenotazione non è registrato con quale accordo era stato deciso il letto: qui sopra c&apos;è il conto per notte ricavato dal totale. Scegli il criterio giusto prima di salvare.</p>
+                  )}
+                  {erroreLetto && <p className={v.avviso}>{erroreLetto}</p>}
+                  <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                    <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }} disabled={salvandoLetto} onClick={salvaLetto}>
+                      {salvandoLetto ? 'Salvo…' : 'Salva letto aggiuntivo'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
+            {/* I comandi della camera stanno col soggiorno (Ania, 09/09/2026):
+                cambio camera per lo spostamento a metà soggiorno, «Aggiungi
+                camera» per una seconda camera dello stesso cliente, che si
+                compone nella pagina di inserimento e resta fra le sue prenotazioni. */}
+            {(booking.status === 'confermata' || booking.status === 'in_attesa') && (
+              <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                <button onClick={addRoomChange} className={v.pilC} style={{ flex: 1, minHeight: 42 }}>Aggiungi cambio camera</button>
+                <button type="button" className={v.pilC} style={{ flex: 1, minHeight: 42 }}
+                  onClick={() => router.push(`/nuova?guest_id=${booking.guest_id}&check_in=${booking.check_in}&prenotazione=${(booking as unknown as { prenotazione_id?: string | null }).prenotazione_id ?? booking.group_id ?? id}&returnTo=/prenotazioni/${id}`)}>
+                  Aggiungi camera
+                </button>
+              </div>
+            )}
+            {erroreCambioCamera && <AvvisoAzione testo={erroreCambioCamera} className="mt-2" />}
+              <button type="button" className={v.pilT} style={{ width: '100%', minHeight: 42, marginTop: 14 }} onClick={chiudiSoggiorno}>
+                Annulla
               </button>
             </div>
           )}
-          {erroreCambioCamera && <AvvisoAzione testo={erroreCambioCamera} className="mt-2" />}
 
           {prenotazioneOk && haCamereParallele(righePrenotazione) && (
             <div className="mt-4">
@@ -2557,46 +2687,6 @@ export default function BookingDetail() {
                           </div>
                         </>
                       )}
-                      {booking.status !== 'annullata' && (
-                        <div className={v.azioni}>
-                          <button type="button" className={v.azione}
-                            onClick={() => (accordoAperto ? setAccordoAperto(false) : apriAccordo(totaleDovuto))}>
-                            {accordoAperto ? 'Chiudi' : 'Modifica accordo'}
-                          </button>
-                        </div>
-                      )}
-                      {accordoAperto && (
-                        <div style={{ paddingBottom: 10 }}>
-                          {ACCORDI.map(([chiave, testoModo]) => (
-                            <button key={chiave} type="button" className={v.scelta} onClick={() => setAccordoModo(chiave)}>
-                              <span className={`${v.tondo} ${accordoModo === chiave ? v.tondoOn : ''}`} />
-                              <span className={v.sceltaTitolo}>{testoModo}</span>
-                            </button>
-                          ))}
-                          {accordoModo === 'caparra_libera' && (
-                            <label className={v.campoBlocco} style={{ maxWidth: 150 }}>
-                              <span className={v.campoEti}>Importo caparra</span>
-                              <input type="number" inputMode="decimal" className={v.campo} placeholder="€"
-                                value={accordoImporto ?? ''} onChange={e => setAccordoImporto(e.target.value === '' ? null : Number(e.target.value))} />
-                            </label>
-                          )}
-                          {(accordoModo === 'caparra_meta' || accordoModo === 'caparra_libera') && (
-                            <div className={v.due}>
-                              <label className={v.campoBlocco}><span className={v.campoEti}>Entro il</span>
-                                <input type="date" className={v.campo} value={accordoData} onChange={e => setAccordoData(e.target.value)} /></label>
-                              <label className={v.campoBlocco}><span className={v.campoEti}>Ora</span>
-                                <input type="text" inputMode="numeric" maxLength={5} placeholder="es. 18:00" className={v.campo}
-                                  value={accordoOra} onChange={e => setAccordoOra(oraDigitata(e.target.value))} /></label>
-                            </div>
-                          )}
-                          {erroreAccordo && <p className={v.avviso}>{erroreAccordo}</p>}
-                          <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                            <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }} disabled={salvandoAccordo}
-                              onClick={() => salvaAccordo(totaleDovuto)}>{salvandoAccordo ? 'Salvo…' : 'Salva modifica'}</button>
-                            <button type="button" className={v.pilT} style={{ minHeight: 42 }} onClick={() => setAccordoAperto(false)}>Annulla</button>
-                          </div>
-                        </div>
-                      )}
                     </>
                   )
                 })()}
@@ -2608,6 +2698,45 @@ export default function BookingDetail() {
                   <span className="font-semibold">{residuo > 0 ? 'Resta da avere' : 'Saldato'}</span>
                   <span className={v.numeroPiccolo}>€{Math.max(0, residuo).toFixed(0)}{residuo < 0 ? ` (+€${(-residuo).toFixed(0)} in più)` : ''}</span>
                 </div>
+                {/* Le modifiche economiche stanno in fondo al conto (Ania,
+                    10/09/2026), accordo di pagamento compreso: un comando solo,
+                    lo stesso di prima. «Registra pagamento» resta un'azione a sé. */}
+                {booking.status !== 'annullata' && (
+                  <ComandoModifica nome="conto" aperto={accordoAperto}
+                    onClick={() => (accordoAperto ? setAccordoAperto(false) : apriAccordo(totaleDovuto))} />
+                )}
+                {accordoAperto && (
+                  <div style={{ paddingBottom: 10 }}>
+                    {ACCORDI.map(([chiave, testoModo]) => (
+                      <button key={chiave} type="button" className={v.scelta} onClick={() => setAccordoModo(chiave)}>
+                        <span className={`${v.tondo} ${accordoModo === chiave ? v.tondoOn : ''}`} />
+                        <span className={v.sceltaTitolo}>{testoModo}</span>
+                      </button>
+                    ))}
+                    {accordoModo === 'caparra_libera' && (
+                      <label className={v.campoBlocco} style={{ maxWidth: 150 }}>
+                        <span className={v.campoEti}>Importo caparra</span>
+                        <input type="number" inputMode="decimal" className={v.campo} placeholder="€"
+                          value={accordoImporto ?? ''} onChange={e => setAccordoImporto(e.target.value === '' ? null : Number(e.target.value))} />
+                      </label>
+                    )}
+                    {(accordoModo === 'caparra_meta' || accordoModo === 'caparra_libera') && (
+                      <div className={v.due}>
+                        <label className={v.campoBlocco}><span className={v.campoEti}>Entro il</span>
+                          <input type="date" className={v.campo} value={accordoData} onChange={e => setAccordoData(e.target.value)} /></label>
+                        <label className={v.campoBlocco}><span className={v.campoEti}>Ora</span>
+                          <input type="text" inputMode="numeric" maxLength={5} placeholder="es. 18:00" className={v.campo}
+                            value={accordoOra} onChange={e => setAccordoOra(oraDigitata(e.target.value))} /></label>
+                      </div>
+                    )}
+                    {erroreAccordo && <p className={v.avviso}>{erroreAccordo}</p>}
+                    <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                      <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }} disabled={salvandoAccordo}
+                        onClick={() => salvaAccordo(totaleDovuto)}>{salvandoAccordo ? 'Salvo…' : 'Salva accordo di pagamento'}</button>
+                      <button type="button" className={v.pilT} style={{ minHeight: 42 }} onClick={() => setAccordoAperto(false)}>Annulla</button>
+                    </div>
+                  </div>
+                )}
                 {accontoError && (
                   <p className="text-xs text-[#8C3B2E] bg-[#F6E4DE] rounded-lg px-2 py-1.5 mb-2">❌ {accontoError}</p>
                 )}
@@ -2637,27 +2766,46 @@ export default function BookingDetail() {
           {groupBookings.length > 1 && (
             <div className="mt-4">
               <p className={v.sezione}>Soggiorno con cambio camera</p>
+              {/* Un periodo per blocchetto, su più righe (Ania, 10/09/2026): prima
+                  la camera col suo comando, che ha uno spazio tutto suo e non copre
+                  più il testo; sotto le date compatte e, in fondo, notti, prezzo a
+                  notte e quanto costa QUESTO periodo — il totale di tutta la
+                  prenotazione resta la riga in fondo. Il periodo aperto si riconosce
+                  dal fondo chiaro e dall'etichetta; gli altri sono solo più tenui,
+                  senza bordi neri. */}
               {[...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in)).map((gb) => {
                 const isCurrent = gb.id === id
                 const n = Math.round((new Date(gb.check_out).getTime() - new Date(gb.check_in).getTime()) / 86400000)
+                const dett = dettaglioNottiSalvato(gb.rooms, gb)
                 return (
-                  <div key={gb.id} className={`flex items-center gap-2 ${v.riga}`}>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-semibold">{gb.rooms?.name}</span>
-                      <span className={v.eti} style={{ marginLeft: 8 }}>{gb.check_in} → {gb.check_out} ({n} notti) · {(() => {
-                        const dett = dettaglioNottiSalvato(gb.rooms, gb)
-                        return dett ? testoDettaglioNotti(dett, x => `€${x}`) : `€${Number(gb.price_per_night).toFixed(0)}/notte`
-                      })()}</span>
+                  <div key={gb.id} data-periodo={gb.id} data-aperto={isCurrent ? 'si' : undefined}
+                    className={v.riga}
+                    style={{
+                      display: 'block', padding: '9px 10px', marginTop: 6, borderTop: 'none', borderRadius: 10,
+                      background: isCurrent ? 'var(--color-sand)' : 'transparent',
+                      boxShadow: isCurrent ? '0 1px 3px rgba(31, 61, 47, 0.12)' : 'none',
+                      opacity: isCurrent ? 1 : 0.78,
+                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, minWidth: 0 }}>{gb.rooms?.name}</span>
+                      {isCurrent
+                        ? <span className={`${v.badge} ${v.badgeOttone}`} style={{ flex: 'none' }}>Aperta ora</span>
+                        : <button type="button" onClick={() => router.push(`/prenotazioni/${gb.id}`)} className={v.azione}
+                            style={{ flex: 'none', minHeight: 36, fontSize: 13 }}>Apri</button>
+                      }
                     </div>
-                    {isCurrent
-                      ? <span className={v.badge}>qui</span>
-                      : <button onClick={() => router.push(`/prenotazioni/${gb.id}`)} className={v.azione} style={{ minHeight: 32, fontSize: 12 }}>apri</button>
-                    }
+                    <p className={v.date} style={{ marginTop: 2 }}>{periodoCompatto(gb.check_in, gb.check_out)}</p>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginTop: 2 }}>
+                      <span className={v.date}>
+                        {n} {n === 1 ? 'notte' : 'notti'} · {dett ? testoDettaglioNotti(dett, x => `${x} €`) : `${Number(gb.price_per_night).toFixed(0)} € a notte`}
+                      </span>
+                      <span className={v.numeroPiccolo}>€{Number(gb.total_amount).toFixed(0)}</span>
+                    </div>
                   </div>
                 )
               })}
-              <div className={v.riga} style={{ borderTop: '1px solid rgba(169,136,78,.55)' }}>
-                <span className={v.eti}>Totale soggiorno</span>
+              <div className={v.riga} style={{ borderTop: '1px solid rgba(169,136,78,.55)', marginTop: 8 }}>
+                <span className={v.eti}>Totale di tutta la prenotazione</span>
                 <span className={v.numeroPiccolo}>€{groupBookings.reduce((s, x) => s + Number(x.total_amount), 0).toFixed(0)}</span>
               </div>
               {(booking.status === 'confermata' || booking.status === 'in_attesa') && !editingStay && (
@@ -2700,12 +2848,12 @@ export default function BookingDetail() {
                             <p className="text-xs font-bold text-[#5B4E82] mb-1">Anteprima nuovo soggiorno:</p>
                             {plan.kept.map((k, i) => (
                               <p key={k.id} className="text-xs text-[#5B4E82]">
-                                {i + 1}. {k.roomName}: {k.check_in} → {k.check_out} ({k.nights} {k.nights === 1 ? 'notte' : 'notti'}) · €{k.total.toFixed(0)}{k.extra_bed_total > 0 ? ` (incl. €${k.extra_bed_total.toFixed(0)} letto extra)` : ''}{k.sconto > 0 ? ` · sconto mantenuto −€${k.sconto.toLocaleString('it-IT')}` : ''}{k.scontoDecaduto ? ' · ⚠️ sconto rimosso: il totale concordato non è più sotto il prezzo pieno' : ''}
+                                {i + 1}. {k.roomName}: {periodoCompatto(k.check_in, k.check_out)} ({k.nights} {k.nights === 1 ? 'notte' : 'notti'}) · €{k.total.toFixed(0)}{k.extra_bed_total > 0 ? ` (incl. €${k.extra_bed_total.toFixed(0)} letto extra)` : ''}{k.sconto > 0 ? ` · sconto mantenuto −€${k.sconto.toLocaleString('it-IT')}` : ''}{k.scontoDecaduto ? ' · ⚠️ sconto rimosso: il totale concordato non è più sotto il prezzo pieno' : ''}
                               </p>
                             ))}
                             {plan.removed.map((r: any) => (
                               <p key={r.id} className="text-xs text-[#8C3B2E]">
-                                <span className="line-through">{r.rooms?.name}: {r.check_in} → {r.check_out}</span> — verrà annullata
+                                <span className="line-through">{r.rooms?.name}: {periodoCompatto(r.check_in, r.check_out)}</span> — verrà annullata
                               </p>
                             ))}
                             <p className="text-xs font-bold text-[#4A3F6B] mt-1 pt-1 border-t border-[#D9D0EA]">
