@@ -18,7 +18,7 @@ import BackBar from '@/components/BackBar'
 import { RigaDocumentiPrenotazione } from '@/components/DocumentiCliente'
 import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio } from '@/lib/guestName'
 import { causaleBonifico } from '@/lib/causale'
-import { dataItaliana, periodoCompatto } from '@/lib/dateItaliane'
+import { dataItaliana, periodoCompatto, giornoMese } from '@/lib/dateItaliane'
 import { GIORNI_PREAVVISO_CANCELLAZIONE } from '@/lib/condizioniPrenotazione'
 import { contoSoggiorno, residuoDaPagare } from '@/lib/conto'
 import { smartBack } from '@/lib/navHistory'
@@ -56,6 +56,20 @@ function formatDateIT(dateStr: string) {
 const MESI_BREVI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
 
 const formatDateShort = (dateStr: string) => dataItaliana(dateStr)
+
+// Quali notti hanno il letto aggiuntivo (Ania, 10/09/2026: «non riesco a
+// vedere che notti hanno il letto in più»). Compatto: «24 e 25 set», e se le
+// notti scavalcano il mese ognuna si porta dietro il suo — «30 ago e 1 set».
+function nottiLettoTesto(giorni: string[] | null | undefined): string {
+  const notti = (giorni || []).filter(Boolean).slice().sort()
+  if (notti.length === 0) return ''
+  const mesi = new Set(notti.map(g => g.slice(0, 7)))
+  const pezzi = mesi.size === 1
+    ? notti.map((g, i) => (i === notti.length - 1 ? giornoMese(g) : String(Number(g.slice(8)))))
+    : notti.map(g => giornoMese(g))
+  const elenco = pezzi.length === 1 ? pezzi[0] : `${pezzi.slice(0, -1).join(', ')} e ${pezzi[pezzi.length - 1]}`
+  return `${notti.length === 1 ? 'notte' : 'notti'} del ${elenco}`
+}
 
 // Un comando solo per sezione (Ania, 10/09/2026): discreto ma riconoscibile,
 // sempre in fondo alla sezione che cambia, e mai doppio. Aperto diventa
@@ -2212,7 +2226,7 @@ export default function BookingDetail() {
           )}
           {/* Chiamare o scrivere su WhatsApp senza cercare il numero altrove;
               accanto, da dove è arrivato («Non so» se non è registrato). */}
-          <div className="flex items-center gap-4 flex-wrap" style={{ paddingTop: 2 }}>
+          <div className="flex items-center gap-4 flex-wrap" style={{ marginTop: 2 }}>
             {guest?.phone && (
               <a href={`tel:${(guest.phone || '').replace(/[^\d+]/g, '')}`} className={v.azione}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36, textDecoration: 'none' }}>
@@ -2228,7 +2242,7 @@ export default function BookingDetail() {
           </div>
           {/* I documenti stanno con l'anagrafica del cliente, in alto
               (Ania, 09/09/2026), non più sulla riga della camera. */}
-          <div className={v.azioni} style={{ marginTop: 6, justifyContent: 'space-between', gap: 12 }}>
+          <div className={v.azioni} style={{ marginTop: -8, justifyContent: 'space-between', gap: 12 }}>
             <Link href={`/clienti/${guest?.id}?edit=1`} className={v.azione}>Modifica dati</Link>
             {booking.status !== 'annullata' && (
               <button type="button" onClick={() => setShowCambiaCliente(true)} data-cambia-cliente-apri className={v.azione}>Cambia cliente</button>
@@ -2265,13 +2279,13 @@ export default function BookingDetail() {
               si vedono già perché sono rosse, non serve che occupino mezza
               pagina, e senza testo non lasciano nemmeno la riga vuota. */}
           {guest?.notes && (
-            <div style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 0 }}>
               <span className={v.campoEti} style={{ marginBottom: 0 }}>Nota del cliente</span>
               <p className="text-[14px] leading-snug whitespace-pre-wrap" style={{ color: '#C0392B' }}>{guest.notes}</p>
             </div>
           )}
           {booking.notes && (
-            <div data-nota-cliente style={{ marginTop: guest?.notes ? 4 : 8 }}>
+            <div data-nota-cliente style={{ marginTop: guest?.notes ? 11 : 0 }}>
               <span className={v.campoEti} style={{ marginBottom: 0 }}>Nota di questa prenotazione</span>
               <p className="text-[14px] font-semibold leading-snug whitespace-pre-wrap" style={{ color: '#C0392B' }}>{booking.notes}</p>
             </div>
@@ -2452,7 +2466,13 @@ export default function BookingDetail() {
             ) : null
           })()}
           <div className={v.riga} style={{ borderTop: 'none' }}>
-            <span className={v.eti}>Letto aggiuntivo</span>
+            <span style={{ minWidth: 0 }}>
+              <span className={v.eti}>Letto aggiuntivo</span>
+              {/* Sotto, in grigio, le notti che ce l'hanno davvero */}
+              {booking.extra_bed && nottiLettoTesto(booking.extra_bed_dates as string[]) && (
+                <span className={v.date} style={{ display: 'block', marginTop: 1 }}>{nottiLettoTesto(booking.extra_bed_dates as string[])}</span>
+              )}
+            </span>
             {/* Senza letto aggiuntivo non si scrive niente (Ania, 10/09/2026),
                 come per l'orario e la navetta che mancano */}
             <span className={v.numeroPiccolo}>{booking.extra_bed ? `€${Number(booking.extra_bed_total).toFixed(0)}` : ''}</span>
