@@ -155,7 +155,9 @@ export type DatiHome = { prenotazioni: PrenotazioneSconto[]; pagamentiMese: Paga
 
 // Home: il mese [da, a) più i soggiorni con movimenti registrati (per «Da incassare»)
 export async function leggiDatiHome(da: string, a: string, oggi: string): Promise<Esito<DatiHome>> {
-  const colonne = '*, rooms(name), guests(full_name, phone)'
+  // La nota del cliente serve anche in Home (Ania, 10/09/2026): sugli arrivi
+  // del giorno si deve vedere senza aprire la scheda.
+  const colonne = '*, rooms(name), guests(full_name, phone, notes)'
   const [p, pag, sp, cam, ric, fs] = await Promise.all([leggiPrenotazioni(da, a, colonne), leggiTuttiPagamenti(), leggiSpese(da, a), leggiCamere(), leggiRicostruzione(oggi), leggiFuoriServizio()])
   const errore = p.errore ?? pag.errore ?? sp.errore ?? cam.errore ?? ric.errore ?? fs.errore
   if (errore) return { data: null, errore }

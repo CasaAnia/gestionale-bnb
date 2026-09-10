@@ -128,6 +128,12 @@ export default function Dashboard() {
             <span className="text-gray-500">— {b.rooms?.name}</span>
             {b.check_in_time && <span className="bg-sage text-green-mid rounded px-1.5 py-0.5 text-xs font-bold">🕐 {b.check_in_time}</span>}
             {b.extra_bed && <span className="bg-[#F1E0CE] text-[#7A4B22] rounded px-1 text-xs">+letto agg.</span>}
+            {/* Nota del cliente in evidenza anche qui (Ania, 10/09/2026): sul
+                suo rigo, in rosso come nella scheda, così prima che arrivi si
+                legge senza aprire nulla. */}
+            {b.guests?.notes && (
+              <p data-nota-cliente-home className="basis-full text-[13px] leading-snug font-semibold" style={{ color: '#C0392B' }}>{b.guests.notes}</p>
+            )}
           </div>
         ))}
         {checkOut.map((b: any) => (
