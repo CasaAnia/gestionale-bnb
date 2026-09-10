@@ -25,7 +25,23 @@ test('nuova prenotazione protegge entrambe le caselle data dalla larghezza minim
   assert.ok(/appearance: none/.test(campo), 'niente larghezza propria del controllo nativo')
 })
 
+// Attesa aggiornata il 10/09/2026: nella scheda le date del soggiorno (anche
+// quelle di un cambio camera) sono passate al vestito nuovo, cioè alle classi
+// di nuova.module.css già controllate qui sopra. La protezione è la stessa e
+// il controllo ora è diretto: NESSUNA casella data della scheda può avere la
+// larghezza propria del controllo nativo su un iPhone stretto.
 test('modifica e prolungamento mantengono la stessa protezione delle caselle data', () => {
-  assert.ok(occorrenze(dettaglio, '<div className="min-w-0">') >= 4)
-  assert.ok(occorrenze(dettaglio, 'w-full min-w-0 appearance-none') >= 4)
+  const righe = dettaglio.split('\n')
+  const inizi = righe.map((r, i) => [r, i] as const).filter(([r]) => r.includes('type="date"')).map(([, i]) => i)
+  assert.ok(inizi.length >= 6, 'la scheda ha le caselle data della modifica, delle date e del soggiorno')
+  for (const inizio of inizi) {
+    // il tag della casella, dalla riga di apertura fino a dove si chiude
+    let fine = inizio
+    while (fine < righe.length && !righe[fine].includes('/>')) fine += 1
+    const tag = righe.slice(inizio, fine + 1).join(' ')
+    assert.ok(
+      tag.includes('className={v.campo}') || tag.includes('min-w-0'),
+      `casella data senza protezione della larghezza, riga ${inizio + 1}`,
+    )
+  }
 })

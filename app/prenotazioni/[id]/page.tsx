@@ -63,11 +63,16 @@ const formatDateShort = (dateStr: string) => dataItaliana(dateStr)
 // Un comando solo per sezione (Ania, 10/09/2026): discreto ma riconoscibile,
 // sempre in fondo alla sezione che cambia, e mai doppio. Aperto diventa
 // «Chiudi», così non resta il dubbio su quale riquadro si stia toccando.
+// Il colore è l'azzurro scuro già in casa (#3D5A66, quello di «Completata» e
+// del riquadro dei pagamenti): si distingue dal testo senza urlare e si
+// riconosce come comando (Ania, 10/09/2026: «non nero, facciamo blu»).
+const BLU_COMANDO = '#3D5A66'
+
 function ComandoModifica({ aperto, onClick, etichetta = 'Modifica', nome }: { aperto: boolean; onClick: () => void; etichetta?: string; nome: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
       <button type="button" onClick={onClick} data-modifica={nome} aria-expanded={aperto}
-        className={v.azione} style={{ gap: 6, fontSize: 13, minHeight: 40 }}>
+        className={v.azione} style={{ gap: 6, fontSize: 13, minHeight: 40, color: BLU_COMANDO, textDecorationColor: 'rgba(61, 90, 102, 0.4)' }}>
         <Pencil size={14} strokeWidth={1.9} aria-hidden />{aperto ? 'Chiudi' : etichetta}
       </button>
     </div>
@@ -1215,7 +1220,7 @@ export default function BookingDetail() {
       setSavingStay(false)
       return
     }
-    setEditingStay(false)
+    chiudiSoggiorno()
     // Se il segmento aperto è stato annullato, passa al primo segmento rimasto
     if (!plan.kept.find(k => k.id === id)) {
       setSavingStay(false)
@@ -1665,7 +1670,16 @@ export default function BookingDetail() {
   // tutto, così non restano moduli aperti fuori vista.
   function apriSoggiorno() {
     if (booking.status !== 'annullata') {
-      if (groupBookings.length <= 1 && !haCamereParallele(righePrenotazione)) apriDate()
+      if (groupBookings.length <= 1 && !haCamereParallele(righePrenotazione)) {
+        apriDate()
+      } else if (groupBookings.length > 1 && (booking.status === 'confermata' || booking.status === 'in_attesa')) {
+        // Cambio camera: le date sono quelle di TUTTO il soggiorno, che il
+        // piano ridistribuisce fra le camere (computeStayPlan).
+        const ordinati = [...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in))
+        setStayForm({ check_in: ordinati[0].check_in, check_out: ordinati[ordinati.length - 1].check_out })
+        setStayConflict(null)
+        setEditingStay(true)
+      }
       apriLetto()
     }
     setSoggiornoAperto(true)
@@ -1674,6 +1688,7 @@ export default function BookingDetail() {
   function chiudiSoggiorno() {
     setDateAperte(false)
     setLettoAperto(false)
+    setEditingStay(false)
     setSoggiornoAperto(false)
   }
 
@@ -2566,6 +2581,67 @@ export default function BookingDetail() {
                 })()}
               </>
             )}
+            {/* Con un cambio camera le date si cambiano da qui (Ania,
+                10/09/2026: «deve comprendere anche le date, è la cosa più
+                importante»): stesso comando del soggiorno, un solo modulo, e
+                l'anteprima dice come resterebbero le camere. */}
+            {editingStay && (
+              <>
+                <p className={v.campoEti} style={{ marginTop: 2 }}>Arrivo e partenza di tutto il soggiorno</p>
+                <div className={v.due}>
+                  <label className={v.campoBlocco}>
+                    <span className={v.campoEti}>Arrivo</span>
+                    <input type="date" className={v.campo} value={stayForm.check_in} onChange={e => {
+                      setStayForm({ ...stayForm, check_in: e.target.value })
+                      checkStayConflict(e.target.value, stayForm.check_out)
+                    }} />
+                  </label>
+                  <label className={v.campoBlocco}>
+                    <span className={v.campoEti}>Partenza</span>
+                    <input type="date" className={v.campo} value={stayForm.check_out} onChange={e => {
+                      setStayForm({ ...stayForm, check_out: e.target.value })
+                      checkStayConflict(stayForm.check_in, e.target.value)
+                    }} />
+                  </label>
+                </div>
+                {(() => {
+                  const plan = computeStayPlan(groupBookings, stayForm.check_in, stayForm.check_out)
+                  const oldTotal = groupBookings.reduce((s, x) => s + Number(x.total_amount), 0)
+                  return (
+                    <>
+                      {plan.error ? (
+                        <p className={v.avviso}>{plan.error}</p>
+                      ) : (
+                        <div style={{ marginTop: 6 }}>
+                          <p className={v.campoEti}>Come resterebbe</p>
+                          {plan.kept.map((k, i) => (
+                            <p key={k.id} className={v.nota}>
+                              {i + 1}. {k.roomName}: {periodoCompatto(k.check_in, k.check_out)} ({k.nights} {k.nights === 1 ? 'notte' : 'notti'}) · €{k.total.toFixed(0)}{k.extra_bed_total > 0 ? ` (incl. €${k.extra_bed_total.toFixed(0)} letto extra)` : ''}{k.sconto > 0 ? ` · sconto mantenuto −€${k.sconto.toLocaleString('it-IT')}` : ''}{k.scontoDecaduto ? ' · ⚠️ sconto rimosso: il totale concordato non è più sotto il prezzo pieno' : ''}
+                            </p>
+                          ))}
+                          {plan.removed.map((r: any) => (
+                            <p key={r.id} className={v.nota} style={{ color: '#8C3B2E' }}>
+                              <span style={{ textDecoration: 'line-through' }}>{r.rooms?.name}: {periodoCompatto(r.check_in, r.check_out)}</span> — verrà annullata
+                            </p>
+                          ))}
+                          <p className={v.nota} style={{ fontWeight: 700, marginTop: 2 }}>
+                            Nuovo totale: €{plan.total.toFixed(0)}{plan.total !== oldTotal ? <span style={{ fontWeight: 400 }}> (prima: €{oldTotal.toFixed(0)})</span> : null}
+                          </p>
+                        </div>
+                      )}
+                      {stayConflict && <p className={v.avviso}>{stayConflict}</p>}
+                      {erroreSoggiorno && <AvvisoAzione testo={erroreSoggiorno} className="mt-2" />}
+                      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                        <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }}
+                          disabled={savingStay || !!plan.error || !!stayConflict} onClick={saveStayEdit}>
+                          {savingStay ? 'Salvo…' : 'Salva arrivo e partenza'}
+                        </button>
+                      </div>
+                    </>
+                  )
+                })()}
+              </>
+            )}
               <p className={v.campoEti} style={{ marginTop: 10 }}>Letto aggiuntivo</p>
             {lettoAperto && (() => {
               const giorni = getDaysBetween(booking.check_in, booking.check_out)
@@ -2820,75 +2896,6 @@ export default function BookingDetail() {
                 <span className={v.eti}>Totale di tutta la prenotazione</span>
                 <span className={v.numeroPiccolo}>€{groupBookings.reduce((s, x) => s + Number(x.total_amount), 0).toFixed(0)}</span>
               </div>
-              {(booking.status === 'confermata' || booking.status === 'in_attesa') && !editingStay && (
-                <button onClick={() => {
-                  const sorted = [...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in))
-                  setStayForm({ check_in: sorted[0].check_in, check_out: sorted[sorted.length - 1].check_out })
-                  setStayConflict(null)
-                  setEditingStay(true)
-                }} className={v.pilC} style={{ width: '100%', minHeight: 42, marginTop: 8 }}>
-                  Modifica date soggiorno
-                </button>
-              )}
-              {editingStay && (
-                <div className="mt-2 pt-2 border-t border-[#D9D0EA]">
-                  <div className="grid grid-cols-2 gap-2 mb-2">
-                    <div className="min-w-0">
-                      <p className="text-xs text-[#5B4E82] mb-1">Arrivo</p>
-                      <input type="date" value={stayForm.check_in} onChange={e => {
-                        setStayForm({ ...stayForm, check_in: e.target.value })
-                        checkStayConflict(e.target.value, stayForm.check_out)
-                      }} className="w-full min-w-0 appearance-none border border-[#D9D0EA] rounded-lg p-2 text-sm" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-[#5B4E82] mb-1">Partenza</p>
-                      <input type="date" value={stayForm.check_out} onChange={e => {
-                        setStayForm({ ...stayForm, check_out: e.target.value })
-                        checkStayConflict(stayForm.check_in, e.target.value)
-                      }} className="w-full min-w-0 appearance-none border border-[#D9D0EA] rounded-lg p-2 text-sm" />
-                    </div>
-                  </div>
-                  {(() => {
-                    const plan = computeStayPlan(groupBookings, stayForm.check_in, stayForm.check_out)
-                    const oldTotal = groupBookings.reduce((s, x) => s + Number(x.total_amount), 0)
-                    return (
-                      <>
-                        {plan.error ? (
-                          <p className="text-xs text-[#8C3B2E] font-semibold mb-2">{plan.error}</p>
-                        ) : (
-                          <div className="bg-white rounded-lg p-2 mb-2 border border-[#D9D0EA]">
-                            <p className="text-xs font-bold text-[#5B4E82] mb-1">Anteprima nuovo soggiorno:</p>
-                            {plan.kept.map((k, i) => (
-                              <p key={k.id} className="text-xs text-[#5B4E82]">
-                                {i + 1}. {k.roomName}: {periodoCompatto(k.check_in, k.check_out)} ({k.nights} {k.nights === 1 ? 'notte' : 'notti'}) · €{k.total.toFixed(0)}{k.extra_bed_total > 0 ? ` (incl. €${k.extra_bed_total.toFixed(0)} letto extra)` : ''}{k.sconto > 0 ? ` · sconto mantenuto −€${k.sconto.toLocaleString('it-IT')}` : ''}{k.scontoDecaduto ? ' · ⚠️ sconto rimosso: il totale concordato non è più sotto il prezzo pieno' : ''}
-                              </p>
-                            ))}
-                            {plan.removed.map((r: any) => (
-                              <p key={r.id} className="text-xs text-[#8C3B2E]">
-                                <span className="line-through">{r.rooms?.name}: {periodoCompatto(r.check_in, r.check_out)}</span> — verrà annullata
-                              </p>
-                            ))}
-                            <p className="text-xs font-bold text-[#4A3F6B] mt-1 pt-1 border-t border-[#D9D0EA]">
-                              Nuovo totale: €{plan.total.toFixed(0)}{plan.total !== oldTotal ? <span className="font-normal"> (prima: €{oldTotal.toFixed(0)})</span> : null}
-                            </p>
-                          </div>
-                        )}
-                        {stayConflict && (
-                          <p className="text-xs text-[#8C3B2E] font-semibold mb-2">{stayConflict}</p>
-                        )}
-                        <button onClick={saveStayEdit} disabled={savingStay || !!plan.error || !!stayConflict}
-                          className="w-full bg-green-mid text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50 mb-1">
-                          {savingStay ? 'Salvataggio...' : '💾 Conferma nuove date'}
-                        </button>
-                        {erroreSoggiorno && <AvvisoAzione testo={erroreSoggiorno} className="mb-1" />}
-                        <button onClick={() => setEditingStay(false)} className="w-full text-[#5B4E82] py-1.5 text-xs">
-                          Annulla
-                        </button>
-                      </>
-                    )
-                  })()}
-                </div>
-              )}
             </div>
           )}
           {/* Chi dorme davvero in camera (Ania, 09/09/2026): se non è chi ha
