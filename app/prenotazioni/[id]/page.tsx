@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { roomWithType, lettoInclusoNellaCamera } from '@/lib/roomTypes'
-import { tariffaCamera, lettoDaComunicare } from '@/lib/tariffe'
+import { tariffaCamera, lettoDaComunicare, capienzaCamera } from '@/lib/tariffe'
 import { prezzoPrenotazione, riallineaTariffa, tariffaFormDaSalvato, testoDettaglioNotti, dettaglioNottiSalvato } from '@/lib/prezzoNotti'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
@@ -478,6 +478,13 @@ export default function BookingDetail() {
   // Un solo comando in fondo a «Il soggiorno»: dentro ci stanno le modifiche
   // già esistenti (date, letto, cambio camera), nessun comando doppio.
   const [soggiornoAperto, setSoggiornoAperto] = useState(false)
+  // Ospiti (Ania, 10/09/2026): si cambiano dal pannello del soggiorno, non solo
+  // dal modulo lungo. Cambiarli può cambiare la tariffa, quindi l'anteprima dice
+  // sempre come verrebbe il totale prima di salvare.
+  const [ospitiForm, setOspitiForm] = useState(1)
+  const [salvandoOspiti, setSalvandoOspiti] = useState(false)
+  const [erroreOspiti, setErroreOspiti] = useState<string | null>(null)
+  const [conflittoOspiti, setConflittoOspiti] = useState<string | null>(null)
   const [dateAperte, setDateAperte] = useState(false)
   const [dateForm, setDateForm] = useState<{ check_in: string; check_out: string }>({ check_in: '', check_out: '' })
   const [salvandoDate, setSalvandoDate] = useState(false)
@@ -1498,7 +1505,7 @@ export default function BookingDetail() {
   // Come resterebbe la prenotazione con le date nuove: notti del letto
   // ripulite, tariffa riallineata e conto rifatto dalle notti nuove.
   // null quando le date non stanno in piedi (partenza non dopo l'arrivo).
-  function pianoDate(nuovoIn: string, nuovoOut: string) {
+  function pianoDate(nuovoIn: string, nuovoOut: string, ospiti = Number(booking.num_guests) || 1) {
     if (!nuovoIn || !nuovoOut || nuovoOut <= nuovoIn) return null
     const giorni = getDaysBetween(nuovoIn, nuovoOut)
     const vecchie = (booking.extra_bed_dates?.length ?? 0) > 0
@@ -1509,10 +1516,10 @@ export default function BookingDetail() {
     // torna su tutte le notti nuove (l'anteprima lo dice sempre).
     const dentro = vecchie.filter(n => giorni.includes(n))
     const nottiLetto = vecchie.length === 0 ? [] : (dentro.length > 0 ? dentro : giorni)
-    const dopo = { ...booking, check_in: nuovoIn, check_out: nuovoOut, extra_bed: nottiLetto.length > 0, extra_bed_dates: nottiLetto }
+    const dopo = { ...booking, num_guests: ospiti, check_in: nuovoIn, check_out: nuovoOut, extra_bed: nottiLetto.length > 0, extra_bed_dates: nottiLetto }
     const periodo: PeriodoComposto = {
       id: booking.id, gruppo: booking.group_id || booking.id, roomId: booking.room_id,
-      checkIn: nuovoIn, checkOut: nuovoOut, ospiti: Number(booking.num_guests) || 1,
+      checkIn: nuovoIn, checkOut: nuovoOut, ospiti,
       nottiLetto, letto: accordoLettoSalvato(nottiLetto),
       tariffa: riallineaTariffa(booking.rooms, booking, dopo),
     }
@@ -1532,7 +1539,7 @@ export default function BookingDetail() {
 
   // Camera libera in quelle date? E i due letti della casa sono liberi nelle
   // notti col letto? Le altre righe di QUESTA prenotazione non contano.
-  async function verificaDate(nuovoIn: string, nuovoOut: string, nottiLetto: string[]): Promise<string | null> {
+  async function verificaDate(nuovoIn: string, nuovoOut: string, nottiLetto: string[], ospiti = Number(booking.num_guests) || 1): Promise<string | null> {
     if (!nuovoIn || !nuovoOut || nuovoOut <= nuovoIn) return null
     const miei = new Set<string>([booking.id, ...righePrenotazione.map(r => r.id), ...groupBookings.map(r => r.id)])
     const [{ data: occupate, error: e1 }, { data: letti, error: e2 }] = await Promise.all([
@@ -1560,7 +1567,7 @@ export default function BookingDetail() {
       const contrib = r.room_id === LENA_ID && r.num_guests >= 4 ? 2 : 1
       for (const g of giorni) perDay[g] = (perDay[g] || 0) + contrib
     }
-    const mio = booking.room_id === LENA_ID && Number(booking.num_guests) >= 4 ? 2 : 1
+    const mio = booking.room_id === LENA_ID && ospiti >= 4 ? 2 : 1
     const piene = nottiLetto.filter(n => (perDay[n] || 0) + mio > 2)
     if (piene.length > 0) {
       return `In casa ci sono due letti aggiuntivi: la notte del ${piene.map(n => `${n.slice(8)}/${n.slice(5, 7)}`).join(', ')} sono già impegnati.`
@@ -1615,6 +1622,56 @@ export default function BookingDetail() {
     )
     setSalvandoDate(false)
     if (errore) { setErroreDate(errore); return }
+    chiudiSoggiorno()
+  }
+
+  // Ospiti di QUESTA camera: le date non si toccano, ma la tariffa sì (Lena in
+  // 2 costa 80, in 3 costa 90), quindi si rifà il conto con le stesse regole
+  // del cambio date. Una tariffa scritta a mano resta com'è.
+  function cambiaOspiti(n: number) {
+    setOspitiForm(n)
+    setErroreOspiti(null)
+    setConflittoOspiti(null)
+    const piano = pianoDate(booking.check_in, booking.check_out, n)
+    if (!piano) return
+    void verificaDate(booking.check_in, booking.check_out, piano.nottiLetto, n).then(msg => setConflittoOspiti(msg))
+  }
+
+  async function salvaOspiti() {
+    if (salvandoOspiti) return
+    const massimo = capienzaCamera(booking.rooms)
+    if (!Number.isFinite(ospitiForm) || ospitiForm < 1 || ospitiForm > massimo) {
+      setErroreOspiti(`In ${booking.rooms?.name || 'questa camera'} ci stanno da 1 a ${massimo} persone.`)
+      return
+    }
+    const piano = pianoDate(booking.check_in, booking.check_out, ospitiForm)
+    if (!piano) { setErroreOspiti('Non riesco a rifare il conto con queste persone.'); return }
+    if (piano.scontoDecaduto) {
+      setErroreOspiti(`Con ${ospitiForm} persone il prezzo pieno scende a €${piano.pieno.toLocaleString('it-IT')}: il totale concordato (€${Number(booking.discount_value).toLocaleString('it-IT')}) non è più uno sconto. Rivedi lo sconto da «Modifica prenotazione» prima di cambiare le persone.`)
+      return
+    }
+    setSalvandoOspiti(true)
+    setErroreOspiti(null)
+    const scontro = await verificaDate(booking.check_in, booking.check_out, piano.nottiLetto, ospitiForm)
+    if (scontro) { setConflittoOspiti(scontro); setSalvandoOspiti(false); return }
+    const campiSalvati: Record<string, unknown> = {
+      num_guests: ospitiForm,
+      extra_bed: piano.nottiLetto.length > 0,
+      extra_bed_dates: piano.nottiLetto,
+      extra_bed_total: piano.riga.extra_bed_total,
+      price_per_night: piano.riga.price_per_night,
+      total_amount: piano.conto.totale,
+    }
+    const errore = await scriviPoiAggiorna(
+      () => supabase.from('bookings').update(campiSalvati).eq('id', id),
+      () => {
+        setBooking({ ...booking, ...campiSalvati })
+        setGroupBookings(righe => righe.map(r => r.id === booking.id ? { ...r, ...campiSalvati } : r))
+        setTentativoCronologia(t => t + 1)
+      },
+    )
+    setSalvandoOspiti(false)
+    if (errore) { setErroreOspiti(errore); return }
     chiudiSoggiorno()
   }
 
@@ -1681,6 +1738,9 @@ export default function BookingDetail() {
         setEditingStay(true)
       }
       apriLetto()
+      setOspitiForm(Number(booking.num_guests) || 1)
+      setErroreOspiti(null)
+      setConflittoOspiti(null)
     }
     setSoggiornoAperto(true)
   }
@@ -2642,6 +2702,39 @@ export default function BookingDetail() {
                 })()}
               </>
             )}
+              {/* Ospiti (Ania, 10/09/2026: «posso cambiare anche il numero di
+                  ospiti?»). Cambia solo questa camera; le date restano quelle,
+                  ma la tariffa può cambiare e l'anteprima lo dice prima. */}
+              {booking.status !== 'annullata' && (() => {
+                const massimo = capienzaCamera(booking.rooms)
+                const cambiati = ospitiForm !== (Number(booking.num_guests) || 1)
+                const piano = pianoDate(booking.check_in, booking.check_out, ospitiForm)
+                return (
+                  <>
+                    <p className={v.campoEti} style={{ marginTop: 10 }}>{groupBookings.length > 1 ? 'Ospiti in questa camera' : 'Ospiti'}</p>
+                    <label className={v.campoBlocco} style={{ maxWidth: 200 }}>
+                      <span className={v.campoEti}>Quante persone (max {massimo})</span>
+                      <input type="number" inputMode="numeric" min={1} max={massimo} className={v.campo}
+                        value={ospitiForm} onChange={e => cambiaOspiti(Number(e.target.value))} />
+                    </label>
+                    {piano && cambiati && (
+                      <p className={v.nota}>
+                        {ospitiForm} {ospitiForm === 1 ? 'persona' : 'persone'} · €{Number(piano.riga.price_per_night).toLocaleString('it-IT')} a notte
+                        {' · nuovo totale €'}{piano.conto.totale.toLocaleString('it-IT')}
+                        {piano.conto.totale !== Number(booking.total_amount) ? ` (prima €${Number(booking.total_amount).toLocaleString('it-IT')})` : ''}
+                      </p>
+                    )}
+                    {conflittoOspiti && <p className={v.avviso}>{conflittoOspiti}</p>}
+                    {erroreOspiti && <p className={v.avviso}>{erroreOspiti}</p>}
+                    <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                      <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }}
+                        disabled={salvandoOspiti || !cambiati || !piano || !!conflittoOspiti} onClick={salvaOspiti}>
+                        {salvandoOspiti ? 'Salvo…' : 'Salva ospiti'}
+                      </button>
+                    </div>
+                  </>
+                )
+              })()}
               <p className={v.campoEti} style={{ marginTop: 10 }}>Letto aggiuntivo</p>
             {lettoAperto && (() => {
               const giorni = getDaysBetween(booking.check_in, booking.check_out)
