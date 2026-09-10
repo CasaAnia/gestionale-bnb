@@ -446,7 +446,6 @@ export default function BookingDetail() {
     leggiStrutture().then(r => { if (vivo) setStrutture({ disponibile: r.disponibile, lista: r.strutture }) })
     return () => { vivo = false }
   }, [])
-  const [erroreSoggiorno, setErroreSoggiorno] = useState<string | null>(null)
   const [erroreCambioCamera, setErroreCambioCamera] = useState<string | null>(null)
   const [erroreAnnulla, setErroreAnnulla] = useState<string | null>(null)
   const [annullando, setAnnullando] = useState(false)
@@ -457,12 +456,9 @@ export default function BookingDetail() {
   const [cronologiaAperta, setCronologiaAperta] = useState(false)
   // Letto aggiuntivo modificabile dalla scheda (Ania, 09/09/2026): si accendono
   // e si spengono le singole notti senza passare da «Modifica prenotazione».
-  const [lettoAperto, setLettoAperto] = useState(false)
   const [lettoNotti, setLettoNotti] = useState<string[]>([])
   const [lettoImporto, setLettoImporto] = useState<number | null>(null)
   const [lettoCriterio, setLettoCriterio] = useState<'notte' | 'ogni4' | 'totale'>('notte')
-  const [salvandoLetto, setSalvandoLetto] = useState(false)
-  const [erroreLetto, setErroreLetto] = useState<string | null>(null)
   // true quando l'accordo del letto non era stato registrato: il criterio va scelto
   const [lettoAccordoVecchio, setLettoAccordoVecchio] = useState(false)
   // Date modificabili dalla scheda (Ania, 10/09/2026): arrivo e partenza si
@@ -482,14 +478,14 @@ export default function BookingDetail() {
   // dal modulo lungo. Cambiarli può cambiare la tariffa, quindi l'anteprima dice
   // sempre come verrebbe il totale prima di salvare.
   const [ospitiForm, setOspitiForm] = useState(1)
-  const [salvandoOspiti, setSalvandoOspiti] = useState(false)
-  const [erroreOspiti, setErroreOspiti] = useState<string | null>(null)
-  const [conflittoOspiti, setConflittoOspiti] = useState<string | null>(null)
-  const [dateAperte, setDateAperte] = useState(false)
+  // Tariffa a notte: segue il listino quando cambiano date o persone, ma se la
+  // si scrive a mano resta quella (Ania, 10/09/2026: «la tariffa non cambia»).
+  const [tariffaForm, setTariffaForm] = useState('')
+  const [tariffaToccata, setTariffaToccata] = useState(false)
+  const [salvandoSoggiorno, setSalvandoSoggiorno] = useState(false)
+  const [erroreSalvaSoggiorno, setErroreSalvaSoggiorno] = useState<string | null>(null)
+  const [conflittoSoggiorno, setConflittoSoggiorno] = useState<string | null>(null)
   const [dateForm, setDateForm] = useState<{ check_in: string; check_out: string }>({ check_in: '', check_out: '' })
-  const [salvandoDate, setSalvandoDate] = useState(false)
-  const [erroreDate, setErroreDate] = useState<string | null>(null)
-  const [conflittoDate, setConflittoDate] = useState<string | null>(null)
   // Accordo di pagamento modificabile dalla scheda (Ania, 09/09/2026)
   // Quale WhatsApp usare: un interruttore come «Mese | 2 settimane» del
   // calendario (Ania, 09/09/2026), invece di due griglie una sotto l'altra.
@@ -529,10 +525,8 @@ export default function BookingDetail() {
   const [conflitto, setConflitto] = useState<string | null>(null)
   const [lettiOccupati, setLettiOccupati] = useState(0)
   const [extraBedsPerDay, setExtraBedsPerDay] = useState<Record<string, number>>({})
-  const [editingStay, setEditingStay] = useState(false)
   const [stayForm, setStayForm] = useState<{ check_in: string; check_out: string }>({ check_in: '', check_out: '' })
   const [stayConflict, setStayConflict] = useState<string | null>(null)
-  const [savingStay, setSavingStay] = useState(false)
   // Conto del soggiorno (acconti). accontiOk=false se la tabella payments non è ancora migrata
   const [acconti, setAcconti] = useState<any[]>([])
   const [accontiOk, setAccontiOk] = useState(true)
@@ -1185,73 +1179,6 @@ export default function BookingDetail() {
     }
   }
 
-  async function saveStayEdit() {
-    const plan = computeStayPlan(groupBookings, stayForm.check_in, stayForm.check_out)
-    if (plan.error || stayConflict) return
-    setSavingStay(true)
-    setErroreSoggiorno(null)
-    setAvvisoScheda(null)
-    const now = new Date().toISOString()
-    // Un update per segmento, uno dopo l'altro: al primo errore ci si ferma e
-    // l'avviso dice se qualcosa era già stato salvato (lib/prenotazioneScritture)
-    const scritture: Array<() => PromiseLike<{ error: unknown }>> = []
-    for (const seg of plan.kept) {
-      scritture.push(() => supabase.from('bookings').update({
-        check_in: seg.check_in,
-        check_out: seg.check_out,
-        extra_bed: seg.extra_bed_dates.length > 0,
-        extra_bed_dates: seg.extra_bed_dates,
-        extra_bed_total: seg.extra_bed_total,
-        total_amount: seg.total,
-        // Sconto del segmento: mantenuto (o decaduto, già mostrato in anteprima).
-        // Incluso solo a colonne migrate, come nel salvataggio normale
-        ...(booking.discount_type !== undefined ? {
-          discount_type: seg.discount_type,
-          discount_value: seg.discount_value,
-        } : {}),
-        updated_at: now,
-      }).eq('id', seg.id))
-    }
-    for (const seg of plan.removed) {
-      scritture.push(() => supabase.from('bookings').update({
-        status: 'annullata',
-        cancelled_at: now,
-        cancelled_reason: 'Camera non più necessaria: date del soggiorno modificate',
-        updated_at: now,
-      }).eq('id', seg.id))
-    }
-    const { errore } = await salvaInSequenza(scritture)
-    if (errore) {
-      // Il modulo resta aperto con le date scelte, il bottone torna attivo
-      setErroreSoggiorno(errore)
-      setSavingStay(false)
-      return
-    }
-    chiudiSoggiorno()
-    // Se il segmento aperto è stato annullato, passa al primo segmento rimasto
-    if (!plan.kept.find(k => k.id === id)) {
-      setSavingStay(false)
-      router.replace(`/prenotazioni/${plan.kept[0].id}`)
-      return
-    }
-    const erroreRilettura = await rileggiScheda()
-    if (erroreRilettura) {
-      // Salvato ma non riletto: si applica in locale il piano appena scritto
-      type Segmento = { id: string; check_in: string; check_out: string; extra_bed_dates: string[]; extra_bed_total: number; total: number }
-      const locale = (seg: Segmento) => ({
-        ...(groupBookings.find(g => g.id === seg.id) || {}),
-        check_in: seg.check_in, check_out: seg.check_out,
-        extra_bed: seg.extra_bed_dates.length > 0, extra_bed_dates: seg.extra_bed_dates,
-        extra_bed_total: seg.extra_bed_total, total_amount: seg.total,
-      })
-      setGroupBookings(plan.kept.map(locale))
-      const mio = plan.kept.find(k => k.id === id)
-      if (mio) setBooking({ ...booking, ...locale(mio) })
-      setAvvisoScheda(erroreRilettura)
-    }
-    setSavingStay(false)
-  }
-
   async function addRoomChange() {
     let groupId = booking.group_id
     setErroreCambioCamera(null)
@@ -1396,145 +1323,7 @@ export default function BookingDetail() {
     setLettoImporto(accordoSalvato ? Number(b.extra_bed_importo) : perNotte)
     setLettoCriterio(accordoSalvato ? (b.extra_bed_criterio as 'notte' | 'ogni4' | 'totale') : 'notte')
     setLettoAccordoVecchio(!accordoSalvato && notti.length > 0 && Number(booking.extra_bed_total) > 0)
-    setErroreLetto(null)
-    setLettoAperto(true)
     void checkDisponibilita(booking.room_id, booking.check_in, booking.check_out)
-  }
-
-  async function salvaLetto() {
-    if (salvandoLetto) return
-    if (lettoNotti.length > 0 && (lettoImporto === null || !Number.isFinite(lettoImporto) || lettoImporto < 0)) {
-      setErroreLetto('Scrivi un importo valido per il letto, anche zero se è compreso.')
-      return
-    }
-    setSalvandoLetto(true)
-    setErroreLetto(null)
-    // I due letti della casa: contando anche le altre prenotazioni
-    const contrib = booking.room_id === LENA_ID && Number(booking.num_guests) >= 4 ? 2 : 1
-    const piene = lettoNotti.filter(n => (extraBedsPerDay[n] || 0) + contrib > 2)
-    if (piene.length > 0) {
-      setErroreLetto(`In casa ci sono due letti aggiuntivi: la notte del ${piene.map(n => `${n.slice(8)}/${n.slice(5, 7)}`).join(', ')} sono già impegnati.`)
-      setSalvandoLetto(false)
-      return
-    }
-    const periodo: PeriodoComposto = {
-      id: booking.id, gruppo: booking.group_id || booking.id, roomId: booking.room_id,
-      checkIn: booking.check_in, checkOut: booking.check_out, ospiti: Number(booking.num_guests) || 1,
-      nottiLetto: lettoNotti, letto: lettoNotti.length > 0 && lettoImporto !== null ? { importo: lettoImporto, criterio: lettoCriterio } : null,
-      tariffa: Number(booking.price_per_night),
-    }
-    const camera = { ...(booking.rooms as Record<string, unknown>), id: booking.room_id } as unknown as Parameters<typeof rigaDaSalvare>[1]
-    const riga = rigaDaSalvare(periodo, camera, periodo.gruppo)
-    // La modifica riguarda solo il letto. Nei vecchi conti senza uno sconto
-    // esplicito conserviamo il resto del prezzo concordato, applicando solo
-    // la differenza del supplemento. Gli sconti registrati seguono invece
-    // il calcolo condiviso; salvare solo il criterio non cambia il totale.
-    const vecchioLetto = Number(booking.extra_bed_total || 0)
-    const nuovoLetto = Number(riga.extra_bed_total)
-    const costoCambiato = vecchioLetto !== nuovoLetto
-    const totaleStorico = booking.total_amount == null ? NaN : Number(booking.total_amount)
-    const conto = contoSoggiorno({
-      ...booking,
-      extra_bed_total: riga.extra_bed_total,
-      total_amount: costoCambiato
-        ? (!booking.discount_type && Number.isFinite(totaleStorico) ? totaleStorico - vecchioLetto + nuovoLetto : undefined)
-        : booking.total_amount,
-    })
-    if (!Number.isFinite(conto.totale) || conto.totale < 0) {
-      setErroreLetto('Il nuovo supplemento porterebbe il totale sotto zero. Rivedi il prezzo concordato prima di salvare.')
-      setSalvandoLetto(false)
-      return
-    }
-    let campiSalvati: Record<string, unknown> = {
-      extra_bed: lettoNotti.length > 0,
-      extra_bed_dates: lettoNotti,
-      extra_bed_total: riga.extra_bed_total,
-      total_amount: conto.totale,
-      extra_bed_importo: lettoNotti.length > 0 ? lettoImporto : null,
-      extra_bed_criterio: lettoNotti.length > 0 ? lettoCriterio : null,
-    }
-    let accordoNonRegistrato = false
-    const errore = await scriviPoiAggiorna(
-      async () => {
-        const esito = await supabase.from('bookings').update(campiSalvati).eq('id', id)
-        // colonne 0048 non ancora aggiunte: si salva il resto e lo si dice
-        if (esito.error && (esito.error.code === '42703' || esito.error.code === 'PGRST204') && /extra_bed_(importo|criterio)/.test(esito.error.message || '')) {
-          accordoNonRegistrato = true
-          campiSalvati = Object.fromEntries(Object.entries(campiSalvati).filter(([k]) => k !== 'extra_bed_importo' && k !== 'extra_bed_criterio'))
-          return await supabase.from('bookings').update(campiSalvati).eq('id', id)
-        }
-        return esito
-      },
-      () => {
-        setBooking({ ...booking, ...campiSalvati })
-        setGroupBookings(righe => righe.map(r => r.id === booking.id ? { ...r, ...campiSalvati } : r))
-        setTentativoCronologia(t => t + 1)
-      },
-    )
-    setSalvandoLetto(false)
-    if (errore) { setErroreLetto(errore); return }
-    if (accordoNonRegistrato) {
-      setErroreLetto('Salvate notti e importo totale. Il criterio non è stato registrato: serve la proposta 0048 applicata su Supabase.')
-      setLettoAccordoVecchio(true)
-      return
-    }
-    setLettoAccordoVecchio(false)
-    chiudiSoggiorno()
-  }
-
-  // ── date del soggiorno, modifica mirata ──────────────────────────────────
-  // Con quale accordo era stato deciso il letto: serve anche qui, perché
-  // spostando le date le notti col letto vanno rifatte con lo stesso criterio.
-  // Se l'accordo non è registrato (prenotazioni vecchie) si ricava l'importo
-  // per notte dal totale salvato, come fa la modifica del letto.
-  function accordoLettoSalvato(nottiLetto: string[]) {
-    if (nottiLetto.length === 0) return null
-    const b = booking as unknown as { extra_bed_importo?: number | string | null; extra_bed_criterio?: string | null }
-    if (b.extra_bed_importo != null && b.extra_bed_criterio != null) {
-      return { importo: Number(b.extra_bed_importo), criterio: b.extra_bed_criterio as 'notte' | 'ogni4' | 'totale' }
-    }
-    const vecchie = (booking.extra_bed_dates?.length ?? 0) > 0
-      ? (booking.extra_bed_dates as string[]).length
-      : calcNotti(booking.check_in, booking.check_out)
-    const perNotte = vecchie > 0 && Number(booking.extra_bed_total) > 0
-      ? Math.round((Number(booking.extra_bed_total) / vecchie) * 100) / 100
-      : lettoProposto(booking.rooms as never, Number(booking.num_guests) || 1)
-    return { importo: perNotte, criterio: 'notte' as const }
-  }
-
-  // Come resterebbe la prenotazione con le date nuove: notti del letto
-  // ripulite, tariffa riallineata e conto rifatto dalle notti nuove.
-  // null quando le date non stanno in piedi (partenza non dopo l'arrivo).
-  function pianoDate(nuovoIn: string, nuovoOut: string, ospiti = Number(booking.num_guests) || 1) {
-    if (!nuovoIn || !nuovoOut || nuovoOut <= nuovoIn) return null
-    const giorni = getDaysBetween(nuovoIn, nuovoOut)
-    const vecchie = (booking.extra_bed_dates?.length ?? 0) > 0
-      ? booking.extra_bed_dates as string[]
-      : (booking.extra_bed ? getDaysBetween(booking.check_in, booking.check_out) : [])
-    // Accorciando o allungando restano le notti col letto ancora dentro il
-    // periodo; spostando il soggiorno altrove non ne resta nessuna e il letto
-    // torna su tutte le notti nuove (l'anteprima lo dice sempre).
-    const dentro = vecchie.filter(n => giorni.includes(n))
-    const nottiLetto = vecchie.length === 0 ? [] : (dentro.length > 0 ? dentro : giorni)
-    const dopo = { ...booking, num_guests: ospiti, check_in: nuovoIn, check_out: nuovoOut, extra_bed: nottiLetto.length > 0, extra_bed_dates: nottiLetto }
-    const periodo: PeriodoComposto = {
-      id: booking.id, gruppo: booking.group_id || booking.id, roomId: booking.room_id,
-      checkIn: nuovoIn, checkOut: nuovoOut, ospiti,
-      nottiLetto, letto: accordoLettoSalvato(nottiLetto),
-      tariffa: riallineaTariffa(booking.rooms, booking, dopo),
-    }
-    const camera = { ...(booking.rooms as Record<string, unknown>), id: booking.room_id } as unknown as Parameters<typeof rigaDaSalvare>[1]
-    const riga = rigaDaSalvare(periodo, camera, periodo.gruppo)
-    // RICALCOLO: senza total_amount il conto si deriva dalle notti nuove,
-    // com'è stato deciso (Ania, 10/09/2026). Lo sconto salvato resta.
-    const conto = contoSoggiorno({
-      check_in: nuovoIn, check_out: nuovoOut,
-      price_per_night: riga.price_per_night, extra_bed_total: riga.extra_bed_total,
-      discount_type: booking.discount_type, discount_value: booking.discount_value,
-    })
-    const pieno = Number(riga.price_per_night) * giorni.length + Number(riga.extra_bed_total)
-    const scontoDecaduto = booking.discount_type === 'target_total' && !(Number(booking.discount_value) > 0 && Number(booking.discount_value) < pieno)
-    return { giorni, nottiLetto, riga, conto, pieno: Math.round(pieno * 100) / 100, scontoDecaduto }
   }
 
   // Camera libera in quelle date? E i due letti della casa sono liberi nelle
@@ -1575,103 +1364,222 @@ export default function BookingDetail() {
     return null
   }
 
-  function apriDate() {
-    setDateForm({ check_in: booking.check_in, check_out: booking.check_out })
-    setErroreDate(null)
-    setConflittoDate(null)
-    setDateAperte(true)
+  // ── Il soggiorno si cambia tutto insieme (Ania, 10/09/2026) ─────────────
+  // Un solo «Modifica» e un solo «Salva» per arrivo e partenza, ospiti,
+  // tariffa a notte e letto aggiuntivo: il conto si rifà una volta sola e
+  // l'anteprima dice come verrebbe prima di scrivere qualcosa.
+  const unaCameraSola = () => groupBookings.length <= 1 && !haCamereParallele(righePrenotazione)
+
+  // Tariffa che seguirebbe il listino con queste date e queste persone; se la
+  // tariffa salvata era scritta a mano resta lei (riallineaTariffa).
+  function tariffaDaListino(dal: string, al: string, ospiti: number) {
+    const giorni = getDaysBetween(dal, al)
+    const dentro = lettoNotti.filter(n => giorni.includes(n))
+    const nottiLetto = lettoNotti.length === 0 ? [] : (dentro.length > 0 ? dentro : giorni)
+    return riallineaTariffa(booking.rooms, booking, {
+      ...booking, num_guests: ospiti, check_in: dal, check_out: al,
+      extra_bed: nottiLetto.length > 0, extra_bed_dates: nottiLetto,
+    })
   }
 
-  function cambiaDate(nuovoIn: string, nuovoOut: string) {
-    setDateForm({ check_in: nuovoIn, check_out: nuovoOut })
-    setConflittoDate(null)
-    setErroreDate(null)
-    const piano = pianoDate(nuovoIn, nuovoOut)
-    if (!piano) return
-    void verificaDate(nuovoIn, nuovoOut, piano.nottiLetto).then(msg => setConflittoDate(msg))
+  // Come resterebbe il soggiorno col modulo così com'è. Una camera sola: una
+  // riga. Cambio camera: le date valgono per tutto il soggiorno (computeStayPlan
+  // le ridistribuisce) e la camera aperta prende anche ospiti, tariffa e letto.
+  function pianoSoggiorno() {
+    const ospiti = Number(ospitiForm) || 1
+    const tariffa = Number(tariffaForm)
+    const gruppo = booking.group_id || booking.id
+    const camera = { ...(booking.rooms as Record<string, unknown>), id: booking.room_id } as unknown as Parameters<typeof rigaDaSalvare>[1]
+
+    const rigaAperta = (dal: string, al: string) => {
+      const giorni = getDaysBetween(dal, al)
+      const dentro = lettoNotti.filter(n => giorni.includes(n))
+      const nottiLetto = lettoNotti.length === 0 ? [] : (dentro.length > 0 ? dentro : giorni)
+      const periodo: PeriodoComposto = {
+        id: booking.id, gruppo, roomId: booking.room_id,
+        checkIn: dal, checkOut: al, ospiti, nottiLetto,
+        letto: nottiLetto.length > 0 && lettoImporto !== null ? { importo: lettoImporto, criterio: lettoCriterio } : null,
+        tariffa: Number.isFinite(tariffa) && tariffa > 0 ? tariffa : null,
+      }
+      const riga = rigaDaSalvare(periodo, camera, gruppo)
+      const conto = contoSoggiorno({
+        check_in: dal, check_out: al,
+        price_per_night: riga.price_per_night, extra_bed_total: riga.extra_bed_total,
+        discount_type: booking.discount_type, discount_value: booking.discount_value,
+      })
+      const pieno = Number(riga.price_per_night) * giorni.length + Number(riga.extra_bed_total)
+      const scontoDecaduto = booking.discount_type === 'target_total' && !(Number(booking.discount_value) > 0 && Number(booking.discount_value) < pieno)
+      return {
+        id: booking.id, roomName: booking.rooms?.name || 'Camera',
+        check_in: dal, check_out: al, nights: giorni.length,
+        num_guests: ospiti, price_per_night: Number(riga.price_per_night),
+        extra_bed_dates: nottiLetto, extra_bed_total: Number(riga.extra_bed_total),
+        total: conto.totale, sconto: conto.sconto, scontoDecaduto,
+        discount_type: scontoDecaduto ? null : (booking.discount_type || null),
+        discount_value: scontoDecaduto ? null : (booking.discount_value ?? null),
+        pieno: Math.round(pieno * 100) / 100,
+      }
+    }
+
+    if (unaCameraSola()) {
+      if (!dateForm.check_in || !dateForm.check_out || dateForm.check_out <= dateForm.check_in) {
+        return { righe: [] as ReturnType<typeof rigaAperta>[], rimosse: [] as unknown[], totale: 0, errore: 'La partenza deve essere dopo l\u2019arrivo.', scontoDecaduto: false }
+      }
+      const r = rigaAperta(dateForm.check_in, dateForm.check_out)
+      return { righe: [r], rimosse: [] as unknown[], totale: r.total, errore: null as string | null, scontoDecaduto: r.scontoDecaduto }
+    }
+    const plan = computeStayPlan(groupBookings, stayForm.check_in, stayForm.check_out)
+    if (plan.error) return { righe: [] as ReturnType<typeof rigaAperta>[], rimosse: plan.removed as unknown[], totale: 0, errore: plan.error, scontoDecaduto: false }
+    const righe = plan.kept.map(k => (k.id === booking.id ? rigaAperta(k.check_in, k.check_out) : { ...k, num_guests: undefined, pieno: 0 })) as ReturnType<typeof rigaAperta>[]
+    return {
+      righe, rimosse: plan.removed as unknown[],
+      totale: righe.reduce((t, x) => t + x.total, 0),
+      errore: null as string | null,
+      scontoDecaduto: righe.some(x => x.scontoDecaduto) || plan.kept.some(k => k.scontoDecaduto),
+    }
   }
 
-  async function salvaDate() {
-    if (salvandoDate) return
-    const piano = pianoDate(dateForm.check_in, dateForm.check_out)
-    if (!piano) { setErroreDate('La partenza deve essere dopo l’arrivo.'); return }
-    if (piano.scontoDecaduto) {
-      setErroreDate(`Con queste date il prezzo pieno scende a €${piano.pieno.toLocaleString('it-IT')}: il totale concordato (€${Number(booking.discount_value).toLocaleString('it-IT')}) non è più uno sconto. Rivedi lo sconto da «Modifica prenotazione» prima di cambiare le date.`)
+  // Le notti del letto che il modulo terrebbe davvero, per le pillole e per i
+  // controlli sui due letti della casa.
+  function periodoCameraAperta(): { dal: string; al: string } | null {
+    if (unaCameraSola()) {
+      if (!dateForm.check_in || !dateForm.check_out || dateForm.check_out <= dateForm.check_in) return null
+      return { dal: dateForm.check_in, al: dateForm.check_out }
+    }
+    const piano = pianoSoggiorno()
+    const mia = piano.righe.find(r => r.id === booking.id)
+    return mia ? { dal: mia.check_in, al: mia.check_out } : null
+  }
+
+  // Ricontrolla i conflitti a ogni tocco del modulo (camera libera, letti della casa)
+  function controllaSoggiorno(prossimo?: { dal?: string; al?: string; ospiti?: number }) {
+    setConflittoSoggiorno(null)
+    setErroreSalvaSoggiorno(null)
+    const ospiti = prossimo?.ospiti ?? (Number(ospitiForm) || 1)
+    if (unaCameraSola()) {
+      const dal = prossimo?.dal ?? dateForm.check_in
+      const al = prossimo?.al ?? dateForm.check_out
+      if (!dal || !al || al <= dal) return
+      const giorni = getDaysBetween(dal, al)
+      const dentro = lettoNotti.filter(n => giorni.includes(n))
+      const nottiLetto = lettoNotti.length === 0 ? [] : (dentro.length > 0 ? dentro : giorni)
+      void verificaDate(dal, al, nottiLetto, ospiti).then(msg => setConflittoSoggiorno(msg))
       return
     }
-    setSalvandoDate(true)
-    setErroreDate(null)
-    const scontro = await verificaDate(dateForm.check_in, dateForm.check_out, piano.nottiLetto)
-    if (scontro) { setConflittoDate(scontro); setSalvandoDate(false); return }
-    const campiSalvati: Record<string, unknown> = {
-      check_in: dateForm.check_in,
-      check_out: dateForm.check_out,
-      extra_bed: piano.nottiLetto.length > 0,
-      extra_bed_dates: piano.nottiLetto,
-      extra_bed_total: piano.riga.extra_bed_total,
-      price_per_night: piano.riga.price_per_night,
-      total_amount: piano.conto.totale,
-    }
-    const errore = await scriviPoiAggiorna(
-      () => supabase.from('bookings').update(campiSalvati).eq('id', id),
-      () => {
-        setBooking({ ...booking, ...campiSalvati })
-        setGroupBookings(righe => righe.map(r => r.id === booking.id ? { ...r, ...campiSalvati } : r))
-        setTentativoCronologia(t => t + 1)
-      },
-    )
-    setSalvandoDate(false)
-    if (errore) { setErroreDate(errore); return }
-    chiudiSoggiorno()
+    void checkStayConflict(prossimo?.dal ?? stayForm.check_in, prossimo?.al ?? stayForm.check_out)
   }
 
-  // Ospiti di QUESTA camera: le date non si toccano, ma la tariffa sì (Lena in
-  // 2 costa 80, in 3 costa 90), quindi si rifà il conto con le stesse regole
-  // del cambio date. Una tariffa scritta a mano resta com'è.
+  function cambiaDateSoggiorno(nuovoIn: string, nuovoOut: string) {
+    if (unaCameraSola()) setDateForm({ check_in: nuovoIn, check_out: nuovoOut })
+    else setStayForm({ check_in: nuovoIn, check_out: nuovoOut })
+    if (!tariffaToccata && nuovoIn && nuovoOut && nuovoOut > nuovoIn) {
+      setTariffaForm(String(tariffaDaListino(nuovoIn, nuovoOut, Number(ospitiForm) || 1)))
+    }
+    controllaSoggiorno({ dal: nuovoIn, al: nuovoOut })
+  }
+
   function cambiaOspiti(n: number) {
     setOspitiForm(n)
-    setErroreOspiti(null)
-    setConflittoOspiti(null)
-    const piano = pianoDate(booking.check_in, booking.check_out, n)
-    if (!piano) return
-    void verificaDate(booking.check_in, booking.check_out, piano.nottiLetto, n).then(msg => setConflittoOspiti(msg))
+    const periodo = periodoCameraAperta()
+    if (!tariffaToccata && periodo) setTariffaForm(String(tariffaDaListino(periodo.dal, periodo.al, n || 1)))
+    controllaSoggiorno({ ospiti: n || 1 })
   }
 
-  async function salvaOspiti() {
-    if (salvandoOspiti) return
+  async function salvaSoggiorno() {
+    if (salvandoSoggiorno) return
+    const ospiti = Number(ospitiForm) || 0
     const massimo = capienzaCamera(booking.rooms)
-    if (!Number.isFinite(ospitiForm) || ospitiForm < 1 || ospitiForm > massimo) {
-      setErroreOspiti(`In ${booking.rooms?.name || 'questa camera'} ci stanno da 1 a ${massimo} persone.`)
+    if (!Number.isInteger(ospiti) || ospiti < 1 || ospiti > massimo) {
+      setErroreSalvaSoggiorno(`In ${booking.rooms?.name || 'questa camera'} ci stanno da 1 a ${massimo} persone.`)
       return
     }
-    const piano = pianoDate(booking.check_in, booking.check_out, ospitiForm)
-    if (!piano) { setErroreOspiti('Non riesco a rifare il conto con queste persone.'); return }
+    const tariffa = Number(tariffaForm)
+    if (!Number.isFinite(tariffa) || tariffa < 0) {
+      setErroreSalvaSoggiorno('Scrivi una tariffa a notte valida.')
+      return
+    }
+    if (lettoNotti.length > 0 && (lettoImporto === null || !Number.isFinite(lettoImporto) || lettoImporto < 0)) {
+      setErroreSalvaSoggiorno('Scrivi un importo valido per il letto aggiuntivo, anche zero se è compreso.')
+      return
+    }
+    const piano = pianoSoggiorno()
+    if (piano.errore) { setErroreSalvaSoggiorno(piano.errore); return }
     if (piano.scontoDecaduto) {
-      setErroreOspiti(`Con ${ospitiForm} persone il prezzo pieno scende a €${piano.pieno.toLocaleString('it-IT')}: il totale concordato (€${Number(booking.discount_value).toLocaleString('it-IT')}) non è più uno sconto. Rivedi lo sconto da «Modifica prenotazione» prima di cambiare le persone.`)
+      setErroreSalvaSoggiorno(`Con queste modifiche il totale concordato (€${Number(booking.discount_value).toLocaleString('it-IT')}) non è più uno sconto sul prezzo pieno. Rivedi lo sconto da «Modifica prenotazione» prima di salvare.`)
       return
     }
-    setSalvandoOspiti(true)
-    setErroreOspiti(null)
-    const scontro = await verificaDate(booking.check_in, booking.check_out, piano.nottiLetto, ospitiForm)
-    if (scontro) { setConflittoOspiti(scontro); setSalvandoOspiti(false); return }
-    const campiSalvati: Record<string, unknown> = {
-      num_guests: ospitiForm,
-      extra_bed: piano.nottiLetto.length > 0,
-      extra_bed_dates: piano.nottiLetto,
-      extra_bed_total: piano.riga.extra_bed_total,
-      price_per_night: piano.riga.price_per_night,
-      total_amount: piano.conto.totale,
+    setSalvandoSoggiorno(true)
+    setErroreSalvaSoggiorno(null)
+    const mia = piano.righe.find(r => r.id === booking.id)
+    if (unaCameraSola() && mia) {
+      const scontro = await verificaDate(mia.check_in, mia.check_out, mia.extra_bed_dates, ospiti)
+      if (scontro) { setConflittoSoggiorno(scontro); setSalvandoSoggiorno(false); return }
+    } else if (conflittoSoggiorno) {
+      setSalvandoSoggiorno(false)
+      return
     }
-    const errore = await scriviPoiAggiorna(
-      () => supabase.from('bookings').update(campiSalvati).eq('id', id),
-      () => {
-        setBooking({ ...booking, ...campiSalvati })
-        setGroupBookings(righe => righe.map(r => r.id === booking.id ? { ...r, ...campiSalvati } : r))
-        setTentativoCronologia(t => t + 1)
-      },
-    )
-    setSalvandoOspiti(false)
-    if (errore) { setErroreOspiti(errore); return }
+    const adesso = new Date().toISOString()
+    const campiRiga = (r: typeof piano.righe[number]) => ({
+      check_in: r.check_in,
+      check_out: r.check_out,
+      extra_bed: r.extra_bed_dates.length > 0,
+      extra_bed_dates: r.extra_bed_dates,
+      extra_bed_total: r.extra_bed_total,
+      total_amount: r.total,
+      ...(r.id === booking.id ? { num_guests: ospiti, price_per_night: r.price_per_night } : {}),
+      ...(booking.discount_type !== undefined ? { discount_type: r.discount_type, discount_value: r.discount_value } : {}),
+      updated_at: adesso,
+    })
+    // L'accordo del letto (proposta 0048) si salva a parte: se le colonne non
+    // ci sono ancora si salva il resto e lo si dice, come nella modifica del letto.
+    let accordoLetto: Record<string, unknown> = {
+      extra_bed_importo: lettoNotti.length > 0 ? lettoImporto : null,
+      extra_bed_criterio: lettoNotti.length > 0 ? lettoCriterio : null,
+    }
+    let accordoNonRegistrato = false
+    const scritture: Array<() => PromiseLike<{ error: unknown }>> = []
+    for (const r of piano.righe) {
+      scritture.push(async () => {
+        const campi = { ...campiRiga(r), ...(r.id === booking.id ? accordoLetto : {}) }
+        const esito = await supabase.from('bookings').update(campi).eq('id', r.id)
+        if (esito.error && (esito.error.code === '42703' || esito.error.code === 'PGRST204') && /extra_bed_(importo|criterio)/.test(esito.error.message || '')) {
+          accordoNonRegistrato = true
+          accordoLetto = {}
+          return await supabase.from('bookings').update(campiRiga(r)).eq('id', r.id)
+        }
+        return esito
+      })
+    }
+    for (const rimossa of piano.rimosse as { id: string }[]) {
+      scritture.push(() => supabase.from('bookings').update({
+        status: 'annullata', cancelled_at: adesso,
+        cancelled_reason: 'Camera non più necessaria: date del soggiorno modificate',
+        updated_at: adesso,
+      }).eq('id', rimossa.id))
+    }
+    const { errore } = await salvaInSequenza(scritture)
+    if (errore) { setErroreSalvaSoggiorno(errore); setSalvandoSoggiorno(false); return }
+    // Se la camera aperta è stata annullata dal nuovo periodo, si passa alla prima rimasta
+    if (!piano.righe.find(r => r.id === id)) {
+      chiudiSoggiorno()
+      setSalvandoSoggiorno(false)
+      router.replace(`/prenotazioni/${piano.righe[0].id}`)
+      return
+    }
+    const erroreRilettura = await rileggiScheda()
+    if (erroreRilettura) {
+      const locale = (r: typeof piano.righe[number]) => ({ ...(groupBookings.find(g => g.id === r.id) || {}), ...campiRiga(r) })
+      setGroupBookings(piano.righe.map(locale))
+      if (mia) setBooking({ ...booking, ...campiRiga(mia) })
+      setAvvisoScheda(erroreRilettura)
+    }
+    setTentativoCronologia(t => t + 1)
+    setSalvandoSoggiorno(false)
+    if (accordoNonRegistrato) {
+      setLettoAccordoVecchio(true)
+      setErroreSalvaSoggiorno('Salvato tutto tranne il criterio del letto: serve la proposta 0048 applicata su Supabase.')
+      return
+    }
     chiudiSoggiorno()
   }
 
@@ -1722,33 +1630,32 @@ export default function BookingDetail() {
     setArrivoAperto(false)
   }
 
-  // Il comando in fondo a «Il soggiorno» apre insieme le modifiche già
-  // esistenti: date, letto aggiuntivo e cambio camera. Chiudendolo si chiude
-  // tutto, così non restano moduli aperti fuori vista.
+  // Il comando in fondo a «Il soggiorno» apre un modulo solo con tutto quello
+  // che si può cambiare: arrivo e partenza, ospiti, tariffa a notte e letto
+  // aggiuntivo. Chiudendolo si chiude tutto, senza salvare niente.
   function apriSoggiorno() {
     if (booking.status !== 'annullata') {
-      if (groupBookings.length <= 1 && !haCamereParallele(righePrenotazione)) {
-        apriDate()
-      } else if (groupBookings.length > 1 && (booking.status === 'confermata' || booking.status === 'in_attesa')) {
-        // Cambio camera: le date sono quelle di TUTTO il soggiorno, che il
-        // piano ridistribuisce fra le camere (computeStayPlan).
+      // Le date: di questa camera se è sola, di TUTTO il soggiorno quando c'è
+      // un cambio camera (computeStayPlan le ridistribuisce fra le camere).
+      setDateForm({ check_in: booking.check_in, check_out: booking.check_out })
+      if (groupBookings.length > 1) {
         const ordinati = [...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in))
         setStayForm({ check_in: ordinati[0].check_in, check_out: ordinati[ordinati.length - 1].check_out })
-        setStayConflict(null)
-        setEditingStay(true)
       }
+      setStayConflict(null)
       apriLetto()
       setOspitiForm(Number(booking.num_guests) || 1)
-      setErroreOspiti(null)
-      setConflittoOspiti(null)
+      setTariffaForm(String(Number(booking.price_per_night) || 0))
+      setTariffaToccata(false)
+      setErroreSalvaSoggiorno(null)
+      setConflittoSoggiorno(null)
     }
     setSoggiornoAperto(true)
   }
 
   function chiudiSoggiorno() {
-    setDateAperte(false)
-    setLettoAperto(false)
-    setEditingStay(false)
+    setErroreSalvaSoggiorno(null)
+    setConflittoSoggiorno(null)
     setSoggiornoAperto(false)
   }
 
@@ -2579,220 +2486,143 @@ export default function BookingDetail() {
           )}
           {soggiornoAperto && (
             <div data-modulo-soggiorno style={{ paddingBottom: 8 }}>
-            {/* Arrivo e partenza (Ania, 10/09/2026): il modulo è già aperto,
-                senza un secondo «modifica» sulla riga. Con un cambio camera
-                le date di tutto il soggiorno restano più in basso. */}
-            {booking.status !== 'annullata' && groupBookings.length <= 1 && !haCamereParallele(righePrenotazione) && (
-              <>
-                <p className={v.campoEti} style={{ marginTop: 2 }}>Arrivo e partenza</p>
-                {dateAperte && (() => {
-                  const piano = pianoDate(dateForm.check_in, dateForm.check_out)
-                  const cambiate = dateForm.check_in !== booking.check_in || dateForm.check_out !== booking.check_out
-                  return (
-                    <div style={{ paddingBottom: 8 }}>
-                      <div className={v.due}>
-                        <label className={v.campoBlocco}>
-                          <span className={v.campoEti}>Arrivo</span>
-                          <input type="date" className={v.campo} value={dateForm.check_in}
-                            onChange={e => {
-                              const nuovoIn = e.target.value
-                              const nuovoOut = nuovoIn && dateForm.check_out <= nuovoIn ? nextDay(nuovoIn) : dateForm.check_out
-                              cambiaDate(nuovoIn, nuovoOut)
-                            }} />
-                        </label>
-                        <label className={v.campoBlocco}>
-                          <span className={v.campoEti}>Partenza</span>
-                          <input type="date" className={v.campo} value={dateForm.check_out}
-                            min={dateForm.check_in ? nextDay(dateForm.check_in) : undefined}
-                            onChange={e => cambiaDate(dateForm.check_in, e.target.value)} />
-                        </label>
-                      </div>
-                      {piano && cambiate && (
-                        <p className={v.nota}>
-                          {piano.giorni.length} {piano.giorni.length === 1 ? 'notte' : 'notti'}
-                          {piano.nottiLetto.length > 0 ? ` · letto aggiuntivo su ${piano.nottiLetto.length} ${piano.nottiLetto.length === 1 ? 'notte' : 'notti'}` : ''}
-                          {' · nuovo totale €'}{piano.conto.totale.toLocaleString('it-IT')}
-                          {piano.conto.totale !== Number(booking.total_amount) ? ` (prima €${Number(booking.total_amount).toLocaleString('it-IT')})` : ''}
-                          {piano.conto.sconto > 0 ? ` · sconto mantenuto −€${piano.conto.sconto.toLocaleString('it-IT')}` : ''}
-                        </p>
-                      )}
-                      {piano && cambiate && !booking.discount_type && (() => {
-                        // Totale scritto a mano: rifacendo il conto non resta.
-                        // Meglio dirlo prima di salvare, che scoprirlo dopo.
-                        const primaPieno = contoSoggiorno({
-                          check_in: booking.check_in, check_out: booking.check_out,
-                          price_per_night: booking.price_per_night, extra_bed_total: booking.extra_bed_total,
-                        }).totale
-                        return Math.abs(primaPieno - Number(booking.total_amount)) > 0.005 ? (
-                          <p className={v.nota}>Il totale di prima era stato scritto a mano (€{Number(booking.total_amount).toLocaleString('it-IT')} invece di €{primaPieno.toLocaleString('it-IT')}): il nuovo viene dal calcolo.</p>
-                        ) : null
-                      })()}
-                      {!piano && <p className={v.avviso}>La partenza deve essere dopo l&apos;arrivo.</p>}
-                      {conflittoDate && <p className={v.avviso}>{conflittoDate}</p>}
-                      {erroreDate && <p className={v.avviso}>{erroreDate}</p>}
-                      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                        <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }}
-                          disabled={salvandoDate || !piano || !cambiate || !!conflittoDate} onClick={salvaDate}>
-                          {salvandoDate ? 'Salvo…' : 'Salva arrivo e partenza'}
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })()}
-              </>
-            )}
-            {/* Con un cambio camera le date si cambiano da qui (Ania,
-                10/09/2026: «deve comprendere anche le date, è la cosa più
-                importante»): stesso comando del soggiorno, un solo modulo, e
-                l'anteprima dice come resterebbero le camere. */}
-            {editingStay && (
-              <>
-                <p className={v.campoEti} style={{ marginTop: 2 }}>Arrivo e partenza di tutto il soggiorno</p>
-                <div className={v.due}>
-                  <label className={v.campoBlocco}>
-                    <span className={v.campoEti}>Arrivo</span>
-                    <input type="date" className={v.campo} value={stayForm.check_in} onChange={e => {
-                      setStayForm({ ...stayForm, check_in: e.target.value })
-                      checkStayConflict(e.target.value, stayForm.check_out)
-                    }} />
-                  </label>
-                  <label className={v.campoBlocco}>
-                    <span className={v.campoEti}>Partenza</span>
-                    <input type="date" className={v.campo} value={stayForm.check_out} onChange={e => {
-                      setStayForm({ ...stayForm, check_out: e.target.value })
-                      checkStayConflict(stayForm.check_in, e.target.value)
-                    }} />
-                  </label>
-                </div>
-                {(() => {
-                  const plan = computeStayPlan(groupBookings, stayForm.check_in, stayForm.check_out)
-                  const oldTotal = groupBookings.reduce((s, x) => s + Number(x.total_amount), 0)
-                  return (
-                    <>
-                      {plan.error ? (
-                        <p className={v.avviso}>{plan.error}</p>
-                      ) : (
-                        <div style={{ marginTop: 6 }}>
-                          <p className={v.campoEti}>Come resterebbe</p>
-                          {plan.kept.map((k, i) => (
-                            <p key={k.id} className={v.nota}>
-                              {i + 1}. {k.roomName}: {periodoCompatto(k.check_in, k.check_out)} ({k.nights} {k.nights === 1 ? 'notte' : 'notti'}) · €{k.total.toFixed(0)}{k.extra_bed_total > 0 ? ` (incl. €${k.extra_bed_total.toFixed(0)} letto extra)` : ''}{k.sconto > 0 ? ` · sconto mantenuto −€${k.sconto.toLocaleString('it-IT')}` : ''}{k.scontoDecaduto ? ' · ⚠️ sconto rimosso: il totale concordato non è più sotto il prezzo pieno' : ''}
-                            </p>
-                          ))}
-                          {plan.removed.map((r: any) => (
-                            <p key={r.id} className={v.nota} style={{ color: '#8C3B2E' }}>
-                              <span style={{ textDecoration: 'line-through' }}>{r.rooms?.name}: {periodoCompatto(r.check_in, r.check_out)}</span> — verrà annullata
-                            </p>
-                          ))}
-                          <p className={v.nota} style={{ fontWeight: 700, marginTop: 2 }}>
-                            Nuovo totale: €{plan.total.toFixed(0)}{plan.total !== oldTotal ? <span style={{ fontWeight: 400 }}> (prima: €{oldTotal.toFixed(0)})</span> : null}
-                          </p>
-                        </div>
-                      )}
-                      {stayConflict && <p className={v.avviso}>{stayConflict}</p>}
-                      {erroreSoggiorno && <AvvisoAzione testo={erroreSoggiorno} className="mt-2" />}
-                      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                        <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }}
-                          disabled={savingStay || !!plan.error || !!stayConflict} onClick={saveStayEdit}>
-                          {savingStay ? 'Salvo…' : 'Salva arrivo e partenza'}
-                        </button>
-                      </div>
-                    </>
-                  )
-                })()}
-              </>
-            )}
-              {/* Ospiti (Ania, 10/09/2026: «posso cambiare anche il numero di
-                  ospiti?»). Cambia solo questa camera; le date restano quelle,
-                  ma la tariffa può cambiare e l'anteprima lo dice prima. */}
-              {booking.status !== 'annullata' && (() => {
+              {/* Un modulo solo per tutto il soggiorno (Ania, 10/09/2026):
+                  arrivo e partenza, ospiti, tariffa a notte e letto aggiuntivo,
+                  con un «Salva» solo. La tariffa segue il listino quando cambiano
+                  date o persone, ma se la si scrive a mano resta quella. */}
+              {(() => {
+                const piano = pianoSoggiorno()
+                const mia = piano.righe.find(r => r.id === booking.id)
+                const dal = unaCameraSola() ? dateForm.check_in : stayForm.check_in
+                const al = unaCameraSola() ? dateForm.check_out : stayForm.check_out
+                const giorni = mia ? getDaysBetween(mia.check_in, mia.check_out) : []
                 const massimo = capienzaCamera(booking.rooms)
-                const cambiati = ospitiForm !== (Number(booking.num_guests) || 1)
-                const piano = pianoDate(booking.check_in, booking.check_out, ospitiForm)
+                const totalePrima = unaCameraSola()
+                  ? Number(booking.total_amount)
+                  : groupBookings.reduce((t, x) => t + Number(x.total_amount), 0)
+                const cambiato = (
+                  dal !== (unaCameraSola() ? booking.check_in : [...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in))[0]?.check_in)
+                  || al !== (unaCameraSola() ? booking.check_out : [...groupBookings].sort((a, z) => z.check_out.localeCompare(a.check_out))[0]?.check_out)
+                  || (Number(ospitiForm) || 0) !== (Number(booking.num_guests) || 1)
+                  || Math.abs(Number(tariffaForm) - Number(booking.price_per_night)) > 0.005
+                  || JSON.stringify([...lettoNotti].sort()) !== JSON.stringify([...((booking.extra_bed_dates as string[]) || (booking.extra_bed ? getDaysBetween(booking.check_in, booking.check_out) : []))].sort())
+                  || (lettoNotti.length > 0 && Math.abs(Number(lettoImporto ?? 0) * 0 + (piano.righe.find(r => r.id === booking.id)?.extra_bed_total ?? 0) - Number(booking.extra_bed_total || 0)) > 0.005)
+                )
                 return (
                   <>
-                    <p className={v.campoEti} style={{ marginTop: 10 }}>{groupBookings.length > 1 ? 'Ospiti in questa camera' : 'Ospiti'}</p>
-                    <label className={v.campoBlocco} style={{ maxWidth: 200 }}>
-                      <span className={v.campoEti}>Quante persone (max {massimo})</span>
-                      <input type="number" inputMode="numeric" min={1} max={massimo} className={v.campo}
-                        value={ospitiForm} onChange={e => cambiaOspiti(Number(e.target.value))} />
-                    </label>
-                    {piano && cambiati && (
-                      <p className={v.nota}>
-                        {ospitiForm} {ospitiForm === 1 ? 'persona' : 'persone'} · €{Number(piano.riga.price_per_night).toLocaleString('it-IT')} a notte
-                        {' · nuovo totale €'}{piano.conto.totale.toLocaleString('it-IT')}
-                        {piano.conto.totale !== Number(booking.total_amount) ? ` (prima €${Number(booking.total_amount).toLocaleString('it-IT')})` : ''}
-                      </p>
+                    <p className={v.campoEti} style={{ marginTop: 2 }}>
+                      {unaCameraSola() ? 'Arrivo e partenza' : 'Arrivo e partenza di tutto il soggiorno'}
+                    </p>
+                    <div className={v.due}>
+                      <label className={v.campoBlocco}>
+                        <span className={v.campoEti}>Arrivo</span>
+                        <input type="date" className={v.campo} value={dal}
+                          onChange={e => {
+                            const nuovoIn = e.target.value
+                            const nuovoOut = nuovoIn && al <= nuovoIn ? nextDay(nuovoIn) : al
+                            cambiaDateSoggiorno(nuovoIn, nuovoOut)
+                          }} />
+                      </label>
+                      <label className={v.campoBlocco}>
+                        <span className={v.campoEti}>Partenza</span>
+                        <input type="date" className={v.campo} value={al}
+                          min={dal ? nextDay(dal) : undefined}
+                          onChange={e => cambiaDateSoggiorno(dal, e.target.value)} />
+                      </label>
+                    </div>
+                    <div className={v.due}>
+                      <label className={v.campoBlocco}>
+                        <span className={v.campoEti}>{unaCameraSola() ? `Ospiti (max ${massimo})` : `Ospiti in questa camera (max ${massimo})`}</span>
+                        <input type="number" inputMode="numeric" min={1} max={massimo} className={v.campo}
+                          value={ospitiForm} onChange={e => cambiaOspiti(Number(e.target.value))} />
+                      </label>
+                      <label className={v.campoBlocco}>
+                        <span className={v.campoEti}>Tariffa a notte</span>
+                        <input type="number" inputMode="decimal" min={0} className={v.campo} placeholder="€"
+                          value={tariffaForm}
+                          onChange={e => { setTariffaToccata(true); setTariffaForm(e.target.value); setErroreSalvaSoggiorno(null) }} />
+                      </label>
+                    </div>
+                    <p className={v.campoEti} style={{ marginTop: 8 }}>Letto aggiuntivo</p>
+                    <div className={v.notti}>
+                      <button type="button" className={`${v.notte} ${lettoNotti.length === giorni.length && giorni.length > 0 ? v.notteOn : ''}`}
+                        onClick={() => { setLettoNotti(lettoNotti.length === giorni.length ? [] : giorni); controllaSoggiorno() }}>tutte le notti</button>
+                      {giorni.map(g => (
+                        <button key={g} type="button" className={`${v.notte} ${lettoNotti.includes(g) ? v.notteOn : ''}`}
+                          onClick={() => { setLettoNotti(lettoNotti.includes(g) ? lettoNotti.filter(x => x !== g) : [...lettoNotti, g].sort()); controllaSoggiorno() }}>
+                          {Number(g.slice(8))}
+                        </button>
+                      ))}
+                    </div>
+                    {lettoNotti.length > 0 && (
+                      <>
+                        <label className={v.campoBlocco} style={{ maxWidth: 150 }}>
+                          <span className={v.campoEti}>Quanto costa il letto</span>
+                          <input type="number" inputMode="decimal" className={v.campo} placeholder="€"
+                            value={lettoImporto ? lettoImporto : ''} onChange={e => setLettoImporto(e.target.value === '' ? 0 : Number(e.target.value))} />
+                        </label>
+                        <div className={v.pillole} style={{ marginTop: 4 }}>
+                          {([['notte', 'A notte'], ['ogni4', 'Ogni 4 notti'], ['totale', 'Totale concordato']] as const).map(([k, t]) => (
+                            <button key={k} type="button" className={lettoCriterio === k ? v.pil : v.pilT} onClick={() => setLettoCriterio(k)}>{t}</button>
+                          ))}
+                        </div>
+                      </>
                     )}
-                    {conflittoOspiti && <p className={v.avviso}>{conflittoOspiti}</p>}
-                    {erroreOspiti && <p className={v.avviso}>{erroreOspiti}</p>}
-                    <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                      <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }}
-                        disabled={salvandoOspiti || !cambiati || !piano || !!conflittoOspiti} onClick={salvaOspiti}>
-                        {salvandoOspiti ? 'Salvo…' : 'Salva ospiti'}
+                    {lettoAccordoVecchio && (
+                      <p className={v.nota}>Di questa prenotazione non è registrato con quale accordo era stato deciso il letto: qui sopra c&apos;è il conto per notte ricavato dal totale. Scegli il criterio giusto prima di salvare.</p>
+                    )}
+                    {/* Come verrebbe, prima di scrivere qualcosa */}
+                    {!piano.errore && cambiato && (
+                      <div style={{ marginTop: 8 }}>
+                        <p className={v.campoEti}>Come resterebbe</p>
+                        {piano.righe.map((r, i) => (
+                          <p key={r.id} className={v.nota}>
+                            {piano.righe.length > 1 ? `${i + 1}. ` : ''}{r.roomName}: {periodoCompatto(r.check_in, r.check_out)} ({r.nights} {r.nights === 1 ? 'notte' : 'notti'})
+                            {r.id === booking.id ? ` · ${Number(ospitiForm) || 1} ${(Number(ospitiForm) || 1) === 1 ? 'persona' : 'persone'} · €${r.price_per_night.toLocaleString('it-IT')} a notte` : ''}
+                            {r.extra_bed_dates.length > 0 ? ` · letto su ${r.extra_bed_dates.length} ${r.extra_bed_dates.length === 1 ? 'notte' : 'notti'}` : ''}
+                            {` · €${r.total.toLocaleString('it-IT')}`}
+                            {r.sconto > 0 ? ` · sconto mantenuto −€${r.sconto.toLocaleString('it-IT')}` : ''}
+                          </p>
+                        ))}
+                        {(piano.rimosse as { id: string; rooms?: { name?: string }; check_in: string; check_out: string }[]).map(r => (
+                          <p key={r.id} className={v.nota} style={{ color: '#8C3B2E' }}>
+                            <span style={{ textDecoration: 'line-through' }}>{r.rooms?.name}: {periodoCompatto(r.check_in, r.check_out)}</span> — verrà annullata
+                          </p>
+                        ))}
+                        <p className={v.nota} style={{ fontWeight: 700, marginTop: 2 }}>
+                          Nuovo totale: €{piano.totale.toLocaleString('it-IT')}
+                          {Math.abs(piano.totale - totalePrima) > 0.005 ? <span style={{ fontWeight: 400 }}> (prima €{totalePrima.toLocaleString('it-IT')})</span> : null}
+                        </p>
+                      </div>
+                    )}
+                    {piano.errore && <p className={v.avviso}>{piano.errore}</p>}
+                    {conflittoSoggiorno && <p className={v.avviso}>{conflittoSoggiorno}</p>}
+                    {stayConflict && !unaCameraSola() && <p className={v.avviso}>{stayConflict}</p>}
+                    {erroreSalvaSoggiorno && <p className={v.avviso}>{erroreSalvaSoggiorno}</p>}
+                    <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                      <button type="button" className={v.pil} style={{ flex: 1, minHeight: 44 }}
+                        disabled={salvandoSoggiorno || !!piano.errore || !cambiato || !!conflittoSoggiorno || (!unaCameraSola() && !!stayConflict)}
+                        onClick={salvaSoggiorno}>
+                        {salvandoSoggiorno ? 'Salvo…' : 'Salva il soggiorno'}
                       </button>
+                      <button type="button" className={v.pilT} style={{ minHeight: 44 }} onClick={chiudiSoggiorno}>Annulla</button>
                     </div>
                   </>
                 )
               })()}
-              <p className={v.campoEti} style={{ marginTop: 10 }}>Letto aggiuntivo</p>
-            {lettoAperto && (() => {
-              const giorni = getDaysBetween(booking.check_in, booking.check_out)
-              return (
-                <div style={{ paddingBottom: 8 }}>
-                  <div className={v.notti}>
-                    <button type="button" className={`${v.notte} ${lettoNotti.length === giorni.length ? v.notteOn : ''}`}
-                      onClick={() => setLettoNotti(lettoNotti.length === giorni.length ? [] : giorni)}>tutte le notti</button>
-                    {giorni.map(g => (
-                      <button key={g} type="button" className={`${v.notte} ${lettoNotti.includes(g) ? v.notteOn : ''}`}
-                        onClick={() => setLettoNotti(lettoNotti.includes(g) ? lettoNotti.filter(x => x !== g) : [...lettoNotti, g].sort())}>
-                        {Number(g.slice(8))}
-                      </button>
-                    ))}
-                  </div>
-                  {lettoNotti.length > 0 && (
-                    <>
-                      <label className={v.campoBlocco} style={{ maxWidth: 130 }}>
-                        <span className={v.campoEti}>Quanto costa</span>
-                        <input type="number" inputMode="decimal" className={v.campo} placeholder="€"
-                          value={lettoImporto ? lettoImporto : ''} onChange={e => setLettoImporto(e.target.value === '' ? 0 : Number(e.target.value))} />
-                      </label>
-                      <div className={v.pillole} style={{ marginTop: 4 }}>
-                        {([['notte', 'A notte'], ['ogni4', 'Ogni 4 notti'], ['totale', 'Totale concordato']] as const).map(([k, t]) => (
-                          <button key={k} type="button" className={lettoCriterio === k ? v.pil : v.pilT} onClick={() => setLettoCriterio(k)}>{t}</button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  {lettoAccordoVecchio && (
-                    <p className={v.nota}>Di questa prenotazione non è registrato con quale accordo era stato deciso il letto: qui sopra c&apos;è il conto per notte ricavato dal totale. Scegli il criterio giusto prima di salvare.</p>
-                  )}
-                  {erroreLetto && <p className={v.avviso}>{erroreLetto}</p>}
-                  <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                    <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }} disabled={salvandoLetto} onClick={salvaLetto}>
-                      {salvandoLetto ? 'Salvo…' : 'Salva letto aggiuntivo'}
-                    </button>
-                  </div>
+              {/* I comandi della camera stanno col soggiorno (Ania, 09/09/2026):
+                  cambio camera per lo spostamento a metà soggiorno, «Aggiungi
+                  camera» per una seconda camera dello stesso cliente. */}
+              {(booking.status === 'confermata' || booking.status === 'in_attesa') && (
+                <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                  <button onClick={addRoomChange} className={v.pilC} style={{ flex: 1, minHeight: 42 }}>Aggiungi cambio camera</button>
+                  <button type="button" className={v.pilC} style={{ flex: 1, minHeight: 42 }}
+                    onClick={() => router.push(`/nuova?guest_id=${booking.guest_id}&check_in=${booking.check_in}&prenotazione=${(booking as unknown as { prenotazione_id?: string | null }).prenotazione_id ?? booking.group_id ?? id}&returnTo=/prenotazioni/${id}`)}>
+                    Aggiungi camera
+                  </button>
                 </div>
-              )
-            })()}
-            {/* I comandi della camera stanno col soggiorno (Ania, 09/09/2026):
-                cambio camera per lo spostamento a metà soggiorno, «Aggiungi
-                camera» per una seconda camera dello stesso cliente, che si
-                compone nella pagina di inserimento e resta fra le sue prenotazioni. */}
-            {(booking.status === 'confermata' || booking.status === 'in_attesa') && (
-              <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-                <button onClick={addRoomChange} className={v.pilC} style={{ flex: 1, minHeight: 42 }}>Aggiungi cambio camera</button>
-                <button type="button" className={v.pilC} style={{ flex: 1, minHeight: 42 }}
-                  onClick={() => router.push(`/nuova?guest_id=${booking.guest_id}&check_in=${booking.check_in}&prenotazione=${(booking as unknown as { prenotazione_id?: string | null }).prenotazione_id ?? booking.group_id ?? id}&returnTo=/prenotazioni/${id}`)}>
-                  Aggiungi camera
-                </button>
-              </div>
-            )}
-            {erroreCambioCamera && <AvvisoAzione testo={erroreCambioCamera} className="mt-2" />}
-              <button type="button" className={v.pilT} style={{ width: '100%', minHeight: 42, marginTop: 14 }} onClick={chiudiSoggiorno}>
-                Annulla
-              </button>
+              )}
+              {erroreCambioCamera && <AvvisoAzione testo={erroreCambioCamera} className="mt-2" />}
             </div>
           )}
 
