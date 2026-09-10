@@ -1,5 +1,5 @@
 -- =====================================================================
--- MOTIVO DEL CLIENTE PROBLEMATICO, SEPARATO DALLA NOTA (09/09/2026)
+-- MOTIVO DEL CLIENTE PROBLEMATICO, SEPARATO DALLA NOTA (09/09/2026) — proposta 0046
 --
 -- Oggi guests.notes tiene insieme due cose diverse:
 --   · la nota utile che si ritrova a ogni soggiorno («camera sul

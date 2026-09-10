@@ -93,6 +93,7 @@ function NuovaPrenotazione() {
   const arrivoDaUrl = searchParams.get('check_in') || iso(new Date())
   const clienteDaUrl = searchParams.get('guest_id') || ''
   const gruppoDaUrl = searchParams.get('group_id') || ''
+  const prenotazioneDaUrl = searchParams.get('prenotazione') || ''
 
   const [camere, setCamere] = useState<CameraRiga[]>([])
   const trovaCamera = useCallback((id: string | null) => camere.find(c => c.id === id) ?? null, [camere])
@@ -431,6 +432,7 @@ function NuovaPrenotazione() {
     try {
       let guestId = cliente?.id ?? null
       let nomeSu = nomeSuQuesta
+      const mancantiCliente: string[] = []
 
       if (!guestId && nuovo) {
         // Il numero è già di una scheda? si usa quella, senza crearne una seconda
@@ -458,6 +460,12 @@ function NuovaPrenotazione() {
             ...(strutture.disponibile ? campiProvenienza(provenienza.provenienza ?? 'non_so', provenienza.struttura) : {}),
           }
           let { data: creato, error } = await supabase.from('guests').insert({ ...base, ...payloadValutazione(nuovo.valutazione, nuovo.ricevuta, true) }).select().single()
+          // motivo_problematico può non essere ancora stato aggiunto (proposta 0046)
+          if (error && (error.code === '42703' || error.code === 'PGRST204') && /motivo_problematico/.test(error.message || '')) {
+            mancantiCliente.push('motivo_problematico')
+            const { motivo_problematico: _via, ...senzaMotivo } = base as Record<string, unknown>
+            ;({ data: creato, error } = await supabase.from('guests').insert({ ...senzaMotivo, ...payloadValutazione(nuovo.valutazione, nuovo.ricevuta, true) }).select().single())
+          }
           if (error && /vuole_ricevuta/i.test(error.message || '')) {
             ({ data: creato, error } = await supabase.from('guests').insert({ ...base, ...payloadValutazione(nuovo.valutazione, nuovo.ricevuta, false) }).select().single())
           }
@@ -528,15 +536,23 @@ function NuovaPrenotazione() {
       // prova a salvare tutto e, se il database dice che una colonna non
       // esiste (42703), si toglie SOLO quella e si riprova, tenendo il resto.
       const mancanti: string[] = []
+      // Una colonna non ancora aggiunta si presenta in due modi: Postgres dice
+      // 42703, PostgREST risponde PGRST204 dalla sua cache dello schema. In
+      // tutti e due i casi si toglie SOLO quella colonna e si riprova; importo
+      // e criterio del letto vanno insieme, quindi si tolgono in coppia.
+      const nomeColonnaMancante = (e: { code?: string; message?: string } | null) => {
+        if (!e || (e.code !== '42703' && e.code !== 'PGRST204')) return null
+        return /column "?([a-z_.]+)"?[^a-z_]/i.exec(e.message || '')?.[1]?.split('.').pop() ?? null
+      }
       async function inserisci(righe: Record<string, unknown>[]) {
         let tentativo = righe
-        for (let giro = 0; giro < 4; giro++) {
+        for (let giro = 0; giro < 5; giro++) {
           const esito = await supabase.from('bookings').insert(tentativo).select('id, check_in')
-          if (!esito.error || esito.error.code !== '42703') return esito
-          const colonna = /column "?([a-z_]+)"? .*does not exist/i.exec(esito.error.message || '')?.[1]
+          const colonna = nomeColonnaMancante(esito.error)
           if (!colonna) return esito
-          mancanti.push(colonna)
-          tentativo = tentativo.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => k !== colonna)))
+          const daTogliere = colonna.startsWith('extra_bed_') ? ['extra_bed_importo', 'extra_bed_criterio'] : [colonna]
+          mancanti.push(...daTogliere)
+          tentativo = tentativo.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => !daTogliere.includes(k))))
         }
         return await supabase.from('bookings').insert(tentativo).select('id, check_in')
       }
@@ -544,7 +560,9 @@ function NuovaPrenotazione() {
       // Una prenotazione sola, anche con più camere: tutte le righe portano lo
       // stesso prenotazione_id (proposta 0044). group_id resta il legame dei
       // periodi di un cambio camera.
-      const prenotazioneId = crypto.randomUUID()
+      // Arrivando da una prenotazione esistente (cambio camera o camera in più)
+      // si resta nella stessa prenotazione, invece di crearne una seconda.
+      const prenotazioneId = prenotazioneDaUrl || crypto.randomUUID()
       const conAccordo = righeDaSalvare.map(({ riga, prima, letto }) => ({
         ...riga, prenotazione_id: prenotazioneId, ...letto, ...accordoCampi, ...(prima ? caparraCampi : {}),
       }))
@@ -563,8 +581,14 @@ function NuovaPrenotazione() {
       const prima = [...create].sort((a, b) => String(a.check_in).localeCompare(String(b.check_in)))[0]
       // Se manca la proposta 0041 la caparra non è stata registrata: non si
       // porta via la pagina senza dirlo, altrimenti l'avviso non lo vede nessuno.
-      if (mancanti.length > 0 && !senzaAccordo) {
-        setAvvisoSalvataggio(`Prenotazione salvata. Non sono stati registrati: ${[...new Set(mancanti)].join(', ')} — servono le proposte SQL corrispondenti applicate su Supabase.`)
+      const nonRegistrati = [...new Set([...mancanti, ...mancantiCliente])]
+      // Se qualcosa non è stato registrato NON si va via in silenzio: si resta
+      // qui, si dice cosa manca e si apre la scheda solo col tuo tocco.
+      if (nonRegistrati.length > 0) {
+        setSalvata(String([...create].sort((a, b) => String(a.check_in).localeCompare(String(b.check_in)))[0].id))
+        setAvvisoSalvataggio(`Prenotazione salvata, ma questi dati NON sono stati registrati: ${nonRegistrati.join(', ')}. Servono le proposte SQL corrispondenti applicate su Supabase (0041, 0046, 0047, 0048).`)
+        setSalvando(false)
+        return
       }
       if (senzaAccordo && caparra !== null) {
         setSalvata(String(prima.id))

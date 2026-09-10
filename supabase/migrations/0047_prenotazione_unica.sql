@@ -1,5 +1,5 @@
 -- =====================================================================
--- UNA PRENOTAZIONE, PIÙ CAMERE (09/09/2026)
+-- UNA PRENOTAZIONE, PIÙ CAMERE (09/09/2026) — proposta 0047
 --
 -- Oggi bookings ha un solo legame: group_id, che tiene insieme i periodi
 -- di un CAMBIO CAMERA (Ambra 14–17 poi Allegra 17–20 = un soggiorno).

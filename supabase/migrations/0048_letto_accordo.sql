@@ -1,5 +1,6 @@
 -- =====================================================================
 -- LETTO AGGIUNTIVO: QUANTO E COME, NON SOLO IL RISULTATO (09/09/2026)
+-- Numerata 0048: le 0043-0045 sono già usate dalle bozze in supabase/proposte.
 --
 -- Oggi si salva soltanto extra_bed_total, cioè quanto è venuto. Se Ania
 -- ha concordato «20 € in tutto», riaprendo la prenotazione il gestionale
@@ -42,8 +43,11 @@ alter table public.bookings add constraint bookings_extra_bed_accordo_coerente
 -- queste aveva un prezzo concordato, conviene riscriverlo dalla scheda
 -- prima di modificarne le notti.
 --
---   select id, check_in, check_out, num_guests,
---          extra_bed_total, array_length(extra_bed_dates, 1) as notti_letto
+--   select id, check_in, check_out, num_guests, extra_bed_total,
+--          case jsonb_typeof(extra_bed_dates)
+--            when 'array' then jsonb_array_length(extra_bed_dates)
+--            else 0
+--          end as notti_letto
 --     from public.bookings
 --    where extra_bed = true
 --      and coalesce(extra_bed_total, 0) > 0

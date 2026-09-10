@@ -435,6 +435,8 @@ export default function BookingDetail() {
   const [lettoCriterio, setLettoCriterio] = useState<'notte' | 'ogni4' | 'totale'>('notte')
   const [salvandoLetto, setSalvandoLetto] = useState(false)
   const [erroreLetto, setErroreLetto] = useState<string | null>(null)
+  // true quando l'accordo del letto non era stato registrato: il criterio va scelto
+  const [lettoAccordoVecchio, setLettoAccordoVecchio] = useState(false)
   // Accordo di pagamento modificabile dalla scheda (Ania, 09/09/2026)
   // Quale WhatsApp usare: un interruttore come «Mese | 2 settimane» del
   // calendario (Ania, 09/09/2026), invece di due griglie una sotto l'altra.
@@ -1197,7 +1199,10 @@ export default function BookingDetail() {
       ? [...groupBookings].sort((a, z) => z.check_out.localeCompare(a.check_out))[0].check_out
       : booking.check_out
     const guestId = booking.guest_id || booking.guests?.id
-    router.push(`/nuova?guest_id=${guestId}&group_id=${groupId}&check_in=${lastCheckOut}&returnTo=/prenotazioni/${id}`)
+    // Il periodo aggiunto resta nella STESSA prenotazione: senza questo si
+    // creava una prenotazione nuova col vecchio gruppo dentro (09/09/2026).
+    const prenotazione = (booking as unknown as { prenotazione_id?: string | null }).prenotazione_id ?? groupId
+    router.push(`/nuova?guest_id=${guestId}&group_id=${groupId}&prenotazione=${prenotazione}&check_in=${lastCheckOut}&returnTo=/prenotazioni/${id}`)
   }
 
   // Annullamento: con un errore la finestra resta aperta con l'avviso (niente
@@ -1284,12 +1289,19 @@ export default function BookingDetail() {
   function apriLetto() {
     const giorni = getDaysBetween(booking.check_in, booking.check_out)
     const notti = (booking.extra_bed_dates?.length ?? 0) > 0 ? booking.extra_bed_dates as string[] : (booking.extra_bed ? giorni : [])
+    // L'accordo salvato si rilegge com'è stato preso (proposta 0048): 20 €
+    // «totale concordato» tornano 20 € totali, non 5 € a notte. Solo per le
+    // prenotazioni più vecchie, che non hanno l'accordo scritto, si ricava
+    // l'importo per notte dal totale e lo si dice.
+    const b = booking as unknown as { extra_bed_importo?: number | string | null; extra_bed_criterio?: string | null }
+    const accordoSalvato = b.extra_bed_importo != null && b.extra_bed_criterio != null
     const perNotte = notti.length > 0 && Number(booking.extra_bed_total) > 0
       ? Math.round((Number(booking.extra_bed_total) / notti.length) * 100) / 100
       : lettoProposto(booking.rooms as never, Number(booking.num_guests) || 1)
     setLettoNotti(notti)
-    setLettoImporto(perNotte)
-    setLettoCriterio('notte')
+    setLettoImporto(accordoSalvato ? Number(b.extra_bed_importo) : perNotte)
+    setLettoCriterio(accordoSalvato ? (b.extra_bed_criterio as 'notte' | 'ogni4' | 'totale') : 'notte')
+    setLettoAccordoVecchio(!accordoSalvato && notti.length > 0 && Number(booking.extra_bed_total) > 0)
     setErroreLetto(null)
     setLettoAperto(true)
     void checkDisponibilita(booking.room_id, booking.check_in, booking.check_out)
@@ -1316,12 +1328,24 @@ export default function BookingDetail() {
     const riga = rigaDaSalvare(periodo, camera, periodo.gruppo)
     const conto = contoSoggiorno({ ...booking, extra_bed_total: riga.extra_bed_total })
     const errore = await scriviPoiAggiorna(
-      () => supabase.from('bookings').update({
-        extra_bed: lettoNotti.length > 0,
-        extra_bed_dates: lettoNotti,
-        extra_bed_total: riga.extra_bed_total,
-        total_amount: conto.totale,
-      }).eq('id', id),
+      async () => {
+        const campi: Record<string, unknown> = {
+          extra_bed: lettoNotti.length > 0,
+          extra_bed_dates: lettoNotti,
+          extra_bed_total: riga.extra_bed_total,
+          total_amount: conto.totale,
+          extra_bed_importo: lettoNotti.length > 0 ? lettoImporto : null,
+          extra_bed_criterio: lettoNotti.length > 0 ? lettoCriterio : null,
+        }
+        const esito = await supabase.from('bookings').update(campi).eq('id', id)
+        // colonne 0048 non ancora aggiunte: si salva il resto e lo si dice
+        if (esito.error && (esito.error.code === '42703' || esito.error.code === 'PGRST204') && /extra_bed_(importo|criterio)/.test(esito.error.message || '')) {
+          setErroreLetto('Salvate notti e importo totale. Il criterio non è stato registrato: serve la proposta 0048 applicata su Supabase.')
+          const senza = Object.fromEntries(Object.entries(campi).filter(([k]) => k !== 'extra_bed_importo' && k !== 'extra_bed_criterio'))
+          return await supabase.from('bookings').update(senza).eq('id', id)
+        }
+        return esito
+      },
       () => {
         setBooking({ ...booking, extra_bed: lettoNotti.length > 0, extra_bed_dates: lettoNotti, extra_bed_total: riga.extra_bed_total, total_amount: conto.totale })
         setTentativoCronologia(t => t + 1)
@@ -2108,6 +2132,9 @@ export default function BookingDetail() {
                     </div>
                   </>
                 )}
+                {lettoAccordoVecchio && (
+                  <p className={v.nota}>Di questa prenotazione non è registrato con quale accordo era stato deciso il letto: qui sopra c&apos;è il conto per notte ricavato dal totale. Scegli il criterio giusto prima di salvare.</p>
+                )}
                 {erroreLetto && <p className={v.avviso}>{erroreLetto}</p>}
                 <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
                   <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }} disabled={salvandoLetto} onClick={salvaLetto}>
@@ -2132,7 +2159,7 @@ export default function BookingDetail() {
             <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
               <button onClick={addRoomChange} className={v.pilC} style={{ flex: 1, minHeight: 42 }}>Aggiungi cambio camera</button>
               <button type="button" className={v.pilC} style={{ flex: 1, minHeight: 42 }}
-                onClick={() => router.push(`/nuova?guest_id=${booking.guest_id}&check_in=${booking.check_in}&returnTo=/prenotazioni/${id}`)}>
+                onClick={() => router.push(`/nuova?guest_id=${booking.guest_id}&check_in=${booking.check_in}&prenotazione=${(booking as unknown as { prenotazione_id?: string | null }).prenotazione_id ?? booking.group_id ?? id}&returnTo=/prenotazioni/${id}`)}>
                 Aggiungi camera
               </button>
             </div>
