@@ -2343,7 +2343,9 @@ export default function BookingDetail() {
                 </span>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 8, borderTop: '1px solid rgba(45, 106, 79, 0.18)' }}>
+            {/* Ania, 10/09/2026: via la riga in mezzo; «Arrivi precedenti» e
+                «Modifica» scendono un po', staccati dai due numeri grandi. */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 18 }}>
               <button type="button" className={v.azione} style={{ color: 'var(--color-green-mid)', textDecorationColor: 'rgba(45, 106, 79, 0.35)' }}
                 onClick={() => setStoricoArrivi(a => !a)}>
                 {storicoArrivi ? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'}
