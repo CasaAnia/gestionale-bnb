@@ -2322,17 +2322,28 @@ export default function BookingDetail() {
               09/09/2026): se il dato manca la riga resta vuota. All'orario
               mancante pensa la Home, che il giorno prima lo mette fra le cose
               da controllare (lib/daControllare). */}
-          <div data-riquadro-arrivo style={{ background: 'var(--color-sage)', borderRadius: 12, padding: '10px 14px 6px', marginTop: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-              <span className={v.eti} style={{ color: 'var(--color-green-mid)' }}>Orario previsto</span>
-              {/* quando l'ora c'è si legge da lontano (Ania, 09/09/2026) */}
-              <span className={v.numeroGrande} style={{ fontSize: 30, color: 'var(--color-green-dark)' }}>{booking.check_in_time || ''}</span>
+          <div data-riquadro-arrivo style={{ background: 'var(--color-sage)', borderRadius: 12, padding: '12px 14px 6px', marginTop: 6 }}>
+            {/* Ania, 10/09/2026: le due cose dell'arrivo affiancate, tutte e due
+                grandi uguali — l'orario a sinistra con l'orologio, la navetta a
+                destra col suo «sì» della stessa misura. Se un dato manca, la sua
+                colonna resta vuota (niente «da definire»). */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0 }}>
+                <span aria-hidden style={{ fontSize: 26, lineHeight: 1.1 }}>🕐</span>
+                <div style={{ minWidth: 0 }}>
+                  <span className={v.eti} style={{ display: 'block', color: 'var(--color-green-mid)', whiteSpace: 'normal' }}>Orario arrivo previsto</span>
+                  {/* quando l'ora c'è si legge da lontano (Ania, 09/09/2026) */}
+                  <span className={v.numeroGrande} style={{ display: 'block', fontSize: 32, color: 'var(--color-green-dark)' }}>{booking.check_in_time || ''}</span>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', flex: 'none' }}>
+                <span className={v.eti} style={{ display: 'block', color: 'var(--color-green-mid)' }}>Navetta</span>
+                <span className={v.numeroGrande} style={{ display: 'block', fontSize: 32, color: 'var(--color-green-dark)' }}>
+                  {booking.shuttle === 'si' ? 'sì' : booking.shuttle === 'no' ? 'no' : ''}
+                </span>
+              </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginTop: 2 }}>
-              <span className={v.eti} style={{ color: 'var(--color-green-mid)' }}>Navetta</span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-dark)' }}>{booking.shuttle === 'si' ? 'sì' : booking.shuttle === 'no' ? 'no' : ''}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 4, borderTop: '1px solid rgba(45, 106, 79, 0.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 8, borderTop: '1px solid rgba(45, 106, 79, 0.18)' }}>
               <button type="button" className={v.azione} style={{ color: 'var(--color-green-mid)', textDecorationColor: 'rgba(45, 106, 79, 0.35)' }}
                 onClick={() => setStoricoArrivi(a => !a)}>
                 {storicoArrivi ? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'}
