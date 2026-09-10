@@ -326,9 +326,13 @@ export default function Arrivi() {
     <div className="flex flex-col">
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
       <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm">
-        <BackLink href="/" />
+        {/* Sul telefono il ritorno è la freccia ‹ nella barra in alto: qui la riga
+            sparisce e si recupera spazio (torna solo da girati, vedi globals.css) */}
+        <div className="indietro-barra hidden lg:block">
+          <BackLink href="/" />
+        </div>
         {/* Titolo + «Cerca nome o telefono…» come nel Calendario: Mac e telefono girato in riga, dritto in colonna */}
-        <div className={`mt-4 mb-2 ${isDesktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
+        <div className={`mt-0 lg:mt-4 mb-2 ${isDesktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
           <h1 className={isDesktop ? 'ed-titolo-medio mr-auto' : 'ed-titolo'}>Arrivi</h1>
           <CampoRicerca value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />
         </div>

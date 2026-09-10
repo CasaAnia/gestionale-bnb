@@ -3,6 +3,7 @@ import { Fraunces, Manrope, Nunito_Sans } from 'next/font/google'
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
 import MobileTopBar from '@/components/MobileTopBar'
+import { BackProvider } from '@/components/BackContext'
 import MainContainer from '@/components/MainContainer'
 import ScrollToTop from '@/components/ScrollToTop'
 import NavTracker from '@/components/NavTracker'
@@ -47,11 +48,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-cream text-green-dark antialiased font-sans">
         <ScrollToTop />
         <NavTracker />
-        <MobileTopBar />
-        <main className="contenuto min-h-screen pt-12 lg:pt-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-48">
-          <AvvisoConnessione />
-          <MainContainer>{children}</MainContainer>
-        </main>
+        {/* BackProvider: la pagina registra il suo "Indietro", la barra in alto
+            lo mostra come freccia a sinistra del titolo (sul telefono). */}
+        <BackProvider>
+          <MobileTopBar />
+          <main className="contenuto min-h-screen pt-12 lg:pt-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-48">
+            <AvvisoConnessione />
+            <MainContainer>{children}</MainContainer>
+          </main>
+        </BackProvider>
         <BottomNav />
         <WebRequestAlert />
         <RinnovoNotifiche />
