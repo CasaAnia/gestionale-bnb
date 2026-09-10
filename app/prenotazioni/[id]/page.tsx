@@ -2314,85 +2314,84 @@ export default function BookingDetail() {
 
           {/* Arrivo prima del soggiorno (Ania, 09/09/2026): orario, navetta e la
               possibilità di vedere com'erano andati gli arrivi precedenti.
-              Dal 10/09/2026 tornano dentro il riquadro azzurro chiaro del
-              gestionale (#EAF0F3), così l'arrivo si distingue subito dal
-              resto della scheda. */}
+              Dal 10/09/2026 tornano dentro il riquadro chiaro che c'era prima
+              (var(--color-sage), lo stesso della foto di Ania), così l'arrivo
+              si distingue subito dal resto della scheda. */}
           <p className={v.sezione} style={{ marginTop: 22 }}>Arrivo</p>
           {/* Le due voci restano sempre, ma senza «da definire» (Ania,
               09/09/2026): se il dato manca la riga resta vuota. All'orario
               mancante pensa la Home, che il giorno prima lo mette fra le cose
               da controllare (lib/daControllare). */}
-          <div data-riquadro-arrivo style={{ background: '#EAF0F3', border: '1px solid #D7E3E8', borderRadius: 12, padding: '10px 14px 6px', marginTop: 6 }}>
+          <div data-riquadro-arrivo style={{ background: 'var(--color-sage)', borderRadius: 12, padding: '10px 14px 6px', marginTop: 6 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-              <span className={v.eti} style={{ color: '#3D5A66' }}>Orario previsto</span>
+              <span className={v.eti} style={{ color: 'var(--color-green-mid)' }}>Orario previsto</span>
               {/* quando l'ora c'è si legge da lontano (Ania, 09/09/2026) */}
-              <span className={v.numeroGrande} style={{ fontSize: 30, color: '#28454F' }}>{booking.check_in_time || ''}</span>
+              <span className={v.numeroGrande} style={{ fontSize: 30, color: 'var(--color-green-dark)' }}>{booking.check_in_time || ''}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginTop: 2 }}>
-              <span className={v.eti} style={{ color: '#3D5A66' }}>Navetta</span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#28454F' }}>{booking.shuttle === 'si' ? 'sì' : booking.shuttle === 'no' ? 'no' : ''}</span>
+              <span className={v.eti} style={{ color: 'var(--color-green-mid)' }}>Navetta</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-dark)' }}>{booking.shuttle === 'si' ? 'sì' : booking.shuttle === 'no' ? 'no' : ''}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 4, borderTop: '1px solid #D7E3E8' }}>
-              <button type="button" className={v.azione} style={{ color: '#3D5A66', textDecorationColor: '#B9CDD6' }}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 4, borderTop: '1px solid rgba(45, 106, 79, 0.18)' }}>
+              <button type="button" className={v.azione} style={{ color: 'var(--color-green-mid)', textDecorationColor: 'rgba(45, 106, 79, 0.35)' }}
                 onClick={() => setStoricoArrivi(a => !a)}>
                 {storicoArrivi ? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'}
               </button>
+            {booking.status !== 'annullata' && (
+              <ComandoModifica nome="arrivo" aperto={arrivoAperto}
+                onClick={() => (arrivoAperto ? setArrivoAperto(false) : apriArrivo())} />
+            )}
             </div>
-          </div>
-          {storicoArrivi && (() => {
-            const arrivi = conclusiDelCliente().filter(r => r.status !== 'annullata')
-            if (arrivi.length === 0) return <p className={v.nota}>Nessun arrivo precedente registrato per questo cliente.</p>
-            return (
-              <div>
-                {arrivi.map(r => {
-                  const primo = [...r.segmenti].sort((a, z) => a.check_in.localeCompare(z.check_in))[0]
-                  const ora = primo?.check_in_time
-                  const nav = primo?.shuttle
-                  return (
-                    <div key={r.chiave} className={v.riga} style={{ gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
-                      <span className={v.storicoData}>{periodoBreve(r.check_in, r.check_out)}</span>
-                      <span className={v.storicoDato}>{r.camere.join(' → ')}</span>
-                      <span className={v.storicoDato} style={{ marginLeft: 'auto' }}>{ora ? `arrivo ${ora}` : 'orario non registrato'}</span>
-                      <span className={v.storicoDato}>{nav === 'si' ? 'navetta sì' : nav === 'no' ? 'navetta no' : 'navetta non registrata'}</span>
+            {storicoArrivi && (() => {
+              const arrivi = conclusiDelCliente().filter(r => r.status !== 'annullata')
+              if (arrivi.length === 0) return <p className={v.nota}>Nessun arrivo precedente registrato per questo cliente.</p>
+              return (
+                <div>
+                  {arrivi.map(r => {
+                    const primo = [...r.segmenti].sort((a, z) => a.check_in.localeCompare(z.check_in))[0]
+                    const ora = primo?.check_in_time
+                    const nav = primo?.shuttle
+                    return (
+                      <div key={r.chiave} className={v.riga} style={{ gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
+                        <span className={v.storicoData}>{periodoBreve(r.check_in, r.check_out)}</span>
+                        <span className={v.storicoDato}>{r.camere.join(' → ')}</span>
+                        <span className={v.storicoDato} style={{ marginLeft: 'auto' }}>{ora ? `arrivo ${ora}` : 'orario non registrato'}</span>
+                        <span className={v.storicoDato}>{nav === 'si' ? 'navetta sì' : nav === 'no' ? 'navetta no' : 'navetta non registrata'}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+            {arrivoAperto && (
+              <div data-modulo-arrivo style={{ paddingBottom: 8 }}>
+                <div className={v.due}>
+                  <label className={v.campoBlocco}>
+                    <span className={v.campoEti}>Orario previsto</span>
+                    <input type="text" inputMode="numeric" maxLength={5} placeholder="es. 18:30" className={v.campo}
+                      value={arrivoForm.ora} onChange={e => setArrivoForm({ ...arrivoForm, ora: oraDigitata(e.target.value) })} />
+                  </label>
+                  <div className={v.campoBlocco}>
+                    <span className={v.campoEti}>Navetta</span>
+                    <div className={v.pillole} style={{ marginTop: 2 }}>
+                      {([['si', 'Sì'], ['no', 'No'], ['', 'Non so']] as const).map(([val, testoNav]) => (
+                        <button key={testoNav} type="button" aria-pressed={arrivoForm.navetta === val}
+                          className={arrivoForm.navetta === val ? v.pil : v.pilT}
+                          onClick={() => setArrivoForm({ ...arrivoForm, navetta: val })}>{testoNav}</button>
+                      ))}
                     </div>
-                  )
-                })}
-              </div>
-            )
-          })()}
-
-          {booking.status !== 'annullata' && (
-            <ComandoModifica nome="arrivo" aperto={arrivoAperto}
-              onClick={() => (arrivoAperto ? setArrivoAperto(false) : apriArrivo())} />
-          )}
-          {arrivoAperto && (
-            <div data-modulo-arrivo style={{ paddingBottom: 8 }}>
-              <div className={v.due}>
-                <label className={v.campoBlocco}>
-                  <span className={v.campoEti}>Orario previsto</span>
-                  <input type="text" inputMode="numeric" maxLength={5} placeholder="es. 18:30" className={v.campo}
-                    value={arrivoForm.ora} onChange={e => setArrivoForm({ ...arrivoForm, ora: oraDigitata(e.target.value) })} />
-                </label>
-                <div className={v.campoBlocco}>
-                  <span className={v.campoEti}>Navetta</span>
-                  <div className={v.pillole} style={{ marginTop: 2 }}>
-                    {([['si', 'Sì'], ['no', 'No'], ['', 'Non so']] as const).map(([val, testoNav]) => (
-                      <button key={testoNav} type="button" aria-pressed={arrivoForm.navetta === val}
-                        className={arrivoForm.navetta === val ? v.pil : v.pilT}
-                        onClick={() => setArrivoForm({ ...arrivoForm, navetta: val })}>{testoNav}</button>
-                    ))}
                   </div>
                 </div>
+                {erroreArrivo && <p className={v.avviso}>{erroreArrivo}</p>}
+                <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                  <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }} disabled={salvandoArrivo} onClick={salvaArrivo}>
+                    {salvandoArrivo ? 'Salvo…' : 'Salva arrivo'}
+                  </button>
+                  <button type="button" className={v.pilT} style={{ minHeight: 42 }} onClick={() => setArrivoAperto(false)}>Annulla</button>
+                </div>
               </div>
-              {erroreArrivo && <p className={v.avviso}>{erroreArrivo}</p>}
-              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }} disabled={salvandoArrivo} onClick={salvaArrivo}>
-                  {salvandoArrivo ? 'Salvo…' : 'Salva arrivo'}
-                </button>
-                <button type="button" className={v.pilT} style={{ minHeight: 42 }} onClick={() => setArrivoAperto(false)}>Annulla</button>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <p className={v.sezione} style={{ marginTop: 22 }}>Il soggiorno</p>
           {/* Stessa testa della pagina di inserimento: camera a sinistra,
