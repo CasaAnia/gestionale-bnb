@@ -2453,7 +2453,9 @@ export default function BookingDetail() {
           })()}
           <div className={v.riga} style={{ borderTop: 'none' }}>
             <span className={v.eti}>Letto aggiuntivo</span>
-            <span className={v.numeroPiccolo}>{booking.extra_bed ? `€${Number(booking.extra_bed_total).toFixed(0)}` : 'no'}</span>
+            {/* Senza letto aggiuntivo non si scrive niente (Ania, 10/09/2026),
+                come per l'orario e la navetta che mancano */}
+            <span className={v.numeroPiccolo}>{booking.extra_bed ? `€${Number(booking.extra_bed_total).toFixed(0)}` : ''}</span>
           </div>
           {/* Un comando solo in fondo alla sezione (Ania, 10/09/2026): apre le
               modifiche che c'erano già — arrivo e partenza, letto aggiuntivo,
