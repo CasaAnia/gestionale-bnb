@@ -659,14 +659,22 @@ export function statoCameraGiorno(bookings: Prenotazioni, roomId: string, giorno
   }
   if ((events || []).some(e => e.room_id === roomId && e.tipo === 'soggiorno' && e.stato === 'fatta' && (e.data_effettiva || e.data_prevista) === giorno)) segna(true)
 
-  // Arrivi: la camera è pronta?
-  const arrivi = bookings.filter(b => b.room_id === roomId && b.check_in === giorno && !continuaDa(bookings, b))
-  if (arrivi.length > 0) {
-    const precedente = bookings
-      .filter(b => b.room_id === roomId && b.check_out <= giorno && !continuaIn(bookings, b) && !arrivi.some(a => a.id === b.id))
-      .sort((a, b) => a.check_out.localeCompare(b.check_out)).slice(-1)[0]
-    const pronta = !precedente || precedente.check_out < CUTOFF_STORICO || chiusaOAutomatica(precedente)
-    segna(pronta)
+  // Arrivi: la camera è pronta? Solo per OGGI (Ania, 10/09/2026: «diamo per
+  // scontato che dopo ogni soggiorno la camera viene pulita»). Nei giorni
+  // futuri una camera si conta soltanto se lì c'è una pulizia davvero
+  // prevista: la partenza di quel giorno, o una pulizia RIMANDATA a quel
+  // giorno — e a quelle pensa il blocco delle partenze qui sopra. Altrimenti
+  // la stessa pulizia sarebbe contata due volte, il giorno suo e il giorno
+  // dell'arrivo successivo.
+  if (giorno === oggi) {
+    const arrivi = bookings.filter(b => b.room_id === roomId && b.check_in === giorno && !continuaDa(bookings, b))
+    if (arrivi.length > 0) {
+      const precedente = bookings
+        .filter(b => b.room_id === roomId && b.check_out <= giorno && !continuaIn(bookings, b) && !arrivi.some(a => a.id === b.id))
+        .sort((a, b) => a.check_out.localeCompare(b.check_out)).slice(-1)[0]
+      const pronta = !precedente || precedente.check_out < CUTOFF_STORICO || chiusaOAutomatica(precedente)
+      segna(pronta)
+    }
   }
   return daFare ? 'da_fare' : fatta ? 'fatta' : 'nessuna'
 }

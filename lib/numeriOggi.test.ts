@@ -104,7 +104,9 @@ test('striscia = pagina Pulizie: per ognuno dei 28 giorni da fare e fatte coinci
   assert.equal(per['2026-09-06'], '0/0')   // niente
   assert.equal(per['2026-09-07'], '1/0')   // Amelia parte; il cambio biancheria di Allegra è stato spostato dalla rettifica (fatta l'8)
   assert.equal(per['2026-09-08'], '0/1')   // Allegra: cambio biancheria segnato fatto l'8 → ✓
-  assert.equal(per['2026-09-09'], '1/1')   // Ambra: cambio camera da fare (Lucia va in Lena); Lena: arrivo in camera senza partenze da chiudere → pronta (fatta)
+  // Attesa aggiornata il 10/09/2026: nei giorni futuri si contano solo le
+  // pulizie previste QUEL giorno. L'arrivo di Lucia in Lena non fa più numero.
+  assert.equal(per['2026-09-09'], '1/0')   // Ambra: cambio camera da fare (Lucia va in Lena); l'arrivo in Lena non si conta
   assert.equal(per['2026-09-11'], '0/0')   // partenza da Lena rimandata…
   assert.equal(per['2026-09-13'], '1/0')   // …al 13
   assert.equal(per['2026-09-12'], '1/0')   // Allegra: cambio biancheria (8 + 4 notti)
@@ -113,7 +115,13 @@ test('striscia = pagina Pulizie: per ognuno dei 28 giorni da fare e fatte coinci
   assert.equal(s[0].oggi, true); assert.equal(s.filter(g => g.oggi).length, 1)
 })
 
-test('caso di Ania (08/09/2026): due arrivi domani in camere già pulite e segnate fatte → «✓», non «2»; se una non è segnata → «1»', () => {
+// Ania, 10/09/2026: «diamo per scontato che dopo ogni soggiorno la camera
+// viene pulita». Nei giorni futuri la striscia conta solo le pulizie previste
+// quel giorno: un arrivo, da solo, non fa numero — né da fare né fatta. Una
+// camera ricompare più avanti solo se la pulizia è stata RIMANDATA a quel
+// giorno. Prima invece la stessa pulizia si vedeva due volte: il giorno suo e
+// il giorno dell'arrivo successivo (il caso di sabato 12 settembre).
+test('arrivi nei giorni futuri: non fanno numero, né «2» né «✓»; il lavoro resta contato il giorno suo', () => {
   seq = 0
   const oggi = '2026-09-05'
   const bookings = [
@@ -125,20 +133,52 @@ test('caso di Ania (08/09/2026): due arrivi domani in camere già pulite e segna
     { id: 'f2', room_id: 'ambra', booking_id: 'p3', tipo: 'fine_soggiorno', stato: 'fatta', data_prevista: '2026-09-05', data_effettiva: '2026-09-05', created_at: '2026-09-05T12:00:00Z' },
   ]
   const domani = strisciaSettimane(CAMERE, bookings, fatte, oggi)[1]
-  assert.deepEqual([domani.daFare, domani.fatte], [0, 2])
-  assert.deepEqual(testoCasella(domani), { testo: '✓', tono: 'fatto' })
-  // Senza la seconda segnatura: la partenza di oggi in Ambra è automatica (nuovo ospite domani) ma OGGI
-  // è ancora lavoro della giornata (sta in «Oggi» della pagina Pulizie); da domani vale fatta
+  assert.deepEqual([domani.daFare, domani.fatte], [0, 0])                   // due arrivi, nessuna pulizia prevista
+  assert.deepEqual(testoCasella(domani), { testo: '—', tono: 'niente' })
+  // Senza la seconda segnatura: la partenza di oggi in Ambra è ancora lavoro
+  // di OGGI (sta in «Oggi» della pagina Pulizie); domani resta vuoto
   const senzaAmbra = strisciaSettimane(CAMERE, bookings, fatte.slice(0, 1), oggi)
   assert.deepEqual([senzaAmbra[0].daFare, senzaAmbra[0].fatte], [1, 0])     // oggi: Ambra da fare
-  assert.deepEqual([senzaAmbra[1].daFare, senzaAmbra[1].fatte], [0, 2])     // domani: automatica = fatta, camera pronta
-  // Partita il 4 e MAI segnata, senza arrivo entro il giorno dopo: in ritardo oggi, e domani la camera dell'arrivo non è pronta
+  assert.deepEqual([senzaAmbra[1].daFare, senzaAmbra[1].fatte], [0, 0])     // domani: niente
+  // Partita il 4 e MAI segnata: resta in ritardo OGGI, non si ripresenta
+  // domani solo perché in Amelia arriva qualcuno
   const senzaAmelia = strisciaSettimane(CAMERE, bookings, fatte.slice(1), oggi)
   assert.equal(senzaAmelia[0].daFare, 1)      // Amelia in ritardo oggi
-  assert.deepEqual([senzaAmelia[1].daFare, senzaAmelia[1].fatte], [1, 1])
-  assert.deepEqual(testoCasella(senzaAmelia[1]), { testo: '1', tono: 'numero' })
+  assert.deepEqual([senzaAmelia[1].daFare, senzaAmelia[1].fatte], [0, 0])
+  assert.deepEqual(testoCasella(senzaAmelia[1]), { testo: '—', tono: 'niente' })
   assert.deepEqual(testoCasella({ daFare: 0, fatte: 0 }), { testo: '—', tono: 'niente' })
   assert.equal(statoCameraGiorno(attive(bookings), 'lena', '2026-09-06', oggi, fatte), 'nessuna')
+})
+
+// ── Il caso vero di Ania: sabato 12 settembre 2026 ──────────────────────────
+// Rosa parte da Amelia venerdì 11 e la pulizia non è ancora segnata; sabato 12
+// in Amelia arriva Carmela, che quel giorno lascia Lena, dove entra Salvatore.
+// Ania: «sabato mi fa vedere due camere da fare» — ma la seconda era la
+// pulizia di venerdì, contata una seconda volta. Sabato deve restare la sola
+// Lena; Amelia torna a farsi vedere solo se la pulizia viene RIMANDATA lì.
+test('sabato 12/09/2026: una camera sola, non due; con il rinvio tornano due', () => {
+  seq = 0
+  const oggi = '2026-09-10'
+  const bookings = [
+    pren('amelia', '2026-09-07', '2026-09-11'),                 // Rosa parte venerdì 11
+    pren('lena', '2026-09-10', '2026-09-12', { guest_id: 'carmela' }),
+    pren('amelia', '2026-09-12', '2026-09-13', { guest_id: 'carmela' }),   // Carmela: cambio camera sabato
+    pren('lena', '2026-09-12', '2026-09-13'),                   // Salvatore entra in Lena sabato
+  ]
+  const venerdi = conteggioGiorno(CAMERE, bookings, [], '2026-09-11', oggi)
+  const sabato = conteggioGiorno(CAMERE, bookings, [], '2026-09-12', oggi)
+  assert.deepEqual([venerdi.daFare, venerdi.fatte], [1, 0], 'venerdì: Amelia')
+  assert.deepEqual([sabato.daFare, sabato.fatte], [1, 0], 'sabato: solo Lena')
+  assert.equal(statoCameraGiorno(attive(bookings), 'amelia', '2026-09-12', oggi, []), 'nessuna')
+  assert.equal(statoCameraGiorno(attive(bookings), 'lena', '2026-09-12', oggi, []), 'da_fare')
+  // Se Ania rimanda a sabato la pulizia di Amelia, sabato torna a due camere
+  const rinvio: Decisione[] = [{
+    id: 'r1', room_id: 'amelia', booking_id: 'p1', tipo: 'fine_soggiorno', stato: 'rimandata',
+    data_prevista: '2026-09-11', prossima_data: '2026-09-12', created_at: '2026-09-11T09:00:00Z',
+  }]
+  const sabatoRinviato = conteggioGiorno(CAMERE, bookings, rinvio, '2026-09-12', oggi)
+  assert.deepEqual([sabatoRinviato.daFare, sabatoRinviato.fatte], [2, 0], 'sabato col rinvio: Amelia e Lena')
+  assert.deepEqual((c => [c.daFare, c.fatte])(conteggioGiorno(CAMERE, bookings, rinvio, '2026-09-11', oggi)), [0, 0], 'venerdì: la pulizia se n\'è andata a sabato')
 })
 
 // ── Bug del 07/09/2026: la casella di OGGI perdeva il conteggio (finestra che parte da oggi) ──
