@@ -324,6 +324,10 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/auth/v1/token') return rispondi(res, 200, sessione())
   if (url.pathname === '/auth/v1/user') return rispondi(res, 200, utente)
   if (url.pathname === '/auth/v1/logout') return rispondi(res, 204)
+  const rpc = url.pathname.match(/^\/rest\/v1\/rpc\/(\w+)$/)
+  if (rpc) {
+    return rispondi(res, 404, { code: 'PGRST202', message: `Could not find the function public.${rpc[1]} in the schema cache`, details: null, hint: null })
+  }
   const m = url.pathname.match(/^\/rest\/v1\/(\w+)$/)
   // HEAD con count=exact (07/09/2026): il conteggio dei documenti del cliente nella
   // scheda prenotazione (RigaDocumentiPrenotazione) legge solo Content-Range
@@ -368,7 +372,11 @@ const finto = createServer((req, res) => {
   if (m && req.method === 'PATCH' && (m[1] === 'bookings' || m[1] === 'documenti_cliente' || m[1] === 'guests')) {
     return leggiCorpo(req).then(corpo => {
       const chiavi = Object.keys(corpo || {})
-      if (m[1] === 'bookings' && chiavi.some(k => !['guest_id', 'guest_name'].includes(k))) return rispondi(res, 403, { code: 'ANTEPRIMA', message: 'scrittura non ammessa nella preview sintetica' })
+      const AMMESSI = ['guest_id', 'guest_name', 'pagato', 'check_in', 'check_out', 'num_guests', 'price_per_night',
+        'extra_bed', 'extra_bed_dates', 'extra_bed_total', 'extra_bed_importo', 'extra_bed_criterio',
+        'total_amount', 'discount_type', 'discount_value', 'check_in_time', 'shuttle', 'updated_at',
+        'status', 'cancelled_at', 'cancelled_reason', 'group_id', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro']
+      if (m[1] === 'bookings' && chiavi.some(k => !AMMESSI.includes(k))) return rispondi(res, 403, { code: 'ANTEPRIMA', message: `scrittura non ammessa nella preview sintetica: ${chiavi.filter(k => !AMMESSI.includes(k)).join(', ')}` })
       if (m[1] === 'bookings' && erroreCambioCliente) return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sul cambio cliente' })
       const righe = righeFiltrate(m[1], url)
       // R4 (revisione 07/09/2026): trigger sintetico della 0042 — il cambio cliente
@@ -385,6 +393,22 @@ const finto = createServer((req, res) => {
     })
   }
   if (m && req.method === 'POST' && m[1] === 'strutture') return rispondi(res, 201, [])
+  if (m && req.method === 'POST' && m[1] === 'payments') {
+    return leggiCorpo(req).then(corpo => {
+      const riga = Array.isArray(corpo) ? corpo[0] : corpo
+      if (!riga || !riga.booking_id || !(Number(riga.amount) > 0)) return rispondi(res, 400, { code: '23502', message: 'booking_id o amount mancante' })
+      const nuovo = { id: randomUUID(), booking_id: riga.booking_id, amount: Number(riga.amount), method: riga.method || 'contanti', paid_on: riga.paid_on || '2026-09-10', created_at: new Date().toISOString() }
+      payments.push(nuovo)
+      console.log(`[finto supabase] +1 pagamento (${nuovo.amount} ${nuovo.method} su ${nuovo.booking_id.slice(-4)})`)
+      const accept = req.headers.accept || ''
+      return rispondi(res, 201, accept.includes('vnd.pgrst.object') ? nuovo : [nuovo])
+    })
+  }
+  if (m && req.method === 'DELETE' && m[1] === 'payments') {
+    const righe = righeFiltrate('payments', url)
+    for (const r of righe) payments.splice(payments.indexOf(r), 1)
+    return rispondi(res, 200, [])
+  }
   // Nuova prenotazione (07/09/2026): l'inserimento in bookings si accetta in
   // memoria, per provare «prima camera → Aggiungi cambio camera → seconda camera»
   if (m && req.method === 'POST' && m[1] === 'bookings') {

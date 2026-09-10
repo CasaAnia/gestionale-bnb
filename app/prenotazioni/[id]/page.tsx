@@ -26,7 +26,7 @@ import { scriviPoiAggiorna, messaggioNonSalvato } from '@/lib/scritturaSicura'
 import { salvaInSequenza, leggiConEsito, MESSAGGIO_RILETTURA } from '@/lib/prenotazioneScritture'
 import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 import { oggiARoma } from '@/lib/spese/adattatore'
-import { saldoMancanteCent, METODI_PAGAMENTO, eseguiSegnaPagato, eseguiRegistraAcconto, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, type MetodoPagamento, type MovimentoSaldo, type AccontoPendente } from '@/lib/statistiche'
+import { saldoMancanteCent, eseguiSegnaPagato, eseguiRegistraAcconto, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, type MetodoPagamento, type MovimentoSaldo, type AccontoPendente } from '@/lib/statistiche'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import CambiaCliente from '@/components/CambiaCliente'
 import type { ClienteBreve } from '@/lib/cambiaCliente'
@@ -438,12 +438,14 @@ export default function BookingDetail() {
   // soggiorno è già segnato pagato o non è un bonifico: il saldo mancante
   // lo ricalcola la scheda dai movimenti riletti (stesso contratto).
   const daHomePagato = searchParams.get('azione') === 'pagato'
-  const [finestraPagato, setFinestraPagato] = useState(daHomePagato)
   useEffect(() => {
     if (!daHomePagato || !booking?.id) return
     document.getElementById('segna-pagato')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // (il link dalla Home porta al conto, dove si registra il pagamento)
   }, [daHomePagato, booking?.id])
-  const [metodoPagato, setMetodoPagato] = useState<MetodoPagamento>('bonifico')
+  // Metodo del saldo automatico: quando il conto è già coperto non nasce
+  // nessun movimento, quindi resta solo un valore di cortesia.
+  const [metodoPagato] = useState<MetodoPagamento>('bonifico')
   // Parte 2 (05/09/2026): avvisi delle altre azioni della scheda. avvisoScheda
   // sta in cima alla scheda (rilettura fallita dopo un salvataggio riuscito,
   // cliente non aggiornato, log WhatsApp non registrato); gli altri stanno
@@ -715,9 +717,16 @@ export default function BookingDetail() {
         nuovaChiave: () => crypto.randomUUID(),
       })
       if (esito.esito === 'errore') { setAccontoError(esito.messaggio); return }
-      setAcconti([...esito.pagamenti].sort((a, b) => String(a.paid_on).localeCompare(String(b.paid_on))))
+      const pagamenti = [...esito.pagamenti].sort((a, b) => String(a.paid_on).localeCompare(String(b.paid_on)))
+      setAcconti(pagamenti)
       setAccontoForm({ amount: '', method: 'contanti', paid_on: oggiARoma() })
       setAccontoError(null)
+      // Un bottone solo (Ania, 10/09/2026): quando gli incassi coprono il
+      // totale la prenotazione si segna pagata da sola, con la stessa strada
+      // sicura di prima («Segna come pagato»: rilettura, chiave custodita,
+      // RPC idempotente). Il saldo che manca è zero, quindi non nasce nessun
+      // movimento in più: si scrive solo il bollino.
+      if (!booking.pagato && saldoMancanteCent(segmentiSoggiorno(), pagamenti) <= 0) await segnaPagato()
     } finally {
       setSavingAcconto(false)
     }
@@ -916,7 +925,6 @@ export default function BookingDetail() {
       setBooking({ ...booking, pagato: true })
       setReservationBookings(rs => rs.map(r => ({ ...r, pagato: true })))
       setGroupBookings(gs => gs.map((g: { pagato?: boolean }) => ({ ...g, pagato: true })))
-      setFinestraPagato(false)
       // Il server può aver ricalcolato dopo un incasso da un altro dispositivo.
       const riletti = await supabase.from('payments').select('*').in('booking_id', ids).order('paid_on')
       if (riletti.error || !riletti.data) { setAccontiOk(false); setErrorePagato('Salvataggio riuscito, ma non riesco a rileggere il conto. Ricarica la scheda.') }
@@ -2759,7 +2767,8 @@ export default function BookingDetail() {
                 {accontoError && (
                   <p className="text-xs text-[#8C3B2E] bg-[#F6E4DE] rounded-lg px-2 py-1.5 mb-2">❌ {accontoError}</p>
                 )}
-                <p className={v.campoEti} style={{ marginTop: 12 }}>Aggiungi pagamento</p>
+                {errorePagato && <AvvisoAzione testo={errorePagato} className="mb-2" />}
+                <p id="segna-pagato" className={v.campoEti} style={{ marginTop: 12 }}>Aggiungi pagamento</p>
                 {/* Tutti e tre sulla stessa riga (Ania, 10/09/2026): importo,
                     contanti o bonifico e la data; «Registra pagamento» sotto,
                     a tutta larghezza. */}
@@ -2936,54 +2945,6 @@ export default function BookingDetail() {
         </div>
       )}
 
-
-      {/* Quick pagato toggle. Errori di salvataggio visibili (05/09/2026):
-          «pagato» sullo schermo solo se l'update è riuscito; altrimenti il
-          bottone torna attivo con «Non salvato, riprova» sotto. La logica
-          pagato/movimenti non cambia. */}
-      {!editing && prenotazioneOk && contoPronto && booking.status !== 'annullata' && ((accordoComune.bonifico && saldoMancanteCent(segmentiSoggiorno(), acconti) > 0) || daHomePagato) && (
-        <div id="segna-pagato" className="mb-4 space-y-2">
-          {!finestraPagato ? (
-            <button onClick={() => { setErrorePagato(null); setFinestraPagato(true) }}
-              className={v.pilC} style={{ width: '100%', minHeight: 44 }}>
-              Segna come pagato
-            </button>
-          ) : (() => {
-            const mancante = saldoMancanteCent(segmentiSoggiorno(), acconti)
-            return (
-              <div className="ed-riga py-3">
-                <p className="text-sm font-semibold text-green-dark">Segna come pagato</p>
-                <p className="text-[12px] text-gray-500 mt-0.5">
-                  {mancante > 0
-                    ? <>Registro un pagamento di <span className="font-semibold text-green-dark">€{(mancante / 100).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> con la data di oggi (il saldo che manca), poi segno la prenotazione come pagata.</>
-                    : <>I pagamenti registrati coprono già il totale: segno solo la prenotazione come pagata.</>}
-                </p>
-                {mancante > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {METODI_PAGAMENTO.map(m => (
-                      <button key={m.chiave} type="button" onClick={() => setMetodoPagato(m.chiave)} aria-pressed={metodoPagato === m.chiave}
-                        className={`rounded-full px-3 py-1.5 text-xs font-semibold border ${metodoPagato === m.chiave ? 'bg-green-mid text-white border-green-mid' : 'text-stone border-[#C9BFA8]'}`}>
-                        {m.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="flex gap-2 mt-3">
-                  <button onClick={segnaPagato} disabled={segnandoPagato}
-                    className={v.pil} style={{ flex: 1, minHeight: 42 }}>
-                    {segnandoPagato ? 'Salvo…' : 'Conferma'}
-                  </button>
-                  <button type="button" onClick={() => { setFinestraPagato(false); setErrorePagato(null) }} disabled={segnandoPagato}
-                    className="ed-pillola-tenue flex-1 text-sm">
-                    Annulla
-                  </button>
-                </div>
-              </div>
-            )
-          })()}
-          {errorePagato && <AvvisoAzione testo={errorePagato} />}
-        </div>
-      )}
 
       {/* Messaggi al cliente (telefono; su desktop lo stesso blocco sta nella colonna) */}
       {!editing && waPhone && (
