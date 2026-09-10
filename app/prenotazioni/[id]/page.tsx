@@ -37,8 +37,6 @@ import { soggiorniPrecedenti, etichettaGiaStato, type SoggiornoStorico } from '@
 import { righeStorico } from '@/lib/storicoCliente'
 import { rigaDaSalvare, lettoProposto, type PeriodoComposto } from '@/lib/prenotazioneComposta'
 import { oraDigitata, oraCompleta } from '@/lib/ora'
-import { righeCronologia, AVVISO_0042 } from '@/lib/cronologia'
-import { leggiCronologia, type LetturaCronologia } from '@/lib/cronologiaDati'
 
 import { valutazioneDi, vuoleRicevuta, ETICHETTA_VALUTAZIONE } from '@/lib/valutazione'
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
@@ -453,9 +451,8 @@ export default function BookingDetail() {
   const [salvandoMotivo, setSalvandoMotivo] = useState(false)
   const [storicoArrivi, setStoricoArrivi] = useState(false)
   // La cronologia resta, ma chiusa: si apre solo se serve (Ania, 09/09/2026)
-  const [cronologiaAperta, setCronologiaAperta] = useState(false)
   // Letto aggiuntivo modificabile dalla scheda (Ania, 09/09/2026): si accendono
-  // e si spengono le singole notti senza passare da «Modifica prenotazione».
+  // e si spengono le singole notti senza passare da «Altre modifiche».
   const [lettoNotti, setLettoNotti] = useState<string[]>([])
   const [lettoImporto, setLettoImporto] = useState<number | null>(null)
   const [lettoCriterio, setLettoCriterio] = useState<'notte' | 'ogni4' | 'totale'>('notte')
@@ -676,20 +673,10 @@ export default function BookingDetail() {
     return () => { vivo = false }
   }, [chiaveCamere])
 
-  // Cronologia delle modifiche (07/09/2026): righe scritte dai trigger della
-  // proposta 0042 per tutti i segmenti del soggiorno; si rilegge dopo ogni
-  // salvataggio riuscito (la scheda rilegge la prenotazione → cambia tentativo)
-  const [cronologia, setCronologia] = useState<LetturaCronologia | null>(null)
-  const [tentativoCronologia, setTentativoCronologia] = useState(0)
-  // Chiave di rilettura: segmenti del soggiorno + ultimo salvataggio + numero di acconti
-  const chiaveCronologia = booking ? `${chiaveCamere}|${booking.updated_at ?? ''}|${acconti.length}|${tentativoCronologia}` : ''
-  useEffect(() => {
-    if (!chiaveCronologia) return
-    let vivo = true
-    const ids = chiaveCronologia.split('|')[0].split(',').filter(Boolean)
-    leggiCronologia(ids).then(r => { if (vivo) setCronologia(r) })
-    return () => { vivo = false }
-  }, [chiaveCronologia])
+  // La cronologia delle modifiche non si mostra più (Ania, 10/09/2026: «la
+  // parola cronologia alla fine non serve a niente»). I trigger della proposta
+  // 0042 continuano a scriverla sul database: per rimetterla in pagina basta
+  // rileggerla con leggiCronologia e stamparla con righeCronologia.
 
   // Acconto a mano — stesso contratto di «Segna come pagato» (R10): chiave
   // custodita prima dell'invio, rilettura, RPC registra_acconto (idempotente)
@@ -846,7 +833,6 @@ export default function BookingDetail() {
     // R4 (revisione 07/09/2026): ogni salvataggio riuscito passa da qui (modifica,
     // sconto, date, cambio cliente): la cronologia si rilegge SEMPRE, anche
     // quando updated_at non cambia (il cambio cliente scrive solo guest_id)
-    setTentativoCronologia(t => t + 1)
     const letto = await leggiConEsito<RigaPrenotazione>(
       () => supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single(),
       'ricaricare la scheda')
@@ -873,7 +859,6 @@ export default function BookingDetail() {
       const scrivi = () => supabase.from('bookings').update({ status: 'confermata' }).eq(f.colonna, f.valore).eq('status', 'in_attesa')
       const errore = await scriviPoiAggiorna(scrivi, () => {
         setBooking({ ...booking, status: 'confermata' })
-        setTentativoCronologia(t => t + 1)
         setReservationBookings(rs => rs.map(r => r.status === 'in_attesa' ? { ...r, status: 'confermata' } : r))
         setGroupBookings(gs => gs.map((g: any) => g.status === 'in_attesa' ? { ...g, status: 'confermata' } : g))
       })
@@ -1186,7 +1171,7 @@ export default function BookingDetail() {
       const nuovo = crypto.randomUUID()
       const errore = await scriviPoiAggiorna(
         () => supabase.from('bookings').update({ group_id: nuovo }).eq('id', id),
-        () => { setBooking({ ...booking, group_id: nuovo }); setTentativoCronologia(t => t + 1) },
+        () => { setBooking({ ...booking, group_id: nuovo }) },
       )
       if (errore) { setErroreCambioCamera(errore); return }
       groupId = nuovo
@@ -1217,7 +1202,7 @@ export default function BookingDetail() {
           const r = await supabase.from('bookings').update(campiAnnulla).eq(f.colonna, f.valore).neq('status', 'annullata').select('id')
           return { error: r.error || (r.data?.length !== righePrenotazione.filter(x => x.status !== 'annullata').length ? new Error('Ricarica per verificare quali camere sono state annullate') : null) }
         },
-        () => { setBooking({ ...booking, ...campiAnnulla }); setReservationBookings(rs => rs.map(r => r.status === 'annullata' ? r : { ...r, ...campiAnnulla })); setGroupBookings([]); setTentativoCronologia(t => t + 1) },
+        () => { setBooking({ ...booking, ...campiAnnulla }); setReservationBookings(rs => rs.map(r => r.status === 'annullata' ? r : { ...r, ...campiAnnulla })); setGroupBookings([]) },
       )
       if (errore) { setErroreAnnulla(errore); return }
       const msg = buildWhatsappMsg({ ...booking, bonifico: accordoComune.bonifico }, 'annullamento', righePrenotazione.filter(r => r.status !== 'annullata'), acconti)
@@ -1299,7 +1284,6 @@ export default function BookingDetail() {
       if (error) { setErroreAccordo(`Accordo non salvato: ${error.message}`); return }
       setBooking({ ...booking, ...campi })
       setReservationBookings(rs => rs.map(r => r.id === booking.id ? { ...r, ...campi } : r))
-      setTentativoCronologia(t => t + 1)
       setAccordoAperto(false)
     } catch { setErroreAccordo('Accordo non salvato o risposta non ricevuta: ricarica per verificarlo.') }
     finally { setSalvandoAccordo(false) }
@@ -1505,7 +1489,7 @@ export default function BookingDetail() {
     const piano = pianoSoggiorno()
     if (piano.errore) { setErroreSalvaSoggiorno(piano.errore); return }
     if (piano.scontoDecaduto) {
-      setErroreSalvaSoggiorno(`Con queste modifiche il totale concordato (€${Number(booking.discount_value).toLocaleString('it-IT')}) non è più uno sconto sul prezzo pieno. Rivedi lo sconto da «Modifica prenotazione» prima di salvare.`)
+      setErroreSalvaSoggiorno(`Con queste modifiche il totale concordato (€${Number(booking.discount_value).toLocaleString('it-IT')}) non è più uno sconto sul prezzo pieno. Rivedi lo sconto da «Altre modifiche» prima di salvare.`)
       return
     }
     setSalvandoSoggiorno(true)
@@ -1573,7 +1557,6 @@ export default function BookingDetail() {
       if (mia) setBooking({ ...booking, ...campiRiga(mia) })
       setAvvisoScheda(erroreRilettura)
     }
-    setTentativoCronologia(t => t + 1)
     setSalvandoSoggiorno(false)
     if (accordoNonRegistrato) {
       setLettoAccordoVecchio(true)
@@ -1618,7 +1601,6 @@ export default function BookingDetail() {
       () => {
         setBooking({ ...booking, ...campiSalvati })
         setGroupBookings(righe => righe.map(r => r.id === booking.id ? { ...r, ...campiSalvati } : r))
-        setTentativoCronologia(t => t + 1)
       },
     )
     setSalvandoArrivo(false)
@@ -1783,7 +1765,7 @@ export default function BookingDetail() {
       {/* MODALITÀ MODIFICA */}
       {editing ? (
         <div className="ed-riga py-4 mb-4">
-          <p className="font-semibold mb-3 text-green-mid">✏️ Modifica prenotazione</p>
+          <p className="font-semibold mb-3 text-green-mid">✏️ Altre modifiche</p>
 
           <p className="text-xs text-gray-500 mb-1">Nome cliente</p>
           <input value={editForm.guest_name} onChange={e => setEditForm({ ...editForm, guest_name: maiuscoleNelCampo(e.target) })}
@@ -2277,20 +2259,21 @@ export default function BookingDetail() {
               «Cambia cliente». Senza documenti la riga della camera resta com'è. */}
           {/* Le due note, una sotto l'altra (Ania, 09/09/2026): prima quella
               permanente del cliente (guests.notes), poi quella di QUESTA
-              prenotazione (bookings.notes) col solo testo in rosso acceso. */}
+              prenotazione (bookings.notes). In rosso soltanto il testo, non
+              l'etichetta né lo sfondo (10/09/2026).
+              Stanno STRETTE, subito sotto «Modifica dati» (Ania, 10/09/2026):
+              si vedono già perché sono rosse, non serve che occupino mezza
+              pagina, e senza testo non lasciano nemmeno la riga vuota. */}
           {guest?.notes && (
-            <div className={v.riga} style={{ display: 'block', marginTop: 14, borderTop: 'none' }}>
-              {/* Ania, 10/09/2026: in rosso soltanto il testo della nota, non
-                  l'etichetta né lo sfondo. La nota della prenotazione resta
-                  com'era. */}
-              <span className={v.campoEti}>Nota del cliente</span>
-              <p className="text-[15px] leading-relaxed whitespace-pre-wrap" style={{ color: '#C0392B' }}>{guest.notes}</p>
+            <div style={{ marginTop: 8 }}>
+              <span className={v.campoEti} style={{ marginBottom: 0 }}>Nota del cliente</span>
+              <p className="text-[14px] leading-snug whitespace-pre-wrap" style={{ color: '#C0392B' }}>{guest.notes}</p>
             </div>
           )}
           {booking.notes && (
-            <div data-nota-cliente className={v.riga} style={{ display: 'block', borderTop: 'none', marginTop: guest?.notes ? 8 : 14 }}>
-              <span className={v.campoEti}>Nota di questa prenotazione</span>
-              <p className="text-[15px] font-semibold leading-relaxed whitespace-pre-wrap" style={{ color: '#C0392B' }}>{booking.notes}</p>
+            <div data-nota-cliente style={{ marginTop: guest?.notes ? 4 : 8 }}>
+              <span className={v.campoEti} style={{ marginBottom: 0 }}>Nota di questa prenotazione</span>
+              <p className="text-[14px] font-semibold leading-snug whitespace-pre-wrap" style={{ color: '#C0392B' }}>{booking.notes}</p>
             </div>
           )}
 
@@ -2470,12 +2453,6 @@ export default function BookingDetail() {
             <span className={v.eti}>Letto aggiuntivo</span>
             <span className={v.numeroPiccolo}>{booking.extra_bed ? `€${Number(booking.extra_bed_total).toFixed(0)}` : 'no'}</span>
           </div>
-          {booking.bonifico && (
-            <div className={v.riga}>
-              <span className={v.eti}>Bonifico</span>
-              <span className="font-semibold text-sm">{booking.pagato ? 'pagato' : 'in attesa di pagamento'}</span>
-            </div>
-          )}
           {/* Un comando solo in fondo alla sezione (Ania, 10/09/2026): apre le
               modifiche che c'erano già — arrivo e partenza, letto aggiuntivo,
               cambio camera — senza sparpagliare tanti «modifica» per le righe.
@@ -2684,6 +2661,13 @@ export default function BookingDetail() {
                         <span className={v.eti}>Pagamento</span>
                         <span className="font-semibold">{testo}</span>
                       </div>
+                      {/* Il bonifico sta col conto, non col soggiorno (Ania, 10/09/2026) */}
+                      {booking.bonifico && (
+                        <div className={`${v.riga} text-sm`} style={{ borderTop: 'none' }}>
+                          <span className={v.eti}>Bonifico</span>
+                          <span className="font-semibold">{booking.pagato ? 'pagato' : 'in attesa di pagamento'}</span>
+                        </div>
+                      )}
                       {caparra !== null && (
                         <>
                           <div className={`${v.riga} text-sm`} style={{ borderTop: 'none' }}>
@@ -2910,52 +2894,20 @@ export default function BookingDetail() {
           {booking.status === 'in_attesa' && erroreConferma && (
             <AvvisoAzione testo={erroreConferma} />
           )}
-          <button onClick={() => { setScontoDecisione(null); setScontoPct(''); setScontoTot(''); setScontoInfo(''); setEditing(true) }}
-            className={v.pil} style={{ width: '100%', minHeight: 44, marginTop: 18 }}>
-            Modifica prenotazione
-          </button>
           <button onClick={() => setShowCancel(true)}
-            className={v.pilT} style={{ width: '100%', minHeight: 44, marginTop: 10, color: '#8C3B2E', borderColor: '#8C3B2E' }}>
+            className={v.pilT} style={{ width: '100%', minHeight: 44, marginTop: 18, color: '#8C3B2E', borderColor: '#8C3B2E' }}>
             Annulla prenotazione
           </button>
+          {/* Il tastone verde «Modifica prenotazione» non serve più: ogni area
+              ha la sua modifica (Ania, 10/09/2026). Resta un comando piccolo in
+              fondo per le poche cose che le tre aree non toccano — la camera,
+              lo sconto, la nota della prenotazione, il colore sul calendario,
+              i telefoni in più e «da dove è arrivato». */}
+          <ComandoModifica nome="altre" aperto={false} etichetta="Altre modifiche"
+            onClick={() => { setScontoDecisione(null); setScontoPct(''); setScontoTot(''); setScontoInfo(''); setEditing(true) }} />
         </div>
       )}
 
-
-      {/* Altre prenotazioni dello stesso ospite: per ritrovare al volo
-          tutte le richieste fatte con lo stesso numero */}
-      {!editing && otherBookings.length > 0 && (
-        <div className="mb-4">
-          <p className={v.sezione}>Altre prenotazioni di questo ospite</p>
-          {otherBookings.map((ob: any) => {
-            // "In attesa" = riga intera rosso mattone: il bollino da solo
-            // rischiava di sfuggire all'occhio
-            const pending = ob.status === 'in_attesa'
-            const st = pending
-              ? { label: '⏳ In attesa', bg: '#fff', fg: '#B5502F' }
-              : ob.status === 'annullata'
-                ? { label: 'Annullata', bg: '#EDEDED', fg: '#777777' }
-                : ob.status === 'completata'
-                  ? { label: 'Completata', bg: '#EAF0F3', fg: '#3D5A66' }
-                  : { label: 'Confermata', bg: '#E7EFE9', fg: '#2D6A4F' }
-            const d = (s: string) => new Date(s + 'T00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
-            return (
-              <Link key={ob.id} href={`/prenotazioni/${ob.id}`}
-                className={pending
-                  ? 'flex items-center justify-between gap-2 py-2.5 px-3 -mx-1 my-1 rounded-lg shadow-sm'
-                  : 'flex items-center justify-between gap-2 py-2.5 border-b border-gray-100 last:border-b-0'}
-                style={pending ? { background: '#B5502F' } : undefined}>
-                <span className="text-sm min-w-0" style={pending ? { color: '#fff' } : undefined}>
-                  <span className="font-medium">{ob.rooms?.name}</span>
-                  <span style={pending ? { color: 'rgba(255,255,255,0.85)' } : undefined} className={pending ? '' : 'text-gray-500'}> · {d(ob.check_in)} → {d(ob.check_out)}</span>
-                  {ob.source === 'sito_web' && <span className={pending ? '' : 'text-gray-400'} style={{ fontSize: '0.75rem' }}> · 🌐</span>}
-                </span>
-                <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 whitespace-nowrap" style={{ background: st.bg, color: st.fg }}>{st.label}</span>
-              </Link>
-            )
-          })}
-        </div>
-      )}
 
       {/* Quick pagato toggle. Errori di salvataggio visibili (05/09/2026):
           «pagato» sullo schermo solo se l'update è riuscito; altrimenti il
@@ -3014,40 +2966,6 @@ export default function BookingDetail() {
         </div>
       )}
 
-      {/* Cronologia (07/09/2026): solo lettura, righe scritte dal database (proposta 0042) */}
-      {!editing && cronologia && (() => {
-        const nomeSegmento = (bid: string) => (righePrenotazione.length > 1 ? (righePrenotazione.find((b: { id: string }) => b.id === bid)?.rooms?.name ?? null) : null)
-        const righe = righeCronologia(cronologia.eventi, new Date(), nomeSegmento)
-        return (
-          <div className="mb-4" data-cronologia>
-            <div className={v.azioni}>
-              <button type="button" className={v.azione} onClick={() => setCronologiaAperta(x => !x)}>
-                {cronologiaAperta ? 'Chiudi la cronologia' : 'Cronologia'}
-              </button>
-            </div>
-            {!cronologiaAperta ? null : (<>
-            {cronologia.errore ? (
-              <AvvisoAzione testo={cronologia.errore} onRiprova={() => setTentativoCronologia(t => t + 1)} />
-            ) : !cronologia.registrata ? (
-              <p className="text-xs text-stone">{AVVISO_0042}</p>
-            ) : righe.length === 0 ? (
-              <p className="text-xs text-stone">Nessuna modifica registrata.</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {righe.map(r => (
-                  <li key={r.id} className="text-sm text-green-dark leading-snug">
-                    <span className="text-stone tabular-nums">{r.quando}</span>
-                    <span className="text-stone"> · </span>
-                    {r.segmento && <span className="text-stone">{r.segmento} · </span>}
-                    <span>{r.cosa}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>)}
-          </div>
-        )
-      })()}
       </div>
 
       {/* Messaggi al cliente (solo desktop): stesso disegno e stessi comandi del telefono */}
