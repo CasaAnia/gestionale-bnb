@@ -474,7 +474,7 @@ export default function BookingDetail() {
   // Ospiti (Ania, 10/09/2026): si cambiano dal pannello del soggiorno, non solo
   // dal modulo lungo. Cambiarli può cambiare la tariffa, quindi l'anteprima dice
   // sempre come verrebbe il totale prima di salvare.
-  const [ospitiForm, setOspitiForm] = useState(1)
+  const [ospitiForm, setOspitiForm] = useState('1')
   // Tariffa a notte: segue il listino quando cambiano date o persone, ma se la
   // si scrive a mano resta quella (Ania, 10/09/2026: «la tariffa non cambia»).
   const [tariffaForm, setTariffaForm] = useState('')
@@ -1462,18 +1462,19 @@ export default function BookingDetail() {
     controllaSoggiorno({ dal: nuovoIn, al: nuovoOut })
   }
 
-  function cambiaOspiti(n: number) {
-    setOspitiForm(n)
+  function cambiaOspiti(testo: string) {
+    setOspitiForm(testo)
+    const n = Number(testo) || 1
     const periodo = periodoCameraAperta()
-    if (!tariffaToccata && periodo) setTariffaForm(String(tariffaDaListino(periodo.dal, periodo.al, n || 1)))
-    controllaSoggiorno({ ospiti: n || 1 })
+    if (!tariffaToccata && periodo) setTariffaForm(String(tariffaDaListino(periodo.dal, periodo.al, n)))
+    controllaSoggiorno({ ospiti: n })
   }
 
   async function salvaSoggiorno() {
     if (salvandoSoggiorno) return
-    const ospiti = Number(ospitiForm) || 0
+    const ospiti = Number(ospitiForm)
     const massimo = capienzaCamera(booking.rooms)
-    if (!Number.isInteger(ospiti) || ospiti < 1 || ospiti > massimo) {
+    if (ospitiForm.trim() === '' || !Number.isInteger(ospiti) || ospiti < 1 || ospiti > massimo) {
       setErroreSalvaSoggiorno(`In ${booking.rooms?.name || 'questa camera'} ci stanno da 1 a ${massimo} persone.`)
       return
     }
@@ -1626,7 +1627,7 @@ export default function BookingDetail() {
       }
       setStayConflict(null)
       apriLetto()
-      setOspitiForm(Number(booking.num_guests) || 1)
+      setOspitiForm(String(Number(booking.num_guests) || 1))
       setTariffaForm(String(Number(booking.price_per_night) || 0))
       setTariffaToccata(false)
       setErroreSalvaSoggiorno(null)
@@ -2150,7 +2151,7 @@ export default function BookingDetail() {
                 {/* Stessa riga della pagina di inserimento: date, camera, ospiti,
                     quanto è costata davvero la notte, il prezzo pieno barrato se
                     c'era uno sconto, e il totale (verde quando è scontato). */}
-                {tutte.slice(0, 4).map(r => {
+                {tutte.slice(0, 4).map((r, iStorico) => {
                   const segmenti = r.segmenti as unknown as { num_guests?: number; check_in: string; check_out: string }[]
                   const notti = segmenti.reduce((t, x) => t + Math.round((new Date(x.check_out).getTime() - new Date(x.check_in).getTime()) / 86400000), 0)
                   const ospiti = Math.max(1, ...segmenti.map(x => Number(x.num_guests) || 1))
@@ -2159,7 +2160,8 @@ export default function BookingDetail() {
                   const scontato = pieno > totale + 0.005
                   const annullata = r.status === 'annullata'
                   return (
-                    <button key={r.chiave} type="button" className={v.storico} style={{ fontSize: 10.5, lineHeight: 1.25, gap: 6, padding: '3px 0', opacity: annullata ? 0.75 : 1, flexWrap: 'wrap' }}
+                    <button key={r.chiave} type="button" className={v.storico}
+                      style={{ fontSize: 10.5, lineHeight: 1.25, gap: 6, padding: '3px 0', opacity: annullata ? 0.75 : 1, flexWrap: 'wrap', ...(iStorico === 0 ? { borderTop: 'none' } : {}) }}
                       onClick={() => router.push(`/prenotazioni/${r.prenotazioneId}`)}>
                       <span className={v.storicoData}>{periodoBreve(r.check_in, r.check_out)}</span>
                       <span className={v.storicoDato}>{r.camere.join(' → ')}</span>
@@ -2449,7 +2451,7 @@ export default function BookingDetail() {
               <p className="text-[11px] text-gray-400 -mt-2 mb-3">Totale salvato personalizzato (il calcolo dai dati darebbe €{derivato.toLocaleString('it-IT')}): resta valido quello salvato.</p>
             ) : null
           })()}
-          <div className={v.riga}>
+          <div className={v.riga} style={{ borderTop: 'none' }}>
             <span className={v.eti}>Letto aggiuntivo</span>
             <span className={v.numeroPiccolo}>{booking.extra_bed ? `€${Number(booking.extra_bed_total).toFixed(0)}` : 'no'}</span>
           </div>
@@ -2480,7 +2482,7 @@ export default function BookingDetail() {
                 const cambiato = (
                   dal !== (unaCameraSola() ? booking.check_in : [...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in))[0]?.check_in)
                   || al !== (unaCameraSola() ? booking.check_out : [...groupBookings].sort((a, z) => z.check_out.localeCompare(a.check_out))[0]?.check_out)
-                  || (Number(ospitiForm) || 0) !== (Number(booking.num_guests) || 1)
+                  || (ospitiForm.trim() !== '' && Number(ospitiForm) !== (Number(booking.num_guests) || 1))
                   || Math.abs(Number(tariffaForm) - Number(booking.price_per_night)) > 0.005
                   || JSON.stringify([...lettoNotti].sort()) !== JSON.stringify([...((booking.extra_bed_dates as string[]) || (booking.extra_bed ? getDaysBetween(booking.check_in, booking.check_out) : []))].sort())
                   || (lettoNotti.length > 0 && Math.abs(Number(lettoImporto ?? 0) * 0 + (piano.righe.find(r => r.id === booking.id)?.extra_bed_total ?? 0) - Number(booking.extra_bed_total || 0)) > 0.005)
@@ -2511,7 +2513,7 @@ export default function BookingDetail() {
                       <label className={v.campoBlocco}>
                         <span className={v.campoEti}>{unaCameraSola() ? `Ospiti (max ${massimo})` : `Ospiti in questa camera (max ${massimo})`}</span>
                         <input type="number" inputMode="numeric" min={1} max={massimo} className={v.campo}
-                          value={ospitiForm} onChange={e => cambiaOspiti(Number(e.target.value))} />
+                          value={ospitiForm} onChange={e => cambiaOspiti(e.target.value)} />
                       </label>
                       <label className={v.campoBlocco}>
                         <span className={v.campoEti}>Tariffa a notte</span>
@@ -2657,7 +2659,7 @@ export default function BookingDetail() {
                     : null
                   return (
                     <>
-                      <div className={`${v.riga} text-sm`}>
+                      <div className={`${v.riga} text-sm`} style={{ borderTop: 'none' }}>
                         <span className={v.eti}>Pagamento</span>
                         <span className="font-semibold">{testo}</span>
                       </div>
@@ -2685,7 +2687,7 @@ export default function BookingDetail() {
                     </>
                   )
                 })()}
-                <div className={`${v.riga} text-sm`}>
+                <div className={`${v.riga} text-sm`} style={{ borderTop: 'none' }}>
                   <span className={v.eti}>Ricevuti</span>
                   <span className="font-semibold">€{ricevuto.toFixed(0)} su €{totaleDovuto.toFixed(0)}</span>
                 </div>
