@@ -1,14 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { testoConfermaPagamento, importoItaliano } from './confermaPagamento.ts'
+import { confermaPagamento, importoItaliano } from './confermaPagamento.ts'
 
-test('conferma pagamento: quanto, come e quanto resta', () => {
-  assert.equal(testoConfermaPagamento(50, 'contanti', 11000), 'Registrati 50 € in contanti · restano 110 €')
-  assert.equal(testoConfermaPagamento(110, 'bonifico', 0), 'Registrati 110 € con bonifico · soggiorno saldato')
+test('conferma pagamento: due righe — quanto e come, poi quanto resta', () => {
+  assert.deepEqual(confermaPagamento(10, 'contanti', 4000), { prima: 'Registrati 10 € in contanti', seconda: 'restano da avere 40 €' })
+  assert.deepEqual(confermaPagamento(110, 'bonifico', 0), { prima: 'Registrati 110 € con bonifico', seconda: 'soggiorno saldato' })
   // Importi con i centesimi, all'italiana; un saldo negativo (movimenti oltre
   // il totale) non scrive un resto in meno: il soggiorno è comunque coperto
-  assert.equal(testoConfermaPagamento(62.5, 'contanti', 9750), 'Registrati 62,50 € in contanti · restano 97,50 €')
-  assert.equal(testoConfermaPagamento(200, 'contanti', -500), 'Registrati 200 € in contanti · soggiorno saldato')
+  assert.deepEqual(confermaPagamento(62.5, 'contanti', 9750), { prima: 'Registrati 62,50 € in contanti', seconda: 'restano da avere 97,50 €' })
+  assert.equal(confermaPagamento(200, 'contanti', -500).seconda, 'soggiorno saldato')
 })
 
 test('importi scritti all\'italiana', () => {
