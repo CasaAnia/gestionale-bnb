@@ -659,12 +659,14 @@ export default function PropostaPage() {
 
   // ── Camere da proporre ────────────────────────────────────────────────────
   const elencoCamere = (
-    <ul className="ed-lista [&>*:first-child]:border-t-0 mt-1">
-      {righeCamere.map(r => {
+    <ul className="ed-lista mt-1">
+      {righeCamere.map((r, i) => {
         const spunta = spuntate.includes(r.camera.id)
         const si = r.proponibile && modificaConsentita && !manuale && !forzaNessunaDisponibilita
         return (
-          <li key={r.camera.id} style={{ opacity: r.proponibile ? 1 : 0.55 }}>
+          /* La prima camera non ha il filo sopra: ce l'ha già il titoletto,
+             e due fili attaccati sembravano una riga vuota (Ania, 11/09/2026) */
+          <li key={r.camera.id} style={{ opacity: r.proponibile ? 1 : 0.55, ...(i === 0 ? { borderTop: 'none' } : {}) }}>
             <button type="button" disabled={!si} onClick={() => cambiaSpunta(r.camera.id)} aria-pressed={spunta}
               data-camera={r.camera.name} data-spuntata={spunta ? 'si' : 'no'}
               className="w-full text-left py-[14px] flex items-start gap-3 disabled:cursor-default">
@@ -915,6 +917,15 @@ export default function PropostaPage() {
                 </button>
               ))}
             </div>
+          )}
+          {/* Su una proposta già partita quello che si legge è il messaggio
+              ARCHIVIATO, cioè quello che il cliente ha ricevuto: può essere
+              diverso da quello che il gestionale scriverebbe oggi. Va detto
+              sopra al riquadro, altrimenti non si capisce (Ania, 11/09/2026). */}
+          {inviataBloccata && (
+            <p data-messaggio-inviato className="mb-1.5" style={{ fontSize: 12.5, color: OTTONE }}>
+              Questo è il messaggio già inviato{richiesta.proposta_inviata_at ? ` ${oraArrivo(richiesta.proposta_inviata_at, adesso)}` : ''}: non è la bozza di adesso.
+            </p>
           )}
           {/* Raccolto: si vedono le prime righe con una sfumatura verso il
               basso, e sotto il link per aprirlo tutto (Ania, 11/09/2026). */}
