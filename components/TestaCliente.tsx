@@ -58,9 +58,10 @@ export type TestaClienteProps = {
   testoModifica?: string
 }
 
-// «1.360 €»: euro tondi, come nei «Soggiorni precedenti» della scheda
+// «1.360 €»: euro tondi, col punto delle migliaia. Non si usa toLocaleString:
+// in italiano non raggruppa i numeri di quattro cifre e scriverebbe «1360 €».
 function euroTondi(cent: number): string {
-  return `${Math.round(cent / 100).toLocaleString('it-IT')} €`
+  return `${String(Math.round(cent / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} €`
 }
 
 function Data({ iso, etichetta }: { iso: string; etichetta: string }) {

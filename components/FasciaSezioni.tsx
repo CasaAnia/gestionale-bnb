@@ -45,10 +45,15 @@ export default function FasciaSezioni({ voci, className = '' }: { voci: VoceSezi
     return () => ro.disconnect()
   }, [adatta, voci])
 
-  // Quale parte si sta guardando: l'ultima che ha già passato la fascia
+  // Quale parte si sta guardando: l'ultima che ha già passato la fascia.
+  // In fondo alla pagina vince sempre l'ultima parte: se è corta non arriva
+  // mai sotto la fascia e senza questa regola non si accenderebbe mai.
   useEffect(() => {
     const guarda = () => {
       const soglia = (barraRef.current?.getBoundingClientRect().bottom ?? 0) + 8
+      const inFondo = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2
+      const presenti = voci.filter(v => document.getElementById(v.id))
+      if (inFondo && presenti.length > 0) { setAttiva(presenti[presenti.length - 1].id); return }
       let corrente = voci[0]?.id ?? ''
       for (const v of voci) {
         const el = document.getElementById(v.id)

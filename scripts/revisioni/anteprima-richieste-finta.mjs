@@ -52,7 +52,12 @@ const rooms = [
   camera(ROOM.lena, 'Lena', 'privato_esterno', 80, 10, 90),
   { ...camera('44444444-4444-4444-8444-444444444444', 'Camera 1', 'privato_interno'), active: false },
 ]
-const guests = [{ id: 'aaaaaaaa-0001-4000-8000-000000000001', phone: '+39 333 000 0001', full_name: 'Ospite Finto', email: null, rating: 'normale', notes: null, created_at: ora, updated_at: ora }]
+const guests = [
+  { id: 'aaaaaaaa-0001-4000-8000-000000000001', phone: '+39 333 000 0001', full_name: 'Ospite Finto', email: null, rating: 'normale', notes: null, created_at: ora, updated_at: ora },
+  // Veste nuova della proposta (11/09/2026): una cliente che torna, con la
+  // valutazione ottima e la ricevuta, per la testa del cliente e «Da controllare»
+  { id: 'aaaaaaaa-0002-4000-8000-000000000002', phone: '+39 333 000 0080', full_name: 'Carmela Sabia', email: null, rating: 'ottimo', vuole_ricevuta: true, motivo_problematico: null, notes: null, created_at: ora, updated_at: ora },
+]
 // Prenotazioni intorno a fra 10 giorni: Amelia e Ambra occupate, Allegra in
 // attesa (NON conta), Lena annullata (NON conta).
 const bookings = [
@@ -73,6 +78,9 @@ const bookings = [
   { id: 'bbbbbbbb-0013-4000-8000-000000000013', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(71), check_out: giorni(74), num_guests: 2, status: 'confermata', guest_name: 'Occupa Lena' },
   { id: 'bbbbbbbb-0003-4000-8000-000000000003', room_id: ROOM.allegra, guest_id: guests[0].id, check_in: giorni(10), check_out: giorni(12), num_guests: 2, status: 'in_attesa' },
   { id: 'bbbbbbbb-0004-4000-8000-000000000004', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(10), check_out: giorni(12), num_guests: 2, status: 'annullata' },
+  // Due soggiorni conclusi di Carmela Sabia: 680 + 680 = 1.360 € nella testa del cliente
+  { id: 'bbbbbbbb-0020-4000-8000-000000000020', room_id: ROOM.ambra, guest_id: guests[1].id, check_in: giorni(-400), check_out: giorni(-396), num_guests: 2, status: 'completata', total_amount: 680, guest_name: 'Carmela Sabia' },
+  { id: 'bbbbbbbb-0021-4000-8000-000000000021', room_id: ROOM.ambra, guest_id: guests[1].id, check_in: giorni(-140), check_out: giorni(-132), num_guests: 2, status: 'completata', total_amount: 680, guest_name: 'Carmela Sabia' },
 ].map(b => ({ extra_bed: false, extra_bed_dates: [], price_per_night: 70, extra_bed_total: 0, total_amount: 140, source: 'diretta', guest_name: null, notes: null, cancelled_at: null, cancelled_reason: null, group_id: null, pagato: false, bonifico: false, created_at: ora, updated_at: ora, ...b }))
 
 function richiesta(x) {
@@ -97,6 +105,19 @@ const richieste = [
   // Pezzo 10: il caso reale 17–21 con [2,3,3,3]: in 2 la prima notte, poi in 3
   richiesta({ nome: 'Ewa', cognome: 'Composta', arrivo: giorni(70), partenza: giorni(74), persone: 2, persone_per_notte: [2, 3, 3, 3], canale: 'whatsapp', telefono: '+39 333 000 0070', created_at: fa(2) }),
   richiesta({ nome: 'Sara', cognome: 'Verdi', arrivo: giorni(30), partenza: giorni(35), persone: 4, canale: 'web', created_at: fa(5), note: 'Chiede due camere vicine' }),
+  // ── Veste nuova della proposta (11/09/2026) ──────────────────────────────
+  // Tre persone con TUTTO libero: Lena, Ambra e Allegra partono spuntate,
+  // Amelia resta grigia («singola: per 3 persone non va»).
+  richiesta({ nome: 'Tre', cognome: 'Libere', arrivo: giorni(100), partenza: giorni(102), persone: 3, canale: 'web', telefono: '+39 333 000 0100', created_at: fa(15), origine: 'google', note: 'Arriviamo tardi, verso le 21' }),
+  // Stesse date di «Tre Libere»: fa comparire la voce «Stesse date»
+  richiesta({ nome: 'Silvana', cognome: 'Pari', arrivo: giorni(101), partenza: giorni(103), persone: 2, canale: 'telefono', telefono: '+39 333 000 0101', created_at: fa(10) }),
+  // Due persone, tutto libero: tutte e quattro le camere proponibili
+  richiesta({ nome: 'Due', cognome: 'Persone', arrivo: giorni(105), partenza: giorni(107), persone: 2, canale: 'whatsapp', telefono: '+39 333 000 0105', created_at: fa(9) }),
+  // Cliente che torna (stesso telefono di Carmela Sabia): «Già stata qui 2
+  // volte», 1.360 € nella testa, stella e nome in grassetto (ricevuta)
+  richiesta({ nome: 'Carmela', cognome: 'Sabia', arrivo: giorni(110), partenza: giorni(112), persone: 2, canale: 'web', telefono: '+39 333 000 0080', created_at: fa(6) }),
+  // Nessuna camera libera per tutte le notti: resta la proposta automatica
+  richiesta({ nome: 'Cambio', cognome: 'Camera', arrivo: giorni(71), partenza: giorni(74), persone: 2, canale: 'telefono', telefono: '+39 333 000 0071', created_at: fa(7) }),
   richiesta({ nome: 'Paolo', cognome: 'Neri', arrivo: giorni(-3), partenza: giorni(-1), persone: 2, canale: 'telefono', created_at: fa(60 * 24 * 8), stato: 'confermata', chiusa_at: fa(60 * 24 * 7) }),
   richiesta({ nome: 'Giulia', cognome: 'Gallo', arrivo: giorni(2), partenza: giorni(4), persone: 2, canale: 'whatsapp', created_at: fa(60 * 24 * 2), stato: 'rifiutata', chiusa_at: fa(60 * 24), motivo_rifiuto: 'detto_no' }),   // rifiuto con motivo (07/09/2026): «Rifiutata da te · ha detto di no · …»
   richiesta({ nome: 'Vecchia', cognome: 'Chiusa', arrivo: giorni(-120), partenza: giorni(-118), persone: 1, canale: 'web', created_at: fa(60 * 24 * 130), stato: 'confermata', chiusa_at: fa(60 * 24 * 120) }),

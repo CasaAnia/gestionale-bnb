@@ -89,9 +89,13 @@ function riassuntoSegmenti(s: Soluzione): string {
   return s.segmenti.map(x => `${x.camera.name} ${formatIntervallo(x.arrivo, x.partenza)}`).join(' → ')
 }
 
-// «Ambra 29 ott → 30 ott, poi Allegra 30 ott → 31 ott»
+// «Ambra 29 ott → 30 ott, poi Allegra 30 ott → 31 ott». Se è sempre la stessa
+// camera il nome non si ripete: «Amelia 31 ott → 1 nov e 2 nov → 3 nov».
 function soluzioneInParole(s: Soluzione): string {
-  return s.segmenti.map(x => `${x.camera.name} ${periodoCompatto(x.arrivo, x.partenza)}`).join(', poi ')
+  const date = s.segmenti.map(x => periodoCompatto(x.arrivo, x.partenza))
+  const unaSola = new Set(s.segmenti.map(x => x.camera.id)).size === 1
+  if (unaSola && s.segmenti.length > 0) return `${s.segmenti[0].camera.name} ${date.join(' e ')}`
+  return s.segmenti.map((x, i) => `${x.camera.name} ${date[i]}`).join(', poi ')
 }
 
 export default function PropostaPage() {
