@@ -1,11 +1,14 @@
 'use client'
 // Conferma volante dopo un salvataggio (Ania, 11/09/2026: «quando registro il
 // pagamento il bottone sbiadisce e basta: mettimi un piccolo pop-up, sì è
-// stato registrato»). Compare in basso sopra la barra dei tasti, resta pochi
-// secondi e se ne va da sola; un tocco la chiude subito. Nessun bordo nero:
-// fondo verde scuro del gestionale, testo crema, ombra leggera. Si muovono
-// solo opacità e posizione, con le curve già usate dalle altre comparse
-// (app/globals.css); con «riduci movimento» l'animazione sparisce.
+// stato registrato»). Dalla seconda richiesta dello stesso giorno — «è una
+// striscia piccola in basso: preferirei un pop-up di due o tre centimetri
+// all'altezza di metà telefono» — è un riquadro CENTRATO sullo schermo, alto
+// circa 2,5 cm (≈ 135 px), che resta pochi secondi e se ne va da solo; un
+// tocco lo chiude subito. Nessun bordo nero: fondo verde scuro del
+// gestionale, testo crema, ombra morbida. Si muovono solo opacità e scala,
+// con le curve già usate dalle altre comparse (app/globals.css); con «riduci
+// movimento» l'animazione sparisce.
 import { useEffect, useRef, useState } from 'react'
 
 export const DURATA_CONFERMA = 3200
@@ -23,12 +26,12 @@ export default function ConfermaVolante({ testo, onChiudi, durata = DURATA_CONFE
     return () => { window.clearTimeout(via); window.clearTimeout(fine) }
   }, [durata])
   return (
-    <div className="fixed left-0 right-0 z-[60] flex justify-center px-4 pointer-events-none bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-6"
-      data-conferma-volante>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-6 pointer-events-none" data-conferma-volante>
       <button type="button" role="status" aria-live="polite" onClick={() => chiudi.current()}
-        className={`pointer-events-auto max-w-[92vw] rounded-full px-4 py-2.5 text-sm font-semibold text-left ${uscita ? 'conferma-out' : 'conferma-in'}`}
-        style={{ background: 'var(--color-green-dark)', color: 'var(--color-cream-text)', boxShadow: '0 6px 18px rgba(31,61,47,0.22)' }}>
-        ✓ {testo}
+        className={`pointer-events-auto w-full max-w-[320px] min-h-[135px] rounded-3xl px-6 py-5 flex flex-col items-center justify-center gap-2 text-center ${uscita ? 'conferma-out' : 'conferma-in'}`}
+        style={{ background: 'var(--color-green-dark)', color: 'var(--color-cream-text)', boxShadow: '0 14px 40px rgba(31,61,47,0.30)' }}>
+        <span aria-hidden className="text-2xl leading-none">✓</span>
+        <span className="text-[17px] font-semibold leading-snug">{testo}</span>
       </button>
     </div>
   )
