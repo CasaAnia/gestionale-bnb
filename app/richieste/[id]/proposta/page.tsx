@@ -33,7 +33,7 @@ import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata,
 import RifiutaConMotivo from '@/components/richieste/RifiutaConMotivo'
 import type { MotivoRifiuto } from '@/lib/motivoRifiuto'
 import { proponiSoluzioni, alternativaAmelia, personePerNotte, prezziNottiCentesimi, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
-import { camereDaProporre, camereProponibili, camereDaSpuntare, soluzioniSpuntate } from '@/lib/richiesteCamere'
+import { camereDaProporre, camereProponibili, camereDaSpuntare, soluzioniSpuntate, spunteCorrenti, conSpuntaCambiata } from '@/lib/richiesteCamere'
 import { vociStesseDate, voceClienteCheTorna } from '@/lib/richiesteDaControllare'
 import { soggiorniDellaPersona, chiaveNome, type SoggiornoStorico } from '@/lib/clienteCheTorna'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
@@ -42,7 +42,7 @@ import { camereAmmesseNotte, cameraSuccessiva, composizioneDaSoluzione, soluzion
 import StrisciaNotti, { etichettaNotte } from '@/components/StrisciaNotti'
 import { generaProposta, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, nottiScoperte, type Condizione } from '@/lib/richiesteTesti'
 import { chiaveSoluzione, soluzioneScelta } from '@/lib/richiesteScelta'
-import { custodisciPendente, eliminaPendente, leggiPendente, datiPerConferma, rigaConferma, type PropostaPendente } from '@/lib/richiestePendente'
+import { custodisciPendente, eliminaPendente, leggiPendente, datiPerConferma, rigaConferma, improntaRichiesta, richiestaCambiata, type PropostaPendente } from '@/lib/richiestePendente'
 import { CONDIZIONI_PAGAMENTO, ETICHETTA_CONDIZIONE, caparraDefault, type CondizionePagamento } from '@/lib/condizioniPrenotazione'
 import { statoCondizioni } from '@/lib/condizioniProposta'
 import { testoDaRigenerare } from '@/lib/testoArchiviato'
@@ -242,7 +242,7 @@ export default function PropostaPage() {
   // altrimenti tutte (lib/richiesteCamere). Poi decide Ania con le spunte.
   const diPartenza = useMemo(() => camereDaSpuntare(righeCamere, richiesta?.camera_id ?? null), [righeCamere, richiesta])
   // Una camera che nel frattempo non è più proponibile sparisce dalle spunte da sola
-  const spuntate = useMemo(() => (spunteManuali === null ? diPartenza : proponibili.filter(x => spunteManuali.includes(x))), [proponibili, spunteManuali, diPartenza])
+  const spuntate = useMemo(() => spunteCorrenti(proponibili, diPartenza, spunteManuali), [proponibili, spunteManuali, diPartenza])
   const scelteSpuntate = useMemo(() => soluzioniSpuntate(righeCamere, spuntate), [righeCamere, spuntate])
   const conCamereLibere = proponibili.length > 0
 
@@ -433,13 +433,22 @@ export default function PropostaPage() {
   }
   // La spunta di una camera: il messaggio si rifà, le condizioni restano
   function cambiaSpunta(cameraId: string) {
-    conConferma(() => {
+    // Come per «Come paga»: toccare una camera mentre si aspetta la risposta a
+    // «L'hai inviata?» vuol dire che la proposta va cambiata, quindi si torna a
+    // comporre (come con «No»). Le spunte restano quelle che sono.
+    if (inviataBloccata) {
+      setRicomponi(true)
+      setAvviso('Stai rifacendo la proposta. Quella già inviata resta com’è finché non confermi il nuovo invio.')
+    } else if (chiediConferma) {
+      if (!rispostaNo()) return
+      setAvviso('Hai cambiato le camere: la proposta è tornata da comporre. Se il messaggio di prima era già partito, mandane uno nuovo.')
+    }
+    const applica = () => {
       setTestoModificato(null)
-      setSpunteManuali(prima => {
-        const base = prima === null ? diPartenza : prima.filter(x => proponibili.includes(x))
-        return base.includes(cameraId) ? base.filter(x => x !== cameraId) : proponibili.filter(x => base.includes(x) || x === cameraId)
-      })
-    })
+      setSpunteManuali(prima => conSpuntaCambiata(proponibili, spunteCorrenti(proponibili, diPartenza, prima), cameraId))
+    }
+    if (chiediConferma || inviataBloccata) { applica(); return }
+    conConferma(applica)
   }
   function scegli(i: number) {
     conConferma(() => {
@@ -525,7 +534,7 @@ export default function PropostaPage() {
     if (!inviataBloccata && problemaCondizione) { setErrore(problemaCondizione); return }
     if (!telefono) { setErrore('Nessun numero di telefono sulla richiesta: aggiungilo prima di inviare.'); return }
     // Nel browser resta TUTTO il messaggio partito: testo, condizioni, soluzione e alternative
-    const p: PropostaPendente = { testo: testoFinale, condizioni: condizioniSalvate, soluzione, alternative }
+    const p: PropostaPendente = { testo: testoFinale, condizioni: condizioniSalvate, soluzione, alternative, impronta: improntaRichiesta(richiesta) }
     try { custodisciPendente(window.localStorage, chiavePendente, p) }
     catch (e) { setErrore(`WhatsApp non aperto: non riesco a conservare la proposta. ${e instanceof Error ? e.message : 'Riprova.'}`); return }
     setPendente(p)
@@ -544,6 +553,15 @@ export default function PropostaPage() {
         if (salvato?.confermataIl && richiesta.proposta_inviata_at === salvato.confermataIl) {
           eliminaPendente(window.localStorage, chiavePendente)
           setPendente(null); setChiediConferma(false)
+          return
+        }
+        // La richiesta è stata modificata dopo l'invio: quel messaggio parla
+        // di una richiesta che non esiste più. L'attesa si chiude da sola e la
+        // bozza si rifà sui dati di adesso (Ania, 11/09/2026).
+        if (richiestaCambiata(salvato, richiesta)) {
+          eliminaPendente(window.localStorage, chiavePendente)
+          setPendente(null); setChiediConferma(false); setTestoModificato(null)
+          setAvviso('La richiesta è cambiata dopo l’ultimo invio: il messaggio è stato rifatto sui dati di adesso. Se quello di prima era già partito, mandane uno nuovo.')
           return
         }
         setPendente(salvato)
@@ -574,9 +592,9 @@ export default function PropostaPage() {
     if (pendente?.soluzione && richiesta && !inviata) {
       const s = pendente.soluzione
       setScelta(chiaveSoluzione(s))
-      // le camere del messaggio partito tornano spuntate
-      const camereDelMessaggio = (pendente.alternative ?? [s]).map(x => x.segmenti[0]?.camera.id).filter((x): x is string => !!x)
-      setSpunteManuali(camereDelMessaggio)
+      // Le spunte NON si toccano (Ania, 11/09/2026): cambiano solo quando si
+      // tocca una camera. Restano quelle che ci sono; se non ne è stata
+      // toccata nessuna valgono quelle di partenza (camera chiesta = solo lei).
       setManuale(!!s.manuale)
       setForzaNessunaDisponibilita(s.caso === 'completo' && s.segmenti.length === 0)
       setComposizione(composizioneDaSoluzione(richiesta, s))
@@ -662,7 +680,8 @@ export default function PropostaPage() {
     <ul className="ed-lista mt-1">
       {righeCamere.map((r, i) => {
         const spunta = spuntate.includes(r.camera.id)
-        const si = r.proponibile && modificaConsentita && !manuale && !forzaNessunaDisponibilita
+        // Si possono toccare anche in attesa della risposta a «L'hai inviata?»
+        const si = r.proponibile && !manuale && !forzaNessunaDisponibilita
         return (
           /* La prima camera non ha il filo sopra: ce l'ha già il titoletto,
              e due fili attaccati sembravano una riga vuota (Ania, 11/09/2026) */

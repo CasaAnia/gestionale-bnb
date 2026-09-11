@@ -3,7 +3,7 @@
 // le spunte una alla volta.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { camereDaProporre, camereProponibili, camereDaSpuntare, soluzioniSpuntate, motivoInParole, quandoInParole } from './richiesteCamere.ts'
+import { camereDaProporre, camereProponibili, camereDaSpuntare, soluzioniSpuntate, spunteCorrenti, conSpuntaCambiata, motivoInParole, quandoInParole } from './richiesteCamere.ts'
 import { proponiSoluzioni } from './richiesteProposta.ts'
 import { generaProposta } from './richiesteTesti.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -184,4 +184,51 @@ test('camera chiesta ma non proponibile, oppure «qualsiasi»: partono spuntate 
   const occupate = [occ('ambra', '2026-10-29', '2026-10-31')]
   const conOccupata = camereDaProporre({ ...TRE, camera_id: 'ambra' }, CAMERE, occupate, proponiSoluzioni({ ...TRE, camera_id: 'ambra' }, CAMERE, occupate))
   assert.deepEqual(camereDaSpuntare(conOccupata, 'ambra'), [LENA_ID, 'allegra'])
+})
+
+// ── Le spunte cambiano SOLO toccando una camera (Ania, 11/09/2026) ──────────
+test('camera chiesta: le altre non sono spuntate ma si spuntano con un tocco', () => {
+  const conAmbra = { ...TRE, camera_id: 'ambra' }
+  const righe = camereDaProporre(conAmbra, CAMERE, [], proponiSoluzioni(conAmbra, CAMERE, []))
+  const proponibili = camereProponibili(righe)
+  const diPartenza = camereDaSpuntare(righe, 'ambra')
+  assert.deepEqual(diPartenza, ['ambra'])
+
+  // all'apertura: solo Ambra
+  let spunte = spunteCorrenti(proponibili, diPartenza, null)
+  assert.deepEqual(spunte, ['ambra'])
+
+  // un tocco su Lena: si aggiunge, nell'ordine dell'elenco
+  spunte = conSpuntaCambiata(proponibili, spunte, LENA_ID)
+  assert.deepEqual(spunte, [LENA_ID, 'ambra'])
+  // e finisce davvero nel messaggio
+  const scelte = soluzioniSpuntate(righe, spunte)
+  const testo = generaProposta({ richiesta: conAmbra, soluzione: scelte[0], condizione: { tipo: 'arrivo' }, alternative: scelte.length > 1 ? scelte : null })
+  assert.match(testo, /posso proporle due camere:/)
+  assert.ok(testo.includes('Lena') && testo.includes('Ambra'))
+
+  // un altro tocco la toglie
+  assert.deepEqual(conSpuntaCambiata(proponibili, spunte, LENA_ID), ['ambra'])
+  // una camera grigia non si spunta nemmeno toccandola
+  assert.deepEqual(conSpuntaCambiata(proponibili, spunte, 'amelia'), [LENA_ID, 'ambra'])
+})
+
+test('le spunte scelte a mano non cambiano da sole', () => {
+  const righe = righeTre()
+  const proponibili = camereProponibili(righe)
+  const aMano = [LENA_ID]
+  // qualunque cosa succeda alla pagina (scelta del pagamento, risposta a
+  // «L'hai inviata?», riapertura) le spunte si ricavano sempre così:
+  for (let i = 0; i < 3; i++) {
+    assert.deepEqual(spunteCorrenti(proponibili, camereDaSpuntare(righe, null), aMano), [LENA_ID])
+  }
+  // togliendole tutte restano zero: non tornano quelle di partenza
+  assert.deepEqual(spunteCorrenti(proponibili, camereDaSpuntare(righe, null), []), [])
+})
+
+test('una camera che non si può più proporre sparisce dalle spunte', () => {
+  const occupate = [occ('ambra', '2026-10-29', '2026-10-31')]
+  const righe = camereDaProporre(TRE, CAMERE, occupate, proponiSoluzioni(TRE, CAMERE, occupate))
+  const proponibili = camereProponibili(righe)
+  assert.deepEqual(spunteCorrenti(proponibili, [], [LENA_ID, 'ambra']), [LENA_ID])
 })

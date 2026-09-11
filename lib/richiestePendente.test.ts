@@ -195,3 +195,38 @@ test('date e elenchi della riga di conferma', () => {
   assert.equal(elencoCamere(['Lena', 'Ambra']), 'Lena e Ambra')
   assert.equal(elencoCamere(['Lena', 'Ambra', 'Allegra']), 'Lena, Ambra e Allegra')
 })
+
+// ── L'attesa non vale più se la richiesta è cambiata (Ania, 11/09/2026) ─────
+import { improntaRichiesta, richiestaCambiata } from './richiestePendente.ts'
+
+const RIC = { arrivo: '2026-10-29', partenza: '2026-10-31', persone: 3, camera_id: null, persone_per_notte: null, notti_richieste: null }
+const pendenteDi = (r: typeof RIC) => ({ testo: 'vecchio', condizioni: condizioni(), soluzione: null, alternative: null, impronta: improntaRichiesta(r) })
+
+test('la richiesta non è cambiata: l’attesa resta valida', () => {
+  assert.equal(richiestaCambiata(pendenteDi(RIC), RIC), false)
+  // la nota o il telefono non c'entrano con la proposta: non contano
+  assert.equal(richiestaCambiata(pendenteDi(RIC), { ...RIC, note: 'arriva tardi' } as never), false)
+})
+
+test('ogni cambio che conta invalida l’attesa', () => {
+  const p = pendenteDi(RIC)
+  assert.equal(richiestaCambiata(p, { ...RIC, camera_id: 'ambra' }), true, 'camera chiesta')
+  assert.equal(richiestaCambiata(p, { ...RIC, persone: 2 }), true, 'persone')
+  assert.equal(richiestaCambiata(p, { ...RIC, arrivo: '2026-10-30' }), true, 'arrivo')
+  assert.equal(richiestaCambiata(p, { ...RIC, partenza: '2026-11-01' }), true, 'partenza')
+  assert.equal(richiestaCambiata(p, { ...RIC, persone_per_notte: [3, 2] }), true, 'persone notte per notte')
+  assert.equal(richiestaCambiata(p, { ...RIC, notti_richieste: ['2026-10-29'] }), true, 'notti scelte')
+})
+
+test('un’attesa vecchia, senza impronta, non si giudica', () => {
+  const vecchio = { testo: 'vecchio', condizioni: condizioni(), soluzione: null, alternative: null }
+  assert.equal(richiestaCambiata(vecchio, { ...RIC, persone: 2 }), false)
+  assert.equal(richiestaCambiata(null, RIC), false)
+})
+
+test('l’impronta si conserva nel browser e si rilegge', () => {
+  const p = pendenteDi(RIC)
+  const riletto = leggiPendente(serializzaPendente(p as never))
+  assert.deepEqual(riletto?.impronta, improntaRichiesta(RIC))
+  assert.equal(richiestaCambiata(riletto, { ...RIC, camera_id: 'ambra' }), true)
+})

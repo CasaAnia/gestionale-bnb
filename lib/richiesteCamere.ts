@@ -155,3 +155,22 @@ export function soluzioniSpuntate(righe: RigaCameraProposta[], spuntate: string[
   const scelte = new Set(spuntate)
   return righe.filter(r => r.proponibile && r.soluzione && scelte.has(r.camera.id)).map(r => r.soluzione as Soluzione)
 }
+
+// ── Le spunte, in un posto solo (Ania, 11/09/2026) ──────────────────────────
+// Le spunte cambiano SOLO quando si tocca una camera: mai scegliendo come
+// paga, mai rispondendo a «L'hai inviata?», mai riaprendo la pagina. Finché
+// non ne è stata toccata nessuna valgono quelle di partenza (camera chiesta =
+// solo lei); una camera diventata non proponibile sparisce da sola.
+export function spunteCorrenti(proponibili: string[], diPartenza: string[], scelteAMano: string[] | null): string[] {
+  if (scelteAMano === null) return diPartenza.filter(x => proponibili.includes(x))
+  return proponibili.filter(x => scelteAMano.includes(x))
+}
+
+// Tocco su una camera: se era spuntata si toglie, altrimenti si aggiunge.
+// Il risultato resta nell'ordine dell'elenco.
+export function conSpuntaCambiata(proponibili: string[], correnti: string[], cameraId: string): string[] {
+  if (!proponibili.includes(cameraId)) return correnti
+  return correnti.includes(cameraId)
+    ? correnti.filter(x => x !== cameraId)
+    : proponibili.filter(x => correnti.includes(x) || x === cameraId)
+}

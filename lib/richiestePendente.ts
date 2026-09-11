@@ -9,6 +9,40 @@ export type PropostaPendente = {
   soluzione: Soluzione | null // null: vecchio formato, non confermabile
   alternative: Soluzione[] | null
   confermataIl?: string // custodita al primo «Sì», anche se la risposta si perde
+  impronta?: ImprontaRichiesta // com'era la richiesta quando il messaggio è partito
+}
+
+// ── L'impronta della richiesta (11/09/2026) ─────────────────────────────────
+// L'attesa di «L'hai inviata?» vive nel browser e sopravvive al ricaricamento
+// dell'app. Se nel frattempo Ania MODIFICA la richiesta (date, persone,
+// camera, notti scelte), quel messaggio parla di una richiesta che non esiste
+// più: va buttato, altrimenti la pagina resta ferma sul testo vecchio e le
+// camere non si possono più toccare. Qui si conserva com'era la richiesta al
+// momento dell'invio, per accorgersene alla riapertura.
+export type ImprontaRichiesta = {
+  arrivo: string
+  partenza: string
+  persone: number
+  camera_id: string | null
+  persone_per_notte: number[] | null
+  notti_richieste: string[] | null
+}
+type DatiRichiesta = { arrivo: string; partenza: string; persone: number; camera_id?: string | null; persone_per_notte?: number[] | null; notti_richieste?: string[] | null }
+
+export const improntaRichiesta = (r: DatiRichiesta): ImprontaRichiesta => ({
+  arrivo: r.arrivo,
+  partenza: r.partenza,
+  persone: Number(r.persone),
+  camera_id: r.camera_id ?? null,
+  persone_per_notte: r.persone_per_notte ?? null,
+  notti_richieste: r.notti_richieste ?? null,
+})
+
+// La richiesta è cambiata da quando il messaggio è partito? Un pendente
+// vecchio, senza impronta, non si può giudicare: si lascia com'è.
+export function richiestaCambiata(p: PropostaPendente | null, r: DatiRichiesta | null | undefined): boolean {
+  if (!p?.impronta || !r) return false
+  return JSON.stringify(p.impronta) !== JSON.stringify(improntaRichiesta(r))
 }
 export const chiavePendente = (id: string) => `ca_proposta_pendente_${id}`
 type Memoria = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
@@ -43,7 +77,8 @@ export function leggiPendente(grezzo: string | null | undefined): PropostaPenden
   if (v.confermataIl !== undefined && (typeof v.confermataIl !== 'string' || !Number.isFinite(Date.parse(v.confermataIl)))) return null
   return { testo: v.testo, condizioni: v.condizioni, soluzione: completa ? v.soluzione as Soluzione : null,
     alternative: completa ? v.alternative as Soluzione[] | null : null,
-    ...(typeof v.confermataIl === 'string' ? { confermataIl: v.confermataIl } : {}) }
+    ...(typeof v.confermataIl === 'string' ? { confermataIl: v.confermataIl } : {}),
+    ...(oggetto(v.impronta) ? { impronta: v.impronta as unknown as ImprontaRichiesta } : {}) }
 }
 
 export function datiPerConferma(p: PropostaPendente | null): (PropostaPendente & { soluzione: Soluzione }) | null {
