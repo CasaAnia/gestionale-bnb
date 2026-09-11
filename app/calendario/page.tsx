@@ -538,8 +538,11 @@ export default function Calendario() {
         </div>
         {/* Titolo + «Cerca nome o telefono…» (05/09/2026): Mac e telefono girato sulla
             stessa riga, telefono dritto uno sotto l'altro. Stesse distanze delle Richieste. */}
-        <div className={`mt-0 lg:mt-4 mb-2 ${isDesktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
-          <h1 className={isDesktop ? 'ed-titolo-medio mr-auto' : 'ed-titolo'}>Calendario</h1>
+        {/* Sul telefono il titolo NON si ripete (Ania, 11/09/2026: la barra in
+            alto dice già «Calendario»); resta un po' di spazio vuoto, che dà
+            respiro. Su Mac, dove la barra non c'è, il titolo rimane. */}
+        <div className={`mt-3 lg:mt-4 mb-2 ${isDesktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
+          <h1 className={`max-lg:hidden ${isDesktop ? 'ed-titolo-medio mr-auto' : 'ed-titolo'}`}>Calendario</h1>
           <CampoRicerca value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />
         </div>
 
