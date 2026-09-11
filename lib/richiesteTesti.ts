@@ -127,6 +127,8 @@ const PAROLE = ['', 'una', 'due', 'tre', 'quattro', 'cinque', 'sei', 'sette', 'o
 const inParole = (n: number) => PAROLE[n] ?? String(n)
 // «per le 4 notti» · «per la notte»
 const perLeNotti = (n: number) => (n === 1 ? 'per la notte' : `per le ${n} notti`)
+// Variante con il numero in parole: «per le due notti» · «per la notte»
+const perLeNottiInParole = (n: number) => (n === 1 ? 'per la notte' : `per le ${inParole(n)} notti`)
 
 // ── Camere: descrizioni brevi e link ────────────────────────────────────────
 const slugDi = (camera: { name?: string | null }) => (camera.name ? ROOM_SLUG_BY_NAME[camera.name] : undefined)
@@ -234,6 +236,70 @@ function paragrafoPrezzo(sol: Soluzione, s: SegmentoSoluzione, periodo: { arrivo
   return `${base}.`
 }
 
+// ── Caso A a più camere per TRE persone (11/09/2026, testo approvato da Ania) ─
+// Vale SOLO quando la richiesta è per 3 persone in tutte le notti e il caso A
+// ha più di una camera da proporre. Ogni altra combinazione (1 o 2 persone,
+// una sola camera, casi B/C/E e notti selezionate) resta identica a prima.
+const ORDINE_TRE_PERSONE = ['lena', 'ambra', 'allegra']
+// La frase dedicata di ogni camera: sostituisce fraseLettoInPiu, che in questa
+// variante non si usa mai.
+const FRASI_TRE_PERSONE: Record<string, string> = {
+  lena: 'È la camera più grande e la più comoda per tre persone.',
+  ambra: "Con il letto in più diventa un po' più raccolta.",
+  allegra: "Per sistemare il letto in più devo togliere il tavolo, quindi lo spazio si riduce un po'.",
+}
+
+// «3 persone in tutte le notti»: la striscia per notte se c'è, altrimenti il
+// numero di persone della richiesta.
+export function personeInTutteLeNotti(
+  richiesta: { persone?: number | null; persone_per_notte?: number[] | null },
+  quante: number,
+): boolean {
+  const p = richiesta.persone_per_notte
+  if (Array.isArray(p) && p.length > 0) return p.every(x => Number(x) === quante)
+  return Number(richiesta.persone) === quante
+}
+
+// Ordine fisso Lena, Ambra, Allegra; una camera fuori elenco resta in coda
+// nell'ordine in cui è arrivata.
+function ordinaTrePersone(camere: Soluzione[]): Soluzione[] {
+  const posto = (c: Soluzione) => {
+    const i = ORDINE_TRE_PERSONE.indexOf(slugDi(c.segmenti[0].camera) ?? '')
+    return i < 0 ? ORDINE_TRE_PERSONE.length : i
+  }
+  return camere.map((c, i) => ({ c, i })).sort((a, b) => posto(a.c) - posto(b.c) || a.i - b.i).map(x => x.c)
+}
+
+// «Il prezzo per le due notti è di 180 €, a 90 € a notte, letto in più compreso.»
+function paragrafoPrezzoTrePersone(sol: Soluzione, s: SegmentoSoluzione, periodo: { arrivo: string; partenza: string }): string {
+  const base = `Il prezzo ${perLeNottiInParole(s.notti)} è di ${formattaEuro(centesimiTotale(sol))}`
+  // In Lena il terzo letto è compreso nella tripla: la frase non si aggiunge mai
+  const letto = slugDi(s.camera) !== 'lena' && (s.lettoNotti ?? []).length > 0 ? ', letto in più compreso' : ''
+  const dettaglio = dettaglioParlato(s, periodo)
+  if (dettaglio) return `${base}${letto}. ${dettaglio}`
+  const uniforme = prezzoUniforme(s)
+  if (s.notti > 1 && uniforme !== null) return `${base}, a ${formattaEuro(uniforme)} a notte${letto}.`
+  return `${base}${letto}.`
+}
+
+function casoATrePersone(richiesta: RichiestaTesto, camere: Soluzione[]): Blocchi {
+  const periodo = { arrivo: richiesta.arrivo, partenza: richiesta.partenza }
+  const righe = ordinaTrePersone(camere).map(c => {
+    const s = c.segmenti[0]
+    const frase = FRASI_TRE_PERSONE[slugDi(s.camera) ?? '']
+    const link = rigaLinkCamera(s.camera)
+    return `– ${s.camera.name}, ${descrizioneBreve(s.camera)}.${frase ? ` ${frase}` : ''} ${paragrafoPrezzoTrePersone(c, s, periodo)}${link ? `\n${link}` : ''}`
+  })
+  return {
+    oreVariante: 'tre-persone',
+    chiusura: FIRMA,
+    paragrafi: [
+      `${HO_VERIFICATO} ${maiuscola(dalAl(richiesta.arrivo, richiesta.partenza))}, per tre persone, posso proporle ${inParole(camere.length)} camere:`,
+      ...righe,
+    ],
+  }
+}
+
 // ── Blocchi del messaggio ───────────────────────────────────────────────────
 export function apertura(nome: string): string {
   return `Gentile ${nome.trim()},\ngrazie per aver pensato a Casa Ania per il suo soggiorno.`
@@ -267,9 +333,10 @@ export function camereDelCasoA(soluzione: Soluzione, alternative?: Soluzione[] |
   return out
 }
 
-type Blocchi = { paragrafi: string[]; oreVariante: 'camera' | 'camere' | 'nessuna' }
+type Blocchi = { paragrafi: string[]; oreVariante: 'camera' | 'camere' | 'tre-persone' | 'nessuna'; chiusura?: string }
 
-function casoA(richiesta: RichiestaTesto, camere: Soluzione[]): Blocchi {
+function casoA(richiesta: RichiestaTesto & { persone?: number; persone_per_notte?: number[] | null }, camere: Soluzione[]): Blocchi {
+  if (camere.length > 1 && personeInTutteLeNotti(richiesta, 3)) return casoATrePersone(richiesta, camere)
   const periodo = { arrivo: richiesta.arrivo, partenza: richiesta.partenza }
   const testa = `${HO_VERIFICATO} ${maiuscola(dalAl(richiesta.arrivo, richiesta.partenza))}`
   if (camere.length === 1) {
@@ -371,7 +438,9 @@ La prenotazione sarà confermata definitivamente al ricevimento del pagamento.`
 }
 
 // La frase delle 3 ore, nelle tre varianti
-export function fraseTreOre(variante: 'camera' | 'camere' | 'nessuna'): string {
+export function fraseTreOre(variante: 'camera' | 'camere' | 'tre-persone' | 'nessuna'): string {
+  if (variante === 'tre-persone')
+    return `Mi faccia sapere entro ${ORE_RISPOSTA_PROPOSTA} ore da questo messaggio quale camera preferisce, e le confermo subito la prenotazione. Trascorso questo tempo, dovrò verificare nuovamente la disponibilità.`
   const cosa = variante === 'camera' ? 'confermare la camera' : variante === 'camere' ? 'confermare una delle camere' : 'confermare'
   return `Se desidera ${cosa}, la prego di farmelo sapere entro ${ORE_RISPOSTA_PROPOSTA} ore da questo messaggio. Trascorso questo tempo, dovrò verificare nuovamente la disponibilità.`
 }
@@ -401,7 +470,7 @@ export function generaProposta({ richiesta, soluzione, condizione, amelia, alter
       : casoC(richiesta, soluzione)
   const paragrafi = [apertura(richiesta.nome), ...blocchi.paragrafi]
   if (amelia && camereA.length === 1) paragrafi.push(bloccoAmelia(soluzione, amelia))
-  if (condizione) paragrafi.push(bloccoCondizione(condizione, centesimiTotale(soluzione)), fraseTreOre(blocchi.oreVariante), CHIUSURA)
+  if (condizione) paragrafi.push(bloccoCondizione(condizione, centesimiTotale(soluzione)), fraseTreOre(blocchi.oreVariante), blocchi.chiusura ?? CHIUSURA)
   return paragrafi.join('\n\n')
 }
 

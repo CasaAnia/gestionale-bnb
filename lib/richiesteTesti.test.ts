@@ -42,6 +42,7 @@ test('costanti: chiusura, descrizioni brevi e tipi, link, frase delle 3 ore', ()
   assert.equal(fraseTreOre('camera'), ORE('confermare la camera'))
   assert.equal(fraseTreOre('camere'), ORE('confermare una delle camere'))
   assert.equal(fraseTreOre('nessuna'), ORE('confermare'))
+  assert.equal(fraseTreOre('tre-persone'), 'Mi faccia sapere entro 3 ore da questo messaggio quale camera preferisce, e le confermo subito la prenotazione. Trascorso questo tempo, dovrò verificare nuovamente la disponibilità.')
 })
 
 test('elisione SOLO per 1, 8, 11 (uno, otto, undici) in tutte le forme: al/dal/del; mai per 18, 21, 28, 31', () => {
@@ -186,6 +187,130 @@ ${LINK('ambra')}`)
   const var2 = proponiSoluzioni(R17, [AMBRA, ALLEGRA], [])
   assert.match(generaProposta({ richiesta: R17, soluzione: var2[0], condizione: null, alternative: var2 }),
     /– Ambra, una camera matrimoniale con il bagno in camera\. Per le notti in cui sarete in tre posso aggiungere un letto in più\. Il prezzo per le 4 notti è di 350 €\. La prima notte in due a 80 €, le altre tre notti in tre a 90 € a notte\.\n/)
+})
+
+// ── Tre persone: variante del caso A a più camere (11/09/2026) ──────────────
+const R3 = { nome: 'Anna', arrivo: '2026-10-29', partenza: '2026-10-31', persone: 3, camera_id: null }
+const ORE3 = 'Mi faccia sapere entro 3 ore da questo messaggio quale camera preferisce, e le confermo subito la prenotazione. Trascorso questo tempo, dovrò verificare nuovamente la disponibilità.'
+const LENA3 = `– Lena, una camera tripla con il bagno privato appena fuori dalla porta, chiuso a chiave. È la camera più grande e la più comoda per tre persone. Il prezzo per le due notti è di 180 €, a 90 € a notte.
+${LINK('lena')}`
+const AMBRA3 = `– Ambra, una camera matrimoniale con il bagno in camera. Con il letto in più diventa un po' più raccolta. Il prezzo per le due notti è di 180 €, a 90 € a notte, letto in più compreso.
+${LINK('ambra')}`
+const ALLEGRA3 = `– Allegra, una camera matrimoniale con il balconcino e il bagno in camera. Per sistemare il letto in più devo togliere il tavolo, quindi lo spazio si riduce un po'. Il prezzo per le due notti è di 180 €, a 90 € a notte, letto in più compreso.
+${LINK('allegra')}`
+
+test('TRE persone, ESEMPIO ESATTO approvato da Ania: Lena Ambra Allegra, 29–31 ottobre, all\'arrivo', () => {
+  const tre = proponiSoluzioni(R3, CAMERE, [])
+  // Amelia non ospita tre persone: restano Lena, Ambra e Allegra
+  assert.deepEqual(camereDelCasoA(tre[0], tre).map(x => x.segmenti[0].camera.name).slice().sort(), ['Allegra', 'Ambra', 'Lena'])
+  assert.equal(generaProposta({ richiesta: R3, soluzione: tre[0], condizione: ARRIVO, alternative: tre }), `${apertura('Anna')}
+
+Ho verificato le date che mi ha indicato. Dal 29 al 31 ottobre, per tre persone, posso proporle tre camere:
+
+${LENA3}
+
+${AMBRA3}
+
+${ALLEGRA3}
+
+${COND_ARRIVO}
+
+${ORE3}
+
+${FIRMA}`)
+})
+
+test('TRE persone: solo Lena e Ambra libere → «due camere», ordine Lena poi Ambra', () => {
+  const due = proponiSoluzioni(R3, [AMELIA, AMBRA, LENA], [])
+  assert.equal(generaProposta({ richiesta: R3, soluzione: due[0], condizione: ARRIVO, alternative: due }), `${apertura('Anna')}
+
+Ho verificato le date che mi ha indicato. Dal 29 al 31 ottobre, per tre persone, posso proporle due camere:
+
+${LENA3}
+
+${AMBRA3}
+
+${COND_ARRIVO}
+
+${ORE3}
+
+${FIRMA}`)
+})
+
+test('TRE persone con la caparra: paragrafo della caparra invariato, chiusura nuova', () => {
+  const tre = proponiSoluzioni(R3, CAMERE, [])
+  const testo = generaProposta({ richiesta: R3, soluzione: tre[0], condizione: { tipo: 'caparra', caparraCentesimi: 9000 }, alternative: tre })
+  assert.equal(testo, `${apertura('Anna')}
+
+Ho verificato le date che mi ha indicato. Dal 29 al 31 ottobre, per tre persone, posso proporle tre camere:
+
+${LENA3}
+
+${AMBRA3}
+
+${ALLEGRA3}
+
+Per confermare la prenotazione le chiedo una caparra di 90 €, pari al 50% del totale, da versare con bonifico. Dopo la sua risposta le invierò i dati per il bonifico e terrò la camera a sua disposizione per 24 ore. Il saldo si paga all'arrivo, alla consegna delle chiavi, in contanti oppure con bonifico istantaneo.
+
+In caso di cancellazione o cambio di date, la prego di avvisarmi almeno 7 giorni prima dell'arrivo. Con un preavviso inferiore, o in caso di mancato arrivo, la caparra verrà trattenuta.
+
+La prenotazione sarà confermata definitivamente al ricevimento della caparra.
+
+${ORE3}
+
+${FIRMA}`)
+})
+
+test('TRE persone, una notte sola: «per la notte»; senza condizione il testo si ferma dopo le camere', () => {
+  const r = { ...R3, partenza: '2026-10-30' }
+  const due = proponiSoluzioni(r, [AMELIA, AMBRA, LENA], [])
+  assert.equal(generaProposta({ richiesta: r, soluzione: due[0], condizione: null, alternative: due }), `${apertura('Anna')}
+
+Ho verificato le date che mi ha indicato. Dal 29 al 30 ottobre, per tre persone, posso proporle due camere:
+
+– Lena, una camera tripla con il bagno privato appena fuori dalla porta, chiuso a chiave. È la camera più grande e la più comoda per tre persone. Il prezzo per la notte è di 90 €.
+${LINK('lena')}
+
+– Ambra, una camera matrimoniale con il bagno in camera. Con il letto in più diventa un po' più raccolta. Il prezzo per la notte è di 90 €, letto in più compreso.
+${LINK('ambra')}`)
+})
+
+test('DUE persone, tre camere libere: testo identico a prima della modifica delle tre persone', () => {
+  const r = { ...R3, persone: 2 }
+  const tutte = proponiSoluzioni(r, CAMERE, [])
+  // stringa presa dal generatore PRIMA della modifica (commit 9291f48)
+  assert.equal(generaProposta({ richiesta: r, soluzione: tutte[0], condizione: ARRIVO, alternative: tutte }), `${apertura('Anna')}
+
+Ho verificato le date che mi ha indicato. Dal 29 al 31 ottobre ho quattro camere libere che posso proporle:
+
+– Amelia, una camera singola con il bagno in camera. Per le notti in cui sarete in due posso aggiungere un letto in più. Il prezzo per le 2 notti è di 150 €, a 75 € a notte.
+${LINK('singola')}
+
+– Allegra, una camera matrimoniale con il balconcino e il bagno in camera. Il prezzo per le 2 notti è di 160 €, a 80 € a notte.
+${LINK('allegra')}
+
+– Ambra, una camera matrimoniale con il bagno in camera. Il prezzo per le 2 notti è di 160 €, a 80 € a notte.
+${LINK('ambra')}
+
+– Lena, una camera tripla con il bagno privato appena fuori dalla porta, chiuso a chiave. Il prezzo per le 2 notti è di 160 €, a 80 € a notte.
+${LINK('lena')}
+
+${CODA('confermare una delle camere')}`)
+})
+
+test('la variante delle tre persone NON tocca gli altri casi', () => {
+  // tre persone ma UNA camera sola: «è disponibile soltanto», coda di prima
+  const una = proponiSoluzioni(R3, [LENA], [])
+  const testoUna = generaProposta({ richiesta: R3, soluzione: una[0], condizione: ARRIVO, alternative: una })
+  assert.match(testoUna, /è disponibile soltanto Lena, una camera tripla/)
+  assert.ok(testoUna.endsWith(CODA('confermare la camera')))
+  // tre persone solo in una notte su due: testo di prima
+  const miste = { ...R3, persone_per_notte: [3, 2] }
+  const soluzioni = proponiSoluzioni(miste, [ALLEGRA, AMBRA, LENA], [])
+  const testoMisto = generaProposta({ richiesta: miste, soluzione: soluzioni[0], condizione: ARRIVO, alternative: soluzioni })
+  assert.match(testoMisto, /camere libere che posso proporle:/)
+  assert.doesNotMatch(testoMisto, /per tre persone, posso proporle/)
+  assert.ok(testoMisto.endsWith(CODA('confermare una delle camere')))
 })
 
 test('caso B un cambio: Amelia la prima notte, Ambra le altre (persone 2,3,3,3)', () => {
