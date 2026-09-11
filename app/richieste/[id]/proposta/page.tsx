@@ -57,7 +57,7 @@ import { nottiDellaRichiesta } from '@/lib/nottiRichieste'
 import { giorniTra } from '@/lib/richiesteCalendario'
 import { periodoCompatto } from '@/lib/dateItaliane'
 import {
-  CANALE_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, tempoTrascorso, riassuntoPersone, riassuntoPerNotte, linkModificaRichiesta, eAperta, type Richiesta,
+  CANALE_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, tempoTrascorso, personeInParole, riassuntoPerNotte, linkModificaRichiesta, eAperta, type Richiesta,
 } from '@/lib/richieste'
 import type { Room } from '@/lib/types'
 
@@ -835,7 +835,7 @@ export default function PropostaPage() {
         arrivo={richiesta.arrivo}
         partenza={richiesta.partenza}
         notti={n}
-        persone={richiesta.persone_per_notte ? riassuntoPersone(richiesta.arrivo, richiesta.persone_per_notte) : `${richiesta.persone} ${richiesta.persone === 1 ? 'persona' : 'persone'}`}
+        persone={personeInParole(richiesta.arrivo, personeNottiRichiesta.length ? personeNottiRichiesta : [richiesta.persone])}
         camera={richiesta.rooms?.name || 'qualsiasi camera'}
         telefono={telefonoAGruppi(richiesta.telefono) || richiesta.telefono}
         telefonoDaChiamare={telefono || null}

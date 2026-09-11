@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare, nuoveDalSito, rigaChiusa, riapribile, eRifiutata,
-  riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta, linkModificaRichiesta } from './richieste.ts'
+  riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta, linkModificaRichiesta, personeInParole } from './richieste.ts'
 
 const locale = (a: number, m: number, g: number, h = 12, min = 0) => new Date(a, m - 1, g, h, min)
 const adesso = locale(2026, 9, 2, 9, 0)
@@ -185,4 +185,21 @@ test('il link per modificare c’è per qualunque stato della richiesta', () => 
   }
   // non guarda lo stato: basta l'id
   assert.equal(linkModificaRichiesta({ id: 'abc-123' }), '/richieste/abc-123/modifica')
+})
+
+// Persone per notte in parole nella testa della proposta (Ania, 11/09/2026)
+test('le persone per notte si leggono in parole', () => {
+  // tutte le notti uguali: come prima
+  assert.equal(personeInParole('2026-10-29', [3, 3]), '3 persone')
+  assert.equal(personeInParole('2026-10-29', [1]), '1 persona')
+  // gli esempi di Ania
+  assert.equal(personeInParole('2026-10-29', [1, 3]), '1 persona il 29, 3 il 30')
+  assert.equal(personeInParole('2026-10-29', [2, 2, 3]), '2 persone il 29 e il 30, 3 il 31')
+  // tre gruppi
+  assert.equal(personeInParole('2026-10-20', [2, 1, 1, 3]), '2 persone il 20, 1 il 21 e il 22, 3 il 23')
+  // a cavallo di due mesi il mese si scrive su tutte le notti
+  assert.equal(personeInParole('2026-10-29', [2, 1, 1, 3]), '2 persone il 29 ott, 1 il 30 ott e il 31 ott, 3 il 1 nov')
+  // a cavallo di due mesi il mese si scrive
+  assert.equal(personeInParole('2026-10-31', [1, 3]), '1 persona il 31 ott, 3 il 1 nov')
+  assert.equal(personeInParole('2026-10-29', []), '')
 })
