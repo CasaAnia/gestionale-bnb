@@ -113,6 +113,13 @@ const richieste = [
   richiesta({ nome: 'Silvana', cognome: 'Pari', arrivo: giorni(101), partenza: giorni(103), persone: 2, canale: 'telefono', telefono: '+39 333 000 0101', created_at: fa(10) }),
   // Due persone, tutto libero: tutte e quattro le camere proponibili
   richiesta({ nome: 'Due', cognome: 'Persone', arrivo: giorni(105), partenza: giorni(107), persone: 2, canale: 'whatsapp', telefono: '+39 333 000 0105', created_at: fa(9) }),
+  // La richiesta di prova di Ania: 29–31 ottobre, tre persone, tutto libero
+  richiesta({ nome: 'Anna', cognome: 'Sawicka', arrivo: '2026-10-29', partenza: '2026-10-31', persone: 3, canale: 'web', telefono: '+39 342 700 4354', created_at: fa(25) }),
+  // La stessa, ma con una proposta già inviata PRIMA del grassetto: il testo
+  // archiviato non ha asterischi
+  richiesta({ nome: 'Anna', cognome: 'Vecchia', arrivo: '2026-10-29', partenza: '2026-10-31', persone: 3, canale: 'web', telefono: '+39 342 700 4355', created_at: fa(26), stato: 'proposta_inviata', proposta_inviata_at: fa(20),
+    condizione_pagamento: 'arrivo',
+    proposta_testo: 'Gentile Anna,\ngrazie per aver pensato a Casa Ania per il suo soggiorno.\n\nHo verificato le date che mi ha indicato. Dal 29 al 31 ottobre, per tre persone, posso proporle tre camere:\n\n– Lena, una camera tripla. Il prezzo per le due notti è di 180 €.\n\nGrazie mille,\nAnia – Casa Ania' }),
   // Camera chiesta dal cliente e libera: parte spuntata solo Ambra
   richiesta({ nome: 'Chiede', cognome: 'Ambra', arrivo: giorni(115), partenza: giorni(117), persone: 2, camera_id: ROOM.ambra, canale: 'web', telefono: '+39 333 000 0115', created_at: fa(4) }),
   // Cliente che torna (stesso telefono di Carmela Sabia): «Già stata qui 2

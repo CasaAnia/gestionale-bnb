@@ -45,6 +45,7 @@ import { chiaveSoluzione, soluzioneScelta } from '@/lib/richiesteScelta'
 import { custodisciPendente, eliminaPendente, leggiPendente, datiPerConferma, rigaConferma, type PropostaPendente } from '@/lib/richiestePendente'
 import { CONDIZIONI_PAGAMENTO, ETICHETTA_CONDIZIONE, caparraDefault, type CondizionePagamento } from '@/lib/condizioniPrenotazione'
 import { statoCondizioni } from '@/lib/condizioniProposta'
+import { testoDaRigenerare } from '@/lib/testoArchiviato'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import { lettoDaComunicare } from '@/lib/tariffe'
 import { openWhatsApp, normalizzaTelefono, telefonoAGruppi } from '@/lib/whatsapp'
@@ -307,7 +308,22 @@ export default function PropostaPage() {
   const bozzaGenerata = richiesta && soluzione
     ? generaProposta({ richiesta, soluzione, condizione: problemaCondizione ? null : condizione, amelia: ameliaAttiva ? amelia : null, alternative })
     : ''
-  const testoFinale = chiediConferma ? pendente?.testo ?? '' : inviataBloccata && richiesta?.proposta_testo ? richiesta.proposta_testo : (testoModificato ?? bozzaGenerata)
+  // Proposta già inviata prima di un aggiornamento dei testi: se le parole
+  // sono le stesse e cambia solo il grassetto, a schermo si legge la versione
+  // nuova (lib/testoArchiviato). Nel database non si scrive niente.
+  const testoArchiviatoAggiornato = useMemo(() => {
+    if (!inviataBloccata || !richiesta?.proposta_testo || !richiesta.proposta_soluzione) return null
+    if (richiesta.amelia_alternativa) return null
+    try {
+      const rifatto = generaProposta({
+        richiesta, soluzione: richiesta.proposta_soluzione,
+        condizione: condizioneDaColonne(richiesta),
+        alternative: richiesta.proposta_alternative ?? null,
+      })
+      return testoDaRigenerare(richiesta.proposta_testo, rifatto) ? rifatto : null
+    } catch { return null }
+  }, [inviataBloccata, richiesta])
+  const testoFinale = chiediConferma ? pendente?.testo ?? '' : inviataBloccata && richiesta?.proposta_testo ? (testoArchiviatoAggiornato ?? richiesta.proposta_testo) : (testoModificato ?? bozzaGenerata)
   const telefonoNorm = normalizzaTelefono(richiesta?.telefono)
   const telefono = telefonoNorm.numero
   const perConferma = datiPerConferma(pendente)
