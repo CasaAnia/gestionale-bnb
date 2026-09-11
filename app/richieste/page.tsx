@@ -322,7 +322,7 @@ function Richieste() {
           contatori su UNA riga con spaziatura uniforme; sul telefono com'era */}
       {desktop && !orizzontale ? (
         <div className="flex items-center flex-wrap gap-4 mb-4 min-h-[44px]">
-          <h1 className="ed-titolo-medio mr-auto">Richieste di prenotazione</h1>
+          <h1 className="ed-titolo-medio mr-auto max-lg:invisible">Richieste di prenotazione</h1>
           {!loading && nuoveWeb > 0 && (
             <p className="chip-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold bg-green-mid text-cream-text">
               <Globe size={14} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
@@ -342,14 +342,17 @@ function Richieste() {
       ) : orizzontale ? (
         /* Telefono girato: titolo e ricerca sulla stessa riga, come sul Mac */
         <div className="flex items-center gap-4 mb-3 min-h-[44px]">
-          <h1 className="ed-titolo-medio mr-auto">Richieste di prenotazione</h1>
+          <h1 className="ed-titolo-medio mr-auto max-lg:invisible">Richieste di prenotazione</h1>
           <CampoRicerca value={query} onChange={cambiaRicerca} className="flex-1 max-w-[360px]" />
         </div>
       ) : (
         /* Telefono dritto (05/09/2026): stessa struttura del Mac — titolo e ricerca,
            calendario, mesi, poi Reale/Presunta e «+ Nuova richiesta», contatori e lista */
         <div className="flex flex-col gap-2 mb-3">
-          <h1 className="ed-titolo">Richieste di prenotazione</h1>
+          {/* Sul telefono la scritta non si ripete (Ania, 11/09/2026: la barra
+              in alto dice già «Richieste»), ma il suo SPAZIO resta libero: si
+              nasconde soltanto, così ricerca, calendario e lista non salgono. */}
+          <h1 className="ed-titolo max-lg:invisible">Richieste di prenotazione</h1>
           <CampoRicerca value={query} onChange={cambiaRicerca} className="w-full" />
         </div>
       )}
