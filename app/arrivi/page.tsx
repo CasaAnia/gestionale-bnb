@@ -333,10 +333,13 @@ export default function Arrivi() {
         </div>
         {/* Titolo + «Cerca nome o telefono…» come nel Calendario: Mac e telefono girato in riga, dritto in colonna */}
         {/* Sul telefono il titolo NON si ripete (Ania, 11/09/2026: la barra in
-            alto dice già «Arrivi»); resta un po' di spazio vuoto, che dà
-            respiro. Su Mac, dove la barra non c'è, il titolo rimane. */}
-        <div className={`mt-3 lg:mt-4 mb-2 ${isDesktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
-          <h1 className={`max-lg:hidden ${isDesktop ? 'ed-titolo-medio mr-auto' : 'ed-titolo'}`}>Arrivi</h1>
+            alto dice già «Arrivi»), ma il suo SPAZIO resta: la scritta si
+            nasconde senza togliere l'ingombro («tieni quello spazio libero
+            senza spostare in alto ricerca e tabelle»), così tutto il resto
+            della pagina sta dov'era. Su Mac, dove la barra non c'è, il titolo
+            si vede. */}
+        <div className={`mt-0 lg:mt-4 mb-2 ${isDesktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
+          <h1 className={`max-lg:invisible ${isDesktop ? 'ed-titolo-medio mr-auto' : 'ed-titolo'}`}>Arrivi</h1>
           <CampoRicerca value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />
         </div>
         {cercando && matches.length === 0 && (
