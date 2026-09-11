@@ -53,3 +53,18 @@ Il commit tocca soltanto `lib/richiesteTesti.ts` e `lib/richiesteTesti.test.ts`.
 Le modifiche non salvate presenti sul ramo (`app/prenotazioni/[id]/page.tsx`,
 `lib/condizioniPrenotazione.ts`, e poi `lib/clienteCheTorna.ts` con i nuovi
 `lib/richiesteCamere*`) non sono state toccate né incluse in nessun commit.
+
+## Nota per chi rifà la pagina della proposta (11/09/2026, Claude)
+
+Il messaggio della variante «tre persone, più camere» adesso contiene il
+grassetto di WhatsApp, cioè gli asterischi (`*Lena*`, `*180 €*`, `*entro 3
+ore*`, `*Dal 29 al 31 ottobre, per tre persone*`). Gli asterischi devono
+restare nel testo che parte su WhatsApp e in quello che si copia: non toglierli.
+
+Nell'**anteprima** Ania non deve però vedere gli asterischi ma il grassetto.
+Per questo c'è `components/TestoWhatsApp.tsx`: dove oggi l'anteprima mostra il
+testo così com'è, va usato quel componente (`<TestoWhatsApp testo={testo} />`).
+Regole e prove stanno in `lib/testoWhatsApp.ts` e `lib/testoWhatsApp.test.ts`.
+
+Il componente non è stato inserito in `app/richieste/[id]/proposta/page.tsx`
+perché quel file è in carico a un'altra attività: lo integra chi lo rifà.
