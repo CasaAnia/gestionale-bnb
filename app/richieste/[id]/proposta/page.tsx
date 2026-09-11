@@ -57,7 +57,7 @@ import { nottiDellaRichiesta } from '@/lib/nottiRichieste'
 import { giorniTra } from '@/lib/richiesteCalendario'
 import { periodoCompatto } from '@/lib/dateItaliane'
 import {
-  CANALE_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, tempoTrascorso, riassuntoPersone, riassuntoPerNotte, modificabile, eAperta, type Richiesta,
+  CANALE_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, tempoTrascorso, riassuntoPersone, riassuntoPerNotte, linkModificaRichiesta, eAperta, type Richiesta,
 } from '@/lib/richieste'
 import type { Room } from '@/lib/types'
 
@@ -800,7 +800,7 @@ export default function PropostaPage() {
         avvisoTelefono={telefonoNorm.avviso}
         onScrivi={() => telefono && openWhatsApp(telefono, '')}
         note={noteTesta}
-        hrefModifica={modificabile(richiesta) && !chiediConferma ? `/richieste/${richiesta.id}/modifica` : null}
+        hrefModifica={linkModificaRichiesta(richiesta)}
       />
       {/* timer delle 3 ore: stesso testo della lista e del tooltip del calendario */}
       <RigaScadenza r={richiesta} adesso={adesso} className="mt-3 text-center" />

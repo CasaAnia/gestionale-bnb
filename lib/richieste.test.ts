@@ -2,8 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare, nuoveDalSito, rigaChiusa, riapribile, eRifiutata,
-  riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta,
-} from './richieste.ts'
+  riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta, linkModificaRichiesta } from './richieste.ts'
 
 const locale = (a: number, m: number, g: number, h = 12, min = 0) => new Date(a, m - 1, g, h, min)
 const adesso = locale(2026, 9, 2, 9, 0)
@@ -174,4 +173,16 @@ test('chiuse: riga di stato ottone/grigia/verde e chi si può riaprire', () => {
   assert.deepEqual(rigaChiusa({ stato: 'confermata', chiusa_at: ieriSera }, adesso), { testo: 'Confermata · ieri', tono: 'verde' })
   assert.equal(riapribile({ stato: 'chiusa' }), true); assert.equal(riapribile({ stato: 'rifiutata' }), true); assert.equal(riapribile({ stato: 'confermata' }), false)
   assert.equal(eRifiutata({ stato: 'chiusa', chiusura_motivo: 'scaduta' }), false); assert.equal(eRifiutata({ stato: 'rifiutata' }), true)
+})
+
+// «Modifica la richiesta» nella testa della proposta (Ania, 11/09/2026):
+// deve esserci SEMPRE. Prima spariva sulle richieste chiuse e mentre si
+// aspettava la risposta a «L'hai inviata?».
+test('il link per modificare c’è per qualunque stato della richiesta', () => {
+  const stati = ['in_attesa', 'proposta_inviata', 'confermata', 'rifiutata', 'chiusa']
+  for (const stato of stati) {
+    assert.equal(linkModificaRichiesta({ id: 'r1', stato } as never), '/richieste/r1/modifica')
+  }
+  // non guarda lo stato: basta l'id
+  assert.equal(linkModificaRichiesta({ id: 'abc-123' }), '/richieste/abc-123/modifica')
 })

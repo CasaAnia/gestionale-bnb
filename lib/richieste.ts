@@ -298,6 +298,12 @@ export type PropostaPrecedente = { testo: string | null; soluzione: unknown; inv
 export const AVVISO_PROPOSTA_SUPERATA = 'La proposta inviata si riferiva ai dati precedenti: rigenera e reinvia la proposta'
 export const modificabile = (r: { stato: StatoRichiesta }) => r.stato === 'in_attesa' || r.stato === 'proposta_inviata'
 
+// Il link per correggere una richiesta (date, persone, camera, nota): c'è
+// SEMPRE, per qualunque stato e in qualunque momento (Ania, 11/09/2026).
+// Prima nella pagina della proposta veniva nascosto sulle richieste chiuse e
+// mentre si aspettava la risposta a «L'hai inviata?», e sembrava sparito.
+export const linkModificaRichiesta = (r: { id: string }) => `/richieste/${r.id}/modifica`
+
 export function pianoModifica(
   originale: Pick<Richiesta, 'stato' | 'arrivo' | 'partenza' | 'persone' | 'camera_id'> & { notti_richieste?: string[] | null; persone_per_notte?: number[] | null; proposta_testo?: string | null; proposta_soluzione?: unknown; proposta_inviata_at?: string | null; proposte_precedenti?: PropostaPrecedente[] | null },
   nuovi: ValoriModifica,
