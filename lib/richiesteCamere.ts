@@ -11,9 +11,10 @@
 // quelli di lib/richiesteProposta (proponiSoluzioni e motiviEsclusione), così
 // l'elenco non può dire una cosa diversa dal messaggio che parte.
 // ============================================================================
-import { motiviEsclusione, personePerNotte, type CameraListino, type MotivoEsclusione, type PrenotazioneOccupante, type RichiestaProposta, type Soluzione } from './richiesteProposta.ts'
+import { motiviEsclusione, personePerNotte, prezziNottiCentesimi, type CameraListino, type MotivoEsclusione, type PrenotazioneOccupante, type RichiestaProposta, type Soluzione } from './richiesteProposta.ts'
+import { giorniTra } from './richiesteCalendario.ts'
 import { nottiDellaRichiesta } from './nottiRichieste.ts'
-import { centesimi, centesimiTotale, personeInTutteLeNotti, ORDINE_TRE_PERSONE } from './richiesteTesti.ts'
+import { centesimi, centesimiTotale, formattaEuro, personeInTutteLeNotti, ORDINE_TRE_PERSONE } from './richiesteTesti.ts'
 import { ROOM_TYPE_BY_NAME, ROOM_SLUG_BY_NAME } from './roomTypes.ts'
 import { MESI_BREVI } from './dateItaliane.ts'
 
@@ -24,11 +25,18 @@ export type RigaCameraProposta = {
   totaleCent: number        // il soggiorno intero in quella camera
   prezzoNotteCent: number   // quanto costa la notte, LETTO COMPRESO se si paga
   lettoNotteCent: number    // quanto pesa il letto in più, a notte (0 = non si paga)
+  // Il prezzo come si legge: un pezzo solo quando tutte le notti costano
+  // uguale, altrimenti uno per gruppo di notti («80 € il 29», «90 € il 30»)
+  prezzo: PezzoPrezzo[]
   tripla: boolean           // Lena venduta come tripla
   lettoInPiu: boolean       // serve il letto in più e si paga
   tavolo: boolean           // Allegra col letto in più: va tolto il tavolo
   stato: string             // «libera» oppure il motivo per cui non si propone
 }
+
+// Un pezzo del prezzo da leggere: «90 €» + «a notte» oppure «il 30», e se in
+// quelle notti il letto in più si paga, «letto compreso».
+export type PezzoPrezzo = { importo: string; quando: string; letto: boolean }
 
 const giornoDi = (iso: string) => Number(iso.slice(8, 10))
 const meseDi = (iso: string) => MESI_BREVI[Number(iso.slice(5, 7)) - 1]
@@ -86,6 +94,34 @@ function ordineDelMessaggio(richiesta: RichiestaProposta, intere: Soluzione[]): 
   return perCamera.map(c => c.id)
 }
 
+// Il prezzo notte per notte, unendo le notti che costano uguale (Ania,
+// 11/09/2026): prima si leggeva «90 € a notte, letto compreso» anche quando
+// valeva per una notte sola delle due.
+export function prezzoInParole(s: Soluzione, notti: string[]): PezzoPrezzo[] {
+  const giorni: string[] = []
+  const prezzi: number[] = []
+  const letto: boolean[] = []
+  for (const seg of s.segmenti) {
+    const suoi = giorniTra(seg.arrivo, seg.partenza)
+    const conLetto = new Set(seg.lettoNotti ?? [])
+    const perNotte = prezziNottiCentesimi(seg)
+    suoi.forEach((g, i) => { giorni.push(g); prezzi.push(perNotte[i]); letto.push(conLetto.has(g)) })
+  }
+  if (giorni.length === 0) return []
+  const uguali = prezzi.every(p => p === prezzi[0]) && letto.every(l => l === letto[0])
+  if (uguali) return [{ importo: formattaEuro(prezzi[0]), quando: 'a notte', letto: letto[0] }]
+  const fuori = notti.length > 0 ? notti : giorni
+  const out: PezzoPrezzo[] = []
+  let da = 0
+  for (let i = 1; i <= giorni.length; i++) {
+    if (i === giorni.length || prezzi[i] !== prezzi[da] || letto[i] !== letto[da]) {
+      out.push({ importo: formattaEuro(prezzi[da]), quando: quandoInParole(giorni.slice(da, i), fuori), letto: letto[da] })
+      da = i
+    }
+  }
+  return out
+}
+
 // Una soluzione copre da sola tutte le notti richieste con UNA camera sola?
 const camerUnica = (s: Soluzione) =>
   s.segmenti.length > 0 && s.nottiCoperte === s.nottiTotali && new Set(s.segmenti.map(x => x.camera.id)).size === 1
@@ -105,7 +141,7 @@ export function camereDaProporre(
     if (!s) {
       return {
         camera, proponibile: false, soluzione: null,
-        totaleCent: 0, prezzoNotteCent: 0, lettoNotteCent: 0,
+        totaleCent: 0, prezzoNotteCent: 0, lettoNotteCent: 0, prezzo: [],
         tripla: false, lettoInPiu: false, tavolo: false,
         stato: motivoInParole(motivo, camera, notti),
       }
@@ -121,6 +157,7 @@ export function camereDaProporre(
       // l'ospite: tariffa più letto, quando il letto si paga (Ania, 11/09/2026)
       prezzoNotteCent: centesimi(s.segmenti[0].prezzoNotte) + lettoNotteCent,
       lettoNotteCent,
+      prezzo: prezzoInParole(s, notti),
       tripla: camera.name === 'Lena' && personeMax >= 3,
       lettoInPiu,
       tavolo: camera.name === 'Allegra' && lettoInPiu,

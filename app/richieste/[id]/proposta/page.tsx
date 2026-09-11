@@ -730,9 +730,19 @@ export default function PropostaPage() {
                   {r.tripla && <span className="ed-badge" style={{ borderColor: 'var(--color-green-mid)', color: 'var(--color-green-mid)' }}>tripla</span>}
                   {r.lettoInPiu && <span className="ed-badge" style={{ background: '#EFE2C7', borderColor: '#EFE2C7', color: '#7A5C1E' }}>+ letto</span>}
                   <span style={!r.proponibile && motivoOpzione.has(r.camera.id) ? { color: OTTONE } : undefined}>{(!r.proponibile && motivoOpzione.get(r.camera.id)) || r.stato}</span>
-                  {r.proponibile && <>
+                  {r.proponibile && r.prezzo.length > 0 && <>
                     <span aria-hidden>·</span>
-                    <span><span className="font-semibold">{formattaEuro(r.prezzoNotteCent)}</span> a notte{r.lettoInPiu ? ', letto compreso' : ''}</span>
+                    {/* Un pezzo solo se tutte le notti costano uguale, altrimenti
+                        uno per gruppo di notti (Ania, 11/09/2026) */}
+                    <span>
+                      {r.prezzo.map((x, k) => (
+                        <span key={k}>
+                          {k > 0 ? ', ' : ''}
+                          <span className="font-semibold">{x.importo}</span> {x.quando}
+                          {x.letto ? (r.prezzo.length === 1 ? ', letto compreso' : ' letto compreso') : ''}
+                        </span>
+                      ))}
+                    </span>
                   </>}
                 </span>
                 {/* Allegra col letto in più: la sola cosa che va detta a parte */}

@@ -232,3 +232,37 @@ test('una camera che non si può più proporre sparisce dalle spunte', () => {
   const proponibili = camereProponibili(righe)
   assert.deepEqual(spunteCorrenti(proponibili, [], [LENA_ID, 'ambra']), [LENA_ID])
 })
+
+// ── Il prezzo scritto notte per notte (Ania, 11/09/2026) ────────────────────
+// Il caso vero: 29–31 ottobre, 1 persona la prima notte e 3 la seconda.
+const MISTA = { arrivo: '2026-10-29', partenza: '2026-10-31', persone: 3, camera_id: null, persone_per_notte: [1, 3] }
+const righeMiste = () => camereDaProporre(MISTA, CAMERE, [], proponiSoluzioni(MISTA, CAMERE, []))
+
+test('prezzo uguale tutte le notti: resta «a notte»', () => {
+  const lena = righeTre().find(r => r.camera.name === 'Lena')!
+  assert.deepEqual(lena.prezzo, [{ importo: '90 €', quando: 'a notte', letto: false }])
+  const ambra = righeTre().find(r => r.camera.name === 'Ambra')!
+  assert.deepEqual(ambra.prezzo, [{ importo: '90 €', quando: 'a notte', letto: true }])
+})
+
+test('prezzo diverso da notte a notte: si scrive per notte', () => {
+  const righe = righeMiste()
+  // Lena: 80 € in due (matrimoniale), 90 € in tre (tripla), letto mai addebitato
+  assert.deepEqual(righe.find(r => r.camera.name === 'Lena')!.prezzo, [
+    { importo: '80 €', quando: 'il 29', letto: false },
+    { importo: '90 €', quando: 'il 30', letto: false },
+  ])
+  // Ambra: 80 € la prima notte, 90 € la seconda col letto in più compreso
+  assert.deepEqual(righe.find(r => r.camera.name === 'Ambra')!.prezzo, [
+    { importo: '80 €', quando: 'il 29', letto: false },
+    { importo: '90 €', quando: 'il 30', letto: true },
+  ])
+  // il totale a destra non cambia: 80 + 90
+  assert.equal(righe.find(r => r.camera.name === 'Ambra')!.totaleCent, 17000)
+})
+
+test('il prezzo per notte usa le stesse parole delle date dell’elenco', () => {
+  const dueMesi = { arrivo: '2026-10-31', partenza: '2026-11-02', persone: 3, camera_id: null, persone_per_notte: [1, 3] }
+  const righe = camereDaProporre(dueMesi, CAMERE, [], proponiSoluzioni(dueMesi, CAMERE, []))
+  assert.deepEqual(righe.find(r => r.camera.name === 'Lena')!.prezzo.map(p => p.quando), ['il 31 ott', 'il 1 nov'])
+})
