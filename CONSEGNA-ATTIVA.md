@@ -35,3 +35,21 @@ Cartella `/Users/amerigogranata/Documents/Codex/2026-09-09/d`:
 - `work/storico-multicamera/work-storico/CONSEGNA.md`: storico Claude.
 - `outputs/conto-unico-*-consegnato.log`, `outputs/conto-unico-sql-compatibilita.log`: preflight/build e prove finali.
 - `outputs/conto-unico-transfer-result.json`: trasferimento verificato senza conflitti; consegne precedenti archiviate nella stessa cartella di lavoro, non liste di lavori aperti.
+
+## Nota per chi chiude il ramo `scheda-vestito` (11/09/2026, Claude)
+
+Il ramo porta una copia locale del commit `d5bff5a` — «Richieste: per tre
+persone la proposta elenca le camere una per una» — che è già su `main` come
+`cf19c4f` (pubblicato e verificato, deploy Vercel `success`). La copia è stata
+lasciata lì di proposito, per decisione di Ania: nessun reset e nessuno
+spostamento del ramo, così il lavoro in corso non viene disturbato.
+
+Non serve fare nulla. Aggiornando il ramo da `main` con un **rebase**, git
+riconosce il commit già presente e lo scarta da solo; con un **merge** il
+contenuto è identico e non produce conflitti. In entrambi i casi su `main` non
+arriva un doppione.
+
+Il commit tocca soltanto `lib/richiesteTesti.ts` e `lib/richiesteTesti.test.ts`.
+Le modifiche non salvate presenti sul ramo (`app/prenotazioni/[id]/page.tsx`,
+`lib/condizioniPrenotazione.ts`, e poi `lib/clienteCheTorna.ts` con i nuovi
+`lib/richiesteCamere*`) non sono state toccate né incluse in nessun commit.
