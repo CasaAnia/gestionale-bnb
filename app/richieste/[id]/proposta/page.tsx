@@ -648,7 +648,7 @@ export default function PropostaPage() {
 
   // ── Camere da proporre ────────────────────────────────────────────────────
   const elencoCamere = (
-    <ul className="ed-lista ed-lista-ottone mt-2">
+    <ul className="ed-lista [&>*:first-child]:border-t-0 mt-1">
       {righeCamere.map(r => {
         const spunta = spuntate.includes(r.camera.id)
         const si = r.proponibile && modificaConsentita && !manuale && !forzaNessunaDisponibilita
@@ -656,7 +656,7 @@ export default function PropostaPage() {
           <li key={r.camera.id} style={{ opacity: r.proponibile ? 1 : 0.55 }}>
             <button type="button" disabled={!si} onClick={() => cambiaSpunta(r.camera.id)} aria-pressed={spunta}
               data-camera={r.camera.name} data-spuntata={spunta ? 'si' : 'no'}
-              className="w-full text-left py-3 flex items-start gap-3 disabled:cursor-default">
+              className="w-full text-left py-[14px] flex items-start gap-3 disabled:cursor-default">
               <span aria-hidden className="shrink-0 inline-flex items-center justify-center" style={{
                 width: 24, height: 24, borderRadius: 7, marginTop: 2,
                 border: r.proponibile ? `1px solid ${spunta ? 'var(--color-green-mid)' : BORDO}` : `1px dashed ${BORDO}`,
@@ -665,8 +665,8 @@ export default function PropostaPage() {
               }}>{spunta ? '✓' : ''}</span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-3">
-                  <span style={{ fontFamily: GEORGIA, fontSize: 20, color: 'var(--color-green-dark)' }}>{r.camera.name}</span>
-                  {r.proponibile && <span style={{ fontFamily: GEORGIA, fontSize: 16, color: 'var(--color-stone)' }}>{formattaEuro(r.totaleCent)}</span>}
+                  <span style={{ fontFamily: GEORGIA, fontSize: 18, color: 'var(--color-green-dark)' }}>{r.camera.name}</span>
+                  {r.proponibile && <span style={{ fontFamily: GEORGIA, fontSize: 15, color: 'var(--color-stone)' }}>{formattaEuro(r.totaleCent)}</span>}
                 </span>
                 {/* Una riga sola (Ania, 11/09/2026): etichetta · libera ·
                     prezzo a notte, col letto già compreso quando si paga. */}
