@@ -14,11 +14,12 @@ import Link from 'next/link'
 import { Phone, MessageCircle } from 'lucide-react'
 import { giornoConSettimana } from '@/lib/dateItaliane'
 
+const GEORGIA = "Georgia, 'Times New Roman', serif"
 const GRIGIO_RIGA = '#B9B6AD'          // la prima riga, quella minuta
 const VERDE_MESE = '#5B6559'           // il mese accanto al giorno
 const OTTONE = '#A9884E'
 const FILO_OTTONE = 'rgba(169,136,78,0.55)'
-const ROSSO_NOTA = '#C0392B'
+const ROSSO_NOTA = '#C00000'   // il rosso della nota del cliente, scelto da Ania l'8/09/2026: uguale in Home, scheda e proposta
 const FILO_NOTA = '#E3CFC9'
 const ROSSO_AVVISO = '#8C3B2E'
 
@@ -34,8 +35,11 @@ export type TestaClienteProps = {
   motivoProblematico?: string | null
   /** soggiorni conclusi precedenti: 0 = cliente nuovo */
   volte?: number
-  /** «dal sito, oggi 20:05» */
-  provenienza: string
+  /** da dove arriva il CLIENTE: «Google», «passaparola», «mandata da Nida».
+   *  Solo per chi torna; senza, accanto alle volte non si scrive niente. */
+  provenienza?: string | null
+  /** come e quando è arrivata la richiesta: «dal sito · oggi 20:05» */
+  quando?: string | null
   /** soldi spesi in tutto nei soggiorni conclusi (centesimi), solo per chi torna */
   totaleCent?: number | null
   /** scheda del cliente: senza link il totale non si tocca */
@@ -68,7 +72,7 @@ function Data({ iso, etichetta }: { iso: string; etichetta: string }) {
   const { giorno, mese } = giornoConSettimana(iso)
   return (
     <div className="text-center">
-      <p className="leading-none" style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 400 }}>
+      <p className="leading-none" style={{ fontFamily: GEORGIA, fontWeight: 400 }}>
         <span style={{ fontSize: 24, color: 'var(--color-green-dark)' }}>{giorno}</span>{' '}
         <span style={{ fontSize: 17, color: VERDE_MESE }}>{mese}</span>
       </p>
@@ -79,7 +83,7 @@ function Data({ iso, etichetta }: { iso: string; etichetta: string }) {
 
 export default function TestaCliente({
   nome, stella = false, ricevuta = false, problematico = false, motivoProblematico = null,
-  volte = 0, provenienza, totaleCent = null, hrefCliente = null,
+  volte = 0, provenienza = null, quando = null, totaleCent = null, hrefCliente = null,
   arrivo, partenza, notti, persone, camera,
   telefono = null, telefonoWhatsApp = null, avvisoTelefono = null, onScrivi,
   nota = null, hrefModifica = null, testoModifica = 'Modifica la richiesta',
@@ -91,18 +95,23 @@ export default function TestaCliente({
 
   return (
     <div data-testa-cliente>
-      {/* Prima riga: chi è e da dove arriva; a destra, per chi torna, quanto ha speso */}
-      <div className="flex items-baseline justify-between gap-3">
+      {/* Prima riga: a sinistra chi è (e, per chi torna, da dove arriva);
+          in alto a destra come e quando è arrivata la richiesta e, sotto,
+          per chi torna, quanto ha speso in tutto. */}
+      <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 truncate" style={{ fontSize: 12.5, color: GRIGIO_RIGA }}>
-          {torna ? testoVolte : 'Prima volta'} · {provenienza}
+          {torna ? testoVolte : 'Prima volta'}{torna && provenienza ? ` · ${provenienza}` : ''}
         </p>
-        {totale && (hrefCliente
-          ? <Link href={hrefCliente} data-totale-cliente className="shrink-0 whitespace-nowrap" style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 16, color: 'var(--color-green-dark)' }}>{totale} ›</Link>
-          : <span data-totale-cliente className="shrink-0 whitespace-nowrap" style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 16, color: 'var(--color-green-dark)' }}>{totale} ›</span>)}
+        <span className="shrink-0 text-right">
+          {quando && <span data-quando-richiesta className="block whitespace-nowrap" style={{ fontSize: 12.5, color: GRIGIO_RIGA }}>{quando}</span>}
+          {totale && (hrefCliente
+            ? <Link href={hrefCliente} data-totale-cliente className="block whitespace-nowrap" style={{ fontFamily: GEORGIA, fontSize: 16, color: 'var(--color-green-dark)' }}>{totale} ›</Link>
+            : <span data-totale-cliente className="block whitespace-nowrap" style={{ fontFamily: GEORGIA, fontSize: 16, color: 'var(--color-green-dark)' }}>{totale} ›</span>)}
+        </span>
       </div>
 
       {/* Il nome, grande e al centro */}
-      <h1 className="text-center mt-2 leading-tight" style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: ricevuta ? 700 : 400, fontSize: 32, color: 'var(--color-green-dark)' }}>
+      <h1 className="text-center mt-2 leading-tight" style={{ fontFamily: GEORGIA, fontWeight: ricevuta ? 700 : 400, fontSize: 32, color: 'var(--color-green-dark)' }}>
         {stella && <span aria-label="cliente ottimo" title="Cliente ottimo" style={{ color: OTTONE, marginRight: 8 }}>★</span>}
         {nome}
       </h1>

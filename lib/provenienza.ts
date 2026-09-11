@@ -170,3 +170,18 @@ export function rigaCliente(c: { provenienza?: string | null; struttura_nome?: s
   const euro = `${Math.round(ricaviCent / 100).toLocaleString('it-IT')} €`
   return `${testoFonte(c)} · ${soggiorniConclusi} ${soggiorniConclusi === 1 ? 'soggiorno' : 'soggiorni'} · ${euro}`
 }
+
+// ── Come si legge nella testa del cliente (Ania, 11/09/2026) ────────────────
+// Accanto a «Già stata qui 2 volte»: «Google», «passaparola», «mandata da
+// Nida». Se la provenienza non si sa (o è «non so», o è un'altra struttura
+// senza nome) non si scrive niente: meglio il vuoto di una parola inutile.
+export function provenienzaInParole(c: { provenienza?: string | null; struttura_nome?: string | null } | null | undefined): string | null {
+  const p = c?.provenienza
+  if (p === 'google') return 'Google'
+  if (p === 'passaparola') return 'passaparola'
+  if (p === 'altra_struttura') {
+    const nome = (c?.struttura_nome ?? '').trim()
+    return nome ? `mandata da ${nome}` : null
+  }
+  return null
+}

@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   campiProvenienza, normalizzaProvenienza, manca0036, suggerimentiStrutture, strutturaNota, strutturePerOspiti,
-  campiDaCopiareAllaPrenotazione, conProvenienzaDalSito, testoProvenienza, STRUTTURE_NOTE, PROVENIENZA_DEFAULT, colonne0036Presenti,
+  campiDaCopiareAllaPrenotazione, conProvenienzaDalSito, testoProvenienza, provenienzaInParole, STRUTTURE_NOTE, PROVENIENZA_DEFAULT, colonne0036Presenti,
 } from './provenienza.ts'
 
 test('default non_so; la struttura vale solo con altra_struttura', () => {
@@ -113,4 +113,18 @@ test('conferma: la provenienza della richiesta va sul cliente solo se lui non ne
   assert.equal(rigaCliente({ provenienza: 'google' }, 1, 8050), 'da Google · 1 soggiorno · 81 €')
   assert.equal(testoFonte({ provenienza: 'passaparola' }), 'da passaparola')
   assert.equal(testoFonte({}), 'provenienza non nota')
+})
+
+// Testa del cliente (11/09/2026): la provenienza accanto a «Già stata qui N volte»
+test('provenienza in parole: Google, passaparola, mandata da …', () => {
+  assert.equal(provenienzaInParole({ provenienza: 'google', struttura_nome: null }), 'Google')
+  assert.equal(provenienzaInParole({ provenienza: 'passaparola', struttura_nome: null }), 'passaparola')
+  assert.equal(provenienzaInParole({ provenienza: 'altra_struttura', struttura_nome: 'Nida' }), 'mandata da Nida')
+  // quando non si sa non si scrive niente
+  assert.equal(provenienzaInParole({ provenienza: 'non_so', struttura_nome: null }), null)
+  assert.equal(provenienzaInParole({ provenienza: null, struttura_nome: null }), null)
+  assert.equal(provenienzaInParole(null), null)
+  assert.equal(provenienzaInParole(undefined), null)
+  // altra struttura senza nome: niente, non «mandata da »
+  assert.equal(provenienzaInParole({ provenienza: 'altra_struttura', struttura_nome: '  ' }), null)
 })

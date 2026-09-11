@@ -130,9 +130,10 @@ export default function Dashboard() {
             {b.extra_bed && <span className="bg-[#F1E0CE] text-[#7A4B22] rounded px-1 text-xs">+letto agg.</span>}
             {/* Nota del cliente in evidenza anche qui (Ania, 10/09/2026): sul
                 suo rigo, in rosso come nella scheda, così prima che arrivi si
-                legge senza aprire nulla. */}
+                legge senza aprire nulla. Il rosso è quello scelto da Ania
+                l'8 settembre (#C00000): lo stesso ovunque compaia la nota. */}
             {b.guests?.notes && (
-              <p data-nota-cliente-home className="basis-full text-[13px] leading-snug font-semibold" style={{ color: '#C0392B' }}>{b.guests.notes}</p>
+              <p data-nota-cliente-home className="basis-full text-[13px] leading-snug font-semibold" style={{ color: '#C00000' }}>{b.guests.notes}</p>
             )}
           </div>
         ))}

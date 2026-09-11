@@ -109,9 +109,21 @@ export function camereDaProporre(
   })
 }
 
-// Gli id delle camere che partono spuntate: tutte quelle proponibili
+// Gli id delle camere che si POSSONO spuntare: tutte quelle proponibili
 export const camereProponibili = (righe: RigaCameraProposta[]): string[] =>
   righe.filter(r => r.proponibile).map(r => r.camera.id)
+
+// Quali partono spuntate (decisione di Ania, 11/09/2026): se il cliente ha
+// chiesto una camera precisa ed è proponibile, parte spuntata SOLO quella —
+// le altre restano nell'elenco, spuntabili a mano. Se ha chiesto «qualsiasi»,
+// o la camera chiesta non si può proporre, partono spuntate tutte.
+// È la stessa regola del 07/09: chi ha chiesto Allegra non deve ricevere un
+// messaggio con tre camere senza che Ania l'abbia deciso.
+export function camereDaSpuntare(righe: RigaCameraProposta[], cameraRichiesta?: string | null): string[] {
+  const proponibili = camereProponibili(righe)
+  if (cameraRichiesta && proponibili.includes(cameraRichiesta)) return [cameraRichiesta]
+  return proponibili
+}
 
 // Le soluzioni delle camere spuntate, nell'ordine dell'elenco: la prima è
 // quella su cui si costruisce il messaggio, le altre sono le alternative.

@@ -32,10 +32,11 @@ import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata,
 import RifiutaConMotivo from '@/components/richieste/RifiutaConMotivo'
 import type { MotivoRifiuto } from '@/lib/motivoRifiuto'
 import { proponiSoluzioni, alternativaAmelia, personePerNotte, prezziNottiCentesimi, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
-import { camereDaProporre, camereProponibili, soluzioniSpuntate } from '@/lib/richiesteCamere'
+import { camereDaProporre, camereProponibili, camereDaSpuntare, soluzioniSpuntate } from '@/lib/richiesteCamere'
 import { vociStesseDate, voceClienteCheTorna } from '@/lib/richiesteDaControllare'
 import { soggiorniDellaPersona, chiaveNome, type SoggiornoStorico } from '@/lib/clienteCheTorna'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
+import { provenienzaInParole } from '@/lib/provenienza'
 import { camereAmmesseNotte, cameraSuccessiva, composizioneDaSoluzione, soluzioneDaComposizione, prezziTariffaPerNotte, applicaATutteLeNotti, totaleCentesimi, type Composizione, type PrezziManuali } from '@/lib/richiesteComposizione'
 import StrisciaNotti, { etichettaNotte } from '@/components/StrisciaNotti'
 import { generaProposta, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, nottiScoperte, type Condizione } from '@/lib/richiesteTesti'
@@ -220,8 +221,11 @@ export default function PropostaPage() {
     try { return camereDaProporre(richiesta, camere, prenotazioniConOpzioni, soluzioni) } catch { return [] }
   }, [richiesta, camere, prenotazioniConOpzioni, soluzioni])
   const proponibili = useMemo(() => camereProponibili(righeCamere), [righeCamere])
+  // Quali partono spuntate: la camera chiesta dal cliente se si può proporre,
+  // altrimenti tutte (lib/richiesteCamere). Poi decide Ania con le spunte.
+  const diPartenza = useMemo(() => camereDaSpuntare(righeCamere, richiesta?.camera_id ?? null), [righeCamere, richiesta])
   // Una camera che nel frattempo non è più proponibile sparisce dalle spunte da sola
-  const spuntate = useMemo(() => proponibili.filter(x => spunteManuali === null || spunteManuali.includes(x)), [proponibili, spunteManuali])
+  const spuntate = useMemo(() => (spunteManuali === null ? diPartenza : proponibili.filter(x => spunteManuali.includes(x))), [proponibili, spunteManuali, diPartenza])
   const scelteSpuntate = useMemo(() => soluzioniSpuntate(righeCamere, spuntate), [righeCamere, spuntate])
   const conCamereLibere = proponibili.length > 0
 
@@ -314,7 +318,7 @@ export default function PropostaPage() {
     const chiave = chiaveNome({ nome: richiesta.nome, cognome: richiesta.cognome })
     const perTelefono = tel ? clienti.find(c => normalizzaTelefono(c.phone as string | null).numero === tel) : undefined
     const perNome = chiave ? clienti.find(c => chiaveNome({ full_name: (c.full_name as string | null) ?? null }) === chiave) : undefined
-    return (perTelefono ?? perNome ?? null) as { id?: string; rating?: string | null; vuole_ricevuta?: boolean | null; motivo_problematico?: string | null } | null
+    return (perTelefono ?? perNome ?? null) as { id?: string; rating?: string | null; vuole_ricevuta?: boolean | null; motivo_problematico?: string | null; provenienza?: string | null; struttura_nome?: string | null } | null
   }, [richiesta, clienti])
   const soggiorni = useMemo(() => {
     if (!richiesta) return { volte: 0, ricaviCent: 0, ultimo: null }
@@ -386,7 +390,7 @@ export default function PropostaPage() {
     conConferma(() => {
       setTestoModificato(null)
       setSpunteManuali(prima => {
-        const base = prima === null ? proponibili : prima.filter(x => proponibili.includes(x))
+        const base = prima === null ? diPartenza : prima.filter(x => proponibili.includes(x))
         return base.includes(cameraId) ? base.filter(x => x !== cameraId) : proponibili.filter(x => base.includes(x) || x === cameraId)
       })
     })
@@ -698,7 +702,8 @@ export default function PropostaPage() {
         problematico={problematico}
         motivoProblematico={guest?.motivo_problematico ?? null}
         volte={soggiorni.volte}
-        provenienza={`${CANALE_LABEL[richiesta.canale]}, ${oraArrivo(richiesta.created_at, adesso)}`}
+        provenienza={provenienzaInParole(guest ?? richiesta)}
+        quando={`${CANALE_LABEL[richiesta.canale]} · ${oraArrivo(richiesta.created_at, adesso)}`}
         totaleCent={soggiorni.ricaviCent}
         hrefCliente={hrefCliente}
         arrivo={richiesta.arrivo}
