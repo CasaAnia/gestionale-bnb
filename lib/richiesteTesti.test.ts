@@ -329,7 +329,7 @@ test('caso B un cambio: Amelia la prima notte, Ambra le altre (persone 2,3,3,3)'
   const s = soluzioneDaComposizione(R17, CAMERE, ['amelia', 'ambra', 'ambra', 'ambra'])
   assert.equal(generaProposta({ richiesta: R17, soluzione: s, condizione: ARRIVO }), `${apertura('Candida')}
 
-Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre non ho una camera libera per tutto il periodo, ma posso ospitarla comunque con un cambio di camera durante il soggiorno:
+Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre posso ospitarla con un cambio di camera durante il soggiorno:
 
 – dal 17 al 18 in Amelia, una singola, con un letto in più: 75 € a notte
 
@@ -346,7 +346,7 @@ test('caso B due cambi con Lena (eccezione del bagno) e «qualche cambio di came
   const s = soluzioneDaComposizione(R17, CAMERE, ['amelia', 'ambra', 'ambra', LENA_ID])
   assert.equal(generaProposta({ richiesta: R17, soluzione: s, condizione: null }), `${apertura('Candida')}
 
-Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre non ho una camera libera per tutto il periodo, ma posso ospitarla comunque con qualche cambio di camera durante il soggiorno:
+Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre posso ospitarla con qualche cambio di camera durante il soggiorno:
 
 – dal 17 al 18 in Amelia, una singola, con un letto in più: 75 € a notte
 
@@ -364,7 +364,7 @@ test('caso B con persone variabili in un segmento: «in tre a 90 € a notte, po
   const s = soluzioneDaComposizione(r, CAMERE, ['amelia', 'ambra', 'ambra', 'ambra'])
   assert.equal(generaProposta({ richiesta: r, soluzione: s, condizione: null }), `${apertura('Candida')}
 
-Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre non ho una camera libera per tutto il periodo, ma posso ospitarla comunque con un cambio di camera durante il soggiorno:
+Ho verificato le date che mi ha indicato. Dal 17 al 21 settembre posso ospitarla con un cambio di camera durante il soggiorno:
 
 – dal 17 al 18 in Amelia, una singola, con un letto in più: 75 € a notte
 
@@ -534,4 +534,32 @@ test('regole di stile: mai il tu, mai «terzo/secondo letto» o «branda», mai 
   ]
   for (const t of testi) assert.doesNotMatch(t, /\bti\b|\btuo\b|proporti|ospitarti|terzo letto|secondo letto|branda|la camera (Ambra|Amelia|Lena|Allegra)/)
   assert.ok(alternativaAmelia)
+})
+
+// ── Cambio camera: chi l'ha composto cambia la prima frase (Ania, 11/09/2026)
+test('cambio camera composto da Ania: frase neutra; proposto dal gestionale: frase di oggi', () => {
+  const richiesta = { nome: 'Anna', arrivo: '2026-10-29', partenza: '2026-10-31', persone: 2, camera_id: null }
+  // A MANO, con camere libere per tutto il periodo: non si dice che non ce n'erano
+  const aMano = soluzioneDaComposizione(richiesta, CAMERE, ['ambra', 'allegra'])
+  assert.equal(aMano.manuale, true)
+  const testoAMano = generaProposta({ richiesta, soluzione: aMano, condizione: ARRIVO })
+  assert.match(testoAMano, /Ho verificato le date che mi ha indicato\. Dal 29 al 31 ottobre posso ospitarla con un cambio di camera durante il soggiorno:/)
+  assert.ok(!testoAMano.includes('non ho una camera libera'))
+
+  // AUTOMATICO, perché nessuna camera è libera per tutte le notti: frase di oggi
+  const occupate = [
+    { room_id: 'amelia', check_in: '2026-10-30', check_out: '2026-10-31', status: 'confermata' },
+    { room_id: 'allegra', check_in: '2026-10-29', check_out: '2026-10-30', status: 'confermata' },
+    { room_id: 'ambra', check_in: '2026-10-30', check_out: '2026-10-31', status: 'confermata' },
+    { room_id: LENA_ID, check_in: '2026-10-29', check_out: '2026-10-31', status: 'confermata' },
+  ]
+  const auto = proponiSoluzioni(richiesta, CAMERE, occupate).find(x => x.caso === 'cambio')!
+  assert.equal(auto.manuale, undefined)
+  const testoAuto = generaProposta({ richiesta, soluzione: auto, condizione: ARRIVO })
+  assert.match(testoAuto, /non ho una camera libera per tutto il periodo, ma posso ospitarla comunque con un cambio di camera durante il soggiorno:/)
+
+  // il resto del testo del cambio camera non cambia
+  for (const t of [testoAMano, testoAuto]) {
+    assert.match(t, /Il cambio di camera lo faccio io al mattino, non deve pensare a nulla\./)
+  }
 })

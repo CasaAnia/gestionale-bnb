@@ -384,11 +384,18 @@ function casoA(richiesta: RichiestaTesto & { persone?: number; persone_per_notte
 function casoB(richiesta: RichiestaTesto, sol: Soluzione): Blocchi {
   const periodo = { arrivo: richiesta.arrivo, partenza: richiesta.partenza }
   const cambi = sol.segmenti.length - 1
+  const cambio = cambi > 1 ? 'qualche cambio' : 'un cambio'
   const link = rigaLink(sol)
   return {
     oreVariante: 'nessuna',
     paragrafi: [
-      `${HO_VERIFICATO} ${maiuscola(dalAl(richiesta.arrivo, richiesta.partenza))} non ho una camera libera per tutto il periodo, ma posso ospitarla comunque con ${cambi > 1 ? 'qualche cambio' : 'un cambio'} di camera durante il soggiorno:`,
+      // Il cambio camera composto da Ania con «Compongo io» (sol.manuale) non
+      // dice «non ho una camera libera per tutto il periodo»: quando lo compone
+      // lei, di solito una camera per tutte le notti c'era (Ania, 11/09/2026).
+      // Se invece è il gestionale a proporlo perché non c'è, la frase resta.
+      sol.manuale
+        ? `${HO_VERIFICATO} ${maiuscola(dalAl(richiesta.arrivo, richiesta.partenza))} posso ospitarla con ${cambio} di camera durante il soggiorno:`
+        : `${HO_VERIFICATO} ${maiuscola(dalAl(richiesta.arrivo, richiesta.partenza))} non ho una camera libera per tutto il periodo, ma posso ospitarla comunque con ${cambio} di camera durante il soggiorno:`,
       ...sol.segmenti.map(s => rigaSegmento(s, periodo)),
       `Il cambio di camera lo faccio io al mattino, non deve pensare a nulla. Il prezzo ${perLeNotti(sol.nottiCoperte)} è di ${formattaEuro(centesimiTotale(sol))}.`,
       ...(link ? [link] : []),
