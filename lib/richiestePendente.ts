@@ -150,3 +150,12 @@ export function rigaConferma(p: PropostaPendente): string {
   }
   return pezzi.join(' · ')
 }
+
+// Il messaggio custodito è stato riscritto a mano da Ania? Lo si capisce
+// confrontandolo con quello che il generatore avrebbe scritto per la stessa
+// soluzione e le stesse condizioni. Chi chiama passa il generatore, così
+// questo file resta senza dipendenze dai testi.
+export function testoRiscrittoAMano(p: PropostaPendente, rigenera: (p: PropostaPendente) => string): boolean {
+  if (!p.soluzione) return false
+  try { return p.testo.trim() !== rigenera(p).trim() } catch { return false }
+}

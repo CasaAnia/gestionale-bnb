@@ -42,7 +42,7 @@ import { camereAmmesseNotte, cameraSuccessiva, composizioneDaSoluzione, soluzion
 import StrisciaNotti, { etichettaNotte } from '@/components/StrisciaNotti'
 import { generaProposta, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, nottiScoperte, type Condizione } from '@/lib/richiesteTesti'
 import { chiaveSoluzione, soluzioneScelta } from '@/lib/richiesteScelta'
-import { custodisciPendente, eliminaPendente, leggiPendente, datiPerConferma, rigaConferma, improntaRichiesta, richiestaCambiata, type PropostaPendente } from '@/lib/richiestePendente'
+import { custodisciPendente, eliminaPendente, leggiPendente, datiPerConferma, rigaConferma, improntaRichiesta, richiestaCambiata, testoRiscrittoAMano, type PropostaPendente } from '@/lib/richiestePendente'
 import { CONDIZIONI_PAGAMENTO, ETICHETTA_CONDIZIONE, caparraDefault, type CondizionePagamento } from '@/lib/condizioniPrenotazione'
 import { statoCondizioni } from '@/lib/condizioniProposta'
 import { testoDaRigenerare } from '@/lib/testoArchiviato'
@@ -156,6 +156,9 @@ export default function PropostaPage() {
   // Il messaggio è lungo: all'inizio se ne vedono le prime righe, con una
   // sfumatura, e si apre tutto con un tocco (Ania, 11/09/2026)
   const [messaggioAperto, setMessaggioAperto] = useState(false)
+  // La richiesta è cambiata dopo l'invio ma il messaggio era riscritto a mano:
+  // non si cancella, si avvisa e si lascia decidere ad Ania (11/09/2026)
+  const [superataAMano, setSuperataAMano] = useState(false)
   const [daRifiutare, setDaRifiutare] = useState(false)
   const [confermando, setConfermando] = useState<{ aperte: Richiesta[] } | null>(null)
   const [occupato, setOccupato] = useState<'invio' | 'rifiuto' | 'immagine' | null>(null)
@@ -559,6 +562,17 @@ export default function PropostaPage() {
         // di una richiesta che non esiste più. L'attesa si chiude da sola e la
         // bozza si rifà sui dati di adesso (Ania, 11/09/2026).
         if (richiestaCambiata(salvato, richiesta)) {
+          // Riscritto a mano? Non si butta: si avvisa e decide Ania.
+          // Si rigenera com'era ALLORA (dall'impronta), non com'è adesso:
+          // altrimenti ogni messaggio sembrerebbe riscritto a mano.
+          const testoAMano = (x: PropostaPendente) => testoRiscrittoAMano(x, y => generaProposta({
+            richiesta: { ...richiesta, ...(y.impronta ?? {}) },
+            soluzione: y.soluzione as Soluzione, condizione: condizioneDaColonne(y.condizioni), alternative: y.alternative,
+          }))
+          if (salvato && testoAMano(salvato)) {
+            setPendente(salvato); setChiediConferma(true); setSuperataAMano(true)
+            return
+          }
           eliminaPendente(window.localStorage, chiavePendente)
           setPendente(null); setChiediConferma(false); setTestoModificato(null)
           setAvviso('La richiesta è cambiata dopo l’ultimo invio: il messaggio è stato rifatto sui dati di adesso. Se quello di prima era già partito, mandane uno nuovo.')
@@ -583,6 +597,16 @@ export default function PropostaPage() {
     }, 0)
     return () => clearTimeout(t)
   }, [id, loading, richiesta, chiavePendente, inviata])
+
+  // «Rifai il messaggio»: butta l'attesa vecchia e riscrive la bozza sui dati
+  // di adesso. Il testo riscritto a mano si perde solo qui, con un tocco suo.
+  function rifaiIlMessaggio() {
+    try { eliminaPendente(window.localStorage, chiavePendente) }
+    catch { setErrore('Non riesco ad aggiornare la proposta conservata nel browser. Riapri questa pagina.'); return }
+    setPendente(null); setChiediConferma(false); setSuperataAMano(false)
+    setTestoModificato(null); setRicomponi(true)
+    setAvviso('Messaggio rifatto sui dati di adesso.')
+  }
 
   function rispostaNo(): boolean {
     if (salvataggioInCorso.current) return false
@@ -941,7 +965,13 @@ export default function PropostaPage() {
               ARCHIVIATO, cioè quello che il cliente ha ricevuto: può essere
               diverso da quello che il gestionale scriverebbe oggi. Va detto
               sopra al riquadro, altrimenti non si capisce (Ania, 11/09/2026). */}
-          {inviataBloccata && (
+          {superataAMano && (
+            <p data-richiesta-cambiata className="mb-1.5" style={{ fontSize: 12.5, color: OTTONE }}>
+              La richiesta è cambiata: il messaggio è ancora quello di prima.{' '}
+              <button type="button" onClick={rifaiIlMessaggio} className="font-semibold underline underline-offset-2" style={{ color: 'var(--color-green-mid)' }}>Rifai il messaggio</button>
+            </p>
+          )}
+          {inviataBloccata && !superataAMano && (
             <p data-messaggio-inviato className="mb-1.5" style={{ fontSize: 12.5, color: OTTONE }}>
               Questo è il messaggio già inviato{richiesta.proposta_inviata_at ? ` ${oraArrivo(richiesta.proposta_inviata_at, adesso)}` : ''}: non è la bozza di adesso.
             </p>
