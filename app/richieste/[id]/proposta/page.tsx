@@ -42,7 +42,7 @@ import { camereAmmesseNotte, cameraSuccessiva, composizioneDaSoluzione, soluzion
 import StrisciaNotti, { etichettaNotte } from '@/components/StrisciaNotti'
 import { generaProposta, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, nottiScoperte, type Condizione } from '@/lib/richiesteTesti'
 import { chiaveSoluzione, soluzioneScelta } from '@/lib/richiesteScelta'
-import { custodisciPendente, eliminaPendente, leggiPendente, datiPerConferma, type PropostaPendente } from '@/lib/richiestePendente'
+import { custodisciPendente, eliminaPendente, leggiPendente, datiPerConferma, rigaConferma, type PropostaPendente } from '@/lib/richiestePendente'
 import { CONDIZIONI_PAGAMENTO, ETICHETTA_CONDIZIONE, caparraDefault, type CondizionePagamento } from '@/lib/condizioniPrenotazione'
 import { statoCondizioni } from '@/lib/condizioniProposta'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
@@ -942,8 +942,10 @@ export default function PropostaPage() {
           {chiediConferma && (
             <div ref={barraRef} role="group" aria-label="Conferma dell'invio" className="scheda-in mt-3 bg-white rounded-xl p-3" style={{ border: `1px solid ${BORDO}` }}>
               <p className="text-sm font-medium text-green-dark mb-2">L’hai inviata?</p>
+              {/* Le camere DAVVERO proposte, nell'ordine del messaggio, con
+                  le date e come paga (Ania, 11/09/2026) */}
               {perConferma && (
-                <p className="text-xs mb-2" style={{ color: GRIGIO_NOTA }} data-pendente>Proposta da confermare: {riassuntoSegmenti(perConferma.soluzione)}{perConferma.alternative && perConferma.alternative.length > 1 ? ` · ${perConferma.alternative.length} camere proposte` : ''}</p>
+                <p className="text-xs mb-2" style={{ color: GRIGIO_NOTA }} data-pendente>{rigaConferma(perConferma)}</p>
               )}
               {!perConferma && <p role="alert" className="text-sm mb-2 text-[#8C3B2E]">Questa vecchia bozza non conserva tutte le camere e i prezzi. Non posso registrarla in modo sicuro. Controlla il messaggio in WhatsApp, poi scarta l’attesa e ricomponi la proposta corretta.</p>}
               <div className="flex gap-2">
@@ -956,13 +958,16 @@ export default function PropostaPage() {
                   {perConferma ? 'No' : 'Scarta attesa e ricomponi'}
                 </button>
               </div>
-              <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>Solo «Sì, inviata» segna la richiesta come proposta inviata.</p>
+              <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>Con «Sì, inviata» la richiesta passa a «Proposta inviata».</p>
               {pendente?.confermataIl && <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>Salvataggio da verificare: riprova «Sì, inviata» o riapri la pagina prima di scartare.</p>}
             </div>
           )}
-          <p className="text-xs text-center mt-2" style={{ color: GRIGIO_NOTA }}>
-            {inviata ? `Proposta inviata ${richiesta.proposta_inviata_at ? tempoTrascorso(richiesta.proposta_inviata_at, adesso) : ''}. Un nuovo invio, confermato, aggiorna l’ora.` : 'Dopo l’invio, confermato con «Sì, inviata», la richiesta passa a ‘Proposta inviata’.'}
-          </p>
+          {/* Sotto il riquadro non si ripete: la frase sta già lì (Ania, 11/09/2026) */}
+          {!chiediConferma && (
+            <p className="text-xs text-center mt-2" style={{ color: GRIGIO_NOTA }}>
+              {inviata ? `Proposta inviata ${richiesta.proposta_inviata_at ? tempoTrascorso(richiesta.proposta_inviata_at, adesso) : ''}. Un nuovo invio, confermato, aggiorna l’ora.` : 'Dopo l’invio, confermato con «Sì, inviata», la richiesta passa a «Proposta inviata».'}
+            </p>
+          )}
           {inviata && !chiediConferma && (
             <button type="button" onClick={async () => { const { data } = await fetchRichieste(); setConfermando({ aperte: data }) }}
               className="w-full mt-3 rounded-xl py-3 text-[15px] font-semibold bg-white text-green-dark border active:bg-sage" style={{ borderColor: BORDO }}>

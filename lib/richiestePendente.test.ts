@@ -144,3 +144,54 @@ test('caparra, testo personale e alternative multiple restano esatti; una altern
   assert.deepEqual(datiPerConferma(ripreso), p)
   assert.equal(datiPerConferma(leggiPendente(JSON.stringify({ ...p, alternative: [{ caso: 'completa', segmenti: [] }, ...soluzioni] }))), null)
 })
+
+// ── La riga di «L'hai inviata?» (Ania, 11/09/2026) ──────────────────────────
+// Deve dire le camere DAVVERO proposte, nell'ordine del messaggio, con le
+// date e come paga.
+import { rigaConferma, periodoRiga, elencoCamere } from './richiestePendente.ts'
+import { camereDaProporre, camereDaSpuntare, soluzioniSpuntate } from './richiesteCamere.ts'
+import { LENA_ID } from './lettiAggiuntivi.ts'
+
+const LENA_R = { id: LENA_ID, name: 'Lena', base_price: 80, double_price: 90, has_extra_bed: true, extra_bed_price: 10, active: true }
+const TUTTE = [AMELIA, ALLEGRA, AMBRA, LENA_R]
+const TRE_R = { arrivo: '2026-10-29', partenza: '2026-10-31', persone: 3, camera_id: null }
+const righeTreR = camereDaProporre(TRE_R, TUTTE, [], proponiSoluzioni(TRE_R, TUTTE, []))
+const condizioni = (x: Partial<Record<string, unknown>> = {}) => ({
+  condizione_pagamento: 'arrivo', caparra_centesimi: null, condizione_testo: null, amelia_alternativa: false, ...x,
+}) as never
+
+test('riga di conferma: tre camere, nell’ordine del messaggio, con date e come paga', () => {
+  const scelte = soluzioniSpuntate(righeTreR, camereDaSpuntare(righeTreR, null))
+  const riga = rigaConferma({ testo: '', condizioni: condizioni(), soluzione: scelte[0], alternative: scelte })
+  assert.equal(riga, "Lena, Ambra e Allegra · 29 → 31 ott · all'arrivo")
+})
+
+test('riga di conferma: una camera sola', () => {
+  const scelte = soluzioniSpuntate(righeTreR, [LENA_ID])
+  const riga = rigaConferma({ testo: '', condizioni: condizioni(), soluzione: scelte[0], alternative: null })
+  assert.equal(riga, "Lena · 29 → 31 ott · all'arrivo")
+})
+
+test('riga di conferma: due camere e la caparra col suo importo', () => {
+  const scelte = soluzioniSpuntate(righeTreR, [LENA_ID, 'ambra'])
+  const riga = rigaConferma({ testo: '', condizioni: condizioni({ condizione_pagamento: 'caparra', caparra_centesimi: 9000 }), soluzione: scelte[0], alternative: scelte })
+  assert.equal(riga, 'Lena e Ambra · 29 → 31 ott · caparra 90 €')
+})
+
+test('riga di conferma: cambio camera, pagamento completo, e «non c’è posto»', () => {
+  const cambio = proponiSoluzioni({ arrivo: '2026-10-29', partenza: '2026-10-31', persone: 2, camera_id: null }, [ALLEGRA],
+    [{ room_id: 'allegra', check_in: '2026-10-30', check_out: '2026-10-31', status: 'confermata' }])[0]
+  assert.match(rigaConferma({ testo: '', condizioni: condizioni({ condizione_pagamento: 'completo' }), soluzione: cambio, alternative: null }),
+    /^Allegra · 29 → 30 ott · pagamento completo$/)
+  // caso «non c'è posto»: nessuna camera e nessuna condizione
+  assert.equal(rigaConferma({ testo: '', condizioni: condizioni({ condizione_pagamento: null }), soluzione: { caso: 'completo', segmenti: [], nottiTotali: 2, nottiCoperte: 0, nottiMancanti: [], prezzoTotale: 0 }, alternative: null }), '')
+})
+
+test('date e elenchi della riga di conferma', () => {
+  assert.equal(periodoRiga('2026-10-29', '2026-10-31'), '29 → 31 ott')
+  assert.equal(periodoRiga('2026-10-31', '2026-11-02'), '31 ott → 2 nov')
+  assert.equal(periodoRiga('2026-12-30', '2027-01-02'), '30 dic 2026 → 2 gen 2027')
+  assert.equal(elencoCamere(['Lena']), 'Lena')
+  assert.equal(elencoCamere(['Lena', 'Ambra']), 'Lena e Ambra')
+  assert.equal(elencoCamere(['Lena', 'Ambra', 'Allegra']), 'Lena, Ambra e Allegra')
+})

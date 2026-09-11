@@ -63,3 +63,55 @@ export function eliminaPendente(memoria: Memoria, chiave: string): void {
   memoria.removeItem(chiave)
   if (memoria.getItem(chiave) !== null) throw new Error('La risposta non è stata conservata nel browser. Riprova.')
 }
+
+// ── La riga di «L'hai inviata?» (Ania, 11/09/2026) ──────────────────────────
+// Dice le camere DAVVERO proposte nel messaggio, nell'ordine del messaggio,
+// con le date e come paga: «Lena, Ambra e Allegra · 29 → 31 ott · all'arrivo».
+// Con una camera sola: «Lena · 29 → 31 ott · all'arrivo».
+// Legge SOLO quello che è stato custodito al momento dell'invio: mai camere o
+// condizioni ricalcolate al ritorno nell'app.
+const MESI_RIGA = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
+const pezziData = (iso: string) => { const [a, m, g] = iso.split('-').map(Number); return { a, m, g } }
+
+// «29 → 31 ott» · «31 ott → 2 nov» · «30 dic 2026 → 2 gen 2027»
+export function periodoRiga(arrivo: string, partenza: string): string {
+  const A = pezziData(arrivo), P = pezziData(partenza)
+  if (A.a !== P.a) return `${A.g} ${MESI_RIGA[A.m - 1]} ${A.a} → ${P.g} ${MESI_RIGA[P.m - 1]} ${P.a}`
+  if (A.m !== P.m) return `${A.g} ${MESI_RIGA[A.m - 1]} → ${P.g} ${MESI_RIGA[P.m - 1]}`
+  return `${A.g} → ${P.g} ${MESI_RIGA[A.m - 1]}`
+}
+
+// «Lena» · «Lena e Ambra» · «Lena, Ambra e Allegra»
+export function elencoCamere(nomi: string[]): string {
+  if (nomi.length <= 1) return nomi.join('')
+  return `${nomi.slice(0, -1).join(', ')} e ${nomi[nomi.length - 1]}`
+}
+
+const COME_PAGA: Record<string, string> = {
+  arrivo: "all'arrivo",
+  caparra: 'caparra',
+  completo: 'pagamento completo',
+  personalizzata: 'condizioni scritte a mano',
+}
+const euroRiga = (cent: number) => `${String(Math.round(cent / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} €`
+
+export function rigaConferma(p: PropostaPendente): string {
+  const camere = p.alternative && p.alternative.length > 1
+    ? p.alternative.map(s => s.segmenti[0]?.camera.name).filter((x): x is string => !!x)
+    : [...new Set((p.soluzione?.segmenti ?? []).map(s => s.camera.name))]
+  const segmenti = p.soluzione?.segmenti ?? []
+  const pezzi: string[] = []
+  if (camere.length) pezzi.push(elencoCamere(camere))
+  if (segmenti.length) {
+    const arrivo = segmenti.reduce((m, s) => (s.arrivo < m ? s.arrivo : m), segmenti[0].arrivo)
+    const partenza = segmenti.reduce((m, s) => (s.partenza > m ? s.partenza : m), segmenti[0].partenza)
+    pezzi.push(periodoRiga(arrivo, partenza))
+  }
+  const tipo = p.condizioni.condizione_pagamento
+  if (tipo) {
+    const caparra = tipo === 'caparra' && p.condizioni.caparra_centesimi !== null
+      ? ` ${euroRiga(p.condizioni.caparra_centesimi)}` : ''
+    pezzi.push(`${COME_PAGA[tipo] ?? tipo}${caparra}`)
+  }
+  return pezzi.join(' · ')
+}
