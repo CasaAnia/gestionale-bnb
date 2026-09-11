@@ -38,7 +38,9 @@ export function vociStesseDate(richiesta: DateRichiesta & { id: string }, altre:
       etichetta: 'Stesse date',
       titolo: `Anche ${a.nome} ha chiesto ${quandoRichiesta(a)}`,
       dettaglio: 'se le proponi le stesse camere, una delle due resterà senza',
-      link: { testo: `Apri la richiesta di ${a.nome}`, href: `/richieste?apri=${a.id}` },
+      // Alla SUA pagina, non all'elenco (Ania, 11/09/2026). La pagina della
+      // proposta va bene per qualunque stato: mostra anche quelle già inviate.
+      link: { testo: `Apri la richiesta di ${a.nome}`, href: `/richieste/${a.id}/proposta` },
     }))
 }
 

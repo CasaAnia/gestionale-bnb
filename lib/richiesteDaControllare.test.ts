@@ -18,7 +18,8 @@ test('stesse date: solo chi ha notti in comune, con il link alla sua richiesta',
   assert.equal(voci[0].etichetta, 'Stesse date')
   assert.equal(voci[0].titolo, 'Anche Carmela ha chiesto dal 30 ottobre al 2 novembre')
   assert.equal(voci[0].dettaglio, 'se le proponi le stesse camere, una delle due resterà senza')
-  assert.deepEqual(voci[0].link, { testo: 'Apri la richiesta di Carmela', href: '/richieste?apri=r2' })
+  // il link porta alla pagina di QUELLA richiesta, non all'elenco
+  assert.deepEqual(voci[0].link, { testo: 'Apri la richiesta di Carmela', href: '/richieste/r2/proposta' })
 })
 
 test('stesse date: con le notti scelte contano solo quelle, non l’intervallo', () => {
@@ -86,4 +87,17 @@ test('la prenotazione annullata dentro un soggiorno non conta nei soldi né nell
   assert.equal(s.volte, 1)
   assert.equal(s.ricaviCent, 68000)
   assert.deepEqual(s.ultimo?.camere, ['Ambra'])
+})
+
+test('il link apre la richiesta qualunque sia il suo stato', () => {
+  // lo stato non conta: la pagina della proposta mostra anche le già inviate
+  const aperte = [
+    { id: 'r2', nome: 'Giusi', arrivo: '2026-10-30', partenza: '2026-11-02' },
+    { id: 'r3', nome: 'Rosa', arrivo: '2026-10-29', partenza: '2026-10-31' },
+  ]
+  const voci = vociStesseDate(QUESTA, aperte)
+  assert.deepEqual(voci.map(v => v.link?.href), ['/richieste/r2/proposta', '/richieste/r3/proposta'])
+  assert.deepEqual(voci.map(v => v.link?.testo), ['Apri la richiesta di Giusi', 'Apri la richiesta di Rosa'])
+  // mai un link all'elenco
+  assert.ok(voci.every(v => !v.link?.href.includes('?apri=')))
 })
