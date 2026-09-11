@@ -13,8 +13,8 @@
 // ============================================================================
 import { motiviEsclusione, personePerNotte, type CameraListino, type MotivoEsclusione, type PrenotazioneOccupante, type RichiestaProposta, type Soluzione } from './richiesteProposta.ts'
 import { nottiDellaRichiesta } from './nottiRichieste.ts'
-import { centesimi, centesimiTotale } from './richiesteTesti.ts'
-import { ROOM_TYPE_BY_NAME } from './roomTypes.ts'
+import { centesimi, centesimiTotale, personeInTutteLeNotti, ORDINE_TRE_PERSONE } from './richiesteTesti.ts'
+import { ROOM_TYPE_BY_NAME, ROOM_SLUG_BY_NAME } from './roomTypes.ts'
 import { MESI_BREVI } from './dateItaliane.ts'
 
 export type RigaCameraProposta = {
@@ -69,6 +69,23 @@ export function motivoInParole(motivo: MotivoEsclusione, camera: CameraListino, 
   }
 }
 
+// L'ordine dell'elenco (Ania, 11/09/2026): le camere si leggono nello stesso
+// ordine in cui compaiono nel messaggio — con tre persone Lena, Ambra,
+// Allegra; negli altri casi l'ordine con cui la ricerca le propone (la camera
+// chiesta per prima). Le camere che NON si possono proporre vanno sempre in
+// fondo, dopo tutte le proponibili.
+function ordineDelMessaggio(richiesta: RichiestaProposta, intere: Soluzione[]): string[] {
+  const perCamera = intere.map(s => s.segmenti[0].camera)
+  if (personeInTutteLeNotti(richiesta as { persone?: number | null; persone_per_notte?: number[] | null }, 3)) {
+    const posto = (c: CameraListino) => {
+      const i = ORDINE_TRE_PERSONE.indexOf(ROOM_SLUG_BY_NAME[c.name] ?? '')
+      return i < 0 ? ORDINE_TRE_PERSONE.length : i
+    }
+    return perCamera.map((c, i) => ({ c, i })).sort((a, b) => posto(a.c) - posto(b.c) || a.i - b.i).map(x => x.c.id)
+  }
+  return perCamera.map(c => c.id)
+}
+
 // Una soluzione copre da sola tutte le notti richieste con UNA camera sola?
 const camerUnica = (s: Soluzione) =>
   s.segmenti.length > 0 && s.nottiCoperte === s.nottiTotali && new Set(s.segmenti.map(x => x.camera.id)).size === 1
@@ -82,7 +99,8 @@ export function camereDaProporre(
   const notti = nottiDellaRichiesta(richiesta)
   const personeMax = personePerNotte(richiesta).reduce((m, x) => Math.max(m, x), 1)
   const intere = soluzioni.filter(camerUnica)
-  return motiviEsclusione(richiesta, camere, prenotazioniConfermate).map(({ camera, motivo }) => {
+  const ordine = ordineDelMessaggio(richiesta, intere)
+  const righe = motiviEsclusione(richiesta, camere, prenotazioniConfermate).map(({ camera, motivo }) => {
     const s = intere.find(x => x.segmenti[0].camera.id === camera.id) ?? null
     if (!s) {
       return {
@@ -107,6 +125,9 @@ export function camereDaProporre(
       stato: notti.length === 1 ? 'libera la notte' : `libera tutte e ${notti.length} le notti`,
     }
   })
+  // Prima le proponibili nell'ordine del messaggio, poi le grigie come stanno
+  const posto = (r: RigaCameraProposta) => (r.proponibile ? ordine.indexOf(r.camera.id) : ordine.length + 1)
+  return righe.map((r, i) => ({ r, i })).sort((a, b) => posto(a.r) - posto(b.r) || a.i - b.i).map(x => x.r)
 }
 
 // Gli id delle camere che si POSSONO spuntare: tutte quelle proponibili

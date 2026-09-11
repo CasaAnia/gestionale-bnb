@@ -256,7 +256,7 @@ export const grassetto = (testo: string): string => {
   return pulito ? `*${pulito}*` : ''
 }
 
-const ORDINE_TRE_PERSONE = ['lena', 'ambra', 'allegra']
+export const ORDINE_TRE_PERSONE = ['lena', 'ambra', 'allegra']
 // La frase dedicata di ogni camera: sostituisce fraseLettoInPiu, che in questa
 // variante non si usa mai.
 const FRASI_TRE_PERSONE: Record<string, string> = {

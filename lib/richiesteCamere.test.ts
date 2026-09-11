@@ -20,18 +20,40 @@ const TRE = { nome: 'Lena', arrivo: '2026-10-29', partenza: '2026-10-31', person
 const righeTre = (occupate: ReturnType<typeof occ>[] = []) =>
   camereDaProporre(TRE, CAMERE, occupate, proponiSoluzioni(TRE, CAMERE, occupate))
 
-test('tre persone, tutto libero: partono spuntate Allegra, Ambra e Lena; Amelia resta grigia', () => {
+test('tre persone, tutto libero: l’ordine è quello del messaggio e Amelia va in fondo', () => {
   const righe = righeTre()
-  assert.deepEqual(righe.map(r => r.camera.name), ['Amelia', 'Allegra', 'Ambra', 'Lena'])
-  assert.deepEqual(camereProponibili(righe), ['allegra', 'ambra', LENA_ID])
-  const amelia = righe[0]
+  // stesso ordine del messaggio approvato da Ania: Lena, Ambra, Allegra;
+  // Amelia non si può proporre e sta in fondo (Ania, 11/09/2026)
+  assert.deepEqual(righe.map(r => r.camera.name), ['Lena', 'Ambra', 'Allegra', 'Amelia'])
+  assert.deepEqual(camereProponibili(righe), [LENA_ID, 'ambra', 'allegra'])
+  const amelia = righe[3]
   assert.equal(amelia.proponibile, false)
   // niente date parziali: per tre persone non va in nessuna notte
   assert.equal(amelia.stato, 'singola: per 3 persone non va')
 })
 
+test('le camere grigie stanno sempre in fondo, anche quando sono più di una', () => {
+  // Ambra occupata tutte e due le notti: restano Lena e Allegra proponibili
+  const righe = righeTre([occ('ambra', '2026-10-29', '2026-10-31')])
+  assert.deepEqual(righe.map(r => r.camera.name), ['Lena', 'Allegra', 'Amelia', 'Ambra'])
+  assert.deepEqual(righe.map(r => r.proponibile), [true, true, false, false])
+})
+
+test('una e due persone: l’ordine è quello con cui il messaggio elenca le camere', () => {
+  // «qualsiasi camera»: l'ordine della ricerca (Amelia, Allegra, Ambra, Lena)
+  const due = { nome: 'Anna', arrivo: '2026-10-29', partenza: '2026-10-31', persone: 2, camera_id: null }
+  const righe = camereDaProporre(due, CAMERE, [], proponiSoluzioni(due, CAMERE, []))
+  assert.deepEqual(righe.map(r => r.camera.name), ['Amelia', 'Allegra', 'Ambra', 'Lena'])
+  // camera chiesta: viene per prima, nell'elenco come nel messaggio
+  const conLena = { ...due, camera_id: LENA_ID }
+  const conRichiesta = camereDaProporre(conLena, CAMERE, [], proponiSoluzioni(conLena, CAMERE, []))
+  assert.equal(conRichiesta[0].camera.name, 'Lena')
+})
+
 test('etichette e prezzi delle camere spuntate', () => {
-  const [, allegra, ambra, lena] = righeTre()
+  const righe = righeTre()
+  const per = (n: string) => righe.find(r => r.camera.name === n)!
+  const allegra = per('Allegra'), ambra = per('Ambra'), lena = per('Lena')
   // Allegra: 80 di tariffa + 10 di letto, due notti = 180; e va tolto il tavolo
   assert.equal(allegra.stato, 'libera tutte e 2 le notti')
   assert.equal(allegra.prezzoNotteCent, 8000)
@@ -126,12 +148,13 @@ test('due persone: Amelia entra fra le spuntate, Lena resta una matrimoniale', (
   const due = { nome: 'Anna', arrivo: '2026-10-29', partenza: '2026-10-31', persone: 2, camera_id: null }
   const righe = camereDaProporre(due, CAMERE, [], proponiSoluzioni(due, CAMERE, []))
   assert.deepEqual(camereProponibili(righe), ['amelia', 'allegra', 'ambra', LENA_ID])
-  const amelia = righe[0]
+  const amelia = righe.find(r => r.camera.name === 'Amelia')!
   assert.equal(amelia.lettoInPiu, true)          // la seconda persona dorme nel letto in più
   assert.equal(amelia.lettoNotteCent, 500)
   assert.equal(amelia.prezzoNotteCent, 7000)
-  assert.equal(righe[3].tripla, false)           // Lena a due è una matrimoniale
-  assert.equal(righe[3].totaleCent, 16000)
+  const lena = righe.find(r => r.camera.name === 'Lena')!
+  assert.equal(lena.tripla, false)               // Lena a due è una matrimoniale
+  assert.equal(lena.totaleCent, 16000)
 })
 
 // ── Quali camere partono spuntate (Ania, 11/09/2026) ────────────────────────
@@ -152,12 +175,12 @@ test('camera chiesta dal cliente e libera: parte spuntata solo quella', () => {
 test('camera chiesta ma non proponibile, oppure «qualsiasi»: partono spuntate tutte', () => {
   const righe = righeTre()
   // «qualsiasi camera»
-  assert.deepEqual(camereDaSpuntare(righe, null), ['allegra', 'ambra', LENA_ID])
-  assert.deepEqual(camereDaSpuntare(righe, undefined), ['allegra', 'ambra', LENA_ID])
+  assert.deepEqual(camereDaSpuntare(righe, null), [LENA_ID, 'ambra', 'allegra'])
+  assert.deepEqual(camereDaSpuntare(righe, undefined), [LENA_ID, 'ambra', 'allegra'])
   // ha chiesto Amelia, che per tre persone non va: non si spunta da sola
-  assert.deepEqual(camereDaSpuntare(righe, 'amelia'), ['allegra', 'ambra', LENA_ID])
+  assert.deepEqual(camereDaSpuntare(righe, 'amelia'), [LENA_ID, 'ambra', 'allegra'])
   // ha chiesto Ambra, ma Ambra è occupata: restano le altre
   const occupate = [occ('ambra', '2026-10-29', '2026-10-31')]
   const conOccupata = camereDaProporre({ ...TRE, camera_id: 'ambra' }, CAMERE, occupate, proponiSoluzioni({ ...TRE, camera_id: 'ambra' }, CAMERE, occupate))
-  assert.deepEqual(camereDaSpuntare(conOccupata, 'ambra'), ['allegra', LENA_ID])
+  assert.deepEqual(camereDaSpuntare(conOccupata, 'ambra'), [LENA_ID, 'allegra'])
 })
