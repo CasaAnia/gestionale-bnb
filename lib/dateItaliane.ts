@@ -59,3 +59,14 @@ export function periodoCompatto(dal: string | null | undefined, al: string | nul
     ? `${giornoMese(dal)} → ${giornoMeseAnno(al)}`
     : `${giornoMese(dal)} → ${giornoMese(al)}`
 }
+
+// «gio 29» e «ott» — la data della testa cliente, in due pezzi: il giorno
+// (con l'abbreviazione del giorno della settimana) e il mese, che si scrivono
+// con due misure diverse. Nessun fuso orario: la data è già quella giusta.
+export const GIORNI_BREVI = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab']
+export function giornoConSettimana(iso: string | null | undefined): { giorno: string; mese: string } {
+  const p = pezzi(iso)
+  if (!p) return { giorno: '', mese: '' }
+  const d = new Date(Date.UTC(p.anno, p.mese - 1, p.giorno))
+  return { giorno: `${GIORNI_BREVI[d.getUTCDay()]} ${p.giorno}`, mese: MESI_BREVI[p.mese - 1] }
+}
