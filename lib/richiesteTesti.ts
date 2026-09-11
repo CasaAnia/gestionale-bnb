@@ -240,6 +240,22 @@ function paragrafoPrezzo(sol: Soluzione, s: SegmentoSoluzione, periodo: { arrivo
 // Vale SOLO quando la richiesta è per 3 persone in tutte le notti e il caso A
 // ha più di una camera da proporre. Ogni altra combinazione (1 o 2 persone,
 // una sola camera, casi B/C/E e notti selezionate) resta identica a prima.
+//
+// In questa variante — e SOLO in questa — alcune parti vanno in grassetto di
+// WhatsApp, cioè fra asterischi: date e persone nella frase iniziale, il nome
+// di ogni camera, il prezzo totale di ogni camera (mai quello a notte) e
+// «entro N ore» nella chiusura. Gli asterischi restano nel testo che parte su
+// WhatsApp e in quello che si copia; nell'anteprima del gestionale li traduce
+// in grassetto il componente components/TestoWhatsApp.tsx.
+//
+// Il grassetto di WhatsApp funziona solo se l'asterisco è attaccato alla
+// parola: niente spazio subito dopo quello di apertura né subito prima di
+// quello di chiusura. Per questo il testo viene ripulito ai bordi.
+export const grassetto = (testo: string): string => {
+  const pulito = testo.trim()
+  return pulito ? `*${pulito}*` : ''
+}
+
 const ORDINE_TRE_PERSONE = ['lena', 'ambra', 'allegra']
 // La frase dedicata di ogni camera: sostituisce fraseLettoInPiu, che in questa
 // variante non si usa mai.
@@ -270,9 +286,10 @@ function ordinaTrePersone(camere: Soluzione[]): Soluzione[] {
   return camere.map((c, i) => ({ c, i })).sort((a, b) => posto(a.c) - posto(b.c) || a.i - b.i).map(x => x.c)
 }
 
-// «Il prezzo per le due notti è di 180 €, a 90 € a notte, letto in più compreso.»
+// «Il prezzo per le due notti è di *180 €*, a 90 € a notte, letto in più compreso.»
+// In grassetto SOLO il totale: il prezzo a notte e il dettaglio parlato restano normali.
 function paragrafoPrezzoTrePersone(sol: Soluzione, s: SegmentoSoluzione, periodo: { arrivo: string; partenza: string }): string {
-  const base = `Il prezzo ${perLeNottiInParole(s.notti)} è di ${formattaEuro(centesimiTotale(sol))}`
+  const base = `Il prezzo ${perLeNottiInParole(s.notti)} è di ${grassetto(formattaEuro(centesimiTotale(sol)))}`
   // In Lena il terzo letto è compreso nella tripla: la frase non si aggiunge mai
   const letto = slugDi(s.camera) !== 'lena' && (s.lettoNotti ?? []).length > 0 ? ', letto in più compreso' : ''
   const dettaglio = dettaglioParlato(s, periodo)
@@ -288,13 +305,13 @@ function casoATrePersone(richiesta: RichiestaTesto, camere: Soluzione[]): Blocch
     const s = c.segmenti[0]
     const frase = FRASI_TRE_PERSONE[slugDi(s.camera) ?? '']
     const link = rigaLinkCamera(s.camera)
-    return `– ${s.camera.name}, ${descrizioneBreve(s.camera)}.${frase ? ` ${frase}` : ''} ${paragrafoPrezzoTrePersone(c, s, periodo)}${link ? `\n${link}` : ''}`
+    return `– ${grassetto(s.camera.name ?? '')}, ${descrizioneBreve(s.camera)}.${frase ? ` ${frase}` : ''} ${paragrafoPrezzoTrePersone(c, s, periodo)}${link ? `\n${link}` : ''}`
   })
   return {
     oreVariante: 'tre-persone',
     chiusura: FIRMA,
     paragrafi: [
-      `${HO_VERIFICATO} ${maiuscola(dalAl(richiesta.arrivo, richiesta.partenza))}, per tre persone, posso proporle ${inParole(camere.length)} camere:`,
+      `${HO_VERIFICATO} ${grassetto(`${maiuscola(dalAl(richiesta.arrivo, richiesta.partenza))}, per tre persone`)}, posso proporle ${inParole(camere.length)} camere:`,
       ...righe,
     ],
   }
@@ -440,7 +457,7 @@ La prenotazione sarà confermata definitivamente al ricevimento del pagamento.`
 // La frase delle 3 ore, nelle tre varianti
 export function fraseTreOre(variante: 'camera' | 'camere' | 'tre-persone' | 'nessuna'): string {
   if (variante === 'tre-persone')
-    return `Mi faccia sapere entro ${ORE_RISPOSTA_PROPOSTA} ore da questo messaggio quale camera preferisce, e le confermo subito la prenotazione. Trascorso questo tempo, dovrò verificare nuovamente la disponibilità.`
+    return `Mi faccia sapere ${grassetto(`entro ${ORE_RISPOSTA_PROPOSTA} ore`)} da questo messaggio quale camera preferisce, e le confermo subito la prenotazione. Trascorso questo tempo, dovrò verificare nuovamente la disponibilità.`
   const cosa = variante === 'camera' ? 'confermare la camera' : variante === 'camere' ? 'confermare una delle camere' : 'confermare'
   return `Se desidera ${cosa}, la prego di farmelo sapere entro ${ORE_RISPOSTA_PROPOSTA} ore da questo messaggio. Trascorso questo tempo, dovrò verificare nuovamente la disponibilità.`
 }
