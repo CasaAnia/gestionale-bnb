@@ -13,12 +13,16 @@
 //             a parità la prima a scadere (arrivo passato, proposta scaduta,
 //             in scadenza più vicina, in attesa dalla più vecchia).
 //  Pagamenti  soggiorno concluso segnato pagato ma con movimenti che non
-//             coprono il totale; movimenti oltre il totale; soggiorno
-//             concluso da più di un giorno e non segnato pagato.
+//             coprono il totale; movimenti oltre il totale; soggiorno non
+//             saldato DAL GIORNO DELL'ARRIVO (Ania, 11/09/2026: «il pagamento
+//             si fa all'arrivo»), in corso o concluso che sia.
 //  Calendario due prenotazioni confermate sulla stessa camera nella stessa
 //             notte; letti aggiuntivi oltre i 2 del pool nella stessa notte.
 //  Arrivi     arrivo di domani senza orario.
 //  Fatture    scadenza passata e non pagata (approvata_da_pagare).
+//  Pulizie    NON stanno qui (Ania, 11/09/2026): le pulizie della giornata si
+//             vedono e si spuntano tutte insieme in «Pulizie di oggi», SOPRA
+//             questa sezione — «due stanze sopra e tre sotto è confusionale».
 // Urgenza alta (linea ottone): proposta scaduta, arrivo passato, arrivo di
 // domani senza orario. Ordine delle sezioni (07/09/2026): richieste, arrivi,
 // pagamenti, fatture; le sovrapposizioni del calendario restano un controllo
@@ -31,14 +35,11 @@ import { cent, prenotazioneValida, type PrenotazioneStat, type PagamentoStat, ty
 import { incongruenzePagamenti } from './statistiche/pagato.ts'
 import { lettiOccupatiPerNotte } from './lettiAggiuntivi.ts'
 import { EXTRA_BED_MAX } from './tariffe.ts'
-import { statoCameraGiorno, statoFineSoggiorno, cambioOspiteAutomatico, attive, continuaDa, continuaIn, CUTOFF_STORICO, type Decisione, type TipoPulizia } from './pulizie.ts'
 import { normalizzaTelefono } from './whatsapp.ts'
 import { whatsappRichiestaOrario, waHrefTesto } from './messaggiWhatsApp.ts'
 import { stessaPersona } from './clienteCheTorna.ts'
 
-export const GIORNI_CONCLUSO_NON_PAGATO = 1
-
-export type TipoEccezione = 'calendario' | 'richiesta' | 'pagamento' | 'arrivo' | 'pulizia' | 'fattura'
+export type TipoEccezione = 'calendario' | 'richiesta' | 'pagamento' | 'arrivo' | 'fattura'
 export type Urgenza = 'alta' | 'normale'
 
 // Dove porta l'unico bottone della voce: il punto esatto da sistemare
@@ -49,7 +50,6 @@ export type Destinazione =
   | { tipo: 'calendario'; giorno: string }             // calendario sul giorno
   | { tipo: 'arrivo'; prenotazioneId: string }         // Arrivi con la finestra dell'orario aperta
   | { tipo: 'fattura'; documentoId: string }           // Spese B&B, Documenti, sulla fattura
-  | { tipo: 'pulizie'; giorno: string }                // Pulizie sul giorno (pulizia non registrata prima di un arrivo)
 
 export type Eccezione = {
   chiave: string          // stabile: serve ai rinvii e alle key di React
@@ -73,15 +73,11 @@ export type Eccezione = {
   // Arrivi (06/09/2026, scelta di Ania): l'ospite ha la navetta confermata ma
   // manca ancora l'orario → la Home aggiunge « · navetta» in ottone al motivo
   navetta?: boolean
-  // Pulizie (06/09/2026, recupero biancheria): la pulizia da segnare con «Pulita»
-  // / «Pulita + recuperato» direttamente dalla Home. Assente quando la camera è
-  // da fare solo per un cambio biancheria: resta «Apri pulizie».
-  pulizia?: PuliziaDaSegnareDC
 }
 export type LinkWhatsAppEccezione = { href: string; numero: string; testo: string; principale: boolean }
 
 export const ETICHETTA_TIPO: Record<TipoEccezione, string> = {
-  calendario: 'Calendario', richiesta: 'Richiesta', pagamento: 'Pagamento', arrivo: 'Arrivo', pulizia: 'Pulizia', fattura: 'Fattura',
+  calendario: 'Calendario', richiesta: 'Richiesta', pagamento: 'Pagamento', arrivo: 'Arrivo', fattura: 'Fattura',
 }
 
 export type RichiestaDC = {
@@ -119,7 +115,6 @@ export type StatoDaControllare = {
   pagamenti: PagamentoStat[]
   documenti: DocumentoStat[]
   rinvii?: Rinvio[]
-  pulizie?: Decisione[]      // decisioni della tabella cleanings (fatte, rimandate, saltate)
 }
 
 const MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
@@ -181,7 +176,7 @@ export function eccezioniRichieste(richieste: RichiestaDC[], oggi: string, adess
 }
 
 // ── Pagamenti ───────────────────────────────────────────────────────────────
-type Soggiorno = { chiave: string; segmenti: PrenotazioneDC[]; totaleCent: number; ultimaPartenza: string; pagato: boolean; nome: string; primoId: string }
+type Soggiorno = { chiave: string; segmenti: PrenotazioneDC[]; totaleCent: number; primoArrivo: string; ultimaPartenza: string; pagato: boolean; nome: string; primoId: string }
 
 function soggiorni(prenotazioni: PrenotazioneDC[]): Soggiorno[] {
   const gruppi = new Map<string, PrenotazioneDC[]>()
@@ -195,6 +190,7 @@ function soggiorni(prenotazioni: PrenotazioneDC[]): Soggiorno[] {
     return {
       chiave, segmenti: ordinati,
       totaleCent: ordinati.reduce((s, b) => s + cent(b.total_amount), 0),
+      primoArrivo: ordinati[0].check_in,
       ultimaPartenza: ordinati.map(b => b.check_out).sort().slice(-1)[0],
       pagato: ordinati.some(b => !!b.pagato),
       nome: nomeOspite(ordinati[0]) || 'Ospite',
@@ -206,7 +202,6 @@ function soggiorni(prenotazioni: PrenotazioneDC[]): Soggiorno[] {
 export function eccezioniPagamenti(prenotazioni: PrenotazioneDC[], pagamenti: PagamentoStat[], oggi: string): Eccezione[] {
   const out: Eccezione[] = []
   const incongruenze = new Map(incongruenzePagamenti(prenotazioni, pagamenti).map(i => [i.soggiorno, i]))
-  const limiteConcluso = spostaGiorni(oggi, -GIORNI_CONCLUSO_NON_PAGATO)
   for (const s of soggiorni(prenotazioni)) {
     const concluso = s.ultimaPartenza <= oggi
     const inc = incongruenze.get(s.chiave)
@@ -217,7 +212,7 @@ export function eccezioniPagamenti(prenotazioni: PrenotazioneDC[], pagamenti: Pa
       out.push({ ...base, titolo, motivo: `Movimenti per ${euroTesto(inc.pagatoCent)} oltre il totale di ${euroTesto(inc.totaleCent)}`, bottone: 'Apri prenotazione', destinazione: { tipo: 'prenotazione', prenotazioneId: s.primoId } })
     } else if (concluso && inc?.tipo === 'pagato_ma_incompleto') {
       out.push({ ...base, titolo, motivo: `Segnato pagato ma i movimenti coprono ${euroTesto(inc.pagatoCent)} su ${euroTesto(inc.totaleCent)}`, bottone: 'Registra saldo', destinazione: { tipo: 'saldo', prenotazioneId: s.primoId } })
-    } else if (!s.pagato && s.ultimaPartenza <= limiteConcluso && s.totaleCent > 0) {
+    } else if (!s.pagato && s.primoArrivo <= oggi && s.totaleCent > 0) {
       // Falso positivo corretto il 07/09/2026 (Anna e Rosa in produzione): un
       // soggiorno i cui movimenti coprono già il totale È pagato anche se la
       // colonna `pagato` è rimasta false (il gestionale lo mostra saldato e
@@ -225,9 +220,16 @@ export function eccezioniPagamenti(prenotazioni: PrenotazioneDC[], pagamenti: Pa
       // manca davvero: totale meno movimenti registrati, di qualunque origine.
       const registratiCent = pagamenti.filter(p => idsSegmenti.has(p.booking_id)).reduce((x, p) => x + cent(p.amount), 0)
       if (registratiCent >= s.totaleCent) continue
+      // Il pagamento si fa all'arrivo (Ania, 11/09/2026): appena l'ospite è
+      // entrato il soggiorno non saldato si controlla, senza aspettare la
+      // partenza. Il motivo dice a che punto è: arrivato oggi, arrivato il…,
+      // oppure già concluso.
+      const quando = s.ultimaPartenza <= oggi
+        ? `Soggiorno concluso il ${giornoBreve(s.ultimaPartenza)}`
+        : s.primoArrivo === oggi ? 'Arrivo di oggi' : `Arrivato il ${giornoBreve(s.primoArrivo)}`
       const motivo = registratiCent > 0
-        ? `Soggiorno concluso il ${giornoBreve(s.ultimaPartenza)}: registrati ${euroTesto(registratiCent)} su ${euroTesto(s.totaleCent)}`
-        : `Soggiorno concluso il ${giornoBreve(s.ultimaPartenza)} e non segnato pagato`
+        ? `${quando}: registrati ${euroTesto(registratiCent)} su ${euroTesto(s.totaleCent)}`
+        : `${quando} e non segnato pagato`
       out.push({ ...base, titolo, motivo, bottone: 'Registra saldo', destinazione: { tipo: 'saldo', prenotazioneId: s.primoId } })
     }
   }
@@ -323,69 +325,6 @@ export function eccezioniArrivi(prenotazioni: PrenotazioneDC[], oggi: string): E
 // La parola in ottone dopo il motivo (stesso colore dell'ombra sotto l'orario in Arrivi)
 export const PAROLA_NAVETTA = 'navetta'
 
-// ── Pulizie non registrate (08/09/2026, sera; regola di Ania del 06/09/2026) ──
-// Mai con un giorno di anticipo: «sarà urgente domani, non oggi». Due casi,
-// tutti e due di OGGI e con la linea ottone:
-//  1. ARRIVO di oggi (non un prolungamento) in una camera con una pulizia
-//     prevista non ancora segnata fatta — partenza precedente, cambio camera o
-//     cambio biancheria, con le rettifiche di Ania e la pulizia automatica alla
-//     partenza già considerate (lib/pulizie.statoCameraGiorno, la stessa regola
-//     della pagina Pulizie e della striscia: nessun calcolo qui);
-//  2. PARTENZA di ieri (o cambio camera: la camera lasciata va pulita lo stesso;
-//     non un prolungamento) la cui pulizia non risulta registrata e nessun
-//     arrivo oggi in quella camera (altrimenti è il caso 1, o è automatica):
-//     «la giornata dopo, se non è stata registrata».
-//     Una pulizia rimandata a una data futura è una scelta di Ania: non compare.
-// Sparisce da sola quando la pulizia viene segnata fatta.
-export const MOTIVO_PULIZIA_NON_REGISTRATA = 'La pulizia dopo la partenza precedente non risulta registrata'
-export const MOTIVO_PULIZIA_PARTENZA_IERI = 'La pulizia dopo la partenza di ieri non risulta registrata'
-export type PuliziaDaSegnareDC = { room_id: string; booking_id: string | null; tipo: TipoPulizia; data_prevista: string; camera: string }
-
-export function eccezioniPulizie(prenotazioni: PrenotazioneDC[], pulizie: Decisione[] | undefined, oggi: string): Eccezione[] {
-  const bookings = attive(prenotazioni)
-  const events = pulizie ?? []
-  const out: Eccezione[] = []
-  const arrivi = bookings.filter(b => b.check_in === oggi && !continuaDa(bookings, b)).sort((a, b) => nomeCamera(a).localeCompare(nomeCamera(b)))
-  for (const b of arrivi) {
-    if (statoCameraGiorno(bookings, b.room_id, oggi, oggi, events) !== 'da_fare') continue
-    const ore = (b.check_in_time ?? '').trim()
-    // L'ultima partenza della camera prima dell'arrivo (stessa scelta dell'ultimo
-    // blocco di statoCameraGiorno): se non è chiusa né automatica è la pulizia da segnare
-    const precedente = bookings
-      .filter(x => x.room_id === b.room_id && x.check_out <= oggi && x.check_out >= CUTOFF_STORICO && !continuaIn(bookings, x) && !arrivi.some(a => a.id === x.id))
-      .sort((x, y) => x.check_out.localeCompare(y.check_out)).slice(-1)[0]
-    const st = precedente ? statoFineSoggiorno(bookings, precedente, events) : null
-    // Cambio ospite automatico (partenza oggi o ieri, nuovo ospite oggi): dal 07/09/2026
-    // la striscia e «Oggi» di Pulizie la contano come lavoro della giornata, ma qui NON è
-    // «non registrata» (si registra da sola): resta fuori, come vuole la regola del 06/09
-    if (precedente && st && !st.chiusa && cambioOspiteAutomatico(bookings, precedente, events)) continue
-    const pulizia = precedente && st && !st.chiusa
-      ? { room_id: b.room_id, booking_id: precedente.id ?? null, tipo: st.tipo, data_prevista: st.due, camera: nomeCamera(b) } : undefined
-    out.push({
-      chiave: `pulizia:${b.id}`, tipo: 'pulizia', urgenza: 'alta', data: oggi,
-      titolo: `${nomeCamera(b)} · arrivo oggi di ${nomeOspite(b)}${ore ? `, ore ${ore}` : ''}`,
-      motivo: MOTIVO_PULIZIA_NON_REGISTRATA,
-      bottone: 'Apri pulizie', destinazione: { tipo: 'pulizie', giorno: oggi }, rimandabile: false,
-      pulizia,
-    })
-  }
-  const ieri = spostaGiorni(oggi, -1)
-  const partenze = bookings.filter(b => b.check_out === ieri && !continuaIn(bookings, b)).sort((a, b) => nomeCamera(a).localeCompare(nomeCamera(b)))
-  for (const p of partenze) {
-    if (arrivi.some(a => a.room_id === p.room_id)) continue
-    const st = statoFineSoggiorno(bookings, p, events)
-    if (st.chiusa || st.due > oggi || cambioOspiteAutomatico(bookings, p, events)) continue
-    out.push({
-      chiave: `pulizia:partenza:${p.id}`, tipo: 'pulizia', urgenza: 'alta', data: oggi,
-      titolo: `${nomeCamera(p)} · ${st.tipo === 'cambio_camera' ? 'cambio camera' : 'partenza'} di ieri di ${nomeOspite(p)}`,
-      motivo: MOTIVO_PULIZIA_PARTENZA_IERI,
-      bottone: 'Apri pulizie', destinazione: { tipo: 'pulizie', giorno: oggi }, rimandabile: false,
-      pulizia: { room_id: p.room_id, booking_id: p.id ?? null, tipo: st.tipo, data_prevista: st.due, camera: nomeCamera(p) },
-    })
-  }
-  return out
-}
-
 // ── Fatture ─────────────────────────────────────────────────────────────────
 // Stessa regola di lib/spese/fatture.scadute (stato derivato: approvata_da_pagare
 // + scadenza superata), letta qui senza toccare lib/spese.
@@ -412,7 +351,7 @@ export function applicaRinvii(eccezioni: Eccezione[], rinvii: Rinvio[] | undefin
 // Ordine delle sezioni (07/09/2026): richieste, arrivi, pagamenti, fatture,
 // calendario in fondo. Dentro ogni sezione resta l'ordine deciso dalla sua
 // regola (ordinamento stabile).
-const ORDINE_TIPI: TipoEccezione[] = ['richiesta', 'arrivo', 'pulizia', 'pagamento', 'fattura', 'calendario']
+const ORDINE_TIPI: TipoEccezione[] = ['richiesta', 'arrivo', 'pagamento', 'fattura', 'calendario']
 
 export function ordinaEccezioni(eccezioni: Eccezione[]): Eccezione[] {
   return [...eccezioni].sort((a, b) => ORDINE_TIPI.indexOf(a.tipo) - ORDINE_TIPI.indexOf(b.tipo))
@@ -424,7 +363,6 @@ export function daControllareHome(stato: StatoDaControllare): Eccezione[] {
     ...eccezioniRichieste(stato.richieste, stato.oggi, stato.adesso),
     ...eccezioniPagamenti(stato.prenotazioni, stato.pagamenti, stato.oggi),
     ...eccezioniArrivi(stato.prenotazioni, stato.oggi),
-    ...eccezioniPulizie(stato.prenotazioni, stato.pulizie, stato.oggi),
     ...eccezioniFatture(stato.documenti, stato.oggi),
   ]
   return ordinaEccezioni(applicaRinvii(tutte, stato.rinvii, stato.oggi))
@@ -437,7 +375,6 @@ export const finoADomani = (oggi: string) => spostaGiorni(oggi, 1)
 const CONTEGGIO: Record<TipoEccezione, [string, string]> = {
   richiesta: ['richiesta aperta', 'richieste aperte'],
   arrivo: ['arrivo senza orario', 'arrivi senza orario'],
-  pulizia: ['pulizia non registrata', 'pulizie non registrate'],
   pagamento: ['pagamento', 'pagamenti'],
   fattura: ['fattura scaduta', 'fatture scadute'],
   calendario: ['sovrapposizione', 'sovrapposizioni'],
@@ -459,7 +396,7 @@ export function titoloStriscia(eccezioni: Eccezione[]): string {
 }
 
 const A_POSTO: Record<TipoEccezione, string> = {
-  calendario: 'Calendario', richiesta: 'Richieste', pagamento: 'Pagamenti', arrivo: 'Arrivi di oggi e domani', pulizia: 'Pulizie', fattura: 'Fatture',
+  calendario: 'Calendario', richiesta: 'Richieste', pagamento: 'Pagamenti', arrivo: 'Arrivi di oggi e domani', fattura: 'Fatture',
 }
 function elenco(voci: string[]): string {
   if (voci.length <= 1) return voci.join('')
@@ -484,7 +421,6 @@ export function hrefDestinazione(d: Destinazione): string {
     case 'calendario': return `/calendario?giorno=${d.giorno}`
     case 'arrivo': return `/arrivi?apri=${d.prenotazioneId}`
     case 'fattura': return `/spese?documento=${d.documentoId}`
-    case 'pulizie': return `/pulizie?giorno=${d.giorno}`
   }
 }
 

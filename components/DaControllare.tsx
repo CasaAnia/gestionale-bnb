@@ -5,7 +5,8 @@
 // riga con il perché, UN bottone che porta al punto esatto; nelle richieste
 // anche «Rimanda» (ghost, memoria lato server). Le voci spariscono da sole
 // quando il problema si risolve nella sua sezione: nessuna spunta «fatto».
-// Zero eccezioni = né striscia né sezione. Lettura fallita = «Non riesco a
+// Le pulizie NON compaiono qui (Ania, 11/09/2026): stanno tutte in «Pulizie
+// di oggi», la sezione sopra. Zero eccezioni = né striscia né sezione. Lettura fallita = «Non riesco a
 // controllare, riprova» + Riprova, mai un «tutto a posto» finto.
 import { useEffect, useState } from 'react'
 import NotaCliente from './richieste/NotaCliente'
@@ -76,9 +77,9 @@ export default function DaControllare() {
               {/* Arrivo senza orario (08/09/2026): «Chiedi orario» (pieno) · «Apri chat» (ghost) · «Apri arrivo» (ghost) */}
               {e.whatsapp?.principale && <BottoneWhatsApp href={e.whatsapp.href} numero={e.whatsapp.numero} testo={e.whatsapp.testo} etichetta={ETICHETTA_CHIEDI_ORARIO} pieno tipo="chiedi-orario" />}
               {e.whatsappChat && <BottoneWhatsApp href={e.whatsappChat.href} numero={e.whatsappChat.numero} testo="" etichetta={ETICHETTA_APRI_CHAT} pieno={false} tipo="apri-chat" />}
-              <Link href={e.pulizia ? "#pulizie-oggi" : hrefDestinazione(e.destinazione)}
-                className={e.whatsapp?.principale || e.pulizia ? BOTTONE_GHOST : BOTTONE_PIENO} style={e.whatsapp?.principale || e.pulizia ? { color: '#2D6A4F' } : undefined}>
-                {e.pulizia ? 'Vai alla pulizia' : e.tipo === 'arrivo' ? <EtichettaBreve testo={e.bottone} /> : e.bottone}
+              <Link href={hrefDestinazione(e.destinazione)}
+                className={e.whatsapp?.principale ? BOTTONE_GHOST : BOTTONE_PIENO} style={e.whatsapp?.principale ? { color: '#2D6A4F' } : undefined}>
+                {e.tipo === 'arrivo' ? <EtichettaBreve testo={e.bottone} /> : e.bottone}
               </Link>
               {e.whatsapp && !e.whatsapp.principale && <BottoneWhatsApp href={e.whatsapp.href} numero={e.whatsapp.numero} testo="" etichetta={ETICHETTA_APRI_CHAT} pieno={false} tipo="apri-chat" />}
               {e.rimandabile && (

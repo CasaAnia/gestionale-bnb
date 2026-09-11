@@ -18,7 +18,6 @@ import {
   type Eccezione, type Rinvio, type RichiestaDC, type PrenotazioneDC,
 } from './daControllare'
 import type { PagamentoStat, DocumentoStat } from './statistiche/tipi'
-import type { Decisione } from './pulizie'
 
 export const MESSAGGIO_NON_RIESCO = 'Non riesco a controllare, riprova'
 
@@ -27,7 +26,7 @@ export type StatoDaControllareHome =
   | { stato: 'errore'; errore: string }
   | { stato: 'pronto'; eccezioni: Eccezione[]; rinviiDisponibili: boolean; oggi: string }
 
-type Dati = { oggi: string; richieste: RichiestaDC[]; prenotazioni: PrenotazioneDC[]; pagamenti: PagamentoStat[]; documenti: DocumentoStat[]; rinvii: Rinvio[]; rinviiDisponibili: boolean; pulizie: Decisione[] }
+type Dati = { oggi: string; richieste: RichiestaDC[]; prenotazioni: PrenotazioneDC[]; pagamenti: PagamentoStat[]; documenti: DocumentoStat[]; rinvii: Rinvio[]; rinviiDisponibili: boolean }
 
 const due = (n: number) => String(n).padStart(2, '0')
 const oggiLocale = () => { const d = new Date(); return `${d.getFullYear()}-${due(d.getMonth() + 1)}-${due(d.getDate())}` }
@@ -94,12 +93,12 @@ async function leggiRinvii(oggi: string): Promise<Esito<{ rinvii: Rinvio[]; disp
 
 async function leggiTutto(oggi: string): Promise<Esito<Dati>> {
   const { da, a } = periodoDaControllare(oggi)
-  const [ric, pren, pag, doc, rin, pul] = await Promise.all([leggiRichieste(), leggiPrenotazioni(da, a), leggiPagamenti(), leggiFattureScadute(oggi), leggiRinvii(oggi),
-    // Decisioni di pulizia (cleanings): stessa scelta della pagina Pulizie e della striscia, tabella assente = nessuna decisione
-    raccogliPagine<Decisione>((offset, limite) => supabase.from('cleanings').select('*').order('created_at').range(offset, offset + limite - 1))])
-  const errore = ric.errore ?? pren.errore ?? pag.errore ?? doc.errore ?? rin.errore ?? (pul.error ? messaggioLetturaNonRiuscita(pul.error, 'leggere le pulizie registrate') : null)
+  // Le pulizie non si leggono qui (11/09/2026): stanno in «Pulizie di oggi», che
+  // legge cleanings una volta sola per i numeri, la striscia e la lista.
+  const [ric, pren, pag, doc, rin] = await Promise.all([leggiRichieste(), leggiPrenotazioni(da, a), leggiPagamenti(), leggiFattureScadute(oggi), leggiRinvii(oggi)])
+  const errore = ric.errore ?? pren.errore ?? pag.errore ?? doc.errore ?? rin.errore
   if (errore) return { data: null, errore }
-  return { data: { oggi, richieste: ric.data!, prenotazioni: pren.data!, pagamenti: pag.data!, documenti: doc.data!, rinvii: rin.data!.rinvii, rinviiDisponibili: rin.data!.disponibili, pulizie: pul.error ? [] : pul.data }, errore: null }
+  return { data: { oggi, richieste: ric.data!, prenotazioni: pren.data!, pagamenti: pag.data!, documenti: doc.data!, rinvii: rin.data!.rinvii, rinviiDisponibili: rin.data!.disponibili }, errore: null }
 }
 
 // ── Stato condiviso ─────────────────────────────────────────────────────────
