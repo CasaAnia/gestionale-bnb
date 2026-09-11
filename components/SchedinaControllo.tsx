@@ -16,10 +16,14 @@ export type SchedinaControlloProps = {
   titolo: string
   dettaglio?: string | null
   link?: { testo: string; href: string } | null
+  /** in alternativa al link: un comando della pagina («Un'altra soluzione») */
+  azione?: { testo: string; onClick: () => void } | null
   className?: string
 }
 
-export default function SchedinaControllo({ etichetta, titolo, dettaglio = null, link = null, className = '' }: SchedinaControlloProps) {
+const STILE_LINK = { fontSize: 13, fontWeight: 600, color: 'var(--color-green-mid)' }
+
+export default function SchedinaControllo({ etichetta, titolo, dettaglio = null, link = null, azione = null, className = '' }: SchedinaControlloProps) {
   return (
     <div data-schedina-controllo className={`relative bg-white overflow-hidden ${className}`}
       style={{ border: '1px solid var(--color-card-border)', borderRadius: 12, padding: '10px 12px 10px 14px' }}>
@@ -29,7 +33,12 @@ export default function SchedinaControllo({ etichetta, titolo, dettaglio = null,
       {dettaglio && <p className="mt-0.5 leading-snug" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{dettaglio}</p>}
       {link && (
         <p className="mt-1.5">
-          <Link href={link.href} className="underline underline-offset-2" style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-green-mid)' }}>{link.testo}</Link>
+          <Link href={link.href} className="underline underline-offset-2" style={STILE_LINK}>{link.testo}</Link>
+        </p>
+      )}
+      {azione && (
+        <p className="mt-1.5">
+          <button type="button" onClick={azione.onClick} className="underline underline-offset-2" style={STILE_LINK}>{azione.testo}</button>
         </p>
       )}
     </div>

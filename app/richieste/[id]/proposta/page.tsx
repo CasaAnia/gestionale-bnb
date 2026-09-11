@@ -1,8 +1,28 @@
 'use client'
+// ============================================================================
+// PROPOSTA A UNA RICHIESTA — veste nuova (11/09/2026, approvata da Ania su una
+// bozza): testa con il cliente, fascia delle sezioni ferma in cima, quattro
+// parti che scorrono (Da controllare · Camere da proporre · Come paga ·
+// Il messaggio).
+//
+// Cosa NON è cambiato: i testi generati (lib/richiesteTesti, bloccati il
+// 04/09), l'invio su WhatsApp, «Sì, inviata», il passaggio a «Proposta
+// inviata», «Modifica la richiesta» e il database.
+//
+// Le camere si scelgono con una spunta: partono spuntate quelle proponibili
+// (lib/richiesteCamere, stessa disponibilità di prima) e il messaggio elenca
+// SOLO quelle spuntate. Quando nessuna camera è libera per tutte le notti
+// resta la proposta automatica di sempre (cambio camera o parte delle notti),
+// scritta in una schedina, con «Un'altra soluzione» al posto del vecchio
+// bottone «Cambia».
+// ============================================================================
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Globe, Phone, MessageCircle, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import BackBar from '@/components/BackBar'
+import TestaCliente from '@/components/TestaCliente'
+import FasciaSezioni from '@/components/FasciaSezioni'
+import SchedinaControllo from '@/components/SchedinaControllo'
 import ConfermaDialog from '@/components/richieste/ConfermaDialog'
 import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
@@ -11,11 +31,15 @@ import { supabase } from '@/lib/supabase'
 import { fetchRichiesta, fetchRichieste, rifiutaRichiesta, segnaPropostaInviata, colonne0025Presenti, colonne0029Presenti, colonne0031Presenti, AVVISO_0025, AVVISO_0029, AVVISO_0031, type CondizioniSalvate } from '@/lib/richiesteDati'
 import RifiutaConMotivo from '@/components/richieste/RifiutaConMotivo'
 import type { MotivoRifiuto } from '@/lib/motivoRifiuto'
-import { proponiSoluzioni, alternativaAmelia, personePerNotte, prezziNottiCentesimi, motiviEsclusione, testoMotivo, ETICHETTA_CASO, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
+import { proponiSoluzioni, alternativaAmelia, personePerNotte, prezziNottiCentesimi, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
+import { camereDaProporre, camereProponibili, soluzioniSpuntate } from '@/lib/richiesteCamere'
+import { vociStesseDate, voceClienteCheTorna } from '@/lib/richiesteDaControllare'
+import { soggiorniDellaPersona, chiaveNome, type SoggiornoStorico } from '@/lib/clienteCheTorna'
+import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import { camereAmmesseNotte, cameraSuccessiva, composizioneDaSoluzione, soluzioneDaComposizione, prezziTariffaPerNotte, applicaATutteLeNotti, totaleCentesimi, type Composizione, type PrezziManuali } from '@/lib/richiesteComposizione'
 import StrisciaNotti, { etichettaNotte } from '@/components/StrisciaNotti'
 import { generaProposta, prezzo as fmtPrezzo, centesimi, centesimiTotale, formattaEuro, condizioneDaColonne, nottiScoperte, type Condizione } from '@/lib/richiesteTesti'
-import { alternativeDaElencare, chiaveSoluzione, soluzioneScelta } from '@/lib/richiesteScelta'
+import { chiaveSoluzione, soluzioneScelta } from '@/lib/richiesteScelta'
 import { custodisciPendente, eliminaPendente, leggiPendente, datiPerConferma, type PropostaPendente } from '@/lib/richiestePendente'
 import { CONDIZIONI_PAGAMENTO, ETICHETTA_CONDIZIONE, caparraDefault, type CondizionePagamento } from '@/lib/condizioniPrenotazione'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
@@ -25,24 +49,30 @@ import { salvaImmagine, copiaImmagine, isMobile } from '@/lib/immaginePng'
 import { useDesktop, useAdesso } from '@/lib/richiesteVista'
 import { opzioniAttive, opzioniScadute, occupantiDaOpzioni, notaOpzioni, opzioniSovrapposte, oraRoma, type RichiestaOpzione } from '@/lib/opzioni'
 import RigaScadenza from '@/components/richieste/RigaScadenza'
-import NotaCliente from '@/components/richieste/NotaCliente'
 import { nottiDellaRichiesta } from '@/lib/nottiRichieste'
 import { giorniTra } from '@/lib/richiesteCalendario'
-import Link from 'next/link'
+import { periodoCompatto } from '@/lib/dateItaliane'
 import {
-  CANALE_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, formatDateRichiesta, oraArrivo, tempoTrascorso, riassuntoPersone, riassuntoPerNotte, modificabile, type Richiesta,
+  CANALE_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, tempoTrascorso, riassuntoPersone, riassuntoPerNotte, modificabile, eAperta, type Richiesta,
 } from '@/lib/richieste'
 import type { Room } from '@/lib/types'
 
 const BORDO = '#C9BFA8'
 const GRIGIO_NOTA = '#6b6b60'
+const OTTONE = '#A9884E'
+const GEORGIA = "Georgia, 'Times New Roman', serif"
 const PIENO = 'w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-mid text-cream-text font-semibold text-[15px] py-3.5 active:opacity-80 transition-opacity disabled:opacity-50'
 
-function IconaCanale({ canale }: { canale: Richiesta['canale'] }) {
-  const props = { size: 13, strokeWidth: 1.8, 'aria-hidden': true as const, className: 'shrink-0' }
-  if (canale === 'web') return <Globe {...props} />
-  if (canale === 'whatsapp') return <MessageCircle {...props} />
-  return <Phone {...props} />
+const SEZIONI = [
+  { id: 'controllare', label: 'Controllare' },
+  { id: 'camere', label: 'Camere' },
+  { id: 'pagamento', label: 'Pagamento' },
+  { id: 'messaggio', label: 'Messaggio' },
+]
+
+const oggiIso = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function IconaWhatsApp() {
@@ -59,6 +89,11 @@ function riassuntoSegmenti(s: Soluzione): string {
   return s.segmenti.map(x => `${x.camera.name} ${formatIntervallo(x.arrivo, x.partenza)}`).join(' → ')
 }
 
+// «Ambra 29 ott → 30 ott, poi Allegra 30 ott → 31 ott»
+function soluzioneInParole(s: Soluzione): string {
+  return s.segmenti.map(x => `${x.camera.name} ${periodoCompatto(x.arrivo, x.partenza)}`).join(', poi ')
+}
+
 export default function PropostaPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -66,6 +101,8 @@ export default function PropostaPage() {
   const [richiesta, setRichiesta] = useState<Richiesta & { proposta_testo?: string | null; proposta_soluzione?: Soluzione | null; proposta_alternative?: Soluzione[] | null } & Partial<CondizioniSalvate> | null>(null)
   const [camere, setCamere] = useState<Room[]>([])
   const [prenotazioni, setPrenotazioni] = useState<PrenotazioneOccupante[]>([])
+  const [clienti, setClienti] = useState<Record<string, unknown>[]>([])
+  const [aperte, setAperte] = useState<Richiesta[]>([])
   const [loading, setLoading] = useState(true)
   const [errore, setErrore] = useState<string | null>(null)
   const [avviso, setAvviso] = useState<string | null>(null)
@@ -74,13 +111,13 @@ export default function PropostaPage() {
   const [manca0031, setManca0031] = useState(false)
   const adesso = useAdesso()   // avanza ogni minuto: timer della proposta
 
-  // Soluzione scelta e bozza (null = quella generata; stringa = modificata a mano)
-  // La scelta di Ania è una CHIAVE (caso + camere + date, lib/richiesteScelta), non una
-  // posizione: le soluzioni si ricalcolano ogni minuto e si riordinano quando un'opzione scade
+  // Soluzione scelta e bozza (null = quella generata; stringa = modificata a mano).
+  // La scelta vale SOLO quando nessuna camera è libera per tutto il periodo: lì
+  // resta la proposta automatica di sempre, con «Un'altra soluzione».
   const [scelta, setScelta] = useState<string | null>(null)
-  // Ania ha toccato una soluzione in «Cambia»: il messaggio propone quella camera sola, mai l'elenco (07/09/2026)
-  const [sceltaDiAnia, setSceltaDiAnia] = useState(false)
-  // Caso E scelto a mano: Ania può inviare il messaggio «siamo al completo»
+  // Le camere spuntate: null = non le ha ancora toccate (tutte le proponibili)
+  const [spunteManuali, setSpunteManuali] = useState<string[] | null>(null)
+  // «Non ho posto» scelto a mano: Ania può inviare il messaggio «siamo al completo»
   // anche quando il calcolo ha trovato una disponibilità (decisione umana).
   const [forzaNessunaDisponibilita, setForzaNessunaDisponibilita] = useState(false)
   const [testoModificato, setTestoModificato] = useState<string | null>(null)
@@ -90,12 +127,12 @@ export default function PropostaPage() {
   const [altreProposte, setAltreProposte] = useState<RichiestaOpzione[]>([])
   // Azione rimandata finché Ania non conferma di voler perdere il testo modificato a mano
   const [azioneSospesa, setAzioneSospesa] = useState<(() => void) | null>(null)
-  // Condizioni di pagamento (pezzo 6): NESSUNA preselezione, le sceglie Ania ogni volta.
+  // Condizioni di pagamento: NESSUNA preselezione, le sceglie Ania ogni volta.
   const [condizioneTipo, setCondizioneTipo] = useState<CondizionePagamento | null>(null)
   const [caparraTesto, setCaparraTesto] = useState('')          // euro digitati ("70" · "72,50")
   const [condizioneTesto, setCondizioneTesto] = useState('')    // paragrafo della personalizzata
   const [ameliaAttiva, setAmeliaAttiva] = useState(false)       // interruttore, spento di default
-  // «Scelgo io» (pezzo 10): camera per notte scelta a mano (null = notte scoperta) e prezzi a mano in centesimi
+  // «Compongo io, notte per notte»: camera per notte scelta a mano (null = notte scoperta)
   const [manuale, setManuale] = useState(false)
   const [composizione, setComposizione] = useState<Composizione>([])
   const [prezziManuali, setPrezziManuali] = useState<PrezziManuali>([])
@@ -110,8 +147,6 @@ export default function PropostaPage() {
   // Sul telefono l'app può ricaricarsi al ritorno da WhatsApp: l'attesa della
   // risposta (e il testo inviato) restano nel browser finché Ania non risponde.
   const chiavePendente = `ca_proposta_pendente_${id}`
-  // Invio in sospeso ripristinato dopo un ricaricamento (lib/richiestePendente): porta
-  // soluzione e alternative ESATTE del messaggio partito; vive finché Ania non risponde Sì o No
   const [pendente, setPendente] = useState<PropostaPendente | null>(null)
   const salvataggioInCorso = useRef(false)
   const modificaConsentita = !chiediConferma && richiesta?.stato !== 'proposta_inviata'
@@ -126,32 +161,46 @@ export default function PropostaPage() {
     Promise.all([
       fetchRichiesta(id),
       supabase.from('rooms').select('*').eq('active', true),
-      supabase.from('bookings').select('room_id, check_in, check_out, status, num_guests, extra_bed, extra_bed_dates').in('status', ['confermata', 'completata']),
-      supabase.from('richieste').select('id, nome, cognome, stato, proposta_inviata_at, proposta_soluzione, proposta_alternative').eq('stato', 'proposta_inviata'),
-    ]).then(([ric, r, b, ap]) => {
+      supabase.from('bookings').select('*, rooms(name), guests(id, full_name, phone)').in('status', ['confermata', 'completata', 'annullata']),
+      // Le altre richieste aperte: le «proposta inviata» tengono l'opzione di 3 ore,
+      // tutte servono alla voce «Stesse date» di «Da controllare».
+      supabase.from('richieste').select('*').in('stato', ['in_attesa', 'proposta_inviata']),
+      supabase.from('guests').select('*'),
+    ]).then(([ric, r, b, ap, g]) => {
       const errs: string[] = []
       if (ric.error) errs.push(ric.error)
       if (r.error) errs.push(`camere: ${r.error.message}`)
       if (b.error) errs.push(`prenotazioni: ${b.error.message}`)
-      if (ap.error) errs.push(`opzioni: ${ap.error.message}`)
+      if (ap.error) errs.push(`altre richieste: ${ap.error.message}`)
+      if (g.error) errs.push(`clienti: ${g.error.message}`)
       setRichiesta(ric.data as typeof richiesta)
       setManca0025(!!ric.data && !colonne0025Presenti(ric.data as unknown as Record<string, unknown>))
       setManca0029(!!ric.data && !colonne0029Presenti(ric.data as unknown as Record<string, unknown>))
       setManca0031(!!ric.data && !colonne0031Presenti(ric.data as unknown as Record<string, unknown>))
       setCamere((r.data || []) as Room[])
       setPrenotazioni((b.data || []) as PrenotazioneOccupante[])
-      setAltreProposte((ap.data || []) as unknown as RichiestaOpzione[])
+      setAperte((ap.data || []) as Richiesta[])
+      setAltreProposte(((ap.data || []) as unknown as RichiestaOpzione[]).filter(x => x.stato === 'proposta_inviata'))
+      setClienti((g.data || []) as Record<string, unknown>[])
       setErrore(errs.length ? errs.join(' · ') : null)
       setLoading(false)
     })
   }, [id])
 
+  // Solo le confermate/completate occupano: le annullate servono allo storico del cliente
+  const occupanti = useMemo(() => prenotazioni.filter(p => p.status !== 'annullata'), [prenotazioni])
   // Opzioni delle ALTRE richieste: attive (meno di 3 ore) bloccano camere e notti come
   // fossero confermate; scadute solo segnalate. La richiesta stessa non si blocca da sola.
   const opzAttive = useMemo(() => opzioniAttive(altreProposte, adesso, id), [altreProposte, adesso, id])
   const opzScadute = useMemo(() => opzioniScadute(altreProposte, adesso, id), [altreProposte, adesso, id])
-  const prenotazioniConOpzioni = useMemo(() => [...prenotazioni, ...occupantiDaOpzioni(opzAttive)], [prenotazioni, opzAttive])
-  const notaOpz = useMemo(() => (richiesta ? notaOpzioni(richiesta, camere, prenotazioni, opzAttive, opzScadute) : null), [richiesta, camere, prenotazioni, opzAttive, opzScadute])
+  const prenotazioniConOpzioni = useMemo(() => [...occupanti, ...occupantiDaOpzioni(opzAttive)], [occupanti, opzAttive])
+  // Camere tenute in opzione da un'altra richiesta: nell'elenco si legge il
+  // perché vero («in opzione fino alle 20:15 per Carmela»), non «occupata»
+  const motivoOpzione = useMemo(() => {
+    if (!richiesta) return new Map<string, string>()
+    return new Map(opzioniSovrapposte(opzAttive, richiesta.arrivo, richiesta.partenza).map(o => [o.cameraId, `in opzione fino alle ${oraRoma(o.scadenza)} per ${o.ospite}`]))
+  }, [richiesta, opzAttive])
+  const notaOpz = useMemo(() => (richiesta ? notaOpzioni(richiesta, camere, occupanti, opzAttive, opzScadute) : null), [richiesta, camere, occupanti, opzAttive, opzScadute])
   // La ricerca può rifiutare dati incoerenti (persone per notte diverse dalle
   // notti): l'errore va a schermo, mai un ripiego silenzioso
   const { soluzioni, erroreRicerca } = useMemo(() => {
@@ -160,20 +209,29 @@ export default function PropostaPage() {
     catch (e) { return { soluzioni: [] as Soluzione[], erroreRicerca: String((e as Error).message ?? e) } }
   }, [richiesta, camere, prenotazioniConOpzioni])
   const inviata = richiesta?.stato === 'proposta_inviata'
+
+  // ── Le camere con la spunta ───────────────────────────────────────────────
+  const righeCamere = useMemo(() => {
+    if (!richiesta || camere.length === 0) return []
+    try { return camereDaProporre(richiesta, camere, prenotazioniConOpzioni, soluzioni) } catch { return [] }
+  }, [richiesta, camere, prenotazioniConOpzioni, soluzioni])
+  const proponibili = useMemo(() => camereProponibili(righeCamere), [righeCamere])
+  // Una camera che nel frattempo non è più proponibile sparisce dalle spunte da sola
+  const spuntate = useMemo(() => proponibili.filter(x => spunteManuali === null || spunteManuali.includes(x)), [proponibili, spunteManuali])
+  const scelteSpuntate = useMemo(() => soluzioniSpuntate(righeCamere, spuntate), [righeCamere, spuntate])
+  const conCamereLibere = proponibili.length > 0
+
   // Già inviata: si rilegge quel che è partito (testo e soluzione archiviati)
   const { soluzione: soluzioneTrovata, trovata: sceltaValida } = soluzioneScelta(soluzioni, scelta)
-  const soluzioneAuto: Soluzione | null = inviata && richiesta?.proposta_soluzione
-    ? richiesta.proposta_soluzione
-    : soluzioneTrovata
   const indiceScelto = soluzioni.indexOf(soluzioneTrovata as Soluzione)
-  const sceltaPersa = !inviata && !manuale && scelta !== null && !sceltaValida && !chiediConferma
-  // «Scelgo io»: la soluzione nasce dalla composizione; un dato incoerente va a schermo
+  const sceltaPersa = !inviata && !manuale && !conCamereLibere && scelta !== null && !sceltaValida && !chiediConferma
+  // «Compongo io»: la soluzione nasce dalla composizione; un dato incoerente va a schermo
   const { soluzioneManuale, erroreComposizione } = useMemo(() => {
     if (!manuale || inviata || !richiesta) return { soluzioneManuale: null as Soluzione | null, erroreComposizione: null as string | null }
     try { return { soluzioneManuale: soluzioneDaComposizione(richiesta, camere, composizione, prezziManuali), erroreComposizione: null } }
     catch (e) { return { soluzioneManuale: null, erroreComposizione: String((e as Error).message ?? e) } }
   }, [manuale, inviata, richiesta, camere, composizione, prezziManuali])
-  const soluzioneBase: Soluzione | null = chiediConferma ? pendente?.soluzione ?? null : manuale && !inviata ? soluzioneManuale : soluzioneAuto
+
   const soluzioneNessuna: Soluzione | null = richiesta ? {
     caso: 'completo',
     segmenti: [],
@@ -182,20 +240,14 @@ export default function PropostaPage() {
     nottiMancanti: nottiDellaRichiesta(richiesta),
     prezzoTotale: 0,
   } : null
-  const soluzione: Soluzione | null = !chiediConferma && forzaNessunaDisponibilita ? soluzioneNessuna : soluzioneBase
-  // «Altre camere»: perché le camere fuori dalla soluzione non sono state proposte
-  const altreCamere = useMemo(() => {
-    if (forzaNessunaDisponibilita || !richiesta || camere.length === 0) return []
-    try {
-      const usate = new Set((soluzione?.segmenti ?? []).map(s => s.camera.id))
-      return motiviEsclusione(richiesta, camere, prenotazioniConOpzioni).filter(x => !usate.has(x.camera.id))
-    } catch { return [] }
-  }, [forzaNessunaDisponibilita, richiesta, camere, prenotazioniConOpzioni, soluzione])
-  // Camere in opzione sulle notti richieste: nelle «Altre camere» si legge il perché vero
-  const motivoOpzione = useMemo(() => {
-    if (!richiesta) return new Map<string, string>()
-    return new Map(opzioniSovrapposte(opzAttive, richiesta.arrivo, richiesta.partenza).map(o => [o.cameraId, `in opzione fino alle ${oraRoma(o.scadenza)} per ${o.ospite}`]))
-  }, [richiesta, opzAttive])
+  // La proposta automatica che resta quando nessuna camera copre tutte le notti
+  const automatica: Soluzione | null = conCamereLibere ? null : soluzioneTrovata
+  const soluzioneBase: Soluzione | null = chiediConferma ? pendente?.soluzione ?? null
+    : inviata ? richiesta?.proposta_soluzione ?? null
+      : manuale ? soluzioneManuale
+        : conCamereLibere ? scelteSpuntate[0] ?? null
+          : automatica
+  const soluzione: Soluzione | null = !chiediConferma && !inviata && forzaNessunaDisponibilita ? soluzioneNessuna : soluzioneBase
   const completo = soluzione?.caso === 'completo'
   const totaleCent = soluzione ? centesimiTotale(soluzione) : 0
   // Alternativa ad Amelia: solo se le condizioni del blocco sono soddisfatte (calcolo puro)
@@ -207,37 +259,35 @@ export default function PropostaPage() {
   // Condizione scelta e controllo: senza scelta (o con importo/testo mancante) niente invio
   const condizione: Condizione | null =
     condizioneTipo === 'arrivo' ? { tipo: 'arrivo' }
-    : condizioneTipo === 'caparra' ? { tipo: 'caparra', caparraCentesimi: caparraCent }
-    : condizioneTipo === 'completo' ? { tipo: 'completo' }
-    : condizioneTipo === 'personalizzata' ? { tipo: 'personalizzata', testo: condizioneTesto }
-    : null
-  const problemaCondizione: string | null = completo ? null
-    : condizioneTipo === null ? 'Scegli le condizioni di pagamento'
-    : condizioneTipo === 'caparra' && !(caparraCent > 0) ? "Scrivi l'importo della caparra"
-    : condizioneTipo === 'caparra' && caparraCent > totaleCent ? 'La caparra supera il totale'
-    : condizioneTipo === 'personalizzata' && condizioneTesto.trim() === '' ? 'Scrivi le condizioni di pagamento'
-    : null
-  // Caso A con più camere libere (pezzo 9): il messaggio le elenca tutte SOLO
-  // se nessuno ha scelto (né Ania in «Cambia» o «Scelgo io», né il cliente con
-  // una camera libera: lib/richiesteScelta); già inviata: quelle archiviate
+      : condizioneTipo === 'caparra' ? { tipo: 'caparra', caparraCentesimi: caparraCent }
+        : condizioneTipo === 'completo' ? { tipo: 'completo' }
+          : condizioneTipo === 'personalizzata' ? { tipo: 'personalizzata', testo: condizioneTesto }
+            : null
+  const SCEGLI_COME_PAGA = 'Scegli come paga'
+  const problemaCamere: string | null = !inviata && !chiediConferma && conCamereLibere && !manuale && !forzaNessunaDisponibilita && spuntate.length === 0
+    ? 'Scegli almeno una camera' : null
+  const problemaCondizione: string | null = completo || problemaCamere ? null
+    : condizioneTipo === null ? SCEGLI_COME_PAGA
+      : condizioneTipo === 'caparra' && !(caparraCent > 0) ? "Scrivi l'importo della caparra"
+        : condizioneTipo === 'caparra' && caparraCent > totaleCent ? 'La caparra supera il totale'
+          : condizioneTipo === 'personalizzata' && condizioneTesto.trim() === '' ? 'Scrivi le condizioni di pagamento'
+            : null
+  // Il messaggio elenca SOLO le camere spuntate; con una sola camera torna il
+  // testo della camera unica (lib/richiesteTesti non cambia).
   const alternative = useMemo(() => {
     if (chiediConferma) return pendente?.alternative ?? null
-    if (!soluzione || soluzione.caso !== 'completa' || soluzione.manuale) return null
     if (inviata) return richiesta?.proposta_alternative ?? null
-    // la scelta vale solo finché la soluzione scelta esiste ancora nella lista
-    return alternativeDaElencare(soluzione, soluzioni, { cameraRichiesta: richiesta?.camera_id ?? null, sceltaDiAnia: sceltaDiAnia && sceltaValida })
-  }, [soluzione, soluzioni, inviata, richiesta, sceltaDiAnia, sceltaValida, chiediConferma, pendente])
+    if (manuale || forzaNessunaDisponibilita || !conCamereLibere) return null
+    return scelteSpuntate.length > 1 ? scelteSpuntate : null
+  }, [chiediConferma, pendente, inviata, richiesta, manuale, forzaNessunaDisponibilita, conCamereLibere, scelteSpuntate])
   const bozzaGenerata = richiesta && soluzione
     ? generaProposta({ richiesta, soluzione, condizione: problemaCondizione ? null : condizione, amelia: ameliaAttiva ? amelia : null, alternative })
     : ''
   const testoFinale = chiediConferma ? pendente?.testo ?? '' : inviata && richiesta?.proposta_testo ? richiesta.proposta_testo : (testoModificato ?? bozzaGenerata)
   const telefonoNorm = normalizzaTelefono(richiesta?.telefono)
   const telefono = telefonoNorm.numero
-  // La 0031 è necessaria solo se il messaggio elenca più camere (proposta_alternative da salvare)
-  // Cosa si archivia con «Sì, inviata»: dopo un ricaricamento vince il pendente (ciò che è partito)
   const perConferma = datiPerConferma(pendente)
   const mancaMigrazione = manca0025 ? AVVISO_0025 : manca0029 ? AVVISO_0029 : manca0031 && (alternative?.length ?? 0) > 1 ? AVVISO_0031 : null
-  // Cosa si salva con «Sì, inviata» (nel caso E nessuna condizione)
   const condizioniSalvate: CondizioniSalvate = inviata && richiesta ? {
     condizione_pagamento: richiesta.condizione_pagamento ?? null,
     caparra_centesimi: richiesta.caparra_centesimi ?? null,
@@ -253,6 +303,31 @@ export default function PropostaPage() {
     }
   const modoEffettivo = completo || soluzione === null ? 'testo' : modo
 
+  // ── Chi è il cliente ──────────────────────────────────────────────────────
+  const guest = useMemo(() => {
+    if (!richiesta) return null
+    const tel = normalizzaTelefono(richiesta.telefono).numero
+    const chiave = chiaveNome({ nome: richiesta.nome, cognome: richiesta.cognome })
+    const perTelefono = tel ? clienti.find(c => normalizzaTelefono(c.phone as string | null).numero === tel) : undefined
+    const perNome = chiave ? clienti.find(c => chiaveNome({ full_name: (c.full_name as string | null) ?? null }) === chiave) : undefined
+    return (perTelefono ?? perNome ?? null) as { id?: string; rating?: string | null; vuole_ricevuta?: boolean | null; motivo_problematico?: string | null } | null
+  }, [richiesta, clienti])
+  const soggiorni = useMemo(() => {
+    if (!richiesta) return { volte: 0, ricaviCent: 0, ultimo: null }
+    return soggiorniDellaPersona(
+      { nome: richiesta.nome, cognome: richiesta.cognome, telefono: richiesta.telefono, guest_id: guest?.id ?? null },
+      prenotazioni as unknown as SoggiornoStorico[], oggiIso(),
+    )
+  }, [richiesta, prenotazioni, guest])
+  const hrefCliente = guest?.id ? `/clienti/${guest.id}` : null
+
+  // ── Da controllare ────────────────────────────────────────────────────────
+  const vociControllo = useMemo(() => {
+    if (!richiesta) return []
+    const altre = aperte.filter(a => eAperta(a) && a.id !== richiesta.id)
+    return [...vociStesseDate(richiesta, altre), ...(voceClienteCheTorna(soggiorni, hrefCliente) ? [voceClienteCheTorna(soggiorni, hrefCliente)!] : [])]
+  }, [richiesta, aperte, soggiorni, hrefCliente])
+
   // La textarea cresce col contenuto
   useEffect(() => {
     const el = textareaRef.current
@@ -261,8 +336,7 @@ export default function PropostaPage() {
     el.style.height = `${el.scrollHeight}px`
   }, [testoFinale, modoEffettivo])
 
-  // Altezza reale dell'immagine (per l'anteprima in scala): misurata da un
-  // ResizeObserver, mai leggendo il ref durante il render.
+  // Altezza reale dell'immagine (per l'anteprima in scala)
   useEffect(() => {
     const el = imgRef.current
     if (!el) return
@@ -283,15 +357,12 @@ export default function PropostaPage() {
       extra_bed_total: s.lettoTotale,
       num_guests: richiesta.persone,
       rooms: s.camera,
-      // pezzo 9/10: persone di ogni notte, notti col letto addebitato e, se
-      // scritti a mano, i prezzi effettivi: le righe dicono gli stessi numeri del testo
       persone_notti: s.personeNotti && s.personeNotti.length === s.notti ? s.personeNotti : null,
       extra_bed_dates: s.lettoNotti ?? null,
       prezzi_notti: s.prezzo_manuale ? prezziNottiCentesimi(s).map(c => c / 100) : null,
     }))
     const { righe, totale } = righeCostiSegmenti(seg, seg.length > 1, n => formattaEuro(centesimi(n)))
     const lettoAggiuntivo = seg.length === 1 && lettoDaComunicare(seg[0])
-    // Caso C: le notti scoperte vanno nell'immagine come spazi vuoti (mai un soggiorno continuo)
     let personeNotti: { giorno: string; persone: number }[] = []
     try { personeNotti = nottiDellaRichiesta(richiesta).map((giorno, i) => ({ giorno, persone: personePerNotte(richiesta)[i] })) } catch { personeNotti = [] }
     return { seg, righe, totale, lettoAggiuntivo, nottiNonDisponibili: nottiScoperte(richiesta, soluzione), personeNotti }
@@ -303,41 +374,52 @@ export default function PropostaPage() {
     if (testoModificato !== null && testoModificato !== bozzaGenerata) { setAzioneSospesa(() => azione); return }
     azione()
   }
+  function azzeraCondizioni() {
+    setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false)
+  }
+  // La spunta di una camera: il messaggio si rifà, le condizioni restano
+  function cambiaSpunta(cameraId: string) {
+    conConferma(() => {
+      setTestoModificato(null)
+      setSpunteManuali(prima => {
+        const base = prima === null ? proponibili : prima.filter(x => proponibili.includes(x))
+        return base.includes(cameraId) ? base.filter(x => x !== cameraId) : proponibili.filter(x => base.includes(x) || x === cameraId)
+      })
+    })
+  }
   function scegli(i: number) {
     conConferma(() => {
       // Nuova soluzione → si ricomincia dalle condizioni: mai una scelta trascinata da un'altra soluzione
-      setScelta(chiaveSoluzione(soluzioni[i])); setSceltaDiAnia(true); setTestoModificato(null); setPannelloCambia(false); setManuale(false); setPrezzoEditor(null)
+      setScelta(chiaveSoluzione(soluzioni[i])); setTestoModificato(null); setPannelloCambia(false); setManuale(false); setPrezzoEditor(null)
       setForzaNessunaDisponibilita(false)
-      setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false)
+      azzeraCondizioni()
     })
   }
-  // «Scelgo io»: parte dalla soluzione automatica corrente; «Torna alla proposta automatica» la rimette
+  // «Compongo io»: parte dalla soluzione mostrata; «Torna alla proposta automatica» la rimette
   function apriScelgoIo() {
     if (!richiesta) return
     conConferma(() => {
-      setComposizione(composizioneDaSoluzione(richiesta, soluzioneAuto))
+      setComposizione(composizioneDaSoluzione(richiesta, soluzioneBase))
       setPrezziManuali(nottiDellaRichiesta(richiesta).map(() => null))
       setManuale(true); setPrezzoEditor(null); setTestoModificato(null)
       setForzaNessunaDisponibilita(false)
-      setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false)
+      azzeraCondizioni()
     })
   }
   function tornaAutomatica() {
-    conConferma(() => { setManuale(false); setForzaNessunaDisponibilita(false); setPrezzoEditor(null); setTestoModificato(null); setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false) })
+    conConferma(() => { setManuale(false); setForzaNessunaDisponibilita(false); setPrezzoEditor(null); setTestoModificato(null); azzeraCondizioni() })
   }
   function scegliNessunaDisponibilita() {
     conConferma(() => {
       setForzaNessunaDisponibilita(true)
-      setScelta(null); setSceltaDiAnia(false); setManuale(false); setPrezzoEditor(null); setTestoModificato(null)
-      setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false); setPannelloCambia(false)
+      setScelta(null); setManuale(false); setPrezzoEditor(null); setTestoModificato(null)
+      azzeraCondizioni(); setPannelloCambia(false)
     })
   }
   function tornaAlleDisponibilita() {
-    conConferma(() => {
-      setForzaNessunaDisponibilita(false); setTestoModificato(null); setCondizioneTipo(null); setCaparraTesto(''); setCondizioneTesto(''); setAmeliaAttiva(false)
-    })
+    conConferma(() => { setForzaNessunaDisponibilita(false); setTestoModificato(null); azzeraCondizioni() })
   }
-  const nomeCamera = (id: string | null) => (id === null ? 'nessuna' : (camere.find(c => c.id === id)?.name ?? '?'))
+  const nomeCamera = (x: string | null) => (x === null ? 'nessuna' : (camere.find(c => c.id === x)?.name ?? '?'))
   const prezziTariffa = useMemo(() => {
     if (!manuale || !richiesta || composizione.length === 0) return [] as (number | null)[]
     try { return prezziTariffaPerNotte(richiesta, camere, composizione) } catch { return [] as (number | null)[] }
@@ -364,10 +446,10 @@ export default function PropostaPage() {
     if (!richiesta || !soluzione || chiediConferma) return
     setErrore(null); setAvviso(null)
     if (mancaMigrazione) { setErrore(mancaMigrazione); return }
+    if (!inviata && problemaCamere) { setErrore(problemaCamere); return }
     if (!inviata && problemaCondizione) { setErrore(problemaCondizione); return }
     if (!telefono) { setErrore('Nessun numero di telefono sulla richiesta: aggiungilo prima di inviare.'); return }
     // Nel browser resta TUTTO il messaggio partito: testo, condizioni, soluzione e alternative
-    // (sul telefono l'app si ricarica al ritorno da WhatsApp e la memoria si perde)
     const p: PropostaPendente = { testo: testoFinale, condizioni: condizioniSalvate, soluzione, alternative }
     try { custodisciPendente(window.localStorage, chiavePendente, p) }
     catch (e) { setErrore(`WhatsApp non aperto: non riesco a conservare la proposta. ${e instanceof Error ? e.message : 'Riprova.'}`); return }
@@ -384,8 +466,6 @@ export default function PropostaPage() {
         const grezzo = window.localStorage.getItem(chiavePendente)
         if (grezzo === null) return
         const salvato = leggiPendente(grezzo)
-        // La risposta del salvataggio può essersi persa: la rilettura conferma
-        // l'operazione già riuscita, senza riavviare il timer dell'opzione.
         if (salvato?.confermataIl && richiesta.proposta_inviata_at === salvato.confermataIl) {
           eliminaPendente(window.localStorage, chiavePendente)
           setPendente(null); setChiediConferma(false)
@@ -408,7 +488,10 @@ export default function PropostaPage() {
     // Anche dopo un ricaricamento «No» riapre la stessa composizione e i prezzi.
     if (pendente?.soluzione && richiesta && !inviata) {
       const s = pendente.soluzione
-      setScelta(chiaveSoluzione(s)); setSceltaDiAnia(!pendente.alternative)
+      setScelta(chiaveSoluzione(s))
+      // le camere del messaggio partito tornano spuntate
+      const camereDelMessaggio = (pendente.alternative ?? [s]).map(x => x.segmenti[0]?.camera.id).filter((x): x is string => !!x)
+      setSpunteManuali(camereDelMessaggio)
       setManuale(!!s.manuale)
       setForzaNessunaDisponibilita(s.caso === 'completo' && s.segmenti.length === 0)
       setComposizione(composizioneDaSoluzione(richiesta, s))
@@ -486,77 +569,63 @@ export default function PropostaPage() {
   if (!richiesta) return <div className="p-4"><BackBar href="/richieste" /><div className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore || 'Richiesta non trovata.'}</div></div>
 
   const n = nottiRichiesta(richiesta)
+  const problematico = valutazioneDi(guest) === 'problematico'
 
-  const riepilogo = (
-    <div className="ed-riga py-4 leading-snug">
-      <p className="text-[15px] text-green-dark">
-        {formatDateRichiesta(richiesta)}
-        <span className="text-stone"> · </span>
-        <span className="font-semibold text-brass">{n === 1 ? '1 notte' : `${n} notti`}</span>
-        <span className="text-stone"> · </span>
-        {richiesta.persone_per_notte ? riassuntoPersone(richiesta.arrivo, richiesta.persone_per_notte) : `${richiesta.persone} ${richiesta.persone === 1 ? 'persona' : 'persone'}`}
-      </p>
-      <p className="text-sm text-green-dark mt-1">Camera richiesta: <span className="font-medium">{richiesta.rooms?.name || 'qualsiasi'}</span></p>
-      {/* Nota del cliente (Ania, 07/09/2026): prima si vedeva solo in «Modifica la richiesta» */}
-      <NotaCliente note={richiesta.note} className="mt-1" />
-      <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-stone mt-1.5">
-        <span className="inline-flex items-center gap-1"><IconaCanale canale={richiesta.canale} />{CANALE_LABEL[richiesta.canale]}</span>
-        <span aria-hidden>·</span>
-        <span>{oraArrivo(richiesta.created_at, adesso)}</span>
-      </p>
-      {/* timer delle 3 ore: stesso testo della lista e del tooltip del calendario */}
-      <RigaScadenza r={richiesta} adesso={adesso} className="mt-1.5" />
-      {modificabile(richiesta) && !chiediConferma && (
-        <Link href={`/richieste/${richiesta.id}/modifica`} className="inline-block mt-2 text-sm font-semibold text-green-mid underline underline-offset-2">Modifica la richiesta</Link>
-      )}
-      <p className="text-sm mt-1.5">
-        {richiesta.telefono
-          ? <span className="text-green-dark">{richiesta.telefono}{telefonoNorm.avviso && <span className="ml-2 text-xs font-semibold text-[#8C3B2E]">{telefonoNorm.avviso}</span>}</span>
-          : <span className="text-[#8C3B2E] font-semibold">Nessun numero di telefono</span>}
-      </p>
-    </div>
-  )
-
-  const caso = soluzione && (
-    <div className="flex items-center gap-2 mt-3 flex-wrap">
-      <span className="shrink-0 rounded-full bg-green-mid text-cream-text text-xs font-semibold px-3 py-1">{ETICHETTA_CASO[soluzione.caso]}</span>
-      <span className="text-sm text-green-dark min-w-0 flex-1 truncate">
-        {soluzione.segmenti.length > 0 ? <>{riassuntoSegmenti(soluzione)} · <span className="font-semibold">{fmtPrezzo(soluzione.prezzoTotale)} €</span></> : 'nessuna camera libera'}
-      </span>
-      {modificaConsentita && (
-        <button type="button" onClick={() => setPannelloCambia(true)} className="shrink-0 text-sm font-semibold text-green-mid underline underline-offset-2">Cambia</button>
-      )}
-      {modificaConsentita && !manuale && (
-        <button type="button" onClick={apriScelgoIo} className="shrink-0 text-sm font-semibold text-green-mid underline underline-offset-2">Scelgo io</button>
-      )}
-      {modificaConsentita && (
-        <button type="button" onClick={forzaNessunaDisponibilita ? tornaAlleDisponibilita : scegliNessunaDisponibilita} className="shrink-0 text-sm font-semibold text-green-mid underline underline-offset-2">
-          {forzaNessunaDisponibilita ? 'Torna alle disponibilità' : 'Nessuna disponibilità'}
-        </button>
-      )}
-    </div>
-  )
-
-  // ── Altre camere (pezzo 10): sempre visibile, con il motivo ──────────────
-  const altre = altreCamere.length > 0 && (
-    <div className="mt-3 ed-riga py-2.5">
-      <p className="text-xs font-semibold text-stone mb-1">Altre camere</p>
-      <ul className="text-sm text-green-dark divide-y-[0.5px] divide-border-soft">
-        {altreCamere.map(x => (
-          <li key={x.camera.id} className="flex items-baseline justify-between gap-3 py-1">
-            <span className="font-medium">{x.camera.name}</span>
-            <span className={`text-right ${motivoOpzione.has(x.camera.id) ? 'text-brass' : x.motivo.stato === 'libera' ? 'text-green-mid' : 'text-stone'}`}>{motivoOpzione.get(x.camera.id) ?? testoMotivo(x.motivo)}</span>
+  // ── Camere da proporre ────────────────────────────────────────────────────
+  const elencoCamere = (
+    <ul className="ed-lista ed-lista-ottone mt-2">
+      {righeCamere.map(r => {
+        const spunta = spuntate.includes(r.camera.id)
+        const si = r.proponibile && modificaConsentita && !manuale && !forzaNessunaDisponibilita
+        return (
+          <li key={r.camera.id} style={{ opacity: r.proponibile ? 1 : 0.55 }}>
+            <button type="button" disabled={!si} onClick={() => cambiaSpunta(r.camera.id)} aria-pressed={spunta}
+              data-camera={r.camera.name} data-spuntata={spunta ? 'si' : 'no'}
+              className="w-full text-left py-3 flex items-start gap-3 disabled:cursor-default">
+              <span aria-hidden className="shrink-0 inline-flex items-center justify-center" style={{
+                width: 24, height: 24, borderRadius: 7, marginTop: 2,
+                border: r.proponibile ? `1px solid ${spunta ? 'var(--color-green-mid)' : BORDO}` : `1px dashed ${BORDO}`,
+                background: spunta ? 'var(--color-green-mid)' : 'transparent',
+                color: '#F5EFE4', fontSize: 14, fontWeight: 700, lineHeight: 1,
+              }}>{spunta ? '✓' : ''}</span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline justify-between gap-3">
+                  <span style={{ fontFamily: GEORGIA, fontSize: 20, color: 'var(--color-green-dark)' }}>{r.camera.name}</span>
+                  {r.proponibile && <span style={{ fontFamily: GEORGIA, fontSize: 16, color: 'var(--color-stone)' }}>{formattaEuro(r.totaleCent)}</span>}
+                </span>
+                <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>
+                  {r.tripla && <span className="ed-badge" style={{ borderColor: 'var(--color-green-mid)', color: 'var(--color-green-mid)' }}>tripla</span>}
+                  {r.lettoInPiu && <span className="ed-badge" style={{ background: '#EFE2C7', borderColor: '#EFE2C7', color: '#7A5C1E' }}>+ letto</span>}
+                  <span style={!r.proponibile && motivoOpzione.has(r.camera.id) ? { color: OTTONE } : undefined}>{(!r.proponibile && motivoOpzione.get(r.camera.id)) || r.stato}</span>
+                  {r.proponibile && <>
+                    <span aria-hidden>·</span>
+                    <span className="font-semibold">{formattaEuro(r.prezzoNotteCent)} a notte</span>
+                    {r.lettoNotteCent > 0 && <span>+ {formattaEuro(r.lettoNotteCent)} il letto</span>}
+                  </>}
+                  {r.tavolo && <><span aria-hidden>·</span><span>va tolto il tavolo</span></>}
+                </span>
+              </span>
+            </button>
           </li>
-        ))}
-      </ul>
-    </div>
+        )
+      })}
+    </ul>
   )
 
-  // ── «Scelgo io» (pezzo 10): striscia camera per notte + prezzo a mano ────
+  // Nessuna camera libera per tutte le notti: resta la proposta automatica di sempre
+  const propostaAutomatica = !conCamereLibere && !manuale && !forzaNessunaDisponibilita && modificaConsentita && automatica && automatica.segmenti.length > 0 && (
+    <SchedinaControllo className="mt-3"
+      etichetta={automatica.caso === 'cambio' ? 'Proposta con cambio camera' : 'Proposta per una parte delle notti'}
+      titolo={soluzioneInParole(automatica)}
+      dettaglio={`${formattaEuro(centesimiTotale(automatica))} in tutto${automatica.nottiCoperte < automatica.nottiTotali ? ` · copre ${automatica.nottiCoperte} notti su ${automatica.nottiTotali}` : ''}`}
+      azione={soluzioni.length > 1 ? { testo: "Un'altra soluzione", onClick: () => setPannelloCambia(true) } : null} />
+  )
+
+  // ── «Compongo io, notte per notte»: striscia camera per notte + prezzo a mano ──
   const scelgoIo = manuale && modificaConsentita && richiesta && (
-    <div className="mt-3 ed-riga py-3" role="group" aria-label="Scelgo io">
+    <div className="mt-3 ed-riga py-3" role="group" aria-label="Compongo io">
       <div className="flex items-center justify-between gap-2 mb-2">
-        <p className="text-sm font-semibold text-green-dark">Scelgo io · tocca una notte per cambiare camera</p>
+        <p className="text-sm font-semibold text-green-dark">Tocca una notte per cambiare camera</p>
         <button type="button" onClick={tornaAutomatica} className="shrink-0 text-xs font-semibold text-green-mid underline underline-offset-2">Torna alla proposta automatica</button>
       </div>
       <StrisciaNotti<string | null> arrivo={richiesta.arrivo} partenza={richiesta.partenza} nottiSelezionate={richiesta.notti_richieste ?? undefined} valori={composizione} aria="Camera notte per notte"
@@ -574,13 +643,13 @@ export default function PropostaPage() {
           centro: nomeCamera(v),
           sotto: v === null ? 'scoperta' : `${personeNottiRichiesta[i] ?? ''} pers. · ${(prezziManuali[i] ?? prezziTariffa[i]) != null ? fmtPrezzo(((prezziManuali[i] ?? prezziTariffa[i]) as number) / 100) + ' €' : '—'}`,
           evidenziata: v === null,
-          contorno: prezziManuali[i] != null ? '#A9884E' : undefined,
+          contorno: prezziManuali[i] != null ? OTTONE : undefined,
         })}
         onLungo={apriPrezzo} />
       <p className="text-xs text-green-dark mt-2">
         {riassuntoPerNotte(richiesta.arrivo, composizione.map(nomeCamera))}
         {soluzione ? <> · totale <span className="font-semibold">{formattaEuro(totaleCentesimi(soluzione))}</span></> : null}
-        {prezziManuali.some(p => p != null) && <span className="ml-1 font-semibold" style={{ color: '#A9884E' }}>· prezzo modificato</span>}
+        {prezziManuali.some(p => p != null) && <span className="ml-1 font-semibold" style={{ color: OTTONE }}>· prezzo modificato</span>}
       </p>
       <p className="text-[11px] mt-1" style={{ color: GRIGIO_NOTA }}>Tieni premuta una notte{desktop ? ' (o la matita)' : ''} per scrivere il prezzo a mano.</p>
       {erroreComposizione && <div role="alert" className="mt-2 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-2.5 text-sm text-[#8C3B2E]">{erroreComposizione}</div>}
@@ -614,166 +683,213 @@ export default function PropostaPage() {
     ? `${ETICHETTA_CONDIZIONE[condizioneInviata.tipo]}${condizioneInviata.tipo === 'caparra' ? ` ${formattaEuro(condizioneInviata.caparraCentesimi)}` : ''}${condizioniMostrate?.amelia_alternativa ? ' · con alternativa ad Amelia' : ''}`
     : null
 
-  const condizioni = modificaConsentita && soluzione && !completo && (
-    <div className="mt-3" role="group" aria-label="Condizioni di pagamento">
-      <p className="text-sm font-semibold text-green-dark mb-2">Condizioni di pagamento</p>
-      <div className="flex flex-wrap gap-2">
-        {CONDIZIONI_PAGAMENTO.map(tipo => (
-          <button key={tipo} type="button" onClick={() => scegliCondizione(tipo)} aria-pressed={condizioneTipo === tipo}
-            className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${condizioneTipo === tipo ? 'bg-green-mid text-cream-text' : 'bg-white text-green-dark border border-[#C9BFA8]'}`}>
-            {ETICHETTA_CONDIZIONE[tipo]}
-          </button>
-        ))}
-      </div>
-      {condizioneTipo === 'caparra' && (
-        <div className="mt-2.5">
-          <label className="block text-xs mb-1" style={{ color: GRIGIO_NOTA }} htmlFor="caparra">Caparra confirmatoria (€) · proposta al {fmtPrezzo(caparraDefault(totaleCent) / 100)} €, cioè il 50% di {fmtPrezzo(totaleCent / 100)} €</label>
-          <input id="caparra" type="text" inputMode="decimal" value={caparraTesto} onChange={e => setCaparraTesto(e.target.value)} aria-label="Importo della caparra in euro"
-            className="w-full min-w-0 appearance-none bg-white rounded-xl px-3 py-2.5 text-[15px] text-green-dark focus:outline-none focus:border-green-mid" style={{ border: `1px solid ${BORDO}` }} />
-          {problemaCondizione && problemaCondizione !== 'Scegli le condizioni di pagamento' && <p className="text-xs mt-1 font-semibold text-[#8C3B2E]">{problemaCondizione}</p>}
-        </div>
-      )}
-      {condizioneTipo === 'personalizzata' && (
-        <div className="mt-2.5">
-          <label className="block text-xs mb-1" style={{ color: GRIGIO_NOTA }} htmlFor="condizione-testo">Scrivi il paragrafo delle condizioni: la chiusura «Grazie mille, Ania – Casa Ania» viene aggiunta da sola</label>
-          <textarea id="condizione-testo" value={condizioneTesto} onChange={e => setCondizioneTesto(e.target.value)} rows={4} aria-label="Condizioni di pagamento personalizzate"
-            className="w-full bg-white rounded-xl p-3 text-[13px] text-green-dark leading-relaxed resize-none focus:outline-none focus:border-green-mid" style={{ border: `1px solid ${BORDO}` }} />
-        </div>
-      )}
-      {amelia && (
-        <div className="mt-3 flex items-center justify-between gap-3 bg-white rounded-xl px-3 py-2.5" style={{ border: `1px solid ${BORDO}` }}>
-          <span className="min-w-0">
-            <span className="block text-sm font-medium text-green-dark">Aggiungi alternativa Ambra/Allegra</span>
-            <span className="block text-xs" style={{ color: GRIGIO_NOTA }}>{amelia.camera.name}, {formattaEuro(amelia.differenzaNotteCentesimi)} in più a notte · totale {formattaEuro(amelia.prezzoTotaleCentesimi)}</span>
-          </span>
-          <button type="button" role="switch" aria-checked={ameliaAttiva} aria-label="Aggiungi alternativa Ambra/Allegra" onClick={() => cambiaAmelia(!ameliaAttiva)}
-            className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${ameliaAttiva ? 'bg-green-mid' : 'bg-border-soft'}`}>
-            <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${ameliaAttiva ? 'translate-x-5' : ''}`} aria-hidden />
-          </button>
-        </div>
-      )}
-    </div>
-  )
-
-  const bozza = (
-    <div>
-      {modificaConsentita && (
-        <div className="flex gap-2 mb-3">
-          {([['testo', 'Solo testo'], ['immagine', 'Testo + immagine']] as const).map(([k, label]) => (
-            <button key={k} type="button" onClick={() => setModo(k)} aria-pressed={modoEffettivo === k} disabled={k === 'immagine' && (completo || !immagine)}
-              className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors disabled:opacity-40 ${modoEffettivo === k ? 'bg-green-mid text-cream-text' : 'bg-white text-stone border border-[#C9BFA8]'}`}>
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-      {inviata || chiediConferma ? (
-        <>
-          <div className="bg-white rounded-xl p-3 text-[13px] text-green-dark whitespace-pre-wrap leading-relaxed" style={{ border: `1px solid ${BORDO}` }}>{testoFinale}</div>
-          {riassuntoCondizione && <p className="text-xs mt-1.5" style={{ color: GRIGIO_NOTA }}>Condizioni inviate: {riassuntoCondizione}</p>}
-        </>
-      ) : (
-        <textarea ref={textareaRef} value={testoFinale} onChange={e => setTestoModificato(e.target.value)} rows={6} spellCheck={false}
-          aria-label="Bozza del messaggio"
-          className="w-full bg-white rounded-xl p-3 text-[13px] text-green-dark leading-relaxed resize-none focus:outline-none focus:border-green-mid"
-          style={{ border: `1px solid ${BORDO}` }} />
-      )}
-      {modificaConsentita && testoModificato !== null && testoModificato !== bozzaGenerata && (
-        <p className="text-xs mt-1" style={{ color: GRIGIO_NOTA }}>Testo modificato a mano: ha la precedenza sulla bozza. <button type="button" className="underline" onClick={() => setTestoModificato(null)}>Ripristina la bozza</button></p>
-      )}
-
-      {modoEffettivo === 'immagine' && immagine && modificaConsentita && (
-        <div className="mt-3">
-          <p className="text-xs mb-1.5" style={{ color: GRIGIO_NOTA }}>Anteprima dell’immagine</p>
-          <div ref={el => { if (el) setScala(el.clientWidth / IMG_W) }} className="w-full rounded-xl overflow-hidden border border-card-border" style={{ height: imgH ? imgH * scala : undefined }}>
-            <div style={{ transform: `scale(${scala})`, transformOrigin: 'top left', width: IMG_W }}>
-              <ImmagineSoggiorno imgRef={imgRef} variante="proposta" nome={richiesta.nome.trim()} segmenti={immagine.seg} numOspiti={richiesta.persone}
-                righeCosti={immagine.righe} totale={immagine.totale} pagamento="contanti" lettoAggiuntivo={immagine.lettoAggiuntivo} nottiNonDisponibili={immagine.nottiNonDisponibili} personeNotti={immagine.personeNotti} lineaSempre={!!soluzione?.manuale} formattaImporto={n => formattaEuro(centesimi(n))} />
-            </div>
-          </div>
-          <button type="button" onClick={immagineSuDispositivo} disabled={!!occupato}
-            className={`w-full mt-2 rounded-xl py-2.5 font-semibold text-sm border disabled:opacity-50 ${immagineFatta ? 'bg-sage text-green-dark' : 'bg-white text-green-dark'}`} style={{ borderColor: BORDO }}>
-            {occupato === 'immagine' ? 'Preparo…' : immagineFatta ? (isMobile() ? 'Immagine salvata!' : 'Immagine copiata!') : (isMobile() ? '1 · Salva immagine sul telefono' : '1 · Copia immagine')}
-          </button>
-          <p className="text-xs mt-1.5" style={{ color: GRIGIO_NOTA }}>
-            {isMobile() ? 'Poi, nella chat, allega la prima foto dalla galleria e invia il testo già scritto.' : 'Poi incolla l’immagine nella chat (Cmd+V) e invia il testo già scritto.'}
-          </p>
-        </div>
-      )}
-
-      {errore && <div role="alert" className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore}</div>}
-      {avviso && <div role="status" className="mt-3 bg-white ed-campo rounded-xl p-3 text-sm text-green-dark">{avviso}</div>}
-
-      <button type="button" onClick={invia} disabled={!!occupato || !soluzione || chiediConferma || !!mancaMigrazione || (!inviata && !!problemaCondizione)} className={`${PIENO} mt-4`}>
-        <IconaWhatsApp />
-        {chiediConferma ? 'Invio da confermare' : inviata ? 'Invia di nuovo' : problemaCondizione ? problemaCondizione : (modoEffettivo === 'immagine' ? '2 · Apri WhatsApp e invia' : 'Apri WhatsApp e invia')}
-      </button>
-      {chiediConferma && (
-        <div ref={barraRef} role="group" aria-label="Conferma dell'invio" className="scheda-in mt-3 bg-white rounded-xl p-3" style={{ border: `1px solid ${BORDO}` }}>
-          <p className="text-sm font-medium text-green-dark mb-2">L’hai inviata?</p>
-          {perConferma && (
-            <p className="text-xs mb-2" style={{ color: GRIGIO_NOTA }} data-pendente>Proposta da confermare: {riassuntoSegmenti(perConferma.soluzione)}{perConferma.alternative && perConferma.alternative.length > 1 ? ` · ${perConferma.alternative.length} camere proposte` : ''}</p>
-          )}
-          {!perConferma && <p role="alert" className="text-sm mb-2 text-[#8C3B2E]">Questa vecchia bozza non conserva tutte le camere e i prezzi. Non posso registrarla in modo sicuro. Controlla il messaggio in WhatsApp, poi scarta l’attesa e ricomponi la proposta corretta.</p>}
-          <div className="flex gap-2">
-            <button type="button" onClick={confermaInviata} disabled={occupato === 'invio' || !perConferma || !!mancaMigrazione}
-              className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-green-mid text-cream-text disabled:opacity-50 active:opacity-80">
-              {occupato === 'invio' ? 'Salvo…' : 'Sì, inviata'}
-            </button>
-            <button type="button" onClick={rispostaNo} disabled={occupato === 'invio' || !!pendente?.confermataIl}
-              className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-white text-green-dark border disabled:opacity-50" style={{ borderColor: BORDO }}>
-              {perConferma ? 'No' : 'Scarta attesa e ricomponi'}
-            </button>
-          </div>
-          <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>Solo «Sì, inviata» segna la richiesta come proposta inviata.</p>
-          {pendente?.confermataIl && <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>Salvataggio da verificare: riprova «Sì, inviata» o riapri la pagina prima di scartare.</p>}
-        </div>
-      )}
-      <p className="text-xs text-center mt-2" style={{ color: GRIGIO_NOTA }}>
-        {inviata ? `Proposta inviata ${richiesta.proposta_inviata_at ? tempoTrascorso(richiesta.proposta_inviata_at, adesso) : ''}. Un nuovo invio, confermato, aggiorna l’ora.` : 'Dopo l’invio, confermato con «Sì, inviata», la richiesta passa a ‘Proposta inviata’.'}
-      </p>
-      {inviata && !chiediConferma && (
-        <button type="button" onClick={async () => { const { data } = await fetchRichieste(); setConfermando({ aperte: data }) }}
-          className="w-full mt-3 rounded-xl py-3 text-[15px] font-semibold bg-white text-green-dark border active:bg-sage" style={{ borderColor: BORDO }}>
-          Conferma → crea la prenotazione
-        </button>
-      )}
-      <div className="text-center mt-6">
-        <button type="button" onClick={() => setDaRifiutare(true)} disabled={chiediConferma} className="text-xs underline underline-offset-2 disabled:opacity-50" style={{ color: GRIGIO_NOTA }}>Rifiuta subito</button>
-      </div>
-    </div>
-  )
-
   return (
-    <div className="p-4">
+    <div className="p-4 md:max-w-[620px] md:mx-auto">
       <BackBar href="/richieste" />
-      <h1 className="ed-titolo-medio mb-3">Proposta per {nomeCompleto(richiesta)}</h1>
+
+      <TestaCliente
+        nome={nomeCompleto(richiesta)}
+        stella={valutazioneDi(guest) === 'ottimo'}
+        ricevuta={vuoleRicevuta(guest)}
+        problematico={problematico}
+        motivoProblematico={guest?.motivo_problematico ?? null}
+        volte={soggiorni.volte}
+        provenienza={`${CANALE_LABEL[richiesta.canale]}, ${oraArrivo(richiesta.created_at, adesso)}`}
+        totaleCent={soggiorni.ricaviCent}
+        hrefCliente={hrefCliente}
+        arrivo={richiesta.arrivo}
+        partenza={richiesta.partenza}
+        notti={n}
+        persone={richiesta.persone_per_notte ? riassuntoPersone(richiesta.arrivo, richiesta.persone_per_notte) : `${richiesta.persone} ${richiesta.persone === 1 ? 'persona' : 'persone'}`}
+        camera={richiesta.rooms?.name || 'qualsiasi camera'}
+        telefono={richiesta.telefono}
+        telefonoWhatsApp={telefono || null}
+        avvisoTelefono={telefonoNorm.avviso}
+        onScrivi={() => telefono && openWhatsApp(telefono, '')}
+        nota={richiesta.note}
+        hrefModifica={modificabile(richiesta) && !chiediConferma ? `/richieste/${richiesta.id}/modifica` : null}
+      />
+      {/* timer delle 3 ore: stesso testo della lista e del tooltip del calendario */}
+      <RigaScadenza r={richiesta} adesso={adesso} className="mt-3 text-center" />
+
       {mancaMigrazione && (
-        <div role="alert" className="mb-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">
+        <div role="alert" className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">
           {mancaMigrazione} Finché manca, la proposta non può essere registrata.
         </div>
       )}
       {erroreRicerca && (
-        <div role="alert" className="mb-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{erroreRicerca}</div>
+        <div role="alert" className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{erroreRicerca}</div>
       )}
-      {sceltaPersa && <div role="alert" className="mb-3 rounded-xl bg-[#F6E4DE] p-3 text-sm text-[#8C3B2E]">La soluzione scelta non è più disponibile. <button type="button" onClick={() => setPannelloCambia(true)} className="underline font-semibold">Scegli un’altra soluzione</button></div>}
 
-      <div className="md:grid md:grid-cols-[2fr_3fr] md:gap-5 md:items-start">
-        <section>
-          {riepilogo}
-          {caso}
-          {/* Nota ottone delle opzioni (blocco entro le 3 ore, oppure opzione scaduta) */}
-          {!inviata && notaOpz && (
-            <div role="note" data-nota-opzioni={notaOpz.tipo} className="mt-3 rounded-r-lg px-3 py-2.5 text-sm text-green-dark leading-snug" style={{ borderLeft: '3px solid #A9884E', background: '#F3ECD8' }}>{notaOpz.testo}</div>
+      <FasciaSezioni voci={SEZIONI} className="mt-4" />
+
+      {/* ── Da controllare ────────────────────────────────────────────────── */}
+      <section id="controllare" className="pt-5 scroll-mt-16">
+        <p className="ed-sezione">Da controllare</p>
+        {/* Nota ottone delle opzioni (blocco entro le 3 ore, oppure opzione scaduta) */}
+        {!inviata && notaOpz && (
+          <div role="note" data-nota-opzioni={notaOpz.tipo} className="mt-2 rounded-r-lg px-3 py-2.5 text-sm text-green-dark leading-snug" style={{ borderLeft: `3px solid ${OTTONE}`, background: '#F3ECD8' }}>{notaOpz.testo}</div>
+        )}
+        {vociControllo.length === 0 && !notaOpz
+          ? <p className="mt-2 text-sm font-semibold" style={{ color: 'var(--color-green-mid)' }}>✓ Tutto a posto</p>
+          : <div className="mt-2 flex flex-col gap-2">
+            {vociControllo.map(v => <SchedinaControllo key={v.chiave} etichetta={v.etichetta} titolo={v.titolo} dettaglio={v.dettaglio} link={v.link} />)}
+          </div>}
+      </section>
+
+      {/* ── Camere da proporre ────────────────────────────────────────────── */}
+      <section id="camere" className="pt-6 scroll-mt-16">
+        <p className="ed-sezione">Camere da proporre {conCamereLibere && <small>{spuntate.length}</small>}</p>
+        {sceltaPersa && <div role="alert" className="mt-2 rounded-xl bg-[#F6E4DE] p-3 text-sm text-[#8C3B2E]">La soluzione scelta non è più disponibile. <button type="button" onClick={() => setPannelloCambia(true)} className="underline font-semibold">Scegline un’altra</button></div>}
+        {forzaNessunaDisponibilita
+          ? <p className="mt-2 text-sm text-green-dark">Hai scelto di rispondere che non c’è posto. <button type="button" onClick={tornaAlleDisponibilita} className="font-semibold text-green-mid underline underline-offset-2">Torna alle disponibilità</button></p>
+          : <>
+            {elencoCamere}
+            {propostaAutomatica}
+            {scelgoIo}
+            {modificaConsentita && !manuale && (
+              <div className="flex flex-wrap gap-4 mt-3">
+                <button type="button" onClick={apriScelgoIo} className="text-sm font-semibold text-green-mid underline underline-offset-2">Compongo io, notte per notte</button>
+                <button type="button" onClick={scegliNessunaDisponibilita} className="text-sm font-semibold underline underline-offset-2" style={{ color: '#8C3B2E' }}>Non ho posto</button>
+              </div>
+            )}
+          </>}
+      </section>
+
+      {/* ── Come paga ─────────────────────────────────────────────────────── */}
+      <section id="pagamento" className="pt-6 scroll-mt-16">
+        <p className="ed-sezione">Come paga</p>
+        {riassuntoCondizione && <p className="mt-2 text-sm text-green-dark">{riassuntoCondizione}</p>}
+        {completo && <p className="mt-2 text-sm text-stone">Con «non c’è posto» non serve: il messaggio non parla di pagamento.</p>}
+        {modificaConsentita && soluzione && !completo && (
+          <div className="mt-2" role="group" aria-label="Condizioni di pagamento">
+            <div className="flex flex-wrap gap-2">
+              {CONDIZIONI_PAGAMENTO.map(tipo => (
+                <button key={tipo} type="button" onClick={() => scegliCondizione(tipo)} aria-pressed={condizioneTipo === tipo}
+                  className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${condizioneTipo === tipo ? 'bg-green-mid text-cream-text' : 'bg-white text-green-dark border border-[#C9BFA8]'}`}>
+                  {ETICHETTA_CONDIZIONE[tipo]}
+                </button>
+              ))}
+            </div>
+            {condizioneTipo === 'caparra' && (
+              <div className="mt-2.5">
+                <label className="block text-xs mb-1" style={{ color: GRIGIO_NOTA }} htmlFor="caparra">Caparra confirmatoria (€) · proposta al {fmtPrezzo(caparraDefault(totaleCent) / 100)} €, cioè il 50% di {fmtPrezzo(totaleCent / 100)} €</label>
+                <input id="caparra" type="text" inputMode="decimal" value={caparraTesto} onChange={e => setCaparraTesto(e.target.value)} aria-label="Importo della caparra in euro"
+                  className="w-full min-w-0 appearance-none bg-white rounded-xl px-3 py-2.5 text-[15px] text-green-dark focus:outline-none focus:border-green-mid" style={{ border: `1px solid ${BORDO}` }} />
+                {problemaCondizione && problemaCondizione !== SCEGLI_COME_PAGA && <p className="text-xs mt-1 font-semibold text-[#8C3B2E]">{problemaCondizione}</p>}
+              </div>
+            )}
+            {condizioneTipo === 'personalizzata' && (
+              <div className="mt-2.5">
+                <label className="block text-xs mb-1" style={{ color: GRIGIO_NOTA }} htmlFor="condizione-testo">Scrivi il paragrafo delle condizioni: la chiusura «Grazie mille, Ania – Casa Ania» viene aggiunta da sola</label>
+                <textarea id="condizione-testo" value={condizioneTesto} onChange={e => setCondizioneTesto(e.target.value)} rows={4} aria-label="Condizioni di pagamento personalizzate"
+                  className="w-full bg-white rounded-xl p-3 text-[13px] text-green-dark leading-relaxed resize-none focus:outline-none focus:border-green-mid" style={{ border: `1px solid ${BORDO}` }} />
+              </div>
+            )}
+            {amelia && (
+              <div className="mt-3 flex items-center justify-between gap-3 bg-white rounded-xl px-3 py-2.5" style={{ border: `1px solid ${BORDO}` }}>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-green-dark">Aggiungi alternativa Ambra/Allegra</span>
+                  <span className="block text-xs" style={{ color: GRIGIO_NOTA }}>{amelia.camera.name}, {formattaEuro(amelia.differenzaNotteCentesimi)} in più a notte · totale {formattaEuro(amelia.prezzoTotaleCentesimi)}</span>
+                </span>
+                <button type="button" role="switch" aria-checked={ameliaAttiva} aria-label="Aggiungi alternativa Ambra/Allegra" onClick={() => cambiaAmelia(!ameliaAttiva)}
+                  className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${ameliaAttiva ? 'bg-green-mid' : 'bg-border-soft'}`}>
+                  <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${ameliaAttiva ? 'translate-x-5' : ''}`} aria-hidden />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* ── Il messaggio ──────────────────────────────────────────────────── */}
+      <section id="messaggio" className="pt-6 scroll-mt-16">
+        <p className="ed-sezione">Il messaggio</p>
+        <div className="mt-2">
+          {modificaConsentita && (
+            <div role="group" aria-label="Come mandarlo" className="inline-flex rounded-full border p-0.5 mb-3" style={{ borderColor: BORDO }}>
+              {([['testo', 'Solo testo'], ['immagine', 'Testo + immagine']] as const).map(([k, label]) => (
+                <button key={k} type="button" onClick={() => setModo(k)} aria-pressed={modoEffettivo === k} disabled={k === 'immagine' && (completo || !immagine)}
+                  className={`rounded-full whitespace-nowrap font-semibold transition-colors px-3 py-1.5 text-xs disabled:opacity-40 ${modoEffettivo === k ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
           )}
-          {altre}
-          {scelgoIo}
-          {condizioni}
-        </section>
-        <section className="mt-4 md:mt-0 min-w-0">
-          {bozza}
-        </section>
-      </div>
+          {inviata || chiediConferma ? (
+            <div className="bg-white rounded-xl p-3 text-[13px] text-green-dark whitespace-pre-wrap leading-relaxed" style={{ border: `1px solid ${BORDO}` }}>{testoFinale}</div>
+          ) : (
+            <textarea ref={textareaRef} value={testoFinale} onChange={e => setTestoModificato(e.target.value)} rows={6} spellCheck={false}
+              aria-label="Bozza del messaggio"
+              className="w-full bg-white rounded-xl p-3 text-[13px] text-green-dark leading-relaxed resize-none focus:outline-none focus:border-green-mid"
+              style={{ border: `1px solid ${BORDO}` }} />
+          )}
+          {modificaConsentita && testoModificato !== null && testoModificato !== bozzaGenerata && (
+            <p className="text-xs mt-1" style={{ color: GRIGIO_NOTA }}>Testo modificato a mano: ha la precedenza sulla bozza. <button type="button" className="underline" onClick={() => setTestoModificato(null)}>Ripristina la bozza</button></p>
+          )}
+
+          {modoEffettivo === 'immagine' && immagine && modificaConsentita && (
+            <div className="mt-3">
+              <p className="text-xs mb-1.5" style={{ color: GRIGIO_NOTA }}>Anteprima dell’immagine</p>
+              <div ref={el => { if (el) setScala(el.clientWidth / IMG_W) }} className="w-full rounded-xl overflow-hidden border border-card-border" style={{ height: imgH ? imgH * scala : undefined }}>
+                <div style={{ transform: `scale(${scala})`, transformOrigin: 'top left', width: IMG_W }}>
+                  <ImmagineSoggiorno imgRef={imgRef} variante="proposta" nome={richiesta.nome.trim()} segmenti={immagine.seg} numOspiti={richiesta.persone}
+                    righeCosti={immagine.righe} totale={immagine.totale} pagamento="contanti" lettoAggiuntivo={immagine.lettoAggiuntivo} nottiNonDisponibili={immagine.nottiNonDisponibili} personeNotti={immagine.personeNotti} lineaSempre={!!soluzione?.manuale} formattaImporto={x => formattaEuro(centesimi(x))} />
+                </div>
+              </div>
+              <button type="button" onClick={immagineSuDispositivo} disabled={!!occupato}
+                className={`w-full mt-2 rounded-xl py-2.5 font-semibold text-sm border disabled:opacity-50 ${immagineFatta ? 'bg-sage text-green-dark' : 'bg-white text-green-dark'}`} style={{ borderColor: BORDO }}>
+                {occupato === 'immagine' ? 'Preparo…' : immagineFatta ? (isMobile() ? 'Immagine salvata!' : 'Immagine copiata!') : (isMobile() ? '1 · Salva immagine sul telefono' : '1 · Copia immagine')}
+              </button>
+              <p className="text-xs mt-1.5" style={{ color: GRIGIO_NOTA }}>
+                {isMobile() ? 'Poi, nella chat, allega la prima foto dalla galleria e invia il testo già scritto.' : 'Poi incolla l’immagine nella chat (Cmd+V) e invia il testo già scritto.'}
+              </p>
+            </div>
+          )}
+
+          {errore && <div role="alert" className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore}</div>}
+          {avviso && <div role="status" className="mt-3 bg-white ed-campo rounded-xl p-3 text-sm text-green-dark">{avviso}</div>}
+
+          <button type="button" onClick={invia} disabled={!!occupato || !soluzione || chiediConferma || !!mancaMigrazione || (!inviata && (!!problemaCamere || !!problemaCondizione))} className={`${PIENO} mt-4`}>
+            <IconaWhatsApp />
+            {chiediConferma ? 'Invio da confermare' : inviata ? 'Invia di nuovo' : problemaCamere ? problemaCamere : problemaCondizione ? problemaCondizione : (modoEffettivo === 'immagine' ? '2 · Apri WhatsApp e invia' : 'Apri WhatsApp e invia')}
+          </button>
+          {chiediConferma && (
+            <div ref={barraRef} role="group" aria-label="Conferma dell'invio" className="scheda-in mt-3 bg-white rounded-xl p-3" style={{ border: `1px solid ${BORDO}` }}>
+              <p className="text-sm font-medium text-green-dark mb-2">L’hai inviata?</p>
+              {perConferma && (
+                <p className="text-xs mb-2" style={{ color: GRIGIO_NOTA }} data-pendente>Proposta da confermare: {riassuntoSegmenti(perConferma.soluzione)}{perConferma.alternative && perConferma.alternative.length > 1 ? ` · ${perConferma.alternative.length} camere proposte` : ''}</p>
+              )}
+              {!perConferma && <p role="alert" className="text-sm mb-2 text-[#8C3B2E]">Questa vecchia bozza non conserva tutte le camere e i prezzi. Non posso registrarla in modo sicuro. Controlla il messaggio in WhatsApp, poi scarta l’attesa e ricomponi la proposta corretta.</p>}
+              <div className="flex gap-2">
+                <button type="button" onClick={confermaInviata} disabled={occupato === 'invio' || !perConferma || !!mancaMigrazione}
+                  className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-green-mid text-cream-text disabled:opacity-50 active:opacity-80">
+                  {occupato === 'invio' ? 'Salvo…' : 'Sì, inviata'}
+                </button>
+                <button type="button" onClick={rispostaNo} disabled={occupato === 'invio' || !!pendente?.confermataIl}
+                  className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-white text-green-dark border disabled:opacity-50" style={{ borderColor: BORDO }}>
+                  {perConferma ? 'No' : 'Scarta attesa e ricomponi'}
+                </button>
+              </div>
+              <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>Solo «Sì, inviata» segna la richiesta come proposta inviata.</p>
+              {pendente?.confermataIl && <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>Salvataggio da verificare: riprova «Sì, inviata» o riapri la pagina prima di scartare.</p>}
+            </div>
+          )}
+          <p className="text-xs text-center mt-2" style={{ color: GRIGIO_NOTA }}>
+            {inviata ? `Proposta inviata ${richiesta.proposta_inviata_at ? tempoTrascorso(richiesta.proposta_inviata_at, adesso) : ''}. Un nuovo invio, confermato, aggiorna l’ora.` : 'Dopo l’invio, confermato con «Sì, inviata», la richiesta passa a ‘Proposta inviata’.'}
+          </p>
+          {inviata && !chiediConferma && (
+            <button type="button" onClick={async () => { const { data } = await fetchRichieste(); setConfermando({ aperte: data }) }}
+              className="w-full mt-3 rounded-xl py-3 text-[15px] font-semibold bg-white text-green-dark border active:bg-sage" style={{ borderColor: BORDO }}>
+              Conferma → crea la prenotazione
+            </button>
+          )}
+          {/* Staccato da tutto il resto: non si tocca per sbaglio */}
+          <div className="text-center mt-10 mb-4">
+            <button type="button" onClick={() => setDaRifiutare(true)} disabled={chiediConferma} className="text-[13px] underline underline-offset-2 disabled:opacity-50" style={{ color: '#C0392B' }}>Rifiuta la richiesta</button>
+          </div>
+        </div>
+      </section>
 
       {/* Altre soluzioni trovate */}
       {pannelloCambia && (
@@ -789,8 +905,7 @@ export default function PropostaPage() {
             <ul className="divide-y-[0.5px] divide-border-soft">
               {soluzioni.map((s, i) => (
                 <li key={i}>
-                  <button type="button" onClick={() => scegli(i)} aria-pressed={i === indiceScelto} className={`w-full text-left py-3 flex items-start gap-3 ${i === indiceScelto ? 'opacity-100' : ''}`}>
-                    <span className={`shrink-0 rounded-full text-xs font-semibold px-2.5 py-0.5 ${i === indiceScelto ? 'bg-green-mid text-cream-text' : 'bg-sage text-green-dark'}`}>{ETICHETTA_CASO[s.caso]}</span>
+                  <button type="button" onClick={() => scegli(i)} aria-pressed={i === indiceScelto} className="w-full text-left py-3 flex items-start gap-3">
                     <span className="min-w-0 flex-1 text-sm text-green-dark">
                       <span className="block truncate">{riassuntoSegmenti(s)}</span>
                       <span className="block text-xs text-stone">{s.nottiCoperte} su {s.nottiTotali} notti · <span className="font-semibold text-brass">{fmtPrezzo(s.prezzoTotale)} €</span></span>
@@ -809,7 +924,7 @@ export default function PropostaPage() {
       )}
       {confermando && (
         <FinestraConferma richiesta={richiesta as RichiestaConProposta} aperte={confermando.aperte} layout={desktop ? 'desktop' : 'mobile'}
-          onChiudi={() => setConfermando(null)} onCreata={(id, avviso) => router.push(`/prenotazioni/${id}?da=richiesta${avviso ? `&avviso=${encodeURIComponent(avviso)}` : ''}`)} />
+          onChiudi={() => setConfermando(null)} onCreata={(x, av) => router.push(`/prenotazioni/${x}?da=richiesta${av ? `&avviso=${encodeURIComponent(av)}` : ''}`)} />
       )}
       {daRifiutare && (
         <RifiutaConMotivo richiesta={richiesta} occupato={occupato === 'rifiuto'} onConferma={rifiuta} onAnnulla={() => { if (occupato !== 'rifiuto') setDaRifiutare(false) }} />
