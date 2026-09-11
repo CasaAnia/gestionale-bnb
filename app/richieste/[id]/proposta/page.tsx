@@ -842,12 +842,15 @@ export default function PropostaPage() {
         {completo && <p className="mt-2 text-sm text-stone">Con «non c’è posto» non serve: il messaggio non parla di pagamento.</p>}
         {condizioni !== 'nascoste' && (
           <div className="mt-2" role="group" aria-label="Condizioni di pagamento">
-            <div className="flex flex-wrap gap-2">
+            {/* Due colonne, tutti della stessa larghezza (Ania, 11/09/2026):
+                All'arrivo · Caparra / Pagamento completo · Personalizzata */}
+            <div className="grid grid-cols-2 gap-2">
               {CONDIZIONI_PAGAMENTO.map(tipo => {
                 const scelta = condizioni === 'solo_lettura' ? condizioneInviata?.tipo === tipo : condizioneTipo === tipo
                 return (
-                  <button key={tipo} type="button" onClick={() => scegliCondizione(tipo)} aria-pressed={scelta} disabled={condizioni === 'solo_lettura'}
-                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors disabled:opacity-60 ${scelta ? 'bg-green-mid text-cream-text' : 'bg-white text-green-dark border border-[#C9BFA8]'}`}>
+                  <button key={tipo} type="button" onClick={() => scegliCondizione(tipo)} aria-pressed={scelta}
+                    style={{ height: 38, fontSize: 13 }}
+                    className={`w-full inline-flex items-center justify-center rounded-full font-medium transition-colors ${scelta ? 'bg-green-mid text-cream-text' : 'bg-white text-green-dark border border-[#C9BFA8]'}`}>
                     {ETICHETTA_CONDIZIONE[tipo]}
                   </button>
                 )
