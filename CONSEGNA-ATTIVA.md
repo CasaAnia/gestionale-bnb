@@ -102,3 +102,13 @@ che erano state effettivamente proposte: la proposta partita si legge solo nel
 messaggio archiviato. Va cambiato in modo che, a proposta inviata, l'elenco
 mostri le camere davvero proposte (stanno già in `proposta_alternative` e
 `proposta_soluzione`). Non blocca il rilascio.
+
+### Da fare in `app/prenotazioni/[id]/page.tsx` (Ania, 11/09/2026)
+
+La nota del cliente deve essere del rosso **#C00000**, quello scelto da Ania
+l'8 settembre: lo stesso ovunque compaia la nota. In Home e nella pagina della
+proposta è già così (rilascio `c0c316b`); nella scheda prenotazione è rimasto
+il rosso vecchio `#C0392B` sulle due righe delle note (nota del cliente e nota
+della prenotazione). Il file è in carico a chi sta lavorando sulla scheda:
+**lo cambia quella attività prima di chiudere**. Non toccare gli altri usi di
+`#C0392B` in quel file: gli avvisi «numero già usato» restano come sono.
