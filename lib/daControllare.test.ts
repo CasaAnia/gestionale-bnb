@@ -176,6 +176,30 @@ test('pagamenti: prenotazioni separate ma di fila della stessa persona = UNA voc
   ], OGGI).length, 0)
 })
 
+// Ania, 11/09/2026: «se agosto è stato pagato interamente non lo voglio più
+// vedere: voglio vedere l'ultima prenotazione, dove aveva dato un anticipo»
+test('pagamenti: di un soggiorno lungo si controlla solo la parte ancora da saldare', () => {
+  const rosa = { guest_id: 'rosa', guests: { full_name: 'Rosa Macauda', phone: '+39 3331112222' }, guest_name: 'Rosa Macauda' }
+  const pren = [
+    { ...b('ago', 'ambra', '2026-08-06', '2026-09-01', 1700), ...rosa, group_id: 'g0' },   // saldata
+    { ...b('r1', 'ambra', '2026-09-01', '2026-09-07', 420), ...rosa, group_id: 'g1' },     // anticipo di 400
+    { ...b('r2', 'amelia', '2026-09-07', '2026-09-11', 320), ...rosa, group_id: 'g2' },
+    { ...b('r3', 'ambra', '2026-09-11', '2026-09-20', 720), ...rosa, group_id: 'g3' },
+  ]
+  const pag = [{ booking_id: 'ago', amount: 1700, paid_on: '2026-08-06' }, { booking_id: 'r1', amount: 400, paid_on: '2026-09-01' }]
+  const out = eccezioniPagamenti(pren, pag, OGGI)
+  assert.deepEqual(out.map(e => [e.chiave, e.titolo, e.motivo]), [[
+    'pagamento:g1', 'Rosa Macauda · ambra, amelia · 1–20 set',
+    `Arrivato il 1 set: registrati ${euroTesto(40000)} su ${euroTesto(146000)}`,
+  ]])
+  // Un mese saldato in mezzo spezza la catena: due voci, ognuna coi suoi conti
+  const conBuco = eccezioniPagamenti(pren, [...pag, { booking_id: 'r2', amount: 320, paid_on: '2026-09-07' }], OGGI)
+  assert.deepEqual(conBuco.map(e => [e.chiave, e.titolo]), [
+    ['pagamento:g1', 'Rosa Macauda · ambra · 1–7 set'],
+    ['pagamento:g3', 'Rosa Macauda · ambra · 11–20 set'],
+  ])
+})
+
 test('pagamenti: pagato senza alcun movimento (storico da ricostruire) NON compare qui', () => {
   const out = eccezioniPagamenti([b('a', 'amelia', '2026-09-10', '2026-09-12', 340, { pagato: true })], [], OGGI)
   assert.deepEqual(out, [])
