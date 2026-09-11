@@ -761,8 +761,9 @@ export default function PropostaPage() {
     : null
 
   return (
-    <div className="p-4 md:max-w-[620px] md:mx-auto">
-      <BackBar href="/richieste" />
+    /* Margini laterali 22 px (Ania, 11/09/2026): la pagina respira. */
+    <div className="py-4 px-[22px] md:max-w-[620px] md:mx-auto">
+      <div className="-mx-[6px]"><BackBar href="/richieste" /></div>
 
       <TestaCliente
         nome={nomeCompleto(richiesta)}
@@ -803,7 +804,7 @@ export default function PropostaPage() {
       <FasciaSezioni voci={SEZIONI} className="mt-4" />
 
       {/* ── Da controllare ────────────────────────────────────────────────── */}
-      <section id="controllare" className="pt-5 scroll-mt-16">
+      <section id="controllare" className="pt-[42px] scroll-mt-16">
         <p className="ed-sezione">Da controllare</p>
         {/* Nota ottone delle opzioni (blocco entro le 3 ore, oppure opzione scaduta) */}
         {!inviata && notaOpz && (
@@ -817,7 +818,7 @@ export default function PropostaPage() {
       </section>
 
       {/* ── Camere da proporre ────────────────────────────────────────────── */}
-      <section id="camere" className="pt-6 scroll-mt-16">
+      <section id="camere" className="pt-[42px] scroll-mt-16">
         <p className="ed-sezione">Camere da proporre {conCamereLibere && <small>{spuntate.length}</small>}</p>
         {sceltaPersa && <div role="alert" className="mt-2 rounded-xl bg-[#F6E4DE] p-3 text-sm text-[#8C3B2E]">La soluzione scelta non è più disponibile. <button type="button" onClick={() => setPannelloCambia(true)} className="underline font-semibold">Scegline un’altra</button></div>}
         {forzaNessunaDisponibilita
@@ -836,7 +837,7 @@ export default function PropostaPage() {
       </section>
 
       {/* ── Come paga ─────────────────────────────────────────────────────── */}
-      <section id="pagamento" className="pt-6 scroll-mt-16">
+      <section id="pagamento" className="pt-[42px] scroll-mt-16">
         <p className="ed-sezione">Come paga</p>
         {completo && <p className="mt-2 text-sm text-stone">Con «non c’è posto» non serve: il messaggio non parla di pagamento.</p>}
         {condizioni !== 'nascoste' && (
@@ -888,7 +889,7 @@ export default function PropostaPage() {
       </section>
 
       {/* ── Il messaggio ──────────────────────────────────────────────────── */}
-      <section id="messaggio" className="pt-6 scroll-mt-16">
+      <section id="messaggio" className="pt-[42px] scroll-mt-16">
         <p className="ed-sezione">Il messaggio</p>
         <div className="mt-2">
           {modificaConsentita && (

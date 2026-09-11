@@ -113,13 +113,14 @@ export default function TestaCliente({
       </div>
 
       {/* Il nome, grande e al centro */}
-      <h1 className="text-center mt-2 leading-tight" style={{ fontFamily: GEORGIA, fontWeight: ricevuta ? 700 : 400, fontSize: 32, color: 'var(--color-green-dark)' }}>
+      <h1 className="text-center mt-4 leading-tight" style={{ fontFamily: GEORGIA, fontWeight: ricevuta ? 700 : 400, fontSize: 32, color: 'var(--color-green-dark)' }}>
         {stella && <span aria-label="cliente ottimo" title="Cliente ottimo" style={{ color: OTTONE, marginRight: 8 }}>★</span>}
         {nome}
       </h1>
 
       {/* Le due date, con le notti sulla freccia */}
-      <div className="grid items-center gap-3 mt-4" style={{ gridTemplateColumns: 'auto 1fr auto' }}>
+      {/* Le date non toccano i bordi: 6 px dentro i margini (Ania, 11/09/2026) */}
+      <div className="grid items-center gap-3 mt-6 px-1.5" style={{ gridTemplateColumns: 'auto 1fr auto' }}>
         <Data iso={arrivo} etichetta="arrivo" />
         <div className="pb-4">
           <p className="text-center" style={{ fontSize: 11, color: OTTONE }}>{notti === 1 ? '1 notte' : `${notti} notti`}</p>
@@ -132,7 +133,7 @@ export default function TestaCliente({
       </div>
 
       {/* Quante persone e quale camera hanno chiesto */}
-      <p className="text-center" style={{ borderTop: `1px solid ${FILO_OTTONE}`, paddingTop: 10, fontSize: 14, color: 'var(--color-green-dark)' }}>
+      <p className="text-center" style={{ borderTop: `1px solid ${FILO_OTTONE}`, paddingTop: 16, fontSize: 14, color: 'var(--color-green-dark)' }}>
         <span className="font-semibold">{persone}</span>
         <span style={{ color: 'var(--color-stone)' }}> · {camera}</span>
       </p>
