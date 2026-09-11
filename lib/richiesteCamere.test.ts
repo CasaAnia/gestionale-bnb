@@ -55,8 +55,9 @@ test('etichette e prezzi delle camere spuntate', () => {
   const per = (n: string) => righe.find(r => r.camera.name === n)!
   const allegra = per('Allegra'), ambra = per('Ambra'), lena = per('Lena')
   // Allegra: 80 di tariffa + 10 di letto, due notti = 180; e va tolto il tavolo
-  assert.equal(allegra.stato, 'libera tutte e 2 le notti')
-  assert.equal(allegra.prezzoNotteCent, 8000)
+  assert.equal(allegra.stato, 'libera')
+  // il prezzo a notte è quello che si paga davvero: 80 + 10 del letto
+  assert.equal(allegra.prezzoNotteCent, 9000)
   assert.equal(allegra.lettoNotteCent, 1000)
   assert.equal(allegra.totaleCent, 18000)
   assert.equal(allegra.lettoInPiu, true)
@@ -151,7 +152,7 @@ test('due persone: Amelia entra fra le spuntate, Lena resta una matrimoniale', (
   const amelia = righe.find(r => r.camera.name === 'Amelia')!
   assert.equal(amelia.lettoInPiu, true)          // la seconda persona dorme nel letto in più
   assert.equal(amelia.lettoNotteCent, 500)
-  assert.equal(amelia.prezzoNotteCent, 7000)
+  assert.equal(amelia.prezzoNotteCent, 7500)   // 70 + 5 del letto
   const lena = righe.find(r => r.camera.name === 'Lena')!
   assert.equal(lena.tripla, false)               // Lena a due è una matrimoniale
   assert.equal(lena.totaleCent, 16000)

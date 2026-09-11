@@ -22,12 +22,12 @@ export type RigaCameraProposta = {
   proponibile: boolean
   soluzione: Soluzione | null
   totaleCent: number        // il soggiorno intero in quella camera
-  prezzoNotteCent: number   // la tariffa della camera, senza il letto
-  lettoNotteCent: number    // quanto si paga il letto in più, a notte (0 = non si paga)
+  prezzoNotteCent: number   // quanto costa la notte, LETTO COMPRESO se si paga
+  lettoNotteCent: number    // quanto pesa il letto in più, a notte (0 = non si paga)
   tripla: boolean           // Lena venduta come tripla
   lettoInPiu: boolean       // serve il letto in più e si paga
   tavolo: boolean           // Allegra col letto in più: va tolto il tavolo
-  stato: string             // «libera tutte e 2 le notti» oppure il motivo
+  stato: string             // «libera» oppure il motivo per cui non si propone
 }
 
 const giornoDi = (iso: string) => Number(iso.slice(8, 10))
@@ -117,12 +117,14 @@ export function camereDaProporre(
     return {
       camera, proponibile: true, soluzione: s,
       totaleCent: centesimiTotale(s),
-      prezzoNotteCent: centesimi(s.segmenti[0].prezzoNotte),
+      // Il prezzo a notte che si legge nell'elenco è quello che paga davvero
+      // l'ospite: tariffa più letto, quando il letto si paga (Ania, 11/09/2026)
+      prezzoNotteCent: centesimi(s.segmenti[0].prezzoNotte) + lettoNotteCent,
       lettoNotteCent,
       tripla: camera.name === 'Lena' && personeMax >= 3,
       lettoInPiu,
       tavolo: camera.name === 'Allegra' && lettoInPiu,
-      stato: notti.length === 1 ? 'libera la notte' : `libera tutte e ${notti.length} le notti`,
+      stato: 'libera',
     }
   })
   // Prima le proponibili nell'ordine del messaggio, poi le grigie come stanno

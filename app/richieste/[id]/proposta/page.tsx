@@ -646,17 +646,19 @@ export default function PropostaPage() {
                   <span style={{ fontFamily: GEORGIA, fontSize: 20, color: 'var(--color-green-dark)' }}>{r.camera.name}</span>
                   {r.proponibile && <span style={{ fontFamily: GEORGIA, fontSize: 16, color: 'var(--color-stone)' }}>{formattaEuro(r.totaleCent)}</span>}
                 </span>
+                {/* Una riga sola (Ania, 11/09/2026): etichetta · libera ·
+                    prezzo a notte, col letto già compreso quando si paga. */}
                 <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>
                   {r.tripla && <span className="ed-badge" style={{ borderColor: 'var(--color-green-mid)', color: 'var(--color-green-mid)' }}>tripla</span>}
                   {r.lettoInPiu && <span className="ed-badge" style={{ background: '#EFE2C7', borderColor: '#EFE2C7', color: '#7A5C1E' }}>+ letto</span>}
                   <span style={!r.proponibile && motivoOpzione.has(r.camera.id) ? { color: OTTONE } : undefined}>{(!r.proponibile && motivoOpzione.get(r.camera.id)) || r.stato}</span>
                   {r.proponibile && <>
                     <span aria-hidden>·</span>
-                    <span className="font-semibold">{formattaEuro(r.prezzoNotteCent)} a notte</span>
-                    {r.lettoNotteCent > 0 && <span>+ {formattaEuro(r.lettoNotteCent)} il letto</span>}
+                    <span><span className="font-semibold">{formattaEuro(r.prezzoNotteCent)}</span> a notte{r.lettoInPiu ? ', letto compreso' : ''}</span>
                   </>}
-                  {r.tavolo && <><span aria-hidden>·</span><span>va tolto il tavolo</span></>}
                 </span>
+                {/* Allegra col letto in più: la sola cosa che va detta a parte */}
+                {r.tavolo && <span className="block mt-0.5" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>va tolto il tavolo</span>}
               </span>
             </button>
           </li>
@@ -827,7 +829,7 @@ export default function PropostaPage() {
                 )
               })}
             </div>
-            {riassuntoCondizione && condizioni === 'solo_lettura' && <p className="mt-2 text-sm text-stone">Inviata: {riassuntoCondizione}. Toccane un'altra per rifare la proposta.</p>}
+            {riassuntoCondizione && condizioni === 'solo_lettura' && <p className="mt-2 text-sm text-stone">Inviata: {riassuntoCondizione}. Toccane un’altra per rifare la proposta.</p>}
             {inviata && ricomponi && (
               <p className="mt-2 text-sm text-stone">Stai rifacendo la proposta. <button type="button" onClick={() => { setRicomponi(false); setTestoModificato(null); azzeraCondizioni(); setAvviso(null) }} className="font-semibold text-green-mid underline underline-offset-2">Torna a quella inviata</button></p>
             )}
