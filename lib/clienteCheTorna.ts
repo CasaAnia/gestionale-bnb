@@ -20,6 +20,9 @@ export type SoggiornoStorico = {
   status: string
   guest_name?: string | null
   guests?: { full_name?: string | null; phone?: string | null } | null
+  total_amount?: number | string | null
+  num_guests?: number | string | null
+  rooms?: { name?: string | null } | null
 }
 
 const piano = (s: string | null | undefined) => (s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]+/g, ' ').trim().split(/\s+/).filter(Boolean).sort().join(' ')
@@ -119,4 +122,47 @@ export function soggiorniConclusi(prenotazioni: (SoggiornoStorico & { total_amou
     }
   }
   return { n, ricaviCent }
+}
+
+// ── L'ultimo soggiorno e quanto ha speso in tutto (11/09/2026) ───────────────
+// Serve alla testa del cliente («1.360 €  ›») e alla voce «Cliente che torna»
+// di «Da controllare» («l'ultima: Ambra, 26 apr → 4 mag 2026 · 2 ospiti»).
+// Stesse regole di soggiorniPrecedenti e soggiorniConclusi: un soggiorno per
+// prenotazione, solo i conclusi, soldi dai segmenti non annullati.
+export type UltimoSoggiorno = {
+  prenotazioneId: string
+  check_in: string
+  check_out: string
+  camere: string[]     // nomi in ordine di arrivo, senza doppioni di fila
+  ospiti: number
+}
+export type SoggiorniDellaPersona = { volte: number; ricaviCent: number; ultimo: UltimoSoggiorno | null }
+
+const importo = (n: number | string | null | undefined) => { const v = Number(n); return Number.isFinite(v) ? Math.round(v * 100) : 0 }
+
+export function soggiorniDellaPersona(
+  persona: PersonaRicerca, prenotazioni: SoggiornoStorico[], oggi: string, escludi?: string | null,
+): SoggiorniDellaPersona {
+  let volte = 0, ricaviCent = 0
+  let ultimo: UltimoSoggiorno | null = null
+  for (const [chiave, segmenti] of raggruppa(prenotazioni)) {
+    if (!segmenti.some(b => stessaPersona(persona, b))) continue
+    if (esclusa(chiave, segmenti, escludi)) continue
+    if (!conclusa(segmenti, oggi)) continue
+    volte += 1
+    const vivi = [...attivi(segmenti)].sort((a, b) => a.check_in.localeCompare(b.check_in) || a.check_out.localeCompare(b.check_out) || a.id.localeCompare(b.id))
+    ricaviCent += vivi.reduce((t, s) => t + importo(s.total_amount), 0)
+    const check_in = vivi.reduce((m, s) => (s.check_in < m ? s.check_in : m), vivi[0].check_in)
+    if (ultimo && ultimo.check_in >= check_in) continue
+    const camere: string[] = []
+    for (const s of vivi) { const n = (s.rooms?.name || '').trim(); if (n && camere[camere.length - 1] !== n) camere.push(n) }
+    ultimo = {
+      prenotazioneId: vivi[0].id,
+      check_in,
+      check_out: vivi.reduce((m, s) => (s.check_out > m ? s.check_out : m), vivi[0].check_out),
+      camere,
+      ospiti: vivi.reduce((m, s) => Math.max(m, Number(s.num_guests) || 1), 1),
+    }
+  }
+  return { volte, ricaviCent, ultimo }
 }
