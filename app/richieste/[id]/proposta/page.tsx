@@ -145,6 +145,10 @@ export default function PropostaPage() {
   const [prezziManuali, setPrezziManuali] = useState<PrezziManuali>([])
   const [prezzoEditor, setPrezzoEditor] = useState<number | null>(null)   // indice della notte in modifica
   const [prezzoTesto, setPrezzoTesto] = useState('')
+  // Proposta già inviata che si sta rifacendo: i quattro bottoni di «Come
+  // paga» si toccano anche lì (Ania, 11/09/2026). Il messaggio archiviato
+  // resta quello finché non si conferma un nuovo invio.
+  const [ricomponi, setRicomponi] = useState(false)
   const [daRifiutare, setDaRifiutare] = useState(false)
   const [confermando, setConfermando] = useState<{ aperte: Richiesta[] } | null>(null)
   const [occupato, setOccupato] = useState<'invio' | 'rifiuto' | 'immagine' | null>(null)
@@ -156,7 +160,6 @@ export default function PropostaPage() {
   const chiavePendente = `ca_proposta_pendente_${id}`
   const [pendente, setPendente] = useState<PropostaPendente | null>(null)
   const salvataggioInCorso = useRef(false)
-  const modificaConsentita = !chiediConferma && richiesta?.stato !== 'proposta_inviata'
   const [immagineFatta, setImmagineFatta] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imgRef = useRef<HTMLDivElement>(null)
@@ -216,6 +219,11 @@ export default function PropostaPage() {
     catch (e) { return { soluzioni: [] as Soluzione[], erroreRicerca: String((e as Error).message ?? e) } }
   }, [richiesta, camere, prenotazioniConOpzioni])
   const inviata = richiesta?.stato === 'proposta_inviata'
+  // «inviata e ferma»: si legge quel che è partito. Rifacendola si torna a comporre.
+  const inviataBloccata = inviata && !ricomponi
+  // Si può cambiare la proposta: non mentre si aspetta «L'hai inviata?» e non
+  // su una proposta già partita, a meno che non la si stia rifacendo.
+  const modificaConsentita = !chiediConferma && !inviataBloccata
 
   // ── Le camere con la spunta ───────────────────────────────────────────────
   const righeCamere = useMemo(() => {
@@ -253,7 +261,7 @@ export default function PropostaPage() {
   // La proposta automatica che resta quando nessuna camera copre tutte le notti
   const automatica: Soluzione | null = conCamereLibere ? null : soluzioneTrovata
   const soluzioneBase: Soluzione | null = chiediConferma ? pendente?.soluzione ?? null
-    : inviata ? richiesta?.proposta_soluzione ?? null
+    : inviataBloccata ? richiesta?.proposta_soluzione ?? null
       : manuale ? soluzioneManuale
         : conCamereLibere ? scelteSpuntate[0] ?? null
           : automatica
@@ -262,8 +270,8 @@ export default function PropostaPage() {
   const totaleCent = soluzione ? centesimiTotale(soluzione) : 0
   // Alternativa ad Amelia: solo se le condizioni del blocco sono soddisfatte (calcolo puro)
   const amelia = useMemo(
-    () => (richiesta && soluzione && !inviata ? alternativaAmelia(richiesta, soluzione, camere, prenotazioniConOpzioni) : null),
-    [richiesta, soluzione, camere, prenotazioniConOpzioni, inviata],
+    () => (richiesta && soluzione && !inviataBloccata ? alternativaAmelia(richiesta, soluzione, camere, prenotazioniConOpzioni) : null),
+    [richiesta, soluzione, camere, prenotazioniConOpzioni, inviataBloccata],
   )
   const caparraCent = centesimi(caparraTesto.replace(',', '.'))
   // Condizione scelta e controllo: senza scelta (o con importo/testo mancante) niente invio
@@ -274,7 +282,7 @@ export default function PropostaPage() {
           : condizioneTipo === 'personalizzata' ? { tipo: 'personalizzata', testo: condizioneTesto }
             : null
   const SCEGLI_COME_PAGA = 'Scegli come paga'
-  const problemaCamere: string | null = !inviata && !chiediConferma && conCamereLibere && !manuale && !forzaNessunaDisponibilita && spuntate.length === 0
+  const problemaCamere: string | null = !inviataBloccata && !chiediConferma && conCamereLibere && !manuale && !forzaNessunaDisponibilita && spuntate.length === 0
     ? 'Scegli almeno una camera' : null
   const problemaCondizione: string | null = completo || problemaCamere ? null
     : condizioneTipo === null ? SCEGLI_COME_PAGA
@@ -286,19 +294,19 @@ export default function PropostaPage() {
   // testo della camera unica (lib/richiesteTesti non cambia).
   const alternative = useMemo(() => {
     if (chiediConferma) return pendente?.alternative ?? null
-    if (inviata) return richiesta?.proposta_alternative ?? null
+    if (inviataBloccata) return richiesta?.proposta_alternative ?? null
     if (manuale || forzaNessunaDisponibilita || !conCamereLibere) return null
     return scelteSpuntate.length > 1 ? scelteSpuntate : null
-  }, [chiediConferma, pendente, inviata, richiesta, manuale, forzaNessunaDisponibilita, conCamereLibere, scelteSpuntate])
+  }, [chiediConferma, pendente, inviataBloccata, richiesta, manuale, forzaNessunaDisponibilita, conCamereLibere, scelteSpuntate])
   const bozzaGenerata = richiesta && soluzione
     ? generaProposta({ richiesta, soluzione, condizione: problemaCondizione ? null : condizione, amelia: ameliaAttiva ? amelia : null, alternative })
     : ''
-  const testoFinale = chiediConferma ? pendente?.testo ?? '' : inviata && richiesta?.proposta_testo ? richiesta.proposta_testo : (testoModificato ?? bozzaGenerata)
+  const testoFinale = chiediConferma ? pendente?.testo ?? '' : inviataBloccata && richiesta?.proposta_testo ? richiesta.proposta_testo : (testoModificato ?? bozzaGenerata)
   const telefonoNorm = normalizzaTelefono(richiesta?.telefono)
   const telefono = telefonoNorm.numero
   const perConferma = datiPerConferma(pendente)
   const mancaMigrazione = manca0025 ? AVVISO_0025 : manca0029 ? AVVISO_0029 : manca0031 && (alternative?.length ?? 0) > 1 ? AVVISO_0031 : null
-  const condizioniSalvate: CondizioniSalvate = inviata && richiesta ? {
+  const condizioniSalvate: CondizioniSalvate = inviataBloccata && richiesta ? {
     condizione_pagamento: richiesta.condizione_pagamento ?? null,
     caparra_centesimi: richiesta.caparra_centesimi ?? null,
     condizione_testo: richiesta.condizione_testo ?? null,
@@ -314,7 +322,7 @@ export default function PropostaPage() {
   const modoEffettivo = completo || soluzione === null ? 'testo' : modo
   // I quattro bottoni di «Come paga» ci sono sempre (Ania, 11/09/2026):
   // si scelgono anche mentre si aspetta la risposta a «L'hai inviata?».
-  const condizioni = statoCondizioni({ completo, inviata })
+  const condizioni = statoCondizioni({ completo, inviata: inviataBloccata })
 
   // ── Chi è il cliente ──────────────────────────────────────────────────────
   const guest = useMemo(() => {
@@ -451,7 +459,15 @@ export default function PropostaPage() {
     if (tipo === 'caparra' && caparraTesto === '') setCaparraTesto(fmtPrezzo(caparraDefault(totaleCent) / 100))
   }
   function scegliCondizione(tipo: CondizionePagamento) {
-    if (condizioni === 'solo_lettura') return
+    // Proposta già inviata: toccare una condizione vuol dire rifarla. Quella
+    // partita resta archiviata finché non si conferma un nuovo invio.
+    if (condizioni === 'solo_lettura') {
+      setRicomponi(true)
+      setTestoModificato(null)
+      setAvviso('Stai rifacendo la proposta. Quella già inviata resta com’è finché non confermi il nuovo invio.')
+      applicaCondizione(tipo)
+      return
+    }
     // Mentre si aspetta la risposta a «L'hai inviata?» cambiare come paga vuol
     // dire che la proposta va rifatta: si torna a comporre, come con «No», e
     // la bozza si riscrive con la condizione nuova. Lo diciamo a schermo,
@@ -472,8 +488,8 @@ export default function PropostaPage() {
     if (!richiesta || !soluzione || chiediConferma) return
     setErrore(null); setAvviso(null)
     if (mancaMigrazione) { setErrore(mancaMigrazione); return }
-    if (!inviata && problemaCamere) { setErrore(problemaCamere); return }
-    if (!inviata && problemaCondizione) { setErrore(problemaCondizione); return }
+    if (!inviataBloccata && problemaCamere) { setErrore(problemaCamere); return }
+    if (!inviataBloccata && problemaCondizione) { setErrore(problemaCondizione); return }
     if (!telefono) { setErrore('Nessun numero di telefono sulla richiesta: aggiungilo prima di inviare.'); return }
     // Nel browser resta TUTTO il messaggio partito: testo, condizioni, soluzione e alternative
     const p: PropostaPendente = { testo: testoFinale, condizioni: condizioniSalvate, soluzione, alternative }
@@ -714,7 +730,7 @@ export default function PropostaPage() {
   )
 
   // Riepilogo della condizione salvata (proposta già inviata)
-  const condizioniMostrate = chiediConferma ? pendente?.condizioni : inviata ? richiesta : null
+  const condizioniMostrate = chiediConferma ? pendente?.condizioni : inviataBloccata ? richiesta : null
   const condizioneInviata = condizioniMostrate ? condizioneDaColonne(condizioniMostrate) : null
   const riassuntoCondizione = condizioneInviata
     ? `${ETICHETTA_CONDIZIONE[condizioneInviata.tipo]}${condizioneInviata.tipo === 'caparra' ? ` ${formattaEuro(condizioneInviata.caparraCentesimi)}` : ''}${condizioniMostrate?.amelia_alternativa ? ' · con alternativa ad Amelia' : ''}`
@@ -811,7 +827,10 @@ export default function PropostaPage() {
                 )
               })}
             </div>
-            {riassuntoCondizione && condizioni === 'solo_lettura' && <p className="mt-2 text-sm text-stone">Inviata: {riassuntoCondizione}. Per cambiarla ricomponi la proposta con «Invia di nuovo».</p>}
+            {riassuntoCondizione && condizioni === 'solo_lettura' && <p className="mt-2 text-sm text-stone">Inviata: {riassuntoCondizione}. Toccane un'altra per rifare la proposta.</p>}
+            {inviata && ricomponi && (
+              <p className="mt-2 text-sm text-stone">Stai rifacendo la proposta. <button type="button" onClick={() => { setRicomponi(false); setTestoModificato(null); azzeraCondizioni(); setAvviso(null) }} className="font-semibold text-green-mid underline underline-offset-2">Torna a quella inviata</button></p>
+            )}
             {condizioni === 'scegliere' && condizioneTipo === 'caparra' && (
               <div className="mt-2.5">
                 <label className="block text-xs mb-1" style={{ color: GRIGIO_NOTA }} htmlFor="caparra">Caparra confirmatoria (€) · proposta al {fmtPrezzo(caparraDefault(totaleCent) / 100)} €, cioè il 50% di {fmtPrezzo(totaleCent / 100)} €</label>
@@ -857,7 +876,7 @@ export default function PropostaPage() {
               ))}
             </div>
           )}
-          {inviata || chiediConferma ? (
+          {inviataBloccata || chiediConferma ? (
             /* Qui il messaggio non si tocca più: si mostra come lo vedrà
                l'ospite, col grassetto al posto degli asterischi (nota
                dell'altra attività nella scheda, 11/09/2026). Il testo vero,
@@ -897,9 +916,9 @@ export default function PropostaPage() {
           {errore && <div role="alert" className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore}</div>}
           {avviso && <div role="status" className="mt-3 bg-white ed-campo rounded-xl p-3 text-sm text-green-dark">{avviso}</div>}
 
-          <button type="button" onClick={invia} disabled={!!occupato || !soluzione || chiediConferma || !!mancaMigrazione || (!inviata && (!!problemaCamere || !!problemaCondizione))} className={`${PIENO} mt-4`}>
+          <button type="button" onClick={invia} disabled={!!occupato || !soluzione || chiediConferma || !!mancaMigrazione || (!inviataBloccata && (!!problemaCamere || !!problemaCondizione))} className={`${PIENO} mt-4`}>
             <IconaWhatsApp />
-            {chiediConferma ? 'Invio da confermare' : inviata ? 'Invia di nuovo' : problemaCamere ? problemaCamere : problemaCondizione ? problemaCondizione : (modoEffettivo === 'immagine' ? '2 · Apri WhatsApp e invia' : 'Apri WhatsApp e invia')}
+            {chiediConferma ? 'Invio da confermare' : problemaCamere ? problemaCamere : problemaCondizione ? problemaCondizione : inviata ? 'Invia di nuovo' : (modoEffettivo === 'immagine' ? '2 · Apri WhatsApp e invia' : 'Apri WhatsApp e invia')}
           </button>
           {chiediConferma && (
             <div ref={barraRef} role="group" aria-label="Conferma dell'invio" className="scheda-in mt-3 bg-white rounded-xl p-3" style={{ border: `1px solid ${BORDO}` }}>
