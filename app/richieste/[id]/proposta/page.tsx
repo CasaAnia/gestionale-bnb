@@ -44,6 +44,7 @@ import { generaProposta, prezzo as fmtPrezzo, centesimi, centesimiTotale, format
 import { chiaveSoluzione, soluzioneScelta } from '@/lib/richiesteScelta'
 import { custodisciPendente, eliminaPendente, leggiPendente, datiPerConferma, type PropostaPendente } from '@/lib/richiestePendente'
 import { CONDIZIONI_PAGAMENTO, ETICHETTA_CONDIZIONE, caparraDefault, type CondizionePagamento } from '@/lib/condizioniPrenotazione'
+import { statoCondizioni } from '@/lib/condizioniProposta'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import { lettoDaComunicare } from '@/lib/tariffe'
 import { openWhatsApp, normalizzaTelefono } from '@/lib/whatsapp'
@@ -311,6 +312,9 @@ export default function PropostaPage() {
       amelia_alternativa: ameliaAttiva && amelia !== null,
     }
   const modoEffettivo = completo || soluzione === null ? 'testo' : modo
+  // I quattro bottoni di «Come paga» ci sono sempre (Ania, 11/09/2026):
+  // si scelgono anche mentre si aspetta la risposta a «L'hai inviata?».
+  const condizioni = statoCondizioni({ completo, inviata })
 
   // ── Chi è il cliente ──────────────────────────────────────────────────────
   const guest = useMemo(() => {
@@ -441,12 +445,25 @@ export default function PropostaPage() {
     setPrezzoEditor(i)
   }
   const prezzoEditorCent = centesimi(prezzoTesto.replace(',', '.'))
+  function applicaCondizione(tipo: CondizionePagamento) {
+    setCondizioneTipo(tipo)
+    // Caparra: precompilata col 50% del totale, ma modificabile
+    if (tipo === 'caparra' && caparraTesto === '') setCaparraTesto(fmtPrezzo(caparraDefault(totaleCent) / 100))
+  }
   function scegliCondizione(tipo: CondizionePagamento) {
-    conConferma(() => {
-      setCondizioneTipo(tipo)
-      // Caparra: precompilata col 50% del totale, ma modificabile
-      if (tipo === 'caparra' && caparraTesto === '') setCaparraTesto(fmtPrezzo(caparraDefault(totaleCent) / 100))
-    })
+    if (condizioni === 'solo_lettura') return
+    // Mentre si aspetta la risposta a «L'hai inviata?» cambiare come paga vuol
+    // dire che la proposta va rifatta: si torna a comporre, come con «No», e
+    // la bozza si riscrive con la condizione nuova. Lo diciamo a schermo,
+    // perché il messaggio di prima può essere già partito.
+    if (chiediConferma) {
+      if (!rispostaNo()) return
+      setTestoModificato(null)
+      setAvviso('Hai cambiato come paga: la proposta è tornata da comporre. Se il messaggio di prima era già partito, mandane uno nuovo.')
+      applicaCondizione(tipo)
+      return
+    }
+    conConferma(() => applicaCondizione(tipo))
   }
   function cambiaAmelia(attiva: boolean) { conConferma(() => setAmeliaAttiva(attiva)) }
 
@@ -482,18 +499,28 @@ export default function PropostaPage() {
         }
         setPendente(salvato)
         setChiediConferma(true)
+        // Dopo un ricaricamento (sul telefono l'app riparte al ritorno da
+        // WhatsApp) la scelta di «Come paga» si perde: si rimette da quello
+        // che è partito, così il bottone giusto risulta acceso e si può
+        // cambiare con un tocco.
+        if (salvato && !inviata) {
+          setCondizioneTipo(salvato.condizioni.condizione_pagamento)
+          setCaparraTesto(salvato.condizioni.caparra_centesimi === null ? '' : fmtPrezzo(salvato.condizioni.caparra_centesimi / 100))
+          setCondizioneTesto(salvato.condizioni.condizione_testo ?? '')
+          setAmeliaAttiva(salvato.condizioni.amelia_alternativa)
+        }
       } catch {
         setErrore('Non riesco a leggere o aggiornare la proposta conservata nel browser. Riapri questa pagina prima di continuare.')
         setChiediConferma(true)
       }
     }, 0)
     return () => clearTimeout(t)
-  }, [id, loading, richiesta, chiavePendente])
+  }, [id, loading, richiesta, chiavePendente, inviata])
 
-  function rispostaNo() {
-    if (salvataggioInCorso.current) return
+  function rispostaNo(): boolean {
+    if (salvataggioInCorso.current) return false
     try { eliminaPendente(window.localStorage, chiavePendente) }
-    catch { setErrore('Non riesco a conservare la risposta nel browser. Riprova: l’invio resta da chiarire.'); return }
+    catch { setErrore('Non riesco a conservare la risposta nel browser. Riprova: l’invio resta da chiarire.'); return false }
     // Anche dopo un ricaricamento «No» riapre la stessa composizione e i prezzi.
     if (pendente?.soluzione && richiesta && !inviata) {
       const s = pendente.soluzione
@@ -519,6 +546,7 @@ export default function PropostaPage() {
     setPendente(null)
     setChiediConferma(false)
     setErrore(null)
+    return true
   }
 
   // Al ritorno nella schermata la barra torna in vista
@@ -769,19 +797,22 @@ export default function PropostaPage() {
       {/* ── Come paga ─────────────────────────────────────────────────────── */}
       <section id="pagamento" className="pt-6 scroll-mt-16">
         <p className="ed-sezione">Come paga</p>
-        {riassuntoCondizione && <p className="mt-2 text-sm text-green-dark">{riassuntoCondizione}</p>}
         {completo && <p className="mt-2 text-sm text-stone">Con «non c’è posto» non serve: il messaggio non parla di pagamento.</p>}
-        {modificaConsentita && soluzione && !completo && (
+        {condizioni !== 'nascoste' && (
           <div className="mt-2" role="group" aria-label="Condizioni di pagamento">
             <div className="flex flex-wrap gap-2">
-              {CONDIZIONI_PAGAMENTO.map(tipo => (
-                <button key={tipo} type="button" onClick={() => scegliCondizione(tipo)} aria-pressed={condizioneTipo === tipo}
-                  className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${condizioneTipo === tipo ? 'bg-green-mid text-cream-text' : 'bg-white text-green-dark border border-[#C9BFA8]'}`}>
-                  {ETICHETTA_CONDIZIONE[tipo]}
-                </button>
-              ))}
+              {CONDIZIONI_PAGAMENTO.map(tipo => {
+                const scelta = condizioni === 'solo_lettura' ? condizioneInviata?.tipo === tipo : condizioneTipo === tipo
+                return (
+                  <button key={tipo} type="button" onClick={() => scegliCondizione(tipo)} aria-pressed={scelta} disabled={condizioni === 'solo_lettura'}
+                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors disabled:opacity-60 ${scelta ? 'bg-green-mid text-cream-text' : 'bg-white text-green-dark border border-[#C9BFA8]'}`}>
+                    {ETICHETTA_CONDIZIONE[tipo]}
+                  </button>
+                )
+              })}
             </div>
-            {condizioneTipo === 'caparra' && (
+            {riassuntoCondizione && condizioni === 'solo_lettura' && <p className="mt-2 text-sm text-stone">Inviata: {riassuntoCondizione}. Per cambiarla ricomponi la proposta con «Invia di nuovo».</p>}
+            {condizioni === 'scegliere' && condizioneTipo === 'caparra' && (
               <div className="mt-2.5">
                 <label className="block text-xs mb-1" style={{ color: GRIGIO_NOTA }} htmlFor="caparra">Caparra confirmatoria (€) · proposta al {fmtPrezzo(caparraDefault(totaleCent) / 100)} €, cioè il 50% di {fmtPrezzo(totaleCent / 100)} €</label>
                 <input id="caparra" type="text" inputMode="decimal" value={caparraTesto} onChange={e => setCaparraTesto(e.target.value)} aria-label="Importo della caparra in euro"
@@ -789,14 +820,14 @@ export default function PropostaPage() {
                 {problemaCondizione && problemaCondizione !== SCEGLI_COME_PAGA && <p className="text-xs mt-1 font-semibold text-[#8C3B2E]">{problemaCondizione}</p>}
               </div>
             )}
-            {condizioneTipo === 'personalizzata' && (
+            {condizioni === 'scegliere' && condizioneTipo === 'personalizzata' && (
               <div className="mt-2.5">
                 <label className="block text-xs mb-1" style={{ color: GRIGIO_NOTA }} htmlFor="condizione-testo">Scrivi il paragrafo delle condizioni: la chiusura «Grazie mille, Ania – Casa Ania» viene aggiunta da sola</label>
                 <textarea id="condizione-testo" value={condizioneTesto} onChange={e => setCondizioneTesto(e.target.value)} rows={4} aria-label="Condizioni di pagamento personalizzate"
                   className="w-full bg-white rounded-xl p-3 text-[13px] text-green-dark leading-relaxed resize-none focus:outline-none focus:border-green-mid" style={{ border: `1px solid ${BORDO}` }} />
               </div>
             )}
-            {amelia && (
+            {condizioni === 'scegliere' && amelia && (
               <div className="mt-3 flex items-center justify-between gap-3 bg-white rounded-xl px-3 py-2.5" style={{ border: `1px solid ${BORDO}` }}>
                 <span className="min-w-0">
                   <span className="block text-sm font-medium text-green-dark">Aggiungi alternativa Ambra/Allegra</span>
