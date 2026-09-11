@@ -32,7 +32,6 @@ import { scadenzaProposta, nomeCompleto, formatIntervallo, nottiRichiesta, STATI
 import { nomeOspite } from './guestName.ts'
 import { spostaGiorni } from './statistiche/periodo.ts'
 import { cent, prenotazioneValida, type PrenotazioneStat, type PagamentoStat, type DocumentoStat } from './statistiche/tipi.ts'
-import { incongruenzePagamenti } from './statistiche/pagato.ts'
 import { lettiOccupatiPerNotte } from './lettiAggiuntivi.ts'
 import { EXTRA_BED_MAX } from './tariffe.ts'
 import { normalizzaTelefono } from './whatsapp.ts'
@@ -176,24 +175,58 @@ export function eccezioniRichieste(richieste: RichiestaDC[], oggi: string, adess
 }
 
 // ── Pagamenti ───────────────────────────────────────────────────────────────
-type Soggiorno = { chiave: string; segmenti: PrenotazioneDC[]; totaleCent: number; primoArrivo: string; ultimaPartenza: string; pagato: boolean; nome: string; primoId: string }
+type Soggiorno = { chiave: string; segmenti: PrenotazioneDC[]; totaleCent: number; primoArrivo: string; ultimaPartenza: string; pagato: boolean; nome: string; camere: string; primoId: string }
 
+// UN soggiorno = tutti i segmenti che l'ospite fa di fila, anche quando sono
+// prenotazioni separate (Ania, 11/09/2026: «uniscile in una sola voce»).
+// Stanno insieme se hanno lo stesso `group_id` oppure se uno comincia il
+// giorno in cui finisce l'altro ed è la stessa persona — prolungamento o
+// cambio camera, con la STESSA regola degli arrivi (`eCambioCamera`, che
+// riconosce la persona anche dal telefono o dal nome). Caso Rosa: Ambra 1–7,
+// Amelia 7–11 e Ambra 11–20, tre prenotazioni non collegate, una voce sola.
 function soggiorni(prenotazioni: PrenotazioneDC[]): Soggiorno[] {
+  const valide = prenotazioni.filter(prenotazioneValida)
+  // Insiemi uniti per passi successivi (union-find sulle chiavi group_id||id)
+  const radice = new Map<string, string>()
+  const chiaveDi = (b: PrenotazioneDC) => b.group_id || b.id
+  const trova = (k: string): string => {
+    const su = radice.get(k)
+    if (!su || su === k) return k
+    const r = trova(su)
+    radice.set(k, r)
+    return r
+  }
+  const unisci = (a: string, b: string) => {
+    const ra = trova(a), rb = trova(b)
+    if (ra !== rb) radice.set(ra, rb)
+  }
+  for (const b of valide) if (!radice.has(chiaveDi(b))) radice.set(chiaveDi(b), chiaveDi(b))
+  for (const b of valide) {
+    const persona = { guest_id: b.guest_id, telefono: b.guests?.phone, full_name: b.guest_name || b.guests?.full_name }
+    for (const o of valide) {
+      if (o.id === b.id || o.check_out !== b.check_in) continue
+      if ((!!b.group_id && o.group_id === b.group_id) || stessaPersona(persona, o)) unisci(chiaveDi(b), chiaveDi(o))
+    }
+  }
   const gruppi = new Map<string, PrenotazioneDC[]>()
-  for (const b of prenotazioni.filter(prenotazioneValida)) {
-    const k = b.group_id || b.id
+  for (const b of valide) {
+    const k = trova(chiaveDi(b))
     if (!gruppi.has(k)) gruppi.set(k, [])
     gruppi.get(k)!.push(b)
   }
-  return [...gruppi.entries()].map(([chiave, segmenti]) => {
-    const ordinati = [...segmenti].sort((a, b) => a.check_in.localeCompare(b.check_in))
+  return [...gruppi.values()].map(segmenti => {
+    const ordinati = [...segmenti].sort((a, b) => a.check_in.localeCompare(b.check_in) || a.id.localeCompare(b.id))
     return {
-      chiave, segmenti: ordinati,
+      // La chiave del soggiorno è quella del PRIMO segmento: stabile
+      // qualunque sia l'ordine di lettura, e uguale a prima per i soggiorni
+      // di una prenotazione sola.
+      chiave: chiaveDi(ordinati[0]), segmenti: ordinati,
       totaleCent: ordinati.reduce((s, b) => s + cent(b.total_amount), 0),
       primoArrivo: ordinati[0].check_in,
       ultimaPartenza: ordinati.map(b => b.check_out).sort().slice(-1)[0],
       pagato: ordinati.some(b => !!b.pagato),
       nome: nomeOspite(ordinati[0]) || 'Ospite',
+      camere: [...new Set(ordinati.map(nomeCamera))].join(', '),
       primoId: ordinati[0].id,
     }
   })
@@ -201,30 +234,30 @@ function soggiorni(prenotazioni: PrenotazioneDC[]): Soggiorno[] {
 
 export function eccezioniPagamenti(prenotazioni: PrenotazioneDC[], pagamenti: PagamentoStat[], oggi: string): Eccezione[] {
   const out: Eccezione[] = []
-  const incongruenze = new Map(incongruenzePagamenti(prenotazioni, pagamenti).map(i => [i.soggiorno, i]))
   for (const s of soggiorni(prenotazioni)) {
     const concluso = s.ultimaPartenza <= oggi
-    const inc = incongruenze.get(s.chiave)
     const idsSegmenti = new Set(s.segmenti.map(b => b.id))
+    // Movimenti di TUTTO il soggiorno, di qualunque origine (dall'11/09/2026 i
+    // conti si fanno sul soggiorno intero, non su una prenotazione per volta)
+    const registratiCent = pagamenti.filter(p => idsSegmenti.has(p.booking_id)).reduce((x, p) => x + cent(p.amount), 0)
     const base = { chiave: `pagamento:${s.chiave}`, tipo: 'pagamento' as const, urgenza: 'normale' as const, data: s.ultimaPartenza, rimandabile: false }
-    const titolo = `${s.nome} · ${nomeCamera(s.segmenti[0])} · ${formatIntervallo(s.segmenti[0].check_in, s.ultimaPartenza)}`
-    if (inc?.tipo === 'pagamenti_oltre_il_totale') {
-      out.push({ ...base, titolo, motivo: `Movimenti per ${euroTesto(inc.pagatoCent)} oltre il totale di ${euroTesto(inc.totaleCent)}`, bottone: 'Apri prenotazione', destinazione: { tipo: 'prenotazione', prenotazioneId: s.primoId } })
-    } else if (concluso && inc?.tipo === 'pagato_ma_incompleto') {
-      out.push({ ...base, titolo, motivo: `Segnato pagato ma i movimenti coprono ${euroTesto(inc.pagatoCent)} su ${euroTesto(inc.totaleCent)}`, bottone: 'Registra saldo', destinazione: { tipo: 'saldo', prenotazioneId: s.primoId } })
-    } else if (!s.pagato && s.primoArrivo <= oggi && s.totaleCent > 0) {
+    const titolo = `${s.nome} · ${s.camere} · ${formatIntervallo(s.primoArrivo, s.ultimaPartenza)}`
+    if (registratiCent > s.totaleCent) {
+      out.push({ ...base, titolo, motivo: `Movimenti per ${euroTesto(registratiCent)} oltre il totale di ${euroTesto(s.totaleCent)}`, bottone: 'Apri prenotazione', destinazione: { tipo: 'prenotazione', prenotazioneId: s.primoId } })
+    } else if (concluso && s.pagato && registratiCent > 0 && registratiCent < s.totaleCent) {
+      // Segnato pagato ma i movimenti non ci arrivano. Senza NESSUN movimento
+      // è lo storico ancora da ricostruire, non un'incongruenza: non compare.
+      out.push({ ...base, titolo, motivo: `Segnato pagato ma i movimenti coprono ${euroTesto(registratiCent)} su ${euroTesto(s.totaleCent)}`, bottone: 'Registra saldo', destinazione: { tipo: 'saldo', prenotazioneId: s.primoId } })
+    } else if (!s.pagato && s.primoArrivo <= oggi && s.totaleCent > 0 && registratiCent < s.totaleCent) {
       // Falso positivo corretto il 07/09/2026 (Anna e Rosa in produzione): un
       // soggiorno i cui movimenti coprono già il totale È pagato anche se la
       // colonna `pagato` è rimasta false (il gestionale lo mostra saldato e
-      // «Segna come pagato» non avrebbe nulla da registrare). Conta ciò che
-      // manca davvero: totale meno movimenti registrati, di qualunque origine.
-      const registratiCent = pagamenti.filter(p => idsSegmenti.has(p.booking_id)).reduce((x, p) => x + cent(p.amount), 0)
-      if (registratiCent >= s.totaleCent) continue
+      // «Segna come pagato» non avrebbe nulla da registrare).
       // Il pagamento si fa all'arrivo (Ania, 11/09/2026): appena l'ospite è
       // entrato il soggiorno non saldato si controlla, senza aspettare la
       // partenza. Il motivo dice a che punto è: arrivato oggi, arrivato il…,
       // oppure già concluso.
-      const quando = s.ultimaPartenza <= oggi
+      const quando = concluso
         ? `Soggiorno concluso il ${giornoBreve(s.ultimaPartenza)}`
         : s.primoArrivo === oggi ? 'Arrivo di oggi' : `Arrivato il ${giornoBreve(s.primoArrivo)}`
       const motivo = registratiCent > 0

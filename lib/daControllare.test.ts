@@ -137,6 +137,7 @@ test('pagamenti: non saldato compare DAL GIORNO DELL\'ARRIVO (in corso o conclus
   assert.equal(conAcconto[0].motivo, `Arrivato il 13 set: registrati ${euroTesto(6000)} su ${euroTesto(16000)}`)
 })
 
+// Dall'11/09/2026 il titolo elenca tutte le camere del soggiorno
 test('pagamenti: il soggiorno con cambio camera è uno solo (totale dei segmenti) e porta al primo segmento', () => {
   const pren = [
     b('s2', 'ambra', '2026-09-12', '2026-09-13', 100, { group_id: 'g', pagato: true }),
@@ -147,7 +148,32 @@ test('pagamenti: il soggiorno con cambio camera è uno solo (totale dei segmenti
   assert.equal(out[0].chiave, 'pagamento:g')
   assert.equal(out[0].motivo, 'Segnato pagato ma i movimenti coprono 250 € su 300 €')
   assert.deepEqual(out[0].destinazione, { tipo: 'saldo', prenotazioneId: 's1' })
-  assert.equal(out[0].titolo, 'Ospite s1 · amelia · 10–13 set')
+  assert.equal(out[0].titolo, 'Ospite s1 · amelia, ambra · 10–13 set')
+})
+
+// Ania, 11/09/2026: «uniscile in una sola voce» — Rosa in produzione aveva
+// tre prenotazioni di fila (Ambra 1–7, Amelia 7–11, Ambra 11–20) senza un
+// gruppo comune, e in Home erano tre pagamenti diversi
+test('pagamenti: prenotazioni separate ma di fila della stessa persona = UNA voce sola (caso Rosa)', () => {
+  const rosa = { guest_id: 'rosa', guests: { full_name: 'Rosa Macauda', phone: '+39 3331112222' }, guest_name: 'Rosa Macauda' }
+  const pren = [
+    { ...b('r1', 'ambra', '2026-09-01', '2026-09-07', 420), ...rosa, group_id: 'g1' },
+    { ...b('r2', 'amelia', '2026-09-07', '2026-09-11', 320), ...rosa, group_id: 'g2' },
+    { ...b('r3', 'ambra', '2026-09-11', '2026-09-20', 720), ...rosa, group_id: 'g3' },
+    // stesse date ma un'altra persona: resta una voce a sé
+    b('altro', 'lena', '2026-09-10', '2026-09-12', 100),
+  ]
+  const out = eccezioniPagamenti(pren, [{ booking_id: 'r1', amount: 400, paid_on: '2026-09-01' }], OGGI)
+  assert.deepEqual(out.map(e => e.chiave), ['pagamento:g1', 'pagamento:altro'])
+  assert.equal(out[0].titolo, 'Rosa Macauda · ambra, amelia · 1–20 set')
+  assert.equal(out[0].motivo, `Arrivato il 1 set: registrati ${euroTesto(40000)} su ${euroTesto(146000)}`)
+  assert.deepEqual(out[0].destinazione, { tipo: 'saldo', prenotazioneId: 'r1' })
+  // Saldato tutto il soggiorno (anche con movimenti su segmenti diversi) → niente voce
+  assert.equal(eccezioniPagamenti(pren.slice(0, 3), [
+    { booking_id: 'r1', amount: 420, paid_on: '2026-09-01' },
+    { booking_id: 'r2', amount: 320, paid_on: '2026-09-07' },
+    { booking_id: 'r3', amount: 720, paid_on: '2026-09-11' },
+  ], OGGI).length, 0)
 })
 
 test('pagamenti: pagato senza alcun movimento (storico da ricostruire) NON compare qui', () => {
