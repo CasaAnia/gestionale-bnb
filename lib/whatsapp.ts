@@ -74,3 +74,17 @@ export function openWhatsApp(phone: string, text: string, preferBusiness: boolea
     }, 800)
   }, 800)
 }
+
+// Il numero come si legge, non come si salva (Ania, 11/09/2026): «342 700 4354».
+// I numeri italiani perdono il 39 e si spezzano 3-3-resto; gli altri tengono il
+// prefisso col +, così restano riconoscibili. Il numero per chiamare e quello di
+// WhatsApp NON cambiano: usano sempre le cifre intere con il prefisso.
+export function telefonoAGruppi(raw: string | null | undefined): string {
+  const n = normalizzaTelefono(raw).numero
+  if (!n) return ''
+  if (n.startsWith('39') && n.length >= 11 && n.length <= 13) {
+    const x = n.slice(2)
+    return `${x.slice(0, 3)} ${x.slice(3, 6)} ${x.slice(6)}`.trim()
+  }
+  return `+${n}`
+}

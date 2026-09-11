@@ -51,8 +51,10 @@ export type TestaClienteProps = {
   persone: string
   /** «qualsiasi camera» oppure il nome della camera chiesta */
   camera: string
-  /** numero da mostrare e da chiamare */
+  /** numero come si legge: «342 700 4354» */
   telefono?: string | null
+  /** cifre intere col prefisso, per chiamare */
+  telefonoDaChiamare?: string | null
   /** numero a sole cifre per WhatsApp; senza, «Scrivi» non compare */
   telefonoWhatsApp?: string | null
   avvisoTelefono?: string | null
@@ -85,7 +87,7 @@ export default function TestaCliente({
   nome, stella = false, ricevuta = false, problematico = false, motivoProblematico = null,
   volte = 0, provenienza = null, quando = null, totaleCent = null, hrefCliente = null,
   arrivo, partenza, notti, persone, camera,
-  telefono = null, telefonoWhatsApp = null, avvisoTelefono = null, onScrivi,
+  telefono = null, telefonoDaChiamare = null, telefonoWhatsApp = null, avvisoTelefono = null, onScrivi,
   nota = null, hrefModifica = null, testoModifica = 'Modifica la richiesta',
 }: TestaClienteProps) {
   const torna = volte > 0
@@ -139,7 +141,7 @@ export default function TestaCliente({
       {(telefono || telefonoWhatsApp) && (
         <div className="flex items-center justify-center gap-5 mt-3" style={{ fontSize: 15, fontWeight: 600 }}>
           {telefono && (
-            <a href={`tel:${telefono}`} className="inline-flex items-center gap-1.5 text-green-dark">
+            <a href={`tel:+${telefonoDaChiamare ?? telefono}`} className="inline-flex items-center gap-1.5 text-green-dark">
               <Phone size={16} strokeWidth={1.9} aria-hidden style={{ color: 'var(--color-green-mid)' }} />
               {telefono}
             </a>

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizzaTelefono, telefonoLeggibile } from './whatsapp.ts'
+import { normalizzaTelefono, telefonoLeggibile, telefonoAGruppi } from './whatsapp.ts'
 
 test('prefisso internazionale con + o 00 resta quello indicato', () => {
   assert.deepEqual(normalizzaTelefono('+44 7700 900123'), { numero: '447700900123', avviso: null })
@@ -20,4 +20,15 @@ test('fisso o numero strano: resta com\'è con l\'avviso', () => {
   assert.deepEqual(normalizzaTelefono('12345'), { numero: '12345', avviso: 'Controlla il prefisso' })
   assert.deepEqual(normalizzaTelefono(''), { numero: '', avviso: null })
   assert.deepEqual(normalizzaTelefono(null), { numero: '', avviso: null })
+})
+
+test('il numero si legge a gruppi, senza il 39', () => {
+  assert.equal(telefonoAGruppi('+39 342 700 4354'), '342 700 4354')
+  assert.equal(telefonoAGruppi('3427004354'), '342 700 4354')
+  assert.equal(telefonoAGruppi('+393392101241'), '339 210 1241')
+  // numeri stranieri: il prefisso resta, altrimenti non si possono chiamare
+  assert.equal(telefonoAGruppi('+48 600 000 000'), '+48600000000')
+  assert.equal(telefonoAGruppi('+44 7700 900123'), '+447700900123')
+  assert.equal(telefonoAGruppi(null), '')
+  assert.equal(telefonoAGruppi(''), '')
 })

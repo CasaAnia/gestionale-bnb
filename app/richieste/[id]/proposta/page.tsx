@@ -47,7 +47,7 @@ import { CONDIZIONI_PAGAMENTO, ETICHETTA_CONDIZIONE, caparraDefault, type Condiz
 import { statoCondizioni } from '@/lib/condizioniProposta'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import { lettoDaComunicare } from '@/lib/tariffe'
-import { openWhatsApp, normalizzaTelefono } from '@/lib/whatsapp'
+import { openWhatsApp, normalizzaTelefono, telefonoAGruppi } from '@/lib/whatsapp'
 import { salvaImmagine, copiaImmagine, isMobile } from '@/lib/immaginePng'
 import { useDesktop, useAdesso } from '@/lib/richiesteVista'
 import { opzioniAttive, opzioniScadute, occupantiDaOpzioni, notaOpzioni, opzioniSovrapposte, oraRoma, type RichiestaOpzione } from '@/lib/opzioni'
@@ -764,7 +764,8 @@ export default function PropostaPage() {
         notti={n}
         persone={richiesta.persone_per_notte ? riassuntoPersone(richiesta.arrivo, richiesta.persone_per_notte) : `${richiesta.persone} ${richiesta.persone === 1 ? 'persona' : 'persone'}`}
         camera={richiesta.rooms?.name || 'qualsiasi camera'}
-        telefono={richiesta.telefono}
+        telefono={telefonoAGruppi(richiesta.telefono) || richiesta.telefono}
+        telefonoDaChiamare={telefono || null}
         telefonoWhatsApp={telefono || null}
         avvisoTelefono={telefonoNorm.avviso}
         onScrivi={() => telefono && openWhatsApp(telefono, '')}
