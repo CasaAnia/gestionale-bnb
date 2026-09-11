@@ -59,7 +59,9 @@ export type TestaClienteProps = {
   telefonoWhatsApp?: string | null
   avvisoTelefono?: string | null
   onScrivi?: () => void
-  nota?: string | null
+  /** Le note in rosso sotto i contatti: prima quella del cliente (la sua
+   *  scheda), poi quella scritta nella richiesta. Vuoto = non compare nulla. */
+  note?: { etichetta: string; testo: string }[]
   hrefModifica?: string | null
   testoModifica?: string
 }
@@ -88,12 +90,12 @@ export default function TestaCliente({
   volte = 0, provenienza = null, quando = null, totaleCent = null, hrefCliente = null,
   arrivo, partenza, notti, persone, camera,
   telefono = null, telefonoDaChiamare = null, telefonoWhatsApp = null, avvisoTelefono = null, onScrivi,
-  nota = null, hrefModifica = null, testoModifica = 'Modifica la richiesta',
+  note = [], hrefModifica = null, testoModifica = 'Modifica la richiesta',
 }: TestaClienteProps) {
   const torna = volte > 0
   const testoVolte = volte === 1 ? 'Già stata qui 1 volta' : `Già stata qui ${volte} volte`
   const totale = torna && totaleCent != null && totaleCent > 0 ? euroTondi(totaleCent) : null
-  const notaPulita = (nota ?? '').trim()
+  const notePulite = note.map(n => ({ ...n, testo: (n.testo ?? '').trim() })).filter(n => n.testo)
 
   return (
     <div data-testa-cliente>
@@ -158,11 +160,17 @@ export default function TestaCliente({
       {avvisoTelefono && <p className="text-center mt-1 text-xs font-semibold" style={{ color: ROSSO_AVVISO }}>{avvisoTelefono}</p>}
       {!telefono && <p className="text-center mt-3 text-sm font-semibold" style={{ color: ROSSO_AVVISO }}>Nessun numero di telefono</p>}
 
-      {/* La nota del cliente non deve sfuggire */}
-      {notaPulita && (
-        <p data-nota-cliente className="text-center mt-3" style={{ borderTop: `1px dashed ${FILO_NOTA}`, paddingTop: 10, fontSize: 13.5, fontWeight: 600, color: ROSSO_NOTA }}>
-          «{notaPulita}»
-        </p>
+      {/* Le note non devono sfuggire: rosso #C00000, ognuna con la sua
+          parolina sopra, sotto un filo tratteggiato (Ania, 11/09/2026) */}
+      {notePulite.length > 0 && (
+        <div className="mt-3" style={{ borderTop: `1px dashed ${FILO_NOTA}`, paddingTop: 10 }}>
+          {notePulite.map((n, i) => (
+            <div key={n.etichetta + i} data-nota-cliente className={`text-center${i > 0 ? ' mt-2.5' : ''}`}>
+              <p style={{ fontSize: 9.5, letterSpacing: '1.5px', textTransform: 'uppercase', color: ROSSO_NOTA }}>{n.etichetta}</p>
+              <p className="mt-0.5 break-words" style={{ fontSize: 13.5, fontWeight: 600, color: ROSSO_NOTA, overflowWrap: 'anywhere' }}>«{n.testo}»</p>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Cliente problematico: si vede, e non blocca nulla */}

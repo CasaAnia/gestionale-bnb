@@ -56,7 +56,7 @@ const guests = [
   { id: 'aaaaaaaa-0001-4000-8000-000000000001', phone: '+39 333 000 0001', full_name: 'Ospite Finto', email: null, rating: 'normale', notes: null, created_at: ora, updated_at: ora },
   // Veste nuova della proposta (11/09/2026): una cliente che torna, con la
   // valutazione ottima e la ricevuta, per la testa del cliente e «Da controllare»
-  { id: 'aaaaaaaa-0002-4000-8000-000000000002', phone: '+39 333 000 0080', full_name: 'Carmela Sabia', email: null, rating: 'ottimo', vuole_ricevuta: true, motivo_problematico: null, provenienza: 'altra_struttura', struttura_nome: 'Nida', notes: null, created_at: ora, updated_at: ora },
+  { id: 'aaaaaaaa-0002-4000-8000-000000000002', phone: '+39 333 000 0080', full_name: 'Carmela Sabia', email: null, rating: 'ottimo', vuole_ricevuta: true, motivo_problematico: null, provenienza: 'altra_struttura', struttura_nome: 'Nida', notes: 'Dorme male con i rumori: darle la camera sul cortile.', created_at: ora, updated_at: ora },
 ]
 // Prenotazioni intorno a fra 10 giorni: Amelia e Ambra occupate, Allegra in
 // attesa (NON conta), Lena annullata (NON conta).
@@ -124,7 +124,14 @@ const richieste = [
   richiesta({ nome: 'Chiede', cognome: 'Ambra', arrivo: giorni(115), partenza: giorni(117), persone: 2, camera_id: ROOM.ambra, canale: 'web', telefono: '+39 333 000 0115', created_at: fa(4) }),
   // Cliente che torna (stesso telefono di Carmela Sabia): «Già stata qui 2
   // volte», 1.360 € nella testa, stella e nome in grassetto (ricevuta)
-  richiesta({ nome: 'Carmela', cognome: 'Sabia', arrivo: giorni(110), partenza: giorni(112), persone: 2, canale: 'web', telefono: '+39 333 000 0080', created_at: fa(6) }),
+  richiesta({ nome: 'Carmela', cognome: 'Sabia', arrivo: giorni(110), partenza: giorni(112), persone: 2, canale: 'web', telefono: '+39 333 000 0080', created_at: fa(6), note: 'Arriviamo col treno delle 19, se tardiamo la avviso.' }),
+  // Nota lunga scritta dal sito: deve andare a capo e stare nei margini
+  richiesta({ nome: 'Nota', cognome: 'Lunga', arrivo: giorni(120), partenza: giorni(122), persone: 2, canale: 'web', telefono: '+39 333 000 0120', created_at: fa(11),
+    note: 'Buongiorno, saremmo io e mio marito, arriviamo in macchina nel primo pomeriggio ma non sappiamo ancora l\'ora esatta perché dipende dal traffico in tangenziale; se possibile vorremmo una camera silenziosa e un posto dove lasciare l\'auto, e le chiedo se c\'è la possibilità di lasciare i bagagli dopo la partenza fino a sera. Grazie mille.' }),
+  // La richiesta di Giusi: proposta INVIATA prima del rilascio del testo per
+  // tre persone, quindi il messaggio archiviato è quello vecchio
+  richiesta({ nome: 'Giusi', cognome: 'Brugaletta', arrivo: '2026-10-29', partenza: '2026-10-31', persone: 3, canale: 'whatsapp', telefono: '+39 333 000 0129', created_at: fa(40), stato: 'proposta_inviata', proposta_inviata_at: fa(35), condizione_pagamento: 'arrivo',
+    proposta_testo: 'Gentile Giusi,\ngrazie per aver pensato a Casa Ania per il suo soggiorno.\n\nHo verificato le date che mi ha indicato. Dal 29 al 31 ottobre ho tre camere libere che posso proporle:\n\n– Allegra, una camera matrimoniale con il balconcino e il bagno in camera. Per le notti in cui sarete in tre posso aggiungere un letto in più. Il prezzo per le 2 notti è di 180 €, a 90 € a notte.\n\n– Ambra, una camera matrimoniale con il bagno in camera. Il prezzo per le 2 notti è di 180 €, a 90 € a notte.\n\n– Lena, una camera tripla con il bagno privato appena fuori dalla porta, chiuso a chiave. Il prezzo per le 2 notti è di 180 €, a 90 € a notte.\n\nGrazie mille,\nAnia – Casa Ania' }),
   // Nessuna camera libera per tutte le notti: resta la proposta automatica
   richiesta({ nome: 'Cambio', cognome: 'Camera', arrivo: giorni(71), partenza: giorni(74), persone: 2, canale: 'telefono', telefono: '+39 333 000 0071', created_at: fa(7) }),
   richiesta({ nome: 'Paolo', cognome: 'Neri', arrivo: giorni(-3), partenza: giorni(-1), persone: 2, canale: 'telefono', created_at: fa(60 * 24 * 8), stato: 'confermata', chiusa_at: fa(60 * 24 * 7) }),

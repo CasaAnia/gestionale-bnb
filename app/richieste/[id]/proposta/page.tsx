@@ -353,7 +353,7 @@ export default function PropostaPage() {
     const chiave = chiaveNome({ nome: richiesta.nome, cognome: richiesta.cognome })
     const perTelefono = tel ? clienti.find(c => normalizzaTelefono(c.phone as string | null).numero === tel) : undefined
     const perNome = chiave ? clienti.find(c => chiaveNome({ full_name: (c.full_name as string | null) ?? null }) === chiave) : undefined
-    return (perTelefono ?? perNome ?? null) as { id?: string; rating?: string | null; vuole_ricevuta?: boolean | null; motivo_problematico?: string | null; provenienza?: string | null; struttura_nome?: string | null } | null
+    return (perTelefono ?? perNome ?? null) as { id?: string; rating?: string | null; vuole_ricevuta?: boolean | null; motivo_problematico?: string | null; provenienza?: string | null; struttura_nome?: string | null; notes?: string | null } | null
   }, [richiesta, clienti])
   const soggiorni = useMemo(() => {
     if (!richiesta) return { volte: 0, ricaviCent: 0, ultimo: null }
@@ -363,6 +363,17 @@ export default function PropostaPage() {
     )
   }, [richiesta, prenotazioni, guest])
   const hrefCliente = guest?.id ? `/clienti/${guest.id}` : null
+  // Le note in rosso nella testa: prima quella salvata sulla scheda del
+  // cliente, poi quella scritta nella richiesta. La parolina dice chi l'ha
+  // scritta: dal sito la cliente, altrimenti l'ha messa Ania.
+  const noteTesta = useMemo(() => {
+    const out: { etichetta: string; testo: string }[] = []
+    const delCliente = (guest?.notes ?? '').trim()
+    if (delCliente) out.push({ etichetta: 'nota del cliente', testo: delCliente })
+    const dellaRichiesta = (richiesta?.note ?? '').trim()
+    if (dellaRichiesta) out.push({ etichetta: richiesta?.canale === 'web' ? 'scrive la cliente' : 'nota', testo: dellaRichiesta })
+    return out
+  }, [guest, richiesta])
 
   // ── Da controllare ────────────────────────────────────────────────────────
   const vociControllo = useMemo(() => {
@@ -786,7 +797,7 @@ export default function PropostaPage() {
         telefonoWhatsApp={telefono || null}
         avvisoTelefono={telefonoNorm.avviso}
         onScrivi={() => telefono && openWhatsApp(telefono, '')}
-        nota={richiesta.note}
+        note={noteTesta}
         hrefModifica={modificabile(richiesta) && !chiediConferma ? `/richieste/${richiesta.id}/modifica` : null}
       />
       {/* timer delle 3 ore: stesso testo della lista e del tooltip del calendario */}
@@ -926,10 +937,12 @@ export default function PropostaPage() {
               <span aria-hidden className="absolute left-0 right-0 bottom-0" style={{ height: 56, background: 'linear-gradient(to bottom, rgba(255,255,255,0), #fff)' }} />
             )}
           </div>
-          <button type="button" data-apri-messaggio onClick={() => setMessaggioAperto(v => !v)}
-            className="mt-1.5 text-[13px] font-semibold text-green-mid underline underline-offset-2">
-            {messaggioAperto ? 'Richiudi il messaggio' : 'Mostra tutto il messaggio'}
-          </button>
+          <p className="text-center">
+            <button type="button" data-apri-messaggio onClick={() => setMessaggioAperto(v => !v)}
+              className="mt-1.5 text-[13px] font-semibold text-green-mid underline underline-offset-2">
+              {messaggioAperto ? 'Richiudi il messaggio' : 'Mostra tutto il messaggio'}
+            </button>
+          </p>
           {modificaConsentita && testoModificato !== null && testoModificato !== bozzaGenerata && (
             <p className="text-xs mt-1" style={{ color: GRIGIO_NOTA }}>Testo modificato a mano: ha la precedenza sulla bozza. <button type="button" className="underline" onClick={() => setTestoModificato(null)}>Ripristina la bozza</button></p>
           )}
