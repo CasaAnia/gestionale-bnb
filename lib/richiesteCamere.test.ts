@@ -3,7 +3,7 @@
 // le spunte una alla volta.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { camereDaProporre, camereProponibili, soluzioniSpuntate, motivoInParole, quandoInParole } from './richiesteCamere.ts'
+import { camereDaProporre, camereProponibili, camereDaSpuntare, soluzioniSpuntate, motivoInParole, quandoInParole } from './richiesteCamere.ts'
 import { proponiSoluzioni } from './richiesteProposta.ts'
 import { generaProposta } from './richiesteTesti.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -95,7 +95,7 @@ const testoCon = (spuntate: string[]) => {
 test('tre camere spuntate: il messaggio approvato da Ania, nell’ordine Lena, Ambra, Allegra', () => {
   const testo = testoCon(['allegra', 'ambra', LENA_ID]) as string
   assert.match(testo, /posso proporle tre camere:/)
-  const ordine = ['Lena,', 'Ambra,', 'Allegra,'].map(n => testo.indexOf(`– ${n}`))
+  const ordine = ['Lena', 'Ambra', 'Allegra'].map(n => testo.indexOf(`– *${n}*,`))
   assert.ok(ordine.every(i => i > 0), 'tutte e tre le camere elencate')
   assert.deepEqual([...ordine].sort((a, b) => a - b), ordine, 'ordine Lena, Ambra, Allegra')
 })
@@ -103,15 +103,16 @@ test('tre camere spuntate: il messaggio approvato da Ania, nell’ordine Lena, A
 test('togliendo una spunta la camera sparisce e il numero in parole si aggiorna', () => {
   const testo = testoCon(['ambra', LENA_ID]) as string
   assert.match(testo, /posso proporle due camere:/)
-  assert.ok(!testo.includes('– Allegra,'), 'Allegra non è più nel messaggio')
-  assert.ok(testo.includes('– Lena,') && testo.includes('– Ambra,'))
+  assert.ok(!testo.includes('– *Allegra*,'), 'Allegra non è più nel messaggio')
+  assert.ok(testo.includes('– *Lena*,') && testo.includes('– *Ambra*,'))
 })
 
 test('una camera sola spuntata: torna il testo della camera unica, senza elenco', () => {
   const testo = testoCon([LENA_ID]) as string
   assert.match(testo, /è disponibile soltanto Lena, una camera tripla/)
   assert.ok(!testo.includes('posso proporle'), 'nessun elenco con una camera sola')
-  assert.ok(!testo.includes('– Ambra,') && !testo.includes('– Allegra,'))
+  assert.ok(!testo.includes('– *Ambra*,') && !testo.includes('– *Allegra*,'))
+  assert.ok(!testo.includes('*'), 'con una camera sola il testo non ha grassetto')
 })
 
 test('nessuna camera spuntata: non c’è niente da mandare', () => {
@@ -131,4 +132,32 @@ test('due persone: Amelia entra fra le spuntate, Lena resta una matrimoniale', (
   assert.equal(amelia.prezzoNotteCent, 7000)
   assert.equal(righe[3].tripla, false)           // Lena a due è una matrimoniale
   assert.equal(righe[3].totaleCent, 16000)
+})
+
+// ── Quali camere partono spuntate (Ania, 11/09/2026) ────────────────────────
+test('camera chiesta dal cliente e libera: parte spuntata solo quella', () => {
+  const conAmbra = { ...TRE, camera_id: 'ambra' }
+  const righe = camereDaProporre(conAmbra, CAMERE, [], proponiSoluzioni(conAmbra, CAMERE, []))
+  // tutte e tre restano proponibili, cioè spuntabili a mano
+  assert.deepEqual(camereProponibili(righe).sort(), ['allegra', 'ambra', LENA_ID].sort())
+  // ma parte spuntata solo quella chiesta
+  assert.deepEqual(camereDaSpuntare(righe, conAmbra.camera_id), ['ambra'])
+  // e il messaggio è quello della camera unica, senza elenco
+  const scelte = soluzioniSpuntate(righe, camereDaSpuntare(righe, conAmbra.camera_id))
+  const testo = generaProposta({ richiesta: conAmbra, soluzione: scelte[0], condizione: { tipo: 'arrivo' }, alternative: scelte.length > 1 ? scelte : null })
+  assert.match(testo, /è disponibile soltanto Ambra/)
+  assert.ok(!testo.includes('posso proporle'))
+})
+
+test('camera chiesta ma non proponibile, oppure «qualsiasi»: partono spuntate tutte', () => {
+  const righe = righeTre()
+  // «qualsiasi camera»
+  assert.deepEqual(camereDaSpuntare(righe, null), ['allegra', 'ambra', LENA_ID])
+  assert.deepEqual(camereDaSpuntare(righe, undefined), ['allegra', 'ambra', LENA_ID])
+  // ha chiesto Amelia, che per tre persone non va: non si spunta da sola
+  assert.deepEqual(camereDaSpuntare(righe, 'amelia'), ['allegra', 'ambra', LENA_ID])
+  // ha chiesto Ambra, ma Ambra è occupata: restano le altre
+  const occupate = [occ('ambra', '2026-10-29', '2026-10-31')]
+  const conOccupata = camereDaProporre({ ...TRE, camera_id: 'ambra' }, CAMERE, occupate, proponiSoluzioni({ ...TRE, camera_id: 'ambra' }, CAMERE, occupate))
+  assert.deepEqual(camereDaSpuntare(conOccupata, 'ambra'), ['allegra', LENA_ID])
 })
