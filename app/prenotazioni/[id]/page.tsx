@@ -28,6 +28,8 @@ import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 import { oggiARoma } from '@/lib/spese/adattatore'
 import { saldoMancanteCent, eseguiSegnaPagato, eseguiRegistraAcconto, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, type MetodoPagamento, type MovimentoSaldo, type AccontoPendente } from '@/lib/statistiche'
 import AvvisoAzione from '@/components/AvvisoAzione'
+import ConfermaVolante from '@/components/ConfermaVolante'
+import { testoConfermaPagamento } from '@/lib/confermaPagamento'
 import CambiaCliente from '@/components/CambiaCliente'
 import type { ClienteBreve } from '@/lib/cambiaCliente'
 import CampoProvenienza from '@/components/CampoProvenienza'
@@ -547,6 +549,9 @@ export default function BookingDetail() {
   const [accontoForm, setAccontoForm] = useState({ amount: '', method: 'contanti', paid_on: oggiARoma() })
   const [savingAcconto, setSavingAcconto] = useState(false)
   const [accontoError, setAccontoError] = useState<string | null>(null)
+  // Conferma volante dopo «Registra pagamento» (Ania, 11/09/2026): il bottone
+  // che sbiadisce non bastava a dire che il pagamento era andato a buon fine
+  const [confermaPagamento, setConfermaPagamento] = useState<string | null>(null)
   const LENA_ID = '19ae4611-c0a4-42ae-8530-210f9a948e9e'
 
   function getDaysBetween(checkIn: string, checkOut: string): string[] {
@@ -718,9 +723,11 @@ export default function BookingDetail() {
       })
       if (esito.esito === 'errore') { setAccontoError(esito.messaggio); return }
       const pagamenti = [...esito.pagamenti].sort((a, b) => String(a.paid_on).localeCompare(String(b.paid_on)))
+      const metodoScelto = accontoForm.method
       setAcconti(pagamenti)
       setAccontoForm({ amount: '', method: 'contanti', paid_on: oggiARoma() })
       setAccontoError(null)
+      setConfermaPagamento(testoConfermaPagamento(amount, metodoScelto, saldoMancanteCent(segmentiSoggiorno(), pagamenti)))
       // Un bottone solo (Ania, 10/09/2026): quando gli incassi coprono il
       // totale la prenotazione si segna pagata da sola, con la stessa strada
       // sicura di prima («Segna come pagato»: rilettura, chiave custodita,
@@ -2996,6 +3003,10 @@ export default function BookingDetail() {
           </div>
         </div>
       )}
+
+      {/* Conferma volante: sta in fondo alla pagina ma si disegna sopra tutto,
+          appena sopra la barra dei tasti (components/ConfermaVolante) */}
+      {confermaPagamento && <ConfermaVolante key={confermaPagamento} testo={confermaPagamento} onChiudi={() => setConfermaPagamento(null)} />}
     </div>
   )
 }
