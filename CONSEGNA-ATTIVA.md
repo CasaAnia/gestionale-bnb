@@ -68,3 +68,30 @@ Regole e prove stanno in `lib/testoWhatsApp.ts` e `lib/testoWhatsApp.test.ts`.
 
 Il componente non è stato inserito in `app/richieste/[id]/proposta/page.tsx`
 perché quel file è in carico a un'altra attività: lo integra chi lo rifà.
+
+## Veste nuova della pagina della proposta (11/09/2026, Claude)
+
+Fatta e provata in locale: testa col cliente, fascia delle sezioni ferma in
+cima, quattro parti (Da controllare · Camere da proporre · Come paga ·
+Il messaggio), camere scelte con la spunta. Commit `6342822`, `c84ecb0`,
+`34ee511`, `0a86f3e`, `9aecbfa`, `58ebeaf`. Nuovi file puri con le loro prove:
+`lib/richiesteCamere.ts`, `lib/richiesteDaControllare.ts`,
+`soggiorniDellaPersona` in `lib/clienteCheTorna.ts`, `provenienzaInParole` in
+`lib/provenienza.ts`. Componenti riusabili anche dalla scheda prenotazione:
+`components/TestaCliente.tsx`, `FasciaSezioni.tsx`, `SchedinaControllo.tsx`.
+Testi delle proposte, invio, «Sì, inviata», passaggio a «Proposta inviata»,
+«Modifica la richiesta» e database: non toccati.
+
+Integrato `components/TestoWhatsApp.tsx` come chiesto nella nota qui sopra:
+il messaggio già inviato e quello in attesa di conferma si leggono col
+grassetto. Mentre si compone resta la casella di scrittura, dove gli
+asterischi si vedono: lì il grassetto non si può mostrare senza togliere la
+possibilità di correggere il testo a mano.
+
+### Miglioria da fare (Ania, 11/09/2026)
+
+Dopo l'invio l'elenco delle camere mostra quelle proponibili OGGI, non quelle
+che erano state effettivamente proposte: la proposta partita si legge solo nel
+messaggio archiviato. Va cambiato in modo che, a proposta inviata, l'elenco
+mostri le camere davvero proposte (stanno già in `proposta_alternative` e
+`proposta_soluzione`). Non blocca il rilascio.

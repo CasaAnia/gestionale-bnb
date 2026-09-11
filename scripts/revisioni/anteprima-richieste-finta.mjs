@@ -56,7 +56,7 @@ const guests = [
   { id: 'aaaaaaaa-0001-4000-8000-000000000001', phone: '+39 333 000 0001', full_name: 'Ospite Finto', email: null, rating: 'normale', notes: null, created_at: ora, updated_at: ora },
   // Veste nuova della proposta (11/09/2026): una cliente che torna, con la
   // valutazione ottima e la ricevuta, per la testa del cliente e «Da controllare»
-  { id: 'aaaaaaaa-0002-4000-8000-000000000002', phone: '+39 333 000 0080', full_name: 'Carmela Sabia', email: null, rating: 'ottimo', vuole_ricevuta: true, motivo_problematico: null, notes: null, created_at: ora, updated_at: ora },
+  { id: 'aaaaaaaa-0002-4000-8000-000000000002', phone: '+39 333 000 0080', full_name: 'Carmela Sabia', email: null, rating: 'ottimo', vuole_ricevuta: true, motivo_problematico: null, provenienza: 'altra_struttura', struttura_nome: 'Nida', notes: null, created_at: ora, updated_at: ora },
 ]
 // Prenotazioni intorno a fra 10 giorni: Amelia e Ambra occupate, Allegra in
 // attesa (NON conta), Lena annullata (NON conta).
@@ -113,6 +113,8 @@ const richieste = [
   richiesta({ nome: 'Silvana', cognome: 'Pari', arrivo: giorni(101), partenza: giorni(103), persone: 2, canale: 'telefono', telefono: '+39 333 000 0101', created_at: fa(10) }),
   // Due persone, tutto libero: tutte e quattro le camere proponibili
   richiesta({ nome: 'Due', cognome: 'Persone', arrivo: giorni(105), partenza: giorni(107), persone: 2, canale: 'whatsapp', telefono: '+39 333 000 0105', created_at: fa(9) }),
+  // Camera chiesta dal cliente e libera: parte spuntata solo Ambra
+  richiesta({ nome: 'Chiede', cognome: 'Ambra', arrivo: giorni(115), partenza: giorni(117), persone: 2, camera_id: ROOM.ambra, canale: 'web', telefono: '+39 333 000 0115', created_at: fa(4) }),
   // Cliente che torna (stesso telefono di Carmela Sabia): «Già stata qui 2
   // volte», 1.360 € nella testa, stella e nome in grassetto (ricevuta)
   richiesta({ nome: 'Carmela', cognome: 'Sabia', arrivo: giorni(110), partenza: giorni(112), persone: 2, canale: 'web', telefono: '+39 333 000 0080', created_at: fa(6) }),

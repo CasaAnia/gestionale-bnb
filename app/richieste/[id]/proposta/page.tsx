@@ -23,6 +23,7 @@ import BackBar from '@/components/BackBar'
 import TestaCliente from '@/components/TestaCliente'
 import FasciaSezioni from '@/components/FasciaSezioni'
 import SchedinaControllo from '@/components/SchedinaControllo'
+import TestoWhatsApp from '@/components/TestoWhatsApp'
 import ConfermaDialog from '@/components/richieste/ConfermaDialog'
 import FinestraConferma from '@/components/richieste/FinestraConferma'
 import type { RichiestaConProposta } from '@/lib/richiesteConferma'
@@ -826,7 +827,13 @@ export default function PropostaPage() {
             </div>
           )}
           {inviata || chiediConferma ? (
-            <div className="bg-white rounded-xl p-3 text-[13px] text-green-dark whitespace-pre-wrap leading-relaxed" style={{ border: `1px solid ${BORDO}` }}>{testoFinale}</div>
+            /* Qui il messaggio non si tocca più: si mostra come lo vedrà
+               l'ospite, col grassetto al posto degli asterischi (nota
+               dell'altra attività nella scheda, 11/09/2026). Il testo vero,
+               quello che parte e quello archiviato, conserva gli asterischi.
+               Mentre si compone resta la casella di scrittura, dove il
+               grassetto non si può mostrare senza togliere la modifica. */
+            <div className="bg-white rounded-xl p-3 text-[13px] text-green-dark leading-relaxed" style={{ border: `1px solid ${BORDO}` }}><TestoWhatsApp testo={testoFinale} /></div>
           ) : (
             <textarea ref={textareaRef} value={testoFinale} onChange={e => setTestoModificato(e.target.value)} rows={6} spellCheck={false}
               aria-label="Bozza del messaggio"
