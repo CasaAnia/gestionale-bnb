@@ -66,6 +66,9 @@ const OTTONE = '#A9884E'
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 const PIENO = 'w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-mid text-cream-text font-semibold text-[15px] py-3.5 active:opacity-80 transition-opacity disabled:opacity-50'
 
+// Quante righe del messaggio si vedono prima di aprirlo tutto
+const RIGHE_MESSAGGIO = 12
+const ALTEZZA_RIGA = 21   // 13 px con interlinea «relaxed»
 const SEZIONI = [
   { id: 'controllare', label: 'Controllare' },
   { id: 'camere', label: 'Camere' },
@@ -149,6 +152,9 @@ export default function PropostaPage() {
   // paga» si toccano anche lì (Ania, 11/09/2026). Il messaggio archiviato
   // resta quello finché non si conferma un nuovo invio.
   const [ricomponi, setRicomponi] = useState(false)
+  // Il messaggio è lungo: all'inizio se ne vedono le prime righe, con una
+  // sfumatura, e si apre tutto con un tocco (Ania, 11/09/2026)
+  const [messaggioAperto, setMessaggioAperto] = useState(false)
   const [daRifiutare, setDaRifiutare] = useState(false)
   const [confermando, setConfermando] = useState<{ aperte: Richiesta[] } | null>(null)
   const [occupato, setOccupato] = useState<'invio' | 'rifiuto' | 'immagine' | null>(null)
@@ -878,20 +884,31 @@ export default function PropostaPage() {
               ))}
             </div>
           )}
-          {inviataBloccata || chiediConferma ? (
-            /* Qui il messaggio non si tocca più: si mostra come lo vedrà
-               l'ospite, col grassetto al posto degli asterischi (nota
-               dell'altra attività nella scheda, 11/09/2026). Il testo vero,
-               quello che parte e quello archiviato, conserva gli asterischi.
-               Mentre si compone resta la casella di scrittura, dove il
-               grassetto non si può mostrare senza togliere la modifica. */
-            <div className="bg-white rounded-xl p-3 text-[13px] text-green-dark leading-relaxed" style={{ border: `1px solid ${BORDO}` }}><TestoWhatsApp testo={testoFinale} /></div>
-          ) : (
-            <textarea ref={textareaRef} value={testoFinale} onChange={e => setTestoModificato(e.target.value)} rows={6} spellCheck={false}
-              aria-label="Bozza del messaggio"
-              className="w-full bg-white rounded-xl p-3 text-[13px] text-green-dark leading-relaxed resize-none focus:outline-none focus:border-green-mid"
-              style={{ border: `1px solid ${BORDO}` }} />
-          )}
+          {/* Raccolto: si vedono le prime righe con una sfumatura verso il
+              basso, e sotto il link per aprirlo tutto (Ania, 11/09/2026). */}
+          <div data-messaggio className="relative bg-white rounded-xl overflow-hidden" style={{ border: `1px solid ${BORDO}`, maxHeight: messaggioAperto ? undefined : RIGHE_MESSAGGIO * ALTEZZA_RIGA + 24 }}>
+            {inviataBloccata || chiediConferma ? (
+              /* Qui il messaggio non si tocca più: si mostra come lo vedrà
+                 l'ospite, col grassetto al posto degli asterischi (nota
+                 dell'altra attività nella scheda, 11/09/2026). Il testo vero,
+                 quello che parte e quello archiviato, conserva gli asterischi.
+                 Mentre si compone resta la casella di scrittura, dove il
+                 grassetto non si può mostrare senza togliere la modifica. */
+              <div className="p-3 text-[13px] text-green-dark leading-relaxed"><TestoWhatsApp testo={testoFinale} /></div>
+            ) : (
+              <textarea ref={textareaRef} value={testoFinale} onChange={e => setTestoModificato(e.target.value)} rows={6} spellCheck={false}
+                aria-label="Bozza del messaggio"
+                className="w-full bg-white p-3 text-[13px] text-green-dark leading-relaxed resize-none focus:outline-none block"
+                style={{ border: 'none' }} />
+            )}
+            {!messaggioAperto && (
+              <span aria-hidden className="absolute left-0 right-0 bottom-0" style={{ height: 56, background: 'linear-gradient(to bottom, rgba(255,255,255,0), #fff)' }} />
+            )}
+          </div>
+          <button type="button" data-apri-messaggio onClick={() => setMessaggioAperto(v => !v)}
+            className="mt-1.5 text-[13px] font-semibold text-green-mid underline underline-offset-2">
+            {messaggioAperto ? 'Richiudi il messaggio' : 'Mostra tutto il messaggio'}
+          </button>
           {modificaConsentita && testoModificato !== null && testoModificato !== bozzaGenerata && (
             <p className="text-xs mt-1" style={{ color: GRIGIO_NOTA }}>Testo modificato a mano: ha la precedenza sulla bozza. <button type="button" className="underline" onClick={() => setTestoModificato(null)}>Ripristina la bozza</button></p>
           )}
