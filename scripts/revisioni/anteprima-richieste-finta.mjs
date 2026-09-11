@@ -115,6 +115,8 @@ const richieste = [
   richiesta({ nome: 'Due', cognome: 'Persone', arrivo: giorni(105), partenza: giorni(107), persone: 2, canale: 'whatsapp', telefono: '+39 333 000 0105', created_at: fa(9) }),
   // La richiesta di prova di Ania: 29–31 ottobre, tre persone, tutto libero
   richiesta({ nome: 'Anna', cognome: 'Sawicka', arrivo: '2026-10-29', partenza: '2026-10-31', persone: 3, canale: 'web', telefono: '+39 342 700 4354', created_at: fa(25) }),
+  // Persone diverse da una notte all'altra, il caso del punto 4 e 5 di Ania
+  richiesta({ nome: 'Anna', cognome: 'Mista', arrivo: '2026-10-29', partenza: '2026-10-31', persone: 3, persone_per_notte: [1, 3], canale: 'web', telefono: '+39 342 700 4356', created_at: fa(24) }),
   // La stessa, ma con una proposta già inviata PRIMA del grassetto: il testo
   // archiviato non ha asterischi
   richiesta({ nome: 'Anna', cognome: 'Vecchia', arrivo: '2026-10-29', partenza: '2026-10-31', persone: 3, canale: 'web', telefono: '+39 342 700 4355', created_at: fa(26), stato: 'proposta_inviata', proposta_inviata_at: fa(20),

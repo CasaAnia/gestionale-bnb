@@ -197,7 +197,7 @@ test('date e elenchi della riga di conferma', () => {
 })
 
 // ── L'attesa non vale più se la richiesta è cambiata (Ania, 11/09/2026) ─────
-import { improntaRichiesta, richiestaCambiata } from './richiestePendente.ts'
+import { improntaRichiesta, richiestaCambiata, testoRiscrittoAMano } from './richiestePendente.ts'
 
 const RIC = { arrivo: '2026-10-29', partenza: '2026-10-31', persone: 3, camera_id: null, persone_per_notte: null, notti_richieste: null }
 const pendenteDi = (r: typeof RIC) => ({ testo: 'vecchio', condizioni: condizioni(), soluzione: null, alternative: null, impronta: improntaRichiesta(r) })
@@ -229,4 +229,16 @@ test('l’impronta si conserva nel browser e si rilegge', () => {
   const riletto = leggiPendente(serializzaPendente(p as never))
   assert.deepEqual(riletto?.impronta, improntaRichiesta(RIC))
   assert.equal(richiestaCambiata(riletto, { ...RIC, camera_id: 'ambra' }), true)
+})
+
+test('si capisce se il messaggio custodito è stato riscritto a mano', () => {
+  const p = { testo: 'Ciao, ti scrivo a modo mio.', condizioni: condizioni(), soluzione: { caso: 'completa', segmenti: [], nottiTotali: 1, nottiCoperte: 1, nottiMancanti: [], prezzoTotale: 0 }, alternative: null } as never
+  // il generatore scriverebbe altro → riscritto a mano
+  assert.equal(testoRiscrittoAMano(p, () => 'Gentile Anna, …'), true)
+  // il generatore scriverebbe la stessa cosa → non toccato (spazi a parte)
+  assert.equal(testoRiscrittoAMano(p, () => '  Ciao, ti scrivo a modo mio.  '), false)
+  // senza soluzione non si può giudicare
+  assert.equal(testoRiscrittoAMano({ ...(p as never as Record<string, unknown>), soluzione: null } as never, () => 'altro'), false)
+  // se il generatore non ce la fa, non si accusa nessuno
+  assert.equal(testoRiscrittoAMano(p, () => { throw new Error('dati incoerenti') }), false)
 })
