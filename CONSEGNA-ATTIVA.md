@@ -82,6 +82,13 @@ Il messaggio), camere scelte con la spunta. Commit `6342822`, `c84ecb0`,
 Testi delle proposte, invio, «Sì, inviata», passaggio a «Proposta inviata»,
 «Modifica la richiesta» e database: non toccati.
 
+**Il grassetto di WhatsApp è uscito con questo rilascio** (Ania, 11/09/2026):
+il messaggio della variante «tre persone, più camere» contiene gli asterischi
+e il gestionale li mostra come grassetto. Prima del push verificato nella
+pagina vera: l'anteprima della proposta non fa vedere nessun asterisco
+(«Dal 20 al 22 dicembre, per tre persone», «Lena», «180 €» in grassetto) e il
+testo che parte su WhatsApp li conserva tutti e sedici.
+
 Integrato `components/TestoWhatsApp.tsx` come chiesto nella nota qui sopra:
 il messaggio già inviato e quello in attesa di conferma si leggono col
 grassetto. Mentre si compone resta la casella di scrittura, dove gli
