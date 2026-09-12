@@ -41,3 +41,8 @@ export const sottotitoloGruppo = (quante: number): string =>
 
 // «3 per queste date» — al posto del conteggio di sempre, mentre il filtro è attivo
 export const contatoreGruppo = (quante: number): string => `${quante} per queste date`
+
+// Il link che toglie il filtro e rimette l'elenco intero. Si chiama col nome
+// di quello che SUCCEDE, non di quello che si toglie: «Togli» non diceva
+// cosa sarebbe comparso dopo (Ania, 12/09/2026).
+export const VEDI_TUTTE = 'Vedi tutte'

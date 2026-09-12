@@ -24,7 +24,7 @@ import { fetchRichieste, rifiutaRichiesta, riapriRichiesta, ricaricaRichiesteApe
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
-import { altreStesseDate, gruppoStesseDate, etichettaStesseDate, sottotitoloGruppo, contatoreGruppo } from '@/lib/richiesteStesseDate'
+import { altreStesseDate, gruppoStesseDate, etichettaStesseDate, sottotitoloGruppo, contatoreGruppo, VEDI_TUTTE } from '@/lib/richiesteStesseDate'
 import { periodoConGiorni } from '@/lib/dateItaliane'
 import { nomeOspite } from '@/lib/guestName'
 import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
@@ -410,7 +410,7 @@ function Richieste() {
                 <p className="truncate" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-green-dark)' }}>Richieste per {periodoConGiorni(capogruppo.arrivo, capogruppo.partenza)}</p>
                 <p style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{sottotitoloGruppo(gruppo.length)}</p>
               </div>
-              <button type="button" data-togli-gruppo onClick={() => setGruppoDi(null)} className="shrink-0 text-[13px] font-semibold text-green-mid underline underline-offset-2">Togli</button>
+              <button type="button" data-vedi-tutte onClick={() => setGruppoDi(null)} className="shrink-0 text-[13px] font-semibold text-green-mid underline underline-offset-2">{VEDI_TUTTE}</button>
             </div>
           )}
           {loading ? (
@@ -495,7 +495,7 @@ function Richieste() {
                 <p className="truncate" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-green-dark)' }}>Richieste per {periodoConGiorni(capogruppo.arrivo, capogruppo.partenza)}</p>
                 <p style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{sottotitoloGruppo(gruppo.length)}</p>
               </div>
-              <button type="button" data-togli-gruppo onClick={() => setGruppoDi(null)} className="shrink-0 text-[13px] font-semibold text-green-mid underline underline-offset-2">Togli</button>
+              <button type="button" data-vedi-tutte onClick={() => setGruppoDi(null)} className="shrink-0 text-[13px] font-semibold text-green-mid underline underline-offset-2">{VEDI_TUTTE}</button>
             </div>
           )}
           {loading ? (

@@ -2,7 +2,8 @@
 // come si legge il segno, e in che ordine si guardano.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { altreStesseDate, gruppoStesseDate, etichettaStesseDate, sottotitoloGruppo, contatoreGruppo } from './richiesteStesseDate.ts'
+import { readFileSync } from 'node:fs'
+import { altreStesseDate, gruppoStesseDate, etichettaStesseDate, sottotitoloGruppo, contatoreGruppo, VEDI_TUTTE } from './richiesteStesseDate.ts'
 
 const r = (id: string, arrivo: string, partenza: string, extra: Record<string, unknown> = {}) => ({
   id, arrivo, partenza, stato: 'in_attesa' as const, created_at: `2026-09-1${id.slice(-1)}T10:00:00Z`, camera_id: null, notti_richieste: null, ...extra,
@@ -67,4 +68,17 @@ test('le scritte della barra del filtro', () => {
   assert.equal(sottotitoloGruppo(3), '3 richieste, la più vecchia per prima')
   assert.equal(sottotitoloGruppo(1), '1 richiesta, la più vecchia per prima')
   assert.equal(contatoreGruppo(3), '3 per queste date')
+})
+
+// Il nome del link che rimette l'elenco intero (Ania, 12/09/2026): prima si
+// chiamava «Togli» e non diceva cosa sarebbe successo. Il nome sta in un
+// posto solo e la pagina lo usa da lì, così non può tornare indietro di
+// nascosto.
+test('il link del filtro si chiama «Vedi tutte», e la pagina usa quel nome', () => {
+  assert.equal(VEDI_TUTTE, 'Vedi tutte')
+  const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
+  // la barra del gruppo c'è due volte (calendario e lista): tutte e due col nome unico
+  assert.equal(pagina.split('{VEDI_TUTTE}</button>').length - 1, 2)
+  // nessuna traccia della parola vecchia, nemmeno negli agganci per le prove
+  assert.equal(/togli/i.test(pagina), false)
 })
