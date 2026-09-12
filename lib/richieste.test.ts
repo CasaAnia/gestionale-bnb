@@ -411,7 +411,7 @@ test('la riga «da guardare» dice il conto e la via d\u2019uscita', () => {
 
 // «Ordina per arrivo notti persone»: le stesse tre scelte di prima
 test('le tre parole dell\u2019ordinamento, nell\u2019ordine chiesto', () => {
-  assert.deepEqual(ORDINI_RICHIESTE.map(([, parola]) => parola), ['arrivo', 'notti', 'persone'])
+  assert.deepEqual(ORDINI_RICHIESTE.map(([, parola]) => parola), ['arrivo', 'durata', 'persone'])
   assert.deepEqual(ORDINI_RICHIESTE.map(([v]) => v), ['arrivo', 'durata', 'persone'])
   // e sono davvero le tre scelte che ordinaRichieste sa fare
   const a = richiesta({ id: 'a', arrivo: '2026-10-01', partenza: '2026-10-02', persone: 3 })

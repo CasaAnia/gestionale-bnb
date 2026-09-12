@@ -29,10 +29,10 @@ export function rigaDaGuardare(quante: number, acceso = false): RigaGuardare | n
 export const testoRigaGuardare = (r: RigaGuardare | null): string => (r ? `${r.conto}${r.coda}` : '')
 
 // Le tre scelte di sempre, nelle parole e nell'ordine chiesti da Ania.
-// «durata» si legge «notti»: è la stessa cosa detta come la dice la riga della
-// richiesta («2 notti»).
+// La parola di mezzo resta «durata», scelta da Ania il 12/09/2026: «notti»
+// era stata provata per un'ora e non le è piaciuta.
 export const ORDINI_RICHIESTE = [
   ['arrivo', 'arrivo'],
-  ['durata', 'notti'],
+  ['durata', 'durata'],
   ['persone', 'persone'],
 ] as const satisfies readonly (readonly [OrdineRichieste, string])[]
