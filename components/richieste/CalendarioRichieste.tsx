@@ -215,8 +215,10 @@ export default function CalendarioRichieste(p: Props) {
     })
   }
 
-  // Badge ⇄ ottone: richieste sovrapposte fra loro, o singola che si
-  // sovrappone a una confermata (se confermata, va in conflitto).
+  // Badge ⇄ ottone: SOLO per la richiesta che si sovrappone a una prenotazione
+  // CONFERMATA. Per le richieste che si accavallano fra loro il ⇄ non si usa
+  // più (Ania, 12/09/2026): la barra dice già «N richieste», e nell'elenco
+  // c'è il segno blu che si tocca.
   const badge = (
     <span aria-label="si sovrappone" style={{ flexShrink: 0, background: OTTONE, color: '#F5EFE4', borderRadius: 999, fontSize: 9, fontWeight: 700, lineHeight: '14px', height: 14, minWidth: 16, padding: '0 4px', textAlign: 'center' }}>⇄</span>
   )
@@ -227,7 +229,7 @@ export default function CalendarioRichieste(p: Props) {
       const ids = gruppo.map(r => r.id)
       const selezionata = p.evidenziata != null && ids.includes(p.evidenziata)
       const conflittoConfermate = gruppo.length === 1 && sovrapposizioni(gruppo[0], p.prenotazioni, [], camere).prenotazioni.length > 0
-      const conBadge = gruppo.length > 1 || conflittoConfermate
+      const conBadge = conflittoConfermate
       // a 2 settimane le colonne sono larghe: «Nome C.» intero; nel mese
       // l'etichetta resta e il tooltip dice tutto
       const testo = gruppo.length > 1 ? `${gruppo.length} richieste` : etichettaRichiesta(gruppo[0], p.layout === 'mobile' || modo === 'quindici')

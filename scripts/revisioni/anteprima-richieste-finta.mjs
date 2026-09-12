@@ -129,6 +129,12 @@ const richieste = [
     proposta_testo: 'Gentile Anna,\ngrazie per aver pensato a Casa Ania per il suo soggiorno.\n\nHo verificato le date che mi ha indicato. Dal 29 al 31 ottobre, per tre persone, posso proporle tre camere:\n\n– Lena, una camera tripla. Il prezzo per le due notti è di 180 €.\n\nGrazie mille,\nAnia – Casa Ania' }),
   // La stessa Rosa che è in archivio: la testa deve dirlo
   richiesta({ nome: 'Rosa', cognome: 'Archivio', arrivo: '2026-12-05', partenza: '2026-12-07', persone: 2, canale: 'telefono', telefono: '+39 333 000 0303', created_at: fa(19) }),
+  // Tre richieste sulle stesse notti (12/09/2026): il segno blu e il filtro
+  richiesta({ nome: 'Prima', cognome: 'Insieme', arrivo: '2027-02-10', partenza: '2027-02-13', persone: 2, canale: 'web', telefono: '+39 333 000 0210', created_at: fa(60 * 72) }),
+  richiesta({ nome: 'Seconda', cognome: 'Insieme', arrivo: '2027-02-11', partenza: '2027-02-14', persone: 2, canale: 'telefono', telefono: '+39 333 000 0211', created_at: fa(60 * 30) }),
+  richiesta({ nome: 'Terza', cognome: 'Insieme', arrivo: '2027-02-12', partenza: '2027-02-15', persone: 3, canale: 'whatsapp', telefono: '+39 333 000 0212', created_at: fa(60) }),
+  // Questa NON c'entra: stesse date di nessuno
+  richiesta({ nome: 'Fuori', cognome: 'Gruppo', arrivo: '2027-02-20', partenza: '2027-02-22', persone: 2, canale: 'telefono', telefono: '+39 333 000 0220', created_at: fa(50) }),
   // Camera chiesta dal cliente e libera: parte spuntata solo Ambra
   richiesta({ nome: 'Chiede', cognome: 'Ambra', arrivo: giorni(115), partenza: giorni(117), persone: 2, camera_id: ROOM.ambra, canale: 'web', telefono: '+39 333 000 0115', created_at: fa(4) }),
   // Cliente che torna (stesso telefono di Carmela Sabia): «Già stata qui 2

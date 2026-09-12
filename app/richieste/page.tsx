@@ -24,6 +24,7 @@ import { fetchRichieste, rifiutaRichiesta, riapriRichiesta, ricaricaRichiesteApe
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
+import { altreStesseDate, gruppoStesseDate, etichettaStesseDate } from '@/lib/richiesteStesseDate'
 import { nomeOspite } from '@/lib/guestName'
 import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
@@ -54,14 +55,29 @@ function IconaCanale({ canale }: { canale: Richiesta['canale'] }) {
   return <Phone {...props} />
 }
 
-// Badge ⇄ ottone: la richiesta si sovrappone a una confermata o a un'altra aperta
+// Badge ⇄ ottone: la richiesta si sovrappone a una CONFERMATA (per le altre
+// richieste aperte c'è il segno blu qui sotto, Ania 12/09/2026)
 function BadgeSovrapposta() {
   return (
     <span aria-label="si sovrappone" className="inline-flex items-center justify-center shrink-0 rounded-full text-[10px] font-bold leading-none h-[16px] min-w-[18px] px-1" style={{ background: '#A9884E', color: '#F5EFE4' }}>⇄</span>
   )
 }
 
-function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiuta, onConferma, giaStato }: { r: Richiesta; adesso: Date; conflitti: string[]; selezionata: boolean; onSeleziona: () => void; onRifiuta: (r: Richiesta) => void; onConferma: (r: Richiesta) => void; giaStato?: string | null }) {
+// Il segno delle richieste che si accavallano: pillola blu, si tocca e
+// restringe l'elenco a quel gruppo (Ania, 12/09/2026). Il ⇄ non si usa più
+// per questo caso: resta per il cambio camera.
+const BLU_RICHIESTE = '#7D9DB0'
+function SegnoStesseDate({ testo, onClick }: { testo: string; onClick: () => void }) {
+  return (
+    <button type="button" data-stesse-date onClick={e => { e.stopPropagation(); onClick() }}
+      className="inline-flex items-center gap-1.5 rounded-full font-semibold text-white"
+      style={{ background: BLU_RICHIESTE, fontSize: 12, padding: '4px 11px', minHeight: 34 }}>
+      <span aria-hidden>⧉</span>{testo}
+    </button>
+  )
+}
+
+function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, selezionata, onSeleziona, onRifiuta, onConferma, giaStato }: { r: Richiesta; adesso: Date; conflitti: string[]; stesseDate?: string | null; onGruppo?: () => void; selezionata: boolean; onSeleziona: () => void; onRifiuta: (r: Richiesta) => void; onConferma: (r: Richiesta) => void; giaStato?: string | null }) {
   const n = nottiRichiesta(r)
   return (
     <li>
@@ -69,7 +85,7 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
       className={`w-full text-left py-4 leading-snug cursor-pointer border-t border-card-border transition-colors ${selezionata ? 'bg-sage/40 rounded-lg px-3 -mx-3' : ''}`}>
       <div className="flex items-baseline justify-between gap-3">
         {/* desktop (blocco 2b): «Nome Cognome» in Fraunces 16 px; il badge ⇄ va sulla riga propria */}
-        <p className="font-medium text-[15px] md:font-serif md:text-[16px] text-green-dark truncate inline-flex items-center gap-1.5 min-w-0"><span className="truncate">{nomeCompleto(r)}</span>{conflitti.length > 0 && <span className="md:hidden inline-flex"><BadgeSovrapposta /></span>}
+        <p className="font-medium text-[15px] md:font-serif md:text-[16px] text-green-dark truncate inline-flex items-center gap-1.5 min-w-0"><span className="truncate">{nomeCompleto(r)}</span>
           {/* Cliente che torna (08/09/2026): non è una provenienza, è un'etichetta */}
           {giaStato && <span data-gia-stato className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-sage text-green-mid whitespace-nowrap">{giaStato}</span>}</p>
         <p className="shrink-0 text-sm font-semibold text-brass">{n === 1 ? '1 notte' : `${n} notti`}</p>
@@ -81,6 +97,8 @@ function RigaRichiesta({ r, adesso, conflitti, selezionata, onSeleziona, onRifiu
         <span className="text-stone"> · </span>
         {r.rooms?.name || 'qualsiasi camera'}
       </p>
+      {/* Sotto le date: quante ALTRE richieste vogliono queste stesse notti */}
+      {stesseDate && onGruppo && <div className="mt-1.5"><SegnoStesseDate testo={stesseDate} onClick={onGruppo} /></div>}
       {/* Nota del cliente (Ania, 07/09/2026): prima si vedeva solo in «Modifica» */}
       <NotaCliente note={r.note} className="mt-1" />
       {/* timer delle 3 ore (solo proposta inviata): sostituisce il vecchio «proposta inviata N minuti fa» */}
@@ -149,6 +167,9 @@ function Richieste() {
   const [query, setQuery] = useState('')
   // «N da guardare»: filtro sulle ferme (in attesa > 24 h, proposta > 48 h, arrivo passato) e sulle proposte scadute (3 h dall'invio)
   const [soloDaGuardare, setSoloDaGuardare] = useState(false)
+  // Filtro «stesse date»: l'id della richiesta toccata. È solo della pagina,
+  // non si ricorda uscendo e rientrando (Ania, 12/09/2026).
+  const [gruppoDi, setGruppoDi] = useState<string | null>(null)
   // «N nuove dal sito»: richieste web arrivate dopo l'ultima apertura di questa pagina (localStorage)
   const [nuoveWeb, setNuoveWeb] = useState(0)
   const [mese, setMese] = useState(() => meseCorrente())
@@ -282,7 +303,16 @@ function Richieste() {
     return lista.filter(r => matchNome([r.nome, r.cognome, nomeCompleto(r)], t) || matchTelefono(r.telefono, t))
   }
   const trovate = useMemo(() => cercaTra(aperte, query), [aperte, query])
-  const mostrate = soloDaGuardare ? cercaTra(ferme, query) : trovate
+  // Quante ALTRE richieste aperte vogliono le stesse notti: il segno blu
+  const altreDi = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const r of aperte) m.set(r.id, altreStesseDate(r, aperte).length)
+    return m
+  }, [aperte])
+  // Col filtro attivo si vede solo quel gruppo, dalla più vecchia
+  const capogruppo = gruppoDi ? aperte.find(r => r.id === gruppoDi) ?? null : null
+  const gruppo = useMemo(() => (capogruppo ? gruppoStesseDate(capogruppo, aperte) : []), [capogruppo, aperte])
+  const mostrate = capogruppo ? gruppo : soloDaGuardare ? cercaTra(ferme, query) : trovate
   function cambiaRicerca(v: string) {
     setQuery(v)
     const t = cercaTra(aperte, v)
@@ -298,15 +328,15 @@ function Richieste() {
     [tutte, mese, vista, modoCalendario, inizio],
   )
 
-  // Sovrapposizioni di ogni richiesta aperta: con confermate (nome ospite) e altre aperte («Nome Cognome»)
+  // Sovrapposizioni con le prenotazioni CONFERMATE (nome ospite). Le altre
+  // richieste aperte non stanno più qui: dal 12/09/2026 le dice il segno blu,
+  // che si tocca e restringe l'elenco a quel gruppo. Così il ⇄ resta una cosa
+  // sola, il cambio camera, e la riga non ripete quello che dice il segno.
   const conflittiDi = useMemo(() => {
     const m = new Map<string, string[]>()
     for (const r of aperte) {
-      const s = sovrapposizioni(r, prenotazioni, aperte, camere)
-      m.set(r.id, [
-        ...s.prenotazioni.map(b => `${nomeOspite(b)} (${formatIntervallo(b.check_in, b.check_out)})`),
-        ...s.richieste.map(x => `${nomeCompleto(x)} (${formatIntervallo(x.arrivo, x.partenza)})`),
-      ])
+      const s = sovrapposizioni(r, prenotazioni, [], camere)
+      m.set(r.id, s.prenotazioni.map(b => `${nomeOspite(b)} (${formatIntervallo(b.check_in, b.check_out)})`))
     }
     return m
   }, [aperte, prenotazioni, camere])
@@ -444,6 +474,9 @@ function Richieste() {
             )}
           </div>
 
+          {capogruppo && (
+            <p className="mb-3 text-[13px] text-stone">Solo le richieste di queste date. <button type="button" data-togli-gruppo onClick={() => setGruppoDi(null)} className="font-semibold text-green-mid underline underline-offset-2">Togli</button></p>
+          )}
           {loading ? (
             <div className="text-center py-10 text-stone">Caricamento…</div>
           ) : mostrate.length === 0 && !richiesteNonLette ? (
@@ -462,6 +495,7 @@ function Richieste() {
             <ul className="flex flex-col min-[1100px]:grid min-[1100px]:grid-cols-2 min-[1100px]:gap-x-8 min-[1100px]:items-start">
               {mostrate.map(r => (
                 <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []} giaStato={etichettaGiaStato(soggiorniPrecedenti({ nome: r.nome, cognome: r.cognome, telefono: r.telefono }, prenotazioni, oggiIso()))}
+                  stesseDate={capogruppo ? null : etichettaStesseDate(altreDi.get(r.id) ?? 0)} onGruppo={() => setGruppoDi(r.id)}
                   selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} onRifiuta={setDaRifiutare} onConferma={r => setDaConfermare(r as RichiestaConProposta)} />
               ))}
             </ul>
