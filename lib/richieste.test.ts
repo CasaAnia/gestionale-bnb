@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import {
   formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare, nuoveDalSito, rigaChiusa, riapribile, eRifiutata,
   riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta, linkModificaRichiesta, ritornoDallaModifica,
@@ -441,14 +441,41 @@ test('sotto il calendario le due righe di parole stanno dopo l\u2019interruttore
   assert.ok(tasto < guardare && guardare < ordina, '«da guardare» e «Ordina per» non stanno nelle righe dopo')
   assert.match(sotto, /quante=\{ferme\.length\} acceso=\{soloDaGuardare\}/)
 
-  // le «nuove dal sito» restano solo nel sottotitolo in cima
+  // le «nuove dal sito» non hanno più né etichettina né riga
   assert.equal(/dati="dal-sito"|<Globe/.test(pagina), false, 'le «nuove dal sito» hanno ancora un\u2019etichettina')
-  assert.match(pagina, /<TestataRichieste aperte=\{aperte\.length\} nuoveDalSito=\{nuoveWeb\}/)
 
   // niente più pastiglie né bottoni tondi sparsi
   assert.equal(/EtichettaAvviso|TastoAvviso|InterruttoreSquadrato/.test(pagina), false)
   assert.equal(/rounded-full text-sm font-medium/.test(pagina), false)
   assert.equal(/BOTTONE_PIENO|BOTTONE_PICCOLO|MISURA_PASTIGLIA/.test(pagina), false)
+})
+
+// ── IN CIMA ALLA PAGINA NON RESTA NIENTE ──────────────────────────────
+// Via il titolo «Richieste» in Georgia e via anche la riga che contava
+// «4 aperte · 2 nuove dal sito» (Ania, dal telefono, 12/09/2026): dove si è lo
+// dice la barra in alto, quante sono si legge in «RICHIESTE APERTE · 4».
+test('in cima alla pagina non c\u2019\u00e8 pi\u00f9 n\u00e9 titolo n\u00e9 conto: si comincia dalla ricerca e dal calendario', () => {
+  const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
+  assert.equal(/TestataRichieste/.test(pagina), false, 'la testa della pagina \u00e8 ancora l\u00ec')
+  assert.equal(/sottotitoloRichieste/.test(pagina), false)
+  assert.equal(/nuoveWeb|ca_richieste_ultima_visita/.test(pagina), false,
+    'il conteggio delle \u00abnuove dal sito\u00bb non lo legge pi\u00f9 nessuno: va via anche lo stato')
+  // e il componente non esiste pi\u00f9 da nessuna parte
+  assert.equal(existsSync(new URL('../components/richieste/TestataRichieste.tsx', import.meta.url)), false)
+  assert.equal(existsSync(new URL('../lib/testataRichieste.ts', import.meta.url)), false)
+
+  // dopo la barra in alto si comincia dalla ricerca, poi subito il calendario
+  const testa = pagina.slice(pagina.indexOf('<BackBar'), pagina.indexOf('{errori.length > 0'))
+  // solo il disegno: i commenti raccontano cosa \u00e8 stato tolto e nominano
+  // proprio le parole che qui non devono pi\u00f9 comparire a schermo
+  const disegno = testa.replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+  assert.match(disegno, /<CampoRicerca/)
+  assert.equal(/<h1|font-georgia|Georgia/.test(disegno), false, 'in cima c\u2019\u00e8 ancora un titolo')
+  assert.equal(/aperte \u00b7|nuove dal sito/.test(disegno), false, 'in cima si conta ancora')
+
+  // il conto resta dove si legge: la riga della sezione
+  assert.match(pagina, /Richieste aperte/)
+  assert.match(pagina, /\{capogruppo \? contatoreGruppo\(gruppo\.length\) : mostrate\.length\}/)
 })
 
 // ── SOTTO IL CALENDARIO NON SI SPIEGA PIÙ IL TRATTEGGIO ───────────────

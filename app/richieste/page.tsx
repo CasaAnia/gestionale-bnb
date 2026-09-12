@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown } from 'lucide-react'
 import BackBar from '@/components/BackBar'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
-import TestataRichieste from '@/components/richieste/TestataRichieste'
 import { TastoNuovaRichiesta, RigaDaGuardare, RigaOrdina } from '@/components/richieste/ComandiPagina'
 import { ORDINI_RICHIESTE } from '@/lib/comandiRichieste'
 import CalendarioRichieste, { larghezzaColonnaCamere, type Ancora, type ModoCalendario } from '@/components/richieste/CalendarioRichieste'
@@ -37,7 +36,7 @@ import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
 import {
   CANALE_LABEL, eAperta, inArchivio, rigaChiusa, riapribile, ordinaRichieste, nottiRichiesta, nomeCompleto,
-  formatIntervallo, formatDateRichiesta, avvisoFerma, daGuardare, nuoveDalSito, scadenzaProposta, type Richiesta, type OrdineRichieste,
+  formatIntervallo, formatDateRichiesta, avvisoFerma, daGuardare, scadenzaProposta, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
 
 const GRIGIO_QUANDO = '#B9B6AD'   // «oggi», «ieri», «2 giorni fa», in fondo alla prima riga
@@ -186,8 +185,6 @@ function Richieste() {
   // Filtro «stesse date»: l'id della richiesta toccata. È solo della pagina,
   // non si ricorda uscendo e rientrando (Ania, 12/09/2026).
   const [gruppoDi, setGruppoDi] = useState<string | null>(null)
-  // «N nuove dal sito»: richieste web arrivate dopo l'ultima apertura di questa pagina (localStorage)
-  const [nuoveWeb, setNuoveWeb] = useState(0)
   const [mese, setMese] = useState(() => meseCorrente())
   // Calendario desktop (blocco 2): «Mese» o «2 settimane», ricordato nel browser;
   // default 2 settimane su desktop, mese sul telefono. All'apertura la
@@ -296,17 +293,6 @@ function Richieste() {
   }
 
   useEffect(() => {
-    if (loading) return
-    const CHIAVE = 'ca_richieste_ultima_visita'
-    let ultima: string | null = null
-    try { ultima = window.localStorage.getItem(CHIAVE) } catch { ultima = null }
-    const n = nuoveDalSito(tutte, ultima).length
-    const t = setTimeout(() => setNuoveWeb(n), 0)
-    try { window.localStorage.setItem(CHIAVE, new Date().toISOString()) } catch { /* senza memoria il conteggio riparte ogni volta */ }
-    return () => clearTimeout(t)
-  }, [loading, tutte])
-
-  useEffect(() => {
     if (loading || !apriId) return
     document.getElementById(`richiesta-${apriId}`)?.scrollIntoView({ block: 'center' })
   }, [loading, apriId])
@@ -364,30 +350,27 @@ function Richieste() {
           indietro, cioè a quella scheda. Nelle pagine di una richiesta la
           destinazione è sempre scritta: vedi ritornoDallaRichiesta. */}
       <BackBar onClick={() => (apriId ? smartBack(router, '/') : router.push('/'))} />
-      {/* Intestazione (Ania, dal telefono, 12/09/2026): una riga sola che dice
-          come sta la pagina — «4 aperte · 2 nuove dal sito». Il titolo
-          «Richieste» in Georgia che le stava sopra è stato tolto: lo dice già
-          la barra in alto. Su desktop la testa sta a sinistra e i comandi,
-          tutti della stessa famiglia, le stanno accanto sulla stessa riga. */}
+      {/* In cima NON c'è più niente (Ania, dal telefono, 12/09/2026): via il
+          titolo «Richieste» in Georgia e via anche la riga che contava
+          «4 aperte · 2 nuove dal sito». Dove si è lo dice già la barra in
+          alto, e quante sono si legge nella riga della sezione
+          «RICHIESTE APERTE · 4»: scriverlo due volte costava una riga di
+          schermo. La pagina comincia dalla ricerca e subito dal calendario.
+          Anche le «nuove dal sito» spariscono: non hanno più né etichettina
+          né riga. Sul Mac restano i comandi, tutti della stessa famiglia. */}
       {desktop && !orizzontale ? (
-        <div className="flex items-center flex-wrap gap-4 mb-4 min-h-[44px]">
-          <TestataRichieste aperte={aperte.length} nuoveDalSito={nuoveWeb} mostraConto={!loading} className="mr-auto" />
+        <div className="flex items-center flex-wrap justify-end gap-4 mb-4 min-h-[44px]">
           {!loading && <RigaDaGuardare quante={ferme.length} acceso={soloDaGuardare} onClick={() => setSoloDaGuardare(v => !v)} />}
           <InterruttoreVista vista={vista} onChange={setVista} />
           <CampoRicerca value={query} onChange={cambiaRicerca} className="w-[260px]" />
           <TastoNuovaRichiesta />
         </div>
-      ) : orizzontale ? (
-        /* Telefono girato: testa e ricerca sulla stessa riga, come sul Mac */
-        <div className="flex items-center gap-4 mb-3 min-h-[44px]">
-          <TestataRichieste aperte={aperte.length} nuoveDalSito={nuoveWeb} mostraConto={!loading} className="mr-auto" />
-          <CampoRicerca value={query} onChange={cambiaRicerca} className="flex-1 max-w-[360px]" />
-        </div>
       ) : (
-        /* Telefono dritto: il conto e la ricerca, poi calendario, mesi, i comandi e la lista */
-        <div className="flex flex-col gap-2 mb-3">
-          <TestataRichieste aperte={aperte.length} nuoveDalSito={nuoveWeb} mostraConto={!loading} />
-          <CampoRicerca value={query} onChange={cambiaRicerca} className="w-full" />
+        /* Telefono: solo la ricerca, poi calendario, mesi, i comandi e la lista.
+           Girato la ricerca resta corta e a destra, come stava prima. */
+        <div className="flex mb-3">
+          <CampoRicerca value={query} onChange={cambiaRicerca}
+            className={orizzontale ? 'w-full max-w-[360px] ml-auto' : 'w-full'} />
         </div>
       )}
 
