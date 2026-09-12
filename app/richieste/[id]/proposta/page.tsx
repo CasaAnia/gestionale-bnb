@@ -846,6 +846,7 @@ export default function PropostaPage() {
         partenza={richiesta.partenza}
         notti={n}
         personeNotti={personeNottiRichiesta.length ? personeNottiRichiesta : [richiesta.persone]}
+        nottiRichieste={nottiDellaRichiesta(richiesta)}
         cameraChiesta={richiesta.rooms?.name ?? null}
         telefono={telefonoAGruppi(richiesta.telefono) || richiesta.telefono}
         telefonoDaChiamare={telefono || null}

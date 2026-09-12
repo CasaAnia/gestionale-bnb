@@ -13,7 +13,7 @@
 import Link from 'next/link'
 import { Phone, MessageCircle } from 'lucide-react'
 import { giornoConSettimana } from '@/lib/dateItaliane'
-import { personeTesta } from '@/lib/personeTesta'
+import { personeTesta, caselleNotti, personeCambiano } from '@/lib/personeTesta'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 const GRIGIO_RIGA = '#B9B6AD'          // la prima riga, quella minuta
@@ -52,6 +52,8 @@ export type TestaClienteProps = {
   /** le persone di ogni notte, in ordine: da qui nascono il valore grande
    *  («3», «3 → 1», «da 1 a 3») e la strisciolina delle notti */
   personeNotti: number[]
+  /** le notti richieste, in ordine: servono alla strisciolina */
+  nottiRichieste?: string[]
   /** nome della camera chiesta dalla cliente; senza, vale «qualsiasi» */
   cameraChiesta?: string | null
   /** numero come si legge: «342 700 4354» */
@@ -91,7 +93,7 @@ function Data({ iso, etichetta }: { iso: string; etichetta: string }) {
 export default function TestaCliente({
   nome, stella = false, ricevuta = false, problematico = false, motivoProblematico = null,
   volte = 0, provenienza = null, quando = null, totaleCent = null, hrefCliente = null,
-  arrivo, partenza, notti, personeNotti, cameraChiesta = null,
+  arrivo, partenza, notti, personeNotti, nottiRichieste = [], cameraChiesta = null,
   telefono = null, telefonoDaChiamare = null, telefonoWhatsApp = null, avvisoTelefono = null, onScrivi,
   note = [], hrefModifica = null, testoModifica = 'Modifica la richiesta',
 }: TestaClienteProps) {
@@ -99,6 +101,7 @@ export default function TestaCliente({
   const testoVolte = volte === 1 ? 'Già stata qui 1 volta' : `Già stata qui ${volte} volte`
   const totale = torna && totaleCent != null && totaleCent > 0 ? euroTondi(totaleCent) : null
   const pezziPersone = personeTesta(personeNotti)
+  const caselle = personeCambiano(personeNotti) ? caselleNotti(nottiRichieste, personeNotti) : []
   const notePulite = note.map(n => ({ ...n, testo: (n.testo ?? '').trim() })).filter(n => n.testo)
 
   return (
@@ -159,6 +162,17 @@ export default function TestaCliente({
             <p style={{ marginTop: 6, fontSize: 9, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--color-stone)' }}>{cameraChiesta ? 'camera chiesta' : 'camera'}</p>
           </div>
         </div>
+        {/* La strisciolina: una casellina per notte, solo se le persone cambiano */}
+        {caselle.length > 0 && (
+          <div data-striscia-notti className="flex justify-center flex-wrap" style={{ marginTop: 14, gap: 5 }}>
+            {caselle.map((c, i) => (
+              <div key={i} className="text-center" style={{ maxWidth: 62 }}>
+                <p style={{ fontSize: 9, letterSpacing: '0.4px', textTransform: 'uppercase', color: 'var(--color-stone)' }}>{c.etichetta}</p>
+                <p style={{ borderTop: `1px solid ${OTTONE}`, paddingTop: 4, marginTop: 2, fontFamily: GEORGIA, fontSize: 17, color: c.cambia ? MATTONE : 'var(--color-green-dark)' }}>{c.persone}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Come si chiama il cliente: telefono e WhatsApp */}
