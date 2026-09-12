@@ -403,3 +403,34 @@ puntino col nome, «oggi» in alto a destra. Misurato a schermo a 390×844:
 titolo 15 px, seconda riga 13,5 px, righe alte 102–123 px, due icone di
 contatto su tutte le richieste col numero. A 1280 px i titoli stanno in una
 riga sola.
+
+## Nota per chi torna sulla pagina delle Richieste (12/09/2026, Claude)
+
+Pubblicato e verificato: `efc834b`, deploy Vercel `success`.
+
+Due ritocchi chiesti da Ania dal telefono, un commit ciascuno:
+
+- `e64e643` — sotto il calendario non si spiega più il tratteggio. Lo STACCO
+  però resta (`data-stacco-calendario`, 24 px): è il distacco fra calendario e
+  comandi, non un avanzo. Non toglierlo credendolo codice morto.
+- `efc834b` — in cima alla pagina non resta niente: via il titolo e via la riga
+  «N aperte · N nuove dal sito». Con essa se ne sono andati
+  `components/richieste/TestataRichieste.tsx`, `lib/testataRichieste.ts` e il
+  suo test, più lo stato `nuoveWeb` e la chiave `ca_richieste_ultima_visita`:
+  non li leggeva più nessuno. La funzione `nuoveDalSito` resta in
+  `lib/richieste.ts` con le sue prove, ma ORA NON HA PIÙ CONSUMATORI: se serve
+  un pallino «nuove dal sito» da qualche altra parte, il pezzo è già lì.
+
+Prove: 610 test dei moduli verdi, TypeScript e build puliti; a 390×844 sulla
+pagina vera le due pillole «Reale / Presunta» e «Mese / 2 settimane» hanno
+contorno, fondo e riempimento identici (stesso componente), la riga
+«3 da guardare» e le tre parole dell'ordinamento misurano 44 px con testo
+14 px, e il filtro si accende e si spegne.
+
+**Da decidere con Ania.** L'incarico chiedeva «Ordina per arrivo **notti**
+persone», ma poche ore prima Ania aveva scelto «**durata**» (commit `b92184e`,
+dopo aver provato «notti»). È rimasta «durata», decisione più recente e già
+online; cambiarla è una parola in `ORDINI_RICHIESTE` (`lib/comandiRichieste.ts`).
+
+Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
+`lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
