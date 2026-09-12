@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { soggiorniPrecedenti, etichettaGiaStato, eraGiaStato, stessaPersona } from './clienteCheTorna.ts'
+import { soggiorniPrecedenti, etichettaGiaStato, eraGiaStato, stessaPersona, chiEIlCliente } from './clienteCheTorna.ts'
 
 const OGGI = '2026-09-05'
 const b = (id: string, check_in: string, check_out: string, guests: { full_name?: string | null; phone?: string | null } | null, extra: Record<string, unknown> = {}) =>
@@ -166,4 +166,16 @@ test('scheda cliente: un segmento «in attesa» ferma il soggiorno e i suoi rica
     { id: 'sola', check_in: '2026-07-01', check_out: '2026-07-05', status: 'completata', total_amount: 100 },
   ]
   assert.deepEqual(soggiorniConclusi(righe, OGGI), { n: 1, ricaviCent: 10000 })
+})
+
+// La testa della proposta dice sempre chi è (Ania, 12/09/2026)
+test('chi è il cliente: già stata qui, già in archivio, prima volta', () => {
+  assert.equal(chiEIlCliente(3, true), 'Già stata qui 3 volte')
+  assert.equal(chiEIlCliente(1, true), 'Già stata qui 1 volta')
+  // in archivio ma senza soggiorni conclusi: si dice lo stesso
+  assert.equal(chiEIlCliente(0, true), 'Cliente già in archivio')
+  // davvero nuova
+  assert.equal(chiEIlCliente(0, false), 'Prima volta')
+  // i soggiorni conclusi vincono sempre sull'archivio
+  assert.equal(chiEIlCliente(2, false), 'Già stata qui 2 volte')
 })

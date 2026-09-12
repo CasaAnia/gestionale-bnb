@@ -838,6 +838,7 @@ export default function PropostaPage() {
         problematico={problematico}
         motivoProblematico={guest?.motivo_problematico ?? null}
         volte={soggiorni.volte}
+        inArchivio={!!guest}
         provenienza={provenienzaInParole(guest ?? richiesta)}
         quando={`${CANALE_LABEL[richiesta.canale]} · ${oraArrivo(richiesta.created_at, adesso)}`}
         totaleCent={soggiorni.ricaviCent}

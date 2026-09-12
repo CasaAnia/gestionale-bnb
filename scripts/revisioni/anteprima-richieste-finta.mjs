@@ -57,6 +57,7 @@ const guests = [
   // Veste nuova della proposta (11/09/2026): una cliente che torna, con la
   // valutazione ottima e la ricevuta, per la testa del cliente e «Da controllare»
   { id: 'aaaaaaaa-0002-4000-8000-000000000002', phone: '+39 333 000 0080', full_name: 'Carmela Sabia', email: null, rating: 'ottimo', vuole_ricevuta: true, motivo_problematico: null, provenienza: 'altra_struttura', struttura_nome: 'Nida', notes: 'Dorme male con i rumori: darle la camera sul cortile.', created_at: ora, updated_at: ora },
+  { id: 'aaaaaaaa-0003-4000-8000-000000000003', phone: '+39 333 000 0303', full_name: 'Rosa Archivio', email: null, rating: 'normale', vuole_ricevuta: true, motivo_problematico: null, notes: null, created_at: ora, updated_at: ora },
 ]
 // Prenotazioni intorno a fra 10 giorni: Amelia e Ambra occupate, Allegra in
 // attesa (NON conta), Lena annullata (NON conta).
@@ -78,6 +79,8 @@ const bookings = [
   { id: 'bbbbbbbb-0013-4000-8000-000000000013', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(71), check_out: giorni(74), num_guests: 2, status: 'confermata', guest_name: 'Occupa Lena' },
   { id: 'bbbbbbbb-0003-4000-8000-000000000003', room_id: ROOM.allegra, guest_id: guests[0].id, check_in: giorni(10), check_out: giorni(12), num_guests: 2, status: 'in_attesa' },
   { id: 'bbbbbbbb-0004-4000-8000-000000000004', room_id: ROOM.lena, guest_id: guests[0].id, check_in: giorni(10), check_out: giorni(12), num_guests: 2, status: 'annullata' },
+  // Rosa Archivio: solo una prenotazione FUTURA, nessun soggiorno concluso
+  { id: 'bbbbbbbb-0030-4000-8000-000000000030', room_id: ROOM.ambra, guest_id: 'aaaaaaaa-0003-4000-8000-000000000003', check_in: giorni(200), check_out: giorni(202), num_guests: 2, status: 'confermata', total_amount: 160, guest_name: 'Rosa Archivio' },
   // Due soggiorni conclusi di Carmela Sabia: 680 + 680 = 1.360 € nella testa del cliente
   { id: 'bbbbbbbb-0020-4000-8000-000000000020', room_id: ROOM.ambra, guest_id: guests[1].id, check_in: giorni(-400), check_out: giorni(-396), num_guests: 2, status: 'completata', total_amount: 680, guest_name: 'Carmela Sabia' },
   { id: 'bbbbbbbb-0021-4000-8000-000000000021', room_id: ROOM.ambra, guest_id: guests[1].id, check_in: giorni(-140), check_out: giorni(-132), num_guests: 2, status: 'completata', total_amount: 680, guest_name: 'Carmela Sabia' },
@@ -124,6 +127,8 @@ const richieste = [
   richiesta({ nome: 'Anna', cognome: 'Vecchia', arrivo: '2026-10-29', partenza: '2026-10-31', persone: 3, canale: 'web', telefono: '+39 342 700 4355', created_at: fa(26), stato: 'proposta_inviata', proposta_inviata_at: fa(20),
     condizione_pagamento: 'arrivo',
     proposta_testo: 'Gentile Anna,\ngrazie per aver pensato a Casa Ania per il suo soggiorno.\n\nHo verificato le date che mi ha indicato. Dal 29 al 31 ottobre, per tre persone, posso proporle tre camere:\n\n– Lena, una camera tripla. Il prezzo per le due notti è di 180 €.\n\nGrazie mille,\nAnia – Casa Ania' }),
+  // La stessa Rosa che è in archivio: la testa deve dirlo
+  richiesta({ nome: 'Rosa', cognome: 'Archivio', arrivo: '2026-12-05', partenza: '2026-12-07', persone: 2, canale: 'telefono', telefono: '+39 333 000 0303', created_at: fa(19) }),
   // Camera chiesta dal cliente e libera: parte spuntata solo Ambra
   richiesta({ nome: 'Chiede', cognome: 'Ambra', arrivo: giorni(115), partenza: giorni(117), persone: 2, camera_id: ROOM.ambra, canale: 'web', telefono: '+39 333 000 0115', created_at: fa(4) }),
   // Cliente che torna (stesso telefono di Carmela Sabia): «Già stata qui 2

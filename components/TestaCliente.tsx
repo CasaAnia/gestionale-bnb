@@ -14,6 +14,7 @@ import Link from 'next/link'
 import { Phone, MessageCircle } from 'lucide-react'
 import { giornoConSettimana } from '@/lib/dateItaliane'
 import { personeTesta, caselleNotti, personeCambiano } from '@/lib/personeTesta'
+import { chiEIlCliente } from '@/lib/clienteCheTorna'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 const GRIGIO_RIGA = '#B9B6AD'          // la prima riga, quella minuta
@@ -35,8 +36,10 @@ export type TestaClienteProps = {
   /** cliente problematico: avviso rosso col motivo (vuoto = solo l'avviso) */
   problematico?: boolean
   motivoProblematico?: string | null
-  /** soggiorni conclusi precedenti: 0 = cliente nuovo */
+  /** soggiorni conclusi precedenti: 0 = nessuno concluso */
   volte?: number
+  /** il cliente è già nell'archivio, anche senza soggiorni conclusi */
+  inArchivio?: boolean
   /** da dove arriva il CLIENTE: «Google», «passaparola», «mandata da Nida».
    *  Solo per chi torna; senza, accanto alle volte non si scrive niente. */
   provenienza?: string | null
@@ -92,13 +95,16 @@ function Data({ iso, etichetta }: { iso: string; etichetta: string }) {
 
 export default function TestaCliente({
   nome, stella = false, ricevuta = false, problematico = false, motivoProblematico = null,
-  volte = 0, provenienza = null, quando = null, totaleCent = null, hrefCliente = null,
+  volte = 0, inArchivio = false, provenienza = null, quando = null, totaleCent = null, hrefCliente = null,
   arrivo, partenza, notti, personeNotti, nottiRichieste = [], cameraChiesta = null,
   telefono = null, telefonoDaChiamare = null, telefonoWhatsApp = null, avvisoTelefono = null, onScrivi,
   note = [], hrefModifica = null, testoModifica = 'Modifica la richiesta',
 }: TestaClienteProps) {
   const torna = volte > 0
-  const testoVolte = volte === 1 ? 'Già stata qui 1 volta' : `Già stata qui ${volte} volte`
+  // Chi è: già stata qui, oppure solo già in archivio (nessun soggiorno
+  // concluso: prenotazione futura, annullata, o solo una scheda). Un cliente
+  // davvero nuovo resta «Prima volta» (Ania, 12/09/2026).
+  const chiE = chiEIlCliente(volte, inArchivio)
   const totale = torna && totaleCent != null && totaleCent > 0 ? euroTondi(totaleCent) : null
   const pezziPersone = personeTesta(personeNotti)
   const caselle = personeCambiano(personeNotti) ? caselleNotti(nottiRichieste, personeNotti) : []
@@ -111,7 +117,7 @@ export default function TestaCliente({
           per chi torna, quanto ha speso in tutto. */}
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 truncate" style={{ fontSize: 12.5, color: GRIGIO_RIGA }}>
-          {torna ? testoVolte : 'Prima volta'}{torna && provenienza ? ` · ${provenienza}` : ''}
+          {chiE}{(torna || inArchivio) && provenienza ? ` · ${provenienza}` : ''}
         </p>
         <span className="shrink-0 text-right">
           {quando && <span data-quando-richiesta className="block whitespace-nowrap" style={{ fontSize: 12.5, color: GRIGIO_RIGA }}>{quando}</span>}

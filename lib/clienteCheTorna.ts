@@ -166,3 +166,14 @@ export function soggiorniDellaPersona(
   }
   return { volte, ricaviCent, ultimo }
 }
+
+// ── Chi è, nella testa della proposta (Ania, 12/09/2026) ────────────────────
+// Tre casi soltanto: è già stata qui (soggiorni CONCLUSI), è nell'archivio ma
+// senza soggiorni conclusi (prenotazione futura, annullata, o solo una
+// scheda), oppure è davvero nuova. Prima la testa diceva «Prima volta» anche
+// a chi era in archivio, e Ania se ne accorgeva solo aprendo la modifica.
+export function chiEIlCliente(volte: number, inArchivio: boolean): string {
+  if (volte === 1) return 'Già stata qui 1 volta'
+  if (volte > 1) return `Già stata qui ${volte} volte`
+  return inArchivio ? 'Cliente già in archivio' : 'Prima volta'
+}
