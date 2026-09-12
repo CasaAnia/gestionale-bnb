@@ -478,8 +478,14 @@ test('il selettore Reale/Presunta è lo stesso «Mese | 2 settimane» del Calend
   assert.match(calendario, /import InterruttorePillola from '@\/components\/InterruttorePillola'/)
   assert.match(calendario, /<InterruttorePillola voci=\{VOCI_GRIGLIA\}/)
   assert.match(calendario, /VOCI_GRIGLIA = \[\['mese', 'Mese'\], \['quindici', '2 settimane'\]\]/)
-  // e nessuna delle due si ridisegna per conto suo
-  assert.equal(/rounded-full border p-0\.5/.test(calendario), false, 'il Calendario ridisegna la pillola per conto suo')
+  // e anche il calendarietto dentro le Richieste, che era la terza copia
+  const calRichieste = readFileSync(new URL('../components/richieste/CalendarioRichieste.tsx', import.meta.url), 'utf8')
+  assert.match(calRichieste, /<InterruttorePillola voci=\{VOCI_CALENDARIO\}/)
+  assert.match(calRichieste, /VOCI_CALENDARIO = \[\['mese', 'Mese'\], \['quindici', '2 settimane'\]\]/)
+  // nessuno dei tre si ridisegna per conto suo
+  for (const [nome, testo] of [['il Calendario', calendario], ['il calendario delle Richieste', calRichieste]] as const) {
+    assert.equal(/rounded-full border p-0\.5/.test(testo), false, `${nome} ridisegna la pillola per conto suo`)
+  }
   assert.equal(/rounded-full/.test(vista), false, 'le Richieste ridisegnano la pillola per conto loro')
 })
 

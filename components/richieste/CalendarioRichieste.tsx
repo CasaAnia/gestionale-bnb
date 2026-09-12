@@ -13,6 +13,7 @@ import { nottiDellaRichiesta, periodiDelleNotti } from '@/lib/nottiRichieste'
 import { etichettaMese, spostaMese, chiaveRiga, RIGA_QUALSIASI, gruppiSovrapposti, sovrapposizioni, giorniDaInizio, spostaGiorni, etichettaPeriodo, GIORNI_QUINDICINA } from '@/lib/richiesteCalendario'
 import { nomeCompleto, nomeBreve, formatIntervallo, formatDateRichiesta, riassuntoPersone, scadenzaProposta, STATO_LABEL, type Richiesta } from '@/lib/richieste'
 import type { Vista } from '@/lib/richiesteVista'
+import InterruttorePillola from '@/components/InterruttorePillola'
 
 export type CameraCalendario = { id: string; name: string; active?: boolean }
 export type Ancora = { x: number; y: number }
@@ -20,6 +21,7 @@ export type Ancora = { x: number; y: number }
 // Modo del calendario desktop (blocco 2, 04/09/2026): «mese» oppure «2
 // settimane» (colonne larghe, etichette intere). Sul telefono resta il mese.
 export type ModoCalendario = 'mese' | 'quindici'
+const VOCI_CALENDARIO = [['mese', 'Mese'], ['quindici', '2 settimane']] as const satisfies readonly (readonly [ModoCalendario, string])[]
 
 type Props = {
   mese: string
@@ -269,15 +271,10 @@ export default function CalendarioRichieste(p: Props) {
       </button>
       <span className={`font-serif text-green-dark whitespace-nowrap ${p.layout === 'mobile' ? 'text-[14px]' : 'text-[17px]'}`}>{modo === 'quindici' ? etichettaPeriodo(giorni) : etichettaMese(p.mese)}</span>
       <div className="flex items-center gap-1">
+        {/* Lo stesso interruttore del Calendario e di «Reale | Presunta»:
+            il disegno sta in components/InterruttorePillola (Ania, 12/09/2026) */}
         {p.onModo && (
-          <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
-            {([['mese', 'Mese'], ['quindici', '2 settimane']] as const).map(([v, label]) => (
-              <button key={v} type="button" onClick={() => p.onModo!(v)} aria-pressed={modo === v}
-                className={`rounded-full whitespace-nowrap font-semibold transition-colors ${p.layout === 'mobile' ? 'px-2 py-1 text-[11px]' : 'px-3 py-1 text-xs'} ${modo === v ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
+          <InterruttorePillola voci={VOCI_CALENDARIO} scelta={modo} onScegli={p.onModo} nome="Vista del calendario" dati="modo-calendario" grande={p.layout !== 'mobile'} className="mr-1" />
         )}
         <button type="button" onClick={avanti} aria-label={modo === 'quindici' ? 'Due settimane dopo' : 'Mese successivo'}
           className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
