@@ -168,3 +168,49 @@ stesso testo in due punti: allineandolo qui tornano identici.
 Il file non è stato toccato perché è in carico a un'altra attività; le
 modifiche non salvate che porta (`app/prenotazioni/[id]/page.tsx`,
 `lib/condizioniPrenotazione.ts`) non sono state incluse in nessun commit.
+
+## Veste della pagina delle Richieste (12/09/2026, Claude)
+
+Pubblicata e verificata: commit `9accb26` e `bcc6615` su `main`, deploy Vercel
+`success` (Production). Bozza approvata da Ania: sopra e sotto il calendario
+adesso sono la stessa pagina, con le regole della Home.
+
+**Punto 1 — i comandi tutti della stessa famiglia** (`9accb26`).
+Nuovo `components/richieste/ComandiPagina.tsx`: l'interruttore squadrato (fondo
+`#EFEADF`, angoli 6, 2 px di bordo interno, parole alte 22 px in 11,5 bold, la
+scelta su bianco con angoli 4), «+ Nuova richiesta» (alto 24, sage, green-mid
+11,5 bold, angoli 4, 9 ai lati) e le etichettine degli avvisi (angoli 4, 11
+bold, 2 e 7 px). `InterruttoreVista` e «Ordina» sono lo STESSO interruttore:
+niente più bottoni tondi sparsi. Sul telefono i comandi stanno in tre righe
+sotto il calendario — interruttore e «+ Nuova richiesta», gli avvisi, «Ordina».
+In cima `components/richieste/TestataRichieste.tsx`: «Richieste» in Georgia 26
+e sotto `lib/testataRichieste.ts` → «28 aperte · 9 nuove dal sito».
+
+**Punto 2 — la riga della richiesta** (`bcc6615`).
+Riga separata dal filo `card-border`, 11 px sopra e sotto, senza riquadri.
+Etichettina blu `⧉ N altre` (`#DCE7ED` / `#3F6377`) DAVANTI al nome; nome 14,5
+semibold; «oggi / ieri / N giorni fa» in fondo a destra, 11 px `#B9B6AD`.
+Seconda riga 13 px `#6b736a` con date, notti, persone e camera: forti solo le
+PERSONE e la CAMERA chiesta (`pezziRigaRichiesta({ forte: 'persone-camera' })`).
+Ultima riga: la pastiglia `BOTTONE_PIENO` dei tasti WhatsApp (5 px sopra e
+sotto, 12 ai lati), «Modifica» e «Rifiuta» come parole 13 px stone a 14 px di
+distanza, e in fondo a destra le due icone nude 17 px green-mid. Tolti il tasto
+verde largo quanto la riga e i tondi col contorno.
+
+**Due scelte segnalate ad Ania.** La nota del cliente resta `#C00000`, non
+`#C0392B` come diceva il testo dell'incarico: «come nella Home» e la regola
+dell'8 settembre valgono di più di un codice colore vecchio. E l'etichettina
+blu con una sola richiesta dice «1 altra», non «1 altre».
+
+**Prove.** 1035 test verdi (`npm test`), TypeScript e build puliti; lint senza
+nuove diagnostiche sui file toccati. Nuovi casi in `lib/testataRichieste.test.ts`
+(la riga del conto), `lib/rigaRichiesta.test.ts` (riga unica nei vari casi,
+etichettina blu, ordine dei pezzi) e `lib/richieste.test.ts` (famiglia dei
+comandi, tre righe sotto il calendario, i quattro comandi dell'ultima riga con
+le loro misure, la nota rossa, il testo della pastiglia nei due stati).
+Anteprima senza rete a 390×844 (porta 3214): una richiesta piana è alta 97 px,
+una con nota o sovrapposizione 118–123 px; fra la barra in alto e il menu in
+basso se ne vedono 5 intere. Aree da toccare misurate a schermo: pastiglia 46,
+«Modifica» 50, icone 44, etichettina blu 48. La seconda riga sta in una riga
+sola nei casi normali; va a capo solo quando le persone cambiano più volte
+(«2 → 3 → 2»), invece di nascondere la camera.
