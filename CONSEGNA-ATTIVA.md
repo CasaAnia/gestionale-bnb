@@ -337,3 +337,34 @@ a quello di `5609e2d` (`git diff` vuoto). Le loro modifiche non salvate
 **«durata» e non «notti».** L'incarico diceva «Ordina per arrivo notti
 persone», ma la scelta più recente salvata è «durata». Chiesto ad Ania, che ha
 confermato «durata»: la riga si legge «Ordina per arrivo durata persone».
+
+## Il numero di telefono è obbligatorio (12/09/2026, Claude)
+
+Pubblicato e verificato: commit `248de2c` su `main`, deploy Vercel `success`
+(Production). Decisione di Ania: «la richiesta deve per forza avere il numero,
+se no il cliente non può mandare proprio la richiesta».
+
+Dal sito era già così (`validaRichiestaWeb`); il **modulo a mano** lo lasciava
+passare vuoto, e quelle richieste restavano senza le due icone per chiamare e
+scrivere — era il caso aperto della nota precedente, adesso chiuso. La regola
+sta in un posto solo: `numeroUsabile` in `lib/whatsapp.ts` (almeno 8 cifre
+dopo la normalizzazione), usata sia da `ModuloRichiesta` sia da
+`lib/richiesteWeb`. Messaggio nel modulo: «Il numero di telefono è
+obbligatorio: senza non si può né chiamare né scrivere.»
+
+Prove: 1040 test verdi, TypeScript e build puliti. Nuovi casi in
+`lib/whatsapp.test.ts` (numeri italiani, stranieri, vuoti e troppo corti; il
+modulo che controlla prima di salvare; la stessa regola nel percorso del
+sito). Nell'anteprima senza rete, dalla UI vera: salvataggio senza numero
+fermato col messaggio, poi con il numero la richiesta viene salvata e si torna
+all'elenco.
+
+**Attenzione al lavoro parallelo.** Mentre lavoravo, un'altra attività ha
+lavorato sugli stessi file nella stessa copia: ha fatto `git reset` su
+`2ee101e` e ha ricommittato («durata» come `b92184e`, poi `c24929e` con le due
+righe a 14 px e il titolo tolto). Il contenuto è coerente e i test passano,
+ma è successo quello che il metodo vieta: due autori sullo stesso file.
+Prima di continuare su questa pagina serve accordarsi su chi la tiene.
+
+Le richieste GIÀ salvate senza numero (dati vecchi) restano senza icone: la
+regola vale da adesso in avanti e non modifica le righe esistenti.
