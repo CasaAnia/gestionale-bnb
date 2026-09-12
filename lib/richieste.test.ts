@@ -371,8 +371,10 @@ test('sotto il calendario gli avvisi e l\u2019ordinamento sono parole, non pasti
   assert.match(comandi, /height: ALTEZZA_TASTO, padding: '0 9px', borderRadius: ANGOLI_VOCE, fontSize: 11\.5, fontWeight: 700/)
 
   // «N da guardare»: pallino d'ottone da 7 px, il conto in bold #7A5C1E, la
-  // coda in grigio; tutto in 12,5 px
-  assert.match(comandi, /const TESTO_RIGHE = 12\.5/)
+  // coda in grigio; tutto in 14 px — la misura minima chiesta da Ania, che i
+  // filtri di ieri (12,5) non rispettavano
+  assert.match(comandi, /const TESTO_RIGHE = 14\b/)
+  assert.equal(/TESTO_RIGHE = 1[0-3]/.test(comandi), false, 'le righe di parole sono scese sotto i 14 px')
   assert.match(comandi, /const OTTONE_SCURO = '#7A5C1E'/)
   assert.match(comandi, /width: 7, height: 7, borderRadius: '50%', background: OTTONE_PALLINO/)
   assert.match(comandi, /fontWeight: 700, color: OTTONE_SCURO \}\}>\{riga\.conto\}/)
@@ -386,8 +388,9 @@ test('sotto il calendario gli avvisi e l\u2019ordinamento sono parole, non pasti
   assert.match(comandi, /fontWeight: 700, color: 'var\(--color-green-mid\)', textDecoration: 'underline', textDecorationColor: OTTONE_CHIARO, textDecorationThickness: 1, textUnderlineOffset: 4/)
   assert.match(comandi, /<span className=\{TOCCO\}>Ordina per<\/span>/)
 
-  // tutto quello che si tocca è alto 44 px: 18 px di testo + 13 sopra e sotto
-  assert.match(comandi, /const TOCCO = 'py-\[13px\]'/)
+  // tutto quello che si tocca è alto 44 px: 20 px di riga + 12 sopra e sotto
+  assert.match(comandi, /const TOCCO = 'py-\[12px\]'/)
+  assert.match(comandi, /lineHeight: '20px'/)
   assert.match(comandi, /export const ALTEZZA_TOCCO = 44/)
 
   // le pastiglie degli avvisi e l'interruttore «Ordina» non ci sono più

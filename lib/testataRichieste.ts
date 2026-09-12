@@ -1,17 +1,17 @@
 // ============================================================================
-// LA TESTA DELLA PAGINA DELLE RICHIESTE (Ania, su bozza, 12/09/2026).
+// LA TESTA DELLA PAGINA DELLE RICHIESTE (Ania, dal telefono, 12/09/2026).
 //
-// Al posto del titolo lungo «Richieste di prenotazione» ci va «Richieste» in
-// Georgia, e sotto una riga sola che dice come sta la pagina:
+// In cima alla pagina c'è una riga sola, che dice come sta la pagina:
 //
 //   4 aperte · 2 nuove dal sito
+//
+// Il titolo («Richieste di prenotazione» prima, poi «Richieste» in Georgia)
+// non c'è più: lo dice già la barra in alto, e a schermo valeva una riga persa.
 //
 // Qui si decide COSA c'è scritto, la pagina decide come disegnarlo.
 // Le «nuove dal sito» si nominano solo quando ce n'è almeno una: una riga che
 // dice «0 nuove dal sito» fa rumore per niente.
 // ============================================================================
-
-export const TITOLO_RICHIESTE = 'Richieste'
 
 export function sottotitoloRichieste({ aperte, nuoveDalSito = 0 }: { aperte: number; nuoveDalSito?: number }): string {
   const quante = Math.max(0, Math.trunc(aperte))

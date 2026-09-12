@@ -357,10 +357,11 @@ function Richieste() {
           indietro, cioè a quella scheda. Nelle pagine di una richiesta la
           destinazione è sempre scritta: vedi ritornoDallaRichiesta. */}
       <BackBar onClick={() => (apriId ? smartBack(router, '/') : router.push('/'))} />
-      {/* Intestazione (Ania, su bozza, 12/09/2026): «Richieste» in Georgia e
-          sotto una riga sola che dice come sta la pagina — «4 aperte · 2 nuove
-          dal sito». Su desktop la testa sta a sinistra e i comandi, tutti della
-          stessa famiglia, le stanno accanto sulla stessa riga. */}
+      {/* Intestazione (Ania, dal telefono, 12/09/2026): una riga sola che dice
+          come sta la pagina — «4 aperte · 2 nuove dal sito». Il titolo
+          «Richieste» in Georgia che le stava sopra è stato tolto: lo dice già
+          la barra in alto. Su desktop la testa sta a sinistra e i comandi,
+          tutti della stessa famiglia, le stanno accanto sulla stessa riga. */}
       {desktop && !orizzontale ? (
         <div className="flex items-center flex-wrap gap-4 mb-4 min-h-[44px]">
           <TestataRichieste aperte={aperte.length} nuoveDalSito={nuoveWeb} mostraConto={!loading} className="mr-auto" />
@@ -376,7 +377,7 @@ function Richieste() {
           <CampoRicerca value={query} onChange={cambiaRicerca} className="flex-1 max-w-[360px]" />
         </div>
       ) : (
-        /* Telefono dritto: testa e ricerca, poi calendario, mesi, i comandi e la lista */
+        /* Telefono dritto: il conto e la ricerca, poi calendario, mesi, i comandi e la lista */
         <div className="flex flex-col gap-2 mb-3">
           <TestataRichieste aperte={aperte.length} nuoveDalSito={nuoveWeb} mostraConto={!loading} />
           <CampoRicerca value={query} onChange={cambiaRicerca} className="w-full" />

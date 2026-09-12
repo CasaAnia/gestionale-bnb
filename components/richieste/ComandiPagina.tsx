@@ -13,6 +13,9 @@ import { rigaDaGuardare } from '@/lib/comandiRichieste'
 //   • 3 da guardare · ferme da più di un giorno      ← si tocca, accende il filtro
 //   Ordina per  arrivo  notti  persone               ← la scelta sottolineata
 //
+// Le due righe sono in 14 px: Ania trovava troppo piccoli i filtri di ieri,
+// e 14 px è la misura minima, non una preferenza.
+//
 // Le «nuove dal sito» non hanno più un'etichettina: si leggono solo nel
 // sottotitolo in cima alla pagina («4 aperte · 2 nuove dal sito»).
 //
@@ -26,11 +29,13 @@ export const ALTEZZA_TASTO = 24       // «+ Nuova richiesta»
 export const ANGOLI_VOCE = 4
 export const ALTEZZA_TOCCO = 44
 
-const TESTO_RIGHE = 12.5              // le due righe di parole
+const TESTO_RIGHE = 14                // le due righe di parole: 14 px è la
+                                      // misura minima (Ania, 12/09/2026), i
+                                      // filtri di ieri erano troppo piccoli
 const OTTONE_SCURO = '#7A5C1E'        // «3 da guardare»
 const OTTONE_PALLINO = 'var(--color-brass)'
 const OTTONE_CHIARO = 'rgba(169,136,78,0.45)'   // la sottolineatura della scelta
-const TOCCO = 'py-[13px]'             // 18 px di testo + 13 sopra e 13 sotto = 44
+const TOCCO = 'py-[12px]'             // 20 px di riga + 12 sopra e 12 sotto = 44
 
 // ── «+ Nuova richiesta» ─────────────────────────────────────────────────────
 // Alto 24 px, fondo sage, testo green-mid 11,5 bold, angoli 4, 9 px ai lati.
@@ -55,7 +60,7 @@ export function RigaDaGuardare({ quante, acceso, onClick }: { quante: number; ac
   return (
     <button type="button" data-da-guardare aria-pressed={acceso} onClick={onClick}
       className={`flex items-center gap-1.5 text-left ${TOCCO} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-mid`}
-      style={{ fontSize: TESTO_RIGHE, lineHeight: '18px' }}>
+      style={{ fontSize: TESTO_RIGHE, lineHeight: '20px' }}>
       <span aria-hidden className="shrink-0" style={{ width: 7, height: 7, borderRadius: '50%', background: OTTONE_PALLINO }} />
       <span style={{ fontWeight: 700, color: OTTONE_SCURO }}>{riga.conto}</span>
       <span style={{ color: 'var(--color-stone)' }}>{riga.coda}</span>
@@ -75,7 +80,7 @@ export function RigaOrdina<T extends string>({ voci, scelta, onScegli, nome, cla
 }) {
   return (
     <div role="group" aria-label={nome} data-ordina className={`flex items-center flex-wrap gap-x-3 ${className}`}
-      style={{ fontSize: TESTO_RIGHE, lineHeight: '18px', color: 'var(--color-stone)' }}>
+      style={{ fontSize: TESTO_RIGHE, lineHeight: '20px', color: 'var(--color-stone)' }}>
       <span className={TOCCO}>Ordina per</span>
       {voci.map(([v, label]) => {
         const presa = scelta === v
