@@ -13,6 +13,7 @@
 import Link from 'next/link'
 import { Phone, MessageCircle } from 'lucide-react'
 import { giornoConSettimana } from '@/lib/dateItaliane'
+import { personeTesta } from '@/lib/personeTesta'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 const GRIGIO_RIGA = '#B9B6AD'          // la prima riga, quella minuta
@@ -22,6 +23,7 @@ const FILO_OTTONE = 'rgba(169,136,78,0.55)'
 const ROSSO_NOTA = '#C00000'   // il rosso della nota del cliente, scelto da Ania l'8/09/2026: uguale in Home, scheda e proposta
 const FILO_NOTA = '#E3CFC9'
 const ROSSO_AVVISO = '#8C3B2E'
+const MATTONE = '#8a4f2f'   // la notte in cui le persone cambiano
 
 export type TestaClienteProps = {
   /** «Nome Cognome», già composto (lib/guestName) */
@@ -47,10 +49,11 @@ export type TestaClienteProps = {
   arrivo: string
   partenza: string
   notti: number
-  /** «3 persone» oppure il riassunto notte per notte */
-  persone: string
-  /** «qualsiasi camera» oppure il nome della camera chiesta */
-  camera: string
+  /** le persone di ogni notte, in ordine: da qui nascono il valore grande
+   *  («3», «3 → 1», «da 1 a 3») e la strisciolina delle notti */
+  personeNotti: number[]
+  /** nome della camera chiesta dalla cliente; senza, vale «qualsiasi» */
+  cameraChiesta?: string | null
   /** numero come si legge: «342 700 4354» */
   telefono?: string | null
   /** cifre intere col prefisso, per chiamare */
@@ -88,13 +91,14 @@ function Data({ iso, etichetta }: { iso: string; etichetta: string }) {
 export default function TestaCliente({
   nome, stella = false, ricevuta = false, problematico = false, motivoProblematico = null,
   volte = 0, provenienza = null, quando = null, totaleCent = null, hrefCliente = null,
-  arrivo, partenza, notti, persone, camera,
+  arrivo, partenza, notti, personeNotti, cameraChiesta = null,
   telefono = null, telefonoDaChiamare = null, telefonoWhatsApp = null, avvisoTelefono = null, onScrivi,
   note = [], hrefModifica = null, testoModifica = 'Modifica la richiesta',
 }: TestaClienteProps) {
   const torna = volte > 0
   const testoVolte = volte === 1 ? 'Già stata qui 1 volta' : `Già stata qui ${volte} volte`
   const totale = torna && totaleCent != null && totaleCent > 0 ? euroTondi(totaleCent) : null
+  const pezziPersone = personeTesta(personeNotti)
   const notePulite = note.map(n => ({ ...n, testo: (n.testo ?? '').trim() })).filter(n => n.testo)
 
   return (
@@ -134,11 +138,28 @@ export default function TestaCliente({
         <Data iso={partenza} etichetta="partenza" />
       </div>
 
-      {/* Quante persone e quale camera hanno chiesto */}
-      <p className="text-center" style={{ borderTop: `1px solid ${FILO_OTTONE}`, paddingTop: 16, fontSize: 14, color: 'var(--color-green-dark)' }}>
-        <span className="font-semibold">{persone}</span>
-        <span style={{ color: 'var(--color-stone)' }}> · {camera}</span>
-      </p>
+      {/* Quante persone e quale camera: stessa forma delle date sopra —
+          valore grande, etichetta piccola sotto (Ania, 12/09/2026) */}
+      <div style={{ borderTop: `1px solid ${FILO_OTTONE}`, paddingTop: 16 }}>
+        <div className="flex items-start justify-center" style={{ gap: 44 }}>
+          <div className="text-center" data-persone-testa>
+            <p className="leading-[1.15]" style={{ fontFamily: GEORGIA, fontWeight: 400 }}>
+              {pezziPersone.map((x, i) => (
+                <span key={i} style={x.grande
+                  ? { fontSize: 24, color: 'var(--color-green-dark)' }
+                  : { fontSize: 15, color: VERDE_MESE }}>{i > 0 ? ' ' : ''}{x.testo}</span>
+              ))}
+            </p>
+            <p style={{ marginTop: 6, fontSize: 9, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--color-stone)' }}>persone</p>
+          </div>
+          <div className="text-center min-w-0" data-camera-testa>
+            <p className="leading-[1.15] truncate" style={{ fontFamily: GEORGIA, fontWeight: 400, fontSize: 24, color: 'var(--color-green-dark)' }}>
+              {cameraChiesta || 'qualsiasi'}
+            </p>
+            <p style={{ marginTop: 6, fontSize: 9, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--color-stone)' }}>{cameraChiesta ? 'camera chiesta' : 'camera'}</p>
+          </div>
+        </div>
+      </div>
 
       {/* Come si chiama il cliente: telefono e WhatsApp */}
       {(telefono || telefonoWhatsApp) && (

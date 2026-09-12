@@ -330,37 +330,3 @@ export function pianoModifica(
   }
   return { campi, propostaSuperata, avviso: propostaSuperata ? AVVISO_PROPOSTA_SUPERATA : null, errore: null }
 }
-
-// ── Persone per notte, in parole (Ania, 11/09/2026) ─────────────────────────
-// Nella testa della proposta «29: 1 · 30: 3» non si capisce. Si scrive a
-// parole, unendo le notti con lo stesso numero di persone:
-//   «3 persone»                             tutte le notti uguali
-//   «1 persona il 29, 3 il 30»
-//   «2 persone il 29 e il 30, 3 il 31»
-// Il mese si scrive solo quando le notti ne attraversano più d'uno.
-export function personeInParole(arrivo: string, persone: number[]): string {
-  if (persone.length === 0) return ''
-  const tutte = persone[0]
-  if (persone.every(p => p === tutte)) return `${tutte} ${tutte === 1 ? 'persona' : 'persone'}`
-  const giorni: { g: number; m: number }[] = []
-  let t = Date.parse(arrivo + 'T00:00:00Z')
-  for (let i = 0; i < persone.length; i++, t += 86400000) { const d = new Date(t); giorni.push({ g: d.getUTCDate(), m: d.getUTCMonth() }) }
-  const piuMesi = new Set(giorni.map(x => x.m)).size > 1
-  const quando = (da: number, a: number) => {
-    const voci: string[] = []
-    for (let i = da; i <= a; i++) voci.push(`il ${giorni[i].g}${piuMesi ? ` ${MESI[giorni[i].m]}` : ''}`)
-    return voci.length === 1 ? voci[0] : `${voci.slice(0, -1).join(', ')} e ${voci[voci.length - 1]}`
-  }
-  const pezzi: string[] = []
-  let da = 0
-  for (let i = 1; i <= persone.length; i++) {
-    if (i === persone.length || persone[i] !== persone[da]) {
-      const n = persone[da]
-      // la parola «persona/persone» si dice una volta sola, all'inizio
-      const testa = pezzi.length === 0 ? `${n} ${n === 1 ? 'persona' : 'persone'}` : String(n)
-      pezzi.push(`${testa} ${quando(da, i - 1)}`)
-      da = i
-    }
-  }
-  return pezzi.join(', ')
-}
