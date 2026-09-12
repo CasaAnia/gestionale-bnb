@@ -343,3 +343,31 @@ test('la nota del cliente centrata è 13,5 px e resta rossa', () => {
   assert.match(nota, /centrata \? 'text-\[13\.5px\] text-center'/)
   assert.match(nota, /#C00000/)
 })
+
+// ── I COMANDI SOTTO IL CALENDARIO (Ania, su bozza, 12/09/2026) ─────────────
+// Sotto il calendario devono restare bassi: lo spazio serve alle richieste.
+test('i comandi sotto il calendario hanno le misure ridotte', () => {
+  const interruttore = readFileSync(new URL('../components/richieste/InterruttoreVista.tsx', import.meta.url), 'utf8')
+  // pillola grigio crema con 3 px di bordo interno; la voce scelta su bianco
+  assert.match(interruttore, /const CREMA = '#EFEADF'/)
+  assert.match(interruttore, /padding: 3/)
+  assert.match(interruttore, /fontSize: 12\.5/)
+  assert.match(interruttore, /fontWeight: 600/)
+  assert.match(interruttore, /color: scelta \? 'var\(--color-green-dark\)' : 'var\(--color-stone\)'/)
+  assert.match(interruttore, /background: scelta \? '#fff' : 'transparent'/)
+  assert.match(interruttore, /boxShadow: scelta \?/)
+  // niente più i due bottoni grandi verdi
+  assert.equal(/bg-green-mid/.test(interruttore), false)
+
+  const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
+  // «+ Nuova richiesta» piccolo e bianco, non pieno verde
+  assert.match(pagina, /const BOTTONE_PICCOLO = 'inline-flex items-center justify-center shrink-0 bg-white border border-green-mid text-green-mid font-bold/)
+  assert.match(pagina, /MISURA_BOTTONE_PICCOLO = \{ fontSize: 12\.5, borderRadius: 10, padding: '6px 12px' \}/)
+  // le due pastiglie basse
+  assert.match(pagina, /MISURA_PASTIGLIA = \{ fontSize: 11\.5, padding: '4px 10px' \}/)
+  assert.match(pagina, /data-pastiglia="dal-sito" className=\{`\$\{PASTIGLIA\} bg-green-mid text-cream-text`\}/)
+  // interruttore a sinistra e tasto a destra sulla stessa riga, pastiglie sotto
+  const riga = pagina.indexOf('<InterruttoreVista vista={vista} onChange={setVista} />\n                <Link href="/richieste/nuova" data-nuova-richiesta')
+  assert.notEqual(riga, -1, 'interruttore e «+ Nuova richiesta» non sono sulla stessa riga')
+  assert.ok(riga < pagina.indexOf('data-pastiglia="dal-sito"'), 'le pastiglie non stanno sotto')
+})

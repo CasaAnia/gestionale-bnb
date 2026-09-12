@@ -46,6 +46,13 @@ const GRIGIO_NOTA = '#6b6b60'
 
 // Pulsante pieno verde con testo crema: unico stile dell'azione principale.
 const BOTTONE_PIENO = 'inline-flex items-center justify-center bg-green-mid text-cream-text rounded-xl px-5 py-3 font-semibold text-[15px] active:opacity-80 transition-opacity'
+// Sotto il calendario i comandi non devono rubare spazio alle richieste
+// (Ania, su bozza, 12/09/2026): «+ Nuova richiesta» resta un tasto ma piccolo
+// e bianco, e i due avvisi diventano pastiglie basse.
+const BOTTONE_PICCOLO = 'inline-flex items-center justify-center shrink-0 bg-white border border-green-mid text-green-mid font-bold active:bg-sage transition-colors'
+const MISURA_BOTTONE_PICCOLO = { fontSize: 12.5, borderRadius: 10, padding: '6px 12px' } as const
+const PASTIGLIA = 'chip-in inline-flex items-center gap-1.5 rounded-full font-semibold'
+const MISURA_PASTIGLIA = { fontSize: 11.5, padding: '4px 10px' } as const
 
 const oggiIso = () => {
   const d = new Date()
@@ -447,21 +454,23 @@ function Richieste() {
           {/* Telefono, dritto e girato (05/09/2026): Reale/Presunta, «+ Nuova richiesta» e contatori sotto il calendario */}
           {(!desktop || orizzontale) && (
             <>
-              <div className="flex items-center justify-between gap-3 mt-4">
+              {/* Interruttore a sinistra, «+ Nuova richiesta» a destra; le due
+                  pastiglie sulla riga sotto (Ania, su bozza, 12/09/2026) */}
+              <div className="flex items-center justify-between gap-3 mt-3">
                 <InterruttoreVista vista={vista} onChange={setVista} />
-                {nuovaRichiesta('py-2.5')}
+                <Link href="/richieste/nuova" data-nuova-richiesta className={BOTTONE_PICCOLO} style={MISURA_BOTTONE_PICCOLO}>+ Nuova richiesta</Link>
               </div>
               {!loading && (nuoveWeb > 0 || ferme.length > 0) && (
-                <div className="flex flex-wrap items-center gap-2 mt-3">
+                <div className="flex flex-wrap items-center gap-2 mt-2">
                   {nuoveWeb > 0 && (
-                    <p className="chip-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold bg-green-mid text-cream-text">
-                      <Globe size={14} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
+                    <p data-pastiglia="dal-sito" className={`${PASTIGLIA} bg-green-mid text-cream-text`} style={MISURA_PASTIGLIA}>
+                      <Globe size={12} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
                     </p>
                   )}
                   {ferme.length > 0 && (
-                    <button type="button" onClick={() => setSoloDaGuardare(v => !v)} aria-pressed={soloDaGuardare}
-                      className={`chip-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors ${soloDaGuardare ? 'text-cream-text' : 'bg-white'}`}
-                      style={soloDaGuardare ? { background: '#A9884E', borderColor: '#A9884E' } : { color: '#A9884E', borderColor: '#A9884E' }}>
+                    <button type="button" data-pastiglia="da-guardare" onClick={() => setSoloDaGuardare(v => !v)} aria-pressed={soloDaGuardare}
+                      className={`${PASTIGLIA} border transition-colors ${soloDaGuardare ? 'text-cream-text' : 'bg-white'}`}
+                      style={soloDaGuardare ? { ...MISURA_PASTIGLIA, background: '#A9884E', borderColor: '#A9884E' } : { ...MISURA_PASTIGLIA, color: '#A9884E', borderColor: '#A9884E' }}>
                       {ferme.length} da guardare{soloDaGuardare ? ' · mostra tutte' : ''}
                     </button>
                   )}
