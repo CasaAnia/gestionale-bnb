@@ -854,7 +854,7 @@ export default function PropostaPage() {
         avvisoTelefono={telefonoNorm.avviso}
         onScrivi={() => telefono && openWhatsApp(telefono, '')}
         note={noteTesta}
-        hrefModifica={linkModificaRichiesta(richiesta)}
+        hrefModifica={linkModificaRichiesta(richiesta, 'proposta')}
       />
       {/* timer delle 3 ore: stesso testo della lista e del tooltip del calendario */}
       <RigaScadenza r={richiesta} adesso={adesso} className="mt-3 text-center" />

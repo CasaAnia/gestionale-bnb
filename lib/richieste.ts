@@ -302,7 +302,16 @@ export const modificabile = (r: { stato: StatoRichiesta }) => r.stato === 'in_at
 // SEMPRE, per qualunque stato e in qualunque momento (Ania, 11/09/2026).
 // Prima nella pagina della proposta veniva nascosto sulle richieste chiuse e
 // mentre si aspettava la risposta a «L'hai inviata?», e sembrava sparito.
-export const linkModificaRichiesta = (r: { id: string }) => `/richieste/${r.id}/modifica`
+// `da` dice da dove si è arrivati, così dopo il salvataggio (o con «Indietro»)
+// si torna lì e non sempre all'elenco (Ania, 12/09/2026).
+export type DaDoveModifica = 'proposta' | 'elenco'
+export const linkModificaRichiesta = (r: { id: string }, da: DaDoveModifica = 'elenco') =>
+  `/richieste/${r.id}/modifica${da === 'proposta' ? '?da=proposta' : ''}`
+
+// Dove si torna finita la modifica: alla pagina da cui si è arrivati.
+export function ritornoDallaModifica(id: string, da: string | null | undefined): string {
+  return da === 'proposta' ? `/richieste/${id}/proposta` : '/richieste'
+}
 
 export function pianoModifica(
   originale: Pick<Richiesta, 'stato' | 'arrivo' | 'partenza' | 'persone' | 'camera_id'> & { notti_richieste?: string[] | null; persone_per_notte?: number[] | null; proposta_testo?: string | null; proposta_soluzione?: unknown; proposta_inviata_at?: string | null; proposte_precedenti?: PropostaPrecedente[] | null },

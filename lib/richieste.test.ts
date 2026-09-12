@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare, nuoveDalSito, rigaChiusa, riapribile, eRifiutata,
-  riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta, linkModificaRichiesta } from './richieste.ts'
+  riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta, linkModificaRichiesta, ritornoDallaModifica } from './richieste.ts'
 
 const locale = (a: number, m: number, g: number, h = 12, min = 0) => new Date(a, m - 1, g, h, min)
 const adesso = locale(2026, 9, 2, 9, 0)
@@ -185,4 +185,21 @@ test('il link per modificare c’è per qualunque stato della richiesta', () => 
   }
   // non guarda lo stato: basta l'id
   assert.equal(linkModificaRichiesta({ id: 'abc-123' }), '/richieste/abc-123/modifica')
+})
+
+// Dopo «Modifica la richiesta» si torna da dove si era arrivati (Ania, 12/09/2026)
+test('il link della modifica porta con sé da dove si è arrivati', () => {
+  assert.equal(linkModificaRichiesta({ id: 'r1' }), '/richieste/r1/modifica')
+  assert.equal(linkModificaRichiesta({ id: 'r1' }, 'elenco'), '/richieste/r1/modifica')
+  assert.equal(linkModificaRichiesta({ id: 'r1' }, 'proposta'), '/richieste/r1/modifica?da=proposta')
+})
+
+test('finita la modifica si torna alla pagina di partenza', () => {
+  // dalla proposta si torna alla proposta, col messaggio già rifatto
+  assert.equal(ritornoDallaModifica('r1', 'proposta'), '/richieste/r1/proposta')
+  // dall'elenco (o senza indicazione) si torna all'elenco
+  assert.equal(ritornoDallaModifica('r1', 'elenco'), '/richieste')
+  assert.equal(ritornoDallaModifica('r1', null), '/richieste')
+  assert.equal(ritornoDallaModifica('r1', undefined), '/richieste')
+  assert.equal(ritornoDallaModifica('r1', 'qualcosa-di-strano'), '/richieste')
 })
