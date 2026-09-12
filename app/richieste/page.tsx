@@ -26,6 +26,7 @@ import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoInte
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
 import { altreStesseDate, gruppoStesseDate, etichettaStesseDate, sottotitoloGruppo, contatoreGruppo, VEDI_TUTTE } from '@/lib/richiesteStesseDate'
 import { periodoConGiorni } from '@/lib/dateItaliane'
+import { smartBack } from '@/lib/navHistory'
 import { nomeOspite } from '@/lib/guestName'
 import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
@@ -353,7 +354,11 @@ function Richieste() {
 
   return (
     <div className="p-4">
-      <BackBar href="/" />
+      {/* La freccia torna alla Home, da dove si entra nelle Richieste. Solo
+          arrivando dalla scheda di una prenotazione (?apri=) si torna davvero
+          indietro, cioè a quella scheda. Nelle pagine di una richiesta la
+          destinazione è sempre scritta: vedi ritornoDallaRichiesta. */}
+      <BackBar onClick={() => (apriId ? smartBack(router, '/') : router.push('/'))} />
       {/* Intestazione: su desktop (blocco 2c) titolo, Reale/Presunta, Nuova richiesta e
           contatori su UNA riga con spaziatura uniforme; sul telefono com'era */}
       {desktop && !orizzontale ? (

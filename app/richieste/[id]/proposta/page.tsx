@@ -17,7 +17,7 @@
 // bottone «Cambia».
 // ============================================================================
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { X } from 'lucide-react'
 import BackBar from '@/components/BackBar'
 import TestaCliente from '@/components/TestaCliente'
@@ -57,7 +57,7 @@ import { nottiDellaRichiesta } from '@/lib/nottiRichieste'
 import { giorniTra } from '@/lib/richiesteCalendario'
 import { periodoCompatto } from '@/lib/dateItaliane'
 import {
-  CANALE_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, tempoTrascorso, riassuntoPerNotte, linkModificaRichiesta, eAperta, type Richiesta,
+  CANALE_LABEL, nomeCompleto, nottiRichiesta, formatIntervallo, oraArrivo, tempoTrascorso, riassuntoPerNotte, linkModificaRichiesta, eAperta, ritornoDallaRichiesta, type Richiesta,
 } from '@/lib/richieste'
 import type { Room } from '@/lib/types'
 
@@ -108,6 +108,9 @@ function soluzioneInParole(s: Soluzione): string {
 export default function PropostaPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  // Da dove si è arrivati: la freccia «Indietro» ci riporta lì, senza chiedere
+  // niente alla cronologia del browser. Senza `?da=` si torna alle Richieste.
+  const indietro = ritornoDallaRichiesta(useSearchParams().get('da'))
   const desktop = useDesktop()
   const [richiesta, setRichiesta] = useState<Richiesta & { proposta_testo?: string | null; proposta_soluzione?: Soluzione | null; proposta_alternative?: Soluzione[] | null } & Partial<CondizioniSalvate> | null>(null)
   const [camere, setCamere] = useState<Room[]>([])
@@ -676,7 +679,7 @@ export default function PropostaPage() {
     setOccupato(null)
     setDaRifiutare(false)
     if (error) { setErrore(`Rifiuto non riuscito: ${error}`); return }
-    router.push('/richieste')
+    router.push(indietro)
   }
 
   async function immagineSuDispositivo() {
@@ -693,8 +696,8 @@ export default function PropostaPage() {
     setOccupato(null)
   }
 
-  if (loading) return <div className="p-4"><BackBar href="/richieste" /><div className="text-center py-10 text-stone">Caricamento…</div></div>
-  if (!richiesta) return <div className="p-4"><BackBar href="/richieste" /><div className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore || 'Richiesta non trovata.'}</div></div>
+  if (loading) return <div className="p-4"><BackBar onClick={() => router.push(indietro)} /><div className="text-center py-10 text-stone">Caricamento…</div></div>
+  if (!richiesta) return <div className="p-4"><BackBar onClick={() => router.push(indietro)} /><div className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore || 'Richiesta non trovata.'}</div></div>
 
   const n = nottiRichiesta(richiesta)
   const problematico = valutazioneDi(guest) === 'problematico'
@@ -829,7 +832,7 @@ export default function PropostaPage() {
   return (
     /* Margini laterali 22 px (Ania, 11/09/2026): la pagina respira. */
     <div className="py-4 px-[22px] md:max-w-[620px] md:mx-auto">
-      <div className="-mx-[6px]"><BackBar href="/richieste" /></div>
+      <div className="-mx-[6px]"><BackBar onClick={() => router.push(indietro)} /></div>
 
       <TestaCliente
         nome={nomeCompleto(richiesta)}

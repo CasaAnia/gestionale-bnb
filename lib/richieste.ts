@@ -313,6 +313,43 @@ export function ritornoDallaModifica(id: string, da: string | null | undefined):
   return da === 'proposta' ? `/richieste/${id}/proposta` : '/richieste'
 }
 
+// ── DOVE RIPORTA LA FRECCIA «INDIETRO» NEL GIRO DELLE RICHIESTE ────────────
+// (Ania, dal telefono, 12/09/2026)
+//
+// Prima la freccia non aveva una destinazione: chiedeva al browser di fare un
+// passo indietro nella cronologia (lib/navHistory) e la pagina scritta nel
+// codice serviva soltanto di riserva. Bastava che la cronologia non
+// coincidesse col giro dentro l'app — una richiesta aperta dalla Home o da
+// una notifica, l'app riaperta, il rimbalzo /richieste/<id> → …/proposta che
+// il conteggio dei passi conta due volte — e il passo indietro finiva sulla
+// pagina precedente del browser: la Home, dove Ania non era mai stata.
+//
+// Adesso ogni pagina del giro dice dove si torna. `?da=` porta il punto di
+// partenza da una pagina all'altra; senza indicazione si torna SEMPRE
+// all'elenco delle Richieste. La Home solo se si veniva davvero dalla Home.
+export type DaDoveRichiesta = 'elenco' | 'home'
+
+// Il `?da=` letto dall'indirizzo: qualunque altro valore vale «elenco», così
+// un indirizzo storto (o vecchio) non può mai portare fuori dalle Richieste.
+export function daDoveRichiesta(raw: string | null | undefined): DaDoveRichiesta {
+  return raw === 'home' ? 'home' : 'elenco'
+}
+
+// Dove torna la freccia dalla pagina di una richiesta (la proposta).
+export function ritornoDallaRichiesta(raw: string | null | undefined): string {
+  return daDoveRichiesta(raw) === 'home' ? '/' : '/richieste'
+}
+
+// Il link per aprire una richiesta, col punto di partenza dentro.
+export function linkRichiesta(id: string, da: DaDoveRichiesta = 'elenco'): string {
+  return da === 'home' ? `/richieste/${id}?da=home` : `/richieste/${id}`
+}
+
+// /richieste/<id> rimbalza sulla proposta: il punto di partenza non si perde.
+export function propostaDellaRichiesta(id: string, raw: string | null | undefined): string {
+  return daDoveRichiesta(raw) === 'home' ? `/richieste/${id}/proposta?da=home` : `/richieste/${id}/proposta`
+}
+
 export function pianoModifica(
   originale: Pick<Richiesta, 'stato' | 'arrivo' | 'partenza' | 'persone' | 'camera_id'> & { notti_richieste?: string[] | null; persone_per_notte?: number[] | null; proposta_testo?: string | null; proposta_soluzione?: unknown; proposta_inviata_at?: string | null; proposte_precedenti?: PropostaPrecedente[] | null },
   nuovi: ValoriModifica,

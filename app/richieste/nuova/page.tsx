@@ -10,7 +10,8 @@ export default function NuovaRichiesta() {
   const router = useRouter()
   return (
     <div className="p-4">
-      <BackBar href="/richieste" />
+      {/* Si arriva qui solo dalle Richieste: la freccia ci riporta lì di sicuro */}
+      <BackBar onClick={() => router.push('/richieste')} />
       <h1 className="ed-titolo-medio mb-4 max-lg:hidden">Nuova richiesta</h1>
       <ModuloRichiesta etichettaSalva="Salva richiesta" notaSotto="Va in «In attesa». Nessun messaggio parte da qui."
         onSalva={async valori => {

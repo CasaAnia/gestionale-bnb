@@ -1,8 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare, nuoveDalSito, rigaChiusa, riapribile, eRifiutata,
-  riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta, linkModificaRichiesta, ritornoDallaModifica } from './richieste.ts'
+  riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta, linkModificaRichiesta, ritornoDallaModifica,
+  daDoveRichiesta, ritornoDallaRichiesta, linkRichiesta, propostaDellaRichiesta } from './richieste.ts'
 
 const locale = (a: number, m: number, g: number, h = 12, min = 0) => new Date(a, m - 1, g, h, min)
 const adesso = locale(2026, 9, 2, 9, 0)
@@ -202,4 +204,71 @@ test('finita la modifica si torna alla pagina di partenza', () => {
   assert.equal(ritornoDallaModifica('r1', null), '/richieste')
   assert.equal(ritornoDallaModifica('r1', undefined), '/richieste')
   assert.equal(ritornoDallaModifica('r1', 'qualcosa-di-strano'), '/richieste')
+})
+
+// ── LA FRECCIA «INDIETRO» NEL GIRO DELLE RICHIESTE (Ania, 12/09/2026) ──────
+// Aprendo una richiesta del gruppo e toccando «Indietro» si finiva sulla Home,
+// dove Ania non era mai stata: la freccia faceva un passo nella cronologia del
+// browser invece di andare in una pagina decisa. Adesso la destinazione è
+// scritta, e la Home si raggiunge solo se si veniva davvero dalla Home.
+
+test('senza indicazione si torna SEMPRE alle Richieste, mai alla Home', () => {
+  assert.equal(ritornoDallaRichiesta(null), '/richieste')
+  assert.equal(ritornoDallaRichiesta(undefined), '/richieste')
+  assert.equal(ritornoDallaRichiesta(''), '/richieste')
+  assert.equal(ritornoDallaRichiesta('elenco'), '/richieste')
+  // aperta da una notifica push (/richieste/<id>, senza ?da=): si torna all'elenco
+  assert.equal(ritornoDallaRichiesta('Home'), '/richieste')
+  assert.equal(ritornoDallaRichiesta('/'), '/richieste')
+  assert.equal(ritornoDallaRichiesta('qualcosa-di-strano'), '/richieste')
+})
+
+test('dalla Home si torna alla Home', () => {
+  assert.equal(daDoveRichiesta('home'), 'home')
+  assert.equal(ritornoDallaRichiesta('home'), '/')
+})
+
+test('il link della Home porta con sé il punto di partenza', () => {
+  assert.equal(linkRichiesta('r1', 'home'), '/richieste/r1?da=home')
+  // dall'elenco (che è il caso normale) l'indirizzo resta pulito
+  assert.equal(linkRichiesta('r1'), '/richieste/r1')
+  assert.equal(linkRichiesta('r1', 'elenco'), '/richieste/r1')
+})
+
+test('il rimbalzo sulla proposta non perde il punto di partenza', () => {
+  // /richieste/<id> porta sempre alla proposta: è lì che si lavora
+  assert.equal(propostaDellaRichiesta('r1', null), '/richieste/r1/proposta')
+  assert.equal(propostaDellaRichiesta('r1', 'elenco'), '/richieste/r1/proposta')
+  assert.equal(propostaDellaRichiesta('r1', 'home'), '/richieste/r1/proposta?da=home')
+  // e la freccia della proposta legge quello stesso `da`
+  assert.equal(ritornoDallaRichiesta('home'), '/')
+})
+
+test('tornando all\'elenco non si riaccende nessun filtro', () => {
+  // l'indirizzo del ritorno è l'elenco intero: niente gruppo, niente ricerca
+  for (const da of [null, undefined, 'elenco', 'strano']) {
+    assert.equal(ritornoDallaRichiesta(da), '/richieste')
+  }
+  assert.equal(ritornoDallaModifica('r1', 'elenco'), '/richieste')
+})
+
+// La freccia deve avere una destinazione anche nel codice: `href` su BackBar
+// significa «fai un passo nella cronologia e usa questa pagina solo di
+// riserva», ed è proprio quello che portava sulla Home. Nelle pagine delle
+// Richieste ci va sempre `onClick`, cioè la pagina decisa.
+test('nelle pagine delle Richieste la freccia va in una pagina decisa, non nella cronologia', () => {
+  const pagine = [
+    'app/richieste/page.tsx',
+    'app/richieste/nuova/page.tsx',
+    'app/richieste/[id]/modifica/page.tsx',
+    'app/richieste/[id]/proposta/page.tsx',
+  ]
+  for (const p of pagine) {
+    const testo = readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+    assert.equal(/<BackBar href=/.test(testo), false, `${p}: la freccia si affida ancora alla cronologia`)
+    assert.equal(/<BackBar onClick=/.test(testo), true, `${p}: manca la freccia con la destinazione`)
+  }
+  // il rimbalzo /richieste/<id> → …/proposta conserva il punto di partenza
+  const rimbalzo = readFileSync(new URL('../app/richieste/[id]/page.tsx', import.meta.url), 'utf8')
+  assert.equal(/propostaDellaRichiesta\(id, da\)/.test(rimbalzo), true)
 })

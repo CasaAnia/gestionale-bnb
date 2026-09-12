@@ -28,7 +28,7 @@
 // pagamenti, fatture; le sovrapposizioni del calendario restano un controllo
 // nascosto che compare IN FONDO solo se mai si verifica.
 // ============================================================================
-import { scadenzaProposta, nomeCompleto, formatIntervallo, nottiRichiesta, STATI_APERTI, ORE_SCADENZA_PROPOSTA, type StatoRichiesta } from './richieste.ts'
+import { scadenzaProposta, nomeCompleto, formatIntervallo, nottiRichiesta, linkRichiesta, STATI_APERTI, ORE_SCADENZA_PROPOSTA, type StatoRichiesta } from './richieste.ts'
 import { nomeOspite } from './guestName.ts'
 import { spostaGiorni } from './statistiche/periodo.ts'
 import { cent, prenotazioneValida, type PrenotazioneStat, type PagamentoStat, type DocumentoStat } from './statistiche/tipi.ts'
@@ -43,7 +43,7 @@ export type Urgenza = 'alta' | 'normale'
 
 // Dove porta l'unico bottone della voce: il punto esatto da sistemare
 export type Destinazione =
-  | { tipo: 'richiesta'; id: string }                 // /richieste/<id>
+  | { tipo: 'richiesta'; id: string }                 // /richieste/<id>?da=home
   | { tipo: 'saldo'; prenotazioneId: string }          // scheda prenotazione con «Segna come pagato» aperto
   | { tipo: 'prenotazione'; prenotazioneId: string }   // scheda prenotazione (movimenti oltre il totale)
   | { tipo: 'calendario'; giorno: string }             // calendario sul giorno
@@ -486,7 +486,9 @@ export function rigaAPosto(eccezioni: Eccezione[]): string | null {
 // Indirizzo del bottone (la Home lo usa per i Link)
 export function hrefDestinazione(d: Destinazione): string {
   switch (d.tipo) {
-    case 'richiesta': return `/richieste/${d.id}`
+    // `?da=home`: aperta da qui, la freccia «Indietro» della richiesta riporta
+    // alla Home — e non alle Richieste, dove non si era passati.
+    case 'richiesta': return linkRichiesta(d.id, 'home')
     case 'saldo': return `/prenotazioni/${d.prenotazioneId}?azione=pagato`
     case 'prenotazione': return `/prenotazioni/${d.prenotazioneId}`
     case 'calendario': return `/calendario?giorno=${d.giorno}`

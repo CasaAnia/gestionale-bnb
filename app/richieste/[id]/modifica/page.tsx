@@ -16,7 +16,8 @@ import { modificabile, nomeCompleto, ritornoDallaModifica, type Richiesta } from
 export default function ModificaRichiesta() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  // Da dove si è arrivati: finita la modifica si torna lì (Ania, 12/09/2026)
+  // Da dove si è arrivati: finita la modifica — o con la freccia «Indietro» —
+  // si torna lì, senza chiedere niente alla cronologia (Ania, 12/09/2026)
   const indietro = ritornoDallaModifica(id, useSearchParams().get('da'))
   const [richiesta, setRichiesta] = useState<Richiesta | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
@@ -34,13 +35,13 @@ export default function ModificaRichiesta() {
     })
   }, [id])
 
-  if (loading) return <div className="p-4"><BackBar href={indietro} /><div className="text-center py-10 text-stone">Caricamento…</div></div>
-  if (!richiesta) return <div className="p-4"><BackBar href={indietro} /><div className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore || 'Richiesta non trovata.'}</div></div>
+  if (loading) return <div className="p-4"><BackBar onClick={() => router.push(indietro)} /><div className="text-center py-10 text-stone">Caricamento…</div></div>
+  if (!richiesta) return <div className="p-4"><BackBar onClick={() => router.push(indietro)} /><div className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore || 'Richiesta non trovata.'}</div></div>
 
   if (avviso) {
     return (
       <div className="p-4">
-        <BackBar href={indietro} />
+        <BackBar onClick={() => router.push(indietro)} />
         <h1 className="ed-titolo-medio mb-3">Richiesta modificata</h1>
         <div role="status" className="bg-white ed-campo rounded-xl p-3 text-sm text-green-dark">{avviso}</div>
         <Link href={`/richieste/${richiesta.id}/proposta`} className="block w-full mt-4 text-center bg-green-mid text-cream-text rounded-xl py-3.5 font-semibold text-[15px]">Rigenera la proposta</Link>
@@ -53,7 +54,7 @@ export default function ModificaRichiesta() {
 
   return (
     <div className="p-4">
-      <BackBar href={indietro} />
+      <BackBar onClick={() => router.push(indietro)} />
       <h1 className="ed-titolo-medio mb-1">Modifica richiesta</h1>
       <p className="text-sm text-stone mb-3">{nomeCompleto(richiesta)}</p>
       {!modificabile(richiesta) ? (

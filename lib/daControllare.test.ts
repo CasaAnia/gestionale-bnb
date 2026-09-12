@@ -356,7 +356,8 @@ test('testi: striscia, conteggi per tipo con singolare/plurale, riga «tutto a p
 })
 
 test('destinazioni: ogni bottone porta al punto esatto', () => {
-  assert.equal(hrefDestinazione({ tipo: 'richiesta', id: 'r' }), '/richieste/r')
+  // `?da=home`: aperta dalla Home, la freccia «Indietro» della richiesta riporta qui
+  assert.equal(hrefDestinazione({ tipo: 'richiesta', id: 'r' }), '/richieste/r?da=home')
   assert.equal(hrefDestinazione({ tipo: 'saldo', prenotazioneId: 'p' }), '/prenotazioni/p?azione=pagato')
   assert.equal(hrefDestinazione({ tipo: 'prenotazione', prenotazioneId: 'p' }), '/prenotazioni/p')
   assert.equal(hrefDestinazione({ tipo: 'calendario', giorno: '2026-09-16' }), '/calendario?giorno=2026-09-16')
