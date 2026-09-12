@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import {
   formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare, nuoveDalSito, rigaChiusa, riapribile, eRifiutata,
   riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta, linkModificaRichiesta, ritornoDallaModifica,
-  daDoveRichiesta, ritornoDallaRichiesta, linkRichiesta, propostaDellaRichiesta } from './richieste.ts'
+  daDoveRichiesta, ritornoDallaRichiesta, linkRichiesta, propostaDellaRichiesta, tastoRichiesta } from './richieste.ts'
 
 const locale = (a: number, m: number, g: number, h = 12, min = 0) => new Date(a, m - 1, g, h, min)
 const adesso = locale(2026, 9, 2, 9, 0)
@@ -271,4 +271,75 @@ test('nelle pagine delle Richieste la freccia va in una pagina decisa, non nella
   // il rimbalzo /richieste/<id> → …/proposta conserva il punto di partenza
   const rimbalzo = readFileSync(new URL('../app/richieste/[id]/page.tsx', import.meta.url), 'utf8')
   assert.equal(/propostaDellaRichiesta\(id, da\)/.test(rimbalzo), true)
+})
+
+// ── LA SCHEDA DELLA RICHIESTA NELL'ELENCO (Ania, 12/09/2026) ───────────────
+
+test('il tasto pieno dice cosa fare adesso', () => {
+  // la proposta non è ancora partita: si manda
+  assert.equal(tastoRichiesta('in_attesa'), 'Invia proposta')
+  // la proposta è partita: si aspetta il sì e si conferma
+  assert.equal(tastoRichiesta('proposta_inviata'), 'Conferma')
+  // richiesta chiusa: nessun tasto
+  assert.equal(tastoRichiesta('confermata'), null)
+  assert.equal(tastoRichiesta('rifiutata'), null)
+  assert.equal(tastoRichiesta('chiusa'), null)
+})
+
+test('nella scheda i pezzi stanno in questo ordine, dall’alto in basso', () => {
+  const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
+  const scheda = pagina.slice(pagina.indexOf('function RigaRichiesta'), pagina.indexOf('function RigaChiusa'))
+  const dove = (x: string) => {
+    const i = scheda.indexOf(x)
+    assert.notEqual(i, -1, `manca ${x} nella scheda`)
+    return i
+  }
+  const ordine = [
+    '{nomeCompleto(r)}',            // il nome
+    '{formatDateRichiesta(r)}',     // la riga delle date
+    '<SegnoStesseDate',             // la pillola blu delle altre richieste
+    '<RigaPersoneCamera',           // persone e camera
+    '<TastoPrincipale',             // il tasto pieno
+    '<NotaCliente',                 // la nota, sotto il tasto
+    '<ComandiRichiesta',            // e per ultima la riga dei comandi
+  ]
+  const posizioni = ordine.map(dove)
+  assert.deepEqual(posizioni, [...posizioni].sort((a, b) => a - b), 'i pezzi della scheda non sono nell’ordine chiesto')
+  // la nota è centrata e sta 13 px sotto il tasto, i comandi 12 px sotto
+  assert.match(scheda, /<NotaCliente note=\{r\.note\} centrata className="mt-\[13px\]"/)
+  assert.match(scheda, /<ComandiRichiesta r=\{r\} onRifiuta=\{onRifiuta\} className="mt-\[12px\]"/)
+  // e il tasto pieno 16 px sotto la riga persone e camera
+  assert.match(scheda, /<TastoPrincipale r=\{r\} onConferma=\{onConferma\} className="mt-4"/)
+})
+
+test('il tasto pieno e la riga dei comandi hanno le misure chieste', () => {
+  const az = readFileSync(new URL('../components/richieste/AzioniRichiesta.tsx', import.meta.url), 'utf8')
+  const tasto = az.slice(az.indexOf('export function TastoPrincipale'), az.indexOf('export function ComandiRichiesta'))
+  // largo quanto la scheda, alto almeno 50, bianco bold 15 su verde pieno
+  assert.match(tasto, /w-full/)
+  assert.match(tasto, /bg-green-mid/)
+  assert.match(tasto, /minHeight: 50/)
+  assert.match(tasto, /fontSize: 15/)
+  assert.match(tasto, /fontWeight: 700/)
+  assert.match(tasto, /color: '#fff'/)
+
+  const comandi = az.slice(az.indexOf('export function ComandiRichiesta'))
+  // «Modifica» semibold verde, «Rifiuta» non grassetto color stone: pesa meno
+  assert.match(comandi, /fontSize: 13\.5, fontWeight: 600, color: 'var\(--color-green-mid\)'/)
+  assert.match(comandi, /fontSize: 13\.5, fontWeight: 400, color: 'var\(--color-stone\)'/)
+  // ed-azione porta con sé i 44 px di area da toccare e la sottolineatura leggera
+  assert.equal(comandi.match(/className="ed-azione"/g)?.length, 2)
+  // i due tondi restano tondi: 46 × 46, contorno #C9BFA8, segno verde
+  assert.match(az, /width: 46, height: 46, borderColor: BORDO_TONDO, color: 'var\(--color-green-mid\)'/)
+  assert.match(az, /const BORDO_TONDO = '#C9BFA8'/)
+  assert.match(az, /rounded-full/)
+  // le etichette per chi non vede restano
+  assert.match(comandi, /aria-label=\{`Chiama \$\{nome\}`\}/)
+  assert.match(comandi, /aria-label=\{`Scrivi su WhatsApp a \$\{nome\}`\}/)
+})
+
+test('la nota del cliente centrata è 13,5 px e resta rossa', () => {
+  const nota = readFileSync(new URL('../components/richieste/NotaCliente.tsx', import.meta.url), 'utf8')
+  assert.match(nota, /centrata \? 'text-\[13\.5px\] text-center'/)
+  assert.match(nota, /#C00000/)
 })

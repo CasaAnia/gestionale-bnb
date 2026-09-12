@@ -298,6 +298,15 @@ export type PropostaPrecedente = { testo: string | null; soluzione: unknown; inv
 export const AVVISO_PROPOSTA_SUPERATA = 'La proposta inviata si riferiva ai dati precedenti: rigenera e reinvia la proposta'
 export const modificabile = (r: { stato: StatoRichiesta }) => r.stato === 'in_attesa' || r.stato === 'proposta_inviata'
 
+// Il tasto pieno della scheda dice cosa fare ADESSO (Ania, 12/09/2026):
+// finché la proposta non è partita si manda, quando è partita si conferma.
+// Su una richiesta chiusa (confermata, rifiutata, scaduta) non c'è tasto.
+export function tastoRichiesta(stato: StatoRichiesta): string | null {
+  if (stato === 'in_attesa') return 'Invia proposta'
+  if (stato === 'proposta_inviata') return 'Conferma'
+  return null
+}
+
 // Il link per correggere una richiesta (date, persone, camera, nota): c'è
 // SEMPRE, per qualunque stato e in qualunque momento (Ania, 11/09/2026).
 // Prima nella pagina della proposta veniva nascosto sulle richieste chiuse e

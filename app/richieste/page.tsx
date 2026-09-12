@@ -8,7 +8,7 @@ import BackBar from '@/components/BackBar'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
 import CalendarioRichieste, { larghezzaColonnaCamere, type Ancora, type ModoCalendario } from '@/components/richieste/CalendarioRichieste'
 import PannelloRichieste from '@/components/richieste/PannelloRichieste'
-import AzioniRichiesta from '@/components/richieste/AzioniRichiesta'
+import { TastoPrincipale, ComandiRichiesta } from '@/components/richieste/AzioniRichiesta'
 import RigaScadenza from '@/components/richieste/RigaScadenza'
 import NotaCliente from '@/components/richieste/NotaCliente'
 import RigaPersoneCamera from '@/components/richieste/RigaPersoneCamera'
@@ -105,16 +105,12 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
       </div>
       {/* La riga delle date: persone e camera non si ripetono più qui, hanno
           la loro riga sotto la pillola (Ania, 12/09/2026) */}
+      {/* La riga delle date, e sotto da dove e da quanto è arrivata la
+          richiesta: «telefono · oggi 19:33 · 3 giorni fa» */}
       <p className="text-sm md:text-[13px] text-green-dark mt-1 md:mt-1.5">
         {formatDateRichiesta(r)}
       </p>
-      {/* Sotto le date: quante ALTRE richieste vogliono queste stesse notti */}
-      {stesseDate && onGruppo && <div className="mt-1.5"><SegnoStesseDate testo={stesseDate} onClick={onGruppo} /></div>}
-      {/* Nota del cliente (Ania, 07/09/2026): prima si vedeva solo in «Modifica» */}
-      <NotaCliente note={r.note} className="mt-1" />
-      {/* timer delle 3 ore (solo proposta inviata): sostituisce il vecchio «proposta inviata N minuti fa» */}
-      <RigaScadenza r={r} adesso={adesso} className="mt-1.5" />
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs md:text-[13px] text-stone mt-1.5">
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs md:text-[13px] text-stone mt-1">
         <span className="inline-flex items-center gap-1"><IconaCanale canale={r.canale} />{CANALE_LABEL[r.canale]}{r.canale === 'web' && r.origine && <span className="text-[10px] uppercase tracking-wide text-brass">· {r.origine}</span>}</span>
         <span aria-hidden>·</span>
         <span>{oraArrivo(r.created_at, adesso)}</span>
@@ -126,6 +122,10 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
           </>
         )}
       </p>
+      {/* timer delle 3 ore (solo proposta inviata): sostituisce il vecchio «proposta inviata N minuti fa» */}
+      <RigaScadenza r={r} adesso={adesso} className="mt-1.5" />
+      {/* Quante ALTRE richieste vogliono queste stesse notti, e con chi si accavalla */}
+      {stesseDate && onGruppo && <div className="mt-1.5"><SegnoStesseDate testo={stesseDate} onClick={onGruppo} /></div>}
       {conflitti.length > 0 && (
         <p className="text-xs md:text-[13px] mt-1 md:mt-2 md:inline-flex md:items-center md:gap-1.5" style={{ color: '#7a5f2c' }} title={conflitti.join(' · ')}>
           <span className="hidden md:inline-flex"><BadgeSovrapposta /></span>
@@ -133,7 +133,12 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
         </p>
       )}
       <RigaPersoneCamera personeNotti={personeNotti} cameraChiesta={r.rooms?.name ?? null} className="mt-3" />
-      <AzioniRichiesta r={r} onRifiuta={onRifiuta} onConferma={onConferma} />
+      {/* Il tasto pieno, poi la nota del cliente, e per ultima la riga dei
+          comandi: dall'alto in basso cosa fare, cosa sapere, cos'altro si può
+          fare (Ania, 12/09/2026) */}
+      <TastoPrincipale r={r} onConferma={onConferma} className="mt-4" />
+      <NotaCliente note={r.note} centrata className="mt-[13px]" />
+      <ComandiRichiesta r={r} onRifiuta={onRifiuta} className="mt-[12px]" />
     </div>
     </li>
   )
