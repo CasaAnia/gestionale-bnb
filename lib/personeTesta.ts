@@ -93,3 +93,14 @@ export function caselleNotti(notti: string[], persone: number[], massimo = MAX_C
 
 // La strisciolina compare solo quando le persone cambiano da una notte all'altra
 export const personeCambiano = (persone: number[]): boolean => trattiPersone(persone).length > 1
+
+// ── La colonna della camera ─────────────────────────────────────────────────
+// Senza camera chiesta si legge «qualsiasi», con l'etichetta «camera»; con una
+// camera chiesta il suo nome, e l'etichetta diventa «camera chiesta» (così si
+// capisce che è una richiesta del cliente, non una decisione presa).
+// Vale per la testa della proposta e per la scheda dell'elenco.
+export type ColonnaCamera = { valore: string; etichetta: string }
+export function cameraTesta(nome: string | null | undefined): ColonnaCamera {
+  const n = (nome ?? '').trim()
+  return n ? { valore: n, etichetta: 'camera chiesta' } : { valore: 'qualsiasi', etichetta: 'camera' }
+}

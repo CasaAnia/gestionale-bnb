@@ -1,7 +1,8 @@
 // La riga «persone e camera» della testa (12/09/2026, bozza approvata da Ania)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { personeTesta, caselleNotti, personeCambiano, trattiPersone } from './personeTesta.ts'
+import { readFileSync } from 'node:fs'
+import { personeTesta, caselleNotti, personeCambiano, trattiPersone, cameraTesta } from './personeTesta.ts'
 
 const testo = (persone: number[]) => personeTesta(persone).map(p => p.testo).join(' ')
 
@@ -90,4 +91,43 @@ test('la strisciolina non compare quando le persone sono uguali', () => {
   // dati incoerenti: nessuna casellina inventata
   assert.deepEqual(caselleNotti(['2026-10-29'], [2, 1]), [])
   assert.deepEqual(caselleNotti([], []), [])
+})
+
+// ── LA RIGA NELLA SCHEDA DELL'ELENCO (Ania, 12/09/2026) ────────────────────
+// Stessa regola della testa della proposta, riga più piccola e senza la
+// strisciolina delle notti.
+
+test('la colonna della camera: «qualsiasi», oppure il nome con «camera chiesta»', () => {
+  assert.deepEqual(cameraTesta(null), { valore: 'qualsiasi', etichetta: 'camera' })
+  assert.deepEqual(cameraTesta(undefined), { valore: 'qualsiasi', etichetta: 'camera' })
+  assert.deepEqual(cameraTesta('  '), { valore: 'qualsiasi', etichetta: 'camera' })
+  assert.deepEqual(cameraTesta('Lena'), { valore: 'Lena', etichetta: 'camera chiesta' })
+  assert.deepEqual(cameraTesta(' Amelia '), { valore: 'Amelia', etichetta: 'camera chiesta' })
+})
+
+test('nella scheda: persone uguali il numero, persone che cambiano la sequenza', () => {
+  // persone uguali tutte le notti → solo il numero
+  assert.equal(testo([2, 2, 2]), '2')
+  // persone che cambiano → la sequenza dei cambi
+  assert.equal(testo([3, 3, 1]), '3 → 1')
+  // e la regola lunga resta quella già scritta
+  assert.equal(testo([1, 3, 1, 3]), 'da 1 a 3')
+})
+
+test('la riga della scheda ha le misure chieste e niente strisciolina', () => {
+  const riga = readFileSync(new URL('../components/richieste/RigaPersoneCamera.tsx', import.meta.url), 'utf8')
+  assert.match(riga, /gap: 38/)                       // due colonne distanti 38 px
+  assert.match(riga, /paddingTop: 11/)                // 11 px sotto il filo d'ottone
+  assert.match(riga, /borderTop: `1px solid \$\{FILO_OTTONE\}`/)
+  assert.match(riga, /fontSize: 21/)                  // il valore in Georgia
+  assert.match(riga, /letterSpacing: '1\.4px'/)       // l'etichetta minuta
+  assert.match(riga, /fontSize: 9,/)
+  assert.match(riga, /color: 'var\(--color-stone\)'/)
+  // la strisciolina delle notti resta solo nella testa della proposta
+  assert.equal(/caselleNotti|striscia/i.test(riga), false)
+  // e la scheda dell'elenco usa proprio questa riga
+  const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
+  assert.match(pagina, /<RigaPersoneCamera personeNotti=/)
+  // nella riga delle date le persone non si ripetono più
+  assert.equal(/riassuntoPersone/.test(pagina), false)
 })

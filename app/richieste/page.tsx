@@ -11,6 +11,7 @@ import PannelloRichieste from '@/components/richieste/PannelloRichieste'
 import AzioniRichiesta from '@/components/richieste/AzioniRichiesta'
 import RigaScadenza from '@/components/richieste/RigaScadenza'
 import NotaCliente from '@/components/richieste/NotaCliente'
+import RigaPersoneCamera from '@/components/richieste/RigaPersoneCamera'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi from '@/components/RigaMesi'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
@@ -25,6 +26,7 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
 import { altreStesseDate, gruppoStesseDate, etichettaStesseDate, sottotitoloGruppo, contatoreGruppo, VEDI_TUTTE } from '@/lib/richiesteStesseDate'
+import { personePerNotte } from '@/lib/richiesteProposta'
 import { periodoConGiorni } from '@/lib/dateItaliane'
 import { smartBack } from '@/lib/navHistory'
 import { nomeOspite } from '@/lib/guestName'
@@ -32,7 +34,7 @@ import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
 import {
   CANALE_LABEL, eAperta, inArchivio, rigaChiusa, riapribile, ordinaRichieste, nottiRichiesta, nomeCompleto,
-  formatIntervallo, formatDateRichiesta, oraArrivo, avvisoFerma, daGuardare, nuoveDalSito, riassuntoPersone, type Richiesta, type OrdineRichieste,
+  formatIntervallo, formatDateRichiesta, oraArrivo, avvisoFerma, daGuardare, nuoveDalSito, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
 
 const ORDINI: { chiave: OrdineRichieste; label: string }[] = [
@@ -81,6 +83,11 @@ function SegnoStesseDate({ testo, onClick }: { testo: string; onClick: () => voi
 
 function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo = false, selezionata, onSeleziona, onRifiuta, onConferma, giaStato }: { r: Richiesta; adesso: Date; conflitti: string[]; stesseDate?: string | null; onGruppo?: () => void; nelGruppo?: boolean; selezionata: boolean; onSeleziona: () => void; onRifiuta: (r: Richiesta) => void; onConferma: (r: Richiesta) => void; giaStato?: string | null }) {
   const n = nottiRichiesta(r)
+  // Le persone di ogni notte, per la riga «persone e camera». Con dati storti
+  // (persone_per_notte non coerente) personePerNotte alza un errore: qui la
+  // scheda non deve sparire, si mostra il numero della richiesta e basta.
+  let personeNotti: number[]
+  try { personeNotti = personePerNotte(r) } catch { personeNotti = [Math.max(1, Number(r.persone) || 1)] }
   // Da quanto è arrivata: «oggi» e «ieri» li dice già l'ora, più in là no
   const giorniFa = Math.floor((adesso.getTime() - new Date(r.created_at).getTime()) / 86400000)
   const daQuanto = giorniFa >= 2 ? `${giorniFa} giorni fa` : null
@@ -96,12 +103,10 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
           {giaStato && <span data-gia-stato className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-sage text-green-mid whitespace-nowrap">{giaStato}</span>}</p>
         <p className="shrink-0 text-sm font-semibold text-brass">{n === 1 ? '1 notte' : `${n} notti`}</p>
       </div>
+      {/* La riga delle date: persone e camera non si ripetono più qui, hanno
+          la loro riga sotto la pillola (Ania, 12/09/2026) */}
       <p className="text-sm md:text-[13px] text-green-dark mt-1 md:mt-1.5">
         {formatDateRichiesta(r)}
-        <span className="text-stone"> · </span>
-        {r.persone_per_notte ? riassuntoPersone(r.arrivo, r.persone_per_notte) : `${r.persone} ${r.persone === 1 ? 'persona' : 'persone'}`}
-        <span className="text-stone"> · </span>
-        {r.rooms?.name || 'qualsiasi camera'}
       </p>
       {/* Sotto le date: quante ALTRE richieste vogliono queste stesse notti */}
       {stesseDate && onGruppo && <div className="mt-1.5"><SegnoStesseDate testo={stesseDate} onClick={onGruppo} /></div>}
@@ -127,6 +132,7 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
           <span className="md:font-semibold md:text-brass">si sovrappone con {conflitti.join(', ')}</span>
         </p>
       )}
+      <RigaPersoneCamera personeNotti={personeNotti} cameraChiesta={r.rooms?.name ?? null} className="mt-3" />
       <AzioniRichiesta r={r} onRifiuta={onRifiuta} onConferma={onConferma} />
     </div>
     </li>

@@ -13,7 +13,7 @@
 import Link from 'next/link'
 import { Phone, MessageCircle } from 'lucide-react'
 import { giornoConSettimana } from '@/lib/dateItaliane'
-import { personeTesta, caselleNotti, personeCambiano } from '@/lib/personeTesta'
+import { personeTesta, caselleNotti, personeCambiano, cameraTesta } from '@/lib/personeTesta'
 import { chiEIlCliente } from '@/lib/clienteCheTorna'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
@@ -108,6 +108,7 @@ export default function TestaCliente({
   const totale = torna && totaleCent != null && totaleCent > 0 ? euroTondi(totaleCent) : null
   const pezziPersone = personeTesta(personeNotti)
   const caselle = personeCambiano(personeNotti) ? caselleNotti(nottiRichieste, personeNotti) : []
+  const camera = cameraTesta(cameraChiesta)
   const notePulite = note.map(n => ({ ...n, testo: (n.testo ?? '').trim() })).filter(n => n.testo)
 
   return (
@@ -163,9 +164,9 @@ export default function TestaCliente({
           </div>
           <div className="text-center min-w-0" data-camera-testa>
             <p className="leading-[1.15] truncate" style={{ fontFamily: GEORGIA, fontWeight: 400, fontSize: 24, color: 'var(--color-green-dark)' }}>
-              {cameraChiesta || 'qualsiasi'}
+              {camera.valore}
             </p>
-            <p style={{ marginTop: 6, fontSize: 9, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--color-stone)' }}>{cameraChiesta ? 'camera chiesta' : 'camera'}</p>
+            <p style={{ marginTop: 6, fontSize: 9, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--color-stone)' }}>{camera.etichetta}</p>
           </div>
         </div>
         {/* La strisciolina: una casellina per notte, solo se le persone cambiano */}
