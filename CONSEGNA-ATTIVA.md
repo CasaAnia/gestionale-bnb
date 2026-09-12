@@ -368,3 +368,38 @@ Prima di continuare su questa pagina serve accordarsi su chi la tiene.
 
 Le richieste GIÀ salvate senza numero (dati vecchi) restano senza icone: la
 regola vale da adesso in avanti e non modifica le righe esistenti.
+
+## La prima riga della richiesta, come la Home (12/09/2026, Claude)
+
+Pubblicata e verificata: commit `afe7ba4` su `main`, deploy Vercel `success`
+(Production). Ania, dal telefono: la riga della richiesta deve avere la forma
+delle righe «Da controllare» della Home.
+
+**Prima riga**: nome e date insieme, 15 px semibold green-dark col puntino in
+mezzo — «Anna Sawicka · gio 29 → sab 31 ott» — la stessa misura del titolo di
+`components/DaControllare.tsx` (`text-[15px] font-semibold text-green-dark`).
+Davanti resta l'etichettina blu «⧉ 2 altre»; «oggi / ieri» resta in alto a
+destra, 11 px `#B9B6AD`, allineato alla prima riga anche quando il titolo va a
+capo. Come nella Home il **nome non si taglia**: se non ci sta, le date vanno
+a capo intere e il puntino resta attaccato al nome (niente «·» appeso in testa
+alla riga sotto, che sembrava un elenco puntato).
+
+**Seconda riga**: solo «2 notti · 3 persone · qualsiasi», 13,5 px `#6b736a`,
+forti il numero delle notti, quello delle persone (e la sequenza «3 → 1») e la
+camera. Le date non stanno più qui.
+
+Nuova funzione pura `pezziRigaElenco` in `lib/rigaRichiesta.ts`, più
+`titoloRigaRichiesta(nome, periodo)`; `pezziRigaRichiesta` torna a essere solo
+la riga intera della **testa della proposta** (numeri forti, «camera
+qualsiasi» per esteso) e il modo `forte` sparisce: ogni riga ha la sua
+funzione.
+
+**Prove.** 1042 test verdi, TypeScript e build puliti, lint senza nuove
+diagnostiche. Nuovi casi in `lib/rigaRichiesta.test.ts`: il titolo «chi ·
+quando» (anche coi mesi diversi e coi pezzi mancanti), la seconda riga nei
+vari casi con i soli pezzi forti, la testa della proposta invariata, e sui
+sorgenti la misura 15 px presa dalla Home, il nome che non si taglia, il
+puntino col nome, «oggi» in alto a destra. Misurato a schermo a 390×844:
+titolo 15 px, seconda riga 13,5 px, righe alte 102–123 px, due icone di
+contatto su tutte le richieste col numero. A 1280 px i titoli stanno in una
+riga sola.
