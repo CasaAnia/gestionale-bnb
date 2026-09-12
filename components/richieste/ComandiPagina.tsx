@@ -1,67 +1,36 @@
 'use client'
 import Link from 'next/link'
-import type { ReactNode } from 'react'
+import { rigaDaGuardare } from '@/lib/comandiRichieste'
 
 // ============================================================================
-// I COMANDI DELLA PAGINA DELLE RICHIESTE, TUTTI DELLA STESSA FAMIGLIA
-// (Ania, su bozza, 12/09/2026).
+// I COMANDI SOTTO IL CALENDARIO DELLE RICHIESTE (Ania, dal telefono,
+// 12/09/2026).
 //
-// Sopra il calendario e sotto sembravano due pagine diverse: bottoni tondi
-// verdi, pastiglie di misure diverse, un tasto col contorno. Adesso tutti i
-// comandi — Reale/Presunta, «+ Nuova richiesta», gli avvisi e l'ordinamento —
-// hanno la misura e il carattere delle etichettine della Home (CHECK-IN,
-// ⇄ CAMBIO): piccole, squadrate, in grassetto.
+// Prima erano pastiglie: due etichettine colorate («nuove dal sito», «da
+// guardare») e un interruttore «Ordina». Troppe pastiglie in poco spazio.
+// Adesso sono PAROLE:
 //
-// L'unica cosa PIENA della pagina resta la pastiglia verde tonda dell'azione,
-// dentro la riga della richiesta (vedi AzioniRichiesta).
+//   • 3 da guardare · ferme da più di un giorno      ← si tocca, accende il filtro
+//   Ordina per  arrivo  notti  persone               ← la scelta sottolineata
+//
+// Le «nuove dal sito» non hanno più un'etichettina: si leggono solo nel
+// sottotitolo in cima alla pagina («4 aperte · 2 nuove dal sito»).
+//
+// Resta com'era «+ Nuova richiesta». L'interruttore «Reale | Presunta» è
+// quello del Calendario: components/InterruttorePillola.
+//
+// Tutto quello che si tocca ha un'area utile alta almeno 44 px.
 // ============================================================================
 
-const CREMA = '#EFEADF'
-
-export const ALTEZZA_VOCE = 22        // le parole dell'interruttore
 export const ALTEZZA_TASTO = 24       // «+ Nuova richiesta»
-export const ANGOLI_INTERRUTTORE = 6
 export const ANGOLI_VOCE = 4
+export const ALTEZZA_TOCCO = 44
 
-// ── L'interruttore squadrato ────────────────────────────────────────────────
-// Fondo crema, 2 px di bordo interno, angoli 6. Le parole alte 22 px, 11,5
-// bold, color stone; quella scelta su fondo bianco con angoli 4 e verde scuro.
-// Lo usano sia «Reale / Presunta» sia «Ordina»: sono la stessa cosa.
-export function InterruttoreSquadrato<T extends string>({ etichetta, voci, scelta, onScegli, nome, dati }: {
-  etichetta?: string
-  voci: readonly (readonly [T, string])[]
-  scelta: T
-  onScegli: (v: T) => void
-  nome: string
-  dati?: string
-}) {
-  return (
-    <span className="inline-flex items-center gap-2 shrink-0">
-      {etichetta && <span style={{ fontSize: 11, color: 'var(--color-stone)' }}>{etichetta}</span>}
-      <span role="group" aria-label={nome} data-interruttore={dati}
-        className="inline-flex shrink-0" style={{ background: CREMA, padding: 2, borderRadius: ANGOLI_INTERRUTTORE }}>
-        {voci.map(([v, label]) => {
-          const presa = scelta === v
-          return (
-            <button key={v} type="button" onClick={() => onScegli(v)} aria-pressed={presa}
-              className="inline-flex items-center justify-center transition-colors"
-              style={{
-                height: ALTEZZA_VOCE,
-                padding: '0 10px',
-                borderRadius: ANGOLI_VOCE,
-                fontSize: 11.5,
-                fontWeight: 700,
-                color: presa ? 'var(--color-green-dark)' : 'var(--color-stone)',
-                background: presa ? '#fff' : 'transparent',
-              }}>
-              {label}
-            </button>
-          )
-        })}
-      </span>
-    </span>
-  )
-}
+const TESTO_RIGHE = 12.5              // le due righe di parole
+const OTTONE_SCURO = '#7A5C1E'        // «3 da guardare»
+const OTTONE_PALLINO = 'var(--color-brass)'
+const OTTONE_CHIARO = 'rgba(169,136,78,0.45)'   // la sottolineatura della scelta
+const TOCCO = 'py-[13px]'             // 18 px di testo + 13 sopra e 13 sotto = 44
 
 // ── «+ Nuova richiesta» ─────────────────────────────────────────────────────
 // Alto 24 px, fondo sage, testo green-mid 11,5 bold, angoli 4, 9 px ai lati.
@@ -76,33 +45,50 @@ export function TastoNuovaRichiesta({ testo = '+ Nuova richiesta', className = '
   )
 }
 
-// ── Gli avvisi ──────────────────────────────────────────────────────────────
-// Etichettine alte come le altre: angoli 4, 11 bold, 2 px sopra e sotto e 7
-// ai lati. «N nuove dal sito» sage su green-mid; «N da guardare» nei colori
-// del ⇄ CAMBIO della Home.
-export const AVVISO_SITO = { background: 'var(--color-sage)', color: 'var(--color-green-mid)' } as const
-export const AVVISO_GUARDARE = { background: '#EFE2C7', color: '#7A5C1E' } as const
-const MISURA_AVVISO = { borderRadius: ANGOLI_VOCE, fontSize: 11, fontWeight: 700, padding: '2px 7px', lineHeight: '18px' } as const
-
-export function EtichettaAvviso({ colori, dati, children }: { colori: typeof AVVISO_SITO | typeof AVVISO_GUARDARE; dati: string; children: ReactNode }) {
+// ── «3 da guardare · ferme da più di un giorno» ─────────────────────────────
+// Una riga sola: pallino d'ottone da 7 px, il conto in grassetto scuro e il
+// perché in grigio. Si tocca e accende il filtro; da accesa dice «mostra
+// tutte», che è la via d'uscita. Senza richieste ferme la riga non c'è.
+export function RigaDaGuardare({ quante, acceso, onClick }: { quante: number; acceso: boolean; onClick: () => void }) {
+  const riga = rigaDaGuardare(quante, acceso)
+  if (!riga) return null
   return (
-    <span data-avviso={dati} className="inline-flex items-center gap-1 shrink-0" style={{ ...MISURA_AVVISO, ...colori }}>{children}</span>
+    <button type="button" data-da-guardare aria-pressed={acceso} onClick={onClick}
+      className={`flex items-center gap-1.5 text-left ${TOCCO} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-mid`}
+      style={{ fontSize: TESTO_RIGHE, lineHeight: '18px' }}>
+      <span aria-hidden className="shrink-0" style={{ width: 7, height: 7, borderRadius: '50%', background: OTTONE_PALLINO }} />
+      <span style={{ fontWeight: 700, color: OTTONE_SCURO }}>{riga.conto}</span>
+      <span style={{ color: 'var(--color-stone)' }}>{riga.coda}</span>
+    </button>
   )
 }
 
-// Lo stesso avviso, ma si tocca: «N da guardare» accende e spegne il filtro.
-// L'area utile resta di 44 px senza alzare la riga (margini negativi).
-export function TastoAvviso({ colori, dati, premuto, onClick, children }: {
-  colori: typeof AVVISO_SITO | typeof AVVISO_GUARDARE
-  dati: string
-  premuto: boolean
-  onClick: () => void
-  children: ReactNode
+// ── «Ordina per  arrivo  notti  persone» ────────────────────────────────────
+// Le tre parole si toccano una per una; quella scelta è in verde grassetto con
+// una sottolineatura sottile d'ottone chiaro, 4 px sotto il testo.
+export function RigaOrdina<T extends string>({ voci, scelta, onScegli, nome, className = '' }: {
+  voci: readonly (readonly [T, string])[]
+  scelta: T
+  onScegli: (v: T) => void
+  nome: string
+  className?: string
 }) {
   return (
-    <button type="button" data-avviso={dati} aria-pressed={premuto} onClick={onClick}
-      className="inline-flex items-center shrink-0 py-[12px] -my-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-mid">
-      <span className="inline-flex items-center gap-1" style={{ ...MISURA_AVVISO, ...colori }}>{children}</span>
-    </button>
+    <div role="group" aria-label={nome} data-ordina className={`flex items-center flex-wrap gap-x-3 ${className}`}
+      style={{ fontSize: TESTO_RIGHE, lineHeight: '18px', color: 'var(--color-stone)' }}>
+      <span className={TOCCO}>Ordina per</span>
+      {voci.map(([v, label]) => {
+        const presa = scelta === v
+        return (
+          <button key={v} type="button" onClick={() => onScegli(v)} aria-pressed={presa} data-ordine={v}
+            className={`${TOCCO} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-mid`}
+            style={presa
+              ? { fontWeight: 700, color: 'var(--color-green-mid)', textDecoration: 'underline', textDecorationColor: OTTONE_CHIARO, textDecorationThickness: 1, textUnderlineOffset: 4 }
+              : { color: 'var(--color-stone)' }}>
+            {label}
+          </button>
+        )
+      })}
+    </div>
   )
 }

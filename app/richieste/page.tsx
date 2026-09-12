@@ -3,11 +3,12 @@ import { Suspense, useEffect, useMemo, useState } from 'react'
 import { soggiorniPrecedenti, etichettaGiaStato } from '@/lib/clienteCheTorna'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Globe, ChevronDown } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import BackBar from '@/components/BackBar'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
 import TestataRichieste from '@/components/richieste/TestataRichieste'
-import { InterruttoreSquadrato, TastoNuovaRichiesta, EtichettaAvviso, TastoAvviso, AVVISO_SITO, AVVISO_GUARDARE } from '@/components/richieste/ComandiPagina'
+import { TastoNuovaRichiesta, RigaDaGuardare, RigaOrdina } from '@/components/richieste/ComandiPagina'
+import { ORDINI_RICHIESTE } from '@/lib/comandiRichieste'
 import CalendarioRichieste, { larghezzaColonnaCamere, type Ancora, type ModoCalendario } from '@/components/richieste/CalendarioRichieste'
 import PannelloRichieste from '@/components/richieste/PannelloRichieste'
 import { TastoPrincipale, ComandiRichiesta, IconeContatto, SPAZIO_COMANDI } from '@/components/richieste/AzioniRichiesta'
@@ -39,9 +40,6 @@ import {
   formatIntervallo, formatDateRichiesta, avvisoFerma, daGuardare, nuoveDalSito, scadenzaProposta, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
 
-// Le tre voci di sempre, adesso dentro l'interruttore squadrato: «Ordina» non
-// è più una fila di bottoni tondi sparsi (Ania, su bozza, 12/09/2026).
-const ORDINI = [['durata', 'durata'], ['arrivo', 'arrivo'], ['persone', 'persone']] as const satisfies readonly (readonly [OrdineRichieste, string])[]
 const GRIGIO_NOTA = '#6b6b60'
 
 const GRIGIO_QUANDO = '#B9B6AD'   // «oggi», «ieri», «2 giorni fa», in fondo alla prima riga
@@ -362,16 +360,7 @@ function Richieste() {
       {desktop && !orizzontale ? (
         <div className="flex items-center flex-wrap gap-4 mb-4 min-h-[44px]">
           <TestataRichieste aperte={aperte.length} nuoveDalSito={nuoveWeb} mostraConto={!loading} className="mr-auto" />
-          {!loading && nuoveWeb > 0 && (
-            <EtichettaAvviso colori={AVVISO_SITO} dati="dal-sito">
-              <Globe size={11} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
-            </EtichettaAvviso>
-          )}
-          {!loading && ferme.length > 0 && (
-            <TastoAvviso colori={AVVISO_GUARDARE} dati="da-guardare" premuto={soloDaGuardare} onClick={() => setSoloDaGuardare(v => !v)}>
-              {ferme.length} da guardare{soloDaGuardare ? ' · mostra tutte' : ''}
-            </TastoAvviso>
-          )}
+          {!loading && <RigaDaGuardare quante={ferme.length} acceso={soloDaGuardare} onClick={() => setSoloDaGuardare(v => !v)} />}
           <InterruttoreVista vista={vista} onChange={setVista} />
           <CampoRicerca value={query} onChange={cambiaRicerca} className="w-[260px]" />
           <TastoNuovaRichiesta />
@@ -425,49 +414,33 @@ function Richieste() {
           <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>
             {vista === 'presunta' ? 'Tratteggiato = richieste in attesa. Tocca una barra per vedere chi c’è dentro.' : 'Solo confermate: queste non si toccano.'}
           </p>
-          {/* Sul telefono i comandi stanno sotto il calendario, in tre righe
-              (Ania, su bozza, 12/09/2026): l'interruttore a sinistra e
-              «+ Nuova richiesta» a destra; gli avvisi sotto; «Ordina» dopo.
-              Sono tutti della stessa famiglia, vedi ComandiPagina. */}
+          {/* Sul telefono i comandi stanno sotto il calendario (Ania, dal
+              telefono, 12/09/2026): l'interruttore a sinistra e «+ Nuova
+              richiesta» a destra; sotto, a parole, «N da guardare» e «Ordina
+              per». Niente più pastiglie: vedi ComandiPagina. */}
           {(!desktop || orizzontale) && (
             <>
               <div className="flex items-center justify-between gap-3 mt-3">
                 <InterruttoreVista vista={vista} onChange={setVista} />
                 <TastoNuovaRichiesta />
               </div>
-              {!loading && (nuoveWeb > 0 || ferme.length > 0) && (
-                <div className="flex flex-wrap items-center gap-2 mt-2">
-                  {nuoveWeb > 0 && (
-                    <EtichettaAvviso colori={AVVISO_SITO} dati="dal-sito">
-                      <Globe size={11} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
-                    </EtichettaAvviso>
-                  )}
-                  {ferme.length > 0 && (
-                    <TastoAvviso colori={AVVISO_GUARDARE} dati="da-guardare" premuto={soloDaGuardare} onClick={() => setSoloDaGuardare(v => !v)}>
-                      {ferme.length} da guardare{soloDaGuardare ? ' · mostra tutte' : ''}
-                    </TastoAvviso>
-                  )}
-                </div>
-              )}
-              <div className="flex items-center mt-2">
-                <InterruttoreSquadrato etichetta="Ordina" voci={ORDINI} scelta={ordine} onScegli={setOrdine} nome="Ordina le richieste" dati="ordina" />
-              </div>
+              {!loading && <RigaDaGuardare quante={ferme.length} acceso={soloDaGuardare} onClick={() => setSoloDaGuardare(v => !v)} />}
+              <RigaOrdina voci={ORDINI_RICHIESTE} scelta={ordine} onScegli={setOrdine} nome="Ordina le richieste" />
             </>
           )}
         </section>
 
         {/* Lista */}
         <section hidden={!mostraLista} className="mt-4 md:mt-7">
-          {/* Il titoletto della lista. «Ordina» sul telefono sta già sotto il
-              calendario (riga 3); sul Mac resta qui, ma è lo stesso
-              interruttore squadrato di tutti gli altri comandi. */}
+          {/* Il titoletto della lista. «Ordina per» sul telefono sta già sotto
+              il calendario; sul Mac resta qui, con le stesse parole. */}
           <div className="flex items-center gap-2 mb-4">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <span className="text-[11px] uppercase text-brass shrink-0" style={{ letterSpacing: '2px' }}>{capogruppo ? 'Stesse date' : soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}</span>
               {!loading && <span className="text-[13px] text-stone shrink-0">{capogruppo ? contatoreGruppo(gruppo.length) : mostrate.length}</span>}
               <span className="flex-1 h-px" style={{ background: 'rgba(169,136,78,0.45)' }} />
             </div>
-            {desktop && <InterruttoreSquadrato etichetta="Ordina" voci={ORDINI} scelta={ordine} onScegli={setOrdine} nome="Ordina le richieste" dati="ordina" />}
+            {desktop && <RigaOrdina voci={ORDINI_RICHIESTE} scelta={ordine} onScegli={setOrdine} nome="Ordina le richieste" className="shrink-0" />}
           </div>
 
           {capogruppo && (

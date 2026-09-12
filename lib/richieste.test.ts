@@ -5,6 +5,7 @@ import {
   formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare, nuoveDalSito, rigaChiusa, riapribile, eRifiutata,
   riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta, linkModificaRichiesta, ritornoDallaModifica,
   daDoveRichiesta, ritornoDallaRichiesta, linkRichiesta, propostaDellaRichiesta, tastoRichiesta } from './richieste.ts'
+import { rigaDaGuardare, testoRigaGuardare, ORDINI_RICHIESTE } from './comandiRichieste.ts'
 
 const locale = (a: number, m: number, g: number, h = 12, min = 0) => new Date(a, m - 1, g, h, min)
 const adesso = locale(2026, 9, 2, 9, 0)
@@ -358,39 +359,93 @@ test('la nota del cliente nella riga è tutta rossa, come nella Home', () => {
   assert.equal(/centrata/.test(riga), false)
 })
 
-// ── I COMANDI DELLA PAGINA (Ania, su bozza, 12/09/2026) ───────────────────
-// Sopra il calendario e sotto sembravano due pagine diverse. Adesso TUTTI i
-// comandi hanno la misura e il carattere delle etichettine della Home.
-test('tutti i comandi della pagina sono della stessa famiglia', () => {
+// ── I COMANDI SOTTO IL CALENDARIO (Ania, dal telefono, 12/09/2026) ────────
+// Le pastiglie colorate sono diventate parole: «N da guardare» e «Ordina per».
+// «+ Nuova richiesta» resta la piccola etichetta sage di prima.
+test('sotto il calendario gli avvisi e l\u2019ordinamento sono parole, non pastiglie', () => {
   const comandi = readFileSync(new URL('../components/richieste/ComandiPagina.tsx', import.meta.url), 'utf8')
 
-  // l'interruttore: fondo crema, angoli 6, 2 px di bordo interno
-  assert.match(comandi, /const CREMA = '#EFEADF'/)
-  assert.match(comandi, /background: CREMA, padding: 2, borderRadius: ANGOLI_INTERRUTTORE/)
-  assert.match(comandi, /export const ANGOLI_INTERRUTTORE = 6/)
-  // le parole: alte 22, 11,5 bold, stone; quella scelta su bianco con angoli 4
-  assert.match(comandi, /export const ALTEZZA_VOCE = 22/)
-  assert.match(comandi, /export const ANGOLI_VOCE = 4/)
-  assert.match(comandi, /fontSize: 11\.5,\s*\n\s*fontWeight: 700,\s*\n\s*color: presa \? 'var\(--color-green-dark\)' : 'var\(--color-stone\)',\s*\n\s*background: presa \? '#fff' : 'transparent',/)
-
-  // «+ Nuova richiesta»: alto 24, sage, green-mid 11,5 bold, angoli 4, 9 ai lati
+  // «+ Nuova richiesta»: com'era — alto 24, sage, green-mid 11,5 bold, angoli 4
   assert.match(comandi, /export const ALTEZZA_TASTO = 24/)
   assert.match(comandi, /bg-sage text-green-mid/)
   assert.match(comandi, /height: ALTEZZA_TASTO, padding: '0 9px', borderRadius: ANGOLI_VOCE, fontSize: 11\.5, fontWeight: 700/)
-  // niente contorno e niente verde pieno: il verde pieno è solo dell'azione
-  assert.equal(/border border-green-mid/.test(comandi), false)
-  assert.equal(/bg-green-mid/.test(comandi), false)
 
-  // gli avvisi: etichettine alte come le altre, angoli 4, 11 bold, 2 e 7
-  assert.match(comandi, /borderRadius: ANGOLI_VOCE, fontSize: 11, fontWeight: 700, padding: '2px 7px', lineHeight: '18px'/)
-  assert.match(comandi, /AVVISO_SITO = \{ background: 'var\(--color-sage\)', color: 'var\(--color-green-mid\)' \}/)
-  assert.match(comandi, /AVVISO_GUARDARE = \{ background: '#EFE2C7', color: '#7A5C1E' \}/)
-  // «N da guardare» si tocca: 44 px di area utile senza alzare la riga
-  assert.match(comandi, /py-\[12px\] -my-\[12px\]/)
+  // «N da guardare»: pallino d'ottone da 7 px, il conto in bold #7A5C1E, la
+  // coda in grigio; tutto in 12,5 px
+  assert.match(comandi, /const TESTO_RIGHE = 12\.5/)
+  assert.match(comandi, /const OTTONE_SCURO = '#7A5C1E'/)
+  assert.match(comandi, /width: 7, height: 7, borderRadius: '50%', background: OTTONE_PALLINO/)
+  assert.match(comandi, /fontWeight: 700, color: OTTONE_SCURO \}\}>\{riga\.conto\}/)
+  assert.match(comandi, /color: 'var\(--color-stone\)' \}\}>\{riga\.coda\}/)
+  // se non ce ne sono la riga non c'è proprio
+  assert.match(comandi, /if \(!riga\) return null/)
 
-  // «Ordina» è lo stesso interruttore squadrato degli altri comandi
+  // «Ordina per»: la scelta in green-mid bold, sottolineatura sottile d'ottone
+  // chiaro 4 px sotto il testo; le altre due parole in grigio
+  assert.match(comandi, /const OTTONE_CHIARO = 'rgba\(169,136,78,0\.45\)'/)
+  assert.match(comandi, /fontWeight: 700, color: 'var\(--color-green-mid\)', textDecoration: 'underline', textDecorationColor: OTTONE_CHIARO, textDecorationThickness: 1, textUnderlineOffset: 4/)
+  assert.match(comandi, /<span className=\{TOCCO\}>Ordina per<\/span>/)
+
+  // tutto quello che si tocca è alto 44 px: 18 px di testo + 13 sopra e sotto
+  assert.match(comandi, /const TOCCO = 'py-\[13px\]'/)
+  assert.match(comandi, /export const ALTEZZA_TOCCO = 44/)
+
+  // le pastiglie degli avvisi e l'interruttore «Ordina» non ci sono più
+  assert.equal(/EtichettaAvviso|TastoAvviso|AVVISO_SITO|AVVISO_GUARDARE|InterruttoreSquadrato/.test(comandi), false)
+  assert.equal(/#EFE2C7|#EFEADF/.test(comandi), false, 'i fondi delle pastiglie sono ancora qui')
+})
+
+// La riga «N da guardare», nei due stati e quando non serve
+test('la riga «da guardare» dice il conto e la via d\u2019uscita', () => {
+  assert.deepEqual(rigaDaGuardare(3), { conto: '3 da guardare', coda: ' · ferme da più di un giorno' })
+  assert.equal(testoRigaGuardare(rigaDaGuardare(3)), '3 da guardare · ferme da più di un giorno')
+  // acceso il filtro, la coda diventa la via d'uscita
+  assert.equal(testoRigaGuardare(rigaDaGuardare(3, true)), '3 da guardare · mostra tutte')
+  assert.equal(testoRigaGuardare(rigaDaGuardare(1, true)), '1 da guardare · mostra tutte')
+  // nessuna richiesta ferma: niente riga
+  assert.equal(rigaDaGuardare(0), null)
+  assert.equal(rigaDaGuardare(0, true), null)
+  assert.equal(rigaDaGuardare(-2), null)
+  assert.equal(testoRigaGuardare(null), '')
+})
+
+// «Ordina per arrivo notti persone»: le stesse tre scelte di prima
+test('le tre parole dell\u2019ordinamento, nell\u2019ordine chiesto', () => {
+  assert.deepEqual(ORDINI_RICHIESTE.map(([, parola]) => parola), ['arrivo', 'notti', 'persone'])
+  assert.deepEqual(ORDINI_RICHIESTE.map(([v]) => v), ['arrivo', 'durata', 'persone'])
+  // e sono davvero le tre scelte che ordinaRichieste sa fare
+  const a = richiesta({ id: 'a', arrivo: '2026-10-01', partenza: '2026-10-02', persone: 3 })
+  const b = richiesta({ id: 'b', arrivo: '2026-10-10', partenza: '2026-10-14', persone: 1 })
+  for (const [v] of ORDINI_RICHIESTE) assert.equal(ordinaRichieste([a, b], v).length, 2)
+})
+
+test('sotto il calendario le due righe di parole stanno dopo l\u2019interruttore', () => {
   const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
-  assert.match(pagina, /<InterruttoreSquadrato etichetta="Ordina"/)
+  const sotto = pagina.slice(pagina.indexOf('Sul telefono i comandi stanno sotto il calendario'), pagina.indexOf('{/* Lista */}'))
+  const dove = (x: string) => {
+    const i = sotto.indexOf(x)
+    assert.notEqual(i, -1, `manca ${x} sotto il calendario`)
+    return i
+  }
+  // riga 1: interruttore a sinistra, «+ Nuova richiesta» a destra
+  const riga1 = dove('<InterruttoreVista vista={vista} onChange={setVista} />')
+  const tasto = dove('<TastoNuovaRichiesta />')
+  assert.ok(tasto - riga1 < 200, 'interruttore e «+ Nuova richiesta» non sono sulla stessa riga')
+  assert.match(sotto, /justify-between/)
+  // riga 2: «N da guardare» · riga 3: «Ordina per»
+  const guardare = dove('<RigaDaGuardare')
+  const ordina = dove('<RigaOrdina')
+  assert.ok(tasto < guardare && guardare < ordina, '«da guardare» e «Ordina per» non stanno nelle righe dopo')
+  assert.match(sotto, /quante=\{ferme\.length\} acceso=\{soloDaGuardare\}/)
+
+  // le «nuove dal sito» restano solo nel sottotitolo in cima
+  assert.equal(/dati="dal-sito"|<Globe/.test(pagina), false, 'le «nuove dal sito» hanno ancora un\u2019etichettina')
+  assert.match(pagina, /<TestataRichieste aperte=\{aperte\.length\} nuoveDalSito=\{nuoveWeb\}/)
+
+  // niente più pastiglie né bottoni tondi sparsi
+  assert.equal(/EtichettaAvviso|TastoAvviso|InterruttoreSquadrato/.test(pagina), false)
+  assert.equal(/rounded-full text-sm font-medium/.test(pagina), false)
+  assert.equal(/BOTTONE_PIENO|BOTTONE_PICCOLO|MISURA_PASTIGLIA/.test(pagina), false)
 })
 
 // ── IL SELETTORE DELLA VISTA È QUELLO DEL CALENDARIO ───────────────────────
@@ -428,29 +483,3 @@ test('il selettore Reale/Presunta è lo stesso «Mese | 2 settimane» del Calend
   assert.equal(/rounded-full/.test(vista), false, 'le Richieste ridisegnano la pillola per conto loro')
 })
 
-test('sotto il calendario i comandi stanno in tre righe, nell’ordine chiesto', () => {
-  const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
-  const sotto = pagina.slice(pagina.indexOf('Sul telefono i comandi stanno sotto il calendario'), pagina.indexOf('{/* Lista */}'))
-  const dove = (x: string) => {
-    const i = sotto.indexOf(x)
-    assert.notEqual(i, -1, `manca ${x} sotto il calendario`)
-    return i
-  }
-  // riga 1: interruttore a sinistra, «+ Nuova richiesta» a destra
-  const riga1 = dove('<InterruttoreVista vista={vista} onChange={setVista} />')
-  const tasto = dove('<TastoNuovaRichiesta />')
-  assert.ok(tasto - riga1 < 200, 'interruttore e «+ Nuova richiesta» non sono sulla stessa riga')
-  assert.match(sotto, /justify-between/)
-  // riga 2: gli avvisi · riga 3: «Ordina»
-  const avvisi = dove('dati="dal-sito"')
-  const ordina = dove('etichetta="Ordina"')
-  assert.ok(tasto < avvisi && avvisi < ordina, 'avvisi e «Ordina» non stanno nelle righe dopo')
-  assert.match(sotto, /dati="da-guardare"/)
-
-  // le tre voci di sempre, dentro l'interruttore
-  assert.match(pagina, /const ORDINI = \[\['durata', 'durata'\], \['arrivo', 'arrivo'\], \['persone', 'persone'\]\] as const/)
-  // niente più bottoni tondi sparsi né il tasto verde pieno largo
-  assert.equal(/Ordina per/.test(pagina), false)
-  assert.equal(/rounded-full text-sm font-medium/.test(pagina), false)
-  assert.equal(/BOTTONE_PIENO|BOTTONE_PICCOLO|MISURA_PASTIGLIA/.test(pagina), false)
-})
