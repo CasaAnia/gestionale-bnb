@@ -353,9 +353,14 @@ test('la nota del cliente nella riga è tutta rossa, come nella Home', () => {
   const home = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8')
   assert.match(home, /text-\[13px\] leading-snug font-semibold/)
 
+  // Dal 12/09/2026 (Ania, dal telefono) la riga della richiesta usa la stessa
+  // veste delle righe «Da controllare» della Home: NotaCliente `piccola`.
+  // La veste `home`, tutta rossa, resta per la nota in cima alla Home.
   const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
   const riga = pagina.slice(pagina.indexOf('function RigaRichiesta'), pagina.indexOf('function RigaChiusa'))
-  assert.match(riga, /<NotaCliente note=\{r\.note\} home className="mt-1" \/>/)
+  const daControllare = readFileSync(new URL('../components/DaControllare.tsx', import.meta.url), 'utf8')
+  assert.match(riga, /<NotaCliente note=\{r\.note\} piccola className="mt-1" \/>/)
+  assert.match(daControllare, /<NotaCliente note=\{e\.nota\} piccola className="mt-1" \/>/)
   assert.equal(/centrata/.test(riga), false)
 })
 

@@ -28,7 +28,7 @@ import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoInte
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
 import { altreStesseDate, gruppoStesseDate, etichettaAltre, sottotitoloGruppo, contatoreGruppo, VEDI_TUTTE } from '@/lib/richiesteStesseDate'
 import { personePerNotte } from '@/lib/richiesteProposta'
-import { pezziRigaElenco, titoloRigaRichiesta, daQuantoArrivata } from '@/lib/rigaRichiesta'
+import { pezziRigaElenco, titoloRigaRichiesta, etichettaRigaRichiesta } from '@/lib/rigaRichiesta'
 import { periodoConGiorni } from '@/lib/dateItaliane'
 import { smartBack } from '@/lib/navHistory'
 import { nomeOspite } from '@/lib/guestName'
@@ -39,8 +39,8 @@ import {
   formatIntervallo, formatDateRichiesta, avvisoFerma, daGuardare, scadenzaProposta, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
 
-const GRIGIO_QUANDO = '#B9B6AD'   // «oggi», «ieri», «2 giorni fa», in fondo alla prima riga
-const GRIGIO_RIGA = '#6b736a'     // la seconda riga: date, notti, persone, camera
+// «oggi / ieri» e la riga di notti e persone non hanno più un grigio loro:
+// stanno nell'etichetta d'ottone e nel color stone della Home (12/09/2026).
 
 const oggiIso = () => {
   const d = new Date()
@@ -74,7 +74,8 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
   // Le notti scelte a mano non si scrivono con la freccia: si elencano
   const periodo = r.notti_richieste ? formatDateRichiesta(r) : periodoConGiorni(r.arrivo, r.partenza)
   const pezzi = pezziRigaElenco({ notti: nottiRichiesta(r), personeNotti, camera: r.rooms?.name ?? null })
-  const quando = daQuantoArrivata(r.created_at, adesso)
+  // «ieri · dal sito»: quando è arrivata e da dove, come l'etichetta della Home
+  const etichetta = etichettaRigaRichiesta(r.created_at, r.canale, adesso)
   const ferma = avvisoFerma(r, adesso)
   return (
     // Le richieste sono separate solo da un filo sottile: niente riquadri
@@ -82,36 +83,33 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
     <li style={nelGruppo ? { borderLeft: '2px solid #A9884E', paddingLeft: 12 } : undefined}>
     <div role="button" tabIndex={0} onClick={onSeleziona} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeleziona() } }} aria-pressed={selezionata}
       className={`w-full text-left cursor-pointer border-t border-card-border transition-colors ${selezionata ? 'bg-sage/40 rounded-lg px-3 -mx-3' : ''}`}
-      style={{ paddingTop: 11, paddingBottom: 11 }}>
-      {/* Prima riga come le righe «Da controllare» della Home (Ania, dal
-          telefono, 12/09/2026): «chi · quando» insieme, 15 px semibold verde
-          scuro — davanti l'etichettina blu delle altre richieste per le stesse
-          date, in fondo a destra da quanto è arrivata. Come nella Home il
-          nome NON si taglia: se non ci sta, le date vanno a capo intere
-          (lib/rigaRichiesta). */}
-      <div className="flex items-start justify-between gap-2">
-        <p data-titolo-richiesta aria-label={titoloRigaRichiesta(nomeCompleto(r), periodo)}
-          className="flex flex-wrap items-center gap-x-1.5 min-w-0 leading-snug" style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-green-dark)' }}>
-          {stesseDate && onGruppo && <SegnoStesseDate testo={stesseDate} onClick={onGruppo} />}
-          {/* il puntino sta col NOME: andando a capo non resta appeso in
-              testa alla riga sotto, come un elenco puntato */}
-          <span className="break-words">{nomeCompleto(r)} ·</span>
-          <span className="whitespace-nowrap">{periodo}</span>
-          {/* Cliente che torna (08/09/2026): non è una provenienza, è un'etichetta */}
-          {giaStato && <span data-gia-stato className="shrink-0 text-[11px] font-bold bg-sage text-green-mid whitespace-nowrap" style={{ borderRadius: 4, padding: '2px 7px', lineHeight: '18px' }}>{giaStato}</span>}
-        </p>
-        {/* «oggi / ieri» sta in alto a destra: quando il titolo va a capo
-            resta in riga col nome, non a mezz'aria */}
-        {quando && <span className="shrink-0 mt-[3px]" style={{ fontSize: 11, color: GRIGIO_QUANDO }}>{quando}</span>}
+      style={{ paddingTop: 12, paddingBottom: 12 }}>
+      {/* Etichetta in alto, come ETICHETTA_TIPO delle righe «Da controllare»
+          della Home (Ania, dal telefono, 12/09/2026): 10 px maiuscolo ottone,
+          dice quando è arrivata e da dove — «IERI · DAL SITO». Qui sta anche
+          l'etichettina blu delle altre richieste per le stesse date. */}
+      <div className="flex flex-wrap items-center gap-x-2">
+        <p data-etichetta-richiesta className="text-[10px] uppercase tracking-[1.5px] text-brass">{etichetta}</p>
+        {stesseDate && onGruppo && <SegnoStesseDate testo={stesseDate} onClick={onGruppo} />}
       </div>
-      {/* Seconda riga: notti, persone, camera — le date sono salite nella
-          prima. In semibold verde solo i DATI: il numero delle notti, quello
-          delle persone e la camera («Ambra» o «qualsiasi», senza la parola
-          «camera»); le parole di mezzo restano piccole e grigie. 13,5 px per
-          leggerla meglio (Ania, dal telefono, 12/09/2026; lib/rigaRichiesta) */}
-      <p className="mt-[3px]" style={{ fontSize: 13.5, lineHeight: 1.3, color: GRIGIO_RIGA }}>
+      {/* Il titolo, come quello della Home: «chi · quando», nome e date
+          insieme in 15 px semibold verde scuro. Il nome NON si taglia: se non
+          ci sta, le date vanno a capo intere e il puntino resta col nome, così
+          la riga sotto non comincia con un «·» (lib/rigaRichiesta). */}
+      <p data-titolo-richiesta aria-label={titoloRigaRichiesta(nomeCompleto(r), periodo)}
+        className="flex flex-wrap items-center gap-x-1.5 text-[15px] font-semibold text-green-dark leading-snug mt-0.5">
+        <span className="break-words">{nomeCompleto(r)} ·</span>
+        <span className="whitespace-nowrap">{periodo}</span>
+        {/* Cliente che torna (08/09/2026): non è una provenienza, è un'etichetta */}
+        {giaStato && <span data-gia-stato className="shrink-0 text-[11px] font-bold bg-sage text-green-mid whitespace-nowrap" style={{ borderRadius: 4, padding: '2px 7px', lineHeight: '18px' }}>{giaStato}</span>}
+      </p>
+      {/* La riga sotto, come il «motivo» della Home: 12,5 px color stone —
+          notti, persone e camera. In semibold verde scuro solo il numero
+          delle notti, quello delle persone (o la sequenza «3 → 1») e la
+          camera; la parola «camera» non si scrive (lib/rigaRichiesta). */}
+      <p className="text-[12.5px] leading-snug mt-0.5" style={{ color: 'var(--color-stone)' }}>
         {pezzi.map((x, i) => (
-          <span key={i} style={x.forte ? { fontWeight: 600, color: 'var(--color-green-dark)' } : undefined}>{x.testo}</span>
+          <span key={i} className={x.forte ? 'font-semibold text-green-dark' : undefined}>{x.testo}</span>
         ))}
       </p>
       {/* Solo quando c'è qualcosa da dire: timer della proposta, richiesta
@@ -127,8 +125,8 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
           si sovrappone con {conflitti.join(', ')}
         </p>
       )}
-      {/* La nota del cliente come nella Home: tutta in rosso, 13 px semibold */}
-      <NotaCliente note={r.note} home className="mt-1" />
+      {/* La nota del cliente con lo STESSO componente della Home, piccola */}
+      <NotaCliente note={r.note} piccola className="mt-1" />
       {/* Ultima riga: la pastiglia verde, «Modifica» e «Rifiuta», e in fondo a
           destra le due icone nude per chiamare e per scrivere su WhatsApp */}
       <div className="flex items-center mt-2" style={{ gap: SPAZIO_COMANDI }}>
@@ -435,7 +433,9 @@ function Richieste() {
           <div className="flex items-center gap-2 mb-4">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <span className="text-[11px] uppercase text-brass shrink-0" style={{ letterSpacing: '2px' }}>{capogruppo ? 'Stesse date' : soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}</span>
-              {!loading && <span className="text-[13px] text-stone shrink-0">{capogruppo ? contatoreGruppo(gruppo.length) : mostrate.length}</span>}
+              {/* «RICHIESTE APERTE · 4»: da quando in cima non c'è più il
+                  conto, quante sono si legge solo qui (Ania, 12/09/2026) */}
+              {!loading && <span className="text-[13px] text-stone shrink-0">· {capogruppo ? contatoreGruppo(gruppo.length) : mostrate.length}</span>}
               <span className="flex-1 h-px" style={{ background: 'rgba(169,136,78,0.45)' }} />
             </div>
             {desktop && <RigaOrdina voci={ORDINI_RICHIESTE} scelta={ordine} onScegli={setOrdine} nome="Ordina le richieste" className="shrink-0" />}

@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { periodoConGiorni } from './dateItaliane.ts'
-import { pezziNumerici, pezziNotti, pezziPersone, pezziCamera, pezziRigaRichiesta, pezziRigaElenco, titoloRigaRichiesta, testoRiga, daQuantoArrivata } from './rigaRichiesta.ts'
+import { pezziNumerici, pezziNotti, pezziPersone, pezziCamera, pezziRigaRichiesta, pezziRigaElenco, titoloRigaRichiesta, etichettaRigaRichiesta, testoRiga, daQuantoArrivata } from './rigaRichiesta.ts'
 import { etichettaAltre } from './richiesteStesseDate.ts'
 
 const riga = (x: Parameters<typeof pezziRigaRichiesta>[0]) => testoRiga(pezziRigaRichiesta(x))
@@ -105,6 +105,21 @@ test('la prima riga mette insieme il nome e le date, come nella Home', () => {
   assert.equal(titoloRigaRichiesta('  Anna  ', '  gio 29  '), 'Anna · gio 29')
 })
 
+test('l’etichetta in alto dice quando è arrivata e da dove', () => {
+  const adesso = new Date(2026, 8, 12, 20, 30)   // sab 12 set 2026
+  const ieri = new Date(2026, 8, 11, 9, 0).toISOString()
+  const oggi = new Date(2026, 8, 12, 8, 0).toISOString()
+  assert.equal(etichettaRigaRichiesta(ieri, 'web', adesso), 'ieri · dal sito')
+  assert.equal(etichettaRigaRichiesta(oggi, 'telefono', adesso), 'oggi · telefono')
+  assert.equal(etichettaRigaRichiesta(oggi, 'whatsapp', adesso), 'oggi · WhatsApp')
+  assert.equal(etichettaRigaRichiesta(new Date(2026, 8, 9, 9, 0).toISOString(), 'web', adesso), '3 giorni fa · dal sito')
+  // le maiuscole le fa il disegno, non il testo
+  assert.equal(etichettaRigaRichiesta(ieri, 'web', adesso).toUpperCase(), 'IERI · DAL SITO')
+  // senza data resta il solo canale, senza puntino appeso
+  assert.equal(etichettaRigaRichiesta(null, 'telefono', adesso), 'telefono')
+  assert.equal(etichettaRigaRichiesta('non una data', 'web', adesso), 'dal sito')
+})
+
 test('nella seconda riga sono forti solo i numeri e la camera', () => {
   const p = pezziRigaElenco({ notti: 2, personeNotti: [3, 3], camera: 'Ambra' })
   assert.equal(testoRiga(p), '2 notti · 3 persone · Ambra')
@@ -163,10 +178,10 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
     return i
   }
   const ordine = [
-    '<SegnoStesseDate',           // l'etichettina blu, DAVANTI al nome
-    '{nomeCompleto(r)}',          // il nome
-    '{periodo}',                  // e subito le date, sulla stessa riga
-    '{quando}',                   // «oggi» / «ieri» / «2 giorni fa», a destra
+    '{etichetta}',                // «IERI · DAL SITO», in alto
+    '<SegnoStesseDate',           // l'etichettina blu, nella riga dell'etichetta
+    '{nomeCompleto(r)}',          // il titolo: il nome
+    '{periodo}',                  // e le date, sulla stessa riga
     '{pezzi.map(',                // notti · persone · camera
     '<NotaCliente',               // la nota del cliente, se c'è
     '<TastoPrincipale',           // la pastiglia verde
@@ -176,40 +191,46 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
   const posizioni = ordine.map(dove)
   assert.deepEqual(posizioni, [...posizioni].sort((a, b) => a - b), 'i pezzi della riga non sono nell’ordine chiesto')
 
-  // l'etichettina e la nota compaiono solo se c'è qualcosa da dire
+  // l'etichettina blu e la nota compaiono solo se c'è qualcosa da dire
   assert.match(riga, /\{stesseDate && onGruppo && <SegnoStesseDate/)
-  assert.match(riga, /<NotaCliente note=\{r\.note\} home/)
 
-  // la riga è separata solo da un filo, con 11 px sopra e sotto: niente riquadri
+  // ── LE STESSE CLASSI DELLE RIGHE «DA CONTROLLARE» DELLA HOME ────────────
+  // (Ania, dal telefono, 12/09/2026: «esattamente come la Home, senza
+  // invenzioni»). Se la Home cambia misura, questa prova se ne accorge.
+  const home = readFileSync(new URL('../components/DaControllare.tsx', import.meta.url), 'utf8')
+  const ETICHETTA = 'text-[10px] uppercase tracking-[1.5px] text-brass'
+  const TITOLO = 'text-[15px] font-semibold text-green-dark leading-snug mt-0.5'
+  const SOTTO = 'text-[12.5px] leading-snug mt-0.5'
+  for (const classe of [ETICHETTA, TITOLO, SOTTO]) {
+    assert.ok(home.includes(classe), `la Home non usa più «${classe}»`)
+    assert.ok(riga.includes(classe), `la riga della richiesta non usa «${classe}»`)
+  }
+  // la riga sotto è color stone, come il «motivo» della Home
+  assert.match(riga, /style=\{\{ color: 'var\(--color-stone\)' \}\}/)
+  assert.match(home, /style=\{\{ color: 'var\(--color-stone\)' \}\}/)
+  // la nota è lo STESSO componente della Home, nella stessa veste
+  assert.match(home, /<NotaCliente note=\{e\.nota\} piccola/)
+  assert.match(riga, /<NotaCliente note=\{r\.note\} piccola/)
+  // 12 px sopra e sotto, come py-3 della Home, e il filo che separa
   assert.match(riga, /border-t border-card-border/)
-  assert.match(riga, /paddingTop: 11, paddingBottom: 11/)
+  assert.match(riga, /paddingTop: 12, paddingBottom: 12/)
+  assert.match(home, /py-3/)
 
-  // prima riga come nella Home: nome E DATE insieme, 15 px semibold verde
-  // scuro; «quando» resta in fondo a destra, 11 px grigio chiaro
-  assert.match(riga, /fontSize: 15, fontWeight: 600, color: 'var\(--color-green-dark\)'/)
+  // l'etichetta: quando è arrivata e da dove, in un posto solo
+  assert.match(riga, /const etichetta = etichettaRigaRichiesta\(r\.created_at, r\.canale, adesso\)/)
+  // «ieri» non sta più a destra da solo
+  assert.equal(/GRIGIO_QUANDO|\{quando\}/.test(riga), false, '«ieri» sta ancora a destra')
+
+  // il titolo: nome e date insieme; il nome NON si taglia e il puntino resta
+  // col nome, così la riga sotto non comincia con un «·»
   assert.match(riga, /aria-label=\{titoloRigaRichiesta\(nomeCompleto\(r\), periodo\)\}/)
-  // come nella Home il nome NON si taglia: se non ci sta, le date vanno a
-  // capo intere (mai un nome mozzato né una data spezzata a metà)
-  // il puntino sta col nome: andando a capo non resta appeso in testa
   assert.match(riga, /<span className="break-words">\{nomeCompleto\(r\)\} ·<\/span>/)
   assert.match(riga, /<span className="whitespace-nowrap">\{periodo\}<\/span>/)
-  assert.match(riga, /flex flex-wrap items-center/)
   assert.equal(/truncate/.test(riga), false, 'il nome viene ancora tagliato')
-  // «oggi / ieri» in alto a destra, in riga col nome anche quando va a capo
-  assert.match(riga, /flex items-start justify-between/)
-  assert.match(riga, /className="shrink-0 mt-\[3px\]" style=\{\{ fontSize: 11, color: GRIGIO_QUANDO \}\}/)
-  // la misura è quella delle righe «Da controllare» della Home
-  const home = readFileSync(new URL('../components/DaControllare.tsx', import.meta.url), 'utf8')
-  assert.match(home, /text-\[15px\] font-semibold text-green-dark/)
-  assert.match(pagina, /const GRIGIO_QUANDO = '#B9B6AD'/)
-  // seconda riga: 13,5 px, grigio verde, e non va a capo
-  assert.match(riga, /fontSize: 13\.5, lineHeight: 1\.3, color: GRIGIO_RIGA/)
-  assert.match(pagina, /const GRIGIO_RIGA = '#6b736a'/)
-  // le date non stanno più nella seconda riga
+
+  // la riga sotto: forti solo i numeri e la camera (lib/rigaRichiesta)
   assert.match(riga, /pezziRigaElenco\(\{ notti: nottiRichiesta\(r\), personeNotti, camera/)
-  // non si taglia: nei casi normali sta in una riga, e quando le persone
-  // cambiano tante volte va a capo invece di nascondere la camera
-  assert.match(riga, /className="mt-\[3px\]"/)
+  assert.match(riga, /className=\{x\.forte \? 'font-semibold text-green-dark' : undefined\}/)
 
   // l'etichettina blu: fondo e testo della bozza, con la misura delle altre
   assert.match(pagina, /const BLU_FONDO = '#DCE7ED'/)
@@ -219,9 +240,7 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
 
   // Le due colonne grandi non stanno più qui: restano nella testa della proposta
   assert.equal(/RigaPersoneCamera/.test(pagina), false)
-  // e nemmeno le vecchie ripetizioni di persone e camera
   assert.equal(/qualsiasi camera/.test(riga), false)
-  // niente più i tondi col contorno né il Georgia grande dentro la riga
   assert.equal(/TondiContatto|fontFamily: GEORGIA/.test(riga), false)
 
   // l'ultima riga resta com'è: pastiglia verde, «Modifica», «Rifiuta» e in

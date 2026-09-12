@@ -6,11 +6,14 @@
 // richiesta occupava quasi mezzo schermo. Adesso sono due righe, con la forma
 // delle righe «Da controllare» della Home:
 //
-//   Anna Sawicka · gio 29 → sab 31 ott                             ieri
+//   IERI · DAL SITO
+//   Anna Sawicka · gio 29 → sab 31 ott
 //   2 notti · 3 persone · qualsiasi
 //
-//  · la PRIMA riga (`titoloRigaRichiesta`) è come il titolo della Home, «chi
-//    · quando»: il nome e le date insieme, 15 px semibold verde scuro;
+//  · l'ETICHETTA in alto (`etichettaRigaRichiesta`) è come ETICHETTA_TIPO
+//    della Home, 10 px maiuscolo ottone: dice quando è arrivata e da dove;
+//  · il TITOLO (`titoloRigaRichiesta`) è come il titolo della Home, «chi ·
+//    quando»: il nome e le date insieme, 15 px semibold verde scuro;
 //  · la SECONDA (`pezziRigaElenco`) dice quanto, quanti e dove. Forti solo il
 //    NUMERO delle notti, il NUMERO delle persone (o la sequenza «3 → 1») e la
 //    CAMERA. La parola «camera» non si scrive: si legge «· Ambra» oppure
@@ -28,18 +31,30 @@
 // cambiano, «3 → 1» quando cambiano notte per notte.
 // ============================================================================
 import { personeTesta } from './personeTesta.ts'
+import { CANALE_LABEL, type CanaleRichiesta } from './richieste.ts'
 
 // `forte` = Georgia, più grande, verde scuro. Altrimenti piccolo e grigio.
 export type PezzoRiga = { testo: string; forte: boolean }
 
 export const SEPARATORE = ' · '
 
-// La PRIMA riga dell'elenco: «Anna Sawicka · gio 29 → sab 31 ott». La stessa
+// Unisce col puntino solo i pezzi che ci sono davvero.
+const conPuntino = (pezzi: string[]): string => pezzi.map(x => x.trim()).filter(x => x !== '').join(SEPARATORE)
+
+// Il TITOLO dell'elenco: «Anna Sawicka · gio 29 → sab 31 ott». La stessa
 // forma del titolo delle righe «Da controllare» della Home (lib/daControllare:
 // «chi · quando»). Senza uno dei due pezzi resta l'altro, senza puntino
 // appeso.
 export function titoloRigaRichiesta(nome: string, periodo: string): string {
-  return [nome.trim(), periodo.trim()].filter(x => x !== '').join(SEPARATORE)
+  return conPuntino([nome, periodo])
+}
+
+// L'ETICHETTA piccola sopra il titolo, come ETICHETTA_TIPO delle righe «Da
+// controllare» della Home: quando è arrivata e da dove — «ieri · dal sito»,
+// «oggi · telefono». A schermo si legge in maiuscolo, ma le maiuscole le fa il
+// disegno (`uppercase`), non questo testo.
+export function etichettaRigaRichiesta(createdAt: string | null | undefined, canale: CanaleRichiesta, adesso: Date = new Date()): string {
+  return conPuntino([daQuantoArrivata(createdAt, adesso), CANALE_LABEL[canale] ?? ''])
 }
 
 // Taglia un testo nei suoi numeri: «gio 29 → sab 31 ott» diventa
