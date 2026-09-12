@@ -18,6 +18,7 @@ import {
 import BackLink from '@/components/BackLink'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi, { BORDO_RIQUADRO } from '@/components/RigaMesi'
+import InterruttorePillola from '@/components/InterruttorePillola'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -56,6 +57,7 @@ const MESI_CLICCABILI = 12       // riga sottile dei mesi: da quello corrente in
 type ModoGriglia = 'mese' | 'quindici'
 const COLONNE_VISIBILI: Record<ModoGriglia, number> = { mese: 31, quindici: GIORNI_QUINDICINA }   // 31: a mese si vede il mese intero (05/09/2026)
 const CHIAVE_MODO = 'ca_calendario_modo'
+const VOCI_GRIGLIA = [['mese', 'Mese'], ['quindici', '2 settimane']] as const satisfies readonly (readonly [ModoGriglia, string])[]
 const LARGHEZZA_MIN_COLONNA = 28
 const DAYS_TOTAL = 365
 const DAYS_BEFORE = 180
@@ -704,14 +706,9 @@ export default function Calendario() {
             </button>
             <span className={`font-serif text-green-dark whitespace-nowrap ${isDesktop ? 'text-[17px]' : 'text-[14px]'}`}>{etichettaVista}</span>
             <div className="flex items-center gap-1">
-              <div role="group" aria-label="Vista del calendario" className="inline-flex rounded-full border p-0.5 mr-1" style={{ borderColor: '#C9BFA8' }}>
-                {([['mese', 'Mese'], ['quindici', '2 settimane']] as const).map(([v, label]) => (
-                  <button key={v} type="button" onClick={() => cambiaModo(v)} aria-pressed={modo === v}
-                    className={`rounded-full whitespace-nowrap font-semibold transition-colors ${isDesktop ? 'px-3 py-1 text-xs' : 'px-2 py-1 text-[11px]'} ${modo === v ? 'bg-green-mid text-cream-text' : 'text-green-dark'}`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
+              {/* Lo stesso interruttore delle Richieste: il disegno sta in
+                  components/InterruttorePillola (Ania, 12/09/2026) */}
+              <InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" grande={isDesktop} className="mr-1" />
               <button type="button" onClick={() => freccia(1)} aria-label={modo === 'quindici' ? 'Due settimane dopo' : 'Mese successivo'}
                 className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
                 <ChevronRight size={20} strokeWidth={2} aria-hidden />

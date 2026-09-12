@@ -388,10 +388,44 @@ test('tutti i comandi della pagina sono della stessa famiglia', () => {
   // «N da guardare» si tocca: 44 px di area utile senza alzare la riga
   assert.match(comandi, /py-\[12px\] -my-\[12px\]/)
 
-  // «Reale / Presunta» e «Ordina» sono lo STESSO interruttore
+  // «Ordina» è lo stesso interruttore squadrato degli altri comandi
+  const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
+  assert.match(pagina, /<InterruttoreSquadrato etichetta="Ordina"/)
+})
+
+// ── IL SELETTORE DELLA VISTA È QUELLO DEL CALENDARIO ───────────────────────
+// «Reale | Presunta» e «Mese | 2 settimane» sono lo stesso oggetto, disegnato
+// in un posto solo: components/InterruttorePillola (Ania, dal telefono,
+// 12/09/2026). Prima erano due disegni diversi che stavano divergendo.
+test('il selettore Reale/Presunta è lo stesso «Mese | 2 settimane» del Calendario', () => {
+  const pillola = readFileSync(new URL('../components/InterruttorePillola.tsx', import.meta.url), 'utf8')
+  // la pillola: contorno 1 px #C9BFA8, 2 px di bordo interno, fondo trasparente
+  assert.match(pillola, /export const BORDO_PILLOLA = '#C9BFA8'/)
+  assert.match(pillola, /inline-flex rounded-full border p-0\.5/)
+  assert.match(pillola, /borderColor: BORDO_PILLOLA/)
+  assert.equal(/background(?!-)/.test(pillola), false, 'la pillola non deve avere un fondo')
+  // le parole: 11 px semibold green-dark, 8 px ai lati e 4 sopra e sotto;
+  // la scelta su green-mid col testo crema
+  assert.match(pillola, /px-2 py-1 text-\[11px\]/)
+  assert.match(pillola, /font-semibold/)
+  assert.match(pillola, /presa \? 'bg-green-mid text-cream-text' : 'text-green-dark'/)
+  // dal Mac le parole restano un filo più larghe, come prima
+  assert.match(pillola, /grande \? 'px-3 py-1 text-xs'/)
+  // si tocca: 44 px di area utile, fuori dal disegno
+  assert.match(pillola, /py-\[10px\] -my-\[10px\]/)
+  assert.match(pillola, /export const ALTEZZA_TOCCO = 44/)
+
+  // LE DUE PAGINE usano quel componente: non possono più divergere
   const vista = readFileSync(new URL('../components/richieste/InterruttoreVista.tsx', import.meta.url), 'utf8')
-  assert.match(vista, /<InterruttoreSquadrato voci=\{VOCI\}/)
-  assert.equal(/rounded-full/.test(vista), false, 'l\u2019interruttore è ancora una pillola tonda')
+  assert.match(vista, /import InterruttorePillola from '@\/components\/InterruttorePillola'/)
+  assert.match(vista, /<InterruttorePillola voci=\{VOCI\}/)
+  const calendario = readFileSync(new URL('../app/calendario/page.tsx', import.meta.url), 'utf8')
+  assert.match(calendario, /import InterruttorePillola from '@\/components\/InterruttorePillola'/)
+  assert.match(calendario, /<InterruttorePillola voci=\{VOCI_GRIGLIA\}/)
+  assert.match(calendario, /VOCI_GRIGLIA = \[\['mese', 'Mese'\], \['quindici', '2 settimane'\]\]/)
+  // e nessuna delle due si ridisegna per conto suo
+  assert.equal(/rounded-full border p-0\.5/.test(calendario), false, 'il Calendario ridisegna la pillola per conto suo')
+  assert.equal(/rounded-full/.test(vista), false, 'le Richieste ridisegnano la pillola per conto loro')
 })
 
 test('sotto il calendario i comandi stanno in tre righe, nell’ordine chiesto', () => {
