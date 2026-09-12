@@ -76,7 +76,7 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
   try { personeNotti = personePerNotte(r) } catch { personeNotti = [Math.max(1, Number(r.persone) || 1)] }
   // Le notti scelte a mano non si scrivono con la freccia: si elencano
   const periodo = r.notti_richieste ? formatDateRichiesta(r) : periodoConGiorni(r.arrivo, r.partenza)
-  const pezzi = pezziRigaRichiesta({ periodo, notti: nottiRichiesta(r), personeNotti, camera: r.rooms?.name ?? null, forte: 'persone-camera' })
+  const pezzi = pezziRigaRichiesta({ periodo, notti: nottiRichiesta(r), personeNotti, camera: r.rooms?.name ?? null, forte: 'elenco' })
   const quando = daQuantoArrivata(r.created_at, adesso)
   const ferma = avvisoFerma(r, adesso)
   return (
@@ -97,8 +97,10 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
         </p>
         {quando && <span className="shrink-0" style={{ fontSize: 11, color: GRIGIO_QUANDO }}>{quando}</span>}
       </div>
-      {/* Seconda riga, tutto di seguito: date, notti, persone, camera. Forti
-          solo le PERSONE e la CAMERA chiesta (lib/rigaRichiesta) */}
+      {/* Seconda riga, tutto di seguito: date, notti, persone, camera. In
+          semibold verde solo i DATI — le date con la freccia, il numero delle
+          notti, quello delle persone e la camera; le parole di mezzo restano
+          piccole e grigie (Ania, dal telefono, 12/09/2026; lib/rigaRichiesta) */}
       <p className="mt-[3px]" style={{ fontSize: 13, lineHeight: 1.3, color: GRIGIO_RIGA }}>
         {pezzi.map((x, i) => (
           <span key={i} style={x.forte ? { fontWeight: 600, color: 'var(--color-green-dark)' } : undefined}>{x.testo}</span>

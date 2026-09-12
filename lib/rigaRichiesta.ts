@@ -9,14 +9,16 @@
 //   gio 29 → sab 31 ott · 2 notti · 3 persone · Ambra
 //   lun 3 → mer 5 nov · 2 notti · 1 persona · camera qualsiasi
 //
-// Quali pezzi sono FORTI lo decide il modo (Ania, su bozza, 12/09/2026):
+// Quali pezzi sono FORTI lo decide il modo:
 //
-//  · 'numeri'          — i numeri e il nome della camera, come nella testa
-//                        della proposta, dove la riga è grande;
-//  · 'persone-camera'  — nella riga dell'elenco, dove la riga è piccola e
-//                        deve pesare poco: forti solo le PERSONE e la CAMERA
-//                        CHIESTA, cioè le due cose che cambiano la risposta.
-//                        Le date e le notti si leggono normali.
+//  · 'numeri'  — i numeri e il nome della camera, come nella testa della
+//                proposta, dove la riga è grande;
+//  · 'elenco'  — nella riga dell'elenco (Ania, dal telefono, 12/09/2026):
+//                forti le DATE con la freccia, il NUMERO delle notti, il
+//                NUMERO delle persone (o la sequenza «3 → 1») e la CAMERA
+//                («Ambra», oppure «qualsiasi»). Le parole di mezzo — «notti»,
+//                «persone», «camera», i puntini — restano piccole e grigie:
+//                si leggono i dati, non le etichette.
 //
 // Qui si decide COSA scrivere e quali pezzi sono forti, la pagina decide come
 // disegnarli.
@@ -57,16 +59,27 @@ export function pezziPersone(personeNotti: number[]): PezzoRiga[] {
   return out
 }
 
-// «Ambra» (nome della camera, forte) oppure «camera qualsiasi» (piccolo e grigio:
-// non è il nome di niente)
-export function pezziCamera(camera: string | null | undefined): PezzoRiga[] {
+// «Ambra» (nome della camera, forte) oppure «camera qualsiasi». Nell'elenco
+// anche «qualsiasi» è forte — è la risposta alla domanda «quale camera?» —
+// mentre la parola «camera» resta piccola e grigia come le altre etichette.
+export function pezziCamera(camera: string | null | undefined, { qualsiasiForte = false } = {}): PezzoRiga[] {
   const nome = (camera ?? '').trim()
-  return nome ? [{ testo: nome, forte: true }] : [{ testo: 'camera qualsiasi', forte: false }]
+  if (nome) return [{ testo: nome, forte: true }]
+  return qualsiasiForte
+    ? [{ testo: 'camera ', forte: false }, { testo: 'qualsiasi', forte: true }]
+    : [{ testo: 'camera qualsiasi', forte: false }]
 }
 
-export type ModoForte = 'numeri' | 'persone-camera'
+export type ModoForte = 'numeri' | 'elenco'
 
-const spento = (pezzi: PezzoRiga[]): PezzoRiga[] => pezzi.map(p => (p.forte ? { ...p, forte: false } : p))
+// Le date con la freccia sono un pezzo solo: «gio 29 → sab 31 ott» tutto forte
+const tutteLeDate = (periodo: string): PezzoRiga[] => (periodo ? [{ testo: periodo, forte: true }] : [])
+
+// Le persone dell'elenco: forti i numeri E la freccia fra un numero e l'altro,
+// così «3 → 1» si legge come una cosa sola. Le parole di servizio della forma
+// lunga («da 1 a 3») restano piccole.
+const personeElenco = (personeNotti: number[]): PezzoRiga[] =>
+  pezziPersone(personeNotti).map(p => (p.testo === '→' ? { ...p, forte: true } : p))
 
 // La riga intera, coi puntini di mezzo già dentro.
 export function pezziRigaRichiesta({ periodo, notti, personeNotti, camera, forte = 'numeri' }: {
@@ -76,12 +89,12 @@ export function pezziRigaRichiesta({ periodo, notti, personeNotti, camera, forte
   camera?: string | null
   forte?: ModoForte
 }): PezzoRiga[] {
-  const piano = forte === 'persone-camera'
+  const elenco = forte === 'elenco'
   const gruppi = [
-    piano ? spento(pezziNumerici(periodo)) : pezziNumerici(periodo),
-    piano ? spento(pezziNotti(notti)) : pezziNotti(notti),
-    pezziPersone(personeNotti),
-    pezziCamera(camera),
+    elenco ? tutteLeDate(periodo) : pezziNumerici(periodo),
+    pezziNotti(notti),
+    elenco ? personeElenco(personeNotti) : pezziPersone(personeNotti),
+    pezziCamera(camera, { qualsiasiForte: elenco }),
   ].filter(g => g.length > 0)
   const out: PezzoRiga[] = []
   gruppi.forEach((g, i) => {

@@ -48,6 +48,9 @@ test('la camera: il nome quando c’è, «camera qualsiasi» quando non c’è',
   assert.deepEqual(pezziCamera(null), [{ testo: 'camera qualsiasi', forte: false }])
   assert.deepEqual(pezziCamera(''), [{ testo: 'camera qualsiasi', forte: false }])
   assert.deepEqual(pezziCamera('   '), [{ testo: 'camera qualsiasi', forte: false }])
+  // nell'elenco «qualsiasi» è forte, la parola «camera» no: il testo non cambia
+  assert.deepEqual(pezziCamera(null, { qualsiasiForte: true }), [{ testo: 'camera ', forte: false }, { testo: 'qualsiasi', forte: true }])
+  assert.deepEqual(pezziCamera('Ambra', { qualsiasiForte: true }), [{ testo: 'Ambra', forte: true }])
 })
 
 test('in Georgia ci vanno i numeri e il nome della camera, non le parole', () => {
@@ -80,29 +83,36 @@ test('da quanto è arrivata: oggi, ieri, N giorni fa', () => {
   assert.equal(daQuantoArrivata('non una data', adesso), '')
 })
 
-// ── LA SECONDA RIGA DELL'ELENCO (Ania, su bozza, 12/09/2026) ───────────────
-// Lì la riga è piccola e deve pesare poco: forti solo le PERSONE e la CAMERA
-// chiesta, cioè le due cose che cambiano la risposta. Date e notti normali.
-test('nella riga dell’elenco sono forti solo le persone e la camera', () => {
-  const p = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-10-29', '2026-10-31'), notti: 2, personeNotti: [3, 3], camera: 'Ambra', forte: 'persone-camera' })
-  assert.deepEqual(forti(p), ['3', 'Ambra'])
+// ── LA SECONDA RIGA DELL'ELENCO (Ania, dal telefono, 12/09/2026) ───────────
+// In semibold verde solo i DATI: le date con la freccia, il numero delle
+// notti, quello delle persone e la camera. Le parole di mezzo — «notti»,
+// «persone», «persona», «camera», i puntini — restano piccole e grigie.
+test('nella riga dell’elenco sono forti solo le date, i numeri e la camera', () => {
+  const p = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-10-29', '2026-10-31'), notti: 2, personeNotti: [3, 3], camera: 'Ambra', forte: 'elenco' })
+  // gio 29 → sab 31 ott · 2 notti · 3 persone · Ambra
+  assert.deepEqual(forti(p), ['gio 29 → sab 31 ott', '2', '3', 'Ambra'])
   // il testo però non cambia: è quello della bozza
   assert.equal(testoRiga(p), 'gio 29 → sab 31 ott · 2 notti · 3 persone · Ambra')
+  // le parole di mezzo e i puntini restano normali
+  assert.equal(testoRiga(p.filter(x => !x.forte)), ' · ' + ' notti · ' + ' persone · ')
 
-  // 1 persona e nessuna camera chiesta
-  const q = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-11-03', '2026-11-05'), notti: 2, personeNotti: [1, 1], camera: null, forte: 'persone-camera' })
+  // 1 persona e nessuna camera chiesta: «qualsiasi» è forte, «camera» no
+  const q = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-11-03', '2026-11-05'), notti: 2, personeNotti: [1, 1], camera: null, forte: 'elenco' })
   assert.equal(testoRiga(q), 'mar 3 → gio 5 nov · 2 notti · 1 persona · camera qualsiasi')
-  // «camera qualsiasi» non è il nome di niente: resta piccolo e grigio
-  assert.deepEqual(forti(q), ['1'])
+  assert.deepEqual(forti(q), ['mar 3 → gio 5 nov', '2', '1', 'qualsiasi'])
 
-  // persone che cambiano notte per notte: la sequenza già decisa
-  const m = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-10-29', '2026-10-31'), notti: 2, personeNotti: [3, 1], camera: null, forte: 'persone-camera' })
+  // persone che cambiano notte per notte: forte tutta la sequenza «3 → 1»
+  const m = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-10-29', '2026-10-31'), notti: 2, personeNotti: [3, 1], camera: null, forte: 'elenco' })
   assert.equal(testoRiga(m), 'gio 29 → sab 31 ott · 2 notti · 3 → 1 persone · camera qualsiasi')
-  assert.deepEqual(forti(m), ['3', '1'])
+  assert.deepEqual(forti(m), ['gio 29 → sab 31 ott', '2', '3', '→', '1', 'qualsiasi'])
+  assert.equal(m.filter(x => x.forte).map(x => x.testo).join('').includes('3→1'), true)
 
   // una notte sola: «1 notte», mai «1 notti»
-  const u = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-11-03', '2026-11-04'), notti: 1, personeNotti: [2], camera: 'Lena', forte: 'persone-camera' })
+  const u = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-11-03', '2026-11-04'), notti: 1, personeNotti: [2], camera: 'Lena', forte: 'elenco' })
   assert.equal(testoRiga(u), 'mar 3 → mer 4 nov · 1 notte · 2 persone · Lena')
+  assert.deepEqual(forti(u), ['mar 3 → mer 4 nov', '1', '2', 'Lena'])
+  // «notte» e «persone» non sono forti
+  assert.equal(forti(u).some(x => /notte|persone|camera/.test(x)), false)
 
   // senza il modo si continua a fare come nella testa della proposta
   const vecchio = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-10-29', '2026-10-31'), notti: 2, personeNotti: [3, 3], camera: 'Ambra' })
@@ -156,7 +166,7 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
   // seconda riga: 13 px, grigio verde, e non va a capo
   assert.match(riga, /fontSize: 13, lineHeight: 1\.3, color: GRIGIO_RIGA/)
   assert.match(pagina, /const GRIGIO_RIGA = '#6b736a'/)
-  assert.match(riga, /forte: 'persone-camera'/)
+  assert.match(riga, /forte: 'elenco'/)
   // non si taglia: nei casi normali sta in una riga, e quando le persone
   // cambiano tante volte va a capo invece di nascondere la camera
   assert.match(riga, /className="mt-\[3px\]"/)
@@ -173,4 +183,16 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
   assert.equal(/qualsiasi camera/.test(riga), false)
   // niente più i tondi col contorno né il Georgia grande dentro la riga
   assert.equal(/TondiContatto|fontFamily: GEORGIA/.test(riga), false)
+
+  // l'ultima riga resta com'è: pastiglia verde, «Modifica», «Rifiuta» e in
+  // fondo a destra le due icone nude (Ania, dal telefono, 12/09/2026)
+  assert.match(riga, /<IconeContatto r=\{r\} className="ml-auto" \/>/)
+  const azioni = readFileSync(new URL('../components/richieste/AzioniRichiesta.tsx', import.meta.url), 'utf8')
+  const icone = azioni.slice(azioni.indexOf('export function IconeContatto'), azioni.indexOf('export function ComandiRichiesta'))
+  // le icone ci sono sempre: l'unico caso in cui non compaiono è la richiesta
+  // senza numero di telefono, dove non c'è niente da chiamare
+  assert.equal((icone.match(/if \(/g) || []).length, 1)
+  assert.match(icone, /if \(!telefono\) return null/)
+  assert.match(icone, /aria-label=\{`Chiama \$\{nome\}`\}/)
+  assert.match(icone, /aria-label=\{`Scrivi su WhatsApp a \$\{nome\}`\}/)
 })
