@@ -542,3 +542,27 @@ diagnostiche (in `app/arrivi/page.tsx` restano le 17 preesistenti, contate
 prima e dopo). Nuovo caso in `lib/richieste.test.ts`: le tre pagine usano la
 testa condivisa e nessuna si riscrive la fascia o il titolo a mano; aggiornati
 i due casi che cercavano `BackBar` e il titolo nella testa delle Richieste.
+
+## I dati della riga grandi come il nome (12/09/2026, Claude)
+
+Pubblicato e verificato: commit `ac11371` su `main`, deploy Vercel `success`
+(Production). Ultimo ritocco chiesto da Ania sulla riga della richiesta.
+
+Nella riga sotto il titolo le parole di mezzo restano 12,5 px color stone —
+la misura del «motivo» della Home — mentre i DATI passano a **15 px semibold
+verde scuro**, come il titolo: il numero delle notti, quello delle persone (o
+la sequenza «3 → 1», freccia compresa) e la camera. Misurato a schermo:
+`10@15px · 2→3→2@15px · qualsiasi@15px`, parole a 12,5.
+
+La nota della cliente usa lo stesso `NotaCliente` della Home nella misura
+**grande**: 15 px semibold, tutta `#C00000`. La vecchia veste `home` (13 px),
+che non usava più nessuno, è diventata `grande`; in «Da controllare» la nota
+resta `piccola`, quella misura non è stata toccata.
+
+**Prove.** 1044 test verdi, TypeScript e build puliti, lint senza nuove
+diagnostiche. Aggiornati i casi sulla nota (`lib/richieste.test.ts`) e sulla
+riga (`lib/rigaRichiesta.test.ts`: i pezzi forti devono essere
+`text-[15px] font-semibold text-green-dark` e le parole di mezzo restare a
+12,5). Misurato a 390×844 su quattro richieste: titolo 15, base 12,5, forti
+tutti a 15, nota 15 px `rgb(192,0,0)` peso 600, due icone di contatto su tutte
+le richieste col numero.
