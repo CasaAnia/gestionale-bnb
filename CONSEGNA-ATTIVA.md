@@ -261,6 +261,14 @@ Anteprima senza rete a 390×844 (porta 3214): misurate a schermo la pillola
 alte 44 px. Filtro «da guardare» acceso e spento dalla UI vera, ordinamento
 cambiato in «persone» e lista riordinata.
 
+**Rifinitura dopo il rilascio** (`fbcef16`, deploy Vercel `success`).
+Nella riga dell'elenco la parola «camera» non si scrive più: si legge
+«· Ambra» oppure «· qualsiasi» (`pezziCamera(..., { soloValore: true })`).
+Nella testa della proposta, dove la riga è grande, l'etichetta resta: il modo
+`'numeri'` continua a dire «camera qualsiasi». La seconda riga passa da 13 a
+13,5 px; misurata a schermo sta ancora in una riga sola (18 px) nei casi
+normali e va a capo solo col soggiorno lungo di 10 notti e «2 → 3 → 2».
+
 **Da decidere (Ania).** Le due icone di contatto non compaiono quando la
 richiesta non ha il numero di telefono (nell'anteprima: «Sara Verdi»). Non è
 una regressione — è così da sempre e non l'ho toccato — ma se le vuoi sempre
