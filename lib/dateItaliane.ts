@@ -70,3 +70,17 @@ export function giornoConSettimana(iso: string | null | undefined): { giorno: st
   const d = new Date(Date.UTC(p.anno, p.mese - 1, p.giorno))
   return { giorno: `${GIORNI_BREVI[d.getUTCDay()]} ${p.giorno}`, mese: MESI_BREVI[p.mese - 1] }
 }
+
+// «gio 29 → sab 31 ott» — il periodo con i giorni della settimana, per la
+// barra del filtro delle richieste che si accavallano (Ania, 12/09/2026).
+// Il mese si scrive una volta sola quando arrivo e partenza stanno nello
+// stesso mese, su tutte e due quando cambia.
+export function periodoConGiorni(dal: string | null | undefined, al: string | null | undefined): string {
+  const a = pezzi(dal), z = pezzi(al)
+  if (!a || !z) return ''
+  const g = (iso: string) => giornoConSettimana(iso).giorno
+  const mese = (p: { mese: number }) => MESI_BREVI[p.mese - 1]
+  if (a.anno !== z.anno) return `${g(dal!)} ${mese(a)} ${a.anno} → ${g(al!)} ${mese(z)} ${z.anno}`
+  if (a.mese !== z.mese) return `${g(dal!)} ${mese(a)} → ${g(al!)} ${mese(z)}`
+  return `${g(dal!)} → ${g(al!)} ${mese(z)}`
+}

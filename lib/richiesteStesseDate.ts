@@ -35,3 +35,9 @@ export function etichettaStesseDate(quante: number): string | null {
   return quante === 1 ? 'altra 1 richiesta' : `altre ${quante} richieste`
 }
 
+// «3 richieste, la più vecchia per prima» — il sottotitolo della barra
+export const sottotitoloGruppo = (quante: number): string =>
+  `${quante} ${quante === 1 ? 'richiesta' : 'richieste'}, la più vecchia per prima`
+
+// «3 per queste date» — al posto del conteggio di sempre, mentre il filtro è attivo
+export const contatoreGruppo = (quante: number): string => `${quante} per queste date`

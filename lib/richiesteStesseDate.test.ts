@@ -2,7 +2,7 @@
 // come si legge il segno, e in che ordine si guardano.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { altreStesseDate, gruppoStesseDate, etichettaStesseDate } from './richiesteStesseDate.ts'
+import { altreStesseDate, gruppoStesseDate, etichettaStesseDate, sottotitoloGruppo, contatoreGruppo } from './richiesteStesseDate.ts'
 
 const r = (id: string, arrivo: string, partenza: string, extra: Record<string, unknown> = {}) => ({
   id, arrivo, partenza, stato: 'in_attesa' as const, created_at: `2026-09-1${id.slice(-1)}T10:00:00Z`, camera_id: null, notti_richieste: null, ...extra,
@@ -63,3 +63,8 @@ test('il segno si legge al singolare e al plurale', () => {
   assert.equal(etichettaStesseDate(altreStesseDate(ANNA, APERTE).length), 'altre 2 richieste')
 })
 
+test('le scritte della barra del filtro', () => {
+  assert.equal(sottotitoloGruppo(3), '3 richieste, la più vecchia per prima')
+  assert.equal(sottotitoloGruppo(1), '1 richiesta, la più vecchia per prima')
+  assert.equal(contatoreGruppo(3), '3 per queste date')
+})

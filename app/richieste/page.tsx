@@ -24,7 +24,8 @@ import { fetchRichieste, rifiutaRichiesta, riapriRichiesta, ricaricaRichiesteApe
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
-import { altreStesseDate, gruppoStesseDate, etichettaStesseDate } from '@/lib/richiesteStesseDate'
+import { altreStesseDate, gruppoStesseDate, etichettaStesseDate, sottotitoloGruppo, contatoreGruppo } from '@/lib/richiesteStesseDate'
+import { periodoConGiorni } from '@/lib/dateItaliane'
 import { nomeOspite } from '@/lib/guestName'
 import type { PrenotazioneBarra } from '@/lib/calendarioBarre'
 import type { Room } from '@/lib/types'
@@ -77,10 +78,14 @@ function SegnoStesseDate({ testo, onClick }: { testo: string; onClick: () => voi
   )
 }
 
-function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, selezionata, onSeleziona, onRifiuta, onConferma, giaStato }: { r: Richiesta; adesso: Date; conflitti: string[]; stesseDate?: string | null; onGruppo?: () => void; selezionata: boolean; onSeleziona: () => void; onRifiuta: (r: Richiesta) => void; onConferma: (r: Richiesta) => void; giaStato?: string | null }) {
+function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo = false, selezionata, onSeleziona, onRifiuta, onConferma, giaStato }: { r: Richiesta; adesso: Date; conflitti: string[]; stesseDate?: string | null; onGruppo?: () => void; nelGruppo?: boolean; selezionata: boolean; onSeleziona: () => void; onRifiuta: (r: Richiesta) => void; onConferma: (r: Richiesta) => void; giaStato?: string | null }) {
   const n = nottiRichiesta(r)
+  // Da quanto è arrivata: «oggi» e «ieri» li dice già l'ora, più in là no
+  const giorniFa = Math.floor((adesso.getTime() - new Date(r.created_at).getTime()) / 86400000)
+  const daQuanto = giorniFa >= 2 ? `${giorniFa} giorni fa` : null
   return (
-    <li>
+    // Nel gruppo un filo d'ottone a sinistra tiene insieme le righe
+    <li style={nelGruppo ? { borderLeft: '2px solid #A9884E', paddingLeft: 12 } : undefined}>
     <div role="button" tabIndex={0} onClick={onSeleziona} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeleziona() } }} aria-pressed={selezionata}
       className={`w-full text-left py-4 leading-snug cursor-pointer border-t border-card-border transition-colors ${selezionata ? 'bg-sage/40 rounded-lg px-3 -mx-3' : ''}`}>
       <div className="flex items-baseline justify-between gap-3">
@@ -107,6 +112,7 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, selezionata
         <span className="inline-flex items-center gap-1"><IconaCanale canale={r.canale} />{CANALE_LABEL[r.canale]}{r.canale === 'web' && r.origine && <span className="text-[10px] uppercase tracking-wide text-brass">· {r.origine}</span>}</span>
         <span aria-hidden>·</span>
         <span>{oraArrivo(r.created_at, adesso)}</span>
+        {daQuanto && <><span aria-hidden>·</span><span>{daQuanto}</span></>}
         {avvisoFerma(r, adesso) && (
           <>
             <span aria-hidden>·</span>
@@ -398,6 +404,15 @@ function Richieste() {
       <div>
         {/* Calendario (min-w-0: a 2 settimane scorre dentro il proprio riquadro) */}
         <section hidden={!mostraCalendario} className="min-w-0">
+          {capogruppo && (
+            <div data-barra-gruppo className="flex items-start justify-between gap-3 bg-white mb-3" style={{ border: '1px solid var(--color-card-border)', borderRadius: 12, padding: '10px 12px' }}>
+              <div className="min-w-0">
+                <p className="truncate" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-green-dark)' }}>Richieste per {periodoConGiorni(capogruppo.arrivo, capogruppo.partenza)}</p>
+                <p style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{sottotitoloGruppo(gruppo.length)}</p>
+              </div>
+              <button type="button" data-togli-gruppo onClick={() => setGruppoDi(null)} className="shrink-0 text-[13px] font-semibold text-green-mid underline underline-offset-2">Togli</button>
+            </div>
+          )}
           {loading ? (
             <div className="text-center py-10 text-stone">Caricamento…</div>
           ) : (
@@ -457,8 +472,8 @@ function Richieste() {
               </div>
             )}
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className="text-[11px] uppercase text-brass shrink-0" style={{ letterSpacing: '2px' }}>{soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}</span>
-              {!loading && <span className="text-[13px] text-stone shrink-0">{mostrate.length}</span>}
+              <span className="text-[11px] uppercase text-brass shrink-0" style={{ letterSpacing: '2px' }}>{capogruppo ? 'Stesse date' : soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}</span>
+              {!loading && <span className="text-[13px] text-stone shrink-0">{capogruppo ? contatoreGruppo(gruppo.length) : mostrate.length}</span>}
               <span className="flex-1 h-px" style={{ background: 'rgba(169,136,78,0.45)' }} />
             </div>
             {desktop && (
@@ -475,7 +490,13 @@ function Richieste() {
           </div>
 
           {capogruppo && (
-            <p className="mb-3 text-[13px] text-stone">Solo le richieste di queste date. <button type="button" data-togli-gruppo onClick={() => setGruppoDi(null)} className="font-semibold text-green-mid underline underline-offset-2">Togli</button></p>
+            <div data-barra-gruppo className="flex items-start justify-between gap-3 bg-white mb-3" style={{ border: '1px solid var(--color-card-border)', borderRadius: 12, padding: '10px 12px' }}>
+              <div className="min-w-0">
+                <p className="truncate" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--color-green-dark)' }}>Richieste per {periodoConGiorni(capogruppo.arrivo, capogruppo.partenza)}</p>
+                <p style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{sottotitoloGruppo(gruppo.length)}</p>
+              </div>
+              <button type="button" data-togli-gruppo onClick={() => setGruppoDi(null)} className="shrink-0 text-[13px] font-semibold text-green-mid underline underline-offset-2">Togli</button>
+            </div>
           )}
           {loading ? (
             <div className="text-center py-10 text-stone">Caricamento…</div>
@@ -495,7 +516,7 @@ function Richieste() {
             <ul className="flex flex-col min-[1100px]:grid min-[1100px]:grid-cols-2 min-[1100px]:gap-x-8 min-[1100px]:items-start">
               {mostrate.map(r => (
                 <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []} giaStato={etichettaGiaStato(soggiorniPrecedenti({ nome: r.nome, cognome: r.cognome, telefono: r.telefono }, prenotazioni, oggiIso()))}
-                  stesseDate={capogruppo ? null : etichettaStesseDate(altreDi.get(r.id) ?? 0)} onGruppo={() => setGruppoDi(r.id)}
+                  stesseDate={capogruppo ? null : etichettaStesseDate(altreDi.get(r.id) ?? 0)} onGruppo={() => setGruppoDi(r.id)} nelGruppo={!!capogruppo}
                   selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} onRifiuta={setDaRifiutare} onConferma={r => setDaConfermare(r as RichiestaConProposta)} />
               ))}
             </ul>

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { dataItaliana, dataLunga, giornoConSettimana, giornoMese, giornoMeseAnno, periodoCompatto } from './dateItaliane.ts'
+import { dataItaliana, dataLunga, giornoConSettimana, giornoMese, giornoMeseAnno, periodoCompatto, periodoConGiorni } from './dateItaliane.ts'
 
 // Prima il giorno, poi il mese, poi l'anno: mai 2026-09-10 sotto gli occhi
 test('data completa in cifre e a parole', () => {
@@ -48,4 +48,11 @@ test('giorno con il giorno della settimana, diviso dal mese', () => {
   assert.deepEqual(giornoConSettimana('2027-01-01'), { giorno: 'ven 1', mese: 'gen' })
   assert.deepEqual(giornoConSettimana(null), { giorno: '', mese: '' })
   assert.deepEqual(giornoConSettimana('niente'), { giorno: '', mese: '' })
+})
+
+test('periodo con i giorni della settimana', () => {
+  assert.equal(periodoConGiorni('2026-10-29', '2026-10-31'), 'gio 29 → sab 31 ott')
+  assert.equal(periodoConGiorni('2026-10-31', '2026-11-02'), 'sab 31 ott → lun 2 nov')
+  assert.equal(periodoConGiorni('2026-12-30', '2027-01-02'), 'mer 30 dic 2026 → sab 2 gen 2027')
+  assert.equal(periodoConGiorni(null, '2026-10-31'), '')
 })
