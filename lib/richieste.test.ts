@@ -326,30 +326,65 @@ test('la nota del cliente nella scheda è rossa, piccola e a sinistra', () => {
   assert.equal(/centrata/.test(scheda), false)
 })
 
-// ── I COMANDI SOTTO IL CALENDARIO (Ania, su bozza, 12/09/2026) ─────────────
-// Sotto il calendario devono restare bassi: lo spazio serve alle richieste.
-test('i comandi sotto il calendario hanno le misure ridotte', () => {
-  const interruttore = readFileSync(new URL('../components/richieste/InterruttoreVista.tsx', import.meta.url), 'utf8')
-  // pillola grigio crema con 3 px di bordo interno; la voce scelta su bianco
-  assert.match(interruttore, /const CREMA = '#EFEADF'/)
-  assert.match(interruttore, /padding: 3/)
-  assert.match(interruttore, /fontSize: 12\.5/)
-  assert.match(interruttore, /fontWeight: 600/)
-  assert.match(interruttore, /color: scelta \? 'var\(--color-green-dark\)' : 'var\(--color-stone\)'/)
-  assert.match(interruttore, /background: scelta \? '#fff' : 'transparent'/)
-  assert.match(interruttore, /boxShadow: scelta \?/)
-  // niente più i due bottoni grandi verdi
-  assert.equal(/bg-green-mid/.test(interruttore), false)
+// ── I COMANDI DELLA PAGINA (Ania, su bozza, 12/09/2026) ───────────────────
+// Sopra il calendario e sotto sembravano due pagine diverse. Adesso TUTTI i
+// comandi hanno la misura e il carattere delle etichettine della Home.
+test('tutti i comandi della pagina sono della stessa famiglia', () => {
+  const comandi = readFileSync(new URL('../components/richieste/ComandiPagina.tsx', import.meta.url), 'utf8')
 
+  // l'interruttore: fondo crema, angoli 6, 2 px di bordo interno
+  assert.match(comandi, /const CREMA = '#EFEADF'/)
+  assert.match(comandi, /background: CREMA, padding: 2, borderRadius: ANGOLI_INTERRUTTORE/)
+  assert.match(comandi, /export const ANGOLI_INTERRUTTORE = 6/)
+  // le parole: alte 22, 11,5 bold, stone; quella scelta su bianco con angoli 4
+  assert.match(comandi, /export const ALTEZZA_VOCE = 22/)
+  assert.match(comandi, /export const ANGOLI_VOCE = 4/)
+  assert.match(comandi, /fontSize: 11\.5,\s*\n\s*fontWeight: 700,\s*\n\s*color: presa \? 'var\(--color-green-dark\)' : 'var\(--color-stone\)',\s*\n\s*background: presa \? '#fff' : 'transparent',/)
+
+  // «+ Nuova richiesta»: alto 24, sage, green-mid 11,5 bold, angoli 4, 9 ai lati
+  assert.match(comandi, /export const ALTEZZA_TASTO = 24/)
+  assert.match(comandi, /bg-sage text-green-mid/)
+  assert.match(comandi, /height: ALTEZZA_TASTO, padding: '0 9px', borderRadius: ANGOLI_VOCE, fontSize: 11\.5, fontWeight: 700/)
+  // niente contorno e niente verde pieno: il verde pieno è solo dell'azione
+  assert.equal(/border border-green-mid/.test(comandi), false)
+  assert.equal(/bg-green-mid/.test(comandi), false)
+
+  // gli avvisi: etichettine alte come le altre, angoli 4, 11 bold, 2 e 7
+  assert.match(comandi, /borderRadius: ANGOLI_VOCE, fontSize: 11, fontWeight: 700, padding: '2px 7px', lineHeight: '18px'/)
+  assert.match(comandi, /AVVISO_SITO = \{ background: 'var\(--color-sage\)', color: 'var\(--color-green-mid\)' \}/)
+  assert.match(comandi, /AVVISO_GUARDARE = \{ background: '#EFE2C7', color: '#7A5C1E' \}/)
+  // «N da guardare» si tocca: 44 px di area utile senza alzare la riga
+  assert.match(comandi, /py-\[12px\] -my-\[12px\]/)
+
+  // «Reale / Presunta» e «Ordina» sono lo STESSO interruttore
+  const vista = readFileSync(new URL('../components/richieste/InterruttoreVista.tsx', import.meta.url), 'utf8')
+  assert.match(vista, /<InterruttoreSquadrato voci=\{VOCI\}/)
+  assert.equal(/rounded-full/.test(vista), false, 'l\u2019interruttore è ancora una pillola tonda')
+})
+
+test('sotto il calendario i comandi stanno in tre righe, nell’ordine chiesto', () => {
   const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
-  // «+ Nuova richiesta» piccolo e bianco, non pieno verde
-  assert.match(pagina, /const BOTTONE_PICCOLO = 'inline-flex items-center justify-center shrink-0 bg-white border border-green-mid text-green-mid font-bold/)
-  assert.match(pagina, /MISURA_BOTTONE_PICCOLO = \{ fontSize: 12\.5, borderRadius: 10, padding: '6px 12px' \}/)
-  // le due pastiglie basse
-  assert.match(pagina, /MISURA_PASTIGLIA = \{ fontSize: 11\.5, padding: '4px 10px' \}/)
-  assert.match(pagina, /data-pastiglia="dal-sito" className=\{`\$\{PASTIGLIA\} bg-green-mid text-cream-text`\}/)
-  // interruttore a sinistra e tasto a destra sulla stessa riga, pastiglie sotto
-  const riga = pagina.indexOf('<InterruttoreVista vista={vista} onChange={setVista} />\n                <Link href="/richieste/nuova" data-nuova-richiesta')
-  assert.notEqual(riga, -1, 'interruttore e «+ Nuova richiesta» non sono sulla stessa riga')
-  assert.ok(riga < pagina.indexOf('data-pastiglia="dal-sito"'), 'le pastiglie non stanno sotto')
+  const sotto = pagina.slice(pagina.indexOf('Sul telefono i comandi stanno sotto il calendario'), pagina.indexOf('{/* Lista */}'))
+  const dove = (x: string) => {
+    const i = sotto.indexOf(x)
+    assert.notEqual(i, -1, `manca ${x} sotto il calendario`)
+    return i
+  }
+  // riga 1: interruttore a sinistra, «+ Nuova richiesta» a destra
+  const riga1 = dove('<InterruttoreVista vista={vista} onChange={setVista} />')
+  const tasto = dove('<TastoNuovaRichiesta />')
+  assert.ok(tasto - riga1 < 200, 'interruttore e «+ Nuova richiesta» non sono sulla stessa riga')
+  assert.match(sotto, /justify-between/)
+  // riga 2: gli avvisi · riga 3: «Ordina»
+  const avvisi = dove('dati="dal-sito"')
+  const ordina = dove('etichetta="Ordina"')
+  assert.ok(tasto < avvisi && avvisi < ordina, 'avvisi e «Ordina» non stanno nelle righe dopo')
+  assert.match(sotto, /dati="da-guardare"/)
+
+  // le tre voci di sempre, dentro l'interruttore
+  assert.match(pagina, /const ORDINI = \[\['durata', 'durata'\], \['arrivo', 'arrivo'\], \['persone', 'persone'\]\] as const/)
+  // niente più bottoni tondi sparsi né il tasto verde pieno largo
+  assert.equal(/Ordina per/.test(pagina), false)
+  assert.equal(/rounded-full text-sm font-medium/.test(pagina), false)
+  assert.equal(/BOTTONE_PIENO|BOTTONE_PICCOLO|MISURA_PASTIGLIA/.test(pagina), false)
 })

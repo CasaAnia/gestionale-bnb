@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Globe, ChevronDown } from 'lucide-react'
 import BackBar from '@/components/BackBar'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
+import TestataRichieste from '@/components/richieste/TestataRichieste'
+import { InterruttoreSquadrato, TastoNuovaRichiesta, EtichettaAvviso, TastoAvviso, AVVISO_SITO, AVVISO_GUARDARE } from '@/components/richieste/ComandiPagina'
 import CalendarioRichieste, { larghezzaColonnaCamere, type Ancora, type ModoCalendario } from '@/components/richieste/CalendarioRichieste'
 import PannelloRichieste from '@/components/richieste/PannelloRichieste'
 import { TastoPrincipale, TondiContatto, ComandiRichiesta } from '@/components/richieste/AzioniRichiesta'
@@ -37,24 +39,13 @@ import {
   formatIntervallo, formatDateRichiesta, avvisoFerma, daGuardare, nuoveDalSito, scadenzaProposta, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
 
-const ORDINI: { chiave: OrdineRichieste; label: string }[] = [
-  { chiave: 'durata', label: 'durata' },
-  { chiave: 'arrivo', label: 'arrivo' },
-  { chiave: 'persone', label: 'persone' },
-]
+// Le tre voci di sempre, adesso dentro l'interruttore squadrato: «Ordina» non
+// è più una fila di bottoni tondi sparsi (Ania, su bozza, 12/09/2026).
+const ORDINI = [['durata', 'durata'], ['arrivo', 'arrivo'], ['persone', 'persone']] as const satisfies readonly (readonly [OrdineRichieste, string])[]
 const GRIGIO_NOTA = '#6b6b60'
 
-// Pulsante pieno verde con testo crema: unico stile dell'azione principale.
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 const GRIGIO_QUANDO = '#B9B6AD'   // «oggi», «ieri», «2 giorni fa», a destra del nome
-const BOTTONE_PIENO = 'inline-flex items-center justify-center bg-green-mid text-cream-text rounded-xl px-5 py-3 font-semibold text-[15px] active:opacity-80 transition-opacity'
-// Sotto il calendario i comandi non devono rubare spazio alle richieste
-// (Ania, su bozza, 12/09/2026): «+ Nuova richiesta» resta un tasto ma piccolo
-// e bianco, e i due avvisi diventano pastiglie basse.
-const BOTTONE_PICCOLO = 'inline-flex items-center justify-center shrink-0 bg-white border border-green-mid text-green-mid font-bold active:bg-sage transition-colors'
-const MISURA_BOTTONE_PICCOLO = { fontSize: 12.5, borderRadius: 10, padding: '6px 12px' } as const
-const PASTIGLIA = 'chip-in inline-flex items-center gap-1.5 rounded-full font-semibold'
-const MISURA_PASTIGLIA = { fontSize: 11.5, padding: '4px 10px' } as const
 
 const oggiIso = () => {
   const d = new Date()
@@ -356,10 +347,6 @@ function Richieste() {
     return m
   }, [aperte, prenotazioni, camere])
 
-  const nuovaRichiesta = (extra = '') => (
-    <Link href="/richieste/nuova" className={`${BOTTONE_PIENO} ${extra}`}>+ Nuova richiesta</Link>
-  )
-
   return (
     <div className="p-4">
       {/* La freccia torna alla Home, da dove si entra nelle Richieste. Solo
@@ -367,41 +354,37 @@ function Richieste() {
           indietro, cioè a quella scheda. Nelle pagine di una richiesta la
           destinazione è sempre scritta: vedi ritornoDallaRichiesta. */}
       <BackBar onClick={() => (apriId ? smartBack(router, '/') : router.push('/'))} />
-      {/* Intestazione: su desktop (blocco 2c) titolo, Reale/Presunta, Nuova richiesta e
-          contatori su UNA riga con spaziatura uniforme; sul telefono com'era */}
+      {/* Intestazione (Ania, su bozza, 12/09/2026): «Richieste» in Georgia e
+          sotto una riga sola che dice come sta la pagina — «4 aperte · 2 nuove
+          dal sito». Su desktop la testa sta a sinistra e i comandi, tutti della
+          stessa famiglia, le stanno accanto sulla stessa riga. */}
       {desktop && !orizzontale ? (
         <div className="flex items-center flex-wrap gap-4 mb-4 min-h-[44px]">
-          <h1 className="ed-titolo-medio mr-auto max-lg:invisible">Richieste di prenotazione</h1>
+          <TestataRichieste aperte={aperte.length} nuoveDalSito={nuoveWeb} mostraConto={!loading} className="mr-auto" />
           {!loading && nuoveWeb > 0 && (
-            <p className="chip-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold bg-green-mid text-cream-text">
-              <Globe size={14} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
-            </p>
+            <EtichettaAvviso colori={AVVISO_SITO} dati="dal-sito">
+              <Globe size={11} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
+            </EtichettaAvviso>
           )}
           {!loading && ferme.length > 0 && (
-            <button type="button" onClick={() => setSoloDaGuardare(v => !v)} aria-pressed={soloDaGuardare}
-              className={`chip-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold border transition-colors ${soloDaGuardare ? 'text-cream-text' : 'bg-white'}`}
-              style={soloDaGuardare ? { background: '#A9884E', borderColor: '#A9884E' } : { color: '#A9884E', borderColor: '#A9884E' }}>
+            <TastoAvviso colori={AVVISO_GUARDARE} dati="da-guardare" premuto={soloDaGuardare} onClick={() => setSoloDaGuardare(v => !v)}>
               {ferme.length} da guardare{soloDaGuardare ? ' · mostra tutte' : ''}
-            </button>
+            </TastoAvviso>
           )}
           <InterruttoreVista vista={vista} onChange={setVista} />
           <CampoRicerca value={query} onChange={cambiaRicerca} className="w-[260px]" />
-          {nuovaRichiesta('py-2.5')}
+          <TastoNuovaRichiesta />
         </div>
       ) : orizzontale ? (
-        /* Telefono girato: titolo e ricerca sulla stessa riga, come sul Mac */
+        /* Telefono girato: testa e ricerca sulla stessa riga, come sul Mac */
         <div className="flex items-center gap-4 mb-3 min-h-[44px]">
-          <h1 className="ed-titolo-medio mr-auto max-lg:invisible">Richieste di prenotazione</h1>
+          <TestataRichieste aperte={aperte.length} nuoveDalSito={nuoveWeb} mostraConto={!loading} className="mr-auto" />
           <CampoRicerca value={query} onChange={cambiaRicerca} className="flex-1 max-w-[360px]" />
         </div>
       ) : (
-        /* Telefono dritto (05/09/2026): stessa struttura del Mac — titolo e ricerca,
-           calendario, mesi, poi Reale/Presunta e «+ Nuova richiesta», contatori e lista */
+        /* Telefono dritto: testa e ricerca, poi calendario, mesi, i comandi e la lista */
         <div className="flex flex-col gap-2 mb-3">
-          {/* Sul telefono la scritta non si ripete (Ania, 11/09/2026: la barra
-              in alto dice già «Richieste»), ma il suo SPAZIO resta libero: si
-              nasconde soltanto, così ricerca, calendario e lista non salgono. */}
-          <h1 className="ed-titolo max-lg:invisible">Richieste di prenotazione</h1>
+          <TestataRichieste aperte={aperte.length} nuoveDalSito={nuoveWeb} mostraConto={!loading} />
           <CampoRicerca value={query} onChange={cambiaRicerca} className="w-full" />
         </div>
       )}
@@ -441,67 +424,49 @@ function Richieste() {
           <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>
             {vista === 'presunta' ? 'Tratteggiato = richieste in attesa. Tocca una barra per vedere chi c’è dentro.' : 'Solo confermate: queste non si toccano.'}
           </p>
-          {/* Telefono, dritto e girato (05/09/2026): Reale/Presunta, «+ Nuova richiesta» e contatori sotto il calendario */}
+          {/* Sul telefono i comandi stanno sotto il calendario, in tre righe
+              (Ania, su bozza, 12/09/2026): l'interruttore a sinistra e
+              «+ Nuova richiesta» a destra; gli avvisi sotto; «Ordina» dopo.
+              Sono tutti della stessa famiglia, vedi ComandiPagina. */}
           {(!desktop || orizzontale) && (
             <>
-              {/* Interruttore a sinistra, «+ Nuova richiesta» a destra; le due
-                  pastiglie sulla riga sotto (Ania, su bozza, 12/09/2026) */}
               <div className="flex items-center justify-between gap-3 mt-3">
                 <InterruttoreVista vista={vista} onChange={setVista} />
-                <Link href="/richieste/nuova" data-nuova-richiesta className={BOTTONE_PICCOLO} style={MISURA_BOTTONE_PICCOLO}>+ Nuova richiesta</Link>
+                <TastoNuovaRichiesta />
               </div>
               {!loading && (nuoveWeb > 0 || ferme.length > 0) && (
                 <div className="flex flex-wrap items-center gap-2 mt-2">
                   {nuoveWeb > 0 && (
-                    <p data-pastiglia="dal-sito" className={`${PASTIGLIA} bg-green-mid text-cream-text`} style={MISURA_PASTIGLIA}>
-                      <Globe size={12} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
-                    </p>
+                    <EtichettaAvviso colori={AVVISO_SITO} dati="dal-sito">
+                      <Globe size={11} strokeWidth={2} aria-hidden /> {nuoveWeb} {nuoveWeb === 1 ? 'nuova' : 'nuove'} dal sito
+                    </EtichettaAvviso>
                   )}
                   {ferme.length > 0 && (
-                    <button type="button" data-pastiglia="da-guardare" onClick={() => setSoloDaGuardare(v => !v)} aria-pressed={soloDaGuardare}
-                      className={`${PASTIGLIA} border transition-colors ${soloDaGuardare ? 'text-cream-text' : 'bg-white'}`}
-                      style={soloDaGuardare ? { ...MISURA_PASTIGLIA, background: '#A9884E', borderColor: '#A9884E' } : { ...MISURA_PASTIGLIA, color: '#A9884E', borderColor: '#A9884E' }}>
+                    <TastoAvviso colori={AVVISO_GUARDARE} dati="da-guardare" premuto={soloDaGuardare} onClick={() => setSoloDaGuardare(v => !v)}>
                       {ferme.length} da guardare{soloDaGuardare ? ' · mostra tutte' : ''}
-                    </button>
+                    </TastoAvviso>
                   )}
                 </div>
               )}
+              <div className="flex items-center mt-2">
+                <InterruttoreSquadrato etichetta="Ordina" voci={ORDINI} scelta={ordine} onScegli={setOrdine} nome="Ordina le richieste" dati="ordina" />
+              </div>
             </>
           )}
         </section>
 
         {/* Lista */}
         <section hidden={!mostraLista} className="mt-4 md:mt-7">
-          {/* Sul telefono (05/09/2026, richiesta di Ania) due righe: prima «Ordina per …»,
-              sotto «RICHIESTE APERTE · N»; sul Mac tutto su una riga come prima */}
-          <div className={`mb-4 ${desktop ? 'flex items-center gap-2' : 'flex flex-col gap-2.5'}`}>
-            {!desktop && (
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                <span className="text-xs text-stone shrink-0">Ordina per</span>
-                {ORDINI.map(o => (
-                  <button key={o.chiave} type="button" onClick={() => setOrdine(o.chiave)} aria-pressed={ordine === o.chiave}
-                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${ordine === o.chiave ? 'bg-green-mid text-cream-text' : 'text-stone border border-[#C9BFA8]'}`}>
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            )}
+          {/* Il titoletto della lista. «Ordina» sul telefono sta già sotto il
+              calendario (riga 3); sul Mac resta qui, ma è lo stesso
+              interruttore squadrato di tutti gli altri comandi. */}
+          <div className="flex items-center gap-2 mb-4">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <span className="text-[11px] uppercase text-brass shrink-0" style={{ letterSpacing: '2px' }}>{capogruppo ? 'Stesse date' : soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}</span>
               {!loading && <span className="text-[13px] text-stone shrink-0">{capogruppo ? contatoreGruppo(gruppo.length) : mostrate.length}</span>}
               <span className="flex-1 h-px" style={{ background: 'rgba(169,136,78,0.45)' }} />
             </div>
-            {desktop && (
-              <>
-                <span className="text-xs text-stone shrink-0">Ordina per</span>
-                {ORDINI.map(o => (
-                  <button key={o.chiave} type="button" onClick={() => setOrdine(o.chiave)} aria-pressed={ordine === o.chiave}
-                    className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${ordine === o.chiave ? 'bg-green-mid text-cream-text' : 'text-stone border border-[#C9BFA8]'}`}>
-                    {o.label}
-                  </button>
-                ))}
-              </>
-            )}
+            {desktop && <InterruttoreSquadrato etichetta="Ordina" voci={ORDINI} scelta={ordine} onScegli={setOrdine} nome="Ordina le richieste" dati="ordina" />}
           </div>
 
           {capogruppo && (
@@ -519,12 +484,12 @@ function Richieste() {
             desktop ? (
               <div className="flex items-center gap-4 rounded-xl border border-dashed border-border-soft px-5 py-3.5 text-sm text-stone">
                 <span>{soloDaGuardare ? 'Nessuna richiesta ferma' : 'Nessuna richiesta in attesa'}</span>
-                {!soloDaGuardare && <Link href="/richieste/nuova" className="rounded-[10px] border border-green-mid text-green-mid bg-white px-3.5 py-1.5 text-[13px] font-semibold">+ Nuova richiesta</Link>}
+                {!soloDaGuardare && <TastoNuovaRichiesta />}
               </div>
             ) : (
               <div className="text-center py-12 flex flex-col items-center gap-4">
                 <p className="text-stone">{soloDaGuardare ? 'Nessuna richiesta ferma' : 'Nessuna richiesta in attesa'}</p>
-                {!soloDaGuardare && <Link href="/richieste/nuova" className={BOTTONE_PIENO}>Nuova richiesta</Link>}
+                {!soloDaGuardare && <TastoNuovaRichiesta />}
               </div>
             )
           ) : (
