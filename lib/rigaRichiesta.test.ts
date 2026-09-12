@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { periodoConGiorni } from './dateItaliane.ts'
-import { pezziNumerici, pezziNotti, pezziPersone, pezziCamera, pezziRigaRichiesta, testoRiga, daQuantoArrivata } from './rigaRichiesta.ts'
+import { pezziNumerici, pezziNotti, pezziPersone, pezziCamera, pezziRigaRichiesta, pezziRigaElenco, titoloRigaRichiesta, testoRiga, daQuantoArrivata } from './rigaRichiesta.ts'
 import { etichettaAltre } from './richiesteStesseDate.ts'
 
 const riga = (x: Parameters<typeof pezziRigaRichiesta>[0]) => testoRiga(pezziRigaRichiesta(x))
@@ -84,43 +84,63 @@ test('da quanto è arrivata: oggi, ieri, N giorni fa', () => {
   assert.equal(daQuantoArrivata('non una data', adesso), '')
 })
 
-// ── LA SECONDA RIGA DELL'ELENCO (Ania, dal telefono, 12/09/2026) ───────────
-// In semibold verde solo i DATI: le date con la freccia, il numero delle
-// notti, quello delle persone e la camera. La parola «camera» non si scrive:
-// si legge «· Ambra» oppure «· qualsiasi». Le parole di mezzo — «notti»,
-// «persone», «persona», i puntini — restano piccole e grigie.
-test('nella riga dell’elenco sono forti solo le date, i numeri e la camera', () => {
-  const p = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-10-29', '2026-10-31'), notti: 2, personeNotti: [3, 3], camera: 'Ambra', forte: 'elenco' })
-  // gio 29 → sab 31 ott · 2 notti · 3 persone · Ambra
-  assert.deepEqual(forti(p), ['gio 29 → sab 31 ott', '2', '3', 'Ambra'])
-  assert.equal(testoRiga(p), 'gio 29 → sab 31 ott · 2 notti · 3 persone · Ambra')
+// ── LE DUE RIGHE DELL'ELENCO (Ania, dal telefono, 12/09/2026) ──────────────
+// Prima riga come le righe «Da controllare» della Home: «chi · quando».
+// Seconda riga: quanto, quanti e dove, coi soli numeri e la camera in forte.
+const elenco = (x: Parameters<typeof pezziRigaElenco>[0]) => testoRiga(pezziRigaElenco(x))
+
+test('la prima riga mette insieme il nome e le date, come nella Home', () => {
+  assert.equal(
+    titoloRigaRichiesta('Anna Sawicka', periodoConGiorni('2026-10-29', '2026-10-31')),
+    'Anna Sawicka · gio 29 → sab 31 ott',
+  )
+  // un mese diverso fra arrivo e partenza: il periodo lo dice già
+  assert.equal(
+    titoloRigaRichiesta('Lunga Sosta', periodoConGiorni('2026-10-29', '2026-11-01')),
+    'Lunga Sosta · gio 29 ott → dom 1 nov',
+  )
+  // se manca uno dei due pezzi non resta il puntino appeso
+  assert.equal(titoloRigaRichiesta('Anna Sawicka', ''), 'Anna Sawicka')
+  assert.equal(titoloRigaRichiesta('', 'gio 29 → sab 31 ott'), 'gio 29 → sab 31 ott')
+  assert.equal(titoloRigaRichiesta('  Anna  ', '  gio 29  '), 'Anna · gio 29')
+})
+
+test('nella seconda riga sono forti solo i numeri e la camera', () => {
+  const p = pezziRigaElenco({ notti: 2, personeNotti: [3, 3], camera: 'Ambra' })
+  assert.equal(testoRiga(p), '2 notti · 3 persone · Ambra')
+  assert.deepEqual(forti(p), ['2', '3', 'Ambra'])
   // le parole di mezzo e i puntini restano normali
-  assert.equal(testoRiga(p.filter(x => !x.forte)), ' · ' + ' notti · ' + ' persone · ')
+  assert.equal(testoRiga(p.filter(x => !x.forte)), ' notti · ' + ' persone · ')
+  // le date non stanno più qui: sono salite nella prima riga
+  assert.equal(/gio|ven|sab|dom|lun|mar|mer/.test(testoRiga(p)), false)
 
   // 1 persona e nessuna camera chiesta: «· qualsiasi», senza la parola «camera»
-  const q = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-11-03', '2026-11-05'), notti: 2, personeNotti: [1, 1], camera: null, forte: 'elenco' })
-  assert.equal(testoRiga(q), 'mar 3 → gio 5 nov · 2 notti · 1 persona · qualsiasi')
+  const q = pezziRigaElenco({ notti: 2, personeNotti: [1, 1], camera: null })
+  assert.equal(elenco({ notti: 2, personeNotti: [1, 1], camera: null }), '2 notti · 1 persona · qualsiasi')
   assert.equal(testoRiga(q).includes('camera'), false, 'la parola «camera» non si scrive più')
-  assert.deepEqual(forti(q), ['mar 3 → gio 5 nov', '2', '1', 'qualsiasi'])
+  assert.deepEqual(forti(q), ['2', '1', 'qualsiasi'])
 
   // persone che cambiano notte per notte: forte tutta la sequenza «3 → 1»
-  const m = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-10-29', '2026-10-31'), notti: 2, personeNotti: [3, 1], camera: null, forte: 'elenco' })
-  assert.equal(testoRiga(m), 'gio 29 → sab 31 ott · 2 notti · 3 → 1 persone · qualsiasi')
-  assert.deepEqual(forti(m), ['gio 29 → sab 31 ott', '2', '3', '→', '1', 'qualsiasi'])
-  assert.equal(m.filter(x => x.forte).map(x => x.testo).join('').includes('3→1'), true)
+  const m = pezziRigaElenco({ notti: 2, personeNotti: [3, 1], camera: null })
+  assert.equal(testoRiga(m), '2 notti · 3 → 1 persone · qualsiasi')
+  assert.deepEqual(forti(m), ['2', '3', '→', '1', 'qualsiasi'])
 
   // una notte sola: «1 notte», mai «1 notti»
-  const u = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-11-03', '2026-11-04'), notti: 1, personeNotti: [2], camera: 'Lena', forte: 'elenco' })
-  assert.equal(testoRiga(u), 'mar 3 → mer 4 nov · 1 notte · 2 persone · Lena')
-  assert.deepEqual(forti(u), ['mar 3 → mer 4 nov', '1', '2', 'Lena'])
-  // «notte» e «persone» non sono forti
+  const u = pezziRigaElenco({ notti: 1, personeNotti: [2], camera: 'Lena' })
+  assert.equal(testoRiga(u), '1 notte · 2 persone · Lena')
+  assert.deepEqual(forti(u), ['1', '2', 'Lena'])
   assert.equal(forti(u).some(x => /notte|persone|camera/.test(x)), false)
 
-  // senza il modo si continua a fare come nella testa della proposta, dove la
-  // parola «camera» c'è ancora: lì la riga è grande e l'etichetta serve
-  const vecchio = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-11-02', '2026-11-04'), notti: 2, personeNotti: [1, 1], camera: null })
-  assert.equal(testoRiga(vecchio), 'lun 2 → mer 4 nov · 2 notti · 1 persona · camera qualsiasi')
-  assert.deepEqual(forti(vecchio), ['2', '4', '2', '1'])
+  // con troppi cambi vale la regola lunga: «da» e «a» non sono forti
+  const tanti = pezziRigaElenco({ notti: 4, personeNotti: [1, 3, 1, 3], camera: 'Ambra' })
+  assert.equal(testoRiga(tanti), '4 notti · da 1 a 3 persone · Ambra')
+  assert.deepEqual(forti(tanti), ['4', '1', '3', 'Ambra'])
+})
+
+test('nella testa della proposta la riga resta intera, con la parola «camera»', () => {
+  const p = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-11-02', '2026-11-04'), notti: 2, personeNotti: [1, 1], camera: null })
+  assert.equal(testoRiga(p), 'lun 2 → mer 4 nov · 2 notti · 1 persona · camera qualsiasi')
+  assert.deepEqual(forti(p), ['2', '4', '2', '1'])
 })
 
 // ── L'ETICHETTINA BLU DAVANTI AL NOME ──────────────────────────────────────
@@ -145,8 +165,9 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
   const ordine = [
     '<SegnoStesseDate',           // l'etichettina blu, DAVANTI al nome
     '{nomeCompleto(r)}',          // il nome
+    '{periodo}',                  // e subito le date, sulla stessa riga
     '{quando}',                   // «oggi» / «ieri» / «2 giorni fa», a destra
-    '{pezzi.map(',                // date · notti · persone · camera
+    '{pezzi.map(',                // notti · persone · camera
     '<NotaCliente',               // la nota del cliente, se c'è
     '<TastoPrincipale',           // la pastiglia verde
     '<ComandiRichiesta',          // «Modifica» e «Rifiuta»
@@ -163,14 +184,29 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
   assert.match(riga, /border-t border-card-border/)
   assert.match(riga, /paddingTop: 11, paddingBottom: 11/)
 
-  // prima riga: nome 14,5 semibold, «quando» 11 px grigio chiaro
-  assert.match(riga, /fontSize: 14\.5, fontWeight: 600, color: 'var\(--color-green-dark\)'/)
-  assert.match(riga, /fontSize: 11, color: GRIGIO_QUANDO/)
+  // prima riga come nella Home: nome E DATE insieme, 15 px semibold verde
+  // scuro; «quando» resta in fondo a destra, 11 px grigio chiaro
+  assert.match(riga, /fontSize: 15, fontWeight: 600, color: 'var\(--color-green-dark\)'/)
+  assert.match(riga, /aria-label=\{titoloRigaRichiesta\(nomeCompleto\(r\), periodo\)\}/)
+  // come nella Home il nome NON si taglia: se non ci sta, le date vanno a
+  // capo intere (mai un nome mozzato né una data spezzata a metà)
+  // il puntino sta col nome: andando a capo non resta appeso in testa
+  assert.match(riga, /<span className="break-words">\{nomeCompleto\(r\)\} ·<\/span>/)
+  assert.match(riga, /<span className="whitespace-nowrap">\{periodo\}<\/span>/)
+  assert.match(riga, /flex flex-wrap items-center/)
+  assert.equal(/truncate/.test(riga), false, 'il nome viene ancora tagliato')
+  // «oggi / ieri» in alto a destra, in riga col nome anche quando va a capo
+  assert.match(riga, /flex items-start justify-between/)
+  assert.match(riga, /className="shrink-0 mt-\[3px\]" style=\{\{ fontSize: 11, color: GRIGIO_QUANDO \}\}/)
+  // la misura è quella delle righe «Da controllare» della Home
+  const home = readFileSync(new URL('../components/DaControllare.tsx', import.meta.url), 'utf8')
+  assert.match(home, /text-\[15px\] font-semibold text-green-dark/)
   assert.match(pagina, /const GRIGIO_QUANDO = '#B9B6AD'/)
   // seconda riga: 13,5 px, grigio verde, e non va a capo
   assert.match(riga, /fontSize: 13\.5, lineHeight: 1\.3, color: GRIGIO_RIGA/)
   assert.match(pagina, /const GRIGIO_RIGA = '#6b736a'/)
-  assert.match(riga, /forte: 'elenco'/)
+  // le date non stanno più nella seconda riga
+  assert.match(riga, /pezziRigaElenco\(\{ notti: nottiRichiesta\(r\), personeNotti, camera/)
   // non si taglia: nei casi normali sta in una riga, e quando le persone
   // cambiano tante volte va a capo invece di nascondere la camera
   assert.match(riga, /className="mt-\[3px\]"/)

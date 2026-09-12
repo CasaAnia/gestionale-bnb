@@ -29,7 +29,7 @@ import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoInte
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
 import { altreStesseDate, gruppoStesseDate, etichettaAltre, sottotitoloGruppo, contatoreGruppo, VEDI_TUTTE } from '@/lib/richiesteStesseDate'
 import { personePerNotte } from '@/lib/richiesteProposta'
-import { pezziRigaRichiesta, daQuantoArrivata } from '@/lib/rigaRichiesta'
+import { pezziRigaElenco, titoloRigaRichiesta, daQuantoArrivata } from '@/lib/rigaRichiesta'
 import { periodoConGiorni } from '@/lib/dateItaliane'
 import { smartBack } from '@/lib/navHistory'
 import { nomeOspite } from '@/lib/guestName'
@@ -76,7 +76,7 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
   try { personeNotti = personePerNotte(r) } catch { personeNotti = [Math.max(1, Number(r.persone) || 1)] }
   // Le notti scelte a mano non si scrivono con la freccia: si elencano
   const periodo = r.notti_richieste ? formatDateRichiesta(r) : periodoConGiorni(r.arrivo, r.partenza)
-  const pezzi = pezziRigaRichiesta({ periodo, notti: nottiRichiesta(r), personeNotti, camera: r.rooms?.name ?? null, forte: 'elenco' })
+  const pezzi = pezziRigaElenco({ notti: nottiRichiesta(r), personeNotti, camera: r.rooms?.name ?? null })
   const quando = daQuantoArrivata(r.created_at, adesso)
   const ferma = avvisoFerma(r, adesso)
   return (
@@ -86,23 +86,32 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
     <div role="button" tabIndex={0} onClick={onSeleziona} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeleziona() } }} aria-pressed={selezionata}
       className={`w-full text-left cursor-pointer border-t border-card-border transition-colors ${selezionata ? 'bg-sage/40 rounded-lg px-3 -mx-3' : ''}`}
       style={{ paddingTop: 11, paddingBottom: 11 }}>
-      {/* Prima riga: l'etichettina blu delle altre richieste per le stesse
-          date, poi il nome; in fondo a destra da quanto è arrivata */}
-      <div className="flex items-center justify-between gap-2">
-        <p className="flex items-center gap-1.5 min-w-0 leading-tight" style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--color-green-dark)' }}>
+      {/* Prima riga come le righe «Da controllare» della Home (Ania, dal
+          telefono, 12/09/2026): «chi · quando» insieme, 15 px semibold verde
+          scuro — davanti l'etichettina blu delle altre richieste per le stesse
+          date, in fondo a destra da quanto è arrivata. Come nella Home il
+          nome NON si taglia: se non ci sta, le date vanno a capo intere
+          (lib/rigaRichiesta). */}
+      <div className="flex items-start justify-between gap-2">
+        <p data-titolo-richiesta aria-label={titoloRigaRichiesta(nomeCompleto(r), periodo)}
+          className="flex flex-wrap items-center gap-x-1.5 min-w-0 leading-snug" style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-green-dark)' }}>
           {stesseDate && onGruppo && <SegnoStesseDate testo={stesseDate} onClick={onGruppo} />}
-          <span className="truncate">{nomeCompleto(r)}</span>
+          {/* il puntino sta col NOME: andando a capo non resta appeso in
+              testa alla riga sotto, come un elenco puntato */}
+          <span className="break-words">{nomeCompleto(r)} ·</span>
+          <span className="whitespace-nowrap">{periodo}</span>
           {/* Cliente che torna (08/09/2026): non è una provenienza, è un'etichetta */}
           {giaStato && <span data-gia-stato className="shrink-0 text-[11px] font-bold bg-sage text-green-mid whitespace-nowrap" style={{ borderRadius: 4, padding: '2px 7px', lineHeight: '18px' }}>{giaStato}</span>}
         </p>
-        {quando && <span className="shrink-0" style={{ fontSize: 11, color: GRIGIO_QUANDO }}>{quando}</span>}
+        {/* «oggi / ieri» sta in alto a destra: quando il titolo va a capo
+            resta in riga col nome, non a mezz'aria */}
+        {quando && <span className="shrink-0 mt-[3px]" style={{ fontSize: 11, color: GRIGIO_QUANDO }}>{quando}</span>}
       </div>
-      {/* Seconda riga, tutto di seguito: date, notti, persone, camera. In
-          semibold verde solo i DATI — le date con la freccia, il numero delle
-          notti, quello delle persone e la camera («Ambra» o «qualsiasi», senza
-          la parola «camera»); le parole di mezzo restano piccole e grigie.
-          13,5 px per leggerla meglio (Ania, dal telefono, 12/09/2026;
-          lib/rigaRichiesta) */}
+      {/* Seconda riga: notti, persone, camera — le date sono salite nella
+          prima. In semibold verde solo i DATI: il numero delle notti, quello
+          delle persone e la camera («Ambra» o «qualsiasi», senza la parola
+          «camera»); le parole di mezzo restano piccole e grigie. 13,5 px per
+          leggerla meglio (Ania, dal telefono, 12/09/2026; lib/rigaRichiesta) */}
       <p className="mt-[3px]" style={{ fontSize: 13.5, lineHeight: 1.3, color: GRIGIO_RIGA }}>
         {pezzi.map((x, i) => (
           <span key={i} style={x.forte ? { fontWeight: 600, color: 'var(--color-green-dark)' } : undefined}>{x.testo}</span>

@@ -1,27 +1,25 @@
 // ============================================================================
-// LA RIGA SOTTO IL NOME, NELLA SCHEDA DELLA RICHIESTA (Ania, su bozza,
-// 12/09/2026).
+// COSA DICE UNA RICHIESTA, IN DUE RIGHE (Ania, dal telefono, 12/09/2026).
 //
 // Prima la scheda diceva le stesse cose in quattro posti (riga delle date,
 // due colonne grandi «3 / PERSONE» e «Ambra / CAMERA CHIESTA») e una sola
-// richiesta occupava quasi mezzo schermo. Adesso è tutto su una riga:
+// richiesta occupava quasi mezzo schermo. Adesso sono due righe, con la forma
+// delle righe «Da controllare» della Home:
 //
-//   gio 29 → sab 31 ott · 2 notti · 3 persone · Ambra
-//   lun 3 → mer 5 nov · 2 notti · 1 persona · camera qualsiasi
-//   (nell'elenco l'ultimo pezzo è il solo valore: «· qualsiasi»)
+//   Anna Sawicka · gio 29 → sab 31 ott                             ieri
+//   2 notti · 3 persone · qualsiasi
 //
-// Quali pezzi sono FORTI lo decide il modo:
+//  · la PRIMA riga (`titoloRigaRichiesta`) è come il titolo della Home, «chi
+//    · quando»: il nome e le date insieme, 15 px semibold verde scuro;
+//  · la SECONDA (`pezziRigaElenco`) dice quanto, quanti e dove. Forti solo il
+//    NUMERO delle notti, il NUMERO delle persone (o la sequenza «3 → 1») e la
+//    CAMERA. La parola «camera» non si scrive: si legge «· Ambra» oppure
+//    «· qualsiasi», e Ania sa che quello è il posto della camera. Le parole di
+//    mezzo — «notti», «persone», i puntini — restano piccole e grigie.
 //
-//  · 'numeri'  — i numeri e il nome della camera, come nella testa della
-//                proposta, dove la riga è grande;
-//  · 'elenco'  — nella riga dell'elenco (Ania, dal telefono, 12/09/2026):
-//                forti le DATE con la freccia, il NUMERO delle notti, il
-//                NUMERO delle persone (o la sequenza «3 → 1») e la CAMERA.
-//                La parola «camera» non si scrive proprio: si legge
-//                «· Ambra» oppure «· qualsiasi», e Ania sa che è la camera.
-//                Le parole di mezzo — «notti», «persone», i puntini —
-//                restano piccole e grigie: si leggono i dati, non le
-//                etichette.
+// Nella testa della PROPOSTA, dove la riga è grande e sta da sola, resta la
+// riga intera di `pezziRigaRichiesta`, coi numeri forti e l'etichetta
+// «camera qualsiasi» per esteso.
 //
 // Qui si decide COSA scrivere e quali pezzi sono forti, la pagina decide come
 // disegnarli.
@@ -35,6 +33,14 @@ import { personeTesta } from './personeTesta.ts'
 export type PezzoRiga = { testo: string; forte: boolean }
 
 export const SEPARATORE = ' · '
+
+// La PRIMA riga dell'elenco: «Anna Sawicka · gio 29 → sab 31 ott». La stessa
+// forma del titolo delle righe «Da controllare» della Home (lib/daControllare:
+// «chi · quando»). Senza uno dei due pezzi resta l'altro, senza puntino
+// appeso.
+export function titoloRigaRichiesta(nome: string, periodo: string): string {
+  return [nome.trim(), periodo.trim()].filter(x => x !== '').join(SEPARATORE)
+}
 
 // Taglia un testo nei suoi numeri: «gio 29 → sab 31 ott» diventa
 // «gio » + «29» + « → sab » + «31» + « ott», coi numeri segnati forti.
@@ -74,38 +80,42 @@ export function pezziCamera(camera: string | null | undefined, { soloValore = fa
     : [{ testo: 'camera qualsiasi', forte: false }]
 }
 
-export type ModoForte = 'numeri' | 'elenco'
-
-// Le date con la freccia sono un pezzo solo: «gio 29 → sab 31 ott» tutto forte
-const tutteLeDate = (periodo: string): PezzoRiga[] => (periodo ? [{ testo: periodo, forte: true }] : [])
-
 // Le persone dell'elenco: forti i numeri E la freccia fra un numero e l'altro,
 // così «3 → 1» si legge come una cosa sola. Le parole di servizio della forma
 // lunga («da 1 a 3») restano piccole.
 const personeElenco = (personeNotti: number[]): PezzoRiga[] =>
   pezziPersone(personeNotti).map(p => (p.testo === '→' ? { ...p, forte: true } : p))
 
-// La riga intera, coi puntini di mezzo già dentro.
-export function pezziRigaRichiesta({ periodo, notti, personeNotti, camera, forte = 'numeri' }: {
-  periodo: string
-  notti: number
-  personeNotti: number[]
-  camera?: string | null
-  forte?: ModoForte
-}): PezzoRiga[] {
-  const elenco = forte === 'elenco'
-  const gruppi = [
-    elenco ? tutteLeDate(periodo) : pezziNumerici(periodo),
-    pezziNotti(notti),
-    elenco ? personeElenco(personeNotti) : pezziPersone(personeNotti),
-    pezziCamera(camera, { soloValore: elenco }),
-  ].filter(g => g.length > 0)
+// Unisce i gruppi coi puntini di mezzo, che restano piccoli e grigi.
+const unisci = (gruppi: PezzoRiga[][]): PezzoRiga[] => {
   const out: PezzoRiga[] = []
-  gruppi.forEach((g, i) => {
+  gruppi.filter(g => g.length > 0).forEach((g, i) => {
     if (i > 0) out.push({ testo: SEPARATORE, forte: false })
     out.push(...g)
   })
   return out
+}
+
+// La SECONDA riga dell'elenco: «2 notti · 3 persone · qualsiasi». Le date non
+// stanno più qui: sono salite nella prima riga, accanto al nome.
+export function pezziRigaElenco({ notti, personeNotti, camera }: {
+  notti: number
+  personeNotti: number[]
+  camera?: string | null
+}): PezzoRiga[] {
+  return unisci([pezziNotti(notti), personeElenco(personeNotti), pezziCamera(camera, { soloValore: true })])
+}
+
+// La riga intera della testa della proposta, coi puntini di mezzo già dentro:
+// «gio 29 → sab 31 ott · 2 notti · 3 persone · Ambra», forti i numeri e il
+// nome della camera.
+export function pezziRigaRichiesta({ periodo, notti, personeNotti, camera }: {
+  periodo: string
+  notti: number
+  personeNotti: number[]
+  camera?: string | null
+}): PezzoRiga[] {
+  return unisci([pezziNumerici(periodo), pezziNotti(notti), pezziPersone(personeNotti), pezziCamera(camera)])
 }
 
 // La riga come si legge, tutta di seguito: serve alle prove e alle etichette
