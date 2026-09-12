@@ -511,3 +511,34 @@ dell'interruttore. Misurato a schermo a 390×844: fascia alta 39 px su 358 di
 larghezza, una riga sola, voci 10 px/0,6 px, ogni voce alta 45 px da toccare.
 Provato dalla UI vera: filtro acceso → 3 richieste e titoletto «DA GUARDARE»,
 cambio ordine col filtro acceso → resta filtrato, filtro spento → tutte e 28.
+
+## Le tre pagine cominciano dallo stesso punto (12/09/2026, Claude)
+
+Pubblicato e verificato: commit `07bbbcf` su `main`, deploy Vercel `success`
+(Production). Tolto il titolo, la pagina delle Richieste era salita e cominciava
+più in alto di Calendario e Arrivi.
+
+**Misure nel browser a 390×844**, dal bordo alto al campo «Cerca nome o
+telefono»: Calendario 112 px, Arrivi 112 px, **Richieste 71 px**. Dopo:
+**112 px tutte e tre**. Sul Mac a 1280 px: 67 px tutte e tre (prima le
+Richieste non avevano affatto quella fascia).
+
+Nuovo `components/TestaPagina.tsx`, usato da `app/calendario/page.tsx`,
+`app/arrivi/page.tsx` e `app/richieste/page.tsx`: fascia ferma in cima
+(`sticky top-12 lg:top-0`, `px-4 pt-4 pb-2`, fondo crema velato), riga
+«← Indietro» nascosta sul telefono (`.indietro-barra`), riga del titolo
+(`mt-0 lg:mt-4 mb-2`). Il titolo tiene il suo spazio anche quando non si legge:
+sul telefono `max-lg:invisible` come già facevano le altre due; nelle Richieste
+`titoloNascosto` lo tiene invisibile anche sul Mac, perché lì Ania non lo vuole
+più. È quello spazio a tenere allineate le tre pagine: nessun numero scritto a
+mano, e se cambia cambia per tutt'e tre.
+
+Le Richieste non hanno più il contenitore `p-4` né `BackBar`: il corpo sta in
+`px-4 pb-4` e la freccia è il `BackLink` dentro la testa (stessa destinazione
+di prima: Home, oppure la scheda da cui si è arrivati con `?apri=`).
+
+**Prove.** 1044 test verdi, TypeScript e build puliti, lint senza nuove
+diagnostiche (in `app/arrivi/page.tsx` restano le 17 preesistenti, contate
+prima e dopo). Nuovo caso in `lib/richieste.test.ts`: le tre pagine usano la
+testa condivisa e nessuna si riscrive la fascia o il titolo a mano; aggiornati
+i due casi che cercavano `BackBar` e il titolo nella testa delle Richieste.
