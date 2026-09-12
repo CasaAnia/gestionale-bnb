@@ -99,9 +99,11 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
       </div>
       {/* Seconda riga, tutto di seguito: date, notti, persone, camera. In
           semibold verde solo i DATI — le date con la freccia, il numero delle
-          notti, quello delle persone e la camera; le parole di mezzo restano
-          piccole e grigie (Ania, dal telefono, 12/09/2026; lib/rigaRichiesta) */}
-      <p className="mt-[3px]" style={{ fontSize: 13, lineHeight: 1.3, color: GRIGIO_RIGA }}>
+          notti, quello delle persone e la camera («Ambra» o «qualsiasi», senza
+          la parola «camera»); le parole di mezzo restano piccole e grigie.
+          13,5 px per leggerla meglio (Ania, dal telefono, 12/09/2026;
+          lib/rigaRichiesta) */}
+      <p className="mt-[3px]" style={{ fontSize: 13.5, lineHeight: 1.3, color: GRIGIO_RIGA }}>
         {pezzi.map((x, i) => (
           <span key={i} style={x.forte ? { fontWeight: 600, color: 'var(--color-green-dark)' } : undefined}>{x.testo}</span>
         ))}

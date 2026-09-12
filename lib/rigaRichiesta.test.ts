@@ -48,9 +48,10 @@ test('la camera: il nome quando c’è, «camera qualsiasi» quando non c’è',
   assert.deepEqual(pezziCamera(null), [{ testo: 'camera qualsiasi', forte: false }])
   assert.deepEqual(pezziCamera(''), [{ testo: 'camera qualsiasi', forte: false }])
   assert.deepEqual(pezziCamera('   '), [{ testo: 'camera qualsiasi', forte: false }])
-  // nell'elenco «qualsiasi» è forte, la parola «camera» no: il testo non cambia
-  assert.deepEqual(pezziCamera(null, { qualsiasiForte: true }), [{ testo: 'camera ', forte: false }, { testo: 'qualsiasi', forte: true }])
-  assert.deepEqual(pezziCamera('Ambra', { qualsiasiForte: true }), [{ testo: 'Ambra', forte: true }])
+  // nell'elenco la parola «camera» non si scrive: resta il solo valore, forte
+  assert.deepEqual(pezziCamera(null, { soloValore: true }), [{ testo: 'qualsiasi', forte: true }])
+  assert.deepEqual(pezziCamera('', { soloValore: true }), [{ testo: 'qualsiasi', forte: true }])
+  assert.deepEqual(pezziCamera('Ambra', { soloValore: true }), [{ testo: 'Ambra', forte: true }])
 })
 
 test('in Georgia ci vanno i numeri e il nome della camera, non le parole', () => {
@@ -85,25 +86,26 @@ test('da quanto è arrivata: oggi, ieri, N giorni fa', () => {
 
 // ── LA SECONDA RIGA DELL'ELENCO (Ania, dal telefono, 12/09/2026) ───────────
 // In semibold verde solo i DATI: le date con la freccia, il numero delle
-// notti, quello delle persone e la camera. Le parole di mezzo — «notti»,
-// «persone», «persona», «camera», i puntini — restano piccole e grigie.
+// notti, quello delle persone e la camera. La parola «camera» non si scrive:
+// si legge «· Ambra» oppure «· qualsiasi». Le parole di mezzo — «notti»,
+// «persone», «persona», i puntini — restano piccole e grigie.
 test('nella riga dell’elenco sono forti solo le date, i numeri e la camera', () => {
   const p = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-10-29', '2026-10-31'), notti: 2, personeNotti: [3, 3], camera: 'Ambra', forte: 'elenco' })
   // gio 29 → sab 31 ott · 2 notti · 3 persone · Ambra
   assert.deepEqual(forti(p), ['gio 29 → sab 31 ott', '2', '3', 'Ambra'])
-  // il testo però non cambia: è quello della bozza
   assert.equal(testoRiga(p), 'gio 29 → sab 31 ott · 2 notti · 3 persone · Ambra')
   // le parole di mezzo e i puntini restano normali
   assert.equal(testoRiga(p.filter(x => !x.forte)), ' · ' + ' notti · ' + ' persone · ')
 
-  // 1 persona e nessuna camera chiesta: «qualsiasi» è forte, «camera» no
+  // 1 persona e nessuna camera chiesta: «· qualsiasi», senza la parola «camera»
   const q = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-11-03', '2026-11-05'), notti: 2, personeNotti: [1, 1], camera: null, forte: 'elenco' })
-  assert.equal(testoRiga(q), 'mar 3 → gio 5 nov · 2 notti · 1 persona · camera qualsiasi')
+  assert.equal(testoRiga(q), 'mar 3 → gio 5 nov · 2 notti · 1 persona · qualsiasi')
+  assert.equal(testoRiga(q).includes('camera'), false, 'la parola «camera» non si scrive più')
   assert.deepEqual(forti(q), ['mar 3 → gio 5 nov', '2', '1', 'qualsiasi'])
 
   // persone che cambiano notte per notte: forte tutta la sequenza «3 → 1»
   const m = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-10-29', '2026-10-31'), notti: 2, personeNotti: [3, 1], camera: null, forte: 'elenco' })
-  assert.equal(testoRiga(m), 'gio 29 → sab 31 ott · 2 notti · 3 → 1 persone · camera qualsiasi')
+  assert.equal(testoRiga(m), 'gio 29 → sab 31 ott · 2 notti · 3 → 1 persone · qualsiasi')
   assert.deepEqual(forti(m), ['gio 29 → sab 31 ott', '2', '3', '→', '1', 'qualsiasi'])
   assert.equal(m.filter(x => x.forte).map(x => x.testo).join('').includes('3→1'), true)
 
@@ -114,9 +116,11 @@ test('nella riga dell’elenco sono forti solo le date, i numeri e la camera', (
   // «notte» e «persone» non sono forti
   assert.equal(forti(u).some(x => /notte|persone|camera/.test(x)), false)
 
-  // senza il modo si continua a fare come nella testa della proposta
-  const vecchio = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-10-29', '2026-10-31'), notti: 2, personeNotti: [3, 3], camera: 'Ambra' })
-  assert.deepEqual(forti(vecchio), ['29', '31', '2', '3', 'Ambra'])
+  // senza il modo si continua a fare come nella testa della proposta, dove la
+  // parola «camera» c'è ancora: lì la riga è grande e l'etichetta serve
+  const vecchio = pezziRigaRichiesta({ periodo: periodoConGiorni('2026-11-02', '2026-11-04'), notti: 2, personeNotti: [1, 1], camera: null })
+  assert.equal(testoRiga(vecchio), 'lun 2 → mer 4 nov · 2 notti · 1 persona · camera qualsiasi')
+  assert.deepEqual(forti(vecchio), ['2', '4', '2', '1'])
 })
 
 // ── L'ETICHETTINA BLU DAVANTI AL NOME ──────────────────────────────────────
@@ -163,8 +167,8 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
   assert.match(riga, /fontSize: 14\.5, fontWeight: 600, color: 'var\(--color-green-dark\)'/)
   assert.match(riga, /fontSize: 11, color: GRIGIO_QUANDO/)
   assert.match(pagina, /const GRIGIO_QUANDO = '#B9B6AD'/)
-  // seconda riga: 13 px, grigio verde, e non va a capo
-  assert.match(riga, /fontSize: 13, lineHeight: 1\.3, color: GRIGIO_RIGA/)
+  // seconda riga: 13,5 px, grigio verde, e non va a capo
+  assert.match(riga, /fontSize: 13\.5, lineHeight: 1\.3, color: GRIGIO_RIGA/)
   assert.match(pagina, /const GRIGIO_RIGA = '#6b736a'/)
   assert.match(riga, /forte: 'elenco'/)
   // non si taglia: nei casi normali sta in una riga, e quando le persone

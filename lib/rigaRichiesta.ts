@@ -8,6 +8,7 @@
 //
 //   gio 29 → sab 31 ott · 2 notti · 3 persone · Ambra
 //   lun 3 → mer 5 nov · 2 notti · 1 persona · camera qualsiasi
+//   (nell'elenco l'ultimo pezzo è il solo valore: «· qualsiasi»)
 //
 // Quali pezzi sono FORTI lo decide il modo:
 //
@@ -15,10 +16,12 @@
 //                proposta, dove la riga è grande;
 //  · 'elenco'  — nella riga dell'elenco (Ania, dal telefono, 12/09/2026):
 //                forti le DATE con la freccia, il NUMERO delle notti, il
-//                NUMERO delle persone (o la sequenza «3 → 1») e la CAMERA
-//                («Ambra», oppure «qualsiasi»). Le parole di mezzo — «notti»,
-//                «persone», «camera», i puntini — restano piccole e grigie:
-//                si leggono i dati, non le etichette.
+//                NUMERO delle persone (o la sequenza «3 → 1») e la CAMERA.
+//                La parola «camera» non si scrive proprio: si legge
+//                «· Ambra» oppure «· qualsiasi», e Ania sa che è la camera.
+//                Le parole di mezzo — «notti», «persone», i puntini —
+//                restano piccole e grigie: si leggono i dati, non le
+//                etichette.
 //
 // Qui si decide COSA scrivere e quali pezzi sono forti, la pagina decide come
 // disegnarli.
@@ -59,14 +62,15 @@ export function pezziPersone(personeNotti: number[]): PezzoRiga[] {
   return out
 }
 
-// «Ambra» (nome della camera, forte) oppure «camera qualsiasi». Nell'elenco
-// anche «qualsiasi» è forte — è la risposta alla domanda «quale camera?» —
-// mentre la parola «camera» resta piccola e grigia come le altre etichette.
-export function pezziCamera(camera: string | null | undefined, { qualsiasiForte = false } = {}): PezzoRiga[] {
+// «Ambra» (nome della camera, forte) oppure «camera qualsiasi».
+// Nell'elenco (`soloValore`) la parola «camera» non si scrive: resta il solo
+// valore, forte — «Ambra» oppure «qualsiasi». È la risposta alla domanda
+// «quale camera?», e la domanda si capisce dal posto in cui sta.
+export function pezziCamera(camera: string | null | undefined, { soloValore = false } = {}): PezzoRiga[] {
   const nome = (camera ?? '').trim()
   if (nome) return [{ testo: nome, forte: true }]
-  return qualsiasiForte
-    ? [{ testo: 'camera ', forte: false }, { testo: 'qualsiasi', forte: true }]
+  return soloValore
+    ? [{ testo: 'qualsiasi', forte: true }]
     : [{ testo: 'camera qualsiasi', forte: false }]
 }
 
@@ -94,7 +98,7 @@ export function pezziRigaRichiesta({ periodo, notti, personeNotti, camera, forte
     elenco ? tutteLeDate(periodo) : pezziNumerici(periodo),
     pezziNotti(notti),
     elenco ? personeElenco(personeNotti) : pezziPersone(personeNotti),
-    pezziCamera(camera, { qualsiasiForte: elenco }),
+    pezziCamera(camera, { soloValore: elenco }),
   ].filter(g => g.length > 0)
   const out: PezzoRiga[] = []
   gruppi.forEach((g, i) => {
