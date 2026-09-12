@@ -21,6 +21,29 @@ export function nomePerMessaggio(n: string | null | undefined): string {
   return (n || '').replace(/[\u200B-\u200D\uFE0F]/g, '').replace(/\s+/g, ' ').trim()
 }
 
+// ── COME SI CHIAMA LA CLIENTE NEI MESSAGGI (Ania, 12/09/2026) ──────────────
+// Nella CONFERMA SENZA IMMAGINE (quella di solo testo) si scrive nome e
+// cognome, in quest'ordine: è il documento ufficiale della prenotazione.
+// In TUTTI gli altri messaggi — conferma con immagine, richiesta di
+// pagamento, arrivo, promemoria, ringraziamento, proposte alle richieste —
+// si scrive SOLO il nome: sono messaggi di tutti i giorni e devono suonare
+// meno ufficiali.
+//
+// Sulle prenotazioni il nominativo è un campo unico già scritto «Nome
+// Cognome» (guest_name, oppure guests.full_name): il nome è la prima parola.
+// Le maiuscole restano quelle salvate sulla cliente: qui non si tocca altro.
+
+// Conferma senza immagine: il nominativo come è salvato, solo ripulito. Senza
+// cognome resta il solo nome, senza spazi doppi né virgole vuote.
+export function nomeECognomeMessaggio(n: string | null | undefined): string {
+  return nomePerMessaggio(n)
+}
+
+// Tutti gli altri messaggi: la prima parola del nominativo, cioè il nome.
+export function soloNomeMessaggio(n: string | null | undefined): string {
+  return nomePerMessaggio(n).split(' ')[0] || ''
+}
+
 // Confronto insensibile a maiuscole, spazi doppi e codifiche Unicode diverse:
 // "ROBERTO GRANATA" e "Roberto  Granata" sono la stessa persona.
 export function normalizzaNome(n: string | null | undefined): string {

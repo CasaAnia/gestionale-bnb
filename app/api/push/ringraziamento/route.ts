@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { buildChangeGroups } from '@/lib/roomChanges'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { isCronAuthorized } from '@/lib/cronAuth'
-import { nomePerMessaggio } from '@/lib/guestName'
+import { nomePerMessaggio, soloNomeMessaggio } from '@/lib/guestName'
 import { inviaATutti } from '@/lib/inviaPush'
 import { registraPush } from '@/lib/pushLog'
 import { attive } from '@/lib/pulizie'
@@ -20,8 +20,10 @@ function normalizePhone(p: string) {
 
 // Stesso identico testo del pulsante "Ringraziamento" nel dettaglio prenotazione
 // (buildWhatsappMsg, type 'ringraziamento'): se si cambia uno, cambiare anche l'altro.
+// Messaggio di tutti i giorni: si saluta col SOLO nome (Ania, 12/09/2026).
 function buildRingraziamentoMsg(name: string) {
-  return `Gentile ${name},
+  const nome = soloNomeMessaggio(name)
+  return `Gentile ${nome},
 
 grazie per aver soggiornato da noi. È stato un piacere averla come nostra ospite e spero che si sia trovata bene. 🌿
 

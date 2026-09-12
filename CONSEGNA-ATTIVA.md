@@ -112,3 +112,59 @@ il rosso vecchio `#C0392B` sulle due righe delle note (nota del cliente e nota
 della prenotazione). Il file è in carico a chi sta lavorando sulla scheda:
 **lo cambia quella attività prima di chiudere**. Non toccare gli altri usi di
 `#C0392B` in quel file: gli avvisi «numero già usato» restano come sono.
+
+## Da fare in `app/prenotazioni/[id]/page.tsx` — come si chiama la cliente (Ania, 12/09/2026)
+
+Regola nuova, decisa da Ania: nella **conferma SENZA immagine** (quella di solo
+testo) si scrive **nome e cognome**, in quest'ordine; in **tutti gli altri
+messaggi** si scrive **solo il nome** — sono messaggi di tutti i giorni e devono
+suonare meno ufficiali. Senza cognome la conferma usa il solo nome, senza spazi
+doppi né virgole vuote. Le maiuscole restano quelle salvate sulla cliente e il
+resto dei testi non si tocca: sono approvati parola per parola.
+
+La regola sta già scritta in un posto solo, `lib/guestName` (commit `e5f932b`):
+
+- `nomeECognomeMessaggio(n)` → nome e cognome, ripuliti: per la conferma senza immagine;
+- `soloNomeMessaggio(n)` → la prima parola del nominativo: per tutti gli altri.
+
+Già applicata fuori da questo file: arrivo/«Richiesta orario»
+(`lib/messaggiWhatsApp`, vale sia per il tasto della scheda sia per quello della
+Home), conferma CON immagine (`components/ConfermaWhatsApp`), ringraziamento
+della notifica di partenza (`app/api/push/ringraziamento`). Le proposte alle
+richieste usavano già il solo nome.
+
+**Qui manca ancora**, dentro `buildWhatsappMsg`. Oggi la riga in cima è
+
+```ts
+const name = nomePerMessaggio(nomeOspite(b))
+```
+
+e `${name}` finisce in tutti i messaggi. Va diventata:
+
+```ts
+const name = nomeECognomeMessaggio(nomeOspite(b))   // solo per 'conferma'
+const nome = soloNomeMessaggio(name)                // per tutti gli altri
+```
+
+e poi, nei sei messaggi qui sotto, `Gentile ${name},` diventa `Gentile ${nome},`:
+
+| messaggio | `type` | riga del saluto |
+|---|---|---|
+| Modifica prenotazione | `modifica` | `Gentile ${name},` |
+| Annullamento | (ultimo `return`) | `Gentile ${name},` |
+| Dati bonifico (richiesta di pagamento) | `dati_bonifico` | `Gentile ${name},` |
+| Promemoria bonifico | `promemoria_bonifico` | `Gentile ${name},` |
+| Pagamento ricevuto | `pagamento_ricevuto` | `Gentile ${name},` |
+| Ringraziamento | `ringraziamento` | `Gentile ${name},` |
+
+**Non cambiare** la conferma (`type === 'conferma'`): lì `${name}` resta nome e
+cognome. E `richiesta_orario` è già a posto: il taglio al solo nome si fa dentro
+`messaggioRichiestaOrario`, non qui.
+
+Nota: finché il ringraziamento di questo file non cambia, il suo saluto è
+diverso da quello della notifica di partenza (che dice già il solo nome). È lo
+stesso testo in due punti: allineandolo qui tornano identici.
+
+Il file non è stato toccato perché è in carico a un'altra attività; le
+modifiche non salvate che porta (`app/prenotazioni/[id]/page.tsx`,
+`lib/condizioniPrenotazione.ts`) non sono state incluse in nessun commit.

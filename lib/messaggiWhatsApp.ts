@@ -2,12 +2,16 @@
 // e la Home «Da controllare» (ritocchi del 07/09/2026): il testo «Richiesta
 // orario» vive SOLO qui, così i due bottoni mandano parole identiche.
 // Funzioni pure, senza Supabase: si provano con `node --test`.
-import { nomeOspite, nomePerMessaggio } from './guestName.ts'
+import { nomeOspite, soloNomeMessaggio } from './guestName.ts'
 
 // Testo di «Richiesta orario» (era in app/prenotazioni/[id]/page.tsx,
 // buildWhatsappMsg, tipo richiesta_orario): spostato, non copiato.
+// Messaggio di tutti i giorni: si saluta col SOLO nome (Ania, 12/09/2026).
+// Il taglio si fa qui dentro, così vale per il tasto della scheda e per
+// quello della Home «Da controllare» senza doverli cambiare tutti e due.
 export function messaggioRichiestaOrario(name: string): string {
-  return `Gentile ${name},
+  const nome = soloNomeMessaggio(name)
+  return `Gentile ${nome},
 
 il suo arrivo si avvicina e vorrei organizzare al meglio la sua accoglienza. 😊
 
@@ -43,6 +47,6 @@ export type LinkWhatsApp = { href: string; numero: string; testo: string }
 export function whatsappRichiestaOrario(b: { guest_name?: string | null; guests?: { full_name?: string | null; phone?: string | null } | null }): LinkWhatsApp | null {
   const numero = numeroWhatsAppPrenotazione(b.guests?.phone)
   if (!numero) return null
-  const testo = messaggioRichiestaOrario(nomePerMessaggio(nomeOspite(b)))
+  const testo = messaggioRichiestaOrario(nomeOspite(b))
   return { href: waHrefTesto(numero, testo), numero, testo }
 }

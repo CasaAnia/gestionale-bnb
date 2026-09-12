@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ROOM_SLUG_BY_NAME } from '@/lib/roomTypes'
 import { lettoDaComunicare } from '@/lib/tariffe'
 import { SITO_URL } from '@/lib/config'
-import { nomeOspite } from '@/lib/guestName'
+import { nomeOspite, nomePerMessaggio, soloNomeMessaggio } from '@/lib/guestName'
 import { causaleBonifico } from '@/lib/causale'
 import { residuoDaPagare } from '@/lib/conto'
 import type { Booking } from '@/lib/types'
@@ -68,9 +68,13 @@ export default function ConfermaWhatsApp({ booking, groupBookings, payments = []
   const numOspiti = [...new Set(segmenti.map(s => s.group_id || s.id))].reduce((tot, g) => tot + Math.max(...segmenti.filter(s => (s.group_id || s.id) === g).map(s => Number(s.num_guests) || 1)), 0)
   const ospiti = `${numOspiti} ${numOspiti === 1 ? 'adulto' : 'adulti'}`
   // Alcune schede cliente portano caratteri invisibili residui davanti al nome
-  // (es. U+FE0F di una vecchia emoji): il saluto deve risultare "Gentile Nome Cognome,"
-  // pulito, senza spazi anomali né caratteri di formattazione.
-  const nome = nomeOspite(booking).replace(/[\u200B-\u200D\uFE0F]/g, '').replace(/\s+/g, ' ').trim()
+  // (es. U+FE0F di una vecchia emoji): vanno via prima di usarlo nel messaggio,
+  // altrimenti sporcano il saluto e rompono il *grassetto* di WhatsApp.
+  // `nome` resta il nominativo intero: serve all'immagine e alla causale del
+  // bonifico. Il messaggio invece saluta col SOLO nome, perché la conferma
+  // ufficiale è quella senza immagine (Ania, 12/09/2026).
+  const nome = nomePerMessaggio(nomeOspite(booking))
+  const nomeSaluto = soloNomeMessaggio(nome)
 
   // Righe del riepilogo costi dal conto unico (lib/riepilogoCosti, condivisa con la proposta)
   const { righe: righeCosti, totale } = righeCostiSegmenti(segmenti, isGruppo)
@@ -89,7 +93,7 @@ export default function ConfermaWhatsApp({ booking, groupBookings, payments = []
   const slugs = [...new Set(segmenti.map(s => (s.rooms?.name ? ROOM_SLUG_BY_NAME[s.rooms.name] : undefined)).filter(Boolean))]
   const linkCamere = slugs.map(sl => `${SITO_URL}/camere/${sl}`).join('\n')
   const testoMessaggio = `​
-Gentile ${nome},
+Gentile ${nomeSaluto},
 
 la sua prenotazione è confermata. 🌿
 
