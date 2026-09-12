@@ -10,7 +10,7 @@ import TestataRichieste from '@/components/richieste/TestataRichieste'
 import { InterruttoreSquadrato, TastoNuovaRichiesta, EtichettaAvviso, TastoAvviso, AVVISO_SITO, AVVISO_GUARDARE } from '@/components/richieste/ComandiPagina'
 import CalendarioRichieste, { larghezzaColonnaCamere, type Ancora, type ModoCalendario } from '@/components/richieste/CalendarioRichieste'
 import PannelloRichieste from '@/components/richieste/PannelloRichieste'
-import { TastoPrincipale, TondiContatto, ComandiRichiesta } from '@/components/richieste/AzioniRichiesta'
+import { TastoPrincipale, ComandiRichiesta, IconeContatto, SPAZIO_COMANDI } from '@/components/richieste/AzioniRichiesta'
 import RigaScadenza from '@/components/richieste/RigaScadenza'
 import NotaCliente from '@/components/richieste/NotaCliente'
 import CampoRicerca from '@/components/CampoRicerca'
@@ -26,7 +26,7 @@ import { fetchRichieste, rifiutaRichiesta, riapriRichiesta, ricaricaRichiesteApe
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
-import { altreStesseDate, gruppoStesseDate, etichettaStesseDate, sottotitoloGruppo, contatoreGruppo, VEDI_TUTTE } from '@/lib/richiesteStesseDate'
+import { altreStesseDate, gruppoStesseDate, etichettaAltre, sottotitoloGruppo, contatoreGruppo, VEDI_TUTTE } from '@/lib/richiesteStesseDate'
 import { personePerNotte } from '@/lib/richiesteProposta'
 import { pezziRigaRichiesta, daQuantoArrivata } from '@/lib/rigaRichiesta'
 import { periodoConGiorni } from '@/lib/dateItaliane'
@@ -44,28 +44,27 @@ import {
 const ORDINI = [['durata', 'durata'], ['arrivo', 'arrivo'], ['persone', 'persone']] as const satisfies readonly (readonly [OrdineRichieste, string])[]
 const GRIGIO_NOTA = '#6b6b60'
 
-const GEORGIA = "Georgia, 'Times New Roman', serif"
-const GRIGIO_QUANDO = '#B9B6AD'   // «oggi», «ieri», «2 giorni fa», a destra del nome
+const GRIGIO_QUANDO = '#B9B6AD'   // «oggi», «ieri», «2 giorni fa», in fondo alla prima riga
+const GRIGIO_RIGA = '#6b736a'     // la seconda riga: date, notti, persone, camera
 
 const oggiIso = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-// Il segno delle richieste che si accavallano: pillola blu, si tocca e
-// restringe l'elenco a quel gruppo (Ania, 12/09/2026). Il ⇄ non si usa più
-// per questo caso: resta per il cambio camera.
-const BLU_RICHIESTE = '#7D9DB0'
-// Misura ridotta dal 12/09/2026 (Ania, su bozza): nella scheda corta la
-// pillola non deve pesare — 11 px, 2 px sopra e sotto, 9 ai lati. Il tasto che
-// la contiene è più alto di lei (imbottitura tolta dai margini): resta comodo
-// da toccare senza rubare altezza alla scheda.
+// Il segno delle richieste che si accavallano: etichettina blu DAVANTI al
+// nome, si tocca e restringe l'elenco a quel gruppo (Ania, su bozza,
+// 12/09/2026). Il ⇄ non si usa più per questo caso: resta per il cambio camera.
+// Ha la misura delle altre etichettine della pagina — angoli 4, 11 bold, 2 px
+// sopra e sotto e 7 ai lati — e i colori del blu tenue.
+const BLU_FONDO = '#DCE7ED'
+const BLU_TESTO = '#3F6377'
 function SegnoStesseDate({ testo, onClick }: { testo: string; onClick: () => void }) {
   return (
     <button type="button" data-stesse-date onClick={e => { e.stopPropagation(); onClick() }}
-      className="inline-flex items-center py-[12px] -my-[12px] rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-mid">
-      <span className="inline-flex items-center gap-1 rounded-full font-semibold text-white"
-        style={{ background: BLU_RICHIESTE, fontSize: 11, padding: '2px 9px' }}>
+      className="inline-flex items-center shrink-0 py-[13px] -my-[13px] rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-mid">
+      <span className="inline-flex items-center gap-1"
+        style={{ background: BLU_FONDO, color: BLU_TESTO, borderRadius: 4, fontSize: 11, fontWeight: 700, padding: '2px 7px', lineHeight: '18px' }}>
         <span aria-hidden>⧉</span>{testo}
       </span>
     </button>
@@ -79,7 +78,7 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
   try { personeNotti = personePerNotte(r) } catch { personeNotti = [Math.max(1, Number(r.persone) || 1)] }
   // Le notti scelte a mano non si scrivono con la freccia: si elencano
   const periodo = r.notti_richieste ? formatDateRichiesta(r) : periodoConGiorni(r.arrivo, r.partenza)
-  const pezzi = pezziRigaRichiesta({ periodo, notti: nottiRichiesta(r), personeNotti, camera: r.rooms?.name ?? null })
+  const pezzi = pezziRigaRichiesta({ periodo, notti: nottiRichiesta(r), personeNotti, camera: r.rooms?.name ?? null, forte: 'persone-camera' })
   const quando = daQuantoArrivata(r.created_at, adesso)
   const ferma = avvisoFerma(r, adesso)
   return (
@@ -87,46 +86,48 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
     // (Ania, su bozza, 12/09/2026). Nel gruppo un filo d'ottone a sinistra.
     <li style={nelGruppo ? { borderLeft: '2px solid #A9884E', paddingLeft: 12 } : undefined}>
     <div role="button" tabIndex={0} onClick={onSeleziona} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSeleziona() } }} aria-pressed={selezionata}
-      className={`w-full text-left leading-snug cursor-pointer border-t border-card-border transition-colors ${selezionata ? 'bg-sage/40 rounded-lg px-3 -mx-3' : ''}`}
-      style={{ paddingTop: 13, paddingBottom: 13 }}>
-      {/* Il nome a sinistra e, sulla stessa riga a destra, da quanto è arrivata */}
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="truncate inline-flex items-baseline gap-1.5 min-w-0 leading-tight" style={{ fontFamily: GEORGIA, fontSize: 18, color: 'var(--color-green-dark)' }}>
+      className={`w-full text-left cursor-pointer border-t border-card-border transition-colors ${selezionata ? 'bg-sage/40 rounded-lg px-3 -mx-3' : ''}`}
+      style={{ paddingTop: 11, paddingBottom: 11 }}>
+      {/* Prima riga: l'etichettina blu delle altre richieste per le stesse
+          date, poi il nome; in fondo a destra da quanto è arrivata */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 min-w-0 leading-tight" style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--color-green-dark)' }}>
+          {stesseDate && onGruppo && <SegnoStesseDate testo={stesseDate} onClick={onGruppo} />}
           <span className="truncate">{nomeCompleto(r)}</span>
           {/* Cliente che torna (08/09/2026): non è una provenienza, è un'etichetta */}
-          {giaStato && <span data-gia-stato className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-sage text-green-mid whitespace-nowrap">{giaStato}</span>}
+          {giaStato && <span data-gia-stato className="shrink-0 text-[11px] font-bold bg-sage text-green-mid whitespace-nowrap" style={{ borderRadius: 4, padding: '2px 7px', lineHeight: '18px' }}>{giaStato}</span>}
         </p>
-        {quando && <span className="shrink-0" style={{ fontSize: 11.5, color: GRIGIO_QUANDO }}>{quando}</span>}
+        {quando && <span className="shrink-0" style={{ fontSize: 11, color: GRIGIO_QUANDO }}>{quando}</span>}
       </div>
-      {/* Tutto di seguito: date, notti, persone, camera. I numeri e il nome
-          della camera in Georgia, il resto piccolo e grigio (lib/rigaRichiesta) */}
-      <p className="mt-0.5" style={{ fontSize: 12.5, lineHeight: 1.25, color: 'var(--color-stone)' }}>
+      {/* Seconda riga, tutto di seguito: date, notti, persone, camera. Forti
+          solo le PERSONE e la CAMERA chiesta (lib/rigaRichiesta) */}
+      <p className="mt-[3px]" style={{ fontSize: 13, lineHeight: 1.3, color: GRIGIO_RIGA }}>
         {pezzi.map((x, i) => (
-          <span key={i} style={x.forte ? { fontFamily: GEORGIA, fontSize: 15, color: 'var(--color-green-dark)' } : undefined}>{x.testo}</span>
+          <span key={i} style={x.forte ? { fontWeight: 600, color: 'var(--color-green-dark)' } : undefined}>{x.testo}</span>
         ))}
       </p>
       {/* Solo quando c'è qualcosa da dire: timer della proposta, richiesta
-          ferma, altre richieste per le stesse notti, sovrapposizioni */}
+          ferma, sovrapposizioni con le prenotazioni confermate */}
       {(scadenzaProposta(r, adesso) || ferma) && (
         <div className="flex flex-wrap items-center gap-x-1.5 mt-1">
           <RigaScadenza r={r} adesso={adesso} />
           {ferma && <span className="text-[11.5px] font-semibold text-brass">{ferma}</span>}
         </div>
       )}
-      {stesseDate && onGruppo && <div className="mt-1.5"><SegnoStesseDate testo={stesseDate} onClick={onGruppo} /></div>}
       {conflitti.length > 0 && (
         <p className="mt-1" style={{ fontSize: 11.5, color: '#7a5f2c' }} title={conflitti.join(' · ')}>
           si sovrappone con {conflitti.join(', ')}
         </p>
       )}
-      {/* Nota del cliente (Ania, 07/09/2026): prima si vedeva solo in «Modifica» */}
-      <NotaCliente note={r.note} className="mt-1 text-[12px]" />
-      {/* Il tasto pieno si allarga fino a lasciare posto ai due tondi */}
-      <div className="flex items-center gap-2 mt-1.5">
+      {/* La nota del cliente come nella Home: tutta in rosso, 13 px semibold */}
+      <NotaCliente note={r.note} home className="mt-1" />
+      {/* Ultima riga: la pastiglia verde, «Modifica» e «Rifiuta», e in fondo a
+          destra le due icone nude per chiamare e per scrivere su WhatsApp */}
+      <div className="flex items-center mt-2" style={{ gap: SPAZIO_COMANDI }}>
         <TastoPrincipale r={r} onConferma={onConferma} />
-        <TondiContatto r={r} />
+        <ComandiRichiesta r={r} onRifiuta={onRifiuta} />
+        <IconeContatto r={r} className="ml-auto" />
       </div>
-      <ComandiRichiesta r={r} onRifiuta={onRifiuta} className="mt-1.5" />
     </div>
     </li>
   )
@@ -496,7 +497,7 @@ function Richieste() {
             <ul className="flex flex-col min-[1100px]:grid min-[1100px]:grid-cols-2 min-[1100px]:gap-x-8 min-[1100px]:items-start">
               {mostrate.map(r => (
                 <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []} giaStato={etichettaGiaStato(soggiorniPrecedenti({ nome: r.nome, cognome: r.cognome, telefono: r.telefono }, prenotazioni, oggiIso()))}
-                  stesseDate={capogruppo ? null : etichettaStesseDate(altreDi.get(r.id) ?? 0)} onGruppo={() => setGruppoDi(r.id)} nelGruppo={!!capogruppo}
+                  stesseDate={capogruppo ? null : etichettaAltre(altreDi.get(r.id) ?? 0)} onGruppo={() => setGruppoDi(r.id)} nelGruppo={!!capogruppo}
                   selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} onRifiuta={setDaRifiutare} onConferma={r => setDaConfermare(r as RichiestaConProposta)} />
               ))}
             </ul>

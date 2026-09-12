@@ -286,44 +286,76 @@ test('il tasto pieno dice cosa fare adesso', () => {
   assert.equal(tastoRichiesta('chiusa'), null)
 })
 
-test('il tasto pieno e la riga dei comandi hanno le misure della bozza', () => {
+test('l’ultima riga della richiesta ha i quattro comandi nell’ordine chiesto', () => {
   const az = readFileSync(new URL('../components/richieste/AzioniRichiesta.tsx', import.meta.url), 'utf8')
-  const tasto = az.slice(az.indexOf('export function TastoPrincipale'), az.indexOf('export function TondiContatto'))
-  // alto 38, bianco bold 13 su verde pieno; si allarga lasciando posto ai tondi
-  assert.match(tasto, /flex-1 min-w-0/)
-  assert.match(tasto, /bg-green-mid/)
-  assert.match(tasto, /height: 38, fontSize: 13, fontWeight: 700, color: '#fff'/)
 
-  // i due tondi restano tondi: 38 × 38, contorno #C9BFA8, segno verde
-  assert.match(az, /width: 38, height: 38, borderColor: BORDO_TONDO, color: 'var\(--color-green-mid\)'/)
-  assert.match(az, /const BORDO_TONDO = '#C9BFA8'/)
-  assert.match(az, /rounded-full/)
-  const tondi = az.slice(az.indexOf('export function TondiContatto'), az.indexOf('const COMANDO'))
-  // le etichette per chi non vede restano
-  assert.match(tondi, /aria-label=\{`Chiama \$\{nome\}`\}/)
-  assert.match(tondi, /aria-label=\{`Scrivi su WhatsApp a \$\{nome\}`\}/)
+  // la pastiglia è quella dei tasti WhatsApp: verde pieno, tonda, 12 semibold
+  assert.match(az, /import \{ BOTTONE_PIENO \} from '@\/components\/BottoniWhatsApp'/)
+  const whatsapp = readFileSync(new URL('../components/BottoniWhatsApp.tsx', import.meta.url), 'utf8')
+  assert.match(whatsapp, /BOTTONE_PIENO = '[^']*rounded-full bg-green-mid text-white[^']*text-\[12px\] font-semibold/)
+  // con le misure della bozza: 5 px sopra e sotto, 12 ai lati
+  assert.match(az, /MISURA_PASTIGLIA = \{ padding: '5px 12px' \}/)
+  const tasto = az.slice(az.indexOf('export function TastoPrincipale'), az.indexOf('// Le due icone'))
+  assert.match(tasto, /<span className=\{BOTTONE_PIENO\} style=\{MISURA_PASTIGLIA\}>\{testo\}<\/span>/)
+  // niente più tasto verde largo quanto la riga
+  assert.equal(/flex-1 min-w-0/.test(tasto), false, 'la pastiglia si allarga ancora per tutta la riga')
 
+  // «Modifica» e «Rifiuta»: parole, 13 px stone, distanziate di 14 px
   const comandi = az.slice(az.indexOf('const COMANDO'))
-  // «Modifica» semibold verde, «Rifiuta» non grassetto color stone: pesa meno
-  assert.match(comandi, /fontSize: 12\.5, fontWeight: 600, color: 'var\(--color-green-mid\)'/)
-  assert.match(comandi, /fontSize: 12\.5, fontWeight: 400, color: 'var\(--color-stone\)'/)
-  // sottolineati leggeri e con 44 px di area da toccare senza rubare altezza
-  assert.match(comandi, /textDecorationColor: 'var\(--color-card-border\)'/)
-  assert.match(comandi, /py-\[13px\] -my-\[13px\]/)
-  assert.match(comandi, /underline/)
+  assert.match(comandi, /MISURA_COMANDO = \{ fontSize: 13, color: 'var\(--color-stone\)' \}/)
+  assert.match(comandi, /export const SPAZIO_COMANDI = 14/)
   assert.equal(comandi.match(/className=\{COMANDO\}/g)?.length, 2)
+  // niente più sottolineature né contorni
+  assert.equal(/underline/.test(comandi), false)
+
+  // le due icone: nude, 17 px, green-mid. Niente cerchio col contorno.
+  const icone = az.slice(az.indexOf('// Le due icone'), az.indexOf('// «Modifica» e «Rifiuta»: parole'))
+  assert.match(icone, /text-green-mid/)
+  assert.equal(icone.match(/size=\{17\}/g)?.length, 2)
+  assert.equal(/rounded-full|border/.test(icone), false, 'le icone hanno ancora il cerchio')
+  // le etichette per chi non vede restano
+  assert.match(icone, /aria-label=\{`Chiama \$\{nome\}`\}/)
+  assert.match(icone, /aria-label=\{`Scrivi su WhatsApp a \$\{nome\}`\}/)
+
+  // tutte e quattro tengono 44 px di area utile senza rubare altezza alla riga
+  assert.match(tasto, /py-\[9px\] -my-\[9px\]/)               // 25 + 9 + 9 = 43
+  assert.match(comandi, /py-\[15px\] -my-\[15px\]/)            // 14 + 15 + 15 = 44
+  assert.match(icone, /height: 44, marginTop: -9, marginBottom: -9/)
+
+  // presenza e ORDINE nella riga: pastiglia, Modifica, Rifiuta, icone a destra
+  const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
+  const riga = pagina.slice(pagina.indexOf('function RigaRichiesta'), pagina.indexOf('function RigaChiusa'))
+  const ultima = riga.slice(riga.indexOf('<div className="flex items-center mt-2"'))
+  const ordine = ['<TastoPrincipale', '<ComandiRichiesta', '<IconeContatto']
+  const posizioni = ordine.map(x => {
+    const i = ultima.indexOf(x)
+    assert.notEqual(i, -1, `manca ${x} nell'ultima riga`)
+    return i
+  })
+  assert.deepEqual(posizioni, [...posizioni].sort((a, b) => a - b), 'i comandi non sono nell\u2019ordine chiesto')
+  assert.match(ultima, /<IconeContatto r=\{r\} className="ml-auto" \/>/)   // in fondo a destra
+  assert.match(ultima, /style=\{\{ gap: SPAZIO_COMANDI \}\}/)             // 14 px dalla pastiglia
 })
 
-// La nota del cliente nella scheda: rossa e allineata a sinistra come il
-// resto (Ania, su bozza, 12/09/2026: il centrato è durato un giorno).
-test('la nota del cliente nella scheda è rossa, piccola e a sinistra', () => {
+// La nota del cliente nella riga: tutta rossa come nella Home (Ania, su bozza,
+// 12/09/2026). Il rosso resta quello scelto l'8 settembre, #C00000: lo stesso
+// ovunque compaia la nota.
+test('la nota del cliente nella riga è tutta rossa, come nella Home', () => {
   const nota = readFileSync(new URL('../components/richieste/NotaCliente.tsx', import.meta.url), 'utf8')
-  assert.match(nota, /#C00000/)
+  assert.match(nota, /export const ROSSO_NOTA = '#C00000'/)
+  // il rosso vecchio resta solo nel commento che racconta il cambio, mai nel codice
+  const codice = nota.split('\n').filter(r => !r.trim().startsWith('//')).join('\n')
+  assert.equal(/#C0392B/.test(codice), false, 'è tornato il rosso vecchio')
+  assert.equal(codice.match(/color: ROSSO_NOTA/g)?.length, 2)
+  // la veste della Home: 13 px semibold, tutta rossa, senza «Nota del cliente:»
+  assert.match(nota, /text-\[13px\] leading-snug font-semibold/)
+  const home = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8')
+  assert.match(home, /text-\[13px\] leading-snug font-semibold/)
+
   const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
-  const scheda = pagina.slice(pagina.indexOf('function RigaRichiesta'), pagina.indexOf('function RigaChiusa'))
-  assert.match(scheda, /<NotaCliente note=\{r\.note\} className="mt-1 text-\[12px\]" \/>/)
-  // niente più centrata: la scheda è tutta allineata a sinistra
-  assert.equal(/centrata/.test(scheda), false)
+  const riga = pagina.slice(pagina.indexOf('function RigaRichiesta'), pagina.indexOf('function RigaChiusa'))
+  assert.match(riga, /<NotaCliente note=\{r\.note\} home className="mt-1" \/>/)
+  assert.equal(/centrata/.test(riga), false)
 })
 
 // ── I COMANDI DELLA PAGINA (Ania, su bozza, 12/09/2026) ───────────────────

@@ -29,10 +29,20 @@ export function gruppoStesseDate<T extends RichiestaStesseDate>(richiesta: T, ap
   return dentro.sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
 }
 
-// «altra 1 richiesta» · «altre 3 richieste» · null quando è sola
+// «altra 1 richiesta» · «altre 3 richieste» · null quando è sola.
+// Il testo lungo: lo usa il pannello del calendario, dove c'è spazio.
 export function etichettaStesseDate(quante: number): string | null {
   if (quante <= 0) return null
   return quante === 1 ? 'altra 1 richiesta' : `altre ${quante} richieste`
+}
+
+// Lo stesso, corto: l'etichettina blu davanti al nome, nella riga dell'elenco
+// (Ania, su bozza, 12/09/2026). Lì la riga è stretta e «altre 3 richieste» la
+// mangiava tutta: basta «3 altre», perché si è già dentro le richieste.
+// Con una sola si scrive «1 altra»: «1 altre» non è italiano.
+export function etichettaAltre(quante: number): string | null {
+  if (quante <= 0) return null
+  return quante === 1 ? '1 altra' : `${quante} altre`
 }
 
 // «3 richieste, la più vecchia per prima» — il sottotitolo della barra

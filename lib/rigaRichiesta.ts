@@ -9,10 +9,17 @@
 //   gio 29 → sab 31 ott · 2 notti · 3 persone · Ambra
 //   lun 3 → mer 5 nov · 2 notti · 1 persona · camera qualsiasi
 //
-// I NUMERI e il NOME della camera si scrivono in Georgia, più grandi e verde
-// scuro (è lo stile del gestionale: i numeri sono sempre in Georgia); il resto
-// è piccolo e grigio. Qui si decide COSA scrivere e quali pezzi sono forti,
-// la pagina decide come disegnarli.
+// Quali pezzi sono FORTI lo decide il modo (Ania, su bozza, 12/09/2026):
+//
+//  · 'numeri'          — i numeri e il nome della camera, come nella testa
+//                        della proposta, dove la riga è grande;
+//  · 'persone-camera'  — nella riga dell'elenco, dove la riga è piccola e
+//                        deve pesare poco: forti solo le PERSONE e la CAMERA
+//                        CHIESTA, cioè le due cose che cambiano la risposta.
+//                        Le date e le notti si leggono normali.
+//
+// Qui si decide COSA scrivere e quali pezzi sono forti, la pagina decide come
+// disegnarli.
 //
 // Le persone seguono la regola già scritta in lib/personeTesta: «3» quando non
 // cambiano, «3 → 1» quando cambiano notte per notte.
@@ -57,15 +64,25 @@ export function pezziCamera(camera: string | null | undefined): PezzoRiga[] {
   return nome ? [{ testo: nome, forte: true }] : [{ testo: 'camera qualsiasi', forte: false }]
 }
 
+export type ModoForte = 'numeri' | 'persone-camera'
+
+const spento = (pezzi: PezzoRiga[]): PezzoRiga[] => pezzi.map(p => (p.forte ? { ...p, forte: false } : p))
+
 // La riga intera, coi puntini di mezzo già dentro.
-export function pezziRigaRichiesta({ periodo, notti, personeNotti, camera }: {
+export function pezziRigaRichiesta({ periodo, notti, personeNotti, camera, forte = 'numeri' }: {
   periodo: string
   notti: number
   personeNotti: number[]
   camera?: string | null
+  forte?: ModoForte
 }): PezzoRiga[] {
-  const gruppi = [pezziNumerici(periodo), pezziNotti(notti), pezziPersone(personeNotti), pezziCamera(camera)]
-    .filter(g => g.length > 0)
+  const piano = forte === 'persone-camera'
+  const gruppi = [
+    piano ? spento(pezziNumerici(periodo)) : pezziNumerici(periodo),
+    piano ? spento(pezziNotti(notti)) : pezziNotti(notti),
+    pezziPersone(personeNotti),
+    pezziCamera(camera),
+  ].filter(g => g.length > 0)
   const out: PezzoRiga[] = []
   gruppi.forEach((g, i) => {
     if (i > 0) out.push({ testo: SEPARATORE, forte: false })
