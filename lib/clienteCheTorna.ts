@@ -167,6 +167,20 @@ export function soggiorniDellaPersona(
   return { volte, ricaviCent, ultimo }
 }
 
+// ── Il cliente di una richiesta, se esiste già in archivio ─────────────────
+// Stessa regola di sempre (telefono a cifre, oppure nome e cognome): qui in un
+// posto solo, perché la usano l'elenco delle richieste e la pagina della
+// proposta. Senza corrispondenza torna null: è una cliente nuova.
+export type ClienteArchivio = { id?: string; full_name?: string | null; phone?: string | null }
+
+export function clienteDellaRichiesta<T extends ClienteArchivio>(persona: PersonaRicerca, clienti: T[]): T | null {
+  const tel = cifre(persona.telefono)
+  const chiave = chiaveNome(persona)
+  const perTelefono = tel ? clienti.find(c => cifre(c.phone) === tel) : undefined
+  const perNome = chiave ? clienti.find(c => piano(c.full_name) === chiave) : undefined
+  return perTelefono ?? perNome ?? null
+}
+
 // ── Chi è, nella testa della proposta (Ania, 12/09/2026) ────────────────────
 // Tre casi soltanto: è già stata qui (soggiorni CONCLUSI), è nell'archivio ma
 // senza soggiorni conclusi (prenotazione futura, annullata, o solo una

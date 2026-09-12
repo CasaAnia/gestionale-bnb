@@ -6,9 +6,9 @@
 // richiesta occupava quasi mezzo schermo. Adesso sono due righe, con la forma
 // delle righe «Da controllare» della Home:
 //
-//   IERI · DAL SITO
+//   IERI · DAL SITO · GIÀ STATA QUI 3 VOLTE
 //   Anna Sawicka · gio 29 → sab 31 ott
-//   2 notti · 3 persone · qualsiasi
+//   2 notti · 3 persone · qualsiasi · 1.360 €
 //
 //  · l'ETICHETTA in alto (`etichettaRigaRichiesta`) è come ETICHETTA_TIPO
 //    della Home, 10 px maiuscolo ottone: dice quando è arrivata e da dove;
@@ -31,10 +31,12 @@
 // cambiano, «3 → 1» quando cambiano notte per notte.
 // ============================================================================
 import { personeTesta } from './personeTesta.ts'
+import { euroTondi } from './euroTondi.ts'
 import { CANALE_LABEL, type CanaleRichiesta } from './richieste.ts'
 
-// `forte` = Georgia, più grande, verde scuro. Altrimenti piccolo e grigio.
-export type PezzoRiga = { testo: string; forte: boolean }
+// `forte` = più grande e verde scuro. Altrimenti piccolo e grigio.
+// `speso` = quanto ha già speso da noi: forte, ma in rosso (Ania, 12/09/2026).
+export type PezzoRiga = { testo: string; forte: boolean; speso?: boolean }
 
 export const SEPARATORE = ' · '
 
@@ -53,8 +55,20 @@ export function titoloRigaRichiesta(nome: string, periodo: string): string {
 // controllare» della Home: quando è arrivata e da dove — «ieri · dal sito»,
 // «oggi · telefono». A schermo si legge in maiuscolo, ma le maiuscole le fa il
 // disegno (`uppercase`), non questo testo.
-export function etichettaRigaRichiesta(createdAt: string | null | undefined, canale: CanaleRichiesta, adesso: Date = new Date()): string {
-  return conPuntino([daQuantoArrivata(createdAt, adesso), CANALE_LABEL[canale] ?? ''])
+export function etichettaRigaRichiesta(createdAt: string | null | undefined, canale: CanaleRichiesta, adesso: Date = new Date(), cliente: string | null = null): string {
+  return conPuntino([daQuantoArrivata(createdAt, adesso), CANALE_LABEL[canale] ?? '', cliente ?? ''])
+}
+
+// Il pezzo dell'etichetta che dice se la cliente è già stata qui: si somma
+// agli altri due — «ieri · dal sito · già stata qui 3 volte». È la stessa cosa
+// che la testa della proposta scrive per esteso (chiEIlCliente), detta corta
+// perché qui è un'etichetta. Alla prima volta non si scrive niente: la riga
+// resta com'era.
+export function pezzoCliente(volte: number, inArchivio: boolean): string | null {
+  const n = Math.max(0, Math.trunc(volte))
+  if (n === 1) return 'già stata qui 1 volta'
+  if (n > 1) return `già stata qui ${n} volte`
+  return inArchivio ? 'già in archivio' : null
 }
 
 // Taglia un testo nei suoi numeri: «gio 29 → sab 31 ott» diventa
@@ -113,12 +127,17 @@ const unisci = (gruppi: PezzoRiga[][]): PezzoRiga[] => {
 
 // La SECONDA riga dell'elenco: «2 notti · 3 persone · qualsiasi». Le date non
 // stanno più qui: sono salite nella prima riga, accanto al nome.
-export function pezziRigaElenco({ notti, personeNotti, camera }: {
+// In fondo, per chi è già stata qui, quanto ha speso in tutto: «· 1.360 €»,
+// l'unico pezzo di storico che entra nell'elenco (Ania, 12/09/2026). Senza
+// soggiorni conclusi non c'è niente da scrivere.
+export function pezziRigaElenco({ notti, personeNotti, camera, totaleCent = 0 }: {
   notti: number
   personeNotti: number[]
   camera?: string | null
+  totaleCent?: number | null
 }): PezzoRiga[] {
-  return unisci([pezziNotti(notti), personeElenco(personeNotti), pezziCamera(camera, { soloValore: true })])
+  const speso = Number(totaleCent) > 0 ? [{ testo: euroTondi(Number(totaleCent)), forte: true, speso: true }] : []
+  return unisci([pezziNotti(notti), personeElenco(personeNotti), pezziCamera(camera, { soloValore: true }), speso])
 }
 
 // La riga intera della testa della proposta, coi puntini di mezzo già dentro:

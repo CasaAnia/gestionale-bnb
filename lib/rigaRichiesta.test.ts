@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { periodoConGiorni } from './dateItaliane.ts'
-import { pezziNumerici, pezziNotti, pezziPersone, pezziCamera, pezziRigaRichiesta, pezziRigaElenco, titoloRigaRichiesta, etichettaRigaRichiesta, testoRiga, daQuantoArrivata } from './rigaRichiesta.ts'
+import { pezziNumerici, pezziNotti, pezziPersone, pezziCamera, pezziRigaRichiesta, pezziRigaElenco, titoloRigaRichiesta, etichettaRigaRichiesta, pezzoCliente, testoRiga, daQuantoArrivata } from './rigaRichiesta.ts'
 import { etichettaAltre } from './richiesteStesseDate.ts'
 
 const riga = (x: Parameters<typeof pezziRigaRichiesta>[0]) => testoRiga(pezziRigaRichiesta(x))
@@ -158,6 +158,54 @@ test('nella testa della proposta la riga resta intera, con la parola «camera»'
   assert.deepEqual(forti(p), ['2', '4', '2', '1'])
 })
 
+// ── LA CLIENTE CHE TORNA, NELL'ELENCO (Ania, 12/09/2026) ───────────────────
+test('l’etichetta dice anche se la cliente è già stata qui', () => {
+  const adesso = new Date(2026, 8, 12, 20, 30)
+  const ieri = new Date(2026, 8, 11, 9, 0).toISOString()
+  // chi torna: quante volte, al singolare e al plurale
+  assert.equal(etichettaRigaRichiesta(ieri, 'web', adesso, pezzoCliente(3, true)), 'ieri · dal sito · già stata qui 3 volte')
+  assert.equal(etichettaRigaRichiesta(ieri, 'web', adesso, pezzoCliente(1, true)), 'ieri · dal sito · già stata qui 1 volta')
+  // in archivio ma senza soggiorni conclusi
+  assert.equal(etichettaRigaRichiesta(ieri, 'telefono', adesso, pezzoCliente(0, true)), 'ieri · telefono · già in archivio')
+  // prima volta: l'etichetta resta quella di prima, senza coda
+  assert.equal(etichettaRigaRichiesta(ieri, 'telefono', adesso, pezzoCliente(0, false)), 'ieri · telefono')
+  assert.equal(pezzoCliente(0, false), null)
+  // a schermo si legge in maiuscolo, ma le maiuscole le fa il disegno
+  assert.equal(etichettaRigaRichiesta(ieri, 'web', adesso, pezzoCliente(3, true)).toUpperCase(), 'IERI · DAL SITO · GIÀ STATA QUI 3 VOLTE')
+})
+
+test('nella seconda riga, in fondo, quanto ha speso da noi', () => {
+  const con = pezziRigaElenco({ notti: 5, personeNotti: [3, 3, 3, 3, 3], camera: 'Lena', totaleCent: 136000 })
+  assert.equal(testoRiga(con), '5 notti · 3 persone · Lena · 1.360 €')
+  // il totale è forte come la camera, ma in rosso: ha un suo tono
+  assert.deepEqual(con.filter(x => x.speso).map(x => x.testo), ['1.360 €'])
+  assert.equal(con.at(-1)?.forte, true)
+  // senza soggiorni conclusi non si scrive niente
+  assert.equal(testoRiga(pezziRigaElenco({ notti: 5, personeNotti: [3], camera: 'Lena', totaleCent: 0 })), '5 notti · 3 persone · Lena')
+  assert.equal(testoRiga(pezziRigaElenco({ notti: 5, personeNotti: [3], camera: 'Lena' })), '5 notti · 3 persone · Lena')
+  assert.equal(pezziRigaElenco({ notti: 1, personeNotti: [1], camera: null, totaleCent: null }).some(x => x.speso), false)
+})
+
+test('stella e «ricevuta» nella riga: ci sono solo quando servono', () => {
+  const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
+  const riga = pagina.slice(pagina.indexOf('function RigaRichiesta'), pagina.indexOf('function RigaChiusa'))
+  // la stella della cliente ottima, in ottone, davanti al nome
+  assert.match(riga, /\{cliente\.stella && <span data-stella/)
+  assert.match(riga, /style=\{\{ color: OTTONE, marginRight: 4 \}\}>★/)
+  // «ricevuta»: 11 px maiuscola ottone, dopo il nome
+  assert.match(riga, /\{cliente\.ricevuta && \(/)
+  assert.match(riga, /data-ricevuta className="uppercase" style=\{\{ fontSize: 11, letterSpacing: '0\.6px', fontWeight: 700, color: OTTONE \}\}>ricevuta/)
+  assert.ok(riga.indexOf('data-stella') < riga.indexOf('{nomeCompleto(r)}'), 'la stella non sta davanti al nome')
+  assert.ok(riga.indexOf('data-ricevuta') > riga.indexOf('{nomeCompleto(r)}'), '«ricevuta» non sta dopo il nome')
+  // il totale speso: rosso come la nota, e forte come la camera
+  assert.match(pagina, /const ROSSO_SPESO = '#C00000'/)
+  assert.match(riga, /x\.speso \? \{ color: ROSSO_SPESO \}/)
+  // la vecchia pastiglia verde «Già stato da noi» non c'è più
+  assert.equal(/data-gia-stato|etichettaGiaStato/.test(pagina), false)
+  // chi è alla prima volta non ha niente: la riga resta com'era
+  assert.match(pagina, /const CLIENTE_NUOVA: ClienteRiga = \{ volte: 0, inArchivio: false, stella: false, ricevuta: false, totaleCent: 0 \}/)
+})
+
 // ── L'ETICHETTINA BLU DAVANTI AL NOME ──────────────────────────────────────
 test('l’etichettina blu dice quante altre richieste vogliono le stesse notti', () => {
   assert.equal(etichettaAltre(3), '3 altre')
@@ -217,22 +265,24 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
   assert.match(riga, /paddingTop: 12, paddingBottom: 12/)
   assert.match(home, /py-3/)
 
-  // l'etichetta: quando è arrivata e da dove, in un posto solo
-  assert.match(riga, /const etichetta = etichettaRigaRichiesta\(r\.created_at, r\.canale, adesso\)/)
+  // l'etichetta: quando è arrivata, da dove, e se la conosciamo già
+  assert.match(riga, /const etichetta = etichettaRigaRichiesta\(r\.created_at, r\.canale, adesso, pezzoCliente\(cliente\.volte, cliente\.inArchivio\)\)/)
   // «ieri» non sta più a destra da solo
   assert.equal(/GRIGIO_QUANDO|\{quando\}/.test(riga), false, '«ieri» sta ancora a destra')
 
   // il titolo: nome e date insieme; il nome NON si taglia e il puntino resta
   // col nome, così la riga sotto non comincia con un «·»
   assert.match(riga, /aria-label=\{titoloRigaRichiesta\(nomeCompleto\(r\), periodo\)\}/)
-  assert.match(riga, /<span className="break-words">\{nomeCompleto\(r\)\} ·<\/span>/)
+  assert.match(riga, /\{nomeCompleto\(r\)\}\{cliente\.ricevuta \? '' : ' ·'\}/)
+  assert.match(riga, /className="break-words"/)
   assert.match(riga, /<span className="whitespace-nowrap">\{periodo\}<\/span>/)
   assert.equal(/truncate/.test(riga), false, 'il nome viene ancora tagliato')
 
   // la riga sotto: forti solo i numeri e la camera (lib/rigaRichiesta), e
   // grandi come il titolo — 15 px — mentre le parole di mezzo restano 12,5
   assert.match(riga, /pezziRigaElenco\(\{ notti: nottiRichiesta\(r\), personeNotti, camera/)
-  assert.match(riga, /className=\{x\.forte \? 'text-\[15px\] font-semibold text-green-dark' : undefined\}/)
+  assert.match(riga, /className=\{x\.forte \? 'text-\[15px\] font-semibold' : undefined\}/)
+  assert.match(riga, /x\.forte \? \{ color: 'var\(--color-green-dark\)' \}/)
   assert.ok(riga.includes(SOTTO), 'le parole di mezzo non sono più 12,5 px')
 
   // l'etichettina blu: fondo e testo della bozza, con la misura delle altre

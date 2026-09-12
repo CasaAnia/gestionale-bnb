@@ -1,6 +1,7 @@
 'use client'
 import { Suspense, useEffect, useMemo, useState } from 'react'
-import { soggiorniPrecedenti, etichettaGiaStato } from '@/lib/clienteCheTorna'
+import { soggiorniDellaPersona, clienteDellaRichiesta, type SoggiornoStorico } from '@/lib/clienteCheTorna'
+import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown } from 'lucide-react'
@@ -29,7 +30,7 @@ import { useVista, useDesktop, useAdesso, useOrizzontaleTelefono, useSchermoInte
 import { meseCorrente, richiesteAperte, richiesteNelPeriodo, sovrapposizioni, inizioQuindicina, giorniDaInizio } from '@/lib/richiesteCalendario'
 import { altreStesseDate, gruppoStesseDate, etichettaAltre, sottotitoloGruppo, contatoreGruppo, VEDI_TUTTE } from '@/lib/richiesteStesseDate'
 import { personePerNotte } from '@/lib/richiesteProposta'
-import { pezziRigaElenco, titoloRigaRichiesta, etichettaRigaRichiesta } from '@/lib/rigaRichiesta'
+import { pezziRigaElenco, titoloRigaRichiesta, etichettaRigaRichiesta, pezzoCliente } from '@/lib/rigaRichiesta'
 import { periodoConGiorni } from '@/lib/dateItaliane'
 import { smartBack } from '@/lib/navHistory'
 import { nomeOspite } from '@/lib/guestName'
@@ -42,6 +43,8 @@ import {
 
 // «oggi / ieri» e la riga di notti e persone non hanno più un grigio loro:
 // stanno nell'etichetta d'ottone e nel color stone della Home (12/09/2026).
+const OTTONE = '#A9884E'          // la stella della cliente ottima e «ricevuta»
+const ROSSO_SPESO = '#C00000'     // quanto ha già speso da noi: lo stesso rosso della nota
 
 const oggiIso = () => {
   const d = new Date()
@@ -67,16 +70,25 @@ function SegnoStesseDate({ testo, onClick }: { testo: string; onClick: () => voi
   )
 }
 
-function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo = false, selezionata, onSeleziona, onRifiuta, onConferma, giaStato }: { r: Richiesta; adesso: Date; conflitti: string[]; stesseDate?: string | null; onGruppo?: () => void; nelGruppo?: boolean; selezionata: boolean; onSeleziona: () => void; onRifiuta: (r: Richiesta) => void; onConferma: (r: Richiesta) => void; giaStato?: string | null }) {
+// La riga del cliente come arriva dall'archivio: id e nome per riconoscerla,
+// valutazione e ricevuta per i segni accanto al nome.
+type ClienteSchedato = { id?: string; full_name?: string | null; phone?: string | null; rating?: string | null; vuole_ricevuta?: boolean | null }
+
+// Quello che si sa della cliente, letto una volta sola dalla pagina
+export type ClienteRiga = { volte: number; inArchivio: boolean; stella: boolean; ricevuta: boolean; totaleCent: number }
+const CLIENTE_NUOVA: ClienteRiga = { volte: 0, inArchivio: false, stella: false, ricevuta: false, totaleCent: 0 }
+
+function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo = false, selezionata, onSeleziona, onRifiuta, onConferma, cliente = CLIENTE_NUOVA }: { r: Richiesta; adesso: Date; conflitti: string[]; stesseDate?: string | null; onGruppo?: () => void; nelGruppo?: boolean; selezionata: boolean; onSeleziona: () => void; onRifiuta: (r: Richiesta) => void; onConferma: (r: Richiesta) => void; cliente?: ClienteRiga }) {
   // Le persone di ogni notte: con dati storti (persone_per_notte non coerente)
   // personePerNotte alza un errore e qui la scheda non deve sparire.
   let personeNotti: number[]
   try { personeNotti = personePerNotte(r) } catch { personeNotti = [Math.max(1, Number(r.persone) || 1)] }
   // Le notti scelte a mano non si scrivono con la freccia: si elencano
   const periodo = r.notti_richieste ? formatDateRichiesta(r) : periodoConGiorni(r.arrivo, r.partenza)
-  const pezzi = pezziRigaElenco({ notti: nottiRichiesta(r), personeNotti, camera: r.rooms?.name ?? null })
-  // «ieri · dal sito»: quando è arrivata e da dove, come l'etichetta della Home
-  const etichetta = etichettaRigaRichiesta(r.created_at, r.canale, adesso)
+  const pezzi = pezziRigaElenco({ notti: nottiRichiesta(r), personeNotti, camera: r.rooms?.name ?? null, totaleCent: cliente.totaleCent })
+  // «ieri · dal sito · già stata qui 3 volte»: quando è arrivata, da dove, e
+  // se la conosciamo già (Ania, 12/09/2026)
+  const etichetta = etichettaRigaRichiesta(r.created_at, r.canale, adesso, pezzoCliente(cliente.volte, cliente.inArchivio))
   const ferma = avvisoFerma(r, adesso)
   return (
     // Le richieste sono separate solo da un filo sottile: niente riquadri
@@ -99,10 +111,22 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
           la riga sotto non comincia con un «·» (lib/rigaRichiesta). */}
       <p data-titolo-richiesta aria-label={titoloRigaRichiesta(nomeCompleto(r), periodo)}
         className="flex flex-wrap items-center gap-x-1.5 text-[15px] font-semibold text-green-dark leading-snug mt-0.5">
-        <span className="break-words">{nomeCompleto(r)} ·</span>
+        {/* La stella della cliente ottima, come nella scheda prenotazione, e il
+            puntino che sta col NOME: andando a capo non resta appeso in testa
+            alla riga sotto, come un elenco puntato. Con la «ricevuta» il
+            puntino passa a lei, per lo stesso motivo. */}
+        <span className="break-words">
+          {cliente.stella && <span data-stella aria-label="cliente ottima" title="Cliente ottima" style={{ color: OTTONE, marginRight: 4 }}>★</span>}
+          {nomeCompleto(r)}{cliente.ricevuta ? '' : ' ·'}
+        </span>
+        {/* Nell'elenco il nome è già in grassetto: la ricevuta si vede solo se
+            si scrive (Ania, 12/09/2026) */}
+        {cliente.ricevuta && (
+          <span className="whitespace-nowrap">
+            <span data-ricevuta className="uppercase" style={{ fontSize: 11, letterSpacing: '0.6px', fontWeight: 700, color: OTTONE }}>ricevuta</span> ·
+          </span>
+        )}
         <span className="whitespace-nowrap">{periodo}</span>
-        {/* Cliente che torna (08/09/2026): non è una provenienza, è un'etichetta */}
-        {giaStato && <span data-gia-stato className="shrink-0 text-[11px] font-bold bg-sage text-green-mid whitespace-nowrap" style={{ borderRadius: 4, padding: '2px 7px', lineHeight: '18px' }}>{giaStato}</span>}
       </p>
       {/* La riga sotto: le parole di mezzo come il «motivo» della Home, 12,5 px
           color stone; i DATI invece grandi come il titolo — 15 px semibold
@@ -112,7 +136,8 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
           si scrive (lib/rigaRichiesta). */}
       <p className="text-[12.5px] leading-snug mt-0.5" style={{ color: 'var(--color-stone)' }}>
         {pezzi.map((x, i) => (
-          <span key={i} className={x.forte ? 'text-[15px] font-semibold text-green-dark' : undefined}>{x.testo}</span>
+          <span key={i} className={x.forte ? 'text-[15px] font-semibold' : undefined}
+            style={x.speso ? { color: ROSSO_SPESO } : x.forte ? { color: 'var(--color-green-dark)' } : undefined}>{x.testo}</span>
         ))}
       </p>
       {/* Solo quando c'è qualcosa da dire: timer della proposta, richiesta
@@ -178,6 +203,7 @@ function Richieste() {
   const [tutte, setTutte] = useState<Richiesta[]>([])
   const [camere, setCamere] = useState<Room[]>([])
   const [prenotazioni, setPrenotazioni] = useState<PrenotazioneBarra[]>([])
+  const [clienti, setClienti] = useState<ClienteSchedato[]>([])
   const [acconti, setAcconti] = useState<Record<string, number>>({})
   const [ordine, setOrdine] = useState<OrdineRichieste>('durata')
   // «Cerca nome o telefono…» (05/09/2026): filtra la lista; con un solo risultato lo evidenzia anche nel calendario
@@ -266,12 +292,17 @@ function Richieste() {
       supabase.from('bookings').select('*, guests(id, full_name, phone, rating)').in('status', ['confermata', 'completata']),
       supabase.from('payments').select('booking_id, amount'),
       fetchRichieste(),
-    ]).then(([r, b, pay, ric]) => {
+      // I clienti servono a riconoscere chi torna: valutazione, ricevuta e
+      // scheda. `select('*')` regge anche senza la colonna vuole_ricevuta.
+      supabase.from('guests').select('*'),
+    ]).then(([r, b, pay, ric, g]) => {
       const errs: string[] = []
       if (r.error) errs.push(`camere: ${r.error.message}`)
       if (b.error) errs.push(`prenotazioni: ${b.error.message}`)
       if (pay.error) errs.push(`acconti: ${pay.error.message}`)
       if (ric.error) errs.push(`richieste: ${ric.error}`)
+      if (g.error) errs.push(`clienti: ${g.error.message}`)
+      setClienti((g.data || []) as ClienteSchedato[])
       setCamere((r.data || []) as Room[])
       setPrenotazioni((b.data || []) as unknown as PrenotazioneBarra[])
       const sums: Record<string, number> = {}
@@ -331,6 +362,22 @@ function Richieste() {
     () => (vista !== 'presunta' ? [] : modoCalendario === 'quindici' ? richiesteNelPeriodo(tutte, giorniDaInizio(inizio)) : richiesteAperte(tutte, mese)),
     [tutte, mese, vista, modoCalendario, inizio],
   )
+
+  // Chi è la cliente di ogni richiesta: quante volte è già stata qui, quanto
+  // ha speso, se è ottima e se vuole la ricevuta (Ania, 12/09/2026). Il
+  // riconoscimento è quello di sempre: telefono, oppure nome e cognome.
+  const clienteDi = useMemo(() => {
+    const m = new Map<string, ClienteRiga>()
+    const oggi = oggiIso()
+    const storico = prenotazioni as unknown as SoggiornoStorico[]
+    for (const r of aperte) {
+      const persona = { nome: r.nome, cognome: r.cognome, telefono: r.telefono }
+      const g = clienteDellaRichiesta(persona, clienti)
+      const s = soggiorniDellaPersona({ ...persona, guest_id: g?.id ?? null }, storico, oggi)
+      m.set(r.id, { volte: s.volte, inArchivio: !!g, stella: valutazioneDi(g) === 'ottimo', ricevuta: vuoleRicevuta(g), totaleCent: s.ricaviCent })
+    }
+    return m
+  }, [aperte, prenotazioni, clienti])
 
   // Sovrapposizioni con le prenotazioni CONFERMATE (nome ospite). Le altre
   // richieste aperte non stanno più qui: dal 12/09/2026 le dice il segno blu,
@@ -469,7 +516,7 @@ function Richieste() {
           ) : (
             <ul className="flex flex-col min-[1100px]:grid min-[1100px]:grid-cols-2 min-[1100px]:gap-x-8 min-[1100px]:items-start">
               {mostrate.map(r => (
-                <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []} giaStato={etichettaGiaStato(soggiorniPrecedenti({ nome: r.nome, cognome: r.cognome, telefono: r.telefono }, prenotazioni, oggiIso()))}
+                <RigaRichiesta key={r.id} r={r} adesso={adesso} conflitti={conflittiDi.get(r.id) || []} cliente={clienteDi.get(r.id)}
                   stesseDate={capogruppo ? null : etichettaAltre(altreDi.get(r.id) ?? 0)} onGruppo={() => setGruppoDi(r.id)} nelGruppo={!!capogruppo}
                   selezionata={selezionata === r.id} onSeleziona={() => setSelezionata(s => (s === r.id ? null : r.id))} onRifiuta={setDaRifiutare} onConferma={r => setDaConfermare(r as RichiestaConProposta)} />
               ))}
