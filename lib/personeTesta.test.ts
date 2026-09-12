@@ -114,20 +114,19 @@ test('nella scheda: persone uguali il numero, persone che cambiano la sequenza',
   assert.equal(testo([1, 3, 1, 3]), 'da 1 a 3')
 })
 
-test('la riga della scheda ha le misure chieste e niente strisciolina', () => {
-  const riga = readFileSync(new URL('../components/richieste/RigaPersoneCamera.tsx', import.meta.url), 'utf8')
-  assert.match(riga, /gap: 38/)                       // due colonne distanti 38 px
-  assert.match(riga, /paddingTop: 11/)                // 11 px sotto il filo d'ottone
-  assert.match(riga, /borderTop: `1px solid \$\{FILO_OTTONE\}`/)
-  assert.match(riga, /fontSize: 21/)                  // il valore in Georgia
-  assert.match(riga, /letterSpacing: '1\.4px'/)       // l'etichetta minuta
-  assert.match(riga, /fontSize: 9,/)
-  assert.match(riga, /color: 'var\(--color-stone\)'/)
-  // la strisciolina delle notti resta solo nella testa della proposta
-  assert.equal(/caselleNotti|striscia/i.test(riga), false)
-  // e la scheda dell'elenco usa proprio questa riga
+// Le due colonne grandi «3 / PERSONE» e «Ambra / CAMERA CHIESTA» sono durate
+// un giorno: dal 12/09/2026 (bozza approvata da Ania) la scheda dell'elenco
+// dice tutto su una riga sola (lib/rigaRichiesta) e le colonne restano solo
+// nella testa della proposta, dove c'è lo spazio.
+test('le due colonne grandi stanno solo nella testa della proposta', () => {
+  const testa = readFileSync(new URL('../components/TestaCliente.tsx', import.meta.url), 'utf8')
+  assert.match(testa, /cameraTesta\(cameraChiesta\)/)
+  assert.match(testa, /data-persone-testa/)
+  assert.match(testa, /data-camera-testa/)
+  // e la strisciolina delle notti è rimasta lì, non nell'elenco
+  assert.match(testa, /data-striscia-notti/)
   const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
-  assert.match(pagina, /<RigaPersoneCamera personeNotti=/)
-  // nella riga delle date le persone non si ripetono più
+  assert.equal(/RigaPersoneCamera|data-persone-camera/.test(pagina), false)
+  // e nella riga della scheda le persone non si ripetono più col vecchio riassunto
   assert.equal(/riassuntoPersone/.test(pagina), false)
 })
