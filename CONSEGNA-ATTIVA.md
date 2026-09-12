@@ -566,3 +566,40 @@ riga (`lib/rigaRichiesta.test.ts`: i pezzi forti devono essere
 12,5). Misurato a 390×844 su quattro richieste: titolo 15, base 12,5, forti
 tutti a 15, nota 15 px `rgb(192,0,0)` peso 600, due icone di contatto su tutte
 le richieste col numero.
+
+## La cliente che torna: elenco e parte CLIENTE (12/09/2026, Claude)
+
+Pubblicato e verificato: commit `08033b2` e `58d6be9` su `main`, deploy Vercel
+`success` (Production). Il riconoscimento resta quello di sempre
+(`lib/clienteCheTorna`: telefono a cifre, oppure nome e cognome), raccolto in
+`clienteDellaRichiesta` e usato SIA dall'elenco SIA dalla proposta: prima la
+proposta se lo riscriveva a mano.
+
+**1 — nell'elenco** (`08033b2`). L'etichetta in alto diventa
+«OGGI · DAL SITO · GIÀ STATA QUI 2 VOLTE», oppure «· GIÀ IN ARCHIVIO» per chi
+c'è ma non ha soggiorni conclusi (`pezzoCliente` in `lib/rigaRichiesta`);
+stella ★ d'ottone davanti al nome per la cliente ottima; «RICEVUTA» in 11 px
+maiuscola ottone dopo il nome; in fondo alla seconda riga il totale speso in
+rosso `#C00000`, grande come la camera. Chi è alla prima volta non ha niente
+di tutto questo. Via la pastiglia verde «Già stato da noi». La pagina legge
+anche `guests` (`select('*')`, regge senza la colonna `vuole_ricevuta`).
+
+**2 — dentro la richiesta** (`58d6be9`). Nuovo `components/ParteCliente.tsx`,
+di sola presentazione, in fondo alla proposta prima di «Rifiuta la richiesta»:
+titoletto col filo d'ottone, griglia SOGGIORNI · TOTALE SPESO · RICEVUTA ·
+PROVENIENZA (etichette 9 px ottone, valori 14,5 semibold), i soggiorni uno per
+riga (camera in Georgia 20 px, date e notti in grigio, anno in ottone per gli
+altri anni, importo a destra, la riga apre la prenotazione), la nota in rosso e
+«Apri il cliente ›». La stessa parte servirà alla nuova scheda prenotazione.
+Nuova `elencoSoggiorniPersona`; `soggiorniDellaPersona` adesso la riusa.
+Nuovo `lib/euroTondi.ts`: «1.360 €» in un posto solo.
+
+**Prove.** 1051 test verdi, TypeScript e build puliti, lint senza nuove
+diagnostiche. Nuovi casi: l'etichetta nei tre casi, stella/«ricevuta»/totale
+nella riga, `elencoSoggiorniPersona` (camere unite, notti, soldi, ordine),
+`clienteDellaRichiesta` (telefono, nome, telefono che vince), la veste della
+parte CLIENTE e la sua posizione nella proposta, `euroTondi`. Anteprima senza
+rete a 390×844 su tre clienti: Carmela Sabia (2 soggiorni, stella, ricevuta,
+1.360 €, parte CLIENTE con l'anno 2025 in ottone), Rosa Archivio («GIÀ IN
+ARCHIVIO», parte CLIENTE con «Nessun soggiorno concluso» e il link), Marek
+Kowalski (nuova: nessun segno, nessuna parte CLIENTE).
