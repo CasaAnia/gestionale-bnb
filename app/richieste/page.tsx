@@ -104,13 +104,15 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
         {/* Cliente che torna (08/09/2026): non è una provenienza, è un'etichetta */}
         {giaStato && <span data-gia-stato className="shrink-0 text-[11px] font-bold bg-sage text-green-mid whitespace-nowrap" style={{ borderRadius: 4, padding: '2px 7px', lineHeight: '18px' }}>{giaStato}</span>}
       </p>
-      {/* La riga sotto, come il «motivo» della Home: 12,5 px color stone —
-          notti, persone e camera. In semibold verde scuro solo il numero
-          delle notti, quello delle persone (o la sequenza «3 → 1») e la
-          camera; la parola «camera» non si scrive (lib/rigaRichiesta). */}
+      {/* La riga sotto: le parole di mezzo come il «motivo» della Home, 12,5 px
+          color stone; i DATI invece grandi come il titolo — 15 px semibold
+          verde scuro — così si leggono a colpo d'occhio come il nome (Ania,
+          dal telefono, 12/09/2026): il numero delle notti, quello delle
+          persone (o la sequenza «3 → 1») e la camera. La parola «camera» non
+          si scrive (lib/rigaRichiesta). */}
       <p className="text-[12.5px] leading-snug mt-0.5" style={{ color: 'var(--color-stone)' }}>
         {pezzi.map((x, i) => (
-          <span key={i} className={x.forte ? 'font-semibold text-green-dark' : undefined}>{x.testo}</span>
+          <span key={i} className={x.forte ? 'text-[15px] font-semibold text-green-dark' : undefined}>{x.testo}</span>
         ))}
       </p>
       {/* Solo quando c'è qualcosa da dire: timer della proposta, richiesta
@@ -126,8 +128,9 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
           si sovrappone con {conflitti.join(', ')}
         </p>
       )}
-      {/* La nota del cliente con lo STESSO componente della Home, piccola */}
-      <NotaCliente note={r.note} piccola className="mt-1" />
+      {/* La nota del cliente: lo STESSO componente della Home, ma nella misura
+          grande — 15 px come il titolo, tutta rossa (Ania, 12/09/2026) */}
+      <NotaCliente note={r.note} grande className="mt-1" />
       {/* Ultima riga: la pastiglia verde, «Modifica» e «Rifiuta», e in fondo a
           destra le due icone nude per chiamare e per scrivere su WhatsApp */}
       <div className="flex items-center mt-2" style={{ gap: SPAZIO_COMANDI }}>

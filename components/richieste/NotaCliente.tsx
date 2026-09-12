@@ -6,17 +6,18 @@
 // ROSSO intenso (#C00000, più vivo del precedente #C0392B) da tutte le parti,
 // così non sfugge (Ania, 08/09/2026). Senza nota non compare nulla.
 // `piccola`: misura delle righe di «Da controllare» in Home (12,5 px)
-// `home`: la veste della Home (Ania, su bozza, 12/09/2026) — la nota è tutta
-//   rossa, 13 px semibold, senza «Nota del cliente:» davanti. La usa la riga
-//   della richiesta nell'elenco, che deve stare in circa 95 px.
+// `grande`: la nota tutta rossa, 15 px semibold, senza «Nota del cliente:»
+//   davanti. La usa la riga della richiesta nell'elenco: lì la nota è grande
+//   come il nome, perché è la cosa che cambia la risposta (Ania, dal telefono,
+//   12/09/2026; prima era la stessa veste ma a 13 px).
 export const ROSSO_NOTA = '#C00000'
 
-export default function NotaCliente({ note, className = '', piccola = false, home = false }: { note: string | null | undefined; className?: string; piccola?: boolean; home?: boolean }) {
+export default function NotaCliente({ note, className = '', piccola = false, grande = false }: { note: string | null | undefined; className?: string; piccola?: boolean; grande?: boolean }) {
   const testo = (note ?? '').trim()
   if (!testo) return null
-  if (home) {
+  if (grande) {
     return (
-      <p data-nota-cliente className={`text-[13px] leading-snug font-semibold ${className}`} style={{ color: ROSSO_NOTA }}>{testo}</p>
+      <p data-nota-cliente className={`text-[15px] leading-snug font-semibold ${className}`} style={{ color: ROSSO_NOTA }}>{testo}</p>
     )
   }
   return (

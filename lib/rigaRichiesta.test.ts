@@ -208,9 +208,10 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
   // la riga sotto è color stone, come il «motivo» della Home
   assert.match(riga, /style=\{\{ color: 'var\(--color-stone\)' \}\}/)
   assert.match(home, /style=\{\{ color: 'var\(--color-stone\)' \}\}/)
-  // la nota è lo STESSO componente della Home, nella stessa veste
+  // la nota è lo STESSO componente della Home, ma nella misura grande: nella
+  // riga si legge come il nome (Ania, dal telefono, 12/09/2026)
   assert.match(home, /<NotaCliente note=\{e\.nota\} piccola/)
-  assert.match(riga, /<NotaCliente note=\{r\.note\} piccola/)
+  assert.match(riga, /<NotaCliente note=\{r\.note\} grande/)
   // 12 px sopra e sotto, come py-3 della Home, e il filo che separa
   assert.match(riga, /border-t border-card-border/)
   assert.match(riga, /paddingTop: 12, paddingBottom: 12/)
@@ -228,9 +229,11 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
   assert.match(riga, /<span className="whitespace-nowrap">\{periodo\}<\/span>/)
   assert.equal(/truncate/.test(riga), false, 'il nome viene ancora tagliato')
 
-  // la riga sotto: forti solo i numeri e la camera (lib/rigaRichiesta)
+  // la riga sotto: forti solo i numeri e la camera (lib/rigaRichiesta), e
+  // grandi come il titolo — 15 px — mentre le parole di mezzo restano 12,5
   assert.match(riga, /pezziRigaElenco\(\{ notti: nottiRichiesta\(r\), personeNotti, camera/)
-  assert.match(riga, /className=\{x\.forte \? 'font-semibold text-green-dark' : undefined\}/)
+  assert.match(riga, /className=\{x\.forte \? 'text-\[15px\] font-semibold text-green-dark' : undefined\}/)
+  assert.ok(riga.includes(SOTTO), 'le parole di mezzo non sono più 12,5 px')
 
   // l'etichettina blu: fondo e testo della bozza, con la misura delle altre
   assert.match(pagina, /const BLU_FONDO = '#DCE7ED'/)

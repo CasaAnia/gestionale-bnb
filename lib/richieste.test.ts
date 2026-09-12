@@ -350,18 +350,22 @@ test('la nota del cliente nella riga è tutta rossa, come nella Home', () => {
   const codice = nota.split('\n').filter(r => !r.trim().startsWith('//')).join('\n')
   assert.equal(/#C0392B/.test(codice), false, 'è tornato il rosso vecchio')
   assert.equal(codice.match(/color: ROSSO_NOTA/g)?.length, 2)
-  // la veste della Home: 13 px semibold, tutta rossa, senza «Nota del cliente:»
-  assert.match(nota, /text-\[13px\] leading-snug font-semibold/)
+  // la veste grande: 15 px semibold, tutta rossa, senza «Nota del cliente:»
+  // davanti (Ania, dal telefono, 12/09/2026: nella riga la nota è grande come
+  // il nome). In Home la nota resta 13 px, e quella misura non si tocca.
+  assert.match(nota, /if \(grande\) \{/)
+  assert.match(nota, /text-\[15px\] leading-snug font-semibold/)
   const home = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8')
   assert.match(home, /text-\[13px\] leading-snug font-semibold/)
 
-  // Dal 12/09/2026 (Ania, dal telefono) la riga della richiesta usa la stessa
-  // veste delle righe «Da controllare» della Home: NotaCliente `piccola`.
-  // La veste `home`, tutta rossa, resta per la nota in cima alla Home.
+  // Dal 12/09/2026 (Ania, dal telefono) la riga della richiesta usa lo stesso
+  // componente delle righe «Da controllare» della Home, ma nella misura
+  // GRANDE: la nota è la cosa che cambia la risposta e si legge come il nome.
   const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
   const riga = pagina.slice(pagina.indexOf('function RigaRichiesta'), pagina.indexOf('function RigaChiusa'))
   const daControllare = readFileSync(new URL('../components/DaControllare.tsx', import.meta.url), 'utf8')
-  assert.match(riga, /<NotaCliente note=\{r\.note\} piccola className="mt-1" \/>/)
+  // nell'elenco la nota è grande come il nome; in Home resta piccola
+  assert.match(riga, /<NotaCliente note=\{r\.note\} grande className="mt-1" \/>/)
   assert.match(daControllare, /<NotaCliente note=\{e\.nota\} piccola className="mt-1" \/>/)
   assert.equal(/centrata/.test(riga), false)
 })
