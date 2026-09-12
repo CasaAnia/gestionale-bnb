@@ -451,6 +451,22 @@ test('sotto il calendario le due righe di parole stanno dopo l\u2019interruttore
   assert.equal(/BOTTONE_PIENO|BOTTONE_PICCOLO|MISURA_PASTIGLIA/.test(pagina), false)
 })
 
+// ── SOTTO IL CALENDARIO NON SI SPIEGA PIÙ IL TRATTEGGIO ───────────────
+// Ania sa cosa sono le righe tratteggiate: la legenda era una riga di schermo
+// spesa per niente, proprio dove servono i comandi (dal telefono, 12/09/2026).
+// Lo STACCO però resta: senza, i comandi si appiccicano al calendario.
+test('sotto il calendario non c\u2019\u00e8 pi\u00f9 la spiegazione del tratteggio, ma lo stacco resta', () => {
+  const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
+  assert.equal(/Tratteggiato =/.test(pagina), false, 'la legenda del tratteggio \u00e8 ancora l\u00ec')
+  assert.equal(/Solo confermate: queste non si toccano/.test(pagina), false)
+  assert.equal(/GRIGIO_NOTA/.test(pagina), false, 'il colore della legenda \u00e8 rimasto inutilizzato')
+  // lo spazio che occupava resta vuoto, fra il calendario e i comandi
+  assert.match(pagina, /data-stacco-calendario aria-hidden style=\{\{ height: 24 \}\}/)
+  const sotto = pagina.slice(pagina.indexOf('<RigaMesi'), pagina.indexOf('{/* Lista */}'))
+  assert.ok(sotto.indexOf('data-stacco-calendario') < sotto.indexOf('<InterruttoreVista'),
+    'lo stacco deve stare fra il calendario e i comandi')
+})
+
 // ── IL SELETTORE DELLA VISTA È QUELLO DEL CALENDARIO ───────────────────────
 // «Reale | Presunta» e «Mese | 2 settimane» sono lo stesso oggetto, disegnato
 // in un posto solo: components/InterruttorePillola (Ania, dal telefono,

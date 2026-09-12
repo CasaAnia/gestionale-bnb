@@ -40,8 +40,6 @@ import {
   formatIntervallo, formatDateRichiesta, avvisoFerma, daGuardare, nuoveDalSito, scadenzaProposta, type Richiesta, type OrdineRichieste,
 } from '@/lib/richieste'
 
-const GRIGIO_NOTA = '#6b6b60'
-
 const GRIGIO_QUANDO = '#B9B6AD'   // «oggi», «ieri», «2 giorni fa», in fondo alla prima riga
 const GRIGIO_RIGA = '#6b736a'     // la seconda riga: date, notti, persone, camera
 
@@ -425,9 +423,12 @@ function Richieste() {
           <RigaMesi colonna={larghezzaColonnaCamere(desktop ? 'desktop' : 'mobile', orizzontale)} mesi={mesiCliccabili(new Date())} attivo={modoCalendario === 'quindici' ? inizio.slice(0, 7) : mese}
             onMese={m => (modoCalendario === 'quindici' ? setInizio(m.iso) : setMese(m.chiave))}
             onOggi={() => (modoCalendario === 'quindici' ? setInizio(inizioQuindicina(oggiIso())) : setMese(meseCorrente()))} className="mt-3" />
-          <p className="text-xs mt-2" style={{ color: GRIGIO_NOTA }}>
-            {vista === 'presunta' ? 'Tratteggiato = richieste in attesa. Tocca una barra per vedere chi c’è dentro.' : 'Solo confermate: queste non si toccano.'}
-          </p>
+          {/* Qui sotto c'era la riga che spiegava cosa sono le barre
+              tratteggiate. Tolta il 12/09/2026 (Ania, dal telefono):
+              lo sa già, e sotto il calendario rubava la riga ai comandi. Lo
+              spazio però resta vuoto, altrimenti i comandi si appiccicano al
+              calendario: è il distacco fra le due cose, non un avanzo. */}
+          <div data-stacco-calendario aria-hidden style={{ height: 24 }} />
           {/* Sul telefono i comandi stanno sotto il calendario (Ania, dal
               telefono, 12/09/2026): l'interruttore a sinistra e «+ Nuova
               richiesta» a destra; sotto, a parole, «N da guardare» e «Ordina
