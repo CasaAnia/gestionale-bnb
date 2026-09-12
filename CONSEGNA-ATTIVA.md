@@ -475,3 +475,39 @@ due icone di contatto su tutte le richieste col numero. Le due pillole
 
 Nota: la veste `home` di `NotaCliente` (tutta rossa, 13 px) non è più usata da
 questa riga; resta nel componente per la Home.
+
+## La fascia dei comandi (12/09/2026, Claude)
+
+Pubblicata e verificata: commit `3ddf1ba` su `main`, deploy Vercel `success`
+(Production). Le due righe di parole sono diventate una fascia sola, con la
+veste della fascia della scheda prenotazione (`components/FasciaSezioni`):
+
+    ARRIVO      DURATA      PERSONE      DA GUARDARE · 3
+
+Nuovo `components/richieste/FasciaComandi.tsx`: filo `rgba(169,136,78,0.55)`
+sopra e sotto, fondo `var(--color-cream)`, voci in maiuscolo 10 px con
+spaziatura 0,6 px color stone, 11 px sopra e sotto, `justify-between` su tutta
+la larghezza; l'accesa in `#A9884E` grassetto. Ogni voce si tocca su 44 px
+(`py-[15px] -my-[15px]`) senza alzare la fascia. `SPAZIATURA_STRETTA` pronta se
+un giorno le voci non ci stessero: si stringe la spaziatura, mai le lettere.
+
+Cosa c'è scritto e cosa è acceso lo decide `vociFascia` in
+`lib/comandiRichieste.ts`: le tre dell'ordine (una sola accesa) più «da
+guardare · N», che è un interruttore a sé — accendendolo l'ordine scelto resta
+acceso — e che non compare quando non ci sono richieste ferme. `ComandiPagina`
+adesso contiene solo «+ Nuova richiesta»; `RigaDaGuardare`, `RigaOrdina` e
+`rigaDaGuardare` non esistono più.
+
+La parola di mezzo resta **DURATA**: il foglio dell'incarico diceva «notti»,
+ma Ania aveva scelto «durata» un'ora prima — richiesto e confermato coi
+bottoni prima di pubblicare.
+
+**Prove.** 1043 test verdi, TypeScript e build puliti. Nuovi casi in
+`lib/richieste.test.ts`: la veste presa dalla fascia della scheda (filo, fondo,
+misure, 44 px), le quattro voci col numero dentro, una sola accesa fra le tre
+dell'ordine, il filtro che si accende senza spegnere l'ordine, la voce assente
+con zero ferme (anche col filtro rimasto acceso), e la fascia sotto la riga
+dell'interruttore. Misurato a schermo a 390×844: fascia alta 39 px su 358 di
+larghezza, una riga sola, voci 10 px/0,6 px, ogni voce alta 45 px da toccare.
+Provato dalla UI vera: filtro acceso → 3 richieste e titoletto «DA GUARDARE»,
+cambio ordine col filtro acceso → resta filtrato, filtro spento → tutte e 28.
