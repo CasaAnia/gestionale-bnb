@@ -214,3 +214,54 @@ basso se ne vedono 5 intere. Aree da toccare misurate a schermo: pastiglia 46,
 «Modifica» 50, icone 44, etichettina blu 48. La seconda riga sta in una riga
 sola nei casi normali; va a capo solo quando le persone cambiano più volte
 («2 → 3 → 2»), invece di nascondere la camera.
+
+## Comandi delle Richieste, seconda passata (12/09/2026, Claude)
+
+Pubblicata e verificata: commit `744ca93`, `e246aab`, `cd8c59f` e `8e49cf7`
+su `main`, deploy Vercel `success` (Production, `8e49cf7`). Ania aveva visto
+la pagina dal telefono: le righe delle richieste andavano bene, i comandi
+sotto il calendario no.
+
+**1 — un solo interruttore a pillola** (`744ca93`, `8e49cf7`).
+Nuovo `components/InterruttorePillola.tsx`: pillola col contorno #C9BFA8 di
+1 px e 2 px di bordo interno, fondo trasparente, parole 11 px semibold
+green-dark con 8 px ai lati e 4 sopra e sotto, la scelta su green-mid col
+testo crema; `grande` per le misure del Mac. Lo usano TUTTI E TRE i posti che
+prima lo ridisegnavano: `app/calendario/page.tsx`, il calendarietto
+`components/richieste/CalendarioRichieste.tsx` e «Reale | Presunta»
+(`InterruttoreVista`). Area da toccare 44 px, fuori dal disegno.
+
+**2 — avvisi e ordinamento a parole** (`e246aab`).
+Via `InterruttoreSquadrato`, `EtichettaAvviso`, `TastoAvviso` e i due colori
+delle pastiglie. Al loro posto, in `ComandiPagina`, due righe da 12,5 px:
+`RigaDaGuardare` (pallino ottone 7 px, «3 da guardare» bold #7A5C1E, coda
+grigia « · ferme da più di un giorno»; accesa «· mostra tutte»; senza ferme
+non compare) e `RigaOrdina` («Ordina per arrivo notti persone», la scelta in
+green-mid bold con sottolineatura `rgba(169,136,78,0.45)` a 4 px). Testi e
+scelte stanno in `lib/comandiRichieste.ts`. «durata» si legge «notti»: stessa
+scelta di prima, parola della riga della richiesta. Le «nuove dal sito»
+restano solo nel sottotitolo in cima.
+
+**3 — il grassetto della riga** (`cd8c59f`).
+`pezziRigaRichiesta({ forte: 'elenco' })` al posto di `'persone-camera'`:
+semibold green-dark le date con la freccia tutte intere, il NUMERO delle
+notti, il NUMERO delle persone (e la sequenza «3 → 1», freccia compresa) e la
+camera — «Ambra» oppure «qualsiasi», con la parola «camera» grigia. Il testo
+che si legge non cambia. L'ultima riga non è stata toccata.
+
+**Prove.** 1038 test verdi (`npm test`), TypeScript e build puliti, lint senza
+nuove diagnostiche sui file toccati. Nuovi casi in `lib/richieste.test.ts` (il
+selettore unico usato dalle tre pagine; «da guardare» nei due stati e assente;
+le tre parole dell'ordinamento; le due righe sotto il calendario) e in
+`lib/rigaRichiesta.test.ts` (forti solo i pezzi indicati, «qualsiasi» forte e
+«camera» no, la sequenza «3 → 1», le icone di contatto sempre presenti).
+Anteprima senza rete a 390×844 (porta 3214): misurate a schermo la pillola
+(alta 30,5 px, area 44,5) identica in Richieste e Calendario — 11 px, peso
+600, riempimento 4/8, #C9BFA8, green-mid/crema — e le due righe di parole,
+alte 44 px. Filtro «da guardare» acceso e spento dalla UI vera, ordinamento
+cambiato in «persone» e lista riordinata.
+
+**Da decidere (Ania).** Le due icone di contatto non compaiono quando la
+richiesta non ha il numero di telefono (nell'anteprima: «Sara Verdi»). Non è
+una regressione — è così da sempre e non l'ho toccato — ma se le vuoi sempre
+a schermo va deciso cosa devono fare senza numero.
