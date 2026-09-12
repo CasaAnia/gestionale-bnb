@@ -16,6 +16,7 @@ import {
   statoLettiAggiuntivi,
 } from '@/lib/calendarioLetti'
 import BackLink from '@/components/BackLink'
+import TestaPagina from '@/components/TestaPagina'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi, { BORDO_RIQUADRO } from '@/components/RigaMesi'
 import InterruttorePillola from '@/components/InterruttorePillola'
@@ -532,25 +533,10 @@ export default function Calendario() {
   return (
     <div className="flex flex-col">
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
-      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm">
-        {/* Sul telefono il ritorno è la freccia ‹ nella barra in alto: qui la riga
-            sparisce e si recupera spazio (torna solo da girati, vedi globals.css) */}
-        <div className="indietro-barra hidden lg:block">
-          <BackLink href="/" />
-        </div>
-        {/* Titolo + «Cerca nome o telefono…» (05/09/2026): Mac e telefono girato sulla
-            stessa riga, telefono dritto uno sotto l'altro. Stesse distanze delle Richieste. */}
-        {/* Sul telefono il titolo NON si ripete (Ania, 11/09/2026: la barra in
-            alto dice già «Calendario»), ma il suo SPAZIO resta: la scritta si
-            nasconde senza togliere l'ingombro («tieni quello spazio libero
-            senza spostare in alto ricerca e tabelle»), così tutto il resto
-            della pagina sta dov'era. Su Mac, dove la barra non c'è, il titolo
-            si vede. */}
-        <div className={`mt-0 lg:mt-4 mb-2 ${isDesktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
-          <h1 className={`max-lg:invisible ${isDesktop ? 'ed-titolo-medio mr-auto' : 'ed-titolo'}`}>Calendario</h1>
-          <CampoRicerca value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />
-        </div>
-
+      {/* La testa è quella condivisa da Calendario, Arrivi e Richieste:
+          components/TestaPagina (spazio in alto uguale per tutt'e tre) */}
+      <TestaPagina titolo="Calendario" desktop={isDesktop} indietro={<BackLink href="/" />}
+        comandi={<CampoRicerca value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />}>
         {/* Nessun risultato: messaggio semplice, calendario normale */}
         {cercando && matches.length === 0 && (
           <div className="mt-2 text-[13.5px] font-bold" style={{ color: '#8c6a52' }}>Nessuna prenotazione trovata</div>
@@ -690,7 +676,7 @@ export default function Calendario() {
             ))}
           </div>
         )}
-      </div>
+      </TestaPagina>
 
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}

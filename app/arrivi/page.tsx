@@ -8,6 +8,7 @@ import { nomeOspite } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { testoNavetta, ombraNavetta } from '@/lib/navetta'
 import BackLink from '@/components/BackLink'
+import TestaPagina from '@/components/TestaPagina'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaMesi from '@/components/RigaMesi'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
@@ -325,30 +326,17 @@ export default function Arrivi() {
   return (
     <div className="flex flex-col">
       {/* sticky: qui la pagina è più alta dello schermo, quindi scorre anche la finestra */}
-      <div className="shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm">
-        {/* Sul telefono il ritorno è la freccia ‹ nella barra in alto: qui la riga
-            sparisce e si recupera spazio (torna solo da girati, vedi globals.css) */}
-        <div className="indietro-barra hidden lg:block">
-          <BackLink href="/" />
-        </div>
-        {/* Titolo + «Cerca nome o telefono…» come nel Calendario: Mac e telefono girato in riga, dritto in colonna */}
-        {/* Sul telefono il titolo NON si ripete (Ania, 11/09/2026: la barra in
-            alto dice già «Arrivi»), ma il suo SPAZIO resta: la scritta si
-            nasconde senza togliere l'ingombro («tieni quello spazio libero
-            senza spostare in alto ricerca e tabelle»), così tutto il resto
-            della pagina sta dov'era. Su Mac, dove la barra non c'è, il titolo
-            si vede. */}
-        <div className={`mt-0 lg:mt-4 mb-2 ${isDesktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
-          <h1 className={`max-lg:invisible ${isDesktop ? 'ed-titolo-medio mr-auto' : 'ed-titolo'}`}>Arrivi</h1>
-          <CampoRicerca value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />
-        </div>
+      {/* La testa è quella condivisa da Calendario, Arrivi e Richieste:
+          components/TestaPagina (spazio in alto uguale per tutt'e tre) */}
+      <TestaPagina titolo="Arrivi" desktop={isDesktop} indietro={<BackLink href="/" />}
+        comandi={<CampoRicerca value={query} onChange={cambiaRicerca} className={isDesktop ? (orizzontale ? 'flex-1 max-w-[360px]' : 'w-[360px]') : 'w-full'} />}>
         {cercando && matches.length === 0 && (
           <div className="text-[13.5px] font-bold" style={{ color: '#8c6a52' }}>Nessun arrivo trovato nei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</div>
         )}
         {searchAttiva && (
           <div className="text-[13px] font-bold text-green-dark truncate">🔎 {matches.length === 1 ? nomeOspite(matches[0]) : `${matches.length} arrivi trovati`}</div>
         )}
-      </div>
+      </TestaPagina>
 
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}

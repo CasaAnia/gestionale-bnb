@@ -266,8 +266,10 @@ test('nelle pagine delle Richieste la freccia va in una pagina decisa, non nella
   ]
   for (const p of pagine) {
     const testo = readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
-    assert.equal(/<BackBar href=/.test(testo), false, `${p}: la freccia si affida ancora alla cronologia`)
-    assert.equal(/<BackBar onClick=/.test(testo), true, `${p}: manca la freccia con la destinazione`)
+    assert.equal(/<Back(Bar|Link) href=/.test(testo), false, `${p}: la freccia si affida ancora alla cronologia`)
+    // l'elenco usa BackLink dentro la testa condivisa, le altre pagine BackBar:
+    // in tutt'e due i casi la destinazione è scritta, mai la cronologia
+    assert.equal(/<Back(Bar|Link) onClick=/.test(testo), true, `${p}: manca la freccia con la destinazione`)
   }
   // il rimbalzo /richieste/<id> → …/proposta conserva il punto di partenza
   const rimbalzo = readFileSync(new URL('../app/richieste/[id]/page.tsx', import.meta.url), 'utf8')
@@ -489,13 +491,16 @@ test('in cima alla pagina non c\u2019\u00e8 pi\u00f9 n\u00e9 titolo n\u00e9 cont
   assert.equal(existsSync(new URL('../lib/testataRichieste.ts', import.meta.url)), false)
 
   // dopo la barra in alto si comincia dalla ricerca, poi subito il calendario
-  const testa = pagina.slice(pagina.indexOf('<BackBar'), pagina.indexOf('{errori.length > 0'))
+  const testa = pagina.slice(pagina.indexOf('<TestaPagina'), pagina.indexOf('{errori.length > 0'))
   // solo il disegno: i commenti raccontano cosa \u00e8 stato tolto e nominano
   // proprio le parole che qui non devono pi\u00f9 comparire a schermo
   const disegno = testa.replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
   assert.match(disegno, /<CampoRicerca/)
-  assert.equal(/<h1|font-georgia|Georgia/.test(disegno), false, 'in cima c\u2019\u00e8 ancora un titolo')
+  assert.equal(/font-georgia|Georgia/.test(disegno), false, 'in cima c\u2019\u00e8 ancora un titolo')
   assert.equal(/aperte \u00b7|nuove dal sito/.test(disegno), false, 'in cima si conta ancora')
+  // il titolo c'\u00e8 solo come SPAZIO, nascosto anche sul Mac: \u00e8 quello che
+  // tiene la pagina allineata a Calendario e Arrivi (vedi la prova dopo)
+  assert.match(disegno, /titolo="Richieste" titoloNascosto/)
 
   // il conto resta dove si legge: la riga della sezione
   assert.match(pagina, /Richieste aperte/)
@@ -559,3 +564,40 @@ test('il selettore Reale/Presunta è lo stesso «Mese | 2 settimane» del Calend
   assert.equal(/rounded-full/.test(vista), false, 'le Richieste ridisegnano la pillola per conto loro')
 })
 
+
+// ── LE TRE PAGINE COMINCIANO DALLO STESSO PUNTO ───────────────────────────
+// Togliendo il titolo, le Richieste erano salite: la pagina cominciava 41 px
+// più in alto di Calendario e Arrivi e passando dall'una all'altra il
+// contenuto saltava (Ania, dal telefono, 12/09/2026). Lo spazio in alto adesso
+// è disegnato in un posto solo, components/TestaPagina: se cambia, cambia per
+// tutt'e tre insieme. Questa prova serve proprio a impedire che una delle tre
+// se lo riscriva per conto suo.
+test('Calendario, Arrivi e Richieste usano la stessa testa di pagina', () => {
+  const testa = readFileSync(new URL('../components/TestaPagina.tsx', import.meta.url), 'utf8')
+  // la fascia: ferma in cima, 16 px sopra e 8 sotto, 16 ai lati
+  assert.match(testa, /export const FASCIA = 'shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream\/95 backdrop-blur-sm'/)
+  // la riga del titolo e il titolo: le stesse misure di prima
+  assert.match(testa, /mt-0 lg:mt-4 mb-2 \$\{desktop \? 'flex items-center gap-4 min-h-\[44px\]' : 'flex flex-col gap-2'\}/)
+  assert.match(testa, /titoloNascosto \? 'invisible' : 'max-lg:invisible'/)
+  assert.match(testa, /desktop \? 'ed-titolo-medio mr-auto' : 'ed-titolo'/)
+  // sul telefono la riga «Indietro» non si vede: c'è la freccia della barra
+  assert.match(testa, /indietro-barra hidden lg:block/)
+
+  const pagine = {
+    'app/calendario/page.tsx': '<TestaPagina titolo="Calendario"',
+    'app/arrivi/page.tsx': '<TestaPagina titolo="Arrivi"',
+    'app/richieste/page.tsx': '<TestaPagina titolo="Richieste" titoloNascosto',
+  }
+  for (const [file, apertura] of Object.entries(pagine)) {
+    const testo = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
+    assert.ok(testo.includes(apertura), `${file}: non usa la testa condivisa`)
+    // nessuna delle tre si riscrive la fascia a mano
+    assert.equal(/sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2/.test(testo), false, `${file}: la fascia è ancora scritta a mano`)
+    assert.equal(/max-lg:invisible/.test(testo), false, `${file}: il titolo è ancora scritto a mano`)
+  }
+  // nelle Richieste il titolo è nascosto anche sul Mac (Ania non lo vuole più),
+  // ma il suo spazio resta: è quello che tiene allineate le tre pagine
+  const richieste = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
+  assert.equal(/className="p-4"/.test(richieste), false, 'la pagina ha ancora il suo padding')
+  assert.match(richieste, /<div className="px-4 pb-4">/)
+})

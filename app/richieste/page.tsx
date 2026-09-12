@@ -4,7 +4,8 @@ import { soggiorniPrecedenti, etichettaGiaStato } from '@/lib/clienteCheTorna'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown } from 'lucide-react'
-import BackBar from '@/components/BackBar'
+import BackLink from '@/components/BackLink'
+import TestaPagina from '@/components/TestaPagina'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
 import { TastoNuovaRichiesta } from '@/components/richieste/ComandiPagina'
 import FasciaComandi from '@/components/richieste/FasciaComandi'
@@ -342,34 +343,27 @@ function Richieste() {
   }, [aperte, prenotazioni, camere])
 
   return (
-    <div className="p-4">
-      {/* La freccia torna alla Home, da dove si entra nelle Richieste. Solo
-          arrivando dalla scheda di una prenotazione (?apri=) si torna davvero
-          indietro, cioè a quella scheda. Nelle pagine di una richiesta la
-          destinazione è sempre scritta: vedi ritornoDallaRichiesta. */}
-      <BackBar onClick={() => (apriId ? smartBack(router, '/') : router.push('/'))} />
-      {/* In cima NON c'è più niente (Ania, dal telefono, 12/09/2026): via il
-          titolo «Richieste» in Georgia e via anche la riga che contava
-          «4 aperte · 2 nuove dal sito». Dove si è lo dice già la barra in
-          alto, e quante sono si legge nella riga della sezione
-          «RICHIESTE APERTE · 4»: scriverlo due volte costava una riga di
-          schermo. La pagina comincia dalla ricerca e subito dal calendario.
-          Anche le «nuove dal sito» spariscono: non hanno più né etichettina
-          né riga. Sul Mac restano i comandi, tutti della stessa famiglia. */}
-      {desktop && !orizzontale ? (
-        <div className="flex items-center flex-wrap justify-end gap-4 mb-4 min-h-[44px]">
-          <InterruttoreVista vista={vista} onChange={setVista} />
-          <CampoRicerca value={query} onChange={cambiaRicerca} className="w-[260px]" />
-          <TastoNuovaRichiesta />
-        </div>
-      ) : (
-        /* Telefono: solo la ricerca, poi calendario, mesi, i comandi e la lista.
-           Girato la ricerca resta corta e a destra, come stava prima. */
-        <div className="flex mb-3">
+    <div className="flex flex-col">
+      {/* La testa è quella condivisa con Calendario e Arrivi
+          (components/TestaPagina): la pagina comincia allo stesso punto delle
+          altre. Il titolo «Richieste» resta NASCOSTO anche sul Mac — Ania non
+          lo vuole più, lo dice già la barra in alto — ma il suo spazio resta,
+          ed è quello spazio che tiene allineate le tre pagine. La riga
+          «← Indietro» torna alla Home; solo arrivando dalla scheda di una
+          prenotazione (?apri=) si torna davvero indietro, a quella scheda. */}
+      <TestaPagina titolo="Richieste" titoloNascosto desktop={desktop && !orizzontale}
+        indietro={<BackLink onClick={() => (apriId ? smartBack(router, '/') : router.push('/'))} />}
+        comandi={desktop && !orizzontale ? (
+          <>
+            <InterruttoreVista vista={vista} onChange={setVista} />
+            <CampoRicerca value={query} onChange={cambiaRicerca} className="w-[260px]" />
+            <TastoNuovaRichiesta />
+          </>
+        ) : (
           <CampoRicerca value={query} onChange={cambiaRicerca}
             className={orizzontale ? 'w-full max-w-[360px] ml-auto' : 'w-full'} />
-        </div>
-      )}
+        )} />
+      <div className="px-4 pb-4">
 
       {errori.length > 0 && (
         <AvvisoAzione testo={`Non riesco a leggere alcuni dati: ${errori.join(' · ')}`} onRiprova={riprovaCaricamento} className="mb-4" />
@@ -497,6 +491,7 @@ function Richieste() {
           )}
         </section>
       </div>
+      </div>{/* fine del corpo della pagina: 16 px ai lati, come le altre */}
 
       {pannello && pannello.gruppo.length > 0 && (
         <PannelloRichieste gruppo={pannello.gruppo} ancora={pannello.ancora} layout={desktop ? 'desktop' : 'mobile'} adesso={adesso} onChiudi={() => setPannello(null)} onRifiuta={setDaRifiutare} onConferma={r => { setPannello(null); setDaConfermare(r as RichiestaConProposta) }} />
