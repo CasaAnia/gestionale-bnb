@@ -10,7 +10,7 @@ import { giorniTra } from '@/lib/richiesteCalendario'
 import { capienzaCamera } from '@/lib/tariffe'
 import { avvisoCameraPersone } from '@/lib/cameraPerPersone'
 import { riassuntoPersone, type CanaleRichiesta, type ValoriModifica } from '@/lib/richieste'
-import { normalizzaTelefono, telefonoLeggibile } from '@/lib/whatsapp'
+import { normalizzaTelefono, telefonoLeggibile, numeroUsabile } from '@/lib/whatsapp'
 import CampoProvenienza from '@/components/CampoProvenienza'
 import { campiProvenienza, normalizzaProvenienza, type Provenienza, type StrutturaNota } from '@/lib/provenienza'
 import { leggiStrutture, ricordaStruttura, cercaClientePerTelefono, salvaProvenienzaCliente, type ClienteTrovato } from '@/lib/provenienzaDati'
@@ -168,6 +168,10 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
   async function salva() {
     setErrore(null)
     if (!v.nome.trim() || !v.cognome.trim()) { setErrore('Nome e cognome sono obbligatori.'); return }
+    // Il numero è obbligatorio in ogni richiesta (Ania, 12/09/2026): dal sito
+    // senza numero non parte nemmeno, e senza numero non si può né chiamare né
+    // scrivere. La regola è quella del sito, lib/whatsapp.
+    if (!numeroUsabile(v.telefono)) { setErrore('Il numero di telefono è obbligatorio: senza non si può né chiamare né scrivere.'); return }
     if (!arrivo || !partenza) { setErrore('Indica arrivo e partenza.'); return }
     if (partenza <= arrivo) { setErrore('La partenza deve essere almeno una notte dopo l’arrivo.'); return }
     if (v.nottiRichieste != null && !selezioneNottiValida(v.nottiRichieste, arrivo, partenza)) { setErrore('Seleziona almeno una notte compresa nelle date della richiesta.'); return }

@@ -1,7 +1,7 @@
 // Richieste che arrivano dal modulo del sito (pezzo 5A): validazione pura,
 // mappa della camera, riconoscimento dei doppioni e limite per IP. Nessun
 // accesso a rete o database: la route app/api/richieste/web fa il resto.
-import { normalizzaTelefono, telefonoLeggibile } from './whatsapp.ts'
+import { normalizzaTelefono, telefonoLeggibile, numeroUsabile } from './whatsapp.ts'
 import { selezioneNottiValida, nottiDellaRichiesta } from './nottiRichieste.ts'
 import { ROOM_SLUG_BY_NAME } from './roomTypes.ts'
 
@@ -56,7 +56,7 @@ export function validaRichiestaWeb(corpo: unknown, oggi: string, camere: { id: s
   const persone = Number(b.persone)
   if (!Number.isInteger(persone) || persone < 1 || persone > PERSONE_MAX) return { ok: false, errore: `Persone: da 1 a ${PERSONE_MAX}` }
   const tel = normalizzaTelefono(typeof b.telefono === 'string' ? b.telefono : '')
-  if (!tel.numero || tel.numero.length < 8) return { ok: false, errore: 'Numero di telefono mancante o troppo corto' }
+  if (!numeroUsabile(typeof b.telefono === 'string' ? b.telefono : '')) return { ok: false, errore: 'Numero di telefono mancante o troppo corto' }
   const email = testo(b.email, 120)
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, errore: 'Email non valida' }
   const noteUtente = testo(b.note, 1000)

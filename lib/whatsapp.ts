@@ -29,6 +29,19 @@ export function normalizzaTelefono(raw: string | null | undefined): TelefonoNorm
   return { numero: cifre, avviso: 'Controlla il prefisso' }
 }
 
+// ── Il numero è obbligatorio in OGNI richiesta (Ania, 12/09/2026) ──────────
+// Dal sito una richiesta senza numero non parte nemmeno (lib/richiesteWeb), e
+// senza numero non si può né chiamare né scrivere: le due icone della riga
+// resterebbero vuote. La regola sta qui, in un posto solo, e vale sia per il
+// modulo a mano sia per le richieste che arrivano dal sito.
+export const CIFRE_MINIME_TELEFONO = 8
+
+// Il numero utilizzabile («393331234567»), oppure null se manca o è troppo corto.
+export function numeroUsabile(telefono: string | null | undefined): string | null {
+  const n = normalizzaTelefono(telefono).numero
+  return n.length >= CIFRE_MINIME_TELEFONO ? n : null
+}
+
 // "+393331234567": come si salva e si mostra
 export function telefonoLeggibile(t: TelefonoNormalizzato): string {
   return t.numero ? `+${t.numero}` : ''
