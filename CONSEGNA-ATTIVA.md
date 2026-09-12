@@ -434,3 +434,44 @@ online; cambiarla è una parola in `ORDINI_RICHIESTE` (`lib/comandiRichieste.ts`
 
 Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
 `lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
+
+## La riga della richiesta = le righe «Da controllare» della Home (12/09/2026, Claude)
+
+Pubblicata e verificata: commit `a8ed29d` su `main`, deploy Vercel `success`
+(Production). Richiesta di Ania dal telefono: «esattamente come la Home, senza
+invenzioni».
+
+    OGGI · DAL SITO      ⧉ 1 altra
+    Anna Sawicka · gio 29 → sab 31 ott
+    2 notti · 3 persone · qualsiasi
+
+Stesse classi di `components/DaControllare.tsx`, controllate da un test che
+legge TUTT'E DUE i file: `text-[10px] uppercase tracking-[1.5px] text-brass`
+per l'etichetta, `text-[15px] font-semibold text-green-dark leading-snug
+mt-0.5` per il titolo, `text-[12.5px] leading-snug mt-0.5` + color stone per
+la riga sotto, `<NotaCliente ... piccola className="mt-1" />` per la nota,
+12 px sopra e sotto come `py-3`. Se la Home cambia misura, il test lo dice.
+
+Nuova funzione pura `etichettaRigaRichiesta(created_at, canale, adesso)` in
+`lib/rigaRichiesta.ts`: «ieri · dal sito», «oggi · telefono» (le maiuscole le
+fa il disegno). L'etichettina blu «⧉ 2 altre» è salita in quella riga; «ieri»
+non sta più staccato a destra. Nella riga sotto restano forti solo il numero
+delle notti, quello delle persone (o «3 → 1») e la camera, senza la parola
+«camera». La riga dei comandi non è stata toccata.
+
+Il conto si legge solo nella riga della sezione: «RICHIESTE APERTE · 28», col
+puntino chiesto da Ania (in cima alla pagina non c'è più niente, `efc834b`
+dell'altra attività).
+
+**Prove.** 1043 test verdi, TypeScript e build puliti, lint senza nuove
+diagnostiche. Nuovi casi in `lib/rigaRichiesta.test.ts` (l'etichetta nei vari
+canali, coi giorni e senza data; le classi prese dalla Home; l'ordine dei
+pezzi; «ieri» non più a destra) e aggiornato quello della nota in
+`lib/richieste.test.ts` (adesso `piccola`, come la Home). Misurato a schermo a
+390×844: etichetta 10 px/1,5 px/#A9884E, titolo 15 px peso 600, riga sotto
+12,5 px color stone, righe alte 125–146 px, etichettina blu 48 px da toccare,
+due icone di contatto su tutte le richieste col numero. Le due pillole
+«Reale | Presunta» e «Mese | 2 settimane» confrontate a 390: identiche.
+
+Nota: la veste `home` di `NotaCliente` (tutta rossa, 13 px) non è più usata da
+questa riga; resta nel componente per la Home.
