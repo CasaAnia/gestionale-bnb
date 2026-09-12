@@ -8,6 +8,7 @@ import { frasiDisponibilita, notti, ordinaCamere, type PrenotazioneMinima } from
 import { selezioneNottiValida, elencoNotti } from '@/lib/nottiRichieste'
 import { giorniTra } from '@/lib/richiesteCalendario'
 import { capienzaCamera } from '@/lib/tariffe'
+import { avvisoCameraPersone } from '@/lib/cameraPerPersone'
 import { riassuntoPersone, type CanaleRichiesta, type ValoriModifica } from '@/lib/richieste'
 import { normalizzaTelefono, telefonoLeggibile } from '@/lib/whatsapp'
 import CampoProvenienza from '@/components/CampoProvenienza'
@@ -146,6 +147,11 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
   }, [arrivo, partenza, dateValide])
 
   const personeMax = v.personePerNotte ? Math.max(...v.personePerNotte) : persone
+  // Avviso della camera troppo piccola: guarda la notte più piena
+  const avvisoCamera = useMemo(
+    () => avvisoCameraPersone(camere.find(c => c.id === v.cameraId) ?? null, personeMax, camere),
+    [camere, v.cameraId, personeMax],
+  )
   const rigaDisponibilita = dateValide && occupazione && occupazione.chiave === `${arrivo}|${partenza}`
     ? (v.nottiRichieste ? `${v.nottiRichieste.length} notti scelte: disponibilità verificata nella proposta` : occupazione.errore ? `${nottiN} notti · disponibilità non leggibile (${occupazione.errore})` : frasiDisponibilita(camere, occupazione.prenotazioni, arrivo, partenza, personeMax))
     : (dateValide ? `${nottiN === 1 ? '1 notte' : `${nottiN} notti`} · controllo le camere…` : '')
@@ -258,6 +264,10 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
             </select>
           </div>
         </div>
+        {/* La camera chiesta non regge le persone (o quelle della notte più
+            piena): si avvisa e basta. La richiesta registra quello che chiede
+            la cliente, quindi si salva lo stesso (Ania, 12/09/2026). */}
+        {avvisoCamera && <p data-avviso-camera className="text-[13px] leading-snug" style={{ color: '#8a4f2f' }}>{avvisoCamera}</p>}
 
         {dateValide && v.nottiRichieste != null && <div className="rounded-xl border border-green-mid p-3">
           <p className="font-semibold text-sm mb-2">Richiesta soltanto per le notti selezionate</p>
