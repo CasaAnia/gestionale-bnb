@@ -5,7 +5,7 @@ import {
   formatIntervallo, oraArrivo, tempoTrascorso, ordinaRichieste, inArchivio, contaAperte, nomeCompleto, spiegaErrore, avvisoFerma, daGuardare, nuoveDalSito, rigaChiusa, riapribile, eRifiutata,
   riassuntoPersone, pianoModifica, scadenzaProposta, type Richiesta, linkModificaRichiesta, ritornoDallaModifica,
   daDoveRichiesta, ritornoDallaRichiesta, linkRichiesta, propostaDellaRichiesta, tastoRichiesta } from './richieste.ts'
-import { rigaDaGuardare, testoRigaGuardare, ORDINI_RICHIESTE } from './comandiRichieste.ts'
+import { vociFascia, testoFascia, ORDINI_RICHIESTE } from './comandiRichieste.ts'
 
 const locale = (a: number, m: number, g: number, h = 12, min = 0) => new Date(a, m - 1, g, h, min)
 const adesso = locale(2026, 9, 2, 9, 0)
@@ -364,60 +364,79 @@ test('la nota del cliente nella riga è tutta rossa, come nella Home', () => {
   assert.equal(/centrata/.test(riga), false)
 })
 
-// ── I COMANDI SOTTO IL CALENDARIO (Ania, dal telefono, 12/09/2026) ────────
-// Le pastiglie colorate sono diventate parole: «N da guardare» e «Ordina per».
-// «+ Nuova richiesta» resta la piccola etichetta sage di prima.
-test('sotto il calendario gli avvisi e l\u2019ordinamento sono parole, non pastiglie', () => {
-  const comandi = readFileSync(new URL('../components/richieste/ComandiPagina.tsx', import.meta.url), 'utf8')
+// ── LA FASCIA DEI COMANDI (Ania, dal telefono, 12/09/2026) ────────────────
+// Le pastiglie, poi le righe di parole, adesso UNA fascia sola: la stessa
+// veste della fascia della scheda prenotazione.
+test('la fascia dei comandi ha la veste della fascia della scheda', () => {
+  const fascia = readFileSync(new URL('../components/richieste/FasciaComandi.tsx', import.meta.url), 'utf8')
+  const scheda = readFileSync(new URL('../components/FasciaSezioni.tsx', import.meta.url), 'utf8')
 
-  // «+ Nuova richiesta»: com'era — alto 24, sage, green-mid 11,5 bold, angoli 4
+  // filo d'ottone sopra e sotto, fondo crema: gli stessi valori della scheda
+  assert.match(fascia, /export const FILO = 'rgba\(169,136,78,0\.55\)'/)
+  assert.match(scheda, /const FILO = 'rgba\(169,136,78,0\.55\)'/)
+  assert.match(fascia, /background: 'var\(--color-cream\)', borderTop: `1px solid \$\{FILO\}`, borderBottom: `1px solid \$\{FILO\}`/)
+  assert.match(scheda, /background: 'var\(--color-cream\)', borderTop: `1px solid \$\{FILO\}`, borderBottom: `1px solid \$\{FILO\}`/)
+
+  // voci in maiuscolo 10 px, spaziatura 0,6, color stone; l'accesa in ottone
+  // grassetto. 10 px è la misura della fascia: non si scende sotto
+  assert.match(fascia, /export const MISURA_VOCE = 10\b/)
+  assert.equal(/MISURA_VOCE = [0-9]\b/.test(fascia), false, 'le voci sono scese sotto i 10 px')
+  assert.match(fascia, /export const SPAZIATURA = '0\.6px'/)
+  assert.match(fascia, /export const OTTONE = '#A9884E'/)
+  assert.match(fascia, /className="shrink-0 uppercase/)
+  assert.match(fascia, /fontWeight: v\.accesa \? 700 : 500/)
+  assert.match(fascia, /color: v\.accesa \? OTTONE : 'var\(--color-stone\)'/)
+
+  // 11 px sopra e sotto, voci distribuite a spazio uguale su tutta la riga
+  assert.match(fascia, /paddingTop: 11, paddingBottom: 11/)
+  assert.match(fascia, /flex items-center justify-between/)
+  // una riga sola: se non ci stanno si stringe la SPAZIATURA, non le lettere
+  assert.match(fascia, /whitespace-nowrap/)
+  assert.match(fascia, /export const SPAZIATURA_STRETTA = '0\.2px'/)
+  // ogni voce si tocca su 44 px, senza alzare la fascia
+  assert.match(fascia, /py-\[15px\] -my-\[15px\]/)
+  assert.match(fascia, /export const ALTEZZA_TOCCO = 44/)
+
+  // «+ Nuova richiesta» resta la piccola etichetta sage di prima
+  const comandi = readFileSync(new URL('../components/richieste/ComandiPagina.tsx', import.meta.url), 'utf8')
   assert.match(comandi, /export const ALTEZZA_TASTO = 24/)
   assert.match(comandi, /bg-sage text-green-mid/)
   assert.match(comandi, /height: ALTEZZA_TASTO, padding: '0 9px', borderRadius: ANGOLI_VOCE, fontSize: 11\.5, fontWeight: 700/)
-
-  // «N da guardare»: pallino d'ottone da 7 px, il conto in bold #7A5C1E, la
-  // coda in grigio; tutto in 14 px — la misura minima chiesta da Ania, che i
-  // filtri di ieri (12,5) non rispettavano
-  assert.match(comandi, /const TESTO_RIGHE = 14\b/)
-  assert.equal(/TESTO_RIGHE = 1[0-3]/.test(comandi), false, 'le righe di parole sono scese sotto i 14 px')
-  assert.match(comandi, /const OTTONE_SCURO = '#7A5C1E'/)
-  assert.match(comandi, /width: 7, height: 7, borderRadius: '50%', background: OTTONE_PALLINO/)
-  assert.match(comandi, /fontWeight: 700, color: OTTONE_SCURO \}\}>\{riga\.conto\}/)
-  assert.match(comandi, /color: 'var\(--color-stone\)' \}\}>\{riga\.coda\}/)
-  // se non ce ne sono la riga non c'è proprio
-  assert.match(comandi, /if \(!riga\) return null/)
-
-  // «Ordina per»: la scelta in green-mid bold, sottolineatura sottile d'ottone
-  // chiaro 4 px sotto il testo; le altre due parole in grigio
-  assert.match(comandi, /const OTTONE_CHIARO = 'rgba\(169,136,78,0\.45\)'/)
-  assert.match(comandi, /fontWeight: 700, color: 'var\(--color-green-mid\)', textDecoration: 'underline', textDecorationColor: OTTONE_CHIARO, textDecorationThickness: 1, textUnderlineOffset: 4/)
-  assert.match(comandi, /<span className=\{TOCCO\}>Ordina per<\/span>/)
-
-  // tutto quello che si tocca è alto 44 px: 20 px di riga + 12 sopra e sotto
-  assert.match(comandi, /const TOCCO = 'py-\[12px\]'/)
-  assert.match(comandi, /lineHeight: '20px'/)
-  assert.match(comandi, /export const ALTEZZA_TOCCO = 44/)
-
-  // le pastiglie degli avvisi e l'interruttore «Ordina» non ci sono più
-  assert.equal(/EtichettaAvviso|TastoAvviso|AVVISO_SITO|AVVISO_GUARDARE|InterruttoreSquadrato/.test(comandi), false)
+  // le pastiglie e le righe di parole non ci sono più
+  assert.equal(/EtichettaAvviso|TastoAvviso|AVVISO_SITO|AVVISO_GUARDARE|InterruttoreSquadrato|RigaOrdina|RigaDaGuardare/.test(comandi), false)
   assert.equal(/#EFE2C7|#EFEADF/.test(comandi), false, 'i fondi delle pastiglie sono ancora qui')
 })
 
-// La riga «N da guardare», nei due stati e quando non serve
-test('la riga «da guardare» dice il conto e la via d\u2019uscita', () => {
-  assert.deepEqual(rigaDaGuardare(3), { conto: '3 da guardare', coda: ' · ferme da più di un giorno' })
-  assert.equal(testoRigaGuardare(rigaDaGuardare(3)), '3 da guardare · ferme da più di un giorno')
-  // acceso il filtro, la coda diventa la via d'uscita
-  assert.equal(testoRigaGuardare(rigaDaGuardare(3, true)), '3 da guardare · mostra tutte')
-  assert.equal(testoRigaGuardare(rigaDaGuardare(1, true)), '1 da guardare · mostra tutte')
-  // nessuna richiesta ferma: niente riga
-  assert.equal(rigaDaGuardare(0), null)
-  assert.equal(rigaDaGuardare(0, true), null)
-  assert.equal(rigaDaGuardare(-2), null)
-  assert.equal(testoRigaGuardare(null), '')
+// Le quattro voci: cosa c'è scritto e cosa è acceso
+test('la fascia ha le quattro voci, e «da guardare» porta il numero', () => {
+  const piena = vociFascia({ ordine: 'durata', ferme: 3 })
+  assert.equal(testoFascia(piena), 'arrivo · durata · persone · da guardare · 3')
+  assert.deepEqual(piena.map(v => v.tipo), ['ordine', 'ordine', 'ordine', 'guardare'])
+  // una sola accesa fra le tre dell'ordine
+  assert.deepEqual(piena.filter(v => v.accesa).map(v => v.chiave), ['durata'])
+
+  // cambiando ordine si accende solo l'altra
+  assert.deepEqual(vociFascia({ ordine: 'persone', ferme: 3 }).filter(v => v.accesa).map(v => v.chiave), ['persone'])
+
+  // il filtro si accende senza toccare l'ordine: restano accese tutt'e due
+  const filtrata = vociFascia({ ordine: 'arrivo', ferme: 3, soloDaGuardare: true })
+  assert.deepEqual(filtrata.filter(v => v.accesa).map(v => v.chiave), ['arrivo', 'guardare'])
+  assert.equal(testoFascia(filtrata), 'arrivo · durata · persone · da guardare · 3')
+
+  // il numero è quello vero
+  assert.equal(vociFascia({ ordine: 'arrivo', ferme: 1 }).at(-1)?.testo, 'da guardare · 1')
+  assert.equal(vociFascia({ ordine: 'arrivo', ferme: 12 }).at(-1)?.testo, 'da guardare · 12')
+
+  // nessuna ferma: la voce non compare, e restano le tre dell'ordine
+  const senza = vociFascia({ ordine: 'arrivo', ferme: 0 })
+  assert.equal(testoFascia(senza), 'arrivo · durata · persone')
+  assert.equal(senza.some(v => v.tipo === 'guardare'), false)
+  assert.equal(vociFascia({ ordine: 'arrivo', ferme: -2 }).length, 3)
+  // e nemmeno col filtro rimasto acceso da prima
+  assert.equal(vociFascia({ ordine: 'arrivo', ferme: 0, soloDaGuardare: true }).length, 3)
 })
 
-// «Ordina per arrivo notti persone»: le stesse tre scelte di prima
+// Le tre scelte dell'ordinamento: le stesse di sempre
 test('le tre parole dell\u2019ordinamento, nell\u2019ordine chiesto', () => {
   assert.deepEqual(ORDINI_RICHIESTE.map(([, parola]) => parola), ['arrivo', 'durata', 'persone'])
   assert.deepEqual(ORDINI_RICHIESTE.map(([v]) => v), ['arrivo', 'durata', 'persone'])
@@ -427,7 +446,7 @@ test('le tre parole dell\u2019ordinamento, nell\u2019ordine chiesto', () => {
   for (const [v] of ORDINI_RICHIESTE) assert.equal(ordinaRichieste([a, b], v).length, 2)
 })
 
-test('sotto il calendario le due righe di parole stanno dopo l\u2019interruttore', () => {
+test('sotto il calendario la fascia sta dopo l\u2019interruttore', () => {
   const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
   const sotto = pagina.slice(pagina.indexOf('Sul telefono i comandi stanno sotto il calendario'), pagina.indexOf('{/* Lista */}'))
   const dove = (x: string) => {
@@ -440,17 +459,17 @@ test('sotto il calendario le due righe di parole stanno dopo l\u2019interruttore
   const tasto = dove('<TastoNuovaRichiesta />')
   assert.ok(tasto - riga1 < 200, 'interruttore e «+ Nuova richiesta» non sono sulla stessa riga')
   assert.match(sotto, /justify-between/)
-  // riga 2: «N da guardare» · riga 3: «Ordina per»
-  const guardare = dove('<RigaDaGuardare')
-  const ordina = dove('<RigaOrdina')
-  assert.ok(tasto < guardare && guardare < ordina, '«da guardare» e «Ordina per» non stanno nelle righe dopo')
-  assert.match(sotto, /quante=\{ferme\.length\} acceso=\{soloDaGuardare\}/)
+  // riga 2: la fascia, con l'ordine e il filtro attaccati allo stato
+  const fascia = dove('<FasciaComandi')
+  assert.ok(tasto < fascia, 'la fascia non sta sotto la riga dell\u2019interruttore')
+  assert.match(sotto, /ordine=\{ordine\} onOrdine=\{setOrdine\}/)
+  assert.match(sotto, /ferme=\{ferme\.length\} soloDaGuardare=\{soloDaGuardare\}/)
 
   // le «nuove dal sito» non hanno più né etichettina né riga
   assert.equal(/dati="dal-sito"|<Globe/.test(pagina), false, 'le «nuove dal sito» hanno ancora un\u2019etichettina')
 
-  // niente più pastiglie né bottoni tondi sparsi
-  assert.equal(/EtichettaAvviso|TastoAvviso|InterruttoreSquadrato/.test(pagina), false)
+  // niente più pastiglie, righe di parole o bottoni tondi sparsi
+  assert.equal(/EtichettaAvviso|TastoAvviso|InterruttoreSquadrato|RigaOrdina|RigaDaGuardare/.test(pagina), false)
   assert.equal(/rounded-full text-sm font-medium/.test(pagina), false)
   assert.equal(/BOTTONE_PIENO|BOTTONE_PICCOLO|MISURA_PASTIGLIA/.test(pagina), false)
 })

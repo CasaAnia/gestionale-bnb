@@ -6,8 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown } from 'lucide-react'
 import BackBar from '@/components/BackBar'
 import InterruttoreVista from '@/components/richieste/InterruttoreVista'
-import { TastoNuovaRichiesta, RigaDaGuardare, RigaOrdina } from '@/components/richieste/ComandiPagina'
-import { ORDINI_RICHIESTE } from '@/lib/comandiRichieste'
+import { TastoNuovaRichiesta } from '@/components/richieste/ComandiPagina'
+import FasciaComandi from '@/components/richieste/FasciaComandi'
 import CalendarioRichieste, { larghezzaColonnaCamere, type Ancora, type ModoCalendario } from '@/components/richieste/CalendarioRichieste'
 import PannelloRichieste from '@/components/richieste/PannelloRichieste'
 import { TastoPrincipale, ComandiRichiesta, IconeContatto, SPAZIO_COMANDI } from '@/components/richieste/AzioniRichiesta'
@@ -358,7 +358,6 @@ function Richieste() {
           né riga. Sul Mac restano i comandi, tutti della stessa famiglia. */}
       {desktop && !orizzontale ? (
         <div className="flex items-center flex-wrap justify-end gap-4 mb-4 min-h-[44px]">
-          {!loading && <RigaDaGuardare quante={ferme.length} acceso={soloDaGuardare} onClick={() => setSoloDaGuardare(v => !v)} />}
           <InterruttoreVista vista={vista} onChange={setVista} />
           <CampoRicerca value={query} onChange={cambiaRicerca} className="w-[260px]" />
           <TastoNuovaRichiesta />
@@ -412,24 +411,27 @@ function Richieste() {
           <div data-stacco-calendario aria-hidden style={{ height: 24 }} />
           {/* Sul telefono i comandi stanno sotto il calendario (Ania, dal
               telefono, 12/09/2026): l'interruttore a sinistra e «+ Nuova
-              richiesta» a destra; sotto, a parole, «N da guardare» e «Ordina
-              per». Niente più pastiglie: vedi ComandiPagina. */}
+              richiesta» a destra; sotto la FASCIA con l'ordinamento e il
+              filtro delle ferme — ARRIVO · DURATA · PERSONE · DA GUARDARE. */}
           {(!desktop || orizzontale) && (
             <>
               <div className="flex items-center justify-between gap-3 mt-3">
                 <InterruttoreVista vista={vista} onChange={setVista} />
                 <TastoNuovaRichiesta />
               </div>
-              {!loading && <RigaDaGuardare quante={ferme.length} acceso={soloDaGuardare} onClick={() => setSoloDaGuardare(v => !v)} />}
-              <RigaOrdina voci={ORDINI_RICHIESTE} scelta={ordine} onScegli={setOrdine} nome="Ordina le richieste" />
+              {!loading && (
+                <FasciaComandi className="mt-3" ordine={ordine} onOrdine={setOrdine}
+                  ferme={ferme.length} soloDaGuardare={soloDaGuardare} onDaGuardare={() => setSoloDaGuardare(v => !v)} />
+              )}
             </>
           )}
         </section>
 
         {/* Lista */}
         <section hidden={!mostraLista} className="mt-4 md:mt-7">
-          {/* Il titoletto della lista. «Ordina per» sul telefono sta già sotto
-              il calendario; sul Mac resta qui, con le stesse parole. */}
+          {/* Il titoletto della lista. Sul telefono ordinamento e filtro
+              stanno nella fascia sotto il calendario; sul Mac la fascia sta
+              qui, sopra l'elenco. */}
           <div className="flex items-center gap-2 mb-4">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <span className="text-[11px] uppercase text-brass shrink-0" style={{ letterSpacing: '2px' }}>{capogruppo ? 'Stesse date' : soloDaGuardare ? 'Da guardare' : 'Richieste aperte'}</span>
@@ -438,8 +440,11 @@ function Richieste() {
               {!loading && <span className="text-[13px] text-stone shrink-0">· {capogruppo ? contatoreGruppo(gruppo.length) : mostrate.length}</span>}
               <span className="flex-1 h-px" style={{ background: 'rgba(169,136,78,0.45)' }} />
             </div>
-            {desktop && <RigaOrdina voci={ORDINI_RICHIESTE} scelta={ordine} onScegli={setOrdine} nome="Ordina le richieste" className="shrink-0" />}
           </div>
+          {desktop && !loading && (
+            <FasciaComandi className="mb-4" ordine={ordine} onOrdine={setOrdine}
+              ferme={ferme.length} soloDaGuardare={soloDaGuardare} onDaGuardare={() => setSoloDaGuardare(v => !v)} />
+          )}
 
           {capogruppo && (
             <div data-barra-gruppo className="flex items-start justify-between gap-3 bg-white mb-3" style={{ border: '1px solid var(--color-card-border)', borderRadius: 12, padding: '10px 12px' }}>
