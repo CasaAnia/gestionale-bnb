@@ -30,7 +30,9 @@ export function nomePerMessaggio(n: string | null | undefined): string {
 // meno ufficiali.
 //
 // Sulle prenotazioni il nominativo è un campo unico già scritto «Nome
-// Cognome» (guest_name, oppure guests.full_name): il nome è la prima parola.
+// Cognome» (guest_name, oppure guests.full_name): il nome è tutto quello che
+// viene prima del cognome, e il cognome è l'ultima parola — oppure, se c'è una
+// particella (de, di, da, del…), quella e tutto quello che segue.
 // Le maiuscole restano quelle salvate sulla cliente: qui non si tocca altro.
 
 // Conferma senza immagine: il nominativo come è salvato, solo ripulito. Senza
@@ -39,9 +41,23 @@ export function nomeECognomeMessaggio(n: string | null | undefined): string {
   return nomePerMessaggio(n)
 }
 
-// Tutti gli altri messaggi: la prima parola del nominativo, cioè il nome.
+// Le particelle che aprono il cognome: da lì in poi è tutto cognome, anche se
+// le parole sono tante. Senza questa lista «Anna Maria De Luca» darebbe
+// «Anna Maria De» (Ania, 12/09/2026).
+const PARTICELLE_COGNOME = new Set(['de', 'di', 'da', 'del', 'della', 'dello', 'dei', 'degli', 'la', 'lo', 'van', 'von'])
+
+// Tutti gli altri messaggi: il NOME, cioè tutto quello che viene prima del
+// cognome. Il cognome è l'ultima parola — «Maria Grazia Rossi» → «Maria
+// Grazia» — oppure, se c'è una particella, quella e tutto quello che segue:
+// «Anna Maria De Luca» → «Anna Maria».
+// Quando resterebbe niente (una parola sola, o solo il cognome con la sua
+// particella) si saluta con quello che c'è: mai «Gentile ,».
 export function soloNomeMessaggio(n: string | null | undefined): string {
-  return nomePerMessaggio(n).split(' ')[0] || ''
+  const parole = nomePerMessaggio(n).split(' ').filter(Boolean)
+  if (parole.length === 0) return ''
+  const particella = parole.findIndex(p => PARTICELLE_COGNOME.has(p.toLowerCase()))
+  const finisceIlNome = particella >= 0 ? particella : parole.length - 1
+  return parole.slice(0, finisceIlNome).join(' ') || parole.join(' ')
 }
 
 // Confronto insensibile a maiuscole, spazi doppi e codifiche Unicode diverse:

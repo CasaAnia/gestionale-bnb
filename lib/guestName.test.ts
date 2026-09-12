@@ -102,3 +102,43 @@ test('i messaggi di tutti i giorni salutano col solo nome', () => {
   const pagina = leggi('app/richieste/[id]/proposta/page.tsx')
   assert.equal(/generaProposta\([^)]*nomeCompleto/.test(pagina), false)
 })
+
+// Il nome non è per forza una parola sola (Ania, 12/09/2026)
+test('nome di due parole: il cognome è solo l’ultima', () => {
+  assert.equal(soloNomeMessaggio('Maria Grazia Rossi'), 'Maria Grazia')
+  assert.equal(soloNomeMessaggio('Anna Maria Bianchi'), 'Anna Maria')
+  // tre nomi e un cognome: resta tutto il nome
+  assert.equal(soloNomeMessaggio('Maria Grazia Anna Rossi'), 'Maria Grazia Anna')
+  // e il caso normale non cambia
+  assert.equal(soloNomeMessaggio('Anna Rossi'), 'Anna')
+})
+
+test('con una particella, da lì in poi è tutto cognome', () => {
+  assert.equal(soloNomeMessaggio('Anna Maria De Luca'), 'Anna Maria')
+  assert.equal(soloNomeMessaggio('Anna De Luca'), 'Anna')
+  assert.equal(soloNomeMessaggio('Marco Di Pietro'), 'Marco')
+  assert.equal(soloNomeMessaggio('Gianni La Rosa'), 'Gianni')
+  assert.equal(soloNomeMessaggio('Maria Grazia Della Valle'), 'Maria Grazia')
+  assert.equal(soloNomeMessaggio('Jan Van Der Berg'), 'Jan')
+  assert.equal(soloNomeMessaggio('Klaus Von Neumann'), 'Klaus')
+  // la particella si riconosce anche tutta maiuscola o tutta minuscola
+  assert.equal(soloNomeMessaggio('ANNA MARIA DE LUCA'), 'ANNA MARIA')
+  assert.equal(soloNomeMessaggio('anna maria de luca'), 'anna maria')
+  // tutte le particelle della lista
+  for (const p of ['de', 'di', 'da', 'del', 'della', 'dello', 'dei', 'degli', 'la', 'lo', 'van', 'von']) {
+    assert.equal(soloNomeMessaggio(`Anna ${p} Qualcosa`), 'Anna', `particella «${p}»`)
+  }
+})
+
+test('quando non resta niente si saluta con quello che c’è, mai «Gentile ,»', () => {
+  // una parola sola: è il nome
+  assert.equal(soloNomeMessaggio('Anna'), 'Anna')
+  // solo il cognome con la sua particella: meglio quello che niente
+  assert.equal(soloNomeMessaggio('De Luca'), 'De Luca')
+  assert.equal(soloNomeMessaggio('Rossi'), 'Rossi')
+  assert.equal(soloNomeMessaggio(''), '')
+  assert.equal(soloNomeMessaggio(null), '')
+  // spazi doppi e caratteri invisibili non cambiano il conto delle parole
+  assert.equal(soloNomeMessaggio('  Maria   Grazia  Rossi '), 'Maria Grazia')
+  assert.equal(soloNomeMessaggio('️Anna Maria De Luca'), 'Anna Maria')
+})
