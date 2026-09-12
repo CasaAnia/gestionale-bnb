@@ -107,6 +107,11 @@ const richieste = [
   richiesta({ nome: 'Marta', cognome: 'Ricovero', arrivo: giorni(60), partenza: giorni(64), persone: 2, persone_per_notte: [2, 1, 1, 1], canale: 'telefono', telefono: '+39 333 000 0060', created_at: fa(3) }),
   // Pezzo 10: il caso reale 17–21 con [2,3,3,3]: in 2 la prima notte, poi in 3
   richiesta({ nome: 'Ewa', cognome: 'Composta', arrivo: giorni(70), partenza: giorni(74), persone: 2, persone_per_notte: [2, 3, 3, 3], canale: 'whatsapp', telefono: '+39 333 000 0070', created_at: fa(2) }),
+  // SENZA TELEFONO di proposito: è una richiesta VECCHIA, salvata prima del
+  // 12/09/2026, quando il modulo a mano lasciava passare il numero vuoto. Da
+  // quella data il numero è obbligatorio (numeroUsabile in lib/whatsapp) e una
+  // richiesta così non si può più creare. Serve a controllare che la riga
+  // regga lo stesso: niente icone di chiamata, tutto il resto al suo posto.
   richiesta({ nome: 'Sara', cognome: 'Verdi', arrivo: giorni(30), partenza: giorni(35), persone: 4, canale: 'web', created_at: fa(5), note: 'Chiede due camere vicine' }),
   // ── Veste nuova della proposta (11/09/2026) ──────────────────────────────
   // Tre persone con TUTTO libero: Lena, Ambra e Allegra partono spuntate,
