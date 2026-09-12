@@ -605,3 +605,50 @@ test('Calendario, Arrivi e Richieste usano la stessa testa di pagina', () => {
   assert.equal(/className="p-4"/.test(richieste), false, 'la pagina ha ancora il suo padding')
   assert.match(richieste, /<div className="px-4 pb-4">/)
 })
+
+// ── LA PARTE «CLIENTE» DENTRO LA RICHIESTA (Ania, 12/09/2026) ─────────────
+// In fondo alla proposta, prima di «Rifiuta la richiesta»: i soggiorni
+// precedenti, il totale speso, la nota e il link alla scheda. È un componente
+// a sé perché la stessa identica parte andrà nella nuova scheda prenotazione.
+test('la parte CLIENTE ha la veste disegnata per la scheda prenotazione', () => {
+  const parte = readFileSync(new URL('../components/ParteCliente.tsx', import.meta.url), 'utf8')
+
+  // titoletto CLIENTE col filo d'ottone: la classe dello stile editoriale
+  assert.match(parte, /className="ed-sezione mb-2">Cliente</)
+  // la griglia: etichette ottone maiuscole 9 px, valori 14,5 px semibold
+  assert.match(parte, /export const MISURA_ETICHETTA = 9\b/)
+  assert.match(parte, /export const MISURA_VALORE = 14\.5\b/)
+  assert.match(parte, /fontSize: MISURA_ETICHETTA, letterSpacing: '1\.5px', color: OTTONE/)
+  assert.match(parte, /fontSize: MISURA_VALORE, fontWeight: 600, color: 'var\(--color-green-dark\)'/)
+  for (const voce of ['soggiorni', 'totale speso', 'ricevuta', 'provenienza']) {
+    assert.ok(parte.includes(`etichetta="${voce}"`), `manca la voce «${voce}»`)
+  }
+  // i soggiorni: camera in Georgia 20 px, date e notti in grigio, anno in
+  // ottone solo per gli altri anni, importo a destra
+  assert.match(parte, /export const MISURA_CAMERA = 20\b/)
+  assert.match(parte, /fontFamily: GEORGIA, fontSize: MISURA_CAMERA/)
+  assert.match(parte, /periodoCompatto\(s\.check_in, s\.check_out\)/)
+  assert.match(parte, /anno !== annoCorrente && \(/)
+  assert.match(parte, /data-anno className="shrink-0" style=\{\{ fontSize: 11, color: OTTONE \}\}/)
+  assert.match(parte, /className="shrink-0 ml-auto"/)
+  // senza soggiorni conclusi lo dice, e nota e link restano
+  assert.match(parte, /data-nessun-soggiorno[\s\S]*?Nessun soggiorno concluso/)
+  assert.match(parte, /data-nota-parte-cliente/)
+  assert.match(parte, /data-apri-cliente[\s\S]*?Apri il cliente ›/)
+  // gli importi si scrivono come in tutto il resto del gestionale
+  assert.match(parte, /import \{ euroTondi \} from '@\/lib\/euroTondi'/)
+
+  // nella proposta: la parte sta prima di «Rifiuta la richiesta» e compare
+  // solo per chi conosciamo già
+  const proposta = readFileSync(new URL('../app/richieste/[id]/proposta/page.tsx', import.meta.url), 'utf8')
+  assert.match(proposta, /\{\(soggiorni\.volte > 0 \|\| guest\) && \(/)
+  assert.match(proposta, /<ParteCliente className="mt-10" soggiorni=\{storicoCliente\} totaleCent=\{soggiorni\.ricaviCent\}/)
+  assert.ok(proposta.indexOf('<ParteCliente') < proposta.indexOf('Rifiuta la richiesta'), 'la parte CLIENTE non sta prima di «Rifiuta la richiesta»')
+  // la stella della cliente ottima era già nella testa: resta
+  assert.match(proposta, /stella=\{valutazioneDi\(guest\) === 'ottimo'\}/)
+  const testa = readFileSync(new URL('../components/TestaCliente.tsx', import.meta.url), 'utf8')
+  assert.match(testa, /\{stella && <span aria-label="cliente ottimo"/)
+  // il riconoscimento del cliente è quello di sempre, in un posto solo
+  assert.match(proposta, /clienteDellaRichiesta\(/)
+  assert.equal(/perTelefono \?\? perNome/.test(proposta), false, 'la proposta si è riscritta il riconoscimento')
+})

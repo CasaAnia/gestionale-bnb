@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { soggiorniPrecedenti, etichettaGiaStato, eraGiaStato, stessaPersona, chiEIlCliente } from './clienteCheTorna.ts'
+import { soggiorniPrecedenti, etichettaGiaStato, eraGiaStato, stessaPersona, chiEIlCliente, elencoSoggiorniPersona, soggiorniDellaPersona, clienteDellaRichiesta } from './clienteCheTorna.ts'
 
 const OGGI = '2026-09-05'
 const b = (id: string, check_in: string, check_out: string, guests: { full_name?: string | null; phone?: string | null } | null, extra: Record<string, unknown> = {}) =>
@@ -178,4 +178,60 @@ test('chi è il cliente: già stata qui, già in archivio, prima volta', () => {
   assert.equal(chiEIlCliente(0, false), 'Prima volta')
   // i soggiorni conclusi vincono sempre sull'archivio
   assert.equal(chiEIlCliente(2, false), 'Già stata qui 2 volte')
+})
+
+// ── L'ELENCO DEI SOGGIORNI PER LA PARTE «CLIENTE» (Ania, 12/09/2026) ───────
+// Le stesse regole di sempre — un soggiorno per prenotazione, solo i conclusi,
+// soldi dai segmenti non annullati — ma con tutte le righe, dal più vecchio al
+// più recente: la parte CLIENTE le elenca una per una.
+test('elenco dei soggiorni: camera, date, notti e quanto è costato', () => {
+  const storico = [
+    b('v1', '2025-04-29', '2025-05-04', { full_name: 'Carmela Sabia', phone: '+39 333 000 0080' }, { status: 'completata', total_amount: 680, num_guests: 2, rooms: { name: 'Ambra' } }),
+    // due camere della stessa prenotazione: una riga sola, le camere in ordine
+    b('v2a', '2026-08-12', '2026-08-16', { full_name: 'Carmela Sabia', phone: null }, { status: 'completata', total_amount: 400, num_guests: 2, rooms: { name: 'Amelia' }, group_id: 'g2' }),
+    b('v2b', '2026-08-16', '2026-08-20', { full_name: 'Carmela Sabia', phone: null }, { status: 'completata', total_amount: 280, num_guests: 3, rooms: { name: 'Lena' }, group_id: 'g2' }),
+    // futura: non è conclusa, non entra
+    b('v3', '2026-12-01', '2026-12-03', { full_name: 'Carmela Sabia', phone: '+39 333 000 0080' }, { total_amount: 200, rooms: { name: 'Ambra' } }),
+    // di un'altra persona
+    b('x', '2026-01-01', '2026-01-03', { full_name: 'Marco Bianchi', phone: '333 999 0000' }, { status: 'completata', total_amount: 100 }),
+  ]
+  const elenco = elencoSoggiorniPersona({ telefono: '+39 333 000 0080', nome: 'Carmela', cognome: 'Sabia' }, storico, OGGI)
+  assert.equal(elenco.length, 2)
+  // dal più vecchio al più recente
+  assert.deepEqual(elenco.map(s => s.check_in), ['2025-04-29', '2026-08-12'])
+  assert.deepEqual(elenco[0], { prenotazioneId: 'v1', check_in: '2025-04-29', check_out: '2025-05-04', camere: ['Ambra'], ospiti: 2, notti: 5, totaleCent: 68000 })
+  // le due camere della stessa prenotazione: una riga, 8 notti, 680 €
+  assert.deepEqual(elenco[1].camere, ['Amelia', 'Lena'])
+  assert.equal(elenco[1].notti, 8)
+  assert.equal(elenco[1].totaleCent, 68000)
+  assert.equal(elenco[1].ospiti, 3)
+
+  // il conto della testa dice le stesse cose dell'elenco (stessa persona:
+  // il gruppo senza telefono si riconosce dal nome)
+  const s = soggiorniDellaPersona({ telefono: '+39 333 000 0080', nome: 'Carmela', cognome: 'Sabia' }, storico, OGGI)
+  assert.equal(s.volte, elenco.length)
+  assert.equal(s.ricaviCent, elenco.reduce((t, x) => t + x.totaleCent, 0))
+  assert.equal(s.ultimo?.prenotazioneId, elenco[elenco.length - 1].prenotazioneId)
+
+  // chi non è mai stata qui non ha righe
+  assert.deepEqual(elencoSoggiorniPersona({ nome: 'Prima', cognome: 'Volta' }, storico, OGGI), [])
+})
+
+// Il cliente della richiesta: la stessa regola dell'elenco e della proposta
+test('il cliente della richiesta si riconosce per telefono o per nome', () => {
+  const clienti = [
+    { id: 'c1', full_name: 'Carmela Sabia', phone: '+39 333 000 0080' },
+    { id: 'c2', full_name: 'Rosa Archivio', phone: '+39 333 000 0303' },
+  ]
+  // per telefono, anche scritto in un altro modo
+  assert.equal(clienteDellaRichiesta({ telefono: '3330000080' }, clienti)?.id, 'c1')
+  assert.equal(clienteDellaRichiesta({ telefono: '00393330000080' }, clienti)?.id, 'c1')
+  // per nome e cognome, anche in ordine diverso o con altre maiuscole
+  assert.equal(clienteDellaRichiesta({ nome: 'rosa', cognome: 'ARCHIVIO' }, clienti)?.id, 'c2')
+  assert.equal(clienteDellaRichiesta({ nome: 'Archivio', cognome: 'Rosa' }, clienti)?.id, 'c2')
+  // il telefono vince sul nome
+  assert.equal(clienteDellaRichiesta({ telefono: '+39 333 000 0303', nome: 'Carmela', cognome: 'Sabia' }, clienti)?.id, 'c2')
+  // chi non c'è è una cliente nuova
+  assert.equal(clienteDellaRichiesta({ nome: 'Prima', cognome: 'Volta' }, clienti), null)
+  assert.equal(clienteDellaRichiesta({}, clienti), null)
 })

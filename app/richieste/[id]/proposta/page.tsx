@@ -35,7 +35,8 @@ import type { MotivoRifiuto } from '@/lib/motivoRifiuto'
 import { proponiSoluzioni, alternativaAmelia, personePerNotte, prezziNottiCentesimi, type Soluzione, type PrenotazioneOccupante } from '@/lib/richiesteProposta'
 import { camereDaProporre, camereProponibili, camereDaSpuntare, soluzioniSpuntate, spunteCorrenti, conSpuntaCambiata } from '@/lib/richiesteCamere'
 import { vociStesseDate, voceClienteCheTorna } from '@/lib/richiesteDaControllare'
-import { soggiorniDellaPersona, chiaveNome, type SoggiornoStorico } from '@/lib/clienteCheTorna'
+import { soggiorniDellaPersona, elencoSoggiorniPersona, clienteDellaRichiesta, type SoggiornoStorico } from '@/lib/clienteCheTorna'
+import ParteCliente from '@/components/ParteCliente'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import { provenienzaInParole } from '@/lib/provenienza'
 import { camereAmmesseNotte, cameraSuccessiva, composizioneDaSoluzione, soluzioneDaComposizione, prezziTariffaPerNotte, applicaATutteLeNotti, totaleCentesimi, type Composizione, type PrezziManuali } from '@/lib/richiesteComposizione'
@@ -355,15 +356,25 @@ export default function PropostaPage() {
   // ── Chi è il cliente ──────────────────────────────────────────────────────
   const guest = useMemo(() => {
     if (!richiesta) return null
-    const tel = normalizzaTelefono(richiesta.telefono).numero
-    const chiave = chiaveNome({ nome: richiesta.nome, cognome: richiesta.cognome })
-    const perTelefono = tel ? clienti.find(c => normalizzaTelefono(c.phone as string | null).numero === tel) : undefined
-    const perNome = chiave ? clienti.find(c => chiaveNome({ full_name: (c.full_name as string | null) ?? null }) === chiave) : undefined
-    return (perTelefono ?? perNome ?? null) as { id?: string; rating?: string | null; vuole_ricevuta?: boolean | null; motivo_problematico?: string | null; provenienza?: string | null; struttura_nome?: string | null; notes?: string | null } | null
+    // Il riconoscimento è quello di sempre, scritto in un posto solo
+    // (lib/clienteCheTorna): telefono a cifre, oppure nome e cognome.
+    const trovato = clienteDellaRichiesta(
+      { nome: richiesta.nome, cognome: richiesta.cognome, telefono: richiesta.telefono },
+      clienti as { id?: string; full_name?: string | null; phone?: string | null }[],
+    )
+    return (trovato ?? null) as { id?: string; rating?: string | null; vuole_ricevuta?: boolean | null; motivo_problematico?: string | null; provenienza?: string | null; struttura_nome?: string | null; notes?: string | null } | null
   }, [richiesta, clienti])
   const soggiorni = useMemo(() => {
     if (!richiesta) return { volte: 0, ricaviCent: 0, ultimo: null }
     return soggiorniDellaPersona(
+      { nome: richiesta.nome, cognome: richiesta.cognome, telefono: richiesta.telefono, guest_id: guest?.id ?? null },
+      prenotazioni as unknown as SoggiornoStorico[], oggiIso(),
+    )
+  }, [richiesta, prenotazioni, guest])
+  // I soggiorni conclusi, uno per riga, per la parte CLIENTE in fondo
+  const storicoCliente = useMemo(() => {
+    if (!richiesta) return []
+    return elencoSoggiorniPersona(
       { nome: richiesta.nome, cognome: richiesta.cognome, telefono: richiesta.telefono, guest_id: guest?.id ?? null },
       prenotazioni as unknown as SoggiornoStorico[], oggiIso(),
     )
@@ -1082,6 +1093,14 @@ export default function PropostaPage() {
               className="w-full mt-3 rounded-xl py-3 text-[15px] font-semibold bg-white text-green-dark border active:bg-sage" style={{ borderColor: BORDO }}>
               Conferma → crea la prenotazione
             </button>
+          )}
+          {/* Chi è la cliente: i suoi soggiorni, quanto ha speso, la nota e la
+              sua scheda (Ania, 12/09/2026). Solo per chi conosciamo già: alla
+              prima volta non c'è niente da dire e la parte non compare. */}
+          {(soggiorni.volte > 0 || guest) && (
+            <ParteCliente className="mt-10" soggiorni={storicoCliente} totaleCent={soggiorni.ricaviCent}
+              ricevuta={vuoleRicevuta(guest)} provenienza={provenienzaInParole(guest ?? richiesta)}
+              nota={guest?.notes ?? null} hrefCliente={hrefCliente} />
           )}
           {/* Staccato da tutto il resto: non si tocca per sbaglio */}
           <div className="text-center mt-10 mb-4">

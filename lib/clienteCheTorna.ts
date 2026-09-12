@@ -140,31 +140,46 @@ export type SoggiorniDellaPersona = { volte: number; ricaviCent: number; ultimo:
 
 const importo = (n: number | string | null | undefined) => { const v = Number(n); return Number.isFinite(v) ? Math.round(v * 100) : 0 }
 
-export function soggiorniDellaPersona(
+// Tutti i soggiorni CONCLUSI della persona, uno per prenotazione, dal più
+// vecchio al più recente: la parte CLIENTE li elenca uno per riga (camera,
+// date, notti, quanto è costato). Stesse regole di sempre.
+export type SoggiornoPersona = UltimoSoggiorno & { notti: number; totaleCent: number }
+
+export function elencoSoggiorniPersona(
   persona: PersonaRicerca, prenotazioni: SoggiornoStorico[], oggi: string, escludi?: string | null,
-): SoggiorniDellaPersona {
-  let volte = 0, ricaviCent = 0
-  let ultimo: UltimoSoggiorno | null = null
+): SoggiornoPersona[] {
+  const out: SoggiornoPersona[] = []
   for (const [chiave, segmenti] of raggruppa(prenotazioni)) {
     if (!segmenti.some(b => stessaPersona(persona, b))) continue
     if (esclusa(chiave, segmenti, escludi)) continue
     if (!conclusa(segmenti, oggi)) continue
-    volte += 1
     const vivi = [...attivi(segmenti)].sort((a, b) => a.check_in.localeCompare(b.check_in) || a.check_out.localeCompare(b.check_out) || a.id.localeCompare(b.id))
-    ricaviCent += vivi.reduce((t, s) => t + importo(s.total_amount), 0)
-    const check_in = vivi.reduce((m, s) => (s.check_in < m ? s.check_in : m), vivi[0].check_in)
-    if (ultimo && ultimo.check_in >= check_in) continue
     const camere: string[] = []
     for (const s of vivi) { const n = (s.rooms?.name || '').trim(); if (n && camere[camere.length - 1] !== n) camere.push(n) }
-    ultimo = {
+    const check_in = vivi.reduce((m, s) => (s.check_in < m ? s.check_in : m), vivi[0].check_in)
+    const check_out = vivi.reduce((m, s) => (s.check_out > m ? s.check_out : m), vivi[0].check_out)
+    out.push({
       prenotazioneId: vivi[0].id,
       check_in,
-      check_out: vivi.reduce((m, s) => (s.check_out > m ? s.check_out : m), vivi[0].check_out),
+      check_out,
       camere,
       ospiti: vivi.reduce((m, s) => Math.max(m, Number(s.num_guests) || 1), 1),
-    }
+      notti: Math.max(0, Math.round((Date.parse(`${check_out}T00:00:00Z`) - Date.parse(`${check_in}T00:00:00Z`)) / 86400000)),
+      totaleCent: vivi.reduce((t, s) => t + importo(s.total_amount), 0),
+    })
   }
-  return { volte, ricaviCent, ultimo }
+  return out.sort((a, b) => a.check_in.localeCompare(b.check_in) || a.prenotazioneId.localeCompare(b.prenotazioneId))
+}
+
+export function soggiorniDellaPersona(
+  persona: PersonaRicerca, prenotazioni: SoggiornoStorico[], oggi: string, escludi?: string | null,
+): SoggiorniDellaPersona {
+  const elenco = elencoSoggiorniPersona(persona, prenotazioni, oggi, escludi)
+  return {
+    volte: elenco.length,
+    ricaviCent: elenco.reduce((t, s) => t + s.totaleCent, 0),
+    ultimo: elenco.length > 0 ? elenco[elenco.length - 1] : null,
+  }
 }
 
 // ── Il cliente di una richiesta, se esiste già in archivio ─────────────────
