@@ -273,3 +273,67 @@ normali e va a capo solo col soggiorno lungo di 10 notti e «2 → 3 → 2».
 richiesta non ha il numero di telefono (nell'anteprima: «Sara Verdi»). Non è
 una regressione — è così da sempre e non l'ho toccato — ma se le vuoi sempre
 a schermo va deciso cosa devono fare senza numero.
+
+## Comandi delle Richieste, terza passata (12/09/2026, Claude)
+
+Pubblicata e verificata: commit `c24929e` su `main`, deploy Vercel `success`
+(Production, `c24929e`). Chiude il punto 2 della seconda passata, che Ania dal
+telefono trovava ancora troppo piccolo.
+
+**Le due righe di parole a 14 px.** In `ComandiPagina` `TESTO_RIGHE` passa da
+12,5 a 14: 14 px è la misura MINIMA chiesta da Ania, non una preferenza. La
+riga cresce a 20 px e il riempimento scende a 12 sopra e 12 sotto, così l'area
+da toccare resta esattamente 44 px. Il resto del disegno non cambia: pallino
+d'ottone 7 px, «3 da guardare» bold `#7A5C1E`, coda grigia, la scelta
+dell'ordinamento in green-mid bold con la sottolineatura d'ottone chiaro.
+
+**Via il titolo «Richieste».** `TestataRichieste` non ha più l'`<h1>` in
+Georgia 26: la barra in alto della pagina dice già dov'è e leggerlo due volte
+rubava una riga di schermo. La prima cosa della pagina è adesso
+«N aperte · N nuove dal sito», che sale da 12,5 a 13,5 px. Tolto anche
+`TITOLO_RICHIESTE` da `lib/testataRichieste.ts`: non lo usa più nessuno.
+
+**Punti 1 e 3 dell'incarico erano già in produzione** con la seconda passata
+(`744ca93`/`8e49cf7` il selettore unico, `cd8c59f`/`fbcef16` il grassetto e la
+parola «camera» tolta, con la seconda riga già a 13,5 px). Riverificati a
+schermo, non riscritti.
+
+**Prove.** 1038 test verdi, TypeScript e build puliti, lint senza diagnostiche
+sui file toccati — eseguiti su una COPIA FERMA del candidato (`git worktree`
+su `c24929e`), perché l'albero principale aveva lavoro in corso di un'altra
+attività. Casi nuovi in `lib/testataRichieste.test.ts` (niente `<h1>` e niente
+`fontFamily`, il conto a 13,5, `TITOLO_RICHIESTE` sparito dalla libreria, il
+conto è la prima cosa della pagina) e in `lib/richieste.test.ts` (le righe di
+parole a 14 px, con il controllo che non riscendano sotto; riga 20 px e
+riempimento 12). Anteprima senza rete a 390×844 (porta 3214), misurato a
+schermo: conto 13,5 px stone; «3 da guardare» 14 px, bold `rgb(122,92,30)`,
+riga alta 44; «Ordina per» 14 px stone, scelta green-mid 700 con
+`underline 1px rgba(169,136,78,0.45)`, riga alta 44; nessun `<h1>`. Filtro
+acceso («3 da guardare · mostra tutte», 28 → 3 richieste) e spento dalla UI
+vera. Pillola identica nelle due pagine, misurata su tutt'e due: alta 30,5,
+`1px solid rgb(201,191,168)`, riempimento 2, fondo trasparente, parole 11 px
+peso 600, area da toccare 44,5.
+
+**Le icone di contatto: caso chiuso.** Ania: «il cliente non può mandare la
+richiesta senza aver inserito il numero». È vero nel codice: `lib/richiesteWeb`
+rifiuta la richiesta dal sito con «Numero di telefono mancante o troppo corto»
+(meno di 8 cifre). Quindi sulle richieste vere le due icone ci sono sempre e
+non c'è niente da cambiare. Resta un solo modo per creare una richiesta senza
+numero: scriverla a mano in `/richieste/nuova`, dove il campo Telefono non è
+obbligatorio. Se dà fastidio si rende obbligatorio anche lì — è
+`components/richieste/ModuloRichiesta.tsx`, oggi in carico a un'altra attività.
+
+**Un commit di un'altra chat era finito insieme al mio.** Mentre lavoravo,
+un'altra attività ha creato `5609e2d` («Nell'ordinamento torna la parola
+"durata"») che aveva raccolto anche i miei file, già pronti nell'indice. L'ho
+diviso in due commit senza perdere niente: `b92184e` con il solo lavoro loro
+(`lib/comandiRichieste.ts` e la riga di prova sulle tre parole, messaggio
+originale conservato) e `c24929e` col mio. L'albero dei due commit è identico
+a quello di `5609e2d` (`git diff` vuoto). Le loro modifiche non salvate
+(`app/prenotazioni/[id]/page.tsx`, `lib/condizioniPrenotazione.ts`,
+`components/richieste/ModuloRichiesta.tsx`, `lib/richiesteWeb.ts`,
+`lib/whatsapp.ts`, `lib/whatsapp.test.ts`) non sono state toccate né spinte.
+
+**«durata» e non «notti».** L'incarico diceva «Ordina per arrivo notti
+persone», ma la scelta più recente salvata è «durata». Chiesto ad Ania, che ha
+confermato «durata»: la riga si legge «Ordina per arrivo durata persone».
