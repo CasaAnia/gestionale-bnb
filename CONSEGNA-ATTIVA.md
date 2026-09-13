@@ -734,3 +734,96 @@ Da decidere con Ania: quando spegnere la scheda vecchia.
 
 Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
 `lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
+
+## La striscia delle notti: un pezzo solo, e si cambia di lì (13/09/2026, Claude)
+
+Bozza approvata da Ania. La striscia mostra e fa cambiare, in un colpo solo,
+la camera di ogni notte e il letto in più: **sostituisce il foglio «Modifica
+soggiorno» a tre passi**, che dalla scheda nuova è sparito. Restano «Modifica
+arrivo» e «Arrivi precedenti».
+
+**Tre pezzi, un commit per punto.**
+
+- `lib/strisciaNotti.ts` (`767977b`) — le regole, in un posto solo. Le notti
+  lette dai tratti salvati, il riassunto «2 cambi camera · letto in più 4
+  notti», gli avvisi delle notti senza camera, le camere libere di quella
+  notte, il letto disponibile, le tre modifiche del foglietto e il piano di
+  salvataggio. **Niente regole riscritte**: chi è libero viene da
+  `lib/disponibilita`, i due letti di casa da `lib/lettiAggiuntivi`, capienze
+  e prezzi da `lib/tariffe` e `lib/prezzoNotti`, lo sconto da `lib/conto`.
+- `components/StrisciaNottiCamere.tsx` (`0085bab`) — il disegno. **Il nome
+  non è `StrisciaNotti.tsx` perché quel nome è già preso** dalla striscia
+  delle richieste (persone/camera per notte), usata da `/richieste/[id]/proposta`
+  e da `ModuloRichiesta`: non è stata toccata.
+- `components/FoglioNotte.tsx` (`62997cc`) — il foglietto della notte, e
+  `components/scheda/Foglio.tsx` accetta il titolo `grande` (Georgia 18).
+- `app/scheda/[id]/page.tsx` (`1028544`) — la striscia al posto di quella di
+  prima, il foglietto che si apre nella scheda e il salvataggio; più la
+  rifinitura delle aree da toccare (`ed4272a`).
+  `components/scheda/StrisciaNottiScheda.tsx` è stato cancellato: non lo usava
+  più nessuno. `caselleSoggiorno` resta in `lib/schedaPrenotazione` perché la
+  usa ancora «Da controllare» (cambio camera di oggi o domani).
+
+**Due decisioni di Ania, chieste prima di scrivere.** La notte spostata in
+un'altra camera prende il **listino della camera nuova**; con più di sette
+notti il giorno va **«gio» sopra e il numero sotto**.
+
+**Come salva.** Le notti attaccate con la stessa camera tornano a essere un
+tratto solo: i tratti si aggiornano, quelli nuovi si creano, quelli rimasti
+senza notti si **annullano** (mai cancellati: l'incasso registrato deve
+restare nel conto). **Un tratto rimasto identico non si tocca**, così la
+tariffa concordata non viene riscritta col listino — trovato provando dalla
+UI vera, dove Amelia a 65 € era diventata 50 €. Se manca il gruppo del
+soggiorno se ne fa uno, come fa la scheda attuale; orario e navetta seguono
+la riga che arriva per prima; se la riga aperta viene annullata la scheda
+passa da sola alla prima rimasta. Ogni scrittura passa da `salvaInSequenza`.
+
+**Cosa NON fa, e va detto ad Ania.**
+- **Due camere nelle stesse notti**: la striscia resta ferma e lo scrive
+  («si spostano dalla scheda completa»). Con due linee parallele una notte non
+  ha una camera sola e il foglietto non saprebbe quale cambiare.
+- **Allungare il soggiorno** (aggiungere una notte prima o dopo) dalla
+  striscia non si può: si fa da «Vedi tutto». Dalla striscia si tolgono notti
+  («Non dorme qui»), non se ne aggiungono.
+- **Totale concordato** (`target_total`): se la modifica lo fa decadere il
+  salvataggio si ferma e lo dice, invece di far sparire lo sconto in silenzio.
+- Quando una modifica **abbassa il totale sotto quanto già incassato** resta
+  un credito che la scheda non evidenzia: il conto dice «Saldato». Non è una
+  cosa nuova di questo blocco, ma adesso capita più facilmente.
+- La notte con il «?» rosso (camera da scegliere) non nasce dai dati di una
+  prenotazione esistente: è pronta per l'inserimento di una nuova
+  prenotazione, dove la stessa striscia servirà.
+
+**Prove.** 1150 test verdi (`npm test`), TypeScript e build puliti, lint senza
+diagnostiche sui file toccati. Nuovi casi in `lib/strisciaNotti.test.ts` (34:
+la striscia senza cambi, con uno e con due; la notte senza camera e il suo
+avviso; la notte «non dorme qui» esclusa dal conto e il soggiorno che si
+spezza; l'ultima notte che non si può togliere; le camere libere e quelle
+occupate; la capienza che avvisa senza bloccare; i letti di casa finiti;
+Annulla che non tocca la striscia di partenza; il conto che segue il listino;
+il tratto identico che non si riscrive; lo sconto in percentuale e quello
+concordato che decade; il disegno e il foglietto letti dai sorgenti) e in
+`lib/scheda.test.ts` (la striscia nuova nella scheda, «Modifica soggiorno»
+sparito, il salvataggio che annulla e non cancella, le due camere parallele).
+
+Anteprima senza rete a 390×844 (porta 3213), dalla UI vera: Carmela Sabia
+(sei notti, due cambi) — Annulla che non cambia niente (striscia e conto
+identici), la notte del 16 spostata in Ambra (quattro tratti, conto 470 →
+460 €, Amelia resta a 65 €), la notte del 15 tolta dal soggiorno (conto 380 €,
+«5 notti» in testa); un soggiorno di **10 notti** (colonnine da 44 px, giorno
+su due righe, la striscia scorre dentro i margini, `scrollWidth` del corpo
+390); un soggiorno **con una pausa** (la notte «libera» tratteggiata, quattro
+notti contate). Letto non disponibile provato occupando davvero i due letti
+di casa in una notte: «Sì» spento con «non disponibile», e le camere occupate
+sparite dall'elenco. A 1280 px colonnine da 111 px e foglietto al centro.
+Nell'anteprima `room_id` è ora scrivibile e ci sono i due soggiorni di prova.
+
+**Attenzione, non è roba nostra.** `scripts/revisioni/letto-riapertura.test.mjs`
+e `conto-prenotazione.test.mjs` falliscono (16 casi) **già sul commit base
+`5468e29`**, con `salvaLetto is not defined`: leggono le funzioni dentro
+`app/prenotazioni/[id]/page.tsx`, che è in carico a un'altra attività. Non è
+una regressione di questo blocco — verificato eseguendo gli stessi test su una
+copia ferma del base e del candidato: 36 verdi e 16 rossi in tutti e due.
+
+Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
+`lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
