@@ -403,11 +403,16 @@ test('la fascia dei comandi ha la veste della fascia della scheda', () => {
   assert.match(fascia, /py-\[15px\] -my-\[15px\]/)
   assert.match(fascia, /export const ALTEZZA_TOCCO = 44/)
 
-  // «+ Nuova richiesta» resta la piccola etichetta sage di prima
+  // «+ Nuova richiesta»: etichetta sage, ma nella misura del 13/09/2026 —
+  // alta 30 px come l'interruttore che le sta accanto, testo 13 bold, 12 px
+  // ai lati, angoli 6 (a 24 px era diventata troppo piccola)
   const comandi = readFileSync(new URL('../components/richieste/ComandiPagina.tsx', import.meta.url), 'utf8')
-  assert.match(comandi, /export const ALTEZZA_TASTO = 24/)
+  assert.match(comandi, /export const ALTEZZA_TASTO = 30/)
+  assert.match(comandi, /export const ANGOLI_TASTO = 6/)
   assert.match(comandi, /bg-sage text-green-mid/)
-  assert.match(comandi, /height: ALTEZZA_TASTO, padding: '0 9px', borderRadius: ANGOLI_VOCE, fontSize: 11\.5, fontWeight: 700/)
+  assert.match(comandi, /height: ALTEZZA_TASTO, padding: '0 12px', borderRadius: ANGOLI_TASTO, fontSize: 13, fontWeight: 700/)
+  // il testo sta al centro del tasto, in verticale e in orizzontale
+  assert.match(comandi, /inline-flex items-center justify-center shrink-0 leading-none/)
   // le pastiglie e le righe di parole non ci sono più
   assert.equal(/EtichettaAvviso|TastoAvviso|AVVISO_SITO|AVVISO_GUARDARE|InterruttoreSquadrato|RigaOrdina|RigaDaGuardare/.test(comandi), false)
   assert.equal(/#EFE2C7|#EFEADF/.test(comandi), false, 'i fondi delle pastiglie sono ancora qui')
@@ -465,6 +470,8 @@ test('sotto il calendario la fascia sta dopo l\u2019interruttore', () => {
   const tasto = dove('<TastoNuovaRichiesta />')
   assert.ok(tasto - riga1 < 200, 'interruttore e «+ Nuova richiesta» non sono sulla stessa riga')
   assert.match(sotto, /justify-between/)
+  // stesso asse: l'interruttore e il tasto stanno al centro della loro riga
+  assert.match(sotto, /<div className="flex items-center justify-between gap-3 mt-3">/)
   // riga 2: la fascia, con l'ordine e il filtro attaccati allo stato
   const fascia = dove('<FasciaComandi')
   assert.ok(tasto < fascia, 'la fascia non sta sotto la riga dell\u2019interruttore')
