@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import BackBar from '@/components/BackBar'
 import CampoRicerca from '@/components/CampoRicerca'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 import { oggiARoma } from '@/lib/spese/adattatore'
 import { spostaGiorni } from '@/lib/statistiche/periodo'
 import { dataDiOggi, rigaClienteTrovato } from '@/lib/nuovaPrenotazione'
@@ -47,7 +48,13 @@ import ComePaga from '@/components/ComePaga'
 import ConLei from '@/components/nuova/ConLei'
 import { oraDigitata } from '@/lib/ora'
 import { PERSONE_CON_LEI_MAX, TROPPE_PERSONE, type PersonaConLei } from '@/lib/nuovaPrenotazione'
-import type { ComePaga as ComePagaModo } from '@/lib/comePaga'
+import { campiComePaga, chiedeScadenza as chiedeScadenzaComePaga, type ComePaga as ComePagaModo } from '@/lib/comePaga'
+import ContoNuova from '@/components/nuova/ContoNuova'
+import { campiConLei, campiSconto } from '@/lib/nuovaPrenotazione'
+import { rigaDaSalvare, problemi } from '@/lib/prenotazioneComposta'
+import { colonnaMancante } from '@/lib/colonnaMancante'
+import { lettiOccupatiPerNotte } from '@/lib/lettiAggiuntivi'
+import { oraCompleta } from '@/lib/ora'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 const OTTONE = '#A9884E'
@@ -99,6 +106,7 @@ export const SENZA_TELEFONO = 'Il numero di telefono è obbligatorio: senza non 
 export const SENZA_NOME = 'Del cliente nuovo serve il nome.'
 
 export default function NuovaPrenotazionePage() {
+  const router = useRouter()
   const oggi = oggiARoma()
   const [ricerca, setRicerca] = useState('')
   const [risultati, setRisultati] = useState<ClienteRiga[]>([])
@@ -127,6 +135,8 @@ export default function NuovaPrenotazionePage() {
   const [caparraOra, setCaparraOra] = useState('')
   const [persone, setPersone] = useState<PersonaConLei[]>([])
   const [nota, setNota] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [guai, setGuai] = useState<string[]>([])
 
   useEffect(() => {
     let vivo = true
@@ -301,6 +311,69 @@ export default function NuovaPrenotazionePage() {
     }
   }
 
+  // ── il salvataggio ───────────────────────────────────────────────────────
+  // Le righe le scrive rigaDaSalvare, le stesse di sempre; i controlli sono
+  // quelli di lib/prenotazioneComposta (camere, capienza, letti della casa).
+  async function salva() {
+    if (salvando || !cliente) return
+    const lettiAltrui = lettiOccupatiPerNotte(altre.filter(a => a.status === 'confermata' || a.status === 'completata'))
+    const fuori = problemi(periodiColLetto, id => (camere.find(c => c.id === id) as CameraComposta | undefined) ?? null, lettiAltrui)
+    if (orario && !oraCompleta(orario)) fuori.push('L’orario di arrivo è incompleto: scrivi per esempio 15:30.')
+    if (chiedeScadenzaComePaga(comePaga) && Boolean(caparraData) !== Boolean(caparraOra)) fuori.push('Della caparra servono data e ora, oppure nessuna delle due.')
+    if (comePaga === 'caparra' && (!caparra || caparra <= 0)) fuori.push('La caparra deve essere un importo positivo.')
+    setGuai(fuori)
+    if (fuori.length > 0) return
+
+    setSalvando(true)
+    const prenotazioneId = crypto.randomUUID()
+    const gruppi = new Map<string, string>()
+    for (const l of linee) gruppi.set(l.gruppo, crypto.randomUUID())
+    const pagamento = campiComePaga(comePaga, {
+      totaleCent: conto.daPagareCent,
+      importoCent: caparra == null ? null : Math.round(caparra * 100),
+      entro: caparraData && caparraOra ? `${caparraData}T${caparraOra}:00` : null,
+    })
+    const comuni: Record<string, unknown> = {
+      guest_id: cliente.id, status: 'confermata', source: 'diretta', pagato: false,
+      bonifico: pagamento.bonifico,
+      notes: nota.trim() || null,
+      ...(oraCompleta(orario) ? { check_in_time: orario } : {}),
+      ...(navetta ? { shuttle: navetta } : {}),
+      ...campiConLei(persone),
+      ...campiSconto(conto.totaleCent, sconto, periodi.length === 1),
+    }
+    const primo = [...periodiColLetto].sort((a, z) => a.checkIn.localeCompare(z.checkIn))[0]?.id
+    const righe = periodiColLetto.map(p => ({
+      ...rigaDaSalvare(p, camere.find(c => c.id === p.roomId) as CameraComposta, gruppi.get(p.gruppo)!),
+      ...comuni,
+      prenotazione_id: prenotazioneId,
+      accordo_pagamento: pagamento.accordo_pagamento,
+      ...(p.id === primo ? { caparra_centesimi: pagamento.caparra_centesimi, caparra_entro: pagamento.caparra_entro } : {}),
+      ...(p.nottiLetto.length > 0 ? { extra_bed_importo: letto.importo, extra_bed_criterio: letto.criterio } : {}),
+    }))
+
+    // Le colonne arrivate dopo possono mancare: si toglie SOLO quella e si
+    // riprova, come fa l'inserimento di adesso.
+    const facoltative = new Set(['prenotazione_id', 'extra_bed_importo', 'extra_bed_criterio', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro'])
+    let tentativo: Record<string, unknown>[] = righe
+    let esito = await supabase.from('bookings').insert(tentativo).select('id, check_in')
+    for (let giro = 0; giro < 6 && esito.error; giro++) {
+      const colonna = colonnaMancante(esito.error)
+      if (!colonna || !facoltative.has(colonna)) break
+      const togli = ['extra_bed_importo', 'extra_bed_criterio'].includes(colonna) ? ['extra_bed_importo', 'extra_bed_criterio'] : [colonna]
+      tentativo = tentativo.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => !togli.includes(k))))
+      esito = await supabase.from('bookings').insert(tentativo).select('id, check_in')
+    }
+    setSalvando(false)
+    if (esito.error || !esito.data?.length) {
+      setGuai([`La prenotazione non è stata salvata: ${esito.error?.message ?? 'errore sconosciuto'}`])
+      return
+    }
+    // si apre la scheda della prenotazione appena fatta
+    const prima = [...esito.data].sort((a, z) => String(a.check_in).localeCompare(String(z.check_in)))[0]
+    router.push(`/scheda/${prima.id}?salvata=1`)
+  }
+
   return (
     <div className="py-4 px-[22px] md:max-w-[620px] md:mx-auto">
       <div className="-mx-[6px]"><BackBar href="/prenotazioni" /></div>
@@ -455,6 +528,14 @@ export default function NuovaPrenotazionePage() {
               <textarea rows={2} data-campo="nota" value={nota} onChange={e => setNota(e.target.value)} style={{ ...stileCampo, resize: 'none' }} />
             </RigaCampo>
           </section>
+
+          {/* ── Il conto, sempre in vista ───────────────────────────────── */}
+          {guai.length > 0 && (
+            <div data-guai className="mt-6">
+              {guai.map(g => <AvvisoAzione key={g} testo={g} className="mt-2" />)}
+            </div>
+          )}
+          <ContoNuova className="mt-6" conto={conto} onSalva={() => void salva()} salvaSpento={salvando || conto.daPagareCent === null} />
         </>
       )}
 

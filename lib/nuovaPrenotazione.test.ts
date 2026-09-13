@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import {
   dataDiOggi, volteInParole, rigaClienteTrovato, camereDelPeriodo, rigaCamereLibere,
   ospitiPossibiliNotte, ospitiDellaNotte, listinoLetto, raggruppaPerCamera, datiLinea, nottiDellaLinea,
-  CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX,
+  CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
 } from './nuovaPrenotazione.ts'
 import type { PeriodoComposto } from './prenotazioneComposta.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -248,4 +248,91 @@ test('le persone in più stanno nelle due colonne di sempre', () => {
   ])
   assert.equal(JSON.stringify(tre).includes('"C"'), false)
   assert.match(pagina, /persone\.length > PERSONE_CON_LEI_MAX \? TROPPE_PERSONE : null/)
+})
+
+// ── 5. IL CONTO ────────────────────────────────────────────────────────────
+const contoNuova = readFileSync(new URL('../components/nuova/ContoNuova.tsx', import.meta.url), 'utf8')
+
+const periodo = (id: string, roomId: string, dal: string, al: string, extra: Partial<PeriodoComposto> = {}): PeriodoComposto => ({
+  id, gruppo: 'g', roomId, checkIn: dal, checkOut: al, ospiti: 2, nottiLetto: [], letto: null, tariffa: null, ...extra,
+})
+const trova = (id: string | null) => (CAMERE.find(c => c.id === id) as never) ?? null
+
+test('il conto: una riga per camera, il totale e quanto c’è da pagare', () => {
+  const conto = contoNuovaPrenotazione([periodo('a', AMBRA.id, '2026-12-05', '2026-12-09')], trova, { tipo: 'nessuno', valore: null })
+  assert.deepEqual(conto.righe.map(r => [r.titolo, r.dettaglio, r.importo]), [['Ambra', '4 notti × 80 €', '320 €']])
+  assert.equal(conto.totale, '320 €')
+  assert.equal(conto.sconto, null)
+  assert.equal(conto.daPagare, '320 €')
+  assert.equal(conto.aNotte, '4 notti · 80 € a notte')
+})
+
+test('il conto con lo sconto nei due modi', () => {
+  const periodi = [periodo('a', AMBRA.id, '2026-12-05', '2026-12-09')]
+  const percentuale = contoNuovaPrenotazione(periodi, trova, { tipo: 'percentuale', valore: 10 })
+  assert.equal(percentuale.sconto, '32 €')
+  assert.equal(percentuale.daPagare, '288 €')
+  assert.equal(scontoInParole(percentuale.totaleCent, { tipo: 'percentuale', valore: 10 }), '320 € → 288 €')
+  const finale = contoNuovaPrenotazione(periodi, trova, { tipo: 'finale', valore: 300 })
+  assert.equal(finale.sconto, '20 €')
+  assert.equal(finale.daPagare, '300 €')
+  // un «prezzo finale» più alto del totale non è uno sconto: non si applica
+  assert.equal(contoNuovaPrenotazione(periodi, trova, { tipo: 'finale', valore: 400 }).sconto, null)
+})
+
+test('il conto con il letto in più e con due camere insieme', () => {
+  const conLetto = [periodo('a', LENA.id, '2026-12-05', '2026-12-07', {
+    ospiti: 4, nottiLetto: ['2026-12-05', '2026-12-06'], letto: { importo: 10, criterio: 'notte' },
+  })]
+  const conto = contoNuovaPrenotazione(conLetto, trova, { tipo: 'nessuno', valore: null })
+  assert.deepEqual(conto.righe.map(r => r.titolo), ['Lena', 'Letto in più'])
+  assert.equal(conto.righe[1].dettaglio, '2 notti')
+  assert.equal(conto.righe[1].importo, '20 €')
+  assert.equal(conto.daPagare, '200 €')   // 90 × 2 notti + 20 di letto
+
+  const due = contoNuovaPrenotazione([
+    periodo('a', AMBRA.id, '2026-12-05', '2026-12-07'),
+    { ...periodo('b', AMELIA.id, '2026-12-05', '2026-12-07'), gruppo: 'g2', ospiti: 1 },
+  ], trova, { tipo: 'nessuno', valore: null })
+  assert.deepEqual(due.righe.map(r => r.titolo), ['Ambra', 'Amelia'])
+  assert.equal(due.daPagare, '300 €')     // 160 + 140
+  assert.equal(due.notti, 2, 'le notti in parallelo si contano una volta sola')
+})
+
+test('finché manca una camera il conto non inventa un numero', () => {
+  const senza = contoNuovaPrenotazione([periodo('a', '', '2026-12-05', '2026-12-07')], trova, { tipo: 'nessuno', valore: null })
+  assert.equal(senza.totale, null)
+  assert.equal(senza.daPagare, null)
+  assert.equal(contoNuovaPrenotazione([], trova, { tipo: 'nessuno', valore: null }).totale, null)
+})
+
+test('come si salva lo sconto: percentuale, oppure totale concordato', () => {
+  assert.deepEqual(campiSconto(32000, { tipo: 'nessuno', valore: null }, true), {})
+  assert.deepEqual(campiSconto(32000, { tipo: 'percentuale', valore: 10 }, true), { discount_type: 'percentage', discount_value: 10 })
+  assert.deepEqual(campiSconto(32000, { tipo: 'finale', valore: 300 }, true), { discount_type: 'target_total', discount_value: 300 })
+  // con due camere il totale concordato diventa una percentuale, come fa oggi l'inserimento
+  assert.deepEqual(campiSconto(40000, { tipo: 'finale', valore: 300 }, false), { discount_type: 'percentage', discount_value: 25 })
+})
+
+test('il disegno del conto: misure e Georgia', () => {
+  assert.match(contoNuova, /fontSize: 14\.5, color: 'var\(--color-green-dark\)'/)
+  assert.match(contoNuova, /fontSize: 12, color: 'var\(--color-stone\)', marginTop: 1/)
+  assert.match(contoNuova, /fontFamily: GEORGIA, fontSize: 17/)
+  assert.match(contoNuova, /data-totale[\s\S]{0,200}borderTop: `1px solid \$\{FILO_OTTONE\}`/)
+  assert.match(contoNuova, /fontFamily: GEORGIA, fontSize: 22/)
+  assert.match(contoNuova, /data-sconto-riga[\s\S]{0,200}color: OTTONE/)
+  assert.match(contoNuova, /− \{conto\.sconto\}/)
+  assert.match(contoNuova, /fontFamily: GEORGIA, fontSize: 28/)
+  assert.match(contoNuova, /data-a-notte className="text-right"[\s\S]{0,120}fontSize: 12, color: 'var\(--color-stone\)'/)
+  assert.match(contoNuova, /export const SALVA = 'Salva la prenotazione'/)
+})
+
+test('il salvataggio scrive le righe di sempre e apre la scheda nuova', () => {
+  assert.match(pagina, /import \{ rigaDaSalvare, problemi \} from '@\/lib\/prenotazioneComposta'/)
+  assert.match(pagina, /const fuori = problemi\(periodiColLetto,/)
+  assert.match(pagina, /rigaDaSalvare\(p, camere\.find/)
+  assert.match(pagina, /campiComePaga\(comePaga, \{/)
+  assert.match(pagina, /router\.push\(`\/scheda\/\$\{prima\.id\}\?salvata=1`\)/)
+  // la caparra si scrive una volta sola, sulla riga che arriva per prima
+  assert.match(pagina, /p\.id === primo \? \{ caparra_centesimi: pagamento\.caparra_centesimi, caparra_entro: pagamento\.caparra_entro \} : \{\}/)
 })

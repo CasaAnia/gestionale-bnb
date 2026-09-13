@@ -88,6 +88,10 @@ export type ContoNuova = {
   daPagareCent: number | null
   notti: number
   aNotte: string                 // «5 notti · 77,40 € a notte»
+  // già scritti, così il disegno non rifà nessun conto
+  totale: string | null
+  sconto: string | null
+  daPagare: string | null
 }
 
 export type ScontoNuova = { tipo: 'nessuno' | 'percentuale' | 'finale'; valore: number | null }
@@ -143,6 +147,9 @@ export function contoNuovaPrenotazione(
     daPagareCent,
     notti: n,
     aNotte: n > 0 && daPagareCent !== null ? `${n} ${n === 1 ? 'notte' : 'notti'} · ${fmt(Math.round(daPagareCent / n))} a notte` : '',
+    totale: totaleCent === null ? null : fmt(totaleCent),
+    sconto: scontoCent > 0 ? fmt(scontoCent) : null,
+    daPagare: daPagareCent === null ? null : fmt(daPagareCent),
   }
 }
 
