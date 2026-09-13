@@ -6,6 +6,8 @@
 // cambiano. I prezzi e i letti restano quelli delle regole di sempre
 // (lib/tariffe, lib/prezzoNotti): qui si compone, non si inventano listini.
 import { accordoPrenotazione, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
+import ComePaga, { TITOLO_COME_PAGA } from '@/components/ComePaga'
+import { NOME_COME_PAGA, FRASE_COME_PAGA, comePagaSalvato, campiComePaga, chiedeImporto, chiedeScadenza, type ComePaga as ComePagaModo } from '@/lib/comePaga'
 import { righeStorico, testoCamere } from '@/lib/storicoCliente'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -60,10 +62,7 @@ type SoggiornoConcluso = {
   annullata: boolean; motivo: string | null
 }
 type Contatto = { nome: string; chiE: string; telefono: string }
-type Accordo = {
-  modo: 'contanti' | 'bonifico_arrivo' | 'bonifico_intero' | 'caparra_meta' | 'caparra_libera'
-  importo: number | null; data: string; ora: string
-}
+type Accordo = { modo: ComePagaModo; importo: number | null; data: string; ora: string }
 
 const MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
 const euro = (n: number) => n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
@@ -76,11 +75,6 @@ function periodoBreve(dal: string, al: string) {
   const [yb, mb, db] = al.split('-').map(Number)
   return ma === mb && ya === yb ? `${da}→${db} ${MESI[mb - 1]} ${String(yb).slice(2)}` : `${da} ${MESI[ma - 1]}→${ggAnno(al)}`
 }
-const ETICHETTA_ACCORDO: Record<Accordo['modo'], string> = {
-  contanti: 'Contanti all’arrivo', bonifico_arrivo: 'Bonifico all’arrivo', bonifico_intero: 'Bonifico · intero importo',
-  caparra_meta: 'Bonifico · caparra del 50%', caparra_libera: 'Bonifico · caparra personalizzata',
-}
-
 export default function NuovaPrenotazionePage() {
   return <Suspense><NuovaPrenotazione /></Suspense>
 }
@@ -166,8 +160,8 @@ function NuovaPrenotazione() {
   const totale = pieno === null ? null : Math.round((pieno - valoreSconto) * 100) / 100
   const righe = righeConto(periodi, trovaCamera)
   const caparra = prenotazioneDaUrl ? (accordoCaricato?.caparra_centesimi == null ? null : accordoCaricato.caparra_centesimi / 100) : totale === null ? null
-    : accordo.modo === 'caparra_meta' ? Math.round(totale * 50) / 100
-    : accordo.modo === 'caparra_libera' ? accordo.importo
+    : accordo.modo === 'meta' ? Math.round(totale * 50) / 100
+    : accordo.modo === 'caparra' ? accordo.importo
     : null
   const scelto = Boolean(cliente || nuovo)
   const nomeCliente = cliente?.full_name ?? nuovo?.nome ?? ''
@@ -236,7 +230,7 @@ function NuovaPrenotazione() {
       const b = accordoPrenotazione(data as RigaPrenotazione[])!
       setAccordoEsistente(b); setErroreAggiunta(null)
       const d = b.caparra_entro ? new Date(b.caparra_entro) : null
-      setAccordo({ modo: (b.accordo_pagamento || (b.bonifico ? 'bonifico_arrivo' : 'contanti')) as Accordo['modo'], importo: b.caparra_centesimi == null ? null : b.caparra_centesimi/100,
+      setAccordo({ modo: comePagaSalvato(b.accordo_pagamento, b.bonifico), importo: b.caparra_centesimi == null ? null : b.caparra_centesimi/100,
         data: d ? iso(d) : '', ora: d ? `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` : '' })
     })
     return () => { vivo=false }
@@ -430,11 +424,11 @@ function NuovaPrenotazione() {
     if (nuovo && !nuovo.telefono.trim()) guai.push('Del cliente nuovo serve il telefono.')
     if (nuovo && strutture.disponibile && !provenienza.provenienza) guai.push('Scegli come ci ha trovato.')
     if (provenienza.provenienza === 'altra_struttura' && !provenienza.struttura.trim()) guai.push('Scegli o scrivi quale struttura.')
-    if ((accordo.modo === 'caparra_meta' || accordo.modo === 'caparra_libera') && Boolean(accordo.data) !== Boolean(accordo.ora)) guai.push('Della caparra servono data e ora, oppure nessuna delle due.')
+    if (chiedeScadenza(accordo.modo) && Boolean(accordo.data) !== Boolean(accordo.ora)) guai.push('Della caparra servono data e ora, oppure nessuna delle due.')
     if (accordo.ora && !oraCompleta(accordo.ora)) guai.push('L\'ora della caparra è incompleta: scrivi per esempio 18:00.')
     if (orario && !oraCompleta(orario)) guai.push('L\'orario di arrivo è incompleto: scrivi per esempio 15:30.')
-    if (accordo.modo === 'caparra_libera' && (!accordo.importo || !Number.isFinite(accordo.importo) || accordo.importo <= 0)) guai.push('La caparra deve essere un importo positivo.')
-    if (!prenotazioneDaUrl && accordo.modo === 'caparra_libera' && accordo.importo && totale !== null && accordo.importo > totale) guai.push('La caparra non può superare il totale.')
+    if (chiedeImporto(accordo.modo) && (!accordo.importo || !Number.isFinite(accordo.importo) || accordo.importo <= 0)) guai.push('La caparra deve essere un importo positivo.')
+    if (!prenotazioneDaUrl && chiedeImporto(accordo.modo) && accordo.importo && totale !== null && accordo.importo > totale) guai.push('La caparra non può superare il totale.')
     if (conflitti.length > 0) guai.push(...conflitti)
     setErrori(guai)
     if (guai.length > 0) return
@@ -518,12 +512,12 @@ function NuovaPrenotazione() {
           setErrori(['Non riesco a confermare la prenotazione e il cliente a cui aggiungere questa camera. Riapri la scheda.']); return
         }
         const esistente = accordoPrenotazione(data as RigaPrenotazione[])!
-        accordoDaSalvare = (esistente.accordo_pagamento || (esistente.bonifico ? 'bonifico_arrivo' : 'contanti')) as Accordo['modo']
+        accordoDaSalvare = comePagaSalvato(esistente.accordo_pagamento, esistente.bonifico)
       }
       const contattoUno = contatti[0]
       const comuni = {
         guest_id: guestId, status: 'confermata', source: 'diretta', pagato: false,
-        bonifico: accordoDaSalvare !== 'contanti',
+        bonifico: campiComePaga(accordoDaSalvare, {}).bonifico,
         notes: note.trim() || null,
         ...(oraCompleta(orario) ? { check_in_time: orario } : {}),
         ...(navetta ? { shuttle: navetta } : {}),
@@ -538,7 +532,7 @@ function NuovaPrenotazione() {
       // L'accordo vale per l'intera prenotazione: la caparra si scrive UNA
       // volta sola, sulla riga che arriva per prima. Copiata su ogni camera
       // varrebbe il doppio (rilievo del 09/09/2026).
-      const accordoCampi = { accordo_pagamento: accordoDaSalvare }
+      const accordoCampi = { accordo_pagamento: campiComePaga(accordoDaSalvare, {}).accordo_pagamento }
       const caparraCampi = {
         ...(caparra ? { caparra_centesimi: Math.round(caparra * 100) } : {}),
         ...(accordo.data && accordo.ora ? { caparra_entro: `${accordo.data}T${accordo.ora}:00` } : {}),
@@ -1024,7 +1018,7 @@ function NuovaPrenotazione() {
               <p className={s.numeroGrande} style={{ marginTop: 3, color: totale === null ? 'var(--color-stone)' : undefined }}>{totale === null ? 'da completare' : euro(totale)}</p>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <p className={s.eti} style={{ fontSize: 12 }}>{ETICHETTA_ACCORDO[accordo.modo]}</p>
+              <p className={s.eti} style={{ fontSize: 12 }}>{NOME_COME_PAGA[accordo.modo]}</p>
               {caparra !== null && <p className={s.eti} style={{ fontSize: 11 }}>caparra {euro(caparra)}</p>}
             </div>
           </div>
@@ -1054,41 +1048,27 @@ function NuovaPrenotazione() {
         )}
 
         <button type="button" className={s.gia} onClick={() => { if (!prenotazioneDaUrl) setAperta(aperta === 'pagamento' ? null : 'pagamento') }}>
-          <span className={s.giaEti}>Pagamento</span>
-          <span className={s.giaValore}>{ETICHETTA_ACCORDO[accordo.modo]}
+          <span className={s.giaEti}>{TITOLO_COME_PAGA}</span>
+          <span className={s.giaValore}>{NOME_COME_PAGA[accordo.modo]}
             <small className={s.giaSotto}>{caparra !== null
               ? `Caparra ${euro(caparra)}${accordo.data && accordo.ora ? ` entro il ${gg(accordo.data)} alle ${accordo.ora}` : ' · scadenza da impostare'}`
-              : 'Nessuna caparra da chiedere'}</small></span>
+              : FRASE_COME_PAGA[accordo.modo]}</small></span>
           <span className={s.freccia}>{aperta === 'pagamento' ? '⌄' : '›'}</span>
         </button>
-        {prenotazioneDaUrl && <p className={s.dNota}>{erroreAggiunta || 'Pagamento già concordato per tutta la prenotazione. Aggiungendo la camera, la caparra resta quella scelta: puoi rivederla dalla scheda.'}</p>}
+        {prenotazioneDaUrl && <p className={s.dNota}>{erroreAggiunta || 'Come paga è già concordato per tutta la prenotazione. Aggiungendo la camera, la caparra resta quella scelta: puoi rivederla dalla scheda.'}</p>}
         {!prenotazioneDaUrl && aperta === 'pagamento' && (
-          <div>
-            {(Object.keys(ETICHETTA_ACCORDO) as Accordo['modo'][]).map(k => (
-              <button key={k} type="button" className={s.scelta} onClick={() => setAccordo({ ...accordo, modo: k, importo: k === 'caparra_libera' ? accordo.importo : null })}>
-                <span className={`${s.tondo} ${accordo.modo === k ? s.tondoOn : ''}`} />
-                <span style={{ flex: 1 }}>
-                  <span className={s.sceltaTitolo}>{ETICHETTA_ACCORDO[k]}</span>
-                  {k === 'caparra_meta' && accordo.modo === k && totale !== null && <span className={s.sceltaNota}>{euro(totale / 2)} sul totale, letti e sconto compresi</span>}
-                </span>
-              </button>
-            ))}
-            {(accordo.modo === 'caparra_meta' || accordo.modo === 'caparra_libera') && (
-              <>
-                {accordo.modo === 'caparra_libera' && (
-                  <label className={s.campoBlocco}><span className={s.campoEti}>Importo caparra</span>
-                    <input type="number" inputMode="decimal" className={s.campo} placeholder="€" value={accordo.importo ?? ''}
-                      onChange={e => setAccordo({ ...accordo, importo: e.target.value === '' ? null : Number(e.target.value) })} /></label>
-                )}
-                <div className={s.due}>
-                  <label className={s.campoBlocco}><span className={s.campoEti}>Entro il</span>
-                    <input type="date" className={s.campo} value={accordo.data} onChange={e => setAccordo({ ...accordo, data: e.target.value })} /></label>
-                  <label className={s.campoBlocco}><span className={s.campoEti}>Ora</span>
-                    <input type="text" inputMode="numeric" placeholder="es. 18:00" maxLength={5} className={s.campo}
-                      value={accordo.ora} onChange={e => setAccordo({ ...accordo, ora: oraDigitata(e.target.value) })} /></label>
-                </div>
-              </>
-            )}
+          <div style={{ paddingTop: 4, paddingBottom: 6 }}>
+            <ComePaga
+              modo={accordo.modo}
+              onModo={modo => setAccordo({ ...accordo, modo, importo: chiedeImporto(modo) ? accordo.importo : null })}
+              totaleCent={totale === null ? null : Math.round(totale * 100)}
+              importo={accordo.importo}
+              onImporto={importo => setAccordo({ ...accordo, importo })}
+              data={accordo.data}
+              ora={accordo.ora}
+              onData={data => setAccordo({ ...accordo, data })}
+              onOra={ora => setAccordo({ ...accordo, ora })}
+            />
           </div>
         )}
 

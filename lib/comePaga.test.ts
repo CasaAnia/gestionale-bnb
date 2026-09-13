@@ -142,3 +142,21 @@ test('il componente non parla col database e non si riscrive i nomi', () => {
     assert.equal(componente.includes(`>${nome}<`), false, `«${nome}» è scritto a mano nel componente`)
   }
 })
+
+// ── DOVE È USATO ───────────────────────────────────────────────────────────
+const nuova = readFileSync(new URL('../app/nuova/page.tsx', import.meta.url), 'utf8')
+
+test('l’inserimento usa il componente unico, non le cinque voci di prima', () => {
+  assert.match(nuova, /import ComePaga, \{ TITOLO_COME_PAGA \} from '@\/components\/ComePaga'/)
+  assert.match(nuova, /<ComePaga\s/)
+  assert.match(nuova, /<span className=\{s\.giaEti\}>\{TITOLO_COME_PAGA\}<\/span>/)
+  // niente più elenco di etichette scritte a mano
+  assert.equal(/ETICHETTA_ACCORDO/.test(nuova), false, 'le etichette vecchie sono ancora lì')
+  for (const vecchio of ['Contanti all’arrivo', 'Bonifico · intero importo', 'Bonifico · caparra del 50%', 'Bonifico · caparra personalizzata']) {
+    assert.equal(nuova.includes(vecchio), false, `«${vecchio}» è ancora nell'inserimento`)
+  }
+  // e i valori da salvare li decide la libreria
+  assert.match(nuova, /campiComePaga\(accordoDaSalvare, \{\}\)\.accordo_pagamento/)
+  assert.match(nuova, /bonifico: campiComePaga\(accordoDaSalvare, \{\}\)\.bonifico/)
+  assert.match(nuova, /comePagaSalvato\(b\.accordo_pagamento, b\.bonifico\)/)
+})
