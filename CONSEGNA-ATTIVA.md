@@ -827,3 +827,87 @@ copia ferma del base e del candidato: 36 verdi e 16 rossi in tutti e due.
 
 Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
 `lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
+
+## «Come paga»: un solo modo di dirlo e di sceglierlo (13/09/2026, Claude)
+
+Prima la stessa cosa si chiamava «Come paga» nella proposta, «Pagamento»
+nell'inserimento e «Accordo» nel conto della scheda, con quattro scelte di là
+e cinque di qua e tre nomi per la stessa cosa. Adesso i modi sono **sei**,
+scritti in un posto solo.
+
+**1 — i nomi** (`d75cd91`). `lib/comePaga.ts`: QUANDO ARRIVA (Contanti ·
+Bonifico · Da vedere) e PRIMA DI ARRIVARE (Tutto · Caparra del 50% · Caparra),
+con la frase per esteso di ognuno. Nessun altro file se li riscrive.
+
+> **Come è risolto «Da vedere»** (chiesto nell'incarico). La colonna
+> `accordo_pagamento` ha un vincolo (proposta 0041): o è vuota, o è uno dei
+> cinque valori. Non si poteva quindi inventare un sesto valore senza toccare
+> la banca dati. «Da vedere» è il caso in cui **il mezzo non è stato detto**,
+> cioè quello che il gestionale salva già oggi quando non si specifica niente:
+> `accordo_pagamento` **vuoto** e la spunta `bonifico` **spenta**. Con la
+> colonna vuota ma la spunta accesa si legge «Bonifico», che è ciò che quella
+> spunta ha sempre significato. Effetto sui dati vecchi: le prenotazioni senza
+> accordo salvato (tutte quelle prima della 0041) prima si leggevano «contanti
+> all'arrivo» — un'informazione che nessuno aveva mai dato — e adesso si
+> leggono «Da vedere». È più onesto, e non cambia nessun dato.
+
+**2 — come si sceglie** (`fe0b52b`). `components/ComePaga.tsx`: le due
+etichette di gruppo (9,5 px maiuscole spaziate 1,4 stone), le sei pastiglie
+(30 px, 12,5 semibold, contorno #C9BFA8 da spente, green-mid e crema quando
+scelte, area da toccare 44 px senza crescere), una sola accesa alla volta fra
+tutte e sei, la frase per esteso sotto; con «Caparra del 50%» l'importo
+accanto alla frase, con «Caparra» il campo, con tutte e due «Entro il» e «alle».
+
+**3 — dove è usato.**
+- **Inserimento** (`22bed21`): la riga si chiama «Come paga» e sotto il nome
+  mostra la frase; aprendola ci sono le sei pastiglie al posto dei cinque
+  tondini. I valori da salvare li decide `lib/comePaga`, quindi la pagina non
+  se li scrive più da sé; una camera aggiunta eredita l'accordo come prima.
+- **Scheda** (`2afdca8`): nel CONTO la riga «Accordo» è diventata «Come paga»
+  col nome e la frase; «Cambia accordo» è «Cambia come paga» e apre un foglio
+  con lo STESSO componente, invece di mandare alla scheda vecchia. La linguetta
+  della fascia resta «CONTO». Il salvataggio (`lib/comePagaDati`) scrive modo e
+  spunta su tutte le camere e la caparra una volta sola sulla riga che arriva
+  per prima, azzerando quella vecchia sulle altre; senza la proposta 0041
+  salva la spunta e lo dice.
+
+**Cosa è rimasto fuori, e perché.** La **pagina della proposta delle
+richieste** non è stata toccata: i suoi quattro bottoni sono
+`CONDIZIONI_PAGAMENTO`/`ETICHETTA_CONDIZIONE` di **`lib/condizioniPrenotazione.ts`**,
+che è il lavoro non salvato di un'altra attività e non si poteva toccare. Non è
+solo un elenco di nomi: quei quattro tipi (`arrivo`, `caparra`, `completo`,
+`personalizzata`) decidono anche i testi WhatsApp approvati parola per parola e
+le regole di cancellazione. Mapparli sui sei modi dalla sola pagina avrebbe
+perso «Personalizzata» e cambiato il senso dei bottoni senza cambiare i
+messaggi. **Quindi «Pagamento completo» resta lì**, e lì resta anche la voce
+«Pagamento» nella fascia della proposta. Quando quel file torna libero: portare
+i sei modi anche là, decidendo con Ania come si dice «Personalizzata».
+Nella scheda **vecchia** (`app/prenotazioni/[id]/page.tsx`, stesso divieto)
+restano «Bonifico · intero importo» e gli altri nomi vecchi.
+
+**Prove.** 1180 test verdi, TypeScript pulito, lint senza diagnostiche sui file
+toccati; build eseguita sull'albero principale. Nuovi casi in
+`lib/comePaga.test.ts` (i sei nomi e le sei frasi, i due gruppi, la
+corrispondenza coi valori salvati e il ritorno, «Da vedere» nei suoi casi,
+l'importo del 50% arrotondato, la caparra libera, i campi che restano vuoti
+senza caparra, i nomi vecchi spariti, il disegno del componente, l'uso
+nell'inserimento e nella scheda) e in `lib/comePagaDati.test.ts` (modo su tutte
+le camere e caparra una volta sola, colonne della 0041 mancanti, un errore vero
+che non si scambia per colonna mancante).
+
+Anteprima senza rete a 390×844, dalla UI vera: nell'inserimento le sei
+pastiglie stanno in **due righe dentro i margini** (`scrollWidth` 390, il bordo
+destro dell'ultima a 281 px), «Caparra del 50%» accende solo sé stessa e mostra
+«· 70,00 €» su un totale di 140, «Caparra» apre il campo, e la prenotazione
+salvata porta `caparra_meta`, caparra 7000 centesimi e `bonifico` vero. Nella
+scheda il foglio «Cambia come paga» scrive il modo su tutte e tre le camere di
+Carmela e la caparra (23500) solo sulla prima; passando a «Da vedere» la
+colonna torna vuota, la caparra si azzera e lo stato del conto passa da
+«bonifico atteso» a «140 € da incassare».
+
+Nell'anteprima senza rete anche `bonifico` è fra i campi scrivibili: prima il
+finto Supabase rifiutava il salvataggio con 403 (ed è stato il finto ad
+accorgersene per primo).
+
+Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
+`lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
