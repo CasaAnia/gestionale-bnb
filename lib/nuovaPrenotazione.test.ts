@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import {
   dataDiOggi, volteInParole, rigaClienteTrovato, camereDelPeriodo, rigaCamereLibere,
   ospitiPossibiliNotte, ospitiDellaNotte, listinoLetto, raggruppaPerCamera, datiLinea, nottiDellaLinea,
-  CRITERI_LETTO,
+  CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX,
 } from './nuovaPrenotazione.ts'
 import type { PeriodoComposto } from './prenotazioneComposta.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -204,4 +204,48 @@ test('le camere si raggruppano in linee, e la striscia le rifà', () => {
   const ds = datiLinea(spezzata)
   assert.deepEqual([ds.arrivo, ds.partenza, ds.spezzata, ds.tariffa], ['2026-11-20', '2026-11-24', true, null])
   assert.equal(nottiDellaLinea(spezzata), 4)
+})
+
+// ── 4. ARRIVO, COME PAGA, CON LEI, NOTA ────────────────────────────────────
+const conLei = readFileSync(new URL('../components/nuova/ConLei.tsx', import.meta.url), 'utf8')
+
+test('l’arrivo: l’ora con l’orologino e la navetta a tre pastiglie', () => {
+  assert.match(pagina, /<Etichetta testo="A che ora arriva" \/>/)
+  assert.match(pagina, /<RigaCampo etichetta="🕐 ora">/)
+  assert.match(pagina, /oraDigitata\(e\.target\.value\)/)
+  assert.match(pagina, /\[\['no', 'No'\], \['si', 'Sì'\], \['', '\?'\]\]/)
+})
+
+test('«come paga» è il componente già fatto, con il conto della prenotazione', () => {
+  assert.match(pagina, /import ComePaga from '@\/components\/ComePaga'/)
+  assert.match(pagina, /<ComePaga modo=\{comePaga\} onModo=\{setComePaga\} totaleCent=\{conto\.daPagareCent\}/)
+})
+
+test('«con lei»: le righe delle persone e il fogliettino per aggiungerne una', () => {
+  assert.match(conLei, /export const AGGIUNGI_PERSONA = '\+ Aggiungi una persona'/)
+  assert.match(conLei, /fontSize: 15, fontWeight: 600, color: 'var\(--color-green-dark\)'/)
+  assert.match(conLei, /className="block uppercase" style=\{\{ fontSize: 9\.5, letterSpacing: '1\.4px', color: 'var\(--color-stone\)'/)
+  assert.match(conLei, /\{CHI_E_VOCI\.map/)
+  assert.match(conLei, /export const ALTRO = 'altro…'/)
+  assert.match(conLei, /data-campo="persona-telefono"/)
+  // il telefono può restare vuoto
+  assert.match(conLei, /etichetta="Telefono · può restare vuoto"/)
+})
+
+test('le persone in più stanno nelle due colonne di sempre', () => {
+  assert.equal(PERSONE_CON_LEI_MAX, 2)
+  const campi = campiConLei([
+    { id: '1', nome: 'Marco Riva', chiE: 'Figlio', telefono: '333 123 4567' },
+    { id: '2', nome: 'Ada Riva', chiE: 'Amica', telefono: '' },
+  ])
+  assert.deepEqual(campi, {
+    extra_phone_1_name: 'Marco Riva', extra_phone_1: '3331234567', chi_e: 'Figlio',
+    extra_phone_2_name: 'Ada Riva',
+  })
+  // la terza non entra: la pagina lo dice
+  const tre = campiConLei([
+    { id: '1', nome: 'A', chiE: '', telefono: '' }, { id: '2', nome: 'B', chiE: '', telefono: '' }, { id: '3', nome: 'C', chiE: '', telefono: '' },
+  ])
+  assert.equal(JSON.stringify(tre).includes('"C"'), false)
+  assert.match(pagina, /persone\.length > PERSONE_CON_LEI_MAX \? TROPPE_PERSONE : null/)
 })

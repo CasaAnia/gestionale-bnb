@@ -43,6 +43,11 @@ import { conLettoAutomatico, tariffaProposta, ospitiIniziali, lettoProposto, typ
 import { capienzaCamera } from '@/lib/tariffe'
 import type { PrenotazioneMinima } from '@/lib/disponibilita'
 import type { PrenotazioneLetti } from '@/lib/lettiAggiuntivi'
+import ComePaga from '@/components/ComePaga'
+import ConLei from '@/components/nuova/ConLei'
+import { oraDigitata } from '@/lib/ora'
+import { PERSONE_CON_LEI_MAX, TROPPE_PERSONE, type PersonaConLei } from '@/lib/nuovaPrenotazione'
+import type { ComePaga as ComePagaModo } from '@/lib/comePaga'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 const OTTONE = '#A9884E'
@@ -113,6 +118,15 @@ export default function NuovaPrenotazionePage() {
   const [letto, setLetto] = useState<{ importo: number | null; criterio: 'notte' | 'ogni4' | 'totale' }>({ importo: null, criterio: 'notte' })
   const [sconto, setSconto] = useState<ScontoNuova>({ tipo: 'nessuno', valore: null })
   const [notteAperta, setNotteAperta] = useState<{ gruppo: string; iso: string } | null>(null)
+  // ── arrivo, come paga, con lei, nota ─────────────────────────────────────
+  const [orario, setOrario] = useState('')
+  const [navetta, setNavetta] = useState<'si' | 'no' | ''>('')
+  const [comePaga, setComePaga] = useState<ComePagaModo>('da_vedere')
+  const [caparra, setCaparra] = useState<number | null>(null)
+  const [caparraData, setCaparraData] = useState('')
+  const [caparraOra, setCaparraOra] = useState('')
+  const [persone, setPersone] = useState<PersonaConLei[]>([])
+  const [nota, setNota] = useState('')
 
   useEffect(() => {
     let vivo = true
@@ -397,6 +411,50 @@ export default function NuovaPrenotazionePage() {
           )}
 
           <div style={{ marginTop: 22 }}><TastinoTenue testo="+ Aggiungi camera" onClick={aggiungiCamera} /></div>
+
+          {/* ── Arrivo ──────────────────────────────────────────────────── */}
+          <section data-arrivo className="mt-6">
+            <p className="ed-sezione">Arrivo</p>
+            <div className="flex flex-wrap" style={{ gap: 22 }}>
+              <div className="flex-1 min-w-[140px]">
+                <Etichetta testo="A che ora arriva" />
+                <RigaCampo etichetta="🕐 ora">
+                  <input type="text" inputMode="numeric" maxLength={5} placeholder="es. 15:30" data-campo="orario"
+                    value={orario} onChange={e => setOrario(oraDigitata(e.target.value))} style={stileCampo} />
+                </RigaCampo>
+              </div>
+              <div>
+                <Etichetta testo="Navetta" />
+                <FilaPastiglie>
+                  {([['no', 'No'], ['si', 'Sì'], ['', '?']] as const).map(([v, testo]) => (
+                    <Pastiglia key={testo} dati={`navetta-${v || 'boh'}`} acceso={navetta === v} onClick={() => setNavetta(v)}>{testo}</Pastiglia>
+                  ))}
+                </FilaPastiglie>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Come paga ───────────────────────────────────────────────── */}
+          <section data-come-paga-parte className="mt-6">
+            <p className="ed-sezione">Come paga</p>
+            <div className="mt-3">
+              <ComePaga modo={comePaga} onModo={setComePaga} totaleCent={conto.daPagareCent}
+                importo={caparra} onImporto={setCaparra}
+                data={caparraData} ora={caparraOra} onData={setCaparraData} onOra={setCaparraOra} />
+            </div>
+          </section>
+
+          {/* ── Con lei ─────────────────────────────────────────────────── */}
+          <ConLei className="mt-6" persone={persone} onPersone={setPersone}
+            avviso={persone.length > PERSONE_CON_LEI_MAX ? TROPPE_PERSONE : null} />
+
+          {/* ── La nota di questo soggiorno ─────────────────────────────── */}
+          <section data-nota className="mt-6">
+            <p className="ed-sezione">Nota di questo soggiorno</p>
+            <RigaCampo etichetta="Nota">
+              <textarea rows={2} data-campo="nota" value={nota} onChange={e => setNota(e.target.value)} style={{ ...stileCampo, resize: 'none' }} />
+            </RigaCampo>
+          </section>
         </>
       )}
 
