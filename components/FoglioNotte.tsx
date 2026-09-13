@@ -29,6 +29,9 @@ export const MATTONE = '#8C3B2E'
 export const FONDO_MATTONE = '#F6E4DE'
 export const BORDO_MATTONE = '#EAD3CC'
 export const TITOLO_CAMERE = 'Camere libere questa notte'
+export const TITOLO_OSPITI = 'Ospiti questa notte'
+export const DOMANDA_DA_QUI = 'da qui in poi'
+export const DOMANDA_SOLO_QUESTA = 'solo questa notte'
 export const TITOLO_LETTO = 'Letto in più questa notte'
 export const NON_DORME_QUI = 'Non dorme qui'
 export const NESSUNA_CAMERA_LIBERA = 'Questa notte non è libera nessuna camera'
@@ -51,15 +54,19 @@ function Pastiglia({ acceso, spenta, onClick, children }: { acceso: boolean; spe
   )
 }
 
-export default function FoglioNotte({ notti, iso, contesto, onFatto, onChiudi }: {
+export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, onFatto, onChiudi }: {
   notti: NotteStriscia[]
   iso: string
   contesto: ContestoNotti
+  /** quando c'è, nel foglietto si scelgono anche gli ospiti di quella notte
+   *  (i valori salvabili, decisi da chi apre il foglietto) */
+  ospitiPossibili?: (cameraId: string | null) => number[]
   /** «Fatto»: la striscia com'è diventata (la pagina salva e ricalcola il conto) */
-  onFatto: (notti: NotteStriscia[]) => void
+  onFatto: (notti: NotteStriscia[], daQuiInPoi: boolean) => void
   onChiudi: () => void
 }) {
   const [bozza, setBozza] = useState(notti)
+  const [daQui, setDaQui] = useState(false)
   const notte = bozza.find(n => n.iso === iso)
   if (!notte) return null
   const libere = camereDellaNotte(iso, contesto)
@@ -93,6 +100,33 @@ export default function FoglioNotte({ notti, iso, contesto, onFatto, onChiudi }:
         <p data-avviso-capienza className="mt-2" style={{ background: FONDO_MATTONE, border: `1px solid ${BORDO_MATTONE}`, borderRadius: 8, padding: '6px 10px', fontSize: 12.5, color: MATTONE }}>{avviso}</p>
       )}
 
+      {/* ── Gli ospiti di questa notte ────────────────────────────────── */}
+      {ospitiPossibili && notte.dentro && (() => {
+        const valori = ospitiPossibili(notte.cameraId)
+        const i = valori.indexOf(notte.persone)
+        const giu = i > 0 ? valori[i - 1] : valori.find(v => v < notte.persone) ?? null
+        const su = i >= 0 && i < valori.length - 1 ? valori[i + 1] : valori.find(v => v > notte.persone) ?? null
+        const cambia = (quanti: number) => setBozza(b => cambiaLetto(b, iso, quanti > Math.min(...valori), contesto))
+        const tasto = { width: 38, height: 38, borderRadius: 999, border: '1px solid var(--color-card-border)', fontSize: 18, color: 'var(--color-green-dark)', background: '#fff' }
+        return (
+          <div data-ospiti-notte className="mt-4">
+            <p style={titoletto}>{TITOLO_OSPITI}</p>
+            <div className="flex items-center mt-2" style={{ gap: 12 }}>
+              <button type="button" data-ospiti-giu disabled={giu === null} onClick={() => giu !== null && cambia(giu)} aria-label="Un ospite in meno"
+                style={{ ...tasto, opacity: giu === null ? 0.4 : 1 }}>−</button>
+              <span data-ospiti-quanti style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 20, color: 'var(--color-green-dark)', minWidth: 22, textAlign: 'center' }}>{notte.persone}</span>
+              <button type="button" data-ospiti-su disabled={su === null} onClick={() => su !== null && cambia(su)} aria-label="Un ospite in più"
+                style={{ ...tasto, opacity: su === null ? 0.4 : 1 }}>+</button>
+            </div>
+            {/* vale solo per questa notte, o da qui alla fine? */}
+            <div className="flex flex-wrap mt-3" style={{ gap: 8 }} role="group" aria-label="Per quali notti">
+              <Pastiglia acceso={!daQui} onClick={() => setDaQui(false)}>{DOMANDA_SOLO_QUESTA}</Pastiglia>
+              <Pastiglia acceso={daQui} onClick={() => setDaQui(true)}>{DOMANDA_DA_QUI}</Pastiglia>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── Il letto in più ───────────────────────────────────────────── */}
       <p className="mt-4" style={titoletto}>{TITOLO_LETTO}</p>
       <div data-letto-notte className="flex flex-wrap items-center mt-2" style={{ gap: 8 }}>
@@ -113,7 +147,7 @@ export default function FoglioNotte({ notti, iso, contesto, onFatto, onChiudi }:
       {/* ── Fatto e Annulla ───────────────────────────────────────────── */}
       <div className="flex items-center justify-between mt-5 mb-1" style={{ gap: 12 }}>
         <button type="button" data-annulla onClick={onChiudi} style={{ fontSize: 14, minHeight: ALTEZZA_PASTIGLIA, padding: '0 6px', color: 'var(--color-stone)' }}>Annulla</button>
-        <button type="button" data-fatto onClick={() => onFatto(bozza)}
+        <button type="button" data-fatto onClick={() => onFatto(bozza, daQui)}
           style={{ minHeight: ALTEZZA_PASTIGLIA, borderRadius: 999, padding: '0 22px', fontSize: 14, fontWeight: 600, background: 'var(--color-green-mid)', color: 'var(--color-cream)' }}>Fatto</button>
       </div>
     </Foglio>

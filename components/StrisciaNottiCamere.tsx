@@ -19,6 +19,8 @@ import { avvisiStriscia, compatta, giornoDellaNotte, riassuntoStriscia, segniDiC
 
 const OTTONE = '#A9884E'
 const ROSSO = '#D40000'
+const GEORGIA = "Georgia, 'Times New Roman', serif"
+export const MATTONE_OSPITI = '#8a4f2f'
 export const LARGHEZZA_COLONNINA = 44   // px: sotto non si scende, la striscia scorre di lato
 export const SPAZIO_COLONNINE = 4
 export const SPIEGAZIONE = 'sopra la camera · sotto il letto in più'
@@ -43,12 +45,16 @@ function Giorno({ iso, stretta, oggi }: { iso: string; stretta: boolean; oggi: b
     : <span className="block" style={stile}>{giorno} {numero}</span>
 }
 
-export default function StrisciaNottiCamere({ notti, oggi, onNotte, className = '' }: {
+export default function StrisciaNottiCamere({ notti, oggi, onNotte, ospitiAttesi, spiegazione = true, className = '' }: {
   notti: NotteStriscia[]
   /** la data di oggi (YYYY-MM-DD): la notte di stanotte si scrive in verde */
   oggi?: string
   /** il tocco su una notte: apre il foglietto di quella notte */
   onNotte?: (notte: NotteStriscia) => void
+  /** quando c'è, sotto ogni notte compaiono gli ospiti; diversi da questo = mattone */
+  ospitiAttesi?: number | null
+  /** la riga «sopra la camera · sotto il letto in più»: si toglie dove è ovvio */
+  spiegazione?: boolean
   className?: string
 }) {
   if (notti.length === 0) return null
@@ -88,13 +94,19 @@ export default function StrisciaNottiCamere({ notti, oggi, onNotte, className = 
                 }}>
                   <Bed size={12} strokeWidth={2} aria-hidden style={{ color: n.letto ? 'var(--color-green-mid)' : '#C4C0B6' }} />
                 </span>
+                {ospitiAttesi != null && (
+                  <span data-ospiti-notte={n.dentro ? n.persone : undefined} className="block text-center" style={{
+                    marginTop: 3, fontFamily: GEORGIA, fontSize: 15, lineHeight: '18px',
+                    color: !n.dentro ? 'transparent' : n.persone === ospitiAttesi ? 'var(--color-green-dark)' : MATTONE_OSPITI,
+                  }}>{n.dentro ? n.persone : '·'}</span>
+                )}
               </button>
             )
           })}
         </div>
       </div>
-      <p className="text-center" style={{ marginTop: 8, fontSize: 12, color: 'var(--color-stone)' }}>{SPIEGAZIONE}</p>
-      <p data-riassunto-striscia className="text-center" style={{ marginTop: 2, fontSize: 12, color: OTTONE }}>{riassuntoStriscia(notti)}</p>
+      {spiegazione && <p className="text-center" style={{ marginTop: 8, fontSize: 12, color: 'var(--color-stone)' }}>{SPIEGAZIONE}</p>}
+      <p data-riassunto-striscia className="text-center" style={{ marginTop: spiegazione ? 2 : 8, fontSize: 12, color: OTTONE }}>{riassuntoStriscia(notti)}</p>
       {avvisi.map(a => (
         <p key={a} data-avviso-notte className="text-center font-semibold" style={{ marginTop: 4, fontSize: 12, color: ROSSO }}>{a}</p>
       ))}

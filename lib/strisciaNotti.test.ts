@@ -336,7 +336,7 @@ test('«Non dorme qui», «Fatto» e «Annulla»', () => {
   assert.match(foglietto, /onClick=\{\(\) => setBozza\(b => nonDormeQui\(b, iso\)\)\}/)
   // Annulla chiude e basta: solo «Fatto» consegna la striscia nuova
   assert.match(foglietto, /data-annulla onClick=\{onChiudi\}/)
-  assert.match(foglietto, /data-fatto onClick=\{\(\) => onFatto\(bozza\)\}/)
+  assert.match(foglietto, /data-fatto onClick=\{\(\) => onFatto\(bozza, daQui\)\}/)
   assert.equal(/data-annulla[^>]*onFatto/.test(foglietto), false, 'Annulla salva qualcosa')
 })
 

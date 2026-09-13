@@ -115,6 +115,50 @@ export function nottiDaSegmenti(segmenti: SegmentoNotti[]): NotteStriscia[] {
   })
 }
 
+// ── Le notti di una prenotazione che si sta ancora scrivendo ────────────────
+// Stesse notti, stessi colori, stesso foglietto: la differenza è che qui i
+// periodi non sono ancora righe di bookings (lib/prenotazioneComposta).
+export type PeriodoNotti = {
+  id: string
+  roomId: string | null
+  checkIn: string
+  checkOut: string
+  ospiti: number
+  nottiLetto: string[]
+}
+export function nottiDaPeriodi(periodi: PeriodoNotti[], camere: CameraStriscia[]): NotteStriscia[] {
+  const ordinati = [...periodi].sort((a, z) => a.checkIn.localeCompare(z.checkIn))
+  const out: NotteStriscia[] = []
+  const visti = new Set<string>()
+  for (const p of ordinati) {
+    const camera = camere.find(c => c.id === p.roomId) ?? null
+    for (const iso of giorniSoggiorno(p.checkIn, p.checkOut)) {
+      if (visti.has(iso)) continue
+      visti.add(iso)
+      const letto = p.nottiLetto.includes(iso)
+      out.push({
+        iso,
+        cameraId: p.roomId,
+        camera: camera?.name ?? null,
+        letto,
+        dentro: true,
+        persone: letto ? p.ospiti : Math.min(p.ospiti, capienzaBase(camera)),
+        motivo: p.roomId && !camera ? 'camera non più in elenco' : null,
+        parallela: false,
+      })
+    }
+  }
+  // le notti tolte («non dorme qui») lasciano un buco: si rimettono libere
+  const tutti = out.map(n => n.iso).sort()
+  if (tutti.length === 0) return out
+  const completo: NotteStriscia[] = []
+  for (const iso of giorniTra(tutti[0], giornoDopo(tutti[tutti.length - 1]))) {
+    const c = out.find(n => n.iso === iso)
+    completo.push(c ?? { iso, cameraId: null, camera: null, letto: false, dentro: false, persone: 0, motivo: null, parallela: false })
+  }
+  return completo
+}
+
 // ── Il riassunto in ottone sotto la striscia ────────────────────────────────
 // «2 cambi camera · letto in più 4 notti». Le notti «libere» non contano: non
 // interrompono il conto dei cambi e non entrano in quello del letto.
