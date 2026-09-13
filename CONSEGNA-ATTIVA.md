@@ -655,14 +655,82 @@ Carmela Sabia (10–17 set nello scenario, Lena → Amelia → Lena, due cambi,
 posto») e una prima volta senza note e senza orario; misurato a schermo che
 niente esce dai margini (scrollWidth 390) e provato anche a 1280 px.
 
-**Restano per la parte 2**: CONTO (pagamenti, sconto, acconti) e MESSAGGI, e
-la decisione di Ania su quando spegnere la scheda vecchia.
+**La parte 2 è uscita**: vedi la sezione qui sotto.
 
 **I rimandi alla scheda vecchia restano (Ania, 13/09/2026).** Il tocco su una
 notte della striscia e «Modifica soggiorno» continuano a portare ai fogli di
 `/prenotazioni/<id>`: è voluto, non una cosa lasciata a metà. Si rifaranno
 dentro la scheda nuova, insieme alla striscia, con un incarico a parte — non
 vanno quindi inclusi nella parte 2 se non viene chiesto.
+
+Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
+`lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
+
+## La scheda prenotazione nuova, parte 2 di 2 (13/09/2026, Claude)
+
+Pubblicata e verificata: commit `e811c48`, `cd0e48a`, `f5b978c` e `6d75818`
+su `main`, deploy Vercel `success` (Production, `6d75818`). Con questa,
+**`/scheda/<id>` è completa**: CONTO, MESSAGGI, CLIENTE e CRONOLOGIA si
+aggiungono a testa, fascia, DA CONTROLLARE e SOGGIORNO della parte 1.
+`/prenotazioni/<id>` non è stata toccata.
+
+**CONTO.** `lib/schedaConto.ts` (funzioni pure) e
+`components/scheda/ContoScheda.tsx`: «Saldato» in verde o quanto manca in
+rosso `#D40000` (Georgia 32), il dettaglio a destra su due righe, la barretta
+della quota pagata, il conto riga per riga («Lena, 12 → 14 · 2 notti × 80 €»,
+il letto in più a parte, lo sconto in ottone col meno), il totale in Georgia
+24 sopra un filo d'ottone, l'accordo in parole e i pagamenti registrati.
+**Il totale e il residuo vengono da `contoPrenotazione`**: qui si spezza solo
+il conto in righe, e se un dato vecchio non torna il tratto si mostra in una
+riga sola col totale autorevole.
+
+**MESSAGGI.** `lib/messaggiPrenotazione.ts` + `components/scheda/MessaggiScheda.tsx`.
+Interruttore «WhatsApp Ania / Business» con `components/InterruttorePillola`
+(lo stesso del calendario), tasto pieno «Conferma · immagine e testo» largo
+quanto la scritta che apre `components/ConfermaWhatsApp`, otto pastiglie sage
+in due colonne, «Annullamento» col solo contorno in fondo.
+
+> ⚠️ **I testi sono una COPIA ESATTA** di quelli in
+> `app/prenotazioni/[id]/page.tsx`, che è in carico a un'altra attività e non
+> si poteva toccare per esportarli. `lib/messaggiPrenotazione.test.ts`
+> confronta i due sorgenti carattere per carattere e fallisce appena uno dei
+> due cambia. **Quando quel file torna libero**: cancellare `buildWhatsappMsg`
+> (e `bagnoDesc`, `roomPageLink`, `formatDateIT`) da lì, importarli da
+> `lib/messaggiPrenotazione`, e togliere il confronto dal test. Vale anche per
+> la regola dei nomi del 12/09 (nome e cognome solo nella conferma senza
+> immagine): quando si applica, va applicata alla libreria, non alla copia.
+
+**CLIENTE.** `components/scheda/ClienteScheda.tsx`: griglia a due colonne
+(telefono, arrivata da, valutazione, ricevuta, nota), «da dove? ›» che apre il
+foglio della testa, «Modifica dati · Cambia cliente», i soggiorni precedenti
+col totale speso accanto al titolo (ogni riga apre quella prenotazione in
+`/scheda/<id>`) e «CON LEI» con i contatti in più della prenotazione. Nella
+scheda **prende il posto di `ParteCliente`**, che resta alla proposta.
+
+**CRONOLOGIA.** `components/scheda/CronologiaScheda.tsx` e `righeStoria` in
+`lib/schedaConto`: modifiche (`booking_events`, proposta 0042) e messaggi
+partiti (`booking_whatsapp_log`) messi insieme dalla più vecchia, i messaggi
+col fumetto in verde, e la riga che dice che le risposte restano su WhatsApp.
+Senza la 0042 la parte lo dichiara invece di fingere un registro vuoto.
+
+**Prove.** 1113 test verdi, TypeScript e build puliti, lint senza diagnostiche
+sui file nuovi. Nuovi casi in `lib/schedaConto.test.ts` (conto saldato, con
+acconto e col bonifico atteso; righe dei tratti, del letto, dello sconto e il
+ripiego sul totale salvato; accordo; pagamenti; voci del cliente con e senza
+provenienza; «con lei» con i pezzi mancanti; cronologia con e senza messaggi),
+in `lib/messaggiPrenotazione.test.ts` (il confronto dei sorgenti, i nove tasti,
+il residuo col bonifico, il cambio camera) e in `lib/scheda.test.ts` (il
+disegno delle quattro parti letto dai sorgenti). Anteprima senza rete a
+390×844 su tre prenotazioni: Carmela Sabia (saldata, due cambi camera, due
+persone con lei, due messaggi inviati), una futura non pagata (300 € da
+incassare, barretta vuota) e una prima volta. Aperti la finestra della
+conferma con l'immagine e i link WhatsApp col testo giusto.
+
+**Restano fuori, per decisione di Ania**: il tocco su una notte, «Modifica
+soggiorno», «Aggiungi pagamento», «Cambia accordo», «Modifica dati»,
+«Cambia cliente», «Vedi tutto», «Altre modifiche» e «Annulla prenotazione»
+portano ai fogli di `/prenotazioni/<id>`. Si rifaranno con incarichi a parte.
+Da decidere con Ania: quando spegnere la scheda vecchia.
 
 Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
 `lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
