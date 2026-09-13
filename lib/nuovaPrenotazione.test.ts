@@ -374,3 +374,24 @@ test('«Adesso» sta sotto la fascia e sparisce quando la conferma è partita', 
   // e sta prima di «Da controllare»
   assert.ok(scheda.indexOf('<AdessoScheda') < scheda.indexOf('id="controllare"'))
 })
+
+// ── La correzione dei soldi, anche nella pagina di adesso ──────────────────
+test('con lo sconto il totale salvato è quello che la cliente paga davvero', () => {
+  // il difetto: 4 notti × 70 = 280, sconto del 10% → la scheda mostrava 280
+  const [riga] = totaliScontati([280], { tipo: 'percentuale', valore: 10 })
+  assert.equal(riga, 252)
+  // e quello che la scheda somma (i total_amount) torna col «Da pagare»
+  const conto = contoNuovaPrenotazione(
+    [{ id: 'a', gruppo: 'g', roomId: AMBRA.id, checkIn: '2026-12-05', checkOut: '2026-12-09', ospiti: 2, nottiLetto: [], letto: null, tariffa: 70 }],
+    () => ({ ...AMBRA, base_price: 70 }) as never,
+    { tipo: 'percentuale', valore: 10 },
+  )
+  assert.equal(conto.daPagare, '252 €')
+  assert.equal(totaliScontati([280], { tipo: 'percentuale', valore: 10 })[0] * 100, conto.daPagareCent)
+
+  // tutte e due le pagine scrivono il totale scontato
+  const vecchia = readFileSync(new URL('../app/nuova/page.tsx', import.meta.url), 'utf8')
+  assert.match(vecchia, /import \{ totaliScontati \} from '@\/lib\/nuovaPrenotazione'/)
+  assert.match(vecchia, /total_amount: scontati\[i\]/)
+  assert.match(pagina, /total_amount: scontati\[i\]/)
+})

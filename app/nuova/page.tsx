@@ -6,6 +6,7 @@
 // cambiano. I prezzi e i letti restano quelli delle regole di sempre
 // (lib/tariffe, lib/prezzoNotti): qui si compone, non si inventano listini.
 import { accordoPrenotazione, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
+import { totaliScontati } from '@/lib/nuovaPrenotazione'
 import ComePaga, { TITOLO_COME_PAGA } from '@/components/ComePaga'
 import { NOME_COME_PAGA, FRASE_COME_PAGA, comePagaSalvato, campiComePaga, chiedeImporto, chiedeScadenza, type ComePaga as ComePagaModo } from '@/lib/comePaga'
 import { righeStorico, testoCamere } from '@/lib/storicoCliente'
@@ -538,8 +539,17 @@ function NuovaPrenotazione() {
         ...(accordo.data && accordo.ora ? { caparra_entro: `${accordo.data}T${accordo.ora}:00` } : {}),
       }
       const primaRiga = [...periodi].sort((a, b) => a.checkIn.localeCompare(b.checkIn))[0]?.id
-      const righeDaSalvare = periodi.map(p => ({
-        riga: { ...rigaDaSalvare(p, trovaCamera(p.roomId)!, gruppoId.get(p.gruppo)!), ...comuni },
+      // Con uno sconto il totale di ogni riga si scrive GIÀ SCONTATO: la
+      // scheda somma i total_amount, e col totale pieno mostrava un numero più
+      // alto di quello che la cliente paga (trovato il 14/09/2026). La lettura
+      // riga per riga non cambia: con uno sconto valido lib/conto rifà il conto
+      // dal prezzo a notte e il totale salvato non viene nemmeno guardato.
+      const pieniSalvati = periodi.map(p => Number(rigaDaSalvare(p, trovaCamera(p.roomId)!, gruppoId.get(p.gruppo)!).total_amount) || 0)
+      const scontati = totaliScontati(pieniSalvati, sconto
+        ? { tipo: sconto.tipo === 'percentuale' ? 'percentuale' : 'finale', valore: sconto.valore }
+        : { tipo: 'nessuno', valore: null })
+      const righeDaSalvare = periodi.map((p, i) => ({
+        riga: { ...rigaDaSalvare(p, trovaCamera(p.roomId)!, gruppoId.get(p.gruppo)!), total_amount: scontati[i], ...comuni },
         // quanto e con quale criterio, così riaprendo l'accordo si rilegge
         // com'è stato preso e non viene rifatto «a notte» (proposta 0045)
         letto: p.letto && p.nottiLetto.length > 0
