@@ -99,3 +99,46 @@ test('i nomi vecchi non esistono più', () => {
     assert.equal(tutto.includes(vecchio), false, `«${vecchio}» è ancora qui`)
   }
 })
+
+// ── IL COMPONENTE, letto dai sorgenti ──────────────────────────────────────
+import { readFileSync } from 'node:fs'
+const componente = readFileSync(new URL('../components/ComePaga.tsx', import.meta.url), 'utf8')
+
+test('le due etichette dei gruppi: 9,5 px maiuscole spaziate 1,4 stone', () => {
+  assert.match(componente, /fontSize: 9\.5,\s*letterSpacing: '1\.4px',\s*textTransform: 'uppercase' as const,\s*color: 'var\(--color-stone\)'/)
+  assert.match(componente, /\{gruppo\.etichetta\}/)
+})
+
+test('le pastiglie: 30 px, 12,5 semibold, contorno #C9BFA8 e green-mid quando scelte', () => {
+  assert.match(componente, /export const ALTEZZA_PASTIGLIA = 30/)
+  assert.match(componente, /export const BORDO_SPENTA = '#C9BFA8'/)
+  assert.match(componente, /height: ALTEZZA_PASTIGLIA, borderRadius: 999, padding: '0 12px', fontSize: 12\.5, fontWeight: 600/)
+  assert.match(componente, /background: acceso \? 'var\(--color-green-mid\)' : 'transparent'/)
+  assert.match(componente, /color: acceso \? 'var\(--color-cream\)' : 'var\(--color-green-dark\)'/)
+  // si toccano su 44 px senza crescere
+  assert.match(componente, /className="py-\[7px\] -my-\[7px\]"/)
+})
+
+test('una sola scelta accesa alla volta, fra tutte e sei', () => {
+  // l'acceso è il confronto con l'unico valore `modo`: non c'è nessun elenco di scelte
+  assert.match(componente, /const acceso = modo === m/)
+  assert.match(componente, /aria-pressed=\{acceso\}/)
+  assert.equal(/scelte|selezionati|\[\]\.includes/.test(componente), false)
+})
+
+test('la frase per esteso, l’importo del 50%, il campo della caparra e la scadenza', () => {
+  assert.match(componente, /data-frase-come-paga[\s\S]{0,120}\{FRASE_COME_PAGA\[modo\]\}/)
+  assert.match(componente, /modo === 'meta' && meta !== null/)
+  assert.match(componente, /\{chiedeImporto\(modo\) && \(/)
+  assert.match(componente, /\{chiedeScadenza\(modo\) && \(/)
+  assert.match(componente, />Entro il</)
+  assert.match(componente, />alle</)
+})
+
+test('il componente non parla col database e non si riscrive i nomi', () => {
+  assert.equal(/supabase/i.test(componente), false)
+  assert.match(componente, /from '@\/lib\/comePaga'/)
+  for (const nome of ['Contanti', 'Bonifico', 'Da vedere', 'Caparra del 50%']) {
+    assert.equal(componente.includes(`>${nome}<`), false, `«${nome}» è scritto a mano nel componente`)
+  }
+})
