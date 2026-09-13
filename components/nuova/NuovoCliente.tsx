@@ -1,0 +1,136 @@
+'use client'
+// ============================================================================
+// «NUOVO CLIENTE» della pagina di inserimento (14/09/2026): chi è, se vuole la
+// ricevuta, come lo valutiamo, come ci ha trovato e la nota che resta anche le
+// prossime volte.
+//
+// Sola presentazione: i valori arrivano da fuori e le regole restano quelle di
+// sempre (lib/valutazione per le tre voci, lib/provenienza per le quattro
+// provenienze e le strutture già in uso).
+// ============================================================================
+import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastoAvanti, stileCampo, MATTONE, OTTONE } from './PezziNuova'
+import { PROVENIENZE, type Provenienza } from '@/lib/provenienza'
+import type { Valutazione } from '@/lib/valutazione'
+import type { StrutturaNota } from '@/lib/provenienza'
+
+export const TITOLO_NUOVO_CLIENTE = 'Nuovo cliente'
+export const AVANTI = 'Avanti · date e camera'
+export const ETICHETTA_NOTE = 'Note del cliente · restano anche le prossime volte'
+export const ALTRA_STRUTTURA = 'altra…'
+
+export type DatiNuovoCliente = {
+  nome: string
+  cognome: string
+  telefono: string
+  ricevuta: boolean
+  valutazione: Valutazione
+  motivo: string
+  provenienza: Provenienza | null
+  struttura: string
+  note: string
+}
+
+export const NUOVO_CLIENTE_VUOTO: DatiNuovoCliente = {
+  nome: '', cognome: '', telefono: '', ricevuta: false, valutazione: 'normale', motivo: '',
+  provenienza: null, struttura: '', note: '',
+}
+
+// Le tre voci della valutazione come le vuole questa pagina: un segno solo
+const SEGNI: { chiave: Valutazione; segno: string; colore?: string }[] = [
+  { chiave: 'ottimo', segno: '★' },
+  { chiave: 'normale', segno: 'Normale' },
+  { chiave: 'problematico', segno: '!', colore: MATTONE },
+]
+
+export default function NuovoCliente({ dati, onDati, strutture, struttureDisponibili, onAvanti, avantiSpento, className = '' }: {
+  dati: DatiNuovoCliente
+  onDati: (dati: DatiNuovoCliente) => void
+  strutture: StrutturaNota[]
+  struttureDisponibili: boolean
+  onAvanti: () => void
+  avantiSpento: boolean
+  className?: string
+}) {
+  const cambia = (pezzo: Partial<DatiNuovoCliente>) => onDati({ ...dati, ...pezzo })
+  return (
+    <section data-nuovo-cliente className={className}>
+      <p className="ed-sezione">{TITOLO_NUOVO_CLIENTE}</p>
+
+      <Etichetta testo="Chi" primo className="mt-3" />
+      <div className="flex" style={{ gap: 12 }}>
+        <RigaCampo etichetta="Nome" className="flex-1 min-w-0">
+          <input type="text" value={dati.nome} data-campo="nome" onChange={e => cambia({ nome: e.target.value })} style={stileCampo} />
+        </RigaCampo>
+        <RigaCampo etichetta="Cognome" className="flex-1 min-w-0">
+          <input type="text" value={dati.cognome} data-campo="cognome" onChange={e => cambia({ cognome: e.target.value })} style={stileCampo} />
+        </RigaCampo>
+      </div>
+      <RigaCampo etichetta="Telefono">
+        <input type="tel" inputMode="tel" value={dati.telefono} data-campo="telefono" onChange={e => cambia({ telefono: e.target.value })} style={stileCampo} />
+      </RigaCampo>
+
+      {/* Ricevuta e valutazione, affiancate con l'etichettina centrata sopra */}
+      <div className="flex flex-wrap" style={{ gap: 22 }}>
+        <div>
+          <Etichetta testo="Ricevuta" centrata />
+          <FilaPastiglie centrata>
+            <Pastiglia dati="ricevuta-no" acceso={!dati.ricevuta} onClick={() => cambia({ ricevuta: false })}>No</Pastiglia>
+            <Pastiglia dati="ricevuta-si" acceso={dati.ricevuta} onClick={() => cambia({ ricevuta: true })}>Sì 🧾</Pastiglia>
+          </FilaPastiglie>
+        </div>
+        <div>
+          <Etichetta testo="Valutazione" centrata />
+          <FilaPastiglie centrata>
+            {SEGNI.map(v => (
+              <Pastiglia key={v.chiave} dati={`valutazione-${v.chiave}`} acceso={dati.valutazione === v.chiave} colore={v.colore}
+                onClick={() => cambia({ valutazione: v.chiave, motivo: v.chiave === 'problematico' ? dati.motivo : '' })}>{v.segno}</Pastiglia>
+            ))}
+          </FilaPastiglie>
+        </div>
+      </div>
+      {dati.valutazione === 'problematico' && (
+        <RigaCampo etichetta="Perché" className="mt-3">
+          <input type="text" value={dati.motivo} data-campo="motivo" placeholder="resta solo per noi"
+            onChange={e => cambia({ motivo: e.target.value })} style={stileCampo} />
+        </RigaCampo>
+      )}
+
+      {/* Come ci ha trovato, su una riga sola */}
+      {struttureDisponibili && (
+        <>
+          <Etichetta testo="Come ci ha trovato" />
+          <FilaPastiglie>
+            {PROVENIENZE.map(p => (
+              <Pastiglia key={p.chiave} dati={`provenienza-${p.chiave}`} acceso={dati.provenienza === p.chiave}
+                onClick={() => cambia({ provenienza: p.chiave, struttura: p.chiave === 'altra_struttura' ? dati.struttura : '' })}>
+                {p.chiave === 'altra_struttura' ? 'Struttura' : p.label}
+              </Pastiglia>
+            ))}
+          </FilaPastiglie>
+          {dati.provenienza === 'altra_struttura' && (
+            <div data-strutture style={{ marginTop: 10, marginLeft: 10, paddingLeft: 12, borderLeft: `2px solid ${OTTONE}` }}>
+              <FilaPastiglie>
+                {strutture.map(s => (
+                  <Pastiglia key={s.nome} dati={`struttura-${s.nome}`} acceso={dati.struttura === s.nome} onClick={() => cambia({ struttura: s.nome })}>{s.nome}</Pastiglia>
+                ))}
+                <Pastiglia dati="struttura-altra" acceso={!!dati.struttura && !strutture.some(s => s.nome === dati.struttura)} onClick={() => cambia({ struttura: ' ' })}>{ALTRA_STRUTTURA}</Pastiglia>
+              </FilaPastiglie>
+              {!!dati.struttura && !strutture.some(s => s.nome === dati.struttura) && (
+                <RigaCampo etichetta="Quale struttura" className="mt-2">
+                  <input type="text" value={dati.struttura.trimStart()} data-campo="struttura" onChange={e => cambia({ struttura: e.target.value })} style={stileCampo} />
+                </RigaCampo>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      <Etichetta testo={ETICHETTA_NOTE} />
+      <RigaCampo etichetta="Nota">
+        <textarea rows={2} value={dati.note} data-campo="note" onChange={e => cambia({ note: e.target.value })} style={{ ...stileCampo, resize: 'none' }} />
+      </RigaCampo>
+
+      <div style={{ marginTop: 22 }}><TastoAvanti testo={AVANTI} onClick={onAvanti} disabilitato={avantiSpento} dati="cliente" /></div>
+    </section>
+  )
+}

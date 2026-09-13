@@ -97,3 +97,55 @@ test('le righe dei clienti trovati hanno la forma della Home', () => {
   assert.match(pagina, /full_name\.ilike\.%\$\{testo\}%,phone\.ilike\.%\$\{cifre\}%/)
   assert.match(pagina, /import \{ filtraClienti \} from '@\/lib\/cambiaCliente'/)
 })
+
+// ── 2. NUOVO CLIENTE ───────────────────────────────────────────────────────
+const nuovoCliente = readFileSync(new URL('../components/nuova/NuovoCliente.tsx', import.meta.url), 'utf8')
+const pezzi = readFileSync(new URL('../components/nuova/PezziNuova.tsx', import.meta.url), 'utf8')
+
+test('il nuovo cliente: campi a riga col filo, niente riquadri', () => {
+  assert.match(nuovoCliente, /export const TITOLO_NUOVO_CLIENTE = 'Nuovo cliente'/)
+  assert.match(pezzi, /padding: '8px 0', borderBottom: '1px solid var\(--color-card-border\)'/)
+  assert.equal(/ed-riquadro|rounded-xl|rounded-lg/.test(nuovoCliente), false, 'il modulo ha rimesso i riquadri')
+  // nome e cognome affiancati, poi il telefono
+  assert.match(nuovoCliente, /className="flex" style=\{\{ gap: 12 \}\}[\s\S]{0,400}data-campo="nome"[\s\S]{0,300}data-campo="cognome"/)
+  assert.match(nuovoCliente, /data-campo="telefono"/)
+})
+
+test('ricevuta e valutazione, con le tre voci e il motivo', () => {
+  assert.match(nuovoCliente, /dati="ricevuta-no"[\s\S]{0,200}dati="ricevuta-si"/)
+  assert.match(nuovoCliente, /\{ chiave: 'ottimo', segno: '★' \}/)
+  assert.match(nuovoCliente, /\{ chiave: 'normale', segno: 'Normale' \}/)
+  assert.match(nuovoCliente, /\{ chiave: 'problematico', segno: '!', colore: MATTONE \}/)
+  // scegliendo «!» compare il motivo, e cambiando voce se ne va
+  assert.match(nuovoCliente, /dati\.valutazione === 'problematico' && \(/)
+  assert.match(nuovoCliente, /motivo: v\.chiave === 'problematico' \? dati\.motivo : ''/)
+  // le etichettine sopra i due gruppi sono centrate
+  assert.match(nuovoCliente, /<Etichetta testo="Ricevuta" centrata \/>/)
+  assert.match(nuovoCliente, /<Etichetta testo="Valutazione" centrata \/>/)
+})
+
+test('«come ci ha trovato» e le strutture rientrate col filetto ottone', () => {
+  assert.match(nuovoCliente, /\{PROVENIENZE\.map/)
+  assert.match(nuovoCliente, /'altra_struttura' \? 'Struttura' : p\.label/)
+  assert.match(nuovoCliente, /data-strutture style=\{\{ marginTop: 10, marginLeft: 10, paddingLeft: 12, borderLeft: `2px solid \$\{OTTONE\}` \}\}/)
+  assert.match(nuovoCliente, /export const ALTRA_STRUTTURA = 'altra…'/)
+  // le strutture arrivano da fuori: l'elenco è quello già in uso
+  assert.match(nuovoCliente, /strutture\.map\(s =>/)
+  assert.match(pagina, /import \{ leggiStrutture \} from '@\/lib\/provenienzaDati'/)
+})
+
+test('la nota del cliente e il tasto «Avanti» piccolo, verde e centrato', () => {
+  assert.match(nuovoCliente, /export const ETICHETTA_NOTE = 'Note del cliente · restano anche le prossime volte'/)
+  assert.match(nuovoCliente, /export const AVANTI = 'Avanti · date e camera'/)
+  assert.match(pezzi, /height: ALTEZZA_PASTIGLIA, borderRadius: 999, padding: '0 18px', fontSize: 12, fontWeight: 600/)
+  assert.match(pezzi, /export const ALTEZZA_PASTIGLIA = 30/)
+  assert.equal(/w-full/.test(nuovoCliente), false, 'il tasto è a tutta larghezza')
+})
+
+test('il cliente nuovo si salva con le regole di sempre', () => {
+  assert.match(pagina, /import \{ creaClienteNuovo \} from '@\/lib\/cambiaClienteDati'/)
+  assert.match(pagina, /numeroUsabile\(nuovo\.telefono\)/)
+  assert.match(pagina, /nomeCompleto\(\{ nome: nuovo\.nome, cognome: nuovo\.cognome \}\)/)
+  assert.match(pagina, /motivo_problematico: nuovo\.motivo\.trim\(\)/)
+  assert.match(pagina, /export const SENZA_TELEFONO = 'Il numero di telefono è obbligatorio/)
+})

@@ -13,8 +13,7 @@
 // conto da lib/prenotazioneComposta, le notti da lib/strisciaNotti (la stessa
 // striscia della scheda), «come paga» da lib/comePaga. Qui sta solo la pagina.
 // ============================================================================
-import { useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
 import BackBar from '@/components/BackBar'
 import CampoRicerca from '@/components/CampoRicerca'
 import { supabase } from '@/lib/supabase'
@@ -23,6 +22,13 @@ import { dataDiOggi, rigaClienteTrovato } from '@/lib/nuovaPrenotazione'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import { filtraClienti } from '@/lib/cambiaCliente'
 import { messaggioLetturaNonRiuscita } from '@/lib/prenotazioneScritture'
+import NuovoCliente, { NUOVO_CLIENTE_VUOTO, type DatiNuovoCliente } from '@/components/nuova/NuovoCliente'
+import { leggiStrutture } from '@/lib/provenienzaDati'
+import { creaClienteNuovo } from '@/lib/cambiaClienteDati'
+import { nomeCompleto } from '@/lib/guestName'
+import { numeroUsabile } from '@/lib/whatsapp'
+import AvvisoAzione from '@/components/AvvisoAzione'
+import type { StrutturaNota } from '@/lib/provenienza'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 const OTTONE = '#A9884E'
@@ -67,15 +73,51 @@ export function RigaCliente({ cliente, soggiorni, onScegli }: { cliente: Cliente
   )
 }
 
+export const SENZA_TELEFONO = 'Il numero di telefono è obbligatorio: senza non si può né chiamare né scrivere.'
+export const SENZA_NOME = 'Del cliente nuovo serve il nome.'
+
 export default function NuovaPrenotazionePage() {
-  const router = useRouter()
   const oggi = oggiARoma()
   const [ricerca, setRicerca] = useState('')
   const [risultati, setRisultati] = useState<ClienteRiga[]>([])
   const [soggiorni, setSoggiorni] = useState<Record<string, number>>({})
   const [erroreRicerca, setErroreRicerca] = useState<string | null>(null)
   const [cliente, setCliente] = useState<ClienteRiga | null>(null)
+  const [nuovo, setNuovo] = useState<DatiNuovoCliente | null>(null)
+  const [strutture, setStrutture] = useState<StrutturaNota[]>([])
+  const [struttureOk, setStruttureOk] = useState(false)
+  const [salvandoCliente, setSalvandoCliente] = useState(false)
+  const [avviso, setAvviso] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    let vivo = true
+    void leggiStrutture().then(r => { if (!vivo) return; setStrutture(r.strutture); setStruttureOk(r.disponibile) })
+    return () => { vivo = false }
+  }, [])
+
+  // Il cliente nuovo si salva subito: da qui in poi è un cliente come gli altri
+  async function creaCliente() {
+    if (!nuovo || salvandoCliente) return
+    if (!nuovo.nome.trim()) { setAvviso(SENZA_NOME); return }
+    if (!numeroUsabile(nuovo.telefono)) { setAvviso(SENZA_TELEFONO); return }
+    setSalvandoCliente(true)
+    setAvviso(null)
+    const campi: Record<string, unknown> = {
+      full_name: nomeCompleto({ nome: nuovo.nome, cognome: nuovo.cognome }),
+      phone: nuovo.telefono.replace(/\s/g, ''),
+      rating: nuovo.valutazione,
+      vuole_ricevuta: nuovo.ricevuta,
+      notes: nuovo.note.trim() || null,
+      ...(nuovo.valutazione === 'problematico' && nuovo.motivo.trim() ? { motivo_problematico: nuovo.motivo.trim() } : {}),
+      ...(struttureOk && nuovo.provenienza ? { provenienza: nuovo.provenienza, struttura_nome: nuovo.provenienza === 'altra_struttura' ? (nuovo.struttura.trim() || null) : null } : {}),
+    }
+    const esito = await creaClienteNuovo(campi as never, strutture)
+    setSalvandoCliente(false)
+    if (esito.errore || !esito.cliente) { setAvviso(esito.errore ?? 'Cliente non salvato, riprova'); return }
+    setCliente({ ...esito.cliente, rating: nuovo.valutazione, vuole_ricevuta: nuovo.ricevuta, notes: nuovo.note.trim() || null } as ClienteRiga)
+    setNuovo(null)
+  }
 
   // La ricerca: nome o telefono, con la stessa regola già in uso. Si aspetta
   // un quarto di secondo dall'ultimo tasto, come nell'inserimento di adesso.
@@ -115,18 +157,25 @@ export default function NuovaPrenotazionePage() {
       <h1 style={{ fontFamily: GEORGIA, fontSize: 26, lineHeight: '30px', color: 'var(--color-green-dark)', marginTop: 10 }}>{TITOLO_PAGINA}</h1>
       <p data-oggi className="uppercase" style={{ fontSize: 10, letterSpacing: '1.5px', color: OTTONE, marginTop: 4 }}>{dataDiOggi(oggi)}</p>
 
-      {!cliente && (
+      {avviso && <AvvisoAzione testo={avviso} className="mt-3" />}
+
+      {!cliente && !nuovo && (
         <section data-cerca-cliente style={{ marginTop: 18 }}>
           <CampoRicerca value={ricerca} onChange={scriviRicerca} placeholder="Cerca per nome o telefono…" />
-          <div style={{ marginTop: 10 }}><TastinoSage testo={NUOVO_CLIENTE} onClick={() => router.push('#nuovo')} /></div>
+          <div style={{ marginTop: 10 }}><TastinoSage testo={NUOVO_CLIENTE} onClick={() => setNuovo(NUOVO_CLIENTE_VUOTO)} /></div>
           {erroreRicerca && <p className="mt-3" style={{ fontSize: 13, color: '#8C3B2E' }}>{erroreRicerca}</p>}
           {risultati.length > 0 && (
             <div data-trovati style={{ marginTop: 14 }}>
               {risultati.map(c => <RigaCliente key={c.id} cliente={c} soggiorni={soggiorni[c.id] ?? 0} onScegli={() => setCliente(c)} />)}
-              <div style={{ marginTop: 12 }}><TastinoSage testo={NUOVO_CLIENTE} onClick={() => router.push('#nuovo')} /></div>
+              <div style={{ marginTop: 12 }}><TastinoSage testo={NUOVO_CLIENTE} onClick={() => setNuovo(NUOVO_CLIENTE_VUOTO)} /></div>
             </div>
           )}
         </section>
+      )}
+
+      {!cliente && nuovo && (
+        <NuovoCliente className="mt-4" dati={nuovo} onDati={setNuovo} strutture={strutture} struttureDisponibili={struttureOk}
+          onAvanti={() => void creaCliente()} avantiSpento={salvandoCliente} />
       )}
     </div>
   )
