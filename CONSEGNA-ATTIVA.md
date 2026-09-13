@@ -911,3 +911,77 @@ accorgersene per primo).
 
 Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
 `lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
+
+## La nuova pagina di inserimento (14/09/2026, Claude)
+
+Nasce a **`/nuova-prenotazione`** (`app/nuova-prenotazione/page.tsx`); **`/nuova`
+non è stata toccata** e resta quella in uso finché la nuova non è approvata.
+
+**Sei punti, sei commit.** Ricerca e testa (`13067a2`), cliente nuovo
+(`53235ee`), soggiorno con la striscia (`dfd3dc7`), arrivo/come paga/con
+lei/nota (`11c57de`), il conto e il salvataggio (`a881e0e`), la scheda dopo il
+salvataggio (`f58a6b4`).
+
+**Niente di nuovo sotto**: camere libere e capienze da `lib/disponibilita` e
+`lib/tariffe`, prezzi da `lib/prezzoNotti`, periodi, controlli e righe da
+salvare da `lib/prenotazioneComposta` (`rigaDaSalvare`, `problemi`), le notti
+dalla striscia di ieri (`lib/strisciaNotti` + `components/StrisciaNottiCamere`
++ `components/FoglioNotte`), il pagamento da `lib/comePaga` e
+`components/ComePaga`, la ricerca clienti da `filtraClienti`, il cliente nuovo
+da `creaClienteNuovo`. La logica nuova, tutta pura, sta in
+`lib/nuovaPrenotazione.ts`; la veste ripetuta in `components/nuova/PezziNuova.tsx`.
+
+**Gli ospiti notte per notte.** La striscia mostra gli ospiti sotto ogni notte
+(Georgia 15, mattone `#8a4f2f` quando sono diversi da quelli del soggiorno) e
+il foglietto li cambia col − e col +, con «solo questa notte» o «da qui in
+poi». I numeri offerti sono **solo quelli che il gestionale sa davvero
+salvare**: in una notte ci sono gli ospiti del soggiorno se c'è il letto in
+più, altrimenti quelli che la camera tiene da sola (regola di sempre di
+`lib/prezzoNotti`). Così non si può scegliere un numero che poi si perde
+salvando — per esempio in Lena non si possono avere 3 in una notte e 4 in
+un'altra, perché `num_guests` è uno solo per camera.
+
+**Un difetto trovato provando, e corretto qui.** Con uno sconto, `/nuova`
+salva `total_amount` **pieno** e lascia lo sconto ai soli `discount_type`/
+`discount_value`: la scheda, che somma i totali salvati, mostrava 280 € dove
+la cliente ne paga 252. La pagina nuova scrive il totale **già scontato**
+(`totaliScontati`), e la lettura riga per riga non cambia (con uno sconto
+valido `lib/conto` ricalcola dal prezzo a notte e il totale salvato non viene
+nemmeno guardato). **`/nuova` ha ancora quel difetto**: da decidere con Ania se
+correggerlo lì o aspettare che la pagina nuova prenda il suo posto.
+
+**Nella scheda** (`app/scheda/[id]`, non vietata): la pastiglia verde
+«✓ PRENOTAZIONE SALVATA» arrivando con `?salvata=1`, che sparisce dopo cinque
+secondi o al primo tocco, e la parte **ADESSO** sotto la fascia con «Conferma ·
+immagine e testo» e, quando si aspetta un bonifico, «Dati bonifico». ADESSO non
+dipende dall'essere arrivati dalla pagina nuova: si vede finché la conferma non
+è partita davvero e la cliente non è ancora andata via.
+
+**Prove.** 1215 test verdi, TypeScript e build puliti, lint senza errori (resta
+un avviso di dipendenza su un `useMemo`). Nuovi casi in
+`lib/nuovaPrenotazione.test.ts` (35: la data della testa, le righe dei clienti
+trovati, le camere del periodo e la riga dei liberi, gli ospiti salvabili di
+una notte, il conto nei suoi casi — sconto nei due modi, letto, due camere,
+camera mancante —, come si salva lo sconto, le persone «con lei» e le due
+colonne, i totali scontati, e il disegno di tutte e sei le parti letto dai
+sorgenti).
+
+Anteprima senza rete a 390×844, dalla UI vera: cliente che torna (Carmela
+trovata per nome, 🧾 ★ e «già stata qui 2 volte»), cliente nuovo (Rosa Verdi:
+«!» col campo «perché», strutture rientrate col filetto d'ottone), soggiorno in
+Lena 20→25 nov con la striscia a cinque notti, **ospiti portati a 3 dalla notte
+del 22 «da qui in poi»** (letto acceso da solo, le due notti a 2 in mattone),
+**cambio camera dalla striscia**, sconto del 10% (280 → 252 con la riga che
+cambia sotto il campo), caparra del 50% calcolata sul netto (126 €), una persona
+«con lei» (Marco Riva, SORELLA) e **salvataggio**: riga creata con sconto,
+caparra sulla prima riga e `?salvata=1`, scheda aperta con la pastiglia verde e
+la parte ADESSO. Provate anche due camere insieme (Lena + Ambra, conto 300 €,
+notti contate una volta sola).
+
+**Da guardare con Ania.** Il titolo «Nuova prenotazione» si legge due volte: in
+Georgia 26 come chiesto e nella barra in alto dell'app, che dice già dove si è.
+Nelle Richieste, a suo tempo, Ania ha fatto togliere il doppione: qui è rimasto
+perché il foglio lo chiedeva esplicitamente.
+
+Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
+`lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
