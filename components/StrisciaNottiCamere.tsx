@@ -22,6 +22,7 @@ const ROSSO = '#D40000'
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 export const MATTONE_OSPITI = '#8a4f2f'
 export const LARGHEZZA_COLONNINA = 44   // px: sotto non si scende, la striscia scorre di lato
+export const LARGHEZZA_MASSIMA = 72     // px: con due o tre notti le colonnine non diventano lenzuola
 export const SPAZIO_COLONNINE = 4
 export const SPIEGAZIONE = 'sopra la camera · sotto il letto in più'
 
@@ -73,7 +74,7 @@ export default function StrisciaNottiCamere({ notti, oggi, onNotte, ospitiAttesi
               <button key={n.iso} type="button" data-notte={n.iso} data-oggi={n.iso === oggi || undefined} data-fuori={fuori || undefined} data-cambia={cambi[i] || undefined}
                 onClick={onNotte ? () => onNotte(n) : undefined} disabled={!onNotte}
                 aria-label={`${titoloNotte(n.iso)}: ${fuori ? 'non dorme qui' : n.camera ?? 'camera da scegliere'}${n.letto ? ', con letto in più' : ''}. Tocca per cambiare`}
-                className="relative flex-1 min-w-0 text-left">
+                className="relative min-w-0 text-left" style={{ flex: `1 1 ${LARGHEZZA_COLONNINA}px`, maxWidth: LARGHEZZA_MASSIMA }}>
                 <Giorno iso={n.iso} stretta={stretta} oggi={n.iso === oggi} />
                 {/* il segno del cambio camera, fra questa colonnina e quella prima */}
                 {cambi[i] && (

@@ -19,7 +19,7 @@ import { useState } from 'react'
 import Foglio from '@/components/scheda/Foglio'
 import {
   camereDellaNotte, avvisoCapienza, lettoDisponibileNotte, prezzoLettoNotte, titoloNotte,
-  cambiaCamera, cambiaLetto, nonDormeQui, LETTO_NON_DISPONIBILE,
+  cambiaCamera, cambiaLetto, cambiaOspitiNotte, nonDormeQui, LETTO_NON_DISPONIBILE,
   type ContestoNotti, type NotteStriscia,
 } from '@/lib/strisciaNotti'
 import { tintaCamera } from '@/components/StrisciaNottiCamere'
@@ -106,7 +106,7 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, onF
         const i = valori.indexOf(notte.persone)
         const giu = i > 0 ? valori[i - 1] : valori.find(v => v < notte.persone) ?? null
         const su = i >= 0 && i < valori.length - 1 ? valori[i + 1] : valori.find(v => v > notte.persone) ?? null
-        const cambia = (quanti: number) => setBozza(b => cambiaLetto(b, iso, quanti > Math.min(...valori), contesto))
+        const cambia = (quanti: number) => setBozza(b => cambiaOspitiNotte(b, iso, quanti, contesto))
         const tasto = { width: 38, height: 38, borderRadius: 999, border: '1px solid var(--color-card-border)', fontSize: 18, color: 'var(--color-green-dark)', background: '#fff' }
         return (
           <div data-ospiti-notte className="mt-4">

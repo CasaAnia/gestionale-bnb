@@ -252,7 +252,8 @@ test('le colonnine: stessa larghezza, 4 px di spazio, e restano toccabili', () =
   assert.match(striscia, /export const LARGHEZZA_COLONNINA = 44/)
   assert.match(striscia, /export const SPAZIO_COLONNINE = 4/)
   assert.match(striscia, /className="flex items-end" style=\{\{ gap: SPAZIO_COLONNINE/)
-  assert.match(striscia, /className="relative flex-1 min-w-0/, 'le colonnine non hanno tutte la stessa larghezza')
+  assert.match(striscia, /flex: `1 1 \$\{LARGHEZZA_COLONNINA\}px`, maxWidth: LARGHEZZA_MASSIMA/, 'le colonnine non hanno tutte la stessa larghezza')
+  assert.match(striscia, /export const LARGHEZZA_MASSIMA = 72/, 'con poche notti le colonnine diventano lenzuola')
   // con molte notti la striscia scorre di lato invece di uscire dai margini
   assert.match(striscia, /className="overflow-x-auto no-scrollbar"/)
   assert.match(striscia, /minWidth: notti\.length \* LARGHEZZA_COLONNINA/)

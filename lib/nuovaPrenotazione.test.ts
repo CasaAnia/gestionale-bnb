@@ -4,8 +4,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   dataDiOggi, volteInParole, rigaClienteTrovato, camereDelPeriodo, rigaCamereLibere,
-  ospitiPossibiliNotte, ospitiDellaNotte,
+  ospitiPossibiliNotte, ospitiDellaNotte, listinoLetto, raggruppaPerCamera, datiLinea, nottiDellaLinea,
+  CRITERI_LETTO,
 } from './nuovaPrenotazione.ts'
+import type { PeriodoComposto } from './prenotazioneComposta.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
 
 const AMELIA = { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5 }
@@ -44,9 +46,9 @@ test('la riga delle camere libere nei casi estremi', () => {
 })
 
 test('gli ospiti di una notte sono solo quelli salvabili', () => {
-  // Lena: due senza letto, tre col letto
+  // Lena: da due (senza letto) fino a quello che si è scelto
   assert.deepEqual(ospitiPossibiliNotte(LENA, 3), [2, 3])
-  assert.deepEqual(ospitiPossibiliNotte(LENA, 4), [2, 4])
+  assert.deepEqual(ospitiPossibiliNotte(LENA, 4), [2, 3, 4])
   // Amelia: una senza letto, due col letto
   assert.deepEqual(ospitiPossibiliNotte(AMELIA, 2), [1, 2])
   // se il soggiorno è già alla capienza base non c'è niente da scegliere
@@ -148,4 +150,58 @@ test('il cliente nuovo si salva con le regole di sempre', () => {
   assert.match(pagina, /nomeCompleto\(\{ nome: nuovo\.nome, cognome: nuovo\.cognome \}\)/)
   assert.match(pagina, /motivo_problematico: nuovo\.motivo\.trim\(\)/)
   assert.match(pagina, /export const SENZA_TELEFONO = 'Il numero di telefono è obbligatorio/)
+})
+
+// ── 3. SOGGIORNO ───────────────────────────────────────────────────────────
+const cameraSoggiorno = readFileSync(new URL('../components/nuova/CameraSoggiorno.tsx', import.meta.url), 'utf8')
+
+test('la camera del soggiorno riusa la striscia già fatta, con gli ospiti sotto', () => {
+  assert.match(cameraSoggiorno, /import StrisciaNottiCamere from '@\/components\/StrisciaNottiCamere'/)
+  assert.match(cameraSoggiorno, /ospitiAttesi=\{ospiti\} spiegazione=\{false\}/)
+  // niente tasto per il cambio camera: si fa dalla striscia
+  const codice = cameraSoggiorno.split('\n').filter(r => !r.trim().startsWith('//')).join('\n')
+  assert.equal(/cambio camera|Aggiungi cambio/i.test(codice), false)
+  assert.match(pagina, /onNotte=\{n => setNotteAperta\(\{ gruppo: linea\.gruppo, iso: n\.iso \}\)\}/)
+})
+
+test('gli ospiti diversi da quelli del soggiorno si scrivono in mattone', () => {
+  const striscia = readFileSync(new URL('../components/StrisciaNottiCamere.tsx', import.meta.url), 'utf8')
+  assert.match(striscia, /export const MATTONE_OSPITI = '#8a4f2f'/)
+  assert.match(striscia, /n\.persone === ospitiAttesi \? 'var\(--color-green-dark\)' : MATTONE_OSPITI/)
+  assert.match(striscia, /fontFamily: GEORGIA, fontSize: 15/)
+})
+
+test('le camere occupate restano spente, e sotto si legge chi è libero', () => {
+  assert.match(cameraSoggiorno, /spenta=\{!libera && roomId !== camera\.id\}/)
+  assert.match(cameraSoggiorno, /data-camere-libere/)
+  assert.match(pagina, /rigaLibere=\{rigaCamereLibere\(scelte, d\.arrivo, d\.partenza\)\}/)
+})
+
+test('il letto e lo sconto sono uno solo per tutta la prenotazione', () => {
+  assert.match(pagina, /const \[letto, setLetto\] = useState<\{ importo: number \| null; criterio: 'notte' \| 'ogni4' \| 'totale' \}>/)
+  assert.match(pagina, /periodi\.map\(p => \(\{ \.\.\.p, letto: p\.nottiLetto\.length > 0 \? \{ importo: letto\.importo \?\? 0, criterio: letto\.criterio \} : null \}\)\)/)
+  assert.deepEqual(CRITERI_LETTO.map(c => c.chiave), ['notte', 'ogni4', 'totale'])
+  assert.match(pagina, /data-sconto-conto/)
+})
+
+test('il promemoria del listino dice «compreso» dove il posto è già nel prezzo', () => {
+  assert.equal(listinoLetto([]), '')
+  assert.equal(listinoLetto([{ nome: 'Lena', importo: 0 }]), 'di listino · Lena compreso')
+  assert.equal(listinoLetto([{ nome: 'Lena', importo: 10 }, { nome: 'Amelia', importo: 5 }]), 'di listino · Lena 10 € · Amelia 5 €')
+})
+
+test('le camere si raggruppano in linee, e la striscia le rifà', () => {
+  const periodo = (id: string, gruppo: string, roomId: string, dal: string, al: string): PeriodoComposto => ({
+    id, gruppo, roomId, checkIn: dal, checkOut: al, ospiti: 2, nottiLetto: [], letto: null, tariffa: 80,
+  })
+  const linee = raggruppaPerCamera([periodo('a', 'g1', LENA.id, '2026-11-20', '2026-11-22'), periodo('b', 'g2', AMBRA.id, '2026-11-20', '2026-11-22')])
+  assert.equal(linee.length, 2)
+  const d = datiLinea(linee[0])
+  assert.deepEqual([d.arrivo, d.partenza, d.ospiti, d.tariffa], ['2026-11-20', '2026-11-22', 2, 80])
+  assert.equal(nottiDellaLinea(linee[0]), 2)
+  // una linea spezzata dal cambio camera: le date vanno da capo a fondo
+  const spezzata = raggruppaPerCamera([periodo('a', 'g1', LENA.id, '2026-11-20', '2026-11-22'), periodo('b', 'g1', AMBRA.id, '2026-11-22', '2026-11-24')])[0]
+  const ds = datiLinea(spezzata)
+  assert.deepEqual([ds.arrivo, ds.partenza, ds.spezzata, ds.tariffa], ['2026-11-20', '2026-11-24', true, null])
+  assert.equal(nottiDellaLinea(spezzata), 4)
 })

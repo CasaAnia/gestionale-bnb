@@ -12,6 +12,8 @@ import { capienzaBase, capienzaCamera } from './tariffe.ts'
 import { giorniSoggiorno } from './prezzoNotti.ts'
 import { camereLibere, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
 import { contoPeriodo, notti as nottiPeriodo, round2, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
+import type { NotteStriscia } from './strisciaNotti.ts'
+import { blocchiDaNotti } from './strisciaNotti.ts'
 import { GIORNI_LUNGHI, MESI_LUNGHI } from './dateItaliane.ts'
 import { euroScheda } from './schedaPrenotazione.ts'
 
@@ -62,7 +64,9 @@ export function rigaCamereLibere<T extends CameraMinima>(scelte: CameraScelta<T>
 export function ospitiPossibiliNotte(camera: { name?: string | null; has_extra_bed?: boolean | null } | null | undefined, ospitiSoggiorno: number): number[] {
   const base = capienzaBase(camera)
   const max = Math.min(Math.max(ospitiSoggiorno, base), capienzaCamera(camera))
-  return base === max ? [base] : [base, max]
+  const out: number[] = []
+  for (let n = base; n <= max; n++) out.push(n)
+  return out
 }
 /** Quanti ospiti ha quella notte: col letto tutti, senza letto quelli della camera */
 export function ospitiDellaNotte(camera: { name?: string | null } | null | undefined, ospitiSoggiorno: number, conLetto: boolean): number {
@@ -186,4 +190,83 @@ export function campiConLei(persone: PersonaConLei[]): Record<string, unknown> {
     if (i === 0 && p.chiE.trim()) campi.chi_e = p.chiE.trim()
   })
   return campi
+}
+
+// ── Le camere della prenotazione («CAMERA 1», «CAMERA 2») ───────────────────
+// Una camera è una linea: di solito un periodo solo, ma dalla striscia può
+// spezzarsi in più periodi (il cambio camera). Le linee stanno insieme con lo
+// stesso `gruppo`, come già fa l'inserimento di adesso.
+export type LineaCamera = {
+  gruppo: string
+  periodi: PeriodoComposto[]
+}
+export function raggruppaPerCamera(periodi: PeriodoComposto[]): LineaCamera[] {
+  const linee = new Map<string, PeriodoComposto[]>()
+  for (const p of periodi) {
+    if (!linee.has(p.gruppo)) linee.set(p.gruppo, [])
+    linee.get(p.gruppo)!.push(p)
+  }
+  return [...linee.entries()].map(([gruppo, ps]) => ({ gruppo, periodi: [...ps].sort((a, z) => a.checkIn.localeCompare(z.checkIn)) }))
+}
+
+/** I dati della linea come si vedono nei campi: date, camera, ospiti, tariffa */
+export type DatiLinea = { arrivo: string; partenza: string; roomId: string | null; ospiti: number; tariffa: number | null; spezzata: boolean }
+export function datiLinea(linea: LineaCamera): DatiLinea {
+  const ps = linea.periodi
+  if (ps.length === 0) return { arrivo: '', partenza: '', roomId: null, ospiti: 1, tariffa: null, spezzata: false }
+  return {
+    arrivo: ps[0].checkIn,
+    partenza: ps.reduce((m, p) => (p.checkOut > m ? p.checkOut : m), ps[0].checkOut),
+    roomId: ps[0].roomId,
+    ospiti: Math.max(...ps.map(p => p.ospiti)),
+    tariffa: ps.length === 1 ? ps[0].tariffa : null,
+    spezzata: ps.length > 1,
+  }
+}
+
+/** «5 notti» sotto le date */
+export function nottiDellaLinea(linea: LineaCamera): number {
+  const giorni = new Set<string>()
+  for (const p of linea.periodi) for (const g of giorniSoggiorno(p.checkIn, p.checkOut)) giorni.add(g)
+  return giorni.size
+}
+
+// ── Il letto in più: prezzo unico per tutta la prenotazione ────────────────
+export const CRITERI_LETTO: { chiave: 'notte' | 'ogni4' | 'totale'; etichetta: string }[] = [
+  { chiave: 'notte', etichetta: 'a notte' },
+  { chiave: 'ogni4', etichetta: 'ogni 4 notti' },
+  { chiave: 'totale', etichetta: 'totale' },
+]
+/** «di listino · Lena compreso · Amelia 5 €» — il promemoria accanto al campo.
+ *  Il prezzo è quello che le regole applicano DAVVERO per gli ospiti scelti:
+ *  in Lena a tre il posto è già dentro il prezzo, e si scrive «compreso». */
+export const LETTO_COMPRESO_LISTINO = 'compreso'
+export function listinoLetto(righe: { nome: string; importo: number }[]): string {
+  if (righe.length === 0) return ''
+  const pezzi = righe.map(r => `${r.nome} ${r.importo > 0 ? `${r.importo} €` : LETTO_COMPRESO_LISTINO}`)
+  return `di listino · ${pezzi.join(' · ')}`
+}
+
+// ── Dalla striscia ai periodi ───────────────────────────────────────────────
+// Le notti attaccate con la stessa camera tornano a essere un periodo solo;
+// tariffa e accordo del letto restano quelli del periodo da cui vengono.
+export function periodiDaNotti(notti: NotteStriscia[], linea: LineaCamera, nuovoId: () => string): PeriodoComposto[] {
+  const blocchi = blocchiDaNotti(notti)
+  const vecchi = [...linea.periodi].sort((a, z) => a.checkIn.localeCompare(z.checkIn))
+  return blocchi.map(b => {
+    // il periodo che copriva quelle notti: da lì vengono tariffa e letto
+    const origine = vecchi.find(p => p.checkIn <= b.check_in && b.check_in < p.checkOut) ?? vecchi[0]
+    const stessaCamera = origine && origine.roomId === b.cameraId
+    return {
+      id: origine && stessaCamera && origine.checkIn === b.check_in ? origine.id : nuovoId(),
+      gruppo: linea.gruppo,
+      roomId: b.cameraId,
+      checkIn: b.check_in,
+      checkOut: b.check_out,
+      ospiti: Math.max(b.ospiti, 1),
+      nottiLetto: b.nottiLetto,
+      letto: origine?.letto ?? null,
+      tariffa: stessaCamera ? (origine?.tariffa ?? null) : null,
+    }
+  })
 }

@@ -274,6 +274,18 @@ export function cambiaLetto(notti: NotteStriscia[], iso: string, acceso: boolean
   })
 }
 
+// Gli ospiti di UNA notte: il letto si accende da sé quando superano quello
+// che la camera tiene senza. Usata dal foglietto nella pagina di inserimento,
+// dove le persone di una notte si scelgono col − e col +.
+export function cambiaOspitiNotte(notti: NotteStriscia[], iso: string, quanti: number, contesto: ContestoNotti): NotteStriscia[] {
+  return notti.map(n => {
+    if (n.iso !== iso) return n
+    const camera = contesto.camere.find(c => c.id === n.cameraId) ?? null
+    const persone = Math.max(1, Math.min(quanti, capienzaCamera(camera)))
+    return { ...n, persone, letto: persone > capienzaBase(camera) }
+  })
+}
+
 export function nonDormeQui(notti: NotteStriscia[], iso: string): NotteStriscia[] {
   return notti.map(n => (n.iso === iso
     ? { ...n, dentro: false, letto: false, cameraId: null, camera: null, persone: 0, motivo: null, parallela: false }
