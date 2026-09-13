@@ -74,11 +74,14 @@ test('la pagina nasce a /nuova-prenotazione e non tocca quella di adesso', () =>
   assert.ok(vecchia.includes('ComePaga'), 'la pagina di adesso è cambiata')
 })
 
-test('in cima il titolo in Georgia 26 e la data in ottone maiuscolo', () => {
-  assert.match(pagina, /fontFamily: GEORGIA, fontSize: 26/)
-  assert.match(pagina, /\{TITOLO_PAGINA\}/)
+test('in cima non c’è il titolo: lo dice la barra. Resta la data in ottone', () => {
+  // Ania, 14/09/2026: come nelle Richieste, il titolo non si legge due volte
+  assert.equal(/<h1/.test(pagina), false, 'il titolo è tornato nel corpo della pagina')
+  assert.equal(/fontSize: 26/.test(pagina), false)
   assert.match(pagina, /data-oggi className="uppercase" style=\{\{ fontSize: 10, letterSpacing: '1\.5px', color: OTTONE/)
   assert.match(pagina, /\{dataDiOggi\(oggi\)\}/)
+  // la data è la prima cosa della pagina, dopo la freccia indietro
+  assert.ok(pagina.indexOf('data-oggi') < pagina.indexOf('data-cerca-cliente'))
 })
 
 test('la ricerca è quella di sempre, col tastino sage «+ Nuovo cliente»', () => {

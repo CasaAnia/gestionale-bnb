@@ -56,8 +56,8 @@ import { colonnaMancante } from '@/lib/colonnaMancante'
 import { lettiOccupatiPerNotte } from '@/lib/lettiAggiuntivi'
 import { oraCompleta } from '@/lib/ora'
 
-const GEORGIA = "Georgia, 'Times New Roman', serif"
 const OTTONE = '#A9884E'
+/** il nome della pagina: lo scrive la barra in alto, non il corpo */
 export const TITOLO_PAGINA = 'Nuova prenotazione'
 export const NUOVO_CLIENTE = '+ Nuovo cliente'
 
@@ -382,8 +382,10 @@ export default function NuovaPrenotazionePage() {
     <div className="py-4 px-[22px] md:max-w-[620px] md:mx-auto">
       <div className="-mx-[6px]"><BackBar href="/prenotazioni" /></div>
 
-      <h1 style={{ fontFamily: GEORGIA, fontSize: 26, lineHeight: '30px', color: 'var(--color-green-dark)', marginTop: 10 }}>{TITOLO_PAGINA}</h1>
-      <p data-oggi className="uppercase" style={{ fontSize: 10, letterSpacing: '1.5px', color: OTTONE, marginTop: 4 }}>{dataDiOggi(oggi)}</p>
+      {/* Il titolo non si scrive: lo dice già la barra in alto, e leggerlo due
+          volte ruba una riga di schermo (Ania, 14/09/2026 — come nelle
+          Richieste). Resta la data di oggi, che la barra non dice. */}
+      <p data-oggi className="uppercase" style={{ fontSize: 10, letterSpacing: '1.5px', color: OTTONE, marginTop: 10 }}>{dataDiOggi(oggi)}</p>
 
       {avviso && <AvvisoAzione testo={avviso} className="mt-3" />}
 
