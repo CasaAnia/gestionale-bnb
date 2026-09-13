@@ -603,3 +603,61 @@ rete a 390×844 su tre clienti: Carmela Sabia (2 soggiorni, stella, ricevuta,
 1.360 €, parte CLIENTE con l'anno 2025 in ottone), Rosa Archivio («GIÀ IN
 ARCHIVIO», parte CLIENTE con «Nessun soggiorno concluso» e il link), Marek
 Kowalski (nuova: nessun segno, nessuna parte CLIENTE).
+
+## La scheda prenotazione nuova, parte 1 di 2 (13/09/2026, Claude)
+
+Pubblicata e verificata: commit `4110b7e`, `43af189`, `77261ea` e `a9a7d28`
+su `main`, deploy Vercel `success` (Production, `a9a7d28`). La scheda rifatta
+nasce a **`/scheda/<id>`** (`app/scheda/[id]/page.tsx`); `/prenotazioni/<id>`
+NON è stata toccata e resta quella in uso finché la nuova non è completa.
+
+**Cosa c'è.** Testa (TestaCliente), fascia ferma in cima (FasciaSezioni),
+DA CONTROLLARE (SchedinaControllo) e SOGGIORNO; la parte CLIENTE è già quella
+della proposta (ParteCliente). CONTO e MESSAGGI hanno solo il titoletto e un
+rimando alla scheda attuale: arrivano con la parte 2, ma la fascia ha già le
+cinque voci e ognuna porta da qualche parte.
+
+**Logica pura in un posto solo**: `lib/schedaPrenotazione.ts` — stato in alto
+a destra, prima riga («Già stata qui N volte · provenienza» / «Prima volta»,
+con `chiediProvenienza` quando manca), etichetta dell'arrivo, riga grande
+OSPITI · CAMERA coi cambi, stato del conto nei tre casi, note, striscia delle
+notti, riga «Arrivo», tratti di camera e «Da controllare» della scheda.
+Le cifre NON si ricalcolano: `contoPrenotazione` di `lib/prenotazioneUnica`,
+la stessa lettura della scheda attuale. «Da controllare» riusa
+`eccezioniPagamenti/Arrivi/Calendario` di `lib/daControllare` filtrate su
+questa prenotazione, più due voci che si vedono solo da qui (cambio camera di
+oggi o domani, documento mancante a chi è in casa).
+
+**Pezzi condivisi estesi, mai duplicati.** `TestaCliente` accetta prima riga
+già scritta, «da dove? ›», nome in peso normale, etichette delle date, riga
+grande, riga sotto la riga grande, riga dei documenti e note nella veste della
+scheda: senza i nuovi valori la proposta resta identica. `FasciaSezioni` ha
+`top` e `spaziatura` (la scheda: `top-12 lg:top-0`, 0,6 px) e adesso conta
+l'altezza della barra quando scende a una parte. `SchedinaControllo` ha
+`grande` (titolo 15, dettaglio 13). `RigaDocumentiPrenotazione` ha la veste
+`scheda` e accetta il conteggio già letto.
+
+**Nuovi componenti**: `components/scheda/StrisciaNottiScheda.tsx`,
+`SoggiornoScheda.tsx` (riga Arrivo, tratti, i tre link), `ArriviPrecedenti.tsx`,
+`Foglio.tsx`, `FoglioArrivo.tsx` (salva con `lib/arrivoOrario`),
+`FoglioProvenienza.tsx` (salva sul CLIENTE con `lib/provenienzaDati`).
+
+**Prove.** 1083 test verdi, TypeScript e build puliti, lint senza diagnostiche
+sui file nuovi. Nuovi casi in `lib/schedaPrenotazione.test.ts` (logica: stato,
+prima riga, etichetta arrivo, riga grande con una camera/coi cambi/con due
+camere, conto nei tre casi, note, striscia con cambio camera e ospiti diversi
+per notte, tratti col numero di notti sempre scritto, «Da controllare» con due
+cose e con niente) e in `lib/scheda.test.ts` (il disegno letto dai sorgenti:
+misure e colori decisi da Ania, i pezzi riusati invece di riscritti, le cinque
+parti nell'ordine della fascia). Anteprima senza rete a 390×844 (porta 3213):
+Carmela Sabia (10–17 set nello scenario, Lena → Amelia → Lena, due cambi,
+470 € pagati), una prenotazione futura non pagata (bonifico atteso, «Tutto a
+posto») e una prima volta senza note e senza orario; misurato a schermo che
+niente esce dai margini (scrollWidth 390) e provato anche a 1280 px.
+
+**Restano per la parte 2**: CONTO (pagamenti, sconto, acconti) e MESSAGGI, il
+foglio «Modifica soggiorno» tutto suo (oggi porta alla scheda attuale) e la
+decisione di Ania su quando spegnere la scheda vecchia.
+
+Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
+`lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
