@@ -655,9 +655,14 @@ Carmela Sabia (10–17 set nello scenario, Lena → Amelia → Lena, due cambi,
 posto») e una prima volta senza note e senza orario; misurato a schermo che
 niente esce dai margini (scrollWidth 390) e provato anche a 1280 px.
 
-**Restano per la parte 2**: CONTO (pagamenti, sconto, acconti) e MESSAGGI, il
-foglio «Modifica soggiorno» tutto suo (oggi porta alla scheda attuale) e la
-decisione di Ania su quando spegnere la scheda vecchia.
+**Restano per la parte 2**: CONTO (pagamenti, sconto, acconti) e MESSAGGI, e
+la decisione di Ania su quando spegnere la scheda vecchia.
+
+**I rimandi alla scheda vecchia restano (Ania, 13/09/2026).** Il tocco su una
+notte della striscia e «Modifica soggiorno» continuano a portare ai fogli di
+`/prenotazioni/<id>`: è voluto, non una cosa lasciata a metà. Si rifaranno
+dentro la scheda nuova, insieme alla striscia, con un incarico a parte — non
+vanno quindi inclusi nella parte 2 se non viene chiesto.
 
 Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
 `lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
