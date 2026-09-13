@@ -189,14 +189,15 @@ test('nella seconda riga, in fondo, quanto ha speso da noi', () => {
 test('stella e «ricevuta» nella riga: ci sono solo quando servono', () => {
   const pagina = readFileSync(new URL('../app/richieste/page.tsx', import.meta.url), 'utf8')
   const riga = pagina.slice(pagina.indexOf('function RigaRichiesta'), pagina.indexOf('function RigaChiusa'))
-  // la stella della cliente ottima, in ottone, davanti al nome
-  assert.match(riga, /\{cliente\.stella && <span data-stella/)
-  assert.match(riga, /style=\{\{ color: OTTONE, marginRight: 4 \}\}>★/)
-  // «ricevuta»: 11 px maiuscola ottone, dopo il nome
-  assert.match(riga, /\{cliente\.ricevuta && \(/)
-  assert.match(riga, /data-ricevuta className="uppercase" style=\{\{ fontSize: 11, letterSpacing: '0\.6px', fontWeight: 700, color: OTTONE \}\}>ricevuta/)
+  // I due segni davanti al nome: prima l'emoji della ricevuta, poi la stella
+  // della cliente ottima — «🧾 ★ Carmela Sabia» (Ania, 13/09/2026)
+  assert.match(riga, /\{cliente\.ricevuta && <span data-ricevuta aria-label="vuole la ricevuta" title="Vuole la ricevuta">\{'🧾 '\}<\/span>\}/)
+  assert.match(riga, /\{cliente\.stella && <span data-stella aria-label="cliente ottima" title="Cliente ottima" style=\{\{ color: OTTONE \}\}>\{'★ '\}<\/span>\}/)
+  assert.ok(riga.indexOf('data-ricevuta') < riga.indexOf('data-stella'), 'la ricevuta non sta prima della stella')
   assert.ok(riga.indexOf('data-stella') < riga.indexOf('{nomeCompleto(r)}'), 'la stella non sta davanti al nome')
-  assert.ok(riga.indexOf('data-ricevuta') > riga.indexOf('{nomeCompleto(r)}'), '«ricevuta» non sta dopo il nome')
+  // la parolina «RICEVUTA» dopo il nome non c'è più
+  assert.equal(/>ricevuta</.test(riga), false, 'la parolina «ricevuta» è ancora nella riga')
+  assert.equal(/letterSpacing: '0\.6px'/.test(riga), false, 'la parolina «ricevuta» è ancora nella riga')
   // il totale speso: rosso come la nota, e forte come la camera
   assert.match(pagina, /const ROSSO_SPESO = '#C00000'/)
   assert.match(riga, /x\.speso \? \{ color: ROSSO_SPESO \}/)
@@ -273,7 +274,7 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
   // il titolo: nome e date insieme; il nome NON si taglia e il puntino resta
   // col nome, così la riga sotto non comincia con un «·»
   assert.match(riga, /aria-label=\{titoloRigaRichiesta\(nomeCompleto\(r\), periodo\)\}/)
-  assert.match(riga, /\{nomeCompleto\(r\)\}\{cliente\.ricevuta \? '' : ' ·'\}/)
+  assert.match(riga, /\{nomeCompleto\(r\)\} ·/)
   assert.match(riga, /className="break-words"/)
   assert.match(riga, /<span className="whitespace-nowrap">\{periodo\}<\/span>/)
   assert.equal(/truncate/.test(riga), false, 'il nome viene ancora tagliato')

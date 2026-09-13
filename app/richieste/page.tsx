@@ -43,7 +43,7 @@ import {
 
 // «oggi / ieri» e la riga di notti e persone non hanno più un grigio loro:
 // stanno nell'etichetta d'ottone e nel color stone della Home (12/09/2026).
-const OTTONE = '#A9884E'          // la stella della cliente ottima e «ricevuta»
+const OTTONE = '#A9884E'          // la stella della cliente ottima
 const ROSSO_SPESO = '#C00000'     // quanto ha già speso da noi: lo stesso rosso della nota
 
 const oggiIso = () => {
@@ -111,21 +111,18 @@ function RigaRichiesta({ r, adesso, conflitti, stesseDate, onGruppo, nelGruppo =
           la riga sotto non comincia con un «·» (lib/rigaRichiesta). */}
       <p data-titolo-richiesta aria-label={titoloRigaRichiesta(nomeCompleto(r), periodo)}
         className="flex flex-wrap items-center gap-x-1.5 text-[15px] font-semibold text-green-dark leading-snug mt-0.5">
-        {/* La stella della cliente ottima, come nella scheda prenotazione, e il
-            puntino che sta col NOME: andando a capo non resta appeso in testa
-            alla riga sotto, come un elenco puntato. Con la «ricevuta» il
-            puntino passa a lei, per lo stesso motivo. */}
+        {/* I due segni davanti al nome, sempre nello stesso ordine (Ania,
+            13/09/2026): prima la RICEVUTA 🧾, poi la STELLA della cliente
+            ottima, poi il nome — «🧾 ★ Carmela Sabia». Sono testo, nella
+            misura del nome, divisi da uno spazio normale; la parolina
+            «RICEVUTA» dopo il nome non serve più. Il puntino sta col NOME:
+            andando a capo non resta appeso in testa alla riga sotto, come un
+            elenco puntato. */}
         <span className="break-words">
-          {cliente.stella && <span data-stella aria-label="cliente ottima" title="Cliente ottima" style={{ color: OTTONE, marginRight: 4 }}>★</span>}
-          {nomeCompleto(r)}{cliente.ricevuta ? '' : ' ·'}
+          {cliente.ricevuta && <span data-ricevuta aria-label="vuole la ricevuta" title="Vuole la ricevuta">{'🧾 '}</span>}
+          {cliente.stella && <span data-stella aria-label="cliente ottima" title="Cliente ottima" style={{ color: OTTONE }}>{'★ '}</span>}
+          {nomeCompleto(r)} ·
         </span>
-        {/* Nell'elenco il nome è già in grassetto: la ricevuta si vede solo se
-            si scrive (Ania, 12/09/2026) */}
-        {cliente.ricevuta && (
-          <span className="whitespace-nowrap">
-            <span data-ricevuta className="uppercase" style={{ fontSize: 11, letterSpacing: '0.6px', fontWeight: 700, color: OTTONE }}>ricevuta</span> ·
-          </span>
-        )}
         <span className="whitespace-nowrap">{periodo}</span>
       </p>
       {/* La riga sotto: le parole di mezzo come il «motivo» della Home, 12,5 px

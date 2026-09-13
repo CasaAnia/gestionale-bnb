@@ -647,8 +647,29 @@ test('la parte CLIENTE ha la veste disegnata per la scheda prenotazione', () => 
   // la stella della cliente ottima era già nella testa: resta
   assert.match(proposta, /stella=\{valutazioneDi\(guest\) === 'ottimo'\}/)
   const testa = readFileSync(new URL('../components/TestaCliente.tsx', import.meta.url), 'utf8')
-  assert.match(testa, /\{stella && <span aria-label="cliente ottimo"/)
+  assert.match(testa, /\{stella && <span data-stella aria-label="cliente ottima"/)
   // il riconoscimento del cliente è quello di sempre, in un posto solo
   assert.match(proposta, /clienteDellaRichiesta\(/)
   assert.equal(/perTelefono \?\? perNome/.test(proposta), false, 'la proposta si è riscritta il riconoscimento')
+})
+
+// ── I SEGNI DAVANTI AL NOME NELLA TESTA DELLA PROPOSTA (Ania, 13/09/2026) ──
+// «🧾 ★ Carmela Sabia»: prima la ricevuta, poi la stella, poi il nome. Sono
+// testo nella misura del nome, divisi da uno spazio normale; con la ricevuta
+// il nome resta in grassetto come prima.
+test('nella testa il nome ha davanti la ricevuta e poi la stella', () => {
+  const testa = readFileSync(new URL('../components/TestaCliente.tsx', import.meta.url), 'utf8')
+  const titolo = testa.slice(testa.indexOf('<h1 className="text-center mt-4'), testa.indexOf('</h1>'))
+  assert.match(titolo, /\{ricevuta && <span data-ricevuta aria-label="vuole la ricevuta" title="Vuole la ricevuta">\{'🧾 '\}<\/span>\}/)
+  assert.match(titolo, /\{stella && <span data-stella aria-label="cliente ottima" title="Cliente ottima" style=\{\{ color: OTTONE \}\}>\{'★ '\}<\/span>\}/)
+  assert.ok(titolo.indexOf('data-ricevuta') < titolo.indexOf('data-stella'), 'la ricevuta non sta prima della stella')
+  assert.ok(titolo.indexOf('data-stella') < titolo.indexOf('{nome}'), 'la stella non sta davanti al nome')
+  // niente misure a parte: i segni sono grandi come il nome
+  assert.equal(/fontSize/.test(titolo.slice(titolo.indexOf('{ricevuta &&'))), false, 'i segni hanno una misura loro')
+  assert.equal(/marginRight/.test(titolo), false, 'lo spazio non è più uno spazio normale')
+  // con la ricevuta il nome resta in grassetto
+  assert.match(titolo, /fontWeight: ricevuta \? 700 : 400/)
+  // la proposta passa alla testa sia la stella sia la ricevuta
+  const proposta = readFileSync(new URL('../app/richieste/[id]/proposta/page.tsx', import.meta.url), 'utf8')
+  assert.match(proposta, /ricevuta=\{vuoleRicevuta\(guest\)\}/)
 })

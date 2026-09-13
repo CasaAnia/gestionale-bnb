@@ -128,9 +128,14 @@ export default function TestaCliente({
         </span>
       </div>
 
-      {/* Il nome, grande e al centro */}
+      {/* Il nome, grande e al centro. Davanti, sempre in quest'ordine (Ania,
+          13/09/2026): la RICEVUTA 🧾, poi la STELLA della cliente ottima, poi
+          il nome — «🧾 ★ Carmela Sabia». Sono testo, nella misura del nome,
+          divisi da uno spazio normale; con la ricevuta il nome resta in
+          grassetto come prima. */}
       <h1 className="text-center mt-4 leading-tight" style={{ fontFamily: GEORGIA, fontWeight: ricevuta ? 700 : 400, fontSize: 32, color: 'var(--color-green-dark)' }}>
-        {stella && <span aria-label="cliente ottimo" title="Cliente ottimo" style={{ color: OTTONE, marginRight: 8 }}>★</span>}
+        {ricevuta && <span data-ricevuta aria-label="vuole la ricevuta" title="Vuole la ricevuta">{'🧾 '}</span>}
+        {stella && <span data-stella aria-label="cliente ottima" title="Cliente ottima" style={{ color: OTTONE }}>{'★ '}</span>}
         {nome}
       </h1>
 
