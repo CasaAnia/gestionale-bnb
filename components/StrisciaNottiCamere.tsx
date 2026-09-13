@@ -33,17 +33,20 @@ export const TINTE_CAMERA: Record<string, { fondo: string; testo: string }> = {
 export const TINTA_ALTRE = { fondo: '#EDEAE1', testo: 'var(--color-green-dark)' }
 export const tintaCamera = (nome: string | null) => (nome && TINTE_CAMERA[nome]) || TINTA_ALTRE
 
-function Giorno({ iso, stretta }: { iso: string; stretta: boolean }) {
+function Giorno({ iso, stretta, oggi }: { iso: string; stretta: boolean; oggi: boolean }) {
   const { giorno, numero } = giornoDellaNotte(iso)
-  const stile = { fontSize: 10, lineHeight: '12px', color: 'var(--color-stone)' }
+  // la notte di stanotte si riconosce dal verde, come nella striscia di prima
+  const stile = { fontSize: 10, lineHeight: '12px', fontWeight: oggi ? 700 : 400, color: oggi ? 'var(--color-green-mid)' : 'var(--color-stone)' }
   // con più di sette notti i due pezzi si incolonnano, così la colonnina resta stretta
   return stretta
     ? <span className="block"><span className="block" style={stile}>{giorno}</span><span className="block" style={stile}>{numero}</span></span>
     : <span className="block" style={stile}>{giorno} {numero}</span>
 }
 
-export default function StrisciaNottiCamere({ notti, onNotte, className = '' }: {
+export default function StrisciaNottiCamere({ notti, oggi, onNotte, className = '' }: {
   notti: NotteStriscia[]
+  /** la data di oggi (YYYY-MM-DD): la notte di stanotte si scrive in verde */
+  oggi?: string
   /** il tocco su una notte: apre il foglietto di quella notte */
   onNotte?: (notte: NotteStriscia) => void
   className?: string
@@ -61,15 +64,15 @@ export default function StrisciaNottiCamere({ notti, onNotte, className = '' }: 
             const fuori = !n.dentro
             const senzaCamera = n.dentro && !n.camera
             return (
-              <button key={n.iso} type="button" data-notte={n.iso} data-fuori={fuori || undefined} data-cambia={cambi[i] || undefined}
+              <button key={n.iso} type="button" data-notte={n.iso} data-oggi={n.iso === oggi || undefined} data-fuori={fuori || undefined} data-cambia={cambi[i] || undefined}
                 onClick={onNotte ? () => onNotte(n) : undefined} disabled={!onNotte}
                 aria-label={`${titoloNotte(n.iso)}: ${fuori ? 'non dorme qui' : n.camera ?? 'camera da scegliere'}${n.letto ? ', con letto in più' : ''}. Tocca per cambiare`}
                 className="relative flex-1 min-w-0 text-left">
-                <Giorno iso={n.iso} stretta={stretta} />
+                <Giorno iso={n.iso} stretta={stretta} oggi={n.iso === oggi} />
                 {/* il segno del cambio camera, fra questa colonnina e quella prima */}
                 {cambi[i] && (
                   <span aria-hidden data-segno-cambio className="absolute flex items-center justify-center"
-                    style={{ left: -SPAZIO_COLONNINE / 2, top: stretta ? 36 : 24, transform: 'translate(-50%, -50%)', width: 14, height: 14, borderRadius: 999, background: 'var(--color-cream)', color: OTTONE, fontSize: 10, lineHeight: '14px', zIndex: 1 }}>⇄</span>
+                    style={{ left: -SPAZIO_COLONNINE / 2, top: stretta ? 44 : 32, transform: 'translate(-50%, -50%)', width: 14, height: 14, borderRadius: 999, background: 'var(--color-cream)', color: OTTONE, fontSize: 10, lineHeight: '14px', zIndex: 1 }}>⇄</span>
                 )}
                 <span data-camera-notte className="block truncate text-center" style={{
                   marginTop: 3, borderRadius: '8px 8px 0 0', padding: '6px 2px', fontSize: 11, lineHeight: '14px', fontWeight: 600,

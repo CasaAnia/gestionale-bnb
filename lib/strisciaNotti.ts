@@ -178,11 +178,26 @@ export function lettoDisponibileNotte(iso: string, cameraId: string | null, cont
   return lettiLiberi(presi, iso) >= servono
 }
 
-/** Il prezzo accanto a «Sì»: «+ 10 €», oppure «compreso» (Lena venduta tripla) */
+// Quante persone dormono in quella camera col letto in più: gli ospiti del
+// soggiorno, ma mai oltre quello che la camera tiene (Amelia due, Lena
+// quattro). È questo numero a decidere tariffa e prezzo del letto.
+export function personeColLetto(camera: CameraStriscia | null | undefined, ospiti: number): number {
+  return Math.min(ospiti, capienzaCamera(camera))
+}
+
+// Il prezzo accanto a «Sì», sempre quello che il conto applicherà davvero:
+//  · «+ 10 €»        il letto si paga (regole di lib/tariffe);
+//  · «compreso»      il posto è già nel prezzo (Lena venduta come tripla);
+//  · «senza aggiunta» il letto è in più ma le persone ci stanno lo stesso
+//    (due che vogliono dormire separate): il conto non cambia, e se va fatto
+//    pagare si fa da «Vedi tutto».
 export const LETTO_COMPRESO = 'compreso'
+export const LETTO_SENZA_AGGIUNTA = 'senza aggiunta'
 export function prezzoLettoNotte(camera: CameraStriscia | null | undefined, ospiti: number): string {
-  const importo = totaleLetto(camera, ospiti, 1)
-  return importo > 0 ? `+ ${fmtEuroBreve(importo)}` : LETTO_COMPRESO
+  const persone = personeColLetto(camera, ospiti)
+  const importo = totaleLetto(camera, persone, 1)
+  if (importo > 0) return `+ ${fmtEuroBreve(importo)}`
+  return persone > capienzaBase(camera) ? LETTO_COMPRESO : LETTO_SENZA_AGGIUNTA
 }
 
 // ── Le tre modifiche del foglietto ──────────────────────────────────────────
@@ -208,7 +223,10 @@ export function cambiaLetto(notti: NotteStriscia[], iso: string, acceso: boolean
   return notti.map(n => {
     if (n.iso !== iso) return n
     const camera = contesto.camere.find(c => c.id === n.cameraId) ?? null
-    return { ...n, letto: acceso, persone: acceso ? contesto.ospiti : Math.min(contesto.ospiti, capienzaBase(camera)) }
+    return {
+      ...n, letto: acceso,
+      persone: acceso ? personeColLetto(camera, contesto.ospiti) : Math.min(contesto.ospiti, capienzaBase(camera)),
+    }
   })
 }
 
@@ -273,6 +291,17 @@ function abbina(blocco: BloccoNotti, liberi: SegmentoNotti[]): SegmentoNotti | n
   return scelto
 }
 
+// Il blocco è esattamente il tratto già salvato? Stessa camera, stesse date,
+// stesse notti col letto e stesse persone.
+function uguale(b: BloccoNotti, s: SegmentoNotti): boolean {
+  const letto = nottiConLetto(s)
+  return (s.room_id ?? s.rooms?.id) === b.cameraId
+    && s.check_in === b.check_in && s.check_out === b.check_out
+    && (Number(s.num_guests) || 1) === b.ospiti
+    && letto.length === b.nottiLetto.length
+    && [...letto].sort().every((g, i) => g === [...b.nottiLetto].sort()[i])
+}
+
 /**
  * Il piano di salvataggio: cosa aggiornare, cosa creare, cosa annullare.
  * I prezzi vengono da lib/prezzoNotti (listino della camera di quella notte,
@@ -292,6 +321,9 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
     if (!camera) return { ...vuoto, errore: CAMERA_MANCANTE }
     const origine = abbina(b, liberi)
     if (origine) liberi.splice(liberi.indexOf(origine), 1)
+    // Un tratto rimasto identico NON si tocca: la sua tariffa è quella che
+    // Ania ha concordato, e il listino non deve riscrivergliela sopra.
+    if (origine && uguale(b, origine)) continue
     const prezzo = prezzoPrenotazione(camera, {
       check_in: b.check_in, check_out: b.check_out, num_guests: b.ospiti, extra_bed_dates: b.nottiLetto,
     })

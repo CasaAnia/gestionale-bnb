@@ -6,7 +6,7 @@ import {
   nottiDaSegmenti, riassuntoStriscia, cambiCamera, avvisiStriscia, camereDellaNotte, avvisoCapienza,
   lettoDisponibileNotte, prezzoLettoNotte, cambiaCamera, cambiaLetto, nonDormeQui, blocchiDaNotti,
   pianoNotti, stessaStriscia, titoloNotte, giornoDellaNotte, compatta, NESSUNA_NOTTE, CAMERA_MANCANTE,
-  SCONTO_DECADUTO, LETTO_COMPRESO, segniDiCambio,
+  SCONTO_DECADUTO, LETTO_COMPRESO, LETTO_SENZA_AGGIUNTA, segniDiCambio, personeColLetto,
   type SegmentoNotti, type CameraStriscia, type ContestoNotti, type NotteStriscia,
 } from './strisciaNotti.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -148,6 +148,9 @@ test('il prezzo accanto a «Sì»', () => {
   assert.equal(prezzoLettoNotte(AMELIA, 2), '+ 5 €')
   assert.equal(prezzoLettoNotte(LENA, 3), LETTO_COMPRESO)   // la tripla è già venduta con tre posti
   assert.equal(prezzoLettoNotte(LENA, 4), '+ 10 €')
+  // due persone che vogliono dormire separate: il letto non cambia il conto
+  assert.equal(prezzoLettoNotte(ALLEGRA, 2), LETTO_SENZA_AGGIUNTA)
+  assert.equal(prezzoLettoNotte(LENA, 2), LETTO_SENZA_AGGIUNTA)
 })
 
 // ── Le modifiche del foglietto ─────────────────────────────────────────────
@@ -219,8 +222,10 @@ test('i tratti che restano senza notti si annullano, non si cancellano', () => {
 
 test('lo sconto in percentuale segue le notti; il totale concordato che decade ferma tutto', () => {
   const conSconto = [seg('a', LENA, '2026-09-10', '2026-09-13', { discount_type: 'percentage', discount_value: 10 })]
-  const piano = pianoNotti(nottiDaSegmenti(conSconto), conSconto, contesto())
-  assert.equal(piano.aggiorna[0].campi.total_amount, 216)   // 240 meno il 10%
+  // si toglie una notte: il tratto cambia, quindi si rifà — con lo sconto
+  const dueNotti = nonDormeQui(nottiDaSegmenti(conSconto), '2026-09-12')
+  const piano = pianoNotti(dueNotti, conSconto, contesto())
+  assert.equal(piano.aggiorna[0].campi.total_amount, 144)   // 160 meno il 10%
   assert.equal(piano.aggiorna[0].campi.discount_type, 'percentage')
 
   // totale concordato 200 su tre notti da 80: togliendone due il pieno scende a 80
@@ -321,7 +326,7 @@ test('la camera che non basta avvisa in mattone senza bloccare', () => {
 test('il letto: due pastiglie col prezzo, e «non disponibile» quando i letti sono presi', () => {
   assert.match(foglietto, /export const TITOLO_LETTO = 'Letto in più questa notte'/)
   assert.match(foglietto, /Sì · \{prezzoLettoNotte\(scelta, contesto\.ospiti\)\}/)
-  assert.match(foglietto, /spenta=\{!lettoLibero && !notte\.letto\}/)
+  assert.match(foglietto, /spenta=\{!notte\.dentro \|\| \(!lettoLibero && !notte\.letto\)\}/)
   assert.match(foglietto, /data-letto-non-disponibile[\s\S]{0,120}\{LETTO_NON_DISPONIBILE\}/)
   assert.match(foglietto, /const lettoLibero = lettoDisponibileNotte\(iso, notte\.cameraId, contesto\)/)
 })
@@ -341,4 +346,44 @@ test('il foglietto non parla col database e usa le regole della libreria', () =>
   for (const regola of ['camereDellaNotte', 'avvisoCapienza', 'lettoDisponibileNotte', 'cambiaCamera', 'cambiaLetto', 'nonDormeQui']) {
     assert.ok(foglietto.includes(regola), `il foglietto non usa ${regola}`)
   }
+})
+
+test('col letto in più le persone non superano quello che la camera tiene', () => {
+  // soggiorno di tre persone: in Amelia col letto se ne possono mettere due
+  const notti = nottiDaSegmenti([seg('a', AMELIA, '2026-09-10', '2026-09-12', { num_guests: 1 })])
+  const acceso = cambiaLetto(notti, '2026-09-10', true, contesto({ ospiti: 3 }))
+  assert.equal(acceso[0].persone, 2)
+  assert.equal(prezzoLettoNotte(AMELIA, 3), '+ 5 €')       // il letto di Amelia, non quello di tre persone
+  // in Lena invece le tre persone ci stanno tutte
+  const lena = cambiaLetto(nottiDaSegmenti([seg('b', LENA, '2026-09-10', '2026-09-12')]), '2026-09-10', true, contesto({ ospiti: 3 }))
+  assert.equal(lena[0].persone, 3)
+  assert.equal(personeColLetto(LENA, 4), 4)
+  assert.equal(personeColLetto(AMBRA, 4), 3)
+})
+
+test('un tratto rimasto identico non viene riscritto: la tariffa concordata resta', () => {
+  // Amelia a 65 € a notte (tariffa concordata, non il listino da 70)
+  const segmenti = [
+    seg('a', LENA, '2026-09-10', '2026-09-12'),
+    seg('b', AMELIA, '2026-09-12', '2026-09-14', { num_guests: 1 }),
+  ]
+  // si cambia solo la prima notte
+  const notti = cambiaCamera(nottiDaSegmenti(segmenti), '2026-09-10', AMBRA, contesto())
+  const piano = pianoNotti(notti, segmenti, contesto())
+  assert.equal(piano.errore, null)
+  assert.equal(piano.aggiorna.some(a => a.id === 'b'), false, 'il tratto di Amelia è stato riscritto')
+  assert.deepEqual(piano.annulla, [])
+  // e senza nessuna modifica non si scrive proprio niente
+  const fermo = pianoNotti(nottiDaSegmenti(segmenti), segmenti, contesto())
+  assert.deepEqual([fermo.aggiorna, fermo.crea, fermo.annulla, fermo.errore], [[], [], [], null])
+})
+
+test('la notte tolta dal soggiorno: il letto si spegne e si dice come rimetterla', () => {
+  assert.match(foglietto, /export const COME_RIMETTERLA = 'per rimetterla nel soggiorno scegli una camera'/)
+  assert.match(foglietto, /spenta=\{!notte\.dentro \|\| \(!lettoLibero && !notte\.letto\)\}/)
+  assert.match(foglietto, /<Pastiglia acceso=\{!notte\.letto\} spenta=\{!notte\.dentro\}/)
+  // e toccare una camera la rimette dentro
+  const dentro = cambiaCamera(nonDormeQui(nottiDaSegmenti([seg('a', LENA, '2026-09-10', '2026-09-12')]), '2026-09-10'), '2026-09-10', AMBRA, contesto())
+  assert.equal(dentro[0].dentro, true)
+  assert.equal(dentro[0].camera, 'Ambra')
 })

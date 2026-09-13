@@ -52,26 +52,25 @@ export function TrattiCameraScheda({ tratti, className = '' }: { tratti: TrattoC
   )
 }
 
-export function LinkSoggiorno({ hrefArrivo, onArrivo, hrefSoggiorno, onArriviPrecedenti, arriviAperti, className = '' }: {
+// «Modifica soggiorno» non c'è più (Ania, 13/09/2026): camera e letto di ogni
+// notte si cambiano dalla striscia, toccando la notte. Restano «Modifica
+// arrivo» e «Arrivi precedenti».
+export function LinkSoggiorno({ hrefArrivo, onArrivo, onArriviPrecedenti, arriviAperti, className = '' }: {
   hrefArrivo?: string | null
   onArrivo?: () => void
-  hrefSoggiorno: string
   onArriviPrecedenti: () => void
   arriviAperti: boolean
   className?: string
 }) {
   const verde = { fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }
-  // I due comandi verdi stanno insieme col puntino in mezzo; «Arrivi
-  // precedenti» li segue e, se a 390 px non ci sta, scende su una riga sua
-  // ALLINEATO A SINISTRA — mai un puntino appeso in fondo alla riga.
+  // «Modifica arrivo» e, di seguito, «Arrivi precedenti»: se a 390 px non ci
+  // sta, scende su una riga sua ALLINEATO A SINISTRA.
   return (
     <div data-link-soggiorno className={`flex flex-wrap items-center ${className}`} style={{ gap: '0 12px', fontSize: 14 }}>
       <span className="flex items-center whitespace-nowrap" style={{ gap: 8 }}>
         {onArrivo
           ? <button type="button" onClick={onArrivo} className="py-2 -my-2" style={verde}>Modifica arrivo</button>
           : <Link href={hrefArrivo ?? '#'} className="py-2 -my-2" style={verde}>Modifica arrivo</Link>}
-        <span style={{ color: 'var(--color-stone)' }}>·</span>
-        <Link href={hrefSoggiorno} className="py-2 -my-2" style={verde}>Modifica soggiorno</Link>
       </span>
       <button type="button" onClick={onArriviPrecedenti} aria-expanded={arriviAperti} className="py-2 -my-2 whitespace-nowrap" style={{ fontSize: 14, color: 'var(--color-stone)' }}>
         {arriviAperti ? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'}

@@ -12,7 +12,7 @@ const leggi = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), '
 const pagina = leggi('app/scheda/[id]/page.tsx')
 const testa = leggi('components/TestaCliente.tsx')
 const fascia = leggi('components/FasciaSezioni.tsx')
-const striscia = leggi('components/scheda/StrisciaNottiScheda.tsx')
+const striscia = leggi('components/StrisciaNottiCamere.tsx')
 const soggiorno = leggi('components/scheda/SoggiornoScheda.tsx')
 const schedina = leggi('components/SchedinaControllo.tsx')
 const documenti = leggi('components/DocumentiCliente.tsx')
@@ -166,24 +166,48 @@ test('le cose da controllare sono le regole della Home, filtrate su questa preno
 })
 
 // ── 4. SOGGIORNO ───────────────────────────────────────────────────────────
-test('la striscia delle notti: riquadro bianco, «7 NOTTI» in ottone, caselle uguali', () => {
-  assert.match(striscia, /className=\{`ed-riquadro overflow-hidden/)
-  assert.match(striscia, /le notti, tocca per modificare/)
-  assert.match(striscia, /fontSize: 12, color: 'var\(--color-stone\)'/)
-  assert.match(striscia, /fontSize: 10, letterSpacing: '1\.5px', color: OTTONE \}\}>\{testoNotti\(caselle\.length\)\}/)
-  // una casella per notte, larghezza uguale (flex-1) e filo fra una e l'altra
-  assert.match(striscia, /className="flex-1 min-w-0 text-center/)
-  assert.match(striscia, /borderLeft: i > 0 \? '1px solid var\(--color-card-border\)' : undefined/)
-  // giorno 11 px («Oggi» verde grassetto), ⇄ ottone, numero Georgia 20 sottolineato oggi
-  assert.match(striscia, /fontSize: 11, lineHeight: '14px', fontWeight: c\.oggi \? 700 : 400, color: c\.oggi \? 'var\(--color-green-mid\)'/)
-  assert.match(striscia, /\{c\.cambia \? '⇄' : ''\}/)
-  assert.match(striscia, /fontFamily: GEORGIA, fontSize: 20[\s\S]*textDecoration: c\.oggi \? 'underline' : undefined/)
-  assert.match(striscia, /fontSize: 11, lineHeight: '14px', marginTop: 2, color: 'var\(--color-green-dark\)' \}\}>\{c\.camera\}/)
-  // un pallino stone per ospite
-  assert.match(striscia, /Array\.from\(\{ length: c\.persone \}\)/)
-  assert.match(striscia, /borderRadius: 999, background: 'var\(--color-stone\)'/)
-  // e toccare una notte apre il foglio del suo tratto
-  assert.match(pagina, /<StrisciaNottiScheda caselle=\{nottiTotali\} hrefNotte=\{c => hrefVecchia\(c\.segmentoId\)\}/)
+test('la striscia delle notti è quella nuova, e da lì si cambia la camera', () => {
+  // la striscia è il componente riusabile, alimentato dalle notti salvate
+  assert.match(pagina, /import StrisciaNottiCamere from '@\/components\/StrisciaNottiCamere'/)
+  assert.match(pagina, /const notti = useMemo\(\(\) => nottiDaSegmenti\(attive\), \[attive\]\)/)
+  assert.match(pagina, /<StrisciaNottiCamere notti=\{notti\} oggi=\{oggi\} onNotte=/)
+  // toccando una notte si apre il foglietto QUI, non più il foglio della scheda vecchia
+  assert.match(pagina, /setNotteAperta\(n\.iso\)/)
+  assert.match(pagina, /<FoglioNotte notti=\{notti\} iso=\{notteAperta\} contesto=\{contesto\}/)
+  assert.equal(/hrefNotte/.test(pagina), false, 'il tocco su una notte porta ancora alla scheda vecchia')
+  // e la striscia è sola presentazione: le regole stanno nella libreria
+  assert.match(striscia, /from '@\/lib\/strisciaNotti'/)
+})
+
+test('con due camere nelle stesse notti la striscia resta ferma e lo dice', () => {
+  assert.match(pagina, /const nonSiSposta = camere\.length === 0 \|\| attive\.some\(s => s\.group_id !== attive\[0\]\.group_id\)/)
+  assert.match(pagina, /onNotte=\{nonSiSposta \? undefined : n => setNotteAperta\(n\.iso\)\}/)
+  assert.match(pagina, /più camere nelle stesse notti: le notti si spostano dalla scheda completa/)
+  assert.match(pagina, /Le camere non si leggono: le notti si spostano dalla scheda completa/)
+})
+
+test('«Modifica soggiorno» non c’è più: restano «Modifica arrivo» e «Arrivi precedenti»', () => {
+  const senzaNote = (t: string) => t.split('\n').filter(r => !r.trim().startsWith('//')).join('\n')
+  assert.equal(/Modifica soggiorno/.test(senzaNote(soggiorno)), false, '«Modifica soggiorno» è ancora nei comandi')
+  assert.equal(/Modifica soggiorno/.test(senzaNote(pagina)), false)
+  assert.equal(/hrefSoggiorno/.test(pagina), false)
+  assert.match(soggiorno, />Modifica arrivo</)
+  assert.match(soggiorno, /\{arriviAperti \? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'\}/)
+  // i tratti di camera sotto la striscia restano come sono
+  assert.match(pagina, /<TrattiCameraScheda tratti=\{tratti\}/)
+})
+
+test('il salvataggio delle notti: si annulla, non si cancella, e il conto si rifà da solo', () => {
+  assert.match(pagina, /const piano = pianoNotti\(nuove, attive, contesto\)/)
+  assert.match(pagina, /status: 'annullata', cancelled_at: adesso/)
+  assert.equal(/from\('bookings'\)\.delete\(\)/.test(pagina), false, 'una riga viene cancellata invece che annullata')
+  // niente da salvare se non è cambiato niente (Annulla non tocca il database)
+  assert.match(pagina, /if \(!booking \|\| salvandoNotti \|\| stessaStriscia\(notti, nuove\)\) return/)
+  // dopo il salvataggio la scheda si rilegge: conto, tratti e «Da controllare» insieme
+  assert.match(pagina, /setVersione\(v => v \+ 1\)/)
+  assert.match(pagina, /\}, \[id, versione\]\)/)
+  // le scritture passano dal controllo dell'esito condiviso
+  assert.match(pagina, /const \{ errore \} = await salvaInSequenza\(scritture\)/)
 })
 
 test('la riga «Arrivo»: stone 14 a sinistra, orario in pastiglia sage, «da chiedere» in ottone', () => {
@@ -207,14 +231,12 @@ test('i tratti di camera: nome Georgia 20, prezzo stone 15, «⇄ CAMBIO» #EFE2
   assert.match(soggiorno, /borderTop: i > 0 \? '1px solid var\(--color-card-border\)' : undefined/)
 })
 
-test('i tre link in fondo al soggiorno: i primi due verdi semibold, il terzo stone', () => {
+test('i due comandi in fondo al soggiorno: «Modifica arrivo» verde e «Arrivi precedenti»', () => {
   assert.match(soggiorno, /const verde = \{ fontSize: 14, fontWeight: 600, color: 'var\(--color-green-mid\)' \}/)
   assert.match(soggiorno, />Modifica arrivo</)
-  assert.match(soggiorno, />Modifica soggiorno</)
   assert.match(soggiorno, /fontSize: 14, color: 'var\(--color-stone\)' \}\}>\s*\{arriviAperti \? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'\}/)
-  // «Modifica arrivo» apre il foglio qui; «Modifica soggiorno» porta al foglio attuale
+  // «Modifica arrivo» apre il foglio qui dentro
   assert.match(pagina, /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/)
-  assert.match(pagina, /hrefSoggiorno=\{hrefVecchia\(primoSegmento\?\.id \?\? booking\.id\)\}/)
 })
 
 test('i fogli usano i salvataggi già in casa, non ne scrivono di nuovi', () => {

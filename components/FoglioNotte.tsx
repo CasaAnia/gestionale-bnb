@@ -32,6 +32,7 @@ export const TITOLO_CAMERE = 'Camere libere questa notte'
 export const TITOLO_LETTO = 'Letto in più questa notte'
 export const NON_DORME_QUI = 'Non dorme qui'
 export const NESSUNA_CAMERA_LIBERA = 'Questa notte non è libera nessuna camera'
+export const COME_RIMETTERLA = 'per rimetterla nel soggiorno scegli una camera'
 
 const titoletto = { fontSize: 9, letterSpacing: '1.5px', color: OTTONE, textTransform: 'uppercase' as const }
 
@@ -92,11 +93,11 @@ export default function FoglioNotte({ notti, iso, contesto, onFatto, onChiudi }:
       {/* ── Il letto in più ───────────────────────────────────────────── */}
       <p className="mt-4" style={titoletto}>{TITOLO_LETTO}</p>
       <div data-letto-notte className="flex flex-wrap items-center mt-2" style={{ gap: 8 }}>
-        <Pastiglia acceso={!notte.letto} onClick={() => setBozza(b => cambiaLetto(b, iso, false, contesto))}>No</Pastiglia>
-        <Pastiglia acceso={notte.letto} spenta={!lettoLibero && !notte.letto} onClick={() => setBozza(b => cambiaLetto(b, iso, true, contesto))}>
+        <Pastiglia acceso={!notte.letto} spenta={!notte.dentro} onClick={() => setBozza(b => cambiaLetto(b, iso, false, contesto))}>No</Pastiglia>
+        <Pastiglia acceso={notte.letto} spenta={!notte.dentro || (!lettoLibero && !notte.letto)} onClick={() => setBozza(b => cambiaLetto(b, iso, true, contesto))}>
           Sì · {prezzoLettoNotte(scelta, contesto.ospiti)}
         </Pastiglia>
-        {!lettoLibero && !notte.letto && <span data-letto-non-disponibile style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{LETTO_NON_DISPONIBILE}</span>}
+        {notte.dentro && !lettoLibero && !notte.letto && <span data-letto-non-disponibile style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{LETTO_NON_DISPONIBILE}</span>}
       </div>
 
       {/* ── Toglie la notte dal soggiorno ─────────────────────────────── */}
@@ -104,6 +105,7 @@ export default function FoglioNotte({ notti, iso, contesto, onFatto, onChiudi }:
         style={{ fontSize: 13.5, fontWeight: 600, color: notte.dentro ? MATTONE : 'var(--color-stone)' }}>
         {notte.dentro ? NON_DORME_QUI : `${NON_DORME_QUI} ✓`}
       </button>
+      {!notte.dentro && <p data-come-rimetterla style={{ marginTop: 2, fontSize: 12, color: 'var(--color-stone)' }}>{COME_RIMETTERLA}</p>}
 
       {/* ── Fatto e Annulla ───────────────────────────────────────────── */}
       <div className="flex items-center justify-between mt-5 mb-1" style={{ gap: 12 }}>

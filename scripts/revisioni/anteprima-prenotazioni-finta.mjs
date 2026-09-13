@@ -88,6 +88,10 @@ const guests = [
   { ...ospite('aaaaaaaa-0018-4000-8000-000000000018', 'Carmela Sabia', '+39 333 000 0018'),
     rating: 'ottimo', vuole_ricevuta: true, provenienza: 'passaparola', struttura_nome: null,
     notes: 'Vuole la camera silenziosa, dorme male con i rumori.' },
+  // Striscia delle notti (13/09/2026): un soggiorno lungo (10 notti) e uno con
+  // una pausa in mezzo, per provare la striscia che scorre e la notte «libera».
+  ospite('aaaaaaaa-0019-4000-8000-000000000019', 'Dieci Notti', '+39 333 000 0019'),
+  ospite('aaaaaaaa-0020-4000-8000-000000000020', 'Con Pausa', '+39 333 000 0020'),
 ]
 const NIDA = guests[14]
 const CAMBIO = guests[16]
@@ -178,8 +182,17 @@ const bookings = [
     { group_id: GRUPPO_CARMELA, price_per_night: 65, total_amount: 130 }),
   prenotazione(ROOM.lena, CARMELA.id, '2026-09-16', '2026-09-18', 3,
     { group_id: GRUPPO_CARMELA, price_per_night: 90, extra_bed: true, extra_bed_dates: ['2026-09-16', '2026-09-17'], extra_bed_total: 0, total_amount: 180 }),
+  // Striscia delle notti (13/09/2026): dieci notti di fila in Allegra
+  prenotazione(ROOM.allegra, 'aaaaaaaa-0019-4000-8000-000000000019', '2026-10-05', '2026-10-15', 2,
+    { price_per_night: 70, total_amount: 700 }),
+  // e un soggiorno con una pausa: in Ambra 20–22 e di nuovo 23–25 (la notte
+  // del 22 non dorme qui), due tratti dello stesso soggiorno
+  prenotazione(ROOM.ambra, 'aaaaaaaa-0020-4000-8000-000000000020', '2026-10-20', '2026-10-22', 2,
+    { group_id: 'cccccccc-0020-4000-8000-000000000020', price_per_night: 70, total_amount: 140 }),
+  prenotazione(ROOM.ambra, 'aaaaaaaa-0020-4000-8000-000000000020', '2026-10-23', '2026-10-25', 2,
+    { group_id: 'cccccccc-0020-4000-8000-000000000020', price_per_night: 70, total_amount: 140 }),
 ]
-const CARMELA_PRIMO_TRATTO = bookings[bookings.length - 3]
+const CARMELA_PRIMO_TRATTO = bookings[bookings.length - 5]
 const documenti_cliente = [
   { id: 'dddddddd-0001-4000-8000-000000000001', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0001-4000-8000-000000000001.jpg`, etichetta: 'carta_identita', lato: 'fronte', nome_file: 'IMG_1.jpeg', dimensione: 700000, created_at: ora },
   { id: 'dddddddd-0002-4000-8000-000000000002', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0002-4000-8000-000000000002.jpg`, etichetta: 'carta_identita', lato: 'retro', nome_file: 'IMG_2.jpeg', dimensione: 700000, created_at: ora },
@@ -411,7 +424,7 @@ const finto = createServer((req, res) => {
   if (m && req.method === 'PATCH' && (m[1] === 'bookings' || m[1] === 'documenti_cliente' || m[1] === 'guests')) {
     return leggiCorpo(req).then(corpo => {
       const chiavi = Object.keys(corpo || {})
-      const AMMESSI = ['guest_id', 'guest_name', 'pagato', 'check_in', 'check_out', 'num_guests', 'price_per_night',
+      const AMMESSI = ['guest_id', 'guest_name', 'pagato', 'check_in', 'check_out', 'num_guests', 'price_per_night', 'room_id',
         'extra_bed', 'extra_bed_dates', 'extra_bed_total', 'extra_bed_importo', 'extra_bed_criterio',
         'total_amount', 'discount_type', 'discount_value', 'check_in_time', 'shuttle', 'updated_at',
         'status', 'cancelled_at', 'cancelled_reason', 'group_id', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro']
@@ -457,7 +470,9 @@ const finto = createServer((req, res) => {
       const nuova = prenotazione(riga.room_id, riga.guest_id, riga.check_in, riga.check_out, riga.num_guests ?? 1, { ...riga })
       bookings.push(nuova)
       console.log(`[finto supabase] +1 prenotazione (${nuova.room_id.slice(-4)}, ${nuova.check_in}, cliente ${nuova.guest_id.slice(-4)}, guest_name ${nuova.guest_name ?? '—'})`)
-      return rispondi(res, 201, [nuova])
+      const accept = req.headers.accept || ''
+      const scelta = applicaSelect(nuova, url.searchParams.get('select') || '*')
+      return rispondi(res, 201, accept.includes('vnd.pgrst.object') ? scelta : [scelta])
     })
   }
   if (m) {

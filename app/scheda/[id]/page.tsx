@@ -15,18 +15,19 @@
 // attuale), i pagamenti, gli altri soggiorni della cliente. Le cifre del
 // conto vengono da contoPrenotazione, mai ricalcolate qui.
 //
-// I fogli di modifica: «Modifica arrivo» e «da dove?» si aprono qui
-// (salvataggi condivisi: lib/arrivoOrario, lib/provenienzaDati). Il tocco su
-// una notte, «Modifica soggiorno», i pagamenti, l'accordo, i dati del cliente
-// e l'annullamento portano ai fogli della scheda attuale: è voluto (Ania,
-// 13/09/2026), si rifaranno con un incarico a parte.
+// I fogli di modifica: «Modifica arrivo», «da dove?» e il FOGLIETTO DELLA
+// NOTTE si aprono qui (salvataggi condivisi: lib/arrivoOrario,
+// lib/provenienzaDati, lib/strisciaNotti). Dalla striscia si cambiano camera
+// e letto in più notte per notte: «Modifica soggiorno» non c'è più.
+// I pagamenti, l'accordo, i dati del cliente e l'annullamento portano ancora
+// ai fogli della scheda attuale: si rifaranno con un incarico a parte.
 //
 // I testi dei messaggi NON sono qui: stanno in lib/messaggiPrenotazione, che
 // li tiene identici a quelli della scheda attuale (test di confronto).
 // ============================================================================
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import BackBar from '@/components/BackBar'
 import TestaCliente from '@/components/TestaCliente'
 import FasciaSezioni from '@/components/FasciaSezioni'
@@ -38,7 +39,8 @@ import CronologiaScheda from '@/components/scheda/CronologiaScheda'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { RigaDocumentiPrenotazione } from '@/components/DocumentiCliente'
-import StrisciaNottiScheda from '@/components/scheda/StrisciaNottiScheda'
+import StrisciaNottiCamere from '@/components/StrisciaNottiCamere'
+import FoglioNotte from '@/components/FoglioNotte'
 import { RigaArrivo, TrattiCameraScheda, LinkSoggiorno } from '@/components/scheda/SoggiornoScheda'
 import ArriviPrecedenti from '@/components/scheda/ArriviPrecedenti'
 import FoglioArrivo from '@/components/scheda/FoglioArrivo'
@@ -47,8 +49,10 @@ import { supabase } from '@/lib/supabase'
 import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiavePrenotazione, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import {
   SEZIONI_SCHEDA, TUTTO_A_POSTO, statoScheda, primaRigaScheda, etichettaArrivoScheda, rigaGrandeScheda, statoConto, noteScheda,
-  caselleSoggiorno, arrivoScheda, trattiCamera, daControllareScheda, segmentiAttivi, euroScheda, type SegmentoScheda,
+  arrivoScheda, trattiCamera, daControllareScheda, segmentiAttivi, euroScheda, type SegmentoScheda,
 } from '@/lib/schedaPrenotazione'
+import { nottiDaSegmenti, pianoNotti, stessaStriscia, type ContestoNotti, type NotteStriscia, type CameraStriscia } from '@/lib/strisciaNotti'
+import { salvaInSequenza } from '@/lib/prenotazioneScritture'
 import { nomeOspite } from '@/lib/guestName'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import { provenienzaInParole, provenienzaDi, normalizzaProvenienza, type CampiProvenienza } from '@/lib/provenienza'
@@ -108,6 +112,7 @@ function RigaGrande({ ospiti, camere, cambi }: { ospiti: number; camere: string;
 
 export default function SchedaPage() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
   const oggi = oggiARoma()
   const [booking, setBooking] = useState<Prenotazione | null>(null)
   const [righe, setRighe] = useState<Prenotazione[]>([])
@@ -126,6 +131,11 @@ export default function SchedaPage() {
   const [foglioArrivo, setFoglioArrivo] = useState(false)
   const [foglioProvenienza, setFoglioProvenienza] = useState(false)
   const [arriviAperti, setArriviAperti] = useState(false)
+  // la striscia delle notti: le camere di casa, la notte aperta e il salvataggio
+  const [camere, setCamere] = useState<CameraStriscia[]>([])
+  const [notteAperta, setNotteAperta] = useState<string | null>(null)
+  const [salvandoNotti, setSalvandoNotti] = useState(false)
+  const [versione, setVersione] = useState(0)
 
   useEffect(() => {
     if (!id) return
@@ -148,7 +158,7 @@ export default function SchedaPage() {
       const attive = segmentiAttivi(tutte)
       const arrivo = attive[0]?.check_in ?? scheda.check_in
       const partenza = attive.reduce((m, s) => (s.check_out > m ? s.check_out : m), scheda.check_out)
-      const [pag, altre, vicine, doc] = await Promise.all([
+      const [pag, altre, vicine, doc, stanze] = await Promise.all([
         supabase.from('payments').select('*').in('booking_id', ids).order('paid_on'),
         scheda.guest_id
           ? supabase.from('bookings').select('*, rooms(name), guests(full_name, phone)').eq('guest_id', scheda.guest_id).order('check_in', { ascending: false })
@@ -158,6 +168,8 @@ export default function SchedaPage() {
         scheda.guest_id
           ? supabase.from('documenti_cliente').select('id', { count: 'exact', head: true }).eq('guest_id', scheda.guest_id)
           : Promise.resolve({ count: null, error: null }),
+        // le camere di casa: servono alla striscia per sapere chi è libero
+        supabase.from('rooms').select('*'),
       ])
       if (!vivo) return
       if (pag.error) setAvviso(a => a ?? `Non riesco a leggere i pagamenti: ${pag.error.message}`)
@@ -176,17 +188,18 @@ export default function SchedaPage() {
       setAltreCliente(((altre.data ?? []) as SoggiornoStorico[]).filter(x => chiavePrenotazione(x as RigaPrenotazione) !== chiave))
       setAltreNotti(((vicine.data ?? []) as PrenotazioneDC[]).filter(x => !ids.includes(x.id)))
       setDocumenti(doc.error ? null : (doc.count ?? 0))
+      setCamere(((stanze.data ?? []) as CameraStriscia[]))
+      if (stanze.error) setAvviso(a => a ?? 'Non riesco a leggere le camere: dalla striscia non si possono spostare le notti.')
       setLoading(false)
     })().catch(() => { if (vivo) { setErrore(ERRORE_CONTO_INCOMPLETO); setLoading(false) } })
     return () => { vivo = false }
-  }, [id])
+  }, [id, versione])
 
   const guest = booking?.guests ?? null
   const hrefCliente = booking?.guest_id ? `/clienti/${booking.guest_id}` : null
   const attive = useMemo(() => segmentiAttivi(righe), [righe])
   const primoArrivo = attive[0]?.check_in ?? booking?.check_in ?? ''
   const ultimaPartenza = attive.reduce((m, s) => (s.check_out > m ? s.check_out : m), booking?.check_out ?? '')
-  const nottiTotali = useMemo(() => caselleSoggiorno(attive, oggi), [attive, oggi])
   const tratti = useMemo(() => trattiCamera(attive), [attive])
   const grande = useMemo(() => rigaGrandeScheda(attive), [attive])
   // Il conto: contoPrenotazione di lib/prenotazioneUnica, come la scheda attuale
@@ -214,6 +227,72 @@ export default function SchedaPage() {
   const waNumero = numeroWhatsAppPrenotazione(telefono)
   const primoSegmento = attive[0] ?? booking
   const hrefVecchia = (segmentoId: string) => `/prenotazioni/${segmentoId}`
+
+  // ── LA STRISCIA DELLE NOTTI ──────────────────────────────────────────────
+  // Le notti come sono salvate; le regole (chi è libero, capienza, i due letti
+  // di casa) stanno in lib/strisciaNotti e non si riscrivono qui.
+  const notti = useMemo(() => nottiDaSegmenti(attive), [attive])
+  const contesto: ContestoNotti = useMemo(() => ({
+    camere,
+    altre: altreNotti as unknown as ContestoNotti['altre'],
+    ospiti: Math.max(1, ...attive.map(s => Number(s.num_guests) || 1)),
+  }), [camere, altreNotti, attive])
+  const nonSiSposta = camere.length === 0 || attive.some(s => s.group_id !== attive[0].group_id)
+
+  // «Fatto» sul foglietto: si salva subito, poi la scheda si rilegge e il
+  // conto si rifà da solo. Una riga che resta senza notti si ANNULLA, non si
+  // cancella: l'incasso già registrato deve restare nel conto.
+  async function salvaNotti(nuove: NotteStriscia[]) {
+    setNotteAperta(null)
+    if (!booking || salvandoNotti || stessaStriscia(notti, nuove)) return
+    const piano = pianoNotti(nuove, attive, contesto)
+    if (piano.errore) { setAvviso(piano.errore); return }
+    setSalvandoNotti(true)
+    setAvviso(null)
+    const adesso = new Date().toISOString()
+    // Tutti i tratti di un soggiorno stanno nello stesso gruppo: se non c'è
+    // ancora (una camera sola) se ne fa uno adesso, come fa la scheda attuale.
+    const gruppo = attive[0]?.group_id || crypto.randomUUID()
+    const origine = attive[0]
+    const comuni: Record<string, unknown> = {
+      guest_id: booking.guest_id ?? null,
+      ...(origine?.guest_name ? { guest_name: origine.guest_name } : {}),
+      ...(origine?.prenotazione_id ? { prenotazione_id: origine.prenotazione_id } : {}),
+      status: origine?.status === 'in_attesa' ? 'in_attesa' : 'confermata',
+      bonifico: accordo?.bonifico ?? false,
+      pagato: false,
+      group_id: gruppo,
+    }
+    const creati: { id: string; check_in: string }[] = []
+    const scritture: Array<() => PromiseLike<{ error: unknown }>> = [
+      ...piano.aggiorna.map(a => () => supabase.from('bookings').update({ ...a.campi, group_id: gruppo, updated_at: adesso }).eq('id', a.id)),
+      ...piano.crea.map(c => async () => {
+        // L'orario e la navetta stanno sulla riga che arriva per prima: se è
+        // quella nuova, l'arrivo la segue invece di sparire.
+        const arrivo = c.check_in === primoArrivo
+          ? { check_in_time: primoSegmento?.check_in_time ?? null, shuttle: primoSegmento?.shuttle ?? null }
+          : {}
+        const esito = await supabase.from('bookings').insert({ ...comuni, ...arrivo, ...c }).select('id, check_in').single()
+        if (esito.data) creati.push(esito.data as { id: string; check_in: string })
+        return esito
+      }),
+      ...piano.annulla.map(idRiga => () => supabase.from('bookings').update({
+        status: 'annullata', cancelled_at: adesso,
+        cancelled_reason: 'Camera non più necessaria: notti spostate dalla striscia',
+        updated_at: adesso,
+      }).eq('id', idRiga)),
+    ]
+    const { errore } = await salvaInSequenza(scritture)
+    setSalvandoNotti(false)
+    if (errore) { setAvviso(errore); setVersione(v => v + 1); return }
+    // Se la riga aperta è stata annullata, la scheda passa alla prima rimasta
+    if (piano.annulla.includes(booking.id)) {
+      const rimaste = [...piano.aggiorna.map(a => ({ id: a.id, check_in: a.campi.check_in })), ...creati]
+        .sort((x, z) => x.check_in.localeCompare(z.check_in))
+      if (rimaste[0]) { router.replace(`/scheda/${rimaste[0].id}`); return }
+    }
+    setVersione(v => v + 1)
+  }
 
   // ── CONTO ────────────────────────────────────────────────────────────────
   const pagamentiScheda = pagamenti as unknown as PagamentoScheda[]
@@ -278,7 +357,7 @@ export default function SchedaPage() {
           hrefCliente="#cliente"
           arrivo={primoArrivo}
           partenza={ultimaPartenza}
-          notti={nottiTotali.length}
+          notti={notti.filter(n => n.dentro).length}
           etichettaArrivo={etichettaArrivoScheda(primoSegmento?.check_in_time, primoSegmento?.shuttle)}
           etichettaPartenza="parte"
           personeNotti={[grande.ospiti]}
@@ -311,12 +390,17 @@ export default function SchedaPage() {
       {/* ── Soggiorno ─────────────────────────────────────────────────────── */}
       <section id="soggiorno" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
         <p className="ed-sezione">Soggiorno</p>
-        <StrisciaNottiScheda caselle={nottiTotali} hrefNotte={c => hrefVecchia(c.segmentoId)} className="mt-3" />
+        {/* La striscia: camera e letto in più di ogni notte, si cambiano di qui */}
+        <StrisciaNottiCamere notti={notti} oggi={oggi} onNotte={nonSiSposta ? undefined : n => setNotteAperta(n.iso)} className="mt-3" />
+        {nonSiSposta && notti.length > 0 && (
+          <p data-striscia-ferma className="text-center" style={{ marginTop: 6, fontSize: 12, color: 'var(--color-stone)' }}>
+            {camere.length === 0 ? 'Le camere non si leggono: le notti si spostano dalla scheda completa.' : 'Questa prenotazione ha più camere nelle stesse notti: le notti si spostano dalla scheda completa.'}
+          </p>
+        )}
         {arrivoTesto && <RigaArrivo arrivo={arrivoTesto} className="mt-3" />}
         <TrattiCameraScheda tratti={tratti} className="mt-2" />
         <LinkSoggiorno
           onArrivo={() => setFoglioArrivo(true)}
-          hrefSoggiorno={hrefVecchia(primoSegmento?.id ?? booking.id)}
           onArriviPrecedenti={() => setArriviAperti(a => !a)}
           arriviAperti={arriviAperti}
           className="mt-1"
@@ -370,6 +454,11 @@ export default function SchedaPage() {
       {confermaAperta && (
         <ConfermaWhatsApp booking={{ ...booking, bonifico: accordo?.bonifico } as never} groupBookings={attive as never}
           payments={pagamenti as never} onClose={() => setConfermaAperta(false)} />
+      )}
+
+      {notteAperta && (
+        <FoglioNotte notti={notti} iso={notteAperta} contesto={contesto}
+          onFatto={salvaNotti} onChiudi={() => setNotteAperta(null)} />
       )}
 
       {foglioArrivo && primoSegmento && (
