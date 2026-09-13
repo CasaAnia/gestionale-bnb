@@ -172,7 +172,8 @@ const bookings = [
   prenotazione(ROOM.ambra, CARMELA.id, '2025-08-12', '2025-08-20', 2, { status: 'completata', price_per_night: 85, total_amount: 680, pagato: true }),
   prenotazione(ROOM.ambra, CARMELA.id, '2026-04-29', '2026-05-04', 2, { status: 'completata', price_per_night: 136, total_amount: 680, pagato: true, check_in_time: '16:00', shuttle: 'no' }),
   prenotazione(ROOM.lena, CARMELA.id, '2026-09-12', '2026-09-14', 2,
-    { group_id: GRUPPO_CARMELA, price_per_night: 80, total_amount: 160, check_in_time: '15:10', shuttle: 'si', notes: 'Chiede un cuscino in più.' }),
+    { group_id: GRUPPO_CARMELA, price_per_night: 80, total_amount: 160, check_in_time: '15:10', shuttle: 'si', notes: 'Chiede un cuscino in più.',
+      extra_phone_1_name: 'Marco Riva', extra_phone_1: '3334567890', chi_e: 'il figlio', extra_phone_2: '3339876543' }),
   prenotazione(ROOM.amelia, CARMELA.id, '2026-09-14', '2026-09-16', 1,
     { group_id: GRUPPO_CARMELA, price_per_night: 65, total_amount: 130 }),
   prenotazione(ROOM.lena, CARMELA.id, '2026-09-16', '2026-09-18', 3,
@@ -182,6 +183,11 @@ const CARMELA_PRIMO_TRATTO = bookings[bookings.length - 3]
 const documenti_cliente = [
   { id: 'dddddddd-0001-4000-8000-000000000001', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0001-4000-8000-000000000001.jpg`, etichetta: 'carta_identita', lato: 'fronte', nome_file: 'IMG_1.jpeg', dimensione: 700000, created_at: ora },
   { id: 'dddddddd-0002-4000-8000-000000000002', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0002-4000-8000-000000000002.jpg`, etichetta: 'carta_identita', lato: 'retro', nome_file: 'IMG_2.jpeg', dimensione: 700000, created_at: ora },
+]
+// Messaggi partiti dal gestionale (parte MESSAGGI e CRONOLOGIA della scheda nuova)
+const booking_whatsapp_log = [
+  { id: '77777777-0001-4000-8000-000000000001', booking_id: 'bbbbbbbb-0024-4000-8000-0000000000024', message_type: 'conferma', message_text: '…', sent: true, created_at: '2026-09-02T11:30:00+02:00' },
+  { id: '77777777-0002-4000-8000-000000000002', booking_id: 'bbbbbbbb-0024-4000-8000-0000000000024', message_type: 'modifica', message_text: '…', sent: true, created_at: '2026-09-08T18:05:00+02:00' },
 ]
 const strutture = [{ nome: 'Umana' }, { nome: 'Nida' }, { nome: 'RB (Rosa Bianca)' }, { nome: 'Elyse' }, { nome: 'BM (Borgo Manzoni)' }]
 // Il contante di Carmela (470 €, all'arrivo del 12 set) sul primo tratto
@@ -201,6 +207,10 @@ const booking_events = [
   evento(3, bookings[0].id, 60 * 50, 'totale', { totale: 80 }, { totale: 180 }),
   evento(4, bookings[0].id, 60 * 26, 'pagamento_aggiunto', null, { importo: 50, metodo: 'contanti', data: '2026-08-31' }),
   evento(5, bookings[0].id, 60 * 3, 'cliente', { cliente: 'Vecchio Nome', guest_id: null }, { cliente: guests[0].full_name, guest_id: guests[0].id }),
+  // Scheda nuova (13/09/2026): una modifica e un pagamento sul soggiorno di Carmela
+  // (minuti NEGATIVI = dopo il 1° set, così la storia va in ordine)
+  evento(6, 'bbbbbbbb-0024-4000-8000-0000000000024', -60 * 24 * 5, 'date', { check_in: '2026-09-12', check_out: '2026-09-13' }, { check_in: '2026-09-12', check_out: '2026-09-14' }),
+  evento(7, 'bbbbbbbb-0024-4000-8000-0000000000024', -60 * 24 * 11, 'pagamento_aggiunto', null, { importo: 470, metodo: 'contanti', data: '2026-09-12' }),
 ]
 // R1 (revisione 07/09/2026): spese del tracker vecchio in memoria, con
 // GET /finto/perdi-risposta-spese?on=1 il POST SALVA la riga ma chiude la
@@ -209,7 +219,7 @@ const family_groups = [{ id: 'eeeeeeee-0001-4000-8000-000000000001', name: 'Casa
 const family_categories = []
 const family_product_rules = []
 const family_expenses = []
-const tabelle = { rooms, guests, bookings, payments, cleanings, documenti_cliente, strutture, booking_events, family_groups, family_categories, family_product_rules, family_expenses }
+const tabelle = { rooms, guests, bookings, payments, cleanings, documenti_cliente, strutture, booking_events, booking_whatsapp_log, family_groups, family_categories, family_product_rules, family_expenses }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
 
 // --- PostgREST minimale ---------------------------------------------------

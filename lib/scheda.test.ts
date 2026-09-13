@@ -28,9 +28,11 @@ test('la scheda nuova sta a /scheda/<id> e la vecchia non viene toccata', () => 
 // ── 1. LA TESTA ────────────────────────────────────────────────────────────
 test('la testa: 22 px ai lati e i pezzi già esistenti, non riscritti', () => {
   assert.match(pagina, /className="py-4 px-\[22px\]/, 'i margini laterali sono 22 px come nella proposta')
-  for (const pezzo of ['TestaCliente', 'FasciaSezioni', 'SchedinaControllo', 'ParteCliente', 'RigaDocumentiPrenotazione']) {
+  for (const pezzo of ['TestaCliente', 'FasciaSezioni', 'SchedinaControllo', 'ConfermaWhatsApp', 'RigaDocumentiPrenotazione']) {
     assert.ok(pagina.includes(`<${pezzo}`) || pagina.includes(`${pezzo} guestId`), `la scheda non usa ${pezzo}`)
   }
+  // l'interruttore dei messaggi è quello del calendario, dentro MessaggiScheda
+  assert.match(leggi('components/scheda/MessaggiScheda.tsx'), /import InterruttorePillola from '@\/components\/InterruttorePillola'/)
   // il conto NON si rifà: arriva da lib/prenotazioneUnica, come la scheda attuale
   assert.match(pagina, /contoPrenotazione\(righe, pagamenti/)
   assert.equal(/totaleCent = .*reduce/.test(pagina), false, 'la scheda si è ricalcolata il totale')
@@ -231,7 +233,109 @@ test('le cinque parti stanno nella pagina nell’ordine della fascia', () => {
   const posizioni = ['controllare', 'soggiorno', 'conto', 'messaggi', 'cliente'].map(id => pagina.indexOf(`id="${id}"`))
   assert.ok(posizioni.every(p => p > 0), 'manca una delle cinque parti')
   assert.deepEqual([...posizioni].sort((a, b) => a - b), posizioni, 'le parti non sono nell’ordine della fascia')
-  // CONTO e MESSAGGI arrivano con la parte 2: intanto portano alla scheda attuale
+  // CONTO e MESSAGGI adesso ci sono davvero (parte 2, 13/09/2026)
   const conto = pagina.slice(posizioni[2], posizioni[3])
-  assert.match(conto, /scheda attuale/)
+  assert.match(conto, /<ContoScheda/)
+  assert.match(pagina.slice(posizioni[3], posizioni[4]), /<MessaggiScheda/)
+  // e la CRONOLOGIA sta in fondo, dopo la parte CLIENTE, fuori dalla fascia
+  assert.ok(pagina.indexOf('<CronologiaScheda') > posizioni[4], 'la cronologia non sta in fondo')
+})
+
+// ══ PARTE 2 (13/09/2026): CONTO · MESSAGGI · CLIENTE · CRONOLOGIA ══════════
+const conto = leggi('components/scheda/ContoScheda.tsx')
+const messaggi = leggi('components/scheda/MessaggiScheda.tsx')
+const cliente = leggi('components/scheda/ClienteScheda.tsx')
+const cronologia = leggi('components/scheda/CronologiaScheda.tsx')
+
+test('il conto: stato in Georgia 32, dettaglio 12,5 stone, barretta 4 px', () => {
+  assert.match(conto, /fontFamily: GEORGIA, fontSize: 32, color: testa\.saldato \? 'var\(--color-green-dark\)' : ROSSO_CONTO/)
+  assert.match(conto, /export const ROSSO_CONTO = '#D40000'/)
+  assert.match(conto, /fontSize: 12\.5, color: 'var\(--color-stone\)'/)
+  assert.match(conto, /export const FONDO_BARRA = '#EFE9DC'/)
+  assert.match(conto, /export const ALTEZZA_BARRA = 4/)
+  assert.match(conto, /background: 'var\(--color-green-mid\)', opacity: 0\.55/)
+  assert.match(conto, /width: `\$\{Math\.round\(testa\.quotaPagata \* 100\)\}%`/)
+})
+
+test('il conto: righe 14 px col filo, sconto in ottone, totale in Georgia 24', () => {
+  assert.match(conto, /borderTop: i > 0 \? '1px solid var\(--color-card-border\)' : undefined/)
+  assert.match(conto, /color: r\.sconto \? OTTONE : 'var\(--color-green-dark\)'/)
+  const totale = conto.slice(conto.indexOf('data-totale-conto'), conto.indexOf('data-accordo'))
+  assert.match(totale, /borderTop: `1px solid \$\{FILO_OTTONE\}`/)
+  assert.match(totale, /fontSize: 14, fontWeight: 600[\s\S]*>Totale</)
+  assert.match(totale, /fontFamily: GEORGIA, fontSize: 24/)
+  // accordo e pagamenti, poi i due link
+  assert.match(conto, /data-accordo[\s\S]*>Accordo</)
+  assert.match(conto, /data-pagamento/)
+  assert.match(conto, />Aggiungi pagamento</)
+  assert.match(conto, />Cambia accordo</)
+  // la pagina manda i link ai fogli della scheda attuale
+  assert.match(pagina, /hrefPagamento=\{`\$\{hrefVecchia\(booking\.id\)\}\?azione=pagato`\}/)
+})
+
+test('i messaggi: interruttore condiviso, tasto pieno stretto, otto pastiglie sage', () => {
+  assert.match(messaggi, /import InterruttorePillola from '@\/components\/InterruttorePillola'/)
+  assert.match(messaggi, /\['ania', 'WhatsApp Ania'\], \['business', 'Business'\]/)
+  // il tasto pieno: verde, bianco, 14 px, alto 42, largo quanto la scritta
+  const pieno = messaggi.slice(messaggi.indexOf('data-conferma-immagine'), messaggi.indexOf('Gli altri messaggi'))
+  assert.match(pieno, /inline-flex/)
+  assert.match(pieno, /background: 'var\(--color-green-mid\)', color: '#fff', fontSize: 14, fontWeight: 600, borderRadius: 999, minHeight: 42/)
+  assert.equal(/w-full/.test(pieno), false, 'il tasto della conferma non deve essere largo quanto la riga')
+  // gli otto: due colonne, 8 px, fondo sage, 13 px semibold, alti 38
+  assert.match(messaggi, /grid grid-cols-2 mt-3" style=\{\{ gap: 8 \}\}/)
+  assert.match(messaggi, /export const FONDO_TASTO = 'var\(--color-sage\)'/)
+  assert.match(messaggi, /fontSize: 13,\s*fontWeight: 600,\s*borderRadius: 999,\s*minHeight: 38,/)
+  // l'annullamento: solo contorno, in fondo e centrato
+  assert.match(messaggi, /export const BORDO_ANNULLAMENTO = '#D9B3AC'/)
+  assert.match(messaggi, /export const TESTO_ANNULLAMENTO = '#8C3B2E'/)
+  assert.ok(messaggi.indexOf('data-messaggio="annullamento"') > messaggi.indexOf('MESSAGGI_SCHEDA.map'))
+})
+
+test('i messaggi usano i testi di sempre, non ne scrivono di nuovi', () => {
+  assert.match(pagina, /import buildWhatsappMsg, \{ type TipoMessaggio \} from '@\/lib\/messaggiPrenotazione'/)
+  assert.match(pagina, /buildWhatsappMsg\(\{ \.\.\.booking, bonifico: accordo\?\.bonifico \}, tipo, attive, pagamenti\)/)
+  // l'apertura di WhatsApp è quella condivisa, col WhatsApp scelto
+  assert.match(pagina, /openWhatsApp\(waNumero, testoMessaggio\(tipo\), business\)/)
+  // nessun testo scritto dentro il componente
+  assert.equal(/Gentile /.test(messaggi), false, 'il componente dei messaggi si è scritto un testo suo')
+})
+
+test('il cliente: griglia a due colonne, «da dove? ›», soggiorni e «con lei»', () => {
+  assert.match(cliente, /grid grid-cols-2/)
+  assert.match(cliente, /fontSize: 9, letterSpacing: '1\.5px', color: OTTONE/)
+  assert.match(cliente, /fontSize: 14\.5, fontWeight: 600/)
+  assert.match(cliente, /data-chiedi-provenienza-cliente/)
+  assert.match(cliente, />Modifica dati</)
+  assert.match(cliente, />Cambia cliente</)
+  // i soggiorni: camera in Georgia 20, dati 13 stone, importo con la freccia
+  assert.match(cliente, /Soggiorni precedenti \{soggiorni\.length > 0 && <small>\{soggiorni\.length\} · \{euroTondi\(totaleCent\)\}<\/small>\}/)
+  assert.match(cliente, /fontFamily: GEORGIA, fontSize: 20/)
+  assert.match(cliente, /fontSize: 13, color: 'var\(--color-stone\)' \}\}>\s*\{periodoCompatto/)
+  assert.match(cliente, /\{euroTondi\(s\.totaleCent\)\} ›/)
+  assert.match(cliente, /data-anno[\s\S]*fontSize: 11, color: OTTONE/)
+  // ogni riga apre QUELLA prenotazione, nella scheda nuova
+  assert.match(cliente, /href=\{`\/scheda\/\$\{s\.prenotazioneId\}`\}/)
+  // «con lei» compare solo se c'è qualcuno
+  assert.match(cliente, /\{conLei\.length > 0 && \(/)
+  assert.match(cliente, /data-con-lei/)
+})
+
+test('la cronologia: quando a sinistra, cosa a destra, i messaggi col fumetto', () => {
+  assert.match(cronologia, /fontSize: 12\.5, color: 'var\(--color-stone\)' \}\}>\{r\.quando\}/)
+  assert.match(cronologia, /fontSize: 14, color: r\.messaggio \? 'var\(--color-green-mid\)' : 'var\(--color-green-dark\)'/)
+  assert.match(cronologia, /\{r\.messaggio && <MessageCircle/)
+  assert.match(cronologia, /\{NOTA_CRONOLOGIA\}/)
+  // la nota sotto, 12,5 px stone
+  assert.match(cronologia, /mt-2 leading-snug" style=\{\{ fontSize: 12\.5, color: 'var\(--color-stone\)' \}\}>\{NOTA_CRONOLOGIA\}/)
+  // le righe vanno dalla più vecchia: lo decide lib/schedaConto
+  assert.match(leggi('lib/schedaConto.ts'), /\.sort\(\(a, b\) => a\.ordine\.localeCompare\(b\.ordine\) \|\| a\.n - b\.n\)/)
+})
+
+test('i tre comandi in fondo, con l’annullamento in rosso', () => {
+  const fondo = pagina.slice(pagina.indexOf('data-comandi-fondo'), pagina.indexOf('data-comandi-fondo') + 900)
+  assert.match(fondo, />Vedi tutto</)
+  assert.match(fondo, />Altre modifiche</)
+  assert.match(fondo, /color: '#8C3B2E' \}\}>Annulla prenotazione</)
+  assert.ok(fondo.indexOf('Vedi tutto') < fondo.indexOf('Altre modifiche'))
+  assert.ok(fondo.indexOf('Altre modifiche') < fondo.indexOf('Annulla prenotazione'))
 })

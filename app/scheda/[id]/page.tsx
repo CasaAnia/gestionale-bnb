@@ -1,15 +1,14 @@
 'use client'
 // ============================================================================
-// LA NUOVA SCHEDA PRENOTAZIONE — /scheda/<id> (13/09/2026, parte 1 di 2).
+// LA NUOVA SCHEDA PRENOTAZIONE — /scheda/<id> (13/09/2026).
 // Nasce a un indirizzo a parte: la scheda vecchia (/prenotazioni/<id>) resta
 // com'è finché questa non è completa. Stile della pagina della proposta delle
 // richieste e della Home: testa col cliente (TestaCliente), fascia delle
 // sezioni ferma in cima (FasciaSezioni), schedine di «Da controllare»
-// (SchedinaControllo), parte CLIENTE (ParteCliente).
+// (SchedinaControllo).
 //
-// Parte 1: testa, fascia, DA CONTROLLARE, SOGGIORNO. Le parti CONTO e
-// MESSAGGI arrivano con la parte 2: qui c'è solo il loro titolo, così la
-// fascia ha già le cinque voci e ognuna porta da qualche parte.
+// Le parti, nell'ordine della fascia: DA CONTROLLARE · SOGGIORNO · CONTO ·
+// MESSAGGI · CLIENTE, e in fondo CRONOLOGIA, che non sta nella fascia.
 //
 // I dati sono quelli veri della prenotazione: tutte le camere della stessa
 // prenotazione con lib/prenotazioneUnica (la stessa lettura della scheda
@@ -17,9 +16,13 @@
 // conto vengono da contoPrenotazione, mai ricalcolate qui.
 //
 // I fogli di modifica: «Modifica arrivo» e «da dove?» si aprono qui
-// (salvataggi condivisi: lib/arrivoOrario, lib/provenienzaDati); «Modifica
-// soggiorno» e il tocco su una notte portano alla scheda attuale, dove quel
-// foglio vive ancora (il file è in carico a un'altra attività).
+// (salvataggi condivisi: lib/arrivoOrario, lib/provenienzaDati). Il tocco su
+// una notte, «Modifica soggiorno», i pagamenti, l'accordo, i dati del cliente
+// e l'annullamento portano ai fogli della scheda attuale: è voluto (Ania,
+// 13/09/2026), si rifaranno con un incarico a parte.
+//
+// I testi dei messaggi NON sono qui: stanno in lib/messaggiPrenotazione, che
+// li tiene identici a quelli della scheda attuale (test di confronto).
 // ============================================================================
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -28,7 +31,11 @@ import BackBar from '@/components/BackBar'
 import TestaCliente from '@/components/TestaCliente'
 import FasciaSezioni from '@/components/FasciaSezioni'
 import SchedinaControllo from '@/components/SchedinaControllo'
-import ParteCliente from '@/components/ParteCliente'
+import ClienteScheda from '@/components/scheda/ClienteScheda'
+import ContoScheda from '@/components/scheda/ContoScheda'
+import MessaggiScheda from '@/components/scheda/MessaggiScheda'
+import CronologiaScheda from '@/components/scheda/CronologiaScheda'
+import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { RigaDocumentiPrenotazione } from '@/components/DocumentiCliente'
 import StrisciaNottiScheda from '@/components/scheda/StrisciaNottiScheda'
@@ -40,14 +47,22 @@ import { supabase } from '@/lib/supabase'
 import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiavePrenotazione, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import {
   SEZIONI_SCHEDA, TUTTO_A_POSTO, statoScheda, primaRigaScheda, etichettaArrivoScheda, rigaGrandeScheda, statoConto, noteScheda,
-  caselleSoggiorno, arrivoScheda, trattiCamera, daControllareScheda, segmentiAttivi, type SegmentoScheda,
+  caselleSoggiorno, arrivoScheda, trattiCamera, daControllareScheda, segmentiAttivi, euroScheda, type SegmentoScheda,
 } from '@/lib/schedaPrenotazione'
 import { nomeOspite } from '@/lib/guestName'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import { provenienzaInParole, provenienzaDi, normalizzaProvenienza, type CampiProvenienza } from '@/lib/provenienza'
 import { elencoSoggiorniPersona, type SoggiornoStorico } from '@/lib/clienteCheTorna'
-import { numeroWhatsAppPrenotazione } from '@/lib/messaggiWhatsApp'
+import { numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
 import { openWhatsApp, telefonoAGruppi } from '@/lib/whatsapp'
+import buildWhatsappMsg, { type TipoMessaggio } from '@/lib/messaggiPrenotazione'
+import {
+  testaConto, righeConto, accordoInParole, righePagamenti, vociCliente, personeConLei, righeStoria,
+  type PagamentoScheda, type MessaggioInviato,
+} from '@/lib/schedaConto'
+import { leggiCronologia } from '@/lib/cronologiaDati'
+import type { EventoCronologia } from '@/lib/cronologia'
+import { valutazioneDi as valutazioneCliente } from '@/lib/valutazione'
 import { oggiARoma } from '@/lib/spese/adattatore'
 import type { PrenotazioneDC } from '@/lib/daControllare'
 import type { PagamentoStat } from '@/lib/statistiche/tipi'
@@ -63,6 +78,12 @@ type Prenotazione = SegmentoScheda & RigaPrenotazione & {
   guests?: { id?: string; full_name?: string | null; phone?: string | null; rating?: string | null; vuole_ricevuta?: boolean | null; notes?: string | null; provenienza?: string | null; struttura_nome?: string | null } | null
   provenienza?: string | null
   struttura_nome?: string | null
+  created_at?: string | null
+  // I contatti in più della prenotazione: chi dorme con lei («CON LEI»)
+  extra_phone_1?: string | null
+  extra_phone_1_name?: string | null
+  extra_phone_2?: string | null
+  extra_phone_2_name?: string | null
 }
 
 // La riga grande: OSPITI e CAMERA (con «⇄ 2» se cambia camera)
@@ -97,6 +118,11 @@ export default function SchedaPage() {
   const [loading, setLoading] = useState(true)
   const [errore, setErrore] = useState<string | null>(null)
   const [avviso, setAvviso] = useState<string | null>(null)
+  const [eventi, setEventi] = useState<EventoCronologia[]>([])
+  const [cronologiaAccesa, setCronologiaAccesa] = useState(true)
+  const [messaggiInviati, setMessaggiInviati] = useState<MessaggioInviato[]>([])
+  const [business, setBusiness] = useState(false)
+  const [confermaAperta, setConfermaAperta] = useState(false)
   const [foglioArrivo, setFoglioArrivo] = useState(false)
   const [foglioProvenienza, setFoglioProvenienza] = useState(false)
   const [arriviAperti, setArriviAperti] = useState(false)
@@ -135,6 +161,16 @@ export default function SchedaPage() {
       ])
       if (!vivo) return
       if (pag.error) setAvviso(a => a ?? `Non riesco a leggere i pagamenti: ${pag.error.message}`)
+      // La cronologia: le modifiche le scrive il database, i messaggi partiti
+      // stanno in booking_whatsapp_log (tabella di sempre).
+      leggiCronologia(ids).then(c => {
+        if (!vivo) return
+        setEventi(c.eventi)
+        setCronologiaAccesa(c.registrata)
+        if (c.errore) setAvviso(a => a ?? c.errore)
+      })
+      supabase.from('booking_whatsapp_log').select('id, message_type, created_at').in('booking_id', ids).order('created_at')
+        .then(({ data, error }) => { if (vivo && !error) setMessaggiInviati((data ?? []) as MessaggioInviato[]) })
       setPagamenti((pag.data ?? []) as PagamentoStat[])
       const chiave = chiavePrenotazione(scheda)
       setAltreCliente(((altre.data ?? []) as SoggiornoStorico[]).filter(x => chiavePrenotazione(x as RigaPrenotazione) !== chiave))
@@ -178,6 +214,40 @@ export default function SchedaPage() {
   const waNumero = numeroWhatsAppPrenotazione(telefono)
   const primoSegmento = attive[0] ?? booking
   const hrefVecchia = (segmentoId: string) => `/prenotazioni/${segmentoId}`
+
+  // ── CONTO ────────────────────────────────────────────────────────────────
+  const pagamentiScheda = pagamenti as unknown as PagamentoScheda[]
+  const testa = conto ? testaConto(conto, pagamentiScheda, righe.some(r => r.pagato)) : null
+  const rigeConto = useMemo(() => righeConto(attive), [attive])
+  const rigePagamenti = useMemo(() => righePagamenti(pagamentiScheda), [pagamentiScheda])
+  const accordoTesto = accordoInParole((accordo as { accordo_pagamento?: string | null } | null)?.accordo_pagamento, accordo?.bonifico)
+
+  // ── MESSAGGI ─────────────────────────────────────────────────────────────
+  // Gli stessi testi della scheda attuale (lib/messaggiPrenotazione), con gli
+  // stessi dati: la prenotazione, tutte le sue camere e i pagamenti.
+  const testoMessaggio = (tipo: TipoMessaggio) =>
+    booking ? buildWhatsappMsg({ ...booking, bonifico: accordo?.bonifico }, tipo, attive, pagamenti) : ''
+  const hrefMessaggio = (tipo: TipoMessaggio) => waHrefTesto(waNumero ?? '', testoMessaggio(tipo))
+  const apriMessaggio = (tipo: TipoMessaggio) => (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (waNumero) openWhatsApp(waNumero, testoMessaggio(tipo), business)
+  }
+
+  // ── CLIENTE ──────────────────────────────────────────────────────────────
+  const voci = vociCliente({
+    telefono: telefonoAGruppi(telefono) || telefono,
+    provenienza,
+    valutazione: valutazioneCliente(guest),
+    ricevuta: vuoleRicevuta(guest),
+    nota: guest?.notes ?? null,
+  })
+  const conLei = personeConLei(booking)
+
+  // ── CRONOLOGIA ───────────────────────────────────────────────────────────
+  const storia = useMemo(
+    () => righeStoria(eventi, messaggiInviati, booking?.created_at ?? null),
+    [eventi, messaggiInviati, booking],
+  )
 
   if (loading) return <div className="p-4"><BackBar href="/prenotazioni" /><div className="text-center py-10 text-stone">Caricamento…</div></div>
   if (!booking) return <div className="p-4"><BackBar href="/prenotazioni" /><div className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore || 'Prenotazione non trovata.'}</div></div>
@@ -254,21 +324,53 @@ export default function SchedaPage() {
         {arriviAperti && <ArriviPrecedenti altre={altreCliente as unknown as SegmentoStorico[]} oggi={oggi} className="mt-3" />}
       </section>
 
-      {/* ── Conto e Messaggi: arrivano con la parte 2 ─────────────────────── */}
+      {/* ── Conto ─────────────────────────────────────────────────────────── */}
       <section id="conto" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
         <p className="ed-sezione">Conto</p>
-        <p className="mt-2" style={{ fontSize: 13, color: 'var(--color-stone)' }}>Questa parte arriva con il prossimo rilascio. Intanto il conto si tocca dalla <Link href={hrefVecchia(booking.id)} className="underline underline-offset-2" style={{ color: 'var(--color-green-mid)', fontWeight: 600 }}>scheda attuale</Link>.</p>
-      </section>
-      <section id="messaggi" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
-        <p className="ed-sezione">Messaggi</p>
-        <p className="mt-2" style={{ fontSize: 13, color: 'var(--color-stone)' }}>Questa parte arriva con il prossimo rilascio. Intanto i messaggi si mandano dalla <Link href={hrefVecchia(booking.id)} className="underline underline-offset-2" style={{ color: 'var(--color-green-mid)', fontWeight: 600 }}>scheda attuale</Link>.</p>
+        {testa && conto
+          ? <ContoScheda className="mt-3" testa={testa} righe={rigeConto} totale={euroScheda(conto.totaleCent)}
+            accordo={accordoTesto} pagamenti={rigePagamenti}
+            hrefPagamento={`${hrefVecchia(booking.id)}?azione=pagato`} hrefAccordo={hrefVecchia(booking.id)} />
+          : <p className="mt-2" style={{ fontSize: 13, color: 'var(--color-stone)' }}>Non riesco a leggere il conto. Ricarica la scheda prima di toccare i pagamenti.</p>}
       </section>
 
-      {/* ── Cliente: la stessa parte della proposta ───────────────────────── */}
-      <section id="cliente" className="pt-[34px] pb-6 scroll-mt-28 lg:scroll-mt-16">
-        <ParteCliente soggiorni={soggiorni} totaleCent={totaleSoggiorniCent} ricevuta={vuoleRicevuta(guest)} provenienza={provenienza}
-          nota={guest?.notes ?? null} hrefCliente={hrefCliente} />
+      {/* ── Messaggi ──────────────────────────────────────────────────────── */}
+      <section id="messaggi" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
+        <p className="ed-sezione">Messaggi</p>
+        {waNumero
+          ? <MessaggiScheda className="mt-3" business={business} onBusiness={setBusiness}
+            onConfermaImmagine={() => setConfermaAperta(true)}
+            href={hrefMessaggio} onMessaggio={apriMessaggio} />
+          : <p className="mt-2 font-semibold" style={{ fontSize: 14, color: '#8C3B2E' }}>Senza numero di telefono non si può scrivere alla cliente.</p>}
       </section>
+
+      {/* ── Cliente ───────────────────────────────────────────────────────── */}
+      <section id="cliente" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
+        <p className="ed-sezione">Cliente</p>
+        <ClienteScheda className="mt-3" voci={voci} soggiorni={soggiorni} totaleCent={totaleSoggiorniCent} conLei={conLei}
+          onChiediProvenienza={booking.guest_id ? () => setFoglioProvenienza(true) : undefined}
+          hrefModificaDati={hrefVecchia(booking.id)} hrefCambiaCliente={hrefVecchia(booking.id)} />
+      </section>
+
+      {/* ── Cronologia ────────────────────────────────────────────────────── */}
+      <section className="pt-[34px]">
+        <p className="ed-sezione">Cronologia</p>
+        <CronologiaScheda className="mt-2" righe={storia} registrata={cronologiaAccesa} />
+      </section>
+
+      {/* I tre comandi in fondo, staccati da tutto il resto */}
+      <p data-comandi-fondo className="flex flex-wrap items-center justify-center mt-8 mb-4" style={{ gap: '0 12px', fontSize: 14 }}>
+        <Link href={hrefVecchia(booking.id)} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Vedi tutto</Link>
+        <span style={{ color: 'var(--color-stone)' }}>·</span>
+        <Link href={hrefVecchia(booking.id)} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Altre modifiche</Link>
+        <span style={{ color: 'var(--color-stone)' }}>·</span>
+        <Link href={hrefVecchia(booking.id)} className="py-2 -my-2" style={{ fontSize: 14, color: '#8C3B2E' }}>Annulla prenotazione</Link>
+      </p>
+
+      {confermaAperta && (
+        <ConfermaWhatsApp booking={{ ...booking, bonifico: accordo?.bonifico } as never} groupBookings={attive as never}
+          payments={pagamenti as never} onClose={() => setConfermaAperta(false)} />
+      )}
 
       {foglioArrivo && primoSegmento && (
         <FoglioArrivo bookingId={primoSegmento.id} ora={primoSegmento.check_in_time} navetta={primoSegmento.shuttle}
