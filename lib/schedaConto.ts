@@ -13,6 +13,7 @@
 import { contoSoggiorno } from './conto.ts'
 import { dettaglioNottiSalvato, testoDettaglioNotti, fmtEuroBreve } from './prezzoNotti.ts'
 import { lettoInclusoNellaCamera } from './roomTypes.ts'
+import { comePagaInParole } from './comePaga.ts'
 import { euroScheda, periodoTratto, segmentiAttivi, testoNotti, type SegmentoScheda } from './schedaPrenotazione.ts'
 import { quandoEvento, descriviEvento, type EventoCronologia } from './cronologia.ts'
 import { MESI_BREVI } from './dateItaliane.ts'
@@ -124,18 +125,11 @@ export function righeConto(segmenti: SegmentoScheda[]): RigaConto[] {
   return out
 }
 
-// ── L'accordo di pagamento ─────────────────────────────────────────────────
-// I valori salvati sono quelli della scheda attuale (proposta 0041); senza,
-// vale la vecchia spunta «bonifico».
-export function accordoInParole(accordo: string | null | undefined, bonifico?: boolean | null): string {
-  switch ((accordo ?? '').trim()) {
-    case 'contanti': return "contanti all'arrivo"
-    case 'bonifico_arrivo': return "bonifico all'arrivo"
-    case 'bonifico_intero': return 'tutto anticipato'
-    case 'caparra_meta': return 'caparra'
-    case 'caparra_libera': return 'caparra'
-    default: return bonifico ? 'bonifico' : "contanti all'arrivo"
-  }
+// ── Come paga ───────────────────────────────────────────────────────────────
+// I nomi e le frasi stanno in un posto solo (lib/comePaga): qui si legge
+// soltanto quello che è salvato sulla prenotazione.
+export function comePagaScheda(accordo: string | null | undefined, bonifico?: boolean | null): { nome: string; frase: string } {
+  return comePagaInParole(accordo, bonifico)
 }
 
 // ── I pagamenti già registrati ─────────────────────────────────────────────

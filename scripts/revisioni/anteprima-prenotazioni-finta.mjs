@@ -424,7 +424,7 @@ const finto = createServer((req, res) => {
   if (m && req.method === 'PATCH' && (m[1] === 'bookings' || m[1] === 'documenti_cliente' || m[1] === 'guests')) {
     return leggiCorpo(req).then(corpo => {
       const chiavi = Object.keys(corpo || {})
-      const AMMESSI = ['guest_id', 'guest_name', 'pagato', 'check_in', 'check_out', 'num_guests', 'price_per_night', 'room_id',
+      const AMMESSI = ['guest_id', 'guest_name', 'pagato', 'bonifico', 'check_in', 'check_out', 'num_guests', 'price_per_night', 'room_id',
         'extra_bed', 'extra_bed_dates', 'extra_bed_total', 'extra_bed_importo', 'extra_bed_criterio',
         'total_amount', 'discount_type', 'discount_value', 'check_in_time', 'shuttle', 'updated_at',
         'status', 'cancelled_at', 'cancelled_reason', 'group_id', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro']

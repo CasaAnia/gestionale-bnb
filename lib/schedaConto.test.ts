@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  testaConto, righeConto, accordoInParole, righePagamenti, vociCliente, personeConLei, righeStoria,
+  testaConto, righeConto, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
   NOME_MESSAGGIO, NOTA_CRONOLOGIA, type PagamentoScheda,
 } from './schedaConto.ts'
 import type { SegmentoScheda } from './schedaPrenotazione.ts'
@@ -100,14 +100,15 @@ test('coi cambi camera c’è una riga per tratto, in ordine', () => {
 
 // ── Accordo e pagamenti ─────────────────────────────────────────────────────
 test('l’accordo si legge in parole', () => {
-  assert.equal(accordoInParole('contanti'), "contanti all'arrivo")
-  assert.equal(accordoInParole('bonifico_arrivo'), "bonifico all'arrivo")
-  assert.equal(accordoInParole('bonifico_intero'), 'tutto anticipato')
-  assert.equal(accordoInParole('caparra_meta'), 'caparra')
-  assert.equal(accordoInParole('caparra_libera'), 'caparra')
-  // senza accordo salvato vale la vecchia spunta «bonifico»
-  assert.equal(accordoInParole(null, true), 'bonifico')
-  assert.equal(accordoInParole(null, false), "contanti all'arrivo")
+  // i nomi e le frasi vengono da lib/comePaga: qui si controlla solo che la
+  // scheda legga quello che è salvato
+  assert.deepEqual(comePagaScheda('contanti'), { nome: 'Contanti', frase: 'paga tutto in contanti quando arriva' })
+  assert.deepEqual(comePagaScheda('bonifico_arrivo'), { nome: 'Bonifico', frase: 'paga tutto con bonifico quando arriva' })
+  assert.equal(comePagaScheda('bonifico_intero').nome, 'Tutto')
+  assert.equal(comePagaScheda('caparra_meta').nome, 'Caparra del 50%')
+  assert.equal(comePagaScheda('caparra_libera').nome, 'Caparra')
+  assert.equal(comePagaScheda(null, true).nome, 'Bonifico')
+  assert.equal(comePagaScheda(null, false).nome, 'Da vedere')
 })
 
 test('i pagamenti: dal più vecchio, con giorno e metodo', () => {

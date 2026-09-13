@@ -282,15 +282,18 @@ test('il conto: stato in Georgia 32, dettaglio 12,5 stone, barretta 4 px', () =>
 test('il conto: righe 14 px col filo, sconto in ottone, totale in Georgia 24', () => {
   assert.match(conto, /borderTop: i > 0 \? '1px solid var\(--color-card-border\)' : undefined/)
   assert.match(conto, /color: r\.sconto \? OTTONE : 'var\(--color-green-dark\)'/)
-  const totale = conto.slice(conto.indexOf('data-totale-conto'), conto.indexOf('data-accordo'))
+  const totale = conto.slice(conto.indexOf('data-totale-conto'), conto.indexOf('data-come-paga-riga'))
   assert.match(totale, /borderTop: `1px solid \$\{FILO_OTTONE\}`/)
   assert.match(totale, /fontSize: 14, fontWeight: 600[\s\S]*>Totale</)
   assert.match(totale, /fontFamily: GEORGIA, fontSize: 24/)
-  // accordo e pagamenti, poi i due link
-  assert.match(conto, /data-accordo[\s\S]*>Accordo</)
+  // «Come paga» e pagamenti, poi i due comandi
+  assert.match(conto, /data-come-paga-riga[\s\S]*\{TITOLO_COME_PAGA\}/)
+  assert.match(conto, /\{accordo\.nome\}/)
+  assert.match(conto, /fontSize: 12\.5, color: 'var\(--color-stone\)' \}\}>\{accordo\.frase\}/)
   assert.match(conto, /data-pagamento/)
   assert.match(conto, />Aggiungi pagamento</)
-  assert.match(conto, />Cambia accordo</)
+  assert.match(conto, />Cambia come paga</)
+  assert.equal(/>Accordo</.test(conto), false, '«Accordo» è ancora scritto nel conto')
   // la pagina manda i link ai fogli della scheda attuale
   assert.match(pagina, /hrefPagamento=\{`\$\{hrefVecchia\(booking\.id\)\}\?azione=pagato`\}/)
 })

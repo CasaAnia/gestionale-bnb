@@ -45,12 +45,14 @@ import { RigaArrivo, TrattiCameraScheda, LinkSoggiorno } from '@/components/sche
 import ArriviPrecedenti from '@/components/scheda/ArriviPrecedenti'
 import FoglioArrivo from '@/components/scheda/FoglioArrivo'
 import FoglioProvenienza from '@/components/scheda/FoglioProvenienza'
+import FoglioComePaga from '@/components/scheda/FoglioComePaga'
 import { supabase } from '@/lib/supabase'
 import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiavePrenotazione, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import {
   SEZIONI_SCHEDA, TUTTO_A_POSTO, statoScheda, primaRigaScheda, etichettaArrivoScheda, rigaGrandeScheda, statoConto, noteScheda,
   arrivoScheda, trattiCamera, daControllareScheda, segmentiAttivi, euroScheda, type SegmentoScheda,
 } from '@/lib/schedaPrenotazione'
+import { comePagaSalvato } from '@/lib/comePaga'
 import { nottiDaSegmenti, pianoNotti, stessaStriscia, type ContestoNotti, type NotteStriscia, type CameraStriscia } from '@/lib/strisciaNotti'
 import { salvaInSequenza } from '@/lib/prenotazioneScritture'
 import { nomeOspite } from '@/lib/guestName'
@@ -61,7 +63,7 @@ import { numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
 import { openWhatsApp, telefonoAGruppi } from '@/lib/whatsapp'
 import buildWhatsappMsg, { type TipoMessaggio } from '@/lib/messaggiPrenotazione'
 import {
-  testaConto, righeConto, accordoInParole, righePagamenti, vociCliente, personeConLei, righeStoria,
+  testaConto, righeConto, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
   type PagamentoScheda, type MessaggioInviato,
 } from '@/lib/schedaConto'
 import { leggiCronologia } from '@/lib/cronologiaDati'
@@ -130,6 +132,7 @@ export default function SchedaPage() {
   const [confermaAperta, setConfermaAperta] = useState(false)
   const [foglioArrivo, setFoglioArrivo] = useState(false)
   const [foglioProvenienza, setFoglioProvenienza] = useState(false)
+  const [foglioComePaga, setFoglioComePaga] = useState(false)
   const [arriviAperti, setArriviAperti] = useState(false)
   // la striscia delle notti: le camere di casa, la notte aperta e il salvataggio
   const [camere, setCamere] = useState<CameraStriscia[]>([])
@@ -299,7 +302,8 @@ export default function SchedaPage() {
   const testa = conto ? testaConto(conto, pagamentiScheda, righe.some(r => r.pagato)) : null
   const rigeConto = useMemo(() => righeConto(attive), [attive])
   const rigePagamenti = useMemo(() => righePagamenti(pagamentiScheda), [pagamentiScheda])
-  const accordoTesto = accordoInParole((accordo as { accordo_pagamento?: string | null } | null)?.accordo_pagamento, accordo?.bonifico)
+  const accordoSalvato = (accordo as { accordo_pagamento?: string | null; caparra_centesimi?: number | null; caparra_entro?: string | null } | null)
+  const comePagaTesto = comePagaScheda(accordoSalvato?.accordo_pagamento, accordo?.bonifico)
 
   // ── MESSAGGI ─────────────────────────────────────────────────────────────
   // Gli stessi testi della scheda attuale (lib/messaggiPrenotazione), con gli
@@ -413,8 +417,8 @@ export default function SchedaPage() {
         <p className="ed-sezione">Conto</p>
         {testa && conto
           ? <ContoScheda className="mt-3" testa={testa} righe={rigeConto} totale={euroScheda(conto.totaleCent)}
-            accordo={accordoTesto} pagamenti={rigePagamenti}
-            hrefPagamento={`${hrefVecchia(booking.id)}?azione=pagato`} hrefAccordo={hrefVecchia(booking.id)} />
+            accordo={comePagaTesto} pagamenti={rigePagamenti}
+            hrefPagamento={`${hrefVecchia(booking.id)}?azione=pagato`} onComePaga={() => setFoglioComePaga(true)} />
           : <p className="mt-2" style={{ fontSize: 13, color: 'var(--color-stone)' }}>Non riesco a leggere il conto. Ricarica la scheda prima di toccare i pagamenti.</p>}
       </section>
 
@@ -470,6 +474,29 @@ export default function SchedaPage() {
             setBooking(b => (b ? aggiorna(b) : b))
             setFoglioArrivo(false)
             if (msg) setAvviso(msg)
+          }} />
+      )}
+      {foglioComePaga && accordo && (
+        <FoglioComePaga
+          idRighe={righe.map(r => r.id)}
+          idPrima={accordo.id}
+          modo={comePagaSalvato(accordoSalvato?.accordo_pagamento, accordo.bonifico)}
+          importo={accordoSalvato?.caparra_centesimi == null ? null : accordoSalvato.caparra_centesimi / 100}
+          data={(accordoSalvato?.caparra_entro ?? '').slice(0, 10)}
+          ora={(accordoSalvato?.caparra_entro ?? '').slice(11, 16)}
+          totaleCent={conto?.totaleCent ?? null}
+          onChiudi={() => setFoglioComePaga(false)}
+          onSalvato={(campi, avviso) => {
+            setRighe(rs => rs.map(r => ({
+              ...r,
+              accordo_pagamento: campi.accordo_pagamento,
+              bonifico: campi.bonifico,
+              ...(r.id === accordo.id
+                ? { caparra_centesimi: campi.caparra_centesimi, caparra_entro: campi.caparra_entro }
+                : { caparra_centesimi: null, caparra_entro: null }),
+            } as Prenotazione)))
+            setFoglioComePaga(false)
+            if (avviso) setAvviso(avviso)
           }} />
       )}
       {foglioProvenienza && booking.guest_id && (

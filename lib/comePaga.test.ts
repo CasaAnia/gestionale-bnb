@@ -160,3 +160,43 @@ test('l’inserimento usa il componente unico, non le cinque voci di prima', () 
   assert.match(nuova, /bonifico: campiComePaga\(accordoDaSalvare, \{\}\)\.bonifico/)
   assert.match(nuova, /comePagaSalvato\(b\.accordo_pagamento, b\.bonifico\)/)
 })
+
+const scheda = readFileSync(new URL('../app/scheda/[id]/page.tsx', import.meta.url), 'utf8')
+const contoScheda = readFileSync(new URL('../components/scheda/ContoScheda.tsx', import.meta.url), 'utf8')
+const foglio = readFileSync(new URL('../components/scheda/FoglioComePaga.tsx', import.meta.url), 'utf8')
+const logicaConto = readFileSync(new URL('../lib/schedaConto.ts', import.meta.url), 'utf8')
+
+test('nella scheda la riga si chiama «Come paga» e dice anche la frase', () => {
+  assert.match(contoScheda, /data-come-paga-riga/)
+  assert.match(contoScheda, /\{TITOLO_COME_PAGA\}/)
+  assert.match(contoScheda, /\{accordo\.nome\}/)
+  assert.match(contoScheda, /\{accordo\.frase\}/)
+  assert.equal(/>Accordo</.test(contoScheda), false, '«Accordo» è ancora nel conto')
+  assert.equal(/Cambia accordo/.test(contoScheda), false, '«Cambia accordo» è ancora nel conto')
+  assert.match(contoScheda, />Cambia come paga</)
+  // la linguetta della fascia resta «Conto», che è corta
+  assert.match(readFileSync(new URL('../lib/schedaPrenotazione.ts', import.meta.url), 'utf8'), /\{ id: 'conto', label: 'Conto' \}/)
+})
+
+test('«Cambia come paga» apre il foglio con lo stesso componente, non la scheda vecchia', () => {
+  assert.match(contoScheda, /onComePaga: \(\) => void/)
+  assert.match(scheda, /onComePaga=\{\(\) => setFoglioComePaga\(true\)\}/)
+  assert.match(scheda, /<FoglioComePaga/)
+  assert.match(foglio, /import ComePaga, \{ TITOLO_COME_PAGA \} from '@\/components\/ComePaga'/)
+  assert.match(foglio, /<ComePaga modo=\{scelta\}/)
+})
+
+test('la scheda legge «come paga» dalla libreria, non se lo riscrive', () => {
+  assert.match(logicaConto, /import \{ comePagaInParole \} from '\.\/comePaga\.ts'/)
+  assert.match(logicaConto, /export function comePagaScheda/)
+  assert.equal(/tutto anticipato|contanti all'arrivo/.test(logicaConto), false, 'i nomi vecchi sono ancora nella libreria del conto')
+  assert.match(scheda, /comePagaScheda\(accordoSalvato\?\.accordo_pagamento, accordo\?\.bonifico\)/)
+})
+
+test('il foglio salva il modo su tutte le camere e la caparra una volta sola', () => {
+  assert.match(foglio, /import \{ salvaComePaga \} from '@\/lib\/comePagaDati'/)
+  assert.match(foglio, /c => supabase\.from\('bookings'\)\.update\(c\)\.in\('id', idRighe\)/)
+  assert.match(foglio, /c => supabase\.from\('bookings'\)\.update\(c\)\.eq\('id', idPrima\)/)
+  // e i campi li decide la libreria
+  assert.match(foglio, /campiComePaga\(scelta, \{/)
+})

@@ -3,12 +3,13 @@
 // LA PARTE «CONTO» della nuova scheda prenotazione (13/09/2026): quanto manca
 // (o «Saldato») in grande a sinistra, il dettaglio a destra, una barretta che
 // dice a occhio quanto è stato pagato, poi il conto riga per riga, il totale,
-// l'accordo e i pagamenti già registrati.
+// «Come paga» e i pagamenti già registrati.
 //
 // Sola presentazione: i testi e le cifre arrivano da lib/schedaConto, che a
 // sua volta NON ricalcola il totale (viene da lib/prenotazioneUnica).
 // ============================================================================
 import Link from 'next/link'
+import { TITOLO_COME_PAGA } from '@/components/ComePaga'
 import type { RigaConto, RigaPagamento, TestaConto } from '@/lib/schedaConto'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
@@ -18,14 +19,14 @@ export const ROSSO_CONTO = '#D40000'
 export const FONDO_BARRA = '#EFE9DC'
 export const ALTEZZA_BARRA = 4
 
-export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, hrefPagamento, hrefAccordo, className = '' }: {
+export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, hrefPagamento, onComePaga, className = '' }: {
   testa: TestaConto
   righe: RigaConto[]
   totale: string
-  accordo: string
+  accordo: { nome: string; frase: string }
   pagamenti: RigaPagamento[]
   hrefPagamento: string
-  hrefAccordo: string
+  onComePaga: () => void
   className?: string
 }) {
   return (
@@ -65,10 +66,13 @@ export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, 
         <span style={{ fontFamily: GEORGIA, fontSize: 24, color: 'var(--color-green-dark)' }}>{totale}</span>
       </div>
 
-      {/* Come è stato concordato */}
-      <div data-accordo className="flex items-baseline justify-between gap-3" style={{ padding: '10px 0 0' }}>
-        <span style={{ fontSize: 14, color: 'var(--color-stone)' }}>Accordo</span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-dark)' }}>{accordo}</span>
+      {/* Come paga: il nome del modo e, sotto, la frase per esteso */}
+      <div data-come-paga-riga className="flex items-baseline justify-between gap-3" style={{ padding: '10px 0 0' }}>
+        <span style={{ fontSize: 14, color: 'var(--color-stone)' }}>{TITOLO_COME_PAGA}</span>
+        <span className="text-right min-w-0">
+          <span className="block" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-dark)' }}>{accordo.nome}</span>
+          <span className="block" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{accordo.frase}</span>
+        </span>
       </div>
 
       {/* I pagamenti già registrati */}
@@ -81,7 +85,7 @@ export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, 
 
       <p className="flex flex-wrap items-center mt-2" style={{ gap: '0 12px', fontSize: 14 }}>
         <Link href={hrefPagamento} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Aggiungi pagamento</Link>
-        <Link href={hrefAccordo} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Cambia accordo</Link>
+        <button type="button" onClick={onComePaga} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Cambia come paga</button>
       </p>
     </div>
   )
