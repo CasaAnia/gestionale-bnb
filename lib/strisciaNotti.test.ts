@@ -1,0 +1,230 @@
+// La striscia delle notti (13/09/2026): le prove della logica pura.
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  nottiDaSegmenti, riassuntoStriscia, cambiCamera, avvisiStriscia, camereDellaNotte, avvisoCapienza,
+  lettoDisponibileNotte, prezzoLettoNotte, cambiaCamera, cambiaLetto, nonDormeQui, blocchiDaNotti,
+  pianoNotti, stessaStriscia, titoloNotte, giornoDellaNotte, compatta, NESSUNA_NOTTE, CAMERA_MANCANTE,
+  SCONTO_DECADUTO, LETTO_COMPRESO,
+  type SegmentoNotti, type CameraStriscia, type ContestoNotti, type NotteStriscia,
+} from './strisciaNotti.ts'
+import { LENA_ID } from './lettiAggiuntivi.ts'
+
+// Lena si riconosce dal suo id vero: è la regola dei letti di casa (lib/lettiAggiuntivi)
+const LENA: CameraStriscia = { id: LENA_ID, name: 'Lena', base_price: 80, double_price: 90, has_extra_bed: true, extra_bed_price: 10 }
+const AMBRA: CameraStriscia = { id: 'ambra', name: 'Ambra', base_price: 80, has_extra_bed: true, extra_bed_price: 10 }
+const ALLEGRA: CameraStriscia = { id: 'allegra', name: 'Allegra', base_price: 80, has_extra_bed: true, extra_bed_price: 10 }
+const AMELIA: CameraStriscia = { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5 }
+const CAMERE = [AMELIA, ALLEGRA, AMBRA, LENA]
+
+const contesto = (extra: Partial<ContestoNotti> = {}): ContestoNotti => ({ camere: CAMERE, altre: [], ospiti: 2, ...extra })
+
+const seg = (id: string, camera: CameraStriscia, dal: string, al: string, extra: Partial<SegmentoNotti> = {}): SegmentoNotti => ({
+  id, room_id: camera.id, check_in: dal, check_out: al, status: 'confermata', num_guests: 2,
+  extra_bed: false, extra_bed_dates: [], rooms: camera, ...extra,
+})
+
+// Carmela Sabia, 10 → 17 set: Lena → Amelia → Lena (due cambi camera)
+const CARMELA: SegmentoNotti[] = [
+  seg('c1', LENA, '2026-09-10', '2026-09-13', { group_id: 'g' } as Partial<SegmentoNotti>),
+  seg('c2', AMELIA, '2026-09-13', '2026-09-15', { num_guests: 1 }),
+  seg('c3', LENA, '2026-09-15', '2026-09-17', { num_guests: 3, extra_bed: true, extra_bed_dates: ['2026-09-15', '2026-09-16'] }),
+]
+
+// ── Come si legge la data ──────────────────────────────────────────────────
+test('sopra la colonnina: «gio» e il numero del mese', () => {
+  assert.deepEqual(giornoDellaNotte('2026-09-10'), { giorno: 'gio', numero: 10 })
+  assert.equal(titoloNotte('2026-09-12'), 'Sabato 12')
+  // con più di sette notti i due pezzi vanno incolonnati (Ania, 13/09/2026)
+  assert.equal(compatta(7), false)
+  assert.equal(compatta(8), true)
+})
+
+// ── La striscia: nessun cambio, uno, due ───────────────────────────────────
+test('senza cambi camera: una camera sola in tutte le notti', () => {
+  const notti = nottiDaSegmenti([seg('a', LENA, '2026-09-10', '2026-09-13')])
+  assert.equal(notti.length, 3)
+  assert.deepEqual(notti.map(n => n.camera), ['Lena', 'Lena', 'Lena'])
+  assert.equal(notti.every(n => n.dentro && !n.letto), true)
+  assert.equal(cambiCamera(notti), 0)
+  assert.equal(riassuntoStriscia(notti), 'nessun cambio camera')
+})
+
+test('un cambio camera: il segno ⇄ sta sulla prima notte nuova', () => {
+  const notti = nottiDaSegmenti([seg('a', LENA, '2026-09-10', '2026-09-12'), seg('b', AMBRA, '2026-09-12', '2026-09-14')])
+  assert.deepEqual(notti.map(n => n.camera), ['Lena', 'Lena', 'Ambra', 'Ambra'])
+  assert.equal(cambiCamera(notti), 1)
+  assert.equal(riassuntoStriscia(notti), '1 cambio camera')
+})
+
+test('due cambi camera e il letto in più: la riga di riassunto', () => {
+  const notti = nottiDaSegmenti(CARMELA)
+  assert.equal(notti.length, 7)
+  assert.deepEqual(notti.map(n => n.camera), ['Lena', 'Lena', 'Lena', 'Amelia', 'Amelia', 'Lena', 'Lena'])
+  assert.deepEqual(notti.map(n => n.letto), [false, false, false, false, false, true, true])
+  assert.equal(riassuntoStriscia(notti), '2 cambi camera · letto in più 2 notti')
+  // le persone: due in Lena, una in Amelia, tre nelle notti col letto
+  assert.deepEqual(notti.map(n => n.persone), [2, 2, 2, 1, 1, 3, 3])
+})
+
+// ── La notte senza camera e il suo avviso ──────────────────────────────────
+test('la notte senza camera: «?» nella striscia e l’avviso in rosso sotto', () => {
+  const notti = nottiDaSegmenti([seg('a', LENA, '2026-09-10', '2026-09-13')])
+  const rotta: NotteStriscia[] = notti.map((n, i) => (i === 2 ? { ...n, cameraId: null, camera: null, motivo: 'Lena è occupata' } : n))
+  assert.deepEqual(avvisiStriscia(rotta), ['Sabato 12 da sistemare · Lena è occupata'])
+  // senza camera non si salva niente: prima si sistema
+  assert.equal(pianoNotti(rotta, [seg('a', LENA, '2026-09-10', '2026-09-13')], contesto()).errore, CAMERA_MANCANTE)
+  // le notti a posto non hanno avvisi
+  assert.deepEqual(avvisiStriscia(notti), [])
+})
+
+// ── «Non dorme qui» ────────────────────────────────────────────────────────
+test('la notte «non dorme qui» non entra nel conto e spezza il soggiorno', () => {
+  const notti = nonDormeQui(nottiDaSegmenti([seg('a', LENA, '2026-09-10', '2026-09-14')]), '2026-09-12')
+  const fuori = notti.find(n => n.iso === '2026-09-12')!
+  assert.equal(fuori.dentro, false)
+  assert.equal(fuori.letto, false)
+  // il conto dei cambi salta la notte libera: resta una camera sola
+  assert.equal(cambiCamera(notti), 0)
+  const blocchi = blocchiDaNotti(notti)
+  assert.deepEqual(blocchi.map(b => [b.check_in, b.check_out]), [['2026-09-10', '2026-09-12'], ['2026-09-13', '2026-09-14']])
+  // e il conto scende: tre notti pagate invece di quattro
+  const piano = pianoNotti(notti, [seg('a', LENA, '2026-09-10', '2026-09-14')], contesto())
+  assert.equal(piano.errore, null)
+  assert.equal(piano.aggiorna.length + piano.crea.length, 2)
+  assert.equal(piano.aggiorna[0].campi.total_amount + piano.crea[0].total_amount, 240)
+})
+
+test('un soggiorno già spezzato si rilegge con la notte «libera» in mezzo', () => {
+  const notti = nottiDaSegmenti([seg('a', LENA, '2026-09-10', '2026-09-12'), seg('b', LENA, '2026-09-13', '2026-09-15')])
+  assert.deepEqual(notti.map(n => n.dentro), [true, true, false, true, true])
+  assert.equal(notti[2].camera, null)
+})
+
+test('non si può togliere l’ultima notte', () => {
+  let notti = nottiDaSegmenti([seg('a', LENA, '2026-09-10', '2026-09-11')])
+  notti = nonDormeQui(notti, '2026-09-10')
+  assert.equal(pianoNotti(notti, [seg('a', LENA, '2026-09-10', '2026-09-11')], contesto()).errore, NESSUNA_NOTTE)
+})
+
+// ── Le camere del foglietto ────────────────────────────────────────────────
+test('nel foglietto ci sono le camere libere; le occupate non compaiono', () => {
+  const altre = [{ room_id: 'ambra', check_in: '2026-09-11', check_out: '2026-09-14', status: 'confermata' }]
+  const libere = camereDellaNotte('2026-09-12', contesto({ altre }))
+  assert.deepEqual(libere.map(c => c.name), ['Amelia', 'Allegra', 'Lena'])
+  assert.equal(libere.some(c => c.name === 'Ambra'), false)
+  // la notte prima Ambra è ancora libera: l'occupazione vale notte per notte
+  assert.deepEqual(camereDellaNotte('2026-09-10', contesto({ altre })).map(c => c.name), ['Amelia', 'Allegra', 'Ambra', 'Lena'])
+  // una prenotazione annullata o in attesa non occupa niente
+  const inAttesa = [{ room_id: 'ambra', check_in: '2026-09-11', check_out: '2026-09-14', status: 'in_attesa' }]
+  assert.equal(camereDellaNotte('2026-09-12', contesto({ altre: inAttesa })).some(c => c.name === 'Ambra'), true)
+})
+
+test('la camera che non basta si può scegliere lo stesso, con l’avviso', () => {
+  assert.equal(avvisoCapienza(AMBRA, 2), null)
+  assert.equal(avvisoCapienza(AMBRA, 4), 'Ambra non basta per 4 persone')
+  assert.equal(avvisoCapienza(AMELIA, 2), null)      // Amelia arriva a 2 col letto
+  assert.equal(avvisoCapienza(AMELIA, 3), 'Amelia non basta per 3 persone')
+  assert.equal(avvisoCapienza(LENA, 4), null)        // Lena arriva a 4
+})
+
+// ── Il letto in più ────────────────────────────────────────────────────────
+test('coi due letti di casa già impegnati, «Sì» resta spento', () => {
+  const impegnati = [
+    { room_id: 'ambra', check_in: '2026-09-12', check_out: '2026-09-13', status: 'confermata', num_guests: 3, extra_bed: true, extra_bed_dates: ['2026-09-12'] },
+    { room_id: 'allegra', check_in: '2026-09-12', check_out: '2026-09-13', status: 'confermata', num_guests: 3, extra_bed: true, extra_bed_dates: ['2026-09-12'] },
+  ]
+  assert.equal(lettoDisponibileNotte('2026-09-12', LENA_ID, contesto({ altre: impegnati })), false)
+  assert.equal(lettoDisponibileNotte('2026-09-13', LENA_ID, contesto({ altre: impegnati })), true)
+  // con un letto solo preso ne resta uno
+  assert.equal(lettoDisponibileNotte('2026-09-12', 'ambra', contesto({ altre: [impegnati[0]] })), true)
+  // Lena a quattro ospiti ne vuole due: con uno solo libero non basta
+  assert.equal(lettoDisponibileNotte('2026-09-12', LENA_ID, contesto({ altre: [impegnati[0]], ospiti: 4 })), false)
+})
+
+test('il prezzo accanto a «Sì»', () => {
+  assert.equal(prezzoLettoNotte(AMBRA, 3), '+ 10 €')
+  assert.equal(prezzoLettoNotte(AMELIA, 2), '+ 5 €')
+  assert.equal(prezzoLettoNotte(LENA, 3), LETTO_COMPRESO)   // la tripla è già venduta con tre posti
+  assert.equal(prezzoLettoNotte(LENA, 4), '+ 10 €')
+})
+
+// ── Le modifiche del foglietto ─────────────────────────────────────────────
+test('cambiare camera cambia solo quella notte', () => {
+  const prima = nottiDaSegmenti([seg('a', LENA, '2026-09-10', '2026-09-13')])
+  const dopo = cambiaCamera(prima, '2026-09-11', AMBRA, contesto())
+  assert.deepEqual(dopo.map(n => n.camera), ['Lena', 'Ambra', 'Lena'])
+  assert.deepEqual(dopo.map(n => n.persone), [2, 2, 2])   // due persone stanno in Ambra senza letto
+  assert.equal(dopo[1].letto, false)
+  assert.equal(cambiCamera(dopo), 2)
+  // Annulla non cambia niente: le funzioni non toccano la striscia di prima
+  assert.deepEqual(prima.map(n => n.camera), ['Lena', 'Lena', 'Lena'])
+  assert.equal(stessaStriscia(prima, dopo), false)
+  assert.equal(stessaStriscia(prima, nottiDaSegmenti([seg('a', LENA, '2026-09-10', '2026-09-13')])), true)
+})
+
+test('accendere il letto porta le persone della notte agli ospiti della prenotazione', () => {
+  const prima = nottiDaSegmenti([seg('a', LENA, '2026-09-10', '2026-09-12', { num_guests: 3 })])
+  assert.deepEqual(prima.map(n => n.persone), [2, 2])
+  const acceso = cambiaLetto(prima, '2026-09-10', true, contesto({ ospiti: 3 }))
+  assert.deepEqual(acceso.map(n => n.persone), [3, 2])
+  assert.equal(acceso[0].letto, true)
+  const spento = cambiaLetto(acceso, '2026-09-10', false, contesto({ ospiti: 3 }))
+  assert.deepEqual(spento.map(n => n.persone), [2, 2])
+  assert.equal(stessaStriscia(prima, spento), true)
+})
+
+// ── Il conto si aggiorna ───────────────────────────────────────────────────
+test('spostando una notte in un’altra camera il conto segue il listino nuovo', () => {
+  // tre notti in Lena a 80 = 240; la notte di mezzo passa in Amelia (70)
+  const segmenti = [seg('a', LENA, '2026-09-10', '2026-09-13')]
+  const notti = cambiaCamera(nottiDaSegmenti(segmenti), '2026-09-11', AMELIA, contesto({ ospiti: 2 }))
+  const piano = pianoNotti(notti, segmenti, contesto({ ospiti: 2 }))
+  assert.equal(piano.errore, null)
+  // tre tratti: Lena, Amelia, Lena — uno aggiornato, due nuovi
+  assert.equal(piano.aggiorna.length, 1)
+  assert.equal(piano.crea.length, 2)
+  const totale = piano.aggiorna.reduce((s, a) => s + a.campi.total_amount, 0) + piano.crea.reduce((s, c) => s + c.total_amount, 0)
+  assert.equal(totale, 80 + 75 + 80)   // Amelia in due: 70 + 5, il letto si accende da solo
+  assert.deepEqual(piano.annulla, [])
+})
+
+test('accendere il letto in più aggiorna la riga senza crearne altre', () => {
+  const segmenti = [seg('a', LENA, '2026-09-10', '2026-09-12', { num_guests: 3 })]
+  const notti = cambiaLetto(nottiDaSegmenti(segmenti), '2026-09-10', true, contesto({ ospiti: 3 }))
+  const piano = pianoNotti(notti, segmenti, contesto({ ospiti: 3 }))
+  assert.equal(piano.crea.length, 0)
+  assert.equal(piano.annulla.length, 0)
+  const campi = piano.aggiorna[0].campi
+  assert.deepEqual(campi.extra_bed_dates, ['2026-09-10'])
+  assert.equal(campi.extra_bed, true)
+  assert.equal(campi.num_guests, 3)
+  assert.equal(campi.total_amount, 170)   // 90 in tre + 80 in due
+})
+
+test('i tratti che restano senza notti si annullano, non si cancellano', () => {
+  const segmenti = [seg('a', LENA, '2026-09-10', '2026-09-12'), seg('b', AMBRA, '2026-09-12', '2026-09-14')]
+  // tutte le notti tornano in Lena: il tratto di Ambra non serve più
+  let notti = nottiDaSegmenti(segmenti)
+  notti = cambiaCamera(notti, '2026-09-12', LENA, contesto())
+  notti = cambiaCamera(notti, '2026-09-13', LENA, contesto())
+  const piano = pianoNotti(notti, segmenti, contesto())
+  assert.equal(piano.aggiorna.length, 1)
+  assert.equal(piano.aggiorna[0].id, 'a')
+  assert.deepEqual([piano.aggiorna[0].campi.check_in, piano.aggiorna[0].campi.check_out], ['2026-09-10', '2026-09-14'])
+  assert.deepEqual(piano.annulla, ['b'])
+  assert.equal(piano.aggiorna[0].campi.total_amount, 320)
+})
+
+test('lo sconto in percentuale segue le notti; il totale concordato che decade ferma tutto', () => {
+  const conSconto = [seg('a', LENA, '2026-09-10', '2026-09-13', { discount_type: 'percentage', discount_value: 10 })]
+  const piano = pianoNotti(nottiDaSegmenti(conSconto), conSconto, contesto())
+  assert.equal(piano.aggiorna[0].campi.total_amount, 216)   // 240 meno il 10%
+  assert.equal(piano.aggiorna[0].campi.discount_type, 'percentage')
+
+  // totale concordato 200 su tre notti da 80: togliendone due il pieno scende a 80
+  const concordato = [seg('b', LENA, '2026-09-10', '2026-09-13', { discount_type: 'target_total', discount_value: 200 })]
+  let notti = nonDormeQui(nottiDaSegmenti(concordato), '2026-09-11')
+  notti = nonDormeQui(notti, '2026-09-12')
+  assert.equal(pianoNotti(notti, concordato, contesto()).errore, SCONTO_DECADUTO)
+})

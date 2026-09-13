@@ -64,6 +64,9 @@ export function periodoCompatto(dal: string | null | undefined, al: string | nul
 // (con l'abbreviazione del giorno della settimana) e il mese, che si scrivono
 // con due misure diverse. Nessun fuso orario: la data è già quella giusta.
 export const GIORNI_BREVI = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab']
+// Per esteso, con l'iniziale grande: «Sabato 12», il titolo del foglietto
+// della notte nella striscia (13/09/2026).
+export const GIORNI_LUNGHI = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato']
 export function giornoConSettimana(iso: string | null | undefined): { giorno: string; mese: string } {
   const p = pezzi(iso)
   if (!p) return { giorno: '', mese: '' }
