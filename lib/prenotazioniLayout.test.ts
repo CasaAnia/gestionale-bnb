@@ -45,3 +45,23 @@ test('modifica e prolungamento mantengono la stessa protezione delle caselle dat
     )
   }
 })
+
+// Accesso provvisorio alla scheda nuova (13/09/2026): finché la scheda vecchia
+// è quella in uso, dall'elenco si arriva a /scheda/<id> con la parolina
+// «nuova ›» in fondo alla riga. Il tocco lì NON deve aprire la scheda vecchia,
+// e l'area da toccare resta comoda (44 px).
+test('dall’elenco si arriva alla scheda nuova, senza aprire quella vecchia', () => {
+  const elenco = readFileSync(new URL('../app/prenotazioni/page.tsx', import.meta.url), 'utf8')
+  const riga = elenco.slice(elenco.indexOf('data-scheda-nuova') - 300, elenco.indexOf('data-scheda-nuova') + 400)
+  assert.match(riga, /href=\{`\/scheda\/\$\{b\.id\}`\}/, 'la parolina deve portare a /scheda/<id>')
+  assert.match(riga, /onClick=\{e => e\.stopPropagation\(\)\}/, 'il tocco non deve aprire anche la scheda vecchia')
+  assert.match(riga, /min-h-\[44px\]/, 'l’area da toccare deve restare di 44 px')
+  assert.match(riga, /fontSize: 11, letterSpacing: '1px', color: 'var\(--color-brass\)'/)
+  assert.match(riga, /uppercase/)
+  assert.match(riga, /justify-end/, 'la parolina sta a destra')
+  assert.match(riga, /nuova ›/)
+  // la riga intera continua ad aprire la scheda di sempre
+  assert.match(elenco, /onClick=\{\(\) => router\.push\(`\/prenotazioni\/\$\{b\.id\}`\)\}/)
+  // ed è un accesso provvisorio, scritto nel codice
+  assert.match(elenco, /DA TOGLIERE quando la scheda nuova sostituirà la vecchia/)
+})

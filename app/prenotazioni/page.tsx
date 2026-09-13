@@ -143,6 +143,18 @@ export default function Prenotazioni() {
               {vuoleRicevuta(b.guests) && (
                 <p className="text-xs text-green-mid mt-1 font-semibold">🧾 Vuole ricevuta</p>
               )}
+              {/* ACCESSO PROVVISORIO alla scheda nuova (13/09/2026): dal
+                  telefono l'indirizzo /scheda/<id> non si può scrivere a mano.
+                  DA TOGLIERE quando la scheda nuova sostituirà la vecchia:
+                  allora sarà la riga intera a portarci. Lo `stopPropagation`
+                  serve perché il tocco qui NON apra anche la scheda di sempre. */}
+              <div className="flex justify-end -mb-2">
+                <Link href={`/scheda/${b.id}`} data-scheda-nuova onClick={e => e.stopPropagation()}
+                  className="inline-flex items-center min-h-[44px] uppercase"
+                  style={{ fontSize: 11, letterSpacing: '1px', color: 'var(--color-brass)' }}>
+                  nuova ›
+                </Link>
+              </div>
             </div>
           ))}
         </div>
