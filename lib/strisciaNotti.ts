@@ -124,6 +124,17 @@ export function cambiCamera(notti: NotteStriscia[]): number {
   for (let i = 1; i < dentro.length; i++) if (dentro[i].camera !== dentro[i - 1].camera) cambi += 1
   return cambi
 }
+// Dove disegnare il segno ⇄: la notte ha una camera diversa da quella della
+// notte prima (le notti «libere» non interrompono il confronto).
+export function segniDiCambio(notti: NotteStriscia[]): boolean[] {
+  let ultima: string | null = null
+  return notti.map(n => {
+    if (!n.dentro) return false
+    const cambia = ultima !== null && n.camera !== ultima
+    ultima = n.camera
+    return cambia
+  })
+}
 export function riassuntoStriscia(notti: NotteStriscia[]): string {
   const cambi = cambiCamera(notti)
   const conLetto = notti.filter(n => n.dentro && n.letto).length

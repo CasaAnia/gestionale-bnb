@@ -1,11 +1,12 @@
 // La striscia delle notti (13/09/2026): le prove della logica pura.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   nottiDaSegmenti, riassuntoStriscia, cambiCamera, avvisiStriscia, camereDellaNotte, avvisoCapienza,
   lettoDisponibileNotte, prezzoLettoNotte, cambiaCamera, cambiaLetto, nonDormeQui, blocchiDaNotti,
   pianoNotti, stessaStriscia, titoloNotte, giornoDellaNotte, compatta, NESSUNA_NOTTE, CAMERA_MANCANTE,
-  SCONTO_DECADUTO, LETTO_COMPRESO,
+  SCONTO_DECADUTO, LETTO_COMPRESO, segniDiCambio,
   type SegmentoNotti, type CameraStriscia, type ContestoNotti, type NotteStriscia,
 } from './strisciaNotti.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -227,4 +228,65 @@ test('lo sconto in percentuale segue le notti; il totale concordato che decade f
   let notti = nonDormeQui(nottiDaSegmenti(concordato), '2026-09-11')
   notti = nonDormeQui(notti, '2026-09-12')
   assert.equal(pianoNotti(notti, concordato, contesto()).errore, SCONTO_DECADUTO)
+})
+
+// ── Il segno ⇄ ─────────────────────────────────────────────────────────────
+test('il segno del cambio sta sulla prima notte della camera nuova', () => {
+  const notti = nottiDaSegmenti(CARMELA)
+  assert.deepEqual(segniDiCambio(notti), [false, false, false, true, false, true, false])
+  // la notte «libera» non conta come cambio, e non ne inventa uno dopo
+  const conPausa = nonDormeQui(nottiDaSegmenti([seg('a', LENA, '2026-09-10', '2026-09-14')]), '2026-09-12')
+  assert.deepEqual(segniDiCambio(conPausa), [false, false, false, false])
+})
+
+// ── IL DISEGNO, letto dai sorgenti ─────────────────────────────────────────
+// Le misure e i colori decisi da Ania sulla bozza approvata (13/09/2026).
+const striscia = readFileSync(new URL('../components/StrisciaNottiCamere.tsx', import.meta.url), 'utf8')
+
+test('le colonnine: stessa larghezza, 4 px di spazio, e restano toccabili', () => {
+  assert.match(striscia, /export const LARGHEZZA_COLONNINA = 44/)
+  assert.match(striscia, /export const SPAZIO_COLONNINE = 4/)
+  assert.match(striscia, /className="flex items-end" style=\{\{ gap: SPAZIO_COLONNINE/)
+  assert.match(striscia, /className="relative flex-1 min-w-0/, 'le colonnine non hanno tutte la stessa larghezza')
+  // con molte notti la striscia scorre di lato invece di uscire dai margini
+  assert.match(striscia, /className="overflow-x-auto no-scrollbar"/)
+  assert.match(striscia, /minWidth: notti\.length \* LARGHEZZA_COLONNINA/)
+})
+
+test('le tinte delle camere e i due casi speciali', () => {
+  assert.match(striscia, /Lena: \{ fondo: '#E7EFE9', testo: 'var\(--color-green-dark\)' \}/)
+  assert.match(striscia, /Ambra: \{ fondo: '#EAE7F2', testo: '#463C6B' \}/)
+  assert.match(striscia, /Allegra: \{ fondo: '#F3E9DA', testo: '#7A5C1E' \}/)
+  assert.match(striscia, /Amelia: \{ fondo: '#F3E9DA', testo: '#7A5C1E' \}/)
+  // la notte senza camera: riquadro bianco tratteggiato rosso con il «?»
+  assert.match(striscia, /const ROSSO = '#D40000'/)
+  assert.match(striscia, /senzaCamera \? `1px dashed \$\{ROSSO\}`/)
+  assert.match(striscia, /senzaCamera \? '\?'/)
+  // la notte «non dorme qui»: tratteggio grigio e la parola «libera»
+  assert.match(striscia, /fuori \? '1px dashed var\(--color-border-soft\)'/)
+  assert.match(striscia, /fuori \? TESTO_LIBERA/)
+})
+
+test('camera sopra e letto sotto, attaccati: 8 px in alto e 8 px in basso', () => {
+  assert.match(striscia, /borderRadius: '8px 8px 0 0'[^}]*fontSize: 11, lineHeight: '14px', fontWeight: 600/)
+  assert.match(striscia, /borderRadius: '0 0 8px 8px', height: 18/)
+  assert.match(striscia, /background: n\.letto \? 'var\(--color-sage\)' : '#fff'/)
+  assert.match(striscia, /color: n\.letto \? 'var\(--color-green-mid\)' : '#C4C0B6'/)
+  // il segno del cambio sta FRA le due colonnine
+  assert.match(striscia, /data-segno-cambio[\s\S]*left: -SPAZIO_COLONNINE \/ 2/)
+  assert.match(striscia, /color: OTTONE[^}]*\}}>⇄</)
+})
+
+test('sotto la striscia: la spiegazione e la riga di riassunto in ottone', () => {
+  assert.match(striscia, /export const SPIEGAZIONE = 'sopra la camera · sotto il letto in più'/)
+  assert.match(striscia, /\{SPIEGAZIONE\}/)
+  assert.match(striscia, /marginTop: 8, fontSize: 12, color: 'var\(--color-stone\)'/)
+  assert.match(striscia, /data-riassunto-striscia[^>]*fontSize: 12, color: OTTONE/)
+  assert.match(striscia, /data-avviso-notte[^>]*fontSize: 12, color: ROSSO/)
+})
+
+test('la striscia non parla col database e non si rifà le regole', () => {
+  assert.equal(/supabase/i.test(striscia), false, 'la striscia chiama il database')
+  assert.equal(/useEffect|useState/.test(striscia), false, 'la striscia tiene uno stato suo')
+  assert.match(striscia, /from '@\/lib\/strisciaNotti'/)
 })
