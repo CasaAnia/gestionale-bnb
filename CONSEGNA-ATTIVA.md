@@ -985,3 +985,27 @@ perché il foglio lo chiedeva esplicitamente.
 
 Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
 `lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
+
+### Ritocchi chiesti da Ania (14/09/2026)
+
+**Il titolo non si legge due volte** (`1c6d1f8`). Via l'«Nuova prenotazione» in
+Georgia 26 dal corpo di `/nuova-prenotazione`: lo dice già la barra in alto,
+come nelle Richieste. La prima cosa che si legge è la data di oggi in ottone.
+
+**L'errore sui soldi corretto anche in `/nuova`** (`49f8765`). Ania: «non può
+restare in giro finché la vecchia è ancora accesa». Adesso tutte e due le
+pagine scrivono `total_amount` **già scontato** con lo stesso pezzo
+(`totaliScontati`). La lettura riga per riga non cambia — con uno sconto valido
+`lib/conto` rifà il conto dal prezzo a notte e il totale salvato non viene
+nemmeno guardato — quindi nessun doppio sconto. Provato dalla UI vera: da
+`/nuova`, Ambra 20→24 dic col 10% salva 252 (prima 280) e la scheda legge
+«252 € da incassare» con la riga 280 e lo sconto −28.
+
+**🔴 Le prenotazioni scontate GIÀ salvate restano col totale pieno.** Il codice
+non le tocca. C'è la proposta **`supabase/proposte/0050_totale_scontato.BOZZA.sql`**
+da applicare a mano nell'editor SQL: cambia SOLO `total_amount`, lasciando
+intatti `price_per_night`, `extra_bed_total` e lo sconto; salta le annullate,
+quelle già a posto e i «totale concordato» più alti del pieno (che non sono
+sconti); applicarla due volte non cambia niente. In cima al file c'è la SELECT
+per vedere prima quante e quali sono. Provata su un database vero con PGlite
+(`lib/totaleScontatoSql.test.ts`, 5 casi).
