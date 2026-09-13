@@ -290,3 +290,55 @@ test('la striscia non parla col database e non si rifà le regole', () => {
   assert.equal(/useEffect|useState/.test(striscia), false, 'la striscia tiene uno stato suo')
   assert.match(striscia, /from '@\/lib\/strisciaNotti'/)
 })
+
+// ── IL FOGLIETTO DELLA NOTTE, letto dai sorgenti ───────────────────────────
+const foglietto = readFileSync(new URL('../components/FoglioNotte.tsx', import.meta.url), 'utf8')
+
+test('il foglietto: il giorno per esteso in Georgia 18', () => {
+  assert.match(foglietto, /titolo=\{titoloNotte\(iso\)\} grande/)
+  const foglio = readFileSync(new URL('../components/scheda/Foglio.tsx', import.meta.url), 'utf8')
+  assert.match(foglio, /fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 18/)
+})
+
+test('nel foglietto ci sono solo le camere libere, con quella attuale accesa', () => {
+  assert.match(foglietto, /export const TITOLO_CAMERE = 'Camere libere questa notte'/)
+  assert.match(foglietto, /const libere = camereDellaNotte\(iso, contesto\)/)
+  // l'elenco viene dalle regole di sempre: qui non si filtra niente a mano
+  const codice = foglietto.split('\n').filter(r => !r.trim().startsWith('//')).join('\n')
+  assert.equal(/status|siSovrappone|camereLibere\(/.test(codice), false, 'il foglietto si è riscritto chi è libero')
+  assert.match(foglietto, /aria-pressed=\{acceso\}/)
+  assert.match(foglietto, /border: acceso \? `1\.5px solid \$\{OTTONE\}`/)
+})
+
+test('la camera che non basta avvisa in mattone senza bloccare', () => {
+  assert.match(foglietto, /const avviso = notte\.dentro \? avvisoCapienza\(scelta, notte\.persone\) : null/)
+  assert.match(foglietto, /data-avviso-capienza[\s\S]{0,200}color: MATTONE/)
+  assert.match(foglietto, /export const MATTONE = '#8C3B2E'/)
+  // l'avviso non spegne nessuna pastiglia: le camere restano tutte scegliibili
+  assert.equal(/disabled=\{[^}]*avviso/.test(foglietto), false)
+})
+
+test('il letto: due pastiglie col prezzo, e «non disponibile» quando i letti sono presi', () => {
+  assert.match(foglietto, /export const TITOLO_LETTO = 'Letto in più questa notte'/)
+  assert.match(foglietto, /Sì · \{prezzoLettoNotte\(scelta, contesto\.ospiti\)\}/)
+  assert.match(foglietto, /spenta=\{!lettoLibero && !notte\.letto\}/)
+  assert.match(foglietto, /data-letto-non-disponibile[\s\S]{0,120}\{LETTO_NON_DISPONIBILE\}/)
+  assert.match(foglietto, /const lettoLibero = lettoDisponibileNotte\(iso, notte\.cameraId, contesto\)/)
+})
+
+test('«Non dorme qui», «Fatto» e «Annulla»', () => {
+  assert.match(foglietto, /export const NON_DORME_QUI = 'Non dorme qui'/)
+  assert.match(foglietto, /onClick=\{\(\) => setBozza\(b => nonDormeQui\(b, iso\)\)\}/)
+  // Annulla chiude e basta: solo «Fatto» consegna la striscia nuova
+  assert.match(foglietto, /data-annulla onClick=\{onChiudi\}/)
+  assert.match(foglietto, /data-fatto onClick=\{\(\) => onFatto\(bozza\)\}/)
+  assert.equal(/data-annulla[^>]*onFatto/.test(foglietto), false, 'Annulla salva qualcosa')
+})
+
+test('il foglietto non parla col database e usa le regole della libreria', () => {
+  assert.equal(/supabase/i.test(foglietto), false, 'il foglietto chiama il database')
+  assert.match(foglietto, /from '@\/lib\/strisciaNotti'/)
+  for (const regola of ['camereDellaNotte', 'avvisoCapienza', 'lettoDisponibileNotte', 'cambiaCamera', 'cambiaLetto', 'nonDormeQui']) {
+    assert.ok(foglietto.includes(regola), `il foglietto non usa ${regola}`)
+  }
+})
