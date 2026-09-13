@@ -34,13 +34,16 @@ export const NON_DORME_QUI = 'Non dorme qui'
 export const NESSUNA_CAMERA_LIBERA = 'Questa notte non è libera nessuna camera'
 export const COME_RIMETTERLA = 'per rimetterla nel soggiorno scegli una camera'
 
+// Le pastiglie si toccano su 44 px, la misura chiesta da Ania per i comandi
+export const ALTEZZA_PASTIGLIA = 44
+
 const titoletto = { fontSize: 9, letterSpacing: '1.5px', color: OTTONE, textTransform: 'uppercase' as const }
 
 function Pastiglia({ acceso, spenta, onClick, children }: { acceso: boolean; spenta?: boolean; onClick?: () => void; children: React.ReactNode }) {
   return (
     <button type="button" onClick={spenta ? undefined : onClick} disabled={spenta} aria-pressed={acceso}
       style={{
-        minHeight: 38, borderRadius: 999, padding: '0 14px', fontSize: 13, fontWeight: 600,
+        minHeight: ALTEZZA_PASTIGLIA, borderRadius: 999, padding: '0 14px', fontSize: 13, fontWeight: 600,
         background: acceso ? 'var(--color-sage)' : '#fff',
         color: spenta ? '#B9B6AD' : acceso ? 'var(--color-green-mid)' : 'var(--color-green-dark)',
         border: acceso ? `1.5px solid ${OTTONE}` : '1px solid var(--color-card-border)',
@@ -78,7 +81,7 @@ export default function FoglioNotte({ notti, iso, contesto, onFatto, onChiudi }:
               <button key={c.id} type="button" data-camera={c.name} aria-pressed={acceso}
                 onClick={() => setBozza(b => cambiaCamera(b, iso, c, contesto))}
                 style={{
-                  minHeight: 38, borderRadius: 999, padding: '0 14px', fontSize: 13, fontWeight: 600,
+                  minHeight: ALTEZZA_PASTIGLIA, borderRadius: 999, padding: '0 14px', fontSize: 13, fontWeight: 600,
                   background: acceso ? tinta.fondo : '#fff',
                   color: acceso ? tinta.testo : 'var(--color-green-dark)',
                   border: acceso ? `1.5px solid ${OTTONE}` : '1px solid var(--color-card-border)',
@@ -101,17 +104,17 @@ export default function FoglioNotte({ notti, iso, contesto, onFatto, onChiudi }:
       </div>
 
       {/* ── Toglie la notte dal soggiorno ─────────────────────────────── */}
-      <button type="button" data-non-dorme className="mt-4 py-2 -my-0" onClick={() => setBozza(b => nonDormeQui(b, iso))}
-        style={{ fontSize: 13.5, fontWeight: 600, color: notte.dentro ? MATTONE : 'var(--color-stone)' }}>
+      <button type="button" data-non-dorme className="mt-4 block" onClick={() => setBozza(b => nonDormeQui(b, iso))}
+        style={{ fontSize: 13.5, fontWeight: 600, minHeight: ALTEZZA_PASTIGLIA, color: notte.dentro ? MATTONE : 'var(--color-stone)' }}>
         {notte.dentro ? NON_DORME_QUI : `${NON_DORME_QUI} ✓`}
       </button>
       {!notte.dentro && <p data-come-rimetterla style={{ marginTop: 2, fontSize: 12, color: 'var(--color-stone)' }}>{COME_RIMETTERLA}</p>}
 
       {/* ── Fatto e Annulla ───────────────────────────────────────────── */}
       <div className="flex items-center justify-between mt-5 mb-1" style={{ gap: 12 }}>
-        <button type="button" data-annulla onClick={onChiudi} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Annulla</button>
+        <button type="button" data-annulla onClick={onChiudi} style={{ fontSize: 14, minHeight: ALTEZZA_PASTIGLIA, padding: '0 6px', color: 'var(--color-stone)' }}>Annulla</button>
         <button type="button" data-fatto onClick={() => onFatto(bozza)}
-          style={{ minHeight: 40, borderRadius: 999, padding: '0 22px', fontSize: 14, fontWeight: 600, background: 'var(--color-green-mid)', color: 'var(--color-cream)' }}>Fatto</button>
+          style={{ minHeight: ALTEZZA_PASTIGLIA, borderRadius: 999, padding: '0 22px', fontSize: 14, fontWeight: 600, background: 'var(--color-green-mid)', color: 'var(--color-cream)' }}>Fatto</button>
       </div>
     </Foglio>
   )

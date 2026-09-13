@@ -387,3 +387,9 @@ test('la notte tolta dal soggiorno: il letto si spegne e si dice come rimetterla
   assert.equal(dentro[0].dentro, true)
   assert.equal(dentro[0].camera, 'Ambra')
 })
+
+test('le pastiglie del foglietto si toccano su 44 px', () => {
+  assert.match(foglietto, /export const ALTEZZA_PASTIGLIA = 44/)
+  assert.equal((foglietto.match(/minHeight: ALTEZZA_PASTIGLIA/g) || []).length >= 5, true)
+  assert.equal(/minHeight: 38|minHeight: 40/.test(foglietto), false, 'una pastiglia è rimasta più bassa di 44')
+})
