@@ -6,6 +6,7 @@ import {
   dataDiOggi, volteInParole, rigaClienteTrovato, camereDelPeriodo, rigaCamereLibere,
   ospitiPossibiliNotte, ospitiDellaNotte, listinoLetto, raggruppaPerCamera, datiLinea, nottiDellaLinea,
   CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
+  totaliScontati,
 } from './nuovaPrenotazione.ts'
 import type { PeriodoComposto } from './prenotazioneComposta.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -335,4 +336,38 @@ test('il salvataggio scrive le righe di sempre e apre la scheda nuova', () => {
   assert.match(pagina, /router\.push\(`\/scheda\/\$\{prima\.id\}\?salvata=1`\)/)
   // la caparra si scrive una volta sola, sulla riga che arriva per prima
   assert.match(pagina, /p\.id === primo \? \{ caparra_centesimi: pagamento\.caparra_centesimi, caparra_entro: pagamento\.caparra_entro \} : \{\}/)
+})
+
+// ── 6. DOPO IL SALVATAGGIO ─────────────────────────────────────────────────
+const scheda = readFileSync(new URL('../app/scheda/[id]/page.tsx', import.meta.url), 'utf8')
+const adesso = readFileSync(new URL('../components/scheda/AdessoScheda.tsx', import.meta.url), 'utf8')
+
+test('il totale di ogni riga si salva già scontato', () => {
+  // due camere, 200 e 100, sconto del 10%: 180 e 90
+  assert.deepEqual(totaliScontati([200, 100], { tipo: 'percentuale', valore: 10 }), [180, 90])
+  // senza sconto restano com'erano
+  assert.deepEqual(totaliScontati([200, 100], { tipo: 'nessuno', valore: null }), [200, 100])
+  // prezzo finale: la somma torna esatta anche quando non è divisibile
+  const finale = totaliScontati([100, 100, 100], { tipo: 'finale', valore: 250 })
+  assert.equal(finale.reduce((s, t) => s + t, 0), 250)
+  assert.match(pagina, /const scontati = totaliScontati\(base\.map\(r => Number\(r\.total_amount\) \|\| 0\), sconto\)/)
+})
+
+test('la scheda saluta la prenotazione appena salvata e poi smette', () => {
+  assert.match(scheda, /export const PRENOTAZIONE_SALVATA = '✓ Prenotazione salvata'/)
+  assert.match(scheda, /parametri\.get\('salvata'\) === '1'/)
+  assert.match(scheda, /const t = setTimeout\(\(\) => setSalvata\(false\), SECONDI_SALVATA \* 1000\)/)
+  assert.match(scheda, /data-salvata[\s\S]{0,200}onClick=\{\(\) => setSalvata\(false\)\}/)
+  assert.match(scheda, /background: FONDO_SALVATA/)
+})
+
+test('«Adesso» sta sotto la fascia e sparisce quando la conferma è partita', () => {
+  assert.match(adesso, /export const TITOLO_ADESSO = 'Adesso'/)
+  assert.match(adesso, /\{TESTO_CONFERMA_IMMAGINE\}/)
+  assert.match(adesso, /export const DATI_BONIFICO = 'Dati bonifico'/)
+  assert.match(scheda, /const daFare = messaggiInviati\.every\(m => m\.message_type !== 'conferma'\) && ultimaPartenza > oggi/)
+  // i dati del bonifico solo quando un bonifico è davvero atteso
+  assert.match(scheda, /hrefBonifico=\{accordo\?\.bonifico \? hrefMessaggio\('dati_bonifico'\) : null\}/)
+  // e sta prima di «Da controllare»
+  assert.ok(scheda.indexOf('<AdessoScheda') < scheda.indexOf('id="controllare"'))
 })

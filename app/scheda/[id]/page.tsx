@@ -27,7 +27,7 @@
 // ============================================================================
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
 import TestaCliente from '@/components/TestaCliente'
 import FasciaSezioni from '@/components/FasciaSezioni'
@@ -46,6 +46,7 @@ import ArriviPrecedenti from '@/components/scheda/ArriviPrecedenti'
 import FoglioArrivo from '@/components/scheda/FoglioArrivo'
 import FoglioProvenienza from '@/components/scheda/FoglioProvenienza'
 import FoglioComePaga from '@/components/scheda/FoglioComePaga'
+import AdessoScheda from '@/components/scheda/AdessoScheda'
 import { supabase } from '@/lib/supabase'
 import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiavePrenotazione, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import {
@@ -112,9 +113,14 @@ function RigaGrande({ ospiti, camere, cambi }: { ospiti: number; camere: string;
   )
 }
 
+export const PRENOTAZIONE_SALVATA = '✓ Prenotazione salvata'
+export const FONDO_SALVATA = 'var(--color-sage)'
+const SECONDI_SALVATA = 5
+
 export default function SchedaPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const parametri = useSearchParams()
   const oggi = oggiARoma()
   const [booking, setBooking] = useState<Prenotazione | null>(null)
   const [righe, setRighe] = useState<Prenotazione[]>([])
@@ -133,12 +139,20 @@ export default function SchedaPage() {
   const [foglioArrivo, setFoglioArrivo] = useState(false)
   const [foglioProvenienza, setFoglioProvenienza] = useState(false)
   const [foglioComePaga, setFoglioComePaga] = useState(false)
+  // arrivando dalla pagina di inserimento: la pastiglia verde che sparisce da sé
+  const [salvata, setSalvata] = useState(parametri.get('salvata') === '1')
   const [arriviAperti, setArriviAperti] = useState(false)
   // la striscia delle notti: le camere di casa, la notte aperta e il salvataggio
   const [camere, setCamere] = useState<CameraStriscia[]>([])
   const [notteAperta, setNotteAperta] = useState<string | null>(null)
   const [salvandoNotti, setSalvandoNotti] = useState(false)
   const [versione, setVersione] = useState(0)
+
+  useEffect(() => {
+    if (!salvata) return
+    const t = setTimeout(() => setSalvata(false), SECONDI_SALVATA * 1000)
+    return () => clearTimeout(t)
+  }, [salvata])
 
   useEffect(() => {
     if (!id) return
@@ -327,6 +341,10 @@ export default function SchedaPage() {
   const conLei = personeConLei(booking)
 
   // ── CRONOLOGIA ───────────────────────────────────────────────────────────
+  // «Adesso» si vede finché la conferma non è partita e la cliente non è
+  // ancora andata via: appena mandata, sparisce da sé.
+  const daFare = messaggiInviati.every(m => m.message_type !== 'conferma') && ultimaPartenza > oggi && booking?.status !== 'annullata'
+
   const storia = useMemo(
     () => righeStoria(eventi, messaggiInviati, booking?.created_at ?? null),
     [eventi, messaggiInviati, booking],
@@ -339,6 +357,11 @@ export default function SchedaPage() {
     /* Margini laterali 22 px, tutto centrato, come la proposta */
     <div className="py-4 px-[22px] md:max-w-[620px] md:mx-auto">
       <div className="-mx-[6px]"><BackBar href="/prenotazioni" /></div>
+
+      {salvata && (
+        <p data-salvata className="text-center uppercase" onClick={() => setSalvata(false)}
+          style={{ marginBottom: 10, padding: '6px 12px', borderRadius: 999, background: FONDO_SALVATA, color: 'var(--color-green-mid)', fontSize: 11, letterSpacing: '1.5px', fontWeight: 700 }}>{PRENOTAZIONE_SALVATA}</p>
+      )}
 
       {/* La riga di navigazione: «‹ Prenotazioni» a sinistra, lo stato a destra */}
       <div data-riga-navigazione className="flex items-center justify-between gap-3">
@@ -380,6 +403,14 @@ export default function SchedaPage() {
       </div>
 
       <FasciaSezioni voci={SEZIONI_SCHEDA} className="mt-[22px]" top="top-12 lg:top-0" spaziatura={0.6} />
+
+      {/* ── Adesso: la conferma da mandare ────────────────────────────────── */}
+      {daFare && waNumero && (
+        <AdessoScheda className="pt-[34px]"
+          onConfermaImmagine={() => setConfermaAperta(true)}
+          hrefBonifico={accordo?.bonifico ? hrefMessaggio('dati_bonifico') : null}
+          onBonifico={apriMessaggio('dati_bonifico')} />
+      )}
 
       {/* ── Da controllare ────────────────────────────────────────────────── */}
       <section id="controllare" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">

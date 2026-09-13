@@ -50,7 +50,7 @@ import { oraDigitata } from '@/lib/ora'
 import { PERSONE_CON_LEI_MAX, TROPPE_PERSONE, type PersonaConLei } from '@/lib/nuovaPrenotazione'
 import { campiComePaga, chiedeScadenza as chiedeScadenzaComePaga, type ComePaga as ComePagaModo } from '@/lib/comePaga'
 import ContoNuova from '@/components/nuova/ContoNuova'
-import { campiConLei, campiSconto } from '@/lib/nuovaPrenotazione'
+import { campiConLei, campiSconto, totaliScontati } from '@/lib/nuovaPrenotazione'
 import { rigaDaSalvare, problemi } from '@/lib/prenotazioneComposta'
 import { colonnaMancante } from '@/lib/colonnaMancante'
 import { lettiOccupatiPerNotte } from '@/lib/lettiAggiuntivi'
@@ -343,8 +343,12 @@ export default function NuovaPrenotazionePage() {
       ...campiSconto(conto.totaleCent, sconto, periodi.length === 1),
     }
     const primo = [...periodiColLetto].sort((a, z) => a.checkIn.localeCompare(z.checkIn))[0]?.id
-    const righe = periodiColLetto.map(p => ({
-      ...rigaDaSalvare(p, camere.find(c => c.id === p.roomId) as CameraComposta, gruppi.get(p.gruppo)!),
+    const base = periodiColLetto.map(p => rigaDaSalvare(p, camere.find(c => c.id === p.roomId) as CameraComposta, gruppi.get(p.gruppo)!))
+    // con uno sconto il totale di ogni riga si scrive già scontato
+    const scontati = totaliScontati(base.map(r => Number(r.total_amount) || 0), sconto)
+    const righe = periodiColLetto.map((p, i) => ({
+      ...base[i],
+      total_amount: scontati[i],
       ...comuni,
       prenotazione_id: prenotazioneId,
       accordo_pagamento: pagamento.accordo_pagamento,
@@ -420,7 +424,9 @@ export default function NuovaPrenotazionePage() {
 
           {linee.map((linea, i) => {
             const d = datiLinea(linea)
-            const scelte = camereDelPeriodo(camere, altre, d.arrivo, d.partenza)
+            // anche le ALTRE camere di questa compilazione occupano: due volte
+            // la stessa camera nelle stesse notti non si può
+            const scelte = camereDelPeriodo(camere, contesto(linea.gruppo).altre, d.arrivo, d.partenza)
             const camera = trovaCamera(d.roomId)
             const notti = nottiDaPeriodi(linea.periodi, camere)
             return (

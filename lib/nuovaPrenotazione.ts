@@ -277,3 +277,23 @@ export function periodiDaNotti(notti: NotteStriscia[], linea: LineaCamera, nuovo
     }
   })
 }
+
+// ── Quanto vale davvero ogni riga, sconto compreso ──────────────────────────
+// `total_amount` è il totale di QUELLA camera: con uno sconto sulla
+// prenotazione va scritto già scontato, altrimenti il conto della scheda
+// (che somma i total_amount) mostrerebbe il prezzo pieno. La lettura riga per
+// riga (lib/conto) non cambia: con uno sconto valido ricalcola dal prezzo a
+// notte e il totale salvato non viene nemmeno guardato.
+export function totaliScontati(totali: number[], sconto: ScontoNuova): number[] {
+  const pienoCent = totali.reduce((s, t) => s + Math.round(t * 100), 0)
+  const toltoCent = scontoInCentesimi(pienoCent, sconto)
+  if (toltoCent <= 0 || pienoCent <= 0) return totali.map(t => round2(t))
+  // l'ultimo prende il resto, così la somma torna al centesimo
+  let restaDaTogliere = toltoCent
+  return totali.map((t, i) => {
+    const cent = Math.round(t * 100)
+    const quota = i === totali.length - 1 ? restaDaTogliere : Math.round(toltoCent * cent / pienoCent)
+    restaDaTogliere -= quota
+    return round2(Math.max(0, cent - quota) / 100)
+  })
+}
