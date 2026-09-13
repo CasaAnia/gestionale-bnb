@@ -11,6 +11,7 @@
 // prenotazione, perciò qui non c'è nulla che parli di «richieste».
 // ============================================================================
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { Phone, MessageCircle } from 'lucide-react'
 import { giornoConSettimana } from '@/lib/dateItaliane'
 import { personeTesta, caselleNotti, personeCambiano, cameraTesta } from '@/lib/personeTesta'
@@ -23,6 +24,7 @@ const OTTONE = '#A9884E'
 const FILO_OTTONE = 'rgba(169,136,78,0.55)'
 const ROSSO_NOTA = '#C00000'   // il rosso della nota del cliente, scelto da Ania l'8/09/2026: uguale in Home, scheda e proposta
 const FILO_NOTA = '#E3CFC9'
+const FILO_NOTA_SCHEDA = '#D8D2C4'   // la scheda prenotazione (13/09/2026): filo tratteggiato più neutro
 const ROSSO_AVVISO = '#8C3B2E'
 const MATTONE = '#8a4f2f'   // la notte in cui le persone cambiano
 
@@ -72,6 +74,25 @@ export type TestaClienteProps = {
   note?: { etichetta: string; testo: string }[]
   hrefModifica?: string | null
   testoModifica?: string
+  // ── Solo per la NUOVA SCHEDA PRENOTAZIONE (13/09/2026) ──────────────────
+  // Senza queste la testa resta quella della proposta, identica a prima.
+  /** la prima riga scritta per intero dalla pagina («Prima volta · Google») */
+  primaRiga?: string | null
+  /** manca la provenienza: «da dove? ›» nello stesso grigio, che si tocca */
+  chiediProvenienza?: { testo: string; onClick: () => void } | null
+  /** il nome sempre in peso normale, anche con la ricevuta (Ania: NON grassetto) */
+  nomeNormale?: boolean
+  /** al posto di «arrivo» / «partenza» sotto le date: «arriva 15:10 · navetta», «parte» */
+  etichettaArrivo?: string
+  etichettaPartenza?: string
+  /** la riga grande al posto di persone e camera chiesta (OSPITI · CAMERA) */
+  rigaGrande?: ReactNode
+  /** sotto la riga grande, prima dei contatti: lo stato del conto */
+  sottoRigaGrande?: ReactNode
+  /** dopo i contatti, prima delle note: la riga del documento */
+  dopoContatti?: ReactNode
+  /** note nella veste della scheda: filo #D8D2C4, 14,5 px, parolina solo se c'è */
+  noteScheda?: boolean
 }
 
 // «1.360 €»: euro tondi, col punto delle migliaia. Non si usa toLocaleString:
@@ -99,6 +120,8 @@ export default function TestaCliente({
   arrivo, partenza, notti, personeNotti, nottiRichieste = [], cameraChiesta = null,
   telefono = null, telefonoDaChiamare = null, telefonoWhatsApp = null, avvisoTelefono = null, onScrivi,
   note = [], hrefModifica = null, testoModifica = 'Modifica la richiesta',
+  primaRiga = null, chiediProvenienza = null, nomeNormale = false, etichettaArrivo = 'arrivo', etichettaPartenza = 'partenza',
+  rigaGrande = null, sottoRigaGrande = null, dopoContatti = null, noteScheda = false,
 }: TestaClienteProps) {
   const torna = volte > 0
   // Chi è: già stata qui, oppure solo già in archivio (nessun soggiorno
@@ -118,7 +141,10 @@ export default function TestaCliente({
           per chi torna, quanto ha speso in tutto. */}
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 truncate" style={{ fontSize: 12.5, color: GRIGIO_RIGA }}>
-          {chiE}{(torna || inArchivio) && provenienza ? ` · ${provenienza}` : ''}
+          {primaRiga ?? <>{chiE}{(torna || inArchivio) && provenienza ? ` · ${provenienza}` : ''}</>}
+          {chiediProvenienza && (
+            <> · <button type="button" data-chiedi-provenienza onClick={chiediProvenienza.onClick} className="py-2 -my-2" style={{ fontSize: 12.5, color: GRIGIO_RIGA }}>{chiediProvenienza.testo}</button></>
+          )}
         </p>
         <span className="shrink-0 text-right">
           {quando && <span data-quando-richiesta className="block whitespace-nowrap" style={{ fontSize: 12.5, color: GRIGIO_RIGA }}>{quando}</span>}
@@ -133,7 +159,7 @@ export default function TestaCliente({
           il nome — «🧾 ★ Carmela Sabia». Sono testo, nella misura del nome,
           divisi da uno spazio normale; con la ricevuta il nome resta in
           grassetto come prima. */}
-      <h1 className="text-center mt-4 leading-tight" style={{ fontFamily: GEORGIA, fontWeight: ricevuta ? 700 : 400, fontSize: 32, color: 'var(--color-green-dark)' }}>
+      <h1 className="text-center mt-4 leading-tight" style={{ fontFamily: GEORGIA, fontWeight: ricevuta ? 700 : 400, fontSize: 32, color: 'var(--color-green-dark)', ...(nomeNormale ? { fontWeight: 400 } : {}) }}>
         {ricevuta && <span data-ricevuta aria-label="vuole la ricevuta" title="Vuole la ricevuta">{'🧾 '}</span>}
         {stella && <span data-stella aria-label="cliente ottima" title="Cliente ottima" style={{ color: OTTONE }}>{'★ '}</span>}
         {nome}
@@ -142,7 +168,7 @@ export default function TestaCliente({
       {/* Le due date, con le notti sulla freccia */}
       {/* Le date non toccano i bordi: 6 px dentro i margini (Ania, 11/09/2026) */}
       <div className="grid items-center gap-3 mt-6 px-1.5" style={{ gridTemplateColumns: 'auto 1fr auto' }}>
-        <Data iso={arrivo} etichetta="arrivo" />
+        <Data iso={arrivo} etichetta={etichettaArrivo} />
         <div className="pb-4">
           <p className="text-center" style={{ fontSize: 11, color: OTTONE }}>{notti === 1 ? '1 notte' : `${notti} notti`}</p>
           <span className="flex items-center w-full mt-1" aria-hidden>
@@ -150,12 +176,13 @@ export default function TestaCliente({
             <span style={{ width: 0, height: 0, borderTop: '3.5px solid transparent', borderBottom: '3.5px solid transparent', borderLeft: `5px solid ${OTTONE}` }} />
           </span>
         </div>
-        <Data iso={partenza} etichetta="partenza" />
+        <Data iso={partenza} etichetta={etichettaPartenza} />
       </div>
 
       {/* Quante persone e quale camera: stessa forma delle date sopra —
           valore grande, etichetta piccola sotto (Ania, 12/09/2026) */}
       <div style={{ borderTop: `1px solid ${FILO_OTTONE}`, paddingTop: 16 }}>
+        {rigaGrande ?? <>
         <div className="flex items-start justify-center" style={{ gap: 44 }}>
           <div className="text-center" data-persone-testa>
             <p className="leading-[1.15]" style={{ fontFamily: GEORGIA, fontWeight: 400 }}>
@@ -185,7 +212,9 @@ export default function TestaCliente({
             ))}
           </div>
         )}
+        </>}
       </div>
+      {sottoRigaGrande}
 
       {/* Come si chiama il cliente: telefono e WhatsApp */}
       {(telefono || telefonoWhatsApp) && (
@@ -206,15 +235,16 @@ export default function TestaCliente({
       )}
       {avvisoTelefono && <p className="text-center mt-1 text-xs font-semibold" style={{ color: ROSSO_AVVISO }}>{avvisoTelefono}</p>}
       {!telefono && <p className="text-center mt-3 text-sm font-semibold" style={{ color: ROSSO_AVVISO }}>Nessun numero di telefono</p>}
+      {dopoContatti}
 
       {/* Le note non devono sfuggire: rosso #C00000, ognuna con la sua
           parolina sopra, sotto un filo tratteggiato (Ania, 11/09/2026) */}
       {notePulite.length > 0 && (
-        <div className="mt-3" style={{ borderTop: `1px dashed ${FILO_NOTA}`, paddingTop: 10 }}>
+        <div className="mt-3" style={{ borderTop: `1px dashed ${noteScheda ? FILO_NOTA_SCHEDA : FILO_NOTA}`, paddingTop: 10 }}>
           {notePulite.map((n, i) => (
             <div key={n.etichetta + i} data-nota-cliente className={`text-center${i > 0 ? ' mt-2.5' : ''}`}>
-              <p style={{ fontSize: 9.5, letterSpacing: '1.5px', textTransform: 'uppercase', color: ROSSO_NOTA }}>{n.etichetta}</p>
-              <p className="mt-0.5 break-words" style={{ fontSize: 13.5, fontWeight: 600, color: ROSSO_NOTA, overflowWrap: 'anywhere' }}>«{n.testo}»</p>
+              {(n.etichetta || !noteScheda) && <p style={{ fontSize: noteScheda ? 10 : 9.5, letterSpacing: '1.5px', textTransform: 'uppercase', color: ROSSO_NOTA }}>{n.etichetta}</p>}
+              <p className="mt-0.5 break-words" style={{ fontSize: noteScheda ? 14.5 : 13.5, fontWeight: 600, color: ROSSO_NOTA, overflowWrap: 'anywhere' }}>{noteScheda ? n.testo : `«${n.testo}»`}</p>
             </div>
           ))}
         </div>

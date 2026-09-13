@@ -210,16 +210,30 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
 
 // Riga discreta per la scheda prenotazione: «Documenti · 2» → scheda cliente.
 // Se la migrazione 0032 non c'è ancora non mostra nulla.
-export function RigaDocumentiPrenotazione({ guestId, className = '' }: { guestId: string | null | undefined; className?: string }) {
-  const [n, setN] = useState<number | null>(null)
+// La nuova scheda prenotazione (13/09/2026) passa `conteggio` già letto e
+// chiede la veste `scheda`: «🪪 Nessun documento · aggiungi» (14 px stone,
+// «aggiungi» verde) oppure «🪪 documento caricato ›», che apre i documenti.
+export function RigaDocumentiPrenotazione({ guestId, className = '', conteggio, scheda = false }: { guestId: string | null | undefined; className?: string; conteggio?: number | null; scheda?: boolean }) {
+  const [letto, setLetto] = useState<number | null>(null)
   useEffect(() => {
-    if (!guestId) return
+    if (!guestId || conteggio !== undefined) return
     let vivo = true
     supabase.from('documenti_cliente').select('id', { count: 'exact', head: true }).eq('guest_id', guestId)
-      .then(({ count, error }) => { if (vivo && !error) setN(count ?? 0) })
+      .then(({ count, error }) => { if (vivo && !error) setLetto(count ?? 0) })
     return () => { vivo = false }
-  }, [guestId])
+  }, [guestId, conteggio])
+  const n = conteggio !== undefined ? conteggio : letto
   if (!guestId || n === null) return null
+  if (scheda) {
+    return (
+      <Link href={`/clienti/${guestId}#documenti`} data-riga-documento className={`inline-flex items-center gap-1.5 ${className}`} style={{ fontSize: 14, color: 'var(--color-stone)' }}>
+        <span aria-hidden>🪪</span>
+        {n === 0
+          ? <span>Nessun documento · <span style={{ color: 'var(--color-green-mid)', fontWeight: 600 }}>aggiungi</span></span>
+          : <span>{n === 1 ? 'documento caricato' : `${n} documenti caricati`} ›</span>}
+      </Link>
+    )
+  }
   return (
     <Link href={`/clienti/${guestId}#documenti`} className={`inline-flex items-center gap-1.5 text-sm text-stone underline underline-offset-2 decoration-dotted mb-1 ${className}`}>
       🪪 {rigaDocumenti(n)}

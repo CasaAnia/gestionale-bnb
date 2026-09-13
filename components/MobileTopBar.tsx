@@ -10,6 +10,7 @@ const SECTION_TITLES: [string, string][] = [
   ['/arrivi', 'Arrivi'],
   ['/pulizie', 'Pulizie'],
   ['/prenotazioni', 'Prenotazioni'],
+  ['/scheda', 'Prenotazione'],
   ['/nuova', 'Nuova prenotazione'],
   ['/clienti', 'Clienti'],
   ['/spese-famiglia', 'Spese Famiglia'],

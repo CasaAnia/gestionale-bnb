@@ -82,10 +82,18 @@ const guests = [
   // della sezione «Soggiorno con cambio camera» e dei soggiorni precedenti.
   { ...ospite('aaaaaaaa-0017-4000-8000-000000000017', 'Giulia Bianchi', '+39 333 000 0017'),
     notes: 'Allergica alla polvere: niente coperte di lana.' },
+  // Nuova scheda prenotazione (13/09/2026): Carmela Sabia, cliente ottima che
+  // vuole la ricevuta, già stata qui due volte (1.360 €), passaparola; adesso
+  // 10–17 set con due cambi camera (Lena → Amelia → Lena), 550 € in contanti.
+  { ...ospite('aaaaaaaa-0018-4000-8000-000000000018', 'Carmela Sabia', '+39 333 000 0018'),
+    rating: 'ottimo', vuole_ricevuta: true, provenienza: 'passaparola', struttura_nome: null,
+    notes: 'Vuole la camera silenziosa, dorme male con i rumori.' },
 ]
 const NIDA = guests[14]
 const CAMBIO = guests[16]
 const GRUPPO_CAMBIO = 'cccccccc-0017-4000-8000-000000000017'
+const CARMELA = guests[17]
+const GRUPPO_CARMELA = 'cccccccc-0018-4000-8000-000000000018'
 
 let n = 0
 function prenotazione(room_id, guest_id, check_in, check_out, num_guests, extra) {
@@ -155,13 +163,31 @@ const bookings = [
       notes: 'Arriva in treno, chiede la navetta alle 18:30.' }),
   prenotazione(ROOM.ambra, CAMBIO.id, '2026-09-26', '2026-09-28', 2,
     { group_id: GRUPPO_CAMBIO, price_per_night: 70, total_amount: 140 }),
+  // Carmela Sabia (nuova scheda, 13/09/2026): due soggiorni conclusi in Ambra
+  // e il soggiorno di adesso su tre tratti — Lena 12–14 (160), Amelia 14–16
+  // in una (130), Lena 16–18 in tre col letto incluso (180) = 470 €, pagati
+  // in contanti all'arrivo (movimento sul primo tratto). Orario e navetta.
+  // Le date sono le uniche in cui Lena e Amelia sono libere in questo
+  // scenario: così la prova non crea sovrapposizioni con le altre prove.
+  prenotazione(ROOM.ambra, CARMELA.id, '2025-08-12', '2025-08-20', 2, { status: 'completata', price_per_night: 85, total_amount: 680, pagato: true }),
+  prenotazione(ROOM.ambra, CARMELA.id, '2026-04-29', '2026-05-04', 2, { status: 'completata', price_per_night: 136, total_amount: 680, pagato: true, check_in_time: '16:00', shuttle: 'no' }),
+  prenotazione(ROOM.lena, CARMELA.id, '2026-09-12', '2026-09-14', 2,
+    { group_id: GRUPPO_CARMELA, price_per_night: 80, total_amount: 160, check_in_time: '15:10', shuttle: 'si', notes: 'Chiede un cuscino in più.' }),
+  prenotazione(ROOM.amelia, CARMELA.id, '2026-09-14', '2026-09-16', 1,
+    { group_id: GRUPPO_CARMELA, price_per_night: 65, total_amount: 130 }),
+  prenotazione(ROOM.lena, CARMELA.id, '2026-09-16', '2026-09-18', 3,
+    { group_id: GRUPPO_CARMELA, price_per_night: 90, extra_bed: true, extra_bed_dates: ['2026-09-16', '2026-09-17'], extra_bed_total: 0, total_amount: 180 }),
 ]
+const CARMELA_PRIMO_TRATTO = bookings[bookings.length - 3]
 const documenti_cliente = [
   { id: 'dddddddd-0001-4000-8000-000000000001', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0001-4000-8000-000000000001.jpg`, etichetta: 'carta_identita', lato: 'fronte', nome_file: 'IMG_1.jpeg', dimensione: 700000, created_at: ora },
   { id: 'dddddddd-0002-4000-8000-000000000002', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0002-4000-8000-000000000002.jpg`, etichetta: 'carta_identita', lato: 'retro', nome_file: 'IMG_2.jpeg', dimensione: 700000, created_at: ora },
 ]
 const strutture = [{ nome: 'Umana' }, { nome: 'Nida' }, { nome: 'RB (Rosa Bianca)' }, { nome: 'Elyse' }, { nome: 'BM (Borgo Manzoni)' }]
-const payments = []
+// Il contante di Carmela (470 €, all'arrivo del 12 set) sul primo tratto
+const payments = [
+  { id: 'ffffffff-0001-4000-8000-000000000001', booking_id: CARMELA_PRIMO_TRATTO.id, amount: 470, method: 'contanti', paid_on: '2026-09-12', created_at: ora },
+]
 // Storico pulizie (migrazione 0018): vuoto, così la pagina Pulizie mostra solo le automatiche
 const cleanings = []
 
