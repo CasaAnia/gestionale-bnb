@@ -7,7 +7,7 @@ import {
   ospitiPossibiliNotte, ospitiDellaNotte, listinoLetto, raggruppaPerCamera, datiLinea, nottiDellaLinea,
   CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
   totaliScontati, ospitiMassimi, ospitiMassimiPrenotazione, ospitiScegliendoCamera,
-  statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO,
+  statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO, mancaAlConto, MANCA_CAMERA, MANCA_DATE,
 } from './nuovaPrenotazione.ts'
 import { conLettoAutomatico, tariffaProposta, type PeriodoComposto } from './prenotazioneComposta.ts'
 import { nottiDaPeriodi, giornoDellaNotte } from './strisciaNotti.ts'
@@ -547,4 +547,39 @@ test('il letto si accende da solo quando gli ospiti lo richiedono, e costa il li
   // e la pagina mostra il blocco in base allo stato, non al letto già acceso
   assert.match(pagina, /\{statoLetto\.possibile && \(/)
   assert.doesNotMatch(pagina, /periodi\.some\(p => p\.nottiLetto\.length > 0\) && \(/)
+})
+
+// ── 5. Il conto si vede, e dice cosa manca davvero (14/09/2026) ─────────────
+// Diceva «da completare» con date, camera, ospiti e tariffa a posto.
+test('con date e camera il conto c’è, e non manca niente', () => {
+  const periodi = [periodoLena(3, ['2026-10-02', '2026-10-03'])]
+  const conto = contoNuovaPrenotazione(periodi, () => LENA as never, { tipo: 'nessuno', valore: null })
+  assert.equal(conto.daPagare, '180 €')
+  assert.equal(mancaAlConto(periodi, () => LENA as never), null)
+  // la tariffa vuota NON ferma il conto: vale il listino
+  assert.equal(periodi[0].tariffa, null)
+  // e nemmeno «come paga»: riguarda l'incasso, non il conto
+  assert.equal(mancaAlConto(periodi, () => LENA as never), null)
+})
+
+test('quello che ferma il conto è solo la camera o le date', () => {
+  assert.equal(mancaAlConto([], () => null), MANCA_CAMERA)
+  assert.equal(mancaAlConto([{ ...periodoLena(2), roomId: null }], () => null), MANCA_CAMERA)
+  assert.equal(mancaAlConto([{ ...periodoLena(2), checkOut: '2026-10-02' }], () => LENA as never), MANCA_DATE)
+  // e si scrive in ottone sotto il totale
+  const contoTsx = readFileSync(new URL('../components/nuova/ContoNuova.tsx', import.meta.url), 'utf8')
+  assert.match(contoTsx, /data-manca-conto[\s\S]{0,160}color: OTTONE/)
+  assert.match(pagina, /manca=\{mancaAlConto\(periodiColLetto, trovaCamera\)\}/)
+})
+
+test('il conto si aggiorna a ogni tocco: sconto, letto, ospiti', () => {
+  const camera = () => LENA as never
+  const base = contoNuovaPrenotazione([periodoLena(2)], camera, { tipo: 'nessuno', valore: null })
+  assert.equal(base.daPagare, '160 €')                                   // 2 notti × 80
+  const inTre = contoNuovaPrenotazione([periodoLena(3, ['2026-10-02', '2026-10-03'])], camera, { tipo: 'nessuno', valore: null })
+  assert.equal(inTre.daPagare, '180 €')                                  // tripla 90, letto compreso
+  const scontato = contoNuovaPrenotazione([periodoLena(3, ['2026-10-02', '2026-10-03'])], camera, { tipo: 'percentuale', valore: 10 })
+  assert.equal(scontato.totale, '180 €')
+  assert.equal(scontato.sconto, '18 €')
+  assert.equal(scontato.daPagare, '162 €')
 })

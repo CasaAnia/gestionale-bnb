@@ -37,7 +37,7 @@ import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCamp
 import {
   camereDelPeriodo, rigaCamereLibere, datiLinea, nottiDellaLinea, raggruppaPerCamera, periodiDaNotti,
   ospitiPossibiliNotte, ospitiMassimi, ospitiScegliendoCamera, contoNuovaPrenotazione, scontoInParole, listinoLetto, CRITERI_LETTO, LETTO_COMPRESO_LISTINO,
-  statoLettoNuova,
+  statoLettoNuova, mancaAlConto,
   type ScontoNuova,
 } from '@/lib/nuovaPrenotazione'
 import { nottiDaPeriodi, type CameraStriscia, type ContestoNotti, type NotteStriscia } from '@/lib/strisciaNotti'
@@ -560,7 +560,8 @@ export default function NuovaPrenotazionePage() {
               {guai.map(g => <AvvisoAzione key={g} testo={g} className="mt-2" />)}
             </div>
           )}
-          <ContoNuova className="mt-6" conto={conto} onSalva={() => void salva()} salvaSpento={salvando || conto.daPagareCent === null} />
+          <ContoNuova className="mt-6" conto={conto} manca={mancaAlConto(periodiColLetto, trovaCamera)}
+            onSalva={() => void salva()} salvaSpento={salvando || conto.daPagareCent === null} />
         </>
       )}
 

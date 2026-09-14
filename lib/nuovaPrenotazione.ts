@@ -205,6 +205,20 @@ export function contoNuovaPrenotazione(
   }
 }
 
+// ── Cosa manca al conto ─────────────────────────────────────────────────────
+// Il conto diceva «da completare» senza dire cosa: si scrive in ottone sotto
+// il totale (Ania, 14/09/2026). Gli unici campi che lo tengono fermo sono la
+// camera e le date: la tariffa a notte NON serve (senza di lei vale il
+// listino) e nemmeno «come paga», che riguarda l'incasso e non il conto.
+export const MANCA_CAMERA = 'manca la camera'
+export const MANCA_DATE = 'la partenza deve venire dopo l’arrivo'
+export function mancaAlConto(periodi: PeriodoComposto[], camera: (id: string | null) => CameraComposta | null): string | null {
+  if (periodi.length === 0) return MANCA_CAMERA
+  if (periodi.some(p => !p.roomId || !camera(p.roomId))) return MANCA_CAMERA
+  if (periodi.some(p => nottiPeriodo(p) <= 0)) return MANCA_DATE
+  return null
+}
+
 export function scontoInCentesimi(totaleCent: number, sconto: ScontoNuova): number {
   if (sconto.tipo === 'nessuno' || !sconto.valore || sconto.valore <= 0) return 0
   if (sconto.tipo === 'percentuale') {

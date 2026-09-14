@@ -5,7 +5,7 @@
 // e quanto c'è da pagare. Le cifre arrivano già fatte da
 // lib/nuovaPrenotazione (che a sua volta usa le regole di lib/prezzoNotti).
 // ============================================================================
-import { TastoAvanti, OTTONE, GEORGIA } from './PezziNuova'
+import { TastoAvanti, OTTONE, MATTONE, GEORGIA } from './PezziNuova'
 import type { ContoNuova as Conto } from '@/lib/nuovaPrenotazione'
 
 export const FILO_OTTONE = 'rgba(169,136,78,0.55)'
@@ -13,10 +13,14 @@ export const TITOLO_CONTO = 'Il conto'
 export const SALVA = 'Salva la prenotazione'
 export const DA_COMPLETARE = 'da completare'
 
-export default function ContoNuova({ conto, onSalva, salvaSpento, className = '' }: {
+export default function ContoNuova({ conto, manca, onSalva, salvaSpento, avviso, className = '' }: {
   conto: Conto
+  /** cosa manca davvero perché il conto sia intero: si scrive in ottone */
+  manca?: string | null
   onSalva: () => void
-  salvaSpento: boolean
+  salvaSpento?: boolean
+  /** l'avviso in mattone accanto al tasto: il campo che ferma il salvataggio */
+  avviso?: string | null
   className?: string
 }) {
   const euroGrande = (testo: string | null) => testo ?? DA_COMPLETARE
@@ -51,8 +55,12 @@ export default function ContoNuova({ conto, onSalva, salvaSpento, className = ''
         <span style={{ fontFamily: GEORGIA, fontSize: 28, lineHeight: '32px', color: 'var(--color-green-dark)' }}>{euroGrande(conto.daPagare)}</span>
       </div>
       {conto.aNotte && <p data-a-notte className="text-right" style={{ fontSize: 12, color: 'var(--color-stone)', marginTop: 2 }}>{conto.aNotte}</p>}
+      {manca && <p data-manca-conto className="text-right" style={{ fontSize: 12, color: OTTONE, marginTop: 2 }}>{manca}</p>}
 
       <div style={{ marginTop: 22 }}><TastoAvanti testo={SALVA} onClick={onSalva} disabilitato={salvaSpento} dati="salva" /></div>
+      {avviso && (
+        <p data-avviso-salva className="text-center" style={{ fontSize: 12.5, fontWeight: 600, color: MATTONE, marginTop: 10 }}>{avviso}</p>
+      )}
     </section>
   )
 }
