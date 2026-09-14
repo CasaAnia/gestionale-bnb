@@ -48,7 +48,8 @@ test('senza cambi camera: una camera sola in tutte le notti', () => {
   assert.deepEqual(notti.map(n => n.camera), ['Lena', 'Lena', 'Lena'])
   assert.equal(notti.every(n => n.dentro && !n.letto), true)
   assert.equal(cambiCamera(notti), 0)
-  assert.equal(riassuntoStriscia(notti), 'nessun cambio camera')
+  // zero cambi: il riassunto non li nomina proprio (Ania, 15/09/2026)
+  assert.equal(riassuntoStriscia(notti), '')
 })
 
 test('un cambio camera: il segno ⇄ sta sulla prima notte nuova', () => {
@@ -393,4 +394,78 @@ test('le pastiglie del foglietto si toccano su 44 px', () => {
   assert.match(foglietto, /export const ALTEZZA_PASTIGLIA = 44/)
   assert.equal((foglietto.match(/minHeight: ALTEZZA_PASTIGLIA/g) || []).length >= 5, true)
   assert.equal(/minHeight: 38|minHeight: 40/.test(foglietto), false, 'una pastiglia è rimasta più bassa di 44')
+})
+
+// ── I cambi camera si contano solo fra due notti che hanno una camera ───────
+// (Ania, 15/09/2026: con una camera sola in una notte sola si leggeva
+// «1 cambio camera», e con Allegra da sola «2 cambi camera».)
+const notteFinta = (iso: string, camera: string | null, extra: Partial<NotteStriscia> = {}): NotteStriscia => ({
+  iso, cameraId: camera, camera, letto: false, dentro: true, persone: 2, motivo: null, parallela: false, ...extra,
+})
+
+test('una camera sola in una notte sola: zero cambi', () => {
+  const notti = [
+    notteFinta('2026-09-14', null), notteFinta('2026-09-15', null),
+    notteFinta('2026-09-16', null), notteFinta('2026-09-17', 'Lena'),
+  ]
+  assert.equal(cambiCamera(notti), 0)
+  assert.deepEqual(segniDiCambio(notti), [false, false, false, false])
+  assert.equal(riassuntoStriscia(notti), '')
+})
+
+test('una camera in mezzo, le altre notti vuote: zero cambi', () => {
+  const notti = [
+    notteFinta('2026-09-14', null), notteFinta('2026-09-15', null),
+    notteFinta('2026-09-16', 'Allegra'), notteFinta('2026-09-17', null),
+  ]
+  assert.equal(cambiCamera(notti), 0)
+  assert.deepEqual(segniDiCambio(notti), [false, false, false, false])
+})
+
+test('Allegra il 16 e Lena il 17: un cambio solo', () => {
+  const notti = [
+    notteFinta('2026-09-14', null), notteFinta('2026-09-15', null),
+    notteFinta('2026-09-16', 'Allegra'), notteFinta('2026-09-17', 'Lena'),
+  ]
+  assert.equal(cambiCamera(notti), 1)
+  assert.deepEqual(segniDiCambio(notti), [false, false, false, true])
+  assert.equal(riassuntoStriscia(notti), '1 cambio camera')
+})
+
+test('due cambi veri: tre camere di fila', () => {
+  const notti = [
+    notteFinta('2026-09-14', 'Lena'), notteFinta('2026-09-15', 'Amelia'),
+    notteFinta('2026-09-16', 'Ambra'), notteFinta('2026-09-17', 'Ambra'),
+  ]
+  assert.equal(cambiCamera(notti), 2)
+  assert.deepEqual(segniDiCambio(notti), [false, true, true, false])
+  assert.equal(riassuntoStriscia(notti), '2 cambi camera')
+})
+
+test('una notte senza camera in mezzo non fa un cambio', () => {
+  const notti = [
+    notteFinta('2026-09-14', 'Lena'), notteFinta('2026-09-15', null), notteFinta('2026-09-16', 'Lena'),
+  ]
+  assert.equal(cambiCamera(notti), 0)
+  // e nemmeno fra due camere diverse: prima si sistema la notte di mezzo
+  const diverse = [notteFinta('2026-09-14', 'Lena'), notteFinta('2026-09-15', null), notteFinta('2026-09-16', 'Ambra')]
+  assert.equal(cambiCamera(diverse), 0)
+})
+
+test('la pausa «non dorme qui» non interrompe il conto dei cambi', () => {
+  const conPausa = [
+    notteFinta('2026-09-14', 'Lena'),
+    notteFinta('2026-09-15', null, { dentro: false, persone: 0 }),
+    notteFinta('2026-09-16', 'Ambra'),
+  ]
+  assert.equal(cambiCamera(conPausa), 1)
+  assert.deepEqual(segniDiCambio(conPausa), [false, false, true])
+  // stessa camera dopo la pausa: nessun cambio
+  const stessa = [conPausa[0], conPausa[1], notteFinta('2026-09-16', 'Lena')]
+  assert.equal(cambiCamera(stessa), 0)
+})
+
+test('il letto resta nel riassunto anche senza cambi', () => {
+  const notti = [notteFinta('2026-09-14', 'Lena', { letto: true }), notteFinta('2026-09-15', 'Lena', { letto: true })]
+  assert.equal(riassuntoStriscia(notti), 'letto in più 2 notti')
 })

@@ -162,27 +162,37 @@ export function nottiDaPeriodi(periodi: PeriodoNotti[], camere: CameraStriscia[]
 // ── Il riassunto in ottone sotto la striscia ────────────────────────────────
 // «2 cambi camera · letto in più 4 notti». Le notti «libere» non contano: non
 // interrompono il conto dei cambi e non entrano in quello del letto.
+// Un cambio camera è il passaggio da una camera A a una camera B fra due
+// notti CONSECUTIVE in cui la cliente dorme qui, e tutte e due le notti hanno
+// una camera (Ania, 15/09/2026). Le notti ancora senza camera non contano —
+// prima una camera sola in una notte sola faceva leggere «1 cambio camera» —
+// e nemmeno le notti «non dorme qui», che non interrompono il confronto.
 export function cambiCamera(notti: NotteStriscia[]): number {
   const dentro = notti.filter(n => n.dentro)
   let cambi = 0
-  for (let i = 1; i < dentro.length; i++) if (dentro[i].camera !== dentro[i - 1].camera) cambi += 1
+  for (let i = 1; i < dentro.length; i++) {
+    const prima = dentro[i - 1], ora = dentro[i]
+    if (prima.camera && ora.camera && prima.camera !== ora.camera) cambi += 1
+  }
   return cambi
 }
-// Dove disegnare il segno ⇄: la notte ha una camera diversa da quella della
-// notte prima (le notti «libere» non interrompono il confronto).
+// Dove disegnare il segno ⇄: fra le stesse due notti che contano un cambio.
 export function segniDiCambio(notti: NotteStriscia[]): boolean[] {
-  let ultima: string | null = null
+  let prima: NotteStriscia | null = null
   return notti.map(n => {
     if (!n.dentro) return false
-    const cambia = ultima !== null && n.camera !== ultima
-    ultima = n.camera
+    const cambia = Boolean(prima?.camera && n.camera && n.camera !== prima.camera)
+    prima = n
     return cambia
   })
 }
+// Se i cambi sono zero il riassunto non li nomina proprio: «nessun cambio
+// camera» era una riga scritta per non dire niente (Ania, 15/09/2026).
 export function riassuntoStriscia(notti: NotteStriscia[]): string {
   const cambi = cambiCamera(notti)
   const conLetto = notti.filter(n => n.dentro && n.letto).length
-  const pezzi = [cambi === 0 ? 'nessun cambio camera' : `${cambi} ${cambi === 1 ? 'cambio camera' : 'cambi camera'}`]
+  const pezzi: string[] = []
+  if (cambi > 0) pezzi.push(`${cambi} ${cambi === 1 ? 'cambio camera' : 'cambi camera'}`)
   if (conLetto > 0) pezzi.push(`letto in più ${conLetto === 1 ? '1 notte' : `${conLetto} notti`}`)
   return pezzi.join(' · ')
 }

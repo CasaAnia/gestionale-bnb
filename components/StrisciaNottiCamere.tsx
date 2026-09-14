@@ -107,7 +107,9 @@ export default function StrisciaNottiCamere({ notti, oggi, onNotte, ospitiAttesi
         </div>
       </div>
       {spiegazione && <p className="text-center" style={{ marginTop: 8, fontSize: 12, color: 'var(--color-stone)' }}>{SPIEGAZIONE}</p>}
-      <p data-riassunto-striscia className="text-center" style={{ marginTop: spiegazione ? 2 : 8, fontSize: 12, color: OTTONE }}>{riassuntoStriscia(notti)}</p>
+      {riassuntoStriscia(notti) && (
+        <p data-riassunto-striscia className="text-center" style={{ marginTop: spiegazione ? 2 : 8, fontSize: 12, color: OTTONE }}>{riassuntoStriscia(notti)}</p>
+      )}
       {avvisi.map(a => (
         <p key={a} data-avviso-notte className="text-center font-semibold" style={{ marginTop: 4, fontSize: 12, color: ROSSO }}>{a}</p>
       ))}
