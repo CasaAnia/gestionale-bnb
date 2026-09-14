@@ -416,7 +416,7 @@ test('il massimo degli ospiti è quello della camera scelta, letto compreso', ()
   assert.equal(ospitiMassimi(AMELIA), 2)
 })
 
-test('senza camera scelta vale la più capiente fra quelle libere', () => {
+test('senza camera scelta vale la più capiente della casa', () => {
   const soloLena = camereDelPeriodo(CAMERE, [
     { room_id: AMELIA.id, check_in: '2026-10-01', check_out: '2026-10-05', status: 'confermata' },
     { room_id: ALLEGRA.id, check_in: '2026-10-02', check_out: '2026-10-04', status: 'confermata' },
@@ -427,8 +427,11 @@ test('senza camera scelta vale la più capiente fra quelle libere', () => {
   assert.equal(ospitiMassimi(null, soloLena), 4)
   // con tutte libere vale comunque la più capiente
   assert.equal(ospitiMassimi(null, camereDelPeriodo(CAMERE, [], '2026-10-02', '2026-10-04')), 4)
-  // senza nessuna camera libera non si promette niente
-  assert.equal(ospitiMassimi(null, soloLena.map(s => ({ ...s, libera: false }))), 2)
+  // e anche quando non è libera NESSUNA camera: il numero si scrive lo stesso,
+  // poi si cercano le date giuste (Ania, 15/09/2026)
+  assert.equal(ospitiMassimi(null, soloLena.map(s => ({ ...s, libera: false, tutte: false, notti: [] }))), 4)
+  // solo senza nessuna camera in elenco non si promette niente
+  assert.equal(ospitiMassimi(null, []), 2)
 })
 
 test('con più camere il massimo è la somma', () => {
@@ -763,6 +766,14 @@ test('il campo data è quello nativo, senza riquadro e senza librerie', () => {
   assert.match(campo, /opacity: 0/)                       // sopra, invisibile: il tocco apre il calendario del telefono
   assert.match(campo, /fontSize: 16, fontWeight: 600/)    // la data scritta, 16 px semibold
   assert.match(campo, /dataConGiorno\(valore\)/)
+  // sul Mac toccare il testo di un campo data non apre niente: lo chiediamo noi
+  assert.match(campo, /showPicker\?\.\(\)/)
+  assert.match(campo, /onClick=\{e => apriSelettore\(e\.currentTarget\)\}/)
+  assert.match(campo, /onFocus=\{e => apriSelettore\(e\.currentTarget\)\}/)
+  // e il rifiuto del browser non deve rompere la pagina
+  assert.match(campo, /try \{ el\.showPicker\?\.\(\) \} catch/)
+  // l'area del tocco prende tutta la riga, etichetta compresa
+  assert.match(campo, /top: -8, bottom: -8/)
   assert.doesNotMatch(campo, /react-day-picker|react-datepicker|flatpickr|from 'date-fns/)
   // la riga col filo sotto, come le altre della pagina
   assert.match(campo, /RigaCampo etichetta=\{etichetta\}/)
@@ -773,7 +784,8 @@ test('il campo data è quello nativo, senza riquadro e senza librerie', () => {
   // e la scadenza della caparra è vestita allo stesso modo
   const comePaga = readFileSync(new URL('../components/ComePaga.tsx', import.meta.url), 'utf8')
   assert.match(comePaga, /dataConGiorno\(data\)/)
-  assert.match(comePaga, /data-entro-il[\s\S]{0,200}opacity: 0/)
+  assert.match(comePaga, /data-entro-il[\s\S]{0,400}opacity: 0/)
+  assert.match(comePaga, /apriSelettore\(e\.currentTarget\)/)
 })
 
 // ── 4. Le tre righe della striscia, e gli ospiti nel foglietto (14/09/2026) ─

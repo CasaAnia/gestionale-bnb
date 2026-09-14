@@ -14,6 +14,7 @@
 // ============================================================================
 import { GRUPPI_COME_PAGA, NOME_COME_PAGA, FRASE_COME_PAGA, chiedeImporto, chiedeScadenza, type ComePaga } from '@/lib/comePaga'
 import { dataConGiorno } from '@/lib/dateItaliane'
+import { apriSelettore } from '@/components/nuova/CampoData'
 import { oraDigitata } from '@/lib/ora'
 
 export const ALTEZZA_PASTIGLIA = 30
@@ -97,7 +98,8 @@ export default function ComePaga({
                 {dataConGiorno(data) || 'da scegliere'}
               </span>
               <input type="date" data-entro-il value={data} onChange={e => onData(e.target.value)}
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, border: 'none', background: 'transparent', padding: 0, margin: 0, WebkitAppearance: 'none', appearance: 'none' }} />
+                onClick={e => apriSelettore(e.currentTarget)} onFocus={e => apriSelettore(e.currentTarget)}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, border: 'none', background: 'transparent', padding: 0, margin: 0, WebkitAppearance: 'none', appearance: 'none', cursor: 'pointer' }} />
             </span>
           </label>
           <label className="block min-w-0" style={{ flex: '1 1 90px' }}>
