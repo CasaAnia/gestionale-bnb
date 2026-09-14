@@ -47,12 +47,14 @@ function Giorno({ iso, stretta, oggi }: { iso: string; stretta: boolean; oggi: b
     : <span className="block" style={stile}>{giorno} {numero}</span>
 }
 
-export default function StrisciaNottiCamere({ notti, oggi, onNotte, ospitiAttesi, spiegazione = true, className = '' }: {
+export default function StrisciaNottiCamere({ notti, oggi, onNotte, scelta, ospitiAttesi, spiegazione = true, className = '' }: {
   notti: NotteStriscia[]
   /** la data di oggi (YYYY-MM-DD): la notte di stanotte si scrive in verde */
   oggi?: string
-  /** il tocco su una notte: apre il foglietto di quella notte */
+  /** il tocco su una notte */
   onNotte?: (notte: NotteStriscia) => void
+  /** la notte scelta (YYYY-MM-DD): la sua casella porta il contorno d'ottone */
+  scelta?: string | null
   /** quando c'è, sotto ogni notte compaiono gli ospiti; diversi da questo = mattone */
   ospitiAttesi?: number | null
   /** la riga «sopra la camera · sotto il letto in più»: si toglie dove è ovvio */
@@ -71,8 +73,9 @@ export default function StrisciaNottiCamere({ notti, oggi, onNotte, ospitiAttesi
             const tinta = tintaCamera(n.camera)
             const fuori = !n.dentro
             const senzaCamera = n.dentro && !n.camera
+            const segnata = n.iso === scelta
             return (
-              <button key={n.iso} type="button" data-notte={n.iso} data-oggi={n.iso === oggi || undefined} data-fuori={fuori || undefined} data-cambia={cambi[i] || undefined}
+              <button key={n.iso} type="button" data-notte={n.iso} data-oggi={n.iso === oggi || undefined} data-fuori={fuori || undefined} data-cambia={cambi[i] || undefined} data-scelta={segnata || undefined}
                 onClick={onNotte ? () => onNotte(n) : undefined} disabled={!onNotte}
                 aria-label={`${titoloNotte(n.iso)}: ${fuori ? 'non dorme qui' : n.camera ?? 'camera da scegliere'}${n.letto ? ', con letto in più' : ''}. Tocca per cambiare`}
                 className="relative min-w-0 text-left" style={{ flex: `1 1 ${LARGHEZZA_COLONNINA}px`, maxWidth: LARGHEZZA_MASSIMA }}>
@@ -82,17 +85,24 @@ export default function StrisciaNottiCamere({ notti, oggi, onNotte, ospitiAttesi
                   <span aria-hidden data-segno-cambio className="absolute flex items-center justify-center"
                     style={{ left: -SPAZIO_COLONNINE / 2, top: stretta ? 44 : 32, transform: 'translate(-50%, -50%)', width: 14, height: 14, borderRadius: 999, background: 'var(--color-cream)', color: OTTONE, fontSize: 10, lineHeight: '14px', zIndex: 1 }}>⇄</span>
                 )}
+                {/* la notte scelta si riconosce dal contorno d'ottone attorno
+                    alla casella della camera (Ania, 15/09/2026) */}
                 <span data-camera-notte className="block truncate text-center" style={{
                   marginTop: 3, borderRadius: '8px 8px 0 0', padding: '6px 2px', fontSize: 11, lineHeight: '14px', fontWeight: 600,
                   background: fuori ? 'transparent' : senzaCamera ? '#fff' : tinta.fondo,
                   color: fuori ? 'var(--color-stone)' : senzaCamera ? ROSSO : tinta.testo,
-                  border: fuori ? '1px dashed var(--color-border-soft)' : senzaCamera ? `1px dashed ${ROSSO}` : '1px solid transparent',
+                  borderTop: segnata ? `1.5px solid ${OTTONE}` : fuori ? '1px dashed var(--color-border-soft)' : senzaCamera ? `1px dashed ${ROSSO}` : '1px solid transparent',
+                  borderLeft: segnata ? `1.5px solid ${OTTONE}` : fuori ? '1px dashed var(--color-border-soft)' : senzaCamera ? `1px dashed ${ROSSO}` : '1px solid transparent',
+                  borderRight: segnata ? `1.5px solid ${OTTONE}` : fuori ? '1px dashed var(--color-border-soft)' : senzaCamera ? `1px dashed ${ROSSO}` : '1px solid transparent',
                   borderBottom: 'none',
                 }}>{fuori ? TESTO_LIBERA : senzaCamera ? '?' : n.camera}</span>
                 <span data-letto-notte data-acceso={n.letto || undefined} className="flex items-center justify-center" style={{
                   borderRadius: '0 0 8px 8px', height: 18,
                   background: n.letto ? 'var(--color-sage)' : '#fff',
-                  border: '1px solid var(--color-card-border)', borderTop: 'none',
+                  borderTop: 'none',
+                  borderRight: segnata ? `1.5px solid ${OTTONE}` : '1px solid var(--color-card-border)',
+                  borderBottom: segnata ? `1.5px solid ${OTTONE}` : '1px solid var(--color-card-border)',
+                  borderLeft: segnata ? `1.5px solid ${OTTONE}` : '1px solid var(--color-card-border)',
                 }}>
                   <Bed size={12} strokeWidth={2} aria-hidden style={{ color: n.letto ? 'var(--color-green-mid)' : '#C4C0B6' }} />
                 </span>

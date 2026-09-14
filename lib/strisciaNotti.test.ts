@@ -475,3 +475,16 @@ test('il letto resta nel riassunto anche senza cambi', () => {
   const notti = [notteFinta('2026-09-14', 'Lena', { letto: true }), notteFinta('2026-09-15', 'Lena', { letto: true })]
   assert.equal(riassuntoStriscia(notti), 'letto in più 2 notti')
 })
+
+// ── La notte scelta si vede (15/09/2026) ───────────────────────────────────
+test('la colonnina della notte scelta porta il contorno d’ottone', () => {
+  assert.match(striscia, /const segnata = n\.iso === scelta/)
+  assert.match(striscia, /data-scelta=\{segnata \|\| undefined\}/)
+  // ottone attorno alla casella della camera, su tre lati più il quadratino sotto
+  assert.match(striscia, /borderTop: segnata \? `1\.5px solid \$\{OTTONE\}`/)
+  assert.match(striscia, /borderLeft: segnata \? `1\.5px solid \$\{OTTONE\}`/)
+  assert.match(striscia, /borderRight: segnata \? `1\.5px solid \$\{OTTONE\}`/)
+  assert.match(striscia, /borderBottom: segnata \? `1\.5px solid \$\{OTTONE\}`/)
+  // senza `scelta` niente cambia: la scheda continua come prima
+  assert.match(striscia, /scelta\?: string \| null/)
+})
