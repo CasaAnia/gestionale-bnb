@@ -8,11 +8,11 @@ import {
   CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
   totaliScontati, ospitiMassimi, ospitiMassimiPrenotazione, ospitiScegliendoCamera,
   statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO, mancaAlConto, MANCA_CAMERA, MANCA_DATE, doveManca,
-  nottiSenzaCamere, periodiDellaLinea, periodiDaNottiTenendoVuote,
+  periodiDellaLinea, periodiDaNottiTenendoVuote,
 } from './nuovaPrenotazione.ts'
 import { conLettoAutomatico, tariffaProposta, lettoProposto, problemi, type PeriodoComposto } from './prenotazioneComposta.ts'
 import {
-  nottiDaPeriodi, giornoDellaNotte, segnaNottiSenzaCamere, avvisiStriscia,
+  nottiDaPeriodi, giornoDellaNotte, avvisiStriscia, riassuntoStriscia,
   camereDellaNotte, cambiaCamera as cambiaCameraNotte,
 } from './strisciaNotti.ts'
 import { dataConGiorno } from './dateItaliane.ts'
@@ -666,9 +666,8 @@ test('le notti libere restano scegliibili anche se le prime sono piene', () => {
   assert.equal(lena.libera, true)                      // la pastiglia si può toccare
   assert.equal(lena.tutte, false)
   assert.deepEqual(lena.notti, ['2026-09-16', '2026-09-17'])
-  assert.equal(rigaCamereLibere(scelte, '2026-09-14', '2026-09-18'), 'libere solo per qualche notte: Amelia · Allegra · Ambra · Lena')
-  // e le notti davvero senza camere sono solo due
-  assert.deepEqual(nottiSenzaCamere(scelte, '2026-09-14', '2026-09-18'), ['2026-09-14', '2026-09-15'])
+  // la frase «libere solo per qualche notte» è stata tolta: non diceva quando
+  assert.equal(rigaCamereLibere(scelte, '2026-09-14', '2026-09-18'), '')
 })
 
 test('scegliendo Lena la camera va solo nelle notti in cui è libera', () => {
@@ -697,22 +696,20 @@ test('solo le notti davvero senza camere restano «da sistemare», e lo dicono u
   const libera = (iso: string, id: string) => scelte.find(s => s.camera.id === id)?.notti.includes(iso) ?? false
   let c = 0
   const periodi = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-18', roomId: LENA.id, ospiti: 3, tariffa: null }, libera, [], () => `n${++c}`)
-  const senza = new Set(nottiSenzaCamere(scelte, '2026-09-14', '2026-09-18'))
-  const notti = segnaNottiSenzaCamere(nottiDaPeriodi(periodi, CAMERE as never), iso => senza.has(iso))
+  const notti = nottiDaPeriodi(periodi, CAMERE as never)
   assert.deepEqual(notti.map(n => n.camera), [null, null, 'Lena', 'Lena'])
-  assert.deepEqual(avvisiStriscia(notti), ['lun 14 e mar 15 senza camera: nessuna libera'])
+  // che cosa manca, e basta: il perché non si scrive (Ania, 15/09/2026)
+  assert.deepEqual(avvisiStriscia(notti), ['lun 14 e mar 15 senza camera'])
 })
 
 test('nessuna camera per nessuna notte: lo dice una volta, non quattro', () => {
   const tutte = CAMERE.map(c => ({ room_id: c.id, check_in: '2026-09-14', check_out: '2026-09-18', status: 'confermata' }))
   const scelte = camereDelPeriodo(CAMERE, tutte, '2026-09-14', '2026-09-18')
   assert.equal(rigaCamereLibere(scelte, '2026-09-14', '2026-09-18'), 'nessuna camera libera in queste date')
-  const senza = new Set(nottiSenzaCamere(scelte, '2026-09-14', '2026-09-18'))
-  assert.equal(senza.size, 4)
   const periodi: PeriodoComposto[] = [{ id: 'a', gruppo: 'g', roomId: null, checkIn: '2026-09-14', checkOut: '2026-09-18', ospiti: 2, nottiLetto: [], letto: null, tariffa: null }]
-  const notti = segnaNottiSenzaCamere(nottiDaPeriodi(periodi, CAMERE as never), iso => senza.has(iso))
+  const notti = nottiDaPeriodi(periodi, CAMERE as never)
   assert.equal(avvisiStriscia(notti).length, 1)
-  assert.deepEqual(avvisiStriscia(notti), ['lun 14, mar 15, mer 16 e gio 17 senza camera: nessuna libera'])
+  assert.deepEqual(avvisiStriscia(notti), ['lun 14, mar 15, mer 16 e gio 17 senza camera'])
 })
 
 test('la disponibilità è quella di lib/disponibilita, chiesta una notte alla volta', () => {
@@ -724,7 +721,7 @@ test('la disponibilità è quella di lib/disponibilita, chiesta una notte alla v
   assert.match(striscia, /camereDellaNotte[\s\S]{0,200}camereLibere\(contesto\.camere, contesto\.altre, iso, giornoDopo\(iso\), 1\)/)
   // e la pagina non spalma più la camera sull'intero soggiorno
   assert.match(pagina, /periodiDellaLinea\(\{/)
-  assert.match(pagina, /segnaNottiSenzaCamere\(nottiDaPeriodi\(linea\.periodi, camere\)/)
+  assert.match(pagina, /const notti = nottiDaPeriodi\(linea\.periodi, camere\)/)
 })
 
 // ── 10. Quattro ospiti in Lena: 100 € e letto acceso (14/09/2026) ──────────
@@ -907,4 +904,34 @@ test('scegliere la camera di una notte non tocca le altre', () => {
   ])
   const conto = contoNuovaPrenotazione(periodi, id => (CAMERE.find(x => x.id === id) ?? null) as never, { tipo: 'nessuno', valore: null })
   assert.deepEqual(conto.righe.map(r => r.titolo), ['Allegra', 'Lena'])
+})
+
+// ── 3. Sotto la striscia solo quello che manca (15/09/2026) ────────────────
+test('la riga sotto le pastiglie parla solo di chi copre tutto il soggiorno', () => {
+  const conPezzi = camereDelPeriodo(CAMERE, PIENE, '2026-09-14', '2026-09-18')
+  assert.equal(rigaCamereLibere(conPezzi, '2026-09-14', '2026-09-18'), '')   // niente frase inutile
+  // ma le pastiglie di chi è libero in QUALCHE notte restano accese
+  assert.deepEqual(conPezzi.filter(s => s.libera).map(s => s.camera.name), ['Amelia', 'Allegra', 'Ambra', 'Lena'])
+  // chi non è libero in NESSUNA notte resta spento
+  const soloLena = camereDelPeriodo(CAMERE, [
+    { room_id: AMELIA.id, check_in: '2026-10-02', check_out: '2026-10-04', status: 'confermata' },
+    { room_id: ALLEGRA.id, check_in: '2026-10-02', check_out: '2026-10-04', status: 'confermata' },
+    { room_id: AMBRA.id, check_in: '2026-10-02', check_out: '2026-10-04', status: 'confermata' },
+  ], '2026-10-02', '2026-10-04')
+  assert.deepEqual(soloLena.filter(s => !s.libera).map(s => s.camera.name), ['Amelia', 'Allegra', 'Ambra'])
+  assert.equal(rigaCamereLibere(soloLena, '2026-10-02', '2026-10-04'), 'libere: Lena')
+  // i due casi netti restano
+  assert.equal(rigaCamereLibere(camereDelPeriodo(CAMERE, [], '2026-10-02', '2026-10-04'), '2026-10-02', '2026-10-04'), 'tutte le camere libere')
+  const tutte = CAMERE.map(c => ({ room_id: c.id, check_in: '2026-10-02', check_out: '2026-10-04', status: 'confermata' }))
+  assert.equal(rigaCamereLibere(camereDelPeriodo(CAMERE, tutte, '2026-10-02', '2026-10-04'), '2026-10-02', '2026-10-04'), 'nessuna camera libera in queste date')
+})
+
+test('con tutte le notti a posto sotto la striscia resta solo il riassunto', () => {
+  const periodi: PeriodoComposto[] = [
+    { id: 'a', gruppo: 'g', roomId: ALLEGRA.id, checkIn: '2026-09-16', checkOut: '2026-09-17', ospiti: 2, nottiLetto: [], letto: null, tariffa: null },
+    { id: 'b', gruppo: 'g', roomId: LENA.id, checkIn: '2026-09-17', checkOut: '2026-09-18', ospiti: 2, nottiLetto: [], letto: null, tariffa: null },
+  ]
+  const notti = nottiDaPeriodi(periodi, CAMERE as never)
+  assert.deepEqual(avvisiStriscia(notti), [])
+  assert.equal(riassuntoStriscia(notti), '1 cambio camera')
 })

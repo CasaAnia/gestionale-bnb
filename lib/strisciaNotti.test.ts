@@ -289,7 +289,8 @@ test('sotto la striscia: la spiegazione e la riga di riassunto in ottone', () =>
   assert.match(striscia, /\{SPIEGAZIONE\}/)
   assert.match(striscia, /marginTop: 8, fontSize: 12, color: 'var\(--color-stone\)'/)
   assert.match(striscia, /data-riassunto-striscia[^>]*fontSize: 12, color: OTTONE/)
-  assert.match(striscia, /data-avviso-notte[^>]*fontSize: 12, color: ROSSO/)
+  // che cosa manca, in mattone e non in rosso acceso (Ania, 15/09/2026)
+  assert.match(striscia, /data-avviso-notte[^>]*fontSize: 12, color: MATTONE/)
 })
 
 test('la striscia non parla col database e non si rifà le regole', () => {

@@ -36,12 +36,12 @@ import FoglioNotte from '@/components/FoglioNotte'
 import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo, OTTONE as OTTONE_PEZZI } from '@/components/nuova/PezziNuova'
 import {
   camereDelPeriodo, rigaCamereLibere, datiLinea, nottiDellaLinea, raggruppaPerCamera, periodiDaNottiTenendoVuote,
-  periodiDellaLinea, nottiSenzaCamere,
+  periodiDellaLinea,
   ospitiPossibiliNotte, ospitiMassimi, ospitiScegliendoCamera, contoNuovaPrenotazione, scontoInParole, listinoLetto, CRITERI_LETTO, LETTO_COMPRESO_LISTINO,
   statoLettoNuova, mancaAlConto, doveManca,
   type ScontoNuova,
 } from '@/lib/nuovaPrenotazione'
-import { nottiDaPeriodi, segnaNottiSenzaCamere, type CameraStriscia, type ContestoNotti, type NotteStriscia } from '@/lib/strisciaNotti'
+import { nottiDaPeriodi, type CameraStriscia, type ContestoNotti, type NotteStriscia } from '@/lib/strisciaNotti'
 import { conLettoAutomatico, tariffaProposta, ospitiIniziali, lettoProposto, type PeriodoComposto, type CameraComposta } from '@/lib/prenotazioneComposta'
 import { capienzaCamera } from '@/lib/tariffe'
 import type { PrenotazioneMinima } from '@/lib/disponibilita'
@@ -486,10 +486,10 @@ export default function NuovaPrenotazionePage() {
             // la stessa camera nelle stesse notti non si può
             const scelte = camereDelPeriodo(camere, contesto(linea.gruppo).altre, d.arrivo, d.partenza)
             const camera = trovaCamera(d.roomId)
-            // le notti rimaste senza camera perché non ce n'era nessuna libera:
-            // la striscia le segna una volta sola, con scritto quali sono
-            const senzaNessuna = new Set(nottiSenzaCamere(scelte, d.arrivo, d.partenza))
-            const notti = segnaNottiSenzaCamere(nottiDaPeriodi(linea.periodi, camere), iso => senzaNessuna.has(iso))
+            // Le notti rimaste senza camera la striscia le nomina da sé, una
+            // volta sola: «lun 14 e mar 15 senza camera». Il perché non serve
+            // scriverlo (Ania, 15/09/2026).
+            const notti = nottiDaPeriodi(linea.periodi, camere)
             return (
               <CameraSoggiorno key={linea.gruppo} className="mt-5"
                 titolo={i === 0 ? 'Soggiorno' : `Camera ${i + 1}`}

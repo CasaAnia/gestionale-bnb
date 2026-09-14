@@ -202,7 +202,6 @@ export function riassuntoStriscia(notti: NotteStriscia[]): string {
 // sono: «lun 14 e mar 15 senza camera: nessuna libera» (Ania, 14/09/2026 —
 // quattro righe uguali per quattro notti non si leggevano). Il motivo si
 // scrive quando è lo stesso per tutte.
-export const NESSUNA_LIBERA = 'nessuna libera'
 export const SENZA_CAMERA = 'senza camera'
 /** «lun 14», come sopra la colonnina */
 export function etichettaNotteBreve(iso: string): string {
@@ -220,10 +219,6 @@ export function avvisiStriscia(notti: NotteStriscia[]): string[] {
   return [`${quali} ${SENZA_CAMERA}${unico ? `: ${unico}` : ''}`]
 }
 
-/** Segna «nessuna libera» le notti rimaste senza camera perché non ce n'era */
-export function segnaNottiSenzaCamere(notti: NotteStriscia[], nessunaLibera: (iso: string) => boolean): NotteStriscia[] {
-  return notti.map(n => (n.dentro && !n.cameraId && nessunaLibera(n.iso) ? { ...n, motivo: NESSUNA_LIBERA } : n))
-}
 
 // ── Chi è libero questa notte ───────────────────────────────────────────────
 // Le regole sono quelle di lib/disponibilita: le camere occupate da un'altra

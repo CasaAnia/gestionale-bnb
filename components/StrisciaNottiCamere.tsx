@@ -19,6 +19,7 @@ import { avvisiStriscia, compatta, giornoDellaNotte, riassuntoStriscia, segniDiC
 
 const OTTONE = '#A9884E'
 const ROSSO = '#D40000'
+const MATTONE = '#8C3B2E'
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 export const MATTONE_OSPITI = '#8a4f2f'
 export const LARGHEZZA_COLONNINA = 44   // px: sotto non si scende, la striscia scorre di lato
@@ -110,8 +111,11 @@ export default function StrisciaNottiCamere({ notti, oggi, onNotte, ospitiAttesi
       {riassuntoStriscia(notti) && (
         <p data-riassunto-striscia className="text-center" style={{ marginTop: spiegazione ? 2 : 8, fontSize: 12, color: OTTONE }}>{riassuntoStriscia(notti)}</p>
       )}
+      {/* Che cosa manca, e basta: «lun 14 e mar 15 senza camera», in mattone
+          (Ania, 15/09/2026). Quando tutte le notti hanno una camera qui non
+          resta che il riassunto in ottone. */}
       {avvisi.map(a => (
-        <p key={a} data-avviso-notte className="text-center font-semibold" style={{ marginTop: 4, fontSize: 12, color: ROSSO }}>{a}</p>
+        <p key={a} data-avviso-notte className="text-center font-semibold" style={{ marginTop: 4, fontSize: 12, color: MATTONE }}>{a}</p>
       ))}
     </div>
   )

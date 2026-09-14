@@ -61,20 +61,19 @@ export function camereDelPeriodo<T extends CameraMinima>(
     return { camera, libera: sue.length > 0, notti: sue, tutte: sue.length === notti.length }
   })
 }
-/** Le notti in cui NON è libera nessuna camera */
-export function nottiSenzaCamere<T extends CameraMinima>(scelte: CameraScelta<T>[], arrivo: string, partenza: string): string[] {
-  if (!arrivo || !partenza || arrivo >= partenza) return []
-  const coperte = new Set(scelte.flatMap(s => s.notti))
-  return giorniSoggiorno(arrivo, partenza).filter(g => !coperte.has(g))
-}
+// La riga sotto le pastiglie dice solo chi copre TUTTO il soggiorno. «Libere
+// solo per qualche notte: Allegra · Lena» è stata tolta (Ania, 15/09/2026):
+// diceva che qualcosa era libero senza dire quando, e costringeva a provare
+// le camere una per una. Dove ognuna è libera lo dicono già le pastiglie
+// (spente solo per chi non è libero in nessuna notte) e il foglietto di ogni
+// notte; che cosa manca lo dice la striscia.
 export function rigaCamereLibere<T extends CameraMinima>(scelte: CameraScelta<T>[], arrivo: string, partenza: string): string {
   if (!arrivo || !partenza || arrivo >= partenza) return ''
   const tutte = scelte.filter(s => s.tutte).map(s => s.camera.name)
   if (tutte.length === scelte.length) return 'tutte le camere libere'
   if (tutte.length > 0) return `libere: ${tutte.join(' · ')}`
-  const aPezzi = scelte.filter(s => s.libera).map(s => s.camera.name)
-  if (aPezzi.length === 0) return 'nessuna camera libera in queste date'
-  return `libere solo per qualche notte: ${aPezzi.join(' · ')}`
+  if (scelte.every(s => !s.libera)) return 'nessuna camera libera in queste date'
+  return ''
 }
 
 // ── I periodi di una linea, notte per notte ────────────────────────────────
