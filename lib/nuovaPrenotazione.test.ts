@@ -6,9 +6,9 @@ import {
   dataDiOggi, volteInParole, rigaClienteTrovato, camereDelPeriodo, rigaCamereLibere,
   ospitiPossibiliNotte, ospitiDellaNotte, listinoLetto, raggruppaPerCamera, datiLinea, nottiDellaLinea,
   CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
-  totaliScontati,
+  totaliScontati, ospitiMassimi, ospitiMassimiPrenotazione, ospitiScegliendoCamera,
 } from './nuovaPrenotazione.ts'
-import type { PeriodoComposto } from './prenotazioneComposta.ts'
+import { conLettoAutomatico, type PeriodoComposto } from './prenotazioneComposta.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
 
 const AMELIA = { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5 }
@@ -394,4 +394,54 @@ test('con lo sconto il totale salvato è quello che la cliente paga davvero', ()
   assert.match(vecchia, /import \{ totaliScontati \} from '@\/lib\/nuovaPrenotazione'/)
   assert.match(vecchia, /total_amount: scontati\[i\]/)
   assert.match(pagina, /total_amount: scontati\[i\]/)
+})
+
+// ── 1. Gli ospiti arrivano al massimo VERO della camera (14/09/2026) ────────
+// Ania si è fermata a 2: il «+» non saliva perché finché la camera non è
+// scelta il massimo era la capienza di una camera qualunque.
+test('il massimo degli ospiti è quello della camera scelta, letto compreso', () => {
+  assert.equal(ospitiMassimi(LENA), 4)
+  assert.equal(ospitiMassimi(ALLEGRA), 3)
+  assert.equal(ospitiMassimi(AMBRA), 3)
+  assert.equal(ospitiMassimi(AMELIA), 2)
+})
+
+test('senza camera scelta vale la più capiente fra quelle libere', () => {
+  const soloLena = camereDelPeriodo(CAMERE, [
+    { room_id: AMELIA.id, check_in: '2026-10-01', check_out: '2026-10-05', status: 'confermata' },
+    { room_id: ALLEGRA.id, check_in: '2026-10-02', check_out: '2026-10-04', status: 'confermata' },
+    { room_id: AMBRA.id, check_in: '2026-10-01', check_out: '2026-10-06', status: 'confermata' },
+  ], '2026-10-02', '2026-10-04')
+  assert.equal(rigaCamereLibere(soloLena, '2026-10-02', '2026-10-04'), 'libere: Lena')
+  // resta libera solo Lena: il «+» deve poter arrivare a 4, non a 2
+  assert.equal(ospitiMassimi(null, soloLena), 4)
+  // con tutte libere vale comunque la più capiente
+  assert.equal(ospitiMassimi(null, camereDelPeriodo(CAMERE, [], '2026-10-02', '2026-10-04')), 4)
+  // senza nessuna camera libera non si promette niente
+  assert.equal(ospitiMassimi(null, soloLena.map(s => ({ ...s, libera: false }))), 2)
+})
+
+test('con più camere il massimo è la somma', () => {
+  assert.equal(ospitiMassimiPrenotazione([LENA, AMBRA]), 7)
+  assert.equal(ospitiMassimiPrenotazione([LENA, LENA]), 8)
+  assert.equal(ospitiMassimiPrenotazione([AMELIA]), 2)
+})
+
+test('scegliendo la camera il numero scritto a mano non si perde', () => {
+  // 3 ospiti scritti prima di scegliere: Lena li tiene
+  assert.equal(ospitiScegliendoCamera(3, null, LENA), 3)
+  // il numero lasciato com'era prende le persone solite della camera nuova
+  assert.equal(ospitiScegliendoCamera(1, null, LENA), 2)
+  assert.equal(ospitiScegliendoCamera(2, LENA, AMELIA), 1)
+  // e non si sfora mai la capienza della camera nuova
+  assert.equal(ospitiScegliendoCamera(4, LENA, ALLEGRA), 3)
+})
+
+test('oltre la capienza senza letto il letto si propone da solo', () => {
+  const p: PeriodoComposto = { id: 'a', gruppo: 'g', roomId: LENA.id, checkIn: '2026-10-02', checkOut: '2026-10-04', ospiti: 3, nottiLetto: [], letto: null, tariffa: null }
+  const dopo = conLettoAutomatico(p, LENA as never)
+  assert.deepEqual(dopo.nottiLetto, ['2026-10-02', '2026-10-03'])
+  assert.ok(dopo.letto)
+  // e la pagina chiede il massimo alle camere, non a un numero fisso
+  assert.match(pagina, /ospitiMax=\{ospitiMassimi\(camera, scelte\)\}/)
 })

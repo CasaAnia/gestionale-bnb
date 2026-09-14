@@ -36,7 +36,7 @@ import FoglioNotte from '@/components/FoglioNotte'
 import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo, OTTONE as OTTONE_PEZZI } from '@/components/nuova/PezziNuova'
 import {
   camereDelPeriodo, rigaCamereLibere, datiLinea, nottiDellaLinea, raggruppaPerCamera, periodiDaNotti,
-  ospitiPossibiliNotte, contoNuovaPrenotazione, scontoInParole, listinoLetto, CRITERI_LETTO, LETTO_COMPRESO_LISTINO,
+  ospitiPossibiliNotte, ospitiMassimi, ospitiScegliendoCamera, contoNuovaPrenotazione, scontoInParole, listinoLetto, CRITERI_LETTO, LETTO_COMPRESO_LISTINO,
   type ScontoNuova,
 } from '@/lib/nuovaPrenotazione'
 import { nottiDaPeriodi, type CameraStriscia, type ContestoNotti, type NotteStriscia } from '@/lib/strisciaNotti'
@@ -260,7 +260,7 @@ export default function NuovaPrenotazionePage() {
         roomId: pezzo.roomId !== undefined ? pezzo.roomId : d.roomId,
         checkIn: pezzo.arrivo ?? d.arrivo,
         checkOut: pezzo.partenza ?? d.partenza,
-        ospiti: pezzo.ospiti ?? (cambiaCamera ? ospitiIniziali(camera) : d.ospiti),
+        ospiti: pezzo.ospiti ?? (cambiaCamera ? ospitiScegliendoCamera(d.ospiti, trovaCamera(d.roomId), camera) : d.ospiti),
         tariffa: pezzo.tariffa !== undefined ? pezzo.tariffa : (cambiaCamera ? null : d.tariffa),
         nottiLetto: linea.periodi.flatMap(p => p.nottiLetto),
         letto: primo.letto,
@@ -440,7 +440,7 @@ export default function NuovaPrenotazionePage() {
                 notti={nottiDellaLinea(linea)}
                 camere={scelte} roomId={d.roomId} onCamera={id => cambiaLinea(linea.gruppo, { roomId: id })}
                 rigaLibere={rigaCamereLibere(scelte, d.arrivo, d.partenza)}
-                ospiti={d.ospiti} onOspiti={n => cambiaLinea(linea.gruppo, { ospiti: n })} ospitiMax={capienzaCamera(camera)}
+                ospiti={d.ospiti} onOspiti={n => cambiaLinea(linea.gruppo, { ospiti: n })} ospitiMax={ospitiMassimi(camera, scelte)}
                 tariffa={d.tariffa} tariffaProposta={camera && linea.periodi[0] ? tariffaProposta(linea.periodi[0], camera) : null}
                 onTariffa={v => cambiaLinea(linea.gruppo, { tariffa: v })}
                 strisciaNotti={d.roomId ? notti : []}

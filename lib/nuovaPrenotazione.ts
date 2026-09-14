@@ -56,6 +56,36 @@ export function rigaCamereLibere<T extends CameraMinima>(scelte: CameraScelta<T>
   return `libere: ${libere.join(' · ')}`
 }
 
+// ── Quanti ospiti può tenere il soggiorno ───────────────────────────────────
+// Il massimo del «+» è la capienza VERA della camera scelta, letto in più
+// compreso dove è previsto (Ania, 14/09/2026): Lena arriva a 4, Allegra e
+// Ambra a 3, Amelia a 2. Finché la camera non è scelta il numero non resta
+// fermo a due: vale la più capiente fra quelle libere in quelle date, così
+// gli ospiti si possono già scrivere e la camera si sceglie dopo.
+export type CameraCapienza = { name?: string | null; has_extra_bed?: boolean | null }
+export function ospitiMassimi<T extends CameraMinima>(
+  camera: CameraCapienza | null | undefined,
+  scelte: CameraScelta<T>[] = [],
+): number {
+  if (camera) return capienzaCamera(camera)
+  const libere = scelte.filter(s => s.libera).map(s => capienzaCamera(s.camera))
+  return libere.length > 0 ? Math.max(...libere) : capienzaBase(null)
+}
+/** Scegliendo la camera: il numero scritto a mano resta (al più la capienza
+ *  della camera nuova); quello lasciato com'era prende le persone solite. */
+export function ospitiScegliendoCamera(
+  ospiti: number, prima: CameraCapienza | null | undefined, dopo: CameraCapienza | null | undefined,
+): number {
+  const solito = prima ? capienzaBase(prima) : 1
+  if (ospiti <= solito) return capienzaBase(dopo)
+  return Math.min(ospiti, capienzaCamera(dopo))
+}
+
+/** Con più camere il massimo della prenotazione è la somma delle loro capienze */
+export function ospitiMassimiPrenotazione(camere: (CameraCapienza | null | undefined)[]): number {
+  return camere.reduce((t, c) => t + capienzaCamera(c), 0)
+}
+
 // ── Gli ospiti di una notte ─────────────────────────────────────────────────
 // Il modello di sempre (lib/prezzoNotti): in una notte ci sono gli ospiti del
 // soggiorno se c'è il letto in più, altrimenti quelli che la camera tiene da
