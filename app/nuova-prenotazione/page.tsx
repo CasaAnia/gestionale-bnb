@@ -61,6 +61,7 @@ const OTTONE = '#A9884E'
 /** il nome della pagina: lo scrive la barra in alto, non il corpo */
 export const TITOLO_PAGINA = 'Nuova prenotazione'
 export const NUOVO_CLIENTE = '+ Nuovo cliente'
+export const AGGIUNGI_CAMERA = '+ Aggiungi camera'
 
 export type ClienteRiga = {
   id: string
@@ -508,7 +509,11 @@ export default function NuovaPrenotazionePage() {
             </div>
           )}
 
-          <div style={{ marginTop: 22 }}><TastinoTenue testo="+ Aggiungi camera" onClick={aggiungiCamera} /></div>
+          {/* Centrato dopo lo sconto: apre la seconda camera con le sue date,
+              ospiti, tariffa e striscia (Ania, 14/09/2026). */}
+          <div style={{ marginTop: 18, marginBottom: 4 }}>
+            <TastinoTenue testo={AGGIUNGI_CAMERA} onClick={aggiungiCamera} dati="aggiungi-camera" />
+          </div>
 
           {/* ── Arrivo ──────────────────────────────────────────────────── */}
           <section data-arrivo className="mt-6">

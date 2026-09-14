@@ -78,10 +78,14 @@ export function TastoAvanti({ testo, onClick, disabilitato = false, dati }: { te
 }
 
 /** Il tastino tenue centrato: «+ Aggiungi camera», «+ Aggiungi una persona» */
-export function TastinoTenue({ testo, onClick, centrato = true }: { testo: string; onClick: () => void; centrato?: boolean }) {
+// Il dito ha bisogno di 44 px: col «py-2» il tastino era alto 29 e sul
+// telefono di Ania non si prendeva (14/09/2026). L'area cresce, la scritta no.
+export const ALTEZZA_TOCCO = 44
+export function TastinoTenue({ testo, onClick, centrato = true, dati }: { testo: string; onClick: () => void; centrato?: boolean; dati?: string }) {
   return (
     <p className={centrato ? 'text-center' : ''}>
-      <button type="button" onClick={onClick} className="py-2 -my-2" style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-green-mid)' }}>{testo}</button>
+      <button type="button" data-tastino={dati} onClick={onClick}
+        style={{ minHeight: ALTEZZA_TOCCO, padding: '0 14px', fontSize: 13, fontWeight: 600, color: 'var(--color-green-mid)' }}>{testo}</button>
     </p>
   )
 }

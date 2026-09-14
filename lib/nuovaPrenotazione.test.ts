@@ -583,3 +583,19 @@ test('il conto si aggiorna a ogni tocco: sconto, letto, ospiti', () => {
   assert.equal(scontato.sconto, '18 €')
   assert.equal(scontato.daPagare, '162 €')
 })
+
+// ── 6. «+ Aggiungi camera» si raggiunge (14/09/2026) ───────────────────────
+// Era alto 29 px: sul telefono il dito non lo prendeva.
+test('il tastino «+ Aggiungi camera» è centrato dopo lo sconto e si tocca', () => {
+  const pezzi = readFileSync(new URL('../components/nuova/PezziNuova.tsx', import.meta.url), 'utf8')
+  assert.match(pezzi, /ALTEZZA_TOCCO = 44/)
+  assert.match(pezzi, /TastinoTenue[\s\S]{0,600}minHeight: ALTEZZA_TOCCO/)
+  assert.match(pezzi, /TastinoTenue[\s\S]{0,400}centrato \? 'text-center' : ''/)
+  // dopo lo sconto, prima di «Arrivo»
+  const dopoSconto = pagina.indexOf('data-sconto')
+  const tastino = pagina.indexOf('dati="aggiungi-camera"')
+  const arrivo = pagina.indexOf('data-arrivo')
+  assert.ok(dopoSconto > 0 && dopoSconto < tastino && tastino < arrivo)
+  // e apre una camera nuova, con le sue date e i suoi ospiti
+  assert.match(pagina, /function aggiungiCamera\(\)[\s\S]{0,400}roomId: null/)
+})
