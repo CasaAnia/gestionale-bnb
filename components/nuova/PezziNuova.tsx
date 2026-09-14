@@ -13,6 +13,10 @@ export const MATTONE = '#8C3B2E'
 export const GEORGIA = "Georgia, 'Times New Roman', serif"
 export const ALTEZZA_PASTIGLIA = 30
 export const BORDO_SPENTA = '#C9BFA8'
+// Una pastiglia spenta (camera occupata quella notte): scritta tenue e filo
+// ancora più tenue, così si vede che c'è ma non si tocca (Ania, 15/09/2026)
+export const SPENTA_TESTO = '#C9BFA8'
+export const SPENTA_BORDO = '#EFEADF'
 export const SOPRA_ETICHETTA = 22
 export const SOTTO_ETICHETTA = 10
 
@@ -54,8 +58,8 @@ export function Pastiglia({ acceso, onClick, spenta = false, colore, children, d
       style={{
         height: ALTEZZA_PASTIGLIA, borderRadius: 999, padding: '0 12px', fontSize: 12.5, fontWeight: 600,
         background: acceso ? (colore ?? 'var(--color-green-mid)') : 'transparent',
-        color: spenta ? '#B9B6AD' : acceso ? 'var(--color-cream)' : 'var(--color-green-dark)',
-        border: `1px solid ${acceso ? (colore ?? 'var(--color-green-mid)') : BORDO_SPENTA}`,
+        color: spenta ? SPENTA_TESTO : acceso ? 'var(--color-cream)' : 'var(--color-green-dark)',
+        border: `1px solid ${acceso ? (colore ?? 'var(--color-green-mid)') : spenta ? SPENTA_BORDO : BORDO_SPENTA}`,
       }}>{children}</button>
   )
 }

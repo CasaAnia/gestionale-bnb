@@ -15,7 +15,7 @@ import {
   nottiDaPeriodi, giornoDellaNotte, avvisiStriscia, riassuntoStriscia,
   camereDellaNotte, cambiaCamera as cambiaCameraNotte, cambiaOspitiNotte,
   cambiaLetto as cambiaLettoNotte, cambiCamera, prezzoLettoNotte,
-  lettoObbligatorio, motivoLettoObbligatorio, lettoDisponibileNotte,
+  lettoObbligatorio, motivoLettoObbligatorio, lettoDisponibileNotte, nonDormeQui,
 } from './strisciaNotti.ts'
 import { dataConGiorno } from './dateItaliane.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -179,7 +179,9 @@ test('la camera del soggiorno riusa la striscia già fatta, con gli ospiti sotto
   // niente tasto per il cambio camera: si fa dalla striscia
   const codice = cameraSoggiorno.split('\n').filter(r => !r.trim().startsWith('//')).join('\n')
   assert.equal(/cambio camera|Aggiungi cambio/i.test(codice), false)
-  assert.match(pagina, /onNotte=\{n => setNotteAperta\(\{ gruppo: linea\.gruppo, iso: n\.iso \}\)\}/)
+  // toccare una notte la SCEGLIE (e ritoccandola si chiude): niente foglietto
+  assert.match(pagina, /onNotte=\{n => setNotteScelta\(s =>/)
+  assert.match(pagina, /s && s\.gruppo === linea\.gruppo && s\.iso === n\.iso \? null :/)
 })
 
 test('gli ospiti diversi da quelli del soggiorno si scrivono in mattone', () => {
@@ -1098,10 +1100,8 @@ test('accanto a «Sì» il costo di quella notte: «10 €» o «compreso»', ()
   assert.equal(prezzoLettoNotte(LENA as never, 3, { importo: null, criterio: 'notte' }), 'compreso')
   assert.equal(prezzoLettoNotte(ALLEGRA as never, 3, { importo: null, criterio: 'notte' }), '10 €')
   assert.equal(prezzoLettoNotte(LENA as never, 4, { importo: null, criterio: 'notte' }), '10 €')
-  // e la pagina passa al foglietto l'accordo preso sopra, non un prezzo già fatto
-  assert.match(pagina, /lettoScelto=\{\{ importo: letto\.importo, criterio: letto\.criterio \}\}/)
-  const foglio2 = readFileSync(new URL('../components/FoglioNotte.tsx', import.meta.url), 'utf8')
-  assert.match(foglio2, /prezzoLettoNotte\(scelta, notte\.dentro \? notte\.persone : contesto\.ospiti, lettoScelto\)/)
+  // e la pagina passa alla parte della notte l'accordo preso sopra
+  assert.match(pagina, /prezzoLettoNotte\(cameraNotte as never, notte\.dentro \? notte\.persone : d\.ospiti, \{ importo: letto\.importo, criterio: letto\.criterio \}\)/)
 })
 
 test('se i due letti di casa sono impegnati, «Sì» resta spento con «non disponibile»', () => {
@@ -1122,4 +1122,110 @@ test('in alto ospiti e letto non si combattono: il letto acceso a mano resta', (
   assert.deepEqual(conLettoAutomatico(aMano, ALLEGRA as never).nottiLetto, ['2026-09-16'])
   const automatico: PeriodoComposto = { ...aMano, letto: { importo: 10, criterio: 'notte', auto: true } }
   assert.deepEqual(conLettoAutomatico({ ...automatico, ospiti: 2 }, ALLEGRA as never).nottiLetto, [])
+})
+
+// ── 3. La parte della notte scelta, sotto la striscia (15/09/2026) ─────────
+const notteScelta = readFileSync(new URL('../components/nuova/NotteScelta.tsx', import.meta.url), 'utf8')
+
+test('la parte compare con la notte scelta e sparisce ritoccandola', () => {
+  // niente notte scelta, niente parte
+  assert.match(pagina, /if \(notteScelta\?\.gruppo !== linea\.gruppo\) return null/)
+  assert.match(pagina, /const notte = notti\.find\(n => n\.iso === notteScelta\.iso\)\s*\n\s*if \(!notte\) return null/)
+  // la stessa notte toccata due volte si chiude
+  assert.match(pagina, /s\.iso === n\.iso \? null :/)
+  // sta sotto la striscia, dentro la camera del soggiorno
+  assert.match(cameraSoggiorno, /<StrisciaNottiCamere[\s\S]{0,200}\/>\s*\n\s*\{sottoStriscia\}/)
+  // filo card-border e 10 px di spazio
+  assert.match(notteScelta, /borderTop: '1px solid var\(--color-card-border\)', paddingTop: 10, marginTop: 10/)
+  // il giorno per esteso, 9,5 px maiuscolo stone, centrato
+  assert.match(notteScelta, /fontSize: 9\.5, letterSpacing: '1\.4px', color: 'var\(--color-stone\)'/)
+  assert.match(notteScelta, /data-titolo-notte className="uppercase text-center"/)
+  assert.match(notteScelta, /\{titoloNotte\(notte\.iso\)\} · \{CODA_TITOLO\}/)
+})
+
+test('nella parte ci sono TUTTE le camere: le occupate spente e non toccabili', () => {
+  assert.match(notteScelta, /camere\.map\(\(\{ camera, libera \}\)/)
+  assert.match(notteScelta, /spenta=\{!libera && notte\.cameraId !== camera\.id\}/)
+  assert.match(notteScelta, /acceso=\{notte\.cameraId === camera\.id\}/)
+  // spente: scritta #C9BFA8 e filo #EFEADF, e il tasto è disabilitato
+  const pezzi = readFileSync(new URL('../components/nuova/PezziNuova.tsx', import.meta.url), 'utf8')
+  assert.match(pezzi, /SPENTA_TESTO = '#C9BFA8'/)
+  assert.match(pezzi, /SPENTA_BORDO = '#EFEADF'/)
+  assert.match(pezzi, /disabled=\{spenta\}/)
+  // e la pagina dice quali sono libere QUELLA notte, con le regole di sempre
+  assert.match(pagina, /const libereOra = new Set\(camereDellaNotte\(notte\.iso, ctx\)\.map\(c => c\.id\)\)/)
+})
+
+test('la camera scelta nella parte riempie solo quella notte', () => {
+  assert.match(pagina, /function scegliCameraNotte[\s\S]{0,220}cambiaCameraNotte\(notti, iso, camera, ctx\)/)
+  const notti = nottiDaPeriodi([
+    { id: 'a', roomId: ALLEGRA.id, checkIn: '2026-09-16', checkOut: '2026-09-18', ospiti: 2, nottiLetto: [] },
+  ], CAMERE as never)
+  const dopo = cambiaCameraNotte(notti, '2026-09-17', LENA as never, { camere: CAMERE as never, altre: [], ospiti: 2 })
+  assert.deepEqual(dopo.map(n => n.camera), ['Allegra', 'Lena'])
+})
+
+test('ospiti e letto della notte, sulla stessa riga, e «non dorme qui» in fondo', () => {
+  assert.match(notteScelta, /ETICHETTA_OSPITI = 'ospiti'/)
+  assert.match(notteScelta, /ETICHETTA_LETTO = 'letto in più'/)
+  assert.match(notteScelta, /data-notte-ospiti-giu/)
+  assert.match(notteScelta, /data-notte-ospiti-su/)
+  assert.match(notteScelta, /Sì · \{prezzoLetto\}/)
+  assert.match(notteScelta, /\{LETTO_NON_DISPONIBILE\}/)
+  assert.match(notteScelta, /spenta=\{Boolean\(motivoLetto\)\}/)      // «No» spento quando il letto serve
+  // «oppure non dorme qui», in fondo, 12 px
+  assert.match(notteScelta, /NON_DORME_QUI = 'non dorme qui'/)
+  assert.match(notteScelta, /OPPURE = 'oppure '/)
+  assert.match(notteScelta, /fontSize: 12, color: 'var\(--color-stone\)'[\s\S]{0,200}data-non-dorme/)
+  // la domanda «solo questa notte» / «da qui in poi» dopo aver toccato gli ospiti
+  assert.match(notteScelta, /SOLO_QUESTA = 'solo questa notte'/)
+  assert.match(notteScelta, /DA_QUI = 'da qui in poi'/)
+  assert.match(notteScelta, /\{chiesto && \(/)
+})
+
+test('«da qui in poi» porta gli ospiti anche alle notti dopo, senza toccare le camere', () => {
+  assert.match(pagina, /if \(daQui\) for \(const dopo of fatte\.filter\(n => n\.iso > iso && n\.dentro\)/)
+  const contesto = { camere: CAMERE as never, altre: [], ospiti: 2 }
+  const notti = nottiDaPeriodi([
+    { id: 'a', roomId: LENA.id, checkIn: '2026-09-15', checkOut: '2026-09-16', ospiti: 2, nottiLetto: [] },
+    { id: 'b', roomId: ALLEGRA.id, checkIn: '2026-09-16', checkOut: '2026-09-18', ospiti: 2, nottiLetto: [] },
+  ], CAMERE as never)
+  let fatte = cambiaOspitiNotte(notti, '2026-09-16', 3, contesto)
+  for (const iso of fatte.filter(n => n.iso > '2026-09-16' && n.dentro).map(n => n.iso)) fatte = cambiaOspitiNotte(fatte, iso, 3, contesto)
+  assert.deepEqual(fatte.map(n => n.persone), [2, 3, 3])
+  assert.deepEqual(fatte.map(n => n.camera), ['Lena', 'Allegra', 'Allegra'])   // le camere non si toccano
+})
+
+test('«non dorme qui» toglie la notte e si rimette scegliendo una camera', () => {
+  assert.match(pagina, /function togliNotte[\s\S]{0,160}nonDormeQui\(notti, iso\)/)
+  const notti = nottiDaPeriodi([
+    { id: 'a', roomId: LENA.id, checkIn: '2026-09-16', checkOut: '2026-09-18', ospiti: 2, nottiLetto: [] },
+  ], CAMERE as never)
+  const fuori = nonDormeQui(notti, '2026-09-16')
+  assert.equal(fuori[0].dentro, false)
+  assert.equal(fuori[0].camera, null)
+  assert.match(notteScelta, /COME_RIMETTERLA = 'per rimetterla nel soggiorno scegli una camera'/)
+  // e una notte senza nessuna camera libera lo dice
+  assert.match(notteScelta, /NESSUNA_CAMERA_LIBERA = 'nessuna camera libera questa notte'/)
+  assert.match(notteScelta, /libere\.length === 0 && notte\.dentro/)
+})
+
+// ── 4. Il foglietto non c'è più nell'inserimento ──────────────────────────
+test('nell’inserimento il foglietto dal basso non esiste più', () => {
+  assert.doesNotMatch(pagina, /FoglioNotte/)
+  assert.match(pagina, /import NotteScelta from '@\/components\/nuova\/NotteScelta'/)
+  // la scheda invece continua a usarlo
+  const scheda = readFileSync(new URL('../app/scheda/[id]/page.tsx', import.meta.url), 'utf8')
+  assert.match(scheda, /import FoglioNotte from '@\/components\/FoglioNotte'/)
+})
+
+test('sotto la striscia restano solo il riassunto e la riga di quello che manca', () => {
+  const striscia = readFileSync(new URL('../components/StrisciaNottiCamere.tsx', import.meta.url), 'utf8')
+  assert.match(striscia, /data-riassunto-striscia/)
+  assert.match(striscia, /data-avviso-notte/)
+  // la spiegazione «sopra la camera · sotto il letto» qui è spenta
+  assert.match(cameraSoggiorno, /spiegazione=\{false\}/)
+  // e la riga sotto le pastiglie in alto non dice più frasi inutili
+  const conPezzi = camereDelPeriodo(CAMERE, PIENE, '2026-09-14', '2026-09-18')
+  assert.equal(rigaCamereLibere(conPezzi, '2026-09-14', '2026-09-18'), '')
 })

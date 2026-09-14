@@ -14,6 +14,7 @@ import CampoData from './CampoData'
 
 /** la prima partenza possibile: il giorno dopo l'arrivo */
 const giornoDopo = (iso: string) => (iso ? new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10) : '')
+import type { ReactNode } from 'react'
 import type { CameraScelta } from '@/lib/nuovaPrenotazione'
 import type { CameraStriscia, NotteStriscia } from '@/lib/strisciaNotti'
 
@@ -24,7 +25,8 @@ export const ETICHETTA_NOTTI = 'Le notti'
 
 export default function CameraSoggiorno({
   titolo, arrivo, partenza, onArrivo, onPartenza, notti, camere, roomId, onCamera, rigaLibere,
-  ospiti, onOspiti, ospitiMax, tariffa, tariffaProposta, onTariffa, strisciaNotti, onNotte, className = '',
+  ospiti, onOspiti, ospitiMax, tariffa, tariffaProposta, onTariffa, strisciaNotti, onNotte,
+  notteScelta, sottoStriscia, className = '',
 }: {
   /** «Soggiorno» per la prima camera, «Camera 2» per quelle dopo */
   titolo: string
@@ -45,6 +47,10 @@ export default function CameraSoggiorno({
   onTariffa: (v: number | null) => void
   strisciaNotti: NotteStriscia[]
   onNotte: (notte: NotteStriscia) => void
+  /** la notte scelta: la striscia la segna col contorno d'ottone */
+  notteScelta?: string | null
+  /** la parte della notte scelta, subito sotto la striscia */
+  sottoStriscia?: ReactNode
   className?: string
 }) {
   const tasto = { width: 38, height: 38, borderRadius: 999, border: '1px solid var(--color-card-border)', fontSize: 18, color: 'var(--color-green-dark)', background: '#fff' }
@@ -103,7 +109,8 @@ export default function CameraSoggiorno({
       {strisciaNotti.length > 0 && (
         <>
           <Etichetta testo={ETICHETTA_NOTTI} />
-          <StrisciaNottiCamere notti={strisciaNotti} onNotte={onNotte} ospitiAttesi={ospiti} spiegazione={false} />
+          <StrisciaNottiCamere notti={strisciaNotti} onNotte={onNotte} scelta={notteScelta} ospitiAttesi={ospiti} spiegazione={false} />
+          {sottoStriscia}
         </>
       )}
     </section>
