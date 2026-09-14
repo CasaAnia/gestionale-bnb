@@ -1019,19 +1019,20 @@ test('il letto e gli ospiti di una notte non toccano le altre', () => {
   let notti = cambiaOspitiNotte(nottiDaPeriodi(periodi, CAMERE as never), '2026-09-17', 3, contesto)
   periodi = periodiDaNottiTenendoVuote(notti, { gruppo: 'g', periodi }, contaId())
   notti = nottiDaPeriodi(periodi, CAMERE as never)
-  assert.deepEqual(notti.map(n => n.persone), [2, 2, 2, 3])
+  // le notti senza camera non hanno numero: zero, cioè casella vuota
+  assert.deepEqual(notti.map(n => n.persone), [0, 0, 2, 3])
   assert.deepEqual(notti.map(n => n.letto), [false, false, false, true])
   // e le camere sono rimaste dov'erano
   assert.deepEqual(notti.map(n => n.camera), [null, null, 'Lena', 'Lena'])
   // «No» con tre persone in Lena non fa niente: il letto serve per forza, e
   // soprattutto gli ospiti NON tornano a due da soli (Ania, 15/09/2026)
   const rifiutato = cambiaLettoNotte(notti, '2026-09-17', false, contesto, { ospitiAParte: true })
-  assert.deepEqual(rifiutato.map(n => n.persone), [2, 2, 2, 3])
+  assert.deepEqual(rifiutato.map(n => n.persone), [0, 0, 2, 3])
   assert.deepEqual(rifiutato.map(n => n.letto), [false, false, false, true])
   // riportando la notte a due persone il letto si può spegnere, e il 16 non si muove
   const dueInTre = cambiaOspitiNotte(notti, '2026-09-17', 2, contesto)
   const senzaLetto = cambiaLettoNotte(dueInTre, '2026-09-17', false, contesto, { ospitiAParte: true })
-  assert.deepEqual(senzaLetto.map(n => n.persone), [2, 2, 2, 2])
+  assert.deepEqual(senzaLetto.map(n => n.persone), [0, 0, 2, 2])
   assert.deepEqual(senzaLetto.map(n => n.letto), [false, false, false, false])
   assert.deepEqual(senzaLetto.map(n => n.camera), [null, null, 'Lena', 'Lena'])
 })
@@ -1257,4 +1258,66 @@ test('in alto restano ospiti e tariffa, e valgono per tutto il soggiorno', () =>
   let n = 0
   const dopo = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-16' }, vuoto, { ospiti: 3 }, () => `n${++n}`)
   assert.equal(dopo.every(p => p.ospiti === 3), true)
+})
+
+// ── 5. Le notti senza camera non mostrano numeri (15/09/2026) ─────────────
+// Muovendo gli ospiti avanti e indietro comparivano il letto e il numero
+// anche dove non c'era nessuna camera libera.
+test('senza camera niente letto e niente numero di ospiti', () => {
+  const notti = nottiDaPeriodi([
+    { id: 'a', roomId: null, checkIn: '2026-09-14', checkOut: '2026-09-16', ospiti: 3, nottiLetto: ['2026-09-14', '2026-09-15'] },
+    { id: 'b', roomId: ALLEGRA.id, checkIn: '2026-09-16', checkOut: '2026-09-17', ospiti: 3, nottiLetto: ['2026-09-16'] },
+  ], CAMERE as never)
+  assert.deepEqual(notti.map(n => n.camera), [null, null, 'Allegra'])
+  assert.deepEqual(notti.map(n => n.persone), [0, 0, 3])   // caselle vuote dove manca la camera
+  assert.deepEqual(notti.map(n => n.letto), [false, false, true])
+})
+
+test('muovendo gli ospiti avanti e indietro le notti vuote restano vuote', () => {
+  const contesto = { camere: CAMERE as never, altre: [], ospiti: 2 }
+  const vuote = nottiDaPeriodi([
+    { id: 'a', roomId: null, checkIn: '2026-09-14', checkOut: '2026-09-16', ospiti: 2, nottiLetto: [] },
+    { id: 'b', roomId: LENA.id, checkIn: '2026-09-16', checkOut: '2026-09-17', ospiti: 2, nottiLetto: [] },
+  ], CAMERE as never)
+  let dopo = cambiaOspitiNotte(vuote, '2026-09-16', 3, contesto)
+  dopo = cambiaOspitiNotte(dopo, '2026-09-16', 2, contesto)
+  dopo = cambiaOspitiNotte(dopo, '2026-09-16', 3, contesto)
+  assert.deepEqual(dopo.map(n => n.persone), [0, 0, 3])
+  assert.deepEqual(dopo.map(n => n.letto), [false, false, true])
+  // e anche rifacendo i periodi e la striscia
+  let c = 0
+  const periodi = periodiDaNottiTenendoVuote(dopo, { gruppo: 'g', periodi: [] }, () => `n${++c}`)
+  assert.deepEqual(nottiDaPeriodi(periodi, CAMERE as never).map(n => n.persone), [0, 0, 3])
+})
+
+test('appena la notte riceve una camera prende gli ospiti del soggiorno', () => {
+  const contesto = { camere: CAMERE as never, altre: [], ospiti: 3 }
+  const vuote = nottiDaPeriodi([{ id: 'a', roomId: null, checkIn: '2026-09-16', checkOut: '2026-09-17', ospiti: 3, nottiLetto: [] }], CAMERE as never)
+  assert.equal(vuote[0].persone, 0)
+  const conLena = cambiaCameraNotte(vuote, '2026-09-16', LENA as never, contesto)
+  assert.equal(conLena[0].persone, 3)      // il numero del soggiorno
+  assert.equal(conLena[0].letto, true)     // e il letto si accende da solo
+  // togliendo la notte dal soggiorno tornano vuote
+  const fuori = nonDormeQui(conLena, '2026-09-16')
+  assert.equal(fuori[0].persone, 0)
+  assert.equal(fuori[0].letto, false)
+})
+
+test('la striscia disegna letto e numero solo dove c’è una camera', () => {
+  const striscia = readFileSync(new URL('../components/StrisciaNottiCamere.tsx', import.meta.url), 'utf8')
+  assert.match(striscia, /\{n\.camera && <Bed size=\{12\}/)
+  assert.match(striscia, /data-ospiti-notte=\{n\.camera \? n\.persone : undefined\}/)
+  assert.match(striscia, /color: !n\.camera \? 'transparent'/)
+})
+
+test('il conto ignora le notti senza camera', () => {
+  const periodi: PeriodoComposto[] = [
+    { id: 'a', gruppo: 'g', roomId: null, checkIn: '2026-09-14', checkOut: '2026-09-16', ospiti: 2, nottiLetto: [], letto: null, tariffa: null },
+    { id: 'b', gruppo: 'g', roomId: LENA.id, checkIn: '2026-09-16', checkOut: '2026-09-17', ospiti: 2, nottiLetto: [], letto: null, tariffa: null },
+  ]
+  const conto = contoNuovaPrenotazione(periodi, id => (CAMERE.find(c => c.id === id) ?? null) as never, { tipo: 'nessuno', valore: null })
+  assert.deepEqual(conto.righe.map(r => r.titolo), ['Lena'])
+  assert.equal(conto.righe[0].importo, '80 €')
+  assert.equal(conto.totale, null)                    // e finché mancano, il conto non è intero
+  assert.equal(mancaAlConto(periodi, id => (CAMERE.find(c => c.id === id) ?? null) as never), MANCA_CAMERA)
 })

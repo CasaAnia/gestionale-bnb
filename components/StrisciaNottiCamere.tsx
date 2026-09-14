@@ -104,13 +104,15 @@ export default function StrisciaNottiCamere({ notti, oggi, onNotte, scelta, ospi
                   borderBottom: segnata ? `1.5px solid ${OTTONE}` : '1px solid var(--color-card-border)',
                   borderLeft: segnata ? `1.5px solid ${OTTONE}` : '1px solid var(--color-card-border)',
                 }}>
-                  <Bed size={12} strokeWidth={2} aria-hidden style={{ color: n.letto ? 'var(--color-green-mid)' : '#C4C0B6' }} />
+                  {/* niente letto dove non c'è una camera: la casella resta vuota */}
+                  {n.camera && <Bed size={12} strokeWidth={2} aria-hidden style={{ color: n.letto ? 'var(--color-green-mid)' : '#C4C0B6' }} />}
                 </span>
+                {/* e nemmeno il numero degli ospiti: si vede solo dove c'è una camera */}
                 {ospitiAttesi != null && (
-                  <span data-ospiti-notte={n.dentro ? n.persone : undefined} className="block text-center" style={{
+                  <span data-ospiti-notte={n.camera ? n.persone : undefined} className="block text-center" style={{
                     marginTop: 3, fontFamily: GEORGIA, fontSize: 15, lineHeight: '18px',
-                    color: !n.dentro ? 'transparent' : n.persone === ospitiAttesi ? 'var(--color-green-dark)' : MATTONE_OSPITI,
-                  }}>{n.dentro ? n.persone : '·'}</span>
+                    color: !n.camera ? 'transparent' : n.persone === ospitiAttesi ? 'var(--color-green-dark)' : MATTONE_OSPITI,
+                  }}>{n.camera ? n.persone : '·'}</span>
                 )}
               </button>
             )

@@ -135,14 +135,16 @@ export function nottiDaPeriodi(periodi: PeriodoNotti[], camere: CameraStriscia[]
     for (const iso of giorniSoggiorno(p.checkIn, p.checkOut)) {
       if (visti.has(iso)) continue
       visti.add(iso)
-      const letto = p.nottiLetto.includes(iso)
+      // Senza camera non c'è né letto né numero di ospiti: quelle due caselle
+      // restano vuote, perché non vorrebbero dire niente (Ania, 15/09/2026).
+      const letto = Boolean(camera) && p.nottiLetto.includes(iso)
       out.push({
         iso,
         cameraId: p.roomId,
         camera: camera?.name ?? null,
         letto,
         dentro: true,
-        persone: letto ? p.ospiti : Math.min(p.ospiti, capienzaBase(camera)),
+        persone: camera ? (letto ? p.ospiti : Math.min(p.ospiti, capienzaBase(camera))) : 0,
         motivo: p.roomId && !camera ? 'camera non più in elenco' : null,
         parallela: false,
       })
@@ -298,7 +300,9 @@ export function motivoLettoObbligatorio(camera: CameraStriscia | null | undefine
 export function cambiaCamera(notti: NotteStriscia[], iso: string, camera: CameraStriscia, contesto: ContestoNotti): NotteStriscia[] {
   return notti.map(n => {
     if (n.iso !== iso) return n
-    const persone = n.dentro ? n.persone : contesto.ospiti
+    // una notte che non aveva camera non aveva nemmeno un numero: appena la
+    // riceve, prende quello che vale per tutto il soggiorno
+    const persone = n.dentro && n.persone > 0 ? n.persone : contesto.ospiti
     // Se le persone di questa notte non ci stanno senza letto, il letto si
     // accende da solo — come fa la nuova prenotazione — purché ce ne sia uno.
     const letto = n.letto || (persone > capienzaBase(camera) && lettoDisponibileNotte(iso, camera.id, contesto))
