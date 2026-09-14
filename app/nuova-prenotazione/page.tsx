@@ -400,7 +400,14 @@ export default function NuovaPrenotazionePage() {
       prenotazione_id: prenotazioneId,
       accordo_pagamento: pagamento.accordo_pagamento,
       ...(p.id === primo ? { caparra_centesimi: pagamento.caparra_centesimi, caparra_entro: pagamento.caparra_entro } : {}),
-      ...(p.nottiLetto.length > 0 ? { extra_bed_importo: letto.importo, extra_bed_criterio: letto.criterio } : {}),
+      // Importo e criterio vanno INSIEME o non vanno (vincolo 0048
+      // bookings_extra_bed_accordo_coerente). Con l'importo non scritto a mano
+      // qui finiva null accanto a «a notte» e il database rifiutava tutta la
+      // prenotazione (trovato in produzione il 15/09/2026). Si scrive quello
+      // che il conto ha davvero applicato: p.letto, listino compreso.
+      ...(p.nottiLetto.length > 0 && p.letto
+        ? { extra_bed_importo: p.letto.importo, extra_bed_criterio: p.letto.criterio }
+        : {}),
     }))
 
     // Le colonne arrivate dopo possono mancare: si toglie SOLO quella e si

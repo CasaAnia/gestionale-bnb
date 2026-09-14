@@ -830,3 +830,26 @@ test('gli ospiti di una notte: col letto tutti, senza letto quelli della camera'
   ], CAMERE as never)
   assert.deepEqual(notti.map(n => n.persone), [2, 3])   // la prima notte senza letto, la seconda con
 })
+
+// ── Il letto salvato: importo e criterio vanno insieme (15/09/2026) ─────────
+// In produzione il salvataggio moriva su bookings_extra_bed_accordo_coerente
+// (proposta 0048): con l'importo non scritto a mano finiva `null` accanto a
+// «a notte», e il database rifiutava tutta la prenotazione.
+test('col letto acceso si salvano sempre importo E criterio, mai uno solo', () => {
+  // la pagina scrive quello che il conto ha applicato, non lo stato grezzo
+  assert.match(pagina, /extra_bed_importo: p\.letto\.importo, extra_bed_criterio: p\.letto\.criterio/)
+  assert.doesNotMatch(pagina, /extra_bed_importo: letto\.importo/)
+  assert.match(pagina, /p\.nottiLetto\.length > 0 && p\.letto/)
+
+  // e l'importo applicato è un numero anche quando il letto è «compreso»
+  const conLetto = (ospiti: number) => {
+    const p = conLettoAutomatico(periodoLena(ospiti), LENA as never)
+    return { ...p, letto: { importo: 0 + lettoProposto(LENA as never, p.ospiti), criterio: 'notte' as const } }
+  }
+  assert.equal(conLetto(3).letto.importo, 0)    // Lena tripla: compreso, ma zero è un numero
+  assert.equal(conLetto(4).letto.importo, 10)
+  assert.notEqual(conLetto(3).letto.importo, null)
+  // il vincolo del database: o tutti e due, o nessuno dei due
+  const sql = readFileSync(new URL('../supabase/migrations/0048_letto_accordo.sql', import.meta.url), 'utf8')
+  assert.match(sql, /\(extra_bed_importo is null\) = \(extra_bed_criterio is null\)/)
+})
