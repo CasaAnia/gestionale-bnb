@@ -15,7 +15,7 @@
 // Niente Supabase, niente orologio: `oggi`, le camere e le altre prenotazioni
 // arrivano dal chiamante.
 // ============================================================================
-import { camereLibere, giorniTra, STATI_CHE_OCCUPANO, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
+import { camereLibere, elencoNomi, giorniTra, STATI_CHE_OCCUPANO, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
 import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione, type PrenotazioneLetti } from './lettiAggiuntivi.ts'
 import { capienzaBase, capienzaCamera, totaleLetto } from './tariffe.ts'
 import { giorniSoggiorno, nottiConLetto, prezzoPrenotazione, fmtEuroBreve, type CameraTariffa } from './prezzoNotti.ts'
@@ -188,13 +188,28 @@ export function riassuntoStriscia(notti: NotteStriscia[]): string {
 }
 
 // ── Gli avvisi in rosso ─────────────────────────────────────────────────────
-// «Sabato 12 da sistemare · Lena è occupata»: una riga per ogni notte rimasta
-// senza camera.
+// UNA riga sola per tutte le notti rimaste senza camera, con scritto quali
+// sono: «lun 14 e mar 15 senza camera: nessuna libera» (Ania, 14/09/2026 —
+// quattro righe uguali per quattro notti non si leggevano). Il motivo si
+// scrive quando è lo stesso per tutte.
+export const NESSUNA_LIBERA = 'nessuna libera'
+export const SENZA_CAMERA = 'senza camera'
+/** «lun 14», come sopra la colonnina */
+export function etichettaNotteBreve(iso: string): string {
+  const { giorno, numero } = giornoDellaNotte(iso)
+  return `${giorno} ${numero}`
+}
 export function avvisiStriscia(notti: NotteStriscia[]): string[] {
-  return notti.filter(n => n.dentro && !n.camera).map(n => {
-    const testa = `${titoloNotte(n.iso)} da sistemare`
-    return n.motivo ? `${testa} · ${n.motivo}` : testa
-  })
+  const senza = notti.filter(n => n.dentro && !n.camera)
+  if (senza.length === 0) return []
+  const quali = elencoNomi(senza.map(n => etichettaNotteBreve(n.iso)))
+  const motivi = [...new Set(senza.map(n => n.motivo).filter(Boolean))]
+  return [`${quali} ${SENZA_CAMERA}${motivi.length === 1 ? `: ${motivi[0]}` : ''}`]
+}
+
+/** Segna «nessuna libera» le notti rimaste senza camera perché non ce n'era */
+export function segnaNottiSenzaCamere(notti: NotteStriscia[], nessunaLibera: (iso: string) => boolean): NotteStriscia[] {
+  return notti.map(n => (n.dentro && !n.cameraId && nessunaLibera(n.iso) ? { ...n, motivo: NESSUNA_LIBERA } : n))
 }
 
 // ── Chi è libero questa notte ───────────────────────────────────────────────

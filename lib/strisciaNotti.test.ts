@@ -72,7 +72,7 @@ test('due cambi camera e il letto in più: la riga di riassunto', () => {
 test('la notte senza camera: «?» nella striscia e l’avviso in rosso sotto', () => {
   const notti = nottiDaSegmenti([seg('a', LENA, '2026-09-10', '2026-09-13')])
   const rotta: NotteStriscia[] = notti.map((n, i) => (i === 2 ? { ...n, cameraId: null, camera: null, motivo: 'Lena è occupata' } : n))
-  assert.deepEqual(avvisiStriscia(rotta), ['Sabato 12 da sistemare · Lena è occupata'])
+  assert.deepEqual(avvisiStriscia(rotta), ['sab 12 senza camera: Lena è occupata'])
   // senza camera non si salva niente: prima si sistema
   assert.equal(pianoNotti(rotta, [seg('a', LENA, '2026-09-10', '2026-09-13')], contesto()).errore, CAMERA_MANCANTE)
   // le notti a posto non hanno avvisi

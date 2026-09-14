@@ -10,6 +10,7 @@
 // ============================================================================
 import { capienzaBase, capienzaCamera } from './tariffe.ts'
 import { giorniSoggiorno } from './prezzoNotti.ts'
+const giornoDopo = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)
 import { camereLibere, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
 import { contoPeriodo, notti as nottiPeriodo, round2, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
 import type { NotteStriscia } from './strisciaNotti.ts'
@@ -39,21 +40,112 @@ export function rigaClienteTrovato(telefono: string | null | undefined, soggiorn
 // ── Le camere della fila «CAMERA» ───────────────────────────────────────────
 // Occupata in una qualsiasi notte del periodo = pastiglia spenta. La riga in
 // ottone sotto dice chi è libero; senza date non si dice niente.
-export type CameraScelta<T extends CameraMinima> = { camera: T; libera: boolean }
+// La disponibilità si guarda NOTTE PER NOTTE (Ania, 14/09/2026): con 14→18
+// settembre il 14 e il 15 non c'è niente ma il 16 e il 17 sì, e prima l'intero
+// soggiorno risultava impossibile. La regola resta quella di sempre,
+// lib/disponibilita.camereLibere, chiesta una notte alla volta: `notti` sono
+// le notti in cui quella camera è libera, `tutte` dice se le copre tutte.
+export type CameraScelta<T extends CameraMinima> = { camera: T; libera: boolean; notti: string[]; tutte: boolean }
 export function camereDelPeriodo<T extends CameraMinima>(
   camere: T[], altre: PrenotazioneMinima[], arrivo: string, partenza: string,
 ): CameraScelta<T>[] {
-  if (!arrivo || !partenza || arrivo >= partenza) return camere.map(camera => ({ camera, libera: true }))
-  const { libere } = camereLibere(camere, altre, arrivo, partenza, 1)
-  const liberi = new Set(libere.map(c => c.id))
-  return camere.map(camera => ({ camera, libera: liberi.has(camera.id) }))
+  if (!arrivo || !partenza || arrivo >= partenza) return camere.map(camera => ({ camera, libera: true, notti: [], tutte: true }))
+  const notti = giorniSoggiorno(arrivo, partenza)
+  const liberePerNotte = new Map<string, Set<string>>()
+  for (const g of notti) {
+    const { libere } = camereLibere(camere, altre, g, giornoDopo(g), 1)
+    liberePerNotte.set(g, new Set(libere.map(c => c.id)))
+  }
+  return camere.map(camera => {
+    const sue = notti.filter(g => liberePerNotte.get(g)!.has(camera.id))
+    return { camera, libera: sue.length > 0, notti: sue, tutte: sue.length === notti.length }
+  })
+}
+/** Le notti in cui NON è libera nessuna camera */
+export function nottiSenzaCamere<T extends CameraMinima>(scelte: CameraScelta<T>[], arrivo: string, partenza: string): string[] {
+  if (!arrivo || !partenza || arrivo >= partenza) return []
+  const coperte = new Set(scelte.flatMap(s => s.notti))
+  return giorniSoggiorno(arrivo, partenza).filter(g => !coperte.has(g))
 }
 export function rigaCamereLibere<T extends CameraMinima>(scelte: CameraScelta<T>[], arrivo: string, partenza: string): string {
   if (!arrivo || !partenza || arrivo >= partenza) return ''
-  const libere = scelte.filter(s => s.libera).map(s => s.camera.name)
-  if (libere.length === 0) return 'nessuna camera libera in queste date'
-  if (libere.length === scelte.length) return 'tutte le camere libere'
-  return `libere: ${libere.join(' · ')}`
+  const tutte = scelte.filter(s => s.tutte).map(s => s.camera.name)
+  if (tutte.length === scelte.length) return 'tutte le camere libere'
+  if (tutte.length > 0) return `libere: ${tutte.join(' · ')}`
+  const aPezzi = scelte.filter(s => s.libera).map(s => s.camera.name)
+  if (aPezzi.length === 0) return 'nessuna camera libera in queste date'
+  return `libere solo per qualche notte: ${aPezzi.join(' · ')}`
+}
+
+// ── I periodi di una linea, notte per notte ────────────────────────────────
+// Scegliendo una camera non si prende tutto il soggiorno alla cieca: la camera
+// va nelle notti in cui è libera, le altre restano senza camera (roomId null)
+// e la striscia le segna. Niente notti perse: il soggiorno resta lungo com'è.
+export function periodiDellaLinea(
+  base: { gruppo: string; arrivo: string; partenza: string; roomId: string | null; ospiti: number; tariffa: number | null },
+  libera: (iso: string, roomId: string) => boolean,
+  vecchi: PeriodoComposto[],
+  nuovoId: () => string,
+): PeriodoComposto[] {
+  const notti = giorniSoggiorno(base.arrivo, base.partenza)
+  if (notti.length === 0) {
+    return [{ id: vecchi[0]?.id ?? nuovoId(), gruppo: base.gruppo, roomId: base.roomId, checkIn: base.arrivo, checkOut: base.partenza, ospiti: base.ospiti, nottiLetto: [], letto: vecchi[0]?.letto ?? null, tariffa: base.tariffa }]
+  }
+  const perNotte = notti.map(iso => ({ iso, roomId: base.roomId && libera(iso, base.roomId) ? base.roomId : null }))
+  const ordinati = [...vecchi].sort((a, z) => a.checkIn.localeCompare(z.checkIn))
+  const blocchi: { roomId: string | null; notti: string[] }[] = []
+  for (const n of perNotte) {
+    const ultimo = blocchi[blocchi.length - 1]
+    if (ultimo && ultimo.roomId === n.roomId) ultimo.notti.push(n.iso)
+    else blocchi.push({ roomId: n.roomId, notti: [n.iso] })
+  }
+  return blocchi.map(b => {
+    const checkIn = b.notti[0]
+    const checkOut = giornoDopo(b.notti[b.notti.length - 1])
+    const origine = ordinati.find(p => p.checkIn <= checkIn && checkIn < p.checkOut) ?? ordinati[0]
+    const stessaCamera = origine?.roomId === b.roomId
+    return {
+      id: origine && stessaCamera && origine.checkIn === checkIn ? origine.id : nuovoId(),
+      gruppo: base.gruppo,
+      roomId: b.roomId,
+      checkIn,
+      checkOut,
+      ospiti: base.ospiti,
+      nottiLetto: (origine?.nottiLetto ?? []).filter(g => b.notti.includes(g)),
+      letto: origine?.letto ?? null,
+      tariffa: stessaCamera ? base.tariffa : null,
+    }
+  })
+}
+
+/** Come periodiDaNotti, ma le notti senza camera NON spariscono dal soggiorno */
+export function periodiDaNottiTenendoVuote(notti: NotteStriscia[], linea: LineaCamera, nuovoId: () => string): PeriodoComposto[] {
+  const dentro = notti.filter(n => n.dentro)
+  if (dentro.length === 0) return []
+  const vecchi = [...linea.periodi].sort((a, z) => a.checkIn.localeCompare(z.checkIn))
+  const blocchi: { cameraId: string | null; notti: NotteStriscia[] }[] = []
+  for (const n of dentro) {
+    const ultimo = blocchi[blocchi.length - 1]
+    const attaccata = ultimo && ultimo.cameraId === n.cameraId && giornoDopo(ultimo.notti[ultimo.notti.length - 1].iso) === n.iso
+    if (attaccata) ultimo.notti.push(n)
+    else blocchi.push({ cameraId: n.cameraId, notti: [n] })
+  }
+  return blocchi.map(b => {
+    const checkIn = b.notti[0].iso
+    const origine = vecchi.find(p => p.checkIn <= checkIn && checkIn < p.checkOut) ?? vecchi[0]
+    const stessaCamera = origine?.roomId === b.cameraId
+    return {
+      id: origine && stessaCamera && origine.checkIn === checkIn ? origine.id : nuovoId(),
+      gruppo: linea.gruppo,
+      roomId: b.cameraId,
+      checkIn,
+      checkOut: giornoDopo(b.notti[b.notti.length - 1].iso),
+      ospiti: Math.max(1, ...b.notti.map(n => n.persone)),
+      nottiLetto: b.notti.filter(n => n.letto).map(n => n.iso),
+      letto: origine?.letto ?? null,
+      tariffa: stessaCamera ? (origine?.tariffa ?? null) : null,
+    }
+  })
 }
 
 // ── Quanti ospiti può tenere il soggiorno ───────────────────────────────────
@@ -310,9 +402,11 @@ export function datiLinea(linea: LineaCamera): DatiLinea {
   return {
     arrivo: ps[0].checkIn,
     partenza: ps.reduce((m, p) => (p.checkOut > m ? p.checkOut : m), ps[0].checkOut),
-    roomId: ps[0].roomId,
+    // la camera della linea: la prima davvero scelta, anche se le prime notti
+    // sono rimaste senza (nessuna camera libera in quelle notti)
+    roomId: ps.find(p => p.roomId)?.roomId ?? null,
     ospiti: Math.max(...ps.map(p => p.ospiti)),
-    tariffa: ps.length === 1 ? ps[0].tariffa : null,
+    tariffa: ps.filter(p => p.roomId).length === 1 ? (ps.find(p => p.roomId)?.tariffa ?? null) : null,
     spezzata: ps.length > 1,
   }
 }

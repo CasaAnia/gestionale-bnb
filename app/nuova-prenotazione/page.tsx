@@ -35,12 +35,13 @@ import CameraSoggiorno from '@/components/nuova/CameraSoggiorno'
 import FoglioNotte from '@/components/FoglioNotte'
 import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo, OTTONE as OTTONE_PEZZI } from '@/components/nuova/PezziNuova'
 import {
-  camereDelPeriodo, rigaCamereLibere, datiLinea, nottiDellaLinea, raggruppaPerCamera, periodiDaNotti,
+  camereDelPeriodo, rigaCamereLibere, datiLinea, nottiDellaLinea, raggruppaPerCamera, periodiDaNottiTenendoVuote,
+  periodiDellaLinea, nottiSenzaCamere,
   ospitiPossibiliNotte, ospitiMassimi, ospitiScegliendoCamera, contoNuovaPrenotazione, scontoInParole, listinoLetto, CRITERI_LETTO, LETTO_COMPRESO_LISTINO,
   statoLettoNuova, mancaAlConto, doveManca,
   type ScontoNuova,
 } from '@/lib/nuovaPrenotazione'
-import { nottiDaPeriodi, type CameraStriscia, type ContestoNotti, type NotteStriscia } from '@/lib/strisciaNotti'
+import { nottiDaPeriodi, segnaNottiSenzaCamere, type CameraStriscia, type ContestoNotti, type NotteStriscia } from '@/lib/strisciaNotti'
 import { conLettoAutomatico, tariffaProposta, ospitiIniziali, lettoProposto, type PeriodoComposto, type CameraComposta } from '@/lib/prenotazioneComposta'
 import { capienzaCamera } from '@/lib/tariffe'
 import type { PrenotazioneMinima } from '@/lib/disponibilita'
@@ -265,29 +266,41 @@ export default function NuovaPrenotazionePage() {
     }])
   }
 
-  // I campi di una linea: cambiandoli la linea torna a essere un periodo solo
+  // I campi di una linea. La camera NON si spalma sull'intero soggiorno alla
+  // cieca: va nelle notti in cui è libera (regola di lib/disponibilita, chiesta
+  // una notte alla volta), le altre restano senza camera e la striscia le
+  // segna. Il cambio camera a mano si fa dalla striscia.
   function cambiaLinea(gruppo: string, pezzo: { arrivo?: string; partenza?: string; roomId?: string | null; ospiti?: number; tariffa?: number | null }) {
     setPeriodi(ps => {
       const linea = raggruppaPerCamera(ps).find(l => l.gruppo === gruppo)
       if (!linea) return ps
       const d = datiLinea(linea)
-      const primo = linea.periodi[0]
-      const camera = trovaCamera(pezzo.roomId !== undefined ? pezzo.roomId : d.roomId)
+      const roomId = pezzo.roomId !== undefined ? pezzo.roomId : d.roomId
+      const camera = trovaCamera(roomId)
       const cambiaCamera = pezzo.roomId !== undefined && pezzo.roomId !== d.roomId
-      const unito: PeriodoComposto = {
-        ...primo,
-        roomId: pezzo.roomId !== undefined ? pezzo.roomId : d.roomId,
-        checkIn: pezzo.arrivo ?? d.arrivo,
-        checkOut: pezzo.partenza ?? d.partenza,
+      const arrivo = pezzo.arrivo ?? d.arrivo
+      const partenza = pezzo.partenza ?? d.partenza
+      const fuori = ps.filter(p => p.gruppo !== gruppo)
+      // le altre camere di QUESTA compilazione occupano come le prenotazioni vere
+      const occupate = [
+        ...altre,
+        ...fuori.filter(p => p.roomId).map(p => ({
+          room_id: p.roomId!, check_in: p.checkIn, check_out: p.checkOut, status: 'confermata',
+          num_guests: p.ospiti, extra_bed: p.nottiLetto.length > 0, extra_bed_dates: p.nottiLetto,
+        })),
+      ]
+      const scelte = camereDelPeriodo(camere, occupate, arrivo, partenza)
+      const libera = (iso: string, id: string) => scelte.find(s => s.camera.id === id)?.notti.includes(iso) ?? false
+      const rifatti = periodiDellaLinea({
+        gruppo,
+        arrivo,
+        partenza,
+        roomId,
         ospiti: pezzo.ospiti ?? (cambiaCamera ? ospitiScegliendoCamera(d.ospiti, trovaCamera(d.roomId), camera) : d.ospiti),
         tariffa: pezzo.tariffa !== undefined ? pezzo.tariffa : (cambiaCamera ? null : d.tariffa),
-        nottiLetto: linea.periodi.flatMap(p => p.nottiLetto),
-        letto: primo.letto,
-      }
-      const fuori = ps.filter(p => p.gruppo !== gruppo)
-      // le date o la camera cambiate rifanno la linea intera: il cambio camera
-      // si rifà dalla striscia, che è l'unico posto da cui si spezza
-      return [...fuori, conLettoAutomatico(unito, camera)].sort((a, z) => a.checkIn.localeCompare(z.checkIn) || a.gruppo.localeCompare(z.gruppo))
+      }, libera, linea.periodi, nuovoId)
+      return [...fuori, ...rifatti.map(p => conLettoAutomatico(p, trovaCamera(p.roomId)))]
+        .sort((a, z) => a.checkIn.localeCompare(z.checkIn) || a.gruppo.localeCompare(z.gruppo))
     })
   }
 
@@ -308,7 +321,7 @@ export default function NuovaPrenotazionePage() {
         }
       }
       const fuori = ps.filter(p => p.gruppo !== gruppo)
-      return [...fuori, ...periodiDaNotti(notti, linea, nuovoId)].sort((a, z) => a.checkIn.localeCompare(z.checkIn) || a.gruppo.localeCompare(z.gruppo))
+      return [...fuori, ...periodiDaNottiTenendoVuote(notti, linea, nuovoId)].sort((a, z) => a.checkIn.localeCompare(z.checkIn) || a.gruppo.localeCompare(z.gruppo))
     })
     setNotteAperta(null)
   }
@@ -456,7 +469,10 @@ export default function NuovaPrenotazionePage() {
             // la stessa camera nelle stesse notti non si può
             const scelte = camereDelPeriodo(camere, contesto(linea.gruppo).altre, d.arrivo, d.partenza)
             const camera = trovaCamera(d.roomId)
-            const notti = nottiDaPeriodi(linea.periodi, camere)
+            // le notti rimaste senza camera perché non ce n'era nessuna libera:
+            // la striscia le segna una volta sola, con scritto quali sono
+            const senzaNessuna = new Set(nottiSenzaCamere(scelte, d.arrivo, d.partenza))
+            const notti = segnaNottiSenzaCamere(nottiDaPeriodi(linea.periodi, camere), iso => senzaNessuna.has(iso))
             return (
               <CameraSoggiorno key={linea.gruppo} className="mt-5"
                 titolo={i === 0 ? 'Soggiorno' : `Camera ${i + 1}`}
