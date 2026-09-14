@@ -14,7 +14,8 @@ import { conLettoAutomatico, tariffaProposta, lettoProposto, problemi, type Peri
 import {
   nottiDaPeriodi, giornoDellaNotte, avvisiStriscia, riassuntoStriscia,
   camereDellaNotte, cambiaCamera as cambiaCameraNotte, cambiaOspitiNotte,
-  cambiaLetto as cambiaLettoNotte, cambiCamera,
+  cambiaLetto as cambiaLettoNotte, cambiCamera, prezzoLettoNotte,
+  lettoObbligatorio, motivoLettoObbligatorio, lettoDisponibileNotte,
 } from './strisciaNotti.ts'
 import { dataConGiorno } from './dateItaliane.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -1020,8 +1021,100 @@ test('il letto e gli ospiti di una notte non toccano le altre', () => {
   assert.deepEqual(notti.map(n => n.letto), [false, false, false, true])
   // e le camere sono rimaste dov'erano
   assert.deepEqual(notti.map(n => n.camera), [null, null, 'Lena', 'Lena'])
-  // spegnere il letto della sola notte del 17 non tocca il 16
-  const senzaLetto = cambiaLettoNotte(notti, '2026-09-17', false, contesto)
+  // «No» con tre persone in Lena non fa niente: il letto serve per forza, e
+  // soprattutto gli ospiti NON tornano a due da soli (Ania, 15/09/2026)
+  const rifiutato = cambiaLettoNotte(notti, '2026-09-17', false, contesto, { ospitiAParte: true })
+  assert.deepEqual(rifiutato.map(n => n.persone), [2, 2, 2, 3])
+  assert.deepEqual(rifiutato.map(n => n.letto), [false, false, false, true])
+  // riportando la notte a due persone il letto si può spegnere, e il 16 non si muove
+  const dueInTre = cambiaOspitiNotte(notti, '2026-09-17', 2, contesto)
+  const senzaLetto = cambiaLettoNotte(dueInTre, '2026-09-17', false, contesto, { ospitiAParte: true })
+  assert.deepEqual(senzaLetto.map(n => n.persone), [2, 2, 2, 2])
   assert.deepEqual(senzaLetto.map(n => n.letto), [false, false, false, false])
   assert.deepEqual(senzaLetto.map(n => n.camera), [null, null, 'Lena', 'Lena'])
+})
+
+// ── Letto e ospiti di una notte non si combattono (15/09/2026) ─────────────
+// Il difetto: toccando «No» o «Sì» sul letto, gli ospiti della notte venivano
+// rimessi a posto da soli, e non si riusciva a tenere 3 persone col letto.
+const CONTESTO = { camere: CAMERE as never, altre: [], ospiti: 2 }
+
+test('toccare il letto non cambia MAI gli ospiti della notte', () => {
+  const inTre = cambiaOspitiNotte(
+    nottiDaPeriodi([{ id: 'a', roomId: ALLEGRA.id, checkIn: '2026-09-16', checkOut: '2026-09-17', ospiti: 3, nottiLetto: [] }], CAMERE as never),
+    '2026-09-16', 3, CONTESTO)
+  assert.equal(inTre[0].persone, 3)
+  assert.equal(inTre[0].letto, true)                 // si accende da solo: 3 in Allegra non ci stanno senza
+  // «Sì» di nuovo: gli ospiti restano 3
+  const ancoraSi = cambiaLettoNotte(inTre, '2026-09-16', true, CONTESTO, { ospitiAParte: true })
+  assert.equal(ancoraSi[0].persone, 3)
+  assert.equal(ancoraSi[0].letto, true)
+  // «No»: non fa niente, e gli ospiti restano 3
+  const no = cambiaLettoNotte(inTre, '2026-09-16', false, CONTESTO, { ospitiAParte: true })
+  assert.equal(no[0].persone, 3)
+  assert.equal(no[0].letto, true)
+})
+
+test('il letto acceso a mano resta acceso anche tornando a due persone', () => {
+  const base = nottiDaPeriodi([{ id: 'a', roomId: ALLEGRA.id, checkIn: '2026-09-16', checkOut: '2026-09-17', ospiti: 2, nottiLetto: [] }], CAMERE as never)
+  const acceso = cambiaLettoNotte(base, '2026-09-16', true, CONTESTO, { ospitiAParte: true })
+  assert.equal(acceso[0].letto, true)
+  assert.equal(acceso[0].persone, 2)                 // due che dormono separate
+  const inTre = cambiaOspitiNotte(acceso, '2026-09-16', 3, CONTESTO)
+  assert.equal(inTre[0].persone, 3)
+  const dueDiNuovo = cambiaOspitiNotte(inTre, '2026-09-16', 2, CONTESTO)
+  assert.equal(dueDiNuovo[0].letto, true)            // non si spegne da solo
+  assert.equal(dueDiNuovo[0].persone, 2)
+  // e adesso «No» funziona: le due persone ci stanno senza
+  assert.equal(cambiaLettoNotte(dueDiNuovo, '2026-09-16', false, CONTESTO, { ospitiAParte: true })[0].letto, false)
+})
+
+test('quando il letto serve per forza, «No» è spento e dice perché', () => {
+  assert.equal(lettoObbligatorio(ALLEGRA as never, 3), true)
+  assert.equal(lettoObbligatorio(ALLEGRA as never, 2), false)
+  assert.equal(lettoObbligatorio(LENA as never, 3), true)
+  assert.equal(lettoObbligatorio(AMELIA as never, 2), true)
+  assert.equal(lettoObbligatorio(null, 3), false)    // senza camera non si promette niente
+  assert.equal(motivoLettoObbligatorio(ALLEGRA as never, 3), 'servono 3 posti in Allegra')
+  assert.equal(motivoLettoObbligatorio(LENA as never, 4), 'servono 4 posti in Lena')
+  assert.equal(motivoLettoObbligatorio(ALLEGRA as never, 2), null)
+  const foglio = readFileSync(new URL('../components/FoglioNotte.tsx', import.meta.url), 'utf8')
+  assert.match(foglio, /const serveIlLetto = notte\.dentro && lettoObbligatorio\(scelta, notte\.persone\)/)
+  assert.match(foglio, /spenta=\{!notte\.dentro \|\| serveIlLetto\}/)
+  assert.match(foglio, /data-letto-serve[\s\S]{0,120}motivoLettoObbligatorio\(scelta, notte\.persone\)/)
+})
+
+test('accanto a «Sì» il costo di quella notte: «10 €» o «compreso»', () => {
+  // Allegra in tre: il letto si paga
+  assert.equal(prezzoLettoNotte(ALLEGRA as never, 3, { importo: 10, criterio: 'notte' }), '10 €')
+  // Lena in tre: il terzo posto è compreso nella tripla
+  assert.equal(prezzoLettoNotte(LENA as never, 3, { importo: 0, criterio: 'notte' }), 'compreso')
+  // Lena in quattro: si paga
+  assert.equal(prezzoLettoNotte(LENA as never, 4, { importo: 10, criterio: 'notte' }), '10 €')
+  // la scritta vecchia non c'è più
+  const striscia = readFileSync(new URL('./strisciaNotti.ts', import.meta.url), 'utf8')
+  assert.doesNotMatch(striscia, /LETTO_SENZA_AGGIUNTA/)
+  // e la pagina passa al foglietto il costo scelto da Ania, non un altro
+  assert.match(pagina, /prezzoLetto=\{\(\(\) => \{/)
+  assert.match(pagina, /importo: letto\.importo \?\? lettoProposto\(camera, persone\), criterio: letto\.criterio/)
+})
+
+test('se i due letti di casa sono impegnati, «Sì» resta spento con «non disponibile»', () => {
+  const pieni = [
+    { room_id: AMELIA.id, check_in: '2026-09-16', check_out: '2026-09-17', status: 'confermata', num_guests: 2, extra_bed: true, extra_bed_dates: ['2026-09-16'] },
+    { room_id: AMBRA.id, check_in: '2026-09-16', check_out: '2026-09-17', status: 'confermata', num_guests: 3, extra_bed: true, extra_bed_dates: ['2026-09-16'] },
+  ]
+  assert.equal(lettoDisponibileNotte('2026-09-16', ALLEGRA.id, { camere: CAMERE as never, altre: pieni, ospiti: 3 }), false)
+  assert.equal(lettoDisponibileNotte('2026-09-17', ALLEGRA.id, { camere: CAMERE as never, altre: pieni, ospiti: 3 }), true)
+  const foglio = readFileSync(new URL('../components/FoglioNotte.tsx', import.meta.url), 'utf8')
+  assert.match(foglio, /spenta=\{!notte\.dentro \|\| \(!lettoLibero && !notte\.letto\)\}/)
+  assert.match(foglio, /data-letto-non-disponibile[\s\S]{0,120}\{LETTO_NON_DISPONIBILE\}/)
+})
+
+test('in alto ospiti e letto non si combattono: il letto acceso a mano resta', () => {
+  // conLettoAutomatico spegne solo quello che aveva acceso lui (auto)
+  const aMano: PeriodoComposto = { id: 'a', gruppo: 'g', roomId: ALLEGRA.id, checkIn: '2026-09-16', checkOut: '2026-09-17', ospiti: 2, nottiLetto: ['2026-09-16'], letto: { importo: 10, criterio: 'notte' }, tariffa: null }
+  assert.deepEqual(conLettoAutomatico(aMano, ALLEGRA as never).nottiLetto, ['2026-09-16'])
+  const automatico: PeriodoComposto = { ...aMano, letto: { importo: 10, criterio: 'notte', auto: true } }
+  assert.deepEqual(conLettoAutomatico({ ...automatico, ospiti: 2 }, ALLEGRA as never).nottiLetto, [])
 })

@@ -6,7 +6,7 @@ import {
   nottiDaSegmenti, riassuntoStriscia, cambiCamera, avvisiStriscia, camereDellaNotte, avvisoCapienza,
   lettoDisponibileNotte, prezzoLettoNotte, cambiaCamera, cambiaLetto, nonDormeQui, blocchiDaNotti,
   pianoNotti, stessaStriscia, titoloNotte, giornoDellaNotte, compatta, NESSUNA_NOTTE, CAMERA_MANCANTE,
-  SCONTO_DECADUTO, LETTO_COMPRESO, LETTO_SENZA_AGGIUNTA, segniDiCambio, personeColLetto,
+  SCONTO_DECADUTO, LETTO_COMPRESO, segniDiCambio, personeColLetto,
   type SegmentoNotti, type CameraStriscia, type ContestoNotti, type NotteStriscia,
 } from './strisciaNotti.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -144,14 +144,19 @@ test('coi due letti di casa già impegnati, «Sì» resta spento', () => {
   assert.equal(lettoDisponibileNotte('2026-09-12', LENA_ID, contesto({ altre: [impegnati[0]], ospiti: 4 })), false)
 })
 
-test('il prezzo accanto a «Sì»', () => {
-  assert.equal(prezzoLettoNotte(AMBRA, 3), '+ 10 €')
-  assert.equal(prezzoLettoNotte(AMELIA, 2), '+ 5 €')
+test('il prezzo accanto a «Sì»: «10 €» oppure «compreso»', () => {
+  assert.equal(prezzoLettoNotte(AMBRA, 3), '10 €')
+  assert.equal(prezzoLettoNotte(AMELIA, 2), '5 €')
   assert.equal(prezzoLettoNotte(LENA, 3), LETTO_COMPRESO)   // la tripla è già venduta con tre posti
-  assert.equal(prezzoLettoNotte(LENA, 4), '+ 10 €')
+  assert.equal(prezzoLettoNotte(LENA, 4), '10 €')
   // due persone che vogliono dormire separate: il letto non cambia il conto
-  assert.equal(prezzoLettoNotte(ALLEGRA, 2), LETTO_SENZA_AGGIUNTA)
-  assert.equal(prezzoLettoNotte(LENA, 2), LETTO_SENZA_AGGIUNTA)
+  assert.equal(prezzoLettoNotte(ALLEGRA, 2), LETTO_COMPRESO)
+  assert.equal(prezzoLettoNotte(LENA, 2), LETTO_COMPRESO)
+  // e se Ania ha scritto un importo suo, si legge quello
+  assert.equal(prezzoLettoNotte(AMBRA, 3, { importo: 15, criterio: 'notte' }), '15 €')
+  assert.equal(prezzoLettoNotte(AMBRA, 3, { importo: 40, criterio: 'ogni4' }), '40 € ogni 4 notti')
+  assert.equal(prezzoLettoNotte(AMBRA, 3, { importo: 50, criterio: 'totale' }), '50 € in tutto')
+  assert.equal(prezzoLettoNotte(LENA, 3, { importo: 0, criterio: 'notte' }), LETTO_COMPRESO)
 })
 
 // ── Le modifiche del foglietto ─────────────────────────────────────────────
@@ -328,7 +333,7 @@ test('la camera che non basta avvisa in mattone senza bloccare', () => {
 
 test('il letto: due pastiglie col prezzo, e «non disponibile» quando i letti sono presi', () => {
   assert.match(foglietto, /export const TITOLO_LETTO = 'Letto in più questa notte'/)
-  assert.match(foglietto, /Sì · \{prezzoLettoNotte\(scelta, contesto\.ospiti\)\}/)
+  assert.match(foglietto, /Sì · \{prezzoLetto \?\? prezzoLettoNotte\(scelta, notte\.dentro \? notte\.persone : contesto\.ospiti\)\}/)
   assert.match(foglietto, /spenta=\{!notte\.dentro \|\| \(!lettoLibero && !notte\.letto\)\}/)
   assert.match(foglietto, /data-letto-non-disponibile[\s\S]{0,120}\{LETTO_NON_DISPONIBILE\}/)
   assert.match(foglietto, /const lettoLibero = lettoDisponibileNotte\(iso, notte\.cameraId, contesto\)/)
@@ -356,7 +361,7 @@ test('col letto in più le persone non superano quello che la camera tiene', () 
   const notti = nottiDaSegmenti([seg('a', AMELIA, '2026-09-10', '2026-09-12', { num_guests: 1 })])
   const acceso = cambiaLetto(notti, '2026-09-10', true, contesto({ ospiti: 3 }))
   assert.equal(acceso[0].persone, 2)
-  assert.equal(prezzoLettoNotte(AMELIA, 3), '+ 5 €')       // il letto di Amelia, non quello di tre persone
+  assert.equal(prezzoLettoNotte(AMELIA, 3), '5 €')       // il letto di Amelia, non quello di tre persone
   // in Lena invece le tre persone ci stanno tutte
   const lena = cambiaLetto(nottiDaSegmenti([seg('b', LENA, '2026-09-10', '2026-09-12')]), '2026-09-10', true, contesto({ ospiti: 3 }))
   assert.equal(lena[0].persone, 3)
@@ -384,7 +389,7 @@ test('un tratto rimasto identico non viene riscritto: la tariffa concordata rest
 test('la notte tolta dal soggiorno: il letto si spegne e si dice come rimetterla', () => {
   assert.match(foglietto, /export const COME_RIMETTERLA = 'per rimetterla nel soggiorno scegli una camera'/)
   assert.match(foglietto, /spenta=\{!notte\.dentro \|\| \(!lettoLibero && !notte\.letto\)\}/)
-  assert.match(foglietto, /<Pastiglia acceso=\{!notte\.letto\} spenta=\{!notte\.dentro\}/)
+  assert.match(foglietto, /<Pastiglia acceso=\{!notte\.letto\} spenta=\{!notte\.dentro \|\| serveIlLetto\}/)
   // e toccare una camera la rimette dentro
   const dentro = cambiaCamera(nonDormeQui(nottiDaSegmenti([seg('a', LENA, '2026-09-10', '2026-09-12')]), '2026-09-10'), '2026-09-10', AMBRA, contesto())
   assert.equal(dentro[0].dentro, true)

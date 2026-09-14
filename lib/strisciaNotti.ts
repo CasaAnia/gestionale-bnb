@@ -253,18 +253,41 @@ export function personeColLetto(camera: CameraStriscia | null | undefined, ospit
 }
 
 // Il prezzo accanto a «Sì», sempre quello che il conto applicherà davvero:
-//  · «+ 10 €»        il letto si paga (regole di lib/tariffe);
+//  · «10 €»          il letto si paga (regole di lib/tariffe, o l'importo
+//                    scelto da Ania sul blocco del letto);
 //  · «compreso»      il posto è già nel prezzo (Lena venduta come tripla);
-//  · «senza aggiunta» il letto è in più ma le persone ci stanno lo stesso
-//    (due che vogliono dormire separate): il conto non cambia, e se va fatto
-//    pagare si fa da «Vedi tutto».
+//  · «compreso» anche quando il letto è in più ma le persone ci stanno lo
+//    stesso (due che vogliono dormire separate): il conto non cambia, e se va
+//    fatto pagare si fa da «Vedi tutto».
 export const LETTO_COMPRESO = 'compreso'
-export const LETTO_SENZA_AGGIUNTA = 'senza aggiunta'
-export function prezzoLettoNotte(camera: CameraStriscia | null | undefined, ospiti: number): string {
+/** Il costo accanto a «Sì»: «10 €» oppure «compreso» quando non si paga.
+ *  `scelto` è quello che Ania ha deciso sopra, sul blocco del letto: è quello
+ *  che il conto applica davvero, quindi è quello che si scrive (15/09/2026;
+ *  prima diceva «senza aggiunta», che non si capiva). */
+export function prezzoLettoNotte(
+  camera: CameraStriscia | null | undefined, ospiti: number,
+  scelto?: { importo: number | null; criterio: 'notte' | 'ogni4' | 'totale' } | null,
+): string {
   const persone = personeColLetto(camera, ospiti)
-  const importo = totaleLetto(camera, persone, 1)
-  if (importo > 0) return `+ ${fmtEuroBreve(importo)}`
-  return persone > capienzaBase(camera) ? LETTO_COMPRESO : LETTO_SENZA_AGGIUNTA
+  const daRegole = totaleLetto(camera, persone, 1)
+  const importo = scelto?.importo ?? daRegole
+  if (!importo || importo <= 0) return LETTO_COMPRESO
+  const criterio = scelto?.criterio ?? 'notte'
+  if (criterio === 'ogni4') return `${fmtEuroBreve(importo)} ogni 4 notti`
+  if (criterio === 'totale') return `${fmtEuroBreve(importo)} in tutto`
+  return fmtEuroBreve(importo)
+}
+
+// ── Quando il letto non si può spegnere ────────────────────────────────────
+// Con più persone di quante la camera ne tenga senza, il letto serve per
+// forza: «No» resta spento e accanto c'è scritto perché. Gli ospiti NON si
+// abbassano da soli (Ania, 15/09/2026: letto e ospiti si annullavano a vicenda).
+export function lettoObbligatorio(camera: CameraStriscia | null | undefined, persone: number): boolean {
+  return Boolean(camera) && persone > capienzaBase(camera)
+}
+export function motivoLettoObbligatorio(camera: CameraStriscia | null | undefined, persone: number): string | null {
+  if (!lettoObbligatorio(camera, persone)) return null
+  return `servono ${persone} posti in ${camera!.name}`
 }
 
 // ── Le tre modifiche del foglietto ──────────────────────────────────────────
@@ -286,10 +309,27 @@ export function cambiaCamera(notti: NotteStriscia[], iso: string, camera: Camera
   })
 }
 
-export function cambiaLetto(notti: NotteStriscia[], iso: string, acceso: boolean, contesto: ContestoNotti): NotteStriscia[] {
+// Il letto di UNA notte.
+//
+// Nella SCHEDA il letto è anche il modo di dire «questa notte dormono in
+// tre»: lì accendendolo le persone salgono a quelle della prenotazione.
+// Nella pagina di inserimento, invece, le persone della notte hanno il loro
+// − e il loro +: allora il letto non le tocca MAI, o i due comandi si
+// annullano a vicenda (Ania, 15/09/2026). Lo dice `ospitiAParte`.
+// Se il letto serve per forza, spegnerlo non fa niente: è la pastiglia «No»
+// a restare spenta, con scritto perché.
+export function cambiaLetto(
+  notti: NotteStriscia[], iso: string, acceso: boolean, contesto: ContestoNotti,
+  opzioni: { ospitiAParte?: boolean } = {},
+): NotteStriscia[] {
   return notti.map(n => {
     if (n.iso !== iso) return n
     const camera = contesto.camere.find(c => c.id === n.cameraId) ?? null
+    if (opzioni.ospitiAParte) {
+      // il letto serve per forza: «No» non fa niente, e gli ospiti non calano
+      if (!acceso && lettoObbligatorio(camera, n.persone)) return n
+      return { ...n, letto: acceso }
+    }
     return {
       ...n, letto: acceso,
       persone: acceso ? personeColLetto(camera, contesto.ospiti) : Math.min(contesto.ospiti, capienzaBase(camera)),
@@ -305,7 +345,9 @@ export function cambiaOspitiNotte(notti: NotteStriscia[], iso: string, quanti: n
     if (n.iso !== iso) return n
     const camera = contesto.camere.find(c => c.id === n.cameraId) ?? null
     const persone = Math.max(1, Math.min(quanti, capienzaCamera(camera)))
-    return { ...n, persone, letto: persone > capienzaBase(camera) }
+    // il letto si accende da solo quando serve, e poi RESTA: tornando a due
+    // persone non si spegne da sé, perché può essere stato voluto
+    return { ...n, persone, letto: n.letto || persone > capienzaBase(camera) }
   })
 }
 

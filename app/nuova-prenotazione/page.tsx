@@ -41,7 +41,7 @@ import {
   statoLettoNuova, mancaAlConto, doveManca,
   type ScontoNuova,
 } from '@/lib/nuovaPrenotazione'
-import { nottiDaPeriodi, type CameraStriscia, type ContestoNotti, type NotteStriscia } from '@/lib/strisciaNotti'
+import { nottiDaPeriodi, prezzoLettoNotte, type CameraStriscia, type ContestoNotti, type NotteStriscia } from '@/lib/strisciaNotti'
 import { conLettoAutomatico, tariffaProposta, ospitiIniziali, lettoProposto, type PeriodoComposto, type CameraComposta } from '@/lib/prenotazioneComposta'
 import { capienzaCamera } from '@/lib/tariffe'
 import type { PrenotazioneMinima } from '@/lib/disponibilita'
@@ -627,6 +627,14 @@ export default function NuovaPrenotazionePage() {
               const altreColLetto = linea.periodi.some(p => p.nottiLetto.some(g => g !== notteAperta.iso))
               return ospitiPossibiliNotte(camera, altreColLetto ? d.ospiti : capienzaCamera(camera))
             }}
+            prezzoLetto={(() => {
+              // il costo che si legge accanto a «Sì» è quello scelto sopra,
+              // sul blocco del letto: è quello che il conto applica davvero
+              const notte = nottiDaPeriodi(linea.periodi, camere).find(n => n.iso === notteAperta.iso)
+              const camera = trovaCamera(notte?.cameraId ?? null)
+              const persone = notte?.dentro ? notte.persone : d.ospiti
+              return prezzoLettoNotte(camera as never, persone, { importo: letto.importo ?? lettoProposto(camera, persone), criterio: letto.criterio })
+            })()}
             onFatto={(nuove, daQui) => applicaNotti(notteAperta.gruppo, nuove, daQui, notteAperta.iso)}
             onChiudi={chiudiNotte} />
         )

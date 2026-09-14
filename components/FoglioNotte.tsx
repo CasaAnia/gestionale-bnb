@@ -19,6 +19,7 @@ import { useState } from 'react'
 import Foglio from '@/components/scheda/Foglio'
 import {
   camereDellaNotte, avvisoCapienza, lettoDisponibileNotte, prezzoLettoNotte, titoloNotte,
+  motivoLettoObbligatorio, lettoObbligatorio,
   cambiaCamera, cambiaLetto, cambiaOspitiNotte, nonDormeQui, LETTO_NON_DISPONIBILE,
   type ContestoNotti, type NotteStriscia,
 } from '@/lib/strisciaNotti'
@@ -54,13 +55,15 @@ function Pastiglia({ acceso, spenta, onClick, children }: { acceso: boolean; spe
   )
 }
 
-export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, onFatto, onChiudi }: {
+export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, prezzoLetto, onFatto, onChiudi }: {
   notti: NotteStriscia[]
   iso: string
   contesto: ContestoNotti
   /** quando c'è, nel foglietto si scelgono anche gli ospiti di quella notte
    *  (i valori salvabili, decisi da chi apre il foglietto) */
   ospitiPossibili?: (cameraId: string | null) => number[]
+  /** il costo del letto accanto a «Sì», già scritto: quello scelto da Ania */
+  prezzoLetto?: string
   /** «Fatto»: la striscia com'è diventata (la pagina salva e ricalcola il conto) */
   onFatto: (notti: NotteStriscia[], daQuiInPoi: boolean) => void
   onChiudi: () => void
@@ -73,6 +76,9 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, onF
   const scelta = libere.find(c => c.id === notte.cameraId) ?? null
   const avviso = notte.dentro ? avvisoCapienza(scelta, notte.persone) : null
   const lettoLibero = lettoDisponibileNotte(iso, notte.cameraId, contesto)
+  // qui gli ospiti della notte si scelgono a mano? allora il letto non li tocca
+  const ospitiAParte = Boolean(ospitiPossibili)
+  const serveIlLetto = notte.dentro && lettoObbligatorio(scelta, notte.persone)
 
   return (
     <Foglio titolo={titoloNotte(iso)} grande onChiudi={onChiudi}>
@@ -130,11 +136,14 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, onF
       {/* ── Il letto in più ───────────────────────────────────────────── */}
       <p className="mt-4" style={titoletto}>{TITOLO_LETTO}</p>
       <div data-letto-notte className="flex flex-wrap items-center mt-2" style={{ gap: 8 }}>
-        <Pastiglia acceso={!notte.letto} spenta={!notte.dentro} onClick={() => setBozza(b => cambiaLetto(b, iso, false, contesto))}>No</Pastiglia>
-        <Pastiglia acceso={notte.letto} spenta={!notte.dentro || (!lettoLibero && !notte.letto)} onClick={() => setBozza(b => cambiaLetto(b, iso, true, contesto))}>
-          Sì · {prezzoLettoNotte(scelta, contesto.ospiti)}
+        <Pastiglia acceso={!notte.letto} spenta={!notte.dentro || serveIlLetto} onClick={() => setBozza(b => cambiaLetto(b, iso, false, contesto, { ospitiAParte }))}>No</Pastiglia>
+        <Pastiglia acceso={notte.letto} spenta={!notte.dentro || (!lettoLibero && !notte.letto)} onClick={() => setBozza(b => cambiaLetto(b, iso, true, contesto, { ospitiAParte }))}>
+          Sì · {prezzoLetto ?? prezzoLettoNotte(scelta, notte.dentro ? notte.persone : contesto.ospiti)}
         </Pastiglia>
         {notte.dentro && !lettoLibero && !notte.letto && <span data-letto-non-disponibile style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{LETTO_NON_DISPONIBILE}</span>}
+        {/* «No» spento: gli ospiti della notte non ci stanno senza letto, e
+            non si abbassano da soli per far posto (Ania, 15/09/2026) */}
+        {serveIlLetto && <span data-letto-serve style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{motivoLettoObbligatorio(scelta, notte.persone)}</span>}
       </div>
 
       {/* ── Toglie la notte dal soggiorno ─────────────────────────────── */}
