@@ -98,7 +98,7 @@ export default function ComePaga({
                 {dataConGiorno(data) || 'da scegliere'}
               </span>
               <input type="date" data-entro-il value={data} onChange={e => onData(e.target.value)}
-                onClick={e => apriSelettore(e.currentTarget)} onFocus={e => apriSelettore(e.currentTarget)}
+                onClick={e => apriSelettore(e.currentTarget)}
                 style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, border: 'none', background: 'transparent', padding: 0, margin: 0, WebkitAppearance: 'none', appearance: 'none', cursor: 'pointer' }} />
             </span>
           </label>

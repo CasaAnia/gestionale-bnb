@@ -13,8 +13,9 @@ import { RigaCampo } from './PezziNuova'
 
 export const DATA_DA_SCEGLIERE = 'da scegliere'
 
-/** Apre il selettore di data del sistema. Va chiamato dal tocco: senza il
- *  tocco i browser lo rifiutano, e il rifiuto non deve rompere la pagina. */
+/** Apre il selettore di data del sistema. Va chiamato dal TOCCO e solo da
+ *  quello: senza il tocco i browser lo rifiutano, e chiamarlo anche sul fuoco
+ *  lo riapriva appena si chiudeva, lasciando il campo come in trappola. */
 export function apriSelettore(el: HTMLInputElement & { showPicker?: () => void }) {
   try { el.showPicker?.() } catch { /* già aperto, o browser che non lo permette */ }
 }
@@ -48,7 +49,6 @@ export default function CampoData({ etichetta, valore, onValore, min, dati, clas
         <input type="date" data-campo={dati} value={valore} min={min}
           onChange={e => onValore(e.target.value)}
           onClick={e => apriSelettore(e.currentTarget)}
-          onFocus={e => apriSelettore(e.currentTarget)}
           style={{
             position: 'absolute', top: -8, bottom: -8, left: 0, right: 0, width: '100%',
             opacity: 0, border: 'none', background: 'transparent', padding: 0, margin: 0,

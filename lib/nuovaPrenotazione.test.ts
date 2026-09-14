@@ -769,7 +769,8 @@ test('il campo data è quello nativo, senza riquadro e senza librerie', () => {
   // sul Mac toccare il testo di un campo data non apre niente: lo chiediamo noi
   assert.match(campo, /showPicker\?\.\(\)/)
   assert.match(campo, /onClick=\{e => apriSelettore\(e\.currentTarget\)\}/)
-  assert.match(campo, /onFocus=\{e => apriSelettore\(e\.currentTarget\)\}/)
+  // solo sul tocco: sul fuoco si riapriva da solo appena si chiudeva
+  assert.doesNotMatch(campo, /onFocus=\{e => apriSelettore/)
   // e il rifiuto del browser non deve rompere la pagina
   assert.match(campo, /try \{ el\.showPicker\?\.\(\) \} catch/)
   // l'area del tocco prende tutta la riga, etichetta compresa
