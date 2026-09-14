@@ -212,9 +212,19 @@ export default function NuovaPrenotazionePage() {
   const linee = useMemo(() => raggruppaPerCamera(periodi), [periodi])
   const trovaCamera = (id: string | null): CameraComposta | null => (camere.find(c => c.id === id) as CameraComposta | undefined) ?? null
   // il letto scelto una volta sola vale per tutti i periodi
+  // Il letto scelto una volta sola vale per tutti i periodi. Se l'importo non
+  // è stato scritto a mano vale il LISTINO della camera, non zero: con 4
+  // ospiti in Lena il letto costa 10 € e la notte va a 100 (Ania, 14/09/2026).
   const periodiColLetto = useMemo(
-    () => periodi.map(p => ({ ...p, letto: p.nottiLetto.length > 0 ? { importo: letto.importo ?? 0, criterio: letto.criterio } : null })),
-    [periodi, letto],
+    () => periodi.map(p => ({
+      ...p,
+      letto: p.nottiLetto.length > 0
+        ? { importo: letto.importo ?? lettoProposto(trovaCamera(p.roomId), p.ospiti), criterio: letto.criterio }
+        : null,
+    })),
+    // trovaCamera dipende da `camere`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [periodi, letto, camere],
   )
   const conto = useMemo(
     () => contoNuovaPrenotazione(periodiColLetto, id => (camere.find(c => c.id === id) as CameraComposta | undefined) ?? null, sconto),
@@ -505,8 +515,9 @@ export default function NuovaPrenotazionePage() {
               </FilaPastiglie>
               <div className="flex items-end" style={{ gap: 12, marginTop: 10 }}>
                 <RigaCampo etichetta="Quanto" className="flex-1 min-w-0">
-                  <input type="number" inputMode="decimal" data-campo="letto" value={letto.importo ?? ''}
-                    placeholder={prezzoLetto > 0 ? String(prezzoLetto) : LETTO_COMPRESO_LISTINO}
+                  {/* come la tariffa: il listino è già scritto, non in grigio */}
+                  <input type="number" inputMode="decimal" data-campo="letto" value={letto.importo ?? (prezzoLetto > 0 ? prezzoLetto : '')}
+                    placeholder={LETTO_COMPRESO_LISTINO}
                     onChange={e => setLetto(l => ({ ...l, importo: e.target.value === '' ? null : Number(e.target.value) }))} style={stileCampo} />
                 </RigaCampo>
                 <p data-listino-letto style={{ fontSize: 12, color: 'var(--color-stone)', paddingBottom: 10 }}>{listinoLetto(righeListino)}</p>

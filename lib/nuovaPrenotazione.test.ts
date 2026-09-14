@@ -10,7 +10,7 @@ import {
   statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO, mancaAlConto, MANCA_CAMERA, MANCA_DATE, doveManca,
   nottiSenzaCamere, periodiDellaLinea,
 } from './nuovaPrenotazione.ts'
-import { conLettoAutomatico, tariffaProposta, problemi, type PeriodoComposto } from './prenotazioneComposta.ts'
+import { conLettoAutomatico, tariffaProposta, lettoProposto, problemi, type PeriodoComposto } from './prenotazioneComposta.ts'
 import { nottiDaPeriodi, giornoDellaNotte, segnaNottiSenzaCamere, avvisiStriscia } from './strisciaNotti.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
 
@@ -191,7 +191,8 @@ test('le camere occupate restano spente, e sotto si legge chi è libero', () => 
 
 test('il letto e lo sconto sono uno solo per tutta la prenotazione', () => {
   assert.match(pagina, /const \[letto, setLetto\] = useState<\{ importo: number \| null; criterio: 'notte' \| 'ogni4' \| 'totale' \}>/)
-  assert.match(pagina, /periodi\.map\(p => \(\{ \.\.\.p, letto: p\.nottiLetto\.length > 0 \? \{ importo: letto\.importo \?\? 0, criterio: letto\.criterio \} : null \}\)\)/)
+  // l'importo non scritto vale il listino della camera, non zero
+  assert.match(pagina, /letto: p\.nottiLetto\.length > 0[\s\S]{0,120}criterio: letto\.criterio/)
   assert.deepEqual(CRITERI_LETTO.map(c => c.chiave), ['notte', 'ogni4', 'totale'])
   assert.match(pagina, /data-sconto-conto/)
 })
@@ -717,4 +718,33 @@ test('la disponibilità è quella di lib/disponibilita, chiesta una notte alla v
   // e la pagina non spalma più la camera sull'intero soggiorno
   assert.match(pagina, /periodiDellaLinea\(\{/)
   assert.match(pagina, /segnaNottiSenzaCamere\(nottiDaPeriodi\(linea\.periodi, camere\)/)
+})
+
+// ── 10. Quattro ospiti in Lena: 100 € e letto acceso (14/09/2026) ──────────
+// Il letto della prenotazione partiva con importo null e la pagina lo leggeva
+// come ZERO: la quarta persona non costava niente e la notte restava a 90.
+test('Lena a 4: il letto si accende da solo e la notte va a 100 €', () => {
+  const p = periodoLena(4)
+  const dopo = conLettoAutomatico(p, LENA as never)
+  assert.deepEqual(dopo.nottiLetto, ['2026-10-02', '2026-10-03'])   // acceso da solo
+  assert.equal(lettoProposto(LENA as never, 4), 10)                 // listino della camera
+  const conLetto = { ...dopo, letto: { importo: lettoProposto(LENA as never, 4), criterio: 'notte' as const } }
+  const conto = contoNuovaPrenotazione([conLetto], () => LENA as never, { tipo: 'nessuno', valore: null })
+  assert.equal(conto.totale, '200 €')            // 2 notti × (90 + 10)
+  assert.equal(conto.aNotte, '2 notti · 100 € a notte')
+})
+
+test('Lena a 3 resta 90 €: il terzo posto è compreso nella tripla', () => {
+  const dopo = conLettoAutomatico(periodoLena(3), LENA as never)
+  assert.equal(lettoProposto(LENA as never, 3), 0)
+  const conLetto = { ...dopo, letto: { importo: lettoProposto(LENA as never, 3), criterio: 'notte' as const } }
+  assert.equal(contoNuovaPrenotazione([conLetto], () => LENA as never, { tipo: 'nessuno', valore: null }).totale, '180 €')
+})
+
+test('gli altri listini del letto: Amelia 5 €, le altre 10 €', () => {
+  assert.equal(lettoProposto(AMELIA as never, 2), 5)
+  assert.equal(lettoProposto(ALLEGRA as never, 3), 10)
+  assert.equal(lettoProposto(AMBRA as never, 3), 10)
+  // la pagina non legge più «niente» come zero
+  assert.match(pagina, /importo: letto\.importo \?\? lettoProposto\(trovaCamera\(p\.roomId\), p\.ospiti\)/)
 })
