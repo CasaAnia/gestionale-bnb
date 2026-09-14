@@ -55,15 +55,16 @@ function Pastiglia({ acceso, spenta, onClick, children }: { acceso: boolean; spe
   )
 }
 
-export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, prezzoLetto, onFatto, onChiudi }: {
+export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, lettoScelto, onFatto, onChiudi }: {
   notti: NotteStriscia[]
   iso: string
   contesto: ContestoNotti
   /** quando c'è, nel foglietto si scelgono anche gli ospiti di quella notte
    *  (i valori salvabili, decisi da chi apre il foglietto) */
   ospitiPossibili?: (cameraId: string | null) => number[]
-  /** il costo del letto accanto a «Sì», già scritto: quello scelto da Ania */
-  prezzoLetto?: string
+  /** l'accordo del letto preso sopra: con l'importo vuoto valgono le regole.
+   *  Il costo accanto a «Sì» si rifà a ogni tocco, sugli ospiti di QUESTA notte. */
+  lettoScelto?: { importo: number | null; criterio: 'notte' | 'ogni4' | 'totale' }
   /** «Fatto»: la striscia com'è diventata (la pagina salva e ricalcola il conto) */
   onFatto: (notti: NotteStriscia[], daQuiInPoi: boolean) => void
   onChiudi: () => void
@@ -138,7 +139,7 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, pre
       <div data-letto-notte className="flex flex-wrap items-center mt-2" style={{ gap: 8 }}>
         <Pastiglia acceso={!notte.letto} spenta={!notte.dentro || serveIlLetto} onClick={() => setBozza(b => cambiaLetto(b, iso, false, contesto, { ospitiAParte }))}>No</Pastiglia>
         <Pastiglia acceso={notte.letto} spenta={!notte.dentro || (!lettoLibero && !notte.letto)} onClick={() => setBozza(b => cambiaLetto(b, iso, true, contesto, { ospitiAParte }))}>
-          Sì · {prezzoLetto ?? prezzoLettoNotte(scelta, notte.dentro ? notte.persone : contesto.ospiti)}
+          Sì · {prezzoLettoNotte(scelta, notte.dentro ? notte.persone : contesto.ospiti, lettoScelto)}
         </Pastiglia>
         {notte.dentro && !lettoLibero && !notte.letto && <span data-letto-non-disponibile style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{LETTO_NON_DISPONIBILE}</span>}
         {/* «No» spento: gli ospiti della notte non ci stanno senza letto, e

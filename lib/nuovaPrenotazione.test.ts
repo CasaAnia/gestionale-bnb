@@ -1094,9 +1094,14 @@ test('accanto a «Sì» il costo di quella notte: «10 €» o «compreso»', ()
   // la scritta vecchia non c'è più
   const striscia = readFileSync(new URL('./strisciaNotti.ts', import.meta.url), 'utf8')
   assert.doesNotMatch(striscia, /LETTO_SENZA_AGGIUNTA/)
-  // e la pagina passa al foglietto il costo scelto da Ania, non un altro
-  assert.match(pagina, /prezzoLetto=\{\(\(\) => \{/)
-  assert.match(pagina, /importo: letto\.importo \?\? lettoProposto\(camera, persone\), criterio: letto\.criterio/)
+  // col listino della camera: in Lena il terzo posto non si paga, in Allegra sì
+  assert.equal(prezzoLettoNotte(LENA as never, 3, { importo: null, criterio: 'notte' }), 'compreso')
+  assert.equal(prezzoLettoNotte(ALLEGRA as never, 3, { importo: null, criterio: 'notte' }), '10 €')
+  assert.equal(prezzoLettoNotte(LENA as never, 4, { importo: null, criterio: 'notte' }), '10 €')
+  // e la pagina passa al foglietto l'accordo preso sopra, non un prezzo già fatto
+  assert.match(pagina, /lettoScelto=\{\{ importo: letto\.importo, criterio: letto\.criterio \}\}/)
+  const foglio2 = readFileSync(new URL('../components/FoglioNotte.tsx', import.meta.url), 'utf8')
+  assert.match(foglio2, /prezzoLettoNotte\(scelta, notte\.dentro \? notte\.persone : contesto\.ospiti, lettoScelto\)/)
 })
 
 test('se i due letti di casa sono impegnati, «Sì» resta spento con «non disponibile»', () => {
