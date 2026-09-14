@@ -13,7 +13,8 @@ import {
 import { conLettoAutomatico, tariffaProposta, lettoProposto, problemi, type PeriodoComposto } from './prenotazioneComposta.ts'
 import {
   nottiDaPeriodi, giornoDellaNotte, avvisiStriscia, riassuntoStriscia,
-  camereDellaNotte, cambiaCamera as cambiaCameraNotte,
+  camereDellaNotte, cambiaCamera as cambiaCameraNotte, cambiaOspitiNotte,
+  cambiaLetto as cambiaLettoNotte, cambiCamera,
 } from './strisciaNotti.ts'
 import { dataConGiorno } from './dateItaliane.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -675,8 +676,8 @@ test('scegliendo Lena la camera va solo nelle notti in cui è libera', () => {
   const libera = (iso: string, id: string) => scelte.find(s => s.camera.id === id)?.notti.includes(iso) ?? false
   let contatore = 0
   const periodi = periodiDellaLinea(
-    { gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-18', roomId: LENA.id, ospiti: 3, tariffa: null },
-    libera, [], () => `n${++contatore}`,
+    { gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-18' }, [],
+    { cameraScelta: LENA.id, libera, ospiti: 3 }, () => `n${++contatore}`,
   )
   // due tratti: le notti senza camera NON si perdono, il soggiorno resta di 4 notti
   assert.equal(periodi.length, 2)
@@ -695,7 +696,7 @@ test('solo le notti davvero senza camere restano «da sistemare», e lo dicono u
   const scelte = camereDelPeriodo(CAMERE, PIENE, '2026-09-14', '2026-09-18')
   const libera = (iso: string, id: string) => scelte.find(s => s.camera.id === id)?.notti.includes(iso) ?? false
   let c = 0
-  const periodi = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-18', roomId: LENA.id, ospiti: 3, tariffa: null }, libera, [], () => `n${++c}`)
+  const periodi = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-18' }, [], { cameraScelta: LENA.id, libera, ospiti: 3 }, () => `n${++c}`)
   const notti = nottiDaPeriodi(periodi, CAMERE as never)
   assert.deepEqual(notti.map(n => n.camera), [null, null, 'Lena', 'Lena'])
   // che cosa manca, e basta: il perché non si scrive (Ania, 15/09/2026)
@@ -934,4 +935,93 @@ test('con tutte le notti a posto sotto la striscia resta solo il riassunto', () 
   const notti = nottiDaPeriodi(periodi, CAMERE as never)
   assert.deepEqual(avvisiStriscia(notti), [])
   assert.equal(riassuntoStriscia(notti), '1 cambio camera')
+})
+
+// ── Le notti sistemate a mano non si perdono (15/09/2026) ──────────────────
+// Il difetto: la riga si rifaceva da capo da UNA camera sola, quindi toccando
+// gli ospiti (o le date, o una pastiglia) la camera messa a mano su un'altra
+// notte spariva. Adesso camera, ospiti e letto si tengono notte per notte.
+// la situazione vera del 14 → 18: il 16 è libera solo Allegra, il 17 solo Lena
+const LIBERA_14_18 = (() => {
+  const scelte = camereDelPeriodo(CAMERE, [
+    { room_id: AMELIA.id, check_in: '2026-09-13', check_out: '2026-09-21', status: 'confermata' },
+    { room_id: ALLEGRA.id, check_in: '2026-09-14', check_out: '2026-09-16', status: 'confermata' },
+    { room_id: ALLEGRA.id, check_in: '2026-09-17', check_out: '2026-09-18', status: 'confermata' },
+    { room_id: AMBRA.id, check_in: '2026-09-11', check_out: '2026-09-20', status: 'confermata' },
+    { room_id: LENA.id, check_in: '2026-09-13', check_out: '2026-09-17', status: 'confermata' },
+  ], '2026-09-14', '2026-09-18')
+  return (iso: string, id: string) => scelte.find(s => s.camera.id === id)?.notti.includes(iso) ?? false
+})()
+const contaId = () => { let n = 0; return () => `n${++n}` }
+
+/** i periodi che restano dopo aver messo a mano una camera su una notte */
+function aMano(periodi: PeriodoComposto[], iso: string, camera: { id: string; name: string }): PeriodoComposto[] {
+  const linea = { gruppo: 'g', periodi }
+  const notti = cambiaCameraNotte(nottiDaPeriodi(periodi, CAMERE as never), iso, camera as never, { camere: CAMERE as never, altre: [], ospiti: 2 })
+  return periodiDaNottiTenendoVuote(notti, linea, contaId())
+}
+
+const VUOTO: PeriodoComposto[] = [{ id: 'a', gruppo: 'g', roomId: null, checkIn: '2026-09-14', checkOut: '2026-09-18', ospiti: 2, nottiLetto: [], letto: null, tariffa: null }]
+
+test('due notti sistemate a mano tengono camere diverse', () => {
+  const dopoAllegra = aMano(VUOTO, '2026-09-16', ALLEGRA)
+  const dopoLena = aMano(dopoAllegra, '2026-09-17', LENA)
+  const notti = nottiDaPeriodi(dopoLena, CAMERE as never)
+  assert.deepEqual(notti.map(n => n.camera), [null, null, 'Allegra', 'Lena'])
+  assert.equal(riassuntoStriscia(notti), '1 cambio camera')
+  assert.deepEqual(avvisiStriscia(notti), ['lun 14 e mar 15 senza camera'])
+  const conto = contoNuovaPrenotazione(dopoLena, id => (CAMERE.find(c => c.id === id) ?? null) as never, { tipo: 'nessuno', valore: null })
+  assert.deepEqual(conto.righe.map(r => r.titolo), ['Allegra', 'Lena'])
+})
+
+test('una terza notte a mano non tocca le prime due', () => {
+  let periodi = aMano(VUOTO, '2026-09-15', AMBRA)
+  periodi = aMano(periodi, '2026-09-16', ALLEGRA)
+  periodi = aMano(periodi, '2026-09-17', LENA)
+  const notti = nottiDaPeriodi(periodi, CAMERE as never)
+  assert.deepEqual(notti.map(n => n.camera), [null, 'Ambra', 'Allegra', 'Lena'])
+  assert.equal(cambiCamera(notti), 2)
+  const conto = contoNuovaPrenotazione(periodi, id => (CAMERE.find(c => c.id === id) ?? null) as never, { tipo: 'nessuno', valore: null })
+  assert.deepEqual(conto.righe.map(r => r.titolo), ['Ambra', 'Allegra', 'Lena'])
+})
+
+test('toccando gli ospiti in alto le camere delle notti restano', () => {
+  const conDue = aMano(aMano(VUOTO, '2026-09-16', ALLEGRA), '2026-09-17', LENA)
+  const dopo = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-18' }, conDue, { ospiti: 3 }, contaId())
+  const notti = nottiDaPeriodi(dopo, CAMERE as never)
+  assert.deepEqual(notti.map(n => n.camera), [null, null, 'Allegra', 'Lena'])
+  assert.equal(dopo.every(p => p.ospiti === 3), true)
+})
+
+test('toccando le date le camere già messe restano, e le notti nuove sono vuote', () => {
+  const conDue = aMano(aMano(VUOTO, '2026-09-16', ALLEGRA), '2026-09-17', LENA)
+  const piuLunga = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-19' }, conDue, {}, contaId())
+  assert.deepEqual(nottiDaPeriodi(piuLunga, CAMERE as never).map(n => n.camera), [null, null, 'Allegra', 'Lena', null])
+  const piuCorta = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-16', partenza: '2026-09-18' }, conDue, {}, contaId())
+  assert.deepEqual(nottiDaPeriodi(piuCorta, CAMERE as never).map(n => n.camera), ['Allegra', 'Lena'])
+})
+
+test('la pastiglia in alto riempie le notti libere e lascia stare le altre', () => {
+  const conAllegra = aMano(VUOTO, '2026-09-16', ALLEGRA)
+  // Lena è libera solo il 17: il 16 resta Allegra
+  const dopo = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-18' }, conAllegra,
+    { cameraScelta: LENA.id, libera: LIBERA_14_18 }, contaId())
+  assert.deepEqual(nottiDaPeriodi(dopo, CAMERE as never).map(n => n.camera), [null, null, 'Allegra', 'Lena'])
+})
+
+test('il letto e gli ospiti di una notte non toccano le altre', () => {
+  const contesto = { camere: CAMERE as never, altre: [], ospiti: 3 }
+  let periodi = aMano(aMano(VUOTO, '2026-09-16', LENA), '2026-09-17', LENA)
+  // tre persone solo la notte del 17
+  let notti = cambiaOspitiNotte(nottiDaPeriodi(periodi, CAMERE as never), '2026-09-17', 3, contesto)
+  periodi = periodiDaNottiTenendoVuote(notti, { gruppo: 'g', periodi }, contaId())
+  notti = nottiDaPeriodi(periodi, CAMERE as never)
+  assert.deepEqual(notti.map(n => n.persone), [2, 2, 2, 3])
+  assert.deepEqual(notti.map(n => n.letto), [false, false, false, true])
+  // e le camere sono rimaste dov'erano
+  assert.deepEqual(notti.map(n => n.camera), [null, null, 'Lena', 'Lena'])
+  // spegnere il letto della sola notte del 17 non tocca il 16
+  const senzaLetto = cambiaLettoNotte(notti, '2026-09-17', false, contesto)
+  assert.deepEqual(senzaLetto.map(n => n.letto), [false, false, false, false])
+  assert.deepEqual(senzaLetto.map(n => n.camera), [null, null, 'Lena', 'Lena'])
 })

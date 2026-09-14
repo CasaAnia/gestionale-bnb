@@ -80,39 +80,83 @@ export function rigaCamereLibere<T extends CameraMinima>(scelte: CameraScelta<T>
 // Scegliendo una camera non si prende tutto il soggiorno alla cieca: la camera
 // va nelle notti in cui è libera, le altre restano senza camera (roomId null)
 // e la striscia le segna. Niente notti perse: il soggiorno resta lungo com'è.
+export type CambioLinea = {
+  /** la camera toccata sulle pastiglie in alto; assente = non si tocca */
+  cameraScelta?: string | null
+  /** se quella camera è libera in quella notte */
+  libera?: (iso: string, roomId: string) => boolean
+  /** gli ospiti scritti in alto: valgono per tutte le notti */
+  ospiti?: number
+  /** la tariffa scritta in alto: vale per le notti della camera della linea */
+  tariffa?: number | null
+  /** la camera a cui si riferisce la tariffa scritta in alto */
+  cameraDellaTariffa?: string | null
+}
+
+/** Com'era una notte prima della modifica */
+type NottePrima = { roomId: string | null; ospiti: number; letto: boolean; tariffa: number | null; accordo: PeriodoComposto['letto']; id: string; inizio: boolean }
+
 export function periodiDellaLinea(
-  base: { gruppo: string; arrivo: string; partenza: string; roomId: string | null; ospiti: number; tariffa: number | null },
-  libera: (iso: string, roomId: string) => boolean,
+  base: { gruppo: string; arrivo: string; partenza: string },
   vecchi: PeriodoComposto[],
+  cambio: CambioLinea,
   nuovoId: () => string,
 ): PeriodoComposto[] {
+  const ordinati = [...vecchi].sort((a, z) => a.checkIn.localeCompare(z.checkIn))
+  // com'era ogni notte: camera, ospiti e letto si portano dietro, non si perdono
+  const prima = new Map<string, NottePrima>()
+  for (const p of ordinati) {
+    for (const g of giorniSoggiorno(p.checkIn, p.checkOut)) {
+      prima.set(g, { roomId: p.roomId, ospiti: p.ospiti, letto: p.nottiLetto.includes(g), tariffa: p.tariffa, accordo: p.letto, id: p.id, inizio: g === p.checkIn })
+    }
+  }
   const notti = giorniSoggiorno(base.arrivo, base.partenza)
   if (notti.length === 0) {
-    return [{ id: vecchi[0]?.id ?? nuovoId(), gruppo: base.gruppo, roomId: base.roomId, checkIn: base.arrivo, checkOut: base.partenza, ospiti: base.ospiti, nottiLetto: [], letto: vecchi[0]?.letto ?? null, tariffa: base.tariffa }]
+    const uno = ordinati[0]
+    return [{
+      id: uno?.id ?? nuovoId(), gruppo: base.gruppo,
+      roomId: cambio.cameraScelta !== undefined ? cambio.cameraScelta : (uno?.roomId ?? null),
+      checkIn: base.arrivo, checkOut: base.partenza,
+      ospiti: cambio.ospiti ?? uno?.ospiti ?? 1, nottiLetto: [], letto: uno?.letto ?? null,
+      tariffa: cambio.tariffa !== undefined ? cambio.tariffa : (uno?.tariffa ?? null),
+    }]
   }
-  const perNotte = notti.map(iso => ({ iso, roomId: base.roomId && libera(iso, base.roomId) ? base.roomId : null }))
-  const ordinati = [...vecchi].sort((a, z) => a.checkIn.localeCompare(z.checkIn))
-  const blocchi: { roomId: string | null; notti: string[] }[] = []
+
+  const perNotte = notti.map(iso => {
+    const era = prima.get(iso)
+    // La camera scelta in alto va nelle notti in cui è libera; dove non lo è,
+    // la notte resta com'era — quello che Ania ha messo a mano non si cancella
+    // (15/09/2026: toccando il «+» degli ospiti spariva la camera di una notte).
+    let roomId = era?.roomId ?? null
+    if (cambio.cameraScelta !== undefined) {
+      const scelta = cambio.cameraScelta
+      if (scelta === null) roomId = null
+      else if (!cambio.libera || cambio.libera(iso, scelta)) roomId = scelta
+    }
+    return { iso, roomId, ospiti: cambio.ospiti ?? era?.ospiti ?? 1, letto: era?.letto ?? false }
+  })
+
+  const blocchi: { roomId: string | null; ospiti: number; notti: { iso: string; letto: boolean }[] }[] = []
   for (const n of perNotte) {
     const ultimo = blocchi[blocchi.length - 1]
-    if (ultimo && ultimo.roomId === n.roomId) ultimo.notti.push(n.iso)
-    else blocchi.push({ roomId: n.roomId, notti: [n.iso] })
+    if (ultimo && ultimo.roomId === n.roomId && ultimo.ospiti === n.ospiti) ultimo.notti.push({ iso: n.iso, letto: n.letto })
+    else blocchi.push({ roomId: n.roomId, ospiti: n.ospiti, notti: [{ iso: n.iso, letto: n.letto }] })
   }
   return blocchi.map(b => {
-    const checkIn = b.notti[0]
-    const checkOut = giornoDopo(b.notti[b.notti.length - 1])
-    const origine = ordinati.find(p => p.checkIn <= checkIn && checkIn < p.checkOut) ?? ordinati[0]
-    const stessaCamera = origine?.roomId === b.roomId
+    const checkIn = b.notti[0].iso
+    const era = prima.get(checkIn)
+    const stessaCamera = era?.roomId === b.roomId
+    const tariffaScritta = cambio.tariffa !== undefined && b.roomId != null && b.roomId === cambio.cameraDellaTariffa
     return {
-      id: origine && stessaCamera && origine.checkIn === checkIn ? origine.id : nuovoId(),
+      id: era && stessaCamera && era.inizio ? era.id : nuovoId(),
       gruppo: base.gruppo,
       roomId: b.roomId,
       checkIn,
-      checkOut,
-      ospiti: base.ospiti,
-      nottiLetto: (origine?.nottiLetto ?? []).filter(g => b.notti.includes(g)),
-      letto: origine?.letto ?? null,
-      tariffa: stessaCamera ? base.tariffa : null,
+      checkOut: giornoDopo(b.notti[b.notti.length - 1].iso),
+      ospiti: b.ospiti,
+      nottiLetto: b.notti.filter(n => n.letto).map(n => n.iso),
+      letto: era?.accordo ?? null,
+      tariffa: tariffaScritta ? (cambio.tariffa ?? null) : (stessaCamera ? (era?.tariffa ?? null) : null),
     }
   })
 }

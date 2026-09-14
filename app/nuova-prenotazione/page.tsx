@@ -285,9 +285,8 @@ export default function NuovaPrenotazionePage() {
       const linea = raggruppaPerCamera(ps).find(l => l.gruppo === gruppo)
       if (!linea) return ps
       const d = datiLinea(linea)
-      const roomId = pezzo.roomId !== undefined ? pezzo.roomId : d.roomId
-      const camera = trovaCamera(roomId)
       const cambiaCamera = pezzo.roomId !== undefined && pezzo.roomId !== d.roomId
+      const camera = trovaCamera(pezzo.roomId !== undefined ? pezzo.roomId : d.roomId)
       const arrivo = pezzo.arrivo ?? d.arrivo
       const partenza = pezzo.partenza ?? d.partenza
       const fuori = ps.filter(p => p.gruppo !== gruppo)
@@ -301,14 +300,15 @@ export default function NuovaPrenotazionePage() {
       ]
       const scelte = camereDelPeriodo(camere, occupate, arrivo, partenza)
       const libera = (iso: string, id: string) => scelte.find(s => s.camera.id === id)?.notti.includes(iso) ?? false
-      const rifatti = periodiDellaLinea({
-        gruppo,
-        arrivo,
-        partenza,
-        roomId,
-        ospiti: pezzo.ospiti ?? (cambiaCamera ? ospitiScegliendoCamera(d.ospiti, trovaCamera(d.roomId), camera) : d.ospiti),
-        tariffa: pezzo.tariffa !== undefined ? pezzo.tariffa : (cambiaCamera ? null : d.tariffa),
-      }, libera, linea.periodi, nuovoId)
+      // Si tocca SOLO quello che è stato toccato: la camera di una notte
+      // sistemata a mano non si perde perché si cambiano gli ospiti o le date.
+      const rifatti = periodiDellaLinea({ gruppo, arrivo, partenza }, linea.periodi, {
+        ...(pezzo.roomId !== undefined ? { cameraScelta: pezzo.roomId, libera } : {}),
+        ...(pezzo.ospiti !== undefined
+          ? { ospiti: pezzo.ospiti }
+          : cambiaCamera ? { ospiti: ospitiScegliendoCamera(d.ospiti, trovaCamera(d.roomId), camera) } : {}),
+        ...(pezzo.tariffa !== undefined ? { tariffa: pezzo.tariffa, cameraDellaTariffa: d.roomId } : {}),
+      }, nuovoId)
       return [...fuori, ...rifatti.map(p => conLettoAutomatico(p, trovaCamera(p.roomId)))]
         .sort((a, z) => a.checkIn.localeCompare(z.checkIn) || a.gruppo.localeCompare(z.gruppo))
     })
