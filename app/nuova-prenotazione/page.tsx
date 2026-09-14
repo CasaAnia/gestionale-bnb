@@ -55,7 +55,7 @@ import ConLei from '@/components/nuova/ConLei'
 import { oraDigitata } from '@/lib/ora'
 import { PERSONE_CON_LEI_MAX, TROPPE_PERSONE, type PersonaConLei } from '@/lib/nuovaPrenotazione'
 import { campiComePaga, chiedeScadenza as chiedeScadenzaComePaga, type ComePaga as ComePagaModo } from '@/lib/comePaga'
-import ContoNuova from '@/components/nuova/ContoNuova'
+import ContoNuova, { TastoSalva } from '@/components/nuova/ContoNuova'
 import { campiConLei, campiSconto, totaliScontati } from '@/lib/nuovaPrenotazione'
 import { rigaDaSalvare, problemi } from '@/lib/prenotazioneComposta'
 import { colonnaMancante } from '@/lib/colonnaMancante'
@@ -612,6 +612,12 @@ export default function NuovaPrenotazionePage() {
             <TastinoTenue testo={AGGIUNGI_CAMERA} onClick={aggiungiCamera} dati="aggiungi-camera" />
           </div>
 
+          {/* ── Il conto, subito sotto il soggiorno ─────────────────────
+              Sta qui e non in fondo (Ania, 15/09/2026): mentre si scelgono
+              camere, notti, letto e sconto i numeri sono già sotto gli occhi,
+              senza scorrere. È uno solo: in fondo resta il tasto e basta. */}
+          <ContoNuova className="mt-6" conto={conto} manca={mancaAlConto(periodiColLetto, trovaCamera)} />
+
           {/* ── Arrivo ──────────────────────────────────────────────────── */}
           <section data-arrivo className="mt-6">
             <p className="ed-sezione">Arrivo</p>
@@ -656,14 +662,13 @@ export default function NuovaPrenotazionePage() {
             </RigaCampo>
           </section>
 
-          {/* ── Il conto, sempre in vista ───────────────────────────────── */}
+          {/* ── E in fondo si salva ─────────────────────────────────────── */}
           {guai.length > 0 && (
             <div data-guai className="mt-6">
               {guai.map(g => <AvvisoAzione key={g} testo={g} className="mt-2" />)}
             </div>
           )}
-          <ContoNuova className="mt-6" conto={conto} manca={mancaAlConto(periodiColLetto, trovaCamera)}
-            onSalva={() => void salva()} salvaSpento={salvando} avviso={avvisoSalva} />
+          <TastoSalva className="mt-6" onSalva={() => void salva()} spento={salvando} avviso={avvisoSalva} />
         </>
       )}
 

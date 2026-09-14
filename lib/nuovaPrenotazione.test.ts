@@ -623,7 +623,7 @@ test('il tastino «+ Aggiungi camera» è centrato dopo lo sconto e si tocca', (
 // era incompleto, e un tasto spento non dice niente.
 test('il tasto non è più spento quando il conto è incompleto', () => {
   const conto = readFileSync(new URL('../components/nuova/ContoNuova.tsx', import.meta.url), 'utf8')
-  assert.match(pagina, /salvaSpento=\{salvando\} avviso=\{avvisoSalva\}/)
+  assert.match(pagina, /<TastoSalva className="mt-6" onSalva=\{\(\) => void salva\(\)\} spento=\{salvando\} avviso=\{avvisoSalva\}/)
   assert.doesNotMatch(pagina, /salvaSpento=\{salvando \|\| conto\.daPagareCent === null\}/)
   // l'avviso sta accanto al tasto, in mattone
   assert.match(conto, /data-avviso-salva[\s\S]{0,200}color: MATTONE/)
@@ -1381,4 +1381,42 @@ test('il letto in più non ha una scelta del genere: vale per la notte e basta',
   assert.match(foglio, /onClick=\{\(\) => onLetto\(true\)\}/)
   const acceso = cambiaLettoNotte(QUATTRO_NOTTI(), '2026-09-15', true, CTX_LENA, { ospitiAParte: true })
   assert.deepEqual(acceso.map(n => n.letto), [false, true, false, false])
+})
+
+// ── L'ordine delle parti nella pagina (15/09/2026) ────────────────────────
+// Il conto stava in fondo, dopo Arrivo, Come paga, Con lei e la nota: si
+// sceglieva una camera e i numeri non si vedevano senza scorrere.
+test('il conto sta subito sotto il soggiorno, non in fondo', () => {
+  const dove = (cosa: string) => {
+    const i = pagina.indexOf(cosa)
+    assert.notEqual(i, -1, `non trovo «${cosa}» nella pagina`)
+    return i
+  }
+  const ordine = [
+    'data-cliente-scelto',        // 1. il cliente scelto
+    '<CameraSoggiorno',           // 2-3. soggiorno, notti e parte della notte
+    'data-prezzo-letto',          // 4. quanto costa il letto
+    'data-sconto',                // 5. sconto
+    'dati="aggiungi-camera"',     // 6. + Aggiungi camera
+    '<ContoNuova',                // 7. il conto
+    'data-arrivo',                // 8. arrivo
+    'data-come-paga-parte',       // 9. come paga
+    '<ConLei',                    // 10. con lei
+    'data-nota',                  // 11. nota
+    '<TastoSalva',                // 12. salva
+  ]
+  const posti = ordine.map(dove)
+  assert.deepEqual(posti, [...posti].sort((a, z) => a - z), `le parti non sono in quest'ordine: ${ordine.join(' → ')}`)
+})
+
+test('il conto è uno solo, e il tasto è un pezzo a parte', () => {
+  assert.equal(pagina.split('<ContoNuova').length - 1, 1, 'il conto compare più di una volta')
+  assert.equal(pagina.split('<TastoSalva').length - 1, 1)
+  const conto = readFileSync(new URL('../components/nuova/ContoNuova.tsx', import.meta.url), 'utf8')
+  // il tasto non è più dentro il conto
+  assert.match(conto, /export function TastoSalva/)
+  assert.doesNotMatch(conto, /data-conto-nuova[\s\S]*TastoAvanti/)
+  // e il conto dice ancora cosa manca, dov'è adesso
+  assert.match(conto, /data-manca-conto[\s\S]{0,160}color: OTTONE/)
+  assert.match(pagina, /<ContoNuova className="mt-6" conto=\{conto\} manca=\{mancaAlConto\(periodiColLetto, trovaCamera\)\} \/>/)
 })
