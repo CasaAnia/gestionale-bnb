@@ -8,10 +8,13 @@ import {
   CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
   totaliScontati, ospitiMassimi, ospitiMassimiPrenotazione, ospitiScegliendoCamera,
   statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO, mancaAlConto, MANCA_CAMERA, MANCA_DATE, doveManca,
-  nottiSenzaCamere, periodiDellaLinea,
+  nottiSenzaCamere, periodiDellaLinea, periodiDaNottiTenendoVuote,
 } from './nuovaPrenotazione.ts'
 import { conLettoAutomatico, tariffaProposta, lettoProposto, problemi, type PeriodoComposto } from './prenotazioneComposta.ts'
-import { nottiDaPeriodi, giornoDellaNotte, segnaNottiSenzaCamere, avvisiStriscia } from './strisciaNotti.ts'
+import {
+  nottiDaPeriodi, giornoDellaNotte, segnaNottiSenzaCamere, avvisiStriscia,
+  camereDellaNotte, cambiaCamera as cambiaCameraNotte,
+} from './strisciaNotti.ts'
 import { dataConGiorno } from './dateItaliane.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
 
@@ -852,4 +855,56 @@ test('col letto acceso si salvano sempre importo E criterio, mai uno solo', () =
   // il vincolo del database: o tutti e due, o nessuno dei due
   const sql = readFileSync(new URL('../supabase/migrations/0048_letto_accordo.sql', import.meta.url), 'utf8')
   assert.match(sql, /\(extra_bed_importo is null\) = \(extra_bed_criterio is null\)/)
+})
+
+// ── 2. Il foglietto offre le camere libere DI QUELLA NOTTE (15/09/2026) ─────
+// Anche quando in un'altra notte è già stata scelta un'altra camera: è così
+// che si compone un soggiorno su più camere, quando in una sola non c'è posto.
+test('scelta Allegra il 16, il foglietto del 17 offre comunque Lena', () => {
+  // la situazione vera del 14→18 settembre: il 16 è libera solo Allegra,
+  // il 17 solo Lena
+  const altre = [
+    { room_id: AMELIA.id, check_in: '2026-09-13', check_out: '2026-09-21', status: 'confermata' },
+    { room_id: ALLEGRA.id, check_in: '2026-09-14', check_out: '2026-09-16', status: 'confermata' },
+    { room_id: ALLEGRA.id, check_in: '2026-09-17', check_out: '2026-09-18', status: 'confermata' },
+    { room_id: AMBRA.id, check_in: '2026-09-11', check_out: '2026-09-20', status: 'confermata' },
+    { room_id: LENA.id, check_in: '2026-09-13', check_out: '2026-09-17', status: 'confermata' },
+  ]
+  const contesto = { camere: CAMERE as never, altre, ospiti: 2 }
+  assert.deepEqual(camereDellaNotte('2026-09-16', contesto).map(c => c.name), ['Allegra'])
+  assert.deepEqual(camereDellaNotte('2026-09-17', contesto).map(c => c.name), ['Lena'])
+  // le notti senza niente restano senza niente
+  assert.deepEqual(camereDellaNotte('2026-09-14', contesto).map(c => c.name), [])
+})
+
+test('la camera scelta nelle altre notti dello stesso soggiorno non occupa', () => {
+  // la pagina toglie dal contesto i periodi della linea che sta modificando:
+  // altrimenti Allegra, scelta per il 16, si toglierebbe da sola dall'elenco
+  assert.match(pagina, /const miei = new Set\(linea\?\.periodi\.map\(p => p\.id\)\)/)
+  assert.match(pagina, /periodi\.filter\(p => !miei\.has\(p\.id\) && p\.roomId\)/)
+  // e il foglietto chiede proprio quelle camere lì
+  const foglio = readFileSync(new URL('../components/FoglioNotte.tsx', import.meta.url), 'utf8')
+  assert.match(foglio, /const libere = camereDellaNotte\(iso, contesto\)/)
+  assert.match(foglio, /data-camera=\{c\.name\}/)
+  // scegliere una camera cambia SOLO quella notte
+  assert.match(foglio, /setBozza\(b => cambiaCamera\(b, iso, c, contesto\)\)/)
+})
+
+test('scegliere la camera di una notte non tocca le altre', () => {
+  const notti = [
+    { iso: '2026-09-16', cameraId: ALLEGRA.id, camera: 'Allegra', letto: false, dentro: true, persone: 2, motivo: null, parallela: false },
+    { iso: '2026-09-17', cameraId: null, camera: null, letto: false, dentro: true, persone: 2, motivo: null, parallela: false },
+  ]
+  const dopo = cambiaCameraNotte(notti, '2026-09-17', LENA as never, { camere: CAMERE as never, altre: [], ospiti: 2 })
+  assert.deepEqual(dopo.map(n => n.camera), ['Allegra', 'Lena'])
+  // e da lì esce una prenotazione con due righe, una per camera
+  const linea = { gruppo: 'g', periodi: [{ id: 'a', gruppo: 'g', roomId: ALLEGRA.id, checkIn: '2026-09-16', checkOut: '2026-09-18', ospiti: 2, nottiLetto: [], letto: null, tariffa: null }] }
+  let c = 0
+  const periodi = periodiDaNottiTenendoVuote(dopo, linea, () => `n${++c}`)
+  assert.deepEqual(periodi.map(p => [p.roomId, p.checkIn, p.checkOut]), [
+    [ALLEGRA.id, '2026-09-16', '2026-09-17'],
+    [LENA.id, '2026-09-17', '2026-09-18'],
+  ])
+  const conto = contoNuovaPrenotazione(periodi, id => (CAMERE.find(x => x.id === id) ?? null) as never, { tipo: 'nessuno', valore: null })
+  assert.deepEqual(conto.righe.map(r => r.titolo), ['Allegra', 'Lena'])
 })
