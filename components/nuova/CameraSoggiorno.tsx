@@ -10,6 +10,10 @@
 // ============================================================================
 import StrisciaNottiCamere from '@/components/StrisciaNottiCamere'
 import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, stileCampo, OTTONE } from './PezziNuova'
+import CampoData from './CampoData'
+
+/** la prima partenza possibile: il giorno dopo l'arrivo */
+const giornoDopo = (iso: string) => (iso ? new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10) : '')
 import type { CameraScelta } from '@/lib/nuovaPrenotazione'
 import type { CameraStriscia, NotteStriscia } from '@/lib/strisciaNotti'
 
@@ -48,14 +52,13 @@ export default function CameraSoggiorno({
     <section data-camera-soggiorno className={className}>
       <p className="ed-sezione">{titolo}</p>
 
-      {/* arrivo e partenza affiancati, sotto le notti in ottone */}
+      {/* arrivo e partenza affiancati, sotto le notti in ottone. Il campo è
+          quello del telefono (components/nuova/CampoData): si legge «gio 10
+          set» e si apre il calendario nativo. La partenza non può venire
+          prima dell'arrivo: glielo dice `min`. */}
       <div className="flex" style={{ gap: 12, marginTop: 12 }}>
-        <RigaCampo etichetta="Arrivo" className="flex-1 min-w-0">
-          <input type="date" value={arrivo} data-campo="arrivo" onChange={e => onArrivo(e.target.value)} style={stileCampo} />
-        </RigaCampo>
-        <RigaCampo etichetta="Partenza" className="flex-1 min-w-0">
-          <input type="date" value={partenza} data-campo="partenza" onChange={e => onPartenza(e.target.value)} style={stileCampo} />
-        </RigaCampo>
+        <CampoData etichetta="Arrivo" valore={arrivo} onValore={onArrivo} dati="arrivo" className="flex-1 min-w-0" />
+        <CampoData etichetta="Partenza" valore={partenza} onValore={onPartenza} min={giornoDopo(arrivo)} dati="partenza" className="flex-1 min-w-0" />
       </div>
       {notti > 0 && <p data-notti-linea style={{ marginTop: 6, fontSize: 12, color: OTTONE }}>{notti === 1 ? '1 notte' : `${notti} notti`}</p>}
 

@@ -12,6 +12,7 @@ import {
 } from './nuovaPrenotazione.ts'
 import { conLettoAutomatico, tariffaProposta, lettoProposto, problemi, type PeriodoComposto } from './prenotazioneComposta.ts'
 import { nottiDaPeriodi, giornoDellaNotte, segnaNottiSenzaCamere, avvisiStriscia } from './strisciaNotti.ts'
+import { dataConGiorno } from './dateItaliane.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
 
 const AMELIA = { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5 }
@@ -747,4 +748,30 @@ test('gli altri listini del letto: Amelia 5 €, le altre 10 €', () => {
   assert.equal(lettoProposto(AMBRA as never, 3), 10)
   // la pagina non legge più «niente» come zero
   assert.match(pagina, /importo: letto\.importo \?\? lettoProposto\(trovaCamera\(p\.roomId\), p\.ospiti\)/)
+})
+
+// ── 9. Il calendario delle date è quello del telefono (14/09/2026) ─────────
+test('la data si legge in italiano: «gio 10 set»', () => {
+  assert.equal(dataConGiorno('2026-09-10'), 'gio 10 set')
+  assert.equal(dataConGiorno('2026-10-02'), 'ven 2 ott')
+  assert.equal(dataConGiorno(null), '')
+})
+
+test('il campo data è quello nativo, senza riquadro e senza librerie', () => {
+  const campo = readFileSync(new URL('../components/nuova/CampoData.tsx', import.meta.url), 'utf8')
+  assert.match(campo, /<input type="date"/)
+  assert.match(campo, /opacity: 0/)                       // sopra, invisibile: il tocco apre il calendario del telefono
+  assert.match(campo, /fontSize: 16, fontWeight: 600/)    // la data scritta, 16 px semibold
+  assert.match(campo, /dataConGiorno\(valore\)/)
+  assert.doesNotMatch(campo, /react-day-picker|react-datepicker|flatpickr|from 'date-fns/)
+  // la riga col filo sotto, come le altre della pagina
+  assert.match(campo, /RigaCampo etichetta=\{etichetta\}/)
+  // arrivo e partenza lo usano, e la partenza non può venire prima dell'arrivo
+  const camera = readFileSync(new URL('../components/nuova/CameraSoggiorno.tsx', import.meta.url), 'utf8')
+  assert.match(camera, /<CampoData etichetta="Arrivo"[^/]*dati="arrivo"/)
+  assert.match(camera, /<CampoData etichetta="Partenza"[^/]*min=\{giornoDopo\(arrivo\)\}[^/]*dati="partenza"/)
+  // e la scadenza della caparra è vestita allo stesso modo
+  const comePaga = readFileSync(new URL('../components/ComePaga.tsx', import.meta.url), 'utf8')
+  assert.match(comePaga, /dataConGiorno\(data\)/)
+  assert.match(comePaga, /data-entro-il[\s\S]{0,200}opacity: 0/)
 })

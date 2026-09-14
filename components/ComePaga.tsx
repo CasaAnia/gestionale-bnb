@@ -13,6 +13,7 @@
 // il salvataggio lo fa la pagina. Nessuna chiamata al database qui dentro.
 // ============================================================================
 import { GRUPPI_COME_PAGA, NOME_COME_PAGA, FRASE_COME_PAGA, chiedeImporto, chiedeScadenza, type ComePaga } from '@/lib/comePaga'
+import { dataConGiorno } from '@/lib/dateItaliane'
 import { oraDigitata } from '@/lib/ora'
 
 export const ALTEZZA_PASTIGLIA = 30
@@ -89,7 +90,15 @@ export default function ComePaga({
         <div className="flex flex-wrap" style={{ gap: 10, marginTop: 10 }} data-scadenza>
           <label className="block min-w-0" style={{ flex: '1 1 140px' }}>
             <span className="block" style={etichettaGruppo}>Entro il</span>
-            <input type="date" className="ed-campo mt-1" data-entro-il value={data} onChange={e => onData(e.target.value)} />
+            {/* il calendario del telefono, con la data scritta in italiano:
+                stesso campo di ARRIVO e PARTENZA (Ania, 14/09/2026) */}
+            <span className="relative block mt-1">
+              <span className="ed-campo block" data-data-scritta style={{ fontSize: 16, fontWeight: 600, color: data ? 'var(--color-green-dark)' : 'var(--color-stone)' }}>
+                {dataConGiorno(data) || 'da scegliere'}
+              </span>
+              <input type="date" data-entro-il value={data} onChange={e => onData(e.target.value)}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, border: 'none', background: 'transparent', padding: 0, margin: 0, WebkitAppearance: 'none', appearance: 'none' }} />
+            </span>
           </label>
           <label className="block min-w-0" style={{ flex: '1 1 90px' }}>
             <span className="block" style={etichettaGruppo}>alle</span>
