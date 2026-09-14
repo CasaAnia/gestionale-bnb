@@ -7,9 +7,9 @@ import {
   ospitiPossibiliNotte, ospitiDellaNotte, listinoLetto, raggruppaPerCamera, datiLinea, nottiDellaLinea,
   CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
   totaliScontati, ospitiMassimi, ospitiMassimiPrenotazione, ospitiScegliendoCamera,
-  statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO, mancaAlConto, MANCA_CAMERA, MANCA_DATE,
+  statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO, mancaAlConto, MANCA_CAMERA, MANCA_DATE, doveManca,
 } from './nuovaPrenotazione.ts'
-import { conLettoAutomatico, tariffaProposta, type PeriodoComposto } from './prenotazioneComposta.ts'
+import { conLettoAutomatico, tariffaProposta, problemi, type PeriodoComposto } from './prenotazioneComposta.ts'
 import { nottiDaPeriodi, giornoDellaNotte } from './strisciaNotti.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
 
@@ -598,4 +598,40 @@ test('il tastino «+ Aggiungi camera» è centrato dopo lo sconto e si tocca', (
   assert.ok(dopoSconto > 0 && dopoSconto < tastino && tastino < arrivo)
   // e apre una camera nuova, con le sue date e i suoi ospiti
   assert.match(pagina, /function aggiungiCamera\(\)[\s\S]{0,400}roomId: null/)
+})
+
+// ── 7. «Salva la prenotazione» o salva, o dice cosa manca (14/09/2026) ──────
+// Ania lo toccava e non succedeva niente: il tasto era spento perché il conto
+// era incompleto, e un tasto spento non dice niente.
+test('il tasto non è più spento quando il conto è incompleto', () => {
+  const conto = readFileSync(new URL('../components/nuova/ContoNuova.tsx', import.meta.url), 'utf8')
+  assert.match(pagina, /salvaSpento=\{salvando\} avviso=\{avvisoSalva\}/)
+  assert.doesNotMatch(pagina, /salvaSpento=\{salvando \|\| conto\.daPagareCent === null\}/)
+  // l'avviso sta accanto al tasto, in mattone
+  assert.match(conto, /data-avviso-salva[\s\S]{0,200}color: MATTONE/)
+})
+
+test('senza camera il tasto dice cosa manca e porta la pagina sulla camera', () => {
+  const guai = problemi([{ ...periodoLena(2), roomId: null }], () => null)
+  const manca = doveManca(guai)
+  assert.ok(manca)
+  assert.match(manca.avviso, /camera/i)
+  assert.equal(manca.dove, '[data-camera-soggiorno]')
+  // e la pagina ci scorre sopra
+  assert.match(pagina, /querySelector\(manca\.dove\)\?\.scrollIntoView/)
+})
+
+test('ogni campo che ferma il salvataggio ha il suo posto', () => {
+  assert.equal(doveManca(['Lena: la partenza deve venire dopo l’arrivo.'])?.dove, '[data-campo="arrivo"]')
+  assert.equal(doveManca(['Lena tiene al massimo 4 persone.'])?.dove, '[data-ospiti]')
+  assert.equal(doveManca(['La caparra deve essere un importo positivo.'])?.dove, '[data-come-paga-parte]')
+  assert.equal(doveManca(['L’orario di arrivo è incompleto: scrivi per esempio 15:30.'])?.dove, '[data-arrivo]')
+  assert.equal(doveManca([]), null)
+})
+
+test('con tutto a posto non manca niente e si salva', () => {
+  const periodi = [periodoLena(3, ['2026-10-02', '2026-10-03'])]
+  assert.deepEqual(problemi(periodi, () => LENA as never), [])
+  assert.equal(doveManca(problemi(periodi, () => LENA as never)), null)
+  assert.equal(mancaAlConto(periodi, () => LENA as never), null)
 })

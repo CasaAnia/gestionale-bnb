@@ -37,7 +37,7 @@ import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCamp
 import {
   camereDelPeriodo, rigaCamereLibere, datiLinea, nottiDellaLinea, raggruppaPerCamera, periodiDaNotti,
   ospitiPossibiliNotte, ospitiMassimi, ospitiScegliendoCamera, contoNuovaPrenotazione, scontoInParole, listinoLetto, CRITERI_LETTO, LETTO_COMPRESO_LISTINO,
-  statoLettoNuova, mancaAlConto,
+  statoLettoNuova, mancaAlConto, doveManca,
   type ScontoNuova,
 } from '@/lib/nuovaPrenotazione'
 import { nottiDaPeriodi, type CameraStriscia, type ContestoNotti, type NotteStriscia } from '@/lib/strisciaNotti'
@@ -139,6 +139,7 @@ export default function NuovaPrenotazionePage() {
   const [nota, setNota] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [guai, setGuai] = useState<string[]>([])
+  const [avvisoSalva, setAvvisoSalva] = useState<string | null>(null)
 
   useEffect(() => {
     let vivo = true
@@ -339,7 +340,13 @@ export default function NuovaPrenotazionePage() {
     if (chiedeScadenzaComePaga(comePaga) && Boolean(caparraData) !== Boolean(caparraOra)) fuori.push('Della caparra servono data e ora, oppure nessuna delle due.')
     if (comePaga === 'caparra' && (!caparra || caparra <= 0)) fuori.push('La caparra deve essere un importo positivo.')
     setGuai(fuori)
-    if (fuori.length > 0) return
+    // Il tasto non resta muto: dice il campo che manca e porta la pagina lì.
+    const manca = doveManca(fuori)
+    setAvvisoSalva(manca?.avviso ?? null)
+    if (manca) {
+      document.querySelector(manca.dove)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
 
     setSalvando(true)
     const prenotazioneId = crypto.randomUUID()
@@ -387,7 +394,9 @@ export default function NuovaPrenotazionePage() {
     }
     setSalvando(false)
     if (esito.error || !esito.data?.length) {
-      setGuai([`La prenotazione non è stata salvata: ${esito.error?.message ?? 'errore sconosciuto'}`])
+      const motivo = `La prenotazione non è stata salvata: ${esito.error?.message ?? 'errore sconosciuto'}`
+      setGuai([motivo])
+      setAvvisoSalva(motivo)
       return
     }
     // si apre la scheda della prenotazione appena fatta
@@ -566,7 +575,7 @@ export default function NuovaPrenotazionePage() {
             </div>
           )}
           <ContoNuova className="mt-6" conto={conto} manca={mancaAlConto(periodiColLetto, trovaCamera)}
-            onSalva={() => void salva()} salvaSpento={salvando || conto.daPagareCent === null} />
+            onSalva={() => void salva()} salvaSpento={salvando} avviso={avvisoSalva} />
         </>
       )}
 

@@ -219,6 +219,26 @@ export function mancaAlConto(periodi: PeriodoComposto[], camera: (id: string | n
   return null
 }
 
+// ── Dove sta il campo che ferma il salvataggio ──────────────────────────────
+// «Salva la prenotazione» non deve restare muto (Ania, 14/09/2026): o salva,
+// o dice cosa manca e porta la pagina su quel campo. L'avviso è il primo
+// problema — quello da cui dipendono gli altri — e `dove` è il pezzo di
+// pagina da mostrare.
+export const DOVE_CONTO = '[data-conto-nuova]'
+export function doveManca(guai: string[]): { avviso: string; dove: string } | null {
+  const primo = guai[0]
+  if (!primo) return null
+  const dove =
+    /camera non è stata scelta|Manca la camera|due volte la notte/i.test(primo) ? '[data-camera-soggiorno]'
+    : /orario/i.test(primo) ? '[data-arrivo]'
+    : /caparra/i.test(primo) ? '[data-come-paga-parte]'
+    : /partenza|arrivo/i.test(primo) ? '[data-campo="arrivo"]'
+    : /ospiti|persona|persone|tiene al massimo/i.test(primo) ? '[data-ospiti]'
+    : /letto/i.test(primo) ? '[data-prezzo-letto]'
+    : DOVE_CONTO
+  return { avviso: primo, dove }
+}
+
 export function scontoInCentesimi(totaleCent: number, sconto: ScontoNuova): number {
   if (sconto.tipo === 'nessuno' || !sconto.valore || sconto.valore <= 0) return 0
   if (sconto.tipo === 'percentuale') {
