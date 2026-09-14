@@ -775,3 +775,45 @@ test('il campo data è quello nativo, senza riquadro e senza librerie', () => {
   assert.match(comePaga, /dataConGiorno\(data\)/)
   assert.match(comePaga, /data-entro-il[\s\S]{0,200}opacity: 0/)
 })
+
+// ── 4. Le tre righe della striscia, e gli ospiti nel foglietto (14/09/2026) ─
+test('ogni colonnina ha giorno, camera, quadratino del letto e ospiti', () => {
+  const striscia = readFileSync(new URL('../components/StrisciaNottiCamere.tsx', import.meta.url), 'utf8')
+  // 1ª riga il giorno, 2ª la camera, 3ª il letto, 4ª gli ospiti — in quest'ordine
+  const ordine = ['<Giorno iso=', 'data-camera-notte', 'data-letto-notte', 'data-ospiti-notte']
+  const posti = ordine.map(x => striscia.indexOf(x))
+  assert.deepEqual(posti, [...posti].sort((a, z) => a - z))
+  assert.ok(posti.every(x => x > 0))
+  // gli ospiti: Georgia 15 px, mattone quando sono diversi da quelli del soggiorno
+  assert.match(striscia, /data-ospiti-notte[\s\S]{0,320}fontFamily: GEORGIA, fontSize: 15/)
+  assert.match(striscia, /n\.persone === ospitiAttesi \? 'var\(--color-green-dark\)' : MATTONE_OSPITI/)
+  assert.match(striscia, /MATTONE_OSPITI = '#8a4f2f'/)
+  // e la pagina glieli passa
+  const camera = readFileSync(new URL('../components/nuova/CameraSoggiorno.tsx', import.meta.url), 'utf8')
+  assert.match(camera, /ospitiAttesi=\{ospiti\}/)
+})
+
+test('il foglietto della notte cambia camera, letto E ospiti, per una notte o da lì in poi', () => {
+  const foglio = readFileSync(new URL('../components/FoglioNotte.tsx', import.meta.url), 'utf8')
+  assert.match(foglio, /ospitiPossibili && notte\.dentro/)
+  assert.match(foglio, /data-ospiti-giu/)
+  assert.match(foglio, /data-ospiti-su/)
+  assert.match(foglio, /DOMANDA_SOLO_QUESTA/)
+  assert.match(foglio, /DOMANDA_DA_QUI/)
+  // «Non dorme qui» c'è sempre, anche nelle notti senza camera libera
+  assert.match(foglio, /data-non-dorme/)
+  assert.match(foglio, /NESSUNA_CAMERA_LIBERA/)
+  // i valori possibili sono solo quelli salvabili
+  assert.deepEqual(ospitiPossibiliNotte(LENA, 3), [2, 3])
+  assert.deepEqual(ospitiPossibiliNotte(LENA, 4), [2, 3, 4])
+  assert.deepEqual(ospitiPossibiliNotte(AMELIA, 2), [1, 2])
+})
+
+test('gli ospiti di una notte: col letto tutti, senza letto quelli della camera', () => {
+  assert.equal(ospitiDellaNotte(LENA, 3, true), 3)
+  assert.equal(ospitiDellaNotte(LENA, 3, false), 2)
+  const notti = nottiDaPeriodi([
+    { id: 'a', roomId: LENA.id, checkIn: '2026-10-02', checkOut: '2026-10-04', ospiti: 3, nottiLetto: ['2026-10-03'] },
+  ], CAMERE as never)
+  assert.deepEqual(notti.map(n => n.persone), [2, 3])   // la prima notte senza letto, la seconda con
+})
