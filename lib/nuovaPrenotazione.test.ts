@@ -1229,3 +1229,32 @@ test('sotto la striscia restano solo il riassunto e la riga di quello che manca'
   const conPezzi = camereDelPeriodo(CAMERE, PIENE, '2026-09-14', '2026-09-18')
   assert.equal(rigaCamereLibere(conPezzi, '2026-09-14', '2026-09-18'), '')
 })
+
+// ── 1. Quello che resta in alto (15/09/2026) ──────────────────────────────
+test('le pastiglie in alto impegnano la camera per TUTTO il soggiorno', () => {
+  const scelte = camereDelPeriodo(CAMERE, [], '2026-09-14', '2026-09-18')
+  const libera = (iso: string, id: string) => scelte.find(s => s.camera.id === id)?.notti.includes(iso) ?? false
+  const vuoto: PeriodoComposto[] = [{ id: 'a', gruppo: 'g', roomId: null, checkIn: '2026-09-14', checkOut: '2026-09-18', ospiti: 2, nottiLetto: [], letto: null, tariffa: null }]
+  let n = 0
+  const dopo = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-18' }, vuoto,
+    { cameraScelta: LENA.id, libera }, () => `n${++n}`)
+  // tutte e quattro le notti prendono Lena, in un tratto solo
+  assert.equal(dopo.length, 1)
+  assert.deepEqual(nottiDaPeriodi(dopo, CAMERE as never).map(x => x.camera), ['Lena', 'Lena', 'Lena', 'Lena'])
+  // e dove non è libera restano quelle di prima (prova del 15/09/2026)
+  const soloUna = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-18' }, vuoto,
+    { cameraScelta: LENA.id, libera: LIBERA_14_18 }, () => `m${++n}`)
+  assert.deepEqual(nottiDaPeriodi(soloUna, CAMERE as never).map(x => x.camera), [null, null, null, 'Lena'])
+})
+
+test('in alto restano ospiti e tariffa, e valgono per tutto il soggiorno', () => {
+  assert.match(cameraSoggiorno, /ETICHETTA_OSPITI = 'Ospiti'/)
+  assert.match(cameraSoggiorno, /ETICHETTA_TARIFFA = 'Tariffa a notte'/)
+  assert.match(pagina, /ospiti=\{d\.ospiti\} onOspiti=\{n => cambiaLinea\(linea\.gruppo, \{ ospiti: n \}\)\}/)
+  assert.match(pagina, /onTariffa=\{v => cambiaLinea\(linea\.gruppo, \{ tariffa: v \}\)\}/)
+  // gli ospiti scritti in alto vanno su tutte le notti
+  const vuoto: PeriodoComposto[] = [{ id: 'a', gruppo: 'g', roomId: LENA.id, checkIn: '2026-09-14', checkOut: '2026-09-16', ospiti: 2, nottiLetto: [], letto: null, tariffa: null }]
+  let n = 0
+  const dopo = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-16' }, vuoto, { ospiti: 3 }, () => `n${++n}`)
+  assert.equal(dopo.every(p => p.ospiti === 3), true)
+})
