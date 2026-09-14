@@ -168,15 +168,21 @@ const bookings = [
   prenotazione(ROOM.ambra, CAMBIO.id, '2026-09-26', '2026-09-28', 2,
     { group_id: GRUPPO_CAMBIO, price_per_night: 70, total_amount: 140 }),
   // Inserimento vero (14/09/2026): la situazione in cui si è bloccata Ania —
-  // 2→4 ott le altre tre camere sono occupate e resta libera solo Lena, con
-  // UNO dei due letti di casa già impegnato da Amelia. Serve per provare il
-  // giro intero: Lena, 3 ospiti, letto in più, sconto, salvataggio.
-  prenotazione(ROOM.amelia, 'aaaaaaaa-0004-4000-8000-000000000004', '2026-10-01', '2026-10-05', 2,
-    { extra_bed: true, extra_bed_dates: ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'], price_per_night: 70, extra_bed_total: 20, total_amount: 300 }),
+  // 30 set → 4 ott: le prime due notti non c'è NIENTE di libero, il 2 e il 3
+  // resta libera solo Lena, con uno dei due letti di casa già impegnato da
+  // Amelia. È la situazione di Ania: serve per provare la striscia notte per
+  // notte e il giro intero (Lena, 3 ospiti, letto in più, sconto, salvataggio).
+  prenotazione(ROOM.amelia, 'aaaaaaaa-0004-4000-8000-000000000004', '2026-09-30', '2026-10-05', 2,
+    { extra_bed: true, extra_bed_dates: ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'], price_per_night: 70, extra_bed_total: 20, total_amount: 350 }),
   prenotazione(ROOM.allegra, 'aaaaaaaa-0008-4000-8000-000000000008', '2026-10-02', '2026-10-04', 2,
     { price_per_night: 70, total_amount: 140 }),
-  prenotazione(ROOM.ambra, 'aaaaaaaa-0010-4000-8000-000000000010', '2026-10-01', '2026-10-06', 2,
-    { price_per_night: 70, total_amount: 350 }),
+  prenotazione(ROOM.ambra, 'aaaaaaaa-0010-4000-8000-000000000010', '2026-09-30', '2026-10-06', 2,
+    { price_per_night: 70, total_amount: 420 }),
+  // e le prime due notti piene per tutti: 30 set e 1 ott niente, 2 e 3 ott Lena
+  prenotazione(ROOM.allegra, 'aaaaaaaa-0009-4000-8000-000000000009', '2026-09-30', '2026-10-02', 2,
+    { price_per_night: 70, total_amount: 140 }),
+  prenotazione(ROOM.lena, 'aaaaaaaa-0005-4000-8000-000000000005', '2026-09-30', '2026-10-02', 2,
+    { price_per_night: 80, total_amount: 160 }),
   // Carmela Sabia (nuova scheda, 13/09/2026): due soggiorni conclusi in Ambra
   // e il soggiorno di adesso su tre tratti — Lena 12–14 (160), Amelia 14–16
   // in una (130), Lena 16–18 in tre col letto incluso (180) = 470 €, pagati

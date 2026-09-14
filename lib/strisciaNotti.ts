@@ -203,8 +203,11 @@ export function avvisiStriscia(notti: NotteStriscia[]): string[] {
   const senza = notti.filter(n => n.dentro && !n.camera)
   if (senza.length === 0) return []
   const quali = elencoNomi(senza.map(n => etichettaNotteBreve(n.iso)))
-  const motivi = [...new Set(senza.map(n => n.motivo).filter(Boolean))]
-  return [`${quali} ${SENZA_CAMERA}${motivi.length === 1 ? `: ${motivi[0]}` : ''}`]
+  // il motivo si scrive solo se è lo stesso per TUTTE: una notte senza motivo
+  // (semplicemente non ancora scelta) non deve prendersi quello delle altre
+  const motivi = new Set(senza.map(n => n.motivo ?? ''))
+  const unico = motivi.size === 1 ? [...motivi][0] : ''
+  return [`${quali} ${SENZA_CAMERA}${unico ? `: ${unico}` : ''}`]
 }
 
 /** Segna «nessuna libera» le notti rimaste senza camera perché non ce n'era */
