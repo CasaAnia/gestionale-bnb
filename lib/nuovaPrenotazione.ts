@@ -151,17 +151,18 @@ export function periodiDaNottiTenendoVuote(notti: NotteStriscia[], linea: LineaC
 // ── Quanti ospiti può tenere il soggiorno ───────────────────────────────────
 // Il massimo del «+» è la capienza VERA della camera scelta, letto in più
 // compreso dove è previsto (Ania, 14/09/2026): Lena arriva a 4, Allegra e
-// Ambra a 3, Amelia a 2. Finché la camera non è scelta il numero non resta
-// fermo a due: vale la più capiente fra quelle libere in quelle date, così
-// gli ospiti si possono già scrivere e la camera si sceglie dopo.
+// Ambra a 3, Amelia a 2. Finché la camera non è scelta vale la CASA: la
+// camera più capiente che abbiamo, cioè 4. Non si guarda chi è libero in
+// quelle date — se non è libero nessuno il numero restava fermo a 2 proprio
+// mentre Ania cercava le date giuste per tre persone (15/09/2026).
 export type CameraCapienza = { name?: string | null; has_extra_bed?: boolean | null }
 export function ospitiMassimi<T extends CameraMinima>(
   camera: CameraCapienza | null | undefined,
   scelte: CameraScelta<T>[] = [],
 ): number {
   if (camera) return capienzaCamera(camera)
-  const libere = scelte.filter(s => s.libera).map(s => capienzaCamera(s.camera))
-  return libere.length > 0 ? Math.max(...libere) : capienzaBase(null)
+  const tutte = scelte.map(s => capienzaCamera(s.camera))
+  return tutte.length > 0 ? Math.max(...tutte) : capienzaBase(null)
 }
 /** Scegliendo la camera: il numero scritto a mano resta (al più la capienza
  *  della camera nuova); quello lasciato com'era prende le persone solite. */
