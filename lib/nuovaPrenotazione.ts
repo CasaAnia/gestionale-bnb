@@ -86,6 +86,28 @@ export function ospitiMassimiPrenotazione(camere: (CameraCapienza | null | undef
   return camere.reduce((t, c) => t + capienzaCamera(c), 0)
 }
 
+// ── Il letto in più della prenotazione ──────────────────────────────────────
+// Uno solo per tutta la prenotazione: prezzo e criterio si scelgono una volta
+// e le notti si spuntano dalla striscia. Il blocco si vede appena c'è una
+// camera che il letto lo prevede — prima non compariva mai, perché aspettava
+// che il letto fosse GIÀ acceso (Ania, 14/09/2026). I letti di casa sono due:
+// se in tutte le notti sono già impegnati altrove resta spento, con scritto
+// «non disponibile».
+export const LETTO_NON_DISPONIBILE_TESTO = 'non disponibile: i due letti di casa sono già impegnati in queste notti'
+export type StatoLettoNuova = { possibile: boolean; acceso: boolean; nonDisponibile: boolean; testo: string | null }
+export function statoLettoNuova(
+  periodi: PeriodoComposto[],
+  camera: (id: string | null) => (CameraCapienza & { id?: string }) | null,
+  lettoLibero: (iso: string, roomId: string | null) => boolean,
+): StatoLettoNuova {
+  const conCamera = periodi.filter(p => p.roomId && camera(p.roomId)?.has_extra_bed)
+  const acceso = periodi.some(p => p.nottiLetto.length > 0)
+  if (conCamera.length === 0) return { possibile: false, acceso, nonDisponibile: false, testo: null }
+  const daAccendere = conCamera.flatMap(p => giorniSoggiorno(p.checkIn, p.checkOut).filter(g => !p.nottiLetto.includes(g)).map(g => ({ g, roomId: p.roomId })))
+  const nonDisponibile = !acceso && daAccendere.length > 0 && daAccendere.every(({ g, roomId }) => !lettoLibero(g, roomId))
+  return { possibile: true, acceso, nonDisponibile, testo: nonDisponibile ? LETTO_NON_DISPONIBILE_TESTO : null }
+}
+
 // ── Gli ospiti di una notte ─────────────────────────────────────────────────
 // Il modello di sempre (lib/prezzoNotti): in una notte ci sono gli ospiti del
 // soggiorno se c'è il letto in più, altrimenti quelli che la camera tiene da

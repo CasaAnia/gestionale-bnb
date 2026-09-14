@@ -37,6 +37,7 @@ import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCamp
 import {
   camereDelPeriodo, rigaCamereLibere, datiLinea, nottiDellaLinea, raggruppaPerCamera, periodiDaNotti,
   ospitiPossibiliNotte, ospitiMassimi, ospitiScegliendoCamera, contoNuovaPrenotazione, scontoInParole, listinoLetto, CRITERI_LETTO, LETTO_COMPRESO_LISTINO,
+  statoLettoNuova,
   type ScontoNuova,
 } from '@/lib/nuovaPrenotazione'
 import { nottiDaPeriodi, type CameraStriscia, type ContestoNotti, type NotteStriscia } from '@/lib/strisciaNotti'
@@ -53,7 +54,7 @@ import ContoNuova from '@/components/nuova/ContoNuova'
 import { campiConLei, campiSconto, totaliScontati } from '@/lib/nuovaPrenotazione'
 import { rigaDaSalvare, problemi } from '@/lib/prenotazioneComposta'
 import { colonnaMancante } from '@/lib/colonnaMancante'
-import { lettiOccupatiPerNotte } from '@/lib/lettiAggiuntivi'
+import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
 import { oraCompleta } from '@/lib/ora'
 
 const OTTONE = '#A9884E'
@@ -237,6 +238,22 @@ export default function NuovaPrenotazionePage() {
   }, [periodi, camere])
   const prezzoLetto = letto.importo ?? (righeListino[0]?.importo ?? 0)
 
+  // Il letto in più: si vede appena c'è una camera che lo prevede, e resta
+  // spento con «non disponibile» quando i due letti di casa sono già impegnati.
+  const lettiPresi = useMemo(
+    () => lettiOccupatiPerNotte(altre.filter(a => a.status === 'confermata' || a.status === 'completata')),
+    [altre],
+  )
+  const statoLetto = useMemo(
+    () => statoLettoNuova(periodi, trovaCamera, (iso, roomId) => {
+      const servono = Math.max(1, lettiPoolPrenotazione({ room_id: roomId, num_guests: periodi.find(p => p.roomId === roomId)?.ospiti ?? 1, extra_bed: true }))
+      return lettiLiberi(lettiPresi, iso) >= servono
+    }),
+    // trovaCamera dipende da `camere`: cambiando le camere il conto si rifà
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [periodi, camere, lettiPresi],
+  )
+
   function aggiungiCamera() {
     const gruppo = nuovoId()
     setPeriodi(ps => [...ps, {
@@ -316,8 +333,7 @@ export default function NuovaPrenotazionePage() {
   // quelli di lib/prenotazioneComposta (camere, capienza, letti della casa).
   async function salva() {
     if (salvando || !cliente) return
-    const lettiAltrui = lettiOccupatiPerNotte(altre.filter(a => a.status === 'confermata' || a.status === 'completata'))
-    const fuori = problemi(periodiColLetto, id => (camere.find(c => c.id === id) as CameraComposta | undefined) ?? null, lettiAltrui)
+    const fuori = problemi(periodiColLetto, id => (camere.find(c => c.id === id) as CameraComposta | undefined) ?? null, lettiPresi)
     if (orario && !oraCompleta(orario)) fuori.push('L’orario di arrivo è incompleto: scrivi per esempio 15:30.')
     if (chiedeScadenzaComePaga(comePaga) && Boolean(caparraData) !== Boolean(caparraOra)) fuori.push('Della caparra servono data e ora, oppure nessuna delle due.')
     if (comePaga === 'caparra' && (!caparra || caparra <= 0)) fuori.push('La caparra deve essere un importo positivo.')
@@ -450,9 +466,10 @@ export default function NuovaPrenotazionePage() {
           })}
 
           {/* Il letto e lo sconto valgono per tutta la prenotazione */}
-          {periodi.some(p => p.nottiLetto.length > 0) && (
+          {statoLetto.possibile && (
             <div data-prezzo-letto style={{ marginTop: 4 }}>
               <Etichetta testo="Quanto costa il letto" centrata />
+              {statoLetto.testo && <p data-letto-non-disponibile className="text-center" style={{ fontSize: 12, color: OTTONE_PEZZI, marginTop: -4, marginBottom: 10 }}>{statoLetto.testo}</p>}
               <FilaPastiglie centrata>
                 {CRITERI_LETTO.map(c => (
                   <Pastiglia key={c.chiave} dati={`letto-${c.chiave}`} acceso={letto.criterio === c.chiave} onClick={() => setLetto(l => ({ ...l, criterio: c.chiave }))}>

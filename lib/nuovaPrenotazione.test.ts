@@ -7,6 +7,7 @@ import {
   ospitiPossibiliNotte, ospitiDellaNotte, listinoLetto, raggruppaPerCamera, datiLinea, nottiDellaLinea,
   CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
   totaliScontati, ospitiMassimi, ospitiMassimiPrenotazione, ospitiScegliendoCamera,
+  statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO,
 } from './nuovaPrenotazione.ts'
 import { conLettoAutomatico, tariffaProposta, type PeriodoComposto } from './prenotazioneComposta.ts'
 import { nottiDaPeriodi, giornoDellaNotte } from './strisciaNotti.ts'
@@ -491,7 +492,7 @@ test('la striscia è quella della scheda, non una copia', () => {
 
 test('ogni notte porta giorno, camera, letto e ospiti', () => {
   const notti = nottiDaPeriodi([
-    { roomId: LENA.id, checkIn: '2026-10-02', checkOut: '2026-10-04', ospiti: 3, nottiLetto: ['2026-10-02', '2026-10-03'] },
+    { id: 'a', roomId: LENA.id, checkIn: '2026-10-02', checkOut: '2026-10-04', ospiti: 3, nottiLetto: ['2026-10-02', '2026-10-03'] },
   ], CAMERE as never)
   assert.equal(notti.length, 2)
   assert.deepEqual(notti.map(n => n.camera), ['Lena', 'Lena'])
@@ -499,11 +500,51 @@ test('ogni notte porta giorno, camera, letto e ospiti', () => {
   assert.deepEqual(notti.map(n => n.persone), [3, 3])
   assert.equal(giornoDellaNotte('2026-10-02').numero, 2)
   // senza camera la notte c'è lo stesso, da sistemare
-  const senza = nottiDaPeriodi([{ roomId: null, checkIn: '2026-10-02', checkOut: '2026-10-03', ospiti: 2, nottiLetto: [] }], CAMERE as never)
+  const senza = nottiDaPeriodi([{ id: 'a', roomId: null, checkIn: '2026-10-02', checkOut: '2026-10-03', ospiti: 2, nottiLetto: [] }], CAMERE as never)
   assert.equal(senza.length, 1)
   assert.equal(senza[0].camera, null)
   // il foglietto della notte: camera, letto e ospiti di quella notte sola
   const foglio = readFileSync(new URL('../components/FoglioNotte.tsx', import.meta.url), 'utf8')
   assert.match(foglio, /solo questa notte/i)
   assert.match(foglio, /da qui in poi/i)
+})
+
+// ── 4. Il letto in più (14/09/2026) ────────────────────────────────────────
+// Non c'era modo di aggiungerlo: il blocco compariva solo se il letto era
+// GIÀ acceso, cioè mai.
+const sempreLibero = () => true
+const sempreOccupato = () => false
+const periodoLena = (ospiti: number, nottiLetto: string[] = []): PeriodoComposto => (
+  { id: 'a', gruppo: 'g', roomId: LENA.id, checkIn: '2026-10-02', checkOut: '2026-10-04', ospiti, nottiLetto, letto: null, tariffa: null })
+
+test('il blocco del letto c’è appena la camera lo prevede, anche da spento', () => {
+  const stato = statoLettoNuova([periodoLena(2)], () => LENA as never, sempreLibero)
+  assert.equal(stato.possibile, true)
+  assert.equal(stato.acceso, false)
+  assert.equal(stato.testo, null)
+  // senza camera scelta non si promette nessun letto
+  const senza = statoLettoNuova([{ ...periodoLena(2), roomId: null }], () => null, sempreLibero)
+  assert.equal(senza.possibile, false)
+})
+
+test('se i due letti di casa sono impegnati resta spento con «non disponibile»', () => {
+  const stato = statoLettoNuova([periodoLena(2)], () => LENA as never, sempreOccupato)
+  assert.equal(stato.nonDisponibile, true)
+  assert.equal(stato.testo, LETTO_NON_DISPONIBILE_TESTO)
+  // acceso su una notte, l'avviso non serve più
+  const acceso = statoLettoNuova([periodoLena(3, ['2026-10-02'])], () => LENA as never, sempreOccupato)
+  assert.equal(acceso.acceso, true)
+  assert.equal(acceso.nonDisponibile, false)
+})
+
+test('il letto si accende da solo quando gli ospiti lo richiedono, e costa il listino', () => {
+  const dopo = conLettoAutomatico(periodoLena(3), LENA as never)
+  assert.deepEqual(dopo.nottiLetto, ['2026-10-02', '2026-10-03'])
+  assert.equal(statoLettoNuova([dopo], () => LENA as never, sempreLibero).acceso, true)
+  // il listino accanto al campo: Amelia 5 €, le altre 10 €
+  assert.equal(listinoLetto([{ nome: 'Amelia', importo: 5 }]), 'di listino · Amelia 5 €')
+  assert.equal(listinoLetto([{ nome: 'Allegra', importo: 10 }]), 'di listino · Allegra 10 €')
+  // e la pagina mostra il blocco in base allo stato, non al letto già acceso
+  assert.match(pagina, /\{statoLetto\.possibile && \(/)
+  assert.doesNotMatch(pagina, /periodi\.some\(p => p\.nottiLetto\.length > 0\) && \(/)
 })
