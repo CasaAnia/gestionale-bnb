@@ -11,7 +11,6 @@
 // Sola presentazione: chi è libero, la capienza e i prezzi restano nelle
 // librerie di sempre; qui si mostra e si chiama indietro.
 // ============================================================================
-import { useState } from 'react'
 import { Etichetta, FilaPastiglie, Pastiglia, OTTONE } from './PezziNuova'
 import { titoloNotte, LETTO_NON_DISPONIBILE, type CameraStriscia, type NotteStriscia } from '@/lib/strisciaNotti'
 import { tintaCamera } from '@/components/StrisciaNottiCamere'
@@ -30,7 +29,7 @@ const etichettaRiga = { fontSize: 9.5, letterSpacing: '1.4px', color: 'var(--col
 
 export default function NotteScelta({
   notte, camere, ospitiPossibili, lettoLibero, prezzoLetto, motivoLetto,
-  onCamera, onOspiti, onLetto, onNonDormeQui, className = '',
+  domanda, daQui, onCamera, onOspiti, onLetto, onNonDormeQui, className = '',
 }: {
   notte: NotteStriscia
   /** TUTTE le camere, con «libera» riferito a questa notte */
@@ -42,21 +41,21 @@ export default function NotteScelta({
   prezzoLetto: string
   /** quando il letto serve per forza: «servono 3 posti in Allegra» */
   motivoLetto: string | null
+  /** la domanda «solo questa notte / da qui in poi» è a schermo? */
+  domanda: boolean
+  /** quale delle due è accesa adesso */
+  daQui: boolean
   onCamera: (camera: CameraStriscia) => void
   onOspiti: (quanti: number, daQui: boolean) => void
   onLetto: (acceso: boolean) => void
   onNonDormeQui: () => void
   className?: string
 }) {
-  // la domanda compare solo dopo aver toccato gli ospiti, come nel foglietto
-  const [daQui, setDaQui] = useState(false)
-  const [chiesto, setChiesto] = useState(false)
-
   const libere = camere.filter(c => c.libera)
   const i = ospitiPossibili.indexOf(notte.persone)
   const giu = i > 0 ? ospitiPossibili[i - 1] : ospitiPossibili.filter(v => v < notte.persone).pop() ?? null
   const su = i >= 0 && i < ospitiPossibili.length - 1 ? ospitiPossibili[i + 1] : ospitiPossibili.find(v => v > notte.persone) ?? null
-  const cambiaOspiti = (quanti: number) => { setChiesto(true); onOspiti(quanti, daQui) }
+  const cambiaOspiti = (quanti: number) => onOspiti(quanti, daQui)
   const tasto = { width: 34, height: 34, borderRadius: 999, border: '1px solid var(--color-card-border)', fontSize: 17, color: 'var(--color-green-dark)', background: '#fff' } as const
 
   return (
@@ -100,10 +99,12 @@ export default function NotteScelta({
           </div>
 
           {/* vale solo per questa notte, o da qui alla fine? */}
-          {chiesto && (
+          {/* le due voci sono una SCELTA: si passa dall'una all'altra quante
+              volte si vuole, e vale sempre quella accesa (Ania, 15/09/2026) */}
+          {domanda && (
             <FilaPastiglie centrata className="mt-3">
-              <Pastiglia dati="notte-solo-questa" acceso={!daQui} onClick={() => { setDaQui(false); onOspiti(notte.persone, false) }}>{SOLO_QUESTA}</Pastiglia>
-              <Pastiglia dati="notte-da-qui" acceso={daQui} onClick={() => { setDaQui(true); onOspiti(notte.persone, true) }}>{DA_QUI}</Pastiglia>
+              <Pastiglia dati="notte-solo-questa" acceso={!daQui} onClick={() => onOspiti(notte.persone, false)}>{SOLO_QUESTA}</Pastiglia>
+              <Pastiglia dati="notte-da-qui" acceso={daQui} onClick={() => onOspiti(notte.persone, true)}>{DA_QUI}</Pastiglia>
             </FilaPastiglie>
           )}
         </>

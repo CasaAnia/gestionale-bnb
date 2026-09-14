@@ -44,7 +44,7 @@ import {
 import {
   nottiDaPeriodi, prezzoLettoNotte, motivoLettoObbligatorio, lettoDisponibileNotte,
   cambiaCamera as cambiaCameraNotte, cambiaOspitiNotte, cambiaLetto as cambiaLettoNotte, nonDormeQui,
-  camereDellaNotte, type CameraStriscia, type ContestoNotti, type NotteStriscia,
+  camereDellaNotte, ospitiDaNotte, type CameraStriscia, type ContestoNotti, type NotteStriscia,
 } from '@/lib/strisciaNotti'
 import { conLettoAutomatico, tariffaProposta, ospitiIniziali, lettoProposto, type PeriodoComposto, type CameraComposta } from '@/lib/prenotazioneComposta'
 import { capienzaCamera } from '@/lib/tariffe'
@@ -133,6 +133,12 @@ export default function NuovaPrenotazionePage() {
   const [letto, setLetto] = useState<{ importo: number | null; criterio: 'notte' | 'ogni4' | 'totale' }>({ importo: null, criterio: 'notte' })
   const [sconto, setSconto] = useState<ScontoNuova>({ tipo: 'nessuno', valore: null })
   const [notteScelta, setNotteScelta] = useState<{ gruppo: string; iso: string } | null>(null)
+  // «Solo questa notte / da qui in poi»: finché la domanda è a schermo si passa
+  // dall'una all'altra, e vale sempre quella accesa. Per tornare indietro serve
+  // com'erano le notti PRIMA del cambio (Ania, 15/09/2026).
+  const [domandaOspiti, setDomandaOspiti] = useState<{ iso: string; daQui: boolean } | null>(null)
+  const nottiPrima = useRef<{ iso: string; notti: NotteStriscia[] } | null>(null)
+  function chiudiDomanda() { setDomandaOspiti(null); nottiPrima.current = null }
   // ── arrivo, come paga, con lei, nota ─────────────────────────────────────
   const [orario, setOrario] = useState('')
   const [navetta, setNavetta] = useState<'si' | 'no' | ''>('')
@@ -333,25 +339,28 @@ export default function NuovaPrenotazionePage() {
   }
   function scegliCameraNotte(gruppo: string, iso: string, camera: CameraStriscia) {
     const ctx = contesto(gruppo)
+    chiudiDomanda()
     cambiaNotte(gruppo, notti => cambiaCameraNotte(notti, iso, camera, ctx))
   }
+  // Gli ospiti di una notte: si riparte SEMPRE da com'erano prima del primo
+  // cambio, così «solo questa notte» rimette le notti dopo come stavano —
+  // eccezioni messe a mano comprese — e si può passare avanti e indietro.
   function scegliOspitiNotte(gruppo: string, iso: string, quanti: number, daQui: boolean) {
+    const linea = linee.find(l => l.gruppo === gruppo)
+    if (!linea) return
     const ctx = contesto(gruppo)
-    cambiaNotte(gruppo, notti => {
-      let fatte = cambiaOspitiNotte(notti, iso, quanti, ctx)
-      // «da qui in poi»: lo stesso numero anche sulle notti dopo, ognuna con
-      // la capienza della SUA camera. Le camere non si toccano.
-      if (daQui) for (const dopo of fatte.filter(n => n.iso > iso && n.dentro).map(n => n.iso)) {
-        fatte = cambiaOspitiNotte(fatte, dopo, quanti, ctx)
-      }
-      return fatte
-    })
+    if (nottiPrima.current?.iso !== iso) nottiPrima.current = { iso, notti: nottiDaPeriodi(linea.periodi, camere) }
+    const fatte = ospitiDaNotte(nottiPrima.current.notti, iso, quanti, daQui, ctx)
+    setDomandaOspiti({ iso, daQui })
+    cambiaNotte(gruppo, () => fatte)
   }
   function scegliLettoNotte(gruppo: string, iso: string, acceso: boolean) {
     const ctx = contesto(gruppo)
+    chiudiDomanda()
     cambiaNotte(gruppo, notti => cambiaLettoNotte(notti, iso, acceso, ctx, { ospitiAParte: true }))
   }
   function togliNotte(gruppo: string, iso: string) {
+    chiudiDomanda()
     cambiaNotte(gruppo, notti => nonDormeQui(notti, iso))
   }
 
@@ -522,7 +531,7 @@ export default function NuovaPrenotazionePage() {
                 tariffa={d.tariffa} tariffaProposta={camera && linea.periodi[0] ? tariffaProposta(linea.periodi[0], camera) : null}
                 onTariffa={v => cambiaLinea(linea.gruppo, { tariffa: v })}
                 strisciaNotti={notti}
-                onNotte={n => setNotteScelta(s => (s && s.gruppo === linea.gruppo && s.iso === n.iso ? null : { gruppo: linea.gruppo, iso: n.iso }))}
+                onNotte={n => { chiudiDomanda(); setNotteScelta(s => (s && s.gruppo === linea.gruppo && s.iso === n.iso ? null : { gruppo: linea.gruppo, iso: n.iso })) }}
                 notteScelta={notteScelta?.gruppo === linea.gruppo ? notteScelta.iso : null}
                 sottoStriscia={(() => {
                   if (notteScelta?.gruppo !== linea.gruppo) return null
@@ -542,6 +551,7 @@ export default function NuovaPrenotazionePage() {
                       lettoLibero={lettoDisponibileNotte(notte.iso, notte.cameraId, ctx)}
                       prezzoLetto={prezzoLettoNotte(cameraNotte as never, notte.dentro ? notte.persone : d.ospiti, { importo: letto.importo, criterio: letto.criterio })}
                       motivoLetto={notte.dentro ? motivoLettoObbligatorio(cameraNotte as never, notte.persone) : null}
+                      domanda={domandaOspiti?.iso === notte.iso} daQui={Boolean(domandaOspiti?.daQui)}
                       onCamera={c => scegliCameraNotte(linea.gruppo, notte.iso, c)}
                       onOspiti={(quanti, daQui) => scegliOspitiNotte(linea.gruppo, notte.iso, quanti, daQui)}
                       onLetto={acceso => scegliLettoNotte(linea.gruppo, notte.iso, acceso)}

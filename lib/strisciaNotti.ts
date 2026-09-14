@@ -355,6 +355,21 @@ export function cambiaOspitiNotte(notti: NotteStriscia[], iso: string, quanti: n
   })
 }
 
+// «Solo questa notte» oppure «da qui in poi»: sono una SCELTA, non due tasti
+// che fanno qualcosa una volta sola (Ania, 15/09/2026). Perciò si parte sempre
+// da com'erano le notti PRIMA del cambio: tornando su «solo questa notte» le
+// notti dopo tornano esattamente com'erano, eccezioni messe a mano comprese.
+export function ospitiDaNotte(
+  prima: NotteStriscia[], iso: string, quanti: number, daQui: boolean, contesto: ContestoNotti,
+): NotteStriscia[] {
+  let fatte = cambiaOspitiNotte(prima, iso, quanti, contesto)
+  if (!daQui) return fatte
+  for (const dopo of fatte.filter(n => n.iso > iso && n.dentro).map(n => n.iso)) {
+    fatte = cambiaOspitiNotte(fatte, dopo, quanti, contesto)
+  }
+  return fatte
+}
+
 export function nonDormeQui(notti: NotteStriscia[], iso: string): NotteStriscia[] {
   return notti.map(n => (n.iso === iso
     ? { ...n, dentro: false, letto: false, cameraId: null, camera: null, persone: 0, motivo: null, parallela: false }

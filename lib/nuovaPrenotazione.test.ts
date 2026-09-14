@@ -15,7 +15,7 @@ import {
   nottiDaPeriodi, giornoDellaNotte, avvisiStriscia, riassuntoStriscia,
   camereDellaNotte, cambiaCamera as cambiaCameraNotte, cambiaOspitiNotte,
   cambiaLetto as cambiaLettoNotte, cambiCamera, prezzoLettoNotte,
-  lettoObbligatorio, motivoLettoObbligatorio, lettoDisponibileNotte, nonDormeQui,
+  lettoObbligatorio, motivoLettoObbligatorio, lettoDisponibileNotte, nonDormeQui, ospitiDaNotte,
 } from './strisciaNotti.ts'
 import { dataConGiorno } from './dateItaliane.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -180,7 +180,7 @@ test('la camera del soggiorno riusa la striscia già fatta, con gli ospiti sotto
   const codice = cameraSoggiorno.split('\n').filter(r => !r.trim().startsWith('//')).join('\n')
   assert.equal(/cambio camera|Aggiungi cambio/i.test(codice), false)
   // toccare una notte la SCEGLIE (e ritoccandola si chiude): niente foglietto
-  assert.match(pagina, /onNotte=\{n => setNotteScelta\(s =>/)
+  assert.match(pagina, /onNotte=\{n => \{ chiudiDomanda\(\); setNotteScelta\(s =>/)
   assert.match(pagina, /s && s\.gruppo === linea\.gruppo && s\.iso === n\.iso \? null :/)
 })
 
@@ -1181,18 +1181,17 @@ test('ospiti e letto della notte, sulla stessa riga, e «non dorme qui» in fond
   // la domanda «solo questa notte» / «da qui in poi» dopo aver toccato gli ospiti
   assert.match(notteScelta, /SOLO_QUESTA = 'solo questa notte'/)
   assert.match(notteScelta, /DA_QUI = 'da qui in poi'/)
-  assert.match(notteScelta, /\{chiesto && \(/)
+  assert.match(notteScelta, /\{domanda && \(/)
 })
 
 test('«da qui in poi» porta gli ospiti anche alle notti dopo, senza toccare le camere', () => {
-  assert.match(pagina, /if \(daQui\) for \(const dopo of fatte\.filter\(n => n\.iso > iso && n\.dentro\)/)
+  assert.match(pagina, /ospitiDaNotte\(nottiPrima\.current\.notti, iso, quanti, daQui, ctx\)/)
   const contesto = { camere: CAMERE as never, altre: [], ospiti: 2 }
   const notti = nottiDaPeriodi([
     { id: 'a', roomId: LENA.id, checkIn: '2026-09-15', checkOut: '2026-09-16', ospiti: 2, nottiLetto: [] },
     { id: 'b', roomId: ALLEGRA.id, checkIn: '2026-09-16', checkOut: '2026-09-18', ospiti: 2, nottiLetto: [] },
   ], CAMERE as never)
-  let fatte = cambiaOspitiNotte(notti, '2026-09-16', 3, contesto)
-  for (const iso of fatte.filter(n => n.iso > '2026-09-16' && n.dentro).map(n => n.iso)) fatte = cambiaOspitiNotte(fatte, iso, 3, contesto)
+  const fatte = ospitiDaNotte(notti, '2026-09-16', 3, true, contesto)
   assert.deepEqual(fatte.map(n => n.persone), [2, 3, 3])
   assert.deepEqual(fatte.map(n => n.camera), ['Lena', 'Allegra', 'Allegra'])   // le camere non si toccano
 })
@@ -1320,4 +1319,66 @@ test('il conto ignora le notti senza camera', () => {
   assert.equal(conto.righe[0].importo, '80 €')
   assert.equal(conto.totale, null)                    // e finché mancano, il conto non è intero
   assert.equal(mancaAlConto(periodi, id => (CAMERE.find(c => c.id === id) ?? null) as never), MANCA_CAMERA)
+})
+
+// ── «Solo questa notte» e «da qui in poi» sono una scelta (15/09/2026) ─────
+// Il difetto: «solo questa notte» ri-applicava il numero senza rimettere a
+// posto le notti dopo, che restavano a quello di «da qui in poi».
+const QUATTRO_NOTTI = () => nottiDaPeriodi([
+  { id: 'a', roomId: LENA.id, checkIn: '2026-09-14', checkOut: '2026-09-18', ospiti: 2, nottiLetto: [] },
+], CAMERE as never)
+const CTX_LENA = { camere: CAMERE as never, altre: [], ospiti: 2 }
+
+test('avanti e indietro fra le due voci, quante volte si vuole', () => {
+  const prima = QUATTRO_NOTTI()
+  assert.deepEqual(prima.map(n => n.persone), [2, 2, 2, 2])
+  // «solo questa notte»: il 3 sta solo sulla notte toccata
+  const solo = ospitiDaNotte(prima, '2026-09-15', 3, false, CTX_LENA)
+  assert.deepEqual(solo.map(n => n.persone), [2, 3, 2, 2])
+  // «da qui in poi»: dal 15 alla fine
+  const daQui = ospitiDaNotte(prima, '2026-09-15', 3, true, CTX_LENA)
+  assert.deepEqual(daQui.map(n => n.persone), [2, 3, 3, 3])
+  // e si torna indietro: le notti dopo tornano com'erano
+  const diNuovoSolo = ospitiDaNotte(prima, '2026-09-15', 3, false, CTX_LENA)
+  assert.deepEqual(diNuovoSolo.map(n => n.persone), [2, 3, 2, 2])
+  // avanti e indietro altre due volte: sempre lo stesso risultato
+  assert.deepEqual(ospitiDaNotte(prima, '2026-09-15', 3, true, CTX_LENA).map(n => n.persone), [2, 3, 3, 3])
+  assert.deepEqual(ospitiDaNotte(prima, '2026-09-15', 3, false, CTX_LENA).map(n => n.persone), [2, 3, 2, 2])
+})
+
+test('con «solo questa notte» le notti dopo tornano al valore che avevano', () => {
+  // il 17 ha già un'eccezione messa a mano: tre persone e il letto
+  const conEccezione = cambiaOspitiNotte(QUATTRO_NOTTI(), '2026-09-17', 3, CTX_LENA)
+  assert.deepEqual(conEccezione.map(n => n.persone), [2, 2, 2, 3])
+  assert.deepEqual(conEccezione.map(n => n.letto), [false, false, false, true])
+  // «da qui in poi» dal 15: tutte a 4, eccezione compresa
+  const daQui = ospitiDaNotte(conEccezione, '2026-09-15', 4, true, CTX_LENA)
+  assert.deepEqual(daQui.map(n => n.persone), [2, 4, 4, 4])
+  // tornando a «solo questa notte» l'eccezione del 17 SOPRAVVIVE
+  const solo = ospitiDaNotte(conEccezione, '2026-09-15', 4, false, CTX_LENA)
+  assert.deepEqual(solo.map(n => n.persone), [2, 4, 2, 3])
+  assert.deepEqual(solo.map(n => n.letto), [false, true, false, true])
+})
+
+test('la pagina tiene da parte com’erano le notti, e chiude la domanda quando serve', () => {
+  assert.match(pagina, /const nottiPrima = useRef<\{ iso: string; notti: NotteStriscia\[\] \} \| null>\(null\)/)
+  assert.match(pagina, /if \(nottiPrima\.current\?\.iso !== iso\) nottiPrima\.current = \{ iso, notti: nottiDaPeriodi\(linea\.periodi, camere\) \}/)
+  // la domanda si chiude toccando un'altra notte o cambiando qualcos'altro
+  assert.match(pagina, /function chiudiDomanda\(\) \{ setDomandaOspiti\(null\); nottiPrima\.current = null \}/)
+  assert.match(pagina, /function scegliCameraNotte[\s\S]{0,220}chiudiDomanda\(\)/)
+  assert.match(pagina, /function scegliLettoNotte[\s\S]{0,220}chiudiDomanda\(\)/)
+  assert.match(pagina, /function togliNotte[\s\S]{0,160}chiudiDomanda\(\)/)
+  // e le due voci non tengono più uno stato loro: accesa è quella della pagina
+  assert.match(notteScelta, /acceso=\{!daQui\} onClick=\{\(\) => onOspiti\(notte\.persone, false\)\}/)
+  assert.match(notteScelta, /acceso=\{daQui\} onClick=\{\(\) => onOspiti\(notte\.persone, true\)\}/)
+  assert.doesNotMatch(notteScelta, /useState/)
+})
+
+test('il letto in più non ha una scelta del genere: vale per la notte e basta', () => {
+  const foglio = readFileSync(new URL('../components/nuova/NotteScelta.tsx', import.meta.url), 'utf8')
+  // «No» e «Sì» chiamano indietro solo per quella notte
+  assert.match(foglio, /onClick=\{\(\) => onLetto\(false\)\}/)
+  assert.match(foglio, /onClick=\{\(\) => onLetto\(true\)\}/)
+  const acceso = cambiaLettoNotte(QUATTRO_NOTTI(), '2026-09-15', true, CTX_LENA, { ospitiAParte: true })
+  assert.deepEqual(acceso.map(n => n.letto), [false, true, false, false])
 })
