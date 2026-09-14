@@ -84,7 +84,10 @@ export default function CameraSoggiorno({
         <div className="flex-1 min-w-[120px]">
           <Etichetta testo={ETICHETTA_TARIFFA} />
           <RigaCampo etichetta="€ a notte">
-            <input type="number" inputMode="decimal" data-campo="tariffa" value={tariffa ?? ''} placeholder={tariffaProposta == null ? '' : String(tariffaProposta)}
+            {/* Già scritta appena si sceglie la camera (Ania, 14/09/2026): il
+                listino di casa non cambia mai, quello che cambia è lo sconto.
+                Resta modificabile a mano; svuotandola torna il listino. */}
+            <input type="number" inputMode="decimal" data-campo="tariffa" value={tariffa ?? (tariffaProposta ?? '')}
               onChange={e => onTariffa(e.target.value === '' ? null : Number(e.target.value))} style={stileCampo} />
           </RigaCampo>
         </div>

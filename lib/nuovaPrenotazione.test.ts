@@ -8,7 +8,7 @@ import {
   CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
   totaliScontati, ospitiMassimi, ospitiMassimiPrenotazione, ospitiScegliendoCamera,
 } from './nuovaPrenotazione.ts'
-import { conLettoAutomatico, type PeriodoComposto } from './prenotazioneComposta.ts'
+import { conLettoAutomatico, tariffaProposta, type PeriodoComposto } from './prenotazioneComposta.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
 
 const AMELIA = { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5 }
@@ -444,4 +444,31 @@ test('oltre la capienza senza letto il letto si propone da solo', () => {
   assert.ok(dopo.letto)
   // e la pagina chiede il massimo alle camere, non a un numero fisso
   assert.match(pagina, /ospitiMax=\{ospitiMassimi\(camera, scelte\)\}/)
+})
+
+// ── 2. La tariffa a notte è già scritta (14/09/2026) ────────────────────────
+// Era solo un suggerimento in grigio: Ania la vedeva vuota e scriveva 80 a mano.
+test('scelta la camera, la tariffa a notte porta il listino di quella camera', () => {
+  const periodo = (roomId: string, ospiti: number): PeriodoComposto => (
+    { id: 'a', gruppo: 'g', roomId, checkIn: '2026-10-02', checkOut: '2026-10-04', ospiti, nottiLetto: [], letto: null, tariffa: null })
+  assert.equal(tariffaProposta(periodo(LENA.id, 2), LENA as never), 80)
+  assert.equal(tariffaProposta(periodo(LENA.id, 3), LENA as never), 90)
+  assert.equal(tariffaProposta(periodo(AMELIA.id, 1), AMELIA as never), 70)
+  assert.equal(tariffaProposta(periodo(ALLEGRA.id, 2), ALLEGRA as never), 80)
+
+  // il campo la porta come VALORE, non come scritta in grigio
+  const camera = readFileSync(new URL('../components/nuova/CameraSoggiorno.tsx', import.meta.url), 'utf8')
+  assert.match(camera, /data-campo="tariffa" value=\{tariffa \?\? \(tariffaProposta \?\? ''\)\}/)
+  assert.doesNotMatch(camera, /data-campo="tariffa"[^>]*placeholder/)
+  // e la pagina gliela passa dalla camera scelta
+  assert.match(pagina, /tariffaProposta=\{camera && linea\.periodi\[0\] \? tariffaProposta\(linea\.periodi\[0\], camera\) : null\}/)
+})
+
+test('il conto sta in piedi anche senza toccare la tariffa', () => {
+  const conto = contoNuovaPrenotazione(
+    [{ id: 'a', gruppo: 'g', roomId: LENA.id, checkIn: '2026-10-02', checkOut: '2026-10-04', ospiti: 3, nottiLetto: ['2026-10-02', '2026-10-03'], letto: null, tariffa: null }],
+    () => LENA as never,
+    { tipo: 'nessuno', valore: null },
+  )
+  assert.equal(conto.daPagare, '180 €')   // Lena tripla: 90 a notte, letto compreso
 })
