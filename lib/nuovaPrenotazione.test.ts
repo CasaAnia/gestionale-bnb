@@ -9,6 +9,7 @@ import {
   totaliScontati, ospitiMassimi, ospitiMassimiPrenotazione, ospitiScegliendoCamera,
 } from './nuovaPrenotazione.ts'
 import { conLettoAutomatico, tariffaProposta, type PeriodoComposto } from './prenotazioneComposta.ts'
+import { nottiDaPeriodi, giornoDellaNotte } from './strisciaNotti.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
 
 const AMELIA = { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5 }
@@ -471,4 +472,38 @@ test('il conto sta in piedi anche senza toccare la tariffa', () => {
     { tipo: 'nessuno', valore: null },
   )
   assert.equal(conto.daPagare, '180 €')   // Lena tripla: 90 a notte, letto compreso
+})
+
+// ── 3. La striscia delle notti c'è, con le sue tre righe (14/09/2026) ───────
+// Mancava del tutto finché la camera non era scelta: era il pezzo centrale
+// della pagina e non compariva mai.
+test('la striscia è quella della scheda, non una copia', () => {
+  const camera = readFileSync(new URL('../components/nuova/CameraSoggiorno.tsx', import.meta.url), 'utf8')
+  const scheda = readFileSync(new URL('../app/scheda/[id]/page.tsx', import.meta.url), 'utf8')
+  assert.match(camera, /import StrisciaNottiCamere from '@\/components\/StrisciaNottiCamere'/)
+  assert.match(scheda, /import StrisciaNottiCamere from '@\/components\/StrisciaNottiCamere'/)
+  // sotto l'etichetta «LE NOTTI», subito dopo ospiti e tariffa
+  assert.match(camera, /ETICHETTA_NOTTI = 'Le notti'/)
+  assert.ok(camera.lastIndexOf('ETICHETTA_TARIFFA') < camera.lastIndexOf('ETICHETTA_NOTTI'))
+  // e la pagina la passa SEMPRE, anche prima di scegliere la camera
+  assert.match(pagina, /strisciaNotti=\{notti\}/)
+})
+
+test('ogni notte porta giorno, camera, letto e ospiti', () => {
+  const notti = nottiDaPeriodi([
+    { roomId: LENA.id, checkIn: '2026-10-02', checkOut: '2026-10-04', ospiti: 3, nottiLetto: ['2026-10-02', '2026-10-03'] },
+  ], CAMERE as never)
+  assert.equal(notti.length, 2)
+  assert.deepEqual(notti.map(n => n.camera), ['Lena', 'Lena'])
+  assert.deepEqual(notti.map(n => n.letto), [true, true])
+  assert.deepEqual(notti.map(n => n.persone), [3, 3])
+  assert.equal(giornoDellaNotte('2026-10-02').numero, 2)
+  // senza camera la notte c'è lo stesso, da sistemare
+  const senza = nottiDaPeriodi([{ roomId: null, checkIn: '2026-10-02', checkOut: '2026-10-03', ospiti: 2, nottiLetto: [] }], CAMERE as never)
+  assert.equal(senza.length, 1)
+  assert.equal(senza[0].camera, null)
+  // il foglietto della notte: camera, letto e ospiti di quella notte sola
+  const foglio = readFileSync(new URL('../components/FoglioNotte.tsx', import.meta.url), 'utf8')
+  assert.match(foglio, /solo questa notte/i)
+  assert.match(foglio, /da qui in poi/i)
 })

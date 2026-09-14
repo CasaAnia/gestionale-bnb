@@ -443,7 +443,7 @@ export default function NuovaPrenotazionePage() {
                 ospiti={d.ospiti} onOspiti={n => cambiaLinea(linea.gruppo, { ospiti: n })} ospitiMax={ospitiMassimi(camera, scelte)}
                 tariffa={d.tariffa} tariffaProposta={camera && linea.periodi[0] ? tariffaProposta(linea.periodi[0], camera) : null}
                 onTariffa={v => cambiaLinea(linea.gruppo, { tariffa: v })}
-                strisciaNotti={d.roomId ? notti : []}
+                strisciaNotti={notti}
                 onNotte={n => setNotteAperta({ gruppo: linea.gruppo, iso: n.iso })}
               />
             )

@@ -93,7 +93,10 @@ export default function CameraSoggiorno({
         </div>
       </div>
 
-      {/* le notti: la striscia della scheda, con gli ospiti sotto */}
+      {/* Le notti: la striscia della scheda (StrisciaNottiCamere, lo stesso
+          pezzo, non una copia), con in più gli ospiti sotto ogni notte.
+          Si vede appena ci sono le date, anche prima della camera: le notti
+          senza camera restano col «?» e si sistemano toccandole. */}
       {strisciaNotti.length > 0 && (
         <>
           <Etichetta testo={ETICHETTA_NOTTI} />
