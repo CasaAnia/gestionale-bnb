@@ -51,10 +51,16 @@ export default function FoglioComePaga({ idRighe, idPrima, modo, importo, data, 
       importoCent: importoForm == null ? null : Math.round(importoForm * 100),
       entro: dataForm && oraForm ? `${dataForm}T${oraForm}:00` : null,
     })
-    const esito = await salvaComePaga(campi,
-      c => supabase.from('bookings').update(c).in('id', idRighe),
-      c => supabase.from('bookings').update(c).eq('id', idPrima),
-    )
+    // La via buona è la funzione della proposta 0052: una transazione sola.
+    // Senza, si scrive prima la riga della caparra e poi le altre, così un
+    // guasto a metà non cancella la caparra (rilievo del 15/09/2026).
+    const altre = idRighe.filter(id => id !== idPrima)
+    const esito = await salvaComePaga(campi, {
+      rpc: dati => supabase.rpc('salva_come_paga', { ...dati, p_righe: idRighe, p_prima: idPrima }),
+      scriviPrima: (c: Record<string, unknown>) => supabase.from('bookings').update(c).eq('id', idPrima),
+      scriviAltre: (c: Record<string, unknown>) => supabase.from('bookings').update(c).in('id', altre),
+      quanteAltre: altre.length,
+    })
     setSalvando(false)
     if (esito.esito === 'errore') { setErrore(esito.messaggio); return }
     onSalvato(campi, esito.messaggio)

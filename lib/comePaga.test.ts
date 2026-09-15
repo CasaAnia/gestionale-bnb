@@ -195,8 +195,10 @@ test('la scheda legge «come paga» dalla libreria, non se lo riscrive', () => {
 
 test('il foglio salva il modo su tutte le camere e la caparra una volta sola', () => {
   assert.match(foglio, /import \{ salvaComePaga \} from '@\/lib\/comePagaDati'/)
-  assert.match(foglio, /c => supabase\.from\('bookings'\)\.update\(c\)\.in\('id', idRighe\)/)
-  assert.match(foglio, /c => supabase\.from\('bookings'\)\.update\(c\)\.eq\('id', idPrima\)/)
+  // prima la riga della caparra, poi le altre: l'ordine che non la perde
+  assert.match(foglio, /scriviPrima: \(c: Record<string, unknown>\) => supabase\.from\('bookings'\)\.update\(c\)\.eq\('id', idPrima\)/)
+  assert.match(foglio, /scriviAltre: \(c: Record<string, unknown>\) => supabase\.from\('bookings'\)\.update\(c\)\.in\('id', altre\)/)
+  assert.match(foglio, /const altre = idRighe\.filter\(id => id !== idPrima\)/)
   // e i campi li decide la libreria
   assert.match(foglio, /campiComePaga\(scelta, \{/)
 })
