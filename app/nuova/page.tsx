@@ -89,6 +89,12 @@ function NuovaPrenotazione() {
   const returnTo = returnToSicuro(searchParams.get('returnTo')) || '/prenotazioni'
   const cameraDaUrl = searchParams.get('room_id') || ''
   const arrivoDaUrl = searchParams.get('check_in') || iso(new Date())
+  // Partenza dall'indirizzo: la passa il calendario quando liberi una camera
+  // tenuta e scrivi la prenotazione lì sul momento (Ania, 15/09/2026). Delle
+  // date non viene portato dietro nient'altro: prezzo, sconto e modo di pagare
+  // ripartono da zero.
+  const partenzaDaUrl = searchParams.get('check_out') || ''
+  const partenzaIniziale = partenzaDaUrl > arrivoDaUrl ? partenzaDaUrl : piuUnGiorno(arrivoDaUrl)
   const clienteDaUrl = searchParams.get('guest_id') || ''
   const gruppoDaUrl = searchParams.get('group_id') || ''
   const prenotazioneDaUrl = searchParams.get('prenotazione') || ''
@@ -124,7 +130,7 @@ function NuovaPrenotazione() {
   // ── camere e periodi ──────────────────────────────────────────────────────
   const [periodi, setPeriodi] = useState<PeriodoComposto[]>([{
     id: nuovoId(), gruppo: gruppoDaUrl || nuovoId(), roomId: cameraDaUrl || null,
-    checkIn: arrivoDaUrl, checkOut: piuUnGiorno(arrivoDaUrl), ospiti: 2, nottiLetto: [], letto: null, tariffa: null,
+    checkIn: arrivoDaUrl, checkOut: partenzaIniziale, ospiti: 2, nottiLetto: [], letto: null, tariffa: null,
   }])
   const [cambioSu, setCambioSu] = useState<string | null>(null)
   const [cambio, setCambio] = useState({ roomId: '', dal: '', tariffa: '' })
@@ -329,7 +335,7 @@ function NuovaPrenotazione() {
     const ultimo = periodi[periodi.length - 1]
     setPeriodi(ps => [...ps, {
       id: nuovoId(), gruppo: nuovoId(), roomId: null,
-      checkIn: ultimo?.checkIn ?? arrivoDaUrl, checkOut: ultimo?.checkOut ?? piuUnGiorno(arrivoDaUrl),
+      checkIn: ultimo?.checkIn ?? arrivoDaUrl, checkOut: ultimo?.checkOut ?? partenzaIniziale,
       ospiti: 2, nottiLetto: [], letto: null, tariffa: null,
     }])
   }

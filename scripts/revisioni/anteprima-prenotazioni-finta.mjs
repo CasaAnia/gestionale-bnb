@@ -248,7 +248,40 @@ const family_groups = [{ id: 'eeeeeeee-0001-4000-8000-000000000001', name: 'Casa
 const family_categories = []
 const family_product_rules = []
 const family_expenses = []
-const tabelle = { rooms, guests, bookings, payments, cleanings, documenti_cliente, strutture, booking_events, booking_whatsapp_log, family_groups, family_categories, family_product_rules, family_expenses }
+// Camere TENUTE da una proposta (15/09/2026): il calendario le disegna
+// tratteggiate. Tre casi apposta, tutti intorno al 20 settembre:
+//   · Bruni Marta  — Ambra 20→22, paga all'ARRIVO, mandata poco fa  → barra
+//     bianca tratteggiata, ancora tenuta (3 ore), con il letto in più;
+//   · Conti Luigi  — Allegra 20→22, CAPARRA, mandata dieci ore fa   → barra a
+//     righine, ancora tenuta (24 ore);
+//   · Vitale Rosa  — Amelia 24→26, paga all'arrivo, mandata ieri    → tenuta
+//     SCADUTA: barra smorzata, la camera si può dare.
+// Contate da ADESSO davvero, non dal «primo settembre» finto degli altri dati:
+// una tenuta si vede solo se è ancora viva rispetto all'orologio di chi guarda.
+const oraMeno = (minuti) => new Date(Date.now() - minuti * 60000).toISOString()
+const richiestaFinta = (id, nome, cognome, telefono, condizione, minutiFa, segmenti, extra = {}) => ({
+  id, nome, cognome, telefono, stato: 'proposta_inviata',
+  condizione_pagamento: condizione, caparra_centesimi: condizione === 'caparra' ? 8500 : null,
+  created_at: oraMeno(minutiFa + 120), proposta_inviata_at: oraMeno(minutiFa),
+  arrivo: segmenti[0].arrivo, partenza: segmenti[segmenti.length - 1].partenza,
+  persone: 2, camera_id: segmenti[0].camera.id, canale: 'sito', chiusa_at: null,
+  prenotazione_id: null, chiusura_motivo: null, motivo_rifiuto: null,
+  proposta_soluzione: { caso: 'completa', segmenti }, proposta_alternative: null, ...extra,
+})
+const segmentoFinto = (cameraId, nome, arrivo, partenza, lettoNotti = [], totale = 170) => ({
+  camera: { id: cameraId, name: nome, active: true }, arrivo, partenza,
+  notti: lettoNotti.length || 2, totale, prezzoNotte: 80, lettoNotti, lettoTotale: lettoNotti.length * 10,
+  personeNotti: lettoNotti.length > 0 ? [3, 3] : [2, 2],
+})
+const richieste = [
+  richiestaFinta('dddd0001-0001-4000-8000-000000000001', 'Marta', 'Bruni', '+393331112221', 'arrivo', 30,
+    [segmentoFinto(ROOM.ambra, 'Ambra', '2026-09-20', '2026-09-22', ['2026-09-20', '2026-09-21'], 190)]),
+  richiestaFinta('dddd0002-0002-4000-8000-000000000002', 'Luigi', 'Conti', '+393331112222', 'caparra', 60 * 10,
+    [segmentoFinto(ROOM.allegra, 'Allegra', '2026-09-20', '2026-09-22', [], 170)]),
+  richiestaFinta('dddd0003-0003-4000-8000-000000000003', 'Rosa', 'Vitale', '+393331112223', 'arrivo', 60 * 20,
+    [segmentoFinto(ROOM.amelia, 'Amelia', '2026-09-24', '2026-09-26', [], 140)]),
+]
+const tabelle = { rooms, guests, bookings, payments, cleanings, documenti_cliente, strutture, booking_events, booking_whatsapp_log, family_groups, family_categories, family_product_rules, family_expenses, richieste }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
 
 // --- PostgREST minimale ---------------------------------------------------
@@ -435,6 +468,16 @@ const finto = createServer((req, res) => {
       guests.push(nuovo)
       const accept = req.headers.accept || ''
       return rispondi(res, 201, accept.includes('vnd.pgrst.object') ? applicaSelect(nuovo, url.searchParams.get('select') || '*') : [applicaSelect(nuovo, url.searchParams.get('select') || '*')])
+    })
+  }
+  // Liberare una camera tenuta (15/09/2026): la richiesta cambia stato, non sparisce
+  if (m && req.method === 'PATCH' && m[1] === 'richieste') {
+    return leggiCorpo(req).then(corpo => {
+      const righe = righeFiltrate('richieste', url)
+      for (const r of righe) Object.assign(r, corpo)
+      // il nome per intero lo compone solo lib/guestName: qui basta il cognome
+      console.log(`[finto supabase] richieste aggiornate: ${righe.map(r => `${r.cognome} → ${r.stato}/${r.motivo_rifiuto ?? '-'}`).join(', ') || 'nessuna'}`)
+      return rispondi(res, 200, righe)
     })
   }
   if (m && req.method === 'PATCH' && (m[1] === 'bookings' || m[1] === 'documenti_cliente' || m[1] === 'guests')) {

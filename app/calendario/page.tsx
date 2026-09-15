@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { prezzoPrenotazione } from '@/lib/prezzoNotti'
 import { useRouter } from 'next/navigation'
@@ -24,13 +24,22 @@ import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA, inizioQuindicina } from '@/lib/richiesteCalendario'
+import { formatIntervallo as formatIntervalloBreve } from '@/lib/richieste'
 import { giornoDaParametro } from '@/lib/daControllare'
 import { vuoleRicevuta as clienteVuoleRicevuta, BADGE_RICEVUTA } from '@/lib/valutazione'
 import { VociLegenda, PannelloLegenda } from '@/components/LegendaCalendario'
 import { areaTocco, CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, COLOR_PRENOTAZIONE, COLOR_BONIFICO, COLOR_PAGATO } from '@/lib/calendarioMobile'
 import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
+import {
+  barreTenute, barrePerCamera, lettiTenutiPerNotte, testoTenuta, comeDovevaPagare, segniDellaBarra,
+  type BarraTenuta, type RichiestaTenuta,
+} from '@/lib/calendarioOpzioni'
+import { campiLibera, indirizzoPrenotazioneNuova, testoConferma, quandoInParole, type MotivoLibera } from '@/lib/opzioneLibera'
 
 const ROOM_ORDER = ['Amelia', 'Allegra', 'Ambra', 'Lena']
+
+// L'ottone della casa: il colore delle camere tenute da una proposta
+const OTTONE = '#A9884E'
 
 // Fattore di ingrandimento della griglia (1 = originale). Scala misure e testi.
 const GRID_SCALE = 1.2
@@ -225,6 +234,14 @@ export default function Calendario() {
 
   // Somma acconti per prenotazione (vuota se la tabella payments non è ancora migrata)
   const [accontiByBooking, setAccontiByBooking] = useState<Record<string, number>>({})
+  // Camere tenute da una proposta (15/09/2026): le barre tratteggiate, il
+  // foglietto che si apre toccandole e il pop-up di conferma.
+  const [richiesteTenute, setRichiesteTenute] = useState<RichiestaTenuta[]>([])
+  const [adesso, setAdesso] = useState<Date>(() => new Date())
+  const [barraAperta, setBarraAperta] = useState<BarraTenuta | null>(null)
+  const [confermaLibera, setConfermaLibera] = useState<{ barra: BarraTenuta; prenotaDopo: boolean } | null>(null)
+  const [liberando, setLiberando] = useState(false)
+  const [avvisoTenuta, setAvvisoTenuta] = useState<string | null>(null)
 
   // Notti coperte dagli acconti per prenotazione (-1 = tutte). Nei soggiorni con
   // cambio camera i soldi ricevuti "scorrono" lungo tutta la catena in ordine di
@@ -254,6 +271,17 @@ export default function Calendario() {
     return map
   }, [bookings, accontiByBooking, rooms])
 
+  // Le richieste con una proposta in giro: tengono una camera, e il calendario
+  // lo deve dire (Ania, 15/09/2026). Se il database è indietro di una colonna
+  // non si perde tutto: si rilegge senza, e l'opzione vale tre ore per tutti.
+  const leggiTenute = useCallback(async () => {
+    const colonne = 'id, nome, cognome, stato, telefono, proposta_inviata_at, proposta_soluzione, proposta_alternative'
+    const conCondizione = await supabase.from('richieste').select(`${colonne}, condizione_pagamento`).eq('stato', 'proposta_inviata')
+    if (!conCondizione.error) return (conCondizione.data ?? []) as unknown as RichiestaTenuta[]
+    const base = await supabase.from('richieste').select(colonne).eq('stato', 'proposta_inviata')
+    return (base.data ?? []) as unknown as RichiestaTenuta[]
+  }, [])
+
   useEffect(() => {
     Promise.all([
       supabase.from('rooms').select('*').eq('active', true),
@@ -272,7 +300,18 @@ export default function Calendario() {
       setAccontiByBooking(sums)
       setLoading(false)
     })
+    leggiTenute().then(setRichiesteTenute)
+  }, [leggiTenute])
+
+  // L'ora avanza da sola: una tenuta scade mentre guardi il calendario, e la
+  // barra deve smorzarsi senza che tu ricarichi la pagina.
+  useEffect(() => {
+    const t = setInterval(() => setAdesso(new Date()), 60000)
+    return () => clearInterval(t)
   }, [])
+
+  const barre = useMemo(() => barreTenute(richiesteTenute, adesso), [richiesteTenute, adesso])
+  const lettiTenuti = useMemo(() => lettiTenutiPerNotte(barre), [barre])
 
   useEffect(() => {
     if (!loading && scrollRef.current) {
@@ -432,6 +471,34 @@ export default function Calendario() {
         setDaysTotal(DAYS_TOTAL)
         vaiAOggi()
       }
+    }
+  }
+
+  // Libera una camera tenuta (15/09/2026). La richiesta NON si cancella mai:
+  // passa a «chiusa» col motivo vero — «date assegnate a un altro» se la camera
+  // va a chi è al telefono — e resta in archivio con nome, telefono, date e
+  // prezzo proposto. Se qualcosa non va, lo si dice e non si prosegue: meglio
+  // restare sul calendario che aprire una pagina nuova su una camera ancora tenuta.
+  async function liberaCamera(barra: BarraTenuta, prenotaDopo: boolean) {
+    if (liberando) return
+    setLiberando(true)
+    const motivo: MotivoLibera = prenotaDopo ? 'un_altro_cliente' : 'liberata'
+    const { error } = await supabase.from('richieste')
+      .update(campiLibera(motivo, new Date()))
+      .eq('id', barra.richiestaId)
+      .eq('stato', 'proposta_inviata')
+    setLiberando(false)
+    setConfermaLibera(null)
+    if (error) {
+      setAvvisoTenuta(`La camera non è stata liberata: ${error.message}`)
+      return
+    }
+    setBarraAperta(null)
+    setAvvisoTenuta(null)
+    setRichiesteTenute(prima => prima.filter(r => r.id !== barra.richiestaId))
+    if (prenotaDopo) {
+      ricordaPosizione()
+      router.push(indirizzoPrenotazioneNuova(barra.arrivo, barra.partenza))
     }
   }
 
@@ -975,6 +1042,50 @@ export default function Calendario() {
                       )
                     })
                   })}
+
+                  {/* ── CAMERE TENUTE DA UNA PROPOSTA (15/09/2026) ──
+                      Bianca tratteggiata = paga all'arrivo, risposta in poche
+                      ore. A righine = paga in anticipo, può volerci un giorno.
+                      Smorzata = la tenuta è già scaduta: la camera si può dare. */}
+                  {barrePerCamera(barre, room.id).map(barra => {
+                    const startIdx = Math.max(0, dayIndex(barra.arrivo))
+                    const endIdx = Math.min(daysTotal, dayIndex(barra.partenza))
+                    if (endIdx - startIdx <= 0) return null
+                    const insetV = 6, insetH = 2
+                    const larghezza = (endIdx - startIdx) * CELL_W - insetH * 2
+                    const altezza = ROW_H - insetV * 2
+                    const righine = 'repeating-linear-gradient(45deg, rgba(169,136,78,0.22) 0 5px, rgba(255,255,255,0.95) 5px 10px)'
+                    return (
+                      <div key={`tenuta-${barra.richiestaId}-${barra.cameraId}-${barra.arrivo}`}
+                        data-tenuta={barra.anticipato ? 'anticipato' : 'arrivo'}
+                        onClick={(e) => { e.stopPropagation(); setBarraAperta(barra) }}
+                        title={`${barra.ospite} · ${testoTenuta(barra, adesso)}`}
+                        style={{
+                          position: 'absolute',
+                          top: rowTop + insetV,
+                          left: NAME_W + startIdx * CELL_W + insetH,
+                          width: larghezza,
+                          height: altezza,
+                          background: barra.anticipato ? righine : '#FFFDF7',
+                          border: `2px dashed ${OTTONE}`,
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          overflow: 'hidden',
+                          opacity: barra.scaduta ? 0.55 : 1,
+                          zIndex: 5,
+                        }}>
+                        <span style={{ color: '#7a5f2c', fontSize: isDesktop ? 11 : 10, fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                          {barra.ospite}
+                        </span>
+                        <span style={{ color: '#7a5f2c', fontSize: 9, fontWeight: 700, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', lineHeight: 1.2 }}>
+                          {segniDellaBarra(barra)}
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
               )
             })}
@@ -994,11 +1105,21 @@ export default function Calendario() {
                     const count = extraBedsMap.get(dateStr) || 0
                     const isFull = statoLettiAggiuntivi(count) === 'esauriti'
                     const isToday = dateStr === todayStr
+                    // Letti TENUTI da una proposta: promessi, non ancora
+                    // prenotati. Vanno accanto al conto vero, dentro un
+                    // riquadro tratteggiato (Ania, 15/09/2026).
+                    const tenuti = lettiTenuti.get(dateStr) || 0
                     return (
-                      <div key={i} style={{ width: CELL_W, minWidth: CELL_W, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isFull ? COLORE_LETTI_ESAURITI : isToday ? '#F3ECD8' : 'white', borderLeft: isToday && !isFull ? '2px solid #F3ECD8' : '1px solid #ECE8DD' }}>
+                      <div key={i} style={{ width: CELL_W, minWidth: CELL_W, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, background: isFull ? COLORE_LETTI_ESAURITI : isToday ? '#F3ECD8' : 'white', borderLeft: isToday && !isFull ? '2px solid #F3ECD8' : '1px solid #ECE8DD' }}>
                         {count > 0 && (
                           <span style={{ fontSize: 11, fontWeight: 700, color: isFull ? 'white' : '#7A4B22' }}>
                             {count}/{EXTRA_BED_MAX}
+                          </span>
+                        )}
+                        {tenuti > 0 && (
+                          <span data-letti-tenuti title={`${tenuti} ${tenuti === 1 ? 'letto tenuto' : 'letti tenuti'} da una proposta`}
+                            style={{ fontSize: 10, fontWeight: 700, color: '#7a5f2c', background: '#FFFDF7', border: `1.5px dashed ${OTTONE}`, borderRadius: 5, padding: '0 4px', lineHeight: 1.5 }}>
+                            {tenuti}
                           </span>
                         )}
                       </div>
@@ -1036,6 +1157,87 @@ export default function Calendario() {
         </div>
       )}
       {legendaAperta && <PannelloLegenda onChiudi={() => setLegendaAperta(false)} />}
+
+      {/* ── FOGLIETTO DELLA CAMERA TENUTA (15/09/2026) ──
+          Si apre toccando una barra tratteggiata: per chi è tenuta, fino a
+          quando, come doveva pagare. Da qui si libera la camera, o si libera e
+          si scrive subito una prenotazione nuova per chi è al telefono. */}
+      {barraAperta && !confermaLibera && (
+        <div role="dialog" aria-label="Camera tenuta" data-foglietto-tenuta
+          onClick={() => setBarraAperta(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(31,61,47,0.35)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()}
+            className="ed-riquadro w-full"
+            style={{ maxWidth: 520, borderRadius: '14px 14px 0 0', padding: '14px 16px 22px' }}>
+            <div style={{ width: 38, height: 4, borderRadius: 99, background: '#D9D3C4', margin: '0 auto 12px' }} />
+            <p className="ed-sezione">Camera tenuta</p>
+            <p className="titolo-classico" style={{ fontSize: 22, margin: '0 0 2px' }}>{barraAperta.ospite}</p>
+            <p className="text-[13px] text-gray-600 leading-relaxed">
+              <b>{barraAperta.cameraNome}</b> · {formatIntervalloBreve(barraAperta.arrivo, barraAperta.partenza)} · {barraAperta.notti.length} {barraAperta.notti.length === 1 ? 'notte' : 'notti'} · {barraAperta.persone} {barraAperta.persone === 1 ? 'persona' : 'persone'}{barraAperta.lettoNotti.length > 0 ? ' + letto' : ''}
+            </p>
+            {barraAperta.alternativa && (
+              <p className="text-[12px] text-gray-500 mt-1">Camera proposta come alternativa, insieme alle altre.</p>
+            )}
+            <div className="ed-riga mt-2">
+              <p className="text-[13px] text-gray-600">
+                {comeDovevaPagare(barraAperta)}
+                {' · '}
+                <span style={{ color: barraAperta.scaduta ? '#8C3B2E' : '#7a5f2c', fontWeight: 700 }}>{testoTenuta(barraAperta, adesso)}</span>
+              </p>
+            </div>
+            {barraAperta.prezzo !== null && (
+              <div className="ed-riga">
+                <p className="text-[13px] text-gray-600">Prezzo proposto <b>{barraAperta.prezzo.toLocaleString('it-IT')} €</b></p>
+                <p className="text-[12px] text-gray-400 mt-0.5">Questo accordo era per {barraAperta.ospite}: nella prenotazione nuova non viene portato dietro.</p>
+              </div>
+            )}
+            {avvisoTenuta && <p className="text-[13px] mt-3" style={{ color: '#8C3B2E' }}>{avvisoTenuta}</p>}
+            <div className="flex flex-col gap-2 mt-4">
+              <button type="button" className="ed-pillola" style={{ minHeight: 44 }}
+                onClick={() => { setAvvisoTenuta(null); setConfermaLibera({ barra: barraAperta, prenotaDopo: true }) }}>
+                Libera e fai una prenotazione nuova
+              </button>
+              <button type="button" className="ed-pillola-contorno" style={{ minHeight: 44 }}
+                onClick={() => { setAvvisoTenuta(null); setConfermaLibera({ barra: barraAperta, prenotaDopo: false }) }}>
+                Libera la camera
+              </button>
+              <button type="button" className="ed-pillola-tenue" style={{ minHeight: 44 }}
+                onClick={() => { ricordaPosizione(); router.push(`/richieste/${barraAperta.richiestaId}`) }}>
+                Apri la richiesta di {barraAperta.ospite}
+              </button>
+              <button type="button" className="ed-azione self-center" onClick={() => setBarraAperta(null)}>Chiudi</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── IL POP-UP: niente si muove senza un sì (Ania, 15/09/2026) ── */}
+      {confermaLibera && (() => {
+        const { barra, prenotaDopo } = confermaLibera
+        const testo = testoConferma({
+          camera: barra.cameraNome, ospite: barra.ospite,
+          quando: quandoInParole(barra.notti), prenotaDopo,
+        })
+        return (
+          <div role="dialog" aria-label={testo.titolo} data-conferma-tenuta
+            style={{ position: 'fixed', inset: 0, background: 'rgba(31,61,47,0.45)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div className="ed-riquadro w-full" style={{ maxWidth: 420, padding: 18 }}>
+              <p className="titolo-classico" style={{ fontSize: 22, margin: '0 0 10px' }}>{testo.titolo}</p>
+              {testo.righe.map(r => <p key={r} className="text-[13px] text-gray-600 leading-relaxed mb-1.5">{r}</p>)}
+              <div className="flex flex-col gap-2 mt-4">
+                <button type="button" className="ed-pillola" style={{ minHeight: 44 }} disabled={liberando}
+                  onClick={() => liberaCamera(barra, prenotaDopo)}>
+                  {liberando ? 'Un attimo…' : testo.conferma}
+                </button>
+                <button type="button" className="ed-pillola-tenue" style={{ minHeight: 44 }} disabled={liberando}
+                  onClick={() => setConfermaLibera(null)}>
+                  Annulla
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
