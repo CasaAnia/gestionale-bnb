@@ -28,6 +28,13 @@ export type RichiestaRiquadro = {
   id: string
   created_at: string
   stato: string
+  /** il collegamento alla prenotazione: serve al controllo di coerenza */
+  prenotazione_id?: string | null
+  chiusa_at?: string | null
+  telefono?: string | null
+  arrivo?: string | null
+  nome?: string | null
+  cognome?: string | null
   chiusura_motivo?: string | null
   motivo_rifiuto?: string | null
   camera_id: string | null
@@ -39,10 +46,12 @@ export type CameraNome = { id: string; name: string }
 
 export type RigaCamera = { nome: string; chiesta: number; nonEraLibera: number | null; diventata: number }
 export type RiquadroRichieste = {
-  arrivate: number
+  /** tutte quelle arrivate nel periodo, aperte comprese (15/09/2026) */
+  ricevute: number
+  arrivate: number                      // di quelle ricevute, le sole ormai chiuse: è il denominatore delle percentuali
   inCorso: number                       // arrivate nel periodo ma ancora aperte: NON contate sopra
   diventatePrenotazioni: number
-  percentoPrenotazioni: number          // su arrivate, arrotondato
+  percentoPrenotazioni: number          // su arrivate (le chiuse), arrotondato
   scaduteSenzaRisposta: number
   dettoNo: number
   dateAdAltro: number
@@ -55,11 +64,12 @@ export type RiquadroRichieste = {
 export const NOME_QUALSIASI = 'Qualsiasi'
 const APERTA = new Set(['in_attesa', 'proposta_inviata'])
 
-// Giorno locale (YYYY-MM-DD) di un timestamp: il browser di Ania è a Roma
+// Il giorno (YYYY-MM-DD) di un timestamp, contato come lo conta Roma: non
+// come lo conta il browser, che può essere altrove (15/09/2026).
 export function giornoLocale(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
 }
 
 const segmentiSoluzione = (r: RichiestaRiquadro): SegmentoCamera[] => r.proposta_soluzione?.segmenti ?? []
@@ -105,6 +115,7 @@ export function riquadroRichieste(richieste: RichiestaRiquadro[], camere: Camera
   const alternativaNonAccettata = chiuse.filter(r => cameraNonEraLibera(r) && nonRispostoODettoNo(r)).length
 
   return {
+    ricevute: nelPeriodo.length,
     arrivate: chiuse.length,
     inCorso: inCorso.length,
     diventatePrenotazioni: confermate.length,

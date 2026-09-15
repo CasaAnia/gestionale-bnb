@@ -111,3 +111,27 @@ test('periodo vuoto: tutti zeri, righe delle camere presenti', () => {
   assert.equal(r.perCamera.length, 5)
   assert.deepEqual(r.accettatoDiversa, { si: 0, su: 0 })
 })
+
+// ── Rilievo 3 del 15/09/2026: «Arrivate» diceva soltanto le chiuse ─────────
+test('ricevute = tutte quelle del periodo, aperte comprese; arrivate resta il denominatore', () => {
+  const lista = [
+    ric({ stato: 'confermata' }),
+    ric({ stato: 'chiusa', chiusura_motivo: 'scaduta' }),
+    ric({ stato: 'in_attesa' }),
+    ric({ stato: 'proposta_inviata' }),
+    ric({ stato: 'confermata', created_at: '2026-10-02T09:00:00' }),   // ottobre: fuori
+  ]
+  const r = riquadroRichieste(lista, CAMERE, ...SET)
+  assert.equal(r.ricevute, 4, 'quattro arrivate a settembre')
+  assert.equal(r.inCorso, 2)
+  assert.equal(r.arrivate, 2, 'le sole già chiuse')
+  assert.equal(r.ricevute, r.inCorso + r.arrivate, 'i tre numeri tornano fra loro')
+  assert.equal(r.percentoPrenotazioni, 50, 'la percentuale resta sulle chiuse')
+})
+
+test('senza richieste i tre numeri sono zero', () => {
+  const r = riquadroRichieste([], CAMERE, ...SET)
+  assert.equal(r.ricevute, 0)
+  assert.equal(r.inCorso, 0)
+  assert.equal(r.arrivate, 0)
+})

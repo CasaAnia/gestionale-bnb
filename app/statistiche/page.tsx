@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import BackBar from '@/components/BackBar'
 import AvvisoAzione from '@/components/AvvisoAzione'
@@ -17,7 +17,7 @@ import { supabase } from '@/lib/supabase'
 import { nomeOspite } from '@/lib/guestName'
 import { messaggioNonSalvato } from '@/lib/scritturaSicura'
 import { isErroreDiRete } from '@/lib/connessione'
-import { cassaIntervallo, incassiCent, occupazioneIntervallo, indiciIntervallo, indiciAnnoPrima, confrontoKpi, riquadroRichieste, ricaviPerCamera, scontiPeriodo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi, rpcMancante, vociPerRpc, validaEsitoRicostruzione, type Occupazione } from '@/lib/statistiche'
+import { cassaIntervallo, incassiCent, occupazioneIntervallo, indiciIntervallo, indiciAnnoPrima, confrontoKpi, riquadroRichieste, incoerenzeRichieste, ricaviPerCamera, scontiPeriodo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi, rpcMancante, vociPerRpc, validaEsitoRicostruzione, type Occupazione } from '@/lib/statistiche'
 import { periodoCompatto } from '@/lib/dateItaliane'
 
 // «Statistiche, numeri corretti» (05/09/2026): NESSUNA formula in questa
@@ -243,6 +243,14 @@ export default function Statistiche() {
   const siteStats = data ? buildSiteFunnel(data.eventiSito as SiteEvent[], period, ref) : null
   // Riquadro «Richieste» (07/09/2026): richieste arrivate nel periodo e ormai chiuse (lib/statistiche/richiesteRiquadro)
   const richiesteRiquadro = data ? riquadroRichieste(data.richieste, data.camere, intervallo.da, intervallo.a) : null
+  // Controllo di coerenza (15/09/2026): il riquadro conta per stato, ma se una
+  // richiesta confermata non ha una prenotazione viva — o una chiusa ce l'ha —
+  // lo si dice. Non si cambia nessuno stato da qui: lo decide Ania.
+  const richiesteDaGuardare = useMemo(() => {
+    if (!data) return []
+    const prenotazioni = data.prenotazioni.map(b => ({ id: b.id, status: b.status, check_in: b.check_in }))
+    return incoerenzeRichieste(data.richieste, prenotazioni)
+  }, [data])
   const titoloRichieste = period === 'mese' ? MESI_NOMI[ref.getMonth()].toLowerCase() : period === 'anno' ? String(ref.getFullYear()) : periodLabel(ref, period)
   const label = periodLabel(ref, period)
   const current = isCurrentPeriod(ref, period)
@@ -411,6 +419,7 @@ export default function Statistiche() {
                 <div>
                   <p className="text-sm font-semibold text-gray-600">Sito e richieste</p>
                   <p className="text-xs text-gray-400">dati anonimi · {label}</p>
+                  <p className="text-xs text-gray-400">conteggio indicativo del sito: il numero vero delle richieste è nel riquadro «Richieste»</p>
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-bold text-green-mid">{siteStats.conversioneVisita}%</p>
@@ -477,15 +486,31 @@ export default function Statistiche() {
             </div>
           )}
 
-          {/* Riquadro «Richieste» (07/09/2026): arrivate nel periodo e chiuse; le in corso non contano */}
+          {/* Riquadro «Richieste» (07/09/2026): arrivate nel periodo; dal 15/09/2026 si vedono
+              separate le ancora in corso e le già chiuse, e la percentuale dichiara la sua base */}
           {richiesteRiquadro && (
             <div className="ed-riga py-4 mb-4" data-richieste>
               <p className="text-sm font-semibold text-gray-600">Richieste · {titoloRichieste}</p>
-              <p className="text-xs text-gray-400 mb-3">dal sito, da telefono e WhatsApp{richiesteRiquadro.inCorso > 0 ? ` · ${richiesteRiquadro.inCorso} ancora in corso, non ${richiesteRiquadro.inCorso === 1 ? 'contata' : 'contate'}` : ''}</p>
+              <p className="text-xs text-gray-400 mb-3">dal sito, da telefono e WhatsApp · contate nel mese in cui sono arrivate, non in quello della risposta</p>
+              {richiesteDaGuardare.length > 0 && (
+                <p data-richieste-da-guardare className="text-xs mb-3" style={{ color: '#A9884E' }}>
+                  {richiesteDaGuardare.length === 1 ? '1 richiesta da guardare' : `${richiesteDaGuardare.length} richieste da guardare`}: lo stato non torna con la prenotazione collegata.
+                </p>
+              )}
               <div className="text-sm">
                 <div className="flex items-baseline justify-between py-1.5 border-b border-[#C9BFA8]">
                   <span className="text-gray-600">Arrivate</span>
-                  <span className="font-bold text-green-dark text-base">{richiesteRiquadro.arrivate}</span>
+                  <span className="font-bold text-green-dark text-base">{richiesteRiquadro.ricevute}</span>
+                </div>
+                {richiesteRiquadro.inCorso > 0 && (
+                  <div className="flex items-baseline justify-between py-1.5 border-b border-gray-100">
+                    <span className="text-gray-600">Ancora in corso</span>
+                    <span className="font-semibold text-gray-500">{richiesteRiquadro.inCorso}</span>
+                  </div>
+                )}
+                <div className="flex items-baseline justify-between py-1.5 border-b border-[#C9BFA8]">
+                  <span className="text-gray-600">Già chiuse</span>
+                  <span className="font-semibold text-green-dark">{richiesteRiquadro.arrivate}</span>
                 </div>
                 {([
                   ['Diventate prenotazioni', richiesteRiquadro.diventatePrenotazioni, `${richiesteRiquadro.percentoPrenotazioni}%`],
@@ -500,6 +525,7 @@ export default function Statistiche() {
                   </div>
                 ))}
               </div>
+              <p className="text-xs text-gray-400 mt-1.5">Le voci qui sopra e la percentuale contano sulle {richiesteRiquadro.arrivate} già chiuse.</p>
               <p className="text-xs font-semibold text-gray-500 mt-4 mb-1.5">Per camera chiesta</p>
               <div className="rounded-lg border border-[#C9BFA8] overflow-hidden text-xs">
                 <div className="grid grid-cols-[1fr_0.8fr_1.1fr_1fr] gap-x-1.5 bg-gray-50 px-2 py-1.5 font-semibold text-gray-500 leading-tight">
