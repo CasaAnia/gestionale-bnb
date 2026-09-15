@@ -19,7 +19,7 @@ async function esegui(req: NextRequest) {
   const supabase = createAdminClient()
   const adesso = new Date()
   const { data, error } = await supabase.from('richieste')
-    .select('id, nome, cognome, stato, arrivo, partenza, proposta_inviata_at, scadenza_notificata_at, proposta_soluzione')
+    .select('id, nome, cognome, stato, arrivo, partenza, proposta_inviata_at, condizione_pagamento, scadenza_notificata_at, proposta_soluzione')
     .eq('stato', 'proposta_inviata').not('proposta_inviata_at', 'is', null)
   if (error) return NextResponse.json({ error: `lettura richieste: ${error.message}` }, { status: 500 })
   const righe = (data ?? []) as unknown as RichiestaScadenza[]

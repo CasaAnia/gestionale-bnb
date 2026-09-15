@@ -1,7 +1,7 @@
 // Opzione di 3 ore (06/09/2026): notti e camere in opzione, note, scadenze
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { opzioniAttive, opzioniScadute, occupantiDaOpzioni, notaOpzioni, nottiInOpzione, scadenzaOpzione, oraRoma, ORE_OPZIONE } from './opzioni.ts'
+import { opzioniAttive, opzioniScadute, occupantiDaOpzioni, notaOpzioni, nottiInOpzione, scadenzaOpzione, oraRoma, ORE_OPZIONE, oreOpzione, pagaInAnticipo } from './opzioni.ts'
 import { proponiSoluzioni } from './richiesteProposta.ts'
 import { camereAmmesseNotte } from './richiesteComposizione.ts'
 
@@ -77,4 +77,26 @@ test('bozza di proposta e «Scelgo io» calcolate su confermate + opzioni attive
   // dopo le 3 ore: nessuna opzione attiva, Ambra torna fra le proponibili
   const dopo = occupantiDaOpzioni(opzioniAttive([mario], new Date('2026-09-17T15:00:00Z')))
   assert.deepEqual(camereAmmesseNotte(0, nuova, LISTINO, dopo).map(c => c.id).sort(), ['allegra', 'ambra'])
+})
+
+// ── Ania, 15/09/2026: tre ore all'arrivo, ventiquattro in anticipo ─────────
+test('l’opzione tiene 3 ore per chi paga all’arrivo e 24 per chi paga prima', () => {
+  assert.equal(oreOpzione('arrivo'), 3)
+  assert.equal(oreOpzione(null), 3, 'una richiesta vecchia vale come «all’arrivo»')
+  assert.equal(oreOpzione(undefined), 3)
+  assert.equal(oreOpzione('caparra'), 24)
+  assert.equal(oreOpzione('completo'), 24)
+  assert.equal(oreOpzione('personalizzata'), 24)
+  assert.equal(pagaInAnticipo('arrivo'), false)
+  assert.equal(pagaInAnticipo('caparra'), true)
+})
+
+test('la scadenza segue la condizione di pagamento', () => {
+  const base = { id: 'r', nome: 'Marta', cognome: 'Bruni', stato: 'proposta_inviata', proposta_inviata_at: '2026-09-20T12:00:00Z' }
+  assert.equal(scadenzaOpzione({ ...base, condizione_pagamento: 'arrivo' })?.toISOString(), '2026-09-20T15:00:00.000Z')
+  assert.equal(scadenzaOpzione({ ...base, condizione_pagamento: 'caparra' })?.toISOString(), '2026-09-21T12:00:00.000Z')
+  // e con la caparra la camera è ancora tenuta quando quella all'arrivo è già caduta
+  const dopoQuattroOre = new Date('2026-09-20T16:00:00Z')
+  assert.equal(opzioniAttive([{ ...base, condizione_pagamento: 'arrivo' }], dopoQuattroOre).length, 0)
+  assert.equal(opzioniScadute([{ ...base, condizione_pagamento: 'arrivo' }], dopoQuattroOre).length, 0, 'senza segmenti non c’è niente da elencare')
 })

@@ -5,11 +5,25 @@
 // ad altri; dopo, l'opzione cade da sola e resta solo una nota. Solo regole
 // pure: chi legge il database sta in lib/richiesteDati e nella pagina.
 import { ORE_SCADENZA_PROPOSTA, nomeCompleto } from './richieste.ts'
+import { ORE_RISERVA_BONIFICO, type CondizionePagamento } from './condizioniPrenotazione.ts'
 import { giorniTra, siSovrappone, STATI_CHE_OCCUPANO } from './disponibilita.ts'
 import type { PrenotazioneOccupante } from './richiesteProposta.ts'
 
 export const ORE_OPZIONE = ORE_SCADENZA_PROPOSTA
 export const ORE_CHIUSURA_DOPO_SCADENZA = 24
+
+// Quanto tiene l'opzione, secondo come il cliente deve pagare (Ania,
+// 15/09/2026): tre ore per chi paga all'arrivo, perché basta un «sì»;
+// ventiquattro per chi deve mandare caparra o saldo, perché un bonifico in tre
+// ore non arriva. Una richiesta vecchia senza condizione vale come «all'arrivo».
+export const ORE_OPZIONE_ANTICIPATO = ORE_RISERVA_BONIFICO
+
+export const pagaInAnticipo = (condizione?: string | null): boolean =>
+  condizione === 'caparra' || condizione === 'completo' || condizione === 'personalizzata'
+
+export function oreOpzione(condizione?: string | null): number {
+  return pagaInAnticipo(condizione) ? ORE_OPZIONE_ANTICIPATO : ORE_OPZIONE
+}
 
 export type SegmentoOpzione = { camera: { id: string; name: string }; arrivo: string; partenza: string }
 export type RichiestaOpzione = {
@@ -18,6 +32,8 @@ export type RichiestaOpzione = {
   cognome: string
   stato: string
   proposta_inviata_at: string | null
+  /** come deve pagare: decide se l'opzione tiene 3 ore o 24 */
+  condizione_pagamento?: CondizionePagamento | string | null
   proposta_soluzione?: { segmenti: SegmentoOpzione[] } | null
   proposta_alternative?: { segmenti: SegmentoOpzione[] }[] | null
 }
@@ -34,11 +50,11 @@ export type Opzione = {
 }
 
 // Fine dell'opzione di una richiesta (null se non ha una proposta inviata)
-export function scadenzaOpzione(r: Pick<RichiestaOpzione, 'stato' | 'proposta_inviata_at'>): Date | null {
+export function scadenzaOpzione(r: Pick<RichiestaOpzione, 'stato' | 'proposta_inviata_at' | 'condizione_pagamento'>): Date | null {
   if (r.stato !== 'proposta_inviata' || !r.proposta_inviata_at) return null
   const t = new Date(r.proposta_inviata_at).getTime()
   if (Number.isNaN(t)) return null
-  return new Date(t + ORE_OPZIONE * 3600000)
+  return new Date(t + oreOpzione(r.condizione_pagamento) * 3600000)
 }
 
 // Tutti i segmenti proposti (soluzione inviata + alternative), senza doppioni camera+date

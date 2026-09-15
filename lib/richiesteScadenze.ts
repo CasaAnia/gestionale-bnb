@@ -1,13 +1,15 @@
 // Scadenza dell'opzione di 3 ore (incarico del 06/09/2026): cosa fa il
 // controllo ogni 5 minuti (pg_cron → /api/richieste/scadenze), in regole pure:
-//  · daNotificare: proposte inviate da più di 3 ore, mai notificate → Pushover
+//  · daNotificare: proposte inviate da più delle ore che tiene l'opzione (tre
+//    per chi paga all'arrivo, ventiquattro per chi paga in anticipo: Ania,
+//    15/09/2026), mai notificate → Pushover
 //    (suono diverso, priorità «emergenza» che ripete finché Ania conferma);
 //  · daChiudere: scadute da più di 24 ore → stato «chiusa», motivo «scaduta».
 // Le richieste rifiutate o confermate nel frattempo non sono più «proposta
 // inviata» e quindi non rientrano mai. Ogni richiesta è notificata UNA volta
 // (scadenza_notificata_at).
-import { ORE_SCADENZA_PROPOSTA, formatIntervallo, nomeCompleto } from './richieste.ts'
-import { ORE_CHIUSURA_DOPO_SCADENZA } from './opzioni.ts'
+import { formatIntervallo, nomeCompleto } from './richieste.ts'
+import { ORE_CHIUSURA_DOPO_SCADENZA, oreOpzione } from './opzioni.ts'
 
 export type RichiestaScadenza = {
   id: string
@@ -17,6 +19,8 @@ export type RichiestaScadenza = {
   arrivo: string
   partenza: string
   proposta_inviata_at: string | null
+  /** come deve pagare: tre ore all'arrivo, ventiquattro in anticipo */
+  condizione_pagamento?: string | null
   scadenza_notificata_at?: string | null
   proposta_soluzione?: { segmenti?: { camera?: { name?: string } }[] } | null
 }
@@ -27,7 +31,7 @@ export const OPZIONI_PUSHOVER_SCADENZA = { sound: SUONO_SCADENZA, priority: 2 as
 function scadenza(r: RichiestaScadenza): number | null {
   if (r.stato !== 'proposta_inviata' || !r.proposta_inviata_at) return null
   const t = Date.parse(r.proposta_inviata_at)
-  return Number.isNaN(t) ? null : t + ORE_SCADENZA_PROPOSTA * 3600000
+  return Number.isNaN(t) ? null : t + oreOpzione(r.condizione_pagamento) * 3600000
 }
 
 export function daNotificare(righe: RichiestaScadenza[], adesso: Date): RichiestaScadenza[] {
