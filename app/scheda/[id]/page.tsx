@@ -55,7 +55,7 @@ import {
 } from '@/lib/schedaPrenotazione'
 import { comePagaSalvato } from '@/lib/comePaga'
 import { nottiDaSegmenti, pianoNotti, stessaStriscia, type ContestoNotti, type NotteStriscia, type CameraStriscia } from '@/lib/strisciaNotti'
-import { salvaInSequenza } from '@/lib/prenotazioneScritture'
+import { salvaNottiInUnColpo } from '@/lib/nottiScrittura'
 import { nomeOspite } from '@/lib/guestName'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import { provenienzaInParole, provenienzaDi, normalizzaProvenienza, type CampiProvenienza } from '@/lib/provenienza'
@@ -266,7 +266,6 @@ export default function SchedaPage() {
     if (piano.errore) { setAvviso(piano.errore); return }
     setSalvandoNotti(true)
     setAvviso(null)
-    const adesso = new Date().toISOString()
     // Tutti i tratti di un soggiorno stanno nello stesso gruppo: se non c'è
     // ancora (una camera sola) se ne fa uno adesso, come fa la scheda attuale.
     const gruppo = attive[0]?.group_id || crypto.randomUUID()
@@ -280,31 +279,20 @@ export default function SchedaPage() {
       pagato: false,
       group_id: gruppo,
     }
-    const creati: { id: string; check_in: string }[] = []
-    const scritture: Array<() => PromiseLike<{ error: unknown }>> = [
-      ...piano.aggiorna.map(a => () => supabase.from('bookings').update({ ...a.campi, group_id: gruppo, updated_at: adesso }).eq('id', a.id)),
-      ...piano.crea.map(c => async () => {
-        // L'orario e la navetta stanno sulla riga che arriva per prima: se è
-        // quella nuova, l'arrivo la segue invece di sparire.
-        const arrivo = c.check_in === primoArrivo
-          ? { check_in_time: primoSegmento?.check_in_time ?? null, shuttle: primoSegmento?.shuttle ?? null }
-          : {}
-        const esito = await supabase.from('bookings').insert({ ...comuni, ...arrivo, ...c }).select('id, check_in').single()
-        if (esito.data) creati.push(esito.data as { id: string; check_in: string })
-        return esito
-      }),
-      ...piano.annulla.map(idRiga => () => supabase.from('bookings').update({
-        status: 'annullata', cancelled_at: adesso,
-        cancelled_reason: 'Camera non più necessaria: notti spostate dalla striscia',
-        updated_at: adesso,
-      }).eq('id', idRiga)),
-    ]
-    const { errore } = await salvaInSequenza(scritture)
+    // Le tre cose — accorciare, creare, annullare — vanno insieme o non vanno:
+    // le fa la funzione della proposta 0053 dentro una transazione sola. Se non
+    // è applicata NON si spezza il salvataggio in tre: si dice che manca
+    // (rilievo del 15/09/2026).
+    const arrivoDi = (checkIn: string) => (checkIn === primoArrivo
+      ? { check_in_time: primoSegmento?.check_in_time ?? null, shuttle: primoSegmento?.shuttle ?? null }
+      : {})
+    const esito = await salvaNottiInUnColpo(piano, gruppo, comuni, arrivoDi,
+      (dati: Record<string, unknown>) => supabase.rpc('sposta_notti', dati))
     setSalvandoNotti(false)
-    if (errore) { setAvviso(errore); setVersione(v => v + 1); return }
+    if (esito.esito === 'errore') { setAvviso(esito.messaggio); setVersione(v => v + 1); return }
     // Se la riga aperta è stata annullata, la scheda passa alla prima rimasta
     if (piano.annulla.includes(booking.id)) {
-      const rimaste = [...piano.aggiorna.map(a => ({ id: a.id, check_in: a.campi.check_in })), ...creati]
+      const rimaste = [...piano.aggiorna.map(a => ({ id: a.id, check_in: a.campi.check_in })), ...esito.create]
         .sort((x, z) => x.check_in.localeCompare(z.check_in))
       if (rimaste[0]) { router.replace(`/scheda/${rimaste[0].id}`); return }
     }

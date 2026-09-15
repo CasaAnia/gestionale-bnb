@@ -199,15 +199,20 @@ test('«Modifica soggiorno» non c’è più: restano «Modifica arrivo» e «Ar
 
 test('il salvataggio delle notti: si annulla, non si cancella, e il conto si rifà da solo', () => {
   assert.match(pagina, /const piano = pianoNotti\(nuove, attive, contesto\)/)
-  assert.match(pagina, /status: 'annullata', cancelled_at: adesso/)
-  assert.equal(/from\('bookings'\)\.delete\(\)/.test(pagina), false, 'una riga viene cancellata invece che annullata')
+  // l'annullamento lo fa la funzione della 0053, e annulla: non cancella
+  const sql = readFileSync(new URL('../supabase/proposte/0053_notti_in_un_colpo.BOZZA.sql', import.meta.url), 'utf8')
+  assert.match(sql, /set status = 'annullata', cancelled_at = adesso/)
+  assert.equal(/delete from public\.bookings/.test(sql), false, 'una riga viene cancellata invece che annullata')
+  assert.equal(/from\('bookings'\)\.delete\(\)/.test(pagina), false)
   // niente da salvare se non è cambiato niente (Annulla non tocca il database)
   assert.match(pagina, /if \(!booking \|\| salvandoNotti \|\| stessaStriscia\(notti, nuove\)\) return/)
   // dopo il salvataggio la scheda si rilegge: conto, tratti e «Da controllare» insieme
   assert.match(pagina, /setVersione\(v => v \+ 1\)/)
   assert.match(pagina, /\}, \[id, versione\]\)/)
-  // le scritture passano dal controllo dell'esito condiviso
-  assert.match(pagina, /const \{ errore \} = await salvaInSequenza\(scritture\)/)
+  // le tre cose vanno insieme: una transazione sola, non tre richieste
+  assert.match(pagina, /const esito = await salvaNottiInUnColpo\(piano, gruppo, comuni, arrivoDi,/)
+  assert.match(pagina, /supabase\.rpc\('sposta_notti', dati\)/)
+  assert.equal(/salvaInSequenza/.test(pagina), false, 'le notti si salvano ancora a pezzi')
 })
 
 test('la riga «Arrivo»: stone 14 a sinistra, orario in pastiglia sage, «da chiedere» in ottone', () => {
