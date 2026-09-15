@@ -41,6 +41,9 @@ export type SegmentoNotti = {
   extra_bed_importo?: number | string | null
   extra_bed_criterio?: string | null
   price_per_night?: number | string | null
+  /** gli importi già salvati: servono a capire se la riga è davvero da riscrivere */
+  extra_bed_total?: number | string | null
+  total_amount?: number | string | null
   rooms?: (CameraTariffa & { id?: string; name?: string | null }) | null
 }
 
@@ -495,7 +498,13 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
   // non si può spezzare, diventa la percentuale che dà quel totale.
   const conSconto = righe.find(s => s.discount_type && s.discount_value != null)
   const scontoPercentuale = conSconto?.discount_type === 'percentage' ? Number(conSconto.discount_value) || 0 : null
-  const scontoConcordato = conSconto?.discount_type === 'target_total' ? Number(conSconto.discount_value) || 0 : null
+  // Il totale concordato si porta a quote sulle righe (una quota per tratto):
+  // riletto, è la loro SOMMA. Prima diventava una percentuale arrotondata e i
+  // centesimi si perdevano a ogni modifica (secondo controllo del 15/09/2026).
+  const quoteConcordate = righe.filter(s => s.discount_type === 'target_total' && s.discount_value != null)
+  const scontoConcordato = quoteConcordate.length > 0
+    ? round2(quoteConcordate.reduce((t, s) => t + (Number(s.discount_value) || 0), 0))
+    : null
 
   // il prezzo pieno di ogni blocco, prima di sapere lo sconto
   const pieni = blocchi.map((b, i) => {
@@ -520,12 +529,14 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
   if (pieni.some(x => x === null)) return { ...vuoto, errore: CAMERA_MANCANTE }
   const pienoTotale = pieni.reduce((s, x) => s + x!.pieno, 0)
 
-  // il totale concordato si trasforma in percentuale, così ogni riga torna
-  let percentuale = scontoPercentuale
+  // Il totale concordato resta quello: si divide fra i tratti in proporzione
+  // al loro prezzo pieno e l'ultimo prende il resto, così la somma delle righe
+  // fa esattamente la cifra pattuita, al centesimo.
+  const percentuale = scontoPercentuale
+  let quotaPerBlocco: number[] | null = null
   if (scontoConcordato !== null) {
     if (pienoTotale <= 0 || scontoConcordato >= pienoTotale) return { ...vuoto, errore: SCONTO_DECADUTO }
-    if (blocchi.length === 1) percentuale = null            // una riga sola: resta «porta il totale a»
-    else percentuale = Math.round((1 - scontoConcordato / pienoTotale) * 10000) / 100
+    quotaPerBlocco = ripartisciConcordato(scontoConcordato, pieni.map(x => x!.pieno))
   }
 
   const piano: PianoNotti = { aggiorna: [], crea: [], annulla: [], errore: null }
@@ -533,13 +544,11 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
     const dati = pieni[i]!
     const origine = abbina(b, liberi)
     if (origine) liberi.splice(liberi.indexOf(origine), 1)
-    // Un tratto rimasto identico NON si tocca: la sua tariffa è quella che
-    // Ania ha concordato, e il listino non deve riscrivergliela sopra.
-    if (origine && uguale(b, origine) && !scontoDaRiscrivere(origine, percentuale, scontoConcordato, blocchi.length)) return
+    const quota = quotaPerBlocco ? quotaPerBlocco[i] : null
     const scontoCampi = percentuale !== null
       ? { discount_type: 'percentage', discount_value: percentuale }
-      : scontoConcordato !== null
-        ? { discount_type: 'target_total', discount_value: scontoConcordato }
+      : quota !== null
+        ? { discount_type: 'target_total', discount_value: quota }
         : {}
     const conto = contoSoggiorno({
       check_in: b.check_in, check_out: b.check_out,
@@ -563,6 +572,14 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
         ? { extra_bed_importo: accordoLetto.importo, extra_bed_criterio: accordoLetto.criterio }
         : { extra_bed_importo: null, extra_bed_criterio: null }),
     }
+    // Un tratto rimasto identico NON si tocca: la sua tariffa è quella che Ania
+    // ha concordato, e il listino non deve riscrivergliela sopra. Ma «identico»
+    // vuol dire anche negli importi: cambiando la ripartizione del letto o
+    // dell'accordo la geometria resta la stessa e la riga va comunque scritta
+    // (secondo controllo del 15/09/2026).
+    if (origine && uguale(b, origine)
+      && !scontoDaRiscrivere(origine, percentuale, quota)
+      && !importiDaRiscrivere(origine, campi)) return
     if (origine) piano.aggiorna.push({ id: origine.id, campi })
     else piano.crea.push(campi)
   })
@@ -571,12 +588,37 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
 }
 
 /** Un tratto identico va comunque riscritto se il suo sconto è cambiato */
-function scontoDaRiscrivere(
-  origine: SegmentoNotti, percentuale: number | null, concordato: number | null, quantiBlocchi: number,
-): boolean {
+function scontoDaRiscrivere(origine: SegmentoNotti, percentuale: number | null, quota: number | null): boolean {
   if (percentuale !== null) return origine.discount_type !== 'percentage' || Number(origine.discount_value) !== percentuale
-  if (concordato !== null && quantiBlocchi === 1) return origine.discount_type !== 'target_total'
+  if (quota !== null) return origine.discount_type !== 'target_total' || Number(origine.discount_value) !== quota
   return Boolean(origine.discount_type)
+}
+
+/** …e se sono cambiati gli importi: tariffa, letto, totale, accordo del letto.
+ *  Un campo che la riga non porta proprio (undefined) non fa testo: di quello
+ *  non si può dire che sia cambiato. */
+function importiDaRiscrivere(origine: SegmentoNotti, campi: CampiTratto): boolean {
+  const numero = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v))
+  const soldi = (salvato: unknown, nuovo: number | null) => salvato !== undefined && numero(salvato) !== nuovo
+  const testo = (salvato: unknown, nuovo: string | null) => salvato !== undefined && (salvato ?? null) !== nuovo
+  return soldi(origine.price_per_night, campi.price_per_night)
+    || soldi(origine.extra_bed_total, campi.extra_bed_total)
+    || soldi(origine.total_amount, campi.total_amount)
+    || soldi(origine.extra_bed_importo, campi.extra_bed_importo ?? null)
+    || testo(origine.extra_bed_criterio, campi.extra_bed_criterio ?? null)
+}
+
+/** Il totale pattuito diviso fra i tratti in proporzione al prezzo pieno: le
+ *  quote sommano sempre alla cifra concordata, al centesimo. Il resto va al
+ *  tratto più caro, che di sicuro lo regge senza superare il proprio pieno. */
+function ripartisciConcordato(concordato: number, pieni: number[]): number[] {
+  const somma = pieni.reduce((s, p) => s + p, 0)
+  const centesimi = Math.round(concordato * 100)
+  if (somma <= 0) return pieni.map((_, i) => (i === 0 ? round2(centesimi / 100) : 0))
+  const quote = pieni.map(p => Math.floor((centesimi * Math.round(p * 100)) / Math.round(somma * 100)))
+  const piuCaro = pieni.reduce((max, p, i) => (p > pieni[max] ? i : max), 0)
+  quote[piuCaro] += centesimi - quote.reduce((s, c) => s + c, 0)
+  return quote.map(c => round2(c / 100))
 }
 
 /** Qualcosa è davvero cambiato rispetto a com'era salvato? */
