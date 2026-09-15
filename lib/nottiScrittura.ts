@@ -13,6 +13,7 @@
 // Meglio non poter spostare le notti che spostarne metà.
 // ============================================================================
 import { messaggioNonSalvato } from './scritturaSicura.ts'
+import { messaggioSovrapposizione } from './erroreSovrapposizione.ts'
 import type { PianoNotti } from './strisciaNotti.ts'
 
 export const MOTIVO_ANNULLA = 'Camera non più necessaria: notti spostate dalla striscia'
@@ -61,6 +62,9 @@ export async function salvaNottiInUnColpo(
   }
   if (risposta.error) {
     if (manca0053(risposta.error)) return { esito: 'errore', messaggio: SERVE_LA_0053 }
+    // camera presa o letti finiti: si dice con parole, non col messaggio del database
+    const chiaro = messaggioSovrapposizione(risposta.error)
+    if (chiaro) return { esito: 'errore', messaggio: chiaro }
     return { esito: 'errore', messaggio: messaggioNonSalvato(risposta.error) }
   }
   const create = ((risposta.data as { create?: RigaCreata[] } | null)?.create ?? []) as RigaCreata[]

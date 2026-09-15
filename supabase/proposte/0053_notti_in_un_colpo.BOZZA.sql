@@ -38,6 +38,22 @@ declare
   nuova record;
   adesso timestamptz := now();
 begin
+  -- 0. il vincolo della 0051 si controlla alla FINE della transazione.
+  --    Le tre cose insieme passano per stati intermedi che sono impossibili
+  --    da evitare: spostare una notte in una camera che sarà liberata un
+  --    istante dopo, scambiare due camere fra loro. Alla fine il vincolo
+  --    guarda com'è rimasto tutto, e se due prenotazioni si sovrappongono
+  --    davvero il commit non passa (secondo controllo del 15/09/2026).
+  --    Se il vincolo non c'è (0051 non applicata) o è stato creato senza
+  --    DEFERRABLE (prima versione della 0051) non è un errore: si tira
+  --    dritto e resta il controllo del punto 4.
+  begin
+    set constraints public.bookings_camera_non_due_volte deferred;
+  exception
+    when undefined_object then null;    -- il vincolo non c'è
+    when wrong_object_type then null;   -- c'è, ma non è differibile
+  end;
+
   -- 1. i tratti che restano, aggiornati
   for voce in select * from jsonb_array_elements(coalesce(p_aggiorna, '[]'::jsonb)) loop
     id_riga := (voce->>'id')::uuid;

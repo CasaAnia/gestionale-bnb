@@ -41,13 +41,21 @@ create extension if not exists btree_gist;
 alter table public.bookings
   drop constraint if exists bookings_camera_non_due_volte;
 
+-- DEFERRABLE, ma INITIALLY IMMEDIATE: per ogni scrittura normale il
+-- controllo resta immediato, come prima. Solo chi deve passare per uno
+-- stato intermedio — spostare una notte da una camera all'altra, scambiare
+-- due camere fra loro — chiede di rimandarlo alla fine della transazione
+-- (set constraints ... deferred, dentro la 0053). Senza DEFERRABLE quelle
+-- modifiche sarebbero rifiutate pur essendo giuste alla fine: il vincolo
+-- vedeva la riga vecchia ancora viva (secondo controllo del 15/09/2026).
 alter table public.bookings
   add constraint bookings_camera_non_due_volte
   exclude using gist (
     room_id with =,
     daterange(check_in, check_out, '[)') with &&
   )
-  where (status <> 'annullata');
+  where (status <> 'annullata')
+  deferrable initially immediate;
 
 comment on constraint bookings_camera_non_due_volte on public.bookings is
   'Una camera non può avere due prenotazioni attive sulle stesse notti. Chi arriva il giorno in cui un altro parte non si sovrappone.';
