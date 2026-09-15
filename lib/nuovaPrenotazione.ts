@@ -12,7 +12,8 @@ import { capienzaBase, capienzaCamera } from './tariffe.ts'
 import { giorniSoggiorno } from './prezzoNotti.ts'
 const giornoDopo = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)
 import { camereLibere, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
-import { contoPeriodo, notti as nottiPeriodo, round2, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
+import { contoPeriodo, lettoProposto, notti as nottiPeriodo, round2, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
+import { costoLettoIntero, lettoRipartito, type AccordoLetto } from './lettiAggiuntivi.ts'
 import type { NotteStriscia } from './strisciaNotti.ts'
 import { blocchiDaNotti } from './strisciaNotti.ts'
 import { GIORNI_LUNGHI, MESI_LUNGHI } from './dateItaliane.ts'
@@ -161,17 +162,30 @@ export function periodiDellaLinea(
   })
 }
 
-/** Come periodiDaNotti, ma le notti senza camera NON spariscono dal soggiorno */
+/** Come periodiDaNotti, ma le notti senza camera NON spariscono dal soggiorno.
+ *
+ *  Un periodo salvato porta UN numero di ospiti: notti con persone diverse
+ *  devono quindi stare in periodi diversi, o il numero più alto si mangia gli
+ *  altri (rilievo del 15/09/2026: 2,2,3,2 diventava un periodo solo con 3, e
+ *  riletto tornava 2,2,2,2). Si spezza perciò anche quando cambia il numero
+ *  delle persone, non solo la camera. */
 export function periodiDaNottiTenendoVuote(notti: NotteStriscia[], linea: LineaCamera, nuovoId: () => string): PeriodoComposto[] {
   const dentro = notti.filter(n => n.dentro)
   if (dentro.length === 0) return []
   const vecchi = [...linea.periodi].sort((a, z) => a.checkIn.localeCompare(z.checkIn))
-  const blocchi: { cameraId: string | null; notti: NotteStriscia[] }[] = []
+  // A imporre il numero di ospiti sono solo le notti COL letto: le altre
+  // valgono quelle che la camera tiene da sola. Due notti col letto e persone
+  // diverse vanno quindi in periodi diversi (rilievo del 15/09/2026).
+  const impone = (n: NotteStriscia) => (n.letto ? n.persone : null)
+  const blocchi: { cameraId: string | null; impone: number | null; notti: NotteStriscia[] }[] = []
   for (const n of dentro) {
     const ultimo = blocchi[blocchi.length - 1]
-    const attaccata = ultimo && ultimo.cameraId === n.cameraId && giornoDopo(ultimo.notti[ultimo.notti.length - 1].iso) === n.iso
-    if (attaccata) ultimo.notti.push(n)
-    else blocchi.push({ cameraId: n.cameraId, notti: [n] })
+    const attaccata = ultimo
+      && ultimo.cameraId === n.cameraId
+      && (ultimo.impone === null || impone(n) === null || ultimo.impone === impone(n))
+      && giornoDopo(ultimo.notti[ultimo.notti.length - 1].iso) === n.iso
+    if (attaccata) { ultimo.notti.push(n); ultimo.impone = ultimo.impone ?? impone(n) }
+    else blocchi.push({ cameraId: n.cameraId, impone: impone(n), notti: [n] })
   }
   return blocchi.map(b => {
     const checkIn = b.notti[0].iso
@@ -189,6 +203,19 @@ export function periodiDaNottiTenendoVuote(notti: NotteStriscia[], linea: LineaC
       tariffa: stessaCamera ? (origine?.tariffa ?? null) : null,
     }
   })
+}
+
+// Una notte con più persone di quante la camera ne tenga senza letto non si
+// può salvare com'è: il salvataggio la rileggerebbe con meno gente. Non si
+// aggiusta di nascosto — si dice quali notti sono, e chi chiama decide.
+export const NOTTE_NON_SALVABILE = (giorno: string, camera: string, persone: number) =>
+  `${giorno}: ${persone} persone in ${camera} senza il letto in più non si possono salvare`
+export function nottiNonSalvabili(
+  notti: NotteStriscia[], camera: (id: string | null) => CameraComposta | null,
+): string[] {
+  return notti
+    .filter(n => n.dentro && n.cameraId && !n.letto && n.persone > capienzaBase(camera(n.cameraId)))
+    .map(n => n.iso)
 }
 
 // ── Quanti ospiti può tenere il soggiorno ───────────────────────────────────
@@ -286,6 +313,23 @@ export type ScontoNuova = { tipo: 'nessuno' | 'percentuale' | 'finale'; valore: 
 
 const fmt = (cent: number) => euroScheda(cent)
 
+/** Quante notti del soggiorno hanno il letto in più */
+export function nottiColLetto(periodi: PeriodoComposto[]): number {
+  return new Set(periodi.flatMap(p => p.nottiLetto)).size
+}
+/** L'accordo del letto della prenotazione: uno solo, preso dal primo tratto
+ *  che ce l'ha. Senza importo scritto a mano vale il listino della camera. */
+export function accordoLetto(
+  periodi: PeriodoComposto[], camera: (id: string | null) => CameraComposta | null,
+): AccordoLetto | null {
+  for (const p of periodi) {
+    if (p.nottiLetto.length === 0) continue
+    if (p.letto) return { importo: p.letto.importo, criterio: p.letto.criterio }
+    return { importo: lettoProposto(camera(p.roomId), p.ospiti), criterio: 'notte' }
+  }
+  return null
+}
+
 export function contoNuovaPrenotazione(
   periodi: PeriodoComposto[],
   camera: (id: string | null) => CameraComposta | null,
@@ -294,8 +338,11 @@ export function contoNuovaPrenotazione(
   const righe: RigaContoNuova[] = []
   let totale = 0
   let mancante = periodi.length === 0
-  let lettoCent = 0
   const giorni = new Set<string>()
+  // Il letto è UNO per tutta la prenotazione: si conta sul soggiorno intero e
+  // si riparte fra i tratti, invece di addebitarlo per intero a ognuno
+  // (rilievo del 15/09/2026: «30 € in tutto» su due tratti facevano 60).
+  const lettoCent = Math.round(costoLettoIntero(accordoLetto(periodi, camera), nottiColLetto(periodi)) * 100)
   for (const p of periodi) {
     const c = camera(p.roomId)
     const conto = contoPeriodo(p, c)
@@ -311,10 +358,9 @@ export function contoNuovaPrenotazione(
       cent: camereCent,
     })
     totale += camereCent
-    lettoCent += Math.round(conto.lettoTotale * 100)
   }
-  if (lettoCent > 0) {
-    const quante = periodi.reduce((s, p) => s + p.nottiLetto.length, 0)
+  if (lettoCent > 0 && !mancante) {
+    const quante = nottiColLetto(periodi)
     righe.push({
       chiave: 'letto',
       titolo: 'Letto in più',

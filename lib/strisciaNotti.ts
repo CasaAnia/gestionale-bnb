@@ -16,7 +16,7 @@
 // arrivano dal chiamante.
 // ============================================================================
 import { camereLibere, elencoNomi, giorniTra, STATI_CHE_OCCUPANO, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
-import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione, type PrenotazioneLetti } from './lettiAggiuntivi.ts'
+import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione, lettoRipartito, type AccordoLetto, type PrenotazioneLetti } from './lettiAggiuntivi.ts'
 import { capienzaBase, capienzaCamera, totaleLetto } from './tariffe.ts'
 import { giorniSoggiorno, nottiConLetto, prezzoPrenotazione, fmtEuroBreve, type CameraTariffa } from './prezzoNotti.ts'
 import { contoSoggiorno } from './conto.ts'
@@ -37,6 +37,10 @@ export type SegmentoNotti = {
   extra_bed_dates?: string[] | null
   discount_type?: string | null
   discount_value?: number | string | null
+  /** l'accordo del letto: quanto e con che criterio (proposta 0048) */
+  extra_bed_importo?: number | string | null
+  extra_bed_criterio?: string | null
+  price_per_night?: number | string | null
   rooms?: (CameraTariffa & { id?: string; name?: string | null }) | null
 }
 
@@ -67,6 +71,7 @@ export const CAMERA_MANCANTE = 'C’è una notte senza camera: scegli la camera 
 export const TESTO_LIBERA = 'libera'
 
 const giornoDopo = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)
+const round2 = (n: number) => Math.round(n * 100) / 100
 const nomeDi = (s: SegmentoNotti) => (s.rooms?.name ?? '').trim()
 const attivi = (segmenti: SegmentoNotti[]) => segmenti.filter(s => s.status !== 'annullata').sort((a, z) => a.check_in.localeCompare(z.check_in) || a.id.localeCompare(z.id))
 
@@ -379,20 +384,34 @@ export function nonDormeQui(notti: NotteStriscia[], iso: string): NotteStriscia[
 // ── Dalle notti ai tratti da salvare ────────────────────────────────────────
 // Notti attaccate con la stessa camera = un tratto solo (una riga di bookings).
 export type BloccoNotti = { cameraId: string; camera: string; check_in: string; check_out: string; nottiLetto: string[]; ospiti: number }
+// Un tratto salvato porta UN numero di ospiti, e le notti senza letto valgono
+// da sole quelle che la camera tiene: «tre persone solo martedì» si scrive
+// benissimo con num_guests 3 e il letto acceso quel giorno.
+// A imporre il numero sono quindi soltanto le notti COL letto: due notti col
+// letto e persone diverse (tre e quattro in Lena) devono stare in tratti
+// diversi, o il numero più alto si mangia l'altro (rilievo del 15/09/2026).
+const impegnativo = (n: NotteStriscia) => (n.letto ? n.persone : null)
+const compatibili = (a: number | null, b: number | null) => a === null || b === null || a === b
+
 export function blocchiDaNotti(notti: NotteStriscia[]): BloccoNotti[] {
-  const out: BloccoNotti[] = []
+  const out: { blocco: BloccoNotti; impone: number | null }[] = []
   for (const n of notti) {
     if (!n.dentro || !n.cameraId) continue
     const ultimo = out[out.length - 1]
-    if (ultimo && ultimo.cameraId === n.cameraId && ultimo.check_out === n.iso) {
-      ultimo.check_out = giornoDopo(n.iso)
-      ultimo.ospiti = Math.max(ultimo.ospiti, n.persone)
-      if (n.letto) ultimo.nottiLetto.push(n.iso)
+    if (ultimo && ultimo.blocco.cameraId === n.cameraId && ultimo.blocco.check_out === n.iso
+      && compatibili(ultimo.impone, impegnativo(n))) {
+      ultimo.blocco.check_out = giornoDopo(n.iso)
+      ultimo.blocco.ospiti = Math.max(ultimo.blocco.ospiti, n.persone)
+      ultimo.impone = ultimo.impone ?? impegnativo(n)
+      if (n.letto) ultimo.blocco.nottiLetto.push(n.iso)
       continue
     }
-    out.push({ cameraId: n.cameraId, camera: n.camera ?? '', check_in: n.iso, check_out: giornoDopo(n.iso), nottiLetto: n.letto ? [n.iso] : [], ospiti: n.persone })
+    out.push({
+      blocco: { cameraId: n.cameraId, camera: n.camera ?? '', check_in: n.iso, check_out: giornoDopo(n.iso), nottiLetto: n.letto ? [n.iso] : [], ospiti: n.persone },
+      impone: impegnativo(n),
+    })
   }
-  return out
+  return out.map(x => x.blocco)
 }
 
 export type CampiTratto = {
@@ -407,6 +426,9 @@ export type CampiTratto = {
   total_amount: number
   discount_type?: string | null
   discount_value?: number | string | null
+  /** l'accordo del letto si porta dietro: importo e criterio vanno insieme */
+  extra_bed_importo?: number | null
+  extra_bed_criterio?: string | null
 }
 
 export type PianoNotti = {
@@ -455,46 +477,106 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
 
   const righe = attivi(segmenti)
   const liberi = [...righe]
-  const piano: PianoNotti = { aggiorna: [], crea: [], annulla: [], errore: null }
-  for (const b of blocchi) {
+
+  // ── L'accordo del letto è della PRENOTAZIONE, non del tratto ─────────────
+  // Si legge dalle righe salvate (proposta 0048) e si riparte fra i blocchi in
+  // proporzione alle notti col letto: «30 € in tutto» restano 30, «ogni 4
+  // notti» non ricomincia a ogni tratto (rilievo del 15/09/2026).
+  const conAccordo = righe.find(s => s.extra_bed_criterio && s.extra_bed_importo != null)
+  const accordoLetto: AccordoLetto | null = conAccordo
+    ? { importo: Number(conAccordo.extra_bed_importo) || 0, criterio: conAccordo.extra_bed_criterio as AccordoLetto['criterio'] }
+    : null
+  const lettoPerBlocco = accordoLetto ? lettoRipartito(accordoLetto, blocchi.map(b => b.nottiLetto.length)) : null
+
+  // ── Lo sconto è della PRENOTAZIONE ───────────────────────────────────────
+  // Prima lo prendeva solo il blocco che aveva una riga di origine abbinata, e
+  // i tratti nuovi restavano a prezzo pieno (rilievo del 15/09/2026). Adesso
+  // vale per tutti: la percentuale segue le notti; il totale concordato, che
+  // non si può spezzare, diventa la percentuale che dà quel totale.
+  const conSconto = righe.find(s => s.discount_type && s.discount_value != null)
+  const scontoPercentuale = conSconto?.discount_type === 'percentage' ? Number(conSconto.discount_value) || 0 : null
+  const scontoConcordato = conSconto?.discount_type === 'target_total' ? Number(conSconto.discount_value) || 0 : null
+
+  // il prezzo pieno di ogni blocco, prima di sapere lo sconto
+  const pieni = blocchi.map((b, i) => {
     const camera = contesto.camere.find(c => c.id === b.cameraId)
-    if (!camera) return { ...vuoto, errore: CAMERA_MANCANTE }
+    if (!camera) return null
+    const origine = abbina(b, righe)
+    const prezzo = prezzoPrenotazione(camera, {
+      check_in: b.check_in, check_out: b.check_out, num_guests: b.ospiti, extra_bed_dates: b.nottiLetto,
+    })
+    // La tariffa concordata NON si riscrive col listino: se il blocco resta
+    // nella stessa camera con le stesse persone, resta quella salvata
+    // (rilievo del 15/09/2026: 60 € concordati tornavano 80 di listino).
+    const stessaCameraStessaGente = origine
+      && origine.room_id === b.cameraId
+      && (Number(origine.num_guests) || 1) === b.ospiti
+      && origine.price_per_night != null
+    const aNotte = stessaCameraStessaGente ? Number(origine!.price_per_night) || 0 : prezzo.prezzoNotte
+    const letto = lettoPerBlocco ? lettoPerBlocco[i] : prezzo.lettoTotale
+    const camere = round2(aNotte * giorniTra(b.check_in, b.check_out).length)
+    return { camera, aNotte, letto, pieno: round2(camere + letto) }
+  })
+  if (pieni.some(x => x === null)) return { ...vuoto, errore: CAMERA_MANCANTE }
+  const pienoTotale = pieni.reduce((s, x) => s + x!.pieno, 0)
+
+  // il totale concordato si trasforma in percentuale, così ogni riga torna
+  let percentuale = scontoPercentuale
+  if (scontoConcordato !== null) {
+    if (pienoTotale <= 0 || scontoConcordato >= pienoTotale) return { ...vuoto, errore: SCONTO_DECADUTO }
+    if (blocchi.length === 1) percentuale = null            // una riga sola: resta «porta il totale a»
+    else percentuale = Math.round((1 - scontoConcordato / pienoTotale) * 10000) / 100
+  }
+
+  const piano: PianoNotti = { aggiorna: [], crea: [], annulla: [], errore: null }
+  blocchi.forEach((b, i) => {
+    const dati = pieni[i]!
     const origine = abbina(b, liberi)
     if (origine) liberi.splice(liberi.indexOf(origine), 1)
     // Un tratto rimasto identico NON si tocca: la sua tariffa è quella che
     // Ania ha concordato, e il listino non deve riscrivergliela sopra.
-    if (origine && uguale(b, origine)) continue
-    const prezzo = prezzoPrenotazione(camera, {
-      check_in: b.check_in, check_out: b.check_out, num_guests: b.ospiti, extra_bed_dates: b.nottiLetto,
-    })
-    // Lo sconto resta quello della riga: la percentuale segue le notti, il
-    // totale concordato no (non si può spezzare fra due righe).
-    const percentuale = origine?.discount_type === 'percentage' ? origine : null
-    const concordato = origine?.discount_type === 'target_total' ? origine : null
+    if (origine && uguale(b, origine) && !scontoDaRiscrivere(origine, percentuale, scontoConcordato, blocchi.length)) return
+    const scontoCampi = percentuale !== null
+      ? { discount_type: 'percentage', discount_value: percentuale }
+      : scontoConcordato !== null
+        ? { discount_type: 'target_total', discount_value: scontoConcordato }
+        : {}
     const conto = contoSoggiorno({
       check_in: b.check_in, check_out: b.check_out,
-      price_per_night: prezzo.prezzoNotte, extra_bed_total: prezzo.lettoTotale,
-      discount_type: origine?.discount_type ?? null, discount_value: origine?.discount_value ?? null,
+      price_per_night: dati.aNotte, extra_bed_total: dati.letto,
+      discount_type: (scontoCampi as { discount_type?: string }).discount_type ?? null,
+      discount_value: (scontoCampi as { discount_value?: number }).discount_value ?? null,
     })
-    if (concordato && conto.sconto <= 0) return { ...vuoto, errore: SCONTO_DECADUTO }
     const campi: CampiTratto = {
-      room_id: camera.id,
+      room_id: dati.camera.id,
       check_in: b.check_in,
       check_out: b.check_out,
       num_guests: b.ospiti,
       extra_bed: b.nottiLetto.length > 0,
       extra_bed_dates: b.nottiLetto,
-      price_per_night: prezzo.prezzoNotte,
-      extra_bed_total: prezzo.lettoTotale,
+      price_per_night: dati.aNotte,
+      extra_bed_total: dati.letto,
       total_amount: conto.totale,
-      ...(percentuale ? { discount_type: 'percentage', discount_value: percentuale.discount_value ?? null } : {}),
-      ...(concordato ? { discount_type: 'target_total', discount_value: concordato.discount_value ?? null } : {}),
+      ...scontoCampi,
+      // importo e criterio vanno insieme, o il database rifiuta la riga
+      ...(accordoLetto && b.nottiLetto.length > 0
+        ? { extra_bed_importo: accordoLetto.importo, extra_bed_criterio: accordoLetto.criterio }
+        : { extra_bed_importo: null, extra_bed_criterio: null }),
     }
     if (origine) piano.aggiorna.push({ id: origine.id, campi })
     else piano.crea.push(campi)
-  }
+  })
   piano.annulla = liberi.map(s => s.id)
   return piano
+}
+
+/** Un tratto identico va comunque riscritto se il suo sconto è cambiato */
+function scontoDaRiscrivere(
+  origine: SegmentoNotti, percentuale: number | null, concordato: number | null, quantiBlocchi: number,
+): boolean {
+  if (percentuale !== null) return origine.discount_type !== 'percentage' || Number(origine.discount_value) !== percentuale
+  if (concordato !== null && quantiBlocchi === 1) return origine.discount_type !== 'target_total'
+  return Boolean(origine.discount_type)
 }
 
 /** Qualcosa è davvero cambiato rispetto a com'era salvato? */

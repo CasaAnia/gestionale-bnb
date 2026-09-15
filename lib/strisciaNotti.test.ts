@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   nottiDaSegmenti, riassuntoStriscia, cambiCamera, avvisiStriscia, camereDellaNotte, avvisoCapienza,
-  lettoDisponibileNotte, prezzoLettoNotte, cambiaCamera, cambiaLetto, nonDormeQui, blocchiDaNotti,
+  lettoDisponibileNotte, prezzoLettoNotte, cambiaCamera, cambiaLetto, cambiaOspitiNotte, nonDormeQui, blocchiDaNotti,
   pianoNotti, stessaStriscia, titoloNotte, giornoDellaNotte, compatta, NESSUNA_NOTTE, CAMERA_MANCANTE,
   SCONTO_DECADUTO, LETTO_COMPRESO, segniDiCambio, personeColLetto,
   type SegmentoNotti, type CameraStriscia, type ContestoNotti, type NotteStriscia,
@@ -487,4 +487,115 @@ test('la colonnina della notte scelta porta il contorno d’ottone', () => {
   assert.match(striscia, /borderBottom: segnata \? `1\.5px solid \$\{OTTONE\}`/)
   // senza `scelta` niente cambia: la scheda continua come prima
   assert.match(striscia, /scelta\?: string \| null/)
+})
+
+// ── Revisione del 15/09/2026: sconto, tariffa e letto nel piano ────────────
+const segLungo = (extra: Record<string, unknown> = {}) => ({
+  id: 'a', room_id: LENA_ID, check_in: '2026-10-01', check_out: '2026-10-05',
+  num_guests: 2, extra_bed: false, extra_bed_dates: [], status: 'confermata',
+  price_per_night: 80, extra_bed_total: 0, total_amount: 320,
+  discount_type: null, discount_value: null, rooms: LENA, ...extra,
+}) as never
+
+test('lo sconto della prenotazione non si perde sul tratto nuovo', () => {
+  // quattro notti a 80 con il 10% = 288; l'ultima passa in Ambra, anch'essa a 80
+  const segmenti = [segLungo({ discount_type: 'percentage', discount_value: 10, total_amount: 288 })]
+  const notti = cambiaCamera(nottiDaSegmenti([segmenti[0]]), '2026-10-04', AMBRA, contesto())
+  const p = pianoNotti(notti, segmenti, contesto())
+  const totale = p.aggiorna.reduce((s, a) => s + a.campi.total_amount, 0) + p.crea.reduce((s, c) => s + c.total_amount, 0)
+  assert.equal(totale, 288, 'prima faceva 216 + 80 = 296')
+  assert.equal(p.crea[0].discount_type, 'percentage')
+  assert.equal(p.crea[0].discount_value, 10)
+})
+
+test('il totale concordato diventa la percentuale che dà quel totale', () => {
+  // 320 pieno, concordati 288: spezzando in due il totale resta 288
+  const segmenti = [segLungo({ discount_type: 'target_total', discount_value: 288, total_amount: 288 })]
+  const notti = cambiaCamera(nottiDaSegmenti([segmenti[0]]), '2026-10-04', AMBRA, contesto())
+  const p = pianoNotti(notti, segmenti, contesto())
+  const totale = p.aggiorna.reduce((s, a) => s + a.campi.total_amount, 0) + p.crea.reduce((s, c) => s + c.total_amount, 0)
+  assert.equal(totale, 288)
+  assert.equal(p.aggiorna[0].campi.discount_type, 'percentage')
+  // con un blocco solo resta «porta il totale a»
+  const uguale = pianoNotti(nottiDaSegmenti([segmenti[0]]), segmenti, contesto())
+  assert.deepEqual(uguale.aggiorna, [])
+})
+
+test('la tariffa concordata non torna al listino', () => {
+  // 60 € concordati, listino 80: separando l'ultima notte le altre restano a 60
+  const segmenti = [segLungo({ price_per_night: 60, total_amount: 240 })]
+  const notti = cambiaCamera(nottiDaSegmenti([segmenti[0]]), '2026-10-04', AMBRA, contesto())
+  const p = pianoNotti(notti, segmenti, contesto())
+  assert.equal(p.aggiorna[0].campi.price_per_night, 60, 'prima tornava 80')
+  assert.equal(p.aggiorna[0].campi.total_amount, 180)
+  assert.equal(p.crea[0].price_per_night, 80)   // la camera nuova prende il suo listino
+})
+
+test('cambiando le persone la tariffa la rifà il listino', () => {
+  // in Lena da due a tre persone (col letto la prima notte) il prezzo torna
+  // al listino: la tariffa vecchia non si conserva se cambia la gente
+  const segmenti = [segLungo({ price_per_night: 60, total_amount: 240 })]
+  const notti = cambiaOspitiNotte(nottiDaSegmenti([segmenti[0]]), '2026-10-01', 3, contesto({ ospiti: 3 }))
+  const p = pianoNotti(notti, segmenti, contesto({ ospiti: 3 }))
+  // resta UNA riga: «tre persone solo la prima notte» si scrive con num_guests 3
+  // e il letto acceso quel giorno, non spezzando il tratto
+  assert.equal(p.crea.length, 0)
+  const campi = p.aggiorna[0].campi
+  assert.equal(campi.num_guests, 3)
+  assert.deepEqual(campi.extra_bed_dates, ['2026-10-01'])
+  assert.equal(campi.total_amount, 330)   // 90 in tre + 80 × 3 in due
+})
+
+test('due notti col letto e persone diverse vanno in tratti diversi', () => {
+  // tre persone una notte e quattro l'altra non stanno in una riga sola
+  const notti = nottiDaSegmenti([segLungo({ num_guests: 4, extra_bed: true, extra_bed_dates: ['2026-10-01', '2026-10-02'] })])
+    .map(n => (n.iso === '2026-10-01' ? { ...n, persone: 3 } : n))
+  const blocchi = blocchiDaNotti(notti)
+  assert.equal(blocchi.length, 2)
+  assert.deepEqual(blocchi.map(b => b.ospiti), [3, 4])
+})
+
+test('l’accordo del letto si porta dietro e non si moltiplica', () => {
+  // 30 € IN TUTTO su quattro notti: spezzando restano 30, non 60
+  const segmenti = [segLungo({
+    num_guests: 3, price_per_night: 90, extra_bed: true,
+    extra_bed_dates: ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'],
+    extra_bed_total: 30, extra_bed_importo: 30, extra_bed_criterio: 'totale', total_amount: 390,
+  })]
+  const notti = cambiaCamera(nottiDaSegmenti([segmenti[0]]), '2026-10-04', AMBRA, contesto({ ospiti: 3 }))
+  const p = pianoNotti(notti, segmenti, contesto({ ospiti: 3 }))
+  const righe = [...p.aggiorna.map(a => a.campi), ...p.crea]
+  assert.equal(righe.reduce((s, c) => s + c.extra_bed_total, 0), 30, 'prima faceva 0 + 10')
+  // importo e criterio viaggiano insieme su ogni riga col letto
+  for (const r of righe.filter(c => c.extra_bed)) {
+    assert.equal(r.extra_bed_importo, 30)
+    assert.equal(r.extra_bed_criterio, 'totale')
+  }
+})
+
+test('«ogni 4 notti» non ricomincia a ogni tratto', () => {
+  const segmenti = [segLungo({
+    num_guests: 3, price_per_night: 90, extra_bed: true,
+    extra_bed_dates: ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'],
+    extra_bed_total: 20, extra_bed_importo: 20, extra_bed_criterio: 'ogni4', total_amount: 380,
+  })]
+  const notti = cambiaCamera(nottiDaSegmenti([segmenti[0]]), '2026-10-04', AMBRA, contesto({ ospiti: 3 }))
+  const p = pianoNotti(notti, segmenti, contesto({ ospiti: 3 }))
+  const righe = [...p.aggiorna.map(a => a.campi), ...p.crea]
+  assert.equal(righe.reduce((s, c) => s + c.extra_bed_total, 0), 20, 'prima faceva 20 + 20')
+})
+
+test('senza accordo salvato il letto resta quello del listino', () => {
+  const segmenti = [segLungo({
+    num_guests: 3, price_per_night: 90, extra_bed: true,
+    extra_bed_dates: ['2026-10-01', '2026-10-02'], extra_bed_total: 0, total_amount: 340,
+  })]
+  const notti = cambiaCamera(nottiDaSegmenti([segmenti[0]]), '2026-10-04', AMBRA, contesto({ ospiti: 3 }))
+  const p = pianoNotti(notti, segmenti, contesto({ ospiti: 3 }))
+  const righe = [...p.aggiorna.map(a => a.campi), ...p.crea]
+  // niente accordo: importo e criterio restano vuoti tutti e due, come vuole il database
+  for (const r of righe) {
+    assert.equal(r.extra_bed_importo ?? null, null)
+    assert.equal(r.extra_bed_criterio ?? null, null)
+  }
 })

@@ -45,6 +45,40 @@ export function lettiOccupatiPerNotte(prenotazioni: PrenotazioneLetti[]): Map<st
   return m
 }
 
+// ── L'accordo del letto vale per TUTTA la prenotazione ─────────────────────
+// Importo e criterio si scelgono una volta sola; quando il soggiorno è spezzato
+// in più tratti (cambio camera, notte per notte) il costo NON si ripete per
+// ogni tratto: si calcola sul soggiorno intero e si riparte fra i tratti in
+// proporzione alle notti col letto (rilievo del 15/09/2026: «30 € in tutto»
+// diventavano 60, e «ogni 4 notti» ricominciava da capo a ogni tratto).
+export type AccordoLetto = { importo: number; criterio: 'notte' | 'ogni4' | 'totale' }
+
+/** Quanto costa il letto in tutto il soggiorno, con quell'accordo */
+export function costoLettoIntero(accordo: AccordoLetto | null | undefined, nottiColLetto: number): number {
+  if (!accordo || !accordo.importo || nottiColLetto <= 0) return 0
+  if (accordo.criterio === 'totale') return arrotonda(accordo.importo)
+  if (accordo.criterio === 'ogni4') return arrotonda(accordo.importo * Math.ceil(nottiColLetto / 4))
+  return arrotonda(accordo.importo * nottiColLetto)
+}
+
+/** La fetta che tocca a ogni tratto: le somme tornano sempre al totale intero */
+export function lettoRipartito(
+  accordo: AccordoLetto | null | undefined, nottiPerTratto: number[],
+): number[] {
+  const totaleNotti = nottiPerTratto.reduce((s, n) => s + n, 0)
+  const intero = costoLettoIntero(accordo, totaleNotti)
+  if (intero <= 0 || totaleNotti <= 0) return nottiPerTratto.map(() => 0)
+  // «a notte» si divide da sé; gli altri due in proporzione, e l'ultimo tratto
+  // che ha notti col letto prende il resto, così la somma torna al centesimo
+  const centesimi = Math.round(intero * 100)
+  const fette = nottiPerTratto.map(n => (n <= 0 ? 0 : Math.floor((centesimi * n) / totaleNotti)))
+  const ultimo = nottiPerTratto.reduce((ultimo, n, i) => (n > 0 ? i : ultimo), -1)
+  if (ultimo >= 0) fette[ultimo] += centesimi - fette.reduce((s, c) => s + c, 0)
+  return fette.map(c => arrotonda(c / 100))
+}
+
+const arrotonda = (n: number) => Math.round(n * 100) / 100
+
 export function lettiLiberi(occupati: ReadonlyMap<string, number>, notte: string): number {
   return Math.max(0, EXTRA_BED_MAX - (occupati.get(notte) ?? 0))
 }
