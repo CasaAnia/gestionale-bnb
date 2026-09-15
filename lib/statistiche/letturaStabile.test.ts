@@ -16,7 +16,7 @@ test('ogni lettura a pagine ha un secondo criterio d’ordine', () => {
 })
 
 test('anche la lettura per blocchi è ordinata', () => {
-  assert.match(dati, /\.in\('status', STATI_LETTI\)\.in\(colonna, blocco\)\s*\n\s*\.order\('check_in', \{ ascending: true \}\)\.order\('id', \{ ascending: true \}\)/)
+  assert.match(dati, /\.in\('status', stati\)\.in\(colonna, blocco\)\s*\n\s*\.order\('check_in', \{ ascending: true \}\)\.order\('id', \{ ascending: true \}\)/)
 })
 
 test('la ricostruzione legge anche prenotazione_id e le altre camere', () => {
@@ -27,4 +27,10 @@ test('la ricostruzione legge anche prenotazione_id e le altre camere', () => {
 test('le richieste portano il collegamento alla prenotazione', () => {
   assert.match(dati, /COLONNE_RICHIESTE = '[^']*prenotazione_id[^']*'/)
   assert.match(dati, /COLONNE_RICHIESTE = '[^']*chiusa_at[^']*'/)
+})
+
+// ── Secondo controllo del 15/09/2026: i movimenti sulle righe annullate ────
+test('le altre righe del conto si leggono annullate comprese', () => {
+  assert.match(dati, /export const STATI_COL_CONTO = \[\.\.\.STATI_LETTI, 'annullata'\]/)
+  assert.match(dati, /leggiPrenotazioniPerBlocchi\(colonna, valori, colonne, cosa, STATI_COL_CONTO\)/)
 })

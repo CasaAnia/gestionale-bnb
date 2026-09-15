@@ -114,3 +114,38 @@ test('due prenotazioni distinte dello stesso cliente restano distinte', () => {
   assert.equal(piano.movimenti.length, 2)
   assert.equal(piano.totaleCent, 20000)
 })
+
+// ── Secondo controllo del 15/09/2026: i movimenti sulle righe annullate ────
+test('il pagamento registrato su una riga annullata dello stesso conto è già incassato', () => {
+  const riga = (id: string, status: string, total: number) => ({
+    id, prenotazione_id: 'P1', group_id: null, room_id: 'r', check_in: '2026-08-01', check_out: '2026-08-03',
+    status, total_amount: total, guest_name: 'Prova', pagato: true,
+  })
+  const pagamento = { booking_id: 'vecchia', amount: 100, paid_on: '2026-08-01' }
+  const piano = pianoRicostruzione([riga('vecchia', 'annullata', 100), riga('nuova', 'confermata', 100)], [pagamento], '2026-09-15')
+  assert.deepEqual(piano.movimenti, [], 'prima proponeva altri 100 €')
+  assert.equal(piano.totaleCent, 0)
+})
+
+test('la riga annullata non aggiunge il suo valore al conto, solo i suoi movimenti', () => {
+  const riga = (id: string, status: string, total: number) => ({
+    id, prenotazione_id: 'P2', group_id: null, room_id: 'r', check_in: '2026-08-01', check_out: '2026-08-03',
+    status, total_amount: total, guest_name: 'Prova', pagato: true,
+  })
+  // conto vero 100, incassati 40 sulla riga poi annullata: mancano 60, non 160
+  const piano = pianoRicostruzione([riga('vecchia', 'annullata', 100), riga('nuova', 'confermata', 100)],
+    [{ booking_id: 'vecchia', amount: 40, paid_on: '2026-08-01' }], '2026-09-15')
+  assert.equal(piano.movimenti.length, 1)
+  assert.equal(piano.movimenti[0].amount, 60)
+  assert.equal(piano.movimenti[0].booking_id, 'nuova', 'il movimento va sulla riga viva')
+  assert.equal(piano.movimenti[0].totaleCent, 10000)
+  assert.equal(piano.movimenti[0].registratiCent, 4000)
+})
+
+test('un soggiorno annullato del tutto non entra nel piano', () => {
+  const riga = (id: string) => ({
+    id, prenotazione_id: 'P3', group_id: null, room_id: 'r', check_in: '2026-08-01', check_out: '2026-08-03',
+    status: 'annullata', total_amount: 100, guest_name: 'Prova', pagato: false,
+  })
+  assert.deepEqual(pianoRicostruzione([riga('a'), riga('b')], [], '2026-09-15').movimenti, [])
+})

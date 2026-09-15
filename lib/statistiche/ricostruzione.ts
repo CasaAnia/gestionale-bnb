@@ -66,18 +66,24 @@ export type PianoRicostruzione = { movimenti: MovimentoRicostruito[]; totaleCent
 export function pianoRicostruzione(prenotazioni: PrenotazioneStat[], pagamenti: PagamentoStat[], oggi: string): PianoRicostruzione {
   const perPrenotazione = new Map<string, number>()
   for (const p of pagamenti) perPrenotazione.set(p.booking_id, (perPrenotazione.get(p.booking_id) ?? 0) + cent(p.amount))
+  // Il soggiorno raccoglie TUTTE le sue righe, annullate comprese: la riga
+  // annullata non vale un euro nel conto, ma il pagamento che porta è stato
+  // incassato davvero e va sottratto, o il piano propone di incassarlo di
+  // nuovo (secondo controllo del 15/09/2026).
   const gruppi = new Map<string, PrenotazioneStat[]>()
-  for (const b of prenotazioni.filter(prenotazioneValida)) {
+  for (const b of prenotazioni) {
     const k = identitaSoggiorno(b)
     if (!gruppi.has(k)) gruppi.set(k, [])
     gruppi.get(k)!.push(b)
   }
   const movimenti: MovimentoRicostruito[] = []
   const esclusi: SoggiornoEscluso[] = []
-  for (const [soggiorno, segmenti] of gruppi) {
+  for (const [soggiorno, tutte] of gruppi) {
+    const segmenti = tutte.filter(prenotazioneValida)
+    if (segmenti.length === 0) continue   // soggiorno annullato del tutto: non c'è niente da ricostruire
     const ordinati = [...segmenti].sort((x, y) => x.check_in.localeCompare(y.check_in))
     const totale = segmenti.reduce((s, b) => s + cent(b.total_amount), 0)
-    const registrati = segmenti.reduce((s, b) => s + (perPrenotazione.get(b.id) ?? 0), 0)
+    const registrati = tutte.reduce((s, b) => s + (perPrenotazione.get(b.id) ?? 0), 0)
     const mancante = totale - registrati
     if (mancante <= 0) continue
     const arrivo = ordinati[0].check_in

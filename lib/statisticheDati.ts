@@ -14,6 +14,9 @@ import type { PrenotazioneSconto } from './statistiche/sconti'
 import type { SiteEvent } from './siteStats'
 
 export const STATI_LETTI = ['confermata', 'completata']
+// Le altre righe dello stesso conto, annullate comprese: servono solo per
+// i movimenti già incassati, non per il valore del soggiorno (15/09/2026).
+export const STATI_COL_CONTO = [...STATI_LETTI, 'annullata']
 
 type Esito<T> = { data: T | null; errore: string | null }
 
@@ -107,10 +110,10 @@ export async function leggiRichiesteStat(da: string, a: string, cosa = 'caricare
 }
 
 // Prenotazioni a blocchi di ID (R5): ogni blocco a pagine, tutto raccolto e deduplicato, stop al primo errore
-async function leggiPrenotazioniPerBlocchi(colonna: 'id' | 'group_id' | 'prenotazione_id', ids: string[], colonne: string, cosa: string): Promise<Esito<PrenotazioneSconto[]>> {
+async function leggiPrenotazioniPerBlocchi(colonna: 'id' | 'group_id' | 'prenotazione_id', ids: string[], colonne: string, cosa: string, stati: string[] = STATI_LETTI): Promise<Esito<PrenotazioneSconto[]>> {
   const r = await raccogliBlocchi<PrenotazioneSconto, string>(aBlocchi(ids), blocco =>
     raccogliPagine<PrenotazioneSconto>((offset, limite) => supabase.from('bookings').select(colonne)
-      .in('status', STATI_LETTI).in(colonna, blocco)
+      .in('status', stati).in(colonna, blocco)
       .order('check_in', { ascending: true }).order('id', { ascending: true })
       .range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>),
     b => b.id)
@@ -141,12 +144,15 @@ export async function leggiRicostruzione(oggi: string): Promise<Esito<DatiRicost
   // Le altre camere dello stesso soggiorno: per prenotazione_id (conto unico) e
   // per group_id (cambio camera). Servono tutte, o il conto della prenotazione
   // resta parziale e il piano propone un incasso che non c'è.
+  // Annullate comprese: una riga annullata non vale nulla nel conto, ma il
+  // pagamento che porta è stato incassato davvero. Senza leggerla il piano
+  // propone di incassarlo una seconda volta (secondo controllo del 15/09/2026).
   const gruppi = [...new Set(p.data!.map(b => b.group_id).filter(Boolean) as string[])]
   const prenotazioni_id = [...new Set(p.data!.map(b => b.prenotazione_id).filter(Boolean) as string[])]
   let segmenti: PrenotazioneSconto[] = []
   for (const [colonna, valori] of [['group_id', gruppi], ['prenotazione_id', prenotazioni_id]] as const) {
     if (valori.length === 0) continue
-    const r = await leggiPrenotazioniPerBlocchi(colonna, valori, colonne, cosa)
+    const r = await leggiPrenotazioniPerBlocchi(colonna, valori, colonne, cosa, STATI_COL_CONTO)
     if (r.errore) return { data: null, errore: r.errore }
     segmenti = [...segmenti, ...r.data!]
   }
