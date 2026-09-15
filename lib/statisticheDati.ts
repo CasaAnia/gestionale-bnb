@@ -9,6 +9,7 @@ import { supabase } from './supabase'
 import { messaggioLetturaNonRiuscita } from './prenotazioneScritture'
 import { raccogliPagine, raccogliBlocchi, aBlocchi, mappaChiusure, intervalloAnnoPrima, spostaGiorni, type CameraStat, type PagamentoStat, type FuoriServizio, type RichiestaRiquadro } from './statistiche'
 import type { SpesaPagata } from './statistiche/intervallo'
+import { inizioGiornoRoma } from './statistiche/confiniRoma'
 import type { PrenotazioneSconto } from './statistiche/sconti'
 import type { SiteEvent } from './siteStats'
 
@@ -26,18 +27,18 @@ async function pagine<T>(cosa: string, pagina: (offset: number, limite: number) 
 export function leggiPrenotazioni(da: string, a: string, colonne = '*', cosa = 'caricare le prenotazioni') {
   return pagine<PrenotazioneSconto>(cosa, (offset, limite) => supabase.from('bookings').select(colonne)
     .in('status', STATI_LETTI).lt('check_in', a).gt('check_out', da)
-    .order('check_in', { ascending: true }).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>)
+    .order('check_in', { ascending: true }).order('id', { ascending: true }).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>)
 }
 
 export function leggiPagamenti(da: string, a: string, cosa = 'caricare gli incassi') {
   return pagine<PagamentoStat>(cosa, (offset, limite) => supabase.from('payments').select('booking_id, amount, paid_on')
-    .gte('paid_on', da).lt('paid_on', a).order('paid_on', { ascending: true }).range(offset, offset + limite - 1))
+    .gte('paid_on', da).lt('paid_on', a).order('paid_on', { ascending: true }).order('id', { ascending: true }).range(offset, offset + limite - 1))
 }
 
 // Tutti i movimenti (tabella piccola: solo acconti e saldi registrati), a pagine
 export function leggiTuttiPagamenti(cosa = 'caricare gli incassi') {
   return pagine<PagamentoStat>(cosa, (offset, limite) => supabase.from('payments').select('booking_id, amount, paid_on')
-    .order('paid_on', { ascending: true }).range(offset, offset + limite - 1))
+    .order('paid_on', { ascending: true }).order('id', { ascending: true }).range(offset, offset + limite - 1))
 }
 
 // Spese del B&B (gruppi con ambito azienda) per data di pagamento: paid_at se
@@ -46,7 +47,7 @@ export function leggiSpese(da: string, a: string, cosa = 'caricare le spese') {
   return pagine<SpesaPagata>(cosa, (offset, limite) => supabase.from('family_expenses')
     .select('expense_date, amount, paid_at, family_groups!inner(ambito)').eq('family_groups.ambito', 'azienda')
     .or(`and(paid_at.gte.${da},paid_at.lt.${a}),and(paid_at.is.null,expense_date.gte.${da},expense_date.lt.${a})`)
-    .order('expense_date', { ascending: true }).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: SpesaPagata[] | null; error: unknown }>)
+    .order('expense_date', { ascending: true }).order('id', { ascending: true }).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: SpesaPagata[] | null; error: unknown }>)
 }
 
 // Colonna/tabella non ancora migrata? (PostgREST: colonna sconosciuta / tabella assente)
@@ -56,10 +57,10 @@ const tabellaAssente = (e: unknown) => { const c = String((e as { code?: unknown
 // R12: camere con le date di entrata/uscita dal servizio (proposta 0034);
 // senza le colonne (prima della 0034) si ripiega su id, name, active
 export async function leggiCamere(cosa = 'caricare le camere'): Promise<Esito<CameraStat[]> & { conDate: boolean }> {
-  const conDate = await raccogliPagine<CameraStat>((offset, limite) => supabase.from('rooms').select('id, name, active, in_servizio_dal, fuori_servizio_dal').order('name').range(offset, offset + limite - 1))
+  const conDate = await raccogliPagine<CameraStat>((offset, limite) => supabase.from('rooms').select('id, name, active, in_servizio_dal, fuori_servizio_dal').order('name').order('id', { ascending: true }).range(offset, offset + limite - 1))
   if (!conDate.error) return { data: conDate.data, errore: null, conDate: true }
   if (!colonnaAssente(conDate.error)) return { data: null, errore: messaggioLetturaNonRiuscita(conDate.error, cosa), conDate: false }
-  const base = await pagine<CameraStat>(cosa, (offset, limite) => supabase.from('rooms').select('id, name, active').order('name').range(offset, offset + limite - 1))
+  const base = await pagine<CameraStat>(cosa, (offset, limite) => supabase.from('rooms').select('id, name, active').order('name').order('id', { ascending: true }).range(offset, offset + limite - 1))
   return { ...base, conDate: false }
 }
 
@@ -68,7 +69,7 @@ export async function leggiCamere(cosa = 'caricare le camere'): Promise<Esito<Ca
 // ogni altro errore è visibile.
 export type LetturaFuoriServizio = { intervalli: FuoriServizio[]; registrati: boolean }
 export async function leggiFuoriServizio(cosa = 'caricare i periodi di fuori servizio'): Promise<Esito<LetturaFuoriServizio>> {
-  const r = await raccogliPagine<{ room_id: string; da: string; a: string; motivo: string | null }>((offset, limite) => supabase.from('room_closures').select('room_id, da, a, motivo').order('da').range(offset, offset + limite - 1))
+  const r = await raccogliPagine<{ room_id: string; da: string; a: string; motivo: string | null }>((offset, limite) => supabase.from('room_closures').select('room_id, da, a, motivo').order('da').order('room_id', { ascending: true }).range(offset, offset + limite - 1))
   if (r.error) {
     if (tabellaAssente(r.error)) return { data: { intervalli: [], registrati: false }, errore: null }
     return { data: null, errore: messaggioLetturaNonRiuscita(r.error, cosa) }
@@ -76,9 +77,12 @@ export async function leggiFuoriServizio(cosa = 'caricare i periodi di fuori ser
   return { data: { intervalli: mappaChiusure(r.data), registrati: true }, errore: null }
 }
 
+// I giorni si contano come li conta Roma: senza offset il database leggeva
+// «2026-09-01T00:00:00» come UTC, cioè le due di notte italiane, e gli eventi
+// fra mezzanotte e le due finivano nel giorno sbagliato (15/09/2026).
 export function leggiEventiSito(da: string, a: string, cosa = 'caricare le visite del sito') {
   return pagine<SiteEvent>(cosa, (offset, limite) => supabase.from('site_events').select('tipo, pagina, fonte, campagna, created_at')
-    .gte('created_at', `${da}T00:00:00`).lt('created_at', `${a}T00:00:00`).order('created_at', { ascending: true }).range(offset, offset + limite - 1))
+    .gte('created_at', inizioGiornoRoma(da)).lt('created_at', inizioGiornoRoma(a)).order('created_at', { ascending: true }).order('id', { ascending: true }).range(offset, offset + limite - 1))
 }
 
 // Riquadro «Richieste» (07/09/2026): le richieste ARRIVATE in [da, a) con
@@ -86,11 +90,14 @@ export function leggiEventiSito(da: string, a: string, cosa = 'caricare le visit
 // proposta e alternative). created_at è un timestamp: si legge un giorno in
 // più per lato e il giorno locale lo decide lib/statistiche/richiesteRiquadro.
 // Prima della 0031 (proposta_alternative assente) si ripiega senza la colonna.
-const COLONNE_RICHIESTE = 'id, created_at, stato, chiusura_motivo, motivo_rifiuto, camera_id, proposta_inviata_at, proposta_soluzione'
+// prenotazione_id, chiusa_at, telefono, arrivo e nome servono al controllo di
+// coerenza col registro delle prenotazioni (15/09/2026): il riquadro conta
+// sempre per stato, ma se stato e collegamento non tornano si vede.
+const COLONNE_RICHIESTE = 'id, created_at, stato, chiusura_motivo, motivo_rifiuto, camera_id, proposta_inviata_at, proposta_soluzione, prenotazione_id, chiusa_at, telefono, arrivo, nome, cognome'
 export async function leggiRichiesteStat(da: string, a: string, cosa = 'caricare le richieste'): Promise<Esito<RichiestaRiquadro[]>> {
   const query = (colonne: string) => raccogliPagine<RichiestaRiquadro>((offset, limite) => supabase.from('richieste').select(colonne)
-    .gte('created_at', `${spostaGiorni(da, -1)}T00:00:00`).lt('created_at', `${spostaGiorni(a, 1)}T00:00:00`)
-    .order('created_at', { ascending: true }).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: RichiestaRiquadro[] | null; error: unknown }>)
+    .gte('created_at', inizioGiornoRoma(spostaGiorni(da, -1))).lt('created_at', inizioGiornoRoma(spostaGiorni(a, 1)))
+    .order('created_at', { ascending: true }).order('id', { ascending: true }).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: RichiestaRiquadro[] | null; error: unknown }>)
   const completa = await query(`${COLONNE_RICHIESTE}, proposta_alternative`)
   if (!completa.error) return { data: completa.data, errore: null }
   if (!colonnaAssente(completa.error)) return { data: null, errore: messaggioLetturaNonRiuscita(completa.error, cosa) }
@@ -100,10 +107,12 @@ export async function leggiRichiesteStat(da: string, a: string, cosa = 'caricare
 }
 
 // Prenotazioni a blocchi di ID (R5): ogni blocco a pagine, tutto raccolto e deduplicato, stop al primo errore
-async function leggiPrenotazioniPerBlocchi(colonna: 'id' | 'group_id', ids: string[], colonne: string, cosa: string): Promise<Esito<PrenotazioneSconto[]>> {
+async function leggiPrenotazioniPerBlocchi(colonna: 'id' | 'group_id' | 'prenotazione_id', ids: string[], colonne: string, cosa: string): Promise<Esito<PrenotazioneSconto[]>> {
   const r = await raccogliBlocchi<PrenotazioneSconto, string>(aBlocchi(ids), blocco =>
     raccogliPagine<PrenotazioneSconto>((offset, limite) => supabase.from('bookings').select(colonne)
-      .in('status', STATI_LETTI).in(colonna, blocco).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>),
+      .in('status', STATI_LETTI).in(colonna, blocco)
+      .order('check_in', { ascending: true }).order('id', { ascending: true })
+      .range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>),
     b => b.id)
   if (r.error) return { data: null, errore: messaggioLetturaNonRiuscita(r.error, cosa) }
   return { data: r.data, errore: null }
@@ -117,21 +126,29 @@ async function leggiPrenotazioniPerBlocchi(colonna: 'id' | 'group_id', ids: stri
 export type DatiRicostruzione = { prenotazioni: PrenotazioneSconto[]; pagamenti: PagamentoStat[]; oggi: string }
 
 export async function leggiRicostruzione(oggi: string): Promise<Esito<DatiRicostruzione>> {
-  const colonne = 'id, group_id, guest_id, room_id, check_in, check_out, total_amount, status, pagato, guest_name, guests(*)'
+  // prenotazione_id serve a riconoscere UNA prenotazione su più camere: senza,
+  // il piano proponeva di incassare di nuovo quello che era già saldato
+  // (rilievo del 15/09/2026).
+  const colonne = 'id, prenotazione_id, group_id, guest_id, room_id, check_in, check_out, total_amount, status, pagato, guest_name, guests(*)'
   const cosa = 'caricare lo storico dei pagamenti'
   const [p, pag] = await Promise.all([
     pagine<PrenotazioneSconto>(cosa, (offset, limite) => supabase.from('bookings').select(colonne)
-      .in('status', STATI_LETTI).lte('check_out', oggi).order('check_in', { ascending: true }).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>),
+      .in('status', STATI_LETTI).lte('check_out', oggi).order('check_in', { ascending: true }).order('id', { ascending: true }).range(offset, offset + limite - 1) as unknown as PromiseLike<{ data: PrenotazioneSconto[] | null; error: unknown }>),
     leggiTuttiPagamenti(cosa),
   ])
   const errore = p.errore ?? pag.errore
   if (errore) return { data: null, errore }
+  // Le altre camere dello stesso soggiorno: per prenotazione_id (conto unico) e
+  // per group_id (cambio camera). Servono tutte, o il conto della prenotazione
+  // resta parziale e il piano propone un incasso che non c'è.
   const gruppi = [...new Set(p.data!.map(b => b.group_id).filter(Boolean) as string[])]
+  const prenotazioni_id = [...new Set(p.data!.map(b => b.prenotazione_id).filter(Boolean) as string[])]
   let segmenti: PrenotazioneSconto[] = []
-  if (gruppi.length > 0) {
-    const r = await leggiPrenotazioniPerBlocchi('group_id', gruppi, colonne, cosa)
+  for (const [colonna, valori] of [['group_id', gruppi], ['prenotazione_id', prenotazioni_id]] as const) {
+    if (valori.length === 0) continue
+    const r = await leggiPrenotazioniPerBlocchi(colonna, valori, colonne, cosa)
     if (r.errore) return { data: null, errore: r.errore }
-    segmenti = r.data!
+    segmenti = [...segmenti, ...r.data!]
   }
   const visti = new Set<string>()
   const prenotazioni = [...p.data!, ...segmenti].filter(b => (visti.has(b.id) ? false : (visti.add(b.id), true)))

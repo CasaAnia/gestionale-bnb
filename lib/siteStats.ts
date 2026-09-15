@@ -1,3 +1,4 @@
+import { dentroIlPeriodoRoma } from './statistiche/confiniRoma.ts'
 // «oggi» (06/09/2026, richiesta di Ania): il solo giorno di `now`, per vedere la situazione aggiornata
 export type StatsPeriod = 'oggi' | 'settimana' | 'mese' | 'anno'
 
@@ -61,12 +62,15 @@ function ranking(events: SiteEvent[], field: 'fonte' | 'campagna') {
     .sort((a, b) => b.valore - a.valore || a.nome.localeCompare(b.nome))
 }
 
+const giornoRoma = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
+
 export function buildSiteFunnel(events: SiteEvent[], period: StatsPeriod, now = new Date()): SiteFunnel {
+  // I confini del periodo si contano come li conta Roma, non come li conta il
+  // browser di chi guarda: gli eventi fra mezzanotte e le due finivano nel
+  // giorno sbagliato (15/09/2026).
   const { start, end } = periodBounds(period, now)
-  const inPeriod = events.filter(event => {
-    const date = new Date(event.created_at)
-    return !Number.isNaN(date.getTime()) && date >= start && date < end
-  })
+  const da = giornoRoma(start), a = giornoRoma(end)
+  const inPeriod = events.filter(event => dentroIlPeriodoRoma(event.created_at, da, a))
 
   const visite = inPeriod.filter(event => event.tipo === 'visita').length
   const paginaPrenota = inPeriod.filter(event => event.tipo === 'visita' && event.pagina === '/prenota').length
