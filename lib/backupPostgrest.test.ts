@@ -71,7 +71,14 @@ before(async () => {
   await new Promise<void>(ok => server.listen(0, '127.0.0.1', ok))
   url = `http://127.0.0.1:${(server.address() as { port: number }).port}`
 })
-after(() => server.close())
+// Il server va chiuso davvero e aspettato: le connessioni tenute aperte da
+// fetch (keep-alive) facevano restare in piedi il server dopo l'ultima prova e
+// il file di prove finiva «cancelled» ogni tanto, senza colpa del prodotto
+// (secondo controllo del 15/09/2026).
+after(async () => {
+  server.closeAllConnections?.()
+  await new Promise<void>((ok, ko) => server.close(e => (e ? ko(e) : ok())))
+})
 
 test('esportazione via PostgREST: app_members con user_id, 1001 righe con taglio del server a 1000, tutte lette una volta sola', async () => {
   chiamate = []; ignoraOrdine = false
