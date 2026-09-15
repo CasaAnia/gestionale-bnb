@@ -1009,3 +1009,75 @@ quelle già a posto e i «totale concordato» più alti del pieno (che non sono
 sconti); applicarla due volte non cambia niente. In cima al file c'è la SELECT
 per vedere prima quante e quali sono. Provata su un database vero con PGlite
 (`lib/totaleScontatoSql.test.ts`, 5 casi).
+
+## Revisione del 15 settembre 2026: i dodici rilievi (Claude)
+
+Corretti tutti e dodici, **in locale**: cinque commit da `9a5af81` a `81012ce`,
+**nessun push e nessuna migrazione applicata**. Ogni caso è stato riprodotto
+prima della correzione eseguendo le funzioni vere del repository, e le prove
+nuove rifanno gli stessi casi.
+
+**Quello che era rotto nei conti** (rilievi 3, 4, 5, 6, 9 — commit `9a5af81`).
+Lo sconto della prenotazione non arrivava ai tratti nuovi (288 € diventavano
+296); la tariffa concordata tornava al listino appena si separava una notte
+(60 → 80); l'accordo del letto non veniva né letto né riscritto, e il costo si
+ripeteva per ogni tratto («30 € in tutto» → 60, «ogni 4 notti» che ricominciava
+da capo); gli ospiti per notte collassavano sul numero più alto. Adesso lo
+sconto è della prenotazione (il totale concordato diventa la percentuale
+equivalente quando i tratti sono più d'uno), la tariffa salvata si conserva
+finché non cambiano camera o persone, l'accordo del letto si calcola sul
+soggiorno intero e si riparte fra i tratti (`costoLettoIntero`,
+`lettoRipartito`), e a imporre il numero di ospiti sono solo le notti col
+letto. Le combinazioni non rappresentabili non si aggiustano di nascosto: le
+elenca `nottiNonSalvabili`.
+
+**Quello che prometteva senza sapere** (rilievi 7, 8, 10, 11, 12 — commit
+`a885c8f`). La lettura delle occupazioni ignorava l'errore e si fermava a mille
+righe: adesso `lib/occupazioniDati` legge tutte le pagine, dice sempre com'è
+andata, la pagina mostra che sta guardando, e «Salva» rilegge prima di scrivere
+e si ferma se non riesce. Le visite si contano per soggiorno e non per riga. La
+compatibilità con le colonne mancanti non perde più niente in silenzio:
+`prenotazione_id` non è rinunciabile e lì ci si ferma, il resto si perde solo
+dicendolo per nome. Il controllo statico sui file toccati non segnala più
+niente, senza spegnere regole.
+
+**Quello che poteva lasciare i dati a metà** (rilievi 1 e 2 — commit `73e1ecf`
+e `81012ce`). Salvare «come paga» azzerava la caparra con la prima scrittura e
+la rimetteva con la seconda: un guasto in mezzo la cancellava. Spostare le
+notti erano tre richieste separate: un guasto in mezzo lasciava il soggiorno
+accorciato e la camera nuova mai creata. Per tutte e due la soluzione vera è
+lato server e sta nelle proposte qui sotto; nel frattempo «come paga» scrive
+nell'ordine che non può perdere la caparra (prima la riga che la porta, poi le
+altre) e lo spostamento delle notti **non ripiega** sulle tre richieste
+separate: dice che serve la proposta applicata.
+
+### Tre proposte SQL da valutare, NON applicate
+
+| File | Cosa fa | Perché serve |
+|---|---|---|
+| `supabase/proposte/0051_camera_non_due_volte.BOZZA.sql` | vincolo di esclusione: una camera non può avere due prenotazioni attive sulle stesse notti | è l'unica cosa che chiude la finestra fra il controllo e la scrittura; il browser non può farlo |
+| `supabase/proposte/0052_come_paga_atomico.BOZZA.sql` | `salva_come_paga`: modo e caparra in una transazione, con verifica delle righe toccate | senza, la caparra dipende dall'ordine delle scritture invece che da una garanzia |
+| `supabase/proposte/0053_notti_in_un_colpo.BOZZA.sql` | `sposta_notti`: aggiorna, crea e annulla in una transazione, ricontrollando la disponibilità | senza, lo spostamento delle notti resta bloccato (per scelta) |
+
+La 0051 va guardata prima delle altre due, e **prima di applicarla va lanciata
+la query che elenca le sovrapposizioni già presenti**: se ce ne sono, il vincolo
+non si crea. Ogni file porta dentro la query di controllo, le prove di
+concorrenza da fare su un progetto di prova e le istruzioni per tornare
+indietro.
+
+### Cosa è stato verificato e cosa no
+
+Verificato: TypeScript pulito, 1331 prove verdi, build pulita, ESLint senza
+segnalazioni sui file toccati. Nell'anteprima con il database finto:
+inserimento di una prenotazione con letto «30 € in tutto» (il conto dice 30, non
+60), salvataggio e riapertura della scheda con gli stessi numeri, e cambio di
+«come paga» riuscito senza la funzione 0052, cioè per la strada di riserva.
+Confermato che il finto database risponde `PGRST202` alle funzioni mancanti,
+cioè il codice che il gestionale riconosce.
+
+Non verificato: produzione, e il comportamento reale delle tre proposte SQL —
+non sono state applicate da nessuna parte. Le prove di concorrenza sono scritte
+nei file ma non eseguite.
+
+Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
+`lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
