@@ -5,10 +5,11 @@
 // Google, Passaparola, Non so) con clienti, soggiorni, di cui ritorni (cliente
 // con un soggiorno concluso prima di quell'arrivo) e ricavi per soggiorno
 // (lib/statistiche: competenza sulle notti nel periodo), ordinate per ricavi.
-// Solo confermate; un soggiorno = group_id (cambio camera contato una volta).
+// Solo confermate; un soggiorno è quello del conto unico (prenotazione_id →
+// group_id → riga): due camere della stessa prenotazione contano una volta.
 // Sotto, «Strutture»: soggiorni e ricavi di ciascuna nell'anno in corso.
 // ============================================================================
-import { prenotazioneValida, type PrenotazioneStat } from './tipi.ts'
+import { identitaSoggiorno, prenotazioneValida, type PrenotazioneStat } from './tipi.ts'
 import { ricaviSoggiornoCent } from './intervallo.ts'
 import { provenienzaDi, ETICHETTA_PROVENIENZA, clienteConProvenienza, type PrenotazioneConCliente, type Provenienza } from '../provenienza.ts'
 import { eraGiaStato, type SoggiornoStorico } from '../clienteCheTorna.ts'
@@ -26,7 +27,7 @@ function soggiorniNelPeriodo(prenotazioni: PrenotazioneProvenienza[], da: string
   const gruppi = new Map<string, PrenotazioneProvenienza[]>()
   for (const b of prenotazioni.filter(prenotazioneValida)) {
     if (!(b.check_in < a && b.check_out > da)) continue
-    const k = b.group_id || b.id
+    const k = identitaSoggiorno(b)
     if (!gruppi.has(k)) gruppi.set(k, [])
     gruppi.get(k)!.push(b)
   }

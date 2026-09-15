@@ -46,3 +46,25 @@ test('da dove arrivano: prima della 0037 vale il valore della 0036 sulla prenota
   assert.equal(nulla.righe.find(r => r.chiave === 'non_so')!.soggiorni, 1)
   assert.deepEqual(daDoveArrivano([], [], '2026-09-01', '2026-10-01').righe.map(r => r.soggiorni), [0, 0, 0])
 })
+
+// ── Rilievo 4 del 15/09/2026: anche qui un soggiorno è quello del conto unico
+test('la provenienza conta una prenotazione su due camere una volta sola', () => {
+  n = 0
+  const g = cliente('Prova', 'google')
+  const camera = (id: string, gruppo: string) =>
+    b(id, '2026-09-01', '2026-09-03', 80, g, { prenotazione_id: 'P1', group_id: gruppo })
+  const righe = daDoveArrivano([camera('a', 'g1'), camera('b', 'g2')], [], '2026-09-01', '2026-10-01').righe
+  const google = righe.find(r => r.chiave === 'google')
+  assert.equal(google?.soggiorni, 1, 'prima ne contava due')
+  assert.equal(google?.clienti, 1)
+})
+
+test('due prenotazioni diverse dello stesso cliente restano due soggiorni', () => {
+  n = 0
+  const g = cliente('Prova', 'google')
+  const righe = daDoveArrivano([
+    b('a', '2026-09-01', '2026-09-03', 80, g, { prenotazione_id: 'P1' }),
+    b('b', '2026-09-10', '2026-09-12', 80, g, { prenotazione_id: 'P2' }),
+  ], [], '2026-09-01', '2026-10-01').righe
+  assert.equal(righe.find(r => r.chiave === 'google')?.soggiorni, 2)
+})

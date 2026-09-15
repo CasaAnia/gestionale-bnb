@@ -80,3 +80,37 @@ test('chiave stabile: stesso soggiorno → stessa chiave UUID; soggiorni diversi
   assert.deepEqual(etichettaIncassi(0), { etichetta: 'Incassi', avviso: null })
   assert.deepEqual(pianoRicostruzione([], [], OGGI).movimenti, [])
 })
+
+// ── Rilievo 5 del 15/09/2026: il falso incasso da ricostruire ─────────────
+test('una prenotazione su due camere, già saldata, non propone altri incassi', () => {
+  const camera = (id: string, gruppo: string, tot: number) => ({
+    id, prenotazione_id: 'P1', group_id: gruppo, room_id: 'r', check_in: '2026-09-01', check_out: '2026-09-02',
+    status: 'confermata', total_amount: tot, guest_name: 'Prova',
+  })
+  // due camere da 100, gruppi diversi, unica prenotazione: pagate 200 sulla prima
+  const prenotazioni = [camera('a', 'g1', 100), camera('b', 'g2', 100)]
+  const pagamenti = [{ booking_id: 'a', amount: 200, paid_on: '2026-09-02' }]
+  const piano = pianoRicostruzione(prenotazioni, pagamenti, '2026-09-30')
+  assert.equal(piano.totaleCent, 0, 'prima proponeva altri 100 € su una prenotazione già saldata')
+  assert.deepEqual(piano.movimenti, [])
+})
+
+test('se manca davvero qualcosa il piano lo propone, una volta sola', () => {
+  const camera = (id: string, gruppo: string, tot: number) => ({
+    id, prenotazione_id: 'P1', group_id: gruppo, room_id: 'r', check_in: '2026-09-01', check_out: '2026-09-02',
+    status: 'confermata', total_amount: tot, guest_name: 'Prova',
+  })
+  const piano = pianoRicostruzione([camera('a', 'g1', 100), camera('b', 'g2', 100)], [{ booking_id: 'a', amount: 50, paid_on: '2026-09-02' }], '2026-09-30')
+  assert.equal(piano.movimenti.length, 1, 'un soggiorno, un movimento')
+  assert.equal(piano.totaleCent, 15000)
+})
+
+test('due prenotazioni distinte dello stesso cliente restano distinte', () => {
+  const b = (id: string, pren: string, tot: number) => ({
+    id, prenotazione_id: pren, group_id: null, room_id: 'r', check_in: '2026-09-01', check_out: '2026-09-02',
+    status: 'confermata', total_amount: tot, guest_name: 'Prova',
+  })
+  const piano = pianoRicostruzione([b('a', 'P1', 100), b('b', 'P2', 100)], [], '2026-09-30')
+  assert.equal(piano.movimenti.length, 2)
+  assert.equal(piano.totaleCent, 20000)
+})

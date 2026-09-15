@@ -11,7 +11,7 @@
 // Solo funzioni pure: la scrittura è la RPC ricostruisci_incassi (proposta
 // 0033), in un'unica transazione, dietro il tasto di conferma di Ania.
 // ============================================================================
-import { cent, prenotazioneValida, type PagamentoStat, type PrenotazioneStat } from './tipi.ts'
+import { cent, identitaSoggiorno, prenotazioneValida, type PagamentoStat, type PrenotazioneStat } from './tipi.ts'
 
 export const METODO_RICOSTRUITO = "all'arrivo (ricostruito)"
 export const ORIGINE_RICOSTRUITO = 'ricostruito'
@@ -68,7 +68,7 @@ export function pianoRicostruzione(prenotazioni: PrenotazioneStat[], pagamenti: 
   for (const p of pagamenti) perPrenotazione.set(p.booking_id, (perPrenotazione.get(p.booking_id) ?? 0) + cent(p.amount))
   const gruppi = new Map<string, PrenotazioneStat[]>()
   for (const b of prenotazioni.filter(prenotazioneValida)) {
-    const k = b.group_id || b.id
+    const k = identitaSoggiorno(b)
     if (!gruppi.has(k)) gruppi.set(k, [])
     gruppi.get(k)!.push(b)
   }

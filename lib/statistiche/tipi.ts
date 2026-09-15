@@ -9,6 +9,8 @@
 
 export type PrenotazioneStat = {
   id: string
+  /** tutte le camere della stessa prenotazione (proposta 0047) */
+  prenotazione_id?: string | null
   group_id?: string | null
   room_id: string
   check_in: string            // YYYY-MM-DD
@@ -22,6 +24,14 @@ export type PrenotazioneStat = {
 }
 
 export type PagamentoStat = { booking_id: string; amount: number | string; paid_on: string | null }
+
+// ── Che cos'è UN soggiorno ──────────────────────────────────────────────────
+// La stessa identità del conto unico e dello storico cliente: le camere di una
+// prenotazione stanno insieme per prenotazione_id, il cambio camera per
+// group_id, altrimenti la riga è sola. Le statistiche usavano solo group_id e
+// contavano due volte una prenotazione su due camere (rilievo del 15/09/2026).
+export const identitaSoggiorno = (b: { prenotazione_id?: string | null; group_id?: string | null; id: string }) =>
+  b.prenotazione_id || b.group_id || b.id
 
 // in_servizio_dal / fuori_servizio_dal (proposta 0034): la camera è vendibile
 // SOLO nei giorni fra le due date (null = da sempre / ancora in servizio).
