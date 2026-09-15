@@ -8,8 +8,10 @@ import {
   CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
   totaliScontati, ospitiMassimi, ospitiMassimiPrenotazione, ospitiScegliendoCamera,
   statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO, mancaAlConto, MANCA_CAMERA, MANCA_DATE, doveManca,
-  periodiDellaLinea, periodiDaNottiTenendoVuote,
+  periodiDellaLinea, periodiDaNottiTenendoVuote, conflittiConAltre, soggiorniConclusi,
+  RINUNCIABILI, SENZA_NON_SI_SALVA, mancaColonnaNecessaria, avvisoDegradazione,
 } from './nuovaPrenotazione.ts'
+import { eSovrapposizione, messaggioSovrapposizione } from './erroreSovrapposizione.ts'
 import { conLettoAutomatico, tariffaProposta, lettoProposto, problemi, type PeriodoComposto } from './prenotazioneComposta.ts'
 import {
   nottiDaPeriodi, giornoDellaNotte, avvisiStriscia, riassuntoStriscia,
@@ -623,7 +625,7 @@ test('il tastino «+ Aggiungi camera» è centrato dopo lo sconto e si tocca', (
 // era incompleto, e un tasto spento non dice niente.
 test('il tasto non è più spento quando il conto è incompleto', () => {
   const conto = readFileSync(new URL('../components/nuova/ContoNuova.tsx', import.meta.url), 'utf8')
-  assert.match(pagina, /<TastoSalva className="mt-6" onSalva=\{\(\) => void salva\(\)\} spento=\{salvando\} avviso=\{avvisoSalva\}/)
+  assert.match(pagina, /<TastoSalva className="mt-6" onSalva=\{\(\) => void salva\(\)\} spento=\{salvando \|\| salvata !== null\} avviso=\{avvisoSalva\}/)
   assert.doesNotMatch(pagina, /salvaSpento=\{salvando \|\| conto\.daPagareCent === null\}/)
   // l'avviso sta accanto al tasto, in mattone
   assert.match(conto, /data-avviso-salva[\s\S]{0,200}color: MATTONE/)
@@ -1185,7 +1187,7 @@ test('ospiti e letto della notte, sulla stessa riga, e «non dorme qui» in fond
 })
 
 test('«da qui in poi» porta gli ospiti anche alle notti dopo, senza toccare le camere', () => {
-  assert.match(pagina, /ospitiDaNotte\(nottiPrima\.current\.notti, iso, quanti, daQui, ctx\)/)
+  assert.match(pagina, /ospitiDaNotte\(prima, iso, quanti, daQui, ctx\)/)
   const contesto = { camere: CAMERE as never, altre: [], ospiti: 2 }
   const notti = nottiDaPeriodi([
     { id: 'a', roomId: LENA.id, checkIn: '2026-09-15', checkOut: '2026-09-16', ospiti: 2, nottiLetto: [] },
@@ -1361,10 +1363,11 @@ test('con «solo questa notte» le notti dopo tornano al valore che avevano', ()
 })
 
 test('la pagina tiene da parte com’erano le notti, e chiude la domanda quando serve', () => {
-  assert.match(pagina, /const nottiPrima = useRef<\{ iso: string; notti: NotteStriscia\[\] \} \| null>\(null\)/)
-  assert.match(pagina, /if \(nottiPrima\.current\?\.iso !== iso\) nottiPrima\.current = \{ iso, notti: nottiDaPeriodi\(linea\.periodi, camere\) \}/)
+  // la fotografia sta nello stato, non in un ref letto durante il disegno
+  assert.match(pagina, /const \[domandaOspiti, setDomandaOspiti\] = useState<\{ iso: string; daQui: boolean; prima: NotteStriscia\[\] \} \| null>/)
+  assert.match(pagina, /const prima = domandaOspiti\?\.iso === iso \? domandaOspiti\.prima : nottiDaPeriodi\(linea\.periodi, camere\)/)
   // la domanda si chiude toccando un'altra notte o cambiando qualcos'altro
-  assert.match(pagina, /function chiudiDomanda\(\) \{ setDomandaOspiti\(null\); nottiPrima\.current = null \}/)
+  assert.match(pagina, /function chiudiDomanda\(\) \{ setDomandaOspiti\(null\) \}/)
   assert.match(pagina, /function scegliCameraNotte[\s\S]{0,220}chiudiDomanda\(\)/)
   assert.match(pagina, /function scegliLettoNotte[\s\S]{0,220}chiudiDomanda\(\)/)
   assert.match(pagina, /function togliNotte[\s\S]{0,160}chiudiDomanda\(\)/)
@@ -1419,4 +1422,74 @@ test('il conto è uno solo, e il tasto è un pezzo a parte', () => {
   // e il conto dice ancora cosa manca, dov'è adesso
   assert.match(conto, /data-manca-conto[\s\S]{0,160}color: OTTONE/)
   assert.match(pagina, /<ContoNuova className="mt-6" conto=\{conto\} manca=\{mancaAlConto\(periodiColLetto, trovaCamera\)\} \/>/)
+})
+
+// ── Revisione 15/09: rilievi 7, 8, 10 e 11 ────────────────────────────────
+test('una camera già presa ferma il salvataggio', () => {
+  const periodi: PeriodoComposto[] = [
+    { id: 'a', gruppo: 'g', roomId: LENA.id, checkIn: '2026-10-02', checkOut: '2026-10-05', ospiti: 2, nottiLetto: [], letto: null, tariffa: null },
+  ]
+  const trova = (id: string | null) => (CAMERE.find(c => c.id === id) ?? null) as never
+  // arrivata nel frattempo, si accavalla su due notti
+  const guai = conflittiConAltre(periodi, trova, [
+    { room_id: LENA.id, check_in: '2026-10-04', check_out: '2026-10-07', status: 'confermata' },
+  ])
+  assert.equal(guai.length, 1)
+  assert.match(guai[0], /Lena è già occupata/)
+  // chi parte il giorno in cui l'altra arriva non è un conflitto
+  assert.deepEqual(conflittiConAltre(periodi, trova, [
+    { room_id: LENA.id, check_in: '2026-10-05', check_out: '2026-10-07', status: 'confermata' },
+  ]), [])
+  // e nemmeno una annullata
+  assert.deepEqual(conflittiConAltre(periodi, trova, [
+    { room_id: LENA.id, check_in: '2026-10-03', check_out: '2026-10-04', status: 'annullata' },
+  ]), [])
+})
+
+test('le visite si contano per soggiorno, non per riga', () => {
+  const oggi = '2026-09-15'
+  // una visita con due cambi camera = tre righe, stesso prenotazione_id
+  const righe = [
+    { id: '1', guest_id: 'anna', check_out: '2026-08-02', prenotazione_id: 'p1' },
+    { id: '2', guest_id: 'anna', check_out: '2026-08-04', prenotazione_id: 'p1' },
+    { id: '3', guest_id: 'anna', check_out: '2026-08-06', prenotazione_id: 'p1' },
+    // un'altra visita, col vecchio raggruppamento per group_id
+    { id: '4', guest_id: 'anna', check_out: '2026-07-02', group_id: 'g1' },
+    { id: '5', guest_id: 'anna', check_out: '2026-07-04', group_id: 'g1' },
+    // una riga sola, senza legami
+    { id: '6', guest_id: 'anna', check_out: '2026-06-02' },
+    // non ancora partita: non conta
+    { id: '7', guest_id: 'anna', check_out: '2026-12-02', prenotazione_id: 'p9' },
+  ]
+  assert.deepEqual(soggiorniConclusi(righe, oggi), { anna: 3 }, 'prima ne contava sei')
+})
+
+test('senza le colonne che tengono insieme la prenotazione non si salva', () => {
+  assert.equal(SENZA_NON_SI_SALVA.has('prenotazione_id'), true)
+  assert.equal(RINUNCIABILI.has('caparra_centesimi'), true)
+  assert.match(mancaColonnaNecessaria('prenotazione_id'), /Non salvo/)
+  assert.match(mancaColonnaNecessaria('prenotazione_id'), /spezzata/)
+  // quello a cui si può rinunciare si dice per nome, non si perde in silenzio
+  assert.match(avvisoDegradazione(['caparra_centesimi', 'caparra_entro']), /la caparra/)
+  assert.match(avvisoDegradazione(['extra_bed_importo', 'extra_bed_criterio']), /prezzo del letto/)
+  const detto = avvisoDegradazione(['extra_bed_importo', 'extra_bed_criterio'])
+  assert.equal(detto.split('l’accordo sul prezzo del letto').length - 1, 1, 'non si ripete due volte')
+  // la pagina si ferma sulle colonne necessarie e non va via in silenzio
+  assert.match(pagina, /if \(SENZA_NON_SI_SALVA\.has\(colonna\)\) break/)
+  assert.match(pagina, /if \(persi\.length > 0\)/)
+  assert.match(pagina, /setSalvata\(String\(prima\.id\)\)/)
+})
+
+test('il rifiuto del database per camera doppia si legge in italiano', () => {
+  assert.equal(eSovrapposizione({ code: '23P01' }), true)
+  assert.equal(eSovrapposizione({ message: 'conflicting key value violates exclusion constraint "bookings_camera_non_due_volte"' }), true)
+  assert.equal(eSovrapposizione({ code: '23505' }), false)
+  assert.equal(eSovrapposizione(null), false)
+  assert.match(messaggioSovrapposizione({ code: '23P01' }) ?? '', /appena stata presa/)
+  assert.equal(messaggioSovrapposizione({ code: '23505' }), null)
+  // la proposta che accende il vincolo esiste ed è una bozza, non applicata
+  const sql = readFileSync(new URL('../supabase/proposte/0051_camera_non_due_volte.BOZZA.sql', import.meta.url), 'utf8')
+  assert.match(sql, /exclude using gist/)
+  assert.match(sql, /daterange\(check_in, check_out, '\[\)'\)/)
+  assert.match(sql, /where \(status <> 'annullata'\)/)
 })

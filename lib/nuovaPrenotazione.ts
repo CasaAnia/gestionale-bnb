@@ -11,9 +11,9 @@
 import { capienzaBase, capienzaCamera } from './tariffe.ts'
 import { giorniSoggiorno } from './prezzoNotti.ts'
 const giornoDopo = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)
-import { camereLibere, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
+import { camereLibere, STATI_CHE_OCCUPANO, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
 import { contoPeriodo, lettoProposto, notti as nottiPeriodo, round2, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
-import { costoLettoIntero, lettoRipartito, type AccordoLetto } from './lettiAggiuntivi.ts'
+import { costoLettoIntero, type AccordoLetto } from './lettiAggiuntivi.ts'
 import type { NotteStriscia } from './strisciaNotti.ts'
 import { blocchiDaNotti } from './strisciaNotti.ts'
 import { GIORNI_LUNGHI, MESI_LUNGHI } from './dateItaliane.ts'
@@ -216,6 +216,74 @@ export function nottiNonSalvabili(
   return notti
     .filter(n => n.dentro && n.cameraId && !n.letto && n.persone > capienzaBase(camera(n.cameraId)))
     .map(n => n.iso)
+}
+
+// ── Colonne che possono non esserci ancora ──────────────────────────────────
+// Alcune colonne sono arrivate con le proposte 0041/0044/0048: se non sono
+// state applicate, il database le rifiuta. Si può salvare lo stesso togliendo
+// SOLO quelle che servono a ricordare un accordo — ma dicendolo. Le due che
+// tengono insieme la prenotazione invece non si possono perdere: senza
+// prenotazione_id le camere diventano prenotazioni separate, e col conto
+// unico i totali sballano (rilievo del 15/09/2026).
+export const RINUNCIABILI = new Set(['prenotazione_id', 'extra_bed_importo', 'extra_bed_criterio', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro'])
+export const SENZA_NON_SI_SALVA = new Set(['prenotazione_id'])
+
+export const NOMI_COLONNA: Record<string, string> = {
+  prenotazione_id: 'il legame fra le camere della stessa prenotazione',
+  extra_bed_importo: 'l’accordo sul prezzo del letto',
+  extra_bed_criterio: 'l’accordo sul prezzo del letto',
+  accordo_pagamento: 'come paga',
+  caparra_centesimi: 'la caparra',
+  caparra_entro: 'la scadenza della caparra',
+}
+export function mancaColonnaNecessaria(colonna: string): string {
+  return `Non salvo: manca ancora nel database ${NOMI_COLONNA[colonna] ?? colonna}, e senza quello la prenotazione verrebbe spezzata. Serve la proposta SQL corrispondente applicata su Supabase.`
+}
+export function avvisoDegradazione(colonne: string[]): string {
+  const cose = [...new Set(colonne.map(c => NOMI_COLONNA[c] ?? c))]
+  return `Prenotazione salvata, ma questi dati NON sono stati registrati: ${cose.join(', ')}. Servono le proposte SQL corrispondenti applicate su Supabase.`
+}
+
+// ── Le camere già prese da qualcun altro ────────────────────────────────────
+// Le pastiglie spengono le camere occupate, ma al salvataggio serve un
+// controllo vero: fra il momento in cui la pagina si è aperta e il tocco su
+// «Salva» può essere arrivata un'altra prenotazione (rilievo del 15/09/2026).
+export function conflittiConAltre(
+  periodi: PeriodoComposto[],
+  camera: (id: string | null) => CameraComposta | null,
+  altre: PrenotazioneMinima[],
+): string[] {
+  const occupanti = altre.filter(a => STATI_CHE_OCCUPANO.has(a.status))
+  const fuori: string[] = []
+  for (const p of periodi) {
+    const c = camera(p.roomId)
+    if (!c || !p.roomId) continue
+    for (const a of occupanti) {
+      if (a.room_id !== p.roomId) continue
+      if (a.check_in < p.checkOut && a.check_out > p.checkIn) {
+        fuori.push(`${c.name} è già occupata dal ${a.check_in.slice(8)}/${a.check_in.slice(5, 7)} al ${a.check_out.slice(8)}/${a.check_out.slice(5, 7)}: scegli un'altra camera o altre date.`)
+        break
+      }
+    }
+  }
+  return [...new Set(fuori)]
+}
+
+// ── Quante volte è già stata qui ────────────────────────────────────────────
+// Si contano i SOGGIORNI, non le righe: una visita con due cambi camera è una
+// visita sola (rilievo del 15/09/2026, prima ne contava tre). L'identità è
+// quella di lib/storicoCliente: prenotazione_id, se manca group_id, se manca
+// la riga da sola.
+export type RigaSoggiorno = { guest_id: string; check_out: string; prenotazione_id?: string | null; group_id?: string | null; id?: string | null }
+export function soggiorniConclusi(righe: RigaSoggiorno[], oggi: string): Record<string, number> {
+  const visti = new Map<string, Set<string>>()
+  for (const b of righe) {
+    if (!b.guest_id || b.check_out > oggi) continue
+    const chiave = b.prenotazione_id || b.group_id || b.id || `${b.guest_id}|${b.check_out}`
+    if (!visti.has(b.guest_id)) visti.set(b.guest_id, new Set())
+    visti.get(b.guest_id)!.add(chiave)
+  }
+  return Object.fromEntries([...visti.entries()].map(([id, s]) => [id, s.size]))
 }
 
 // ── Quanti ospiti può tenere il soggiorno ───────────────────────────────────

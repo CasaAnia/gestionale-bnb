@@ -13,7 +13,7 @@
 // conto da lib/prenotazioneComposta, le notti da lib/strisciaNotti (la stessa
 // striscia della scheda), «come paga» da lib/comePaga. Qui sta solo la pagina.
 // ============================================================================
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import BackBar from '@/components/BackBar'
 import CampoRicerca from '@/components/CampoRicerca'
 import { supabase } from '@/lib/supabase'
@@ -36,17 +36,18 @@ import NotteScelta from '@/components/nuova/NotteScelta'
 import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo, OTTONE as OTTONE_PEZZI } from '@/components/nuova/PezziNuova'
 import {
   camereDelPeriodo, rigaCamereLibere, datiLinea, nottiDellaLinea, raggruppaPerCamera, periodiDaNottiTenendoVuote,
-  periodiDellaLinea,
+  periodiDellaLinea, soggiorniConclusi, conflittiConAltre, nottiNonSalvabili, NOTTE_NON_SALVABILE,
+  RINUNCIABILI, SENZA_NON_SI_SALVA, mancaColonnaNecessaria, avvisoDegradazione, type RigaSoggiorno,
   ospitiPossibiliNotte, ospitiMassimi, ospitiScegliendoCamera, contoNuovaPrenotazione, scontoInParole, listinoLetto, CRITERI_LETTO, LETTO_COMPRESO_LISTINO,
   statoLettoNuova, mancaAlConto, doveManca,
   type ScontoNuova,
 } from '@/lib/nuovaPrenotazione'
 import {
   nottiDaPeriodi, prezzoLettoNotte, motivoLettoObbligatorio, lettoDisponibileNotte,
-  cambiaCamera as cambiaCameraNotte, cambiaOspitiNotte, cambiaLetto as cambiaLettoNotte, nonDormeQui,
-  camereDellaNotte, ospitiDaNotte, type CameraStriscia, type ContestoNotti, type NotteStriscia,
+  cambiaCamera as cambiaCameraNotte, cambiaLetto as cambiaLettoNotte, nonDormeQui,
+  camereDellaNotte, ospitiDaNotte, titoloNotte, type CameraStriscia, type ContestoNotti, type NotteStriscia,
 } from '@/lib/strisciaNotti'
-import { conLettoAutomatico, tariffaProposta, ospitiIniziali, lettoProposto, type PeriodoComposto, type CameraComposta } from '@/lib/prenotazioneComposta'
+import { conLettoAutomatico, tariffaProposta, lettoProposto, type PeriodoComposto, type CameraComposta } from '@/lib/prenotazioneComposta'
 import { capienzaCamera } from '@/lib/tariffe'
 import type { PrenotazioneMinima } from '@/lib/disponibilita'
 import type { PrenotazioneLetti } from '@/lib/lettiAggiuntivi'
@@ -60,6 +61,8 @@ import { campiConLei, campiSconto, totaliScontati } from '@/lib/nuovaPrenotazion
 import { rigaDaSalvare, problemi } from '@/lib/prenotazioneComposta'
 import { colonnaMancante } from '@/lib/colonnaMancante'
 import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
+import { leggiOccupazioni, daQuandoLeggere, CAMPI_OCCUPAZIONE, NON_LETTE } from '@/lib/occupazioniDati'
+import { messaggioSovrapposizione } from '@/lib/erroreSovrapposizione'
 import { oraCompleta } from '@/lib/ora'
 
 const OTTONE = '#A9884E'
@@ -109,6 +112,11 @@ export function RigaCliente({ cliente, soggiorni, onScegli }: { cliente: Cliente
 let contatore = 0
 const nuovoId = () => `n${Date.now().toString(36)}${++contatore}`
 
+/** Una pagina di occupazioni: la query sta qui, la logica in lib/occupazioniDati */
+const paginaOccupazioni = (dal: string) => (da: number, a: number) =>
+  supabase.from('bookings').select(CAMPI_OCCUPAZIONE)
+    .neq('status', 'annullata').gte('check_out', dal).order('check_in').range(da, a)
+
 export const SENZA_TELEFONO = 'Il numero di telefono è obbligatorio: senza non si può né chiamare né scrivere.'
 export const SENZA_NOME = 'Del cliente nuovo serve il nome.'
 
@@ -128,7 +136,10 @@ export default function NuovaPrenotazionePage() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // ── il soggiorno ─────────────────────────────────────────────────────────
   const [camere, setCamere] = useState<CameraStriscia[]>([])
+  // Chi occupa camere e letti, con lo stato della lettura: «non letto» non
+  // vuol dire «libero» (rilievo del 15/09/2026).
   const [altre, setAltre] = useState<(PrenotazioneMinima & PrenotazioneLetti)[]>([])
+  const [occupazioni, setOccupazioni] = useState<{ stato: 'carico' | 'pronte' | 'errore'; dal: string }>({ stato: 'carico', dal: oggiARoma() })
   const [periodi, setPeriodi] = useState<PeriodoComposto[]>([])
   const [letto, setLetto] = useState<{ importo: number | null; criterio: 'notte' | 'ogni4' | 'totale' }>({ importo: null, criterio: 'notte' })
   const [sconto, setSconto] = useState<ScontoNuova>({ tipo: 'nessuno', valore: null })
@@ -136,9 +147,11 @@ export default function NuovaPrenotazionePage() {
   // «Solo questa notte / da qui in poi»: finché la domanda è a schermo si passa
   // dall'una all'altra, e vale sempre quella accesa. Per tornare indietro serve
   // com'erano le notti PRIMA del cambio (Ania, 15/09/2026).
-  const [domandaOspiti, setDomandaOspiti] = useState<{ iso: string; daQui: boolean } | null>(null)
-  const nottiPrima = useRef<{ iso: string; notti: NotteStriscia[] } | null>(null)
-  function chiudiDomanda() { setDomandaOspiti(null); nottiPrima.current = null }
+  // La fotografia sta nello stato insieme alla domanda: un ref letto durante
+  // il disegno della pagina è proprio quello che React sconsiglia, e il
+  // controllo statico lo segnalava (rilievo 12 del 15/09/2026).
+  const [domandaOspiti, setDomandaOspiti] = useState<{ iso: string; daQui: boolean; prima: NotteStriscia[] } | null>(null)
+  function chiudiDomanda() { setDomandaOspiti(null) }
   // ── arrivo, come paga, con lei, nota ─────────────────────────────────────
   const [orario, setOrario] = useState('')
   const [navetta, setNavetta] = useState<'si' | 'no' | ''>('')
@@ -151,17 +164,36 @@ export default function NuovaPrenotazionePage() {
   const [salvando, setSalvando] = useState(false)
   const [guai, setGuai] = useState<string[]>([])
   const [avvisoSalva, setAvvisoSalva] = useState<string | null>(null)
+  // salvata ma con qualcosa di meno: si resta qui e si apre col tuo tocco
+  const [salvata, setSalvata] = useState<string | null>(null)
+
+  // Legge TUTTE le pagine e dice com'è andata; torna l'esito, così chi salva
+  // può rileggere e fermarsi se la lettura non riesce.
+  // Non scrive niente PRIMA di leggere: segnare «sto caricando» è compito di
+  // chi la chiama da un tocco, così dentro l'effetto non parte un giro in più.
+  const caricaOccupazioni = useCallback(async (dal: string) => {
+    const esito = await leggiOccupazioni(paginaOccupazioni(dal), dal)
+    if (esito.stato === 'errore') { setOccupazioni({ stato: 'errore', dal }); return esito }
+    setAltre(esito.righe as (PrenotazioneMinima & PrenotazioneLetti)[])
+    setOccupazioni({ stato: 'pronte', dal })
+    return esito
+  }, [])
 
   useEffect(() => {
     let vivo = true
     void leggiStrutture().then(r => { if (!vivo) return; setStrutture(r.strutture); setStruttureOk(r.disponibile) })
     void supabase.from('rooms').select('*').eq('active', true).then(({ data }) => { if (vivo) setCamere((data ?? []) as CameraStriscia[]) })
-    // le prenotazioni che occupano camere e letti: da oggi in avanti
-    void supabase.from('bookings').select('room_id, check_in, check_out, status, num_guests, extra_bed, extra_bed_dates')
-      .neq('status', 'annullata').gte('check_out', oggi)
-      .then(({ data }) => { if (vivo) setAltre((data ?? []) as (PrenotazioneMinima & PrenotazioneLetti)[]) })
+    // come le due letture qui sopra: lo stato si scrive nella risposta, non
+    // nel corpo dell'effetto
+    void leggiOccupazioni(paginaOccupazioni(oggi), oggi).then(esito => {
+      if (!vivo) return
+      if (esito.stato === 'errore') { setOccupazioni({ stato: 'errore', dal: oggi }); return }
+      setAltre(esito.righe as (PrenotazioneMinima & PrenotazioneLetti)[])
+      setOccupazioni({ stato: 'pronte', dal: oggi })
+    })
     return () => { vivo = false }
   }, [oggi])
+
 
   // Il cliente nuovo si salva subito: da qui in poi è un cliente come gli altri
   async function creaCliente() {
@@ -207,15 +239,16 @@ export default function NuovaPrenotazionePage() {
     if (error) { setErroreRicerca(messaggioLetturaNonRiuscita(error, 'cercare il cliente')); setRisultati([]); return }
     const trovati = filtraClienti(testo, (data ?? []) as ClienteRiga[])
     setRisultati(trovati)
-    // quante volte è già stata qui: soggiorni conclusi, senza le annullate
+    // Quante volte è già stata qui: si contano i SOGGIORNI, non le righe —
+    // una visita con due cambi camera è una visita sola (15/09/2026). Se la
+    // lettura non riesce non si scrive un numero sbagliato: si lascia stare.
     const ids = trovati.map(c => c.id)
     if (ids.length === 0) return
-    const { data: righe } = await supabase.from('bookings').select('guest_id, check_out, status').in('guest_id', ids).neq('status', 'annullata')
-    const conta: Record<string, number> = {}
-    for (const b of (righe ?? []) as { guest_id: string; check_out: string }[]) {
-      if (b.check_out <= oggi) conta[b.guest_id] = (conta[b.guest_id] ?? 0) + 1
-    }
-    setSoggiorni(conta)
+    const { data: righe, error: erroreSoggiorni } = await supabase
+      .from('bookings').select('id, guest_id, check_out, prenotazione_id, group_id')
+      .in('guest_id', ids).neq('status', 'annullata').limit(2000)
+    if (erroreSoggiorni) { setSoggiorni({}); return }
+    setSoggiorni(soggiorniConclusi((righe ?? []) as RigaSoggiorno[], oggi))
   }
 
   // ── le camere della prenotazione ─────────────────────────────────────────
@@ -253,7 +286,7 @@ export default function NuovaPrenotazionePage() {
   const righeListino = useMemo(() => {
     const viste = new Map<string, number>()
     for (const p of periodi) {
-      const c = trovaCamera(p.roomId)
+      const c = (camere.find(x => x.id === p.roomId) as CameraComposta | undefined) ?? null
       if (!c || p.nottiLetto.length === 0) continue
       viste.set(c.name, lettoProposto(c, p.ospiti))
     }
@@ -299,6 +332,9 @@ export default function NuovaPrenotazionePage() {
       const camera = trovaCamera(pezzo.roomId !== undefined ? pezzo.roomId : d.roomId)
       const arrivo = pezzo.arrivo ?? d.arrivo
       const partenza = pezzo.partenza ?? d.partenza
+      // una prenotazione che comincia prima del giorno già letto deve vedere
+      // chi c'era allora: si rilegge da lì (15/09/2026)
+      if (arrivo && arrivo < occupazioni.dal) { setOccupazioni(o => ({ ...o, stato: 'carico' })); void caricaOccupazioni(arrivo) }
       const fuori = ps.filter(p => p.gruppo !== gruppo)
       // le altre camere di QUESTA compilazione occupano come le prenotazioni vere
       const occupate = [
@@ -349,9 +385,10 @@ export default function NuovaPrenotazionePage() {
     const linea = linee.find(l => l.gruppo === gruppo)
     if (!linea) return
     const ctx = contesto(gruppo)
-    if (nottiPrima.current?.iso !== iso) nottiPrima.current = { iso, notti: nottiDaPeriodi(linea.periodi, camere) }
-    const fatte = ospitiDaNotte(nottiPrima.current.notti, iso, quanti, daQui, ctx)
-    setDomandaOspiti({ iso, daQui })
+    // si riparte SEMPRE da com'erano le notti prima del primo cambio
+    const prima = domandaOspiti?.iso === iso ? domandaOspiti.prima : nottiDaPeriodi(linea.periodi, camere)
+    const fatte = ospitiDaNotte(prima, iso, quanti, daQui, ctx)
+    setDomandaOspiti({ iso, daQui, prima })
     cambiaNotte(gruppo, () => fatte)
   }
   function scegliLettoNotte(gruppo: string, iso: string, acceso: boolean) {
@@ -386,7 +423,24 @@ export default function NuovaPrenotazionePage() {
   // quelli di lib/prenotazioneComposta (camere, capienza, letti della casa).
   async function salva() {
     if (salvando || !cliente) return
-    const fuori = problemi(periodiColLetto, id => (camere.find(c => c.id === id) as CameraComposta | undefined) ?? null, lettiPresi)
+    // Prima di scrivere si rilegge chi occupa: fra l'apertura della pagina e
+    // adesso può essere arrivata un'altra prenotazione. Se la lettura non
+    // riesce NON si salva: «non letto» non vuol dire «libero» (15/09/2026).
+    setSalvando(true)
+    setOccupazioni(o => ({ ...o, stato: 'carico' }))
+    const lettura = await caricaOccupazioni(daQuandoLeggere(oggi, periodi.map(p => p.checkIn)))
+    setSalvando(false)
+    if (lettura.stato === 'errore') { setGuai([NON_LETTE]); setAvvisoSalva(NON_LETTE); return }
+    const adesso = lettura.righe
+    const trova = (id: string | null) => (camere.find(c => c.id === id) as CameraComposta | undefined) ?? null
+    const lettiAdesso = lettiOccupatiPerNotte(adesso.filter((a: { status: string }) => a.status === 'confermata' || a.status === 'completata'))
+    const fuori = problemi(periodiColLetto, trova, lettiAdesso)
+    fuori.push(...conflittiConAltre(periodiColLetto, trova, adesso))
+    // e le notti che il modello non saprebbe risalvare come sono a schermo
+    for (const iso of nottiNonSalvabili(nottiDaPeriodi(periodiColLetto, camere), trova)) {
+      const n = nottiDaPeriodi(periodiColLetto, camere).find(x => x.iso === iso)
+      fuori.push(NOTTE_NON_SALVABILE(titoloNotte(iso), n?.camera ?? 'camera', n?.persone ?? 0))
+    }
     if (orario && !oraCompleta(orario)) fuori.push('L’orario di arrivo è incompleto: scrivi per esempio 15:30.')
     if (chiedeScadenzaComePaga(comePaga) && Boolean(caparraData) !== Boolean(caparraOra)) fuori.push('Della caparra servono data e ora, oppure nessuna delle due.')
     if (comePaga === 'caparra' && (!caparra || caparra <= 0)) fuori.push('La caparra deve essere un importo positivo.')
@@ -440,25 +494,41 @@ export default function NuovaPrenotazionePage() {
 
     // Le colonne arrivate dopo possono mancare: si toglie SOLO quella e si
     // riprova, come fa l'inserimento di adesso.
-    const facoltative = new Set(['prenotazione_id', 'extra_bed_importo', 'extra_bed_criterio', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro'])
+    // Se una colonna non c'è ancora si toglie e si riprova, ma NON in
+    // silenzio: quello che si perde per strada si dice, e le colonne che
+    // tengono insieme la prenotazione non si possono perdere affatto
+    // (rilievo del 15/09/2026).
     let tentativo: Record<string, unknown>[] = righe
+    const persi: string[] = []
     let esito = await supabase.from('bookings').insert(tentativo).select('id, check_in')
     for (let giro = 0; giro < 6 && esito.error; giro++) {
       const colonna = colonnaMancante(esito.error)
-      if (!colonna || !facoltative.has(colonna)) break
+      if (!colonna || !RINUNCIABILI.has(colonna)) break
+      if (SENZA_NON_SI_SALVA.has(colonna)) break        // qui ci si ferma, non si degrada
       const togli = ['extra_bed_importo', 'extra_bed_criterio'].includes(colonna) ? ['extra_bed_importo', 'extra_bed_criterio'] : [colonna]
+      if (togli.some(c => tentativo.some(r => r[c] != null))) persi.push(...togli)
       tentativo = tentativo.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => !togli.includes(k))))
       esito = await supabase.from('bookings').insert(tentativo).select('id, check_in')
     }
     setSalvando(false)
     if (esito.error || !esito.data?.length) {
-      const motivo = `La prenotazione non è stata salvata: ${esito.error?.message ?? 'errore sconosciuto'}`
+      const colonna = colonnaMancante(esito.error)
+      const motivo = messaggioSovrapposizione(esito.error)
+        ?? (colonna && SENZA_NON_SI_SALVA.has(colonna) ? mancaColonnaNecessaria(colonna) : null)
+        ?? `La prenotazione non è stata salvata: ${esito.error?.message ?? 'errore sconosciuto'}`
       setGuai([motivo])
       setAvvisoSalva(motivo)
       return
     }
-    // si apre la scheda della prenotazione appena fatta
     const prima = [...esito.data].sort((a, z) => String(a.check_in).localeCompare(String(z.check_in)))[0]
+    // salvata, ma con qualcosa di meno: NON si va via facendo finta di niente
+    if (persi.length > 0) {
+      const detto = avvisoDegradazione([...new Set(persi)])
+      setGuai([detto])
+      setAvvisoSalva(detto)
+      setSalvata(String(prima.id))
+      return
+    }
     router.push(`/scheda/${prima.id}?salvata=1`)
   }
 
@@ -668,7 +738,23 @@ export default function NuovaPrenotazionePage() {
               {guai.map(g => <AvvisoAzione key={g} testo={g} className="mt-2" />)}
             </div>
           )}
-          <TastoSalva className="mt-6" onSalva={() => void salva()} spento={salvando} avviso={avvisoSalva} />
+          {/* Finché non si sa chi occupa le camere, non si promette che siano
+              libere: lo si dice, e il salvataggio rilegge comunque prima di
+              scrivere (rilievo del 15/09/2026). */}
+          {occupazioni.stato !== 'pronte' && (
+            <p data-occupazioni-stato className="text-center" style={{ fontSize: 12, color: OTTONE_PEZZI, marginTop: 10 }}>
+              {occupazioni.stato === 'carico' ? 'Sto guardando quali camere sono libere…' : NON_LETTE}
+            </p>
+          )}
+          <TastoSalva className="mt-6" onSalva={() => void salva()} spento={salvando || salvata !== null} avviso={avvisoSalva} />
+          {salvata && (
+            <p className="text-center" style={{ marginTop: 10 }}>
+              <button type="button" data-apri-salvata onClick={() => router.push(`/scheda/${salvata}?salvata=1`)}
+                style={{ minHeight: 44, padding: '0 18px', borderRadius: 999, background: 'var(--color-green-mid)', color: 'var(--color-cream)', fontSize: 13, fontWeight: 600 }}>
+                Apri la prenotazione
+              </button>
+            </p>
+          )}
         </>
       )}
 
