@@ -1081,3 +1081,28 @@ nei file ma non eseguite.
 
 Le modifiche non salvate di un'altra attività (`app/prenotazioni/[id]/page.tsx`,
 `lib/condizioniPrenotazione.ts`) non sono state toccate né incluse nei commit.
+
+## Nota per chi lavora sulla scheda nuova (16/09/2026, Claude)
+
+I sei fogli di modifica stanno dentro `/scheda/<id>` (main fino a `fbf0fe6`,
+deploy Vercel `success`): «Aggiungi pagamento», «Come paga», «Dati della
+cliente», «Cambia cliente», «Annulla la prenotazione», «Arrivo». Veste comune
+in `components/scheda/Foglio.tsx` (PiedeFoglio: azione in pastiglia, «Annulla»
+sotto). I salvataggi sono quelli già in casa: `lib/pagamentiDati` (contratto
+unico dei movimenti di `lib/statistiche/pagato`, prima dentro la scheda
+vecchia), `lib/comePagaDati`, `lib/cambiaClienteDati`, `lib/arrivoOrario`. La
+scheda vecchia (`app/prenotazioni/[id]`) e `lib/condizioniPrenotazione` non
+sono state toccate; «Vedi tutto» porta ancora lì.
+
+- **Proposta 0055 (`payments.note`), NON applicata:** la nota facoltativa del
+  pagamento ha bisogno di quella colonna; senza, il pagamento si registra e la
+  scheda avvisa che la nota non è stata salvata.
+- **Chi ha annullato** sta in `cancelled_reason` («Errore mio», «La cliente ·
+  motivo», «Non si è presentata · motivo»: `lib/annullamento`). Con «Errore
+  mio» `lib/storicoCliente` salta la prenotazione (la riga resta sul database).
+  I motivi vecchi, scritti liberi, restano com'erano.
+- Prove: 1433 verdi, TypeScript e build puliti, ESLint senza diagnostiche nuove.
+  Giro fatto sull'anteprima finta (porta 3213) a 390×844: tutti e sei i fogli
+  aperti, chiusi con «Annulla» e salvati. **Non fatto in produzione:** il
+  pannello del browser non aveva la sessione di Ania (pagina di login), e le
+  credenziali non si scrivono; il giro con il pagamento finto resta da fare.
