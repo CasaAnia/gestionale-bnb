@@ -9,10 +9,11 @@ import {
   totaliScontati, ospitiMassimi, ospitiMassimiPrenotazione, ospitiScegliendoCamera,
   statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO, mancaAlConto, MANCA_CAMERA, MANCA_DATE, doveManca,
   periodiDellaLinea, periodiDaNottiTenendoVuote, conflittiConAltre, soggiorniConclusi,
-  RINUNCIABILI, SENZA_NON_SI_SALVA, mancaColonnaNecessaria, avvisoDegradazione,
+  RINUNCIABILI, SENZA_NON_SI_SALVA, mancaColonnaNecessaria, avvisoDegradazione, scontoPerRiga, righeDaSalvare,
 } from './nuovaPrenotazione.ts'
 import { eSovrapposizione, messaggioSovrapposizione } from './erroreSovrapposizione.ts'
 import { conLettoAutomatico, tariffaProposta, lettoProposto, problemi, type PeriodoComposto } from './prenotazioneComposta.ts'
+import { contoSoggiorno } from './conto.ts'
 import {
   nottiDaPeriodi, giornoDellaNotte, avvisiStriscia, riassuntoStriscia,
   camereDellaNotte, cambiaCamera as cambiaCameraNotte, cambiaOspitiNotte,
@@ -176,7 +177,9 @@ test('il cliente nuovo si salva con le regole di sempre', () => {
   const dati = readFileSync(new URL('./datiCliente.ts', import.meta.url), 'utf8')
   assert.match(dati, /nomeCompleto\(\{ nome: m\.nome, cognome: m\.cognome \}\)/)
   assert.match(dati, /motivo_problematico: m\.motivo\.trim\(\)/)
-  assert.match(pagina, /export const SENZA_TELEFONO = 'Il numero di telefono è obbligatorio/)
+  // i testi stanno nella libreria: una pagina di Next non può esportare costanti (16/09/2026)
+  assert.match(readFileSync(new URL('./nuovaPrenotazione.ts', import.meta.url), 'utf8'), /export const SENZA_TELEFONO = 'Il numero di telefono è obbligatorio/)
+  assert.equal(/^export const /m.test(pagina), false, 'la pagina esporta ancora costanti')
 })
 
 // ── 3. SOGGIORNO ───────────────────────────────────────────────────────────
@@ -268,10 +271,13 @@ test('le persone in più stanno nelle due colonne di sempre', () => {
     { id: '1', nome: 'Marco Riva', chiE: 'Figlio', telefono: '333 123 4567' },
     { id: '2', nome: 'Ada Riva', chiE: 'Amica', telefono: '' },
   ])
+  // chi è la seconda persona va in chi_e_2 (proposta 0056): prima si perdeva (16/09/2026)
   assert.deepEqual(campi, {
     extra_phone_1_name: 'Marco Riva', extra_phone_1: '3331234567', chi_e: 'Figlio',
-    extra_phone_2_name: 'Ada Riva',
+    extra_phone_2_name: 'Ada Riva', chi_e_2: 'Amica',
   })
+  assert.equal(RINUNCIABILI.has('chi_e_2'), true)
+  assert.match(readFileSync(new URL('../supabase/proposte/0056_chi_e_seconda_persona.BOZZA.sql', import.meta.url), 'utf8'), /add column if not exists chi_e_2 text/)
   // la terza non entra: la pagina lo dice
   const tre = campiConLei([
     { id: '1', nome: 'A', chiE: '', telefono: '' }, { id: '2', nome: 'B', chiE: '', telefono: '' }, { id: '3', nome: 'C', chiE: '', telefono: '' },
@@ -358,9 +364,11 @@ test('il disegno del conto: misure e Georgia', () => {
 })
 
 test('il salvataggio scrive le righe di sempre e apre la scheda nuova', () => {
-  assert.match(pagina, /import \{ rigaDaSalvare, problemi \} from '@\/lib\/prenotazioneComposta'/)
+  assert.match(pagina, /import \{ problemi \} from '@\/lib\/prenotazioneComposta'/)
   assert.match(pagina, /const fuori = problemi\(periodiColLetto,/)
-  assert.match(pagina, /rigaDaSalvare\(p, camere\.find/)
+  // le righe di sempre (rigaDaSalvare), col letto ripartito fra i tratti (16/09/2026)
+  assert.match(pagina, /const base = righeDaSalvare\(periodiColLetto, trova, p => gruppi\.get\(p\.gruppo\)!\)/)
+  assert.match(readFileSync(new URL('./nuovaPrenotazione.ts', import.meta.url), 'utf8'), /const riga = rigaDaSalvare\(p, c, groupIdDi\(p\)\)/)
   assert.match(pagina, /campiComePaga\(comePaga, \{/)
   assert.match(pagina, /router\.push\(`\/scheda\/\$\{prima\.id\}\?salvata=1`\)/)
   // la caparra si scrive una volta sola, sulla riga che arriva per prima
@@ -379,11 +387,13 @@ test('il totale di ogni riga si salva già scontato', () => {
   // prezzo finale: la somma torna esatta anche quando non è divisibile
   const finale = totaliScontati([100, 100, 100], { tipo: 'finale', valore: 250 })
   assert.equal(finale.reduce((s, t) => s + t, 0), 250)
-  assert.match(pagina, /const scontati = totaliScontati\(base\.map\(r => Number\(r\.total_amount\) \|\| 0\), sconto\)/)
+  assert.match(pagina, /const scontati = totaliScontati\(totaliBase, sconto\)/)
+  assert.match(pagina, /const scontoRighe = scontoPerRiga\(totaliBase, sconto\)/)
 })
 
 test('la scheda saluta la prenotazione appena salvata e poi smette', () => {
-  assert.match(scheda, /export const PRENOTAZIONE_SALVATA = '✓ Prenotazione salvata'/)
+  assert.match(readFileSync(new URL('./schedaPrenotazione.ts', import.meta.url), 'utf8'), /export const PRENOTAZIONE_SALVATA = '✓ Prenotazione salvata'/)
+  assert.equal(/^export const /m.test(scheda), false, 'la scheda esporta ancora costanti')
   assert.match(scheda, /parametri\.get\('salvata'\) === '1'/)
   assert.match(scheda, /const t = setTimeout\(\(\) => setSalvata\(false\), SECONDI_SALVATA \* 1000\)/)
   assert.match(scheda, /data-salvata[\s\S]{0,200}onClick=\{\(\) => setSalvata\(false\)\}/)
@@ -1499,4 +1509,68 @@ test('il rifiuto del database per camera doppia si legge in italiano', () => {
   assert.match(sql, /exclude using gist/)
   assert.match(sql, /daterange\(check_in, check_out, '\[\)'\)/)
   assert.match(sql, /where \(status <> 'annullata'\)/)
+})
+
+// ── Rilievi del 16/09/2026 ─────────────────────────────────────────────────
+const ALLEGRA_VERA = { id: 'allegra', name: 'Allegra', base_price: 80, double_price: null, has_extra_bed: true, extra_bed_price: 10 }
+const soloAllegra = (id: string | null) => (id === 'allegra' ? ALLEGRA_VERA as never : null)
+
+test('Allegra da 2 a 3 ospiti col «+»: il letto si accende da solo e il totale fa 90 €', async () => {
+  const { periodiDellaLinea } = await import('./nuovaPrenotazione.ts')
+  const { conLettoAutomatico } = await import('./prenotazioneComposta.ts')
+  let n = 0
+  const due: PeriodoComposto = { id: 'a', gruppo: 'g', roomId: 'allegra', checkIn: '2026-11-10', checkOut: '2026-11-11', ospiti: 2, nottiLetto: [], letto: null, tariffa: null }
+  // lo stesso giro della pagina: periodiDellaLinea({ ospiti: 3 }) e poi conLettoAutomatico
+  const tre = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-11-10', partenza: '2026-11-11' }, [due], { ospiti: 3 }, () => `n${++n}`)
+    .map(p => conLettoAutomatico(p, soloAllegra(p.roomId)))
+  assert.deepEqual(tre[0].nottiLetto, ['2026-11-10'])
+  assert.deepEqual(tre[0].letto, { importo: 10, criterio: 'notte', auto: true })
+  const conto = contoNuovaPrenotazione(tre, soloAllegra, { tipo: 'nessuno', valore: null })
+  assert.deepEqual(conto.righe.map(r => [r.titolo, r.importo]), [['Allegra', '80 €'], ['Letto in più', '10 €']])
+  assert.equal(conto.daPagare, '90 €')
+  // e la riga salvata dice lo stesso: 80 di camera + 10 di letto
+  const [riga] = righeDaSalvare(tre, soloAllegra, () => 'G')
+  assert.deepEqual([riga.price_per_night, riga.extra_bed_total, riga.total_amount, riga.extra_bed], [80, 10, 90, true])
+})
+
+test('letto «totale» su più tratti: le righe salvate sommano quanto mostra il conto', () => {
+  // Allegra 3 notti × 80 + Lena 2 notti × 90, letto 30 € in tutto su tutte e cinque le notti
+  const t1: PeriodoComposto = { id: 't1', gruppo: 'g', roomId: 'allegra', checkIn: '2026-11-10', checkOut: '2026-11-13', ospiti: 3, nottiLetto: ['2026-11-10', '2026-11-11', '2026-11-12'], letto: { importo: 30, criterio: 'totale' }, tariffa: 80 }
+  const t2: PeriodoComposto = { id: 't2', gruppo: 'g', roomId: 'lena', checkIn: '2026-11-13', checkOut: '2026-11-15', ospiti: 3, nottiLetto: ['2026-11-13', '2026-11-14'], letto: { importo: 30, criterio: 'totale' }, tariffa: 90 }
+  const cam = (id: string | null) => (id === 'allegra' ? ALLEGRA_VERA as never : id === 'lena' ? LENA as never : null)
+  const conto = contoNuovaPrenotazione([t1, t2], cam, { tipo: 'nessuno', valore: null })
+  assert.equal(conto.daPagare, '450 €')                                   // 240 + 180 + 30
+  const righe = righeDaSalvare([t1, t2], cam, () => 'G')
+  // prima: 30 su ogni tratto, 480 salvati contro 450 mostrati (rilievo del 16/09/2026)
+  assert.deepEqual(righe.map(r => r.total_amount), [258, 192])            // 240 + 18, 180 + 12
+  assert.deepEqual(righe.map(r => r.extra_bed_total), [18, 12])
+  assert.equal(righe.reduce((s, r) => s + r.total_amount, 0), 450)
+  // con lo sconto del 10 %: 405 in tutto, riga per riga
+  const scontati = totaliScontati(righe.map(r => r.total_amount), { tipo: 'percentuale', valore: 10 })
+  assert.equal(Math.round(scontati.reduce((s, t) => s + t, 0) * 100), 40500)
+})
+
+test('prezzo finale su più tratti: ogni riga porta la sua quota, e la somma è esatta', () => {
+  const dieci = (id: string, r: string, dal: string, al: string): PeriodoComposto => ({ id, gruppo: 'g', roomId: r, checkIn: dal, checkOut: al, ospiti: 2, nottiLetto: [], letto: null, tariffa: 100 })
+  const tre = [dieci('x', 'allegra', '2026-11-01', '2026-11-11'), dieci('y', 'lena', '2026-11-11', '2026-11-21'), dieci('z', 'allegra', '2026-11-21', '2026-12-01')]
+  const cam = (id: string | null) => (id === 'allegra' ? ALLEGRA_VERA as never : id === 'lena' ? LENA as never : null)
+  const base = righeDaSalvare(tre, cam, () => 'G').map(r => r.total_amount)
+  assert.deepEqual(base, [1000, 1000, 1000])
+  const sconto = scontoPerRiga(base, { tipo: 'finale', valore: 1000 })
+  assert.deepEqual(sconto, [
+    { discount_type: 'target_total', discount_value: 333.33 },
+    { discount_type: 'target_total', discount_value: 333.33 },
+    { discount_type: 'target_total', discount_value: 333.34 },
+  ])
+  // riletto riga per riga con la regola di sempre (lib/conto): 1.000, non 999,90
+  const riletto = tre.map((p, i) => contoSoggiorno({ check_in: p.checkIn, check_out: p.checkOut, price_per_night: 100, extra_bed_total: 0, ...sconto[i] }).totale)
+  assert.equal(Math.round(riletto.reduce((s, t) => s + t, 0) * 100), 100000)
+  // la percentuale resta una percentuale, uguale su tutte le righe; senza sconto niente
+  assert.deepEqual(scontoPerRiga([200, 100], { tipo: 'percentuale', valore: 10 }), [{ discount_type: 'percentage', discount_value: 10 }, { discount_type: 'percentage', discount_value: 10 }])
+  assert.deepEqual(scontoPerRiga([200, 100], { tipo: 'nessuno', valore: null }), [{}, {}])
+  assert.deepEqual(scontoPerRiga([200], { tipo: 'finale', valore: 150 }), [{ discount_type: 'target_total', discount_value: 150 }])
+  assert.deepEqual(scontoPerRiga([200], { tipo: 'finale', valore: 250 }), [{}])
+  // e la pagina scrive lo sconto riga per riga, non una volta per tutte
+  assert.match(pagina, /\.\.\.scontoRighe\[i\],/)
+  assert.equal(/campiSconto\(/.test(pagina), false, 'la pagina usa ancora lo sconto spalmato in percentuale')
 })

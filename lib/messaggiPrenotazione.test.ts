@@ -8,7 +8,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import buildWhatsappMsg, { MESSAGGI_SCHEDA, MESSAGGIO_ANNULLAMENTO } from './messaggiPrenotazione.ts'
+import buildWhatsappMsg, { MESSAGGI_SCHEDA, MESSAGGIO_ANNULLAMENTO, perMessaggio } from './messaggiPrenotazione.ts'
 import { messaggioRichiestaOrario } from './messaggiWhatsApp.ts'
 
 const leggi = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
@@ -97,4 +97,21 @@ test('col cambio camera il messaggio elenca i periodi', () => {
   assert.match(testo, /1\. \*Lena/)
   assert.match(testo, /2\. \*Amelia/)
   assert.match(testo, /Notti: \*4\*/)
+})
+
+// ── La spunta «bonifico» letta dall'accordo (16/09/2026) ────────────────────
+test('col bonifico ALL’ARRIVO la conferma non chiede un anticipo; con «Tutto» sì', () => {
+  const arrivo = perMessaggio(prenotazione({ bonifico: true, accordo_pagamento: 'bonifico_arrivo' }))
+  assert.equal(arrivo.bonifico, false)
+  assert.match(buildWhatsappMsg(arrivo, 'conferma'), /Il pagamento avviene all'arrivo/)
+  assert.doesNotMatch(buildWhatsappMsg(arrivo, 'conferma'), /si salda in anticipo/)
+  for (const accordo of ['bonifico_intero', 'caparra_meta', 'caparra_libera']) {
+    const prima = perMessaggio(prenotazione({ bonifico: true, accordo_pagamento: accordo }))
+    assert.equal(prima.bonifico, true, accordo)
+    assert.match(buildWhatsappMsg(prima, 'conferma'), /si salda in anticipo con bonifico/)
+  }
+  assert.equal(perMessaggio(prenotazione({ bonifico: false, accordo_pagamento: 'contanti' })).bonifico, false)
+  // senza accordo salvato (righe vecchie) la spunta resta com'è
+  assert.equal(perMessaggio(prenotazione({ bonifico: true, accordo_pagamento: null })).bonifico, true)
+  assert.equal(perMessaggio(prenotazione({ bonifico: false })).bonifico, false)
 })

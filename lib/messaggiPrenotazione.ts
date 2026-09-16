@@ -11,6 +11,7 @@
 // DA FARE quando quel file torna libero: cancellare la funzione da lì e
 // importarla da qui, così il testo resta scritto in un posto solo.
 // ============================================================================
+import { comePagaSalvato } from './comePaga.ts'
 import { nomeOspite, nomePerMessaggio } from './guestName.ts'
 import { roomWithType, lettoInclusoNellaCamera } from './roomTypes.ts'
 import { contoSoggiorno, residuoDaPagare } from './conto.ts'
@@ -347,3 +348,17 @@ Per qualsiasi necessità sono a sua disposizione:
 ${firmaFormale}`
 }
 // ── fine della copia ────────────────────────────────────────────────────────
+
+// ── Il bonifico letto dall'ACCORDO, non dalla sola spunta (16/09/2026) ──────
+// buildWhatsappMsg decide il blocco PAGAMENTO dal booleano `bonifico`, e deve
+// restare identico alla scheda attuale (test di confronto). Ma «Bonifico»
+// all'arrivo accende la stessa spunta di «Tutto» in anticipo: la conferma
+// chiedeva un anticipo anche a chi paga con bonifico quando arriva. Chi manda
+// il messaggio dalla scheda nuova passa di qui: la spunta vale «anticipo» solo
+// se l'accordo dice davvero prima di arrivare (tutto, caparra del 50%,
+// caparra). Senza accordo salvato (righe vecchie) resta la spunta com'è.
+export const MODI_IN_ANTICIPO = new Set(['tutto', 'meta', 'caparra'])
+export function perMessaggio<T extends { bonifico?: boolean | null; accordo_pagamento?: string | null }>(b: T): T {
+  if (!b.accordo_pagamento) return b
+  return { ...b, bonifico: MODI_IN_ANTICIPO.has(comePagaSalvato(b.accordo_pagamento, b.bonifico)) }
+}

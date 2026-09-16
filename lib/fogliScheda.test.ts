@@ -284,5 +284,21 @@ test('l’annullamento scrive come la scheda attuale, su tutte le righe attive, 
   assert.match(dopo, /setAnnullata\(true\)/)
   assert.match(dopo, /rileggi\(\)/)
   assert.match(pagina, /data-annullata[\s\S]{0,300}background: FONDO_ANNULLATA, color: TESTO_ANNULLATA/)
-  assert.match(pagina, /export const TESTO_ANNULLATA = '#8C3B2E'/)
+  assert.match(leggi('lib/schedaPrenotazione.ts'), /export const TESTO_ANNULLATA = '#8C3B2E'/)
+})
+
+// ── Rilievi del 16/09/2026 ─────────────────────────────────────────────────
+test('anche «Arrivo» e «Come paga» rileggono la scheda dopo il salvataggio (cronologia)', () => {
+  const arrivo = pagina.slice(pagina.indexOf('<FoglioArrivo'), pagina.indexOf('<FoglioArrivo') + 800)
+  assert.match(arrivo, /setFoglioArrivo\(false\)[\s\S]{0,120}rileggi\(\)/)
+  const comePaga = pagina.slice(pagina.indexOf('<FoglioComePaga'), pagina.indexOf('<FoglioComePaga') + 1500)
+  assert.match(comePaga, /setFoglioComePaga\(false\)[\s\S]{0,120}rileggi\(\)/)
+})
+
+test('con una lettura incompleta niente conto e niente pagamenti da qui', () => {
+  assert.match(pagina, /const \[contoLeggibile, setContoLeggibile\] = useState\(true\)/)
+  assert.match(pagina, /setContoLeggibile\(!conto\.errore\)/)
+  assert.match(pagina, /if \(pag\.error\) \{ setContoLeggibile\(false\)/)
+  assert.match(pagina, /if \(!contoLeggibile\) return null/)
+  assert.match(pagina, /\{foglioPagamento && conto && \(/)
 })

@@ -323,8 +323,9 @@ test('i messaggi: interruttore condiviso, tasto pieno stretto, otto pastiglie sa
 })
 
 test('i messaggi usano i testi di sempre, non ne scrivono di nuovi', () => {
-  assert.match(pagina, /import buildWhatsappMsg, \{ type TipoMessaggio \} from '@\/lib\/messaggiPrenotazione'/)
-  assert.match(pagina, /buildWhatsappMsg\(\{ \.\.\.booking, bonifico: accordo\?\.bonifico \}, tipo, attive, pagamenti\)/)
+  assert.match(pagina, /import buildWhatsappMsg, \{ perMessaggio, type TipoMessaggio \} from '@\/lib\/messaggiPrenotazione'/)
+  // la spunta «bonifico» vale «anticipo» solo se l'accordo lo dice (16/09/2026)
+  assert.match(pagina, /buildWhatsappMsg\(perIMessaggi\(\), tipo, attive, pagamenti\)/)
   // l'apertura di WhatsApp è quella condivisa, col WhatsApp scelto
   assert.match(pagina, /openWhatsApp\(waNumero, testoMessaggio\(tipo\), business\)/)
   // nessun testo scritto dentro il componente
