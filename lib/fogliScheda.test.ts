@@ -18,6 +18,7 @@ const pezzi = leggi('components/nuova/PezziNuova.tsx')
 const FOGLI: { file: string; stato: string; apre: RegExp }[] = [
   { file: 'FoglioPagamento', stato: 'foglioPagamento', apre: /onPagamento=\{\(\) => setFoglioPagamento\(true\)\}/ },
   { file: 'FoglioComePaga', stato: 'foglioComePaga', apre: /onComePaga=\{\(\) => setFoglioComePaga\(true\)\}/ },
+  { file: 'FoglioArrivo', stato: 'foglioArrivo', apre: /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/ },
 ]
 
 // ── La veste comune ─────────────────────────────────────────────────────────
@@ -141,4 +142,21 @@ test('dopo «Come paga» la testa e il conto si aggiornano: le righe portano il 
   assert.match(pagina, /const accordo = useMemo\(\(\) => accordoPrenotazione\(righe\) \?\? booking, \[righe, booking\]\)/)
   assert.match(pagina, /statoConto\(\{ totaleCent: conto\.totaleCent, ricevutiCent: conto\.ricevutiCent, pagato: righe\.some\(r => r\.pagato\), bonifico: accordo\?\.bonifico \}\)/)
   assert.match(pagina, /comePagaScheda\(accordoSalvato\?\.accordo_pagamento, accordo\?\.bonifico\)/)
+})
+
+// ── 6. ARRIVO ───────────────────────────────────────────────────────────────
+test('«Arrivo»: l’ora con l’orologino davanti, la navetta No · Sì · ?, e «Salva»', () => {
+  const arrivo = leggi('components/scheda/FoglioArrivo.tsx')
+  assert.match(arrivo, /export const TITOLO_ARRIVO = 'Arrivo'/)
+  assert.match(arrivo, /<Etichetta testo="A che ora arriva" primo ottone \/>/)
+  assert.match(arrivo, /<RigaCampo etichetta="🕐 ora" ottone>/)
+  assert.match(arrivo, /export const NAVETTE = \[\['no', 'No'\], \['si', 'Sì'\], \['', '\?'\]\] as const/)
+  assert.match(arrivo, /<PiedeFoglio azione="Salva"/)
+  // il salvataggio resta quello a esito controllato di lib/arrivoOrario
+  assert.match(arrivo, /import \{ salvaOrarioENavetta \} from '@\/lib\/arrivoOrario'/)
+  assert.match(arrivo, /onChange=\{e => setOraForm\(oraDigitata\(e\.target\.value\)\)\}/)
+  // dopo il salvataggio la riga «Arrivo» e l'etichetta sotto la data si aggiornano dalle righe
+  const dopo = pagina.slice(pagina.indexOf('<FoglioArrivo'), pagina.indexOf('<FoglioArrivo') + 700)
+  assert.match(dopo, /setRighe\(rs => rs\.map\(aggiorna\)\)/)
+  assert.match(dopo, /setFoglioArrivo\(false\)/)
 })

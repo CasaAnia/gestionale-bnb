@@ -1,19 +1,25 @@
 'use client'
 // ============================================================================
-// «MODIFICA ARRIVO» (13/09/2026): orario previsto e navetta, gli stessi due
-// dati del riquadro della scheda attuale e della finestra degli Arrivi, con
-// lo stesso salvataggio a esito controllato (lib/arrivoOrario: prima orario e
-// navetta insieme, poi solo l'orario se la colonna shuttle manca). Il dato
-// resta uno solo, la colonna della prenotazione.
+// «ARRIVO» (13/09/2026, veste comune dal 16/09/2026): a che ora arriva, con
+// l'orologino davanti, e la navetta (No · Sì · ?) — gli stessi due dati del
+// riquadro della scheda attuale, della finestra degli Arrivi e della pagina
+// di inserimento, con lo stesso salvataggio a esito controllato
+// (lib/arrivoOrario: prima orario e navetta insieme, poi solo l'orario se la
+// colonna shuttle manca). Il dato resta uno solo, la colonna della
+// prenotazione.
 // ============================================================================
 import { useState } from 'react'
-import Foglio from './Foglio'
+import Foglio, { PiedeFoglio } from './Foglio'
 import AvvisoAzione from '@/components/AvvisoAzione'
+import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, stileCampo } from '@/components/nuova/PezziNuova'
 import { supabase } from '@/lib/supabase'
 import { salvaOrarioENavetta } from '@/lib/arrivoOrario'
 import { oraDigitata, oraCompleta } from '@/lib/ora'
 
+export const TITOLO_ARRIVO = 'Arrivo'
 export const ERRORE_ORA = 'L’orario si scrive con quattro cifre, per esempio 1830 diventa 18:30. Lascia vuoto se non lo sai ancora.'
+// le tre pastiglie della navetta, come nell'inserimento
+export const NAVETTE = [['no', 'No'], ['si', 'Sì'], ['', '?']] as const
 
 export default function FoglioArrivo({ bookingId, ora, navetta, onChiudi, onSalvato }: {
   bookingId: string
@@ -43,26 +49,27 @@ export default function FoglioArrivo({ bookingId, ora, navetta, onChiudi, onSalv
     onSalvato(esito.esito === 'solo_orario' ? { check_in_time: campi.check_in_time, shuttle: navetta ?? null } : campi, esito.messaggio)
   }
 
-  const pillola = (attiva: boolean) => attiva ? 'ed-pillola' : 'ed-pillola-tenue'
   return (
-    <Foglio titolo="Modifica arrivo" onChiudi={onChiudi}>
-      <label className="block">
-        <span className="block text-sm text-stone mb-1">Orario previsto</span>
-        <input type="text" inputMode="numeric" maxLength={5} placeholder="es. 18:30" value={oraForm} aria-label="Orario previsto"
-          onChange={e => setOraForm(oraDigitata(e.target.value))}
-          className="w-full min-w-0 appearance-none bg-white ed-campo p-3 text-[17px] focus:outline-none focus:border-green-mid" />
-      </label>
-      <p className="text-sm text-stone mt-3 mb-1">Navetta</p>
-      <div className="flex gap-2" role="group" aria-label="Navetta">
-        {([['si', 'Sì'], ['no', 'No'], ['', 'Non so']] as const).map(([val, testo]) => (
-          <button key={testo} type="button" aria-pressed={navettaForm === val} onClick={() => setNavettaForm(val)} className={pillola(navettaForm === val)} style={{ minHeight: 40 }}>{testo}</button>
-        ))}
+    <Foglio titolo={TITOLO_ARRIVO} onChiudi={onChiudi}>
+      <div className="flex flex-wrap" style={{ gap: 22 }}>
+        <div className="flex-1 min-w-[140px]">
+          <Etichetta testo="A che ora arriva" primo ottone />
+          <RigaCampo etichetta="🕐 ora" ottone>
+            <input type="text" inputMode="numeric" maxLength={5} placeholder="es. 15:30" data-campo="orario" aria-label="Orario previsto"
+              value={oraForm} onChange={e => setOraForm(oraDigitata(e.target.value))} style={{ ...stileCampo, fontSize: 17, fontWeight: 600 }} />
+          </RigaCampo>
+        </div>
+        <div>
+          <Etichetta testo="Navetta" primo ottone />
+          <FilaPastiglie>
+            {NAVETTE.map(([v, testo]) => (
+              <Pastiglia key={testo} dati={`navetta-${v || 'boh'}`} acceso={navettaForm === v} onClick={() => setNavettaForm(v)}>{testo}</Pastiglia>
+            ))}
+          </FilaPastiglie>
+        </div>
       </div>
       {errore && <AvvisoAzione testo={errore} className="mt-3" />}
-      <div className="flex gap-2 mt-4">
-        <button type="button" onClick={salva} disabled={salvando} className="ed-pillola flex-1" style={{ minHeight: 42 }}>{salvando ? 'Salvo…' : 'Salva arrivo'}</button>
-        <button type="button" onClick={onChiudi} className="ed-pillola-tenue" style={{ minHeight: 42 }}>Annulla</button>
-      </div>
+      <PiedeFoglio azione="Salva" onAzione={salva} salvando={salvando} onAnnulla={onChiudi} dati="arrivo" />
     </Foglio>
   )
 }
