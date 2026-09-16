@@ -55,6 +55,8 @@ import FoglioComePaga from '@/components/scheda/FoglioComePaga'
 import FoglioPagamento, { type PagamentoSalvato } from '@/components/scheda/FoglioPagamento'
 import FoglioCliente from '@/components/scheda/FoglioCliente'
 import FoglioCambiaCliente from '@/components/scheda/FoglioCambiaCliente'
+import FoglioAnnulla from '@/components/scheda/FoglioAnnulla'
+import { PRENOTAZIONE_ANNULLATA } from '@/lib/annullamento'
 import ConfermaVolante from '@/components/ConfermaVolante'
 import AdessoScheda from '@/components/scheda/AdessoScheda'
 import { supabase } from '@/lib/supabase'
@@ -128,6 +130,8 @@ function RigaGrande({ ospiti, camere, cambi }: { ospiti: number; camere: string;
 
 export const PRENOTAZIONE_SALVATA = '✓ Prenotazione salvata'
 export const FONDO_SALVATA = 'var(--color-sage)'
+export const FONDO_ANNULLATA = '#F6E4DE'
+export const TESTO_ANNULLATA = '#8C3B2E'
 const SECONDI_SALVATA = 5
 
 export default function SchedaPage() {
@@ -155,6 +159,9 @@ export default function SchedaPage() {
   const [foglioPagamento, setFoglioPagamento] = useState(false)
   const [foglioCliente, setFoglioCliente] = useState(false)
   const [foglioCambiaCliente, setFoglioCambiaCliente] = useState(false)
+  const [foglioAnnulla, setFoglioAnnulla] = useState(false)
+  // appena annullata da qui: la pastiglia in mattone in cima, finché non si va via
+  const [annullata, setAnnullata] = useState(false)
   // la conferma volante dopo un pagamento (Ania, 11/09/2026): due righe, pochi secondi
   const [conferma, setConferma] = useState<{ n: number; righe: ConfermaPagamento } | null>(null)
   // arrivando dalla pagina di inserimento: la pastiglia verde che sparisce da sé
@@ -376,6 +383,10 @@ export default function SchedaPage() {
         <p data-salvata className="text-center uppercase" onClick={() => setSalvata(false)}
           style={{ marginBottom: 10, padding: '6px 12px', borderRadius: 999, background: FONDO_SALVATA, color: 'var(--color-green-mid)', fontSize: 11, letterSpacing: '1.5px', fontWeight: 700 }}>{PRENOTAZIONE_SALVATA}</p>
       )}
+      {annullata && (
+        <p data-annullata className="text-center uppercase"
+          style={{ marginBottom: 10, padding: '6px 12px', borderRadius: 999, background: FONDO_ANNULLATA, color: TESTO_ANNULLATA, fontSize: 11, letterSpacing: '1.5px', fontWeight: 700 }}>✓ {PRENOTAZIONE_ANNULLATA}</p>
+      )}
 
       {/* La riga di navigazione: «‹ Prenotazioni» a sinistra, lo stato a destra */}
       <div data-riga-navigazione className="flex items-center justify-between gap-3">
@@ -496,8 +507,10 @@ export default function SchedaPage() {
         <Link href={hrefVecchia(booking.id)} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Vedi tutto</Link>
         <span style={{ color: 'var(--color-stone)' }}>·</span>
         <Link href={hrefVecchia(booking.id)} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Altre modifiche</Link>
-        <span style={{ color: 'var(--color-stone)' }}>·</span>
-        <Link href={hrefVecchia(booking.id)} className="py-2 -my-2" style={{ fontSize: 14, color: '#8C3B2E' }}>Annulla prenotazione</Link>
+        {booking.status !== 'annullata' && <>
+          <span style={{ color: 'var(--color-stone)' }}>·</span>
+          <button type="button" data-annulla-prenotazione onClick={() => setFoglioAnnulla(true)} className="py-2 -my-2" style={{ fontSize: 14, color: '#8C3B2E' }}>Annulla prenotazione</button>
+        </>}
       </p>
 
       {confermaAperta && (
@@ -540,6 +553,27 @@ export default function SchedaPage() {
           }} />
       )}
       {conferma && <ConfermaVolante key={conferma.n} righe={conferma.righe} onChiudi={() => setConferma(null)} />}
+      {foglioAnnulla && (
+        <FoglioAnnulla booking={booking} attive={attive.length} nomeCliente={nomeOspite(booking)}
+          cliente={guest && booking.guest_id ? { ...guest, id: booking.guest_id } : null} arrivo={primoArrivo || null}
+          onChiudi={() => setFoglioAnnulla(false)}
+          onAnnullata={campi => {
+            // tutte le righe attive diventano annullate; lo stato in alto lo
+            // dice da sé, e la cronologia (trigger 0042) arriva con la rilettura
+            const aggiorna = (r: Prenotazione): Prenotazione => (r.status === 'annullata' ? r : { ...r, ...campi })
+            setBooking(b => (b ? aggiorna(b) : b))
+            setRighe(rs => rs.map(aggiorna))
+            setAnnullata(true)
+            window.scrollTo({ top: 0 })
+            rileggi()
+          }}
+          onProblematica={(campi, msg) => {
+            setBooking(b => (b ? { ...b, guests: { ...(b.guests ?? {}), ...campi } } : b))
+            setFoglioAnnulla(false)
+            if (msg) setAvviso(msg)
+            rileggi()
+          }} />
+      )}
       {foglioCambiaCliente && (
         <FoglioCambiaCliente booking={booking as never} segmenti={attive.length} pagamenti={pagamenti.length}
           confermaInviata={messaggiInviati.some(m => m.message_type === 'conferma')} oggi={oggi}

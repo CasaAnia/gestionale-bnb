@@ -21,6 +21,7 @@ const FOGLI: { file: string; stato: string; apre: RegExp }[] = [
   { file: 'FoglioArrivo', stato: 'foglioArrivo', apre: /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/ },
   { file: 'FoglioCliente', stato: 'foglioCliente', apre: /onModificaDati=\{\(\) => setFoglioCliente\(true\)\}/ },
   { file: 'FoglioCambiaCliente', stato: 'foglioCambiaCliente', apre: /onCambiaCliente=\{\(\) => setFoglioCambiaCliente\(true\)\}/ },
+  { file: 'FoglioAnnulla', stato: 'foglioAnnulla', apre: /data-annulla-prenotazione onClick=\{\(\) => setFoglioAnnulla\(true\)\}/ },
 ]
 
 // ── La veste comune ─────────────────────────────────────────────────────────
@@ -244,4 +245,44 @@ test('la riga di conferma: «La prenotazione passa da … a …»', async () => 
   const { rigaPassaggio } = await import('./cambiaCliente.ts')
   assert.equal(rigaPassaggio('Carmela Sabia', 'Anna Kowalska'), 'La prenotazione passa da Carmela Sabia a Anna Kowalska')
   assert.equal(rigaPassaggio('', null), 'La prenotazione passa da questo cliente a il cliente scelto')
+})
+
+// ── 5. ANNULLA LA PRENOTAZIONE ──────────────────────────────────────────────
+const annulla = leggi('components/scheda/FoglioAnnulla.tsx')
+
+test('«Annulla la prenotazione»: prima chi ha annullato (tre pastiglie), poi il motivo facoltativo, pastiglia in mattone e «Torna indietro»', () => {
+  assert.match(annulla, /<Etichetta testo=\{DOMANDA_CHI\} primo ottone \/>/)
+  assert.match(annulla, /\{CHI_ANNULLA\.map\(c => \(/)
+  assert.match(annulla, /colore=\{MATTONE\}/)
+  assert.match(annulla, /<RigaCampo etichetta=\{ETICHETTA_MOTIVO\} ottone/)
+  assert.match(annulla, /<PiedeFoglio azione=\{AZIONE_ANNULLA\}[\s\S]{0,200}testoAnnulla=\{TORNA_INDIETRO\} mattone/)
+  const lib = leggi('lib/annullamento.ts')
+  assert.match(lib, /export const AZIONE_ANNULLA = 'Annulla la prenotazione'/)
+  assert.match(lib, /export const TORNA_INDIETRO = 'Torna indietro'/)
+  assert.match(lib, /export const ETICHETTA_MOTIVO = 'Motivo · può restare vuoto'/)
+  // senza aver scelto chi, non si annulla
+  assert.match(annulla, /if \(!chi\) \{ setErrore\(SCEGLI_CHI\); return \}/)
+  // il comando in fondo alla scheda sparisce quando è già annullata
+  assert.match(pagina, /\{booking\.status !== 'annullata' && <>/)
+})
+
+test('l’annullamento scrive come la scheda attuale, su tutte le righe attive, senza cancellare niente', () => {
+  assert.match(annulla, /supabase\.from\('bookings'\)\.update\(campi\)\.eq\(f\.colonna, f\.valore\)\.neq\('status', 'annullata'\)\.select\('id'\)/)
+  assert.match(annulla, /const f = filtroPrenotazione\(booking\)/)
+  assert.match(annulla, /salvaAnnullamento\(/)
+  assert.equal(/\.delete\(\)/.test(annulla), false, 'il foglio cancella una riga')
+  // «Errore mio» sparisce dallo storico: lo decide lib/storicoCliente con la regola di lib/annullamento
+  assert.match(leggi('lib/storicoCliente.ts'), /if \(!validi\.length && ordinati\.some\(s => sparisceDalloStorico\(s\.cancelled_reason\)\)\) continue/)
+  // «Non si è presentata»: la proposta resta a schermo, col tasto che segna la cliente
+  assert.match(annulla, /const p = cliente\?\.id \? propostaProblematica\(chi, nomeCliente\) : null/)
+  assert.match(annulla, /payloadValutazione\('problematico', vuoleRicevuta\(cliente\), colonnaRicevutaPresente\(cliente\)\)/)
+  assert.match(annulla, /motivo_problematico: motivoProblematicaNoShow\(arrivo\)/)
+  assert.match(annulla, /<PiedeFoglio azione=\{SEGNA_PROBLEMATICA\}[\s\S]{0,160}testoAnnulla=\{LASCIA_COSI\}/)
+  // dopo: le righe attive diventano annullate, la pastiglia in mattone in cima, la rilettura
+  const dopo = pagina.slice(pagina.indexOf('<FoglioAnnulla'), pagina.indexOf('<FoglioAnnulla') + 1500)
+  assert.match(dopo, /r\.status === 'annullata' \? r : \{ \.\.\.r, \.\.\.campi \}/)
+  assert.match(dopo, /setAnnullata\(true\)/)
+  assert.match(dopo, /rileggi\(\)/)
+  assert.match(pagina, /data-annullata[\s\S]{0,300}background: FONDO_ANNULLATA, color: TESTO_ANNULLATA/)
+  assert.match(pagina, /export const TESTO_ANNULLATA = '#8C3B2E'/)
 })

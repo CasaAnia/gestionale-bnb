@@ -13,6 +13,8 @@
 // Righe di clienti o date che si somigliano NON vanno mai unite: conta solo
 // l'identità scritta nei dati.
 // ============================================================================
+import { sparisceDalloStorico } from './annullamento.ts'
+
 export type SegmentoStorico = {
   id: string
   group_id?: string | null
@@ -87,6 +89,9 @@ export function righeStorico(prenotazioni: SegmentoStorico[]): RigaStorico[] {
   for (const [chiave, segmenti] of gruppi) {
     const ordinati = [...segmenti].sort(perData)
     const validi = ordinati.filter(s => s.status !== 'annullata')
+    // Annullata per «Errore mio» (16/09/2026): non è mai esistita davvero,
+    // quindi non compare nello storico. La riga resta sul database.
+    if (!validi.length && ordinati.some(s => sparisceDalloStorico(s.cancelled_reason))) continue
     // Tutta annullata: si conserva com'era, ragione e importo storici compresi.
     const contano = validi.length ? validi : ordinati
     const primo = contano[0]
