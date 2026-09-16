@@ -27,7 +27,7 @@ import { messaggioLetturaNonRiuscita } from '@/lib/prenotazioneScritture'
 import NuovoCliente, { NUOVO_CLIENTE_VUOTO, type DatiNuovoCliente } from '@/components/nuova/NuovoCliente'
 import { leggiStrutture } from '@/lib/provenienzaDati'
 import { creaClienteNuovo } from '@/lib/cambiaClienteDati'
-import { nomeCompleto } from '@/lib/guestName'
+import { campiNuovoCliente } from '@/lib/datiCliente'
 import { numeroUsabile } from '@/lib/whatsapp'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import type { StrutturaNota } from '@/lib/provenienza'
@@ -202,15 +202,9 @@ export default function NuovaPrenotazionePage() {
     if (!numeroUsabile(nuovo.telefono)) { setAvviso(SENZA_TELEFONO); return }
     setSalvandoCliente(true)
     setAvviso(null)
-    const campi: Record<string, unknown> = {
-      full_name: nomeCompleto({ nome: nuovo.nome, cognome: nuovo.cognome }),
-      phone: nuovo.telefono.replace(/\s/g, ''),
-      rating: nuovo.valutazione,
-      vuole_ricevuta: nuovo.ricevuta,
-      notes: nuovo.note.trim() || null,
-      ...(nuovo.valutazione === 'problematico' && nuovo.motivo.trim() ? { motivo_problematico: nuovo.motivo.trim() } : {}),
-      ...(struttureOk && nuovo.provenienza ? { provenienza: nuovo.provenienza, struttura_nome: nuovo.provenienza === 'altra_struttura' ? (nuovo.struttura.trim() || null) : null } : {}),
-    }
+    // gli stessi campi anche quando il cliente nuovo nasce dalla scheda
+    // («Cambia cliente» → nuovo): stanno in lib/datiCliente
+    const campi = campiNuovoCliente(nuovo, struttureOk)
     const esito = await creaClienteNuovo(campi as never, strutture)
     setSalvandoCliente(false)
     if (esito.errore || !esito.cliente) { setAvviso(esito.errore ?? 'Cliente non salvato, riprova'); return }

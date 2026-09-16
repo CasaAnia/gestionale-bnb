@@ -142,8 +142,8 @@ test('ricevuta e valutazione, con le tre voci e il motivo', () => {
   assert.match(nuovoCliente, /dati\.valutazione === 'problematico' && \(/)
   assert.match(nuovoCliente, /motivo: v\.chiave === 'problematico' \? dati\.motivo : ''/)
   // le etichettine sopra i due gruppi sono centrate
-  assert.match(nuovoCliente, /<Etichetta testo="Ricevuta" centrata \/>/)
-  assert.match(nuovoCliente, /<Etichetta testo="Valutazione" centrata \/>/)
+  assert.match(nuovoCliente, /<Etichetta testo="Ricevuta" centrata ottone=\{ottone\} \/>/)
+  assert.match(nuovoCliente, /<Etichetta testo="Valutazione" centrata ottone=\{ottone\} \/>/)
 })
 
 test('«come ci ha trovato» e le strutture rientrate col filetto ottone', () => {
@@ -167,8 +167,11 @@ test('la nota del cliente e il tasto «Avanti» piccolo, verde e centrato', () =
 test('il cliente nuovo si salva con le regole di sempre', () => {
   assert.match(pagina, /import \{ creaClienteNuovo \} from '@\/lib\/cambiaClienteDati'/)
   assert.match(pagina, /numeroUsabile\(nuovo\.telefono\)/)
-  assert.match(pagina, /nomeCompleto\(\{ nome: nuovo\.nome, cognome: nuovo\.cognome \}\)/)
-  assert.match(pagina, /motivo_problematico: nuovo\.motivo\.trim\(\)/)
+  // i campi stanno in lib/datiCliente (16/09/2026): li usa anche «Cambia cliente» della scheda
+  assert.match(pagina, /const campi = campiNuovoCliente\(nuovo, struttureOk\)/)
+  const dati = readFileSync(new URL('./datiCliente.ts', import.meta.url), 'utf8')
+  assert.match(dati, /nomeCompleto\(\{ nome: m\.nome, cognome: m\.cognome \}\)/)
+  assert.match(dati, /motivo_problematico: m\.motivo\.trim\(\)/)
   assert.match(pagina, /export const SENZA_TELEFONO = 'Il numero di telefono è obbligatorio/)
 })
 

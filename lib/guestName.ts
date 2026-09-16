@@ -60,6 +60,23 @@ export function soloNomeMessaggio(n: string | null | undefined): string {
   return parole.slice(0, finisceIlNome).join(' ') || parole.join(' ')
 }
 
+// ── Il nominativo salvato, diviso in nome e cognome (16/09/2026) ────────────
+// Serve al foglio «Dati della cliente», che ha i due campi dell'inserimento
+// ma parte da guests.full_name, che è uno solo. Stessa regola di
+// soloNomeMessaggio: il cognome è l'ultima parola, oppure la particella e
+// tutto quello che segue («Anna Maria De Luca» → «Anna Maria» + «De Luca»).
+// Una parola sola è il nome; se il nominativo COMINCIA con una particella
+// («De Luca») il nome è la prima parola e il resto è cognome, così il campo
+// del nome non resta mai vuoto. I dati salvati non cambiano: si divide solo
+// per mostrare, e al salvataggio li rimette insieme nomeCompleto.
+export function spezzaNome(n: string | null | undefined): { nome: string; cognome: string } {
+  const parole = nomePerMessaggio(n).split(' ').filter(Boolean)
+  if (parole.length <= 1) return { nome: parole[0] ?? '', cognome: '' }
+  const particella = parole.findIndex(p => PARTICELLE_COGNOME.has(p.toLowerCase()))
+  const taglio = particella > 0 ? particella : particella === 0 ? 1 : parole.length - 1
+  return { nome: parole.slice(0, taglio).join(' '), cognome: parole.slice(taglio).join(' ') }
+}
+
 // Confronto insensibile a maiuscole, spazi doppi e codifiche Unicode diverse:
 // "ROBERTO GRANATA" e "Roberto  Granata" sono la stessa persona.
 export function normalizzaNome(n: string | null | undefined): string {

@@ -32,7 +32,7 @@ const OTTONE = '#A9884E'
 const ROSSO_NOTA = '#C00000'
 
 export default function ClienteScheda({
-  voci, soggiorni, totaleCent, conLei, onChiediProvenienza, hrefModificaDati, hrefCambiaCliente,
+  voci, soggiorni, totaleCent, conLei, onChiediProvenienza, onModificaDati, hrefCambiaCliente,
   annoCorrente = new Date().getFullYear(), className = '',
 }: {
   voci: VoceCliente[]
@@ -40,7 +40,8 @@ export default function ClienteScheda({
   totaleCent: number
   conLei: PersonaConLei[]
   onChiediProvenienza?: () => void
-  hrefModificaDati: string
+  /** apre il foglio «Dati della cliente» (16/09/2026), qui nella scheda */
+  onModificaDati: () => void
   hrefCambiaCliente: string
   annoCorrente?: number
   className?: string
@@ -62,7 +63,7 @@ export default function ClienteScheda({
       </div>
 
       <p className="flex flex-wrap items-center mt-3" style={{ gap: '0 12px', fontSize: 14 }}>
-        <Link href={hrefModificaDati} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Modifica dati</Link>
+        <button type="button" data-modifica-dati onClick={onModificaDati} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Modifica dati</button>
         <Link href={hrefCambiaCliente} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Cambia cliente</Link>
       </p>
 

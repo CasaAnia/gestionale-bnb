@@ -19,6 +19,7 @@ const FOGLI: { file: string; stato: string; apre: RegExp }[] = [
   { file: 'FoglioPagamento', stato: 'foglioPagamento', apre: /onPagamento=\{\(\) => setFoglioPagamento\(true\)\}/ },
   { file: 'FoglioComePaga', stato: 'foglioComePaga', apre: /onComePaga=\{\(\) => setFoglioComePaga\(true\)\}/ },
   { file: 'FoglioArrivo', stato: 'foglioArrivo', apre: /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/ },
+  { file: 'FoglioCliente', stato: 'foglioCliente', apre: /onModificaDati=\{\(\) => setFoglioCliente\(true\)\}/ },
 ]
 
 // ── La veste comune ─────────────────────────────────────────────────────────
@@ -63,7 +64,7 @@ for (const f of FOGLI) {
     assert.match(sorgente, /<PiedeFoglio[\s\S]{0,300}onAnnulla=\{onChiudi\}/)
     // «Annulla» chiude e basta: onChiudi non scrive mai
     assert.equal(/onChiudi\(\)[^\n]*supabase|supabase[^\n]*onChiudi\(\)/.test(sorgente), false)
-    assert.match(sorgente, /ottone/, 'le etichettine del foglio non sono in ottone')
+    assert.match(sorgente, /ottone/i, 'le etichettine del foglio non sono in ottone')
   })
 }
 
@@ -159,4 +160,43 @@ test('«Arrivo»: l’ora con l’orologino davanti, la navetta No · Sì · ?, 
   const dopo = pagina.slice(pagina.indexOf('<FoglioArrivo'), pagina.indexOf('<FoglioArrivo') + 700)
   assert.match(dopo, /setRighe\(rs => rs\.map\(aggiorna\)\)/)
   assert.match(dopo, /setFoglioArrivo\(false\)/)
+})
+
+// ── 3. DATI DELLA CLIENTE ───────────────────────────────────────────────────
+test('«Dati della cliente»: lo stesso modulo dell’inserimento, e l’avviso che vale per tutti i soggiorni', () => {
+  const cliente = leggi('components/scheda/FoglioCliente.tsx')
+  const modulo = leggi('components/nuova/NuovoCliente.tsx')
+  assert.match(cliente, /import NuovoCliente from '@\/components\/nuova\/NuovoCliente'/)
+  assert.match(cliente, /<NuovoCliente dati=\{dati\}[\s\S]{0,200}titolo=\{null\} avanti=\{null\} etichetteOttone/)
+  assert.match(cliente, /\{AVVISO_TUTTI_I_SOGGIORNI\}/)
+  assert.match(leggi('lib/datiCliente.ts'), /AVVISO_TUTTI_I_SOGGIORNI = 'Questi dati sono della cliente: valgono per tutti i suoi soggiorni/)
+  assert.match(cliente, /<PiedeFoglio azione="Salva"/)
+  // il modulo: nome e cognome, telefono, ricevuta e valutazione sulla stessa riga, provenienza con le strutture, nota
+  assert.match(modulo, /data-campo="nome"[\s\S]{0,300}data-campo="cognome"[\s\S]{0,300}data-campo="telefono"/)
+  assert.match(modulo, /<Etichetta testo="Ricevuta" centrata ottone=\{ottone\} \/>[\s\S]{0,600}<Etichetta testo="Valutazione" centrata ottone=\{ottone\} \/>/)
+  assert.match(modulo, /\{PROVENIENZE\.map/)
+  assert.match(modulo, /data-campo="note"/)
+  // il modulo dell'inserimento non cambia: titolo e «Avanti» restano quelli di prima
+  assert.match(modulo, /titolo = TITOLO_NUOVO_CLIENTE, avanti = AVANTI/)
+})
+
+test('i dati della cliente si scrivono su guests, e la scheda li aggiorna anche negli altri soggiorni', () => {
+  const cliente = leggi('components/scheda/FoglioCliente.tsx')
+  // si scrive sulla CLIENTE, mai sulla prenotazione
+  assert.match(cliente, /supabase\.from\('guests'\)\.update\(m\.campi\)\.eq\('id', cliente\.id\)/)
+  assert.equal(/from\('bookings'\)/.test(cliente), false)
+  // con le regole già scritte: nomeCompleto, payloadValutazione, campiProvenienza (lib/datiCliente)
+  const dati = leggi('lib/datiCliente.ts')
+  assert.match(dati, /import \{ nomeCompleto, spezzaNome \} from '\.\/guestName\.ts'/)
+  assert.match(dati, /payloadValutazione\(m\.valutazione, m\.ricevuta, o\.colonnaRicevuta\)/)
+  assert.match(dati, /campiProvenienza\(m\.provenienza, m\.struttura\)/)
+  // senza la colonna del motivo (0046) non si salva niente e lo si dice, come nella scheda cliente
+  assert.match(cliente, /colonnaMancante\(esito\.error\) === 'motivo_problematico' \? ERRORE_MOTIVO_SENZA_0046/)
+  // la scheda: questa riga, le altre camere, gli altri soggiorni già letti, poi la rilettura
+  const dopo = pagina.slice(pagina.indexOf('<FoglioCliente'), pagina.indexOf('<FoglioCliente') + 1200)
+  assert.match(dopo, /setBooking\(b => \(b \? aggiorna\(b\) : b\)\)/)
+  assert.match(dopo, /setRighe\(rs => rs\.map\(aggiorna\)\)/)
+  assert.match(dopo, /setAltreCliente\(as => as\.map/)
+  assert.match(dopo, /setFoglioCliente\(false\)/)
+  assert.match(dopo, /rileggi\(\)/)
 })

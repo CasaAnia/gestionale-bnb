@@ -53,6 +53,7 @@ import FoglioArrivo from '@/components/scheda/FoglioArrivo'
 import FoglioProvenienza from '@/components/scheda/FoglioProvenienza'
 import FoglioComePaga from '@/components/scheda/FoglioComePaga'
 import FoglioPagamento, { type PagamentoSalvato } from '@/components/scheda/FoglioPagamento'
+import FoglioCliente from '@/components/scheda/FoglioCliente'
 import ConfermaVolante from '@/components/ConfermaVolante'
 import AdessoScheda from '@/components/scheda/AdessoScheda'
 import { supabase } from '@/lib/supabase'
@@ -151,6 +152,7 @@ export default function SchedaPage() {
   const [foglioProvenienza, setFoglioProvenienza] = useState(false)
   const [foglioComePaga, setFoglioComePaga] = useState(false)
   const [foglioPagamento, setFoglioPagamento] = useState(false)
+  const [foglioCliente, setFoglioCliente] = useState(false)
   // la conferma volante dopo un pagamento (Ania, 11/09/2026): due righe, pochi secondi
   const [conferma, setConferma] = useState<{ n: number; righe: ConfermaPagamento } | null>(null)
   // arrivando dalla pagina di inserimento: la pastiglia verde che sparisce da sé
@@ -478,7 +480,7 @@ export default function SchedaPage() {
         <p className="ed-sezione">Cliente</p>
         <ClienteScheda className="mt-3" voci={voci} soggiorni={soggiorni} totaleCent={totaleSoggiorniCent} conLei={conLei}
           onChiediProvenienza={booking.guest_id ? () => setFoglioProvenienza(true) : undefined}
-          hrefModificaDati={hrefVecchia(booking.id)} hrefCambiaCliente={hrefVecchia(booking.id)} />
+          onModificaDati={() => setFoglioCliente(true)} hrefCambiaCliente={hrefVecchia(booking.id)} />
       </section>
 
       {/* ── Cronologia ────────────────────────────────────────────────────── */}
@@ -536,6 +538,21 @@ export default function SchedaPage() {
           }} />
       )}
       {conferma && <ConfermaVolante key={conferma.n} righe={conferma.righe} onChiudi={() => setConferma(null)} />}
+      {foglioCliente && booking.guest_id && (
+        <FoglioCliente cliente={{ ...(guest ?? {}), id: booking.guest_id }}
+          onChiudi={() => setFoglioCliente(false)}
+          onSalvato={(campi, msg) => {
+            // i dati sono della cliente: valgono su questa riga, sulle altre
+            // camere e sugli altri soggiorni già letti, poi si rilegge in silenzio
+            const aggiorna = <T extends { guests?: Prenotazione['guests'] }>(r: T): T => ({ ...r, guests: { ...(r.guests ?? {}), ...campi } })
+            setBooking(b => (b ? aggiorna(b) : b))
+            setRighe(rs => rs.map(aggiorna))
+            setAltreCliente(as => as.map(a => aggiorna(a as unknown as { guests?: Prenotazione['guests'] }) as unknown as SoggiornoStorico))
+            setFoglioCliente(false)
+            if (msg) setAvviso(msg)
+            rileggi()
+          }} />
+      )}
       {foglioComePaga && accordo && (
         <FoglioComePaga
           idRighe={righe.map(r => r.id)}

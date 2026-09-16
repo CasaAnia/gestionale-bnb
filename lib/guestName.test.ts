@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { nomeCompleto, nomeBreve, nomeOspite, nomeECognomeMessaggio, soloNomeMessaggio } from './guestName.ts'
+import { nomeCompleto, nomeBreve, nomeOspite, nomeECognomeMessaggio, soloNomeMessaggio, spezzaNome } from './guestName.ts'
 
 // «Nome Cognome» ovunque, mai «Cognome Nome»
 test('nomeCompleto: nome e cognome, nell\'ordine giusto e senza spazi doppi', () => {
@@ -141,4 +141,15 @@ test('quando non resta niente si saluta con quello che c’è, mai «Gentile ,»
   // spazi doppi e caratteri invisibili non cambiano il conto delle parole
   assert.equal(soloNomeMessaggio('  Maria   Grazia  Rossi '), 'Maria Grazia')
   assert.equal(soloNomeMessaggio('️Anna Maria De Luca'), 'Anna Maria')
+})
+
+// ── spezzaNome (16/09/2026): il nominativo salvato nei due campi del foglio ──
+test('spezzaNome: l’ultima parola è il cognome, la particella tira con sé tutto il resto', () => {
+  assert.deepEqual(spezzaNome('Carmela Sabia'), { nome: 'Carmela', cognome: 'Sabia' })
+  assert.deepEqual(spezzaNome('Maria Grazia Rossi'), { nome: 'Maria Grazia', cognome: 'Rossi' })
+  assert.deepEqual(spezzaNome('Anna Maria De Luca'), { nome: 'Anna Maria', cognome: 'De Luca' })
+  assert.deepEqual(spezzaNome('Nida'), { nome: 'Nida', cognome: '' })
+  assert.deepEqual(spezzaNome('De Luca'), { nome: 'De', cognome: 'Luca' })
+  assert.deepEqual(spezzaNome('  Anna   Rossi '), { nome: 'Anna', cognome: 'Rossi' })
+  assert.deepEqual(spezzaNome(null), { nome: '', cognome: '' })
 })

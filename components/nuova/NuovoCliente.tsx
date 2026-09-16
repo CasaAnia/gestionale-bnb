@@ -7,6 +7,11 @@
 // Sola presentazione: i valori arrivano da fuori e le regole restano quelle di
 // sempre (lib/valutazione per le tre voci, lib/provenienza per le quattro
 // provenienze e le strutture già in uso).
+//
+// Dal 16/09/2026 lo stesso modulo sta anche nei fogli della scheda («Dati
+// della cliente», «Cambia cliente» → nuovo): senza titoletto e senza il
+// tasto «Avanti» (`titolo={null}`, `avanti={null}`, ci pensa il piede del
+// foglio) e con le etichettine in ottone (`etichetteOttone`).
 // ============================================================================
 import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastoAvanti, stileCampo, MATTONE, OTTONE } from './PezziNuova'
 import { PROVENIENZE, type Provenienza } from '@/lib/provenienza'
@@ -42,44 +47,51 @@ const SEGNI: { chiave: Valutazione; segno: string; colore?: string }[] = [
   { chiave: 'problematico', segno: '!', colore: MATTONE },
 ]
 
-export default function NuovoCliente({ dati, onDati, strutture, struttureDisponibili, onAvanti, avantiSpento, className = '' }: {
+export default function NuovoCliente({ dati, onDati, strutture, struttureDisponibili, onAvanti, avantiSpento = false, titolo = TITOLO_NUOVO_CLIENTE, avanti = AVANTI, etichetteOttone = false, className = '' }: {
   dati: DatiNuovoCliente
   onDati: (dati: DatiNuovoCliente) => void
   strutture: StrutturaNota[]
   struttureDisponibili: boolean
-  onAvanti: () => void
-  avantiSpento: boolean
+  onAvanti?: () => void
+  avantiSpento?: boolean
+  /** il titoletto ed-sezione; null quando sta in un foglio che ha già il suo titolo */
+  titolo?: string | null
+  /** il testo del tasto in fondo; null = nessun tasto (ci pensa il piede del foglio) */
+  avanti?: string | null
+  /** le etichettine in ottone, come nei fogli della scheda */
+  etichetteOttone?: boolean
   className?: string
 }) {
   const cambia = (pezzo: Partial<DatiNuovoCliente>) => onDati({ ...dati, ...pezzo })
+  const ottone = etichetteOttone
   return (
     <section data-nuovo-cliente className={className}>
-      <p className="ed-sezione">{TITOLO_NUOVO_CLIENTE}</p>
+      {titolo && <p className="ed-sezione">{titolo}</p>}
 
-      <Etichetta testo="Chi" primo className="mt-3" />
+      <Etichetta testo="Chi" primo ottone={ottone} className={titolo ? 'mt-3' : ''} />
       <div className="flex" style={{ gap: 12 }}>
-        <RigaCampo etichetta="Nome" className="flex-1 min-w-0">
+        <RigaCampo etichetta="Nome" ottone={ottone} className="flex-1 min-w-0">
           <input type="text" value={dati.nome} data-campo="nome" onChange={e => cambia({ nome: e.target.value })} style={stileCampo} />
         </RigaCampo>
-        <RigaCampo etichetta="Cognome" className="flex-1 min-w-0">
+        <RigaCampo etichetta="Cognome" ottone={ottone} className="flex-1 min-w-0">
           <input type="text" value={dati.cognome} data-campo="cognome" onChange={e => cambia({ cognome: e.target.value })} style={stileCampo} />
         </RigaCampo>
       </div>
-      <RigaCampo etichetta="Telefono">
+      <RigaCampo etichetta="Telefono" ottone={ottone}>
         <input type="tel" inputMode="tel" value={dati.telefono} data-campo="telefono" onChange={e => cambia({ telefono: e.target.value })} style={stileCampo} />
       </RigaCampo>
 
       {/* Ricevuta e valutazione, affiancate con l'etichettina centrata sopra */}
       <div className="flex flex-wrap" style={{ gap: 22 }}>
         <div>
-          <Etichetta testo="Ricevuta" centrata />
+          <Etichetta testo="Ricevuta" centrata ottone={ottone} />
           <FilaPastiglie centrata>
             <Pastiglia dati="ricevuta-no" acceso={!dati.ricevuta} onClick={() => cambia({ ricevuta: false })}>No</Pastiglia>
             <Pastiglia dati="ricevuta-si" acceso={dati.ricevuta} onClick={() => cambia({ ricevuta: true })}>Sì 🧾</Pastiglia>
           </FilaPastiglie>
         </div>
         <div>
-          <Etichetta testo="Valutazione" centrata />
+          <Etichetta testo="Valutazione" centrata ottone={ottone} />
           <FilaPastiglie centrata>
             {SEGNI.map(v => (
               <Pastiglia key={v.chiave} dati={`valutazione-${v.chiave}`} acceso={dati.valutazione === v.chiave} colore={v.colore}
@@ -89,7 +101,7 @@ export default function NuovoCliente({ dati, onDati, strutture, struttureDisponi
         </div>
       </div>
       {dati.valutazione === 'problematico' && (
-        <RigaCampo etichetta="Perché" className="mt-3">
+        <RigaCampo etichetta="Perché" ottone={ottone} className="mt-3">
           <input type="text" value={dati.motivo} data-campo="motivo" placeholder="resta solo per noi"
             onChange={e => cambia({ motivo: e.target.value })} style={stileCampo} />
         </RigaCampo>
@@ -98,7 +110,7 @@ export default function NuovoCliente({ dati, onDati, strutture, struttureDisponi
       {/* Come ci ha trovato, su una riga sola */}
       {struttureDisponibili && (
         <>
-          <Etichetta testo="Come ci ha trovato" />
+          <Etichetta testo="Come ci ha trovato" ottone={ottone} />
           <FilaPastiglie>
             {PROVENIENZE.map(p => (
               <Pastiglia key={p.chiave} dati={`provenienza-${p.chiave}`} acceso={dati.provenienza === p.chiave}
@@ -116,7 +128,7 @@ export default function NuovoCliente({ dati, onDati, strutture, struttureDisponi
                 <Pastiglia dati="struttura-altra" acceso={!!dati.struttura && !strutture.some(s => s.nome === dati.struttura)} onClick={() => cambia({ struttura: ' ' })}>{ALTRA_STRUTTURA}</Pastiglia>
               </FilaPastiglie>
               {!!dati.struttura && !strutture.some(s => s.nome === dati.struttura) && (
-                <RigaCampo etichetta="Quale struttura" className="mt-2">
+                <RigaCampo etichetta="Quale struttura" ottone={ottone} className="mt-2">
                   <input type="text" value={dati.struttura.trimStart()} data-campo="struttura" onChange={e => cambia({ struttura: e.target.value })} style={stileCampo} />
                 </RigaCampo>
               )}
@@ -125,12 +137,12 @@ export default function NuovoCliente({ dati, onDati, strutture, struttureDisponi
         </>
       )}
 
-      <Etichetta testo={ETICHETTA_NOTE} />
-      <RigaCampo etichetta="Nota">
+      <Etichetta testo={ETICHETTA_NOTE} ottone={ottone} />
+      <RigaCampo etichetta="Nota" ottone={ottone}>
         <textarea rows={2} value={dati.note} data-campo="note" onChange={e => cambia({ note: e.target.value })} style={{ ...stileCampo, resize: 'none' }} />
       </RigaCampo>
 
-      <div style={{ marginTop: 22 }}><TastoAvanti testo={AVANTI} onClick={onAvanti} disabilitato={avantiSpento} dati="cliente" /></div>
+      {avanti && onAvanti && <div style={{ marginTop: 22 }}><TastoAvanti testo={avanti} onClick={onAvanti} disabilitato={avantiSpento} dati="cliente" /></div>}
     </section>
   )
 }
