@@ -20,6 +20,7 @@ import { oraDigitata } from '@/lib/ora'
 export const ALTEZZA_PASTIGLIA = 30
 export const BORDO_SPENTA = '#C9BFA8'
 export const TITOLO_COME_PAGA = 'Come paga'
+const OTTONE = '#A9884E'
 
 const etichettaGruppo = {
   fontSize: 9.5,
@@ -31,7 +32,7 @@ const etichettaGruppo = {
 const euro = (n: number) => `${n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 
 export default function ComePaga({
-  modo, onModo, totaleCent, importo, onImporto, data, ora, onData, onOra, titolo = null, className = '',
+  modo, onModo, totaleCent, importo, onImporto, data, ora, onData, onOra, titolo = null, ottone = false, className = '',
 }: {
   modo: ComePaga
   onModo: (modo: ComePaga) => void
@@ -46,15 +47,18 @@ export default function ComePaga({
   onOra: (ora: string) => void
   /** il titoletto della parte, quando la pagina non ce l'ha già */
   titolo?: string | null
+  /** nei fogli della scheda le etichettine dei gruppi sono in ottone (16/09/2026) */
+  ottone?: boolean
   className?: string
 }) {
   const meta = totaleCent != null && totaleCent > 0 ? Math.round(totaleCent / 2) / 100 : null
+  const etichetta = ottone ? { ...etichettaGruppo, color: OTTONE } : etichettaGruppo
   return (
     <div data-come-paga className={className}>
       {titolo && <p className="ed-sezione">{titolo}</p>}
       {GRUPPI_COME_PAGA.map(gruppo => (
         <div key={gruppo.id} data-gruppo={gruppo.id} className={gruppo.id === 'arrivo' ? '' : 'mt-3'}>
-          <p style={etichettaGruppo}>{gruppo.etichetta}</p>
+          <p style={etichetta}>{gruppo.etichetta}</p>
           <div className="flex flex-wrap" style={{ gap: 6, marginTop: 6 }} role="group" aria-label={gruppo.etichetta}>
             {gruppo.modi.map(m => {
               const acceso = modo === m
@@ -81,7 +85,7 @@ export default function ComePaga({
 
       {chiedeImporto(modo) && (
         <label className="block" style={{ marginTop: 10 }}>
-          <span className="block" style={etichettaGruppo}>Quanto</span>
+          <span className="block" style={etichetta}>Quanto</span>
           <input type="number" inputMode="decimal" className="ed-campo mt-1" data-importo-caparra placeholder="€"
             value={importo ?? ''} onChange={e => onImporto(e.target.value === '' ? null : Number(e.target.value))} />
         </label>
@@ -90,7 +94,7 @@ export default function ComePaga({
       {chiedeScadenza(modo) && (
         <div className="flex flex-wrap" style={{ gap: 10, marginTop: 10 }} data-scadenza>
           <label className="block min-w-0" style={{ flex: '1 1 140px' }}>
-            <span className="block" style={etichettaGruppo}>Entro il</span>
+            <span className="block" style={etichetta}>Entro il</span>
             {/* il calendario del telefono, con la data scritta in italiano:
                 stesso campo di ARRIVO e PARTENZA (Ania, 14/09/2026) */}
             <span className="relative block mt-1">
@@ -103,7 +107,7 @@ export default function ComePaga({
             </span>
           </label>
           <label className="block min-w-0" style={{ flex: '1 1 90px' }}>
-            <span className="block" style={etichettaGruppo}>alle</span>
+            <span className="block" style={etichetta}>alle</span>
             <input type="text" inputMode="numeric" maxLength={5} placeholder="es. 18:00" className="ed-campo mt-1" data-entro-ora
               value={ora} onChange={e => onOra(oraDigitata(e.target.value))} />
           </label>

@@ -17,6 +17,7 @@ const pezzi = leggi('components/nuova/PezziNuova.tsx')
 // I fogli e il comando della scheda che li apre
 const FOGLI: { file: string; stato: string; apre: RegExp }[] = [
   { file: 'FoglioPagamento', stato: 'foglioPagamento', apre: /onPagamento=\{\(\) => setFoglioPagamento\(true\)\}/ },
+  { file: 'FoglioComePaga', stato: 'foglioComePaga', apre: /onComePaga=\{\(\) => setFoglioComePaga\(true\)\}/ },
 ]
 
 // ── La veste comune ─────────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ for (const f of FOGLI) {
   test(`${f.file}: si apre dal comando della scheda, si chiude, e «Annulla» non cambia niente`, () => {
     assert.match(pagina, f.apre, `il comando non apre ${f.file}`)
     assert.match(pagina, new RegExp(`\\{${f.stato} && [\\s\\S]{0,120}<${f.file}`), `${f.file} non è in pagina sotto ${f.stato}`)
-    assert.match(pagina, new RegExp(`<${f.file}[\\s\\S]{0,400}onChiudi=\\{\\(\\) => set${f.stato[0].toUpperCase()}${f.stato.slice(1)}\\(false\\)\\}`), `${f.file} non si chiude`)
+    assert.match(pagina, new RegExp(`<${f.file}[\\s\\S]{0,700}onChiudi=\\{\\(\\) => set${f.stato[0].toUpperCase()}${f.stato.slice(1)}\\(false\\)\\}`), `${f.file} non si chiude`)
     // la veste comune: Foglio e il suo piede
     assert.match(sorgente, /import Foglio, \{ PiedeFoglio \} from '\.\/Foglio'/)
     assert.match(sorgente, /<PiedeFoglio[\s\S]{0,300}onAnnulla=\{onChiudi\}/)
@@ -118,4 +119,26 @@ test('dopo il pagamento il conto e la cronologia si aggiornano, senza ricaricare
 test('dalla Home «Registra saldo» (?azione=pagato) apre il foglio da sé, una volta', () => {
   assert.match(pagina, /const pagamentoDaAprire = useRef\(parametri\.get\('azione'\) === 'pagato'\)/)
   assert.match(pagina, /if \(pagamentoDaAprire\.current\) \{ pagamentoDaAprire\.current = false; setFoglioPagamento\(true\) \}/)
+})
+
+// ── 2. COME PAGA ────────────────────────────────────────────────────────────
+test('«Come paga»: il componente già fatto coi sei modi, e «Salva» nel piede comune', () => {
+  const comePaga = leggi('components/scheda/FoglioComePaga.tsx')
+  assert.match(comePaga, /<Foglio titolo=\{TITOLO_COME_PAGA\} onChiudi=\{onChiudi\}>/)
+  assert.match(comePaga, /<ComePaga modo=\{scelta\}[\s\S]{0,300}ottone \/>/)
+  assert.match(comePaga, /<PiedeFoglio azione="Salva"/)
+  assert.equal(/ed-pillola/.test(comePaga), false, 'i tasti vecchi sono ancora nel foglio')
+  // i sei modi nei due gruppi stanno in un posto solo
+  assert.match(leggi('lib/comePaga.ts'), /\{ id: 'arrivo', etichetta: 'Quando arriva', modi: \['contanti', 'bonifico', 'da_vedere'\] \}/)
+  assert.match(leggi('lib/comePaga.ts'), /\{ id: 'prima', etichetta: 'Prima di arrivare', modi: \['tutto', 'meta', 'caparra'\] \}/)
+})
+
+test('dopo «Come paga» la testa e il conto si aggiornano: le righe portano il modo nuovo', () => {
+  const dopo = pagina.slice(pagina.indexOf('<FoglioComePaga'), pagina.indexOf('<FoglioComePaga') + 1400)
+  assert.match(dopo, /setRighe\(rs => rs\.map\(r => \(\{[\s\S]{0,80}accordo_pagamento: campi\.accordo_pagamento,\s*bonifico: campi\.bonifico/)
+  assert.match(dopo, /setFoglioComePaga\(false\)/)
+  // lo stato in testa («bonifico atteso») e la riga «Come paga» del conto leggono dalle righe
+  assert.match(pagina, /const accordo = useMemo\(\(\) => accordoPrenotazione\(righe\) \?\? booking, \[righe, booking\]\)/)
+  assert.match(pagina, /statoConto\(\{ totaleCent: conto\.totaleCent, ricevutiCent: conto\.ricevutiCent, pagato: righe\.some\(r => r\.pagato\), bonifico: accordo\?\.bonifico \}\)/)
+  assert.match(pagina, /comePagaScheda\(accordoSalvato\?\.accordo_pagamento, accordo\?\.bonifico\)/)
 })

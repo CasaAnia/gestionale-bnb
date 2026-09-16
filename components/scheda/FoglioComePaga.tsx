@@ -1,12 +1,15 @@
 'use client'
 // ============================================================================
 // «CAMBIA COME PAGA» (13/09/2026): lo STESSO componente dell'inserimento
-// (components/ComePaga) dentro un foglio della scheda. Il salvataggio sta in
-// lib/comePagaDati: il modo su tutte le camere della prenotazione, la caparra
-// una volta sola sulla riga che arriva per prima.
+// (components/ComePaga) dentro un foglio della scheda, con i sei modi nei
+// due gruppi, l'importo della caparra e la scadenza dove servono. Il
+// salvataggio sta in lib/comePagaDati: il modo su tutte le camere della
+// prenotazione, la caparra una volta sola sulla riga che arriva per prima.
+// Dal 16/09/2026 ha la veste comune dei fogli (titolo «Come paga», la
+// pastiglia «Salva» e sotto «Annulla»: PiedeFoglio).
 // ============================================================================
 import { useState } from 'react'
-import Foglio from './Foglio'
+import Foglio, { PiedeFoglio } from './Foglio'
 import ComePaga, { TITOLO_COME_PAGA } from '@/components/ComePaga'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { supabase } from '@/lib/supabase'
@@ -67,15 +70,12 @@ export default function FoglioComePaga({ idRighe, idPrima, modo, importo, data, 
   }
 
   return (
-    <Foglio titolo={TITOLO_COME_PAGA} grande onChiudi={onChiudi}>
+    <Foglio titolo={TITOLO_COME_PAGA} onChiudi={onChiudi}>
       <ComePaga modo={scelta} onModo={m => { setScelta(m); if (!chiedeImporto(m)) setImporto(null) }}
         totaleCent={totaleCent} importo={importoForm} onImporto={setImporto}
-        data={dataForm} ora={oraForm} onData={setData} onOra={setOra} />
+        data={dataForm} ora={oraForm} onData={setData} onOra={setOra} ottone />
       {errore && <AvvisoAzione testo={errore} className="mt-3" />}
-      <div className="flex gap-2 mt-4 mb-1">
-        <button type="button" onClick={salva} disabled={salvando} className="ed-pillola flex-1" style={{ minHeight: 44 }}>{salvando ? 'Salvo…' : 'Salva'}</button>
-        <button type="button" onClick={onChiudi} className="ed-pillola-tenue" style={{ minHeight: 44 }}>Annulla</button>
-      </div>
+      <PiedeFoglio azione="Salva" onAzione={salva} salvando={salvando} onAnnulla={onChiudi} dati="come-paga" />
     </Foglio>
   )
 }
