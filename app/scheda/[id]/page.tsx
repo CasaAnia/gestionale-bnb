@@ -570,7 +570,7 @@ export default function SchedaPage() {
           onProblematica={(campi, msg) => {
             setBooking(b => (b ? { ...b, guests: { ...(b.guests ?? {}), ...campi } } : b))
             setFoglioAnnulla(false)
-            if (msg) setAvviso(msg)
+            setAvviso(msg)
             rileggi()
           }} />
       )}
@@ -601,7 +601,7 @@ export default function SchedaPage() {
             setRighe(rs => rs.map(aggiorna))
             setAltreCliente(as => as.map(a => aggiorna(a as unknown as { guests?: Prenotazione['guests'] }) as unknown as SoggiornoStorico))
             setFoglioCliente(false)
-            if (msg) setAvviso(msg)
+            setAvviso(msg)   // anche null: un avviso vecchio non resta appeso dopo un salvataggio riuscito
             rileggi()
           }} />
       )}
