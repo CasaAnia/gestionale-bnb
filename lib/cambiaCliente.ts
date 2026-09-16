@@ -28,6 +28,17 @@ export type ClienteBreve = {
   phone?: string | null
   provenienza?: string | null
   struttura_nome?: string | null
+  // per la riga della scheda nuova (🧾 ★ nome) e la testa dopo il cambio (16/09/2026)
+  rating?: string | null
+  vuole_ricevuta?: boolean | null
+  notes?: string | null
+}
+
+/** «La prenotazione passa da Carmela Sabia a Anna Kowalska»: la riga di conferma del foglio della scheda */
+export function rigaPassaggio(nomeVecchio: string | null | undefined, nomeNuovo: string | null | undefined): string {
+  const da = (nomeVecchio ?? '').trim() || 'questo cliente'
+  const a = (nomeNuovo ?? '').trim() || 'il cliente scelto'
+  return `La prenotazione passa da ${da} a ${a}`
 }
 
 export type PrenotazionePerCambio = {

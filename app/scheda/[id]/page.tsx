@@ -54,6 +54,7 @@ import FoglioProvenienza from '@/components/scheda/FoglioProvenienza'
 import FoglioComePaga from '@/components/scheda/FoglioComePaga'
 import FoglioPagamento, { type PagamentoSalvato } from '@/components/scheda/FoglioPagamento'
 import FoglioCliente from '@/components/scheda/FoglioCliente'
+import FoglioCambiaCliente from '@/components/scheda/FoglioCambiaCliente'
 import ConfermaVolante from '@/components/ConfermaVolante'
 import AdessoScheda from '@/components/scheda/AdessoScheda'
 import { supabase } from '@/lib/supabase'
@@ -153,6 +154,7 @@ export default function SchedaPage() {
   const [foglioComePaga, setFoglioComePaga] = useState(false)
   const [foglioPagamento, setFoglioPagamento] = useState(false)
   const [foglioCliente, setFoglioCliente] = useState(false)
+  const [foglioCambiaCliente, setFoglioCambiaCliente] = useState(false)
   // la conferma volante dopo un pagamento (Ania, 11/09/2026): due righe, pochi secondi
   const [conferma, setConferma] = useState<{ n: number; righe: ConfermaPagamento } | null>(null)
   // arrivando dalla pagina di inserimento: la pastiglia verde che sparisce da sé
@@ -480,7 +482,7 @@ export default function SchedaPage() {
         <p className="ed-sezione">Cliente</p>
         <ClienteScheda className="mt-3" voci={voci} soggiorni={soggiorni} totaleCent={totaleSoggiorniCent} conLei={conLei}
           onChiediProvenienza={booking.guest_id ? () => setFoglioProvenienza(true) : undefined}
-          onModificaDati={() => setFoglioCliente(true)} hrefCambiaCliente={hrefVecchia(booking.id)} />
+          onModificaDati={() => setFoglioCliente(true)} onCambiaCliente={() => setFoglioCambiaCliente(true)} />
       </section>
 
       {/* ── Cronologia ────────────────────────────────────────────────────── */}
@@ -538,6 +540,22 @@ export default function SchedaPage() {
           }} />
       )}
       {conferma && <ConfermaVolante key={conferma.n} righe={conferma.righe} onChiudi={() => setConferma(null)} />}
+      {foglioCambiaCliente && (
+        <FoglioCambiaCliente booking={booking as never} segmenti={attive.length} pagamenti={pagamenti.length}
+          confermaInviata={messaggiInviati.some(m => m.message_type === 'conferma')} oggi={oggi}
+          onChiudi={() => setFoglioCambiaCliente(false)}
+          onCambiato={(cliente, msg) => {
+            // cambia SOLO il riferimento al cliente, su tutte le righe; il nome
+            // scritto sulla prenotazione si azzera (lib/cambiaCliente). Poi la
+            // scheda rilegge in silenzio: soggiorni, documenti, cronologia.
+            const aggiorna = (r: Prenotazione): Prenotazione => ({ ...r, guest_id: cliente.id, guest_name: null, guests: cliente })
+            setBooking(b => (b ? aggiorna(b) : b))
+            setRighe(rs => rs.map(aggiorna))
+            setFoglioCambiaCliente(false)
+            setAvviso(msg)
+            rileggi()
+          }} />
+      )}
       {foglioCliente && booking.guest_id && (
         <FoglioCliente cliente={{ ...(guest ?? {}), id: booking.guest_id }}
           onChiudi={() => setFoglioCliente(false)}

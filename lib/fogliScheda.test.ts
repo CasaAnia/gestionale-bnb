@@ -20,6 +20,7 @@ const FOGLI: { file: string; stato: string; apre: RegExp }[] = [
   { file: 'FoglioComePaga', stato: 'foglioComePaga', apre: /onComePaga=\{\(\) => setFoglioComePaga\(true\)\}/ },
   { file: 'FoglioArrivo', stato: 'foglioArrivo', apre: /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/ },
   { file: 'FoglioCliente', stato: 'foglioCliente', apre: /onModificaDati=\{\(\) => setFoglioCliente\(true\)\}/ },
+  { file: 'FoglioCambiaCliente', stato: 'foglioCambiaCliente', apre: /onCambiaCliente=\{\(\) => setFoglioCambiaCliente\(true\)\}/ },
 ]
 
 // ── La veste comune ─────────────────────────────────────────────────────────
@@ -199,4 +200,48 @@ test('i dati della cliente si scrivono su guests, e la scheda li aggiorna anche 
   assert.match(dopo, /setAltreCliente\(as => as\.map/)
   assert.match(dopo, /setFoglioCliente\(false\)/)
   assert.match(dopo, /rileggi\(\)/)
+})
+
+// ── 4. CAMBIA CLIENTE ───────────────────────────────────────────────────────
+test('«Cambia cliente»: la ricerca dell’inserimento, le righe 🧾 ★ nome · telefono · volte, «+ Nuovo cliente»', () => {
+  const cambia = leggi('components/scheda/FoglioCambiaCliente.tsx')
+  assert.match(cambia, /import CampoRicerca from '@\/components\/CampoRicerca'/)
+  assert.match(cambia, /placeholder="Cerca per nome o telefono…"/)
+  assert.match(cambia, /import RigaCliente, \{ TastinoSage, NUOVO_CLIENTE \} from '@\/components\/nuova\/RigaCliente'/)
+  assert.match(cambia, /<RigaCliente key=\{c\.id\} cliente=\{c\} soggiorni=\{soggiorni\[c\.id\] \?\? 0\} onScegli=\{\(\) => setScelto\(c\)\}/)
+  assert.match(cambia, /<TastinoSage testo=\{NUOVO_CLIENTE\} onClick=\{\(\) => setNuovo\(NUOVO_CLIENTE_VUOTO\)\}/)
+  // il cliente nuovo: lo stesso modulo dell'inserimento, gli stessi campi
+  assert.match(cambia, /<NuovoCliente dati=\{nuovo\}[\s\S]{0,200}titolo=\{null\} avanti=\{null\} etichetteOttone/)
+  assert.match(cambia, /creaClienteNuovo\(campiNuovoCliente\(nuovo, strutture\.disponibile\)/)
+  // la ricerca è quella già in casa, mai il cliente attuale, e le volte contano i soggiorni
+  assert.match(cambia, /cercaClientiPerCambio\(testo, clienteAttuale\?\.id\)/)
+  assert.match(leggi('lib/cambiaClienteDati.ts'), /export async function soggiorniConclusiDeiClienti/)
+  assert.match(leggi('lib/cambiaClienteDati.ts'), /return soggiorniConclusi\(\(data \?\? \[\]\) as RigaSoggiorno\[\], oggi\)/)
+  // e la riga dell'inserimento è la stessa: la pagina la importa da lì
+  assert.match(leggi('app/nuova-prenotazione/page.tsx'), /import RigaCliente, \{ TastinoSage, NUOVO_CLIENTE, type ClienteRiga \} from '@\/components\/nuova\/RigaCliente'/)
+})
+
+test('scegliendo, una riga sola di conferma e poi «Cambia» con le scritture di sempre', () => {
+  const cambia = leggi('components/scheda/FoglioCambiaCliente.tsx')
+  assert.match(cambia, /data-riga-passaggio[\s\S]{0,200}\{rigaPassaggio\(nomeVecchio,/)
+  assert.match(cambia, /<PiedeFoglio azione=\{nuovo \? 'Crea e cambia' : AZIONE_CAMBIA\}/)
+  assert.match(cambia, /export const AZIONE_CAMBIA = 'Cambia'/)
+  // le regole di lib/cambiaCliente: stesso cliente = niente, documenti che seguono la persona (spunta già attiva)
+  assert.match(cambia, /if \(stessoCliente\(booking, cliente\.id\)\)/)
+  assert.match(cambia, /const \[spostaDoc, setSpostaDoc\] = useState\(true\)/)
+  assert.match(cambia, /scriviCambioCliente\(booking, cliente\.id/)
+  assert.match(cambia, /spostaDocumenti\(documenti, clienteAttuale\.id, cliente\.id/)
+  assert.equal(/from\('bookings'\)|from\('guests'\)/.test(cambia), false, 'il foglio scrive da solo sul database')
+  // dopo: guest_id nuovo su tutte le righe, guest_name azzerato, poi la rilettura
+  const dopo = pagina.slice(pagina.indexOf('<FoglioCambiaCliente'), pagina.indexOf('<FoglioCambiaCliente') + 1100)
+  assert.match(dopo, /guest_id: cliente\.id, guest_name: null, guests: cliente/)
+  assert.match(dopo, /setRighe\(rs => rs\.map\(aggiorna\)\)/)
+  assert.match(dopo, /setFoglioCambiaCliente\(false\)/)
+  assert.match(dopo, /rileggi\(\)/)
+})
+
+test('la riga di conferma: «La prenotazione passa da … a …»', async () => {
+  const { rigaPassaggio } = await import('./cambiaCliente.ts')
+  assert.equal(rigaPassaggio('Carmela Sabia', 'Anna Kowalska'), 'La prenotazione passa da Carmela Sabia a Anna Kowalska')
+  assert.equal(rigaPassaggio('', null), 'La prenotazione passa da questo cliente a il cliente scelto')
 })

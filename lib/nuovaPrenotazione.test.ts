@@ -100,21 +100,25 @@ test('in cima non c’è il titolo: lo dice la barra. Resta la data in ottone', 
   assert.ok(pagina.indexOf('data-oggi') < pagina.indexOf('data-cerca-cliente'))
 })
 
+// la riga del cliente trovato e il tastino stanno in un pezzo loro (16/09/2026): li usa anche la scheda
+const rigaCliente = readFileSync(new URL('../components/nuova/RigaCliente.tsx', import.meta.url), 'utf8')
+
 test('la ricerca è quella di sempre, col tastino sage «+ Nuovo cliente»', () => {
   assert.match(pagina, /import CampoRicerca from '@\/components\/CampoRicerca'/)
   assert.match(pagina, /placeholder="Cerca per nome o telefono…"/)
-  assert.match(pagina, /export const NUOVO_CLIENTE = '\+ Nuovo cliente'/)
-  assert.match(pagina, /height: 30, borderRadius: 6, padding: '0 9px', background: 'var\(--color-sage\)', color: 'var\(--color-green-mid\)', fontSize: 13, fontWeight: 700/)
+  assert.match(rigaCliente, /export const NUOVO_CLIENTE = '\+ Nuovo cliente'/)
+  assert.match(rigaCliente, /height: 30, borderRadius: 6, padding: '0 9px', background: 'var\(--color-sage\)', color: 'var\(--color-green-mid\)', fontSize: 13, fontWeight: 700/)
   // il tastino c'è sopra e in fondo all'elenco
   assert.equal((pagina.match(/<TastinoSage testo=\{NUOVO_CLIENTE\}/g) || []).length >= 2, true)
 })
 
 test('le righe dei clienti trovati hanno la forma della Home', () => {
-  assert.match(pagina, /fontSize: 15, fontWeight: 600, color: 'var\(--color-green-dark\)'/)
-  assert.match(pagina, /fontSize: 12\.5, color: 'var\(--color-stone\)'/)
-  assert.match(pagina, /vuoleRicevuta\(cliente\) && <span aria-label="vuole la ricevuta">🧾/)
-  assert.match(pagina, /valutazioneDi\(cliente\) === 'ottimo'/)
-  assert.match(pagina, /\{rigaClienteTrovato\(cliente\.phone, soggiorni\)\}/)
+  assert.match(pagina, /<RigaCliente key=\{c\.id\}/)
+  assert.match(rigaCliente, /fontSize: 15, fontWeight: 600, color: 'var\(--color-green-dark\)'/)
+  assert.match(rigaCliente, /fontSize: 12\.5, color: 'var\(--color-stone\)'/)
+  assert.match(rigaCliente, /vuoleRicevuta\(cliente\) && <span aria-label="vuole la ricevuta">🧾/)
+  assert.match(rigaCliente, /valutazioneDi\(cliente\) === 'ottimo'/)
+  assert.match(rigaCliente, /\{rigaClienteTrovato\(cliente\.phone, soggiorni\)\}/)
   // la ricerca guarda nome e telefono con la regola già in uso
   assert.match(pagina, /full_name\.ilike\.%\$\{testo\}%,phone\.ilike\.%\$\{cifre\}%/)
   assert.match(pagina, /import \{ filtraClienti \} from '@\/lib\/cambiaCliente'/)

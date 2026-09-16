@@ -22,6 +22,7 @@ import { oggiARoma } from '@/lib/spese/adattatore'
 import { spostaGiorni } from '@/lib/statistiche/periodo'
 import { dataDiOggi, rigaClienteTrovato } from '@/lib/nuovaPrenotazione'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
+import RigaCliente, { TastinoSage, NUOVO_CLIENTE, type ClienteRiga } from '@/components/nuova/RigaCliente'
 import { filtraClienti } from '@/lib/cambiaCliente'
 import { messaggioLetturaNonRiuscita } from '@/lib/prenotazioneScritture'
 import NuovoCliente, { NUOVO_CLIENTE_VUOTO, type DatiNuovoCliente } from '@/components/nuova/NuovoCliente'
@@ -68,46 +69,11 @@ import { oraCompleta } from '@/lib/ora'
 const OTTONE = '#A9884E'
 /** il nome della pagina: lo scrive la barra in alto, non il corpo */
 export const TITOLO_PAGINA = 'Nuova prenotazione'
-export const NUOVO_CLIENTE = '+ Nuovo cliente'
 export const AGGIUNGI_CAMERA = '+ Aggiungi camera'
-
-export type ClienteRiga = {
-  id: string
-  full_name?: string | null
-  phone?: string | null
-  rating?: string | null
-  vuole_ricevuta?: boolean | null
-  notes?: string | null
-  provenienza?: string | null
-  struttura_nome?: string | null
-}
-
-// Il tastino verde chiaro, alto 30: «+ Nuovo cliente» e i fratelli
-export function TastinoSage({ testo, onClick, className = '' }: { testo: string; onClick: () => void; className?: string }) {
-  return (
-    <button type="button" onClick={onClick} className={`py-[7px] -my-[7px] ${className}`}
-      style={{ height: 30, borderRadius: 6, padding: '0 9px', background: 'var(--color-sage)', color: 'var(--color-green-mid)', fontSize: 13, fontWeight: 700 }}>{testo}</button>
-  )
-}
-
-// Una riga dell'elenco dei clienti trovati: la forma delle righe «Da
-// controllare» della Home.
-export function RigaCliente({ cliente, soggiorni, onScegli }: { cliente: ClienteRiga; soggiorni: number; onScegli: () => void }) {
-  return (
-    <button type="button" data-cliente={cliente.id} onClick={onScegli}
-      className="w-full flex items-center justify-between gap-3 text-left" style={{ padding: '12px 0', borderTop: '1px solid var(--color-card-border)' }}>
-      <span className="min-w-0">
-        <span className="block truncate" style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-green-dark)' }}>
-          {vuoleRicevuta(cliente) && <span aria-label="vuole la ricevuta">🧾 </span>}
-          {valutazioneDi(cliente) === 'ottimo' && <span aria-hidden style={{ color: OTTONE }}>★ </span>}
-          {(cliente.full_name ?? '').trim() || 'senza nome'}
-        </span>
-        <span className="block truncate" style={{ fontSize: 12.5, color: 'var(--color-stone)', marginTop: 2 }}>{rigaClienteTrovato(cliente.phone, soggiorni)}</span>
-      </span>
-      <span aria-hidden style={{ fontSize: 18, color: 'var(--color-stone)' }}>›</span>
-    </button>
-  )
-}
+// la riga del cliente trovato e «+ Nuovo cliente» stanno in components/nuova/RigaCliente (16/09/2026):
+// li usa anche «Cambia cliente» della scheda
+export { NUOVO_CLIENTE }
+export type { ClienteRiga }
 
 let contatore = 0
 const nuovoId = () => `n${Date.now().toString(36)}${++contatore}`

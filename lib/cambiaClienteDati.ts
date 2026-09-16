@@ -4,6 +4,7 @@
 import { supabase } from './supabase'
 import { messaggioLetturaNonRiuscita } from './prenotazioneScritture'
 import { ricordaStruttura } from './provenienzaDati'
+import { soggiorniConclusi, type RigaSoggiorno } from './nuovaPrenotazione'
 import {
   campiCambioCliente, filtroCambioCliente, filtraClienti, salvaCambioCliente, messaggioCreazioneCliente,
   type ClienteBreve, type PrenotazionePerCambio, type CampiNuovoCliente,
@@ -15,7 +16,8 @@ import {
 export async function cercaClientiPerCambio(testo: string, escludiId: string | null | undefined): Promise<{ clienti: ClienteBreve[]; errore: string | null }> {
   const q = testo.trim()
   const cifre = q.replace(/\D/g, '')
-  let query = supabase.from('guests').select('id, full_name, phone, provenienza, struttura_nome')
+  // ricevuta, valutazione e nota servono alla riga della scheda nuova (🧾 ★ nome) e al cliente scelto
+  let query = supabase.from('guests').select('id, full_name, phone, provenienza, struttura_nome, rating, vuole_ricevuta, notes')
   if (q && cifre.length >= 3) query = query.or(`full_name.ilike.%${q}%,phone.ilike.%${cifre}%`)
   else if (q) query = query.ilike('full_name', `%${q}%`)
   const { data, error } = await query.order('created_at', { ascending: false }).limit(q ? 30 : 12)
@@ -25,12 +27,25 @@ export async function cercaClientiPerCambio(testo: string, escludiId: string | n
   return { clienti: q ? filtraClienti(q, righe, escludiId) : righe.filter(c => c.id !== escludiId), errore: null }
 }
 
+// Quante volte ogni cliente è già stata qui: si contano i SOGGIORNI conclusi,
+// non le righe (una visita con due cambi camera è una visita sola), con la
+// stessa regola dell'inserimento. Se la lettura non riesce non si scrive un
+// numero sbagliato: nessun conteggio.
+export async function soggiorniConclusiDeiClienti(ids: string[], oggi: string): Promise<Record<string, number>> {
+  if (ids.length === 0) return {}
+  const { data, error } = await supabase
+    .from('bookings').select('id, guest_id, check_out, prenotazione_id, group_id')
+    .in('guest_id', ids).neq('status', 'annullata').limit(2000)
+  if (error) return {}
+  return soggiorniConclusi((data ?? []) as RigaSoggiorno[], oggi)
+}
+
 // Cliente nuovo: una riga in guests (telefono UNIQUE → messaggio dedicato).
 // Un nome di struttura nuovo entra nell'elenco, come in /nuova.
 export async function creaClienteNuovo(campi: CampiNuovoCliente, struttureNote: { nome: string }[]): Promise<{ cliente: ClienteBreve; errore: null } | { cliente: null; errore: string }> {
   let risposta: { data: ClienteBreve | null; error: { code?: string; message?: string } | null }
   try {
-    risposta = await supabase.from('guests').insert(campi).select('id, full_name, phone, provenienza, struttura_nome').single()
+    risposta = await supabase.from('guests').insert(campi).select('id, full_name, phone, provenienza, struttura_nome, rating, vuole_ricevuta, notes').single()
   } catch (err) {
     return { cliente: null, errore: messaggioCreazioneCliente(err as { message?: string }) }
   }
