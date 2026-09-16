@@ -1169,3 +1169,23 @@ nuova con «3 ospiti», «Letto in più · 10 notti × 10 € 100 €», totale 
 modifiche concorrenti dello stesso file (annullamento) restano fuori dai commit.
 1443 prove verdi, TypeScript, `next build` e `next build --webpack` puliti,
 deploy Vercel `success`.
+
+## Le pagine nuove prendono il posto delle vecchie (16/09/2026 notte, Claude) — main fino a `baeb2be`
+
+Tutti i link del gestionale aprono `/scheda/<id>` e `/nuova-prenotazione`:
+Home (Da incassare, Da controllare con `?azione=pagato`), Calendario (barre
+e cella vuota → camera e giorno), Arrivi, elenco Prenotazioni (riga intera,
+via «nuova ›»; «+ Nuova»), Richieste (link «scheda», conferma di una richiesta
+con `?da=richiesta`, «Scelgo io» con le date), scheda del Cliente
+(`?da=cliente`), soggiorni nella proposta, avviso della richiesta dal sito,
+menù. Le pagine vecchie restano a mano, con la riga in ottone in cima messa
+da due layout (i file delle pagine non sono stati toccati: portano ancora il
+lavoro non salvato di un'altra chat). Prove in `lib/indirizziNuovi.test.ts`
+(leggono tutti i sorgenti). 1450 prove verdi, `next build --webpack` pulita,
+deploy Vercel `success`.
+
+**Restano nella scheda nuova due comandi verso la scheda completa**, per
+scelta: «Vedi tutto» e «Altre modifiche» in fondo (sconto, cambio camera con
+più camere, eliminazione di un pagamento non hanno ancora un foglio nella
+scheda nuova); e la striscia dice «le notti si spostano dalla scheda completa»
+quando ci sono più camere nelle stesse notti. Da fare in un incarico a parte.
