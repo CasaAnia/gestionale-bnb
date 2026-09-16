@@ -20,7 +20,7 @@ export function apriSelettore(el: HTMLInputElement & { showPicker?: () => void }
   try { el.showPicker?.() } catch { /* già aperto, o browser che non lo permette */ }
 }
 
-export default function CampoData({ etichetta, valore, onValore, min, dati, className = '' }: {
+export default function CampoData({ etichetta, valore, onValore, min, dati, ottone = false, className = '' }: {
   /** l'etichettina della riga: «Arrivo», «Partenza», «Entro il» */
   etichetta: string
   valore: string
@@ -29,10 +29,12 @@ export default function CampoData({ etichetta, valore, onValore, min, dati, clas
   min?: string
   /** il data-campo per riconoscerlo: «arrivo», «partenza», «entro» */
   dati?: string
+  /** l'etichettina in ottone, come nei fogli della scheda */
+  ottone?: boolean
   className?: string
 }) {
   return (
-    <RigaCampo etichetta={etichetta} className={className}>
+    <RigaCampo etichetta={etichetta} ottone={ottone} className={className}>
       <span className="relative block" style={{ marginTop: 3 }}>
         <span data-data-scritta style={{
           display: 'block', fontSize: 16, fontWeight: 600, lineHeight: '22px',

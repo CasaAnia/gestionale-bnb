@@ -20,19 +20,21 @@ export const SPENTA_BORDO = '#EFEADF'
 export const SOPRA_ETICHETTA = 22
 export const SOTTO_ETICHETTA = 10
 
-/** L'etichettina piccola sopra un gruppo: «CAMERA», «OSPITI», «SCONTO»… */
-export function Etichetta({ testo, centrata = false, primo = false, className = '' }: { testo: string; centrata?: boolean; primo?: boolean; className?: string }) {
+/** L'etichettina piccola sopra un gruppo: «CAMERA», «OSPITI», «SCONTO»…
+ *  Nei fogli della scheda (16/09/2026) è in ottone: `ottone`. */
+export function Etichetta({ testo, centrata = false, primo = false, ottone = false, className = '' }: { testo: string; centrata?: boolean; primo?: boolean; ottone?: boolean; className?: string }) {
   return (
     <p data-etichetta className={`uppercase ${centrata ? 'text-center' : ''} ${className}`}
-      style={{ fontSize: 9.5, letterSpacing: '1.4px', color: 'var(--color-stone)', marginTop: primo ? 0 : SOPRA_ETICHETTA, marginBottom: SOTTO_ETICHETTA }}>{testo}</p>
+      style={{ fontSize: 9.5, letterSpacing: '1.4px', color: ottone ? OTTONE : 'var(--color-stone)', marginTop: primo ? 0 : SOPRA_ETICHETTA, marginBottom: SOTTO_ETICHETTA }}>{testo}</p>
   )
 }
 
-/** Una riga di campo col filo sotto, senza riquadro */
-export function RigaCampo({ etichetta, children, className = '' }: { etichetta: string; children: ReactNode; className?: string }) {
+/** Una riga di campo col filo sotto, senza riquadro. Nei fogli della scheda
+ *  l'etichettina è in ottone maiuscolo 9,5 px: `ottone` (16/09/2026). */
+export function RigaCampo({ etichetta, children, ottone = false, className = '' }: { etichetta: string; children: ReactNode; ottone?: boolean; className?: string }) {
   return (
     <label className={`block ${className}`} style={{ padding: '8px 0', borderBottom: '1px solid var(--color-card-border)' }}>
-      <span className="block uppercase" style={{ fontSize: 9.5, letterSpacing: '1.4px', color: 'var(--color-stone)' }}>{etichetta}</span>
+      <span className="block uppercase" style={{ fontSize: 9.5, letterSpacing: '1.4px', color: ottone ? OTTONE : 'var(--color-stone)' }}>{etichetta}</span>
       {children}
     </label>
   )
