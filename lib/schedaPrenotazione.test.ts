@@ -151,7 +151,7 @@ test('da controllare: le regole della Home filtrate su questa prenotazione', () 
   const nonPagata = daControllareScheda({ segmenti: [seg('a', LENA, '2026-09-10', '2026-09-20', { total_amount: 800, guest_name: 'Rosa' })], altre: [], pagamenti: [], oggi: OGGI, documenti: 1, hrefDocumenti: null })
   assert.deepEqual(nonPagata.map(v => v.etichetta), ['Pagamento'])
   assert.equal(nonPagata[0].titolo, 'Arrivato il 10 set e non segnato pagato')
-  assert.equal(nonPagata[0].link?.href, '/prenotazioni/a?azione=pagato')
+  assert.equal(nonPagata[0].link?.href, '/scheda/a?azione=pagato')
   // arriva domani senza orario
   const domani = daControllareScheda({ segmenti: [seg('b', LENA, '2026-09-14', '2026-09-16', { guest_name: 'Anna' })], altre: [], pagamenti: [], oggi: OGGI, documenti: null, hrefDocumenti: null })
   assert.deepEqual(domani.map(v => v.etichetta), ['Arrivo'])

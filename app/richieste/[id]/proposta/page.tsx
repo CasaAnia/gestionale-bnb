@@ -1142,7 +1142,7 @@ export default function PropostaPage() {
       )}
       {confermando && (
         <FinestraConferma richiesta={richiesta as RichiestaConProposta} aperte={confermando.aperte} layout={desktop ? 'desktop' : 'mobile'}
-          onChiudi={() => setConfermando(null)} onCreata={(x, av) => router.push(`/prenotazioni/${x}?da=richiesta${av ? `&avviso=${encodeURIComponent(av)}` : ''}`)} />
+          onChiudi={() => setConfermando(null)} onCreata={(x, av) => router.push(`/scheda/${x}?da=richiesta${av ? `&avviso=${encodeURIComponent(av)}` : ''}`)} />
       )}
       {daRifiutare && (
         <RifiutaConMotivo richiesta={richiesta} occupato={occupato === 'rifiuto'} onConferma={rifiuta} onAnnulla={() => { if (occupato !== 'rifiuto') setDaRifiutare(false) }} />

@@ -125,12 +125,13 @@ test('liberare non cancella mai: cambia stato e dice il motivo vero', () => {
 
 test('alla prenotazione nuova passano SOLO le date', () => {
   const url = indirizzoPrenotazioneNuova('2026-09-20', '2026-09-22')
-  assert.match(url, /^\/nuova\?/)
+  assert.match(url, /^\/nuova-prenotazione\?/)
   const p = new URLSearchParams(url.split('?')[1])
-  assert.deepEqual([...p.keys()].sort(), ['check_in', 'check_out', 'returnTo'])
+  assert.deepEqual([...p.keys()].sort(), ['check_in', 'check_out'])
   assert.equal(p.get('check_in'), '2026-09-20')
   assert.equal(p.get('check_out'), '2026-09-22')
-  assert.equal(p.get('returnTo'), '/calendario')
+  // dal 16/09/2026 si apre l'inserimento nuovo, che dopo il salvataggio apre la scheda
+  assert.match(url, /^\/nuova-prenotazione\?/)
   assert.equal(url.includes('guest'), false, 'nessun cliente')
   assert.equal(url.includes('room'), false, 'nemmeno la camera')
   assert.equal(url.includes('price') || url.includes('sconto'), false, 'nessun accordo vecchio')

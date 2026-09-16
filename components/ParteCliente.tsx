@@ -76,7 +76,7 @@ export default function ParteCliente({
         ) : soggiorni.map(s => {
           const anno = Number(s.check_in.slice(0, 4))
           return (
-            <Link key={s.prenotazioneId} href={`/prenotazioni/${s.prenotazioneId}`} data-soggiorno
+            <Link key={s.prenotazioneId} href={`/scheda/${s.prenotazioneId}`} data-soggiorno
               className="flex items-baseline gap-2 py-2">
               <span className="shrink-0" style={{ fontFamily: GEORGIA, fontSize: MISURA_CAMERA, color: 'var(--color-green-dark)' }}>
                 {s.camere.join(' → ') || 'camera'}

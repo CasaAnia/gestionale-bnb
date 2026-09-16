@@ -668,7 +668,7 @@ export default function Arrivi() {
               </div>
             )}
             <div className="flex gap-2">
-              <button onClick={() => router.push(`/prenotazioni/${popup.id}`)} className="flex-1 border border-card-border text-gray-600 rounded-xl py-3 font-semibold text-sm">
+              <button onClick={() => router.push(`/scheda/${popup.id}`)} className="flex-1 border border-card-border text-gray-600 rounded-xl py-3 font-semibold text-sm">
                 Apri prenotazione
               </button>
               <button onClick={saveTime} disabled={savingTime} className="flex-1 bg-green-mid text-white rounded-xl py-3 font-semibold disabled:opacity-50">

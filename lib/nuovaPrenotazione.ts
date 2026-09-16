@@ -28,6 +28,26 @@ export const AGGIUNGI_CAMERA = '+ Aggiungi camera'
 export const SENZA_TELEFONO = 'Il numero di telefono è obbligatorio: senza non si può né chiamare né scrivere.'
 export const SENZA_NOME = 'Del cliente nuovo serve il nome.'
 
+// ── Chi ci manda: i parametri dell'indirizzo (16/09/2026) ───────────────────
+// Il calendario passa camera e giorno (room_id, check_in), «Scelgo io» delle
+// richieste le due date (check_in, check_out), la scheda del cliente la
+// persona (guest_id). returnTo non serve più: dopo il salvataggio si apre la
+// scheda. Le date si prendono solo se sono giorni veri e in ordine.
+export type ParametriInserimento = { guestId: string | null; roomId: string | null; checkIn: string | null; checkOut: string | null }
+const GIORNO = /^\d{4}-\d{2}-\d{2}$/
+export function parametriInserimento(search: string): ParametriInserimento {
+  const p = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+  const giorno = (k: string) => { const v = (p.get(k) ?? '').trim(); return GIORNO.test(v) ? v : null }
+  const checkIn = giorno('check_in')
+  const partenza = giorno('check_out')
+  return {
+    guestId: (p.get('guest_id') ?? '').trim() || null,
+    roomId: (p.get('room_id') ?? '').trim() || null,
+    checkIn,
+    checkOut: checkIn && partenza && partenza > checkIn ? partenza : null,
+  }
+}
+
 // ── La testa: «Domenica 14 settembre 2026», in maiuscolo lo fa il disegno ──
 export function dataDiOggi(oggi: string): string {
   const [a, m, g] = oggi.split('-').map(Number)

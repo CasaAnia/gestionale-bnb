@@ -77,7 +77,7 @@ export default function Prenotazioni() {
       <BackBar href="/calendario" />
       <div className="flex items-center justify-between mb-4">
         <h1 className="ed-titolo-medio max-lg:hidden">Prenotazioni</h1>
-        <Link href="/nuova?returnTo=/prenotazioni" className="ml-auto bg-green-mid text-white rounded-full px-3 py-1.5 text-sm font-semibold">+ Nuova</Link>
+        <Link href="/nuova-prenotazione" className="ml-auto bg-green-mid text-white rounded-full px-3 py-1.5 text-sm font-semibold">+ Nuova</Link>
       </div>
 
       {/* Ricerca istantanea su nome della prenotazione, nome in scheda e
@@ -116,7 +116,7 @@ export default function Prenotazioni() {
             <p className="text-xs text-gray-500 -mt-1">{filtered.length} {filtered.length === 1 ? 'risultato' : 'risultati'} per «{search.trim()}»</p>
           )}
           {filtered.map(b => (
-            <div key={b.id} onClick={() => router.push(`/prenotazioni/${b.id}`)}
+            <div key={b.id} onClick={() => router.push(`/scheda/${b.id}`)}
               className="ed-riga py-4 transition-all cursor-pointer active:opacity-70 leading-relaxed">
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
@@ -143,18 +143,6 @@ export default function Prenotazioni() {
               {vuoleRicevuta(b.guests) && (
                 <p className="text-xs text-green-mid mt-1 font-semibold">🧾 Vuole ricevuta</p>
               )}
-              {/* ACCESSO PROVVISORIO alla scheda nuova (13/09/2026): dal
-                  telefono l'indirizzo /scheda/<id> non si può scrivere a mano.
-                  DA TOGLIERE quando la scheda nuova sostituirà la vecchia:
-                  allora sarà la riga intera a portarci. Lo `stopPropagation`
-                  serve perché il tocco qui NON apra anche la scheda di sempre. */}
-              <div className="flex justify-end -mb-2">
-                <Link href={`/scheda/${b.id}`} data-scheda-nuova onClick={e => e.stopPropagation()}
-                  className="inline-flex items-center min-h-[44px] uppercase"
-                  style={{ fontSize: 11, letterSpacing: '1px', color: 'var(--color-brass)' }}>
-                  nuova ›
-                </Link>
-              </div>
             </div>
           ))}
         </div>

@@ -102,7 +102,7 @@ export default function WebRequestAlert() {
               📞 Chiama
             </a>
           )}
-          <button onClick={() => { chiudi(); router.push(`/prenotazioni/${primo.id}`) }}
+          <button onClick={() => { chiudi(); router.push(`/scheda/${primo.id}`) }}
             className="flex-1 bg-white text-green-dark rounded-lg py-2 text-[13.5px] font-semibold shadow-sm transition-transform duration-100 active:scale-[0.97]">
             Apri
           </button>

@@ -734,7 +734,7 @@ export default function Calendario() {
                 <button
                   onClick={e => {
                     e.stopPropagation()
-                    router.push(`/prenotazioni/${b.id}`)
+                    router.push(`/scheda/${b.id}`)
                   }}
                   className="shrink-0 text-[12.5px] font-semibold text-white bg-green-mid rounded-full px-3 py-1 transition-transform duration-100 active:scale-[0.97]">
                   Apri
@@ -877,7 +877,7 @@ export default function Calendario() {
                       const dateStr = toStr(d)
                       return (
                         <div key={i}
-                          onClick={() => router.push(`/nuova?room_id=${room.id}&check_in=${dateStr}&returnTo=/calendario`)}
+                          onClick={() => router.push(`/nuova-prenotazione?room_id=${room.id}&check_in=${dateStr}`)}
                           style={{
                             width: CELL_W, minWidth: CELL_W, height: '100%',
                             background: isToday ? '#F3ECD8' : isSun ? '#F7F3E8' : (isEven ? 'white' : '#F7F3E8'),
@@ -949,13 +949,13 @@ export default function Calendario() {
                               e.stopPropagation()
                               if (selectedGroupId === chainKey) {
                                 ricordaPosizione()
-                                router.push(`/prenotazioni/${booking.id}`)
+                                router.push(`/scheda/${booking.id}`)
                               } else {
                                 setSelectedGroupId(chainKey)
                               }
                             } else {
                               ricordaPosizione()
-                              router.push(`/prenotazioni/${booking.id}`)
+                              router.push(`/scheda/${booking.id}`)
                             }
                       }
                       return (
@@ -974,13 +974,13 @@ export default function Calendario() {
                               // Primo tocco: evidenzia la catena. Secondo tocco sul segmento evidenziato: apre il dettaglio.
                               if (selectedGroupId === chainKey) {
                                 ricordaPosizione()
-                                router.push(`/prenotazioni/${booking.id}`)
+                                router.push(`/scheda/${booking.id}`)
                               } else {
                                 setSelectedGroupId(chainKey)
                               }
                             } else {
                               ricordaPosizione()
-                              router.push(`/prenotazioni/${booking.id}`)
+                              router.push(`/scheda/${booking.id}`)
                             }
                           }}
                           style={{

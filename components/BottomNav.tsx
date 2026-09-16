@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { House, CalendarDays, Inbox, DoorOpen, Sparkles, ClipboardList, Plus, Users, Banknote, Wallet, ChartColumn, Settings } from 'lucide-react'
 import { useDemoMode } from '@/lib/useDemoMode'
-import { returnToSicuro } from '@/lib/navHistory'
 import { isHiddenPath } from '@/lib/demoMode'
 import { useRichiesteWeb } from '@/lib/webRequests'
 import { useRichiesteAperte } from '@/lib/richiesteDati'
@@ -38,7 +37,7 @@ const desktopNavGroups = [
     label: null as string | null,
     items: [
       { href: '/prenotazioni', label: 'Prenotazioni', Icon: ClipboardList },
-      { href: '/nuova', label: 'Nuova', Icon: Plus },
+      { href: '/nuova-prenotazione', label: 'Nuova', Icon: Plus },
       { href: '/clienti', label: 'Clienti', Icon: Users },
       { href: '/spese', label: 'Spese B&B', Icon: Banknote },
       { href: '/spese-famiglia', label: 'Spese Famiglia', Icon: Wallet },
@@ -133,11 +132,9 @@ export default function BottomNav() {
               )}
               {group.items.filter(item => visible(item.href)).map(item => {
                 const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
-                // "Nuova" ricorda la pagina di provenienza: dopo il salvataggio
-                // si torna lì (vedi returnTo in app/nuova/page.tsx).
-                const href = item.href === '/nuova' && returnToSicuro(pathname)
-                  ? `/nuova?returnTo=${pathname}`
-                  : item.href
+                // «Nuova» apre l'inserimento nuovo (16/09/2026): dopo il
+                // salvataggio si apre la scheda, quindi niente returnTo.
+                const href = item.href
                 return (
                   <Link key={item.href} href={href}
                     className={`flex items-center gap-3 pl-4 pr-4 py-2.5 font-serif text-[15px] border-l-2 transition-colors duration-200 ${active ? 'border-[#A9884E] text-green-dark' : 'border-transparent text-[#8a9488] hover:text-green-dark'}`}>

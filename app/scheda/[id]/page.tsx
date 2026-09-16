@@ -64,7 +64,7 @@ import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiaveP
 import {
   SEZIONI_SCHEDA, TUTTO_A_POSTO, statoScheda, primaRigaScheda, etichettaArrivoScheda, rigaGrandeScheda, statoConto, noteScheda,
   arrivoScheda, trattiCamera, daControllareScheda, segmentiAttivi, euroScheda, type SegmentoScheda,
-  PRENOTAZIONE_SALVATA, FONDO_SALVATA, FONDO_ANNULLATA, TESTO_ANNULLATA,
+  PRENOTAZIONE_SALVATA, PRENOTAZIONE_DA_RICHIESTA, FONDO_SALVATA, FONDO_ANNULLATA, TESTO_ANNULLATA,
 } from '@/lib/schedaPrenotazione'
 import { comePagaSalvato } from '@/lib/comePaga'
 import { confermaPagamento, type ConfermaPagamento } from '@/lib/confermaPagamento'
@@ -148,7 +148,8 @@ export default function SchedaPage() {
   const [documenti, setDocumenti] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [errore, setErrore] = useState<string | null>(null)
-  const [avviso, setAvviso] = useState<string | null>(null)
+  // ?avviso= arriva dalla conferma di una richiesta (provenienza non copiata)
+  const [avviso, setAvviso] = useState<string | null>(parametri.get('avviso'))
   const [eventi, setEventi] = useState<EventoCronologia[]>([])
   const [cronologiaAccesa, setCronologiaAccesa] = useState(true)
   const [messaggiInviati, setMessaggiInviati] = useState<MessaggioInviato[]>([])
@@ -165,8 +166,13 @@ export default function SchedaPage() {
   const [annullata, setAnnullata] = useState(false)
   // la conferma volante dopo un pagamento (Ania, 11/09/2026): due righe, pochi secondi
   const [conferma, setConferma] = useState<{ n: number; righe: ConfermaPagamento } | null>(null)
-  // arrivando dalla pagina di inserimento: la pastiglia verde che sparisce da sé
-  const [salvata, setSalvata] = useState(parametri.get('salvata') === '1')
+  // arrivando dalla pagina di inserimento (?salvata=1) o dalla conferma di una
+  // richiesta (?da=richiesta): la pastiglia verde che sparisce da sé
+  const daRichiesta = parametri.get('da') === 'richiesta'
+  const [salvata, setSalvata] = useState(parametri.get('salvata') === '1' || daRichiesta)
+  // dalla scheda del cliente (?da=cliente&cliente=<id>): «Indietro» torna lì
+  const daCliente = parametri.get('da') === 'cliente' ? parametri.get('cliente') : null
+  const hrefIndietro = daCliente ? `/clienti/${daCliente}` : '/prenotazioni'
   const [arriviAperti, setArriviAperti] = useState(false)
   // la striscia delle notti: le camere di casa, la notte aperta e il salvataggio
   const [camere, setCamere] = useState<CameraStriscia[]>([])
@@ -376,17 +382,17 @@ export default function SchedaPage() {
     [eventi, messaggiInviati, booking],
   )
 
-  if (loading) return <div className="p-4"><BackBar href="/prenotazioni" /><div className="text-center py-10 text-stone">Caricamento…</div></div>
-  if (!booking) return <div className="p-4"><BackBar href="/prenotazioni" /><div className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore || 'Prenotazione non trovata.'}</div></div>
+  if (loading) return <div className="p-4"><BackBar href={hrefIndietro} /><div className="text-center py-10 text-stone">Caricamento…</div></div>
+  if (!booking) return <div className="p-4"><BackBar href={hrefIndietro} /><div className="mt-3 bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">{errore || 'Prenotazione non trovata.'}</div></div>
 
   return (
     /* Margini laterali 22 px, tutto centrato, come la proposta */
     <div className="py-4 px-[22px] md:max-w-[620px] md:mx-auto">
-      <div className="-mx-[6px]"><BackBar href="/prenotazioni" /></div>
+      <div className="-mx-[6px]"><BackBar href={hrefIndietro} /></div>
 
       {salvata && (
         <p data-salvata className="text-center uppercase" onClick={() => setSalvata(false)}
-          style={{ marginBottom: 10, padding: '6px 12px', borderRadius: 999, background: FONDO_SALVATA, color: 'var(--color-green-mid)', fontSize: 11, letterSpacing: '1.5px', fontWeight: 700 }}>{PRENOTAZIONE_SALVATA}</p>
+          style={{ marginBottom: 10, padding: '6px 12px', borderRadius: 999, background: FONDO_SALVATA, color: 'var(--color-green-mid)', fontSize: 11, letterSpacing: '1.5px', fontWeight: 700 }}>{daRichiesta ? PRENOTAZIONE_DA_RICHIESTA : PRENOTAZIONE_SALVATA}</p>
       )}
       {annullata && (
         <p data-annullata className="text-center uppercase"
@@ -395,7 +401,7 @@ export default function SchedaPage() {
 
       {/* La riga di navigazione: «‹ Prenotazioni» a sinistra, lo stato a destra */}
       <div data-riga-navigazione className="flex items-center justify-between gap-3">
-        <Link href="/prenotazioni" className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>‹ Prenotazioni</Link>
+        <Link href={hrefIndietro} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>{daCliente ? '‹ Cliente' : '‹ Prenotazioni'}</Link>
         <span data-stato-scheda className="uppercase" style={{ fontSize: 11, letterSpacing: '1.5px', color: OTTONE }}>{statoScheda(booking.status, ultimaPartenza, oggi)}</span>
       </div>
       {avviso && <AvvisoAzione testo={avviso} className="mt-3" />}

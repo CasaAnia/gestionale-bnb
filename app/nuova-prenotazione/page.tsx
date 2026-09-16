@@ -20,7 +20,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { oggiARoma } from '@/lib/spese/adattatore'
 import { spostaGiorni } from '@/lib/statistiche/periodo'
-import { dataDiOggi, rigaClienteTrovato, AGGIUNGI_CAMERA, SENZA_TELEFONO, SENZA_NOME } from '@/lib/nuovaPrenotazione'
+import { dataDiOggi, rigaClienteTrovato, AGGIUNGI_CAMERA, SENZA_TELEFONO, SENZA_NOME, parametriInserimento } from '@/lib/nuovaPrenotazione'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import RigaCliente, { TastinoSage, NUOVO_CLIENTE, type ClienteRiga } from '@/components/nuova/RigaCliente'
 import { filtraClienti } from '@/lib/cambiaCliente'
@@ -126,6 +126,8 @@ export default function NuovaPrenotazionePage() {
   const [avvisoSalva, setAvvisoSalva] = useState<string | null>(null)
   // salvata ma con qualcosa di meno: si resta qui e si apre col tuo tocco
   const [salvata, setSalvata] = useState<string | null>(null)
+  // chi ci manda (calendario, «Scelgo io», scheda del cliente): si applica una volta, quando le camere sono lette
+  const parametriApplicati = useRef(false)
 
   // Legge TUTTE le pagine e dice com'è andata; torna l'esito, così chi salva
   // può rileggere e fermarsi se la lettura non riesce.
@@ -139,10 +141,39 @@ export default function NuovaPrenotazionePage() {
     return esito
   }, [])
 
+  // I parametri dell'indirizzo, una volta sola, appena lette le camere: il
+  // cliente (guest_id) si legge dall'archivio; camera e date (room_id,
+  // check_in, check_out) aprono la prima camera già compilata. Si legge
+  // window.location e non useSearchParams: la pagina è statica e non ha un
+  // confine Suspense. Lo stato si scrive nella risposta della lettura, non
+  // nel corpo di un effetto.
+  function applicaParametri(lette: CameraStriscia[]) {
+    if (parametriApplicati.current) return
+    parametriApplicati.current = true
+    const p = parametriInserimento(window.location.search)
+    if (p.checkIn || p.roomId) {
+      const gruppo = nuovoId()
+      const arrivo = p.checkIn ?? oggi
+      const partenza = p.checkOut ?? spostaGiorni(arrivo, 1)
+      const camera = p.roomId && lette.some(c => c.id === p.roomId) ? p.roomId : null
+      setPeriodi([{ id: nuovoId(), gruppo, roomId: camera, checkIn: arrivo, checkOut: partenza, ospiti: camera ? ospitiScegliendoCamera(1, null, lette.find(c => c.id === camera)) : 1, nottiLetto: [], letto: null, tariffa: null }])
+    }
+    if (p.guestId) {
+      void supabase.from('guests').select('*').eq('id', p.guestId).maybeSingle().then(({ data }) => {
+        if (data) { setCliente(data as ClienteRiga); setRicerca(''); setRisultati([]) }
+      })
+    }
+  }
+
   useEffect(() => {
     let vivo = true
     void leggiStrutture().then(r => { if (!vivo) return; setStrutture(r.strutture); setStruttureOk(r.disponibile) })
-    void supabase.from('rooms').select('*').eq('active', true).then(({ data }) => { if (vivo) setCamere((data ?? []) as CameraStriscia[]) })
+    void supabase.from('rooms').select('*').eq('active', true).then(({ data }) => {
+      if (!vivo) return
+      const lette = (data ?? []) as CameraStriscia[]
+      setCamere(lette)
+      applicaParametri(lette)
+    })
     // come le due letture qui sopra: lo stato si scrive nella risposta, non
     // nel corpo dell'effetto
     void leggiOccupazioni(paginaOccupazioni(oggi), oggi).then(esito => {
@@ -152,6 +183,8 @@ export default function NuovaPrenotazionePage() {
       setOccupazioni({ stato: 'pronte', dal: oggi })
     })
     return () => { vivo = false }
+    // applicaParametri legge solo window.location e gli stati iniziali: si applica una volta
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oggi])
 
 

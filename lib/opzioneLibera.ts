@@ -38,10 +38,13 @@ export function campiLibera(motivo: MotivoLibera, adesso: Date): ScritturaLibera
   }
 }
 
-/** Le date che passano alla prenotazione nuova: SOLO quelle (Ania, 15/09/2026) */
+/** Le date che passano alla prenotazione nuova: SOLO quelle (Ania, 15/09/2026).
+ *  Dal 16/09/2026 si apre l'inserimento nuovo, che dopo il salvataggio apre
+ *  la scheda: `ritorno` resta per chi lo passa, ma non si usa più. */
 export function indirizzoPrenotazioneNuova(arrivo: string, partenza: string, ritorno = '/calendario'): string {
-  const p = new URLSearchParams({ check_in: arrivo, check_out: partenza, returnTo: ritorno })
-  return `/nuova?${p.toString()}`
+  void ritorno
+  const p = new URLSearchParams({ check_in: arrivo, check_out: partenza })
+  return `/nuova-prenotazione?${p.toString()}`
 }
 
 export type TestoConferma = { titolo: string; righe: string[]; conferma: string }

@@ -489,8 +489,9 @@ export function hrefDestinazione(d: Destinazione): string {
     // `?da=home`: aperta da qui, la freccia «Indietro» della richiesta riporta
     // alla Home — e non alle Richieste, dove non si era passati.
     case 'richiesta': return linkRichiesta(d.id, 'home')
-    case 'saldo': return `/prenotazioni/${d.prenotazioneId}?azione=pagato`
-    case 'prenotazione': return `/prenotazioni/${d.prenotazioneId}`
+    // la scheda nuova (16/09/2026): ?azione=pagato apre da sé il foglio del pagamento
+    case 'saldo': return `/scheda/${d.prenotazioneId}?azione=pagato`
+    case 'prenotazione': return `/scheda/${d.prenotazioneId}`
     case 'calendario': return `/calendario?giorno=${d.giorno}`
     case 'arrivo': return `/arrivi?apri=${d.prenotazioneId}`
     case 'fattura': return `/spese?documento=${d.documentoId}`

@@ -224,7 +224,7 @@ export default function Dashboard() {
             <div className="mb-5">
               <p className="ed-sezione mb-1">Da incassare</p>
               {data.daIncassare.map((g: any) => (
-                <Link key={g.id} href={`/prenotazioni/${g.id}`} className="flex items-center justify-between py-1.5 border-t border-card-border text-sm">
+                <Link key={g.id} href={`/scheda/${g.id}`} className="flex items-center justify-between py-1.5 border-t border-card-border text-sm">
                   <span className="font-medium text-green-dark">{g.guest}</span>
                   <span className="font-bold" style={{ color: '#8a4f2f' }}>€{euro(g.residuoCent)}</span>
                 </Link>

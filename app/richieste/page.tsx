@@ -177,7 +177,7 @@ function RigaChiusa({ r, adesso, evidenziata = false, onRiapri, riaprendo }: { r
         <p className="text-xs text-stone">{formatDateRichiesta(r)} · {r.persone} {r.persone === 1 ? 'persona' : 'persone'} · {CANALE_LABEL[r.canale]}</p>
         <p className="text-xs font-semibold mt-0.5" style={{ color: colore }}>{stato.testo}
           {r.stato === 'confermata' && r.prenotazione_id && (
-            <Link href={`/prenotazioni/${r.prenotazione_id}`} className="ml-1.5 font-normal underline underline-offset-2 text-green-mid" onClick={e => e.stopPropagation()}>scheda</Link>
+            <Link href={`/scheda/${r.prenotazione_id}`} className="ml-1.5 font-normal underline underline-offset-2 text-green-mid" onClick={e => e.stopPropagation()}>scheda</Link>
           )}
         </p>
       </div>
@@ -545,7 +545,7 @@ function Richieste() {
       )}
       {daConfermare && (
         <FinestraConferma richiesta={daConfermare} aperte={aperte} layout={desktop ? 'desktop' : 'mobile'}
-          onChiudi={() => setDaConfermare(null)} onCreata={(id, avviso) => router.push(`/prenotazioni/${id}?da=richiesta${avviso ? `&avviso=${encodeURIComponent(avviso)}` : ''}`)} />
+          onChiudi={() => setDaConfermare(null)} onCreata={(id, avviso) => router.push(`/scheda/${id}?da=richiesta${avviso ? `&avviso=${encodeURIComponent(avviso)}` : ''}`)} />
       )}
       {daRifiutare && (
         <RifiutaConMotivo richiesta={daRifiutare} occupato={rifiutando} onConferma={confermaRifiuto} onAnnulla={() => { if (!rifiutando) setDaRifiutare(null) }} />
