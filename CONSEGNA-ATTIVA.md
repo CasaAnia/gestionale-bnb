@@ -1151,3 +1151,21 @@ Non riprodotto:
 
 Non fatto in questo giro: la prova online del salvataggio con più tratti e
 prezzo finale (le prove sono sulla libreria e sulla pagina, non su Supabase).
+
+### Rilievo 2 (Allegra 2 → 3), risolto (16/09/2026 notte, Claude) — main fino a `75d18cc`
+
+Il percorso era la scheda completa `/prenotazioni/[id]` → «Modifica soggiorno»
+→ ospiti da 2 a 3 (non il «+» dell'inserimento). Riprodotto con
+`work/riproduci-ospiti-allegra.mjs`. Ora `cambiaOspiti` accende il letto su
+tutte le notti quando le persone superano la capienza senza letto, col
+prezzo delle regole (Allegra 10, Lena in 3 «compreso»), e lo spegne tornando
+dentro — solo quello acceso dalla pagina (`lettoAuto`): il letto messo a mano
+con due persone resta. `controllaSoggiorno` verifica i due letti di casa con le
+notti nuove; `salvaSoggiorno` rifiuta più persone della capienza senza letto.
+Prove in `lib/modificaSoggiorno.test.ts` (le funzioni si estraggono dalla
+pagina col compilatore TypeScript). Provato nell'anteprima finta: Allegra 5→15
+ott, 2 → 3 ospiti → «letto su 10 notti · €800», salvato e riaperto nella scheda
+nuova con «3 ospiti», «Letto in più · 10 notti × 10 € 100 €», totale 800. Le
+modifiche concorrenti dello stesso file (annullamento) restano fuori dai commit.
+1443 prove verdi, TypeScript, `next build` e `next build --webpack` puliti,
+deploy Vercel `success`.
