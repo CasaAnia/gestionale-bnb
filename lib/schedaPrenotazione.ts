@@ -342,3 +342,10 @@ export function daControllareScheda(d: DatiControlloScheda): VoceControllo[] {
 }
 
 export const TUTTO_A_POSTO = '✓ Tutto a posto'
+
+// Le pastiglie in cima alla scheda: stanno qui perché una pagina di Next non
+// può esportare costanti (16/09/2026).
+export const PRENOTAZIONE_SALVATA = '✓ Prenotazione salvata'
+export const FONDO_SALVATA = 'var(--color-sage)'
+export const FONDO_ANNULLATA = '#F6E4DE'
+export const TESTO_ANNULLATA = '#8C3B2E'

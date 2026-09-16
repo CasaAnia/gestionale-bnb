@@ -20,7 +20,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { oggiARoma } from '@/lib/spese/adattatore'
 import { spostaGiorni } from '@/lib/statistiche/periodo'
-import { dataDiOggi, rigaClienteTrovato } from '@/lib/nuovaPrenotazione'
+import { dataDiOggi, rigaClienteTrovato, AGGIUNGI_CAMERA, SENZA_TELEFONO, SENZA_NOME } from '@/lib/nuovaPrenotazione'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import RigaCliente, { TastinoSage, NUOVO_CLIENTE, type ClienteRiga } from '@/components/nuova/RigaCliente'
 import { filtraClienti } from '@/lib/cambiaCliente'
@@ -58,8 +58,8 @@ import { oraDigitata } from '@/lib/ora'
 import { PERSONE_CON_LEI_MAX, TROPPE_PERSONE, type PersonaConLei } from '@/lib/nuovaPrenotazione'
 import { campiComePaga, chiedeScadenza as chiedeScadenzaComePaga, type ComePaga as ComePagaModo } from '@/lib/comePaga'
 import ContoNuova, { TastoSalva } from '@/components/nuova/ContoNuova'
-import { campiConLei, campiSconto, totaliScontati } from '@/lib/nuovaPrenotazione'
-import { rigaDaSalvare, problemi } from '@/lib/prenotazioneComposta'
+import { campiConLei, scontoPerRiga, totaliScontati, righeDaSalvare } from '@/lib/nuovaPrenotazione'
+import { problemi } from '@/lib/prenotazioneComposta'
 import { colonnaMancante } from '@/lib/colonnaMancante'
 import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
 import { leggiOccupazioni, daQuandoLeggere, CAMPI_OCCUPAZIONE, NON_LETTE } from '@/lib/occupazioniDati'
@@ -67,13 +67,10 @@ import { messaggioSovrapposizione } from '@/lib/erroreSovrapposizione'
 import { oraCompleta } from '@/lib/ora'
 
 const OTTONE = '#A9884E'
-/** il nome della pagina: lo scrive la barra in alto, non il corpo */
-export const TITOLO_PAGINA = 'Nuova prenotazione'
-export const AGGIUNGI_CAMERA = '+ Aggiungi camera'
-// la riga del cliente trovato e «+ Nuovo cliente» stanno in components/nuova/RigaCliente (16/09/2026):
-// li usa anche «Cambia cliente» della scheda
-export { NUOVO_CLIENTE }
-export type { ClienteRiga }
+// I testi della pagina (TITOLO_PAGINA, AGGIUNGI_CAMERA, SENZA_TELEFONO,
+// SENZA_NOME) stanno in lib/nuovaPrenotazione; la riga del cliente trovato e
+// «+ Nuovo cliente» in components/nuova/RigaCliente. Una pagina di Next non
+// può esportare altro che il componente (16/09/2026).
 
 let contatore = 0
 const nuovoId = () => `n${Date.now().toString(36)}${++contatore}`
@@ -82,9 +79,6 @@ const nuovoId = () => `n${Date.now().toString(36)}${++contatore}`
 const paginaOccupazioni = (dal: string) => (da: number, a: number) =>
   supabase.from('bookings').select(CAMPI_OCCUPAZIONE)
     .neq('status', 'annullata').gte('check_out', dal).order('check_in').range(da, a)
-
-export const SENZA_TELEFONO = 'Il numero di telefono è obbligatorio: senza non si può né chiamare né scrivere.'
-export const SENZA_NOME = 'Del cliente nuovo serve il nome.'
 
 export default function NuovaPrenotazionePage() {
   const router = useRouter()
@@ -429,16 +423,20 @@ export default function NuovaPrenotazionePage() {
       ...(oraCompleta(orario) ? { check_in_time: orario } : {}),
       ...(navetta ? { shuttle: navetta } : {}),
       ...campiConLei(persone),
-      ...campiSconto(conto.totaleCent, sconto, periodi.length === 1),
     }
     const primo = [...periodiColLetto].sort((a, z) => a.checkIn.localeCompare(z.checkIn))[0]?.id
-    const base = periodiColLetto.map(p => rigaDaSalvare(p, camere.find(c => c.id === p.roomId) as CameraComposta, gruppi.get(p.gruppo)!))
-    // con uno sconto il totale di ogni riga si scrive già scontato
-    const scontati = totaliScontati(base.map(r => Number(r.total_amount) || 0), sconto)
+    // le righe di sempre, col letto ripartito fra i tratti come nel conto
+    const base = righeDaSalvare(periodiColLetto, trova, p => gruppi.get(p.gruppo)!)
+    // con uno sconto il totale di ogni riga si scrive già scontato, e lo
+    // sconto si salva riga per riga (col prezzo finale: la quota di ogni riga)
+    const totaliBase = base.map(r => Number(r.total_amount) || 0)
+    const scontati = totaliScontati(totaliBase, sconto)
+    const scontoRighe = scontoPerRiga(totaliBase, sconto)
     const righe = periodiColLetto.map((p, i) => ({
       ...base[i],
       total_amount: scontati[i],
       ...comuni,
+      ...scontoRighe[i],
       prenotazione_id: prenotazioneId,
       accordo_pagamento: pagamento.accordo_pagamento,
       ...(p.id === primo ? { caparra_centesimi: pagamento.caparra_centesimi, caparra_entro: pagamento.caparra_entro } : {}),

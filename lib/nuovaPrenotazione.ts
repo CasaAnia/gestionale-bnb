@@ -12,12 +12,21 @@ import { capienzaBase, capienzaCamera } from './tariffe.ts'
 import { giorniSoggiorno } from './prezzoNotti.ts'
 const giornoDopo = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)
 import { camereLibere, STATI_CHE_OCCUPANO, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
-import { contoPeriodo, lettoProposto, notti as nottiPeriodo, round2, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
-import { costoLettoIntero, type AccordoLetto } from './lettiAggiuntivi.ts'
+import { contoPeriodo, lettoProposto, rigaDaSalvare, notti as nottiPeriodo, round2, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
+import { costoLettoIntero, lettoRipartito, type AccordoLetto } from './lettiAggiuntivi.ts'
 import type { NotteStriscia } from './strisciaNotti.ts'
 import { blocchiDaNotti } from './strisciaNotti.ts'
 import { GIORNI_LUNGHI, MESI_LUNGHI } from './dateItaliane.ts'
 import { euroScheda } from './schedaPrenotazione.ts'
+
+// ── I testi della pagina ────────────────────────────────────────────────────
+// Stanno qui e non nella pagina: una pagina di Next può esportare solo il
+// componente e pochi campi noti, e la build col controllo dei tipi rifiuta il
+// resto («TITOLO_PAGINA is not a valid Page export field», 16/09/2026).
+export const TITOLO_PAGINA = 'Nuova prenotazione'
+export const AGGIUNGI_CAMERA = '+ Aggiungi camera'
+export const SENZA_TELEFONO = 'Il numero di telefono è obbligatorio: senza non si può né chiamare né scrivere.'
+export const SENZA_NOME = 'Del cliente nuovo serve il nome.'
 
 // ── La testa: «Domenica 14 settembre 2026», in maiuscolo lo fa il disegno ──
 export function dataDiOggi(oggi: string): string {
@@ -225,7 +234,7 @@ export function nottiNonSalvabili(
 // tengono insieme la prenotazione invece non si possono perdere: senza
 // prenotazione_id le camere diventano prenotazioni separate, e col conto
 // unico i totali sballano (rilievo del 15/09/2026).
-export const RINUNCIABILI = new Set(['prenotazione_id', 'extra_bed_importo', 'extra_bed_criterio', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro'])
+export const RINUNCIABILI = new Set(['prenotazione_id', 'extra_bed_importo', 'extra_bed_criterio', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro', 'chi_e_2'])
 export const SENZA_NON_SI_SALVA = new Set(['prenotazione_id'])
 
 export const NOMI_COLONNA: Record<string, string> = {
@@ -235,6 +244,7 @@ export const NOMI_COLONNA: Record<string, string> = {
   accordo_pagamento: 'come paga',
   caparra_centesimi: 'la caparra',
   caparra_entro: 'la scadenza della caparra',
+  chi_e_2: 'chi è la seconda persona che dorme con lei',
 }
 export function mancaColonnaNecessaria(colonna: string): string {
   return `Non salvo: manca ancora nel database ${NOMI_COLONNA[colonna] ?? colonna}, e senza quello la prenotazione verrebbe spezzata. Serve la proposta SQL corrispondente applicata su Supabase.`
@@ -517,6 +527,24 @@ export function campiSconto(totaleCent: number | null, sconto: ScontoNuova, unaR
   return { discount_type: 'percentage', discount_value: round2((1 - sconto.valore / pieno) * 100) }
 }
 
+/**
+ * Lo sconto RIGA PER RIGA (16/09/2026). Col prezzo finale su più tratti la
+ * percentuale spalmata (66,67 %) faceva rileggere 999,90 al posto di 1.000:
+ * la scheda ricalcola ogni riga dal prezzo a notte e arrotonda tre volte.
+ * Adesso ogni riga porta il SUO totale concordato (`target_total`), cioè la
+ * quota che le tocca (totaliScontati): la somma torna al centesimo e la
+ * lettura riga per riga (lib/conto) dà esattamente quel numero. La percentuale
+ * resta una percentuale, uguale su tutte le righe.
+ */
+export function scontoPerRiga(totaliBase: number[], sconto: ScontoNuova): Record<string, unknown>[] {
+  const pienoCent = totaliBase.reduce((s, t) => s + Math.round(t * 100), 0)
+  if (sconto.tipo === 'nessuno' || !sconto.valore || sconto.valore <= 0 || pienoCent <= 0) return totaliBase.map(() => ({}))
+  if (sconto.tipo === 'percentuale') return totaliBase.map(() => ({ discount_type: 'percentage', discount_value: sconto.valore }))
+  if (scontoInCentesimi(pienoCent, sconto) <= 0) return totaliBase.map(() => ({}))
+  const scontati = totaliScontati(totaliBase, sconto)
+  return totaliBase.map((_, i) => ({ discount_type: 'target_total', discount_value: scontati[i] }))
+}
+
 // ── «Con lei»: chi altro dorme qui ──────────────────────────────────────────
 export const CHI_E_VOCI = ['Sorella', 'Mamma', 'Figlia', 'Marito', 'Amica']
 export type PersonaConLei = { id: string; nome: string; chiE: string; telefono: string }
@@ -524,13 +552,17 @@ export type PersonaConLei = { id: string; nome: string; chiE: string; telefono: 
 export const PERSONE_CON_LEI_MAX = 2
 export const TROPPE_PERSONE = 'Di persone in più se ne possono salvare due: la terza scrivila nella nota.'
 
+// Chi è ognuna delle due: `chi_e` per la prima (colonna di sempre) e `chi_e_2`
+// per la seconda (proposta 0056): prima la relazione della seconda persona si
+// perdeva in silenzio (rilievo del 16/09/2026). Senza la 0056 la colonna è
+// fra le rinunciabili: si salva il resto e lo si dice.
 export function campiConLei(persone: PersonaConLei[]): Record<string, unknown> {
   const campi: Record<string, unknown> = {}
   persone.slice(0, PERSONE_CON_LEI_MAX).forEach((p, i) => {
     const n = i + 1
     if (p.nome.trim()) campi[`extra_phone_${n}_name`] = p.nome.trim()
     if (p.telefono.trim()) campi[`extra_phone_${n}`] = p.telefono.replace(/\s/g, '')
-    if (i === 0 && p.chiE.trim()) campi.chi_e = p.chiE.trim()
+    if (p.chiE.trim()) campi[i === 0 ? 'chi_e' : 'chi_e_2'] = p.chiE.trim()
   })
   return campi
 }
@@ -613,6 +645,31 @@ export function periodiDaNotti(notti: NotteStriscia[], linea: LineaCamera, nuovo
       letto: origine?.letto ?? null,
       tariffa: stessaCamera ? (origine?.tariffa ?? null) : null,
     }
+  })
+}
+
+// ── Le righe da salvare, col letto ripartito ────────────────────────────────
+// Il letto è UNO per tutta la prenotazione: il conto lo mostra una volta
+// (costoLettoIntero) e lo riparte fra i tratti. Le righe salvate devono dire
+// la stessa cosa: prima ogni tratto salvava il letto per intero — «30 € in
+// tutto» su due tratti facevano 60 salvati contro 30 mostrati (rilievo del
+// 16/09/2026). La ripartizione è lettoRipartito, la stessa della striscia
+// della scheda; la convenzione delle colonne resta quella di sempre
+// (price_per_night = notte più economica, extra_bed_total = tutto il resto).
+export function righeDaSalvare(
+  periodi: PeriodoComposto[],
+  camera: (id: string | null) => CameraComposta | null,
+  groupIdDi: (p: PeriodoComposto) => string,
+): ReturnType<typeof rigaDaSalvare>[] {
+  const fette = lettoRipartito(accordoLetto(periodi, camera), periodi.map(p => p.nottiLetto.length))
+  return periodi.map((p, i) => {
+    const c = camera(p.roomId) as CameraComposta
+    const riga = rigaDaSalvare(p, c, groupIdDi(p))
+    const conto = contoPeriodo(p, c)
+    if (!conto) return riga
+    const cameraTotale = round2(conto.totale - conto.lettoTotale)
+    const soloCamera = round2(cameraTotale - conto.prezzoNotte * nottiPeriodo(p))   // le differenze fra notti
+    return { ...riga, extra_bed_total: round2(soloCamera + fette[i]), total_amount: round2(cameraTotale + fette[i]) }
   })
 }
 

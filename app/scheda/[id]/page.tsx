@@ -64,6 +64,7 @@ import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiaveP
 import {
   SEZIONI_SCHEDA, TUTTO_A_POSTO, statoScheda, primaRigaScheda, etichettaArrivoScheda, rigaGrandeScheda, statoConto, noteScheda,
   arrivoScheda, trattiCamera, daControllareScheda, segmentiAttivi, euroScheda, type SegmentoScheda,
+  PRENOTAZIONE_SALVATA, FONDO_SALVATA, FONDO_ANNULLATA, TESTO_ANNULLATA,
 } from '@/lib/schedaPrenotazione'
 import { comePagaSalvato } from '@/lib/comePaga'
 import { confermaPagamento, type ConfermaPagamento } from '@/lib/confermaPagamento'
@@ -77,7 +78,7 @@ import { provenienzaInParole, provenienzaDi, normalizzaProvenienza, type CampiPr
 import { elencoSoggiorniPersona, type SoggiornoStorico } from '@/lib/clienteCheTorna'
 import { numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
 import { openWhatsApp, telefonoAGruppi } from '@/lib/whatsapp'
-import buildWhatsappMsg, { type TipoMessaggio } from '@/lib/messaggiPrenotazione'
+import buildWhatsappMsg, { perMessaggio, type TipoMessaggio } from '@/lib/messaggiPrenotazione'
 import {
   testaConto, righeConto, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
   type PagamentoScheda, type MessaggioInviato,
@@ -128,10 +129,6 @@ function RigaGrande({ ospiti, camere, cambi }: { ospiti: number; camere: string;
   )
 }
 
-export const PRENOTAZIONE_SALVATA = '✓ Prenotazione salvata'
-export const FONDO_SALVATA = 'var(--color-sage)'
-export const FONDO_ANNULLATA = '#F6E4DE'
-export const TESTO_ANNULLATA = '#8C3B2E'
 const SECONDI_SALVATA = 5
 
 export default function SchedaPage() {
@@ -142,6 +139,10 @@ export default function SchedaPage() {
   const [booking, setBooking] = useState<Prenotazione | null>(null)
   const [righe, setRighe] = useState<Prenotazione[]>([])
   const [pagamenti, setPagamenti] = useState<PagamentoStat[]>([])
+  // Il conto si fa SOLO con tutte le camere e tutti i pagamenti letti: se una
+  // delle due letture non riesce, niente conto e niente pagamenti da qui
+  // (rilievo del 16/09/2026: prima si contava sulla sola riga aperta).
+  const [contoLeggibile, setContoLeggibile] = useState(true)
   const [altreCliente, setAltreCliente] = useState<SoggiornoStorico[]>([])
   const [altreNotti, setAltreNotti] = useState<PrenotazioneDC[]>([])
   const [documenti, setDocumenti] = useState<number | null>(null)
@@ -201,6 +202,7 @@ export default function SchedaPage() {
       // Le righe arrivano con la camera ma senza il cliente: è lo stesso per tutte
       const tutte = (conto.errore ? [scheda] : (conto.righe as Prenotazione[])).map(r => ({ ...r, guests: r.guests ?? scheda.guests, guest_name: r.guest_name ?? scheda.guest_name }))
       setRighe(tutte)
+      setContoLeggibile(!conto.errore)
       if (conto.errore) setAvviso(conto.errore)
       const ids = tutte.map(r => r.id)
       const attive = segmentiAttivi(tutte)
@@ -220,7 +222,7 @@ export default function SchedaPage() {
         supabase.from('rooms').select('*'),
       ])
       if (!vivo) return
-      if (pag.error) setAvviso(a => a ?? `Non riesco a leggere i pagamenti: ${pag.error.message}`)
+      if (pag.error) { setContoLeggibile(false); setAvviso(a => a ?? `Non riesco a leggere i pagamenti: ${pag.error.message}`) }
       // La cronologia: le modifiche le scrive il database, i messaggi partiti
       // stanno in booking_whatsapp_log (tabella di sempre).
       leggiCronologia(ids).then(c => {
@@ -254,8 +256,9 @@ export default function SchedaPage() {
   const grande = useMemo(() => rigaGrandeScheda(attive), [attive])
   // Il conto: contoPrenotazione di lib/prenotazioneUnica, come la scheda attuale
   const conto = useMemo(() => {
+    if (!contoLeggibile) return null
     try { return contoPrenotazione(righe, pagamenti.map(p => ({ booking_id: p.booking_id, amount: p.amount }))) } catch { return null }
-  }, [righe, pagamenti])
+  }, [righe, pagamenti, contoLeggibile])
   const accordo = useMemo(() => accordoPrenotazione(righe) ?? booking, [righe, booking])
   const stato = conto ? statoConto({ totaleCent: conto.totaleCent, ricevutiCent: conto.ricevutiCent, pagato: righe.some(r => r.pagato), bonifico: accordo?.bonifico }) : null
   // Chi è: soggiorni conclusi della stessa persona, fuori questa prenotazione
@@ -343,8 +346,10 @@ export default function SchedaPage() {
   // ── MESSAGGI ─────────────────────────────────────────────────────────────
   // Gli stessi testi della scheda attuale (lib/messaggiPrenotazione), con gli
   // stessi dati: la prenotazione, tutte le sue camere e i pagamenti.
+  // La spunta «bonifico» vale «anticipo» solo se l'accordo lo dice (perMessaggio)
+  const perIMessaggi = () => perMessaggio({ ...booking, accordo_pagamento: accordoSalvato?.accordo_pagamento ?? null, bonifico: accordo?.bonifico })
   const testoMessaggio = (tipo: TipoMessaggio) =>
-    booking ? buildWhatsappMsg({ ...booking, bonifico: accordo?.bonifico }, tipo, attive, pagamenti) : ''
+    booking ? buildWhatsappMsg(perIMessaggi(), tipo, attive, pagamenti) : ''
   const hrefMessaggio = (tipo: TipoMessaggio) => waHrefTesto(waNumero ?? '', testoMessaggio(tipo))
   const apriMessaggio = (tipo: TipoMessaggio) => (e: React.MouseEvent) => {
     e.preventDefault()
@@ -514,7 +519,7 @@ export default function SchedaPage() {
       </p>
 
       {confermaAperta && (
-        <ConfermaWhatsApp booking={{ ...booking, bonifico: accordo?.bonifico } as never} groupBookings={attive as never}
+        <ConfermaWhatsApp booking={perIMessaggi() as never} groupBookings={attive as never}
           payments={pagamenti as never} onClose={() => setConfermaAperta(false)} />
       )}
 
@@ -531,10 +536,11 @@ export default function SchedaPage() {
             setRighe(rs => rs.map(aggiorna))
             setBooking(b => (b ? aggiorna(b) : b))
             setFoglioArrivo(false)
-            if (msg) setAvviso(msg)
+            setAvviso(msg)
+            rileggi()   // la cronologia (trigger 0042) e «Da controllare»
           }} />
       )}
-      {foglioPagamento && (
+      {foglioPagamento && conto && (
         <FoglioPagamento booking={booking} righe={righe} pagamenti={pagamenti} oggi={oggi} bonifico={accordo?.bonifico}
           onChiudi={() => setFoglioPagamento(false)}
           onSalvato={(esito: PagamentoSalvato) => {
@@ -625,7 +631,8 @@ export default function SchedaPage() {
                 : { caparra_centesimi: null, caparra_entro: null }),
             } as Prenotazione)))
             setFoglioComePaga(false)
-            if (avviso) setAvviso(avviso)
+            setAvviso(avviso)
+            rileggi()   // la cronologia e lo stato del conto dal server
           }} />
       )}
       {foglioProvenienza && booking.guest_id && (
