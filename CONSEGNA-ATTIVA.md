@@ -1094,9 +1094,9 @@ vecchia), `lib/comePagaDati`, `lib/cambiaClienteDati`, `lib/arrivoOrario`. La
 scheda vecchia (`app/prenotazioni/[id]`) e `lib/condizioniPrenotazione` non
 sono state toccate; «Vedi tutto» porta ancora lì.
 
-- **Proposta 0055 (`payments.note`), NON applicata:** la nota facoltativa del
-  pagamento ha bisogno di quella colonna; senza, il pagamento si registra e la
-  scheda avvisa che la nota non è stata salvata.
+- **Proposta 0055 (`payments.note`) APPLICATA da Ania il 16/09/2026 sera**
+  e verificata in produzione: un pagamento finto con nota si è salvato con la
+  nota sotto la riga, poi tolto.
 - **Chi ha annullato** sta in `cancelled_reason` («Errore mio», «La cliente ·
   motivo», «Non si è presentata · motivo»: `lib/annullamento`). Con «Errore
   mio» `lib/storicoCliente` salta la prenotazione (la riga resta sul database).
