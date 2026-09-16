@@ -21,7 +21,7 @@ const documenti = leggi('components/DocumentiCliente.tsx')
 test('la scheda nuova sta a /scheda/<id> e la vecchia non viene toccata', () => {
   // l'indirizzo è il file stesso: app/scheda/[id]/page.tsx (se sparisce, leggi() fallisce)
   assert.ok(pagina.length > 0)
-  // i fogli che ancora non ha portano alla scheda attuale, non la copiano
+  // «Vedi tutto» porta alla scheda attuale, che resta com'è
   assert.match(pagina, /const hrefVecchia = \(segmentoId: string\) => `\/prenotazioni\/\$\{segmentoId\}`/)
 })
 
@@ -299,8 +299,9 @@ test('il conto: righe 14 px col filo, sconto in ottone, totale in Georgia 24', (
   assert.match(conto, />Aggiungi pagamento</)
   assert.match(conto, />Cambia come paga</)
   assert.equal(/>Accordo</.test(conto), false, '«Accordo» è ancora scritto nel conto')
-  // la pagina manda i link ai fogli della scheda attuale
-  assert.match(pagina, /hrefPagamento=\{`\$\{hrefVecchia\(booking\.id\)\}\?azione=pagato`\}/)
+  // «Aggiungi pagamento» apre il foglio QUI (16/09/2026), non la scheda attuale
+  assert.match(pagina, /onPagamento=\{\(\) => setFoglioPagamento\(true\)\}/)
+  assert.equal(/azione=pagato`/.test(pagina), false, 'il pagamento porta ancora alla scheda vecchia')
 })
 
 test('i messaggi: interruttore condiviso, tasto pieno stretto, otto pastiglie sage', () => {

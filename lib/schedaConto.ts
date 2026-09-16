@@ -20,7 +20,7 @@ import { MESI_BREVI } from './dateItaliane.ts'
 import { telefonoAGruppi } from './whatsapp.ts'
 
 // ── Lo stato del conto, in grande ──────────────────────────────────────────
-export type PagamentoScheda = { id: string; booking_id?: string; amount: number | string; method?: string | null; paid_on?: string | null }
+export type PagamentoScheda = { id: string; booking_id?: string; amount: number | string; method?: string | null; paid_on?: string | null; note?: string | null }
 
 const giornoBreve = (iso: string | null | undefined): string => {
   if (!iso) return ''
@@ -133,7 +133,8 @@ export function comePagaScheda(accordo: string | null | undefined, bonifico?: bo
 }
 
 // ── I pagamenti già registrati ─────────────────────────────────────────────
-export type RigaPagamento = { id: string; quando: string; importo: string }
+// La nota (proposta 0055) si legge sotto, in piccolo; senza, niente.
+export type RigaPagamento = { id: string; quando: string; importo: string; nota: string }
 
 export function righePagamenti(pagamenti: PagamentoScheda[]): RigaPagamento[] {
   return [...pagamenti]
@@ -142,6 +143,7 @@ export function righePagamenti(pagamenti: PagamentoScheda[]): RigaPagamento[] {
       id: p.id,
       quando: [giornoBreve(p.paid_on), metodoInParole(p.method)].filter(Boolean).join(' · '),
       importo: euroScheda(importo(p)),
+      nota: (p.note ?? '').trim(),
     }))
 }
 

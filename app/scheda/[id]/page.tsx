@@ -15,17 +15,23 @@
 // attuale), i pagamenti, gli altri soggiorni della cliente. Le cifre del
 // conto vengono da contoPrenotazione, mai ricalcolate qui.
 //
-// I fogli di modifica: «Modifica arrivo», «da dove?» e il FOGLIETTO DELLA
-// NOTTE si aprono qui (salvataggi condivisi: lib/arrivoOrario,
-// lib/provenienzaDati, lib/strisciaNotti). Dalla striscia si cambiano camera
-// e letto in più notte per notte: «Modifica soggiorno» non c'è più.
-// I pagamenti, l'accordo, i dati del cliente e l'annullamento portano ancora
-// ai fogli della scheda attuale: si rifaranno con un incarico a parte.
+// I fogli di modifica si aprono QUI, nella stessa veste (components/scheda/
+// Foglio*): «Aggiungi pagamento», «Come paga», «Dati della cliente», «Cambia
+// cliente», «Annulla la prenotazione», «Arrivo», «da dove?» e il FOGLIETTO
+// DELLA NOTTE. I salvataggi sono quelli già in casa (lib/pagamentiDati,
+// lib/comePagaDati, lib/cambiaClienteDati, lib/arrivoOrario,
+// lib/provenienzaDati, lib/strisciaNotti): nessuna regola riscritta. Dopo
+// ogni salvataggio la scheda si aggiorna da sé, senza ricaricare la pagina:
+// prima con quello che ha appena salvato, poi rileggendo in silenzio
+// (`rileggi`), così conto, cronologia e «Da controllare» tornano insieme.
+// Dalla striscia si cambiano camera e letto in più notte per notte:
+// «Modifica soggiorno» non c'è più. «Vedi tutto» porta ancora alla scheda
+// completa, che resta com'è.
 //
 // I testi dei messaggi NON sono qui: stanno in lib/messaggiPrenotazione, che
 // li tiene identici a quelli della scheda attuale (test di confronto).
 // ============================================================================
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
@@ -46,6 +52,8 @@ import ArriviPrecedenti from '@/components/scheda/ArriviPrecedenti'
 import FoglioArrivo from '@/components/scheda/FoglioArrivo'
 import FoglioProvenienza from '@/components/scheda/FoglioProvenienza'
 import FoglioComePaga from '@/components/scheda/FoglioComePaga'
+import FoglioPagamento, { type PagamentoSalvato } from '@/components/scheda/FoglioPagamento'
+import ConfermaVolante from '@/components/ConfermaVolante'
 import AdessoScheda from '@/components/scheda/AdessoScheda'
 import { supabase } from '@/lib/supabase'
 import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiavePrenotazione, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
@@ -54,6 +62,9 @@ import {
   arrivoScheda, trattiCamera, daControllareScheda, segmentiAttivi, euroScheda, type SegmentoScheda,
 } from '@/lib/schedaPrenotazione'
 import { comePagaSalvato } from '@/lib/comePaga'
+import { confermaPagamento, type ConfermaPagamento } from '@/lib/confermaPagamento'
+import { righePerSaldo } from '@/lib/pagamentiDati'
+import { saldoMancanteCent } from '@/lib/statistiche'
 import { nottiDaSegmenti, pianoNotti, stessaStriscia, type ContestoNotti, type NotteStriscia, type CameraStriscia } from '@/lib/strisciaNotti'
 import { salvaNottiInUnColpo } from '@/lib/nottiScrittura'
 import { nomeOspite } from '@/lib/guestName'
@@ -139,6 +150,9 @@ export default function SchedaPage() {
   const [foglioArrivo, setFoglioArrivo] = useState(false)
   const [foglioProvenienza, setFoglioProvenienza] = useState(false)
   const [foglioComePaga, setFoglioComePaga] = useState(false)
+  const [foglioPagamento, setFoglioPagamento] = useState(false)
+  // la conferma volante dopo un pagamento (Ania, 11/09/2026): due righe, pochi secondi
+  const [conferma, setConferma] = useState<{ n: number; righe: ConfermaPagamento } | null>(null)
   // arrivando dalla pagina di inserimento: la pastiglia verde che sparisce da sé
   const [salvata, setSalvata] = useState(parametri.get('salvata') === '1')
   const [arriviAperti, setArriviAperti] = useState(false)
@@ -147,6 +161,12 @@ export default function SchedaPage() {
   const [notteAperta, setNotteAperta] = useState<string | null>(null)
   const [salvandoNotti, setSalvandoNotti] = useState(false)
   const [versione, setVersione] = useState(0)
+  // «Caricamento…» solo la prima volta che si apre QUESTA prenotazione: le
+  // riletture dopo un salvataggio avvengono in silenzio, sotto la scheda
+  const idCaricato = useRef<string | null>(null)
+  const rileggi = () => setVersione(v => v + 1)
+  // dalla Home, «Registra saldo» arriva con ?azione=pagato: il foglio si apre da sé, una volta
+  const pagamentoDaAprire = useRef(parametri.get('azione') === 'pagato')
 
   useEffect(() => {
     if (!salvata) return
@@ -158,7 +178,7 @@ export default function SchedaPage() {
     if (!id) return
     let vivo = true
     ;(async () => {
-      setLoading(true)
+      if (idCaricato.current !== id) setLoading(true)
       const { data: b, error } = await supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', id).single()
       if (!vivo) return
       if (error || !b) { setBooking(null); setErrore(error?.message || 'Prenotazione non trovata.'); setLoading(false); return }
@@ -207,7 +227,9 @@ export default function SchedaPage() {
       setDocumenti(doc.error ? null : (doc.count ?? 0))
       setCamere(((stanze.data ?? []) as CameraStriscia[]))
       if (stanze.error) setAvviso(a => a ?? 'Non riesco a leggere le camere: dalla striscia non si possono spostare le notti.')
+      idCaricato.current = id
       setLoading(false)
+      if (pagamentoDaAprire.current) { pagamentoDaAprire.current = false; setFoglioPagamento(true) }
     })().catch(() => { if (vivo) { setErrore(ERRORE_CONTO_INCOMPLETO); setLoading(false) } })
     return () => { vivo = false }
   }, [id, versione])
@@ -437,7 +459,7 @@ export default function SchedaPage() {
         {testa && conto
           ? <ContoScheda className="mt-3" testa={testa} righe={rigeConto} totale={euroScheda(conto.totaleCent)}
             accordo={comePagaTesto} pagamenti={rigePagamenti}
-            hrefPagamento={`${hrefVecchia(booking.id)}?azione=pagato`} onComePaga={() => setFoglioComePaga(true)} />
+            onPagamento={() => setFoglioPagamento(true)} onComePaga={() => setFoglioComePaga(true)} />
           : <p className="mt-2" style={{ fontSize: 13, color: 'var(--color-stone)' }}>Non riesco a leggere il conto. Ricarica la scheda prima di toccare i pagamenti.</p>}
       </section>
 
@@ -495,6 +517,25 @@ export default function SchedaPage() {
             if (msg) setAvviso(msg)
           }} />
       )}
+      {foglioPagamento && (
+        <FoglioPagamento booking={booking} righe={righe} pagamenti={pagamenti} oggi={oggi} bonifico={accordo?.bonifico}
+          onChiudi={() => setFoglioPagamento(false)}
+          onSalvato={(esito: PagamentoSalvato) => {
+            // prima quello che si è appena salvato, poi la rilettura in silenzio
+            // (cronologia, «Da controllare» e il bollino «pagato» dal server)
+            const nuovi = esito.pagamenti as unknown as PagamentoStat[]
+            setPagamenti(nuovi)
+            if (esito.pagato) {
+              setRighe(rs => rs.map(r => ({ ...r, pagato: true })))
+              setBooking(b => (b ? { ...b, pagato: true } : b))
+            }
+            setFoglioPagamento(false)
+            setAvviso(esito.avviso)
+            setConferma(c => ({ n: (c?.n ?? 0) + 1, righe: confermaPagamento(esito.importo, esito.metodo, saldoMancanteCent(righePerSaldo(righe), nuovi)) }))
+            rileggi()
+          }} />
+      )}
+      {conferma && <ConfermaVolante key={conferma.n} righe={conferma.righe} onChiudi={() => setConferma(null)} />}
       {foglioComePaga && accordo && (
         <FoglioComePaga
           idRighe={righe.map(r => r.id)}

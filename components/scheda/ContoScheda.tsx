@@ -8,7 +8,6 @@
 // Sola presentazione: i testi e le cifre arrivano da lib/schedaConto, che a
 // sua volta NON ricalcola il totale (viene da lib/prenotazioneUnica).
 // ============================================================================
-import Link from 'next/link'
 import { TITOLO_COME_PAGA } from '@/components/ComePaga'
 import type { RigaConto, RigaPagamento, TestaConto } from '@/lib/schedaConto'
 
@@ -19,13 +18,14 @@ export const ROSSO_CONTO = '#D40000'
 export const FONDO_BARRA = '#EFE9DC'
 export const ALTEZZA_BARRA = 4
 
-export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, hrefPagamento, onComePaga, className = '' }: {
+export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, onPagamento, onComePaga, className = '' }: {
   testa: TestaConto
   righe: RigaConto[]
   totale: string
   accordo: { nome: string; frase: string }
   pagamenti: RigaPagamento[]
-  hrefPagamento: string
+  /** apre il foglio «Aggiungi pagamento» (16/09/2026), qui nella scheda */
+  onPagamento: () => void
   onComePaga: () => void
   className?: string
 }) {
@@ -78,13 +78,16 @@ export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, 
       {/* I pagamenti già registrati */}
       {pagamenti.map(p => (
         <div key={p.id} data-pagamento className="flex items-baseline justify-between gap-3" style={{ padding: '8px 0 0' }}>
-          <span style={{ fontSize: 14, color: 'var(--color-stone)' }}>{p.quando}</span>
-          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-dark)' }}>{p.importo}</span>
+          <span className="min-w-0">
+            <span className="block" style={{ fontSize: 14, color: 'var(--color-stone)' }}>{p.quando}</span>
+            {p.nota && <span data-nota-pagamento className="block" style={{ fontSize: 12.5, color: 'var(--color-stone)', opacity: 0.85 }}>{p.nota}</span>}
+          </span>
+          <span className="shrink-0" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-dark)' }}>{p.importo}</span>
         </div>
       ))}
 
       <p className="flex flex-wrap items-center mt-2" style={{ gap: '0 12px', fontSize: 14 }}>
-        <Link href={hrefPagamento} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Aggiungi pagamento</Link>
+        <button type="button" data-aggiungi-pagamento onClick={onPagamento} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Aggiungi pagamento</button>
         <button type="button" onClick={onComePaga} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Cambia come paga</button>
       </p>
     </div>
