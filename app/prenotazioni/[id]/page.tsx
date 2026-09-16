@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { roomWithType, lettoInclusoNellaCamera } from '@/lib/roomTypes'
-import { tariffaCamera, lettoDaComunicare, capienzaCamera } from '@/lib/tariffe'
+import { tariffaCamera, lettoDaComunicare, capienzaCamera, capienzaBase } from '@/lib/tariffe'
 import { prezzoPrenotazione, riallineaTariffa, tariffaFormDaSalvato, testoDettaglioNotti, dettaglioNottiSalvato } from '@/lib/prezzoNotti'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
@@ -475,6 +475,10 @@ export default function BookingDetail() {
   const [lettoCriterio, setLettoCriterio] = useState<'notte' | 'ogni4' | 'totale'>('notte')
   // true quando l'accordo del letto non era stato registrato: il criterio va scelto
   const [lettoAccordoVecchio, setLettoAccordoVecchio] = useState(false)
+  // true quando il letto l'ha acceso la pagina perché le persone superano la
+  // capienza della camera: solo quello si spegne da solo tornando dentro.
+  // Il letto messo a mano (due persone che dormono separate) non si tocca.
+  const [lettoAuto, setLettoAuto] = useState(false)
   // Date modificabili dalla scheda (Ania, 10/09/2026): arrivo e partenza si
   // cambiano qui sotto il letto aggiuntivo, senza aprire «Modifica
   // prenotazione». Il totale si rifà dalle notti nuove (tariffa già
@@ -1324,6 +1328,7 @@ export default function BookingDetail() {
       ? Math.round((Number(booking.extra_bed_total) / notti.length) * 100) / 100
       : lettoProposto(booking.rooms as never, Number(booking.num_guests) || 1)
     setLettoNotti(notti)
+    setLettoAuto(false)
     setLettoImporto(accordoSalvato ? Number(b.extra_bed_importo) : perNotte)
     setLettoCriterio(accordoSalvato ? (b.extra_bed_criterio as 'notte' | 'ogni4' | 'totale') : 'notte')
     setLettoAccordoVecchio(!accordoSalvato && notti.length > 0 && Number(booking.extra_bed_total) > 0)
@@ -1376,10 +1381,10 @@ export default function BookingDetail() {
 
   // Tariffa che seguirebbe il listino con queste date e queste persone; se la
   // tariffa salvata era scritta a mano resta lei (riallineaTariffa).
-  function tariffaDaListino(dal: string, al: string, ospiti: number) {
+  function tariffaDaListino(dal: string, al: string, ospiti: number, notti: string[] = lettoNotti) {
     const giorni = getDaysBetween(dal, al)
-    const dentro = lettoNotti.filter(n => giorni.includes(n))
-    const nottiLetto = lettoNotti.length === 0 ? [] : (dentro.length > 0 ? dentro : giorni)
+    const dentro = notti.filter(n => giorni.includes(n))
+    const nottiLetto = notti.length === 0 ? [] : (dentro.length > 0 ? dentro : giorni)
     return riallineaTariffa(booking.rooms, booking, {
       ...booking, num_guests: ospiti, check_in: dal, check_out: al,
       extra_bed: nottiLetto.length > 0, extra_bed_dates: nottiLetto,
@@ -1456,17 +1461,18 @@ export default function BookingDetail() {
   }
 
   // Ricontrolla i conflitti a ogni tocco del modulo (camera libera, letti della casa)
-  function controllaSoggiorno(prossimo?: { dal?: string; al?: string; ospiti?: number }) {
+  function controllaSoggiorno(prossimo?: { dal?: string; al?: string; ospiti?: number; nottiLetto?: string[] }) {
     setConflittoSoggiorno(null)
     setErroreSalvaSoggiorno(null)
     const ospiti = prossimo?.ospiti ?? (Number(ospitiForm) || 1)
+    const notti = prossimo?.nottiLetto ?? lettoNotti
     if (unaCameraSola()) {
       const dal = prossimo?.dal ?? dateForm.check_in
       const al = prossimo?.al ?? dateForm.check_out
       if (!dal || !al || al <= dal) return
       const giorni = getDaysBetween(dal, al)
-      const dentro = lettoNotti.filter(n => giorni.includes(n))
-      const nottiLetto = lettoNotti.length === 0 ? [] : (dentro.length > 0 ? dentro : giorni)
+      const dentro = notti.filter(n => giorni.includes(n))
+      const nottiLetto = notti.length === 0 ? [] : (dentro.length > 0 ? dentro : giorni)
       void verificaDate(dal, al, nottiLetto, ospiti).then(msg => setConflittoSoggiorno(msg))
       return
     }
@@ -1482,12 +1488,31 @@ export default function BookingDetail() {
     controllaSoggiorno({ dal: nuovoIn, al: nuovoOut })
   }
 
+  // Il letto aggiuntivo segue le persone (rilievo del 16/09/2026): con più
+  // ospiti di quanti la camera ne tenga senza letto (Allegra in 3) il letto
+  // si accende da solo su tutte le notti, col prezzo delle regole della
+  // camera; tornando dentro la capienza si spegne — ma SOLO quello acceso
+  // qui. Il letto messo a mano (due persone che dormono separate) resta.
+  // La disponibilità dei due letti di casa la controlla controllaSoggiorno.
   function cambiaOspiti(testo: string) {
     setOspitiForm(testo)
     const n = Number(testo) || 1
     const periodo = periodoCameraAperta()
-    if (!tariffaToccata && periodo) setTariffaForm(String(tariffaDaListino(periodo.dal, periodo.al, n)))
-    controllaSoggiorno({ ospiti: n })
+    let notti = lettoNotti
+    const serve = n > capienzaBase(booking.rooms)
+    if (serve && lettoNotti.length === 0 && periodo) {
+      notti = getDaysBetween(periodo.dal, periodo.al)
+      setLettoNotti(notti)
+      setLettoAuto(true)
+      // il prezzo è quello delle regole per QUESTE persone: Allegra 10, Lena in 3 compreso (0)
+      setLettoImporto(lettoProposto(booking.rooms as never, n))
+    } else if (!serve && lettoAuto) {
+      notti = []
+      setLettoNotti([])
+      setLettoAuto(false)
+    }
+    if (!tariffaToccata && periodo) setTariffaForm(String(tariffaDaListino(periodo.dal, periodo.al, n, notti)))
+    controllaSoggiorno({ ospiti: n, nottiLetto: notti })
   }
 
   async function salvaSoggiorno() {
@@ -1505,6 +1530,12 @@ export default function BookingDetail() {
     }
     if (lettoNotti.length > 0 && (lettoImporto === null || !Number.isFinite(lettoImporto) || lettoImporto < 0)) {
       setErroreSalvaSoggiorno('Scrivi un importo valido per il letto aggiuntivo, anche zero se è compreso.')
+      return
+    }
+    // Più persone della capienza senza letto non si salvano: riletta, la
+    // prenotazione tornerebbe con meno gente (stessa regola dell'inserimento).
+    if (ospiti > capienzaBase(booking.rooms) && lettoNotti.length === 0) {
+      setErroreSalvaSoggiorno(`In ${booking.rooms?.name || 'questa camera'} in ${ospiti} ci vuole il letto aggiuntivo: accendilo sulle notti qui sopra.`)
       return
     }
     const piano = pianoSoggiorno()
@@ -2562,10 +2593,10 @@ export default function BookingDetail() {
                     <p className={v.campoEti} style={{ marginTop: 8 }}>Letto aggiuntivo</p>
                     <div className={v.notti}>
                       <button type="button" className={`${v.notte} ${lettoNotti.length === giorni.length && giorni.length > 0 ? v.notteOn : ''}`}
-                        onClick={() => { setLettoNotti(lettoNotti.length === giorni.length ? [] : giorni); controllaSoggiorno() }}>tutte le notti</button>
+                        onClick={() => { const n = lettoNotti.length === giorni.length ? [] : giorni; setLettoNotti(n); setLettoAuto(false); controllaSoggiorno({ nottiLetto: n }) }}>tutte le notti</button>
                       {giorni.map(g => (
                         <button key={g} type="button" className={`${v.notte} ${lettoNotti.includes(g) ? v.notteOn : ''}`}
-                          onClick={() => { setLettoNotti(lettoNotti.includes(g) ? lettoNotti.filter(x => x !== g) : [...lettoNotti, g].sort()); controllaSoggiorno() }}>
+                          onClick={() => { const n = lettoNotti.includes(g) ? lettoNotti.filter(x => x !== g) : [...lettoNotti, g].sort(); setLettoNotti(n); setLettoAuto(false); controllaSoggiorno({ nottiLetto: n }) }}>
                           {Number(g.slice(8))}
                         </button>
                       ))}
