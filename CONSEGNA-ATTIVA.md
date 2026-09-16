@@ -1103,6 +1103,12 @@ sono state toccate; «Vedi tutto» porta ancora lì.
   I motivi vecchi, scritti liberi, restano com'erano.
 - Prove: 1433 verdi, TypeScript e build puliti, ESLint senza diagnostiche nuove.
   Giro fatto sull'anteprima finta (porta 3213) a 390×844: tutti e sei i fogli
-  aperti, chiusi con «Annulla» e salvati. **Non fatto in produzione:** il
-  pannello del browser non aveva la sessione di Ania (pagina di login), e le
-  credenziali non si scrivono; il giro con il pagamento finto resta da fare.
+  aperti, chiusi con «Annulla» e salvati. **Fatto anche in produzione** (Ania
+  collegata nel pannello del browser): prenotazione Ingra' Francesco 9→10 dic,
+  pagamento finto di 1 € in contanti registrato dal foglio (conto da 80 a
+  79 €, avviso sulla 0055 per la nota), poi tolto con «rimuovi» della scheda
+  completa: conto di nuovo a 80 €, nessun pagamento rimasto.
+- Sulla pagina Nuova prenotazione, a 390×844 con cliente, camera e il blocco
+  del letto a schermo, il conto comincia a ~896 px: sta subito sotto il
+  soggiorno ma **serve un piccolo scorrimento** per vederlo. Decide Ania se
+  stringere qualcosa sopra.
