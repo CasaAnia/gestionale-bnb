@@ -1112,3 +1112,43 @@ sono state toccate; «Vedi tutto» porta ancora lì.
   del letto a schermo, il conto comincia a ~896 px: sta subito sotto il
   soggiorno ma **serve un piccolo scorrimento** per vederlo. Decide Ania se
   stringere qualcosa sopra.
+
+## Risposta alla verifica di 761afb4 (16/09/2026 sera, Claude) — main fino a `34d5334`
+
+Corretto in questo giro (1439 prove verdi, TypeScript pulito, `next build`
+e `next build --webpack` puliti):
+
+1. **Build:** le pagine `/nuova-prenotazione` e `/scheda/[id]` non esportano
+   più costanti (spostate in `lib/nuovaPrenotazione` e `lib/schedaPrenotazione`);
+   il controllo dei tipi delle pagine passa.
+3. **Letto a totale su più tratti:** `righeDaSalvare` riparte il letto fra i
+   tratti con `lettoRipartito` (la stessa della striscia): 450 mostrati =
+   450 salvati (258 + 192), con sconto 10 % 405 = 405.
+4. **Prezzo finale:** ogni riga salva il SUO totale concordato (`target_total`,
+   `scontoPerRiga`): 333,33 + 333,33 + 333,34; riletto riga per riga con
+   `lib/conto` fa 1.000, non 999,90.
+5. **Seconda persona di «Con lei»:** `chi_e_2` (proposta **0056, NON
+   applicata**: `supabase/proposte/0056_chi_e_seconda_persona.BOZZA.sql`);
+   senza, si salva il resto e lo si dice. La scheda mostra «chi è» sotto il nome.
+6. **Messaggi:** `perMessaggio` legge l'accordo: la spunta «bonifico» vale
+   «anticipo» solo con tutto / caparra del 50 % / caparra; con «Bonifico»
+   all'arrivo la conferma dice «all'arrivo». `buildWhatsappMsg` resta identico
+   alla scheda attuale (test di confronto), quindi la scheda vecchia continua
+   a leggere la sola spunta. Limite noto: con la caparra il blocco dice ancora
+   «si salda in anticipo con bonifico» per l'intero, non per la caparra.
+7. **Letture incomplete:** `contoLeggibile` — se la lettura delle camere o dei
+   pagamenti non riesce, niente conto e niente foglio «Aggiungi pagamento».
+8. **Cronologia:** anche «Arrivo» e «Come paga» rileggono dopo il salvataggio.
+
+Non riprodotto:
+
+2. **Allegra 2 → 3 ospiti:** col «+» in alto (`periodiDellaLinea` +
+   `conLettoAutomatico`) il letto si accende sulla notte e il conto fa
+   80 + 10 = **90 €** con l'Allegra vera (base 80); nell'anteprima finta
+   l'Allegra costa 70 e il totale fa 80, che è giusto per quelle tariffe.
+   Provato anche a mano nell'anteprima (ospiti 3, riga «Letto in più 10 €»).
+   Aggiunta la prova con la tariffa vera. Se il caso visto è un altro (dalla
+   notte scelta, o con i due letti di casa già impegnati), servono i passi.
+
+Non fatto in questo giro: la prova online del salvataggio con più tratti e
+prezzo finale (le prove sono sulla libreria e sulla pagina, non su Supabase).
