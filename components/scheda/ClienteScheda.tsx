@@ -100,7 +100,10 @@ export default function ClienteScheda({
           <div className="ed-lista mt-1">
             {conLei.map(p => (
               <div key={p.chiave} data-con-lei className="flex items-baseline justify-between gap-3" style={{ padding: '10px 0' }}>
-                <span className="min-w-0 truncate" style={{ fontSize: 14.5, fontWeight: p.senzaNome ? 400 : 600, color: p.senzaNome ? 'var(--color-stone)' : 'var(--color-green-dark)' }}>{p.nome}</span>
+                <span className="min-w-0">
+                  <span className="block truncate" style={{ fontSize: 14.5, fontWeight: p.senzaNome ? 400 : 600, color: p.senzaNome ? 'var(--color-stone)' : 'var(--color-green-dark)' }}>{p.nome}</span>
+                  {p.chiE && <span data-chi-e className="block uppercase" style={{ fontSize: 9.5, letterSpacing: '1.4px', color: 'var(--color-stone)', marginTop: 2 }}>{p.chiE}</span>}
+                </span>
                 <span className="shrink-0" style={{ fontSize: 14, color: 'var(--color-stone)' }}>{p.telefono}</span>
               </div>
             ))}

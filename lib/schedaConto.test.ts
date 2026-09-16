@@ -133,9 +133,11 @@ test('le voci del cliente, con e senza provenienza', () => {
 
 test('«con lei»: nome e numero, e cosa manca', () => {
   // il numero si legge a gruppi, come nella testa
-  assert.deepEqual(personeConLei({ extra_phone_1_name: 'Marco Riva', extra_phone_1: '3334567890' }), [
-    { chiave: 'uno', nome: 'Marco Riva', telefono: '333 456 7890', senzaNome: false, senzaNumero: false },
+  assert.deepEqual(personeConLei({ extra_phone_1_name: 'Marco Riva', extra_phone_1: '3334567890', chi_e: 'il figlio' }), [
+    { chiave: 'uno', nome: 'Marco Riva', chiE: 'il figlio', telefono: '333 456 7890', senzaNome: false, senzaNumero: false },
   ])
+  // chi è la seconda persona: chi_e_2 (proposta 0056)
+  assert.deepEqual(personeConLei({ extra_phone_1_name: 'A', extra_phone_2_name: 'B', chi_e_2: 'Amica' }).map(p => p.chiE), ['', 'Amica'])
   const soloNumero = personeConLei({ extra_phone_1: '3334567890', extra_phone_2_name: 'Lucia' })
   assert.deepEqual(soloNumero.map(p => [p.nome, p.telefono]), [['senza nome', '333 456 7890'], ['Lucia', 'senza numero']])
   assert.deepEqual(personeConLei({}), [])

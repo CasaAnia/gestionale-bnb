@@ -180,22 +180,24 @@ export function vociCliente(c: {
 // Chi ha soggiornato con lei: i contatti in più della prenotazione (nome e
 // numero). Senza uno dei due si scrive «senza nome» o «senza numero»; se non
 // c'è né l'uno né l'altro la persona non esiste e non compare.
-export type PersonaConLei = { chiave: string; nome: string; telefono: string; senzaNome: boolean; senzaNumero: boolean }
+// Chi è: `chi_e` per la prima persona, `chi_e_2` per la seconda (proposta 0056).
+export type PersonaConLei = { chiave: string; nome: string; chiE: string; telefono: string; senzaNome: boolean; senzaNumero: boolean }
 
 export function personeConLei(b: {
-  extra_phone_1?: string | null; extra_phone_1_name?: string | null
-  extra_phone_2?: string | null; extra_phone_2_name?: string | null
+  extra_phone_1?: string | null; extra_phone_1_name?: string | null; chi_e?: string | null
+  extra_phone_2?: string | null; extra_phone_2_name?: string | null; chi_e_2?: string | null
 } | null | undefined): PersonaConLei[] {
   const coppie = [
-    { chiave: 'uno', nome: b?.extra_phone_1_name, telefono: b?.extra_phone_1 },
-    { chiave: 'due', nome: b?.extra_phone_2_name, telefono: b?.extra_phone_2 },
+    { chiave: 'uno', nome: b?.extra_phone_1_name, telefono: b?.extra_phone_1, chiE: b?.chi_e },
+    { chiave: 'due', nome: b?.extra_phone_2_name, telefono: b?.extra_phone_2, chiE: b?.chi_e_2 },
   ]
   return coppie
-    .map(c => ({ chiave: c.chiave, nome: (c.nome ?? '').trim(), telefono: (c.telefono ?? '').trim() }))
+    .map(c => ({ chiave: c.chiave, nome: (c.nome ?? '').trim(), telefono: (c.telefono ?? '').trim(), chiE: (c.chiE ?? '').trim() }))
     .filter(c => c.nome || c.telefono)
     .map(c => ({
       chiave: c.chiave,
       nome: c.nome || 'senza nome',
+      chiE: c.chiE,
       // il numero si legge come nella testa: «333 456 7890»
       telefono: c.telefono ? (telefonoAGruppi(c.telefono) || c.telefono) : 'senza numero',
       senzaNome: !c.nome,
