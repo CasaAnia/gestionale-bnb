@@ -1127,9 +1127,8 @@ e `next build --webpack` puliti):
 4. **Prezzo finale:** ogni riga salva il SUO totale concordato (`target_total`,
    `scontoPerRiga`): 333,33 + 333,33 + 333,34; riletto riga per riga con
    `lib/conto` fa 1.000, non 999,90.
-5. **Seconda persona di «Con lei»:** `chi_e_2` (proposta **0056, NON
-   applicata**: `supabase/proposte/0056_chi_e_seconda_persona.BOZZA.sql`);
-   senza, si salva il resto e lo si dice. La scheda mostra «chi è» sotto il nome.
+5. **Seconda persona di «Con lei»:** `chi_e_2` (proposta **0056, applicata
+   da Ania il 16/09/2026 sera**: `supabase/proposte/0056_chi_e_seconda_persona.BOZZA.sql`). La scheda mostra «chi è» sotto il nome.
 6. **Messaggi:** `perMessaggio` legge l'accordo: la spunta «bonifico» vale
    «anticipo» solo con tutto / caparra del 50 % / caparra; con «Bonifico»
    all'arrivo la conferma dice «all'arrivo». `buildWhatsappMsg` resta identico
