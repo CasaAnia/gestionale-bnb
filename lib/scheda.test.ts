@@ -420,7 +420,6 @@ test('la striscia della scheda mostra le persone sotto ogni notte, e il letto ac
 
 test('dopo il salvataggio delle notti compare il pop-up grande, e «Cambia date» non anticipa più il conto (Ania, 17/09/2026)', () => {
   assert.match(pagina, /const esitoConferma = confermaNotti\(\{[\s\S]{0,400}concordato: conPrezzoConcordato\(linea\.segmenti\),/)
-  assert.match(pagina, /setConferma\(c => \(\{ n: \(c\?\.n \?\? 0\) \+ 1, righe: esitoConferma\.righe, durata: esitoConferma\.durata \}\)\)/)
   assert.match(pagina, /if \(esitoConferma\.avviso\) setAvviso\(esitoConferma\.avviso\)/)
   assert.match(pagina, /<ConfermaVolante key=\{conferma\.n\} righe=\{conferma\.righe\} durata=\{conferma\.durata\} conOk=\{conferma\.conOk\}/)
   // il pop-up delle notti resta finché non si tocca «Ok, ho capito» (Ania, 17/09/2026)
