@@ -1329,3 +1329,16 @@ sull'anteprima finta col modo «risposta persa» dell'interruttore
 (`errore-dopo-scritture?n=0&modo=persa`: scrive e chiude la connessione):
 sconto 10 % → foglio chiuso, «Non so se è stato salvato…» in cima, conto
 riletto a 454 € con la riga scritta. 1518 test verdi, build pulita.
+
+**Proposta 0053 APPLICATA in produzione (17/09/2026, da Ania nell'editor
+SQL, guidata passo passo):** prima il controllo in lettura (funzione e
+vincolo 0051 assenti: «0 e 0»), poi la funzione `sposta_notti` (versione
+con il controllo finale sulle sole righe toccate), poi la verifica
+(`count(*) = 1`). Nessun dato toccato. Da adesso la striscia delle notti,
+«Cambia date» e gli ospiti dal foglietto della scheda nuova salvano
+davvero anche online; prima rispondevano «serve la proposta 0053». Non
+provato online con un salvataggio vero (sarebbe un dato reale): Ania può
+provarlo spostando una notte e rimettendola. La 0051 (vincolo camera non
+due volte) e la 0054 (due letti in tutto) restano da applicare.
+Anche la 0050 è stata controllata lo stesso giorno: 8 prenotazioni
+scontate, tutte già col totale giusto, niente da correggere.
