@@ -468,3 +468,8 @@ test('sotto la striscia la riga «Cambia date · Cambio camera · Aggiungi camer
   assert.match(pagina, /<FoglioCambioCamera notti=\{lineaCambio\.notti\} contesto=\{contestoLinea\(lineaCambio, linee, contesto\)\}/)
   assert.match(pagina, /onFatto=\{nuove => \{ setCambioAperto\(null\); void salvaNotti\(lineaCambio, nuove\) \}\}/)
 })
+
+test('«Cambia date» e «Cambio camera» si chiudono con «Salva» (Ania, 17/09/2026)', () => {
+  assert.match(leggi('components/scheda/FoglioDate.tsx'), /export const FATTO_DATE = 'Salva'/)
+  assert.match(leggi('components/scheda/FoglioCambioCamera.tsx'), /export const FATTO_CAMBIO = 'Salva'/)
+})

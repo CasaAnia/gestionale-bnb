@@ -12,7 +12,7 @@ import { Etichetta, FilaPastiglie, Pastiglia, MATTONE, OTTONE } from '@/componen
 import { TITOLO_CAMBIO_CAMERA, DA_QUALE_NOTTE, IN_QUALE_CAMERA, NESSUNA_CAMERA_LIBERA_DA_LI, nottiDaCuiCambiare, camereDaLi, cambiaCameraDaLi } from '@/lib/lineeSoggiorno'
 import { etichettaNotteBreve, type ContestoNotti, type NotteStriscia } from '@/lib/strisciaNotti'
 
-export const FATTO_CAMBIO = 'Fatto'
+export const FATTO_CAMBIO = 'Salva'   // (Ania, 17/09/2026: «Salva», non «Fatto»)
 
 export default function FoglioCambioCamera({ notti, contesto, sottotitolo, contoDopo, onFatto, onChiudi }: {
   notti: NotteStriscia[]

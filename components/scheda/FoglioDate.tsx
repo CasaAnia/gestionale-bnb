@@ -14,7 +14,7 @@ import { MATTONE, OTTONE } from '@/components/nuova/PezziNuova'
 import { TITOLO_DATE, ERRORE_DATE, dateLinea, nottiConDate } from '@/lib/lineeSoggiorno'
 import type { ContestoNotti, NotteStriscia } from '@/lib/strisciaNotti'
 
-export const FATTO_DATE = 'Fatto'
+export const FATTO_DATE = 'Salva'   // (Ania, 17/09/2026: «Salva», non «Fatto»)
 
 export default function FoglioDate({ notti, contesto, sottotitolo, contoDopo, onFatto, onChiudi }: {
   notti: NotteStriscia[]
