@@ -1264,3 +1264,16 @@ scheda vecchia) veniva mostrata come una striscia sola con le notti senza
 camera. Dentro un gruppo i tratti in fila sono una linea, quelli che si
 sovrappongono sono linee diverse («G», «G#2»). Test di regressione in
 `lib/lineeSoggiorno.test.ts`. 1508 test verdi.
+
+**Giro online fatto (17/09/2026, Ania collegata nel pannello del browser,
+deploy `e2a7652` success), solo in lettura, nessun dato creato o modificato:**
+scheda di Alessandro Pagano (Ambra + Allegra 14→16 gen 2027, stesso gruppo):
+due strisce coi titoli «Ambra · 14 → 16 gen» / «Allegra · 14 → 16 gen»,
+«Cambia date» sotto ognuna, il foglietto della notte con il sottotitolo della
+linea, Allegra fra le libere della sua linea e Amelia/Lena, ospiti 2, «Il
+conto resta 320 €»; fogli Sconto (320/320/320), Tariffe (80 e 80), Nota e
+colore (Auto, diretta), Con lei (vuoto) e Cambia date aperti e chiusi con
+«Annulla», conto sempre 320 €. In fondo «Nota e colore · Aggiungi camera ·
+Annulla prenotazione», nel conto «Aggiungi pagamento · Cambia come paga ·
+Sconto · Tariffe»; nessun link a /prenotazioni/<id>. Non c'era un pagamento
+da provare col «togli» (verificato sull'anteprima finta).
