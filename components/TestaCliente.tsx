@@ -26,6 +26,9 @@ const ROSSO_NOTA = '#C00000'   // il rosso della nota del cliente, scelto da Ani
 const FILO_NOTA = '#E3CFC9'
 const FILO_NOTA_SCHEDA = '#D8D2C4'   // la scheda prenotazione (13/09/2026): filo tratteggiato più neutro
 const ROSSO_AVVISO = '#8C3B2E'
+// quanto ha già speso la cliente, in cima alla scheda: lo stesso rosso acceso
+// di «da incassare» nel conto (Ania, 17/09/2026)
+const ROSSO_SPESO = '#D40000'
 const MATTONE = '#8a4f2f'   // la notte in cui le persone cambiano
 
 export type TestaClienteProps = {
@@ -149,8 +152,8 @@ export default function TestaCliente({
         <span className="shrink-0 text-right">
           {quando && <span data-quando-richiesta className="block whitespace-nowrap" style={{ fontSize: 12.5, color: GRIGIO_RIGA }}>{quando}</span>}
           {totale && (hrefCliente
-            ? <Link href={hrefCliente} data-totale-cliente className="block whitespace-nowrap" style={{ fontFamily: GEORGIA, fontSize: 16, color: 'var(--color-green-dark)' }}>{totale} ›</Link>
-            : <span data-totale-cliente className="block whitespace-nowrap" style={{ fontFamily: GEORGIA, fontSize: 16, color: 'var(--color-green-dark)' }}>{totale} ›</span>)}
+            ? <Link href={hrefCliente} data-totale-cliente className="block whitespace-nowrap" style={{ fontFamily: GEORGIA, fontSize: 16, color: ROSSO_SPESO }}>{totale} ›</Link>
+            : <span data-totale-cliente className="block whitespace-nowrap" style={{ fontFamily: GEORGIA, fontSize: 16, color: ROSSO_SPESO }}>{totale} ›</span>)}
         </span>
       </div>
 

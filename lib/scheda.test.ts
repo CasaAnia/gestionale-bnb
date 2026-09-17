@@ -399,3 +399,10 @@ test('i comandi in fondo (17/09/2026): «Nota e colore», «Aggiungi camera», p
   assert.ok(fondo.indexOf('COMANDO_NOTA') < fondo.indexOf('COMANDO_AGGIUNGI_CAMERA'))
   assert.ok(fondo.indexOf('COMANDO_AGGIUNGI_CAMERA') < fondo.indexOf('Annulla prenotazione'))
 })
+
+test('quanto ha già speso la cliente, in cima: nello stesso rosso acceso di «da incassare» (Ania, 17/09/2026)', () => {
+  const testa = leggi('components/TestaCliente.tsx')
+  assert.match(testa, /const ROSSO_SPESO = '#D40000'/)
+  assert.equal((testa.match(/data-totale-cliente[^\n]*color: ROSSO_SPESO/g) ?? []).length, 2)
+  assert.match(leggi('components/scheda/ContoScheda.tsx'), /export const ROSSO_CONTO = '#D40000'/)
+})
