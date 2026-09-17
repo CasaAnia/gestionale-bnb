@@ -586,8 +586,10 @@ export default function SchedaPage() {
             {CAMERE_NON_LETTE}
           </p>
         )}
+        {/* Ordine chiesto da Ania (17/09/2026): prima i tratti («Ambra, 29 → 30»),
+            poi «Arrivo» e, subito sotto, «Modifica arrivo · Arrivi precedenti» */}
+        <TrattiCameraScheda tratti={tratti} className="mt-3" />
         {arrivoTesto && <RigaArrivo arrivo={arrivoTesto} className="mt-3" />}
-        <TrattiCameraScheda tratti={tratti} className="mt-2" />
         <LinkSoggiorno
           onArrivo={() => setFoglioArrivo(true)}
           onArriviPrecedenti={() => setArriviAperti(a => !a)}

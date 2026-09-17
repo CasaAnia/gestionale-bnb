@@ -438,3 +438,8 @@ test('le altre prenotazioni si leggono anche un mese intorno al soggiorno: «Cam
   assert.match(pagina, /const GIORNI_INTORNO = 31/)
   assert.match(pagina, /\.lt\('check_in', spostaGiorni\(partenza, GIORNI_INTORNO\)\)\.gt\('check_out', spostaGiorni\(arrivo, -GIORNI_INTORNO\)\)/)
 })
+
+test('nel soggiorno l’ordine è: strisce, tratti di camera, «Arrivo», poi «Modifica arrivo · Arrivi precedenti» (Ania, 17/09/2026)', () => {
+  const a = pagina.indexOf('<StrisciaNottiCamere'), b = pagina.indexOf('<TrattiCameraScheda'), c = pagina.indexOf('<RigaArrivo arrivo='), d = pagina.indexOf('<LinkSoggiorno')
+  assert.ok(a > 0 && a < b && b < c && c < d, `ordine sbagliato: striscia ${a}, tratti ${b}, arrivo ${c}, link ${d}`)
+})
