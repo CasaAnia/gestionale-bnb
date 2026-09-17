@@ -56,6 +56,8 @@ import FoglioPagamento, { type PagamentoSalvato } from '@/components/scheda/Fogl
 import FoglioCliente from '@/components/scheda/FoglioCliente'
 import FoglioCambiaCliente from '@/components/scheda/FoglioCambiaCliente'
 import FoglioAnnulla from '@/components/scheda/FoglioAnnulla'
+import FoglioSconto from '@/components/scheda/FoglioSconto'
+import { SCONTO_SALVATO, SCONTO_TOLTO } from '@/lib/scontoScheda'
 import { PRENOTAZIONE_ANNULLATA } from '@/lib/annullamento'
 import ConfermaVolante from '@/components/ConfermaVolante'
 import AdessoScheda from '@/components/scheda/AdessoScheda'
@@ -162,6 +164,7 @@ export default function SchedaPage() {
   const [foglioCliente, setFoglioCliente] = useState(false)
   const [foglioCambiaCliente, setFoglioCambiaCliente] = useState(false)
   const [foglioAnnulla, setFoglioAnnulla] = useState(false)
+  const [foglioSconto, setFoglioSconto] = useState(false)
   // appena annullata da qui: la pastiglia in mattone in cima, finché non si va via
   const [annullata, setAnnullata] = useState(false)
   // la conferma volante dopo un pagamento (Ania, 11/09/2026): due righe, pochi secondi
@@ -485,7 +488,7 @@ export default function SchedaPage() {
         {testa && conto
           ? <ContoScheda className="mt-3" testa={testa} righe={rigeConto} totale={euroScheda(conto.totaleCent)}
             accordo={comePagaTesto} pagamenti={rigePagamenti}
-            onPagamento={() => setFoglioPagamento(true)} onComePaga={() => setFoglioComePaga(true)} />
+            onPagamento={() => setFoglioPagamento(true)} onComePaga={() => setFoglioComePaga(true)} onSconto={() => setFoglioSconto(true)} />
           : <p className="mt-2" style={{ fontSize: 13, color: 'var(--color-stone)' }}>Non riesco a leggere il conto. Ricarica la scheda prima di toccare i pagamenti.</p>}
       </section>
 
@@ -565,6 +568,22 @@ export default function SchedaPage() {
           }} />
       )}
       {conferma && <ConfermaVolante key={conferma.n} righe={conferma.righe} onChiudi={() => setConferma(null)} />}
+      {foglioSconto && conto && (
+        <FoglioSconto righe={righe} ricevutiCent={conto.ricevutiCent}
+          onChiudi={() => setFoglioSconto(false)}
+          onSalvato={(anteprima, cambiato) => {
+            // prima i campi appena scritti su ogni camera attiva, poi la
+            // rilettura in silenzio (cronologia, «Da controllare»)
+            setFoglioSconto(false)
+            if (!cambiato) return
+            const per = new Map(anteprima.righe.map(r => [r.id, r.campi]))
+            const aggiorna = (r: Prenotazione): Prenotazione => (per.has(r.id) ? { ...r, ...per.get(r.id) } : r)
+            setRighe(rs => rs.map(aggiorna))
+            setBooking(b => (b ? aggiorna(b) : b))
+            setAvviso(anteprima.righe.some(r => r.campi.discount_type) ? SCONTO_SALVATO : SCONTO_TOLTO)
+            rileggi()
+          }} />
+      )}
       {foglioAnnulla && (
         <FoglioAnnulla booking={booking} attive={attive.length} nomeCliente={nomeOspite(booking)}
           cliente={guest && booking.guest_id ? { ...guest, id: booking.guest_id } : null} arrivo={primoArrivo || null}

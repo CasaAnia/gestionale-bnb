@@ -9,6 +9,7 @@
 // sua volta NON ricalcola il totale (viene da lib/prenotazioneUnica).
 // ============================================================================
 import { TITOLO_COME_PAGA } from '@/components/ComePaga'
+import { COMANDO_SCONTO } from '@/lib/scontoScheda'
 import type { RigaConto, RigaPagamento, TestaConto } from '@/lib/schedaConto'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
@@ -18,7 +19,7 @@ export const ROSSO_CONTO = '#D40000'
 export const FONDO_BARRA = '#EFE9DC'
 export const ALTEZZA_BARRA = 4
 
-export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, onPagamento, onComePaga, className = '' }: {
+export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, onPagamento, onComePaga, onSconto, className = '' }: {
   testa: TestaConto
   righe: RigaConto[]
   totale: string
@@ -27,6 +28,8 @@ export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, 
   /** apre il foglio «Aggiungi pagamento» (16/09/2026), qui nella scheda */
   onPagamento: () => void
   onComePaga: () => void
+  /** apre il foglio «Sconto» (17/09/2026): mettere, cambiare o togliere lo sconto */
+  onSconto: () => void
   className?: string
 }) {
   return (
@@ -89,6 +92,7 @@ export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, 
       <p className="flex flex-wrap items-center mt-2" style={{ gap: '0 12px', fontSize: 14 }}>
         <button type="button" data-aggiungi-pagamento onClick={onPagamento} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Aggiungi pagamento</button>
         <button type="button" onClick={onComePaga} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Cambia come paga</button>
+        <button type="button" data-modifica-sconto onClick={onSconto} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>{COMANDO_SCONTO}</button>
       </p>
     </div>
   )

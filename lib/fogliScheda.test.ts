@@ -22,6 +22,7 @@ const FOGLI: { file: string; stato: string; apre: RegExp }[] = [
   { file: 'FoglioCliente', stato: 'foglioCliente', apre: /onModificaDati=\{\(\) => setFoglioCliente\(true\)\}/ },
   { file: 'FoglioCambiaCliente', stato: 'foglioCambiaCliente', apre: /onCambiaCliente=\{\(\) => setFoglioCambiaCliente\(true\)\}/ },
   { file: 'FoglioAnnulla', stato: 'foglioAnnulla', apre: /data-annulla-prenotazione onClick=\{\(\) => setFoglioAnnulla\(true\)\}/ },
+  { file: 'FoglioSconto', stato: 'foglioSconto', apre: /onSconto=\{\(\) => setFoglioSconto\(true\)\}/ },
 ]
 
 // ── La veste comune ─────────────────────────────────────────────────────────
@@ -301,4 +302,49 @@ test('con una lettura incompleta niente conto e niente pagamenti da qui', () => 
   assert.match(pagina, /if \(pag\.error\) \{ setContoLeggibile\(false\)/)
   assert.match(pagina, /if \(!contoLeggibile\) return null/)
   assert.match(pagina, /\{foglioPagamento && conto && \(/)
+})
+
+// ── 7. SCONTO (17/09/2026) ──────────────────────────────────────────────────
+const sconto = leggi('components/scheda/FoglioSconto.tsx')
+const scontoDati = leggi('lib/scontoDati.ts')
+
+test('«Sconto»: il comando nel conto, tre pastiglie Nessuno · Percentuale · Prezzo finale, il campo, e i tre numeri prima di salvare', () => {
+  const conto = leggi('components/scheda/ContoScheda.tsx')
+  assert.match(conto, /data-modifica-sconto onClick=\{onSconto\}/)
+  assert.match(conto, /\{COMANDO_SCONTO\}/)
+  assert.match(sconto, /TIPI_SCONTO\.map\(t => \([\s\S]{0,200}dati=\{`sconto-\$\{t\.chiave\}`\}/)
+  assert.match(sconto, /tipo === 'percentuale' \? ETICHETTA_PER_CENTO : ETICHETTA_IN_TUTTO/)
+  assert.match(sconto, /data-campo="sconto"/)
+  assert.match(sconto, /data-anteprima-sconto/)
+  assert.match(sconto, /data-riga-anteprima=\{n\.chiave\}/)
+  assert.match(sconto, /righeAnteprima\(anteprima\)/)
+  // i numeri arrivano dalla libreria pura, coi pagamenti già registrati
+  assert.match(sconto, /anteprimaSconto\(righe, ricevutiCent, sconto\)/)
+  assert.match(pagina, /<FoglioSconto righe=\{righe\} ricevutiCent=\{conto\.ricevutiCent\}/)
+  // «Salva» nel piede comune, con l'errore vicino
+  assert.match(sconto, /<PiedeFoglio azione=\{SALVA_SCONTO\} onAzione=\{salva\} salvando=\{salvando\} onAnnulla=\{onChiudi\} dati="sconto"/)
+})
+
+test('lo sconto si scrive riga per riga con la regola della scheda attuale, e senza cambiamenti non scrive', () => {
+  // la scrittura: discount_type/discount_value/total_amount su ogni camera attiva, con controllo della riga toccata
+  assert.match(scontoDati, /supabase\.from\('bookings'\)[\s\S]{0,120}\.update\(\{ \.\.\.r\.campi, updated_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]{0,60}\.eq\('id', r\.id\)[\s\S]{0,40}\.select\('id'\)/)
+  assert.match(scontoDati, /data\.length !== 1/)
+  assert.match(scontoDati, /ERRORE_SCONTO_A_META/)
+  // il foglio non scrive da sé: solo salvaSconto, e solo se c'è qualcosa da cambiare
+  assert.equal(/supabase/.test(sconto), false)
+  assert.match(sconto, /if \(nienteDaSalvare\(righe, anteprima\)\) \{ onSalvato\(anteprima, false\); return \}/)
+  assert.match(sconto, /if \(salvando\) return/)
+  // togliere lo sconto = discount null e totale al prezzo pieno (rimuoviScontoDiretto della scheda attuale)
+  const lib = leggi('lib/scontoScheda.ts')
+  assert.match(lib, /contoSoggiorno\(\{ check_in: r\.check_in, check_out: r\.check_out, price_per_night: r\.price_per_night, extra_bed_total: r\.extra_bed_total \}\)\.totale/)
+})
+
+test('dopo lo sconto il conto si aggiorna riga per riga e la scheda rilegge; con errore niente falso «salvato»', () => {
+  const dopo = pagina.slice(pagina.indexOf('<FoglioSconto'), pagina.indexOf('<FoglioSconto') + 1200)
+  assert.match(dopo, /if \(!cambiato\) return/)
+  assert.match(dopo, /setRighe\(rs => rs\.map\(aggiorna\)\)/)
+  assert.match(dopo, /setBooking\(b => \(b \? aggiorna\(b\) : b\)\)/)
+  assert.match(dopo, /SCONTO_SALVATO : SCONTO_TOLTO/)
+  assert.match(dopo, /rileggi\(\)/)
+  assert.match(sconto, /if \(esito\.esito === 'errore'\) \{ setErrore\(esito\.messaggio\); return \}/)
 })
