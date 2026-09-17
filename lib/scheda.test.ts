@@ -448,3 +448,9 @@ test('l’ordine: Da controllare, poi la parte «Arrivo» (riga e «Modifica arr
   assert.match(pagina, /<RigaArrivo arrivo=\{arrivoTesto\} etichetta=\{false\}/)
   assert.match(leggi('components/scheda/SoggiornoScheda.tsx'), /\{etichetta && <span style=\{\{ fontSize: 14, color: 'var\(--color-stone\)' \}\}>Arrivo<\/span>\}/)
 })
+
+test('senza orario, accanto a «da chiedere» c’è «aggiungi orario» che apre il foglio dell’arrivo (Ania, 17/09/2026)', () => {
+  assert.match(soggiorno, /export const AGGIUNGI_ORARIO = 'aggiungi orario'/)
+  assert.match(soggiorno, /data-aggiungi-orario onClick=\{onAggiungiOrario\}[^>]*>· \{AGGIUNGI_ORARIO\}/)
+  assert.match(pagina, /<RigaArrivo arrivo=\{arrivoTesto\} etichetta=\{false\} onAggiungiOrario=\{\(\) => setFoglioArrivo\(true\)\}/)
+})
