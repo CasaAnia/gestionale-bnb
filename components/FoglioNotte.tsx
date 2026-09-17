@@ -20,7 +20,7 @@ import Foglio from '@/components/scheda/Foglio'
 import {
   camereDellaNotte, avvisoCapienza, lettoDisponibileNotte, prezzoLettoNotte, titoloNotte,
   motivoLettoObbligatorio, lettoObbligatorio,
-  cambiaCamera, cambiaLetto, cambiaOspitiNotte, nonDormeQui, LETTO_NON_DISPONIBILE,
+  cambiaCamera, cambiaLetto, cambiaOspitiConLettoAuto, nonDormeQui, LETTO_NON_DISPONIBILE,
   type ContestoNotti, type NotteStriscia,
 } from '@/lib/strisciaNotti'
 import { tintaCamera } from '@/components/StrisciaNottiCamere'
@@ -55,7 +55,7 @@ function Pastiglia({ acceso, spenta, onClick, children }: { acceso: boolean; spe
   )
 }
 
-export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, lettoScelto, onFatto, onChiudi }: {
+export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, lettoScelto, onFatto, onChiudi, sottotitolo, contoDopo }: {
   notti: NotteStriscia[]
   iso: string
   contesto: ContestoNotti
@@ -68,9 +68,17 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, let
   /** «Fatto»: la striscia com'è diventata (la pagina salva e ricalcola il conto) */
   onFatto: (notti: NotteStriscia[], daQuiInPoi: boolean) => void
   onChiudi: () => void
+  /** quale camera e quali notti si stanno modificando («Lena → Ambra · 24 → 28 set»):
+   *  serve quando il soggiorno ha più camere in parallelo (17/09/2026) */
+  sottotitolo?: string
+  /** l'effetto sul conto della bozza, prima di «Fatto»: «Conto: 300 € → 380 €»;
+   *  con `guaio` è il motivo per cui così non si può salvare */
+  contoDopo?: (bozza: NotteStriscia[], daQuiInPoi: boolean) => { testo: string; guaio: boolean } | null
 }) {
   const [bozza, setBozza] = useState(notti)
   const [daQui, setDaQui] = useState(false)
+  // il letto acceso da sé salendo di persone: tornando giù si spegne da sé
+  const [lettoAuto, setLettoAuto] = useState(false)
   const notte = bozza.find(n => n.iso === iso)
   if (!notte) return null
   const libere = camereDellaNotte(iso, contesto)
@@ -80,9 +88,11 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, let
   // qui gli ospiti della notte si scelgono a mano? allora il letto non li tocca
   const ospitiAParte = Boolean(ospitiPossibili)
   const serveIlLetto = notte.dentro && lettoObbligatorio(scelta, notte.persone)
+  const conto = contoDopo ? contoDopo(bozza, daQui) : null
 
   return (
     <Foglio titolo={titoloNotte(iso)} grande onChiudi={onChiudi}>
+      {sottotitolo && <p data-sottotitolo-notte style={{ marginTop: -6, marginBottom: 10, fontSize: 12.5, fontWeight: 600, color: OTTONE }}>{sottotitolo}</p>}
       {/* ── Le camere libere questa notte ─────────────────────────────── */}
       <p style={titoletto}>{TITOLO_CAMERE}</p>
       {libere.length === 0
@@ -113,7 +123,11 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, let
         const i = valori.indexOf(notte.persone)
         const giu = i > 0 ? valori[i - 1] : valori.find(v => v < notte.persone) ?? null
         const su = i >= 0 && i < valori.length - 1 ? valori[i + 1] : valori.find(v => v > notte.persone) ?? null
-        const cambia = (quanti: number) => setBozza(b => cambiaOspitiNotte(b, iso, quanti, contesto))
+        const cambia = (quanti: number) => {
+          const esito = cambiaOspitiConLettoAuto(bozza, iso, quanti, contesto, lettoAuto)
+          setBozza(esito.notti)
+          setLettoAuto(esito.lettoAuto)
+        }
         const tasto = { width: 38, height: 38, borderRadius: 999, border: '1px solid var(--color-card-border)', fontSize: 18, color: 'var(--color-green-dark)', background: '#fff' }
         return (
           <div data-ospiti-notte className="mt-4">
@@ -137,8 +151,8 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, let
       {/* ── Il letto in più ───────────────────────────────────────────── */}
       <p className="mt-4" style={titoletto}>{TITOLO_LETTO}</p>
       <div data-letto-notte className="flex flex-wrap items-center mt-2" style={{ gap: 8 }}>
-        <Pastiglia acceso={!notte.letto} spenta={!notte.dentro || serveIlLetto} onClick={() => setBozza(b => cambiaLetto(b, iso, false, contesto, { ospitiAParte }))}>No</Pastiglia>
-        <Pastiglia acceso={notte.letto} spenta={!notte.dentro || (!lettoLibero && !notte.letto)} onClick={() => setBozza(b => cambiaLetto(b, iso, true, contesto, { ospitiAParte }))}>
+        <Pastiglia acceso={!notte.letto} spenta={!notte.dentro || serveIlLetto} onClick={() => { setLettoAuto(false); setBozza(b => cambiaLetto(b, iso, false, contesto, { ospitiAParte })) }}>No</Pastiglia>
+        <Pastiglia acceso={notte.letto} spenta={!notte.dentro || (!lettoLibero && !notte.letto)} onClick={() => { setLettoAuto(false); setBozza(b => cambiaLetto(b, iso, true, contesto, { ospitiAParte })) }}>
           Sì · {prezzoLettoNotte(scelta, notte.dentro ? notte.persone : contesto.ospiti, lettoScelto)}
         </Pastiglia>
         {notte.dentro && !lettoLibero && !notte.letto && <span data-letto-non-disponibile style={{ fontSize: 11.5, color: 'var(--color-stone)' }}>{LETTO_NON_DISPONIBILE}</span>}
@@ -153,6 +167,9 @@ export default function FoglioNotte({ notti, iso, contesto, ospitiPossibili, let
         {notte.dentro ? NON_DORME_QUI : `${NON_DORME_QUI} ✓`}
       </button>
       {!notte.dentro && <p data-come-rimetterla style={{ marginTop: 2, fontSize: 12, color: 'var(--color-stone)' }}>{COME_RIMETTERLA}</p>}
+
+      {/* ── L'effetto sul conto, prima di «Fatto» ─────────────────────── */}
+      {conto && <p data-conto-dopo style={{ marginTop: 14, fontSize: 13, fontWeight: 600, color: conto.guaio ? MATTONE : OTTONE }}>{conto.testo}</p>}
 
       {/* ── Fatto e Annulla ───────────────────────────────────────────── */}
       <div className="flex items-center justify-between mt-5 mb-1" style={{ gap: 12 }}>

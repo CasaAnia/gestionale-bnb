@@ -98,6 +98,9 @@ const CAMBIO = guests[16]
 const GRUPPO_CAMBIO = 'cccccccc-0017-4000-8000-000000000017'
 const CARMELA = guests[17]
 const GRUPPO_CARMELA = 'cccccccc-0018-4000-8000-000000000018'
+const GRUPPO_LEI = 'cccccccc-0040-4000-8000-000000000040'
+const GRUPPO_SORELLA = 'cccccccc-0041-4000-8000-000000000041'
+const PRENOTAZIONE_PARALLELA = 'dddddddd-0040-4000-8000-000000000040'
 
 let n = 0
 function prenotazione(room_id, guest_id, check_in, check_out, num_guests, extra) {
@@ -198,6 +201,16 @@ const bookings = [
     { group_id: GRUPPO_CARMELA, price_per_night: 65, total_amount: 130 }),
   prenotazione(ROOM.lena, CARMELA.id, '2026-09-16', '2026-09-18', 3,
     { group_id: GRUPPO_CARMELA, price_per_night: 90, extra_bed: true, extra_bed_dates: ['2026-09-16', '2026-09-17'], extra_bed_total: 0, total_amount: 180 }),
+  // Camere in parallelo (17/09/2026): lei in Lena 3–5 nov poi Ambra 5–7 nov
+  // (cambio camera, un gruppo) e la sorella in Amelia 3–6 nov (un altro
+  // gruppo), nella stessa prenotazione (prenotazione_id). Le notti sono
+  // libere per tutti in questo scenario.
+  prenotazione(ROOM.lena, CAMBIO.id, '2026-11-03', '2026-11-05', 2,
+    { group_id: GRUPPO_LEI, prenotazione_id: PRENOTAZIONE_PARALLELA, price_per_night: 80, total_amount: 160 }),
+  prenotazione(ROOM.ambra, CAMBIO.id, '2026-11-05', '2026-11-07', 2,
+    { group_id: GRUPPO_LEI, prenotazione_id: PRENOTAZIONE_PARALLELA, price_per_night: 70, total_amount: 140 }),
+  prenotazione(ROOM.amelia, CAMBIO.id, '2026-11-03', '2026-11-06', 1,
+    { group_id: GRUPPO_SORELLA, prenotazione_id: PRENOTAZIONE_PARALLELA, price_per_night: 65, total_amount: 195 }),
   // Striscia delle notti (13/09/2026): dieci notti di fila in Allegra
   prenotazione(ROOM.allegra, 'aaaaaaaa-0019-4000-8000-000000000019', '2026-10-05', '2026-10-15', 2,
     { price_per_night: 70, total_amount: 700 }),
@@ -208,7 +221,7 @@ const bookings = [
   prenotazione(ROOM.ambra, 'aaaaaaaa-0020-4000-8000-000000000020', '2026-10-23', '2026-10-25', 2,
     { group_id: 'cccccccc-0020-4000-8000-000000000020', price_per_night: 70, total_amount: 140 }),
 ]
-const CARMELA_PRIMO_TRATTO = bookings[bookings.length - 5]
+const CARMELA_PRIMO_TRATTO = bookings.find(b => b.group_id === GRUPPO_CARMELA)
 const documenti_cliente = [
   { id: 'dddddddd-0001-4000-8000-000000000001', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0001-4000-8000-000000000001.jpg`, etichetta: 'carta_identita', lato: 'fronte', nome_file: 'IMG_1.jpeg', dimensione: 700000, created_at: ora },
   { id: 'dddddddd-0002-4000-8000-000000000002', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0002-4000-8000-000000000002.jpg`, etichetta: 'carta_identita', lato: 'retro', nome_file: 'IMG_2.jpeg', dimensione: 700000, created_at: ora },
@@ -426,6 +439,55 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/auth/v1/user') return rispondi(res, 200, utente)
   if (url.pathname === '/auth/v1/logout') return rispondi(res, 204)
   const rpc = url.pathname.match(/^\/rest\/v1\/rpc\/(\w+)$/)
+  // sposta_notti (proposta 0053), finta (17/09/2026): aggiorna, crea e annulla
+  // insieme, poi ricontrolla che nessuna camera sia presa due volte e che i
+  // letti di casa restino due, come fa il database. Le risposte d'errore
+  // hanno la forma di quelle vere (23P01, LETTI_FINITI).
+  if (rpc && rpc[1] === 'sposta_notti' && req.method === 'POST') {
+    return leggiCorpo(req).then(corpo => {
+      const prima = bookings.map(b => ({ ...b }))
+      const create = []
+      for (const a of corpo.p_aggiorna || []) {
+        const r = bookings.find(b => b.id === a.id)
+        if (!r) return rispondi(res, 400, { code: 'P0001', message: `il tratto ${a.id} non c'è più: ricarica la scheda` })
+        Object.assign(r, a.campi, { updated_at: new Date().toISOString() })
+      }
+      for (const c of corpo.p_crea || []) {
+        n += 1
+        const nuovo = { ...prenotazione(c.room_id, c.guest_id, c.check_in, c.check_out, c.num_guests, {}), ...c, id: `bbbbbbbb-${String(n).padStart(4, '0')}-4000-8000-00000000000${n}` }
+        bookings.push(nuovo)
+        create.push({ id: nuovo.id, check_in: nuovo.check_in })
+      }
+      for (const id of corpo.p_annulla || []) {
+        const r = bookings.find(b => b.id === id)
+        if (r) Object.assign(r, { status: 'annullata', cancelled_at: new Date().toISOString(), cancelled_reason: corpo.p_motivo || null })
+      }
+      const vive = bookings.filter(b => b.status === 'confermata' || b.status === 'completata')
+      const siToccano = (x, y) => x.room_id === y.room_id && x.check_in < y.check_out && y.check_in < x.check_out
+      const ripristina = () => { bookings.length = 0; bookings.push(...prima) }
+      // come il vincolo della 0051: si controllano le righe TOCCATE contro tutte
+      // le altre (lo scenario finto ha già sovrapposizioni volute, per «Da controllare»)
+      const toccate = new Set([...(corpo.p_aggiorna || []).map(a => a.id), ...create.map(c => c.id)])
+      for (const x of vive.filter(b => toccate.has(b.id))) for (const y of vive) if (x.id !== y.id && siToccano(x, y)) {
+        console.log(`[finto supabase] RPC sposta_notti rifiutata: ${x.id} e ${y.id} nella stessa camera`)
+        ripristina()
+        return rispondi(res, 409, { code: '23P01', message: 'conflicting key value violates exclusion constraint "bookings_camera_non_due_volte"' })
+      }
+      const nottiFra = (dal, al) => { const out = []; for (let t = Date.parse(dal + 'T00:00:00Z'); t < Date.parse(al + 'T00:00:00Z'); t += 86400000) out.push(new Date(t).toISOString().slice(0, 10)); return out }
+      const lettiPerNotte = {}
+      for (const b of vive) {
+        const notti = (b.extra_bed_dates && b.extra_bed_dates.length) ? b.extra_bed_dates : (b.extra_bed ? nottiFra(b.check_in, b.check_out) : [])
+        const quanti = b.room_id === ROOM.lena && Number(b.num_guests) >= 4 ? 2 : 1
+        for (const g of notti) lettiPerNotte[g] = (lettiPerNotte[g] || 0) + quanti
+      }
+      if (Object.values(lettiPerNotte).some(q => q > 2)) {
+        ripristina()
+        return rispondi(res, 400, { code: 'P0001', message: 'LETTI_FINITI: letti aggiuntivi esauriti in quella notte' })
+      }
+      console.log(`[finto supabase] RPC sposta_notti ← aggiorna ${(corpo.p_aggiorna || []).length}, crea ${create.length}, annulla ${(corpo.p_annulla || []).length}`)
+      return rispondi(res, 200, { create })
+    })
+  }
   if (rpc) {
     return rispondi(res, 404, { code: 'PGRST202', message: `Could not find the function public.${rpc[1]} in the schema cache`, details: null, hint: null })
   }

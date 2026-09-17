@@ -378,6 +378,46 @@ export function ospitiDaNotte(
   return fatte
 }
 
+// Il letto AUTOMATICO (17/09/2026, la regola della scheda attuale): se il letto
+// si è acceso da sé salendo di persone (Allegra da 2 a 3), tornando giù si
+// spegne da sé; un letto messo a mano («Sì» con due persone, per chi vuole
+// letti separati) resta. `lettoAuto` è la memoria di chi chiama: vero finché
+// il letto acceso è quello automatico.
+export function cambiaOspitiConLettoAuto(
+  notti: NotteStriscia[], iso: string, quanti: number, contesto: ContestoNotti, lettoAuto: boolean,
+): { notti: NotteStriscia[]; lettoAuto: boolean } {
+  const prima = notti.find(n => n.iso === iso)
+  const fatte = cambiaOspitiNotte(notti, iso, quanti, contesto)
+  const dopo = fatte.find(n => n.iso === iso)
+  if (!prima || !dopo) return { notti: fatte, lettoAuto }
+  if (!prima.letto && dopo.letto) return { notti: fatte, lettoAuto: true }
+  const camera = contesto.camere.find(c => c.id === dopo.cameraId) ?? null
+  if (lettoAuto && dopo.letto && dopo.persone <= capienzaBase(camera)) {
+    return { notti: fatte.map(n => (n.iso === iso ? { ...n, letto: false } : n)), lettoAuto: false }
+  }
+  return { notti: fatte, lettoAuto }
+}
+
+// «Da qui in poi» nella scheda: le notti dopo prendono le persone della notte
+// aperta (ognuna entro quello che la sua camera tiene); il letto si accende
+// dove serve e, se nella notte aperta è spento, si spegne dove non serve più.
+export function ospitiDaQuiInPoi(notti: NotteStriscia[], iso: string, contesto: ContestoNotti): NotteStriscia[] {
+  const aperta = notti.find(n => n.iso === iso)
+  if (!aperta || !aperta.dentro) return notti
+  let fatte = notti
+  for (const dopo of notti.filter(n => n.iso > iso && n.dentro).map(n => n.iso)) {
+    fatte = cambiaOspitiNotte(fatte, dopo, aperta.persone, contesto)
+    if (!aperta.letto) {
+      fatte = fatte.map(n => {
+        if (n.iso !== dopo || !n.letto) return n
+        const camera = contesto.camere.find(c => c.id === n.cameraId) ?? null
+        return n.persone <= capienzaBase(camera) ? { ...n, letto: false } : n
+      })
+    }
+  }
+  return fatte
+}
+
 export function nonDormeQui(notti: NotteStriscia[], iso: string): NotteStriscia[] {
   return notti.map(n => (n.iso === iso
     ? { ...n, dentro: false, letto: false, cameraId: null, camera: null, persone: 0, motivo: null, parallela: false }
@@ -624,5 +664,6 @@ function ripartisciConcordato(concordato: number, pieni: number[]): number[] {
 /** Qualcosa è davvero cambiato rispetto a com'era salvato? */
 export function stessaStriscia(a: NotteStriscia[], b: NotteStriscia[]): boolean {
   if (a.length !== b.length) return false
-  return a.every((n, i) => n.iso === b[i].iso && n.cameraId === b[i].cameraId && n.letto === b[i].letto && n.dentro === b[i].dentro)
+  // anche le persone: dalla scheda si cambiano di qui (17/09/2026)
+  return a.every((n, i) => n.iso === b[i].iso && n.cameraId === b[i].cameraId && n.letto === b[i].letto && n.dentro === b[i].dentro && n.persone === b[i].persone)
 }

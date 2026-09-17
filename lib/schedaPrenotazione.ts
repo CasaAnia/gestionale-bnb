@@ -251,7 +251,9 @@ export function trattiCamera(segmenti: SegmentoScheda[]): TrattoCamera[] {
       camera: nomeCamera(s),
       prezzo: euroScheda(Math.round(conto.totale * 100)),
       dettaglio: `${periodoTratto(s.check_in, s.check_out)} · ${testoNotti(n)} · ${testoOspiti(ospiti)} · ${aNotte}`,
-      cambio: !!precedente,
+      // «cambio» solo se la camera è davvero un'altra: due tratti della stessa
+      // camera (persone diverse, 17/09/2026) non sono un cambio camera
+      cambio: !!precedente && nomeCamera(precedente) !== nomeCamera(s),
     }
   })
 }

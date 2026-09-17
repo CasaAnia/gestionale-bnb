@@ -169,21 +169,45 @@ test('le cose da controllare sono le regole della Home, filtrate su questa preno
 test('la striscia delle notti è quella nuova, e da lì si cambia la camera', () => {
   // la striscia è il componente riusabile, alimentato dalle notti salvate
   assert.match(pagina, /import StrisciaNottiCamere from '@\/components\/StrisciaNottiCamere'/)
-  assert.match(pagina, /const notti = useMemo\(\(\) => nottiDaSegmenti\(attive\), \[attive\]\)/)
-  assert.match(pagina, /<StrisciaNottiCamere notti=\{notti\} oggi=\{oggi\} onNotte=/)
+  // una striscia per linea (lib/lineeSoggiorno, 17/09/2026): il cambio camera in
+  // fila è una linea, le camere in parallelo sono linee diverse
+  assert.match(pagina, /const linee = useMemo\(\(\) => lineeDelSoggiorno\(attive\), \[attive\]\)/)
+  assert.match(pagina, /\{linee\.map\(\(l, i\) => \([\s\S]{0,400}<StrisciaNottiCamere notti=\{l\.notti\} oggi=\{oggi\}/)
   // toccando una notte si apre il foglietto QUI, non più il foglio della scheda vecchia
-  assert.match(pagina, /setNotteAperta\(n\.iso\)/)
-  assert.match(pagina, /<FoglioNotte notti=\{notti\} iso=\{notteAperta\} contesto=\{contesto\}/)
+  assert.match(pagina, /setNotteAperta\(\{ linea: l\.chiave, iso: n\.iso \}\)/)
+  assert.match(pagina, /<FoglioNotte notti=\{lineaAperta\.notti\} iso=\{notteAperta\.iso\} contesto=\{contestoAperto\}/)
   assert.equal(/hrefNotte/.test(pagina), false, 'il tocco su una notte porta ancora alla scheda vecchia')
   // e la striscia è sola presentazione: le regole stanno nella libreria
   assert.match(striscia, /from '@\/lib\/strisciaNotti'/)
 })
 
-test('con due camere nelle stesse notti la striscia resta ferma e lo dice', () => {
-  assert.match(pagina, /const nonSiSposta = camere\.length === 0 \|\| attive\.some\(s => s\.group_id !== attive\[0\]\.group_id\)/)
-  assert.match(pagina, /onNotte=\{nonSiSposta \? undefined : n => setNotteAperta\(n\.iso\)\}/)
-  assert.match(pagina, /più camere nelle stesse notti: le notti si spostano dalla scheda completa/)
-  assert.match(pagina, /Le camere non si leggono: le notti si spostano dalla scheda completa/)
+test('con due camere nelle stesse notti ci sono due strisce, ognuna col suo titolo, e si cambiano da qui (17/09/2026)', () => {
+  // la striscia si ferma SOLO se le camere non si leggono; niente rimandi alla scheda vecchia
+  assert.match(pagina, /const nonSiSposta = camere\.length === 0\n/)
+  assert.match(pagina, /onNotte=\{nonSiSposta \? undefined : n => setNotteAperta\(\{ linea: l\.chiave, iso: n\.iso \}\)\}/)
+  assert.equal(/scheda completa/.test(pagina), false, 'la scheda nuova rimanda ancora alla scheda completa per le notti')
+  assert.match(pagina, /\{linee\.length > 1 && \([\s\S]{0,80}<p data-linea-titolo[^>]*>\{l\.titolo\}<\/p>/)
+  assert.match(pagina, /data-linee-parallele[^>]*>\{SPIEGAZIONE_PARALLELE\}/)
+  assert.match(pagina, /\{CAMERE_NON_LETTE\}/)
+  // il foglietto dice quale camera e quali notti si toccano, e l'effetto sul conto prima di «Fatto»
+  assert.match(pagina, /sottotitolo=\{linee\.length > 1 \? lineaAperta\.titolo : undefined\}/)
+  assert.match(pagina, /contoDopo=\{\(bozza, daQui\) => \{[\s\S]{0,400}pianoNotti\(conDaQui\(bozza, daQui\), lineaAperta\.segmenti, contestoAperto\)/)
+  const foglioNotte = leggi('components/FoglioNotte.tsx')
+  assert.match(foglioNotte, /data-sottotitolo-notte/)
+  assert.match(foglioNotte, /data-conto-dopo[^>]*>\{conto\.testo\}/)
+  // nel contesto di una linea le altre linee sono altre prenotazioni (camera presa, letti contati)
+  assert.match(pagina, /const contestoAperto = lineaAperta \? contestoLinea\(lineaAperta, linee, contesto\) : contesto/)
+})
+
+test('dal foglietto si cambiano anche gli ospiti: Allegra 2→3 accende il letto, 3→2 lo spegne se automatico, a mano resta', () => {
+  assert.match(pagina, /ospitiPossibili=\{cameraId => \{[\s\S]{0,200}ospitiPossibiliNotte\(camera, capienzaCamera\(camera\)\)/)
+  assert.match(pagina, /onFatto=\{\(nuove, daQui\) => salvaNotti\(lineaAperta, conDaQui\(nuove, daQui\)\)\}/)
+  assert.match(pagina, /ospitiDaQuiInPoi\(bozza, notteAperta\.iso, contestoAperto\)/)
+  const foglioNotte = leggi('components/FoglioNotte.tsx')
+  assert.match(foglioNotte, /cambiaOspitiConLettoAuto\(bozza, iso, quanti, contesto, lettoAuto\)/)
+  assert.match(foglioNotte, /setLettoAuto\(false\); setBozza\(b => cambiaLetto\(b, iso, true, contesto, \{ ospitiAParte \}\)\)/)
+  // le persone contano per «è cambiato qualcosa?»
+  assert.match(leggi('lib/strisciaNotti.ts'), /&& n\.persone === b\[i\]\.persone\)/)
 })
 
 test('«Modifica soggiorno» non c’è più: restano «Modifica arrivo» e «Arrivi precedenti»', () => {
@@ -198,14 +222,16 @@ test('«Modifica soggiorno» non c’è più: restano «Modifica arrivo» e «Ar
 })
 
 test('il salvataggio delle notti: si annulla, non si cancella, e il conto si rifà da solo', () => {
-  assert.match(pagina, /const piano = pianoNotti\(nuove, attive, contesto\)/)
+  // il piano si fa sui tratti della linea soltanto: le altre linee non si toccano
+  assert.match(pagina, /const piano = pianoNotti\(nuove, linea\.segmenti, contestoLinea\(linea, linee, contesto\)\)/)
+  assert.match(pagina, /const gruppo = linea\.segmenti\[0\]\?\.group_id \|\| crypto\.randomUUID\(\)/)
   // l'annullamento lo fa la funzione della 0053, e annulla: non cancella
   const sql = readFileSync(new URL('../supabase/proposte/0053_notti_in_un_colpo.BOZZA.sql', import.meta.url), 'utf8')
   assert.match(sql, /set status = 'annullata', cancelled_at = adesso/)
   assert.equal(/delete from public\.bookings/.test(sql), false, 'una riga viene cancellata invece che annullata')
   assert.equal(/from\('bookings'\)\.delete\(\)/.test(pagina), false)
   // niente da salvare se non è cambiato niente (Annulla non tocca il database)
-  assert.match(pagina, /if \(!booking \|\| salvandoNotti \|\| stessaStriscia\(notti, nuove\)\) return/)
+  assert.match(pagina, /if \(!booking \|\| salvandoNotti \|\| stessaStriscia\(linea\.notti, nuove\)\) return/)
   // dopo il salvataggio la scheda si rilegge: conto, tratti e «Da controllare» insieme
   assert.match(pagina, /setVersione\(v => v \+ 1\)/)
   assert.match(pagina, /\}, \[id, versione\]\)/)

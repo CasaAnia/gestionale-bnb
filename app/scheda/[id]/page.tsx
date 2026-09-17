@@ -72,7 +72,10 @@ import { comePagaSalvato } from '@/lib/comePaga'
 import { confermaPagamento, type ConfermaPagamento } from '@/lib/confermaPagamento'
 import { righePerSaldo } from '@/lib/pagamentiDati'
 import { saldoMancanteCent } from '@/lib/statistiche'
-import { nottiDaSegmenti, pianoNotti, stessaStriscia, type ContestoNotti, type NotteStriscia, type CameraStriscia } from '@/lib/strisciaNotti'
+import { pianoNotti, stessaStriscia, ospitiDaQuiInPoi, type ContestoNotti, type NotteStriscia, type CameraStriscia } from '@/lib/strisciaNotti'
+import { ospitiPossibiliNotte } from '@/lib/nuovaPrenotazione'
+import { capienzaCamera } from '@/lib/tariffe'
+import { lineeDelSoggiorno, contestoLinea, contoDopoNotti, testoContoDopo, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, type LineaSoggiorno } from '@/lib/lineeSoggiorno'
 import { salvaNottiInUnColpo } from '@/lib/nottiScrittura'
 import { nomeOspite } from '@/lib/guestName'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
@@ -179,7 +182,8 @@ export default function SchedaPage() {
   const [arriviAperti, setArriviAperti] = useState(false)
   // la striscia delle notti: le camere di casa, la notte aperta e il salvataggio
   const [camere, setCamere] = useState<CameraStriscia[]>([])
-  const [notteAperta, setNotteAperta] = useState<string | null>(null)
+  // la notte aperta nel foglietto: di quale linea (gruppo) e quale giorno
+  const [notteAperta, setNotteAperta] = useState<{ linea: string; iso: string } | null>(null)
   const [salvandoNotti, setSalvandoNotti] = useState(false)
   const [versione, setVersione] = useState(0)
   // «Caricamento…» solo la prima volta che si apre QUESTA prenotazione: le
@@ -290,31 +294,42 @@ export default function SchedaPage() {
   const primoSegmento = attive[0] ?? booking
   const hrefVecchia = (segmentoId: string) => `/prenotazioni/${segmentoId}`
 
-  // ── LA STRISCIA DELLE NOTTI ──────────────────────────────────────────────
-  // Le notti come sono salvate; le regole (chi è libero, capienza, i due letti
-  // di casa) stanno in lib/strisciaNotti e non si riscrivono qui.
-  const notti = useMemo(() => nottiDaSegmenti(attive), [attive])
+  // ── LE STRISCE DELLE NOTTI ───────────────────────────────────────────────
+  // Una striscia per linea (lib/lineeSoggiorno): il cambio camera durante il
+  // soggiorno sta in una linea sola, le camere in parallelo sono linee
+  // diverse, ognuna con la sua striscia. Le regole (chi è libero, capienza,
+  // i due letti di casa) stanno in lib/strisciaNotti e non si riscrivono qui.
+  const linee = useMemo(() => lineeDelSoggiorno(attive), [attive])
   const contesto: ContestoNotti = useMemo(() => ({
     camere,
     altre: altreNotti as unknown as ContestoNotti['altre'],
     ospiti: Math.max(1, ...attive.map(s => Number(s.num_guests) || 1)),
   }), [camere, altreNotti, attive])
-  const nonSiSposta = camere.length === 0 || attive.some(s => s.group_id !== attive[0].group_id)
+  const nonSiSposta = camere.length === 0
+  // le notti dormite in casa: una notte con due camere in parallelo conta una volta
+  const nottiDormite = useMemo(() => new Set(linee.flatMap(l => l.notti.filter(n => n.dentro).map(n => n.iso))).size, [linee])
+  const lineaAperta = notteAperta ? (linee.find(l => l.chiave === notteAperta.linea) ?? null) : null
+  // nel contesto di una linea le altre linee contano come altre prenotazioni
+  const contestoAperto = lineaAperta ? contestoLinea(lineaAperta, linee, contesto) : contesto
+  // «da qui in poi»: le persone della notte aperta valgono anche per le notti dopo
+  const conDaQui = (bozza: NotteStriscia[], daQui: boolean) => (daQui && notteAperta ? ospitiDaQuiInPoi(bozza, notteAperta.iso, contestoAperto) : bozza)
 
   // «Fatto» sul foglietto: si salva subito, poi la scheda si rilegge e il
   // conto si rifà da solo. Una riga che resta senza notti si ANNULLA, non si
   // cancella: l'incasso già registrato deve restare nel conto.
-  async function salvaNotti(nuove: NotteStriscia[]) {
+  // Si salva UNA linea per volta: il piano si fa sui suoi tratti soltanto,
+  // le altre linee del soggiorno non si toccano (17/09/2026).
+  async function salvaNotti(linea: LineaSoggiorno<Prenotazione>, nuove: NotteStriscia[]) {
     setNotteAperta(null)
-    if (!booking || salvandoNotti || stessaStriscia(notti, nuove)) return
-    const piano = pianoNotti(nuove, attive, contesto)
+    if (!booking || salvandoNotti || stessaStriscia(linea.notti, nuove)) return
+    const piano = pianoNotti(nuove, linea.segmenti, contestoLinea(linea, linee, contesto))
     if (piano.errore) { setAvviso(piano.errore); return }
     setSalvandoNotti(true)
     setAvviso(null)
-    // Tutti i tratti di un soggiorno stanno nello stesso gruppo: se non c'è
+    // Tutti i tratti di una linea stanno nello stesso gruppo: se non c'è
     // ancora (una camera sola) se ne fa uno adesso, come fa la scheda attuale.
-    const gruppo = attive[0]?.group_id || crypto.randomUUID()
-    const origine = attive[0]
+    const gruppo = linea.segmenti[0]?.group_id || crypto.randomUUID()
+    const origine = linea.segmenti[0]
     const comuni: Record<string, unknown> = {
       guest_id: booking.guest_id ?? null,
       ...(origine?.guest_name ? { guest_name: origine.guest_name } : {}),
@@ -336,8 +351,10 @@ export default function SchedaPage() {
     setSalvandoNotti(false)
     if (esito.esito === 'errore') { setAvviso(esito.messaggio); setVersione(v => v + 1); return }
     // Se la riga aperta è stata annullata, la scheda passa alla prima rimasta
+    // (di questa linea o delle altre)
     if (piano.annulla.includes(booking.id)) {
-      const rimaste = [...piano.aggiorna.map(a => ({ id: a.id, check_in: a.campi.check_in })), ...esito.create]
+      const altreLinee = linee.filter(l => l.chiave !== linea.chiave).flatMap(l => l.segmenti.map(s => ({ id: s.id, check_in: s.check_in })))
+      const rimaste = [...altreLinee, ...piano.aggiorna.map(a => ({ id: a.id, check_in: a.campi.check_in })), ...esito.create]
         .sort((x, z) => x.check_in.localeCompare(z.check_in))
       if (rimaste[0]) { router.replace(`/scheda/${rimaste[0].id}`); return }
     }
@@ -423,7 +440,7 @@ export default function SchedaPage() {
           hrefCliente="#cliente"
           arrivo={primoArrivo}
           partenza={ultimaPartenza}
-          notti={notti.filter(n => n.dentro).length}
+          notti={nottiDormite}
           etichettaArrivo={etichettaArrivoScheda(primoSegmento?.check_in_time, primoSegmento?.shuttle)}
           etichettaPartenza="parte"
           personeNotti={[grande.ospiti]}
@@ -464,11 +481,23 @@ export default function SchedaPage() {
       {/* ── Soggiorno ─────────────────────────────────────────────────────── */}
       <section id="soggiorno" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
         <p className="ed-sezione">Soggiorno</p>
-        {/* La striscia: camera e letto in più di ogni notte, si cambiano di qui */}
-        <StrisciaNottiCamere notti={notti} oggi={oggi} onNotte={nonSiSposta ? undefined : n => setNotteAperta(n.iso)} className="mt-3" />
-        {nonSiSposta && notti.length > 0 && (
+        {/* Le strisce: camera e letto in più di ogni notte, si cambiano di qui.
+            Con più camere in parallelo, una striscia per linea col suo titolo. */}
+        {linee.map((l, i) => (
+          <div key={l.chiave} data-linea={l.chiave}>
+            {linee.length > 1 && (
+              <p data-linea-titolo className="text-center" style={{ marginTop: i === 0 ? 10 : 18, fontSize: 12.5, fontWeight: 600, color: 'var(--color-green-dark)' }}>{l.titolo}</p>
+            )}
+            <StrisciaNottiCamere notti={l.notti} oggi={oggi} spiegazione={i === 0}
+              onNotte={nonSiSposta ? undefined : n => setNotteAperta({ linea: l.chiave, iso: n.iso })} className="mt-3" />
+          </div>
+        ))}
+        {linee.length > 1 && !nonSiSposta && (
+          <p data-linee-parallele className="text-center" style={{ marginTop: 6, fontSize: 12, color: 'var(--color-stone)' }}>{SPIEGAZIONE_PARALLELE}</p>
+        )}
+        {nonSiSposta && linee.length > 0 && (
           <p data-striscia-ferma className="text-center" style={{ marginTop: 6, fontSize: 12, color: 'var(--color-stone)' }}>
-            {camere.length === 0 ? 'Le camere non si leggono: le notti si spostano dalla scheda completa.' : 'Questa prenotazione ha più camere nelle stesse notti: le notti si spostano dalla scheda completa.'}
+            {CAMERE_NON_LETTE}
           </p>
         )}
         {arrivoTesto && <RigaArrivo arrivo={arrivoTesto} className="mt-3" />}
@@ -532,9 +561,22 @@ export default function SchedaPage() {
           payments={pagamenti as never} onClose={() => setConfermaAperta(false)} />
       )}
 
-      {notteAperta && (
-        <FoglioNotte notti={notti} iso={notteAperta} contesto={contesto}
-          onFatto={salvaNotti} onChiudi={() => setNotteAperta(null)} />
+      {notteAperta && lineaAperta && (
+        <FoglioNotte notti={lineaAperta.notti} iso={notteAperta.iso} contesto={contestoAperto}
+          sottotitolo={linee.length > 1 ? lineaAperta.titolo : undefined}
+          ospitiPossibili={cameraId => {
+            // le persone di una notte, fra quelle che la camera tiene senza letto e con
+            const camera = camere.find(c => c.id === cameraId) ?? null
+            return ospitiPossibiliNotte(camera, capienzaCamera(camera))
+          }}
+          contoDopo={(bozza, daQui) => {
+            // l'effetto sul conto PRIMA di salvare: il piano della bozza, letto come lo leggerà la scheda
+            const piano = pianoNotti(conDaQui(bozza, daQui), lineaAperta.segmenti, contestoAperto)
+            if (piano.errore) return { testo: piano.errore, guaio: true }
+            const conto = contoDopoNotti(piano, lineaAperta, attive)
+            return conto ? { testo: testoContoDopo(conto), guaio: false } : null
+          }}
+          onFatto={(nuove, daQui) => salvaNotti(lineaAperta, conDaQui(nuove, daQui))} onChiudi={() => setNotteAperta(null)} />
       )}
 
       {foglioArrivo && primoSegmento && (

@@ -6,6 +6,7 @@ import {
   nottiDaSegmenti, riassuntoStriscia, cambiCamera, avvisiStriscia, camereDellaNotte, avvisoCapienza,
   lettoDisponibileNotte, prezzoLettoNotte, cambiaCamera, cambiaLetto, cambiaOspitiNotte, nonDormeQui, blocchiDaNotti,
   pianoNotti, stessaStriscia, titoloNotte, giornoDellaNotte, compatta, NESSUNA_NOTTE, CAMERA_MANCANTE,
+  cambiaOspitiConLettoAuto, ospitiDaQuiInPoi,
   SCONTO_DECADUTO, LETTO_COMPRESO, segniDiCambio, personeColLetto,
   type SegmentoNotti, type CameraStriscia, type ContestoNotti, type NotteStriscia,
 } from './strisciaNotti.ts'
@@ -658,4 +659,43 @@ test('«ogni 4 notti»: il conto è del soggiorno intero e le quote si rifanno s
   const righe = [...p.aggiorna.map(a => a.campi), ...p.crea]
   assert.equal(righe.reduce((s, c) => s + c.extra_bed_total, 0), 20, 'prima ogni tratto ricominciava da capo')
   assert.equal(p.aggiorna.length, 2, 'anche il tratto che non cambia forma riceve la sua quota')
+})
+
+// ── Gli ospiti dalla scheda, col letto automatico (17/09/2026) ─────────────
+test('Allegra da 2 a 3 accende il letto da sé, e tornando a 2 lo spegne da sé', () => {
+  const prima = nottiDaSegmenti([seg('a', ALLEGRA, '2026-09-10', '2026-09-12')])
+  assert.deepEqual(prima.map(n => [n.persone, n.letto]), [[2, false], [2, false]])
+  const su = cambiaOspitiConLettoAuto(prima, '2026-09-10', 3, contesto(), false)
+  assert.deepEqual(su.notti.map(n => [n.persone, n.letto]), [[3, true], [2, false]])
+  assert.equal(su.lettoAuto, true)
+  const giu = cambiaOspitiConLettoAuto(su.notti, '2026-09-10', 2, contesto(), su.lettoAuto)
+  assert.deepEqual(giu.notti.map(n => [n.persone, n.letto]), [[2, false], [2, false]])
+  assert.equal(giu.lettoAuto, false)
+  // le persone contano per «è cambiato qualcosa?»
+  assert.equal(stessaStriscia(prima, su.notti), false)
+  assert.equal(stessaStriscia(prima, giu.notti), true)
+})
+
+test('il letto messo a mano con due persone resta: salire e scendere di ospiti non lo tocca', () => {
+  const prima = nottiDaSegmenti([seg('a', ALLEGRA, '2026-09-10', '2026-09-12')])
+  const aMano = cambiaLetto(prima, '2026-09-10', true, contesto(), { ospitiAParte: true })
+  assert.deepEqual(aMano.map(n => [n.persone, n.letto]), [[2, true], [2, false]])
+  const su = cambiaOspitiConLettoAuto(aMano, '2026-09-10', 3, contesto(), false)
+  assert.deepEqual(su.notti[0], { ...aMano[0], persone: 3 })
+  assert.equal(su.lettoAuto, false)
+  const giu = cambiaOspitiConLettoAuto(su.notti, '2026-09-10', 2, contesto(), su.lettoAuto)
+  assert.deepEqual(giu.notti.map(n => [n.persone, n.letto]), [[2, true], [2, false]])
+})
+
+test('«da qui in poi»: le notti dopo prendono le persone della notte aperta, col letto dove serve', () => {
+  const prima = nottiDaSegmenti([seg('a', ALLEGRA, '2026-09-10', '2026-09-13')])
+  const su = cambiaOspitiConLettoAuto(prima, '2026-09-11', 3, contesto(), false).notti
+  const tutte = ospitiDaQuiInPoi(su, '2026-09-11', contesto())
+  assert.deepEqual(tutte.map(n => [n.persone, n.letto]), [[2, false], [3, true], [3, true]])
+  // tornando a 2 nella notte aperta, «da qui in poi» spegne il letto anche dopo
+  const giu = cambiaOspitiConLettoAuto(tutte, '2026-09-11', 2, contesto(), true).notti
+  assert.deepEqual(ospitiDaQuiInPoi(giu, '2026-09-11', contesto()).map(n => [n.persone, n.letto]), [[2, false], [2, false], [2, false]])
+  // in Amelia (una persona senza letto, due col letto) le persone restano quelle che la camera tiene
+  const misto = cambiaCamera(su, '2026-09-12', AMELIA, contesto())
+  assert.deepEqual(ospitiDaQuiInPoi(misto, '2026-09-11', contesto()).map(n => [n.camera, n.persone, n.letto]), [['Allegra', 2, false], ['Allegra', 3, true], ['Amelia', 2, true]])
 })
