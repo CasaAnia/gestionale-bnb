@@ -118,7 +118,7 @@ test('il conto prima di salvare: invariato se non cambia niente, annullato non p
   assert.deepEqual(piano2.annulla, ['a2'])
   assert.equal(contoDopoNotti(piano2, A, tutti)!.dopoCent, 16000 + 19500)
   // con un errore nel piano niente conto
-  assert.equal(contoDopoNotti({ aggiorna: [], crea: [], annulla: [], errore: 'x' }, A, tutti), null)
+  assert.equal(contoDopoNotti({ aggiorna: [], crea: [], annulla: [], errore: 'x', tratti: [] }, A, tutti), null)
 })
 
 test('le frasi sotto le strisce', () => {

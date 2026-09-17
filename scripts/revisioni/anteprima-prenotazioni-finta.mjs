@@ -92,6 +92,11 @@ const guests = [
   // una pausa in mezzo, per provare la striscia che scorre e la notte «libera».
   ospite('aaaaaaaa-0019-4000-8000-000000000019', 'Dieci Notti', '+39 333 000 0019'),
   ospite('aaaaaaaa-0020-4000-8000-000000000020', 'Con Pausa', '+39 333 000 0020'),
+  // Lo sconto quando cambia il soggiorno (17/09/2026): tre casi per il foglio
+  // «Il soggiorno si allunga» — vedi le prenotazioni più sotto
+  ospite('aaaaaaaa-0021-4000-8000-000000000021', 'Sconto A Notte', '+39 333 000 0021'),
+  ospite('aaaaaaaa-0022-4000-8000-000000000022', 'Due Camere Sconto', '+39 333 000 0022'),
+  ospite('aaaaaaaa-0023-4000-8000-000000000023', 'Letto Per Due', '+39 333 000 0023'),
 ]
 const NIDA = guests[14]
 const CAMBIO = guests[16]
@@ -220,7 +225,33 @@ const bookings = [
     { group_id: 'cccccccc-0020-4000-8000-000000000020', price_per_night: 70, total_amount: 140 }),
   prenotazione(ROOM.ambra, 'aaaaaaaa-0020-4000-8000-000000000020', '2026-10-23', '2026-10-25', 2,
     { group_id: 'cccccccc-0020-4000-8000-000000000020', price_per_night: 70, total_amount: 140 }),
+  // Lo sconto quando cambia il soggiorno (17/09/2026), il caso di Ania: Allegra
+  // 29 → 30 nov in tre, 80 + 10 di letto = 90 portati a 85 (prezzo finale).
+  // Con «Cambia date» al 2 dic (Allegra libera) il foglio propone «Mantieni
+  // 5 € di sconto a notte»: 3 × 85 = 255; poi «Cambio camera» in Ambra dal 30
+  // (Ambra qui costa 70 + 10 = 80: tolti 5 fa 75, gli importi veri).
+  prenotazione(ROOM.allegra, 'aaaaaaaa-0021-4000-8000-000000000021', '2026-11-29', '2026-11-30', 3,
+    { extra_bed: true, extra_bed_dates: ['2026-11-29'], price_per_night: 80, extra_bed_total: 10,
+      discount_type: 'target_total', discount_value: 85, total_amount: 85, check_in_time: '16:00' }),
+  // Camere contemporanee col prezzo finale: lei in Lena 20 → 22 nov (160,
+  // quota 150) e la sorella in Amelia nelle stesse notti (130, quota 120):
+  // 270 concordati in tutto. Allungando una linea il foglio NON divide lo
+  // sconto per i giorni: chiede il totale dell'intero soggiorno.
+  prenotazione(ROOM.lena, 'aaaaaaaa-0022-4000-8000-000000000022', '2026-11-20', '2026-11-22', 2,
+    { group_id: 'cccccccc-0022-4000-8000-000000000022', prenotazione_id: 'dddddddd-0022-4000-8000-000000000022',
+      price_per_night: 80, total_amount: 150, discount_type: 'target_total', discount_value: 150 }),
+  prenotazione(ROOM.amelia, 'aaaaaaaa-0022-4000-8000-000000000022', '2026-11-20', '2026-11-22', 1,
+    { group_id: 'cccccccc-0023-4000-8000-000000000023', prenotazione_id: 'dddddddd-0022-4000-8000-000000000022',
+      price_per_night: 65, total_amount: 120, discount_type: 'target_total', discount_value: 120 }),
+  // Letto messo a mano per due ospiti (dormono separati, accordo 10 € a notte
+  // della 0048) e pagamenti già presenti: Allegra 10 → 12 dic, 2 × 90 = 180
+  // concordati 170, già SALDATA. Accorciando a una notte il nuovo totale è 85
+  // e i 170 incassati superano il totale: il foglio lo dice, i pagamenti restano.
+  prenotazione(ROOM.allegra, 'aaaaaaaa-0023-4000-8000-000000000023', '2026-12-10', '2026-12-12', 2,
+    { extra_bed: true, extra_bed_dates: ['2026-12-10', '2026-12-11'], extra_bed_importo: 10, extra_bed_criterio: 'notte',
+      price_per_night: 80, extra_bed_total: 20, discount_type: 'target_total', discount_value: 170, total_amount: 170, pagato: true }),
 ]
+const LETTO_PER_DUE = bookings[bookings.length - 1]
 const CARMELA_PRIMO_TRATTO = bookings.find(b => b.group_id === GRUPPO_CARMELA)
 const documenti_cliente = [
   { id: 'dddddddd-0001-4000-8000-000000000001', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0001-4000-8000-000000000001.jpg`, etichetta: 'carta_identita', lato: 'fronte', nome_file: 'IMG_1.jpeg', dimensione: 700000, created_at: ora },
@@ -235,6 +266,8 @@ const strutture = [{ nome: 'Umana' }, { nome: 'Nida' }, { nome: 'RB (Rosa Bianca
 // Il contante di Carmela (470 €, all'arrivo del 12 set) sul primo tratto
 const payments = [
   { id: 'ffffffff-0001-4000-8000-000000000001', booking_id: CARMELA_PRIMO_TRATTO.id, amount: 470, method: 'contanti', paid_on: '2026-09-12', created_at: ora },
+  // «Letto Per Due» ha già pagato tutto (170 €, bonifico)
+  { id: 'ffffffff-0002-4000-8000-000000000002', booking_id: LETTO_PER_DUE.id, amount: 170, method: 'bonifico', paid_on: '2026-09-15', created_at: ora },
 ]
 // Storico pulizie (migrazione 0018): vuoto, così la pagina Pulizie mostra solo le automatiche
 const cleanings = []
@@ -417,6 +450,13 @@ let erroreCambioCliente = false
 let erroreDopoScritture = null
 let modoPersa = false
 let patchRiuscite = 0
+// Il foglio del prezzo (17/09/2026): GET /finto/errore-sposta-notti?modo=errore
+// fa fallire la RPC sposta_notti (500, niente scritto); ?modo=persa la fa
+// SCRIVERE ma risponde 503 come un gateway caduto (la risposta persa: chiudere
+// la connessione non serve, Chrome riprova da solo la richiesta sul socket
+// riusato e la scrittura arriva due volte); ?modo=0 spegne. Vale per la
+// chiamata successiva soltanto.
+let erroreSpostaNotti = null
 function leggiCorpo(req) {
   return new Promise(resolve => { let t = ''; req.on('data', c => { t += c }); req.on('end', () => { try { resolve(t ? JSON.parse(t) : null) } catch { resolve(null) } }) })
 }
@@ -430,6 +470,11 @@ const finto = createServer((req, res) => {
     modoPersa = url.searchParams.get('modo') === 'persa'
     patchRiuscite = 0
     return rispondi(res, 200, { erroreDopoScritture, modoPersa })
+  }
+  if (url.pathname === '/finto/errore-sposta-notti') {
+    const modo = url.searchParams.get('modo')
+    erroreSpostaNotti = modo === 'errore' || modo === 'persa' ? modo : null
+    return rispondi(res, 200, { erroreSpostaNotti })
   }
   if (url.pathname === '/finto/errore-richieste-web') {
     erroreRichiesteWeb = url.searchParams.get('on') === '1'
@@ -459,6 +504,12 @@ const finto = createServer((req, res) => {
   // hanno la forma di quelle vere (23P01, LETTI_FINITI).
   if (rpc && rpc[1] === 'sposta_notti' && req.method === 'POST') {
     return leggiCorpo(req).then(corpo => {
+      const modoGuasto = erroreSpostaNotti
+      erroreSpostaNotti = null
+      if (modoGuasto === 'errore') {
+        console.log('[finto supabase] RPC sposta_notti: errore simulato, niente scritto')
+        return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sul salvataggio delle notti' })
+      }
       const prima = bookings.map(b => ({ ...b }))
       const create = []
       for (const a of corpo.p_aggiorna || []) {
@@ -498,7 +549,8 @@ const finto = createServer((req, res) => {
         ripristina()
         return rispondi(res, 400, { code: 'P0001', message: 'LETTI_FINITI: letti aggiuntivi esauriti in quella notte' })
       }
-      console.log(`[finto supabase] RPC sposta_notti ← aggiorna ${(corpo.p_aggiorna || []).length}, crea ${create.length}, annulla ${(corpo.p_annulla || []).length}`)
+      console.log(`[finto supabase] RPC sposta_notti ← aggiorna ${(corpo.p_aggiorna || []).length}, crea ${create.length}, annulla ${(corpo.p_annulla || []).length}${modoGuasto === 'persa' ? ' — RISPOSTA PERSA' : ''}`)
+      if (modoGuasto === 'persa') return rispondi(res, 503, { message: 'upstream connect error' })
       return rispondi(res, 200, { create })
     })
   }

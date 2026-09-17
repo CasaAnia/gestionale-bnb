@@ -197,6 +197,8 @@ test('con due camere nelle stesse notti ci sono due strisce, ognuna col suo tito
   // il foglietto dice quale camera e quali notti si toccano, e l'effetto sul conto prima di «Fatto»
   assert.match(pagina, /sottotitolo=\{linee\.length > 1 \? lineaAperta\.titolo : undefined\}/)
   assert.match(pagina, /contoDopo=\{\(bozza, daQui\) => contoDellaBozza\(lineaAperta, conDaQui\(bozza, daQui\)\)\}/)
+  // prima il piano SENZA sconto (per sapere se serve il foglio del prezzo), poi quello vero
+  assert.match(pagina, /const senza = pianoNotti\(bozza, linea\.segmenti, ctx, SENZA_SCONTO\)/)
   assert.match(pagina, /const piano = pianoNotti\(bozza, linea\.segmenti, ctx\)/)
   const foglioNotte = leggi('components/FoglioNotte.tsx')
   assert.match(foglioNotte, /data-sottotitolo-notte/)
@@ -207,7 +209,7 @@ test('con due camere nelle stesse notti ci sono due strisce, ognuna col suo tito
 
 test('dal foglietto si cambiano anche gli ospiti: Allegra 2→3 accende il letto, 3→2 lo spegne se automatico, a mano resta', () => {
   assert.match(pagina, /ospitiPossibili=\{cameraId => \{[\s\S]{0,200}ospitiPossibiliNotte\(camera, capienzaCamera\(camera\)\)/)
-  assert.match(pagina, /onFatto=\{\(nuove, daQui\) => salvaNotti\(lineaAperta, conDaQui\(nuove, daQui\)\)\}/)
+  assert.match(pagina, /onFatto=\{\(nuove, daQui\) => chiediPrezzoOSalva\(lineaAperta, conDaQui\(nuove, daQui\), \(\) => setNotteAperta\(null\)\)\}/)
   assert.match(pagina, /ospitiDaQuiInPoi\(bozza, notteAperta\.iso, contestoAperto\)/)
   const foglioNotte = leggi('components/FoglioNotte.tsx')
   assert.match(foglioNotte, /cambiaOspitiConLettoAuto\(bozza, iso, quanti, contesto, lettoAuto\)/)
@@ -229,7 +231,7 @@ test('«Modifica soggiorno» non c’è più: restano «Modifica arrivo» e «Ar
 
 test('il salvataggio delle notti: si annulla, non si cancella, e il conto si rifà da solo', () => {
   // il piano si fa sui tratti della linea soltanto: le altre linee non si toccano
-  assert.match(pagina, /const piano = pianoNotti\(nuove, linea\.segmenti, contestoLinea\(linea, linee, contesto\)\)/)
+  assert.match(pagina, /const piano = pianoNotti\(nuove, linea\.segmenti, contestoLinea\(linea, linee, contesto\), prezzo\?\.scelta\)/)
   assert.match(pagina, /const gruppo = linea\.segmenti\[0\]\?\.group_id \|\| crypto\.randomUUID\(\)/)
   // l'annullamento lo fa la funzione della 0053, e annulla: non cancella
   const sql = readFileSync(new URL('../supabase/proposte/0053_notti_in_un_colpo.BOZZA.sql', import.meta.url), 'utf8')
@@ -237,7 +239,7 @@ test('il salvataggio delle notti: si annulla, non si cancella, e il conto si rif
   assert.equal(/delete from public\.bookings/.test(sql), false, 'una riga viene cancellata invece che annullata')
   assert.equal(/from\('bookings'\)\.delete\(\)/.test(pagina), false)
   // niente da salvare se non è cambiato niente (Annulla non tocca il database)
-  assert.match(pagina, /if \(!booking \|\| salvandoNotti \|\| stessaStriscia\(linea\.notti, nuove\)\) return/)
+  assert.match(pagina, /if \(!booking \|\| salvandoNotti \|\| salvataggioNotti\.current \|\| stessaStriscia\(linea\.notti, nuove\)\) return/)
   // dopo il salvataggio la scheda si rilegge: conto, tratti e «Da controllare» insieme
   assert.match(pagina, /setVersione\(v => v \+ 1\)/)
   assert.match(pagina, /\}, \[id, versione\]\)/)
@@ -418,7 +420,8 @@ test('la striscia della scheda mostra le persone sotto ogni notte, e il letto ac
 })
 
 test('dopo il salvataggio delle notti compare il pop-up grande, e «Cambia date» non anticipa più il conto (Ania, 17/09/2026)', () => {
-  assert.match(pagina, /const esitoConferma = confermaNotti\(\{[\s\S]{0,400}concordato: conPrezzoConcordato\(linea\.segmenti\),/)
+  // col prezzo deciso nel foglio non c'è niente da rivedere
+  assert.match(pagina, /const esitoConferma = confermaNotti\(\{[\s\S]{0,400}concordato: !prezzo && conPrezzoConcordato\(linea\.segmenti\),/)
   assert.match(pagina, /if \(esitoConferma\.avviso\) setAvviso\(esitoConferma\.avviso\)/)
   assert.match(pagina, /<ConfermaVolante key=\{conferma\.n\} righe=\{conferma\.righe\} durata=\{conferma\.durata\} conOk=\{conferma\.conOk\}/)
   // il pop-up delle notti resta finché non si tocca «Ok, ho capito» (Ania, 17/09/2026)
@@ -466,7 +469,7 @@ test('sotto la striscia la riga «Cambia date · Cambio camera · Aggiungi camer
   assert.match(foglio, /cambiaCameraDaLi\(notti, daNotte, camera, contesto\)/)
   assert.match(foglio, /camereDaLi\(notti, daNotte, contesto\)/)
   assert.match(pagina, /<FoglioCambioCamera notti=\{lineaCambio\.notti\} contesto=\{contestoLinea\(lineaCambio, linee, contesto\)\}/)
-  assert.match(pagina, /onFatto=\{nuove => \{ setCambioAperto\(null\); void salvaNotti\(lineaCambio, nuove\) \}\}/)
+  assert.match(pagina, /onFatto=\{nuove => chiediPrezzoOSalva\(lineaCambio, nuove, \(\) => setCambioAperto\(null\)\)\}/)
 })
 
 test('«Cambia date» e «Cambio camera» si chiudono con «Salva» (Ania, 17/09/2026)', () => {

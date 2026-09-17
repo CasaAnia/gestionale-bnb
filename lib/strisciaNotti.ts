@@ -474,11 +474,39 @@ export type CampiTratto = {
   extra_bed_criterio?: string | null
 }
 
+/** Un tratto del piano, com'è PRIMA dello sconto: serve al foglio «Il
+ *  soggiorno si allunga» (17/09/2026) per scrivere il conto pieno e le scelte
+ *  sullo sconto. Ci sono tutti i blocchi, anche quelli che non si riscrivono. */
+export type TrattoPiano = {
+  cameraId: string
+  camera: string
+  check_in: string
+  check_out: string
+  notti: number
+  /** la tariffa a notte (quella concordata se il tratto resta com'era) */
+  aNotte: number
+  /** il letto in più di tutto il tratto */
+  letto: number
+  /** tariffa × notti + letto, in centesimi */
+  pienoCent: number
+}
+
+/** Come si vuole lo sconto DOPO la modifica, deciso dal foglio di conferma
+ *  (17/09/2026) al posto di quello ereditato dalle righe salvate:
+ *  - `nessuno`: niente sconto, ogni tratto a prezzo pieno;
+ *  - `per_notte`: tanti euro (in centesimi) tolti da OGNI notte;
+ *  - `finale`: il totale concordato della LINEA (centesimi), ripartito fra i tratti. */
+export type ScontoScelto =
+  | { tipo: 'nessuno' }
+  | { tipo: 'per_notte'; centANotte: number }
+  | { tipo: 'finale'; totaleCent: number }
+
 export type PianoNotti = {
   aggiorna: { id: string; campi: CampiTratto }[]
   crea: CampiTratto[]
   annulla: string[]
   errore: string | null
+  tratti: TrattoPiano[]
 }
 
 // Il tratto già salvato che assomiglia di più a un blocco: quello con più
@@ -512,8 +540,8 @@ function uguale(b: BloccoNotti, s: SegmentoNotti): boolean {
  * I prezzi vengono da lib/prezzoNotti (listino della camera di quella notte,
  * scelta di Ania del 13/09/2026) e lo sconto della riga da lib/conto.
  */
-export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], contesto: ContestoNotti): PianoNotti {
-  const vuoto: PianoNotti = { aggiorna: [], crea: [], annulla: [], errore: null }
+export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], contesto: ContestoNotti, scelta?: ScontoScelto): PianoNotti {
+  const vuoto: PianoNotti = { aggiorna: [], crea: [], annulla: [], errore: null, tratti: [] }
   if (notti.some(n => n.dentro && !n.cameraId)) return { ...vuoto, errore: CAMERA_MANCANTE }
   const blocchi = blocchiDaNotti(notti)
   if (blocchi.length === 0) return { ...vuoto, errore: NESSUNA_NOTTE }
@@ -568,18 +596,35 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
   })
   if (pieni.some(x => x === null)) return { ...vuoto, errore: CAMERA_MANCANTE }
   const pienoTotale = pieni.reduce((s, x) => s + x!.pieno, 0)
+  const tratti: TrattoPiano[] = blocchi.map((b, i) => ({
+    cameraId: b.cameraId, camera: b.camera, check_in: b.check_in, check_out: b.check_out,
+    notti: giorniTra(b.check_in, b.check_out).length,
+    aNotte: pieni[i]!.aNotte, letto: pieni[i]!.letto, pienoCent: Math.round(pieni[i]!.pieno * 100),
+  }))
 
   // Il totale concordato resta quello: si divide fra i tratti in proporzione
   // al loro prezzo pieno e l'ultimo prende il resto, così la somma delle righe
   // fa esattamente la cifra pattuita, al centesimo.
-  const percentuale = scontoPercentuale
+  // Con una SCELTA (il foglio di conferma, 17/09/2026) lo sconto salvato non
+  // conta più: vale quello scelto, e senza sconto si scrive null per davvero.
+  let percentuale = scontoPercentuale
   let quotaPerBlocco: number[] | null = null
-  if (scontoConcordato !== null) {
-    if (pienoTotale <= 0 || scontoConcordato >= pienoTotale) return { ...vuoto, errore: SCONTO_DECADUTO }
+  if (scelta) {
+    percentuale = null
+    if (scelta.tipo === 'per_notte') {
+      quotaPerBlocco = tratti.map(t => round2((t.pienoCent - scelta.centANotte * t.notti) / 100))
+      if (scelta.centANotte <= 0 || quotaPerBlocco.some((q, i) => q <= 0 || q >= pieni[i]!.pieno)) return { ...vuoto, tratti, errore: SCONTO_DECADUTO }
+    } else if (scelta.tipo === 'finale') {
+      const concordato = round2(scelta.totaleCent / 100)
+      if (pienoTotale <= 0 || concordato <= 0 || concordato >= pienoTotale) return { ...vuoto, tratti, errore: SCONTO_DECADUTO }
+      quotaPerBlocco = ripartisciConcordato(concordato, pieni.map(x => x!.pieno))
+    }
+  } else if (scontoConcordato !== null) {
+    if (pienoTotale <= 0 || scontoConcordato >= pienoTotale) return { ...vuoto, tratti, errore: SCONTO_DECADUTO }
     quotaPerBlocco = ripartisciConcordato(scontoConcordato, pieni.map(x => x!.pieno))
   }
 
-  const piano: PianoNotti = { aggiorna: [], crea: [], annulla: [], errore: null }
+  const piano: PianoNotti = { aggiorna: [], crea: [], annulla: [], errore: null, tratti }
   blocchi.forEach((b, i) => {
     const dati = pieni[i]!
     const origine = abbina(b, liberi)
@@ -589,7 +634,7 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
       ? { discount_type: 'percentage', discount_value: percentuale }
       : quota !== null
         ? { discount_type: 'target_total', discount_value: quota }
-        : {}
+        : scelta ? { discount_type: null, discount_value: null } : {}
     const conto = contoSoggiorno({
       check_in: b.check_in, check_out: b.check_out,
       price_per_night: dati.aNotte, extra_bed_total: dati.letto,
@@ -651,7 +696,7 @@ function importiDaRiscrivere(origine: SegmentoNotti, campi: CampiTratto): boolea
 /** Il totale pattuito diviso fra i tratti in proporzione al prezzo pieno: le
  *  quote sommano sempre alla cifra concordata, al centesimo. Il resto va al
  *  tratto più caro, che di sicuro lo regge senza superare il proprio pieno. */
-function ripartisciConcordato(concordato: number, pieni: number[]): number[] {
+export function ripartisciConcordato(concordato: number, pieni: number[]): number[] {
   const somma = pieni.reduce((s, p) => s + p, 0)
   const centesimi = Math.round(concordato * 100)
   if (somma <= 0) return pieni.map((_, i) => (i === 0 ? round2(centesimi / 100) : 0))

@@ -14,6 +14,7 @@
 // ============================================================================
 import { messaggioNonSalvato } from './scritturaSicura.ts'
 import { messaggioSovrapposizione } from './erroreSovrapposizione.ts'
+import { rispostaPersa, ERRORE_RISPOSTA_PERSA } from './righeScrittura.ts'
 import type { PianoNotti } from './strisciaNotti.ts'
 
 export const MOTIVO_ANNULLA = 'Camera non più necessaria: notti spostate dalla striscia'
@@ -22,7 +23,13 @@ export const SERVE_LA_0053 =
 
 export type EsitoNotti =
   | { esito: 'ok'; create: { id: string; check_in: string }[] }
-  | { esito: 'errore'; messaggio: string }
+  /** `incerto`: la risposta è andata persa, la scrittura può essere passata lo stesso */
+  | { esito: 'errore'; messaggio: string; incerto?: boolean }
+
+/** Una riga di un'ALTRA linea del soggiorno da riscrivere nello stesso colpo
+ *  (la sua quota del nuovo totale, 17/09/2026): porta solo i campi che cambiano,
+ *  il gruppo resta il suo (la funzione tiene quello che c'è). */
+export type AltraRigaNotti = { id: string; campi: Record<string, unknown> }
 
 export type RigaCreata = { id: string; check_in: string }
 
@@ -46,15 +53,19 @@ export async function salvaNottiInUnColpo(
   gruppo: string,
   comuni: Record<string, unknown>,
   arrivoDi: (checkIn: string) => Record<string, unknown>,
-  chiama: (dati: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>,
+  chiama: (dati: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown; status?: number }>,
+  altre: AltraRigaNotti[] = [],
 ): Promise<EsitoNotti> {
   const dati = {
-    p_aggiorna: piano.aggiorna.map(a => ({ id: a.id, campi: { ...a.campi, group_id: gruppo } })),
+    p_aggiorna: [
+      ...piano.aggiorna.map(a => ({ id: a.id, campi: { ...a.campi, group_id: gruppo } })),
+      ...altre.map(a => ({ id: a.id, campi: { ...a.campi } })),
+    ],
     p_crea: righeDaCreare(piano, { ...comuni, group_id: gruppo }, arrivoDi),
     p_annulla: piano.annulla,
     p_motivo: MOTIVO_ANNULLA,
   }
-  let risposta: { data: unknown; error: unknown }
+  let risposta: { data: unknown; error: unknown; status?: number }
   try {
     risposta = await chiama(dati)
   } catch (err) {
@@ -62,6 +73,9 @@ export async function salvaNottiInUnColpo(
   }
   if (risposta.error) {
     if (manca0053(risposta.error)) return { esito: 'errore', messaggio: SERVE_LA_0053 }
+    // la risposta è andata persa (rete caduta, gateway giù): la transazione può
+    // essere passata lo stesso, la scheda deve rileggere e non fidarsi (17/09/2026)
+    if (rispostaPersa(risposta.error as { message?: string }, risposta.status)) return { esito: 'errore', messaggio: ERRORE_RISPOSTA_PERSA, incerto: true }
     // camera presa o letti finiti: si dice con parole, non col messaggio del database
     const chiaro = messaggioSovrapposizione(risposta.error)
     if (chiaro) return { esito: 'errore', messaggio: chiaro }

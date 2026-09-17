@@ -63,6 +63,8 @@ import FoglioTariffa from '@/components/scheda/FoglioTariffa'
 import FoglioDate from '@/components/scheda/FoglioDate'
 import FoglioCambioCamera from '@/components/scheda/FoglioCambioCamera'
 import FoglioTogliCamera from '@/components/scheda/FoglioTogliCamera'
+import FoglioPrezzoSoggiorno from '@/components/scheda/FoglioPrezzoSoggiorno'
+import { SENZA_SCONTO, serveConfermaPrezzo, type PrezzoDeciso } from '@/lib/soggiornoSconto'
 import { COMANDO_TOGLI_CAMERA, CAMERA_TOLTA, siPuoTogliere, schedaDopo } from '@/lib/togliCamera'
 import { TARIFFE_SALVATE } from '@/lib/tariffaScheda'
 import { COMANDO_AGGIUNGI_CAMERA, ERRORE_SENZA_CAMERE, legameDaScrivere, hrefAggiungiCamera } from '@/lib/aggiungiCamera'
@@ -86,7 +88,7 @@ import { comePagaSalvato } from '@/lib/comePaga'
 import { confermaPagamento, type ConfermaPagamento } from '@/lib/confermaPagamento'
 import { righePerSaldo } from '@/lib/pagamentiDati'
 import { saldoMancanteCent } from '@/lib/statistiche'
-import { pianoNotti, stessaStriscia, ospitiDaQuiInPoi, type ContestoNotti, type NotteStriscia, type CameraStriscia } from '@/lib/strisciaNotti'
+import { pianoNotti, stessaStriscia, ospitiDaQuiInPoi, type ContestoNotti, type NotteStriscia, type CameraStriscia, type TrattoPiano } from '@/lib/strisciaNotti'
 import { ospitiPossibiliNotte } from '@/lib/nuovaPrenotazione'
 import { capienzaCamera } from '@/lib/tariffe'
 import { lineeDelSoggiorno, contestoLinea, contoDopoNotti, testoContoDopo, confermaNotti, conPrezzoConcordato, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, COMANDO_DATE, COMANDO_CAMBIO_CAMERA, type LineaSoggiorno } from '@/lib/lineeSoggiorno'
@@ -195,6 +197,9 @@ export default function SchedaPage() {
   const [cambioAperto, setCambioAperto] = useState<string | null>(null)
   // «Togli camera» di una linea: la chiave della linea da togliere
   const [togliAperto, setTogliAperto] = useState<string | null>(null)
+  // «Il soggiorno si allunga» (17/09/2026): la modifica in attesa che Ania
+  // scelga come aggiornare il prezzo; il foglio di partenza resta sotto
+  const [prezzoDaConfermare, setPrezzoDaConfermare] = useState<{ linea: LineaSoggiorno<Prenotazione>; nuove: NotteStriscia[]; tratti: TrattoPiano[] } | null>(null)
   const [aggiungendo, setAggiungendo] = useState(false)
   const [foglioConLei, setFoglioConLei] = useState(false)
   // appena annullata da qui: la pastiglia in mattone in cima, finché non si va via
@@ -214,6 +219,9 @@ export default function SchedaPage() {
   // la notte aperta nel foglietto: di quale linea (gruppo) e quale giorno
   const [notteAperta, setNotteAperta] = useState<{ linea: string; iso: string } | null>(null)
   const [salvandoNotti, setSalvandoNotti] = useState(false)
+  // il doppio tocco: due tocchi nello stesso istante vedono ancora lo stato
+  // vecchio, il ref no (prova del 17/09/2026: due chiamate alla funzione)
+  const salvataggioNotti = useRef(false)
   const [versione, setVersione] = useState(0)
   // «Caricamento…» solo la prima volta che si apre QUESTA prenotazione: le
   // riletture dopo un salvataggio avvengono in silenzio, sotto la scheda
@@ -359,14 +367,35 @@ export default function SchedaPage() {
   // nel contesto di una linea le altre linee contano come altre prenotazioni
   const contestoAperto = lineaAperta ? contestoLinea(lineaAperta, linee, contesto) : contesto
   // l'effetto sul conto di una bozza di notti, prima di salvare: il piano
-  // letto come lo leggerà la scheda, o il motivo per cui così non si salva
+  // letto come lo leggerà la scheda, o il motivo per cui così non si salva.
+  // Col prezzo finale concordato e notti o prezzo pieno che cambiano il conto
+  // non si anticipa: lo decide il foglio «Il soggiorno si allunga» (17/09/2026),
+  // e un totale concordato che non starebbe più sotto il prezzo pieno non è
+  // un guaio, è proprio il caso in cui il foglio chiede come fare.
   const contoDellaBozza = (linea: LineaSoggiorno<Prenotazione>, bozza: NotteStriscia[]) => {
     const ctx = contestoLinea(linea, linee, contesto)
+    const senza = pianoNotti(bozza, linea.segmenti, ctx, SENZA_SCONTO)
+    if (senza.errore) return { testo: senza.errore, guaio: true }
+    if (serveConfermaPrezzo(linea.segmenti, attive, senza)) return null
     const piano = pianoNotti(bozza, linea.segmenti, ctx)
     if (piano.errore) return { testo: piano.errore, guaio: true }
     const c = contoDopoNotti(piano, linea, attive)
     return c ? { testo: testoContoDopo(c), guaio: false } : null
   }
+  // «Salva» / «Fatto» su un foglio del soggiorno: se la prenotazione ha un
+  // prezzo finale concordato e la modifica cambia notti o prezzo pieno, prima
+  // si apre il foglio del prezzo (il foglio di partenza resta sotto, con la
+  // bozza); altrimenti si chiude e si salva subito come sempre.
+  const chiediPrezzoOSalva = (linea: LineaSoggiorno<Prenotazione>, nuove: NotteStriscia[], chiudi: () => void) => {
+    if (!booking || salvandoNotti) return
+    if (stessaStriscia(linea.notti, nuove)) { chiudi(); return }
+    const senza = pianoNotti(nuove, linea.segmenti, contestoLinea(linea, linee, contesto), SENZA_SCONTO)
+    if (senza.errore) { chiudi(); setAvviso(senza.errore); return }
+    if (serveConfermaPrezzo(linea.segmenti, attive, senza)) { setPrezzoDaConfermare({ linea, nuove, tratti: senza.tratti }); return }
+    chiudi()
+    void salvaNotti(linea, nuove)
+  }
+  const chiudiFogliSoggiorno = () => { setPrezzoDaConfermare(null); setNotteAperta(null); setDateAperte(null); setCambioAperto(null) }
   // «Aggiungi camera»: prima il legame fra le camere (prenotazione_id) se
   // manca, poi l'inserimento nuovo con la stessa cliente e le stesse date
   async function aggiungiCamera() {
@@ -389,12 +418,14 @@ export default function SchedaPage() {
   // conto si rifà da solo. Una riga che resta senza notti si ANNULLA, non si
   // cancella: l'incasso già registrato deve restare nel conto.
   // Si salva UNA linea per volta: il piano si fa sui suoi tratti soltanto,
-  // le altre linee del soggiorno non si toccano (17/09/2026).
-  async function salvaNotti(linea: LineaSoggiorno<Prenotazione>, nuove: NotteStriscia[]) {
-    setNotteAperta(null)
-    if (!booking || salvandoNotti || stessaStriscia(linea.notti, nuove)) return
-    const piano = pianoNotti(nuove, linea.segmenti, contestoLinea(linea, linee, contesto))
-    if (piano.errore) { setAvviso(piano.errore); return }
+  // le altre linee del soggiorno non si toccano (17/09/2026) — salvo la loro
+  // quota di un nuovo totale deciso nel foglio del prezzo (`prezzo.altre`),
+  // che viaggia nello stesso colpo: soggiorno e prezzo si salvano insieme.
+  async function salvaNotti(linea: LineaSoggiorno<Prenotazione>, nuove: NotteStriscia[], prezzo?: PrezzoDeciso) {
+    if (!booking || salvandoNotti || salvataggioNotti.current || stessaStriscia(linea.notti, nuove)) return
+    const piano = pianoNotti(nuove, linea.segmenti, contestoLinea(linea, linee, contesto), prezzo?.scelta)
+    if (piano.errore) { chiudiFogliSoggiorno(); setAvviso(piano.errore); return }
+    salvataggioNotti.current = true
     setSalvandoNotti(true)
     setAvviso(null)
     // Tutti i tratti di una linea stanno nello stesso gruppo: se non c'è
@@ -418,9 +449,15 @@ export default function SchedaPage() {
       ? { check_in_time: primoSegmento?.check_in_time ?? null, shuttle: primoSegmento?.shuttle ?? null }
       : {})
     const esito = await salvaNottiInUnColpo(piano, gruppo, comuni, arrivoDi,
-      (dati: Record<string, unknown>) => supabase.rpc('sposta_notti', dati))
+      (dati: Record<string, unknown>) => supabase.rpc('sposta_notti', dati), prezzo?.altre ?? [])
+    salvataggioNotti.current = false
     setSalvandoNotti(false)
-    if (esito.esito === 'errore') { setAvviso(esito.messaggio); setVersione(v => v + 1); return }
+    chiudiFogliSoggiorno()
+    if (esito.esito === 'errore') {
+      // risposta persa: la transazione può essere passata, la scheda rilegge e intanto non si fida del conto
+      if (esito.incerto) { invalida(esito.messaggio); return }
+      setAvviso(esito.messaggio); setVersione(v => v + 1); return
+    }
     // Se la riga aperta è stata annullata, la scheda passa alla prima rimasta
     // (di questa linea o delle altre)
     if (piano.annulla.includes(booking.id)) {
@@ -430,13 +467,14 @@ export default function SchedaPage() {
       if (rimaste[0]) { router.replace(`/scheda/${rimaste[0].id}`); return }
     }
     // il pop-up grande (Ania, 17/09/2026): il conto com'è adesso e, con un
-    // prezzo finale concordato e notti diverse, «rivedi lo sconto»
+    // prezzo finale concordato e notti diverse, «rivedi lo sconto» — ma se il
+    // prezzo è stato deciso nel foglio non c'è niente da rivedere
     const dopo = contoDopoNotti(piano, linea, attive)
     const esitoConferma = confermaNotti({
-      totaleCent: dopo?.dopoCent ?? conto?.totaleCent ?? 0,
+      totaleCent: prezzo ? prezzo.totaleCent : (dopo?.dopoCent ?? conto?.totaleCent ?? 0),
       nottiPrima: linea.notti.filter(n => n.dentro).length,
       nottiDopo: nuove.filter(n => n.dentro).length,
-      concordato: conPrezzoConcordato(linea.segmenti),
+      concordato: !prezzo && conPrezzoConcordato(linea.segmenti),
     })
     // resta finché non si tocca «Ok, ho capito» (Ania, 17/09/2026)
     setConferma(c => ({ n: (c?.n ?? 0) + 1, righe: esitoConferma.righe, durata: esitoConferma.durata, conOk: true }))
@@ -680,7 +718,7 @@ export default function SchedaPage() {
             return ospitiPossibiliNotte(camera, capienzaCamera(camera))
           }}
           contoDopo={(bozza, daQui) => contoDellaBozza(lineaAperta, conDaQui(bozza, daQui))}
-          onFatto={(nuove, daQui) => salvaNotti(lineaAperta, conDaQui(nuove, daQui))} onChiudi={() => setNotteAperta(null)} />
+          onFatto={(nuove, daQui) => chiediPrezzoOSalva(lineaAperta, conDaQui(nuove, daQui), () => setNotteAperta(null))} onChiudi={() => setNotteAperta(null)} />
       )}
 
       {foglioArrivo && primoSegmento && (
@@ -752,15 +790,23 @@ export default function SchedaPage() {
         <FoglioCambioCamera notti={lineaCambio.notti} contesto={contestoLinea(lineaCambio, linee, contesto)}
           sottotitolo={linee.length > 1 ? lineaCambio.titolo : undefined}
           contoDopo={bozza => contoDellaBozza(lineaCambio, bozza)}
-          onFatto={nuove => { setCambioAperto(null); void salvaNotti(lineaCambio, nuove) }}
+          onFatto={nuove => chiediPrezzoOSalva(lineaCambio, nuove, () => setCambioAperto(null))}
           onChiudi={() => setCambioAperto(null)} />
       )}
       {dateAperte && lineaDate && (
         <FoglioDate notti={lineaDate.notti} contesto={contestoLinea(lineaDate, linee, contesto)}
           sottotitolo={linee.length > 1 ? lineaDate.titolo : undefined}
           contoDopo={bozza => contoDellaBozza(lineaDate, bozza)}
-          onFatto={nuove => { setDateAperte(null); void salvaNotti(lineaDate, nuove) }}
+          onFatto={nuove => chiediPrezzoOSalva(lineaDate, nuove, () => setDateAperte(null))}
           onChiudi={() => setDateAperte(null)} />
+      )}
+      {/* sopra il foglio di partenza, che resta sotto con la bozza: niente si
+          scrive finché non si tocca «Conferma soggiorno» (17/09/2026) */}
+      {prezzoDaConfermare && conto && (
+        <FoglioPrezzoSoggiorno segmenti={prezzoDaConfermare.linea.segmenti} tutti={righe} tratti={prezzoDaConfermare.tratti}
+          ricevutiCent={conto.ricevutiCent} salvando={salvandoNotti}
+          onTorna={() => setPrezzoDaConfermare(null)}
+          onConferma={prezzo => { void salvaNotti(prezzoDaConfermare.linea, prezzoDaConfermare.nuove, prezzo) }} />
       )}
       {foglioTariffe && conto && (
         <FoglioTariffa righe={righe}

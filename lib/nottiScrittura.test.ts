@@ -10,6 +10,7 @@ const piano = (): PianoNotti => ({
   crea: [{ room_id: 'ambra', check_in: '2026-10-03', check_out: '2026-10-05', num_guests: 2, extra_bed: false, extra_bed_dates: [], price_per_night: 80, extra_bed_total: 0, total_amount: 160 }],
   annulla: ['vecchia'],
   errore: null,
+  tratti: [],
 })
 const comuni = { guest_id: 'anna', status: 'confermata', bonifico: false }
 const arrivoDi = (checkIn: string) => (checkIn === '2026-10-01' ? { check_in_time: '15:00' } : {})
@@ -59,6 +60,35 @@ test('un errore della transazione non lascia niente a metà', async () => {
   assert.equal(esito.esito, 'errore')
   // il messaggio del database arriva fino ad Ania
   assert.match(esito.esito === 'errore' ? esito.messaggio : '', /appena state prese|Non salvato/)
+})
+
+test('le camere delle altre linee viaggiano nello stesso colpo, col loro gruppo (il foglio del prezzo, 17/09/2026)', async () => {
+  const visti: Record<string, unknown>[] = []
+  const esito = await salvaNottiInUnColpo(piano(), 'gruppo-1', comuni, arrivoDi, async dati => {
+    visti.push(dati)
+    return { data: { aggiornate: 2, create: [], annullate: 1 }, error: null }
+  }, [{ id: 'sorella', campi: { discount_type: 'target_total', discount_value: 177.27, total_amount: 177.27 } }])
+  assert.equal(esito.esito, 'ok')
+  const aggiorna = visti[0].p_aggiorna as { id: string; campi: Record<string, unknown> }[]
+  assert.deepEqual(aggiorna.map(a => a.id), ['a', 'sorella'])
+  assert.equal(aggiorna[0].campi.group_id, 'gruppo-1')
+  // la riga dell'altra linea NON prende il gruppo di questa: la funzione tiene il suo
+  assert.equal('group_id' in aggiorna[1].campi, false)
+  assert.deepEqual(aggiorna[1].campi, { discount_type: 'target_total', discount_value: 177.27, total_amount: 177.27 })
+})
+
+test('la risposta persa è un esito INCERTO: la scheda rilegge invece di dire «non salvato»', async () => {
+  const esito = await salvaNottiInUnColpo(piano(), 'g', comuni, arrivoDi, async () => ({
+    data: null, error: { message: 'TypeError: Failed to fetch' }, status: 0,
+  }))
+  assert.equal(esito.esito, 'errore')
+  assert.equal(esito.esito === 'errore' && esito.incerto, true)
+  assert.match(esito.esito === 'errore' ? esito.messaggio : '', /Non so se è stato salvato/)
+  // un errore vero del database resta certo: niente è stato scritto
+  const certo = await salvaNottiInUnColpo(piano(), 'g', comuni, arrivoDi, async () => ({
+    data: null, error: { code: 'P0001', message: 'il tratto x non c\'è più' }, status: 400,
+  }))
+  assert.equal(certo.esito === 'errore' && Boolean(certo.incerto), false)
 })
 
 test('anche un’eccezione è un errore, non un salvataggio riuscito', async () => {
