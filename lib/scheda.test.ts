@@ -223,8 +223,8 @@ test('«Modifica soggiorno» non c’è più: restano «Modifica arrivo» e «Ar
   assert.equal(/hrefSoggiorno/.test(pagina), false)
   assert.match(soggiorno, />Modifica arrivo</)
   assert.match(soggiorno, /\{arriviAperti \? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'\}/)
-  // i tratti di camera sotto la striscia restano come sono
-  assert.match(pagina, /<TrattiCameraScheda tratti=\{tratti\}/)
+  // i tratti di camera sotto la striscia non ci sono più: li ripete il conto (Ania, 17/09/2026)
+  assert.equal(/<TrattiCameraScheda/.test(pagina), false, 'i tratti di camera sono ancora nella scheda')
 })
 
 test('il salvataggio delle notti: si annulla, non si cancella, e il conto si rifà da solo', () => {
@@ -441,9 +441,9 @@ test('le altre prenotazioni si leggono anche un mese intorno al soggiorno: «Cam
 
 test('l’ordine: Da controllare, poi la parte «Arrivo» (riga e «Modifica arrivo · Arrivi precedenti»), poi il Soggiorno con strisce e tratti (Ania, 17/09/2026)', () => {
   const controllare = pagina.indexOf('id="controllare"'), arrivo = pagina.indexOf('id="arrivo"'), soggiorno = pagina.indexOf('id="soggiorno"')
-  const riga = pagina.indexOf('<RigaArrivo arrivo='), link = pagina.indexOf('<LinkSoggiorno'), striscia = pagina.indexOf('<StrisciaNottiCamere'), tratti = pagina.indexOf('<TrattiCameraScheda')
-  assert.ok(controllare > 0 && controllare < arrivo && arrivo < riga && riga < link && link < soggiorno && soggiorno < striscia && striscia < tratti,
-    `ordine sbagliato: controllare ${controllare}, arrivo ${arrivo}, riga ${riga}, link ${link}, soggiorno ${soggiorno}, striscia ${striscia}, tratti ${tratti}`)
+  const riga = pagina.indexOf('<RigaArrivo arrivo='), link = pagina.indexOf('<LinkSoggiorno'), striscia = pagina.indexOf('<StrisciaNottiCamere')
+  assert.ok(controllare > 0 && controllare < arrivo && arrivo < riga && riga < link && link < soggiorno && soggiorno < striscia,
+    `ordine sbagliato: controllare ${controllare}, arrivo ${arrivo}, riga ${riga}, link ${link}, soggiorno ${soggiorno}, striscia ${striscia}`)
   // sotto il titolo «Arrivo» la riga non ripete la parolina
   assert.match(pagina, /<RigaArrivo arrivo=\{arrivoTesto\} etichetta=\{false\}/)
   assert.match(leggi('components/scheda/SoggiornoScheda.tsx'), /\{etichetta && <span style=\{\{ fontSize: 14, color: 'var\(--color-stone\)' \}\}>Arrivo<\/span>\}/)

@@ -33,7 +33,6 @@
 // li tiene identici a quelli della scheda attuale (test di confronto).
 // ============================================================================
 import { useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
 import TestaCliente from '@/components/TestaCliente'
@@ -48,7 +47,7 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import { RigaDocumentiPrenotazione } from '@/components/DocumentiCliente'
 import StrisciaNottiCamere from '@/components/StrisciaNottiCamere'
 import FoglioNotte from '@/components/FoglioNotte'
-import { RigaArrivo, TrattiCameraScheda, LinkSoggiorno } from '@/components/scheda/SoggiornoScheda'
+import { RigaArrivo, LinkSoggiorno } from '@/components/scheda/SoggiornoScheda'
 import ArriviPrecedenti from '@/components/scheda/ArriviPrecedenti'
 import FoglioArrivo from '@/components/scheda/FoglioArrivo'
 import FoglioProvenienza from '@/components/scheda/FoglioProvenienza'
@@ -77,7 +76,7 @@ import { supabase } from '@/lib/supabase'
 import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiavePrenotazione, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import {
   SEZIONI_SCHEDA, TUTTO_A_POSTO, statoScheda, primaRigaScheda, etichettaArrivoScheda, rigaGrandeScheda, statoConto, noteScheda,
-  arrivoScheda, trattiCamera, daControllareScheda, segmentiAttivi, euroScheda, type SegmentoScheda,
+  arrivoScheda, daControllareScheda, segmentiAttivi, euroScheda, type SegmentoScheda,
   PRENOTAZIONE_SALVATA, PRENOTAZIONE_DA_RICHIESTA, FONDO_SALVATA, FONDO_ANNULLATA, TESTO_ANNULLATA,
 } from '@/lib/schedaPrenotazione'
 import { comePagaSalvato } from '@/lib/comePaga'
@@ -302,7 +301,6 @@ export default function SchedaPage() {
   const attive = useMemo(() => segmentiAttivi(righe), [righe])
   const primoArrivo = attive[0]?.check_in ?? booking?.check_in ?? ''
   const ultimaPartenza = attive.reduce((m, s) => (s.check_out > m ? s.check_out : m), booking?.check_out ?? '')
-  const tratti = useMemo(() => trattiCamera(attive), [attive])
   const grande = useMemo(() => rigaGrandeScheda(attive), [attive])
   // Il conto: contoPrenotazione di lib/prenotazioneUnica, come la scheda attuale
   const conto = useMemo(() => {
@@ -599,7 +597,8 @@ export default function SchedaPage() {
             {CAMERE_NON_LETTE}
           </p>
         )}
-        <TrattiCameraScheda tratti={tratti} className="mt-3" />
+        {/* niente righe dei tratti («Allegra · 29 → 30 · … · 85 €»): il conto,
+            subito sotto, dice già le stesse cose (Ania, 17/09/2026) */}
       </section>
 
       {/* ── Conto ─────────────────────────────────────────────────────────── */}
