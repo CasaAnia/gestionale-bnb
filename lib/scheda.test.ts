@@ -172,7 +172,7 @@ test('la striscia delle notti è quella nuova, e da lì si cambia la camera', ()
   // una striscia per linea (lib/lineeSoggiorno, 17/09/2026): il cambio camera in
   // fila è una linea, le camere in parallelo sono linee diverse
   assert.match(pagina, /const linee = useMemo\(\(\) => lineeDelSoggiorno\(attive\), \[attive\]\)/)
-  assert.match(pagina, /\{linee\.map\(\(l, i\) => \([\s\S]{0,400}<StrisciaNottiCamere notti=\{l\.notti\} oggi=\{oggi\}/)
+  assert.match(pagina, /\{linee\.map\(\(l, i\) => \([\s\S]{0,600}<StrisciaNottiCamere notti=\{l\.notti\} oggi=\{oggi\}/)
   // toccando una notte si apre il foglietto QUI, non più il foglio della scheda vecchia
   assert.match(pagina, /setNotteAperta\(\{ linea: l\.chiave, iso: n\.iso \}\)/)
   assert.match(pagina, /<FoglioNotte notti=\{lineaAperta\.notti\} iso=\{notteAperta\.iso\} contesto=\{contestoAperto\}/)
@@ -405,4 +405,10 @@ test('quanto ha già speso la cliente, in cima: nello stesso rosso acceso di «d
   assert.match(testa, /const ROSSO_SPESO = '#D40000'/)
   assert.equal((testa.match(/data-totale-cliente[^\n]*color: ROSSO_SPESO/g) ?? []).length, 2)
   assert.match(leggi('components/scheda/ContoScheda.tsx'), /export const ROSSO_CONTO = '#D40000'/)
+})
+
+test('la striscia della scheda mostra le persone sotto ogni notte, e il letto acceso si vede (verde pieno)', () => {
+  assert.match(pagina, /<StrisciaNottiCamere notti=\{l\.notti\} oggi=\{oggi\} spiegazione=\{i === 0\}\n\s+ospitiAttesi=\{Math\.max\(1, \.\.\.l\.segmenti\.map\(s => Number\(s\.num_guests\) \|\| 1\)\)\}/)
+  assert.match(striscia, /background: n\.letto \? 'var\(--color-green-mid\)' : '#fff'/)
+  assert.match(striscia, /color: n\.letto \? 'var\(--color-cream\)' : '#C4C0B6'/)
 })

@@ -283,8 +283,9 @@ test('le tinte delle camere e i due casi speciali', () => {
 test('camera sopra e letto sotto, attaccati: 8 px in alto e 8 px in basso', () => {
   assert.match(striscia, /borderRadius: '8px 8px 0 0'[^}]*fontSize: 11, lineHeight: '14px', fontWeight: 600/)
   assert.match(striscia, /borderRadius: '0 0 8px 8px', height: 18/)
-  assert.match(striscia, /background: n\.letto \? 'var\(--color-sage\)' : '#fff'/)
-  assert.match(striscia, /color: n\.letto \? 'var\(--color-green-mid\)' : '#C4C0B6'/)
+  // acceso = verde pieno col lettino chiaro, si vede a colpo d'occhio (Ania, 17/09/2026)
+  assert.match(striscia, /background: n\.letto \? 'var\(--color-green-mid\)' : '#fff'/)
+  assert.match(striscia, /color: n\.letto \? 'var\(--color-cream\)' : '#C4C0B6'/)
   // il segno del cambio sta FRA le due colonnine
   assert.match(striscia, /data-segno-cambio[\s\S]*left: -SPAZIO_COLONNINE \/ 2/)
   assert.match(striscia, /color: OTTONE[^}]*\}}>⇄</)

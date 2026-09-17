@@ -98,14 +98,15 @@ export default function StrisciaNottiCamere({ notti, oggi, onNotte, scelta, ospi
                 }}>{fuori ? TESTO_LIBERA : senzaCamera ? '?' : n.camera}</span>
                 <span data-letto-notte data-acceso={n.letto || undefined} className="flex items-center justify-center" style={{
                   borderRadius: '0 0 8px 8px', height: 18,
-                  background: n.letto ? 'var(--color-sage)' : '#fff',
+                  // acceso = verde pieno con il lettino chiaro: si deve vedere a colpo d'occhio (Ania, 17/09/2026)
+                  background: n.letto ? 'var(--color-green-mid)' : '#fff',
                   borderTop: 'none',
                   borderRight: segnata ? `1.5px solid ${OTTONE}` : '1px solid var(--color-card-border)',
                   borderBottom: segnata ? `1.5px solid ${OTTONE}` : '1px solid var(--color-card-border)',
                   borderLeft: segnata ? `1.5px solid ${OTTONE}` : '1px solid var(--color-card-border)',
                 }}>
                   {/* niente letto dove non c'è una camera: la casella resta vuota */}
-                  {n.camera && <Bed size={12} strokeWidth={2} aria-hidden style={{ color: n.letto ? 'var(--color-green-mid)' : '#C4C0B6' }} />}
+                  {n.camera && <Bed size={12} strokeWidth={2.25} aria-hidden style={{ color: n.letto ? 'var(--color-cream)' : '#C4C0B6' }} />}
                 </span>
                 {/* e nemmeno il numero degli ospiti: si vede solo dove c'è una camera */}
                 {ospitiAttesi != null && (
