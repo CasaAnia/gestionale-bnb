@@ -18,7 +18,7 @@
 -- Le notti si contano come [arrivo, partenza): chi parte il 12 e chi
 -- arriva il 12 NON si sovrappongono, ed è giusto così.
 --
--- Le righe annullate non occupano: il vincolo le esclude.
+-- Le righe annullate e quelle «in attesa» non occupano: il vincolo le esclude.
 --
 -- PRIMA DI APPLICARE — guarda se ci sono già sovrapposizioni, altrimenti
 -- il vincolo non si crea e l'errore non dice quali sono:
@@ -28,7 +28,7 @@
 --     join public.bookings b
 --       on a.room_id = b.room_id
 --      and a.id < b.id
---      and a.status <> 'annullata' and b.status <> 'annullata'
+--      and a.status in ('confermata', 'completata') and b.status in ('confermata', 'completata')
 --      and daterange(a.check_in, a.check_out, '[)') && daterange(b.check_in, b.check_out, '[)')
 --    order by a.check_in;
 --
@@ -54,7 +54,10 @@ alter table public.bookings
     room_id with =,
     daterange(check_in, check_out, '[)') with &&
   )
-  where (status <> 'annullata')
+  -- contano solo le prenotazioni che OCCUPANO davvero (confermate e
+  -- completate), come fa il gestionale (STATI_CHE_OCCUPANO di
+  -- lib/disponibilita): una riga «in attesa» non blocca (17/09/2026)
+  where (status in ('confermata', 'completata'))
   deferrable initially immediate;
 
 comment on constraint bookings_camera_non_due_volte on public.bookings is
