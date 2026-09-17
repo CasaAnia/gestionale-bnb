@@ -157,3 +157,22 @@ test('allungando su una notte in cui la camera è presa, la notte resta senza ca
   assert.deepEqual([nuova.iso, nuova.cameraId, nuova.motivo], ['2026-11-06', null, 'Amelia è occupata'])
   assert.notEqual(pianoNotti(lunghe, B.segmenti, ctxB).errore, null)
 })
+
+test('due tratti dello stesso gruppo che si sovrappongono (prenotazioni vecchie) sono due linee: «A» e «A#2»', () => {
+  // Ambra e Allegra nelle stesse notti, stesso group_id, come Alessandro Pagano in produzione (17/09/2026)
+  const ambra = riga('p1', AMBRA, '2027-01-14', '2027-01-16', { group_id: 'G' })
+  const allegra = riga('p2', { id: 'allegra', name: 'Allegra', base_price: 80, has_extra_bed: true, extra_bed_price: 10 } as unknown as CameraStriscia, '2027-01-14', '2027-01-16', { group_id: 'G' })
+  const linee = lineeDelSoggiorno([ambra, allegra])
+  assert.deepEqual(linee.map(l => [l.chiave, l.segmenti.map(s => s.id)]), [['G', ['p1']], ['G#2', ['p2']]])
+  assert.equal(linee[0].notti.every(n => !n.parallela && n.cameraId === 'ambra'), true)
+  assert.deepEqual(linee.map(l => l.titolo), ['Ambra · 14 → 16 gen', 'Allegra · 14 → 16 gen'])
+  // dal contesto della prima, Allegra è presa; il conto dopo un piano vuoto resta lo stesso
+  const ctx = contestoLinea(linee[0], linee, { camere: [...camere, allegra.rooms], altre: [], ospiti: 2 })
+  assert.equal(camereDellaNotte('2027-01-14', ctx).some(c => c.id === 'allegra'), false)
+  const piano = pianoNotti(linee[0].notti, linee[0].segmenti, ctx)
+  assert.equal(piano.errore, null)
+  assert.deepEqual(contoDopoNotti(piano, linee[0], [ambra, allegra]), { primaCent: 30000, dopoCent: 30000 })
+  // in fila (uno finisce dove comincia l'altro) restano una linea sola
+  const inFila = lineeDelSoggiorno([leiLena, leiAmbra])
+  assert.deepEqual(inFila.map(l => l.chiave), ['A'])
+})

@@ -58,16 +58,26 @@ export function titoloLinea(segmenti: SegmentoLinea[]): string {
 const periodoConMese = (dal: string, al: string) =>
   (dal.slice(0, 7) === al.slice(0, 7) ? `${periodoTratto(dal, al)} ${MESI_BREVI[Number(al.slice(5, 7)) - 1]}` : periodoTratto(dal, al))
 
-/** Le linee del soggiorno, dalla prima che arriva; i tratti annullati non contano. */
+/** Le linee del soggiorno, dalla prima che arriva; i tratti annullati non contano.
+ *  Dentro un gruppo i tratti in FILA (uno finisce dove comincia l'altro) sono
+ *  una linea; due tratti dello stesso gruppo che si SOVRAPPONGONO (le
+ *  prenotazioni vecchie mettevano le camere in parallelo nello stesso gruppo,
+ *  visto in produzione il 17/09/2026) sono linee diverse: «A» e «A#2». */
 export function lineeDelSoggiorno<T extends SegmentoLinea>(segmenti: T[]): LineaSoggiorno<T>[] {
-  const per = new Map<string, T[]>()
+  const linee: { chiave: string; gruppo: string; segmenti: T[]; fine: string }[] = []
   for (const s of attivi(segmenti)) {
-    const k = chiaveLinea(s)
-    if (!per.has(k)) per.set(k, [])
-    per.get(k)!.push(s)
+    const gruppo = chiaveLinea(s)
+    const libera = linee.find(l => l.gruppo === gruppo && l.fine <= s.check_in)
+    if (libera) {
+      libera.segmenti.push(s)
+      if (s.check_out > libera.fine) libera.fine = s.check_out
+      continue
+    }
+    const quante = linee.filter(l => l.gruppo === gruppo).length
+    linee.push({ chiave: quante === 0 ? gruppo : `${gruppo}#${quante + 1}`, gruppo, segmenti: [s], fine: s.check_out })
   }
-  return [...per.entries()]
-    .map(([chiave, righe]) => ({ chiave, segmenti: righe, notti: nottiDaSegmenti(righe), titolo: titoloLinea(righe) }))
+  return linee
+    .map(l => ({ chiave: l.chiave, segmenti: l.segmenti, notti: nottiDaSegmenti(l.segmenti), titolo: titoloLinea(l.segmenti) }))
     .sort((a, z) => a.segmenti[0].check_in.localeCompare(z.segmenti[0].check_in) || a.chiave.localeCompare(z.chiave))
 }
 
@@ -98,7 +108,8 @@ export function contoDopoNotti<T extends SegmentoLinea>(piano: PianoNotti, linea
   const cent = (v: unknown) => Math.round((Number(v) || 0) * 100)
   const vivi = attivi(tutti)
   const primaCent = vivi.reduce((s, r) => s + cent(r.total_amount), 0)
-  const altre = vivi.filter(r => chiaveLinea(r) !== linea.chiave).reduce((s, r) => s + cent(r.total_amount), 0)
+  const dellaLineaIds = new Set(linea.segmenti.map(s => s.id))
+  const altre = vivi.filter(r => !dellaLineaIds.has(r.id)).reduce((s, r) => s + cent(r.total_amount), 0)
   const aggiornati = new Map(piano.aggiorna.map(a => [a.id, a.campi.total_amount]))
   const dellaLinea = linea.segmenti.reduce((s, r) => {
     if (piano.annulla.includes(r.id)) return s
