@@ -141,9 +141,17 @@ test('da controllare: due cose (cambio camera oggi, documento mancante) e niente
   assert.equal(due[0].titolo, 'Oggi passa da Lena a Amelia')
   assert.equal(due[1].titolo, 'Nessun documento caricato')
   assert.deepEqual(due[1].link, { testo: 'Aggiungi documento', href: '/clienti/g1#documenti' })
+  assert.equal(due[1].dettaglio, 'la cliente è in casa: manca la foto del documento')
   // pagata, con il documento e senza cambi vicini: niente
   const niente = daControllareScheda({ segmenti: [seg('a', LENA, '2026-09-20', '2026-09-22')], altre: [], pagamenti: [], oggi: OGGI, documenti: 2, hrefDocumenti: null })
   assert.deepEqual(niente, [])
+  // senza documento anche PRIMA dell'arrivo (Ania, 17/09/2026): si vede, con «da chiedere all'arrivo»
+  const futura = daControllareScheda({ segmenti: [seg('a', LENA, '2026-09-20', '2026-09-22')], altre: [], pagamenti: [], oggi: OGGI, documenti: 0, hrefDocumenti: '/clienti/g1#documenti' })
+  assert.deepEqual(futura.map(v => v.etichetta), ['Documento'])
+  assert.equal(futura[0].dettaglio, 'manca la foto del documento: da chiedere all’arrivo')
+  // soggiorno finito: niente, anche senza documento
+  const finita = daControllareScheda({ segmenti: [seg('a', LENA, '2026-09-01', '2026-09-03')], altre: [], pagamenti: [{ booking_id: 'a', amount: 160, paid_on: '2026-09-01' }], oggi: OGGI, documenti: 0, hrefDocumenti: null })
+  assert.equal(finita.some(v => v.etichetta === 'Documento'), false)
 })
 
 test('da controllare: le regole della Home filtrate su questa prenotazione', () => {

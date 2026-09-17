@@ -262,7 +262,7 @@ export function trattiCamera(segmenti: SegmentoScheda[]): TrattoCamera[] {
 // Le regole sono quelle della Home (lib/daControllare): pagamenti, arrivo
 // senza orario, sovrapposizioni. In più due cose che si vedono solo da qui:
 //  · CAMBIO CAMERA — oggi o domani la cliente cambia camera;
-//  · DOCUMENTO — è in casa e non ha ancora un documento caricato.
+//  · DOCUMENTO — non ha ancora un documento caricato (in casa o prima dell'arrivo).
 // Le voci hanno la forma delle schedine della proposta (VoceControllo).
 export type DatiControlloScheda = {
   segmenti: SegmentoScheda[]        // i tratti di questa prenotazione
@@ -319,15 +319,18 @@ export function daControllareScheda(d: DatiControlloScheda): VoceControllo[] {
   // Pagamenti: solo i tratti di questa prenotazione
   out.push(...eccezioniPagamenti(miei, d.pagamenti, d.oggi).map(daEccezione))
 
-  // Documento: in casa, e nessun documento caricato
+  // Documento: nessun documento caricato, finché il soggiorno non è finito
+  // (Ania, 17/09/2026: prima solo con la cliente in casa; se manca, lo si
+  // vuole vedere anche prima dell'arrivo)
   const arrivo = attivi[0].check_in
   const partenza = attivi.reduce((m, s) => (s.check_out > m ? s.check_out : m), attivi[0].check_out)
-  if (d.documenti === 0 && arrivo <= d.oggi && partenza > d.oggi) {
+  if (d.documenti === 0 && partenza > d.oggi) {
+    const inCasa = arrivo <= d.oggi
     out.push({
       chiave: 'documento',
       etichetta: 'Documento',
       titolo: 'Nessun documento caricato',
-      dettaglio: 'la cliente è in casa: manca la foto del documento',
+      dettaglio: inCasa ? 'la cliente è in casa: manca la foto del documento' : 'manca la foto del documento: da chiedere all’arrivo',
       link: d.hrefDocumenti ? { testo: 'Aggiungi documento', href: d.hrefDocumenti } : null,
     })
   }
