@@ -16,22 +16,27 @@ import type { ConfermaPagamento } from '@/lib/confermaPagamento'
 
 export const DURATA_CONFERMA = 3200
 const USCITA = 160
+// Con «conOk» il riquadro NON se ne va da solo: resta finché non si tocca
+// «Ok, ho capito» (Ania, 17/09/2026: «non ho fatto in tempo a leggerlo»).
+export const TESTO_OK = 'Ok, ho capito'
 
-export default function ConfermaVolante({ righe, onChiudi, durata = DURATA_CONFERMA }: { righe: ConfermaPagamento; onChiudi: () => void; durata?: number }) {
+export default function ConfermaVolante({ righe, onChiudi, durata = DURATA_CONFERMA, conOk = false }: { righe: ConfermaPagamento; onChiudi: () => void; durata?: number; conOk?: boolean }) {
   // Una conferma nuova rimonta il componente (il chiamante passa una `key`):
   // lo stato riparte da solo, senza toccarlo dentro l'effetto.
   const [uscita, setUscita] = useState(false)
   const chiudi = useRef(onChiudi)
   useEffect(() => { chiudi.current = onChiudi }, [onChiudi])
   useEffect(() => {
+    if (conOk) return   // resta finché non si tocca «Ok, ho capito»
     const via = window.setTimeout(() => setUscita(true), Math.max(0, durata - USCITA))
     const fine = window.setTimeout(() => chiudi.current(), durata)
     return () => { window.clearTimeout(via); window.clearTimeout(fine) }
-  }, [durata])
+  }, [durata, conOk])
+  const viaConOk = () => { setUscita(true); window.setTimeout(() => chiudi.current(), USCITA) }
   return (
     // Il padding in basso alza il riquadro di circa mezzo pollice sopra la metà
     <div className="fixed inset-0 z-[60] flex items-center justify-center px-6 pb-[16vh] pointer-events-none" data-conferma-volante>
-      <button type="button" role="status" aria-live="polite" onClick={() => chiudi.current()}
+      <button type="button" role="status" aria-live="polite" onClick={() => { if (!conOk) chiudi.current() }}
         className={`pointer-events-auto w-full max-w-[320px] min-h-[135px] rounded-3xl px-6 py-5 flex flex-col items-center justify-center gap-1.5 text-center ${uscita ? 'conferma-out' : 'conferma-in'}`}
         style={{
           background: 'var(--color-sage)', color: 'var(--color-green-dark)',
@@ -42,6 +47,11 @@ export default function ConfermaVolante({ righe, onChiudi, durata = DURATA_CONFE
         <span aria-hidden className="text-2xl leading-none" style={{ color: 'var(--color-green-mid)' }}>✓</span>
         <span className="text-[17px] font-semibold leading-snug">{righe.prima}</span>
         <span className="text-[15px] leading-snug" style={{ color: 'var(--color-green-mid)' }}>{righe.seconda}</span>
+        {conOk && (
+          <span role="button" tabIndex={0} data-conferma-ok onClick={e => { e.stopPropagation(); viaConOk() }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); viaConOk() } }}
+            className="mt-2 inline-flex items-center justify-center"
+            style={{ minHeight: 40, padding: '0 22px', borderRadius: 999, background: 'var(--color-green-mid)', color: 'var(--color-cream)', fontSize: 14, fontWeight: 600 }}>{TESTO_OK}</span>
+        )}
       </button>
     </div>
   )

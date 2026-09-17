@@ -194,7 +194,7 @@ export default function SchedaPage() {
   // appena annullata da qui: la pastiglia in mattone in cima, finché non si va via
   const [annullata, setAnnullata] = useState(false)
   // la conferma volante dopo un pagamento (Ania, 11/09/2026): due righe, pochi secondi
-  const [conferma, setConferma] = useState<{ n: number; righe: ConfermaPagamento; durata?: number } | null>(null)
+  const [conferma, setConferma] = useState<{ n: number; righe: ConfermaPagamento; durata?: number; conOk?: boolean } | null>(null)
   // arrivando dalla pagina di inserimento (?salvata=1) o dalla conferma di una
   // richiesta (?da=richiesta): la pastiglia verde che sparisce da sé
   const daRichiesta = parametri.get('da') === 'richiesta'
@@ -431,7 +431,8 @@ export default function SchedaPage() {
       nottiDopo: nuove.filter(n => n.dentro).length,
       concordato: conPrezzoConcordato(linea.segmenti),
     })
-    setConferma(c => ({ n: (c?.n ?? 0) + 1, righe: esitoConferma.righe, durata: esitoConferma.durata }))
+    // resta finché non si tocca «Ok, ho capito» (Ania, 17/09/2026)
+    setConferma(c => ({ n: (c?.n ?? 0) + 1, righe: esitoConferma.righe, durata: esitoConferma.durata, conOk: true }))
     if (esitoConferma.avviso) setAvviso(esitoConferma.avviso)
     setVersione(v => v + 1)
   }
@@ -691,7 +692,7 @@ export default function SchedaPage() {
             rileggi()
           }} />
       )}
-      {conferma && <ConfermaVolante key={conferma.n} righe={conferma.righe} durata={conferma.durata} onChiudi={() => setConferma(null)} />}
+      {conferma && <ConfermaVolante key={conferma.n} righe={conferma.righe} durata={conferma.durata} conOk={conferma.conOk} onChiudi={() => setConferma(null)} />}
       {pagamentoDaTogliere && conto && (() => {
         const p = (pagamenti as unknown as PagamentoScheda[]).find(x => x.id === pagamentoDaTogliere)
         return p ? (
