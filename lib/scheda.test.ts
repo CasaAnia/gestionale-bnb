@@ -413,7 +413,7 @@ test('quanto ha già speso la cliente, in cima: nello stesso rosso acceso di «d
 })
 
 test('la striscia della scheda mostra le persone sotto ogni notte, e il letto acceso si vede (verde pieno)', () => {
-  assert.match(pagina, /<StrisciaNottiCamere notti=\{l\.notti\} oggi=\{oggi\} spiegazione=\{i === 0\}\n\s+ospitiAttesi=\{Math\.max\(1, \.\.\.l\.segmenti\.map\(s => Number\(s\.num_guests\) \|\| 1\)\)\}/)
+  assert.match(pagina, /<StrisciaNottiCamere notti=\{l\.notti\} oggi=\{oggi\} spiegazione=\{false\}\n\s+ospitiAttesi=\{Math\.max\(1, \.\.\.l\.segmenti\.map\(s => Number\(s\.num_guests\) \|\| 1\)\)\}/)
   assert.match(striscia, /background: n\.letto \? 'var\(--color-green-mid\)' : '#fff'/)
   assert.match(striscia, /color: n\.letto \? 'var\(--color-cream\)' : '#C4C0B6'/)
 })
