@@ -303,8 +303,7 @@ test('anche «Arrivo» e «Come paga» rileggono la scheda dopo il salvataggio (
 
 test('con una lettura incompleta niente conto e niente pagamenti da qui', () => {
   assert.match(pagina, /const \[contoLeggibile, setContoLeggibile\] = useState\(true\)/)
-  assert.match(pagina, /setContoLeggibile\(!conto\.errore\)/)
-  assert.match(pagina, /if \(pag\.error\) \{ setContoLeggibile\(false\)/)
+  assert.match(pagina, /setContoLeggibile\(!conto\.errore && !pag\.error\)/)
   assert.match(pagina, /if \(!contoLeggibile\) return null/)
   assert.match(pagina, /\{foglioPagamento && conto && \(/)
 })
@@ -332,11 +331,11 @@ test('«Sconto»: il comando nel conto, tre pastiglie Nessuno · Percentuale · 
 
 test('lo sconto si scrive riga per riga con la regola della scheda attuale, e senza cambiamenti non scrive', () => {
   // la scrittura: discount_type/discount_value/total_amount su ogni camera attiva, con controllo della riga toccata
-  const righeDati = leggi('lib/righeDati.ts')
+  const righeScrittura = leggi('lib/righeScrittura.ts')
   assert.match(scontoDati, /return aggiornaRigaPerRiga\(/)
-  assert.match(righeDati, /supabase\.from\('bookings'\)[\s\S]{0,120}\.update\(\{ \.\.\.r\.campi, updated_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]{0,60}\.eq\('id', r\.id\)[\s\S]{0,40}\.select\('id'\)/)
-  assert.match(righeDati, /data\.length !== 1/)
-  assert.match(righeDati, /ERRORE_SALVATO_A_META/)
+  assert.match(righeScrittura, /client\.from\('bookings'\)[\s\S]{0,120}\.update\(\{ \.\.\.r\.campi, updated_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]{0,60}\.eq\('id', r\.id\)[\s\S]{0,40}\.select\('id'\)/)
+  assert.match(righeScrittura, /risposta\.data\.length !== 1/)
+  assert.match(righeScrittura, /ERRORE_SALVATO_A_META/)
   // il foglio non scrive da sé: solo salvaSconto, e solo se c'è qualcosa da cambiare
   assert.equal(/supabase/.test(sconto), false)
   assert.match(sconto, /if \(nienteDaSalvare\(righe, anteprima\)\) \{ onSalvato\(anteprima, false\); return \}/)
@@ -473,15 +472,18 @@ test('«Aggiungi camera»: prima il legame fra le camere se manca, poi l’inser
 
 // ── 11. SCRITTURE A METÀ E RISPOSTE PERSE (revisione del 17/09/2026) ────────
 test('una scrittura incerta (a metà, o senza risposta) fa rileggere la scheda e nasconde il conto finché non ha riletto', () => {
-  const righeDati = leggi('lib/righeDati.ts')
-  // l'esito dice quando qualcosa può essere stato scritto
-  assert.match(righeDati, /incerto: scritte > 0, errore: error/)
-  assert.match(righeDati, /ERRORE_RIGA_NON_TROVATA, scritte, incerto: true/)
-  assert.match(righeDati, /ERRORE_RISPOSTA_PERSA, scritte, incerto: true, errore: err/)
+  const righeScrittura = leggi('lib/righeScrittura.ts')
+  // la risposta persa (il client PostgREST NON lancia: {error, status: 0}) è incerta,
+  // come una riga sì e una no; un rifiuto del server alla prima riga no
+  assert.match(righeScrittura, /const incerto = persa \|\| scritte > 0/)
+  assert.match(righeScrittura, /if \(status === 0 \|\| status === 502 \|\| status === 503 \|\| status === 504\) return true/)
+  assert.match(righeScrittura, /ERRORE_RIGA_NON_TROVATA, scritte, incerto: true/)
   // gli stessi campi su più righe vanno in una richiesta sola (o tutte o nessuna)
-  assert.match(righeDati, /export async function aggiornaInUnColpo/)
-  assert.match(righeDati, /\.update\(\{ \.\.\.campi, updated_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]{0,40}\.in\('id', ids\)[\s\S]{0,40}\.select\('id'\)/)
-  assert.match(righeDati, /if \(toccate !== ids\.length\) return \{ esito: 'errore', messaggio: ERRORE_RIGA_NON_TROVATA, scritte: toccate, incerto: true \}/)
+  assert.match(righeScrittura, /export async function aggiornaInUnColpo/)
+  assert.match(righeScrittura, /\.update\(\{ \.\.\.campi, updated_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]{0,40}\.in\('id', ids\)[\s\S]{0,40}\.select\('id'\)/)
+  assert.match(righeScrittura, /if \(toccate !== ids\.length\) return \{ esito: 'errore', messaggio: ERRORE_RIGA_NON_TROVATA, scritte: toccate, incerto: true \}/)
+  // il client dell'app entra da lib/righeDati; la logica è provata col client PostgREST vero (lib/righeScrittura.test.ts)
+  assert.match(leggi('lib/righeDati.ts'), /const client = supabase as unknown as ClienteRighe/)
   for (const f of ['FoglioSconto', 'FoglioTariffa', 'FoglioNota', 'FoglioConLei']) {
     const src = leggi(`components/scheda/${f}.tsx`)
     assert.match(src, /\.incerto\) \{ onIncerto\(\w+\.messaggio\); return \}/, `${f} non avvisa la scheda della scrittura incerta`)
@@ -489,10 +491,14 @@ test('una scrittura incerta (a metà, o senza risposta) fa rileggere la scheda e
   }
   assert.match(leggi('components/scheda/FoglioNota.tsx'), /aggiornaInUnColpo\(ids, campi\)/)
   assert.match(leggi('components/scheda/FoglioConLei.tsx'), /aggiornaInUnColpo\(ids, campi\)/)
-  // la scheda: niente conto finché non ha riletto tutto
-  // il messaggio passa alla scheda, il foglio si chiude, niente conto finché non ha riletto
+  // la scheda: niente conto finché non ha riletto tutto; dopo una rilettura fallita resta nascosto
   assert.match(pagina, /const invalida = \(messaggio: string\) => \{\n\s+setAvviso\(messaggio\)\n\s+setContoLeggibile\(false\)\n\s+setFoglioSconto\(false\); setFoglioTariffe\(false\); setFoglioNota\(false\); setFoglioConLei\(false\)\n\s+rileggi\(\)/)
-  assert.match(pagina, /setContoLeggibile\(!conto\.errore\)/)
+  const daLetture = pagina.indexOf('const [pag, altre, vicine, doc, stanze] = await Promise.all')
+  assert.match(pagina.slice(daLetture, daLetture + 1800), /setContoLeggibile\(!conto\.errore && !pag\.error\)/, 'il conto deve tornare solo dopo camere E pagamenti riletti')
+  assert.equal((pagina.match(/setContoLeggibile\(/g) ?? []).length, 2, 'setContoLeggibile: solo invalida e la lettura completa')
+  assert.equal(/setContoLeggibile\(true\)/.test(pagina), false)
+  // se la lettura delle camere fallisce si esce prima (setErrore) e il conto resta nascosto
+  assert.match(pagina, /if \(error \|\| !b\) \{ setBooking\(null\); setErrore\(/)
 })
 
 test('«Aggiungi camera»: il legame su TUTTE le righe (annullate comprese) in una richiesta sola; l’inserimento tiene ferma la cliente e ricontrolla il legame', () => {

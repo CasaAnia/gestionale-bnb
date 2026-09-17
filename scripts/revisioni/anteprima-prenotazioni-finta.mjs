@@ -411,8 +411,11 @@ let erroreRichiesteWeb = process.env.FINTO_ERRORE_RICHIESTE_WEB === '1'
 // Cambia cliente (06/09/2026): quando è acceso il PATCH su bookings fallisce
 let erroreCambioCliente = false
 // Scritture a metà (revisione del 17/09/2026): GET /finto/errore-dopo-scritture?n=1
-// fa riuscire le prime n PATCH su bookings e fallire le successive (500).
+// fa riuscire le prime n PATCH su bookings e fallire le successive (500);
+// con &modo=persa le successive vengono SCRITTE ma la risposta si perde
+// (connessione chiusa): il caso della risposta persa alla prima scrittura.
 let erroreDopoScritture = null
+let modoPersa = false
 let patchRiuscite = 0
 function leggiCorpo(req) {
   return new Promise(resolve => { let t = ''; req.on('data', c => { t += c }); req.on('end', () => { try { resolve(t ? JSON.parse(t) : null) } catch { resolve(null) } }) })
@@ -424,8 +427,9 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/finto/errore-dopo-scritture') {
     const n = url.searchParams.get('n')
     erroreDopoScritture = n === null || n === '' ? null : Number(n)
+    modoPersa = url.searchParams.get('modo') === 'persa'
     patchRiuscite = 0
-    return rispondi(res, 200, { erroreDopoScritture })
+    return rispondi(res, 200, { erroreDopoScritture, modoPersa })
   }
   if (url.pathname === '/finto/errore-richieste-web') {
     erroreRichiesteWeb = url.searchParams.get('on') === '1'
@@ -563,8 +567,12 @@ const finto = createServer((req, res) => {
         'notes', 'color', 'source', 'extra_phone_1', 'extra_phone_1_name', 'chi_e', 'extra_phone_2', 'extra_phone_2_name', 'chi_e_2', 'prenotazione_id']
       if (m[1] === 'bookings' && chiavi.some(k => !AMMESSI.includes(k))) return rispondi(res, 403, { code: 'ANTEPRIMA', message: `scrittura non ammessa nella preview sintetica: ${chiavi.filter(k => !AMMESSI.includes(k)).join(', ')}` })
       if (m[1] === 'bookings' && erroreCambioCliente) return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sul cambio cliente' })
+      let perdiRisposta = false
       if (m[1] === 'bookings' && erroreDopoScritture !== null) {
-        if (patchRiuscite >= erroreDopoScritture) return rispondi(res, 500, { code: 'FINTO', message: `errore simulato dopo ${patchRiuscite} scritture` })
+        if (patchRiuscite >= erroreDopoScritture) {
+          if (!modoPersa) return rispondi(res, 500, { code: 'FINTO', message: `errore simulato dopo ${patchRiuscite} scritture` })
+          perdiRisposta = true   // si scrive lo stesso, poi la risposta non parte
+        }
         patchRiuscite += 1
       }
       const righe = righeFiltrate(m[1], url)
@@ -577,7 +585,8 @@ const finto = createServer((req, res) => {
         }
       }
       for (const r of righe) Object.assign(r, corpo)
-      console.log(`[finto supabase] PATCH ${m[1]} ${righe.length} righe ←`, JSON.stringify(corpo))
+      console.log(`[finto supabase] PATCH ${m[1]} ${righe.length} righe ←`, JSON.stringify(corpo), perdiRisposta ? '(risposta persa)' : '')
+      if (perdiRisposta) { res.socket.destroy(); return }
       return rispondi(res, 200, righe.map(r => applicaSelect(r, url.searchParams.get('select') || '*')))
     })
   }

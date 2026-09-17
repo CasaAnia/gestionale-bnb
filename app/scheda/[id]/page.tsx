@@ -243,7 +243,6 @@ export default function SchedaPage() {
       // Le righe arrivano con la camera ma senza il cliente: è lo stesso per tutte
       const tutte = (conto.errore ? [scheda] : (conto.righe as Prenotazione[])).map(r => ({ ...r, guests: r.guests ?? scheda.guests, guest_name: r.guest_name ?? scheda.guest_name }))
       setRighe(tutte)
-      setContoLeggibile(!conto.errore)
       if (conto.errore) setAvviso(conto.errore)
       const ids = tutte.map(r => r.id)
       const attive = segmentiAttivi(tutte)
@@ -263,7 +262,11 @@ export default function SchedaPage() {
         supabase.from('rooms').select('*'),
       ])
       if (!vivo) return
-      if (pag.error) { setContoLeggibile(false); setAvviso(a => a ?? `Non riesco a leggere i pagamenti: ${pag.error.message}`) }
+      // Il conto si mostra SOLO quando camere e pagamenti sono stati riletti
+      // tutti e due: dopo una scrittura incerta resta nascosto finché una
+      // lettura completa non riesce (revisione del 17/09/2026).
+      setContoLeggibile(!conto.errore && !pag.error)
+      if (pag.error) setAvviso(a => a ?? `Non riesco a leggere i pagamenti: ${pag.error.message}`)
       // La cronologia: le modifiche le scrive il database, i messaggi partiti
       // stanno in booking_whatsapp_log (tabella di sempre).
       leggiCronologia(ids).then(c => {

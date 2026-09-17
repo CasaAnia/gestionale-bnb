@@ -1308,3 +1308,24 @@ Tre rilievi, tre correzioni, un commit:
 
 1513 test verdi (`lib/aggiungiCamera.test.ts` nuovo, fogliScheda sez. 11),
 TypeScript e `next build --webpack` puliti.
+
+**Ultimo caso del rilievo 3 — risposta persa alla prima scrittura
+(17/09/2026, Claude).** Il client PostgREST non lancia: con la rete caduta
+risponde `{ error, status: 0 }`, e i due percorsi lo trattavano come «niente
+scritto». Ora la logica sta in `lib/righeScrittura.ts` (senza il client
+dell'app, che entra da `lib/righeDati.ts`): `rispostaPersa` riconosce
+`status 0`, i gateway 502/503/504 e i messaggi di rete (`TypeError: Failed
+to fetch`, `FetchError…`), e l'esito è `incerto` anche alla prima richiesta,
+in tutte e due le funzioni. Prova con il client PostgREST VERO
+(`@supabase/postgrest-js`) e una `fetch` finta (`lib/righeScrittura.test.ts`):
+risposta persa alla prima richiesta (riga per riga e in un colpo), prima
+riga scritta e seconda persa, rifiuto 400 non incerto, 503 incerto, righe
+che non tornano, e il conteggio delle richieste (una sola per «in un
+colpo»). PATCH non viene ritentato dal client (solo GET/HEAD/OPTIONS).
+La scheda mostra il conto SOLO dopo aver riletto camere E pagamenti
+(`setContoLeggibile(!conto.errore && !pag.error)`, unico punto in cui torna
+vero): se la rilettura fallisce, resta nascosto. Provato anche end-to-end
+sull'anteprima finta col modo «risposta persa» dell'interruttore
+(`errore-dopo-scritture?n=0&modo=persa`: scrive e chiude la connessione):
+sconto 10 % → foglio chiuso, «Non so se è stato salvato…» in cima, conto
+riletto a 454 € con la riga scritta. 1518 test verdi, build pulita.
