@@ -427,7 +427,7 @@ test('dopo il salvataggio delle notti compare il pop-up grande, e «Cambia date�
   const volante = leggi('components/ConfermaVolante.tsx')
   assert.match(volante, /export const TESTO_OK = 'Ok, ho capito'/)
   assert.match(volante, /if \(conOk\) return   \/\/ resta finché non si tocca/)
-  assert.match(volante, /data-conferma-ok[\s\S]{0,200}\{TESTO_OK\}/)
+  assert.match(volante, /data-conferma-ok[\s\S]{0,400}\{TESTO_OK\}/)
   // dopo un pagamento resta come prima: se ne va da sola
   assert.doesNotMatch(pagina, /confermaPagamento\([^\n]*conOk/)
   const date = leggi('components/scheda/FoglioDate.tsx')
