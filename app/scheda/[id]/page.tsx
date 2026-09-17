@@ -557,6 +557,19 @@ export default function SchedaPage() {
           </div>}
       </section>
 
+      {/* ── Arrivo (Ania, 17/09/2026: prima del soggiorno) ─────────────────── */}
+      <section id="arrivo" className="pt-[34px]">
+        <p className="ed-sezione">Arrivo</p>
+        {arrivoTesto && <RigaArrivo arrivo={arrivoTesto} etichetta={false} className="mt-3" />}
+        <LinkSoggiorno
+          onArrivo={() => setFoglioArrivo(true)}
+          onArriviPrecedenti={() => setArriviAperti(a => !a)}
+          arriviAperti={arriviAperti}
+          className="mt-1"
+        />
+        {arriviAperti && <ArriviPrecedenti altre={altreCliente as unknown as SegmentoStorico[]} oggi={oggi} className="mt-3" />}
+      </section>
+
       {/* ── Soggiorno ─────────────────────────────────────────────────────── */}
       <section id="soggiorno" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
         <p className="ed-sezione">Soggiorno</p>
@@ -586,17 +599,7 @@ export default function SchedaPage() {
             {CAMERE_NON_LETTE}
           </p>
         )}
-        {/* Ordine chiesto da Ania (17/09/2026): prima i tratti («Ambra, 29 → 30»),
-            poi «Arrivo» e, subito sotto, «Modifica arrivo · Arrivi precedenti» */}
         <TrattiCameraScheda tratti={tratti} className="mt-3" />
-        {arrivoTesto && <RigaArrivo arrivo={arrivoTesto} className="mt-3" />}
-        <LinkSoggiorno
-          onArrivo={() => setFoglioArrivo(true)}
-          onArriviPrecedenti={() => setArriviAperti(a => !a)}
-          arriviAperti={arriviAperti}
-          className="mt-1"
-        />
-        {arriviAperti && <ArriviPrecedenti altre={altreCliente as unknown as SegmentoStorico[]} oggi={oggi} className="mt-3" />}
       </section>
 
       {/* ── Conto ─────────────────────────────────────────────────────────── */}

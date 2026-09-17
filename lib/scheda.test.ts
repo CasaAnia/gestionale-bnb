@@ -248,7 +248,7 @@ test('il salvataggio delle notti: si annulla, non si cancella, e il conto si rif
 })
 
 test('la riga «Arrivo»: stone 14 a sinistra, orario in pastiglia sage, «da chiedere» in ottone', () => {
-  assert.match(soggiorno, /data-riga-arrivo[^>]*flex items-center justify-between/)
+  assert.match(soggiorno, /data-riga-arrivo[^>]*flex items-center \$\{etichetta \? 'justify-between' : 'justify-start'\}/)
   assert.match(soggiorno, /fontSize: 14, color: 'var\(--color-stone\)' \}\}>Arrivo/)
   assert.match(soggiorno, /background: 'var\(--color-sage\)', borderRadius: 999/)
   assert.match(soggiorno, /data-da-chiedere style=\{\{ color: OTTONE \}\}>\{DA_CHIEDERE\}/)
@@ -439,7 +439,12 @@ test('le altre prenotazioni si leggono anche un mese intorno al soggiorno: «Cam
   assert.match(pagina, /\.lt\('check_in', spostaGiorni\(partenza, GIORNI_INTORNO\)\)\.gt\('check_out', spostaGiorni\(arrivo, -GIORNI_INTORNO\)\)/)
 })
 
-test('nel soggiorno l’ordine è: strisce, tratti di camera, «Arrivo», poi «Modifica arrivo · Arrivi precedenti» (Ania, 17/09/2026)', () => {
-  const a = pagina.indexOf('<StrisciaNottiCamere'), b = pagina.indexOf('<TrattiCameraScheda'), c = pagina.indexOf('<RigaArrivo arrivo='), d = pagina.indexOf('<LinkSoggiorno')
-  assert.ok(a > 0 && a < b && b < c && c < d, `ordine sbagliato: striscia ${a}, tratti ${b}, arrivo ${c}, link ${d}`)
+test('l’ordine: Da controllare, poi la parte «Arrivo» (riga e «Modifica arrivo · Arrivi precedenti»), poi il Soggiorno con strisce e tratti (Ania, 17/09/2026)', () => {
+  const controllare = pagina.indexOf('id="controllare"'), arrivo = pagina.indexOf('id="arrivo"'), soggiorno = pagina.indexOf('id="soggiorno"')
+  const riga = pagina.indexOf('<RigaArrivo arrivo='), link = pagina.indexOf('<LinkSoggiorno'), striscia = pagina.indexOf('<StrisciaNottiCamere'), tratti = pagina.indexOf('<TrattiCameraScheda')
+  assert.ok(controllare > 0 && controllare < arrivo && arrivo < riga && riga < link && link < soggiorno && soggiorno < striscia && striscia < tratti,
+    `ordine sbagliato: controllare ${controllare}, arrivo ${arrivo}, riga ${riga}, link ${link}, soggiorno ${soggiorno}, striscia ${striscia}, tratti ${tratti}`)
+  // sotto il titolo «Arrivo» la riga non ripete la parolina
+  assert.match(pagina, /<RigaArrivo arrivo=\{arrivoTesto\} etichetta=\{false\}/)
+  assert.match(leggi('components/scheda/SoggiornoScheda.tsx'), /\{etichetta && <span style=\{\{ fontSize: 14, color: 'var\(--color-stone\)' \}\}>Arrivo<\/span>\}/)
 })

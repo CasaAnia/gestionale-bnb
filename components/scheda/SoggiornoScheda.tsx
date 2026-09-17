@@ -15,10 +15,10 @@ export const FONDO_CAMBIO = '#EFE2C7'
 export const TESTO_CAMBIO = '#7A5C1E'
 export const DA_CHIEDERE = 'da chiedere'
 
-export function RigaArrivo({ arrivo, className = '' }: { arrivo: ArrivoScheda; className?: string }) {
+export function RigaArrivo({ arrivo, etichetta = true, className = '' }: { arrivo: ArrivoScheda; /** sotto il titolo «Arrivo» la parolina a sinistra non serve (17/09/2026) */ etichetta?: boolean; className?: string }) {
   return (
-    <div data-riga-arrivo className={`flex items-center justify-between gap-3 ${className}`}>
-      <span style={{ fontSize: 14, color: 'var(--color-stone)' }}>Arrivo</span>
+    <div data-riga-arrivo className={`flex items-center ${etichetta ? 'justify-between' : 'justify-start'} gap-3 ${className}`}>
+      {etichetta && <span style={{ fontSize: 14, color: 'var(--color-stone)' }}>Arrivo</span>}
       {/* senza virgole: «oggi 🕐 15:10 con navetta» */}
       <span className="flex items-center flex-wrap justify-end" style={{ gap: 6, fontSize: 14, fontWeight: 600, color: 'var(--color-green-dark)' }}>
         <span>{arrivo.quando}</span>
