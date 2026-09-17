@@ -1342,3 +1342,14 @@ provarlo spostando una notte e rimettendola. La 0051 (vincolo camera non
 due volte) e la 0054 (due letti in tutto) restano da applicare.
 Anche la 0050 è stata controllata lo stesso giorno: 8 prenotazioni
 scontate, tutte già col totale giusto, niente da correggere.
+
+**Proposta 0051 APPLICATA in produzione (17/09/2026, da Ania, guidata):**
+prima il controllo in lettura delle sovrapposizioni fra prenotazioni
+confermate/completate (nessuna), poi `btree_gist` e il vincolo
+`bookings_camera_non_due_volte` nella versione che conta SOLO confermate e
+completate (come STATI_CHE_OCCUPANO del gestionale; le «in attesa» non
+bloccano), `deferrable initially immediate` come richiede la 0053; verifica
+`count(*) = 1`. Nessun dato toccato. Da adesso il database rifiuta due
+prenotazioni attive sulla stessa camera nelle stesse notti (codice 23P01 →
+«quella camera è appena stata presa», lib/erroreSovrapposizione). Resta da
+applicare la 0054 (due letti in tutto).
