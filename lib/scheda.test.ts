@@ -38,12 +38,15 @@ test('la testa: 22 px ai lati e i pezzi già esistenti, non riscritti', () => {
   assert.equal(/totaleCent = .*reduce/.test(pagina), false, 'la scheda si è ricalcolata il totale')
 })
 
-test('la riga di navigazione: «‹ Prenotazioni» verde 14 semibold e lo stato in ottone', () => {
-  const riga = pagina.slice(pagina.indexOf('data-riga-navigazione'), pagina.indexOf('data-stato-scheda') + 400)
-  assert.match(riga, /‹ Prenotazioni/)
-  assert.match(riga, /fontSize: 14, fontWeight: 600, color: 'var\(--color-green-mid\)'/)
-  assert.match(riga, /data-stato-scheda className="uppercase" style=\{\{ fontSize: 11, letterSpacing: '1\.5px', color: OTTONE \}\}/)
+test('niente «‹ Prenotazioni» e niente «Confermata» sotto la freccia: lo stato compare solo se dice qualcosa (Ania, 17/09/2026)', () => {
+  assert.equal(/‹ Prenotazioni|‹ Cliente/.test(pagina), false, 'il link «‹ Prenotazioni» è ancora nella scheda')
+  assert.match(pagina, /const statoDaMostrare = statoTesto === 'Confermata' \? null : statoTesto/)
+  assert.match(pagina, /\{statoDaMostrare && \([\s\S]{0,120}data-riga-navigazione className="flex items-center justify-end gap-3"/)
+  assert.match(pagina, /data-stato-scheda className="uppercase" style=\{\{ fontSize: 11, letterSpacing: '1\.5px', color: OTTONE \}\}>\{statoDaMostrare\}/)
+  // la freccia in cima riporta indietro (alle prenotazioni o alla cliente)
+  assert.match(pagina, /<BackBar href=\{hrefIndietro\} \/>/)
 })
+
 
 test('la prima riga: grigio #B9B6AD 12,5 px, e «da dove? ›» nello stesso grigio', () => {
   assert.match(testa, /const GRIGIO_RIGA = '#B9B6AD'/)

@@ -323,6 +323,9 @@ export default function SchedaPage() {
   const telefono = guest?.phone ?? null
   const waNumero = numeroWhatsAppPrenotazione(telefono)
   const primoSegmento = attive[0] ?? booking
+  // lo stato scritto solo se non è quello normale (Ania, 17/09/2026)
+  const statoTesto = booking ? statoScheda(booking.status, ultimaPartenza, oggi) : ''
+  const statoDaMostrare = statoTesto === 'Confermata' ? null : statoTesto
 
   // ── LE STRISCE DELLE NOTTI ───────────────────────────────────────────────
   // Una striscia per linea (lib/lineeSoggiorno): il cambio camera durante il
@@ -474,11 +477,14 @@ export default function SchedaPage() {
           style={{ marginBottom: 10, padding: '6px 12px', borderRadius: 999, background: FONDO_ANNULLATA, color: TESTO_ANNULLATA, fontSize: 11, letterSpacing: '1.5px', fontWeight: 700 }}>✓ {PRENOTAZIONE_ANNULLATA}</p>
       )}
 
-      {/* La riga di navigazione: «‹ Prenotazioni» a sinistra, lo stato a destra */}
-      <div data-riga-navigazione className="flex items-center justify-between gap-3">
-        <Link href={hrefIndietro} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>{daCliente ? '‹ Cliente' : '‹ Prenotazioni'}</Link>
-        <span data-stato-scheda className="uppercase" style={{ fontSize: 11, letterSpacing: '1.5px', color: OTTONE }}>{statoScheda(booking.status, ultimaPartenza, oggi)}</span>
-      </div>
+      {/* Lo stato, a destra, solo quando dice qualcosa: «Confermata» è la norma e
+          non si scrive; il link di ritorno all'elenco non c'è più, torna indietro
+          la freccia in cima (Ania, 17/09/2026). */}
+      {statoDaMostrare && (
+        <div data-riga-navigazione className="flex items-center justify-end gap-3">
+          <span data-stato-scheda className="uppercase" style={{ fontSize: 11, letterSpacing: '1.5px', color: OTTONE }}>{statoDaMostrare}</span>
+        </div>
+      )}
       {avviso && <AvvisoAzione testo={avviso} className="mt-3" />}
 
       <div style={{ marginTop: 14 }}>
