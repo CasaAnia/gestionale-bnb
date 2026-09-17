@@ -395,14 +395,13 @@ test('la cronologia: quando a sinistra, cosa a destra, i messaggi col fumetto', 
   assert.match(leggi('lib/schedaConto.ts'), /\.sort\(\(a, b\) => a\.ordine\.localeCompare\(b\.ordine\) \|\| a\.n - b\.n\)/)
 })
 
-test('i comandi in fondo (17/09/2026): «Nota e colore», «Aggiungi camera», poi l’annullamento in rosso', () => {
-  const fondo = pagina.slice(pagina.indexOf('data-comandi-fondo'), pagina.indexOf('data-comandi-fondo') + 1600)
+test('i comandi in fondo (17/09/2026): «Nota e colore», poi l’annullamento in rosso; «Aggiungi camera» sta sotto la striscia', () => {
+  const fondo = pagina.slice(pagina.indexOf('data-comandi-fondo'), pagina.indexOf('data-comandi-fondo') + 1200)
   assert.match(fondo, /data-nota-colore onClick=\{\(\) => setFoglioNota\(true\)\}[^>]*>\{COMANDO_NOTA\}/)
-  assert.match(fondo, /data-aggiungi-camera onClick=\{aggiungiCamera\}/)
   assert.match(fondo, /color: '#8C3B2E' \}\}>Annulla prenotazione</)
   assert.equal(/Vedi tutto|Altre modifiche/.test(fondo), false, 'in fondo ci sono ancora i rimandi alla scheda vecchia')
-  assert.ok(fondo.indexOf('COMANDO_NOTA') < fondo.indexOf('COMANDO_AGGIUNGI_CAMERA'))
-  assert.ok(fondo.indexOf('COMANDO_AGGIUNGI_CAMERA') < fondo.indexOf('Annulla prenotazione'))
+  assert.ok(fondo.indexOf('COMANDO_NOTA') < fondo.indexOf('Annulla prenotazione'))
+  assert.match(pagina, /data-aggiungi-camera onClick=\{aggiungiCamera\}/)
 })
 
 test('quanto ha già speso la cliente, in cima: nello stesso rosso acceso di «da incassare» (Ania, 17/09/2026)', () => {
@@ -452,4 +451,20 @@ test('l’ordine: Da controllare, poi la parte «Arrivo» (riga e «Modifica arr
 test('senza orario la riga dice «orario da chiedere», e basta: il foglio si apre da «Modifica arrivo» (Ania, 17/09/2026)', () => {
   assert.equal(/aggiungi orario|AGGIUNGI_ORARIO/.test(soggiorno), false, 'c’è ancora «aggiungi orario»')
   assert.match(pagina, /<RigaArrivo arrivo=\{arrivoTesto\} etichetta=\{false\} className="mt-3" \/>/)
+})
+
+test('sotto la striscia la riga «Cambia date · Cambio camera · Aggiungi camera» (Ania, 17/09/2026)', () => {
+  const riga = pagina.slice(pagina.indexOf('data-comandi-linea'), pagina.indexOf('data-comandi-linea') + 1400)
+  assert.ok(riga.indexOf('data-cambia-date') < riga.indexOf('data-cambio-camera') && riga.indexOf('data-cambio-camera') < riga.indexOf('data-aggiungi-camera'), 'ordine sbagliato')
+  assert.match(riga, /data-cambio-camera=\{l\.chiave\} onClick=\{\(\) => setCambioAperto\(l\.chiave\)\}/)
+  assert.match(riga, /i === linee\.length - 1 && booking\.status !== 'annullata' && <>/)
+  // «Aggiungi camera» non sta più in fondo
+  const fondo = pagina.slice(pagina.indexOf('data-comandi-fondo'), pagina.indexOf('data-comandi-fondo') + 1200)
+  assert.equal(/data-aggiungi-camera/.test(fondo), false)
+  // il foglio: da quale notte, in quale camera, e «Fatto» salva come dalla striscia
+  const foglio = leggi('components/scheda/FoglioCambioCamera.tsx')
+  assert.match(foglio, /cambiaCameraDaLi\(notti, daNotte, camera, contesto\)/)
+  assert.match(foglio, /camereDaLi\(notti, daNotte, contesto\)/)
+  assert.match(pagina, /<FoglioCambioCamera notti=\{lineaCambio\.notti\} contesto=\{contestoLinea\(lineaCambio, linee, contesto\)\}/)
+  assert.match(pagina, /onFatto=\{nuove => \{ setCambioAperto\(null\); void salvaNotti\(lineaCambio, nuove\) \}\}/)
 })

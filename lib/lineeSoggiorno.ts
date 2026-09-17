@@ -17,7 +17,7 @@
 //
 // Funzioni pure: niente Supabase, niente orologio.
 // ============================================================================
-import { nottiDaSegmenti, camereDellaNotte, lettoDisponibileNotte, type SegmentoNotti, type NotteStriscia, type ContestoNotti, type PianoNotti } from './strisciaNotti.ts'
+import { nottiDaSegmenti, camereDellaNotte, lettoDisponibileNotte, cambiaCamera, type SegmentoNotti, type NotteStriscia, type ContestoNotti, type PianoNotti, type CameraStriscia } from './strisciaNotti.ts'
 import { periodoTratto, euroScheda, testoNotti } from './schedaPrenotazione.ts'
 import { MESI_BREVI } from './dateItaliane.ts'
 
@@ -203,4 +203,35 @@ export function confermaNotti(p: { totaleCent: number; nottiPrima: number; notti
 /** La linea ha un prezzo finale concordato (target_total) su almeno un tratto */
 export function conPrezzoConcordato(segmenti: { discount_type?: string | null }[]): boolean {
   return segmenti.some(s => s.discount_type === 'target_total')
+}
+
+// ── «Cambio camera» (Ania, 17/09/2026) ──────────────────────────────────────
+// Dalla riga sotto la striscia, accanto a «Cambia date»: si sceglie da quale
+// notte e in quale camera, e tutte le notti da lì alla fine passano in quella
+// camera (con la regola del foglietto: il letto si accende dove serve). Le
+// camere proposte sono quelle libere in TUTTE quelle notti.
+export const TITOLO_CAMBIO_CAMERA = 'Cambio camera'
+export const COMANDO_CAMBIO_CAMERA = 'Cambio camera'
+export const DA_QUALE_NOTTE = 'Da quale notte'
+export const IN_QUALE_CAMERA = 'In quale camera'
+export const NESSUNA_CAMERA_LIBERA_DA_LI = 'Nessuna camera è libera per tutte le notti da lì alla fine.'
+
+/** Le notti in cui si dorme qui: fra queste si sceglie da dove cambiare */
+export function nottiDaCuiCambiare(notti: NotteStriscia[]): NotteStriscia[] {
+  return notti.filter(n => n.dentro)
+}
+
+/** Le camere libere in tutte le notti da `iso` alla fine (quella di adesso esclusa se è la stessa per tutte) */
+export function camereDaLi(notti: NotteStriscia[], iso: string, contesto: ContestoNotti): CameraStriscia[] {
+  const daLi = notti.filter(n => n.dentro && n.iso >= iso)
+  if (daLi.length === 0) return []
+  return contesto.camere.filter(c => daLi.every(n => n.cameraId === c.id || camereDellaNotte(n.iso, contesto).some(x => x.id === c.id)))
+    .filter(c => !daLi.every(n => n.cameraId === c.id))
+}
+
+/** Tutte le notti da `iso` alla fine passano nella camera scelta */
+export function cambiaCameraDaLi(notti: NotteStriscia[], iso: string, camera: CameraStriscia, contesto: ContestoNotti): NotteStriscia[] {
+  let fatte = notti
+  for (const n of notti.filter(n => n.dentro && n.iso >= iso)) fatte = cambiaCamera(fatte, n.iso, camera, contesto)
+  return fatte
 }

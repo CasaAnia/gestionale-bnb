@@ -9,6 +9,7 @@ import {
   lineeDelSoggiorno, titoloLinea, contestoLinea, contoDopoNotti, testoContoDopo, chiaveLinea,
   CONTO_INVARIATO, CONTO_CAMBIA, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, dateLinea, nottiConDate,
   confermaNotti, conPrezzoConcordato, RIVEDI_SCONTO, AVVISO_RIVEDI_SCONTO, DURATA_CONFERMA_NOTTI, DURATA_CONFERMA_SCONTO,
+  nottiDaCuiCambiare, camereDaLi, cambiaCameraDaLi,
 } from './lineeSoggiorno.ts'
 import { pianoNotti, cambiaCamera, camereDellaNotte, lettoDisponibileNotte, nonDormeQui, type ContestoNotti, type CameraStriscia } from './strisciaNotti.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -196,4 +197,24 @@ test('dopo «Fatto»: il conto com’è adesso e quante notti; col prezzo finale
   assert.equal(stesse.avviso, null)
   assert.equal(conPrezzoConcordato([{ discount_type: null }, { discount_type: 'target_total' }]), true)
   assert.equal(conPrezzoConcordato([{ discount_type: 'percentage' }]), false)
+})
+
+// ── «Cambio camera» da una notte in poi (Ania, 17/09/2026) ─────────────────
+test('cambio camera da una notte in poi: le camere libere in tutte quelle notti, e tutte le notti da lì passano nella nuova', () => {
+  const linee = lineeDelSoggiorno(tutti)
+  const A = linee[0]                       // lei: Lena 3–5, Ambra 5–7; la sorella in Amelia 3–6
+  const ctxA = contestoLinea(A, linee, contesto)
+  assert.deepEqual(nottiDaCuiCambiare(A.notti).map(n => n.iso), ['2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06'])
+  // dal 5: Amelia è della sorella fino al 6 → resta libera solo Lena (Ambra è già la camera di quelle notti)
+  assert.deepEqual(camereDaLi(A.notti, '2026-11-05', ctxA).map(c => c.name), ['Lena'])
+  // dal 6: Amelia è libera (la sorella parte il 6), Lena pure
+  assert.deepEqual(camereDaLi(A.notti, '2026-11-06', ctxA).map(c => c.name).sort(), ['Amelia', 'Lena'])
+  // dal 4 in Ambra: 4, 5 e 6 in Ambra; il 3 resta Lena
+  const nuove = cambiaCameraDaLi(A.notti, '2026-11-04', AMBRA, ctxA)
+  assert.deepEqual(nuove.map(n => n.camera), ['Lena', 'Ambra', 'Ambra', 'Ambra'])
+  const piano = pianoNotti(nuove, A.segmenti, ctxA)
+  assert.equal(piano.errore, null)
+  assert.equal(contoDopoNotti(piano, A, tutti)!.dopoCent, 8000 + 21000 + 19500)
+  // senza notti niente camere
+  assert.deepEqual(camereDaLi(A.notti, '2026-12-01', ctxA), [])
 })

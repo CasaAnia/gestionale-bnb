@@ -61,6 +61,7 @@ import FoglioTogliPagamento from '@/components/scheda/FoglioTogliPagamento'
 import FoglioNota from '@/components/scheda/FoglioNota'
 import FoglioTariffa from '@/components/scheda/FoglioTariffa'
 import FoglioDate from '@/components/scheda/FoglioDate'
+import FoglioCambioCamera from '@/components/scheda/FoglioCambioCamera'
 import { TARIFFE_SALVATE } from '@/lib/tariffaScheda'
 import { COMANDO_AGGIUNGI_CAMERA, ERRORE_SENZA_CAMERE, legameDaScrivere, hrefAggiungiCamera } from '@/lib/aggiungiCamera'
 import { aggiornaInUnColpo } from '@/lib/righeDati'
@@ -86,7 +87,7 @@ import { saldoMancanteCent } from '@/lib/statistiche'
 import { pianoNotti, stessaStriscia, ospitiDaQuiInPoi, type ContestoNotti, type NotteStriscia, type CameraStriscia } from '@/lib/strisciaNotti'
 import { ospitiPossibiliNotte } from '@/lib/nuovaPrenotazione'
 import { capienzaCamera } from '@/lib/tariffe'
-import { lineeDelSoggiorno, contestoLinea, contoDopoNotti, testoContoDopo, confermaNotti, conPrezzoConcordato, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, COMANDO_DATE, type LineaSoggiorno } from '@/lib/lineeSoggiorno'
+import { lineeDelSoggiorno, contestoLinea, contoDopoNotti, testoContoDopo, confermaNotti, conPrezzoConcordato, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, COMANDO_DATE, COMANDO_CAMBIO_CAMERA, type LineaSoggiorno } from '@/lib/lineeSoggiorno'
 import { salvaNottiInUnColpo } from '@/lib/nottiScrittura'
 import { nomeOspite } from '@/lib/guestName'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
@@ -188,6 +189,8 @@ export default function SchedaPage() {
   const [foglioTariffe, setFoglioTariffe] = useState(false)
   // «Cambia date» di una linea: la chiave della linea aperta
   const [dateAperte, setDateAperte] = useState<string | null>(null)
+  // «Cambio camera» di una linea: la chiave della linea aperta
+  const [cambioAperto, setCambioAperto] = useState<string | null>(null)
   const [aggiungendo, setAggiungendo] = useState(false)
   const [foglioConLei, setFoglioConLei] = useState(false)
   // appena annullata da qui: la pastiglia in mattone in cima, finché non si va via
@@ -347,6 +350,7 @@ export default function SchedaPage() {
   const nottiDormite = useMemo(() => new Set(linee.flatMap(l => l.notti.filter(n => n.dentro).map(n => n.iso))).size, [linee])
   const lineaAperta = notteAperta ? (linee.find(l => l.chiave === notteAperta.linea) ?? null) : null
   const lineaDate = dateAperte ? (linee.find(l => l.chiave === dateAperte) ?? null) : null
+  const lineaCambio = cambioAperto ? (linee.find(l => l.chiave === cambioAperto) ?? null) : null
   // nel contesto di una linea le altre linee contano come altre prenotazioni
   const contestoAperto = lineaAperta ? contestoLinea(lineaAperta, linee, contesto) : contesto
   // l'effetto sul conto di una bozza di notti, prima di salvare: il piano
@@ -582,9 +586,17 @@ export default function SchedaPage() {
             <StrisciaNottiCamere notti={l.notti} oggi={oggi} spiegazione={false}
               ospitiAttesi={Math.max(1, ...l.segmenti.map(s => Number(s.num_guests) || 1))}
               onNotte={nonSiSposta ? undefined : n => setNotteAperta({ linea: l.chiave, iso: n.iso })} className="mt-3" />
+            {/* la riga dei comandi della linea (Ania, 17/09/2026): «Cambia date ·
+                Cambio camera», e sull'ultima linea anche «Aggiungi camera» */}
             {!nonSiSposta && (
-              <p className="text-center" style={{ marginTop: 2 }}>
+              <p data-comandi-linea className="flex flex-wrap items-center justify-center" style={{ marginTop: 2, gap: '0 10px', fontSize: 12.5 }}>
                 <button type="button" data-cambia-date={l.chiave} onClick={() => setDateAperte(l.chiave)} className="py-2 -my-2" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{COMANDO_DATE}</button>
+                <span style={{ color: 'var(--color-stone)' }}>·</span>
+                <button type="button" data-cambio-camera={l.chiave} onClick={() => setCambioAperto(l.chiave)} className="py-2 -my-2" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{COMANDO_CAMBIO_CAMERA}</button>
+                {i === linee.length - 1 && booking.status !== 'annullata' && <>
+                  <span style={{ color: 'var(--color-stone)' }}>·</span>
+                  <button type="button" data-aggiungi-camera onClick={aggiungiCamera} disabled={aggiungendo} className="py-2 -my-2" style={{ fontSize: 12.5, color: 'var(--color-stone)', opacity: aggiungendo ? 0.5 : 1 }}>{COMANDO_AGGIUNGI_CAMERA}</button>
+                </>}
               </p>
             )}
           </div>
@@ -639,10 +651,6 @@ export default function SchedaPage() {
       {/* I tre comandi in fondo, staccati da tutto il resto */}
       <p data-comandi-fondo className="flex flex-wrap items-center justify-center mt-8 mb-4" style={{ gap: '0 12px', fontSize: 14 }}>
         <button type="button" data-nota-colore onClick={() => setFoglioNota(true)} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>{COMANDO_NOTA}</button>
-        {booking.status !== 'annullata' && <>
-          <span style={{ color: 'var(--color-stone)' }}>·</span>
-          <button type="button" data-aggiungi-camera onClick={aggiungiCamera} disabled={aggiungendo} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)', opacity: aggiungendo ? 0.5 : 1 }}>{COMANDO_AGGIUNGI_CAMERA}</button>
-        </>}
         {booking.status !== 'annullata' && <>
           <span style={{ color: 'var(--color-stone)' }}>·</span>
           <button type="button" data-annulla-prenotazione onClick={() => setFoglioAnnulla(true)} className="py-2 -my-2" style={{ fontSize: 14, color: '#8C3B2E' }}>Annulla prenotazione</button>
@@ -716,6 +724,13 @@ export default function SchedaPage() {
             }} />
         ) : null
       })()}
+      {cambioAperto && lineaCambio && (
+        <FoglioCambioCamera notti={lineaCambio.notti} contesto={contestoLinea(lineaCambio, linee, contesto)}
+          sottotitolo={linee.length > 1 ? lineaCambio.titolo : undefined}
+          contoDopo={bozza => contoDellaBozza(lineaCambio, bozza)}
+          onFatto={nuove => { setCambioAperto(null); void salvaNotti(lineaCambio, nuove) }}
+          onChiudi={() => setCambioAperto(null)} />
+      )}
       {dateAperte && lineaDate && (
         <FoglioDate notti={lineaDate.notti} contesto={contestoLinea(lineaDate, linee, contesto)}
           sottotitolo={linee.length > 1 ? lineaDate.titolo : undefined}
