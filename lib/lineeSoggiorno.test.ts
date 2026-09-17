@@ -181,17 +181,18 @@ test('due tratti dello stesso gruppo che si sovrappongono (prenotazioni vecchie)
 // ── Il pop-up dopo aver salvato le notti (Ania, 17/09/2026) ────────────────
 test('dopo «Fatto»: il conto com’è adesso e quante notti; col prezzo finale concordato e notti diverse, «rivedi lo sconto» e un avviso che resta', () => {
   const normale = confermaNotti({ totaleCent: 17000, nottiPrima: 1, nottiDopo: 2, concordato: false })
-  assert.deepEqual(normale.righe, { prima: 'Notti salvate · conto 170 €', seconda: '2 notti' })
+  assert.deepEqual(normale.righe, { prima: 'Notti aggiornate', seconda: 'Conto: 170 € · 2 notti' })
   assert.equal(normale.avviso, null)
   assert.equal(normale.durata, DURATA_CONFERMA_NOTTI)
   // prezzo finale concordato: il conto resta 170 anche con una notte in più → si dice
   const concordato = confermaNotti({ totaleCent: 17000, nottiPrima: 1, nottiDopo: 2, concordato: true })
-  assert.deepEqual(concordato.righe, { prima: 'Notti salvate · conto 170 €', seconda: RIVEDI_SCONTO })
-  assert.equal(concordato.avviso, AVVISO_RIVEDI_SCONTO)
+  assert.deepEqual(concordato.righe, { prima: 'Notti aggiornate', seconda: 'Conto rimasto a 170 €! Hai inserito lo sconto del Prezzo Finale' })
+  assert.equal(concordato.righe.seconda, RIVEDI_SCONTO(17000))
+  assert.equal(concordato.avviso, AVVISO_RIVEDI_SCONTO(17000))
   assert.equal(concordato.durata, DURATA_CONFERMA_SCONTO)
   // stesse notti (solo cambio camera): niente da rivedere
   const stesse = confermaNotti({ totaleCent: 17000, nottiPrima: 2, nottiDopo: 2, concordato: true })
-  assert.equal(stesse.righe.seconda, '2 notti')
+  assert.equal(stesse.righe.seconda, 'Conto: 170 € · 2 notti')
   assert.equal(stesse.avviso, null)
   assert.equal(conPrezzoConcordato([{ discount_type: null }, { discount_type: 'target_total' }]), true)
   assert.equal(conPrezzoConcordato([{ discount_type: 'percentage' }]), false)

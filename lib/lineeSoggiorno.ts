@@ -178,8 +178,11 @@ export function nottiConDate(notti: NotteStriscia[], arrivo: string, partenza: s
 // notti (la cifra pattuita resta quella): se le notti sono cambiate lo si
 // dice lì e resta anche un avviso nella scheda, finché lo sconto non viene
 // rivisto.
-export const RIVEDI_SCONTO = 'prezzo finale concordato: rivedi lo sconto'
-export const AVVISO_RIVEDI_SCONTO = 'Le notti sono cambiate ma il prezzo finale concordato è rimasto quello: controlla lo sconto dal conto.'
+// le parole sono di Ania (17/09/2026): «Notti aggiornate · Conto rimasto a
+// 170 €! Hai inserito lo sconto del Prezzo Finale»
+export const NOTTI_AGGIORNATE = 'Notti aggiornate'
+export const RIVEDI_SCONTO = (totaleCent: number) => `Conto rimasto a ${euroScheda(totaleCent)}! Hai inserito lo sconto del Prezzo Finale`
+export const AVVISO_RIVEDI_SCONTO = (totaleCent: number) => `Hai inserito lo sconto del Prezzo Finale: le notti sono cambiate ma il conto è rimasto a ${euroScheda(totaleCent)}. Controlla lo sconto dal conto.`
 export const DURATA_CONFERMA_NOTTI = 3500
 export const DURATA_CONFERMA_SCONTO = 7000
 
@@ -189,10 +192,10 @@ export function confermaNotti(p: { totaleCent: number; nottiPrima: number; notti
   const daRivedere = p.concordato && p.nottiPrima !== p.nottiDopo
   return {
     righe: {
-      prima: `Notti salvate · conto ${euroScheda(p.totaleCent)}`,
-      seconda: daRivedere ? RIVEDI_SCONTO : testoNotti(p.nottiDopo),
+      prima: NOTTI_AGGIORNATE,
+      seconda: daRivedere ? RIVEDI_SCONTO(p.totaleCent) : `Conto: ${euroScheda(p.totaleCent)} · ${testoNotti(p.nottiDopo)}`,
     },
-    avviso: daRivedere ? AVVISO_RIVEDI_SCONTO : null,
+    avviso: daRivedere ? AVVISO_RIVEDI_SCONTO(p.totaleCent) : null,
     durata: daRivedere ? DURATA_CONFERMA_SCONTO : DURATA_CONFERMA_NOTTI,
   }
 }
