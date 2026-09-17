@@ -59,6 +59,7 @@ import { PERSONE_CON_LEI_MAX, TROPPE_PERSONE, type PersonaConLei } from '@/lib/n
 import { campiComePaga, chiedeScadenza as chiedeScadenzaComePaga, type ComePaga as ComePagaModo } from '@/lib/comePaga'
 import ContoNuova, { TastoSalva } from '@/components/nuova/ContoNuova'
 import { campiConLei, scontoPerRiga, totaliScontati, righeDaSalvare } from '@/lib/nuovaPrenotazione'
+import { AVVISO_AGGIUNTA } from '@/lib/aggiungiCamera'
 import { problemi } from '@/lib/prenotazioneComposta'
 import { colonnaMancante } from '@/lib/colonnaMancante'
 import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
@@ -116,6 +117,9 @@ export default function NuovaPrenotazionePage() {
   const [orario, setOrario] = useState('')
   const [navetta, setNavetta] = useState<'si' | 'no' | ''>('')
   const [comePaga, setComePaga] = useState<ComePagaModo>('da_vedere')
+  // la camera in più di una prenotazione che c'è già (?prenotazione=…): la
+  // riga nuova entra nello stesso legame; come paga e caparra non si toccano
+  const [aggiungoA, setAggiungoA] = useState<string | null>(null)
   const [caparra, setCaparra] = useState<number | null>(null)
   const [caparraData, setCaparraData] = useState('')
   const [caparraOra, setCaparraOra] = useState('')
@@ -158,6 +162,7 @@ export default function NuovaPrenotazionePage() {
       const camera = p.roomId && lette.some(c => c.id === p.roomId) ? p.roomId : null
       setPeriodi([{ id: nuovoId(), gruppo, roomId: camera, checkIn: arrivo, checkOut: partenza, ospiti: camera ? ospitiScegliendoCamera(1, null, lette.find(c => c.id === camera)) : 1, nottiLetto: [], letto: null, tariffa: null }])
     }
+    if (p.prenotazione) setAggiungoA(p.prenotazione)
     if (p.guestId) {
       void supabase.from('guests').select('*').eq('id', p.guestId).maybeSingle().then(({ data }) => {
         if (data) { setCliente(data as ClienteRiga); setRicerca(''); setRisultati([]) }
@@ -441,7 +446,7 @@ export default function NuovaPrenotazionePage() {
     }
 
     setSalvando(true)
-    const prenotazioneId = crypto.randomUUID()
+    const prenotazioneId = aggiungoA ?? crypto.randomUUID()
     const gruppi = new Map<string, string>()
     for (const l of linee) gruppi.set(l.gruppo, crypto.randomUUID())
     const pagamento = campiComePaga(comePaga, {
@@ -471,8 +476,9 @@ export default function NuovaPrenotazionePage() {
       ...comuni,
       ...scontoRighe[i],
       prenotazione_id: prenotazioneId,
-      accordo_pagamento: pagamento.accordo_pagamento,
-      ...(p.id === primo ? { caparra_centesimi: pagamento.caparra_centesimi, caparra_entro: pagamento.caparra_entro } : {}),
+      // come paga e caparra sono della prenotazione: aggiungendo una camera restano quelli
+      ...(aggiungoA ? {} : { accordo_pagamento: pagamento.accordo_pagamento }),
+      ...(p.id === primo && !aggiungoA ? { caparra_centesimi: pagamento.caparra_centesimi, caparra_entro: pagamento.caparra_entro } : {}),
       // Importo e criterio vanno INSIEME o non vanno (vincolo 0048
       // bookings_extra_bed_accordo_coerente). Con l'importo non scritto a mano
       // qui finiva null accanto a «a notte» e il database rifiutava tutta la
@@ -702,14 +708,16 @@ export default function NuovaPrenotazionePage() {
           </section>
 
           {/* ── Come paga ───────────────────────────────────────────────── */}
-          <section data-come-paga-parte className="mt-6">
-            <p className="ed-sezione">Come paga</p>
-            <div className="mt-3">
-              <ComePaga modo={comePaga} onModo={setComePaga} totaleCent={conto.daPagareCent}
-                importo={caparra} onImporto={setCaparra}
-                data={caparraData} ora={caparraOra} onData={setCaparraData} onOra={setCaparraOra} />
-            </div>
-          </section>
+          {aggiungoA
+            ? <p data-aggiungo-a className="mt-6" style={{ fontSize: 12.5, color: OTTONE_PEZZI }}>{AVVISO_AGGIUNTA}</p>
+            : <section data-come-paga-parte className="mt-6">
+              <p className="ed-sezione">Come paga</p>
+              <div className="mt-3">
+                <ComePaga modo={comePaga} onModo={setComePaga} totaleCent={conto.daPagareCent}
+                  importo={caparra} onImporto={setCaparra}
+                  data={caparraData} ora={caparraOra} onData={setCaparraData} onOra={setCaparraOra} />
+              </div>
+            </section>}
 
           {/* ── Con lei ─────────────────────────────────────────────────── */}
           <ConLei className="mt-6" persone={persone} onPersone={setPersone}

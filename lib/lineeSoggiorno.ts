@@ -17,7 +17,7 @@
 //
 // Funzioni pure: niente Supabase, niente orologio.
 // ============================================================================
-import { nottiDaSegmenti, type SegmentoNotti, type NotteStriscia, type ContestoNotti, type PianoNotti } from './strisciaNotti.ts'
+import { nottiDaSegmenti, camereDellaNotte, lettoDisponibileNotte, type SegmentoNotti, type NotteStriscia, type ContestoNotti, type PianoNotti } from './strisciaNotti.ts'
 import { periodoTratto, euroScheda } from './schedaPrenotazione.ts'
 import { MESI_BREVI } from './dateItaliane.ts'
 
@@ -111,4 +111,52 @@ export function contoDopoNotti<T extends SegmentoLinea>(piano: PianoNotti, linea
 /** «Conto: 300 € → 380 €», oppure «Il conto resta 300 €» */
 export function testoContoDopo(conto: { primaCent: number; dopoCent: number }): string {
   return conto.primaCent === conto.dopoCent ? CONTO_INVARIATO(conto.primaCent) : CONTO_CAMBIA(conto.primaCent, conto.dopoCent)
+}
+
+// ── Le date di una linea (17/09/2026) ───────────────────────────────────────
+// «Cambia date» era il campo delle date di «Altre modifiche»: qui le notti
+// della linea si accorciano o si allungano ai due capi. Le notti nuove
+// prendono camera, persone e letto della notte più vicina; se quella camera
+// non è libera la notte resta senza camera (e il foglietto della notte la
+// chiede), il letto resta acceso solo se i due letti di casa ci sono.
+export const TITOLO_DATE = 'Cambia date'
+export const COMANDO_DATE = 'Cambia date'
+export const ERRORE_DATE = 'La partenza deve venire dopo l’arrivo.'
+
+const giornoDopo = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)
+const giorniFra = (dal: string, al: string): string[] => {
+  const out: string[] = []
+  for (let g = dal; g < al; g = giornoDopo(g)) out.push(g)
+  return out
+}
+
+/** Arrivo e partenza della linea com'è adesso */
+export function dateLinea(notti: NotteStriscia[]): { arrivo: string; partenza: string } | null {
+  const dentro = notti.filter(n => n.dentro)
+  if (dentro.length === 0) return null
+  return { arrivo: dentro[0].iso, partenza: giornoDopo(dentro[dentro.length - 1].iso) }
+}
+
+export function nottiConDate(notti: NotteStriscia[], arrivo: string, partenza: string, contesto: ContestoNotti): NotteStriscia[] {
+  if (!arrivo || !partenza || partenza <= arrivo) return notti
+  const per = new Map(notti.map(n => [n.iso, n]))
+  const dentro = notti.filter(n => n.dentro)
+  const prima = dentro[0] ?? null
+  const ultima = dentro[dentro.length - 1] ?? null
+  return giorniFra(arrivo, partenza).map(iso => {
+    const c = per.get(iso)
+    if (c) return c
+    const modello = (prima && iso < prima.iso ? prima : ultima) ?? prima
+    if (!modello) return { iso, cameraId: null, camera: null, letto: false, dentro: true, persone: contesto.ospiti, motivo: null, parallela: false }
+    const libera = modello.cameraId ? camereDellaNotte(iso, contesto).find(x => x.id === modello.cameraId) ?? null : null
+    const letto = Boolean(modello.letto && libera && lettoDisponibileNotte(iso, libera.id, contesto))
+    return {
+      iso, dentro: true, parallela: false,
+      cameraId: libera ? libera.id : null,
+      camera: libera ? libera.name : null,
+      letto,
+      persone: modello.persone,
+      motivo: libera ? null : (modello.camera ? `${modello.camera} è occupata` : null),
+    }
+  })
 }

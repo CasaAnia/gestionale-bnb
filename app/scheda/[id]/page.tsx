@@ -24,9 +24,10 @@
 // ogni salvataggio la scheda si aggiorna da sé, senza ricaricare la pagina:
 // prima con quello che ha appena salvato, poi rileggendo in silenzio
 // (`rileggi`), così conto, cronologia e «Da controllare» tornano insieme.
-// Dalla striscia si cambiano camera e letto in più notte per notte:
-// «Modifica soggiorno» non c'è più. «Vedi tutto» porta ancora alla scheda
-// completa, che resta com'è.
+// Dalla striscia si cambiano camera, letto in più e ospiti notte per notte,
+// e le date di ogni linea: «Modifica soggiorno» non c'è più. Dal 17/09/2026
+// non c'è più nessun rimando alla scheda vecchia: sconto, tariffe, nota e
+// colore, «con lei», «togli» pagamento e «Aggiungi camera» stanno qui.
 //
 // I testi dei messaggi NON sono qui: stanno in lib/messaggiPrenotazione, che
 // li tiene identici a quelli della scheda attuale (test di confronto).
@@ -59,6 +60,11 @@ import FoglioAnnulla from '@/components/scheda/FoglioAnnulla'
 import FoglioSconto from '@/components/scheda/FoglioSconto'
 import FoglioTogliPagamento from '@/components/scheda/FoglioTogliPagamento'
 import FoglioNota from '@/components/scheda/FoglioNota'
+import FoglioTariffa from '@/components/scheda/FoglioTariffa'
+import FoglioDate from '@/components/scheda/FoglioDate'
+import { TARIFFE_SALVATE } from '@/lib/tariffaScheda'
+import { COMANDO_AGGIUNGI_CAMERA, ERRORE_SENZA_CAMERE, legameDaScrivere, hrefAggiungiCamera } from '@/lib/aggiungiCamera'
+import { aggiornaRigaPerRiga, stessiCampi } from '@/lib/righeDati'
 import FoglioConLei from '@/components/scheda/FoglioConLei'
 import { COMANDO_NOTA, NOTA_SALVATA } from '@/lib/notaScheda'
 import { CON_LEI_SALVATO } from '@/lib/conLeiScheda'
@@ -81,7 +87,7 @@ import { saldoMancanteCent } from '@/lib/statistiche'
 import { pianoNotti, stessaStriscia, ospitiDaQuiInPoi, type ContestoNotti, type NotteStriscia, type CameraStriscia } from '@/lib/strisciaNotti'
 import { ospitiPossibiliNotte } from '@/lib/nuovaPrenotazione'
 import { capienzaCamera } from '@/lib/tariffe'
-import { lineeDelSoggiorno, contestoLinea, contoDopoNotti, testoContoDopo, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, type LineaSoggiorno } from '@/lib/lineeSoggiorno'
+import { lineeDelSoggiorno, contestoLinea, contoDopoNotti, testoContoDopo, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, COMANDO_DATE, type LineaSoggiorno } from '@/lib/lineeSoggiorno'
 import { salvaNottiInUnColpo } from '@/lib/nottiScrittura'
 import { nomeOspite } from '@/lib/guestName'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
@@ -177,6 +183,10 @@ export default function SchedaPage() {
   // il pagamento da togliere: l'id della riga di payments
   const [pagamentoDaTogliere, setPagamentoDaTogliere] = useState<string | null>(null)
   const [foglioNota, setFoglioNota] = useState(false)
+  const [foglioTariffe, setFoglioTariffe] = useState(false)
+  // «Cambia date» di una linea: la chiave della linea aperta
+  const [dateAperte, setDateAperte] = useState<string | null>(null)
+  const [aggiungendo, setAggiungendo] = useState(false)
   const [foglioConLei, setFoglioConLei] = useState(false)
   // appena annullata da qui: la pastiglia in mattone in cima, finché non si va via
   const [annullata, setAnnullata] = useState(false)
@@ -302,7 +312,6 @@ export default function SchedaPage() {
   const telefono = guest?.phone ?? null
   const waNumero = numeroWhatsAppPrenotazione(telefono)
   const primoSegmento = attive[0] ?? booking
-  const hrefVecchia = (segmentoId: string) => `/prenotazioni/${segmentoId}`
 
   // ── LE STRISCE DELLE NOTTI ───────────────────────────────────────────────
   // Una striscia per linea (lib/lineeSoggiorno): il cambio camera durante il
@@ -319,8 +328,32 @@ export default function SchedaPage() {
   // le notti dormite in casa: una notte con due camere in parallelo conta una volta
   const nottiDormite = useMemo(() => new Set(linee.flatMap(l => l.notti.filter(n => n.dentro).map(n => n.iso))).size, [linee])
   const lineaAperta = notteAperta ? (linee.find(l => l.chiave === notteAperta.linea) ?? null) : null
+  const lineaDate = dateAperte ? (linee.find(l => l.chiave === dateAperte) ?? null) : null
   // nel contesto di una linea le altre linee contano come altre prenotazioni
   const contestoAperto = lineaAperta ? contestoLinea(lineaAperta, linee, contesto) : contesto
+  // l'effetto sul conto di una bozza di notti, prima di salvare: il piano
+  // letto come lo leggerà la scheda, o il motivo per cui così non si salva
+  const contoDellaBozza = (linea: LineaSoggiorno<Prenotazione>, bozza: NotteStriscia[]) => {
+    const ctx = contestoLinea(linea, linee, contesto)
+    const piano = pianoNotti(bozza, linea.segmenti, ctx)
+    if (piano.errore) return { testo: piano.errore, guaio: true }
+    const c = contoDopoNotti(piano, linea, attive)
+    return c ? { testo: testoContoDopo(c), guaio: false } : null
+  }
+  // «Aggiungi camera»: prima il legame fra le camere (prenotazione_id) se
+  // manca, poi l'inserimento nuovo con la stessa cliente e le stesse date
+  async function aggiungiCamera() {
+    if (!booking || aggiungendo) return
+    const legame = legameDaScrivere(righe, () => crypto.randomUUID())
+    if (!legame) { setAvviso(ERRORE_SENZA_CAMERE); return }
+    if (legame.ids.length > 0) {
+      setAggiungendo(true)
+      const esito = await aggiornaRigaPerRiga(stessiCampi(legame.ids, { prenotazione_id: legame.prenotazioneId }))
+      setAggiungendo(false)
+      if (esito.esito === 'errore') { setAvviso(esito.messaggio); rileggi(); return }
+    }
+    router.push(hrefAggiungiCamera({ guestId: booking.guest_id, prenotazioneId: legame.prenotazioneId, arrivo: primoArrivo, partenza: ultimaPartenza }))
+  }
   // «da qui in poi»: le persone della notte aperta valgono anche per le notti dopo
   const conDaQui = (bozza: NotteStriscia[], daQui: boolean) => (daQui && notteAperta ? ospitiDaQuiInPoi(bozza, notteAperta.iso, contestoAperto) : bozza)
 
@@ -500,6 +533,11 @@ export default function SchedaPage() {
             )}
             <StrisciaNottiCamere notti={l.notti} oggi={oggi} spiegazione={i === 0}
               onNotte={nonSiSposta ? undefined : n => setNotteAperta({ linea: l.chiave, iso: n.iso })} className="mt-3" />
+            {!nonSiSposta && (
+              <p className="text-center" style={{ marginTop: 2 }}>
+                <button type="button" data-cambia-date={l.chiave} onClick={() => setDateAperte(l.chiave)} className="py-2 -my-2" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{COMANDO_DATE}</button>
+              </p>
+            )}
           </div>
         ))}
         {linee.length > 1 && !nonSiSposta && (
@@ -528,7 +566,7 @@ export default function SchedaPage() {
           ? <ContoScheda className="mt-3" testa={testa} righe={rigeConto} totale={euroScheda(conto.totaleCent)}
             accordo={comePagaTesto} pagamenti={rigePagamenti}
             onPagamento={() => setFoglioPagamento(true)} onComePaga={() => setFoglioComePaga(true)} onSconto={() => setFoglioSconto(true)}
-            onTogliPagamento={id => setPagamentoDaTogliere(id)} />
+            onTogliPagamento={id => setPagamentoDaTogliere(id)} onTariffe={() => setFoglioTariffe(true)} />
           : <p className="mt-2" style={{ fontSize: 13, color: 'var(--color-stone)' }}>Non riesco a leggere il conto. Ricarica la scheda prima di toccare i pagamenti.</p>}
       </section>
 
@@ -559,10 +597,10 @@ export default function SchedaPage() {
       {/* I tre comandi in fondo, staccati da tutto il resto */}
       <p data-comandi-fondo className="flex flex-wrap items-center justify-center mt-8 mb-4" style={{ gap: '0 12px', fontSize: 14 }}>
         <button type="button" data-nota-colore onClick={() => setFoglioNota(true)} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>{COMANDO_NOTA}</button>
-        <span style={{ color: 'var(--color-stone)' }}>·</span>
-        <Link href={hrefVecchia(booking.id)} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Vedi tutto</Link>
-        <span style={{ color: 'var(--color-stone)' }}>·</span>
-        <Link href={hrefVecchia(booking.id)} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Altre modifiche</Link>
+        {booking.status !== 'annullata' && <>
+          <span style={{ color: 'var(--color-stone)' }}>·</span>
+          <button type="button" data-aggiungi-camera onClick={aggiungiCamera} disabled={aggiungendo} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)', opacity: aggiungendo ? 0.5 : 1 }}>{COMANDO_AGGIUNGI_CAMERA}</button>
+        </>}
         {booking.status !== 'annullata' && <>
           <span style={{ color: 'var(--color-stone)' }}>·</span>
           <button type="button" data-annulla-prenotazione onClick={() => setFoglioAnnulla(true)} className="py-2 -my-2" style={{ fontSize: 14, color: '#8C3B2E' }}>Annulla prenotazione</button>
@@ -582,13 +620,7 @@ export default function SchedaPage() {
             const camera = camere.find(c => c.id === cameraId) ?? null
             return ospitiPossibiliNotte(camera, capienzaCamera(camera))
           }}
-          contoDopo={(bozza, daQui) => {
-            // l'effetto sul conto PRIMA di salvare: il piano della bozza, letto come lo leggerà la scheda
-            const piano = pianoNotti(conDaQui(bozza, daQui), lineaAperta.segmenti, contestoAperto)
-            if (piano.errore) return { testo: piano.errore, guaio: true }
-            const conto = contoDopoNotti(piano, lineaAperta, attive)
-            return conto ? { testo: testoContoDopo(conto), guaio: false } : null
-          }}
+          contoDopo={(bozza, daQui) => contoDellaBozza(lineaAperta, conDaQui(bozza, daQui))}
           onFatto={(nuove, daQui) => salvaNotti(lineaAperta, conDaQui(nuove, daQui))} onChiudi={() => setNotteAperta(null)} />
       )}
 
@@ -642,6 +674,27 @@ export default function SchedaPage() {
             }} />
         ) : null
       })()}
+      {dateAperte && lineaDate && (
+        <FoglioDate notti={lineaDate.notti} contesto={contestoLinea(lineaDate, linee, contesto)}
+          sottotitolo={linee.length > 1 ? lineaDate.titolo : undefined}
+          contoDopo={bozza => contoDellaBozza(lineaDate, bozza)}
+          onFatto={nuove => { setDateAperte(null); void salvaNotti(lineaDate, nuove) }}
+          onChiudi={() => setDateAperte(null)} />
+      )}
+      {foglioTariffe && conto && (
+        <FoglioTariffa righe={righe}
+          onChiudi={() => setFoglioTariffe(false)}
+          onSalvato={(scritte, cambiato) => {
+            setFoglioTariffe(false)
+            if (!cambiato) return
+            const per = new Map(scritte.map(r => [r.id, r.campi]))
+            const aggiorna = (r: Prenotazione): Prenotazione => (per.has(r.id) ? { ...r, ...per.get(r.id) } : r)
+            setRighe(rs => rs.map(aggiorna))
+            setBooking(b => (b ? aggiorna(b) : b))
+            setAvviso(TARIFFE_SALVATE)
+            rileggi()
+          }} />
+      )}
       {foglioNota && (
         <FoglioNota booking={booking} righe={righe}
           onChiudi={() => setFoglioNota(false)}

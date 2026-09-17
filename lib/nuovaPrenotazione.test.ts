@@ -1,6 +1,7 @@
 // La nuova pagina di inserimento (14/09/2026): le prove della logica pura.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { parametriInserimento } from './nuovaPrenotazione.ts'
 import { readFileSync } from 'node:fs'
 import {
   dataDiOggi, volteInParole, rigaClienteTrovato, camereDelPeriodo, rigaCamereLibere,
@@ -372,7 +373,7 @@ test('il salvataggio scrive le righe di sempre e apre la scheda nuova', () => {
   assert.match(pagina, /campiComePaga\(comePaga, \{/)
   assert.match(pagina, /router\.push\(`\/scheda\/\$\{prima\.id\}\?salvata=1`\)/)
   // la caparra si scrive una volta sola, sulla riga che arriva per prima
-  assert.match(pagina, /p\.id === primo \? \{ caparra_centesimi: pagamento\.caparra_centesimi, caparra_entro: pagamento\.caparra_entro \} : \{\}/)
+  assert.match(pagina, /p\.id === primo && !aggiungoA \? \{ caparra_centesimi: pagamento\.caparra_centesimi, caparra_entro: pagamento\.caparra_entro \} : \{\}/)
 })
 
 // ── 6. DOPO IL SALVATAGGIO ─────────────────────────────────────────────────
@@ -1573,4 +1574,10 @@ test('prezzo finale su più tratti: ogni riga porta la sua quota, e la somma è 
   // e la pagina scrive lo sconto riga per riga, non una volta per tutte
   assert.match(pagina, /\.\.\.scontoRighe\[i\],/)
   assert.equal(/campiSconto\(/.test(pagina), false, 'la pagina usa ancora lo sconto spalmato in percentuale')
+})
+
+test('il parametro «prenotazione» (17/09/2026): il legame della prenotazione a cui aggiungere la camera', () => {
+  assert.equal(parametriInserimento('?guest_id=g&prenotazione=pppp&check_in=2026-11-03&check_out=2026-11-07').prenotazione, 'pppp')
+  assert.equal(parametriInserimento('?guest_id=g').prenotazione, null)
+  assert.equal(parametriInserimento('?prenotazione=%20').prenotazione, null)
 })

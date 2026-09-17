@@ -25,7 +25,9 @@ const FOGLI: { file: string; stato: string; apre: RegExp }[] = [
   { file: 'FoglioSconto', stato: 'foglioSconto', apre: /onSconto=\{\(\) => setFoglioSconto\(true\)\}/ },
   { file: 'FoglioNota', stato: 'foglioNota', apre: /data-nota-colore onClick=\{\(\) => setFoglioNota\(true\)\}/ },
   { file: 'FoglioConLei', stato: 'foglioConLei', apre: /onConLei=\{\(\) => setFoglioConLei\(true\)\}/ },
+  { file: 'FoglioTariffa', stato: 'foglioTariffe', apre: /onTariffe=\{\(\) => setFoglioTariffe\(true\)\}/ },
 ]
+// «Cambia date» si apre su UNA linea (lo stato porta la chiave): si prova a parte, sotto
 // «Togli pagamento» si apre su UN pagamento (lo stato porta l'id): si prova a parte, sotto
 
 // ── La veste comune ─────────────────────────────────────────────────────────
@@ -422,4 +424,47 @@ test('l’email della cliente sta nel modulo di sempre (inserimento e scheda), e
   assert.match(modulo, /<RigaCampo etichetta="Email · può restare vuota" ottone=\{ottone\}>[\s\S]{0,200}data-campo="email"/)
   assert.match(modulo, /email: '',/)
   assert.match(leggi('lib/datiCliente.ts'), /email: m\.email\.trim\(\) \|\| null,/)
+})
+
+// ── 10. TARIFFE · CAMBIA DATE · AGGIUNGI CAMERA (17/09/2026) ────────────────
+test('«Tariffe»: un campo per tratto, totale attuale e nuovo, si scrive riga per riga', () => {
+  const tariffe = leggi('components/scheda/FoglioTariffa.tsx')
+  assert.match(leggi('components/scheda/ContoScheda.tsx'), /data-modifica-tariffe onClick=\{onTariffe\}/)
+  assert.match(tariffe, /data-campo=\{`tariffa-\$\{v\.id\}`\}/)
+  assert.match(tariffe, /data-anteprima-tariffe/)
+  assert.match(tariffe, /aggiornaRigaPerRiga\(esito\.righe\)/)
+  assert.match(tariffe, /if \(esito\.righe\.length === 0\) \{ onSalvato\(\[\], false\); return \}/)
+  assert.equal(/supabase/.test(tariffe), false)
+  const dopo = pagina.slice(pagina.indexOf('<FoglioTariffa'), pagina.indexOf('<FoglioTariffa') + 800)
+  assert.match(dopo, /setRighe\(rs => rs\.map\(aggiorna\)\)/)
+  assert.match(dopo, /rileggi\(\)/)
+})
+
+test('«Cambia date» sotto ogni striscia: arrivo e partenza, l’effetto sul conto, e «Fatto» salva come dalla striscia', () => {
+  const date = leggi('components/scheda/FoglioDate.tsx')
+  assert.match(pagina, /data-cambia-date=\{l\.chiave\} onClick=\{\(\) => setDateAperte\(l\.chiave\)\}/)
+  assert.match(pagina, /\{dateAperte && lineaDate && \([\s\S]{0,80}<FoglioDate notti=\{lineaDate\.notti\} contesto=\{contestoLinea\(lineaDate, linee, contesto\)\}/)
+  assert.match(pagina, /onFatto=\{nuove => \{ setDateAperte\(null\); void salvaNotti\(lineaDate, nuove\) \}\}/)
+  assert.match(pagina, /onChiudi=\{\(\) => setDateAperte\(null\)\}/)
+  assert.match(date, /<CampoData etichetta="Arrivo" valore=\{arrivo\}[^\n]*dati="arrivo" ottone/)
+  assert.match(date, /<CampoData etichetta="Partenza" valore=\{partenza\}[^\n]*dati="partenza" ottone/)
+  assert.match(date, /nottiConDate\(notti, arrivo, partenza, contesto\)/)
+  assert.match(date, /data-conto-dopo/)
+  // con un guaio (una notte senza camera libera) «Fatto» non fa niente
+  assert.match(date, /if \(dateBuone && !\(conto && conto\.guaio\)\) onFatto\(bozza\)/)
+  assert.equal(/supabase/.test(date), false)
+  assert.match(date, /import Foglio, \{ PiedeFoglio \} from '\.\/Foglio'/)
+})
+
+test('«Aggiungi camera»: prima il legame fra le camere se manca, poi l’inserimento nuovo con cliente, date e legame', () => {
+  assert.match(pagina, /const legame = legameDaScrivere\(righe, \(\) => crypto\.randomUUID\(\)\)/)
+  assert.match(pagina, /aggiornaRigaPerRiga\(stessiCampi\(legame\.ids, \{ prenotazione_id: legame\.prenotazioneId \}\)\)/)
+  assert.match(pagina, /router\.push\(hrefAggiungiCamera\(\{ guestId: booking\.guest_id, prenotazioneId: legame\.prenotazioneId, arrivo: primoArrivo, partenza: ultimaPartenza \}\)\)/)
+  // l'inserimento nuovo: stesso legame, come paga e caparra non si toccano
+  const nuova = leggi('app/nuova-prenotazione/page.tsx')
+  assert.match(nuova, /if \(p\.prenotazione\) setAggiungoA\(p\.prenotazione\)/)
+  assert.match(nuova, /const prenotazioneId = aggiungoA \?\? crypto\.randomUUID\(\)/)
+  assert.match(nuova, /\.\.\.\(aggiungoA \? \{\} : \{ accordo_pagamento: pagamento\.accordo_pagamento \}\),/)
+  assert.match(nuova, /p\.id === primo && !aggiungoA \? \{ caparra_centesimi/)
+  assert.match(nuova, /\{aggiungoA\s*\? <p data-aggiungo-a[^>]*>\{AVVISO_AGGIUNTA\}<\/p>\s*: <section data-come-paga-parte/)
 })

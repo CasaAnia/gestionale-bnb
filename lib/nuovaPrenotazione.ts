@@ -33,7 +33,7 @@ export const SENZA_NOME = 'Del cliente nuovo serve il nome.'
 // richieste le due date (check_in, check_out), la scheda del cliente la
 // persona (guest_id). returnTo non serve più: dopo il salvataggio si apre la
 // scheda. Le date si prendono solo se sono giorni veri e in ordine.
-export type ParametriInserimento = { guestId: string | null; roomId: string | null; checkIn: string | null; checkOut: string | null }
+export type ParametriInserimento = { guestId: string | null; roomId: string | null; checkIn: string | null; checkOut: string | null; prenotazione: string | null }
 const GIORNO = /^\d{4}-\d{2}-\d{2}$/
 export function parametriInserimento(search: string): ParametriInserimento {
   const p = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
@@ -45,6 +45,8 @@ export function parametriInserimento(search: string): ParametriInserimento {
     roomId: (p.get('room_id') ?? '').trim() || null,
     checkIn,
     checkOut: checkIn && partenza && partenza > checkIn ? partenza : null,
+    // la camera in più di una prenotazione che c'è già (17/09/2026): il legame
+    prenotazione: (p.get('prenotazione') ?? '').trim() || null,
   }
 }
 

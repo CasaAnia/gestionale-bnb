@@ -29,10 +29,11 @@ function sorgenti(cartella: string): string[] {
 }
 
 // Le due pagine vecchie (che parlano di sé), la scheda nuova (che ha
-// «Vedi tutto» verso la scheda completa, per scelta) e i testi dei messaggi
+// più nessun rimando dalla scheda nuova, dal 17/09/2026) e i testi dei messaggi
 // (un commento) sono gli unici posti dove /prenotazioni/<id> può comparire.
 // MobileTopBar nomina le sezioni per prefisso ('/nuova' copre anche /nuova-prenotazione): non è un link.
-const AMMESSI = new Set(['app/prenotazioni/[id]/page.tsx', 'app/nuova/page.tsx', 'app/scheda/[id]/page.tsx', 'lib/messaggiPrenotazione.ts', 'app/prenotazioni/[id]/layout.tsx', 'app/nuova/layout.tsx', 'components/MobileTopBar.tsx'])
+// dal 17/09/2026 nemmeno la scheda nuova (app/scheda/[id]/page.tsx) è fra le eccezioni
+const AMMESSI = new Set(['app/prenotazioni/[id]/page.tsx', 'app/nuova/page.tsx', 'lib/messaggiPrenotazione.ts', 'app/prenotazioni/[id]/layout.tsx', 'app/nuova/layout.tsx', 'components/MobileTopBar.tsx'])
 
 test('nessun link del gestionale apre più la scheda vecchia /prenotazioni/<id>', () => {
   const trovati: string[] = []
@@ -96,12 +97,12 @@ test('la scheda nuova capisce da dove si arriva: ?da=richiesta, ?da=cliente, ?av
 })
 
 test('l’inserimento nuovo legge camera, date e cliente dall’indirizzo', () => {
-  assert.deepEqual(parametriInserimento('?room_id=lena&check_in=2026-10-05'), { guestId: null, roomId: 'lena', checkIn: '2026-10-05', checkOut: null })
-  assert.deepEqual(parametriInserimento('check_in=2026-10-05&check_out=2026-10-08'), { guestId: null, roomId: null, checkIn: '2026-10-05', checkOut: '2026-10-08' })
+  assert.deepEqual(parametriInserimento('?room_id=lena&check_in=2026-10-05'), { guestId: null, roomId: 'lena', checkIn: '2026-10-05', checkOut: null, prenotazione: null })
+  assert.deepEqual(parametriInserimento('check_in=2026-10-05&check_out=2026-10-08'), { guestId: null, roomId: null, checkIn: '2026-10-05', checkOut: '2026-10-08', prenotazione: null })
   // la partenza prima dell'arrivo o una data storta non si prendono
-  assert.deepEqual(parametriInserimento('?check_in=2026-10-05&check_out=2026-10-01'), { guestId: null, roomId: null, checkIn: '2026-10-05', checkOut: null })
-  assert.deepEqual(parametriInserimento('?check_in=ieri&guest_id=g1&returnTo=/calendario'), { guestId: 'g1', roomId: null, checkIn: null, checkOut: null })
-  assert.deepEqual(parametriInserimento(''), { guestId: null, roomId: null, checkIn: null, checkOut: null })
+  assert.deepEqual(parametriInserimento('?check_in=2026-10-05&check_out=2026-10-01'), { guestId: null, roomId: null, checkIn: '2026-10-05', checkOut: null, prenotazione: null })
+  assert.deepEqual(parametriInserimento('?check_in=ieri&guest_id=g1&returnTo=/calendario'), { guestId: 'g1', roomId: null, checkIn: null, checkOut: null, prenotazione: null })
+  assert.deepEqual(parametriInserimento(''), { guestId: null, roomId: null, checkIn: null, checkOut: null, prenotazione: null })
   const pagina = leggi('app/nuova-prenotazione/page.tsx')
   assert.match(pagina, /const p = parametriInserimento\(window\.location\.search\)/)
   assert.match(pagina, /applicaParametri\(lette\)/)

@@ -21,8 +21,8 @@ const documenti = leggi('components/DocumentiCliente.tsx')
 test('la scheda nuova sta a /scheda/<id> e la vecchia non viene toccata', () => {
   // l'indirizzo è il file stesso: app/scheda/[id]/page.tsx (se sparisce, leggi() fallisce)
   assert.ok(pagina.length > 0)
-  // «Vedi tutto» porta alla scheda attuale, che resta com'è
-  assert.match(pagina, /const hrefVecchia = \(segmentoId: string\) => `\/prenotazioni\/\$\{segmentoId\}`/)
+  // dal 17/09/2026 nessun rimando alla scheda vecchia: né «Vedi tutto» né «Altre modifiche»
+  assert.equal(/hrefVecchia|\/prenotazioni\/\$\{/.test(pagina), false, 'la scheda nuova rimanda ancora alla vecchia')
 })
 
 // ── 1. LA TESTA ────────────────────────────────────────────────────────────
@@ -191,7 +191,8 @@ test('con due camere nelle stesse notti ci sono due strisce, ognuna col suo tito
   assert.match(pagina, /\{CAMERE_NON_LETTE\}/)
   // il foglietto dice quale camera e quali notti si toccano, e l'effetto sul conto prima di «Fatto»
   assert.match(pagina, /sottotitolo=\{linee\.length > 1 \? lineaAperta\.titolo : undefined\}/)
-  assert.match(pagina, /contoDopo=\{\(bozza, daQui\) => \{[\s\S]{0,400}pianoNotti\(conDaQui\(bozza, daQui\), lineaAperta\.segmenti, contestoAperto\)/)
+  assert.match(pagina, /contoDopo=\{\(bozza, daQui\) => contoDellaBozza\(lineaAperta, conDaQui\(bozza, daQui\)\)\}/)
+  assert.match(pagina, /const piano = pianoNotti\(bozza, linea\.segmenti, ctx\)/)
   const foglioNotte = leggi('components/FoglioNotte.tsx')
   assert.match(foglioNotte, /data-sottotitolo-notte/)
   assert.match(foglioNotte, /data-conto-dopo[^>]*>\{conto\.testo\}/)
@@ -389,12 +390,12 @@ test('la cronologia: quando a sinistra, cosa a destra, i messaggi col fumetto', 
   assert.match(leggi('lib/schedaConto.ts'), /\.sort\(\(a, b\) => a\.ordine\.localeCompare\(b\.ordine\) \|\| a\.n - b\.n\)/)
 })
 
-test('i comandi in fondo: «Nota e colore» (17/09/2026), poi l’annullamento in rosso', () => {
+test('i comandi in fondo (17/09/2026): «Nota e colore», «Aggiungi camera», poi l’annullamento in rosso', () => {
   const fondo = pagina.slice(pagina.indexOf('data-comandi-fondo'), pagina.indexOf('data-comandi-fondo') + 1600)
   assert.match(fondo, /data-nota-colore onClick=\{\(\) => setFoglioNota\(true\)\}[^>]*>\{COMANDO_NOTA\}/)
-  assert.match(fondo, />Vedi tutto</)
-  assert.match(fondo, />Altre modifiche</)
+  assert.match(fondo, /data-aggiungi-camera onClick=\{aggiungiCamera\}/)
   assert.match(fondo, /color: '#8C3B2E' \}\}>Annulla prenotazione</)
-  assert.ok(fondo.indexOf('Vedi tutto') < fondo.indexOf('Altre modifiche'))
-  assert.ok(fondo.indexOf('Altre modifiche') < fondo.indexOf('Annulla prenotazione'))
+  assert.equal(/Vedi tutto|Altre modifiche/.test(fondo), false, 'in fondo ci sono ancora i rimandi alla scheda vecchia')
+  assert.ok(fondo.indexOf('COMANDO_NOTA') < fondo.indexOf('COMANDO_AGGIUNGI_CAMERA'))
+  assert.ok(fondo.indexOf('COMANDO_AGGIUNGI_CAMERA') < fondo.indexOf('Annulla prenotazione'))
 })

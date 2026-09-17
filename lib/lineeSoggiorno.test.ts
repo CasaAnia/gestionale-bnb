@@ -7,7 +7,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   lineeDelSoggiorno, titoloLinea, contestoLinea, contoDopoNotti, testoContoDopo, chiaveLinea,
-  CONTO_INVARIATO, CONTO_CAMBIA, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE,
+  CONTO_INVARIATO, CONTO_CAMBIA, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, dateLinea, nottiConDate,
 } from './lineeSoggiorno.ts'
 import { pianoNotti, cambiaCamera, camereDellaNotte, lettoDisponibileNotte, nonDormeQui, type ContestoNotti, type CameraStriscia } from './strisciaNotti.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -122,4 +122,38 @@ test('il conto prima di salvare: invariato se non cambia niente, annullato non p
 test('le frasi sotto le strisce', () => {
   assert.equal(SPIEGAZIONE_PARALLELE, 'Più camere nelle stesse notti: ogni camera si cambia dalla sua striscia.')
   assert.equal(/scheda completa|Vedi tutto/.test(CAMERE_NON_LETTE), false, 'rimanda ancora alla scheda vecchia')
+})
+
+// ── «Cambia date» (17/09/2026) ──────────────────────────────────────────────
+test('le date della linea, e le notti con date nuove: si accorcia, si allunga copiando la notte vicina', () => {
+  const linee = lineeDelSoggiorno(tutti)
+  const A = linee[0]
+  const ctxA = contestoLinea(A, linee, contesto)
+  assert.deepEqual(dateLinea(A.notti), { arrivo: '2026-11-03', partenza: '2026-11-07' })
+  // si accorcia: via l'ultima notte
+  const corte = nottiConDate(A.notti, '2026-11-03', '2026-11-06', ctxA)
+  assert.deepEqual(corte.map(n => n.iso), ['2026-11-03', '2026-11-04', '2026-11-05'])
+  // si allunga in coda: la notte nuova prende la camera dell'ultima (Ambra) se è libera
+  const lunghe = nottiConDate(A.notti, '2026-11-03', '2026-11-08', ctxA)
+  assert.deepEqual(lunghe.map(n => [n.iso, n.camera, n.persone, n.letto]).slice(-2), [['2026-11-06', 'Ambra', 2, false], ['2026-11-07', 'Ambra', 2, false]])
+  // si allunga in testa: la notte nuova prende la camera della prima (Lena)
+  const prima = nottiConDate(A.notti, '2026-11-02', '2026-11-07', ctxA)
+  assert.deepEqual([prima[0].iso, prima[0].camera], ['2026-11-02', 'Lena'])
+  // il piano salva tutto: il tratto di Ambra si allunga, la sorella non si tocca
+  const piano = pianoNotti(lunghe, A.segmenti, ctxA)
+  assert.equal(piano.errore, null)
+  assert.deepEqual(piano.aggiorna.map(a => [a.id, a.campi.check_out]), [['a2', '2026-11-08']])
+  assert.equal(contoDopoNotti(piano, A, tutti)!.dopoCent, 16000 + 21000 + 19500)
+  // date sbagliate: le notti restano quelle
+  assert.equal(nottiConDate(A.notti, '2026-11-07', '2026-11-03', ctxA), A.notti)
+})
+
+test('allungando su una notte in cui la camera è presa, la notte resta senza camera e il piano lo dice', () => {
+  const linee = lineeDelSoggiorno(tutti)
+  const B = linee[1]     // la sorella in Amelia 3–6
+  const ctxB = contestoLinea(B, linee, { camere, altre: [{ room_id: 'amelia', check_in: '2026-11-06', check_out: '2026-11-08', status: 'confermata' }], ospiti: 1 })
+  const lunghe = nottiConDate(B.notti, '2026-11-03', '2026-11-07', ctxB)
+  const nuova = lunghe[lunghe.length - 1]
+  assert.deepEqual([nuova.iso, nuova.cameraId, nuova.motivo], ['2026-11-06', null, 'Amelia è occupata'])
+  assert.notEqual(pianoNotti(lunghe, B.segmenti, ctxB).errore, null)
 })

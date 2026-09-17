@@ -69,7 +69,7 @@ export type ContestoNotti = {
 }
 
 export const NESSUNA_NOTTE = 'Il soggiorno resterebbe senza nessuna notte'
-export const SCONTO_DECADUTO = 'Con questa modifica il totale concordato non è più uno sconto: rivedilo da «Vedi tutto» prima di spostare le notti'
+export const SCONTO_DECADUTO = 'Con questa modifica il totale concordato non è più uno sconto: rivedilo dal comando «Sconto» del conto prima di spostare le notti'
 export const CAMERA_MANCANTE = 'C’è una notte senza camera: scegli la camera prima di salvare'
 export const TESTO_LIBERA = 'libera'
 
@@ -268,7 +268,7 @@ export function personeColLetto(camera: CameraStriscia | null | undefined, ospit
 //  · «compreso»      il posto è già nel prezzo (Lena venduta come tripla);
 //  · «compreso» anche quando il letto è in più ma le persone ci stanno lo
 //    stesso (due che vogliono dormire separate): il conto non cambia, e se va
-//    fatto pagare si fa da «Vedi tutto».
+//    fatto pagare si fa dal foglio «Tariffe» del conto (17/09/2026).
 export const LETTO_COMPRESO = 'compreso'
 /** Il costo accanto a «Sì»: «10 €» oppure «compreso» quando non si paga.
  *  `scelto` è quello che Ania ha deciso sopra, sul blocco del letto: è quello
