@@ -57,7 +57,9 @@ import FoglioCliente from '@/components/scheda/FoglioCliente'
 import FoglioCambiaCliente from '@/components/scheda/FoglioCambiaCliente'
 import FoglioAnnulla from '@/components/scheda/FoglioAnnulla'
 import FoglioSconto from '@/components/scheda/FoglioSconto'
+import FoglioTogliPagamento from '@/components/scheda/FoglioTogliPagamento'
 import { SCONTO_SALVATO, SCONTO_TOLTO } from '@/lib/scontoScheda'
+import { PAGAMENTO_TOLTO } from '@/lib/pagamentoFoglio'
 import { PRENOTAZIONE_ANNULLATA } from '@/lib/annullamento'
 import ConfermaVolante from '@/components/ConfermaVolante'
 import AdessoScheda from '@/components/scheda/AdessoScheda'
@@ -168,6 +170,8 @@ export default function SchedaPage() {
   const [foglioCambiaCliente, setFoglioCambiaCliente] = useState(false)
   const [foglioAnnulla, setFoglioAnnulla] = useState(false)
   const [foglioSconto, setFoglioSconto] = useState(false)
+  // il pagamento da togliere: l'id della riga di payments
+  const [pagamentoDaTogliere, setPagamentoDaTogliere] = useState<string | null>(null)
   // appena annullata da qui: la pastiglia in mattone in cima, finché non si va via
   const [annullata, setAnnullata] = useState(false)
   // la conferma volante dopo un pagamento (Ania, 11/09/2026): due righe, pochi secondi
@@ -517,7 +521,8 @@ export default function SchedaPage() {
         {testa && conto
           ? <ContoScheda className="mt-3" testa={testa} righe={rigeConto} totale={euroScheda(conto.totaleCent)}
             accordo={comePagaTesto} pagamenti={rigePagamenti}
-            onPagamento={() => setFoglioPagamento(true)} onComePaga={() => setFoglioComePaga(true)} onSconto={() => setFoglioSconto(true)} />
+            onPagamento={() => setFoglioPagamento(true)} onComePaga={() => setFoglioComePaga(true)} onSconto={() => setFoglioSconto(true)}
+            onTogliPagamento={id => setPagamentoDaTogliere(id)} />
           : <p className="mt-2" style={{ fontSize: 13, color: 'var(--color-stone)' }}>Non riesco a leggere il conto. Ricarica la scheda prima di toccare i pagamenti.</p>}
       </section>
 
@@ -610,6 +615,25 @@ export default function SchedaPage() {
           }} />
       )}
       {conferma && <ConfermaVolante key={conferma.n} righe={conferma.righe} onChiudi={() => setConferma(null)} />}
+      {pagamentoDaTogliere && conto && (() => {
+        const p = (pagamenti as unknown as PagamentoScheda[]).find(x => x.id === pagamentoDaTogliere)
+        return p ? (
+          <FoglioTogliPagamento pagamento={p} righe={righe} totaleCent={conto.totaleCent} ricevutiCent={conto.ricevutiCent}
+            onChiudi={() => setPagamentoDaTogliere(null)}
+            onTolto={esito => {
+              // prima i pagamenti rimasti e il bollino, poi la rilettura in
+              // silenzio (cronologia, «Da controllare», la testa)
+              setPagamenti(esito.pagamenti as unknown as PagamentoStat[])
+              if (!esito.pagato) {
+                setRighe(rs => rs.map(r => ({ ...r, pagato: false })))
+                setBooking(b => (b ? { ...b, pagato: false } : b))
+              }
+              setPagamentoDaTogliere(null)
+              setAvviso(esito.avviso ?? PAGAMENTO_TOLTO)
+              rileggi()
+            }} />
+        ) : null
+      })()}
       {foglioSconto && conto && (
         <FoglioSconto righe={righe} ricevutiCent={conto.ricevutiCent}
           onChiudi={() => setFoglioSconto(false)}

@@ -580,7 +580,9 @@ const finto = createServer((req, res) => {
   if (m && req.method === 'DELETE' && m[1] === 'payments') {
     const righe = righeFiltrate('payments', url)
     for (const r of righe) payments.splice(payments.indexOf(r), 1)
-    return rispondi(res, 200, [])
+    console.log(`[finto supabase] DELETE payments ${righe.length} righe`)
+    // come PostgREST con «return=representation» (.select() dopo delete): le righe tolte
+    return rispondi(res, 200, righe.map(r => applicaSelect(r, url.searchParams.get('select') || '*')))
   }
   // Nuova prenotazione (07/09/2026): l'inserimento in bookings si accetta in
   // memoria, per provare «prima camera → Aggiungi cambio camera → seconda camera»

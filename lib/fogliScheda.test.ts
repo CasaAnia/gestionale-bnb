@@ -24,6 +24,7 @@ const FOGLI: { file: string; stato: string; apre: RegExp }[] = [
   { file: 'FoglioAnnulla', stato: 'foglioAnnulla', apre: /data-annulla-prenotazione onClick=\{\(\) => setFoglioAnnulla\(true\)\}/ },
   { file: 'FoglioSconto', stato: 'foglioSconto', apre: /onSconto=\{\(\) => setFoglioSconto\(true\)\}/ },
 ]
+// «Togli pagamento» si apre su UN pagamento (lo stato porta l'id): si prova a parte, sotto
 
 // ── La veste comune ─────────────────────────────────────────────────────────
 test('il foglio: dal basso, angoli 20 px, 22 px ai lati, titolo Georgia 20', () => {
@@ -347,4 +348,45 @@ test('dopo lo sconto il conto si aggiorna riga per riga e la scheda rilegge; con
   assert.match(dopo, /SCONTO_SALVATO : SCONTO_TOLTO/)
   assert.match(dopo, /rileggi\(\)/)
   assert.match(sconto, /if \(esito\.esito === 'errore'\) \{ setErrore\(esito\.messaggio\); return \}/)
+})
+
+// ── 8. TOGLI PAGAMENTO (17/09/2026) ─────────────────────────────────────────
+const togli = leggi('components/scheda/FoglioTogliPagamento.tsx')
+
+test('«togli» accanto a ogni pagamento apre il foglio di conferma: importo, giorno e modo, quanto resta, bollino via', () => {
+  const conto = leggi('components/scheda/ContoScheda.tsx')
+  assert.match(conto, /data-togli-pagamento=\{p\.id\} onClick=\{\(\) => onTogliPagamento\(p\.id\)\}/)
+  assert.match(conto, /\{COMANDO_TOGLI\}/)
+  assert.match(pagina, /onTogliPagamento=\{id => setPagamentoDaTogliere\(id\)\}/)
+  assert.match(pagina, /\{pagamentoDaTogliere && conto && \(\(\) => \{[\s\S]{0,300}<FoglioTogliPagamento pagamento=\{p\} righe=\{righe\} totaleCent=\{conto\.totaleCent\} ricevutiCent=\{conto\.ricevutiCent\}/)
+  assert.match(pagina, /<FoglioTogliPagamento[\s\S]{0,300}onChiudi=\{\(\) => setPagamentoDaTogliere\(null\)\}/)
+  // la veste comune, in mattone perché si toglie qualcosa, e «Annulla» che chiude e basta
+  assert.match(togli, /import Foglio, \{ PiedeFoglio, GEORGIA_FOGLIO \} from '\.\/Foglio'/)
+  assert.match(togli, /<PiedeFoglio azione=\{TOGLI_PAGAMENTO\} onAzione=\{togli\} salvando=\{togliendo\}[^\n]*onAnnulla=\{onChiudi\} mattone dati="togli-pagamento"/)
+  assert.equal(/supabase/.test(togli), false)
+  assert.match(togli, /data-importo-da-togliere/)
+  assert.match(togli, /data-quando-da-togliere/)
+  assert.match(togli, /data-resta-senza[^>]*>\{resta\}/)
+  assert.match(togli, /\{bollinoVia && <p data-bollino-via/)
+  // due tocchi di fila non tolgono due volte: lo stato E il riferimento (i due
+  // tocchi arrivano prima che lo stato si aggiorni)
+  assert.match(togli, /if \(togliendo \|\| inCorso\.current\) return\n\s+inCorso\.current = true/)
+})
+
+test('togliere scrive come «rimuovi» della scheda attuale, controlla la riga toccata, rilegge e toglie il bollino se serve', () => {
+  assert.match(pagamentiDati, /supabase\.from\('payments'\)\.delete\(\)\.eq\('id', pagamentoId\)\.select\('id'\)/)
+  assert.match(pagamentiDati, /if \(cancellate\.length !== 1\) return \{ esito: 'errore', messaggio: ERRORE_PAGAMENTO_NON_TROVATO \}/)
+  assert.match(pagamentiDati, /saldoMancanteCent\(segmenti, pagamenti\) > 0/)
+  assert.match(pagamentiDati, /update\(\{ pagato: false \}\)\.in\('id', ids\)\.select\('id'\)/)
+  assert.match(pagamentiDati, /\(data\?\.length \?\? 0\) !== ids\.length\) avviso = avviso \?\? AVVISO_BOLLINO_NON_TOLTO/)
+  // la scheda vecchia fa la stessa cancellazione
+  assert.match(leggi('app/prenotazioni/[id]/page.tsx'), /supabase\.from\('payments'\)\.delete\(\)\.eq\('id', pid\)/)
+  // dopo: pagamenti rimasti, bollino, avviso, rilettura
+  const dopo = pagina.slice(pagina.indexOf('<FoglioTogliPagamento'), pagina.indexOf('<FoglioTogliPagamento') + 1000)
+  assert.match(dopo, /setPagamenti\(esito\.pagamenti as unknown as PagamentoStat\[\]\)/)
+  assert.match(dopo, /if \(!esito\.pagato\) \{[\s\S]{0,120}pagato: false/)
+  assert.match(dopo, /setAvviso\(esito\.avviso \?\? PAGAMENTO_TOLTO\)/)
+  assert.match(dopo, /rileggi\(\)/)
+  // con errore niente falso «tolto»
+  assert.match(togli, /if \(esito\.esito === 'errore'\) \{ inCorso\.current = false; setErrore\(esito\.messaggio\); return \}/)
 })

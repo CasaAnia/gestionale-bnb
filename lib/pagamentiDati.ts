@@ -22,10 +22,14 @@ import {
 import { chiavePrenotazione, type RigaPrenotazione } from './prenotazioneUnica'
 import { leggiMemoria, scriviMemoria } from './memoriaBrowser'
 import { colonnaMancante } from './colonnaMancante'
+import { messaggioNonSalvato } from './scritturaSicura'
+import { AVVISO_BOLLINO_NON_TOLTO } from './pagamentoFoglio'
 
 export const AVVISO_NOTA_SENZA_0055 = 'Pagamento registrato; la nota però no: serve la proposta 0055 applicata su Supabase.'
 export const AVVISO_NOTA_NON_SALVATA = 'Pagamento registrato, ma la nota non è stata salvata.'
 export const AVVISO_RILETTURA_CONTO = 'Pagamento registrato, ma non riesco a rileggere il conto: ricarica la scheda.'
+export const AVVISO_RILETTURA_DOPO_TOLTO = 'Pagamento tolto, ma non riesco a rileggere il conto: ricarica la scheda.'
+export const ERRORE_PAGAMENTO_NON_TROVATO = 'Il pagamento non c’è più: ricarica la scheda.'
 
 export type RigaPagabile = RigaPrenotazione & { pagato?: boolean | null }
 
@@ -141,4 +145,42 @@ async function segnaPagata(
   })
   if (esito.esito === 'ok') { try { localStorage.removeItem(chiaveMemoria) } catch { /* niente */ } }
   return esito
+}
+
+// ── TOGLIERE UN PAGAMENTO (17/09/2026) ──────────────────────────────────────
+// La stessa cancellazione di «rimuovi» della scheda attuale (delete sulla riga
+// di payments), con in più: il controllo che la riga toccata sia UNA, la
+// rilettura dei pagamenti rimasti e, se senza quel pagamento resta qualcosa
+// da incassare, il bollino «pagato» tolto da tutte le camere (con verifica
+// delle righe toccate). Niente viene dato per fatto senza esserlo.
+export type EsitoTolto =
+  | { esito: 'ok'; pagamenti: PagamentoLetto[]; pagato: boolean; avviso: string | null }
+  | { esito: 'errore'; messaggio: string }
+
+export async function togliPagamento(righe: RigaPagabile[], pagamentoId: string): Promise<EsitoTolto> {
+  const segmenti = righePerSaldo(righe)
+  const ids = segmenti.map(b => b.id)
+  let cancellate: { id: string }[] | null = null
+  try {
+    const { data, error } = await supabase.from('payments').delete().eq('id', pagamentoId).select('id')
+    if (error) return { esito: 'errore', messaggio: messaggioNonSalvato(error) }
+    cancellate = (data ?? []) as { id: string }[]
+  } catch (err) {
+    return { esito: 'errore', messaggio: messaggioNonSalvato(err) }
+  }
+  if (cancellate.length !== 1) return { esito: 'errore', messaggio: ERRORE_PAGAMENTO_NON_TROVATO }
+
+  let avviso: string | null = null
+  let pagamenti: PagamentoLetto[] | null = null
+  const riletti = await supabase.from('payments').select('*').in('booking_id', ids).order('paid_on')
+  if (!riletti.error && riletti.data) pagamenti = riletti.data as PagamentoLetto[]
+  else { avviso = AVVISO_RILETTURA_DOPO_TOLTO }
+
+  let pagato = righe.some(r => !!r.pagato)
+  if (pagato && pagamenti && saldoMancanteCent(segmenti, pagamenti) > 0) {
+    const { data, error } = await supabase.from('bookings').update({ pagato: false }).in('id', ids).select('id')
+    if (error || (data?.length ?? 0) !== ids.length) avviso = avviso ?? AVVISO_BOLLINO_NON_TOLTO
+    else pagato = false
+  }
+  return { esito: 'ok', pagamenti: pagamenti ?? [], pagato, avviso }
 }

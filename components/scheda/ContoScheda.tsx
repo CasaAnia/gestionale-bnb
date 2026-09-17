@@ -10,6 +10,7 @@
 // ============================================================================
 import { TITOLO_COME_PAGA } from '@/components/ComePaga'
 import { COMANDO_SCONTO } from '@/lib/scontoScheda'
+import { COMANDO_TOGLI } from '@/lib/pagamentoFoglio'
 import type { RigaConto, RigaPagamento, TestaConto } from '@/lib/schedaConto'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
@@ -19,7 +20,7 @@ export const ROSSO_CONTO = '#D40000'
 export const FONDO_BARRA = '#EFE9DC'
 export const ALTEZZA_BARRA = 4
 
-export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, onPagamento, onComePaga, onSconto, className = '' }: {
+export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, onPagamento, onComePaga, onSconto, onTogliPagamento, className = '' }: {
   testa: TestaConto
   righe: RigaConto[]
   totale: string
@@ -30,6 +31,8 @@ export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, 
   onComePaga: () => void
   /** apre il foglio «Sconto» (17/09/2026): mettere, cambiare o togliere lo sconto */
   onSconto: () => void
+  /** apre il foglio «Togli pagamento» (17/09/2026) per quel pagamento */
+  onTogliPagamento: (id: string) => void
   className?: string
 }) {
   return (
@@ -85,7 +88,11 @@ export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, 
             <span className="block" style={{ fontSize: 14, color: 'var(--color-stone)' }}>{p.quando}</span>
             {p.nota && <span data-nota-pagamento className="block" style={{ fontSize: 12.5, color: 'var(--color-stone)', opacity: 0.85 }}>{p.nota}</span>}
           </span>
-          <span className="shrink-0" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-dark)' }}>{p.importo}</span>
+          <span className="shrink-0 flex items-baseline" style={{ gap: 10 }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-dark)' }}>{p.importo}</span>
+            <button type="button" data-togli-pagamento={p.id} onClick={() => onTogliPagamento(p.id)} className="py-2 -my-2"
+              style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{COMANDO_TOGLI}</button>
+          </span>
         </div>
       ))}
 
