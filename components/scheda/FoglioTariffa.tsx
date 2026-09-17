@@ -13,10 +13,12 @@ import {
 } from '@/lib/tariffaScheda'
 import { aggiornaRigaPerRiga } from '@/lib/righeDati'
 
-export default function FoglioTariffa({ righe, onChiudi, onSalvato }: {
+export default function FoglioTariffa({ righe, onChiudi, onIncerto, onSalvato }: {
   /** tutte le camere della prenotazione, annullate comprese */
   righe: RigaTariffabile[]
   onChiudi: () => void
+  /** la scrittura è riuscita solo in parte o la risposta è andata persa: la scheda rilegge */
+  onIncerto: (messaggio: string) => void
   /** le righe appena scritte; `cambiato` è falso se non c'era niente da salvare */
   onSalvato: (scritte: { id: string; campi: CampiTariffa }[], cambiato: boolean) => void
 }) {
@@ -35,7 +37,12 @@ export default function FoglioTariffa({ righe, onChiudi, onSalvato }: {
     setErrore(null)
     const scrittura = await aggiornaRigaPerRiga(esito.righe)
     setSalvando(false)
-    if (scrittura.esito === 'errore') { setErrore(scrittura.messaggio); return }
+    if (scrittura.esito === 'errore') {
+      // incerto = qualcosa può essere stato scritto: la scheda non si fida più di quello che mostra
+      if (scrittura.incerto) { onIncerto(scrittura.messaggio); return }
+      setErrore(scrittura.messaggio)
+      return
+    }
     onSalvato(esito.righe, true)
   }
 

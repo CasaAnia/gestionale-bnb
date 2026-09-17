@@ -4,7 +4,7 @@
 // altro dorme qui. Dentro c'è lo stesso pezzo dell'inserimento (ConLei:
 // righe con nome, chi è, telefono, ✕ per togliere, «+ Aggiungi una persona»).
 // Le regole stanno in lib/conLeiScheda, la scrittura in lib/righeDati: tutte
-// e sei le colonne su tutte le camere della prenotazione, riga per riga.
+// e sei le colonne su tutte le camere della prenotazione, in una richiesta sola.
 // Senza la proposta 0056 (chi_e_2) si salva il resto e lo si dice.
 // ============================================================================
 import { useState } from 'react'
@@ -13,14 +13,16 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import ConLei from '@/components/nuova/ConLei'
 import { PERSONE_CON_LEI_MAX, TROPPE_PERSONE, type PersonaConLei } from '@/lib/nuovaPrenotazione'
 import { TITOLO_CON_LEI, SALVA_CON_LEI, AVVISO_CHI_E_2_SENZA_0056, personeDaPrenotazione, campiConLeiCompleti, senzaChiE2, stessePersone, type RigaConLei } from '@/lib/conLeiScheda'
-import { aggiornaRigaPerRiga, stessiCampi } from '@/lib/righeDati'
+import { aggiornaInUnColpo } from '@/lib/righeDati'
 import { colonnaMancante } from '@/lib/colonnaMancante'
 
-export default function FoglioConLei({ booking, righe, onChiudi, onSalvato }: {
+export default function FoglioConLei({ booking, righe, onChiudi, onIncerto, onSalvato }: {
   booking: RigaConLei
   /** tutte le camere della prenotazione, annullate comprese */
   righe: RigaConLei[]
   onChiudi: () => void
+  /** la risposta è andata persa o le righe non tornano: la scheda rilegge */
+  onIncerto: (messaggio: string) => void
   /** i campi appena scritti su tutte le camere attive; `cambiato` è falso se non c'era niente da salvare */
   onSalvato: (campi: Record<string, unknown>, ids: string[], avviso: string | null, cambiato: boolean) => void
 }) {
@@ -36,17 +38,23 @@ export default function FoglioConLei({ booking, righe, onChiudi, onSalvato }: {
     if (stessePersone(persone, booking)) { onSalvato(campi, ids, null, false); return }
     setSalvando(true)
     setErrore(null)
-    let esito = await aggiornaRigaPerRiga(stessiCampi(ids, campi))
+    // in una richiesta sola: o tutte le camere o nessuna
+    let esito = await aggiornaInUnColpo(ids, campi)
     let avviso: string | null = null
     let scritti = campi
     if (esito.esito === 'errore' && esito.scritte === 0 && colonnaMancante(esito.errore as { code?: string; message?: string } | null) === 'chi_e_2') {
       // senza la 0056 la colonna chi_e_2 non c'è: si salva il resto e lo si dice
       scritti = senzaChiE2(campi)
-      esito = await aggiornaRigaPerRiga(stessiCampi(ids, scritti))
+      esito = await aggiornaInUnColpo(ids, scritti)
       avviso = AVVISO_CHI_E_2_SENZA_0056
     }
     setSalvando(false)
-    if (esito.esito === 'errore') { setErrore(esito.messaggio); return }
+    if (esito.esito === 'errore') {
+      // incerto = qualcosa può essere stato scritto: la scheda non si fida più di quello che mostra
+      if (esito.incerto) { onIncerto(esito.messaggio); return }
+      setErrore(esito.messaggio)
+      return
+    }
     onSalvato(scritti, ids, avviso, true)
   }
 

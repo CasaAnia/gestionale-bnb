@@ -332,9 +332,11 @@ test('«Sconto»: il comando nel conto, tre pastiglie Nessuno · Percentuale · 
 
 test('lo sconto si scrive riga per riga con la regola della scheda attuale, e senza cambiamenti non scrive', () => {
   // la scrittura: discount_type/discount_value/total_amount su ogni camera attiva, con controllo della riga toccata
-  assert.match(scontoDati, /supabase\.from\('bookings'\)[\s\S]{0,120}\.update\(\{ \.\.\.r\.campi, updated_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]{0,60}\.eq\('id', r\.id\)[\s\S]{0,40}\.select\('id'\)/)
-  assert.match(scontoDati, /data\.length !== 1/)
-  assert.match(scontoDati, /ERRORE_SCONTO_A_META/)
+  const righeDati = leggi('lib/righeDati.ts')
+  assert.match(scontoDati, /return aggiornaRigaPerRiga\(/)
+  assert.match(righeDati, /supabase\.from\('bookings'\)[\s\S]{0,120}\.update\(\{ \.\.\.r\.campi, updated_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]{0,60}\.eq\('id', r\.id\)[\s\S]{0,40}\.select\('id'\)/)
+  assert.match(righeDati, /data\.length !== 1/)
+  assert.match(righeDati, /ERRORE_SALVATO_A_META/)
   // il foglio non scrive da sé: solo salvaSconto, e solo se c'è qualcosa da cambiare
   assert.equal(/supabase/.test(sconto), false)
   assert.match(sconto, /if \(nienteDaSalvare\(righe, anteprima\)\) \{ onSalvato\(anteprima, false\); return \}/)
@@ -351,7 +353,7 @@ test('dopo lo sconto il conto si aggiorna riga per riga e la scheda rilegge; con
   assert.match(dopo, /setBooking\(b => \(b \? aggiorna\(b\) : b\)\)/)
   assert.match(dopo, /SCONTO_SALVATO : SCONTO_TOLTO/)
   assert.match(dopo, /rileggi\(\)/)
-  assert.match(sconto, /if \(esito\.esito === 'errore'\) \{ setErrore\(esito\.messaggio\); return \}/)
+  assert.match(sconto, /if \(esito\.esito === 'errore'\) \{\n\s+\/\/[^\n]*\n\s+if \(esito\.incerto\) \{ onIncerto\(esito\.messaggio\); return \}\n\s+setErrore\(esito\.messaggio\)\n\s+return\n\s+\}/)
 })
 
 // ── 8. TOGLI PAGAMENTO (17/09/2026) ─────────────────────────────────────────
@@ -401,7 +403,7 @@ test('«Nota e colore»: la nota della prenotazione, i colori del calendario, da
   assert.match(nota, /data-campo="nota"/)
   assert.match(nota, /COLORI_CALENDARIO\.map\(c => \{[\s\S]{0,300}data-colore=\{c\.valore \|\| 'auto'\}/)
   assert.match(nota, /ARRIVATA_DA\.map\(a => \([\s\S]{0,200}dati=\{`arrivata-\$\{a\.chiave\}`\}/)
-  assert.match(nota, /aggiornaRigaPerRiga\(stessiCampi\(ids, campi\)\)/)
+  assert.match(nota, /aggiornaInUnColpo\(ids, campi\)/)
   assert.match(nota, /if \(nienteDaCambiare\(modulo, booking\)\) \{ onSalvato\(campi, ids, false\); return \}/)
   assert.equal(/supabase/.test(nota), false)
   const dopo = pagina.slice(pagina.indexOf('<FoglioNota'), pagina.indexOf('<FoglioNota') + 700)
@@ -458,13 +460,49 @@ test('«Cambia date» sotto ogni striscia: arrivo e partenza, l’effetto sul co
 
 test('«Aggiungi camera»: prima il legame fra le camere se manca, poi l’inserimento nuovo con cliente, date e legame', () => {
   assert.match(pagina, /const legame = legameDaScrivere\(righe, \(\) => crypto\.randomUUID\(\)\)/)
-  assert.match(pagina, /aggiornaRigaPerRiga\(stessiCampi\(legame\.ids, \{ prenotazione_id: legame\.prenotazioneId \}\)\)/)
+  assert.match(pagina, /aggiornaInUnColpo\(legame\.ids, \{ prenotazione_id: legame\.prenotazioneId \}\)/)
   assert.match(pagina, /router\.push\(hrefAggiungiCamera\(\{ guestId: booking\.guest_id, prenotazioneId: legame\.prenotazioneId, arrivo: primoArrivo, partenza: ultimaPartenza \}\)\)/)
   // l'inserimento nuovo: stesso legame, come paga e caparra non si toccano
   const nuova = leggi('app/nuova-prenotazione/page.tsx')
-  assert.match(nuova, /if \(p\.prenotazione\) setAggiungoA\(p\.prenotazione\)/)
-  assert.match(nuova, /const prenotazioneId = aggiungoA \?\? crypto\.randomUUID\(\)/)
+  assert.match(nuova, /if \(p\.prenotazione\) setAggiungoA\(\{ prenotazione: p\.prenotazione, guestId: p\.guestId \}\)/)
+  assert.match(nuova, /const prenotazioneId = aggiungoA\?\.prenotazione \?\? crypto\.randomUUID\(\)/)
   assert.match(nuova, /\.\.\.\(aggiungoA \? \{\} : \{ accordo_pagamento: pagamento\.accordo_pagamento \}\),/)
   assert.match(nuova, /p\.id === primo && !aggiungoA \? \{ caparra_centesimi/)
   assert.match(nuova, /\{aggiungoA\s*\? <p data-aggiungo-a[^>]*>\{AVVISO_AGGIUNTA\}<\/p>\s*: <section data-come-paga-parte/)
+})
+
+// ── 11. SCRITTURE A METÀ E RISPOSTE PERSE (revisione del 17/09/2026) ────────
+test('una scrittura incerta (a metà, o senza risposta) fa rileggere la scheda e nasconde il conto finché non ha riletto', () => {
+  const righeDati = leggi('lib/righeDati.ts')
+  // l'esito dice quando qualcosa può essere stato scritto
+  assert.match(righeDati, /incerto: scritte > 0, errore: error/)
+  assert.match(righeDati, /ERRORE_RIGA_NON_TROVATA, scritte, incerto: true/)
+  assert.match(righeDati, /ERRORE_RISPOSTA_PERSA, scritte, incerto: true, errore: err/)
+  // gli stessi campi su più righe vanno in una richiesta sola (o tutte o nessuna)
+  assert.match(righeDati, /export async function aggiornaInUnColpo/)
+  assert.match(righeDati, /\.update\(\{ \.\.\.campi, updated_at: new Date\(\)\.toISOString\(\) \}\)[\s\S]{0,40}\.in\('id', ids\)[\s\S]{0,40}\.select\('id'\)/)
+  assert.match(righeDati, /if \(toccate !== ids\.length\) return \{ esito: 'errore', messaggio: ERRORE_RIGA_NON_TROVATA, scritte: toccate, incerto: true \}/)
+  for (const f of ['FoglioSconto', 'FoglioTariffa', 'FoglioNota', 'FoglioConLei']) {
+    const src = leggi(`components/scheda/${f}.tsx`)
+    assert.match(src, /\.incerto\) \{ onIncerto\(\w+\.messaggio\); return \}/, `${f} non avvisa la scheda della scrittura incerta`)
+    assert.match(pagina, new RegExp(`<${f}[\\s\\S]{0,200}onIncerto=\\{invalida\\}`), `${f} non riceve invalida`)
+  }
+  assert.match(leggi('components/scheda/FoglioNota.tsx'), /aggiornaInUnColpo\(ids, campi\)/)
+  assert.match(leggi('components/scheda/FoglioConLei.tsx'), /aggiornaInUnColpo\(ids, campi\)/)
+  // la scheda: niente conto finché non ha riletto tutto
+  // il messaggio passa alla scheda, il foglio si chiude, niente conto finché non ha riletto
+  assert.match(pagina, /const invalida = \(messaggio: string\) => \{\n\s+setAvviso\(messaggio\)\n\s+setContoLeggibile\(false\)\n\s+setFoglioSconto\(false\); setFoglioTariffe\(false\); setFoglioNota\(false\); setFoglioConLei\(false\)\n\s+rileggi\(\)/)
+  assert.match(pagina, /setContoLeggibile\(!conto\.errore\)/)
+})
+
+test('«Aggiungi camera»: il legame su TUTTE le righe (annullate comprese) in una richiesta sola; l’inserimento tiene ferma la cliente e ricontrolla il legame', () => {
+  assert.match(pagina, /const esito = await aggiornaInUnColpo\(legame\.ids, \{ prenotazione_id: legame\.prenotazioneId \}\)/)
+  assert.match(pagina, /if \(esito\.incerto\) invalida\(esito\.messaggio\); else setAvviso\(esito\.messaggio\)/)
+  const lib = leggi('lib/aggiungiCamera.ts')
+  assert.match(lib, /ids: righe\.filter\(r => r\.prenotazione_id !== prenotazioneId\)\.map\(r => r\.id\)/)
+  const nuova = leggi('app/nuova-prenotazione/page.tsx')
+  assert.match(nuova, /\{!aggiungoA && \(\s*<button type="button" data-cambia-cliente/)
+  assert.match(nuova, /if \(aggiungoA\.guestId && cliente\.id !== aggiungoA\.guestId\) \{ setGuai\(\[CLIENTE_DIVERSO\]\)/)
+  assert.match(nuova, /\.select\('id, guest_id, status'\)\.eq\('prenotazione_id', aggiungoA\.prenotazione\)/)
+  assert.match(nuova, /if \(legame\.error \|\| !legameConfermato\(legame\.data, cliente\.id\)\) \{ setGuai\(\[LEGAME_NON_CONFERMATO\]\)/)
 })

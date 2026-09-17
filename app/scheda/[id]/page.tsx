@@ -64,7 +64,7 @@ import FoglioTariffa from '@/components/scheda/FoglioTariffa'
 import FoglioDate from '@/components/scheda/FoglioDate'
 import { TARIFFE_SALVATE } from '@/lib/tariffaScheda'
 import { COMANDO_AGGIUNGI_CAMERA, ERRORE_SENZA_CAMERE, legameDaScrivere, hrefAggiungiCamera } from '@/lib/aggiungiCamera'
-import { aggiornaRigaPerRiga, stessiCampi } from '@/lib/righeDati'
+import { aggiornaInUnColpo } from '@/lib/righeDati'
 import FoglioConLei from '@/components/scheda/FoglioConLei'
 import { COMANDO_NOTA, NOTA_SALVATA } from '@/lib/notaScheda'
 import { CON_LEI_SALVATO } from '@/lib/conLeiScheda'
@@ -210,6 +210,14 @@ export default function SchedaPage() {
   // riletture dopo un salvataggio avvengono in silenzio, sotto la scheda
   const idCaricato = useRef<string | null>(null)
   const rileggi = () => setVersione(v => v + 1)
+  // Una scrittura riuscita solo in parte, o senza risposta: quello che la
+  // scheda mostra non vale più. Niente conto finché non ha riletto tutto.
+  const invalida = (messaggio: string) => {
+    setAvviso(messaggio)
+    setContoLeggibile(false)
+    setFoglioSconto(false); setFoglioTariffe(false); setFoglioNota(false); setFoglioConLei(false)
+    rileggi()
+  }
   // dalla Home, «Registra saldo» arriva con ?azione=pagato: il foglio si apre da sé, una volta
   const pagamentoDaAprire = useRef(parametri.get('azione') === 'pagato')
 
@@ -347,10 +355,11 @@ export default function SchedaPage() {
     const legame = legameDaScrivere(righe, () => crypto.randomUUID())
     if (!legame) { setAvviso(ERRORE_SENZA_CAMERE); return }
     if (legame.ids.length > 0) {
+      // su tutte le righe, annullate comprese, in una richiesta sola
       setAggiungendo(true)
-      const esito = await aggiornaRigaPerRiga(stessiCampi(legame.ids, { prenotazione_id: legame.prenotazioneId }))
+      const esito = await aggiornaInUnColpo(legame.ids, { prenotazione_id: legame.prenotazioneId })
       setAggiungendo(false)
-      if (esito.esito === 'errore') { setAvviso(esito.messaggio); rileggi(); return }
+      if (esito.esito === 'errore') { if (esito.incerto) invalida(esito.messaggio); else setAvviso(esito.messaggio); return }
     }
     router.push(hrefAggiungiCamera({ guestId: booking.guest_id, prenotazioneId: legame.prenotazioneId, arrivo: primoArrivo, partenza: ultimaPartenza }))
   }
@@ -683,7 +692,7 @@ export default function SchedaPage() {
       )}
       {foglioTariffe && conto && (
         <FoglioTariffa righe={righe}
-          onChiudi={() => setFoglioTariffe(false)}
+          onChiudi={() => setFoglioTariffe(false)} onIncerto={invalida}
           onSalvato={(scritte, cambiato) => {
             setFoglioTariffe(false)
             if (!cambiato) return
@@ -697,7 +706,7 @@ export default function SchedaPage() {
       )}
       {foglioNota && (
         <FoglioNota booking={booking} righe={righe}
-          onChiudi={() => setFoglioNota(false)}
+          onChiudi={() => setFoglioNota(false)} onIncerto={invalida}
           onSalvato={(campi, ids, cambiato) => {
             setFoglioNota(false)
             if (!cambiato) return
@@ -710,7 +719,7 @@ export default function SchedaPage() {
       )}
       {foglioConLei && (
         <FoglioConLei booking={booking} righe={righe}
-          onChiudi={() => setFoglioConLei(false)}
+          onChiudi={() => setFoglioConLei(false)} onIncerto={invalida}
           onSalvato={(campi, ids, msg, cambiato) => {
             setFoglioConLei(false)
             if (!cambiato) return
@@ -723,7 +732,7 @@ export default function SchedaPage() {
       )}
       {foglioSconto && conto && (
         <FoglioSconto righe={righe} ricevutiCent={conto.ricevutiCent}
-          onChiudi={() => setFoglioSconto(false)}
+          onChiudi={() => setFoglioSconto(false)} onIncerto={invalida}
           onSalvato={(anteprima, cambiato) => {
             // prima i campi appena scritti su ogni camera attiva, poi la
             // rilettura in silenzio (cronologia, «Da controllare»)

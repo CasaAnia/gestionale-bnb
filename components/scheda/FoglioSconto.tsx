@@ -21,11 +21,13 @@ import {
 import { salvaSconto } from '@/lib/scontoDati'
 import type { ScontoNuova } from '@/lib/nuovaPrenotazione'
 
-export default function FoglioSconto({ righe, ricevutiCent, onChiudi, onSalvato }: {
+export default function FoglioSconto({ righe, ricevutiCent, onChiudi, onIncerto, onSalvato }: {
   /** tutte le camere della prenotazione, annullate comprese */
   righe: RigaScontabile[]
   ricevutiCent: number
   onChiudi: () => void
+  /** la scrittura è riuscita solo in parte o la risposta è andata persa: la scheda rilegge */
+  onIncerto: (messaggio: string) => void
   /** i nuovi campi di ogni riga attiva, già scritti; `cambiato` è falso se non c'era niente da salvare */
   onSalvato: (anteprima: AnteprimaSconto, cambiato: boolean) => void
 }) {
@@ -48,7 +50,12 @@ export default function FoglioSconto({ righe, ricevutiCent, onChiudi, onSalvato 
     setErrore(null)
     const esito = await salvaSconto(anteprima.righe)
     setSalvando(false)
-    if (esito.esito === 'errore') { setErrore(esito.messaggio); return }
+    if (esito.esito === 'errore') {
+      // incerto = qualcosa può essere stato scritto: la scheda non si fida più di quello che mostra
+      if (esito.incerto) { onIncerto(esito.messaggio); return }
+      setErrore(esito.messaggio)
+      return
+    }
     onSalvato(anteprima, true)
   }
 

@@ -410,6 +410,10 @@ let spese503 = false   // salva la riga ma risponde 503 (il gateway dice errore 
 let erroreRichiesteWeb = process.env.FINTO_ERRORE_RICHIESTE_WEB === '1'
 // Cambia cliente (06/09/2026): quando è acceso il PATCH su bookings fallisce
 let erroreCambioCliente = false
+// Scritture a metà (revisione del 17/09/2026): GET /finto/errore-dopo-scritture?n=1
+// fa riuscire le prime n PATCH su bookings e fallire le successive (500).
+let erroreDopoScritture = null
+let patchRiuscite = 0
 function leggiCorpo(req) {
   return new Promise(resolve => { let t = ''; req.on('data', c => { t += c }); req.on('end', () => { try { resolve(t ? JSON.parse(t) : null) } catch { resolve(null) } }) })
 }
@@ -417,6 +421,12 @@ function leggiCorpo(req) {
 const finto = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORTA_FINTO}`)
   if (req.method === 'OPTIONS') return rispondi(res, 204)
+  if (url.pathname === '/finto/errore-dopo-scritture') {
+    const n = url.searchParams.get('n')
+    erroreDopoScritture = n === null || n === '' ? null : Number(n)
+    patchRiuscite = 0
+    return rispondi(res, 200, { erroreDopoScritture })
+  }
   if (url.pathname === '/finto/errore-richieste-web') {
     erroreRichiesteWeb = url.searchParams.get('on') === '1'
     return rispondi(res, 200, { erroreRichiesteWeb })
@@ -553,6 +563,10 @@ const finto = createServer((req, res) => {
         'notes', 'color', 'source', 'extra_phone_1', 'extra_phone_1_name', 'chi_e', 'extra_phone_2', 'extra_phone_2_name', 'chi_e_2', 'prenotazione_id']
       if (m[1] === 'bookings' && chiavi.some(k => !AMMESSI.includes(k))) return rispondi(res, 403, { code: 'ANTEPRIMA', message: `scrittura non ammessa nella preview sintetica: ${chiavi.filter(k => !AMMESSI.includes(k)).join(', ')}` })
       if (m[1] === 'bookings' && erroreCambioCliente) return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sul cambio cliente' })
+      if (m[1] === 'bookings' && erroreDopoScritture !== null) {
+        if (patchRiuscite >= erroreDopoScritture) return rispondi(res, 500, { code: 'FINTO', message: `errore simulato dopo ${patchRiuscite} scritture` })
+        patchRiuscite += 1
+      }
       const righe = righeFiltrate(m[1], url)
       // R4 (revisione 07/09/2026): trigger sintetico della 0042 — il cambio cliente
       // aggiunge DAVVERO una riga di cronologia, così la scheda deve rileggerla

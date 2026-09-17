@@ -59,7 +59,7 @@ import { PERSONE_CON_LEI_MAX, TROPPE_PERSONE, type PersonaConLei } from '@/lib/n
 import { campiComePaga, chiedeScadenza as chiedeScadenzaComePaga, type ComePaga as ComePagaModo } from '@/lib/comePaga'
 import ContoNuova, { TastoSalva } from '@/components/nuova/ContoNuova'
 import { campiConLei, scontoPerRiga, totaliScontati, righeDaSalvare } from '@/lib/nuovaPrenotazione'
-import { AVVISO_AGGIUNTA } from '@/lib/aggiungiCamera'
+import { AVVISO_AGGIUNTA, CLIENTE_DIVERSO, LEGAME_NON_CONFERMATO, legameConfermato } from '@/lib/aggiungiCamera'
 import { problemi } from '@/lib/prenotazioneComposta'
 import { colonnaMancante } from '@/lib/colonnaMancante'
 import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
@@ -119,7 +119,7 @@ export default function NuovaPrenotazionePage() {
   const [comePaga, setComePaga] = useState<ComePagaModo>('da_vedere')
   // la camera in più di una prenotazione che c'è già (?prenotazione=…): la
   // riga nuova entra nello stesso legame; come paga e caparra non si toccano
-  const [aggiungoA, setAggiungoA] = useState<string | null>(null)
+  const [aggiungoA, setAggiungoA] = useState<{ prenotazione: string; guestId: string | null } | null>(null)
   const [caparra, setCaparra] = useState<number | null>(null)
   const [caparraData, setCaparraData] = useState('')
   const [caparraOra, setCaparraOra] = useState('')
@@ -162,7 +162,7 @@ export default function NuovaPrenotazionePage() {
       const camera = p.roomId && lette.some(c => c.id === p.roomId) ? p.roomId : null
       setPeriodi([{ id: nuovoId(), gruppo, roomId: camera, checkIn: arrivo, checkOut: partenza, ospiti: camera ? ospitiScegliendoCamera(1, null, lette.find(c => c.id === camera)) : 1, nottiLetto: [], letto: null, tariffa: null }])
     }
-    if (p.prenotazione) setAggiungoA(p.prenotazione)
+    if (p.prenotazione) setAggiungoA({ prenotazione: p.prenotazione, guestId: p.guestId })
     if (p.guestId) {
       void supabase.from('guests').select('*').eq('id', p.guestId).maybeSingle().then(({ data }) => {
         if (data) { setCliente(data as ClienteRiga); setRicerca(''); setRisultati([]) }
@@ -415,6 +415,17 @@ export default function NuovaPrenotazionePage() {
   // quelli di lib/prenotazioneComposta (camere, capienza, letti della casa).
   async function salva() {
     if (salvando || !cliente) return
+    // La camera in più di una prenotazione che c'è già: la cliente è quella,
+    // e il legame si ricontrolla adesso (esiste, ha camere attive, è tutto
+    // della stessa cliente), non ci si fida dell'indirizzo (17/09/2026).
+    if (aggiungoA) {
+      if (aggiungoA.guestId && cliente.id !== aggiungoA.guestId) { setGuai([CLIENTE_DIVERSO]); setAvvisoSalva(CLIENTE_DIVERSO); return }
+      setSalvando(true)
+      let legame: { data: { guest_id?: string | null; status?: string | null }[] | null; error: unknown }
+      try { legame = await supabase.from('bookings').select('id, guest_id, status').eq('prenotazione_id', aggiungoA.prenotazione) } catch (err) { legame = { data: null, error: err } }
+      setSalvando(false)
+      if (legame.error || !legameConfermato(legame.data, cliente.id)) { setGuai([LEGAME_NON_CONFERMATO]); setAvvisoSalva(LEGAME_NON_CONFERMATO); return }
+    }
     // Prima di scrivere si rilegge chi occupa: fra l'apertura della pagina e
     // adesso può essere arrivata un'altra prenotazione. Se la lettura non
     // riesce NON si salva: «non letto» non vuol dire «libero» (15/09/2026).
@@ -446,7 +457,7 @@ export default function NuovaPrenotazionePage() {
     }
 
     setSalvando(true)
-    const prenotazioneId = aggiungoA ?? crypto.randomUUID()
+    const prenotazioneId = aggiungoA?.prenotazione ?? crypto.randomUUID()
     const gruppi = new Map<string, string>()
     for (const l of linee) gruppi.set(l.gruppo, crypto.randomUUID())
     const pagamento = campiComePaga(comePaga, {
@@ -571,8 +582,11 @@ export default function NuovaPrenotazionePage() {
               </span>
               <span className="block truncate" style={{ fontSize: 12.5, color: 'var(--color-stone)', marginTop: 2 }}>{rigaClienteTrovato(cliente.phone, soggiorni[cliente.id] ?? 0)}</span>
             </span>
-            <button type="button" data-cambia-cliente onClick={() => { setCliente(null); setRicerca(''); setRisultati([]) }}
-              className="py-2 -my-2 shrink-0" style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-green-mid)' }}>cambia</button>
+            {/* aggiungendo una camera la cliente è quella della prenotazione: non si cambia da qui */}
+            {!aggiungoA && (
+              <button type="button" data-cambia-cliente onClick={() => { setCliente(null); setRicerca(''); setRisultati([]) }}
+                className="py-2 -my-2 shrink-0" style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-green-mid)' }}>cambia</button>
+            )}
           </div>
 
           {linee.map((linea, i) => {

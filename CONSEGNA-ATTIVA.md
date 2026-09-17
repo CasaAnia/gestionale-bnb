@@ -1277,3 +1277,34 @@ colore (Auto, diretta), Con lei (vuoto) e Cambia date aperti e chiusi con
 Annulla prenotazione», nel conto «Aggiungi pagamento · Cambia come paga ·
 Sconto · Tariffe»; nessun link a /prenotazioni/<id>. Non c'era un pagamento
 da provare col «togli» (verificato sull'anteprima finta).
+
+## Risposta alla revisione di `40c6e3d` (17/09/2026, Claude)
+
+Tre rilievi, tre correzioni, un commit:
+
+1. **Aggiungi camera e i tratti annullati.** Il legame `prenotazione_id` si
+   scrive ora su TUTTE le righe della prenotazione, annullate comprese
+   (`lib/aggiungiCamera.legameDaScrivere`), in UNA richiesta sola
+   (`lib/righeDati.aggiornaInUnColpo`: `update … in ('id', …)`, una sola
+   istruzione, o tutte o nessuna, con controllo del numero di righe). Provato
+   sull'anteprima finta: Carmela con l'ultimo tratto annullato dalla striscia
+   → `PATCH bookings 3 righe` con il legame, anche sulla riga annullata.
+2. **Cliente ferma quando si aggiunge una camera.** Con `?prenotazione=…`
+   il tasto «cambia» non c'è; al salvataggio si rifiuta un cliente diverso
+   da quello dell'indirizzo (`CLIENTE_DIVERSO`) e si rilegge il legame prima
+   di scrivere: deve esistere, avere camere attive ed essere tutto della
+   stessa cliente (`legameConfermato`), altrimenti `LEGAME_NON_CONFERMATO`.
+3. **Scritture a metà e risposte perse.** `lib/righeDati` torna un esito
+   con `incerto` (una riga sì e una no; risposta persa; righe che non
+   tornano). I fogli Sconto, Tariffe, Nota e colore e Con lei in quel caso
+   chiudono, la scheda mostra il messaggio in cima, nasconde il conto
+   (`contoLeggibile=false`) e rilegge tutto; il conto torna solo dopo la
+   rilettura. Nota e colore e Con lei scrivono in una richiesta sola. Provato
+   sull'anteprima finta col nuovo interruttore `GET /finto/errore-dopo-scritture?n=1`
+   (le prime n PATCH riescono, le altre falliscono): sconto su tre tratti,
+   prima riga scritta e seconda rifiutata → foglio chiuso, «Salvato solo in
+   parte…» in cima, conto riletto a 454 € (solo la prima riga scontata), poi
+   la stessa cosa togliendo lo sconto → 470 €.
+
+1513 test verdi (`lib/aggiungiCamera.test.ts` nuovo, fogliScheda sez. 11),
+TypeScript e `next build --webpack` puliti.

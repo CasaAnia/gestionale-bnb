@@ -3,8 +3,8 @@
 // «NOTA E COLORE» (17/09/2026): il foglio della scheda nuova per la nota
 // della prenotazione, il colore della barra sul calendario e da dove è
 // arrivata (diretta · dal sito · WhatsApp). Le regole stanno in
-// lib/notaScheda (pure), la scrittura in lib/righeDati: si scrive su tutte
-// le camere della prenotazione, riga per riga, con la verifica delle righe.
+// lib/notaScheda (pure), la scrittura in lib/righeDati: su tutte le camere
+// della prenotazione in una richiesta sola, con la verifica delle righe.
 // ============================================================================
 import { useState } from 'react'
 import Foglio, { PiedeFoglio } from './Foglio'
@@ -14,15 +14,17 @@ import {
   TITOLO_NOTA, SALVA_NOTA, ETICHETTA_NOTA_PRENOTAZIONE, ETICHETTA_COLORE, ETICHETTA_ARRIVATA_DA, COLORI_CALENDARIO, ARRIVATA_DA,
   moduloDaPrenotazione, campiNota, idsDaScrivere, nienteDaCambiare, type ModuloNota, type RigaNota,
 } from '@/lib/notaScheda'
-import { aggiornaRigaPerRiga, stessiCampi } from '@/lib/righeDati'
+import { aggiornaInUnColpo } from '@/lib/righeDati'
 
 const OTTONE = '#A9884E'
 
-export default function FoglioNota({ booking, righe, onChiudi, onSalvato }: {
+export default function FoglioNota({ booking, righe, onChiudi, onIncerto, onSalvato }: {
   booking: RigaNota
   /** tutte le camere della prenotazione, annullate comprese */
   righe: RigaNota[]
   onChiudi: () => void
+  /** la risposta è andata persa o le righe non tornano: la scheda rilegge */
+  onIncerto: (messaggio: string) => void
   /** i campi appena scritti su tutte le camere attive; `cambiato` è falso se non c'era niente da salvare */
   onSalvato: (campi: ReturnType<typeof campiNota>, ids: string[], cambiato: boolean) => void
 }) {
@@ -38,9 +40,15 @@ export default function FoglioNota({ booking, righe, onChiudi, onSalvato }: {
     if (nienteDaCambiare(modulo, booking)) { onSalvato(campi, ids, false); return }
     setSalvando(true)
     setErrore(null)
-    const esito = await aggiornaRigaPerRiga(stessiCampi(ids, campi))
+    // in una richiesta sola: o tutte le camere o nessuna
+    const esito = await aggiornaInUnColpo(ids, campi)
     setSalvando(false)
-    if (esito.esito === 'errore') { setErrore(esito.messaggio); return }
+    if (esito.esito === 'errore') {
+      // incerto = qualcosa può essere stato scritto: la scheda non si fida più di quello che mostra
+      if (esito.incerto) { onIncerto(esito.messaggio); return }
+      setErrore(esito.messaggio)
+      return
+    }
     onSalvato(campi, ids, true)
   }
 
