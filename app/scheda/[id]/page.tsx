@@ -62,6 +62,8 @@ import FoglioNota from '@/components/scheda/FoglioNota'
 import FoglioTariffa from '@/components/scheda/FoglioTariffa'
 import FoglioDate from '@/components/scheda/FoglioDate'
 import FoglioCambioCamera from '@/components/scheda/FoglioCambioCamera'
+import FoglioTogliCamera from '@/components/scheda/FoglioTogliCamera'
+import { COMANDO_TOGLI_CAMERA, CAMERA_TOLTA, siPuoTogliere, schedaDopo } from '@/lib/togliCamera'
 import { TARIFFE_SALVATE } from '@/lib/tariffaScheda'
 import { COMANDO_AGGIUNGI_CAMERA, ERRORE_SENZA_CAMERE, legameDaScrivere, hrefAggiungiCamera } from '@/lib/aggiungiCamera'
 import { aggiornaInUnColpo } from '@/lib/righeDati'
@@ -191,6 +193,8 @@ export default function SchedaPage() {
   const [dateAperte, setDateAperte] = useState<string | null>(null)
   // «Cambio camera» di una linea: la chiave della linea aperta
   const [cambioAperto, setCambioAperto] = useState<string | null>(null)
+  // «Togli camera» di una linea: la chiave della linea da togliere
+  const [togliAperto, setTogliAperto] = useState<string | null>(null)
   const [aggiungendo, setAggiungendo] = useState(false)
   const [foglioConLei, setFoglioConLei] = useState(false)
   // appena annullata da qui: la pastiglia in mattone in cima, finché non si va via
@@ -351,6 +355,7 @@ export default function SchedaPage() {
   const lineaAperta = notteAperta ? (linee.find(l => l.chiave === notteAperta.linea) ?? null) : null
   const lineaDate = dateAperte ? (linee.find(l => l.chiave === dateAperte) ?? null) : null
   const lineaCambio = cambioAperto ? (linee.find(l => l.chiave === cambioAperto) ?? null) : null
+  const lineaDaTogliere = togliAperto ? (linee.find(l => l.chiave === togliAperto) ?? null) : null
   // nel contesto di una linea le altre linee contano come altre prenotazioni
   const contestoAperto = lineaAperta ? contestoLinea(lineaAperta, linee, contesto) : contesto
   // l'effetto sul conto di una bozza di notti, prima di salvare: il piano
@@ -597,6 +602,10 @@ export default function SchedaPage() {
                   <span style={{ color: 'var(--color-stone)' }}>·</span>
                   <button type="button" data-aggiungi-camera onClick={aggiungiCamera} disabled={aggiungendo} className="py-2 -my-2" style={{ fontSize: 12.5, color: 'var(--color-stone)', opacity: aggiungendo ? 0.5 : 1 }}>{COMANDO_AGGIUNGI_CAMERA}</button>
                 </>}
+                {siPuoTogliere(linee.length) && <>
+                  <span style={{ color: 'var(--color-stone)' }}>·</span>
+                  <button type="button" data-togli-camera={l.chiave} onClick={() => setTogliAperto(l.chiave)} className="py-2 -my-2" style={{ fontSize: 12.5, color: '#8C3B2E' }}>{COMANDO_TOGLI_CAMERA}</button>
+                </>}
               </p>
             )}
           </div>
@@ -724,6 +733,21 @@ export default function SchedaPage() {
             }} />
         ) : null
       })()}
+      {togliAperto && lineaDaTogliere && (
+        <FoglioTogliCamera titolo={lineaDaTogliere.titolo} ids={lineaDaTogliere.segmenti.map(s => s.id)}
+          onChiudi={() => setTogliAperto(null)} onIncerto={invalida}
+          onTolta={(ids, campi) => {
+            setTogliAperto(null)
+            // se la riga aperta era fra quelle tolte, la scheda passa a un'altra camera
+            const altre = linee.filter(l => l.chiave !== lineaDaTogliere.chiave).flatMap(l => l.segmenti.map(s => ({ id: s.id, check_in: s.check_in })))
+            const dove = schedaDopo(booking.id, ids, altre)
+            if (dove) { router.replace(`/scheda/${dove}`); return }
+            const aggiorna = (r: Prenotazione): Prenotazione => (ids.includes(r.id) ? { ...r, ...campi } : r)
+            setRighe(rs => rs.map(aggiorna))
+            setAvviso(CAMERA_TOLTA)
+            rileggi()
+          }} />
+      )}
       {cambioAperto && lineaCambio && (
         <FoglioCambioCamera notti={lineaCambio.notti} contesto={contestoLinea(lineaCambio, linee, contesto)}
           sottotitolo={linee.length > 1 ? lineaCambio.titolo : undefined}

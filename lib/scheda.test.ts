@@ -473,3 +473,18 @@ test('«Cambia date» e «Cambio camera» si chiudono con «Salva» (Ania, 17/09
   assert.match(leggi('components/scheda/FoglioDate.tsx'), /export const FATTO_DATE = 'Salva'/)
   assert.match(leggi('components/scheda/FoglioCambioCamera.tsx'), /export const FATTO_CAMBIO = 'Salva'/)
 })
+
+test('«Togli camera» sotto la striscia, solo con più camere: annulla le righe della linea in un colpo, i pagamenti restano (Ania, 17/09/2026)', () => {
+  const riga = pagina.slice(pagina.indexOf('data-comandi-linea'), pagina.indexOf('data-comandi-linea') + 2000)
+  assert.match(riga, /\{siPuoTogliere\(linee\.length\) && <>[\s\S]{0,200}data-togli-camera=\{l\.chiave\} onClick=\{\(\) => setTogliAperto\(l\.chiave\)\}/)
+  const foglio = leggi('components/scheda/FoglioTogliCamera.tsx')
+  assert.match(foglio, /aggiornaInUnColpo\(ids, campi\)/)
+  assert.match(foglio, /if \(esito\.incerto\) \{ onIncerto\(esito\.messaggio\); return \}/)
+  assert.match(foglio, /<PiedeFoglio azione=\{TOGLI_LA_CAMERA\}[^\n]*onAnnulla=\{onChiudi\} mattone dati="togli-camera"/)
+  assert.equal(/supabase/.test(foglio), false)
+  assert.match(pagina, /<FoglioTogliCamera titolo=\{lineaDaTogliere\.titolo\} ids=\{lineaDaTogliere\.segmenti\.map\(s => s\.id\)\}/)
+  assert.match(pagina, /const dove = schedaDopo\(booking\.id, ids, altre\)/)
+  assert.match(pagina, /if \(dove\) \{ router\.replace\(`\/scheda\/\$\{dove\}`\); return \}/)
+  // si annulla, mai si cancella
+  assert.match(leggi('lib/togliCamera.ts'), /status: 'annullata', cancelled_at: adesso, cancelled_reason: MOTIVO_TOGLI_CAMERA/)
+})
