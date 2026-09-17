@@ -1505,11 +1505,12 @@ test('il rifiuto del database per camera doppia si legge in italiano', () => {
   assert.equal(eSovrapposizione(null), false)
   assert.match(messaggioSovrapposizione({ code: '23P01' }) ?? '', /appena stata presa/)
   assert.equal(messaggioSovrapposizione({ code: '23505' }), null)
-  // la proposta che accende il vincolo esiste ed è una bozza, non applicata
+  // la proposta che accende il vincolo (applicata in produzione il 17/09/2026):
+  // contano solo confermate e completate, come STATI_CHE_OCCUPANO
   const sql = readFileSync(new URL('../supabase/proposte/0051_camera_non_due_volte.BOZZA.sql', import.meta.url), 'utf8')
   assert.match(sql, /exclude using gist/)
   assert.match(sql, /daterange\(check_in, check_out, '\[\)'\)/)
-  assert.match(sql, /where \(status <> 'annullata'\)/)
+  assert.match(sql, /where \(status in \('confermata', 'completata'\)\)/)
 })
 
 // ── Rilievi del 16/09/2026 ─────────────────────────────────────────────────
