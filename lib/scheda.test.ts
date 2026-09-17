@@ -252,7 +252,7 @@ test('la riga «Arrivo»: stone 14 a sinistra, orario in pastiglia sage, «da ch
   assert.match(soggiorno, /fontSize: 14, color: 'var\(--color-stone\)' \}\}>Arrivo/)
   assert.match(soggiorno, /background: 'var\(--color-sage\)', borderRadius: 999/)
   assert.match(soggiorno, /data-da-chiedere style=\{\{ color: OTTONE \}\}>\{DA_CHIEDERE\}/)
-  assert.match(soggiorno, /export const DA_CHIEDERE = 'da chiedere'/)
+  assert.match(soggiorno, /export const DA_CHIEDERE = 'orario da chiedere'/)   // Ania, 17/09/2026
   // niente virgole: i pezzi sono separati dallo spazio del gap
   assert.equal(/quando\},/.test(soggiorno), false)
 })
@@ -449,8 +449,7 @@ test('l’ordine: Da controllare, poi la parte «Arrivo» (riga e «Modifica arr
   assert.match(leggi('components/scheda/SoggiornoScheda.tsx'), /\{etichetta && <span style=\{\{ fontSize: 14, color: 'var\(--color-stone\)' \}\}>Arrivo<\/span>\}/)
 })
 
-test('senza orario, accanto a «da chiedere» c’è «aggiungi orario» che apre il foglio dell’arrivo (Ania, 17/09/2026)', () => {
-  assert.match(soggiorno, /export const AGGIUNGI_ORARIO = 'aggiungi orario'/)
-  assert.match(soggiorno, /data-aggiungi-orario onClick=\{onAggiungiOrario\}[^>]*>· \{AGGIUNGI_ORARIO\}/)
-  assert.match(pagina, /<RigaArrivo arrivo=\{arrivoTesto\} etichetta=\{false\} onAggiungiOrario=\{\(\) => setFoglioArrivo\(true\)\}/)
+test('senza orario la riga dice «orario da chiedere», e basta: il foglio si apre da «Modifica arrivo» (Ania, 17/09/2026)', () => {
+  assert.equal(/aggiungi orario|AGGIUNGI_ORARIO/.test(soggiorno), false, 'c’è ancora «aggiungi orario»')
+  assert.match(pagina, /<RigaArrivo arrivo=\{arrivoTesto\} etichetta=\{false\} className="mt-3" \/>/)
 })

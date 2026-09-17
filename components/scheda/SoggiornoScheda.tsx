@@ -13,16 +13,12 @@ const GEORGIA = "Georgia, 'Times New Roman', serif"
 const OTTONE = '#A9884E'
 export const FONDO_CAMBIO = '#EFE2C7'
 export const TESTO_CAMBIO = '#7A5C1E'
-export const DA_CHIEDERE = 'da chiedere'
+export const DA_CHIEDERE = 'orario da chiedere'   // (Ania, 17/09/2026: «orario da chiedere», non solo «da chiedere»)
 
-export const AGGIUNGI_ORARIO = 'aggiungi orario'
-
-export function RigaArrivo({ arrivo, etichetta = true, onAggiungiOrario, className = '' }: {
+export function RigaArrivo({ arrivo, etichetta = true, className = '' }: {
   arrivo: ArrivoScheda
   /** sotto il titolo «Arrivo» la parolina a sinistra non serve (17/09/2026) */
   etichetta?: boolean
-  /** senza orario, accanto a «da chiedere» c'è «aggiungi orario» che apre il foglio (Ania, 17/09/2026) */
-  onAggiungiOrario?: () => void
   className?: string
 }) {
   return (
@@ -33,10 +29,7 @@ export function RigaArrivo({ arrivo, etichetta = true, onAggiungiOrario, classNa
         <span>{arrivo.quando}</span>
         {arrivo.orario
           ? <span data-orario className="inline-flex items-center" style={{ gap: 4, background: 'var(--color-sage)', borderRadius: 999, padding: '3px 10px' }}><span aria-hidden>🕐</span>{arrivo.orario}</span>
-          : <>
-            <span data-da-chiedere style={{ color: OTTONE }}>{DA_CHIEDERE}</span>
-            {onAggiungiOrario && <button type="button" data-aggiungi-orario onClick={onAggiungiOrario} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>· {AGGIUNGI_ORARIO}</button>}
-          </>}
+          : <span data-da-chiedere style={{ color: OTTONE }}>{DA_CHIEDERE}</span>}
         {arrivo.navetta && <span>{arrivo.navetta}</span>}
       </span>
     </div>

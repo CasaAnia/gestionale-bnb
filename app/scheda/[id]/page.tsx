@@ -558,7 +558,7 @@ export default function SchedaPage() {
       {/* ── Arrivo (Ania, 17/09/2026: prima del soggiorno) ─────────────────── */}
       <section id="arrivo" className="pt-[34px]">
         <p className="ed-sezione">Arrivo</p>
-        {arrivoTesto && <RigaArrivo arrivo={arrivoTesto} etichetta={false} onAggiungiOrario={() => setFoglioArrivo(true)} className="mt-3" />}
+        {arrivoTesto && <RigaArrivo arrivo={arrivoTesto} etichetta={false} className="mt-3" />}
         <LinkSoggiorno
           onArrivo={() => setFoglioArrivo(true)}
           onArriviPrecedenti={() => setArriviAperti(a => !a)}
