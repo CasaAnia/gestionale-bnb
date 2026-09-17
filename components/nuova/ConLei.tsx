@@ -30,11 +30,15 @@ export function RigaPersona({ persona, onTogli }: { persona: PersonaConLei; onTo
   )
 }
 
-export default function ConLei({ persone, onPersone, avviso, className = '' }: {
+export default function ConLei({ persone, onPersone, avviso, senzaTitolo = false, etichetteOttone = false, className = '' }: {
   persone: PersonaConLei[]
   onPersone: (persone: PersonaConLei[]) => void
   /** «di persone in più se ne possono salvare due…» */
   avviso: string | null
+  /** dentro il foglio «Con lei» della scheda il titolo c'è già (17/09/2026) */
+  senzaTitolo?: boolean
+  /** le etichettine del foglietto in ottone, come nei fogli della scheda */
+  etichetteOttone?: boolean
   className?: string
 }) {
   const [aperto, setAperto] = useState(false)
@@ -53,7 +57,7 @@ export default function ConLei({ persone, onPersone, avviso, className = '' }: {
 
   return (
     <section data-con-lei className={className}>
-      <p className="ed-sezione">Con lei</p>
+      {!senzaTitolo && <p className="ed-sezione">Con lei</p>}
       <div className="mt-2">
         {persone.map(p => <RigaPersona key={p.id} persona={p} onTogli={() => onPersone(persone.filter(x => x.id !== p.id))} />)}
       </div>
@@ -63,17 +67,17 @@ export default function ConLei({ persone, onPersone, avviso, className = '' }: {
       {aperto && (
         <Foglio titolo={TITOLO_FOGLIETTO} onChiudi={() => setAperto(false)}>
           <div className="flex" style={{ gap: 12 }}>
-            <RigaCampo etichetta="Nome" className="flex-1 min-w-0">
+            <RigaCampo etichetta="Nome" ottone={etichetteOttone} className="flex-1 min-w-0">
               <input type="text" data-campo="persona-nome" value={nome} onChange={e => setNome(e.target.value)} style={stileCampo} />
             </RigaCampo>
-            <RigaCampo etichetta="Cognome" className="flex-1 min-w-0">
+            <RigaCampo etichetta="Cognome" ottone={etichetteOttone} className="flex-1 min-w-0">
               <input type="text" data-campo="persona-cognome" value={cognome} onChange={e => setCognome(e.target.value)} style={stileCampo} />
             </RigaCampo>
           </div>
-          <RigaCampo etichetta="Telefono · può restare vuoto">
+          <RigaCampo etichetta="Telefono · può restare vuoto" ottone={etichetteOttone}>
             <input type="tel" inputMode="tel" data-campo="persona-telefono" value={telefono} onChange={e => setTelefono(e.target.value)} style={stileCampo} />
           </RigaCampo>
-          <Etichetta testo="Chi è" />
+          <Etichetta testo="Chi è" ottone={etichetteOttone} />
           <FilaPastiglie>
             {CHI_E_VOCI.map(v => (
               <Pastiglia key={v} dati={`chi-${v}`} acceso={!libero && chiE === v} onClick={() => { setLibero(false); setChiE(v) }}>{v}</Pastiglia>
@@ -81,7 +85,7 @@ export default function ConLei({ persone, onPersone, avviso, className = '' }: {
             <Pastiglia dati="chi-altro" acceso={libero} onClick={() => { setLibero(true); setChiE('') }}>{ALTRO}</Pastiglia>
           </FilaPastiglie>
           {libero && (
-            <RigaCampo etichetta="Chi è" className="mt-2">
+            <RigaCampo etichetta="Chi è" ottone={etichetteOttone} className="mt-2">
               <input type="text" data-campo="persona-chi" value={chiE} onChange={e => setChiE(e.target.value)} style={stileCampo} />
             </RigaCampo>
           )}

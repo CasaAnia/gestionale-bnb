@@ -26,6 +26,8 @@ export type ModuloCliente = {
   nome: string
   cognome: string
   telefono: string
+  /** può restare vuota (17/09/2026): guests.email, prima solo nella scheda attuale */
+  email: string
   ricevuta: boolean
   valutazione: Valutazione
   motivo: string
@@ -38,6 +40,7 @@ export type ClienteSalvato = {
   id?: string
   full_name?: string | null
   phone?: string | null
+  email?: string | null
   rating?: string | null
   vuole_ricevuta?: boolean | null
   notes?: string | null
@@ -52,6 +55,7 @@ export function moduloDaCliente(c: ClienteSalvato | null | undefined): ModuloCli
   return {
     nome, cognome,
     telefono: (c?.phone ?? '').trim(),
+    email: (c?.email ?? '').trim(),
     ricevuta: vuoleRicevuta(c),
     valutazione: valutazioneDi(c),
     motivo: (c?.motivo_problematico ?? '').trim(),
@@ -74,6 +78,7 @@ export function campiNuovoCliente(m: ModuloCliente, conProvenienza: boolean): Re
   return {
     full_name: nomeCompleto({ nome: m.nome, cognome: m.cognome }),
     phone: m.telefono.replace(/\s/g, ''),
+    ...(m.email.trim() ? { email: m.email.trim() } : {}),
     rating: m.valutazione,
     vuole_ricevuta: m.ricevuta,
     notes: m.note.trim() || null,
@@ -103,6 +108,7 @@ export function campiDaModulo(m: ModuloCliente, c: ClienteSalvato, o: OpzioniCam
   const campi: Record<string, unknown> = {
     full_name,
     phone,
+    email: m.email.trim() || null,
     notes: m.note.trim() || null,
     ...payloadValutazione(m.valutazione, m.ricevuta, o.colonnaRicevuta),
     ...(motivo !== motivoDiPrima ? { motivo_problematico: motivo } : {}),

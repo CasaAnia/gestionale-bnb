@@ -9,7 +9,7 @@ const CARMELA = {
 
 test('dal cliente salvato al modulo: i due campi del nome, e tutto il resto com’è', () => {
   assert.deepEqual(moduloDaCliente(CARMELA), {
-    nome: 'Carmela', cognome: 'Sabia', telefono: '393427004354', ricevuta: true, valutazione: 'ottimo', motivo: '',
+    nome: 'Carmela', cognome: 'Sabia', telefono: '393427004354', email: '', ricevuta: true, valutazione: 'ottimo', motivo: '',
     provenienza: 'altra_struttura', struttura: 'Nida', note: 'Dorme male con i rumori.',
   })
   // prima della 0038 la ricevuta stava nella valutazione: si legge lo stesso
@@ -55,11 +55,26 @@ test('la valutazione: prima della 0038 la forma vecchia; il motivo solo se cambi
 })
 
 test('il cliente nuovo dell’inserimento scrive gli stessi campi di sempre', () => {
-  const m = { nome: 'Anna', cognome: 'Rossi', telefono: '333 000 0001', ricevuta: false, valutazione: 'problematico' as const, motivo: ' in ritardo ', provenienza: 'google' as const, struttura: '', note: '' }
+  const m = { nome: 'Anna', cognome: 'Rossi', telefono: '333 000 0001', email: '', ricevuta: false, valutazione: 'problematico' as const, motivo: ' in ritardo ', provenienza: 'google' as const, struttura: '', note: '' }
   assert.deepEqual(campiNuovoCliente(m, true), {
     full_name: 'Anna Rossi', phone: '3330000001', rating: 'problematico', vuole_ricevuta: false, notes: null,
     motivo_problematico: 'in ritardo', provenienza: 'google', struttura_nome: null,
   })
   assert.equal('provenienza' in campiNuovoCliente(m, false), false)
   assert.equal(campiNuovoCliente({ ...m, provenienza: 'altra_struttura', struttura: ' Nida ' }, true).struttura_nome, 'Nida')
+})
+
+test('l’email (17/09/2026): si legge, si scrive se c’è, vuota diventa null sul cliente che esiste', () => {
+  assert.equal(moduloDaCliente({ ...CARMELA, email: ' carmela@esempio.it ' }).email, 'carmela@esempio.it')
+  assert.equal(moduloDaCliente(CARMELA).email, '')
+  const m = { ...moduloDaCliente(CARMELA), email: 'carmela@esempio.it' }
+  const r = campiDaModulo(m, CARMELA, { colonnaRicevuta: true, conProvenienza: true })
+  assert.ok(r.ok)
+  assert.equal(r.campi.email, 'carmela@esempio.it')
+  const vuota = campiDaModulo({ ...m, email: '  ' }, CARMELA, { colonnaRicevuta: true, conProvenienza: true })
+  assert.ok(vuota.ok)
+  assert.equal(vuota.campi.email, null)
+  // il cliente nuovo: l'email entra solo se scritta
+  assert.equal('email' in campiNuovoCliente({ ...m, email: '' }, true), false)
+  assert.equal(campiNuovoCliente(m, true).email, 'carmela@esempio.it')
 })

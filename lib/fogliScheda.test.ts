@@ -23,6 +23,8 @@ const FOGLI: { file: string; stato: string; apre: RegExp }[] = [
   { file: 'FoglioCambiaCliente', stato: 'foglioCambiaCliente', apre: /onCambiaCliente=\{\(\) => setFoglioCambiaCliente\(true\)\}/ },
   { file: 'FoglioAnnulla', stato: 'foglioAnnulla', apre: /data-annulla-prenotazione onClick=\{\(\) => setFoglioAnnulla\(true\)\}/ },
   { file: 'FoglioSconto', stato: 'foglioSconto', apre: /onSconto=\{\(\) => setFoglioSconto\(true\)\}/ },
+  { file: 'FoglioNota', stato: 'foglioNota', apre: /data-nota-colore onClick=\{\(\) => setFoglioNota\(true\)\}/ },
+  { file: 'FoglioConLei', stato: 'foglioConLei', apre: /onConLei=\{\(\) => setFoglioConLei\(true\)\}/ },
 ]
 // «Togli pagamento» si apre su UN pagamento (lo stato porta l'id): si prova a parte, sotto
 
@@ -389,4 +391,35 @@ test('togliere scrive come «rimuovi» della scheda attuale, controlla la riga t
   assert.match(dopo, /rileggi\(\)/)
   // con errore niente falso «tolto»
   assert.match(togli, /if \(esito\.esito === 'errore'\) \{ inCorso\.current = false; setErrore\(esito\.messaggio\); return \}/)
+})
+
+// ── 9. NOTA E COLORE · CON LEI · EMAIL (17/09/2026) ─────────────────────────
+test('«Nota e colore»: la nota della prenotazione, i colori del calendario, da dove è arrivata; si scrive su tutte le camere', () => {
+  const nota = leggi('components/scheda/FoglioNota.tsx')
+  assert.match(nota, /data-campo="nota"/)
+  assert.match(nota, /COLORI_CALENDARIO\.map\(c => \{[\s\S]{0,300}data-colore=\{c\.valore \|\| 'auto'\}/)
+  assert.match(nota, /ARRIVATA_DA\.map\(a => \([\s\S]{0,200}dati=\{`arrivata-\$\{a\.chiave\}`\}/)
+  assert.match(nota, /aggiornaRigaPerRiga\(stessiCampi\(ids, campi\)\)/)
+  assert.match(nota, /if \(nienteDaCambiare\(modulo, booking\)\) \{ onSalvato\(campi, ids, false\); return \}/)
+  assert.equal(/supabase/.test(nota), false)
+  const dopo = pagina.slice(pagina.indexOf('<FoglioNota'), pagina.indexOf('<FoglioNota') + 700)
+  assert.match(dopo, /ids\.includes\(r\.id\) \? \{ \.\.\.r, \.\.\.campi \} : r/)
+  assert.match(dopo, /rileggi\(\)/)
+})
+
+test('«Con lei» dalla scheda: lo stesso pezzo dell’inserimento, tutte e sei le colonne, senza la 0056 si salva il resto', () => {
+  const conLei = leggi('components/scheda/FoglioConLei.tsx')
+  assert.match(conLei, /import ConLei from '@\/components\/nuova\/ConLei'/)
+  assert.match(conLei, /<ConLei persone=\{persone\}[\s\S]{0,200}senzaTitolo etichetteOttone/)
+  assert.match(conLei, /campiConLeiCompleti\(persone\)/)
+  assert.match(conLei, /colonnaMancante\(esito\.errore as [^)]*\) === 'chi_e_2'/)
+  assert.match(conLei, /AVVISO_CHI_E_2_SENZA_0056/)
+  assert.match(leggi('components/scheda/ClienteScheda.tsx'), /data-con-lei-comando onClick=\{onConLei\}/)
+})
+
+test('l’email della cliente sta nel modulo di sempre (inserimento e scheda), e può restare vuota', () => {
+  const modulo = leggi('components/nuova/NuovoCliente.tsx')
+  assert.match(modulo, /<RigaCampo etichetta="Email · può restare vuota" ottone=\{ottone\}>[\s\S]{0,200}data-campo="email"/)
+  assert.match(modulo, /email: '',/)
+  assert.match(leggi('lib/datiCliente.ts'), /email: m\.email\.trim\(\) \|\| null,/)
 })

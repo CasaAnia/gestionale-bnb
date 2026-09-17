@@ -548,7 +548,9 @@ const finto = createServer((req, res) => {
       const AMMESSI = ['guest_id', 'guest_name', 'pagato', 'bonifico', 'check_in', 'check_out', 'num_guests', 'price_per_night', 'room_id',
         'extra_bed', 'extra_bed_dates', 'extra_bed_total', 'extra_bed_importo', 'extra_bed_criterio',
         'total_amount', 'discount_type', 'discount_value', 'check_in_time', 'shuttle', 'updated_at',
-        'status', 'cancelled_at', 'cancelled_reason', 'group_id', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro']
+        'status', 'cancelled_at', 'cancelled_reason', 'group_id', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro',
+        // i fogli della scheda nuova del 17/09/2026: nota e colore, «con lei», il legame fra le camere
+        'notes', 'color', 'source', 'extra_phone_1', 'extra_phone_1_name', 'chi_e', 'extra_phone_2', 'extra_phone_2_name', 'chi_e_2', 'prenotazione_id']
       if (m[1] === 'bookings' && chiavi.some(k => !AMMESSI.includes(k))) return rispondi(res, 403, { code: 'ANTEPRIMA', message: `scrittura non ammessa nella preview sintetica: ${chiavi.filter(k => !AMMESSI.includes(k)).join(', ')}` })
       if (m[1] === 'bookings' && erroreCambioCliente) return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sul cambio cliente' })
       const righe = righeFiltrate(m[1], url)

@@ -389,8 +389,9 @@ test('la cronologia: quando a sinistra, cosa a destra, i messaggi col fumetto', 
   assert.match(leggi('lib/schedaConto.ts'), /\.sort\(\(a, b\) => a\.ordine\.localeCompare\(b\.ordine\) \|\| a\.n - b\.n\)/)
 })
 
-test('i tre comandi in fondo, con l’annullamento in rosso', () => {
-  const fondo = pagina.slice(pagina.indexOf('data-comandi-fondo'), pagina.indexOf('data-comandi-fondo') + 900)
+test('i comandi in fondo: «Nota e colore» (17/09/2026), poi l’annullamento in rosso', () => {
+  const fondo = pagina.slice(pagina.indexOf('data-comandi-fondo'), pagina.indexOf('data-comandi-fondo') + 1600)
+  assert.match(fondo, /data-nota-colore onClick=\{\(\) => setFoglioNota\(true\)\}[^>]*>\{COMANDO_NOTA\}/)
   assert.match(fondo, />Vedi tutto</)
   assert.match(fondo, />Altre modifiche</)
   assert.match(fondo, /color: '#8C3B2E' \}\}>Annulla prenotazione</)

@@ -27,6 +27,8 @@ export type DatiNuovoCliente = {
   nome: string
   cognome: string
   telefono: string
+  /** può restare vuota (17/09/2026: era solo nella scheda attuale) */
+  email: string
   ricevuta: boolean
   valutazione: Valutazione
   motivo: string
@@ -36,7 +38,7 @@ export type DatiNuovoCliente = {
 }
 
 export const NUOVO_CLIENTE_VUOTO: DatiNuovoCliente = {
-  nome: '', cognome: '', telefono: '', ricevuta: false, valutazione: 'normale', motivo: '',
+  nome: '', cognome: '', telefono: '', email: '', ricevuta: false, valutazione: 'normale', motivo: '',
   provenienza: null, struttura: '', note: '',
 }
 
@@ -79,6 +81,9 @@ export default function NuovoCliente({ dati, onDati, strutture, struttureDisponi
       </div>
       <RigaCampo etichetta="Telefono" ottone={ottone}>
         <input type="tel" inputMode="tel" value={dati.telefono} data-campo="telefono" onChange={e => cambia({ telefono: e.target.value })} style={stileCampo} />
+      </RigaCampo>
+      <RigaCampo etichetta="Email · può restare vuota" ottone={ottone}>
+        <input type="email" inputMode="email" autoCapitalize="none" value={dati.email} data-campo="email" onChange={e => cambia({ email: e.target.value })} style={stileCampo} />
       </RigaCampo>
 
       {/* Ricevuta e valutazione, affiancate con l'etichettina centrata sopra */}

@@ -58,6 +58,10 @@ import FoglioCambiaCliente from '@/components/scheda/FoglioCambiaCliente'
 import FoglioAnnulla from '@/components/scheda/FoglioAnnulla'
 import FoglioSconto from '@/components/scheda/FoglioSconto'
 import FoglioTogliPagamento from '@/components/scheda/FoglioTogliPagamento'
+import FoglioNota from '@/components/scheda/FoglioNota'
+import FoglioConLei from '@/components/scheda/FoglioConLei'
+import { COMANDO_NOTA, NOTA_SALVATA } from '@/lib/notaScheda'
+import { CON_LEI_SALVATO } from '@/lib/conLeiScheda'
 import { SCONTO_SALVATO, SCONTO_TOLTO } from '@/lib/scontoScheda'
 import { PAGAMENTO_TOLTO } from '@/lib/pagamentoFoglio'
 import { PRENOTAZIONE_ANNULLATA } from '@/lib/annullamento'
@@ -172,6 +176,8 @@ export default function SchedaPage() {
   const [foglioSconto, setFoglioSconto] = useState(false)
   // il pagamento da togliere: l'id della riga di payments
   const [pagamentoDaTogliere, setPagamentoDaTogliere] = useState<string | null>(null)
+  const [foglioNota, setFoglioNota] = useState(false)
+  const [foglioConLei, setFoglioConLei] = useState(false)
   // appena annullata da qui: la pastiglia in mattone in cima, finché non si va via
   const [annullata, setAnnullata] = useState(false)
   // la conferma volante dopo un pagamento (Ania, 11/09/2026): due righe, pochi secondi
@@ -541,7 +547,7 @@ export default function SchedaPage() {
         <p className="ed-sezione">Cliente</p>
         <ClienteScheda className="mt-3" voci={voci} soggiorni={soggiorni} totaleCent={totaleSoggiorniCent} conLei={conLei}
           onChiediProvenienza={booking.guest_id ? () => setFoglioProvenienza(true) : undefined}
-          onModificaDati={() => setFoglioCliente(true)} onCambiaCliente={() => setFoglioCambiaCliente(true)} />
+          onModificaDati={() => setFoglioCliente(true)} onCambiaCliente={() => setFoglioCambiaCliente(true)} onConLei={() => setFoglioConLei(true)} />
       </section>
 
       {/* ── Cronologia ────────────────────────────────────────────────────── */}
@@ -552,6 +558,8 @@ export default function SchedaPage() {
 
       {/* I tre comandi in fondo, staccati da tutto il resto */}
       <p data-comandi-fondo className="flex flex-wrap items-center justify-center mt-8 mb-4" style={{ gap: '0 12px', fontSize: 14 }}>
+        <button type="button" data-nota-colore onClick={() => setFoglioNota(true)} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>{COMANDO_NOTA}</button>
+        <span style={{ color: 'var(--color-stone)' }}>·</span>
         <Link href={hrefVecchia(booking.id)} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Vedi tutto</Link>
         <span style={{ color: 'var(--color-stone)' }}>·</span>
         <Link href={hrefVecchia(booking.id)} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Altre modifiche</Link>
@@ -634,6 +642,32 @@ export default function SchedaPage() {
             }} />
         ) : null
       })()}
+      {foglioNota && (
+        <FoglioNota booking={booking} righe={righe}
+          onChiudi={() => setFoglioNota(false)}
+          onSalvato={(campi, ids, cambiato) => {
+            setFoglioNota(false)
+            if (!cambiato) return
+            const aggiorna = (r: Prenotazione): Prenotazione => (ids.includes(r.id) ? { ...r, ...campi } : r)
+            setRighe(rs => rs.map(aggiorna))
+            setBooking(b => (b ? aggiorna(b) : b))
+            setAvviso(NOTA_SALVATA)
+            rileggi()
+          }} />
+      )}
+      {foglioConLei && (
+        <FoglioConLei booking={booking} righe={righe}
+          onChiudi={() => setFoglioConLei(false)}
+          onSalvato={(campi, ids, msg, cambiato) => {
+            setFoglioConLei(false)
+            if (!cambiato) return
+            const aggiorna = (r: Prenotazione): Prenotazione => (ids.includes(r.id) ? { ...r, ...campi } : r)
+            setRighe(rs => rs.map(aggiorna))
+            setBooking(b => (b ? aggiorna(b) : b))
+            setAvviso(msg ?? CON_LEI_SALVATO)
+            rileggi()
+          }} />
+      )}
       {foglioSconto && conto && (
         <FoglioSconto righe={righe} ricevutiCent={conto.ricevutiCent}
           onChiudi={() => setFoglioSconto(false)}

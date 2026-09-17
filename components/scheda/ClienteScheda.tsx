@@ -20,6 +20,7 @@
 //
 // Sola presentazione: i testi arrivano da lib/schedaConto e lib/clienteCheTorna.
 // ============================================================================
+import { COMANDO_CON_LEI } from '@/lib/conLeiScheda'
 import Link from 'next/link'
 import { periodoCompatto } from '@/lib/dateItaliane'
 import { euroTondi } from '@/lib/euroTondi'
@@ -32,7 +33,7 @@ const OTTONE = '#A9884E'
 const ROSSO_NOTA = '#C00000'
 
 export default function ClienteScheda({
-  voci, soggiorni, totaleCent, conLei, onChiediProvenienza, onModificaDati, onCambiaCliente,
+  voci, soggiorni, totaleCent, conLei, onChiediProvenienza, onModificaDati, onCambiaCliente, onConLei,
   annoCorrente = new Date().getFullYear(), className = '',
 }: {
   voci: VoceCliente[]
@@ -44,6 +45,8 @@ export default function ClienteScheda({
   onModificaDati: () => void
   /** apre il foglio «Cambia cliente» (16/09/2026), qui nella scheda */
   onCambiaCliente: () => void
+  /** apre il foglio «Con lei» (17/09/2026): chi altro dorme qui */
+  onConLei: () => void
   annoCorrente?: number
   className?: string
 }) {
@@ -66,6 +69,7 @@ export default function ClienteScheda({
       <p className="flex flex-wrap items-center mt-3" style={{ gap: '0 12px', fontSize: 14 }}>
         <button type="button" data-modifica-dati onClick={onModificaDati} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Modifica dati</button>
         <button type="button" data-cambia-cliente onClick={onCambiaCliente} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Cambia cliente</button>
+        <button type="button" data-con-lei-comando onClick={onConLei} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>{COMANDO_CON_LEI}</button>
       </p>
 
       {/* I soggiorni precedenti */}
