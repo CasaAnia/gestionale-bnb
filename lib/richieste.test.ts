@@ -345,7 +345,7 @@ test('l’ultima riga della richiesta ha i quattro comandi nell’ordine chiesto
 // ovunque compaia la nota.
 test('la nota del cliente nella riga è tutta rossa, come nella Home', () => {
   const nota = readFileSync(new URL('../components/richieste/NotaCliente.tsx', import.meta.url), 'utf8')
-  assert.match(nota, /export const ROSSO_NOTA = '#C00000'/)
+  assert.match(nota, /export const ROSSO_NOTA = '#D40000'/)
   // il rosso vecchio resta solo nel commento che racconta il cambio, mai nel codice
   const codice = nota.split('\n').filter(r => !r.trim().startsWith('//')).join('\n')
   assert.equal(/#C0392B/.test(codice), false, 'è tornato il rosso vecchio')
@@ -354,7 +354,7 @@ test('la nota del cliente nella riga è tutta rossa, come nella Home', () => {
   // davanti (Ania, dal telefono, 12/09/2026: nella riga la nota è grande come
   // il nome). In Home la nota resta 13 px, e quella misura non si tocca.
   assert.match(nota, /if \(grande\) \{/)
-  assert.match(nota, /text-\[15px\] leading-snug font-semibold/)
+  assert.match(nota, /text-\[15px\] leading-snug font-bold/)   // grassetto vero, come nella scheda (17/09/2026)
   const home = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8')
   assert.match(home, /text-\[13px\] leading-snug font-semibold/)
 

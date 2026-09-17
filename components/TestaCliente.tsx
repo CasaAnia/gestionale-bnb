@@ -22,7 +22,7 @@ const GRIGIO_RIGA = '#B9B6AD'          // la prima riga, quella minuta
 const VERDE_MESE = '#5B6559'           // il mese accanto al giorno
 const OTTONE = '#A9884E'
 const FILO_OTTONE = 'rgba(169,136,78,0.55)'
-const ROSSO_NOTA = '#C00000'   // il rosso della nota del cliente, scelto da Ania l'8/09/2026: uguale in Home, scheda e proposta
+const ROSSO_NOTA = '#D40000'   // il rosso delle note (cliente e prenotazione): lo stesso di «da incassare», in grassetto vero (Ania, 17/09/2026); uguale in Home, scheda e proposta
 const FILO_NOTA = '#E3CFC9'
 const FILO_NOTA_SCHEDA = '#D8D2C4'   // la scheda prenotazione (13/09/2026): filo tratteggiato più neutro
 const ROSSO_AVVISO = '#8C3B2E'
@@ -247,7 +247,7 @@ export default function TestaCliente({
           {notePulite.map((n, i) => (
             <div key={n.etichetta + i} data-nota-cliente className={`text-center${i > 0 ? ' mt-2.5' : ''}`}>
               {(n.etichetta || !noteScheda) && <p style={{ fontSize: noteScheda ? 10 : 9.5, letterSpacing: '1.5px', textTransform: 'uppercase', color: ROSSO_NOTA }}>{n.etichetta}</p>}
-              <p className="mt-0.5 break-words" style={{ fontSize: noteScheda ? 14.5 : 13.5, fontWeight: 600, color: ROSSO_NOTA, overflowWrap: 'anywhere' }}>{noteScheda ? n.testo : `«${n.testo}»`}</p>
+              <p className="mt-0.5 break-words" style={{ fontSize: noteScheda ? 14.5 : 13.5, fontWeight: 700, color: ROSSO_NOTA, overflowWrap: 'anywhere' }}>{noteScheda ? n.testo : `«${n.testo}»`}</p>
             </div>
           ))}
         </div>

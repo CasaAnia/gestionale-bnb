@@ -111,11 +111,13 @@ test('telefono, «Scrivi» e la riga del documento', () => {
   assert.match(pagina, /conteggio=\{documenti\} scheda/)
 })
 
-test('le note: filo tratteggiato #D8D2C4, rosso #C00000 a 14,5 semibold, «QUESTA VOLTA»', () => {
+test('le note: filo tratteggiato #D8D2C4, rosso #D40000 (come «da incassare») a 14,5 in grassetto vero, «QUESTA VOLTA»', () => {
   assert.match(testa, /const FILO_NOTA_SCHEDA = '#D8D2C4'/)
   assert.match(testa, /borderTop: `1px dashed \$\{noteScheda \? FILO_NOTA_SCHEDA : FILO_NOTA\}`/)
-  assert.match(testa, /const ROSSO_NOTA = '#C00000'/)
-  assert.match(testa, /fontSize: noteScheda \? 14\.5 : 13\.5, fontWeight: 600, color: ROSSO_NOTA/)
+  assert.match(testa, /const ROSSO_NOTA = '#D40000'/)
+  assert.match(testa, /fontSize: noteScheda \? 14\.5 : 13\.5, fontWeight: 700, color: ROSSO_NOTA/)
+  assert.match(leggi('components/scheda/ClienteScheda.tsx'), /const ROSSO_NOTA = '#D40000'/)
+  assert.match(leggi('components/scheda/ClienteScheda.tsx'), /fontWeight: v\.etichetta === 'nota del cliente' \? 700 : 600/)
   // la parolina c'è solo sulla nota della prenotazione (la prima non ce l'ha)
   assert.match(testa, /\{\(n\.etichetta \|\| !noteScheda\) && <p style=\{\{ fontSize: noteScheda \? 10 : 9\.5/)
   // senza note niente filo e niente spazio: lo decide la testa, che non disegna nulla

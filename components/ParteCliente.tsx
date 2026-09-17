@@ -28,7 +28,7 @@ import type { SoggiornoPersona } from '@/lib/clienteCheTorna'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 const OTTONE = '#A9884E'
-const ROSSO_NOTA = '#C00000'
+const ROSSO_NOTA = '#D40000'   // lo stesso rosso di «da incassare», in grassetto vero (Ania, 17/09/2026)
 export const MISURA_ETICHETTA = 9        // px, maiuscolo ottone
 export const MISURA_VALORE = 14.5        // px, semibold verde scuro
 export const MISURA_CAMERA = 20          // px, Georgia
@@ -95,7 +95,7 @@ export default function ParteCliente({
 
       {/* La nota della cliente, nello stesso rosso di tutte le altre note */}
       {testoNota && (
-        <p data-nota-parte-cliente className="mt-3 leading-snug" style={{ fontSize: 13.5, fontWeight: 600, color: ROSSO_NOTA }}>{testoNota}</p>
+        <p data-nota-parte-cliente className="mt-3 leading-snug" style={{ fontSize: 13.5, fontWeight: 700, color: ROSSO_NOTA }}>{testoNota}</p>
       )}
 
       {hrefCliente && (

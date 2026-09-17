@@ -30,7 +30,7 @@ import type { SoggiornoPersona } from '@/lib/clienteCheTorna'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 const OTTONE = '#A9884E'
-const ROSSO_NOTA = '#C00000'
+const ROSSO_NOTA = '#D40000'   // lo stesso rosso di «da incassare», in grassetto vero (Ania, 17/09/2026)
 
 export default function ClienteScheda({
   voci, soggiorni, totaleCent, conLei, onChiediProvenienza, onModificaDati, onCambiaCliente, onConLei,
@@ -61,7 +61,7 @@ export default function ClienteScheda({
               ? <button type="button" data-chiedi-provenienza-cliente onClick={onChiediProvenienza} className="mt-0.5 py-1 -my-1 text-left"
                 style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--color-green-mid)' }}>{v.valore}</button>
               : <p className={`mt-0.5 ${v.etichetta === 'nota del cliente' ? 'leading-snug' : 'truncate'}`}
-                style={{ fontSize: 14.5, fontWeight: 600, color: v.etichetta === 'nota del cliente' ? ROSSO_NOTA : 'var(--color-green-dark)' }}>{v.valore}</p>}
+                style={{ fontSize: 14.5, fontWeight: v.etichetta === 'nota del cliente' ? 700 : 600, color: v.etichetta === 'nota del cliente' ? ROSSO_NOTA : 'var(--color-green-dark)' }}>{v.valore}</p>}
           </div>
         ))}
       </div>

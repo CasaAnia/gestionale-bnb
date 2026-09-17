@@ -44,7 +44,7 @@ import {
 // «oggi / ieri» e la riga di notti e persone non hanno più un grigio loro:
 // stanno nell'etichetta d'ottone e nel color stone della Home (12/09/2026).
 const OTTONE = '#A9884E'          // la stella della cliente ottima
-const ROSSO_SPESO = '#C00000'     // quanto ha già speso da noi: lo stesso rosso della nota
+const ROSSO_SPESO = '#D40000'     // quanto ha già speso da noi: lo stesso rosso della nota
 
 const oggiIso = () => {
   const d = new Date()

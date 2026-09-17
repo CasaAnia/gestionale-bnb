@@ -199,7 +199,7 @@ test('stella e «ricevuta» nella riga: ci sono solo quando servono', () => {
   assert.equal(/>ricevuta</.test(riga), false, 'la parolina «ricevuta» è ancora nella riga')
   assert.equal(/letterSpacing: '0\.6px'/.test(riga), false, 'la parolina «ricevuta» è ancora nella riga')
   // il totale speso: rosso come la nota, e forte come la camera
-  assert.match(pagina, /const ROSSO_SPESO = '#C00000'/)
+  assert.match(pagina, /const ROSSO_SPESO = '#D40000'/)
   assert.match(riga, /x\.speso \? \{ color: ROSSO_SPESO \}/)
   // la vecchia pastiglia verde «Già stato da noi» non c'è più
   assert.equal(/data-gia-stato|etichettaGiaStato/.test(pagina), false)
