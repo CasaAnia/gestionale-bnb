@@ -1189,3 +1189,71 @@ scelta: «Vedi tutto» e «Altre modifiche» in fondo (sconto, cambio camera con
 più camere, eliminazione di un pagamento non hanno ancora un foglio nella
 scheda nuova); e la striscia dice «le notti si spostano dalla scheda completa»
 quando ci sono più camere nelle stesse notti. Da fare in un incarico a parte.
+
+## La scheda nuova è completa: via gli ultimi passaggi alla vecchia (17/09/2026, Claude) — main fino a `89e5ec0`
+
+Un commit per punto, escluse le modifiche non salvate delle altre chat
+(`app/prenotazioni/[id]/page.tsx`, `lib/condizioniPrenotazione.ts`, `docs/*`).
+
+1. **Sconto** (`a2e3ead`): comando «Sconto» nel conto; foglio con Nessuno ·
+   Percentuale · Prezzo finale, totale attuale, nuovo totale, resta da
+   incassare (coi pagamenti). Regole in `lib/scontoScheda` (pure), scrittura
+   riga per riga in `lib/scontoDati` con verifica della riga toccata. Con più
+   camere il prezzo finale è la quota di ogni riga (`target_total`) e il
+   totale scritto è quello che `contoSoggiorno` rilegge: torna al centesimo
+   (provato 333,33 € su tre tratti, salvato e riaperto). Togliere = discount
+   null e totale al prezzo pieno (la regola di «rimuovi sconto»).
+2. **Cambio camera con più camere** (`8decc73`): `lib/lineeSoggiorno` divide il
+   soggiorno in linee (cambio camera in fila = una striscia; camere in
+   parallelo = una striscia per gruppo, col titolo «Lena → Ambra · 3 → 7 nov»).
+   Ogni linea si salva da sola con la 0053; le altre linee entrano nel contesto
+   come altre prenotazioni (camera presa, letti di casa contati). Il foglietto
+   della notte dice la linea e l'effetto sul conto prima di «Fatto»; da lì si
+   cambiano anche gli ospiti con le regole della scheda attuale (Allegra 2→3
+   accende il letto, 3→2 spegne solo quello automatico, il letto a mano con
+   due persone resta; «da qui in poi»). Le persone contano in `stessaStriscia`.
+3. **Togli pagamento** (`a0d5959`): «togli» accanto a ogni pagamento, foglio di
+   conferma con importo, giorno e modo, nota, quanto resta senza; bollino
+   «pagato» tolto se serve (con verifica delle righe); stessa cancellazione di
+   «rimuovi»; doppio tocco bloccato con un riferimento sincrono.
+4. **Inventario di «Vedi tutto» / «Altre modifiche»** e i fogli che mancavano:
+   - nota della prenotazione, colore sul calendario, da dove è arrivata
+     (`dda60a7`, «Nota e colore», su tutte le camere via `lib/righeDati`);
+   - «Con lei» dalla scheda (stesso pezzo dell'inserimento, sei colonne
+     riscritte, senza 0056 si salva il resto e lo si dice);
+   - email della cliente nel modulo dei dati (inserimento e scheda);
+   - «Tariffe» (`89e5ec0`): tariffa a notte per tratto, totale ricalcolato;
+   - «Cambia date» sotto ogni striscia: arrivo/partenza della linea, notti
+     nuove copiate dalla vicina, salvataggio con la 0053;
+   - «Aggiungi camera»: legame `prenotazione_id` scritto se manca, poi
+     `/nuova-prenotazione?prenotazione=…` che entra nello stesso legame senza
+     toccare come paga e caparra.
+   - Il messaggio dello sconto decaduto rimanda al comando «Sconto».
+   - «Vedi tutto» e «Altre modifiche» tolti; `lib/indirizziNuovi.test.ts` non
+     esclude più la scheda nuova. Le pagine vecchie restano a mano con la
+     riga in ottone; i due file non sono stati toccati.
+
+**Cosa NON è passato nella scheda nuova (di proposito):** il campo «Nome e
+cognome» sulla prenotazione (`bookings.guest_name`, un residuo: il nome vive
+sulla cliente e «Cambia cliente» lo azzera); «Apri camera» per ogni tratto
+(la scheda nuova mostra già tutte le camere insieme); l'uso di `/nuova` per
+la seconda camera (sostituito dall'inserimento nuovo). Niente altro dipende
+più dalla scheda vecchia.
+
+**Prove:** 1507 test verdi (57 nuovi: scontoScheda, lineeSoggiorno,
+tariffaScheda, notaScheda, conLeiScheda, togli pagamento, date, aggiungi
+camera, fogli letti dai sorgenti), TypeScript pulito, `next build --webpack`
+pulita. Sull'**anteprima finta** a 390×844 (prenotazioni sintetiche, con una
+prenotazione a due camere in parallelo e la funzione `sposta_notti` finta
+aggiunte allo scenario): sconto finale su tre tratti e percentuale su una
+camera, salva/annulla/riapri; cambio camera su una linea senza toccare
+l'altra, camera occupata assente fra le libere; ospiti 2→3→2 e letto a mano
+con 2, «da qui in poi» con i tratti spezzati; togli pagamento con tocco
+singolo e triplo (una sola cancellazione), bollino via, «Da controllare»
+aggiornato; nota/colore/arrivata da; con lei (terza persona rifiutata);
+email; tariffe (470→490); cambia date (Amelia 3→6 → 3→7, 495→560); aggiungi
+camera fino alla scheda con tre linee (840 €) e come paga intatto. Ogni
+salvataggio chiuso e riaperto uguale. **Online:** il sito pubblicato chiede
+il login nel pannello del browser (la sessione precedente era scaduta):
+il giro online è da fare con Ania collegata; non è stato creato né toccato
+nessun dato vero.
