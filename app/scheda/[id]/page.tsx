@@ -550,7 +550,7 @@ export default function SchedaPage() {
               <p data-linea-titolo className="text-center" style={{ marginTop: i === 0 ? 10 : 18, fontSize: 12.5, fontWeight: 600, color: 'var(--color-green-dark)' }}>{l.titolo}</p>
             )}
             {/* sotto ogni notte le persone di quella notte (in mattone se diverse da quelle della linea) */}
-            <StrisciaNottiCamere notti={l.notti} oggi={oggi} spiegazione={i === 0}
+            <StrisciaNottiCamere notti={l.notti} oggi={oggi} spiegazione={false}
               ospitiAttesi={Math.max(1, ...l.segmenti.map(s => Number(s.num_guests) || 1))}
               onNotte={nonSiSposta ? undefined : n => setNotteAperta({ linea: l.chiave, iso: n.iso })} className="mt-3" />
             {!nonSiSposta && (
