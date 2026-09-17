@@ -38,7 +38,8 @@ export default function FoglioDate({ notti, contesto, sottotitolo, contoDopo, on
       {sottotitolo && <p data-sottotitolo-date style={{ marginTop: -6, marginBottom: 10, fontSize: 12.5, fontWeight: 600, color: OTTONE }}>{sottotitolo}</p>}
       <CampoData etichetta="Arrivo" valore={arrivo} onValore={setArrivo} dati="arrivo" ottone />
       <CampoData etichetta="Partenza" valore={partenza} onValore={setPartenza} min={arrivo || undefined} dati="partenza" ottone />
-      {conto && <p data-conto-dopo style={{ marginTop: 14, fontSize: 13, fontWeight: 600, color: conto.guaio ? MATTONE : OTTONE }}>{conto.testo}</p>}
+      {/* il conto non si anticipa qui (Ania, 17/09/2026): lo dice il pop-up dopo «Fatto»; resta solo il motivo se così non si può salvare */}
+      {conto && conto.guaio && <p data-conto-dopo style={{ marginTop: 14, fontSize: 13, fontWeight: 600, color: MATTONE }}>{conto.testo}</p>}
       <PiedeFoglio azione={FATTO_DATE} onAzione={() => { if (dateBuone && !(conto && conto.guaio)) onFatto(bozza) }} onAnnulla={onChiudi} dati="date" />
     </Foglio>
   )

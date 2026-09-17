@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import {
   lineeDelSoggiorno, titoloLinea, contestoLinea, contoDopoNotti, testoContoDopo, chiaveLinea,
   CONTO_INVARIATO, CONTO_CAMBIA, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, dateLinea, nottiConDate,
+  confermaNotti, conPrezzoConcordato, RIVEDI_SCONTO, AVVISO_RIVEDI_SCONTO, DURATA_CONFERMA_NOTTI, DURATA_CONFERMA_SCONTO,
 } from './lineeSoggiorno.ts'
 import { pianoNotti, cambiaCamera, camereDellaNotte, lettoDisponibileNotte, nonDormeQui, type ContestoNotti, type CameraStriscia } from './strisciaNotti.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
@@ -175,4 +176,23 @@ test('due tratti dello stesso gruppo che si sovrappongono (prenotazioni vecchie)
   // in fila (uno finisce dove comincia l'altro) restano una linea sola
   const inFila = lineeDelSoggiorno([leiLena, leiAmbra])
   assert.deepEqual(inFila.map(l => l.chiave), ['A'])
+})
+
+// ── Il pop-up dopo aver salvato le notti (Ania, 17/09/2026) ────────────────
+test('dopo «Fatto»: il conto com’è adesso e quante notti; col prezzo finale concordato e notti diverse, «rivedi lo sconto» e un avviso che resta', () => {
+  const normale = confermaNotti({ totaleCent: 17000, nottiPrima: 1, nottiDopo: 2, concordato: false })
+  assert.deepEqual(normale.righe, { prima: 'Notti salvate · conto 170 €', seconda: '2 notti' })
+  assert.equal(normale.avviso, null)
+  assert.equal(normale.durata, DURATA_CONFERMA_NOTTI)
+  // prezzo finale concordato: il conto resta 170 anche con una notte in più → si dice
+  const concordato = confermaNotti({ totaleCent: 17000, nottiPrima: 1, nottiDopo: 2, concordato: true })
+  assert.deepEqual(concordato.righe, { prima: 'Notti salvate · conto 170 €', seconda: RIVEDI_SCONTO })
+  assert.equal(concordato.avviso, AVVISO_RIVEDI_SCONTO)
+  assert.equal(concordato.durata, DURATA_CONFERMA_SCONTO)
+  // stesse notti (solo cambio camera): niente da rivedere
+  const stesse = confermaNotti({ totaleCent: 17000, nottiPrima: 2, nottiDopo: 2, concordato: true })
+  assert.equal(stesse.righe.seconda, '2 notti')
+  assert.equal(stesse.avviso, null)
+  assert.equal(conPrezzoConcordato([{ discount_type: null }, { discount_type: 'target_total' }]), true)
+  assert.equal(conPrezzoConcordato([{ discount_type: 'percentage' }]), false)
 })

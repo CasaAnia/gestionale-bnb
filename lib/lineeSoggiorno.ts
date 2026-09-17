@@ -18,7 +18,7 @@
 // Funzioni pure: niente Supabase, niente orologio.
 // ============================================================================
 import { nottiDaSegmenti, camereDellaNotte, lettoDisponibileNotte, type SegmentoNotti, type NotteStriscia, type ContestoNotti, type PianoNotti } from './strisciaNotti.ts'
-import { periodoTratto, euroScheda } from './schedaPrenotazione.ts'
+import { periodoTratto, euroScheda, testoNotti } from './schedaPrenotazione.ts'
 import { MESI_BREVI } from './dateItaliane.ts'
 
 export type SegmentoLinea = SegmentoNotti & { group_id?: string | null; total_amount?: number | string | null }
@@ -170,4 +170,34 @@ export function nottiConDate(notti: NotteStriscia[], arrivo: string, partenza: s
       motivo: libera ? null : (modello.camera ? `${modello.camera} è occupata` : null),
     }
   })
+}
+
+// ── La conferma dopo aver salvato le notti (Ania, 17/09/2026) ───────────────
+// Un pop-up grande, come dopo un pagamento: sopra il conto com'è adesso,
+// sotto quante notti. Con un PREZZO FINALE concordato il conto non segue le
+// notti (la cifra pattuita resta quella): se le notti sono cambiate lo si
+// dice lì e resta anche un avviso nella scheda, finché lo sconto non viene
+// rivisto.
+export const RIVEDI_SCONTO = 'prezzo finale concordato: rivedi lo sconto'
+export const AVVISO_RIVEDI_SCONTO = 'Le notti sono cambiate ma il prezzo finale concordato è rimasto quello: controlla lo sconto dal conto.'
+export const DURATA_CONFERMA_NOTTI = 3500
+export const DURATA_CONFERMA_SCONTO = 7000
+
+export function confermaNotti(p: { totaleCent: number; nottiPrima: number; nottiDopo: number; concordato: boolean }): {
+  righe: { prima: string; seconda: string }; avviso: string | null; durata: number
+} {
+  const daRivedere = p.concordato && p.nottiPrima !== p.nottiDopo
+  return {
+    righe: {
+      prima: `Notti salvate · conto ${euroScheda(p.totaleCent)}`,
+      seconda: daRivedere ? RIVEDI_SCONTO : testoNotti(p.nottiDopo),
+    },
+    avviso: daRivedere ? AVVISO_RIVEDI_SCONTO : null,
+    durata: daRivedere ? DURATA_CONFERMA_SCONTO : DURATA_CONFERMA_NOTTI,
+  }
+}
+
+/** La linea ha un prezzo finale concordato (target_total) su almeno un tratto */
+export function conPrezzoConcordato(segmenti: { discount_type?: string | null }[]): boolean {
+  return segmenti.some(s => s.discount_type === 'target_total')
 }

@@ -417,3 +417,17 @@ test('la striscia della scheda mostra le persone sotto ogni notte, e il letto ac
   assert.match(striscia, /background: n\.letto \? 'var\(--color-green-mid\)' : '#fff'/)
   assert.match(striscia, /color: n\.letto \? 'var\(--color-cream\)' : '#C4C0B6'/)
 })
+
+test('dopo il salvataggio delle notti compare il pop-up grande, e «Cambia date» non anticipa più il conto (Ania, 17/09/2026)', () => {
+  assert.match(pagina, /const esitoConferma = confermaNotti\(\{[\s\S]{0,400}concordato: conPrezzoConcordato\(linea\.segmenti\),/)
+  assert.match(pagina, /setConferma\(c => \(\{ n: \(c\?\.n \?\? 0\) \+ 1, righe: esitoConferma\.righe, durata: esitoConferma\.durata \}\)\)/)
+  assert.match(pagina, /if \(esitoConferma\.avviso\) setAvviso\(esitoConferma\.avviso\)/)
+  assert.match(pagina, /<ConfermaVolante key=\{conferma\.n\} righe=\{conferma\.righe\} durata=\{conferma\.durata\}/)
+  const date = leggi('components/scheda/FoglioDate.tsx')
+  assert.match(date, /\{conto && conto\.guaio && <p data-conto-dopo/)
+})
+
+test('le altre prenotazioni si leggono anche un mese intorno al soggiorno: «Cambia date» sa se la camera è libera fuori dalle notti di adesso', () => {
+  assert.match(pagina, /const GIORNI_INTORNO = 31/)
+  assert.match(pagina, /\.lt\('check_in', spostaGiorni\(partenza, GIORNI_INTORNO\)\)\.gt\('check_out', spostaGiorni\(arrivo, -GIORNI_INTORNO\)\)/)
+})

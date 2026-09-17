@@ -87,7 +87,7 @@ import { saldoMancanteCent } from '@/lib/statistiche'
 import { pianoNotti, stessaStriscia, ospitiDaQuiInPoi, type ContestoNotti, type NotteStriscia, type CameraStriscia } from '@/lib/strisciaNotti'
 import { ospitiPossibiliNotte } from '@/lib/nuovaPrenotazione'
 import { capienzaCamera } from '@/lib/tariffe'
-import { lineeDelSoggiorno, contestoLinea, contoDopoNotti, testoContoDopo, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, COMANDO_DATE, type LineaSoggiorno } from '@/lib/lineeSoggiorno'
+import { lineeDelSoggiorno, contestoLinea, contoDopoNotti, testoContoDopo, confermaNotti, conPrezzoConcordato, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, COMANDO_DATE, type LineaSoggiorno } from '@/lib/lineeSoggiorno'
 import { salvaNottiInUnColpo } from '@/lib/nottiScrittura'
 import { nomeOspite } from '@/lib/guestName'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
@@ -104,6 +104,7 @@ import { leggiCronologia } from '@/lib/cronologiaDati'
 import type { EventoCronologia } from '@/lib/cronologia'
 import { valutazioneDi as valutazioneCliente } from '@/lib/valutazione'
 import { oggiARoma } from '@/lib/spese/adattatore'
+import { spostaGiorni } from '@/lib/statistiche/periodo'
 import type { PrenotazioneDC } from '@/lib/daControllare'
 import type { PagamentoStat } from '@/lib/statistiche/tipi'
 import type { SegmentoStorico } from '@/lib/storicoCliente'
@@ -113,6 +114,8 @@ const OTTONE = '#A9884E'
 const VERDE_MESE = '#5B6559'
 const ROSSO_CONTO = '#D40000'
 const COLONNE_ALTRE = '*, rooms(name), guests(full_name, phone)'
+// quante notti intorno al soggiorno si leggono le altre prenotazioni (per «Cambia date»)
+const GIORNI_INTORNO = 31
 
 type Prenotazione = SegmentoScheda & RigaPrenotazione & {
   guests?: { id?: string; full_name?: string | null; phone?: string | null; rating?: string | null; vuole_ricevuta?: boolean | null; notes?: string | null; provenienza?: string | null; struttura_nome?: string | null } | null
@@ -191,7 +194,7 @@ export default function SchedaPage() {
   // appena annullata da qui: la pastiglia in mattone in cima, finché non si va via
   const [annullata, setAnnullata] = useState(false)
   // la conferma volante dopo un pagamento (Ania, 11/09/2026): due righe, pochi secondi
-  const [conferma, setConferma] = useState<{ n: number; righe: ConfermaPagamento } | null>(null)
+  const [conferma, setConferma] = useState<{ n: number; righe: ConfermaPagamento; durata?: number } | null>(null)
   // arrivando dalla pagina di inserimento (?salvata=1) o dalla conferma di una
   // richiesta (?da=richiesta): la pastiglia verde che sparisce da sé
   const daRichiesta = parametri.get('da') === 'richiesta'
@@ -253,8 +256,11 @@ export default function SchedaPage() {
         scheda.guest_id
           ? supabase.from('bookings').select('*, rooms(name), guests(full_name, phone)').eq('guest_id', scheda.guest_id).order('check_in', { ascending: false })
           : Promise.resolve({ data: [], error: null }),
-        // le altre prenotazioni nelle stesse notti: sovrapposizioni e letti oltre il pool
-        supabase.from('bookings').select(COLONNE_ALTRE).neq('status', 'annullata').lt('check_in', partenza).gt('check_out', arrivo),
+        // le altre prenotazioni nelle stesse notti e in quelle vicine (un mese
+        // prima e dopo, 17/09/2026): servono a «Cambia date» per sapere se la
+        // camera è libera anche fuori dalle notti di adesso; sovrapposizioni e
+        // letti oltre il pool si contano comunque notte per notte
+        supabase.from('bookings').select(COLONNE_ALTRE).neq('status', 'annullata').lt('check_in', spostaGiorni(partenza, GIORNI_INTORNO)).gt('check_out', spostaGiorni(arrivo, -GIORNI_INTORNO)),
         scheda.guest_id
           ? supabase.from('documenti_cliente').select('id', { count: 'exact', head: true }).eq('guest_id', scheda.guest_id)
           : Promise.resolve({ count: null, error: null }),
@@ -416,6 +422,17 @@ export default function SchedaPage() {
         .sort((x, z) => x.check_in.localeCompare(z.check_in))
       if (rimaste[0]) { router.replace(`/scheda/${rimaste[0].id}`); return }
     }
+    // il pop-up grande (Ania, 17/09/2026): il conto com'è adesso e, con un
+    // prezzo finale concordato e notti diverse, «rivedi lo sconto»
+    const dopo = contoDopoNotti(piano, linea, attive)
+    const esitoConferma = confermaNotti({
+      totaleCent: dopo?.dopoCent ?? conto?.totaleCent ?? 0,
+      nottiPrima: linea.notti.filter(n => n.dentro).length,
+      nottiDopo: nuove.filter(n => n.dentro).length,
+      concordato: conPrezzoConcordato(linea.segmenti),
+    })
+    setConferma(c => ({ n: (c?.n ?? 0) + 1, righe: esitoConferma.righe, durata: esitoConferma.durata }))
+    if (esitoConferma.avviso) setAvviso(esitoConferma.avviso)
     setVersione(v => v + 1)
   }
 
@@ -674,7 +691,7 @@ export default function SchedaPage() {
             rileggi()
           }} />
       )}
-      {conferma && <ConfermaVolante key={conferma.n} righe={conferma.righe} onChiudi={() => setConferma(null)} />}
+      {conferma && <ConfermaVolante key={conferma.n} righe={conferma.righe} durata={conferma.durata} onChiudi={() => setConferma(null)} />}
       {pagamentoDaTogliere && conto && (() => {
         const p = (pagamenti as unknown as PagamentoScheda[]).find(x => x.id === pagamentoDaTogliere)
         return p ? (
