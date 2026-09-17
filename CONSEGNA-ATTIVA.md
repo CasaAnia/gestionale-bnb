@@ -1257,3 +1257,10 @@ salvataggio chiuso e riaperto uguale. **Online:** il sito pubblicato chiede
 il login nel pannello del browser (la sessione precedente era scaduta):
 il giro online è da fare con Ania collegata; non è stato creato né toccato
 nessun dato vero.
+
+**Aggiunta dopo il giro online (17/09/2026, `e2a7652`):** una prenotazione
+vera (Ambra e Allegra nelle stesse notti, stesso group_id, fatta con la
+scheda vecchia) veniva mostrata come una striscia sola con le notti senza
+camera. Dentro un gruppo i tratti in fila sono una linea, quelli che si
+sovrappongono sono linee diverse («G», «G#2»). Test di regressione in
+`lib/lineeSoggiorno.test.ts`. 1508 test verdi.
