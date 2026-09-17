@@ -37,6 +37,8 @@ declare
   create_righe jsonb := '[]'::jsonb;
   nuova record;
   adesso timestamptz := now();
+  -- le righe toccate (aggiornate e create): il controllo finale guarda solo loro
+  toccate_ids uuid[] := '{}';
 begin
   -- 0. il vincolo della 0051 si controlla alla FINE della transazione.
   --    Le tre cose insieme passano per stati intermedi che sono impossibili
@@ -80,6 +82,7 @@ begin
       raise exception 'il tratto % non c''è più: ricarica la scheda', id_riga;
     end if;
     aggiornate := aggiornate + 1;
+    toccate_ids := toccate_ids || id_riga;
   end loop;
 
   -- 2. i tratti nuovi
@@ -103,6 +106,7 @@ begin
       voce->>'check_in_time', voce->>'shuttle', adesso, adesso
     returning id, check_in into nuova;
     create_righe := create_righe || jsonb_build_object('id', nuova.id, 'check_in', nuova.check_in);
+    toccate_ids := toccate_ids || nuova.id;
   end loop;
 
   -- 3. i tratti rimasti senza notti: annullati, non cancellati
@@ -119,16 +123,21 @@ begin
     end if;
   end if;
 
-  -- 4. nessuna camera deve risultare occupata due volte dopo la modifica.
+  -- 4. nessuna delle righe TOCCATE deve risultare sovrapposta a un'altra
+  --    prenotazione nella stessa camera. Si guardano solo le righe toccate
+  --    (17/09/2026): un archivio con una sovrapposizione vecchia, segnalata in
+  --    «Da controllare» e mai sistemata, non deve bloccare tutti gli
+  --    spostamenti di notti di tutte le altre prenotazioni.
   --    Con la 0051 applicata questo controllo non scatta mai: serve a dire
   --    QUALE camera, invece di lasciare parlare il vincolo.
   if exists (
     select 1
       from public.bookings a
       join public.bookings b
-        on a.room_id = b.room_id and a.id < b.id
+        on a.room_id = b.room_id and a.id <> b.id
        and a.status <> 'annullata' and b.status <> 'annullata'
        and daterange(a.check_in, a.check_out, '[)') && daterange(b.check_in, b.check_out, '[)')
+     where a.id = any(toccate_ids)
   ) then
     raise exception 'quelle notti sono appena state prese da un''altra prenotazione: ricarica la scheda';
   end if;
