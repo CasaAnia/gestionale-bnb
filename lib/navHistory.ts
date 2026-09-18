@@ -44,20 +44,82 @@ export function returnToSicuro(raw: string | null): string | null {
   return null
 }
 
+// ── Le pagine da cui si è passati ───────────────────────────────────────────
+// La cronologia del browser non basta: sul telefono l'app si ricarica al
+// ritorno da WhatsApp e il conteggio riparte da zero, così «Indietro» dalla
+// scheda finiva su Prenotazioni anche entrando dal calendario (Ania,
+// 18/09/2026). Qui si tengono, in localStorage, le ultime pagine dell'app
+// visitate in fila: quando la cronologia non si può usare, la riserva è la
+// pagina da cui si è arrivati davvero. Dopo dodici ore l'elenco si butta:
+// un'apertura nuova non deve tornare a ieri.
+const KEY_PAGINE = 'ca-nav-pagine'
+const SCADENZA_PAGINE_MS = 12 * 60 * 60 * 1000
+const MASSIMO_PAGINE = 30
+
+export type MemoriaPagine = { getItem: (k: string) => string | null; setItem: (k: string, v: string) => void }
+
+function memoria(): MemoriaPagine | null {
+  try { return typeof localStorage === 'undefined' ? null : localStorage } catch { return null }
+}
+
+export function leggiPagine(adesso = Date.now(), store: MemoriaPagine | null = memoria()): string[] {
+  try {
+    const grezzo = store?.getItem(KEY_PAGINE)
+    if (!grezzo) return []
+    const dati = JSON.parse(grezzo) as { quando?: number; pagine?: unknown }
+    if (!Array.isArray(dati.pagine) || typeof dati.quando !== 'number' || adesso - dati.quando > SCADENZA_PAGINE_MS) return []
+    return dati.pagine.filter((p): p is string => typeof p === 'string' && p.startsWith('/'))
+  } catch {
+    return []
+  }
+}
+
+/** Segna la pagina corrente in fila. `tornato` = ci si è arrivati con un
+ *  «indietro» del browser: la pagina lasciata esce dalla fila. Tornare con un
+ *  salto in avanti sulla pagina di prima conta lo stesso come un indietro. */
+export function ricordaPagina(pathname: string, tornato: boolean, adesso = Date.now(), store: MemoriaPagine | null = memoria()): string[] {
+  const pagine = leggiPagine(adesso, store)
+  const ultima = pagine[pagine.length - 1]
+  const penultima = pagine[pagine.length - 2]
+  if (ultima === pathname) {
+    // stessa pagina (ricarica, o cambio di soli parametri): niente da segnare
+  } else if (penultima === pathname) {
+    pagine.pop()
+  } else if (tornato && pagine.length > 0) {
+    pagine.pop()
+    if (pagine[pagine.length - 1] !== pathname) pagine.push(pathname)
+  } else {
+    pagine.push(pathname)
+  }
+  const tenute = pagine.slice(-MASSIMO_PAGINE)
+  try { store?.setItem(KEY_PAGINE, JSON.stringify({ quando: adesso, pagine: tenute })) } catch { /* senza memoria: si userà la riserva */ }
+  return tenute
+}
+
+/** La pagina da cui si è arrivati a `pathname`, se la fila la conosce */
+export function paginaPrecedente(pathname: string, adesso = Date.now(), store: MemoriaPagine | null = memoria()): string | null {
+  const pagine = leggiPagine(adesso, store)
+  if (pagine.length < 2 || pagine[pagine.length - 1] !== pathname) return null
+  const prima = pagine[pagine.length - 2]
+  return prima && prima !== pathname ? prima : null
+}
+
 type RouterLike = { back: () => void; push: (href: string) => void }
 
 // Torna alla pagina precedente vera; se non esiste (o se il conteggio si
-// rivela sbagliato e dopo mezzo secondo siamo ancora fermi) va alla riserva.
+// rivela sbagliato e dopo mezzo secondo siamo ancora fermi) va alla riserva:
+// la pagina da cui si è arrivati, se la fila la ricorda, altrimenti `fallback`.
 export function smartBack(router: RouterLike, fallback?: string) {
+  const riserva = paginaPrecedente(window.location.pathname) ?? fallback
   if (getDepth() > 0 && window.history.length > 1) {
     const prima = window.location.href
     router.back()
-    if (fallback) {
+    if (riserva) {
       setTimeout(() => {
-        if (window.location.href === prima) router.push(fallback)
+        if (window.location.href === prima) router.push(riserva)
       }, 600)
     }
-  } else if (fallback) {
-    router.push(fallback)
+  } else if (riserva) {
+    router.push(riserva)
   }
 }
