@@ -10,6 +10,8 @@ import { useState } from 'react'
 import Foglio from '@/components/scheda/Foglio'
 import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo } from './PezziNuova'
 import { CHI_E_VOCI, type PersonaConLei } from '@/lib/nuovaPrenotazione'
+import CampiNomeCognome from '@/components/CampiNomeCognome'
+import { nomeDaSalvare } from '@/lib/guestName'
 
 export const AGGIUNGI_PERSONA = '+ Aggiungi una persona'
 export const TITOLO_FOGLIETTO = 'Chi dorme con lei'
@@ -49,7 +51,7 @@ export default function ConLei({ persone, onPersone, avviso, senzaTitolo = false
   const [libero, setLibero] = useState(false)
 
   function salva() {
-    const completo = [nome.trim(), cognome.trim()].filter(Boolean).join(' ')
+    const completo = nomeDaSalvare({ nome, cognome })
     if (!completo) return
     onPersone([...persone, { id: `p${Date.now().toString(36)}`, nome: completo, chiE: chiE.trim(), telefono: telefono.trim() }])
     setNome(''); setCognome(''); setTelefono(''); setChiE(''); setLibero(false); setAperto(false)
@@ -66,14 +68,9 @@ export default function ConLei({ persone, onPersone, avviso, senzaTitolo = false
 
       {aperto && (
         <Foglio titolo={TITOLO_FOGLIETTO} onChiudi={() => setAperto(false)}>
-          <div className="flex" style={{ gap: 12 }}>
-            <RigaCampo etichetta="Nome" ottone={etichetteOttone} className="flex-1 min-w-0">
-              <input type="text" data-campo="persona-nome" value={nome} onChange={e => setNome(e.target.value)} style={stileCampo} />
-            </RigaCampo>
-            <RigaCampo etichetta="Cognome" ottone={etichetteOttone} className="flex-1 min-w-0">
-              <input type="text" data-campo="persona-cognome" value={cognome} onChange={e => setCognome(e.target.value)} style={stileCampo} />
-            </RigaCampo>
-          </div>
+          <CampiNomeCognome nome={nome} cognome={cognome} onNome={setNome} onCognome={setCognome} prefissoDati="persona-"
+            classeFila="flex" stileFila={{ gap: 12 }} stile={stileCampo}
+            avvolgi={(etichetta, campo) => <RigaCampo etichetta={etichetta} ottone={etichetteOttone} className="flex-1 min-w-0">{campo}</RigaCampo>} />
           <RigaCampo etichetta="Telefono · può restare vuoto" ottone={etichetteOttone}>
             <input type="tel" inputMode="tel" data-campo="persona-telefono" value={telefono} onChange={e => setTelefono(e.target.value)} style={stileCampo} />
           </RigaCampo>

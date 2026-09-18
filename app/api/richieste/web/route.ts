@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { conIniziali } from '@/lib/maiuscole'
+import { conInizialiNomeCognome } from '@/lib/maiuscole'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { validaRichiestaWeb, stessaRichiesta, consentiIp, FINESTRA_DOPPIONI_MIN } from '@/lib/richiesteWeb'
 import { formatDateRichiesta, nomeCompleto } from '@/lib/richieste'
@@ -77,11 +77,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ id: doppione.id, doppione: true }, { status: 200 })
   }
 
-  const riga: Record<string, unknown> = {
-    nome: conIniziali(d.nome), cognome: conIniziali(d.cognome), arrivo: d.arrivo, partenza: d.partenza, persone: d.persone,
+  // maiuscole a nome e cognome nel punto unico di scrittura (regola fissa n. 1)
+  const riga: Record<string, unknown> = conInizialiNomeCognome({
+    nome: d.nome, cognome: d.cognome, arrivo: d.arrivo, partenza: d.partenza, persone: d.persone,
     camera_id: d.camera_id, canale: 'web', telefono: d.telefono, note: d.note, stato: 'in_attesa',
     ...(d.notti_richieste ? { notti_richieste: d.notti_richieste } : {}),
-  }
+  })
   // Provenienza (0037): cliente nuovo → google; cliente già esistente (stesso
   // telefono) → resta la sua. Senza le colonne la richiesta entra comunque
   // (come per origine della 0028).

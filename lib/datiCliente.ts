@@ -6,13 +6,12 @@
 // nome e cognome, telefono, ricevuta, valutazione col motivo, come ci ha
 // trovato con le strutture, la nota. Qui si passa dal modulo ai campi di
 // `guests` e viceversa, con le regole già scritte altrove: nomeCompleto per
-// mettere insieme nome e cognome, conIniziali per le maiuscole,
+// mettere insieme nome e cognome e le maiuscole (nomeDaSalvare, regola fissa n. 1),
 // normalizzaTelefono per il numero, payloadValutazione per le tre voci e la
 // ricevuta (prima e dopo la 0038), campiProvenienza per la provenienza.
 // Niente Supabase: la scrittura la fa il foglio.
 // ============================================================================
-import { nomeCompleto, spezzaNome } from './guestName.ts'
-import { conIniziali } from './maiuscole.ts'
+import { nomeDaSalvare, spezzaNome } from './guestName.ts'
 import { normalizzaTelefono, numeroUsabile } from './whatsapp.ts'
 import { valutazioneDi, vuoleRicevuta, payloadValutazione, type Valutazione } from './valutazione.ts'
 import { normalizzaProvenienza, campiProvenienza, type Provenienza } from './provenienza.ts'
@@ -76,7 +75,7 @@ export type OpzioniCampi = {
 /** I campi del cliente NUOVO, come li scrive l'inserimento (/nuova-prenotazione). */
 export function campiNuovoCliente(m: ModuloCliente, conProvenienza: boolean): Record<string, unknown> {
   return {
-    full_name: nomeCompleto({ nome: m.nome, cognome: m.cognome }),
+    full_name: nomeDaSalvare({ nome: m.nome, cognome: m.cognome }),
     phone: m.telefono.replace(/\s/g, ''),
     ...(m.email.trim() ? { email: m.email.trim() } : {}),
     rating: m.valutazione,
@@ -95,7 +94,7 @@ export function campiNuovoCliente(m: ModuloCliente, conProvenienza: boolean): Re
  * scelta una.
  */
 export function campiDaModulo(m: ModuloCliente, c: ClienteSalvato, o: OpzioniCampi): { ok: true; campi: Record<string, unknown> } | { ok: false; errore: string } {
-  const full_name = nomeCompleto({ nome: conIniziali(m.nome), cognome: conIniziali(m.cognome) })
+  const full_name = nomeDaSalvare({ nome: m.nome, cognome: m.cognome })
   if (!full_name) return { ok: false, errore: SENZA_NOME }
   const telefonoDiPrima = (c.phone ?? '').trim()
   let phone = c.phone ?? null

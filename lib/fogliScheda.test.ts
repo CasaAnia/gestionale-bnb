@@ -180,7 +180,8 @@ test('«Dati della cliente»: lo stesso modulo dell’inserimento, e l’avviso 
   assert.match(leggi('lib/datiCliente.ts'), /AVVISO_TUTTI_I_SOGGIORNI = 'Questi dati sono della cliente: valgono per tutti i suoi soggiorni/)
   assert.match(cliente, /<PiedeFoglio azione="Salva"/)
   // il modulo: nome e cognome, telefono, ricevuta e valutazione sulla stessa riga, provenienza con le strutture, nota
-  assert.match(modulo, /data-campo="nome"[\s\S]{0,300}data-campo="cognome"[\s\S]{0,300}data-campo="telefono"/)
+  // nome e cognome SOLO col componente condiviso (regola fissa n. 1, 18/09/2026), poi il telefono
+  assert.match(modulo, /<CampiNomeCognome nome=\{dati\.nome\} cognome=\{dati\.cognome\}[\s\S]{0,600}data-campo="telefono"/)
   assert.match(modulo, /<Etichetta testo="Ricevuta" centrata ottone=\{ottone\} \/>[\s\S]{0,600}<Etichetta testo="Valutazione" centrata ottone=\{ottone\} \/>/)
   assert.match(modulo, /\{PROVENIENZE\.map/)
   assert.match(modulo, /data-campo="note"/)
@@ -195,7 +196,7 @@ test('i dati della cliente si scrivono su guests, e la scheda li aggiorna anche 
   assert.equal(/from\('bookings'\)/.test(cliente), false)
   // con le regole già scritte: nomeCompleto, payloadValutazione, campiProvenienza (lib/datiCliente)
   const dati = leggi('lib/datiCliente.ts')
-  assert.match(dati, /import \{ nomeCompleto, spezzaNome \} from '\.\/guestName\.ts'/)
+  assert.match(dati, /import \{ nomeDaSalvare, spezzaNome \} from '\.\/guestName\.ts'/)
   assert.match(dati, /payloadValutazione\(m\.valutazione, m\.ricevuta, o\.colonnaRicevuta\)/)
   assert.match(dati, /campiProvenienza\(m\.provenienza, m\.struttura\)/)
   // senza la colonna del motivo (0046) non si salva niente e lo si dice, come nella scheda cliente

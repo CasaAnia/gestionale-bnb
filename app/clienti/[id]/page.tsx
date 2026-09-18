@@ -1,5 +1,6 @@
 'use client'
-import { conInizialiONull, maiuscoleNelCampo } from '@/lib/maiuscole'
+import { nomeDaSalvareONull } from '@/lib/guestName'
+import { CampoNomeCognome } from '@/components/CampiNomeCognome'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -95,7 +96,7 @@ export default function ClienteDetail() {
       const motivo = String(form.motivo_problematico ?? '').trim() || null
       const cambiaMotivo = motivo !== (String(guest.motivo_problematico ?? '').trim() || null)
       const campi = {
-        full_name: conInizialiONull(form.full_name), phone: form.phone, email: form.email,
+        full_name: nomeDaSalvareONull({ full_name: form.full_name }), phone: form.phone, email: form.email,
         notes: form.notes,
         ...(cambiaMotivo ? { motivo_problematico: motivo } : {}),
         ...payloadValutazione(valutazioneDi(form), !!form.ricevuta, colonnaRicevutaPresente(guest)),
@@ -161,8 +162,8 @@ export default function ClienteDetail() {
       <div className="ed-riga py-4 mb-4">
         {editing ? (
           <>
-            <input value={form.full_name || ''} onChange={e => setForm({...form, full_name: maiuscoleNelCampo(e.target)})}
-              placeholder="Nome e cognome" autoCapitalize="words" autoComplete="off" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" />
+            <CampoNomeCognome valore={form.full_name || ''} onValore={full_name => setForm({ ...form, full_name })}
+              placeholder="Nome e cognome" classeCampo="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" />
             <input value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})}
               placeholder="Telefono" className="w-full border border-card-border rounded-lg p-2 mb-2 text-sm" type="tel" />
             <input value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})}

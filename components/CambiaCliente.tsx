@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import CampoProvenienza from '@/components/CampoProvenienza'
 import { nomeOspite } from '@/lib/guestName'
-import { maiuscoleNelCampo } from '@/lib/maiuscole'
+import CampiNomeCognome from '@/components/CampiNomeCognome'
 import { normalizzaTelefono, telefonoLeggibile } from '@/lib/whatsapp'
 import { type StrutturaNota } from '@/lib/provenienza'
 import {
@@ -168,16 +168,8 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
 
         {!riprovaDocumenti && modo === 'nuovo' && (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Nome</p>
-                <input value={modulo.nome} onChange={e => setModulo({ ...modulo, nome: maiuscoleNelCampo(e.target) })} autoCapitalize="words" autoComplete="off" placeholder="Nome" aria-label="Nome" className={campo} />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Cognome</p>
-                <input value={modulo.cognome} onChange={e => setModulo({ ...modulo, cognome: maiuscoleNelCampo(e.target) })} autoCapitalize="words" autoComplete="off" placeholder="Cognome" aria-label="Cognome" className={campo} />
-              </div>
-            </div>
+            <CampiNomeCognome nome={modulo.nome} cognome={modulo.cognome} onNome={nome => setModulo({ ...modulo, nome })} onCognome={cognome => setModulo({ ...modulo, cognome })}
+              classeCampo={campo} classeEtichetta="text-sm text-gray-500 mb-1" placeholderNome="Nome" placeholderCognome="Cognome" />
             <div>
               <p className="text-sm text-gray-500 mb-1">Telefono</p>
               <input value={modulo.telefono} onChange={e => setModulo({ ...modulo, telefono: e.target.value })} type="tel" inputMode="tel" autoComplete="off" placeholder="+39…" aria-label="Telefono" className={campo} />

@@ -135,7 +135,8 @@ test('il nuovo cliente: campi a riga col filo, niente riquadri', () => {
   assert.match(pezzi, /padding: '8px 0', borderBottom: '1px solid var\(--color-card-border\)'/)
   assert.equal(/ed-riquadro|rounded-xl|rounded-lg/.test(nuovoCliente), false, 'il modulo ha rimesso i riquadri')
   // nome e cognome affiancati, poi il telefono
-  assert.match(nuovoCliente, /className="flex" style=\{\{ gap: 12 \}\}[\s\S]{0,400}data-campo="nome"[\s\S]{0,300}data-campo="cognome"/)
+  // i due campi sono quelli del componente condiviso (regola fissa n. 1): affiancati con la veste a filo
+  assert.match(nuovoCliente, /<CampiNomeCognome nome=\{dati\.nome\} cognome=\{dati\.cognome\}[\s\S]{0,200}classeFila="flex" stileFila=\{\{ gap: 12 \}\} stile=\{stileCampo\}/)
   assert.match(nuovoCliente, /data-campo="telefono"/)
 })
 
@@ -176,7 +177,7 @@ test('il cliente nuovo si salva con le regole di sempre', () => {
   // i campi stanno in lib/datiCliente (16/09/2026): li usa anche «Cambia cliente» della scheda
   assert.match(pagina, /const campi = campiNuovoCliente\(nuovo, struttureOk\)/)
   const dati = readFileSync(new URL('./datiCliente.ts', import.meta.url), 'utf8')
-  assert.match(dati, /nomeCompleto\(\{ nome: m\.nome, cognome: m\.cognome \}\)/)
+  assert.match(dati, /full_name: nomeDaSalvare\(\{ nome: m\.nome, cognome: m\.cognome \}\)/)
   assert.match(dati, /motivo_problematico: m\.motivo\.trim\(\)/)
   // i testi stanno nella libreria: una pagina di Next non può esportare costanti (16/09/2026)
   assert.match(readFileSync(new URL('./nuovaPrenotazione.ts', import.meta.url), 'utf8'), /export const SENZA_TELEFONO = 'Il numero di telefono è obbligatorio/)

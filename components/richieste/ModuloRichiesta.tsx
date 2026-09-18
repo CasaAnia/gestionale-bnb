@@ -1,5 +1,6 @@
 'use client'
-import { conIniziali, maiuscoleNelCampo } from '@/lib/maiuscole'
+import { conInizialiNomeCognome } from '@/lib/maiuscole'
+import CampiNomeCognome from '@/components/CampiNomeCognome'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import StrisciaNotti from '@/components/StrisciaNotti'
@@ -55,15 +56,15 @@ export const VALORI_VUOTI: ValoriModulo = { canale: 'telefono', nome: '', cognom
 // Dai valori del modulo a quelli da salvare (stessa normalizzazione del telefono della proposta WhatsApp)
 // conProvenienza = colonne della 0036 disponibili: solo allora i campi entrano nel payload
 export function valoriDaSalvare(v: ValoriModulo, conProvenienza = false): ValoriModifica {
-  return {
-    nome: conIniziali(v.nome), cognome: conIniziali(v.cognome), arrivo: v.arrivo, partenza: v.partenza,
+  return conInizialiNomeCognome({
+    nome: v.nome, cognome: v.cognome, arrivo: v.arrivo, partenza: v.partenza,
     persone: v.persone, persone_per_notte: v.personePerNotte,
     ...(v.nottiRichieste != null ? { notti_richieste: v.nottiRichieste } : {}),
     camera_id: v.cameraId || null, canale: v.canale,
     telefono: telefonoLeggibile(normalizzaTelefono(v.telefono)) || null,
     note: v.note.trim() || null,
     ...(conProvenienza ? campiProvenienza(v.provenienza, v.struttura) : {}),
-  }
+  })
 }
 
 // Le persone per notte «pulite»: null se tutte uguali al valore base
@@ -213,16 +214,8 @@ export default function ModuloRichiesta({ iniziale, etichettaSalva, onSalva, not
           nota2={cliente?.ricevuta ? ETICHETTA_RICEVUTA_BREVE : null} />
         {avviso && <p className="text-xs text-stone">{avviso}</p>}
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="min-w-0">
-            <p className={ETICHETTA}>Nome</p>
-            <input value={v.nome} onChange={e => set('nome', maiuscoleNelCampo(e.target))} autoComplete="off" autoCapitalize="words" placeholder="Anna" className={INPUT} />
-          </div>
-          <div className="min-w-0">
-            <p className={ETICHETTA}>Cognome</p>
-            <input value={v.cognome} onChange={e => set('cognome', maiuscoleNelCampo(e.target))} autoComplete="off" autoCapitalize="words" placeholder="Rossi" className={INPUT} />
-          </div>
-        </div>
+        <CampiNomeCognome nome={v.nome} cognome={v.cognome} onNome={x => set('nome', x)} onCognome={x => set('cognome', x)}
+          classeCampo={INPUT} classeEtichetta={ETICHETTA} placeholderNome="Anna" placeholderCognome="Rossi" />
 
         {/* I campi data nativi di iPhone hanno una larghezza minima propria:
             min-w-0 + appearance-none impediscono alle due caselle di sovrapporsi. */}

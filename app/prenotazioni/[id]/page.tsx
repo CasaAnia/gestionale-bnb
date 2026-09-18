@@ -1,6 +1,8 @@
 'use client'
 import { chiavePrenotazione, filtroPrenotazione, periodiCamera, leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, haCamereParallele, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
-import { conInizialiONull, maiuscoleNelCampo } from '@/lib/maiuscole'
+import { conInizialiONull } from '@/lib/maiuscole'
+import { nomeDaSalvareONull } from '@/lib/guestName'
+import { CampoNomeCognome } from '@/components/CampiNomeCognome'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -1044,7 +1046,7 @@ export default function BookingDetail() {
       extra_phone_2_name: conInizialiONull(editForm.extra_phone_2_name),
       // Il nome modificato qui vale per QUESTA prenotazione (bookings.guest_name),
       // non rinomina la scheda cliente. Incluso solo a colonna migrata, come chi_e.
-      ...(booking.guest_name !== undefined ? { guest_name: conInizialiONull(editForm.guest_name) } : {}),
+      ...(booking.guest_name !== undefined ? { guest_name: nomeDaSalvareONull({ full_name: editForm.guest_name }) } : {}),
       updated_at: new Date().toISOString(),
     }
     // Se il DB rifiuta l'update (es. colonna mancante) il salvataggio NON deve sembrare riuscito
@@ -1073,9 +1075,7 @@ export default function BookingDetail() {
         // La scheda cliente (condivisa da tutte le prenotazioni del numero) non
         // viene più rinominata da qui: prende il nome solo se ne è senza.
         // Finché guest_name non è migrata resta il vecchio comportamento.
-        full_name: booking.guest_name === undefined
-          ? (conInizialiONull(editForm.guest_name) || booking.guests?.full_name || null)
-          : (booking.guests?.full_name || conInizialiONull(editForm.guest_name)),
+        full_name: booking.guest_name === undefined ? (nomeDaSalvareONull({ full_name: editForm.guest_name }) || booking.guests?.full_name || null) : (booking.guests?.full_name || nomeDaSalvareONull({ full_name: editForm.guest_name })),
         phone: editForm.guest_phone || booking.guests?.phone || null,
         email: editForm.guest_email || booking.guests?.email || null,
       }).eq('id', guestId)
@@ -1820,8 +1820,8 @@ export default function BookingDetail() {
           <p className="font-semibold mb-3 text-green-mid">✏️ Altre modifiche</p>
 
           <p className="text-xs text-gray-500 mb-1">Nome cliente</p>
-          <input value={editForm.guest_name} onChange={e => setEditForm({ ...editForm, guest_name: maiuscoleNelCampo(e.target) })}
-            placeholder="Nome e cognome" autoCapitalize="words" autoComplete="off" className="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" />
+          <CampoNomeCognome valore={editForm.guest_name} onValore={guest_name => setEditForm({ ...editForm, guest_name })} etichetta="Nome cliente"
+            placeholder="Nome e cognome" classeCampo="w-full border border-card-border rounded-lg p-2 mb-3 text-sm" />
 
           <div className="grid grid-cols-2 gap-2 mb-3">
             <div>

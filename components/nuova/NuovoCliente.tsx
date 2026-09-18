@@ -14,6 +14,7 @@
 // foglio) e con le etichettine in ottone (`etichetteOttone`).
 // ============================================================================
 import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastoAvanti, stileCampo, MATTONE, OTTONE } from './PezziNuova'
+import CampiNomeCognome from '@/components/CampiNomeCognome'
 import { PROVENIENZE, type Provenienza } from '@/lib/provenienza'
 import type { Valutazione } from '@/lib/valutazione'
 import type { StrutturaNota } from '@/lib/provenienza'
@@ -71,14 +72,10 @@ export default function NuovoCliente({ dati, onDati, strutture, struttureDisponi
       {titolo && <p className="ed-sezione">{titolo}</p>}
 
       <Etichetta testo="Chi" primo ottone={ottone} className={titolo ? 'mt-3' : ''} />
-      <div className="flex" style={{ gap: 12 }}>
-        <RigaCampo etichetta="Nome" ottone={ottone} className="flex-1 min-w-0">
-          <input type="text" value={dati.nome} data-campo="nome" onChange={e => cambia({ nome: e.target.value })} style={stileCampo} />
-        </RigaCampo>
-        <RigaCampo etichetta="Cognome" ottone={ottone} className="flex-1 min-w-0">
-          <input type="text" value={dati.cognome} data-campo="cognome" onChange={e => cambia({ cognome: e.target.value })} style={stileCampo} />
-        </RigaCampo>
-      </div>
+      {/* Nome e cognome: SOLO il componente condiviso (regola fissa n. 1, maiuscola mentre si scrive) */}
+      <CampiNomeCognome nome={dati.nome} cognome={dati.cognome} onNome={nome => cambia({ nome })} onCognome={cognome => cambia({ cognome })}
+        classeFila="flex" stileFila={{ gap: 12 }} stile={stileCampo}
+        avvolgi={(etichetta, campo) => <RigaCampo etichetta={etichetta} ottone={ottone} className="flex-1 min-w-0">{campo}</RigaCampo>} />
       <RigaCampo etichetta="Telefono" ottone={ottone}>
         <input type="tel" inputMode="tel" value={dati.telefono} data-campo="telefono" onChange={e => cambia({ telefono: e.target.value })} style={stileCampo} />
       </RigaCampo>

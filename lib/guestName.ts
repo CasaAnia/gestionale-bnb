@@ -1,3 +1,5 @@
+import { conIniziali } from './maiuscole.ts'
+
 // Nome dell'ospite di UNA prenotazione.
 //
 // Il numero di telefono identifica la scheda cliente (guests.phone è UNIQUE),
@@ -132,4 +134,19 @@ export function nomeBreve(c: { nome?: string | null; cognome?: string | null }):
   if (!cognome) return nome
   if (!nome) return cognome
   return `${nome} ${cognome[0]}.`
+}
+
+// ── Il nominativo DA SALVARE su guests.full_name (18/09/2026) ──────────────
+// Regola fissa n. 1 (REGOLE-FISSE.md): nome e cognome partono con la
+// maiuscola ovunque. Nei campi ci pensa components/CampiNomeCognome; qui c'è
+// la SECONDA RETE, al salvataggio: ogni punto che scrive full_name (cliente
+// nuovo dell'inserimento, «Dati della cliente», «Cambia cliente», le pagine
+// vecchie dei clienti) passa di qui, e lo controlla lib/nomiOvunque.test.ts.
+// Stesso ordine di sempre: nome, poi cognome (regola fissa n. 2). Vuoto
+// resta vuoto; con ONull torna null per le colonne facoltative.
+export function nomeDaSalvare(c: { nome?: string | null; cognome?: string | null; full_name?: string | null }): string {
+  return conIniziali(nomeCompleto(c))
+}
+export function nomeDaSalvareONull(c: { nome?: string | null; cognome?: string | null; full_name?: string | null }): string | null {
+  return nomeDaSalvare(c) || null
 }

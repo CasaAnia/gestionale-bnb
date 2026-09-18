@@ -100,11 +100,12 @@ test('le regole scoprono davvero una concatenazione sbagliata', () => {
   }
 })
 
-test('nei moduli il campo Nome viene prima del campo Cognome', () => {
-  for (const modulo of ['components/richieste/ModuloRichiesta.tsx', 'components/CambiaCliente.tsx']) {
-    const s = readFileSync(join(RADICE, modulo), 'utf8')
-    const nome = s.indexOf('>Nome</p>'), cognome = s.indexOf('>Cognome</p>')
-    assert.ok(nome > 0 && cognome > 0, `${modulo}: campi Nome/Cognome non trovati`)
-    assert.ok(nome < cognome, `${modulo}: il campo Cognome viene prima del campo Nome`)
-  }
+// Dal 18/09/2026 i campi Nome e Cognome stanno SOLO in components/CampiNomeCognome
+// (regola fissa n. 1): l'ordine si controlla lì, una volta per tutti i moduli,
+// e lib/nomiOvunque.test.ts garantisce che nessun modulo abbia campi suoi.
+test('nel componente condiviso il campo Nome viene prima del campo Cognome', () => {
+  const s = readFileSync(join(RADICE, 'components/CampiNomeCognome.ts'), 'utf8')
+  const nome = s.indexOf("avvolgi('Nome',"), cognome = s.indexOf("avvolgi('Cognome',")
+  assert.ok(nome > 0 && cognome > 0, 'campi Nome/Cognome non trovati nel componente condiviso')
+  assert.ok(nome < cognome, 'il campo Cognome viene prima del campo Nome')
 })

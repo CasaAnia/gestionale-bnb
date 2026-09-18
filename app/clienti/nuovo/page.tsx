@@ -1,5 +1,6 @@
 'use client'
-import { conInizialiONull, maiuscoleNelCampo } from '@/lib/maiuscole'
+import { nomeDaSalvareONull } from '@/lib/guestName'
+import { CampoNomeCognome } from '@/components/CampiNomeCognome'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -23,7 +24,7 @@ export default function NuovoCliente() {
     setError(null)
     const rawP = form.phone.trim().replace(/\D/g, '')
     const formattedPhone = rawP ? (rawP.startsWith('39') ? rawP : `39${rawP}`) : null
-    const base = { full_name: conInizialiONull(form.full_name), phone: formattedPhone, email: form.email.trim() || null }
+    const base = { full_name: nomeDaSalvareONull({ full_name: form.full_name }), phone: formattedPhone, email: form.email.trim() || null }
     // Colonna nuova (0038) se c'è; altrimenti la forma vecchia, così nulla si blocca
     let { data, error: err } = await supabase.from('guests').insert({ ...base, ...payloadValutazione(form.rating, form.ricevuta, true) }).select().single()
     if (err && /vuole_ricevuta/i.test(err.message || '')) ({ data, error: err } = await supabase.from('guests').insert({ ...base, ...payloadValutazione(form.rating, form.ricevuta, false) }).select().single())
@@ -40,12 +41,9 @@ export default function NuovoCliente() {
       </div>
 
       <div className="ed-riga py-4 space-y-3">
-        <div>
-          <p className="text-sm text-gray-500 mb-1">Nome e cognome</p>
-          <input value={form.full_name} onChange={e => setForm({ ...form, full_name: maiuscoleNelCampo(e.target) })}
-            placeholder="Nome e cognome" autoFocus autoCapitalize="words" autoComplete="off"
-            className="w-full ed-campo p-3 text-sm focus:outline-none focus:border-green-mid" />
-        </div>
+        <CampoNomeCognome valore={form.full_name} onValore={full_name => setForm({ ...form, full_name })} placeholder="Nome e cognome" autoFocus
+          classeCampo="w-full ed-campo p-3 text-sm focus:outline-none focus:border-green-mid"
+          avvolgi={(etichetta, campo) => <div><p className="text-sm text-gray-500 mb-1">{etichetta}</p>{campo}</div>} />
         <div>
           <p className="text-sm text-gray-500 mb-1">Telefono (opzionale)</p>
           <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}

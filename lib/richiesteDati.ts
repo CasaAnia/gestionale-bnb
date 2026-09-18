@@ -8,6 +8,7 @@ import { STATI_APERTI, spiegaErrore, pianoModifica, type Richiesta, type ValoriM
 import type { CondizionePagamento } from './condizioniPrenotazione'
 import { contaConEsito, statoDopoConteggio, bolliniRichieste, CONTATORE_IN_CARICAMENTO, type EsitoContatore, type StatoContatore, type Bollini, type RigaAperta } from './richiesteContatore'
 import { manca0036, AVVISO_0036 } from './provenienza'
+import { conInizialiNomeCognome } from './maiuscole'
 
 // Tutte le richieste con il nome della camera. Gli errori tornano al
 // chiamante come testo: la pagina li mostra, mai catch silenziosi.
@@ -189,8 +190,10 @@ export function colonne0031Presenti(riga: Record<string, unknown> | null | undef
 // persone variabili spiegano cosa manca).
 // Provenienza (0036): se le colonne mancano si ritenta senza e si avvisa,
 // la richiesta entra comunque.
+// Nome e cognome con la maiuscola anche qui, nel punto unico in cui si scrive
+// la richiesta: seconda rete della regola fissa n. 1 (REGOLE-FISSE.md).
 export async function creaRichiesta(v: ValoriModifica): Promise<{ id: string | null; error: string | null; avviso?: string | null }> {
-  const { persone_per_notte, provenienza, struttura_nome, ...resto } = v
+  const { persone_per_notte, provenienza, struttura_nome, ...resto } = conInizialiNomeCognome(v)
   const base: Record<string, unknown> = { ...resto, stato: 'in_attesa', ...(persone_per_notte ? { persone_per_notte } : {}) }
   const conProvenienza = provenienza !== undefined
   const payload: Record<string, unknown> = conProvenienza ? { ...base, provenienza, struttura_nome: struttura_nome ?? null } : base
@@ -213,7 +216,7 @@ export async function aggiornaRichiesta(
   originale: Richiesta & { persone_per_notte?: number[] | null; proposta_testo?: string | null; proposta_soluzione?: unknown; proposte_precedenti?: PropostaPrecedente[] | null },
   nuovi: ValoriModifica,
 ): Promise<{ error: string | null; avviso: string | null }> {
-  const piano = pianoModifica(originale, nuovi)
+  const piano = pianoModifica(originale, conInizialiNomeCognome(nuovi))
   if (piano.errore) return { error: piano.errore, avviso: null }
   const campi = { ...piano.campi }
   // persone_per_notte null va scritto (torna uniforme) solo se la colonna esiste

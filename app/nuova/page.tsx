@@ -25,7 +25,9 @@ import { giorniSoggiorno } from '@/lib/prezzoNotti'
 import { capienzaCamera } from '@/lib/tariffe'
 import { lettiPoolPrenotazione, nottiLettoExtra } from '@/lib/lettiAggiuntivi'
 import { contoSoggiorno } from '@/lib/conto'
-import { conInizialiONull, maiuscoleNelCampo } from '@/lib/maiuscole'
+import { conInizialiONull } from '@/lib/maiuscole'
+import { nomeDaSalvareONull } from '@/lib/guestName'
+import { CampoNomeCognome } from '@/components/CampiNomeCognome'
 import { oraDigitata, oraCompleta } from '@/lib/ora'
 import { colonnaMancante } from '@/lib/colonnaMancante'
 import { smartBack, returnToSicuro } from '@/lib/navHistory'
@@ -466,7 +468,7 @@ function NuovaPrenotazione() {
           const cifre = nuovo.telefono.replace(/\D/g, '')
           const telefono = cifre ? (cifre.startsWith('39') ? cifre : `39${cifre}`) : null
           const base = {
-            phone: telefono, full_name: conInizialiONull(nuovo.nome), email: null,
+            phone: telefono, full_name: nomeDaSalvareONull({ full_name: nuovo.nome }), email: null,
             ...(nuovo.nota.trim() ? { notes: nuovo.nota.trim() } : {}),
             ...(nuovo.motivo.trim() ? { motivo_problematico: nuovo.motivo.trim() } : {}),
             ...(strutture.disponibile ? campiProvenienza(provenienza.provenienza ?? 'non_so', provenienza.struttura) : {}),
@@ -642,7 +644,7 @@ function NuovaPrenotazione() {
     const motivo = modifica.motivo.trim() || null
     const cambiaMotivo = motivo !== (cliente.motivo_problematico?.trim() || null)
     const campi = {
-      full_name: conInizialiONull(modifica.nome),
+      full_name: nomeDaSalvareONull({ full_name: modifica.nome }),
       phone: cifre ? (cifre.startsWith('39') ? cifre : `39${cifre}`) : null,
       notes: modifica.nota.trim() || null,
       ...(cambiaMotivo ? { motivo_problematico: motivo } : {}),
@@ -776,11 +778,8 @@ function NuovaPrenotazione() {
       {nuovo && (
         <>
           <p className={s.sezione}>Nuovo cliente</p>
-          <label className={s.campoBlocco} style={{ borderTop: '1px solid rgba(169,136,78,.55)' }}>
-            <span className={s.campoEti}>Nome e cognome</span>
-            <input className={s.campo} value={nuovo.nome} autoCapitalize="words"
-              onChange={e => setNuovo({ ...nuovo, nome: maiuscoleNelCampo(e.target) })} />
-          </label>
+          <CampoNomeCognome valore={nuovo.nome} onValore={nome => setNuovo({ ...nuovo, nome })} classeCampo={s.campo}
+            avvolgi={(etichetta, campo) => <label className={s.campoBlocco} style={{ borderTop: '1px solid rgba(169,136,78,.55)' }}><span className={s.campoEti}>{etichetta}</span>{campo}</label>} />
           <label className={s.campoBlocco}>
             <span className={s.campoEti}>Telefono</span>
             <input className={s.campo} inputMode="tel" value={nuovo.telefono} onChange={e => setNuovo({ ...nuovo, telefono: e.target.value })} />
@@ -1111,9 +1110,8 @@ function NuovaPrenotazione() {
                 {contatti.map((c, i) => (
                   <div key={i}>
                     {i > 0 && <p className={s.sotto} style={{ marginTop: 12 }}>Secondo contatto</p>}
-                    <label className={s.campoBlocco}><span className={s.campoEti}>Nome e cognome</span>
-                      <input className={s.campo} value={c.nome} autoCapitalize="words"
-                        onChange={e => { const v = maiuscoleNelCampo(e.target); setContatti(cs => cs.map((x, j) => (j === i ? { ...x, nome: v } : x))) }} /></label>
+                    <CampoNomeCognome valore={c.nome} onValore={v => setContatti(cs => cs.map((x, j) => (j === i ? { ...x, nome: v } : x)))} classeCampo={s.campo}
+                      avvolgi={(etichetta, campo) => <label className={s.campoBlocco}><span className={s.campoEti}>{etichetta}</span>{campo}</label>} />
                     <div className={s.due}>
                       <label className={s.campoBlocco}><span className={s.campoEti}>Chi è</span>
                         <input className={s.campo} value={c.chiE} placeholder="mamma, collega…" onChange={e => setContatti(cs => cs.map((x, j) => (j === i ? { ...x, chiE: e.target.value } : x)))} /></label>
@@ -1197,9 +1195,8 @@ function NuovaPrenotazione() {
           <div className={s.foglio} onClick={e => e.stopPropagation()}>
             <p className={s.sotto}>Stessa persona, dati corretti</p>
             <h2 className={s.titolo} style={{ fontSize: 24 }}>Modifica dati</h2>
-            <label className={s.campoBlocco} style={{ borderTop: '1px solid rgba(169,136,78,.55)' }}>
-              <span className={s.campoEti}>Nome e cognome</span>
-              <input className={s.campo} value={modifica.nome} autoCapitalize="words" onChange={e => setModifica({ ...modifica, nome: maiuscoleNelCampo(e.target) })} /></label>
+            <CampoNomeCognome valore={modifica.nome} onValore={nome => setModifica({ ...modifica, nome })} classeCampo={s.campo}
+              avvolgi={(etichetta, campo) => <label className={s.campoBlocco} style={{ borderTop: '1px solid rgba(169,136,78,.55)' }}><span className={s.campoEti}>{etichetta}</span>{campo}</label>} />
             <label className={s.campoBlocco}><span className={s.campoEti}>Telefono</span>
               <input className={s.campo} inputMode="tel" value={modifica.telefono} onChange={e => setModifica({ ...modifica, telefono: e.target.value })} /></label>
             <div className={s.riga} style={{ display: 'block' }}>

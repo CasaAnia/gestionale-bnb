@@ -46,3 +46,13 @@ export function maiuscoleNelCampo(campo: CampoTesto): string {
   }
   return nuovo
 }
+
+// ── Nome e cognome di una richiesta, al salvataggio (18/09/2026) ────────────
+// Seconda rete della regola fissa n. 1 (REGOLE-FISSE.md): anche se un modulo
+// dimenticasse il componente condiviso (components/CampiNomeCognome), nome e
+// cognome arrivano su Supabase con l'iniziale maiuscola perché passano di qui
+// nel punto unico in cui si scrivono le richieste (lib/richiesteDati e la
+// route delle richieste dal sito). Gli altri campi non si toccano.
+export function conInizialiNomeCognome<T extends { nome: string; cognome: string }>(v: T): T {
+  return { ...v, nome: conIniziali(v.nome), cognome: conIniziali(v.cognome) }
+}
