@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  statoScheda, primaRigaScheda, etichettaArrivoScheda, rigaGrandeScheda, statoConto, noteScheda,
+  statoScheda, primaRigaScheda, etichettaArrivoScheda, rigaGrandeScheda, misuraCamere, statoConto, noteScheda,
   caselleSoggiorno, arrivoScheda, trattiCamera, periodoTratto, daControllareScheda, euroScheda,
   SEZIONI_SCHEDA, type SegmentoScheda,
 } from './schedaPrenotazione.ts'
@@ -54,15 +54,25 @@ test('etichetta sotto la data di arrivo: con e senza orario e navetta', () => {
 })
 
 test('riga grande: una camera, con cambi, con due camere insieme', () => {
-  assert.deepEqual(rigaGrandeScheda([seg('a', LENA, '2026-09-10', '2026-09-12')]), { ospiti: 2, camere: 'Lena', cambi: 0 })
-  // Carmela: Lena → Amelia → Lena = 2 cambi, al massimo 3 persone (le ultime due notti)
-  assert.deepEqual(rigaGrandeScheda(CARMELA), { ospiti: 3, camere: 'Lena', cambi: 2 })
+  assert.deepEqual(rigaGrandeScheda([seg('a', LENA, '2026-09-10', '2026-09-12')]), { ospiti: 2, camere: 'Lena', cambi: 0, insieme: false })
+  // Carmela: Lena → Amelia → Lena = 2 cambi, al massimo 3 persone (le ultime due notti).
+  // REGOLA FISSA n. 8 (Ania, 18/09/2026): i nomi per esteso col segno di sempre
+  assert.deepEqual(rigaGrandeScheda(CARMELA), { ospiti: 3, camere: 'Lena ⇄ Amelia ⇄ Lena', cambi: 2, insieme: false })
+  // Dario Barone: due LINEE separate (senza group_id) ma una dopo l'altra → è un cambio camera, non «+»
+  const dario = [seg('d1', LENA, '2026-09-10', '2026-09-13', { prenotazione_id: 'P' }), seg('d2', AMELIA, '2026-09-13', '2026-09-15', { prenotazione_id: 'P' })]
+  assert.deepEqual(rigaGrandeScheda(dario), { ospiti: 2, camere: 'Lena ⇄ Amelia', cambi: 1, insieme: false })
+  // tre cambi: tutti i nomi, e la riga grande scende a 18 px
+  const tre = [...dario, seg('d3', LENA, '2026-09-15', '2026-09-16', { prenotazione_id: 'P' }), seg('d4', AMELIA, '2026-09-16', '2026-09-18', { prenotazione_id: 'P' })]
+  assert.deepEqual(rigaGrandeScheda(tre), { ospiti: 2, camere: 'Lena ⇄ Amelia ⇄ Lena ⇄ Amelia', cambi: 3, insieme: false })
+  assert.equal(misuraCamere('Lena ⇄ Amelia ⇄ Lena ⇄ Amelia'), 18)
+  assert.equal(misuraCamere('Lena ⇄ Amelia'), 24)
+  assert.equal(misuraCamere('Lena + Amelia'), 24)
   // due camere nelle stesse notti: nomi con «+», ospiti sommati
   const parallele = [
     seg('p1', LENA, '2026-09-10', '2026-09-12', { prenotazione_id: 'P' }),
     seg('p2', AMELIA, '2026-09-10', '2026-09-12', { prenotazione_id: 'P', num_guests: 1 }),
   ]
-  assert.deepEqual(rigaGrandeScheda(parallele), { ospiti: 3, camere: 'Lena + Amelia', cambi: 0 })
+  assert.deepEqual(rigaGrandeScheda(parallele), { ospiti: 3, camere: 'Lena + Amelia', cambi: 0, insieme: true })
   // un tratto annullato non conta
   assert.deepEqual(rigaGrandeScheda([...CARMELA, seg('x', AMELIA, '2026-09-17', '2026-09-19', { status: 'annullata', group_id: 'g' })]).cambi, 2)
 })

@@ -79,6 +79,7 @@ import { supabase } from '@/lib/supabase'
 import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiavePrenotazione, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import {
   SEZIONI_SCHEDA, TUTTO_A_POSTO, statoScheda, primaRigaScheda, etichettaArrivoScheda, rigaGrandeScheda, statoConto, noteScheda,
+  misuraCamere, MISURA_CAMERE, SEGNO_CAMBIO,
   arrivoScheda, daControllareScheda, segmentiAttivi, type SegmentoScheda,
   PRENOTAZIONE_SALVATA, PRENOTAZIONE_DA_RICHIESTA, FONDO_SALVATA, FONDO_ANNULLATA, TESTO_ANNULLATA,
 } from '@/lib/schedaPrenotazione'
@@ -132,8 +133,11 @@ type Prenotazione = SegmentoScheda & RigaPrenotazione & {
 }
 
 // La riga grande: OSPITI e CAMERA (con «⇄ 2» se cambia camera)
-function RigaGrande({ ospiti, camere, cambi }: { ospiti: number; camere: string; cambi: number }) {
+// I cambi camera si leggono nei nomi («Lena ⇄ Amelia», regola fissa n. 8);
+// il numero «⇄ 2» resta solo con due camere insieme che cambiano.
+function RigaGrande({ ospiti, camere, cambi, insieme }: { ospiti: number; camere: string; cambi: number; insieme: boolean }) {
   const etichetta = { marginTop: 6, fontSize: 9, letterSpacing: '1.5px', textTransform: 'uppercase' as const, color: 'var(--color-stone)' }
+  const misura = misuraCamere(camere)
   return (
     <div data-riga-grande className="flex items-start justify-center" style={{ gap: 44 }}>
       <div className="text-center" data-ospiti-testa>
@@ -141,9 +145,10 @@ function RigaGrande({ ospiti, camere, cambi }: { ospiti: number; camere: string;
         <p style={etichetta}>ospiti</p>
       </div>
       <div className="text-center min-w-0" data-camera-scheda>
-        <p className="leading-[1.15] truncate" style={{ fontFamily: GEORGIA, fontWeight: 400, fontSize: 24, color: 'var(--color-green-dark)' }}>
+        <p className={misura === MISURA_CAMERE.normale ? 'leading-[1.15] truncate' : 'leading-[1.15] line-clamp-2'} data-misura-camere={misura}
+          style={{ fontFamily: GEORGIA, fontWeight: 400, fontSize: misura, color: 'var(--color-green-dark)' }}>
           {camere}
-          {cambi > 0 && <span data-cambi style={{ fontSize: 15, color: VERDE_MESE }}> ⇄ {cambi}</span>}
+          {insieme && cambi > 0 && <span data-cambi style={{ fontSize: 15, color: VERDE_MESE }}> {SEGNO_CAMBIO} {cambi}</span>}
         </p>
         <p style={etichetta}>camera</p>
       </div>
@@ -566,7 +571,7 @@ export default function SchedaPage() {
           etichettaArrivo={etichettaArrivoScheda(primoSegmento?.check_in_time, primoSegmento?.shuttle)}
           etichettaPartenza="parte"
           personeNotti={[grande.ospiti]}
-          rigaGrande={<RigaGrande ospiti={grande.ospiti} camere={grande.camere} cambi={grande.cambi} />}
+          rigaGrande={<RigaGrande ospiti={grande.ospiti} camere={grande.camere} cambi={grande.cambi} insieme={grande.insieme} />}
           sottoRigaGrande={stato && (
             <p data-stato-conto={stato.tipo} className="text-center" style={{ marginTop: 12, fontFamily: GEORGIA, fontSize: 22, lineHeight: 1.2, color: stato.tipo === 'pagato' ? 'var(--color-green-mid)' : ROSSO_CONTO }}>{stato.testo}</p>
           )}

@@ -124,21 +124,47 @@ function linee(segmenti: SegmentoScheda[]): SegmentoScheda[][] {
 }
 
 // ── La riga grande: OSPITI e CAMERA ─────────────────────────────────────────
-// Ospiti = le persone MASSIME in casa in una notte. Camera = il nome della
-// camera d'arrivo di ogni linea («Lena + Amelia» con due camere insieme) e,
-// se la linea cambia camera, quanti cambi fa (la pagina scrive «⇄ 2»).
-export type RigaGrandeScheda = { ospiti: number; camere: string; cambi: number }
+// Ospiti = le persone MASSIME in casa in una notte.
+// Camera (Ania, 18/09/2026, regola fissa n. 8): si guardano le DATE, non come
+// sono salvate le righe. Se in nessuna notte ci sono due camere insieme, le
+// camere si susseguono: è un cambio camera e si scrivono tutte per esteso col
+// segno di sempre, «Lena ⇄ Amelia ⇄ Lena» — anche quando le righe sono linee
+// separate senza group_id (Dario Barone: «Lena + Amelia» era un cambio).
+// Il «+» resta SOLO per due camere nelle stesse notti («Lena + Amelia»,
+// `insieme`); lì `cambi` conta i cambi dentro le linee e la pagina scrive
+// «⇄ 2» accanto ai nomi.
+export const SEGNO_CAMBIO = '⇄'
+export type RigaGrandeScheda = { ospiti: number; camere: string; cambi: number; insieme: boolean }
 export function rigaGrandeScheda(segmenti: SegmentoScheda[]): RigaGrandeScheda {
   const persone = personePerNotte(segmenti)
   const ospiti = persone.size ? Math.max(...persone.values()) : Math.max(1, ...segmentiAttivi(segmenti).map(s => Number(s.num_guests) || 1))
+  // le camere di ogni notte, nell'ordine delle notti
+  const perNotte = new Map<string, string[]>()
+  for (const s of [...segmentiAttivi(segmenti)].sort(perData)) {
+    for (const g of giorniSoggiorno(s.check_in, s.check_out)) perNotte.set(g, [...(perNotte.get(g) ?? []), nomeCamera(s)])
+  }
+  const notti = [...perNotte.keys()].sort()
+  const insieme = notti.some(g => new Set(perNotte.get(g)).size > 1)
+  if (!insieme) {
+    const sequenza: string[] = []
+    for (const g of notti) { const c = perNotte.get(g)![0]; if (sequenza[sequenza.length - 1] !== c) sequenza.push(c) }
+    return { ospiti, camere: sequenza.join(` ${SEGNO_CAMBIO} `) || 'camera', cambi: Math.max(0, sequenza.length - 1), insieme: false }
+  }
   const nomi: string[] = []
   let cambi = 0
   for (const linea of linee(segmenti)) {
     nomi.push(nomeCamera(linea[0]))
     for (let i = 1; i < linea.length; i++) if (nomeCamera(linea[i]) !== nomeCamera(linea[i - 1])) cambi += 1
   }
-  return { ospiti, camere: nomi.join(' + ') || 'camera', cambi }
+  return { ospiti, camere: nomi.join(' + ') || 'camera', cambi, insieme: true }
 }
+
+// Quando i nomi per esteso sono tanti («Lena ⇄ Amelia ⇄ Lena ⇄ Ambra») la
+// riga grande scende da 24 a 18 px e può andare a capo su due righe: i nomi
+// si leggono tutti, e sotto c'è comunque la striscia delle notti.
+export const CAMERE_LUNGHE_DA = 14
+export const MISURA_CAMERE = { normale: 24, lunga: 18 } as const
+export const misuraCamere = (camere: string) => (camere.length > CAMERE_LUNGHE_DA ? MISURA_CAMERE.lunga : MISURA_CAMERE.normale)
 
 // ── Lo stato del conto, in Georgia sotto la riga grande ─────────────────────
 // Le cifre arrivano già fatte (contoPrenotazione): qui si sceglie la frase.

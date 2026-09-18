@@ -84,7 +84,9 @@ test('la riga grande: due colonne a 44 px, Georgia 24, «⇄ 2» a 15 px #5B6559
   const riga = pagina.slice(pagina.indexOf('function RigaGrande'), pagina.indexOf('export default function SchedaPage'))
   assert.match(riga, /style=\{\{ gap: 44 \}\}/)
   assert.match(riga, /fontFamily: GEORGIA, fontWeight: 400, fontSize: 24/)
-  assert.match(riga, /data-cambi style=\{\{ fontSize: 15, color: VERDE_MESE \}\}> ⇄ \{cambi\}/)
+  // regola fissa n. 8: i cambi stanno nei nomi; il numero solo con due camere insieme; nomi lunghi in 18 px su due righe
+  assert.match(riga, /\{insieme && cambi > 0 && <span data-cambi style=\{\{ fontSize: 15, color: VERDE_MESE \}\}> \{SEGNO_CAMBIO\} \{cambi\}/)
+  assert.match(riga, /misura === MISURA_CAMERE\.normale \? 'leading-\[1\.15\] truncate' : 'leading-\[1\.15\] line-clamp-2'/)
   assert.match(pagina, /const VERDE_MESE = '#5B6559'/)
   assert.match(riga, />ospiti</)
   assert.match(riga, />camera</)

@@ -97,3 +97,15 @@ allunga», dove serve a confrontare prezzo pieno e sconto.
 
 Test: `lib/scheda.test.ts` → «il conto» (le due asserzioni «la scheda /
 l'inserimento rimette la riga «notti · a notte» sotto «Da pagare»»).
+
+## 8. Nella testa della scheda i cambi camera si scrivono per esteso, col segno ⇄
+
+Sotto «camera» si guardano le date, non come sono salvate le righe: se le
+camere si susseguono senza mai stare insieme nella stessa notte è un cambio
+camera e si scrivono tutti i nomi col segno di sempre, «Lena ⇄ Amelia ⇄
+Lena». Il «+» resta solo per due camere nelle stesse notti («Lena + Amelia»).
+Quando i nomi sono tanti la riga scende da 24 a 18 px e può andare a capo su
+due righe (Ania, 18/09/2026).
+
+Test: `lib/schedaPrenotazione.test.ts` → «riga grande: una camera, con cambi, con due
+camere insieme» e `lib/scheda.test.ts` → la prova della testa (`RigaGrande`).
