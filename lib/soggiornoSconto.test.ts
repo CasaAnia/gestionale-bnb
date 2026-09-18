@@ -11,10 +11,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   SENZA_SCONTO, primaDelCambio, dopoIlCambio, soggiornoConSconto, serveConfermaPrezzo, titoloConferma, sottotitoloConferma, riepilogoPrima,
-  primaScelta, sottoScontati, scontatiPerTratto, righeDeiTratti, anteprimaSoggiorno, periodoConMese,
-  TITOLO_ALLUNGA, TITOLO_ACCORCIA, TITOLO_CAMBIA, SCELTA_PER_NOTTE, SCELTA_PERCENTUALE, SCELTA_NUOVO_PREZZO, ETICHETTA_TOTALE_SOGGIORNO,
+  scelteTengo, scontoDiPrima, sottoScontati, scontatiPerTratto, righeDeiTratti, anteprimaSoggiorno, periodoConMese,
+  TITOLO_ALLUNGA, TITOLO_ACCORCIA, TITOLO_CAMBIA, SCELTA_PER_NOTTE, SCELTA_IN_TUTTO, SOTTO_IN_TUTTO, SCELTA_NUOVO_PREZZO, ETICHETTA_TOTALE_SOGGIORNO,
   TORNA_ALLE_MODIFICHE, CONFERMA, DOMANDA_PREZZO, TITOLO_NUOVO_CONTO, SCRIVI_IL_TOTALE, TOTALE_TROPPO_ALTO, SENZA_SCONTO_TESTO,
-  MOTIVO_PIU_CAMERE, MOTIVO_NON_SI_DIVIDE, MOTIVO_ACCORDI_DIVERSI, OLTRE_IL_TOTALE, RIGA_INCASSATI, RIGA_RESTA,
+  MOTIVO_PIU_CAMERE, MOTIVO_ACCORDI_DIVERSI, MOTIVO_A_ZERO, OLTRE_IL_TOTALE, RIGA_INCASSATI, RIGA_RESTA,
   type RigaSoggiorno,
 } from './soggiornoSconto.ts'
 import { pianoNotti, nottiDaSegmenti, cambiaCamera, SCONTO_DECADUTO, type CameraStriscia, type ContestoNotti, type SegmentoNotti } from './strisciaNotti.ts'
@@ -54,11 +54,28 @@ function treNottiAmbra(ambra = AMBRA, prima = ALLEGRA_UNA_NOTTE) {
 }
 const RIGHE_PIENE_ANIA = [['Allegra', '29 → 30 nov · 1 notte × 80 €', '80 €'], ['Ambra', '30 nov → 2 dic · 2 notti × 80 €', '160 €'], ['Letto in più', '3 notti × 10 €', '30 €']]
 
-test('prima del cambio: «prima: 90 € − 5 € di sconto = 85 € per una notte»', () => {
+// Il caso vero di Maurizio Stuppino, com'è salvato: Allegra 29 → 30 nov (90,
+// concordati 28,33) e Ambra 30 nov → 2 dic (180, concordati 56,67): 85 in tutto
+const STUPPINO = [
+  riga('s1', ALLEGRA, '2026-11-29', '2026-11-30', { discount_value: 28.33, total_amount: 28.33, group_id: 'S' }),
+  riga('s2', AMBRA, '2026-11-30', '2026-12-02', { extra_bed_dates: ['2026-11-30', '2026-12-01'], extra_bed_total: 20, discount_value: 56.67, total_amount: 56.67, group_id: 'S' }),
+]
+// Stuppino allungato di una notte: 29 nov → 3 dic, l'ultima notte ancora in Ambra
+function stuppinoQuattroNotti() {
+  const ctx = contesto([ALLEGRA, AMBRA])
+  const notti = nottiConDate(nottiDaSegmenti(STUPPINO), '2026-11-29', '2026-12-03', ctx)
+  return { segmenti: STUPPINO, ctx, notti, tratti: pianoNotti(notti, STUPPINO, ctx, SENZA_SCONTO).tratti }
+}
+
+test('la riga «Prima: … − … di sconto = … per N notti», coi numeri di quella prenotazione', () => {
   assert.deepEqual(primaDelCambio([ALLEGRA_UNA_NOTTE]), { notti: 1, pienoCent: 9000, scontoCent: 500, totaleCent: 8500 })
-  assert.equal(riepilogoPrima(primaDelCambio([ALLEGRA_UNA_NOTTE])), 'prima: 90 € − 5 € di sconto = 85 € per una notte')
-  assert.equal(riepilogoPrima({ notti: 3, pienoCent: 27000, scontoCent: 1500, totaleCent: 25500 }), 'prima: 270 € − 15 € di sconto = 255 € per 3 notti')
-  assert.equal(riepilogoPrima(primaDelCambio([ALLEGRA_DIECI_PER_CENTO])), 'prima: 90 € − 9 € di sconto = 81 € per una notte')
+  assert.equal(riepilogoPrima(primaDelCambio([ALLEGRA_UNA_NOTTE])), 'Prima: 90 € − 5 € di sconto = 85 € per 1 notte')
+  assert.equal(riepilogoPrima({ notti: 3, pienoCent: 27000, scontoCent: 1500, totaleCent: 25500 }), 'Prima: 270 € − 15 € di sconto = 255 € per 3 notti')
+  assert.equal(riepilogoPrima(primaDelCambio([ALLEGRA_DIECI_PER_CENTO])), 'Prima: 90 € − 9 € di sconto = 81 € per 1 notte')
+  // Stuppino: prezzo pieno di prima, meno lo sconto di prima, uguale quello che pagava, per quante notti erano
+  assert.deepEqual(primaDelCambio(STUPPINO), { notti: 3, pienoCent: 27000, scontoCent: 18500, totaleCent: 8500 })
+  assert.equal(riepilogoPrima(primaDelCambio(STUPPINO)), 'Prima: 270 € − 185 € di sconto = 85 € per 3 notti')
+  assert.equal(scontoDiPrima(STUPPINO), 18500)
 })
 
 test('il foglio compare SOLO con lo sconto: prezzo finale o percentuale, mai senza', () => {
@@ -84,7 +101,7 @@ test('il foglio compare SOLO con lo sconto: prezzo finale o percentuale, mai sen
   assert.equal(serveConfermaPrezzo(segmenti, segmenti, ferme), false)
 })
 
-test('la testa del foglio: «Il soggiorno si allunga» · «da 1 a 3 notti · 29 nov → 2 dic» · «Come aggiorno il prezzo»', () => {
+test('la testa del foglio: «Il soggiorno si allunga» · «Da 1 a 3 notti · 29 nov → 2 dic» · «Come aggiorno il prezzo»', () => {
   const { segmenti, ctx, notti } = treNottiAmbra()
   const tratti = pianoNotti(notti, segmenti, ctx, SENZA_SCONTO).tratti
   assert.equal(titoloConferma(1, 3), TITOLO_ALLUNGA)
@@ -92,20 +109,23 @@ test('la testa del foglio: «Il soggiorno si allunga» · «da 1 a 3 notti · 29
   assert.equal(titoloConferma(3, 3), TITOLO_CAMBIA)
   assert.equal(TITOLO_ALLUNGA, 'Il soggiorno si allunga')
   assert.equal(TITOLO_ACCORCIA, 'Il soggiorno si accorcia')
-  assert.equal(sottotitoloConferma(1, tratti), 'da 1 a 3 notti · 29 nov → 2 dic')
-  assert.equal(sottotitoloConferma(3, tratti), 'sempre 3 notti · 29 nov → 2 dic')
+  assert.equal(sottotitoloConferma(1, tratti), 'Da 1 a 3 notti · 29 nov → 2 dic')
+  assert.equal(sottotitoloConferma(3, tratti), 'Sempre 3 notti · 29 nov → 2 dic')
   assert.equal(periodoConMese('2026-09-10', '2026-09-13'), '10 → 13 set')
   assert.equal(DOMANDA_PREZZO, 'Come aggiorno il prezzo')
   assert.equal(TITOLO_NUOVO_CONTO, 'Il nuovo conto')
 })
 
-test('la prima scelta: «Tengo 5 € di sconto a notte» con sotto «85 € a notte, letto compreso»', () => {
+test('le tre scelte: «Tengo lo stesso sconto a notte» (85 € a notte, letto compreso), «Tengo lo stesso sconto in tutto» (5 € sul nuovo totale), «Concordo un prezzo nuovo»', () => {
   const { segmenti, ctx, notti } = treNottiAmbra()
   const tratti = pianoNotti(notti, segmenti, ctx, SENZA_SCONTO).tratti
-  const { opzione, motivo } = primaScelta(segmenti, segmenti, tratti)
+  const { aNotte, motivo, inTutto } = scelteTengo(segmenti, segmenti, tratti)
   assert.equal(motivo, null)
-  assert.deepEqual(opzione, { scelta: { tipo: 'per_notte', centANotte: 500 }, etichetta: 'Tengo 5 € di sconto a notte', sotto: '85 € a notte, letto compreso' })
-  assert.equal(SCELTA_PER_NOTTE(500), 'Tengo 5 € di sconto a notte')
+  assert.deepEqual(aNotte, { scelta: { tipo: 'per_notte', centANotte: 500 }, etichetta: 'Tengo lo stesso sconto a notte', sotto: '85 € a notte, letto compreso' })
+  assert.deepEqual(inTutto, { scelta: { tipo: 'in_tutto', scontoCent: 500 }, etichetta: 'Tengo lo stesso sconto in tutto', sotto: '5 € di sconto sul nuovo totale' })
+  assert.equal(SCELTA_PER_NOTTE, 'Tengo lo stesso sconto a notte')
+  assert.equal(SCELTA_IN_TUTTO, 'Tengo lo stesso sconto in tutto')
+  assert.equal(SOTTO_IN_TUTTO(18500), '185 € di sconto sul nuovo totale')
   assert.equal(SCELTA_NUOVO_PREZZO, 'Concordo un prezzo nuovo')
   assert.equal(ETICHETTA_TOTALE_SOGGIORNO, 'Totale dell’intero soggiorno')
   assert.equal(TORNA_ALLE_MODIFICHE, 'Torna alle modifiche')
@@ -129,28 +149,74 @@ test('con la prima scelta il nuovo conto: le camere a prezzo pieno, il letto in 
   assert.equal(a.aNotteCampo, '')
 })
 
-test('le due scelte si cambiano avanti e indietro e il conto cambia: 255 € con lo sconto a notte, 250 € col prezzo nuovo, e di nuovo 255 €', () => {
+test('le tre scelte si cambiano avanti e indietro e il conto cambia con ognuna: 255 € a notte, 265 € in tutto, 250 € col prezzo nuovo, e di nuovo 255 €', () => {
   const { segmenti, ctx, notti } = treNottiAmbra()
   const tratti = pianoNotti(notti, segmenti, ctx, SENZA_SCONTO).tratti
-  const tengo = primaScelta(segmenti, segmenti, tratti).opzione!.scelta
-  const prima = anteprimaSoggiorno({ tratti, altreRighe: [], ricevutiCent: 0, scelta: tengo })
-  const nuovo = anteprimaSoggiorno({ tratti, altreRighe: [], ricevutiCent: 0, scelta: { tipo: 'finale', testo: '250' } })
-  const ancora = anteprimaSoggiorno({ tratti, altreRighe: [], ricevutiCent: 0, scelta: tengo })
-  assert.deepEqual([prima.daPagare, nuovo.daPagare, ancora.daPagare], ['255 €', '250 €', '255 €'])
-  assert.deepEqual([prima.sconto?.importo, nuovo.sconto?.importo, ancora.sconto?.importo], ['−15 €', '−20 €', '−15 €'])
-  assert.deepEqual([prima.pulsante, nuovo.pulsante, ancora.pulsante], ['Conferma · 255 €', 'Conferma · 250 €', 'Conferma · 255 €'])
-  // le righe delle camere sono le stesse in tutte e due: cambia solo lo sconto
-  assert.deepEqual(nuovo.righe, prima.righe)
-  assert.equal(nuovo.sotto, '3 notti · 83,33 € a notte · prezzo pieno 270 €, sconto 20 €')
+  const scelte = scelteTengo(segmenti, segmenti, tratti)
+  const con = (scelta: Parameters<typeof anteprimaSoggiorno>[0]['scelta']) => anteprimaSoggiorno({ tratti, altreRighe: [], ricevutiCent: 0, scelta })
+  const aNotte = con(scelte.aNotte!.scelta)
+  const inTutto = con(scelte.inTutto!.scelta)
+  const nuovo = con({ tipo: 'finale', testo: '250' })
+  const ancora = con(scelte.aNotte!.scelta)
+  assert.deepEqual([aNotte.daPagare, inTutto.daPagare, nuovo.daPagare, ancora.daPagare], ['255 €', '265 €', '250 €', '255 €'])
+  assert.deepEqual([aNotte.sconto?.importo, inTutto.sconto?.importo, nuovo.sconto?.importo, ancora.sconto?.importo], ['−15 €', '−5 €', '−20 €', '−15 €'])
+  assert.deepEqual([aNotte.pulsante, inTutto.pulsante, nuovo.pulsante], ['Conferma · 255 €', 'Conferma · 265 €', 'Conferma · 250 €'])
+  assert.deepEqual([aNotte.sotto, inTutto.sotto, nuovo.sotto], [
+    '3 notti · 85 € a notte · prezzo pieno 270 €, sconto 15 €',
+    '3 notti · 88,33 € a notte · prezzo pieno 270 €, sconto 5 €',
+    '3 notti · 83,33 € a notte · prezzo pieno 270 €, sconto 20 €',
+  ])
+  // le righe delle camere sono le stesse in tutte e tre: cambia solo lo sconto
+  assert.deepEqual(inTutto.righe, aNotte.righe)
+  assert.deepEqual(nuovo.righe, aNotte.righe)
+  // «in tutto» va al piano come totale concordato della linea: 265 ripartiti fra i tratti
+  assert.deepEqual(inTutto.scelta, { tipo: 'finale', totaleCent: 26500 })
+  const piano = pianoNotti(notti, segmenti, ctx, inTutto.scelta!)
+  assert.equal(piano.errore, null)
+  assert.equal(Math.round((piano.aggiorna[0].campi.total_amount + piano.crea[0].total_amount) * 100), 26500)
 })
 
-test('con la percentuale la prima scelta è «Tengo il 10 % di sconto», e il conto dice «Sconto 10 %»', () => {
+test('Maurizio Stuppino allungato di una notte: lo sconto di prima (185 € su 3 notti) si applica anche se non si divide esatto', () => {
+  const { segmenti, ctx, notti, tratti } = stuppinoQuattroNotti()
+  assert.deepEqual(tratti.map(t => [t.camera, t.notti, t.pienoCent]), [['Allegra', 1, 9000], ['Ambra', 3, 27000]])
+  assert.equal(sottotitoloConferma(3, tratti), 'Da 3 a 4 notti · 29 nov → 3 dic')
+  const scelte = scelteTengo(segmenti, segmenti, tratti)
+  // a notte: 185 / 3 = 61,67 a notte, tolti da ogni notte nuova (28,33 a notte)
+  assert.equal(scelte.motivo, null)
+  assert.ok(Math.abs(scelte.aNotte!.scelta.tipo === 'per_notte' ? scelte.aNotte!.scelta.centANotte - 18500 / 3 : 1) < 1e-9)
+  assert.deepEqual([scelte.aNotte!.etichetta, scelte.aNotte!.sotto], ['Tengo lo stesso sconto a notte', '28,33 € a notte, letto compreso'])
+  const aNotte = anteprimaSoggiorno({ tratti, altreRighe: [], ricevutiCent: 0, scelta: scelte.aNotte!.scelta })
+  assert.deepEqual(aNotte.righe.map(r => [r.titolo, r.dettaglio, r.importo]), [['Allegra', '29 → 30 nov · 1 notte × 80 €', '80 €'], ['Ambra', '30 nov → 3 dic · 3 notti × 80 €', '240 €'], ['Letto in più', '4 notti × 10 €', '40 €']])
+  assert.deepEqual([aNotte.daPagare, aNotte.sconto?.importo, aNotte.sotto, aNotte.pulsante], ['113,33 €', '−247 €', '4 notti · 28,33 € a notte · prezzo pieno 360 €, sconto 247 €', 'Conferma · 113,33 €'])
+  // e il piano scrive gli stessi numeri, al centesimo: 28,33 + 85 = 113,33
+  const piano = pianoNotti(notti, segmenti, ctx, aNotte.scelta!)
+  assert.equal(piano.errore, null)
+  // (Allegra resta com'è, 28,33: non si riscrive; Ambra si allunga a 85)
+  const toccate = new Set([...piano.aggiorna.map(a => a.id), ...piano.annulla])
+  const ferme = STUPPINO.filter(r => !toccate.has(r.id)).map(r => Number(r.total_amount))
+  const scritti = [...piano.aggiorna.map(a => a.campi.total_amount), ...piano.crea.map(c => c.total_amount), ...ferme]
+  assert.equal(Math.round(scritti.reduce((s, t) => s + t, 0) * 100), 11333)
+  // in tutto: 360 − 185 = 175
+  assert.deepEqual([scelte.inTutto!.etichetta, scelte.inTutto!.sotto], ['Tengo lo stesso sconto in tutto', '185 € di sconto sul nuovo totale'])
+  const inTutto = anteprimaSoggiorno({ tratti, altreRighe: [], ricevutiCent: 0, scelta: scelte.inTutto!.scelta })
+  assert.deepEqual([inTutto.daPagare, inTutto.sconto?.importo, inTutto.sotto], ['175 €', '−185 €', '4 notti · 43,75 € a notte · prezzo pieno 360 €, sconto 185 €'])
+  // prezzo nuovo: 340
+  const nuovo = anteprimaSoggiorno({ tratti, altreRighe: [], ricevutiCent: 0, scelta: { tipo: 'finale', testo: '340' } })
+  assert.deepEqual([nuovo.daPagare, nuovo.sconto?.importo, nuovo.aNotteCampo], ['340 €', '−20 €', '85 € a notte'])
+  // uno sconto a notte che azzera un tratto non si propone: 89,33 € a notte su una notte da 50
+  const enorme = [{ ...STUPPINO[0], discount_value: 1, total_amount: 1 }, { ...STUPPINO[1], discount_value: 1, total_amount: 1 }]
+  const bassa = [{ ...tratti[0], aNotte: 40, letto: 10, pienoCent: 5000 }, tratti[1]]
+  assert.equal(scelteTengo(enorme, enorme, bassa).motivo, MOTIVO_A_ZERO(Math.round(26800 / 3)))
+  assert.equal(scelteTengo(enorme, enorme, tratti).motivo, null)
+})
+
+test('con la percentuale «Tengo lo stesso sconto a notte» tiene il 10 %, «in tutto» tiene i 9 €, e il conto dice «Sconto 10 %»', () => {
   const { segmenti, ctx, notti } = treNottiAmbra(AMBRA, ALLEGRA_DIECI_PER_CENTO)
   const tratti = pianoNotti(notti, segmenti, ctx, SENZA_SCONTO).tratti
-  const { opzione, motivo } = primaScelta(segmenti, segmenti, tratti)
+  const { aNotte, motivo, inTutto } = scelteTengo(segmenti, segmenti, tratti)
   assert.equal(motivo, null)
-  assert.deepEqual(opzione, { scelta: { tipo: 'percentuale', percento: 10 }, etichetta: 'Tengo il 10 % di sconto', sotto: '81 € a notte, letto compreso' })
-  assert.equal(SCELTA_PERCENTUALE(12.5), 'Tengo il 12,5 % di sconto')
+  assert.deepEqual(aNotte, { scelta: { tipo: 'percentuale', percento: 10 }, etichetta: 'Tengo lo stesso sconto a notte', sotto: '81 € a notte, letto compreso' })
+  assert.deepEqual(inTutto, { scelta: { tipo: 'in_tutto', scontoCent: 900 }, etichetta: 'Tengo lo stesso sconto in tutto', sotto: '9 € di sconto sul nuovo totale' })
   assert.deepEqual(scontatiPerTratto(tratti, { tipo: 'percentuale', percento: 10 }), [8100, 16200])
   const a = anteprimaSoggiorno({ tratti, altreRighe: [], ricevutiCent: 0, scelta: { tipo: 'percentuale', percento: 10 } })
   assert.deepEqual(a.righe.map(r => [r.titolo, r.dettaglio, r.importo]), RIGHE_PIENE_ANIA)
@@ -194,14 +260,14 @@ test('tariffe diverse: con Ambra a 70 si tolgono 5 € dai prezzi veri — «85 
   const { segmenti, ctx, notti } = treNottiAmbra(AMBRA_70)
   const tratti = pianoNotti(notti, segmenti, ctx, SENZA_SCONTO).tratti
   assert.deepEqual(tratti.map(t => t.pienoCent), [9000, 16000])
-  const { opzione } = primaScelta(segmenti, segmenti, tratti)
-  assert.equal(opzione?.sotto, '85 € e 75 € a notte, letto compreso')
+  const { aNotte } = scelteTengo(segmenti, segmenti, tratti)
+  assert.equal(aNotte?.sotto, '85 € e 75 € a notte, letto compreso')
   const a = anteprimaSoggiorno({ tratti, altreRighe: [], ricevutiCent: 0, scelta: { tipo: 'per_notte', centANotte: 500 } })
   assert.deepEqual(a.righe.map(r => [r.titolo, r.dettaglio, r.importo]), [['Allegra', '29 → 30 nov · 1 notte × 80 €', '80 €'], ['Ambra', '30 nov → 2 dic · 2 notti × 70 €', '140 €'], ['Letto in più', '3 notti × 10 €', '30 €']])
   assert.deepEqual([a.daPagare, a.sconto?.importo, a.sotto], ['235 €', '−15 €', '3 notti · 78,33 € a notte · prezzo pieno 250 €, sconto 15 €'])
-  // il letto solo in alcune notti di un tratto: gli importi a notte non sono uguali, si dice il totale
+  // il letto solo in alcune notti di un tratto: si dice quanto viene a notte al centesimo
   const tratto = { cameraId: 'x', camera: 'Ambra', check_in: '2026-12-01', check_out: '2026-12-04', notti: 3, aNotte: 80, letto: 10, pienoCent: 25000, nottiLetto: 1 }
-  assert.equal(sottoScontati([tratto], scontatiPerTratto([tratto], { tipo: 'per_notte', centANotte: 500 })), '235 € in tutto, letto compreso')
+  assert.equal(sottoScontati([tratto], scontatiPerTratto([tratto], { tipo: 'per_notte', centANotte: 500 })), '78,33 € a notte, letto compreso')
   // e la riga del letto senza «× 10 €» quando gli importi a notte non sono uno solo (Allegra 10, Amelia 5)
   const allegra = { cameraId: 'a', camera: 'Allegra', check_in: '2026-12-01', check_out: '2026-12-02', notti: 1, aNotte: 80, letto: 10, pienoCent: 9000, nottiLetto: 1 }
   const amelia = { cameraId: 'm', camera: 'Amelia', check_in: '2026-12-02', check_out: '2026-12-03', notti: 1, aNotte: 65, letto: 5, pienoCent: 7000, nottiLetto: 1 }
@@ -248,23 +314,31 @@ test('il soggiorno accorciato: «Il soggiorno si accorcia», 5 € a notte resta
   assert.equal(senza.errore, null)
   assert.equal(serveConfermaPrezzo([tre], [tre], senza), true)
   assert.equal(titoloConferma(3, dopoIlCambio(senza.tratti).notti), TITOLO_ACCORCIA)
-  assert.equal(sottotitoloConferma(3, senza.tratti), 'da 3 a 1 notte · 29 → 30 nov')
-  assert.equal(riepilogoPrima(primaDelCambio([tre])), 'prima: 270 € − 15 € di sconto = 255 € per 3 notti')
-  const { opzione } = primaScelta([tre], [tre], senza.tratti)
-  assert.deepEqual(opzione?.scelta, { tipo: 'per_notte', centANotte: 500 })
-  assert.equal(opzione?.sotto, '85 € a notte, letto compreso')
+  assert.equal(sottotitoloConferma(3, senza.tratti), 'Da 3 a 1 notte · 29 → 30 nov')
+  assert.equal(riepilogoPrima(primaDelCambio([tre])), 'Prima: 270 € − 15 € di sconto = 255 € per 3 notti')
+  const { aNotte, inTutto } = scelteTengo([tre], [tre], senza.tratti)
+  assert.deepEqual(aNotte?.scelta, { tipo: 'per_notte', centANotte: 500 })
+  assert.equal(aNotte?.sotto, '85 € a notte, letto compreso')
+  // «in tutto» accorciando: 15 € su 90 → 75 €
+  assert.deepEqual(inTutto?.scelta, { tipo: 'in_tutto', scontoCent: 1500 })
+  const tutto = anteprimaSoggiorno({ tratti: senza.tratti, altreRighe: [], ricevutiCent: 0, scelta: inTutto!.scelta })
+  assert.deepEqual([tutto.daPagare, tutto.sconto?.importo], ['75 €', '−15 €'])
   const a = anteprimaSoggiorno({ tratti: senza.tratti, altreRighe: [], ricevutiCent: 0, scelta: { tipo: 'per_notte', centANotte: 500 } })
   assert.deepEqual(a.righe.map(r => [r.titolo, r.dettaglio, r.importo]), [['Allegra', '29 → 30 nov · 1 notte × 80 €', '80 €'], ['Letto in più', '1 notte × 10 €', '10 €']])
   assert.deepEqual([a.daPagare, a.sconto?.testo, a.sconto?.importo, a.sotto, a.pulsante], ['85 €', 'Sconto', '−5 €', '1 notte · 85 € a notte · prezzo pieno 90 €, sconto 5 €', 'Conferma · 85 €'])
-  // con 200 concordati su 270 (non si divide per 3): niente prima scelta, e il piano
-  // vecchio si fermava con «sconto decaduto» — il foglio invece chiede il nuovo totale
+  // con 200 concordati su 270 (70 di sconto, non si divide per 3): il piano vecchio
+  // si fermava con «sconto decaduto» — il foglio invece propone 23,33 € a notte
   const duecento = { ...tre, discount_value: 200, total_amount: 200 }
   assert.equal(pianoNotti(notti, [duecento], ctx).errore, SCONTO_DECADUTO)
   const senza2 = pianoNotti(notti, [duecento], ctx, SENZA_SCONTO)
   assert.equal(senza2.errore, null)
   assert.equal(serveConfermaPrezzo([duecento], [duecento], senza2), true)
-  assert.deepEqual(primaScelta([duecento], [duecento], senza2.tratti), { opzione: null, motivo: MOTIVO_NON_SI_DIVIDE(7000, 3) })
-  assert.match(MOTIVO_NON_SI_DIVIDE(7000, 3), /70 €.*3 notti/)
+  const s2 = scelteTengo([duecento], [duecento], senza2.tratti)
+  assert.equal(s2.aNotte?.sotto, '66,67 € a notte, letto compreso')
+  const a2 = anteprimaSoggiorno({ tratti: senza2.tratti, altreRighe: [], ricevutiCent: 0, scelta: s2.aNotte!.scelta })
+  assert.deepEqual([a2.daPagare, a2.sconto?.importo], ['66,67 €', '−23 €'])
+  // e «in tutto» qui non si può: 70 € di sconto su 90 € di prezzo pieno sì, ma su una notte da 90 resta 20
+  assert.deepEqual(s2.inTutto?.scelta, { tipo: 'in_tutto', scontoCent: 7000 })
 })
 
 test('camere contemporanee: niente sconto diviso per i giorni, si chiede il totale dell’intero soggiorno e la quota della sorella viaggia insieme', () => {
@@ -280,7 +354,12 @@ test('camere contemporanee: niente sconto diviso per i giorni, si chiede il tota
   const senza = pianoNotti(notti, lineaLei.segmenti, ctx, SENZA_SCONTO)
   assert.equal(senza.errore, null)
   assert.equal(serveConfermaPrezzo(lineaLei.segmenti, tutti, senza), true)
-  assert.deepEqual(primaScelta(lineaLei.segmenti, tutti, senza.tratti), { opzione: null, motivo: MOTIVO_PIU_CAMERE })
+  const scelte = scelteTengo(lineaLei.segmenti, tutti, senza.tratti)
+  assert.deepEqual([scelte.aNotte, scelte.motivo], [null, MOTIVO_PIU_CAMERE])
+  // «in tutto» c'è: 20 di sconto in tutto (10 + 10) sul nuovo pieno 370 → 350, ripartiti fra lei e la sorella
+  assert.deepEqual(scelte.inTutto?.scelta, { tipo: 'in_tutto', scontoCent: 2000 })
+  const tutto = anteprimaSoggiorno({ tratti: senza.tratti, altreRighe: [sorella], ricevutiCent: 0, scelta: scelte.inTutto!.scelta })
+  assert.deepEqual([tutto.totaleCent, tutto.altre.length, tutto.scelta?.tipo], [35000, 1, 'finale'])
   const a = anteprimaSoggiorno({ tratti: senza.tratti, altreRighe: [sorella], ricevutiCent: 0, scelta: { tipo: 'finale', testo: '340' } })
   assert.deepEqual(a.righe.map(r => [r.titolo, r.dettaglio, r.importo]), [['Lena', '20 → 23 nov · 3 notti × 80 €', '240 €'], ['Amelia', '20 → 22 nov · 2 notti', '130 €']])
   assert.equal(a.pienoCent, 37000)
@@ -302,12 +381,12 @@ test('camere contemporanee: niente sconto diviso per i giorni, si chiede il tota
   assert.deepEqual(pieno.altre[0].campi, { discount_type: null, discount_value: null, total_amount: 130 })
   // accordi diversi dentro la linea: niente prima scelta
   const misto = [riga('m1', ALLEGRA, '2026-11-29', '2026-11-30'), riga('m2', AMBRA, '2026-11-30', '2026-12-01', { discount_type: null, discount_value: null, total_amount: 90, group_id: 'M' })]
-  assert.equal(primaScelta(misto, misto, senza.tratti).motivo, MOTIVO_ACCORDI_DIVERSI)
+  assert.equal(scelteTengo(misto, misto, senza.tratti).motivo, MOTIVO_ACCORDI_DIVERSI)
   // con la stessa percentuale su tutte e due le camere invece «Tengo il 10 %» si può proporre, e la sorella resta com'è
   const leiP = { ...lei, discount_type: 'percentage', discount_value: 10, total_amount: 144 }
   const sorellaP = { ...sorella, discount_type: 'percentage', discount_value: 10, total_amount: 117 }
-  const p = primaScelta([leiP], [leiP, sorellaP], senza.tratti)
-  assert.deepEqual(p.opzione?.scelta, { tipo: 'percentuale', percento: 10 })
+  const p = scelteTengo([leiP], [leiP, sorellaP], senza.tratti)
+  assert.deepEqual(p.aNotte?.scelta, { tipo: 'percentuale', percento: 10 })
   const ap = anteprimaSoggiorno({ tratti: senza.tratti, altreRighe: [sorellaP], ricevutiCent: 0, scelta: { tipo: 'percentuale', percento: 10 } })
   assert.deepEqual([ap.totaleCent, ap.sconto, ap.altre], [21600 + 11700, { testo: 'Sconto 10 %', importo: '−37 €' }, []])
 })
@@ -321,8 +400,8 @@ test('letto messo a mano per due ospiti: il letto segue le notti nuove con l’a
   const senza = pianoNotti(notti, [due], ctx, SENZA_SCONTO)
   assert.equal(senza.errore, null)
   assert.deepEqual(senza.tratti.map(t => [t.notti, t.letto, t.pienoCent, t.nottiLetto]), [[3, 30, 27000, 3]])
-  const { opzione } = primaScelta([due], [due], senza.tratti)
-  assert.deepEqual(opzione, { scelta: { tipo: 'per_notte', centANotte: 500 }, etichetta: 'Tengo 5 € di sconto a notte', sotto: '85 € a notte, letto compreso' })
+  const { aNotte } = scelteTengo([due], [due], senza.tratti)
+  assert.deepEqual(aNotte, { scelta: { tipo: 'per_notte', centANotte: 500 }, etichetta: 'Tengo lo stesso sconto a notte', sotto: '85 € a notte, letto compreso' })
   assert.deepEqual(righeDeiTratti(senza.tratti, []).map(r => [r.titolo, r.dettaglio, r.importo]), [['Allegra', '10 → 13 dic · 3 notti × 80 €', '240 €'], ['Letto in più', '3 notti × 10 €', '30 €']])
   const piano = pianoNotti(notti, [due], ctx, { tipo: 'per_notte', centANotte: 500 })
   assert.deepEqual([piano.aggiorna[0].campi.extra_bed_total, piano.aggiorna[0].campi.total_amount, piano.aggiorna[0].campi.extra_bed_importo], [30, 255, 10])
@@ -356,10 +435,11 @@ test('il foglio: la veste chiesta da Ania — titolo Georgia 24 centrato, sotto 
   // i due titoletti in ottone maiuscolo (Etichetta di PezziNuova)
   assert.match(foglio, /<Etichetta testo=\{DOMANDA_PREZZO\} ottone/)
   assert.match(foglio, /<Etichetta testo=\{TITOLO_NUOVO_CONTO\} ottone \/>/)
-  // le due scelte col pallino e il filo sotto; «Tengo…» è accesa di partenza quando si può
-  assert.match(foglio, /useState<'tengo' \| 'finale'>\(tengo\.opzione \? 'tengo' : 'finale'\)/)
+  // le TRE scelte col pallino e il filo sotto; «Tengo lo stesso sconto a notte» è accesa di partenza quando si può
+  assert.match(foglio, /useState<'a_notte' \| 'in_tutto' \| 'finale'>\(tengo\.aNotte \? 'a_notte' : tengo\.inTutto \? 'in_tutto' : 'finale'\)/)
   assert.match(foglio, /role="radio" aria-checked=\{acceso\} data-scelta-prezzo=\{dati\}/)
-  assert.match(foglio, /dati="tengo"/)
+  assert.match(foglio, /dati="a-notte"/)
+  assert.match(foglio, /dati="in-tutto"/)
   assert.match(foglio, /dati="nuovo-prezzo"/)
   // «Concordo un prezzo nuovo» aprendosi mostra il campo in euro e accanto, in ottone, quanto viene a notte
   assert.match(foglio, /data-campo="totale-soggiorno"/)

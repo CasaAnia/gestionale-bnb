@@ -10,14 +10,16 @@
 // Adesso, ogni volta che cambiano le notti di un soggiorno CHE HA UNO SCONTO
 // (allungato, accorciato, camera cambiata), PRIMA di salvare si apre il foglio
 // con «prima» com'era, e si sceglie come aggiornare il prezzo:
-//   1. «Tengo 5 € di sconto a notte» — lo sconto di adesso diviso per le notti
-//      di adesso, tolto da ogni notte nuova (dai prezzi pieni veri di ogni
-//      tratto); con la percentuale «Tengo il 10 % di sconto», che segue le
-//      notti da sola. È la scelta accesa di partenza, quando si può proporre:
-//      una linea sola (con più camere nelle stesse notti lo sconto non si
-//      divide per i giorni), stesso accordo su tutti i tratti, sconto che si
-//      divide in parti uguali fra le notti e che non azzera nessun tratto;
-//   2. «Concordo un prezzo nuovo» — il totale dell'intero soggiorno, scritto
+//   1. «Tengo lo stesso sconto a notte» — lo sconto di prima diviso per le
+//      notti di prima, tolto da ogni notte nuova (dai prezzi pieni veri di
+//      ogni tratto, anche se non si divide esatto: 185 € su 3 notti sono
+//      61,67 a notte); con la percentuale è la percentuale che segue le
+//      notti. È la scelta accesa di partenza, quando si può proporre: una
+//      linea sola (con più camere nelle stesse notti lo sconto non si divide
+//      per i giorni), stesso accordo su tutti i tratti, nessun tratto a zero;
+//   2. «Tengo lo stesso sconto in tutto» — lo sconto resta la stessa cifra
+//      sul nuovo totale, non cresce con le notti;
+//   3. «Concordo un prezzo nuovo» — il totale dell'intero soggiorno, scritto
 //      a mano, ripartito fra i tratti come fa il foglio «Sconto»; accanto al
 //      campo si legge quanto viene a notte.
 // Sotto, «Il nuovo conto» nelle righe di lib/contoInRighe: le camere, il
@@ -37,7 +39,7 @@ import { euroTondi } from './euroTondi.ts'
 import { ripartisciConcordato, type PianoNotti, type TrattoPiano, type ScontoScelto } from './strisciaNotti.ts'
 import { prezzoPienoRiga, valoreDaCampo, type RigaScontabile } from './scontoScheda.ts'
 import {
-  rigaSconto, nottiANotte, dettaglioLetto, percentualeComune, percentoInParole, RIGA_LETTO,
+  rigaSconto, nottiANotte, dettaglioLetto, percentualeComune, RIGA_LETTO,
   type RigaContoVista, type ScontoVista,
 } from './contoInRighe.ts'
 
@@ -59,8 +61,9 @@ export const TITOLO_ACCORCIA = 'Il soggiorno si accorcia'
 export const TITOLO_CAMBIA = 'Il soggiorno cambia'
 export const DOMANDA_PREZZO = 'Come aggiorno il prezzo'
 export const TITOLO_NUOVO_CONTO = 'Il nuovo conto'
-export const SCELTA_PER_NOTTE = (centANotte: number) => `Tengo ${euroScheda(centANotte)} di sconto a notte`
-export const SCELTA_PERCENTUALE = (percento: number) => `Tengo il ${percentoInParole(percento)} di sconto`
+export const SCELTA_PER_NOTTE = 'Tengo lo stesso sconto a notte'
+export const SCELTA_IN_TUTTO = 'Tengo lo stesso sconto in tutto'
+export const SOTTO_IN_TUTTO = (scontoCent: number) => `${euroScheda(scontoCent)} di sconto sul nuovo totale`
 export const SCELTA_NUOVO_PREZZO = 'Concordo un prezzo nuovo'
 export const ETICHETTA_TOTALE_SOGGIORNO = 'Totale dell’intero soggiorno'
 export const TORNA_ALLE_MODIFICHE = 'Torna alle modifiche'
@@ -77,7 +80,6 @@ export const SENZA_SCONTO_TESTO = 'Senza sconto: il totale è il prezzo pieno.'
 // perché «tengo lo sconto» non si può proporre
 export const MOTIVO_PIU_CAMERE = 'Con più camere nelle stesse notti lo sconto non si divide da solo per le notti: concorda il nuovo totale.'
 export const MOTIVO_ACCORDI_DIVERSI = 'I tratti del soggiorno hanno accordi diversi: concorda il nuovo totale.'
-export const MOTIVO_NON_SI_DIVIDE = (scontoCent: number, notti: number) => `Lo sconto di ${euroScheda(scontoCent)} non si divide in parti uguali fra le ${notti} notti: concorda il nuovo totale.`
 export const MOTIVO_A_ZERO = (centANotte: number) => `Con ${euroScheda(centANotte)} di sconto a notte una camera resterebbe a zero: concorda il nuovo totale.`
 
 // ── Serve il foglio? ────────────────────────────────────────────────────────
@@ -121,63 +123,84 @@ export function titoloConferma(nottiPrima: number, nottiDopo: number): string {
   return nottiDopo > nottiPrima ? TITOLO_ALLUNGA : nottiDopo < nottiPrima ? TITOLO_ACCORCIA : TITOLO_CAMBIA
 }
 
-/** «da 1 a 3 notti · 29 nov → 2 dic», «sempre 3 notti · 29 nov → 2 dic» */
+/** «Da 1 a 3 notti · 29 nov → 2 dic», «Sempre 3 notti · 29 nov → 2 dic» (la D maiuscola: Ania, 18/09/2026) */
 export function sottotitoloConferma(nottiPrima: number, tratti: TrattoPiano[]): string {
   const dopo = dopoIlCambio(tratti).notti
   const dal = tratti[0]?.check_in ?? ''
   const al = tratti.reduce((m, t) => (t.check_out > m ? t.check_out : m), tratti[0]?.check_out ?? '')
-  const notti = dopo === nottiPrima ? `sempre ${testoNotti(dopo)}` : `da ${nottiPrima} a ${testoNotti(dopo)}`
+  const notti = dopo === nottiPrima ? `Sempre ${testoNotti(dopo)}` : `Da ${nottiPrima} a ${testoNotti(dopo)}`
   return dal && al ? `${notti} · ${periodoConMese(dal, al)}` : notti
 }
 
-/** «prima: 90 € − 5 € di sconto = 85 € per una notte» */
+/** «Prima: 270 € − 185 € di sconto = 85 € per 3 notti»: prezzo pieno di prima,
+ *  meno lo sconto di prima, uguale quello che pagava, per quante notti erano */
 export function riepilogoPrima(p: PrimaDelCambio): string {
   const conto = p.scontoCent > 0 ? `${euroScheda(p.pienoCent)} − ${euroScheda(p.scontoCent)} di sconto = ${euroScheda(p.totaleCent)}` : euroScheda(p.totaleCent)
-  return `prima: ${conto} per ${nottiInParole(p.notti)}`
+  return `Prima: ${conto} per ${testoNotti(p.notti)}`
 }
 
-// ── La prima scelta: tengo lo sconto ────────────────────────────────────────
+// ── Le scelte «tengo lo sconto» ─────────────────────────────────────────────
 export type SceltaTengo = { tipo: 'per_notte'; centANotte: number } | { tipo: 'percentuale'; percento: number }
+export type SceltaInTutto = { tipo: 'in_tutto'; scontoCent: number }
 export type OpzioneTengo = { scelta: SceltaTengo; etichetta: string; sotto: string }
+export type OpzioneInTutto = { scelta: SceltaInTutto; etichetta: string; sotto: string }
 
-/** Quanto viene ogni tratto con quella scelta, in centesimi (come lo rileggerà lib/conto) */
+/** Quanto viene ogni tratto con quella scelta, in centesimi (come lo rileggerà
+ *  lib/conto: ogni tratto arrotondato al centesimo, come fa il piano) */
 export function scontatiPerTratto(tratti: TrattoPiano[], scelta: SceltaTengo): number[] {
   return tratti.map(t => (scelta.tipo === 'per_notte'
-    ? t.pienoCent - scelta.centANotte * t.notti
+    ? Math.round(t.pienoCent - scelta.centANotte * t.notti)
     : t.pienoCent - Math.round((t.pienoCent / 100) * scelta.percento)))
 }
 
-/** «Tengo 5 € di sconto a notte» con sotto «85 € a notte, letto compreso», o
- *  «Tengo il 10 % di sconto»; oppure il motivo per cui non si può proporre. */
-export function primaScelta(segmentiLinea: RigaScontabile[], tutti: RigaScontabile[], tratti: TrattoPiano[]): { opzione: OpzioneTengo | null; motivo: string | null } {
-  const vive = attive(segmentiLinea)
-  // la percentuale, uguale su tutte le camere del soggiorno: si tiene com'è
-  const percento = percentualeComune(attive(tutti))
-  if (percento !== null && vive.length > 0) {
-    const scelta: SceltaTengo = { tipo: 'percentuale', percento }
-    return { opzione: { scelta, etichetta: SCELTA_PERCENTUALE(percento), sotto: sottoScontati(tratti, scontatiPerTratto(tratti, scelta)) }, motivo: null }
-  }
-  // il prezzo finale: lo sconto di adesso diviso per le notti di adesso
-  const dellaLinea = new Set(vive.map(s => s.id))
-  if (attive(tutti).some(s => !dellaLinea.has(s.id))) return { opzione: null, motivo: MOTIVO_PIU_CAMERE }
-  if (vive.length === 0 || vive.some(s => s.discount_type !== 'target_total')) return { opzione: null, motivo: MOTIVO_ACCORDI_DIVERSI }
-  const prima = primaDelCambio(segmentiLinea)
-  if (prima.scontoCent <= 0 || prima.notti <= 0) return { opzione: null, motivo: MOTIVO_ACCORDI_DIVERSI }
-  if (prima.scontoCent % prima.notti !== 0) return { opzione: null, motivo: MOTIVO_NON_SI_DIVIDE(prima.scontoCent, prima.notti) }
-  const centANotte = prima.scontoCent / prima.notti
-  if (tratti.some(t => t.pienoCent - centANotte * t.notti <= 0)) return { opzione: null, motivo: MOTIVO_A_ZERO(centANotte) }
-  const scelta: SceltaTengo = { tipo: 'per_notte', centANotte }
-  return { opzione: { scelta, etichetta: SCELTA_PER_NOTTE(centANotte), sotto: sottoScontati(tratti, scontatiPerTratto(tratti, scelta)) }, motivo: null }
+/** Lo sconto salvato adesso su tutte le camere attive del soggiorno, in centesimi */
+export function scontoDiPrima(tutti: RigaScontabile[]): number {
+  return attive(tutti).reduce((s, r) => s + cent(contoSoggiorno(r).sconto), 0)
 }
 
-/** «85 € a notte, letto compreso», «85 € e 75 € a notte»: gli importi veri di
- *  ogni tratto, non sempre lo stesso numero; «235 € in tutto» se non si
- *  dividono per le notti */
+export type ScelteTengo = {
+  /** «Tengo lo stesso sconto a notte», o il motivo per cui non si può proporre */
+  aNotte: OpzioneTengo | null
+  motivo: string | null
+  /** «Tengo lo stesso sconto in tutto»: c'è se lo sconto di prima sta sotto il nuovo prezzo pieno */
+  inTutto: OpzioneInTutto | null
+}
+
+/** Le due scelte «tengo»: a notte (lo sconto di prima diviso per le notti di
+ *  prima, applicato a ogni notte nuova; con la percentuale, la percentuale) e
+ *  in tutto (la stessa cifra sul nuovo totale). `tratti` sono quelli della
+ *  linea dopo la modifica; le altre camere del soggiorno entrano nel «in tutto». */
+export function scelteTengo(segmentiLinea: RigaScontabile[], tutti: RigaScontabile[], tratti: TrattoPiano[]): ScelteTengo {
+  const vive = attive(segmentiLinea)
+  const dellaLinea = new Set(vive.map(s => s.id))
+  const altre = attive(tutti).filter(s => !dellaLinea.has(s.id))
+  const pienoDopoCent = tratti.reduce((s, t) => s + t.pienoCent, 0) + altre.reduce((s, r) => s + cent(prezzoPienoRiga(r)), 0)
+  const scontoTutto = scontoDiPrima(tutti)
+  const inTutto: OpzioneInTutto | null = scontoTutto > 0 && scontoTutto < pienoDopoCent
+    ? { scelta: { tipo: 'in_tutto', scontoCent: scontoTutto }, etichetta: SCELTA_IN_TUTTO, sotto: SOTTO_IN_TUTTO(scontoTutto) }
+    : null
+
+  const aNotte = (scelta: SceltaTengo): OpzioneTengo => ({ scelta, etichetta: SCELTA_PER_NOTTE, sotto: sottoScontati(tratti, scontatiPerTratto(tratti, scelta)) })
+  // la percentuale, uguale su tutte le camere del soggiorno: si tiene com'è
+  const percento = percentualeComune(attive(tutti))
+  if (percento !== null && vive.length > 0) return { aNotte: aNotte({ tipo: 'percentuale', percento }), motivo: null, inTutto }
+  // il prezzo finale: lo sconto di prima diviso per le notti di prima
+  if (altre.length > 0) return { aNotte: null, motivo: MOTIVO_PIU_CAMERE, inTutto }
+  if (vive.length === 0 || vive.some(s => s.discount_type !== 'target_total')) return { aNotte: null, motivo: MOTIVO_ACCORDI_DIVERSI, inTutto }
+  const prima = primaDelCambio(segmentiLinea)
+  if (prima.scontoCent <= 0 || prima.notti <= 0) return { aNotte: null, motivo: MOTIVO_ACCORDI_DIVERSI, inTutto }
+  const centANotte = prima.scontoCent / prima.notti
+  const scelta: SceltaTengo = { tipo: 'per_notte', centANotte }
+  if (scontatiPerTratto(tratti, scelta).some(c => c <= 0)) return { aNotte: null, motivo: MOTIVO_A_ZERO(Math.round(centANotte)), inTutto }
+  return { aNotte: aNotte(scelta), motivo: null, inTutto }
+}
+
+/** «85 € a notte, letto compreso», «85 € e 75 € a notte»: quanto viene a notte
+ *  in ogni tratto (al centesimo), non sempre lo stesso numero */
 export function sottoScontati(tratti: TrattoPiano[], scontatiCent: number[]): string {
-  const aNotte = scontatiCent.map((c, i) => (c % tratti[i].notti === 0 ? c / tratti[i].notti : null))
+  const aNotte = scontatiCent.map((c, i) => Math.round(c / Math.max(1, tratti[i].notti)))
   const letto = tratti.some(t => t.letto > 0) ? `, ${LETTO_COMPRESO}` : ''
-  if (aNotte.some(x => x === null)) return `${euroScheda(scontatiCent.reduce((s, c) => s + c, 0))} in tutto${letto}`
-  const distinti = [...new Set(aNotte as number[])]
+  const distinti = [...new Set(aNotte)]
   const testo = distinti.length === 1
     ? euroScheda(distinti[0])
     : `${distinti.slice(0, -1).map(euroScheda).join(', ')} e ${euroScheda(distinti[distinti.length - 1])}`
@@ -186,7 +209,7 @@ export function sottoScontati(tratti: TrattoPiano[], scontatiCent: number[]): st
 
 // ── L'anteprima del nuovo conto ─────────────────────────────────────────────
 export type RigaAnteprimaSoggiorno = { chiave: string; testo: string; importo: string }
-export type SceltaFoglio = SceltaTengo | { tipo: 'finale'; testo: string }
+export type SceltaFoglio = SceltaTengo | SceltaInTutto | { tipo: 'finale'; testo: string }
 export type AltraRigaDaScrivere = { id: string; campi: { discount_type: string | null; discount_value: number | null; total_amount: number } }
 
 export type AnteprimaSoggiorno = {
@@ -250,7 +273,7 @@ export function anteprimaSoggiorno(p: {
   for (const r of altre) for (const g of giorniSoggiorno(r.check_in, r.check_out)) giorni.add(g)
   const notti = giorni.size
 
-  let totaleCent: number
+  let totaleCent = pienoCent
   let percento: number | null = null
   let errore: string | null = null
   let nota: string | null = null
@@ -258,21 +281,10 @@ export function anteprimaSoggiorno(p: {
   let daScrivere: AltraRigaDaScrivere[] = []
   let aNotteCampo = ''
 
-  if (p.scelta.tipo === 'per_notte' || p.scelta.tipo === 'percentuale') {
-    // le altre camere restano come sono: entrano col loro totale di adesso
-    const lineaCent = scontatiPerTratto(tratti, p.scelta).reduce((s, c) => s + c, 0)
-    totaleCent = lineaCent + altre.reduce((s, r) => s + cent(contoSoggiorno(r).totale), 0)
-    percento = p.scelta.tipo === 'percentuale' ? p.scelta.percento : null
-    scelta = p.scelta
-  } else {
-    const valore = valoreDaCampo(p.scelta.testo)
-    const t = valore === null ? null : cent(valore)
-    if (p.scelta.testo.trim() === '') { errore = SCRIVI_IL_TOTALE; totaleCent = pienoCent }
-    else if (t === null || t <= 0) { errore = TOTALE_NON_VALIDO; totaleCent = pienoCent }
-    else if (t > pienoCent) { errore = TOTALE_TROPPO_ALTO(pienoCent); totaleCent = pienoCent }
-    else {
+  // il totale dell'intero soggiorno deciso come cifra («in tutto» o scritto a
+  // mano): si riparte fra la linea e le altre camere come nel foglio «Sconto»
+  const conTotale = (t: number) => {
       totaleCent = t
-      if (notti > 0) aNotteCampo = `${euroScheda(Math.round(t / notti))} a notte`
       if (t === pienoCent) {
         nota = SENZA_SCONTO_TESTO
         scelta = SENZA_SCONTO
@@ -285,6 +297,28 @@ export function anteprimaSoggiorno(p: {
         scelta = { tipo: 'finale', totaleCent: cent(quote[0]) }
         daScrivere = altre.map((r, i) => ({ id: r.id, campi: { discount_type: 'target_total', discount_value: quote[i + 1], total_amount: quote[i + 1] } }))
       }
+  }
+
+  if (p.scelta.tipo === 'per_notte' || p.scelta.tipo === 'percentuale') {
+    // le altre camere restano come sono: entrano col loro totale di adesso
+    const lineaCent = scontatiPerTratto(tratti, p.scelta).reduce((s, c) => s + c, 0)
+    totaleCent = lineaCent + altre.reduce((s, r) => s + cent(contoSoggiorno(r).totale), 0)
+    percento = p.scelta.tipo === 'percentuale' ? p.scelta.percento : null
+    scelta = p.scelta
+  } else if (p.scelta.tipo === 'in_tutto') {
+    // la stessa cifra di sconto sul nuovo prezzo pieno
+    totaleCent = pienoCent
+    if (p.scelta.scontoCent > 0 && p.scelta.scontoCent < pienoCent) conTotale(pienoCent - p.scelta.scontoCent)
+    else errore = TOTALE_TROPPO_ALTO(pienoCent)
+  } else {
+    const valore = valoreDaCampo(p.scelta.testo)
+    const t = valore === null ? null : cent(valore)
+    if (p.scelta.testo.trim() === '') { errore = SCRIVI_IL_TOTALE; totaleCent = pienoCent }
+    else if (t === null || t <= 0) { errore = TOTALE_NON_VALIDO; totaleCent = pienoCent }
+    else if (t > pienoCent) { errore = TOTALE_TROPPO_ALTO(pienoCent); totaleCent = pienoCent }
+    else {
+      if (notti > 0) aNotteCampo = `${euroScheda(Math.round(t / notti))} a notte`
+      conTotale(t)
     }
   }
 

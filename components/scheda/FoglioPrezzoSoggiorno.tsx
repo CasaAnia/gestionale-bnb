@@ -6,14 +6,15 @@
 // le notti di una prenotazione CHE HA UNO SCONTO. Nella veste dei fogli della
 // scheda, con il titolo in Georgia 24 centrato; sotto, in 12,5 stone, «da 1 a
 // 3 notti · 29 nov → 2 dic»; il riquadro chiaro con «prima: 90 € − 5 € di
-// sconto = 85 € per una notte»; «COME AGGIORNO IL PREZZO» con le due scelte
-// col pallino («Tengo 5 € di sconto a notte», accesa di partenza, e «Concordo
-// un prezzo nuovo», che apre il campo del totale con accanto quanto viene a
-// notte); «IL NUOVO CONTO» nelle righe di sempre, «Da pagare» in Georgia 28 e
+// sconto = 85 € per una notte»; «COME AGGIORNO IL PREZZO» con le TRE scelte
+// col pallino («Tengo lo stesso sconto a notte», accesa di partenza; «Tengo
+// lo stesso sconto in tutto»; «Concordo un prezzo nuovo», che apre il campo
+// del totale con accanto quanto viene a notte); «IL NUOVO CONTO» nelle righe
+// di sempre, «Da pagare» in Georgia 28 e
 // sotto «3 notti · 85 € a notte · prezzo pieno 270 €, sconto 15 €»; in fondo
 // «Conferma · 255 €» e «Torna alle modifiche».
 //
-// Le scelte si cambiano avanti e indietro e il conto si rifà a ogni tocco.
+// Le tre scelte si cambiano avanti e indietro e il conto si rifà a ogni tocco.
 // Niente viene scritto finché non si tocca «Conferma»; «Torna alle modifiche»
 // chiude solo questo foglio, e il foglio di partenza resta sotto con la bozza.
 //
@@ -25,7 +26,7 @@ import Foglio, { PiedeFoglio } from './Foglio'
 import { Etichetta, stileCampo, MATTONE, OTTONE } from '@/components/nuova/PezziNuova'
 import { RigaConto, ScontoConto, DaPagareConto } from '@/components/ContoRighe'
 import {
-  primaDelCambio, dopoIlCambio, titoloConferma, sottotitoloConferma, riepilogoPrima, primaScelta, anteprimaSoggiorno,
+  primaDelCambio, dopoIlCambio, titoloConferma, sottotitoloConferma, riepilogoPrima, scelteTengo, anteprimaSoggiorno,
   DOMANDA_PREZZO, TITOLO_NUOVO_CONTO, SCELTA_NUOVO_PREZZO, ETICHETTA_TOTALE_SOGGIORNO, TORNA_ALLE_MODIFICHE,
   type RigaSoggiorno, type SceltaFoglio, type PrezzoDeciso,
 } from '@/lib/soggiornoSconto'
@@ -70,12 +71,15 @@ export default function FoglioPrezzoSoggiorno({ segmenti, tutti, tratti, ricevut
 }) {
   const prima = primaDelCambio(segmenti)
   const dopo = dopoIlCambio(tratti)
-  const tengo = primaScelta(segmenti, tutti, tratti)
-  const [tipo, setTipo] = useState<'tengo' | 'finale'>(tengo.opzione ? 'tengo' : 'finale')
+  const tengo = scelteTengo(segmenti, tutti, tratti)
+  // la scelta accesa di partenza: a notte, se no in tutto, se no il prezzo nuovo
+  const [tipo, setTipo] = useState<'a_notte' | 'in_tutto' | 'finale'>(tengo.aNotte ? 'a_notte' : tengo.inTutto ? 'in_tutto' : 'finale')
   const [totale, setTotale] = useState('')
   const dellaLinea = new Set(segmenti.map(s => s.id))
   const altreRighe = tutti.filter(r => !dellaLinea.has(r.id))
-  const scelta: SceltaFoglio = tipo === 'tengo' && tengo.opzione ? tengo.opzione.scelta : { tipo: 'finale', testo: totale }
+  const scelta: SceltaFoglio = tipo === 'a_notte' && tengo.aNotte ? tengo.aNotte.scelta
+    : tipo === 'in_tutto' && tengo.inTutto ? tengo.inTutto.scelta
+    : { tipo: 'finale', testo: totale }
   const anteprima = anteprimaSoggiorno({ tratti, altreRighe, ricevutiCent, scelta })
 
   function conferma() {
@@ -91,10 +95,13 @@ export default function FoglioPrezzoSoggiorno({ segmenti, tutti, tratti, ricevut
       {/* ── Come aggiorno il prezzo: le due scelte ─────────────────────── */}
       <Etichetta testo={DOMANDA_PREZZO} ottone className="mt-[22px]" />
       <div role="radiogroup" aria-label={DOMANDA_PREZZO} data-domanda-prezzo>
-        {tengo.opzione && (
-          <Scelta acceso={tipo === 'tengo'} etichetta={tengo.opzione.etichetta} sotto={tengo.opzione.sotto} onClick={() => setTipo('tengo')} dati="tengo" />
+        {tengo.aNotte && (
+          <Scelta acceso={tipo === 'a_notte'} etichetta={tengo.aNotte.etichetta} sotto={tengo.aNotte.sotto} onClick={() => setTipo('a_notte')} dati="a-notte" />
         )}
-        <Scelta acceso={tipo === 'finale'} etichetta={SCELTA_NUOVO_PREZZO} sotto={tengo.opzione ? null : tengo.motivo} onClick={() => setTipo('finale')} dati="nuovo-prezzo">
+        {tengo.inTutto && (
+          <Scelta acceso={tipo === 'in_tutto'} etichetta={tengo.inTutto.etichetta} sotto={tengo.inTutto.sotto} onClick={() => setTipo('in_tutto')} dati="in-tutto" />
+        )}
+        <Scelta acceso={tipo === 'finale'} etichetta={SCELTA_NUOVO_PREZZO} sotto={tengo.aNotte ? null : tengo.motivo} onClick={() => setTipo('finale')} dati="nuovo-prezzo">
           {tipo === 'finale' && (
             // il campo in euro col totale e, accanto in ottone, quanto viene a notte
             <label className="block" style={{ padding: '0 0 10px 28px' }}>
