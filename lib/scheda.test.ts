@@ -323,7 +323,13 @@ test('il conto: le righe di sempre (ContoRighe), «Totale» in Georgia 22, lo sc
   assert.match(conto, /\{conto\.righe\.map\(r => <RigaConto key=\{r\.chiave\} riga=\{r\} \/>\)\}/)
   assert.match(conto, /<TotaleConto importo=\{conto\.totale\} \/>/)
   assert.match(conto, /\{conto\.sconto && <ScontoConto sconto=\{conto\.sconto\} \/>\}/)
-  assert.match(conto, /<DaPagareConto importo=\{conto\.daPagare\} sotto=\{conto\.sotto\} \/>/)
+  // REGOLA FISSA n. 7 (Ania, 18/09/2026): sotto «Da pagare» non c'è la riga
+  // «2 notti · 80 € a notte», né nella scheda né nell'inserimento
+  assert.match(conto, /<DaPagareConto importo=\{conto\.daPagare\} \/>/)
+  assert.equal(/sotto=\{/.test(conto), false, 'la scheda rimette la riga «notti · a notte» sotto «Da pagare»')
+  const contoNuova = leggi('components/nuova/ContoNuova.tsx')
+  assert.match(contoNuova, /<DaPagareConto importo=\{euroGrande\(conto\.daPagare\)\}>/)
+  assert.equal(/sotto=\{/.test(contoNuova), false, 'l’inserimento rimette la riga «notti · a notte» sotto «Da pagare»')
   const righe = leggi('components/ContoRighe.tsx')
   assert.match(righe, /data-riga-conto=\{riga\.chiave\}[\s\S]{0,120}borderBottom: '1px solid var\(--color-card-border\)'/)
   assert.match(righe, /data-totale[\s\S]{0,200}borderTop: `1px solid \$\{FILO_OTTONE\}`/)

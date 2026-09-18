@@ -87,3 +87,13 @@ della camera non deve cambiare mai»).
 
 Test: `lib/fogliScheda.test.ts` → «nella scheda non c'è il comando «Tariffe»:
 il prezzo della camera non si cambia mai».
+
+## 7. Sotto «Da pagare» niente «2 notti · 80 € a notte»
+
+Nel conto della scheda e in quello dell'inserimento, sotto la cifra grande
+«Da pagare» non c'è la riga con le notti e il prezzo medio a notte (Ania,
+18/09/2026: «togli questo»). Resta solo nel foglio «Il soggiorno si
+allunga», dove serve a confrontare prezzo pieno e sconto.
+
+Test: `lib/scheda.test.ts` → «il conto» (le due asserzioni «la scheda /
+l'inserimento rimette la riga «notti · a notte» sotto «Da pagare»»).

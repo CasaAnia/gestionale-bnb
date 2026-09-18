@@ -63,7 +63,8 @@ export default function ContoScheda({ testa, conto, accordo, pagamenti, onPagame
         {conto.righe.map(r => <RigaConto key={r.chiave} riga={r} />)}
         <TotaleConto importo={conto.totale} />
         {conto.sconto && <ScontoConto sconto={conto.sconto} />}
-        <DaPagareConto importo={conto.daPagare} sotto={conto.sotto} />
+        {/* Sotto «Da pagare» niente «2 notti · 80 € a notte» (Ania, 18/09/2026, regola fissa n. 7) */}
+        <DaPagareConto importo={conto.daPagare} />
       </div>
 
       {/* Come paga: il nome del modo e, sotto, la frase per esteso */}

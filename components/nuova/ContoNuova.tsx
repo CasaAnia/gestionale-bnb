@@ -52,7 +52,8 @@ export default function ContoNuova({ conto, manca, className = '' }: {
       {conto.righe.map(r => <RigaConto key={r.chiave} riga={r} />)}
       <TotaleConto importo={euroGrande(conto.totale)} />
       {conto.sconto && <ScontoConto sconto={conto.sconto} />}
-      <DaPagareConto importo={euroGrande(conto.daPagare)} sotto={conto.aNotte || null}>
+      {/* Sotto «Da pagare» niente «2 notti · 80 € a notte» (Ania, 18/09/2026, regola fissa n. 7) */}
+      <DaPagareConto importo={euroGrande(conto.daPagare)}>
         {manca && <p data-manca-conto className="text-right" style={{ fontSize: 12, color: OTTONE, marginTop: 2 }}>{manca}</p>}
       </DaPagareConto>
     </section>
