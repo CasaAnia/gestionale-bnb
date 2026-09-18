@@ -64,3 +64,20 @@ test('il modulo a mano non salva una richiesta senza numero', () => {
   const web = readFileSync(new URL('./richiesteWeb.ts', import.meta.url), 'utf8')
   assert.match(web, /if \(!numeroUsabile\(/)
 })
+
+// ── I due account nella conferma con immagine (Ania, 18/09/2026) ────────────
+// Sul Mac e sul telefono ci sono WhatsApp Business e il WhatsApp personale:
+// un link whatsapp:// da solo faceva chiedere al sistema «quale app?» con
+// nomi non modificabili. I due tasti li mette il gestionale, coi nomi scelti
+// da Ania: «Messaggio CG» apre Business, «Messaggio Ania» il personale.
+test('conferma con immagine: due tasti «Messaggio CG» (Business) e «Messaggio Ania» (personale), con openWhatsApp', () => {
+  const s = readFileSync(new URL('../components/ConfermaWhatsApp.tsx', import.meta.url), 'utf8')
+  assert.match(s, /export const TASTO_MESSAGGIO_CG = 'Messaggio CG'/)
+  assert.match(s, /export const TASTO_MESSAGGIO_ANIA = 'Messaggio Ania'/)
+  assert.match(s, /data-messaggio="cg" onClick=\{\(\) => apriChat\(true\)\}[\s\S]{0,200}\{TASTO_MESSAGGIO_CG\}/)
+  assert.match(s, /data-messaggio="ania" onClick=\{\(\) => apriChat\(false\)\}[\s\S]{0,200}\{TASTO_MESSAGGIO_ANIA\}/)
+  assert.match(s, /openWhatsApp\(numeroChat, testoMessaggio, business\)/)
+  assert.equal(/whatsapp:\/\/send/.test(s), false, 'il link whatsapp:// scritto a mano è tornato: usare openWhatsApp')
+  // prima il tasto del lavoro, poi quello personale
+  assert.ok(s.indexOf('data-messaggio="cg"') < s.indexOf('data-messaggio="ania"'))
+})

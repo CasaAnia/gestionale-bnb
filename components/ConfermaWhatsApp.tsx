@@ -10,6 +10,15 @@ import type { Booking } from '@/lib/types'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
 import { generaPng as generaPngDa } from '@/lib/immaginePng'
+import { openWhatsApp, numeroUsabile } from '@/lib/whatsapp'
+
+// I due account (Ania, 18/09/2026): sul Mac e sul telefono ci sono sia
+// WhatsApp Business (il lavoro) sia il WhatsApp personale, e un link
+// whatsapp:// da solo faceva chiedere al sistema «quale app?» con due nomi
+// che non si possono cambiare. Qui i due tasti li mette il gestionale, con i
+// nomi scelti da Ania, e ognuno apre direttamente la sua app (lib/whatsapp).
+export const TASTO_MESSAGGIO_CG = 'Messaggio CG'       // WhatsApp Business
+export const TASTO_MESSAGGIO_ANIA = 'Messaggio Ania'   // WhatsApp personale
 
 // colonne migrate a mano (assenti dall'interfaccia Booking di lib/types)
 type PrenotazioneConferma = Booking & {
@@ -206,25 +215,13 @@ Ania`
     setBusy(null)
   }
 
-  // Apre direttamente la chat WhatsApp del cliente con il messaggio già scritto
-  // (app WhatsApp se installata, altrimenti WhatsApp Web dopo 1 secondo)
-  function apriChat() {
-    const raw = (booking.guests?.phone || '').replace(/\D/g, '')
-    if (!raw) return
-    const phone = raw.startsWith('39') ? raw : `39${raw}`
-    const encoded = encodeURIComponent(testoMessaggio)
-    const appUrl = `whatsapp://send?phone=${phone}&text=${encoded}`
-    const webUrl = `https://wa.me/${phone}?text=${encoded}`
-    let handedOff = false
-    const mark = () => { handedOff = true }
-    document.addEventListener('visibilitychange', mark)
-    window.addEventListener('blur', mark)
-    window.location.href = appUrl
-    setTimeout(() => {
-      document.removeEventListener('visibilitychange', mark)
-      window.removeEventListener('blur', mark)
-      if (!handedOff) window.open(webUrl, '_blank', 'noopener,noreferrer')
-    }, 1000)
+  // Apre direttamente la chat WhatsApp del cliente con il messaggio già
+  // scritto, nell'account scelto col tasto (Business o personale): lo stesso
+  // meccanismo dei messaggi di testo, con la ricaduta su WhatsApp Web.
+  const numeroChat = numeroUsabile(booking.guests?.phone)
+  function apriChat(business: boolean) {
+    if (!numeroChat) return
+    openWhatsApp(numeroChat, testoMessaggio, business)
   }
 
   async function copiaTesto() {
@@ -305,12 +302,18 @@ Ania`
         {errore && <p className="text-xs text-[#8C3B2E] font-semibold mb-3">{errore}</p>}
 
         {/* PASSO 2: apri direttamente la chat del cliente */}
-        <p className="text-xs font-semibold text-green-dark mb-1.5">2 · Apri la chat del cliente (messaggio già scritto)</p>
-        {booking.guests?.phone ? (
-          <button onClick={apriChat}
-            className="w-full bg-green-dark text-white rounded-xl py-3 font-semibold text-sm mb-4">
-            Apri chat di {nome}
-          </button>
+        <p className="text-xs font-semibold text-green-dark mb-1.5">2 · Apri la chat di {nome} (messaggio già scritto)</p>
+        {numeroChat ? (
+          <div className="flex gap-2 mb-4">
+            <button type="button" data-messaggio="cg" onClick={() => apriChat(true)}
+              className="flex-1 bg-green-dark text-white rounded-xl py-3 font-semibold text-sm">
+              {TASTO_MESSAGGIO_CG}
+            </button>
+            <button type="button" data-messaggio="ania" onClick={() => apriChat(false)}
+              className="flex-1 bg-green-dark text-white rounded-xl py-3 font-semibold text-sm">
+              {TASTO_MESSAGGIO_ANIA}
+            </button>
+          </div>
         ) : (
           <p className="text-xs text-[#8C3B2E] font-semibold mb-4">Nessun numero di telefono sulla prenotazione</p>
         )}
