@@ -1,0 +1,62 @@
+# REGOLE FISSE del gestionale Casa Ania
+
+Questi comportamenti li ha decisi Ania e **non si toccano senza una sua
+richiesta esplicita**. Prima di ogni incarico: `git pull` su `main` e lettura
+di questo file. Prima di ogni push la suite deve essere verde (`npm test`).
+
+Ogni regola indica il test che la protegge: se un cambiamento la rompe, la
+suite fallisce e il push non parte. Una regola nuova entra qui solo con il
+suo test.
+
+## 1. Maiuscola automatica su nome e cognome, ovunque
+
+Nome e cognome del cliente (e di chi dorme con lei, e delle richieste)
+partono con la maiuscola **mentre si scrive**, in ogni modulo del gestionale:
+«mario rossi» → «Mario Rossi», «d'angelo» → «D'Angelo», «de luca» → «De
+Luca», «anna-maria» → «Anna-Maria». Il resto della parola non si tocca.
+
+Come è fatta, così non si perde più (18/09/2026, dopo tre regressioni):
+- **una sola funzione**: `conIniziali` in `lib/maiuscole.ts` (e
+  `maiuscoleNelCampo` per il campo mentre si scrive);
+- **un solo componente** per i campi Nome e Cognome:
+  `components/CampiNomeCognome.ts` (con `autoCapitalize="words"` per la
+  tastiera dell'iPhone). Nessun modulo ha campi del nome suoi;
+- **seconda rete al salvataggio**: `nomeDaSalvare` in `lib/guestName.ts`
+  per `guests.full_name`, `conInizialiNomeCognome` per le richieste
+  (`lib/richiesteDati.ts` e la route delle richieste dal sito).
+
+Test: `lib/nomiOvunque.test.ts` (tutto il file: la funzione, il componente
+fatto girare, ogni modulo, le due guardie sui sorgenti) e
+`lib/maiuscole.test.ts`.
+
+## 2. Il cliente si scrive sempre nome e poi cognome, ovunque
+
+«Anna Rossi», mai «Rossi Anna»: in ogni testo, elenco, calendario, messaggio,
+push e nei moduli (il campo Nome viene prima del campo Cognome). Nome e
+cognome li mette insieme **solo** `nomeCompleto` / `nomeBreve` di
+`lib/guestName.ts`; nessun altro punto del codice li concatena da sé.
+
+Test: `lib/ordineNomi.test.ts` (tutto il file: «mai cognome + nome»,
+«nome e cognome li mette insieme SOLO nomeCompleto/nomeBreve», «nel
+componente condiviso il campo Nome viene prima del campo Cognome») e
+`lib/guestName.test.ts`.
+
+## 3. Elisione nelle date solo davanti a 1, 8 e 11
+
+«dall'1», «all'8», «dell'11» — perché in italiano uno, otto e undici
+cominciano per vocale. Mai davanti agli altri giorni: «al 18», «dal 28»,
+«del 21», «al 31».
+
+Test: `lib/richiesteTesti.test.ts` → «elisione SOLO per 1, 8, 11 (uno, otto,
+undici) in tutte le forme: al/dal/del; mai per 18, 21, 28, 31» e «date con
+l'elisione, mesi diversi, «la notte del», righe brevi».
+
+## 4. Nell'ordinamento delle Richieste la voce si chiama «Durata»
+
+Nella fascia dei comandi delle Richieste le tre voci dell'ordine sono, in
+quest'ordine, **Arrivo · Durata · Persone** (scritte in maiuscolo dalla
+veste). La voce di mezzo si chiama «Durata», non «Notti» né altro (Ania,
+12/09/2026), e ordina per notti decrescenti.
+
+Test: `lib/richieste.test.ts` → «le tre parole dell'ordinamento, nell'ordine
+chiesto» e «la fascia ha le quattro voci, e «da guardare» porta il numero».
