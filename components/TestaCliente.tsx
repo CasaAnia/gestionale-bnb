@@ -45,7 +45,7 @@ export type TestaClienteProps = {
   volte?: number
   /** il cliente è già nell'archivio, anche senza soggiorni conclusi */
   inArchivio?: boolean
-  /** da dove arriva il CLIENTE: «Google», «passaparola», «mandata da Nida».
+  /** da dove arriva il CLIENTE: «Google», «passaparola», «da Nida».
    *  Solo per chi torna; senza, accanto alle volte non si scrive niente. */
   provenienza?: string | null
   /** come e quando è arrivata la richiesta: «dal sito · oggi 20:05» */
