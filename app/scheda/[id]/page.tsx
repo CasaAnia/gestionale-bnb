@@ -59,14 +59,12 @@ import FoglioAnnulla from '@/components/scheda/FoglioAnnulla'
 import FoglioSconto from '@/components/scheda/FoglioSconto'
 import FoglioTogliPagamento from '@/components/scheda/FoglioTogliPagamento'
 import FoglioNota from '@/components/scheda/FoglioNota'
-import FoglioTariffa from '@/components/scheda/FoglioTariffa'
 import FoglioDate from '@/components/scheda/FoglioDate'
 import FoglioCambioCamera from '@/components/scheda/FoglioCambioCamera'
 import FoglioTogliCamera from '@/components/scheda/FoglioTogliCamera'
 import FoglioPrezzoSoggiorno from '@/components/scheda/FoglioPrezzoSoggiorno'
 import { SENZA_SCONTO, serveConfermaPrezzo, type PrezzoDeciso } from '@/lib/soggiornoSconto'
 import { COMANDO_TOGLI_CAMERA, CAMERA_TOLTA, siPuoTogliere, schedaDopo } from '@/lib/togliCamera'
-import { TARIFFE_SALVATE } from '@/lib/tariffaScheda'
 import { COMANDO_AGGIUNGI_CAMERA, ERRORE_SENZA_CAMERE, legameDaScrivere, hrefAggiungiCamera } from '@/lib/aggiungiCamera'
 import { aggiornaInUnColpo } from '@/lib/righeDati'
 import FoglioConLei from '@/components/scheda/FoglioConLei'
@@ -190,7 +188,6 @@ export default function SchedaPage() {
   // il pagamento da togliere: l'id della riga di payments
   const [pagamentoDaTogliere, setPagamentoDaTogliere] = useState<string | null>(null)
   const [foglioNota, setFoglioNota] = useState(false)
-  const [foglioTariffe, setFoglioTariffe] = useState(false)
   // «Cambia date» di una linea: la chiave della linea aperta
   const [dateAperte, setDateAperte] = useState<string | null>(null)
   // «Cambio camera» di una linea: la chiave della linea aperta
@@ -232,7 +229,7 @@ export default function SchedaPage() {
   const invalida = (messaggio: string) => {
     setAvviso(messaggio)
     setContoLeggibile(false)
-    setFoglioSconto(false); setFoglioTariffe(false); setFoglioNota(false); setFoglioConLei(false)
+    setFoglioSconto(false); setFoglioNota(false); setFoglioConLei(false)
     rileggi()
   }
   // dalla Home, «Registra saldo» arriva con ?azione=pagato: il foglio si apre da sé, una volta
@@ -668,7 +665,7 @@ export default function SchedaPage() {
           ? <ContoScheda className="mt-3" testa={testa} conto={contoRighe}
             accordo={comePagaTesto} pagamenti={rigePagamenti}
             onPagamento={() => setFoglioPagamento(true)} onComePaga={() => setFoglioComePaga(true)} onSconto={() => setFoglioSconto(true)}
-            onTogliPagamento={id => setPagamentoDaTogliere(id)} onTariffe={() => setFoglioTariffe(true)} />
+            onTogliPagamento={id => setPagamentoDaTogliere(id)} />
           : <p className="mt-2" style={{ fontSize: 13, color: 'var(--color-stone)' }}>Non riesco a leggere il conto. Ricarica la scheda prima di toccare i pagamenti.</p>}
       </section>
 
@@ -808,20 +805,6 @@ export default function SchedaPage() {
           ricevutiCent={conto.ricevutiCent} salvando={salvandoNotti}
           onTorna={() => setPrezzoDaConfermare(null)}
           onConferma={prezzo => { void salvaNotti(prezzoDaConfermare.linea, prezzoDaConfermare.nuove, prezzo) }} />
-      )}
-      {foglioTariffe && conto && (
-        <FoglioTariffa righe={righe}
-          onChiudi={() => setFoglioTariffe(false)} onIncerto={invalida}
-          onSalvato={(scritte, cambiato) => {
-            setFoglioTariffe(false)
-            if (!cambiato) return
-            const per = new Map(scritte.map(r => [r.id, r.campi]))
-            const aggiorna = (r: Prenotazione): Prenotazione => (per.has(r.id) ? { ...r, ...per.get(r.id) } : r)
-            setRighe(rs => rs.map(aggiorna))
-            setBooking(b => (b ? aggiorna(b) : b))
-            setAvviso(TARIFFE_SALVATE)
-            rileggi()
-          }} />
       )}
       {foglioNota && (
         <FoglioNota booking={booking} righe={righe}

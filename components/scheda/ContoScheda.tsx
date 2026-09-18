@@ -16,7 +16,6 @@ import { TITOLO_COME_PAGA } from '@/components/ComePaga'
 import { RigaConto, TotaleConto, ScontoConto, DaPagareConto } from '@/components/ContoRighe'
 import { COMANDO_SCONTO } from '@/lib/scontoScheda'
 import { COMANDO_TOGLI } from '@/lib/pagamentoFoglio'
-import { COMANDO_TARIFFE } from '@/lib/tariffaScheda'
 import type { ContoInRighe, RigaPagamento, TestaConto } from '@/lib/schedaConto'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
@@ -24,7 +23,7 @@ export const ROSSO_CONTO = '#D40000'
 export const FONDO_BARRA = '#EFE9DC'
 export const ALTEZZA_BARRA = 4
 
-export default function ContoScheda({ testa, conto, accordo, pagamenti, onPagamento, onComePaga, onSconto, onTogliPagamento, onTariffe, className = '' }: {
+export default function ContoScheda({ testa, conto, accordo, pagamenti, onPagamento, onComePaga, onSconto, onTogliPagamento, className = '' }: {
   testa: TestaConto
   /** il conto in righe (lib/schedaConto.contoScheda) */
   conto: ContoInRighe
@@ -37,8 +36,6 @@ export default function ContoScheda({ testa, conto, accordo, pagamenti, onPagame
   onSconto: () => void
   /** apre il foglio «Togli pagamento» (17/09/2026) per quel pagamento */
   onTogliPagamento: (id: string) => void
-  /** apre il foglio «Tariffe» (17/09/2026): la tariffa a notte di ogni tratto */
-  onTariffe: () => void
   className?: string
 }) {
   return (
@@ -97,7 +94,8 @@ export default function ContoScheda({ testa, conto, accordo, pagamenti, onPagame
         <button type="button" data-aggiungi-pagamento onClick={onPagamento} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Aggiungi pagamento</button>
         <button type="button" onClick={onComePaga} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Cambia come paga</button>
         <button type="button" data-modifica-sconto onClick={onSconto} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>{COMANDO_SCONTO}</button>
-        <button type="button" data-modifica-tariffe onClick={onTariffe} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>{COMANDO_TARIFFE}</button>
+        {/* Niente «Tariffe» (Ania, 18/09/2026, regola fissa n. 6): il prezzo
+            della camera è il listino e non si cambia mai; cambia solo lo sconto. */}
       </p>
     </div>
   )

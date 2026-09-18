@@ -7,7 +7,7 @@
 // ============================================================================
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 
 const leggi = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
 const pagina = leggi('app/scheda/[id]/page.tsx')
@@ -25,7 +25,6 @@ const FOGLI: { file: string; stato: string; apre: RegExp }[] = [
   { file: 'FoglioSconto', stato: 'foglioSconto', apre: /onSconto=\{\(\) => setFoglioSconto\(true\)\}/ },
   { file: 'FoglioNota', stato: 'foglioNota', apre: /data-nota-colore onClick=\{\(\) => setFoglioNota\(true\)\}/ },
   { file: 'FoglioConLei', stato: 'foglioConLei', apre: /onConLei=\{\(\) => setFoglioConLei\(true\)\}/ },
-  { file: 'FoglioTariffa', stato: 'foglioTariffe', apre: /onTariffe=\{\(\) => setFoglioTariffe\(true\)\}/ },
 ]
 // «Cambia date» si apre su UNA linea (lo stato porta la chiave): si prova a parte, sotto
 // «Togli pagamento» si apre su UN pagamento (lo stato porta l'id): si prova a parte, sotto
@@ -428,18 +427,18 @@ test('l’email della cliente sta nel modulo di sempre (inserimento e scheda), e
   assert.match(leggi('lib/datiCliente.ts'), /email: m\.email\.trim\(\) \|\| null,/)
 })
 
-// ── 10. TARIFFE · CAMBIA DATE · AGGIUNGI CAMERA (17/09/2026) ────────────────
-test('«Tariffe»: un campo per tratto, totale attuale e nuovo, si scrive riga per riga', () => {
-  const tariffe = leggi('components/scheda/FoglioTariffa.tsx')
-  assert.match(leggi('components/scheda/ContoScheda.tsx'), /data-modifica-tariffe onClick=\{onTariffe\}/)
-  assert.match(tariffe, /data-campo=\{`tariffa-\$\{v\.id\}`\}/)
-  assert.match(tariffe, /data-anteprima-tariffe/)
-  assert.match(tariffe, /aggiornaRigaPerRiga\(esito\.righe\)/)
-  assert.match(tariffe, /if \(esito\.righe\.length === 0\) \{ onSalvato\(\[\], false\); return \}/)
-  assert.equal(/supabase/.test(tariffe), false)
-  const dopo = pagina.slice(pagina.indexOf('<FoglioTariffa'), pagina.indexOf('<FoglioTariffa') + 800)
-  assert.match(dopo, /setRighe\(rs => rs\.map\(aggiorna\)\)/)
-  assert.match(dopo, /rileggi\(\)/)
+// ── 10. NIENTE «TARIFFE» · CAMBIA DATE · AGGIUNGI CAMERA ────────────────────
+// REGOLA FISSA n. 6 (Ania, 18/09/2026: «togli tariffe dalla prenotazione, il
+// prezzo della camera non deve cambiare mai»): il foglio «Tariffe» del
+// 17/09 non c'è più. Il prezzo a notte è il listino; cambia solo lo sconto.
+test('nella scheda non c’è il comando «Tariffe»: il prezzo della camera non si cambia mai', () => {
+  const conto = leggi('components/scheda/ContoScheda.tsx')
+  assert.equal(/onTariffe|data-modifica-tariffe|tariffaScheda|>Tariffe</.test(conto), false, 'è tornato il comando «Tariffe» nel conto')
+  assert.equal(/FoglioTariffa|foglioTariffe|tariffaScheda/.test(pagina), false, 'la scheda apre ancora il foglio «Tariffe»')
+  assert.equal(existsSync(new URL('../components/scheda/FoglioTariffa.tsx', import.meta.url)), false, 'components/scheda/FoglioTariffa.tsx esiste ancora')
+  assert.equal(existsSync(new URL('./tariffaScheda.ts', import.meta.url)), false, 'lib/tariffaScheda.ts esiste ancora')
+  // i comandi del conto sono questi, e basta
+  assert.match(conto, /data-aggiungi-pagamento[\s\S]{0,400}Cambia come paga[\s\S]{0,300}data-modifica-sconto/)
 })
 
 test('«Cambia date» sotto ogni striscia: arrivo e partenza, l’effetto sul conto, e «Fatto» salva come dalla striscia', () => {
@@ -486,7 +485,7 @@ test('una scrittura incerta (a metà, o senza risposta) fa rileggere la scheda e
   assert.match(righeScrittura, /if \(toccate !== ids\.length\) return \{ esito: 'errore', messaggio: ERRORE_RIGA_NON_TROVATA, scritte: toccate, incerto: true \}/)
   // il client dell'app entra da lib/righeDati; la logica è provata col client PostgREST vero (lib/righeScrittura.test.ts)
   assert.match(leggi('lib/righeDati.ts'), /const client = supabase as unknown as ClienteRighe/)
-  for (const f of ['FoglioSconto', 'FoglioTariffa', 'FoglioNota', 'FoglioConLei']) {
+  for (const f of ['FoglioSconto', 'FoglioNota', 'FoglioConLei']) {
     const src = leggi(`components/scheda/${f}.tsx`)
     assert.match(src, /\.incerto\) \{ onIncerto\(\w+\.messaggio\); return \}/, `${f} non avvisa la scheda della scrittura incerta`)
     assert.match(pagina, new RegExp(`<${f}[\\s\\S]{0,200}onIncerto=\\{invalida\\}`), `${f} non riceve invalida`)
@@ -494,7 +493,7 @@ test('una scrittura incerta (a metà, o senza risposta) fa rileggere la scheda e
   assert.match(leggi('components/scheda/FoglioNota.tsx'), /aggiornaInUnColpo\(ids, campi\)/)
   assert.match(leggi('components/scheda/FoglioConLei.tsx'), /aggiornaInUnColpo\(ids, campi\)/)
   // la scheda: niente conto finché non ha riletto tutto; dopo una rilettura fallita resta nascosto
-  assert.match(pagina, /const invalida = \(messaggio: string\) => \{\n\s+setAvviso\(messaggio\)\n\s+setContoLeggibile\(false\)\n\s+setFoglioSconto\(false\); setFoglioTariffe\(false\); setFoglioNota\(false\); setFoglioConLei\(false\)\n\s+rileggi\(\)/)
+  assert.match(pagina, /const invalida = \(messaggio: string\) => \{\n\s+setAvviso\(messaggio\)\n\s+setContoLeggibile\(false\)\n\s+setFoglioSconto\(false\); setFoglioNota\(false\); setFoglioConLei\(false\)\n\s+rileggi\(\)/)
   const daLetture = pagina.indexOf('const [pag, altre, vicine, doc, stanze] = await Promise.all')
   assert.match(pagina.slice(daLetture, daLetture + 1800), /setContoLeggibile\(!conto\.errore && !pag\.error\)/, 'il conto deve tornare solo dopo camere E pagamenti riletti')
   assert.equal((pagina.match(/setContoLeggibile\(/g) ?? []).length, 2, 'setContoLeggibile: solo invalida e la lettura completa')

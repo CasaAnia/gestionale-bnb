@@ -76,3 +76,14 @@ al 29, poi la partenza va al 30 → anche il 29 è Ambra in 2, un tratto solo»,
 «la notte nuova resta col «?» solo se la camera accanto è occupata» e
 «toccando le date le camere già messe restano, e la notte nuova prende la
 camera della notte accanto».
+
+## 6. Il prezzo della camera non si cambia mai: niente «Tariffe» nella scheda
+
+Il prezzo a notte di una camera è il listino di casa e resta quello. Nella
+scheda della prenotazione non c'è nessun comando «Tariffe» per riscrivere la
+tariffa dei tratti: quello che cambia è solo lo sconto, dal comando «Sconto»
+del conto (Ania, 18/09/2026: «togli tariffe dalla prenotazione, il prezzo
+della camera non deve cambiare mai»).
+
+Test: `lib/fogliScheda.test.ts` → «nella scheda non c'è il comando «Tariffe»:
+il prezzo della camera non si cambia mai».
