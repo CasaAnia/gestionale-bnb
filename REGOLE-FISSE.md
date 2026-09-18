@@ -105,7 +105,8 @@ camere si susseguono senza mai stare insieme nella stessa notte è un cambio
 camera e si scrivono tutti i nomi col segno di sempre, «Lena ⇄ Amelia ⇄
 Lena». Il «+» resta solo per due camere nelle stesse notti («Lena + Amelia»).
 Quando i nomi sono tanti la riga scende da 24 a 18 px e può andare a capo su
-due righe (Ania, 18/09/2026).
+due righe; le scritte «ospiti» e «camera» restano sulla stessa riga (Ania,
+18/09/2026).
 
 Test: `lib/schedaPrenotazione.test.ts` → «riga grande: una camera, con cambi, con due
 camere insieme» e `lib/scheda.test.ts` → la prova della testa (`RigaGrande`).

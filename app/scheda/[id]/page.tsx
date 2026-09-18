@@ -138,8 +138,9 @@ type Prenotazione = SegmentoScheda & RigaPrenotazione & {
 function RigaGrande({ ospiti, camere, cambi, insieme }: { ospiti: number; camere: string; cambi: number; insieme: boolean }) {
   const etichetta = { marginTop: 6, fontSize: 9, letterSpacing: '1.5px', textTransform: 'uppercase' as const, color: 'var(--color-stone)' }
   const misura = misuraCamere(camere)
+  // allineate in basso: «ospiti» e «camera» sulla stessa riga anche coi nomi su due righe (Ania, 18/09/2026)
   return (
-    <div data-riga-grande className="flex items-start justify-center" style={{ gap: 44 }}>
+    <div data-riga-grande className="flex items-end justify-center" style={{ gap: 44 }}>
       <div className="text-center" data-ospiti-testa>
         <p className="leading-[1.15]" style={{ fontFamily: GEORGIA, fontWeight: 400, fontSize: 24, color: 'var(--color-green-dark)' }}>{ospiti}</p>
         <p style={etichetta}>ospiti</p>

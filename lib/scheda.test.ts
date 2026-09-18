@@ -87,6 +87,8 @@ test('la riga grande: due colonne a 44 px, Georgia 24, «⇄ 2» a 15 px #5B6559
   // regola fissa n. 8: i cambi stanno nei nomi; il numero solo con due camere insieme; nomi lunghi in 18 px su due righe
   assert.match(riga, /\{insieme && cambi > 0 && <span data-cambi style=\{\{ fontSize: 15, color: VERDE_MESE \}\}> \{SEGNO_CAMBIO\} \{cambi\}/)
   assert.match(riga, /misura === MISURA_CAMERE\.normale \? 'leading-\[1\.15\] truncate' : 'leading-\[1\.15\] line-clamp-2'/)
+  // le due colonne allineate in basso: «ospiti» e «camera» sulla stessa riga anche coi nomi su due righe (Ania, 18/09/2026)
+  assert.match(riga, /data-riga-grande className="flex items-end justify-center"/)
   assert.match(pagina, /const VERDE_MESE = '#5B6559'/)
   assert.match(riga, />ospiti</)
   assert.match(riga, />camera</)
