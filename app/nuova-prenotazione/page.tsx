@@ -340,8 +340,11 @@ export default function NuovaPrenotazionePage() {
       const libera = (iso: string, id: string) => scelte.find(s => s.camera.id === id)?.notti.includes(iso) ?? false
       // Si tocca SOLO quello che è stato toccato: la camera di una notte
       // sistemata a mano non si perde perché si cambiano gli ospiti o le date.
+      // «libera» serve sempre: anche una notte nuova (date allungate) prende la
+      // camera della notte accanto solo se è libera (regola fissa n. 5)
       const rifatti = periodiDellaLinea({ gruppo, arrivo, partenza }, linea.periodi, {
-        ...(pezzo.roomId !== undefined ? { cameraScelta: pezzo.roomId, libera } : {}),
+        libera,
+        ...(pezzo.roomId !== undefined ? { cameraScelta: pezzo.roomId } : {}),
         ...(pezzo.ospiti !== undefined
           ? { ospiti: pezzo.ospiti }
           : cambiaCamera ? { ospiti: ospitiScegliendoCamera(d.ospiti, trovaCamera(d.roomId), camera) } : {}),

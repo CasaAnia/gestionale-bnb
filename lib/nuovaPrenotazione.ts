@@ -155,18 +155,30 @@ export function periodiDellaLinea(
     }]
   }
 
-  const perNotte = notti.map(iso => {
+  // Una notte NUOVA (il soggiorno si allunga) prende la camera e gli ospiti
+  // della notte accanto già sistemata — quella prima, o se non c'è quella
+  // dopo — purché la camera sia libera: Ania non deve sistemare ogni notte a
+  // mano quando non c'è nessun cambio camera (regola fissa n. 5, 18/09/2026).
+  // Il «?» resta solo quando la camera è davvero occupata.
+  const accanto = (i: number): NottePrima | undefined => {
+    for (let k = i - 1; k >= 0; k--) { const p = prima.get(notti[k]); if (p) return p }
+    for (let k = i + 1; k < notti.length; k++) { const p = prima.get(notti[k]); if (p) return p }
+    return undefined
+  }
+  const perNotte = notti.map((iso, i) => {
     const era = prima.get(iso)
+    const vicina = era ? undefined : accanto(i)
     // La camera scelta in alto va nelle notti in cui è libera; dove non lo è,
     // la notte resta com'era — quello che Ania ha messo a mano non si cancella
     // (15/09/2026: toccando il «+» degli ospiti spariva la camera di una notte).
     let roomId = era?.roomId ?? null
+    if (vicina?.roomId && (!cambio.libera || cambio.libera(iso, vicina.roomId))) roomId = vicina.roomId
     if (cambio.cameraScelta !== undefined) {
       const scelta = cambio.cameraScelta
       if (scelta === null) roomId = null
       else if (!cambio.libera || cambio.libera(iso, scelta)) roomId = scelta
     }
-    return { iso, roomId, ospiti: cambio.ospiti ?? era?.ospiti ?? 1, letto: era?.letto ?? false }
+    return { iso, roomId, ospiti: cambio.ospiti ?? era?.ospiti ?? vicina?.ospiti ?? 1, letto: era?.letto ?? false }
   })
 
   const blocchi: { roomId: string | null; ospiti: number; notti: { iso: string; letto: boolean }[] }[] = []
@@ -177,11 +189,14 @@ export function periodiDellaLinea(
   }
   return blocchi.map(b => {
     const checkIn = b.notti[0].iso
-    const era = prima.get(checkIn)
+    // com'era il tratto: la prima notte che c'era già (se il soggiorno si
+    // allunga all'indietro, la prima notte del tratto è nuova)
+    const eraInizio = prima.get(checkIn)
+    const era = eraInizio ?? b.notti.map(n => prima.get(n.iso)).find(Boolean)
     const stessaCamera = era?.roomId === b.roomId
     const tariffaScritta = cambio.tariffa !== undefined && b.roomId != null && b.roomId === cambio.cameraDellaTariffa
     return {
-      id: era && stessaCamera && era.inizio ? era.id : nuovoId(),
+      id: eraInizio && stessaCamera && eraInizio.inizio ? eraInizio.id : nuovoId(),
       gruppo: base.gruppo,
       roomId: b.roomId,
       checkIn,

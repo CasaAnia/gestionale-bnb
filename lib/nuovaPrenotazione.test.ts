@@ -1020,12 +1020,41 @@ test('toccando gli ospiti in alto le camere delle notti restano', () => {
   assert.equal(dopo.every(p => p.ospiti === 3), true)
 })
 
-test('toccando le date le camere già messe restano, e le notti nuove sono vuote', () => {
+// REGOLA FISSA n. 5 (Ania, 18/09/2026: «non voglio ogni casella di ogni
+// prenotazione impostarla»): allungando le date, la notte nuova prende la
+// camera e gli ospiti della notte accanto già sistemata; le notti lasciate
+// vuote apposta restano vuote; accorciando non cambia niente.
+test('toccando le date le camere già messe restano, e la notte nuova prende la camera della notte accanto', () => {
   const conDue = aMano(aMano(VUOTO, '2026-09-16', ALLEGRA), '2026-09-17', LENA)
   const piuLunga = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-19' }, conDue, {}, contaId())
-  assert.deepEqual(nottiDaPeriodi(piuLunga, CAMERE as never).map(n => n.camera), [null, null, 'Allegra', 'Lena', null])
+  assert.deepEqual(nottiDaPeriodi(piuLunga, CAMERE as never).map(n => n.camera), [null, null, 'Allegra', 'Lena', 'Lena'])
   const piuCorta = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-16', partenza: '2026-09-18' }, conDue, {}, contaId())
   assert.deepEqual(nottiDaPeriodi(piuCorta, CAMERE as never).map(n => n.camera), ['Allegra', 'Lena'])
+})
+
+test('il caso di Ania: Ambra in 2 dal 28 al 29, poi la partenza va al 30 → anche il 29 è Ambra in 2, un tratto solo', () => {
+  let c = 0
+  const nuovoId = () => `n${++c}`
+  const libera = () => true
+  const unaNotte = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-28', partenza: '2026-09-29' }, [], { cameraScelta: AMBRA.id, libera, ospiti: 2, tariffa: 90, cameraDellaTariffa: AMBRA.id }, nuovoId)
+  const dueNotti = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-28', partenza: '2026-09-30' }, unaNotte, { libera }, nuovoId)
+  assert.deepEqual(dueNotti.map(p => [p.roomId, p.checkIn, p.checkOut, p.ospiti, p.tariffa]), [[AMBRA.id, '2026-09-28', '2026-09-30', 2, 90]])
+  assert.deepEqual(nottiDaPeriodi(dueNotti, CAMERE as never).map(n => n.camera), ['Ambra', 'Ambra'])
+  assert.equal(dueNotti[0].id, unaNotte[0].id, 'il tratto è lo stesso, allungato')
+  // anche all'indietro: l'arrivo va al 27 → il 27 è Ambra, stessa tariffa
+  const indietro = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-27', partenza: '2026-09-30' }, dueNotti, { libera }, nuovoId)
+  assert.deepEqual(indietro.map(p => [p.roomId, p.checkIn, p.checkOut, p.ospiti, p.tariffa]), [[AMBRA.id, '2026-09-27', '2026-09-30', 2, 90]])
+})
+
+test('la notte nuova resta col «?» solo se la camera accanto è occupata', () => {
+  let c = 0
+  const nuovoId = () => `n${++c}`
+  const unaNotte = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-28', partenza: '2026-09-29' }, [], { cameraScelta: AMBRA.id, libera: () => true, ospiti: 2 }, nuovoId)
+  // Ambra il 29 è occupata da un'altra prenotazione
+  const occupataIl29 = (iso: string, id: string) => !(iso === '2026-09-29' && id === AMBRA.id)
+  const dueNotti = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-28', partenza: '2026-09-30' }, unaNotte, { libera: occupataIl29 }, nuovoId)
+  assert.deepEqual(nottiDaPeriodi(dueNotti, CAMERE as never).map(n => n.camera), ['Ambra', null])
+  assert.equal(nottiDellaLinea({ gruppo: 'g', periodi: dueNotti }), 2, 'la notte senza camera non si perde')
 })
 
 test('la pastiglia in alto riempie le notti libere e lascia stare le altre', () => {

@@ -60,3 +60,19 @@ veste). La voce di mezzo si chiama «Durata», non «Notti» né altro (Ania,
 
 Test: `lib/richieste.test.ts` → «le tre parole dell'ordinamento, nell'ordine
 chiesto» e «la fascia ha le quattro voci, e «da guardare» porta il numero».
+
+## 5. Allungando le date, la notte nuova prende la camera della notte accanto
+
+Nell'inserimento di una prenotazione non si sistema ogni notte a mano: se il
+soggiorno si allunga (partenza più avanti, o arrivo più indietro), la notte
+nuova prende da sola la camera, gli ospiti e la tariffa della notte accanto
+già sistemata, purché quella camera sia libera. Il «?» resta solo quando la
+camera è davvero occupata. Il cambio camera si fa toccando la notte, come
+prima; le notti lasciate vuote apposta restano vuote (Ania, 18/09/2026:
+«non voglio ogni casella di ogni prenotazione impostarla»).
+
+Test: `lib/nuovaPrenotazione.test.ts` → «il caso di Ania: Ambra in 2 dal 28
+al 29, poi la partenza va al 30 → anche il 29 è Ambra in 2, un tratto solo»,
+«la notte nuova resta col «?» solo se la camera accanto è occupata» e
+«toccando le date le camere già messe restano, e la notte nuova prende la
+camera della notte accanto».
