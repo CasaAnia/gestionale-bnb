@@ -81,7 +81,7 @@ import { supabase } from '@/lib/supabase'
 import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiavePrenotazione, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import {
   SEZIONI_SCHEDA, TUTTO_A_POSTO, statoScheda, primaRigaScheda, etichettaArrivoScheda, rigaGrandeScheda, statoConto, noteScheda,
-  arrivoScheda, daControllareScheda, segmentiAttivi, euroScheda, type SegmentoScheda,
+  arrivoScheda, daControllareScheda, segmentiAttivi, type SegmentoScheda,
   PRENOTAZIONE_SALVATA, PRENOTAZIONE_DA_RICHIESTA, FONDO_SALVATA, FONDO_ANNULLATA, TESTO_ANNULLATA,
 } from '@/lib/schedaPrenotazione'
 import { comePagaSalvato } from '@/lib/comePaga'
@@ -101,7 +101,7 @@ import { numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
 import { openWhatsApp, telefonoAGruppi } from '@/lib/whatsapp'
 import buildWhatsappMsg, { perMessaggio, type TipoMessaggio } from '@/lib/messaggiPrenotazione'
 import {
-  testaConto, righeConto, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
+  testaConto, contoScheda, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
   type PagamentoScheda, type MessaggioInviato,
 } from '@/lib/schedaConto'
 import { leggiCronologia } from '@/lib/cronologiaDati'
@@ -485,7 +485,8 @@ export default function SchedaPage() {
   // ── CONTO ────────────────────────────────────────────────────────────────
   const pagamentiScheda = pagamenti as unknown as PagamentoScheda[]
   const testa = conto ? testaConto(conto, pagamentiScheda, righe.some(r => r.pagato)) : null
-  const rigeConto = useMemo(() => righeConto(attive), [attive])
+  // il conto in righe (18/09/2026): il «da pagare» resta quello autorevole di contoPrenotazione
+  const contoRighe = useMemo(() => (conto ? contoScheda(attive, conto.totaleCent) : null), [attive, conto])
   const rigePagamenti = useMemo(() => righePagamenti(pagamentiScheda), [pagamentiScheda])
   const accordoSalvato = (accordo as { accordo_pagamento?: string | null; caparra_centesimi?: number | null; caparra_entro?: string | null } | null)
   const comePagaTesto = comePagaScheda(accordoSalvato?.accordo_pagamento, accordo?.bonifico)
@@ -663,8 +664,8 @@ export default function SchedaPage() {
       {/* ── Conto ─────────────────────────────────────────────────────────── */}
       <section id="conto" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
         <p className="ed-sezione">Conto</p>
-        {testa && conto
-          ? <ContoScheda className="mt-3" testa={testa} righe={rigeConto} totale={euroScheda(conto.totaleCent)}
+        {testa && conto && contoRighe
+          ? <ContoScheda className="mt-3" testa={testa} conto={contoRighe}
             accordo={comePagaTesto} pagamenti={rigePagamenti}
             onPagamento={() => setFoglioPagamento(true)} onComePaga={() => setFoglioComePaga(true)} onSconto={() => setFoglioSconto(true)}
             onTogliPagamento={id => setPagamentoDaTogliere(id)} onTariffe={() => setFoglioTariffe(true)} />

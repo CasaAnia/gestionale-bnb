@@ -18,6 +18,7 @@ import type { NotteStriscia } from './strisciaNotti.ts'
 import { blocchiDaNotti } from './strisciaNotti.ts'
 import { GIORNI_LUNGHI, MESI_LUNGHI } from './dateItaliane.ts'
 import { euroScheda } from './schedaPrenotazione.ts'
+import { rigaSconto, nottiANotte, dettaglioLetto, RIGA_LETTO, type ScontoVista } from './contoInRighe.ts'
 
 // ── I testi della pagina ────────────────────────────────────────────────────
 // Stanno qui e non nella pagina: una pagina di Next può esportare solo il
@@ -405,7 +406,7 @@ export type ContoNuova = {
   aNotte: string                 // «5 notti · 77,40 € a notte»
   // già scritti, così il disegno non rifà nessun conto
   totale: string | null
-  sconto: string | null
+  sconto: ScontoVista | null     // «Sconto 10 %» −32 €, intero senza centesimi (18/09/2026)
   daPagare: string | null
 }
 
@@ -463,8 +464,9 @@ export function contoNuovaPrenotazione(
     const quante = nottiColLetto(periodi)
     righe.push({
       chiave: 'letto',
-      titolo: 'Letto in più',
-      dettaglio: `${quante} ${quante === 1 ? 'notte' : 'notti'}`,
+      titolo: RIGA_LETTO,
+      // «3 notti × 10 €» quando l'importo a notte torna (18/09/2026)
+      dettaglio: dettaglioLetto(quante, lettoCent, [Number.isInteger(lettoCent / quante) ? lettoCent / quante : -1]),
       importo: fmt(lettoCent),
       cent: lettoCent,
     })
@@ -480,9 +482,9 @@ export function contoNuovaPrenotazione(
     scontoCent,
     daPagareCent,
     notti: n,
-    aNotte: n > 0 && daPagareCent !== null ? `${n} ${n === 1 ? 'notte' : 'notti'} · ${fmt(Math.round(daPagareCent / n))} a notte` : '',
+    aNotte: daPagareCent !== null ? nottiANotte(n, daPagareCent) : '',
     totale: totaleCent === null ? null : fmt(totaleCent),
-    sconto: scontoCent > 0 ? fmt(scontoCent) : null,
+    sconto: rigaSconto(scontoCent, sconto.tipo === 'percentuale' ? sconto.valore : null),
     daPagare: daPagareCent === null ? null : fmt(daPagareCent),
   }
 }

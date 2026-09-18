@@ -318,13 +318,20 @@ test('il conto: stato in Georgia 32, dettaglio 12,5 stone, barretta 4 px', () =>
   assert.match(conto, /width: `\$\{Math\.round\(testa\.quotaPagata \* 100\)\}%`/)
 })
 
-test('il conto: righe 14 px col filo, sconto in ottone, totale in Georgia 24', () => {
-  assert.match(conto, /borderTop: i > 0 \? '1px solid var\(--color-card-border\)' : undefined/)
-  assert.match(conto, /color: r\.sconto \? OTTONE : 'var\(--color-green-dark\)'/)
-  const totale = conto.slice(conto.indexOf('data-totale-conto'), conto.indexOf('data-come-paga-riga'))
-  assert.match(totale, /borderTop: `1px solid \$\{FILO_OTTONE\}`/)
-  assert.match(totale, /fontSize: 14, fontWeight: 600[\s\S]*>Totale</)
-  assert.match(totale, /fontFamily: GEORGIA, fontSize: 24/)
+test('il conto: le righe di sempre (ContoRighe), «Totale» in Georgia 22, lo sconto in ottone una volta sola, «Da pagare» in Georgia 28 con le notti sotto (18/09/2026)', () => {
+  assert.match(conto, /import \{ RigaConto, TotaleConto, ScontoConto, DaPagareConto \} from '@\/components\/ContoRighe'/)
+  assert.match(conto, /\{conto\.righe\.map\(r => <RigaConto key=\{r\.chiave\} riga=\{r\} \/>\)\}/)
+  assert.match(conto, /<TotaleConto importo=\{conto\.totale\} \/>/)
+  assert.match(conto, /\{conto\.sconto && <ScontoConto sconto=\{conto\.sconto\} \/>\}/)
+  assert.match(conto, /<DaPagareConto importo=\{conto\.daPagare\} sotto=\{conto\.sotto\} \/>/)
+  const righe = leggi('components/ContoRighe.tsx')
+  assert.match(righe, /data-riga-conto=\{riga\.chiave\}[\s\S]{0,120}borderBottom: '1px solid var\(--color-card-border\)'/)
+  assert.match(righe, /data-totale[\s\S]{0,200}borderTop: `1px solid \$\{FILO_OTTONE\}`/)
+  assert.match(righe, /fontFamily: GEORGIA, fontSize: 22/)
+  assert.match(righe, /data-sconto-riga[\s\S]{0,200}color: OTTONE/)
+  assert.match(righe, /data-da-pagare[\s\S]{0,300}fontFamily: GEORGIA, fontSize: 28/)
+  // il «da pagare» resta quello autorevole di contoPrenotazione: la pagina lo passa, non lo rifà
+  assert.match(pagina, /const contoRighe = useMemo\(\(\) => \(conto \? contoScheda\(attive, conto\.totaleCent\) : null\), \[attive, conto\]\)/)
   // «Come paga» e pagamenti, poi i due comandi
   assert.match(conto, /data-come-paga-riga[\s\S]*\{TITOLO_COME_PAGA\}/)
   assert.match(conto, /\{accordo\.nome\}/)

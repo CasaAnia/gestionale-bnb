@@ -307,11 +307,11 @@ test('il conto: una riga per camera, il totale e quanto c’è da pagare', () =>
 test('il conto con lo sconto nei due modi', () => {
   const periodi = [periodo('a', AMBRA.id, '2026-12-05', '2026-12-09')]
   const percentuale = contoNuovaPrenotazione(periodi, trova, { tipo: 'percentuale', valore: 10 })
-  assert.equal(percentuale.sconto, '32 €')
+  assert.deepEqual(percentuale.sconto, { testo: 'Sconto 10 %', importo: '−32 €' })
   assert.equal(percentuale.daPagare, '288 €')
   assert.equal(scontoInParole(percentuale.totaleCent, { tipo: 'percentuale', valore: 10 }), '320 € → 288 €')
   const finale = contoNuovaPrenotazione(periodi, trova, { tipo: 'finale', valore: 300 })
-  assert.equal(finale.sconto, '20 €')
+  assert.deepEqual(finale.sconto, { testo: 'Sconto', importo: '−20 €' })
   assert.equal(finale.daPagare, '300 €')
   // un «prezzo finale» più alto del totale non è uno sconto: non si applica
   assert.equal(contoNuovaPrenotazione(periodi, trova, { tipo: 'finale', valore: 400 }).sconto, null)
@@ -323,7 +323,7 @@ test('il conto con il letto in più e con due camere insieme', () => {
   })]
   const conto = contoNuovaPrenotazione(conLetto, trova, { tipo: 'nessuno', valore: null })
   assert.deepEqual(conto.righe.map(r => r.titolo), ['Lena', 'Letto in più'])
-  assert.equal(conto.righe[1].dettaglio, '2 notti')
+  assert.equal(conto.righe[1].dettaglio, '2 notti × 10 €')   // una riga sola, con le notti e l'importo a notte (18/09/2026)
   assert.equal(conto.righe[1].importo, '20 €')
   assert.equal(conto.daPagare, '200 €')   // 90 × 2 notti + 20 di letto
 
@@ -352,15 +352,18 @@ test('come si salva lo sconto: percentuale, oppure totale concordato', () => {
 })
 
 test('il disegno del conto: misure e Georgia', () => {
-  assert.match(contoNuova, /fontSize: 14\.5, color: 'var\(--color-green-dark\)'/)
-  assert.match(contoNuova, /fontSize: 12, color: 'var\(--color-stone\)', marginTop: 1/)
-  assert.match(contoNuova, /fontFamily: GEORGIA, fontSize: 17/)
-  assert.match(contoNuova, /data-totale[\s\S]{0,200}borderTop: `1px solid \$\{FILO_OTTONE\}`/)
-  assert.match(contoNuova, /fontFamily: GEORGIA, fontSize: 22/)
-  assert.match(contoNuova, /data-sconto-riga[\s\S]{0,200}color: OTTONE/)
-  assert.match(contoNuova, /− \{conto\.sconto\}/)
-  assert.match(contoNuova, /fontFamily: GEORGIA, fontSize: 28/)
-  assert.match(contoNuova, /data-a-notte className="text-right"[\s\S]{0,120}fontSize: 12, color: 'var\(--color-stone\)'/)
+  // dal 18/09/2026 le righe sono quelle condivise di components/ContoRighe (scheda e foglio comprese)
+  const contoRighe = readFileSync(new URL('../components/ContoRighe.tsx', import.meta.url), 'utf8')
+  assert.match(contoNuova, /import \{ RigaConto, TotaleConto, ScontoConto, DaPagareConto, FILO_OTTONE \} from '@\/components\/ContoRighe'/)
+  assert.match(contoRighe, /fontSize: 14\.5, color: 'var\(--color-green-dark\)'/)
+  assert.match(contoRighe, /fontSize: 12, color: 'var\(--color-stone\)', marginTop: 1/)
+  assert.match(contoRighe, /fontFamily: GEORGIA, fontSize: 17/)
+  assert.match(contoRighe, /data-totale[\s\S]{0,200}borderTop: `1px solid \$\{FILO_OTTONE\}`/)
+  assert.match(contoRighe, /fontFamily: GEORGIA, fontSize: 22/)
+  assert.match(contoRighe, /data-sconto-riga[\s\S]{0,200}color: OTTONE/)
+  assert.match(contoRighe, /\{sconto\.testo\}[\s\S]{0,160}\{sconto\.importo\}/)
+  assert.match(contoRighe, /fontFamily: GEORGIA, fontSize: 28/)
+  assert.match(contoRighe, /data-a-notte className="text-right"[\s\S]{0,120}fontSize: 12, color: 'var\(--color-stone\)'/)
   assert.match(contoNuova, /export const SALVA = 'Salva la prenotazione'/)
 })
 
@@ -618,7 +621,7 @@ test('il conto si aggiorna a ogni tocco: sconto, letto, ospiti', () => {
   assert.equal(inTre.daPagare, '180 €')                                  // tripla 90, letto compreso
   const scontato = contoNuovaPrenotazione([periodoLena(3, ['2026-10-02', '2026-10-03'])], camera, { tipo: 'percentuale', valore: 10 })
   assert.equal(scontato.totale, '180 €')
-  assert.equal(scontato.sconto, '18 €')
+  assert.equal(scontato.sconto?.importo, '−18 €')
   assert.equal(scontato.daPagare, '162 €')
 })
 

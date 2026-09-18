@@ -11,10 +11,11 @@
 // stessa prudenza di `lib/riepilogoCosti`.
 // ============================================================================
 import { contoSoggiorno } from './conto.ts'
-import { dettaglioNottiSalvato, testoDettaglioNotti, fmtEuroBreve } from './prezzoNotti.ts'
+import { dettaglioNottiSalvato, testoDettaglioNotti, fmtEuroBreve, giorniSoggiorno } from './prezzoNotti.ts'
+import { rigaSconto, nottiANotte, dettaglioLetto, percentualeComune, RIGA_LETTO, type RigaContoVista, type ScontoVista } from './contoInRighe.ts'
 import { lettoInclusoNellaCamera } from './roomTypes.ts'
 import { comePagaInParole } from './comePaga.ts'
-import { euroScheda, periodoTratto, segmentiAttivi, testoNotti, type SegmentoScheda } from './schedaPrenotazione.ts'
+import { euroScheda, periodoConMese, segmentiAttivi, testoNotti, type SegmentoScheda } from './schedaPrenotazione.ts'
 import { quandoEvento, descriviEvento, type EventoCronologia } from './cronologia.ts'
 import { MESI_BREVI } from './dateItaliane.ts'
 import { telefonoAGruppi } from './whatsapp.ts'
@@ -75,54 +76,84 @@ export function testaConto(
   }
 }
 
-// ── Le righe del conto ─────────────────────────────────────────────────────
-// «Lena, 10 → 12 · 2 notti × 80 €» · «Letto in più · 3 notti × 10 €» · «Sconto»
-export type RigaConto = { chiave: string; testo: string; importo: string; sconto?: boolean }
+// ── Il conto in righe ──────────────────────────────────────────────────────
+// Come deciso per l'inserimento (Ania, 18/09/2026): prima una riga per ogni
+// camera col dettaglio piccolo sotto («29 → 30 nov · 1 notte × 90 €»), poi
+// il letto in più in UNA riga sola con tutte le notti in cui c'è, poi
+// «Totale» (quanto costa senza sconto), lo sconto in UNA riga sola in ottone
+// e intero senza centesimi («Sconto 10 %» in percentuale, «Sconto» se nasce
+// da un prezzo concordato), poi «Da pagare» e sotto «3 notti · 85 € a notte».
+// Lo sconto resta ripartito riga per riga nei dati: qui si mostra una volta.
+// `daPagareCent` è il totale autorevole di lib/prenotazioneUnica: lo sconto
+// mostrato è la differenza col prezzo pieno delle righe, così le tre cifre
+// tornano sempre fra loro.
+export type ContoInRighe = {
+  righe: RigaContoVista[]
+  totaleCent: number      // il prezzo pieno: la somma delle righe
+  totale: string
+  sconto: ScontoVista | null
+  daPagare: string
+  sotto: string           // «3 notti · 85 € a notte»
+}
 
-export function righeConto(segmenti: SegmentoScheda[]): RigaConto[] {
-  const out: RigaConto[] = []
-  for (const s of segmentiAttivi(segmenti)) {
+export function contoScheda(segmenti: SegmentoScheda[], daPagareCent: number): ContoInRighe {
+  const righe: RigaContoVista[] = []
+  const giorni = new Set<string>()
+  let pienoCent = 0
+  let lettoNotti = 0, lettoCent = 0
+  const unitari: number[] = []
+  const vivi = segmentiAttivi(segmenti)
+  for (const s of vivi) {
     const conto = contoSoggiorno(s)
     const n = conto.notti
+    for (const g of giorniSoggiorno(s.check_in, s.check_out)) giorni.add(g)
     const camera = (s.rooms?.name ?? '').trim() || 'camera'
-    const periodo = periodoTratto(s.check_in, s.check_out)
+    const periodo = periodoConMese(s.check_in, s.check_out)
     const prezzo = Number(s.price_per_night) || 0
-    const lettoCent = Math.round(Number(s.extra_bed_total || 0) * 100)
-    const righe: RigaConto[] = []
+    const lettoRiga = Math.round(Number(s.extra_bed_total || 0) * 100)
 
     // La camera: col letto compreso (Lena in tre) la riga è una sola, tutto
     // compreso; se la tariffa cambia fra le notti si scrive il dettaglio.
     const dett = dettaglioNottiSalvato(s.rooms, s)
     const compreso = lettoInclusoNellaCamera(s, n)
-    const cameraCent = compreso ? Math.round(prezzo * n * 100) + lettoCent : Math.round(prezzo * n * 100)
-    const quanto = dett
-      ? testoDettaglioNotti(dett, fmtEuroBreve)
-      : `${testoNotti(n)} × ${fmtEuroBreve(compreso && n > 0 ? cameraCent / 100 / n : prezzo)}`
-    righe.push({ chiave: `${s.id}:camera`, testo: `${camera}, ${periodo} · ${quanto}`, importo: euroScheda(cameraCent) })
-
-    // Il letto in più, quando viene addebitato a parte
-    if (!compreso && s.extra_bed && lettoCent > 0) {
-      const notti = s.extra_bed_dates && s.extra_bed_dates.length > 0 ? s.extra_bed_dates.length : n
-      const unitario = Number(s.rooms?.extra_bed_price || 0)
-      const conto = notti > 1 && Math.abs(Math.round(notti * unitario * 100) - lettoCent) < 1
-        ? ` · ${testoNotti(notti)} × ${fmtEuroBreve(unitario)}`
-        : ''
-      righe.push({ chiave: `${s.id}:letto`, testo: `Letto in più${conto}`, importo: euroScheda(lettoCent) })
-    }
+    const cameraCent = compreso ? Math.round(prezzo * n * 100) + lettoRiga : Math.round(prezzo * n * 100)
+    const aParte = !compreso && Boolean(s.extra_bed) && lettoRiga > 0
 
     // Le righe devono tornare col prezzo pieno del tratto: se un dato vecchio
     // non torna, del tratto si scrive una riga sola col totale autorevole.
-    const somma = righe.reduce((t, r) => t + (r.chiave.endsWith(':letto') ? lettoCent : cameraCent), 0)
-    if (Math.abs(somma - Math.round(conto.prezzoPieno * 100)) > 1) {
-      out.push({ chiave: `${s.id}:unica`, testo: `${camera}, ${periodo} · ${testoNotti(n)}`, importo: euroScheda(Math.round(conto.totale * 100)) })
+    if (Math.abs(cameraCent + (aParte ? lettoRiga : 0) - Math.round(conto.prezzoPieno * 100)) > 1) {
+      const totaleRiga = Math.round(conto.totale * 100)
+      righe.push({ chiave: `${s.id}:unica`, titolo: camera, dettaglio: `${periodo} · ${testoNotti(n)}`, importo: euroScheda(totaleRiga) })
+      pienoCent += totaleRiga
       continue
     }
-    out.push(...righe)
-    if (conto.sconto > 0.005) {
-      out.push({ chiave: `${s.id}:sconto`, testo: 'Sconto', importo: `−${euroScheda(Math.round(conto.sconto * 100))}`, sconto: true })
+    const quanto = dett
+      ? testoDettaglioNotti(dett, fmtEuroBreve)
+      : `${testoNotti(n)} × ${fmtEuroBreve(compreso && n > 0 ? cameraCent / 100 / n : prezzo)}`
+    righe.push({ chiave: `${s.id}:camera`, titolo: camera, dettaglio: `${periodo} · ${quanto}`, importo: euroScheda(cameraCent) })
+    pienoCent += cameraCent
+
+    // Il letto in più, quando viene addebitato a parte: si somma alla riga unica
+    if (aParte) {
+      const notti = s.extra_bed_dates && s.extra_bed_dates.length > 0 ? s.extra_bed_dates.length : n
+      lettoNotti += notti
+      lettoCent += lettoRiga
+      unitari.push(Number.isInteger(lettoRiga / notti) ? lettoRiga / notti : -1)
+      pienoCent += lettoRiga
     }
   }
-  return out
+  if (lettoCent > 0) {
+    righe.push({ chiave: 'letto', titolo: RIGA_LETTO, dettaglio: dettaglioLetto(lettoNotti, lettoCent, unitari), importo: euroScheda(lettoCent) })
+  }
+  const scontoCent = Math.max(0, pienoCent - daPagareCent)
+  return {
+    righe,
+    totaleCent: pienoCent,
+    totale: euroScheda(pienoCent),
+    sconto: rigaSconto(scontoCent, percentualeComune(vivi)),
+    daPagare: euroScheda(daPagareCent),
+    sotto: nottiANotte(giorni.size, daPagareCent),
+  }
 }
 
 // ── Come paga ───────────────────────────────────────────────────────────────

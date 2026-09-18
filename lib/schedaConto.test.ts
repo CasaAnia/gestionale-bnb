@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  testaConto, righeConto, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
+  testaConto, contoScheda, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
   NOME_MESSAGGIO, NOTA_CRONOLOGIA, type PagamentoScheda,
 } from './schedaConto.ts'
 import type { SegmentoScheda } from './schedaPrenotazione.ts'
@@ -50,52 +50,94 @@ test('segnato pagato senza movimenti: resta «Saldato»', () => {
   assert.equal(t.sotto, '')
 })
 
-// ── Le righe del conto ──────────────────────────────────────────────────────
-test('una riga per tratto, col periodo e le notti per il prezzo', () => {
-  const r = righeConto([seg('a', LENA, '2026-09-10', '2026-09-12')])
-  assert.deepEqual(r.map(x => x.testo), ['Lena, 10 → 12 · 2 notti × 80 €'])
-  assert.deepEqual(r.map(x => x.importo), ['160 €'])
+// ── Il conto in righe (18/09/2026) ─────────────────────────────────────────
+const righeDi = (c: ReturnType<typeof contoScheda>) => c.righe.map(r => [r.titolo, r.dettaglio, r.importo])
+const ALLEGRA: Camera = { id: 'allegra', name: 'Allegra', base_price: 80, has_extra_bed: true, extra_bed_price: 10 }
+const AMBRA: Camera = { id: 'ambra', name: 'Ambra', base_price: 80, has_extra_bed: true, extra_bed_price: 10 }
+
+test('una riga per camera, col periodo (col mese) e le notti per il prezzo; poi «Totale», «Da pagare» e le notti sotto', () => {
+  const c = contoScheda([seg('a', LENA, '2026-09-10', '2026-09-12')], 16000)
+  assert.deepEqual(righeDi(c), [['Lena', '10 → 12 set · 2 notti × 80 €', '160 €']])
+  assert.deepEqual([c.totale, c.totaleCent, c.sconto, c.daPagare, c.sotto], ['160 €', 16000, null, '160 €', '2 notti · 80 € a notte'])
 })
 
-test('il letto in più ha la sua riga', () => {
-  const r = righeConto([seg('a', AMELIA, '2026-09-10', '2026-09-13', {
+test('il letto in più ha la sua riga, UNA sola con tutte le notti in cui c’è', () => {
+  const c = contoScheda([seg('a', AMELIA, '2026-09-10', '2026-09-13', {
     num_guests: 2, price_per_night: 50, extra_bed: true, extra_bed_dates: ['2026-09-10', '2026-09-11', '2026-09-12'], extra_bed_total: 30, total_amount: 180,
-  })])
-  assert.deepEqual(r.map(x => x.testo), ['Amelia, 10 → 13 · 3 notti × 50 €', 'Letto in più · 3 notti × 10 €'])
-  assert.deepEqual(r.map(x => x.importo), ['150 €', '30 €'])
+  })], 18000)
+  assert.deepEqual(righeDi(c), [['Amelia', '10 → 13 set · 3 notti × 50 €', '150 €'], ['Letto in più', '3 notti × 10 €', '30 €']])
+  assert.deepEqual([c.totale, c.daPagare], ['180 €', '180 €'])
+  // il letto su due tratti: sempre una riga, con le notti di tutti e due
+  const due = contoScheda([
+    seg('a', ALLEGRA, '2026-11-29', '2026-11-30', { num_guests: 3, extra_bed: true, extra_bed_dates: ['2026-11-29'], extra_bed_total: 10, total_amount: 90, group_id: 'g' }),
+    seg('b', AMBRA, '2026-11-30', '2026-12-02', { num_guests: 3, extra_bed: true, extra_bed_dates: ['2026-11-30', '2026-12-01'], extra_bed_total: 20, total_amount: 180, group_id: 'g' }),
+  ], 27000)
+  assert.deepEqual(righeDi(due).map(r => r[0]), ['Allegra', 'Ambra', 'Letto in più'])
+  assert.deepEqual(righeDi(due)[2], ['Letto in più', '3 notti × 10 €', '30 €'])
+  // con importi a notte diversi (Allegra 10, Amelia 5) niente «× …», solo le notti
+  const diversi = contoScheda([
+    seg('a', ALLEGRA, '2026-11-29', '2026-11-30', { num_guests: 3, extra_bed: true, extra_bed_dates: ['2026-11-29'], extra_bed_total: 10, total_amount: 90, group_id: 'g' }),
+    seg('b', AMELIA, '2026-11-30', '2026-12-01', { num_guests: 2, price_per_night: 50, extra_bed: true, extra_bed_dates: ['2026-11-30'], extra_bed_total: 5, total_amount: 55, group_id: 'g' }),
+  ], 14500)
+  assert.deepEqual(righeDi(diversi)[2], ['Letto in più', '2 notti', '15 €'])
 })
 
-test('lo sconto ha la sua riga, in negativo', () => {
-  const r = righeConto([seg('a', LENA, '2026-09-10', '2026-09-12', { discount_type: 'percentage', discount_value: 10, total_amount: 144 })])
-  assert.deepEqual(r.map(x => x.testo), ['Lena, 10 → 12 · 2 notti × 80 €', 'Sconto'])
-  assert.equal(r[1].importo, '−16 €')
-  assert.equal(r[1].sconto, true)
+test('il caso di Maurizio Stuppino: le camere a prezzo pieno, il letto in una riga, lo sconto UNA volta sola e senza centesimi, «Da pagare» con le notti', () => {
+  // com'era salvata: Allegra 29 → 30 nov (90, concordati 28,33) e Ambra 30 nov → 2 dic (180, concordati 56,67): 85 in tutto
+  const righe = [
+    seg('a', ALLEGRA, '2026-11-29', '2026-11-30', { num_guests: 3, extra_bed: true, extra_bed_dates: ['2026-11-29'], extra_bed_total: 10, discount_type: 'target_total', discount_value: 28.33, total_amount: 28.33, group_id: 'g' }),
+    seg('b', AMBRA, '2026-11-30', '2026-12-02', { num_guests: 3, extra_bed: true, extra_bed_dates: ['2026-11-30', '2026-12-01'], extra_bed_total: 20, discount_type: 'target_total', discount_value: 56.67, total_amount: 56.67, group_id: 'g' }),
+  ]
+  const c = contoScheda(righe, 8500)
+  assert.deepEqual(righeDi(c), [['Allegra', '29 → 30 nov · 1 notte × 80 €', '80 €'], ['Ambra', '30 nov → 2 dic · 2 notti × 80 €', '160 €'], ['Letto in più', '3 notti × 10 €', '30 €']])
+  assert.equal(c.totale, '270 €')
+  // −61,67 e −123,33 non si vedono più: una riga sola, «−185 €»
+  assert.deepEqual(c.sconto, { testo: 'Sconto', importo: '−185 €' })
+  assert.deepEqual([c.daPagare, c.sotto], ['85 €', '3 notti · 28,33 € a notte'])
+  // e dopo la correzione dal foglio (5 € a notte, 255 €): «−15 €» e 85 € a notte
+  const corretto = contoScheda([{ ...righe[0], discount_value: 85, total_amount: 85 }, { ...righe[1], discount_value: 170, total_amount: 170 }], 25500)
+  assert.deepEqual([corretto.sconto, corretto.daPagare, corretto.sotto], [{ testo: 'Sconto', importo: '−15 €' }, '255 €', '3 notti · 85 € a notte'])
+})
+
+test('lo sconto in percentuale si chiama «Sconto 10 %», e l’importo è intero anche coi centesimi', () => {
+  const c = contoScheda([seg('a', LENA, '2026-09-10', '2026-09-12', { discount_type: 'percentage', discount_value: 10, total_amount: 144 })], 14400)
+  assert.deepEqual(c.sconto, { testo: 'Sconto 10 %', importo: '−16 €' })
+  assert.deepEqual([c.totale, c.daPagare, c.sotto], ['160 €', '144 €', '2 notti · 72 € a notte'])
+  // 12,5 % su 165 € = 20,63: si scrive «−21 €», il da pagare resta al centesimo
+  const spicci = contoScheda([seg('a', LENA, '2026-09-10', '2026-09-12', { price_per_night: 82.5, discount_type: 'percentage', discount_value: 12.5, total_amount: 144.37 })], 14437)
+  assert.deepEqual(spicci.sconto, { testo: 'Sconto 12,5 %', importo: '−21 €' })
+  assert.equal(spicci.daPagare, '144,37 €')
+  // percentuali diverse sulle righe: solo «Sconto»
+  const miste = contoScheda([
+    seg('a', LENA, '2026-09-10', '2026-09-12', { discount_type: 'percentage', discount_value: 10, total_amount: 144, group_id: 'g' }),
+    seg('b', AMELIA, '2026-09-12', '2026-09-13', { num_guests: 1, price_per_night: 50, discount_type: 'percentage', discount_value: 20, total_amount: 40, group_id: 'g' }),
+  ], 18400)
+  assert.equal(miste.sconto?.testo, 'Sconto')
+  assert.equal(miste.sconto?.importo, '−26 €')
 })
 
 test('Lena in tre: il letto è compreso nel prezzo, una riga sola', () => {
-  const r = righeConto([seg('a', LENA, '2026-09-10', '2026-09-12', {
+  const c = contoScheda([seg('a', LENA, '2026-09-10', '2026-09-12', {
     num_guests: 3, price_per_night: 90, extra_bed: true, extra_bed_dates: ['2026-09-10', '2026-09-11'], extra_bed_total: 0, total_amount: 180,
-  })])
-  assert.equal(r.length, 1)
-  assert.equal(r[0].testo, 'Lena, 10 → 12 · 2 notti × 90 €')
-  assert.equal(r[0].importo, '180 €')
+  })], 18000)
+  assert.deepEqual(righeDi(c), [['Lena', '10 → 12 set · 2 notti × 90 €', '180 €']])
 })
 
-test('un totale salvato che non torna col dettaglio: una riga sola, col totale vero', () => {
-  const r = righeConto([seg('a', LENA, '2026-09-10', '2026-09-12', { price_per_night: 80, total_amount: 200 })])
-  assert.deepEqual(r.map(x => x.testo), ['Lena, 10 → 12 · 2 notti'])
-  assert.deepEqual(r.map(x => x.importo), ['200 €'])
+test('un totale salvato che non torna col dettaglio: una riga sola, col totale vero, e niente sconto inventato', () => {
+  const c = contoScheda([seg('a', LENA, '2026-09-10', '2026-09-12', { price_per_night: 80, total_amount: 200 })], 20000)
+  assert.deepEqual(righeDi(c), [['Lena', '10 → 12 set · 2 notti', '200 €']])
+  assert.deepEqual([c.totale, c.sconto, c.daPagare], ['200 €', null, '200 €'])
 })
 
-test('coi cambi camera c’è una riga per tratto, in ordine', () => {
-  const r = righeConto([
+test('coi cambi camera c’è una riga per tratto, in ordine; un tratto annullato non entra nel conto', () => {
+  const c = contoScheda([
     seg('a', LENA, '2026-09-10', '2026-09-12', { group_id: 'g' }),
     seg('b', AMELIA, '2026-09-12', '2026-09-14', { group_id: 'g', num_guests: 1, price_per_night: 65, total_amount: 130 }),
-  ])
-  assert.deepEqual(r.map(x => x.testo), ['Lena, 10 → 12 · 2 notti × 80 €', 'Amelia, 12 → 14 · 2 notti × 65 €'])
-  // un tratto annullato non entra nel conto
-  const conAnnullata = righeConto([seg('a', LENA, '2026-09-10', '2026-09-12'), seg('x', AMELIA, '2026-09-12', '2026-09-14', { status: 'annullata' })])
-  assert.equal(conAnnullata.length, 1)
+  ], 29000)
+  assert.deepEqual(righeDi(c), [['Lena', '10 → 12 set · 2 notti × 80 €', '160 €'], ['Amelia', '12 → 14 set · 2 notti × 65 €', '130 €']])
+  assert.equal(c.sotto, '4 notti · 72,50 € a notte')
+  const conAnnullata = contoScheda([seg('a', LENA, '2026-09-10', '2026-09-12'), seg('x', AMELIA, '2026-09-12', '2026-09-14', { status: 'annullata' })], 16000)
+  assert.equal(conAnnullata.righe.length, 1)
 })
 
 // ── Accordo e pagamenti ─────────────────────────────────────────────────────

@@ -1,30 +1,33 @@
 'use client'
 // ============================================================================
-// LA PARTE «CONTO» della nuova scheda prenotazione (13/09/2026): quanto manca
-// (o «Saldato») in grande a sinistra, il dettaglio a destra, una barretta che
-// dice a occhio quanto è stato pagato, poi il conto riga per riga, il totale,
-// «Come paga» e i pagamenti già registrati.
+// LA PARTE «CONTO» della nuova scheda prenotazione (13/09/2026, rifatta il
+// 18/09/2026): quanto manca (o «Saldato») in grande a sinistra, il dettaglio
+// a destra, una barretta che dice a occhio quanto è stato pagato, poi il
+// conto nelle righe di sempre (components/ContoRighe, le stesse
+// dell'inserimento): una riga per camera col dettaglio piccolo, il letto in
+// più in una riga sola, «Totale», lo sconto in una riga sola in ottone,
+// «Da pagare» in grande con sotto «3 notti · 85 € a notte»; poi «Come paga»
+// e i pagamenti già registrati.
 //
 // Sola presentazione: i testi e le cifre arrivano da lib/schedaConto, che a
 // sua volta NON ricalcola il totale (viene da lib/prenotazioneUnica).
 // ============================================================================
 import { TITOLO_COME_PAGA } from '@/components/ComePaga'
+import { RigaConto, TotaleConto, ScontoConto, DaPagareConto } from '@/components/ContoRighe'
 import { COMANDO_SCONTO } from '@/lib/scontoScheda'
 import { COMANDO_TOGLI } from '@/lib/pagamentoFoglio'
 import { COMANDO_TARIFFE } from '@/lib/tariffaScheda'
-import type { RigaConto, RigaPagamento, TestaConto } from '@/lib/schedaConto'
+import type { ContoInRighe, RigaPagamento, TestaConto } from '@/lib/schedaConto'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
-const OTTONE = '#A9884E'
-const FILO_OTTONE = 'rgba(169,136,78,0.55)'
 export const ROSSO_CONTO = '#D40000'
 export const FONDO_BARRA = '#EFE9DC'
 export const ALTEZZA_BARRA = 4
 
-export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, onPagamento, onComePaga, onSconto, onTogliPagamento, onTariffe, className = '' }: {
+export default function ContoScheda({ testa, conto, accordo, pagamenti, onPagamento, onComePaga, onSconto, onTogliPagamento, onTariffe, className = '' }: {
   testa: TestaConto
-  righe: RigaConto[]
-  totale: string
+  /** il conto in righe (lib/schedaConto.contoScheda) */
+  conto: ContoInRighe
   accordo: { nome: string; frase: string }
   pagamenti: RigaPagamento[]
   /** apre il foglio «Aggiungi pagamento» (16/09/2026), qui nella scheda */
@@ -58,25 +61,16 @@ export default function ContoScheda({ testa, righe, totale, accordo, pagamenti, 
         <div style={{ width: `${Math.round(testa.quotaPagata * 100)}%`, height: '100%', background: 'var(--color-green-mid)', opacity: 0.55 }} />
       </div>
 
-      {/* Il conto riga per riga */}
-      <div className="mt-3">
-        {righe.map((r, i) => (
-          <div key={r.chiave} data-riga-conto className="flex items-baseline justify-between gap-3"
-            style={{ padding: '9px 0', borderTop: i > 0 ? '1px solid var(--color-card-border)' : undefined }}>
-            <span className="min-w-0" style={{ fontSize: 14, color: r.sconto ? OTTONE : 'var(--color-green-dark)' }}>{r.testo}</span>
-            <span className="shrink-0" style={{ fontSize: 14, fontWeight: 600, color: r.sconto ? OTTONE : 'var(--color-green-dark)' }}>{r.importo}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Il totale, staccato da un filo d'ottone */}
-      <div data-totale-conto className="flex items-baseline justify-between gap-3" style={{ borderTop: `1px solid ${FILO_OTTONE}`, paddingTop: 10 }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-dark)' }}>Totale</span>
-        <span style={{ fontFamily: GEORGIA, fontSize: 24, color: 'var(--color-green-dark)' }}>{totale}</span>
+      {/* Il conto in righe: camere, letto, totale, sconto, da pagare */}
+      <div data-righe-conto className="mt-3">
+        {conto.righe.map(r => <RigaConto key={r.chiave} riga={r} />)}
+        <TotaleConto importo={conto.totale} />
+        {conto.sconto && <ScontoConto sconto={conto.sconto} />}
+        <DaPagareConto importo={conto.daPagare} sotto={conto.sotto} />
       </div>
 
       {/* Come paga: il nome del modo e, sotto, la frase per esteso */}
-      <div data-come-paga-riga className="flex items-baseline justify-between gap-3" style={{ padding: '10px 0 0' }}>
+      <div data-come-paga-riga className="flex items-baseline justify-between gap-3" style={{ padding: '14px 0 0' }}>
         <span style={{ fontSize: 14, color: 'var(--color-stone)' }}>{TITOLO_COME_PAGA}</span>
         <span className="text-right min-w-0">
           <span className="block" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-dark)' }}>{accordo.nome}</span>
