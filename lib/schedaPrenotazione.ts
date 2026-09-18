@@ -237,6 +237,11 @@ export function periodoTratto(dal: string, al: string): string {
   if (dal.slice(0, 7) === al.slice(0, 7)) return `${g(dal)} → ${g(al)}`
   return `${g(dal)} ${m(dal)} → ${g(al)} ${m(al)}`
 }
+/** «29 nov → 2 dic», e anche nello stesso mese col mese: «10 → 13 set» — nel
+ *  conto e sopra una striscia il mese serve (18/09/2026) */
+export function periodoConMese(dal: string, al: string): string {
+  return dal.slice(0, 7) === al.slice(0, 7) ? `${periodoTratto(dal, al)} ${MESI_BREVI[Number(al.slice(5, 7)) - 1]}` : periodoTratto(dal, al)
+}
 export function trattiCamera(segmenti: SegmentoScheda[]): TrattoCamera[] {
   const attivi = segmentiAttivi(segmenti)
   return attivi.map((s, i) => {

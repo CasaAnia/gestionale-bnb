@@ -25,13 +25,22 @@ export const MARGINE_FOGLIO = 22
 export const ALTEZZA_AZIONE = 30
 export const TESTO_ANNULLA = 'Annulla'
 
-export default function Foglio({ titolo, grande = false, onChiudi, children }: { titolo: string; grande?: boolean; onChiudi: () => void; children: ReactNode }) {
+/** Col titolo `centrato` la testa è in Georgia 24 centrata, con la X a
+ *  destra: è il foglio «Il soggiorno si allunga» (Ania, 18/09/2026). */
+export default function Foglio({ titolo, grande = false, centrato = false, onChiudi, children }: { titolo: string; grande?: boolean; centrato?: boolean; onChiudi: () => void; children: ReactNode }) {
   const desktop = useDesktop()
   return (
     <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label={titolo}>
       <div className="velo-in absolute inset-0 ed-velo" onClick={onChiudi} />
       <div className={`scheda-in absolute ed-foglio shadow-lg overflow-y-auto ${desktop ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-[20px] w-[440px] max-h-[80vh] px-[22px] pt-4 pb-4' : 'left-0 right-0 bottom-0 rounded-t-[20px] px-[22px] pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))] max-h-[88dvh]'}`}>
         {!desktop && <div className="w-10 h-1 rounded-full bg-border-soft mx-auto mb-3" aria-hidden />}
+        {centrato ? (
+          <div className="relative mb-3" style={{ padding: '4px 36px 0' }}>
+            <p data-titolo-foglio data-titolo-centrato className="text-green-dark text-center"
+              style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 24, lineHeight: '28px' }}>{titolo}</p>
+            <button type="button" onClick={onChiudi} aria-label="Chiudi" className="absolute right-0 top-0 w-9 h-9 -mr-2 flex items-center justify-center text-stone"><X size={18} strokeWidth={2} aria-hidden /></button>
+          </div>
+        ) : (
         <div className="flex items-center justify-between mb-3">
           <p data-titolo-foglio className="text-green-dark"
             style={grande
@@ -39,6 +48,7 @@ export default function Foglio({ titolo, grande = false, onChiudi, children }: {
               : { fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 20, lineHeight: '24px' }}>{titolo}</p>
           <button type="button" onClick={onChiudi} aria-label="Chiudi" className="w-9 h-9 -mr-2 flex items-center justify-center text-stone"><X size={18} strokeWidth={2} aria-hidden /></button>
         </div>
+        )}
         {children}
       </div>
     </div>

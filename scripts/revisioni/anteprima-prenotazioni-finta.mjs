@@ -97,6 +97,8 @@ const guests = [
   ospite('aaaaaaaa-0021-4000-8000-000000000021', 'Sconto A Notte', '+39 333 000 0021'),
   ospite('aaaaaaaa-0022-4000-8000-000000000022', 'Due Camere Sconto', '+39 333 000 0022'),
   ospite('aaaaaaaa-0023-4000-8000-000000000023', 'Letto Per Due', '+39 333 000 0023'),
+  // e il caso della percentuale (18/09/2026): il foglio propone «Tengo il 10 % di sconto»
+  ospite('aaaaaaaa-0024-4000-8000-000000000024', 'Dieci Per Cento', '+39 333 000 0024'),
 ]
 const NIDA = guests[14]
 const CAMBIO = guests[16]
@@ -250,8 +252,12 @@ const bookings = [
   prenotazione(ROOM.allegra, 'aaaaaaaa-0023-4000-8000-000000000023', '2026-12-10', '2026-12-12', 2,
     { extra_bed: true, extra_bed_dates: ['2026-12-10', '2026-12-11'], extra_bed_importo: 10, extra_bed_criterio: 'notte',
       price_per_night: 80, extra_bed_total: 20, discount_type: 'target_total', discount_value: 170, total_amount: 170, pagato: true }),
+  // Il 10 % di sconto (18/09/2026): Ambra 5 → 7 dic in due, 2 × 80 = 160 − 16 = 144.
+  // Allungando a tre notti il foglio propone «Tengo il 10 % di sconto» (216).
+  prenotazione(ROOM.ambra, 'aaaaaaaa-0024-4000-8000-000000000024', '2026-12-05', '2026-12-07', 2,
+    { price_per_night: 80, discount_type: 'percentage', discount_value: 10, total_amount: 144 }),
 ]
-const LETTO_PER_DUE = bookings[bookings.length - 1]
+const LETTO_PER_DUE = bookings[bookings.length - 2]
 const CARMELA_PRIMO_TRATTO = bookings.find(b => b.group_id === GRUPPO_CARMELA)
 const documenti_cliente = [
   { id: 'dddddddd-0001-4000-8000-000000000001', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0001-4000-8000-000000000001.jpg`, etichetta: 'carta_identita', lato: 'fronte', nome_file: 'IMG_1.jpeg', dimensione: 700000, created_at: ora },

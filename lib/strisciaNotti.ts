@@ -489,6 +489,8 @@ export type TrattoPiano = {
   letto: number
   /** tariffa × notti + letto, in centesimi */
   pienoCent: number
+  /** in quante notti del tratto c'è il letto in più */
+  nottiLetto: number
 }
 
 /** Come si vuole lo sconto DOPO la modifica, deciso dal foglio di conferma
@@ -499,6 +501,7 @@ export type TrattoPiano = {
 export type ScontoScelto =
   | { tipo: 'nessuno' }
   | { tipo: 'per_notte'; centANotte: number }
+  | { tipo: 'percentuale'; percento: number }
   | { tipo: 'finale'; totaleCent: number }
 
 export type PianoNotti = {
@@ -599,7 +602,7 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
   const tratti: TrattoPiano[] = blocchi.map((b, i) => ({
     cameraId: b.cameraId, camera: b.camera, check_in: b.check_in, check_out: b.check_out,
     notti: giorniTra(b.check_in, b.check_out).length,
-    aNotte: pieni[i]!.aNotte, letto: pieni[i]!.letto, pienoCent: Math.round(pieni[i]!.pieno * 100),
+    aNotte: pieni[i]!.aNotte, letto: pieni[i]!.letto, pienoCent: Math.round(pieni[i]!.pieno * 100), nottiLetto: b.nottiLetto.length,
   }))
 
   // Il totale concordato resta quello: si divide fra i tratti in proporzione
@@ -611,7 +614,11 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
   let quotaPerBlocco: number[] | null = null
   if (scelta) {
     percentuale = null
-    if (scelta.tipo === 'per_notte') {
+    if (scelta.tipo === 'percentuale') {
+      // «Tengo il 10 % di sconto» (18/09/2026): la percentuale segue le notti nuove
+      if (!(scelta.percento > 0 && scelta.percento < 100)) return { ...vuoto, tratti, errore: SCONTO_DECADUTO }
+      percentuale = scelta.percento
+    } else if (scelta.tipo === 'per_notte') {
       quotaPerBlocco = tratti.map(t => round2((t.pienoCent - scelta.centANotte * t.notti) / 100))
       if (scelta.centANotte <= 0 || quotaPerBlocco.some((q, i) => q <= 0 || q >= pieni[i]!.pieno)) return { ...vuoto, tratti, errore: SCONTO_DECADUTO }
     } else if (scelta.tipo === 'finale') {
