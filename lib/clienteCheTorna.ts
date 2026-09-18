@@ -201,8 +201,28 @@ export function clienteDellaRichiesta<T extends ClienteArchivio>(persona: Person
 // senza soggiorni conclusi (prenotazione futura, annullata, o solo una
 // scheda), oppure è davvero nuova. Prima la testa diceva «Prima volta» anche
 // a chi era in archivio, e Ania se ne accorgeva solo aprendo la modifica.
+// «Già ospite», non «già stata»: vale per tutti, uomini e donne (Ania, 18/09/2026)
 export function chiEIlCliente(volte: number, inArchivio: boolean): string {
-  if (volte === 1) return 'Già stata qui 1 volta'
-  if (volte > 1) return `Già stata qui ${volte} volte`
+  if (volte === 1) return 'Già ospite 1 volta'
+  if (volte > 1) return `Già ospite ${volte} volte`
   return inArchivio ? 'Cliente già in archivio' : 'Prima volta'
+}
+
+/** La prima riga della testa spezzata per il grassetto (Ania, 18/09/2026):
+ *  in «Già ospite 2 volte · da Umana» vanno in grassetto il numero delle
+ *  volte e il nome dopo «da». Il resto resta com'è. */
+export type PezzoRiga = { testo: string; grassetto: boolean }
+export function pezziRigaCliente(riga: string): PezzoRiga[] {
+  const pezzi: PezzoRiga[] = []
+  const spingi = (testo: string, grassetto: boolean) => { if (testo) pezzi.push({ testo, grassetto }) }
+  const parti = riga.split(' · ')
+  parti.forEach((parte, i) => {
+    const sep = i > 0 ? ' · ' : ''
+    const volte = parte.match(/^(Già ospite )(\d+)( volt[ae])$/)
+    const da = parte.match(/^(da )(.+)$/)
+    if (volte) { spingi(sep + volte[1], false); spingi(volte[2], true); spingi(volte[3], false) }
+    else if (da) { spingi(sep + da[1], false); spingi(da[2], true) }
+    else spingi(sep + parte, false)
+  })
+  return pezzi
 }

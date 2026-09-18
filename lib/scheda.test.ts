@@ -50,7 +50,7 @@ test('niente «‹ Prenotazioni» e niente «Confermata» sotto la freccia: lo s
 
 test('la prima riga: grigio #B9B6AD 12,5 px, e «da dove? ›» nello stesso grigio', () => {
   assert.match(testa, /const GRIGIO_RIGA = '#B9B6AD'/)
-  const prima = testa.slice(testa.indexOf('{primaRiga ??') - 200, testa.indexOf('{primaRiga ??') + 600)
+  const prima = testa.slice(testa.indexOf('pezziRigaCliente(primaRiga ??') - 300, testa.indexOf('pezziRigaCliente(primaRiga ??') + 800)
   assert.match(prima, /fontSize: 12\.5, color: GRIGIO_RIGA/)
   // il tasto che apre il foglio ha lo STESSO grigio e la stessa misura
   assert.match(prima, /data-chiedi-provenienza[^>]*style=\{\{ fontSize: 12\.5, color: GRIGIO_RIGA \}\}/)

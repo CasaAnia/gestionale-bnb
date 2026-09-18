@@ -15,7 +15,7 @@ import type { ReactNode } from 'react'
 import { Phone, MessageCircle } from 'lucide-react'
 import { giornoConSettimana } from '@/lib/dateItaliane'
 import { personeTesta, caselleNotti, personeCambiano, cameraTesta } from '@/lib/personeTesta'
-import { chiEIlCliente } from '@/lib/clienteCheTorna'
+import { chiEIlCliente, pezziRigaCliente } from '@/lib/clienteCheTorna'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 const GRIGIO_RIGA = '#B9B6AD'          // la prima riga, quella minuta
@@ -144,7 +144,10 @@ export default function TestaCliente({
           per chi torna, quanto ha speso in tutto. */}
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 truncate" style={{ fontSize: 12.5, color: GRIGIO_RIGA }}>
-          {primaRiga ?? <>{chiE}{(torna || inArchivio) && provenienza ? ` · ${provenienza}` : ''}</>}
+          {/* il numero delle volte e il nome dopo «da» in grassetto (Ania, 18/09/2026) */}
+          {pezziRigaCliente(primaRiga ?? `${chiE}${(torna || inArchivio) && provenienza ? ` · ${provenienza}` : ''}`).map((p, i) => (
+            p.grassetto ? <b key={i} data-grassetto-riga style={{ fontWeight: 700 }}>{p.testo}</b> : <span key={i}>{p.testo}</span>
+          ))}
           {chiediProvenienza && (
             <> · <button type="button" data-chiedi-provenienza onClick={chiediProvenienza.onClick} className="py-2 -my-2" style={{ fontSize: 12.5, color: GRIGIO_RIGA }}>{chiediProvenienza.testo}</button></>
           )}

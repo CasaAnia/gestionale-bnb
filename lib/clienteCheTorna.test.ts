@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { soggiorniPrecedenti, etichettaGiaStato, eraGiaStato, stessaPersona, chiEIlCliente, elencoSoggiorniPersona, soggiorniDellaPersona, clienteDellaRichiesta } from './clienteCheTorna.ts'
+import { readFileSync } from 'node:fs'
+import { soggiorniPrecedenti, etichettaGiaStato, eraGiaStato, stessaPersona, chiEIlCliente, pezziRigaCliente, elencoSoggiorniPersona, soggiorniDellaPersona, clienteDellaRichiesta } from './clienteCheTorna.ts'
 
 const OGGI = '2026-09-05'
 const b = (id: string, check_in: string, check_out: string, guests: { full_name?: string | null; phone?: string | null } | null, extra: Record<string, unknown> = {}) =>
@@ -169,15 +170,15 @@ test('scheda cliente: un segmento «in attesa» ferma il soggiorno e i suoi rica
 })
 
 // La testa della proposta dice sempre chi è (Ania, 12/09/2026)
-test('chi è il cliente: già stata qui, già in archivio, prima volta', () => {
-  assert.equal(chiEIlCliente(3, true), 'Già stata qui 3 volte')
-  assert.equal(chiEIlCliente(1, true), 'Già stata qui 1 volta')
+test('chi è il cliente: già ospite (neutro, non «stata»), già in archivio, prima volta', () => {
+  assert.equal(chiEIlCliente(3, true), 'Già ospite 3 volte')
+  assert.equal(chiEIlCliente(1, true), 'Già ospite 1 volta')
   // in archivio ma senza soggiorni conclusi: si dice lo stesso
   assert.equal(chiEIlCliente(0, true), 'Cliente già in archivio')
   // davvero nuova
   assert.equal(chiEIlCliente(0, false), 'Prima volta')
   // i soggiorni conclusi vincono sempre sull'archivio
-  assert.equal(chiEIlCliente(2, false), 'Già stata qui 2 volte')
+  assert.equal(chiEIlCliente(2, false), 'Già ospite 2 volte')
 })
 
 // ── L'ELENCO DEI SOGGIORNI PER LA PARTE «CLIENTE» (Ania, 12/09/2026) ───────
@@ -234,4 +235,20 @@ test('il cliente della richiesta si riconosce per telefono o per nome', () => {
   // chi non c'è è una cliente nuova
   assert.equal(clienteDellaRichiesta({ nome: 'Prima', cognome: 'Volta' }, clienti), null)
   assert.equal(clienteDellaRichiesta({}, clienti), null)
+})
+
+test('la prima riga spezzata per il grassetto: il numero delle volte e il nome dopo «da» (Ania, 18/09/2026)', () => {
+  assert.deepEqual(pezziRigaCliente('Già ospite 2 volte · da Umana'), [
+    { testo: 'Già ospite ', grassetto: false }, { testo: '2', grassetto: true }, { testo: ' volte', grassetto: false },
+    { testo: ' · da ', grassetto: false }, { testo: 'Umana', grassetto: true },
+  ])
+  assert.deepEqual(pezziRigaCliente('Già ospite 1 volta · passaparola'), [
+    { testo: 'Già ospite ', grassetto: false }, { testo: '1', grassetto: true }, { testo: ' volta', grassetto: false }, { testo: ' · passaparola', grassetto: false },
+  ])
+  assert.deepEqual(pezziRigaCliente('Prima volta'), [{ testo: 'Prima volta', grassetto: false }])
+  assert.deepEqual(pezziRigaCliente('Cliente già in archivio · Google'), [{ testo: 'Cliente già in archivio', grassetto: false }, { testo: ' · Google', grassetto: false }])
+  // e la testa li disegna in grassetto vero (700)
+  const testa = readFileSync(new URL('../components/TestaCliente.tsx', import.meta.url), 'utf8')
+  assert.match(testa, /pezziRigaCliente\(primaRiga \?\? /)
+  assert.match(testa, /data-grassetto-riga style=\{\{ fontWeight: 700 \}\}/)
 })

@@ -44,7 +44,7 @@ export function vociStesseDate(richiesta: DateRichiesta & { id: string }, altre:
     }))
 }
 
-// «È già stata qui 3 volte» con l'ultimo soggiorno. Senza soggiorni conclusi
+// «Già ospite 3 volte» con l'ultimo soggiorno. Senza soggiorni conclusi
 // non compare nulla: un cliente nuovo non è una cosa da controllare.
 export function voceClienteCheTorna(soggiorni: SoggiorniDellaPersona, hrefCliente: string | null): VoceControllo | null {
   if (soggiorni.volte <= 0) return null
@@ -54,7 +54,7 @@ export function voceClienteCheTorna(soggiorni: SoggiorniDellaPersona, hrefClient
   return {
     chiave: 'cliente_torna',
     etichetta: 'Cliente che torna',
-    titolo: soggiorni.volte === 1 ? 'È già stata qui 1 volta' : `È già stata qui ${soggiorni.volte} volte`,
+    titolo: soggiorni.volte === 1 ? 'Già ospite 1 volta' : `Già ospite ${soggiorni.volte} volte`,
     dettaglio: u ? `l'ultima: ${camere}${periodoCompatto(u.check_in, u.check_out, { anno: true })}${ospiti}` : null,
     link: hrefCliente ? { testo: 'Vedi i soggiorni', href: hrefCliente } : null,
   }

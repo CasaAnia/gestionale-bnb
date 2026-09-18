@@ -115,16 +115,16 @@ test('conferma: la provenienza della richiesta va sul cliente solo se lui non ne
   assert.equal(testoFonte({}), 'provenienza non nota')
 })
 
-// Testa del cliente (11/09/2026): la provenienza accanto a «Già stata qui N volte»
-test('provenienza in parole: Google, passaparola, mandata da …', () => {
+// Testa del cliente (11/09/2026): la provenienza accanto a «Già ospite N volte»
+test('provenienza in parole: Google, passaparola, da …', () => {
   assert.equal(provenienzaInParole({ provenienza: 'google', struttura_nome: null }), 'Google')
   assert.equal(provenienzaInParole({ provenienza: 'passaparola', struttura_nome: null }), 'passaparola')
-  assert.equal(provenienzaInParole({ provenienza: 'altra_struttura', struttura_nome: 'Nida' }), 'mandata da Nida')
+  assert.equal(provenienzaInParole({ provenienza: 'altra_struttura', struttura_nome: 'Nida' }), 'da Nida')
   // quando non si sa non si scrive niente
   assert.equal(provenienzaInParole({ provenienza: 'non_so', struttura_nome: null }), null)
   assert.equal(provenienzaInParole({ provenienza: null, struttura_nome: null }), null)
   assert.equal(provenienzaInParole(null), null)
   assert.equal(provenienzaInParole(undefined), null)
-  // altra struttura senza nome: niente, non «mandata da »
+  // altra struttura senza nome: niente, non «da »
   assert.equal(provenienzaInParole({ provenienza: 'altra_struttura', struttura_nome: '  ' }), null)
 })

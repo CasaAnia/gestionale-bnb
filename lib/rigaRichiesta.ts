@@ -60,14 +60,14 @@ export function etichettaRigaRichiesta(createdAt: string | null | undefined, can
 }
 
 // Il pezzo dell'etichetta che dice se la cliente è già stata qui: si somma
-// agli altri due — «ieri · dal sito · già stata qui 3 volte». È la stessa cosa
+// agli altri due — «ieri · dal sito · già ospite 3 volte». È la stessa cosa
 // che la testa della proposta scrive per esteso (chiEIlCliente), detta corta
 // perché qui è un'etichetta. Alla prima volta non si scrive niente: la riga
 // resta com'era.
 export function pezzoCliente(volte: number, inArchivio: boolean): string | null {
   const n = Math.max(0, Math.trunc(volte))
-  if (n === 1) return 'già stata qui 1 volta'
-  if (n > 1) return `già stata qui ${n} volte`
+  if (n === 1) return 'già ospite 1 volta'
+  if (n > 1) return `già ospite ${n} volte`
   return inArchivio ? 'già in archivio' : null
 }
 

@@ -60,11 +60,11 @@ export function dataDiOggi(oggi: string): string {
 
 // ── Le righe dei clienti trovati ────────────────────────────────────────────
 // Come le righe «Da controllare» della Home: nome in grande, sotto il telefono
-// e quante volte è stata qui.
+// e quante volte è già stata ospite.
 export function volteInParole(soggiorni: number): string {
   if (soggiorni <= 0) return 'nessun soggiorno'
   if (soggiorni === 1) return '1 soggiorno'
-  return `già stata qui ${soggiorni} volte`
+  return `già ospite ${soggiorni} volte`
 }
 export function rigaClienteTrovato(telefono: string | null | undefined, soggiorni: number): string {
   return [(telefono ?? '').trim(), volteInParole(soggiorni)].filter(Boolean).join(' · ')

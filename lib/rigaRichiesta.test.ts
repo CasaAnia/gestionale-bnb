@@ -163,15 +163,15 @@ test('l’etichetta dice anche se la cliente è già stata qui', () => {
   const adesso = new Date(2026, 8, 12, 20, 30)
   const ieri = new Date(2026, 8, 11, 9, 0).toISOString()
   // chi torna: quante volte, al singolare e al plurale
-  assert.equal(etichettaRigaRichiesta(ieri, 'web', adesso, pezzoCliente(3, true)), 'ieri · dal sito · già stata qui 3 volte')
-  assert.equal(etichettaRigaRichiesta(ieri, 'web', adesso, pezzoCliente(1, true)), 'ieri · dal sito · già stata qui 1 volta')
+  assert.equal(etichettaRigaRichiesta(ieri, 'web', adesso, pezzoCliente(3, true)), 'ieri · dal sito · già ospite 3 volte')
+  assert.equal(etichettaRigaRichiesta(ieri, 'web', adesso, pezzoCliente(1, true)), 'ieri · dal sito · già ospite 1 volta')
   // in archivio ma senza soggiorni conclusi
   assert.equal(etichettaRigaRichiesta(ieri, 'telefono', adesso, pezzoCliente(0, true)), 'ieri · telefono · già in archivio')
   // prima volta: l'etichetta resta quella di prima, senza coda
   assert.equal(etichettaRigaRichiesta(ieri, 'telefono', adesso, pezzoCliente(0, false)), 'ieri · telefono')
   assert.equal(pezzoCliente(0, false), null)
   // a schermo si legge in maiuscolo, ma le maiuscole le fa il disegno
-  assert.equal(etichettaRigaRichiesta(ieri, 'web', adesso, pezzoCliente(3, true)).toUpperCase(), 'IERI · DAL SITO · GIÀ STATA QUI 3 VOLTE')
+  assert.equal(etichettaRigaRichiesta(ieri, 'web', adesso, pezzoCliente(3, true)).toUpperCase(), 'IERI · DAL SITO · GIÀ OSPITE 3 VOLTE')
 })
 
 test('nella seconda riga, in fondo, quanto ha speso da noi', () => {

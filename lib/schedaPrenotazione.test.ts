@@ -40,9 +40,9 @@ test('lo stato in alto a destra', () => {
 test('prima riga: prima volta, che torna, senza provenienza', () => {
   assert.deepEqual(primaRigaScheda(0, null), { testo: 'Prima volta', chiediProvenienza: true })
   assert.deepEqual(primaRigaScheda(0, 'Google'), { testo: 'Prima volta · Google', chiediProvenienza: false })
-  assert.deepEqual(primaRigaScheda(3, 'passaparola'), { testo: 'Già stata qui 3 volte · passaparola', chiediProvenienza: false })
-  assert.deepEqual(primaRigaScheda(1, null), { testo: 'Già stata qui 1 volta', chiediProvenienza: true })
-  assert.deepEqual(primaRigaScheda(2, '  '), { testo: 'Già stata qui 2 volte', chiediProvenienza: true })
+  assert.deepEqual(primaRigaScheda(3, 'passaparola'), { testo: 'Già ospite 3 volte · passaparola', chiediProvenienza: false })
+  assert.deepEqual(primaRigaScheda(1, null), { testo: 'Già ospite 1 volta', chiediProvenienza: true })
+  assert.deepEqual(primaRigaScheda(2, '  '), { testo: 'Già ospite 2 volte', chiediProvenienza: true })
 })
 
 test('etichetta sotto la data di arrivo: con e senza orario e navetta', () => {

@@ -35,11 +35,11 @@ test('in cima la data di oggi per esteso', () => {
   assert.equal(dataDiOggi('2026-01-01'), 'Giovedì 1 gennaio 2026')
 })
 
-test('quante volte è già stata qui', () => {
+test('quante volte è già ospite', () => {
   assert.equal(volteInParole(0), 'nessun soggiorno')
   assert.equal(volteInParole(1), '1 soggiorno')
-  assert.equal(volteInParole(3), 'già stata qui 3 volte')
-  assert.equal(rigaClienteTrovato('333 000 0018', 2), '333 000 0018 · già stata qui 2 volte')
+  assert.equal(volteInParole(3), 'già ospite 3 volte')
+  assert.equal(rigaClienteTrovato('333 000 0018', 2), '333 000 0018 · già ospite 2 volte')
   assert.equal(rigaClienteTrovato(null, 0), 'nessun soggiorno')
 })
 
