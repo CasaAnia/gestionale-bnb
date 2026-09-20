@@ -99,6 +99,9 @@ const guests = [
   ospite('aaaaaaaa-0023-4000-8000-000000000023', 'Letto Per Due', '+39 333 000 0023'),
   // e il caso della percentuale (18/09/2026): il foglio propone «Tengo il 10 % di sconto»
   ospite('aaaaaaaa-0024-4000-8000-000000000024', 'Dieci Per Cento', '+39 333 000 0024'),
+  // La striscia che va a capo (20/09/2026): il caso di Rosa Macauda, 24 notti
+  // con tre cambi camera, e il pagamento diviso fra le parti (regola fissa n. 9)
+  ospite('aaaaaaaa-0025-4000-8000-000000000025', 'Ventiquattro Notti', '+39 333 000 0025'),
 ]
 const NIDA = guests[14]
 const CAMBIO = guests[16]
@@ -245,6 +248,18 @@ const bookings = [
   prenotazione(ROOM.amelia, 'aaaaaaaa-0022-4000-8000-000000000022', '2026-11-20', '2026-11-22', 1,
     { group_id: 'cccccccc-0023-4000-8000-000000000023', prenotazione_id: 'dddddddd-0022-4000-8000-000000000022',
       price_per_night: 65, total_amount: 120, discount_type: 'target_total', discount_value: 120 }),
+  // La striscia che va a capo (20/09/2026), il caso di Rosa Macauda: 24 notti,
+  // Ambra 1 → 7 set (420), Amelia 7 → 11 (320), Ambra 11 → 22 (880), Lena
+  // 22 → 25 (240), una prenotazione sola. Sul telefono entrano 7 notti per
+  // riga: quattro righe. I pagamenti sono divisi fra le parti (regola n. 9).
+  prenotazione(ROOM.ambra, 'aaaaaaaa-0025-4000-8000-000000000025', '2026-09-01', '2026-09-07', 1,
+    { id: 'bbbbbbbb-2501-4000-8000-000000002501', group_id: 'cccccccc-0025-4000-8000-000000000025', prenotazione_id: 'dddddddd-0025-4000-8000-000000000025', price_per_night: 70, total_amount: 420, check_in_time: '16:00' }),
+  prenotazione(ROOM.amelia, 'aaaaaaaa-0025-4000-8000-000000000025', '2026-09-07', '2026-09-11', 1,
+    { id: 'bbbbbbbb-2502-4000-8000-000000002502', group_id: 'cccccccc-0025-4000-8000-000000000025', prenotazione_id: 'dddddddd-0025-4000-8000-000000000025', price_per_night: 80, total_amount: 320 }),
+  prenotazione(ROOM.ambra, 'aaaaaaaa-0025-4000-8000-000000000025', '2026-09-11', '2026-09-22', 1,
+    { id: 'bbbbbbbb-2503-4000-8000-000000002503', group_id: 'cccccccc-0025-4000-8000-000000000025', prenotazione_id: 'dddddddd-0025-4000-8000-000000000025', price_per_night: 80, total_amount: 880 }),
+  prenotazione(ROOM.lena, 'aaaaaaaa-0025-4000-8000-000000000025', '2026-09-22', '2026-09-25', 1,
+    { id: 'bbbbbbbb-2504-4000-8000-000000002504', group_id: 'cccccccc-0025-4000-8000-000000000025', prenotazione_id: 'dddddddd-0025-4000-8000-000000000025', price_per_night: 80, total_amount: 240 }),
   // Letto messo a mano per due ospiti (dormono separati, accordo 10 € a notte
   // della 0048) e pagamenti già presenti: Allegra 10 → 12 dic, 2 × 90 = 180
   // concordati 170, già SALDATA. Accorciando a una notte il nuovo totale è 85
@@ -274,6 +289,12 @@ const payments = [
   { id: 'ffffffff-0001-4000-8000-000000000001', booking_id: CARMELA_PRIMO_TRATTO.id, amount: 470, method: 'contanti', paid_on: '2026-09-12', created_at: ora },
   // «Letto Per Due» ha già pagato tutto (170 €, bonifico)
   { id: 'ffffffff-0002-4000-8000-000000000002', booking_id: LETTO_PER_DUE.id, amount: 170, method: 'bonifico', paid_on: '2026-09-15', created_at: ora },
+  // Ventiquattro Notti: 400 il 7 set sulla prima parte; il 400 del 16 set
+  // diviso 20 + 320 + 60 fra le parti (regola fissa n. 9, 20/09/2026)
+  { id: 'ffffffff-0003-4000-8000-000000000003', booking_id: 'bbbbbbbb-2501-4000-8000-000000002501', amount: 400, method: 'contanti', paid_on: '2026-09-07', created_at: ora },
+  { id: 'ffffffff-0004-4000-8000-000000000004', booking_id: 'bbbbbbbb-2501-4000-8000-000000002501', amount: 20, method: 'contanti', paid_on: '2026-09-16', note: 'Parte di un pagamento di 400 €', created_at: ora },
+  { id: 'ffffffff-0005-4000-8000-000000000005', booking_id: 'bbbbbbbb-2502-4000-8000-000000002502', amount: 320, method: 'contanti', paid_on: '2026-09-16', note: 'Parte di un pagamento di 400 €', created_at: ora },
+  { id: 'ffffffff-0006-4000-8000-000000000006', booking_id: 'bbbbbbbb-2503-4000-8000-000000002503', amount: 60, method: 'contanti', paid_on: '2026-09-16', note: 'Parte di un pagamento di 400 €', created_at: ora },
 ]
 // Storico pulizie (migrazione 0018): vuoto, così la pagina Pulizie mostra solo le automatiche
 const cleanings = []

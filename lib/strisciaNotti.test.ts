@@ -258,12 +258,14 @@ const striscia = readFileSync(new URL('../components/StrisciaNottiCamere.tsx', i
 test('le colonnine: stessa larghezza, 4 px di spazio, e restano toccabili', () => {
   assert.match(striscia, /export const LARGHEZZA_COLONNINA = 44/)
   assert.match(striscia, /export const SPAZIO_COLONNINE = 4/)
-  assert.match(striscia, /className="flex items-end" style=\{\{ gap: SPAZIO_COLONNINE/)
-  assert.match(striscia, /flex: `1 1 \$\{LARGHEZZA_COLONNINA\}px`, maxWidth: LARGHEZZA_MASSIMA/, 'le colonnine non hanno tutte la stessa larghezza')
   assert.match(striscia, /export const LARGHEZZA_MASSIMA = 72/, 'con poche notti le colonnine diventano lenzuola')
-  // con molte notti la striscia scorre di lato invece di uscire dai margini
-  assert.match(striscia, /className="overflow-x-auto no-scrollbar"/)
-  assert.match(striscia, /minWidth: notti\.length \* LARGHEZZA_COLONNINA/)
+  // con molte notti la striscia VA A CAPO (Ania, 20/09/2026, le 24 notti di
+  // Rosa Macauda): una griglia con colonnine tutte uguali, da 44 a 72 px;
+  // niente più scorrimento di lato con la barra nascosta, che ne nascondeva 16
+  assert.match(striscia, /className="grid items-end" style=\{\{ gap: `10px \$\{SPAZIO_COLONNINE\}px`, gridTemplateColumns: `repeat\(auto-fit, minmax\(\$\{LARGHEZZA_COLONNINA\}px, 1fr\)\)`, maxWidth: notti\.length \* LARGHEZZA_MASSIMA \+ \(notti\.length - 1\) \* SPAZIO_COLONNINE \}\}/)
+  assert.doesNotMatch(striscia, /overflow-x-auto/, 'la striscia non deve più scorrere di lato')
+  assert.doesNotMatch(striscia, /minWidth: notti\.length/, 'la striscia non deve più allargarsi oltre la scheda')
+  assert.doesNotMatch(striscia, /flex: `1 1/, 'le colonnine le misura la griglia, tutte uguali')
 })
 
 test('le tinte delle camere e i due casi speciali', () => {

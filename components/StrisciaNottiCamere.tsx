@@ -7,6 +7,11 @@
 // (una tinta per camera), sotto attaccato il quadratino del letto in più.
 // Dove la camera cambia rispetto alla notte prima c'è il segno ⇄ d'ottone fra
 // le due colonnine. Toccare una notte apre il foglietto (components/FoglioNotte).
+// Con tante notti la striscia VA A CAPO (Ania, 20/09/2026, dopo le 24 notti di
+// Rosa Macauda: sul telefono se ne vedevano 7, sul Mac 12, e niente diceva che
+// continuava a destra). È una griglia CSS: tante colonnine per riga quante ne
+// entrano, tutte della stessa misura, così i giorni restano incolonnati anche
+// nell'ultima riga più corta; con poche notti crescono fino alla massima.
 //
 // Sola presentazione: i dati e le regole arrivano da lib/strisciaNotti, il
 // salvataggio lo fa la pagina. Nessuna chiamata al database qui dentro.
@@ -22,7 +27,7 @@ const ROSSO = '#D40000'
 const MATTONE = '#8C3B2E'
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 export const MATTONE_OSPITI = '#8a4f2f'
-export const LARGHEZZA_COLONNINA = 44   // px: sotto non si scende, la striscia scorre di lato
+export const LARGHEZZA_COLONNINA = 44   // px: sotto non si scende, la striscia va a capo
 export const LARGHEZZA_MASSIMA = 72     // px: con due o tre notti le colonnine non diventano lenzuola
 export const SPAZIO_COLONNINE = 4
 export const SPIEGAZIONE = 'sopra la camera · sotto il letto in più'
@@ -67,8 +72,10 @@ export default function StrisciaNottiCamere({ notti, oggi, onNotte, scelta, ospi
   const cambi = segniDiCambio(notti)
   return (
     <div data-striscia-notti className={className}>
-      <div className="overflow-x-auto no-scrollbar">
-        <div className="flex items-end" style={{ gap: SPAZIO_COLONNINE, minWidth: notti.length * LARGHEZZA_COLONNINA + (notti.length - 1) * SPAZIO_COLONNINE }}>
+      {/* la griglia: auto-fit mette per riga tante colonnine da 44 px quante ne
+          entrano e le allarga insieme (1fr); la larghezza massima del blocco
+          (72 px a notte) fa sì che con poche notti non diventino lenzuola */}
+      <div className="grid items-end" style={{ gap: `10px ${SPAZIO_COLONNINE}px`, gridTemplateColumns: `repeat(auto-fit, minmax(${LARGHEZZA_COLONNINA}px, 1fr))`, maxWidth: notti.length * LARGHEZZA_MASSIMA + (notti.length - 1) * SPAZIO_COLONNINE }}>
           {notti.map((n, i) => {
             const tinta = tintaCamera(n.camera)
             const fuori = !n.dentro
@@ -78,7 +85,7 @@ export default function StrisciaNottiCamere({ notti, oggi, onNotte, scelta, ospi
               <button key={n.iso} type="button" data-notte={n.iso} data-oggi={n.iso === oggi || undefined} data-fuori={fuori || undefined} data-cambia={cambi[i] || undefined} data-scelta={segnata || undefined}
                 onClick={onNotte ? () => onNotte(n) : undefined} disabled={!onNotte}
                 aria-label={`${titoloNotte(n.iso)}: ${fuori ? 'non dorme qui' : n.camera ?? 'camera da scegliere'}${n.letto ? ', con letto in più' : ''}. Tocca per cambiare`}
-                className="relative min-w-0 text-left" style={{ flex: `1 1 ${LARGHEZZA_COLONNINA}px`, maxWidth: LARGHEZZA_MASSIMA }}>
+                className="relative min-w-0 text-left">
                 <Giorno iso={n.iso} stretta={stretta} oggi={n.iso === oggi} />
                 {/* il segno del cambio camera, fra questa colonnina e quella prima */}
                 {cambi[i] && (
@@ -118,7 +125,6 @@ export default function StrisciaNottiCamere({ notti, oggi, onNotte, scelta, ospi
               </button>
             )
           })}
-        </div>
       </div>
       {spiegazione && <p className="text-center" style={{ marginTop: 8, fontSize: 12, color: 'var(--color-stone)' }}>{SPIEGAZIONE}</p>}
       {riassuntoStriscia(notti) && (
