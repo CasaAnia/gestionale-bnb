@@ -35,7 +35,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
-import TestaCliente from '@/components/TestaCliente'
+import TestaScheda from '@/components/scheda/TestaScheda'
+import { dateTesta, arrivoTesta, percorsoTesta, oggiTesta, residuoTesta, DA_COMPLETARE_DOCUMENTO } from '@/lib/testaScheda'
 import FasciaSezioni from '@/components/FasciaSezioni'
 import SchedinaControllo from '@/components/SchedinaControllo'
 import ClienteScheda from '@/components/scheda/ClienteScheda'
@@ -77,8 +78,7 @@ import ConfermaVolante from '@/components/ConfermaVolante'
 import { supabase } from '@/lib/supabase'
 import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiavePrenotazione, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import {
-  SEZIONI_SCHEDA, TUTTO_A_POSTO, statoScheda, primaRigaScheda, etichettaArrivoScheda, rigaGrandeScheda, statoConto, noteScheda,
-  misuraCamere, MISURA_CAMERE, SEGNO_CAMBIO,
+  SEZIONI_SCHEDA, TUTTO_A_POSTO, statoScheda, primaRigaScheda, statoConto, noteScheda,
   arrivoScheda, daControllareScheda, segmentiAttivi, type SegmentoScheda,
   PRENOTAZIONE_SALVATA, PRENOTAZIONE_DA_RICHIESTA, FONDO_SALVATA, FONDO_ANNULLATA, TESTO_ANNULLATA,
 } from '@/lib/schedaPrenotazione'
@@ -92,6 +92,7 @@ import { capienzaCamera } from '@/lib/tariffe'
 import { lineeDelSoggiorno, contestoLinea, contoDopoNotti, testoContoDopo, confermaNotti, conPrezzoConcordato, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, COMANDO_DATE, COMANDO_CAMBIO_CAMERA, type LineaSoggiorno } from '@/lib/lineeSoggiorno'
 import { salvaNottiInUnColpo } from '@/lib/nottiScrittura'
 import { nomeOspite } from '@/lib/guestName'
+import { giorniSoggiorno } from '@/lib/prezzoNotti'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import { provenienzaInParole, provenienzaDi, normalizzaProvenienza, type CampiProvenienza } from '@/lib/provenienza'
 import { elencoSoggiorniPersona, type SoggiornoStorico } from '@/lib/clienteCheTorna'
@@ -110,10 +111,7 @@ import type { PrenotazioneDC } from '@/lib/daControllare'
 import type { PagamentoStat } from '@/lib/statistiche/tipi'
 import type { SegmentoStorico } from '@/lib/storicoCliente'
 
-const GEORGIA = "Georgia, 'Times New Roman', serif"
 const OTTONE = '#A9884E'
-const VERDE_MESE = '#5B6559'
-const ROSSO_CONTO = '#D40000'
 const COLONNE_ALTRE = '*, rooms(name), guests(full_name, phone)'
 // quante notti intorno al soggiorno si leggono le altre prenotazioni (per «Cambia date»)
 const GIORNI_INTORNO = 31
@@ -128,31 +126,6 @@ type Prenotazione = SegmentoScheda & RigaPrenotazione & {
   extra_phone_1_name?: string | null
   extra_phone_2?: string | null
   extra_phone_2_name?: string | null
-}
-
-// La riga grande: OSPITI e CAMERA (con «⇄ 2» se cambia camera)
-// I cambi camera si leggono nei nomi («Lena ⇄ Amelia», regola fissa n. 8);
-// il numero «⇄ 2» resta solo con due camere insieme che cambiano.
-function RigaGrande({ ospiti, camere, cambi, insieme }: { ospiti: number; camere: string; cambi: number; insieme: boolean }) {
-  const etichetta = { marginTop: 6, fontSize: 9, letterSpacing: '1.5px', textTransform: 'uppercase' as const, color: 'var(--color-stone)' }
-  const misura = misuraCamere(camere)
-  // allineate in basso: «ospiti» e «camera» sulla stessa riga anche coi nomi su due righe (Ania, 18/09/2026)
-  return (
-    <div data-riga-grande className="flex items-end justify-center" style={{ gap: 44 }}>
-      <div className="text-center" data-ospiti-testa>
-        <p className="leading-[1.15]" style={{ fontFamily: GEORGIA, fontWeight: 400, fontSize: 24, color: 'var(--color-green-dark)' }}>{ospiti}</p>
-        <p style={etichetta}>ospiti</p>
-      </div>
-      <div className="text-center min-w-0" data-camera-scheda>
-        <p className={misura === MISURA_CAMERE.normale ? 'leading-[1.15] truncate' : 'leading-[1.15] line-clamp-2'} data-misura-camere={misura}
-          style={{ fontFamily: GEORGIA, fontWeight: 400, fontSize: misura, color: 'var(--color-green-dark)' }}>
-          {camere}
-          {insieme && cambi > 0 && <span data-cambi style={{ fontSize: 15, color: VERDE_MESE }}> {SEGNO_CAMBIO} {cambi}</span>}
-        </p>
-        <p style={etichetta}>camera</p>
-      </div>
-    </div>
-  )
 }
 
 const SECONDI_SALVATA = 5
@@ -317,7 +290,6 @@ export default function SchedaPage() {
   const attive = useMemo(() => segmentiAttivi(righe), [righe])
   const primoArrivo = attive[0]?.check_in ?? booking?.check_in ?? ''
   const ultimaPartenza = attive.reduce((m, s) => (s.check_out > m ? s.check_out : m), booking?.check_out ?? '')
-  const grande = useMemo(() => rigaGrandeScheda(attive), [attive])
   // Il conto: contoPrenotazione di lib/prenotazioneUnica, come la scheda attuale
   const conto = useMemo(() => {
     if (!contoLeggibile) return null
@@ -343,6 +315,7 @@ export default function SchedaPage() {
   const telefono = guest?.phone ?? null
   const waNumero = numeroWhatsAppPrenotazione(telefono)
   const primoSegmento = attive[0] ?? booking
+  const arrivoTestaTesto = arrivoTesta(primoSegmento?.check_in_time, primoSegmento?.shuttle)
   // lo stato scritto solo se non è quello normale (Ania, 17/09/2026)
   const statoTesto = booking ? statoScheda(booking.status, ultimaPartenza, oggi) : ''
   const statoDaMostrare = statoTesto === 'Confermata' ? null : statoTesto
@@ -551,35 +524,30 @@ export default function SchedaPage() {
       )}
       {avviso && <AvvisoAzione testo={avviso} className="mt-3" />}
 
+      {/* La testa (20/09/2026 sera, disegno approvato da Ania): le parole le
+          fa lib/testaScheda, la cifra del residuo è quella del conto sotto */}
       <div style={{ marginTop: 14 }}>
-        <TestaCliente
+        <TestaScheda
+          primaRiga={primaRiga.testo}
+          chiediProvenienza={primaRiga.chiediProvenienza && booking.guest_id ? { testo: 'da dove? ›', onClick: () => setFoglioProvenienza(true) } : null}
+          totaleCent={totaleSoggiorniCent}
+          hrefCliente="#cliente"
           nome={nomeOspite(booking)}
           stella={valutazioneDi(guest) === 'ottimo'}
           ricevuta={vuoleRicevuta(guest)}
-          nomeNormale
-          primaRiga={primaRiga.testo}
-          chiediProvenienza={primaRiga.chiediProvenienza && booking.guest_id ? { testo: 'da dove? ›', onClick: () => setFoglioProvenienza(true) } : null}
-          volte={soggiorni.length}
-          inArchivio
-          totaleCent={totaleSoggiorniCent}
-          hrefCliente="#cliente"
-          arrivo={primoArrivo}
-          partenza={ultimaPartenza}
-          notti={nottiDormite}
-          etichettaArrivo={etichettaArrivoScheda(primoSegmento?.check_in_time, primoSegmento?.shuttle)}
-          etichettaPartenza="parte"
-          personeNotti={[grande.ospiti]}
-          rigaGrande={<RigaGrande ospiti={grande.ospiti} camere={grande.camere} cambi={grande.cambi} insieme={grande.insieme} />}
-          sottoRigaGrande={stato && (
-            <p data-stato-conto={stato.tipo} className="text-center" style={{ marginTop: 12, fontFamily: GEORGIA, fontSize: 22, lineHeight: 1.2, color: stato.tipo === 'pagato' ? 'var(--color-green-mid)' : ROSSO_CONTO }}>{stato.testo}</p>
-          )}
+          date={dateTesta(primoArrivo, ultimaPartenza, nottiDormite || giorniSoggiorno(primoArrivo, ultimaPartenza).length)}
+          orario={arrivoTestaTesto.orario}
+          navetta={arrivoTestaTesto.navetta}
+          onArrivo={() => setFoglioArrivo(true)}
+          percorso={percorsoTesta(attive.length ? attive : righe)}
+          oggi={oggiTesta(attive, oggi, booking.status)}
+          residuo={residuoTesta(riepilogo, stato?.tipo === 'bonifico_atteso', booking.status === 'annullata')}
+          daCompletare={controlli.some(v => v.chiave === 'documento') ? DA_COMPLETARE_DOCUMENTO : null}
           telefono={telefonoAGruppi(telefono) || telefono}
           telefonoDaChiamare={waNumero}
-          telefonoWhatsApp={waNumero}
-          onScrivi={() => waNumero && openWhatsApp(waNumero, '')}
-          dopoContatti={<p className="text-center mt-2"><RigaDocumentiPrenotazione guestId={booking.guest_id} conteggio={documenti} scheda /></p>}
+          onScrivi={waNumero ? () => openWhatsApp(waNumero, '') : undefined}
+          documento={<RigaDocumentiPrenotazione guestId={booking.guest_id} conteggio={documenti} scheda />}
           note={note}
-          noteScheda
         />
       </div>
 

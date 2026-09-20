@@ -28,7 +28,7 @@ test('la scheda nuova sta a /scheda/<id> e la vecchia non viene toccata', () => 
 // ── 1. LA TESTA ────────────────────────────────────────────────────────────
 test('la testa: 22 px ai lati e i pezzi già esistenti, non riscritti', () => {
   assert.match(pagina, /className="py-4 px-\[22px\]/, 'i margini laterali sono 22 px come nella proposta')
-  for (const pezzo of ['TestaCliente', 'FasciaSezioni', 'SchedinaControllo', 'ConfermaWhatsApp', 'RigaDocumentiPrenotazione']) {
+  for (const pezzo of ['TestaScheda', 'FasciaSezioni', 'SchedinaControllo', 'ConfermaWhatsApp', 'RigaDocumentiPrenotazione']) {
     assert.ok(pagina.includes(`<${pezzo}`) || pagina.includes(`${pezzo} guestId`), `la scheda non usa ${pezzo}`)
   }
   // l'interruttore dei messaggi è quello del calendario, dentro MessaggiScheda
@@ -48,89 +48,128 @@ test('niente «‹ Prenotazioni» e niente «Confermata» sotto la freccia: lo s
 })
 
 
-test('la prima riga: grigio #B9B6AD 12,5 px, e «da dove? ›» nello stesso grigio', () => {
-  assert.match(testa, /const GRIGIO_RIGA = '#B9B6AD'/)
-  const prima = testa.slice(testa.indexOf('pezziRigaCliente(primaRiga ??') - 300, testa.indexOf('pezziRigaCliente(primaRiga ??') + 800)
-  assert.match(prima, /fontSize: 12\.5, color: GRIGIO_RIGA/)
-  // il tasto che apre il foglio ha lo STESSO grigio e la stessa misura
-  assert.match(prima, /data-chiedi-provenienza[^>]*className="ed-azione ed-azione-tenue"/)
-  // la pagina lo mostra solo quando la provenienza manca davvero e c'è un cliente
+// La testa della scheda (20/09/2026 sera, disegno approvato da Ania: «La
+// prenotazione, a colpo d'occhio», colonna DOPO · proposta punto 2). Variante
+// solo per la scheda: TestaCliente (richieste, inserimento) non cambia.
+const testaScheda = leggi('components/scheda/TestaScheda.tsx')
+
+test('la testa della scheda: componente suo, Arial 14 e #30483b solo lì, e TestaCliente non si tocca', () => {
+  assert.match(pagina, /import TestaScheda from '@\/components\/scheda\/TestaScheda'/)
+  assert.equal(/<TestaCliente/.test(pagina), false, 'la scheda usa ancora TestaCliente')
+  assert.match(testaScheda, /data-testa-scheda style=\{\{ font: '14px\/1\.5 Arial, sans-serif', color: TESTO_TESTA \}\}/)
+  assert.match(testaScheda, /export const TESTO_TESTA = '#30483b'/)
+  // l'ordine approvato, dall'alto: prima riga, nome, date, orario e navetta, percorso, oggi, residuo, da completare, contatti, documento
+  const ordine = ['data-prima-riga', 'data-nome-testa', 'data-date-testa', 'data-arrivo-testa', 'data-percorso-testa', 'data-oggi-testa', 'data-residuo-testa', 'data-da-completare', 'data-contatti-testa', 'data-documento-testa'].map(d => testaScheda.indexOf(d))
+  assert.ok(ordine.every(p => p > 0), 'manca un pezzo della testa')
+  assert.deepEqual([...ordine].sort((x, y) => x - y), ordine, 'i pezzi della testa non sono nell’ordine approvato')
+  // TestaCliente resta com'era per richieste e inserimento
+  assert.match(testa, /\{rigaGrande \?\? <>/)
+  assert.match(testa, /const ROSSO_SPESO = '#D40000'/)
+})
+
+test('la prima riga: chi è a sinistra (grassetti sul numero e sul nome), lo storico della spesa a destra in Georgia 17 rosso #b93e32, link alla parte CLIENTE (Ania: resta in alto)', () => {
+  assert.match(testaScheda, /data-prima-riga className="flex flex-wrap items-baseline justify-between" style=\{\{ gap: 12, fontSize: 12, color: GRIGIO \}\}/)
+  assert.match(testaScheda, /pezziRigaCliente\(primaRiga\)\.map/)
+  assert.match(testaScheda, /data-chiedi-provenienza onClick=\{chiediProvenienza\.onClick\}/)
+  assert.match(testaScheda, /const ROSSO_STORICO = '#b93e32'/)
+  assert.equal((testaScheda.match(/data-totale-cliente className="whitespace-nowrap" style=\{\{ font: `17px \$\{GEORGIA\}`, color: ROSSO_STORICO \}\}>\{totale\} ›/g) ?? []).length, 2)
+  assert.match(pagina, /primaRiga=\{primaRiga\.testo\}/)
   assert.match(pagina, /chiediProvenienza=\{primaRiga\.chiediProvenienza && booking\.guest_id \? \{ testo: 'da dove\? ›'/)
-  // il totale dei soggiorni porta alla parte CLIENTE in fondo
+  assert.match(pagina, /totaleCent=\{totaleSoggiorniCent\}/)
   assert.match(pagina, /hrefCliente="#cliente"/)
 })
 
-test('il nome: Georgia 32, peso NORMALE anche con la ricevuta, e 🧾 ★ davanti', () => {
-  assert.match(testa, /fontSize: 32, color: 'var\(--color-green-dark\)'[\s\S]*nomeNormale \? \{ fontWeight: 400 \}/)
-  assert.match(pagina, /nomeNormale/, 'la scheda non chiede il nome in peso normale')
-  // i quattro casi li decide la testa, che li ha già: ricevuta, stella, nome
-  const titolo = testa.slice(testa.indexOf('<h1 className="text-center mt-4'), testa.indexOf('</h1>'))
-  assert.ok(titolo.indexOf('data-ricevuta') < titolo.indexOf('data-stella'), 'prima la ricevuta, poi la stella')
-  assert.ok(titolo.indexOf('data-stella') < titolo.indexOf('{nome}'))
-  // e la scheda le passa tutt'e due, con le stesse funzioni della proposta
+test('il nome: Georgia 30 (25 sul telefono), peso normale, 🧾 e ★ davanti', () => {
+  assert.match(testaScheda, /<h1 data-nome-testa className="text-center text-\[25px\] min-\[700px\]:text-\[30px\]" style=\{\{ fontFamily: GEORGIA, fontWeight: 400, lineHeight: 1\.2, margin: '23px 0 20px' \}\}>/)
+  const titolo = testaScheda.slice(testaScheda.indexOf('<h1 data-nome-testa'), testaScheda.indexOf('</h1>'))
+  assert.ok(titolo.indexOf('data-ricevuta') < titolo.indexOf('data-stella') && titolo.indexOf('data-stella') < titolo.indexOf('{nome}'), 'prima la ricevuta, poi la stella, poi il nome')
   assert.match(pagina, /stella=\{valutazioneDi\(guest\) === 'ottimo'\}/)
   assert.match(pagina, /ricevuta=\{vuoleRicevuta\(guest\)\}/)
 })
 
-test('le etichette sotto le date: «ARRIVA 15:10 · NAVETTA» e «PARTE»', () => {
-  assert.match(pagina, /etichettaArrivo=\{etichettaArrivoScheda\(primoSegmento\?\.check_in_time, primoSegmento\?\.shuttle\)\}/)
-  assert.match(pagina, /etichettaPartenza="parte"/)
-  // la testa le scrive in maiuscolo 9 px, come faceva con «arrivo»/«partenza»
-  assert.match(testa, /<Data iso=\{arrivo\} etichetta=\{etichettaArrivo\} \/>/)
-  assert.match(testa, /fontSize: 9, letterSpacing: '1\.5px', textTransform: 'uppercase'/)
+test('le date del soggiorno intero: «mar 1 settembre» a sinistra, le notti in mezzo sopra il filo, «ven 25 settembre» a destra, ARRIVA e PARTE sotto', () => {
+  assert.match(pagina, /date=\{dateTesta\(primoArrivo, ultimaPartenza, nottiDormite \|\| giorniSoggiorno\(primoArrivo, ultimaPartenza\)\.length\)\}/)
+  assert.match(testaScheda, /<Data d=\{date\.arrivo\} etichetta="arriva" lato="sinistra" \/>/)
+  assert.match(testaScheda, /data-notti-testa className="flex-1 text-center self-start min-w-\[32px\]" style=\{\{ fontSize: 11, color: OTTONE_NOTTI, borderBottom: `1px solid \$\{FILO_NOTTI\}`, paddingBottom: 7 \}\}>\{date\.notti\}/)
+  assert.match(testaScheda, /<Data d=\{date\.partenza\} etichetta="parte" lato="destra" \/>/)
+  // Georgia 22 col mese in 15; sul telefono 20 e 14, il mese a capo
+  assert.match(testaScheda, /className="text-\[20px\] min-\[700px\]:text-\[22px\]">\{d\.settimana\} \{d\.giorno\}/)
+  assert.match(testaScheda, /className="block min-\[700px\]:inline text-\[14px\] min-\[700px\]:text-\[15px\]" style=\{\{ fontFamily: GEORGIA \}\}>\{d\.mese\}\{d\.anno && ` \$\{d\.anno\}`\}/)
+  assert.match(testaScheda, /const ETICHETTA: CSSProperties = \{ display: 'block', font: '9px Arial, sans-serif', letterSpacing: '1\.5px', textAlign: 'center', color: GRIGIO, marginTop: 9 \}/)
 })
 
-test('la riga grande: due colonne a 44 px, Georgia 24, «⇄ 2» a 15 px #5B6559', () => {
-  const riga = pagina.slice(pagina.indexOf('function RigaGrande'), pagina.indexOf('export default function SchedaPage'))
-  assert.match(riga, /style=\{\{ gap: 44 \}\}/)
-  assert.match(riga, /fontFamily: GEORGIA, fontWeight: 400, fontSize: 24/)
-  // regola fissa n. 8: i cambi stanno nei nomi; il numero solo con due camere insieme; nomi lunghi in 18 px su due righe
-  assert.match(riga, /\{insieme && cambi > 0 && <span data-cambi style=\{\{ fontSize: 15, color: VERDE_MESE \}\}> \{SEGNO_CAMBIO\} \{cambi\}/)
-  assert.match(riga, /misura === MISURA_CAMERE\.normale \? 'leading-\[1\.15\] truncate' : 'leading-\[1\.15\] line-clamp-2'/)
-  // le due colonne allineate in basso: «ospiti» e «camera» sulla stessa riga anche coi nomi su due righe (Ania, 18/09/2026)
-  assert.match(riga, /data-riga-grande className="flex items-end justify-center"/)
-  assert.match(pagina, /const VERDE_MESE = '#5B6559'/)
-  assert.match(riga, />ospiti</)
-  assert.match(riga, />camera</)
-  // sta al posto delle due colonne della proposta: la testa la riceve intera
-  assert.match(pagina, /rigaGrande=\{<RigaGrande/)
-  assert.match(testa, /\{rigaGrande \?\? <>/)
+test('orario e navetta sotto le date (12 px, #756748): i dati veri o cosa manca; toccandoli si apre «Modifica arrivo»', () => {
+  assert.match(pagina, /const arrivoTestaTesto = arrivoTesta\(primoSegmento\?\.check_in_time, primoSegmento\?\.shuttle\)/)
+  assert.match(pagina, /orario=\{arrivoTestaTesto\.orario\}/)
+  assert.match(pagina, /navetta=\{arrivoTestaTesto\.navetta\}/)
+  assert.match(pagina, /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/)
+  assert.match(testaScheda, /data-arrivo-testa className="flex flex-wrap" style=\{\{ gap: '4px 16px', margin: '13px 0 20px', fontSize: 12, color: OTTONE_ARRIVO \}\}/)
+  assert.match(testaScheda, /const OTTONE_ARRIVO = '#756748'/)
+  assert.match(testaScheda, /<button type="button" data-orario-testa onClick=\{onArrivo\}/)
+  assert.match(testaScheda, /<button type="button" data-navetta-testa onClick=\{onArrivo\}/)
 })
 
-test('lo stato del conto: Georgia 22 centrato, verde se pagato, #D40000 se manca', () => {
-  assert.match(pagina, /const ROSSO_CONTO = '#D40000'/)
-  const stato = pagina.slice(pagina.indexOf('data-stato-conto'), pagina.indexOf('data-stato-conto') + 400)
-  assert.match(stato, /fontFamily: GEORGIA, fontSize: 22/)
-  assert.match(stato, /className="text-center"/)
-  assert.match(stato, /stato\.tipo === 'pagato' \? 'var\(--color-green-mid\)' : ROSSO_CONTO/)
+test('ospiti e cambi, e la sequenza intera delle camere (Georgia 19, interlinea 1,5): regola fissa n. 8 nella veste nuova', () => {
+  assert.match(pagina, /percorso=\{percorsoTesta\(attive\.length \? attive : righe\)\}/)   // annullata: si leggono lo stesso le sue camere
+  assert.match(testaScheda, /data-percorso-testa className="text-center" style=\{\{ margin: '0 0 20px', paddingTop: 16, borderTop: `1px solid \$\{FILO_CHIARO\}` \}\}/)
+  assert.match(testaScheda, /data-ospiti-cambi className="uppercase" style=\{OCCHIELLO\}>\{percorso\.sopra\}/)
+  assert.match(testaScheda, /data-camere-testa className="text-\[18px\] min-\[700px\]:text-\[19px\]" style=\{\{ fontFamily: GEORGIA, lineHeight: 1\.5, marginTop: 7 \}\}>\{percorso\.camere\}/)
+  assert.match(testaScheda, /const OCCHIELLO: CSSProperties = \{ fontSize: 11, letterSpacing: '1\.2px', color: OTTONE_ETICHETTA, marginBottom: 7 \}/)
+  // niente troncamento: i nomi vanno a capo
+  assert.equal(/truncate|line-clamp/.test(testaScheda), false, 'i nomi delle camere vengono tagliati')
+})
+
+test('il blocco OGGI fra due fili #d6c7a8: occhiello, la camera di stanotte in Georgia 25, il prossimo evento in 14 px con la parte forte a 600', () => {
+  assert.match(pagina, /oggi=\{oggiTesta\(attive, oggi, booking\.status\)\}/)
+  assert.match(pagina, /const oggi = oggiARoma\(\)/)
+  assert.match(testaScheda, /data-oggi-testa style=\{\{ borderTop: `1px solid \$\{FILO_OGGI\}`, borderBottom: `1px solid \$\{FILO_OGGI\}`, padding: '16px 0' \}\}/)
+  assert.match(testaScheda, /const FILO_OGGI = '#d6c7a8'/)
+  assert.match(testaScheda, /data-adesso-testa style=\{\{ font: `25px \$\{GEORGIA\}`, marginBottom: 9 \}\}>\{oggi\.titolo\}/)
+  assert.match(testaScheda, /\{oggi\.prossimo && <p data-prossimo-testa style=\{\{ fontSize: 14, color: VERDE_TESTO \}\}>\{oggi\.prossimo\.testo\}<strong style=\{\{ fontWeight: 600 \}\}>\{oggi\.prossimo\.forte\}<\/strong><\/p>\}/)
+})
+
+test('il residuo in testa: la cifra del conto (riepilogoConto), Georgia 27; senza conto niente cifra; il richiamo del documento solo quando manca', () => {
+  assert.match(pagina, /residuo=\{residuoTesta\(riepilogo, stato\?\.tipo === 'bonifico_atteso', booking\.status === 'annullata'\)\}/)
+  assert.equal(/data-stato-conto/.test(pagina), false, 'la vecchia riga rossa dello stato del conto è ancora in testa')
+  assert.match(testaScheda, /data-residuo-testa className="flex flex-wrap items-baseline justify-between" style=\{\{ gap: 10, margin: '20px 0 16px', fontSize: 14 \}\}/)
+  assert.match(testaScheda, /\{residuo\.importo && <strong className="whitespace-nowrap" style=\{\{ font: `27px \$\{GEORGIA\}`, fontVariantNumeric: 'tabular-nums' \}\}>\{residuo\.importo\}<\/strong>\}/)
+  assert.match(pagina, /daCompletare=\{controlli\.some\(v => v\.chiave === 'documento'\) \? DA_COMPLETARE_DOCUMENTO : null\}/)
+  assert.match(testaScheda, /\{daCompletare && <p data-da-completare style=\{\{ padding: '11px 13px', background: FONDO_ATTENZIONE, color: TESTO_ATTENZIONE, fontSize: 13, marginBottom: 18, borderRadius: 5 \}\}>\{daCompletare\}<\/p>\}/)
+  assert.match(testaScheda, /const FONDO_ATTENZIONE = '#f1eadb'/)
+  assert.match(testaScheda, /const TESTO_ATTENZIONE = '#665330'/)
 })
 
 test('telefono, «Scrivi» e la riga del documento', () => {
-  // telefono e WhatsApp sono quelli della testa, 15 px semibold, come nella proposta
-  assert.match(testa, /fontSize: 13, fontWeight: 600/)   // telefono e «Scrivi» a 13 px come i comandi della Home (Ania, 20/09/2026)
-  assert.match(pagina, /onScrivi=\{\(\) => waNumero && openWhatsApp\(waNumero, ''\)\}/)
-  // la riga del documento: 14 px stone, «aggiungi» verde, oppure «caricato ›»
-  const riga = documenti.slice(documenti.indexOf('if (scheda) {'), documenti.indexOf('if (scheda) {') + 800)
-  assert.match(riga, /fontSize: 14, color: 'var\(--color-stone\)'/)
-  assert.match(riga, /Nessun documento · <span className="ed-azione"[^>]*>aggiungi/)   // solo «aggiungi» ha il filo, come i comandi della Home (Ania, 20/09/2026)
+  // il numero vero, che si chiama, e «Scrivi» accanto: 13 px, #405b4b, filo a 3 px, 8 px ai lati
+  assert.match(testaScheda, /data-contatti-testa className="text-center" style=\{\{ fontSize: 13, margin: '16px 0', color: VERDE_TESTO \}\}/)
+  assert.match(testaScheda, /<a href=\{`tel:\+\$\{telefonoDaChiamare \?\? telefono\}`\} data-chiama className="inline-block" style=\{\{ \.\.\.AZIONE, margin: '-6px 8px', color: VERDE_TESTO \}\}>\{telefono\}<\/a>/)
+  assert.match(testaScheda, /<button type="button" onClick=\{onScrivi\} data-scrivi className="inline-block ed-azione"[^>]*>Scrivi<\/button>/)
+  assert.match(pagina, /onScrivi=\{waNumero \? \(\) => openWhatsApp\(waNumero, ''\) : undefined\}/)
+  assert.match(pagina, /telefonoDaChiamare=\{waNumero\}/)
+  // la riga del documento: «Aggiungi documento» sottolineato quando manca, «documento caricato ›» quando c'è; porta ai documenti della cliente
+  const riga = documenti.slice(documenti.indexOf('if (scheda) {'), documenti.indexOf('if (scheda) {') + 1200)
+  assert.match(riga, /href=\{`\/clienti\/\$\{guestId\}#documenti`\} data-riga-documento/)
+  assert.match(riga, /<span className="ed-azione" style=\{\{ minHeight: 0, fontSize: 12, fontWeight: 400, color: '#405b4b', textDecoration: 'underline', textDecorationColor: 'currentColor', textUnderlineOffset: 3 \}\}>Aggiungi documento<\/span>/)
   assert.match(riga, /documento caricato/)
   // il conteggio è già letto dalla pagina: non si interroga il database due volte
-  assert.match(pagina, /conteggio=\{documenti\} scheda/)
+  assert.match(pagina, /documento=\{<RigaDocumentiPrenotazione guestId=\{booking\.guest_id\} conteggio=\{documenti\} scheda \/>\}/)
+  assert.match(testaScheda, /\{documento && <div data-documento-testa className="text-center" style=\{\{ fontSize: 12, color: GRIGIO, margin: '12px 0 23px' \}\}>\{documento\}<\/div>\}/)
 })
 
-test('le note: filo tratteggiato #D8D2C4, rosso #D40000 (come «da incassare») a 14,5 in grassetto vero, «QUESTA VOLTA»', () => {
-  assert.match(testa, /const FILO_NOTA_SCHEDA = '#D8D2C4'/)
-  assert.match(testa, /borderTop: `1px dashed \$\{noteScheda \? FILO_NOTA_SCHEDA : FILO_NOTA\}`/)
-  assert.match(testa, /const ROSSO_NOTA = '#D40000'/)
-  assert.match(testa, /fontSize: noteScheda \? 14\.5 : 13\.5, fontWeight: 700, color: ROSSO_NOTA/)
+test('le note: filo tratteggiato #D8D2C4, rosso #D40000 a 14,5 in grassetto vero, «QUESTA VOLTA»', () => {
+  assert.match(testaScheda, /const FILO_NOTA = '#D8D2C4'/)
+  assert.match(testaScheda, /data-note-testa style=\{\{ marginBottom: 18, borderTop: `1px dashed \$\{FILO_NOTA\}`, paddingTop: 10 \}\}/)
+  assert.match(testaScheda, /const ROSSO_NOTA = '#D40000'/)
+  assert.match(testaScheda, /fontSize: 14\.5, fontWeight: 700, color: ROSSO_NOTA/)
   assert.match(leggi('components/scheda/ClienteScheda.tsx'), /const ROSSO_NOTA = '#D40000'/)
   assert.match(leggi('components/scheda/ClienteScheda.tsx'), /fontWeight: v\.etichetta === 'nota del cliente' \? 700 : 600/)
   // la parolina c'è solo sulla nota della prenotazione (la prima non ce l'ha)
-  assert.match(testa, /\{\(n\.etichetta \|\| !noteScheda\) && <p style=\{\{ fontSize: noteScheda \? 10 : 9\.5/)
-  // senza note niente filo e niente spazio: lo decide la testa, che non disegna nulla
-  assert.match(testa, /\{notePulite\.length > 0 && \(/)
+  assert.match(testaScheda, /\{n\.etichetta && <p className="uppercase" style=\{\{ fontSize: 10, letterSpacing: '1\.5px', color: ROSSO_NOTA \}\}>\{n\.etichetta\}<\/p>\}/)
+  // senza note niente filo e niente spazio
+  assert.match(testaScheda, /\{notePulite\.length > 0 && \(/)
   assert.match(pagina, /note=\{note\}/)
-  assert.match(pagina, /noteScheda/)
+  // TestaCliente tiene la sua veste per richieste e inserimento
+  assert.match(testa, /const FILO_NOTA_SCHEDA = '#D8D2C4'/)
 })
 
 // ── 2. LA FASCIA ───────────────────────────────────────────────────────────
@@ -467,12 +506,11 @@ test('i comandi in fondo (17/09/2026): «Nota e colore», poi l’annullamento i
   assert.match(pagina, /data-aggiungi-camera onClick=\{aggiungiCamera\}/)
 })
 
-test('quanto ha già speso la cliente, in cima: nello stesso rosso acceso di «da incassare» (Ania, 17/09/2026)', () => {
+test('quanto ha già speso la cliente, in cima: in richieste e inserimento il rosso #D40000 (Ania, 17/09/2026); nella scheda il rosso del riferimento approvato (#b93e32, 20/09/2026 sera)', () => {
   const testa = leggi('components/TestaCliente.tsx')
   assert.match(testa, /const ROSSO_SPESO = '#D40000'/)
   assert.equal((testa.match(/data-totale-cliente[^\n]*color: ROSSO_SPESO/g) ?? []).length, 2)
-  // il rosso di «da incassare» sta nella testa della scheda; nel conto (20/09/2026 sera) non c'è più rosso
-  assert.match(pagina, /const ROSSO_CONTO = '#D40000'/)
+  assert.match(testaScheda, /const ROSSO_STORICO = '#b93e32'/)
 })
 
 test('la striscia della scheda mostra le persone sotto ogni notte, e il letto acceso si vede (verde pieno)', () => {

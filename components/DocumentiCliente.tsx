@@ -226,10 +226,12 @@ export function RigaDocumentiPrenotazione({ guestId, className = '', conteggio, 
   if (!guestId || n === null) return null
   if (scheda) {
     return (
-      <Link href={`/clienti/${guestId}#documenti`} data-riga-documento data-senza-sottolinea className={`inline-flex items-center gap-1.5 ${className}`} style={{ fontSize: 14, color: 'var(--color-stone)' }}>
-        <span aria-hidden>🪪</span>
+      // nella testa della scheda (20/09/2026 sera, disegno approvato): «Aggiungi
+      // documento» sottolineato quando manca, «documento caricato ›» quando c'è;
+      // porta sempre ai documenti della cliente, come prima
+      <Link href={`/clienti/${guestId}#documenti`} data-riga-documento data-senza-sottolinea className={`inline-block ${className}`} style={{ fontSize: 12, color: '#8b8f83' }}>
         {n === 0
-          ? <span>Nessun documento · <span className="ed-azione" style={{ minHeight: 0 }}>aggiungi</span></span>
+          ? <span className="ed-azione" style={{ minHeight: 0, fontSize: 12, fontWeight: 400, color: '#405b4b', textDecoration: 'underline', textDecorationColor: 'currentColor', textUnderlineOffset: 3 }}>Aggiungi documento</span>
           : <span>{n === 1 ? 'documento caricato' : `${n} documenti caricati`} ›</span>}
       </Link>
     )

@@ -103,13 +103,16 @@ l'inserimento rimette la riga «notti · a notte» sotto «Da pagare»»).
 Sotto «camera» si guardano le date, non come sono salvate le righe: se le
 camere si susseguono senza mai stare insieme nella stessa notte è un cambio
 camera e si scrivono tutti i nomi col segno di sempre, «Lena ⇄ Amelia ⇄
-Lena». Il «+» resta solo per due camere nelle stesse notti («Lena + Amelia»).
-Quando i nomi sono tanti la riga scende da 24 a 18 px e può andare a capo su
-due righe; le scritte «ospiti» e «camera» restano sulla stessa riga (Ania,
-18/09/2026).
+Lena» — anche quando una camera torna. Il «+» resta solo per due camere nelle
+stesse notti («Lena + Amelia»). Dal 20/09/2026 sera (disegno approvato da
+Ania, «La prenotazione, a colpo d'occhio») i nomi stanno in Georgia 19 e
+vanno a capo quando sono tanti, mai tagliati; sopra, in maiuscoletto, «1
+OSPITE · 3 CAMBI CAMERA»: quattro periodi sono tre cambi, una camera sola
+non ha cambi.
 
 Test: `lib/schedaPrenotazione.test.ts` → «riga grande: una camera, con cambi, con due
-camere insieme» e `lib/scheda.test.ts` → la prova della testa (`RigaGrande`).
+camere insieme», `lib/testaScheda.test.ts` → «ospiti e cambi: …» e
+`lib/scheda.test.ts` → «ospiti e cambi, e la sequenza intera delle camere».
 
 ## 9. Il pagamento non si divide fra le camere: si registra intero, e la scheda dice fin dove arriva
 
