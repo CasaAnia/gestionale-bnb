@@ -3,9 +3,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   statoScheda, primaRigaScheda, etichettaArrivoScheda, rigaGrandeScheda, misuraCamere, statoConto, noteScheda,
-  caselleSoggiorno, arrivoScheda, trattiCamera, periodoTratto, daControllareScheda, euroScheda,
+  caselleSoggiorno, arrivoScheda, trattiCamera, periodoTratto, daControllareScheda, euroScheda, vocePagamentoScheda,
   SEZIONI_SCHEDA, type SegmentoScheda,
+  TITOLO_PAGAMENTO_PARZIALE, TITOLO_NESSUN_PAGAMENTO, TITOLO_OLTRE_IL_TOTALE, TITOLO_SEGNATA_PAGATA, TITOLO_CONTO_NON_LEGGIBILE,
+  DETTAGLIO_CONTO_NON_LEGGIBILE, COMANDO_AGGIUNGI_PAGAMENTO, TITOLO_DOCUMENTO, DETTAGLIO_DOCUMENTO_IN_CASA, DETTAGLIO_DOCUMENTO_PRIMA,
 } from './schedaPrenotazione.ts'
+import { riepilogoConto } from './schedaConto.ts'
 
 type Camera = NonNullable<SegmentoScheda['rooms']>
 const LENA: Camera = { id: 'lena', name: 'Lena', base_price: 80, double_price: 90, has_extra_bed: true, extra_bed_price: 10 }
@@ -149,27 +152,30 @@ test('da controllare: due cose (cambio camera oggi, documento mancante) e niente
   const due = daControllareScheda({ segmenti: CARMELA, altre: [], pagamenti: [{ booking_id: 'c1', amount: 550, paid_on: '2026-09-10' }], oggi: OGGI, documenti: 0, hrefDocumenti: '/clienti/g1#documenti' })
   assert.deepEqual(due.map(v => v.etichetta), ['Cambio camera', 'Documento'])
   assert.equal(due[0].titolo, 'Oggi passa da Lena a Amelia')
-  assert.equal(due[1].titolo, 'Nessun documento caricato')
+  assert.equal(due[1].titolo, TITOLO_DOCUMENTO)
   assert.deepEqual(due[1].link, { testo: 'Aggiungi documento', href: '/clienti/g1#documenti' })
-  assert.equal(due[1].dettaglio, 'la cliente è in casa: manca la foto del documento')
+  assert.equal(due[1].dettaglio, DETTAGLIO_DOCUMENTO_IN_CASA)
   // pagata, con il documento e senza cambi vicini: niente
   const niente = daControllareScheda({ segmenti: [seg('a', LENA, '2026-09-20', '2026-09-22')], altre: [], pagamenti: [], oggi: OGGI, documenti: 2, hrefDocumenti: null })
   assert.deepEqual(niente, [])
   // senza documento anche PRIMA dell'arrivo (Ania, 17/09/2026): si vede, con «da chiedere all'arrivo»
   const futura = daControllareScheda({ segmenti: [seg('a', LENA, '2026-09-20', '2026-09-22')], altre: [], pagamenti: [], oggi: OGGI, documenti: 0, hrefDocumenti: '/clienti/g1#documenti' })
   assert.deepEqual(futura.map(v => v.etichetta), ['Documento'])
-  assert.equal(futura[0].dettaglio, 'manca la foto del documento: da chiedere all’arrivo')
+  assert.equal(futura[0].dettaglio, DETTAGLIO_DOCUMENTO_PRIMA)
   // soggiorno finito: niente, anche senza documento
   const finita = daControllareScheda({ segmenti: [seg('a', LENA, '2026-09-01', '2026-09-03')], altre: [], pagamenti: [{ booking_id: 'a', amount: 160, paid_on: '2026-09-01' }], oggi: OGGI, documenti: 0, hrefDocumenti: null })
   assert.equal(finita.some(v => v.etichetta === 'Documento'), false)
 })
 
 test('da controllare: le regole della Home filtrate su questa prenotazione', () => {
-  // arrivata il 10, pagato niente: la voce dei pagamenti, come in Home
-  const nonPagata = daControllareScheda({ segmenti: [seg('a', LENA, '2026-09-10', '2026-09-20', { total_amount: 800, guest_name: 'Rosa' })], altre: [], pagamenti: [], oggi: OGGI, documenti: 1, hrefDocumenti: null })
+  // arrivata il 10, pagato niente: la voce dei pagamenti compare come in Home,
+  // ma dice il conto (punto 3, 20/09/2026 sera) e apre il foglio QUI
+  const nonPagata = daControllareScheda({ segmenti: [seg('a', LENA, '2026-09-10', '2026-09-20', { total_amount: 800, guest_name: 'Rosa' })], altre: [], pagamenti: [], oggi: OGGI, documenti: 1, hrefDocumenti: null, conto: { totaleCent: 80000, ricevutiCent: 0 } })
   assert.deepEqual(nonPagata.map(v => v.etichetta), ['Pagamento'])
-  assert.equal(nonPagata[0].titolo, 'Arrivato il 10 set e non segnato pagato')
-  assert.equal(nonPagata[0].link?.href, '/scheda/a?azione=pagato')
+  assert.equal(nonPagata[0].titolo, TITOLO_NESSUN_PAGAMENTO)
+  assert.equal(nonPagata[0].dettaglio, 'Da incassare 800 €')
+  assert.equal(nonPagata[0].link, null)
+  assert.deepEqual(nonPagata[0].comando, { tipo: 'pagamento', testo: COMANDO_AGGIUNGI_PAGAMENTO })
   // arriva domani senza orario
   const domani = daControllareScheda({ segmenti: [seg('b', LENA, '2026-09-14', '2026-09-16', { guest_name: 'Anna' })], altre: [], pagamenti: [], oggi: OGGI, documenti: null, hrefDocumenti: null })
   assert.deepEqual(domani.map(v => v.etichetta), ['Arrivo'])
@@ -182,4 +188,152 @@ test('da controllare: le regole della Home filtrate su questa prenotazione', () 
   const estranea = { ...altra, id: 'y', room_id: 'amelia' }
   const nulla = daControllareScheda({ segmenti: [seg('c', LENA, '2026-09-20', '2026-09-22')], altre: [{ ...altra, id: 'w', room_id: 'amelia' }, estranea], pagamenti: [], oggi: OGGI, documenti: 1, hrefDocumenti: null })
   assert.deepEqual(nulla, [])
+})
+
+// ── Punto 3 (20/09/2026 sera): l'avviso del pagamento dice il conto ────────
+// Il caso approvato da Ania: Rosa, 1 → 25 set, quattro tratti (Ambra, Amelia,
+// Lena, Ambra) per 1.880 €, due pagamenti da 400 € registrati interi sul
+// primo tratto (regola fissa n. 9). Oggi 20 set: in casa, senza documento.
+const AMBRA: Camera = { id: 'ambra', name: 'Ambra', base_price: 60, has_extra_bed: false }
+const G = 'rosa'
+const ROSA: SegmentoScheda[] = [
+  seg('r1', AMBRA, '2026-09-01', '2026-09-07', { group_id: G, guest_id: 'g-rosa', guest_name: 'Rosa Macauda', total_amount: 480, check_in_time: '16:00' }),
+  seg('r2', AMELIA, '2026-09-07', '2026-09-11', { group_id: G, guest_id: 'g-rosa', guest_name: 'Rosa Macauda', total_amount: 280 }),
+  seg('r3', LENA, '2026-09-11', '2026-09-22', { group_id: G, guest_id: 'g-rosa', guest_name: 'Rosa Macauda', total_amount: 880 }),
+  seg('r4', AMBRA, '2026-09-22', '2026-09-25', { group_id: G, guest_id: 'g-rosa', guest_name: 'Rosa Macauda', total_amount: 240 }),
+]
+const DUE_DA_400 = [{ booking_id: 'r1', amount: 400, paid_on: '2026-09-07' }, { booking_id: 'r1', amount: 400, paid_on: '2026-09-16' }]
+const OGGI_ROSA = '2026-09-20'
+// il conto come lo fa la pagina (contoPrenotazione): totale delle righe, movimenti delle righe
+const contoDi = (segmenti: SegmentoScheda[], pagamenti: { booking_id: string; amount: number }[]) => {
+  const ids = new Set(segmenti.map(s => s.id))
+  return {
+    totaleCent: segmenti.filter(s => s.status !== 'annullata').reduce((t, s) => t + Math.round(Number(s.total_amount) * 100), 0),
+    ricevutiCent: pagamenti.filter(p => ids.has(p.booking_id)).reduce((t, p) => t + Math.round(p.amount * 100), 0),
+  }
+}
+const dati = (segmenti: SegmentoScheda[], pagamenti: { booking_id: string; amount: number; paid_on: string }[], extra: Partial<Parameters<typeof daControllareScheda>[0]> = {}) => ({
+  segmenti, altre: [], pagamenti, oggi: OGGI_ROSA, documenti: 0, hrefDocumenti: '/clienti/g-rosa#documenti', conto: contoDi(segmenti, pagamenti), ...extra,
+})
+
+test('il caso approvato: 1.880 € totali, 800 € ricevuti, restano 1.080 €; due avvisi, PAGAMENTO e DOCUMENTO', () => {
+  const voci = daControllareScheda(dati(ROSA, DUE_DA_400))
+  assert.deepEqual(voci.map(v => v.etichetta), ['Pagamento', 'Documento'])
+  const [pag, doc] = voci
+  assert.equal(pag.titolo, TITOLO_PAGAMENTO_PARZIALE)
+  assert.equal(pag.dettaglio, 'Ricevuti 800 € · restano 1.080 €')
+  // gli importi sono i pezzi in grassetto, le parole no
+  assert.deepEqual(pag.parti, [{ testo: 'Ricevuti ' }, { testo: '800 €', forte: true }, { testo: ' · restano ' }, { testo: '1.080 €', forte: true }])
+  assert.deepEqual(pag.comando, { tipo: 'pagamento', testo: 'Aggiungi pagamento' })
+  assert.equal(pag.link, null)
+  // niente nome, camere, periodo o «arrivato il 7 set» dentro l'avviso
+  for (const parola of ['Rosa', 'Ambra', 'Amelia', 'Lena', '7 set', '1 set', 'arrivat', 'non segnato']) {
+    assert.equal((pag.titolo + pag.dettaglio).toLowerCase().includes(parola.toLowerCase()), false, `l'avviso dice ancora «${parola}»`)
+  }
+  assert.equal(doc.titolo, TITOLO_DOCUMENTO)
+  assert.equal(doc.dettaglio, DETTAGLIO_DOCUMENTO_IN_CASA)
+  assert.deepEqual(doc.link, { testo: 'Aggiungi documento', href: '/clienti/g-rosa#documenti' })
+  // due pagamenti distinti contati UNA volta, e un avviso solo anche con i cambi camera
+  assert.equal(voci.filter(v => v.etichetta === 'Pagamento').length, 1)
+})
+
+test('le cifre sono quelle del riepilogo del conto, anche coi centesimi dello sconto', () => {
+  // 12,5 % di sconto su 210 € = 183,75 €, con 100 € di anticipo
+  const conto = { totaleCent: 18375, ricevutiCent: 10000 }
+  const r = riepilogoConto(conto)
+  const v = vocePagamentoScheda(conto)
+  assert.equal(v.dettaglio, `Ricevuti ${r.ricevuto} · restano ${r.residuo}`)
+  assert.equal(v.dettaglio, 'Ricevuti 100 € · restano 83,75 €')
+  // e nel caso approvato
+  const r2 = riepilogoConto(contoDi(ROSA, DUE_DA_400))
+  assert.deepEqual([r2.totale, r2.ricevuto, r2.residuo], ['1.880 €', '800 €', '1.080 €'])
+})
+
+test('camere contemporanee: un avviso solo, con il conto di tutta la prenotazione', () => {
+  // due camere nelle stesse notti, prenotazione unica (prenotazione_id), gruppi diversi
+  const parallele = [
+    seg('p1', LENA, '2026-09-18', '2026-09-22', { prenotazione_id: 'P', group_id: 'gp1', guest_id: 'g-rosa', guest_name: 'Rosa Macauda', total_amount: 320 }),
+    seg('p2', AMELIA, '2026-09-18', '2026-09-22', { prenotazione_id: 'P', group_id: 'gp2', guest_id: 'g-rosa', guest_name: 'Rosa Macauda', total_amount: 200 }),
+  ]
+  const pagamenti = [{ booking_id: 'p1', amount: 300, paid_on: '2026-09-18' }]
+  const voci = daControllareScheda(dati(parallele, pagamenti, { documenti: 1 }))
+  assert.deepEqual(voci.map(v => v.etichetta), ['Pagamento'])
+  assert.equal(voci[0].dettaglio, 'Ricevuti 300 € · restano 220 €')
+})
+
+test('nessun pagamento: «Nessun pagamento registrato · Da incassare», senza inventare movimenti', () => {
+  const voci = daControllareScheda(dati(ROSA, [], { documenti: 1 }))
+  assert.deepEqual(voci.map(v => v.titolo), [TITOLO_NESSUN_PAGAMENTO])
+  assert.equal(voci[0].dettaglio, 'Da incassare 1.880 €')
+})
+
+test('un pagamento in più: avviso e conto cambiano insieme; col saldo l\'avviso sparisce e il conteggio scende', () => {
+  const conAltri500 = [...DUE_DA_400, { booking_id: 'r3', amount: 500, paid_on: '2026-09-20' }]
+  const dopo = daControllareScheda(dati(ROSA, conAltri500))
+  assert.equal(dopo[0].dettaglio, 'Ricevuti 1.300 € · restano 580 €')
+  assert.equal(riepilogoConto(contoDi(ROSA, conAltri500)).residuo, '580 €')
+  // saldo completo: niente avviso del pagamento, resta solo il documento
+  const saldo = [...conAltri500, { booking_id: 'r4', amount: 580, paid_on: '2026-09-20' }]
+  const saldato = daControllareScheda(dati(ROSA, saldo))
+  assert.deepEqual(saldato.map(v => v.etichetta), ['Documento'])
+  assert.equal(saldato.length, 1)
+  // segnata «pagato» a mano: idem, niente avviso
+  const segnata = daControllareScheda(dati(ROSA.map(s => ({ ...s, pagato: true })), DUE_DA_400, { pagato: true }))
+  assert.deepEqual(segnata.map(v => v.etichetta), ['Documento'])
+})
+
+test('scadenza futura: prima dell\'arrivo nessun avviso del pagamento, neanche con un residuo; e mai «scaduto»', () => {
+  // arriva il 1° ottobre, oggi è il 20 set: la regola della Home tace
+  const futura = ROSA.map((s, i) => ({ ...s, check_in: ['2026-10-01', '2026-10-07', '2026-10-11', '2026-10-22'][i], check_out: ['2026-10-07', '2026-10-11', '2026-10-22', '2026-10-25'][i] }))
+  const voci = daControllareScheda(dati(futura, [{ booking_id: 'r1', amount: 400, paid_on: '2026-09-07' }], { documenti: 1 }))
+  assert.deepEqual(voci, [])
+  // e nei testi degli avvisi non c'è mai «scadut» o «ritardo»
+  for (const v of [vocePagamentoScheda({ totaleCent: 188000, ricevutiCent: 80000 }), vocePagamentoScheda({ totaleCent: 188000, ricevutiCent: 0 })]) {
+    assert.equal(/scadut|ritardo|urgente/i.test(v.titolo + v.dettaglio), false)
+  }
+})
+
+test('lettura dei pagamenti fallita: l\'avviso dice che il conto non si legge, mai «Ricevuti 0 €»', () => {
+  const voci = daControllareScheda(dati(ROSA, [], { conto: null, documenti: 1 }))
+  assert.deepEqual(voci.map(v => v.etichetta), ['Pagamento'])
+  assert.equal(voci[0].titolo, TITOLO_CONTO_NON_LEGGIBILE)
+  assert.equal(voci[0].dettaglio, DETTAGLIO_CONTO_NON_LEGGIBILE)
+  assert.equal(voci[0].comando, undefined)
+  assert.equal(voci[0].parti, undefined)
+  assert.equal(/0 €/.test(voci[0].dettaglio ?? ''), false)
+  // conto assente = come null
+  assert.equal(daControllareScheda({ ...dati(ROSA, []), conto: undefined, documenti: 1 })[0].titolo, TITOLO_CONTO_NON_LEGGIBILE)
+})
+
+test('incoerenze: pagamenti oltre il totale, e il vecchio segno «pagato» senza i movimenti (a soggiorno concluso)', () => {
+  const oltre = vocePagamentoScheda({ totaleCent: 188000, ricevutiCent: 200000 })
+  assert.equal(oltre.titolo, TITOLO_OLTRE_IL_TOTALE)
+  assert.equal(oltre.dettaglio, 'Ricevuti 2.000 € su 1.880 €')
+  const segnata = vocePagamentoScheda({ totaleCent: 188000, ricevutiCent: 80000 }, true)
+  assert.equal(segnata.titolo, TITOLO_SEGNATA_PAGATA)
+  assert.equal(segnata.dettaglio, 'Registrati 800 € su 1.880 €')
+  // dalla regola della Home: concluso, segnato pagato, movimenti che non arrivano → l'avviso c'è e dice l'incoerenza
+  const conclusa = daControllareScheda(dati(ROSA.map(s => ({ ...s, pagato: true })), DUE_DA_400, { oggi: '2026-09-30', pagato: true, documenti: 1 }))
+  assert.deepEqual(conclusa.map(v => v.titolo), [TITOLO_SEGNATA_PAGATA])
+})
+
+test('documento: assente → avviso; presente → niente; lettura fallita o in corso (null) → niente, mai un «manca» finto', () => {
+  const base = { segmenti: ROSA, altre: [], pagamenti: DUE_DA_400, oggi: OGGI_ROSA, hrefDocumenti: '/clienti/g-rosa#documenti', conto: contoDi(ROSA, DUE_DA_400) }
+  assert.equal(daControllareScheda({ ...base, documenti: 0 }).some(v => v.chiave === 'documento'), true)
+  assert.equal(daControllareScheda({ ...base, documenti: 2 }).some(v => v.chiave === 'documento'), false)
+  assert.equal(daControllareScheda({ ...base, documenti: null }).some(v => v.chiave === 'documento'), false)
+  // il conteggio è quello degli avvisi davvero presenti
+  assert.equal(daControllareScheda({ ...base, documenti: 0 }).length, 2)
+  assert.equal(daControllareScheda({ ...base, documenti: 2 }).length, 1)
+})
+
+test('gli altri avvisi restano: cambio camera domani, arrivo senza orario, sovrapposizione', () => {
+  // cambio camera domani (21 → 22? no: il cambio è il 22, quindi oggi = 21)
+  const cambio = daControllareScheda(dati(ROSA, DUE_DA_400, { oggi: '2026-09-21', documenti: 1 }))
+  assert.deepEqual(cambio.map(v => v.etichetta), ['Cambio camera', 'Pagamento'])
+  assert.equal(cambio[0].titolo, 'Domani passa da Lena a Ambra')
+  // arrivo domani senza orario
+  const domani = daControllareScheda(dati([seg('b', LENA, '2026-09-21', '2026-09-23', { guest_name: 'Anna' })], [], { documenti: 1 }))
+  assert.deepEqual(domani.map(v => v.etichetta), ['Arrivo'])
+  assert.equal(domani[0].link?.href, '/arrivi?apri=b')
 })

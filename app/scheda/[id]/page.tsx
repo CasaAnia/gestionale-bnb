@@ -4,8 +4,8 @@
 // Nasce a un indirizzo a parte: la scheda vecchia (/prenotazioni/<id>) resta
 // com'è finché questa non è completa. Stile della pagina della proposta delle
 // richieste e della Home: testa col cliente (TestaCliente), fascia delle
-// sezioni ferma in cima (FasciaSezioni), schedine di «Da controllare»
-// (SchedinaControllo).
+// sezioni ferma in cima (FasciaSezioni), avvisi di «Da controllare»
+// (AvvisoScheda, punto 3 del 20/09/2026 sera: le cifre del conto, non «arrivato il 7 set»).
 //
 // Le parti, nell'ordine della fascia: DA CONTROLLARE · SOGGIORNO · CONTO ·
 // MESSAGGI · CLIENTE, e in fondo CRONOLOGIA, che non sta nella fascia.
@@ -38,7 +38,7 @@ import BackBar from '@/components/BackBar'
 import TestaScheda from '@/components/scheda/TestaScheda'
 import { dateTesta, arrivoTesta, percorsoTesta, oggiTesta, residuoTesta, DA_COMPLETARE_DOCUMENTO } from '@/lib/testaScheda'
 import FasciaSezioni from '@/components/FasciaSezioni'
-import SchedinaControllo from '@/components/SchedinaControllo'
+import AvvisoScheda from '@/components/scheda/AvvisoScheda'
 import ClienteScheda from '@/components/scheda/ClienteScheda'
 import ContoScheda from '@/components/scheda/ContoScheda'
 import MessaggiScheda from '@/components/scheda/MessaggiScheda'
@@ -308,9 +308,13 @@ export default function SchedaPage() {
   const primaRiga = primaRigaScheda(soggiorni.length, provenienza)
   const note = noteScheda(guest?.notes, booking?.notes)
   const arrivoTesto = booking ? arrivoScheda(primoArrivo, oggi, attive[0]?.check_in_time ?? booking.check_in_time, attive[0]?.shuttle ?? booking.shuttle) : null
+  // «Da controllare» (punto 3, 20/09/2026 sera): l'avviso del pagamento dice le
+  // cifre del conto autorevole (`conto`, lo stesso oggetto del riepilogo), di
+  // tutta la prenotazione; con il conto non leggibile lo dice, senza «0 €»
   const controlli = useMemo(() => booking ? daControllareScheda({
     segmenti: attive, altre: altreNotti, pagamenti, oggi, documenti, hrefDocumenti: hrefCliente ? `${hrefCliente}#documenti` : null,
-  }) : [], [booking, attive, altreNotti, pagamenti, oggi, documenti, hrefCliente])
+    conto, pagato: righe.some(r => r.pagato),
+  }) : [], [booking, attive, altreNotti, pagamenti, oggi, documenti, hrefCliente, conto, righe])
 
   const telefono = guest?.phone ?? null
   const waNumero = numeroWhatsAppPrenotazione(telefono)
@@ -561,8 +565,12 @@ export default function SchedaPage() {
         <p className="ed-sezione">Da controllare {controlli.length > 0 && <small>{controlli.length}</small>}</p>
         {controlli.length === 0
           ? <p data-tutto-a-posto className="mt-2 font-semibold" style={{ fontSize: 14, color: 'var(--color-green-mid)' }}>{TUTTO_A_POSTO}</p>
-          : <div className="mt-2 flex flex-col gap-2">
-            {controlli.map(v => <SchedinaControllo key={v.chiave} etichetta={v.etichetta} titolo={v.titolo} dettaglio={v.dettaglio} link={v.link} grande />)}
+          : <div className="mt-[15px] flex flex-col gap-[10px]">
+            {/* «Aggiungi pagamento» apre il foglio già esistente QUI, con la
+                prenotazione intera (stesso comando del conto): niente cambio
+                di pagina, niente saldo registrato da solo */}
+            {controlli.map(v => <AvvisoScheda key={v.chiave} etichetta={v.etichetta} titolo={v.titolo} dettaglio={v.dettaglio} parti={v.parti} link={v.link}
+              azione={v.comando?.tipo === 'pagamento' && conto ? { testo: v.comando.testo, onClick: () => setFoglioPagamento(true) } : null} />)}
           </div>}
       </section>
 

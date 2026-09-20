@@ -14,6 +14,7 @@ const testa = leggi('components/TestaCliente.tsx')
 const fascia = leggi('components/FasciaSezioni.tsx')
 const striscia = leggi('components/StrisciaNottiCamere.tsx')
 const soggiorno = leggi('components/scheda/SoggiornoScheda.tsx')
+const avviso = leggi('components/scheda/AvvisoScheda.tsx')
 const schedina = leggi('components/SchedinaControllo.tsx')
 const documenti = leggi('components/DocumentiCliente.tsx')
 
@@ -28,7 +29,7 @@ test('la scheda nuova sta a /scheda/<id> e la vecchia non viene toccata', () => 
 // ── 1. LA TESTA ────────────────────────────────────────────────────────────
 test('la testa: 22 px ai lati e i pezzi già esistenti, non riscritti', () => {
   assert.match(pagina, /className="py-4 px-\[22px\]/, 'i margini laterali sono 22 px come nella proposta')
-  for (const pezzo of ['TestaScheda', 'FasciaSezioni', 'SchedinaControllo', 'ConfermaWhatsApp', 'RigaDocumentiPrenotazione']) {
+  for (const pezzo of ['TestaScheda', 'FasciaSezioni', 'AvvisoScheda', 'ConfermaWhatsApp', 'RigaDocumentiPrenotazione']) {
     assert.ok(pagina.includes(`<${pezzo}`) || pagina.includes(`${pezzo} guestId`), `la scheda non usa ${pezzo}`)
   }
   // l'interruttore dei messaggi è quello del calendario, dentro MessaggiScheda
@@ -189,19 +190,42 @@ test('la fascia: le cinque voci, ferma in cima sotto la barra, 0,6 px di spaziat
 })
 
 // ── 3. DA CONTROLLARE ──────────────────────────────────────────────────────
-test('«Da controllare»: titoletto ed-sezione col numero, schedine grandi, «✓ Tutto a posto»', () => {
+test('«Da controllare»: titoletto ed-sezione col numero, avvisi del punto 3 (20/09/2026 sera), «✓ Tutto a posto»', () => {
   const parte = pagina.slice(pagina.indexOf('id="controllare"'), pagina.indexOf('id="soggiorno"'))
   assert.match(parte, /<p className="ed-sezione">Da controllare \{controlli\.length > 0 && <small>\{controlli\.length\}<\/small>\}<\/p>/)
   assert.match(parte, /data-tutto-a-posto[^>]*fontSize: 14, color: 'var\(--color-green-mid\)'/)
   assert.match(parte, /\{TUTTO_A_POSTO\}/)
-  assert.match(parte, /<SchedinaControllo key=\{v\.chiave\}[\s\S]*grande \/>/)
-  // la schedina è quella della proposta: bianca, bordo card-border, angoli 12, barretta ottone
+  // gli avvisi: 15 px sotto il titoletto, 10 px fra loro, la variante della scheda (non la schedina della proposta)
+  assert.match(parte, /<div className="mt-\[15px\] flex flex-col gap-\[10px\]">/)
+  assert.match(parte, /<AvvisoScheda key=\{v\.chiave\} etichetta=\{v\.etichetta\} titolo=\{v\.titolo\} dettaglio=\{v\.dettaglio\} parti=\{v\.parti\} link=\{v\.link\}/)
+  assert.equal(/<SchedinaControllo/.test(pagina), false, 'la scheda usa ancora la schedina della proposta')
+  // «Aggiungi pagamento» apre il foglio già esistente QUI, solo con il conto leggibile
+  assert.match(parte, /azione=\{v\.comando\?\.tipo === 'pagamento' && conto \? \{ testo: v\.comando\.testo, onClick: \(\) => setFoglioPagamento\(true\) \} : null\}/)
+  // le cifre dell'avviso vengono dal conto autorevole (lo stesso `conto` del riepilogo)
+  assert.match(pagina, /daControllareScheda\(\{[\s\S]{0,300}conto, pagato: righe\.some\(r => r\.pagato\),/)
+  // il riquadro del riferimento approvato: bianco, bordo #e4e4df, angoli 10, padding 14/15/16, barra dorata 2 px, ombra leggera a sinistra
+  assert.match(avviso, /border: `1px solid \$\{AVVISO\.bordo\}`, borderRadius: 10, padding: '14px 15px 16px', boxShadow: AVVISO\.ombra/)
+  assert.match(avviso, /bordo: '#e4e4df'/)
+  assert.match(avviso, /barra: '#b49965'/)
+  assert.match(avviso, /ombra: '-3px 2px 7px rgba\(99,82,49,\.08\)'/)
+  assert.match(avviso, /width: 2, background: AVVISO\.barra/)
+  // etichetta 10 px / 1,3 px / #a38c61 con 6 px sotto; titolo 15 px peso 600 con 5 px sotto
+  assert.match(avviso, /fontSize: 10, letterSpacing: '1\.3px', textTransform: 'uppercase', color: AVVISO\.etichetta, marginBottom: 6/)
+  assert.match(avviso, /etichetta: '#a38c61'/)
+  assert.match(avviso, /fontSize: 15, fontWeight: 600, lineHeight: 1\.5, color: AVVISO\.testo, marginBottom: 5/)
+  // descrizione economica 14 px con gli importi 600 mai spezzati; descrizione ordinaria 13 px peso normale
+  assert.match(avviso, /fontSize: 14, lineHeight: 1\.5, color: AVVISO\.parole/)
+  assert.match(avviso, /const IMPORTO: CSSProperties = \{ fontWeight: 600, color: AVVISO\.testo, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' \}/)
+  assert.match(avviso, /fontSize: 13, lineHeight: 1\.5, color: AVVISO\.descrizione/)
+  assert.equal(/fontWeight: 700|font-bold/.test(avviso), false, 'nel riquadro non ci sono grassetti oltre il 600')
+  // il comando: veste condivisa ed-azione, 13 px, 9 px sopra, filo a 3 px; nessun font caricato qui
+  assert.match(avviso, /className="ed-azione" style=\{COMANDO\}/)
+  assert.match(avviso, /fontSize: 13, fontWeight: 600, lineHeight: 1\.5, color: AVVISO\.testo,\n\s+textDecoration: 'underline', textDecorationColor: 'currentColor', textUnderlineOffset: 3/)
+  assert.match(avviso, /<p className="flex" style=\{\{ marginTop: 9 \}\}>/)
+  assert.equal(/fontFamily|font-family:|from 'next\/font|'Arial/.test(avviso), false, 'l’avviso impone un carattere: deve ereditare quello del gestionale')
+  // la schedina della proposta resta com’era
   assert.match(schedina, /border: '1px solid var\(--color-card-border\)', borderRadius: 12/)
-  assert.match(schedina, /width: 2, background: OTTONE/)
-  assert.match(schedina, /fontSize: 10, letterSpacing: '1\.5px', textTransform: 'uppercase', color: OTTONE/)
-  // «grande»: titolo 15 e dettaglio 13, le misure chieste per la scheda
   assert.match(schedina, /fontSize: grande \? 15 : 14\.5, fontWeight: 600/)
-  assert.match(schedina, /fontSize: grande \? 13 : 12\.5, color: 'var\(--color-stone\)'/)
 })
 
 test('le cose da controllare sono le regole della Home, filtrate su questa prenotazione', () => {

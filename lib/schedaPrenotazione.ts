@@ -290,11 +290,24 @@ export function trattiCamera(segmenti: SegmentoScheda[]): TrattoCamera[] {
 }
 
 // ── Da controllare, di QUESTA prenotazione ──────────────────────────────────
-// Le regole sono quelle della Home (lib/daControllare): pagamenti, arrivo
-// senza orario, sovrapposizioni. In più due cose che si vedono solo da qui:
+// Le regole di QUANDO una cosa va guardata sono quelle della Home
+// (lib/daControllare): pagamenti, arrivo senza orario, sovrapposizioni. In
+// più due cose che si vedono solo da qui:
 //  · CAMBIO CAMERA — oggi o domani la cliente cambia camera;
 //  · DOCUMENTO — non ha ancora un documento caricato (in casa o prima dell'arrivo).
-// Le voci hanno la forma delle schedine della proposta (VoceControllo).
+//
+// Punto 3 approvato da Ania (20/09/2026 sera, «Da controllare, con
+// informazioni precise»): l'avviso del pagamento non ripete nome, camere e
+// periodo (sono già nella scheda aperta) e non dice più «arrivato il 7 set e
+// non segnato pagato» — dice a che punto è il conto DI TUTTA la prenotazione,
+// con le cifre della stessa fonte del conto (`contoPrenotazione`, passato
+// dalla pagina): «Pagamento parziale · Ricevuti 800 € · restano 1.080 €». Le
+// regole della Home decidono SE l'avviso compare (dal giorno dell'arrivo,
+// non prima; mai se saldato o segnato pagato); qui si decide solo che cosa
+// dice. Con un cambio camera o due camere insieme l'avviso è UNO, come il
+// conto (regola fissa n. 9): un pagamento non si divide fra gli avvisi.
+// Se il conto non si legge (pagamenti non letti) l'avviso lo dice, senza
+// inventare «ricevuti 0 €».
 export type DatiControlloScheda = {
   segmenti: SegmentoScheda[]        // i tratti di questa prenotazione
   altre: PrenotazioneDC[]           // le altre prenotazioni nelle stesse notti (sovrapposizioni, letti)
@@ -302,7 +315,36 @@ export type DatiControlloScheda = {
   oggi: string
   documenti: number | null          // quanti documenti ha il cliente; null = non si sa ancora
   hrefDocumenti: string | null
+  // il conto autorevole di lib/prenotazioneUnica (lo stesso oggetto che la
+  // pagina dà a riepilogoConto); null = non leggibile. Assente = come null.
+  conto?: { totaleCent: number; ricevutiCent: number } | null
+  // il vecchio segno «pagato» sulle righe (righe.some(r => r.pagato))
+  pagato?: boolean
 }
+
+// Un pezzo del dettaglio: gli importi vanno in grassetto e non si spezzano
+export type ParteDettaglio = { testo: string; forte?: boolean }
+// La voce della scheda: come quella della proposta, più il dettaglio a pezzi
+// e, per il pagamento, il comando della pagina (apre il foglio «Aggiungi
+// pagamento» qui, senza cambiare pagina)
+export type VoceScheda = VoceControllo & {
+  parti?: ParteDettaglio[]
+  comando?: { tipo: 'pagamento'; testo: string }
+}
+
+export const ETICHETTA_PAGAMENTO = 'Pagamento'
+export const ETICHETTA_DOCUMENTO = 'Documento'
+export const TITOLO_PAGAMENTO_PARZIALE = 'Pagamento parziale'
+export const TITOLO_NESSUN_PAGAMENTO = 'Nessun pagamento registrato'
+export const TITOLO_OLTRE_IL_TOTALE = 'Pagamenti oltre il totale'
+export const TITOLO_SEGNATA_PAGATA = 'Segnata pagata, ma mancano i movimenti'
+export const TITOLO_CONTO_NON_LEGGIBILE = 'Conto non leggibile'
+export const DETTAGLIO_CONTO_NON_LEGGIBILE = 'Non riesco a leggere i pagamenti: ricarica la scheda.'
+export const COMANDO_AGGIUNGI_PAGAMENTO = 'Aggiungi pagamento'
+export const TITOLO_DOCUMENTO = 'Documento da aggiungere'
+export const DETTAGLIO_DOCUMENTO_IN_CASA = 'Nessun documento caricato.'
+export const DETTAGLIO_DOCUMENTO_PRIMA = 'Nessun documento caricato: da chiedere all’arrivo.'
+export const COMANDO_AGGIUNGI_DOCUMENTO = 'Aggiungi documento'
 
 const comeDC = (s: SegmentoScheda): PrenotazioneDC => ({
   id: s.id, group_id: s.group_id ?? null, room_id: s.room_id ?? s.rooms?.id ?? '', check_in: s.check_in, check_out: s.check_out,
@@ -312,7 +354,7 @@ const comeDC = (s: SegmentoScheda): PrenotazioneDC => ({
   rooms: s.rooms?.name ? { name: s.rooms.name } : null, guests: s.guests ?? null,
 })
 
-function daEccezione(e: Eccezione): VoceControllo {
+function daEccezione(e: Eccezione): VoceScheda {
   return {
     chiave: e.chiave,
     etichetta: ETICHETTA_TIPO[e.tipo],
@@ -322,12 +364,36 @@ function daEccezione(e: Eccezione): VoceControllo {
   }
 }
 
-export function daControllareScheda(d: DatiControlloScheda): VoceControllo[] {
+// Il dettaglio a pezzi e la sua versione piana (per chi legge solo testo)
+const conParti = (parti: ParteDettaglio[]) => ({ parti, dettaglio: parti.map(p => p.testo).join('') })
+const forte = (testo: string): ParteDettaglio => ({ testo, forte: true })
+
+// L'avviso del pagamento: le cifre sono quelle del conto, formattate con la
+// stessa funzione del riepilogo (euroScheda), mai ricalcolate qui.
+export function vocePagamentoScheda(conto: { totaleCent: number; ricevutiCent: number } | null | undefined, pagato = false): VoceScheda {
+  const base = { chiave: 'pagamento', etichetta: ETICHETTA_PAGAMENTO, link: null }
+  if (!conto) return { ...base, titolo: TITOLO_CONTO_NON_LEGGIBILE, dettaglio: DETTAGLIO_CONTO_NON_LEGGIBILE }
+  const comando = { tipo: 'pagamento' as const, testo: COMANDO_AGGIUNGI_PAGAMENTO }
+  const totale = euroScheda(conto.totaleCent), ricevuti = euroScheda(conto.ricevutiCent)
+  const residuoCent = conto.totaleCent - conto.ricevutiCent
+  if (residuoCent < 0) {
+    return { ...base, comando, titolo: TITOLO_OLTRE_IL_TOTALE, ...conParti([{ testo: 'Ricevuti ' }, forte(ricevuti), { testo: ' su ' }, forte(totale)]) }
+  }
+  if (pagato && residuoCent > 0) {
+    return { ...base, comando, titolo: TITOLO_SEGNATA_PAGATA, ...conParti([{ testo: 'Registrati ' }, forte(ricevuti), { testo: ' su ' }, forte(totale)]) }
+  }
+  if (conto.ricevutiCent > 0) {
+    return { ...base, comando, titolo: TITOLO_PAGAMENTO_PARZIALE, ...conParti([{ testo: 'Ricevuti ' }, forte(ricevuti), { testo: ' · restano ' }, forte(euroScheda(residuoCent))]) }
+  }
+  return { ...base, comando, titolo: TITOLO_NESSUN_PAGAMENTO, ...conParti([{ testo: 'Da incassare ' }, forte(totale)]) }
+}
+
+export function daControllareScheda(d: DatiControlloScheda): VoceScheda[] {
   const attivi = segmentiAttivi(d.segmenti)
   if (attivi.length === 0) return []
   const miei = attivi.map(comeDC)
   const ids = new Set(miei.map(m => m.id))
-  const out: VoceControllo[] = []
+  const out: VoceScheda[] = []
 
   // Arrivo di oggi o domani senza orario
   out.push(...eccezioniArrivi(miei, d.oggi).map(daEccezione))
@@ -347,12 +413,16 @@ export function daControllareScheda(d: DatiControlloScheda): VoceControllo[] {
     })
   })
 
-  // Pagamenti: solo i tratti di questa prenotazione
-  out.push(...eccezioniPagamenti(miei, d.pagamenti, d.oggi).map(daEccezione))
+  // Pagamenti: la Home decide SE (solo i tratti di questa prenotazione, dal
+  // giorno dell'arrivo); la voce è UNA per la prenotazione e dice il conto
+  if (eccezioniPagamenti(miei, d.pagamenti, d.oggi).length > 0) {
+    out.push(vocePagamentoScheda(d.conto ?? null, d.pagato ?? attivi.some(s => !!s.pagato)))
+  }
 
   // Documento: nessun documento caricato, finché il soggiorno non è finito
   // (Ania, 17/09/2026: prima solo con la cliente in casa; se manca, lo si
-  // vuole vedere anche prima dell'arrivo)
+  // vuole vedere anche prima dell'arrivo). `documenti` null = lettura non
+  // riuscita o non ancora fatta: niente avviso, mai un «manca» finto.
   const arrivo = attivi[0].check_in
   const partenza = attivi.reduce((m, s) => (s.check_out > m ? s.check_out : m), attivi[0].check_out)
   if (d.documenti === 0 && partenza > d.oggi) {
@@ -360,9 +430,9 @@ export function daControllareScheda(d: DatiControlloScheda): VoceControllo[] {
     out.push({
       chiave: 'documento',
       etichetta: 'Documento',
-      titolo: 'Nessun documento caricato',
-      dettaglio: inCasa ? 'la cliente è in casa: manca la foto del documento' : 'manca la foto del documento: da chiedere all’arrivo',
-      link: d.hrefDocumenti ? { testo: 'Aggiungi documento', href: d.hrefDocumenti } : null,
+      titolo: TITOLO_DOCUMENTO,
+      dettaglio: inCasa ? DETTAGLIO_DOCUMENTO_IN_CASA : DETTAGLIO_DOCUMENTO_PRIMA,
+      link: d.hrefDocumenti ? { testo: COMANDO_AGGIUNGI_DOCUMENTO, href: d.hrefDocumenti } : null,
     })
   }
 
