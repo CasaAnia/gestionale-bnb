@@ -8,6 +8,7 @@
 // sta sopra, trasparente e largo quanto la riga, così il tocco arriva a lui;
 // sotto si legge la data in italiano, «gio 10 set», in 16 px semibold.
 // ============================================================================
+import type { CSSProperties } from 'react'
 import { dataConGiorno } from '@/lib/dateItaliane'
 import { RigaCampo } from './PezziNuova'
 
@@ -20,7 +21,7 @@ export function apriSelettore(el: HTMLInputElement & { showPicker?: () => void }
   try { el.showPicker?.() } catch { /* già aperto, o browser che non lo permette */ }
 }
 
-export default function CampoData({ etichetta, valore, onValore, min, dati, ottone = false, className = '' }: {
+export default function CampoData({ etichetta, valore, onValore, min, dati, ottone = false, stileEtichetta, className = '' }: {
   /** l'etichettina della riga: «Arrivo», «Partenza», «Entro il» */
   etichetta: string
   valore: string
@@ -31,10 +32,12 @@ export default function CampoData({ etichetta, valore, onValore, min, dati, otto
   dati?: string
   /** l'etichettina in ottone, come nei fogli della scheda */
   ottone?: boolean
+  /** ritocco dell'etichettina, solo per chi lo passa (foglio del pagamento) */
+  stileEtichetta?: CSSProperties
   className?: string
 }) {
   return (
-    <RigaCampo etichetta={etichetta} ottone={ottone} className={className}>
+    <RigaCampo etichetta={etichetta} ottone={ottone} stileEtichetta={stileEtichetta} className={className}>
       <span className="relative block" style={{ marginTop: 3 }}>
         <span data-data-scritta style={{
           display: 'block', fontSize: 16, fontWeight: 600, lineHeight: '22px',

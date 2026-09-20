@@ -706,8 +706,9 @@ export default function SchedaPage() {
           }} />
       )}
       {foglioPagamento && conto && (
-        <FoglioPagamento booking={booking} righe={righe} pagamenti={pagamenti} oggi={oggi} bonifico={accordo?.bonifico}
+        <FoglioPagamento booking={booking} righe={righe} conto={conto} oggi={oggi} bonifico={accordo?.bonifico}
           onChiudi={() => setFoglioPagamento(false)}
+          onContoCambiato={riletti => setPagamenti(riletti as unknown as PagamentoStat[])}
           onSalvato={(esito: PagamentoSalvato) => {
             // prima quello che si è appena salvato, poi la rilettura in silenzio
             // (cronologia, «Da controllare» e il bollino «pagato» dal server)

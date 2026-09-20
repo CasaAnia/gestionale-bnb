@@ -26,8 +26,11 @@ export const ALTEZZA_AZIONE = 30
 export const TESTO_ANNULLA = 'Annulla'
 
 /** Col titolo `centrato` la testa è in Georgia 24 centrata, con la X a
- *  destra: è il foglio «Il soggiorno si allunga» (Ania, 18/09/2026). */
-export default function Foglio({ titolo, grande = false, centrato = false, onChiudi, children }: { titolo: string; grande?: boolean; centrato?: boolean; onChiudi: () => void; children: ReactNode }) {
+ *  destra: è il foglio «Il soggiorno si allunga» (Ania, 18/09/2026).
+ *  Con `misuraTitolo` il titolo a sinistra ha quella misura in Georgia (il
+ *  foglio «Aggiungi pagamento» approvato il 20/09/2026 lo vuole in 23):
+ *  senza, resta il 20 di tutti gli altri fogli. */
+export default function Foglio({ titolo, grande = false, centrato = false, misuraTitolo, onChiudi, children }: { titolo: string; grande?: boolean; centrato?: boolean; misuraTitolo?: number; onChiudi: () => void; children: ReactNode }) {
   const desktop = useDesktop()
   return (
     <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label={titolo}>
@@ -43,7 +46,9 @@ export default function Foglio({ titolo, grande = false, centrato = false, onChi
         ) : (
         <div className="flex items-center justify-between mb-3">
           <p data-titolo-foglio className="text-green-dark"
-            style={grande
+            style={misuraTitolo
+              ? { fontFamily: GEORGIA_FOGLIO, fontSize: misuraTitolo, lineHeight: `${misuraTitolo + 4}px` }
+              : grande
               ? { fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 18, lineHeight: '22px' }
               : { fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 20, lineHeight: '24px' }}>{titolo}</p>
           <button type="button" onClick={onChiudi} aria-label="Chiudi" className="w-9 h-9 -mr-2 flex items-center justify-center text-stone"><X size={18} strokeWidth={2} aria-hidden /></button>
@@ -57,8 +62,10 @@ export default function Foglio({ titolo, grande = false, centrato = false, onChi
 
 /** I due tasti in fondo a ogni foglio: l'azione in pastiglia piena, centrata,
  *  e sotto «Annulla» (o «Torna indietro»). Con `mattone` la pastiglia è
- *  #8C3B2E: è l'annullamento della prenotazione. */
-export function PiedeFoglio({ azione, onAzione, salvando = false, testoSalvando = 'Salvo…', onAnnulla, testoAnnulla = TESTO_ANNULLA, mattone = false, dati }: {
+ *  #8C3B2E: è l'annullamento della prenotazione. Con `disabilitato` l'azione
+ *  è spenta (manca un dato valido) ma «Annulla» resta viva: si spegne solo
+ *  mentre si salva. */
+export function PiedeFoglio({ azione, onAzione, salvando = false, testoSalvando = 'Salvo…', onAnnulla, testoAnnulla = TESTO_ANNULLA, mattone = false, disabilitato = false, dati }: {
   azione: string
   onAzione: () => void
   salvando?: boolean
@@ -66,14 +73,15 @@ export function PiedeFoglio({ azione, onAzione, salvando = false, testoSalvando 
   onAnnulla: () => void
   testoAnnulla?: string
   mattone?: boolean
+  disabilitato?: boolean
   dati?: string
 }) {
   return (
     <div data-piede-foglio className="text-center" style={{ marginTop: 22, marginBottom: 2 }}>
-      <button type="button" data-azione-foglio={dati} onClick={onAzione} disabled={salvando} className="py-[7px] -my-[7px]"
+      <button type="button" data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato} className="py-[7px] -my-[7px]"
         style={{
           height: ALTEZZA_AZIONE, borderRadius: 999, padding: '0 18px', fontSize: 12, fontWeight: 600,
-          background: mattone ? MATTONE_FOGLIO : 'var(--color-green-mid)', color: 'var(--color-cream)', opacity: salvando ? 0.5 : 1,
+          background: mattone ? MATTONE_FOGLIO : 'var(--color-green-mid)', color: 'var(--color-cream)', opacity: salvando ? 0.5 : disabilitato ? 0.45 : 1,
         }}>{salvando ? testoSalvando : azione}</button>
       <p style={{ marginTop: 10 }}>
         <button type="button" data-annulla-foglio onClick={onAnnulla} disabled={salvando}

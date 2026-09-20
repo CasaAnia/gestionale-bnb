@@ -1,6 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { importoProposto, importoInCent, restaDopo, oltreIlDovuto, modoProposto, CONTO_SALDATO_DOPO, MODI_PAGAMENTO,
+import { importoProposto, importoInCent, oltreIlDovuto, modoProposto, MODI_PAGAMENTO,
+  modoIniziale, residuoPrevisto, ricevutiCentDi, CONTO_CAMBIATO, OLTRE_IL_TOTALE_FOGLIO,
+  RESTA_DA_INCASSARE, MODO_SALDO, MODO_ALTRO, SPIEGA_SALDO, SPIEGA_ALTRO, DOPO_IL_PAGAMENTO_RESTA, RESIDUO_SCONOSCIUTO,
+  ESITO_SALDATO, ESITO_PARTE, ESITO_MANCA_IMPORTO,
   descrizionePagamento, restaSenzaCent, restaSenza, bollinoDaTogliere, TITOLO_TOGLI_PAGAMENTO, TOGLI_PAGAMENTO, COMANDO_TOGLI,
 } from './pagamentoFoglio.ts'
 
@@ -12,22 +15,73 @@ test('nel campo «Quanto» c’è già quello che manca, col punto se non è ton
   assert.equal(importoProposto(NaN), '')
 })
 
-test('l’importo scritto si legge con la virgola e col punto, mai zero o negativo', () => {
+test('l’importo scritto si legge con la virgola e col punto, mai zero, negativo, con tre decimali o strano', () => {
   assert.equal(importoInCent('62,50'), 6250)
   assert.equal(importoInCent('62.50'), 6250)
   assert.equal(importoInCent(' 250 '), 25000)
+  assert.equal(importoInCent('400,5'), 40050)
   assert.equal(importoInCent('0'), null)
+  assert.equal(importoInCent('0,00'), null)
   assert.equal(importoInCent('-3'), null)
   assert.equal(importoInCent(''), null)
+  assert.equal(importoInCent('   '), null)
   assert.equal(importoInCent('abc'), null)
+  // mai arrotondare di nascosto: tre decimali non si accettano
+  assert.equal(importoInCent('400,555'), null)
+  assert.equal(importoInCent('400.555'), null)
+  // niente notazioni da calcolatrice, segni, spazi in mezzo, due virgole
+  assert.equal(importoInCent('1e3'), null)
+  assert.equal(importoInCent('+400'), null)
+  assert.equal(importoInCent('4 00'), null)
+  assert.equal(importoInCent('1.080,00'), null)
+  assert.equal(importoInCent('400,'), null)
 })
 
-test('sotto i campi si legge quanto resterà da incassare, in ottone', () => {
-  assert.equal(restaDopo(25000, 10000), 'Dopo questo pagamento restano da incassare 150 €.')
-  assert.equal(restaDopo(25000, 25000), CONTO_SALDATO_DOPO)
-  assert.equal(restaDopo(25000, 30000), CONTO_SALDATO_DOPO)
-  assert.equal(restaDopo(6250, 1000), 'Dopo questo pagamento restano da incassare 52,50 €.')
-  assert.equal(restaDopo(25000, null), '')
+// ── Il foglio approvato da Ania (punto 5, 20/09/2026 sera) ──────────────────
+test('le parole del foglio approvato', () => {
+  assert.equal(RESTA_DA_INCASSARE, 'Resta da incassare')
+  assert.equal(MODO_SALDO, 'Saldo completo')
+  assert.equal(MODO_ALTRO, 'Altro importo')
+  assert.equal(SPIEGA_SALDO, 'Saldo dell’intero importo residuo.')
+  assert.equal(SPIEGA_ALTRO, 'Scrivi quanto hai effettivamente ricevuto.')
+  assert.equal(DOPO_IL_PAGAMENTO_RESTA, 'Dopo il pagamento resta')
+  assert.equal(RESIDUO_SCONOSCIUTO, '—')
+  assert.equal(ESITO_SALDATO, 'Il conto sarà saldato.')
+  assert.equal(ESITO_PARTE, 'Il pagamento coprirà una parte del saldo.')
+  assert.equal(ESITO_MANCA_IMPORTO, 'Inserisci l’importo ricevuto.')
+})
+
+test('all’apertura con un residuo positivo è «Saldo completo», altrimenti «Altro importo»', () => {
+  assert.equal(modoIniziale(108000), 'saldo')
+  assert.equal(modoIniziale(1), 'saldo')
+  assert.equal(modoIniziale(0), 'altro')
+  assert.equal(modoIniziale(-2000), 'altro')
+})
+
+test('«Dopo il pagamento resta»: il caso approvato 1.080 − 400 = 680, i centesimi, il saldo, l’oltre', () => {
+  // senza importo: «—» e si chiede l'importo
+  assert.deepEqual(residuoPrevisto(108000, null), { cifra: '—', esito: ESITO_MANCA_IMPORTO, oltre: null })
+  // saldo completo: 1.080 → 0 €, «Il conto sarà saldato.»
+  assert.deepEqual(residuoPrevisto(108000, 108000), { cifra: '0 €', esito: ESITO_SALDATO, oltre: null })
+  // altro importo, l'esempio approvato: 400 → 680 €
+  assert.deepEqual(residuoPrevisto(108000, 40000), { cifra: '680 €', esito: ESITO_PARTE, oltre: null })
+  // i centesimi non si perdono: 400,50 → 679,50 €
+  assert.deepEqual(residuoPrevisto(108000, importoInCent('400,50')), { cifra: '679,50 €', esito: ESITO_PARTE, oltre: null })
+  // oltre il residuo: 0 € ma con l'avviso, mai lo zero da solo
+  assert.deepEqual(residuoPrevisto(108000, 110000), { cifra: '0 €', esito: '', oltre: 'Sono 20 € più di quello che manca. Si può salvare lo stesso.' })
+  // conto già saldato (residuo zero) e si registra lo stesso un importo
+  assert.deepEqual(residuoPrevisto(0, 3000), { cifra: '0 €', esito: '', oltre: 'Il conto è già saldato: questo pagamento va oltre il dovuto. Si può salvare lo stesso.' })
+  // pagamenti già oltre il totale (residuo negativo): l'oltre parte da zero
+  assert.equal(residuoPrevisto(-500, 1000).oltre, 'Il conto è già saldato: questo pagamento va oltre il dovuto. Si può salvare lo stesso.')
+  assert.equal(OLTRE_IL_TOTALE_FOGLIO(500), '5 € ricevuti oltre il totale: controlla i pagamenti.')
+})
+
+test('il conto cambiato mentre il foglio era aperto: i ricevuti dai pagamenti riletti, e l’avviso', () => {
+  const riletti = [{ booking_id: 'a', amount: 400 }, { booking_id: 'a', amount: '400' }, { booking_id: 'z', amount: 999 }]
+  assert.equal(ricevutiCentDi(['a', 'b'], riletti), 80000)
+  assert.equal(ricevutiCentDi(['b'], riletti), 0)
+  assert.equal(CONTO_CAMBIATO(68000), 'Il conto è cambiato mentre il foglio era aperto: ora resta da incassare 680 €. Controlla l’importo e salva di nuovo.')
+  assert.equal(CONTO_CAMBIATO(-1000), 'Il conto è cambiato mentre il foglio era aperto: ora resta da incassare 0 €. Controlla l’importo e salva di nuovo.')
 })
 
 test('oltre il dovuto si avvisa in mattone, ma non si blocca', () => {

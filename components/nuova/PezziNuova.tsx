@@ -6,7 +6,7 @@
 // titoletto in ottone maiuscolo col filo (ed-sezione), righe col filo sotto,
 // niente riquadri.
 // ============================================================================
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 export const OTTONE = '#A9884E'
 export const MATTONE = '#8C3B2E'
@@ -22,19 +22,22 @@ export const SOTTO_ETICHETTA = 10
 
 /** L'etichettina piccola sopra un gruppo: «CAMERA», «OSPITI», «SCONTO»…
  *  Nei fogli della scheda (16/09/2026) è in ottone: `ottone`. */
-export function Etichetta({ testo, centrata = false, primo = false, ottone = false, className = '' }: { testo: string; centrata?: boolean; primo?: boolean; ottone?: boolean; className?: string }) {
+export function Etichetta({ testo, centrata = false, primo = false, ottone = false, stileEtichetta, className = '' }: { testo: string; centrata?: boolean; primo?: boolean; ottone?: boolean; stileEtichetta?: CSSProperties; className?: string }) {
   return (
     <p data-etichetta className={`uppercase ${centrata ? 'text-center' : ''} ${className}`}
-      style={{ fontSize: 9.5, letterSpacing: '1.4px', color: ottone ? OTTONE : 'var(--color-stone)', marginTop: primo ? 0 : SOPRA_ETICHETTA, marginBottom: SOTTO_ETICHETTA }}>{testo}</p>
+      style={{ fontSize: 9.5, letterSpacing: '1.4px', color: ottone ? OTTONE : 'var(--color-stone)', marginTop: primo ? 0 : SOPRA_ETICHETTA, marginBottom: SOTTO_ETICHETTA, ...stileEtichetta }}>{testo}</p>
   )
 }
 
 /** Una riga di campo col filo sotto, senza riquadro. Nei fogli della scheda
- *  l'etichettina è in ottone maiuscolo 9,5 px: `ottone` (16/09/2026). */
-export function RigaCampo({ etichetta, children, ottone = false, className = '' }: { etichetta: string; children: ReactNode; ottone?: boolean; className?: string }) {
+ *  l'etichettina è in ottone maiuscolo 9,5 px: `ottone` (16/09/2026). Con
+ *  `stileEtichetta` un foglio può ritoccare la sua etichettina (il foglio
+ *  del pagamento approvato il 20/09/2026: 10 px, 1,3 px): gli altri fogli
+ *  non cambiano. */
+export function RigaCampo({ etichetta, children, ottone = false, stileEtichetta, className = '' }: { etichetta: string; children: ReactNode; ottone?: boolean; stileEtichetta?: CSSProperties; className?: string }) {
   return (
     <label className={`block ${className}`} style={{ padding: '8px 0', borderBottom: '1px solid var(--color-card-border)' }}>
-      <span className="block uppercase" style={{ fontSize: 9.5, letterSpacing: '1.4px', color: ottone ? OTTONE : 'var(--color-stone)' }}>{etichetta}</span>
+      <span className="block uppercase" style={{ fontSize: 9.5, letterSpacing: '1.4px', color: ottone ? OTTONE : 'var(--color-stone)', ...stileEtichetta }}>{etichetta}</span>
       {children}
     </label>
   )

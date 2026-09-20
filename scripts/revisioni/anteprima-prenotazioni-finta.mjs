@@ -496,6 +496,15 @@ let patchRiuscite = 0
 // riusato e la scrittura arriva due volte); ?modo=0 spegne. Vale per la
 // chiamata successiva soltanto.
 let erroreSpostaNotti = null
+// Il foglio «Aggiungi pagamento» approvato (20/09/2026 sera): le RPC della
+// 0049 sulle prenotazioni con prenotazione_id (Ventiquattro Notti), finte ma
+// con le stesse regole: idempotenti per p_chiave, importo a due decimali,
+// risposta con contratto 'prenotazione_v1'. Interruttori, per la chiamata
+// successiva soltanto: GET /finto/errore-pagamento?modo=errore (500, niente
+// scritto) · ?modo=persa (SCRIVE, poi risponde 503 come un gateway caduto) ·
+// ?modo=0 spegne. GET /finto/pagamento-esterno?booking_id=…&amount=… aggiunge
+// un incasso «da un altro telefono» mentre il foglio è aperto.
+let errorePagamentoRpc = null
 function leggiCorpo(req) {
   return new Promise(resolve => { let t = ''; req.on('data', c => { t += c }); req.on('end', () => { try { resolve(t ? JSON.parse(t) : null) } catch { resolve(null) } }) })
 }
@@ -527,6 +536,15 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/finto/spese-503') { spese503 = url.searchParams.get('on') === '1'; return rispondi(res, 200, { spese503 }) }
   if (url.pathname === '/finto/spese') return rispondi(res, 200, family_expenses)
   if (url.pathname === '/finto/errore-pagamenti') { errorePagamenti = url.searchParams.get('on') === '1'; return rispondi(res, 200, { errorePagamenti }) }
+  if (url.pathname === '/finto/errore-pagamento') { const modo = url.searchParams.get('modo'); errorePagamentoRpc = modo === 'errore' || modo === 'persa' ? modo : null; return rispondi(res, 200, { errorePagamentoRpc }) }
+  if (url.pathname === '/finto/pagamento-esterno') {
+    const booking_id = url.searchParams.get('booking_id'), amount = Number(url.searchParams.get('amount'))
+    if (!bookings.some(b => b.id === booking_id) || !(amount > 0)) return rispondi(res, 400, { message: 'booking_id o amount mancante' })
+    const nuovo = { id: randomUUID(), booking_id, amount, method: 'contanti', paid_on: '2026-09-20', created_at: new Date().toISOString() }
+    payments.push(nuovo)
+    console.log(`[finto supabase] +1 pagamento ESTERNO (${amount} su ${booking_id.slice(-4)})`)
+    return rispondi(res, 200, nuovo)
+  }
   if (errorePagamenti && req.method === 'GET' && url.pathname === '/rest/v1/payments') {
     return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla lettura dei pagamenti', details: null, hint: null })
   }
@@ -595,6 +613,54 @@ const finto = createServer((req, res) => {
       console.log(`[finto supabase] RPC sposta_notti ← aggiorna ${(corpo.p_aggiorna || []).length}, crea ${create.length}, annulla ${(corpo.p_annulla || []).length}${modoGuasto === 'persa' ? ' — RISPOSTA PERSA' : ''}`)
       if (modoGuasto === 'persa') return rispondi(res, 503, { message: 'upstream connect error' })
       return rispondi(res, 200, { create })
+    })
+  }
+  const soggiornoDi = b => b.prenotazione_id || b.group_id || b.id
+  const righeSoggiorno = soggiorno => bookings.filter(b => soggiornoDi(b) === soggiorno)
+  if (rpc && rpc[1] === 'registra_acconto_prenotazione' && req.method === 'POST') {
+    return leggiCorpo(req).then(corpo => {
+      const modoGuasto = errorePagamentoRpc
+      errorePagamentoRpc = null
+      if (modoGuasto === 'errore') { console.log('[finto supabase] RPC registra_acconto_prenotazione: errore simulato, niente scritto'); return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla registrazione del pagamento' }) }
+      const b = bookings.find(x => x.id === corpo?.p_booking_id)
+      if (!b) return rispondi(res, 400, { code: 'P0001', message: 'PRENOTAZIONE_NON_TROVATA' })
+      if (!['confermata', 'completata'].includes(b.status)) return rispondi(res, 400, { code: 'P0001', message: 'PRENOTAZIONE_NON_MODIFICABILE' })
+      if (!corpo.p_chiave) return rispondi(res, 400, { code: 'P0001', message: 'CHIAVE_NULLA' })
+      const amount = Number(corpo.p_amount)
+      if (!(amount > 0) || Math.round(amount * 100) / 100 !== amount) return rispondi(res, 400, { code: 'P0001', message: 'IMPORTO_NON_VALIDO' })
+      const soggiorno = soggiornoDi(b)
+      const esistente = payments.find(p => p.chiave_operazione === corpo.p_chiave)
+      if (esistente) {
+        if (esistente.soggiorno !== soggiorno || esistente.amount !== amount || esistente.method !== (corpo.p_metodo || 'contanti') || esistente.paid_on !== corpo.p_paid_on) return rispondi(res, 400, { code: 'P0001', message: 'CHIAVE_RIUSATA' })
+        console.log('[finto supabase] RPC registra_acconto_prenotazione: chiave già applicata, nessuna riga nuova')
+        return rispondi(res, 200, { contratto: 'prenotazione_v1', movimento_id: esistente.id, booking_id: esistente.booking_id, importo: esistente.amount, soggiorno, gia_presente: true })
+      }
+      const nuovo = { id: randomUUID(), booking_id: b.id, amount, method: corpo.p_metodo || 'contanti', paid_on: corpo.p_paid_on, chiave_operazione: corpo.p_chiave, soggiorno, created_at: new Date().toISOString() }
+      payments.push(nuovo)
+      console.log(`[finto supabase] RPC registra_acconto_prenotazione ← ${amount} ${nuovo.method} ${nuovo.paid_on} su ${b.id.slice(-4)}${modoGuasto === 'persa' ? ' — RISPOSTA PERSA' : ''}`)
+      if (modoGuasto === 'persa') return rispondi(res, 503, { message: 'upstream connect error' })
+      return rispondi(res, 200, { contratto: 'prenotazione_v1', movimento_id: nuovo.id, booking_id: b.id, importo: amount, soggiorno, gia_presente: false })
+    })
+  }
+  if (rpc && rpc[1] === 'segna_pagato_prenotazione' && req.method === 'POST') {
+    return leggiCorpo(req).then(corpo => {
+      const b = bookings.find(x => x.id === corpo?.p_booking_id)
+      if (!b) return rispondi(res, 400, { code: 'P0001', message: 'PRENOTAZIONE_NON_TROVATA' })
+      if (!corpo.p_chiave) return rispondi(res, 400, { code: 'P0001', message: 'CHIAVE_NULLA' })
+      const soggiorno = soggiornoDi(b)
+      const vive = righeSoggiorno(soggiorno).filter(r => ['confermata', 'completata'].includes(r.status))
+      const ids = new Set(righeSoggiorno(soggiorno).map(r => r.id))
+      const totale = vive.reduce((s, r) => s + Math.round(Number(r.total_amount) * 100), 0)
+      const ricevuti = payments.filter(p => ids.has(p.booking_id)).reduce((s, p) => s + Math.round(Number(p.amount) * 100), 0)
+      const mancante = Math.max(0, totale - ricevuti)
+      let movimento = payments.find(p => p.chiave_operazione === corpo.p_chiave) || null
+      if (!movimento && mancante > 0) {
+        movimento = { id: randomUUID(), booking_id: b.id, amount: mancante / 100, method: corpo.p_metodo || 'contanti', paid_on: corpo.p_paid_on, chiave_operazione: corpo.p_chiave, soggiorno, created_at: new Date().toISOString() }
+        payments.push(movimento)
+      }
+      for (const r of vive) r.pagato = true
+      console.log(`[finto supabase] RPC segna_pagato_prenotazione ← ${vive.length} tratti, movimento ${movimento ? movimento.amount : 'nessuno'}`)
+      return rispondi(res, 200, { contratto: 'prenotazione_v1', movimento_id: movimento ? movimento.id : null, booking_id: b.id, importo: movimento ? movimento.amount : 0, pagato: true, soggiorno, segmenti_aggiornati: vive.length })
     })
   }
   if (rpc) {

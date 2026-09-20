@@ -42,23 +42,48 @@ export type PagamentoLetto = PagamentoStat & { id?: string; method?: string | nu
 
 export type EsitoPagamento =
   | { esito: 'ok'; pagamenti: PagamentoLetto[]; pagato: boolean; avviso: string | null }
-  | { esito: 'errore'; messaggio: string; pagamenti: PagamentoLetto[] | null }
+  | { esito: 'errore'; messaggio: string; pagamenti: PagamentoLetto[] | null; contoCambiato?: true }
 
+export const ERRORE_CONTO_CAMBIATO = 'Il conto è cambiato mentre il foglio era aperto: niente registrato.'
+class ErroreContoCambiato extends Error { constructor() { super(ERRORE_CONTO_CAMBIATO) } }
+
+/** Il pagamento si registra intero sulla prenotazione. Con `controllo` (il
+ *  foglio approvato del 20/09/2026) la rilettura che precede la scrittura
+ *  confronta i pagamenti del server con quelli che il foglio mostrava: se
+ *  intanto è arrivato un incasso da un altro telefono non si scrive niente
+ *  e si torna con `contoCambiato` e i pagamenti riletti, così il foglio
+ *  aggiorna la cifra invece di salvare un importo diverso da quello mostrato. */
 export async function registraPagamento(
   booking: RigaPagabile, righe: RigaPagabile[],
   dati: { importo: number; metodo: MetodoPagamento; giorno: string; nota: string },
+  controllo?: { ricevutiAttesiCent: number },
 ): Promise<EsitoPagamento> {
   const chiave = chiavePrenotazione(booking)
   const segmenti = righePerSaldo(righe)
   const ids = segmenti.map(b => b.id)
   const chiaveMemoria = `ca_acconto_pendente_${chiave}`
   const rileggi = () => supabase.from('payments').select('*').in('booking_id', ids).order('paid_on')
+  const leggiPendente = () => { const t = leggiMemoria(() => localStorage, chiaveMemoria); try { return t ? JSON.parse(t) as AccontoPendente : null } catch { return null } }
+  let contoCambiato: PagamentoLetto[] | null = null
+  const rileggiControllando = async () => {
+    const r = await rileggi()
+    if (controllo && !r.error && r.data) {
+      const ricevuti = (r.data as PagamentoLetto[]).filter(p => ids.includes(p.booking_id)).reduce((s, p) => s + Math.round(Number(p.amount) * 100), 0)
+      const atteso = Math.round(controllo.ricevutiAttesiCent)
+      // il nostro stesso pagamento, scritto la volta prima con la risposta persa,
+      // non è un incasso di un altro telefono: lo riconosce eseguiRegistraAcconto
+      const pendente = leggiPendente()
+      const nostro = pendente && pendente.amount === dati.importo && pendente.method === dati.metodo && pendente.paid_on === dati.giorno ? Math.round(pendente.amount * 100) : 0
+      if (ricevuti !== atteso && ricevuti !== atteso + nostro) { contoCambiato = r.data as PagamentoLetto[]; return { data: null, error: new ErroreContoCambiato() } }
+    }
+    return r
+  }
 
   const esito = await eseguiRegistraAcconto(booking.id, dati.importo, dati.metodo, dati.giorno, {
-    leggiPendente: () => { const t = leggiMemoria(() => localStorage, chiaveMemoria); try { return t ? JSON.parse(t) as AccontoPendente : null } catch { return null } },
+    leggiPendente,
     custodisci: p => scriviMemoria(() => localStorage, chiaveMemoria, JSON.stringify(p)),
     dimentica: () => { try { localStorage.removeItem(chiaveMemoria) } catch { /* senza memoria non c'è nulla da togliere */ } },
-    rileggiPagamenti: rileggi,
+    rileggiPagamenti: rileggiControllando,
     scrivi: async (p: AccontoPendente, bookingId: string) => {
       const nomeRpc = booking.prenotazione_id ? 'registra_acconto_prenotazione' : 'registra_acconto'
       const rpc = await supabase.rpc(nomeRpc, { p_booking_id: bookingId, p_chiave: p.chiave, p_amount: p.amount, p_metodo: p.method, p_paid_on: p.paid_on })
@@ -75,6 +100,7 @@ export async function registraPagamento(
     adesso: () => new Date().toISOString(),
     nuovaChiave: () => crypto.randomUUID(),
   })
+  if (contoCambiato) return { esito: 'errore', messaggio: ERRORE_CONTO_CAMBIATO, pagamenti: contoCambiato, contoCambiato: true }
   if (esito.esito === 'errore') return { esito: 'errore', messaggio: esito.messaggio, pagamenti: esito.pagamenti as PagamentoLetto[] | null }
 
   // La nota è una cortesia: la funzione della 0033 non la prende, si scrive

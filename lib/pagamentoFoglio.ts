@@ -16,7 +16,33 @@ export const ETICHETTA_COME = 'Come'
 export const ETICHETTA_NOTA = 'Nota · può restare vuota'
 export const ERRORE_IMPORTO = 'Scrivi quanto ha pagato: un importo sopra lo zero.'
 export const ERRORE_GIORNO = 'Scegli il giorno del pagamento.'
-export const CONTO_SALDATO_DOPO = 'Dopo questo pagamento il conto è saldato.'
+
+// ── Il foglio approvato da Ania il 20/09/2026 (punto 5, colonna DOPO) ──────
+// In cima «Resta da incassare» con la cifra del conto autorevole; poi due
+// tasti, «Saldo completo» (il campo è già scritto con tutto il residuo e non
+// si tocca) e «Altro importo» (si scrive quanto si è davvero ricevuto); in
+// fondo «Dopo il pagamento resta» con la cifra prevista e la frase sull'esito.
+export const RESTA_DA_INCASSARE = 'Resta da incassare'
+export const MODO_SALDO = 'Saldo completo'
+export const MODO_ALTRO = 'Altro importo'
+export const GRUPPO_MODI = 'Tipo di pagamento'
+export const SPIEGA_SALDO = 'Saldo dell’intero importo residuo.'
+export const SPIEGA_ALTRO = 'Scrivi quanto hai effettivamente ricevuto.'
+export const DOPO_IL_PAGAMENTO_RESTA = 'Dopo il pagamento resta'
+export const RESIDUO_SCONOSCIUTO = '—'
+export const ESITO_SALDATO = 'Il conto sarà saldato.'
+export const ESITO_PARTE = 'Il pagamento coprirà una parte del saldo.'
+export const ESITO_MANCA_IMPORTO = 'Inserisci l’importo ricevuto.'
+export const NIENTE_DA_SALDARE = 'Non resta niente da incassare: si può registrare solo un altro importo.'
+export const OLTRE_IL_TOTALE_FOGLIO = (cent: number) => `${euroScheda(cent)} ricevuti oltre il totale: controlla i pagamenti.`
+export const CONTO_CAMBIATO = (residuoCent: number) =>
+  `Il conto è cambiato mentre il foglio era aperto: ora resta da incassare ${euroScheda(Math.max(0, residuoCent))}. Controlla l’importo e salva di nuovo.`
+
+export type ModoImporto = 'saldo' | 'altro'
+
+/** All'apertura: «Saldo completo» se resta qualcosa da incassare, altrimenti
+ *  «Altro importo» (con niente da saldare il tasto del saldo è spento). */
+export const modoIniziale = (residuoCent: number): ModoImporto => (Math.round(residuoCent) > 0 ? 'saldo' : 'altro')
 
 // Due modi soltanto, come li vuole Ania nel foglio: la colonna `method` di
 // payments accetta anche «carta» e «altro», che restano leggibili in lettura.
@@ -38,20 +64,36 @@ export function importoProposto(mancaCent: number): string {
 }
 
 /** Dal testo del campo ai centesimi: «62,50» e «62.50» → 6250. null se non è
- *  un importo sopra lo zero. */
+ *  un importo sopra lo zero, o se ha più di due decimali (mai arrotondare
+ *  di nascosto quello che si è scritto), o se non è un numero semplice. */
 export function importoInCent(testo: string): number | null {
-  const n = Number(String(testo ?? '').replace(',', '.').trim())
+  const t = String(testo ?? '').trim()
+  if (!/^\d+(?:[.,]\d{1,2})?$/.test(t)) return null
+  const n = Number(t.replace(',', '.'))
   if (!Number.isFinite(n) || n <= 0) return null
   return Math.round(n * 100)
 }
 
-/** La riga in ottone sotto i campi: quanto resterà da incassare dopo questo
- *  pagamento. Vuota finché l'importo non è leggibile. */
-export function restaDopo(mancaCent: number, importoCent: number | null): string {
-  if (importoCent == null) return ''
-  const resta = Math.round(mancaCent) - importoCent
-  if (resta <= 0) return CONTO_SALDATO_DOPO
-  return `Dopo questo pagamento restano da incassare ${euroScheda(resta)}.`
+/** La riga «Dopo il pagamento resta» e la frase sull'esito. Senza un importo
+ *  leggibile la cifra è «—» e si chiede l'importo; con l'importo si fa il
+ *  conto in centesimi: 1.080 − 400 = 680 → «una parte del saldo»; uguale al
+ *  residuo → 0 € e «Il conto sarà saldato.»; oltre il residuo → 0 € ma con
+ *  l'avviso in mattone di `oltreIlDovuto` al posto della frase, così
+ *  l'eccedenza non si nasconde dietro lo zero. */
+export function residuoPrevisto(residuoCent: number, importoCent: number | null): { cifra: string; esito: string; oltre: string | null } {
+  if (importoCent == null) return { cifra: RESIDUO_SCONOSCIUTO, esito: ESITO_MANCA_IMPORTO, oltre: null }
+  const resta = Math.round(residuoCent) - importoCent
+  const oltre = oltreIlDovuto(residuoCent, importoCent)
+  if (resta <= 0) return { cifra: euroScheda(0), esito: oltre ? '' : ESITO_SALDATO, oltre }
+  return { cifra: euroScheda(resta), esito: ESITO_PARTE, oltre: null }
+}
+
+/** Quanto è stato ricevuto sulle righe di QUESTA prenotazione, in centesimi,
+ *  dai pagamenti riletti: serve a capire se il conto è cambiato mentre il
+ *  foglio era aperto (un incasso da un altro telefono). */
+export function ricevutiCentDi(ids: string[], pagamenti: { booking_id: string; amount: number | string }[]): number {
+  const mie = new Set(ids)
+  return pagamenti.filter(p => mie.has(p.booking_id)).reduce((s, p) => s + Math.round(Number(p.amount) * 100), 0)
 }
 
 /** L'avviso in mattone: l'importo supera quello che manca. Si può salvare lo

@@ -79,21 +79,74 @@ for (const f of FOGLI) {
 const pagamento = leggi('components/scheda/FoglioPagamento.tsx')
 const pagamentiDati = leggi('lib/pagamentiDati.ts')
 
-test('il pagamento: quanto già scritto, quando su oggi, Contanti · Bonifico, nota, e quanto resta in ottone', () => {
-  assert.match(pagamento, /useState\(importoProposto\(manca\)\)/)
+test('il pagamento (disegno approvato il 20/09/2026, punto 5): residuo in cima, Saldo completo / Altro importo, quanto resterà', () => {
+  // il residuo in cima è quello del conto della scheda (contoPrenotazione), mai ricalcolato dai tratti
+  assert.match(pagamento, /conto: ContoFoglio/)
+  assert.match(pagina, /<FoglioPagamento booking=\{booking\} righe=\{righe\} conto=\{conto\}/)
+  assert.equal(/saldoMancanteCent|contoPrenotazione\(/.test(pagamento), false, 'il foglio ricalcola il conto da sé')
+  assert.match(pagamento, /const residuoCent = totaleCent - ricevutiCent/)
+  assert.match(pagamento, /data-resta-da-incassare[\s\S]{0,200}\{RESTA_DA_INCASSARE\}[\s\S]{0,200}data-residuo-attuale[\s\S]{0,80}font: `26px \$\{GEORGIA\}`/)
+  // i due tasti, e all'apertura con residuo positivo è scelto il saldo, col campo già scritto e in sola lettura
+  assert.match(pagamento, /useState<ModoImporto>\(modoIniziale\(residuoCent\)\)/)
+  assert.match(pagamento, /data-modo="saldo" aria-pressed=\{modo === 'saldo'\} disabled=\{nienteDaSaldare\} onClick=\{scegliSaldo\}/)
+  assert.match(pagamento, /data-modo="altro" aria-pressed=\{modo === 'altro'\} onClick=\{scegliAltro\}/)
+  assert.match(pagamento, /role="group" aria-label=\{GRUPPO_MODI\} className="grid grid-cols-2 gap-2"/)
+  assert.match(pagamento, /type="text" inputMode="decimal"[^\n]*data-campo="importo" value=\{importo\} readOnly=\{modo === 'saldo'\}/)
+  assert.match(pagamento, /\{modo === 'saldo' \? SPIEGA_SALDO : SPIEGA_ALTRO\}/)
+  // «Altro importo» svuota il campo e ci porta il fuoco; «Saldo completo» riscrive il residuo; data, modo e nota non si toccano
+  assert.match(pagamento, /function scegliAltro\(\) \{\s*setModo\('altro'\)\s*setImporto\(''\)\s*setErrore\(null\)\s*daFocalizzare\.current = true\s*\}/)
+  assert.match(pagamento, /function scegliSaldo\(\) \{\s*if \(nienteDaSaldare\) return\s*setModo\('saldo'\)\s*setImporto\(importoProposto\(residuoCent\)\)\s*setErrore\(null\)\s*\}/)
+  assert.match(pagamento, /campoImporto\.current\?\.focus\(\)/)
+  assert.equal(/scegliAltro\(\) \{[\s\S]{0,200}(setGiorno|setMetodo|setNota)/.test(pagamento), false, 'cambiare modalità tocca data, metodo o nota')
+  // quando su oggi (il vero campo data), Contanti · Bonifico (le vere pastiglie), nota
   assert.match(pagamento, /useState\(oggi\)/)
   assert.match(pagamento, /<CampoData etichetta=\{ETICHETTA_QUANDO\}[^\n]*ottone/)
+  assert.match(pagamento, /useState<ModoPagamento>\(modoProposto\(bonifico\)\)/)
   assert.match(pagamento, /MODI_PAGAMENTO\.map/)
+  assert.equal(/setMetodo\((?!m\.chiave)/.test(pagamento), false, 'il metodo cambia da solo con la modalità')
   assert.match(pagamento, /data-campo="nota"/)
-  assert.match(pagamento, /data-resta-dopo style=\{\{ marginTop: 12, fontSize: 12\.5, color: OTTONE \}\}/)
+  // in fondo: filo, «Dopo il pagamento resta» con la cifra prevista, l'esito, l'oltre in mattone, l'importo scritto male
+  assert.match(pagamento, /const previsto = residuoPrevisto\(residuoCent, cent\)/)
+  assert.match(pagamento, /<div aria-live="polite">/)
+  assert.match(pagamento, /data-dopo-resta[\s\S]{0,200}borderTop: `1px solid \$\{FILO_RESIDUO\}`[\s\S]{0,120}\{DOPO_IL_PAGAMENTO_RESTA\}[\s\S]{0,120}data-residuo-previsto[\s\S]{0,80}font: `25px \$\{GEORGIA\}`/)
+  assert.match(pagamento, /data-esito style=\{SPIEGA\}>\{previsto\.esito\}/)
   assert.match(pagamento, /data-oltre-il-dovuto[\s\S]{0,120}color: MATTONE/)
-  assert.match(pagamento, /<PiedeFoglio azione=\{SALVA_PAGAMENTO\}/)
-  // oltre il dovuto non si blocca: l'unico controllo è l'importo sopra lo zero (e il giorno)
+  assert.match(pagamento, /data-errore-importo[\s\S]{0,80}\{ERRORE_IMPORTO\}/)
+  // senza importo valido non si salva: il tasto è spento (e oltre il dovuto NON si blocca)
+  assert.match(pagamento, /<PiedeFoglio azione=\{SALVA_PAGAMENTO\} onAzione=\{salva\} salvando=\{salvando\} disabilitato=\{cent == null\}/)
   assert.equal(/oltre[^\n]*return/.test(pagamento), false, 'il foglio blocca l’importo oltre il dovuto')
+  assert.match(foglio, /disabled=\{salvando \|\| disabilitato\}/)
+  assert.match(foglio, /data-annulla-foglio onClick=\{onAnnulla\} disabled=\{salvando\}/)   // «Annulla» resta viva
+  // le misure del riferimento: titolo Georgia 23, etichette 10 px / 1,3 px dorate, campi 16 px, tasti 13/600 angoli 8
+  assert.match(pagamento, /<Foglio titolo=\{TITOLO_PAGAMENTO\} misuraTitolo=\{23\} onChiudi=\{onChiudi\}>/)
+  assert.match(pagamento, /const ETICHETTA: CSSProperties = \{ fontSize: 10, letterSpacing: '1\.3px', color: '#9c814e' \}/)
+  assert.match(pagamento, /const CAMPO: CSSProperties = \{ \.\.\.stileCampo, fontSize: 16, color: TESTO \}/)
+  assert.match(pagamento, /fontSize: 13, fontWeight: 600, lineHeight: 1\.5, borderRadius: 8, padding: '12px 6px'/)
+  assert.match(pagamento, /const VERDE_SCELTO = '#30674f'/)
+  assert.match(pagamento, /const TESTO = '#30483b'/)
+  assert.equal(/Arial|fonts\.googleapis|@import/.test(pagamento), false, 'caratteri nuovi nel foglio')
+  // aprire il foglio o scegliere un tasto non scrive: si scrive solo in salva()
+  assert.equal((pagamento.match(/registraPagamento\(/g) || []).length, 1, 'registraPagamento chiamato fuori da salva()')
+  assert.match(pagamento, /async function salva\(\) \{\s*if \(salvando\) return/)
+})
+
+test('il conto cambiato mentre il foglio è aperto: niente scritto, la cifra si aggiorna qui e nella scheda', () => {
+  assert.match(pagamento, /registraPagamento\(booking, righe, \{ importo: cent \/ 100, metodo, giorno, nota \}, \{ ricevutiAttesiCent: ricevutiCent \}\)/)
+  assert.match(pagamento, /if \(esito\.contoCambiato && esito\.pagamenti\) \{[\s\S]{0,400}aggiornaConto\(ricevutiCentDi\(righe\.map\(r => r\.id\), esito\.pagamenti\)\)\s*onContoCambiato\?\.\(esito\.pagamenti\)\s*return/)
+  assert.match(pagamento, /setAvvisoConto\(CONTO_CAMBIATO\(nuovoResiduo\)\)/)
+  assert.match(pagamento, /data-conto-cambiato/)
+  assert.match(pagina, /onContoCambiato=\{riletti => setPagamenti\(riletti as unknown as PagamentoStat\[\]\)\}/)
+  // in lib/pagamentiDati il controllo sta nella rilettura che precede la scrittura
+  assert.match(pagamentiDati, /controllo\?: \{ ricevutiAttesiCent: number \}/)
+  assert.match(pagamentiDati, /rileggiPagamenti: rileggiControllando/)
+  assert.match(pagamentiDati, /if \(ricevuti !== atteso && ricevuti !== atteso \+ nostro\) \{ contoCambiato = r\.data as PagamentoLetto\[\]; return \{ data: null, error: new ErroreContoCambiato\(\) \} \}/)
+  // il nostro pagamento pendente (risposta persa la volta prima) non è un incasso di un altro telefono
+  assert.match(pagamentiDati, /const nostro = pendente && pendente\.amount === dati\.importo && pendente\.method === dati\.metodo && pendente\.paid_on === dati\.giorno \? Math\.round\(pendente\.amount \* 100\) : 0/)
+  assert.match(pagamentiDati, /if \(contoCambiato\) return \{ esito: 'errore', messaggio: ERRORE_CONTO_CAMBIATO, pagamenti: contoCambiato, contoCambiato: true \}/)
 })
 
 test('il pagamento si salva col contratto unico dei movimenti, e il bollino «pagato» arriva da sé', () => {
-  assert.match(pagamento, /import \{ registraPagamento, righePerSaldo/)
+  assert.match(pagamento, /import \{ registraPagamento, type EsitoPagamento, type PagamentoLetto, type RigaPagabile \} from .@\/lib\/pagamentiDati./)
   assert.equal(/supabase/.test(pagamento), false, 'il foglio parla col database da solo')
   assert.match(pagamentiDati, /import \{\s*eseguiRegistraAcconto, eseguiSegnaPagato, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, saldoMancanteCent/)
   assert.match(pagamentiDati, /ca_acconto_pendente_\$\{chiave\}/)
