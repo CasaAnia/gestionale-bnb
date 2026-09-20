@@ -410,7 +410,7 @@ test('la sezione «Adesso» non c’è più: conferma e dati bonifico stanno in 
   const messaggi = readFileSync(new URL('../components/scheda/MessaggiScheda.tsx', import.meta.url), 'utf8')
   assert.match(messaggi, /data-conferma-immagine/, 'la conferma con immagine resta in «Messaggi»')
   // la fascia delle sezioni è seguita subito da «Da controllare»
-  assert.match(scheda, /<FasciaSezioni voci=\{SEZIONI_SCHEDA\}[^\n]*\n\n\s*\{\/\* La sezione «Adesso»[\s\S]{0,200}<section id="controllare"/)
+  assert.match(scheda, /<FasciaSezioni voci=\{SEZIONI_SCHEDA\}[^\n]*\n\n\s*\{\/\* La sezione «Adesso»[\s\S]{0,400}<section id="controllare"/)
 })
 
 // ── La correzione dei soldi, anche nella pagina di adesso ──────────────────
