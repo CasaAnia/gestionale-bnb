@@ -3,8 +3,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
-  testaConto, contoScheda, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
-  NOME_MESSAGGIO, NOTA_CRONOLOGIA, type PagamentoScheda, notaCopertura, ultimaNotteCoperta, COPERTURA_FINO, COPERTURA_NIENTE } from './schedaConto.ts'
+  riepilogoConto, contoScheda, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
+  NOME_MESSAGGIO, NOTA_CRONOLOGIA, type PagamentoScheda, notaCopertura, ultimaNotteCoperta, COPERTURA_FINO, COPERTURA_NIENTE,
+  OLTRE_IL_TOTALE, SEGNATA_PAGATA, RIGA_TOTALE_CONCORDATO, RIGA_TOTALE_SOGGIORNO } from './schedaConto.ts'
 import type { SegmentoScheda } from './schedaPrenotazione.ts'
 
 type Camera = NonNullable<SegmentoScheda['rooms']>
@@ -17,49 +18,63 @@ const seg = (id: string, camera: Camera, check_in: string, check_out: string, ex
 })
 const pag = (id: string, amount: number, method: string, paid_on: string): PagamentoScheda => ({ id, booking_id: 'b', amount, method, paid_on })
 
-// ── Lo stato del conto ──────────────────────────────────────────────────────
-test('conto saldato: «Saldato», quanto e come, barretta piena', () => {
-  const t = testaConto({ totaleCent: 55000, ricevutiCent: 55000 }, [pag('p1', 550, 'contanti', '2026-09-10')])
-  assert.equal(t.titolo, 'Saldato')
-  assert.equal(t.saldato, true)
-  assert.equal(t.dettaglio, '550 € su 550 €')
-  assert.equal(t.sotto, 'contanti, 10 set')
-  assert.equal(t.quotaPagata, 1)
+// ── Il riepilogo del conto (20/09/2026 sera, disegno approvato da Ania) ─────
+// Tre cifre: totale concordato, già ricevuto, resta da incassare. Tutte dai
+// valori autorevoli di contoPrenotazione, in centesimi; mai dai testi.
+test('il caso di Ania: 1.880 € concordati, 800 € ricevuti, restano 1.080 €', () => {
+  const r = riepilogoConto({ totaleCent: 188000, ricevutiCent: 80000 })
+  assert.equal(r.totale, '1.880 €')
+  assert.equal(r.ricevuto, '800 €')
+  assert.equal(r.residuo, '1.080 €')
+  assert.equal(r.residuoCent, 108000)
+  assert.equal(r.saldato, false)
+  assert.equal(r.avviso, '')
 })
 
-test('conto con acconto: manca il resto, e si dice quanto è già arrivato', () => {
-  const t = testaConto({ totaleCent: 55000, ricevutiCent: 30000 }, [pag('p1', 300, 'bonifico', '2026-09-10')])
-  assert.equal(t.titolo, '250 €')
-  assert.equal(t.saldato, false)
-  assert.equal(t.dettaglio, 'da incassare')
-  assert.equal(t.sotto, '300 € pagati, 10 set')
-  assert.ok(Math.abs(t.quotaPagata - 30000 / 55000) < 0.0001)
+test('senza pagamenti: ricevuto 0 €, il residuo è tutto il totale, niente avviso', () => {
+  const r = riepilogoConto({ totaleCent: 30000, ricevutiCent: 0 })
+  assert.equal(r.ricevuto, '0 €')
+  assert.equal(r.residuo, '300 €')
+  assert.equal(r.saldato, false)
+  assert.equal(r.avviso, '')
 })
 
-test('con due pagamenti si leggono i due giorni, da tre in su quante volte e l’ultimo (Ania, 20/09/2026)', () => {
-  const due = testaConto({ totaleCent: 188000, ricevutiCent: 80000 }, [pag('p2', 400, 'contanti', '2026-09-16'), pag('p1', 400, 'contanti', '2026-09-07')])
-  assert.equal(due.titolo, '1.080 €')
-  assert.equal(due.sotto, '800 € pagati, 7 e 16 set')
-  const mesiDiversi = testaConto({ totaleCent: 188000, ricevutiCent: 80000 }, [pag('p1', 400, 'contanti', '2026-08-30'), pag('p2', 400, 'contanti', '2026-09-16')])
-  assert.equal(mesiDiversi.sotto, '800 € pagati, 30 ago e 16 set')
-  const tre = testaConto({ totaleCent: 188000, ricevutiCent: 120000 }, [pag('p1', 400, 'contanti', '2026-09-07'), pag('p2', 400, 'contanti', '2026-09-16'), pag('p3', 400, 'contanti', '2026-09-20')])
-  assert.equal(tre.sotto, '1.200 € pagati in 3 volte, ultimo 20 set')
-  const saldato = testaConto({ totaleCent: 80000, ricevutiCent: 80000 }, [pag('p1', 400, 'contanti', '2026-09-07'), pag('p2', 400, 'bonifico', '2026-09-16')])
-  assert.equal(saldato.sotto, 'bonifico, 7 e 16 set')
+test('saldato davvero: residuo 0 €, «Saldato», nessun avviso — anche coi centesimi', () => {
+  const r = riepilogoConto({ totaleCent: 55000, ricevutiCent: 55000 })
+  assert.equal(r.residuo, '0 €')
+  assert.equal(r.saldato, true)
+  assert.equal(r.avviso, '')
+  const cent = riepilogoConto({ totaleCent: 18375, ricevutiCent: 18375 })
+  assert.equal(cent.totale, '183,75 €')
+  assert.equal(cent.residuo, '0 €')
+  assert.equal(cent.saldato, true)
 })
 
-test('bonifico atteso: niente ancora incassato, barretta vuota', () => {
-  const t = testaConto({ totaleCent: 30000, ricevutiCent: 0 }, [])
-  assert.equal(t.titolo, '300 €')
-  assert.equal(t.dettaglio, 'da incassare')
-  assert.equal(t.sotto, '')
-  assert.equal(t.quotaPagata, 0)
+test('coi centesimi: 183,75 € concordati e 100 € ricevuti → restano 83,75 €, senza arrotondare', () => {
+  const r = riepilogoConto({ totaleCent: 18375, ricevutiCent: 10000 })
+  assert.equal(r.totale, '183,75 €')
+  assert.equal(r.ricevuto, '100 €')
+  assert.equal(r.residuo, '83,75 €')
+  assert.equal(r.residuoCent, 8375)
 })
 
-test('segnato pagato senza movimenti: resta «Saldato»', () => {
-  const t = testaConto({ totaleCent: 16000, ricevutiCent: 0 }, [], true)
-  assert.equal(t.titolo, 'Saldato')
-  assert.equal(t.sotto, '')
+test('pagamenti oltre il totale: residuo 0 € e saldato, ma la differenza non sparisce: l’avviso dice di quanto', () => {
+  const r = riepilogoConto({ totaleCent: 16000, ricevutiCent: 17000 })
+  assert.equal(r.residuo, '0 €')
+  assert.equal(r.residuoCent, -1000)
+  assert.equal(r.saldato, true)
+  assert.equal(r.avviso, OLTRE_IL_TOTALE(1000))
+  assert.equal(r.avviso, '10 € ricevuti oltre il totale: controlla i pagamenti')
+})
+
+test('segnato pagato senza movimenti: resta «Saldato» (regola di sempre), ma la cifra è quella vera e l’avviso lo dice', () => {
+  const r = riepilogoConto({ totaleCent: 16000, ricevutiCent: 0 }, true)
+  assert.equal(r.ricevuto, '0 €')
+  assert.equal(r.residuo, '160 €', 'la differenza non si azzera')
+  assert.equal(r.saldato, true)
+  assert.equal(r.avviso, SEGNATA_PAGATA)
+  // col segno «pagato» E i movimenti completi non c'è niente da dire
+  assert.equal(riepilogoConto({ totaleCent: 16000, ricevutiCent: 16000 }, true).avviso, '')
 })
 
 // ── Il conto in righe (18/09/2026) ─────────────────────────────────────────
@@ -172,6 +187,17 @@ test('i pagamenti: dal più vecchio, con giorno e metodo', () => {
   assert.deepEqual(righePagamenti([]), [])
 })
 
+test('la riga finale del dettaglio: «Totale soggiorno» senza sconto, «Totale concordato» con lo sconto', () => {
+  const senza = contoScheda([seg('a', LENA, '2026-11-29', '2026-11-30', { price_per_night: 80, total_amount: 80 })], 8000)
+  assert.equal(senza.totaleDettaglio, RIGA_TOTALE_SOGGIORNO)
+  assert.equal(senza.sconto, null)
+  const con = contoScheda([seg('a', LENA, '2026-11-29', '2026-11-30', { price_per_night: 80, total_amount: 72, discount_type: 'percentage', discount_value: 10 })], 7200)
+  assert.equal(con.totaleDettaglio, RIGA_TOTALE_CONCORDATO)
+  assert.equal(con.sconto?.testo, 'Sconto 10 %')
+  assert.equal(con.totale, '80 €')
+  assert.equal(con.daPagare, '72 €')
+})
+
 // ── Fin dove arrivano i pagamenti (REGOLA FISSA n. 9, Ania 20/09/2026) ─────
 // Il pagamento non si divide fra le camere: si registra intero e la scheda
 // dice fino a che notte arrivano i soldi, come il verde del calendario.
@@ -192,6 +218,17 @@ const ROSA = [
 ]
 
 test('il caso di Ania: 800 € su Rosa coprono Ambra e Amelia, fino alla notte del 10 set', () => {
+  // le quattro righe del dettaglio, nell'ordine del tempo, e il totale 1.880 € senza sconto
+  const dettaglio = contoScheda(ROSA.map(t => ({ ...t, rooms: CAMERE_ROSA.find(c => c.id === t.room_id) })), 188000)
+  assert.deepEqual(righeDi(dettaglio), [
+    ['Ambra', '1 → 7 set · 6 notti × 80 €', '480 €'],
+    ['Amelia', '7 → 11 set · 4 notti × 70 €', '280 €'],
+    ['Ambra', '11 → 22 set · 11 notti × 80 €', '880 €'],
+    ['Lena', '22 → 25 set · 3 notti × 80 €', '240 €'],
+  ])
+  assert.equal(dettaglio.sconto, null)
+  assert.equal(dettaglio.daPagare, '1.880 €')
+  assert.equal(dettaglio.totaleDettaglio, RIGA_TOTALE_SOGGIORNO)
   assert.equal(ultimaNotteCoperta(ROSA, CAMERE_ROSA, 80000), '2026-09-10')
   assert.equal(notaCopertura(ROSA, CAMERE_ROSA, 80000, false), 'I pagamenti coprono fino alla notte del 10 set')
   // 400 €: cinque notti di Ambra (5 × 80), la sesta no
@@ -231,7 +268,7 @@ test('REGOLA FISSA n. 9: il pagamento non si divide fra le camere, e la scheda m
   const conto = readFileSync(new URL('../components/scheda/ContoScheda.tsx', import.meta.url), 'utf8')
   assert.match(conto, /data-copertura-pagamenti/, 'la riga «coprono fino alla notte del …» sotto i pagamenti')
   const pagina = readFileSync(new URL('../app/scheda/[id]/page.tsx', import.meta.url), 'utf8')
-  assert.match(pagina, /notaCopertura\(righe, camere, conto\.ricevutiCent, testa\.saldato\)/)
+  assert.match(pagina, /notaCopertura\(righe, camere, conto\.ricevutiCent, riepilogo\.saldato\)/)
   assert.match(pagina, /copertura=\{copertura\}/)
 })
 

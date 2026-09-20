@@ -20,7 +20,7 @@ import { quandoEvento, descriviEvento, type EventoCronologia } from './cronologi
 import { MESI_BREVI } from './dateItaliane.ts'
 import { telefonoAGruppi } from './whatsapp.ts'
 
-// ── Lo stato del conto, in grande ──────────────────────────────────────────
+// ── I pagamenti, come arrivano dal database ─────────────────────────────────
 export type PagamentoScheda = { id: string; booking_id?: string; amount: number | string; method?: string | null; paid_on?: string | null; note?: string | null }
 
 const giornoBreve = (iso: string | null | undefined): string => {
@@ -34,61 +34,47 @@ const metodoInParole = (m: string | null | undefined): string => {
 }
 const importo = (p: PagamentoScheda) => Math.round(Number(p.amount || 0) * 100)
 
-// I pagamenti registrati in ordine di data (poi di lettura)
-function pagamentiInOrdine(pagamenti: PagamentoScheda[]): PagamentoScheda[] {
-  return [...pagamenti].sort((a, b) => String(a.paid_on ?? '').localeCompare(String(b.paid_on ?? '')))
-}
-// Quando sono arrivati i soldi: «10 set» con un pagamento, «7 e 16 set» con
-// due, «in 3 volte, ultimo 20 set» da tre in su (Ania, 20/09/2026: «800 €
-// pagati, 16 set» non bastava, erano due pagamenti da 400)
-// Torna già con la sua virgola o il suo spazio davanti, da attaccare a «pagati»
-// o al modo: «, 10 set» · «, 7 e 16 set» · « in 3 volte, ultimo 20 set»
-function quandoPagati(pagamenti: PagamentoScheda[]): string {
-  const giorni = pagamentiInOrdine(pagamenti).map(p => giornoBreve(p.paid_on)).filter(Boolean)
-  if (giorni.length === 0) return ''
-  if (giorni.length === 1) return `, ${giorni[0]}`
-  if (giorni.length === 2) {
-    const [a, b] = giorni
-    const [ga, ma] = a.split(' '), [gb, mb] = b.split(' ')
-    return ma === mb ? `, ${ga} e ${gb} ${ma}` : `, ${a} e ${b}`
-  }
-  return ` in ${giorni.length} volte, ultimo ${giorni[giorni.length - 1]}`
+// ── Il riepilogo del conto (20/09/2026 sera, disegno approvato da Ania) ─────
+// Tre cifre e basta, una sotto l'altra: il totale concordato (quello
+// autorevole di lib/prenotazioneUnica: già scontato, extra compresi), quanto
+// è già arrivato (i movimenti veri, sommati da contoPrenotazione) e quanto
+// resta, cioè totale meno ricevuto, mai sotto zero. Niente più barretta né
+// «800 € pagati, 7 e 16 set»: i pagamenti si leggono uno per uno sotto.
+// Se i pagamenti superano il totale lo si dice, senza azzerare la differenza;
+// se la prenotazione porta il vecchio segno «pagato» senza i movimenti, la
+// cifra resta quella vera (regola di sempre: il conto è «Saldato») e lo si
+// dice.
+export const RIGA_TOTALE_CONCORDATO = 'Totale concordato'
+export const RIGA_GIA_RICEVUTO = 'Già ricevuto'
+export const RIGA_RESTA_DA_INCASSARE = 'Resta da incassare'
+export const CONTO_SALDATO = 'Saldato'
+export const TITOLO_PAGAMENTI_RICEVUTI = 'Pagamenti ricevuti'
+export const TITOLO_DETTAGLIO_SOGGIORNO = 'Dettaglio del soggiorno'
+export const RIGA_PREZZO_PIENO = 'Prezzo pieno'
+export const RIGA_TOTALE_SOGGIORNO = 'Totale soggiorno'
+export const OLTRE_IL_TOTALE = (cent: number) => `${euroScheda(cent)} ricevuti oltre il totale: controlla i pagamenti`
+export const SEGNATA_PAGATA = 'Segnata come pagata, ma i pagamenti registrati non arrivano al totale'
+
+export type RiepilogoConto = {
+  totale: string        // «1.880 €», il totale concordato
+  ricevuto: string      // «800 €», i movimenti veri
+  residuo: string       // «1.080 €», totale meno ricevuto (mai sotto zero)
+  residuoCent: number   // la differenza vera, anche negativa
+  saldato: boolean      // residuo zero, oppure il vecchio segno «pagato»
+  avviso: string        // pagamenti oltre il totale, o segno «pagato» senza i movimenti; '' se tutto torna
 }
 
-export type TestaConto = {
-  titolo: string           // «Saldato» oppure quanto manca, «250 €»
-  saldato: boolean
-  dettaglio: string        // «550 € su 550 €» oppure «da incassare»
-  sotto: string            // «contanti, 10 set» · «300 € pagati, 10 set» · «800 € pagati, 7 e 16 set» · ''
-  quotaPagata: number      // 0–1, la lunghezza della barretta
-}
-
-export function testaConto(
-  conto: { totaleCent: number; ricevutiCent: number },
-  pagamenti: PagamentoScheda[],
-  pagato = false,
-): TestaConto {
-  const mancaCent = Math.max(0, conto.totaleCent - conto.ricevutiCent)
-  const saldato = pagato || mancaCent <= 0
-  const ordinati = pagamentiInOrdine(pagamenti)
-  const ultimo = ordinati.length ? ordinati[ordinati.length - 1] : null
-  const quando = quandoPagati(pagamenti)
-  const quota = conto.totaleCent > 0 ? Math.min(1, Math.max(0, conto.ricevutiCent / conto.totaleCent)) : (saldato ? 1 : 0)
-  if (saldato) {
-    return {
-      titolo: 'Saldato',
-      saldato: true,
-      dettaglio: `${euroScheda(conto.totaleCent)} su ${euroScheda(conto.totaleCent)}`,
-      sotto: ultimo ? `${metodoInParole(ultimo.method)}${quando}` : '',
-      quotaPagata: 1,
-    }
-  }
+export function riepilogoConto(conto: { totaleCent: number; ricevutiCent: number }, pagato = false): RiepilogoConto {
+  const residuoCent = conto.totaleCent - conto.ricevutiCent
+  const saldato = pagato || residuoCent <= 0
+  const avviso = residuoCent < 0 ? OLTRE_IL_TOTALE(-residuoCent) : pagato && residuoCent > 0 ? SEGNATA_PAGATA : ''
   return {
-    titolo: euroScheda(mancaCent),
-    saldato: false,
-    dettaglio: 'da incassare',
-    sotto: conto.ricevutiCent > 0 ? `${euroScheda(conto.ricevutiCent)} pagati${quando}` : '',
-    quotaPagata: quota,
+    totale: euroScheda(conto.totaleCent),
+    ricevuto: euroScheda(conto.ricevutiCent),
+    residuo: euroScheda(Math.max(0, residuoCent)),
+    residuoCent,
+    saldato,
+    avviso,
   }
 }
 
@@ -108,8 +94,10 @@ export type ContoInRighe = {
   totaleCent: number      // il prezzo pieno: la somma delle righe
   totale: string
   sconto: ScontoVista | null
-  daPagare: string
-  sotto: string           // «3 notti · 85 € a notte»
+  daPagare: string        // il totale concordato, quello autorevole
+  sotto: string           // «3 notti · 85 € a notte» (nella scheda non si mostra: regola fissa n. 7)
+  /** la riga finale del «Dettaglio del soggiorno»: «Totale concordato» se c'è lo sconto, altrimenti «Totale soggiorno» */
+  totaleDettaglio: string
 }
 
 export function contoScheda(segmenti: SegmentoScheda[], daPagareCent: number): ContoInRighe {
@@ -169,6 +157,7 @@ export function contoScheda(segmenti: SegmentoScheda[], daPagareCent: number): C
     sconto: rigaSconto(scontoCent, percentualeComune(vivi)),
     daPagare: euroScheda(daPagareCent),
     sotto: nottiANotte(giorni.size, daPagareCent),
+    totaleDettaglio: scontoCent > 0 ? RIGA_TOTALE_CONCORDATO : RIGA_TOTALE_SOGGIORNO,
   }
 }
 

@@ -99,7 +99,7 @@ import { numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
 import { openWhatsApp, telefonoAGruppi } from '@/lib/whatsapp'
 import buildWhatsappMsg, { perMessaggio, type TipoMessaggio } from '@/lib/messaggiPrenotazione'
 import {
-  testaConto, contoScheda, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
+  riepilogoConto, contoScheda, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
   type PagamentoScheda, type MessaggioInviato, notaCopertura } from '@/lib/schedaConto'
 import { leggiCronologia } from '@/lib/cronologiaDati'
 import type { EventoCronologia } from '@/lib/cronologia'
@@ -485,12 +485,13 @@ export default function SchedaPage() {
 
   // ── CONTO ────────────────────────────────────────────────────────────────
   const pagamentiScheda = pagamenti as unknown as PagamentoScheda[]
-  const testa = conto ? testaConto(conto, pagamentiScheda, righe.some(r => r.pagato)) : null
+  // le tre cifre del riepilogo (20/09/2026 sera): totale concordato, già ricevuto, resta da incassare
+  const riepilogo = conto ? riepilogoConto(conto, righe.some(r => r.pagato)) : null
   // il conto in righe (18/09/2026): il «da pagare» resta quello autorevole di contoPrenotazione
   const contoRighe = useMemo(() => (conto ? contoScheda(attive, conto.totaleCent) : null), [attive, conto])
   const rigePagamenti = useMemo(() => righePagamenti(pagamentiScheda), [pagamentiScheda])
   // fin dove arrivano i pagamenti, notte per notte (regola fissa n. 9, 20/09/2026)
-  const copertura = useMemo(() => (conto && testa ? notaCopertura(righe, camere, conto.ricevutiCent, testa.saldato) : ''), [righe, camere, conto, testa])
+  const copertura = useMemo(() => (conto && riepilogo ? notaCopertura(righe, camere, conto.ricevutiCent, riepilogo.saldato) : ''), [righe, camere, conto, riepilogo])
   const accordoSalvato = (accordo as { accordo_pagamento?: string | null; caparra_centesimi?: number | null; caparra_entro?: string | null } | null)
   const comePagaTesto = comePagaScheda(accordoSalvato?.accordo_pagamento, accordo?.bonifico)
 
@@ -658,8 +659,8 @@ export default function SchedaPage() {
       {/* ── Conto ─────────────────────────────────────────────────────────── */}
       <section id="conto" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
         <p className="ed-sezione">Conto</p>
-        {testa && conto && contoRighe
-          ? <ContoScheda className="mt-3" testa={testa} conto={contoRighe}
+        {riepilogo && conto && contoRighe
+          ? <ContoScheda className="mt-6" riepilogo={riepilogo} conto={contoRighe}
             accordo={comePagaTesto} pagamenti={rigePagamenti} copertura={copertura}
             onPagamento={() => setFoglioPagamento(true)} onComePaga={() => setFoglioComePaga(true)} onSconto={() => setFoglioSconto(true)}
             onTogliPagamento={id => setPagamentoDaTogliere(id)} />

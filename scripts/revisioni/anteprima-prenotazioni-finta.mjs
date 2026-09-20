@@ -102,6 +102,9 @@ const guests = [
   // La striscia che va a capo (20/09/2026): il caso di Rosa Macauda, 24 notti
   // con tre cambi camera, e la copertura dei pagamenti (regola fissa n. 9)
   ospite('aaaaaaaa-0025-4000-8000-000000000025', 'Ventiquattro Notti', '+39 333 000 0025'),
+  // Il conto della scheda (20/09/2026 sera): sconto in percentuale con i
+  // centesimi (12,5 % su 210 = 183,75) e un anticipo con la nota
+  ospite('aaaaaaaa-0026-4000-8000-000000000026', 'Centesimi Sconto', '+39 333 000 0026'),
 ]
 const NIDA = guests[14]
 const CAMBIO = guests[16]
@@ -271,8 +274,13 @@ const bookings = [
   // Allungando a tre notti il foglio propone «Tengo il 10 % di sconto» (216).
   prenotazione(ROOM.ambra, 'aaaaaaaa-0024-4000-8000-000000000024', '2026-12-05', '2026-12-07', 2,
     { price_per_night: 80, discount_type: 'percentage', discount_value: 10, total_amount: 144 }),
+  // Centesimi Sconto (20/09/2026 sera): Allegra 15 → 18 dic, 3 × 70 = 210,
+  // sconto 12,5 % → 183,75 concordati; 100 € di anticipo con la nota.
+  prenotazione(ROOM.allegra, 'aaaaaaaa-0026-4000-8000-000000000026', '2026-12-15', '2026-12-18', 2,
+    { id: 'bbbbbbbb-2601-4000-8000-000000002601', price_per_night: 70, discount_type: 'percentage', discount_value: 12.5, total_amount: 183.75, accordo_pagamento: 'caparra_meta', caparra_centesimi: 10000, caparra_entro: '2026-12-01', bonifico: true }),
 ]
-const LETTO_PER_DUE = bookings[bookings.length - 2]
+// «Letto Per Due» si cerca per cliente, non per posizione: in fondo alla lista si aggiungono altri casi
+const LETTO_PER_DUE = bookings.find(b => b.guest_id === 'aaaaaaaa-0023-4000-8000-000000000023')
 const CARMELA_PRIMO_TRATTO = bookings.find(b => b.group_id === GRUPPO_CARMELA)
 const documenti_cliente = [
   { id: 'dddddddd-0001-4000-8000-000000000001', guest_id: NIDA.id, percorso: `${NIDA.id}/dddddddd-0001-4000-8000-000000000001.jpg`, etichetta: 'carta_identita', lato: 'fronte', nome_file: 'IMG_1.jpeg', dimensione: 700000, created_at: ora },
@@ -293,6 +301,8 @@ const payments = [
   // 20/09/2026): coprono Ambra 1→7 e Amelia 7→11, fino alla notte del 10 set
   { id: 'ffffffff-0003-4000-8000-000000000003', booking_id: 'bbbbbbbb-2501-4000-8000-000000002501', amount: 400, method: 'contanti', paid_on: '2026-09-07', created_at: ora },
   { id: 'ffffffff-0004-4000-8000-000000000004', booking_id: 'bbbbbbbb-2501-4000-8000-000000002501', amount: 400, method: 'contanti', paid_on: '2026-09-16', created_at: ora },
+  // Centesimi Sconto: 100 € di anticipo via bonifico, con la nota
+  { id: 'ffffffff-0005-4000-8000-000000000005', booking_id: 'bbbbbbbb-2601-4000-8000-000000002601', amount: 100, method: 'bonifico', paid_on: '2026-12-01', note: 'Anticipo arrivato il 1° dicembre, causale «Casa Ania»', created_at: ora },
 ]
 // Storico pulizie (migrazione 0018): vuoto, così la pagina Pulizie mostra solo le automatiche
 const cleanings = []
@@ -468,6 +478,10 @@ let spese503 = false   // salva la riga ma risponde 503 (il gateway dice errore 
 let erroreRichiesteWeb = process.env.FINTO_ERRORE_RICHIESTE_WEB === '1'
 // Cambia cliente (06/09/2026): quando è acceso il PATCH su bookings fallisce
 let erroreCambioCliente = false
+// Il conto della scheda (20/09/2026 sera): GET /finto/errore-pagamenti?on=1
+// fa fallire la LETTURA dei pagamenti → la scheda non mostra il conto (mai
+// «Già ricevuto 0 €» per un errore di lettura); ?on=0 spegne.
+let errorePagamenti = false
 // Scritture a metà (revisione del 17/09/2026): GET /finto/errore-dopo-scritture?n=1
 // fa riuscire le prime n PATCH su bookings e fallire le successive (500);
 // con &modo=persa le successive vengono SCRITTE ma la risposta si perde
@@ -512,6 +526,10 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/finto/perdi-risposta-spese') { perdiRispostaSpese = url.searchParams.get('on') === '1'; return rispondi(res, 200, { perdiRispostaSpese }) }
   if (url.pathname === '/finto/spese-503') { spese503 = url.searchParams.get('on') === '1'; return rispondi(res, 200, { spese503 }) }
   if (url.pathname === '/finto/spese') return rispondi(res, 200, family_expenses)
+  if (url.pathname === '/finto/errore-pagamenti') { errorePagamenti = url.searchParams.get('on') === '1'; return rispondi(res, 200, { errorePagamenti }) }
+  if (errorePagamenti && req.method === 'GET' && url.pathname === '/rest/v1/payments') {
+    return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla lettura dei pagamenti', details: null, hint: null })
+  }
   if (url.pathname === '/finto/errore-cambio-cliente') {
     erroreCambioCliente = url.searchParams.get('on') === '1'
     return rispondi(res, 200, { erroreCambioCliente })

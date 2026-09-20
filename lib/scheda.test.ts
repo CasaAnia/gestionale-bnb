@@ -312,28 +312,80 @@ const messaggi = leggi('components/scheda/MessaggiScheda.tsx')
 const cliente = leggi('components/scheda/ClienteScheda.tsx')
 const cronologia = leggi('components/scheda/CronologiaScheda.tsx')
 
-test('il conto: stato in Georgia 32, dettaglio 12,5 stone, barretta 4 px', () => {
-  assert.match(conto, /fontFamily: GEORGIA, fontSize: 32, color: testa\.saldato \? 'var\(--color-green-dark\)' : ROSSO_CONTO/)
-  assert.match(conto, /export const ROSSO_CONTO = '#D40000'/)
-  assert.match(conto, /fontSize: 12\.5, color: 'var\(--color-stone\)'/)
-  assert.match(conto, /export const FONDO_BARRA = '#EFE9DC'/)
-  assert.match(conto, /export const ALTEZZA_BARRA = 4/)
-  assert.match(conto, /background: 'var\(--color-green-mid\)', opacity: 0\.55/)
-  assert.match(conto, /width: `\$\{Math\.round\(testa\.quotaPagata \* 100\)\}%`/)
+test('il conto (20/09/2026 sera, disegno approvato da Ania): tre cifre in cima, «Resta da incassare» in Georgia 36 a sinistra; niente rosso, barretta né «Da pagare»', () => {
+  // Arial 14/1,5 e verde #30483b SOLO dentro il conto: il carattere dell'app non cambia
+  assert.match(conto, /data-conto className=\{className\} style=\{\{ font: '14px\/1\.5 Arial, sans-serif', color: TESTO_CONTO \}\}/)
+  assert.match(conto, /export const TESTO_CONTO = '#30483b'/)
+  // l'ordine approvato: totale concordato, già ricevuto, residuo, comandi, pagamenti, copertura, come paga, dettaglio, totale
+  const ordine = ['data-totale-concordato', 'data-gia-ricevuto', 'data-residuo', 'data-comandi-conto', 'data-pagamenti-ricevuti',
+    'data-copertura-pagamenti', 'data-come-paga-riga', 'data-dettaglio-soggiorno', 'data-totale-dettaglio'].map(d => conto.indexOf(d))
+  assert.ok(ordine.every(p => p > 0), 'manca un pezzo del conto')
+  assert.deepEqual([...ordine].sort((x, y) => x - y), ordine, 'i pezzi del conto non sono nell’ordine approvato')
+  // le parole vengono dalla libreria
+  assert.match(conto, /\{RIGA_TOTALE_CONCORDATO\}/)
+  assert.match(conto, /\{RIGA_GIA_RICEVUTO\}/)
+  assert.match(conto, /\{RIGA_RESTA_DA_INCASSARE\}/)
+  // le due righe: 15 px, 10 px sopra e sotto, importo in Georgia 25; il residuo in Georgia 36 SOTTO l'etichetta (16 px, 600), a sinistra
+  assert.equal((conto.match(/className=\{RIGA\} style=\{\{ padding: '10px 0', fontSize: 15 \}\}/g) ?? []).length, 2)
+  assert.equal((conto.match(/font: `25px \$\{GEORGIA\}`/g) ?? []).length, 2)
+  assert.match(conto, /borderTop: `1px solid \$\{FILO_RESIDUO\}`, marginTop: 12, padding: '18px 0 20px'/)
+  assert.match(conto, /const FILO_RESIDUO = '#cdbf9f'/)
+  assert.match(conto, /<span style=\{\{ fontSize: 16, fontWeight: 600 \}\}>\{RIGA_RESTA_DA_INCASSARE\}<\/span>/)
+  assert.match(conto, /data-conto-titolo=\{riepilogo\.saldato \? 'saldato' : 'manca'\} className="block"\s*style=\{\{ \.\.\.MONETA, font: `36px \$\{GEORGIA\}`, marginTop: 7, color: TESTO_CONTO \}\}>\{riepilogo\.residuo\}/)
+  // gli importi non si spezzano
+  assert.match(conto, /const MONETA: CSSProperties = \{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' \}/)
+  // niente più cifra rossa, barretta, «800 € pagati, 7 e 16 set» (si guarda il codice, non il commento in testa)
+  const codice = conto.slice(conto.indexOf('import type'))
+  assert.equal(/ROSSO_CONTO|D40000|data-barra-conto|quotaPagata|testaConto|TestaConto|pagati/.test(codice), false, 'la vecchia testa del conto è ancora lì')
+  // niente «Da pagare» che ripeteva il totale anche dopo i pagamenti parziali
+  assert.equal(/Da pagare|DaPagareConto|RIGA_DA_PAGARE|TotaleConto|ScontoConto|RigaConto/.test(codice), false, '«Da pagare» (o le righe di prima) è tornato nel conto della scheda')
+  // «Saldato» quando il residuo è zero; l'avviso quando i pagamenti superano il totale o il segno «pagato» non ha i movimenti
+  assert.match(conto, /\{riepilogo\.saldato && <span data-saldato/)
+  assert.match(conto, /\{riepilogo\.avviso && <span data-conto-avviso/)
+  // la pagina passa le tre cifre di riepilogoConto (dai valori autorevoli di contoPrenotazione), 24 px sotto il titolo CONTO
+  assert.match(pagina, /const riepilogo = conto \? riepilogoConto\(conto, righe\.some\(r => r\.pagato\)\) : null/)
+  assert.match(pagina, /<ContoScheda className="mt-6" riepilogo=\{riepilogo\} conto=\{contoRighe\}/)
 })
 
-test('il conto: le righe di sempre (ContoRighe), «Totale» in Georgia 22, lo sconto in ottone una volta sola, «Da pagare» in Georgia 28 con le notti sotto (18/09/2026)', () => {
-  assert.match(conto, /import \{ RigaConto, TotaleConto, ScontoConto, DaPagareConto \} from '@\/components\/ContoRighe'/)
-  assert.match(conto, /\{conto\.righe\.map\(r => <RigaConto key=\{r\.chiave\} riga=\{r\} \/>\)\}/)
-  assert.match(conto, /<TotaleConto importo=\{conto\.totale\} \/>/)
-  assert.match(conto, /\{conto\.sconto && <ScontoConto sconto=\{conto\.sconto\} \/>\}/)
-  // REGOLA FISSA n. 7 (Ania, 18/09/2026): sotto «Da pagare» non c'è la riga
+test('il conto: i comandi di testo (13 px, filo a 3 px), i pagamenti uno per riga con «togli», «Come paga», e il dettaglio apribile aperto all’inizio', () => {
+  // i comandi: veri bottoni con la veste ed-azione e le misure del riferimento
+  assert.match(conto, /const AZIONE: CSSProperties = \{[\s\S]{0,200}fontSize: 13, fontWeight: 400, lineHeight: 1\.5, color: 'inherit',\s*textDecoration: 'underline', textDecorationColor: 'currentColor', textUnderlineOffset: 3,/)
+  assert.match(conto, /const AZIONE_FORTE: CSSProperties = \{ \.\.\.AZIONE, fontWeight: 600 \}/)
+  assert.match(conto, /<button type="button" data-aggiungi-pagamento onClick=\{onPagamento\} className="ed-azione" style=\{AZIONE_FORTE\}>Aggiungi pagamento<\/button>/)
+  assert.match(conto, /<button type="button" data-modifica-sconto onClick=\{onSconto\} className="ed-azione" style=\{AZIONE\}>\{COMANDO_SCONTO\}<\/button>/)
+  assert.match(conto, /<button type="button" data-cambia-come-paga onClick=\{onComePaga\} className="ed-azione" style=\{AZIONE\}>Cambia come paga<\/button>/)
+  assert.match(conto, /data-comandi-conto className="flex flex-wrap" style=\{\{ marginTop: 13, gap: 14 \}\}/)
+  // i pagamenti: titolo in maiuscoletto 12/1,2 px, righe da 13 px col filo #e8e0d3, «togli» tenue; senza pagamenti niente blocco
+  assert.match(conto, /\{pagamenti\.length > 0 && \(/)
+  assert.match(conto, /data-titolo-pagamenti className="uppercase" style=\{\{ fontSize: 12, letterSpacing: '1\.2px', color: OTTONE_SCURO, margin: '28px 0 8px' \}\}>\{TITOLO_PAGAMENTI_RICEVUTI\}/)
+  assert.match(conto, /data-pagamento className="flex items-baseline" style=\{\{ gap: 10, padding: '13px 0', borderBottom: `1px solid \$\{FILO_PAGAMENTI\}`, color: TESTO_PAGAMENTI \}\}/)
+  assert.match(conto, /const FILO_PAGAMENTI = '#e8e0d3'/)
+  assert.match(conto, /data-nota-pagamento/)
+  assert.match(conto, /data-togli-pagamento=\{p\.id\} onClick=\{\(\) => onTogliPagamento\(p\.id\)\} className="ed-azione" style=\{AZIONE_TENUE\}>\{COMANDO_TOGLI\}/)
+  assert.match(conto, /data-copertura-pagamenti style=\{\{ margin: '12px 0 22px', fontSize: 13, color: OTTONE_SCURO \}\}/)
+  // «Come paga»: il modo, la frase in 13 px grigia, poi «Cambia come paga»
+  assert.match(conto, /data-come-paga-riga style=\{\{ marginTop: 26, paddingTop: 17, borderTop: `1px solid \$\{FILO_BLOCCO\}` \}\}/)
+  assert.match(conto, /data-come-paga-riga[\s\S]*\{TITOLO_COME_PAGA\}/)
+  assert.match(conto, /\{accordo\.nome\}/)
+  assert.match(conto, /margin: '5px 0', fontSize: 13, color: DESCRIZIONE \}\}>\{maiuscola\(accordo\.frase\)\}/)
+  assert.equal(/>Accordo</.test(conto), false, '«Accordo» è ancora scritto nel conto')
+  // il dettaglio: <details open>, titolo 14/600, righe delle camere 15 px sopra e sotto con la descrizione 13 px grigia
+  assert.match(conto, /<details data-dettaglio-soggiorno open style=\{\{ marginTop: 28, borderTop: `1px solid \$\{FILO_BLOCCO\}`, paddingTop: 16 \}\}>/)
+  assert.match(conto, /<summary data-apri-dettaglio style=\{\{ fontSize: 14, fontWeight: 600, cursor: 'pointer' \}\}>\{TITOLO_DETTAGLIO_SOGGIORNO\}<\/summary>/)
+  assert.match(conto, /\{conto\.righe\.map\(r => \(/)
+  assert.match(conto, /data-riga-conto=\{r\.chiave\} style=\{\{ padding: '15px 0', borderBottom: `1px solid \$\{FILO_CAMERE\}` \}\}/)
+  assert.match(conto, /<small className="block" style=\{\{ fontSize: 13, color: DESCRIZIONE, marginTop: 3 \}\}>\{r\.dettaglio\}<\/small>/)
+  // con lo sconto: prezzo pieno, sconto una volta sola, «Totale concordato»; senza: «Totale soggiorno». La cifra è quella autorevole
+  assert.match(conto, /\{conto\.sconto && \([\s\S]{0,300}data-prezzo-pieno[\s\S]{0,400}data-sconto-riga/)
+  assert.match(conto, /data-totale-dettaglio className=\{RIGA\} style=\{\{ padding: '14px 0 3px', fontWeight: 600 \}\}>\s*<span>\{conto\.totaleDettaglio\}<\/span>\s*<span style=\{MONETA\}>\{conto\.daPagare\}<\/span>/)
+  // REGOLA FISSA n. 7 (Ania, 18/09/2026): sotto la cifra grande non c'è la riga
   // «2 notti · 80 € a notte», né nella scheda né nell'inserimento
-  assert.match(conto, /<DaPagareConto importo=\{conto\.daPagare\} \/>/)
   assert.equal(/sotto=\{/.test(conto), false, 'la scheda rimette la riga «notti · a notte» sotto «Da pagare»')
+  assert.equal(/nottiANotte|conto\.sotto/.test(conto), false, 'la scheda rimette la riga «notti · a notte»')
   const contoNuova = leggi('components/nuova/ContoNuova.tsx')
   assert.match(contoNuova, /<DaPagareConto importo=\{euroGrande\(conto\.daPagare\)\}>/)
   assert.equal(/sotto=\{/.test(contoNuova), false, 'l’inserimento rimette la riga «notti · a notte» sotto «Da pagare»')
+  // le righe condivise (inserimento e foglio del prezzo) restano come sono: la scheda non le tocca
   const righe = leggi('components/ContoRighe.tsx')
   assert.match(righe, /data-riga-conto=\{riga\.chiave\}[\s\S]{0,120}borderBottom: '1px solid var\(--color-card-border\)'/)
   assert.match(righe, /data-totale[\s\S]{0,200}borderTop: `1px solid \$\{FILO_OTTONE\}`/)
@@ -342,14 +394,6 @@ test('il conto: le righe di sempre (ContoRighe), «Totale» in Georgia 22, lo sc
   assert.match(righe, /data-da-pagare[\s\S]{0,300}fontFamily: GEORGIA, fontSize: 28/)
   // il «da pagare» resta quello autorevole di contoPrenotazione: la pagina lo passa, non lo rifà
   assert.match(pagina, /const contoRighe = useMemo\(\(\) => \(conto \? contoScheda\(attive, conto\.totaleCent\) : null\), \[attive, conto\]\)/)
-  // «Come paga» e pagamenti, poi i due comandi
-  assert.match(conto, /data-come-paga-riga[\s\S]*\{TITOLO_COME_PAGA\}/)
-  assert.match(conto, /\{accordo\.nome\}/)
-  assert.match(conto, /fontSize: 12\.5, color: 'var\(--color-stone\)' \}\}>\{accordo\.frase\}/)
-  assert.match(conto, /data-pagamento/)
-  assert.match(conto, />Aggiungi pagamento</)
-  assert.match(conto, />Cambia come paga</)
-  assert.equal(/>Accordo</.test(conto), false, '«Accordo» è ancora scritto nel conto')
   // «Aggiungi pagamento» apre il foglio QUI (16/09/2026), non la scheda attuale
   assert.match(pagina, /onPagamento=\{\(\) => setFoglioPagamento\(true\)\}/)
   assert.equal(/azione=pagato`/.test(pagina), false, 'il pagamento porta ancora alla scheda vecchia')
@@ -427,7 +471,8 @@ test('quanto ha già speso la cliente, in cima: nello stesso rosso acceso di «d
   const testa = leggi('components/TestaCliente.tsx')
   assert.match(testa, /const ROSSO_SPESO = '#D40000'/)
   assert.equal((testa.match(/data-totale-cliente[^\n]*color: ROSSO_SPESO/g) ?? []).length, 2)
-  assert.match(leggi('components/scheda/ContoScheda.tsx'), /export const ROSSO_CONTO = '#D40000'/)
+  // il rosso di «da incassare» sta nella testa della scheda; nel conto (20/09/2026 sera) non c'è più rosso
+  assert.match(pagina, /const ROSSO_CONTO = '#D40000'/)
 })
 
 test('la striscia della scheda mostra le persone sotto ogni notte, e il letto acceso si vede (verde pieno)', () => {

@@ -437,8 +437,8 @@ test('nella scheda non c’è il comando «Tariffe»: il prezzo della camera non
   assert.equal(/FoglioTariffa|foglioTariffe|tariffaScheda/.test(pagina), false, 'la scheda apre ancora il foglio «Tariffe»')
   assert.equal(existsSync(new URL('../components/scheda/FoglioTariffa.tsx', import.meta.url)), false, 'components/scheda/FoglioTariffa.tsx esiste ancora')
   assert.equal(existsSync(new URL('./tariffaScheda.ts', import.meta.url)), false, 'lib/tariffaScheda.ts esiste ancora')
-  // i comandi del conto sono questi, e basta
-  assert.match(conto, /data-aggiungi-pagamento[\s\S]{0,400}Cambia come paga[\s\S]{0,300}data-modifica-sconto/)
+  // i comandi del conto sono questi, e basta: «Aggiungi pagamento» e «Sconto» sotto il residuo, «Cambia come paga» sotto «Come paga» (20/09/2026 sera)
+  assert.match(conto, /data-aggiungi-pagamento[\s\S]{0,300}data-modifica-sconto[\s\S]{0,2500}data-cambia-come-paga[^>]*>Cambia come paga</)
 })
 
 test('«Cambia date» sotto ogni striscia: arrivo e partenza, l’effetto sul conto, e «Fatto» salva come dalla striscia', () => {

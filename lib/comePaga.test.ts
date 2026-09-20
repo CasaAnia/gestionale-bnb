@@ -170,7 +170,7 @@ test('nella scheda la riga si chiama «Come paga» e dice anche la frase', () =>
   assert.match(contoScheda, /data-come-paga-riga/)
   assert.match(contoScheda, /\{TITOLO_COME_PAGA\}/)
   assert.match(contoScheda, /\{accordo\.nome\}/)
-  assert.match(contoScheda, /\{accordo\.frase\}/)
+  assert.match(contoScheda, /\{maiuscola\(accordo\.frase\)\}/)   // la frase è una riga a sé: comincia con la maiuscola (20/09/2026 sera)
   assert.equal(/>Accordo</.test(contoScheda), false, '«Accordo» è ancora nel conto')
   assert.equal(/Cambia accordo/.test(contoScheda), false, '«Cambia accordo» è ancora nel conto')
   assert.match(contoScheda, />Cambia come paga</)
