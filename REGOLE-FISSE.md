@@ -110,3 +110,21 @@ due righe; le scritte «ospiti» e «camera» restano sulla stessa riga (Ania,
 
 Test: `lib/schedaPrenotazione.test.ts` → «riga grande: una camera, con cambi, con due
 camere insieme» e `lib/scheda.test.ts` → la prova della testa (`RigaGrande`).
+
+## 9. Con cambio camera o camera aggiunta il pagamento si divide, in ordine di tempo
+
+Quando la prenotazione ha più parti in fila (cambio camera, camera aggiunta),
+un pagamento che non copre tutto non finisce tutto sulla camera da cui si
+apre la scheda: si **divide** da solo fra le parti, in ordine di tempo,
+saldando **del tutto** la prima parte prima di passare alla seconda, e così
+via finché tutto il soggiorno è coperto. L'eccedenza oltre il dovuto resta
+sull'ultima parte. Ogni parte porta la nota «Parte di un pagamento di 400 €».
+Se il salvataggio si ferma a metà (la PWA si ricarica), al nuovo tentativo le
+parti sono le stesse. Soggiorni separati dello stesso cliente restano
+separati: non si deducono legami da cliente o date (Ania, 20/09/2026, dopo il
+caso di Rosa Macauda: due 400 € sullo stesso tratto da 420 €, «pagato» con
+380 € in più e i tratti dopo tutti da pagare).
+
+Test: `lib/pagamentoDiviso.test.ts` (tutto il file: il caso di Ania 20 + 320 +
+60, la prima parte piena prima della seconda, l'eccedenza sull'ultima, il
+piano custodito, la guardia sul salvataggio in `lib/pagamentiDati.ts`).
