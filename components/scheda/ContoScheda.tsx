@@ -23,12 +23,14 @@ export const ROSSO_CONTO = '#D40000'
 export const FONDO_BARRA = '#EFE9DC'
 export const ALTEZZA_BARRA = 4
 
-export default function ContoScheda({ testa, conto, accordo, pagamenti, onPagamento, onComePaga, onSconto, onTogliPagamento, className = '' }: {
+export default function ContoScheda({ testa, conto, accordo, pagamenti, copertura = '', onPagamento, onComePaga, onSconto, onTogliPagamento, className = '' }: {
   testa: TestaConto
   /** il conto in righe (lib/schedaConto.contoScheda) */
   conto: ContoInRighe
   accordo: { nome: string; frase: string }
   pagamenti: RigaPagamento[]
+  /** «I pagamenti coprono fino alla notte del 10 set» (regola fissa n. 9, 20/09/2026); vuota = niente */
+  copertura?: string
   /** apre il foglio «Aggiungi pagamento» (16/09/2026), qui nella scheda */
   onPagamento: () => void
   onComePaga: () => void
@@ -90,6 +92,9 @@ export default function ContoScheda({ testa, conto, accordo, pagamenti, onPagame
           </span>
         </div>
       ))}
+
+      {/* fin dove arrivano i soldi ricevuti, in ottone come il riassunto della striscia */}
+      {copertura && <p data-copertura-pagamenti style={{ marginTop: 8, fontSize: 12.5, color: '#A9884E' }}>{copertura}</p>}
 
       <p className="flex flex-wrap items-center mt-2" style={{ gap: '0 12px', fontSize: 14 }}>
         <button type="button" data-aggiungi-pagamento onClick={onPagamento} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Aggiungi pagamento</button>

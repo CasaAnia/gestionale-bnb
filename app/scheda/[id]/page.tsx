@@ -101,8 +101,7 @@ import { openWhatsApp, telefonoAGruppi } from '@/lib/whatsapp'
 import buildWhatsappMsg, { perMessaggio, type TipoMessaggio } from '@/lib/messaggiPrenotazione'
 import {
   testaConto, contoScheda, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
-  type PagamentoScheda, type MessaggioInviato,
-} from '@/lib/schedaConto'
+  type PagamentoScheda, type MessaggioInviato, notaCopertura } from '@/lib/schedaConto'
 import { leggiCronologia } from '@/lib/cronologiaDati'
 import type { EventoCronologia } from '@/lib/cronologia'
 import { valutazioneDi as valutazioneCliente } from '@/lib/valutazione'
@@ -491,6 +490,8 @@ export default function SchedaPage() {
   // il conto in righe (18/09/2026): il «da pagare» resta quello autorevole di contoPrenotazione
   const contoRighe = useMemo(() => (conto ? contoScheda(attive, conto.totaleCent) : null), [attive, conto])
   const rigePagamenti = useMemo(() => righePagamenti(pagamentiScheda), [pagamentiScheda])
+  // fin dove arrivano i pagamenti, notte per notte (regola fissa n. 9, 20/09/2026)
+  const copertura = useMemo(() => (conto && testa ? notaCopertura(righe, camere, conto.ricevutiCent, testa.saldato) : ''), [righe, camere, conto, testa])
   const accordoSalvato = (accordo as { accordo_pagamento?: string | null; caparra_centesimi?: number | null; caparra_entro?: string | null } | null)
   const comePagaTesto = comePagaScheda(accordoSalvato?.accordo_pagamento, accordo?.bonifico)
 
@@ -669,7 +670,7 @@ export default function SchedaPage() {
         <p className="ed-sezione">Conto</p>
         {testa && conto && contoRighe
           ? <ContoScheda className="mt-3" testa={testa} conto={contoRighe}
-            accordo={comePagaTesto} pagamenti={rigePagamenti}
+            accordo={comePagaTesto} pagamenti={rigePagamenti} copertura={copertura}
             onPagamento={() => setFoglioPagamento(true)} onComePaga={() => setFoglioComePaga(true)} onSconto={() => setFoglioSconto(true)}
             onTogliPagamento={id => setPagamentoDaTogliere(id)} />
           : <p className="mt-2" style={{ fontSize: 13, color: 'var(--color-stone)' }}>Non riesco a leggere il conto. Ricarica la scheda prima di toccare i pagamenti.</p>}

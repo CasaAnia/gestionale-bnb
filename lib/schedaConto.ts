@@ -11,7 +11,7 @@
 // stessa prudenza di `lib/riepilogoCosti`.
 // ============================================================================
 import { contoSoggiorno } from './conto.ts'
-import { dettaglioNottiSalvato, testoDettaglioNotti, fmtEuroBreve, giorniSoggiorno } from './prezzoNotti.ts'
+import { dettaglioNottiSalvato, testoDettaglioNotti, fmtEuroBreve, giorniSoggiorno, prezzoPrenotazione, type CameraTariffa } from './prezzoNotti.ts'
 import { rigaSconto, nottiANotte, dettaglioLetto, percentualeComune, RIGA_LETTO, type RigaContoVista, type ScontoVista } from './contoInRighe.ts'
 import { lettoInclusoNellaCamera } from './roomTypes.ts'
 import { comePagaInParole } from './comePaga.ts'
@@ -34,17 +34,32 @@ const metodoInParole = (m: string | null | undefined): string => {
 }
 const importo = (p: PagamentoScheda) => Math.round(Number(p.amount || 0) * 100)
 
-// L'ultimo pagamento registrato (per data, poi per ordine di lettura)
-function ultimoPagamento(pagamenti: PagamentoScheda[]): PagamentoScheda | null {
-  const conData = [...pagamenti].sort((a, b) => String(a.paid_on ?? '').localeCompare(String(b.paid_on ?? '')))
-  return conData.length ? conData[conData.length - 1] : null
+// I pagamenti registrati in ordine di data (poi di lettura)
+function pagamentiInOrdine(pagamenti: PagamentoScheda[]): PagamentoScheda[] {
+  return [...pagamenti].sort((a, b) => String(a.paid_on ?? '').localeCompare(String(b.paid_on ?? '')))
+}
+// Quando sono arrivati i soldi: «10 set» con un pagamento, «7 e 16 set» con
+// due, «in 3 volte, ultimo 20 set» da tre in su (Ania, 20/09/2026: «800 €
+// pagati, 16 set» non bastava, erano due pagamenti da 400)
+// Torna già con la sua virgola o il suo spazio davanti, da attaccare a «pagati»
+// o al modo: «, 10 set» · «, 7 e 16 set» · « in 3 volte, ultimo 20 set»
+function quandoPagati(pagamenti: PagamentoScheda[]): string {
+  const giorni = pagamentiInOrdine(pagamenti).map(p => giornoBreve(p.paid_on)).filter(Boolean)
+  if (giorni.length === 0) return ''
+  if (giorni.length === 1) return `, ${giorni[0]}`
+  if (giorni.length === 2) {
+    const [a, b] = giorni
+    const [ga, ma] = a.split(' '), [gb, mb] = b.split(' ')
+    return ma === mb ? `, ${ga} e ${gb} ${ma}` : `, ${a} e ${b}`
+  }
+  return ` in ${giorni.length} volte, ultimo ${giorni[giorni.length - 1]}`
 }
 
 export type TestaConto = {
   titolo: string           // «Saldato» oppure quanto manca, «250 €»
   saldato: boolean
   dettaglio: string        // «550 € su 550 €» oppure «da incassare»
-  sotto: string            // «contanti, 10 set» · «300 € pagati, 10 set» · ''
+  sotto: string            // «contanti, 10 set» · «300 € pagati, 10 set» · «800 € pagati, 7 e 16 set» · ''
   quotaPagata: number      // 0–1, la lunghezza della barretta
 }
 
@@ -55,15 +70,16 @@ export function testaConto(
 ): TestaConto {
   const mancaCent = Math.max(0, conto.totaleCent - conto.ricevutiCent)
   const saldato = pagato || mancaCent <= 0
-  const ultimo = ultimoPagamento(pagamenti)
-  const quando = giornoBreve(ultimo?.paid_on)
+  const ordinati = pagamentiInOrdine(pagamenti)
+  const ultimo = ordinati.length ? ordinati[ordinati.length - 1] : null
+  const quando = quandoPagati(pagamenti)
   const quota = conto.totaleCent > 0 ? Math.min(1, Math.max(0, conto.ricevutiCent / conto.totaleCent)) : (saldato ? 1 : 0)
   if (saldato) {
     return {
       titolo: 'Saldato',
       saldato: true,
       dettaglio: `${euroScheda(conto.totaleCent)} su ${euroScheda(conto.totaleCent)}`,
-      sotto: ultimo ? [metodoInParole(ultimo.method), quando].filter(Boolean).join(', ') : '',
+      sotto: ultimo ? `${metodoInParole(ultimo.method)}${quando}` : '',
       quotaPagata: 1,
     }
   }
@@ -71,7 +87,7 @@ export function testaConto(
     titolo: euroScheda(mancaCent),
     saldato: false,
     dettaglio: 'da incassare',
-    sotto: conto.ricevutiCent > 0 ? `${euroScheda(conto.ricevutiCent)} pagati${quando ? `, ${quando}` : ''}` : '',
+    sotto: conto.ricevutiCent > 0 ? `${euroScheda(conto.ricevutiCent)} pagati${quando}` : '',
     quotaPagata: quota,
   }
 }
@@ -154,6 +170,60 @@ export function contoScheda(segmenti: SegmentoScheda[], daPagareCent: number): C
     daPagare: euroScheda(daPagareCent),
     sotto: nottiANotte(giorni.size, daPagareCent),
   }
+}
+
+// ── Fino a dove arrivano i pagamenti ────────────────────────────────────────
+// REGOLA FISSA n. 9 (Ania, 20/09/2026): il pagamento non si divide fra le
+// camere, si registra intero sulla prenotazione. Per sapere «fin dove» arriva
+// si fanno scorrere i soldi ricevuti lungo le notti in ordine di tempo, come
+// nel calendario (le notti coperte in verde): qui si scrive l'ultima notte
+// coperta per intero, «I pagamenti coprono fino alla notte del 10 set».
+// Il prezzo di ogni notte viene da lib/prezzoNotti; se il tratto ha uno sconto
+// (il totale salvato è diverso dalla somma delle notti) le notti si scalano in
+// proporzione, così la copertura torna col conto.
+export const COPERTURA_FINO = (notte: string) => `I pagamenti coprono fino alla notte del ${notte}`
+export const COPERTURA_NIENTE = 'I pagamenti non coprono ancora la prima notte'
+
+/** L'ultima notte (YYYY-MM-DD) coperta per intero dai soldi ricevuti; null se
+ *  nessuna; 'tutte' se coprono tutto il soggiorno. */
+export function ultimaNotteCoperta(
+  segmenti: SegmentoScheda[], camere: (CameraTariffa & { id?: string })[], ricevutiCent: number,
+): string | null | 'tutte' {
+  let soldi = Math.round(ricevutiCent)
+  if (soldi <= 0) return null
+  const vivi = segmentiAttivi(segmenti)
+  let ultima: string | null = null
+  for (const s of vivi) {
+    const camera = camere.find(c => c.id && c.id === s.room_id) ?? s.rooms ?? null
+    const giorni = giorniSoggiorno(s.check_in, s.check_out)
+    let tariffe = prezzoPrenotazione(camera, s).notti.map(x => Math.round(x.tariffa * 100))
+    const totale = Math.round(Number(s.total_amount ?? 0) * 100)
+    const somma = tariffe.reduce((a, b) => a + b, 0)
+    if (tariffe.length !== giorni.length || somma <= 0 || tariffe.some(t => t <= 0)) {
+      // senza un prezzo per notte leggibile si divide il totale in parti uguali
+      tariffe = giorni.map(() => Math.round(totale / Math.max(1, giorni.length)))
+    } else if (totale > 0 && somma !== totale) {
+      tariffe = tariffe.map(t => Math.round(t * totale / somma))
+    }
+    for (let i = 0; i < giorni.length; i++) {
+      if (soldi < tariffe[i]) return ultima
+      soldi -= tariffe[i]
+      ultima = giorni[i]
+    }
+  }
+  return 'tutte'
+}
+
+/** La riga piccola sotto i pagamenti; vuota quando non c'è niente da dire
+ *  (nessun incasso) o il conto è saldato (lo dice già la testa). */
+export function notaCopertura(
+  segmenti: SegmentoScheda[], camere: (CameraTariffa & { id?: string })[], ricevutiCent: number, saldato: boolean,
+): string {
+  if (saldato || ricevutiCent <= 0) return ''
+  const notte = ultimaNotteCoperta(segmenti, camere, ricevutiCent)
+  if (notte === 'tutte') return ''
+  if (!notte) return COPERTURA_NIENTE
+  return COPERTURA_FINO(giornoBreve(notte))
 }
 
 // ── Come paga ───────────────────────────────────────────────────────────────

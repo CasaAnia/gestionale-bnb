@@ -111,20 +111,21 @@ due righe; le scritte «ospiti» e «camera» restano sulla stessa riga (Ania,
 Test: `lib/schedaPrenotazione.test.ts` → «riga grande: una camera, con cambi, con due
 camere insieme» e `lib/scheda.test.ts` → la prova della testa (`RigaGrande`).
 
-## 9. Con cambio camera o camera aggiunta il pagamento si divide, in ordine di tempo
+## 9. Il pagamento non si divide fra le camere: si registra intero, e la scheda dice fin dove arriva
 
-Quando la prenotazione ha più parti in fila (cambio camera, camera aggiunta),
-un pagamento che non copre tutto non finisce tutto sulla camera da cui si
-apre la scheda: si **divide** da solo fra le parti, in ordine di tempo,
-saldando **del tutto** la prima parte prima di passare alla seconda, e così
-via finché tutto il soggiorno è coperto. L'eccedenza oltre il dovuto resta
-sull'ultima parte. Ogni parte porta la nota «Parte di un pagamento di 400 €».
-Se il salvataggio si ferma a metà (la PWA si ricarica), al nuovo tentativo le
-parti sono le stesse. Soggiorni separati dello stesso cliente restano
-separati: non si deducono legami da cliente o date (Ania, 20/09/2026, dopo il
-caso di Rosa Macauda: due 400 € sullo stesso tratto da 420 €, «pagato» con
-380 € in più e i tratti dopo tutti da pagare).
+Con un cambio camera o una camera aggiunta la prenotazione è UNA (una scheda,
+un conto): un pagamento si registra **intero**, come lo ha fatto la cliente
+(«400 € · 7 set», «400 € · 16 set»), mai spezzato fra i tratti. Il conto è
+semplice: totale meno ricevuto. Per sapere fin dove arrivano i soldi si
+guardano le notti in ordine di tempo, come il verde del calendario: nella
+scheda, sotto i pagamenti, la riga piccola «I pagamenti coprono fino alla
+notte del 10 set» (Ania, 20/09/2026: «ci stiamo incasinando per niente»;
+sostituisce la versione della mattina, che divideva il pagamento fra le
+parti). Soggiorni separati della stessa cliente restano separati: non si
+deducono legami da cliente o date.
 
-Test: `lib/pagamentoDiviso.test.ts` (tutto il file: il caso di Ania 20 + 320 +
-60, la prima parte piena prima della seconda, l'eccedenza sull'ultima, il
-piano custodito, la guardia sul salvataggio in `lib/pagamentiDati.ts`).
+Test: `lib/schedaConto.test.ts` → «il caso di Ania: 800 € su Rosa coprono
+Ambra e Amelia, fino alla notte del 10 set», «la nota tace quando non serve»,
+«con lo sconto le notti si scalano in proporzione» e la guardia «REGOLA FISSA
+n. 9: il pagamento non si divide fra le camere, e la scheda mostra fin dove
+arriva» (sui sorgenti di `lib/pagamentiDati.ts`, `ContoScheda` e la scheda).

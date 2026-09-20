@@ -10,16 +10,13 @@
 // dentro la pagina: qui sta in una libreria, così la scheda nuova la usa
 // senza riscriverla e la scheda attuale resta com'è.
 //
-// Con cambio camera o camera aggiunta il pagamento si DIVIDE fra le parti in
-// ordine di tempo (regola fissa n. 9, Ania 20/09/2026): una riga per parte.
-//
 // Quando gli incassi coprono il totale la prenotazione si segna pagata da sé
 // (un bottone solo, Ania 10/09/2026), con la stessa strada sicura di «Segna
 // come pagato»: il saldo che manca è zero, quindi nasce solo il bollino.
 // ============================================================================
 import { supabase } from './supabase'
 import {
-  eseguiRegistraAcconto, eseguiSegnaPagato, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, saldoMancanteCent, MESSAGGIO_RILETTURA_PAGAMENTI,
+  eseguiRegistraAcconto, eseguiSegnaPagato, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, saldoMancanteCent,
   type AccontoPendente, type MovimentoSaldo, type PagamentoStat, type PrenotazioneStat, type MetodoPagamento,
 } from './statistiche'
 import { chiavePrenotazione, type RigaPrenotazione } from './prenotazioneUnica'
@@ -27,7 +24,6 @@ import { leggiMemoria, scriviMemoria } from './memoriaBrowser'
 import { colonnaMancante } from './colonnaMancante'
 import { messaggioNonSalvato } from './scritturaSicura'
 import { AVVISO_BOLLINO_NON_TOLTO } from './pagamentoFoglio'
-import { pianoDaUsare, notaParte } from './pagamentoDiviso'
 
 export const AVVISO_NOTA_SENZA_0055 = 'Pagamento registrato; la nota però no: serve la proposta 0055 applicata su Supabase.'
 export const AVVISO_NOTA_NON_SALVATA = 'Pagamento registrato, ma la nota non è stata salvata.'
@@ -55,64 +51,43 @@ export async function registraPagamento(
   const chiave = chiavePrenotazione(booking)
   const segmenti = righePerSaldo(righe)
   const ids = segmenti.map(b => b.id)
+  const chiaveMemoria = `ca_acconto_pendente_${chiave}`
   const rileggi = () => supabase.from('payments').select('*').in('booking_id', ids).order('paid_on')
 
-  // REGOLA FISSA n. 9 (Ania, 20/09/2026): con cambio camera o camera aggiunta
-  // il pagamento si divide fra le parti del soggiorno in ordine di tempo,
-  // saldando del tutto la prima prima di passare alla seconda. Il piano delle
-  // parti si custodisce sul telefono: se la PWA si ricarica a metà, al nuovo
-  // tentativo le parti sono le stesse (lib/pagamentoDiviso).
-  let primaLettura: { data: PagamentoLetto[] | null; error: unknown }
-  try { primaLettura = await rileggi() as { data: PagamentoLetto[] | null; error: unknown } } catch (e) { primaLettura = { data: null, error: e ?? new Error('errore sconosciuto') } }
-  if (primaLettura.error || !primaLettura.data) return { esito: 'errore', messaggio: MESSAGGIO_RILETTURA_PAGAMENTI, pagamenti: null }
-  const amountCent = Math.round(dati.importo * 100)
-  const chiavePiano = `ca_acconto_piano_${chiave}`
-  const custodito = (() => { const t = leggiMemoria(() => localStorage, chiavePiano); try { return t ? JSON.parse(t) as unknown : null } catch { return null } })()
-  const piano = pianoDaUsare(custodito, righe, primaLettura.data, { amountCent, method: dati.metodo, paid_on: dati.giorno })
-  if (piano.parti.length === 0) piano.parti = [{ booking_id: booking.id, amountCent }]
-  if (piano.parti.length > 1) scriviMemoria(() => localStorage, chiavePiano, JSON.stringify(piano))
+  const esito = await eseguiRegistraAcconto(booking.id, dati.importo, dati.metodo, dati.giorno, {
+    leggiPendente: () => { const t = leggiMemoria(() => localStorage, chiaveMemoria); try { return t ? JSON.parse(t) as AccontoPendente : null } catch { return null } },
+    custodisci: p => scriviMemoria(() => localStorage, chiaveMemoria, JSON.stringify(p)),
+    dimentica: () => { try { localStorage.removeItem(chiaveMemoria) } catch { /* senza memoria non c'è nulla da togliere */ } },
+    rileggiPagamenti: rileggi,
+    scrivi: async (p: AccontoPendente, bookingId: string) => {
+      const nomeRpc = booking.prenotazione_id ? 'registra_acconto_prenotazione' : 'registra_acconto'
+      const rpc = await supabase.rpc(nomeRpc, { p_booking_id: bookingId, p_chiave: p.chiave, p_amount: p.amount, p_metodo: p.method, p_paid_on: p.paid_on })
+      if (!rpc.error) {
+        const r = rpc.data as { movimento_id?: unknown; importo?: unknown; soggiorno?: string; contratto?: string; booking_id?: string } | null
+        if (!r || typeof r.movimento_id !== 'string' || !Number.isFinite(Number(r.importo)) || Number(r.importo) !== p.amount
+          || (booking.prenotazione_id && (r.contratto !== 'prenotazione_v1' || r.soggiorno !== chiave))) return { data: null, error: new ErroreRispostaMalformata() }
+        return { data: { id: r.movimento_id, booking_id: r.booking_id || bookingId, amount: Number(r.importo), method: p.method, paid_on: p.paid_on }, error: null }
+      }
+      if (booking.prenotazione_id || !rpcMancante(rpc.error, 'registra_acconto')) return { data: null, error: rpc.error }
+      const { data, error } = await supabase.from('payments').insert({ booking_id: bookingId, amount: p.amount, method: p.method, paid_on: p.paid_on }).select().single()
+      return { data, error }
+    },
+    adesso: () => new Date().toISOString(),
+    nuovaChiave: () => crypto.randomUUID(),
+  })
+  if (esito.esito === 'errore') return { esito: 'errore', messaggio: esito.messaggio, pagamenti: esito.pagamenti as PagamentoLetto[] | null }
 
+  // La nota è una cortesia: la funzione della 0033 non la prende, si scrive
+  // dopo, sulla riga appena nata. Senza la colonna (proposta 0055) lo si dice.
   let avviso: string | null = null
-  let pagamenti: PagamentoLetto[] = primaLettura.data
-  const nota = notaParte(dati.nota, amountCent, piano.parti.length)
-  for (const parte of piano.parti) {
-    const chiaveMemoria = piano.parti.length > 1 ? `ca_acconto_pendente_${chiave}_${parte.booking_id}` : `ca_acconto_pendente_${chiave}`
-    const esito = await eseguiRegistraAcconto(parte.booking_id, parte.amountCent / 100, dati.metodo, dati.giorno, {
-      leggiPendente: () => { const t = leggiMemoria(() => localStorage, chiaveMemoria); try { return t ? JSON.parse(t) as AccontoPendente : null } catch { return null } },
-      custodisci: p => scriviMemoria(() => localStorage, chiaveMemoria, JSON.stringify(p)),
-      dimentica: () => { try { localStorage.removeItem(chiaveMemoria) } catch { /* senza memoria non c'è nulla da togliere */ } },
-      rileggiPagamenti: rileggi,
-      scrivi: async (p: AccontoPendente, bookingId: string) => {
-        const nomeRpc = booking.prenotazione_id ? 'registra_acconto_prenotazione' : 'registra_acconto'
-        const rpc = await supabase.rpc(nomeRpc, { p_booking_id: bookingId, p_chiave: p.chiave, p_amount: p.amount, p_metodo: p.method, p_paid_on: p.paid_on })
-        if (!rpc.error) {
-          const r = rpc.data as { movimento_id?: unknown; importo?: unknown; soggiorno?: string; contratto?: string; booking_id?: string } | null
-          if (!r || typeof r.movimento_id !== 'string' || !Number.isFinite(Number(r.importo)) || Number(r.importo) !== p.amount
-            || (booking.prenotazione_id && (r.contratto !== 'prenotazione_v1' || r.soggiorno !== chiave))) return { data: null, error: new ErroreRispostaMalformata() }
-          return { data: { id: r.movimento_id, booking_id: r.booking_id || bookingId, amount: Number(r.importo), method: p.method, paid_on: p.paid_on }, error: null }
-        }
-        if (booking.prenotazione_id || !rpcMancante(rpc.error, 'registra_acconto')) return { data: null, error: rpc.error }
-        const { data, error } = await supabase.from('payments').insert({ booking_id: bookingId, amount: p.amount, method: p.method, paid_on: p.paid_on }).select().single()
-        return { data, error }
-      },
-      adesso: () => new Date().toISOString(),
-      nuovaChiave: () => crypto.randomUUID(),
-    })
-    // Una parte non scritta: ci si ferma qui, il piano custodito resta per il
-    // nuovo tentativo (le parti già scritte si riconoscono alla rilettura).
-    if (esito.esito === 'errore') return { esito: 'errore', messaggio: esito.messaggio, pagamenti: esito.pagamenti as PagamentoLetto[] | null }
-    pagamenti = esito.pagamenti as PagamentoLetto[]
-
-    // La nota è una cortesia: la funzione della 0033 non la prende, si scrive
-    // dopo, sulla riga appena nata. Senza la colonna (proposta 0055) lo si dice.
-    const movimentoId = (esito.movimento as { id?: string }).id
-    if (nota && movimentoId && !esito.giaApplicato) {
-      const n = await supabase.from('payments').update({ note: nota }).eq('id', movimentoId)
-      if (n.error) avviso = colonnaMancante(n.error) === 'note' ? AVVISO_NOTA_SENZA_0055 : AVVISO_NOTA_NON_SALVATA
-    }
+  const nota = dati.nota.trim()
+  const movimentoId = (esito.movimento as { id?: string }).id
+  if (nota && movimentoId) {
+    const n = await supabase.from('payments').update({ note: nota }).eq('id', movimentoId)
+    if (n.error) avviso = colonnaMancante(n.error) === 'note' ? AVVISO_NOTA_SENZA_0055 : AVVISO_NOTA_NON_SALVATA
   }
-  try { localStorage.removeItem(chiavePiano) } catch { /* niente */ }
 
+  let pagamenti = esito.pagamenti as PagamentoLetto[]
   let pagato = righe.some(r => !!r.pagato)
   if (!pagato && saldoMancanteCent(segmenti, pagamenti) <= 0) {
     const bollino = await segnaPagata(booking, righe, ids, chiave, dati.metodo, dati.giorno, rileggi)

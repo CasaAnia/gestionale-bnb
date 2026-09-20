@@ -1,10 +1,10 @@
 // La parte 2 della scheda (13/09/2026): conto, cliente, cronologia.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   testaConto, contoScheda, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
-  NOME_MESSAGGIO, NOTA_CRONOLOGIA, type PagamentoScheda,
-} from './schedaConto.ts'
+  NOME_MESSAGGIO, NOTA_CRONOLOGIA, type PagamentoScheda, notaCopertura, ultimaNotteCoperta, COPERTURA_FINO, COPERTURA_NIENTE } from './schedaConto.ts'
 import type { SegmentoScheda } from './schedaPrenotazione.ts'
 
 type Camera = NonNullable<SegmentoScheda['rooms']>
@@ -34,6 +34,18 @@ test('conto con acconto: manca il resto, e si dice quanto è già arrivato', () 
   assert.equal(t.dettaglio, 'da incassare')
   assert.equal(t.sotto, '300 € pagati, 10 set')
   assert.ok(Math.abs(t.quotaPagata - 30000 / 55000) < 0.0001)
+})
+
+test('con due pagamenti si leggono i due giorni, da tre in su quante volte e l’ultimo (Ania, 20/09/2026)', () => {
+  const due = testaConto({ totaleCent: 188000, ricevutiCent: 80000 }, [pag('p2', 400, 'contanti', '2026-09-16'), pag('p1', 400, 'contanti', '2026-09-07')])
+  assert.equal(due.titolo, '1.080 €')
+  assert.equal(due.sotto, '800 € pagati, 7 e 16 set')
+  const mesiDiversi = testaConto({ totaleCent: 188000, ricevutiCent: 80000 }, [pag('p1', 400, 'contanti', '2026-08-30'), pag('p2', 400, 'contanti', '2026-09-16')])
+  assert.equal(mesiDiversi.sotto, '800 € pagati, 30 ago e 16 set')
+  const tre = testaConto({ totaleCent: 188000, ricevutiCent: 120000 }, [pag('p1', 400, 'contanti', '2026-09-07'), pag('p2', 400, 'contanti', '2026-09-16'), pag('p3', 400, 'contanti', '2026-09-20')])
+  assert.equal(tre.sotto, '1.200 € pagati in 3 volte, ultimo 20 set')
+  const saldato = testaConto({ totaleCent: 80000, ricevutiCent: 80000 }, [pag('p1', 400, 'contanti', '2026-09-07'), pag('p2', 400, 'bonifico', '2026-09-16')])
+  assert.equal(saldato.sotto, 'bonifico, 7 e 16 set')
 })
 
 test('bonifico atteso: niente ancora incassato, barretta vuota', () => {
@@ -158,6 +170,69 @@ test('i pagamenti: dal più vecchio, con giorno e metodo', () => {
   assert.deepEqual(r.map(x => x.quando), ['1 set · bonifico', '12 set · contanti'])
   assert.deepEqual(r.map(x => x.importo), ['300 €', '250 €'])
   assert.deepEqual(righePagamenti([]), [])
+})
+
+// ── Fin dove arrivano i pagamenti (REGOLA FISSA n. 9, Ania 20/09/2026) ─────
+// Il pagamento non si divide fra le camere: si registra intero e la scheda
+// dice fino a che notte arrivano i soldi, come il verde del calendario.
+const CAMERE_ROSA = [
+  { id: 'ambra', name: 'Ambra', base_price: 80, has_extra_bed: true, extra_bed_price: 10 },
+  { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5 },
+  { id: 'lena', name: 'Lena', base_price: 80, has_extra_bed: true, extra_bed_price: 10 },
+]
+const tratto = (id: string, room_id: string, check_in: string, check_out: string, price: number, total: number, extra: Partial<SegmentoScheda> = {}): SegmentoScheda =>
+  ({ id, room_id, check_in, check_out, status: 'confermata', num_guests: 1, price_per_night: price, total_amount: total, extra_bed: false, extra_bed_dates: [], extra_bed_total: 0, ...extra })
+// Rosa Macauda: Ambra 1→7 (480), Amelia 7→11 (280), Ambra 11→22 (880), Lena 22→25 (240) = 1.880
+const ROSA = [
+  tratto('c', 'ambra', '2026-09-11', '2026-09-22', 80, 880),
+  tratto('a', 'ambra', '2026-09-01', '2026-09-07', 80, 480),
+  tratto('d', 'lena', '2026-09-22', '2026-09-25', 80, 240),
+  tratto('b', 'amelia', '2026-09-07', '2026-09-11', 70, 280),
+  tratto('x', 'ambra', '2026-09-25', '2026-09-28', 80, 240, { status: 'annullata' }),
+]
+
+test('il caso di Ania: 800 € su Rosa coprono Ambra e Amelia, fino alla notte del 10 set', () => {
+  assert.equal(ultimaNotteCoperta(ROSA, CAMERE_ROSA, 80000), '2026-09-10')
+  assert.equal(notaCopertura(ROSA, CAMERE_ROSA, 80000, false), 'I pagamenti coprono fino alla notte del 10 set')
+  // 400 €: cinque notti di Ambra (5 × 80), la sesta no
+  assert.equal(notaCopertura(ROSA, CAMERE_ROSA, 40000, false), COPERTURA_FINO('5 set'))
+  // 479 €: la sesta notte non è coperta per intero
+  assert.equal(ultimaNotteCoperta(ROSA, CAMERE_ROSA, 47900), '2026-09-05')
+  // 480 €: proprio la fine del primo tratto
+  assert.equal(ultimaNotteCoperta(ROSA, CAMERE_ROSA, 48000), '2026-09-06')
+})
+
+test('la nota tace quando non serve: niente incassato, conto saldato, tutto coperto', () => {
+  assert.equal(notaCopertura(ROSA, CAMERE_ROSA, 0, false), '')
+  assert.equal(notaCopertura(ROSA, CAMERE_ROSA, 80000, true), '')
+  assert.equal(ultimaNotteCoperta(ROSA, CAMERE_ROSA, 188000), 'tutte')
+  assert.equal(notaCopertura(ROSA, CAMERE_ROSA, 188000, false), '')
+  assert.equal(notaCopertura(ROSA, CAMERE_ROSA, 200000, false), '')
+  // pochi soldi: nemmeno la prima notte
+  assert.equal(ultimaNotteCoperta(ROSA, CAMERE_ROSA, 5000), null)
+  assert.equal(notaCopertura(ROSA, CAMERE_ROSA, 5000, false), COPERTURA_NIENTE)
+})
+
+test('con lo sconto le notti si scalano in proporzione, così la copertura torna col conto', () => {
+  // due notti di Ambra a 80 concordate 120: ogni notte vale 60
+  const scontato = [tratto('s', 'ambra', '2026-10-01', '2026-10-03', 80, 120, { discount_type: 'target_total', discount_value: 120 })]
+  assert.equal(ultimaNotteCoperta(scontato, CAMERE_ROSA, 6000), '2026-10-01')
+  assert.equal(ultimaNotteCoperta(scontato, CAMERE_ROSA, 5900), null)
+  assert.equal(ultimaNotteCoperta(scontato, CAMERE_ROSA, 12000), 'tutte')
+  // camera sconosciuta: si divide il totale in parti uguali
+  const senzaCamera = [tratto('z', 'boh', '2026-10-01', '2026-10-05', 0, 200)]
+  assert.equal(ultimaNotteCoperta(senzaCamera, CAMERE_ROSA, 10000), '2026-10-02')
+})
+
+test('REGOLA FISSA n. 9: il pagamento non si divide fra le camere, e la scheda mostra fin dove arriva', () => {
+  const dati = readFileSync(new URL('./pagamentiDati.ts', import.meta.url), 'utf8')
+  assert.doesNotMatch(dati, /dividiPagamento|pianoDaUsare|notaParte|for \(const parte of/, 'il pagamento si registra intero, una riga sola')
+  assert.match(dati, /eseguiRegistraAcconto\(booking\.id, dati\.importo/, 'un movimento solo, sulla prenotazione')
+  const conto = readFileSync(new URL('../components/scheda/ContoScheda.tsx', import.meta.url), 'utf8')
+  assert.match(conto, /data-copertura-pagamenti/, 'la riga «coprono fino alla notte del …» sotto i pagamenti')
+  const pagina = readFileSync(new URL('../app/scheda/[id]/page.tsx', import.meta.url), 'utf8')
+  assert.match(pagina, /notaCopertura\(righe, camere, conto\.ricevutiCent, testa\.saldato\)/)
+  assert.match(pagina, /copertura=\{copertura\}/)
 })
 
 // ── La parte CLIENTE ────────────────────────────────────────────────────────
