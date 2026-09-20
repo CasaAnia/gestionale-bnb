@@ -203,15 +203,29 @@ input[type="week"] {
    mette la freccia normale sui bottoni: qui si rimette la mano ovunque. */
 button:not(:disabled), a[href], [role="button"], summary, label[for], select, input[type="checkbox"], input[type="radio"] { cursor: pointer; }
 button:disabled { cursor: default; }
-/* …e i comandi scritti come testo si sottolineano al passaggio, come «Registra
-   saldo». Non le pillole (piene o col contorno), non le caselle della striscia
-   delle notti, non le icone della barra di navigazione. */
-@media (hover: hover) {
-  a[href]:hover, button:not(:disabled):hover { text-decoration: underline; text-decoration-color: currentColor; text-underline-offset: 3px; }
-  .ed-pillola:hover, .ed-pillola-contorno:hover, .ed-pillola-tenue:hover, .ed-badge:hover,
-  button[style*="border-radius: 999px"]:hover, [data-pastiglia]:hover, [data-striscia-notti] button:hover,
-  nav a:hover, .barra-bassa a:hover, [data-senza-sottolinea]:hover, [data-senza-sottolinea] a:hover { text-decoration: none; }
+/* …e i comandi scritti come testo si vedono sottolineati SEMPRE, non solo al
+   passaggio (Ania, 20/09/2026 sera: «vorrei vedere il sottolineamento anche
+   se non passo con il mouse»): filo sottile nel colore del testo, attenuato;
+   al passaggio diventa pieno. Restano senza filo: pillole (piene o col
+   contorno, o con gli angoli tondi: rounded-full/xl/lg; rounded-sm resta un
+   comando di testo), righe intere della Home (link a blocco), bottoni con la sola
+   icona (aria-label), caselle della striscia delle notti, barra di
+   navigazione, fascia delle sezioni, barra in alto e chi porta
+   data-senza-sottolinea. */
+a[href]:not(.block):not(.flex):not(.ed-pillola):not(.ed-pillola-contorno):not(.ed-pillola-tenue):not(.ed-badge):not([class*="rounded-full"]):not([class*="rounded-xl"]):not([class*="rounded-lg"]):not([class*="bg-"]),
+button:not(:disabled):not(.flex):not(.ed-pillola):not(.ed-pillola-contorno):not(.ed-pillola-tenue):not(.ed-badge):not([data-pastiglia]):not([aria-label]):not([class*="rounded-full"]):not([class*="rounded-xl"]):not([class*="rounded-lg"]):not([style*="border-radius: 999px"]) {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  text-underline-offset: 4px;
 }
+@media (hover: hover) {
+  a[href]:hover, button:not(:disabled):hover { text-decoration-color: currentColor; }
+}
+/* Le esclusioni per contenitore vincono sempre sulla regola sopra (che pesa
+   molto per via dei tanti :not); il compilatore del CSS scarta :where(), per
+   cui qui si usa !important, che qui è voluto. */
+[data-striscia-notti] button, nav a, .barra-bassa a, [data-fascia-sezioni] button, .barra-alta button,
+[data-senza-sottolinea], [data-senza-sottolinea] a, [data-senza-sottolinea] button { text-decoration: none !important; }
 /* Azioni nelle righe della Home: testo e filo sottile, con area di tocco comoda. */
 .ed-azione {
   display: inline-flex;

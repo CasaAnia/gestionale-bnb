@@ -89,7 +89,7 @@ export function TastoPrincipale({ r, onConferma, className = '' }: { r: Richiest
   const testo = tastoRichiesta(r.stato)
   if (!testo) return null
   return (
-    <button type="button" data-tasto-principale onClick={e => {
+    <button type="button" data-tasto-principale data-senza-sottolinea /* la pillola verde sta nello span: niente filo sotto (Ania, 20/09/2026) */ onClick={e => {
       ferma(e)
       if (r.stato === 'in_attesa') router.push(`/richieste/${r.id}/proposta`)
       else onConferma(r)

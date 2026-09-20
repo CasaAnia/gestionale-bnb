@@ -18,7 +18,7 @@ export default function RigaMesi({ mesi, attivo, onMese, onOggi, nota, colonna, 
   { mesi: MeseCliccabile[]; attivo?: string | null; onMese: (m: MeseCliccabile) => void; onOggi: () => void; nota?: string; colonna: number; className?: string }) {
   const larghezzaOggi = BORDO_RIQUADRO + colonna
   return (
-    <div className={`flex items-center ${className}`}>
+    <div data-senza-sottolinea /* «Oggi» e i mesi sono pulsanti di scelta, senza filo sotto (Ania, 20/09/2026) */ className={`flex items-center ${className}`}>
       <div className="relative shrink-0 flex items-center justify-center self-stretch" style={{ width: larghezzaOggi, minWidth: larghezzaOggi }}>
         <button type="button" onClick={onOggi}
           className="rounded-full border border-green-mid text-green-mid text-[13px] font-bold px-3 py-1.5 active:bg-sage">Oggi</button>

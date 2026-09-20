@@ -84,8 +84,9 @@ export default function DaControllare() {
               {e.whatsapp && !e.whatsapp.principale && <BottoneWhatsApp href={e.whatsapp.href} numero={e.whatsapp.numero} testo="" etichetta={ETICHETTA_APRI_CHAT} pieno={false} tipo="apri-chat" />}
               {e.rimandabile && (
                 <button type="button" onClick={() => rimanda(e)} disabled={rimandando === e.chiave}
-                  className="text-[12px] font-semibold px-2 py-1.5 rounded-lg whitespace-nowrap transition-transform duration-100 active:scale-[0.97] disabled:opacity-60"
+                  className="text-[12px] font-semibold px-2 py-1.5 rounded-sm whitespace-nowrap transition-transform duration-100 active:scale-[0.97] disabled:opacity-60"
                   style={{ color: 'var(--color-stone)' }}>
+                  {/* rounded-sm e non rounded-lg: è un comando di testo, con il filo sotto (Ania, 20/09/2026) */}
                   {rimandando === e.chiave ? 'Rimando…' : 'Rimanda'}
                 </button>
               )}

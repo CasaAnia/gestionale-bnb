@@ -44,7 +44,7 @@ export default function FasciaComandi({ ordine, onOrdine, ferme, soloDaGuardare,
   const voci = vociFascia({ ordine, ferme, soloDaGuardare })
   const tocca = (v: VoceFascia) => (v.tipo === 'guardare' ? onDaGuardare() : onOrdine(v.chiave))
   return (
-    <div data-fascia-comandi className={className}
+    <div data-fascia-comandi data-senza-sottolinea /* linguette dell'ordine: niente filo sotto (Ania, 20/09/2026) */ className={className}
       style={{ background: 'var(--color-cream)', borderTop: `1px solid ${FILO}`, borderBottom: `1px solid ${FILO}` }}>
       <div className="flex items-center justify-between gap-1 whitespace-nowrap" style={{ paddingTop: 11, paddingBottom: 11 }}>
         {voci.map(v => (
