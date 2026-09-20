@@ -19,6 +19,7 @@ import { euroScheda, periodoConMese, segmentiAttivi, testoNotti, type SegmentoSc
 import { quandoEvento, descriviEvento, type EventoCronologia } from './cronologia.ts'
 import { MESI_BREVI } from './dateItaliane.ts'
 import { telefonoAGruppi } from './whatsapp.ts'
+import { conPreposizione } from './richiesteTesti.ts'
 
 // ── I pagamenti, come arrivano dal database ─────────────────────────────────
 export type PagamentoScheda = { id: string; booking_id?: string; amount: number | string; method?: string | null; paid_on?: string | null; note?: string | null }
@@ -170,7 +171,11 @@ export function contoScheda(segmenti: SegmentoScheda[], daPagareCent: number): C
 // Il prezzo di ogni notte viene da lib/prezzoNotti; se il tratto ha uno sconto
 // (il totale salvato è diverso dalla somma delle notti) le notti si scalano in
 // proporzione, così la copertura torna col conto.
-export const COPERTURA_FINO = (notte: string) => `I pagamenti coprono fino alla notte del ${notte}`
+// «del 10 set» ma «dell'8 ott» (regola fissa n. 3: elisione solo davanti a 1, 8 e 11)
+export const COPERTURA_FINO = (notte: string) => {
+  const [giorno, ...mese] = notte.split(' ')
+  return `I pagamenti coprono fino alla notte ${conPreposizione('del', Number(giorno))} ${mese.join(' ')}`
+}
 export const COPERTURA_NIENTE = 'I pagamenti non coprono ancora la prima notte'
 
 /** L'ultima notte (YYYY-MM-DD) coperta per intero dai soldi ricevuti; null se

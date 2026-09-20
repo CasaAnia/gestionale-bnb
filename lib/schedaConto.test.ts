@@ -239,6 +239,17 @@ test('il caso di Ania: 800 € su Rosa coprono Ambra e Amelia, fino alla notte d
   assert.equal(ultimaNotteCoperta(ROSA, CAMERE_ROSA, 48000), '2026-09-06')
 })
 
+test('la riga della copertura rispetta la regola fissa n. 3: «del 10 set», ma «dell’8 ott», «dell’1 nov», «dell’11 dic»; «del 18 ott»', () => {
+  assert.equal(COPERTURA_FINO('10 set'), 'I pagamenti coprono fino alla notte del 10 set')
+  assert.equal(COPERTURA_FINO('8 ott'), "I pagamenti coprono fino alla notte dell'8 ott")
+  assert.equal(COPERTURA_FINO('1 nov'), "I pagamenti coprono fino alla notte dell'1 nov")
+  assert.equal(COPERTURA_FINO('11 dic'), "I pagamenti coprono fino alla notte dell'11 dic")
+  assert.equal(COPERTURA_FINO('18 ott'), 'I pagamenti coprono fino alla notte del 18 ott')
+  // il caso vero visto nell'anteprima: 300 € su Allegra 5 → 15 ott coprono fino alla notte dell'8
+  const dieci = [tratto('a', 'allegra', '2026-10-05', '2026-10-15', 70, 700)]
+  assert.equal(notaCopertura(dieci, [{ id: 'allegra', name: 'Allegra', base_price: 70, has_extra_bed: true, extra_bed_price: 10 }], 30000, false), "I pagamenti coprono fino alla notte dell'8 ott")
+})
+
 test('la nota tace quando non serve: niente incassato, conto saldato, tutto coperto', () => {
   assert.equal(notaCopertura(ROSA, CAMERE_ROSA, 0, false), '')
   assert.equal(notaCopertura(ROSA, CAMERE_ROSA, 80000, true), '')
