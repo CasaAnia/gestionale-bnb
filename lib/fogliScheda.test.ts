@@ -127,7 +127,10 @@ test('il pagamento (disegno approvato il 20/09/2026, punto 5): residuo in cima, 
   assert.equal(/Arial|fonts\.googleapis|@import/.test(pagamento), false, 'caratteri nuovi nel foglio')
   // aprire il foglio o scegliere un tasto non scrive: si scrive solo in salva()
   assert.equal((pagamento.match(/registraPagamento\(/g) || []).length, 1, 'registraPagamento chiamato fuori da salva()')
-  assert.match(pagamento, /async function salva\(\) \{\s*if \(salvando\) return/)
+  // il freno contro il doppio clic è sincrono (ref), non solo lo stato che si aggiorna al prossimo disegno
+  assert.match(pagamento, /async function salva\(\) \{\s*if \(inCorso\.current \|\| salvando\) return/)
+  assert.match(pagamento, /inCorso\.current = true\s*setSalvando\(true\)/)
+  assert.match(pagamento, /finally \{\s*inCorso\.current = false\s*setSalvando\(false\)\s*\}/)
 })
 
 test('il conto cambiato mentre il foglio è aperto (punto 5): si rilegge TUTTO il conto prima di scrivere, niente scritto, cifre aggiornate qui e nella scheda', () => {

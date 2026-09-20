@@ -104,3 +104,30 @@ test('importi non validi e non membri rifiutati; anon senza EXECUTE sulla firma 
   await db.exec("set test.membro='no'")
   await assert.rejects(acconto(1, 71, 50, 640, 0), /Accesso non consentito/)
 })
+
+// ── Il ripristino (0057_RIPRISTINO): torna la firma a cinque, identica alla 0049 ──
+test('il ripristino rimette la sola firma a cinque parametri, funzionante e senza anon', async () => {
+  const db2 = new PGlite()
+  try {
+    await db2.exec(`create schema private;
+    create function private.is_app_member() returns boolean language sql as $$ select true $$;
+    create role authenticated; create role anon; create role service_role;
+    alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+    create table bookings(id uuid primary key,guest_id uuid,group_id uuid,prenotazione_id uuid,check_in date,check_out date,total_amount numeric,status text,pagato boolean default false,bonifico boolean,accordo_pagamento text,caparra_centesimi bigint,caparra_entro timestamptz);
+    create table payments(id uuid primary key default gen_random_uuid(),booking_id uuid references bookings(id),amount numeric,method text,paid_on date,created_at timestamptz default now());`)
+    await db2.exec(readFileSync(new URL('../supabase/proposte/0049_conto_prenotazione.BOZZA.sql', import.meta.url), 'utf8'))
+    await db2.exec(readFileSync(new URL('../supabase/proposte/0057_conto_atteso_pagamento.BOZZA.sql', import.meta.url), 'utf8'))
+    await db2.exec(readFileSync(new URL('../supabase/proposte/0057_RIPRISTINO.BOZZA.sql', import.meta.url), 'utf8'))
+    const firme = await db2.query<{ args: string }>("select pg_get_function_identity_arguments(oid) args from pg_proc where proname = 'registra_acconto_prenotazione'")
+    assert.deepEqual(firme.rows.map(r => r.args), ['p_booking_id uuid, p_chiave uuid, p_amount numeric, p_metodo text, p_paid_on date'])
+    await db2.query("insert into bookings(id,check_in,check_out,total_amount,status) values($1,'2026-08-10','2026-08-12',160,'confermata')", [id(1)])
+    const r = (await db2.query<{ r: Record<string, unknown> }>("select registra_acconto_prenotazione($1,$2,50,'contanti','2026-09-10') r", [id(1), id(90)])).rows[0].r
+    assert.equal(Number(r.importo), 50)
+    const anon = await db2.query<{ ok: boolean }>("select has_function_privilege('anon','registra_acconto_prenotazione(uuid,uuid,numeric,text,date)','execute') ok")
+    assert.equal(anon.rows[0].ok, false)
+    // il corpo ripristinato è quello della migrazione applicata, riga per riga
+    const migrazione = readFileSync(new URL('../supabase/migrations/0049_conto_prenotazione.sql', import.meta.url), 'utf8')
+    const corpo = (t: string) => t.slice(t.indexOf('create or replace function public.registra_acconto_prenotazione('), t.indexOf('$$;', t.indexOf('create or replace function public.registra_acconto_prenotazione(')) + 3)
+    assert.equal(corpo(readFileSync(new URL('../supabase/proposte/0057_RIPRISTINO.BOZZA.sql', import.meta.url), 'utf8')), corpo(migrazione))
+  } finally { await db2.close() }
+})

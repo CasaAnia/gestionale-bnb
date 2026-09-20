@@ -11,6 +11,32 @@
 -- client non basta: il controllo deve stare dentro la transazione, sotto lo
 -- stesso blocco del soggiorno (blocca_soggiorno) che protegge già la 0049.
 --
+-- COSA PUÒ CAMBIARE TOTALE E RICEVUTO, E COME SI INCASTRA COL BLOCCO
+-- (rivisto il 20/09/2026 sera):
+--   totale  ← UPDATE bookings.total_amount (sconto, notti, letto: PATCH
+--             riga per riga dalle schede), UPDATE status='annullata'
+--             (annullamento), INSERT bookings con prenotazione_id (camera
+--             aggiunta), sposta_notti (proposta 0053, non applicata).
+--   ricevuto ← registra_acconto[_prenotazione], segna_pagato[_prenotazione],
+--             ricostruisci_incassi (tutte sotto blocca_soggiorno),
+--             DELETE payments diretto («togli pagamento»), INSERT payments
+--             diretto (solo il ripiego delle pagine senza la 0033/0049).
+-- blocca_soggiorno = lock consultivo di transazione + FOR UPDATE su tutte
+-- le righe bookings del soggiorno. Un UPDATE/annullamento su quelle righe
+-- o finisce PRIMA (e il conto qui lo vede) o ASPETTA la nostra transazione
+-- (e allora è una modifica successiva al pagamento, legittima). Le funzioni
+-- dei pagamenti si mettono in fila sul lock consultivo. Un INSERT di una
+-- camera nuova non è bloccabile da un lock di riga: se arriva dopo il
+-- nostro conto è, di nuovo, una modifica successiva. Resta il DELETE
+-- diretto di «togli pagamento», che non prende il lock consultivo: per
+-- questo qui si bloccano anche le righe payments del soggiorno (FOR
+-- UPDATE): un DELETE in corso ci fa aspettare, un DELETE che arriva dopo
+-- aspetta noi. Attenzione: «togli» cancella il movimento e POI aggiorna
+-- bookings.pagato (ordine inverso al nostro): nel caso limite Postgres
+-- rileva lo stallo e annulla una delle due transazioni (40P01) — niente
+-- scritto a metà, l'app dice «riprova». Chiudere anche questo vuol dire
+-- portare «togli pagamento» dentro una funzione col blocco (proposta a parte).
+--
 -- LA SOLUZIONE. registra_acconto_prenotazione prende due parametri in più,
 -- facoltativi: il totale e il ricevuto che il foglio stava mostrando
 -- (p_totale_atteso, p_ricevuti_attesi, in euro). Dentro il blocco la
@@ -68,6 +94,15 @@ begin
   if v_status not in ('confermata', 'completata') then raise exception 'PRENOTAZIONE_NON_MODIFICABILE'; end if;
   v_soggiorno := public.soggiorno_di(p_booking_id);
   perform public.blocca_soggiorno(v_soggiorno);
+  -- Con le cifre attese si bloccano anche i MOVIMENTI del soggiorno: un
+  -- «togli pagamento» (DELETE diretto, senza il blocco consultivo) che
+  -- fosse in corso deve finire prima del nostro conto, o aspettare dopo.
+  -- Senza le cifre attese il comportamento resta quello della 0049.
+  if p_totale_atteso is not null then
+    perform p.id from public.payments p
+      where p.booking_id in (select b.id from public.bookings b where coalesce(b.prenotazione_id::text, b.group_id::text, b.id::text) = v_soggiorno)
+      order by p.id for update;
+  end if;
   if not exists (select 1 from public.bookings where id=p_booking_id and status in ('confermata','completata')) then
     raise exception 'PRENOTAZIONE_NON_MODIFICABILE';
   end if;

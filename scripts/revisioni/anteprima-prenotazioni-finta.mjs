@@ -826,6 +826,17 @@ const finto = createServer((req, res) => {
       return rispondi(res, 201, accept.includes('vnd.pgrst.object') ? nuovo : [nuovo])
     })
   }
+  // La nota del pagamento (proposta 0055): PATCH sulla riga appena nata, solo `note`
+  if (m && req.method === 'PATCH' && m[1] === 'payments') {
+    return leggiCorpo(req).then(corpo => {
+      const chiavi = Object.keys(corpo || {})
+      if (chiavi.some(k => k !== 'note')) return rispondi(res, 403, { code: 'ANTEPRIMA', message: `scrittura non ammessa nella preview sintetica: ${chiavi.join(', ')}` })
+      const righe = righeFiltrate('payments', url)
+      for (const r of righe) r.note = corpo.note
+      console.log(`[finto supabase] PATCH payments ${righe.length} righe ← nota «${corpo.note}»`)
+      return rispondi(res, 200, righe.map(r => applicaSelect(r, url.searchParams.get('select') || '*')))
+    })
+  }
   if (m && req.method === 'DELETE' && m[1] === 'payments') {
     const righe = righeFiltrate('payments', url)
     for (const r of righe) payments.splice(payments.indexOf(r), 1)

@@ -81,6 +81,11 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   const [avvisoConto, setAvvisoConto] = useState<string | null>(null)
   const campoImporto = useRef<HTMLInputElement>(null)
   const daFocalizzare = useRef(false)
+  // Il freno contro il doppio clic dev'essere SINCRONO: lo stato `salvando`
+  // si aggiorna al prossimo disegno, e due o tre tocchi arrivati prima
+  // farebbero partire altrettanti salvataggi (li salverebbe solo la chiave
+  // idempotente). Con il ref il secondo tocco trova la porta già chiusa.
+  const inCorso = useRef(false)
 
   // Il conto della scheda è cambiato mentre il foglio era aperto (rilettura):
   // la cifra in cima segue, nel saldo il campo si riscrive, e lo si dice.
@@ -127,13 +132,19 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   }, [modo])
 
   async function salva() {
-    if (salvando) return
+    if (inCorso.current || salvando) return
     if (cent == null) { setErrore(ERRORE_IMPORTO); return }
     if (!giorno) { setErrore(ERRORE_GIORNO); return }
+    inCorso.current = true
     setSalvando(true)
     setErrore(null)
-    const esito = await registraPagamento(booking, righe, { importo: cent / 100, metodo, giorno, nota }, { totaleAttesoCent: totaleCent, ricevutiAttesiCent: ricevutiCent })
-    setSalvando(false)
+    let esito: EsitoPagamento
+    try {
+      esito = await registraPagamento(booking, righe, { importo: cent / 100, metodo, giorno, nota }, { totaleAttesoCent: totaleCent, ricevutiAttesiCent: ricevutiCent })
+    } finally {
+      inCorso.current = false
+      setSalvando(false)
+    }
     if (esito.esito === 'errore') {
       if (esito.contoCambiato) {
         // il conto riletto (camere, totale, pagamenti) è diverso da quello mostrato:
