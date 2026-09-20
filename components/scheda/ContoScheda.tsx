@@ -96,7 +96,8 @@ export default function ContoScheda({ testa, conto, accordo, pagamenti, copertur
       {/* fin dove arrivano i soldi ricevuti, in ottone come il riassunto della striscia */}
       {copertura && <p data-copertura-pagamenti style={{ marginTop: 8, fontSize: 12.5, color: '#A9884E' }}>{copertura}</p>}
 
-      <p className="flex flex-wrap items-center mt-2" style={{ gap: '0 12px', fontSize: 14 }}>
+      {/* la riga dei comandi del conto scende di più dai pagamenti (Ania, 20/09/2026) */}
+      <p className="flex flex-wrap items-center" style={{ marginTop: 18, gap: '0 12px', fontSize: 14 }}>
         <button type="button" data-aggiungi-pagamento onClick={onPagamento} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Aggiungi pagamento</button>
         <button type="button" onClick={onComePaga} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Cambia come paga</button>
         <button type="button" data-modifica-sconto onClick={onSconto} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>{COMANDO_SCONTO}</button>
