@@ -16,10 +16,10 @@
 // ============================================================================
 import { supabase } from './supabase'
 import {
-  eseguiRegistraAcconto, eseguiSegnaPagato, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, saldoMancanteCent,
+  eseguiRegistraAcconto, eseguiSegnaPagato, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, saldoMancanteCent, MESSAGGIO_RILETTURA_PAGAMENTI,
   type AccontoPendente, type MovimentoSaldo, type PagamentoStat, type PrenotazioneStat, type MetodoPagamento,
 } from './statistiche'
-import { chiavePrenotazione, type RigaPrenotazione } from './prenotazioneUnica'
+import { chiavePrenotazione, contoPrenotazione, leggiPrenotazioneUnica, type RigaPrenotazione } from './prenotazioneUnica'
 import { leggiMemoria, scriviMemoria } from './memoriaBrowser'
 import { colonnaMancante } from './colonnaMancante'
 import { messaggioNonSalvato } from './scritturaSicura'
@@ -40,23 +40,32 @@ export const righePerSaldo = (righe: RigaPagabile[]): PrenotazioneStat[] =>
 
 export type PagamentoLetto = PagamentoStat & { id?: string; method?: string | null; note?: string | null }
 
+/** Il conto riletto quando è cambiato: le camere (con rooms), i pagamenti e le
+ *  cifre di contoPrenotazione, così la scheda e il foglio si aggiornano insieme */
+export type ContoRiletto = { righe: RigaPagabile[]; pagamenti: PagamentoLetto[]; conto: { totaleCent: number; ricevutiCent: number } }
+
 export type EsitoPagamento =
   | { esito: 'ok'; pagamenti: PagamentoLetto[]; pagato: boolean; avviso: string | null }
-  | { esito: 'errore'; messaggio: string; pagamenti: PagamentoLetto[] | null; contoCambiato?: true }
+  | { esito: 'errore'; messaggio: string; pagamenti: PagamentoLetto[] | null; contoCambiato?: ContoRiletto }
 
 export const ERRORE_CONTO_CAMBIATO = 'Il conto è cambiato mentre il foglio era aperto: niente registrato.'
+export const ERRORE_CONTO_CAMBIATO_NON_RILETTO = 'Il conto è cambiato mentre il foglio era aperto e non riesco a rileggerlo: niente registrato, ricarica la scheda.'
 class ErroreContoCambiato extends Error { constructor() { super(ERRORE_CONTO_CAMBIATO) } }
+const CONTO_CAMBIATO_DAL_SERVER = 'CONTO_CAMBIATO'
 
 /** Il pagamento si registra intero sulla prenotazione. Con `controllo` (il
- *  foglio approvato del 20/09/2026) la rilettura che precede la scrittura
- *  confronta i pagamenti del server con quelli che il foglio mostrava: se
- *  intanto è arrivato un incasso da un altro telefono non si scrive niente
- *  e si torna con `contoCambiato` e i pagamenti riletti, così il foglio
- *  aggiorna la cifra invece di salvare un importo diverso da quello mostrato. */
+ *  foglio approvato del 20/09/2026) prima di scrivere si rilegge l'INTERO
+ *  conto — camere, totale e pagamenti — e lo si confronta con quello che il
+ *  foglio mostrava: se intanto è cambiato (sconto, notti, un incasso da un
+ *  altro telefono) non si scrive niente e si torna con `contoCambiato`, così
+ *  il foglio aggiorna le cifre invece di salvare un importo diverso da
+ *  quello mostrato. Le stesse cifre attese vanno alla funzione server, che
+ *  con la proposta 0057 le ricontrolla sotto il suo blocco (CONTO_CAMBIATO):
+ *  finché la 0057 non è applicata resta la finestra fra rilettura e scrittura. */
 export async function registraPagamento(
   booking: RigaPagabile, righe: RigaPagabile[],
   dati: { importo: number; metodo: MetodoPagamento; giorno: string; nota: string },
-  controllo?: { ricevutiAttesiCent: number },
+  controllo?: { totaleAttesoCent: number; ricevutiAttesiCent: number },
 ): Promise<EsitoPagamento> {
   const chiave = chiavePrenotazione(booking)
   const segmenti = righePerSaldo(righe)
@@ -64,20 +73,34 @@ export async function registraPagamento(
   const chiaveMemoria = `ca_acconto_pendente_${chiave}`
   const rileggi = () => supabase.from('payments').select('*').in('booking_id', ids).order('paid_on')
   const leggiPendente = () => { const t = leggiMemoria(() => localStorage, chiaveMemoria); try { return t ? JSON.parse(t) as AccontoPendente : null } catch { return null } }
-  let contoCambiato: PagamentoLetto[] | null = null
-  const rileggiControllando = async () => {
-    const r = await rileggi()
-    if (controllo && !r.error && r.data) {
-      const ricevuti = (r.data as PagamentoLetto[]).filter(p => ids.includes(p.booking_id)).reduce((s, p) => s + Math.round(Number(p.amount) * 100), 0)
-      const atteso = Math.round(controllo.ricevutiAttesiCent)
-      // il nostro stesso pagamento, scritto la volta prima con la risposta persa,
-      // non è un incasso di un altro telefono: lo riconosce eseguiRegistraAcconto
-      const pendente = leggiPendente()
-      const nostro = pendente && pendente.amount === dati.importo && pendente.method === dati.metodo && pendente.paid_on === dati.giorno ? Math.round(pendente.amount * 100) : 0
-      if (ricevuti !== atteso && ricevuti !== atteso + nostro) { contoCambiato = r.data as PagamentoLetto[]; return { data: null, error: new ErroreContoCambiato() } }
-    }
-    return r
+  // l'intero conto com'è adesso: le camere della prenotazione (come le legge la scheda) e i loro pagamenti
+  const rileggiConto = async (): Promise<ContoRiletto | null> => {
+    const r = await leggiPrenotazioneUnica(booking, f => supabase.from('bookings').select('*, rooms(*)').eq(f.colonna, f.valore).order('check_in'))
+    if (r.errore) return null
+    const pag = await supabase.from('payments').select('*').in('booking_id', r.righe.map(x => x.id)).order('paid_on')
+    if (pag.error || !pag.data) return null
+    const pagamenti = pag.data as PagamentoLetto[]
+    try { return { righe: r.righe, pagamenti, conto: contoPrenotazione(r.righe, pagamenti) } } catch { return null }
   }
+  let contoCambiato: ContoRiletto | null = null
+  let cambiatoDalServer = false
+  const rileggiControllando = async () => {
+    if (!controllo) return rileggi()
+    const adesso = await rileggiConto()
+    if (!adesso) return { data: null, error: new Error(MESSAGGIO_RILETTURA_PAGAMENTI) }
+    // il nostro stesso pagamento, scritto la volta prima con la risposta persa,
+    // non è un incasso di un altro telefono: lo riconosce eseguiRegistraAcconto
+    const pendente = leggiPendente()
+    const nostro = pendente && pendente.amount === dati.importo && pendente.method === dati.metodo && pendente.paid_on === dati.giorno ? Math.round(pendente.amount * 100) : 0
+    const atteso = Math.round(controllo.ricevutiAttesiCent)
+    const totaleCambiato = adesso.conto.totaleCent !== Math.round(controllo.totaleAttesoCent)
+    const ricevutiCambiati = adesso.conto.ricevutiCent !== atteso && adesso.conto.ricevutiCent !== atteso + nostro
+    if (totaleCambiato || ricevutiCambiati) { contoCambiato = adesso; return { data: null, error: new ErroreContoCambiato() } }
+    return { data: adesso.pagamenti as PagamentoStat[], error: null }
+  }
+  // le cifre attese per la funzione server (proposta 0057), in euro
+  const attesi = controllo ? { p_totale_atteso: Math.round(controllo.totaleAttesoCent) / 100, p_ricevuti_attesi: Math.round(controllo.ricevutiAttesiCent) / 100 } : {}
+  const contoCambiatoDalServer = (e: unknown) => String((e as { message?: unknown })?.message ?? '').includes(CONTO_CAMBIATO_DAL_SERVER)
 
   const esito = await eseguiRegistraAcconto(booking.id, dati.importo, dati.metodo, dati.giorno, {
     leggiPendente,
@@ -86,7 +109,12 @@ export async function registraPagamento(
     rileggiPagamenti: rileggiControllando,
     scrivi: async (p: AccontoPendente, bookingId: string) => {
       const nomeRpc = booking.prenotazione_id ? 'registra_acconto_prenotazione' : 'registra_acconto'
-      const rpc = await supabase.rpc(nomeRpc, { p_booking_id: bookingId, p_chiave: p.chiave, p_amount: p.amount, p_metodo: p.method, p_paid_on: p.paid_on })
+      const argomenti = { p_booking_id: bookingId, p_chiave: p.chiave, p_amount: p.amount, p_metodo: p.method, p_paid_on: p.paid_on }
+      let rpc = await supabase.rpc(nomeRpc, { ...argomenti, ...attesi })
+      // senza la 0057 la firma con le cifre attese non esiste: si richiama
+      // com'è oggi (il controllo resta quello della rilettura qui sopra)
+      if (rpc.error && controllo && rpcMancante(rpc.error, nomeRpc)) rpc = await supabase.rpc(nomeRpc, argomenti)
+      if (rpc.error && contoCambiatoDalServer(rpc.error)) { cambiatoDalServer = true; return { data: null, error: rpc.error } }
       if (!rpc.error) {
         const r = rpc.data as { movimento_id?: unknown; importo?: unknown; soggiorno?: string; contratto?: string; booking_id?: string } | null
         if (!r || typeof r.movimento_id !== 'string' || !Number.isFinite(Number(r.importo)) || Number(r.importo) !== p.amount
@@ -100,7 +128,14 @@ export async function registraPagamento(
     adesso: () => new Date().toISOString(),
     nuovaChiave: () => crypto.randomUUID(),
   })
-  if (contoCambiato) return { esito: 'errore', messaggio: ERRORE_CONTO_CAMBIATO, pagamenti: contoCambiato, contoCambiato: true }
+  const cambiatoQui = contoCambiato as ContoRiletto | null   // assegnato dentro la rilettura: TypeScript non lo vede
+  if (cambiatoQui) return { esito: 'errore', messaggio: ERRORE_CONTO_CAMBIATO, pagamenti: cambiatoQui.pagamenti, contoCambiato: cambiatoQui }
+  if (cambiatoDalServer) {
+    // la funzione server (0057) ha visto il conto cambiare DOPO la nostra rilettura: si rilegge e si mostra
+    const adesso = await rileggiConto()
+    if (!adesso) return { esito: 'errore', messaggio: ERRORE_CONTO_CAMBIATO_NON_RILETTO, pagamenti: null }
+    return { esito: 'errore', messaggio: ERRORE_CONTO_CAMBIATO, pagamenti: adesso.pagamenti, contoCambiato: adesso }
+  }
   if (esito.esito === 'errore') return { esito: 'errore', messaggio: esito.messaggio, pagamenti: esito.pagamenti as PagamentoLetto[] | null }
 
   // La nota è una cortesia: la funzione della 0033 non la prende, si scrive

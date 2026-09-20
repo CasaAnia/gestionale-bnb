@@ -110,6 +110,22 @@ test('due camere insieme: «In Lena + Amelia»; una pausa nel soggiorno: «Stano
   assert.deepEqual(oggiTesta(conPausa, '2026-10-21', 'confermata').prossimo, { testo: PARTE, forte: '22 ottobre, torna: 23 ottobre' })
 })
 
+test('una pausa PRIMA di un cambio camera: il prossimo evento è la partenza, non il cambio (verifica del 20/09/2026)', () => {
+  // Ambra 20 → 22, pausa la notte del 22 e del 23, Lena 24 → 26
+  const pausaPoiCambio = [seg('a', AMBRA, '2026-09-20', '2026-09-22', { group_id: 'g1' }), seg('b', LENA, '2026-09-24', '2026-09-26', { group_id: 'g2' })]
+  assert.deepEqual(oggiTesta(pausaPoiCambio, '2026-09-20', 'confermata'), { sopra: 'Oggi · 20 settembre', titolo: 'In Ambra', prossimo: { testo: PARTE, forte: '22 settembre, torna: 24 settembre' } })
+  assert.deepEqual(oggiTesta(pausaPoiCambio, '2026-09-21', 'confermata').prossimo, { testo: PARTE, forte: '22 settembre, torna: 24 settembre' })
+  // durante la pausa: non in casa, torna il 24 in Lena
+  assert.deepEqual(oggiTesta(pausaPoiCambio, '2026-09-22', 'confermata'), { sopra: 'Oggi · 22 settembre', titolo: NON_IN_CASA, prossimo: { testo: TORNA, forte: '24 settembre → Lena' } })
+  assert.deepEqual(oggiTesta(pausaPoiCambio, '2026-09-23', 'confermata').prossimo, { testo: TORNA, forte: '24 settembre → Lena' })
+  // tornata: resta solo la partenza
+  assert.deepEqual(oggiTesta(pausaPoiCambio, '2026-09-24', 'confermata'), { sopra: 'Oggi · 24 settembre', titolo: 'In Lena', prossimo: { testo: PARTE, forte: '26 settembre' } })
+  // un cambio camera PRIMA della pausa resta un cambio: Ambra 20 → 22, Lena 22 → 24, pausa, Lena 25 → 27
+  const cambioPoiPausa = [seg('a', AMBRA, '2026-09-20', '2026-09-22', { group_id: 'g1' }), seg('b', LENA, '2026-09-22', '2026-09-24', { group_id: 'g2' }), seg('c', LENA, '2026-09-25', '2026-09-27', { group_id: 'g3' })]
+  assert.deepEqual(oggiTesta(cambioPoiPausa, '2026-09-20', 'confermata').prossimo, { testo: PROSSIMO_CAMBIO, forte: '22 settembre → Lena' })
+  assert.deepEqual(oggiTesta(cambioPoiPausa, '2026-09-22', 'confermata').prossimo, { testo: PARTE, forte: '24 settembre, torna: 25 settembre' })
+})
+
 test('il residuo in testa viene dal conto: 1.080 €; saldato → «Saldato» e 0 €; conto non letto → niente cifra, mai 0 €; bonifico atteso', () => {
   assert.deepEqual(residuoTesta(riepilogoConto({ totaleCent: 188000, ricevutiCent: 80000 })), { etichetta: RESTA_DA_INCASSARE, importo: '1.080 €' })
   assert.deepEqual(residuoTesta(riepilogoConto({ totaleCent: 55000, ricevutiCent: 55000 })), { etichetta: SALDATO_TESTA, importo: '0 €' })

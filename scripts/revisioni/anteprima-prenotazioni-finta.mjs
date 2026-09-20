@@ -105,6 +105,9 @@ const guests = [
   // Il conto della scheda (20/09/2026 sera): sconto in percentuale con i
   // centesimi (12,5 % su 210 = 183,75) e un anticipo con la nota
   ospite('aaaaaaaa-0026-4000-8000-000000000026', 'Centesimi Sconto', '+39 333 000 0026'),
+  // Verifica del 20/09/2026: in FONDO, così gli indici guests[n] di sopra non si spostano
+  ospite('aaaaaaaa-0027-4000-8000-000000000027', 'Pausa Poi Cambio', '+39 333 000 0027'),
+  ospite('aaaaaaaa-0028-4000-8000-000000000028', 'Due Camere Saldate', '+39 333 000 0028'),
 ]
 const NIDA = guests[14]
 const CAMBIO = guests[16]
@@ -274,6 +277,21 @@ const bookings = [
   // Allungando a tre notti il foglio propone «Tengo il 10 % di sconto» (216).
   prenotazione(ROOM.ambra, 'aaaaaaaa-0024-4000-8000-000000000024', '2026-12-05', '2026-12-07', 2,
     { price_per_night: 80, discount_type: 'percentage', discount_value: 10, total_amount: 144 }),
+  // Verifica del 20/09/2026 (punto 2): «Pausa Poi Cambio», Amelia 19 → 21 set,
+  // pausa la notte del 21 e del 22, Allegra 23 → 25 set: oggi (20 set) la testa
+  // deve dire «Parte: 21 settembre, torna: 23 settembre», non «Prossimo cambio»
+  prenotazione(ROOM.amelia, 'aaaaaaaa-0027-4000-8000-000000000027', '2026-09-19', '2026-09-21', 1,
+    { prenotazione_id: 'dddddddd-0027-4000-8000-000000000027', price_per_night: 65, total_amount: 130, check_in_time: '15:00' }),
+  prenotazione(ROOM.allegra, 'aaaaaaaa-0027-4000-8000-000000000027', '2026-09-23', '2026-09-25', 1,
+    { prenotazione_id: 'dddddddd-0027-4000-8000-000000000027', price_per_night: 70, total_amount: 140 }),
+  // Verifica del 20/09/2026 (punto 3): «Due Camere Saldate», Lena + Allegra
+  // 20 → 22 set nelle stesse notti, legate SOLO da prenotazione_id (group_id
+  // assente), 160 € interi sulla prima riga, segno «pagato» non messo: il
+  // conto è 160/160 e «Da controllare» non deve dire «restano 0 €»
+  prenotazione(ROOM.lena, 'aaaaaaaa-0028-4000-8000-000000000028', '2026-09-20', '2026-09-22', 2,
+    { id: 'bbbbbbbb-2801-4000-8000-000000002801', prenotazione_id: 'dddddddd-0028-4000-8000-000000000028', group_id: null, price_per_night: 80, total_amount: 80, check_in_time: '16:00' }),
+  prenotazione(ROOM.allegra, 'aaaaaaaa-0028-4000-8000-000000000028', '2026-09-20', '2026-09-22', 1,
+    { id: 'bbbbbbbb-2802-4000-8000-000000002802', prenotazione_id: 'dddddddd-0028-4000-8000-000000000028', group_id: null, price_per_night: 70, total_amount: 80, check_in_time: '16:00' }),
   // Centesimi Sconto (20/09/2026 sera): Allegra 15 → 18 dic, 3 × 70 = 210,
   // sconto 12,5 % → 183,75 concordati; 100 € di anticipo con la nota.
   prenotazione(ROOM.allegra, 'aaaaaaaa-0026-4000-8000-000000000026', '2026-12-15', '2026-12-18', 2,
@@ -301,6 +319,8 @@ const payments = [
   // 20/09/2026): coprono Ambra 1→7 e Amelia 7→11, fino alla notte del 10 set
   { id: 'ffffffff-0003-4000-8000-000000000003', booking_id: 'bbbbbbbb-2501-4000-8000-000000002501', amount: 400, method: 'contanti', paid_on: '2026-09-07', created_at: ora },
   { id: 'ffffffff-0004-4000-8000-000000000004', booking_id: 'bbbbbbbb-2501-4000-8000-000000002501', amount: 400, method: 'contanti', paid_on: '2026-09-16', created_at: ora },
+  // Due Camere Saldate: 160 € interi sulla prima riga (regola fissa n. 9)
+  { id: 'ffffffff-0006-4000-8000-000000000006', booking_id: 'bbbbbbbb-2801-4000-8000-000000002801', amount: 160, method: 'contanti', paid_on: '2026-09-20', created_at: ora },
   // Centesimi Sconto: 100 € di anticipo via bonifico, con la nota
   { id: 'ffffffff-0005-4000-8000-000000000005', booking_id: 'bbbbbbbb-2601-4000-8000-000000002601', amount: 100, method: 'bonifico', paid_on: '2026-12-01', note: 'Anticipo arrivato il 1° dicembre, causale «Casa Ania»', created_at: ora },
 ]
@@ -505,6 +525,15 @@ let erroreSpostaNotti = null
 // ?modo=0 spegne. GET /finto/pagamento-esterno?booking_id=…&amount=… aggiunge
 // un incasso «da un altro telefono» mentre il foglio è aperto.
 let errorePagamentoRpc = null
+// Punto 5 (verifica del 20/09/2026): la funzione server finta accetta anche le
+// cifre attese della proposta 0057 (p_totale_atteso, p_ricevuti_attesi) e si
+// ferma con CONTO_CAMBIATO se il conto è diverso. Interruttori:
+//   GET /finto/totale-esterno?booking_id=…&total_amount=…   cambia il totale «da un altro telefono», subito
+//   GET /finto/pagamento-durante-rpc?booking_id=…&amount=…  alla PROSSIMA chiamata aggiunge un incasso DENTRO la
+//                                                          funzione, prima del controllo (la finestra fra rilettura e scrittura)
+//   GET /finto/senza-0057?on=1|0                            la firma con le cifre attese non esiste (PGRST202): l'app richiama senza
+let pagamentoDuranteRpc = null
+let senza0057 = false
 function leggiCorpo(req) {
   return new Promise(resolve => { let t = ''; req.on('data', c => { t += c }); req.on('end', () => { try { resolve(t ? JSON.parse(t) : null) } catch { resolve(null) } }) })
 }
@@ -537,6 +566,18 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/finto/spese') return rispondi(res, 200, family_expenses)
   if (url.pathname === '/finto/errore-pagamenti') { errorePagamenti = url.searchParams.get('on') === '1'; return rispondi(res, 200, { errorePagamenti }) }
   if (url.pathname === '/finto/errore-pagamento') { const modo = url.searchParams.get('modo'); errorePagamentoRpc = modo === 'errore' || modo === 'persa' ? modo : null; return rispondi(res, 200, { errorePagamentoRpc }) }
+  if (url.pathname === '/finto/totale-esterno') {
+    const b = bookings.find(x => x.id === url.searchParams.get('booking_id')), total_amount = Number(url.searchParams.get('total_amount'))
+    if (!b || !(total_amount >= 0)) return rispondi(res, 400, { message: 'booking_id o total_amount mancante' })
+    b.total_amount = total_amount
+    console.log(`[finto supabase] totale ESTERNO ${total_amount} su ${b.id.slice(-4)}`)
+    return rispondi(res, 200, b)
+  }
+  if (url.pathname === '/finto/pagamento-durante-rpc') {
+    pagamentoDuranteRpc = { booking_id: url.searchParams.get('booking_id'), amount: Number(url.searchParams.get('amount')) }
+    return rispondi(res, 200, { pagamentoDuranteRpc })
+  }
+  if (url.pathname === '/finto/senza-0057') { senza0057 = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senza0057 }) }
   if (url.pathname === '/finto/pagamento-esterno') {
     const booking_id = url.searchParams.get('booking_id'), amount = Number(url.searchParams.get('amount'))
     if (!bookings.some(b => b.id === booking_id) || !(amount > 0)) return rispondi(res, 400, { message: 'booking_id o amount mancante' })
@@ -629,11 +670,33 @@ const finto = createServer((req, res) => {
       const amount = Number(corpo.p_amount)
       if (!(amount > 0) || Math.round(amount * 100) / 100 !== amount) return rispondi(res, 400, { code: 'P0001', message: 'IMPORTO_NON_VALIDO' })
       const soggiorno = soggiornoDi(b)
+      const conAttesi = 'p_totale_atteso' in corpo || 'p_ricevuti_attesi' in corpo
+      if (conAttesi && senza0057) {
+        console.log('[finto supabase] RPC registra_acconto_prenotazione con le cifre attese: 0057 non applicata (PGRST202)')
+        return rispondi(res, 404, { code: 'PGRST202', message: 'Could not find the function public.registra_acconto_prenotazione(p_amount, p_booking_id, p_chiave, p_metodo, p_paid_on, p_ricevuti_attesi, p_totale_atteso) in the schema cache', details: null, hint: null })
+      }
       const esistente = payments.find(p => p.chiave_operazione === corpo.p_chiave)
       if (esistente) {
         if (esistente.soggiorno !== soggiorno || esistente.amount !== amount || esistente.method !== (corpo.p_metodo || 'contanti') || esistente.paid_on !== corpo.p_paid_on) return rispondi(res, 400, { code: 'P0001', message: 'CHIAVE_RIUSATA' })
         console.log('[finto supabase] RPC registra_acconto_prenotazione: chiave già applicata, nessuna riga nuova')
         return rispondi(res, 200, { contratto: 'prenotazione_v1', movimento_id: esistente.id, booking_id: esistente.booking_id, importo: esistente.amount, soggiorno, gia_presente: true })
+      }
+      // la finestra fra la rilettura dell'app e la scrittura: un incasso che arriva proprio adesso
+      if (pagamentoDuranteRpc) {
+        const d = pagamentoDuranteRpc; pagamentoDuranteRpc = null
+        payments.push({ id: randomUUID(), booking_id: d.booking_id, amount: d.amount, method: 'contanti', paid_on: '2026-09-20', created_at: new Date().toISOString() })
+        console.log(`[finto supabase] +1 pagamento DURANTE la funzione (${d.amount} su ${String(d.booking_id).slice(-4)})`)
+      }
+      if (conAttesi) {
+        if ((corpo.p_totale_atteso == null) !== (corpo.p_ricevuti_attesi == null)) return rispondi(res, 400, { code: 'P0001', message: 'CONTO_ATTESO_INCOMPLETO' })
+        const righe = righeSoggiorno(soggiorno)
+        const idsSogg = new Set(righe.map(r => r.id))
+        const totale = righe.filter(r => ['confermata', 'completata'].includes(r.status)).reduce((s, r) => s + Number(r.total_amount), 0)
+        const ricevuti = payments.filter(p => idsSogg.has(p.booking_id)).reduce((s, p) => s + Number(p.amount), 0)
+        if (Math.round(totale * 100) !== Math.round(Number(corpo.p_totale_atteso) * 100) || Math.round(ricevuti * 100) !== Math.round(Number(corpo.p_ricevuti_attesi) * 100)) {
+          console.log(`[finto supabase] RPC registra_acconto_prenotazione: CONTO_CAMBIATO (totale ${totale} atteso ${corpo.p_totale_atteso}, ricevuti ${ricevuti} attesi ${corpo.p_ricevuti_attesi})`)
+          return rispondi(res, 400, { code: 'P0001', message: 'CONTO_CAMBIATO', details: JSON.stringify({ totale, ricevuti, totale_atteso: corpo.p_totale_atteso, ricevuti_attesi: corpo.p_ricevuti_attesi }), hint: null })
+        }
       }
       const nuovo = { id: randomUUID(), booking_id: b.id, amount, method: corpo.p_metodo || 'contanti', paid_on: corpo.p_paid_on, chiave_operazione: corpo.p_chiave, soggiorno, created_at: new Date().toISOString() }
       payments.push(nuovo)

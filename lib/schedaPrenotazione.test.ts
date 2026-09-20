@@ -261,6 +261,31 @@ test('camere contemporanee: un avviso solo, con il conto di tutta la prenotazion
   assert.equal(voci[0].dettaglio, 'Ricevuti 300 € · restano 220 €')
 })
 
+test('camere contemporanee legate SOLO da prenotazione_id: un pagamento intero sulla prima non fa gridare «restano 0 €» (verifica del 20/09/2026)', () => {
+  const parallele = [
+    seg('q1', LENA, '2026-09-18', '2026-09-22', { prenotazione_id: 'P', group_id: null, guest_id: 'g-rosa', guest_name: 'Rosa Macauda', total_amount: 80, pagato: false }),
+    seg('q2', AMELIA, '2026-09-18', '2026-09-22', { prenotazione_id: 'P', group_id: null, guest_id: 'g-rosa', guest_name: 'Rosa Macauda', total_amount: 80, pagato: false }),
+  ]
+  // 160 € interi sulla prima riga: conto 160/160, residuo zero → nessun avviso del pagamento
+  const saldata = daControllareScheda(dati(parallele, [{ booking_id: 'q1', amount: 160, paid_on: '2026-09-18' }], { documenti: 1 }))
+  assert.deepEqual(saldata, [])
+  // 100 € sulla prima: un avviso solo, col conto di tutta la prenotazione
+  const parziale = daControllareScheda(dati(parallele, [{ booking_id: 'q1', amount: 100, paid_on: '2026-09-18' }], { documenti: 1 }))
+  assert.deepEqual(parziale.map(v => v.etichetta), ['Pagamento'])
+  assert.equal(parziale[0].titolo, TITOLO_PAGAMENTO_PARZIALE)
+  assert.equal(parziale[0].dettaglio, 'Ricevuti 100 € · restano 60 €')
+  // 200 € sulla prima: oltre il totale, l'anomalia vera resta un avviso
+  const oltre = daControllareScheda(dati(parallele, [{ booking_id: 'q1', amount: 200, paid_on: '2026-09-18' }], { documenti: 1 }))
+  assert.equal(oltre.length, 1)
+  assert.equal(oltre[0].titolo, TITOLO_OLTRE_IL_TOTALE)
+  // niente in comune (né prenotazione_id né group_id) ma stessa scheda: vale lo stesso l'identità unica
+  const soleRighe = parallele.map(s => ({ ...s, prenotazione_id: null }))
+  assert.deepEqual(daControllareScheda(dati(soleRighe, [{ booking_id: 'q1', amount: 160, paid_on: '2026-09-18' }], { documenti: 1 })), [])
+  // mai «restano 0 €»: con residuo zero l'avviso del pagamento non compare, in nessuna forma
+  const stringhe = JSON.stringify(daControllareScheda(dati(parallele, [{ booking_id: 'q2', amount: 160, paid_on: '2026-09-18' }], { documenti: 1 })))
+  assert.equal(/restano 0 €/.test(stringhe), false)
+})
+
 test('nessun pagamento: «Nessun pagamento registrato · Da incassare», senza inventare movimenti', () => {
   const voci = daControllareScheda(dati(ROSA, [], { documenti: 1 }))
   assert.deepEqual(voci.map(v => v.titolo), [TITOLO_NESSUN_PAGAMENTO])

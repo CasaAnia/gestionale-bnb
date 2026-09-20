@@ -132,16 +132,18 @@ export function oggiTesta(segmenti: SegmentoScheda[], oggi: string, status: stri
     const rientro = giorniDopo[0]
     return { sopra, titolo, prossimo: rientro ? { testo: TORNA, forte: `${quando(rientro)} → ${camereDellaNotte(segmenti, rientro).join(' + ')}` } : { testo: PARTE, forte: quando(ultimaPartenza) } }
   }
-  for (const g of giorniDopo) {
+  // Il PRIMO evento in ordine di calendario, un giorno alla volta fino
+  // all'ultima partenza, contando anche le notti senza camera: una pausa che
+  // viene prima di un cambio camera è la partenza più vicina, non il cambio
+  // (difetto riprodotto dalla verifica del 20/09/2026: Ambra 20 → 22, pausa,
+  // Lena 24 → 26; oggi 20 → «Parte: 22, torna: 24», non «Prossimo cambio: 24»).
+  for (let g = spostaUnGiorno(oggi); g < ultimaPartenza; g = spostaUnGiorno(g)) {
     const c = camereDellaNotte(segmenti, g)
+    if (!c.length) {
+      const rientro = giorniDopo.find(n => n > g)
+      return { sopra, titolo, prossimo: { testo: PARTE, forte: rientro ? `${quando(g)}, ${TORNA.toLowerCase().trim()} ${quando(rientro)}` : quando(g) } }
+    }
     if (!stesse(c, oggiCamere)) return { sopra, titolo, prossimo: { testo: PROSSIMO_CAMBIO, forte: `${quando(g)} → ${c.join(' + ')}` } }
-  }
-  // fra oggi e la partenza c'è un buco (pausa)? il primo giorno senza camera prima dell'ultima partenza
-  let d = oggi
-  for (const g of giorniDopo) {
-    const atteso = spostaUnGiorno(d)
-    if (g !== atteso) return { sopra, titolo, prossimo: { testo: PARTE, forte: `${quando(atteso)}, ${TORNA.toLowerCase().trim()} ${quando(g)}` } }
-    d = g
   }
   return { sopra, titolo, prossimo: { testo: PARTE, forte: quando(ultimaPartenza) } }
 }

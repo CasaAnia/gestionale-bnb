@@ -414,9 +414,19 @@ export function daControllareScheda(d: DatiControlloScheda): VoceScheda[] {
   })
 
   // Pagamenti: la Home decide SE (solo i tratti di questa prenotazione, dal
-  // giorno dell'arrivo); la voce è UNA per la prenotazione e dice il conto
-  if (eccezioniPagamenti(miei, d.pagamenti, d.oggi).length > 0) {
-    out.push(vocePagamentoScheda(d.conto ?? null, d.pagato ?? attivi.some(s => !!s.pagato)))
+  // giorno dell'arrivo); la voce è UNA per la prenotazione e dice il conto.
+  // Le regole della Home raggruppano per group_id: qui i tratti sono già
+  // TUTTI della stessa prenotazione, quindi si passano con un'identità sola
+  // (prenotazione_id, o group_id, o id), altrimenti due camere contemporanee
+  // legate solo da prenotazione_id diventano due soggiorni e un pagamento
+  // intero sulla prima fa gridare «restano 0 €» sulla seconda (difetto
+  // riprodotto dalla verifica del 20/09/2026). E con il conto autorevole a
+  // residuo zero non c'è mai un pagamento dovuto da segnalare.
+  const identita = attivi[0].prenotazione_id || attivi[0].group_id || attivi[0].id
+  const conto = d.conto ?? null
+  const residuoZero = !!conto && conto.totaleCent - conto.ricevutiCent === 0
+  if (!residuoZero && eccezioniPagamenti(miei.map(m => ({ ...m, group_id: identita })), d.pagamenti, d.oggi).length > 0) {
+    out.push(vocePagamentoScheda(conto, d.pagato ?? attivi.some(s => !!s.pagato)))
   }
 
   // Documento: nessun documento caricato, finché il soggiorno non è finito

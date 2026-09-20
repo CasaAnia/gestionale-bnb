@@ -30,11 +30,11 @@ import {
   TITOLO_PAGAMENTO, SALVA_PAGAMENTO, ETICHETTA_QUANTO, ETICHETTA_QUANDO, ETICHETTA_COME, ETICHETTA_NOTA, ERRORE_IMPORTO, ERRORE_GIORNO,
   RESTA_DA_INCASSARE, MODO_SALDO, MODO_ALTRO, GRUPPO_MODI, SPIEGA_SALDO, SPIEGA_ALTRO, DOPO_IL_PAGAMENTO_RESTA, NIENTE_DA_SALDARE,
   OLTRE_IL_TOTALE_FOGLIO, CONTO_CAMBIATO,
-  MODI_PAGAMENTO, modoProposto, modoIniziale, importoProposto, importoInCent, residuoPrevisto, ricevutiCentDi,
+  MODI_PAGAMENTO, modoProposto, modoIniziale, importoProposto, importoInCent, residuoPrevisto,
   type ModoPagamento, type ModoImporto,
 } from '@/lib/pagamentoFoglio'
 import { euroScheda } from '@/lib/schedaPrenotazione'
-import { registraPagamento, type EsitoPagamento, type PagamentoLetto, type RigaPagabile } from '@/lib/pagamentiDati'
+import { registraPagamento, type ContoRiletto, type EsitoPagamento, type RigaPagabile } from '@/lib/pagamentiDati'
 
 export type PagamentoSalvato = Extract<EsitoPagamento, { esito: 'ok' }> & { importo: number; metodo: ModoPagamento }
 
@@ -65,11 +65,11 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   bonifico?: boolean | null
   onChiudi: () => void
   onSalvato: (esito: PagamentoSalvato) => void
-  /** al salvataggio i pagamenti riletti erano diversi: la scheda li riceve e si aggiorna */
-  onContoCambiato?: (pagamenti: PagamentoLetto[]) => void
+  /** al salvataggio il conto riletto (camere, totale, pagamenti) era diverso: la scheda lo riceve e si aggiorna */
+  onContoCambiato?: (riletto: ContoRiletto) => void
 }) {
-  const totaleCent = Math.round(conto.totaleCent)
-  const [ricevutiCent, setRicevutiCent] = useState(Math.round(conto.ricevutiCent))
+  const [contoLocale, setContoLocale] = useState({ totaleCent: Math.round(conto.totaleCent), ricevutiCent: Math.round(conto.ricevutiCent) })
+  const { totaleCent, ricevutiCent } = contoLocale
   const residuoCent = totaleCent - ricevutiCent
   const [modo, setModo] = useState<ModoImporto>(modoIniziale(residuoCent))
   const [importo, setImporto] = useState(modoIniziale(residuoCent) === 'saldo' ? importoProposto(residuoCent) : '')
@@ -84,18 +84,20 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
 
   // Il conto della scheda è cambiato mentre il foglio era aperto (rilettura):
   // la cifra in cima segue, nel saldo il campo si riscrive, e lo si dice.
-  const ricevutiDellaScheda = Math.round(conto.ricevutiCent)
-  const ultimiRicevuti = useRef(ricevutiDellaScheda)
+  const totaleDellaScheda = Math.round(conto.totaleCent), ricevutiDellaScheda = Math.round(conto.ricevutiCent)
+  const ultimoConto = useRef(`${totaleDellaScheda}/${ricevutiDellaScheda}`)
   useEffect(() => {
-    if (ricevutiDellaScheda === ultimiRicevuti.current) return
-    ultimiRicevuti.current = ricevutiDellaScheda
-    aggiornaConto(ricevutiDellaScheda)
+    const adesso = `${totaleDellaScheda}/${ricevutiDellaScheda}`
+    if (adesso === ultimoConto.current) return
+    ultimoConto.current = adesso
+    aggiornaConto({ totaleCent: totaleDellaScheda, ricevutiCent: ricevutiDellaScheda })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ricevutiDellaScheda])
+  }, [totaleDellaScheda, ricevutiDellaScheda])
 
-  function aggiornaConto(nuoviRicevutiCent: number) {
-    const nuovoResiduo = totaleCent - nuoviRicevutiCent
-    setRicevutiCent(nuoviRicevutiCent)
+  function aggiornaConto(nuovo: { totaleCent: number; ricevutiCent: number }) {
+    const nuovoResiduo = Math.round(nuovo.totaleCent) - Math.round(nuovo.ricevutiCent)
+    setContoLocale({ totaleCent: Math.round(nuovo.totaleCent), ricevutiCent: Math.round(nuovo.ricevutiCent) })
+    ultimoConto.current = `${Math.round(nuovo.totaleCent)}/${Math.round(nuovo.ricevutiCent)}`
     setAvvisoConto(CONTO_CAMBIATO(nuovoResiduo))
     if (modo === 'saldo') {
       if (nuovoResiduo > 0) setImporto(importoProposto(nuovoResiduo))
@@ -130,14 +132,14 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
     if (!giorno) { setErrore(ERRORE_GIORNO); return }
     setSalvando(true)
     setErrore(null)
-    const esito = await registraPagamento(booking, righe, { importo: cent / 100, metodo, giorno, nota }, { ricevutiAttesiCent: ricevutiCent })
+    const esito = await registraPagamento(booking, righe, { importo: cent / 100, metodo, giorno, nota }, { totaleAttesoCent: totaleCent, ricevutiAttesiCent: ricevutiCent })
     setSalvando(false)
     if (esito.esito === 'errore') {
-      if (esito.contoCambiato && esito.pagamenti) {
-        // il conto letto dal server è diverso da quello mostrato: niente scritto,
-        // la cifra si aggiorna qui e nella scheda, e si chiede di ricontrollare
-        aggiornaConto(ricevutiCentDi(righe.map(r => r.id), esito.pagamenti))
-        onContoCambiato?.(esito.pagamenti)
+      if (esito.contoCambiato) {
+        // il conto riletto (camere, totale, pagamenti) è diverso da quello mostrato:
+        // niente scritto, le cifre si aggiornano qui e nella scheda, si ricontrolla
+        aggiornaConto(esito.contoCambiato.conto)
+        onContoCambiato?.(esito.contoCambiato)
         return
       }
       setErrore(esito.messaggio)

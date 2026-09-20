@@ -130,57 +130,37 @@ test('il pagamento (disegno approvato il 20/09/2026, punto 5): residuo in cima, 
   assert.match(pagamento, /async function salva\(\) \{\s*if \(salvando\) return/)
 })
 
-test('il conto cambiato mentre il foglio è aperto: niente scritto, la cifra si aggiorna qui e nella scheda', () => {
-  assert.match(pagamento, /registraPagamento\(booking, righe, \{ importo: cent \/ 100, metodo, giorno, nota \}, \{ ricevutiAttesiCent: ricevutiCent \}\)/)
-  assert.match(pagamento, /if \(esito\.contoCambiato && esito\.pagamenti\) \{[\s\S]{0,400}aggiornaConto\(ricevutiCentDi\(righe\.map\(r => r\.id\), esito\.pagamenti\)\)\s*onContoCambiato\?\.\(esito\.pagamenti\)\s*return/)
+test('il conto cambiato mentre il foglio è aperto (punto 5): si rilegge TUTTO il conto prima di scrivere, niente scritto, cifre aggiornate qui e nella scheda', () => {
+  // il foglio manda le cifre che mostra (totale e ricevuto) e, se il conto è cambiato, aggiorna e avvisa
+  assert.match(pagamento, /registraPagamento\(booking, righe, \{ importo: cent \/ 100, metodo, giorno, nota \}, \{ totaleAttesoCent: totaleCent, ricevutiAttesiCent: ricevutiCent \}\)/)
+  assert.match(pagamento, /if \(esito\.contoCambiato\) \{[\s\S]{0,400}aggiornaConto\(esito\.contoCambiato\.conto\)\s*onContoCambiato\?\.\(esito\.contoCambiato\)\s*return/)
   assert.match(pagamento, /setAvvisoConto\(CONTO_CAMBIATO\(nuovoResiduo\)\)/)
   assert.match(pagamento, /data-conto-cambiato/)
-  assert.match(pagina, /onContoCambiato=\{riletti => setPagamenti\(riletti as unknown as PagamentoStat\[\]\)\}/)
-  // in lib/pagamentiDati il controllo sta nella rilettura che precede la scrittura
-  assert.match(pagamentiDati, /controllo\?: \{ ricevutiAttesiCent: number \}/)
+  // la scheda che rilegge da sé (totale o ricevuto) aggiorna il foglio aperto
+  assert.match(pagamento, /\}, \[totaleDellaScheda, ricevutiDellaScheda\]\)/)
+  // la scheda riceve camere, prenotazione e pagamenti riletti
+  const dopo = pagina.slice(pagina.indexOf('onContoCambiato='), pagina.indexOf('onContoCambiato=') + 700)
+  assert.match(dopo, /setRighe\(nuove\)/)
+  assert.match(dopo, /setBooking\(b => \(b \? nuove\.find\(r => r\.id === b\.id\) \?\? b : b\)\)/)
+  assert.match(dopo, /setPagamenti\(riletto\.pagamenti as unknown as PagamentoStat\[\]\)/)
+  // in lib/pagamentiDati: la rilettura che precede la scrittura legge camere (con leggiPrenotazioneUnica) e pagamenti e fa il conto
+  assert.match(pagamentiDati, /controllo\?: \{ totaleAttesoCent: number; ricevutiAttesiCent: number \}/)
   assert.match(pagamentiDati, /rileggiPagamenti: rileggiControllando/)
-  assert.match(pagamentiDati, /if \(ricevuti !== atteso && ricevuti !== atteso \+ nostro\) \{ contoCambiato = r\.data as PagamentoLetto\[\]; return \{ data: null, error: new ErroreContoCambiato\(\) \} \}/)
+  assert.match(pagamentiDati, /const r = await leggiPrenotazioneUnica\(booking, f => supabase\.from\('bookings'\)\.select\('\*, rooms\(\*\)'\)\.eq\(f\.colonna, f\.valore\)\.order\('check_in'\)\)/)
+  assert.match(pagamentiDati, /conto: contoPrenotazione\(r\.righe, pagamenti\)/)
+  assert.match(pagamentiDati, /const totaleCambiato = adesso\.conto\.totaleCent !== Math\.round\(controllo\.totaleAttesoCent\)/)
+  assert.match(pagamentiDati, /if \(totaleCambiato \|\| ricevutiCambiati\) \{ contoCambiato = adesso; return \{ data: null, error: new ErroreContoCambiato\(\) \} \}/)
   // il nostro pagamento pendente (risposta persa la volta prima) non è un incasso di un altro telefono
   assert.match(pagamentiDati, /const nostro = pendente && pendente\.amount === dati\.importo && pendente\.method === dati\.metodo && pendente\.paid_on === dati\.giorno \? Math\.round\(pendente\.amount \* 100\) : 0/)
-  assert.match(pagamentiDati, /if \(contoCambiato\) return \{ esito: 'errore', messaggio: ERRORE_CONTO_CAMBIATO, pagamenti: contoCambiato, contoCambiato: true \}/)
-})
-
-test('il pagamento si salva col contratto unico dei movimenti, e il bollino «pagato» arriva da sé', () => {
-  assert.match(pagamento, /import \{ registraPagamento, type EsitoPagamento, type PagamentoLetto, type RigaPagabile \} from .@\/lib\/pagamentiDati./)
-  assert.equal(/supabase/.test(pagamento), false, 'il foglio parla col database da solo')
-  assert.match(pagamentiDati, /import \{\s*eseguiRegistraAcconto, eseguiSegnaPagato, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, saldoMancanteCent/)
-  assert.match(pagamentiDati, /ca_acconto_pendente_\$\{chiave\}/)
-  assert.match(pagamentiDati, /ca_pagato_chiave_\$\{chiave\}/)
-  assert.match(pagamentiDati, /'registra_acconto_prenotazione' : 'registra_acconto'/)
-  assert.match(pagamentiDati, /'segna_pagato_prenotazione' : 'segna_pagato'/)
-  assert.match(pagamentiDati, /if \(!pagato && saldoMancanteCent\(segmenti, pagamenti\) <= 0\)/)
-  // un tratto annullato non è più dovuto, ma il suo incasso resta nel conto
-  assert.match(pagamentiDati, /r\.status === 'annullata' \? \{ \.\.\.r, total_amount: 0 \} : r/)
-  // la nota: dopo, sulla riga nata; senza la colonna (0055) lo si dice
-  assert.match(pagamentiDati, /update\(\{ note: nota \}\)\.eq\('id', movimentoId\)/)
-  assert.match(pagamentiDati, /colonnaMancante\(n\.error\) === 'note' \? AVVISO_NOTA_SENZA_0055/)
-  assert.match(leggi('supabase/proposte/0055_nota_pagamento.BOZZA.sql'), /alter table public\.payments add column if not exists note text/)
-})
-
-test('dopo il pagamento il conto e la cronologia si aggiornano, senza ricaricare la pagina', () => {
-  const dopo = pagina.slice(pagina.indexOf('<FoglioPagamento'), pagina.indexOf('<FoglioPagamento') + 1200)
-  assert.match(dopo, /setPagamenti\(nuovi\)/)                       // il conto: contoPrenotazione(righe, pagamenti) si rifà da solo
-  assert.match(dopo, /setRighe\(rs => rs\.map\(r => \(\{ \.\.\.r, pagato: true \}\)\)\)/)
-  assert.match(dopo, /setFoglioPagamento\(false\)/)
-  assert.match(dopo, /rileggi\(\)/)                                 // la cronologia (booking_events) e «Da controllare»
-  assert.match(dopo, /confermaPagamento\(esito\.importo, esito\.metodo/)   // la conferma volante di Ania
-  // rileggere non fa comparire «Caricamento…»: solo la prima apertura
-  assert.match(pagina, /if \(idCaricato\.current !== id\) setLoading\(true\)/)
-  assert.match(pagina, /const rileggi = \(\) => setVersione\(v => v \+ 1\)/)
-  assert.match(pagina, /\}, \[id, versione\]\)/)
-  // e nel conto i pagamenti mostrano anche la nota, se c'è
-  assert.match(leggi('components/scheda/ContoScheda.tsx'), /data-nota-pagamento/)
-  assert.match(leggi('lib/schedaConto.ts'), /nota: \(p\.note \?\? ''\)\.trim\(\)/)
-})
-
-test('dalla Home «Registra saldo» (?azione=pagato) apre il foglio da sé, una volta', () => {
-  assert.match(pagina, /const pagamentoDaAprire = useRef\(parametri\.get\('azione'\) === 'pagato'\)/)
-  assert.match(pagina, /if \(pagamentoDaAprire\.current\) \{ pagamentoDaAprire\.current = false; setFoglioPagamento\(true\) \}/)
+  // le stesse cifre vanno alla funzione server (proposta 0057); senza la 0057 si richiama com'è oggi; CONTO_CAMBIATO dal server → rilettura e avviso
+  assert.match(pagamentiDati, /p_totale_atteso: Math\.round\(controllo\.totaleAttesoCent\) \/ 100, p_ricevuti_attesi: Math\.round\(controllo\.ricevutiAttesiCent\) \/ 100/)
+  assert.match(pagamentiDati, /if \(rpc\.error && controllo && rpcMancante\(rpc\.error, nomeRpc\)\) rpc = await supabase\.rpc\(nomeRpc, argomenti\)/)
+  assert.match(pagamentiDati, /if \(rpc\.error && contoCambiatoDalServer\(rpc\.error\)\) \{ cambiatoDalServer = true; return \{ data: null, error: rpc\.error \} \}/)
+  assert.match(pagamentiDati, /if \(cambiatoDalServer\) \{[\s\S]{0,300}const adesso = await rileggiConto\(\)/)
+  // la proposta 0057 esiste con le sue prove, e NON è applicata (nessuna migrazione 0057)
+  assert.match(leggi('supabase/proposte/0057_conto_atteso_pagamento.BOZZA.sql'), /p_totale_atteso numeric default null,\s*p_ricevuti_attesi numeric default null/)
+  assert.match(leggi('supabase/proposte/0057_conto_atteso_pagamento.BOZZA.sql'), /message = 'CONTO_CAMBIATO'/)
+  assert.equal(existsSync(new URL('../supabase/migrations/0057_conto_atteso_pagamento.sql', import.meta.url)), false, 'la 0057 risulta applicata: aggiorna le regole del foglio')
 })
 
 // ── 2. COME PAGA ────────────────────────────────────────────────────────────

@@ -708,7 +708,13 @@ export default function SchedaPage() {
       {foglioPagamento && conto && (
         <FoglioPagamento booking={booking} righe={righe} conto={conto} oggi={oggi} bonifico={accordo?.bonifico}
           onChiudi={() => setFoglioPagamento(false)}
-          onContoCambiato={riletti => setPagamenti(riletti as unknown as PagamentoStat[])}
+          onContoCambiato={riletto => {
+            // il conto riletto dal foglio (camere, totale, pagamenti): la scheda lo mostra subito, come dopo una rilettura sua
+            const nuove = (riletto.righe as Prenotazione[]).map(r => ({ ...r, guests: r.guests ?? booking.guests, guest_name: r.guest_name ?? booking.guest_name }))
+            setRighe(nuove)
+            setBooking(b => (b ? nuove.find(r => r.id === b.id) ?? b : b))
+            setPagamenti(riletto.pagamenti as unknown as PagamentoStat[])
+          }}
           onSalvato={(esito: PagamentoSalvato) => {
             // prima quello che si è appena salvato, poi la rilettura in silenzio
             // (cronologia, «Da controllare» e il bollino «pagato» dal server)
