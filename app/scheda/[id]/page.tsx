@@ -74,7 +74,6 @@ import { SCONTO_SALVATO, SCONTO_TOLTO } from '@/lib/scontoScheda'
 import { PAGAMENTO_TOLTO } from '@/lib/pagamentoFoglio'
 import { PRENOTAZIONE_ANNULLATA } from '@/lib/annullamento'
 import ConfermaVolante from '@/components/ConfermaVolante'
-import AdessoScheda from '@/components/scheda/AdessoScheda'
 import { supabase } from '@/lib/supabase'
 import { leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, chiavePrenotazione, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import {
@@ -519,10 +518,6 @@ export default function SchedaPage() {
   const conLei = personeConLei(booking)
 
   // ── CRONOLOGIA ───────────────────────────────────────────────────────────
-  // «Adesso» si vede finché la conferma non è partita e la cliente non è
-  // ancora andata via: appena mandata, sparisce da sé.
-  const daFare = messaggiInviati.every(m => m.message_type !== 'conferma') && ultimaPartenza > oggi && booking?.status !== 'annullata'
-
   const storia = useMemo(
     () => righeStoria(eventi, messaggiInviati, booking?.created_at ?? null),
     [eventi, messaggiInviati, booking],
@@ -589,13 +584,8 @@ export default function SchedaPage() {
 
       <FasciaSezioni voci={SEZIONI_SCHEDA} className="mt-[22px]" top="top-12 lg:top-0" spaziatura={0.6} />
 
-      {/* ── Adesso: la conferma da mandare ────────────────────────────────── */}
-      {daFare && waNumero && (
-        <AdessoScheda className="pt-[34px]"
-          onConfermaImmagine={() => setConfermaAperta(true)}
-          hrefBonifico={accordo?.bonifico ? hrefMessaggio('dati_bonifico') : null}
-          onBonifico={apriMessaggio('dati_bonifico')} />
-      )}
+      {/* La sezione «Adesso» (conferma da mandare) non c'è più (Ania, 20/09/2026):
+          conferma e dati bonifico stanno in «Messaggi». */}
 
       {/* ── Da controllare ────────────────────────────────────────────────── */}
       <section id="controllare" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">

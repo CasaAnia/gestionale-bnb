@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { parametriInserimento } from './nuovaPrenotazione.ts'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import {
   dataDiOggi, volteInParole, rigaClienteTrovato, camereDelPeriodo, rigaCamereLibere,
   ospitiPossibiliNotte, ospitiDellaNotte, listinoLetto, raggruppaPerCamera, datiLinea, nottiDellaLinea,
@@ -382,7 +382,6 @@ test('il salvataggio scrive le righe di sempre e apre la scheda nuova', () => {
 
 // ── 6. DOPO IL SALVATAGGIO ─────────────────────────────────────────────────
 const scheda = readFileSync(new URL('../app/scheda/[id]/page.tsx', import.meta.url), 'utf8')
-const adesso = readFileSync(new URL('../components/scheda/AdessoScheda.tsx', import.meta.url), 'utf8')
 
 test('il totale di ogni riga si salva già scontato', () => {
   // due camere, 200 e 100, sconto del 10%: 180 e 90
@@ -405,15 +404,13 @@ test('la scheda saluta la prenotazione appena salvata e poi smette', () => {
   assert.match(scheda, /background: FONDO_SALVATA/)
 })
 
-test('«Adesso» sta sotto la fascia e sparisce quando la conferma è partita', () => {
-  assert.match(adesso, /export const TITOLO_ADESSO = 'Adesso'/)
-  assert.match(adesso, /\{TESTO_CONFERMA_IMMAGINE\}/)
-  assert.match(adesso, /export const DATI_BONIFICO = 'Dati bonifico'/)
-  assert.match(scheda, /const daFare = messaggiInviati\.every\(m => m\.message_type !== 'conferma'\) && ultimaPartenza > oggi/)
-  // i dati del bonifico solo quando un bonifico è davvero atteso
-  assert.match(scheda, /hrefBonifico=\{accordo\?\.bonifico \? hrefMessaggio\('dati_bonifico'\) : null\}/)
-  // e sta prima di «Da controllare»
-  assert.ok(scheda.indexOf('<AdessoScheda') < scheda.indexOf('id="controllare"'))
+test('la sezione «Adesso» non c’è più: conferma e dati bonifico stanno in «Messaggi» (Ania, 20/09/2026)', () => {
+  assert.doesNotMatch(scheda, /AdessoScheda/, 'la scheda non deve più montare «Adesso»')
+  assert.equal(existsSync(new URL('../components/scheda/AdessoScheda.tsx', import.meta.url)), false, 'il componente «Adesso» va tolto, non lasciato lì')
+  const messaggi = readFileSync(new URL('../components/scheda/MessaggiScheda.tsx', import.meta.url), 'utf8')
+  assert.match(messaggi, /data-conferma-immagine/, 'la conferma con immagine resta in «Messaggi»')
+  // la fascia delle sezioni è seguita subito da «Da controllare»
+  assert.match(scheda, /<FasciaSezioni voci=\{SEZIONI_SCHEDA\}[^\n]*\n\n\s*\{\/\* La sezione «Adesso»[\s\S]{0,200}<section id="controllare"/)
 })
 
 // ── La correzione dei soldi, anche nella pagina di adesso ──────────────────
