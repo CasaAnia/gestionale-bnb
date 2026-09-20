@@ -34,9 +34,13 @@ import {
   type ModoPagamento, type ModoImporto,
 } from '@/lib/pagamentoFoglio'
 import { euroScheda } from '@/lib/schedaPrenotazione'
-import { registraPagamento, type ContoRiletto, type EsitoPagamento, type RigaPagabile } from '@/lib/pagamentiDati'
+import {
+  registraPagamento, verificaPagamento, tentativoIncerto, type ContoRiletto, type EsitoPagamento, type RigaPagabile, type TentativoIncerto,
+  COMANDO_VERIFICA_PAGAMENTO, PAGAMENTO_NON_TROVATO, TENTATIVO_IN_SOSPESO, MESSAGGIO_ESITO_INCERTO,
+} from '@/lib/pagamentiDati'
+import { dataConGiorno } from '@/lib/dateItaliane'
 
-export type PagamentoSalvato = Extract<EsitoPagamento, { esito: 'ok' }> & { importo: number; metodo: ModoPagamento }
+export type PagamentoSalvato = Extract<EsitoPagamento, { esito: 'ok' }> & { importo: number; metodo: ModoPagamento; ritrovato?: boolean }
 
 /** Il conto autorevole della scheda: le tre cifre di contoPrenotazione */
 export type ContoFoglio = { totaleCent: number; ricevutiCent: number }
@@ -79,6 +83,12 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   const [salvando, setSalvando] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [avvisoConto, setAvvisoConto] = useState<string | null>(null)
+  // Il tentativo incerto (rilievo 3): la scrittura è partita e la risposta
+  // non è arrivata. Resta custodito sul telefono e si ritrova anche
+  // riaprendo il foglio: finché non si verifica, non si registra altro.
+  const [incerto, setIncerto] = useState<TentativoIncerto | null>(() => tentativoIncerto(booking))
+  const [esitoVerifica, setEsitoVerifica] = useState<string | null>(null)
+  const [verificando, setVerificando] = useState(false)
   const campoImporto = useRef<HTMLInputElement>(null)
   const daFocalizzare = useRef(false)
   // Il freno contro il doppio clic dev'essere SINCRONO: lo stato `salvando`
@@ -146,6 +156,11 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
       setSalvando(false)
     }
     if (esito.esito === 'errore') {
+      if (esito.incerto) {
+        setIncerto(esito.incerto)
+        setErrore(esito.messaggio)
+        return
+      }
       if (esito.contoCambiato) {
         // il conto riletto (camere, totale, pagamenti) è diverso da quello mostrato:
         // niente scritto, le cifre si aggiornano qui e nella scheda, si ricontrolla
@@ -157,6 +172,23 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
       return
     }
     onSalvato({ ...esito, importo: cent / 100, metodo })
+  }
+
+  async function verifica() {
+    if (verificando || inCorso.current) return
+    setVerificando(true)
+    setErrore(null)
+    setEsitoVerifica(null)
+    let esito: Awaited<ReturnType<typeof verificaPagamento>>
+    try { esito = await verificaPagamento(booking, righe) } finally { setVerificando(false) }
+    if (esito.esito === 'ritrovato') {
+      onSalvato({ esito: 'ok', pagamenti: esito.pagamenti, pagato: esito.pagato, avviso: esito.avviso, importo: esito.tentativo.importo, metodo: (esito.tentativo.metodo === 'bonifico' ? 'bonifico' : 'contanti'), ritrovato: true })
+      return
+    }
+    if (esito.esito === 'errore') { setErrore(esito.messaggio); return }
+    // non trovato (o nessun tentativo): si può salvare; il tentativo uguale riusa la sua chiave
+    setIncerto(null)
+    setEsitoVerifica(PAGAMENTO_NON_TROVATO)
   }
 
   const tasto = (scelto: boolean, spento = false): CSSProperties => ({
@@ -212,9 +244,20 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
           {importoScrittoMale && <p data-errore-importo style={{ marginTop: 8, fontSize: 13, color: ERRORE }}>{ERRORE_IMPORTO}</p>}
           {avvisoConto && <p data-conto-cambiato style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: MATTONE }}>{avvisoConto}</p>}
         </div>
-        {errore && <AvvisoAzione testo={errore} className="mt-3" />}
+        {errore && errore !== MESSAGGIO_ESITO_INCERTO && <AvvisoAzione testo={errore} className="mt-3" />}
+        {incerto && (
+          <div data-tentativo-incerto role="alert" style={{ marginTop: 14, padding: '12px 0 0', borderTop: `1px solid ${FILO_RESIDUO}` }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: MATTONE }}>
+              {errore === MESSAGGIO_ESITO_INCERTO ? MESSAGGIO_ESITO_INCERTO : TENTATIVO_IN_SOSPESO(euroScheda(Math.round(incerto.importo * 100)), incerto.metodo, dataConGiorno(incerto.giorno))}
+            </p>
+            {errore === MESSAGGIO_ESITO_INCERTO && <p style={{ ...SPIEGA, marginTop: 4 }}>{TENTATIVO_IN_SOSPESO(euroScheda(Math.round(incerto.importo * 100)), incerto.metodo, dataConGiorno(incerto.giorno))}</p>}
+            <button type="button" data-verifica-pagamento onClick={verifica} disabled={verificando} data-senza-sottolinea
+              style={{ ...tasto(true), width: '100%', marginTop: 10, opacity: verificando ? 0.5 : 1 }}>{verificando ? 'Controllo…' : COMANDO_VERIFICA_PAGAMENTO}</button>
+          </div>
+        )}
+        {esitoVerifica && <p data-esito-verifica style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: TESTO }}>{esitoVerifica}</p>}
 
-        <PiedeFoglio azione={SALVA_PAGAMENTO} onAzione={salva} salvando={salvando} disabilitato={cent == null} onAnnulla={onChiudi} dati="pagamento" />
+        <PiedeFoglio azione={SALVA_PAGAMENTO} onAzione={salva} salvando={salvando} disabilitato={cent == null || !!incerto} onAnnulla={onChiudi} dati="pagamento" />
       </div>
     </Foglio>
   )

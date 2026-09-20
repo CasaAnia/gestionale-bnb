@@ -113,7 +113,7 @@ test('il pagamento (disegno approvato il 20/09/2026, punto 5): residuo in cima, 
   assert.match(pagamento, /data-oltre-il-dovuto[\s\S]{0,120}color: MATTONE/)
   assert.match(pagamento, /data-errore-importo[\s\S]{0,80}\{ERRORE_IMPORTO\}/)
   // senza importo valido non si salva: il tasto è spento (e oltre il dovuto NON si blocca)
-  assert.match(pagamento, /<PiedeFoglio azione=\{SALVA_PAGAMENTO\} onAzione=\{salva\} salvando=\{salvando\} disabilitato=\{cent == null\}/)
+  assert.match(pagamento, /<PiedeFoglio azione=\{SALVA_PAGAMENTO\} onAzione=\{salva\} salvando=\{salvando\} disabilitato=\{cent == null \|\| !!incerto\}/)
   assert.equal(/oltre[^\n]*return/.test(pagamento), false, 'il foglio blocca l’importo oltre il dovuto')
   assert.match(foglio, /disabled=\{salvando \|\| disabilitato\}/)
   assert.match(foglio, /data-annulla-foglio onClick=\{onAnnulla\} disabled=\{salvando\}/)   // «Annulla» resta viva
@@ -164,6 +164,38 @@ test('il conto cambiato mentre il foglio è aperto (punto 5): si rilegge TUTTO i
   assert.match(leggi('supabase/proposte/0057_conto_atteso_pagamento.BOZZA.sql'), /p_totale_atteso numeric default null,\s*p_ricevuti_attesi numeric default null/)
   assert.match(leggi('supabase/proposte/0057_conto_atteso_pagamento.BOZZA.sql'), /message = 'CONTO_CAMBIATO'/)
   assert.equal(existsSync(new URL('../supabase/migrations/0057_conto_atteso_pagamento.sql', import.meta.url)), false, 'la 0057 risulta applicata: aggiorna le regole del foglio')
+})
+
+test('rilievo 3 (20/09/2026 notte): tre esiti, tre messaggi; «Verifica pagamento» controlla e non scrive; il tentativo incerto si ritrova riaprendo il foglio', () => {
+  // i tre testi
+  assert.equal(/MESSAGGIO_ESITO_INCERTO = 'Non riesco a confermare se il pagamento è stato registrato\. Premi “Verifica pagamento” per controllare senza registrarlo due volte\.'/.test(pagamentiDati), true)
+  assert.match(pagamentiDati, /COMANDO_VERIFICA_PAGAMENTO = 'Verifica pagamento'/)
+  assert.match(pagamentiDati, /PAGAMENTO_NON_TROVATO = 'Il pagamento non risulta registrato: puoi salvarlo adesso\.'/)
+  assert.match(leggi('lib/confermaPagamento.ts'), /ritrovato \? 'Ritrovati e confermati' : 'Registrati'/)
+  // errore certo = codice del database o di PostgREST (classi 08 e 57P escluse); tutto il resto è incerto
+  assert.match(pagamentiDati, /export function errorePerCerto\(e: unknown\): boolean \{\s*if \(e instanceof ErroreRispostaMalformata\) return false/)
+  assert.match(pagamentiDati, /if \(\/\^PGRST\\d\+\$\/\.test\(code\)\) return true/)
+  assert.match(pagamentiDati, /return !\/\^\(08\|57P\)\/\.test\(code\)/)
+  // l'esito incerto conserva il tentativo (chiave, dati e nota nella custodia) invece di dire «non salvato»
+  assert.match(pagamentiDati, /custodisci: p => scriviMemoria\(\(\) => localStorage, chiaveMemoria, JSON\.stringify\(\{ \.\.\.p, nota: dati\.nota \}\)\)/)
+  assert.match(pagamentiDati, /if \(esito\.fase === 'movimento' && !errorePerCerto\(erroreScrittura\)\) \{\s*const t = tentativoIncerto\(booking\)\s*if \(t\) return \{ esito: 'errore', messaggio: MESSAGGIO_ESITO_INCERTO, pagamenti: [^\n]*, incerto: t \}/)
+  // mancato salvataggio accertato: il tentativo NON resta custodito (riaprendo non deve sembrare incerto)
+  assert.match(pagamentiDati, /if \(esito\.fase === 'movimento'\) \{ try \{ localStorage\.removeItem\(chiaveMemoria\) \}/)
+  // «Verifica pagamento»: rilegge e cerca il tentativo (pendenteApplicato del contratto); mai una scrittura di movimenti
+  const verifica = pagamentiDati.slice(pagamentiDati.indexOf('export async function verificaPagamento'), pagamentiDati.indexOf('// «Segna come pagato» — contratto unico'))
+  assert.match(verifica, /const trovato = pendenteApplicato\(pendente, riletti\.data as PagamentoStat\[\]\)/)
+  assert.match(verifica, /if \(!trovato\) return \{ esito: 'non_trovato', pagamenti: riletti\.data, tentativo: t \}/)
+  assert.equal(/\.rpc\(|\.insert\(/.test(verifica), false, 'la verifica scrive')
+  assert.match(verifica, /completaDopoMovimento\(booking, righe, \{ metodo: t\.metodo as MetodoPagamento, giorno: t\.giorno, nota: t\.nota \}/)   // nota, bollino, rilettura come dopo un salvataggio
+  // nel foglio: il tentativo si legge all'apertura, il tasto verifica, Salva spento finché c'è un tentativo
+  assert.match(pagamento, /useState<TentativoIncerto \| null>\(\(\) => tentativoIncerto\(booking\)\)/)
+  assert.match(pagamento, /if \(esito\.incerto\) \{\s*setIncerto\(esito\.incerto\)\s*setErrore\(esito\.messaggio\)\s*return\s*\}/)
+  assert.match(pagamento, /data-verifica-pagamento onClick=\{verifica\} disabled=\{verificando\}/)
+  assert.match(pagamento, /if \(esito\.esito === 'ritrovato'\) \{[\s\S]{0,400}ritrovato: true \}\)/)
+  assert.match(pagina, /confermaPagamento\(esito\.importo, esito\.metodo, saldoMancanteCent\(righePerSaldo\(righe\), nuovi\), !!esito\.ritrovato\)/)
+  // il bollino «pagato» dice al server il mancante atteso (0): una camera aggiunta nel frattempo non fa nascere un saldo inventato
+  assert.match(pagamentiDati, /let rpc = await supabase\.rpc\(nomeRpc, \{ \.\.\.argomenti, p_mancante_atteso: 0 \}\)/)
+  assert.match(pagamentiDati, /bollinoContoCambiato = true/)
 })
 
 // ── 2. COME PAGA ────────────────────────────────────────────────────────────

@@ -9,6 +9,8 @@ test('conferma pagamento: due righe — quanto e come, poi quanto resta', () => 
   // il totale) non scrive un resto in meno: il soggiorno è comunque coperto
   assert.deepEqual(confermaPagamento(62.5, 'contanti', 9750), { prima: 'Registrati 62,50 € in contanti', seconda: 'restano da avere 97,50 €' })
   assert.equal(confermaPagamento(200, 'contanti', -500).seconda, 'soggiorno saldato')
+  // ritrovato dopo una risposta persa (rilievo 3, 20/09/2026)
+  assert.deepEqual(confermaPagamento(100, 'bonifico', 17000, true), { prima: 'Ritrovati e confermati 100 € con bonifico', seconda: 'restano da avere 170 €' })
 })
 
 test('importi scritti all\'italiana', () => {

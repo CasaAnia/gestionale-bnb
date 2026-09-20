@@ -534,6 +534,10 @@ let errorePagamentoRpc = null
 //   GET /finto/senza-0057?on=1|0                            la firma con le cifre attese non esiste (PGRST202): l'app richiama senza
 let pagamentoDuranteRpc = null
 let senza0057 = false
+//   GET /finto/camera-durante-rpc?prenotazione_id=…&room_id=…&total_amount=…  alla PROSSIMA registrazione aggiunge una
+//                                                          camera alla prenotazione SUBITO DOPO aver scritto il movimento
+//                                                          (fra l'acconto e il bollino: il caso del saldo inventato)
+let cameraDuranteRpc = null
 function leggiCorpo(req) {
   return new Promise(resolve => { let t = ''; req.on('data', c => { t += c }); req.on('end', () => { try { resolve(t ? JSON.parse(t) : null) } catch { resolve(null) } }) })
 }
@@ -565,7 +569,8 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/finto/spese-503') { spese503 = url.searchParams.get('on') === '1'; return rispondi(res, 200, { spese503 }) }
   if (url.pathname === '/finto/spese') return rispondi(res, 200, family_expenses)
   if (url.pathname === '/finto/errore-pagamenti') { errorePagamenti = url.searchParams.get('on') === '1'; return rispondi(res, 200, { errorePagamenti }) }
-  if (url.pathname === '/finto/errore-pagamento') { const modo = url.searchParams.get('modo'); errorePagamentoRpc = modo === 'errore' || modo === 'persa' ? modo : null; return rispondi(res, 200, { errorePagamentoRpc }) }
+  // modo=caduta: la connessione cade PRIMA di scrivere (503 senza codice): esito incerto per l'app, ma niente registrato
+  if (url.pathname === '/finto/errore-pagamento') { const modo = url.searchParams.get('modo'); errorePagamentoRpc = ['errore', 'persa', 'caduta'].includes(modo) ? modo : null; return rispondi(res, 200, { errorePagamentoRpc }) }
   if (url.pathname === '/finto/totale-esterno') {
     const b = bookings.find(x => x.id === url.searchParams.get('booking_id')), total_amount = Number(url.searchParams.get('total_amount'))
     if (!b || !(total_amount >= 0)) return rispondi(res, 400, { message: 'booking_id o total_amount mancante' })
@@ -576,6 +581,10 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/finto/pagamento-durante-rpc') {
     pagamentoDuranteRpc = { booking_id: url.searchParams.get('booking_id'), amount: Number(url.searchParams.get('amount')) }
     return rispondi(res, 200, { pagamentoDuranteRpc })
+  }
+  if (url.pathname === '/finto/camera-durante-rpc') {
+    cameraDuranteRpc = { prenotazione_id: url.searchParams.get('prenotazione_id'), room_id: url.searchParams.get('room_id'), total_amount: Number(url.searchParams.get('total_amount') || 160) }
+    return rispondi(res, 200, { cameraDuranteRpc })
   }
   if (url.pathname === '/finto/senza-0057') { senza0057 = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senza0057 }) }
   if (url.pathname === '/finto/pagamento-esterno') {
@@ -658,11 +667,17 @@ const finto = createServer((req, res) => {
   }
   const soggiornoDi = b => b.prenotazione_id || b.group_id || b.id
   const righeSoggiorno = soggiorno => bookings.filter(b => soggiornoDi(b) === soggiorno)
-  if (rpc && rpc[1] === 'registra_acconto_prenotazione' && req.method === 'POST') {
+  if (rpc && (rpc[1] === 'registra_acconto_prenotazione' || rpc[1] === 'registra_acconto') && req.method === 'POST') {
     return leggiCorpo(req).then(corpo => {
       const modoGuasto = errorePagamentoRpc
       errorePagamentoRpc = null
-      if (modoGuasto === 'errore') { console.log('[finto supabase] RPC registra_acconto_prenotazione: errore simulato, niente scritto'); return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla registrazione del pagamento' }) }
+      // il wrapper delle pagine vecchie si ferma sulle camere parallele (0049)
+      if (rpc[1] === 'registra_acconto') {
+        const b0 = bookings.find(x => x.id === corpo?.p_booking_id)
+        if (b0 && new Set(righeSoggiorno(soggiornoDi(b0)).map(r => r.group_id || r.id)).size > 1) return rispondi(res, 400, { code: 'P0001', message: 'PAGINA_DA_AGGIORNARE: apri la scheda aggiornata per il conto di tutte le camere' })
+      }
+      if (modoGuasto === 'errore') { console.log(`[finto supabase] RPC ${rpc[1]}: errore simulato (certo, P0001), niente scritto`); return rispondi(res, 400, { code: 'P0001', message: 'ERRORE_SIMULATO: la registrazione del pagamento è stata rifiutata', details: null, hint: null }) }
+      if (modoGuasto === 'caduta') { console.log(`[finto supabase] RPC ${rpc[1]}: connessione caduta PRIMA di scrivere (503), niente scritto`); return rispondi(res, 503, { message: 'upstream connect error' }) }
       const b = bookings.find(x => x.id === corpo?.p_booking_id)
       if (!b) return rispondi(res, 400, { code: 'P0001', message: 'PRENOTAZIONE_NON_TROVATA' })
       if (!['confermata', 'completata'].includes(b.status)) return rispondi(res, 400, { code: 'P0001', message: 'PRENOTAZIONE_NON_MODIFICABILE' })
@@ -672,8 +687,8 @@ const finto = createServer((req, res) => {
       const soggiorno = soggiornoDi(b)
       const conAttesi = 'p_totale_atteso' in corpo || 'p_ricevuti_attesi' in corpo
       if (conAttesi && senza0057) {
-        console.log('[finto supabase] RPC registra_acconto_prenotazione con le cifre attese: 0057 non applicata (PGRST202)')
-        return rispondi(res, 404, { code: 'PGRST202', message: 'Could not find the function public.registra_acconto_prenotazione(p_amount, p_booking_id, p_chiave, p_metodo, p_paid_on, p_ricevuti_attesi, p_totale_atteso) in the schema cache', details: null, hint: null })
+        console.log(`[finto supabase] RPC ${rpc[1]} con le cifre attese: 0057 non applicata (PGRST202)`)
+        return rispondi(res, 404, { code: 'PGRST202', message: `Could not find the function public.${rpc[1]}(p_amount, p_booking_id, p_chiave, p_metodo, p_paid_on, p_ricevuti_attesi, p_totale_atteso) in the schema cache`, details: null, hint: null })
       }
       const esistente = payments.find(p => p.chiave_operazione === corpo.p_chiave)
       if (esistente) {
@@ -700,16 +715,23 @@ const finto = createServer((req, res) => {
       }
       const nuovo = { id: randomUUID(), booking_id: b.id, amount, method: corpo.p_metodo || 'contanti', paid_on: corpo.p_paid_on, chiave_operazione: corpo.p_chiave, soggiorno, created_at: new Date().toISOString() }
       payments.push(nuovo)
-      console.log(`[finto supabase] RPC registra_acconto_prenotazione ← ${amount} ${nuovo.method} ${nuovo.paid_on} su ${b.id.slice(-4)}${modoGuasto === 'persa' ? ' — RISPOSTA PERSA' : ''}`)
+      if (cameraDuranteRpc) {
+        const c = cameraDuranteRpc; cameraDuranteRpc = null
+        const prima = bookings.find(x => x.prenotazione_id === c.prenotazione_id) || b
+        bookings.push(prenotazione(c.room_id, prima.guest_id, prima.check_in, prima.check_out, 1, { prenotazione_id: c.prenotazione_id, group_id: null, price_per_night: c.total_amount, total_amount: c.total_amount }))
+        console.log(`[finto supabase] +1 CAMERA aggiunta subito dopo il movimento (${c.total_amount} € su prenotazione …${String(c.prenotazione_id).slice(-4)})`)
+      }
+      console.log(`[finto supabase] RPC ${rpc[1]} ← ${amount} ${nuovo.method} ${nuovo.paid_on} su ${b.id.slice(-4)}${modoGuasto === 'persa' ? ' — RISPOSTA PERSA' : ''}`)
       if (modoGuasto === 'persa') return rispondi(res, 503, { message: 'upstream connect error' })
       return rispondi(res, 200, { contratto: 'prenotazione_v1', movimento_id: nuovo.id, booking_id: b.id, importo: amount, soggiorno, gia_presente: false })
     })
   }
-  if (rpc && rpc[1] === 'segna_pagato_prenotazione' && req.method === 'POST') {
+  if (rpc && (rpc[1] === 'segna_pagato_prenotazione' || rpc[1] === 'segna_pagato') && req.method === 'POST') {
     return leggiCorpo(req).then(corpo => {
       const b = bookings.find(x => x.id === corpo?.p_booking_id)
       if (!b) return rispondi(res, 400, { code: 'P0001', message: 'PRENOTAZIONE_NON_TROVATA' })
       if (!corpo.p_chiave) return rispondi(res, 400, { code: 'P0001', message: 'CHIAVE_NULLA' })
+      if ('p_mancante_atteso' in corpo && senza0057) return rispondi(res, 404, { code: 'PGRST202', message: `Could not find the function public.${rpc[1]}(p_booking_id, p_chiave, p_mancante_atteso, p_metodo, p_paid_on) in the schema cache`, details: null, hint: null })
       const soggiorno = soggiornoDi(b)
       const vive = righeSoggiorno(soggiorno).filter(r => ['confermata', 'completata'].includes(r.status))
       const ids = new Set(righeSoggiorno(soggiorno).map(r => r.id))
@@ -717,6 +739,11 @@ const finto = createServer((req, res) => {
       const ricevuti = payments.filter(p => ids.has(p.booking_id)).reduce((s, p) => s + Math.round(Number(p.amount) * 100), 0)
       const mancante = Math.max(0, totale - ricevuti)
       let movimento = payments.find(p => p.chiave_operazione === corpo.p_chiave) || null
+      // il mancante atteso (0057): con un conto diverso niente saldo inventato e niente bollino
+      if (!movimento && corpo.p_mancante_atteso != null && mancante !== Math.round(Number(corpo.p_mancante_atteso) * 100)) {
+        console.log(`[finto supabase] RPC ${rpc[1]}: CONTO_CAMBIATO (mancante ${mancante / 100} atteso ${corpo.p_mancante_atteso})`)
+        return rispondi(res, 400, { code: 'P0001', message: 'CONTO_CAMBIATO', details: JSON.stringify({ totale: totale / 100, ricevuti: ricevuti / 100, mancante: mancante / 100, mancante_atteso: corpo.p_mancante_atteso }), hint: null })
+      }
       if (!movimento && mancante > 0) {
         movimento = { id: randomUUID(), booking_id: b.id, amount: mancante / 100, method: corpo.p_metodo || 'contanti', paid_on: corpo.p_paid_on, chiave_operazione: corpo.p_chiave, soggiorno, created_at: new Date().toISOString() }
         payments.push(movimento)

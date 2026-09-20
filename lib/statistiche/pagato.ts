@@ -161,7 +161,7 @@ const stessaRiga = (p: { amount: number; method: string; paid_on: string }, r: P
 
 // Un acconto pendente (chiave custodita, risposta persa) conta come applicato
 // se fra i riletti le righe uguali sono PIÙ di quante ce n'erano alla custodia
-function pendenteApplicato(p: AccontoPendente, riletti: (PagamentoStat & { method?: string })[]): PagamentoStat | null {
+export function pendenteApplicato(p: AccontoPendente, riletti: (PagamentoStat & { method?: string })[]): PagamentoStat | null {
   const uguali = riletti.filter(r => stessaRiga(p, r))
   return uguali.length > (p.giaPresenti ?? 0) ? uguali[uguali.length - 1] : null
 }

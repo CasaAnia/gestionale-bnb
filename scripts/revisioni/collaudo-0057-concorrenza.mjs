@@ -29,6 +29,22 @@
 //   6. compatibilità: chiamate a 5 argomenti, posizionali e con nome (come
 //      PostgREST), wrapper registra_acconto e segna_pagato_prenotazione
 //   7. accesso: anon senza EXECUTE sulla firma nuova; una sola firma
+//   8. (rilievo 1) prenotazioni SENZA prenotazione_id, via il wrapper
+//      registra_acconto: singola e legata da group_id, totale cambiato durante
+//      → CONTO_CAMBIATO, stessa chiave dall'altra camera → stesso movimento
+//   9. (rilievo 2) «Aggiungi camera» (INSERT bookings con prenotazione_id, come
+//      lo fa /nuova-prenotazione) e il pagamento: a) camera prima del conto →
+//      CONTO_CAMBIATO; b) pagamento prima, camera dopo, poi il bollino con
+//      mancante atteso 0 → CONTO_CAMBIATO senza saldo inventato (e la prova
+//      che SENZA il mancante atteso il server scriveva 160 € dal nulla);
+//      c) camera in corso (non confermata) mentre si registra: il trigger la
+//      mette in fila, poi CONTO_CAMBIATO; c') l'inverso, la camera aspetta il
+//      pagamento; d) la sequenza dell'app: acconto, camera, bollino → niente
+//      movimento inventato, niente bollino
+//  10. (rilievo 2) «Aggiungi camera» su una prenotazione VECCHIA: l'identità
+//      passa da group_id a prenotazione_id mentre un pagamento aspetta: la
+//      funzione rilegge l'identità sotto lock, scrive col soggiorno nuovo, e
+//      la stessa chiave ritentata lo ritrova
 // ============================================================================
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -194,6 +210,88 @@ async function main() {
     try { await registra(A, 1, 60, 5, 640, 0) } catch (e) { nonMembro = errore(e) }
     segna('7. una sola firma; anon senza EXECUTE, authenticated con; non membro rifiutato', firme === 1 && anon === false && auth === true && /Accesso non consentito/.test(nonMembro ?? ''),
       `firme ${firme}; anon ${anon}; authenticated ${auth}; non membro: ${nonMembro}`)
+    await A.query("set collaudo.membro = 'si'")   // reset lascerebbe la stringa vuota, non il default
+
+    // ── Rilievo 1: prenotazioni senza prenotazione_id (wrapper registra_acconto) ──
+    const seminaVecchia = async () => { await semina(admin); await admin.query(`update ${SCHEMA}.bookings set prenotazione_id = null`) }   // 1+2 legate da group_id 7 (340), 3 sola (300), 4 sola (500)
+    const wrap = (c, b, k, importo, totale, ricevuti) =>
+      c.query(`select ${SCHEMA}.registra_acconto($1,$2,$3::numeric,'contanti','2026-09-10',$4::numeric,$5::numeric) r`, [id(b), id(k), importo, totale, ricevuti]).then(x => x.rows[0].r)
+    await seminaVecchia()
+    await B.query('begin'); await B.query(`update ${SCHEMA}.bookings set total_amount = 100 where id = $1`, [id(2)])
+    const pA8 = wrap(A, 1, 80, 340, 340, 0).then(r => ({ r }), e => ({ e }))
+    await attesa(400)
+    const aAspetta8 = (await admin.query(`select count(*)::int n from pg_stat_activity where pid = $1 and wait_event_type = 'Lock'`, [a.rows[0].p])).rows[0].n === 1
+    await B.query('commit')
+    const esitoA8 = await pA8
+    const r8 = await wrap(A, 1, 81, 100, 260, 0)
+    const r8b = await wrap(B, 2, 81, 100, 260, 0)   // stessa chiave dall'altra camera del gruppo
+    const r8s = await wrap(A, 4, 82, 500, 500, 0)   // la singola
+    const m8 = await movimenti(admin)
+    segna('8. wrapper registra_acconto (group_id e singola): totale cambiato durante → CONTO_CAMBIATO; stessa chiave → stesso movimento',
+      aAspetta8 && !!esitoA8.e && /CONTO_CAMBIATO/.test(errore(esitoA8.e)) && Number(r8.importo) === 100 && r8b.movimento_id === r8.movimento_id && r8b.gia_presente === true && Number(r8s.importo) === 500 && m8.n === 2,
+      `A ha aspettato: ${aAspetta8}; esito: ${esitoA8.e ? errore(esitoA8.e) : 'scritto?!'}; poi 100 (gruppo) e 500 (singola), movimenti ${m8.n}`)
+
+    // ── Rilievo 2: «Aggiungi camera» = INSERT in bookings con prenotazione_id (come /nuova-prenotazione) ──
+    const camera = (c, n = 10, totale = 160) => c.query(`insert into ${SCHEMA}.bookings(id,guest_id,group_id,prenotazione_id,check_in,check_out,total_amount,status) values($1,$2,$3,$4,'2026-08-10','2026-08-12',$5,'confermata')`, [id(n), id(6), id(n + 20), id(8), totale])
+    const bollino = (c, b, k, mancante) => c.query(`select ${SCHEMA}.segna_pagato_prenotazione($1,$2,'contanti','2026-09-10',$3::numeric) r`, [id(b), id(k), mancante]).then(x => x.rows[0].r)
+    const stato = async () => {
+      const t = (await admin.query(`select coalesce(sum(total_amount),0)::numeric t from ${SCHEMA}.bookings where prenotazione_id = $1 and status in ('confermata','completata')`, [id(8)])).rows[0].t
+      const m = await movimenti(admin)
+      const f = (await admin.query(`select count(*)::int n from ${SCHEMA}.bookings where prenotazione_id = $1 and pagato`, [id(8)])).rows[0].n
+      return { totale: Number(t), ricevuti: Number(m.somma), movimenti: m.n, pagati: f }
+    }
+    // 9a. camera prima del conto
+    await semina(admin); await camera(B)
+    let e9a = null; try { await registra(A, 1, 90, 640, 640, 0) } catch (e) { e9a = errore(e) }
+    const ok9a = await registra(A, 1, 91, 800, 800, 0)
+    segna('9a. camera aggiunta PRIMA: le cifre vecchie → CONTO_CAMBIATO; con le nuove passa', /CONTO_CAMBIATO/.test(e9a ?? '') && Number(ok9a.importo) === 800, `${e9a}; poi ${ok9a.importo}`)
+    // 9b. pagamento prima, camera dopo, poi il bollino: col mancante atteso 0 niente saldo inventato; SENZA (com'era) il server scrive 160 dal nulla
+    await semina(admin); await registra(A, 1, 92, 640, 640, 0); await camera(B)
+    let e9b = null; try { await bollino(A, 1, 93, 0) } catch (e) { e9b = errore(e) }
+    const s9b = await stato()
+    const vecchio = await A.query(`select ${SCHEMA}.segna_pagato_prenotazione($1,$2,'contanti','2026-09-10') r`, [id(1), id(94)]).then(x => x.rows[0].r)
+    const s9bVecchio = await stato()
+    segna('9b. pagamento, poi camera, poi bollino con mancante atteso 0 → CONTO_CAMBIATO, 1 movimento, 0 bollini; senza il mancante atteso il server INVENTAVA 160 €',
+      /CONTO_CAMBIATO/.test(e9b ?? '') && s9b.movimenti === 1 && s9b.pagati === 0 && s9b.totale === 800 && Number(vecchio.importo) === 160 && s9bVecchio.movimenti === 2,
+      `con atteso: ${e9b}, stato ${JSON.stringify(s9b)}; senza atteso: movimento ${vecchio.importo}, stato ${JSON.stringify(s9bVecchio)}`)
+    // 9c. camera in corso (non confermata) mentre si registra: il trigger la mette in fila
+    await semina(admin)
+    await B.query('begin'); await camera(B)
+    const pA9c = registra(A, 1, 95, 640, 640, 0).then(r => ({ r }), e => ({ e }))
+    await attesa(400)
+    const aAspetta9c = (await admin.query(`select count(*)::int n from pg_stat_activity where pid = $1 and wait_event_type = 'Lock'`, [a.rows[0].p])).rows[0].n === 1
+    await B.query('commit')
+    const esitoA9c = await pA9c
+    const s9c = await stato()
+    segna('9c. camera in corso mentre si registra: la registrazione aspetta il trigger, poi CONTO_CAMBIATO, niente scritto', aAspetta9c && !!esitoA9c.e && /CONTO_CAMBIATO/.test(errore(esitoA9c.e)) && s9c.movimenti === 0 && s9c.totale === 800,
+      `A ha aspettato: ${aAspetta9c}; esito: ${esitoA9c.e ? errore(esitoA9c.e) : 'scritto?!'}; stato ${JSON.stringify(s9c)}`)
+    // 9c'. l'inverso: la registrazione ha il lock, la camera aspetta e arriva dopo
+    await semina(admin)
+    await A.query('begin'); const rA9 = await registra(A, 1, 96, 640, 640, 0)
+    const pB9 = camera(B).then(() => 'inserita', e => 'errore ' + errore(e))
+    await attesa(400)
+    const bAspetta9 = (await admin.query(`select count(*)::int n from pg_stat_activity where pid = $1 and wait_event_type = 'Lock'`, [b.rows[0].p])).rows[0].n === 1
+    await A.query('commit'); const esitoB9 = await pB9
+    let e9d = null; try { await bollino(A, 1, 97, 0) } catch (e) { e9d = errore(e) }   // la sequenza dell'app: acconto → (camera) → bollino
+    const s9d = await stato()
+    segna("9c'/9d. la camera aspetta il pagamento in corso; poi la sequenza dell'app (acconto → camera → bollino 0) non inventa niente e non mette bollini",
+      bAspetta9 && Number(rA9.importo) === 640 && esitoB9 === 'inserita' && /CONTO_CAMBIATO/.test(e9d ?? '') && s9d.movimenti === 1 && s9d.pagati === 0 && s9d.totale === 800 && s9d.ricevuti === 640,
+      `B ha aspettato: ${bAspetta9}; camera ${esitoB9}; bollino: ${e9d}; stato ${JSON.stringify(s9d)}`)
+
+    // ── Rilievo 2: l'identità che cambia (Aggiungi camera su una prenotazione vecchia) ──
+    await seminaVecchia()
+    await B.query('begin'); await B.query(`update ${SCHEMA}.bookings set prenotazione_id = $1 where group_id = $2`, [id(8), id(7)])   // il legame scritto dalla scheda, non ancora confermato
+    const pA10 = wrap(A, 1, 100, 340, 340, 0).then(r => ({ r }), e => ({ e }))
+    await attesa(400)
+    const aAspetta10 = (await admin.query(`select count(*)::int n from pg_stat_activity where pid = $1 and wait_event_type = 'Lock'`, [a.rows[0].p])).rows[0].n === 1
+    await B.query('commit')
+    const esitoA10 = await pA10
+    const di_nuovo = await registra(A, 2, 100, 340, 340, 0).then(r => ({ r }), e => ({ e }))   // stessa chiave, dall'identità nuova
+    const s10 = await stato()
+    const sogg = (await admin.query(`select soggiorno from ${SCHEMA}.payments`)).rows.map(r => r.soggiorno)
+    segna('10. identità che cambia (group_id → prenotazione_id) mentre un pagamento aspetta: rilettura sotto lock, scritto col soggiorno nuovo, stessa chiave ritrovata',
+      aAspetta10 && !!esitoA10.r && Number(esitoA10.r.importo) === 340 && esitoA10.r.soggiorno === id(8) && !!di_nuovo.r && di_nuovo.r.gia_presente === true && s10.movimenti === 1 && sogg[0] === id(8),
+      `A ha aspettato: ${aAspetta10}; esito: ${esitoA10.r ? `${esitoA10.r.importo} su soggiorno …${String(esitoA10.r.soggiorno).slice(-2)}` : errore(esitoA10.e)}; chiave ritentata: ${di_nuovo.r ? 'gia_presente ' + di_nuovo.r.gia_presente : errore(di_nuovo.e)}; movimenti ${s10.movimenti}`)
 
     await A.end(); await B.end()
   } finally {
