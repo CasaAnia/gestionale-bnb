@@ -3018,16 +3018,16 @@ export default function BookingDetail() {
             <p className={v.sotto}>Annulla prenotazione</p>
             <h2 className={v.titolo} style={{ fontSize: 24, marginTop: 4 }}>Perché la annulli?</h2>
             <label className={v.campoBlocco} style={{ marginTop: 10 }}>
-              <span className={v.campoEti}>Motivo dell&apos;annullamento</span>
-              <input value={cancelReason} onChange={e => setCancelReason(e.target.value)}
+              <span className={v.campoEti}>Motivo dell&apos;annullamento · obbligatorio</span>
+              <input value={cancelReason} onChange={e => setCancelReason(e.target.value)} required aria-required="true"
                 placeholder="es. il cliente ha disdetto" className={v.campo} style={{ borderBottom: '1px solid #C9BFA8' }} />
             </label>
-            <p className={v.nota} style={{ marginTop: 8 }}>Resta scritto: la prenotazione si vedrà ancora nei soggiorni del cliente, col motivo. I pagamenti già registrati non si toccano.</p>
+            <p className={v.nota} style={{ marginTop: 8 }}>Senza motivo non si annulla. Resta scritto: la prenotazione si vedrà ancora nei soggiorni del cliente, col motivo. I pagamenti già registrati non si toccano.</p>
             {erroreAnnulla && <AvvisoAzione testo={erroreAnnulla} className="mb-2" />}
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <button onClick={() => setShowCancel(false)} className={v.pilT} style={{ minHeight: 44 }}>Chiudi</button>
-              <button onClick={cancelBooking} disabled={annullando} className={v.pilT}
-                style={{ flex: 1, minHeight: 44, color: '#8C3B2E', borderColor: '#8C3B2E', fontWeight: 700 }}>
+              <button onClick={cancelBooking} disabled={annullando || !cancelReason.trim()} className={v.pilT}
+                style={{ flex: 1, minHeight: 44, color: '#8C3B2E', borderColor: '#8C3B2E', fontWeight: 700, opacity: !annullando && !cancelReason.trim() ? 0.45 : 1 }}>
                 {annullando ? 'Annullo…' : 'Conferma annullamento'}
               </button>
             </div>

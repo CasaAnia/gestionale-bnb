@@ -3,6 +3,13 @@
 // in attesa del bonifico, preavviso di cancellazione, caparra di default.
 // La regola di cancellazione NON va nel primo messaggio: servirà nel
 // riepilogo che precede il bonifico (pezzo futuro).
+//
+// 10/09/2026, deciso da Ania: valgono i testi già approvati il 4 settembre e
+// già inviati ai clienti (lib/richiesteTesti, bloccoCondizione). Nessuna
+// condizione nuova. Per il pagamento completo lo spostamento delle date resta
+// promesso «in base alla disponibilità»; per la caparra NON si promette nulla
+// sullo spostamento. Le costanti qui sotto devono dire la stessa cosa dei
+// testi vivi: se un giorno vengono collegate, non devono contraddirli.
 
 export type CondizionePagamento = 'arrivo' | 'caparra' | 'completo' | 'personalizzata'
 
@@ -27,7 +34,7 @@ export const GIORNI_PREAVVISO_CANCELLAZIONE = 7
 export const REGOLA_CANCELLAZIONE = {
   preavvisoSufficiente: `Con almeno ${GIORNI_PREAVVISO_CANCELLAZIONE} giorni di preavviso rispetto all'orario previsto di arrivo: restituzione integrale.`,
   caparraTrattenuta: `Con meno di ${GIORNI_PREAVVISO_CANCELLAZIONE} giorni di preavviso, oppure in caso di mancato arrivo: la caparra confirmatoria viene trattenuta e non può essere trasferita a un soggiorno successivo.`,
-  completoNessunaPromessa: `Per il pagamento completo anticipato, con meno di ${GIORNI_PREAVVISO_CANCELLAZIONE} giorni di preavviso non c'è alcuna restituzione promessa in automatico: decide Ania caso per caso.`,
+  completoNonRestituito: `Per il pagamento completo anticipato, con meno di ${GIORNI_PREAVVISO_CANCELLAZIONE} giorni di preavviso o in caso di mancato arrivo l'importo non viene restituito; se invece servono date diverse la prenotazione si può trasferire a un altro periodo, in base alla disponibilità.`,
 }
 
 export type EsitoCancellazione =
