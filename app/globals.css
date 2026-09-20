@@ -198,6 +198,20 @@ input[type="week"] {
 .ed-pillola-contorno { background: transparent; color: var(--color-green-mid); border: 1px solid var(--color-green-mid); }
 .ed-pillola-tenue { background: transparent; color: var(--color-stone); border: 1px solid #C9BFA8; }
 .ed-pillola:disabled, .ed-pillola-contorno:disabled, .ed-pillola-tenue:disabled { opacity: 0.55; }
+/* Tutto quello che si può cliccare mostra la manina (Ania, 20/09/2026: «la
+   freccia del mouse non cambia quando vado su Arrivi precedenti»). Tailwind 4
+   mette la freccia normale sui bottoni: qui si rimette la mano ovunque. */
+button:not(:disabled), a[href], [role="button"], summary, label[for], select, input[type="checkbox"], input[type="radio"] { cursor: pointer; }
+button:disabled { cursor: default; }
+/* …e i comandi scritti come testo si sottolineano al passaggio, come «Registra
+   saldo». Non le pillole (piene o col contorno), non le caselle della striscia
+   delle notti, non le icone della barra di navigazione. */
+@media (hover: hover) {
+  a[href]:hover, button:not(:disabled):hover { text-decoration: underline; text-decoration-color: currentColor; text-underline-offset: 3px; }
+  .ed-pillola:hover, .ed-pillola-contorno:hover, .ed-pillola-tenue:hover, .ed-badge:hover,
+  button[style*="border-radius: 999px"]:hover, [data-pastiglia]:hover, [data-striscia-notti] button:hover,
+  nav a:hover, .barra-bassa a:hover, [data-senza-sottolinea]:hover, [data-senza-sottolinea] a:hover { text-decoration: none; }
+}
 /* Azioni nelle righe della Home: testo e filo sottile, con area di tocco comoda. */
 .ed-azione {
   display: inline-flex;

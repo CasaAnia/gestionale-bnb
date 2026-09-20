@@ -254,6 +254,7 @@ test('il segno del cambio sta sulla prima notte della camera nuova', () => {
 // ── IL DISEGNO, letto dai sorgenti ─────────────────────────────────────────
 // Le misure e i colori decisi da Ania sulla bozza approvata (13/09/2026).
 const striscia = readFileSync(new URL('../components/StrisciaNottiCamere.tsx', import.meta.url), 'utf8')
+const TINTE_CAMERA = Object.fromEntries([...striscia.matchAll(/^\s+(\w+): \{ fondo: '(#[0-9A-F]{6})', testo: '([^']+)' \},$/gm)].map(m => [m[1], { fondo: m[2], testo: m[3] }]))
 
 test('le colonnine: stessa larghezza, 4 px di spazio, e restano toccabili', () => {
   assert.match(striscia, /export const LARGHEZZA_COLONNINA = 44/)
@@ -269,10 +270,12 @@ test('le colonnine: stessa larghezza, 4 px di spazio, e restano toccabili', () =
 })
 
 test('le tinte delle camere e i due casi speciali', () => {
-  assert.match(striscia, /Lena: \{ fondo: '#E7EFE9', testo: 'var\(--color-green-dark\)' \}/)
-  assert.match(striscia, /Ambra: \{ fondo: '#EAE7F2', testo: '#463C6B' \}/)
-  assert.match(striscia, /Allegra: \{ fondo: '#F3E9DA', testo: '#7A5C1E' \}/)
-  assert.match(striscia, /Amelia: \{ fondo: '#F3E9DA', testo: '#7A5C1E' \}/)
+  // più piene dal 20/09/2026 (Ania: «troppo tenue»), Amelia rosata e distinta da Allegra
+  assert.match(striscia, /Lena: \{ fondo: '#CFE3D6', testo: 'var\(--color-green-dark\)' \}/)
+  assert.match(striscia, /Ambra: \{ fondo: '#D6CFEA', testo: '#3B2F6B' \}/)
+  assert.match(striscia, /Allegra: \{ fondo: '#EAD9B0', testo: '#6B4E12' \}/)
+  assert.match(striscia, /Amelia: \{ fondo: '#EDD0C5', testo: '#7A3B2E' \}/)
+  assert.notEqual(TINTE_CAMERA.Allegra.fondo, TINTE_CAMERA.Amelia.fondo, 'due camere, due colori')
   // la notte senza camera: riquadro bianco tratteggiato rosso con il «?»
   assert.match(striscia, /const ROSSO = '#D40000'/)
   assert.match(striscia, /senzaCamera \? `1px dashed \$\{ROSSO\}`/)

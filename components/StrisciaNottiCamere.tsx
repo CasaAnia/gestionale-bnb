@@ -32,12 +32,14 @@ export const LARGHEZZA_MASSIMA = 72     // px: con due o tre notti le colonnine 
 export const SPAZIO_COLONNINE = 4
 export const SPIEGAZIONE = 'sopra la camera · sotto il letto in più'
 
-// Una tinta per camera, chiara e tenue (Ania, 13/09/2026)
+// Una tinta per camera, più piena (Ania, 20/09/2026: «troppo tenue, a colpo
+// d'occhio non capisco quante camere e quanti cambi»; scelta la versione «A»
+// fra due proposte). Amelia rosata, così non si confonde più con Allegra.
 export const TINTE_CAMERA: Record<string, { fondo: string; testo: string }> = {
-  Lena: { fondo: '#E7EFE9', testo: 'var(--color-green-dark)' },
-  Ambra: { fondo: '#EAE7F2', testo: '#463C6B' },
-  Allegra: { fondo: '#F3E9DA', testo: '#7A5C1E' },
-  Amelia: { fondo: '#F3E9DA', testo: '#7A5C1E' },
+  Lena: { fondo: '#CFE3D6', testo: 'var(--color-green-dark)' },
+  Ambra: { fondo: '#D6CFEA', testo: '#3B2F6B' },
+  Allegra: { fondo: '#EAD9B0', testo: '#6B4E12' },
+  Amelia: { fondo: '#EDD0C5', testo: '#7A3B2E' },
 }
 export const TINTA_ALTRE = { fondo: '#EDEAE1', testo: 'var(--color-green-dark)' }
 export const tintaCamera = (nome: string | null) => (nome && TINTE_CAMERA[nome]) || TINTA_ALTRE

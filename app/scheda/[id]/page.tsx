@@ -637,7 +637,7 @@ export default function SchedaPage() {
             {/* la riga dei comandi della linea (Ania, 17/09/2026): «Cambia date ·
                 Cambio camera», e sull'ultima linea anche «Aggiungi camera» */}
             {!nonSiSposta && (
-              <p data-comandi-linea className="flex flex-wrap items-center justify-center" style={{ marginTop: 2, gap: '0 10px', fontSize: 12.5 }}>
+              <p data-comandi-linea className="flex flex-wrap items-center justify-center" style={{ marginTop: 10, gap: '0 12px', fontSize: 12.5 }}>
                 <button type="button" data-cambia-date={l.chiave} onClick={() => setDateAperte(l.chiave)} className="py-2 -my-2" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{COMANDO_DATE}</button>
                 <span style={{ color: 'var(--color-stone)' }}>·</span>
                 <button type="button" data-cambio-camera={l.chiave} onClick={() => setCambioAperto(l.chiave)} className="py-2 -my-2" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{COMANDO_CAMBIO_CAMERA}</button>
