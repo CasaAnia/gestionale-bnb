@@ -23,7 +23,7 @@ export type SchedinaControlloProps = {
   grande?: boolean
 }
 
-const STILE_LINK = { fontSize: 13, fontWeight: 600, color: 'var(--color-green-mid)' }
+// i comandi hanno la veste unica dei comandi di testo (.ed-azione, come la Home; Ania, 20/09/2026)
 
 export default function SchedinaControllo({ etichetta, titolo, dettaglio = null, link = null, azione = null, className = '', grande = false }: SchedinaControlloProps) {
   return (
@@ -35,12 +35,12 @@ export default function SchedinaControllo({ etichetta, titolo, dettaglio = null,
       {dettaglio && <p className="mt-0.5 leading-snug" style={{ fontSize: grande ? 13 : 12.5, color: 'var(--color-stone)' }}>{dettaglio}</p>}
       {link && (
         <p className="mt-1.5">
-          <Link href={link.href} className="underline underline-offset-2" style={STILE_LINK}>{link.testo}</Link>
+          <Link href={link.href} className="ed-azione">{link.testo}</Link>
         </p>
       )}
       {azione && (
         <p className="mt-1.5">
-          <button type="button" onClick={azione.onClick} className="underline underline-offset-2" style={STILE_LINK}>{azione.testo}</button>
+          <button type="button" onClick={azione.onClick} className="ed-azione">{azione.testo}</button>
         </p>
       )}
     </div>

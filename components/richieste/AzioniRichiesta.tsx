@@ -126,7 +126,7 @@ export function IconeContatto({ r, className = '' }: { r: Richiesta; className?:
 // «Modifica» e «Rifiuta»: parole da toccare, 13 px color stone, distanziate di
 // 14 px dalla pastiglia e fra loro. Niente sottolineatura e niente contorni.
 const COMANDO = 'inline-flex items-center shrink-0 py-[15px] -my-[15px] rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-mid'
-const MISURA_COMANDO = { fontSize: 13, color: 'var(--color-stone)' } as const
+const MISURA_COMANDO = { fontSize: 12, color: 'var(--color-stone)' } as const   // come «Rimanda» della Home (Ania, 20/09/2026)
 export const SPAZIO_COMANDI = 14
 
 export function ComandiRichiesta({ r, onRifiuta, className = '' }: { r: Richiesta; onRifiuta: (r: Richiesta) => void; className?: string }) {

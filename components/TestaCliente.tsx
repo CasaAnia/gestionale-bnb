@@ -149,7 +149,7 @@ export default function TestaCliente({
             p.grassetto ? <b key={i} data-grassetto-riga style={{ fontWeight: 700 }}>{p.testo}</b> : <span key={i}>{p.testo}</span>
           ))}
           {chiediProvenienza && (
-            <> · <button type="button" data-chiedi-provenienza onClick={chiediProvenienza.onClick} className="py-2 -my-2" style={{ fontSize: 12.5, color: GRIGIO_RIGA }}>{chiediProvenienza.testo}</button></>
+            <> · <button type="button" data-chiedi-provenienza onClick={chiediProvenienza.onClick} className="ed-azione ed-azione-tenue">{chiediProvenienza.testo}</button></>
           )}
         </p>
         <span className="shrink-0 text-right">
@@ -224,7 +224,7 @@ export default function TestaCliente({
 
       {/* Come si chiama il cliente: telefono e WhatsApp */}
       {(telefono || telefonoWhatsApp) && (
-        <div className="flex items-center justify-center gap-5 mt-3" style={{ fontSize: 15, fontWeight: 600 }}>
+        <div className="flex items-center justify-center gap-5 mt-3" style={{ fontSize: 13, fontWeight: 600 }}>
           {telefono && (
             <a href={`tel:+${telefonoDaChiamare ?? telefono}`} className="inline-flex items-center gap-1.5 text-green-dark">
               <Phone size={16} strokeWidth={1.9} aria-hidden style={{ color: 'var(--color-green-mid)' }} />

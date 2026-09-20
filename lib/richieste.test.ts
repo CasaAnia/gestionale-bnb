@@ -305,7 +305,7 @@ test('l’ultima riga della richiesta ha i quattro comandi nell’ordine chiesto
 
   // «Modifica» e «Rifiuta»: parole, 13 px stone, distanziate di 14 px
   const comandi = az.slice(az.indexOf('const COMANDO'))
-  assert.match(comandi, /MISURA_COMANDO = \{ fontSize: 13, color: 'var\(--color-stone\)' \}/)
+  assert.match(comandi, /MISURA_COMANDO = \{ fontSize: 12, color: 'var\(--color-stone\)' \}/)
   assert.match(comandi, /export const SPAZIO_COMANDI = 14/)
   assert.equal(comandi.match(/className=\{COMANDO\}/g)?.length, 2)
   // niente più sottolineature né contorni

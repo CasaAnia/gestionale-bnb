@@ -26,7 +26,7 @@ export type ClienteRiga = {
 // Il tastino verde chiaro, alto 30: «+ Nuovo cliente» e i fratelli
 export function TastinoSage({ testo, onClick, className = '' }: { testo: string; onClick: () => void; className?: string }) {
   return (
-    <button type="button" onClick={onClick} className={`py-[7px] -my-[7px] ${className}`}
+    <button type="button" data-senza-sottolinea onClick={onClick} className={`py-[7px] -my-[7px] ${className}`}
       style={{ height: 30, borderRadius: 6, padding: '0 9px', background: 'var(--color-sage)', color: 'var(--color-green-mid)', fontSize: 13, fontWeight: 700 }}>{testo}</button>
   )
 }

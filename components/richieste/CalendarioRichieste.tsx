@@ -241,7 +241,7 @@ export default function CalendarioRichieste(p: Props) {
         const idx = indiciIntervallo(periodo.arrivo, periodo.partenza, giorni)
         if (!idx) return []
         return [(
-        <button key={ids.join('+') + periodo.arrivo} type="button" onClick={e => apri(e, gruppo)} title={titolo}
+        <button key={ids.join('+') + periodo.arrivo} type="button" data-senza-sottolinea onClick={e => apri(e, gruppo)} title={titolo}
           style={{
             ...geometria(idx.start, idx.end, ri, true, true),
             background: 'transparent', border: `1.5px dashed ${OTTONE}`, borderRadius: 6,

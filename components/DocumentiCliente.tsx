@@ -226,10 +226,10 @@ export function RigaDocumentiPrenotazione({ guestId, className = '', conteggio, 
   if (!guestId || n === null) return null
   if (scheda) {
     return (
-      <Link href={`/clienti/${guestId}#documenti`} data-riga-documento className={`inline-flex items-center gap-1.5 ${className}`} style={{ fontSize: 14, color: 'var(--color-stone)' }}>
+      <Link href={`/clienti/${guestId}#documenti`} data-riga-documento data-senza-sottolinea className={`inline-flex items-center gap-1.5 ${className}`} style={{ fontSize: 14, color: 'var(--color-stone)' }}>
         <span aria-hidden>🪪</span>
         {n === 0
-          ? <span>Nessun documento · <span style={{ color: 'var(--color-green-mid)', fontWeight: 600 }}>aggiungi</span></span>
+          ? <span>Nessun documento · <span className="ed-azione" style={{ minHeight: 0 }}>aggiungi</span></span>
           : <span>{n === 1 ? 'documento caricato' : `${n} documenti caricati`} ›</span>}
       </Link>
     )

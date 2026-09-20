@@ -628,16 +628,16 @@ export default function SchedaPage() {
                 Cambio camera», e sull'ultima linea anche «Aggiungi camera» */}
             {!nonSiSposta && (
               <p data-comandi-linea className="flex flex-wrap items-center justify-center" style={{ marginTop: 10, gap: '0 12px', fontSize: 12.5 }}>
-                <button type="button" data-cambia-date={l.chiave} onClick={() => setDateAperte(l.chiave)} className="py-2 -my-2" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{COMANDO_DATE}</button>
+                <button type="button" data-cambia-date={l.chiave} onClick={() => setDateAperte(l.chiave)} className="ed-azione ed-azione-tenue">{COMANDO_DATE}</button>
                 <span style={{ color: 'var(--color-stone)' }}>·</span>
-                <button type="button" data-cambio-camera={l.chiave} onClick={() => setCambioAperto(l.chiave)} className="py-2 -my-2" style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{COMANDO_CAMBIO_CAMERA}</button>
+                <button type="button" data-cambio-camera={l.chiave} onClick={() => setCambioAperto(l.chiave)} className="ed-azione ed-azione-tenue">{COMANDO_CAMBIO_CAMERA}</button>
                 {i === linee.length - 1 && booking.status !== 'annullata' && <>
                   <span style={{ color: 'var(--color-stone)' }}>·</span>
-                  <button type="button" data-aggiungi-camera onClick={aggiungiCamera} disabled={aggiungendo} className="py-2 -my-2" style={{ fontSize: 12.5, color: 'var(--color-stone)', opacity: aggiungendo ? 0.5 : 1 }}>{COMANDO_AGGIUNGI_CAMERA}</button>
+                  <button type="button" data-aggiungi-camera onClick={aggiungiCamera} disabled={aggiungendo} className="ed-azione ed-azione-tenue">{COMANDO_AGGIUNGI_CAMERA}</button>
                 </>}
                 {siPuoTogliere(linee.length) && <>
                   <span style={{ color: 'var(--color-stone)' }}>·</span>
-                  <button type="button" data-togli-camera={l.chiave} onClick={() => setTogliAperto(l.chiave)} className="py-2 -my-2" style={{ fontSize: 12.5, color: '#8C3B2E' }}>{COMANDO_TOGLI_CAMERA}</button>
+                  <button type="button" data-togli-camera={l.chiave} onClick={() => setTogliAperto(l.chiave)} className="ed-azione ed-azione-tenue" style={{ color: '#8C3B2E' }}>{COMANDO_TOGLI_CAMERA}</button>
                 </>}
               </p>
             )}
@@ -692,10 +692,10 @@ export default function SchedaPage() {
 
       {/* I tre comandi in fondo, staccati da tutto il resto */}
       <p data-comandi-fondo className="flex flex-wrap items-center justify-center mt-8 mb-4" style={{ gap: '0 12px', fontSize: 14 }}>
-        <button type="button" data-nota-colore onClick={() => setFoglioNota(true)} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>{COMANDO_NOTA}</button>
+        <button type="button" data-nota-colore onClick={() => setFoglioNota(true)} className="ed-azione">{COMANDO_NOTA}</button>
         {booking.status !== 'annullata' && <>
           <span style={{ color: 'var(--color-stone)' }}>·</span>
-          <button type="button" data-annulla-prenotazione onClick={() => setFoglioAnnulla(true)} className="py-2 -my-2" style={{ fontSize: 14, color: '#8C3B2E' }}>Annulla prenotazione</button>
+          <button type="button" data-annulla-prenotazione onClick={() => setFoglioAnnulla(true)} className="ed-azione" style={{ color: '#8C3B2E' }}>Annulla prenotazione</button>
         </>}
       </p>
 

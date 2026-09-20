@@ -74,10 +74,10 @@ export function LinkSoggiorno({ hrefArrivo, onArrivo, onArriviPrecedenti, arrivi
     <div data-link-soggiorno className={`flex flex-wrap items-center ${className}`} style={{ gap: '0 12px', fontSize: 14 }}>
       <span className="flex items-center whitespace-nowrap" style={{ gap: 8 }}>
         {onArrivo
-          ? <button type="button" onClick={onArrivo} className="py-2 -my-2" style={verde}>Modifica arrivo</button>
-          : <Link href={hrefArrivo ?? '#'} className="py-2 -my-2" style={verde}>Modifica arrivo</Link>}
+          ? <button type="button" onClick={onArrivo} className="ed-azione">Modifica arrivo</button>
+          : <Link href={hrefArrivo ?? '#'} className="ed-azione">Modifica arrivo</Link>}
       </span>
-      <button type="button" onClick={onArriviPrecedenti} aria-expanded={arriviAperti} className="py-2 -my-2 whitespace-nowrap" style={{ fontSize: 14, color: 'var(--color-stone)' }}>
+      <button type="button" onClick={onArriviPrecedenti} aria-expanded={arriviAperti} className="ed-azione ed-azione-tenue whitespace-nowrap">
         {arriviAperti ? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'}
       </button>
     </div>

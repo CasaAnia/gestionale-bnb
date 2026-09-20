@@ -87,8 +87,7 @@ export default function ContoScheda({ testa, conto, accordo, pagamenti, copertur
           </span>
           <span className="shrink-0 flex items-baseline" style={{ gap: 10 }}>
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-dark)' }}>{p.importo}</span>
-            <button type="button" data-togli-pagamento={p.id} onClick={() => onTogliPagamento(p.id)} className="py-2 -my-2"
-              style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{COMANDO_TOGLI}</button>
+            <button type="button" data-togli-pagamento={p.id} onClick={() => onTogliPagamento(p.id)} className="ed-azione ed-azione-tenue">{COMANDO_TOGLI}</button>
           </span>
         </div>
       ))}
@@ -98,9 +97,9 @@ export default function ContoScheda({ testa, conto, accordo, pagamenti, copertur
 
       {/* la riga dei comandi del conto scende di più dai pagamenti (Ania, 20/09/2026) */}
       <p className="flex flex-wrap items-center" style={{ marginTop: 18, gap: '0 12px', fontSize: 14 }}>
-        <button type="button" data-aggiungi-pagamento onClick={onPagamento} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Aggiungi pagamento</button>
-        <button type="button" onClick={onComePaga} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Cambia come paga</button>
-        <button type="button" data-modifica-sconto onClick={onSconto} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>{COMANDO_SCONTO}</button>
+        <button type="button" data-aggiungi-pagamento onClick={onPagamento} className="ed-azione">Aggiungi pagamento</button>
+        <button type="button" onClick={onComePaga} className="ed-azione ed-azione-tenue">Cambia come paga</button>
+        <button type="button" data-modifica-sconto onClick={onSconto} className="ed-azione ed-azione-tenue">{COMANDO_SCONTO}</button>
         {/* Niente «Tariffe» (Ania, 18/09/2026, regola fissa n. 6): il prezzo
             della camera è il listino e non si cambia mai; cambia solo lo sconto. */}
       </p>

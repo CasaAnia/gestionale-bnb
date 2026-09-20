@@ -21,7 +21,7 @@ export const TESTO_CONFERMA_IMMAGINE = 'Conferma · immagine e testo'
 
 const TASTO = {
   background: FONDO_TASTO,
-  color: 'var(--color-green-mid)',
+  color: 'var(--color-green-dark)',
   fontSize: 13,
   fontWeight: 600,
   borderRadius: 999,

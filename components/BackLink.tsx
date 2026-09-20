@@ -21,5 +21,5 @@ export default function BackLink({ href, onClick, label = 'Indietro' }: { href?:
   const content = <><span aria-hidden="true">←</span> {label}</>
   const handleClick = onClick ?? (() => smartBack(router, href))
   useRegistraIndietro(handleClick, label)
-  return <button type="button" onClick={handleClick} className={CLASSES}>{content}</button>
+  return <button type="button" data-senza-sottolinea onClick={handleClick} className={CLASSES}>{content}</button>
 }

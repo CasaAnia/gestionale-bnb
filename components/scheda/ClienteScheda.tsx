@@ -58,8 +58,7 @@ export default function ClienteScheda({
           <div key={v.etichetta} data-voce-cliente={v.etichetta} className={`min-w-0 ${v.etichetta === 'nota del cliente' ? 'col-span-2' : ''}`}>
             <p className="uppercase" style={{ fontSize: 9, letterSpacing: '1.5px', color: OTTONE }}>{v.etichetta}</p>
             {v.chiedi && onChiediProvenienza
-              ? <button type="button" data-chiedi-provenienza-cliente onClick={onChiediProvenienza} className="mt-0.5 py-1 -my-1 text-left"
-                style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--color-green-mid)' }}>{v.valore}</button>
+              ? <button type="button" data-chiedi-provenienza-cliente onClick={onChiediProvenienza} className="ed-azione mt-0.5 text-left">{v.valore}</button>
               : <p className={`mt-0.5 ${v.etichetta === 'nota del cliente' ? 'leading-snug' : 'truncate'}`}
                 style={{ fontSize: 14.5, fontWeight: v.etichetta === 'nota del cliente' ? 700 : 600, color: v.etichetta === 'nota del cliente' ? ROSSO_NOTA : 'var(--color-green-dark)' }}>{v.valore}</p>}
           </div>
@@ -67,9 +66,9 @@ export default function ClienteScheda({
       </div>
 
       <p className="flex flex-wrap items-center mt-3" style={{ gap: '0 12px', fontSize: 14 }}>
-        <button type="button" data-modifica-dati onClick={onModificaDati} className="py-2 -my-2" style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-mid)' }}>Modifica dati</button>
-        <button type="button" data-cambia-cliente onClick={onCambiaCliente} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>Cambia cliente</button>
-        <button type="button" data-con-lei-comando onClick={onConLei} className="py-2 -my-2" style={{ fontSize: 14, color: 'var(--color-stone)' }}>{COMANDO_CON_LEI}</button>
+        <button type="button" data-modifica-dati onClick={onModificaDati} className="ed-azione">Modifica dati</button>
+        <button type="button" data-cambia-cliente onClick={onCambiaCliente} className="ed-azione ed-azione-tenue">Cambia cliente</button>
+        <button type="button" data-con-lei-comando onClick={onConLei} className="ed-azione ed-azione-tenue">{COMANDO_CON_LEI}</button>
       </p>
 
       {/* I soggiorni precedenti */}

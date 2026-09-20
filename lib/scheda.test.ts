@@ -53,7 +53,7 @@ test('la prima riga: grigio #B9B6AD 12,5 px, e «da dove? ›» nello stesso gri
   const prima = testa.slice(testa.indexOf('pezziRigaCliente(primaRiga ??') - 300, testa.indexOf('pezziRigaCliente(primaRiga ??') + 800)
   assert.match(prima, /fontSize: 12\.5, color: GRIGIO_RIGA/)
   // il tasto che apre il foglio ha lo STESSO grigio e la stessa misura
-  assert.match(prima, /data-chiedi-provenienza[^>]*style=\{\{ fontSize: 12\.5, color: GRIGIO_RIGA \}\}/)
+  assert.match(prima, /data-chiedi-provenienza[^>]*className="ed-azione ed-azione-tenue"/)
   // la pagina lo mostra solo quando la provenienza manca davvero e c'è un cliente
   assert.match(pagina, /chiediProvenienza=\{primaRiga\.chiediProvenienza && booking\.guest_id \? \{ testo: 'da dove\? ›'/)
   // il totale dei soggiorni porta alla parte CLIENTE in fondo
@@ -107,12 +107,12 @@ test('lo stato del conto: Georgia 22 centrato, verde se pagato, #D40000 se manca
 
 test('telefono, «Scrivi» e la riga del documento', () => {
   // telefono e WhatsApp sono quelli della testa, 15 px semibold, come nella proposta
-  assert.match(testa, /fontSize: 15, fontWeight: 600/)
+  assert.match(testa, /fontSize: 13, fontWeight: 600/)   // telefono e «Scrivi» a 13 px come i comandi della Home (Ania, 20/09/2026)
   assert.match(pagina, /onScrivi=\{\(\) => waNumero && openWhatsApp\(waNumero, ''\)\}/)
   // la riga del documento: 14 px stone, «aggiungi» verde, oppure «caricato ›»
   const riga = documenti.slice(documenti.indexOf('if (scheda) {'), documenti.indexOf('if (scheda) {') + 800)
   assert.match(riga, /fontSize: 14, color: 'var\(--color-stone\)'/)
-  assert.match(riga, /Nessun documento · <span style=\{\{ color: 'var\(--color-green-mid\)', fontWeight: 600 \}\}>aggiungi/)
+  assert.match(riga, /Nessun documento · <span className="ed-azione"[^>]*>aggiungi/)   // solo «aggiungi» ha il filo, come i comandi della Home (Ania, 20/09/2026)
   assert.match(riga, /documento caricato/)
   // il conteggio è già letto dalla pagina: non si interroga il database due volte
   assert.match(pagina, /conteggio=\{documenti\} scheda/)
@@ -277,7 +277,7 @@ test('i tratti di camera: nome Georgia 20, prezzo stone 15, «⇄ CAMBIO» #EFE2
 test('i due comandi in fondo al soggiorno: «Modifica arrivo» verde e «Arrivi precedenti»', () => {
   assert.match(soggiorno, /const verde = \{ fontSize: 14, fontWeight: 600, color: 'var\(--color-green-mid\)' \}/)
   assert.match(soggiorno, />Modifica arrivo</)
-  assert.match(soggiorno, /fontSize: 14, color: 'var\(--color-stone\)' \}\}>\s*\{arriviAperti \? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'\}/)
+  assert.match(soggiorno, /className="ed-azione ed-azione-tenue whitespace-nowrap">\s*\{arriviAperti \? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'\}/)
   // «Modifica arrivo» apre il foglio qui dentro
   assert.match(pagina, /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/)
 })
@@ -386,7 +386,7 @@ test('i messaggi usano i testi di sempre, non ne scrivono di nuovi', () => {
 test('il cliente: griglia a due colonne, «da dove? ›», soggiorni e «con lei»', () => {
   assert.match(cliente, /grid grid-cols-2/)
   assert.match(cliente, /fontSize: 9, letterSpacing: '1\.5px', color: OTTONE/)
-  assert.match(cliente, /fontSize: 14\.5, fontWeight: 600/)
+  assert.match(cliente, /data-chiedi-provenienza-cliente[^>]*className="ed-azione/)
   assert.match(cliente, /data-chiedi-provenienza-cliente/)
   assert.match(cliente, />Modifica dati</)
   assert.match(cliente, />Cambia cliente</)
