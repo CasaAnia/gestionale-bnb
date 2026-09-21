@@ -3,8 +3,8 @@
 ## STATO IN 10 RIGHE
 
 1. **Punto 6 in verifica, NON pubblicato e NON dichiarato pronto.** Candidato
-   `4843525` sul ramo locale `punto6-messaggi`, base `b7009ab`; `main` intatto.
-   Autore: Code. Due giri di correzione già fatti, il revisore deve ricontrollare.
+   `ad40c20` sul ramo locale `punto6-messaggi`, base `b7009ab`; `main` intatto.
+   Autore: Code. TRE giri di correzione, il revisore deve ricontrollare.
 2. La parte «Messaggi» della scheda: conferma con **immagine e testo sempre in
    cima**, «Utili adesso» con i messaggi della fase, «Tutti i messaggi» chiuso
    con tutti e nove (l'annullamento resta un TESTO, non tocca stato né date).
@@ -36,6 +36,14 @@
     dati bonifico 260 − 100 = 160 come il conto. Nessun messaggio inviato.
     🔴 Pubblicazione: **non ancora**. Prima il ricontrollo del revisore, poi
     l'autorizzazione di Ania (quella del punto 5 non vale per questo lavoro).
+11. **Terzo giro**: senza nessun accordo scritto, `accordoPrenotazione`
+    prendeva la prima riga per data anche se ANNULLATA, e la sua spunta
+    bonifico faceva promettere alla cliente un anticipo con IBAN mai
+    concordato. Corretta **solo la riserva** (preferisce una riga attiva);
+    caparre e accordi scritti restano validi anche se custoditi su annullate.
+    Tocca anche la scheda vecchia e `/nuova`: tutti i chiamanti verificati.
+    Suite **1656 verde**. La camera annullata dell'anteprima ha adesso anche la
+    spunta bonifico, così un solo link prova tutti e tre i rilievi.
 
 ## Riscontri del punto 6
 
