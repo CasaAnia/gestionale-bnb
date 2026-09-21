@@ -141,9 +141,15 @@ separati: due file non si possono guardare insieme — si apre uno, si
 chiude, si apre l'altro, e la differenza non si vede (Ania, 21/09/2026
 sera: «sempre prima o dopo nella stessa immagine»).
 
+E quando la differenza è piccola due schermate intere non bastano lo
+stesso («non vedo nessuna differenza», Ania, la sera stessa): si ritaglia
+sulla sola zona che cambia, si segna con un riquadro rosso e si scrive una
+riga di spiegazione sotto ogni colonna.
+
 L'immagine si fa con `scripts/revisioni/confronto.mjs`, che prende le
 schermate vere dell'anteprima e le affianca con la domanda sopra e
-un'etichetta per ognuna. Le schermate non si ritoccano: si affiancano.
+un'etichetta per ognuna (`segna:x,y,l,a` per il riquadro rosso, `nota:…`
+per la spiegazione). Le schermate non si ritoccano: si affiancano.
 
 Test: `lib/confrontoUnaImmagine.test.ts` (tutto il file: lo strumento
 esiste, compone una pagina sola con tutte le schermate dentro, e la regola

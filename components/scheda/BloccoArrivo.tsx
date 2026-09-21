@@ -8,10 +8,11 @@
 // «In struttura circa 16:00–17:00» e «Arriva a Linate alle 15:00» si leggono
 // insieme senza potersi scambiare di posto.
 //
-// Il riquadro grigio del disegno qui non c'è: nel gestionale lo stile è
-// quello editoriale deciso da Ania il 06/09/2026 (niente riquadri, etichette
-// in ottone maiuscolo e fili sottili). Gerarchia e raggruppamenti sono quelli
-// del riferimento, con i caratteri veri di casa.
+// IL RIQUADRO C'È (Ania, 21/09/2026 sera, scelta «B» sul confronto
+// affiancato): come nel disegno che aveva approvato, grigio chiaro, con i
+// due gruppi dentro. È l'eccezione allo stile editoriale del 06/09/2026
+// («niente riquadri»), decisa da lei guardando le due versioni una accanto
+// all'altra. Grigio, non bianco: il bianco stonerebbe sul fondo crema.
 //
 // Sola presentazione: le parole arrivano tutte da lib/arrivo.
 // ============================================================================
@@ -19,6 +20,10 @@ import type { VoceArrivo } from '@/lib/arrivo'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
 const OTTONE = '#A9884E'
+// Il riquadro scelto da Ania: grigio chiaro sul fondo crema, filo appena
+// più scuro, angoli tondi come i fogli
+export const FONDO_RIQUADRO = '#F3F2EE'
+export const FILO_RIQUADRO = '#E3E0D8'
 
 function Gruppo({ etichetta, voce, dati }: { etichetta: string; voce: VoceArrivo; dati: string }) {
   return (
@@ -38,9 +43,10 @@ export default function BloccoArrivo({ etichettaArrivo, arrivo, navetta, classNa
   className?: string
 }) {
   return (
-    <div data-blocco-arrivo className={className}>
+    <div data-blocco-arrivo className={className}
+      style={{ background: FONDO_RIQUADRO, border: `1px solid ${FILO_RIQUADRO}`, borderRadius: 12, padding: '16px 18px' }}>
       <Gruppo etichetta={etichettaArrivo} voce={arrivo} dati="arrivo" />
-      <div style={{ borderTop: '1px solid var(--color-card-border)', margin: '14px 0' }} />
+      <div style={{ borderTop: `1px solid ${FILO_RIQUADRO}`, margin: '14px 0' }} />
       <Gruppo etichetta="Navetta" voce={navetta} dati="navetta" />
     </div>
   )

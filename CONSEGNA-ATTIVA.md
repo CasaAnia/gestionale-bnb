@@ -26,14 +26,24 @@ e sull'anteprima sintetica — non su Supabase.
 - La riga **CHECK-IN** della Home **resta** dov'è.
 - «Senza orario» = non se ne sa niente: con «Linate alle 15:00» nessun
   avviso, la stima resta facoltativa.
-- 🔴 Ancora da scegliere, con le due immagini di confronto in mano:
-  `SCELTA-1-riquadro.png` e `SCELTA-2-navetta-da-definire.png`.
+- **Il riquadro grigio nella scheda: SÌ** (scelta «B» sul confronto
+  affiancato, `SCELTA-1-riquadro.png`). È l'eccezione allo stile del
+  06/09/2026, decisa da lei guardando le due versioni una accanto all'altra.
+  Fatto: `components/scheda/BloccoArrivo` (fondo #F3F2EE, filo #E3E0D8).
+- 🔴 Ancora da scegliere: la riga «Navetta da definire» negli Arrivi della
+  Home — `SCELTA-2-navetta-da-definire.png`, rifatta ritagliata sulla sola
+  zona che cambia, col riquadro rosso e la spiegazione sotto («non vedo
+  nessuna differenza», Ania).
 - La 0058 la incolla lei: copia pronta in `~/Desktop/0058-da-incollare.sql`.
 
 ## REGOLA FISSA n. 10 (nuova)
 
 Quando c'è da decidere, **prima e dopo nella stessa immagine**, mai in due
-file separati. Strumento: `scripts/revisioni/confronto.mjs`.
+file separati. E quando la differenza è piccola non bastano due schermate
+intere («non vedo nessuna differenza»): si **ritaglia** sulla zona che
+cambia, si **segna** con un riquadro rosso e si scrive una riga di
+spiegazione sotto ogni colonna.
+Strumento: `scripts/revisioni/confronto.mjs` (`segna:x,y,l,a`, `nota:…`).
 Test: `lib/confrontoUnaImmagine.test.ts`.
 
 ## TERZO GIRO — i tre casi del secondo ricontrollo (07dc6e7)

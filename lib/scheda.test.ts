@@ -681,9 +681,14 @@ test('la parte «Arrivo e navetta» è quella del riferimento: due gruppi divisi
   // etichettina in ottone, titolo in Georgia 20, sottotitolo 13,5 stone
   assert.match(blocco, /fontSize: 9\.5, letterSpacing: '1\.4px', color: OTTONE/)
   assert.match(blocco, /fontFamily: GEORGIA, fontSize: 20, lineHeight: '25px', color: 'var\(--color-green-dark\)'/)
-  assert.match(blocco, /borderTop: '1px solid var\(--color-card-border\)'/)
-  // stile editoriale (Ania, 06/09/2026): nessun riquadro bianco
-  assert.equal(/ed-riquadro|background: '#fff'/.test(blocco), false, 'è comparso un riquadro')
+  assert.match(blocco, /borderTop: `1px solid \$\{FILO_RIQUADRO\}`/)
+  // Il riquadro: scelta «B» di Ania del 21/09/2026 sera, presa guardando le
+  // due versioni affiancate (regola fissa n. 10). È l'eccezione allo stile
+  // del 06/09/2026, e il fondo è GRIGIO, non bianco.
+  assert.match(blocco, /export const FONDO_RIQUADRO = '#F3F2EE'/)
+  assert.match(blocco, /export const FILO_RIQUADRO = '#E3E0D8'/)
+  assert.match(blocco, /background: FONDO_RIQUADRO, border: `1px solid \$\{FILO_RIQUADRO\}`, borderRadius: 12/)
+  assert.equal(/background: '#fff'|background: 'white'/.test(blocco), false, 'il riquadro è bianco, doveva essere grigio')
   // il foglio si apre da «Modifica arrivo», come prima
   assert.equal(/aggiungi orario|AGGIUNGI_ORARIO/.test(soggiorno), false, 'c’è ancora «aggiungi orario»')
   assert.match(pagina, /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/)
