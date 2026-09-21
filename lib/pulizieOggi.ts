@@ -14,7 +14,7 @@ import {
   confrontaDecisioni, attive, pulizieAperte, prossimoArrivo, prioritaDi, continuaDa, continuaIn, statoFineSoggiorno, cambioOspiteAutomatico, diffDays, CUTOFF_STORICO,
   soggiornoContinuativo, type Decisione, type Priorita, type TipoPulizia,
 } from './pulizie.ts'
-import { nomeOspite } from './guestName.ts'
+import { nomeConAltri } from './guestName.ts'
 
 export type StatoVoce = 'da_fare' | 'automatica' | 'fatta'
 export type PuliziaDaSegnareOggi = { room_id: string; booking_id: string | null; tipo: TipoPulizia; data_prevista: string }
@@ -65,19 +65,19 @@ export function pulizieDiOggi(rooms: Camera[], tutteLePrenotazioni: Prenotazioni
   for (const room of camere) {
     const arrivo = prossimoArrivo(bookings, room.id, oggi)
     const arrivoTesto = !arrivo ? ''
-      : arrivo.giorni === 0 ? ` · arriva ${nomeOspite(arrivo.booking)}${arrivo.booking.check_in_time ? ` alle ${arrivo.booking.check_in_time}` : ''}`
-        : arrivo.giorni === 1 ? ` · domani arriva ${nomeOspite(arrivo.booking)}` : ''
+      : arrivo.giorni === 0 ? ` · arriva ${nomeConAltri(arrivo.booking)}${arrivo.booking.check_in_time ? ` alle ${arrivo.booking.check_in_time}` : ''}`
+        : arrivo.giorni === 1 ? ` · domani arriva ${nomeConAltri(arrivo.booking)}` : ''
     const gestite = new Set<string>()
     for (const p of pulizieAperte(bookings, room.id, oggi, events)) {
       gestite.add(String(p.booking.id))
-      const nome = nomeOspite(p.booking)
+      const nome = nomeConAltri(p.booking)
       const cosa = p.tipo === 'soggiorno' ? `${nome} resta · cambio biancheria`
         : p.tipo === 'cambio_camera' ? `${nome} va in ${breve(p.cambioCameraVerso?.room_id)}`
           : p.prevista === oggi ? `è partito ${nome}` : `partenza del ${dataBreve(p.prevista)} · ${nome}`
       if (p.automatica) {
         out.push({
           chiave: `automatica:${room.id}:${p.booking.id}`, roomId: room.id, camera: nomeBreve(room.name), stato: 'automatica', tipo: p.tipo,
-          riga: `${cosa}${p.arrivoAutomatico ? ` · arriva ${nomeOspite(p.arrivoAutomatico)}` : ''} · registrata da sola`,
+          riga: `${cosa}${p.arrivoAutomatico ? ` · arriva ${nomeConAltri(p.arrivoAutomatico)}` : ''} · registrata da sola`,
           ritardo: 0, priorita: prioritaDi(p, arrivo), annullabile: false,
         })
         continue
@@ -101,7 +101,7 @@ export function pulizieDiOggi(rooms: Camera[], tutteLePrenotazioni: Prenotazioni
       const st = precedente && !gestite.has(String(precedente.id)) ? statoFineSoggiorno(bookings, precedente, events) : null
       if (precedente && st && !st.chiusa && st.due <= oggi && !cambioOspiteAutomatico(bookings, precedente, events)) {
         gestite.add(String(precedente.id))
-        const nome = nomeOspite(precedente)
+        const nome = nomeConAltri(precedente)
         const cosa = st.tipo === 'cambio_camera' ? `${nome} va in ${breve(st.cambioCameraVerso?.room_id)}` : `partenza del ${dataBreve(precedente.check_out)} · ${nome}`
         out.push({
           chiave: `da_fare:${room.id}:${st.tipo}:${precedente.id}`, roomId: room.id, camera: nomeBreve(room.name), stato: 'da_fare', tipo: st.tipo,
@@ -115,7 +115,7 @@ export function pulizieDiOggi(rooms: Camera[], tutteLePrenotazioni: Prenotazioni
     for (const e of events) {
       if (e.room_id !== room.id || e.stato !== 'fatta' || (e.data_effettiva || e.data_prevista) !== oggi) continue
       const b = e.booking_id ? bookings.find(x => x.id === e.booking_id) ?? tutteLePrenotazioni.find(x => x.id === e.booking_id) : null
-      const nome = b ? nomeOspite(b) : ''
+      const nome = b ? nomeConAltri(b) : ''
       const cosa = e.tipo === 'soggiorno' ? (nome ? `${nome} resta · cambio biancheria` : 'cambio biancheria')
         : e.tipo === 'cambio_camera' ? (nome ? `cambio camera di ${nome}` : 'cambio camera')
           : nome ? `è partito ${nome}` : 'fine soggiorno'

@@ -21,7 +21,7 @@ import { openWhatsApp } from '@/lib/whatsapp'
 import { messaggioRichiestaOrario, numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
 import BackBar from '@/components/BackBar'
 import { RigaDocumentiPrenotazione } from '@/components/DocumentiCliente'
-import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio } from '@/lib/guestName'
+import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio, nomeConAltri } from '@/lib/guestName'
 import { causaleBonifico } from '@/lib/causale'
 import { dataItaliana, periodoCompatto, giornoMese } from '@/lib/dateItaliane'
 import { GIORNI_PREAVVISO_CANCELLAZIONE } from '@/lib/condizioniPrenotazione'
@@ -2227,7 +2227,7 @@ export default function BookingDetail() {
           <div className="flex justify-between items-start gap-2">
             <p className={`${v.titoloMedio} min-w-0`}>
               {valutazioneDi(guest) === 'ottimo' && <span title="Cliente ottimo" style={{ color: 'var(--color-brass)', marginRight: 6 }}>★</span>}
-              {nomeOspite(booking)}
+              {nomeConAltri(booking)}
               <span className={v.eti} style={{ marginLeft: 8, whiteSpace: 'normal' }}>{(() => {
                 const pr = provenienzaDi(guest ?? {})
                 return pr.provenienza === 'altra_struttura' && pr.struttura_nome ? pr.struttura_nome : ETICHETTA_PROVENIENZA[normalizzaProvenienza(pr.provenienza)]

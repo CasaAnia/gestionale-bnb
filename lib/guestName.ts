@@ -150,3 +150,35 @@ export function nomeDaSalvare(c: { nome?: string | null; cognome?: string | null
 export function nomeDaSalvareONull(c: { nome?: string | null; cognome?: string | null; full_name?: string | null }): string | null {
   return nomeDaSalvare(c) || null
 }
+
+// ── QUANDO IN CAMERA C'È UN'ALTRA PERSONA (Ania, 21/09/2026) ───────────────
+// Luca prenota e all'arrivo si presenta suo fratello Massimo: l'avviso in
+// fondo alla scheda non bastava, sfuggiva. Da oggi, ovunque si legga il nome
+// della prenotazione, i due nomi stanno attaccati: «Luca Tassone / Massimo
+// Tassone» — davanti chi ha prenotato, dopo chi dorme davvero. Se non c'è
+// nessun altro non cambia niente: resta il nome di sempre.
+// Vale solo per quello che si LEGGE a schermo (Home, elenchi, calendario,
+// arrivi, pulizie, scheda). Nei messaggi al cliente il nome resta uno solo:
+// lì si passa da nomeOspite, come prima.
+export function altriInCamera(b: any): string[] {
+  return [b?.extra_phone_1_name, b?.extra_phone_2_name]
+    .map(x => nomePerMessaggio(x))
+    .filter(Boolean)
+}
+
+/** «Luca Tassone / Massimo Tassone» per gli schermi con spazio */
+export function nomeConAltri(b: any): string {
+  return [nomeOspite(b), ...altriInCamera(b)].join(' / ')
+}
+
+/** «Luca T. / Massimo T.» per le barre strette del calendario. Senza altre
+ *  persone il nome resta intero, esattamente come si è sempre visto. */
+export function nomeConAltriCorto(b: any): string {
+  const altri = altriInCamera(b)
+  if (altri.length === 0) return nomeOspite(b)
+  const corto = (n: string) => {
+    const { nome, cognome } = spezzaNome(n)
+    return /^[\p{L}]/u.test(cognome) ? nomeBreve({ nome, cognome }) : n
+  }
+  return [corto(nomeOspite(b)), ...altri.map(corto)].join(' / ')
+}

@@ -19,6 +19,7 @@ import Link from 'next/link'
 import type { CSSProperties, ReactNode } from 'react'
 import { pezziRigaCliente } from '@/lib/clienteCheTorna'
 import { euroTondi } from '@/lib/euroTondi'
+import { corpoNomeTesta } from '@/lib/testaScheda'
 import type { DateTesta, DataTesta, PercorsoTesta, OggiTesta, ResiduoTesta } from '@/lib/testaScheda'
 
 // I colori del riferimento
@@ -115,7 +116,7 @@ export default function TestaScheda({
       </div>
 
       {/* il nome, grande e al centro: 🧾 se vuole la ricevuta, ★ se è una cliente ottima */}
-      <h1 data-nome-testa className="text-center text-[25px] min-[700px]:text-[30px]" style={{ fontFamily: GEORGIA, fontWeight: 400, lineHeight: 1.2, margin: '23px 0 20px' }}>
+      <h1 data-nome-testa className={`text-center ${corpoNomeTesta(nome).classi}`} style={{ fontFamily: GEORGIA, fontWeight: 400, lineHeight: 1.2, margin: '23px 0 20px' }}>
         {ricevuta && <span data-ricevuta aria-label="vuole la ricevuta" title="Vuole la ricevuta">{'🧾 '}</span>}
         {stella && <span data-stella aria-label="cliente ottima" title="Cliente ottima" style={{ color: OTTONE_STELLA }}>{'★ '}</span>}
         {nome}

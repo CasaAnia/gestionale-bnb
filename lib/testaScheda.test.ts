@@ -5,8 +5,7 @@ import {
   dateTesta, arrivoTesta, percorsoTesta, oggiTesta, residuoTesta, giornoEMese,
   ORARIO_DA_DEFINIRE, NAVETTA_DA_VERIFICARE, NAVETTA_NON_RICHIESTA, CON_NAVETTA,
   SOGGIORNO_CONCLUSO, PRENOTAZIONE_ANNULLATA_TESTA, NON_IN_CASA, PROSSIMO_CAMBIO, PARTE, PRIMA_CAMERA, TORNA, PARTITA,
-  RESTA_DA_INCASSARE, SALDATO_TESTA, BONIFICO_ATTESO, CONTO_DA_RILEGGERE, SEGNATA_PAGATA_TESTA,
-} from './testaScheda.ts'
+  RESTA_DA_INCASSARE, SALDATO_TESTA, BONIFICO_ATTESO, CONTO_DA_RILEGGERE, SEGNATA_PAGATA_TESTA, corpoNomeTesta} from './testaScheda.ts'
 import { riepilogoConto } from './schedaConto.ts'
 import type { SegmentoScheda } from './schedaPrenotazione.ts'
 
@@ -142,4 +141,12 @@ test('«22 settembre», e «2 gennaio 2027» quando l’anno non è quello di ri
   assert.equal(giornoEMese('2026-09-22'), '22 settembre')
   assert.equal(giornoEMese('2026-09-22', 2026), '22 settembre')
   assert.equal(giornoEMese('2027-01-02', 2026), '2 gennaio 2027')
+})
+
+test('il nome in cima si rimpicciolisce solo quando è lungo davvero', () => {
+  assert.equal(corpoNomeTesta('Anna Rossi').classi, 'text-[25px] min-[700px]:text-[30px]')
+  assert.equal(corpoNomeTesta('Massimiliano Pellicori').classi, 'text-[21px] min-[700px]:text-[26px]')
+  assert.equal(corpoNomeTesta('Luca Tassone / Massimo Tassone').classi, 'text-[21px] min-[700px]:text-[26px]')
+  assert.equal(corpoNomeTesta('Maria Lipari / Pietro Maltese / Patty').classi, 'text-[18px] min-[700px]:text-[22px]')
+  assert.equal(corpoNomeTesta('').classi, 'text-[25px] min-[700px]:text-[30px]')
 })

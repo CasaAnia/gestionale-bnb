@@ -5,7 +5,7 @@ import { prezzoPrenotazione } from '@/lib/prezzoNotti'
 import { useRouter } from 'next/navigation'
 import { buildChangeGroups, coloriCatene, percorsoBarraArrotondata } from '@/lib/roomChanges'
 import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
-import { nomeOspite, nomeDiverso } from '@/lib/guestName'
+import { nomeDiverso, nomeConAltri, nomeConAltriCorto } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { EXTRA_BED_MAX } from '@/lib/tariffe'
 import { lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
@@ -622,7 +622,7 @@ export default function Calendario() {
               {matches.length === 1 ? (
                 // Un solo risultato: UNA riga compatta
                 <div className="text-[13px] font-bold text-green-dark truncate">
-                  🔎 {nomeOspite(m)} · {voce(m)}
+                  🔎 {nomeConAltri(m)} · {voce(m)}
                 </div>
               ) : (
                 <>
@@ -630,7 +630,7 @@ export default function Calendario() {
                   <button onClick={() => setMenuAperto(o => !o)} className="flex items-center gap-1.5 text-[13px] text-green-dark max-w-full">
                     <span aria-hidden>🔎</span>
                     <span className="truncate">
-                      <b>{matches.length} prenotazioni trovate</b> · {stessoCliente ? nomeOspite(matches[0]) : `${clientiDiversi} clienti diversi`}
+                      <b>{matches.length} prenotazioni trovate</b> · {stessoCliente ? nomeConAltri(matches[0]) : `${clientiDiversi} clienti diversi`}
                     </span>
                     <span className="text-green-mid text-[11px]" aria-hidden>▾</span>
                   </button>
@@ -649,7 +649,7 @@ export default function Calendario() {
                       <span className="block text-[11px] font-extrabold tracking-[1.5px] uppercase opacity-90">{matchIdx + 1} di {matches.length}</span>
                       <span className="block text-[13.5px] font-extrabold truncate">{voce(m)}</span>
                       {!stessoCliente && (
-                        <span className="block text-[10.5px] font-semibold opacity-85 truncate">{nomeOspite(m)} · …{tel4(m)}</span>
+                        <span className="block text-[10.5px] font-semibold opacity-85 truncate">{nomeConAltri(m)} · …{tel4(m)}</span>
                       )}
                     </button>
                     <button
@@ -669,7 +669,7 @@ export default function Calendario() {
                         className={`shrink-0 rounded-[10px] border px-3 py-1 text-left ${i === matchIdx ? 'bg-green-mid border-green-mid text-white' : 'bg-white border-card-border text-green-dark'}`}>
                         <span className="block text-[13px] font-extrabold whitespace-nowrap">{voce(x)}</span>
                         {!stessoCliente && (
-                          <span className={`block text-[11px] whitespace-nowrap ${i === matchIdx ? 'text-white/85' : 'text-gray-400'}`}>{nomeOspite(x)} · …{tel4(x)}</span>
+                          <span className={`block text-[11px] whitespace-nowrap ${i === matchIdx ? 'text-white/85' : 'text-gray-400'}`}>{nomeConAltri(x)} · …{tel4(x)}</span>
                         )}
                       </button>
                     ))}
@@ -684,7 +684,7 @@ export default function Calendario() {
                           onClick={() => vaiA(i)}
                           className={`flex flex-col items-start w-full text-left px-2.5 py-2 rounded-lg ${i === matchIdx ? 'bg-cream' : ''}`}>
                           <span className="text-[13.5px] font-extrabold text-green-dark">{voce(x)}</span>
-                          {!stessoCliente && <span className="text-[11px] text-gray-400">{nomeOspite(x)} · …{tel4(x)}</span>}
+                          {!stessoCliente && <span className="text-[11px] text-gray-400">{nomeConAltri(x)} · …{tel4(x)}</span>}
                         </button>
                       ))}
                     </div>
@@ -720,7 +720,7 @@ export default function Calendario() {
                 <span aria-hidden>🌐</span>
                 <span className="text-[13px] text-green-dark min-w-0 flex-1">
                   <span className="block truncate">
-                    <span className="font-semibold">{nomeOspite(b)}</span>
+                    <span className="font-semibold">{nomeConAltri(b)}</span>
                     {' · '}
                     {b.check_in?.slice(5).split('-').reverse().join('/')} → {b.check_out?.slice(5).split('-').reverse().join('/')}
                     {rooms.find(r => r.id === b.room_id)?.name ? ` · ${rooms.find(r => r.id === b.room_id)?.name}` : ''}
@@ -893,7 +893,9 @@ export default function Calendario() {
                     const startIdx = Math.max(0, dayIndex(booking.check_in))
                     const endIdx = Math.min(daysTotal, dayIndex(booking.check_out))
                     if (endIdx - startIdx <= 0) return []
-                    const guestName = booking.guest_name || booking.guests?.full_name || booking.guests?.phone || ''
+                    // il nome sulla barra: se dorme un'altra persona i due nomi stanno
+                    // attaccati e accorciati — «Luca T. / Massimo T.» (Ania, 21/09/2026)
+                    const guestName = nomeConAltriCorto(booking)
                     const isOttimo = booking.guests?.rating === 'ottimo'
                     const isEsclusiva = booking.color === '#f97316'
                     const vuoleRicevuta = clienteVuoleRicevuta(booking.guests)
@@ -1018,7 +1020,8 @@ export default function Calendario() {
                               {booking.source === 'sito_web' && !isWebPending && (
                                 <span style={{ position: 'absolute', top: 1.5, left: 1.5 + rientro, width: 12, height: 12, borderRadius: '50%', background: '#1F3D2F', border: '1px solid rgba(255,255,255,0.9)', color: '#fff', fontSize: 7, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2, pointerEvents: 'none' }}>🌐</span>
                               )}
-                              <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                              {/* col doppio nome un carattere in meno, così i due nomi ci stanno (Ania, 21/09/2026) */}
+                              <span style={{ color: isWebPending ? '#2D6A4F' : 'white', fontSize: (isDesktop ? (modo === 'quindici' ? 12 : 11) : 10) - (guestName.includes(' / ') ? 1 : 0), fontWeight: 600, paddingLeft: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
                                 {guestName}{vuoleRicevuta ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
                               </span>
                               {/* Le iconcine stanno SOTTO il nome, piccole (Ania, 05/09/2026): così si

@@ -7,6 +7,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { corpoNomeTesta } from './testaScheda.ts'
 
 const leggi = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
 const pagina = leggi('app/scheda/[id]/page.tsx')
@@ -81,7 +82,10 @@ test('la prima riga: chi è a sinistra (grassetti sul numero e sul nome), lo sto
 })
 
 test('il nome: Georgia 30 (25 sul telefono), peso normale, 🧾 e ★ davanti', () => {
-  assert.match(testaScheda, /<h1 data-nome-testa className="text-center text-\[25px\] min-\[700px\]:text-\[30px\]" style=\{\{ fontFamily: GEORGIA, fontWeight: 400, lineHeight: 1\.2, margin: '23px 0 20px' \}\}>/)
+  // Il corpo lo sceglie corpoNomeTesta: 25/30 di sempre, più piccolo solo se il
+  // nome è lungo (col doppio nome «Luca Tassone / Massimo Tassone», 21/09/2026)
+  assert.match(testaScheda, /<h1 data-nome-testa className=\{`text-center \$\{corpoNomeTesta\(nome\)\.classi\}`\} style=\{\{ fontFamily: GEORGIA, fontWeight: 400, lineHeight: 1\.2, margin: '23px 0 20px' \}\}>/)
+  assert.equal(corpoNomeTesta('Anna Rossi').classi, 'text-[25px] min-[700px]:text-[30px]')
   const titolo = testaScheda.slice(testaScheda.indexOf('<h1 data-nome-testa'), testaScheda.indexOf('</h1>'))
   assert.ok(titolo.indexOf('data-ricevuta') < titolo.indexOf('data-stella') && titolo.indexOf('data-stella') < titolo.indexOf('{nome}'), 'prima la ricevuta, poi la stella, poi il nome')
   assert.match(pagina, /stella=\{valutazioneDi\(guest\) === 'ottimo'\}/)

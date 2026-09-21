@@ -205,3 +205,15 @@ export function residuoTesta(riepilogo: RiepilogoConto | null, bonificoAtteso = 
 }
 
 export const DA_COMPLETARE_DOCUMENTO = 'Da completare: documento dell’ospite'
+
+// ── Il corpo del nome in cima (Ania, 21/09/2026) ───────────────────────────
+// Col doppio nome («Luca Tassone / Massimo Tassone», quando dorme un'altra
+// persona) il titolo si allungherebbe su tre righe: qui si sceglie un corpo
+// più piccolo man mano che il nome cresce, senza mai toccare i nomi corti,
+// che restano grandi come sempre. Due misure: telefono e schermo largo.
+export function corpoNomeTesta(nome: string): { classi: string } {
+  const lungo = (nome || '').trim().length
+  if (lungo <= 20) return { classi: 'text-[25px] min-[700px]:text-[30px]' }
+  if (lungo <= 34) return { classi: 'text-[21px] min-[700px]:text-[26px]' }
+  return { classi: 'text-[18px] min-[700px]:text-[22px]' }
+}

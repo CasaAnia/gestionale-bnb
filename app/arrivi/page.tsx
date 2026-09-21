@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { getUpcomingRoomChanges, buildChangeGroups, coloriCatene, percorsoBarraArrotondata } from '@/lib/roomChanges'
 import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
-import { nomeOspite } from '@/lib/guestName'
+import { nomeConAltri } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { ombraNavetta } from '@/lib/navetta'
 import BackLink from '@/components/BackLink'
@@ -197,7 +197,7 @@ export default function Arrivi() {
       if (daAprire) {
         apriUrlRef.current = daAprire.check_in
         setShowStorico(false)
-        setPopup({ id: daAprire.id, name: nomeOspite(daAprire), arrivo: leggiArrivo(daAprire) })
+        setPopup({ id: daAprire.id, name: nomeConAltri(daAprire), arrivo: leggiArrivo(daAprire) })
       }
       setLoading(false)
     })
@@ -335,7 +335,7 @@ export default function Arrivi() {
           <div className="text-[13.5px] font-bold" style={{ color: '#8c6a52' }}>Nessun arrivo trovato nei prossimi {DAYS_TOTAL - DAYS_BEFORE} giorni</div>
         )}
         {searchAttiva && (
-          <div className="text-[13px] font-bold text-green-dark truncate">🔎 {matches.length === 1 ? nomeOspite(matches[0]) : `${matches.length} arrivi trovati`}</div>
+          <div className="text-[13px] font-bold text-green-dark truncate">🔎 {matches.length === 1 ? nomeConAltri(matches[0]) : `${matches.length} arrivi trovati`}</div>
         )}
       </TestaPagina>
 
@@ -503,7 +503,7 @@ export default function Arrivi() {
 
                     return (
                       <div key={booking.id}
-                        onClick={() => { setShowStorico(false); setPopup({ id: booking.id, name: nomeOspite(booking), arrivo: leggiArrivo(booking) }) }}
+                        onClick={() => { setShowStorico(false); setPopup({ id: booking.id, name: nomeConAltri(booking), arrivo: leggiArrivo(booking) }) }}
                         style={{
                           position: 'absolute',
                           top: rowTop + 6,
@@ -550,7 +550,7 @@ export default function Arrivi() {
                           </span>}
                           {/* Nome */}
                           <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: isDesktop ? (modo === 'quindici' ? 12 : 11) : 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                            {nomeOspite(booking)}{vuoleRicevuta(booking.guests) ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
+                            {nomeConAltri(booking)}{vuoleRicevuta(booking.guests) ? <span data-badge-ricevuta title="Vuole ricevuta" style={{ marginLeft: 4, background: 'rgba(255,255,255,0.92)', color: '#1F3D2F', borderRadius: 4, padding: '0 4px', fontSize: 9, fontWeight: 700, lineHeight: 1.4, verticalAlign: 'middle' }}>{BADGE_RICEVUTA}</span> : null}
                           </span>
                         </div>
                         {/* Navetta SOLO se confermata, come ombra ottone sotto l'orario:

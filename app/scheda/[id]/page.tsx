@@ -93,7 +93,7 @@ import { ospitiPossibiliNotte } from '@/lib/nuovaPrenotazione'
 import { capienzaCamera } from '@/lib/tariffe'
 import { lineeDelSoggiorno, contestoLinea, contoDopoNotti, testoContoDopo, confermaNotti, conPrezzoConcordato, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, COMANDO_DATE, COMANDO_CAMBIO_CAMERA, type LineaSoggiorno } from '@/lib/lineeSoggiorno'
 import { salvaNottiInUnColpo } from '@/lib/nottiScrittura'
-import { nomeOspite } from '@/lib/guestName'
+import { nomeOspite, nomeConAltri } from '@/lib/guestName'
 import { giorniSoggiorno } from '@/lib/prezzoNotti'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import { provenienzaInParole, provenienzaDi, normalizzaProvenienza, type CampiProvenienza } from '@/lib/provenienza'
@@ -569,7 +569,7 @@ export default function SchedaPage() {
           chiediProvenienza={primaRiga.chiediProvenienza && booking.guest_id ? { testo: 'da dove? ›', onClick: () => setFoglioProvenienza(true) } : null}
           totaleCent={totaleSoggiorniCent}
           hrefCliente="#cliente"
-          nome={nomeOspite(booking)}
+          nome={nomeConAltri(booking)}
           stella={valutazioneDi(guest) === 'ottimo'}
           ricevuta={vuoleRicevuta(guest)}
           date={dateTesta(primoArrivo, ultimaPartenza, nottiDormite || giorniSoggiorno(primoArrivo, ultimaPartenza).length)}

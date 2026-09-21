@@ -14,7 +14,7 @@ import { leggiRecuperi, type LetturaRecuperi } from '@/lib/biancheriaDati'
 import { sommaPerVoce, nelPeriodo, AVVISO_0039 } from '@/lib/biancheria'
 import { AVVISO_0037 } from '@/lib/provenienza'
 import { supabase } from '@/lib/supabase'
-import { nomeOspite } from '@/lib/guestName'
+import { nomeConAltri } from '@/lib/guestName'
 import { messaggioNonSalvato } from '@/lib/scritturaSicura'
 import { isErroreDiRete } from '@/lib/connessione'
 import { cassaIntervallo, incassiCent, occupazioneIntervallo, indiciIntervallo, indiciAnnoPrima, confrontoKpi, riquadroRichieste, incoerenzeRichieste, ricaviPerCamera, scontiPeriodo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi, rpcMancante, vociPerRpc, validaEsitoRicostruzione, type Occupazione } from '@/lib/statistiche'
@@ -261,7 +261,7 @@ export default function Statistiche() {
   // R6: piano di ricostruzione (funzione pura) ed etichetta della voce Incassi
   const piano = data ? pianoRicostruzione(data.ricostruzione.prenotazioni, data.ricostruzione.pagamenti, data.ricostruzione.oggi) : { movimenti: [], totaleCent: 0, esclusi: [] }
   const voceIncassi = etichettaIncassi(piano.movimenti.length)
-  const nomeDi = new Map((data?.ricostruzione.prenotazioni ?? []).map(b => [b.id, nomeOspite(b)]))
+  const nomeDi = new Map((data?.ricostruzione.prenotazioni ?? []).map(b => [b.id, nomeConAltri(b)]))
 
   // R9: alla RPC ricostruisci_incassi (proposta 0033) vanno SOLO identità e
   // chiavi del piano approvato; il server blocca, rilegge, ricalcola e scrive

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Statistiche from './Statistiche'
 import { supabase } from '@/lib/supabase'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
-import { nomeOspite } from '@/lib/guestName'
+import { nomeOspite, nomeConAltri } from '@/lib/guestName'
 import BackBar from '@/components/BackBar'
 import { giornoDaParametro } from '@/lib/daControllare'
 import SalvataggiPulizie from '@/components/SalvataggiPulizie'
@@ -163,7 +163,7 @@ export default function Pulizie() {
       type Ev = { date: string; badge: string | null; testo: string }
       const eventi: Ev[] = []
       if (ciclo?.due && ciclo.due > td) {
-        const g = inCorso ? nomeOspite(inCorso) : null
+        const g = inCorso ? nomeConAltri(inCorso) : null
         const rimandata = ciclo.rinvii.length > 0 ? ` · rimandata dal ${dataBreve(ciclo.prevista!)}` : ''
         eventi.push({ date: ciclo.due, badge: 'cambio biancheria', testo: (g ? `${g} resta · solo lenzuola` : 'solo lenzuola') + rimandata })
       }
@@ -220,10 +220,10 @@ export default function Pulizie() {
     for (const e of events) {
       if (e.stato !== 'fatta') continue
       const b = e.booking_id ? bookings.find(x => x.id === e.booking_id) : null
-      voci.push({ chiave: `m:${e.id ?? `${e.room_id}:${e.data_prevista}`}`, data: e.data_effettiva || e.data_prevista, roomId: e.room_id, tipo: e.tipo, ospite: b ? nomeOspite(b) : '', auto: null, evento: e })
+      voci.push({ chiave: `m:${e.id ?? `${e.room_id}:${e.data_prevista}`}`, data: e.data_effettiva || e.data_prevista, roomId: e.room_id, tipo: e.tipo, ospite: b ? nomeConAltri(b) : '', auto: null, evento: e })
     }
     for (const a of pulizieAutomatiche(prenotazioni, events, td)) {
-      voci.push({ chiave: `a:${a.partenza.id}`, data: a.data, roomId: a.roomId, tipo: a.tipo, ospite: nomeOspite(a.partenza), auto: a })
+      voci.push({ chiave: `a:${a.partenza.id}`, data: a.data, roomId: a.roomId, tipo: a.tipo, ospite: nomeConAltri(a.partenza), auto: a })
     }
     return voci.sort((x, y) => y.data.localeCompare(x.data) || x.chiave.localeCompare(y.chiave)).slice(0, RIGHE_REGISTRO)
   }, [events, bookings, prenotazioni, td])

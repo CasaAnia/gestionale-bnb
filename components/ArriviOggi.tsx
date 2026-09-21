@@ -21,7 +21,7 @@
 // ============================================================================
 import Link from 'next/link'
 import { Plane, TrainFront, MapPin, Car, ChevronRight } from 'lucide-react'
-import { nomeOspite } from '@/lib/guestName'
+import { nomeConAltri } from '@/lib/guestName'
 import { arrivoInHome, leggiArrivo, type IconaArrivo } from '@/lib/arrivo'
 
 const GEORGIA = "Georgia, 'Times New Roman', serif"
@@ -41,7 +41,7 @@ function Riquadro({ b }: { b: Record<string, unknown> }) {
   return (
     <div data-arrivo-home={String(b.id)} className="py-3" style={{ borderLeft: `3px solid ${OTTONE}`, paddingLeft: 14, marginTop: 12 }}>
       <div className="flex flex-wrap items-baseline justify-between" style={{ gap: 8 }}>
-        <p style={{ fontFamily: GEORGIA, fontSize: 19, lineHeight: '23px', color: 'var(--color-green-dark)' }}>{nomeOspite(b)}</p>
+        <p style={{ fontFamily: GEORGIA, fontSize: 19, lineHeight: '23px', color: 'var(--color-green-dark)' }}>{nomeConAltri(b)}</p>
         <span className="flex items-center" style={{ gap: 6 }}>
           {/* il letto in più: c'era nella riga CHECK-IN e resta anche qui,
               perché è quello che cambia come si prepara la camera */}

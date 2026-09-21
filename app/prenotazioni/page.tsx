@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import BackBar from '@/components/BackBar'
-import { nomeOspite } from '@/lib/guestName'
+import { nomeConAltri } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
 import AvvisoAzione from '@/components/AvvisoAzione'
@@ -120,7 +120,7 @@ export default function Prenotazioni() {
               className="ed-riga py-4 transition-all cursor-pointer active:opacity-70 leading-relaxed">
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
-                  <p className="font-semibold">{nomeOspite(b)}</p>
+                  <p className="font-semibold">{nomeConAltri(b)}</p>
                   <p className="text-sm mt-0.5" style={{ color: 'var(--color-stone)' }}>{b.rooms?.name}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1.5">

@@ -29,7 +29,7 @@
 // nascosto che compare IN FONDO solo se mai si verifica.
 // ============================================================================
 import { scadenzaProposta, nomeCompleto, formatIntervallo, nottiRichiesta, linkRichiesta, STATI_APERTI, ORE_SCADENZA_PROPOSTA, type StatoRichiesta } from './richieste.ts'
-import { nomeOspite } from './guestName.ts'
+import { nomeOspite, nomeConAltri } from './guestName.ts'
 import { spostaGiorni } from './statistiche/periodo.ts'
 import { cent, prenotazioneValida, type PrenotazioneStat, type PagamentoStat, type DocumentoStat } from './statistiche/tipi.ts'
 import { lettiOccupatiPerNotte } from './lettiAggiuntivi.ts'
@@ -230,7 +230,7 @@ function datiSoggiorno(segmenti: PrenotazioneDC[], chiaveDi: (b: PrenotazioneDC)
     primoArrivo: ordinati[0].check_in,
     ultimaPartenza: ordinati.map(b => b.check_out).sort().slice(-1)[0],
     pagato: ordinati.some(b => !!b.pagato),
-    nome: nomeOspite(ordinati[0]) || 'Ospite',
+    nome: nomeConAltri(ordinati[0]) || 'Ospite',
     camere: [...new Set(ordinati.map(nomeCamera))].join(', '),
     primoId: ordinati[0].id,
   }
@@ -387,7 +387,7 @@ export function eccezioniArrivi(prenotazioni: PrenotazioneDC[], oggi: string): E
       const quando = b.check_in === oggi ? 'oggi' : 'domani'
       return {
         chiave: `arrivo:${b.id}`, tipo: 'arrivo' as const, urgenza: 'alta' as const, data: b.check_in,
-        titolo: `${nomeOspite(b)} · ${nomeCamera(b)} · ${quando}`,
+        titolo: `${nomeConAltri(b)} · ${nomeCamera(b)} · ${quando}`,
         motivo: wa ? `Arrivo di ${quando} senza orario` : `Arrivo di ${quando} senza orario e senza numero di telefono`,
         bottone: 'Apri arrivo', destinazione: { tipo: 'arrivo' as const, prenotazioneId: b.id }, rimandabile: false,
         whatsapp: wa ? { ...wa, principale: true } : undefined,

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getUpcomingRoomChanges, buildChangeGroups } from '@/lib/roomChanges'
-import { nomeOspite } from '@/lib/guestName'
+import { nomeConAltri } from '@/lib/guestName'
 import { useDemoMode } from '@/lib/useDemoMode'
 import { useRichiesteWeb } from '@/lib/webRequests'
 import AvvisoAzione from '@/components/AvvisoAzione'
@@ -69,7 +69,7 @@ function calcola(d: DatiHome, td: string, tmr: string, ms: string, nms: string) 
   // Occupazione = notti vendute ÷ notti vendibili (camere attive); ADR = tariffa media
   const indici = indiciIntervallo(ms, nms, d.camere, d.prenotazioni, d.fuoriServizio.intervalli)
   // Da incassare: soggiorni con movimenti registrati ma non saldati
-  const nomeDi = new Map(d.prenotazioniConMovimenti.map((b: any) => [b.id, nomeOspite(b)]))
+  const nomeDi = new Map(d.prenotazioniConMovimenti.map((b: any) => [b.id, nomeConAltri(b)]))
   const daInc = daIncassare(d.prenotazioniConMovimenti, d.tuttiPagamenti).map(g => ({ ...g, guest: nomeDi.get(g.id) || g.nomi || 'Ospite' }))
 
   // R6: finché lo storico è da ricostruire la voce si chiama «Incassi registrati»
@@ -125,7 +125,7 @@ export default function Dashboard() {
         {checkIn.map((b: any) => (
           <div key={`${prefix}-in-${b.id}`} className="flex flex-wrap items-center gap-2 text-sm py-1">
             <span className="bg-sage text-green-dark rounded px-1.5 py-0.5 text-xs font-bold">CHECK-IN</span>
-            <span className="font-medium">{nomeOspite(b)}</span>
+            <span className="font-medium">{nomeConAltri(b)}</span>
             <span className="text-gray-500">— {b.rooms?.name}</span>
             {b.check_in_time && <span className="bg-sage text-green-mid rounded px-1.5 py-0.5 text-xs font-bold">🕐 {b.check_in_time}</span>}
             {b.extra_bed && <span className="bg-[#F1E0CE] text-[#7A4B22] rounded px-1 text-xs">+letto agg.</span>}
@@ -141,7 +141,7 @@ export default function Dashboard() {
         {checkOut.map((b: any) => (
           <div key={`${prefix}-out-${b.id}`} className="flex flex-wrap items-center gap-2 text-sm py-1">
             <span className="bg-[#F4E6DF] text-[#7A3B22] rounded px-1.5 py-0.5 text-xs font-bold">CHECK-OUT</span>
-            <span className="font-medium">{nomeOspite(b)}</span>
+            <span className="font-medium">{nomeConAltri(b)}</span>
             <span className="text-gray-500">— {b.rooms?.name}</span>
           </div>
         ))}
