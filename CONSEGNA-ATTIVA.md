@@ -2,9 +2,11 @@
 
 ## STATO IN 10 RIGHE
 
-1. **Punto 6 in verifica, NON pubblicato e NON dichiarato pronto.** Candidato
-   `ad40c20` sul ramo locale `punto6-messaggi`, base `b7009ab`; `main` intatto.
-   Autore: Code. TRE giri di correzione, il revisore deve ricontrollare.
+1. **Punto 6 PUBBLICATO** il 21/09/2026 su decisione di Ania: `main` da
+   `b7009ab` a `d4b3761`, Vercel `success`. Autore: Code. Tre giri di
+   correzione, due ricontrolli di Codex chiusi; il **terzo** giro (accordo di
+   pagamento, `ad40c20`) è uscito **senza ricontrollo**, con le sole prove di
+   Code: se salta fuori qualcosa si corregge sul pubblicato.
 2. La parte «Messaggi» della scheda: conferma con **immagine e testo sempre in
    cima**, «Utili adesso» con i messaggi della fase, «Tutti i messaggi» chiuso
    con tutti e nove (l'annullamento resta un TESTO, non tocca stato né date).
@@ -34,8 +36,8 @@
     difetti riprodotti e poi risolti **nel percorso vero della pagina**; dai due
     link i nove testi sono identici carattere per carattere e l'immagine pure;
     dati bonifico 260 − 100 = 160 come il conto. Nessun messaggio inviato.
-    🔴 Pubblicazione: **non ancora**. Prima il ricontrollo del revisore, poi
-    l'autorizzazione di Ania (quella del punto 5 non vale per questo lavoro).
+    Pubblicazione: **fatta** il 21/09/2026 («pubblica»), suite 1656 verde
+    prima del push, nessun commit di altri in mezzo.
 11. **Terzo giro**: senza nessun accordo scritto, `accordoPrenotazione`
     prendeva la prima riga per data anche se ANNULLATA, e la sua spunta
     bonifico faceva promettere alla cliente un anticipo con IBAN mai
