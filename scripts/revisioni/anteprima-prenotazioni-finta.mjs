@@ -306,10 +306,15 @@ const bookings = [
   // riga annullata la scheda proponeva i messaggi dell'annullamento.
   //   riga annullata:  /scheda/bbbbbbbb-2901-4000-8000-000000002901
   //   riga confermata: /scheda/bbbbbbbb-2902-4000-8000-000000002902
+  // La riga annullata porta anche la spunta BONIFICO, e nessun accordo è stato
+  // scritto da nessuna parte: serve al terzo rilievo (21/09/2026 sera). Prima
+  // la riserva di accordoPrenotazione prendeva questa riga e la conferma
+  // prometteva alla cliente «si salda in anticipo con bonifico bancario», con
+  // IBAN, mentre l'unica camera viva dice «pagamento all'arrivo».
   prenotazione(ROOM.allegra, 'aaaaaaaa-0029-4000-8000-000000000029', '2026-09-24', '2026-09-26', 2,
     { id: 'bbbbbbbb-2901-4000-8000-000000002901', prenotazione_id: 'dddddddd-0029-4000-8000-000000000029', group_id: null,
       status: 'annullata', cancelled_at: ora, cancelled_reason: 'La cliente ha lasciato una camera sola',
-      price_per_night: 70, total_amount: 140, check_in_time: '16:00' }),
+      price_per_night: 70, total_amount: 140, check_in_time: '16:00', bonifico: true }),
   prenotazione(ROOM.amelia, 'aaaaaaaa-0029-4000-8000-000000000029', '2026-09-24', '2026-09-28', 2,
     { id: 'bbbbbbbb-2902-4000-8000-000000002902', prenotazione_id: 'dddddddd-0029-4000-8000-000000000029', group_id: null,
       price_per_night: 65, total_amount: 260, check_in_time: '16:00' }),

@@ -39,8 +39,28 @@ export function contoPrenotazione(righe: RigaPrenotazione[], pagamenti: { bookin
   return { totaleCent, ricevutiCent, residuoCent: totaleCent - ricevutiCent }
 }
 // La caparra è registrata una volta sola. Si legge anche aprendo un'altra camera.
+//
+// L'ordine di ricerca, e perché (correzione del 21/09/2026 sera, terzo
+// ricontrollo indipendente):
+//  1. la riga con la CAPARRA registrata, e
+//  2. la riga con l'ACCORDO registrato: si cercano fra TUTTE le righe, anche
+//     annullate. Un accordo scritto una volta sola resta valido per la
+//     prenotazione anche se è custodito sul tratto che poi è stato annullato:
+//     qui non si tocca niente, è la regola di sempre;
+//  3. la RISERVA, quando non c'è nessun accordo scritto da nessuna parte: si
+//     prendeva la prima riga per data, che può essere una riga ANNULLATA.
+//     Così la spunta «bonifico» di una camera annullata finiva nella conferma
+//     al cliente («si salda in anticipo con bonifico bancario», IBAN e importo)
+//     anche quando l'unica camera viva dice «pagamento all'arrivo». Adesso la
+//     riserva preferisce una riga ATTIVA; se non ne resta nessuna vale la prima,
+//     perché una prenotazione tutta annullata deve poter dire com'era.
+// Nessuna regola commerciale cambia e nessun accordo viene inventato: cambia
+// solo da quale riga si legge quando un accordo scritto non c'è.
 export function accordoPrenotazione<T extends RigaPrenotazione>(righe: T[]): T | undefined {
   const ordinate = [...righe].sort((a, z) => a.check_in.localeCompare(z.check_in) || a.id.localeCompare(z.id))
-  return ordinate.find(r => r.caparra_centesimi != null) || ordinate.find(r => r.accordo_pagamento != null) || ordinate[0]
+  return ordinate.find(r => r.caparra_centesimi != null)
+    || ordinate.find(r => r.accordo_pagamento != null)
+    || ordinate.find(r => r.status !== 'annullata')
+    || ordinate[0]
 }
 export const haCamereParallele = (righe: IdentitaPrenotazione[]) => new Set(righe.map(r => r.group_id || r.id)).size > 1

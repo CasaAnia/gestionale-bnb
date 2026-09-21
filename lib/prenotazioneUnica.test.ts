@@ -38,3 +38,43 @@ test('fallback solo sui legami espliciti delle prenotazioni vecchie', () => {
 test('la causale include la partenza della camera più lunga, anche se un cambio inizia dopo',()=>{
  assert.match(causaleBonifico([a,c,b],'Cliente Prova'),/10–16 set/)
 })
+
+// ══ LA RISERVA DELL'ACCORDO (21/09/2026 sera, terzo ricontrollo) ════════════
+// Senza nessun accordo scritto si prendeva la PRIMA riga per data, che può
+// essere una riga annullata: la sua spunta «bonifico» finiva nella conferma al
+// cliente, che prometteva un pagamento anticipato mai concordato.
+const conAccordo = (id: string, status: string, check_in: string, extra: Record<string, unknown> = {}) => ({
+  id, status, check_in, check_out: '2026-09-28', group_id: null, prenotazione_id: 'p-29',
+  total_amount: 100, caparra_centesimi: null, accordo_pagamento: null, bonifico: false, ...extra,
+}) as unknown as RigaPrenotazione
+
+test('senza accordo scritto la riserva è una riga ATTIVA, non quella annullata', () => {
+  const annullata = conAccordo('a', 'annullata', '2026-09-24', { bonifico: true })
+  const viva = conAccordo('b', 'confermata', '2026-09-24', { bonifico: false })
+  // stesse date: prima si decideva per id, e vinceva «a», la annullata
+  assert.equal(accordoPrenotazione([annullata, viva])?.id, 'b')
+  assert.equal(accordoPrenotazione([viva, annullata])?.id, 'b')
+  assert.equal(accordoPrenotazione([annullata, viva])?.bonifico, false, 'la spunta bonifico arrivava da una camera annullata')
+  // e anche quando l'annullata comincia PRIMA
+  const annullataPrima = conAccordo('a', 'annullata', '2026-09-20', { bonifico: true })
+  assert.equal(accordoPrenotazione([annullataPrima, viva])?.id, 'b')
+})
+
+test('un accordo o una caparra SCRITTI valgono anche se stanno su una riga annullata', () => {
+  const viva = conAccordo('b', 'confermata', '2026-09-24')
+  // l'accordo è stato registrato sul tratto poi annullato: resta quello della prenotazione
+  const annullataConAccordo = conAccordo('a', 'annullata', '2026-09-24', { accordo_pagamento: 'bonifico_intero' })
+  assert.equal(accordoPrenotazione([annullataConAccordo, viva])?.id, 'a')
+  assert.equal(accordoPrenotazione([annullataConAccordo, viva])?.accordo_pagamento, 'bonifico_intero')
+  // e la caparra vince su tutto, come sempre
+  const annullataConCaparra = conAccordo('a', 'annullata', '2026-09-24', { caparra_centesimi: 15000 })
+  const vivaConAccordo = conAccordo('b', 'confermata', '2026-09-24', { accordo_pagamento: 'contanti' })
+  assert.equal(accordoPrenotazione([vivaConAccordo, annullataConCaparra])?.caparra_centesimi, 15000)
+})
+
+test('prenotazione tutta annullata: la riserva resta la prima riga, per dire com’era', () => {
+  const uno = conAccordo('a', 'annullata', '2026-09-24', { bonifico: true })
+  const due = conAccordo('b', 'annullata', '2026-09-26')
+  assert.equal(accordoPrenotazione([due, uno])?.id, 'a')
+  assert.equal(accordoPrenotazione([] as RigaPrenotazione[])?.id, undefined)
+})

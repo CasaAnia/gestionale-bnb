@@ -293,3 +293,51 @@ test('con più camere vive resta il riepilogo di TUTTE, e la camera annullata no
   assert.match(testo, /Notti: \*6\*/, 'il soggiorno vivo va dal 24 al 30')
   assert.match(testo, /Totale soggiorno: 390,00 €/, '260 + 130, senza i 140 della camera annullata')
 })
+
+// ══ L'ACCORDO NEL MESSAGGIO (terzo ricontrollo, 21/09/2026 sera) ════════════
+// Senza nessun accordo scritto, `accordoPrenotazione` prendeva la prima riga
+// per data — che poteva essere ANNULLATA — e la pagina ne copiava la spunta
+// «bonifico» dentro il messaggio: la conferma prometteva al cliente un
+// pagamento anticipato con IBAN che non era stato concordato.
+import { accordoPrenotazione } from './prenotazioneUnica.ts'
+import { perMessaggio } from './messaggiPrenotazione.ts'
+
+const SI_SALDA_IN_ANTICIPO = /si salda in anticipo con bonifico bancario/
+const PAGA_ALL_ARRIVO = /Il pagamento avviene all'arrivo/
+
+// esattamente la catena della scheda: accordo → rigaViva → perMessaggio → testo
+const confermaComeLaPagina = (righe: unknown[], aperta: unknown) => {
+  const accordo = accordoPrenotazione(righe as never) as { accordo_pagamento?: string | null; bonifico?: boolean } | undefined
+  const viva = rigaPerMessaggi(righe as never, aperta as never)
+  const perIMessaggi = perMessaggio({ ...(viva as unknown as object), accordo_pagamento: accordo?.accordo_pagamento ?? null, bonifico: accordo?.bonifico } as never)
+  return buildWhatsappMsg(perIMessaggi as never, 'conferma', segmentiAttivi(righe as never) as never, [] as never)
+}
+
+test('col bonifico spuntato solo su una camera ANNULLATA la conferma non promette un anticipo', () => {
+  const annullata = { ...rigaAllegra, bonifico: true, accordo_pagamento: null, caparra_centesimi: null }
+  const viva = { ...rigaAmelia, bonifico: false, accordo_pagamento: null, caparra_centesimi: null }
+  for (const aperta of [annullata, viva]) {
+    const testo = confermaComeLaPagina([annullata, viva], aperta)
+    assert.match(testo, PAGA_ALL_ARRIVO, 'la conferma segue la camera viva: pagamento all’arrivo')
+    assert.doesNotMatch(testo, SI_SALDA_IN_ANTICIPO, 'la conferma prometteva un anticipo mai concordato')
+    assert.doesNotMatch(testo, /IT32P0503401753000000159653/, 'nel messaggio è finito l’IBAN senza accordo di bonifico')
+  }
+})
+
+test('l’accordo SCRITTO vale anche se custodito su una camera annullata', () => {
+  // qui l'accordo c'è davvero: «tutto in anticipo». Non si perde.
+  const annullata = { ...rigaAllegra, bonifico: true, accordo_pagamento: 'bonifico_intero', caparra_centesimi: null }
+  const viva = { ...rigaAmelia, bonifico: false, accordo_pagamento: null, caparra_centesimi: null }
+  const testo = confermaComeLaPagina([annullata, viva], annullata)
+  assert.match(testo, SI_SALDA_IN_ANTICIPO, 'un accordo scritto non si butta via')
+  assert.match(testo, /IT32P0503401753000000159653/)
+  // e il soggiorno raccontato resta quello vivo
+  assert.match(testo, /Camera: Amelia/)
+  assert.match(testo, /Totale soggiorno: 260,00 €/)
+})
+
+test('col bonifico sulla camera VIVA la conferma chiede l’anticipo, come prima', () => {
+  const annullata = { ...rigaAllegra, bonifico: false, accordo_pagamento: null, caparra_centesimi: null }
+  const viva = { ...rigaAmelia, bonifico: true, accordo_pagamento: 'bonifico_intero', caparra_centesimi: null }
+  assert.match(confermaComeLaPagina([annullata, viva], annullata), SI_SALDA_IN_ANTICIPO)
+})
