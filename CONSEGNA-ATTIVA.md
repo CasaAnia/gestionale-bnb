@@ -2,8 +2,9 @@
 
 ## STATO IN 10 RIGHE
 
-1. **Punto 6 fatto e verificato, NON pubblicato.** Ramo locale `punto6-messaggi`
-   su base `b7009ab`; `main` non è stato toccato. Autore: Code.
+1. **Punto 6 in verifica, NON pubblicato e NON dichiarato pronto.** Candidato
+   `4843525` sul ramo locale `punto6-messaggi`, base `b7009ab`; `main` intatto.
+   Autore: Code. Due giri di correzione già fatti, il revisore deve ricontrollare.
 2. La parte «Messaggi» della scheda: conferma con **immagine e testo sempre in
    cima**, «Utili adesso» con i messaggi della fase, «Tutti i messaggi» chiuso
    con tutti e nove (l'annullamento resta un TESTO, non tocca stato né date).
@@ -23,11 +24,18 @@
    `faseMessaggi` non prende più nessuno stato, conta i tratti attivi.
 8. Minori corretti: date fuori calendario e partenza prima dell'arrivo adesso
    danno «incerta»; note e nome del test allineati al tasto corto.
-9. Prove: suite **1644 verde**, TypeScript, lint delta e build puliti; difetto
-   riprodotto e poi risolto **nel percorso vero della pagina**, in anteprima
-   sintetica, dai due link della stessa prenotazione. Nessun messaggio inviato.
-10. 🔴 Manca **solo** l'autorizzazione di Ania a pubblicare: quella del punto 5
-    non valeva per questo lavoro.
+9. **Secondo ricontrollo**: la fase era giusta ma i CONTENUTI no — dalla riga
+   annullata i testi e l'immagine portavano quella camera (Allegra, 2 notti,
+   140 €) invece del soggiorno vivo (Amelia, 4 notti, 260 €), e la testa diceva
+   «Prenotazione annullata». Corretto con una fonte dati comune
+   (`rigaPerMessaggi` / `statoPrenotazione` in `lib/messaggiFase`), usata da
+   testi, immagine, testa e comandi in fondo. Testi commerciali intatti.
+10. Prove: suite **1650 verde**, TypeScript, lint delta e build puliti; i due
+    difetti riprodotti e poi risolti **nel percorso vero della pagina**; dai due
+    link i nove testi sono identici carattere per carattere e l'immagine pure;
+    dati bonifico 260 − 100 = 160 come il conto. Nessun messaggio inviato.
+    🔴 Pubblicazione: **non ancora**. Prima il ricontrollo del revisore, poi
+    l'autorizzazione di Ania (quella del punto 5 non vale per questo lavoro).
 
 ## Riscontri del punto 6
 
@@ -46,7 +54,9 @@ prenotazione sola):
 - riga annullata: `/scheda/bbbbbbbb-2901-4000-8000-000000002901`
 - riga confermata: `/scheda/bbbbbbbb-2902-4000-8000-000000002902`
 
-Le due pagine devono dire la stessa cosa sotto «Utili adesso».
+Le due pagine devono dire la stessa cosa sotto «Utili adesso» **e negli stessi
+testi**: Amelia – Singola, 4 notti, 260 €, con 100 € già ricevuti registrati
+sulla riga annullata (dati bonifico: 160 €).
 
 ---
 
