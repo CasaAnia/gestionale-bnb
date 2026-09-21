@@ -80,7 +80,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   // riaprendo il foglio: i campi mostrano i SUOI dati (importo, giorno, modo,
   // nota) e restano fermi finché l'esito non è risolto — un importo cambiato
   // nel frattempo non deve diventare un secondo pagamento (21/09/2026).
-  const [incerto, setIncerto] = useState<TentativoIncerto | null>(() => tentativoIncerto(booking))
+  const [incerto, setIncerto] = useState<TentativoIncerto | null>(() => tentativoIncerto(booking, righe))
   const [modo, setModo] = useState<ModoImporto>(incerto ? 'altro' : modoIniziale(residuoCent))
   const [importo, setImporto] = useState(incerto ? importoProposto(Math.round(incerto.importo * 100)) : modoIniziale(residuoCent) === 'saldo' ? importoProposto(residuoCent) : '')
   const [giorno, setGiorno] = useState(incerto ? incerto.giorno : oggi)

@@ -181,17 +181,17 @@ test('rilievo 3 (20/09/2026 notte): tre esiti, tre messaggi; «Verifica pagament
   assert.match(pagamentiDati, /return !\/\^\(08\|57P\)\/\.test\(code\)/)
   // l'esito incerto conserva il tentativo (chiave, dati e nota nella custodia) invece di dire «non salvato»
   assert.match(pagamentiDati, /custodisci: p => scriviMemoria\(\(\) => localStorage, chiaveMemoria, JSON\.stringify\(\{ \.\.\.p, nota: dati\.nota \}\)\)/)
-  assert.match(pagamentiDati, /if \(esito\.fase === 'movimento' && !errorePerCerto\(erroreScrittura\)\) \{\s*const t = tentativoIncerto\(booking\)\s*if \(t\) return \{ esito: 'errore', messaggio: MESSAGGIO_ESITO_INCERTO, pagamenti: [^\n]*, incerto: t \}/)
+  assert.match(pagamentiDati, /if \(esito\.fase === 'movimento' && !errorePerCerto\(erroreScrittura\)\) \{\s*const t = tentativoIncerto\(booking, righe\)\s*if \(t\) return \{ esito: 'errore', messaggio: MESSAGGIO_ESITO_INCERTO, pagamenti: [^\n]*, incerto: t \}/)
   // mancato salvataggio accertato: il tentativo NON resta custodito (riaprendo non deve sembrare incerto)
   assert.match(pagamentiDati, /if \(esito\.fase === 'movimento'\) \{ try \{ localStorage\.removeItem\(chiaveMemoria\) \}/)
   // «Verifica pagamento»: rilegge e cerca il tentativo (pendenteApplicato del contratto); mai una scrittura di movimenti
   const verifica = pagamentiDati.slice(pagamentiDati.indexOf('export async function verificaPagamento'), pagamentiDati.indexOf('// «Segna come pagato» — contratto unico'))
-  assert.match(verifica, /const trovato = ritrovaPendente\(pendente, riletti\.data as PagamentoStat\[\]\)/)
-  assert.match(verifica, /if \(!trovato\) return \{ esito: 'non_trovato', pagamenti: riletti\.data, tentativo: t, riprovabile: !t\.senzaChiave \}/)
+  assert.match(verifica, /const trovato = ritrovaPendente\(c\.pendente, riletti\.data as PagamentoStat\[\]\)/)
+  assert.match(verifica, /return \{ esito: 'non_trovato', pagamenti: riletti\.data, tentativo: t, riprovabile: !t\.senzaChiave \}/)
   assert.equal(/\.rpc\(|\.insert\(/.test(verifica), false, 'la verifica scrive')
   assert.match(verifica, /completaDopoMovimento\(booking, righe, \{ metodo: t\.metodo as MetodoPagamento, giorno: t\.giorno, nota: t\.nota \}, \(trovato\.movimento as \{ id\?: string \}\)\.id, riletti\.data, trovato\.certo\)/)   // nota (solo sul movimento certo), bollino, rilettura
   // nel foglio: il tentativo si legge all'apertura, il tasto verifica, Salva spento finché c'è un tentativo
-  assert.match(pagamento, /useState<TentativoIncerto \| null>\(\(\) => tentativoIncerto\(booking\)\)/)
+  assert.match(pagamento, /useState<TentativoIncerto \| null>\(\(\) => tentativoIncerto\(booking, righe\)\)/)
   assert.match(pagamento, /if \(esito\.incerto\) \{\s*setIncerto\(esito\.incerto\)\s*setRiprovabile\(false\)[^\n]*\n\s*setErrore\(esito\.messaggio\)\s*return\s*\}/)
   assert.match(pagamento, /data-verifica-pagamento onClick=\{verifica\} disabled=\{verificando\}/)
   assert.match(pagamento, /if \(esito\.esito === 'ritrovato'\) \{[\s\S]{0,400}ritrovato: true \}\)/)
@@ -202,6 +202,31 @@ test('rilievo 3 (20/09/2026 notte): tre esiti, tre messaggi; «Verifica pagament
 })
 
 // ── 2. COME PAGA ────────────────────────────────────────────────────────────
+test('21/09/2026 — il tentativo incerto sopravvive al CAMBIO DI IDENTITÀ della prenotazione', () => {
+  // «Aggiungi camera» scrive prenotazione_id su righe prima singole o solo in
+  // gruppo: la custodia cambia indirizzo. Le identità possibili si ricavano dai
+  // LEGAMI delle righe (prenotazione_id, group_id, id), mai da importo/data/cliente.
+  assert.match(pagamentiDati, /export function identitaPossibili\(booking: RigaPagabile, righe\?: RigaPagabile\[\]\): string\[\]/)
+  assert.match(pagamentiDati, /aggiungi\(chiavePrenotazione\(booking\)\)/)
+  assert.match(pagamentiDati, /for \(const r of righe \?\? \[\]\) \{ aggiungi\(r\.prenotazione_id\); aggiungi\(r\.group_id\); aggiungi\(r\.id\) \}/)
+  const corpoIdentita = pagamentiDati.slice(pagamentiDati.indexOf('export function identitaPossibili'), pagamentiDati.indexOf('type CustodiaTrovata'))
+  assert.equal(/amount|paid_on|guest_id|total_amount|check_in/.test(corpoIdentita), false, 'le identità si deducono da importi, date o cliente')
+  // si sposta solo la più vecchia, non si sovrascrive nulla e non si butta nulla
+  assert.match(pagamentiDati, /if \(trovate\.length === 0 \|\| trovate\.some\(c => c\.chiaveMemoria === corrente\)\) return trovate/)
+  assert.match(pagamentiDati, /String\(a\.pendente\.creato \?\? ''\)\.localeCompare\(String\(z\.pendente\.creato \?\? ''\)\)/)
+  assert.match(pagamentiDati, /catch \{ \/\* custodia illeggibile: si lascia dov'è, non si butta \*\/ \}/)
+  // mai una chiave nuova mentre un tentativo è incerto: o lo stesso pagamento, o niente
+  assert.match(pagamentiDati, /const inSospeso = leggiPendente\(\)\s*if \(inSospeso && !\(Math\.round\(Number\(inSospeso\.amount\) \* 100\) === Math\.round\(dati\.importo \* 100\)/)
+  assert.match(pagamentiDati, /return \{ esito: 'errore', messaggio: MESSAGGIO_TENTATIVO_DA_VERIFICARE, pagamenti: null, incerto: tentativoIncerto\(booking, righe\) \?\? undefined \}/)
+  // la verifica guarda TUTTE le custodie della prenotazione e non ne perde nessuna
+  const verifica = pagamentiDati.slice(pagamentiDati.indexOf('export async function verificaPagamento'), pagamentiDati.indexOf('// «Segna come pagato» — contratto unico'))
+  assert.match(verifica, /const custodie = allineaCustodia\(booking, righe\)/)
+  assert.match(verifica, /if \(!trovato\) \{ restate\.push\(c\); continue \}/)
+  assert.equal(/\.rpc\(|\.insert\(/.test(verifica), false, 'la verifica scrive')
+  // il foglio passa le righe: la ricerca conosce le camere della prenotazione
+  assert.match(pagamento, /tentativoIncerto\(booking, righe\)/)
+})
+
 test('«Come paga»: il componente già fatto coi sei modi, e «Salva» nel piede comune', () => {
   const comePaga = leggi('components/scheda/FoglioComePaga.tsx')
   assert.match(comePaga, /<Foglio titolo=\{TITOLO_COME_PAGA\} onChiudi=\{onChiudi\}>/)
@@ -602,7 +627,7 @@ test('21/09/2026 — «Verifica pagamento» e nota; risposta persa con la scritt
   assert.match(pagamentiDati, /JSON\.stringify\(\{ \.\.\.p, nota: dati\.nota, senzaChiave: true \}\)\)\s*try \{\s*const \{ data, error \} = await supabase\.from\('payments'\)\.insert/)
   // 2. «non trovato» NON cancella la chiave: il tentativo resta e si rimanda tale e quale (stessa chiave); dopo l'INSERT di ripiego ci si ferma
   const verifica = pagamentiDati.slice(pagamentiDati.indexOf('export async function verificaPagamento'), pagamentiDati.indexOf('// «Segna come pagato» — contratto unico'))
-  assert.match(verifica, /if \(!trovato\) return \{ esito: 'non_trovato'[^\n]*riprovabile: !t\.senzaChiave \}\s*try \{ localStorage\.removeItem\(chiaveMemoria\) \}/)
+  assert.match(verifica, /if \(!trovato\) \{ restate\.push\(c\); continue \}\s*try \{ localStorage\.removeItem\(c\.chiaveMemoria\) \}/)
   assert.match(pagamento, /if \(esito\.esito === 'nessun_tentativo'\) \{ setIncerto\(null\); return \}/)
   assert.equal(/setIncerto\(null\)/.test(pagamento.slice(pagamento.indexOf('// non trovato: NON è detto che sia fallito'))), false, 'dopo «non trovato» il tentativo sparisce dal foglio')
   assert.match(pagamento, /setRiprovabile\(esito\.riprovabile\)\s*setEsitoVerifica\(esito\.riprovabile \? PAGAMENTO_NON_TROVATO : PAGAMENTO_NON_RIPROVABILE\)/)

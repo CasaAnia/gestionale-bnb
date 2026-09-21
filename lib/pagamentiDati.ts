@@ -74,6 +74,10 @@ export const COMANDO_RIPROVA_PAGAMENTO = 'Riprova lo stesso pagamento'
 // che renda sicuro il rinvio, quindi ci si ferma
 export const PAGAMENTO_NON_RIPROVABILE = 'Il pagamento non risulta registrato. Senza la funzione del server non posso rimandarlo in sicurezza: controlla i movimenti nella scheda e chiedi assistenza.'
 export const VERIFICA_NON_RIUSCITA = 'Non riesco a controllare i pagamenti registrati: riprova la verifica.'
+// C'è già un tentativo non confermato per questa prenotazione e il pagamento
+// chiesto adesso è un ALTRO: non si scrive niente, altrimenti nascerebbe una
+// chiave nuova accanto a una scrittura che potrebbe essere solo tardiva.
+export const MESSAGGIO_TENTATIVO_DA_VERIFICARE = 'C’è un pagamento non confermato su questa prenotazione: verificalo prima di registrarne un altro.'
 export const TENTATIVO_IN_SOSPESO = (importo: string, metodo: string, giorno: string) =>
   `C’è un pagamento non confermato: ${importo} · ${metodo} · ${giorno}. Verificalo prima di registrarne altri.`
 
@@ -91,12 +95,66 @@ export function errorePerCerto(e: unknown): boolean {
 
 /** Il tentativo incerto conservato sul telefono per questa prenotazione (chiave, importo, modo, giorno, nota) */
 export type TentativoIncerto = { chiave: string; importo: number; metodo: string; giorno: string; nota: string; senzaChiave: boolean }
-export function tentativoIncerto(booking: RigaPagabile): TentativoIncerto | null {
-  const t = leggiMemoria(() => localStorage, `ca_acconto_pendente_${chiavePrenotazione(booking)}`)
-  try {
-    const p = t ? JSON.parse(t) as AccontoPendente & { nota?: string } : null
-    return p && typeof p.chiave === 'string' && Number.isFinite(Number(p.amount)) ? { chiave: p.chiave, importo: Number(p.amount), metodo: p.method, giorno: p.paid_on, nota: p.nota ?? '', senzaChiave: !!p.senzaChiave } : null
-  } catch { return null }
+
+// ── La custodia e il CAMBIO DI IDENTITÀ della prenotazione (21/09/2026) ─────
+// La custodia vive sotto `ca_acconto_pendente_<identità del soggiorno>`, e
+// l'identità è prenotazione_id, altrimenti group_id, altrimenti l'id della
+// riga. «Aggiungi camera» (anche da un altro telefono) scrive prenotazione_id
+// su righe che prima erano singole o solo in gruppo: da quel momento
+// l'indirizzo cambia e il tentativo resta scritto ma irraggiungibile —
+// «nessun tentativo», campi liberi, e la registrazione dopo nascerebbe con
+// una chiave NUOVA, cioè un secondo pagamento se la prima scrittura era solo
+// tardiva. Le identità possibili si ricavano dai LEGAMI veri delle righe
+// (prenotazione_id, group_id, id), mai da importo, data o cliente.
+export const PREFISSO_CUSTODIA = 'ca_acconto_pendente_'
+export function identitaPossibili(booking: RigaPagabile, righe?: RigaPagabile[]): string[] {
+  const viste = new Set<string>()
+  const aggiungi = (v?: string | null) => { if (typeof v === 'string' && v) viste.add(v) }
+  aggiungi(chiavePrenotazione(booking))   // quella di adesso, sempre per prima
+  aggiungi(booking.prenotazione_id); aggiungi(booking.group_id); aggiungi(booking.id)
+  for (const r of righe ?? []) { aggiungi(r.prenotazione_id); aggiungi(r.group_id); aggiungi(r.id) }
+  return [...viste]
+}
+
+type CustodiaTrovata = { chiaveMemoria: string; pendente: AccontoPendente & { nota?: string } }
+function custodieTrovate(booking: RigaPagabile, righe?: RigaPagabile[]): CustodiaTrovata[] {
+  const fuori: CustodiaTrovata[] = []
+  for (const identita of identitaPossibili(booking, righe)) {
+    const chiaveMemoria = PREFISSO_CUSTODIA + identita
+    const testo = leggiMemoria(() => localStorage, chiaveMemoria)
+    if (!testo) continue
+    try {
+      const p = JSON.parse(testo) as AccontoPendente & { nota?: string }
+      if (p && typeof p.chiave === 'string' && Number.isFinite(Number(p.amount))) fuori.push({ chiaveMemoria, pendente: p })
+    } catch { /* custodia illeggibile: si lascia dov'è, non si butta */ }
+  }
+  return fuori
+}
+
+/** Riporta sotto l'identità di ADESSO il tentativo rimasto sotto un'identità
+ *  precedente della stessa prenotazione, con la sua chiave e i suoi dati.
+ *  Non sovrascrive mai una custodia già presente e non ne cancella nessuna:
+ *  con più tentativi si sposta solo il più vecchio (per `creato`, a parità
+ *  l'indirizzo), gli altri restano dove sono e si ritrovano al giro dopo. */
+function allineaCustodia(booking: RigaPagabile, righe?: RigaPagabile[]): CustodiaTrovata[] {
+  const trovate = custodieTrovate(booking, righe)
+  const corrente = PREFISSO_CUSTODIA + chiavePrenotazione(booking)
+  if (trovate.length === 0 || trovate.some(c => c.chiaveMemoria === corrente)) return trovate
+  const piuVecchia = [...trovate].sort((a, z) =>
+    String(a.pendente.creato ?? '').localeCompare(String(z.pendente.creato ?? '')) || a.chiaveMemoria.localeCompare(z.chiaveMemoria))[0]
+  if (!scriviMemoria(() => localStorage, corrente, JSON.stringify(piuVecchia.pendente))) return trovate
+  try { localStorage.removeItem(piuVecchia.chiaveMemoria) } catch { /* senza memoria non c'è nulla da togliere */ }
+  return trovate.map(c => c === piuVecchia ? { chiaveMemoria: corrente, pendente: c.pendente } : c)
+}
+
+const daCustodia = (p: AccontoPendente & { nota?: string }): TentativoIncerto =>
+  ({ chiave: p.chiave, importo: Number(p.amount), metodo: p.method, giorno: p.paid_on, nota: p.nota ?? '', senzaChiave: !!p.senzaChiave })
+
+export function tentativoIncerto(booking: RigaPagabile, righe?: RigaPagabile[]): TentativoIncerto | null {
+  const trovate = allineaCustodia(booking, righe)
+  const corrente = PREFISSO_CUSTODIA + chiavePrenotazione(booking)
+  const scelta = trovate.find(c => c.chiaveMemoria === corrente) ?? trovate[0]
+  return scelta ? daCustodia(scelta.pendente) : null
 }
 export const ERRORE_CONTO_CAMBIATO_NON_RILETTO = 'Il conto è cambiato mentre il foglio era aperto e non riesco a rileggerlo: niente registrato, ricarica la scheda.'
 class ErroreContoCambiato extends Error { constructor() { super(ERRORE_CONTO_CAMBIATO) } }
@@ -123,6 +181,18 @@ export async function registraPagamento(
   const rileggi = () => supabase.from('payments').select('*').in('booking_id', ids).order('paid_on')
   let ultimoPendente: AccontoPendente | null = null   // per dire se un «già applicato» è identificato per chiave
   const leggiPendente = () => { const t = leggiMemoria(() => localStorage, chiaveMemoria); try { ultimoPendente = t ? JSON.parse(t) as AccontoPendente : null } catch { ultimoPendente = null } return ultimoPendente }
+  // Il tentativo di prima può essere rimasto sotto l'identità VECCHIA della
+  // prenotazione (Aggiungi camera, anche da un altro telefono): lo si riporta
+  // qui con la sua chiave. Poi: o si rimanda LO STESSO pagamento (stessa
+  // chiave, idempotente), o non si scrive. Mai una chiave nuova mentre un
+  // tentativo è incerto — sarebbe un secondo movimento se la prima scrittura
+  // era solo tardiva (21/09/2026).
+  allineaCustodia(booking, righe)
+  const inSospeso = leggiPendente()
+  if (inSospeso && !(Math.round(Number(inSospeso.amount) * 100) === Math.round(dati.importo * 100)
+    && inSospeso.method === dati.metodo && inSospeso.paid_on === dati.giorno)) {
+    return { esito: 'errore', messaggio: MESSAGGIO_TENTATIVO_DA_VERIFICARE, pagamenti: null, incerto: tentativoIncerto(booking, righe) ?? undefined }
+  }
   // l'intero conto com'è adesso: le camere della prenotazione (come le legge la scheda) e i loro pagamenti
   const rileggiConto = async (): Promise<ContoRiletto | null> => {
     const r = await leggiPrenotazioneUnica(booking, f => supabase.from('bookings').select('*, rooms(*)').eq(f.colonna, f.valore).order('check_in'))
@@ -206,7 +276,7 @@ export async function registraPagamento(
     // la scrittura è partita e la risposta non è arrivata (o non si capisce):
     // NON si dice «non salvato». Il tentativo resta custodito sul telefono.
     if (esito.fase === 'movimento' && !errorePerCerto(erroreScrittura)) {
-      const t = tentativoIncerto(booking)
+      const t = tentativoIncerto(booking, righe)
       if (t) return { esito: 'errore', messaggio: MESSAGGIO_ESITO_INCERTO, pagamenti: esito.pagamenti as PagamentoLetto[] | null, incerto: t }
     }
     // mancato salvataggio ACCERTATO (il database ha risposto di no): nessun
@@ -292,24 +362,35 @@ export type EsitoVerifica =
   | { esito: 'errore'; messaggio: string }
 
 export async function verificaPagamento(booking: RigaPagabile, righe: RigaPagabile[]): Promise<EsitoVerifica> {
-  const chiave = chiavePrenotazione(booking)
-  const chiaveMemoria = `ca_acconto_pendente_${chiave}`
-  const t = tentativoIncerto(booking)
-  if (!t) return { esito: 'nessun_tentativo' }
-  const testo = leggiMemoria(() => localStorage, chiaveMemoria)
-  let pendente: AccontoPendente | null = null
-  try { pendente = testo ? JSON.parse(testo) as AccontoPendente : null } catch { pendente = null }
-  if (!pendente) return { esito: 'nessun_tentativo' }
+  // Tutte le custodie di QUESTA prenotazione, comprese quelle rimaste sotto
+  // un'identità precedente (Aggiungi camera): il tentativo si recupera, non
+  // si perde. Con più tentativi si risolvono uno per uno, ciascuno col suo
+  // movimento e la sua nota: nessuno si butta, nessuno si scambia per un altro.
+  const custodie = allineaCustodia(booking, righe)
+  if (custodie.length === 0) return { esito: 'nessun_tentativo' }
   const ids = righePerSaldo(righe).map(b => b.id)
   let riletti: { data: PagamentoLetto[] | null; error: unknown }
   try { riletti = await supabase.from('payments').select('*').in('booking_id', ids).order('paid_on') as unknown as { data: PagamentoLetto[] | null; error: unknown } } catch (e) { riletti = { data: null, error: e } }
   if (riletti.error || !riletti.data) return { esito: 'errore', messaggio: VERIFICA_NON_RIUSCITA }
-  const trovato = ritrovaPendente(pendente, riletti.data as PagamentoStat[])
-  if (!trovato) return { esito: 'non_trovato', pagamenti: riletti.data, tentativo: t, riprovabile: !t.senzaChiave }
-  try { localStorage.removeItem(chiaveMemoria) } catch { /* niente */ }
-  const completato = await completaDopoMovimento(booking, righe, { metodo: t.metodo as MetodoPagamento, giorno: t.giorno, nota: t.nota }, (trovato.movimento as { id?: string }).id, riletti.data, trovato.certo)
-  if (completato.esito === 'errore') return { esito: 'errore', messaggio: completato.messaggio }
-  return { esito: 'ritrovato', pagamenti: completato.pagamenti, pagato: completato.pagato, avviso: completato.avviso, tentativo: t, certo: trovato.certo }
+
+  const restate: CustodiaTrovata[] = []
+  let ultimo: { tentativo: TentativoIncerto; certo: boolean; completato: EsitoPagamento & { esito: 'ok' } } | null = null
+  for (const c of custodie) {
+    const trovato = ritrovaPendente(c.pendente, riletti.data as PagamentoStat[])
+    if (!trovato) { restate.push(c); continue }
+    try { localStorage.removeItem(c.chiaveMemoria) } catch { /* niente */ }
+    const t = daCustodia(c.pendente)
+    const completato = await completaDopoMovimento(booking, righe, { metodo: t.metodo as MetodoPagamento, giorno: t.giorno, nota: t.nota }, (trovato.movimento as { id?: string }).id, riletti.data, trovato.certo)
+    if (completato.esito === 'errore') return { esito: 'errore', messaggio: completato.messaggio }
+    ultimo = { tentativo: t, certo: trovato.certo, completato }
+  }
+  if (ultimo) return { esito: 'ritrovato', pagamenti: ultimo.completato.pagamenti, pagato: ultimo.completato.pagato, avviso: ultimo.completato.avviso, tentativo: ultimo.tentativo, certo: ultimo.certo }
+
+  // nessuno ritrovato: resta in sospeso quello sotto l'identità di adesso
+  const corrente = PREFISSO_CUSTODIA + chiavePrenotazione(booking)
+  const attiva = restate.find(c => c.chiaveMemoria === corrente) ?? restate[0]
+  const t = daCustodia(attiva.pendente)
+  return { esito: 'non_trovato', pagamenti: riletti.data, tentativo: t, riprovabile: !t.senzaChiave }
 }
 
 // «Segna come pagato» — contratto unico (lib/statistiche/pagato): chiave
