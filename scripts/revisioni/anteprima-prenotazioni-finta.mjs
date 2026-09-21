@@ -340,6 +340,10 @@ const payments = [
   { id: 'ffffffff-0006-4000-8000-000000000006', booking_id: 'bbbbbbbb-2801-4000-8000-000000002801', amount: 160, method: 'contanti', paid_on: '2026-09-20', created_at: ora },
   // Centesimi Sconto: 100 € di anticipo via bonifico, con la nota
   { id: 'ffffffff-0005-4000-8000-000000000005', booking_id: 'bbbbbbbb-2601-4000-8000-000000002601', amount: 100, method: 'bonifico', paid_on: '2026-12-01', note: 'Anticipo arrivato il 1° dicembre, causale «Casa Ania»', created_at: ora },
+  // Camera Annullata (21/09/2026 sera): 100 € di anticipo registrati sulla riga
+  // poi ANNULLATA. Per il conto unico valgono per tutta la prenotazione: il
+  // conto è 260 − 100 = 160, e i dati bonifico devono chiedere 160, non 260.
+  { id: 'ffffffff-0007-4000-8000-000000000007', booking_id: 'bbbbbbbb-2901-4000-8000-000000002901', amount: 100, method: 'bonifico', paid_on: '2026-09-20', created_at: ora },
 ]
 // Storico pulizie (migrazione 0018): vuoto, così la pagina Pulizie mostra solo le automatiche
 const cleanings = []

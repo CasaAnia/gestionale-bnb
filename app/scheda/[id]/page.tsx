@@ -99,7 +99,7 @@ import { elencoSoggiorniPersona, type SoggiornoStorico } from '@/lib/clienteCheT
 import { numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
 import { openWhatsApp, telefonoAGruppi } from '@/lib/whatsapp'
 import buildWhatsappMsg, { perMessaggio, type TipoMessaggio } from '@/lib/messaggiPrenotazione'
-import { faseMessaggi } from '@/lib/messaggiFase'
+import { faseMessaggi, rigaPerMessaggi, statoPrenotazione } from '@/lib/messaggiFase'
 import {
   riepilogoConto, contoScheda, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
   type PagamentoScheda, type MessaggioInviato, notaCopertura } from '@/lib/schedaConto'
@@ -289,6 +289,13 @@ export default function SchedaPage() {
   const guest = booking?.guests ?? null
   const hrefCliente = booking?.guest_id ? `/clienti/${booking.guest_id}` : null
   const attive = useMemo(() => segmentiAttivi(righe), [righe])
+  // ── CHI RAPPRESENTA LA PRENOTAZIONE ──────────────────────────────────────
+  // `booking` è la riga dell'id nell'indirizzo, NON la prenotazione: può essere
+  // una camera annullata di un soggiorno ancora vivo. La scelta si fa qui una
+  // volta sola e la usano i messaggi, l'immagine della conferma e la testa
+  // (lib/messaggiFase; secondo ricontrollo indipendente del 21/09/2026).
+  const rigaViva = useMemo(() => rigaPerMessaggi(righe, booking), [righe, booking])
+  const statoSoggiorno = useMemo(() => (righe.length ? statoPrenotazione(righe, booking) : booking?.status ?? ''), [righe, booking])
   const primoArrivo = attive[0]?.check_in ?? booking?.check_in ?? ''
   const ultimaPartenza = attive.reduce((m, s) => (s.check_out > m ? s.check_out : m), booking?.check_out ?? '')
   // Il conto: contoPrenotazione di lib/prenotazioneUnica, come la scheda attuale
@@ -322,7 +329,7 @@ export default function SchedaPage() {
   const primoSegmento = attive[0] ?? booking
   const arrivoTestaTesto = arrivoTesta(primoSegmento?.check_in_time, primoSegmento?.shuttle)
   // lo stato scritto solo se non è quello normale (Ania, 17/09/2026)
-  const statoTesto = booking ? statoScheda(booking.status, ultimaPartenza, oggi) : ''
+  const statoTesto = booking ? statoScheda(statoSoggiorno, ultimaPartenza, oggi) : ''
   const statoDaMostrare = statoTesto === 'Confermata' ? null : statoTesto
 
   // ── LE STRISCE DELLE NOTTI ───────────────────────────────────────────────
@@ -476,8 +483,13 @@ export default function SchedaPage() {
   // ── MESSAGGI ─────────────────────────────────────────────────────────────
   // Gli stessi testi della scheda attuale (lib/messaggiPrenotazione), con gli
   // stessi dati: la prenotazione, tutte le sue camere e i pagamenti.
-  // La spunta «bonifico» vale «anticipo» solo se l'accordo lo dice (perMessaggio)
-  const perIMessaggi = () => perMessaggio({ ...booking, accordo_pagamento: accordoSalvato?.accordo_pagamento ?? null, bonifico: accordo?.bonifico })
+  // La spunta «bonifico» vale «anticipo» solo se l'accordo lo dice (perMessaggio).
+  // Si parte da `rigaViva`, mai dalla riga dell'indirizzo: quando i tratti
+  // attivi sono uno solo i testi e l'immagine leggono proprio quella riga, e
+  // con una camera annullata aperta finivano nel messaggio la camera e
+  // l'importo sbagliati. I pagamenti restano TUTTI quelli della prenotazione,
+  // anche registrati sul tratto annullato: è la regola del conto unico.
+  const perIMessaggi = () => perMessaggio({ ...rigaViva, accordo_pagamento: accordoSalvato?.accordo_pagamento ?? null, bonifico: accordo?.bonifico })
   const testoMessaggio = (tipo: TipoMessaggio) =>
     booking ? buildWhatsappMsg(perIMessaggi(), tipo, attive, pagamenti) : ''
   const hrefMessaggio = (tipo: TipoMessaggio) => waHrefTesto(waNumero ?? '', testoMessaggio(tipo))
@@ -554,8 +566,8 @@ export default function SchedaPage() {
           navetta={arrivoTestaTesto.navetta}
           onArrivo={() => setFoglioArrivo(true)}
           percorso={percorsoTesta(attive.length ? attive : righe)}
-          oggi={oggiTesta(attive, oggi, booking.status)}
-          residuo={residuoTesta(riepilogo, stato?.tipo === 'bonifico_atteso', booking.status === 'annullata')}
+          oggi={oggiTesta(attive, oggi, statoSoggiorno)}
+          residuo={residuoTesta(riepilogo, stato?.tipo === 'bonifico_atteso', statoSoggiorno === 'annullata')}
           daCompletare={controlli.some(v => v.chiave === 'documento') ? DA_COMPLETARE_DOCUMENTO : null}
           telefono={telefonoAGruppi(telefono) || telefono}
           telefonoDaChiamare={waNumero}
@@ -618,7 +630,7 @@ export default function SchedaPage() {
                 <button type="button" data-cambia-date={l.chiave} onClick={() => setDateAperte(l.chiave)} className="ed-azione ed-azione-tenue">{COMANDO_DATE}</button>
                 <span style={{ color: 'var(--color-stone)' }}>·</span>
                 <button type="button" data-cambio-camera={l.chiave} onClick={() => setCambioAperto(l.chiave)} className="ed-azione ed-azione-tenue">{COMANDO_CAMBIO_CAMERA}</button>
-                {i === linee.length - 1 && booking.status !== 'annullata' && <>
+                {i === linee.length - 1 && statoSoggiorno !== 'annullata' && <>
                   <span style={{ color: 'var(--color-stone)' }}>·</span>
                   <button type="button" data-aggiungi-camera onClick={aggiungiCamera} disabled={aggiungendo} className="ed-azione ed-azione-tenue">{COMANDO_AGGIUNGI_CAMERA}</button>
                 </>}
@@ -680,7 +692,7 @@ export default function SchedaPage() {
       {/* I tre comandi in fondo, staccati da tutto il resto */}
       <p data-comandi-fondo className="flex flex-wrap items-center justify-center mt-8 mb-4" style={{ gap: '0 12px', fontSize: 14 }}>
         <button type="button" data-nota-colore onClick={() => setFoglioNota(true)} className="ed-azione">{COMANDO_NOTA}</button>
-        {booking.status !== 'annullata' && <>
+        {statoSoggiorno !== 'annullata' && <>
           <span style={{ color: 'var(--color-stone)' }}>·</span>
           <button type="button" data-annulla-prenotazione onClick={() => setFoglioAnnulla(true)} className="ed-azione" style={{ color: '#8C3B2E' }}>Annulla prenotazione</button>
         </>}

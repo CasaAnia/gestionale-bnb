@@ -194,3 +194,102 @@ test('la conferma con immagine non è un messaggio della lista: sta a parte, sem
   assert.ok(TUTTI_I_MESSAGGI.some(m => m.tipo === 'conferma'))
   assert.equal(UTILI_ADESSO, 'Utili adesso')
 })
+
+// ══ CHI PARLA NEI MESSAGGI (secondo ricontrollo indipendente, 21/09/2026) ═══
+// Il difetto: la scheda si apre con l'id di UNA riga e passava quella riga ai
+// testi. Con una camera annullata (Allegra 24 → 26 set, 2 notti, 140 €) e una
+// confermata (Amelia 24 → 28 set, 4 notti, 260 €) il conto della scheda diceva
+// 260 € ma la conferma e i dati del bonifico portavano Allegra e 140 €.
+// Qui si prova il CONTENUTO vero, facendo girare il generatore dei testi con
+// gli stessi dati che passa la pagina.
+import buildWhatsappMsg from './messaggiPrenotazione.ts'
+import { rigaPerMessaggi, statoPrenotazione } from './messaggiFase.ts'
+import { segmentiAttivi } from './schedaPrenotazione.ts'
+import { contoPrenotazione } from './prenotazioneUnica.ts'
+
+const CLIENTE = { full_name: 'Camera Annullata', phone: '+39 333 000 0029' }
+const ALLEGRA = { name: 'Allegra', base_price: 70, bathroom_type: 'privato_interno', has_extra_bed: true, extra_bed_price: 10 }
+const AMELIA = { name: 'Amelia', base_price: 65, bathroom_type: 'privato_interno', has_extra_bed: true, extra_bed_price: 10 }
+// le due righe della prenotazione mista, come le carica la scheda
+const rigaAllegra = {
+  id: 'r-2901', prenotazione_id: 'p-29', group_id: null, status: 'annullata',
+  check_in: '2026-09-24', check_out: '2026-09-26', num_guests: 2,
+  price_per_night: 70, total_amount: 140, extra_bed: false, extra_bed_dates: [],
+  extra_bed_total: 0, rooms: ALLEGRA, guests: CLIENTE, bonifico: false,
+}
+const rigaAmelia = {
+  ...rigaAllegra, id: 'r-2902', status: 'confermata',
+  check_in: '2026-09-24', check_out: '2026-09-28',
+  price_per_night: 65, total_amount: 260, rooms: AMELIA,
+}
+// come fa la pagina: tutte le righe, i tratti attivi, i pagamenti di TUTTE le righe
+const comeLaPagina = (righe: typeof rigaAllegra[], aperta: typeof rigaAllegra, pagamenti: { booking_id: string; amount: number }[] = []) =>
+  buildWhatsappMsg(
+    rigaPerMessaggi(righe as never, aperta as never) as never,
+    'conferma',
+    segmentiAttivi(righe as never) as never,
+    pagamenti as never,
+  )
+
+test('prenotazione MISTA: la conferma parla della camera VIVA, da qualunque riga si apra', () => {
+  const righe = [rigaAllegra, rigaAmelia]
+  for (const aperta of [rigaAmelia, rigaAllegra]) {
+    const testo = comeLaPagina(righe, aperta)
+    const da = aperta.id === rigaAllegra.id ? 'aprendo la riga ANNULLATA' : 'aprendo la riga attiva'
+    assert.match(testo, /Camera: Amelia/, `${da}: la camera del messaggio non è quella viva`)
+    assert.doesNotMatch(testo, /Allegra/, `${da}: nel messaggio è finita la camera annullata`)
+    assert.match(testo, /Notti: \*4\*/, `${da}: le notti non sono quelle del soggiorno vivo`)
+    assert.match(testo, /Totale soggiorno: 260,00 €/, `${da}: l'importo non è quello del conto`)
+    assert.doesNotMatch(testo, /140,00 €/, `${da}: nel messaggio è finito l'importo della camera annullata`)
+    // e il link della camera è quello giusto
+    assert.match(testo, /camere\/singola/, `${da}: link della camera sbagliato`)
+  }
+})
+
+test('l’importo del messaggio è lo STESSO del conto della scheda, anche coi pagamenti sul tratto annullato', () => {
+  const righe = [rigaAllegra, rigaAmelia]
+  // la cliente ha pagato 100 € e il movimento sta sulla riga annullata:
+  // per il conto unico i pagamenti valgono per tutta la prenotazione
+  const pagamenti = [{ booking_id: 'r-2901', amount: 100 }]
+  const conto = contoPrenotazione(righe as never, pagamenti)
+  assert.equal(conto.totaleCent, 26000, 'il conto non conta le camere annullate')
+  assert.equal(conto.ricevutiCent, 10000, 'il conto conta il pagamento del tratto annullato')
+  assert.equal(conto.residuoCent, 16000)
+  // i dati bonifico devono chiedere ESATTAMENTE il residuo del conto
+  for (const aperta of [rigaAmelia, rigaAllegra]) {
+    const testo = buildWhatsappMsg(
+      rigaPerMessaggi(righe as never, aperta as never) as never,
+      'dati_bonifico', segmentiAttivi(righe as never) as never, pagamenti as never,
+    )
+    assert.match(testo, /Totale soggiorno: 260,00 €/)
+    assert.match(testo, /Già ricevuto: 100,00 €/)
+    assert.match(testo, /Importo da bonificare:\n\*160,00 €\*/)
+  }
+})
+
+test('annullata TUTTA: parla la riga aperta, il messaggio di annullamento ha le sue date', () => {
+  const tutteAnnullate = [rigaAllegra, { ...rigaAmelia, status: 'annullata' }]
+  const scelta = rigaPerMessaggi(tutteAnnullate as unknown as SegmentoScheda[], rigaAllegra as unknown as SegmentoScheda)
+  assert.equal(scelta?.id, 'r-2901', 'senza tratti vivi deve parlare la riga che si è aperta')
+  const testo = buildWhatsappMsg(scelta as never, 'annullamento', segmentiAttivi(tutteAnnullate as never) as never)
+  assert.match(testo, /^ANNULLAMENTO PRENOTAZIONE – CASA ANIA/)
+  assert.match(testo, /Camera: Allegra/)
+})
+
+test('lo stato della PRENOTAZIONE non è quello della riga aperta', () => {
+  const righe = [rigaAllegra, rigaAmelia]
+  assert.equal(statoPrenotazione(righe as never, rigaAllegra as never), 'confermata',
+    'aprendo la camera annullata la prenotazione risultava annullata')
+  assert.equal(statoPrenotazione(righe as never, rigaAmelia as never), 'confermata')
+  assert.equal(statoPrenotazione([rigaAllegra, { ...rigaAmelia, status: 'annullata' }] as never, rigaAllegra as never), 'annullata')
+  assert.equal(statoPrenotazione([] as never, rigaAllegra as never), 'annullata')
+})
+
+test('con più camere vive resta il riepilogo di TUTTE, e la camera annullata non entra', () => {
+  const terza = { ...rigaAmelia, id: 'r-2903', group_id: 'g-29', check_in: '2026-09-28', check_out: '2026-09-30', total_amount: 130, rooms: ALLEGRA }
+  const righe = [rigaAllegra, { ...rigaAmelia, group_id: 'g-29' }, terza]
+  const testo = comeLaPagina(righe as never, rigaAllegra)
+  assert.match(testo, /Camere \(cambio camera durante il soggiorno\):/)
+  assert.match(testo, /Notti: \*6\*/, 'il soggiorno vivo va dal 24 al 30')
+  assert.match(testo, /Totale soggiorno: 390,00 €/, '260 + 130, senza i 140 della camera annullata')
+})

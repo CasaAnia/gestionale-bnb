@@ -94,6 +94,34 @@ const UTILI: Record<FaseMessaggi, TipoMessaggio[]> = {
   incerta: ['libero'],
 }
 
+// ── CHI PARLA NEI MESSAGGI (correzione del 21/09/2026, secondo ricontrollo) ─
+// La scheda si apre con l'id di UNA riga, e quella riga può essere una camera
+// annullata di una prenotazione ancora viva. I testi al cliente, l'immagine
+// della conferma e la testa devono parlare del soggiorno VERO: se la riga
+// aperta è annullata ma restano camere attive, parla il primo tratto attivo.
+// Quando non resta nessun tratto attivo la prenotazione è davvero annullata e
+// parla la riga aperta: al messaggio di annullamento servono le sue date.
+//
+// Il difetto che questo chiude: entrando dal link della camera annullata
+// (Allegra 24 → 26 set, 2 notti, 140 €) la conferma e i dati del bonifico
+// portavano quella camera e quell'importo, mentre il conto della scheda diceva
+// Amelia 24 → 28 set, 4 notti, 260 €.
+
+/** La riga che rappresenta la prenotazione nei messaggi, nell'immagine e nella testa. */
+export function rigaPerMessaggi<T extends SegmentoScheda>(righe: T[], aperta: T | null | undefined): T | null {
+  const attivi = segmentiAttivi(righe ?? []) as T[]
+  if (aperta && aperta.status !== 'annullata') return aperta
+  return attivi[0] ?? aperta ?? null
+}
+
+/** Lo stato della PRENOTAZIONE, non della riga aperta: «annullata» solo quando
+ *  non resta nessun tratto attivo. */
+export function statoPrenotazione(righe: SegmentoScheda[], aperta: SegmentoScheda | null | undefined): string {
+  const attivi = segmentiAttivi(righe ?? [])
+  if (attivi.length === 0) return 'annullata'
+  return rigaPerMessaggi(righe, aperta)?.status ?? ''
+}
+
 /** I messaggi consigliati adesso, nell'ordine approvato. */
 export function messaggiUtili(fase: FaseMessaggi): VoceMessaggio[] {
   return UTILI[fase].map(tipo => {

@@ -371,8 +371,12 @@ test('«Annulla la prenotazione»: prima chi ha annullato (tre pastiglie), poi i
   assert.match(lib, /export const ETICHETTA_MOTIVO = 'Motivo · può restare vuoto'/)
   // senza aver scelto chi, non si annulla
   assert.match(annulla, /if \(!chi\) \{ setErrore\(SCEGLI_CHI\); return \}/)
-  // il comando in fondo alla scheda sparisce quando è già annullata
-  assert.match(pagina, /\{booking\.status !== 'annullata' && <>/)
+  // Il comando in fondo alla scheda sparisce quando è già annullata. Dal
+  // 21/09/2026 sera guarda lo stato della PRENOTAZIONE, non della riga aperta:
+  // con una camera annullata e le altre vive il comando deve restare, se no da
+  // quel link non si può più annullare il resto (secondo ricontrollo di Codex).
+  assert.match(pagina, /\{statoSoggiorno !== 'annullata' && <>/)
+  assert.equal(/\{booking\.status !== 'annullata' && <>/.test(pagina), false)
 })
 
 test('l’annullamento scrive come la scheda attuale, su tutte le righe attive, senza cancellare niente', () => {

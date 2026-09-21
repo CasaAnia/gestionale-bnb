@@ -121,7 +121,7 @@ test('ospiti e cambi, e la sequenza intera delle camere (Georgia 19, interlinea 
 })
 
 test('il blocco OGGI fra due fili #d6c7a8: occhiello, la camera di stanotte in Georgia 25, il prossimo evento in 14 px con la parte forte a 600', () => {
-  assert.match(pagina, /oggi=\{oggiTesta\(attive, oggi, booking\.status\)\}/)
+  assert.match(pagina, /oggi=\{oggiTesta\(attive, oggi, statoSoggiorno\)\}/)
   assert.match(pagina, /const oggi = oggiARoma\(\)/)
   assert.match(testaScheda, /data-oggi-testa style=\{\{ borderTop: `1px solid \$\{FILO_OGGI\}`, borderBottom: `1px solid \$\{FILO_OGGI\}`, padding: '16px 0' \}\}/)
   assert.match(testaScheda, /const FILO_OGGI = '#d6c7a8'/)
@@ -130,7 +130,7 @@ test('il blocco OGGI fra due fili #d6c7a8: occhiello, la camera di stanotte in G
 })
 
 test('il residuo in testa: la cifra del conto (riepilogoConto), Georgia 27; senza conto niente cifra; il richiamo del documento solo quando manca', () => {
-  assert.match(pagina, /residuo=\{residuoTesta\(riepilogo, stato\?\.tipo === 'bonifico_atteso', booking\.status === 'annullata'\)\}/)
+  assert.match(pagina, /residuo=\{residuoTesta\(riepilogo, stato\?\.tipo === 'bonifico_atteso', statoSoggiorno === 'annullata'\)\}/)
   assert.equal(/data-stato-conto/.test(pagina), false, 'la vecchia riga rossa dello stato del conto è ancora in testa')
   assert.match(testaScheda, /data-residuo-testa className="flex flex-wrap items-baseline justify-between" style=\{\{ gap: 10, margin: '20px 0 16px', fontSize: 14 \}\}/)
   assert.match(testaScheda, /\{residuo\.importo && <strong className="whitespace-nowrap" style=\{\{ font: `27px \$\{GEORGIA\}`, fontVariantNumeric: 'tabular-nums' \}\}>\{residuo\.importo\}<\/strong>\}/)
@@ -511,7 +511,7 @@ test('i messaggi (punto 6): «Utili adesso» in ottone, pastiglie sage a sinistr
 })
 
 test('la fase arriva dalla scheda, letta dalle date della prenotazione intera', () => {
-  assert.match(pagina, /import \{ faseMessaggi \} from '@\/lib\/messaggiFase'/)
+  assert.match(pagina, /import \{ faseMessaggi, rigaPerMessaggi, statoPrenotazione \} from '@\/lib\/messaggiFase'/)
   // tutte le righe (non il solo tratto aperto) e il giorno di Roma già in pagina
   assert.match(pagina, /const faseSoggiorno = faseMessaggi\(righePrenotazione, oggi\)/)
   assert.match(pagina, /const righePrenotazione = righe\.length \? righe : booking \? \[booking\] : \[\]/)
@@ -536,8 +536,40 @@ test('la fase non riceve MAI lo stato di una riga sola (regressione del 21/09/20
   // e la funzione stessa prende due cose sole: le righe e il giorno
   const fase = leggi('lib/messaggiFase.ts')
   assert.match(fase, /export function faseMessaggi\(segmenti: SegmentoScheda\[\], oggi: string\): FaseMessaggi/)
-  assert.equal(/status/.test(fase.slice(fase.indexOf('export function faseMessaggi'))), false,
-    'lib/messaggiFase guarda di nuovo lo stato di una riga')
+  // dentro il CORPO di faseMessaggi non si guarda nessuno stato: chi lo legge
+  // apposta è statoPrenotazione, che sta dopo e serve alla testa
+  const corpo = fase.slice(fase.indexOf('export function faseMessaggi'))
+  assert.equal(/status/.test(corpo.slice(0, corpo.indexOf('\n}'))), false,
+    'faseMessaggi guarda di nuovo lo stato di una riga')
+})
+
+// REGRESSIONE (secondo ricontrollo indipendente del 21/09/2026): i testi,
+// l'immagine della conferma e la testa leggevano la riga dell'indirizzo, che
+// può essere una camera ANNULLATA di una prenotazione viva. Il contenuto è
+// provato in lib/messaggiFase.test; qui si tiene fermo il contratto della
+// pagina, che è il punto in cui il difetto era nato.
+test('messaggi, immagine e testa leggono la riga VIVA, mai quella dell’indirizzo', () => {
+  assert.match(pagina, /import \{ faseMessaggi, rigaPerMessaggi, statoPrenotazione \} from '@\/lib\/messaggiFase'/)
+  // la scelta si fa una volta sola, sulle righe intere
+  assert.match(pagina, /const rigaViva = useMemo\(\(\) => rigaPerMessaggi\(righe, booking\), \[righe, booking\]\)/)
+  assert.match(pagina, /const statoSoggiorno = useMemo\(\(\) => \(righe\.length \? statoPrenotazione\(righe, booking\)/)
+  // i testi e l'immagine partono da lì, non da `booking`
+  assert.match(pagina, /const perIMessaggi = \(\) => perMessaggio\(\{ \.\.\.rigaViva,/)
+  assert.equal(/perMessaggio\(\{ \.\.\.booking/.test(pagina), false, 'i messaggi ripartono dalla riga dell’indirizzo')
+  assert.match(pagina, /<ConfermaWhatsApp booking=\{perIMessaggi\(\) as never\} groupBookings=\{attive as never\}/)
+  // i pagamenti restano TUTTI quelli della prenotazione (regola del conto unico)
+  assert.match(pagina, /buildWhatsappMsg\(perIMessaggi\(\), tipo, attive, pagamenti\)/)
+  // e la testa non usa più lo stato della riga aperta
+  assert.match(pagina, /oggi=\{oggiTesta\(attive, oggi, statoSoggiorno\)\}/)
+  assert.match(pagina, /residuoTesta\(riepilogo, stato\?\.tipo === 'bonifico_atteso', statoSoggiorno === 'annullata'\)/)
+  assert.match(pagina, /statoScheda\(statoSoggiorno, ultimaPartenza, oggi\)/)
+  // nessun pezzo della scheda decide più su booking.status: l'unico posto in
+  // cui lo stato della riga aperta si legge ancora è la riserva dentro
+  // statoSoggiorno, per i primi istanti in cui le altre righe non sono arrivate
+  const righeConStato = pagina.split('\n').filter(r => /booking\??\.status/.test(r))
+  assert.deepEqual(righeConStato.map(r => r.trim().startsWith('const statoSoggiorno')), righeConStato.map(() => true),
+    `la scheda decide ancora sullo stato della riga aperta: ${righeConStato.join(' | ')}`)
+  assert.equal(righeConStato.length, 1)
 })
 
 test('i messaggi usano i testi di sempre, non ne scrivono di nuovi', () => {
@@ -644,7 +676,7 @@ test('sotto la striscia la riga «Cambia date · Cambio camera · Aggiungi camer
   const riga = pagina.slice(pagina.indexOf('data-comandi-linea'), pagina.indexOf('data-comandi-linea') + 1400)
   assert.ok(riga.indexOf('data-cambia-date') < riga.indexOf('data-cambio-camera') && riga.indexOf('data-cambio-camera') < riga.indexOf('data-aggiungi-camera'), 'ordine sbagliato')
   assert.match(riga, /data-cambio-camera=\{l\.chiave\} onClick=\{\(\) => setCambioAperto\(l\.chiave\)\}/)
-  assert.match(riga, /i === linee\.length - 1 && booking\.status !== 'annullata' && <>/)
+  assert.match(riga, /i === linee\.length - 1 && statoSoggiorno !== 'annullata' && <>/)
   // «Aggiungi camera» non sta più in fondo
   const fondo = pagina.slice(pagina.indexOf('data-comandi-fondo'), pagina.indexOf('data-comandi-fondo') + 1200)
   assert.equal(/data-aggiungi-camera/.test(fondo), false)
