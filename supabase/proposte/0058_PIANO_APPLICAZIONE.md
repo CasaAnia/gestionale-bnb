@@ -96,6 +96,22 @@ dentro un commento.
 Quindi l'SQL gira davvero su PostgreSQL, i vincoli si creano tutti, non
 tocca nessuna riga e rieseguirlo non fa danni.
 
+## Fotografia PRIMA, sul progetto vero (21/09/2026 sera)
+
+Presa nel SQL Editor del gestionale, dopo aver verificato di essere sul
+progetto giusto (il primo tentativo era finito sul progetto di test: il
+selettore in alto diceva `gestionale-bnb-spese-test-…`, e `check_in_time`
+non esisteva — è stato quello a farcene accorgere).
+
+| | valore |
+| --- | --- |
+| prenotazioni | **261** |
+| clienti | **151** |
+| con orario di arrivo | **61** |
+| colonne `arrivo_*` / `navetta*` | **0** |
+
+I primi tre devono restare identici dopo l'applicazione.
+
 ## Cosa NON è ancora stato fatto
 
 - L'applicazione sul **progetto vero** (`gestionale`).
