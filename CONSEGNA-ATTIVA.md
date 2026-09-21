@@ -1,4 +1,27 @@
-# Scheda attiva — «Arrivo e navetta» (21 settembre 2026)
+# Scheda attiva — «Arrivo e navetta» (21 settembre 2026) — PUBBLICATO
+
+## PUBBLICATO il 21/09/2026 sera
+
+Autorizzato da Ania («pubblica»). `main` da `bb23a39` a **`f534673`**,
+avanzamento diretto senza fondere, nessun commit di altri in mezzo
+(`git log origin/main..main` = 0 prima del push). Prima del push: suite
+**1729 verde**, TypeScript, `next build` e lint puliti. Deploy Vercel
+**success**.
+
+Undici commit, dal primo giro alla 0058 applicata. Il database era già
+pronto: la 0058 è stata applicata **prima** della pubblicazione, quindi
+luogo, fascia, stima e autista si salvano da subito.
+
+**Cosa NON ha una verifica indipendente.** Codex ha verificato fino a
+`578955d`. I commit successivi — `865026b` (riquadro grigio e confronto
+ritagliato), `55a6bf4` (scelta «C»), `06ef79e`, e i quattro della 0058 —
+sono usciti con le sole prove mie. Se salta fuori qualcosa si corregge
+sul pubblicato.
+
+**Limite che resta in produzione**: l'avviso dopo una richiesta
+interrotta è prudente, non una serializzazione. Risalvando subito una
+sovrascrittura tardiva è ancora possibile. La risposta vera sarebbe una
+chiave di operazione come quella dei pagamenti: lavoro a sé.
 
 ## 0058 APPLICATA sul database vero (21/09/2026 sera)
 
