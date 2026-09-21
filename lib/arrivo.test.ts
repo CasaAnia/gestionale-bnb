@@ -24,7 +24,7 @@ import {
   ERRORE_ORA, ERRORE_LUOGO, ERRORE_LUOGO_ALTRO, ERRORE_FASCIA, ERRORE_FASCIA_STIMA,
   type Arrivo,
 } from './arrivo.ts'
-import { salvaArrivoPrenotazione, messaggioSenzaPosto, MESSAGGIO_INCERTO } from './arrivoDati.ts'
+import { salvaArrivoPrenotazione, messaggioSenzaPosto, confrontaRiga, dettagliEsistenti, erroreDelServer, MESSAGGIO_INCERTO, MESSAGGIO_DETTAGLI_ESISTENTI } from './arrivoDati.ts'
 import { MESSAGGIO_NON_SALVATO } from './scritturaSicura.ts'
 import { arrivoTestaDaArrivo, ORARIO_DA_DEFINIRE, NAVETTA_DA_VERIFICARE, NAVETTA_NON_RICHIESTA, CON_NAVETTA } from './testaScheda.ts'
 
@@ -453,10 +453,13 @@ test('RILIEVO CODEX 1: nemmeno un vincolo violato o la rete caduta fanno ripiega
   assert.equal(conVincolo.esito, 'errore')
   assert.equal(tentativi, 1)
 
+  // La rete caduta NON fa ripiegare, e dal terzo giro (21/09/2026) non dice
+  // più «non salvato»: senza risposta la scrittura può essere passata lo
+  // stesso, e senza rilettura non si può saperlo. Vedi «CASO 1» in fondo.
   tentativi = 0
   const senzaRete = await salvaArrivoPrenotazione(() => { tentativi += 1; return Promise.reject(new TypeError('Failed to fetch')) }, RIFERIMENTO)
-  assert.equal(senzaRete.esito, 'errore')
-  assert.match(senzaRete.messaggio!, /nessuna connessione/)
+  assert.equal(senzaRete.esito, 'incerto')
+  assert.equal(senzaRete.campi, null)
   assert.equal(tentativi, 1)
 })
 
@@ -535,10 +538,13 @@ test('RILIEVO CODEX 2: se la rilettura non torna, o non combacia, l’esito è i
   const soloAutista = { ...campiArrivo(RIFERIMENTO), navetta: 'massimo' }
   const nonPassato = await salvaArrivoPrenotazione(ok(), { ...RIFERIMENTO, navetta: 'alberto' }, rileggiCon(soloAutista))
   assert.equal(nonPassato.esito, 'incerto', 'il cambio di autista non passato è stato dato per riuscito')
-  // e le colonne che la riga NON ha (0058 non applicata) non si controllano
-  const senzaNuove = await salvaArrivoPrenotazione(ok(), con({ tipo: 'struttura', strutturaDa: '16:00', navetta: 'non_richiesta' }),
+  // Una rilettura che NON ha le colonne attese non conferma niente: prima
+  // le colonne assenti si saltavano, ed erano proprio i dettagli richiesti
+  // a sparire (caso 2 del secondo ricontrollo). La compatibilità con le due
+  // sole colonne vive nel ramo del ripiego, non su qualunque rilettura.
+  const povera = await salvaArrivoPrenotazione(ok(), con({ tipo: 'struttura', strutturaDa: '16:00', navetta: 'non_richiesta' }),
     rileggiCon({ id: 'b1', check_in_time: '16:00', shuttle: 'no' }))
-  assert.equal(senzaNuove.esito, 'ok')
+  assert.equal(povera.esito, 'incerto')
 })
 
 test('un arrivo con un guaio non tocca il server', async () => {
@@ -659,4 +665,189 @@ test('la proposta 0058 c’è, con piano e ripristino, e non accetta le 29:00', 
   assert.equal((ripristino.match(/drop column if exists/g) ?? []).length, 11)
   assert.match(ripristino, /COPIA DI SICUREZZA/)
   assert.equal(/drop column if exists check_in_time|drop column if exists shuttle/.test(ripristino), false)
+})
+
+// ── 13. I TRE CASI DEL SECONDO RICONTROLLO (Codex, su 07dc6e7) ─────────────
+// Tutti e tre riprodotti sul salvataggio vero, con scrittore e rilettore
+// finti. Sotto ogni prova c'è scritto cosa faceva PRIMA e cosa fa ADESSO.
+
+/** un server che applica davvero il payload alla sua riga */
+function serverFinto(riga: Record<string, unknown>) {
+  const stato = { ...riga }
+  return {
+    stato,
+    /** scrive e risponde con l'id, come `.select('id')` */
+    scrivi: (campi: Record<string, string | null>) => { Object.assign(stato, campi); return Promise.resolve({ data: [{ id: stato.id }], error: null }) },
+    /** scrive e POI muore senza risposta (rete caduta a metà) */
+    scriviPoiCade: (campi: Record<string, string | null>) => { Object.assign(stato, campi); return Promise.reject(new TypeError('Failed to fetch')) },
+    /** rilegge tutta la riga, come `.select('*')` */
+    rileggi: () => Promise.resolve({ data: [{ ...stato }], error: null }),
+    /** rilegge una riga INCOMPLETA: solo le due colonne di sempre */
+    rileggiPovera: () => Promise.resolve({ data: [{ id: stato.id, check_in_time: stato.check_in_time ?? null, shuttle: stato.shuttle ?? null }], error: null }),
+  }
+}
+/** una riga con la 0058 applicata e i dettagli già scritti: Linate 15:00, Massimo */
+const rigaLinateMassimo = () => ({ id: 'b1', ...campiArrivo(RIFERIMENTO) })
+/** una riga di un database SENZA la 0058: esistono solo le due colonne */
+const rigaVecchia = () => ({ id: 'b1', check_in_time: '16:00', shuttle: 'si' })
+
+test('CASO 1 · scrittura passata ma risposta persa: NON si dice «non salvato»', async () => {
+  // PRIMA: esito «errore» con «Non salvato, riprova: nessuna connessione»,
+  //        mentre sul server Massimo era già scritto.
+  // ADESSO: si rilegge, la riga conferma tutto → esito «ok».
+  const s = serverFinto({ id: 'b1', check_in_time: null, shuttle: null })
+  const esito = await salvaArrivoPrenotazione(s.scriviPoiCade, RIFERIMENTO, s.rileggi)
+  assert.equal(esito.esito, 'ok', 'ha detto «non salvato» su una scrittura passata')
+  assert.equal(esito.messaggio, null)
+  assert.equal(esito.arrivo?.navetta, 'massimo')
+  assert.equal(s.stato.navetta, 'massimo')
+})
+
+test('CASO 1 · la risposta si perde e la scrittura NON era passata: errore certo', async () => {
+  const s = serverFinto({ id: 'b1', ...campiArrivo(con({ tipo: 'struttura', strutturaDa: '09:00', navetta: 'non_richiesta' })) })
+  const esito = await salvaArrivoPrenotazione(() => Promise.reject(new TypeError('Failed to fetch')), RIFERIMENTO, s.rileggi)
+  assert.equal(esito.esito, 'errore')
+  assert.match(esito.messaggio!, /nessuna connessione/)
+  assert.equal(esito.campi, null)
+})
+
+test('CASO 1 · risposta persa e rilettura pure: incerto, non «non salvato»', async () => {
+  const esito = await salvaArrivoPrenotazione(
+    () => Promise.reject(new TypeError('Failed to fetch')), RIFERIMENTO,
+    () => Promise.reject(new Error('anche la rilettura è caduta')))
+  assert.equal(esito.esito, 'incerto')
+  assert.equal(esito.messaggio, MESSAGGIO_INCERTO)
+})
+
+test('CASO 1 · un errore RISPOSTO dal server resta certo: la sua transazione è annullata', async () => {
+  let scritture = 0
+  const esito = await salvaArrivoPrenotazione(
+    () => { scritture += 1; return Promise.resolve({ data: null, error: { code: '42501', message: 'permission denied' } }) },
+    RIFERIMENTO, () => Promise.resolve({ data: [rigaLinateMassimo()], error: null }))
+  assert.equal(esito.esito, 'errore')
+  assert.equal(esito.messaggio, MESSAGGIO_NON_SALVATO)
+  assert.equal(scritture, 1)
+})
+
+test('CASO 2 · rilettura INCOMPLETA: non conferma niente, esito incerto', async () => {
+  // PRIMA: la rilettura tornava {id, check_in_time: null, shuttle: 'si'};
+  //        il confronto saltava tutte le colonne assenti e dava «ok», con
+  //        l'arrivo ricomposto in «da definire / da assegnare».
+  // ADESSO: mancano le colonne attese → incerto, la pagina non cambia.
+  const s = serverFinto({ id: 'b1' })
+  const esito = await salvaArrivoPrenotazione(s.scrivi, RIFERIMENTO, s.rileggiPovera)
+  assert.equal(esito.esito, 'incerto', 'una rilettura incompleta è passata per conferma')
+  assert.equal(esito.campi, null)
+  assert.equal(esito.arrivo, null)
+})
+
+test('CASO 2 · la rilettura completa conferma, e l’arrivo che torna è quello giusto', async () => {
+  const s = serverFinto({ id: 'b1' })
+  const esito = await salvaArrivoPrenotazione(s.scrivi, RIFERIMENTO, s.rileggi)
+  assert.equal(esito.esito, 'ok')
+  assert.equal(esito.arrivo?.luogo, 'linate')
+  assert.equal(esito.arrivo?.luogoDa, '15:00')
+  assert.equal(esito.arrivo?.navetta, 'massimo')
+  assert.equal((esito.campi as Record<string, unknown>).id, 'b1')
+})
+
+test('CASO 2 · confrontaRiga: manca una colonna attesa → incompleta, non uguale', () => {
+  const attese = campiArrivo(RIFERIMENTO)
+  assert.equal(confrontaRiga({ ...attese }, attese), 'uguale')
+  assert.equal(confrontaRiga({ check_in_time: '16:00', shuttle: 'si' }, attese), 'incompleta')
+  assert.equal(confrontaRiga({ ...attese, navetta: 'aldo' }, attese), 'diversa')
+  // nel ramo senza 0058 le attese sono due sole, e due bastano
+  assert.equal(confrontaRiga({ id: 'b1', check_in_time: '16:00', shuttle: 'no' }, { check_in_time: '16:00', shuttle: 'no' }), 'uguale')
+})
+
+test('CASO 3 · cache vecchia su una riga CHE HA GIÀ i dettagli: non si scrive niente', async () => {
+  // PRIMA: il ripiego scriveva check_in_time 18:00 e shuttle 'no' sopra una
+  //        riga che diceva ancora Linate/Massimo. L'esito era «incerto», ma
+  //        l'incoerenza era già sul server.
+  // ADESSO: si guarda la riga PRIMA di ripiegare; ci sono dettagli → stop.
+  const s = serverFinto(rigaLinateMassimo())
+  const semplice = con({ tipo: 'struttura', strutturaDa: '18:00', navetta: 'non_richiesta' })
+  assert.deepEqual(perditeSenza0058(semplice), [], 'il caso è proprio quello senza perdite')
+  const esito = await salvaArrivoPrenotazione(
+    campi => ('arrivo_tipo' in campi
+      ? Promise.resolve({ data: null, error: { code: 'PGRST204', message: "Could not find the 'arrivo_tipo' column of 'bookings' in the schema cache" } })
+      : s.scrivi(campi)),
+    semplice, s.rileggi)
+  assert.equal(esito.esito, 'senza_posto')
+  assert.equal(esito.messaggio, MESSAGGIO_DETTAGLI_ESISTENTI)
+  // e sul server NON è cambiato niente: nessuna riga mezza vecchia e mezza nuova
+  assert.equal(s.stato.check_in_time, '16:00')
+  assert.equal(s.stato.shuttle, 'si')
+  assert.equal(s.stato.arrivo_luogo, 'linate')
+  assert.equal(s.stato.navetta, 'massimo')
+})
+
+test('CASO 3 · database DAVVERO senza 0058: il ripiego funziona come prima', async () => {
+  // La compatibilità vera col vecchio schema: la riga non ha nessuna colonna
+  // nuova, quindi non c'è niente da contraddire e si scrive.
+  const s = serverFinto(rigaVecchia())
+  const semplice = con({ tipo: 'struttura', strutturaDa: '18:00', navetta: 'non_richiesta' })
+  const scritte: Record<string, string | null>[] = []
+  const esito = await salvaArrivoPrenotazione(
+    campi => { scritte.push(campi); return 'arrivo_tipo' in campi
+      ? Promise.resolve({ data: null, error: { code: 'PGRST204', message: "Could not find the 'arrivo_tipo' column of 'bookings' in the schema cache" } })
+      : s.scrivi(campi) },
+    semplice, s.rileggi)
+  assert.equal(esito.esito, 'ok')
+  assert.equal(esito.messaggio, null, 'un salvataggio che non perde niente non deve avvisare')
+  assert.deepEqual(scritte[1], { check_in_time: '18:00', shuttle: 'no' })
+  assert.equal(s.stato.check_in_time, '18:00')
+  assert.equal(s.stato.shuttle, 'no')
+  // e l'arrivo che torna si rilegge dalle due colonne di sempre
+  assert.equal(esito.arrivo?.tipo, 'struttura')
+  assert.equal(esito.arrivo?.strutturaDa, '18:00')
+  assert.equal(esito.arrivo?.navetta, 'non_richiesta')
+})
+
+test('CASO 3 · riga con la 0058 applicata ma ancora VUOTA: il ripiego è sicuro', async () => {
+  const s = serverFinto({ id: 'b1', ...Object.fromEntries(COLONNE_0058.map(c => [c, null])), check_in_time: null, shuttle: null })
+  assert.equal(dettagliEsistenti(s.stato), false)
+  const esito = await salvaArrivoPrenotazione(
+    campi => ('arrivo_tipo' in campi
+      ? Promise.resolve({ data: null, error: { code: 'PGRST204', message: "Could not find the 'arrivo_tipo' column" } })
+      : s.scrivi(campi)),
+    con({ tipo: 'struttura', strutturaDa: '18:00', navetta: 'non_richiesta' }), s.rileggi)
+  assert.equal(esito.esito, 'ok')
+  assert.equal(s.stato.check_in_time, '18:00')
+})
+
+test('CASO 3 · senza rilettura non si ripiega mai: non si sa cosa si lascerebbe dietro', async () => {
+  const scritte: Record<string, string | null>[] = []
+  const esito = await salvaArrivoPrenotazione(
+    campi => { scritte.push(campi); return Promise.resolve({ data: null, error: { code: 'PGRST204', message: "Could not find the 'arrivo_tipo' column" } }) },
+    con({ tipo: 'struttura', strutturaDa: '18:00', navetta: 'non_richiesta' }))
+  assert.equal(esito.esito, 'senza_posto')
+  assert.equal(scritte.length, 1, 'ha scritto senza poter guardare la riga')
+})
+
+test('dettagliEsistenti: guarda solo le colonne nuove, e solo quelle valorizzate', () => {
+  assert.equal(dettagliEsistenti(null), false)
+  assert.equal(dettagliEsistenti({ id: 'b1', check_in_time: '16:00', shuttle: 'si' }), false)
+  assert.equal(dettagliEsistenti({ arrivo_tipo: null, navetta: null }), false)
+  assert.equal(dettagliEsistenti({ arrivo_tipo: null, navetta: 'massimo' }), true)
+  assert.equal(dettagliEsistenti(rigaLinateMassimo()), true)
+})
+
+test('CASO 1 · la libreria di Supabase NON lancia: la rete caduta arriva come risposta con codice vuoto', async () => {
+  // Trovato provando nell'anteprima: con `senzaRisposta` legato all'eccezione,
+  // un errore di rete passava per certo e diceva «non salvato» su una
+  // scrittura andata a buon fine.
+  assert.equal(erroreDelServer({ code: '42501', message: 'permission denied' }), true)
+  assert.equal(erroreDelServer({ code: 'PGRST204', message: 'Could not find…' }), true)
+  assert.equal(erroreDelServer({ code: '', message: 'TypeError: Failed to fetch' }), false)
+  assert.equal(erroreDelServer({ message: 'Load failed' }), false)
+  assert.equal(erroreDelServer(new TypeError('Failed to fetch')), false)
+
+  // come la manda supabase-js quando la connessione cade a metà
+  const comeSupabase = () => Promise.resolve({ data: null, error: { code: '', message: 'TypeError: Failed to fetch', details: '', hint: '' } })
+  const s = serverFinto({ id: 'b1' })
+  const esito = await salvaArrivoPrenotazione(
+    campi => { Object.assign(s.stato, campi); return comeSupabase() }, RIFERIMENTO, s.rileggi)
+  assert.equal(esito.esito, 'ok', 'un errore di rete su una scrittura passata è stato dato per certo')
+  assert.equal(esito.arrivo?.navetta, 'massimo')
 })

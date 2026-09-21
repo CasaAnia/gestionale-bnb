@@ -1,5 +1,32 @@
 # Scheda attiva — «Arrivo e navetta» (21 settembre 2026)
 
+## TERZO GIRO — i tre casi del secondo ricontrollo (07dc6e7)
+
+Una sola correzione: il **protocollo di scrittura e rilettura**
+(`lib/arrivoDati.ts`). `lib/scritturaSicura` non è stata toccata.
+
+1. **Scrittura passata, risposta persa** → non si dice più «non salvato»:
+   si rilegge e si riconcilia. Trovato provando: la libreria di Supabase
+   NON lancia un'eccezione sulla rete caduta, mette l'errore nella risposta
+   col codice vuoto. Adesso «certo» si decide dalla forma del codice.
+2. **Rilettura incompleta** → non conferma più niente: mancano colonne
+   attese, esito incerto. La compatibilità a due colonne vive solo nel ramo
+   del ripiego, non su qualunque rilettura povera.
+3. **Cache vecchia su riga con dettagli** → prima di ripiegare si guarda la
+   riga: se ha già luogo/autista non si scrive NIENTE. Niente più righe
+   mezze vecchie e mezze nuove.
+
+Suite **1718 verdi** (65 su `lib/arrivo.test.ts`, 13 nuove con «prima e
+dopo»), TypeScript, build e lint puliti. Tutti e tre i casi provati anche
+dalla UI, con la riga sul server letta ogni volta.
+
+**Anteprima lasciata accesa per il ricontrollo**: `http://localhost:3216`
+(avviata da questa attività, da una copia del progetto). Il caso del
+riferimento è `/scheda/bbbbbbbb-0029-4000-8000-0000000000029`.
+Interruttori del finto Supabase (`127.0.0.1:54332`): `senza-0058`,
+`cache-vecchia`, `rilettura-povera`, `risposta-vuota`,
+`errore-dopo-scritture?n=0&modo=persa`.
+
 ## STATO IN 10 RIGHE
 
 1. **Secondo giro**, dopo la verifica indipendente di Codex su `743febd`

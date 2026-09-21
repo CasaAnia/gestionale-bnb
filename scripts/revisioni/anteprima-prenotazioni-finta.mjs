@@ -611,6 +611,18 @@ let senza0058 = false
 //   GET /finto/risposta-vuota?on=1|0                        il PATCH risponde «ok» ma con ZERO righe toccate: il
 //                                                          salvataggio deve dirsi incerto, non riuscito
 let rispostaVuota = false
+//   GET /finto/cache-vecchia?on=1|0                         le colonne nuove ESISTONO (si leggono) ma la cache dello
+//                                                          schema le rifiuta in scrittura: è il caso in cui un ripiego
+//                                                          lascerebbe la riga mezza vecchia e mezza nuova
+let cacheVecchia = false
+//   GET /finto/rilettura-povera?on=1|0                      le GET su bookings tornano SOLO id/check_in_time/shuttle:
+//                                                          una rilettura incompleta non deve confermare niente
+let rilettturaPovera = false
+/** La rilettura dell'arrivo è la GET di UNA riga sola per id: solo quella
+ *  si impoverisce, altrimenti l'anteprima intera smetterebbe di funzionare. */
+const eRiletturaDiUnaRiga = url => rilettturaPovera
+  && url.searchParams.get('limit') === '1'
+  && (url.searchParams.get('id') || '').startsWith('eq.')
 //   GET /finto/camera-durante-rpc?prenotazione_id=…&room_id=…&total_amount=…  alla PROSSIMA registrazione aggiunge una
 //                                                          camera alla prenotazione SUBITO DOPO aver scritto il movimento
 //                                                          (fra l'acconto e il bollino: il caso del saldo inventato)
@@ -670,6 +682,8 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/finto/senza-0057') { senza0057 = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senza0057 }) }
   if (url.pathname === '/finto/senza-0058') { senza0058 = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senza0058 }) }
   if (url.pathname === '/finto/risposta-vuota') { rispostaVuota = url.searchParams.get('on') === '1'; return rispondi(res, 200, { rispostaVuota }) }
+  if (url.pathname === '/finto/cache-vecchia') { cacheVecchia = url.searchParams.get('on') === '1'; return rispondi(res, 200, { cacheVecchia }) }
+  if (url.pathname === '/finto/rilettura-povera') { rilettturaPovera = url.searchParams.get('on') === '1'; return rispondi(res, 200, { rilettturaPovera }) }
   if (url.pathname === '/finto/senza-rpc-pagamenti') { senzaRpcPagamenti = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senzaRpcPagamenti }) }
   if (url.pathname === '/finto/pagamento-esterno') {
     const booking_id = url.searchParams.get('booking_id'), amount = Number(url.searchParams.get('amount'))
@@ -874,7 +888,14 @@ const finto = createServer((req, res) => {
     })
   }
   if (m && req.method === 'GET') {
-    const righe = interroga(m[1], url)
+    let righe = interroga(m[1], url)
+    // «rilettura povera»: la riga torna con le sole due colonne di sempre,
+    // come una GET che non conosce le colonne nuove. Vale SOLO sulla
+    // rilettura di una riga per id, se no si spegne tutta l'anteprima.
+    if (m[1] === 'bookings' && eRiletturaDiUnaRiga(url)) {
+      righe = righe.map(r => ({ id: r.id, check_in_time: r.check_in_time ?? null, shuttle: r.shuttle ?? null }))
+      console.log('[finto supabase] rilettura povera: solo id/check_in_time/shuttle')
+    }
     const accept = req.headers.accept || ''
     if (accept.includes('vnd.pgrst.object')) {
       if (righe.length === 0) return rispondi(res, 406, { code: 'PGRST116', message: 'nessuna riga', details: null, hint: null })
@@ -919,8 +940,12 @@ const finto = createServer((req, res) => {
       // PostgREST quando una colonna manca davvero (PGRST204), non col 403
       // della preview, così l'app prova la strada del ripiego vera.
       const fuori = chiavi.filter(k => !AMMESSI.includes(k))
-      if (m[1] === 'bookings' && senza0058 && fuori.some(k => COLONNE_0058.includes(k))) {
-        const manca = fuori.find(k => COLONNE_0058.includes(k))
+      // «senza 0058»: le colonne non esistono. «cache vecchia»: esistono e si
+      // leggono, ma lo schema in cache non le conosce e le rifiuta in
+      // scrittura. In tutti e due i casi il server risponde PGRST204, come
+      // quello vero: si guarda il CORPO, non la lista degli ammessi.
+      if (m[1] === 'bookings' && (senza0058 || cacheVecchia) && chiavi.some(k => COLONNE_0058.includes(k))) {
+        const manca = chiavi.find(k => COLONNE_0058.includes(k))
         return rispondi(res, 400, { code: 'PGRST204', message: `Could not find the '${manca}' column of 'bookings' in the schema cache` })
       }
       if (m[1] === 'bookings' && fuori.length) return rispondi(res, 403, { code: 'ANTEPRIMA', message: `scrittura non ammessa nella preview sintetica: ${fuori.join(', ')}` })
