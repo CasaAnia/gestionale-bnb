@@ -1,5 +1,41 @@
 # Scheda attiva — «Arrivo e navetta» (21 settembre 2026)
 
+## QUARTO GIRO — il terzo ricontrollo (e81893e)
+
+Due correzioni circoscritte a `lib/arrivoDati.ts`; `lib/scritturaSicura` e
+il blocco del punto 5 non toccati.
+
+- **Una rilettura diversa non prova che la scrittura sia fallita**: dopo un
+  trasporto ambiguo o si conferma («ok») o resta **incerto**, mai «non
+  salvato». Il messaggio dice di aspettare e riaprire, e di **non
+  risalvare subito**: la prima richiesta può ancora arrivare.
+- **08 e 57P non sono certi** (08007 = «non so se la transazione è andata a
+  buon fine»): stesso criterio prudente del punto 5, con una guardia che
+  tiene allineate le due regole.
+
+Suite **1728 verdi**. Riproduzione del difetto sulla funzione vera, con la
+richiesta che arriva DOPO la verifica; prova dalla UI con l'interruttore
+nuovo `scrittura-in-volo` / `consegna-in-volo`.
+
+Limiti scritti nel riscontro: «incerto» resta incerto (l'arrivo non ha una
+chiave di operazione come i pagamenti), e le prove sono sulla funzione vera
+e sull'anteprima sintetica — non su Supabase.
+
+## Decisioni di Ania (21/09 sera)
+
+- La riga **CHECK-IN** della Home **resta** dov'è.
+- «Senza orario» = non se ne sa niente: con «Linate alle 15:00» nessun
+  avviso, la stima resta facoltativa.
+- 🔴 Ancora da scegliere, con le due immagini di confronto in mano:
+  `SCELTA-1-riquadro.png` e `SCELTA-2-navetta-da-definire.png`.
+- La 0058 la incolla lei: copia pronta in `~/Desktop/0058-da-incollare.sql`.
+
+## REGOLA FISSA n. 10 (nuova)
+
+Quando c'è da decidere, **prima e dopo nella stessa immagine**, mai in due
+file separati. Strumento: `scripts/revisioni/confronto.mjs`.
+Test: `lib/confrontoUnaImmagine.test.ts`.
+
 ## TERZO GIRO — i tre casi del secondo ricontrollo (07dc6e7)
 
 Una sola correzione: il **protocollo di scrittura e rilettura**

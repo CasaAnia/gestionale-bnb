@@ -132,3 +132,19 @@ Ambra e Amelia, fino alla notte del 10 set», «la nota tace quando non serve»,
 «con lo sconto le notti si scalano in proporzione» e la guardia «REGOLA FISSA
 n. 9: il pagamento non si divide fra le camere, e la scheda mostra fin dove
 arriva» (sui sorgenti di `lib/pagamentiDati.ts`, `ContoScheda` e la scheda).
+
+## 10. Quando c'è da decidere, prima e dopo nella STESSA immagine
+
+Ogni volta che Ania deve scegliere fra due modi di fare una cosa, le due
+schermate arrivano **affiancate in un'immagine sola**, mai in due file
+separati: due file non si possono guardare insieme — si apre uno, si
+chiude, si apre l'altro, e la differenza non si vede (Ania, 21/09/2026
+sera: «sempre prima o dopo nella stessa immagine»).
+
+L'immagine si fa con `scripts/revisioni/confronto.mjs`, che prende le
+schermate vere dell'anteprima e le affianca con la domanda sopra e
+un'etichetta per ognuna. Le schermate non si ritoccano: si affiancano.
+
+Test: `lib/confrontoUnaImmagine.test.ts` (tutto il file: lo strumento
+esiste, compone una pagina sola con tutte le schermate dentro, e la regola
+è scritta qui e in `COLLABORAZIONE.md`).

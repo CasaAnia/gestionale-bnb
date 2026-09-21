@@ -24,7 +24,7 @@ import {
   ERRORE_ORA, ERRORE_LUOGO, ERRORE_LUOGO_ALTRO, ERRORE_FASCIA, ERRORE_FASCIA_STIMA,
   type Arrivo,
 } from './arrivo.ts'
-import { salvaArrivoPrenotazione, messaggioSenzaPosto, confrontaRiga, dettagliEsistenti, erroreDelServer, MESSAGGIO_INCERTO, MESSAGGIO_DETTAGLI_ESISTENTI } from './arrivoDati.ts'
+import { salvaArrivoPrenotazione, messaggioSenzaPosto, confrontaRiga, dettagliEsistenti, erroreDelServer, MESSAGGIO_INCERTO, MESSAGGIO_IN_VOLO, MESSAGGIO_DETTAGLI_ESISTENTI } from './arrivoDati.ts'
 import { MESSAGGIO_NON_SALVATO } from './scritturaSicura.ts'
 import { arrivoTestaDaArrivo, ORARIO_DA_DEFINIRE, NAVETTA_DA_VERIFICARE, NAVETTA_NON_RICHIESTA, CON_NAVETTA } from './testaScheda.ts'
 
@@ -703,11 +703,13 @@ test('CASO 1 · scrittura passata ma risposta persa: NON si dice «non salvato»
   assert.equal(s.stato.navetta, 'massimo')
 })
 
-test('CASO 1 · la risposta si perde e la scrittura NON era passata: errore certo', async () => {
+test('CASO 1 · la risposta si perde e la riga dice un’altra cosa: incerto, non «non salvato»', async () => {
+  // Dal terzo giro (21/09/2026): una rilettura diversa NON dimostra che la
+  // scrittura sia fallita — può essere ancora in viaggio. Vedi «CASO 4».
   const s = serverFinto({ id: 'b1', ...campiArrivo(con({ tipo: 'struttura', strutturaDa: '09:00', navetta: 'non_richiesta' })) })
   const esito = await salvaArrivoPrenotazione(() => Promise.reject(new TypeError('Failed to fetch')), RIFERIMENTO, s.rileggi)
-  assert.equal(esito.esito, 'errore')
-  assert.match(esito.messaggio!, /nessuna connessione/)
+  assert.equal(esito.esito, 'incerto')
+  assert.equal(esito.messaggio, MESSAGGIO_IN_VOLO)
   assert.equal(esito.campi, null)
 })
 
@@ -716,7 +718,7 @@ test('CASO 1 · risposta persa e rilettura pure: incerto, non «non salvato»', 
     () => Promise.reject(new TypeError('Failed to fetch')), RIFERIMENTO,
     () => Promise.reject(new Error('anche la rilettura è caduta')))
   assert.equal(esito.esito, 'incerto')
-  assert.equal(esito.messaggio, MESSAGGIO_INCERTO)
+  assert.equal(esito.messaggio, MESSAGGIO_IN_VOLO)
 })
 
 test('CASO 1 · un errore RISPOSTO dal server resta certo: la sua transazione è annullata', async () => {
@@ -850,4 +852,135 @@ test('CASO 1 · la libreria di Supabase NON lancia: la rete caduta arriva come r
     campi => { Object.assign(s.stato, campi); return comeSupabase() }, RIFERIMENTO, s.rileggi)
   assert.equal(esito.esito, 'ok', 'un errore di rete su una scrittura passata è stato dato per certo')
   assert.equal(esito.arrivo?.navetta, 'massimo')
+})
+
+// ── 14. IL TERZO RICONTROLLO (Codex, su e81893e) ──────────────────────────
+// Una rilettura non dimostra che una richiesta ancora in viaggio sia finita.
+
+/** Uno scrittore che METTE DA PARTE il payload e lo applica solo quando
+ *  glielo si dice: è la richiesta partita che arriva al server dopo. */
+function scrittorePendente(stato: Record<string, unknown>) {
+  let inSospeso: Record<string, string | null> | null = null
+  return {
+    stato,
+    /** risponde «rete caduta» senza aver ancora applicato niente */
+    scrivi: (campi: Record<string, string | null>) => {
+      inSospeso = campi
+      return Promise.resolve({ data: null, error: { code: '', message: 'TypeError: Failed to fetch', details: '', hint: '' } })
+    },
+    rileggi: () => Promise.resolve({ data: [{ ...stato }], error: null }),
+    /** la richiesta di prima arriva adesso */
+    completa: () => { if (inSospeso) Object.assign(stato, inSospeso); inSospeso = null },
+  }
+}
+
+test('CASO 4 · una rilettura DIVERSA non prova che la scrittura sia fallita', async () => {
+  // PRIMA: riga a 16:00, chiesto 18:00, il trasporto cade, la rilettura vede
+  //        ancora 16:00 → esito «errore», «Non salvato, riprova». Falso: la
+  //        richiesta arrivava dopo e la riga diventava 18:00.
+  // ADESSO: resta incerto, e il messaggio non invita a risalvare subito.
+  const partenza = con({ tipo: 'struttura', strutturaDa: '16:00', navetta: 'non_richiesta' })
+  const richiesto = con({ tipo: 'struttura', strutturaDa: '18:00', navetta: 'non_richiesta' })
+  const s = scrittorePendente({ id: 'b1', ...campiArrivo(partenza) })
+
+  const esito = await salvaArrivoPrenotazione(s.scrivi, richiesto, s.rileggi)
+  assert.equal(esito.esito, 'incerto', 'ha dichiarato fallita una scrittura ancora in viaggio')
+  assert.equal(esito.messaggio, MESSAGGIO_IN_VOLO)
+  assert.equal(esito.campi, null)
+  // il messaggio NON dice di riprovare subito: il secondo salvataggio
+  // arriverebbe addosso al primo
+  assert.equal(/riprova/i.test(esito.messaggio!), false)
+  assert.match(esito.messaggio!, /non risalvare subito/)
+
+  // e infatti, un attimo dopo, la richiesta di prima arriva
+  assert.equal(s.stato.check_in_time, '16:00', 'prima del completamento la riga è ancora quella vecchia')
+  s.completa()
+  assert.equal(s.stato.check_in_time, '18:00')
+  assert.equal(s.stato.arrivo_struttura_ora_da, '18:00')
+})
+
+test('CASO 4 · se invece la rilettura conferma, la scrittura era passata: ok', async () => {
+  const richiesto = con({ tipo: 'struttura', strutturaDa: '18:00', navetta: 'non_richiesta' })
+  const s = scrittorePendente({ id: 'b1', ...campiArrivo(con({ tipo: 'struttura', strutturaDa: '16:00', navetta: 'non_richiesta' })) })
+  // qui il payload arriva PRIMA della rilettura
+  const esito = await salvaArrivoPrenotazione(
+    campi => { const r = s.scrivi(campi); s.completa(); return r },
+    richiesto, s.rileggi)
+  assert.equal(esito.esito, 'ok')
+  assert.equal(esito.arrivo?.strutturaDa, '18:00')
+})
+
+test('CASO 4 · dopo un trasporto ambiguo l’esito non è MAI «non salvato»', async () => {
+  const richiesto = con({ tipo: 'struttura', strutturaDa: '18:00', navetta: 'non_richiesta' })
+  const diversa = () => Promise.resolve({ data: [{ id: 'b1', ...campiArrivo(con({ tipo: 'struttura', strutturaDa: '09:00', navetta: 'non_richiesta' })) }], error: null })
+  const povera = () => Promise.resolve({ data: [{ id: 'b1', check_in_time: '09:00' }], error: null })
+  const muta = () => Promise.resolve({ data: [], error: null })
+  const rotta = () => Promise.reject(new Error('anche la rilettura è caduta'))
+  const reteCaduta = () => Promise.resolve({ data: null, error: { code: '', message: 'Failed to fetch' } })
+  for (const [nome, rileggi] of [['diversa', diversa], ['povera', povera], ['muta', muta], ['rotta', rotta]] as const) {
+    const esito = await salvaArrivoPrenotazione(reteCaduta, richiesto, rileggi)
+    assert.equal(esito.esito, 'incerto', `con la rilettura ${nome} l’esito non è incerto`)
+    assert.equal(esito.messaggio, MESSAGGIO_IN_VOLO)
+  }
+  // e senza rilettore, uguale
+  assert.equal((await salvaArrivoPrenotazione(reteCaduta, richiesto)).messaggio, MESSAGGIO_IN_VOLO)
+})
+
+test('CASO 4 · anche il ripiego, se il trasporto cade, resta incerto', async () => {
+  // il secondo tentativo (le due colonne di sempre) non può concludere più
+  // del primo: se cade il trasporto, non si sa
+  const semplice = con({ tipo: 'struttura', strutturaDa: '18:00', navetta: 'non_richiesta' })
+  const s = serverFinto(rigaVecchia())
+  const esito = await salvaArrivoPrenotazione(
+    campi => ('arrivo_tipo' in campi
+      ? Promise.resolve({ data: null, error: { code: 'PGRST204', message: "Could not find the 'arrivo_tipo' column" } })
+      : Promise.resolve({ data: null, error: { code: '', message: 'Failed to fetch' } })),
+    semplice, s.rileggi)
+  assert.equal(esito.esito, 'incerto')
+  assert.equal(esito.messaggio, MESSAGGIO_IN_VOLO)
+})
+
+test('CODICE 08 e 57P · connessione caduta e server che si spegne NON sono certi', async () => {
+  // 08007 vuol dire proprio «non so se la transazione è andata a buon fine»
+  assert.equal(erroreDelServer({ code: '08007' }), false, '08007 dato per certo')
+  assert.equal(erroreDelServer({ code: '08006' }), false)
+  assert.equal(erroreDelServer({ code: '08000' }), false)
+  assert.equal(erroreDelServer({ code: '57P01' }), false)
+  assert.equal(erroreDelServer({ code: '57P03' }), false)
+  // questi invece sì: il server ha risposto e ha annullato la sua transazione
+  assert.equal(erroreDelServer({ code: '42501' }), true)
+  assert.equal(erroreDelServer({ code: '23514' }), true)
+  assert.equal(erroreDelServer({ code: '23505' }), true)
+  assert.equal(erroreDelServer({ code: 'PGRST204' }), true)
+  assert.equal(erroreDelServer({ code: '' }), false)
+  assert.equal(erroreDelServer(new TypeError('Failed to fetch')), false)
+
+  // e un 08007 sul salvataggio vero non dice «non salvato»: si riconcilia
+  const richiesto = con({ tipo: 'struttura', strutturaDa: '18:00', navetta: 'non_richiesta' })
+  const s = scrittorePendente({ id: 'b1', ...campiArrivo(con({ tipo: 'struttura', strutturaDa: '16:00', navetta: 'non_richiesta' })) })
+  const esito = await salvaArrivoPrenotazione(
+    campi => { s.scrivi(campi); return Promise.resolve({ data: null, error: { code: '08007', message: 'transaction resolution unknown' } }) },
+    richiesto, s.rileggi)
+  assert.equal(esito.esito, 'incerto')
+  assert.equal(esito.messaggio, MESSAGGIO_IN_VOLO)
+  s.completa()
+  assert.equal(s.stato.check_in_time, '18:00', 'la richiesta era davvero ancora in viaggio')
+})
+
+test('il criterio prudente è lo STESSO del punto 5, e non deve prendere strade diverse', () => {
+  // `lib/pagamentiDati.errorePerCerto` non si tocca: parla con Supabase e
+  // ha il suo blocco, quindi non si può importare qui. Si confrontano le
+  // due regole sui sorgenti, così non possono divergere in silenzio.
+  const pagamenti = leggi('lib/pagamentiDati.ts')
+  const arrivi = leggi('lib/arrivoDati.ts')
+  assert.match(pagamenti, /export function errorePerCerto/)
+  const regola = /if \(\/\^PGRST\\d\+\$\/\.test\(cod\w*\)\) return true[\s\S]{0,120}return !\/\^\(08\|57P\)\/\.test\(cod\w*\)/
+  assert.match(pagamenti, regola, 'il punto 5 ha cambiato criterio')
+  assert.match(arrivi, regola, 'l’arrivo ha cambiato criterio')
+  // e il comportamento, sui codici che contano
+  for (const [code, certo] of [['42501', true], ['23514', true], ['PGRST204', true],
+    ['08000', false], ['08006', false], ['08007', false], ['57P01', false], ['57P03', false],
+    ['', false], ['boh', false]] as const) {
+    assert.equal(erroreDelServer({ code }), certo, `«${code}» classificato male`)
+  }
 })

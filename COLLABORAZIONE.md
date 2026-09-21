@@ -91,6 +91,12 @@ la scheda e verificare la situazione effettiva prima di proseguire.
   prima della pubblicazione. Conservare lo stile editoriale approvato anche
   nei nuovi comandi. L'approvazione di una prova specifica vale per quella
   versione: non riproporre la stessa conferma senza cambiamenti successivi.
+- Aggiornamento richiesto da Ania il 21 settembre (regola fissa n. 10):
+  quando c'è da SCEGLIERE fra due modi di fare una cosa, le due schermate
+  vanno affiancate in UNA SOLA immagine, mai in due file separati — due
+  file non si possono guardare insieme. Si compone con
+  `scripts/revisioni/confronto.mjs` a partire dalle schermate vere
+  dell'anteprima, con la domanda sopra e un'etichetta per ognuna.
 
 L'implementatore completa la scheda con 5–10 percorsi osservabili. Per ogni
 percorso: stato iniziale, azioni, guasto eventuale, esito atteso e livello

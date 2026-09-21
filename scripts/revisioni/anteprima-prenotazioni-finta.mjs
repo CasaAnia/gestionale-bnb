@@ -618,6 +618,12 @@ let cacheVecchia = false
 //   GET /finto/rilettura-povera?on=1|0                      le GET su bookings tornano SOLO id/check_in_time/shuttle:
 //                                                          una rilettura incompleta non deve confermare niente
 let rilettturaPovera = false
+//   GET /finto/scrittura-in-volo?on=1|0                     il PATCH NON scrive e risponde come la libreria di Supabase
+//                                                          quando la rete cade (code vuoto): la richiesta resta «in volo».
+//   GET /finto/consegna-in-volo                             la fa arrivare adesso: è il completamento tardivo, quello
+//                                                          che rende falso un messaggio «non salvato»
+let scritturaInVolo = false
+let inVolo = []
 /** La rilettura dell'arrivo è la GET di UNA riga sola per id: solo quella
  *  si impoverisce, altrimenti l'anteprima intera smetterebbe di funzionare. */
 const eRiletturaDiUnaRiga = url => rilettturaPovera
@@ -683,6 +689,14 @@ const finto = createServer((req, res) => {
   if (url.pathname === '/finto/senza-0058') { senza0058 = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senza0058 }) }
   if (url.pathname === '/finto/risposta-vuota') { rispostaVuota = url.searchParams.get('on') === '1'; return rispondi(res, 200, { rispostaVuota }) }
   if (url.pathname === '/finto/cache-vecchia') { cacheVecchia = url.searchParams.get('on') === '1'; return rispondi(res, 200, { cacheVecchia }) }
+  if (url.pathname === '/finto/scrittura-in-volo') { scritturaInVolo = url.searchParams.get('on') === '1'; if (!scritturaInVolo) inVolo = []; return rispondi(res, 200, { scritturaInVolo, inSospeso: inVolo.length }) }
+  if (url.pathname === '/finto/consegna-in-volo') {
+    const quante = inVolo.length
+    for (const { righe, corpo } of inVolo) for (const r of righe) Object.assign(r, corpo)
+    inVolo = []
+    console.log(`[finto supabase] consegnate ${quante} richieste rimaste in volo`)
+    return rispondi(res, 200, { consegnate: quante })
+  }
   if (url.pathname === '/finto/rilettura-povera') { rilettturaPovera = url.searchParams.get('on') === '1'; return rispondi(res, 200, { rilettturaPovera }) }
   if (url.pathname === '/finto/senza-rpc-pagamenti') { senzaRpcPagamenti = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senzaRpcPagamenti }) }
   if (url.pathname === '/finto/pagamento-esterno') {
@@ -966,6 +980,14 @@ const finto = createServer((req, res) => {
           const prima = guests.find(g => g.id === r.guest_id), dopo = guests.find(g => g.id === corpo.guest_id)
           booking_events.push(evento(booking_events.length + 1, r.id, 0, 'cliente', { cliente: prima?.full_name ?? null, guest_id: r.guest_id }, { cliente: dopo?.full_name ?? null, guest_id: corpo.guest_id }))
         }
+      }
+      // «scrittura in volo»: NON si applica niente e si risponde come la
+      // libreria di Supabase quando la rete cade (codice vuoto). Il payload
+      // resta da parte e arriva solo con /finto/consegna-in-volo.
+      if (m[1] === 'bookings' && scritturaInVolo) {
+        inVolo.push({ righe: righeFiltrate(m[1], url), corpo })
+        console.log('[finto supabase] PATCH bookings messo IN VOLO (non scritto)')
+        return rispondi(res, 500, { code: '', message: 'TypeError: Failed to fetch', details: '', hint: '' })
       }
       // con «risposta vuota» la scrittura NON avviene davvero: è il caso in
       // cui l'id non esiste più o un permesso filtra la riga

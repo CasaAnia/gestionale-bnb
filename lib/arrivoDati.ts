@@ -51,6 +51,10 @@ import { colonnaMancante } from './colonnaMancante.ts'
 import { messaggioNonSalvato, MESSAGGIO_NON_SALVATO } from './scritturaSicura.ts'
 
 export const MESSAGGIO_INCERTO = 'Non sono sicuro che sia stato salvato: chiudi e riapri la prenotazione per controllare.'
+/** Quando la richiesta si è interrotta a metà: può ancora arrivare al server
+ *  dopo, quindi non si invita a risalvare subito (il secondo salvataggio
+ *  arriverebbe addosso al primo, che magari sta ancora viaggiando). */
+export const MESSAGGIO_IN_VOLO = 'Non so se è stato salvato: la richiesta si è interrotta a metà e può ancora arrivare. Aspetta un momento, poi chiudi e riapri la prenotazione per vedere com’è andata — non risalvare subito.'
 export const MESSAGGIO_DETTAGLI_ESISTENTI = 'Non ho salvato niente: su questa prenotazione ci sono già i dettagli dell’arrivo, e adesso il gestionale non riesce a cambiarli. Quello che hai scritto è rimasto qui, non si è perso.'
 
 /** Il messaggio quando il gestionale non sa ancora tenere questi dettagli.
@@ -104,14 +108,27 @@ export function dettagliEsistenti(riga: Record<string, unknown> | null): boolean
 
 type Tentativo = { risposta: RispostaArrivo; errore: unknown; certo: boolean }
 
-/** Un codice di PostgreSQL (cinque caratteri, tipo 42501 o 23514) oppure di
- *  PostgREST (PGRST204): vuol dire che la richiesta è ARRIVATA al server ed
- *  è stata rifiutata da lui, quindi non è stato scritto niente. Un errore di
- *  rete non ha nessuno di questi codici — la libreria di Supabase lo mette
- *  nella risposta con `code` vuoto — e allora non si sa com'è finita. */
+/** Vero se l'errore dice CON CERTEZZA che la scrittura non è avvenuta.
+ *
+ *  È lo stesso criterio prudente già usato dal punto 5 dei pagamenti
+ *  (`lib/pagamentiDati.errorePerCerto`), scritto qui perché quel modulo
+ *  parla con Supabase e questo no: non si tocca quel blocco, e una prova
+ *  confronta i due su una tabella di codici perché non prendano strade
+ *  diverse.
+ *
+ *  - `PGRST…` → il server ha risposto e ha rifiutato: certo.
+ *  - SQLSTATE a cinque caratteri → certo, MA non le classi **08**
+ *    (connessione caduta: 08006, e soprattutto 08007, che vuol dire
+ *    proprio «non so se la transazione è andata a buon fine») e **57P**
+ *    (il server si sta spegnendo): lì la scrittura può essere passata.
+ *  - tutto il resto — rete, gateway, risposta senza codice — incerto.
+ *    La libreria di Supabase NON lancia un'eccezione quando la rete cade:
+ *    mette l'errore nella risposta con `code` vuoto. */
 export function erroreDelServer(errore: unknown): boolean {
   const codice = String((errore as { code?: unknown } | null)?.code ?? '')
-  return /^[0-9A-Z]{5}$/.test(codice) || /^PGRST\d+$/.test(codice)
+  if (/^PGRST\d+$/.test(codice)) return true
+  if (/^[0-9A-Z]{5}$/.test(codice)) return !/^(08|57P)/.test(codice)
+  return false
 }
 
 /** Una scrittura, distinguendo l'errore del SERVER (transazione annullata:
@@ -214,19 +231,25 @@ async function conferma(risposta: RispostaArrivo, attese: Record<string, string 
   return { esito: 'ok', messaggio: null, campi: riga, arrivo: leggiArrivo(riga) }
 }
 
-/** Dopo una chiamata morta senza risposta: si va a vedere com'è finita.
- *  Se la riga conferma tutto, era passata. Se la riga è completa e dice
- *  un'altra cosa, non era passata e lo si può dire. Altrimenti: non si sa. */
-async function riconcilia(errore: unknown, arrivo: Arrivo, attese: Record<string, string | null>, rileggi?: RilettturaArrivo): Promise<EsitoSalvataggioArrivo> {
-  if (!rileggi) return esitoIncerto()
+/** Dopo una chiamata interrotta senza verdetto del server: si va a vedere
+ *  com'è finita. Una rilettura che conferma tutto è una prova: la scrittura
+ *  era passata. Una rilettura che dice un'altra cosa NON è una prova del
+ *  contrario: la richiesta di prima può essere ancora in viaggio e arrivare
+ *  un momento dopo (terzo ricontrollo di Codex, 21/09/2026: riprodotto con
+ *  uno scrittore che mette il payload da parte e lo applica DOPO la
+ *  rilettura — il messaggio «non salvato» era falso).
+ *
+ *  Quindi: o si conferma, o resta incerto. Mai «non salvato». E il
+ *  messaggio non invita a risalvare subito: il secondo salvataggio
+ *  arriverebbe addosso al primo. */
+async function riconcilia(_errore: unknown, _arrivo: Arrivo, attese: Record<string, string | null>, rileggi?: RilettturaArrivo): Promise<EsitoSalvataggioArrivo> {
+  const inVolo = (): EsitoSalvataggioArrivo => ({ esito: 'incerto', messaggio: MESSAGGIO_IN_VOLO, campi: null, arrivo: null })
+  if (!rileggi) return inVolo()
   const riletto = await prova(() => rileggi())
-  if (riletto.errore || righeTornate(riletto.risposta) === 0) return esitoIncerto()
+  if (riletto.errore || righeTornate(riletto.risposta) === 0) return inVolo()
   const riga = primaRiga(riletto.risposta)!
-  const confronto = confrontaRiga(riga, attese)
-  if (confronto === 'uguale') return { esito: 'ok', messaggio: null, campi: riga, arrivo: leggiArrivo(riga) }
-  if (confronto === 'incompleta') return esitoIncerto()
-  // la riga è completa e dice un'altra cosa: la scrittura non ha avuto effetto
-  return { esito: 'errore', messaggio: messaggioNonSalvato(errore), campi: null, arrivo: null }
+  if (confrontaRiga(riga, attese) !== 'uguale') return inVolo()
+  return { esito: 'ok', messaggio: null, campi: riga, arrivo: leggiArrivo(riga) }
 }
 
 export { MESSAGGIO_NON_SALVATO }
