@@ -402,7 +402,12 @@ test('la Home: senza ora in struttura lo dice, senza inventare numeri', () => {
   assert.equal(h.righe[0].forte, 'Linate · 15:00')
 })
 
-test('la Home: «Non richiesta» non occupa una riga, «Da definire» sì (è un promemoria)', () => {
+// SCELTA DI ANIA, 21/09/2026 sera (confronto «C/D», ritagliato e segnato):
+// la riga «Navetta da definire» negli Arrivi della Home RESTA. Le era stata
+// proposta anche la versione senza — la navetta solo quando serve davvero —
+// e ha scelto di tenerla: è il promemoria di chiedere, sotto gli occhi.
+// Non toglierla senza una sua richiesta esplicita.
+test('la Home: «Non richiesta» non occupa una riga, «Da definire» sì (scelta «C» di Ania)', () => {
   assert.deepEqual(arrivoInHome(con({ tipo: 'struttura', strutturaDa: '16:00', navetta: 'non_richiesta' })).righe, [])
   assert.deepEqual(arrivoInHome(con({ tipo: 'struttura', strutturaDa: '16:00', navetta: 'da_definire' })).righe,
     [{ icona: 'auto', forte: 'Navetta da definire', sotto: 'Da chiedere all’ospite' }])

@@ -30,10 +30,14 @@ e sull'anteprima sintetica — non su Supabase.
   affiancato, `SCELTA-1-riquadro.png`). È l'eccezione allo stile del
   06/09/2026, decisa da lei guardando le due versioni una accanto all'altra.
   Fatto: `components/scheda/BloccoArrivo` (fondo #F3F2EE, filo #E3E0D8).
-- 🔴 Ancora da scegliere: la riga «Navetta da definire» negli Arrivi della
-  Home — `SCELTA-2-navetta-da-definire.png`, rifatta ritagliata sulla sola
-  zona che cambia, col riquadro rosso e la spiegazione sotto («non vedo
-  nessuna differenza», Ania).
+- **La riga «Navetta da definire» negli Arrivi della Home: RESTA** (scelta
+  «C» sul confronto ritagliato e segnato, `SCELTA-2-navetta-da-definire.png`).
+  Era già così: nessuna modifica al codice, ma la prova adesso dice che è
+  una scelta sua e non si toglie senza chiederglielo.
+
+**Le scelte visive sono tutte chiuse.** Restano aperte solo la
+pubblicazione (dopo un ricontrollo indipendente del quarto giro) e
+l'applicazione della 0058, che incolla Ania.
 - La 0058 la incolla lei: copia pronta in `~/Desktop/0058-da-incollare.sql`.
 
 ## REGOLA FISSA n. 10 (nuova)
