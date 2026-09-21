@@ -1,4 +1,30 @@
-# Due pagine prenotazioni — pubblicazione del 10 settembre 2026
+# Scheda attiva — punto 5 «Aggiungi pagamento» e 0057 (21 settembre 2026)
+
+## STATO IN 10 RIGHE
+
+1. **0057 APPLICATA** sul database vero il 21/09/2026, in una transazione, con backup verificato e fotografia delle definizioni precedenti; verifiche non distruttive superate, conteggi invariati (bookings 261, payments 163, somma 38.003,00, guests 151).
+2. Prima dell'applicazione: **collaudo concorrente 22/22** sul progetto di prova (PostgreSQL 17.6), schema temporaneo creato e rimosso.
+3. La 0057 sta ora fra le **migrazioni applicate** (`supabase/migrations/0057_conto_atteso_pagamento.sql`); il contenuto eseguibile è identico a quello collaudato, cambiata solo l'intestazione di commento.
+4. Ripristino pronto e verificato: `supabase/proposte/0057_RIPRISTINO.BOZZA.sql` (nessun dato da recuperare).
+5. **Punto 5 chiuso lato database, NON lato app finché non si pubblica**: le cifre attese e il mancante atteso li manda solo la scheda nuova.
+6. Attivo da subito anche per l'app pubblicata: rilettura dell'identità del soggiorno sotto blocco, riconoscimento della chiave già usata con identità vecchia, trigger che mette in fila camera aggiunta e pagamento in corso.
+7. **Non** attivo senza la scheda nuova: blocco sulle righe dei movimenti, controllo del conto atteso, controllo del mancante atteso (nel SQL stanno dentro il ramo delle cifre attese).
+8. Correzione del 21/09 sul cambio di identità della prenotazione: il tentativo di pagamento non confermato non si perde più e non nasce mai una chiave nuova (commit `2e07f87`).
+9. Suite 1624 verdi, TypeScript e lint puliti sui file toccati, collaudo locale 22/22, test del revisore 5/5 e 14/14 sulla custodia.
+10. Rilascio dei sette commit: autorizzato da Ania («sistema e pubblica»), in corso in questa sessione.
+
+## Riscontri
+
+- `RISCONTRO-CODE.md` — la correzione del cambio di identità.
+- `RISCONTRO-SUPABASE-PROVA.md` — il collaudo sul progetto di prova.
+- `RISCONTRO-PRODUZIONE-0057.md` — backup, applicazione e verifiche sul database vero.
+- `RISCONTRO-PUBBLICAZIONE.md` — il rilascio.
+
+(tutti in `Documents/Codex/2026-09-20/hola-chica-vai-nel-gestionale-e/outputs/consegna-test-punto5/`)
+
+---
+
+# Storico: due pagine prenotazioni — pubblicazione del 10 settembre 2026
 
 ## Stato corrente
 

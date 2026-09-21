@@ -161,10 +161,17 @@ test('il conto cambiato mentre il foglio è aperto (punto 5): si rilegge TUTTO i
   assert.match(pagamentiDati, /if \(rpc\.error && controllo && rpcMancante\(rpc\.error, nomeRpc\)\) rpc = await supabase\.rpc\(nomeRpc, argomenti\)/)
   assert.match(pagamentiDati, /if \(rpc\.error && contoCambiatoDalServer\(rpc\.error\)\) \{ cambiatoDalServer = true; return \{ data: null, error: rpc\.error \} \}/)
   assert.match(pagamentiDati, /if \(cambiatoDalServer\) \{[\s\S]{0,300}const adesso = await rileggiConto\(\)/)
-  // la proposta 0057 esiste con le sue prove, e NON è applicata (nessuna migrazione 0057)
-  assert.match(leggi('supabase/proposte/0057_conto_atteso_pagamento.BOZZA.sql'), /p_totale_atteso numeric default null,\s*p_ricevuti_attesi numeric default null/)
-  assert.match(leggi('supabase/proposte/0057_conto_atteso_pagamento.BOZZA.sql'), /message = 'CONTO_CAMBIATO'/)
-  assert.equal(existsSync(new URL('../supabase/migrations/0057_conto_atteso_pagamento.sql', import.meta.url)), false, 'la 0057 risulta applicata: aggiorna le regole del foglio')
+  // la 0057 è APPLICATA sul database vero (21/09/2026): sta fra le migrazioni,
+  // i parametri attesi sono facoltativi e il conto cambiato si ferma dal server
+  assert.equal(existsSync(new URL('../supabase/migrations/0057_conto_atteso_pagamento.sql', import.meta.url)), true, 'la 0057 non è più fra le migrazioni applicate')
+  assert.match(leggi('supabase/migrations/0057_conto_atteso_pagamento.sql'), /p_totale_atteso numeric default null,\s*p_ricevuti_attesi numeric default null/)
+  assert.match(leggi('supabase/migrations/0057_conto_atteso_pagamento.sql'), /message = 'CONTO_CAMBIATO'/)
+  // il ripiego resta: l'app deve funzionare anche se il server tornasse alle
+  // firme di prima (ripristino della 0057), senza un rilascio
+  assert.match(pagamentiDati, /if \(rpc\.error && controllo && rpcMancante\(rpc\.error, nomeRpc\)\) rpc = await supabase\.rpc\(nomeRpc, argomenti\)/)
+  // il blocco sulle righe dei movimenti, nel SQL, è dentro il ramo delle cifre
+  // attese: le chiamate senza cifre (pagine vecchie) non lo prendono
+  assert.match(leggi('supabase/migrations/0057_conto_atteso_pagamento.sql'), /if p_totale_atteso is not null then\s*perform p\.id from public\.payments p/)
 })
 
 test('rilievo 3 (20/09/2026 notte): tre esiti, tre messaggi; «Verifica pagamento» controlla e non scrive; il tentativo incerto si ritrova riaprendo il foglio', () => {

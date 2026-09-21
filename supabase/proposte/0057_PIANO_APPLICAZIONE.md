@@ -90,7 +90,7 @@ alla fine (`--tieni` per conservarlo e guardare i dati).
 ## 4. Applicazione (progetto VERO)
 
 Nell'editor SQL di Supabase, in un colpo solo, il contenuto di
-`supabase/proposte/0057_conto_atteso_pagamento.BOZZA.sql` (è già in una
+`supabase/migrations/0057_conto_atteso_pagamento.sql` (è già in una
 transazione: o passa tutto o niente). Poi:
 
 ```sql

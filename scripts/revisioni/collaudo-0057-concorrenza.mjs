@@ -123,7 +123,7 @@ async function prepara(admin) {
   await admin.query(`create table ${SCHEMA}.bookings(id uuid primary key, guest_id uuid, group_id uuid, prenotazione_id uuid, check_in date, check_out date, total_amount numeric, status text, pagato boolean default false, bonifico boolean, accordo_pagamento text, caparra_centesimi bigint, caparra_entro timestamptz)`)
   await admin.query(`create table ${SCHEMA}.payments(id uuid primary key default gen_random_uuid(), booking_id uuid references ${SCHEMA}.bookings(id), amount numeric, method text, paid_on date, note text, created_at timestamptz default now())`)
   await admin.query(adatta(readFileSync(path.join(radice, 'supabase/migrations/0049_conto_prenotazione.sql'), 'utf8')))
-  await admin.query(adatta(readFileSync(path.join(radice, 'supabase/proposte/0057_conto_atteso_pagamento.BOZZA.sql'), 'utf8')))
+  await admin.query(adatta(readFileSync(path.join(radice, 'supabase/migrations/0057_conto_atteso_pagamento.sql'), 'utf8')))
 }
 async function semina(admin) {
   await admin.query(`delete from ${SCHEMA}.payments; delete from ${SCHEMA}.bookings`)

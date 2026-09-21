@@ -1,6 +1,10 @@
 -- =====================================================================
--- IL CONTO ATTESO NEL PAGAMENTO (20/09/2026 sera) — proposta 0057
--- PROPOSTA NON APPLICATA. Richiede la 0049 applicata (registra_acconto_prenotazione).
+-- IL CONTO ATTESO NEL PAGAMENTO (20/09/2026 sera) — migrazione 0057
+-- APPLICATA sul database di produzione il 21/09/2026, in una transazione
+-- unica, con backup verificato e autorizzazione di Ania. Richiede la 0049
+-- (registra_acconto_prenotazione). Per tornare indietro:
+-- supabase/proposte/0057_RIPRISTINO.BOZZA.sql. Riscontro dell'applicazione:
+-- RISCONTRO-PRODUZIONE-0057.md nella cartella della consegna.
 --
 -- IL PROBLEMA. Il foglio «Aggiungi pagamento» mostra «Resta da incassare
 -- 800 €» e propone il saldo di 800 €. Se nel frattempo un altro telefono

@@ -18,7 +18,7 @@ before(async () => {
   create table bookings(id uuid primary key,guest_id uuid,group_id uuid,prenotazione_id uuid,check_in date,check_out date,total_amount numeric,status text,pagato boolean default false,bonifico boolean,accordo_pagamento text,caparra_centesimi bigint,caparra_entro timestamptz);
   create table payments(id uuid primary key default gen_random_uuid(),booking_id uuid references bookings(id),amount numeric,method text,paid_on date,created_at timestamptz default now());`)
   await db.exec(readFileSync(new URL('../supabase/proposte/0049_conto_prenotazione.BOZZA.sql', import.meta.url), 'utf8'))
-  await db.exec(readFileSync(new URL('../supabase/proposte/0057_conto_atteso_pagamento.BOZZA.sql', import.meta.url), 'utf8'))
+  await db.exec(readFileSync(new URL('../supabase/migrations/0057_conto_atteso_pagamento.sql', import.meta.url), 'utf8'))
 })
 after(async () => db?.close())
 beforeEach(async () => {
@@ -172,7 +172,7 @@ test('il ripristino rimette le quattro funzioni con le firme della 0049, identic
     create table bookings(id uuid primary key,guest_id uuid,group_id uuid,prenotazione_id uuid,check_in date,check_out date,total_amount numeric,status text,pagato boolean default false,bonifico boolean,accordo_pagamento text,caparra_centesimi bigint,caparra_entro timestamptz);
     create table payments(id uuid primary key default gen_random_uuid(),booking_id uuid references bookings(id),amount numeric,method text,paid_on date,created_at timestamptz default now());`)
     await db2.exec(readFileSync(new URL('../supabase/proposte/0049_conto_prenotazione.BOZZA.sql', import.meta.url), 'utf8'))
-    await db2.exec(readFileSync(new URL('../supabase/proposte/0057_conto_atteso_pagamento.BOZZA.sql', import.meta.url), 'utf8'))
+    await db2.exec(readFileSync(new URL('../supabase/migrations/0057_conto_atteso_pagamento.sql', import.meta.url), 'utf8'))
     const conTrigger = await db2.query<{ n: number }>("select count(*)::int n from pg_trigger where tgname = 'bookings_blocca_soggiorno'")
     assert.equal(conTrigger.rows[0].n, 1)
     await db2.exec(readFileSync(new URL('../supabase/proposte/0057_RIPRISTINO.BOZZA.sql', import.meta.url), 'utf8'))
