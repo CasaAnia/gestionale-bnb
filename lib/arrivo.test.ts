@@ -417,6 +417,21 @@ test('la Home: «Non richiesta» non occupa una riga, «Da definire» sì (scelt
   assert.deepEqual([preciso.grande, preciso.circa, preciso.sotto], ['16:00', false, 'Arrivo in struttura'])
 })
 
+test('in Home gli arrivi stanno IN CIMA, subito sotto i tre numeri (Ania, 21/09/2026 sera)', () => {
+  // «Nella home mettiamoli in alto, non a metà pagina»: prima stavano dopo
+  // «Da controllare», che nelle giornate piene è lungo.
+  const home = leggi('app/page.tsx')
+  const numeri = home.indexOf('<NumeriOggi dati={numeriOggi} />')
+  const arrivi = home.indexOf('<ArriviOggi oggi=')
+  const pulizie = home.indexOf('<PulizieOggi dati={numeriOggi} />')
+  const controllare = home.indexOf('<DaControllare />')
+  assert.ok(numeri > 0 && arrivi > 0 && pulizie > 0 && controllare > 0, 'manca qualcosa in Home')
+  assert.ok(numeri < arrivi, 'gli arrivi devono stare sotto i tre numeri')
+  assert.ok(arrivi < pulizie && arrivi < controllare, 'gli arrivi sono scesi sotto le pulizie o «Da controllare»')
+  // mentre i dati si caricano non occupa spazio in cima
+  assert.match(home, /\{!loading && !errore && data && <ArriviOggi /)
+})
+
 test('RILIEVO CODEX: la Home non perde niente di quello che c’era', () => {
   const home = leggi('app/page.tsx')
   const card = leggi('components/ArriviOggi.tsx')
@@ -990,4 +1005,27 @@ test('il criterio prudente è lo STESSO del punto 5, e non deve prendere strade 
     ['', false], ['boh', false]] as const) {
     assert.equal(erroreDelServer({ code }), certo, `«${code}» classificato male`)
   }
+})
+
+// ── 15. LA VESTE SUL TELEFONO (Ania, 21/09/2026 sera) ─────────────────────
+
+test('le pastiglie che vanno a capo non si sovrappongono, e il campo sotto non è appiccicato', () => {
+  // Sul telefono di Ania i sette luoghi dell'arrivo andavano a capo e le due
+  // righe si sovrapponevano di 8 px: le pastiglie hanno `-my-[7px]`, quindi
+  // la loro casella nel layout è 14 px più bassa di quello che si vede.
+  const pezzi = leggi('components/nuova/PezziNuova.tsx')
+  assert.match(pezzi, /export const SPAZIO_PASTIGLIE = 6/)
+  assert.match(pezzi, /export const RIENTRO_PASTIGLIA = 14/)
+  assert.match(pezzi, /export const SPAZIO_FRA_RIGHE = SPAZIO_PASTIGLIE \+ RIENTRO_PASTIGLIA/)
+  // di fianco resta 6, sopra e sotto si recuperano i 14
+  assert.match(pezzi, /columnGap: SPAZIO_PASTIGLIE, rowGap: SPAZIO_FRA_RIGHE/)
+  assert.equal(/style=\{\{ gap: 6 \}\}>\{children\}/.test(pezzi), false, 'è tornato il gap unico che faceva sovrapporre le righe')
+  // e il rientro esiste davvero: se sparisse, questi conti andrebbero rifatti
+  assert.match(pezzi, /className="py-\[7px\] -my-\[7px\]"/)
+
+  // la casella dell'ora sotto le pastiglie recupera metà rientro
+  const modulo = leggi('components/ArrivoNavetta.tsx')
+  assert.match(pezzi, /export const SOTTO_PASTIGLIE = 10 \+ RIENTRO_PASTIGLIA \/ 2/)
+  assert.match(modulo, /style=\{\{ gap: 10, marginTop: SOTTO_PASTIGLIE \}\}/)
+  assert.equal(/mt-\[10px\]/.test(modulo), false, 'è tornato lo spazio fisso che appiccicava la casella')
 })

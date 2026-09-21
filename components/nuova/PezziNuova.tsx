@@ -69,9 +69,26 @@ export function Pastiglia({ acceso, onClick, spenta = false, colore, children, d
   )
 }
 
+// Le pastiglie hanno `-my-[7px]`: la loro CASELLA nel layout è 14 px più
+// bassa di quello che si vede (il rientro serve a dare al dito i 44 px senza
+// far crescere la riga). Con una fila sola non si nota; andando a capo le
+// righe si sovrapponevano di 8 px — i sette luoghi dell'arrivo lo hanno
+// fatto vedere sul telefono di Ania (21/09/2026 sera).
+// Quindi lo spazio SOPRA e SOTTO (rowGap) deve recuperare quei 14 px, mentre
+// quello di fianco (columnGap) resta 6.
+export const SPAZIO_PASTIGLIE = 6
+export const RIENTRO_PASTIGLIA = 14
+export const SPAZIO_FRA_RIGHE = SPAZIO_PASTIGLIE + RIENTRO_PASTIGLIA
+
 export function FilaPastiglie({ children, centrata = false, className = '' }: { children: ReactNode; centrata?: boolean; className?: string }) {
-  return <div className={`flex flex-wrap ${centrata ? 'justify-center' : ''} ${className}`} style={{ gap: 6 }}>{children}</div>
+  return <div className={`flex flex-wrap ${centrata ? 'justify-center' : ''} ${className}`}
+    style={{ columnGap: SPAZIO_PASTIGLIE, rowGap: SPAZIO_FRA_RIGHE }}>{children}</div>
 }
+
+/** Lo spazio da mettere SOTTO una fila di pastiglie, quando segue un campo:
+ *  anche lì i 7 px di rientro vanno recuperati, altrimenti la casella
+ *  dell'ora finisce appiccicata alle pastiglie (Ania, 21/09/2026 sera). */
+export const SOTTO_PASTIGLIE = 10 + RIENTRO_PASTIGLIA / 2
 
 /** Il tasto verde piccolo, centrato: «Avanti · date e camera», «Salva la prenotazione» */
 export function TastoAvanti({ testo, onClick, disabilitato = false, dati }: { testo: string; onClick: () => void; disabilitato?: boolean; dati?: string }) {

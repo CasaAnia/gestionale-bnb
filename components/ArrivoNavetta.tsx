@@ -15,7 +15,7 @@
 // niente riquadri bianchi.
 // ============================================================================
 import { Clock } from 'lucide-react'
-import { Etichetta, FilaPastiglie, Pastiglia, stileCampo, OTTONE, BORDO_SPENTA } from '@/components/nuova/PezziNuova'
+import { Etichetta, FilaPastiglie, Pastiglia, stileCampo, OTTONE, BORDO_SPENTA, SOTTO_PASTIGLIE } from '@/components/nuova/PezziNuova'
 import { oraDigitata } from '@/lib/ora'
 import {
   type Arrivo, type ChiaveLuogo, type ModoOrario, type Navetta,
@@ -98,7 +98,7 @@ export default function ArrivoNavetta({ arrivo, onArrivo, prefisso = '' }: {
                 onClick={() => onArrivo(cambiaModo(arrivo, s.chiave as ModoOrario))}>{s.nome}</Pastiglia>
             ))}
           </FilaPastiglie>
-          <div className="flex items-center mt-[10px]" style={{ gap: 10 }}>
+          <div className="flex items-center" style={{ gap: 10, marginTop: SOTTO_PASTIGLIE }}>
             {/* Le caselle scrivono nella casella del tipo attivo: quelle
                 dell'altro tipo restano nella bozza, intatte (scriviOra). */}
             <CasellaOra valore={piano.oraDa} onValore={v => onArrivo(scriviOra(arrivo, 'da', v))}

@@ -180,6 +180,19 @@ export default function Dashboard() {
       {/* Tre numeri di oggi SOPRA TUTTO (07/09/2026): arrivi, partenze, camere occupate stanotte */}
       <NumeriOggi dati={numeriOggi} />
 
+      {/* «Arrivi di oggi» (21/09/2026), la terza superficie della proposta
+          approvata: per ogni arrivo l'ora IN STRUTTURA in grande e, sotto, da
+          dove arriva e chi la va a prendere.
+          IN CIMA, subito sotto i tre numeri (Ania, 21/09/2026 sera: «nella
+          home mettiamoli in alto, non a metà pagina»): prima stava dopo «Da
+          controllare», che nelle giornate piene è lungo, e per vedere chi
+          arriva oggi bisognava scorrere. I tre numeri dicono «1 arrivo»,
+          e qui sotto c'è chi è.
+          Finché i dati si caricano non occupa spazio, come «Da controllare».
+          Il blocco «Oggi / Domani» più in basso NON è stato toccato: la riga
+          CHECK-IN resta dov'era, con la nota del cliente e il letto in più. */}
+      {!loading && !errore && data && <ArriviOggi oggi={data.checkInOggi} domani={data.checkInDomani} />}
+
       {/* «Pulizie di oggi» (Ania, 07/09/2026; in cima dall'11/09/2026): TUTTE le
           pulizie della giornata da spuntare dalla Home, stessa lettura dei numeri
           e della striscia; senza pulizie non compare. Le pulizie stanno SOLO qui:
@@ -198,15 +211,6 @@ export default function Dashboard() {
         <AvvisoAzione testo={errore} onRiprova={riprova} />
       ) : (
         <>
-          {/* «Arrivi di oggi» (21/09/2026), la terza superficie della proposta
-              approvata: per ogni arrivo l'ora IN STRUTTURA in grande e, sotto,
-              da dove arriva e chi la va a prendere. Il blocco «Oggi / Domani»
-              qui sotto NON è stato toccato: la riga CHECK-IN resta dov'era,
-              con la nota del cliente e il letto in più. Togliere quella riga
-              è una decisione di Ania, non mia (rilievo di Codex, 21/09/2026
-              sera): il confronto è nel riscontro. */}
-          <ArriviOggi oggi={data.checkInOggi} domani={data.checkInDomani} />
-
           {(() => {
             const hasOggi = data.checkInOggi.length > 0 || data.checkOutOggi.length > 0 || data.roomChangesOggi.length > 0
             const hasDomani = data.checkInDomani.length > 0 || data.checkOutDomani.length > 0 || data.roomChangesDomani.length > 0
