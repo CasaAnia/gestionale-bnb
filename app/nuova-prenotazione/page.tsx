@@ -33,12 +33,14 @@ import { numeroUsabile } from '@/lib/whatsapp'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import type { StrutturaNota } from '@/lib/provenienza'
 import CameraSoggiorno from '@/components/nuova/CameraSoggiorno'
+import ArrivoNavetta from '@/components/ArrivoNavetta'
+import { ARRIVO_VUOTO, campiArrivo, controllaArrivo, normalizza, type Arrivo } from '@/lib/arrivo'
 import NotteScelta from '@/components/nuova/NotteScelta'
 import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo, OTTONE as OTTONE_PEZZI } from '@/components/nuova/PezziNuova'
 import {
   camereDelPeriodo, rigaCamereLibere, datiLinea, nottiDellaLinea, raggruppaPerCamera, periodiDaNottiTenendoVuote,
   periodiDellaLinea, soggiorniConclusi, conflittiConAltre, nottiNonSalvabili, NOTTE_NON_SALVABILE,
-  RINUNCIABILI, SENZA_NON_SI_SALVA, mancaColonnaNecessaria, avvisoDegradazione, type RigaSoggiorno,
+  RINUNCIABILI, SENZA_NON_SI_SALVA, COLONNE_ARRIVO_0058, mancaColonnaNecessaria, avvisoDegradazione, type RigaSoggiorno,
   ospitiPossibiliNotte, ospitiMassimi, ospitiScegliendoCamera, contoNuovaPrenotazione, scontoInParole, listinoLetto, CRITERI_LETTO, LETTO_COMPRESO_LISTINO,
   statoLettoNuova, mancaAlConto, doveManca,
   type ScontoNuova,
@@ -54,7 +56,6 @@ import type { PrenotazioneMinima } from '@/lib/disponibilita'
 import type { PrenotazioneLetti } from '@/lib/lettiAggiuntivi'
 import ComePaga from '@/components/ComePaga'
 import ConLei from '@/components/nuova/ConLei'
-import { oraDigitata } from '@/lib/ora'
 import { PERSONE_CON_LEI_MAX, TROPPE_PERSONE, type PersonaConLei } from '@/lib/nuovaPrenotazione'
 import { campiComePaga, chiedeScadenza as chiedeScadenzaComePaga, type ComePaga as ComePagaModo } from '@/lib/comePaga'
 import ContoNuova, { TastoSalva } from '@/components/nuova/ContoNuova'
@@ -65,7 +66,6 @@ import { colonnaMancante } from '@/lib/colonnaMancante'
 import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
 import { leggiOccupazioni, daQuandoLeggere, CAMPI_OCCUPAZIONE, NON_LETTE } from '@/lib/occupazioniDati'
 import { messaggioSovrapposizione } from '@/lib/erroreSovrapposizione'
-import { oraCompleta } from '@/lib/ora'
 
 const OTTONE = '#A9884E'
 // I testi della pagina (TITOLO_PAGINA, AGGIUNGI_CAMERA, SENZA_TELEFONO,
@@ -114,8 +114,7 @@ export default function NuovaPrenotazionePage() {
   const [domandaOspiti, setDomandaOspiti] = useState<{ iso: string; daQui: boolean; prima: NotteStriscia[] } | null>(null)
   function chiudiDomanda() { setDomandaOspiti(null) }
   // ── arrivo, come paga, con lei, nota ─────────────────────────────────────
-  const [orario, setOrario] = useState('')
-  const [navetta, setNavetta] = useState<'si' | 'no' | ''>('')
+  const [arrivo, setArrivo] = useState<Arrivo>(ARRIVO_VUOTO)
   const [comePaga, setComePaga] = useState<ComePagaModo>('da_vedere')
   // la camera in più di una prenotazione che c'è già (?prenotazione=…): la
   // riga nuova entra nello stesso legame; come paga e caparra non si toccano
@@ -447,7 +446,8 @@ export default function NuovaPrenotazionePage() {
       const n = nottiDaPeriodi(periodiColLetto, camere).find(x => x.iso === iso)
       fuori.push(NOTTE_NON_SALVABILE(titoloNotte(iso), n?.camera ?? 'camera', n?.persone ?? 0))
     }
-    if (orario && !oraCompleta(orario)) fuori.push('L’orario di arrivo è incompleto: scrivi per esempio 15:30.')
+    const guaioArrivo = controllaArrivo(arrivo)
+    if (guaioArrivo) fuori.push(guaioArrivo)
     if (chiedeScadenzaComePaga(comePaga) && Boolean(caparraData) !== Boolean(caparraOra)) fuori.push('Della caparra servono data e ora, oppure nessuna delle due.')
     if (comePaga === 'caparra' && (!caparra || caparra <= 0)) fuori.push('La caparra deve essere un importo positivo.')
     setGuai(fuori)
@@ -472,8 +472,10 @@ export default function NuovaPrenotazionePage() {
       guest_id: cliente.id, status: 'confermata', source: 'diretta', pagato: false,
       bonifico: pagamento.bonifico,
       notes: nota.trim() || null,
-      ...(oraCompleta(orario) ? { check_in_time: orario } : {}),
-      ...(navetta ? { shuttle: navetta } : {}),
+      // Arrivo e navetta (21/09/2026): le colonne nuove PIÙ le due di
+      // sempre, tenute vere. Se la 0058 non è ancora applicata il server
+      // rifiuta la riga e `salvaPrenotazione` riprova senza le nuove.
+      ...campiArrivo(normalizza(arrivo)),
       ...campiConLei(persone),
     }
     const primo = [...periodiColLetto].sort((a, z) => a.checkIn.localeCompare(z.checkIn))[0]?.id
@@ -516,7 +518,9 @@ export default function NuovaPrenotazionePage() {
       const colonna = colonnaMancante(esito.error)
       if (!colonna || !RINUNCIABILI.has(colonna)) break
       if (SENZA_NON_SI_SALVA.has(colonna)) break        // qui ci si ferma, non si degrada
-      const togli = ['extra_bed_importo', 'extra_bed_criterio'].includes(colonna) ? ['extra_bed_importo', 'extra_bed_criterio'] : [colonna]
+      const togli = ['extra_bed_importo', 'extra_bed_criterio'].includes(colonna) ? ['extra_bed_importo', 'extra_bed_criterio']
+        : COLONNE_ARRIVO_0058.includes(colonna) ? COLONNE_ARRIVO_0058
+        : [colonna]
       if (togli.some(c => tentativo.some(r => r[c] != null))) persi.push(...togli)
       tentativo = tentativo.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => !togli.includes(k))))
       esito = await supabase.from('bookings').insert(tentativo).select('id, check_in')
@@ -702,26 +706,13 @@ export default function NuovaPrenotazionePage() {
               senza scorrere. È uno solo: in fondo resta il tasto e basta. */}
           <ContoNuova className="mt-6" conto={conto} manca={mancaAlConto(periodiColLetto, trovaCamera)} />
 
-          {/* ── Arrivo ──────────────────────────────────────────────────── */}
+          {/* ── Arrivo e navetta ────────────────────────────────────────
+              Lo stesso modulo del foglio della scheda (components/
+              ArrivoNavetta): dove arriva, a che ora LÌ, la stima facoltativa
+              in struttura e la navetta con l'autista. */}
           <section data-arrivo className="mt-6">
-            <p className="ed-sezione">Arrivo</p>
-            <div className="flex flex-wrap" style={{ gap: 22 }}>
-              <div className="flex-1 min-w-[140px]">
-                <Etichetta testo="A che ora arriva" />
-                <RigaCampo etichetta="🕐 ora">
-                  <input type="text" inputMode="numeric" maxLength={5} placeholder="es. 15:30" data-campo="orario"
-                    value={orario} onChange={e => setOrario(oraDigitata(e.target.value))} style={stileCampo} />
-                </RigaCampo>
-              </div>
-              <div>
-                <Etichetta testo="Navetta" />
-                <FilaPastiglie>
-                  {([['no', 'No'], ['si', 'Sì'], ['', '?']] as const).map(([v, testo]) => (
-                    <Pastiglia key={testo} dati={`navetta-${v || 'boh'}`} acceso={navetta === v} onClick={() => setNavetta(v)}>{testo}</Pastiglia>
-                  ))}
-                </FilaPastiglie>
-              </div>
-            </div>
+            <p className="ed-sezione">Arrivo e navetta</p>
+            <div className="mt-3"><ArrivoNavetta arrivo={arrivo} onArrivo={setArrivo} /></div>
           </section>
 
           {/* ── Come paga ───────────────────────────────────────────────── */}

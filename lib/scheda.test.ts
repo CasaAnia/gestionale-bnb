@@ -347,8 +347,10 @@ test('i due comandi in fondo al soggiorno: «Modifica arrivo» verde e «Arrivi 
 
 test('i fogli usano i salvataggi già in casa, non ne scrivono di nuovi', () => {
   const arrivo = leggi('components/scheda/FoglioArrivo.tsx')
-  assert.match(arrivo, /import \{ salvaOrarioENavetta \} from '@\/lib\/arrivoOrario'/)
-  assert.match(arrivo, /import \{ oraDigitata, oraCompleta \} from '@\/lib\/ora'/)
+  // Dal 21/09/2026 il salvataggio dell'arrivo è uno solo per tutti i punti
+  // di ingresso (lib/arrivoDati → lib/arrivoOrario.salvaArrivo)
+  assert.match(arrivo, /import \{ salvaArrivoPrenotazione \} from '@\/lib\/arrivoDati'/)
+  assert.match(leggi('lib/arrivoDati.ts'), /import \{ salvaArrivo, type EsitoArrivo \} from '\.\/arrivoOrario\.ts'/)
   const prov = leggi('components/scheda/FoglioProvenienza.tsx')
   assert.match(prov, /import \{ leggiStrutture, ricordaStruttura, salvaProvenienzaCliente \} from '@\/lib\/provenienzaDati'/)
   assert.match(prov, /import CampoProvenienza/, 'il foglio si è riscritto i quattro tasti')
@@ -657,19 +659,34 @@ test('le altre prenotazioni si leggono anche un mese intorno al soggiorno: «Cam
   assert.match(pagina, /\.lt\('check_in', spostaGiorni\(partenza, GIORNI_INTORNO\)\)\.gt\('check_out', spostaGiorni\(arrivo, -GIORNI_INTORNO\)\)/)
 })
 
-test('l’ordine: Da controllare, poi la parte «Arrivo» (riga e «Modifica arrivo · Arrivi precedenti»), poi il Soggiorno con strisce e tratti (Ania, 17/09/2026)', () => {
+// Dal 21/09/2026 la parte si chiama «Arrivo e navetta» e non è più una riga
+// sola: sono due gruppi (BloccoArrivo), perché «In struttura circa 16–17» e
+// «Arriva a Linate alle 15:00» devono stare scritti tutti e due, uno sopra
+// l'altro, senza potersi scambiare di posto. L'ordine nella pagina non cambia.
+test('l’ordine: Da controllare, poi la parte «Arrivo e navetta», poi il Soggiorno con strisce e tratti (Ania, 17/09/2026)', () => {
   const controllare = pagina.indexOf('id="controllare"'), arrivo = pagina.indexOf('id="arrivo"'), soggiorno = pagina.indexOf('id="soggiorno"')
-  const riga = pagina.indexOf('<RigaArrivo arrivo='), link = pagina.indexOf('<LinkSoggiorno'), striscia = pagina.indexOf('<StrisciaNottiCamere')
+  const riga = pagina.indexOf('<BloccoArrivo'), link = pagina.indexOf('<LinkSoggiorno'), striscia = pagina.indexOf('<StrisciaNottiCamere')
   assert.ok(controllare > 0 && controllare < arrivo && arrivo < riga && riga < link && link < soggiorno && soggiorno < striscia,
     `ordine sbagliato: controllare ${controllare}, arrivo ${arrivo}, riga ${riga}, link ${link}, soggiorno ${soggiorno}, striscia ${striscia}`)
-  // sotto il titolo «Arrivo» la riga non ripete la parolina
-  assert.match(pagina, /<RigaArrivo arrivo=\{arrivoTesto\} etichetta=\{false\}/)
-  assert.match(leggi('components/scheda/SoggiornoScheda.tsx'), /\{etichetta && <span style=\{\{ fontSize: 14, color: 'var\(--color-stone\)' \}\}>Arrivo<\/span>\}/)
+  assert.match(pagina, /<p className="ed-sezione">Arrivo e navetta<\/p>/)
+  // il giorno dell'arrivo resta sotto gli occhi, nell'etichettina
+  assert.match(pagina, /etichettaArrivo=\{`Arrivo · \$\{arrivoTesto\.quando\}`\}/)
 })
 
-test('senza orario la riga dice «orario da chiedere», e basta: il foglio si apre da «Modifica arrivo» (Ania, 17/09/2026)', () => {
+test('la parte «Arrivo e navetta» è quella del riferimento: due gruppi divisi da un filo, niente riquadro', () => {
+  const blocco = leggi('components/scheda/BloccoArrivo.tsx')
+  assert.match(pagina, /<BloccoArrivo etichettaArrivo=[\s\S]{0,60}arrivo=\{voceArrivo\} navetta=\{voceNavetta\} className="mt-3" \/>/)
+  assert.match(pagina, /const voceArrivo = useMemo\(\(\) => arrivoInScheda\(arrivoDati\), \[arrivoDati\]\)/)
+  assert.match(pagina, /const voceNavetta = useMemo\(\(\) => navettaInScheda\(arrivoDati\), \[arrivoDati\]\)/)
+  // etichettina in ottone, titolo in Georgia 20, sottotitolo 13,5 stone
+  assert.match(blocco, /fontSize: 9\.5, letterSpacing: '1\.4px', color: OTTONE/)
+  assert.match(blocco, /fontFamily: GEORGIA, fontSize: 20, lineHeight: '25px', color: 'var\(--color-green-dark\)'/)
+  assert.match(blocco, /borderTop: '1px solid var\(--color-card-border\)'/)
+  // stile editoriale (Ania, 06/09/2026): nessun riquadro bianco
+  assert.equal(/ed-riquadro|background: '#fff'/.test(blocco), false, 'è comparso un riquadro')
+  // il foglio si apre da «Modifica arrivo», come prima
   assert.equal(/aggiungi orario|AGGIUNGI_ORARIO/.test(soggiorno), false, 'c’è ancora «aggiungi orario»')
-  assert.match(pagina, /<RigaArrivo arrivo=\{arrivoTesto\} etichetta=\{false\} className="mt-3" \/>/)
+  assert.match(pagina, /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/)
 })
 
 test('sotto la striscia la riga «Cambia date · Cambio camera · Aggiungi camera» (Ania, 17/09/2026)', () => {

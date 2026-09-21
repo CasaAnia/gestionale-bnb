@@ -28,8 +28,11 @@ import { contoSoggiorno } from '@/lib/conto'
 import { conInizialiONull } from '@/lib/maiuscole'
 import { nomeDaSalvareONull } from '@/lib/guestName'
 import { CampoNomeCognome } from '@/components/CampiNomeCognome'
-import { oraDigitata, oraCompleta } from '@/lib/ora'
+import { oraCompleta } from '@/lib/ora'
 import { colonnaMancante } from '@/lib/colonnaMancante'
+import ArrivoNavetta from '@/components/ArrivoNavetta'
+import { ARRIVO_VUOTO, campiArrivo, controllaArrivo, normalizza, arrivoInScheda, navettaInScheda, orarioIgnoto, type Arrivo } from '@/lib/arrivo'
+import { COLONNE_ARRIVO_0058 } from '@/lib/nuovaPrenotazione'
 import { smartBack, returnToSicuro } from '@/lib/navHistory'
 import { messaggioErroreDati } from '@/lib/connessione'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
@@ -145,8 +148,7 @@ function NuovaPrenotazione() {
   const [target, setTarget] = useState('')
   const [erroreSconto, setErroreSconto] = useState<string | null>(null)
   const [aperta, setAperta] = useState<'arrivo' | 'pagamento' | 'chi' | 'note' | null>(null)
-  const [orario, setOrario] = useState('')
-  const [navetta, setNavetta] = useState<'' | 'si' | 'no'>('')
+  const [arrivo, setArrivo] = useState<Arrivo>(ARRIVO_VUOTO)
   const [accordo, setAccordo] = useState<Accordo>({ modo: 'contanti', importo: null, data: '', ora: '' })
   const [accordoEsistente, setAccordoEsistente] = useState<RigaPrenotazione | null>(null)
   const accordoCaricato = accordoEsistente?.prenotazione_id === prenotazioneDaUrl ? accordoEsistente : null
@@ -435,7 +437,8 @@ function NuovaPrenotazione() {
     if (provenienza.provenienza === 'altra_struttura' && !provenienza.struttura.trim()) guai.push('Scegli o scrivi quale struttura.')
     if (chiedeScadenza(accordo.modo) && Boolean(accordo.data) !== Boolean(accordo.ora)) guai.push('Della caparra servono data e ora, oppure nessuna delle due.')
     if (accordo.ora && !oraCompleta(accordo.ora)) guai.push('L\'ora della caparra è incompleta: scrivi per esempio 18:00.')
-    if (orario && !oraCompleta(orario)) guai.push('L\'orario di arrivo è incompleto: scrivi per esempio 15:30.')
+    const guaioArrivo = controllaArrivo(arrivo)
+    if (guaioArrivo) guai.push(guaioArrivo)
     if (chiedeImporto(accordo.modo) && (!accordo.importo || !Number.isFinite(accordo.importo) || accordo.importo <= 0)) guai.push('La caparra deve essere un importo positivo.')
     if (!prenotazioneDaUrl && chiedeImporto(accordo.modo) && accordo.importo && totale !== null && accordo.importo > totale) guai.push('La caparra non può superare il totale.')
     if (conflitti.length > 0) guai.push(...conflitti)
@@ -528,8 +531,8 @@ function NuovaPrenotazione() {
         guest_id: guestId, status: 'confermata', source: 'diretta', pagato: false,
         bonifico: campiComePaga(accordoDaSalvare, {}).bonifico,
         notes: note.trim() || null,
-        ...(oraCompleta(orario) ? { check_in_time: orario } : {}),
-        ...(navetta ? { shuttle: navetta } : {}),
+        // Arrivo e navetta: le stesse regole della pagina nuova (lib/arrivo)
+        ...campiArrivo(normalizza(arrivo)),
         ...(nomeSu ? { guest_name: nomeSu } : {}),
         ...(chi === 'altra' && contattoUno?.nome ? { extra_phone_1_name: conInizialiONull(contattoUno.nome) } : {}),
         ...(chi === 'altra' && contattoUno?.telefono ? { extra_phone_1: contattoUno.telefono.replace(/\s/g, '') } : {}),
@@ -577,14 +580,16 @@ function NuovaPrenotazione() {
       // tutti e due i casi si toglie SOLO quella colonna e si riprova; importo
       // e criterio del letto vanno insieme, quindi si tolgono in coppia.
       async function inserisci(righe: Record<string, unknown>[]) {
-        const facoltative = new Set(['prenotazione_id', 'extra_bed_importo', 'extra_bed_criterio', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro'])
+        const facoltative = new Set(['prenotazione_id', 'extra_bed_importo', 'extra_bed_criterio', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro', ...COLONNE_ARRIVO_0058])
         let tentativo = righe
         for (let giro = 0; giro < 6; giro++) {
           const esito = await supabase.from('bookings').insert(tentativo).select('id, check_in')
           const colonna = colonnaMancante(esito.error)
           if (!colonna || !facoltative.has(colonna) || !tentativo.some(r => colonna in r)) return esito
           if (colonna === 'prenotazione_id' && (prenotazioneDaUrl || new Set(periodi.map(p => p.gruppo)).size > 1)) return esito
-          const daTogliere = ['extra_bed_importo', 'extra_bed_criterio'].includes(colonna) ? ['extra_bed_importo', 'extra_bed_criterio'] : [colonna]
+          const daTogliere = ['extra_bed_importo', 'extra_bed_criterio'].includes(colonna) ? ['extra_bed_importo', 'extra_bed_criterio']
+            : COLONNE_ARRIVO_0058.includes(colonna) ? COLONNE_ARRIVO_0058
+            : [colonna]
           mancanti.push(...daTogliere)
           tentativo = tentativo.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => !daTogliere.includes(k))))
         }
@@ -662,7 +667,8 @@ function NuovaPrenotazione() {
   }
 
   // ── pezzi ripetuti ────────────────────────────────────────────────────────
-  const testoNavetta = navetta === '' ? 'Navetta da definire' : navetta === 'si' ? 'Navetta sì' : 'Navetta no'
+  const riassuntoArrivo = arrivoInScheda(arrivo)
+  const riassuntoNavetta = navettaInScheda(arrivo)
 
   return (
     <div className={s.pagina}>
@@ -1043,22 +1049,13 @@ function NuovaPrenotazione() {
 
         <button type="button" className={`${s.gia} ${s.rigaOttone}`} onClick={() => setAperta(aperta === 'arrivo' ? null : 'arrivo')}>
           <span className={s.giaEti}>Arrivo</span>
-          <span className={`${s.giaValore} ${orario ? '' : s.giaVuota}`}>{orario ? `Verso le ${orario}` : 'Orario da definire'}<small className={s.giaSotto}>{testoNavetta}</small></span>
+          <span className={`${s.giaValore} ${orarioIgnoto(arrivo) ? s.giaVuota : ''}`}>{riassuntoArrivo.titolo}<small className={s.giaSotto}>{`Navetta: ${riassuntoNavetta.titolo}`}</small></span>
           <span className={s.freccia}>{aperta === 'arrivo' ? '⌄' : '›'}</span>
         </button>
         {aperta === 'arrivo' && (
           <div>
-            <label className={s.campoBlocco}><span className={s.campoEti}>Orario previsto</span>
-              <input type="text" inputMode="numeric" placeholder="es. 15:30" maxLength={5} className={s.campo} style={{ maxWidth: 130 }}
-                value={orario} onChange={e => setOrario(oraDigitata(e.target.value))} /></label>
-            <div className={s.riga} style={{ display: 'block' }}>
-              <span className={s.campoEti}>Navetta</span>
-              <div className={s.pillole} style={{ marginTop: 8 }}>
-                {([['', 'Da definire'], ['si', 'Sì'], ['no', 'No']] as const).map(([k, t]) => (
-                  <button key={t} type="button" className={navetta === k ? s.pil : s.pilT} onClick={() => setNavetta(k)}>{t}</button>
-                ))}
-              </div>
-            </div>
+            {/* Il modulo condiviso, lo stesso di /nuova-prenotazione */}
+            <ArrivoNavetta arrivo={arrivo} onArrivo={setArrivo} prefisso="vecchia-" />
           </div>
         )}
 

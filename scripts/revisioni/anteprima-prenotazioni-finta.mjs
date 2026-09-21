@@ -22,6 +22,12 @@
 //   14–16 set Lena in 2 poi in 3, salvata NOTTE PER NOTTE (80 + 90 = 170)
 //   18–20 set Lena in 2 poi in 3, salvata col VECCHIO calcolo (2 × 90 = 180):
 //             la scheda mostra il totale salvato; «Modifica» ricalcola 170
+// Arrivo e navetta (21/09/2026, proposta approvata): Carmela Sabia, primo
+// tratto — atterra a LINATE alle 15:00, in struttura CIRCA 16:00–17:00,
+// navetta con MASSIMO, prelievo 15:30. check_in_time resta 16:00 (l'ora in
+// struttura), mai le 15:00 di Linate.
+//   GET /finto/senza-0058?on=1  le colonne nuove non esistono: salvando
+//   l'arrivo l'app riscrive solo check_in_time e shuttle e lo dice a schermo
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
@@ -213,7 +219,16 @@ const bookings = [
   prenotazione(ROOM.ambra, CARMELA.id, '2025-08-12', '2025-08-20', 2, { status: 'completata', price_per_night: 85, total_amount: 680, pagato: true }),
   prenotazione(ROOM.ambra, CARMELA.id, '2026-04-29', '2026-05-04', 2, { status: 'completata', price_per_night: 136, total_amount: 680, pagato: true, check_in_time: '16:00', shuttle: 'no' }),
   prenotazione(ROOM.lena, CARMELA.id, '2026-09-12', '2026-09-14', 2,
-    { group_id: GRUPPO_CARMELA, price_per_night: 80, total_amount: 160, check_in_time: '15:10', shuttle: 'si', notes: 'Chiede un cuscino in più.',
+    { group_id: GRUPPO_CARMELA, price_per_night: 80, total_amount: 160, notes: 'Chiede un cuscino in più.',
+      // «Arrivo e navetta» (21/09/2026), il caso del riferimento approvato:
+      // atterra a Linate alle 15:00, Ania stima che sia in casa fra le 16 e
+      // le 17, la va a prendere Massimo alle 15:30. check_in_time resta l'ora
+      // IN STRUTTURA (16:00), mai quella di Linate.
+      arrivo_tipo: 'luogo', arrivo_luogo: 'linate', arrivo_luogo_altro: null,
+      arrivo_ora_da: '15:00', arrivo_ora_a: null,
+      arrivo_struttura_da: '16:00', arrivo_struttura_a: '17:00',
+      navetta: 'massimo', navetta_prelievo: '15:30',
+      check_in_time: '16:00', shuttle: 'si',
       extra_phone_1_name: 'Marco Riva', extra_phone_1: '3334567890', chi_e: 'il figlio', extra_phone_2: '3339876543' }),
   prenotazione(ROOM.amelia, CARMELA.id, '2026-09-14', '2026-09-16', 1,
     { group_id: GRUPPO_CARMELA, price_per_night: 65, total_amount: 130 }),
@@ -573,6 +588,10 @@ let senza0057 = false
 //                                                          prenotazione_id ripiega sull'INSERT (nessuna chiave: tentativo «senzaChiave»);
 //                                                          errore-pagamento?modo=persa|caduta vale anche per quel POST
 let senzaRpcPagamenti = false
+//   GET /finto/senza-0058?on=1|0                            le colonne di «Arrivo e navetta» NON esistono (PGRST204 sulla prima
+//                                                          che arriva): l'app riscrive solo check_in_time e shuttle e lo dice
+const COLONNE_0058 = ['arrivo_tipo', 'arrivo_luogo', 'arrivo_luogo_altro', 'arrivo_ora_da', 'arrivo_ora_a', 'arrivo_struttura_da', 'arrivo_struttura_a', 'navetta', 'navetta_prelievo']
+let senza0058 = false
 //   GET /finto/camera-durante-rpc?prenotazione_id=…&room_id=…&total_amount=…  alla PROSSIMA registrazione aggiunge una
 //                                                          camera alla prenotazione SUBITO DOPO aver scritto il movimento
 //                                                          (fra l'acconto e il bollino: il caso del saldo inventato)
@@ -630,6 +649,7 @@ const finto = createServer((req, res) => {
     return rispondi(res, 200, { cameraDuranteRpc })
   }
   if (url.pathname === '/finto/senza-0057') { senza0057 = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senza0057 }) }
+  if (url.pathname === '/finto/senza-0058') { senza0058 = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senza0058 }) }
   if (url.pathname === '/finto/senza-rpc-pagamenti') { senzaRpcPagamenti = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senzaRpcPagamenti }) }
   if (url.pathname === '/finto/pagamento-esterno') {
     const booking_id = url.searchParams.get('booking_id'), amount = Number(url.searchParams.get('amount'))
@@ -870,10 +890,20 @@ const finto = createServer((req, res) => {
       const AMMESSI = ['guest_id', 'guest_name', 'pagato', 'bonifico', 'check_in', 'check_out', 'num_guests', 'price_per_night', 'room_id',
         'extra_bed', 'extra_bed_dates', 'extra_bed_total', 'extra_bed_importo', 'extra_bed_criterio',
         'total_amount', 'discount_type', 'discount_value', 'check_in_time', 'shuttle', 'updated_at',
+        // «Arrivo e navetta» (proposta 0058, 21/09/2026)
+        ...(senza0058 ? [] : COLONNE_0058),
         'status', 'cancelled_at', 'cancelled_reason', 'group_id', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro',
         // i fogli della scheda nuova del 17/09/2026: nota e colore, «con lei», il legame fra le camere
         'notes', 'color', 'source', 'extra_phone_1', 'extra_phone_1_name', 'chi_e', 'extra_phone_2', 'extra_phone_2_name', 'chi_e_2', 'prenotazione_id']
-      if (m[1] === 'bookings' && chiavi.some(k => !AMMESSI.includes(k))) return rispondi(res, 403, { code: 'ANTEPRIMA', message: `scrittura non ammessa nella preview sintetica: ${chiavi.filter(k => !AMMESSI.includes(k)).join(', ')}` })
+      // Con senza-0058 le colonne nuove non esistono: si risponde come
+      // PostgREST quando una colonna manca davvero (PGRST204), non col 403
+      // della preview, così l'app prova la strada del ripiego vera.
+      const fuori = chiavi.filter(k => !AMMESSI.includes(k))
+      if (m[1] === 'bookings' && senza0058 && fuori.some(k => COLONNE_0058.includes(k))) {
+        const manca = fuori.find(k => COLONNE_0058.includes(k))
+        return rispondi(res, 400, { code: 'PGRST204', message: `Could not find the '${manca}' column of 'bookings' in the schema cache` })
+      }
+      if (m[1] === 'bookings' && fuori.length) return rispondi(res, 403, { code: 'ANTEPRIMA', message: `scrittura non ammessa nella preview sintetica: ${fuori.join(', ')}` })
       if (m[1] === 'bookings' && erroreCambioCliente) return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sul cambio cliente' })
       let perdiRisposta = false
       if (m[1] === 'bookings' && erroreDopoScritture !== null) {
@@ -937,6 +967,11 @@ const finto = createServer((req, res) => {
     return leggiCorpo(req).then(corpo => {
       const riga = Array.isArray(corpo) ? corpo[0] : corpo
       if (!riga || !riga.room_id || !riga.guest_id) return rispondi(res, 400, { code: '23502', message: 'room_id o guest_id mancante' })
+      // con senza-0058 l'inserimento deve cavarsela togliendo le colonne nuove
+      if (senza0058) {
+        const manca = Object.keys(riga).find(k => COLONNE_0058.includes(k))
+        if (manca) return rispondi(res, 400, { code: 'PGRST204', message: `Could not find the '${manca}' column of 'bookings' in the schema cache` })
+      }
       const nuova = prenotazione(riga.room_id, riga.guest_id, riga.check_in, riga.check_out, riga.num_guests ?? 1, { ...riga })
       bookings.push(nuova)
       console.log(`[finto supabase] +1 prenotazione (${nuova.room_id.slice(-4)}, ${nuova.check_in}, cliente ${nuova.guest_id.slice(-4)}, guest_name ${nuova.guest_name ?? '—'})`)

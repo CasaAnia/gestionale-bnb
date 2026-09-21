@@ -48,9 +48,11 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import { RigaDocumentiPrenotazione } from '@/components/DocumentiCliente'
 import StrisciaNottiCamere from '@/components/StrisciaNottiCamere'
 import FoglioNotte from '@/components/FoglioNotte'
-import { RigaArrivo, LinkSoggiorno } from '@/components/scheda/SoggiornoScheda'
+import { LinkSoggiorno } from '@/components/scheda/SoggiornoScheda'
+import BloccoArrivo from '@/components/scheda/BloccoArrivo'
 import ArriviPrecedenti from '@/components/scheda/ArriviPrecedenti'
 import FoglioArrivo from '@/components/scheda/FoglioArrivo'
+import { leggiArrivo, arrivoInScheda, navettaInScheda } from '@/lib/arrivo'
 import FoglioProvenienza from '@/components/scheda/FoglioProvenienza'
 import FoglioComePaga from '@/components/scheda/FoglioComePaga'
 import FoglioPagamento, { type PagamentoSalvato } from '@/components/scheda/FoglioPagamento'
@@ -316,6 +318,13 @@ export default function SchedaPage() {
   const primaRiga = primaRigaScheda(soggiorni.length, provenienza)
   const note = noteScheda(guest?.notes, booking?.notes)
   const arrivoTesto = booking ? arrivoScheda(primoArrivo, oggi, attive[0]?.check_in_time ?? booking.check_in_time, attive[0]?.shuttle ?? booking.shuttle) : null
+  // «Arrivo e navetta» (21/09/2026): l'arrivo si legge dalla riga viva — con
+  // le colonne della 0058 se ci sono, dalle due di sempre se non ci sono —
+  // e le parole le fa lib/arrivo. «In struttura» e «a Linate» restano due
+  // cose diverse: qui non si confondono mai.
+  const arrivoDati = useMemo(() => leggiArrivo((attive[0] ?? booking) as unknown as Record<string, unknown>), [attive, booking])
+  const voceArrivo = useMemo(() => arrivoInScheda(arrivoDati), [arrivoDati])
+  const voceNavetta = useMemo(() => navettaInScheda(arrivoDati), [arrivoDati])
   // «Da controllare» (punto 3, 20/09/2026 sera): l'avviso del pagamento dice le
   // cifre del conto autorevole (`conto`, lo stesso oggetto del riepilogo), di
   // tutta la prenotazione; con il conto non leggibile lo dice, senza «0 €»
@@ -598,8 +607,8 @@ export default function SchedaPage() {
 
       {/* ── Arrivo (Ania, 17/09/2026: prima del soggiorno) ─────────────────── */}
       <section id="arrivo" className="pt-[34px]">
-        <p className="ed-sezione">Arrivo</p>
-        {arrivoTesto && <RigaArrivo arrivo={arrivoTesto} etichetta={false} className="mt-3" />}
+        <p className="ed-sezione">Arrivo e navetta</p>
+        {arrivoTesto && <BloccoArrivo etichettaArrivo={`Arrivo · ${arrivoTesto.quando}`} arrivo={voceArrivo} navetta={voceNavetta} className="mt-3" />}
         <LinkSoggiorno
           onArrivo={() => setFoglioArrivo(true)}
           onArriviPrecedenti={() => setArriviAperti(a => !a)}
@@ -716,7 +725,7 @@ export default function SchedaPage() {
       )}
 
       {foglioArrivo && primoSegmento && (
-        <FoglioArrivo bookingId={primoSegmento.id} ora={primoSegmento.check_in_time} navetta={primoSegmento.shuttle}
+        <FoglioArrivo bookingId={primoSegmento.id} prenotazione={primoSegmento as unknown as Record<string, unknown>}
           onChiudi={() => setFoglioArrivo(false)}
           onSalvato={(campi, msg) => {
             const aggiorna = (r: Prenotazione) => (r.id === primoSegmento.id ? { ...r, ...campi } : r)

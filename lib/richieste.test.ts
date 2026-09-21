@@ -355,7 +355,10 @@ test('la nota del cliente nella riga è tutta rossa, come nella Home', () => {
   // il nome). In Home la nota resta 13 px, e quella misura non si tocca.
   assert.match(nota, /if \(grande\) \{/)
   assert.match(nota, /text-\[15px\] leading-snug font-bold/)   // grassetto vero, come nella scheda (17/09/2026)
-  const home = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8')
+  // In Home la nota sta nel riquadro dell'arrivo (components/ArriviOggi, dal
+  // 21/09/2026: gli arrivi non sono più una riga fra le altre). La misura non
+  // cambia: 13 px, e quella non si tocca.
+  const home = readFileSync(new URL('../components/ArriviOggi.tsx', import.meta.url), 'utf8')
   assert.match(home, /text-\[13px\] leading-snug font-semibold/)
 
   // Dal 12/09/2026 (Ania, dal telefono) la riga della richiesta usa lo stesso

@@ -16,6 +16,9 @@
 //               Cambio camera: «Lucia Verdi» Ambra O+5→O+7 poi Lena O+7→O+9 (stesso gruppo): NON compare
 //   Arrivi      «Marco Bianchi» arriva domani senza orario (alta, WhatsApp + Apri arrivo);
 //               «Senza Numero» domani senza orario e senza telefono (solo Apri arrivo); «Paola Neri» con orario: no
+//   Arrivi Home «Arrivi di oggi»: «Arriva Oggi» → «Da definire» + «Autista da assegnare» (21/09/2026)
+//               «Arrivi di domani»: «Paola Neri» è il caso del riferimento — Linate 15:00,
+//               in struttura circa 16:00–17:00, Massimo con prelievo alle 15:30
 //   Pagamenti   «Giulio Gallo» Allegra O−6→O−4 pagato=true con movimenti 100 su 160 → Registra saldo
 //               «Sara Sarti» Ambra O−12→O−10 non pagata → Registra saldo
 //               «Elena Esposito» Lena O−20→O−18 pagata e coperta → NON compare
@@ -115,9 +118,20 @@ const bookings = [
   prenotazione(ROOM.amelia, G.marco.id, O(1), O(4), 2, { total_amount: 240 }),                 // sovrapposta + arrivo domani senza orario
   prenotazione(ROOM.ambra, G.lucia.id, O(5), O(7), 2, { group_id: GRUPPO_LUCIA, total_amount: 140 }),
   prenotazione(ROOM.lena, G.lucia.id, O(7), O(9), 2, { group_id: GRUPPO_LUCIA, total_amount: 160 }),
-  prenotazione(ROOM.allegra, G.paola.id, O(1), O(3), 2, { check_in_time: '16:30', shuttle: 'si' }),
+  // «Arrivo e navetta» (21/09/2026), il caso del riferimento approvato:
+  // atterra a Linate alle 15:00, in struttura circa 16:00–17:00, la va a
+  // prendere Massimo alle 15:30. check_in_time resta l'ora IN STRUTTURA.
+  prenotazione(ROOM.allegra, G.paola.id, O(1), O(3), 2, {
+    check_in_time: '16:00', shuttle: 'si',
+    arrivo_tipo: 'luogo', arrivo_luogo: 'linate', arrivo_luogo_altro: null,
+    arrivo_ora_da: '15:00', arrivo_ora_a: null,
+    arrivo_struttura_da: '16:00', arrivo_struttura_a: '17:00',
+    navetta: 'massimo', navetta_prelievo: '15:30',
+  }),
   prenotazione(ROOM.lena, G.senza.id, O(1), O(2), 1, { total_amount: 80 }),                    // domani, senza orario né numero
-  prenotazione(ROOM.allegra, G.oggiIn.id, O(0), O(1), 2, { shuttle: 'si' }),                    // tre numeri: arriva oggi; SENZA orario → voce in Da controllare (06/09/2026); una notte con navetta → ombra ottone in Arrivi
+  // arriva OGGI e non si sa ancora niente dell'orario: nel riquadro «Arrivi di
+  // oggi» si legge «Da definire» e «Autista da assegnare», senza numeri finti
+  prenotazione(ROOM.allegra, G.oggiIn.id, O(0), O(1), 2, { shuttle: 'si', arrivo_tipo: 'da_definire', navetta: 'da_assegnare' }),  // tre numeri: arriva oggi; SENZA orario → voce in Da controllare (06/09/2026); una notte con navetta → ombra ottone in Arrivi
   prenotazione(ROOM.ambra, G.oggiOut.id, O(-3), O(0), 2, { pagato: true }),                    // tre numeri: parte oggi
   prenotazione(ROOM.lena, G.oggiOut.id, O(0), O(1), 2),                                        // stessa persona, prenotazione SEPARATA che parte da Ambra oggi = cambio camera (caso Rosa, 06/09/2026): NON compare tra gli arrivi senza orario
   prenotazione(ROOM.allegra, G.giulio.id, O(-6), O(-4), 2, { status: 'completata', pagato: true }),

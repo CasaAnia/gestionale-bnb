@@ -15,10 +15,12 @@ const foglio = leggi('components/scheda/Foglio.tsx')
 const pezzi = leggi('components/nuova/PezziNuova.tsx')
 
 // I fogli e il comando della scheda che li apre
-const FOGLI: { file: string; stato: string; apre: RegExp }[] = [
+// `etichette`: dove stanno le etichettine in ottone quando il foglio monta un
+// modulo condiviso invece di scriversi i campi (FoglioArrivo dal 21/09/2026)
+const FOGLI: { file: string; stato: string; apre: RegExp; etichette?: string }[] = [
   { file: 'FoglioPagamento', stato: 'foglioPagamento', apre: /onPagamento=\{\(\) => setFoglioPagamento\(true\)\}/ },
   { file: 'FoglioComePaga', stato: 'foglioComePaga', apre: /onComePaga=\{\(\) => setFoglioComePaga\(true\)\}/ },
-  { file: 'FoglioArrivo', stato: 'foglioArrivo', apre: /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/ },
+  { file: 'FoglioArrivo', stato: 'foglioArrivo', apre: /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/, etichette: 'components/ArrivoNavetta.tsx' },
   { file: 'FoglioCliente', stato: 'foglioCliente', apre: /onModificaDati=\{\(\) => setFoglioCliente\(true\)\}/ },
   { file: 'FoglioCambiaCliente', stato: 'foglioCambiaCliente', apre: /onCambiaCliente=\{\(\) => setFoglioCambiaCliente\(true\)\}/ },
   { file: 'FoglioAnnulla', stato: 'foglioAnnulla', apre: /data-annulla-prenotazione onClick=\{\(\) => setFoglioAnnulla\(true\)\}/ },
@@ -71,7 +73,7 @@ for (const f of FOGLI) {
     assert.match(sorgente, /<PiedeFoglio[\s\S]{0,300}onAnnulla=\{onChiudi\}/)
     // «Annulla» chiude e basta: onChiudi non scrive mai
     assert.equal(/onChiudi\(\)[^\n]*supabase|supabase[^\n]*onChiudi\(\)/.test(sorgente), false)
-    assert.match(sorgente, /ottone/i, 'le etichettine del foglio non sono in ottone')
+    assert.match(f.etichette ? leggi(f.etichette) : sorgente, /ottone/i, 'le etichettine del foglio non sono in ottone')
   })
 }
 
@@ -255,18 +257,24 @@ test('dopo «Come paga» la testa e il conto si aggiornano: le righe portano il 
   assert.match(pagina, /comePagaScheda\(accordoSalvato\?\.accordo_pagamento, accordo\?\.bonifico\)/)
 })
 
-// ── 6. ARRIVO ───────────────────────────────────────────────────────────────
-test('«Arrivo»: l’ora con l’orologino davanti, la navetta No · Sì · ?, e «Salva»', () => {
+// ── 6. ARRIVO E NAVETTA ─────────────────────────────────────────────────────
+// Rifatto il 21/09/2026 sulla proposta approvata da Ania. Prima il foglio
+// chiedeva un'ora e «No · Sì · ?»: quell'ora non diceva di DOVE fosse, e la
+// navetta non sapeva distinguere «non lo so ancora» da «serve, autista da
+// scegliere». Adesso il foglio monta il modulo condiviso e salva col
+// salvataggio condiviso; le parole e le regole stanno in lib/arrivo.
+test('«Arrivo e navetta»: il modulo condiviso, il salvataggio condiviso, e «Salva»', () => {
   const arrivo = leggi('components/scheda/FoglioArrivo.tsx')
-  assert.match(arrivo, /export const TITOLO_ARRIVO = 'Arrivo'/)
-  assert.match(arrivo, /<Etichetta testo="A che ora arriva" primo ottone \/>/)
-  assert.match(arrivo, /<RigaCampo etichetta="🕐 ora" ottone>/)
-  assert.match(arrivo, /export const NAVETTE = \[\['no', 'No'\], \['si', 'Sì'\], \['', '\?'\]\] as const/)
+  assert.match(leggi('lib/arrivo.ts'), /export const TITOLO_ARRIVO = 'Arrivo e navetta'/)
+  assert.match(arrivo, /import ArrivoNavetta from '@\/components\/ArrivoNavetta'/)
+  assert.match(arrivo, /<ArrivoNavetta arrivo=\{arrivo\} onArrivo=\{setArrivo\} \/>/)
   assert.match(arrivo, /<PiedeFoglio azione="Salva"/)
-  // il salvataggio resta quello a esito controllato di lib/arrivoOrario
-  assert.match(arrivo, /import \{ salvaOrarioENavetta \} from '@\/lib\/arrivoOrario'/)
-  assert.match(arrivo, /onChange=\{e => setOraForm\(oraDigitata\(e\.target\.value\)\)\}/)
-  // dopo il salvataggio la riga «Arrivo» e l'etichetta sotto la data si aggiornano dalle righe
+  // il salvataggio è quello a esito controllato, uno solo per tutti i punti
+  assert.match(arrivo, /import \{ salvaArrivoPrenotazione \} from '@\/lib\/arrivoDati'/)
+  assert.match(arrivo, /leggiArrivo\(prenotazione\)/)
+  // il foglio non si scrive campi dell'ora suoi
+  assert.equal(/oraDigitata|check_in_time:/.test(arrivo), false, 'il foglio si è riscritto i campi dell’ora')
+  // dopo il salvataggio la parte «Arrivo» e l'etichetta sotto la data si aggiornano dalle righe
   const dopo = pagina.slice(pagina.indexOf('<FoglioArrivo'), pagina.indexOf('<FoglioArrivo') + 700)
   assert.match(dopo, /setRighe\(rs => rs\.map\(aggiorna\)\)/)
   assert.match(dopo, /setFoglioArrivo\(false\)/)

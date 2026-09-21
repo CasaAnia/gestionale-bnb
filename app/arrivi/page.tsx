@@ -6,7 +6,7 @@ import { getUpcomingRoomChanges, buildChangeGroups, coloriCatene, percorsoBarraA
 import { ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { nomeOspite } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
-import { testoNavetta, ombraNavetta } from '@/lib/navetta'
+import { ombraNavetta } from '@/lib/navetta'
 import BackLink from '@/components/BackLink'
 import TestaPagina from '@/components/TestaPagina'
 import CampoRicerca from '@/components/CampoRicerca'
@@ -15,7 +15,9 @@ import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA, GIORNI_PRIMA_OGGI } from '@/lib/richiesteCalendario'
-import { salvaOrarioENavetta } from '@/lib/arrivoOrario'
+import { salvaArrivoPrenotazione } from '@/lib/arrivoDati'
+import ArrivoNavetta from '@/components/ArrivoNavetta'
+import { leggiArrivo, arrivoInScheda, navettaInScheda, type Arrivo } from '@/lib/arrivo'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { idDaParametro } from '@/lib/daControllare'
 import { BottoniOrario } from '@/components/BottoniWhatsApp'
@@ -74,13 +76,12 @@ export default function Arrivi() {
   const [isDesktop, setIsDesktop] = useState(false)
   const orizzontale = useOrizzontaleTelefono()
   useSchermoIntero()
-  const [popup, setPopup] = useState<{ id: string; name: string; time: string; shuttle: string } | null>(null)
+  const [popup, setPopup] = useState<{ id: string; name: string; arrivo: Arrivo } | null>(null)
   const [showStorico, setShowStorico] = useState(false)
   const [savingTime, setSavingTime] = useState(false)
   // Errori di salvataggio visibili, parte 2 (05/09/2026): avviso nel pannello
   // al posto dell'alert del browser; con errore il pannello resta aperto
   const [erroreOrario, setErroreOrario] = useState<string | null>(null)
-  const popupTimeRef = useRef<HTMLInputElement>(null)
 
   // Titolo sticky mese+anno: segue il mese più a sinistra attualmente in vista (come nel calendario)
   function fmtMonth(d: Date) {
@@ -194,7 +195,7 @@ export default function Arrivi() {
       if (daAprire) {
         apriUrlRef.current = daAprire.check_in
         setShowStorico(false)
-        setPopup({ id: daAprire.id, name: nomeOspite(daAprire), time: daAprire.check_in_time || '', shuttle: daAprire.shuttle || '' })
+        setPopup({ id: daAprire.id, name: nomeOspite(daAprire), arrivo: leggiArrivo(daAprire) })
       }
       setLoading(false)
     })
@@ -265,33 +266,28 @@ export default function Arrivi() {
     setPrimoVisibile(prev => (prev === primo ? prev : primo))
   }
 
-  // Salva insieme orario e navetta: un solo pannello, un solo dato condiviso
-  // con il modulo prenotazione. Se la colonna shuttle non esiste ancora
-  // (migrazione 0019 da incollare), l'orario si salva comunque.
+  // «Arrivo e navetta» (21/09/2026): lo stesso modulo e lo stesso salvataggio
+  // della scheda e dell'inserimento (lib/arrivoDati). Se le colonne della
+  // 0058 non ci sono ancora, l'ora IN STRUTTURA e la navetta si salvano
+  // nelle due di sempre e il pannello resta aperto a dirlo.
   async function saveTime() {
     if (!popup || savingTime) return
     setSavingTime(true)
     setErroreOrario(null)
-    const time = popup.time
-    const shuttle = popup.shuttle || null
     const id = popup.id
     try {
-      const esito = await salvaOrarioENavetta(
-        () => supabase.from('bookings').update({ check_in_time: time || null, shuttle }).eq('id', id),
-        () => supabase.from('bookings').update({ check_in_time: time || null }).eq('id', id),
-        !!popup.shuttle,
+      const esito = await salvaArrivoPrenotazione(
+        campi => supabase.from('bookings').update(campi).eq('id', id),
+        popup.arrivo,
       )
-      if (esito.esito === 'errore') {
+      if (esito.esito === 'errore' || !esito.campi) {
         // Nulla è cambiato: il pannello resta aperto con l'avviso, il bottone torna attivo
         setErroreOrario(esito.messaggio)
         return
       }
-      if (esito.esito === 'solo_orario') {
-        setBookings(bookings.map(b => b.id === id ? { ...b, check_in_time: time || null } : b))
-        if (esito.messaggio) { setErroreOrario(esito.messaggio); return }
-      } else {
-        setBookings(bookings.map(b => b.id === id ? { ...b, check_in_time: time || null, shuttle } : b))
-      }
+      const campi = esito.campi
+      setBookings(bookings.map(b => b.id === id ? { ...b, ...campi } : b))
+      if (esito.messaggio) { setErroreOrario(esito.messaggio); return }
       setPopup(null)
     } finally {
       setSavingTime(false)
@@ -502,7 +498,7 @@ export default function Arrivi() {
 
                     return (
                       <div key={booking.id}
-                        onClick={() => { setShowStorico(false); setPopup({ id: booking.id, name: nomeOspite(booking), time: booking.check_in_time || '', shuttle: booking.shuttle || '' }) }}
+                        onClick={() => { setShowStorico(false); setPopup({ id: booking.id, name: nomeOspite(booking), arrivo: leggiArrivo(booking) }) }}
                         style={{
                           position: 'absolute',
                           top: rowTop + 6,
@@ -596,37 +592,29 @@ export default function Arrivi() {
           const [y, m, dd] = s.split('-').map(Number)
           return new Date(y, m - 1, dd).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
         }
-        const navettaTxt = (b: any) => b.shuttle === 'si' ? ' · 🚌' : b.shuttle === 'no' ? ' · no navetta' : ''
+        // Lo storico degli arrivi dice anche CHI era l'autista, se si sa
+        const navettaTxt = (b: unknown) => {
+          const n = leggiArrivo(b as Record<string, unknown>).navetta
+          if (n === 'non_richiesta') return ' · no navetta'
+          if (n === 'da_definire') return ''
+          if (n === 'da_assegnare') return ' · 🚌'
+          return ` · 🚌 ${navettaInScheda(leggiArrivo(b as Record<string, unknown>)).titolo}`
+        }
         return (
         <div className="fixed inset-0 ed-velo flex items-center justify-center z-[60] p-4" onClick={() => setPopup(null)}>
           <div className="ed-foglio rounded-2xl p-5 w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <p className="font-bold text-lg mb-1 flex flex-wrap items-center gap-2">{popup.name}
               {vuoleRicevuta(bookings.find(b => b.id === popup.id)?.guests) && <span data-ricevuta className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-sage text-green-mid">{ETICHETTA_RICEVUTA_BREVE}</span>}</p>
-            <p className="text-sm text-gray-500 mb-4">
-              {popup.time || 'Orario da definire'} · {testoNavetta((popup.shuttle || null) as any)}
+            {/* Il riassunto in una riga: lo stesso testo della scheda */}
+            <p className="text-sm text-gray-500 mb-4" data-riassunto-arrivo>
+              {arrivoInScheda(popup.arrivo).titolo} · Navetta: {navettaInScheda(popup.arrivo).titolo}
             </p>
             {/* Stessi bottoni WhatsApp della Home (08/09/2026): «Chiedi orario» · «Apri chat»; senza numero non compaiono */}
             {(() => { const wa = whatsappRichiestaOrario(bookings.find(b => b.id === popup.id) || {}); return wa ? <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-4" data-whatsapp-arrivi><BottoniOrario wa={wa} /></div> : null })()}
-            <input
-              type="text" inputMode="numeric" placeholder="HH:MM"
-              value={popup.time}
-              onChange={e => {
-                let v = e.target.value.replace(/[^0-9:]/g, '')
-                if (v.length === 2 && !v.includes(':') && popup.time.length === 1) v = v + ':'
-                setPopup({ ...popup, time: v })
-              }}
-              maxLength={5}
-              className="w-full ed-campo rounded-xl p-3 text-2xl font-bold text-center mb-3"
-            />
-            <p className="text-xs text-gray-500 mb-1.5">🚌 Navetta</p>
-            <div className="flex gap-1.5 mb-4">
-              {([['', 'Da definire'], ['si', 'Sì'], ['no', 'No']] as const).map(([v, label]) => (
-                <button key={v} type="button" onClick={() => setPopup({ ...popup, shuttle: v })}
-                  className={`flex-1 rounded-full text-sm font-semibold py-2 ${popup.shuttle === v ? 'text-white' : 'border border-[#C9BFA8] text-stone'}`}
-                  style={popup.shuttle === v ? { background: '#2D6A4F' } : undefined}>
-                  {label}
-                </button>
-              ))}
+            {/* Il modulo è quello condiviso: le stesse regole della scheda e
+                dell'inserimento, in un punto solo (components/ArrivoNavetta) */}
+            <div className="mb-4">
+              <ArrivoNavetta arrivo={popup.arrivo} onArrivo={a => setPopup({ ...popup, arrivo: a })} prefisso="arrivi-" />
             </div>
             {/* Memoria: "arriviamo come sempre" — cosa significa davvero.
                 Solo consultazione: niente viene compilato da solo. */}
@@ -646,7 +634,7 @@ export default function Arrivi() {
                   </button>
                   {ultimoConOra && (
                     <button type="button"
-                      onClick={() => setPopup({ ...popup, time: ultimoConOra.check_in_time, shuttle: ultimoConOra.shuttle || popup.shuttle })}
+                      onClick={() => setPopup({ ...popup, arrivo: leggiArrivo(ultimoConOra) })}
                       className="text-xs font-semibold rounded-full border border-[#C9BFA8] px-3 py-1"
                       style={{ color: '#2D6A4F' }}>
                       Usa come l&apos;ultima volta

@@ -272,7 +272,13 @@ export function nottiNonSalvabili(
 // tengono insieme la prenotazione invece non si possono perdere: senza
 // prenotazione_id le camere diventano prenotazioni separate, e col conto
 // unico i totali sballano (rilievo del 15/09/2026).
-export const RINUNCIABILI = new Set(['prenotazione_id', 'extra_bed_importo', 'extra_bed_criterio', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro', 'chi_e_2'])
+// «Arrivo e navetta» (proposta 0058, 21/09/2026): le nove colonne nuove
+// vanno insieme, come le due del letto. Se il database non le conosce
+// ancora si tolgono TUTTE in un colpo (altrimenti servirebbero nove giri) e
+// la prenotazione si salva lo stesso con l'ora in struttura e la navetta
+// nelle due colonne di sempre, dicendo cosa si è perso per strada.
+export const COLONNE_ARRIVO_0058 = ['arrivo_tipo', 'arrivo_luogo', 'arrivo_luogo_altro', 'arrivo_ora_da', 'arrivo_ora_a', 'arrivo_struttura_da', 'arrivo_struttura_a', 'navetta', 'navetta_prelievo']
+export const RINUNCIABILI = new Set(['prenotazione_id', 'extra_bed_importo', 'extra_bed_criterio', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro', 'chi_e_2', ...COLONNE_ARRIVO_0058])
 export const SENZA_NON_SI_SALVA = new Set(['prenotazione_id'])
 
 export const NOMI_COLONNA: Record<string, string> = {
@@ -283,6 +289,15 @@ export const NOMI_COLONNA: Record<string, string> = {
   caparra_centesimi: 'la caparra',
   caparra_entro: 'la scadenza della caparra',
   chi_e_2: 'chi è la seconda persona che dorme con lei',
+  arrivo_tipo: 'i dettagli dell’arrivo (luogo, fascia, autista)',
+  arrivo_luogo: 'i dettagli dell’arrivo (luogo, fascia, autista)',
+  arrivo_luogo_altro: 'i dettagli dell’arrivo (luogo, fascia, autista)',
+  arrivo_ora_da: 'i dettagli dell’arrivo (luogo, fascia, autista)',
+  arrivo_ora_a: 'i dettagli dell’arrivo (luogo, fascia, autista)',
+  arrivo_struttura_da: 'i dettagli dell’arrivo (luogo, fascia, autista)',
+  arrivo_struttura_a: 'i dettagli dell’arrivo (luogo, fascia, autista)',
+  navetta: 'i dettagli dell’arrivo (luogo, fascia, autista)',
+  navetta_prelievo: 'i dettagli dell’arrivo (luogo, fascia, autista)',
 }
 export function mancaColonnaNecessaria(colonna: string): string {
   return `Non salvo: manca ancora nel database ${NOMI_COLONNA[colonna] ?? colonna}, e senza quello la prenotazione verrebbe spezzata. Serve la proposta SQL corrispondente applicata su Supabase.`
@@ -531,6 +546,9 @@ export function doveManca(guai: string[]): { avviso: string; dove: string } | nu
     /camera non è stata scelta|Manca la camera|due volte la notte/i.test(primo) ? '[data-camera-soggiorno]'
     : /orario/i.test(primo) ? '[data-arrivo]'
     : /caparra/i.test(primo) ? '[data-come-paga-parte]'
+    // «Arrivo e navetta» (21/09/2026): luogo, fascia e stima stanno nella
+    // parte dell'arrivo, non nel campo della data di arrivo
+    : /luogo|fascia|stima in struttura/i.test(primo) ? '[data-arrivo]'
     : /partenza|arrivo/i.test(primo) ? '[data-campo="arrivo"]'
     : /ospiti|persona|persone|tiene al massimo/i.test(primo) ? '[data-ospiti]'
     : /letto/i.test(primo) ? '[data-prezzo-letto]'

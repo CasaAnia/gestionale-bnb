@@ -8,6 +8,8 @@
 //
 // Un solo dato sulla prenotazione: modulo prenotazione, pagina Arrivi e
 // notifiche leggono e scrivono tutti la stessa colonna.
+import { leggiArrivo, orarioIgnoto } from './arrivo.ts'
+
 export type Navetta = 'si' | 'no' | null | undefined
 
 // Testo per pannelli e popup: "15:30 · 🚌 Navetta" / "No navetta" / "Navetta da definire"
@@ -28,7 +30,7 @@ export function suffissoNavettaNotifica(b: any): string {
 // Parte se manca almeno una delle due informazioni operative (regola di
 // Ania): orario di arrivo e/o stato navetta. null = non manca nulla.
 export function cosaManca(b: any): string | null {
-  const mancaOrario = !b?.check_in_time
+  const mancaOrario = orarioIgnoto(leggiArrivo(b))
   // Colonna assente = migrazione non applicata: la navetta non conta ancora
   const mancaNavetta = 'shuttle' in (b || {}) && (b.shuttle === null || b.shuttle === undefined || b.shuttle === '')
   if (mancaOrario && mancaNavetta) return 'mancano orario e navetta'

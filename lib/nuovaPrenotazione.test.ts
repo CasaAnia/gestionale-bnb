@@ -244,11 +244,19 @@ test('le camere si raggruppano in linee, e la striscia le rifà', () => {
 // ── 4. ARRIVO, COME PAGA, CON LEI, NOTA ────────────────────────────────────
 const conLei = readFileSync(new URL('../components/nuova/ConLei.tsx', import.meta.url), 'utf8')
 
-test('l’arrivo: l’ora con l’orologino e la navetta a tre pastiglie', () => {
-  assert.match(pagina, /<Etichetta testo="A che ora arriva" \/>/)
-  assert.match(pagina, /<RigaCampo etichetta="🕐 ora">/)
-  assert.match(pagina, /oraDigitata\(e\.target\.value\)/)
-  assert.match(pagina, /\[\['no', 'No'\], \['si', 'Sì'\], \['', '\?'\]\]/)
+// Dal 21/09/2026 (proposta «Arrivo e navetta» approvata da Ania) l'arrivo non
+// è più «un'ora e sì/no»: l'inserimento monta lo stesso modulo della scheda,
+// così non può nascere un secondo posto in cui «15:00» non dice di dove sia.
+test('l’arrivo: il modulo condiviso, e i campi vanno nelle colonne nuove più le due di sempre', () => {
+  assert.match(pagina, /import ArrivoNavetta from '@\/components\/ArrivoNavetta'/)
+  assert.match(pagina, /<p className="ed-sezione">Arrivo e navetta<\/p>/)
+  assert.match(pagina, /<ArrivoNavetta arrivo=\{arrivo\} onArrivo=\{setArrivo\} \/>/)
+  assert.match(pagina, /\.\.\.campiArrivo\(normalizza\(arrivo\)\),/)
+  // la pagina non si scrive più campi dell'arrivo suoi
+  assert.equal(/check_in_time: orario|setNavetta\(/.test(pagina), false, 'l’inserimento ha di nuovo campi dell’arrivo suoi')
+  // un guaio dell'arrivo blocca il salvataggio e porta la pagina lì
+  assert.match(pagina, /const guaioArrivo = controllaArrivo\(arrivo\)/)
+  assert.match(readFileSync(new URL('./nuovaPrenotazione.ts', import.meta.url), 'utf8'), /\/luogo\|fascia\|stima in struttura\/i\.test\(primo\) \? '\[data-arrivo\]'/)
 })
 
 test('«come paga» è il componente già fatto, con il conto della prenotazione', () => {

@@ -3,6 +3,9 @@ import { chiavePrenotazione, filtroPrenotazione, periodiCamera, leggiPrenotazion
 import { conInizialiONull } from '@/lib/maiuscole'
 import { nomeDaSalvareONull } from '@/lib/guestName'
 import { CampoNomeCognome } from '@/components/CampiNomeCognome'
+import ArrivoNavetta from '@/components/ArrivoNavetta'
+import { salvaArrivoPrenotazione } from '@/lib/arrivoDati'
+import { ARRIVO_VUOTO, leggiArrivo, periodoInStruttura, rigaLuogo, navettaInScheda, type Arrivo } from '@/lib/arrivo'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -488,7 +491,7 @@ export default function BookingDetail() {
   // Arrivo: orario e navetta si cambiano dal riquadro azzurro, senza aprire
   // tutta la prenotazione (Ania, 10/09/2026).
   const [arrivoAperto, setArrivoAperto] = useState(false)
-  const [arrivoForm, setArrivoForm] = useState<{ ora: string; navetta: string }>({ ora: '', navetta: '' })
+  const [arrivoForm, setArrivoForm] = useState<Arrivo>(ARRIVO_VUOTO)
   const [salvandoArrivo, setSalvandoArrivo] = useState(false)
   const [erroreArrivo, setErroreArrivo] = useState<string | null>(null)
   // Un solo comando in fondo a «Il soggiorno»: dentro ci stanno le modifiche
@@ -613,8 +616,6 @@ export default function BookingDetail() {
       setReservationBookings([]); setGroupBookings([]); setErrorePrenotazione(null); setAccontiOk(false)
       setEditForm(b ? {
         room_id: b.room_id, check_in: b.check_in, check_out: b.check_out,
-        check_in_time: b.check_in_time || '',
-        shuttle: b.shuttle || '',
         num_guests: b.num_guests, extra_bed: b.extra_bed, extra_bed_dates: b.extra_bed_dates || (b.extra_bed ? getDaysBetween(b.check_in, b.check_out) : []),
         // Tariffa della notte più economica (lib/prezzoNotti): le righe salvate
         // col vecchio calcolo a persone massime vengono riallineate, così il
@@ -1031,9 +1032,12 @@ export default function BookingDetail() {
         discount_type: editForm.discount_type || null,
         discount_value: editForm.discount_type ? Number(editForm.discount_value) : null,
       } : {}),
-      check_in_time: editForm.check_in_time || null,
-      // navetta inclusa solo a colonna migrata o se valorizzata (come chi_e)
-      ...(booking.shuttle !== undefined || editForm.shuttle ? { shuttle: editForm.shuttle || null } : {}),
+      // Arrivo e navetta NON si scrivono di qui (21/09/2026): li scrive solo
+      // «Modifica arrivo», col modulo condiviso. Due scrittori sullo stesso
+      // dato erano il modo sicuro di riportare la confusione fra «Linate
+      // alle 15:00» e «in struttura alle 15:00» (lezione della regola
+      // fissa n. 1: un campo, un componente, un salvataggio).
+
       notes: editForm.notes || null,
       color: editForm.color || null,
       bonifico: editForm.bonifico || false,
@@ -1245,6 +1249,9 @@ export default function BookingDetail() {
   if (!booking) return <div className="p-4 text-center py-10 text-gray-400">{errorePrenotazione || 'Prenotazione non trovata'}</div>
 
   const notti = calcNotti(booking.check_in, booking.check_out)
+  // L'arrivo come lo legge la scheda nuova: con le colonne della 0058 se ci
+  // sono, dalle due di sempre se non ci sono (lib/arrivo, 21/09/2026)
+  const arrivoLetto = leggiArrivo(booking as unknown as Record<string, unknown>)
   const guest = booking.guests
   const selectedRoom = rooms.find(r => r.id === editForm.room_id)
 
@@ -1620,35 +1627,30 @@ export default function BookingDetail() {
 
   // ── arrivo: orario e navetta ─────────────────────────────────────────────
   function apriArrivo() {
-    setArrivoForm({ ora: booking.check_in_time || '', navetta: booking.shuttle || '' })
+    setArrivoForm(leggiArrivo(booking as unknown as Record<string, unknown>))
     setErroreArrivo(null)
     setArrivoAperto(true)
   }
 
   async function salvaArrivo() {
     if (salvandoArrivo) return
-    if (arrivoForm.ora && !oraCompleta(arrivoForm.ora)) {
-      setErroreArrivo('L\u2019orario si scrive con quattro cifre, per esempio 1830 diventa 18:30. Lascia vuoto se non lo sai ancora.')
-      return
-    }
     setSalvandoArrivo(true)
     setErroreArrivo(null)
-    // La navetta è una colonna arrivata dopo (come chi_e): se manca ancora si
-    // salva l'orario e lo si dice, invece di perdere tutto il salvataggio.
-    let campiSalvati: Record<string, unknown> = {
-      check_in_time: arrivoForm.ora || null,
-      shuttle: arrivoForm.navetta || null,
-    }
-    let navettaNonRegistrata = false
+    // Lo stesso salvataggio della scheda nuova e dell'inserimento
+    // (lib/arrivoDati, 21/09/2026): un solo punto in cui si decide che
+    // `check_in_time` è l'ora IN STRUTTURA e non quella dell'aeroporto.
+    let campiSalvati: Record<string, unknown> = {}
+    let avviso: string | null = null
     const errore = await scriviPoiAggiorna(
       async () => {
-        const esito = await supabase.from('bookings').update(campiSalvati).eq('id', id)
-        if (esito.error && (esito.error.code === '42703' || esito.error.code === 'PGRST204') && /shuttle/.test(esito.error.message || '')) {
-          navettaNonRegistrata = true
-          campiSalvati = { check_in_time: arrivoForm.ora || null }
-          return await supabase.from('bookings').update(campiSalvati).eq('id', id)
-        }
-        return esito
+        const esito = await salvaArrivoPrenotazione(
+          campi => supabase.from('bookings').update(campi).eq('id', id),
+          arrivoForm,
+        )
+        if (esito.esito === 'errore' || !esito.campi) return { data: null, error: { message: esito.messaggio } }
+        campiSalvati = esito.campi
+        avviso = esito.messaggio
+        return { data: null, error: null }
       },
       () => {
         setBooking({ ...booking, ...campiSalvati })
@@ -1657,10 +1659,7 @@ export default function BookingDetail() {
     )
     setSalvandoArrivo(false)
     if (errore) { setErroreArrivo(errore); return }
-    if (navettaNonRegistrata) {
-      setErroreArrivo('Orario salvato. La navetta non è stata registrata: manca la colonna shuttle su Supabase.')
-      return
-    }
+    if (avviso) { setErroreArrivo(avviso); return }
     setArrivoAperto(false)
   }
 
@@ -1898,31 +1897,8 @@ export default function BookingDetail() {
             </div>
           </div>
 
-          <div className="mb-3">
-            <p className="text-xs text-gray-500 mb-1">🕐 Orario arrivo (es. 15:30)</p>
-            <input type="text" inputMode="numeric" placeholder="HH:MM"
-              value={editForm.check_in_time}
-              onChange={e => {
-                let v = e.target.value.replace(/[^0-9:]/g, '')
-                if (v.length === 2 && !v.includes(':') && editForm.check_in_time.length === 1) v = v + ':'
-                setEditForm({ ...editForm, check_in_time: v })
-              }}
-              maxLength={5}
-              className="w-full ed-campo p-2 text-sm" />
-          </div>
-
-          <div className="mb-3">
-            <p className="text-xs text-gray-500 mb-1">🚌 Navetta</p>
-            <div className="flex gap-1.5">
-              {([['', 'Da definire'], ['si', 'Sì'], ['no', 'No']] as const).map(([v, label]) => (
-                <button key={v} type="button" onClick={() => setEditForm({ ...editForm, shuttle: v })}
-                  className={`rounded-full text-sm font-semibold px-4 py-1.5 ${editForm.shuttle === v ? 'text-white' : 'border border-[#C9BFA8] text-stone'}`}
-                  style={editForm.shuttle === v ? { background: '#2D6A4F' } : undefined}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Arrivo e navetta stanno nel loro riquadro, con «Modifica
+              arrivo»: qui non si ripetono (21/09/2026). Un dato, un modulo. */}
 
           <div className="grid grid-cols-2 gap-2 mb-3">
             <div>
@@ -2358,15 +2334,18 @@ export default function BookingDetail() {
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0 }}>
                 <span aria-hidden style={{ fontSize: 26, lineHeight: 1.1 }}>🕐</span>
                 <div style={{ minWidth: 0 }}>
-                  <span className={v.eti} style={{ display: 'block', color: 'var(--color-green-mid)', whiteSpace: 'normal' }}>Orario arrivo previsto</span>
-                  {/* quando l'ora c'è si legge da lontano (Ania, 09/09/2026) */}
-                  <span className={v.numeroGrande} style={{ display: 'block', fontSize: 32, color: 'var(--color-green-dark)' }}>{booking.check_in_time || ''}</span>
+                  <span className={v.eti} style={{ display: 'block', color: 'var(--color-green-mid)', whiteSpace: 'normal' }}>Arrivo in struttura</span>
+                  {/* quando l'ora c'è si legge da lontano (Ania, 09/09/2026).
+                      Dal 21/09/2026 è l'ora IN STRUTTURA, mai quella di
+                      Linate; sotto, piccolo, da dove arriva. */}
+                  <span className={v.numeroGrande} style={{ display: 'block', fontSize: 32, color: 'var(--color-green-dark)' }}>{periodoInStruttura(arrivoLetto) || ''}</span>
+                  {rigaLuogo(arrivoLetto) && <span className={v.nota} style={{ display: 'block' }}>{rigaLuogo(arrivoLetto)}</span>}
                 </div>
               </div>
               <div style={{ textAlign: 'right', flex: 'none' }}>
                 <span className={v.eti} style={{ display: 'block', color: 'var(--color-green-mid)' }}>Navetta</span>
-                <span className={v.numeroGrande} style={{ display: 'block', fontSize: 32, color: 'var(--color-green-dark)' }}>
-                  {booking.shuttle === 'si' ? 'sì' : booking.shuttle === 'no' ? 'no' : ''}
+                <span className={v.numeroGrande} style={{ display: 'block', fontSize: 19, color: 'var(--color-green-dark)' }}>
+                  {navettaInScheda(arrivoLetto).titolo}
                 </span>
               </div>
             </div>
@@ -2405,23 +2384,8 @@ export default function BookingDetail() {
             })()}
             {arrivoAperto && (
               <div data-modulo-arrivo style={{ paddingBottom: 8 }}>
-                <div className={v.due}>
-                  <label className={v.campoBlocco}>
-                    <span className={v.campoEti}>Orario previsto</span>
-                    <input type="text" inputMode="numeric" maxLength={5} placeholder="es. 18:30" className={v.campo}
-                      value={arrivoForm.ora} onChange={e => setArrivoForm({ ...arrivoForm, ora: oraDigitata(e.target.value) })} />
-                  </label>
-                  <div className={v.campoBlocco}>
-                    <span className={v.campoEti}>Navetta</span>
-                    <div className={v.pillole} style={{ marginTop: 2 }}>
-                      {([['si', 'Sì'], ['no', 'No'], ['', 'Non so']] as const).map(([val, testoNav]) => (
-                        <button key={testoNav} type="button" aria-pressed={arrivoForm.navetta === val}
-                          className={arrivoForm.navetta === val ? v.pil : v.pilT}
-                          onClick={() => setArrivoForm({ ...arrivoForm, navetta: val })}>{testoNav}</button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                {/* Il modulo condiviso, lo stesso della scheda nuova */}
+                <ArrivoNavetta arrivo={arrivoForm} onArrivo={setArrivoForm} prefisso="vecchia-" />
                 {erroreArrivo && <p className={v.avviso}>{erroreArrivo}</p>}
                 <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
                   <button type="button" className={v.pil} style={{ flex: 1, minHeight: 42 }} disabled={salvandoArrivo} onClick={salvaArrivo}>

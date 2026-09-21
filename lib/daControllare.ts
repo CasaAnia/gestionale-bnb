@@ -33,6 +33,7 @@ import { nomeOspite } from './guestName.ts'
 import { spostaGiorni } from './statistiche/periodo.ts'
 import { cent, prenotazioneValida, type PrenotazioneStat, type PagamentoStat, type DocumentoStat } from './statistiche/tipi.ts'
 import { lettiOccupatiPerNotte } from './lettiAggiuntivi.ts'
+import { leggiArrivo, orarioIgnoto } from './arrivo.ts'
 import { EXTRA_BED_MAX } from './tariffe.ts'
 import { normalizzaTelefono } from './whatsapp.ts'
 import { whatsappRichiestaOrario, waHrefTesto } from './messaggiWhatsApp.ts'
@@ -375,7 +376,10 @@ export function eccezioniArrivi(prenotazioni: PrenotazioneDC[], oggi: string): E
   const domani = spostaGiorni(oggi, 1)
   const valide = prenotazioni.filter(prenotazioneValida)
   return valide
-    .filter(b => (b.check_in === oggi || b.check_in === domani) && !(b.check_in_time ?? '').trim())
+    // «senza orario» vuol dire che non se ne sa NIENTE (21/09/2026): con
+    // «Linate alle 15:00» un orario c'è, e la stima in struttura è
+    // facoltativa — l'avviso non deve chiedere due volte la stessa cosa.
+    .filter(b => (b.check_in === oggi || b.check_in === domani) && orarioIgnoto(leggiArrivo(b as unknown as Record<string, unknown>)))
     .filter(b => !eCambioCamera(b, valide))
     .sort((a, b) => a.check_in.localeCompare(b.check_in) || nomeCamera(a).localeCompare(nomeCamera(b)))
     .map(b => {

@@ -1,4 +1,69 @@
-# Scheda attiva — punto 6 «I messaggi, al momento giusto» (21 settembre 2026 sera)
+# Scheda attiva — «Arrivo e navetta», la proposta approvata (21 settembre 2026)
+
+## STATO IN 10 RIGHE
+
+1. **Base**: `main` a `bb23a39` (punto 6 pubblicato), lavoro pulito, nessun
+   commit locale in più, nessuna modifica di altri in mezzo. Autore: Code.
+   Tutto sul branch **`arrivo-e-navetta`**: `main` non è stato toccato.
+2. **Perimetro**: un orario non vuol più dire tutto e niente. «Linate alle
+   15:00» NON è «in struttura alle 15:00». La navetta distingue «non serve»,
+   «non lo so ancora», «serve, autista da scegliere» e i quattro autisti.
+3. **Riferimento approvato**: `arrivi-navetta-tre-viste-approvata.png` in
+   `Documents/Codex/2026-09-20/hola-chica-vai-nel-gestionale-e/outputs/`.
+   Le tre superfici ci sono tutte: inserimento, scheda, Arrivi della Home.
+4. **Il modello** sta in `lib/arrivo.ts` (vocabolario, controlli e TUTTE le
+   parole delle tre viste), il salvataggio in `lib/arrivoDati.ts`, il modulo
+   in `components/ArrivoNavetta.tsx`. Nessuna veste dentro il modello.
+5. **Cinque punti di ingresso**, tutti trovati e tutti allineati allo stesso
+   modulo: `/nuova-prenotazione`, il foglio della scheda, il pannello di
+   `/arrivi`, `/nuova` e `/prenotazioni/<id>`. Su quest'ultima il modulo
+   grande non scrive più arrivo e navetta: c'era un secondo scrittore.
+6. **`check_in_time` resta l'ora IN STRUTTURA** (precisa, inizio della fascia
+   o vuota) e `shuttle` resta lo specchio si/no/niente: Home, Arrivi,
+   pulizie, notifiche e storico continuano a funzionare senza toccarli.
+7. **Database**: `supabase/proposte/0058_arrivo_e_navetta.BOZZA.sql`, nove
+   colonne, **NON applicata**. Senza di lei il gestionale funziona e, se il
+   salvataggio non passa, riscrive solo le due colonne di sempre e lo dice.
+8. **Prove**: suite **1696 verdi** (erano 1656, +40 in `lib/arrivo.test.ts`),
+   TypeScript pulito, `next build` completato, lint senza errori nuovi. Sette
+   prove del disegno vecchio riscritte con il requisito che le corregge.
+9. **Prove dal vero** nell'anteprima sintetica senza rete (Carmela Sabia per
+   la scheda, Paola Neri per la Home, interruttore `senza-0058` per il
+   ripiego): salvando «Rogoredo 15:00–15:30» sul server arriva
+   `check_in_time: null`. Schermate a 375 px e controllo a 1100 px.
+10. **Nessuna pubblicazione, nessuna scrittura sul database vero, nessun
+    messaggio agli ospiti**: l'incarico non le autorizzava.
+
+## 🔴 AZIONE PER ANIA
+
+- **Decidere se pubblicare**: il branch `arrivo-e-navetta` è pronto ma non è
+  su `main` e non è online.
+- **Decidere se incollare la 0058** su Supabase (senza, luogo e autista non
+  si salvano e il gestionale lo dice a schermo).
+- **Guardare le sei scelte** che ho preso io, elencate nel riscontro: la più
+  grossa è che in Home gli arrivi adesso stanno in un posto solo (il blocco
+  «Oggi» non ripete più la riga CHECK-IN).
+
+## Riscontro
+
+- `RISCONTRO-ARRIVO-NAVETTA.md` (nella cartella del riferimento): il difetto
+  chiuso, le tre superfici, le scelte da confermare, le prove e i limiti.
+
+## Anteprima sintetica
+
+- Scheda e inserimento: `node scripts/revisioni/anteprima-prenotazioni-finta.mjs`
+  → la scheda di **Carmela Sabia** porta il caso del riferimento (Linate
+  15:00, in struttura circa 16:00–17:00, Massimo con prelievo 15:30).
+  `GET /finto/senza-0058?on=1` sul finto Supabase prova il ripiego.
+- Home: `node scripts/revisioni/anteprima-home-finta.mjs` → «Arrivi di oggi»
+  con l'arrivo senza orario, «Arrivi di domani» con **Paola Neri**, il caso
+  del riferimento.
+- Due `next dev` nella stessa cartella non convivono: per una seconda
+  anteprima serve una copia del progetto (`cp -Rc`).
+
+---
+
+# Storico: Scheda attiva — punto 6 «I messaggi, al momento giusto» (21 settembre 2026 sera)
 
 ## STATO IN 10 RIGHE
 
