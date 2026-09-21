@@ -1,5 +1,39 @@
 # Scheda attiva — «Arrivo e navetta» (21 settembre 2026)
 
+## 0058 APPLICATA sul database vero (21/09/2026 sera)
+
+Eseguita da Ania nel SQL Editor del progetto **Gestionale Casa Ania
+Rozzano**, guidata passo passo. Prima collaudata per intero, due volte, sul
+progetto di prova.
+
+| | prima | dopo |
+| --- | --- | --- |
+| prenotazioni | 261 | **261** |
+| clienti | 151 | **151** |
+| con orario di arrivo | 61 | **61** |
+| colonne `arrivo_*` / `navetta*` | 0 | **11** |
+| vincoli | — | **15** |
+| righe con `arrivo_tipo` | — | **0** |
+
+Nessun dato toccato. Fatto anche `notify pgrst, 'reload schema'`.
+Il file è passato fra le **migrazioni applicate**
+(`supabase/migrations/0058_arrivo_e_navetta.sql`), come si è fatto per la
+0057; piano e ripristino restano in `supabase/proposte/0058_*`.
+
+**Due cose da sapere.** Il progetto è sul piano gratuito e **non ha
+backup**: si è proceduto lo stesso perché la 0058 fa solo `add column` e
+`add constraint` e c'è il file di ripristino — il limite è scritto nel
+piano, e per una migrazione che tocchi i dati non basterebbe. E
+**l'applicazione non cambia niente a schermo**: finché il branch
+`arrivo-e-navetta` non è pubblicato, l'app online non conosce le colonne
+nuove e non le scrive.
+
+Attenzione, capitato davvero: il primo tentativo era finito sul progetto
+di **test** (il selettore in alto diceva `gestionale-bnb-spese-test-…`).
+Se ne è accorto perché lì `check_in_time` non esiste. Prima di scrivere,
+controllare sempre i numeri: 261 prenotazioni e 151 clienti sono il
+gestionale vero.
+
 ## ESITO DEL REVISORE — RICEVUTO, e cosa copre esattamente
 
 Codex ha chiuso i due rilievi del terzo ricontrollo. **Verificato

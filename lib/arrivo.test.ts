@@ -635,8 +635,10 @@ test('«manca l’orario» guarda l’arrivo vero, e il promemoria delle 17 pass
   assert.match(route, /cosaManca\(b\)/)
 })
 
-test('la proposta 0058 c’è, con piano e ripristino, e non accetta le 29:00', () => {
-  const sql = leggi('supabase/proposte/0058_arrivo_e_navetta.BOZZA.sql')
+test('la migrazione 0058 c’è fra quelle APPLICATE, con piano e ripristino, e non accetta le 29:00', () => {
+  // applicata sul progetto vero il 21/09/2026 sera: sta in migrations,
+  // non più fra le proposte (stessa strada della 0057)
+  const sql = leggi('supabase/migrations/0058_arrivo_e_navetta.sql')
   for (const c of ['arrivo_tipo', 'arrivo_luogo', 'arrivo_luogo_altro',
     'arrivo_luogo_ora_da', 'arrivo_luogo_ora_a', 'arrivo_struttura_ora_da',
     'arrivo_struttura_ora_a', 'arrivo_stima_da', 'arrivo_stima_a',
@@ -658,14 +660,14 @@ test('la proposta 0058 c’è, con piano e ripristino, e non accetta le 29:00', 
   assert.match(sql, /bookings_arrivo_fascia_luogo_check/)
   assert.match(sql, /bookings_arrivo_fascia_stima_check/)
   // niente dati toccati, e tutto in una transazione
-  assert.equal(/update public\.bookings set|insert into public\.bookings|drop column/.test(sql), false, 'la proposta tocca i dati')
+  assert.equal(/update public\.bookings set|insert into public\.bookings|drop column/.test(sql), false, 'la migrazione tocca i dati')
   assert.match(sql, /^begin;$/m)
   assert.match(sql, /^commit;$/m)
   // piano e ripristino, chiesti dalla verifica
   const piano = leggi('supabase/proposte/0058_PIANO_APPLICAZIONE.md')
   assert.match(piano, /Prima di applicare/)
   assert.match(piano, /notify pgrst, 'reload schema'/)
-  assert.match(piano, /non è stata eseguita/)
+  assert.match(piano, /APPLICATA il 21\/09\/2026|Applicazione sul progetto vero — FATTA/)
   const ripristino = leggi('supabase/proposte/0058_RIPRISTINO.BOZZA.sql')
   assert.equal((ripristino.match(/drop column if exists/g) ?? []).length, 11)
   assert.match(ripristino, /COPIA DI SICUREZZA/)

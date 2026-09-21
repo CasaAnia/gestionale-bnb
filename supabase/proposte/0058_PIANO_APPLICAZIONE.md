@@ -1,9 +1,12 @@
-# Piano di applicazione — proposta 0058 «Arrivo e navetta»
+# Piano di applicazione — migrazione 0058 «Arrivo e navetta»
 
 Scritto il 21/09/2026 sera, dopo la verifica indipendente di Codex.
-**Non ancora applicata.** La decide Ania.
+**APPLICATA il 21/09/2026 sera** sul progetto vero (Gestionale Casa Ania
+Rozzano, `tnsaaoxlcldeltowhvwv`), da Ania, guidata passo passo. Esito in
+fondo.
 
-File: `supabase/proposte/0058_arrivo_e_navetta.BOZZA.sql`
+File: `supabase/migrations/0058_arrivo_e_navetta.sql` (era fra le
+proposte; spostata fra le applicate, come si è fatto per la 0057)
 Ripristino: `supabase/proposte/0058_RIPRISTINO.BOZZA.sql`
 
 ## Cosa fa, in una riga
@@ -126,10 +129,31 @@ non esisteva — è stato quello a farcene accorgere).
 
 I primi tre devono restare identici dopo l'applicazione.
 
+## Applicazione sul progetto vero — FATTA (21/09/2026 sera)
+
+Eseguita da Ania nel SQL Editor del progetto **Gestionale Casa Ania
+Rozzano**, dopo aver verificato l'identità del progetto (il primo
+tentativo era finito sul progetto di test: se ne è accorto perché
+`check_in_time` lì non esiste). Risposta: «Success. No rows returned».
+Subito dopo, `notify pgrst, 'reload schema'`.
+
+| controllo | prima | dopo | atteso |
+| --- | --- | --- | --- |
+| prenotazioni | 261 | **261** | invariato ✓ |
+| clienti | 151 | **151** | invariato ✓ |
+| con orario di arrivo | 61 | **61** | invariato ✓ |
+| colonne `arrivo_*` / `navetta*` | 0 | **11** | 11 ✓ |
+| vincoli | — | **15** | 15 ✓ |
+| righe con `arrivo_tipo` valorizzato | — | **0** | 0 ✓ |
+
+Nessun dato toccato. Nessun backup disponibile (piano gratuito): il
+limite resta quello scritto sopra.
+
 ## Cosa NON è ancora stato fatto
 
-- L'applicazione sul **progetto vero** (`gestionale`).
-- Nessuna prova del comportamento dell'app contro un database con la 0058
-  applicata: il branch non è pubblicato, quindi in produzione le colonne
-  nuove resterebbero semplicemente vuote e inutilizzate finché non si
-  pubblica.
+- **La pubblicazione del branch `arrivo-e-navetta`.** Finché non si
+  pubblica, l'app online non conosce le colonne nuove e semplicemente non
+  le scrive: restano vuote e innocue.
+- Nessuna prova del comportamento dell'app contro il database vero con la
+  0058 applicata: quella si potrà fare solo dopo la pubblicazione, o con
+  un collaudo a parte da autorizzare.

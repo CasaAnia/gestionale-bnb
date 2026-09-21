@@ -1,5 +1,13 @@
 -- =====================================================================
--- ARRIVO E NAVETTA: SIGNIFICATI CHE NON SI MESCOLANO — proposta 0058
+-- ARRIVO E NAVETTA: SIGNIFICATI CHE NON SI MESCOLANO — migrazione 0058
+--
+-- APPLICATA il 21/09/2026 sera sul progetto vero, da Ania, guidata passo
+-- passo. Prima collaudata per intero (due volte) sul progetto di prova.
+-- Dopo l'applicazione: 261 prenotazioni, 151 clienti e 61 orari INVARIATI,
+-- 11 colonne nuove, 15 vincoli, 0 righe toccate. Il contenuto eseguibile è
+-- identico a quello collaudato: è cambiata solo questa intestazione.
+-- Piano e ripristino restano in supabase/proposte/0058_*.
+--
 -- (21/09/2026, dalla proposta visiva approvata da Ania;
 --  corretta la sera stessa dopo la verifica indipendente di Codex)
 --
@@ -55,6 +63,7 @@
 --
 -- PIANO DI APPLICAZIONE: supabase/proposte/0058_PIANO_APPLICAZIONE.md
 -- RIPRISTINO:            supabase/proposte/0058_RIPRISTINO.BOZZA.sql
+-- NOTA: applicata. Rieseguirla non fa danni (tutto `if not exists`).
 -- =====================================================================
 
 begin;
