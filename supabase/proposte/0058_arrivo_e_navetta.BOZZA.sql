@@ -168,9 +168,10 @@ commit;
 -- I vincoli ci sono tutti?
 -- select conname from pg_constraint
 --  where conrelid = 'public.bookings'::regclass
---    and conname like 'bookings_arrivo%' or conname like 'bookings_navetta%'
+--    and (conname like 'bookings_arrivo%' or conname like 'bookings_navetta%')
 --  order by conname;
 --   -- attesi: 15 (3 valori + 7 ore + 3 fasce + 2 coerenza)
+--   -- le parentesi servono: senza, «and» lega più di «or» e il conto sballa
 --
 -- Le prenotazioni non sono state toccate:
 -- select count(*) as prenotazioni, count(check_in_time) as con_orario from public.bookings;

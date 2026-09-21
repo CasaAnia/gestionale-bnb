@@ -77,11 +77,29 @@ intatte `check_in_time` e `shuttle`). Leggere prima la copia di sicurezza
 indicata in cima a quel file: i dettagli scritti dopo l'applicazione non si
 possono ricostruire dalle due colonne di sempre.
 
-## Cosa NON è stato fatto in questo giro
+## Collaudo sul progetto di prova — FATTO (21/09/2026 sera)
 
-- La proposta **non è stata eseguita** da nessuna parte: né sul progetto
-  vero né su un progetto di prova. Le prove fatte sono sul comportamento
-  dell'app quando le colonne mancano (anteprima sintetica, interruttore
-  `senza-0058`), non sull'SQL eseguito da PostgreSQL.
-- Un collaudo dell'SQL su PostgreSQL vero, come si è fatto per la 0057,
-  resta da concordare: serve un progetto di prova e l'autorizzazione.
+Eseguita da Ania sul progetto Supabase **test**, guidata passo passo. Il
+`bookings` di test è più vecchio (non ha nemmeno `check_in_time`): va bene
+lo stesso, perché la 0058 non tocca quelle due colonne — le nomina solo
+dentro un commento.
+
+| controllo | atteso | risultato |
+| --- | --- | --- |
+| colonne `arrivo_*` e `navetta*` prima | 0 | **0** |
+| dopo l'esecuzione | «Success. No rows returned» | **sì** |
+| colonne nuove | 11 | **11** |
+| vincoli | 15 | **15** |
+| righe con `arrivo_tipo` valorizzato | 0 | **0** |
+| seconda esecuzione (idempotenza) | «Success», senza lamentele | **sì** |
+
+Quindi l'SQL gira davvero su PostgreSQL, i vincoli si creano tutti, non
+tocca nessuna riga e rieseguirlo non fa danni.
+
+## Cosa NON è ancora stato fatto
+
+- L'applicazione sul **progetto vero** (`gestionale`).
+- Nessuna prova del comportamento dell'app contro un database con la 0058
+  applicata: il branch non è pubblicato, quindi in produzione le colonne
+  nuove resterebbero semplicemente vuote e inutilizzate finché non si
+  pubblica.
