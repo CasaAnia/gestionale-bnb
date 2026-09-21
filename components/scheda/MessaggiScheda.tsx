@@ -89,13 +89,17 @@ export default function MessaggiScheda({ fase, business, onBusiness, onConfermaI
         dati="whatsapp"
       />
 
-      {/* La conferma con IMMAGINE E TESTO: sempre qui in cima, in ogni fase */}
-      <button type="button" onClick={onConfermaImmagine} data-conferma-immagine data-senza-sottolinea
-        className="w-full flex flex-col items-center justify-center px-4 mt-3 transition-transform duration-100 active:scale-[0.97]"
-        style={{ background: 'var(--color-green-mid)', color: '#fff', fontSize: 14, borderRadius: 25, paddingTop: 12, paddingBottom: 12, minHeight: 60 }}>
-        <span style={{ fontWeight: 600 }}>{TITOLO_CONFERMA}</span>
-        <strong style={{ fontWeight: 700 }}>{SOTTOTITOLO_CONFERMA}</strong>
-      </button>
+      {/* La conferma con IMMAGINE E TESTO: sempre qui in cima, in ogni fase.
+          Larga quanto la scritta e centrata, non quanto la riga (Ania,
+          21/09/2026: «fallo più corto sul computer ma anche nel cellulare»). */}
+      <div className="text-center mt-3">
+        <button type="button" onClick={onConfermaImmagine} data-conferma-immagine data-senza-sottolinea
+          className="inline-flex flex-col items-center justify-center px-7 transition-transform duration-100 active:scale-[0.97]"
+          style={{ background: 'var(--color-green-mid)', color: '#fff', fontSize: 14, borderRadius: 25, paddingTop: 12, paddingBottom: 12, minHeight: 60 }}>
+          <span style={{ fontWeight: 600 }}>{TITOLO_CONFERMA}</span>
+          <strong style={{ fontWeight: 700 }}>{SOTTOTITOLO_CONFERMA}</strong>
+        </button>
+      </div>
       <p data-conferma-sempre className="text-center mt-2" style={{ fontSize: 12, color: 'var(--color-stone)' }}>{SEMPRE_DISPONIBILE}</p>
 
       {/* Utili adesso: pochi, in colonna, allineati a sinistra */}

@@ -469,8 +469,11 @@ test('i messaggi (punto 6): conferma con immagine sempre in cima, larga quanto l
   assert.match(messaggi, /import InterruttorePillola from '@\/components\/InterruttorePillola'/)
   assert.match(messaggi, /\['ania', 'WhatsApp Ania'\], \['business', 'Business'\]/)
   const pieno = messaggi.slice(messaggi.indexOf('data-conferma-immagine'), messaggi.indexOf('data-conferma-sempre'))
-  // larga quanto la riga, verde pieno, due righe: titolo e, in grassetto vero, «Immagine e testo»
-  assert.match(pieno, /w-full/, 'la conferma con immagine deve essere larga quanto la riga')
+  // larga quanto la SCRITTA e centrata, non quanto la riga (Ania, 21/09/2026:
+  // «fallo più corto sul computer ma anche nel cellulare»)
+  assert.equal(/w-full/.test(pieno), false, 'la conferma con immagine non deve essere larga quanto la riga')
+  assert.match(pieno, /inline-flex/)
+  assert.match(messaggi, /<div className="text-center mt-3">\s*<button type="button" onClick=\{onConfermaImmagine\}/)
   assert.match(pieno, /background: 'var\(--color-green-mid\)', color: '#fff'/)
   assert.match(pieno, /\{TITOLO_CONFERMA\}/)
   assert.match(pieno, /<strong style=\{\{ fontWeight: 700 \}\}>\{SOTTOTITOLO_CONFERMA\}<\/strong>/)
