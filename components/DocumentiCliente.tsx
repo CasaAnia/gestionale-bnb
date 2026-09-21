@@ -7,6 +7,7 @@ import {
   type DocumentoCliente, type EtichettaDocumento, type LatoDocumento,
 } from '@/lib/documentiCliente'
 import AvvisoAzione from '@/components/AvvisoAzione'
+import VisoreDocumento from '@/components/VisoreDocumento'
 
 // Documenti d'identità del cliente (05/09/2026, richiesta di Ania): foto dal
 // telefono, ridotte e salvate nel bucket privato «documenti» (migrazione
@@ -44,7 +45,7 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
   const [etichetta, setEtichetta] = useState<EtichettaDocumento>('carta_identita')
   const [lato, setLato] = useState<LatoDocumento | null>(null)
   const [daCancellare, setDaCancellare] = useState<DocumentoCliente | null>(null)
-  const [aperto, setAperto] = useState<string | null>(null)   // URL firmato a schermo intero
+  const [aperto, setAperto] = useState<DocumentoCliente | null>(null)   // documento a schermo intero
   // Parte 3 (05/09/2026): anteprime non ottenute → avviso con Riprova, non caselle vuote
   const [erroreAnteprime, setErroreAnteprime] = useState<string | null>(null)
 
@@ -137,7 +138,7 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
             <ul className="grid grid-cols-2 gap-2 mb-3">
               {documenti.map(d => (
                 <li key={d.id} className="rounded-lg border border-card-border overflow-hidden bg-cream">
-                  <button type="button" onClick={() => anteprime[d.id] && setAperto(anteprime[d.id])} className="block w-full aspect-[4/3] bg-sand" aria-label={`Apri ${etichettaLeggibile(d)}`}>
+                  <button type="button" onClick={() => anteprime[d.id] && setAperto(d)} className="block w-full aspect-[4/3] bg-sand" aria-label={`Apri ${etichettaLeggibile(d)}`}>
                     {anteprime[d.id] ? (
                       d.percorso.endsWith('.pdf')
                         ? <span className="flex items-center justify-center h-full text-3xl">📄</span>
@@ -193,16 +194,8 @@ export default function DocumentiCliente({ guestId }: { guestId: string }) {
         </div>
       )}
 
-      {aperto && (
-        <div className="fixed inset-0 z-[70] bg-green-dark/90 flex items-center justify-center p-3" role="dialog" aria-modal="true" onClick={() => setAperto(null)}>
-          {aperto.includes('.pdf') ? (
-            <iframe src={aperto} title="Documento" className="w-full h-full bg-white rounded-lg" />
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={aperto} alt="Documento" className="max-w-full max-h-full object-contain rounded-lg" />
-          )}
-          <button type="button" onClick={() => setAperto(null)} aria-label="Chiudi" className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white text-green-dark font-bold">✕</button>
-        </div>
+      {aperto && anteprime[aperto.id] && (
+        <VisoreDocumento url={anteprime[aperto.id]} etichetta={etichettaLeggibile(aperto)} onChiudi={() => setAperto(null)} />
       )}
     </div>
   )
