@@ -38,7 +38,7 @@ funzionano uguali. Permessi come nella 0049 (niente anon).
 | Prova | Dove | Esito |
 |---|---|---|
 | SQL sequenziale, 11 casi | `lib/contoAttesoSql.test.ts` (PGlite): cifre attese, wrapper, mancante atteso, identità che cambia, trigger, ripristino | verdi |
-| Concorrenza vera, 2 connessioni, 14 casi | `scripts/revisioni/collaudo-0057-concorrenza.mjs` su PostgreSQL 16.15 **locale** (cluster usa-e-getta, schema isolato) | 14/14 OK il 20/09/2026 notte |
+| Concorrenza vera, 2 connessioni, 22 casi | `scripts/revisioni/collaudo-0057-concorrenza.mjs` su PostgreSQL 16.15 **locale** (cluster usa-e-getta, schema isolato); dal 21/09/2026 anche la risposta persa con la scrittura ANCORA IN CORSO (casi 11a–11f: transazione non confermata, verifica che non vede, riprova con la stessa chiave in fila sul lock → `gia_presente`, un solo movimento; controprova con l'importo cambiato; gruppo/singola via wrapper; saldo + bollino) e la nota condizionata (12) | 22/22 OK il 21/09/2026 |
 | Anteprima senza rete (finto con le stesse regole) | «Ventiquattro Notti», «Cambio camera», «270 concordati», Carmela (senza prenotazione_id) | conto cambiato → niente scritto; risposta persa → «Verifica pagamento»; camera aggiunta fra acconto e bollino → nessun saldo inventato |
 
 Quello che manca, e che decide se si applica: **lo stesso collaudo
@@ -54,7 +54,7 @@ database, poi lo cancella).
 DATABASE_URL='postgres://…progetto-di-prova…' node scripts/revisioni/collaudo-0057-concorrenza.mjs --consento-remoto
 ```
 
-Atteso: `14 casi, 14 OK`. Con anche un solo KO la proposta non si applica e
+Atteso: `22 casi, 22 OK`. Con anche un solo KO la proposta non si applica e
 si torna a rivederla. Lo script crea `collaudo_0057_<sigla>` e lo cancella
 alla fine (`--tieni` per conservarlo e guardare i dati).
 
@@ -132,5 +132,14 @@ scrive. L'app funziona con entrambe le versioni senza rilascio.
   le passa sempre.
 - Una risposta persa lascia l'esito incerto anche con la 0057: l'app lo dice
   («Non riesco a confermare…») e «Verifica pagamento» controlla senza
-  scrivere; la 0057 garantisce che un tentativo ripetuto con la stessa
-  chiave non raddoppi mai.
+  registrare incassi; la 0057 garantisce che un tentativo ripetuto con la stessa
+  chiave non raddoppi mai — anche se la prima richiesta è ANCORA IN CORSO sul
+  server (collaudo 11a–11f): la funzione controlla la chiave PRIMA delle cifre
+  attese, quindi la riprova in fila sul lock torna `gia_presente`. Dal
+  21/09/2026 il foglio tiene fermi i dati del tentativo (importo, modo, giorno,
+  nota) finché non è risolto e «Riprova lo stesso pagamento» rimanda solo quello.
+- La nota del movimento è affare dell'app, non della 0057: `UPDATE … WHERE note
+  IS NULL` sul movimento identificato per chiave (mai su uno stimato), una nota
+  scritta nel frattempo non si sovrascrive. Nessuna modifica SQL: piano e
+  ripristino restano validi. Istruzioni di verifica in
+  `docs/verifica-punto5-scrittura-tardiva.md`.

@@ -16,7 +16,7 @@
 // ============================================================================
 import { supabase } from './supabase'
 import {
-  eseguiRegistraAcconto, eseguiSegnaPagato, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, saldoMancanteCent, MESSAGGIO_RILETTURA_PAGAMENTI, pendenteApplicato,
+  eseguiRegistraAcconto, eseguiSegnaPagato, rpcMancante, validaEsitoSegnaPagato, ErroreRispostaMalformata, saldoMancanteCent, MESSAGGIO_RILETTURA_PAGAMENTI, ritrovaPendente,
   type AccontoPendente, type MovimentoSaldo, type PagamentoStat, type PrenotazioneStat, type MetodoPagamento,
 } from './statistiche'
 import { chiavePrenotazione, contoPrenotazione, leggiPrenotazioneUnica, type RigaPrenotazione } from './prenotazioneUnica'
@@ -27,6 +27,11 @@ import { AVVISO_BOLLINO_NON_TOLTO } from './pagamentoFoglio'
 
 export const AVVISO_NOTA_SENZA_0055 = 'Pagamento registrato; la nota però no: serve la proposta 0055 applicata su Supabase.'
 export const AVVISO_NOTA_NON_SALVATA = 'Pagamento registrato, ma la nota non è stata salvata.'
+// La nota si scrive SOLO se il movimento non ne ha già una (21/09/2026): una
+// nota scritta nel frattempo da un altro telefono non si sovrascrive in silenzio
+export const AVVISO_NOTA_GIA_PRESENTE = 'Pagamento registrato; la nota non è stata scritta perché il movimento ne ha già una diversa.'
+// Movimento ritrovato per stima (senza la chiave): l'incasso si conferma, la nota no
+export const AVVISO_NOTA_MOVIMENTO_STIMATO = 'Pagamento ritrovato e confermato; la nota non è stata scritta perché il movimento non è identificato con certezza.'
 export const AVVISO_RILETTURA_CONTO = 'Pagamento registrato, ma non riesco a rileggere il conto: ricarica la scheda.'
 export const AVVISO_RILETTURA_DOPO_TOLTO = 'Pagamento tolto, ma non riesco a rileggere il conto: ricarica la scheda.'
 export const ERRORE_PAGAMENTO_NON_TROVATO = 'Il pagamento non c’è più: ricarica la scheda.'
@@ -45,7 +50,7 @@ export type PagamentoLetto = PagamentoStat & { id?: string; method?: string | nu
 export type ContoRiletto = { righe: RigaPagabile[]; pagamenti: PagamentoLetto[]; conto: { totaleCent: number; ricevutiCent: number } }
 
 export type EsitoPagamento =
-  | { esito: 'ok'; pagamenti: PagamentoLetto[]; pagato: boolean; avviso: string | null }
+  | { esito: 'ok'; pagamenti: PagamentoLetto[]; pagato: boolean; avviso: string | null; giaRegistrato?: boolean }
   | { esito: 'errore'; messaggio: string; pagamenti: PagamentoLetto[] | null; contoCambiato?: ContoRiletto; incerto?: TentativoIncerto }
 
 export const ERRORE_CONTO_CAMBIATO = 'Il conto è cambiato mentre il foglio era aperto: niente registrato.'
@@ -61,7 +66,13 @@ export const AVVISO_BOLLINO_CONTO_CAMBIATO = 'Pagamento registrato, ma il conto 
 export const MESSAGGIO_ESITO_INCERTO = 'Non riesco a confermare se il pagamento è stato registrato. Premi “Verifica pagamento” per controllare senza registrarlo due volte.'
 export const COMANDO_VERIFICA_PAGAMENTO = 'Verifica pagamento'
 export const PAGAMENTO_RITROVATO = 'Pagamento ritrovato e confermato.'
-export const PAGAMENTO_NON_TROVATO = 'Il pagamento non risulta registrato: puoi salvarlo adesso.'
+// Non trovato ≠ fallito: la richiesta di prima può essere ancora in corso. Il
+// tentativo resta custodito e si rimanda con la STESSA chiave (idempotente).
+export const PAGAMENTO_NON_TROVATO = 'Il pagamento non risulta ancora registrato. Puoi rimandarlo: se intanto è arrivato, non si registra due volte.'
+export const COMANDO_RIPROVA_PAGAMENTO = 'Riprova lo stesso pagamento'
+// Scritto con l'INSERT di ripiego (senza funzione server): non c'è una chiave
+// che renda sicuro il rinvio, quindi ci si ferma
+export const PAGAMENTO_NON_RIPROVABILE = 'Il pagamento non risulta registrato. Senza la funzione del server non posso rimandarlo in sicurezza: controlla i movimenti nella scheda e chiedi assistenza.'
 export const VERIFICA_NON_RIUSCITA = 'Non riesco a controllare i pagamenti registrati: riprova la verifica.'
 export const TENTATIVO_IN_SOSPESO = (importo: string, metodo: string, giorno: string) =>
   `C’è un pagamento non confermato: ${importo} · ${metodo} · ${giorno}. Verificalo prima di registrarne altri.`
@@ -79,12 +90,12 @@ export function errorePerCerto(e: unknown): boolean {
 }
 
 /** Il tentativo incerto conservato sul telefono per questa prenotazione (chiave, importo, modo, giorno, nota) */
-export type TentativoIncerto = { chiave: string; importo: number; metodo: string; giorno: string; nota: string }
+export type TentativoIncerto = { chiave: string; importo: number; metodo: string; giorno: string; nota: string; senzaChiave: boolean }
 export function tentativoIncerto(booking: RigaPagabile): TentativoIncerto | null {
   const t = leggiMemoria(() => localStorage, `ca_acconto_pendente_${chiavePrenotazione(booking)}`)
   try {
     const p = t ? JSON.parse(t) as AccontoPendente & { nota?: string } : null
-    return p && typeof p.chiave === 'string' && Number.isFinite(Number(p.amount)) ? { chiave: p.chiave, importo: Number(p.amount), metodo: p.method, giorno: p.paid_on, nota: p.nota ?? '' } : null
+    return p && typeof p.chiave === 'string' && Number.isFinite(Number(p.amount)) ? { chiave: p.chiave, importo: Number(p.amount), metodo: p.method, giorno: p.paid_on, nota: p.nota ?? '', senzaChiave: !!p.senzaChiave } : null
   } catch { return null }
 }
 export const ERRORE_CONTO_CAMBIATO_NON_RILETTO = 'Il conto è cambiato mentre il foglio era aperto e non riesco a rileggerlo: niente registrato, ricarica la scheda.'
@@ -110,7 +121,8 @@ export async function registraPagamento(
   const ids = segmenti.map(b => b.id)
   const chiaveMemoria = `ca_acconto_pendente_${chiave}`
   const rileggi = () => supabase.from('payments').select('*').in('booking_id', ids).order('paid_on')
-  const leggiPendente = () => { const t = leggiMemoria(() => localStorage, chiaveMemoria); try { return t ? JSON.parse(t) as AccontoPendente : null } catch { return null } }
+  let ultimoPendente: AccontoPendente | null = null   // per dire se un «già applicato» è identificato per chiave
+  const leggiPendente = () => { const t = leggiMemoria(() => localStorage, chiaveMemoria); try { ultimoPendente = t ? JSON.parse(t) as AccontoPendente : null } catch { ultimoPendente = null } return ultimoPendente }
   // l'intero conto com'è adesso: le camere della prenotazione (come le legge la scheda) e i loro pagamenti
   const rileggiConto = async (): Promise<ContoRiletto | null> => {
     const r = await leggiPrenotazioneUnica(booking, f => supabase.from('bookings').select('*, rooms(*)').eq(f.colonna, f.valore).order('check_in'))
@@ -123,14 +135,16 @@ export async function registraPagamento(
   let contoCambiato: ContoRiletto | null = null
   let cambiatoDalServer = false
   let erroreScrittura: unknown = null   // l'errore grezzo della scrittura, per dire se è certo o incerto
+  let giaPresente = false               // la funzione ha ritrovato la chiave del tentativo di prima (gia_presente)
   const rileggiControllando = async () => {
     if (!controllo) return rileggi()
     const adesso = await rileggiConto()
     if (!adesso) return { data: null, error: new Error(MESSAGGIO_RILETTURA_PAGAMENTI) }
     // il nostro stesso pagamento, scritto la volta prima con la risposta persa,
-    // non è un incasso di un altro telefono: lo riconosce eseguiRegistraAcconto
+    // non è un incasso di un altro telefono: lo si ritrova per chiave (o per
+    // stima, senza la colonna) e lo riconosce anche eseguiRegistraAcconto
     const pendente = leggiPendente()
-    const nostro = pendente && pendente.amount === dati.importo && pendente.method === dati.metodo && pendente.paid_on === dati.giorno ? Math.round(pendente.amount * 100) : 0
+    const nostro = pendente && ritrovaPendente(pendente, adesso.pagamenti as PagamentoStat[]) ? Math.round(pendente.amount * 100) : 0
     const atteso = Math.round(controllo.ricevutiAttesiCent)
     const totaleCambiato = adesso.conto.totaleCent !== Math.round(controllo.totaleAttesoCent)
     const ricevutiCambiati = adesso.conto.ricevutiCent !== atteso && adesso.conto.ricevutiCent !== atteso + nostro
@@ -160,13 +174,17 @@ export async function registraPagamento(
       if (rpc.error) erroreScrittura = rpc.error
       if (rpc.error && contoCambiatoDalServer(rpc.error)) { cambiatoDalServer = true; return { data: null, error: rpc.error } }
       if (!rpc.error) {
-        const r = rpc.data as { movimento_id?: unknown; importo?: unknown; soggiorno?: string; contratto?: string; booking_id?: string } | null
+        const r = rpc.data as { movimento_id?: unknown; importo?: unknown; soggiorno?: string; contratto?: string; booking_id?: string; gia_presente?: unknown } | null
         if (!r || typeof r.movimento_id !== 'string' || !Number.isFinite(Number(r.importo)) || Number(r.importo) !== p.amount
           || (booking.prenotazione_id && (r.contratto !== 'prenotazione_v1' || r.soggiorno !== chiave))) return { data: null, error: new ErroreRispostaMalformata() }
+        giaPresente = r.gia_presente === true
         return { data: { id: r.movimento_id, booking_id: r.booking_id || bookingId, amount: Number(r.importo), method: p.method, paid_on: p.paid_on }, error: null }
       }
       if (booking.prenotazione_id || !rpcMancante(rpc.error, 'registra_acconto')) return { data: null, error: rpc.error }
       erroreScrittura = null
+      // INSERT di ripiego: il movimento non porterà la chiave. Lo si annota nella
+      // custodia PRIMA di scrivere: un esito incerto qui non è rinviabile in sicurezza
+      scriviMemoria(() => localStorage, chiaveMemoria, JSON.stringify({ ...p, nota: dati.nota, senzaChiave: true }))
       try {
         const { data, error } = await supabase.from('payments').insert({ booking_id: bookingId, amount: p.amount, method: p.method, paid_on: p.paid_on }).select().single()
         if (error) erroreScrittura = error
@@ -196,14 +214,19 @@ export async function registraPagamento(
     if (esito.fase === 'movimento') { try { localStorage.removeItem(chiaveMemoria) } catch { /* niente */ } }
     return { esito: 'errore', messaggio: esito.messaggio, pagamenti: esito.pagamenti as PagamentoLetto[] | null }
   }
-  return completaDopoMovimento(booking, righe, dati, (esito.movimento as { id?: string }).id, esito.pagamenti as PagamentoLetto[])
+  // già applicato la volta prima (risposta persa): la nota solo se il movimento è il nostro per chiave
+  const pendenteLetto = ultimoPendente as AccontoPendente | null
+  const identificato = !esito.giaApplicato || !pendenteLetto || (ritrovaPendente(pendenteLetto, esito.pagamenti as PagamentoStat[])?.certo ?? false)
+  const completato = await completaDopoMovimento(booking, righe, dati, (esito.movimento as { id?: string }).id, esito.pagamenti as PagamentoLetto[], identificato)
+  // già scritto la volta prima (ritrovato qui o dalla funzione per chiave): la conferma lo dice
+  return completato.esito === 'ok' ? { ...completato, giaRegistrato: esito.giaApplicato || giaPresente } : completato
 }
 
 /** Dopo che il movimento c'è (appena scritto, o ritrovato): la nota, il
  *  bollino «pagato» se il conto è coperto, la rilettura finale. */
 async function completaDopoMovimento(
   booking: RigaPagabile, righe: RigaPagabile[], dati: { metodo: MetodoPagamento; giorno: string; nota: string },
-  movimentoId: string | undefined, pagamentiScritti: PagamentoLetto[],
+  movimentoId: string | undefined, pagamentiScritti: PagamentoLetto[], identificato = true,
 ): Promise<EsitoPagamento> {
   const chiave = chiavePrenotazione(booking)
   const segmenti = righePerSaldo(righe)
@@ -212,12 +235,12 @@ async function completaDopoMovimento(
 
   // La nota è una cortesia: la funzione della 0033 non la prende, si scrive
   // dopo, sulla riga appena nata. Senza la colonna (proposta 0055) lo si dice.
+  // Solo sul movimento identificato con certezza (id dalla funzione server, o
+  // ritrovato per chiave), e solo se non ha già una nota (21/09/2026).
   let avviso: string | null = null
   const nota = dati.nota.trim()
-  if (nota && movimentoId) {
-    const n = await supabase.from('payments').update({ note: nota }).eq('id', movimentoId)
-    if (n.error) avviso = colonnaMancante(n.error) === 'note' ? AVVISO_NOTA_SENZA_0055 : AVVISO_NOTA_NON_SALVATA
-  }
+  if (nota && movimentoId && identificato) avviso = await scriviNota(movimentoId, nota)
+  else if (nota && !identificato) avviso = AVVISO_NOTA_MOVIMENTO_STIMATO
 
   let pagamenti = pagamentiScritti
   let pagato = righe.some(r => !!r.pagato)
@@ -235,16 +258,36 @@ async function completaDopoMovimento(
   return { esito: 'ok', pagamenti, pagato, avviso }
 }
 
-// ── «Verifica pagamento» (rilievo 3): CONTROLLA e basta, non scrive mai ─────
+/** La nota sul movimento, SOLO se non ne ha già una: un UPDATE condizionato
+ *  (`note is null`). Zero righe toccate → si rilegge: se la nota è già la
+ *  nostra va bene, altrimenti la si lascia com'è e lo si dice. Torna l'avviso. */
+async function scriviNota(movimentoId: string, nota: string): Promise<string | null> {
+  const n = await supabase.from('payments').update({ note: nota }).eq('id', movimentoId).is('note', null).select('id')
+  if (n.error) return colonnaMancante(n.error) === 'note' ? AVVISO_NOTA_SENZA_0055 : AVVISO_NOTA_NON_SALVATA
+  if ((n.data ?? []).length === 1) return null
+  const letta = await supabase.from('payments').select('note').eq('id', movimentoId).maybeSingle()
+  if (letta.error || !letta.data) return AVVISO_NOTA_NON_SALVATA
+  return String((letta.data as { note?: string | null }).note ?? '').trim() === nota ? null : AVVISO_NOTA_GIA_PRESENTE
+}
+
+// ── «Verifica pagamento» (rilievo 3): CONTROLLA, non registra mai incassi ───
 // Rilegge i movimenti della prenotazione e cerca quello del tentativo
-// custodito (importo, modo, giorno; una riga in più di quante ce n'erano
-// prima di scrivere). Ritrovato → il tentativo si dimentica e si completa
-// come dopo un salvataggio (nota, bollino, rilettura). Non trovato → il
-// tentativo resta custodito: un nuovo «Salva» uguale riusa la stessa
-// chiave (idempotente), uno diverso ne fa una nuova.
+// custodito: per CHIAVE (chiave_operazione = la nostra: identificato con
+// certezza) oppure, senza la colonna o dopo l'INSERT di ripiego, per stima
+// (una riga uguale in più di quante ce n'erano prima di scrivere).
+// Ritrovato → il tentativo si dimentica e si completa come dopo un
+// salvataggio: la nota SOLO sul movimento certo e solo se non ne ha già una
+// (scriviNota), il bollino «pagato» se il conto è coperto (segna_pagato con
+// mancante atteso 0: con la 0057 non inventa mai un incasso; senza, resta la
+// regola della 0049 come dopo un salvataggio normale), la rilettura.
+// Non trovato → NON vuol dire fallito: la richiesta di prima può essere
+// ancora in corso. Il tentativo resta custodito con la sua chiave e i suoi
+// dati; «Riprova lo stesso pagamento» la rimanda tale e quale (idempotente:
+// se intanto è arrivata, la funzione torna gia_presente). Dopo l'INSERT di
+// ripiego (senzaChiave) il rinvio non è sicuro: riprovabile = false.
 export type EsitoVerifica =
-  | { esito: 'ritrovato'; pagamenti: PagamentoLetto[]; pagato: boolean; avviso: string | null; tentativo: TentativoIncerto }
-  | { esito: 'non_trovato'; pagamenti: PagamentoLetto[]; tentativo: TentativoIncerto }
+  | { esito: 'ritrovato'; pagamenti: PagamentoLetto[]; pagato: boolean; avviso: string | null; tentativo: TentativoIncerto; certo: boolean }
+  | { esito: 'non_trovato'; pagamenti: PagamentoLetto[]; tentativo: TentativoIncerto; riprovabile: boolean }
   | { esito: 'nessun_tentativo' }
   | { esito: 'errore'; messaggio: string }
 
@@ -261,12 +304,12 @@ export async function verificaPagamento(booking: RigaPagabile, righe: RigaPagabi
   let riletti: { data: PagamentoLetto[] | null; error: unknown }
   try { riletti = await supabase.from('payments').select('*').in('booking_id', ids).order('paid_on') as unknown as { data: PagamentoLetto[] | null; error: unknown } } catch (e) { riletti = { data: null, error: e } }
   if (riletti.error || !riletti.data) return { esito: 'errore', messaggio: VERIFICA_NON_RIUSCITA }
-  const trovato = pendenteApplicato(pendente, riletti.data as PagamentoStat[])
-  if (!trovato) return { esito: 'non_trovato', pagamenti: riletti.data, tentativo: t }
+  const trovato = ritrovaPendente(pendente, riletti.data as PagamentoStat[])
+  if (!trovato) return { esito: 'non_trovato', pagamenti: riletti.data, tentativo: t, riprovabile: !t.senzaChiave }
   try { localStorage.removeItem(chiaveMemoria) } catch { /* niente */ }
-  const completato = await completaDopoMovimento(booking, righe, { metodo: t.metodo as MetodoPagamento, giorno: t.giorno, nota: t.nota }, (trovato as { id?: string }).id, riletti.data)
+  const completato = await completaDopoMovimento(booking, righe, { metodo: t.metodo as MetodoPagamento, giorno: t.giorno, nota: t.nota }, (trovato.movimento as { id?: string }).id, riletti.data, trovato.certo)
   if (completato.esito === 'errore') return { esito: 'errore', messaggio: completato.messaggio }
-  return { esito: 'ritrovato', pagamenti: completato.pagamenti, pagato: completato.pagato, avviso: completato.avviso, tentativo: t }
+  return { esito: 'ritrovato', pagamenti: completato.pagamenti, pagato: completato.pagato, avviso: completato.avviso, tentativo: t, certo: trovato.certo }
 }
 
 // «Segna come pagato» — contratto unico (lib/statistiche/pagato): chiave

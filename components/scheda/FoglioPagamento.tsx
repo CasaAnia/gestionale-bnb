@@ -35,7 +35,7 @@ import {
 } from '@/lib/pagamentoFoglio'
 import { euroScheda } from '@/lib/schedaPrenotazione'
 import {
-  registraPagamento, verificaPagamento, tentativoIncerto, type ContoRiletto, type EsitoPagamento, type RigaPagabile, type TentativoIncerto,
+  registraPagamento, verificaPagamento, tentativoIncerto, COMANDO_RIPROVA_PAGAMENTO, PAGAMENTO_NON_RIPROVABILE, type ContoRiletto, type EsitoPagamento, type RigaPagabile, type TentativoIncerto,
   COMANDO_VERIFICA_PAGAMENTO, PAGAMENTO_NON_TROVATO, TENTATIVO_IN_SOSPESO, MESSAGGIO_ESITO_INCERTO,
 } from '@/lib/pagamentiDati'
 import { dataConGiorno } from '@/lib/dateItaliane'
@@ -75,18 +75,23 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   const [contoLocale, setContoLocale] = useState({ totaleCent: Math.round(conto.totaleCent), ricevutiCent: Math.round(conto.ricevutiCent) })
   const { totaleCent, ricevutiCent } = contoLocale
   const residuoCent = totaleCent - ricevutiCent
-  const [modo, setModo] = useState<ModoImporto>(modoIniziale(residuoCent))
-  const [importo, setImporto] = useState(modoIniziale(residuoCent) === 'saldo' ? importoProposto(residuoCent) : '')
-  const [giorno, setGiorno] = useState(oggi)
-  const [metodo, setMetodo] = useState<ModoPagamento>(modoProposto(bonifico))
-  const [nota, setNota] = useState('')
+  // Il tentativo incerto (rilievo 3): la scrittura è partita e la risposta
+  // non è arrivata. Resta custodito sul telefono e si ritrova anche
+  // riaprendo il foglio: i campi mostrano i SUOI dati (importo, giorno, modo,
+  // nota) e restano fermi finché l'esito non è risolto — un importo cambiato
+  // nel frattempo non deve diventare un secondo pagamento (21/09/2026).
+  const [incerto, setIncerto] = useState<TentativoIncerto | null>(() => tentativoIncerto(booking))
+  const [modo, setModo] = useState<ModoImporto>(incerto ? 'altro' : modoIniziale(residuoCent))
+  const [importo, setImporto] = useState(incerto ? importoProposto(Math.round(incerto.importo * 100)) : modoIniziale(residuoCent) === 'saldo' ? importoProposto(residuoCent) : '')
+  const [giorno, setGiorno] = useState(incerto ? incerto.giorno : oggi)
+  const [metodo, setMetodo] = useState<ModoPagamento>(incerto ? (incerto.metodo === 'bonifico' ? 'bonifico' : 'contanti') : modoProposto(bonifico))
+  const [nota, setNota] = useState(incerto ? incerto.nota : '')
   const [salvando, setSalvando] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [avvisoConto, setAvvisoConto] = useState<string | null>(null)
-  // Il tentativo incerto (rilievo 3): la scrittura è partita e la risposta
-  // non è arrivata. Resta custodito sul telefono e si ritrova anche
-  // riaprendo il foglio: finché non si verifica, non si registra altro.
-  const [incerto, setIncerto] = useState<TentativoIncerto | null>(() => tentativoIncerto(booking))
+  // dopo una verifica «non trovato» si può rimandare LO STESSO pagamento (stessa
+  // chiave: se intanto è arrivato non si raddoppia); mai dopo l'INSERT di ripiego
+  const [riprovabile, setRiprovabile] = useState(false)
   const [esitoVerifica, setEsitoVerifica] = useState<string | null>(null)
   const [verificando, setVerificando] = useState(false)
   const campoImporto = useRef<HTMLInputElement>(null)
@@ -143,14 +148,20 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
 
   async function salva() {
     if (inCorso.current || salvando) return
+    if (incerto && !riprovabile) return
     if (cent == null) { setErrore(ERRORE_IMPORTO); return }
     if (!giorno) { setErrore(ERRORE_GIORNO); return }
     inCorso.current = true
     setSalvando(true)
     setErrore(null)
+    setEsitoVerifica(null)
+    // con un tentativo in sospeso si rimanda QUELLO, coi suoi dati: stessa chiave
+    const dati = incerto
+      ? { importo: incerto.importo, metodo: (incerto.metodo === 'bonifico' ? 'bonifico' : 'contanti') as ModoPagamento, giorno: incerto.giorno, nota: incerto.nota }
+      : { importo: cent / 100, metodo, giorno, nota }
     let esito: EsitoPagamento
     try {
-      esito = await registraPagamento(booking, righe, { importo: cent / 100, metodo, giorno, nota }, { totaleAttesoCent: totaleCent, ricevutiAttesiCent: ricevutiCent })
+      esito = await registraPagamento(booking, righe, dati, { totaleAttesoCent: totaleCent, ricevutiAttesiCent: ricevutiCent })
     } finally {
       inCorso.current = false
       setSalvando(false)
@@ -158,6 +169,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
     if (esito.esito === 'errore') {
       if (esito.incerto) {
         setIncerto(esito.incerto)
+        setRiprovabile(false)   // di nuovo incerto: prima si verifica
         setErrore(esito.messaggio)
         return
       }
@@ -171,7 +183,8 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
       setErrore(esito.messaggio)
       return
     }
-    onSalvato({ ...esito, importo: cent / 100, metodo })
+    // rimandato e già arrivato la volta prima → «Ritrovati e confermati»; scritto adesso → «Registrati»
+    onSalvato({ ...esito, importo: dati.importo, metodo: dati.metodo, ritrovato: !!esito.giaRegistrato })
   }
 
   async function verifica() {
@@ -186,9 +199,12 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
       return
     }
     if (esito.esito === 'errore') { setErrore(esito.messaggio); return }
-    // non trovato (o nessun tentativo): si può salvare; il tentativo uguale riusa la sua chiave
-    setIncerto(null)
-    setEsitoVerifica(PAGAMENTO_NON_TROVATO)
+    if (esito.esito === 'nessun_tentativo') { setIncerto(null); return }
+    // non trovato: NON è detto che sia fallito (la richiesta può essere ancora
+    // in corso). Il tentativo resta, coi suoi dati e la sua chiave: si può
+    // rimandare tale e quale; dopo l'INSERT di ripiego no, ci si ferma.
+    setRiprovabile(esito.riprovabile)
+    setEsitoVerifica(esito.riprovabile ? PAGAMENTO_NON_TROVATO : PAGAMENTO_NON_RIPROVABILE)
   }
 
   const tasto = (scelto: boolean, spento = false): CSSProperties => ({
@@ -211,26 +227,26 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
 
         {/* I due tasti: saldo completo, oppure un altro importo */}
         <div role="group" aria-label={GRUPPO_MODI} className="grid grid-cols-2 gap-2">
-          <button type="button" data-modo="saldo" aria-pressed={modo === 'saldo'} disabled={nienteDaSaldare} onClick={scegliSaldo} data-senza-sottolinea style={tasto(modo === 'saldo', nienteDaSaldare)}>{MODO_SALDO}</button>
-          <button type="button" data-modo="altro" aria-pressed={modo === 'altro'} onClick={scegliAltro} data-senza-sottolinea style={tasto(modo === 'altro')}>{MODO_ALTRO}</button>
+          <button type="button" data-modo="saldo" aria-pressed={modo === 'saldo'} disabled={nienteDaSaldare || !!incerto} onClick={scegliSaldo} data-senza-sottolinea style={tasto(modo === 'saldo', nienteDaSaldare || !!incerto)}>{MODO_SALDO}</button>
+          <button type="button" data-modo="altro" aria-pressed={modo === 'altro'} disabled={!!incerto} onClick={scegliAltro} data-senza-sottolinea style={tasto(modo === 'altro')}>{MODO_ALTRO}</button>
         </div>
 
         <RigaCampo etichetta={ETICHETTA_QUANTO} ottone stileEtichetta={ETICHETTA} className="mt-[19px]">
-          <input ref={campoImporto} type="text" inputMode="decimal" autoComplete="off" data-campo="importo" value={importo} readOnly={modo === 'saldo'}
-            aria-describedby="pagamento-spiegazione" onChange={e => setImporto(e.target.value)}
-            style={{ ...CAMPO, color: modo === 'saldo' ? '#6f7c69' : TESTO }} />
+          <input ref={campoImporto} type="text" inputMode="decimal" autoComplete="off" data-campo="importo" value={importo} readOnly={modo === 'saldo' || !!incerto}
+            aria-describedby="pagamento-spiegazione" onChange={e => { if (!incerto) setImporto(e.target.value) }}
+            style={{ ...CAMPO, color: modo === 'saldo' || incerto ? '#6f7c69' : TESTO }} />
         </RigaCampo>
         <p id="pagamento-spiegazione" data-spiegazione style={SPIEGA}>{modo === 'saldo' ? SPIEGA_SALDO : SPIEGA_ALTRO}</p>
 
-        <CampoData etichetta={ETICHETTA_QUANDO} valore={giorno} onValore={setGiorno} dati="giorno" ottone stileEtichetta={ETICHETTA} className="mt-[11px]" />
+        <CampoData etichetta={ETICHETTA_QUANDO} valore={giorno} onValore={v => { if (!incerto) setGiorno(v) }} dati="giorno" ottone stileEtichetta={ETICHETTA} className="mt-[11px]" />
         <Etichetta testo={ETICHETTA_COME} ottone stileEtichetta={{ ...ETICHETTA, marginTop: 19 }} />
         <FilaPastiglie>
           {MODI_PAGAMENTO.map(m => (
-            <Pastiglia key={m.chiave} dati={`modo-${m.chiave}`} acceso={metodo === m.chiave} onClick={() => setMetodo(m.chiave)}>{m.testo}</Pastiglia>
+            <Pastiglia key={m.chiave} dati={`modo-${m.chiave}`} acceso={metodo === m.chiave} onClick={() => { if (!incerto) setMetodo(m.chiave) }}>{m.testo}</Pastiglia>
           ))}
         </FilaPastiglie>
         <RigaCampo etichetta={ETICHETTA_NOTA} ottone stileEtichetta={ETICHETTA} className="mt-[19px]">
-          <input type="text" data-campo="nota" value={nota} onChange={e => setNota(e.target.value)} style={CAMPO} />
+          <input type="text" data-campo="nota" value={nota} readOnly={!!incerto} onChange={e => { if (!incerto) setNota(e.target.value) }} style={{ ...CAMPO, color: incerto ? '#6f7c69' : TESTO }} />
         </RigaCampo>
 
         {/* Il filo e, sotto, quanto resterà dopo questo pagamento: si aggiorna mentre si scrive */}
@@ -257,7 +273,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
         )}
         {esitoVerifica && <p data-esito-verifica style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: TESTO }}>{esitoVerifica}</p>}
 
-        <PiedeFoglio azione={SALVA_PAGAMENTO} onAzione={salva} salvando={salvando} disabilitato={cent == null || !!incerto} onAnnulla={onChiudi} dati="pagamento" />
+        <PiedeFoglio azione={incerto ? COMANDO_RIPROVA_PAGAMENTO : SALVA_PAGAMENTO} onAzione={salva} salvando={salvando} disabilitato={cent == null || (!!incerto && !riprovabile)} onAnnulla={onChiudi} dati="pagamento" />
       </div>
     </Foglio>
   )

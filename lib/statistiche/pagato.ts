@@ -138,7 +138,9 @@ export class ErroreRispostaMalformata extends Error {
 // scrivere: se alla rilettura ce n'è una in più, il pendente è stato applicato.
 // Non si usa l'orologio del telefono (difetto 2 del collaudo: un telefono
 // avanti rispetto al server faceva sembrare «vecchia» la riga appena scritta).
-export type AccontoPendente = { chiave: string; amount: number; method: string; paid_on: string; creato: string; giaPresenti: number }
+// senzaChiave (21/09/2026): scritto con l'INSERT di ripiego, senza funzione
+// server: il movimento NON porta la chiave, si può solo stimare.
+export type AccontoPendente = { chiave: string; amount: number; method: string; paid_on: string; creato: string; giaPresenti: number; senzaChiave?: boolean }
 
 export type DepsRegistraAcconto = {
   // legge/scrive la custodia sul telefono: null = memoria negata
@@ -159,11 +161,27 @@ export type EsitoRegistraAcconto =
 const stessaRiga = (p: { amount: number; method: string; paid_on: string }, r: PagamentoStat & { method?: string }) =>
   Math.round(Number(r.amount) * 100) === Math.round(p.amount * 100) && r.paid_on === p.paid_on && (r.method === undefined || r.method === p.method)
 
-// Un acconto pendente (chiave custodita, risposta persa) conta come applicato
-// se fra i riletti le righe uguali sono PIÙ di quante ce n'erano alla custodia
-export function pendenteApplicato(p: AccontoPendente, riletti: (PagamentoStat & { method?: string })[]): PagamentoStat | null {
+// Un acconto pendente (chiave custodita, risposta persa) si RITROVA fra i
+// riletti (21/09/2026, rilievo sulla nota):
+//  - con CERTEZZA quando le righe portano la colonna chiave_operazione (dalla
+//    0033/0049 in poi) e una ha proprio la nostra chiave: è il movimento nostro,
+//    non uno uguale scritto da un altro telefono;
+//  - per STIMA soltanto senza quella colonna (schema vecchio) o quando la
+//    scrittura è andata con l'INSERT di ripiego (senzaChiave): applicato se le
+//    righe uguali (importo, metodo, data) sono PIÙ di quante ce n'erano alla
+//    custodia. Sulla stima non si scrive mai una nota.
+export type PendenteRitrovato = { movimento: PagamentoStat; certo: boolean }
+export function ritrovaPendente(p: AccontoPendente, riletti: (PagamentoStat & { method?: string; chiave_operazione?: string | null })[]): PendenteRitrovato | null {
+  const conColonna = riletti.some(r => 'chiave_operazione' in r)
+  if (conColonna && !p.senzaChiave) {
+    const nostro = riletti.find(r => r.chiave_operazione === p.chiave)
+    return nostro ? { movimento: nostro, certo: true } : null
+  }
   const uguali = riletti.filter(r => stessaRiga(p, r))
-  return uguali.length > (p.giaPresenti ?? 0) ? uguali[uguali.length - 1] : null
+  return uguali.length > (p.giaPresenti ?? 0) ? { movimento: uguali[uguali.length - 1], certo: false } : null
+}
+export function pendenteApplicato(p: AccontoPendente, riletti: (PagamentoStat & { method?: string })[]): PagamentoStat | null {
+  return ritrovaPendente(p, riletti)?.movimento ?? null
 }
 
 export async function eseguiRegistraAcconto(

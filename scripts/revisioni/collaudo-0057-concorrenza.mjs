@@ -45,6 +45,12 @@
 //      passa da group_id a prenotazione_id mentre un pagamento aspetta: la
 //      funzione rilegge l'identità sotto lock, scrive col soggiorno nuovo, e
 //      la stessa chiave ritentata lo ritrova
+//  11. (21/09/2026) risposta persa con la SCRITTURA ANCORA IN CORSO: la
+//      transazione della prima richiesta non è confermata, «Verifica pagamento»
+//      non vede niente, «Riprova lo stesso pagamento» (stessa chiave) aspetta
+//      sul lock e ritrova lo stesso movimento; l'ordine inverso; la controprova
+//      con l'importo cambiato (chiave nuova → doppione senza cifre attese);
+//      gruppo e singola via wrapper; il saldo con il bollino a mancante 0
 // ============================================================================
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -86,7 +92,7 @@ async function prepara(admin) {
   }
   await admin.query(`create function ${SCHEMA}.is_app_member() returns boolean language sql as $$ select coalesce(current_setting('collaudo.membro', true), 'si') = 'si' $$`)
   await admin.query(`create table ${SCHEMA}.bookings(id uuid primary key, guest_id uuid, group_id uuid, prenotazione_id uuid, check_in date, check_out date, total_amount numeric, status text, pagato boolean default false, bonifico boolean, accordo_pagamento text, caparra_centesimi bigint, caparra_entro timestamptz)`)
-  await admin.query(`create table ${SCHEMA}.payments(id uuid primary key default gen_random_uuid(), booking_id uuid references ${SCHEMA}.bookings(id), amount numeric, method text, paid_on date, created_at timestamptz default now())`)
+  await admin.query(`create table ${SCHEMA}.payments(id uuid primary key default gen_random_uuid(), booking_id uuid references ${SCHEMA}.bookings(id), amount numeric, method text, paid_on date, note text, created_at timestamptz default now())`)
   await admin.query(adatta(readFileSync(path.join(radice, 'supabase/migrations/0049_conto_prenotazione.sql'), 'utf8')))
   await admin.query(adatta(readFileSync(path.join(radice, 'supabase/proposte/0057_conto_atteso_pagamento.BOZZA.sql'), 'utf8')))
 }
@@ -292,6 +298,77 @@ async function main() {
     segna('10. identità che cambia (group_id → prenotazione_id) mentre un pagamento aspetta: rilettura sotto lock, scritto col soggiorno nuovo, stessa chiave ritrovata',
       aAspetta10 && !!esitoA10.r && Number(esitoA10.r.importo) === 340 && esitoA10.r.soggiorno === id(8) && !!di_nuovo.r && di_nuovo.r.gia_presente === true && s10.movimenti === 1 && sogg[0] === id(8),
       `A ha aspettato: ${aAspetta10}; esito: ${esitoA10.r ? `${esitoA10.r.importo} su soggiorno …${String(esitoA10.r.soggiorno).slice(-2)}` : errore(esitoA10.e)}; chiave ritentata: ${di_nuovo.r ? 'gia_presente ' + di_nuovo.r.gia_presente : errore(di_nuovo.e)}; movimenti ${s10.movimenti}`)
+
+    // ── 21/09/2026: risposta persa con la SCRITTURA ANCORA IN CORSO ──
+    // A = la prima richiesta dell'app: la funzione ha scritto ma la transazione
+    // non è confermata (il gateway ha già risposto 503 al telefono). B = l'app
+    // che «verifica» (non vede niente) e poi «riprova lo stesso pagamento» con
+    // la STESSA chiave: si mette in fila sul lock, e quando A conferma trova
+    // il movimento (gia_presente). Un solo movimento, importo giusto.
+    const tardiva = async (nome, avvia, stessaChiave, verifica) => {
+      await A.query('begin'); const rA = await avvia(A)
+      const vistiPrima = await verifica(B)                                    // «Verifica pagamento» mentre A è in corso: niente
+      const pB = stessaChiave(B).then(r => ({ r }), e => ({ e }))            // «Riprova lo stesso pagamento»
+      await attesa(400)
+      const bAspetta = (await admin.query(`select count(*)::int n from pg_stat_activity where pid = $1 and wait_event_type = 'Lock'`, [b.rows[0].p])).rows[0].n === 1
+      await A.query('commit'); const esitoB = await pB
+      const m = await movimenti(admin)
+      const trovatoDopo = await verifica(B)
+      segna(nome, vistiPrima === 0 && bAspetta && !!esitoB.r && esitoB.r.gia_presente === true && esitoB.r.movimento_id === rA.movimento_id && m.n === 1 && trovatoDopo === 1,
+        `verifica durante: ${vistiPrima} righe; B in fila: ${bAspetta}; riprova: ${esitoB.r ? `gia_presente ${esitoB.r.gia_presente}, stesso id ${esitoB.r.movimento_id === rA.movimento_id}` : errore(esitoB.e)}; movimenti ${m.n} (${m.somma} €); verifica dopo: ${trovatoDopo} riga`)
+    }
+    const conChiave = (c, k) => c.query(`select count(*)::int n from ${SCHEMA}.payments where chiave_operazione = $1`, [id(k)]).then(x => x.rows[0].n)
+    // 11a. prenotazione con prenotazione_id
+    await semina(admin)
+    await tardiva('11a. scrittura tardiva (prenotazione_id): verifica non vede, riprova con la stessa chiave aspetta A e ritrova lo stesso movimento',
+      c => registra(c, 1, 110, 20, 640, 0), c => registra(c, 1, 110, 20, 640, 0), c => conChiave(c, 110))
+    // 11b. l'ordine inverso: la riprova arriva PRIMA che la richiesta originale tocchi il database; l'originale poi trova la chiave
+    await semina(admin)
+    const r11b = await registra(B, 1, 111, 20, 640, 0)
+    const o11b = await registra(A, 1, 111, 20, 640, 0)
+    const m11b = await movimenti(admin)
+    segna('11b. riprova arrivata prima dell’originale: l’originale trova la chiave (gia_presente), un solo movimento',
+      r11b.gia_presente === false && o11b.gia_presente === true && o11b.movimento_id === r11b.movimento_id && m11b.n === 1, `riprova scritta, originale gia_presente ${o11b.gia_presente}, movimenti ${m11b.n}`)
+    // 11c. la CONTROPROVA: riprovare con importo cambiato (= chiave nuova) mentre A è in corso → DUE movimenti.
+    //      È il difetto che l'app evita tenendo fermi i dati del tentativo finché l'esito non è risolto.
+    await semina(admin)
+    await A.query('begin'); const rA11c = await registra(A, 1, 112, 20, 640, 0)
+    const pB11c = registra(B, 1, 113, 30, 640, 0).then(r => ({ r }), e => ({ e }))
+    await attesa(300); await A.query('commit'); const eB11c = await pB11c
+    const m11c = await movimenti(admin)
+    segna('11c. controprova: importo cambiato durante il recupero (chiave nuova) → con la 0057 CONTO_CAMBIATO (ricevuti 20 ≠ 0), senza cifre attese sarebbero due movimenti',
+      Number(rA11c.importo) === 20 && !!eB11c.e && /CONTO_CAMBIATO/.test(errore(eB11c.e)) && m11c.n === 1, `originale 20; chiave nuova: ${eB11c.e ? errore(eB11c.e) : 'scritto: ' + eB11c.r.importo}; movimenti ${m11c.n}`)
+    const senza11c = await A.query(`select ${SCHEMA}.registra_acconto_prenotazione($1,$2,30,'contanti','2026-09-10') r`, [id(1), id(114)]).then(x => x.rows[0].r)
+    const m11c2 = await movimenti(admin)
+    segna('11c’. la stessa chiave nuova SENZA cifre attese (pagine vecchie): secondo movimento — perciò l’app non lascia cambiare i dati del tentativo',
+      Number(senza11c.importo) === 30 && m11c2.n === 2 && Number(m11c2.somma) === 50, `movimenti ${m11c2.n} = ${m11c2.somma} €`)
+    // 11d/11e. gli stessi percorsi senza prenotazione_id: gruppo (group_id) e singola, via il wrapper registra_acconto
+    await seminaVecchia()
+    await tardiva('11d. scrittura tardiva (group_id, wrapper registra_acconto): verifica non vede, riprova con la stessa chiave dall’altra camera del gruppo ritrova lo stesso movimento',
+      c => wrap(c, 1, 115, 20, 340, 0), c => wrap(c, 2, 115, 20, 340, 0), c => conChiave(c, 115))
+    await seminaVecchia()
+    await tardiva('11e. scrittura tardiva (singola, wrapper registra_acconto): stessa sequenza',
+      c => wrap(c, 4, 116, 20, 500, 0), c => wrap(c, 4, 116, 20, 500, 0), c => conChiave(c, 116))
+    // 11f. dopo la conferma: il saldo con la stessa sequenza (registrazione tardiva del residuo, poi il bollino con mancante atteso 0)
+    await semina(admin)
+    await A.query('begin'); const rA11f = await registra(A, 1, 117, 640, 640, 0)
+    const pB11f = registra(B, 1, 117, 640, 640, 0).then(r => ({ r }), e => ({ e }))
+    await attesa(300); await A.query('commit'); const eB11f = await pB11f
+    const boll = await bollino(B, 1, 118, 0)
+    const s11f = await stato()
+    segna('11f. saldo con scrittura tardiva: riprova stessa chiave → gia_presente; poi il bollino con mancante atteso 0 mette «pagato» senza inventare niente',
+      !!eB11f.r && eB11f.r.gia_presente === true && Number(rA11f.importo) === 640 && boll.pagato === true && boll.movimento_id === null && s11f.movimenti === 1 && s11f.pagati === 3,
+      `riprova ${eB11f.r ? 'gia_presente ' + eB11f.r.gia_presente : errore(eB11f.e)}; bollino: pagato ${boll.pagato}, movimento ${boll.movimento_id}; stato ${JSON.stringify(s11f)}`)
+
+    // 12. la nota del movimento ritrovato: l'app la scrive con un UPDATE condizionato (note is null), come
+    //     supabase.from('payments').update({note}).eq('id',…).is('note',null): una nota scritta nel frattempo non si sovrascrive
+    await semina(admin)
+    const r12 = await registra(A, 1, 120, 20, 640, 0)
+    const n1 = (await B.query(`update ${SCHEMA}.payments set note = 'scritta da un altro telefono' where id = $1 and note is null returning id`, [r12.movimento_id])).rowCount
+    const n2 = (await A.query(`update ${SCHEMA}.payments set note = 'la nostra' where id = $1 and note is null returning id`, [r12.movimento_id])).rowCount
+    const nota12 = (await admin.query(`select note from ${SCHEMA}.payments where id = $1`, [r12.movimento_id])).rows[0].note
+    segna('12. nota condizionata (note is null): la prima scrittura passa, la seconda tocca 0 righe e la nota resta quella di prima',
+      n1 === 1 && n2 === 0 && nota12 === 'scritta da un altro telefono', `prima ${n1} riga, seconda ${n2} righe, nota «${nota12}»`)
 
     await A.end(); await B.end()
   } finally {

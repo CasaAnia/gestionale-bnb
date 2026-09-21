@@ -234,3 +234,21 @@ test('difetto 3: ritentativo con la stessa chiave dopo una risposta persa → la
   assert.equal(secondo.esito, 'ok')
   assert.equal(secondo.esito === 'ok' && secondo.pagamenti.length, 2, 'acconto iniziale + saldo: mai la stessa riga due volte')
 })
+
+test('21/09/2026: il pendente si ritrova per CHIAVE quando c’è la colonna (mai una riga uguale di un altro telefono); per stima solo senza colonna o dopo l’INSERT di ripiego', async () => {
+  const { ritrovaPendente, pendenteApplicato } = await import('./pagato.ts')
+  const p = { chiave: 'k1', amount: 20, method: 'bonifico', paid_on: '2026-09-20', creato: 't', giaPresenti: 0 }
+  const altrui = { id: 'x', booking_id: 'a', amount: 20, method: 'bonifico', paid_on: '2026-09-20', chiave_operazione: 'k-altro' }
+  const nostro = { id: 'y', booking_id: 'a', amount: 20, method: 'bonifico', paid_on: '2026-09-20', chiave_operazione: 'k1' }
+  // riga uguale ma di un altro: NON è il nostro
+  assert.equal(ritrovaPendente(p, [altrui]), null)
+  assert.equal(pendenteApplicato(p, [altrui]), null)
+  // la nostra chiave: certo, anche con una riga uguale accanto
+  assert.deepEqual(ritrovaPendente(p, [altrui, nostro]), { movimento: nostro, certo: true })
+  // schema senza la colonna: stima (una riga uguale in più)
+  const senza = { id: 'z', booking_id: 'a', amount: 20, method: 'bonifico', paid_on: '2026-09-20' }
+  assert.deepEqual(ritrovaPendente(p, [senza]), { movimento: senza, certo: false })
+  assert.equal(ritrovaPendente({ ...p, giaPresenti: 1 }, [senza]), null)
+  // INSERT di ripiego (senzaChiave): la riga non porta la chiave → stima anche con la colonna
+  assert.deepEqual(ritrovaPendente({ ...p, senzaChiave: true }, [{ ...senza, chiave_operazione: null }]), { movimento: { ...senza, chiave_operazione: null }, certo: false })
+})
