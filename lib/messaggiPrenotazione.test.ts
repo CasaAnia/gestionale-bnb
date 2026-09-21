@@ -48,15 +48,35 @@ const prenotazione = (extra: Record<string, unknown> = {}) => ({
   guest_name: null, bonifico: false, ...extra,
 })
 
-test('i tasti della parte MESSAGGI, nell’ordine deciso', () => {
+// Le etichette del punto 6 (21/09/2026): cambia come si chiama il tasto, NON
+// il testo che parte. Quali si consigliano adesso lo prova lib/messaggiFase.
+test('i tasti della parte MESSAGGI, nell’ordine deciso col punto 6', () => {
   assert.deepEqual(MESSAGGI_SCHEDA.map(m => m.label), [
-    'Conferma', 'Modifica', 'Dati bonifico', 'Pagamento ricevuto',
-    'Promemoria bonifico', 'Richiesta orario', 'Ringraziamento', 'Messaggio libero',
+    'Conferma · solo testo', 'Dati bonifico', 'Richiesta orario', 'Pagamento ricevuto',
+    'Modifica soggiorno', 'Messaggio libero', 'Promemoria bonifico', 'Ringraziamento',
   ])
-  assert.equal(MESSAGGIO_ANNULLAMENTO.label, 'Annullamento')
+  assert.equal(MESSAGGIO_ANNULLAMENTO.label, 'Messaggio di annullamento')
   assert.equal(MESSAGGIO_ANNULLAMENTO.tipo, 'annullamento')
   // l'annullamento sta a parte, non fra gli otto
   assert.equal(MESSAGGI_SCHEDA.some(m => m.tipo === 'annullamento'), false)
+  // i tipi sono tutti e otto, nessuno perso per strada cambiando le etichette
+  assert.deepEqual([...MESSAGGI_SCHEDA.map(m => m.tipo)].sort(), [
+    'conferma', 'dati_bonifico', 'libero', 'modifica',
+    'pagamento_ricevuto', 'promemoria_bonifico', 'richiesta_orario', 'ringraziamento',
+  ])
+})
+
+// Il nome del tasto è cambiato, il messaggio no: la conferma testuale resta
+// parola per parola quella approvata (è il tasto «Conferma · solo testo»).
+test('cambiando le etichette i testi restano quelli di sempre', () => {
+  const b = prenotazione()
+  for (const m of MESSAGGI_SCHEDA) {
+    const testo = buildWhatsappMsg(b, m.tipo as never)
+    // il testo non contiene l'etichetta del tasto: i due mondi restano separati
+    assert.equal(testo.includes('solo testo'), false, `«${m.label}» si è portato dentro il nome del tasto`)
+  }
+  assert.match(buildWhatsappMsg(b, 'conferma'), /^CONFERMA DI PRENOTAZIONE – CASA ANIA/)
+  assert.match(buildWhatsappMsg(b, 'modifica'), /^MODIFICA PRENOTAZIONE – CASA ANIA/)
 })
 
 test('ogni tasto dà il suo messaggio, col nome della cliente', () => {

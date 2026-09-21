@@ -462,22 +462,58 @@ test('il conto: i comandi di testo (13 px, filo a 3 px), i pagamenti uno per rig
   assert.equal(/azione=pagato`/.test(pagina), false, 'il pagamento porta ancora alla scheda vecchia')
 })
 
-test('i messaggi: interruttore condiviso, tasto pieno stretto, otto pastiglie sage', () => {
+// ── I MESSAGGI AL MOMENTO GIUSTO (punto 6, 21/09/2026) ─────────────────────
+// La scelta (fase e ordine) sta in lib/messaggiFase ed è provata lì, facendo
+// girare le funzioni. Qui restano le poche cose che solo il disegno può dire.
+test('i messaggi (punto 6): conferma con immagine sempre in cima, larga quanto la riga', () => {
   assert.match(messaggi, /import InterruttorePillola from '@\/components\/InterruttorePillola'/)
   assert.match(messaggi, /\['ania', 'WhatsApp Ania'\], \['business', 'Business'\]/)
-  // il tasto pieno: verde, bianco, 14 px, alto 42, largo quanto la scritta
-  const pieno = messaggi.slice(messaggi.indexOf('data-conferma-immagine'), messaggi.indexOf('Gli altri messaggi'))
-  assert.match(pieno, /inline-flex/)
-  assert.match(pieno, /background: 'var\(--color-green-mid\)', color: '#fff', fontSize: 14, fontWeight: 600, borderRadius: 999, minHeight: 42/)
-  assert.equal(/w-full/.test(pieno), false, 'il tasto della conferma non deve essere largo quanto la riga')
-  // gli otto: due colonne, 8 px, fondo sage, 13 px semibold, alti 38
-  assert.match(messaggi, /grid grid-cols-2 mt-3" style=\{\{ gap: 8 \}\}/)
+  const pieno = messaggi.slice(messaggi.indexOf('data-conferma-immagine'), messaggi.indexOf('data-conferma-sempre'))
+  // larga quanto la riga, verde pieno, due righe: titolo e, in grassetto vero, «Immagine e testo»
+  assert.match(pieno, /w-full/, 'la conferma con immagine deve essere larga quanto la riga')
+  assert.match(pieno, /background: 'var\(--color-green-mid\)', color: '#fff'/)
+  assert.match(pieno, /\{TITOLO_CONFERMA\}/)
+  assert.match(pieno, /<strong style=\{\{ fontWeight: 700 \}\}>\{SOTTOTITOLO_CONFERMA\}<\/strong>/)
+  // apre la finestra vera dell'immagine, non un testo
+  assert.match(messaggi, /onClick=\{onConfermaImmagine\}/)
+  // e NON sta dentro «Tutti i messaggi»: sta sopra, fuori dal pannello
+  assert.ok(messaggi.indexOf('data-conferma-immagine') < messaggi.indexOf('data-tutti-messaggi'),
+    'la conferma con immagine non deve finire dentro «Tutti i messaggi»')
+})
+
+test('i messaggi (punto 6): «Utili adesso» in ottone, pastiglie sage a sinistra, «Tutti i messaggi» chiuso', () => {
+  // l'etichetta dorata, 11 px con la spaziatura del disegno
+  assert.match(messaggi, /data-utili-adesso[^\n]*fontSize: 11, letterSpacing: 1, color: 'var\(--color-brass\)'/)
+  // i consigliati: una colonna, 9 px di spazio, testo a sinistra, alti 44
+  assert.match(messaggi, /data-suggeriti className="grid mt-2" style=\{\{ gap: 9 \}\}/)
+  assert.match(messaggi, /const TASTO_UTILE = \{ \.\.\.TASTO, minHeight: 44 \}/)
+  assert.match(messaggi, /justify-start px-4/)
   assert.match(messaggi, /export const FONDO_TASTO = 'var\(--color-sage\)'/)
-  assert.match(messaggi, /fontSize: 13,\s*fontWeight: 600,\s*borderRadius: 999,\s*minHeight: 38,/)
-  // l'annullamento: solo contorno, in fondo e centrato
+  assert.match(messaggi, /fontSize: 13,\s*fontWeight: 600,\s*borderRadius: 24,\s*minHeight: 38,/)
+  // «Tutti i messaggi»: un <details> chiuso all'inizio (niente `open`), che si
+  // apre da tastiera e col dito perché è un <summary> vero
+  const tutti = messaggi.slice(messaggi.indexOf('data-tutti-messaggi'))
+  assert.equal(/<details[^>]*\bopen\b/.test(messaggi), false, '«Tutti i messaggi» deve partire chiuso')
+  assert.match(tutti, /<summary style=\{\{ fontSize: 14, fontWeight: 600 \}\}>\{TUTTI_I_MESSAGGI_TITOLO\}<\/summary>/)
+  assert.match(tutti, /grid grid-cols-2 mt-3" style=\{\{ gap: 8 \}\}/)
+  assert.match(tutti, /\{TUTTI_I_MESSAGGI\.map/, 'dentro il pannello ci sono TUTTI i messaggi')
+  // l'annullamento conserva il tono mattone, ed è un messaggio: nessun comando
   assert.match(messaggi, /export const BORDO_ANNULLAMENTO = '#D9B3AC'/)
   assert.match(messaggi, /export const TESTO_ANNULLAMENTO = '#8C3B2E'/)
-  assert.ok(messaggi.indexOf('data-messaggio="annullamento"') > messaggi.indexOf('MESSAGGI_SCHEDA.map'))
+  assert.equal(/setFoglioAnnulla|status:\s*'annullata'/.test(messaggi), false,
+    'il messaggio di annullamento non deve toccare stato o date')
+  // il selettore «Prova anteprima» del disegno non entra nel gestionale: la
+  // fase arriva dalle date, non si sceglie a mano
+  assert.equal(/<select|onScegliFase|setFase/.test(messaggi), false, 'il selettore di fase era solo della dimostrazione')
+})
+
+test('la fase arriva dalla scheda, letta dalle date della prenotazione intera', () => {
+  assert.match(pagina, /import \{ faseMessaggi \} from '@\/lib\/messaggiFase'/)
+  // tutte le righe (non il solo tratto aperto) e il giorno di Roma già in pagina
+  assert.match(pagina, /const faseSoggiorno = faseMessaggi\(righe, oggi, booking\?\.status\)/)
+  assert.match(pagina, /<MessaggiScheda className="mt-3" fase=\{faseSoggiorno\}/)
+  // il componente non si calcola una fase sua e non guarda l'orologio
+  assert.equal(/new Date\(|Date\.now/.test(messaggi), false, 'il componente dei messaggi guarda l’orologio')
 })
 
 test('i messaggi usano i testi di sempre, non ne scrivono di nuovi', () => {

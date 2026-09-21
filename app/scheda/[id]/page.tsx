@@ -99,6 +99,7 @@ import { elencoSoggiorniPersona, type SoggiornoStorico } from '@/lib/clienteCheT
 import { numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
 import { openWhatsApp, telefonoAGruppi } from '@/lib/whatsapp'
 import buildWhatsappMsg, { perMessaggio, type TipoMessaggio } from '@/lib/messaggiPrenotazione'
+import { faseMessaggi } from '@/lib/messaggiFase'
 import {
   riepilogoConto, contoScheda, comePagaScheda, righePagamenti, vociCliente, personeConLei, righeStoria,
   type PagamentoScheda, type MessaggioInviato, notaCopertura } from '@/lib/schedaConto'
@@ -480,6 +481,9 @@ export default function SchedaPage() {
   const testoMessaggio = (tipo: TipoMessaggio) =>
     booking ? buildWhatsappMsg(perIMessaggi(), tipo, attive, pagamenti) : ''
   const hrefMessaggio = (tipo: TipoMessaggio) => waHrefTesto(waNumero ?? '', testoMessaggio(tipo))
+  // la fase del soggiorno INTERO (tutti i tratti, anche con una pausa in mezzo):
+  // decide quali messaggi stanno sotto «Utili adesso» (lib/messaggiFase)
+  const faseSoggiorno = faseMessaggi(righe, oggi, booking?.status)
   const apriMessaggio = (tipo: TipoMessaggio) => (e: React.MouseEvent) => {
     e.preventDefault()
     if (waNumero) openWhatsApp(waNumero, testoMessaggio(tipo), business)
@@ -647,7 +651,7 @@ export default function SchedaPage() {
       <section id="messaggi" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
         <p className="ed-sezione">Messaggi</p>
         {waNumero
-          ? <MessaggiScheda className="mt-3" business={business} onBusiness={setBusiness}
+          ? <MessaggiScheda className="mt-3" fase={faseSoggiorno} business={business} onBusiness={setBusiness}
             onConfermaImmagine={() => setConfermaAperta(true)}
             href={hrefMessaggio} onMessaggio={apriMessaggio} />
           : <p className="mt-2 font-semibold" style={{ fontSize: 14, color: '#8C3B2E' }}>Senza numero di telefono non si può scrivere alla cliente.</p>}

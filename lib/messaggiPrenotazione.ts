@@ -26,20 +26,25 @@ import { GIORNI_PREAVVISO_CANCELLAZIONE } from './condizioniPrenotazione.ts'
 
 export type TipoMessaggio = 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero'
 
-// I tasti della parte MESSAGGI, nell'ordine deciso da Ania (13/09/2026).
-// «Conferma · immagine e testo» sta a parte, sopra: apre la finestra con
-// l'immagine (components/ConfermaWhatsApp), non un testo.
+// I tasti della parte MESSAGGI, nell'ordine di «Tutti i messaggi» deciso da
+// Ania col punto 6 (21/09/2026). Le etichette sono quelle del disegno
+// approvato: «Conferma · solo testo» (perché la conferma con l'immagine sta
+// sopra, sempre visibile), «Modifica soggiorno», «Messaggio di annullamento».
+// I TESTI non cambiano di una virgola: cambia solo come si chiama il tasto.
+// «Conferma prenotazione · immagine e testo» sta a parte, in cima: apre la
+// finestra con l'immagine (components/ConfermaWhatsApp), non un testo.
+// Quali di questi si consigliano adesso lo decide lib/messaggiFase.
 export const MESSAGGI_SCHEDA: { tipo: TipoMessaggio; label: string }[] = [
-  { tipo: 'conferma', label: 'Conferma' },
-  { tipo: 'modifica', label: 'Modifica' },
+  { tipo: 'conferma', label: 'Conferma · solo testo' },
   { tipo: 'dati_bonifico', label: 'Dati bonifico' },
-  { tipo: 'pagamento_ricevuto', label: 'Pagamento ricevuto' },
-  { tipo: 'promemoria_bonifico', label: 'Promemoria bonifico' },
   { tipo: 'richiesta_orario', label: 'Richiesta orario' },
-  { tipo: 'ringraziamento', label: 'Ringraziamento' },
+  { tipo: 'pagamento_ricevuto', label: 'Pagamento ricevuto' },
+  { tipo: 'modifica', label: 'Modifica soggiorno' },
   { tipo: 'libero', label: 'Messaggio libero' },
+  { tipo: 'promemoria_bonifico', label: 'Promemoria bonifico' },
+  { tipo: 'ringraziamento', label: 'Ringraziamento' },
 ]
-export const MESSAGGIO_ANNULLAMENTO = { tipo: 'annullamento' as TipoMessaggio, label: 'Annullamento' }
+export const MESSAGGIO_ANNULLAMENTO = { tipo: 'annullamento' as TipoMessaggio, label: 'Messaggio di annullamento' }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // ── COPIA ESATTA da app/prenotazioni/[id]/page.tsx (vedi sopra) ─────────────
