@@ -1,5 +1,20 @@
 # Proposta 0057 — piano di backup, applicazione, verifica e ripristino
 
+> **STATO: APPLICATA sul database vero il 21/09/2026**, dall'editor SQL del
+> pannello, in una transazione unica («Success. No rows returned»), con
+> backup completo verificato in due copie e fotografia delle definizioni
+> precedenti salvata a parte. Verificato dopo: una sola firma per funzione
+> coi parametri nuovi, trigger presente, permessi identici a prima (anon
+> escluso), conteggi invariati (bookings 261, payments 163, somma 38.003,00,
+> guests 151), cache di PostgREST ricaricata e chiamate dell'app pubblicata
+> ancora funzionanti. **La protezione completa del punto 5 NON è attiva**:
+> le cifre attese le manda solo la scheda nuova, che non è pubblicata.
+> Riscontro completo: `RISCONTRO-PRODUZIONE-0057.md` nella cartella della
+> consegna. Per tornare indietro: `0057_RIPRISTINO.BOZZA.sql`.
+>
+> Quanto segue è il piano com'era prima dell'applicazione, lasciato per
+> memoria.
+
 Stato al 20/09/2026 sera: **NON applicata**. Il codice dell'app (commit
 locale `29e5898`) la usa se c'è e, se non c'è, richiama la funzione com'è
 oggi: si può applicare in qualsiasi momento, senza un rilascio dell'app
