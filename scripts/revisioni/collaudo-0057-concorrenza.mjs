@@ -56,12 +56,24 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import pg from 'pg'
+import { leggiConnessione, controllaRef } from './identita-progetto-prova.mjs'
 
-const url = process.env.DATABASE_URL
+// In locale: DATABASE_URL. Da remoto: il collegamento arriva SOLO dal file
+// autorizzato (~/.config/casa-ania/prova.env) e deve superare il controllo di
+// identità del progetto di prova — così non si può lanciare per sbaglio contro
+// il database vero (21/09/2026). La stringa non viene mai stampata.
+const daAmbiente = process.env.DATABASE_URL
+const remoto = process.argv.includes('--consento-remoto')
+let url = daAmbiente
+if (remoto) { try { url = leggiConnessione() } catch (e) { console.error('fermo:', e.message); process.exit(2) } }
 if (!url) { console.error('Serve DATABASE_URL (es. postgres://postgres@127.0.0.1:54390/collaudo0057)'); process.exit(2) }
 const host = new URL(url).hostname
 const locale = ['127.0.0.1', 'localhost', '::1'].includes(host)
-if (!locale && !process.argv.includes('--consento-remoto')) { console.error(`Host ${host} non locale: serve --consento-remoto (autorizzazione esplicita)`); process.exit(2) }
+if (!locale && !remoto) { console.error(`Host ${host} non locale: serve --consento-remoto (autorizzazione esplicita)`); process.exit(2) }
+if (!locale) {
+  try { const p = controllaRef(url); console.log(`progetto di prova ${p.ref} — host ${p.host.replace(p.ref, '<ref>')}`) }
+  catch (e) { console.error('fermo:', e.message); process.exit(2) }
+}
 const tieni = process.argv.includes('--tieni')
 const SCHEMA = `collaudo_0057_${Date.now().toString(36)}`
 const radice = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -81,14 +93,31 @@ const segna = (n, ok, nota) => { esiti.push({ n, ok, nota }); console.log(`${ok 
 const attesa = ms => new Promise(r => setTimeout(r, ms))
 const errore = e => String(e?.message ?? e)
 
-async function conn() { const c = new pg.Client({ connectionString: url }); await c.connect(); await c.query(`set search_path to ${SCHEMA}, public`); return c }
+// Limiti di attesa: su un database condiviso una prova non deve poter restare
+// bloccata (né bloccare) all'infinito. I casi con l'attesa sul lock durano
+// centinaia di ms: 15 s di margine sono abbondanti.
+const ATTESA_MAX_MS = Number(process.env.COLLAUDO_TIMEOUT_MS || 15000)
+async function conn() {
+  const c = new pg.Client({ connectionString: url, statement_timeout: ATTESA_MAX_MS, query_timeout: ATTESA_MAX_MS + 5000, connectionTimeoutMillis: 20000 })
+  await c.connect()
+  await c.query(`set lock_timeout to ${ATTESA_MAX_MS}`)
+  await c.query(`set idle_in_transaction_session_timeout to ${ATTESA_MAX_MS * 2}`)
+  await c.query(`set search_path to ${SCHEMA}, public`)
+  return c
+}
 
 async function prepara(admin) {
   await admin.query(`create schema ${SCHEMA}`)
   await admin.query(`set search_path to ${SCHEMA}, public`)
+  // I ruoli dell'applicazione NON si creano e non si toccano: su un database
+  // condiviso (progetto di prova Supabase) esistono già e sarebbero un effetto
+  // fuori dallo schema di collaudo. Se mancano — solo su un cluster vuoto
+  // locale — li crea soltanto in locale, altrimenti si ferma (21/09/2026).
   for (const r of ['authenticated', 'anon', 'service_role']) {
     const c = await admin.query('select 1 from pg_roles where rolname = $1', [r])
-    if (!c.rowCount) await admin.query(`create role ${r}`)
+    if (c.rowCount) continue
+    if (!locale) throw new Error(`Manca il ruolo ${r} su questo database: non lo creo (fuori dal perimetro del collaudo)`)
+    await admin.query(`create role ${r}`)
   }
   await admin.query(`create function ${SCHEMA}.is_app_member() returns boolean language sql as $$ select coalesce(current_setting('collaudo.membro', true), 'si') = 'si' $$`)
   await admin.query(`create table ${SCHEMA}.bookings(id uuid primary key, guest_id uuid, group_id uuid, prenotazione_id uuid, check_in date, check_out date, total_amount numeric, status text, pagato boolean default false, bonifico boolean, accordo_pagamento text, caparra_centesimi bigint, caparra_entro timestamptz)`)
