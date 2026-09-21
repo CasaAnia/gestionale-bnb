@@ -1,5 +1,38 @@
 # Scheda attiva — «Arrivo e navetta» (21 settembre 2026)
 
+## ESITO DEL REVISORE — RICEVUTO, e cosa copre esattamente
+
+Codex ha chiuso i due rilievi del terzo ricontrollo. **Verificato
+`578955d`**, albero pulito. Cosa ha rieseguito lui:
+
+- `arrivo.test.ts` + `confrontoUnaImmagine.test.ts`: **75 prove, 75 verdi**;
+- una **riproduzione indipendente sulla funzione vera** con scrittore e
+  rilettore sintetici: completamento *prima* della rilettura → `ok`;
+  completamento *dopo* → `incerto` (non «non salvato»), e poi la riga passa
+  a 18:00; `08007`, `08006`, `57P01` classificati come non certi.
+
+**Cosa NON copre**, e non va raccontato altrimenti:
+
+- **non** ha rieseguito la suite intera, **non** la prova dalla UI, **non**
+  Supabase: quelle restano prove mie, dichiarate, non indipendenti;
+- **non** copre i due commit venuti dopo — `865026b` (il riquadro grigio e
+  il confronto ritagliato) e `55a6bf4` (la scelta «C» registrata nella
+  prova): su quelli non c'è una verifica indipendente;
+- **non** è una verifica del database.
+
+**Limite confermato da lui, e resta dichiarato**: l'avviso è prudente, non
+è una serializzazione delle richieste. Risalvare subito può ancora
+provocare una sovrascrittura tardiva. Non è una protezione concorrente
+completa e non viene spacciata per tale.
+
+**Nessuna autorizzazione nuova**: SQL, push e pubblicazione restano fuori.
+Il collaudo e l'applicazione della 0058 e la pubblicazione sono un
+passaggio a parte, da autorizzare con il suo piano e il suo backup
+(`supabase/proposte/0058_PIANO_APPLICAZIONE.md`).
+
+Stato mio di adesso, per confronto: HEAD `55a6bf4`, suite **1729 verde**,
+TypeScript, build e lint puliti.
+
 ## QUARTO GIRO — il terzo ricontrollo (e81893e)
 
 Due correzioni circoscritte a `lib/arrivoDati.ts`; `lib/scritturaSicura` e
