@@ -1,5 +1,27 @@
 # Scheda attiva — «Arrivo e navetta» (21 settembre 2026) — PUBBLICATO
 
+## Due correzioni dopo la pubblicazione (21/09/2026 sera)
+
+Viste da Ania sul telefono, sul pubblicato. `main` a **`dca7424`**,
+Vercel **success**, suite **1731 verde**.
+
+1. **Le pastiglie si sovrapponevano andando a capo.** Causa vecchia,
+   visibile solo adesso: hanno `-my-[7px]` per dare al dito i 44 px senza
+   far crescere la riga, quindi la loro casella nel layout è 14 px più
+   bassa del disegnato. Con una fila sola non si nota; coi sette luoghi
+   dell'arrivo le righe si accavallavano di 8 px. `FilaPastiglie` adesso
+   tiene `columnGap` 6 e `rowGap` 20. **Vale per tutto il gestionale**:
+   ovunque una fila andasse a capo si accavallava anche lì.
+2. **La casella dell'ora era appiccicata** alle pastiglie sopra (10 px
+   meno i 7 di rientro = 3). Adesso usa `SOTTO_PASTIGLIE`.
+3. **Gli arrivi in cima alla Home** («mettiamoli in alto, non a metà
+   pagina»): erano dopo «Da controllare», adesso stanno subito sotto i
+   tre numeri. Pulizie, «Da controllare» e il blocco «Oggi / Domani» non
+   sono stati toccati.
+
+Guardie nuove in `lib/arrivo.test.ts`: le misure delle file di pastiglie
+e l'ordine della Home.
+
 ## PUBBLICATO il 21/09/2026 sera
 
 Autorizzato da Ania («pubblica»). `main` da `bb23a39` a **`f534673`**,
