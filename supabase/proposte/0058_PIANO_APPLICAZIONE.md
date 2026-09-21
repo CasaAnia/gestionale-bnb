@@ -39,7 +39,21 @@ Non tocca nessuna riga esistente e non cambia nessuna colonna di prima.
     where table_schema = 'public' and table_name = 'bookings'
       and (column_name like 'arrivo\_%' or column_name like 'navetta%');
    ```
-3. Backup del progetto come per la 0057 (Supabase → Database → Backups).
+3. Backup: **non c'è, e non ci sarà** (21/09/2026). Il progetto sta sul
+   piano **gratuito** di Supabase, che non include i backup programmati né
+   il point-in-time — lo dice la pagina Database → Backups. Non si prende
+   un abbonamento per questo (obiettivo di Ania: niente nuove spese).
+   Si procede lo stesso perché il rischio è di un'altra natura:
+   - la 0058 fa **solo `add column` e `add constraint`**: nessun `update`,
+     nessun `delete`, nessun `drop`. Le 261 prenotazioni non si toccano;
+   - è già stata **eseguita per intero sul progetto di prova**, e due volte
+     di fila (è idempotente);
+   - se servisse tornare indietro c'è `0058_RIPRISTINO.BOZZA.sql`, che
+     toglie colonne e vincoli e lascia intatte `check_in_time` e `shuttle`.
+   **Il limite resta dichiarato**: se qualcosa andasse storto in modo
+   imprevisto non c'è un punto di ripristino del database a cui tornare.
+   Per una migrazione che tocca i dati (un `update`, un backfill) questo
+   non basterebbe: lì servirebbe un'altra strada prima di eseguire.
 
 ## Applicazione
 
