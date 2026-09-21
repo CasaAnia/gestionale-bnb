@@ -79,6 +79,8 @@ export default function Arrivi() {
   const [popup, setPopup] = useState<{ id: string; name: string; arrivo: Arrivo } | null>(null)
   const [showStorico, setShowStorico] = useState(false)
   const [savingTime, setSavingTime] = useState(false)
+  // il freno sincrono: `savingTime` arriva al giro dopo, due tocchi vicini passano prima
+  const salvandoArrivo = useRef(false)
   // Errori di salvataggio visibili, parte 2 (05/09/2026): avviso nel pannello
   // al posto dell'alert del browser; con errore il pannello resta aperto
   const [erroreOrario, setErroreOrario] = useState<string | null>(null)
@@ -267,29 +269,32 @@ export default function Arrivi() {
   }
 
   // «Arrivo e navetta» (21/09/2026): lo stesso modulo e lo stesso salvataggio
-  // della scheda e dell'inserimento (lib/arrivoDati). Se le colonne della
-  // 0058 non ci sono ancora, l'ora IN STRUTTURA e la navetta si salvano
-  // nelle due di sempre e il pannello resta aperto a dirlo.
+  // della scheda e dell'inserimento (lib/arrivoDati), con la riga chiesta
+  // indietro e riletta. Solo un «ok» chiude il pannello: con un errore, un
+  // esito incerto o un dettaglio che il gestionale non sa ancora tenere, la
+  // bozza resta qui e l'avviso lo dice.
   async function saveTime() {
-    if (!popup || savingTime) return
+    if (!popup || salvandoArrivo.current) return
+    salvandoArrivo.current = true      // freno sincrono al doppio tocco
     setSavingTime(true)
     setErroreOrario(null)
     const id = popup.id
     try {
       const esito = await salvaArrivoPrenotazione(
-        campi => supabase.from('bookings').update(campi).eq('id', id),
+        campi => supabase.from('bookings').update(campi).eq('id', id).select('id'),
         popup.arrivo,
+        () => supabase.from('bookings').select('*').eq('id', id).limit(1),
       )
-      if (esito.esito === 'errore' || !esito.campi) {
-        // Nulla è cambiato: il pannello resta aperto con l'avviso, il bottone torna attivo
+      if (esito.esito !== 'ok' || !esito.campi) {
+        // Nulla è cambiato a schermo: il pannello resta aperto con l'avviso
         setErroreOrario(esito.messaggio)
         return
       }
       const campi = esito.campi
       setBookings(bookings.map(b => b.id === id ? { ...b, ...campi } : b))
-      if (esito.messaggio) { setErroreOrario(esito.messaggio); return }
       setPopup(null)
     } finally {
+      salvandoArrivo.current = false
       setSavingTime(false)
     }
   }

@@ -100,7 +100,7 @@ test('le date del soggiorno intero: «mar 1 settembre» a sinistra, le notti in 
 })
 
 test('orario e navetta sotto le date (12 px, #756748): i dati veri o cosa manca; toccandoli si apre «Modifica arrivo»', () => {
-  assert.match(pagina, /const arrivoTestaTesto = arrivoTesta\(primoSegmento\?\.check_in_time, primoSegmento\?\.shuttle\)/)
+  assert.match(pagina, /const arrivoTestaTesto = arrivoTestaDaArrivo\(arrivoDati\)/)
   assert.match(pagina, /orario=\{arrivoTestaTesto\.orario\}/)
   assert.match(pagina, /navetta=\{arrivoTestaTesto\.navetta\}/)
   assert.match(pagina, /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/)
@@ -348,9 +348,9 @@ test('i due comandi in fondo al soggiorno: «Modifica arrivo» verde e «Arrivi 
 test('i fogli usano i salvataggi già in casa, non ne scrivono di nuovi', () => {
   const arrivo = leggi('components/scheda/FoglioArrivo.tsx')
   // Dal 21/09/2026 il salvataggio dell'arrivo è uno solo per tutti i punti
-  // di ingresso (lib/arrivoDati → lib/arrivoOrario.salvaArrivo)
+  // di ingresso (lib/arrivoDati), con verifica delle righe e rilettura
   assert.match(arrivo, /import \{ salvaArrivoPrenotazione \} from '@\/lib\/arrivoDati'/)
-  assert.match(leggi('lib/arrivoDati.ts'), /import \{ salvaArrivo, type EsitoArrivo \} from '\.\/arrivoOrario\.ts'/)
+  assert.match(leggi('lib/arrivoDati.ts'), /import \{ messaggioNonSalvato, MESSAGGIO_NON_SALVATO \} from '\.\/scritturaSicura\.ts'/)
   const prov = leggi('components/scheda/FoglioProvenienza.tsx')
   assert.match(prov, /import \{ leggiStrutture, ricordaStruttura, salvaProvenienzaCliente \} from '@\/lib\/provenienzaDati'/)
   assert.match(prov, /import CampoProvenienza/, 'il foglio si è riscritto i quattro tasti')

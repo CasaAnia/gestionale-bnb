@@ -493,6 +493,8 @@ export default function BookingDetail() {
   const [arrivoAperto, setArrivoAperto] = useState(false)
   const [arrivoForm, setArrivoForm] = useState<Arrivo>(ARRIVO_VUOTO)
   const [salvandoArrivo, setSalvandoArrivo] = useState(false)
+  // il freno sincrono: lo stato di React arriva al giro dopo
+  const arrivoInCorso = useRef(false)
   const [erroreArrivo, setErroreArrivo] = useState<string | null>(null)
   // Un solo comando in fondo a «Il soggiorno»: dentro ci stanno le modifiche
   // già esistenti (date, letto, cambio camera), nessun comando doppio.
@@ -1619,7 +1621,7 @@ export default function BookingDetail() {
     setSalvandoSoggiorno(false)
     if (accordoNonRegistrato) {
       setLettoAccordoVecchio(true)
-      setErroreSalvaSoggiorno('Salvato tutto tranne il criterio del letto: serve la proposta 0048 applicata su Supabase.')
+      setErroreSalvaSoggiorno('Salvato tutto tranne come avete concordato il prezzo del letto: il gestionale non sa ancora tenerlo da conto.')
       return
     }
     chiudiSoggiorno()
@@ -1633,34 +1635,29 @@ export default function BookingDetail() {
   }
 
   async function salvaArrivo() {
-    if (salvandoArrivo) return
+    if (arrivoInCorso.current) return
+    arrivoInCorso.current = true      // freno sincrono al doppio tocco
     setSalvandoArrivo(true)
     setErroreArrivo(null)
     // Lo stesso salvataggio della scheda nuova e dell'inserimento
     // (lib/arrivoDati, 21/09/2026): un solo punto in cui si decide che
-    // `check_in_time` è l'ora IN STRUTTURA e non quella dell'aeroporto.
-    let campiSalvati: Record<string, unknown> = {}
-    let avviso: string | null = null
-    const errore = await scriviPoiAggiorna(
-      async () => {
-        const esito = await salvaArrivoPrenotazione(
-          campi => supabase.from('bookings').update(campi).eq('id', id),
-          arrivoForm,
-        )
-        if (esito.esito === 'errore' || !esito.campi) return { data: null, error: { message: esito.messaggio } }
-        campiSalvati = esito.campi
-        avviso = esito.messaggio
-        return { data: null, error: null }
-      },
-      () => {
-        setBooking({ ...booking, ...campiSalvati })
-        setGroupBookings(righe => righe.map(r => r.id === booking.id ? { ...r, ...campiSalvati } : r))
-      },
-    )
-    setSalvandoArrivo(false)
-    if (errore) { setErroreArrivo(errore); return }
-    if (avviso) { setErroreArrivo(avviso); return }
-    setArrivoAperto(false)
+    // `check_in_time` è l'ora IN STRUTTURA e non quella dell'aeroporto, la
+    // riga si chiede indietro e si rilegge. Solo un «ok» chiude il modulo.
+    try {
+      const esito = await salvaArrivoPrenotazione(
+        campi => supabase.from('bookings').update(campi).eq('id', id).select('id'),
+        arrivoForm,
+        () => supabase.from('bookings').select('*').eq('id', id).limit(1),
+      )
+      if (esito.esito !== 'ok' || !esito.campi) { setErroreArrivo(esito.messaggio); return }
+      const campiSalvati = esito.campi
+      setBooking({ ...booking, ...campiSalvati })
+      setGroupBookings(righe => righe.map(r => r.id === booking.id ? { ...r, ...campiSalvati } : r))
+      setArrivoAperto(false)
+    } finally {
+      arrivoInCorso.current = false
+      setSalvandoArrivo(false)
+    }
   }
 
   // Il comando in fondo a «Il soggiorno» apre un modulo solo con tutto quello

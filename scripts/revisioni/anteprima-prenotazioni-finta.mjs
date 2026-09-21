@@ -26,8 +26,12 @@
 // tratto — atterra a LINATE alle 15:00, in struttura CIRCA 16:00–17:00,
 // navetta con MASSIMO, prelievo 15:30. check_in_time resta 16:00 (l'ora in
 // struttura), mai le 15:00 di Linate.
-//   GET /finto/senza-0058?on=1  le colonne nuove non esistono: salvando
-//   l'arrivo l'app riscrive solo check_in_time e shuttle e lo dice a schermo
+//   GET /finto/senza-0058?on=1     le colonne nuove non esistono: se salvando si
+//                                  perderebbe il luogo o l'autista, l'app NON scrive
+//                                  niente e tiene la bozza; se non si perde niente,
+//                                  salva con le due colonne di sempre, in silenzio
+//   GET /finto/risposta-vuota?on=1 il PATCH risponde «ok» ma zero righe toccate:
+//                                  il salvataggio si dice incerto, la pagina non cambia
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
@@ -225,8 +229,9 @@ const bookings = [
       // le 17, la va a prendere Massimo alle 15:30. check_in_time resta l'ora
       // IN STRUTTURA (16:00), mai quella di Linate.
       arrivo_tipo: 'luogo', arrivo_luogo: 'linate', arrivo_luogo_altro: null,
-      arrivo_ora_da: '15:00', arrivo_ora_a: null,
-      arrivo_struttura_da: '16:00', arrivo_struttura_a: '17:00',
+      arrivo_luogo_ora_da: '15:00', arrivo_luogo_ora_a: null,
+      arrivo_struttura_ora_da: null, arrivo_struttura_ora_a: null,
+      arrivo_stima_da: '16:00', arrivo_stima_a: '17:00',
       navetta: 'massimo', navetta_prelievo: '15:30',
       check_in_time: '16:00', shuttle: 'si',
       extra_phone_1_name: 'Marco Riva', extra_phone_1: '3334567890', chi_e: 'il figlio', extra_phone_2: '3339876543' }),
@@ -447,6 +452,17 @@ function confronta(valore, op, atteso) {
 }
 
 function applicaSelect(riga, select) {
+  // Con «senza-0058» le colonne nuove NON esistono: non tornano nemmeno in
+  // lettura, come farebbe PostgREST con uno schema che non le conosce.
+  // Senza questo, l'app rileggeva colonne che il server aveva appena
+  // rifiutato di scrivere (trovato provando il ripiego, 21/09/2026 sera).
+  const togliNuove = r => {
+    if (!senza0058) return r
+    const out = { ...r }
+    for (const c of COLONNE_0058) delete out[c]
+    return out
+  }
+  riga = togliNuove(riga)
   if (!select || select === '*') return { ...riga }
   const out = {}
   // colonne semplici e risorse incorporate: a,b,tab(c,d)
@@ -590,8 +606,11 @@ let senza0057 = false
 let senzaRpcPagamenti = false
 //   GET /finto/senza-0058?on=1|0                            le colonne di «Arrivo e navetta» NON esistono (PGRST204 sulla prima
 //                                                          che arriva): l'app riscrive solo check_in_time e shuttle e lo dice
-const COLONNE_0058 = ['arrivo_tipo', 'arrivo_luogo', 'arrivo_luogo_altro', 'arrivo_ora_da', 'arrivo_ora_a', 'arrivo_struttura_da', 'arrivo_struttura_a', 'navetta', 'navetta_prelievo']
+const COLONNE_0058 = ['arrivo_tipo', 'arrivo_luogo', 'arrivo_luogo_altro', 'arrivo_luogo_ora_da', 'arrivo_luogo_ora_a', 'arrivo_struttura_ora_da', 'arrivo_struttura_ora_a', 'arrivo_stima_da', 'arrivo_stima_a', 'navetta', 'navetta_prelievo']
 let senza0058 = false
+//   GET /finto/risposta-vuota?on=1|0                        il PATCH risponde «ok» ma con ZERO righe toccate: il
+//                                                          salvataggio deve dirsi incerto, non riuscito
+let rispostaVuota = false
 //   GET /finto/camera-durante-rpc?prenotazione_id=…&room_id=…&total_amount=…  alla PROSSIMA registrazione aggiunge una
 //                                                          camera alla prenotazione SUBITO DOPO aver scritto il movimento
 //                                                          (fra l'acconto e il bollino: il caso del saldo inventato)
@@ -650,6 +669,7 @@ const finto = createServer((req, res) => {
   }
   if (url.pathname === '/finto/senza-0057') { senza0057 = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senza0057 }) }
   if (url.pathname === '/finto/senza-0058') { senza0058 = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senza0058 }) }
+  if (url.pathname === '/finto/risposta-vuota') { rispostaVuota = url.searchParams.get('on') === '1'; return rispondi(res, 200, { rispostaVuota }) }
   if (url.pathname === '/finto/senza-rpc-pagamenti') { senzaRpcPagamenti = url.searchParams.get('on') === '1'; return rispondi(res, 200, { senzaRpcPagamenti }) }
   if (url.pathname === '/finto/pagamento-esterno') {
     const booking_id = url.searchParams.get('booking_id'), amount = Number(url.searchParams.get('amount'))
@@ -922,9 +942,19 @@ const finto = createServer((req, res) => {
           booking_events.push(evento(booking_events.length + 1, r.id, 0, 'cliente', { cliente: prima?.full_name ?? null, guest_id: r.guest_id }, { cliente: dopo?.full_name ?? null, guest_id: corpo.guest_id }))
         }
       }
-      for (const r of righe) Object.assign(r, corpo)
-      console.log(`[finto supabase] PATCH ${m[1]} ${righe.length} righe ←`, JSON.stringify(corpo), perdiRisposta ? '(risposta persa)' : '')
+      // con «risposta vuota» la scrittura NON avviene davvero: è il caso in
+      // cui l'id non esiste più o un permesso filtra la riga
+      const nessunaRiga = m[1] === 'bookings' && rispostaVuota
+      if (!nessunaRiga) for (const r of righe) Object.assign(r, corpo)
+      console.log(`[finto supabase] PATCH ${m[1]} ${nessunaRiga ? 0 : righe.length} righe ←`, JSON.stringify(corpo), perdiRisposta ? '(risposta persa)' : '')
       if (perdiRisposta) { res.socket.destroy(); return }
+      // «nessuna riga toccata»: error null e data vuoto, come quando l'id non
+      // esiste più o un permesso filtra la riga (rilievo di Codex del
+      // 21/09/2026 sera: non deve passare per un salvataggio riuscito)
+      if (nessunaRiga) {
+        console.log('[finto supabase] PATCH bookings → 0 righe (risposta vuota simulata)')
+        return rispondi(res, 200, [])
+      }
       return rispondi(res, 200, righe.map(r => applicaSelect(r, url.searchParams.get('select') || '*')))
     })
   }

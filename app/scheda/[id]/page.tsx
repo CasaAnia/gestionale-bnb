@@ -19,7 +19,7 @@
 // Foglio*): «Aggiungi pagamento», «Come paga», «Dati della cliente», «Cambia
 // cliente», «Annulla la prenotazione», «Arrivo», «da dove?» e il FOGLIETTO
 // DELLA NOTTE. I salvataggi sono quelli già in casa (lib/pagamentiDati,
-// lib/comePagaDati, lib/cambiaClienteDati, lib/arrivoOrario,
+// lib/comePagaDati, lib/cambiaClienteDati, lib/arrivoDati,
 // lib/provenienzaDati, lib/strisciaNotti): nessuna regola riscritta. Dopo
 // ogni salvataggio la scheda si aggiorna da sé, senza ricaricare la pagina:
 // prima con quello che ha appena salvato, poi rileggendo in silenzio
@@ -36,7 +36,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
 import TestaScheda from '@/components/scheda/TestaScheda'
-import { dateTesta, arrivoTesta, percorsoTesta, oggiTesta, residuoTesta, DA_COMPLETARE_DOCUMENTO } from '@/lib/testaScheda'
+import { dateTesta, arrivoTestaDaArrivo, percorsoTesta, oggiTesta, residuoTesta, DA_COMPLETARE_DOCUMENTO } from '@/lib/testaScheda'
 import FasciaSezioni from '@/components/FasciaSezioni'
 import AvvisoScheda from '@/components/scheda/AvvisoScheda'
 import ClienteScheda from '@/components/scheda/ClienteScheda'
@@ -336,7 +336,9 @@ export default function SchedaPage() {
   const telefono = guest?.phone ?? null
   const waNumero = numeroWhatsAppPrenotazione(telefono)
   const primoSegmento = attive[0] ?? booking
-  const arrivoTestaTesto = arrivoTesta(primoSegmento?.check_in_time, primoSegmento?.shuttle)
+  // La testa legge il MODELLO, non le due colonne di sempre (21/09/2026
+  // sera): così non perde la fine della fascia, il «circa» e l'autista.
+  const arrivoTestaTesto = arrivoTestaDaArrivo(arrivoDati)
   // lo stato scritto solo se non è quello normale (Ania, 17/09/2026)
   const statoTesto = booking ? statoScheda(statoSoggiorno, ultimaPartenza, oggi) : ''
   const statoDaMostrare = statoTesto === 'Confermata' ? null : statoTesto
@@ -727,12 +729,13 @@ export default function SchedaPage() {
       {foglioArrivo && primoSegmento && (
         <FoglioArrivo bookingId={primoSegmento.id} prenotazione={primoSegmento as unknown as Record<string, unknown>}
           onChiudi={() => setFoglioArrivo(false)}
-          onSalvato={(campi, msg) => {
+          onSalvato={campi => {
+            // `campi` è la riga RILETTA dal server, non quello che avevamo
+            // spedito (lib/arrivoDati): la scheda mostra quello che c'è.
             const aggiorna = (r: Prenotazione) => (r.id === primoSegmento.id ? { ...r, ...campi } : r)
             setRighe(rs => rs.map(aggiorna))
             setBooking(b => (b ? aggiorna(b) : b))
             setFoglioArrivo(false)
-            setAvviso(msg)
             rileggi()   // la cronologia (trigger 0042) e «Da controllare»
           }} />
       )}

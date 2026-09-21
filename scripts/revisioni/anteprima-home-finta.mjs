@@ -18,7 +18,7 @@
 //               «Senza Numero» domani senza orario e senza telefono (solo Apri arrivo); «Paola Neri» con orario: no
 //   Arrivi Home «Arrivi di oggi»: «Arriva Oggi» → «Da definire» + «Autista da assegnare» (21/09/2026)
 //               «Arrivi di domani»: «Paola Neri» è il caso del riferimento — Linate 15:00,
-//               in struttura circa 16:00–17:00, Massimo con prelievo alle 15:30
+//               in struttura circa 16:00–17:00, Massimo con prelievo alle 15:30, col letto in più
 //   Pagamenti   «Giulio Gallo» Allegra O−6→O−4 pagato=true con movimenti 100 su 160 → Registra saldo
 //               «Sara Sarti» Ambra O−12→O−10 non pagata → Registra saldo
 //               «Elena Esposito» Lena O−20→O−18 pagata e coperta → NON compare
@@ -122,10 +122,14 @@ const bookings = [
   // atterra a Linate alle 15:00, in struttura circa 16:00–17:00, la va a
   // prendere Massimo alle 15:30. check_in_time resta l'ora IN STRUTTURA.
   prenotazione(ROOM.allegra, G.paola.id, O(1), O(3), 2, {
+    // col letto in più: serve a provare che il riquadro degli arrivi non
+    // perde il «+letto agg.» che c'era nella riga CHECK-IN (21/09/2026 sera)
+    extra_bed: true, extra_bed_dates: [O(1), O(2)], extra_bed_total: 20,
     check_in_time: '16:00', shuttle: 'si',
     arrivo_tipo: 'luogo', arrivo_luogo: 'linate', arrivo_luogo_altro: null,
-    arrivo_ora_da: '15:00', arrivo_ora_a: null,
-    arrivo_struttura_da: '16:00', arrivo_struttura_a: '17:00',
+    arrivo_luogo_ora_da: '15:00', arrivo_luogo_ora_a: null,
+    arrivo_struttura_ora_da: null, arrivo_struttura_ora_a: null,
+    arrivo_stima_da: '16:00', arrivo_stima_a: '17:00',
     navetta: 'massimo', navetta_prelievo: '15:30',
   }),
   prenotazione(ROOM.lena, G.senza.id, O(1), O(2), 1, { total_amount: 80 }),                    // domani, senza orario né numero

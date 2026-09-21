@@ -277,7 +277,7 @@ export function nottiNonSalvabili(
 // ancora si tolgono TUTTE in un colpo (altrimenti servirebbero nove giri) e
 // la prenotazione si salva lo stesso con l'ora in struttura e la navetta
 // nelle due colonne di sempre, dicendo cosa si è perso per strada.
-export const COLONNE_ARRIVO_0058 = ['arrivo_tipo', 'arrivo_luogo', 'arrivo_luogo_altro', 'arrivo_ora_da', 'arrivo_ora_a', 'arrivo_struttura_da', 'arrivo_struttura_a', 'navetta', 'navetta_prelievo']
+export const COLONNE_ARRIVO_0058 = ['arrivo_tipo', 'arrivo_luogo', 'arrivo_luogo_altro', 'arrivo_luogo_ora_da', 'arrivo_luogo_ora_a', 'arrivo_struttura_ora_da', 'arrivo_struttura_ora_a', 'arrivo_stima_da', 'arrivo_stima_a', 'navetta', 'navetta_prelievo']
 export const RINUNCIABILI = new Set(['prenotazione_id', 'extra_bed_importo', 'extra_bed_criterio', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro', 'chi_e_2', ...COLONNE_ARRIVO_0058])
 export const SENZA_NON_SI_SALVA = new Set(['prenotazione_id'])
 
@@ -289,22 +289,17 @@ export const NOMI_COLONNA: Record<string, string> = {
   caparra_centesimi: 'la caparra',
   caparra_entro: 'la scadenza della caparra',
   chi_e_2: 'chi è la seconda persona che dorme con lei',
-  arrivo_tipo: 'i dettagli dell’arrivo (luogo, fascia, autista)',
-  arrivo_luogo: 'i dettagli dell’arrivo (luogo, fascia, autista)',
-  arrivo_luogo_altro: 'i dettagli dell’arrivo (luogo, fascia, autista)',
-  arrivo_ora_da: 'i dettagli dell’arrivo (luogo, fascia, autista)',
-  arrivo_ora_a: 'i dettagli dell’arrivo (luogo, fascia, autista)',
-  arrivo_struttura_da: 'i dettagli dell’arrivo (luogo, fascia, autista)',
-  arrivo_struttura_a: 'i dettagli dell’arrivo (luogo, fascia, autista)',
-  navetta: 'i dettagli dell’arrivo (luogo, fascia, autista)',
-  navetta_prelievo: 'i dettagli dell’arrivo (luogo, fascia, autista)',
+  ...Object.fromEntries(COLONNE_ARRIVO_0058.map(c => [c, 'i dettagli dell’arrivo: il luogo, la fascia oraria e l’autista'])),
 }
+// Parole di tutti i giorni, niente sigle né istruzioni tecniche: quello che
+// Ania deve capire è cosa non è stato registrato, non come si aggiusta
+// (Ania, 16/09/2026; rilievo di Codex, 21/09/2026 sera).
 export function mancaColonnaNecessaria(colonna: string): string {
-  return `Non salvo: manca ancora nel database ${NOMI_COLONNA[colonna] ?? colonna}, e senza quello la prenotazione verrebbe spezzata. Serve la proposta SQL corrispondente applicata su Supabase.`
+  return `Non salvo: il gestionale non sa ancora tenere da conto ${NOMI_COLONNA[colonna] ?? colonna}, e senza quello la prenotazione verrebbe spezzata.`
 }
 export function avvisoDegradazione(colonne: string[]): string {
   const cose = [...new Set(colonne.map(c => NOMI_COLONNA[c] ?? c))]
-  return `Prenotazione salvata, ma questi dati NON sono stati registrati: ${cose.join(', ')}. Servono le proposte SQL corrispondenti applicate su Supabase.`
+  return `Prenotazione salvata, ma questi dati NON sono stati registrati: ${cose.join(', ')}. Il gestionale non sa ancora tenerli da conto: riscrivili quando sarà aggiornato.`
 }
 
 // ── Le camere già prese da qualcun altro ────────────────────────────────────

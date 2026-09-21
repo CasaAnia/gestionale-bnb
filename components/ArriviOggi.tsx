@@ -10,9 +10,12 @@
 // a prendere. Niente riquadro bianco: filo d'ottone a sinistra e fondo della
 // Home, come il resto delle sezioni editoriali.
 //
-// Gli arrivi stanno SOLO qui: il blocco «Oggi / Domani» non li ripete più
-// (Ania, 11/09/2026, sulle pulizie: «due stanze sopra e tre sotto è
-// confusionale»). Partenze e cambi camera restano dov'erano.
+// Questo riquadro si AGGIUNGE: la riga «CHECK-IN» del blocco «Oggi /
+// Domani» resta dov'era, con la nota del cliente in rosso e il letto in più
+// (rilievo di Codex, 21/09/2026 sera: toglierla non l'aveva deciso Ania).
+// Per non far leggere due volte la stessa nota rossa a mezzo schermo di
+// distanza, qui la nota non si ripete: il letto in più sì, perché serve a
+// preparare la camera. Il confronto per la decisione sta nel riscontro.
 //
 // Sola presentazione: le parole vengono da lib/arrivo.
 // ============================================================================
@@ -35,12 +38,16 @@ export function contaArrivi(n: number): string {
 function Riquadro({ b }: { b: Record<string, unknown> }) {
   const a = arrivoInHome(leggiArrivo(b))
   const camera = (b.rooms as { name?: string } | null)?.name
-  const nota = (b.guests as { notes?: string | null } | null)?.notes
   return (
     <div data-arrivo-home={String(b.id)} className="py-3" style={{ borderLeft: `3px solid ${OTTONE}`, paddingLeft: 14, marginTop: 12 }}>
       <div className="flex flex-wrap items-baseline justify-between" style={{ gap: 8 }}>
         <p style={{ fontFamily: GEORGIA, fontSize: 19, lineHeight: '23px', color: 'var(--color-green-dark)' }}>{nomeOspite(b)}</p>
-        {camera && <span className="ed-badge" data-camera>{camera}</span>}
+        <span className="flex items-center" style={{ gap: 6 }}>
+          {/* il letto in più: c'era nella riga CHECK-IN e resta anche qui,
+              perché è quello che cambia come si prepara la camera */}
+          {!!b.extra_bed && <span data-letto-agg className="bg-[#F1E0CE] text-[#7A4B22] rounded px-1 text-xs">+letto agg.</span>}
+          {camera && <span className="ed-badge" data-camera>{camera}</span>}
+        </span>
       </div>
 
       <p className="mt-1.5 flex items-baseline flex-wrap" style={{ gap: 7 }}>
@@ -64,11 +71,6 @@ function Riquadro({ b }: { b: Record<string, unknown> }) {
             )
           })}
         </div>
-      )}
-
-      {/* La nota del cliente resta in rosso anche qui (Ania, 10/09/2026) */}
-      {typeof nota === 'string' && nota.trim() && (
-        <p data-nota-cliente-home className="mt-2 text-[13px] leading-snug font-semibold" style={{ color: '#C00000' }}>{nota}</p>
       )}
 
       <p className="mt-2.5">

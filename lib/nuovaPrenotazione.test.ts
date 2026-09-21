@@ -251,7 +251,7 @@ test('l’arrivo: il modulo condiviso, e i campi vanno nelle colonne nuove più 
   assert.match(pagina, /import ArrivoNavetta from '@\/components\/ArrivoNavetta'/)
   assert.match(pagina, /<p className="ed-sezione">Arrivo e navetta<\/p>/)
   assert.match(pagina, /<ArrivoNavetta arrivo=\{arrivo\} onArrivo=\{setArrivo\} \/>/)
-  assert.match(pagina, /\.\.\.campiArrivo\(normalizza\(arrivo\)\),/)
+  assert.match(pagina, /\.\.\.campiArrivo\(arrivo\),/)
   // la pagina non si scrive più campi dell'arrivo suoi
   assert.equal(/check_in_time: orario|setNavetta\(/.test(pagina), false, 'l’inserimento ha di nuovo campi dell’arrivo suoi')
   // un guaio dell'arrivo blocca il salvataggio e porta la pagina lì

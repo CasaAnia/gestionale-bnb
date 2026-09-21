@@ -19,7 +19,7 @@ import { Etichetta, FilaPastiglie, Pastiglia, stileCampo, OTTONE, BORDO_SPENTA }
 import { oraDigitata } from '@/lib/ora'
 import {
   type Arrivo, type ChiaveLuogo, type ModoOrario, type Navetta,
-  pianoModuloArrivo, cambiaTipo, cambiaModo, cambiaNavetta,
+  pianoModuloArrivo, cambiaTipo, cambiaModo, cambiaNavetta, scriviOra,
   ETICHETTA_TIPO, ETICHETTA_LUOGO, ETICHETTA_ORARIO, ETICHETTA_STIMA, AIUTO_STIMA,
   ETICHETTA_NAVETTA, ETICHETTA_AUTISTA, ETICHETTA_PRELIEVO, ETICHETTA_LUOGO_ALTRO,
 } from '@/lib/arrivo'
@@ -71,7 +71,7 @@ export default function ArrivoNavetta({ arrivo, onArrivo, prefisso = '' }: {
           <FilaPastiglie>
             {piano.luogo.map(s => (
               <Pastiglia key={s.chiave} dati={d(`luogo-${s.chiave}`)} acceso={s.acceso}
-                onClick={() => onArrivo({ ...arrivo, luogo: s.chiave as ChiaveLuogo, luogoAltro: s.chiave === 'altro' ? arrivo.luogoAltro : '' })}>{s.nome}</Pastiglia>
+                onClick={() => onArrivo({ ...arrivo, luogo: s.chiave as ChiaveLuogo })}>{s.nome}</Pastiglia>
             ))}
           </FilaPastiglie>
         </>
@@ -99,12 +99,14 @@ export default function ArrivoNavetta({ arrivo, onArrivo, prefisso = '' }: {
             ))}
           </FilaPastiglie>
           <div className="flex items-center mt-[10px]" style={{ gap: 10 }}>
-            <CasellaOra valore={arrivo.oraDa} onValore={v => onArrivo({ ...arrivo, oraDa: v })}
+            {/* Le caselle scrivono nella casella del tipo attivo: quelle
+                dell'altro tipo restano nella bozza, intatte (scriviOra). */}
+            <CasellaOra valore={piano.oraDa} onValore={v => onArrivo(scriviOra(arrivo, 'da', v))}
               dati={d('ora-da')} etichetta={piano.caselleOrario === 2 ? 'Inizio della fascia' : 'Ora di arrivo'} />
             {piano.caselleOrario === 2 && (
               <>
                 <span aria-hidden style={{ color: 'var(--color-stone)' }}>—</span>
-                <CasellaOra valore={arrivo.oraA} onValore={v => onArrivo({ ...arrivo, oraA: v })}
+                <CasellaOra valore={piano.oraA} onValore={v => onArrivo(scriviOra(arrivo, 'a', v))}
                   dati={d('ora-a')} etichetta="Fine della fascia" />
               </>
             )}
@@ -117,10 +119,10 @@ export default function ArrivoNavetta({ arrivo, onArrivo, prefisso = '' }: {
         <>
           <Etichetta testo={ETICHETTA_STIMA} ottone />
           <div className="flex items-center" style={{ gap: 10 }}>
-            <CasellaOra valore={arrivo.strutturaDa} onValore={v => onArrivo({ ...arrivo, strutturaDa: v })}
+            <CasellaOra valore={arrivo.stimaDa} onValore={v => onArrivo({ ...arrivo, stimaDa: v })}
               dati={d('struttura-da')} etichetta="In struttura, dalle" />
             <span aria-hidden style={{ color: 'var(--color-stone)' }}>—</span>
-            <CasellaOra valore={arrivo.strutturaA} onValore={v => onArrivo({ ...arrivo, strutturaA: v })}
+            <CasellaOra valore={arrivo.stimaA} onValore={v => onArrivo({ ...arrivo, stimaA: v })}
               dati={d('struttura-a')} etichetta="In struttura, alle" />
           </div>
           <p data-aiuto-stima className="mt-1.5" style={{ fontSize: 12, color: 'var(--color-stone)' }}>{AIUTO_STIMA}</p>

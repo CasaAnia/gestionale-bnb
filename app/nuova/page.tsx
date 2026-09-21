@@ -31,7 +31,7 @@ import { CampoNomeCognome } from '@/components/CampiNomeCognome'
 import { oraCompleta } from '@/lib/ora'
 import { colonnaMancante } from '@/lib/colonnaMancante'
 import ArrivoNavetta from '@/components/ArrivoNavetta'
-import { ARRIVO_VUOTO, campiArrivo, controllaArrivo, normalizza, arrivoInScheda, navettaInScheda, orarioIgnoto, type Arrivo } from '@/lib/arrivo'
+import { ARRIVO_VUOTO, campiArrivo, controllaArrivo, arrivoInScheda, navettaInScheda, orarioIgnoto, type Arrivo } from '@/lib/arrivo'
 import { COLONNE_ARRIVO_0058 } from '@/lib/nuovaPrenotazione'
 import { smartBack, returnToSicuro } from '@/lib/navHistory'
 import { messaggioErroreDati } from '@/lib/connessione'
@@ -532,7 +532,7 @@ function NuovaPrenotazione() {
         bonifico: campiComePaga(accordoDaSalvare, {}).bonifico,
         notes: note.trim() || null,
         // Arrivo e navetta: le stesse regole della pagina nuova (lib/arrivo)
-        ...campiArrivo(normalizza(arrivo)),
+        ...campiArrivo(arrivo),
         ...(nomeSu ? { guest_name: nomeSu } : {}),
         ...(chi === 'altra' && contattoUno?.nome ? { extra_phone_1_name: conInizialiONull(contattoUno.nome) } : {}),
         ...(chi === 'altra' && contattoUno?.telefono ? { extra_phone_1: contattoUno.telefono.replace(/\s/g, '') } : {}),
@@ -625,13 +625,13 @@ function NuovaPrenotazione() {
       // qui, si dice cosa manca e si apre la scheda solo col tuo tocco.
       if (nonRegistrati.length > 0) {
         setSalvata(String([...create].sort((a, b) => String(a.check_in).localeCompare(String(b.check_in)))[0].id))
-        setAvvisoSalvataggio(`Prenotazione salvata, ma questi dati NON sono stati registrati: ${nonRegistrati.join(', ')}. Servono le proposte SQL corrispondenti applicate su Supabase (0041, 0046, 0047, 0048).`)
+        setAvvisoSalvataggio(`Prenotazione salvata, ma questi dati NON sono stati registrati: ${nonRegistrati.join(', ')}. Il gestionale non sa ancora tenerli da conto: riscrivili quando sarà aggiornato.`)
         setSalvando(false)
         return
       }
       if (senzaAccordo && caparra !== null) {
         setSalvata(String(prima.id))
-        setAvvisoSalvataggio(`Prenotazione salvata, ma la caparra di ${euro(caparra)} e la sua scadenza NON sono state registrate: serve la proposta 0041 (accordo di pagamento) applicata su Supabase. Il resto (camere, prezzi, bonifico) c'è tutto.`)
+        setAvvisoSalvataggio(`Prenotazione salvata, ma la caparra di ${euro(caparra)} e la sua scadenza NON sono state registrate: il gestionale non sa ancora tenerle da conto. Il resto (camere, prezzi, bonifico) c'è tutto.`)
         setSalvando(false)
         return
       }

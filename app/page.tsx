@@ -119,9 +119,25 @@ export default function Dashboard() {
   // Righe di un giorno (arrivi, partenze, cambi camera). Il prefisso rende le key
   // uniche tra le sezioni Oggi e Domani (una prenotazione può arrivare oggi e
   // ripartire domani, comparendo in entrambe).
-  function renderEventi(prefix: string, checkOut: any[], changes: any[]) {
+  function renderEventi(prefix: string, checkIn: any[], checkOut: any[], changes: any[]) {
     return (
       <>
+        {checkIn.map((b: any) => (
+          <div key={`${prefix}-in-${b.id}`} className="flex flex-wrap items-center gap-2 text-sm py-1">
+            <span className="bg-sage text-green-dark rounded px-1.5 py-0.5 text-xs font-bold">CHECK-IN</span>
+            <span className="font-medium">{nomeOspite(b)}</span>
+            <span className="text-gray-500">— {b.rooms?.name}</span>
+            {b.check_in_time && <span className="bg-sage text-green-mid rounded px-1.5 py-0.5 text-xs font-bold">🕐 {b.check_in_time}</span>}
+            {b.extra_bed && <span className="bg-[#F1E0CE] text-[#7A4B22] rounded px-1 text-xs">+letto agg.</span>}
+            {/* Nota del cliente in evidenza anche qui (Ania, 10/09/2026): sul
+                suo rigo, in rosso come nella scheda, così prima che arrivi si
+                legge senza aprire nulla. Il rosso è quello scelto da Ania
+                l'8 settembre (#C00000): lo stesso ovunque compaia la nota. */}
+            {b.guests?.notes && (
+              <p data-nota-cliente-home className="basis-full text-[13px] leading-snug font-semibold" style={{ color: '#C00000' }}>{b.guests.notes}</p>
+            )}
+          </div>
+        ))}
         {checkOut.map((b: any) => (
           <div key={`${prefix}-out-${b.id}`} className="flex flex-wrap items-center gap-2 text-sm py-1">
             <span className="bg-[#F4E6DF] text-[#7A3B22] rounded px-1.5 py-0.5 text-xs font-bold">CHECK-OUT</span>
@@ -182,29 +198,32 @@ export default function Dashboard() {
         <AvvisoAzione testo={errore} onRiprova={riprova} />
       ) : (
         <>
-          {/* Gli arrivi, col riquadro della proposta approvata (21/09/2026):
-              l'ora IN STRUTTURA in grande, e sotto da dove arriva e chi la va
-              a prendere. Stanno solo qui: il blocco «Oggi / Domani» non li
-              ripete più, e tiene partenze e cambi camera. */}
+          {/* «Arrivi di oggi» (21/09/2026), la terza superficie della proposta
+              approvata: per ogni arrivo l'ora IN STRUTTURA in grande e, sotto,
+              da dove arriva e chi la va a prendere. Il blocco «Oggi / Domani»
+              qui sotto NON è stato toccato: la riga CHECK-IN resta dov'era,
+              con la nota del cliente e il letto in più. Togliere quella riga
+              è una decisione di Ania, non mia (rilievo di Codex, 21/09/2026
+              sera): il confronto è nel riscontro. */}
           <ArriviOggi oggi={data.checkInOggi} domani={data.checkInDomani} />
 
           {(() => {
-            const hasOggi = data.checkOutOggi.length > 0 || data.roomChangesOggi.length > 0
-            const hasDomani = data.checkOutDomani.length > 0 || data.roomChangesDomani.length > 0
+            const hasOggi = data.checkInOggi.length > 0 || data.checkOutOggi.length > 0 || data.roomChangesOggi.length > 0
+            const hasDomani = data.checkInDomani.length > 0 || data.checkOutDomani.length > 0 || data.roomChangesDomani.length > 0
             if (!hasOggi && !hasDomani) return null
             return (
               <div className="mb-5">
                 {hasOggi && (
                   <>
                     <p className="ed-sezione mb-2">Oggi</p>
-                    {renderEventi('oggi', data.checkOutOggi, data.roomChangesOggi)}
+                    {renderEventi('oggi', data.checkInOggi, data.checkOutOggi, data.roomChangesOggi)}
                   </>
                 )}
                 {hasDomani && (
                   <>
                     {hasOggi && <div className="mt-4" />}
                     <p className="ed-sezione mb-2" style={{ color: '#8a9488' }}>Domani</p>
-                    {renderEventi('domani', data.checkOutDomani, data.roomChangesDomani)}
+                    {renderEventi('domani', data.checkInDomani, data.checkOutDomani, data.roomChangesDomani)}
                   </>
                 )}
               </div>

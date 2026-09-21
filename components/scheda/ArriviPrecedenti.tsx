@@ -7,6 +7,7 @@
 // ============================================================================
 import { righeStorico, type SegmentoStorico } from '@/lib/storicoCliente'
 import { periodoCompatto } from '@/lib/dateItaliane'
+import { leggiArrivo, periodoInStruttura, circaInStruttura, navettaInScheda, navettaRichiesta } from '@/lib/arrivo'
 
 export function arriviPrecedenti(altre: SegmentoStorico[], oggi: string) {
   return righeStorico(altre)
@@ -19,8 +20,19 @@ export function arriviPrecedenti(altre: SegmentoStorico[], oggi: string) {
         chiave: r.chiave,
         periodo: periodoCompatto(r.check_in, r.check_out, { anno: true }),
         camere: r.camere.join(' → '),
-        orario: primo?.check_in_time ? `arrivo ${primo.check_in_time}` : 'orario non registrato',
-        navetta: primo?.shuttle === 'si' ? 'navetta sì' : primo?.shuttle === 'no' ? 'navetta no' : 'navetta non registrata',
+        // Dal 21/09/2026 sera si legge il MODELLO, non le due colonne di
+        // sempre: lo storico non perde più la fine della fascia, il «circa»
+        // della stima e il nome dell'autista (rilievo di Codex).
+        ...(() => {
+          const a = leggiArrivo(primo as unknown as Record<string, unknown>)
+          const quando = periodoInStruttura(a)
+          return {
+            orario: quando ? `arrivo ${circaInStruttura(a) ? 'circa ' : ''}${quando}` : 'orario non registrato',
+            navetta: a.navetta === 'non_richiesta' ? 'navetta no'
+              : navettaRichiesta(a.navetta) ? `navetta ${navettaInScheda(a).titolo.toLowerCase()}`
+              : 'navetta non registrata',
+          }
+        })(),
       }
     })
 }

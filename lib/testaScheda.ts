@@ -20,6 +20,7 @@
 //  · «Resta da incassare» con la cifra del conto (lib/schedaConto.
 //    riepilogoConto: la stessa fonte del conto, nessun secondo calcolo).
 // ============================================================================
+import { AUTISTI, circaInStruttura, periodoInStruttura, type Arrivo } from './arrivo.ts'
 import { rigaGrandeScheda, segmentiAttivi, type SegmentoScheda } from './schedaPrenotazione.ts'
 import { giorniSoggiorno } from './prezzoNotti.ts'
 import { GIORNI_BREVI, MESI_LUNGHI } from './dateItaliane.ts'
@@ -55,8 +56,39 @@ export const NAVETTA_NON_RICHIESTA = 'Navetta non richiesta'
 export const CON_NAVETTA = 'Con navetta'
 export const ARRIVA_ALLE = (ora: string) => `Arriva alle ${ora}`
 
-/** I due pezzi sotto le date. `shuttle` è 'si' | 'no' | null: null NON è «no». */
-export function arrivoTesta(checkInTime: string | null | undefined, shuttle: string | null | undefined): { orario: string; navetta: string; orarioDaDefinire: boolean; navettaDaVerificare: boolean } {
+export type ArrivoTesta = { orario: string; navetta: string; orarioDaDefinire: boolean; navettaDaVerificare: boolean }
+
+/** I due pezzi sotto le date, LETTI DAL MODELLO (21/09/2026 sera, rilievo di
+ *  Codex): prima la testa leggeva le due colonne di sempre e perdeva per
+ *  strada la fine della fascia, il «circa» della stima e il nome
+ *  dell'autista — «Arriva alle 16:00 · Con navetta» anche quando il
+ *  soggiorno diceva «circa 16:00–17:00, la va a prendere Massimo».
+ *
+ *  Il disegno della testa non cambia (Ania, 20/09/2026, «La prenotazione, a
+ *  colpo d'occhio»): restano due righe brevi, con le stesse parole di prima
+ *  quando non c'è niente in più da dire. */
+export function arrivoTestaDaArrivo(a: Arrivo): ArrivoTesta {
+  const inStruttura = periodoInStruttura(a)
+  const autista = AUTISTI.find(x => x.chiave === a.navetta)?.nome ?? null
+  const orario = inStruttura
+    ? (circaInStruttura(a) || eFasciaTesta(inStruttura) ? `Arriva ${circaInStruttura(a) ? 'circa' : ''} ${inStruttura}`.replace('  ', ' ') : ARRIVA_ALLE(inStruttura))
+    : ORARIO_DA_DEFINIRE
+  const navetta = autista ? `${CON_NAVETTA} · ${autista}`
+    : a.navetta === 'da_assegnare' ? CON_NAVETTA
+    : a.navetta === 'non_richiesta' ? NAVETTA_NON_RICHIESTA
+    : NAVETTA_DA_VERIFICARE
+  return {
+    orario,
+    navetta,
+    orarioDaDefinire: !inStruttura,
+    navettaDaVerificare: a.navetta === 'da_definire',
+  }
+}
+const eFasciaTesta = (periodo: string) => periodo.includes('–')
+
+/** I due pezzi sotto le date. `shuttle` è 'si' | 'no' | null: null NON è «no».
+ *  Resta per le pagine che leggono ancora le due colonne di sempre. */
+export function arrivoTesta(checkInTime: string | null | undefined, shuttle: string | null | undefined): ArrivoTesta {
   const ora = (checkInTime ?? '').trim()
   const s = (shuttle ?? '').trim()
   return {

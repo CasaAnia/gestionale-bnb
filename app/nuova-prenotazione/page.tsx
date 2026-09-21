@@ -34,7 +34,7 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import type { StrutturaNota } from '@/lib/provenienza'
 import CameraSoggiorno from '@/components/nuova/CameraSoggiorno'
 import ArrivoNavetta from '@/components/ArrivoNavetta'
-import { ARRIVO_VUOTO, campiArrivo, controllaArrivo, normalizza, type Arrivo } from '@/lib/arrivo'
+import { ARRIVO_VUOTO, campiArrivo, controllaArrivo, type Arrivo } from '@/lib/arrivo'
 import NotteScelta from '@/components/nuova/NotteScelta'
 import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo, OTTONE as OTTONE_PEZZI } from '@/components/nuova/PezziNuova'
 import {
@@ -475,7 +475,7 @@ export default function NuovaPrenotazionePage() {
       // Arrivo e navetta (21/09/2026): le colonne nuove PIÙ le due di
       // sempre, tenute vere. Se la 0058 non è ancora applicata il server
       // rifiuta la riga e `salvaPrenotazione` riprova senza le nuove.
-      ...campiArrivo(normalizza(arrivo)),
+      ...campiArrivo(arrivo),
       ...campiConLei(persone),
     }
     const primo = [...periodiColLetto].sort((a, z) => a.checkIn.localeCompare(z.checkIn))[0]?.id
