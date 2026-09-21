@@ -1,5 +1,34 @@
 # Scheda attiva — «Arrivo e navetta» (21 settembre 2026) — PUBBLICATO
 
+## «Gentile [Nome],» in TUTTI i messaggi (Ania, 21/09/2026 sera) — FATTO IN LOCALE
+
+Ania vedeva ancora comparire il cognome dopo «Gentile». Regola nuova, unica e
+senza eccezioni: **ogni messaggio all'ospite comincia col solo nome**, compresa
+la conferma di solo testo. Cade l'eccezione del 12/09 («nome e cognome nel
+documento ufficiale»).
+
+**Causa vera.** Nei nove messaggi della scheda (`buildWhatsappMsg`, in
+`lib/messaggiPrenotazione.ts` e nella sua copia in `app/prenotazioni/[id]`) il
+saluto usava il nominativo INTERO: la correzione del 12/09 era stata scritta
+nella scheda ma non applicata al file. Nel testo che accompagna l'immagine il
+taglio c'era già, ma cadeva su tre dati: nominativo di una parola sola
+(«Monda»), cognome davanti («De Luca Anna») e nessun nome (si finiva col
+numero di telefono).
+
+**Come è fatta adesso.** Un posto solo: `salutoOspite` in `lib/guestName.ts`
+per le prenotazioni, `salutoDaCampoNome` per le richieste (che hanno il campo
+nome separato: «Maria Grazia» non si taglia). Quando il nome non si ricava il
+messaggio non sembra pronto — «Manca il nome della cliente» e i tasti di
+WhatsApp spenti (`lib/avvisoSaluto`). Il cognome resta dov'è identificazione:
+causale del bonifico, nome grande dell'immagine, elenchi, calendario, scheda.
+
+Prove: suite **1753 verde**, TypeScript, `next build` e lint puliti; e nelle
+anteprime senza rete i nove messaggi della scheda nuova e di quella vecchia,
+il testo della conferma con immagine, «Richiesta orario» dalla Home e la
+proposta di una richiesta. Niente push, niente messaggi veri, database non
+toccato.
+
+
 ## Due correzioni dopo la pubblicazione (21/09/2026 sera)
 
 Viste da Ania sul telefono, sul pubblicato. `main` a **`dca7424`**,
@@ -475,61 +504,32 @@ della prenotazione). Il file è in carico a chi sta lavorando sulla scheda:
 **lo cambia quella attività prima di chiudere**. Non toccare gli altri usi di
 `#C0392B` in quel file: gli avvisi «numero già usato» restano come sono.
 
-## Da fare in `app/prenotazioni/[id]/page.tsx` — come si chiama la cliente (Ania, 12/09/2026)
+## ~~Come si chiama la cliente nei messaggi (Ania, 12/09/2026)~~ — SUPERATA il 21/09/2026
 
-Regola nuova, decisa da Ania: nella **conferma SENZA immagine** (quella di solo
-testo) si scrive **nome e cognome**, in quest'ordine; in **tutti gli altri
-messaggi** si scrive **solo il nome** — sono messaggi di tutti i giorni e devono
-suonare meno ufficiali. Senza cognome la conferma usa il solo nome, senza spazi
-doppi né virgole vuote. Le maiuscole restano quelle salvate sulla cliente e il
-resto dei testi non si tocca: sono approvati parola per parola.
+**Storico, non più valida.** Questa sezione descriveva la regola del
+12 settembre: nella conferma SENZA immagine nome e cognome, in tutti gli altri
+messaggi il solo nome. Il 21 settembre Ania ha tolto quell'eccezione:
 
-La regola sta già scritta in un posto solo, `lib/guestName` (commit `e5f932b`):
+> Ogni messaggio comincia con **«Gentile [Nome],»**, il solo nome. Anche la
+> conferma di solo testo. Mai «Gentile Rossi,», mai «Gentile Anna Rossi,»,
+> mai «Gentile signora Rossi,».
 
-- `nomeECognomeMessaggio(n)` → nome e cognome, ripuliti: per la conferma senza immagine;
-- `soloNomeMessaggio(n)` → la prima parola del nominativo: per tutti gli altri.
+Quello che era rimasto da fare qui (i sei saluti di `buildWhatsappMsg` che
+usavano ancora il nominativo intero) è stato fatto insieme al resto, e per tutti
+e nove i messaggi. La regola sta in un posto solo, `lib/guestName`:
 
-Già applicata fuori da questo file: arrivo/«Richiesta orario»
-(`lib/messaggiWhatsApp`, vale sia per il tasto della scheda sia per quello della
-Home), conferma CON immagine (`components/ConfermaWhatsApp`), ringraziamento
-della notifica di partenza (`app/api/push/ringraziamento`). Le proposte alle
-richieste usavano già il solo nome.
+- `salutoOspite(prenotazione)` → il nome del saluto di una prenotazione;
+- `salutoDaCampoNome(nome)` → per le richieste dal sito, che hanno il campo
+  nome già separato: lì non si taglia niente («Maria Grazia» resta intero).
 
-**Qui manca ancora**, dentro `buildWhatsappMsg`. Oggi la riga in cima è
+`nomeECognomeMessaggio` e `soloNomeMessaggio` non esistono più. Le prove stanno
+in `lib/guestName.test.ts` e `lib/salutoMessaggi.test.ts`, che fa uscire i testi
+veri da tutti i generatori e ne guarda la prima riga.
 
-```ts
-const name = nomePerMessaggio(nomeOspite(b))
-```
-
-e `${name}` finisce in tutti i messaggi. Va diventata:
-
-```ts
-const name = nomeECognomeMessaggio(nomeOspite(b))   // solo per 'conferma'
-const nome = soloNomeMessaggio(name)                // per tutti gli altri
-```
-
-e poi, nei sei messaggi qui sotto, `Gentile ${name},` diventa `Gentile ${nome},`:
-
-| messaggio | `type` | riga del saluto |
-|---|---|---|
-| Modifica prenotazione | `modifica` | `Gentile ${name},` |
-| Annullamento | (ultimo `return`) | `Gentile ${name},` |
-| Dati bonifico (richiesta di pagamento) | `dati_bonifico` | `Gentile ${name},` |
-| Promemoria bonifico | `promemoria_bonifico` | `Gentile ${name},` |
-| Pagamento ricevuto | `pagamento_ricevuto` | `Gentile ${name},` |
-| Ringraziamento | `ringraziamento` | `Gentile ${name},` |
-
-**Non cambiare** la conferma (`type === 'conferma'`): lì `${name}` resta nome e
-cognome. E `richiesta_orario` è già a posto: il taglio al solo nome si fa dentro
-`messaggioRichiestaOrario`, non qui.
-
-Nota: finché il ringraziamento di questo file non cambia, il suo saluto è
-diverso da quello della notifica di partenza (che dice già il solo nome). È lo
-stesso testo in due punti: allineandolo qui tornano identici.
-
-Il file non è stato toccato perché è in carico a un'altra attività; le
-modifiche non salvate che porta (`app/prenotazioni/[id]/page.tsx`,
-`lib/condizioniPrenotazione.ts`) non sono state incluse in nessun commit.
+Quando il nome non si ricava (nominativo vuoto, solo un numero di telefono,
+cognome davanti come «De Luca Anna») il messaggio non si fa passare per pronto:
+compare «Manca il nome della cliente» e i tasti che aprono WhatsApp restano
+spenti (`lib/avvisoSaluto`, `components/AvvisoSaluto`).
 
 ## Veste della pagina delle Richieste (12/09/2026, Claude)
 

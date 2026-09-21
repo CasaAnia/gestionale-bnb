@@ -83,7 +83,10 @@ test('ogni tasto dà il suo messaggio, col nome della cliente', () => {
   const b = prenotazione()
   const conferma = buildWhatsappMsg(b, 'conferma')
   assert.match(conferma, /^CONFERMA DI PRENOTAZIONE – CASA ANIA/)
-  assert.match(conferma, /Gentile Carmela Sabia,/)
+  // Anche la conferma di solo testo saluta col SOLO nome (Ania, 21/09/2026):
+  // la vecchia eccezione «nome e cognome» non c'è più
+  assert.match(conferma, /Gentile Carmela,/)
+  assert.equal(conferma.includes('Gentile Carmela Sabia,'), false)
   assert.match(conferma, /Notti: \*2\*/)
   assert.match(conferma, /Totale soggiorno: 160,00 €/)
   assert.match(buildWhatsappMsg(b, 'modifica'), /^MODIFICA PRENOTAZIONE – CASA ANIA/)
@@ -93,7 +96,7 @@ test('ogni tasto dà il suo messaggio, col nome della cliente', () => {
   assert.match(buildWhatsappMsg(b, 'pagamento_ricevuto'), /ho ricevuto il suo pagamento/)
   assert.match(buildWhatsappMsg(b, 'ringraziamento'), /lasciandoci una recensione su Google/)
   // «Richiesta orario» è lo stesso testo della Home, scritto in un posto solo
-  assert.equal(buildWhatsappMsg(b, 'richiesta_orario'), messaggioRichiestaOrario('Carmela Sabia'))
+  assert.equal(buildWhatsappMsg(b, 'richiesta_orario'), messaggioRichiestaOrario('Carmela'))
   // «Messaggio libero» apre la chat senza testo
   assert.equal(buildWhatsappMsg(b, 'libero'), '')
 })

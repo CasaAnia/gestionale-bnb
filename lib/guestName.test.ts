@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { nomeCompleto, nomeBreve, nomeOspite, nomeECognomeMessaggio, soloNomeMessaggio, spezzaNome } from './guestName.ts'
+import { nomeCompleto, nomeBreve, spezzaNome, salutoDaNominativo, salutoDaCampoNome, salutoOspite, NOME_DA_CONTROLLARE } from './guestName.ts'
 
 // «Nome Cognome» ovunque, mai «Cognome Nome»
 test('nomeCompleto: nome e cognome, nell\'ordine giusto e senza spazi doppi', () => {
@@ -34,113 +34,174 @@ test('nomeBreve: «Nome C.» per le barre strette', () => {
   assert.equal(nomeBreve({ nome: '', cognome: '' }), '')
 })
 
-// ── COME SI CHIAMA LA CLIENTE NEI MESSAGGI (Ania, 12/09/2026) ──────────────
-// Conferma senza immagine: nome e cognome, in quest'ordine. Tutti gli altri
-// messaggi: solo il nome.
+// ── IL SALUTO DEI MESSAGGI (Ania, 21/09/2026) ──────────────────────────────
+// Regola unica: «Gentile [Nome],» — il solo nome, in TUTTI i messaggi.
+// La vecchia eccezione del 12/09/2026 (nome e cognome nella conferma senza
+// immagine) è superata: non deve tornare, e la guardia in fondo lo controlla.
 
-test('conferma senza immagine: nome e cognome, prima il nome', () => {
-  assert.equal(nomeECognomeMessaggio('Anna Rossi'), 'Anna Rossi')
-  // le maiuscole restano quelle salvate sulla cliente
-  assert.equal(nomeECognomeMessaggio('Anna De Luca'), 'Anna De Luca')
-  assert.equal(nomeECognomeMessaggio('anna rossi'), 'anna rossi')
-  // il nominativo della prenotazione vince su quello della scheda
-  assert.equal(nomeECognomeMessaggio(nomeOspite({ guest_name: 'Anna Rossi', guests: { full_name: 'Mario Bianchi' } })), 'Anna Rossi')
-})
-
-test('conferma senza immagine senza cognome: solo il nome, senza spazi doppi', () => {
-  assert.equal(nomeECognomeMessaggio('Anna'), 'Anna')
-  assert.equal(nomeECognomeMessaggio('  Anna  '), 'Anna')
-  // spazi doppi in mezzo e caratteri invisibili non lasciano buchi nel saluto
-  assert.equal(nomeECognomeMessaggio('Anna  Rossi'), 'Anna Rossi')
-  assert.equal(nomeECognomeMessaggio('️Anna'), 'Anna')
-  assert.equal(nomeECognomeMessaggio(''), '')
-  assert.equal(nomeECognomeMessaggio(null), '')
-  // niente virgole vuote: «Gentile Anna,» resta pulito
-  assert.equal(`Gentile ${nomeECognomeMessaggio('Anna')},`, 'Gentile Anna,')
-})
-
-test('tutti gli altri messaggi: solo il nome', () => {
-  assert.equal(soloNomeMessaggio('Anna Rossi'), 'Anna')
-  assert.equal(soloNomeMessaggio('Anna De Luca'), 'Anna')
-  // senza cognome non cambia nulla
-  assert.equal(soloNomeMessaggio('Anna'), 'Anna')
-  assert.equal(soloNomeMessaggio('  Anna  Rossi '), 'Anna')
-  assert.equal(soloNomeMessaggio('️Anna Rossi'), 'Anna')
-  assert.equal(soloNomeMessaggio(''), '')
-  assert.equal(soloNomeMessaggio(null), '')
-  assert.equal(soloNomeMessaggio(undefined), '')
+test('il nome del saluto da un campo unico «Nome Cognome»', () => {
+  assert.equal(salutoDaNominativo('Anna Rossi').nome, 'Anna')
+  assert.equal(salutoDaNominativo('Anna Rossi').sicuro, true)
+  // nome composto: non si taglia
+  assert.equal(salutoDaNominativo('Maria Grazia Rossi').nome, 'Maria Grazia')
+  assert.equal(salutoDaNominativo('Maria Grazia Anna Rossi').nome, 'Maria Grazia Anna')
+  // cognome composto: la particella tira con sé tutto il resto
+  assert.equal(salutoDaNominativo('Anna Maria De Luca').nome, 'Anna Maria')
+  assert.equal(salutoDaNominativo('Anna De Luca').nome, 'Anna')
+  assert.equal(salutoDaNominativo('Gianni La Rosa').nome, 'Gianni')
+  assert.equal(salutoDaNominativo('Jan Van Der Berg').nome, 'Jan')
+  for (const p of ['de', 'di', 'da', 'del', 'della', 'dello', 'dei', 'degli', 'la', 'lo', 'van', 'von']) {
+    assert.equal(salutoDaNominativo(`Anna ${p} Qualcosa`).nome, 'Anna', `particella «${p}»`)
+  }
   // le maiuscole restano quelle salvate
-  assert.equal(soloNomeMessaggio('ANNA ROSSI'), 'ANNA')
+  assert.equal(salutoDaNominativo('ANNA MARIA DE LUCA').nome, 'ANNA MARIA')
+  assert.equal(salutoDaNominativo('anna maria de luca').nome, 'anna maria')
 })
 
-test('i messaggi di tutti i giorni salutano col solo nome', () => {
+test('accenti, apostrofi e trattini non si toccano', () => {
+  assert.equal(salutoDaNominativo('Niccolò D’Angelo').nome, 'Niccolò')
+  assert.equal(salutoDaNominativo('Anna-Maria Rossi').nome, 'Anna-Maria')
+  assert.equal(salutoDaNominativo('José Muñoz').nome, 'José')
+  assert.equal(salutoDaNominativo('Anna D’Angelo Rossi').nome, 'Anna D’Angelo')
+})
+
+test('spazi doppi e caratteri invisibili spariscono dal saluto', () => {
+  assert.equal(salutoDaNominativo('  Anna   Rossi ').nome, 'Anna')
+  assert.equal(salutoDaNominativo('️Anna Rossi').nome, 'Anna')
+  assert.equal(salutoDaNominativo('​Anna‍ Maria  Rossi').nome, 'Anna Maria')
+  assert.equal(`Gentile ${salutoDaNominativo('  Maria   Grazia  Rossi ').nome},`, 'Gentile Maria Grazia,')
+})
+
+test('una parola sola: si saluta con quella, ma il nome resta da controllare', () => {
+  // «Anna» è quasi sempre il nome, «Monda» quasi sempre il cognome: da qui
+  // non si distinguono, quindi si saluta e si chiede di controllare
+  for (const solo of ['Anna', 'Monda', 'Rossi']) {
+    const s = salutoDaNominativo(solo)
+    assert.equal(s.nome, solo)
+    assert.equal(s.sicuro, false)
+    assert.equal(s.daCompletare, false)
+  }
+})
+
+test('niente «Gentile undefined», «Gentile null», «Gentile ,», «Gentile 342…»', () => {
+  for (const vuoto of ['', '   ', null, undefined]) {
+    const s = salutoDaNominativo(vuoto)
+    assert.equal(s.nome, NOME_DA_CONTROLLARE)
+    assert.equal(s.daCompletare, true)
+  }
+  // nomeOspite ripiega sul telefono o su «Ospite»: nessuno dei due è un nome
+  for (const finto of ['3427004354', '+39 342 700 4354', '342 700 4354', 'Ospite']) {
+    assert.equal(salutoDaNominativo(finto).daCompletare, true, finto)
+  }
+  // e in nessun caso il saluto resta vuoto
+  for (const x of ['', null, undefined, '342 700 4354', 'Ospite', 'Anna Rossi', 'De Luca Anna']) {
+    assert.notEqual(salutoDaNominativo(x).nome.trim(), '')
+    assert.equal(`Gentile ${salutoDaNominativo(x).nome},`.includes('Gentile ,'), false)
+    assert.equal(`Gentile ${salutoDaNominativo(x).nome},`.includes('undefined'), false)
+  }
+})
+
+test('cognome davanti: non si spaccia il cognome per nome', () => {
+  // la particella in testa dice che l'ordine è rovesciato
+  for (const rovesciato of ['De Luca Anna', 'La Rosa Maria', 'Di Pietro Marco', 'De Luca']) {
+    const s = salutoDaNominativo(rovesciato)
+    assert.equal(s.daCompletare, true, rovesciato)
+    assert.equal(s.nome, NOME_DA_CONTROLLARE)
+    assert.equal(s.nome.includes('Luca'), false)
+  }
+})
+
+test('campo nome già separato: non si taglia niente', () => {
+  assert.deepEqual(salutoDaCampoNome('Maria Grazia'), { nome: 'Maria Grazia', sicuro: true, daCompletare: false })
+  assert.equal(salutoDaCampoNome('Anna Maria').nome, 'Anna Maria')
+  assert.equal(salutoDaCampoNome('  Anna  ').nome, 'Anna')
+  assert.equal(salutoDaCampoNome('️Anna').nome, 'Anna')
+  assert.equal(salutoDaCampoNome('').daCompletare, true)
+  assert.equal(salutoDaCampoNome(null).daCompletare, true)
+  assert.equal(salutoDaCampoNome('3427004354').daCompletare, true)
+})
+
+// ── Il saluto di UNA prenotazione ───────────────────────────────────────────
+test('vale il nominativo della prenotazione, non quello della scheda cliente', () => {
+  // persone diverse sullo stesso telefono: si saluta chi ha prenotato
+  assert.equal(salutoOspite({ guest_name: 'Anna Rossi', guests: { full_name: 'Mario Bianchi' } }).nome, 'Anna')
+  assert.equal(salutoOspite({ guest_name: 'Maria Grazia Conti', guests: { full_name: 'Mario Bianchi' } }).nome, 'Maria Grazia')
+  // prenotazioni vecchie senza guest_name: vale la scheda, come da sempre
+  assert.equal(salutoOspite({ guests: { full_name: 'Carmela Sabia' } }).nome, 'Carmela')
+  assert.equal(salutoOspite({ guest_name: null, guests: { full_name: 'Anna Maria De Luca' } }).nome, 'Anna Maria')
+  // il nome di chi dorme in camera con lei non entra mai nel saluto
+  const conAltri = { guest_name: 'Luca Tassone', extra_phone_1_name: 'Massimo Tassone', guests: { full_name: 'Luca Tassone' } }
+  assert.equal(salutoOspite(conAltri).nome, 'Luca')
+})
+
+test('la scheda cliente aiuta solo quando è la STESSA persona', () => {
+  // solo il cognome sulla prenotazione, nome e cognome sulla scheda
+  assert.equal(salutoOspite({ guest_name: 'Monda', guests: { full_name: 'Simona Monda' } }).nome, 'Simona')
+  // nominativo storico al contrario, raddrizzato dalla scheda
+  assert.equal(salutoOspite({ guest_name: 'Rossi Anna', guests: { full_name: 'Anna Rossi' } }).nome, 'Anna')
+  assert.equal(salutoOspite({ guest_name: 'De Luca Anna', guests: { full_name: 'Anna De Luca' } }).nome, 'Anna')
+  // ma se la scheda parla di un'altra persona non si usa: resta il dubbio
+  assert.equal(salutoOspite({ guest_name: 'Monda', guests: { full_name: 'Mario Bianchi' } }).nome, 'Monda')
+  assert.equal(salutoOspite({ guest_name: 'Monda', guests: { full_name: 'Mario Bianchi' } }).sicuro, false)
+  assert.equal(salutoOspite({ guest_name: 'De Luca Anna', guests: { full_name: 'Mario Bianchi' } }).daCompletare, true)
+})
+
+test('senza nessun nome il saluto è da completare, mai il numero di telefono', () => {
+  assert.equal(salutoOspite({ guests: { phone: '+39 342 700 4354' } }).daCompletare, true)
+  assert.equal(salutoOspite({}).daCompletare, true)
+  assert.equal(salutoOspite(null).daCompletare, true)
+  assert.equal(salutoOspite({ guests: { phone: '3427004354' } }).nome.includes('342'), false)
+})
+
+// ── Tutti i generatori passano di qui ──────────────────────────────────────
+test('ogni messaggio all’ospite saluta col SOLO nome, da salutoOspite', () => {
   const leggi = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
 
-  // 1. Arrivo («Richiesta orario»), sia dalla scheda sia dalla Home: il taglio
-  //    sta dentro al testo, così i due tasti mandano le stesse parole
+  // 1. Arrivo («Richiesta orario»), sia dalla scheda sia dalla Home: il nome
+  //    arriva già pronto, così non si taglia due volte «Maria Grazia»
   const arrivo = leggi('lib/messaggiWhatsApp.ts')
-  assert.match(arrivo, /const nome = soloNomeMessaggio\(name\)/)
-  assert.match(arrivo, /Gentile \$\{nome\},/)
+  assert.match(arrivo, /export function messaggioRichiestaOrario\(nomeSaluto: string\)/)
+  assert.match(arrivo, /Gentile \$\{nomeSaluto\},/)
+  assert.match(arrivo, /messaggioRichiestaOrario\(salutoOspite\(b\)\.nome\)/)
 
   // 2. Conferma CON immagine: saluto col solo nome; il nominativo intero resta
   //    all'immagine e alla causale del bonifico
   const conferma = leggi('components/ConfermaWhatsApp.tsx')
-  assert.match(conferma, /const nomeSaluto = soloNomeMessaggio\(nome\)/)
+  assert.match(conferma, /const saluto = salutoOspite\(booking\)/)
   assert.match(conferma, /Gentile \$\{nomeSaluto\},/)
   assert.match(conferma, /causaleBonifico\(segmenti, nome\)/)
 
   // 3. Ringraziamento mandato dalla notifica di partenza
   const ringrazia = leggi('app/api/push/ringraziamento/route.ts')
-  assert.match(ringrazia, /const nome = soloNomeMessaggio\(name\)/)
-  assert.match(ringrazia, /Gentile \$\{nome\},/)
+  assert.match(ringrazia, /buildRingraziamentoMsg\(salutoOspite\(b\)\.nome\)/)
+  assert.match(ringrazia, /Gentile \$\{nomeSaluto\},/)
 
   // 4. Proposte alle richieste: la richiesta ha nome e cognome separati e il
-  //    testo prende da sempre il solo nome. Che resti così.
+  //    campo nome non si taglia
   const proposte = leggi('lib/richiesteTesti.ts')
-  assert.match(proposte, /export function apertura\(nome: string\)/)
+  assert.match(proposte, /Gentile \$\{salutoDaCampoNome\(nome\)\.nome\},/)
   assert.equal(/apertura\(nomeCompleto/.test(proposte), false)
   const pagina = leggi('app/richieste/[id]/proposta/page.tsx')
   assert.equal(/generaProposta\([^)]*nomeCompleto/.test(pagina), false)
-})
 
-// Il nome non è per forza una parola sola (Ania, 12/09/2026)
-test('nome di due parole: il cognome è solo l’ultima', () => {
-  assert.equal(soloNomeMessaggio('Maria Grazia Rossi'), 'Maria Grazia')
-  assert.equal(soloNomeMessaggio('Anna Maria Bianchi'), 'Anna Maria')
-  // tre nomi e un cognome: resta tutto il nome
-  assert.equal(soloNomeMessaggio('Maria Grazia Anna Rossi'), 'Maria Grazia Anna')
-  // e il caso normale non cambia
-  assert.equal(soloNomeMessaggio('Anna Rossi'), 'Anna')
-})
-
-test('con una particella, da lì in poi è tutto cognome', () => {
-  assert.equal(soloNomeMessaggio('Anna Maria De Luca'), 'Anna Maria')
-  assert.equal(soloNomeMessaggio('Anna De Luca'), 'Anna')
-  assert.equal(soloNomeMessaggio('Marco Di Pietro'), 'Marco')
-  assert.equal(soloNomeMessaggio('Gianni La Rosa'), 'Gianni')
-  assert.equal(soloNomeMessaggio('Maria Grazia Della Valle'), 'Maria Grazia')
-  assert.equal(soloNomeMessaggio('Jan Van Der Berg'), 'Jan')
-  assert.equal(soloNomeMessaggio('Klaus Von Neumann'), 'Klaus')
-  // la particella si riconosce anche tutta maiuscola o tutta minuscola
-  assert.equal(soloNomeMessaggio('ANNA MARIA DE LUCA'), 'ANNA MARIA')
-  assert.equal(soloNomeMessaggio('anna maria de luca'), 'anna maria')
-  // tutte le particelle della lista
-  for (const p of ['de', 'di', 'da', 'del', 'della', 'dello', 'dei', 'degli', 'la', 'lo', 'van', 'von']) {
-    assert.equal(soloNomeMessaggio(`Anna ${p} Qualcosa`), 'Anna', `particella «${p}»`)
+  // 5. I nove messaggi della scheda, nei DUE file che li tengono identici
+  for (const f of ['lib/messaggiPrenotazione.ts', 'app/prenotazioni/[id]/page.tsx']) {
+    const src = leggi(f)
+    assert.match(src, /const nome = salutoOspite\(b\)\.nome/, f)
+    assert.equal(/Gentile \$\{name\},/.test(src), false, `${f}: un saluto usa ancora il nominativo intero`)
+    assert.equal((src.match(/Gentile \$\{nome\},/g) || []).length, 7, `${f}: i sette saluti`)
+    // il nominativo intero resta dov'è identificazione, non saluto
+    assert.match(src, /causaleBonifico\(segmenti, name\)/, f)
   }
-})
 
-test('quando non resta niente si saluta con quello che c’è, mai «Gentile ,»', () => {
-  // una parola sola: è il nome
-  assert.equal(soloNomeMessaggio('Anna'), 'Anna')
-  // solo il cognome con la sua particella: meglio quello che niente
-  assert.equal(soloNomeMessaggio('De Luca'), 'De Luca')
-  assert.equal(soloNomeMessaggio('Rossi'), 'Rossi')
-  assert.equal(soloNomeMessaggio(''), '')
-  assert.equal(soloNomeMessaggio(null), '')
-  // spazi doppi e caratteri invisibili non cambiano il conto delle parole
-  assert.equal(soloNomeMessaggio('  Maria   Grazia  Rossi '), 'Maria Grazia')
-  assert.equal(soloNomeMessaggio('️Anna Maria De Luca'), 'Anna Maria')
+  // 6. La vecchia eccezione non deve tornare da nessuna parte: le due
+  //    funzioni che la reggevano non esistono più e nessuno le chiama.
+  //    (Nel commento di lib/guestName restano NOMINATE come storico superato.)
+  assert.equal(/export function (soloNomeMessaggio|nomeECognomeMessaggio)/.test(leggi('lib/guestName.ts')), false)
+  for (const f of ['lib/guestName.ts', 'lib/messaggiWhatsApp.ts', 'lib/messaggiPrenotazione.ts', 'lib/richiesteTesti.ts',
+    'app/prenotazioni/[id]/page.tsx', 'components/ConfermaWhatsApp.tsx', 'app/api/push/ringraziamento/route.ts']) {
+    assert.equal(/(nomeECognomeMessaggio|soloNomeMessaggio)\(/.test(leggi(f)), false, `${f}: torna la regola vecchia`)
+  }
 })
 
 // ── spezzaNome (16/09/2026): il nominativo salvato nei due campi del foglio ──

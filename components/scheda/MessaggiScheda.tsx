@@ -28,6 +28,9 @@
 // identici a quelli della scheda attuale, approvati parola per parola.
 // ============================================================================
 import InterruttorePillola from '@/components/InterruttorePillola'
+import AvvisoSaluto from '@/components/AvvisoSaluto'
+import { avvisoSaluto } from '@/lib/avvisoSaluto'
+import type { Saluto } from '@/lib/guestName'
 import { type TipoMessaggio } from '@/lib/messaggiPrenotazione'
 import {
   TUTTI_I_MESSAGGI, messaggiUtili, type FaseMessaggi, type VoceMessaggio,
@@ -59,9 +62,12 @@ const TASTO_ANNULLAMENTO = {
   minHeight: 38,
 }
 
-export default function MessaggiScheda({ fase, business, onBusiness, onConfermaImmagine, href, onMessaggio, className = '' }: {
+export default function MessaggiScheda({ fase, saluto, business, onBusiness, onConfermaImmagine, href, onMessaggio, className = '' }: {
   /** la fase del soggiorno intero (lib/messaggiFase.faseMessaggi) */
   fase: FaseMessaggi
+  /** il nome che finisce dopo «Gentile» (lib/guestName.salutoOspite): quando
+   *  non si ricava, l'avviso lo dice e i tasti restano spenti */
+  saluto: Saluto
   business: boolean
   onBusiness: (v: boolean) => void
   onConfermaImmagine: () => void
@@ -71,11 +77,16 @@ export default function MessaggiScheda({ fase, business, onBusiness, onConfermaI
   className?: string
 }) {
   const utili = messaggiUtili(fase)
+  // Senza un nome da scrivere dopo «Gentile» nessun messaggio è pronto: le
+  // pastiglie restano lì, ma spente, e l'avviso sopra dice cosa fare.
+  const bloccato = avvisoSaluto(saluto)?.blocca === true
   // una pastiglia, uguale dappertutto: cambia solo se sta a sinistra o al centro
   const pastiglia = (m: VoceMessaggio, aSinistra: boolean) => (
-    <a key={m.tipo} href={href(m.tipo)} onClick={onMessaggio(m.tipo)} target="_blank" rel="noopener noreferrer"
-      data-messaggio={m.tipo}
-      className={`inline-flex items-center transition-transform duration-100 active:scale-[0.97] ${aSinistra ? 'justify-start px-4' : 'justify-center px-3 text-center'}`}
+    <a key={m.tipo} href={bloccato ? undefined : href(m.tipo)}
+      onClick={bloccato ? (e: React.MouseEvent) => e.preventDefault() : onMessaggio(m.tipo)}
+      target="_blank" rel="noopener noreferrer"
+      data-messaggio={m.tipo} aria-disabled={bloccato || undefined}
+      className={`inline-flex items-center transition-transform duration-100 active:scale-[0.97] ${bloccato ? 'pointer-events-none opacity-40' : ''} ${aSinistra ? 'justify-start px-4' : 'justify-center px-3 text-center'}`}
       style={m.tipo === 'annullamento' ? TASTO_ANNULLAMENTO : aSinistra ? TASTO_UTILE : TASTO}>
       {m.label}
     </a>
@@ -90,6 +101,8 @@ export default function MessaggiScheda({ fase, business, onBusiness, onConfermaI
         nome="Quale WhatsApp"
         dati="whatsapp"
       />
+
+      <AvvisoSaluto saluto={saluto} className="mt-3" />
 
       {/* La conferma con IMMAGINE E TESTO: sempre qui in cima, in ogni fase.
           Larga quanto la scritta e centrata, non quanto la riga (Ania,

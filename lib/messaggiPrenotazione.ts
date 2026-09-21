@@ -12,7 +12,7 @@
 // importarla da qui, così il testo resta scritto in un posto solo.
 // ============================================================================
 import { comePagaSalvato } from './comePaga.ts'
-import { nomeOspite, nomePerMessaggio } from './guestName.ts'
+import { nomeOspite, nomePerMessaggio, salutoOspite } from './guestName.ts'
 import { roomWithType, lettoInclusoNellaCamera } from './roomTypes.ts'
 import { contoSoggiorno, residuoDaPagare } from './conto.ts'
 import { dettaglioNottiSalvato, testoDettaglioNotti } from './prezzoNotti.ts'
@@ -71,6 +71,11 @@ function roomPageLink(roomName: string): string | null {
 }
 
 export default function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero', gruppo: any[] = [], acconti: any[] = []) {
+  // Il SALUTO di ogni messaggio è il solo nome (Ania, 21/09/2026), e lo
+  // decide un posto solo: salutoOspite in lib/guestName. `name` resta il
+  // nominativo INTERO, che serve a identificare la prenotazione nella causale
+  // del bonifico: lì il cognome ci vuole.
+  const nome = salutoOspite(b).nome
   const name = nomePerMessaggio(nomeOspite(b))
   const room = b.rooms?.name || ''
   // Nome con tipologia (es. "Amelia – Singola"): solo nei messaggi al cliente
@@ -187,7 +192,7 @@ Casa Ania`
     return `CONFERMA DI PRENOTAZIONE – CASA ANIA
 ${SOTTOTITOLO_STRUTTURA}
 
-Gentile ${name},
+Gentile ${nome},
 
 grazie per averci scelto. Sono felice di confermarle il soggiorno e sarà un piacere accoglierla. 🌿
 
@@ -227,7 +232,7 @@ A presto,
     return `MODIFICA PRENOTAZIONE – CASA ANIA
 ${SOTTOTITOLO_STRUTTURA}
 
-Gentile ${name},
+Gentile ${nome},
 
 la sua prenotazione è stata modificata.
 Di seguito trova il riepilogo aggiornato del soggiorno.
@@ -252,7 +257,7 @@ Per qualsiasi domanda sono a sua disposizione:
 ${firmaFormale}`
   }
   if (type === 'dati_bonifico') {
-    return `Gentile ${name},
+    return `Gentile ${nome},
 
 come da accordi, le invio i dati per il pagamento tramite bonifico bancario.
 
@@ -269,7 +274,7 @@ Ania`
   }
 
   if (type === 'promemoria_bonifico') {
-    return `Gentile ${name},
+    return `Gentile ${nome},
 
 le scrivo solo per ricordarle che non ho ancora ricevuto il bonifico relativo al soggiorno dal *${formatDateShort(cin)}* al *${formatDateShort(cout)}*.
 
@@ -289,7 +294,7 @@ Ania`
 
   if (type === 'richiesta_orario') {
     // Testo unico con la Home «Da controllare» (lib/messaggiWhatsApp)
-    return messaggioRichiestaOrario(name)
+    return messaggioRichiestaOrario(nome)
   }
 
   if (type === 'libero') {
@@ -297,7 +302,7 @@ Ania`
   }
 
   if (type === 'ringraziamento') {
-    return `Gentile ${name},
+    return `Gentile ${nome},
 
 grazie per aver soggiornato da noi. È stato un piacere averla come nostra ospite e spero che si sia trovata bene. 🌿
 
@@ -317,7 +322,7 @@ Ania`
   }
 
   if (type === 'pagamento_ricevuto') {
-    return `Gentile ${name},
+    return `Gentile ${nome},
 
 ho ricevuto il suo pagamento. Grazie. ✓
 
@@ -335,7 +340,7 @@ Ania`
   return `ANNULLAMENTO PRENOTAZIONE – CASA ANIA
 ${SOTTOTITOLO_STRUTTURA}
 
-Gentile ${name},
+Gentile ${nome},
 
 le confermo che la sua prenotazione è stata annullata.
 

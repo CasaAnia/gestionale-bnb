@@ -18,10 +18,12 @@ import ConfermaWhatsApp from '@/components/ConfermaWhatsApp'
 import { MessageCircle, Phone, Pencil } from 'lucide-react'
 import v from '@/app/nuova/nuova.module.css'
 import { openWhatsApp } from '@/lib/whatsapp'
+import AvvisoSaluto from '@/components/AvvisoSaluto'
+import { avvisoSaluto } from '@/lib/avvisoSaluto'
 import { messaggioRichiestaOrario, numeroWhatsAppPrenotazione, waHrefTesto } from '@/lib/messaggiWhatsApp'
 import BackBar from '@/components/BackBar'
 import { RigaDocumentiPrenotazione } from '@/components/DocumentiCliente'
-import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio, nomeConAltri } from '@/lib/guestName'
+import { nomeOspite, nomeDiverso, nomiPrecedenti, nomePerMessaggio, nomeConAltri, salutoOspite } from '@/lib/guestName'
 import { causaleBonifico } from '@/lib/causale'
 import { dataItaliana, periodoCompatto, giornoMese } from '@/lib/dateItaliane'
 import { GIORNI_PREAVVISO_CANCELLAZIONE } from '@/lib/condizioniPrenotazione'
@@ -117,6 +119,11 @@ function roomPageLink(roomName: string): string | null {
 // usano la formula ufficiale "CASA ANIA / precedentemente Casa Granata Humanitas".
 // La causale del bonifico è quella corta condivisa con la locandina (lib/causale.ts).
 function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento' | 'dati_bonifico' | 'pagamento_ricevuto' | 'promemoria_bonifico' | 'richiesta_orario' | 'ringraziamento' | 'libero', gruppo: any[] = [], acconti: any[] = []) {
+  // Il SALUTO di ogni messaggio è il solo nome (Ania, 21/09/2026), e lo
+  // decide un posto solo: salutoOspite in lib/guestName. `name` resta il
+  // nominativo INTERO, che serve a identificare la prenotazione nella causale
+  // del bonifico: lì il cognome ci vuole.
+  const nome = salutoOspite(b).nome
   const name = nomePerMessaggio(nomeOspite(b))
   const room = b.rooms?.name || ''
   // Nome con tipologia (es. "Amelia – Singola"): solo nei messaggi al cliente
@@ -233,7 +240,7 @@ Casa Ania`
     return `CONFERMA DI PRENOTAZIONE – CASA ANIA
 ${SOTTOTITOLO_STRUTTURA}
 
-Gentile ${name},
+Gentile ${nome},
 
 grazie per averci scelto. Sono felice di confermarle il soggiorno e sarà un piacere accoglierla. 🌿
 
@@ -273,7 +280,7 @@ A presto,
     return `MODIFICA PRENOTAZIONE – CASA ANIA
 ${SOTTOTITOLO_STRUTTURA}
 
-Gentile ${name},
+Gentile ${nome},
 
 la sua prenotazione è stata modificata.
 Di seguito trova il riepilogo aggiornato del soggiorno.
@@ -298,7 +305,7 @@ Per qualsiasi domanda sono a sua disposizione:
 ${firmaFormale}`
   }
   if (type === 'dati_bonifico') {
-    return `Gentile ${name},
+    return `Gentile ${nome},
 
 come da accordi, le invio i dati per il pagamento tramite bonifico bancario.
 
@@ -315,7 +322,7 @@ Ania`
   }
 
   if (type === 'promemoria_bonifico') {
-    return `Gentile ${name},
+    return `Gentile ${nome},
 
 le scrivo solo per ricordarle che non ho ancora ricevuto il bonifico relativo al soggiorno dal *${formatDateShort(cin)}* al *${formatDateShort(cout)}*.
 
@@ -335,7 +342,7 @@ Ania`
 
   if (type === 'richiesta_orario') {
     // Testo unico con la Home «Da controllare» (lib/messaggiWhatsApp)
-    return messaggioRichiestaOrario(name)
+    return messaggioRichiestaOrario(nome)
   }
 
   if (type === 'libero') {
@@ -343,7 +350,7 @@ Ania`
   }
 
   if (type === 'ringraziamento') {
-    return `Gentile ${name},
+    return `Gentile ${nome},
 
 grazie per aver soggiornato da noi. È stato un piacere averla come nostra ospite e spero che si sia trovata bene. 🌿
 
@@ -363,7 +370,7 @@ Ania`
   }
 
   if (type === 'pagamento_ricevuto') {
-    return `Gentile ${name},
+    return `Gentile ${nome},
 
 ho ricevuto il suo pagamento. Grazie. ✓
 
@@ -381,7 +388,7 @@ Ania`
   return `ANNULLAMENTO PRENOTAZIONE – CASA ANIA
 ${SOTTOTITOLO_STRUTTURA}
 
-Gentile ${name},
+Gentile ${nome},
 
 le confermo che la sua prenotazione è stata annullata.
 
@@ -1715,8 +1722,14 @@ export default function BookingDetail() {
   const waHref = (type: WaTipo) => waHrefTesto(waPhone ?? '', buildWhatsappMsg({ ...booking, bonifico: accordoComune.bonifico }, type, righePrenotazione.filter(r => r.status !== 'annullata'), acconti))
   const waClick = (type: WaTipo, preferBusiness: boolean = false) => (e: React.MouseEvent) => {
     e.preventDefault()
+    if (nomeBloccato) return
     openWhatsApp(waPhone!, buildWhatsappMsg({ ...booking, bonifico: accordoComune.bonifico }, type, righePrenotazione.filter(r => r.status !== 'annullata'), acconti), preferBusiness)
   }
+  // Il saluto di ogni messaggio: senza un nome da scrivere dopo «Gentile» le
+  // pastiglie si spengono e l'avviso dice cosa fare (stessa regola della
+  // scheda nuova e della finestra della conferma).
+  const salutoMessaggi = salutoOspite({ ...booking, bonifico: accordoComune.bonifico })
+  const nomeBloccato = avvisoSaluto(salutoMessaggi)?.blocca === true
   // Messaggi al cliente: stesso disegno sul telefono e nella colonna desktop
   // (Ania, 09/09/2026: interruttore «WhatsApp Ania | Business» e pillole a filo,
   // niente bottoni pieni azzurri). Comandi e testi identici nelle due viste.
@@ -1731,16 +1744,18 @@ export default function BookingDetail() {
           </button>
         ))}
       </div>
+      <AvvisoSaluto saluto={salutoMessaggi} className="mt-3" />
       <button onClick={() => setShowConferma(true)}
         className={v.pil} style={{ width: '100%', minHeight: 44, margin: '12px 0 12px' }}>
         Conferma · immagine e testo
       </button>
-      <div className="grid grid-cols-2 gap-2">
+      <div className={`grid grid-cols-2 gap-2 ${nomeBloccato ? 'pointer-events-none opacity-40' : ''}`}>
         {([['conferma', 'Conferma'], ['modifica', 'Modifica'], ['dati_bonifico', 'Dati bonifico'], ['pagamento_ricevuto', 'Pagamento ricevuto'], ['promemoria_bonifico', 'Promemoria bonifico'], ['libero', 'Messaggio libero'], ['richiesta_orario', 'Richiesta orario'], ['ringraziamento', 'Ringraziamento']] as const).map(([tipo, testo]) => (
-          <a key={tipo} href={waHref(tipo)} onClick={waClick(tipo, waBusiness)} target="_blank" rel="noopener noreferrer"
-            className={v.pilC} style={{ minHeight: 40 }}>{testo}</a>
+          <a key={tipo} href={nomeBloccato ? undefined : waHref(tipo)} onClick={waClick(tipo, waBusiness)} target="_blank" rel="noopener noreferrer"
+            aria-disabled={nomeBloccato || undefined} className={v.pilC} style={{ minHeight: 40 }}>{testo}</a>
         ))}
-        <a href={waHref('annullamento')} onClick={waClick('annullamento', waBusiness)} target="_blank" rel="noopener noreferrer"
+        <a href={nomeBloccato ? undefined : waHref('annullamento')} onClick={waClick('annullamento', waBusiness)} target="_blank" rel="noopener noreferrer"
+          aria-disabled={nomeBloccato || undefined}
           className={v.pilT} style={{ gridColumn: 'span 2', minHeight: 40, color: '#8C3B2E', borderColor: '#8C3B2E' }}>Annullamento</a>
       </div>
     </>

@@ -93,7 +93,7 @@ import { ospitiPossibiliNotte } from '@/lib/nuovaPrenotazione'
 import { capienzaCamera } from '@/lib/tariffe'
 import { lineeDelSoggiorno, contestoLinea, contoDopoNotti, testoContoDopo, confermaNotti, conPrezzoConcordato, SPIEGAZIONE_PARALLELE, CAMERE_NON_LETTE, COMANDO_DATE, COMANDO_CAMBIO_CAMERA, type LineaSoggiorno } from '@/lib/lineeSoggiorno'
 import { salvaNottiInUnColpo } from '@/lib/nottiScrittura'
-import { nomeOspite, nomeConAltri } from '@/lib/guestName'
+import { nomeOspite, nomeConAltri, salutoOspite } from '@/lib/guestName'
 import { giorniSoggiorno } from '@/lib/prezzoNotti'
 import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import { provenienzaInParole, provenienzaDi, normalizzaProvenienza, type CampiProvenienza } from '@/lib/provenienza'
@@ -680,7 +680,7 @@ export default function SchedaPage() {
       <section id="messaggi" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
         <p className="ed-sezione">Messaggi</p>
         {waNumero
-          ? <MessaggiScheda className="mt-3" fase={faseSoggiorno} business={business} onBusiness={setBusiness}
+          ? <MessaggiScheda className="mt-3" fase={faseSoggiorno} saluto={salutoOspite(perIMessaggi())} business={business} onBusiness={setBusiness}
             onConfermaImmagine={() => setConfermaAperta(true)}
             href={hrefMessaggio} onMessaggio={apriMessaggio} />
           : <p className="mt-2 font-semibold" style={{ fontSize: 14, color: '#8C3B2E' }}>Senza numero di telefono non si può scrivere alla cliente.</p>}

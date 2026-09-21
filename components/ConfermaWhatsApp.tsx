@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ROOM_SLUG_BY_NAME } from '@/lib/roomTypes'
 import { lettoDaComunicare } from '@/lib/tariffe'
 import { SITO_URL } from '@/lib/config'
-import { nomeOspite, nomePerMessaggio, soloNomeMessaggio } from '@/lib/guestName'
+import { nomeOspite, nomePerMessaggio, salutoOspite } from '@/lib/guestName'
 import { causaleBonifico } from '@/lib/causale'
 import { residuoDaPagare } from '@/lib/conto'
 import type { Booking } from '@/lib/types'
@@ -11,6 +11,8 @@ import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
 import { generaPng as generaPngDa } from '@/lib/immaginePng'
 import { openWhatsApp, numeroUsabile } from '@/lib/whatsapp'
+import AvvisoSaluto from '@/components/AvvisoSaluto'
+import { avvisoSaluto } from '@/lib/avvisoSaluto'
 
 // I due account (Ania, 18/09/2026): sul Mac e sul telefono ci sono sia
 // WhatsApp Business (il lavoro) sia il WhatsApp personale, e un link
@@ -79,11 +81,16 @@ export default function ConfermaWhatsApp({ booking, groupBookings, payments = []
   // Alcune schede cliente portano caratteri invisibili residui davanti al nome
   // (es. U+FE0F di una vecchia emoji): vanno via prima di usarlo nel messaggio,
   // altrimenti sporcano il saluto e rompono il *grassetto* di WhatsApp.
-  // `nome` resta il nominativo intero: serve all'immagine e alla causale del
-  // bonifico. Il messaggio invece saluta col SOLO nome, perché la conferma
-  // ufficiale è quella senza immagine (Ania, 12/09/2026).
+  // `nome` resta il nominativo intero: serve all'immagine (dove identifica
+  // l'intestatario della prenotazione) e alla causale del bonifico.
+  // Il messaggio saluta col SOLO nome, come tutti gli altri (Ania,
+  // 21/09/2026), e il nome lo decide un posto solo: salutoOspite.
   const nome = nomePerMessaggio(nomeOspite(booking))
-  const nomeSaluto = soloNomeMessaggio(nome)
+  const saluto = salutoOspite(booking)
+  const nomeSaluto = saluto.nome
+  // Senza un nome da scrivere dopo «Gentile» il messaggio non è pronto: i due
+  // tasti che aprono WhatsApp e la copia del testo restano spenti.
+  const nomeBloccato = avvisoSaluto(saluto)?.blocca === true
 
   // Righe del riepilogo costi dal conto unico (lib/riepilogoCosti, condivisa con la proposta)
   const { righe: righeCosti, totale } = righeCostiSegmenti(segmenti, isGruppo)
@@ -220,7 +227,7 @@ Ania`
   // meccanismo dei messaggi di testo, con la ricaduta su WhatsApp Web.
   const numeroChat = numeroUsabile(booking.guests?.phone)
   function apriChat(business: boolean) {
-    if (!numeroChat) return
+    if (!numeroChat || nomeBloccato) return
     openWhatsApp(numeroChat, testoMessaggio, business)
   }
 
@@ -247,6 +254,8 @@ Ania`
           <h2 className="ed-titolo-medio">Conferma WhatsApp</h2>
           <button onClick={onClose} className="text-gray-500 text-2xl leading-none px-2">✕</button>
         </div>
+
+        <AvvisoSaluto saluto={saluto} className="mb-3" />
 
         <div className="flex gap-2 mb-3">
           {(['contanti', 'bonifico'] as const).map(p => (
@@ -305,12 +314,12 @@ Ania`
         <p className="text-xs font-semibold text-green-dark mb-1.5">2 · Apri la chat di {nome} (messaggio già scritto)</p>
         {numeroChat ? (
           <div className="flex gap-2 mb-4">
-            <button type="button" data-messaggio="cg" onClick={() => apriChat(true)}
-              className="flex-1 bg-green-dark text-white rounded-xl py-3 font-semibold text-sm">
+            <button type="button" data-messaggio="cg" onClick={() => apriChat(true)} disabled={nomeBloccato}
+              className="flex-1 bg-green-dark text-white rounded-xl py-3 font-semibold text-sm disabled:opacity-40">
               {TASTO_MESSAGGIO_CG}
             </button>
-            <button type="button" data-messaggio="ania" onClick={() => apriChat(false)}
-              className="flex-1 bg-green-dark text-white rounded-xl py-3 font-semibold text-sm">
+            <button type="button" data-messaggio="ania" onClick={() => apriChat(false)} disabled={nomeBloccato}
+              className="flex-1 bg-green-dark text-white rounded-xl py-3 font-semibold text-sm disabled:opacity-40">
               {TASTO_MESSAGGIO_ANIA}
             </button>
           </div>
@@ -340,8 +349,8 @@ Ania`
           <div className="ed-campo rounded-xl p-3 mb-2 text-sm text-gray-700 whitespace-pre-wrap">
             {testoMessaggio}
           </div>
-          <button onClick={copiaTesto}
-            className={`w-full rounded-xl py-2.5 font-semibold text-sm ${copied ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
+          <button onClick={copiaTesto} disabled={nomeBloccato}
+            className={`w-full rounded-xl py-2.5 font-semibold text-sm disabled:opacity-40 ${copied ? 'bg-sage text-green-dark' : 'bg-green-mid text-white'}`}>
             {copied ? 'Copiato!' : 'Copia testo'}
           </button>
         </details>

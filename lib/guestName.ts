@@ -23,24 +23,43 @@ export function nomePerMessaggio(n: string | null | undefined): string {
   return (n || '').replace(/[\u200B-\u200D\uFE0F]/g, '').replace(/\s+/g, ' ').trim()
 }
 
-// ── COME SI CHIAMA LA CLIENTE NEI MESSAGGI (Ania, 12/09/2026) ──────────────
-// Nella CONFERMA SENZA IMMAGINE (quella di solo testo) si scrive nome e
-// cognome, in quest'ordine: è il documento ufficiale della prenotazione.
-// In TUTTI gli altri messaggi — conferma con immagine, richiesta di
-// pagamento, arrivo, promemoria, ringraziamento, proposte alle richieste —
-// si scrive SOLO il nome: sono messaggi di tutti i giorni e devono suonare
-// meno ufficiali.
+// ── COME SI CHIAMA LA CLIENTE NEI MESSAGGI ─────────────────────────────────
+// REGOLA UNICA (Ania, 21/09/2026): OGNI messaggio all'ospite comincia con
 //
-// Sulle prenotazioni il nominativo è un campo unico già scritto «Nome
-// Cognome» (guest_name, oppure guests.full_name): il nome è tutto quello che
-// viene prima del cognome, e il cognome è l'ultima parola — oppure, se c'è una
-// particella (de, di, da, del…), quella e tutto quello che segue.
-// Le maiuscole restano quelle salvate sulla cliente: qui non si tocca altro.
+//     Gentile [Nome],
+//
+// cioè il SOLO nome di battesimo. Mai «Gentile Rossi,», mai «Gentile Anna
+// Rossi,», mai «Gentile signora Rossi,». Vale per tutti i messaggi senza
+// eccezioni: conferma con immagine, testo WhatsApp che accompagna l'immagine,
+// conferma di solo testo, modifica, annullamento, bonifico, promemoria,
+// pagamento ricevuto, arrivo, ringraziamento, proposte alle richieste.
+//
+// STORICO — SUPERATA: fino al 20/09/2026 valeva la regola del 12/09/2026, per
+// cui la conferma SENZA immagine (il «documento ufficiale») scriveva nome e
+// cognome e tutti gli altri messaggi il solo nome. Quell'eccezione non c'è
+// più: l'ha tolta Ania il 21/09/2026. Con lei sono spariti anche
+// `nomeECognomeMessaggio` (serviva solo a quel caso) e `soloNomeMessaggio`,
+// sostituito da `salutoOspite`, che è l'UNICO punto da cui passano i saluti.
+//
+// DOVE STA IL NOME. Le richieste dal sito hanno due campi separati e
+// attendibili (`richieste.nome` e `richieste.cognome`): lì il nome è il campo
+// nome e non si tocca — «Maria Grazia» deve restare «Maria Grazia».
+// Le prenotazioni invece hanno un campo unico, scritto «Nome Cognome»
+// (`bookings.guest_name`, oppure `guests.full_name`): lì il nome va ricavato,
+// ed è una CONVENZIONE, non una garanzia. Quando la convenzione non basta il
+// messaggio non si fa passare per pronto: si chiede di controllare il nome.
 
-// Conferma senza immagine: il nominativo come è salvato, solo ripulito. Senza
-// cognome resta il solo nome, senza spazi doppi né virgole vuote.
-export function nomeECognomeMessaggio(n: string | null | undefined): string {
-  return nomePerMessaggio(n)
+/** Quello che compare dopo «Gentile» quando dal dato salvato non si ricava
+ *  nessun nome: si vede subito che il messaggio non è pronto da mandare. */
+export const NOME_DA_CONTROLLARE = '[NOME DA CONTROLLARE]'
+
+export type Saluto = {
+  /** il nome da scrivere dopo «Gentile». Mai vuoto: mai «Gentile ,» */
+  nome: string
+  /** true quando il nome si ricava con sicurezza dal nominativo salvato */
+  sicuro: boolean
+  /** true quando non si ricava nessun nome: la finestra blocca l'invio */
+  daCompletare: boolean
 }
 
 // Le particelle che aprono il cognome: da lì in poi è tutto cognome, anche se
@@ -48,18 +67,77 @@ export function nomeECognomeMessaggio(n: string | null | undefined): string {
 // «Anna Maria De» (Ania, 12/09/2026).
 const PARTICELLE_COGNOME = new Set(['de', 'di', 'da', 'del', 'della', 'dello', 'dei', 'degli', 'la', 'lo', 'van', 'von'])
 
-// Tutti gli altri messaggi: il NOME, cioè tutto quello che viene prima del
-// cognome. Il cognome è l'ultima parola — «Maria Grazia Rossi» → «Maria
-// Grazia» — oppure, se c'è una particella, quella e tutto quello che segue:
-// «Anna Maria De Luca» → «Anna Maria».
-// Quando resterebbe niente (una parola sola, o solo il cognome con la sua
-// particella) si saluta con quello che c'è: mai «Gentile ,».
-export function soloNomeMessaggio(n: string | null | undefined): string {
-  const parole = nomePerMessaggio(n).split(' ').filter(Boolean)
-  if (parole.length === 0) return ''
+// Un numero di telefono al posto del nome: nomeOspite ripiega sul telefono
+// quando la scheda non ha nominativo, e «Gentile 342 700 4354,» non deve
+// uscire mai.
+const SEMBRA_UN_TELEFONO = /^[\d\s+().-]+$/
+
+/** Il nome del saluto da un campo UNICO scritto «Nome Cognome».
+ *  Il cognome è l'ultima parola — «Maria Grazia Rossi» → «Maria Grazia» —
+ *  oppure, se c'è una particella, quella e tutto quello che segue:
+ *  «Anna Maria De Luca» → «Anna Maria».
+ *  Quando il dato non si legge (vuoto, telefono, ordine rovesciato) non si
+ *  inventa niente e non si spaccia il cognome per nome: torna `daCompletare`. */
+export function salutoDaNominativo(n: string | null | undefined): Saluto {
+  const pulito = nomePerMessaggio(n)
+  const parole = pulito.split(' ').filter(Boolean)
+  const daControllare: Saluto = { nome: NOME_DA_CONTROLLARE, sicuro: false, daCompletare: true }
+  if (parole.length === 0) return daControllare
+  if (SEMBRA_UN_TELEFONO.test(pulito)) return daControllare
+  if (pulito === 'Ospite') return daControllare        // il ripiego di nomeOspite
+  // Una parola sola: può essere il nome («Anna») o il solo cognome («Monda»),
+  // e da qui non si distinguono. Si saluta con quello che c'è — mai
+  // «Gentile ,» — ma il messaggio non si dichiara sicuro.
+  if (parole.length === 1) return { nome: parole[0], sicuro: false, daCompletare: false }
   const particella = parole.findIndex(p => PARTICELLE_COGNOME.has(p.toLowerCase()))
-  const finisceIlNome = particella >= 0 ? particella : parole.length - 1
-  return parole.slice(0, finisceIlNome).join(' ') || parole.join(' ')
+  // La particella in TESTA vuol dire cognome davanti («De Luca Anna», «La Rosa
+  // Maria»): l'ordine è rovesciato e il nome non si ricava.
+  if (particella === 0) return daControllare
+  const finisceIlNome = particella > 0 ? particella : parole.length - 1
+  return { nome: parole.slice(0, finisceIlNome).join(' '), sicuro: true, daCompletare: false }
+}
+
+/** Il nome del saluto da un campo NOME già separato (le richieste dal sito).
+ *  Qui non si toglie niente: «Maria Grazia» resta «Maria Grazia». Si ripulisce
+ *  soltanto da spazi doppi e caratteri invisibili. */
+export function salutoDaCampoNome(nome: string | null | undefined): Saluto {
+  const pulito = nomePerMessaggio(nome)
+  if (!pulito || SEMBRA_UN_TELEFONO.test(pulito)) return { nome: NOME_DA_CONTROLLARE, sicuro: false, daCompletare: true }
+  return { nome: pulito, sicuro: true, daCompletare: false }
+}
+
+// Stessa persona scritta con le stesse parole: tutte quelle del nominativo
+// della prenotazione compaiono anche in quello della scheda cliente.
+// «Monda» dentro «Simona Monda», «Rossi Anna» dentro «Anna Rossi».
+function stesseParole(a: string, b: string): boolean {
+  const pa = normalizzaNome(a).split(' ').filter(Boolean)
+  const pb = normalizzaNome(b).split(' ').filter(Boolean)
+  if (pa.length === 0 || pb.length === 0) return false
+  return pa.every(p => pb.includes(p))
+}
+
+/** IL SALUTO DI UNA PRENOTAZIONE — unico punto per tutti i messaggi.
+ *
+ *  Il destinatario non cambia: vale il nominativo della prenotazione
+ *  (`guest_name`), come in nomeOspite. La scheda cliente si consulta solo
+ *  quando parla della STESSA persona (stesse parole): «Monda» sulla
+ *  prenotazione e «Simona Monda» sulla scheda danno «Gentile Simona,», e il
+ *  vecchio «Rossi Anna» si raddrizza in «Gentile Anna,». Con un nominativo
+ *  diverso (un'altra persona) vince quello della prenotazione, sempre.
+ *  Il nome di chi dorme in camera (`extra_phone_*_name`) non entra mai qui. */
+export type PrenotazioneDelSaluto = { guest_name?: string | null; guests?: { full_name?: string | null; phone?: string | null } | null } | null | undefined
+
+export function salutoOspite(b: PrenotazioneDelSaluto): Saluto {
+  const prenotazione = nomePerMessaggio(b?.guest_name)
+  const scheda = nomePerMessaggio(b?.guests?.full_name)
+  // Prenotazioni vecchie, senza guest_name: vale la scheda, come da sempre.
+  if (!prenotazione) return salutoDaNominativo(scheda || nomePerMessaggio(nomeOspite(b)))
+  const daScheda = salutoDaNominativo(scheda)
+  // La scheda cliente passa dai campi Nome e Cognome del gestionale (regole
+  // fisse n. 1 e n. 2): quando dice la stessa persona, il suo ordine è quello
+  // buono.
+  if (daScheda.sicuro && stesseParole(prenotazione, scheda)) return daScheda
+  return salutoDaNominativo(prenotazione)
 }
 
 // ── Il nominativo salvato, diviso in nome e cognome (16/09/2026) ────────────

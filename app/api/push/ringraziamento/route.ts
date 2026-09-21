@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { buildChangeGroups } from '@/lib/roomChanges'
 import { createAdminClient } from '@/lib/supabaseAdmin'
 import { isCronAuthorized } from '@/lib/cronAuth'
-import { nomePerMessaggio, soloNomeMessaggio } from '@/lib/guestName'
+import { nomePerMessaggio, salutoOspite } from '@/lib/guestName'
 import { inviaATutti } from '@/lib/inviaPush'
 import { registraPush } from '@/lib/pushLog'
 import { attive } from '@/lib/pulizie'
@@ -20,10 +20,10 @@ function normalizePhone(p: string) {
 
 // Stesso identico testo del pulsante "Ringraziamento" nel dettaglio prenotazione
 // (buildWhatsappMsg, type 'ringraziamento'): se si cambia uno, cambiare anche l'altro.
-// Messaggio di tutti i giorni: si saluta col SOLO nome (Ania, 12/09/2026).
-function buildRingraziamentoMsg(name: string) {
-  const nome = soloNomeMessaggio(name)
-  return `Gentile ${nome},
+// `nomeSaluto` arriva già pronto da salutoOspite: il solo nome, come in tutti
+// i messaggi (Ania, 21/09/2026).
+function buildRingraziamentoMsg(nomeSaluto: string) {
+  return `Gentile ${nomeSaluto},
 
 grazie per aver soggiornato da noi. È stato un piacere averla come nostra ospite e spero che si sia trovata bene. 🌿
 
@@ -100,7 +100,9 @@ export async function GET(req: NextRequest) {
     const b = conTelefono[0]
     const nome = nomePerMessaggio(b.guest_name || b.guests?.full_name) || 'Ospite'
     const phone = normalizePhone(b.guests.phone)
-    const msg = buildRingraziamentoMsg(nome)
+    // La notifica arriva ad Ania, non alla cliente: se il nome non si ricava
+    // il messaggio porta «[NOME DA CONTROLLARE]» e si vede prima di mandarlo.
+    const msg = buildRingraziamentoMsg(salutoOspite(b).nome)
     titolo = `🙏 ${nome} è partito/a oggi`
     corpo = `Tocca per mandare subito il ringraziamento su WhatsApp.`
     url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`

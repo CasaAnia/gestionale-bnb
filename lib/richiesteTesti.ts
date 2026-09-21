@@ -18,6 +18,7 @@ import { giorniTra } from './richiesteCalendario.ts'
 import { DESCRIZIONI_CAMERE, LETTO_IN_PIU, SITO_CAMERE } from './descrizioniCamere.ts'
 import { ORE_RISPOSTA_PROPOSTA, ORE_RISERVA_BONIFICO, GIORNI_PREAVVISO_CANCELLAZIONE, type CondizionePagamento } from './condizioniPrenotazione.ts'
 import { personeSegmento, prezziNottiCentesimi, type Soluzione, type SegmentoSoluzione, type AlternativaAmelia } from './richiesteProposta.ts'
+import { salutoDaCampoNome } from './guestName.ts'
 
 export type Condizione =
   | { tipo: 'arrivo' }
@@ -318,8 +319,12 @@ function casoATrePersone(richiesta: RichiestaTesto, camere: Soluzione[]): Blocch
 }
 
 // ── Blocchi del messaggio ───────────────────────────────────────────────────
+// «Gentile [Nome],» come in tutti i messaggi (Ania, 21/09/2026). Qui il nome
+// arriva dal campo NOME della richiesta, già separato dal cognome: non si
+// taglia niente — «Maria Grazia» deve restare «Maria Grazia» — si ripulisce
+// soltanto da spazi doppi e caratteri invisibili (salutoDaCampoNome).
 export function apertura(nome: string): string {
-  return `Gentile ${nome.trim()},\ngrazie per aver pensato a Casa Ania per il suo soggiorno.`
+  return `Gentile ${salutoDaCampoNome(nome).nome},\ngrazie per aver pensato a Casa Ania per il suo soggiorno.`
 }
 const HO_VERIFICATO = 'Ho verificato le date che mi ha indicato.'
 
