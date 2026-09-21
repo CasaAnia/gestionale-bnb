@@ -1,4 +1,56 @@
-# Scheda attiva — punto 5 «Aggiungi pagamento» e 0057 (21 settembre 2026)
+# Scheda attiva — punto 6 «I messaggi, al momento giusto» (21 settembre 2026 sera)
+
+## STATO IN 10 RIGHE
+
+1. **Punto 6 fatto e verificato, NON pubblicato.** Ramo locale `punto6-messaggi`
+   su base `b7009ab`; `main` non è stato toccato. Autore: Code.
+2. La parte «Messaggi» della scheda: conferma con **immagine e testo sempre in
+   cima**, «Utili adesso» con i messaggi della fase, «Tutti i messaggi» chiuso
+   con tutti e nove (l'annullamento resta un TESTO, non tocca stato né date).
+3. Ordine approvato — prima: Conferma · solo testo, Richiesta orario, Dati
+   bonifico, Pagamento ricevuto; durante: Pagamento ricevuto, Modifica
+   soggiorno, Messaggio libero; dopo: Ringraziamento, Messaggio libero.
+4. Ania ha deciso il 21/09 sera: tasto verde **corto e centrato** (non largo
+   quanto la riga come nel disegno) e, con la prenotazione annullata, utili
+   adesso = messaggio di annullamento + messaggio libero.
+5. I **testi al cliente non cambiano**: cambiano solo i nomi dei tasti.
+   `buildWhatsappMsg` intatto, test di confronto fra i due sorgenti verde.
+6. **Verifica indipendente di Codex** (`VERIFICA-PUNTO-6.md`): disposizione e
+   collegamenti conformi; un difetto e due punti minori, tutti corretti.
+7. Difetto: la fase riceveva lo stato della **sola riga aperta**, e una
+   prenotazione mista (una camera annullata, una confermata) diventava
+   «annullata» entrando dal link della riga annullata. Corretto alla fonte:
+   `faseMessaggi` non prende più nessuno stato, conta i tratti attivi.
+8. Minori corretti: date fuori calendario e partenza prima dell'arrivo adesso
+   danno «incerta»; note e nome del test allineati al tasto corto.
+9. Prove: suite **1644 verde**, TypeScript, lint delta e build puliti; difetto
+   riprodotto e poi risolto **nel percorso vero della pagina**, in anteprima
+   sintetica, dai due link della stessa prenotazione. Nessun messaggio inviato.
+10. 🔴 Manca **solo** l'autorizzazione di Ania a pubblicare: quella del punto 5
+    non valeva per questo lavoro.
+
+## Riscontri del punto 6
+
+- `RISCONTRO-PUNTO-6.md` — realizzazione, prove, schermate e limiti (Code).
+- `VERIFICA-PUNTO-6.md` — la verifica indipendente (Codex).
+
+(in `Documents/Codex/2026-09-20/hola-chica-vai-nel-gestionale-e/outputs/`)
+
+## Anteprima sintetica per la verifica
+
+`node scripts/revisioni/anteprima-prenotazioni-finta.mjs` → `localhost:3213`,
+login con qualsiasi email. Il caso della verifica è la cliente **Camera
+Annullata** (Allegra 24 → 26 set annullata, Amelia 24 → 28 set confermata, una
+prenotazione sola):
+
+- riga annullata: `/scheda/bbbbbbbb-2901-4000-8000-000000002901`
+- riga confermata: `/scheda/bbbbbbbb-2902-4000-8000-000000002902`
+
+Le due pagine devono dire la stessa cosa sotto «Utili adesso».
+
+---
+
+# Storico: punto 5 «Aggiungi pagamento» e 0057 (21 settembre 2026)
 
 ## STATO IN 10 RIGHE
 

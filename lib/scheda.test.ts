@@ -465,7 +465,7 @@ test('il conto: i comandi di testo (13 px, filo a 3 px), i pagamenti uno per rig
 // ── I MESSAGGI AL MOMENTO GIUSTO (punto 6, 21/09/2026) ─────────────────────
 // La scelta (fase e ordine) sta in lib/messaggiFase ed è provata lì, facendo
 // girare le funzioni. Qui restano le poche cose che solo il disegno può dire.
-test('i messaggi (punto 6): conferma con immagine sempre in cima, larga quanto la riga', () => {
+test('i messaggi (punto 6): conferma con immagine sempre in cima, larga quanto la scritta', () => {
   assert.match(messaggi, /import InterruttorePillola from '@\/components\/InterruttorePillola'/)
   assert.match(messaggi, /\['ania', 'WhatsApp Ania'\], \['business', 'Business'\]/)
   const pieno = messaggi.slice(messaggi.indexOf('data-conferma-immagine'), messaggi.indexOf('data-conferma-sempre'))
@@ -513,10 +513,31 @@ test('i messaggi (punto 6): «Utili adesso» in ottone, pastiglie sage a sinistr
 test('la fase arriva dalla scheda, letta dalle date della prenotazione intera', () => {
   assert.match(pagina, /import \{ faseMessaggi \} from '@\/lib\/messaggiFase'/)
   // tutte le righe (non il solo tratto aperto) e il giorno di Roma già in pagina
-  assert.match(pagina, /const faseSoggiorno = faseMessaggi\(righe, oggi, booking\?\.status\)/)
+  assert.match(pagina, /const faseSoggiorno = faseMessaggi\(righePrenotazione, oggi\)/)
+  assert.match(pagina, /const righePrenotazione = righe\.length \? righe : booking \? \[booking\] : \[\]/)
   assert.match(pagina, /<MessaggiScheda className="mt-3" fase=\{faseSoggiorno\}/)
   // il componente non si calcola una fase sua e non guarda l'orologio
   assert.equal(/new Date\(|Date\.now/.test(messaggi), false, 'il componente dei messaggi guarda l’orologio')
+})
+
+// REGRESSIONE (verifica indipendente del 21/09/2026 sera): la scheda passava
+// booking?.status, cioè lo stato della SOLA riga aperta, e una prenotazione con
+// una camera annullata e una confermata diventava «annullata» entrando dal link
+// della riga annullata. Il comportamento è provato in lib/messaggiFase.test;
+// qui si tiene fermo il contratto del chiamante, che il difetto aveva sbagliato.
+test('la fase non riceve MAI lo stato di una riga sola (regressione del 21/09/2026)', () => {
+  const chiamata = /faseMessaggi\(([^)]*)\)/g
+  const argomenti = [...pagina.matchAll(chiamata)].map(m => m[1])
+  assert.ok(argomenti.length > 0, 'la scheda non chiama più faseMessaggi')
+  for (const a of argomenti) {
+    assert.equal(/status/.test(a), false, `faseMessaggi riceve ancora uno stato: «${a}»`)
+    assert.equal(/\battive\b/.test(a), false, `faseMessaggi riceve solo i tratti attivi: «${a}»`)
+  }
+  // e la funzione stessa prende due cose sole: le righe e il giorno
+  const fase = leggi('lib/messaggiFase.ts')
+  assert.match(fase, /export function faseMessaggi\(segmenti: SegmentoScheda\[\], oggi: string\): FaseMessaggi/)
+  assert.equal(/status/.test(fase.slice(fase.indexOf('export function faseMessaggi'))), false,
+    'lib/messaggiFase guarda di nuovo lo stato di una riga')
 })
 
 test('i messaggi usano i testi di sempre, non ne scrivono di nuovi', () => {

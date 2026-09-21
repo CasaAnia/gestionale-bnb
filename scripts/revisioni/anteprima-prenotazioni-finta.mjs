@@ -108,6 +108,8 @@ const guests = [
   // Verifica del 20/09/2026: in FONDO, così gli indici guests[n] di sopra non si spostano
   ospite('aaaaaaaa-0027-4000-8000-000000000027', 'Pausa Poi Cambio', '+39 333 000 0027'),
   ospite('aaaaaaaa-0028-4000-8000-000000000028', 'Due Camere Saldate', '+39 333 000 0028'),
+  // Verifica indipendente del 21/09/2026 sera (punto 6): in FONDO, stessa regola
+  ospite('aaaaaaaa-0029-4000-8000-000000000029', 'Camera Annullata', '+39 333 000 0029'),
 ]
 const NIDA = guests[14]
 const CAMBIO = guests[16]
@@ -296,6 +298,21 @@ const bookings = [
   // sconto 12,5 % → 183,75 concordati; 100 € di anticipo con la nota.
   prenotazione(ROOM.allegra, 'aaaaaaaa-0026-4000-8000-000000000026', '2026-12-15', '2026-12-18', 2,
     { id: 'bbbbbbbb-2601-4000-8000-000000002601', price_per_night: 70, discount_type: 'percentage', discount_value: 12.5, total_amount: 183.75, accordo_pagamento: 'caparra_meta', caparra_centesimi: 10000, caparra_entro: '2026-12-01', bonifico: true }),
+  // Punto 6, verifica indipendente del 21/09/2026 sera: prenotazione MISTA.
+  // Una prenotazione sola (stesso prenotazione_id) con la camera Allegra
+  // ANNULLATA 24 -> 26 set e la camera Amelia CONFERMATA 24 -> 28 set. Serve a
+  // provare nel percorso vero della pagina che i messaggi consigliati sono gli
+  // stessi da tutte e due le righe: prima del punto 6 corretto, entrando dalla
+  // riga annullata la scheda proponeva i messaggi dell'annullamento.
+  //   riga annullata:  /scheda/bbbbbbbb-2901-4000-8000-000000002901
+  //   riga confermata: /scheda/bbbbbbbb-2902-4000-8000-000000002902
+  prenotazione(ROOM.allegra, 'aaaaaaaa-0029-4000-8000-000000000029', '2026-09-24', '2026-09-26', 2,
+    { id: 'bbbbbbbb-2901-4000-8000-000000002901', prenotazione_id: 'dddddddd-0029-4000-8000-000000000029', group_id: null,
+      status: 'annullata', cancelled_at: ora, cancelled_reason: 'La cliente ha lasciato una camera sola',
+      price_per_night: 70, total_amount: 140, check_in_time: '16:00' }),
+  prenotazione(ROOM.amelia, 'aaaaaaaa-0029-4000-8000-000000000029', '2026-09-24', '2026-09-28', 2,
+    { id: 'bbbbbbbb-2902-4000-8000-000000002902', prenotazione_id: 'dddddddd-0029-4000-8000-000000000029', group_id: null,
+      price_per_night: 65, total_amount: 260, check_in_time: '16:00' }),
 ]
 // «Letto Per Due» si cerca per cliente, non per posizione: in fondo alla lista si aggiungono altri casi
 const LETTO_PER_DUE = bookings.find(b => b.guest_id === 'aaaaaaaa-0023-4000-8000-000000000023')

@@ -9,8 +9,10 @@
 //  1. l'interruttore «WhatsApp Ania / Business», che è lo STESSO oggetto di
 //     «Mese | 2 settimane» del calendario (components/InterruttorePillola):
 //     la scelta è quella di sempre, non ne nasce una nuova;
-//  2. il tasto pieno verde, largo quanto la riga, SEMPRE in cima e in ogni
-//     fase del soggiorno: «Conferma prenotazione» e, sotto in grassetto,
+//  2. il tasto pieno verde, largo quanto la SCRITTA e centrato (Ania,
+//     21/09/2026 sera: «fallo più corto sul computer ma anche nel
+//     cellulare»), SEMPRE in cima e in ogni fase del soggiorno:
+//     «Conferma prenotazione» e, sotto in grassetto,
 //     «Immagine e testo». Apre la finestra vera di ConfermaWhatsApp (immagine
 //     + anteprima + scelta del WhatsApp), non un semplice testo;
 //  3. «Utili adesso»: i pochi messaggi che servono in questa fase, uno sotto

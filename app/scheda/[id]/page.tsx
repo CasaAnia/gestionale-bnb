@@ -482,8 +482,14 @@ export default function SchedaPage() {
     booking ? buildWhatsappMsg(perIMessaggi(), tipo, attive, pagamenti) : ''
   const hrefMessaggio = (tipo: TipoMessaggio) => waHrefTesto(waNumero ?? '', testoMessaggio(tipo))
   // la fase del soggiorno INTERO (tutti i tratti, anche con una pausa in mezzo):
-  // decide quali messaggi stanno sotto «Utili adesso» (lib/messaggiFase)
-  const faseSoggiorno = faseMessaggi(righe, oggi, booking?.status)
+  // decide quali messaggi stanno sotto «Utili adesso» (lib/messaggiFase).
+  // Si passano TUTTE le righe e mai lo stato della sola riga aperta: con una
+  // camera annullata e le altre confermate la prenotazione è viva lo stesso, e
+  // deve dire la stessa cosa da qualunque riga la si apra (correzione del
+  // 21/09/2026 sera). Finché le altre righe non sono arrivate vale quella
+  // aperta, così non c'è un attimo in cui sembra annullata.
+  const righePrenotazione = righe.length ? righe : booking ? [booking] : []
+  const faseSoggiorno = faseMessaggi(righePrenotazione, oggi)
   const apriMessaggio = (tipo: TipoMessaggio) => (e: React.MouseEvent) => {
     e.preventDefault()
     if (waNumero) openWhatsApp(waNumero, testoMessaggio(tipo), business)

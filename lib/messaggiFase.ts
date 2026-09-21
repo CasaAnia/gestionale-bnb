@@ -21,15 +21,24 @@
 //   · dopo    → dal giorno dell'ultima partenza in poi
 //
 // Due casi si dicono a voce alta, invece di indovinare un soggiorno che non
-// c'è (scelta del 21/09/2026, da rivedere con Ania se non le torna):
-//   · annullata → la prenotazione è annullata (o non ha più nessun tratto
-//     attivo): utili adesso restano il messaggio di annullamento e il
-//     messaggio libero. Nessun comando nuovo: il messaggio di annullamento è
-//     un TESTO, non annulla niente e non tocca date o stato;
-//   · incerta → mancano le date (righe rovinate): si propone solo il
-//     messaggio libero, perché nessun testo del soggiorno sarebbe vero.
+// c'è (scelta del 21/09/2026, confermata da Ania la sera stessa):
+//   · annullata → la prenotazione non ha più NESSUN tratto attivo: utili
+//     adesso restano il messaggio di annullamento e il messaggio libero.
+//     Nessun comando nuovo: il messaggio di annullamento è un TESTO, non
+//     annulla niente e non tocca date o stato;
+//   · incerta → le date non si possono leggere (mancanti, fuori calendario,
+//     o partenza prima dell'arrivo): si propone solo il messaggio libero,
+//     perché nessun testo del soggiorno sarebbe vero.
 // In tutti e due i casi ogni messaggio resta raggiungibile da «Tutti i
 // messaggi»: non si toglie niente, si sposta solo quello che si consiglia.
+//
+// CORREZIONE del 21/09/2026 sera (verifica indipendente di Codex): la fase NON
+// riceve più lo stato di una riga. Prima la scheda passava lo stato della sola
+// riga aperta e una prenotazione MISTA — una camera annullata e le altre
+// confermate — diventava «annullata» solo perché si era entrati dalla riga
+// annullata: stessa prenotazione, suggerimenti diversi a seconda del link.
+// Adesso conta una cosa sola, e non si può sbagliare: **quanti tratti attivi
+// ci sono**. Nessuno → annullata; almeno uno → sono le sue date a parlare.
 // ============================================================================
 import { segmentiAttivi, type SegmentoScheda } from './schedaPrenotazione.ts'
 import { MESSAGGI_SCHEDA, MESSAGGIO_ANNULLAMENTO, type TipoMessaggio } from './messaggiPrenotazione.ts'
@@ -42,17 +51,33 @@ export type VoceMessaggio = { tipo: TipoMessaggio; label: string }
 /** I nove messaggi, nell'ordine di «Tutti i messaggi» (l'annullamento in fondo). */
 export const TUTTI_I_MESSAGGI: VoceMessaggio[] = [...MESSAGGI_SCHEDA, MESSAGGIO_ANNULLAMENTO]
 
-const GIORNO = /^\d{4}-\d{2}-\d{2}/
-const dataBuona = (x: string | null | undefined) => typeof x === 'string' && GIORNO.test(x)
+// Il giorno scritto all'inizio del valore, MA solo se esiste davvero sul
+// calendario: «2026-13-40» e «2026-02-30» non sono giorni. Un'ora attaccata
+// dietro («2026-09-11T22:00:00+02:00») resta ammessa: si legge il giorno e
+// basta. Qui non si tocca il fuso: «oggi» arriva già come giorno di Roma.
+const GIORNO = /^(\d{4})-(\d{2})-(\d{2})/
+export function giornoLeggibile(x: string | null | undefined): string | null {
+  const pezzi = GIORNO.exec(typeof x === 'string' ? x : '')
+  if (!pezzi) return null
+  const [, a, m, g] = pezzi
+  const d = new Date(Date.UTC(Number(a), Number(m) - 1, Number(g)))
+  const esiste = d.getUTCFullYear() === Number(a) && d.getUTCMonth() === Number(m) - 1 && d.getUTCDate() === Number(g)
+  return esiste ? `${a}-${m}-${g}` : null
+}
 
-/** La fase del soggiorno intero, letta dalle date di tutti i tratti attivi. */
-export function faseMessaggi(segmenti: SegmentoScheda[], oggi: string, status?: string | null): FaseMessaggi {
+/** La fase del soggiorno intero, letta dalle date di TUTTI i tratti attivi.
+ *  Non prende lo stato di una riga: una prenotazione è annullata quando non
+ *  le resta nessun tratto attivo, non perché si è aperta la riga annullata. */
+export function faseMessaggi(segmenti: SegmentoScheda[], oggi: string): FaseMessaggi {
   const attivi = segmentiAttivi(segmenti ?? [])
-  if (status === 'annullata' || attivi.length === 0) return 'annullata'
-  if (!dataBuona(oggi) || attivi.some(s => !dataBuona(s.check_in) || !dataBuona(s.check_out))) return 'incerta'
-  const giorno = oggi.slice(0, 10)
-  const primoArrivo = attivi.reduce((m, s) => (s.check_in < m ? s.check_in : m), attivi[0].check_in).slice(0, 10)
-  const ultimaPartenza = attivi.reduce((m, s) => (s.check_out > m ? s.check_out : m), attivi[0].check_out).slice(0, 10)
+  if (attivi.length === 0) return 'annullata'
+  const giorno = giornoLeggibile(oggi)
+  if (!giorno) return 'incerta'
+  // date leggibili E sensate: la partenza dopo l'arrivo, almeno una notte
+  const date = attivi.map(s => ({ dentro: giornoLeggibile(s.check_in), fuori: giornoLeggibile(s.check_out) }))
+  if (date.some(d => !d.dentro || !d.fuori || d.fuori <= d.dentro)) return 'incerta'
+  const primoArrivo = date.reduce((m, d) => (d.dentro! < m ? d.dentro! : m), date[0].dentro!)
+  const ultimaPartenza = date.reduce((m, d) => (d.fuori! > m ? d.fuori! : m), date[0].fuori!)
   if (giorno < primoArrivo) return 'prima'
   if (giorno >= ultimaPartenza) return 'dopo'
   return 'durante'

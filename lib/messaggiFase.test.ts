@@ -69,10 +69,32 @@ test('i tratti annullati non spostano la fase; annullata tutta è «annullata»'
   // un tratto è stato annullato e allungava il soggiorno: non conta
   const con = [tratto('2026-09-10', '2026-09-12'), tratto('2026-09-12', '2026-09-20', { status: 'annullata' })]
   assert.equal(faseMessaggi(con, '2026-09-13'), 'dopo', 'il tratto annullato non tiene aperto il soggiorno')
-  // prenotazione annullata: lo stato vince sulle date
-  assert.equal(faseMessaggi([tratto('2026-09-24', '2026-09-26')], '2026-09-01', 'annullata'), 'annullata')
   assert.equal(faseMessaggi([tratto('2026-08-20', '2026-08-22', { status: 'annullata' })], '2026-09-21'), 'annullata')
   assert.equal(faseMessaggi([], '2026-09-21'), 'annullata', 'senza tratti attivi non c’è un soggiorno')
+  // annullata vuol dire TUTTE le camere annullate, non una
+  const tutteAnnullate = [tratto('2026-09-24', '2026-09-26', { status: 'annullata' }), tratto('2026-09-24', '2026-09-28', { status: 'annullata' })]
+  assert.equal(faseMessaggi(tutteAnnullate, '2026-09-21'), 'annullata')
+})
+
+// ── REGRESSIONE (verifica indipendente del 21/09/2026 sera) ────────────────
+// Il difetto: la scheda passava lo stato della SOLA riga aperta, e una
+// prenotazione con una camera annullata e una confermata diventava
+// «annullata» se si entrava dal link della riga annullata. Adesso la fase non
+// può nemmeno ricevere lo stato di una riga: conta solo quanti tratti attivi
+// ci sono.
+test('prenotazione MISTA: una camera annullata e una confermata → la stessa fase da qualunque riga si apra', () => {
+  const annullata = tratto('2026-09-24', '2026-09-26', { id: 'A', status: 'annullata' })
+  const confermata = tratto('2026-09-24', '2026-09-28', { id: 'B', status: 'confermata' })
+  const righe = [annullata, confermata]
+  // le stesse righe, nei due ordini in cui la scheda può caricarle
+  assert.equal(faseMessaggi(righe, '2026-09-21'), 'prima')
+  assert.equal(faseMessaggi([confermata, annullata], '2026-09-21'), 'prima')
+  // e i suggerimenti sono quelli di «prima», non quelli dell'annullata
+  assert.deepEqual(messaggiUtili(faseMessaggi(righe, '2026-09-21')).map(m => m.tipo),
+    ['conferma', 'richiesta_orario', 'dati_bonifico', 'pagamento_ricevuto'])
+  // la camera annullata non allunga nemmeno il soggiorno
+  const piuLunga = [tratto('2026-09-10', '2026-09-12'), tratto('2026-09-12', '2026-09-30', { status: 'annullata' })]
+  assert.equal(faseMessaggi(piuLunga, '2026-09-20'), 'dopo')
 })
 
 test('date mancanti o rovinate: «incerta», non si indovina un soggiorno', () => {
@@ -81,6 +103,25 @@ test('date mancanti o rovinate: «incerta», non si indovina un soggiorno', () =
   assert.equal(faseMessaggi([tratto('2026-09-10', '2026-09-12')], ''), 'incerta')
   // un'ora attaccata alla data non è un errore: si legge il giorno
   assert.equal(faseMessaggi([tratto('2026-09-10', '2026-09-12')], '2026-09-11T22:00:00+02:00'), 'durante')
+})
+
+// ── REGRESSIONE (stessa verifica): date che sembrano date ma non lo sono ────
+test('giorni che sul calendario non esistono, e partenza prima dell’arrivo: «incerta»', () => {
+  // mese 13 e giorno 40 passavano per buoni perché si guardavano solo le cifre
+  assert.equal(faseMessaggi([tratto('2026-13-40', '2026-13-41')], '2026-09-21'), 'incerta')
+  assert.equal(faseMessaggi([tratto('2026-02-30', '2026-03-02')], '2026-09-21'), 'incerta', 'il 30 febbraio non esiste')
+  assert.equal(faseMessaggi([tratto('2026-00-10', '2026-01-12')], '2026-09-21'), 'incerta')
+  assert.equal(faseMessaggi([tratto('2026-09-10', '2026-09-12')], '2026-13-01'), 'incerta', 'nemmeno «oggi» può essere una data finta')
+  // partenza PRIMA dell'arrivo: prima veniva fuori «prima», come se il
+  // soggiorno dovesse ancora cominciare
+  assert.equal(faseMessaggi([tratto('2026-09-28', '2026-09-24')], '2026-09-21'), 'incerta')
+  // e nemmeno zero notti: arrivo e partenza lo stesso giorno
+  assert.equal(faseMessaggi([tratto('2026-09-28', '2026-09-28')], '2026-09-21'), 'incerta')
+  // il 29 febbraio di un bisestile è un giorno vero e resta buono
+  assert.equal(faseMessaggi([tratto('2028-02-28', '2028-02-29')], '2028-02-28'), 'durante')
+  // una riga rovinata fra le buone basta a non fidarsi
+  const mista = [tratto('2026-09-24', '2026-09-26'), tratto('2026-13-01', '2026-13-05')]
+  assert.equal(faseMessaggi(mista, '2026-09-21'), 'incerta')
 })
 
 // ── I suggerimenti, nell'ordine approvato ───────────────────────────────────
