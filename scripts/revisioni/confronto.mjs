@@ -71,7 +71,9 @@ export function paginaConfronto(domanda, pezzi) {
   .nota { margin:12px 0 0; max-width:100%; font-size:13.5px; line-height:1.4; color:var(--verde) }
   </style></head><body>
   <h1>${domanda}</h1>
-  <p class="sotto">Le due schermate sono vere, prese dall’anteprima: guarda la differenza e dimmi quale preferisci.</p>
+  <p class="sotto">${pezzi.length > 2
+    ? 'Le schermate sono affiancate senza ritocchi: guarda la differenza e dimmi quale preferisci.'
+    : 'Le due schermate sono vere, prese dall’anteprima: guarda la differenza e dimmi quale preferisci.'}</p>
   <div class="fila">${colonne}</div>
   </body></html>`
 }
