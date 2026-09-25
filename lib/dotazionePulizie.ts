@@ -145,7 +145,7 @@ export const totaleSenzaMisura = (s: SenzaMisura | null | undefined) => (s?.lenz
 // Articoli recuperati oltre la dotazione (dati di prima o letti corretti):
 // si mostrano e si chiede di correggerli, mai azzerati in silenzio.
 export function recuperiOltre(dotazione: PezziPulizie, recuperi: PezziPulizie, s: SenzaMisura = { lenzuolo_sotto: 0, lenzuolo_sopra: 0 }): string[] {
-  const oltre = VOCI_DOTAZIONE.filter(([k]) => recuperi[k] > dotazione[k]).map(([, l]) => l)
+  const oltre: string[] = VOCI_DOTAZIONE.filter(([k]) => recuperi[k] > dotazione[k]).map(([, l]) => l)
   if (recuperi.sotto_matrimoniale + recuperi.sotto_singolo + s.lenzuolo_sotto > dotazione.sotto_matrimoniale + dotazione.sotto_singolo
     || recuperi.sopra_matrimoniale + recuperi.sopra_singolo + s.lenzuolo_sopra > dotazione.sopra_matrimoniale + dotazione.sopra_singolo) oltre.push('Lenzuola senza misura')
   return [...new Set(oltre)]
@@ -165,4 +165,15 @@ export function proponiAssettoDaSoggiorno(camera: string, b: { check_in: string;
   const date = Array.isArray(b.extra_bed_dates) ? b.extra_bed_dates.map(String) : []
   const letto = date.length > 0 ? date.includes(nottePulita(b.check_in, b.check_out, giorno)) : !!b.extra_bed
   return proponiAssetto(camera, ospiti, letto, 4)
+}
+
+// Statistiche generali: recuperi per articolo nel periodo, con lo storico
+// senza misura in una voce a parte (mai distribuito fra le misure).
+export function recuperiPerVoce(righe: Record<string, unknown>[]): { chiave: string; etichetta: string; n: number }[] {
+  const somma = pezziVuoti(); let sotto = 0, sopra = 0
+  for (const r of righe) { const x = recuperoDaRiga(r); if (!x) continue; for (const [k] of VOCI_DOTAZIONE) somma[k] += x.pezzi[k]; sotto += x.senzaMisura.lenzuolo_sotto; sopra += x.senzaMisura.lenzuolo_sopra }
+  const voci: { chiave: string; etichetta: string; n: number }[] = VOCI_DOTAZIONE.map(([k, l]) => ({ chiave: k, etichetta: l, n: somma[k] }))
+  if (sotto) voci.push({ chiave: 'lenzuolo_sotto', etichetta: 'Lenzuola sotto senza misura (storico)', n: sotto })
+  if (sopra) voci.push({ chiave: 'lenzuolo_sopra', etichetta: 'Lenzuola sopra senza misura (storico)', n: sopra })
+  return voci
 }

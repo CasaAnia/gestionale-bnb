@@ -1,10 +1,11 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import SchedaRecupero from './SchedaRecupero'
+import SchedaPulizia from './SchedaPulizia'
 import AvvisoAzione from './AvvisoAzione'
 import { addDaysStr, type Decisione } from '@/lib/pulizie'
 import { leggiRecuperiDellePulizie } from '@/lib/biancheriaDati'
-import { limitiRecupero, normalizza, riassunto, vuoto, type Contatori, type Recupero } from '@/lib/biancheria'
+import { type Contatori, type Recupero } from '@/lib/biancheria'
+import { recuperoDaRiga, totalePezzi, totaleSenzaMisura } from '@/lib/dotazionePulizie'
 import { leggiOperazionePulizia, type RichiestaPulizia, type RispostaPulizia } from '@/lib/pulizieOperazioni'
 import { inviaOperazionePulizia, leggiPersonePulizia } from '@/lib/pulizieServizio'
 import { ricaricaNumeriOggiOvunque } from '@/lib/numeriOggiDati'
@@ -21,7 +22,8 @@ type Props = {
 export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, persone, partenza, scegliData, home = false, onSalvato }: Props) {
   const [confermata, setConfermata] = useState<Decisione | null>(pulizia.id && pulizia.stato === 'fatta' ? pulizia : null)
   const [recupero, setRecupero] = useState<Recupero | null>(null)
-  const [scheda, setScheda] = useState<{ valori: Contatori; limiti: Contatori; versione: string | null; persone: number } | null>(null)
+  // Il pop-up approvato (SchedaPulizia) per «Pulita e recuperato» e per le correzioni.
+  const [scheda, setScheda] = useState<Decisione | null>(null)
   const [occupata, setOccupata] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [rilettura, setRilettura] = useState(0)
@@ -88,29 +90,22 @@ export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, pers
     }, recupero: valori })
   }
 
-  async function apriRecupero() {
+  function apriRecupero() {
     if (blocco.current || pendente) return
-    blocco.current = true; setOccupata(true); setErrore(null)
-    try {
-      const r = confermata?.id ? await leggiRecuperiDellePulizie([confermata.id]) : null
-      if (r && (r.errore || !r.tabella)) { setErrore(r.errore || 'Il recupero biancheria non è disponibile.'); return }
-      const precedente = r?.righe[0] ?? null
-      const n = confermata?.persone_servite ?? persone ?? pulizia.persone_servite ?? await leggiPersonePulizia(pulizia.booking_id)
-      if (!n) { setErrore('Non riesco a leggere il numero di ospiti del soggiorno. Riprova.'); return }
-      const valori = precedente ? normalizza(precedente) : vuoto()
-      setScheda({ valori, limiti: limitiRecupero(n, valori), versione: precedente?.updated_at ?? null, persone: n })
-    } catch { setErrore('Non riesco a leggere il recupero. Riprova.') }
-    finally { blocco.current = false; setOccupata(false) }
+    setErrore(null)
+    setScheda(confermata ?? { ...pulizia, stato: 'fatta' })
   }
 
-  const riepilogo = recupero && riassunto(recupero)
+  const letto = recupero ? recuperoDaRiga(recupero as unknown as Record<string, unknown>) : null
+  const pezzi = letto ? totalePezzi(letto.pezzi) + totaleSenzaMisura(letto.senzaMisura) : 0
+  const riepilogo = letto && pezzi > 0 ? `Recuperato: ${pezzi === 1 ? '1 pezzo' : `${pezzi} pezzi`}` : null
   return <div className="mt-2" data-controlli-pulizia>
     <div className={`flex flex-wrap items-center ${home ? 'gap-x-6 gap-y-0' : 'gap-2'}`}>
       {confermata ? <span className="text-sm text-green-mid font-semibold" data-fatta>✓ Pulita</span> : <>
         {scegliData && <label className="text-xs text-stone">Fatta il <input aria-label={`Fatta il · ${camera}`} type="date" max={oggi} value={data} onChange={e => setData(e.target.value)} disabled={occupata || pendente} className="ed-campo text-xs py-1" /></label>}
         <button type="button" onClick={() => void registra('fatta')} disabled={occupata || pendente} className={home ? 'ed-azione' : 'ed-pillola disabled:opacity-50'} style={{ minHeight: 44 }} data-pulita>{occupata ? 'Salvo…' : 'Pulita'}</button>
       </>}
-      <button type="button" onClick={() => void apriRecupero()} disabled={occupata || pendente} className={home ? 'ed-azione' : 'ed-pillola-contorno disabled:opacity-50'} style={{ minHeight: 44 }} data-recuperato>{!confermata ? 'Pulita e recuperato' : riepilogo ? 'Modifica recupero' : 'Recuperato'}</button>
+      <button type="button" onClick={apriRecupero} disabled={occupata || pendente} className={home ? 'ed-azione' : 'ed-pillola-contorno disabled:opacity-50'} style={{ minHeight: 44 }} data-recuperato>{!confermata ? 'Pulita e recuperato' : riepilogo ? 'Modifica recupero' : 'Recuperato'}</button>
       {!confermata && <div className={`flex items-center gap-5 ${home ? 'basis-full' : ''}`}>
         <button type="button" onClick={() => setSposta({ stato: 'rimandata', data: addDaysStr(pulizia.data_prevista > oggi ? pulizia.data_prevista : oggi, 1) })} disabled={occupata || pendente} className={home ? 'ed-azione ed-azione-tenue' : 'ed-pillola-tenue'} style={{ minHeight: 44 }}>Rimanda</button>
         {pulizia.tipo === 'soggiorno' && <button type="button" onClick={() => setSposta({ stato: 'saltata', data: addDaysStr(pulizia.data_prevista, 4) })} disabled={occupata || pendente} className={home ? 'ed-azione ed-azione-tenue' : 'ed-pillola-tenue'} style={{ minHeight: 44 }}>Salta</button>}
@@ -125,9 +120,8 @@ export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, pers
       <button type="button" className="ed-pillola-tenue" disabled={occupata || pendente} onClick={() => setSposta(null)}>Annulla</button>
     </div>}
     {(errore || pendente) && <AvvisoAzione testo={errore || 'Un salvataggio attende conferma. Premi Riprova.'} className="mt-2" onRiprova={pendente ? () => void invia(null) : () => window.location.reload()} />}
-    {scheda && <SchedaRecupero camera={`${camera} · ${scheda.persone} ${scheda.persone === 1 ? 'ospite' : 'ospiti'}`} iniziale={scheda.valori} limiti={scheda.limiti} bloccata={pendente}
-      onChiudi={() => setScheda(null)} onSalva={valori => pendente ? invia(null) : confermata?.id
-        ? invia({ azione: 'recupero', cleaning_id: confermata.id, versione: scheda.versione, recupero: valori })
-        : registra('fatta', valori, scheda.persone)} />}
+    {scheda && <SchedaPulizia camera={camera} pulizia={scheda} oggi={oggi} ultimaId={ultimaId} onChiudi={() => setScheda(null)}
+      nomeCamera={id => id === pulizia.booking_id ? camera : null}
+      onSalvato={r => { if (r.pulizia.stato === 'fatta' && (!confermata || r.pulizia.id === confermata.id)) setConfermata(r.pulizia); setRecupero(r.recupero); setRilettura(x => x + 1); onSalvato?.(r) }} />}
   </div>
 }

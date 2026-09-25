@@ -13,7 +13,8 @@ import { testoPagamentiDaControllare } from '@/lib/daControllare'
 import { ID_SEZIONE } from '@/components/DaControllare'
 import { daDoveArrivano, struttureDellAnno, type PrenotazioneProvenienza } from '@/lib/statistiche/provenienza'
 import { leggiRecuperi, type LetturaRecuperi } from '@/lib/biancheriaDati'
-import { sommaPerVoce, nelPeriodo, AVVISO_0039 } from '@/lib/biancheria'
+import { nelPeriodo, AVVISO_0039 } from '@/lib/biancheria'
+import { recuperiPerVoce } from '@/lib/dotazionePulizie'
 import { AVVISO_0037 } from '@/lib/provenienza'
 import { supabase } from '@/lib/supabase'
 import { nomeConAltri } from '@/lib/guestName'
@@ -210,7 +211,7 @@ export default function Statistiche() {
   }
 
   const intervallo = intervalloPeriodo(ref, period)
-  const biancheria = recuperi && recuperi.tabella && !recuperi.errore ? sommaPerVoce(nelPeriodo(recuperi.righe, intervallo.da, intervallo.a)) : null
+  const biancheria = recuperi && recuperi.tabella && !recuperi.errore ? recuperiPerVoce(nelPeriodo(recuperi.righe, intervallo.da, intervallo.a) as unknown as Record<string, unknown>[]) : null
   const biancheriaTotale = biancheria ? biancheria.reduce((t, v) => t + v.n, 0) : 0
   const totali = data ? cassaIntervallo(data.prenotazioni, data.pagamenti, data.spese, intervallo.da, intervallo.a) : null
   // KPI (07/09/2026): occupazione, tariffa media, notti libere del periodo da
