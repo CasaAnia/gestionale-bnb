@@ -80,7 +80,7 @@ export function resocontoPulizie(rooms: Camera[], bookings: PrenotazionePulizie[
     if (precedente && data > precedente && entro(data)) intervalli.push({ roomId: e.room_id, da: precedente, a: data, notti: diffDays(data, precedente) })
     ultimoCambio.set(k, data)
   }
-  const storiche = stimeStoriche(rooms, bookings, oggi)
+  const storiche = stimeStoriche(rooms, bookings, oggi, unici)
   const stime = [...storiche.pulizie.map(e => ({ ...e, tipo: 'fine_soggiorno' as TipoPulizia })), ...storiche.cambi.map(e => ({ ...e, tipo: 'soggiorno' as TipoPulizia })), ...pulizieAutomatiche(bookings, unici, oggi).map(e => ({ roomId: e.roomId, date: e.data, tipo: e.tipo }))]
     .filter(e => entro(e.date) && !fatte.some(f => f.room_id === e.roomId && (f.data_effettiva || f.data_prevista) === e.date && f.tipo === e.tipo))
   return { fatte, righe, recuperati, spostate, saltate, rinvioMedio, perCamera, intervalli, stime,

@@ -1,3 +1,15 @@
+# Verifica conteggi pulizie e recuperi — 25 settembre 2026 — CORREZIONI LOCALI COLLAUDATE; VERIFICA REALE APERTA
+
+Responsabile: Codex. Copia isolata `work/gestionale-verifica-pulizie`, base `9db3697`.
+Perimetro: conteggio cambi e pulizie, ricostruzione storica, aggiornamento recuperi nelle statistiche. Nessuna scrittura su dati reali o pubblicazione.
+Prove: casi sintetici con 4/8/9 notti, rinvii e prolungamenti; recupero salva → riapri → modifica → rilegge statistiche; confronto periodo; SQL isolata e UI locale. Il caso reale segnalato resta da identificare con camera/periodo.
+
+Esiti: 74 prove mirate, 1760 test app, 80 test strumenti, TypeScript/lint e build con configurazione sintetica superati. UI reale 390/1280: recuperi 8→10, seconda riapertura e altra scheda coerenti; 3 interventi, 10 pezzi. Nessun dato reale toccato.
+Limiti: dotazione lenzuola fissata a una per tipo anche con più letti, da definire/correggere; caso reale di oggi non identificato. Suite script revisione: 21/53 fallimenti riprodotti nella base originale, nessun verde generale dichiarato. Copia principale e produzione non modificate.
+Rapporto: `outputs/verifica-pulizie-e-recuperi.md` nella task del 25 settembre.
+
+---
+
 # Scheda attiva — «Arrivo e navetta» (21 settembre 2026) — PUBBLICATO
 
 ## «Gentile [Nome],» in TUTTI i messaggi (Ania, 21/09/2026 sera) — FATTO IN LOCALE

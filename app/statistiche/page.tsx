@@ -1,4 +1,6 @@
 'use client'
+import RiepilogoInterventiPulizie from '@/components/RiepilogoInterventiPulizie'
+import { osservaAggiornamentiPulizie } from '@/lib/aggiornamentiPulizie'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import BackBar from '@/components/BackBar'
@@ -176,14 +178,16 @@ export default function Statistiche() {
 
   // Biancheria recuperata (06/09/2026): stessa finestra di lettura delle altre
   // voci; tabella assente (0039 non applicata) = riquadro con l'avviso, mai un errore
+  const [revisioneRecuperi, setRevisioneRecuperi] = useState(0)
+  useEffect(() => osservaAggiornamentiPulizie(window, () => setRevisioneRecuperi(x => x + 1)), [])
   const [recuperiLetti, setRecuperiLetti] = useState<{ chiave: string; esito: LetturaRecuperi } | null>(null)
-  const recuperi = recuperiLetti?.chiave === `${chiaveLettura}:${tentativo}` ? recuperiLetti.esito : null
+  const recuperi = recuperiLetti?.chiave === `${chiaveLettura}:${tentativo}:${revisioneRecuperi}` ? recuperiLetti.esito : null
   useEffect(() => {
     let vivo = true
     const [da, a] = chiaveLettura.split('|')
-    leggiRecuperi(da, a).then(r => { if (vivo) setRecuperiLetti({ chiave: `${chiaveLettura}:${tentativo}`, esito: r }) }).catch(() => { if (vivo) setRecuperiLetti({ chiave: `${chiaveLettura}:${tentativo}`, esito: { righe: [], tabella: true, errore: 'Non riesco a leggere la biancheria recuperata.' } }) })
+    leggiRecuperi(da, a).then(r => { if (vivo) setRecuperiLetti({ chiave: `${chiaveLettura}:${tentativo}:${revisioneRecuperi}`, esito: r }) }).catch(() => { if (vivo) setRecuperiLetti({ chiave: `${chiaveLettura}:${tentativo}:${revisioneRecuperi}`, esito: { righe: [], tabella: true, errore: 'Non riesco a leggere la biancheria recuperata.' } }) })
     return () => { vivo = false }
-  }, [chiaveLettura, tentativo])
+  }, [chiaveLettura, tentativo, revisioneRecuperi])
 
   function riprova() {
     setErrore(null)
@@ -724,6 +728,8 @@ export default function Statistiche() {
               ))}
             </div>
           )}
+
+          <RiepilogoInterventiPulizie da={intervallo.da} a={intervallo.a} oggi={todayStr()} />
 
           {/* Biancheria recuperata (06/09/2026): pezzi NON usati dagli ospiti e recuperati puliti, per voce nel periodo */}
           {recuperi && (recuperi.errore || !recuperi.tabella) && <AvvisoAzione testo={recuperi.errore || AVVISO_0039} onRiprova={riprova} className="mt-3" />}

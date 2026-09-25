@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
+import { osservaAggiornamentiPulizie } from '@/lib/aggiornamentiPulizie'
 import ControlliPulizia from '@/components/ControlliPulizia'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { leggiRecuperiDellePulizie } from '@/lib/biancheriaDati'
@@ -16,6 +17,7 @@ export default function Statistiche({ rooms, bookings, events, td }: { rooms: Ca
   const [lettura, setLettura] = useState<{ chiave: string; righe: Recupero[] } | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
   const [tentativo, setTentativo] = useState(0)
+  useEffect(() => osservaAggiornamentiPulizie(window, () => setTentativo(x => x + 1)), [])
   const [camera, setCamera] = useState('')
   const [voce, setVoce] = useState<VoceBiancheria | ''>('')
   const [intervento, setIntervento] = useState('')

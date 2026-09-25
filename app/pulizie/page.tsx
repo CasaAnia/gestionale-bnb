@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
+import { osservaAggiornamentiPulizie } from '@/lib/aggiornamentiPulizie'
 import Statistiche from './Statistiche'
 import { supabase } from '@/lib/supabase'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
@@ -90,6 +91,7 @@ export default function Pulizie() {
   const [events, setEvents] = useState<Decisione[]>([])
   const [errore, setErrore] = useState<string | null>(null)
   const [rilettura, setRilettura] = useState(0)
+  useEffect(() => osservaAggiornamentiPulizie(window, () => setRilettura(x => x + 1)), [])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [spiegaAperta, setSpiegaAperta] = useState<Record<string, boolean>>({})
