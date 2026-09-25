@@ -105,3 +105,64 @@ export function riepilogoDotazione(registro: RegistrazionePulizia[], da: string,
     minutiMedi: conDurata ? minuti / conDurata : null,
     percentualeRecupero: conLavaggio === righe.length && totalePezzi(dotazione) > 0 ? totalePezzi(recuperi) / totalePezzi(dotazione) * 100 : null }
 }
+
+// ── Salvataggio centrale (proposta 0059) ────────────────────────────────────
+// Stessi nomi delle colonne: cleanings.assetto/dotazione e le misure di
+// biancheria_recuperata. Lo scendidoccia usa la colonna tappetino_doccia di
+// sempre; lenzuolo_sotto/lenzuolo_sopra restano lo storico SENZA misura.
+export type AssettoSql = { matrimoniali: number; singoli: number; ospiti: number; federe_matrimoniale: 2 | 4 }
+export type SenzaMisura = { lenzuolo_sotto: number; lenzuolo_sopra: number }
+export type RecuperoSql = PezziPulizie & SenzaMisura
+
+export const assettoPerSql = (a: AssettoPulizia): AssettoSql => ({ matrimoniali: a.matrimoniali, singoli: a.singoli, ospiti: a.ospiti, federe_matrimoniale: a.federeMatrimoniale })
+export function assettoDaSql(a: unknown): AssettoPulizia | null {
+  const x = a as Partial<AssettoSql> | null
+  if (!x || typeof x !== 'object') return null
+  const assetto = { matrimoniali: Number(x.matrimoniali), singoli: Number(x.singoli), ospiti: Number(x.ospiti), federeMatrimoniale: Number(x.federe_matrimoniale) as 2 | 4 }
+  return validaAssetto(assetto) ? null : assetto
+}
+export function pezziDaSql(p: unknown): PezziPulizie | null {
+  if (!p || typeof p !== 'object') return null
+  const out = pezziVuoti()
+  for (const [k] of VOCI_DOTAZIONE) { const n = Number((p as Record<string, unknown>)[k]); if (!Number.isInteger(n) || n < 0) return null; out[k] = n }
+  return out
+}
+// Riga di biancheria_recuperata → recuperi per misura + storico senza misura.
+// Nessun valore si perde: quello che non ha misura resta separato.
+export function recuperoDaRiga(r: Record<string, unknown> | null | undefined): { pezzi: PezziPulizie; senzaMisura: SenzaMisura } | null {
+  if (!r) return null
+  const n = (k: string) => { const v = Math.floor(Number(r[k] ?? 0)); return Number.isFinite(v) && v > 0 ? v : 0 }
+  return {
+    pezzi: { sotto_matrimoniale: n('sotto_matrimoniale'), sopra_matrimoniale: n('sopra_matrimoniale'), sotto_singolo: n('sotto_singolo'), sopra_singolo: n('sopra_singolo'),
+      federe: n('federe'), telo_doccia: n('telo_doccia'), asciugamano_viso: n('asciugamano_viso'), asciugamano_mani: n('asciugamano_mani'),
+      tappeto_bagno: n('tappeto_bagno'), scendidoccia: n('tappetino_doccia') },
+    senzaMisura: { lenzuolo_sotto: n('lenzuolo_sotto'), lenzuolo_sopra: n('lenzuolo_sopra') },
+  }
+}
+export const recuperoPerSql = (p: PezziPulizie, s: SenzaMisura): RecuperoSql => ({ ...p, ...s })
+export const totaleSenzaMisura = (s: SenzaMisura | null | undefined) => (s?.lenzuolo_sotto ?? 0) + (s?.lenzuolo_sopra ?? 0)
+
+// Articoli recuperati oltre la dotazione (dati di prima o letti corretti):
+// si mostrano e si chiede di correggerli, mai azzerati in silenzio.
+export function recuperiOltre(dotazione: PezziPulizie, recuperi: PezziPulizie, s: SenzaMisura = { lenzuolo_sotto: 0, lenzuolo_sopra: 0 }): string[] {
+  const oltre = VOCI_DOTAZIONE.filter(([k]) => recuperi[k] > dotazione[k]).map(([, l]) => l)
+  if (recuperi.sotto_matrimoniale + recuperi.sotto_singolo + s.lenzuolo_sotto > dotazione.sotto_matrimoniale + dotazione.sotto_singolo
+    || recuperi.sopra_matrimoniale + recuperi.sopra_singolo + s.lenzuolo_sopra > dotazione.sopra_matrimoniale + dotazione.sopra_singolo) oltre.push('Lenzuola senza misura')
+  return [...new Set(oltre)]
+}
+
+// Proposta dai dati del soggiorno che si pulisce: gli ospiti della
+// prenotazione e il letto aggiuntivo della NOTTE appena passata (quella dei
+// letti che si disfano), non il flag di oggi. Senza dati certi: null.
+export function nottePulita(checkIn: string, checkOut: string, giorno: string): string {
+  const prima = new Date(Date.parse(`${giorno}T12:00:00Z`) - 86400000).toISOString().slice(0, 10)
+  const ultima = new Date(Date.parse(`${checkOut}T12:00:00Z`) - 86400000).toISOString().slice(0, 10)
+  return prima < checkIn ? checkIn : prima > ultima ? ultima : prima
+}
+export function proponiAssettoDaSoggiorno(camera: string, b: { check_in: string; check_out: string; num_guests?: unknown; extra_bed?: unknown; extra_bed_dates?: unknown }, giorno: string, ospitiFotografati?: number | null): AssettoPulizia | null {
+  const ospiti = Number(ospitiFotografati ?? b.num_guests)
+  if (!Number.isInteger(ospiti) || ospiti < 1) return null
+  const date = Array.isArray(b.extra_bed_dates) ? b.extra_bed_dates.map(String) : []
+  const letto = date.length > 0 ? date.includes(nottePulita(b.check_in, b.check_out, giorno)) : !!b.extra_bed
+  return proponiAssetto(camera, ospiti, letto, 4)
+}

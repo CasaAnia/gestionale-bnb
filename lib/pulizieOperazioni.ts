@@ -1,9 +1,14 @@
 import type { Decisione } from './pulizie.ts'
 import type { Recupero, Contatori } from './biancheria.ts'
+import type { AssettoSql, RecuperoSql } from './dotazionePulizie.ts'
 
+// «registra» e «recupero» sono le richieste di prima (0045); dalla 0059 la
+// conferma può portare dotazione e minuti, e «dettagli» corregge lo stesso
+// intervento (letti, data, minuti e recuperi insieme), mai uno nuovo.
 export type RichiestaPulizia =
-  | { azione: 'registra'; ultima_id: string | null; pulizia: Decisione; recupero: Contatori | null }
+  | { azione: 'registra'; ultima_id: string | null; pulizia: Decisione & { assetto?: AssettoSql | null; minuti?: number | null }; recupero: Contatori | RecuperoSql | null }
   | { azione: 'recupero'; cleaning_id: string; versione: string | null; recupero: Contatori }
+  | { azione: 'dettagli'; cleaning_id: string; versione: string | null; versione_recupero: string | null; data_effettiva: string; assetto: AssettoSql | null; minuti: number | null; recupero: RecuperoSql | null }
 export type RispostaPulizia = { pulizia: Decisione; recupero: Recupero | null }
 export type CustodiaPulizia = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 export type TrasportoPulizia = (id: string, richiesta: RichiestaPulizia) => Promise<{ data: RispostaPulizia | null; error: { code?: string; message?: string } | null }>
@@ -14,7 +19,7 @@ export function leggiOperazionePulizia(custodia: CustodiaPulizia, camera: string
   const raw = custodia.getItem(chiave(camera))
   if (raw === null) return null
   const p = JSON.parse(raw) as PendentePulizia
-  if (!p.id || !p.richiesta || !['registra', 'recupero'].includes(p.richiesta.azione)) throw new Error('Salvataggio custodito non leggibile')
+  if (!p.id || !p.richiesta || !['registra', 'recupero', 'dettagli'].includes(p.richiesta.azione)) throw new Error('Salvataggio custodito non leggibile')
   return p
 }
 
@@ -36,7 +41,7 @@ export async function eseguiOperazionePulizia(camera: string, richiesta: Richies
   let esito: Awaited<ReturnType<TrasportoPulizia>>
   try { esito = await trasporto(pendente.id, pendente.richiesta) }
   catch { return { errore: 'Risposta non ricevuta. Premi Riprova: il salvataggio non verrà duplicato.', risposta: null } }
-  const definitiva = esito.error && /^(22[A-Z0-9]{3}|42501|23502|23503|23514|P0045|PGRST202|42883)$/.test(esito.error.code ?? '')
+  const definitiva = esito.error && /^(22[A-Z0-9]{3}|42501|23502|23503|23514|P0045|P0046|PGRST202|42883)$/.test(esito.error.code ?? '')
   if (esito.error && !definitiva) return { errore: 'Non riesco a confermare il salvataggio. Premi Riprova prima di modificarlo.', risposta: null }
   if (!esito.error && !esito.data?.pulizia?.id) return { errore: 'Risposta incompleta. Premi Riprova per verificare il salvataggio.', risposta: null }
   try {
@@ -52,8 +57,23 @@ export async function eseguiOperazionePulizia(camera: string, richiesta: Richies
   if (esito.error) {
     const code = esito.error.code
     return { errore: code === 'P0045' ? 'La pulizia è cambiata nel frattempo. Ricarica e riapri la scheda.'
-      : code === 'PGRST202' || code === '42883' ? 'Il nuovo salvataggio delle pulizie deve ancora essere attivato.'
-        : 'Non salvato: controlla date, quantità e soggiorno della pulizia.', risposta: null }
+      : code === 'P0046' ? 'Il timer di questa pulizia è ancora da risolvere: fermalo e riporta i minuti, oppure azzeralo.'
+        : code === 'PGRST202' || code === '42883' ? 'Il nuovo salvataggio delle pulizie deve ancora essere attivato.'
+          : messaggioRifiuto(esito.error.message), risposta: null }
   }
   return { errore: null, risposta: esito.data }
+}
+
+// I rifiuti che chiedono un'azione precisa: il testo del database è senza
+// accenti, qui si scrive in italiano corretto.
+const RIFIUTI: [RegExp, string][] = [
+  [/Lenzuola senza misura/, 'Nello storico ci sono lenzuola senza misura: riportale sulla misura giusta prima di aggiungerne.'],
+  [/oltre la nuova dotazione/, 'Con i nuovi letti alcuni recuperi superano la dotazione: correggi i recuperi.'],
+  [/Conferma i letti preparati/, 'Conferma i letti preparati prima di segnare i recuperi.'],
+  [/Quantita oltre la dotazione/, 'Un recupero supera la dotazione: controlla i letti e i pezzi preparati.'],
+  [/Gli ospiti superano/, 'Gli ospiti superano i posti dei letti preparati.'],
+  [/Minuti non validi/, 'I minuti vanno da 1 a 1440, oppure lascia il campo vuoto.'],
+]
+export function messaggioRifiuto(testo: string | undefined): string {
+  return RIFIUTI.find(([re]) => re.test(testo ?? ''))?.[1] ?? 'Non salvato: controlla date, quantità e soggiorno della pulizia.'
 }
