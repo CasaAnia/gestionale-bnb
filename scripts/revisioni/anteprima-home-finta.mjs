@@ -217,6 +217,7 @@ const da_controllare_rinvii = []
 // Recupero biancheria (06/09/2026): tabella IN MEMORIA, upsert per cleaning_id;
 // GET /finto/senza-biancheria?on=1 la fa sparire (PGRST205) per provare «Non salvato, riprova»
 const biancheria_recuperata = []
+const pulizie_timer = [], pulizie_fuori_camera = []
 let senzaBiancheria = false
 
 // Scenario dedicato alle pulizie, attivato solo nel collaudo locale.
@@ -233,9 +234,48 @@ if (process.env.FINTO_PULIZIE_SQL === '1') {
     booking_id: bookings[4].id, tipo: 'soggiorno', stato: 'fatta', data_prevista: O(-6), data_effettiva: O(-4),
     prossima_data: null, cambio_biancheria: true, created_at: new Date(adesso.getTime() - 4 * 86400000).toISOString() })
   dbPulizie = await databasePulizieFinto(rooms, bookings, cleanings)
+} else if (process.env.FINTO_PULIZIE_SQL === '2') {
+  // Integrazione pulizie (25/09/2026), con la proposta 0059 applicata al
+  // database in memoria. Oggi: Amelia rinviata da ieri (due singoli, 16 pezzi),
+  // Ambra uso singolo (federe da scegliere), Lena fine soggiorno in due con
+  // letti separati (18 pezzi). Fra due giorni: 4 pulizie di cui 3 cambi camera
+  // (Amelia→Allegra→Ambra→Lena) e la partenza di Lena in quattro (28 pezzi).
+  const G1 = 'cccccccc-2222-4000-8000-000000000001', G2 = 'cccccccc-2222-4000-8000-000000000002', G3 = 'cccccccc-2222-4000-8000-000000000003'
+  const letto = (da, a) => { const out = []; for (let i = da; i < a; i++) out.push(O(i)); return out }
+  bookings.splice(0, bookings.length,
+    prenotazione(ROOM.amelia, G.anna.id, O(-5), O(2), 2, { group_id: G1, extra_bed: true, extra_bed_dates: letto(-5, 2) }),
+    prenotazione(ROOM.allegra, G.anna.id, O(2), O(5), 2, { group_id: G1 }),
+    prenotazione(ROOM.allegra, G.marco.id, O(-6), O(2), 3, { group_id: G2, extra_bed: true, extra_bed_dates: letto(-6, 2) }),
+    prenotazione(ROOM.ambra, G.marco.id, O(2), O(5), 3, { group_id: G2, extra_bed: true, extra_bed_dates: letto(2, 5) }),
+    prenotazione(ROOM.ambra, G.lucia.id, O(-4), O(2), 1, { group_id: G3 }),
+    prenotazione(ROOM.lena, G.lucia.id, O(2), O(5), 1, { group_id: G3 }),
+    prenotazione(ROOM.lena, G.paola.id, O(-3), O(0), 2, { status: 'completata', extra_bed: true, extra_bed_dates: letto(-3, 0) }),
+    prenotazione(ROOM.lena, G.giulio.id, O(0), O(2), 4, { extra_bed: true, extra_bed_dates: letto(0, 2) }),
+    prenotazione(ROOM.allegra, G.elena.id, O(-12), O(-8), 2, { status: 'completata' }))
+  const b = i => bookings[i].id
+  cleanings.splice(0, cleanings.length,
+    // storico: pulizia confermata senza dotazione, recupero di prima con una lenzuola senza misura
+    { id: 'cccccccc-0010-4000-8000-000000000010', room_id: ROOM.allegra, booking_id: b(8), tipo: 'fine_soggiorno', stato: 'fatta', data_prevista: O(-8), data_effettiva: O(-8), prossima_data: null, cambio_biancheria: true, created_at: new Date(adesso.getTime() - 8 * 86400000).toISOString() },
+    // Allegra: cambio fatto due giorni fa con dotazione e minuti
+    { id: 'cccccccc-0011-4000-8000-000000000011', room_id: ROOM.allegra, booking_id: b(2), tipo: 'soggiorno', stato: 'fatta', data_prevista: O(-2), data_effettiva: O(-2), prossima_data: null, cambio_biancheria: true, created_at: new Date(adesso.getTime() - 2 * 86400000).toISOString() },
+    // Amelia: il cambio di ieri rinviato a oggi (caso del 25→26)
+    { id: 'cccccccc-0012-4000-8000-000000000012', room_id: ROOM.amelia, booking_id: b(0), tipo: 'soggiorno', stato: 'rimandata', data_prevista: O(-1), data_effettiva: null, prossima_data: O(0), cambio_biancheria: false, created_at: new Date(adesso.getTime() - 86400000).toISOString() })
+  dbPulizie = await databasePulizieFinto(rooms, bookings, cleanings, { con0059: true })
+  await dbPulizie.query(`update cleanings set assetto='{"matrimoniali":1,"singoli":1,"ospiti":3,"federe_matrimoniale":4}', dotazione=private.dotazione_da_assetto('{"matrimoniali":1,"singoli":1,"ospiti":3,"federe_matrimoniale":4}'), minuti=40 where id='cccccccc-0011-4000-8000-000000000011'`)
+  await dbPulizie.query(`insert into biancheria_recuperata(cleaning_id,room_id,booking_id,data,federe,lenzuolo_sotto) values ('cccccccc-0010-4000-8000-000000000010',$1,$2,$3,2,1)`, [ROOM.allegra, b(8), O(-8)])
+  await dbPulizie.query(`insert into pulizie_fuori_camera(data,attivita,minuti) values ($1,'piegatura',15)`, [O(-3)])
 }
+// Le letture della pagina passano dalle stesse tabelle del database in memoria.
+async function sincronizzaPulizie() {
+  if (!dbPulizie) return
+  for (const [nome, arr] of [['cleanings', cleanings], ['biancheria_recuperata', biancheria_recuperata], ['pulizie_timer', pulizie_timer], ['pulizie_fuori_camera', pulizie_fuori_camera]]) {
+    try { const righe = (await dbPulizie.query(`select row_to_json(t) as r from ${nome} t`)).rows.map(x => x.r); arr.splice(0, arr.length, ...righe) } catch { /* tabella assente senza 0059 */ }
+  }
+}
+await sincronizzaPulizie()
+let errorePrimaPulizia = false, letturaIncompleta = false, perdiRispostaTempo = false
 
-const tabelle = { rooms, guests, bookings, payments, cleanings, richieste, family_documents, da_controllare_rinvii, strutture, biancheria_recuperata }
+const tabelle = { rooms, guests, bookings, payments, cleanings, richieste, family_documents, da_controllare_rinvii, strutture, biancheria_recuperata, pulizie_timer, pulizie_fuori_camera }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
 
 // --- PostgREST minimale ---------------------------------------------------
@@ -360,17 +400,35 @@ const finto = createServer(async (req, res) => {
     return rispondi(res, 500, { code: 'FINTO', message: 'errore simulato sulla lettura delle prenotazioni di oggi', details: null, hint: null })
   }
   if (url.pathname === '/finto/perdi-risposta-pulizia') { perdiRispostaPulizia = true; return rispondi(res, 200, { pronto: true }) }
+  // Guasti del collaudo: prima della scrittura, lettura incompleta dopo, risposta persa sui tempi
+  if (url.pathname === '/finto/errore-prima-pulizia') { errorePrimaPulizia = true; return rispondi(res, 200, { pronto: true }) }
+  if (url.pathname === '/finto/lettura-incompleta') { letturaIncompleta = true; return rispondi(res, 200, { pronto: true }) }
+  if (url.pathname === '/finto/perdi-risposta-tempo') { perdiRispostaTempo = true; return rispondi(res, 200, { pronto: true }) }
+  if (url.pathname === '/finto/sql' && dbPulizie) { try { return rispondi(res, 200, (await dbPulizie.query(url.searchParams.get('q'))).rows) } catch (e) { return rispondi(res, 400, { message: e.message }) } }
   if (url.pathname === '/rest/v1/rpc/gestisci_pulizia' && req.method === 'POST') {
     if (!dbPulizie) return rispondi(res, 404, { code: 'PGRST202', message: 'Attivare FINTO_PULIZIE_SQL=1' })
     const corpo = await leggiCorpo(req)
+    if (errorePrimaPulizia) { errorePrimaPulizia = false; return rispondi(res, 503, { code: 'FINTO', message: 'servizio non raggiungibile prima della scrittura' }) }
     try {
       const result = (await dbPulizie.query('select gestisci_pulizia($1,$2::jsonb) as r', [corpo.p_operazione, JSON.stringify(corpo.p_richiesta)])).rows[0].r
-      const c = (await dbPulizie.query('select row_to_json(c) as r from cleanings c')).rows.map(x => x.r)
-      const b = (await dbPulizie.query('select row_to_json(b) as r from biancheria_recuperata b')).rows.map(x => x.r)
-      cleanings.splice(0, cleanings.length, ...c); biancheria_recuperata.splice(0, biancheria_recuperata.length, ...b)
+      await sincronizzaPulizie()
       if (perdiRispostaPulizia) { perdiRispostaPulizia = false; res.destroy(); return }
       return rispondi(res, 200, result)
-    } catch (e) { return rispondi(res, 400, { code: e.code, message: e.message }) }
+    } catch (e) { return rispondi(res, 400, { code: e.code, message: e.message, details: e.detail ?? null }) }
+  }
+  if (url.pathname === '/rest/v1/rpc/gestisci_tempo_pulizie' && req.method === 'POST') {
+    if (!dbPulizie) return rispondi(res, 404, { code: 'PGRST202', message: 'Attivare FINTO_PULIZIE_SQL=2' })
+    const corpo = await leggiCorpo(req)
+    try {
+      const result = (await dbPulizie.query('select gestisci_tempo_pulizie($1::jsonb) as r', [JSON.stringify(corpo.p_richiesta)])).rows[0].r
+      await sincronizzaPulizie()
+      if (perdiRispostaTempo && corpo.p_richiesta?.azione !== 'leggi') { perdiRispostaTempo = false; res.destroy(); return }
+      return rispondi(res, 200, result)
+    } catch (e) { return rispondi(res, 400, { code: e.code, message: e.message, details: e.detail ?? null }) }
+  }
+  if (letturaIncompleta && req.method === 'GET' && url.pathname === '/rest/v1/cleanings' && (url.searchParams.get('id') || '').startsWith('eq.')) {
+    letturaIncompleta = false
+    return (req.headers.accept || '').includes('vnd.pgrst.object') ? rispondi(res, 406, { code: 'PGRST116', message: 'nessuna riga' }) : rispondi(res, 200, [], { 'Content-Range': '*/0' })
   }
   if (url.pathname === '/auth/v1/token') return rispondi(res, 200, sessione())
   if (url.pathname === '/auth/v1/user') return rispondi(res, 200, utente)

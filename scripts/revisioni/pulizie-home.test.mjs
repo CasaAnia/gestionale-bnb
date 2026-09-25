@@ -20,7 +20,7 @@ import { vuoto } from '../../lib/biancheria.ts'
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const require = createRequire(import.meta.url)
 const cache = new Map()
-const adapters = new Set(['biancheriaDati', 'pulizieServizio', 'numeriOggiDati', 'daControllareDati'])
+const adapters = new Set(['biancheriaDati', 'pulizieServizio', 'numeriOggiDati', 'daControllareDati', 'supabase', 'pulizieTempiDati'])
 function carica(file) {
   if (cache.has(file)) return cache.get(file)
   const modulo = { exports: {} }

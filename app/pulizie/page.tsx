@@ -108,7 +108,7 @@ export default function Pulizie() {
   const daFare = conteggioGiorno(rooms, prenotazioni, events, td, td).daFare
   const confermate = confermateNelGiorno(events, td)
   const prossime = useMemo(() => prossimePulizie(prenotazioni, rooms.filter(r => r.active !== false).map(r => r.id), td, events)
-    .filter(p => !camereOggi.some(c => c.room.id === p.roomId && c.aperte.some(a => a.tipo === p.tipo))), [prenotazioni, rooms, td, events, camereOggi])
+    .filter(p => !camereOggi.some(c => c.room.id === p.roomId && c.aperte.some(a => a.tipo === p.tipo && a.booking.id === p.booking.id && a.due === p.data))), [prenotazioni, rooms, td, events, camereOggi])
   const rinvii = useMemo(() => rinviiInCorso(events, td), [events, td])
 
   async function sposta(p: Pulizia, giorni: number | null) {
@@ -197,7 +197,7 @@ export default function Pulizie() {
       {registro.slice(0, quanteRighe).map(v => { const nome = breve(v.evento?.room_id ?? v.auto!.roomId); const e = v.evento; const assetto = e ? assettoDaSql(e.assetto) : null; const rec = v.recupero ? recuperoDaRiga(v.recupero) : null
         return <article className="ed-riga py-4" key={v.chiave} data-registro={nome}><h3 className="font-serif text-xl">{nome} · {dataNumerica(v.data)}</h3>
           <p className="text-sm mt-2">{TIPI_INTERVENTO[e?.tipo ?? v.auto!.tipo]} · {assetto ? lettiTesto(assetto) : 'letti non documentati'}{v.auto ? ' · automatica' : ''}</p>
-          {e && <p className="text-sm text-stone mt-1">{v.recupero === undefined ? 'Recuperi da leggere' : rec ? `${totalePezzi(rec.pezzi) + totaleSenzaMisura(rec.senzaMisura)} pezzi recuperati` : 'Recuperi non annotati'} · {e.minuti ? `${e.minuti} minuti effettivi` : 'Durata non annotata'}</p>}
+          {e && <p className="text-sm text-stone mt-1">{v.recupero === undefined ? 'Recuperi da leggere' : rec ? ((n => n === 0 ? 'Niente recuperato' : n === 1 ? '1 pezzo recuperato' : `${n} pezzi recuperati`)(totalePezzi(rec.pezzi) + totaleSenzaMisura(rec.senzaMisura))) : 'Recuperi non annotati'} · {e.minuti ? `${e.minuti} minuti effettivi` : 'Durata non annotata'}</p>}
           {e && <button type="button" className={`${classe} mt-3`} onClick={() => apri(nome, e, bookings.find(b => b.id === e.booking_id) ?? null)}>Riapri · {nome}</button>}
           {v.auto && (correzione[v.chiave] !== undefined ? <div className="flex flex-wrap items-center gap-2 mt-3"><label className="text-xs">Fatta il<input type="date" className="ed-campo ml-2" max={td} value={correzione[v.chiave]} onChange={ev => setCorrezione({ ...correzione, [v.chiave]: ev.target.value })} /></label><button type="button" className="ed-pillola" disabled={!!saving || !correzione[v.chiave]} onClick={() => void correggiAutomatica(v.auto!, v.chiave, 'data')}>Conferma</button><button type="button" className="ed-pillola-tenue" onClick={() => setCorrezione(c => { const r = { ...c }; delete r[v.chiave]; return r })}>Annulla</button></div>
             : <div className="flex flex-wrap gap-3 mt-3"><button type="button" className={classe} disabled={!!saving} onClick={() => setCorrezione({ ...correzione, [v.chiave]: v.data })}>Cambia data · {nome}</button><button type="button" className={classe} disabled={!!saving} onClick={() => void correggiAutomatica(v.auto!, v.chiave, 'tolta')}>Non fatta · {nome}</button></div>)}
