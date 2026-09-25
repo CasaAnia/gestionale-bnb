@@ -1,3 +1,11 @@
+# Pulizie integrate — 25 settembre 2026 sera — LOCALE COMPLETO, NON APPLICATO NÉ PUBBLICATO
+
+Esecutore Claude, su incarico. Copia isolata, branch `pulizie-integrazione` (nessun push), base 9db3697 + 407eaee + proposta approvata (0c7c6c1).
+Fatto: pagina Pulizie approvata su dati veri, pop-up unico (dotazione, federe, recuperi a tocco, timer, minuti) anche dalla Home, tempi fuori camera, statistiche con copertura; proposta SQL 0059 (solo aggiunte, compatibile con l'app pubblicata) con piano e ripristino.
+Prove: suite 1784/1784, 8/8 su database isolato 0059, strumenti 80/80, TypeScript e lint dei file toccati puliti, build webpack ok; revisioni 21 fallimenti identici alla base (nessuno nuovo), quindi verifica-consegna resta incompleta. UI locale con database isolato: casi 1–9 del rapporto.
+Da autorizzare (Ania): applicazione 0059 sul progetto vero, poi merge e pubblicazione. Differenze dal riferimento da vedere: rinvio anche per le partenze, riga arrivo/priorità e «perché questa data?» conservate.
+Rapporto: `outputs/integrazione-pulizie-rapporto.md` della task del 25 settembre.
+
 ## Aggiornamento approvazioni e timer — 25 settembre
 Ania approva la proposta e richiede: Home invariata (numero romano totale, frecce come sottoinsieme dei cambi camera), riepilogo da fare/confermate solo in Pulizie; recuperi a pulsanti come esistente; timer per camera e tempi distinti Area comune, Corridoio, Piegatura biancheria.
 Implementato nell'anteprima: eliminata la testata settimanale alternativa, recuperi a tocco con ciclo 0→limite→0, timer persistente nello stesso browser con pausa/ripresa e riporto minuti, un solo timer attivo, conferma pulizia separata e bloccata se timer in corso, registro tempi fuori camera per giornata/attività con aggiornamento senza duplicazioni. Statistiche sommano camere+fuori camera senza incrementare interventi.
