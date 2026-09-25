@@ -5,8 +5,11 @@ import type { AssettoSql, RecuperoSql } from './dotazionePulizie.ts'
 // «registra» e «recupero» sono le richieste di prima (0045); dalla 0059 la
 // conferma può portare dotazione e minuti, e «dettagli» corregge lo stesso
 // intervento (letti, data, minuti e recuperi insieme), mai uno nuovo.
+// Il timer che la scheda mostrava quando si sono scritti o riportati i minuti
+// (null = nessun timer). Il database rifiuta la conferma se è cambiato.
+export type TimerVisto = { versione: number; trascorsi: number }
 export type RichiestaPulizia =
-  | { azione: 'registra'; ultima_id: string | null; pulizia: Decisione & { assetto?: AssettoSql | null; minuti?: number | null }; recupero: Contatori | RecuperoSql | null }
+  | { azione: 'registra'; ultima_id: string | null; pulizia: Decisione & { assetto?: AssettoSql | null; minuti?: number | null; timer?: TimerVisto | null }; recupero: Contatori | RecuperoSql | null }
   | { azione: 'recupero'; cleaning_id: string; versione: string | null; recupero: Contatori }
   | { azione: 'dettagli'; cleaning_id: string; versione: string | null; versione_recupero: string | null; data_effettiva: string; assetto: AssettoSql | null; minuti: number | null; recupero: RecuperoSql | null }
 export type RispostaPulizia = { pulizia: Decisione; recupero: Recupero | null }
@@ -41,7 +44,7 @@ export async function eseguiOperazionePulizia(camera: string, richiesta: Richies
   let esito: Awaited<ReturnType<TrasportoPulizia>>
   try { esito = await trasporto(pendente.id, pendente.richiesta) }
   catch { return { errore: 'Risposta non ricevuta. Premi Riprova: il salvataggio non verrà duplicato.', risposta: null } }
-  const definitiva = esito.error && /^(22[A-Z0-9]{3}|42501|23502|23503|23514|P0045|P0046|PGRST202|42883)$/.test(esito.error.code ?? '')
+  const definitiva = esito.error && /^(22[A-Z0-9]{3}|42501|23502|23503|23514|P0045|P0046|P0048|PGRST202|42883)$/.test(esito.error.code ?? '')
   if (esito.error && !definitiva) return { errore: 'Non riesco a confermare il salvataggio. Premi Riprova prima di modificarlo.', risposta: null }
   if (!esito.error && !esito.data?.pulizia?.id) return { errore: 'Risposta incompleta. Premi Riprova per verificare il salvataggio.', risposta: null }
   try {
@@ -57,7 +60,8 @@ export async function eseguiOperazionePulizia(camera: string, richiesta: Richies
   if (esito.error) {
     const code = esito.error.code
     return { errore: code === 'P0045' ? 'La pulizia è cambiata nel frattempo. Ricarica e riapri la scheda.'
-      : code === 'P0046' ? 'Il timer di questa pulizia è ancora da risolvere: fermalo e riporta i minuti, oppure azzeralo.'
+      : code === 'P0048' ? TIMER_CAMBIATO
+        : code === 'P0046' ? 'Il timer di questa pulizia è ancora da risolvere: fermalo e riporta i minuti, oppure azzeralo.'
         : code === 'PGRST202' || code === '42883' ? 'Il nuovo salvataggio delle pulizie deve ancora essere attivato.'
           : messaggioRifiuto(esito.error.message), risposta: null }
   }
@@ -66,7 +70,9 @@ export async function eseguiOperazionePulizia(camera: string, richiesta: Richies
 
 // I rifiuti che chiedono un'azione precisa: il testo del database è senza
 // accenti, qui si scrive in italiano corretto.
+export const TIMER_CAMBIATO = 'Il timer è cambiato dopo che hai scritto o riportato i minuti: ricontrolla i minuti, poi conferma di nuovo.'
 const RIFIUTI: [RegExp, string][] = [
+  [/Timer della pulizia da risolvere/, 'Questa pulizia ha un timer con dei minuti: apri «Pulita e recuperato» per riportarli, oppure azzera il timer.'],
   [/Lenzuola senza misura/, 'Nello storico ci sono lenzuola senza misura: riportale sulla misura giusta prima di aggiungerne.'],
   [/oltre la nuova dotazione/, 'Con i nuovi letti alcuni recuperi superano la dotazione: correggi i recuperi.'],
   [/Conferma i letti preparati/, 'Conferma i letti preparati prima di segnare i recuperi.'],

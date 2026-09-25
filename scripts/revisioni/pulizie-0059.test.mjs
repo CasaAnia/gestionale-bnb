@@ -167,7 +167,8 @@ test('0059: timer — avvio, pausa, ripresa, stop ripetuti; uno solo in corso; c
     assert.match(bloccata.errore, /timer/i)
     assert.equal((await righe('cleanings')).length, 0)
     await tempo({ azione: 'pausa', chiave })
-    const ok = await invia(b.room_id, { azione: 'registra', ultima_id: null, pulizia: { ...decisione(b), minuti: 6 }, recupero: null })
+    const visto = (await righe('pulizie_timer'))[0]
+    const ok = await invia(b.room_id, { azione: 'registra', ultima_id: null, pulizia: { ...decisione(b), minuti: 6, timer: { versione: visto.versione, trascorsi: visto.trascorsi } }, recupero: null })
     assert.equal(ok.errore, null)
     const t = (await righe('pulizie_timer'))[0]
     assert.equal(t.cleaning_id, ok.risposta.pulizia.id)
@@ -249,5 +250,62 @@ test('0059: risposta persa dopo il salvataggio con dotazione → Riprova non dup
       assert.equal((await nuovo.invia(b2.room_id, null)).errore, null)
       assert.equal((await nuovo.righe('cleanings')).length, 1)
     } finally { await nuovo.db.close() }
+  } finally { await db.close() }
+})
+
+test('0059: minuti riportati su un timer che poi cambia → conferma rifiutata, niente pulizia, timer intatto', async () => {
+  const b = soggiorno({ num_guests: 1 })
+  const { db, tempo, invia, righe, sql, rpc } = await ambiente({ bookings: [b] })
+  try {
+    const chiave = `pulizia:${b.id}:soggiorno:${giorno(0)}`
+    const assetto = { matrimoniali: 0, singoli: 1, ospiti: 1, federe_matrimoniale: 4 }
+    // telefono: 10 minuti, fermato e riportato
+    await tempo({ azione: 'avvia', chiave })
+    await sql(`update pulizie_timer set avviato_at = clock_timestamp() - interval '600 seconds' where chiave = $1`, [chiave])
+    await tempo({ azione: 'pausa', chiave })
+    const visto = (await righe('pulizie_timer'))[0]
+    // altra sessione: riprende e ferma, ora 20 minuti
+    await tempo({ azione: 'avvia', chiave })
+    await sql(`update pulizie_timer set avviato_at = clock_timestamp() - interval '600 seconds' where chiave = $1`, [chiave])
+    await tempo({ azione: 'pausa', chiave })
+    const vecchia = await invia(b.room_id, { azione: 'registra', ultima_id: null, pulizia: { ...decisione(b), assetto, minuti: 10, timer: { versione: visto.versione, trascorsi: visto.trascorsi } }, recupero: null })
+    assert.match(vecchia.errore, /timer è cambiato/)
+    assert.equal((await righe('cleanings')).length, 0, 'niente pulizia')
+    const intatto = (await righe('pulizie_timer'))[0]
+    assert.equal(intatto.cleaning_id, null); assert.ok(intatto.trascorsi >= 1200)
+    // rilettura, poi scelta esplicita di minuti scritti a mano (15): salvata e timer chiuso
+    const op = randomUUID()
+    const richiesta = { azione: 'registra', ultima_id: null, pulizia: { ...decisione(b), assetto, minuti: 15, timer: { versione: intatto.versione, trascorsi: intatto.trascorsi } }, recupero: null }
+    const ok = await rpc(op, richiesta)
+    assert.equal(ok.error, null)
+    assert.equal(ok.data.pulizia.minuti, 15, 'la correzione a mano resta possibile')
+    assert.equal((await righe('pulizie_timer'))[0].cleaning_id, ok.data.pulizia.id)
+    // ripetizione idempotente della stessa operazione: stessa risposta, nessun doppione
+    const ripetuta = await rpc(op, richiesta)
+    assert.deepEqual(ripetuta.data, ok.data)
+    assert.equal((await righe('cleanings')).length, 1)
+  } finally { await db.close() }
+})
+
+test('0059: nessun timer all’apertura, creato altrove prima della conferma → rifiutata; app di prima non consuma tempo non riportato', async () => {
+  const b = soggiorno({ num_guests: 1 })
+  const { db, tempo, invia, righe, sql } = await ambiente({ bookings: [b] })
+  try {
+    const chiave = `pulizia:${b.id}:soggiorno:${giorno(0)}`
+    await tempo({ azione: 'avvia', chiave })
+    await sql(`update pulizie_timer set avviato_at = clock_timestamp() - interval '300 seconds' where chiave = $1`, [chiave])
+    await tempo({ azione: 'pausa', chiave })
+    const senzaTimer = await invia(b.room_id, { azione: 'registra', ultima_id: null, pulizia: { ...decisione(b), minuti: 30, timer: null }, recupero: null })
+    assert.match(senzaTimer.errore, /timer è cambiato/)
+    // richiesta dell'app di prima (nessuna chiave timer): rifiutata, non consuma
+    const vecchiaApp = await invia(b.room_id, { azione: 'registra', ultima_id: null, pulizia: decisione(b), recupero: null })
+    assert.match(vecchiaApp.errore, /timer con dei minuti/)
+    assert.equal((await righe('cleanings')).length, 0)
+    assert.equal((await righe('pulizie_timer'))[0].cleaning_id, null)
+    // senza timer l'app di prima funziona come sempre
+    const b2 = soggiorno()
+    const altro = await ambiente({ bookings: [b2] })
+    try { assert.equal((await altro.invia(b2.room_id, { azione: 'registra', ultima_id: null, pulizia: decisione(b2), recupero: null })).errore, null) }
+    finally { await altro.db.close() }
   } finally { await db.close() }
 })

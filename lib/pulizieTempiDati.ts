@@ -7,7 +7,7 @@ import { useSyncExternalStore } from 'react'
 import { supabase } from './supabase'
 import { osservaAggiornamentiPulizie } from './aggiornamentiPulizie'
 import { raccogliPagine } from './statistiche/paginazione'
-import type { AttivitaFuori, TimerSql } from './tempoPulizie'
+import { chiaveTimerFuori, type AttivitaFuori, type TimerSql } from './tempoPulizie'
 
 export type FuoriCameraSql = { data: string; attivita: AttivitaFuori; minuti: number; versione: number; aggiornato_at?: string }
 export type StatoTimer = { stato: 'caricamento' | 'pronto' | 'errore'; timer: TimerSql[]; scarto: number; nonSincronizzato: boolean; errore: string | null }
@@ -67,24 +67,33 @@ export async function azioneTimer(azione: 'avvia' | 'pausa' | 'azzera', chiave: 
   return { errore: null }
 }
 
-export type EsitoFuori = { errore: string | null; riga: FuoriCameraSql | null; verificato?: boolean }
+export type EsitoFuori = { errore: string | null; riga: FuoriCameraSql | null; verificato?: boolean; incerto?: boolean }
 export async function salvaFuoriCamera(data: string, attivita: AttivitaFuori, minuti: number, versione: number | null, timerTrascorsi: number): Promise<EsitoFuori> {
   const r = await chiama({ azione: 'salva_fuori', data, attivita, minuti, versione, timer_trascorsi: timerTrascorsi })
   void leggiTimer()
   window.dispatchEvent(new Event('pulizie-salvataggi'))
-  if (r.rete) {
-    // Incerto: rileggo la riga. Se porta già il totale voluto è salvato.
-    const letta = await leggiFuoriCamera(data, data)
-    const riga = letta.righe?.find(x => x.attivita === attivita) ?? null
-    if (riga && riga.minuti === minuti && riga.versione !== versione) return { errore: null, riga, verificato: true }
-    return { errore: 'Risposta non ricevuta e salvataggio non confermato: controlla il totale e salva di nuovo.', riga }
-  }
+  // Risposta persa, oppure «cambiato» perché il browser ha ripetuto da solo
+  // una richiesta già eseguita: si decide solo dopo aver riletto riga e timer.
+  if (r.rete || r.error?.code === 'P0045') return verificaFuori(data, attivita, minuti, versione, timerTrascorsi, r.rete)
   if (r.error) {
     if (r.error.code === 'P0046') return { errore: 'Ferma il timer prima di salvare il tempo.', riga: null }
-    if (r.error.code === 'P0045') return { errore: 'Il tempo o il timer sono cambiati su un altro dispositivo: ho riletto i valori, controlla e salva.', riga: null }
     return { errore: assente(r.error.code) ? AVVISO_0059 : 'Non riesco a salvare i minuti. Controlla il valore (da 0 a 1440).', riga: null }
   }
   return { errore: null, riga: r.data!.fuori }
+}
+
+// Esito incerto: si dice «salvato» o «non salvato» solo se riga e timer lo
+// dimostrano entrambi; altrimenti resta incerto e non si invita a risalvare.
+async function verificaFuori(data: string, attivita: AttivitaFuori, minuti: number, versione: number | null, timerTrascorsi: number, rete: boolean): Promise<EsitoFuori> {
+  const [letta] = await Promise.all([leggiFuoriCamera(data, data), leggiTimer()])
+  const t = stato.timer.find(x => x.chiave === chiaveTimerFuori(data, attivita))
+  if (letta.righe === null || stato.nonSincronizzato) return { errore: 'Esito da verificare: la rete non risponde. Non salvare di nuovo; quando torna la connessione ricarica la pagina e controlla il totale.', riga: null, incerto: true }
+  const riga = letta.righe.find(x => x.attivita === attivita) ?? null
+  const timerOra = t?.trascorsi ?? 0
+  if (riga && riga.versione !== versione && riga.minuti === minuti && timerOra === 0) return { errore: null, riga, verificato: true }
+  if (rete && (riga?.versione ?? null) === versione && timerOra === timerTrascorsi) return { errore: 'Non salvato (verificato): il totale e il timer sono come prima. Puoi salvare di nuovo.', riga }
+  if (!rete) return { errore: 'Il tempo o il timer sono cambiati su un altro dispositivo: ho riletto i valori, controlla e salva.', riga }
+  return { errore: 'Esito incerto: il totale o il timer sono cambiati nel frattempo. Non salvare di nuovo: controlla il totale qui sopra.', riga, incerto: true }
 }
 
 export async function leggiFuoriCamera(da: string, a: string): Promise<{ righe: FuoriCameraSql[] | null; errore: string | null }> {
@@ -114,6 +123,8 @@ function iscrivi(f: () => void) {
   }
 }
 const SERVER: StatoTimer = { stato: 'caricamento', timer: [], scarto: 0, nonSincronizzato: false, errore: null }
+// Stato letto per ultimo, per chi deve fotografarlo dopo una rilettura.
+export const statoTimerAttuale = () => stato
 export function useTimerPulizie(): StatoTimer {
   return useSyncExternalStore(iscrivi, () => stato, () => SERVER)
 }

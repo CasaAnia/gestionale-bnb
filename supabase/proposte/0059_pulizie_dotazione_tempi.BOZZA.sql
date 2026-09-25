@@ -219,9 +219,30 @@ begin
     if persone is null or persone not between 1 and 16 then raise exception using errcode='22023', message='Numero ospiti da correggere nel soggiorno'; end if;
     -- Il cronometro di questa pulizia: in corso blocca; alla conferma si consuma.
     chiave_timer := 'pulizia:' || b.id::text || ':' || (richiesta_pulizia->>'tipo') || ':' || to_char((richiesta_pulizia->>'data_prevista')::date, 'YYYY-MM-DD');
-    select * into t from public.pulizie_timer where chiave=chiave_timer for update;
-    if found and t.cleaning_id is null and (t.avviato_at is not null or (richiesta_pulizia->>'stato' <> 'fatta' and t.trascorsi > 0)) then
+    -- Stesso lucchetto di gestisci_tempo_pulizie, preso per ultimo (ordine
+    -- uniforme: operazione → camera → tempi): nessun timer può nascere,
+    -- ripartire o fermarsi fra questo controllo e la conferma.
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('pulizie_timer', 59));
+    select * into t from public.pulizie_timer where chiave=chiave_timer and cleaning_id is null for update;
+    if found and (t.avviato_at is not null or (richiesta_pulizia->>'stato' <> 'fatta' and t.trascorsi > 0)) then
       raise exception using errcode='P0046', message='Timer della pulizia da risolvere';
+    end if;
+    if richiesta_pulizia->>'stato'='fatta' then
+      if richiesta_pulizia ? 'timer' then
+        -- La scheda dice quale timer ha visto quando ha scritto o riportato i
+        -- minuti; se nel frattempo è cambiato (o è nato altrove) non si salva
+        -- e non si consuma: si chiede di ricontrollare i minuti.
+        if jsonb_typeof(richiesta_pulizia->'timer') is distinct from 'object' then
+          if found and t.trascorsi > 0 then raise exception using errcode='P0048', message='Timer cambiato: ricontrolla i minuti'; end if;
+        elsif not found or t.versione is distinct from (richiesta_pulizia->'timer'->>'versione')::bigint
+          or t.trascorsi is distinct from (richiesta_pulizia->'timer'->>'trascorsi')::integer then
+          raise exception using errcode='P0048', message='Timer cambiato: ricontrolla i minuti';
+        end if;
+      elsif found and t.trascorsi > 0 then
+        -- Richiesta senza timer (app di prima o «Pulita» dalla Home): non
+        -- consuma in silenzio un tempo che nessuno ha riportato.
+        raise exception using errcode='22023', message='Timer della pulizia da risolvere';
+      end if;
     end if;
     insert into public.cleanings(id,room_id,booking_id,tipo,stato,data_prevista,data_effettiva,prossima_data,cambio_biancheria,note,persone_servite,created_at,assetto,dotazione,minuti)
     values(p_operazione,camera,b.id,richiesta_pulizia->>'tipo',richiesta_pulizia->>'stato',
@@ -367,6 +388,9 @@ begin
   end if;
   -- Tutte le operazioni sui tempi in fila: niente due timer avviati insieme.
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('pulizie_timer', 59));
+  -- L'istante si prende DOPO il lucchetto: preso prima, un'attesa dietro un
+  -- avvio appena fatto darebbe un tempo trascorso negativo (visto su PostgreSQL vero).
+  adesso := clock_timestamp();
   if azione in ('avvia','pausa','azzera') then
     if chiave_t is null or chiave_t !~ '^(pulizia:[0-9a-f-]{36}:(fine_soggiorno|soggiorno|cambio_camera):[0-9]{4}-[0-9]{2}-[0-9]{2}|fuori:[0-9]{4}-[0-9]{2}-[0-9]{2}:(area_comune|corridoio|piegatura))$' then
       raise exception using errcode='22023', message='Timer non valido';
@@ -374,6 +398,13 @@ begin
     select * into t from public.pulizie_timer where chiave=chiave_t for update;
     if found and t.cleaning_id is not null then raise exception using errcode='22023', message='Pulizia gia confermata: timer chiuso'; end if;
     if azione='avvia' then
+      -- Un timer non nasce su una pulizia già confermata (anche se la
+      -- conferma è arrivata un istante prima da un'altra scheda).
+      if chiave_t like 'pulizia:%' and exists (select 1 from public.cleanings c where c.stato='fatta'
+          and c.booking_id=split_part(chiave_t, ':', 2)::uuid and c.tipo=split_part(chiave_t, ':', 3)
+          and c.data_prevista=split_part(chiave_t, ':', 4)::date) then
+        raise exception using errcode='22023', message='Pulizia gia confermata: timer chiuso';
+      end if;
       select * into altro from public.pulizie_timer where avviato_at is not null and chiave<>chiave_t;
       if found then raise exception using errcode='P0047', message='Un altro timer e in corso', detail=altro.chiave; end if;
       if t.chiave is null then
@@ -384,7 +415,7 @@ begin
     elsif azione='pausa' then
       -- Pausa e «ferma» ripetuti non aggiungono tempo.
       if t.avviato_at is not null then
-        update public.pulizie_timer set trascorsi=least(86400, trascorsi + floor(extract(epoch from adesso - avviato_at))::int),
+        update public.pulizie_timer set trascorsi=least(86400, trascorsi + greatest(0, floor(extract(epoch from adesso - avviato_at))::int)),
           avviato_at=null, versione=versione+1, aggiornato_at=adesso where chiave=chiave_t;
       end if;
     else

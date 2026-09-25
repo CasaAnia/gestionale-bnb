@@ -9,11 +9,11 @@ import TimerPulizia from './TimerPulizia'
 import { supabase } from '@/lib/supabase'
 import { leggiRecuperiDellePulizie } from '@/lib/biancheriaDati'
 import { inviaOperazionePulizia } from '@/lib/pulizieServizio'
-import { leggiOperazionePulizia, type RispostaPulizia } from '@/lib/pulizieOperazioni'
+import { leggiOperazionePulizia, TIMER_CAMBIATO, type RispostaPulizia, type TimerVisto } from '@/lib/pulizieOperazioni'
 import { ricaricaNumeriOggiOvunque } from '@/lib/numeriOggiDati'
 import { ricaricaDaControllare } from '@/lib/daControllareDati'
-import { useTimerPulizie } from '@/lib/pulizieTempiDati'
-import { chiaveTimerPulizia, testoCronometro } from '@/lib/tempoPulizie'
+import { useTimerPulizie, leggiTimer, statoTimerAttuale } from '@/lib/pulizieTempiDati'
+import { chiaveTimerPulizia, testoCronometro, type TimerSql } from '@/lib/tempoPulizie'
 import type { Decisione, PrenotazionePulizie, TipoPulizia } from '@/lib/pulizie'
 import {
   VOCI_DOTAZIONE, dotazioneDaAssetto, pezziVuoti, totalePezzi, daLavare, validaAssetto, assettoPerSql, assettoDaSql, pezziDaSql,
@@ -24,6 +24,9 @@ import {
 export const TIPI_INTERVENTO: Record<TipoPulizia, string> = { fine_soggiorno: 'Fine soggiorno', soggiorno: 'Durante il soggiorno', cambio_camera: 'Cambio camera' }
 const classe = 'ed-pillola-contorno'
 const NESSUNO: SenzaMisura = { lenzuolo_sotto: 0, lenzuolo_sopra: 0 }
+// Fotografia del timer che si vedeva quando si sono scritti o riportati i minuti.
+const fotoTimer = (t: TimerSql | null | undefined): TimerVisto | null => t ? { versione: Number(t.versione), trascorsi: Number(t.trascorsi) } : null
+const stessoTimer = (a: TimerVisto | null, b: TimerVisto | null) => (a?.versione ?? null) === (b?.versione ?? null) && (a?.trascorsi ?? 0) === (b?.trascorsi ?? 0)
 
 type Bozza = {
   data: string; assetto: AssettoPulizia; assettoDaConfermare: boolean; federeScelte: boolean
@@ -51,6 +54,10 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
   const timer = useTimerPulizie()
   const chiave = !correzione && pulizia.booking_id ? chiaveTimerPulizia(pulizia.booking_id, pulizia.tipo, pulizia.data_prevista) : null
   const t = chiave ? timer.timer.find(x => x.chiave === chiave) ?? null : null
+  // undefined = minuti mai scritti né riportati in questa scheda
+  const [visto, setVisto] = useState<TimerVisto | null | undefined>(undefined)
+  const ultimoT = useRef(t)
+  useEffect(() => { ultimoT.current = t }, [t])
 
   // Apertura: per una correzione si rilegge la pulizia e il suo recupero dal
   // database (un'altra scheda può averli cambiati); per una nuova, proposta
@@ -98,7 +105,7 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
     if (problema) { setErrore(problema); return }
     setErrore(''); setBozza({ ...bozza, assetto, assettoDaConfermare: false })
   }
-  const riportaMinuti = useCallback((n: number) => setBozza(b => b ? { ...b, minuti: n || null } : b), [])
+  const riportaMinuti = useCallback((n: number) => { setBozza(b => b ? { ...b, minuti: n || null } : b); setVisto(fotoTimer(ultimoT.current)) }, [])
 
   if (!bozza) return <Guscio camera={camera} tipo={pulizia.tipo} onChiudi={onChiudi}><p className="text-sm mt-4">{errore || 'Lettura della pulizia…'}</p></Guscio>
 
@@ -121,6 +128,13 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
     if (!bozza.data || bozza.data > oggi) { setErrore('Scegli la data in cui hai fatto la pulizia, fino a oggi.'); return }
     if (bozza.minuti !== null && (!Number.isInteger(bozza.minuti) || bozza.minuti < 1 || bozza.minuti > 1440)) { setErrore('I minuti vanno da 1 a 1440, oppure lascia il campo vuoto.'); return }
     if (oltre.length) { setErrore(`Da correggere prima di salvare: ${oltre.join(', ')}.`); return }
+    // Il timer è cambiato dopo i minuti (un'altra sessione, un altro telefono):
+    // si chiede di ricontrollarli; premendo di nuovo si conferma il valore scritto.
+    const attuale = fotoTimer(t)
+    if (chiave && !correzione && bozza.minuti !== null && visto !== undefined && !stessoTimer(visto, attuale)) {
+      setVisto(attuale); setErrore(`${TIMER_CAMBIATO} Ora il timer segna ${testoCronometro(attuale?.trascorsi ?? 0)}.`); return
+    }
+    const timerInviato = bozza.minuti === null || visto === undefined ? attuale : visto
     blocco.current = true; setSalvando(true); setErrore('')
     const assetto = assettoPerSql(bozza.assetto)
     const recupero = bozza.recuperi ? recuperoPerSql(bozza.recuperi, bozza.senzaMisura) : null
@@ -130,8 +144,14 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
         : await inviaOperazionePulizia(pulizia.room_id, { azione: 'registra', ultima_id: ultimaId, recupero, pulizia: {
           room_id: pulizia.room_id, booking_id: pulizia.booking_id, tipo: pulizia.tipo, stato: 'fatta', data_prevista: pulizia.data_prevista,
           data_effettiva: bozza.data, prossima_data: null, cambio_biancheria: true, note: pulizia.note ?? null,
-          persone_servite: Number(booking?.num_guests) || pulizia.persone_servite || null, assetto, minuti: bozza.minuti } })
+          persone_servite: Number(booking?.num_guests) || pulizia.persone_servite || null, assetto, minuti: bozza.minuti, ...(chiave ? { timer: timerInviato } : {}) } })
       try { setPendente(!!leggiOperazionePulizia(window.localStorage, pulizia.room_id)) } catch { setPendente(true) }
+      if (esito.errore === TIMER_CAMBIATO) {
+        // Niente salvato e timer non consumato: rileggo e mostro il tempo di adesso.
+        await leggiTimer()
+        const nuovo = fotoTimer(statoTimerAttuale().timer.find(x => x.chiave === chiave))
+        setVisto(nuovo); setErrore(`${TIMER_CAMBIATO} Ora il timer segna ${testoCronometro(nuovo?.trascorsi ?? 0)}.`); return
+      }
       if (esito.errore || !esito.risposta) { setErrore(esito.errore || 'Risposta incompleta. Premi Riprova per verificare il salvataggio.'); return }
       if (pendente) { onSalvato?.(esito.risposta); ricaricaNumeriOggiOvunque(); void ricaricaDaControllare(); onChiudi(); return }
       // Rilettura completa: la risposta deve coincidere con quanto inviato e con il database.
@@ -158,7 +178,7 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
     {lavaggio && <p className="text-sm mt-3" data-da-lavare={totalePezzi(lavaggio)}>{totalePezzi(dotazione)} preparati − {totalePezzi(bozza.recuperi!)} recuperati = <strong>{totalePezzi(lavaggio)} pezzi da lavare</strong></p>}
     {chiave && <TimerPulizia chiave={chiave} nome={camera} onMinuti={riportaMinuti} nomeCamera={nomeCamera} onVaiA={onVaiA} />}
     {correzione && <p className="text-xs text-stone mt-4">Correzione: i minuti qui sotto sono quelli salvati, nessun timer li sostituisce.</p>}
-    <label className="block text-sm mt-4">Minuti effettivi <span className="text-stone">· facoltativi</span><input className="ed-campo w-24 block mt-2" type="number" inputMode="numeric" min="1" max="1440" value={bozza.minuti ?? ''} onChange={e => setBozza({ ...bozza, minuti: e.target.value === '' ? null : Number(e.target.value) })} /></label>
+    <label className="block text-sm mt-4">Minuti effettivi <span className="text-stone">· facoltativi</span><input className="ed-campo w-24 block mt-2" type="number" inputMode="numeric" min="1" max="1440" value={bozza.minuti ?? ''} onChange={e => { setBozza({ ...bozza, minuti: e.target.value === '' ? null : Number(e.target.value) }); setVisto(fotoTimer(t)) }} /></label>
     {timerNonRiportato && <p className="text-xs text-stone mt-2">Il timer segna {testoCronometro(t!.trascorsi)}: riporta i minuti prima di confermare.</p>}
     {pendente && <p role="status" className="text-sm mt-3">Un salvataggio di questa camera attende conferma: premi Riprova per verificarlo senza duplicarlo.</p>}
     {errore && <p role="alert" className="text-red-800 my-3">{errore}</p>}
