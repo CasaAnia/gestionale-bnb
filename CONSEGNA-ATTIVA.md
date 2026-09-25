@@ -1,12 +1,19 @@
-# Verifica conteggi pulizie e recuperi — 25 settembre 2026 — CORREZIONI LOCALI COLLAUDATE; VERIFICA REALE APERTA
+## Aggiornamento approvazioni e timer — 25 settembre
+Ania approva la proposta e richiede: Home invariata (numero romano totale, frecce come sottoinsieme dei cambi camera), riepilogo da fare/confermate solo in Pulizie; recuperi a pulsanti come esistente; timer per camera e tempi distinti Area comune, Corridoio, Piegatura biancheria.
+Implementato nell'anteprima: eliminata la testata settimanale alternativa, recuperi a tocco con ciclo 0→limite→0, timer persistente nello stesso browser con pausa/ripresa e riporto minuti, un solo timer attivo, conferma pulizia separata e bloccata se timer in corso, registro tempi fuori camera per giornata/attività con aggiornamento senza duplicazioni. Statistiche sommano camere+fuori camera senza incrementare interventi.
+Prove: TypeScript e lint puliti, 14 test mirati superati. UI: timer Area comune ancora attivo dopo ricarica; stop, modifica manuale a 20 minuti e salvataggio; statistiche 35 camere+20 comuni=55, sempre 2 pulizie. Allegra: timer avviato/fermato e minuti riportati, pulsanti recupero sotto matrimoniale+telo=2 pezzi, 19 da lavare. Limiti: timer solo locale, non sincronizzato tra dispositivi; niente dati reali modificati. Integrazione produzione ancora aperta.
 
-Responsabile: Codex. Copia isolata `work/gestionale-verifica-pulizie`, base `9db3697`.
-Perimetro: conteggio cambi e pulizie, ricostruzione storica, aggiornamento recuperi nelle statistiche. Nessuna scrittura su dati reali o pubblicazione.
-Prove: casi sintetici con 4/8/9 notti, rinvii e prolungamenti; recupero salva → riapri → modifica → rilegge statistiche; confronto periodo; SQL isolata e UI locale. Il caso reale segnalato resta da identificare con camera/periodo.
+# Pulizie e biancheria — 25 settembre 2026 — ANTEPRIMA LOCALE, NON PUBBLICATA
 
-Esiti: 74 prove mirate, 1760 test app, 80 test strumenti, TypeScript/lint e build con configurazione sintetica superati. UI reale 390/1280: recuperi 8→10, seconda riapertura e altra scheda coerenti; 3 interventi, 10 pezzi. Nessun dato reale toccato.
-Limiti: dotazione lenzuola fissata a una per tipo anche con più letti, da definire/correggere; caso reale di oggi non identificato. Suite script revisione: 21/53 fallimenti riprodotti nella base originale, nessun verde generale dichiarato. Copia principale e produzione non modificate.
-Rapporto: `outputs/verifica-pulizie-e-recuperi.md` nella task del 25 settembre.
+Responsabile Codex. Copia isolata, base 9db3697; correzioni iniziali 407eaee.
+
+Precisazione verificata: Amelia era correttamente rimandata dal 25 al 26 settembre, senza data effettiva. Il conteggio errato riferito da Ania era una lettura di Code, non un difetto riprodotto del gestionale. Il registro reale contiene 38 interventi confermati e 51 pezzi recuperati alla lettura del 25 settembre. Nessuna scrittura remota.
+
+Nuovo blocco locale: modello puro dotazione per letti realmente preparati e ospiti, federe 4 matrimoniale/2 singolo con scelta 2 o 4 per uso singolo, tre asciugamani a persona e due tappeti distinti; registro con fotografia per intervento, recuperi e minuti opzionali. Anteprima /anteprima-pulizie con dati dimostrativi, rinvii/salti, testata settimanale con motore esistente, registro e statistiche. Salvataggio solo locale nel browser. Protezione del caricamento Home contro risposte vecchie arrivate dopo quelle nuove; non attribuita al caso Amelia.
+
+Prove V2: 1773 test app superati, TypeScript e lint dei file nuovi/modificati puliti. Percorso UI: Amelia rimandata 25→26, Ambra saltata, nessuna fatta; conferma Amelia il 26 con 35 minuti, 16 pezzi, 4 recuperati/12 da lavare; riapertura conserva i valori; modifica recuperi a 5 mantiene una pulizia e 11 da lavare. Finestra 390 senza overflow orizzontale. Build precedente copre la fase 407eaee, non il nuovo prototipo. Suite script revisione precedente: 21/53 fallimenti riprodotti sulla base originale.
+
+Resta da implementare e collaudare: persistenza SQL/RPC della dotazione e durata, integrazione dei controlli reali e lettura dei nuovi dati in tutte le pagine, gestione storico incompleto senza inventare dotazione/ore, revisione visuale e pubblicazione autorizzata. Non presentare il prototipo come sincronizzazione online conclusa. Main e dati reali intatti.
 
 ---
 

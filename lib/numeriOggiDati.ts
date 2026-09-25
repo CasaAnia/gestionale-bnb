@@ -7,6 +7,8 @@
 // testo e la Home mostra un trattino al posto del numero + «Riprova», mai
 // uno zero finto. Il giorno è quello di Roma. Le regole stanno in
 // lib/numeriOggi (pure): qui nessuna formula.
+import { letturaPulizieRecente } from './letturaPulizieRecente'
+import { osservaAggiornamentiPulizie } from './aggiornamentiPulizie'
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import { raccogliPagine } from './statistiche/paginazione'
@@ -31,9 +33,9 @@ export async function leggiNumeriOggi(oggi: string): Promise<{ numeri: NumeriOgg
   const [p, cam, ev] = await Promise.all([
     // con la scheda cliente (nome nelle righe di «Pulizie di oggi», come la pagina Pulizie)
     raccogliPagine<PrenotazioneOggi>((offset, limite) => supabase.from('bookings').select('*, guests(full_name, phone)')
-      .in('status', STATI_LETTI).gte('check_out', CUTOFF_STORICO).range(offset, offset + limite - 1)),
+      .in('status', STATI_LETTI).gte('check_out', CUTOFF_STORICO).order('id').range(offset, offset + limite - 1)),
     leggiCamere(),
-    raccogliPagine<Decisione>((offset, limite) => supabase.from('cleanings').select('*').order('created_at').range(offset, offset + limite - 1)),
+    raccogliPagine<Decisione>((offset, limite) => supabase.from('cleanings').select('*').order('created_at').order('id').range(offset, offset + limite - 1)),
   ])
   if (p.error) return { numeri: null, settimana: [], pulizieOggi: [], errore: messaggioLetturaNonRiuscita(p.error, 'leggere le prenotazioni di oggi') }
   if (cam.errore || !cam.data) return { numeri: null, settimana: [], pulizieOggi: [], errore: cam.errore ?? MESSAGGIO_NUMERI_NON_LETTI }
@@ -57,19 +59,23 @@ export function useNumeriOggi(): StatoNumeriOggi & { ricarica: () => void } {
   const [stato, setStato] = useState<StatoNumeriOggi>(() => ({ stato: 'caricamento', oggi: oggiARoma() }))
   const [tentativo, setTentativo] = useState(0)
   useEffect(() => {
-    let vivo = true
-    const load = async () => {
+    let giornoLetto = oggiARoma()
+    const lettura = letturaPulizieRecente(async () => {
       const oggi = oggiARoma()
-      const { numeri, settimana, pulizieOggi, errore } = await leggiNumeriOggi(oggi)
-      if (!vivo) return
+      giornoLetto = oggi
+      setStato({ stato: 'caricamento', oggi })
+      return { oggi, ...await leggiNumeriOggi(oggi) }
+    }, ({ oggi, numeri, settimana, pulizieOggi, errore }) => {
       setStato(errore || !numeri ? { stato: 'errore', oggi, errore: MESSAGGIO_NUMERI_NON_LETTI } : { stato: 'pronto', oggi, numeri, settimana, pulizieOggi })
-    }
-    void load()
-    const onFocus = () => { void load() }
-    window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', onFocus)
-    ascoltatoriRicarica.add(onFocus)
-    return () => { vivo = false; window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onFocus); ascoltatoriRicarica.delete(onFocus) }
+    }, () => setStato({ stato: 'errore', oggi: oggiARoma(), errore: MESSAGGIO_NUMERI_NON_LETTI }))
+    const ricarica = () => { void lettura.ricarica() }
+    ricarica()
+    const smetti = osservaAggiornamentiPulizie(window, ricarica)
+    const visibile = () => { if (document.visibilityState === 'visible') ricarica() }
+    document.addEventListener('visibilitychange', visibile)
+    ascoltatoriRicarica.add(ricarica)
+    const mezzanotte = window.setInterval(() => { if (oggiARoma() !== giornoLetto) ricarica() }, 30000)
+    return () => { lettura.chiudi(); smetti(); document.removeEventListener('visibilitychange', visibile); ascoltatoriRicarica.delete(ricarica); window.clearInterval(mezzanotte) }
   }, [tentativo])
   const ricarica = useCallback(() => { setStato(s => ({ stato: 'caricamento', oggi: s.oggi })); setTentativo(t => t + 1) }, [])
   return { ...stato, ricarica }
