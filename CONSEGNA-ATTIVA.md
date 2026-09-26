@@ -1,3 +1,7 @@
+## Messaggio richiesta orario — 26/09/2026
+
+Ania approva testo e pubblicazione. Codex unico autore di lib/messaggiWhatsApp.ts: apertura neutra nel tempo, giusto anticipo, senza faccina; testo condiviso Home e scheda. Nessun invio agli ospiti.
+
 ## Richieste prioritarie Home — anteprima pronta
 
 Base e02f379 pubblicata. Codex unico autore. Entrambe le fonti prima degli arrivi, sotto NumeriOggi; banner con totale visibile, dettagli e comandi esistenti, nessuna richiesta nel conteggio inferiore. Nessuna migrazione o modifica dati reali, solo locale. Verificati 41/41 test, TypeScript e lint componenti; telefono 390×844: 4 richieste sopra Arrivi, conteggio inferiore 31 (24 pagamenti + 7 sovrapposizioni), scheda sito e proposta richiesta raggiunte. Nessun salvataggio: fixture proposta segnala migrazione 0025 assente, limite preesistente della simulazione. Screenshot outputs/home-richieste-prioritarie.png nella task.

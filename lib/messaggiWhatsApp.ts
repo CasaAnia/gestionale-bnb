@@ -14,18 +14,14 @@ import { salutoOspite } from './guestName.ts'
 export function messaggioRichiestaOrario(nomeSaluto: string): string {
   return `Gentile ${nomeSaluto},
 
-il suo arrivo si avvicina e vorrei organizzare al meglio la sua accoglienza. 😊
+per organizzare al meglio la sua accoglienza a Casa Ania, può indicarmi a che ora prevede di arrivare in struttura? Anche un orario indicativo va benissimo.
 
-Quando le sarà possibile, può indicarmi anche indicativamente a che ora pensa di arrivare?
+Il check-in è previsto dalle 15:00 alle 20:00. Se prevede di arrivare fuori da questa fascia oraria, la prego di farmelo sapere con il giusto anticipo.
 
-Le ricordo che il check-in è previsto dalle 15:00 alle 20:00.
-
-Se pensa di arrivare prima delle 15:00 o dopo le 20:00, mi avvisi pure per tempo, così possiamo organizzarci.
-
-🏠 Tutte le informazioni utili per il soggiorno:
+🏠 Qui trova tutte le informazioni utili per il soggiorno:
 https://www.casaaniarozzano.it/info?v=7
 
-A presto,
+Grazie e a presto,
 Ania`
 }
 
