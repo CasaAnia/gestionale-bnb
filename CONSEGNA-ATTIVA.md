@@ -1,3 +1,12 @@
+## Esito arrivi distinti — 26/09/2026
+
+Implementato in locale sul ramo `fix-arrivi-periodi`, base `0cd3c63`. Date e camere distinte, modulo legato all’id selezionato; salvataggio e rilettura esistenti invariati. Test app 1795/1795, strumenti 80/80, TypeScript e lint dei file toccati puliti, build riuscita. Revisioni 42/64: gli stessi 22 fallimenti del precedente rapporto candidato 0cd3c63, nessun nuovo nome di test fallito. Prova UI sintetica: due salvataggi indipendenti, ricarica, modifica secondo, annulla, riapertura primo invariato. Nessuna migrazione, nessun dato reale modificato, non pubblicato. Rapporto: `outputs/arrivi-distinti-rapporto.md` nella cartella della conversazione.
+
+# Arrivi distinti per data — IN LAVORO — 26 settembre 2026
+
+Codex unico autore, copia isolata work/gestionale-verifica-pulizie, base 0cd3c63, branch fix-arrivi-periodi. Ania autorizza implementazione: ogni periodo separato ha il proprio arrivo con data e camera, orario/luogo/navetta indipendenti. Nessuna migrazione, nessuna modifica a dati veri. Pubblicazione da autorizzare dopo anteprima.
+File: pagina scheda, FoglioArrivo, selezione arrivi e test. Prove: primo e secondo arrivo, salvataggio/riapertura, modifica secondo senza alterare primo, annulla, vero cambio contiguo, righe annullate. La precedente correzione 0cd3c63 è pubblicata e verificata online.
+
 # Conferma dei periodi separati — 26 settembre 2026 — VERIFICATO IN LOCALE
 
 Responsabile unico Codex. Copia isolata `work/gestionale-verifica-pulizie`, branch `fix-periodi-separati`, base 555ad2a. Nessuna modifica ai dati, nessun invio al cliente.

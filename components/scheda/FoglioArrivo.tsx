@@ -28,7 +28,8 @@ import { leggiArrivo, TITOLO_ARRIVO, SOTTOTITOLO_ARRIVO, type Arrivo } from '@/l
 
 export { TITOLO_ARRIVO }
 
-export default function FoglioArrivo({ bookingId, prenotazione, onChiudi, onSalvato }: {
+export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChiudi, onSalvato }: {
+  etichetta?: string
   bookingId: string
   /** la riga della prenotazione: l'arrivo si rilegge da lì, con o senza 0058 */
   prenotazione: Record<string, unknown> | null | undefined
@@ -65,7 +66,7 @@ export default function FoglioArrivo({ bookingId, prenotazione, onChiudi, onSalv
 
   return (
     <Foglio titolo={TITOLO_ARRIVO} onChiudi={onChiudi}>
-      <p className="uppercase" style={{ fontSize: 9.5, letterSpacing: '1.4px', color: 'var(--color-stone)', marginTop: -4, marginBottom: 14 }}>{SOTTOTITOLO_ARRIVO}</p>
+      <p className="uppercase" style={{ fontSize: 9.5, letterSpacing: '1.4px', color: 'var(--color-stone)', marginTop: -4, marginBottom: 14 }}>{etichetta ?? SOTTOTITOLO_ARRIVO}</p>
       <ArrivoNavetta arrivo={arrivo} onArrivo={setArrivo} />
       {errore && <AvvisoAzione testo={errore} className="mt-3" />}
       <PiedeFoglio azione="Salva" onAzione={salva} salvando={salvando} onAnnulla={onChiudi} dati="arrivo" />

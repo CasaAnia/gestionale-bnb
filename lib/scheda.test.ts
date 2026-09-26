@@ -105,9 +105,9 @@ test('le date del soggiorno intero: «mar 1 settembre» a sinistra, le notti in 
 
 test('orario e navetta sotto le date (12 px, #756748): i dati veri o cosa manca; toccandoli si apre «Modifica arrivo»', () => {
   assert.match(pagina, /const arrivoTestaTesto = arrivoTestaDaArrivo\(arrivoDati\)/)
-  assert.match(pagina, /orario=\{arrivoTestaTesto\.orario\}/)
-  assert.match(pagina, /navetta=\{arrivoTestaTesto\.navetta\}/)
-  assert.match(pagina, /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/)
+  assert.match(pagina, /orario=\{arriviPeriodi\.length > 1 \? `\$\{arriviPeriodi\.length\} arrivi · vedi le date` : arrivoTestaTesto\.orario\}/)
+  assert.match(pagina, /navetta=\{arriviPeriodi\.length > 1 \? 'Orari e navette per arrivo' : arrivoTestaTesto\.navetta\}/)
+  assert.match(pagina, /onArrivo=\{apriArrivi\}/)
   assert.match(testaScheda, /data-arrivo-testa className="flex flex-wrap" style=\{\{ gap: '4px 16px', margin: '13px 0 20px', fontSize: 12, color: OTTONE_ARRIVO \}\}/)
   assert.match(testaScheda, /const OTTONE_ARRIVO = '#756748'/)
   assert.match(testaScheda, /<button type="button" data-orario-testa onClick=\{onArrivo\}/)
@@ -346,7 +346,7 @@ test('i due comandi in fondo al soggiorno: «Modifica arrivo» verde e «Arrivi 
   assert.match(soggiorno, />Modifica arrivo</)
   assert.match(soggiorno, /className="ed-azione ed-azione-tenue whitespace-nowrap">\s*\{arriviAperti \? 'Chiudi arrivi precedenti' : 'Arrivi precedenti'\}/)
   // «Modifica arrivo» apre il foglio qui dentro
-  assert.match(pagina, /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/)
+  assert.match(pagina, /onArrivo=\{apriArrivi\}/)
 })
 
 test('i fogli usano i salvataggi già in casa, non ne scrivono di nuovi', () => {
@@ -695,7 +695,7 @@ test('la parte «Arrivo e navetta» è quella del riferimento: due gruppi divisi
   assert.equal(/background: '#fff'|background: 'white'/.test(blocco), false, 'il riquadro è bianco, doveva essere grigio')
   // il foglio si apre da «Modifica arrivo», come prima
   assert.equal(/aggiungi orario|AGGIUNGI_ORARIO/.test(soggiorno), false, 'c’è ancora «aggiungi orario»')
-  assert.match(pagina, /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/)
+  assert.match(pagina, /onArrivo=\{apriArrivi\}/)
 })
 
 test('sotto la striscia la riga «Cambia date · Cambio camera · Aggiungi camera» (Ania, 17/09/2026)', () => {

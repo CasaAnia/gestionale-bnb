@@ -32,6 +32,7 @@
 // I testi dei messaggi NON sono qui: stanno in lib/messaggiPrenotazione, che
 // li tiene identici a quelli della scheda attuale (test di confronto).
 // ============================================================================
+import { arriviDeiPeriodi, etichettaArrivoPeriodo } from '@/lib/arriviPeriodi'
 import { riepilogoPeriodi } from '@/lib/periodiPrenotazione'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -158,7 +159,7 @@ export default function SchedaPage() {
   const [messaggiInviati, setMessaggiInviati] = useState<MessaggioInviato[]>([])
   const [business, setBusiness] = useState(false)
   const [confermaAperta, setConfermaAperta] = useState(false)
-  const [foglioArrivo, setFoglioArrivo] = useState(false)
+  const [foglioArrivo, setFoglioArrivo] = useState<string | null>(null)
   const [foglioProvenienza, setFoglioProvenienza] = useState(false)
   const [foglioComePaga, setFoglioComePaga] = useState(false)
   const [foglioPagamento, setFoglioPagamento] = useState(false)
@@ -337,6 +338,12 @@ export default function SchedaPage() {
   const telefono = guest?.phone ?? null
   const waNumero = numeroWhatsAppPrenotazione(telefono)
   const primoSegmento = attive[0] ?? booking
+  const arriviPeriodi = arriviDeiPeriodi(attive)
+  const segmentoArrivo = righe.find(r => r.id === foglioArrivo) ?? (booking?.id === foglioArrivo ? booking : null)
+  const apriArrivi = () => {
+    if (arriviPeriodi.length > 1) document.getElementById('arrivo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    else setFoglioArrivo(primoSegmento?.id ?? null)
+  }
   // La testa legge il MODELLO, non le due colonne di sempre (21/09/2026
   // sera): così non perde la fine della fascia, il «circa» e l'autista.
   const arrivoTestaTesto = arrivoTestaDaArrivo(arrivoDati)
@@ -578,9 +585,9 @@ export default function SchedaPage() {
             dettaglio: `${s.rooms?.name || 'Camera'} · ${Number(s.num_guests) || 1} ${(Number(s.num_guests) || 1) === 1 ? 'ospite' : 'ospiti'}`,
           })) : []}
           date={dateTesta(primoArrivo, ultimaPartenza, nottiDormite || giorniSoggiorno(primoArrivo, ultimaPartenza).length)}
-          orario={arrivoTestaTesto.orario}
-          navetta={arrivoTestaTesto.navetta}
-          onArrivo={() => setFoglioArrivo(true)}
+          orario={arriviPeriodi.length > 1 ? `${arriviPeriodi.length} arrivi · vedi le date` : arrivoTestaTesto.orario}
+          navetta={arriviPeriodi.length > 1 ? 'Orari e navette per arrivo' : arrivoTestaTesto.navetta}
+          onArrivo={apriArrivi}
           percorso={percorsoTesta(attive.length ? attive : righe)}
           oggi={oggiTesta(attive, oggi, statoSoggiorno)}
           residuo={residuoTesta(riepilogo, stato?.tipo === 'bonifico_atteso', statoSoggiorno === 'annullata')}
@@ -613,15 +620,18 @@ export default function SchedaPage() {
       </section>
 
       {/* ── Arrivo (Ania, 17/09/2026: prima del soggiorno) ─────────────────── */}
-      <section id="arrivo" className="pt-[34px]">
+      <section id="arrivo" className="pt-[34px] scroll-mt-24">
         <p className="ed-sezione">Arrivo e navetta</p>
-        {arrivoTesto && <BloccoArrivo etichettaArrivo={`Arrivo · ${arrivoTesto.quando}`} arrivo={voceArrivo} navetta={voceNavetta} className="mt-3" />}
-        <LinkSoggiorno
-          onArrivo={() => setFoglioArrivo(true)}
-          onArriviPrecedenti={() => setArriviAperti(a => !a)}
-          arriviAperti={arriviAperti}
-          className="mt-1"
-        />
+        {arriviPeriodi.length > 1 ? arriviPeriodi.map(r => (
+          <div key={r.id} className="mt-4" data-arrivo-periodo={r.id}>
+            <BloccoArrivo etichettaArrivo={etichettaArrivoPeriodo(r)} arrivo={arrivoInScheda(leggiArrivo(r as unknown as Record<string, unknown>))} navetta={navettaInScheda(leggiArrivo(r as unknown as Record<string, unknown>))} />
+            <button type="button" className="ed-azione mt-2" aria-label={`Modifica ${etichettaArrivoPeriodo(r).toLowerCase()}`} onClick={() => setFoglioArrivo(r.id)}>Modifica arrivo</button>
+          </div>
+        )) : <>
+          {arrivoTesto && <BloccoArrivo etichettaArrivo={`Arrivo · ${arrivoTesto.quando}`} arrivo={voceArrivo} navetta={voceNavetta} className="mt-3" />}
+          <LinkSoggiorno onArrivo={apriArrivi} onArriviPrecedenti={() => setArriviAperti(a => !a)} arriviAperti={arriviAperti} className="mt-1" />
+        </>}
+        {arriviPeriodi.length > 1 && <button type="button" className="ed-azione mt-4" aria-expanded={arriviAperti} onClick={() => setArriviAperti(a => !a)}>Arrivi precedenti</button>}
         {arriviAperti && <ArriviPrecedenti altre={altreCliente as unknown as SegmentoStorico[]} oggi={oggi} className="mt-3" />}
       </section>
 
@@ -731,16 +741,16 @@ export default function SchedaPage() {
           onFatto={(nuove, daQui) => chiediPrezzoOSalva(lineaAperta, conDaQui(nuove, daQui), () => setNotteAperta(null))} onChiudi={() => setNotteAperta(null)} />
       )}
 
-      {foglioArrivo && primoSegmento && (
-        <FoglioArrivo bookingId={primoSegmento.id} prenotazione={primoSegmento as unknown as Record<string, unknown>}
-          onChiudi={() => setFoglioArrivo(false)}
+      {foglioArrivo && segmentoArrivo && (
+        <FoglioArrivo key={segmentoArrivo.id} bookingId={segmentoArrivo.id} prenotazione={segmentoArrivo as unknown as Record<string, unknown>} etichetta={etichettaArrivoPeriodo(segmentoArrivo)}
+          onChiudi={() => setFoglioArrivo(null)}
           onSalvato={campi => {
             // `campi` è la riga RILETTA dal server, non quello che avevamo
             // spedito (lib/arrivoDati): la scheda mostra quello che c'è.
-            const aggiorna = (r: Prenotazione) => (r.id === primoSegmento.id ? { ...r, ...campi } : r)
+            const aggiorna = (r: Prenotazione) => (r.id === segmentoArrivo.id ? { ...r, ...campi } : r)
             setRighe(rs => rs.map(aggiorna))
             setBooking(b => (b ? aggiorna(b) : b))
-            setFoglioArrivo(false)
+            setFoglioArrivo(null)
             rileggi()   // la cronologia (trigger 0042) e «Da controllare»
           }} />
       )}

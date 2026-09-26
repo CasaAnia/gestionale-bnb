@@ -20,7 +20,7 @@ const pezzi = leggi('components/nuova/PezziNuova.tsx')
 const FOGLI: { file: string; stato: string; apre: RegExp; etichette?: string }[] = [
   { file: 'FoglioPagamento', stato: 'foglioPagamento', apre: /onPagamento=\{\(\) => setFoglioPagamento\(true\)\}/ },
   { file: 'FoglioComePaga', stato: 'foglioComePaga', apre: /onComePaga=\{\(\) => setFoglioComePaga\(true\)\}/ },
-  { file: 'FoglioArrivo', stato: 'foglioArrivo', apre: /onArrivo=\{\(\) => setFoglioArrivo\(true\)\}/, etichette: 'components/ArrivoNavetta.tsx' },
+  { file: 'FoglioArrivo', stato: 'foglioArrivo', apre: /onArrivo=\{apriArrivi\}/, etichette: 'components/ArrivoNavetta.tsx' },
   { file: 'FoglioCliente', stato: 'foglioCliente', apre: /onModificaDati=\{\(\) => setFoglioCliente\(true\)\}/ },
   { file: 'FoglioCambiaCliente', stato: 'foglioCambiaCliente', apre: /onCambiaCliente=\{\(\) => setFoglioCambiaCliente\(true\)\}/ },
   { file: 'FoglioAnnulla', stato: 'foglioAnnulla', apre: /data-annulla-prenotazione onClick=\{\(\) => setFoglioAnnulla\(true\)\}/ },
@@ -67,7 +67,7 @@ for (const f of FOGLI) {
   test(`${f.file}: si apre dal comando della scheda, si chiude, e «Annulla» non cambia niente`, () => {
     assert.match(pagina, f.apre, `il comando non apre ${f.file}`)
     assert.match(pagina, new RegExp(`\\{${f.stato} && [\\s\\S]{0,120}<${f.file}`), `${f.file} non è in pagina sotto ${f.stato}`)
-    assert.match(pagina, new RegExp(`<${f.file}[\\s\\S]{0,700}onChiudi=\\{\\(\\) => set${f.stato[0].toUpperCase()}${f.stato.slice(1)}\\(false\\)\\}`), `${f.file} non si chiude`)
+    assert.match(pagina, new RegExp(`<${f.file}[\\s\\S]{0,700}onChiudi=\\{\\(\\) => set${f.stato[0].toUpperCase()}${f.stato.slice(1)}\\(${f.stato === 'foglioArrivo' ? 'null' : 'false'}\\)\\}`), `${f.file} non si chiude`)
     // la veste comune: Foglio e il suo piede
     assert.match(sorgente, /import Foglio, \{ PiedeFoglio \} from '\.\/Foglio'/)
     assert.match(sorgente, /<PiedeFoglio[\s\S]{0,300}onAnnulla=\{onChiudi\}/)
@@ -277,7 +277,7 @@ test('«Arrivo e navetta»: il modulo condiviso, il salvataggio condiviso, e «S
   // dopo il salvataggio la parte «Arrivo» e l'etichetta sotto la data si aggiornano dalle righe
   const dopo = pagina.slice(pagina.indexOf('<FoglioArrivo'), pagina.indexOf('<FoglioArrivo') + 700)
   assert.match(dopo, /setRighe\(rs => rs\.map\(aggiorna\)\)/)
-  assert.match(dopo, /setFoglioArrivo\(false\)/)
+  assert.match(dopo, /setFoglioArrivo\(null\)/)
 })
 
 // ── 3. DATI DELLA CLIENTE ───────────────────────────────────────────────────
@@ -411,7 +411,7 @@ test('l’annullamento scrive come la scheda attuale, su tutte le righe attive, 
 // ── Rilievi del 16/09/2026 ─────────────────────────────────────────────────
 test('anche «Arrivo» e «Come paga» rileggono la scheda dopo il salvataggio (cronologia)', () => {
   const arrivo = pagina.slice(pagina.indexOf('<FoglioArrivo'), pagina.indexOf('<FoglioArrivo') + 800)
-  assert.match(arrivo, /setFoglioArrivo\(false\)[\s\S]{0,120}rileggi\(\)/)
+  assert.match(arrivo, /setFoglioArrivo\(null\)[\s\S]{0,120}rileggi\(\)/)
   const comePaga = pagina.slice(pagina.indexOf('<FoglioComePaga'), pagina.indexOf('<FoglioComePaga') + 1500)
   assert.match(comePaga, /setFoglioComePaga\(false\)[\s\S]{0,120}rileggi\(\)/)
 })
