@@ -443,7 +443,7 @@ test('RILIEVO CODEX: la Home non perde niente di quello che c’era', () => {
   assert.match(home, /CHECK-OUT/)
   assert.match(home, /⇄ CAMBIO/)
   // e il riquadro nuovo si aggiunge, col letto in più anche lì
-  assert.match(home, /<ArriviOggi oggi=\{data\.checkInOggi\} domani=\{data\.checkInDomani\} \/>/)
+  assert.match(home, /<ArriviOggi oggi=\{data\.checkInOggi\} domani=\{data\.checkInDomani\} onSalvato=\{aggiornaArrivo\} \/>/)
   assert.match(card, /data-letto-agg/)
   // la nota NON si ripete nel riquadro: sarebbe due volte in rosso sullo stesso schermo
   assert.equal(/data-nota-cliente-home/.test(card), false)

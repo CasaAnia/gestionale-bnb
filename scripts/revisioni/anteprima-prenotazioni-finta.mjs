@@ -362,6 +362,23 @@ const booking_whatsapp_log = [
 ]
 const strutture = [{ nome: 'Umana' }, { nome: 'Nida' }, { nome: 'RB (Rosa Bianca)' }, { nome: 'Elyse' }, { nome: 'BM (Borgo Manzoni)' }]
 // Il contante di Carmela (470 €, all'arrivo del 12 set) sul primo tratto
+// Scenario opt-in per la Home interattiva: date relative, dati solo sintetici.
+// ANTEPRIMA_ARRIVI_HOME=1 rende riproducibili oggi/domani anche nei mesi futuri.
+if (process.env.ANTEPRIMA_ARRIVI_HOME === '1') {
+  const oggiHome = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const giorno = delta => new Date(Date.parse(oggiHome + 'T12:00:00Z') + delta * 86400000).toISOString().slice(0, 10)
+  const elena = ospite('aaaaaaaa-3101-4000-8000-000000003101', 'Elena Esempio', '+39 333 000 3101')
+  const luca = ospite('aaaaaaaa-3102-4000-8000-000000003102', 'Luca Esempio', '+39 333 000 3102')
+  const senzaTelefono = ospite('aaaaaaaa-3103-4000-8000-000000003103', 'Ospite Senza Telefono', null)
+  guests.push(elena, luca, senzaTelefono)
+  bookings.push(
+    prenotazione(ROOM.allegra, elena.id, giorno(0), giorno(1), 2, { id: 'bbbbbbbb-3101-4000-8000-000000003101', check_in_time: '16:00', shuttle: 'no' }),
+    prenotazione(ROOM.lena, senzaTelefono.id, giorno(0), giorno(2), 2, { id: 'bbbbbbbb-3103-4000-8000-000000003103' }),
+    prenotazione(ROOM.allegra, luca.id, giorno(-4), giorno(-3), 2, { id: 'bbbbbbbb-3104-4000-8000-000000003104', prenotazione_id: 'dddddddd-3102-4000-8000-000000003102', check_in_time: '15:00', shuttle: 'no' }),
+    prenotazione(ROOM.amelia, luca.id, giorno(1), giorno(3), 1, { id: 'bbbbbbbb-3102-4000-8000-000000003102', prenotazione_id: 'dddddddd-3102-4000-8000-000000003102' }),
+  )
+}
+
 const payments = [
   { id: 'ffffffff-0001-4000-8000-000000000001', booking_id: CARMELA_PRIMO_TRATTO.id, amount: 470, method: 'contanti', paid_on: '2026-09-12', created_at: ora },
   // «Letto Per Due» ha già pagato tutto (170 €, bonifico)

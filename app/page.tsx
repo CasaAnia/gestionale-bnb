@@ -7,10 +7,11 @@ import { useDemoMode } from '@/lib/useDemoMode'
 import { useRichiesteWeb } from '@/lib/webRequests'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import DaControllare from '@/components/DaControllare'
+import { ricaricaDaControllare } from '@/lib/daControllareDati'
 import NumeriOggi from '@/components/NumeriOggi'
 import PulizieOggi from '@/components/PulizieOggi'
 import ArriviOggi from '@/components/ArriviOggi'
-import { useNumeriOggi } from '@/lib/numeriOggiDati'
+import { useNumeriOggi, ricaricaNumeriOggiOvunque } from '@/lib/numeriOggiDati'
 import { leggiDatiHome, type DatiHome } from '@/lib/statisticheDati'
 import { cassaIntervallo, daIncassare, indiciIntervallo, spostaGiorni, TESTO_ANOMALIA_OCCUPAZIONE, pianoRicostruzione, etichettaIncassi } from '@/lib/statistiche'
 
@@ -116,6 +117,21 @@ export default function Dashboard() {
     setTentativo(t => t + 1)
   }
 
+  function aggiornaArrivo(id: string, campi: Record<string, unknown>) {
+    void ricaricaDaControllare() // rimuove l’avviso di orario mancante appena risolto
+    ricaricaNumeriOggiOvunque() // anche il prospetto pulizie mostra l’orario aggiornato
+    // Il foglio restituisce i campi riletti dal server. Aggiorniamo anche le
+    // righe Oggi/Domani più in basso, senza spostare la pagina o i conteggi.
+    setData((prima: ReturnType<typeof calcola> | null) => {
+      if (!prima) return prima
+      const aggiorna = (righe: Record<string, unknown>[]) => righe.map(b => b.id === id ? { ...b, ...campi } : b)
+      return { ...prima,
+        checkInOggi: aggiorna(prima.checkInOggi), checkInDomani: aggiorna(prima.checkInDomani),
+        checkOutOggi: aggiorna(prima.checkOutOggi), checkOutDomani: aggiorna(prima.checkOutDomani),
+      }
+    })
+  }
+
   // Righe di un giorno (arrivi, partenze, cambi camera). Il prefisso rende le key
   // uniche tra le sezioni Oggi e Domani (una prenotazione può arrivare oggi e
   // ripartire domani, comparendo in entrambe).
@@ -191,7 +207,7 @@ export default function Dashboard() {
           Finché i dati si caricano non occupa spazio, come «Da controllare».
           Il blocco «Oggi / Domani» più in basso NON è stato toccato: la riga
           CHECK-IN resta dov'era, con la nota del cliente e il letto in più. */}
-      {!loading && !errore && data && <ArriviOggi oggi={data.checkInOggi} domani={data.checkInDomani} />}
+      {!loading && !errore && data && <ArriviOggi oggi={data.checkInOggi} domani={data.checkInDomani} onSalvato={aggiornaArrivo} />}
 
       {/* «Pulizie di oggi» (Ania, 07/09/2026; in cima dall'11/09/2026): TUTTE le
           pulizie della giornata da spuntare dalla Home, stessa lettura dei numeri

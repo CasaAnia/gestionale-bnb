@@ -1,3 +1,11 @@
+## Home arrivi — verificata in locale, pronta per anteprima
+
+Base 414d1bb. Popup condiviso da ogni riga oggi/domani, nome cliccabile, data/camera, riepilogo e WhatsApp. Salvataggio aggiorna righe Home, Da controllare e prospetto pulizie. Prova UI: rientro domani distinto dal primo soggiorno, salvataggio e riapertura, Annulla, risposta vuota senza falsa conferma, oggi e telefono mancante. Telefono 390×844 senza overflow. Suite app 1795/1795, strumenti 80/80, TypeScript e build webpack ok. Revisioni: stessi 22 fallimenti già noti; lint Home: stessi 20 errori preesistenti, nessuno nuovo. Nessun dato reale o invio WhatsApp. Non pubblicato: anteprima e rapporto in outputs/home-arrivi-interattivi.png e outputs/home-arrivi-rapporto.md nella cartella della conversazione.
+
+## Home: arrivi interattivi — 26/09/2026 — in lavorazione
+
+Ania autorizza implementazione del popup condiviso direttamente da Home, riepilogo aggiornato dopo salvataggio, data/camera, Chiedi orario e Apri chat, nome cliccabile. Codex unico autore nella copia corrente, base 414d1bb già pubblicata. Perimetro ArriviOggi, callback Home e prove sintetiche. Nessuna modifica ai dati reali, nessun invio WhatsApp; pubblicazione dopo anteprima. Prove: oggi/domani, rientro distinto, salva/riapri/annulla, errore, telefono mancante, layout telefono.
+
 ## Pubblicazione arrivi — correzione compilazione
 
 Ania ha autorizzato la pubblicazione. Il rilascio 011dd1f fallisce su Vercel/Turbopack nel caricamento interno del font Manrope (24 errori next/font/google). Il comando build viene allineato a `next build --webpack`, già collaudato sul candidato locale; nessuna modifica a font, UI o dati.
