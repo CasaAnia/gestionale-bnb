@@ -144,7 +144,7 @@ export default function Dashboard() {
             <span className="font-medium">{nomeConAltri(b)}</span>
             <span className="text-gray-500">— {b.rooms?.name}</span>
             {b.check_in_time && <span className="bg-sage text-green-mid rounded px-1.5 py-0.5 text-xs font-bold">🕐 {b.check_in_time}</span>}
-            {b.extra_bed && <span className="bg-[#F1E0CE] text-[#7A4B22] rounded px-1 text-xs">+letto agg.</span>}
+            {b.extra_bed && <span className="bg-red-50 text-[#E00000] font-bold rounded px-1.5 py-0.5 text-xs">+letto agg.</span>}
             {/* Nota del cliente in evidenza anche qui (Ania, 10/09/2026): sul
                 suo rigo, in rosso come nella scheda, così prima che arrivi si
                 legge senza aprire nulla. Il rosso è quello scelto da Ania
@@ -175,7 +175,7 @@ export default function Dashboard() {
   return (
     <div className="p-4">
       {/* Stile editoriale (06/09/2026): titolo grande e leggero, data in maiuscoletto ottone */}
-      <div className="mb-5">
+      <div className="mb-4">
         <h1 className="titolo-classico">Buongiorno,<br />Ania</h1>
         <p className="ed-sotto mt-2">{italianDate()}</p>
       </div>
@@ -184,9 +184,7 @@ export default function Dashboard() {
         <AvvisoAzione testo={richiesteWeb.errore} onRiprova={richiesteWeb.ricarica} className="mb-4" />
       ) : richiesteWeb.stato === 'caricamento' ? (
         <p className="text-[13px] mb-4" style={{ color: 'var(--color-stone)' }}>Controllo le richieste dal sito…</p>
-      ) : richiesteWeb.richieste.length === 0 ? (
-        <p className="text-[13px] mb-4" style={{ color: 'var(--color-stone)' }}>Nessuna richiesta dal sito da confermare.</p>
-      ) : (
+      ) : richiesteWeb.richieste.length === 0 ? null : (
         <Link href="/calendario" className="block ed-riga-ottone pb-3 mb-4 text-sm font-semibold text-green-dark">
           🌐 {richiesteWeb.richieste.length === 1 ? '1 richiesta dal sito da confermare' : `${richiesteWeb.richieste.length} richieste dal sito da confermare`}
           <span className="font-normal" style={{ color: 'var(--color-stone)' }}> · {richiesteWeb.richieste[0].guest_name}{richiesteWeb.richieste.length > 1 ? ' e altre' : ''}</span>

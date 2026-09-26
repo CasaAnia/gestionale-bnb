@@ -60,7 +60,7 @@ function Riquadro({ b, onApri }: { b: Riga; onApri: (b: Riga) => void }) {
         <span className="flex items-center" style={{ gap: 6 }}>
           {/* il letto in più: c'era nella riga CHECK-IN e resta anche qui,
               perché è quello che cambia come si prepara la camera */}
-          {!!b.extra_bed && <span data-letto-agg className="bg-[#F1E0CE] text-[#7A4B22] rounded px-1 text-xs">+letto agg.</span>}
+          {!!b.extra_bed && <span data-letto-agg className="bg-red-50 text-[#E00000] font-bold rounded px-1.5 py-0.5 text-xs">+letto agg.</span>}
           {camera && <span className="text-[13px] text-stone" data-camera>{camera}</span>}
         </span>
       </div>

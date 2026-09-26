@@ -379,6 +379,14 @@ if (process.env.ANTEPRIMA_ARRIVI_HOME === '1') {
   )
 }
 
+// Scenario visivo Home compatta: nessuna richiesta web, letto extra evidente.
+if (process.env.ANTEPRIMA_HOME_COMPATTA === '1') {
+  for (const b of bookings) {
+    if (b.source === 'sito_web' && b.status === 'in_attesa') b.status = 'annullata'
+    if (b.id === 'bbbbbbbb-3102-4000-8000-000000003102') b.extra_bed = true
+  }
+}
+
 const payments = [
   { id: 'ffffffff-0001-4000-8000-000000000001', booking_id: CARMELA_PRIMO_TRATTO.id, amount: 470, method: 'contanti', paid_on: '2026-09-12', created_at: ora },
   // «Letto Per Due» ha già pagato tutto (170 €, bonifico)

@@ -38,7 +38,7 @@ export default function NumeriOggi({ dati: n }: { dati: ReturnType<typeof useNum
   const trattino = '–'
   return (
     <>
-      <section className="mb-4" data-stato={n.stato}>
+      <section className="mb-2" data-stato={n.stato}>
         {/* Stile editoriale (06/09/2026): tre numeri fra due fili ottone, separati da fili crema */}
         <div className="grid grid-cols-3" style={{ borderTop: '1px solid rgba(169,136,78,0.55)', borderBottom: '1px solid rgba(169,136,78,0.55)' }}>
           <Riquadro href="/arrivi" etichetta="Arrivi" codaEtichetta="oggi" valore={pronto ? String(n.numeri.arriviOggi) : trattino} />

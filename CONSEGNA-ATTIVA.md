@@ -1,3 +1,7 @@
+## Anteprima inizio Home — 26/09/2026
+
+Base dcd83a6 pubblicata. Codex unico autore: Home, NumeriOggi, StrisciaSettimana e ArriviOggi. Nascondere richieste assenti, togliere didascalia visibile e armonizzare spazi; letto aggiuntivo rosso acceso. Solo anteprima locale richiesta, non pubblicare. Verificati telefono 390×844 e desktop, 14/14 test numeri/pulizie, lint componenti pulito. Richieste presenti/errori conservati nel codice; scenario sintetico senza richieste e letto extra. Immagine nella task: outputs/home-compatta-anteprima.png.
+
 ## Home senza arrivi duplicati — 26/09/2026
 
 Base c3a1a28 pubblicata. Escludere gli arrivi solo dalla sezione Da controllare, dal suo totale e dal riepilogo tutto a posto. Conservare il blocco Arrivi e il motore condiviso delle eccezioni. Verificati 36/36 test pertinenti e lint pulito. Anteprima: 34 voci (3 richieste, 24 pagamenti, 7 sovrapposizioni), nessun arrivo nella sezione; blocchi Arrivi oggi/domani conservati. Solo locale, pubblicazione da autorizzare. Screenshot nella task: outputs/home-senza-arrivi-duplicati.png.
