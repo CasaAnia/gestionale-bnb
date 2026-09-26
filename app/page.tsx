@@ -94,6 +94,7 @@ export default function Dashboard() {
   // nessuna richiesta, errore di lettura). Errori visibili, 05/09/2026.
   const richiesteWeb = useRichiesteWeb()
   const controlli = useDaControllare()
+  const primoNomeRichiesta = richiesteWeb.richieste[0]?.guest_name || (controlli.stato === 'pronto' ? controlli.eccezioni.find(e => e.tipo === 'richiesta')?.titolo.split(' · ')[0] : '')
   const numeroRichieste = richiesteWeb.richieste.length + (controlli.stato === 'pronto' ? controlli.eccezioni.filter(e => e.tipo === 'richiesta').length : 0)
 
   useEffect(() => {
@@ -184,7 +185,8 @@ export default function Dashboard() {
       </div>
 
       {numeroRichieste > 0 && <a href="#richieste-home" className="block ed-riga-ottone pb-3 mb-4 text-sm font-semibold text-green-dark">
-        {numeroRichieste === 1 ? '1 richiesta da gestire' : `${numeroRichieste} richieste da gestire`} · Vedi richieste ↓
+        🌐 {numeroRichieste === 1 ? '1 richiesta da gestire' : `${numeroRichieste} richieste da gestire`}
+        {primoNomeRichiesta && <span className="font-normal" style={{ color: 'var(--color-stone)' }}> · {primoNomeRichiesta}{numeroRichieste > 1 ? ' e altre' : ''}</span>}
       </a>}
 
       {/* Tre numeri di oggi SOPRA TUTTO (07/09/2026): arrivi, partenze, camere occupate stanotte */}
