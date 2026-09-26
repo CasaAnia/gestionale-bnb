@@ -18,17 +18,17 @@ import { BottoneWhatsApp, EtichettaBreve, BOTTONE_PIENO, BOTTONE_GHOST, ETICHETT
 
 export const ID_SEZIONE = 'da-controllare'
 
-export default function DaControllare() {
-  const dc = useDaControllare()
+export default function DaControllare({ dati, richieste = false }: { dati: ReturnType<typeof useDaControllare>; richieste?: boolean }) {
+  const dc = dati
   // Avviso vicino alla voce (Rimanda non riuscito o non disponibile)
   const [avvisi, setAvvisi] = useState<Record<string, string>>({})
   const [rimandando, setRimandando] = useState<string | null>(null)
   // Dalle Statistiche («N pagamenti da controllare») si arriva con #da-controllare
   const pronto = dc.stato === 'pronto'
   useEffect(() => {
-    if (!pronto || typeof window === 'undefined' || window.location.hash !== `#${ID_SEZIONE}`) return
-    document.getElementById(ID_SEZIONE)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [pronto])
+    if (!pronto || typeof window === 'undefined' || window.location.hash !== `#${richieste ? 'richieste-home' : ID_SEZIONE}`) return
+    document.getElementById(richieste ? 'richieste-home' : ID_SEZIONE)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [pronto, richieste])
 
   async function rimanda(e: Eccezione) {
     if (rimandando) return
@@ -46,20 +46,20 @@ export default function DaControllare() {
     return <AvvisoAzione testo={dc.errore} onRiprova={dc.ricarica} className="mb-4" />
   }
   // Gli arrivi hanno già il loro blocco operativo sopra: esclusi anche dai conteggi.
-  const eccezioni = dc.eccezioni.filter(e => e.tipo !== 'arrivo')
+  const eccezioni = dc.eccezioni.filter(e => richieste ? e.tipo === 'richiesta' : e.tipo !== 'arrivo' && e.tipo !== 'richiesta')
   if (eccezioni.length === 0) return null
-  const aPosto = rigaAPosto(eccezioni, ['arrivo'])
+  const aPosto = richieste ? null : rigaAPosto(eccezioni, ['arrivo', 'richiesta'])
 
   return (
-    <section id={ID_SEZIONE} className="mb-4 scroll-mt-20">
+    <section id={richieste ? undefined : ID_SEZIONE} className="mb-4 scroll-mt-20">
       {/* Striscia: «N cose da controllare» + conteggi per tipo */}
       {/* Stile editoriale (06/09/2026): filo ottone e titolo leggero al posto del riquadro sabbia */}
-      <div className="ed-riga-ottone pb-3 mb-3">
+      {!richieste && <div className="ed-riga-ottone pb-3 mb-3">
         <p className="ed-titolo-medio">{titoloStriscia(eccezioni)}</p>
         <p className="text-[12.5px] mt-1" style={{ color: 'var(--color-stone)' }}>{rigaConteggi(eccezioni)}</p>
-      </div>
+      </div>}
 
-      <p className="ed-sezione mb-1">Da controllare</p>
+      {!richieste && <p className="ed-sezione mb-1">Da controllare</p>}
       <div>
         {eccezioni.map((e, i) => (
           <div key={e.chiave} data-urgenza={e.urgenza}

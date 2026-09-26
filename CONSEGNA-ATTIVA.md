@@ -1,3 +1,7 @@
+## Richieste prioritarie Home — anteprima pronta
+
+Base e02f379 pubblicata. Codex unico autore. Entrambe le fonti prima degli arrivi, sotto NumeriOggi; banner con totale visibile, dettagli e comandi esistenti, nessuna richiesta nel conteggio inferiore. Nessuna migrazione o modifica dati reali, solo locale. Verificati 41/41 test, TypeScript e lint componenti; telefono 390×844: 4 richieste sopra Arrivi, conteggio inferiore 31 (24 pagamenti + 7 sovrapposizioni), scheda sito e proposta richiesta raggiunte. Nessun salvataggio: fixture proposta segnala migrazione 0025 assente, limite preesistente della simulazione. Screenshot outputs/home-richieste-prioritarie.png nella task.
+
 ## Linea fascia camere — 26/09/2026
 
 Ania autorizza modifica e pubblicazione immediata. Base 65ead6b. Codex unico autore: bordo sotto StrisciaSettimana identico ai due di NumeriOggi, 1px rgba(169,136,78,0.55). Nessuna modifica a spazi o conteggi.

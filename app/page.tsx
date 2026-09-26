@@ -7,7 +7,8 @@ import { useDemoMode } from '@/lib/useDemoMode'
 import { useRichiesteWeb } from '@/lib/webRequests'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import DaControllare from '@/components/DaControllare'
-import { ricaricaDaControllare } from '@/lib/daControllareDati'
+import RichiesteHome from '@/components/RichiesteHome'
+import { ricaricaDaControllare, useDaControllare } from '@/lib/daControllareDati'
 import NumeriOggi from '@/components/NumeriOggi'
 import PulizieOggi from '@/components/PulizieOggi'
 import ArriviOggi from '@/components/ArriviOggi'
@@ -92,6 +93,8 @@ export default function Dashboard() {
   // Richieste dal sito: tre stati distinti sullo schermo (caricamento,
   // nessuna richiesta, errore di lettura). Errori visibili, 05/09/2026.
   const richiesteWeb = useRichiesteWeb()
+  const controlli = useDaControllare()
+  const numeroRichieste = richiesteWeb.richieste.length + (controlli.stato === 'pronto' ? controlli.eccezioni.filter(e => e.tipo === 'richiesta').length : 0)
 
   useEffect(() => {
     let vivo = true
@@ -180,19 +183,13 @@ export default function Dashboard() {
         <p className="ed-sotto mt-2">{italianDate()}</p>
       </div>
 
-      {richiesteWeb.stato === 'errore' ? (
-        <AvvisoAzione testo={richiesteWeb.errore} onRiprova={richiesteWeb.ricarica} className="mb-4" />
-      ) : richiesteWeb.stato === 'caricamento' ? (
-        <p className="text-[13px] mb-4" style={{ color: 'var(--color-stone)' }}>Controllo le richieste dal sito…</p>
-      ) : richiesteWeb.richieste.length === 0 ? null : (
-        <Link href="/calendario" className="block ed-riga-ottone pb-3 mb-4 text-sm font-semibold text-green-dark">
-          🌐 {richiesteWeb.richieste.length === 1 ? '1 richiesta dal sito da confermare' : `${richiesteWeb.richieste.length} richieste dal sito da confermare`}
-          <span className="font-normal" style={{ color: 'var(--color-stone)' }}> · {richiesteWeb.richieste[0].guest_name}{richiesteWeb.richieste.length > 1 ? ' e altre' : ''}</span>
-        </Link>
-      )}
+      {numeroRichieste > 0 && <a href="#richieste-home" className="block ed-riga-ottone pb-3 mb-4 text-sm font-semibold text-green-dark">
+        {numeroRichieste === 1 ? '1 richiesta da gestire' : `${numeroRichieste} richieste da gestire`} · Vedi richieste ↓
+      </a>}
 
       {/* Tre numeri di oggi SOPRA TUTTO (07/09/2026): arrivi, partenze, camere occupate stanotte */}
       <NumeriOggi dati={numeriOggi} />
+      <RichiesteHome web={richiesteWeb} controlli={controlli} />
 
       {/* «Arrivi di oggi» (21/09/2026), la terza superficie della proposta
           approvata: per ogni arrivo l'ora IN STRUTTURA in grande e, sotto, da
@@ -217,7 +214,7 @@ export default function Dashboard() {
       {/* «Da controllare» (versione B, 06/09/2026; in cima dal 07/09/2026): striscia
           con i conteggi e sezione delle eccezioni SOPRA i numeri del giorno; con
           zero eccezioni non occupa spazio (components/DaControllare) */}
-      <DaControllare />
+      <DaControllare dati={controlli} />
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>

@@ -432,8 +432,11 @@ test('statistiche: «N pagamenti da controllare» conta solo i pagamenti, null s
 test('posizione (07/09/2026): in Home la sezione «Da controllare» sta SOPRA i numeri del giorno', async () => {
   const { readFileSync } = await import('node:fs')
   const home = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8')
-  const sezione = home.indexOf('<DaControllare />')
+  const sezione = home.indexOf('<DaControllare dati={controlli} />')
   assert.ok(sezione > 0, 'la Home monta DaControllare')
+  const priorita = home.indexOf('<RichiesteHome ')
+  assert.ok(priorita > home.indexOf('<NumeriOggi '))
+  assert.ok(priorita < home.indexOf('<ArriviOggi '))
   assert.ok(sezione < home.indexOf("renderEventi('oggi'"), 'prima di Oggi/Domani')
   assert.ok(sezione < home.indexOf('Ricavi per soggiorno'), 'prima dei numeri del mese')
   assert.ok(sezione < home.indexOf('{loading ?'), 'fuori dal ramo di caricamento dei numeri')

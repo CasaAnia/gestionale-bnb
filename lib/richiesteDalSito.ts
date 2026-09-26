@@ -17,6 +17,7 @@ export type WebRequest = {
   total_amount: number
   room_name: string
   guest_name: string
+  notes?: string | null
   guest_phone: string
   // Il numero è già in archivio con un nominativo diverso da quello della
   // richiesta: nome_archivio è quello della scheda, per l'avviso rosso
@@ -32,9 +33,9 @@ export function messaggioRichiesteNonCaricate(err: unknown): string {
   return isErroreDiRete(err) ? `${MESSAGGIO_RICHIESTE_NON_CARICATE}: nessuna connessione` : `${MESSAGGIO_RICHIESTE_NON_CARICATE}, riprova`
 }
 
-export const COLONNE_RICHIESTE_WEB = 'id, check_in, check_out, num_guests, total_amount, guest_name, rooms(name), guests(full_name, phone)'
+export const COLONNE_RICHIESTE_WEB = 'id, check_in, check_out, num_guests, notes, total_amount, guest_name, rooms(name), guests(full_name, phone)'
 // Ripiego se bookings.guest_name non è ancora migrata.
-export const COLONNE_RICHIESTE_WEB_SENZA_NOME = 'id, check_in, check_out, num_guests, total_amount, rooms(name), guests(full_name, phone)'
+export const COLONNE_RICHIESTE_WEB_SENZA_NOME = 'id, check_in, check_out, num_guests, notes, total_amount, rooms(name), guests(full_name, phone)'
 
 type RispostaLettura = { data: unknown[] | null; error: unknown }
 export type Interrogazione = (colonne: string) => PromiseLike<RispostaLettura>
@@ -43,6 +44,7 @@ export type Interrogazione = (colonne: string) => PromiseLike<RispostaLettura>
 function daRiga(b: any): WebRequest {
   return {
     id: b.id,
+    notes: b.notes ?? null,
     check_in: b.check_in,
     check_out: b.check_out,
     num_guests: b.num_guests,

@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { caricaRichiesteWeb, statoDopoLettura, RICHIESTE_WEB_IN_CARICAMENTO, MESSAGGIO_RICHIESTE_NON_CARICATE, COLONNE_RICHIESTE_WEB, COLONNE_RICHIESTE_WEB_SENZA_NOME } from './richiesteDalSito.ts'
 
-const riga = { id: 'b1', check_in: '2026-09-22', check_out: '2026-09-24', num_guests: 2, total_amount: '160', guest_name: null, rooms: { name: 'Camera Ambra' }, guests: { full_name: 'Richiesta Dal Sito', phone: '+39 333 000 0014' } }
+const riga = { id: 'b1', check_in: '2026-09-22', check_out: '2026-09-24', num_guests: 2, notes: 'Vorrei due letti separati.', total_amount: '160', guest_name: null, rooms: { name: 'Camera Ambra' }, guests: { full_name: 'Richiesta Dal Sito', phone: '+39 333 000 0014' } }
 const errorePermessi = { code: '42501', message: 'permission denied for table bookings' }
 
 test('errore di Supabase su entrambe le letture → stato errore col messaggio, NON lista vuota', async () => {
@@ -38,6 +38,7 @@ test('ripiego sulla query senza guest_name se la prima fallisce, con le righe ma
   assert.equal(esito.richieste[0].room_name, 'Ambra')
   assert.equal(esito.richieste[0].guest_name, 'Richiesta Dal Sito')
   assert.equal(esito.richieste[0].total_amount, 160)
+  assert.equal(esito.richieste[0].notes, 'Vorrei due letti separati.')
 })
 
 test('con un errore dopo una lettura riuscita le richieste già mostrate restano (lo stato locale non cambia in «nessuna»)', async () => {
