@@ -22,6 +22,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import FoglioArrivo from '@/components/scheda/FoglioArrivo'
+import { dataLunga } from '@/lib/dateItaliane'
 import { etichettaArrivoPeriodo } from '@/lib/arriviPeriodi'
 import { whatsappRichiestaOrario, waHrefTesto } from '@/lib/messaggiWhatsApp'
 import { Plane, TrainFront, MapPin, Car, ChevronRight } from 'lucide-react'
@@ -60,11 +61,9 @@ function Riquadro({ b, onApri }: { b: Riga; onApri: (b: Riga) => void }) {
           {/* il letto in più: c'era nella riga CHECK-IN e resta anche qui,
               perché è quello che cambia come si prepara la camera */}
           {!!b.extra_bed && <span data-letto-agg className="bg-[#F1E0CE] text-[#7A4B22] rounded px-1 text-xs">+letto agg.</span>}
-          {camera && <span className="ed-badge" data-camera>{camera}</span>}
+          {camera && <span className="text-[13px] text-stone" data-camera>{camera}</span>}
         </span>
       </div>
-
-      <p data-data-arrivo className="ed-sotto mt-2">{etichettaArrivoPeriodo(b)}</p>
 
       <p className="mt-1.5 flex items-baseline flex-wrap" style={{ gap: 7 }}>
         <span data-ora-struttura style={{ fontFamily: GEORGIA, fontSize: a.numerico ? 27 : 19, lineHeight: '30px', color: 'var(--color-green-dark)', fontVariantNumeric: 'tabular-nums' }}>{a.numerico ? a.grande : 'Orario da chiedere'}</span>
@@ -114,13 +113,13 @@ export default function ArriviOggi({ oggi, domani, onSalvato }: {
     <section data-arrivi-home className="mb-6">
       {oggi.length > 0 && (
         <>
-          <p className="ed-sezione mb-1">{TITOLO_ARRIVI_OGGI} <small>{contaArrivi(oggi.length)}</small></p>
+          <p className="ed-sezione mb-1"><span>{TITOLO_ARRIVI_OGGI} · {dataLunga(oggi[0].check_in).replace(/ \d{4}$/, '')} <small className="text-xs normal-case tracking-normal text-stone">· {contaArrivi(oggi.length)}</small></span></p>
           {oggi.map(b => <Riquadro key={b.id} b={b} onApri={setSelezionato} />)}
         </>
       )}
       {domani.length > 0 && (
         <>
-          <p className={`ed-sezione mb-1 ${oggi.length ? 'mt-5' : ''}`}>{TITOLO_ARRIVI_DOMANI} <small>{contaArrivi(domani.length)}</small></p>
+          <p className={`ed-sezione mb-1 ${oggi.length ? 'mt-5' : ''}`}><span>{TITOLO_ARRIVI_DOMANI} · {dataLunga(domani[0].check_in).replace(/ \d{4}$/, '')} <small className="text-xs normal-case tracking-normal text-stone">· {contaArrivi(domani.length)}</small></span></p>
           {domani.map(b => <Riquadro key={b.id} b={b} onApri={setSelezionato} />)}
         </>
       )}

@@ -1,3 +1,7 @@
+## Ritocco Home — 26/09/2026
+
+Codex unico autore, base e7a895c pubblicata. Richiesta: data una sola volta nel titolo oggi/domani, rimuovere data/camera ripetute sotto il nome; camera a destra come testo semplice. Solo presentazione ArriviOggi, popup e salvataggio invariati. Verificato su telefono 390×844: titolo unico e camera senza riquadro; popup conserva data/camera. Lint pulito e 81/81 test pertinenti superati. Screenshot outputs/home-arrivi-titolo-unico.png nella task. Solo locale, anteprima prima di pubblicare.
+
 ## Home arrivi — verificata in locale, pronta per anteprima
 
 Base 414d1bb. Popup condiviso da ogni riga oggi/domani, nome cliccabile, data/camera, riepilogo e WhatsApp. Salvataggio aggiorna righe Home, Da controllare e prospetto pulizie. Prova UI: rientro domani distinto dal primo soggiorno, salvataggio e riapertura, Annulla, risposta vuota senza falsa conferma, oggi e telefono mancante. Telefono 390×844 senza overflow. Suite app 1795/1795, strumenti 80/80, TypeScript e build webpack ok. Revisioni: stessi 22 fallimenti già noti; lint Home: stessi 20 errori preesistenti, nessuno nuovo. Nessun dato reale o invio WhatsApp. Non pubblicato: anteprima e rapporto in outputs/home-arrivi-interattivi.png e outputs/home-arrivi-rapporto.md nella cartella della conversazione.
