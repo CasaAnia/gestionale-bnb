@@ -20,7 +20,7 @@ import StrisciaSettimana from './StrisciaSettimana'
 // sotto i 360 px). Richiesta di Ania dell'08/09/2026.
 function Riquadro({ href, etichetta, codaEtichetta, valore, coda }: { href: string; etichetta: string; codaEtichetta?: string; valore: string; coda?: string }) {
   return (
-    <Link href={href} className="px-1 py-3 min-w-0 flex flex-col items-center justify-between transition-transform duration-100 active:scale-[0.98] first:border-l-0 border-l border-card-border">
+    <Link href={href} className="px-1 py-3 min-w-0 flex flex-col items-center justify-between transition-transform duration-100 active:scale-[0.98]">
       <p className="numero-classico whitespace-nowrap" data-numero={valore}>
         {valore}{coda && <span data-coda> {coda}</span>}
       </p>
@@ -39,7 +39,7 @@ export default function NumeriOggi({ dati: n }: { dati: ReturnType<typeof useNum
   return (
     <>
       <section className="mb-2" data-stato={n.stato}>
-        {/* Stile editoriale (06/09/2026): tre numeri fra due fili ottone, separati da fili crema */}
+        {/* Stile editoriale (06/09/2026): tre numeri fra due fili ottone, senza separatori verticali */}
         <div className="grid grid-cols-3" style={{ borderTop: '1px solid rgba(169,136,78,0.55)', borderBottom: '1px solid rgba(169,136,78,0.55)' }}>
           <Riquadro href="/arrivi" etichetta="Arrivi" codaEtichetta="oggi" valore={pronto ? String(n.numeri.arriviOggi) : trattino} />
           <Riquadro href="/arrivi" etichetta="Partenze" codaEtichetta="oggi" valore={pronto ? String(n.numeri.partenzeOggi) : trattino} />

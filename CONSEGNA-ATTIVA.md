@@ -1,3 +1,7 @@
+## Correzione separatori Home — 26/09/2026
+
+Base f98e852 pubblicata. Ania richiede tre numeri iniziali senza righe verticali. Codex unico autore di NumeriOggi: eliminati solo i due bordi interni, mantenuti linee orizzontali, spazi e link. Correzione della presentazione approvata.
+
 ## Anteprima inizio Home — 26/09/2026
 
 Base dcd83a6 pubblicata. Codex unico autore: Home, NumeriOggi, StrisciaSettimana e ArriviOggi. Nascondere richieste assenti, togliere didascalia visibile e armonizzare spazi; letto aggiuntivo rosso acceso. Solo anteprima locale richiesta, non pubblicare. Verificati telefono 390×844 e desktop, 14/14 test numeri/pulizie, lint componenti pulito. Richieste presenti/errori conservati nel codice; scenario sintetico senza richieste e letto extra. Immagine nella task: outputs/home-compatta-anteprima.png.
