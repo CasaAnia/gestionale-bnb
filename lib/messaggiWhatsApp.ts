@@ -19,7 +19,7 @@ per organizzare al meglio la sua accoglienza a Casa Ania, può indicarmi a che o
 Il check-in è previsto dalle 15:00 alle 20:00. Se prevede di arrivare fuori da questa fascia oraria, la prego di farmelo sapere con il giusto anticipo.
 
 🏠 Qui trova tutte le informazioni utili per il soggiorno:
-https://www.casaaniarozzano.it/info?v=7
+https://www.casaaniarozzano.it/info?v=8
 
 Grazie e a presto,
 Ania`
