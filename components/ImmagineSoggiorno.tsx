@@ -92,8 +92,9 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
   const BONIFICO_IBAN = bonifico?.iban ?? ''
 
   // ── Stili dell'immagine (1080px, solo da leggere: nessun elemento cliccabile) ──
+  const avorio = variante === 'conferma'
   const S = {
-    box: { background: '#F6F2EA', borderRadius: 24, padding: '44px 48px', marginBottom: 32 } as React.CSSProperties,
+    box: { background: avorio ? '#F5F0E6' : '#F6F2EA', borderRadius: avorio ? 8 : 24, padding: '44px 48px', marginBottom: 32 } as React.CSSProperties,
     boxTitle: { fontFamily: IMG_DISPLAY, fontSize: 36, fontWeight: 600, color: '#1F3D2F', margin: '0 0 28px' } as React.CSSProperties,
     row: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '14px 0' } as React.CSSProperties,
     rowBig: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, padding: '18px 0' } as React.CSSProperties,
@@ -107,8 +108,19 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
   return (
     <>
       {/* ═══ IMMAGINE (1080px) ═══ */}
-      <div ref={imgRef} style={{ width: IMG_W, background: '#f9f6f1', fontFamily: IMG_SANS }}>
+      <div ref={imgRef} style={{ width: IMG_W, background: avorio ? '#FAF7EF' : '#f9f6f1', fontFamily: IMG_SANS }}>
 
+        {avorio ? (
+          <header style={{ padding: '48px 52px 36px', textAlign: 'center', background: '#FAF7EF' }}>
+            <p style={{ color: '#9A783E', fontSize: 23, letterSpacing: 6, margin: '0 0 12px' }}>{intestazione.badge}</p>
+            <p style={{ fontFamily: IMG_DISPLAY, fontSize: 92, fontWeight: 400, color: '#1F3D2F', lineHeight: 1.15, margin: 0 }}>{NOME_STRUTTURA}</p>
+            <div style={{ borderTop: '1px solid #A9884E', marginTop: 28, paddingTop: 26 }}>
+              <p style={{ fontFamily: IMG_DISPLAY, fontSize: 42, fontWeight: 500, color: '#1F3D2F', lineHeight: 1.2, margin: 0 }}>{intestazione.titolo}</p>
+              <p style={{ fontSize: 24, color: '#766C58', margin: '18px 0 0' }}>a 140 metri da Humanitas</p>
+              <p style={{ fontFamily: IMG_DISPLAY, fontStyle: 'italic', fontSize: 21, color: '#766C58', margin: '8px 0 0' }}>precedentemente Casa Granata Humanitas</p>
+            </div>
+          </header>
+        ) : (<>
         {/* TESTATA verde pieno #007451 (stesso verde della card del sito) */}
         <div style={{ background: '#007451', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '52px 44px 46px' }}>
           <span style={{ border: '2px solid rgba(255,255,255,0.8)', color: 'white', borderRadius: 999, padding: '8px 30px', fontSize: 30, fontWeight: 600, letterSpacing: 6, marginBottom: 24 }}>{intestazione.badge}</span>
@@ -118,10 +130,12 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
           <p style={{ fontFamily: IMG_DISPLAY, fontStyle: 'italic', fontSize: 26, color: 'rgba(255,255,255,0.75)', margin: '10px 0 0' }}>precedentemente Casa Granata Humanitas</p>
         </div>
 
+        </>)}
+
         <div style={{ padding: '52px 52px 0' }}>
 
           {/* SALUTO — nome cliente in evidenza */}
-          <p style={{ fontFamily: IMG_DISPLAY, fontSize: 84, fontWeight: 600, color: '#1F3D2F', textAlign: 'center', margin: '0 0 32px', lineHeight: 1.05 }}>{nome}</p>
+          <p style={{ fontFamily: IMG_DISPLAY, fontSize: avorio ? 62 : 84, fontWeight: avorio ? 500 : 600, color: '#1F3D2F', textAlign: 'center', margin: '0 0 32px', lineHeight: 1.05 }}>{nome}</p>
 
           {confermaMultipla ? (
             <div style={{ marginBottom: 30 }}>
@@ -129,7 +143,7 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
                 {periodi.separati ? 'PERIODI SEPARATI DELLA PRENOTAZIONE' : 'IL SOGGIORNO, CAMERA PER CAMERA'}
               </p>
               {segmenti.map((s, i) => (
-                <div key={s.id} style={{ background: 'white', border: '2px solid #e3ddd0', borderRadius: 24, padding: '26px 32px', marginBottom: 18 }}>
+                <div key={s.id} style={{ background: 'white', border: avorio ? '1px solid #C9B98E' : '2px solid #e3ddd0', borderRadius: avorio ? 8 : 24, padding: '26px 32px', marginBottom: 18 }}>
                   <div style={{ fontSize: 32, fontWeight: 700, color: '#1F3D2F', lineHeight: 1.2 }}>{i + 1}. {roomWithType(s.rooms?.name)}</div>
                   <div style={{ display: 'flex', marginTop: 24 }}>
                     {[{ label: 'ARRIVO', data: s.check_in, ora: '15:00 – 20:00' }, { label: 'PARTENZA', data: s.check_out, ora: 'entro le 10:00' }].map((d, j) => (
@@ -152,7 +166,7 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
             <div style={{ marginBottom: 30 }}>
               <p style={{ fontSize: 32, letterSpacing: 3, color: '#3a3a35', fontWeight: 700, margin: '0 0 14px' }}>SOGGIORNO NON CONTINUO</p>
               {linea.map((b, i) => b.tipo === 'camera' ? (
-                <div key={`c-${i}`} style={{ background: 'white', border: '2px solid #e3ddd0', borderRadius: 24, padding: '28px 40px', marginBottom: 16 }}>
+                <div key={`c-${i}`} style={{ background: 'white', border: avorio ? '1px solid #C9B98E' : '2px solid #e3ddd0', borderRadius: avorio ? 8 : 24, padding: '28px 40px', marginBottom: 16 }}>
                   <div style={{ fontSize: 44, fontWeight: 700, color: '#1F3D2F', lineHeight: 1.15 }}>{maiuscola(dalAl(b.arrivo, b.partenza))}</div>
                   <div style={{ fontSize: 32, color: '#3a3a35', marginTop: 10, lineHeight: 1.35 }}>
                     {b.notti} {b.notti === 1 ? 'notte' : 'notti'} · Camera {roomWithType(b.segmento.seg.rooms?.name)}{bagnoDesc(b.segmento.seg.rooms) ? ` · bagno ${bagnoDesc(b.segmento.seg.rooms)}` : ''}
@@ -178,7 +192,7 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
               ))}
             </div>
           ) : (
-          <div style={{ display: 'flex', background: 'white', border: '2px solid #e3ddd0', borderRadius: 24, overflow: 'hidden', marginBottom: 30 }}>
+          <div style={{ display: 'flex', background: 'white', border: avorio ? '1px solid #C9B98E' : '2px solid #e3ddd0', borderRadius: avorio ? 8 : 24, overflow: 'hidden', marginBottom: 30 }}>
             {/* Righe fisse nei due lati (etichetta / giorno settimana / numero / mese / orario),
                 così le due colonne restano sempre allineate qualunque sia la lunghezza delle parole */}
             <div style={{ flex: 1, padding: '38px 28px 42px', textAlign: 'center', borderRight: '3px dashed #d9d2c3' }}>
@@ -311,7 +325,7 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
 
           {variante === 'conferma' && (<>
           {/* RIQUADRO EVIDENZIATO */}
-          <div style={{ background: '#EFF3EA', borderRadius: 24, padding: '34px 48px', marginBottom: 32 }}>
+          <div style={{ background: '#F5F0E6', borderTop: '1px solid #A9884E', borderBottom: '1px solid #A9884E', borderRadius: 0, padding: '34px 48px', marginBottom: 32 }}>
             <p style={{ fontSize: 34, fontWeight: 600, color: '#2D6A4F', lineHeight: 1.5, margin: 0, textAlign: 'center' }}>
               Appena le sarà possibile, le chiedo di comunicarmi l&apos;orario di arrivo, così potrò organizzare al meglio la sua accoglienza.
             </p>
@@ -320,7 +334,7 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
           </>)}
           {/* DOVE SIAMO */}
           <p style={{ fontSize: 32, letterSpacing: 3, color: '#3a3a35', fontWeight: 700, margin: '0 0 14px' }}>DOVE SIAMO</p>
-          <div style={{ background: 'white', borderLeft: '4px solid #C58A67', borderRadius: '0 16px 16px 0', padding: '28px 40px', marginBottom: 34 }}>
+          <div style={{ background: 'white', borderLeft: avorio ? '2px solid #A9884E' : '4px solid #C58A67', borderRadius: '0 16px 16px 0', padding: '28px 40px', marginBottom: 34 }}>
             <p style={{ fontSize: 32, fontWeight: 700, color: '#1F3D2F', lineHeight: 1.35, margin: 0 }}>{INDIRIZZO}</p>
             <p style={{ fontSize: 32, color: '#3a3a35', margin: '10px 0 0' }}>{INDIRIZZO_NOTA}</p>
           </div>
@@ -333,7 +347,7 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
         </div>
 
         {/* PIÈ DI PAGINA */}
-        <div style={{ background: '#F6F2EA', padding: '26px 52px', textAlign: 'center' }}>
+        <div style={{ background: avorio ? '#FAF7EF' : '#F6F2EA', borderTop: avorio ? '1px solid #A9884E' : undefined, padding: '26px 52px', textAlign: 'center' }}>
           <p style={{ fontSize: 32, color: '#3a3a35', margin: 0 }}>{NOME_STRUTTURA} · {CITTA_STRUTTURA} · {SITO_DISPLAY}</p>
         </div>
       </div>

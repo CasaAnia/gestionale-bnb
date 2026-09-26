@@ -1,3 +1,7 @@
+## Conferma avorio — anteprima pronta
+
+Ania richiede lo stesso stile avorio approvato per il link. Codex unico autore di ImmagineSoggiorno, variante conferma soltanto; mantenere periodi, importi, pagamenti e contenuti. Confronto PNG esportati prima/dopo con dati sintetici, senza invii o pubblicazione. Base 7e1667f. PNG prima/dopo esportati e controllati; anche variante bonifico esportata senza tagli. TypeScript, lint e 9/9 test periodi/pagamenti superati. Confronto nella task: outputs/conferma-confronto-avorio.png. Solo locale.
+
 ## Messaggio richiesta orario — 26/09/2026
 
 Ania approva testo e pubblicazione. Codex unico autore di lib/messaggiWhatsApp.ts: apertura neutra nel tempo, giusto anticipo, senza faccina; testo condiviso Home e scheda. Nessun invio agli ospiti.
