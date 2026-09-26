@@ -479,9 +479,9 @@ function elenco(voci: string[]): string {
 }
 
 // «Arrivi di domani e fatture: tutto a posto» — null se nessun tipo è a posto
-export function rigaAPosto(eccezioni: Eccezione[]): string | null {
+export function rigaAPosto(eccezioni: Eccezione[], esclusi: TipoEccezione[] = []): string | null {
   const conProblemi = new Set(eccezioni.map(e => e.tipo))
-  const aPosto = ORDINE_TIPI.filter(t => !conProblemi.has(t)).map(t => A_POSTO[t])
+  const aPosto = ORDINE_TIPI.filter(t => !esclusi.includes(t) && !conProblemi.has(t)).map(t => A_POSTO[t])
   if (aPosto.length === 0) return null
   const testo = elenco(aPosto.map((v, i) => (i === 0 ? v : v.charAt(0).toLowerCase() + v.slice(1))))
   return `${testo}: tutto a posto`

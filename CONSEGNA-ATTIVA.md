@@ -1,3 +1,7 @@
+## Home senza arrivi duplicati — 26/09/2026
+
+Base c3a1a28 pubblicata. Escludere gli arrivi solo dalla sezione Da controllare, dal suo totale e dal riepilogo tutto a posto. Conservare il blocco Arrivi e il motore condiviso delle eccezioni. Verificati 36/36 test pertinenti e lint pulito. Anteprima: 34 voci (3 richieste, 24 pagamenti, 7 sovrapposizioni), nessun arrivo nella sezione; blocchi Arrivi oggi/domani conservati. Solo locale, pubblicazione da autorizzare. Screenshot nella task: outputs/home-senza-arrivi-duplicati.png.
+
 ## Ritocco Home — 26/09/2026
 
 Codex unico autore, base e7a895c pubblicata. Richiesta: data una sola volta nel titolo oggi/domani, rimuovere data/camera ripetute sotto il nome; camera a destra come testo semplice. Solo presentazione ArriviOggi, popup e salvataggio invariati. Verificato su telefono 390×844: titolo unico e camera senza riquadro; popup conserva data/camera. Lint pulito e 81/81 test pertinenti superati. Screenshot outputs/home-arrivi-titolo-unico.png nella task. Solo locale, anteprima prima di pubblicare.

@@ -45,9 +45,10 @@ export default function DaControllare() {
   if (dc.stato === 'errore') {
     return <AvvisoAzione testo={dc.errore} onRiprova={dc.ricarica} className="mb-4" />
   }
-  const { eccezioni } = dc
+  // Gli arrivi hanno già il loro blocco operativo sopra: esclusi anche dai conteggi.
+  const eccezioni = dc.eccezioni.filter(e => e.tipo !== 'arrivo')
   if (eccezioni.length === 0) return null
-  const aPosto = rigaAPosto(eccezioni)
+  const aPosto = rigaAPosto(eccezioni, ['arrivo'])
 
   return (
     <section id={ID_SEZIONE} className="mb-4 scroll-mt-20">
