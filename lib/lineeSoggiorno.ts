@@ -32,7 +32,7 @@ export type LineaSoggiorno<T extends SegmentoLinea = SegmentoLinea> = {
   titolo: string
 }
 
-export const SPIEGAZIONE_PARALLELE = 'Più camere nelle stesse notti: ogni camera si cambia dalla sua striscia.'
+export const SPIEGAZIONE_PARALLELE = 'Ogni camera o periodo si cambia dalla sua striscia.'
 export const CAMERE_NON_LETTE = 'Le camere non si leggono: ricarica la scheda per spostare le notti.'
 export const CONTO_INVARIATO = (cent: number) => `Il conto resta ${euroScheda(cent)}`
 export const CONTO_CAMBIA = (prima: number, dopo: number) => `Conto: ${euroScheda(prima)} → ${euroScheda(dopo)}`

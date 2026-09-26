@@ -6,6 +6,7 @@ import { SITO_URL } from '@/lib/config'
 import { nomeOspite, nomePerMessaggio, salutoOspite } from '@/lib/guestName'
 import { causaleBonifico } from '@/lib/causale'
 import { residuoDaPagare } from '@/lib/conto'
+import { riepilogoPeriodi } from '@/lib/periodiPrenotazione'
 import type { Booking } from '@/lib/types'
 import { righeCostiSegmenti } from '@/lib/riepilogoCosti'
 import ImmagineSoggiorno, { IMG_W } from '@/components/ImmagineSoggiorno'
@@ -76,7 +77,7 @@ export default function ConfermaWhatsApp({ booking, groupBookings, payments = []
   const isGruppo = groupBookings.length > 1
   const segmenti = isGruppo ? [...groupBookings].sort((a, z) => a.check_in.localeCompare(z.check_in)) : [booking]
   const cin = segmenti[0].check_in
-  const numOspiti = [...new Set(segmenti.map(s => s.group_id || s.id))].reduce((tot, g) => tot + Math.max(...segmenti.filter(s => (s.group_id || s.id) === g).map(s => Number(s.num_guests) || 1)), 0)
+  const numOspiti = riepilogoPeriodi(segmenti).ospiti
   const ospiti = `${numOspiti} ${numOspiti === 1 ? 'adulto' : 'adulti'}`
   // Alcune schede cliente portano caratteri invisibili residui davanti al nome
   // (es. U+FE0F di una vecchia emoji): vanno via prima di usarlo nel messaggio,

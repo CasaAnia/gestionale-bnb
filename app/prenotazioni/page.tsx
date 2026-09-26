@@ -130,7 +130,7 @@ export default function Prenotazioni() {
                   <StatusDot color={b.status === 'annullata' ? STATUS_DOT.annullata : b.pagato ? '#7D9DB0' : b.bonifico ? '#9B8EC4' : STATUS_DOT[b.status]}
                     label={b.status === 'annullata' ? 'annullata' : b.pagato ? 'pagata' : b.bonifico ? 'bonifico attesa' : b.status} />
                   {b.extra_bed && <StatusDot color="#C58A67" label="letto extra" />}
-                  {b.group_id && <span className="text-xs text-gray-500">⇄ cambio camera</span>}
+                  {b.group_id && bookings.some(p => p.id !== b.id && p.status !== 'annullata' && p.group_id === b.group_id && p.room_id !== b.room_id && (p.check_out === b.check_in || b.check_out === p.check_in)) && <span className="text-xs text-gray-500">⇄ cambio camera</span>}
                 </div>
               </div>
               <div className="flex items-center justify-between text-sm text-gray-500 pt-2 border-t-[0.5px] border-border-soft">

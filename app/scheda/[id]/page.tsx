@@ -32,6 +32,7 @@
 // I testi dei messaggi NON sono qui: stanno in lib/messaggiPrenotazione, che
 // li tiene identici a quelli della scheda attuale (test di confronto).
 // ============================================================================
+import { riepilogoPeriodi } from '@/lib/periodiPrenotazione'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
@@ -572,6 +573,10 @@ export default function SchedaPage() {
           nome={nomeConAltri(booking)}
           stella={valutazioneDi(guest) === 'ottimo'}
           ricevuta={vuoleRicevuta(guest)}
+          periodi={riepilogoPeriodi(attive).separati ? attive.map(s => ({
+            date: dateTesta(s.check_in, s.check_out, giorniSoggiorno(s.check_in, s.check_out).length),
+            dettaglio: `${s.rooms?.name || 'Camera'} · ${Number(s.num_guests) || 1} ${(Number(s.num_guests) || 1) === 1 ? 'ospite' : 'ospiti'}`,
+          })) : []}
           date={dateTesta(primoArrivo, ultimaPartenza, nottiDormite || giorniSoggiorno(primoArrivo, ultimaPartenza).length)}
           orario={arrivoTestaTesto.orario}
           navetta={arrivoTestaTesto.navetta}

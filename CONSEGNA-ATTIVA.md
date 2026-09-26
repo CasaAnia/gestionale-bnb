@@ -1,3 +1,17 @@
+# Conferma dei periodi separati — 26 settembre 2026 — VERIFICATO IN LOCALE
+
+Responsabile unico Codex. Copia isolata `work/gestionale-verifica-pulizie`, branch `fix-periodi-separati`, base 555ad2a. Nessuna modifica ai dati, nessun invio al cliente.
+
+Caso verificato in sola lettura: Allegra 1–2 ottobre, 2 ospiti; Amelia 5–7 ottobre, 1 ospite. Stessa prenotazione, due linee distinte. Difetti: frecce in testa senza continuità, immagine con intervallo 1–7 e 6 notti, ospiti sommati fra visite separate.
+
+Perimetro: presentazione dei periodi nella scheda e nella conferma immagine/testo; prezzi e dati salvati invariati. Prove richieste: due visite separate, cambio contiguo, camere contemporanee, annullamenti, anteprima mobile e PNG reale. Pubblicazione di questa correzione da autorizzare dopo anteprima.
+
+Esito: 1791/1791 test applicazione, inclusi 7 nuovi casi sui periodi; TypeScript e build webpack riusciti. Immagine generata/copiatа/scaricata dalla UI, PNG ispezionato; scheda riaperta e controllata a 390 px senza overflow. Le 22 prove di revisione fallite sono identiche su base e candidato (21 note più prova PostgreSQL isolato non disponibile). Lint delle vecchie pagine da distinguere da quello dei moduli nuovi. Nessuna modifica remota. Anteprima http://localhost:3253/scheda/bbbbbbbb-3001-4000-8000-000000003001, dati e importi sintetici. Rapporto outputs/correzione-periodi-separati.md nella task.
+
+Il precedente lavoro pulizie 555ad2a è stato pubblicato e verificato il 26 settembre, migrazione 0059 applicata. Rapporto nel file outputs/stato-pubblicazione-pulizie.md della task.
+
+--- Storico precedente ---
+
 # Pulizie integrate — 25 settembre 2026 sera — LOCALE COMPLETO, NON APPLICATO NÉ PUBBLICATO
 
 Esecutore Claude, su incarico. Copia isolata, branch `pulizie-integrazione` (nessun push), base 9db3697 + 407eaee + proposta approvata (0c7c6c1).

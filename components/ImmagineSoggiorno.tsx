@@ -1,4 +1,5 @@
 'use client'
+import { riepilogoPeriodi } from '@/lib/periodiPrenotazione'
 import type { RefObject } from 'react'
 import { roomWithType, bagnoDesc } from '@/lib/roomTypes'
 import { NOME_STRUTTURA, CITTA_STRUTTURA, SITO_DISPLAY, TELEFONO_DISPLAY, INDIRIZZO, INDIRIZZO_NOTA } from '@/lib/config'
@@ -25,6 +26,7 @@ export type SegmentoImmagine = {
   id: string
   check_in: string
   check_out: string
+  num_guests?: number | string | null
   rooms?: { name?: string | null; bathroom_type?: string | null; extra_bed_price?: number | string | null } | null
 }
 
@@ -73,7 +75,9 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
   const linea = variante === 'proposta' && (nottiNonDisponibili.length > 0 || (lineaSempre && segmenti.length > 1))
     ? lineaSoggiorno(segmenti.map(s => ({ arrivo: s.check_in, partenza: s.check_out, seg: s })), nottiNonDisponibili)
     : null
-  const nottiTot = linea ? segmenti.reduce((n, s) => n + notti(s.check_in, s.check_out), 0) : notti(cin, cout)
+  const confermaMultipla = variante === 'conferma' && isGruppo
+  const periodi = riepilogoPeriodi(segmenti)
+  const nottiTot = variante === 'conferma' ? periodi.notti : linea ? segmenti.reduce((n, s) => n + notti(s.check_in, s.check_out), 0) : notti(cin, cout)
   const nottiScoperteTot = linea ? linea.reduce((n, b) => n + (b.tipo === 'vuoto' ? b.notti.length : 0), 0) : 0
   // persone che cambiano da una notte all'altra (pezzo 9): la striscia compare solo allora
   const personeVariano = variante === 'proposta' && personeNotti.length > 1 && personeNotti.some(x => x.persone !== personeNotti[0].persone)
@@ -119,7 +123,31 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
           {/* SALUTO — nome cliente in evidenza */}
           <p style={{ fontFamily: IMG_DISPLAY, fontSize: 84, fontWeight: 600, color: '#1F3D2F', textAlign: 'center', margin: '0 0 32px', lineHeight: 1.05 }}>{nome}</p>
 
-          {linea ? (
+          {confermaMultipla ? (
+            <div style={{ marginBottom: 30 }}>
+              <p style={{ fontSize: 28, letterSpacing: 2, color: '#3a3a35', fontWeight: 700, margin: '0 0 16px' }}>
+                {periodi.separati ? 'PERIODI SEPARATI DELLA PRENOTAZIONE' : 'IL SOGGIORNO, CAMERA PER CAMERA'}
+              </p>
+              {segmenti.map((s, i) => (
+                <div key={s.id} style={{ background: 'white', border: '2px solid #e3ddd0', borderRadius: 24, padding: '26px 32px', marginBottom: 18 }}>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: '#1F3D2F', lineHeight: 1.2 }}>{i + 1}. {roomWithType(s.rooms?.name)}</div>
+                  <div style={{ display: 'flex', marginTop: 24 }}>
+                    {[{ label: 'ARRIVO', data: s.check_in, ora: '15:00 – 20:00' }, { label: 'PARTENZA', data: s.check_out, ora: 'entro le 10:00' }].map((d, j) => (
+                      <div key={d.label} style={{ flex: 1, paddingLeft: j ? 24 : 0, borderLeft: j ? '2px dashed #d9d2c3' : undefined }}>
+                        <div style={{ fontSize: 24, letterSpacing: 2, color: '#3a3a35' }}>{d.label}</div>
+                        <div style={{ fontSize: 34, fontWeight: 700, color: '#1F3D2F', marginTop: 6 }}>{formatGiornoMese(d.data)}</div>
+                        <div style={{ fontSize: 25, color: '#3a3a35', marginTop: 6 }}>{d.ora}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 28, color: '#1F3D2F', marginTop: 22, fontWeight: 600 }}>
+                    {notti(s.check_in, s.check_out)} {notti(s.check_in, s.check_out) === 1 ? 'notte' : 'notti'} · {Number(s.num_guests) || 1} {(Number(s.num_guests) || 1) === 1 ? 'ospite' : 'ospiti'}
+                  </div>
+                  {bagnoDesc(s.rooms) && <div style={{ fontSize: 25, color: '#3a3a35', marginTop: 8 }}>Bagno {bagnoDesc(s.rooms)}</div>}
+                </div>
+              ))}
+            </div>
+          ) : linea ? (
             /* LINEA DEL SOGGIORNO — periodi disponibili e notti scoperte, mai un biglietto unico */
             <div style={{ marginBottom: 30 }}>
               <p style={{ fontSize: 32, letterSpacing: 3, color: '#3a3a35', fontWeight: 700, margin: '0 0 14px' }}>SOGGIORNO NON CONTINUO</p>
@@ -190,7 +218,7 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
           <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center', marginBottom: 30 }}>
             <div>
               <div style={{ fontSize: 46, fontWeight: 700, color: '#1F3D2F' }}>{nottiTot}</div>
-              <div style={{ fontSize: 32, color: '#3a3a35' }}>{linea ? (nottiTot === 1 ? 'notte da noi' : 'notti da noi') : (nottiTot === 1 ? 'notte' : 'notti')}</div>
+              <div style={{ fontSize: 32, color: '#3a3a35' }}>{confermaMultipla ? 'notti complessive in struttura' : linea ? (nottiTot === 1 ? 'notte da noi' : 'notti da noi') : (nottiTot === 1 ? 'notte' : 'notti')}</div>
             </div>
             {linea && (
               <div>
@@ -198,14 +226,14 @@ export default function ImmagineSoggiorno({ imgRef, variante, nome, segmenti, nu
                 <div style={{ fontSize: 32, color: '#3a3a35' }}>{nottiScoperteTot === 1 ? 'notte scoperta' : 'notti scoperte'}</div>
               </div>
             )}
-            <div>
+            {!confermaMultipla && <div>
               <div style={{ fontSize: 46, fontWeight: 700, color: '#1F3D2F' }}>{numOspiti}</div>
               <div style={{ fontSize: 32, color: '#3a3a35' }}>{numOspiti === 1 ? 'ospite' : 'ospiti'}</div>
-            </div>
+            </div>}
           </div>
 
           {/* CAMERA / BAGNO (con la linea del soggiorno la camera è già in ogni blocco) */}
-          {!linea && <div style={{ background: '#F6F2EA', borderRadius: 24, padding: '30px 44px', marginBottom: 30 }}>
+          {!linea && !confermaMultipla && <div style={{ background: '#F6F2EA', borderRadius: 24, padding: '30px 44px', marginBottom: 30 }}>
             {isGruppo ? (
               segmenti.map((s, i) => (
                 <div key={s.id} style={{ padding: '14px 0', borderTop: i === 0 ? 'none' : '1px solid #e3ddd0' }}>

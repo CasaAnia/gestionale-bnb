@@ -122,7 +122,7 @@ test('il conto prima di salvare: invariato se non cambia niente, annullato non p
 })
 
 test('le frasi sotto le strisce', () => {
-  assert.equal(SPIEGAZIONE_PARALLELE, 'Più camere nelle stesse notti: ogni camera si cambia dalla sua striscia.')
+  assert.equal(SPIEGAZIONE_PARALLELE, 'Ogni camera o periodo si cambia dalla sua striscia.')
   assert.equal(/scheda completa|Vedi tutto/.test(CAMERE_NON_LETTE), false, 'rimanda ancora alla scheda vecchia')
 })
 

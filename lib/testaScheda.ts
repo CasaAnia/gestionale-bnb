@@ -20,6 +20,7 @@
 //  · «Resta da incassare» con la cifra del conto (lib/schedaConto.
 //    riepilogoConto: la stessa fonte del conto, nessun secondo calcolo).
 // ============================================================================
+import { riepilogoPeriodi } from './periodiPrenotazione.ts'
 import { AUTISTI, circaInStruttura, periodoInStruttura, type Arrivo } from './arrivo.ts'
 import { rigaGrandeScheda, segmentiAttivi, type SegmentoScheda } from './schedaPrenotazione.ts'
 import { giorniSoggiorno } from './prezzoNotti.ts'
@@ -107,8 +108,10 @@ export function percorsoTesta(segmenti: SegmentoScheda[]): PercorsoTesta {
   // una prenotazione annullata non ha tratti attivi: si leggono lo stesso i suoi, per dire com'era
   const daLeggere = segmentiAttivi(segmenti).length ? segmenti : segmenti.map(s => ({ ...s, status: 'confermata' }))
   const r = rigaGrandeScheda(daLeggere)
-  const ospiti = r.ospiti === 1 ? '1 ospite' : `${r.ospiti} ospiti`
+  const riepilogo = riepilogoPeriodi(daLeggere)
+  const ospiti = riepilogo.ospitiVariabili ? 'Ospiti indicati per periodo' : r.ospiti === 1 ? '1 ospite' : `${r.ospiti} ospiti`
   const pezziSopra = [ospiti]
+  if (riepilogo.separati) pezziSopra.push(`${riepilogo.periodi.length} periodi separati`)
   if (r.insieme) pezziSopra.push(`${r.camere.split(' + ').length} camere insieme`)
   if (r.cambi === 1) pezziSopra.push('1 cambio camera')
   else if (r.cambi > 1) pezziSopra.push(`${r.cambi} cambi camera`)

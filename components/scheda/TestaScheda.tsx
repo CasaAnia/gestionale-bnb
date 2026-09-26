@@ -61,7 +61,7 @@ function Data({ d, etichetta, lato }: { d: DataTesta; etichetta: string; lato: '
 export default function TestaScheda({
   primaRiga, chiediProvenienza = null, totaleCent = null, hrefCliente = null,
   nome, stella = false, ricevuta = false,
-  date, orario, navetta, onArrivo,
+  date, periodi = [], orario, navetta, onArrivo,
   percorso, oggi, residuo, daCompletare = null,
   telefono = null, telefonoDaChiamare = null, onScrivi, documento = null, note = [],
 }: {
@@ -75,6 +75,7 @@ export default function TestaScheda({
   nome: string
   stella?: boolean
   ricevuta?: boolean
+  periodi?: { date: DateTesta; dettaglio: string }[]
   date: DateTesta
   /** «Arriva alle 15:10» oppure «Orario da definire» */
   orario: string
@@ -123,11 +124,22 @@ export default function TestaScheda({
       </h1>
 
       {/* le due date del soggiorno intero, le notti in mezzo sopra il filo */}
+      {periodi.length > 1 ? periodi.map((p, i) => (
+        <div key={i} style={{ marginBottom: 18 }}>
+          <p style={{ fontSize: 12, color: VERDE_TESTO, marginBottom: 10 }}>{i + 1}. {p.dettaglio}</p>
+          <div data-date-testa className="flex items-start justify-between" style={{ gap: 8 }}>
+            <Data d={p.date.arrivo} etichetta="arriva" lato="sinistra" />
+            <div className="flex-1 text-center" style={{ fontSize: 11, color: OTTONE_NOTTI, borderBottom: `1px solid ${FILO_NOTTI}`, paddingBottom: 7 }}>{p.date.notti}</div>
+            <Data d={p.date.partenza} etichetta="parte" lato="destra" />
+          </div>
+        </div>
+      )) : (
       <div data-date-testa className="flex items-start justify-between" style={{ gap: 8 }}>
         <Data d={date.arrivo} etichetta="arriva" lato="sinistra" />
         <div data-notti-testa className="flex-1 text-center self-start min-w-[32px]" style={{ fontSize: 11, color: OTTONE_NOTTI, borderBottom: `1px solid ${FILO_NOTTI}`, paddingBottom: 7 }}>{date.notti}</div>
         <Data d={date.partenza} etichetta="parte" lato="destra" />
       </div>
+      )}
 
       {/* orario e navetta: quello che sappiamo, o cosa manca; si tocca per cambiarli */}
       <div data-arrivo-testa className="flex flex-wrap" style={{ gap: '4px 16px', margin: '13px 0 20px', fontSize: 12, color: OTTONE_ARRIVO }}>

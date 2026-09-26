@@ -145,6 +145,8 @@ function prenotazione(room_id, guest_id, check_in, check_out, num_guests, extra)
     ...extra,
   }
 }
+// Caso dei periodi separati: dati sintetici, importi dimostrativi.
+guests.push(ospite('aaaaaaaa-0030-4000-8000-000000000030', 'Leo Esempio', '+39 333 000 0030'))
 const bookings = [
   prenotazione(ROOM.lena, guests[0].id, '2026-09-03', '2026-09-05', 4,
     { extra_bed: true, extra_bed_dates: ['2026-09-03', '2026-09-04'], extra_bed_total: 20 }),
@@ -339,6 +341,13 @@ const bookings = [
     { id: 'bbbbbbbb-2902-4000-8000-000000002902', prenotazione_id: 'dddddddd-0029-4000-8000-000000000029', group_id: null,
       price_per_night: 65, total_amount: 260, check_in_time: '16:00' }),
 ]
+bookings.push(
+  prenotazione(ROOM.allegra, 'aaaaaaaa-0030-4000-8000-000000000030', '2026-10-01', '2026-10-02', 2,
+    { id: 'bbbbbbbb-3001-4000-8000-000000003001', group_id: 'cccccccc-3001-4000-8000-000000003001', prenotazione_id: 'dddddddd-0030-4000-8000-000000000030', price_per_night: 70, total_amount: 70 }),
+  prenotazione(ROOM.amelia, 'aaaaaaaa-0030-4000-8000-000000000030', '2026-10-05', '2026-10-07', 1,
+    { id: 'bbbbbbbb-3002-4000-8000-000000003002', group_id: 'cccccccc-3002-4000-8000-000000003002', prenotazione_id: 'dddddddd-0030-4000-8000-000000000030', price_per_night: 50, total_amount: 100 })
+)
+
 // «Letto Per Due» si cerca per cliente, non per posizione: in fondo alla lista si aggiungono altri casi
 const LETTO_PER_DUE = bookings.find(b => b.guest_id === 'aaaaaaaa-0023-4000-8000-000000000023')
 const CARMELA_PRIMO_TRATTO = bookings.find(b => b.group_id === GRUPPO_CARMELA)
@@ -1066,7 +1075,7 @@ const finto = createServer((req, res) => {
 
 finto.listen(PORTA_FINTO, '127.0.0.1', () => {
   console.log(`[finto supabase] http://127.0.0.1:${PORTA_FINTO} (${bookings.length} prenotazioni sintetiche)`)
-  const next = spawn(path.join(radice, 'node_modules', '.bin', 'next'), ['dev', '-p', String(PORTA_APP)], {
+  const next = spawn(path.join(radice, 'node_modules', '.bin', 'next'), ['dev', ...(process.env.ANTEPRIMA_WEBPACK === '1' ? ['--webpack'] : []), '-p', String(PORTA_APP)], {
     cwd: radice,
     stdio: 'inherit',
     env: {

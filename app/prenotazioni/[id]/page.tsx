@@ -1,4 +1,5 @@
 'use client'
+import { riepilogoPeriodi } from '@/lib/periodiPrenotazione'
 import { chiavePrenotazione, filtroPrenotazione, periodiCamera, leggiPrenotazioneUnica, contoPrenotazione, accordoPrenotazione, haCamereParallele, ERRORE_CONTO_INCOMPLETO, type RigaPrenotazione } from '@/lib/prenotazioneUnica'
 import { conInizialiONull } from '@/lib/maiuscole'
 import { nomeDaSalvareONull } from '@/lib/guestName'
@@ -137,9 +138,10 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   // Totale dal conto unico (LETTURA: il record salvato è autorevole per le
   // prenotazioni senza sconto, i dati storici non vengono reinterpretati)
   const totaleNum = segmenti.reduce((s, x) => s + contoSoggiorno(x).totale, 0)
-  const notti = Math.round((new Date(cout).getTime() - new Date(cin).getTime()) / 86400000)
+  const periodi = riepilogoPeriodi(segmenti)
+  const notti = periodi.notti
   const totale = totaleNum.toLocaleString('it-IT', { minimumFractionDigits: 2 })
-  const numOspiti = [...new Set(segmenti.map(s => s.group_id || s.id))].reduce((somma, gruppo) => somma + Math.max(...segmenti.filter(s => (s.group_id || s.id) === gruppo).map(s => Number(s.num_guests) || 1)), 0)
+  const numOspiti = periodi.ospiti
   const ospiti = `${numOspiti} ${numOspiti === 1 ? 'adulto' : 'adulti'}`
   const cinF = formatDateIT(cin)
   const coutF = formatDateIT(cout)
@@ -152,7 +154,7 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
   // oppure perché resta nella stessa camera a una tariffa diversa: l'intestazione deve
   // dire la cosa giusta, altrimenti al cliente annunciamo un cambio camera che non c'è.
   const camereDiverse = new Set(segmenti.map((s: any) => s.rooms?.name)).size > 1
-  const intestazioneSegmenti = haCamereParallele(segmenti) ? 'Camere della prenotazione:' : camereDiverse
+  const intestazioneSegmenti = periodi.separati ? 'Periodi separati della prenotazione:' : haCamereParallele(segmenti) ? 'Camere della prenotazione:' : camereDiverse
     ? 'Camere (cambio camera durante il soggiorno):'
     : 'Periodi del soggiorno:'
   const riepilogoCamere = isGruppo ? segmenti.map((s, i) => {
@@ -165,7 +167,7 @@ function buildWhatsappMsg(b: any, type: 'conferma' | 'modifica' | 'annullamento'
     // al posto di un «/notte» unico che sarebbe falso
     const dett = dettaglioNottiSalvato(s.rooms, s)
     const prezzoTesto = dett ? testoDettaglioNotti(dett, x => `€${x}`) : `€${prezzoNotte.toFixed(0)}/notte`
-    return `   ${i + 1}. *${roomWithType(s.rooms?.name) || 'Camera'}*: ${formatDateIT(s.check_in)} → ${formatDateIT(s.check_out)} (${n} ${n === 1 ? 'notte' : 'notti'}) – ${prezzoTesto}`
+    return `   ${i + 1}. *${roomWithType(s.rooms?.name) || 'Camera'}*: ${formatDateIT(s.check_in)} → ${formatDateIT(s.check_out)} (${n} ${n === 1 ? 'notte' : 'notti'} · ${Number(s.num_guests) || 1} ${(Number(s.num_guests) || 1) === 1 ? 'ospite' : 'ospiti'}) – ${prezzoTesto}`
   }).join('\n') : ''
 
   // Riepilogo costi dal conto unico: righe di dettaglio a prezzo pieno e, solo
@@ -232,6 +234,10 @@ Casa Ania`
   // Blocco camera/bagno/link condiviso da conferma e modifica
   const cameraBlock = `${isGruppo ? `${intestazioneSegmenti}\n${riepilogoCamere}` : `Camera: ${roomFull}${lettoDaComunicare(b) ? ' + letto aggiuntivo' : ''}\n${isLena ? '🚿 Bagno: *privato esterno, chiuso a chiave, a circa 1 metro dalla camera*' : (bagno ? `🚿 Bagno: ${bagno}` : '')}`}${!isGruppo && roomLink ? `\n\nLa sua camera:\n${roomLink}` : ''}`
 
+  const dateSoggiorno = isGruppo
+    ? `${intestazioneSegmenti}\n${segmenti.map((s, i) => `${i + 1}. *${roomWithType(s.rooms?.name) || 'Camera'}*\nCheck-in: *${formatDateIT(s.check_in)}* (dalle 15:00 alle 20:00)\nCheck-out: *${formatDateIT(s.check_out)}* (entro le 10:00)\n${Math.round((new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86400000)} ${Math.round((new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86400000) === 1 ? 'notte' : 'notti'} · ${Number(s.num_guests) || 1} ${(Number(s.num_guests) || 1) === 1 ? 'ospite' : 'ospiti'}`).join('\n\n')}\n\nNotti: *${notti}* (complessive in struttura)`
+    : `Check-in: *${cinF}* (dalle 15:00 alle 20:00)\nCheck-out: *${coutF}* (entro le 10:00)\nNotti: *${notti}*\nOspiti: ${ospiti}\n${cameraBlock}`
+
   if (type === 'conferma') {
     // Titoli di sezione in grassetto SOLO nella conferma: i blocchi restano condivisi
     // con la modifica, che mantiene i suoi titoli semplici
@@ -245,11 +251,7 @@ Gentile ${nome},
 grazie per averci scelto. Sono felice di confermarle il soggiorno e sarà un piacere accoglierla. 🌿
 
 📅 *IL SUO SOGGIORNO*
-Check-in: *${cinF}* (dalle 15:00 alle 20:00)
-Check-out: *${coutF}* (entro le 10:00)
-Notti: *${notti}*
-Ospiti: ${ospiti}
-${cameraBlock}
+${dateSoggiorno}
 
 ${riepilogoCostiBold}
 
@@ -286,11 +288,7 @@ la sua prenotazione è stata modificata.
 Di seguito trova il riepilogo aggiornato del soggiorno.
 
 📅 SOGGIORNO AGGIORNATO
-Check-in: *${cinF}* (dalle 15:00 alle 20:00)
-Check-out: *${coutF}* (entro le 10:00)
-Notti: *${notti}*
-Ospiti: ${ospiti}
-${cameraBlock}
+${dateSoggiorno}
 
 ${riepilogoCosti}
 

@@ -125,14 +125,9 @@ function linee(segmenti: SegmentoScheda[]): SegmentoScheda[][] {
 
 // ── La riga grande: OSPITI e CAMERA ─────────────────────────────────────────
 // Ospiti = le persone MASSIME in casa in una notte.
-// Camera (Ania, 18/09/2026, regola fissa n. 8): si guardano le DATE, non come
-// sono salvate le righe. Se in nessuna notte ci sono due camere insieme, le
-// camere si susseguono: è un cambio camera e si scrivono tutte per esteso col
-// segno di sempre, «Lena ⇄ Amelia ⇄ Lena» — anche quando le righe sono linee
-// separate senza group_id (Dario Barone: «Lena + Amelia» era un cambio).
-// Il «+» resta SOLO per due camere nelle stesse notti («Lena + Amelia»,
-// `insieme`); lì `cambi` conta i cambi dentro le linee e la pagina scrive
-// «⇄ 2» accanto ai nomi.
+// Le frecce collegano soltanto notti contigue in camere diverse.
+// Una partenza seguita da un nuovo arrivo è un periodo separato, anche
+// quando le righe appartengono alla stessa prenotazione.
 export const SEGNO_CAMBIO = '⇄'
 export type RigaGrandeScheda = { ospiti: number; camere: string; cambi: number; insieme: boolean }
 export function rigaGrandeScheda(segmenti: SegmentoScheda[]): RigaGrandeScheda {
@@ -146,15 +141,23 @@ export function rigaGrandeScheda(segmenti: SegmentoScheda[]): RigaGrandeScheda {
   const notti = [...perNotte.keys()].sort()
   const insieme = notti.some(g => new Set(perNotte.get(g)).size > 1)
   if (!insieme) {
-    const sequenza: string[] = []
-    for (const g of notti) { const c = perNotte.get(g)![0]; if (sequenza[sequenza.length - 1] !== c) sequenza.push(c) }
-    return { ospiti, camere: sequenza.join(` ${SEGNO_CAMBIO} `) || 'camera', cambi: Math.max(0, sequenza.length - 1), insieme: false }
+    let camere = '', precedente = '', nottePrecedente = '', cambi = 0
+    for (const g of notti) {
+      const c = perNotte.get(g)![0]
+      const contigua = nottePrecedente && spostaGiorni(nottePrecedente, 1) === g
+      if (!precedente) camere = c
+      else if (!contigua) camere += ` · ${c}`
+      else if (c !== precedente) { camere += ` ${SEGNO_CAMBIO} ${c}`; cambi += 1 }
+      precedente = c
+      nottePrecedente = g
+    }
+    return { ospiti, camere: camere || 'camera', cambi, insieme: false }
   }
   const nomi: string[] = []
   let cambi = 0
   for (const linea of linee(segmenti)) {
     nomi.push(nomeCamera(linea[0]))
-    for (let i = 1; i < linea.length; i++) if (nomeCamera(linea[i]) !== nomeCamera(linea[i - 1])) cambi += 1
+    for (let i = 1; i < linea.length; i++) if (linea[i - 1].check_out === linea[i].check_in && nomeCamera(linea[i]) !== nomeCamera(linea[i - 1])) cambi += 1
   }
   return { ospiti, camere: nomi.join(' + ') || 'camera', cambi, insieme: true }
 }
@@ -223,7 +226,7 @@ export function caselleSoggiorno(segmenti: SegmentoScheda[], oggi: string): Case
       numero: Number(iso.slice(8, 10)),
       camera,
       persone: persone.get(iso) ?? 1,
-      cambia: out.length > 0 && out[out.length - 1].camera !== camera,
+      cambia: out.length > 0 && spostaGiorni(out[out.length - 1].iso, 1) === iso && out[out.length - 1].camera !== camera,
       oggi: iso === oggi,
       segmentoId: dentro[0]?.id ?? attivi[0].id,
     })
