@@ -26,7 +26,7 @@ export const DIDASCALIA_STRISCIA = 'Camere da preparare nei prossimi 7 giorni'
 export default function StrisciaSettimana({ giorni }: { giorni: GiornoStriscia[] }) {
   return (
     <section className="mb-5" aria-label={DIDASCALIA_STRISCIA} data-striscia-settimana>
-      <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory border-b border-card-border">
+      <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory" style={{ borderBottom: '1px solid rgba(169,136,78,0.55)' }}>
         {giorni.map(g => { const c = testoCasella(g); const s = simboliCambi(g.cambi); return (
           <Link key={g.giorno} href={`/pulizie?giorno=${g.giorno}`} data-giorno={g.giorno} data-camere={g.daFare} data-fatte={g.fatte} data-tono={c.tono}
             className="snap-start shrink-0 basis-[14.2857%] lg:basis-[7.1428%] flex flex-col items-center justify-center py-1.5"

@@ -1,3 +1,7 @@
+## Linea fascia camere — 26/09/2026
+
+Ania autorizza modifica e pubblicazione immediata. Base 65ead6b. Codex unico autore: bordo sotto StrisciaSettimana identico ai due di NumeriOggi, 1px rgba(169,136,78,0.55). Nessuna modifica a spazi o conteggi.
+
 ## Correzione separatori Home — 26/09/2026
 
 Base f98e852 pubblicata. Ania richiede tre numeri iniziali senza righe verticali. Codex unico autore di NumeriOggi: eliminati solo i due bordi interni, mantenuti linee orizzontali, spazi e link. Correzione della presentazione approvata.
