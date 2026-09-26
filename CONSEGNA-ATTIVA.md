@@ -1,3 +1,7 @@
+## Pubblicazione arrivi — correzione compilazione
+
+Ania ha autorizzato la pubblicazione. Il rilascio 011dd1f fallisce su Vercel/Turbopack nel caricamento interno del font Manrope (24 errori next/font/google). Il comando build viene allineato a `next build --webpack`, già collaudato sul candidato locale; nessuna modifica a font, UI o dati.
+
 ## Esito arrivi distinti — 26/09/2026
 
 Implementato in locale sul ramo `fix-arrivi-periodi`, base `0cd3c63`. Date e camere distinte, modulo legato all’id selezionato; salvataggio e rilettura esistenti invariati. Test app 1795/1795, strumenti 80/80, TypeScript e lint dei file toccati puliti, build riuscita. Revisioni 42/64: gli stessi 22 fallimenti del precedente rapporto candidato 0cd3c63, nessun nuovo nome di test fallito. Prova UI sintetica: due salvataggi indipendenti, ricarica, modifica secondo, annulla, riapertura primo invariato. Nessuna migrazione, nessun dato reale modificato, non pubblicato. Rapporto: `outputs/arrivi-distinti-rapporto.md` nella cartella della conversazione.
