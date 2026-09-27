@@ -17,13 +17,13 @@ import Foglio, { PiedeFoglio } from './Foglio'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import CampoRicerca from '@/components/CampoRicerca'
 import RigaCliente, { TastinoSage, NUOVO_CLIENTE } from '@/components/nuova/RigaCliente'
-import NuovoCliente, { NUOVO_CLIENTE_VUOTO, type DatiNuovoCliente } from '@/components/nuova/NuovoCliente'
+import NuovoCliente, { type DatiNuovoCliente } from '@/components/nuova/NuovoCliente'
 import { MATTONE, OTTONE } from '@/components/nuova/PezziNuova'
 import { nomeOspite, nomeCompleto } from '@/lib/guestName'
 import { numeroUsabile } from '@/lib/whatsapp'
 import { leggiStrutture } from '@/lib/provenienzaDati'
 import type { StrutturaNota } from '@/lib/provenienza'
-import { campiNuovoCliente, SENZA_NOME, SENZA_TELEFONO } from '@/lib/datiCliente'
+import { moduloDaRicerca, campiNuovoCliente, SENZA_NOME, SENZA_TELEFONO } from '@/lib/datiCliente'
 import {
   avvisiCambioCliente, stessoCliente, testoDocumentiDaSpostare, rigaPassaggio, MESSAGGIO_DOCUMENTI_NON_SPOSTATI,
   type ClienteBreve, type PrenotazionePerCambio,
@@ -128,7 +128,7 @@ export default function FoglioCambiaCliente({ booking, segmenti, pagamenti, conf
       {!scelto && !nuovo && (
         <div data-cerca-cliente>
           <CampoRicerca value={ricerca} onChange={scriviRicerca} placeholder="Cerca per nome o telefono…" />
-          <div style={{ marginTop: 10 }}><TastinoSage testo={NUOVO_CLIENTE} onClick={() => setNuovo(NUOVO_CLIENTE_VUOTO)} /></div>
+          <div style={{ marginTop: 10 }}><TastinoSage testo={NUOVO_CLIENTE} onClick={() => setNuovo(moduloDaRicerca(ricerca))} /></div>
           {erroreRicerca && <p className="mt-3" style={{ fontSize: 13, color: MATTONE }}>{erroreRicerca}</p>}
           {risultati.length > 0 && (
             <div data-trovati style={{ marginTop: 14 }}>

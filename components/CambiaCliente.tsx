@@ -6,6 +6,7 @@
 // Regole e testi in lib/cambiaCliente; scritture in lib/cambiaClienteDati
 // con esito controllato: se non salva, «Non salvato, riprova» e nulla cambia.
 import { useEffect, useRef, useState } from 'react'
+import { moduloDaRicerca } from '@/lib/datiCliente'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import CampoProvenienza from '@/components/CampoProvenienza'
 import { nomeOspite } from '@/lib/guestName'
@@ -46,6 +47,18 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
   // Dopo un cambio riuscito ma documenti non spostati: si riprova solo quella parte
   const [riprovaDocumenti, setRiprovaDocumenti] = useState<{ nuovo: ClienteBreve } | null>(null)
   const campoRicerca = useRef<HTMLInputElement>(null)
+
+  function apriNuovoCliente() {
+    const dallaRicerca = moduloDaRicerca(testo)
+    // Tornando dalla ricerca non cancellare quanto già completato nel modulo.
+    setModulo(precedente => ({
+      nome: precedente.nome || dallaRicerca.nome,
+      cognome: precedente.cognome || dallaRicerca.cognome,
+      telefono: precedente.telefono || dallaRicerca.telefono,
+    }))
+    setModo('nuovo')
+    setScelto(null)
+  }
 
   const avvisi = avvisiCambioCliente({ pagamenti, confermaInviata, segmenti, nomeVecchio })
   const rigaDocumenti = testoDocumentiDaSpostare(documenti.length, nomeVecchio)
@@ -135,7 +148,7 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
           <div className="flex gap-2 mb-3" role="tablist">
             <button type="button" role="tab" aria-selected={modo === 'cerca'} onClick={() => setModo('cerca')}
               className={modo === 'cerca' ? 'ed-pillola' : 'ed-pillola-tenue'}>Cliente esistente</button>
-            <button type="button" role="tab" aria-selected={modo === 'nuovo'} onClick={() => { setModo('nuovo'); setScelto(null) }}
+            <button type="button" role="tab" aria-selected={modo === 'nuovo'} onClick={apriNuovoCliente}
               className={modo === 'nuovo' ? 'ed-pillola' : 'ed-pillola-tenue'}>Nuovo cliente</button>
           </div>
         )}
@@ -159,7 +172,7 @@ export default function CambiaCliente({ booking, segmenti, pagamenti, confermaIn
               ))}
               {!cercando && risultati.length === 0 && !erroreRicerca && (
                 <p className="text-sm text-stone py-3 px-2">{testo ? 'Nessun cliente con questo nome o telefono.' : 'Nessun altro cliente in archivio.'}{' '}
-                  <button type="button" className="underline underline-offset-2 text-green-mid" onClick={() => setModo('nuovo')}>Crea un nuovo cliente</button>
+                  <button type="button" className="underline underline-offset-2 text-green-mid" onClick={apriNuovoCliente}>Crea un nuovo cliente</button>
                 </p>
               )}
             </div>

@@ -1,17 +1,26 @@
 'use client'
-import { nomeDaSalvareONull } from '@/lib/guestName'
+import { nomeDaSalvare, nomeDaSalvareONull } from '@/lib/guestName'
 import { CampoNomeCognome } from '@/components/CampiNomeCognome'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { moduloDaRicerca } from '@/lib/datiCliente'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import BackBar from '@/components/BackBar'
 
 import CampoValutazione from '@/components/CampoValutazione'
 import { payloadValutazione, type Valutazione } from '@/lib/valutazione'
 
 export default function NuovoCliente() {
+  return <Suspense fallback={<div className="p-4">Caricamento…</div>}><ModuloNuovoCliente /></Suspense>
+}
+
+function ModuloNuovoCliente() {
   const router = useRouter()
-  const [form, setForm] = useState({ full_name: '', phone: '', email: '', rating: 'normale' as Valutazione, ricevuta: false })
+  const ricerca = useSearchParams().get('ricerca') ?? ''
+  const [form, setForm] = useState(() => {
+    const dati = moduloDaRicerca(ricerca)
+    return { full_name: nomeDaSalvare(dati), phone: dati.telefono, email: '', rating: 'normale' as Valutazione, ricevuta: false }
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

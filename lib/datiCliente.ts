@@ -64,6 +64,18 @@ export function moduloDaCliente(c: ClienteSalvato | null | undefined): ModuloCli
   }
 }
 
+/** Riporta la ricerca nel cliente nuovo, senza normalizzare o troncare il telefono.
+ * Nome e cognome usano la stessa divisione del modulo cliente e restano editabili.
+ * Se sono stati incollati insieme nominativo e numero, conserva entrambi. */
+export function moduloDaRicerca(ricerca: string): ModuloCliente {
+  const testo = ricerca.trim()
+  const telefono = testo.match(/\+?\d[\d\s().-]*\d|\d/g)?.find(x => x.replace(/\D/g, '').length >= 3)
+  const soloTelefono = /^[+\d\s().-]+$/.test(testo) && /\d/.test(testo)
+  const numero = soloTelefono ? testo : (telefono?.trim() ?? '')
+  const nominativo = soloTelefono ? '' : telefono ? testo.replace(telefono, ' ').trim() : testo
+  return { ...moduloDaCliente(null), ...spezzaNome(nominativo), telefono: numero }
+}
+
 // ── Dal modulo ai campi di guests ──────────────────────────────────────────
 export type OpzioniCampi = {
   /** la colonna vuole_ricevuta esiste sulla riga letta (dopo la 0038) */

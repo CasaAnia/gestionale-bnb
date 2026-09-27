@@ -328,7 +328,7 @@ test('«Cambia cliente»: la ricerca dell’inserimento, le righe 🧾 ★ nome 
   assert.match(cambia, /placeholder="Cerca per nome o telefono…"/)
   assert.match(cambia, /import RigaCliente, \{ TastinoSage, NUOVO_CLIENTE \} from '@\/components\/nuova\/RigaCliente'/)
   assert.match(cambia, /<RigaCliente key=\{c\.id\} cliente=\{c\} soggiorni=\{soggiorni\[c\.id\] \?\? 0\} onScegli=\{\(\) => setScelto\(c\)\}/)
-  assert.match(cambia, /<TastinoSage testo=\{NUOVO_CLIENTE\} onClick=\{\(\) => setNuovo\(NUOVO_CLIENTE_VUOTO\)\}/)
+  assert.match(cambia, /<TastinoSage testo=\{NUOVO_CLIENTE\} onClick=\{\(\) => setNuovo\(moduloDaRicerca\(ricerca\)\)\}/)
   // il cliente nuovo: lo stesso modulo dell'inserimento, gli stessi campi
   assert.match(cambia, /<NuovoCliente dati=\{nuovo\}[\s\S]{0,200}titolo=\{null\} avanti=\{null\} etichetteOttone/)
   assert.match(cambia, /creaClienteNuovo\(campiNuovoCliente\(nuovo, strutture\.disponibile\)/)

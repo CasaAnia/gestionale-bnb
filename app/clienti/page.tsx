@@ -27,7 +27,7 @@ export default function Clienti() {
       <BackBar href="/" />
       <div className="flex items-center justify-between mb-4">
         <h1 className="ed-titolo-medio max-lg:hidden">Clienti</h1>
-        <Link href="/clienti/nuovo" className="ml-auto bg-green-mid text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Nuovo</Link>
+        <Link href={search.trim() ? `/clienti/nuovo?ricerca=${encodeURIComponent(search.trim())}` : "/clienti/nuovo"} className="ml-auto bg-green-mid text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Nuovo</Link>
       </div>
       <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="🔍 Cerca per nome o telefono..."

@@ -25,10 +25,10 @@ import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
 import RigaCliente, { TastinoSage, NUOVO_CLIENTE, type ClienteRiga } from '@/components/nuova/RigaCliente'
 import { filtraClienti } from '@/lib/cambiaCliente'
 import { messaggioLetturaNonRiuscita } from '@/lib/prenotazioneScritture'
-import NuovoCliente, { NUOVO_CLIENTE_VUOTO, type DatiNuovoCliente } from '@/components/nuova/NuovoCliente'
+import NuovoCliente, { type DatiNuovoCliente } from '@/components/nuova/NuovoCliente'
 import { leggiStrutture } from '@/lib/provenienzaDati'
 import { creaClienteNuovo } from '@/lib/cambiaClienteDati'
-import { campiNuovoCliente } from '@/lib/datiCliente'
+import { moduloDaRicerca, campiNuovoCliente } from '@/lib/datiCliente'
 import { numeroUsabile } from '@/lib/whatsapp'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import type { StrutturaNota } from '@/lib/provenienza'
@@ -561,12 +561,12 @@ export default function NuovaPrenotazionePage() {
       {!cliente && !nuovo && (
         <section data-cerca-cliente style={{ marginTop: 18 }}>
           <CampoRicerca value={ricerca} onChange={scriviRicerca} placeholder="Cerca per nome o telefono…" />
-          <div style={{ marginTop: 10 }}><TastinoSage testo={NUOVO_CLIENTE} onClick={() => setNuovo(NUOVO_CLIENTE_VUOTO)} /></div>
+          <div style={{ marginTop: 10 }}><TastinoSage testo={NUOVO_CLIENTE} onClick={() => setNuovo(moduloDaRicerca(ricerca))} /></div>
           {erroreRicerca && <p className="mt-3" style={{ fontSize: 13, color: '#8C3B2E' }}>{erroreRicerca}</p>}
           {risultati.length > 0 && (
             <div data-trovati style={{ marginTop: 14 }}>
               {risultati.map(c => <RigaCliente key={c.id} cliente={c} soggiorni={soggiorni[c.id] ?? 0} onScegli={() => scegliCliente(c)} />)}
-              <div style={{ marginTop: 12 }}><TastinoSage testo={NUOVO_CLIENTE} onClick={() => setNuovo(NUOVO_CLIENTE_VUOTO)} /></div>
+              <div style={{ marginTop: 12 }}><TastinoSage testo={NUOVO_CLIENTE} onClick={() => setNuovo(moduloDaRicerca(ricerca))} /></div>
             </div>
           )}
         </section>
