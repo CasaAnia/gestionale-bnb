@@ -421,7 +421,7 @@ test('con una lettura incompleta niente conto e niente pagamenti da qui', () => 
   assert.match(pagina, /const \[contoLeggibile, setContoLeggibile\] = useState\(true\)/)
   assert.match(pagina, /setContoLeggibile\(!conto\.errore && !pag\.error\)/)
   assert.match(pagina, /if \(!contoLeggibile\) return null/)
-  assert.match(pagina, /\{foglioPagamento && conto && \(/)
+  assert.match(pagina, /\{foglioPagamento && conto && !noShow && \(/)
 })
 
 // ── 7. SCONTO (17/09/2026) ──────────────────────────────────────────────────

@@ -8,6 +8,7 @@
 // ============================================================================
 
 export type PrenotazioneStat = {
+  mancato_arrivo_centesimi?: number | null
   id: string
   /** tutte le camere della stessa prenotazione (proposta 0047) */
   prenotazione_id?: string | null

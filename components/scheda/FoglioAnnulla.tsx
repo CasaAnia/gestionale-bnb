@@ -34,7 +34,7 @@ export const AVVISO_MOTIVO_SENZA_0046 = 'Cliente segnata come problematica; il m
 
 export type CampiAnnullamento = ReturnType<typeof campiAnnullamento>
 
-export default function FoglioAnnulla({ booking, attive, nomeCliente, cliente, arrivo, onChiudi, onAnnullata, onProblematica }: {
+export default function FoglioAnnulla({ booking, attive, nomeCliente, cliente, arrivo, onChiudi, onAnnullata, onProblematica, onMancatoArrivo }: {
   booking: IdentitaPrenotazione
   /** quante righe del soggiorno sono ancora attive: la scrittura deve toccarle tutte */
   attive: number
@@ -43,6 +43,7 @@ export default function FoglioAnnulla({ booking, attive, nomeCliente, cliente, a
   cliente: (ClienteValutato & { id?: string | null }) | null
   /** il primo arrivo: finisce nel motivo interno («Non si è presentata il …») */
   arrivo: string | null
+  onMancatoArrivo?: () => void
   onChiudi: () => void
   /** a scrittura riuscita: la scheda aggiorna le righe */
   onAnnullata: (campi: CampiAnnullamento) => void
@@ -111,7 +112,7 @@ export default function FoglioAnnulla({ booking, attive, nomeCliente, cliente, a
       <Etichetta testo={DOMANDA_CHI} primo ottone />
       <FilaPastiglie>
         {CHI_ANNULLA.map(c => (
-          <Pastiglia key={c.chiave} dati={`chi-${c.chiave}`} acceso={chi === c.chiave} colore={MATTONE} onClick={() => { setChi(c.chiave); setErrore(null) }}>{c.testo}</Pastiglia>
+          <Pastiglia key={c.chiave} dati={`chi-${c.chiave}`} acceso={chi === c.chiave} colore={MATTONE} onClick={() => { if(c.chiave === 'no_show' && onMancatoArrivo) { onMancatoArrivo(); return }; setChi(c.chiave); setErrore(null) }}>{c.testo}</Pastiglia>
         ))}
       </FilaPastiglie>
       {chi && <p data-spiegazione style={{ marginTop: 10, fontSize: 12.5, color: OTTONE }}>{spiegazione(chi)}</p>}

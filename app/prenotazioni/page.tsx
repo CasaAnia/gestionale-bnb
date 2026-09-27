@@ -1,4 +1,5 @@
 'use client'
+import { mancatoArrivo } from '@/lib/mancatoArrivo'
 import { useEffect, useState } from 'react'
 import { vuoleRicevuta } from '@/lib/valutazione'
 import { supabase } from '@/lib/supabase'
@@ -31,7 +32,7 @@ function StatusDot({ color, label }: { color: string; label: string }) {
 export default function Prenotazioni() {
   const router = useRouter()
   const [bookings, setBookings] = useState<any[]>([])
-  const [filter, setFilter] = useState<'tutte' | 'attive' | 'annullate'>('attive')
+  const [filter, setFilter] = useState<'tutte' | 'attive' | 'annullate' | 'mancati arrivi'>('attive')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   // Parte 3 (05/09/2026): un errore di lettura mostra l'avviso con Riprova,
@@ -63,6 +64,7 @@ export default function Prenotazioni() {
   const filtered = bookings.filter(b => {
     if (!matchPrenotazione(b, search)) return false
     if (filter === 'attive') return b.status !== 'annullata'
+    if (filter === 'mancati arrivi') return mancatoArrivo(b)
     if (filter === 'annullate') return b.status === 'annullata'
     return true
   })
@@ -93,8 +95,8 @@ export default function Prenotazioni() {
         )}
       </div>
 
-      <div className="flex gap-2 mb-4">
-        {(['attive', 'tutte', 'annullate'] as const).map(f => (
+      <div className="flex flex-wrap gap-2 mb-4">
+        {(['attive', 'tutte', 'annullate', 'mancati arrivi'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
             className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${filter === f ? 'bg-green-mid text-white' : 'text-stone border border-[#C9BFA8]'}`}>
             {f}
@@ -128,14 +130,14 @@ export default function Prenotazioni() {
                     <span className="text-[11px] font-semibold rounded-full px-2 py-0.5" style={{ background: '#EAF1EC', color: '#1F3D2F' }}>🌐 Dal sito</span>
                   )}
                   <StatusDot color={b.status === 'annullata' ? STATUS_DOT.annullata : b.pagato ? '#7D9DB0' : b.bonifico ? '#9B8EC4' : STATUS_DOT[b.status]}
-                    label={b.status === 'annullata' ? 'annullata' : b.pagato ? 'pagata' : b.bonifico ? 'bonifico attesa' : b.status} />
+                    label={mancatoArrivo(b) ? `Mancato arrivo · ${b.pagato ? 'saldato' : 'da incassare'}` : b.status === 'annullata' ? 'annullata' : b.pagato ? 'pagata' : b.bonifico ? 'bonifico attesa' : b.status} />
                   {b.extra_bed && <StatusDot color="#C58A67" label="letto extra" />}
                   {b.group_id && bookings.some(p => p.id !== b.id && p.status !== 'annullata' && p.group_id === b.group_id && p.room_id !== b.room_id && (p.check_out === b.check_in || b.check_out === p.check_in)) && <span className="text-xs text-gray-500">⇄ cambio camera</span>}
                 </div>
               </div>
               <div className="flex items-center justify-between text-sm text-gray-500 pt-2 border-t-[0.5px] border-border-soft">
                 <span>{periodoCompatto(b.check_in, b.check_out, { anno: true })} ({notti(b)} notti)</span>
-                <span className="font-semibold text-gray-800">€{Number(b.total_amount).toFixed(0)}</span>
+                <span className="font-semibold text-gray-800">{mancatoArrivo(b) ? `Dovuto €${(b.mancato_arrivo_centesimi / 100).toFixed(2)}` : `€${Number(b.total_amount).toFixed(0)}`}</span>
               </div>
               {b.guests?.rating === 'problematico' && (
                 <p className="text-xs text-[#8C3B2E] mt-1 font-semibold">⚠️ Cliente problematico</p>

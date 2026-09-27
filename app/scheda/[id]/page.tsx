@@ -1,4 +1,7 @@
 'use client'
+import FoglioMancatoArrivo from '@/components/scheda/FoglioMancatoArrivo'
+import { mancatoArrivo, contoMancatoArrivo } from '@/lib/mancatoArrivo'
+import { euroScheda } from '@/lib/schedaPrenotazione'
 // ============================================================================
 // LA NUOVA SCHEDA PRENOTAZIONE — /scheda/<id> (13/09/2026).
 // Nasce a un indirizzo a parte: la scheda vecchia (/prenotazioni/<id>) resta
@@ -166,6 +169,7 @@ export default function SchedaPage() {
   const [foglioCliente, setFoglioCliente] = useState(false)
   const [foglioCambiaCliente, setFoglioCambiaCliente] = useState(false)
   const [foglioAnnulla, setFoglioAnnulla] = useState(false)
+  const [foglioMancato, setFoglioMancato] = useState(false)
   const [foglioSconto, setFoglioSconto] = useState(false)
   // il pagamento da togliere: l'id della riga di payments
   const [pagamentoDaTogliere, setPagamentoDaTogliere] = useState<string | null>(null)
@@ -348,7 +352,9 @@ export default function SchedaPage() {
   // sera): così non perde la fine della fascia, il «circa» e l'autista.
   const arrivoTestaTesto = arrivoTestaDaArrivo(arrivoDati)
   // lo stato scritto solo se non è quello normale (Ania, 17/09/2026)
-  const statoTesto = booking ? statoScheda(statoSoggiorno, ultimaPartenza, oggi) : ''
+  const noShow = righe.some(mancatoArrivo)
+  const contoNoShow = noShow && conto ? contoMancatoArrivo(righe, pagamenti) : null
+  const statoTesto = noShow ? 'Mancato arrivo' : booking ? statoScheda(statoSoggiorno, ultimaPartenza, oggi) : ''
   const statoDaMostrare = statoTesto === 'Confermata' ? null : statoTesto
 
   // ── LE STRISCE DELLE NOTTI ───────────────────────────────────────────────
@@ -590,7 +596,7 @@ export default function SchedaPage() {
           onArrivo={apriArrivi}
           percorso={percorsoTesta(attive.length ? attive : righe)}
           oggi={oggiTesta(attive, oggi, statoSoggiorno)}
-          residuo={residuoTesta(riepilogo, stato?.tipo === 'bonifico_atteso', statoSoggiorno === 'annullata')}
+          residuo={contoNoShow ? { etichetta: contoNoShow.residuo > 0 ? 'Mancato arrivo · da incassare' : 'Mancato arrivo · saldato', importo: euroScheda(Math.max(0,contoNoShow.residuo)) } : residuoTesta(riepilogo, stato?.tipo === 'bonifico_atteso', statoSoggiorno === 'annullata')}
           daCompletare={controlli.some(v => v.chiave === 'documento') ? DA_COMPLETARE_DOCUMENTO : null}
           telefono={telefonoAGruppi(telefono) || telefono}
           telefonoDaChiamare={waNumero}
@@ -683,7 +689,15 @@ export default function SchedaPage() {
       {/* ── Conto ─────────────────────────────────────────────────────────── */}
       <section id="conto" className="pt-[34px] scroll-mt-28 lg:scroll-mt-16">
         <p className="ed-sezione">Conto</p>
-        {riepilogo && conto && contoRighe
+        {contoNoShow ? <div className="mt-5">
+          <p className="text-sm text-stone">Prezzo originale: {euroScheda(contoNoShow.originale)}</p>
+          <p className="font-serif text-2xl mt-2">Mancato arrivo · 50%: {euroScheda(contoNoShow.dovuto)}</p>
+          <p className="mt-2">Ricevuto: {euroScheda(contoNoShow.ricevuto)} · Da incassare: {euroScheda(Math.max(0,contoNoShow.residuo))}</p>
+          <p className="text-sm text-stone mt-2">Camera liberata. Prenotazione conservata nello storico.</p>
+          {contoNoShow.residuo < 0 && <p className="text-red-800 mt-2">Ricevuto oltre il dovuto: {euroScheda(-contoNoShow.residuo)}. Controlla la differenza.</p>}
+          <button type="button" className="ed-azione mt-4" onClick={()=>setFoglioMancato(true)}>{contoNoShow.residuo>0?'Registra pagamento ricevuto':'Dettagli pagamento'}</button>
+          {pagamenti.map((p,i)=><p className="text-sm mt-2" key={i}>{p.paid_on} · {euroScheda(Math.round(Number(p.amount)*100))}</p>)}
+        </div> : riepilogo && conto && contoRighe
           ? <ContoScheda className="mt-6" riepilogo={riepilogo} conto={contoRighe}
             accordo={comePagaTesto} pagamenti={rigePagamenti} copertura={copertura}
             onPagamento={() => setFoglioPagamento(true)} onComePaga={() => setFoglioComePaga(true)} onSconto={() => setFoglioSconto(true)}
@@ -754,7 +768,7 @@ export default function SchedaPage() {
             rileggi()   // la cronologia (trigger 0042) e «Da controllare»
           }} />
       )}
-      {foglioPagamento && conto && (
+      {foglioPagamento && conto && !noShow && (
         <FoglioPagamento booking={booking} righe={righe} conto={conto} oggi={oggi} bonifico={accordo?.bonifico}
           onChiudi={() => setFoglioPagamento(false)}
           onContoCambiato={riletto => {
@@ -881,8 +895,10 @@ export default function SchedaPage() {
             rileggi()
           }} />
       )}
+      {(foglioMancato || (foglioPagamento && noShow)) && conto && <FoglioMancatoArrivo booking={booking} righe={righe} pagamenti={pagamenti} oggi={oggi}
+        onChiudi={()=>{setFoglioMancato(false);setFoglioPagamento(false)}} onSalvato={()=>{rileggi();setAvviso('Mancato arrivo: salvataggio verificato.')}} />}
       {foglioAnnulla && (
-        <FoglioAnnulla booking={booking} attive={attive.length} nomeCliente={nomeOspite(booking)}
+        <FoglioAnnulla onMancatoArrivo={()=>{setFoglioAnnulla(false);setFoglioMancato(true)}} booking={booking} attive={attive.length} nomeCliente={nomeOspite(booking)}
           cliente={guest && booking.guest_id ? { ...guest, id: booking.guest_id } : null} arrivo={primoArrivo || null}
           onChiudi={() => setFoglioAnnulla(false)}
           onAnnullata={campi => {

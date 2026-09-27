@@ -58,8 +58,13 @@ async function leggiPrenotazioni(da: string, a: string): Promise<Esito<Prenotazi
     if (r.error) return { data: null, errore: messaggioLetturaNonRiuscita(r.error, cosa) }
     segmenti = r.data
   }
+  // I mancati arrivi restano da incassare anche oltre l'intervallo della Home.
+  // Leggere anche le altre righe annullate conserva gli incassi dell'intera prenotazione.
+  const annullate = await pagine<PrenotazioneDC>(cosa, (offset, limite) => supabase.from('bookings').select(COLONNE_PRENOTAZIONI)
+    .eq('status', 'annullata').order('id').range(offset, offset + limite - 1) as unknown as RispostaPren)
+  if (annullate.errore) return annullate
   const visti = new Set<string>()
-  return { data: [...p.data!, ...segmenti].filter(b => (visti.has(b.id) ? false : (visti.add(b.id), true))), errore: null }
+  return { data: [...p.data!, ...segmenti, ...annullate.data!].filter(b => (visti.has(b.id) ? false : (visti.add(b.id), true))), errore: null }
 }
 
 function leggiRichieste() {

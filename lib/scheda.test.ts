@@ -134,7 +134,7 @@ test('il blocco OGGI fra due fili #d6c7a8: occhiello, la camera di stanotte in G
 })
 
 test('il residuo in testa: la cifra del conto (riepilogoConto), Georgia 27; senza conto niente cifra; il richiamo del documento solo quando manca', () => {
-  assert.match(pagina, /residuo=\{residuoTesta\(riepilogo, stato\?\.tipo === 'bonifico_atteso', statoSoggiorno === 'annullata'\)\}/)
+  assert.match(pagina, /residuoTesta\(riepilogo, stato\?\.tipo === 'bonifico_atteso', statoSoggiorno === 'annullata'\)/)
   assert.equal(/data-stato-conto/.test(pagina), false, 'la vecchia riga rossa dello stato del conto è ancora in testa')
   assert.match(testaScheda, /data-residuo-testa className="flex flex-wrap items-baseline justify-between" style=\{\{ gap: 10, margin: '20px 0 16px', fontSize: 14 \}\}/)
   assert.match(testaScheda, /\{residuo\.importo && <strong className="whitespace-nowrap" style=\{\{ font: `27px \$\{GEORGIA\}`, fontVariantNumeric: 'tabular-nums' \}\}>\{residuo\.importo\}<\/strong>\}/)

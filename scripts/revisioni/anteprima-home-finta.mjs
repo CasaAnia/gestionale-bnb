@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { preparaMancatoArrivo } from './mancato-arrivo-db-finto.mjs'
 // Anteprima SENZA RETE della Home «Da controllare» (versione B, 06/09/2026).
 //
 // Finto Supabase locale (login + PostgREST minimale su dati sintetici, come
@@ -265,6 +266,21 @@ if (process.env.FINTO_PULIZIE_SQL === '1') {
   await dbPulizie.query(`insert into biancheria_recuperata(cleaning_id,room_id,booking_id,data,federe,lenzuolo_sotto) values ('cccccccc-0010-4000-8000-000000000010',$1,$2,$3,2,1)`, [ROOM.allegra, b(8), O(-8)])
   await dbPulizie.query(`insert into pulizie_fuori_camera(data,attivita,minuti) values ($1,'piegatura',15)`, [O(-3)])
 }
+const mancato_arrivo_operazioni = []
+if (process.env.FINTO_MANCATO_ARRIVO === '1') {
+  if (!dbPulizie) dbPulizie = await databasePulizieFinto(rooms, bookings, cleanings, {con0059:true})
+  await preparaMancatoArrivo(dbPulizie, bookings, payments)
+}
+async function sincronizzaMancato() {
+  if (process.env.FINTO_MANCATO_ARRIVO !== '1') return
+  const righe=(await dbPulizie.query('select row_to_json(b) r from bookings b')).rows.map(x=>x.r)
+  for (const b of righe) Object.assign(bookings.find(x=>x.id===b.id), b)
+  for (const [nome,arr] of [['payments',payments],['mancato_arrivo_operazioni',mancato_arrivo_operazioni]]) {
+    const rows=(await dbPulizie.query(`select row_to_json(r) r from ${nome} r`)).rows.map(x=>x.r)
+    arr.splice(0,arr.length,...rows)
+  }
+}
+await sincronizzaMancato()
 // Le letture della pagina passano dalle stesse tabelle del database in memoria.
 async function sincronizzaPulizie() {
   if (!dbPulizie) return
@@ -275,7 +291,7 @@ async function sincronizzaPulizie() {
 await sincronizzaPulizie()
 let errorePrimaPulizia = false, letturaIncompleta = false, perdiRispostaTempo = false
 
-const tabelle = { rooms, guests, bookings, payments, cleanings, richieste, family_documents, da_controllare_rinvii, strutture, biancheria_recuperata, pulizie_timer, pulizie_fuori_camera }
+const tabelle = { mancato_arrivo_operazioni, rooms, guests, bookings, payments, cleanings, richieste, family_documents, da_controllare_rinvii, strutture, biancheria_recuperata, pulizie_timer, pulizie_fuori_camera }
 const chiaveEsterna = { guests: 'guest_id', rooms: 'room_id' }
 
 // --- PostgREST minimale ---------------------------------------------------
@@ -405,6 +421,14 @@ const finto = createServer(async (req, res) => {
   if (url.pathname === '/finto/lettura-incompleta') { letturaIncompleta = true; return rispondi(res, 200, { pronto: true }) }
   if (url.pathname === '/finto/perdi-risposta-tempo') { perdiRispostaTempo = true; return rispondi(res, 200, { pronto: true }) }
   if (url.pathname === '/finto/sql' && dbPulizie) { try { return rispondi(res, 200, (await dbPulizie.query(url.searchParams.get('q'))).rows) } catch (e) { return rispondi(res, 400, { message: e.message }) } }
+  if (url.pathname === '/rest/v1/rpc/gestisci_mancato_arrivo' && req.method === 'POST' && process.env.FINTO_MANCATO_ARRIVO === '1') {
+    const corpo=await leggiCorpo(req)
+    try {
+      const result=(await dbPulizie.query('select gestisci_mancato_arrivo($1,$2::jsonb) r',[corpo.p_operazione,JSON.stringify(corpo.p_richiesta)])).rows[0].r
+      await sincronizzaMancato()
+      return rispondi(res,200,result)
+    }catch(e){return rispondi(res,400,{code:e.code,message:e.message})}
+  }
   if (url.pathname === '/rest/v1/rpc/gestisci_pulizia' && req.method === 'POST') {
     if (!dbPulizie) return rispondi(res, 404, { code: 'PGRST202', message: 'Attivare FINTO_PULIZIE_SQL=1' })
     const corpo = await leggiCorpo(req)

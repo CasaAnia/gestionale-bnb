@@ -1,3 +1,5 @@
+import { mancatoArrivo, contoMancatoArrivo } from './mancatoArrivo.ts'
+import { chiavePrenotazione } from './prenotazioneUnica.ts'
 // ============================================================================
 // «DA CONTROLLARE» in Home (versione B, 06/09/2026): elenco di ECCEZIONI, non
 // di attività. Dai dati già letti (richieste aperte, prenotazioni del periodo,
@@ -258,6 +260,18 @@ function trattiDaSaldare(s: Soggiorno, copertoCent: (b: PrenotazioneDC) => numbe
   return out
 }
 
+export function eccezioniMancatiArrivi(prenotazioni: PrenotazioneDC[], pagamenti: PagamentoStat[]): Eccezione[] {
+  const chiavi = new Set(prenotazioni.filter(mancatoArrivo).map(chiavePrenotazione))
+  return [...chiavi].flatMap(k => {
+    const righe = prenotazioni.filter(b => chiavePrenotazione(b) === k), b=righe.find(mancatoArrivo)!
+    const c=contoMancatoArrivo(righe,pagamenti)
+    if(c.residuo<=0)return []
+    return [{chiave:`mancato-arrivo:${k}`,tipo:'pagamento' as const,urgenza:'normale' as const,data:b.check_in,
+      titolo:`${nomeConAltri(b)} · Mancato arrivo`,motivo:`Da incassare ${(c.residuo/100).toFixed(2).replace('.',',')} € per mancato arrivo`,
+      bottone:'Registra pagamento',destinazione:{tipo:'saldo' as const,prenotazioneId:b.id},rimandabile:false}]
+  })
+}
+
 export function eccezioniPagamenti(prenotazioni: PrenotazioneDC[], pagamenti: PagamentoStat[], oggi: string): Eccezione[] {
   const out: Eccezione[] = []
   const registratiDi = (b: PrenotazioneDC) => pagamenti.filter(p => p.booking_id === b.id).reduce((x, p) => x + cent(p.amount), 0)
@@ -437,6 +451,7 @@ export function daControllareHome(stato: StatoDaControllare): Eccezione[] {
     ...eccezioniCalendario(stato.prenotazioni),
     ...eccezioniRichieste(stato.richieste, stato.oggi, stato.adesso),
     ...eccezioniPagamenti(stato.prenotazioni, stato.pagamenti, stato.oggi),
+    ...eccezioniMancatiArrivi(stato.prenotazioni, stato.pagamenti),
     ...eccezioniArrivi(stato.prenotazioni, stato.oggi),
     ...eccezioniFatture(stato.documenti, stato.oggi),
   ]

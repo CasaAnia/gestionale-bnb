@@ -1,7 +1,9 @@
+import { dovutoRigaCent } from './mancatoArrivo.ts'
 // La prenotazione contiene camere parallele; il gruppo contiene soltanto
 // i periodi di un cambio camera. Non si deducono legami da cliente o date.
 export type IdentitaPrenotazione = { id: string; prenotazione_id?: string | null; group_id?: string | null }
 export type RigaPrenotazione = IdentitaPrenotazione & {
+  mancato_arrivo_centesimi?: number | null
   status: string; check_in: string; check_out: string; guest_id?: string | null
   total_amount?: number | string | null; bonifico?: boolean | null
   accordo_pagamento?: string | null; caparra_centesimi?: number | null; caparra_entro?: string | null
@@ -34,7 +36,7 @@ export function contoPrenotazione(righe: RigaPrenotazione[], pagamenti: { bookin
   const ids = new Set(righe.map(r => r.id))
   const valide = righe.filter(r => r.status !== 'annullata')
   if (valide.some(r => r.total_amount == null || !Number.isFinite(Number(r.total_amount)))) throw new Error(ERRORE_CONTO_INCOMPLETO)
-  const totaleCent = valide.reduce((s, r) => s + Math.round(Number(r.total_amount) * 100), 0)
+  const totaleCent = righe.reduce((s, r) => s + dovutoRigaCent(r), 0)
   const ricevutiCent = pagamenti.filter(p => ids.has(p.booking_id)).reduce((s, p) => s + Math.round(Number(p.amount) * 100), 0)
   return { totaleCent, ricevutiCent, residuoCent: totaleCent - ricevutiCent }
 }
