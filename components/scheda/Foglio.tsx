@@ -30,12 +30,12 @@ export const TESTO_ANNULLA = 'Annulla'
  *  Con `misuraTitolo` il titolo a sinistra ha quella misura in Georgia (il
  *  foglio «Aggiungi pagamento» approvato il 20/09/2026 lo vuole in 23):
  *  senza, resta il 20 di tutti gli altri fogli. */
-export default function Foglio({ titolo, grande = false, centrato = false, misuraTitolo, onChiudi, children }: { titolo: string; grande?: boolean; centrato?: boolean; misuraTitolo?: number; onChiudi: () => void; children: ReactNode }) {
+export default function Foglio({ titolo, grande = false, centrato = false, misuraTitolo, ampio = false, onChiudi, children }: { titolo: string; grande?: boolean; centrato?: boolean; misuraTitolo?: number; ampio?: boolean; onChiudi: () => void; children: ReactNode }) {
   const desktop = useDesktop()
   return (
     <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label={titolo}>
       <div className="velo-in absolute inset-0 ed-velo" onClick={onChiudi} />
-      <div className={`scheda-in absolute ed-foglio shadow-lg overflow-y-auto ${desktop ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-[20px] w-[440px] max-h-[80vh] px-[22px] pt-4 pb-4' : 'left-0 right-0 bottom-0 rounded-t-[20px] px-[22px] pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))] max-h-[88dvh]'}`}>
+      <div style={ampio ? { height: desktop ? '80dvh' : '88dvh' } : undefined} className={`scheda-in absolute ed-foglio shadow-lg overflow-y-auto ${desktop ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-[20px] w-[440px] max-h-[80vh] px-[22px] pt-4 pb-4' : 'left-0 right-0 bottom-0 rounded-t-[20px] px-[22px] pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))] max-h-[88dvh]'}`}>
         {!desktop && <div className="w-10 h-1 rounded-full bg-border-soft mx-auto mb-3" aria-hidden />}
         {centrato ? (
           <div className="relative mb-3" style={{ padding: '4px 36px 0' }}>

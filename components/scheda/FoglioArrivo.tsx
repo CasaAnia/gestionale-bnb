@@ -65,7 +65,7 @@ export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChi
   }
 
   return (
-    <Foglio titolo={TITOLO_ARRIVO} onChiudi={onChiudi}>
+    <Foglio titolo={TITOLO_ARRIVO} onChiudi={onChiudi} ampio>
       <p className="uppercase" style={{ fontSize: 9.5, letterSpacing: '1.4px', color: 'var(--color-stone)', marginTop: -4, marginBottom: 14 }}>{etichetta ?? SOTTOTITOLO_ARRIVO}</p>
       <ArrivoNavetta arrivo={arrivo} onArrivo={setArrivo} />
       {errore && <AvvisoAzione testo={errore} className="mt-3" />}
