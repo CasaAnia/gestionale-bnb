@@ -1,3 +1,9 @@
+## Home approvata al telefono — VERIFICATA, PUBBLICAZIONE AUTORIZZATA — 27/09/2026
+
+Base 0478433. Riferimento approvato home-telefono.html della chat doctype-html-html-lang-it-head. Implementati saluto, richieste richiudibili, arrivi con linea verticale, icone/WhatsApp e pulizie in box fino a Tempi fuori camera. BottomNav, layout, stili globali e parte da DaControllare in poi identici alla base. Lavori concorrenti stampa/impostazioni esclusi.
+
+Prove UI sintetiche: arrivo salvato e riletto; Pulita senza recupero; timer avvio/pausa/riporto e conferma con 1 minuto; recupero di un telo; conferme persistenti dopo due riaperture; Rimanda aperto, Salta periodico salvato; link fuori camera raggiunge la sezione corretta. Verificati 390/320 px senza overflow e desktop. Corrette due cause emerse nelle prove: rilettura al focus smontava la scheda aperta; Home non passava persone_servite al popup recupero. Test dedicati 4/4. Suite applicazione OK, strumenti 80/80, TypeScript e build OK. Preflight complessivo NON verde: revisioni 44/66, stessi 22 fallimenti della base (42/64), lint Home 20 any preesistenti identici alla base; nessun nuovo errore. Nessuna migrazione e nessuna scrittura di prova reale. Timer online già disponibile, controllo sola lettura. Rapporto e prova mobile nella cartella outputs della chat. Pubblicazione finale da verificare su Vercel e pagina online.
+
 ## Conferma avorio — anteprima pronta
 
 Ania richiede lo stesso stile avorio approvato per il link. Codex unico autore di ImmagineSoggiorno, variante conferma soltanto; mantenere periodi, importi, pagamenti e contenuti. Confronto PNG esportati prima/dopo con dati sintetici, senza invii o pubblicazione. Base 7e1667f. PNG prima/dopo esportati e controllati; anche variante bonifico esportata senza tagli. TypeScript, lint e 9/9 test periodi/pagamenti superati. Confronto nella task: outputs/conferma-confronto-avorio.png. Solo locale.

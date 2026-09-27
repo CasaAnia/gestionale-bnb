@@ -26,6 +26,7 @@ function carica(file) {
   const modulo = { exports: {} }
   const localRequire = name => {
     if (name === './SalvataggiPulizie') return { __esModule: true, default: () => React.createElement('aside', { 'data-ripresa-pendente': true }) }
+    if (name === '@/lib/pulizieTempiDati') return { useTimerPulizie: () => ({ timer: [], stato: 'pronto', scarto: 0 }) }
     if (name.startsWith('@/lib/') && adapters.has(name.slice(6))) return {}
     if (!name.startsWith('.') && !name.startsWith('@/')) return require(name)
     const base = name.startsWith('@/') ? resolve(root, name.slice(2)) : resolve(dirname(file), name)
@@ -99,4 +100,28 @@ test('Home senza lavoro: le stime storiche restano fuori, la ripresa di un salva
   const html = render(rooms, bookings, [], '2026-09-07')
   assert.doesNotMatch(html, /data-pulizie-oggi/)
   assert.match(html, /data-ripresa-pendente/)
+})
+
+test('Home: il recupero porta alla scheda il numero di ospiti del soggiorno', () => {
+  const source = readFileSync(resolve(root, 'components/ControlliPulizia.tsx'), 'utf8')
+  const tree = ts.createSourceFile('controlli.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let fn
+  const visita = n => { if (ts.isFunctionDeclaration(n) && n.name?.text === 'apriRecupero') fn = n; ts.forEachChild(n, visita) }
+  visita(tree)
+  const code = ts.transpileModule(fn.getText(tree), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+  let aperta
+  runInNewContext(`${code}; apriRecupero()`, { blocco: { current: false }, pendente: false, confermata: null, pulizia: { booking_id: 'soggiorno', tipo: 'soggiorno' }, persone: 3, setErrore: () => {}, setScheda: v => { aperta = v } })
+  assert.equal(aperta.persone_servite, 3)
+  assert.equal(aperta.booking_id, 'soggiorno')
+})
+
+test('Home: rilettura in primo piano conserva la scheda aperta, cambio giorno la invalida', () => {
+  const source = readFileSync(resolve(root, 'lib/numeriOggiDati.ts'), 'utf8')
+  const updater = source.match(/setStato\((s => s\.stato === 'pronto'[^\n]+)\)/)?.[1]
+  assert.ok(updater)
+  const aggiorna = runInNewContext(updater, { oggi: '2026-09-27' })
+  const pronto = { stato: 'pronto', oggi: '2026-09-27', pulizieOggi: [{ camera: 'Amelia' }] }
+  assert.equal(aggiorna(pronto), pronto)
+  assert.equal(aggiorna({ ...pronto, oggi: '2026-09-26' }).stato, 'caricamento')
+  assert.equal(aggiorna({ stato: 'errore', oggi: pronto.oggi }).stato, 'caricamento')
 })

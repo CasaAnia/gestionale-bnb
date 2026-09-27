@@ -15,11 +15,14 @@ import {
   soggiornoContinuativo, type Decisione, type Priorita, type TipoPulizia,
 } from './pulizie.ts'
 import { nomeConAltri } from './guestName.ts'
+import { arrivoInHome, leggiArrivo } from './arrivo.ts'
 
 export type StatoVoce = 'da_fare' | 'automatica' | 'fatta'
 export type PuliziaDaSegnareOggi = { room_id: string; booking_id: string | null; tipo: TipoPulizia; data_prevista: string }
 
 export type VocePuliziaOggi = {
+  prossimo?: string
+  descrizione?: string
   persone?: number | null
   partenza?: string
   ultimaId?: string | null
@@ -129,6 +132,10 @@ export function pulizieDiOggi(rooms: Camera[], tutteLePrenotazioni: Prenotazioni
   }
   const posto = (v: VocePuliziaOggi) => camere.findIndex(c => c.id === v.roomId)
   for (const v of out) {
+    const prossimo = prossimoArrivo(bookings, v.roomId, oggi)
+    const arrivo = prossimo ? arrivoInHome(leggiArrivo(prossimo.booking)) : null
+    v.prossimo = prossimo ? `${nomeConAltri(prossimo.booking)} · ${prossimo.giorni === 0 ? 'oggi' : prossimo.giorni === 1 ? 'domani' : dataBreve(prossimo.booking.check_in)}${arrivo?.numerico ? ` · ${arrivo.grande}${arrivo.circa ? ' circa' : ''}` : ''}` : undefined
+    v.descrizione = v.riga.split(/ · (?:domani )?arriva /)[0]
     const b = tutteLePrenotazioni.find(x => x.id === (v.daSegnare?.booking_id ?? v.decisione?.booking_id))
     v.persone = v.decisione?.persone_servite ?? (Number(b?.num_guests) || null)
     v.partenza = b ? soggiornoContinuativo(bookings, b).fine.check_out : undefined

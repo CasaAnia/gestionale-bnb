@@ -91,3 +91,16 @@ test('ordine: da fare per urgenza e ritardo, poi automatiche, poi fatte; camere 
   assert.equal(riassuntoPulizieOggi([]), '')
   assert.equal(dataBreve('2026-09-05'), '5 settembre')
 })
+
+
+test('Home approvata: prossimo arrivo senza ora non inventa un orario, domani conserva quello noto', () => {
+  const partita = pren({ room_id: AMBRA, check_in: '2026-09-01', check_out: '2026-09-06', guest_name: 'Elena' })
+  const prossima = pren({ room_id: AMBRA, check_in: '2026-09-08', check_out: '2026-09-10', guest_name: 'Anna' })
+  const senza = pulizieDiOggi(rooms, [partita, prossima], [], OGGI)[0]
+  assert.equal(senza.prossimo, 'Anna · domani')
+  assert.ok(!senza.prossimo.includes('definire'))
+  const conOra = pulizieDiOggi(rooms, [partita, { ...prossima, check_in_time: '14:00' }], [], OGGI)[0]
+  assert.equal(conOra.prossimo, 'Anna · domani · 14:00')
+  assert.equal(senza.descrizione, 'partenza del 6 settembre · Elena')
+  assert.equal(pulizieDiOggi(rooms, [partita], [], OGGI)[0].prossimo, undefined)
+})

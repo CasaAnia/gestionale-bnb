@@ -63,7 +63,9 @@ export function useNumeriOggi(): StatoNumeriOggi & { ricarica: () => void } {
     const lettura = letturaPulizieRecente(async () => {
       const oggi = oggiARoma()
       giornoLetto = oggi
-      setStato({ stato: 'caricamento', oggi })
+      // Una rilettura in primo piano non deve smontare la scheda pulizia aperta.
+      // Errori e cambio giorno continuano a invalidare i dati mostrati.
+      setStato(s => s.stato === 'pronto' && s.oggi === oggi ? s : { stato: 'caricamento', oggi })
       return { oggi, ...await leggiNumeriOggi(oggi) }
     }, ({ oggi, numeri, settimana, pulizieOggi, errore }) => {
       setStato(errore || !numeri ? { stato: 'errore', oggi, errore: MESSAGGIO_NUMERI_NON_LETTI } : { stato: 'pronto', oggi, numeri, settimana, pulizieOggi })

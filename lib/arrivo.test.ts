@@ -424,7 +424,7 @@ test('in Home gli arrivi stanno IN CIMA, subito sotto i tre numeri (Ania, 21/09/
   const numeri = home.indexOf('<NumeriOggi dati={numeriOggi} />')
   const arrivi = home.indexOf('<ArriviOggi oggi=')
   const pulizie = home.indexOf('<PulizieOggi dati={numeriOggi} />')
-  const controllare = home.indexOf('<DaControllare />')
+  const controllare = home.indexOf('<DaControllare dati={controlli} />')
   assert.ok(numeri > 0 && arrivi > 0 && pulizie > 0 && controllare > 0, 'manca qualcosa in Home')
   assert.ok(numeri < arrivi, 'gli arrivi devono stare sotto i tre numeri')
   assert.ok(arrivi < pulizie && arrivi < controllare, 'gli arrivi sono scesi sotto le pulizie o «Da controllare»')

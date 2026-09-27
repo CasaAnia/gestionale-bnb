@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import './home-approvata.css'
 import Link from 'next/link'
 import { getUpcomingRoomChanges, buildChangeGroups } from '@/lib/roomChanges'
 import { nomeConAltri } from '@/lib/guestName'
@@ -94,7 +95,6 @@ export default function Dashboard() {
   // nessuna richiesta, errore di lettura). Errori visibili, 05/09/2026.
   const richiesteWeb = useRichiesteWeb()
   const controlli = useDaControllare()
-  const primoNomeRichiesta = richiesteWeb.richieste[0]?.guest_name || (controlli.stato === 'pronto' ? controlli.eccezioni.find(e => e.tipo === 'richiesta')?.titolo.split(' · ')[0] : '')
   const numeroRichieste = richiesteWeb.richieste.length + (controlli.stato === 'pronto' ? controlli.eccezioni.filter(e => e.tipo === 'richiesta').length : 0)
 
   useEffect(() => {
@@ -177,21 +177,18 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-4">
+    <div className="p-4 home-approvata">
       {/* Stile editoriale (06/09/2026): titolo grande e leggero, data in maiuscoletto ottone */}
       <div className="mb-4">
-        <h1 className="titolo-classico">Buongiorno,<br />Ania</h1>
-        <p className="ed-sotto mt-2">{italianDate()}</p>
+        <h1 className="home-saluto">Buongiorno, Ania</h1>
+        <p className="home-data">{italianDate()}</p>
       </div>
 
-      {numeroRichieste > 0 && <a href="#richieste-home" className="block ed-riga-ottone pb-3 mb-4 text-sm font-semibold text-green-dark">
-        🌐 {numeroRichieste === 1 ? '1 richiesta da gestire' : `${numeroRichieste} richieste da gestire`}
-        {primoNomeRichiesta && <span className="font-normal" style={{ color: 'var(--color-stone)' }}> · {primoNomeRichiesta}{numeroRichieste > 1 ? ' e altre' : ''}</span>}
-      </a>}
-
-      {/* Tre numeri di oggi SOPRA TUTTO (07/09/2026): arrivi, partenze, camere occupate stanotte */}
+      {(numeroRichieste > 0 || richiesteWeb.stato === 'errore' || controlli.stato === 'errore') && <details className="home-richieste">
+        <summary>🌐 {numeroRichieste > 0 ? `${numeroRichieste} ${numeroRichieste === 1 ? 'richiesta da gestire' : 'richieste da gestire'}` : 'Richieste da controllare'}</summary>
+        <RichiesteHome web={richiesteWeb} controlli={controlli} />
+      </details>}
       <NumeriOggi dati={numeriOggi} />
-      <RichiesteHome web={richiesteWeb} controlli={controlli} />
 
       {/* «Arrivi di oggi» (21/09/2026), la terza superficie della proposta
           approvata: per ogni arrivo l'ora IN STRUTTURA in grande e, sotto, da

@@ -7,10 +7,11 @@ import { useEffect, useState } from 'react'
 import { useTimerPulizie, azioneTimer } from '@/lib/pulizieTempiDati'
 import { secondiTimer, minutiTimer, testoCronometro, descriviChiave } from '@/lib/tempoPulizie'
 
-export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVaiA }: {
+export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVaiA, compatto = false }: {
   chiave: string; nome: string; onMinuti: (n: number, trascorsi: number) => void
   nomeCamera: (bookingId: string) => string | null
   onVaiA?: (chiave: string) => void
+  compatto?: boolean
 }) {
   const s = useTimerPulizie()
   const [ora, setOra] = useState(0)
@@ -49,6 +50,14 @@ export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVai
   }, [attesaRiporto, t, onMinuti])
 
   const altroDescritto = altro ? descriviChiave(altro.chiave, nomeCamera) : null
+  if (compatto) return <section className="home-timer" aria-label={`Timer ${nome}`} data-timer={chiave} data-secondi={secondi} data-in-corso={inCorso ? 1 : 0}>
+    <div className="home-timer-riga"><span>◷ <b role="timer" aria-live="off">{testoCronometro(secondi).padStart(5, '0')}</b></span>
+      <button type="button" disabled={!pronto || (!inCorso && !!altro)} onClick={() => void esegui(inCorso ? 'pausa' : 'avvia')}>{inCorso ? 'Pausa' : secondi ? 'Riprendi' : 'Avvia timer'}</button>
+    </div>
+    {altroDescritto && <p className="home-secondario">Un altro timer è in corso: {altroDescritto.nome}. <button type="button" disabled={occupato} onClick={() => void esegui('pausa', altro!.chiave)}>Metti in pausa</button></p>}
+    {s.stato === 'caricamento' && <p className="home-secondario">Lettura del timer…</p>}
+    {(s.nonSincronizzato || s.errore || errore) && <p role="status" className="text-xs text-red-800">{errore || s.errore || 'Timer non sincronizzato: controlla la connessione.'}</p>}
+  </section>
   return <section className="border-y border-card-border py-4 my-4" aria-label={`Timer ${nome}`} data-timer={chiave} data-secondi={secondi} data-in-corso={inCorso ? 1 : 0}>
     <p className="text-sm">Timer · {nome}</p><p className="font-serif text-3xl my-2" role="timer" aria-live="off">{testoCronometro(secondi)}</p>
     <div className="flex flex-wrap gap-3">

@@ -462,6 +462,15 @@ const finto = createServer(async (req, res) => {
     console.log(`[finto supabase] rinvii: ${da_controllare_rinvii.map(x => `${x.chiave}→${x.fino_a}`).join(', ')}`)
     return rispondi(res, 201, righe)
   }
+  // Salvataggio arrivo Home: scrittura e rilettura su prenotazioni sintetiche.
+  if (m && m[1] === 'bookings' && req.method === 'PATCH') {
+    const corpo = await leggiCorpo(req)
+    const id = (url.searchParams.get('id') || '').replace(/^eq\./, '')
+    const riga = bookings.find(x => x.id === id)
+    if (!riga) return rispondi(res, 200, [])
+    Object.assign(riga, corpo)
+    return rispondi(res, 200, [riga])
+  }
   // Richieste: Riapri / Rifiuta (06/09/2026) → PATCH in memoria sulla riga indicata da ?id=eq.<id>
   if (m && m[1] === 'richieste' && req.method === 'PATCH') {
     const corpo = await leggiCorpo(req)

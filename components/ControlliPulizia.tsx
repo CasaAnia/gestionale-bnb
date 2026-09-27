@@ -1,5 +1,8 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import TimerPulizia from './TimerPulizia'
+import { useTimerPulizie } from '@/lib/pulizieTempiDati'
+import { chiaveTimerPulizia } from '@/lib/tempoPulizie'
 import SchedaPulizia from './SchedaPulizia'
 import AvvisoAzione from './AvvisoAzione'
 import { addDaysStr, type Decisione } from '@/lib/pulizie'
@@ -29,8 +32,11 @@ export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, pers
   const [rilettura, setRilettura] = useState(0)
   const [pendente, setPendente] = useState(false)
   const [data, setData] = useState(oggi)
+  const [menuSposta, setMenuSposta] = useState(false)
   const [sposta, setSposta] = useState<{ stato: 'rimandata' | 'saltata'; data: string } | null>(null)
   const blocco = useRef(false)
+  const tempi = useTimerPulizie()
+  const timer = tempi.timer.find(t => t.chiave === chiaveTimerPulizia(pulizia.booking_id ?? '', pulizia.tipo, pulizia.data_prevista))
 
 
   useEffect(() => {
@@ -93,20 +99,22 @@ export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, pers
   function apriRecupero() {
     if (blocco.current || pendente) return
     setErrore(null)
-    setScheda(confermata ?? { ...pulizia, stato: 'fatta' })
+    setScheda(confermata ?? { ...pulizia, stato: 'fatta', persone_servite: persone ?? pulizia.persone_servite })
   }
 
   const letto = recupero ? recuperoDaRiga(recupero as unknown as Record<string, unknown>) : null
   const pezzi = letto ? totalePezzi(letto.pezzi) + totaleSenzaMisura(letto.senzaMisura) : 0
   const riepilogo = letto && pezzi > 0 ? `Recuperato: ${pezzi === 1 ? '1 pezzo' : `${pezzi} pezzi`}` : null
   return <div className="mt-2" data-controlli-pulizia>
-    <div className={`flex flex-wrap items-center ${home ? 'gap-x-6 gap-y-0' : 'gap-2'}`}>
+    {home && !confermata && pulizia.booking_id && <TimerPulizia compatto chiave={chiaveTimerPulizia(pulizia.booking_id, pulizia.tipo, pulizia.data_prevista)} nome={camera} nomeCamera={id => id === pulizia.booking_id ? camera : null} onMinuti={apriRecupero} />}
+    <div className={`flex flex-wrap items-center ${home ? 'home-pulizia-azioni' : 'gap-2'}`}>
       {confermata ? <span className="text-sm text-green-mid font-semibold" data-fatta>✓ Pulita</span> : <>
         {scegliData && <label className="text-xs text-stone">Fatta il <input aria-label={`Fatta il · ${camera}`} type="date" max={oggi} value={data} onChange={e => setData(e.target.value)} disabled={occupata || pendente} className="ed-campo text-xs py-1" /></label>}
-        <button type="button" onClick={() => void registra('fatta')} disabled={occupata || pendente} className={home ? 'ed-azione' : 'ed-pillola disabled:opacity-50'} style={{ minHeight: 44 }} data-pulita>{occupata ? 'Salvo…' : 'Pulita'}</button>
+        <button type="button" onClick={() => timer && (timer.avviato_at || timer.trascorsi > 0) ? apriRecupero() : void registra('fatta')} disabled={occupata || pendente} className={home ? 'ed-azione' : 'ed-pillola disabled:opacity-50'} style={{ minHeight: 44 }} data-pulita>{occupata ? 'Salvo…' : 'Pulita'}</button>
       </>}
       <button type="button" onClick={apriRecupero} disabled={occupata || pendente} className={home ? 'ed-azione' : 'ed-pillola-contorno disabled:opacity-50'} style={{ minHeight: 44 }} data-recuperato>{!confermata ? 'Pulita e recuperato' : riepilogo ? 'Modifica recupero' : 'Recuperato'}</button>
-      {!confermata && <div className={`flex items-center gap-5 ${home ? 'basis-full' : ''}`}>
+      {!confermata && home && <button type="button" className="ed-azione ed-azione-tenue" style={{ minHeight: 44 }} disabled={occupata || pendente} onClick={() => setMenuSposta(x => !x)} aria-expanded={menuSposta}>Rimanda o salta</button>}
+      {!confermata && (!home || menuSposta) && <div className={`flex items-center gap-5 ${home ? 'basis-full' : ''}`}>
         <button type="button" onClick={() => setSposta({ stato: 'rimandata', data: addDaysStr(pulizia.data_prevista > oggi ? pulizia.data_prevista : oggi, 1) })} disabled={occupata || pendente} className={home ? 'ed-azione ed-azione-tenue' : 'ed-pillola-tenue'} style={{ minHeight: 44 }}>Rimanda</button>
         {pulizia.tipo === 'soggiorno' && <button type="button" onClick={() => setSposta({ stato: 'saltata', data: addDaysStr(pulizia.data_prevista, 4) })} disabled={occupata || pendente} className={home ? 'ed-azione ed-azione-tenue' : 'ed-pillola-tenue'} style={{ minHeight: 44 }}>Salta</button>}
       </div>}

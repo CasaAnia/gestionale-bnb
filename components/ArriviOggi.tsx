@@ -22,14 +22,12 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import FoglioArrivo from '@/components/scheda/FoglioArrivo'
-import { dataLunga } from '@/lib/dateItaliane'
 import { etichettaArrivoPeriodo } from '@/lib/arriviPeriodi'
 import { whatsappRichiestaOrario, waHrefTesto } from '@/lib/messaggiWhatsApp'
-import { Plane, TrainFront, MapPin, Car, ChevronRight } from 'lucide-react'
+import { Plane, TrainFront, MapPin, Car } from 'lucide-react'
 import { nomeConAltri } from '@/lib/guestName'
 import { arrivoInHome, leggiArrivo, type IconaArrivo } from '@/lib/arrivo'
 
-const GEORGIA = "Georgia, 'Times New Roman', serif"
 const OTTONE = '#A9884E'
 export const TITOLO_ARRIVI_OGGI = 'Arrivi di oggi'
 export const TITOLO_ARRIVI_DOMANI = 'Arrivi di domani'
@@ -50,55 +48,39 @@ type Riga = Record<string, unknown> & {
 }
 
 function Riquadro({ b, onApri }: { b: Riga; onApri: (b: Riga) => void }) {
-  const a = arrivoInHome(leggiArrivo(b))
+  const arrivo = leggiArrivo(b)
+  const a = arrivoInHome(arrivo)
   const richiesta = whatsappRichiestaOrario(b)
-  const camera = (b.rooms as { name?: string } | null)?.name
+  const camera = b.rooms?.name
   return (
-    <div data-arrivo-home={String(b.id)} className="py-3" style={{ borderLeft: `3px solid ${OTTONE}`, paddingLeft: 14, marginTop: 12 }}>
-      <div className="flex flex-wrap items-baseline justify-between" style={{ gap: 8 }}>
-        <Link href={`/scheda/${b.id}`} aria-label={`Apri prenotazione di ${nomeConAltri(b)}`} className="hover:underline focus-visible:underline" style={{ fontFamily: GEORGIA, fontSize: 19, lineHeight: '23px', color: 'var(--color-green-dark)' }}>{nomeConAltri(b)}</Link>
-        <span className="flex items-center" style={{ gap: 6 }}>
-          {/* il letto in più: c'era nella riga CHECK-IN e resta anche qui,
-              perché è quello che cambia come si prepara la camera */}
-          {!!b.extra_bed && <span data-letto-agg className="bg-red-50 text-[#E00000] font-bold rounded px-1.5 py-0.5 text-xs">+letto agg.</span>}
-          {camera && <span className="text-[13px] text-stone" data-camera>{camera}</span>}
-        </span>
+    <article data-arrivo-home={String(b.id)} className="home-arrivo">
+      <div className="home-identita">
+        <Link href={`/scheda/${b.id}`} aria-label={`Apri prenotazione di ${nomeConAltri(b)}`} className="home-nome">{nomeConAltri(b)}</Link>
+        {camera && <span className="home-camera" data-camera>{camera}</span>}
       </div>
-
-      <p className="mt-1.5 flex items-baseline flex-wrap" style={{ gap: 7 }}>
-        <span data-ora-struttura style={{ fontFamily: GEORGIA, fontSize: a.numerico ? 27 : 19, lineHeight: '30px', color: 'var(--color-green-dark)', fontVariantNumeric: 'tabular-nums' }}>{a.numerico ? a.grande : 'Orario da chiedere'}</span>
-        {a.circa && <span data-circa style={{ fontSize: 14, color: 'var(--color-stone)' }}>circa</span>}
-      </p>
-      <p data-sotto-ora style={{ fontSize: 13, color: 'var(--color-stone)' }}>{a.sotto}</p>
-
-      {a.righe.length > 0 && (
-        <div className="mt-2.5" style={{ borderTop: '1px solid var(--color-card-border)', paddingTop: 10 }}>
-          {a.righe.map((r, i) => {
-            const Icona = ICONE[r.icona]
-            return (
-              <div key={r.icona + i} data-riga-arrivo={r.icona} className="flex items-start" style={{ gap: 10, marginTop: i ? 8 : 0 }}>
-                <Icona size={17} color={OTTONE} aria-hidden className="shrink-0" style={{ marginTop: 2 }} />
-                <div className="min-w-0">
-                  <p style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--color-green-dark)' }}>{r.forte}</p>
-                  <p style={{ fontSize: 12.5, color: 'var(--color-stone)' }}>{r.sotto}</p>
-                </div>
-              </div>
-            )
-          })}
+      {!!b.extra_bed && <p data-letto-agg className="home-letto">+ Letto aggiuntivo</p>}
+      <div className="home-orario-riga" data-comandi-arrivo>
+        <span data-ora-struttura className="home-orario">{a.numerico ? a.grande : 'Orario da chiedere'}{a.circa && <span data-circa> circa</span>}</span>
+        <button type="button" className="home-matita" onClick={() => onApri(b)} aria-label={`Modifica arrivo di ${nomeConAltri(b)} · ${etichettaArrivoPeriodo(b)}`}>✎</button>
+        {richiesta && <details className="home-whatsapp">
+          <summary><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M21 11.5a9 9 0 0 1-9 9 10 10 0 0 1-4-.9L3 21l1.4-4.6a9 9 0 1 1 16.6-4.9Z" /></svg>WhatsApp</summary>
+          <div>
+            <a href={waHrefTesto(richiesta.numero, '')} target="_blank" rel="noopener noreferrer" aria-label={`Apri chat con ${nomeConAltri(b)}`}>Apri chat</a>
+            <a href={richiesta.href} target="_blank" rel="noopener noreferrer" aria-label={`Chiedi orario a ${nomeConAltri(b)}`}>Chiedi orario</a>
+          </div>
+        </details>}
+      </div>
+      <p data-sotto-ora className="home-secondario">{a.sotto}</p>
+      {a.righe.map((r, i) => {
+        const Icona = ICONE[r.icona]
+        return <div key={r.icona + i} data-riga-arrivo={r.icona} className="home-trasporto">
+          <Icona size={17} color={OTTONE} aria-hidden className="shrink-0" />
+          <div><p className="home-info">{r.forte}</p>{r.sotto && <p className="home-secondario">{r.sotto}</p>}</div>
         </div>
-      )}
-
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1" data-comandi-arrivo>
-        <button type="button" onClick={() => onApri(b)} aria-label={`Apri arrivo di ${nomeConAltri(b)} · ${etichettaArrivoPeriodo(b)}`} className="ed-azione inline-flex min-h-11 items-center font-semibold" style={{ gap: 3 }}>
-          Apri arrivo<ChevronRight size={14} aria-hidden />
-        </button>
-        {richiesta && <>
-          <a href={richiesta.href} target="_blank" rel="noopener noreferrer" className="ed-azione ed-azione-tenue inline-flex min-h-11 items-center" aria-label={`Chiedi orario a ${nomeConAltri(b)}`}>Chiedi orario</a>
-          <a href={waHrefTesto(richiesta.numero, '')} target="_blank" rel="noopener noreferrer" className="ed-azione ed-azione-tenue inline-flex min-h-11 items-center" aria-label={`Apri chat con ${nomeConAltri(b)}`}>Apri chat</a>
-        </>}
-      </div>
-      {!richiesta && <p className="text-xs text-stone mt-1">Telefono mancante: aggiungilo dalla prenotazione per usare WhatsApp.</p>}
-    </div>
+      })}
+      {arrivo.navetta === 'non_richiesta' && <div className="home-trasporto"><div><p className="home-info">Arrivo autonomo</p><p className="home-secondario">Navetta non richiesta</p></div></div>}
+      {!richiesta && <p className="home-secondario">Telefono mancante: aggiungilo dalla prenotazione per usare WhatsApp.</p>}
+    </article>
   )
 }
 
@@ -110,16 +92,16 @@ export default function ArriviOggi({ oggi, domani, onSalvato }: {
   const [selezionato, setSelezionato] = useState<Riga | null>(null)
   if (oggi.length === 0 && domani.length === 0) return null
   return (
-    <section data-arrivi-home className="mb-6">
+    <section data-arrivi-home className="home-arrivi">
       {oggi.length > 0 && (
         <>
-          <p className="ed-sezione mb-1"><span>{TITOLO_ARRIVI_OGGI} · {dataLunga(oggi[0].check_in).replace(/ \d{4}$/, '')} <small className="text-xs normal-case tracking-normal text-stone">· {contaArrivi(oggi.length)}</small></span></p>
+          <h2 className="home-sezione"><span>{TITOLO_ARRIVI_OGGI}</span><small>{contaArrivi(oggi.length)}</small></h2>
           {oggi.map(b => <Riquadro key={b.id} b={b} onApri={setSelezionato} />)}
         </>
       )}
       {domani.length > 0 && (
         <>
-          <p className={`ed-sezione mb-1 ${oggi.length ? 'mt-5' : ''}`}><span>{TITOLO_ARRIVI_DOMANI} · {dataLunga(domani[0].check_in).replace(/ \d{4}$/, '')} <small className="text-xs normal-case tracking-normal text-stone">· {contaArrivi(domani.length)}</small></span></p>
+          <h2 className={`home-sezione ${oggi.length ? 'home-domani' : ''}`}><span>{TITOLO_ARRIVI_DOMANI}</span><small>{contaArrivi(domani.length)}</small></h2>
           {domani.map(b => <Riquadro key={b.id} b={b} onApri={setSelezionato} />)}
         </>
       )}

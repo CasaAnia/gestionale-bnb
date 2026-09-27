@@ -1,0 +1,38 @@
+/* Home mobile approvata 27/09: solo saluto, richieste, arrivi e pulizie. */
+.home-approvata .home-saluto{font:400 36px/1.18 Georgia,'Times New Roman',serif;letter-spacing:-.6px;color:#183a31;margin:0 0 7px;white-space:nowrap}
+.home-approvata .home-data{font-size:14px;color:#56665f}
+.home-richieste{border-top:1px solid #d6c8a9;margin-top:17px}
+.home-richieste>summary{display:flex;align-items:center;justify-content:space-between;min-height:48px;font-size:14px;font-weight:600;list-style:none;cursor:pointer}
+.home-richieste>summary::-webkit-details-marker{display:none}.home-richieste>summary:after{content:'+';color:#5b6b62}.home-richieste[open]>summary:after{content:'−'}
+.home-approvata .home-sezione{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font:400 27px/30px Georgia,'Times New Roman',serif;color:#183a31;letter-spacing:0;margin:0 0 8px}
+.home-approvata .home-sezione small{font:400 25px/30px Georgia,'Times New Roman',serif;color:#78837c;white-space:nowrap}
+.home-arrivi{margin:12px 0 18px;font-family:var(--font-nunito-sans),sans-serif}
+.home-arrivo{border-left:3px solid #769280;padding:9px 12px;margin:0 0 10px;min-width:0}
+.home-identita{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:0 0 4px}
+.home-approvata .home-nome{font:650 18px/23px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#183a31}
+.home-identita .home-nome{text-decoration:underline;text-decoration-color:#c3cec6;text-underline-offset:4px}
+.home-approvata .home-camera{font:450 12px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#56665f;white-space:nowrap}
+.home-letto{color:#e00000;font-size:12px;margin:0 0 2px}
+.home-orario-riga{display:flex;align-items:center;gap:3px;min-width:0;min-height:36px}
+.home-orario{font:400 20px/30px Georgia,'Times New Roman',serif;color:#183a31;font-variant-numeric:tabular-nums;white-space:nowrap}
+.home-matita{color:#78837c;min-width:24px;min-height:36px;font-size:18px;background:none;border:0;flex-shrink:0}
+.home-whatsapp{position:relative;flex:none;margin-left:auto;color:#226147;font:400 11px/1.3 var(--font-nunito-sans),sans-serif}
+.home-whatsapp summary{display:flex;align-items:center;gap:5px;min-height:36px;cursor:pointer;list-style:none;white-space:nowrap}.home-whatsapp summary::-webkit-details-marker{display:none}
+.home-whatsapp>div{position:absolute;right:0;top:36px;z-index:20;width:165px;background:#fff;border:1px solid #dce3df;border-radius:6px;padding:5px;box-shadow:0 4px 12px #183a311a}
+.home-whatsapp a{display:flex;align-items:center;min-height:44px;padding:8px;font-size:13px;color:#183a31}
+.home-approvata .home-secondario{font:400 12.5px/1.5 var(--font-nunito-sans),sans-serif;color:#56665f}
+.home-approvata .home-info{font:600 14.5px/1.5 var(--font-nunito-sans),sans-serif;color:#183a31}
+.home-trasporto{display:flex;gap:8px;margin-top:4px;align-items:flex-start}.home-trasporto svg{margin-top:2px}
+.home-approvata .home-domani{margin-top:18px;border:0}
+.home-approvata .home-pulizia{background:#fff;border:1px solid #dce3df;border-radius:10px;padding:12px;margin:0 0 10px;min-width:0;font-family:var(--font-nunito-sans),sans-serif}
+.home-prossimo{margin:5px 0}.home-partenza{margin-top:0}
+.home-ritardo{font:400 12px/1.5 var(--font-nunito-sans),sans-serif;color:#a3352e}
+.home-timer{margin-top:5px}.home-timer-riga{display:flex;align-items:center;gap:18px;font:400 14.5px/1.5 var(--font-nunito-sans),sans-serif;color:#226147}
+.home-timer button{min-height:44px;text-decoration:underline;text-decoration-color:#cbd4ce;text-underline-offset:4px}.home-timer button:disabled{opacity:.5}.home-timer b{font-weight:600;font-variant-numeric:tabular-nums}
+.home-pulizia [data-controlli-pulizia]{margin-top:0}
+.home-pulizia-azioni{justify-content:space-between;gap:0 10px}
+.home-pulizia-azioni>.ed-azione{font:400 12px/1.5 var(--font-nunito-sans),sans-serif;color:#226147;max-width:100%;text-align:left}
+.home-pulizia-azioni>.ed-azione-tenue{color:#56665f}
+.home-fuori{font:400 12.5px/1.5 var(--font-nunito-sans),sans-serif;color:#56665f;border-top:1px solid #dce3df;padding-top:16px}.home-fuori a{display:inline-flex;align-items:center;min-height:44px;text-decoration:underline;text-underline-offset:4px;color:#183a31}
+@media(max-width:385px){.home-approvata .home-saluto{font-size:32px}.home-orario{font-size:18px}.home-matita{min-width:20px}.home-arrivo{padding-left:10px;padding-right:10px}.home-whatsapp summary{gap:3px}.home-approvata .home-sezione{font-size:24px}.home-approvata .home-sezione small{font-size:21px}}
+@media(max-width:340px){.home-orario{font-size:16px}.home-whatsapp{font-size:10px}.home-orario-riga{gap:1px}.home-whatsapp summary{gap:2px}.home-arrivo{padding-left:8px;padding-right:8px}}
