@@ -60,9 +60,9 @@ export function FiltriPanel({ contesto, opzioni, filtri, iniziali, setFiltri, ri
       <Sezione nome="Periodo" colore={accento} valore={filtri.periodo} scegli={su('periodo')}
         voci={opzioni.periodi.map(p => [p.id, p.etichetta])} />
       {periodoScelto?.tipo === 'intervallo' && (
-        <div className="mb-4 flex gap-2 items-center">
+        <div className="mb-4 flex flex-wrap gap-2 items-center">
           {([['dal', 'Dal'], ['al', 'Al']] as const).map(([campo, nome]) => (
-            <label key={campo} className="flex-1 flex items-center gap-2 min-h-11 px-3 text-[13px]"
+            <label key={campo} className="flex-1 basis-40 min-w-0 flex items-center gap-2 min-h-11 px-3 text-[13px]"
               style={{ background: t.carta, border: t.bordoCarta, borderRadius: t.rPill, color: t.sub }}>
               {nome}
               <input type="date" value={filtri[campo]} onChange={e => setFiltri({ ...filtri, [campo]: e.target.value })}

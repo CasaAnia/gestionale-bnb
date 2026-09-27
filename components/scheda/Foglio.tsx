@@ -44,14 +44,14 @@ export default function Foglio({ titolo, grande = false, centrato = false, misur
             <button type="button" onClick={onChiudi} aria-label="Chiudi" className="absolute right-0 top-0 w-9 h-9 -mr-2 flex items-center justify-center text-stone"><X size={18} strokeWidth={2} aria-hidden /></button>
           </div>
         ) : (
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between gap-3 mb-3">
           <p data-titolo-foglio className="text-green-dark"
             style={misuraTitolo
               ? { fontFamily: GEORGIA_FOGLIO, fontSize: misuraTitolo, lineHeight: `${misuraTitolo + 4}px` }
               : grande
               ? { fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 18, lineHeight: '22px' }
               : { fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 20, lineHeight: '24px' }}>{titolo}</p>
-          <button type="button" onClick={onChiudi} aria-label="Chiudi" className="w-9 h-9 -mr-2 flex items-center justify-center text-stone"><X size={18} strokeWidth={2} aria-hidden /></button>
+          <button type="button" onClick={onChiudi} aria-label="Chiudi" className="w-9 h-9 shrink-0 -mr-2 flex items-center justify-center text-stone"><X size={18} strokeWidth={2} aria-hidden /></button>
         </div>
         )}
         {children}
@@ -78,9 +78,9 @@ export function PiedeFoglio({ azione, onAzione, salvando = false, testoSalvando 
 }) {
   return (
     <div data-piede-foglio className="text-center" style={{ marginTop: 22, marginBottom: 2 }}>
-      <button type="button" data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato} className="py-[7px] -my-[7px]"
+      <button type="button" data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato}
         style={{
-          height: ALTEZZA_AZIONE, borderRadius: 999, padding: '0 18px', fontSize: 12, fontWeight: 600,
+          minHeight: ALTEZZA_AZIONE, maxWidth: '100%', overflowWrap: 'anywhere', lineHeight: '18px', borderRadius: 999, padding: '6px 18px', fontSize: 12, fontWeight: 600,
           background: mattone ? MATTONE_FOGLIO : 'var(--color-green-mid)', color: 'var(--color-cream)', opacity: salvando ? 0.5 : disabilitato ? 0.45 : 1,
         }}>{salvando ? testoSalvando : azione}</button>
       <p style={{ marginTop: 10 }}>

@@ -1010,22 +1010,21 @@ test('il criterio prudente è lo STESSO del punto 5, e non deve prendere strade 
 // ── 15. LA VESTE SUL TELEFONO (Ania, 21/09/2026 sera) ─────────────────────
 
 test('le pastiglie che vanno a capo non si sovrappongono, e il campo sotto non è appiccicato', () => {
-  // Sul telefono di Ania i sette luoghi dell'arrivo andavano a capo e le due
-  // righe si sovrapponevano di 8 px: le pastiglie hanno `-my-[7px]`, quindi
-  // la loro casella nel layout è 14 px più bassa di quello che si vede.
+  // Il rientro negativo rompeva anche due gruppi consecutivi (provenienza
+  // e strutture). Non basta compensarlo nel rowGap dello stesso gruppo.
+  // La prova geometrica nel browser completa queste guardie sui sorgenti.
   const pezzi = leggi('components/nuova/PezziNuova.tsx')
   assert.match(pezzi, /export const SPAZIO_PASTIGLIE = 6/)
-  assert.match(pezzi, /export const RIENTRO_PASTIGLIA = 14/)
-  assert.match(pezzi, /export const SPAZIO_FRA_RIGHE = SPAZIO_PASTIGLIE \+ RIENTRO_PASTIGLIA/)
-  // di fianco resta 6, sopra e sotto si recuperano i 14
+  assert.doesNotMatch(pezzi, /-my-\[/, 'i pulsanti devono occupare tutta la loro altezza nel layout')
+  assert.match(pezzi, /export const SPAZIO_FRA_RIGHE = 8/)
   assert.match(pezzi, /columnGap: SPAZIO_PASTIGLIE, rowGap: SPAZIO_FRA_RIGHE/)
   assert.equal(/style=\{\{ gap: 6 \}\}>\{children\}/.test(pezzi), false, 'è tornato il gap unico che faceva sovrapporre le righe')
-  // e il rientro esiste davvero: se sparisse, questi conti andrebbero rifatti
-  assert.match(pezzi, /className="py-\[7px\] -my-\[7px\]"/)
+  assert.match(pezzi, /minHeight: ALTEZZA_PASTIGLIA/, 'un testo su più righe deve poter crescere')
+  assert.doesNotMatch(leggi('components/scheda/Foglio.tsx'), /-my-\[/, 'anche il piede deve occupare la sua altezza')
 
-  // la casella dell'ora sotto le pastiglie recupera metà rientro
+  // La distanza dal campo successivo ora è reale, senza compensazioni.
   const modulo = leggi('components/ArrivoNavetta.tsx')
-  assert.match(pezzi, /export const SOTTO_PASTIGLIE = 10 \+ RIENTRO_PASTIGLIA \/ 2/)
+  assert.match(pezzi, /export const SOTTO_PASTIGLIE = 10/)
   assert.match(modulo, /style=\{\{ gap: 10, marginTop: SOTTO_PASTIGLIE \}\}/)
   assert.equal(/mt-\[10px\]/.test(modulo), false, 'è tornato lo spazio fisso che appiccicava la casella')
 })

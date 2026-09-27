@@ -59,14 +59,13 @@ export default function ComePaga({
       {GRUPPI_COME_PAGA.map(gruppo => (
         <div key={gruppo.id} data-gruppo={gruppo.id} className={gruppo.id === 'arrivo' ? '' : 'mt-3'}>
           <p style={etichetta}>{gruppo.etichetta}</p>
-          <div className="flex flex-wrap" style={{ gap: 6, marginTop: 6 }} role="group" aria-label={gruppo.etichetta}>
+          <div className="flex flex-wrap" style={{ columnGap: 6, rowGap: 8, marginTop: 10 }} role="group" aria-label={gruppo.etichetta}>
             {gruppo.modi.map(m => {
               const acceso = modo === m
               return (
                 <button key={m} type="button" data-modo={m} aria-pressed={acceso} onClick={() => onModo(m)}
-                  className="py-[7px] -my-[7px]"
                   style={{
-                    height: ALTEZZA_PASTIGLIA, borderRadius: 999, padding: '0 12px', fontSize: 12.5, fontWeight: 600,
+                    minHeight: ALTEZZA_PASTIGLIA, maxWidth: '100%', overflowWrap: 'anywhere', lineHeight: '18px', borderRadius: 999, padding: '5px 12px', fontSize: 12.5, fontWeight: 600,
                     background: acceso ? 'var(--color-green-mid)' : 'transparent',
                     color: acceso ? 'var(--color-cream)' : 'var(--color-green-dark)',
                     border: `1px solid ${acceso ? 'var(--color-green-mid)' : BORDO_SPENTA}`,

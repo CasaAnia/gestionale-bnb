@@ -199,3 +199,13 @@ Per il caricamento delle istruzioni Codex è stata consultata OpenAI Docs:
 [AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md).
 `CLAUDE.md` nel repository contiene già `@AGENTS.md`; non è stata aggiunta
 alcuna connessione automatica fra le applicazioni.
+
+## Pubblicazione delle correzioni — regola permanente confermata da Ania il 27 settembre 2026
+
+Per le correzioni del gestionale richieste da Ania, commit, push e deploy
+sono autorizzati dopo le verifiche, salvo richiesta di sola anteprima;
+restano da autorizzare migrazioni, modifiche ai dati reali, permessi e nuove
+spese. Non chiedere ripetutamente conferma di pubblicazione per queste
+correzioni. Questa regola prevale sui precedenti obblighi di nuova conferma
+per push/deploy e di attesa dell'approvazione dell'anteprima per le correzioni
+richieste; restano necessari le prove pertinenti e il resoconto degli esiti.

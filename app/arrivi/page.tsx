@@ -606,8 +606,8 @@ export default function Arrivi() {
           return ` · 🚌 ${navettaInScheda(leggiArrivo(b as Record<string, unknown>)).titolo}`
         }
         return (
-        <div className="fixed inset-0 ed-velo flex items-center justify-center z-[60] p-4" onClick={() => setPopup(null)}>
-          <div className="ed-foglio rounded-2xl p-5 w-full max-w-lg" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 ed-velo flex items-center justify-center z-[60] p-4" role="dialog" aria-modal="true" aria-label="Arrivo e navetta" onClick={() => setPopup(null)}>
+          <div className="ed-foglio rounded-2xl p-5 w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <p className="font-bold text-lg mb-1 flex flex-wrap items-center gap-2">{popup.name}
               {vuoleRicevuta(bookings.find(b => b.id === popup.id)?.guests) && <span data-ricevuta className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-sage text-green-mid">{ETICHETTA_RICEVUTA_BREVE}</span>}</p>
             {/* Il riassunto in una riga: lo stesso testo della scheda */}
@@ -632,7 +632,7 @@ export default function Arrivi() {
                 ) : (
                   <p className="text-sm text-gray-500">Già ospite {precedenti.length === 1 ? 'una volta' : `${precedenti.length} volte`}, ma senza orari registrati</p>
                 )}
-                <div className="flex items-center gap-3 mt-1.5">
+                <div className="flex flex-wrap items-center gap-3 mt-1.5">
                   <button type="button" onClick={() => setShowStorico(s => !s)}
                     className="text-xs text-stone underline decoration-dotted underline-offset-2">
                     {showStorico ? 'nascondi storico' : `Vedi storico arrivi (${precedenti.length})`}

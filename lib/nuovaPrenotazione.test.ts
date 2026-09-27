@@ -109,7 +109,7 @@ test('la ricerca è quella di sempre, col tastino sage «+ Nuovo cliente»', () 
   assert.match(pagina, /import CampoRicerca from '@\/components\/CampoRicerca'/)
   assert.match(pagina, /placeholder="Cerca per nome o telefono…"/)
   assert.match(rigaCliente, /export const NUOVO_CLIENTE = '\+ Nuovo cliente'/)
-  assert.match(rigaCliente, /height: 30, borderRadius: 6, padding: '0 9px', background: 'var\(--color-sage\)', color: 'var\(--color-green-mid\)', fontSize: 13, fontWeight: 700/)
+  assert.match(rigaCliente, /minHeight: 30, borderRadius: 6, padding: '0 9px', background: 'var\(--color-sage\)', color: 'var\(--color-green-mid\)', fontSize: 13, fontWeight: 700/)
   // il tastino c'è sopra e in fondo all'elenco
   assert.equal((pagina.match(/<TastinoSage testo=\{NUOVO_CLIENTE\}/g) || []).length >= 2, true)
 })
@@ -166,7 +166,8 @@ test('«come ci ha trovato» e le strutture rientrate col filetto ottone', () =>
 test('la nota del cliente e il tasto «Avanti» piccolo, verde e centrato', () => {
   assert.match(nuovoCliente, /export const ETICHETTA_NOTE = 'Note del cliente · restano anche le prossime volte'/)
   assert.match(nuovoCliente, /export const AVANTI = 'Avanti · date e camera'/)
-  assert.match(pezzi, /height: ALTEZZA_PASTIGLIA, borderRadius: 999, padding: '0 18px', fontSize: 12, fontWeight: 600/)
+  assert.match(pezzi, /minHeight: ALTEZZA_PASTIGLIA/)
+  assert.match(pezzi, /borderRadius: 999, padding: '[56]px 18px', fontSize: 12, fontWeight: 600/)
   assert.match(pezzi, /export const ALTEZZA_PASTIGLIA = 30/)
   assert.equal(/w-full/.test(nuovoCliente), false, 'il tasto è a tutta larghezza')
 })

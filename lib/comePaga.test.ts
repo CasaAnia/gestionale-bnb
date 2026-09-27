@@ -112,11 +112,12 @@ test('le due etichette dei gruppi: 9,5 px maiuscole spaziate 1,4 stone', () => {
 test('le pastiglie: 30 px, 12,5 semibold, contorno #C9BFA8 e green-mid quando scelte', () => {
   assert.match(componente, /export const ALTEZZA_PASTIGLIA = 30/)
   assert.match(componente, /export const BORDO_SPENTA = '#C9BFA8'/)
-  assert.match(componente, /height: ALTEZZA_PASTIGLIA, borderRadius: 999, padding: '0 12px', fontSize: 12\.5, fontWeight: 600/)
+  assert.match(componente, /minHeight: ALTEZZA_PASTIGLIA/)
+  assert.match(componente, /borderRadius: 999, padding: '[56]px 12px', fontSize: 12\.5, fontWeight: 600/)
   assert.match(componente, /background: acceso \? 'var\(--color-green-mid\)' : 'transparent'/)
   assert.match(componente, /color: acceso \? 'var\(--color-cream\)' : 'var\(--color-green-dark\)'/)
-  // si toccano su 44 px senza crescere
-  assert.match(componente, /className="py-\[7px\] -my-\[7px\]"/)
+  // Nessun rientro: il layout conserva tutta l’altezza delle scelte.
+  assert.doesNotMatch(componente, /-my-\[/)
 })
 
 test('una sola scelta accesa alla volta, fra tutte e sei', () => {

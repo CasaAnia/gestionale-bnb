@@ -59,9 +59,9 @@ export function Pastiglia({ acceso, onClick, spenta = false, colore, children, d
   dati?: string
 }) {
   return (
-    <button type="button" data-pastiglia={dati} aria-pressed={acceso} disabled={spenta} onClick={onClick} className="py-[7px] -my-[7px]"
+    <button type="button" data-pastiglia={dati} aria-pressed={acceso} disabled={spenta} onClick={onClick}
       style={{
-        height: ALTEZZA_PASTIGLIA, borderRadius: 999, padding: '0 12px', fontSize: 12.5, fontWeight: 600,
+        minHeight: ALTEZZA_PASTIGLIA, maxWidth: '100%', overflowWrap: 'anywhere', lineHeight: '18px', borderRadius: 999, padding: '5px 12px', fontSize: 12.5, fontWeight: 600,
         background: acceso ? (colore ?? 'var(--color-green-mid)') : 'transparent',
         color: spenta ? SPENTA_TESTO : acceso ? 'var(--color-cream)' : 'var(--color-green-dark)',
         border: `1px solid ${acceso ? (colore ?? 'var(--color-green-mid)') : spenta ? SPENTA_BORDO : BORDO_SPENTA}`,
@@ -69,34 +69,26 @@ export function Pastiglia({ acceso, onClick, spenta = false, colore, children, d
   )
 }
 
-// Le pastiglie hanno `-my-[7px]`: la loro CASELLA nel layout è 14 px più
-// bassa di quello che si vede (il rientro serve a dare al dito i 44 px senza
-// far crescere la riga). Con una fila sola non si nota; andando a capo le
-// righe si sovrapponevano di 8 px — i sette luoghi dell'arrivo lo hanno
-// fatto vedere sul telefono di Ania (21/09/2026 sera).
-// Quindi lo spazio SOPRA e SOTTO (rowGap) deve recuperare quei 14 px, mentre
-// quello di fianco (columnGap) resta 6.
+// Il layout riserva tutta l'altezza visibile: nessun margine negativo.
+// Così anche due gruppi consecutivi e le etichette restano separati.
 export const SPAZIO_PASTIGLIE = 6
-export const RIENTRO_PASTIGLIA = 14
-export const SPAZIO_FRA_RIGHE = SPAZIO_PASTIGLIE + RIENTRO_PASTIGLIA
+export const SPAZIO_FRA_RIGHE = 8
 
 export function FilaPastiglie({ children, centrata = false, className = '' }: { children: ReactNode; centrata?: boolean; className?: string }) {
   return <div className={`flex flex-wrap ${centrata ? 'justify-center' : ''} ${className}`}
     style={{ columnGap: SPAZIO_PASTIGLIE, rowGap: SPAZIO_FRA_RIGHE }}>{children}</div>
 }
 
-/** Lo spazio da mettere SOTTO una fila di pastiglie, quando segue un campo:
- *  anche lì i 7 px di rientro vanno recuperati, altrimenti la casella
- *  dell'ora finisce appiccicata alle pastiglie (Ania, 21/09/2026 sera). */
-export const SOTTO_PASTIGLIE = 10 + RIENTRO_PASTIGLIA / 2
+/** Distanza reale fra le scelte e il campo successivo. */
+export const SOTTO_PASTIGLIE = 10
 
 /** Il tasto verde piccolo, centrato: «Avanti · date e camera», «Salva la prenotazione» */
 export function TastoAvanti({ testo, onClick, disabilitato = false, dati }: { testo: string; onClick: () => void; disabilitato?: boolean; dati?: string }) {
   return (
     <p className="text-center">
-      <button type="button" data-avanti={dati} onClick={onClick} disabled={disabilitato} className="py-[7px] -my-[7px]"
+      <button type="button" data-avanti={dati} onClick={onClick} disabled={disabilitato}
         style={{
-          height: ALTEZZA_PASTIGLIA, borderRadius: 999, padding: '0 18px', fontSize: 12, fontWeight: 600,
+          minHeight: ALTEZZA_PASTIGLIA, maxWidth: '100%', overflowWrap: 'anywhere', lineHeight: '18px', borderRadius: 999, padding: '6px 18px', fontSize: 12, fontWeight: 600,
           background: 'var(--color-green-mid)', color: 'var(--color-cream)', opacity: disabilitato ? 0.5 : 1,
         }}>{testo}</button>
     </p>

@@ -29,3 +29,13 @@ radice di questo repository. `CLAUDE.md` importa questo file: il metodo
 - Obiettivo utente: gestionale completo entro il 5 settembre 2026, senza
   nuovi abbonamenti. Non ridurre di nascosto funzionalità o protezioni per
   la scadenza; rendere subito visibile qualsiasi rischio concreto.
+
+## Pubblicazione delle correzioni — regola permanente confermata da Ania il 27 settembre 2026
+
+Per le correzioni del gestionale richieste da Ania, commit, push e deploy
+sono autorizzati dopo le verifiche, salvo richiesta di sola anteprima;
+restano da autorizzare migrazioni, modifiche ai dati reali, permessi e nuove
+spese. Non chiedere ripetutamente conferma di pubblicazione per queste
+correzioni. Questa regola prevale sui precedenti obblighi di nuova conferma
+per push/deploy e di attesa dell'approvazione dell'anteprima per le correzioni
+richieste; restano necessari le prove pertinenti e il resoconto degli esiti.

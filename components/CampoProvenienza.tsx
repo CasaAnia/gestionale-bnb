@@ -61,7 +61,7 @@ export default function CampoProvenienza({ valore, onChange, strutture, disponib
               {suggerimenti.map(s => (
                 <button key={s.nome} type="button" role="option" aria-selected={s.nome === attuale}
                   onPointerDown={e => e.preventDefault()} onMouseDown={e => e.preventDefault()} onClick={() => { onChange({ ...valore, struttura: s.nome }); setAperto(false) }}
-                  className={`rounded-full text-[13px] px-3 py-1 border transition-colors ${s.nome === attuale ? 'bg-green-mid text-white border-green-mid' : 'border-[#C9BFA8] bg-white text-green-dark'}`}>
+                  className={`max-w-full min-w-0 [overflow-wrap:anywhere] rounded-full text-[13px] px-3 py-1 border transition-colors ${s.nome === attuale ? 'bg-green-mid text-white border-green-mid' : 'border-[#C9BFA8] bg-white text-green-dark'}`}>
                   {s.nome}{s.ospiti > 0 && <span className="text-stone"> · {s.ospiti}</span>}
                 </button>
               ))}
