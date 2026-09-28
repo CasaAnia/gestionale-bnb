@@ -1,3 +1,18 @@
+## Home «Maison» — PUBBLICATA — 28/09/2026
+
+Riferimento approvato da Ania: docs/design/home-maison-riferimento.html; checklist e riscontro nella stessa cartella. Commit d7739cc…605ca5f più riscontro. Novità: frecce ⇄ sotto/sopra, riquadro sotto la striscia della settimana, pulizie con arrivo lo stesso giorno non più automatiche. Conferma di salvataggio B in Arrivo, Pulizia, Pagamento, Rimanda/Salta, Segna pagato. Metodi di pagamento solo Contanti e Bonifico. Suite 1825/1825, build OK. Nessuna migrazione, nessuna scrittura reale.
+
+### Prove dal telefono in 10 minuti
+1. Apri la Home: in alto la foto di Lena con «Buongiorno, Ania», sotto richieste, quattro numeri, striscia della settimana.
+2. Tocca un giorno della striscia: si sottolinea e sotto si apre il riquadro con le camere; tocca il nome di una camera → Pulizie di quel giorno. «Chiudi» lo richiude.
+3. Tocca «Da incassare €» nei numeri: la pagina scende alla sezione Da incassare.
+4. In «La giornata» tocca ✎ su un arrivo: il foglio non cambia misura passando fra In struttura, Arrivo a… e Da definire. Salva: compare la spunta «Salvato» e il foglio si chiude da solo.
+5. Apri «WhatsApp ▾»: Apri chat e Chiedi orario.
+6. Pulizie di oggi: «Rimanda o salta» si apre sotto la voce; prova Annulla. Poi «Pulita e recuperato»: tocca i chip, guarda il totale in fondo, Annulla.
+7. Da incassare: «Registra pagamento» apre il foglio con Contanti e Bonifico soltanto; Annulla.
+8. Barra in basso: Menu apre Prenotazioni, Clienti, Pulizie, Spese, Statistiche, Impostazioni.
+9. Apri una prenotazione: il Conto ha la veste nuova, con Sconto e «togli» ancora al loro posto.
+
 ## Home approvata al telefono — VERIFICATA, PUBBLICAZIONE AUTORIZZATA — 27/09/2026
 
 Base 0478433. Riferimento approvato home-telefono.html della chat doctype-html-html-lang-it-head. Implementati saluto, richieste richiudibili, arrivi con linea verticale, icone/WhatsApp e pulizie in box fino a Tempi fuori camera. BottomNav, layout, stili globali e parte da DaControllare in poi identici alla base. Lavori concorrenti stampa/impostazioni esclusi.
