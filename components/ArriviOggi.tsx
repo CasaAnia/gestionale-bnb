@@ -7,7 +7,7 @@
 //  a) gli arrivi di oggi, ognuno col suo riquadro: il nome (link alla
 //     scheda, filo d'ottone sotto) e la camera in maiuscoletto ottone, il
 //     letto in più in mattone, l'ora IN STRUTTURA grande in Cormorant sottile
-//     («circa» solo se è una stima, «Da definire» se manca), la matita ✎ che
+//     («circa» solo se è una stima, «Da definire» se manca), la matita a filo che
 //     apre «Arrivo e navetta», il menu «WhatsApp ▾» (Apri chat, Chiedi
 //     orario), la riga sotto, le righe del trasporto con l'icona a filo e in
 //     fondo la nota del cliente in mattone (prima stava nel blocco «Oggi»);
@@ -42,6 +42,8 @@ const ICONE: Record<IconaArrivo, React.ReactNode> = {
   luogo: <svg viewBox="0 0 24 24" aria-hidden><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z" /><circle cx="12" cy="10" r="2" /></svg>,
   auto: <svg viewBox="0 0 24 24" aria-hidden><path d="M4 16l2-6h12l2 6v4H4z" /><circle cx="8" cy="16" r="1.5" /><circle cx="16" cy="16" r="1.5" /></svg>,
 }
+// La matita a filo accanto all'orario: inclinata, tratto 1,4 px anche a 18 px
+export const ICONA_MATITA = <svg viewBox="0 0 24 24" aria-hidden data-icona-matita><path vectorEffect="non-scaling-stroke" d="M15.5 4.5l4 4L8 20H4v-4z" /><path vectorEffect="non-scaling-stroke" d="M13 7l4 4" /></svg>
 export const ICONA_WHATSAPP = <svg viewBox="0 0 24 24" aria-hidden><path d="M21 11.5a9 9 0 0 1-9 9 10 10 0 0 1-4-.9L3 21l1.4-4.6a9 9 0 1 1 16.6-4.9Z" /></svg>
 
 export function contaArrivi(n: number): string {
@@ -76,7 +78,7 @@ function Riquadro({ b, onApri }: { b: Riga; onApri: (b: Riga) => void }) {
       {!!b.extra_bed && <p data-letto-agg className="letto">+ Letto aggiuntivo</p>}
       <div className="ora" data-comandi-arrivo>
         <b data-ora-struttura>{a.grande}{a.circa && <small data-circa>circa</small>}</b>
-        <button type="button" className="pen" onClick={() => onApri(b)} aria-label={`Modifica arrivo di ${nome} · ${etichettaArrivoPeriodo(b)}`}>✎</button>
+        <button type="button" className="pen" onClick={() => onApri(b)} aria-label={`Modifica arrivo di ${nome} · ${etichettaArrivoPeriodo(b)}`}>{ICONA_MATITA}</button>
         {richiesta && <details className="mz-wam">
           <summary className="mz-lnk q">{ICONA_WHATSAPP}WhatsApp ▾</summary>
           <div className="menu">

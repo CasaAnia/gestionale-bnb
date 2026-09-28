@@ -220,3 +220,25 @@ test('sfondo della Home: crema dal Mac, bianco dal telefono; fili con --home-lin
   assert.match(leggi('app/page.tsx'), /className="maison mz-home /)
   assert.match(leggi('components/BottomNav.tsx'), /background: 'var\(--home-bg, #F6F2EA\)', borderTop: '1px solid var\(--home-line, #E1D9CB\)'/)
 })
+
+// ── Nome come link e matita a filo nei riquadri arrivo (28/09/2026) ─────
+test('riquadro arrivo: il nome è un link a /scheda/<id> col filo d\'ottone, oggi e domani; la matita è un\'icona a filo, non un carattere', () => {
+  const src = leggi('components/ArriviOggi.tsx')
+  const riquadro = src.slice(src.indexOf('function Riquadro('), src.indexOf('export default function ArriviOggi'))
+  assert.match(riquadro, /<Link href=\{`\/scheda\/\$\{b\.id\}`\} aria-label=\{`Apri prenotazione di \$\{nome\}`\} className="nm mz-nome-link">\{nome\}<\/Link>/)
+  assert.match(riquadro, /const nome = nomeConAltri\(b\)/)
+  // lo stesso riquadro per gli arrivi di oggi e di domani
+  assert.match(src, /\{oggi\.map\(b => <Riquadro /)
+  assert.match(src, /\{domani\.map\(b => <Riquadro /)
+  // il filo vince sulla regola globale della Home che toglie le sottolineature
+  const css = leggi('app/maison.css')
+  assert.match(css, /\[data-senza-sottolinea\] \.mz-nome-link \{ text-decoration: underline !important; text-decoration-color: rgba\(168,137,79,\.6\) !important; text-underline-offset: 5px !important; text-decoration-thickness: 1px !important;/)
+  assert.match(css, /\.mz-nome-link::before \{[^}]*height: 44px/)
+  // matita: SVG a filo, niente ✎
+  assert.doesNotMatch(riquadro, /✎/)
+  assert.match(riquadro, /className="pen" onClick=\{\(\) => onApri\(b\)\} aria-label=\{`Modifica arrivo di [^`]*`\}>\{ICONA_MATITA\}<\/button>/)
+  assert.match(src, /export const ICONA_MATITA = <svg viewBox="0 0 24 24"/)
+  assert.match(css, /\.mz-arr \.ora \.pen svg \{ width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1\.4;/)
+  assert.match(css, /\.mz-arr \.ora \.pen \{[^}]*align-self: center;[^}]*color: #6E6558;/)
+  assert.match(css, /\.mz-arr \.ora \.pen::before \{[^}]*width: 44px; height: 44px;/)
+})

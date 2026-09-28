@@ -79,8 +79,13 @@ body:has(.mz-home) { background: var(--home-bg); }
 .mz-lnk:focus-visible { outline: 1px solid var(--m-acc); outline-offset: 4px; }
 .mz-lnk svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 1.6; vertical-align: -1px; margin-right: 3px; display: inline; }
 
-/* Il nome che porta alla scheda: sottolineato col filo d'ottone */
-.mz-nome-link { text-decoration: underline !important; text-decoration-color: rgba(168,137,79,.6) !important; text-underline-offset: 5px; text-decoration-thickness: 1px; color: inherit; }
+/* Il nome che porta alla scheda: sottolineato col filo d'ottone. Il
+   selettore col [data-senza-sottolinea] serve: la Home porta quell'attributo
+   e la regola globale «[data-senza-sottolinea] a» (globals.css, !important)
+   pesava di più e toglieva il filo, così il nome non sembrava un link. */
+.mz-nome-link, [data-senza-sottolinea] .mz-nome-link { text-decoration: underline !important; text-decoration-color: rgba(168,137,79,.6) !important; text-underline-offset: 5px !important; text-decoration-thickness: 1px !important; color: inherit; }
+.mz-nome-link { position: relative; }
+.mz-nome-link::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
 
 /* ── Striscia in alto ─────────────────────────────────────────────────── */
 .mz-strip { height: 118px; position: relative; color: #fff; background-size: cover; background-position: center; }
@@ -147,8 +152,11 @@ body:has(.mz-home) { background: var(--home-bg); }
 .mz-arr .ora { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; min-height: 30px; }
 .mz-arr .ora b { font-family: var(--m-disp); font-size: 26px; font-weight: 300; line-height: 1; color: var(--m-ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mz-arr .ora b small { font-size: 13px; color: var(--m-mut); font-weight: 300; margin-left: 4px; }
-.mz-arr .ora .pen { position: relative; color: var(--m-mut); font-size: 13px; background: none; border: 0; padding: 0 4px; line-height: 1; }
-.mz-arr .ora .pen::before { content: ""; position: absolute; left: -10px; right: -10px; top: 50%; height: 44px; transform: translateY(-50%); }
+/* La matita a filo (18 px, tratto 1,4 px come le icone della barra in
+   basso), al centro dell'orario grande; area di tocco 44 × 44 */
+.mz-arr .ora .pen { position: relative; align-self: center; display: grid; place-items: center; width: 18px; height: 18px; color: #6E6558; background: none; border: 0; padding: 0; margin: 0 4px; line-height: 0; }
+.mz-arr .ora .pen::before { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
+.mz-arr .ora .pen svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .mz-arr .sotto { font-size: calc(var(--home-fs-sec) - .5px); color: var(--m-mut); font-weight: var(--home-fw-sec); margin-top: 2px; }
 .mz-arr .tr { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: start; margin-top: 7px; }
 .mz-arr .tr svg { width: 14px; height: 14px; stroke: var(--m-acc); fill: none; stroke-width: 1.3; margin-top: 2px; }

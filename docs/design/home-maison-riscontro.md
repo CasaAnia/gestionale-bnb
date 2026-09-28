@@ -40,8 +40,12 @@ Suite: 1825/1825. TypeScript e build di produzione riuscite.
 - D1–D12 fatte; D14–D16 fatte.
 - D13 fatta: «Bonifico atteso · Segna pagato». Quando l'accordo NON è un bonifico la parola è «Pagamento atteso» (sarebbe falso scrivere bonifico). «Segna pagato» non esisteva in Home: apre lo stesso foglio del pagamento della scheda (saldo completo già proposto), con il contratto di sempre (`lib/pagamentiDati`).
 
+- Nome dell'ospite come link alla scheda (punto 9a): **fatta** (correzione del 28/09/2026 sera). Perché era rimasta indietro: il link `/scheda/<id>` c'era già nel codice, ma la Home porta `data-senza-sottolinea` e la regola globale «`[data-senza-sottolinea] a` … `!important`» (globals.css) pesava più di `.mz-nome-link`: il filo d'ottone spariva e il nome sembrava testo semplice. Nel controllo l'ho letto nel sorgente e non a schermo, per questo è sfuggito. Ora `[data-senza-sottolinea] .mz-nome-link` rimette filo rgba(168,137,79,.6), 1 px, offset 5 px (misurati nell'anteprima: 5px / 1px), area di tocco 44 px in altezza; camera in maiuscoletto ottone invariata. Test: `lib/homeMaison.test.ts` → «riquadro arrivo: il nome è un link…».
+- Matita a filo 18 px: **fatta**. Il carattere ✎ (13 px, sembrava una virgola) è sostituito da un'icona SVG (matita inclinata, tratto 1,4 px come le icone della barra in basso), 18 × 18 px, grigio #6E6558, area di tocco 44 × 44, al centro dell'orario grande (scarto misurato 2 px). Stessa icona negli arrivi di oggi e di domani (un solo componente `Riquadro`). Schermata: `home-arrivo-390-nome-matita.png`.
+- Altri nomi sottolineati del riferimento, controllati: **Da incassare** — il nome era già un link a `/scheda/<id>` ma, come sopra, senza filo visibile: ora il filo c'è. **Da controllare** — il titolo non è un link (come oggi); porta alla destinazione dell'eccezione il comando sotto (`hrefDestinazione`), invariato. **Richieste** — il nome non è un link; «Apri richiesta» sì (`/scheda/<id>`), invariato. **Check-out con residuo** — nome già link, senza filo come nel riferimento.
+
 ## 6. Arrivi di domani
-- T1–T2 fatte.
+- T1–T2 fatte (stesso riquadro di oggi: nome-link e matita a filo compresi).
 
 ## 7. Pulizie di oggi
 - P2–P12 fatte.
