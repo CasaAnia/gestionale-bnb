@@ -143,3 +143,53 @@ test('conferma B: lo stesso componente in Arrivo, Pulizia, Pagamento (anche Segn
   // i testi dei due modi di salvare restano per l'errore: «Non salvato, riprova» non cambia
   assert.match(leggi('lib/scritturaSicura.ts'), /MESSAGGIO_NON_SALVATO = 'Non salvato, riprova'/)
 })
+
+// ── 15–16: Da incassare, Incassati oggi, due soli metodi ─────────────────
+import { vociDaIncassare, partenzeConResiduo, incassatiOggi, rigaConto, statoSoggiorno } from './incassiHome.ts'
+import { METODI_PAGAMENTO } from './statistiche/pagato.ts'
+import { MODI_PAGAMENTO } from './pagamentoFoglio.ts'
+import { daIncassare } from './statistiche/intervallo.ts'
+const euroT = (c: number) => `${c / 100} €`
+
+test('Da incassare: stesse voci e stesse cifre di daIncassare, con stato, come paga, camere, date e acconto', () => {
+  const pren = [
+    b('m', 'amelia', '2026-09-25', OGGI, { total_amount: 360, guest_name: 'Marta Bellini', bonifico: true, rooms: { name: 'Camera Amelia' } }),
+    b('r1', 'lena', '2026-09-25', '2026-09-27', { total_amount: 200, group_id: 'g', guest_name: 'Fam. Russo', accordo_pagamento: 'contanti', rooms: { name: 'Camera Lena' } }),
+    b('r2', 'ambra', '2026-09-27', '2026-10-01', { total_amount: 340, group_id: 'g', guest_name: 'Fam. Russo', rooms: { name: 'Camera Ambra' } }),
+    b('z', 'allegra', '2026-09-20', '2026-09-22', { total_amount: 100, guest_name: 'Senza Acconto' }),
+  ]
+  const pag = [{ booking_id: 'm', amount: 120, paid_on: '2026-09-20', method: 'bonifico' }, { booking_id: 'r1', amount: 390, paid_on: '2026-09-25', method: 'contanti' }]
+  const voci = vociDaIncassare(pren as never, pag as never, OGGI)
+  assert.deepEqual(voci.map(v => v.residuoCent), daIncassare(pren as never, pag as never).map(d => d.residuoCent))
+  const marta = voci.find(v => v.nome === 'Marta Bellini')!
+  assert.equal(marta.stato, 'Partita oggi · bonifico')
+  assert.equal(rigaConto(marta, euroT), 'Totale 360 € · ricevuti 120 € (acconto del 20 set) · resta')
+  const russo = voci.find(v => v.nome === 'Fam. Russo')!
+  assert.equal(russo.stato, 'In casa · contanti')
+  assert.equal(russo.camere, 'Lena → Ambra')
+  assert.equal(russo.residuoCent, 15000)
+  // chi non ha mai pagato non è «da incassare» (regola di prima): è un'eccezione di Da controllare
+  assert.equal(voci.some(v => v.nome === 'Senza Acconto'), false)
+  assert.equal(statoSoggiorno('2026-10-02', '2026-10-05', OGGI), 'Arriva il 2 ott')
+})
+
+test('La giornata: le partenze di oggi compaiono SOLO con un residuo; Incassati oggi dice metodo e saldo/acconto', () => {
+  const parte = b('m', 'amelia', '2026-09-25', OGGI, { total_amount: 360, guest_name: 'Marta Bellini', rooms: { name: 'Camera Amelia' } })
+  const saldata = b('s', 'lena', '2026-09-26', OGGI, { total_amount: 160, guest_name: 'Giovanni Serra', rooms: { name: 'Camera Lena' } })
+  const pag = [{ booking_id: 'm', amount: 120, paid_on: '2026-09-20', method: 'bonifico' }, { booking_id: 's', amount: 160, paid_on: OGGI, method: 'contanti' }]
+  const partenze = partenzeConResiduo([parte, saldata] as never, [parte, saldata] as never, pag as never)
+  assert.deepEqual(partenze.map(p => [p.nome, p.camera, p.residuoCent]), [['Marta Bellini', 'Amelia', 24000]])
+  const oggi = incassatiOggi([parte, saldata] as never, pag as never, OGGI)
+  assert.deepEqual(oggi.map(p => [p.nome, p.testo, p.importoCent]), [['Giovanni Serra', 'contanti · saldo completo', 16000]])
+})
+
+test('come si paga: SOLO due scelte, Contanti e Bonifico, ovunque si sceglie il metodo; i vecchi restano leggibili', () => {
+  assert.deepEqual(METODI_PAGAMENTO.map(m => m.label), ['Contanti', 'Bonifico'])
+  assert.deepEqual(MODI_PAGAMENTO.map(m => m.testo), ['Contanti', 'Bonifico'])
+  // nessuna pagina propone più «Carta» o «Altro» fra i metodi di pagamento degli ospiti
+  for (const f of ['components/scheda/FoglioPagamento.tsx', 'app/prenotazioni/[id]/page.tsx', 'app/scheda/[id]/page.tsx']) {
+    assert.equal(/<option value="carta"|<option value="altro"|'Carta'|'Altro'/.test(leggi(f)), false, f)
+  }
+  // la lettura dei movimenti storici con «carta» e «altro» resta
+  assert.match(leggi('lib/pagamentoFoglio.ts'), /v === 'carta' \? 'carta' : v === 'altro' \? 'altro'/)
+})

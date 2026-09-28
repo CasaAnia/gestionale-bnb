@@ -62,7 +62,7 @@ test('nessun link del gestionale apre più l’inserimento vecchio /nuova', () =
 })
 
 test('i punti di partenza, uno per uno, portano alla scheda nuova', () => {
-  assert.match(leggi('app/page.tsx'), /href=\{`\/scheda\/\$\{g\.id\}`\}/)                                  // Home, «Da incassare»
+  assert.match(leggi('components/maison/SoldiHome.tsx'), /href=\{`\/scheda\/\$\{v\.id\}`\}/)                        // Home, «Da incassare» (veste «Maison», 28/09/2026)
   assert.match(leggi('lib/daControllare.ts'), /case 'prenotazione': return `\/scheda\/\$\{d\.prenotazioneId\}`/)   // Home, «Da controllare»
   assert.match(leggi('lib/daControllare.ts'), /case 'saldo': return `\/scheda\/\$\{d\.prenotazioneId\}\?azione=pagato`/)
   assert.equal((leggi('app/calendario/page.tsx').match(/router\.push\(`\/scheda\/\$\{(b|booking)\.id\}`\)/g) || []).length, 5)   // Calendario

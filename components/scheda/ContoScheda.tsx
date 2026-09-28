@@ -18,44 +18,27 @@
 // parte: il carattere dell'app non cambia. Il titolo «CONTO» col filo lo
 // mette la pagina (.ed-sezione), qui non si ripete.
 // ============================================================================
-import type { CSSProperties } from 'react'
+//
+// Dal 28/09/2026 la veste «Maison» (riferimento approvato da Ania, pannello
+// «Conto della prenotazione»): Totale soggiorno · Già ricevuto · Come paga a
+// filo, «Resta da incassare» grande in Cormorant (mattone finché resta
+// qualcosa), «Aggiungi pagamento» e «Cambia come paga», l'elenco «Pagamenti
+// registrati». Restano tutte le funzioni di prima: «Sconto» (regola fissa
+// n. 6: è l'unico modo di cambiare il prezzo), «togli» per ogni pagamento, la
+// riga «I pagamenti coprono fino alla notte del …» (regola fissa n. 9), la
+// frase di come paga e il dettaglio del soggiorno apribile.
+// ============================================================================
 import { TITOLO_COME_PAGA } from '@/components/ComePaga'
 import { COMANDO_SCONTO } from '@/lib/scontoScheda'
 import { COMANDO_TOGLI } from '@/lib/pagamentoFoglio'
 import {
-  RIGA_TOTALE_CONCORDATO, RIGA_GIA_RICEVUTO, RIGA_RESTA_DA_INCASSARE, CONTO_SALDATO,
+  RIGA_TOTALE_CONCORDATO, RIGA_TOTALE_SOGGIORNO, RIGA_GIA_RICEVUTO, RIGA_RESTA_DA_INCASSARE, CONTO_SALDATO,
   TITOLO_PAGAMENTI_RICEVUTI, TITOLO_DETTAGLIO_SOGGIORNO, RIGA_PREZZO_PIENO,
   type ContoInRighe, type RigaPagamento, type RiepilogoConto,
 } from '@/lib/schedaConto'
 
-// I colori del riferimento
-export const TESTO_CONTO = '#30483b'
-const TESTO_PAGAMENTI = '#3c5145'
-const DESCRIZIONE = '#73796f'
-const OTTONE_SCURO = '#756748'
-const TENUE = '#a0a198'
-const FILO_RESIDUO = '#cdbf9f'
-const FILO_BLOCCO = '#d9cdb6'
-const FILO_PAGAMENTI = '#e8e0d3'
-const FILO_CAMERE = '#ece6dc'
-const GEORGIA = 'Georgia, serif'
-
-// gli importi non si spezzano mai e le cifre stanno in colonna
-const MONETA: CSSProperties = { whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }
-// una riga «etichetta a sinistra · importo a destra»; sul telefono può andare a capo
-const RIGA = 'flex flex-wrap items-baseline justify-between gap-2 sm:flex-nowrap sm:gap-[14px]'
-// I comandi di testo: la veste ed-azione dell'app (manina, filo, cerchio del
-// fuoco da tastiera) con le misure del riferimento: 13 px, filo a 3 px nel
-// colore del testo, riga alta come il testo. La zona di tocco resta comoda:
-// il padding la allarga e il margine negativo la rimangia nel disegno.
-const AZIONE: CSSProperties = {
-  minHeight: 0, padding: '6px 0', margin: '-6px 0',
-  fontSize: 13, fontWeight: 400, lineHeight: 1.5, color: 'inherit',
-  textDecoration: 'underline', textDecorationColor: 'currentColor', textUnderlineOffset: 3,
-}
-const AZIONE_FORTE: CSSProperties = { ...AZIONE, fontWeight: 600 }
-const AZIONE_TENUE: CSSProperties = { ...AZIONE, color: TENUE }
 const maiuscola = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
+const RIGA = 'flex flex-wrap items-baseline justify-between gap-2'
 
 export default function ContoScheda({ riepilogo, conto, accordo, pagamenti, copertura = '', onPagamento, onComePaga, onSconto, onTogliPagamento, className = '' }: {
   /** le tre cifre (lib/schedaConto.riepilogoConto): totale concordato, già ricevuto, resta da incassare */
@@ -76,96 +59,81 @@ export default function ContoScheda({ riepilogo, conto, accordo, pagamenti, cope
   className?: string
 }) {
   return (
-    <div data-conto className={className} style={{ font: '14px/1.5 Arial, sans-serif', color: TESTO_CONTO }}>
-      {/* Le due righe del riepilogo: etichetta a sinistra, importo in Georgia a destra */}
-      <div data-riepilogo-conto>
-        <div data-totale-concordato className={RIGA} style={{ padding: '10px 0', fontSize: 15 }}>
-          <span>{RIGA_TOTALE_CONCORDATO}</span>
-          <span style={{ ...MONETA, font: `25px ${GEORGIA}` }}>{riepilogo.totale}</span>
-        </div>
-        <div data-gia-ricevuto className={RIGA} style={{ padding: '10px 0', fontSize: 15 }}>
-          <span>{RIGA_GIA_RICEVUTO}</span>
-          <span style={{ ...MONETA, font: `25px ${GEORGIA}` }}>{riepilogo.ricevuto}</span>
-        </div>
+    <div data-conto className={`mz ${className}`}>
+      {/* In cima, a filo: il totale, il già ricevuto e come paga */}
+      <div data-riepilogo-conto className="mz-g3">
+        <div data-totale-concordato><span className="mz-lab" style={{ marginTop: 0 }}>{conto.sconto ? RIGA_TOTALE_CONCORDATO : RIGA_TOTALE_SOGGIORNO}</span><span className="mz-fld grande">{riepilogo.totale}</span></div>
+        <div data-gia-ricevuto><span className="mz-lab" style={{ marginTop: 0 }}>{RIGA_GIA_RICEVUTO}</span><span className="mz-fld grande">{riepilogo.ricevuto}</span></div>
+        <div data-come-paga><span className="mz-lab" style={{ marginTop: 0 }}>{TITOLO_COME_PAGA}</span><span className="mz-fld grande">{accordo.nome}</span></div>
       </div>
 
-      {/* Quanto resta: l'etichetta e, sotto, la cifra grande a sinistra */}
-      <div data-residuo style={{ borderTop: `1px solid ${FILO_RESIDUO}`, marginTop: 12, padding: '18px 0 20px' }}>
-        <span style={{ fontSize: 16, fontWeight: 600 }}>{RIGA_RESTA_DA_INCASSARE}</span>
-        <span data-conto-titolo={riepilogo.saldato ? 'saldato' : 'manca'} className="block"
-          style={{ ...MONETA, font: `36px ${GEORGIA}`, marginTop: 7, color: TESTO_CONTO }}>{riepilogo.residuo}</span>
-        {riepilogo.saldato && <span data-saldato className="block" style={{ marginTop: 6, fontSize: 13, color: OTTONE_SCURO }}>{CONTO_SALDATO}</span>}
-        {riepilogo.avviso && <span data-conto-avviso className="block" style={{ marginTop: 6, fontSize: 13, color: OTTONE_SCURO }}>{riepilogo.avviso}</span>}
+      {/* Quanto resta: l'etichetta e sotto la cifra grande, in mattone finché resta qualcosa */}
+      <div data-residuo>
+        <span className="mz-lab" style={{ marginTop: 18 }}>{RIGA_RESTA_DA_INCASSARE}</span>
+        <span data-conto-titolo={riepilogo.saldato ? 'saldato' : 'manca'} className={`mz-grande block ${riepilogo.saldato ? '' : 'mat'}`}>{riepilogo.residuo}</span>
+        {riepilogo.saldato && <span data-saldato className="mz-note block">{CONTO_SALDATO}</span>}
+        {riepilogo.avviso && <span data-conto-avviso className="mz-note block">{riepilogo.avviso}</span>}
       </div>
 
-      {/* I due comandi sotto il residuo */}
-      <p data-comandi-conto className="flex flex-wrap" style={{ marginTop: 13, gap: 14 }}>
-        <button type="button" data-aggiungi-pagamento onClick={onPagamento} className="ed-azione" style={AZIONE_FORTE}>Aggiungi pagamento</button>
-        <button type="button" data-modifica-sconto onClick={onSconto} className="ed-azione" style={AZIONE}>{COMANDO_SCONTO}</button>
-        {/* Niente «Tariffe» (Ania, 18/09/2026, regola fissa n. 6): il prezzo
-            della camera è il listino e non si cambia mai; cambia solo lo sconto. */}
+      {/* I comandi sotto il residuo. Niente «Tariffe» (regola fissa n. 6): cambia solo lo sconto */}
+      <p data-comandi-conto className="flex flex-wrap" style={{ marginTop: 12, gap: 18 }}>
+        <button type="button" data-aggiungi-pagamento onClick={onPagamento} className="mz-lnk">Aggiungi pagamento</button>
+        <button type="button" data-cambia-come-paga onClick={onComePaga} className="mz-lnk q">Cambia come paga</button>
+        <button type="button" data-modifica-sconto onClick={onSconto} className="mz-lnk q">{COMANDO_SCONTO}</button>
       </p>
 
-      {/* I pagamenti ricevuti, uno per riga; senza pagamenti il blocco non c'è */}
+      {/* I pagamenti registrati, uno per riga; senza pagamenti il blocco non c'è */}
       {pagamenti.length > 0 && (
         <div data-pagamenti-ricevuti>
-          <p data-titolo-pagamenti className="uppercase" style={{ fontSize: 12, letterSpacing: '1.2px', color: OTTONE_SCURO, margin: '28px 0 8px' }}>{TITOLO_PAGAMENTI_RICEVUTI}</p>
+          <span data-titolo-pagamenti className="mz-lab" style={{ marginTop: 20 }}>{TITOLO_PAGAMENTI_RICEVUTI}</span>
           {pagamenti.map(p => (
-            <div key={p.id} data-pagamento className="flex items-baseline" style={{ gap: 10, padding: '13px 0', borderBottom: `1px solid ${FILO_PAGAMENTI}`, color: TESTO_PAGAMENTI }}>
+            <div key={p.id} data-pagamento className="flex items-baseline" style={{ gap: 10, padding: '8px 0', borderBottom: '1px solid var(--m-line)', fontSize: 13 }}>
               <span className="min-w-0">
                 <span className="block">{p.quando}</span>
-                {p.nota && <span data-nota-pagamento className="block" style={{ fontSize: 13, color: DESCRIZIONE }}>{p.nota}</span>}
+                {p.nota && <span data-nota-pagamento className="block mz-note" style={{ marginTop: 0 }}>{p.nota}</span>}
               </span>
-              <span style={{ ...MONETA, marginLeft: 'auto' }}>{p.importo}</span>
-              <button type="button" data-togli-pagamento={p.id} onClick={() => onTogliPagamento(p.id)} className="ed-azione" style={AZIONE_TENUE}>{COMANDO_TOGLI}</button>
+              <span className="mz-disp" style={{ marginLeft: 'auto', fontSize: 15, whiteSpace: 'nowrap' }}>{p.importo}</span>
+              <button type="button" data-togli-pagamento={p.id} onClick={() => onTogliPagamento(p.id)} className="mz-lnk q">{COMANDO_TOGLI}</button>
             </div>
           ))}
         </div>
       )}
 
       {/* fin dove arrivano i soldi ricevuti (regola fissa n. 9) */}
-      {copertura && <p data-copertura-pagamenti style={{ margin: '12px 0 22px', fontSize: 13, color: OTTONE_SCURO }}>{copertura}</p>}
+      {copertura && <p data-copertura-pagamenti className="mz-note">{copertura}</p>}
 
-      {/* Come paga: il nome del modo, sotto la frase per esteso, poi il comando */}
-      <div data-come-paga-riga style={{ marginTop: 26, paddingTop: 17, borderTop: `1px solid ${FILO_BLOCCO}` }}>
-        <div className={RIGA}>
-          <span>{TITOLO_COME_PAGA}</span>
-          <span>{accordo.nome}</span>
-        </div>
-        {/* la frase è una riga a sé: comincia con la maiuscola, come nel riferimento */}
-        <p style={{ margin: '5px 0', fontSize: 13, color: DESCRIZIONE }}>{maiuscola(accordo.frase)}</p>
-        <button type="button" data-cambia-come-paga onClick={onComePaga} className="ed-azione" style={AZIONE}>Cambia come paga</button>
-      </div>
+      {/* Come paga, per esteso: la frase è una riga a sé, con la maiuscola */}
+      <p data-come-paga-riga className="mz-note" aria-label={`${TITOLO_COME_PAGA}: ${accordo.nome}`}>{maiuscola(accordo.frase)}</p>
 
-      {/* Il dettaglio del soggiorno: aperto all'inizio, si chiude toccando il titolo (anche da tastiera) */}
-      <details data-dettaglio-soggiorno open style={{ marginTop: 28, borderTop: `1px solid ${FILO_BLOCCO}`, paddingTop: 16 }}>
-        <summary data-apri-dettaglio style={{ fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{TITOLO_DETTAGLIO_SOGGIORNO}</summary>
+      {/* Il dettaglio del soggiorno: aperto all'inizio, si chiude toccando il titolo */}
+      <details data-dettaglio-soggiorno open style={{ marginTop: 20, borderTop: '1px solid var(--m-line)', paddingTop: 12 }}>
+        <summary data-apri-dettaglio className="mz-lab" style={{ marginTop: 0, cursor: 'pointer' }}>{TITOLO_DETTAGLIO_SOGGIORNO}</summary>
         {conto.righe.map(r => (
-          <div key={r.chiave} data-riga-conto={r.chiave} style={{ padding: '15px 0', borderBottom: `1px solid ${FILO_CAMERE}` }}>
+          <div key={r.chiave} data-riga-conto={r.chiave} style={{ padding: '8px 0', borderBottom: '1px solid var(--m-line)', fontSize: 13 }}>
             <div className={RIGA}>
               <span>{r.titolo}</span>
-              <span style={MONETA}>{r.importo}</span>
+              <span className="mz-disp" style={{ fontSize: 15, whiteSpace: 'nowrap' }}>{r.importo}</span>
             </div>
-            <small className="block" style={{ fontSize: 13, color: DESCRIZIONE, marginTop: 3 }}>{r.dettaglio}</small>
+            <small className="block mz-note" style={{ marginTop: 2 }}>{r.dettaglio}</small>
           </div>
         ))}
         {/* con lo sconto: il prezzo pieno, lo sconto una volta sola, poi il totale concordato */}
         {conto.sconto && (
           <>
-            <div data-prezzo-pieno className={RIGA} style={{ padding: '15px 0', borderBottom: `1px solid ${FILO_CAMERE}` }}>
+            <div data-prezzo-pieno className={RIGA} style={{ padding: '8px 0', borderBottom: '1px solid var(--m-line)', fontSize: 13 }}>
               <span>{RIGA_PREZZO_PIENO}</span>
-              <span style={MONETA}>{conto.totale}</span>
+              <span className="mz-disp" style={{ fontSize: 15, whiteSpace: 'nowrap' }}>{conto.totale}</span>
             </div>
-            <div data-sconto-riga className={RIGA} style={{ padding: '15px 0', borderBottom: `1px solid ${FILO_CAMERE}`, color: OTTONE_SCURO }}>
+            <div data-sconto-riga className={RIGA} style={{ padding: '8px 0', borderBottom: '1px solid var(--m-line)', fontSize: 13, color: 'var(--m-acc)' }}>
               <span>{conto.sconto.testo}</span>
-              <span style={MONETA}>{conto.sconto.importo}</span>
+              <span className="mz-disp" style={{ fontSize: 15, whiteSpace: 'nowrap' }}>{conto.sconto.importo}</span>
             </div>
           </>
         )}
         {/* «Totale soggiorno», o «Totale concordato» se c'è lo sconto: la cifra autorevole, la stessa in cima */}
-        <div data-totale-dettaglio className={RIGA} style={{ padding: '14px 0 3px', fontWeight: 600 }}>
+        <div data-totale-dettaglio className={RIGA} style={{ padding: '10px 0 3px', fontSize: 13, fontWeight: 500 }}>
           <span>{conto.totaleDettaglio}</span>
-          <span style={MONETA}>{conto.daPagare}</span>
+          <span className="mz-disp" style={{ fontSize: 16, whiteSpace: 'nowrap' }}>{conto.daPagare}</span>
         </div>
       </details>
     </div>

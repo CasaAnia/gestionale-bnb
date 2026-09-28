@@ -5,12 +5,14 @@
 import { cent, prenotazioneValida, type PagamentoStat, type PrenotazioneStat } from './tipi.ts'
 import { incassiMese, type Incoerenza } from './cassa.ts'
 
+// I pagamenti storici con «carta» o «altro» restano leggibili (il tipo li
+// conosce), ma dal 28/09/2026 (Home «Maison») si sceglie SOLO fra Contanti e
+// Bonifico, ovunque si scelga il metodo.
 export type MetodoPagamento = 'contanti' | 'bonifico' | 'carta' | 'altro'
-export const METODI_PAGAMENTO: { chiave: MetodoPagamento; label: string }[] = [
+export type MetodoScelto = 'contanti' | 'bonifico'
+export const METODI_PAGAMENTO: { chiave: MetodoScelto; label: string }[] = [
   { chiave: 'contanti', label: 'Contanti' },
   { chiave: 'bonifico', label: 'Bonifico' },
-  { chiave: 'carta', label: 'Carta' },
-  { chiave: 'altro', label: 'Altro' },
 ]
 
 // Quanto manca al saldo, in centesimi (0 se già coperto o oltre)

@@ -10,7 +10,8 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import DaControllare from '@/components/DaControllare'
 import RichiesteHome from '@/components/RichiesteHome'
 import StrisciaFoto from '@/components/maison/StrisciaFoto'
-import { partenzeConResiduo } from '@/lib/incassiHome'
+import { partenzeConResiduo, vociDaIncassare, incassatiOggi } from '@/lib/incassiHome'
+import SoldiHome from '@/components/maison/SoldiHome'
 import { ricaricaDaControllare, useDaControllare } from '@/lib/daControllareDati'
 import NumeriOggi from '@/components/NumeriOggi'
 import PulizieOggi from '@/components/PulizieOggi'
@@ -82,8 +83,11 @@ function calcola(d: DatiHome, td: string, tmr: string, ms: string, nms: string) 
   // Home «Maison» (28/09/2026): le partenze di oggi con un residuo, nella giornata
   const tutte = [...d.prenotazioni, ...d.prenotazioniConMovimenti.filter(b => !d.prenotazioni.some((x: any) => x.id === b.id))]
   const partenzeResiduo = partenzeConResiduo(checkOutOggi, tutte as any, d.tuttiPagamenti as any)
+  // «Da incassare» e «Incassati oggi» (lib/incassiHome): le stesse voci e cifre di daIncassare, con le parole della veste nuova
+  const vociIncasso = vociDaIncassare(d.prenotazioniConMovimenti as any, d.tuttiPagamenti as any, td)
+  const incassiOggi = incassatiOggi(tutte as any, d.tuttiPagamenti as any, td)
 
-  return { cassa, indici, voceIncassi, checkInOggi, checkOutOggi, checkInDomani, checkOutDomani, roomChangesOggi, roomChangesDomani, td, daIncassare: daInc, partenzeResiduo, tutte, pagamenti: d.tuttiPagamenti }
+  return { cassa, indici, voceIncassi, checkInOggi, checkOutOggi, checkInDomani, checkOutDomani, roomChangesOggi, roomChangesDomani, td, daIncassare: daInc, partenzeResiduo, vociIncasso, incassiOggi }
 }
 
 export default function Dashboard() {
@@ -184,17 +188,8 @@ export default function Dashboard() {
         <AvvisoAzione testo={errore} onRiprova={riprova} />
       ) : (
         <>
-          {data.daIncassare?.length > 0 && (
-            <div className="mb-5">
-              <p className="ed-sezione mb-1">Da incassare</p>
-              {data.daIncassare.map((g: any) => (
-                <Link key={g.id} href={`/scheda/${g.id}`} className="flex items-center justify-between py-1.5 border-t border-card-border text-sm">
-                  <span className="font-medium text-green-dark">{g.guest}</span>
-                  <span className="font-bold" style={{ color: '#8a4f2f' }}>€{euro(g.residuoCent)}</span>
-                </Link>
-              ))}
-            </div>
-          )}
+          {/* «Da incassare» e «Incassati oggi» (Home «Maison», 28/09/2026) */}
+          <SoldiHome voci={data.vociIncasso} incassati={data.incassiOggi} onPagato={dopoPagamento} />
 
           {/* Quattro significati separati, identici alle Statistiche (05/09/2026) */}
           <p className="ed-sezione mb-1">Il mese</p>
