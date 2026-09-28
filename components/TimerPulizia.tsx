@@ -7,11 +7,15 @@ import { useEffect, useState } from 'react'
 import { useTimerPulizie, azioneTimer } from '@/lib/pulizieTempiDati'
 import { secondiTimer, minutiTimer, testoCronometro, descriviChiave } from '@/lib/tempoPulizie'
 
-export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVaiA, compatto = false }: {
+export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVaiA, compatto = false, maison = false, etichetta }: {
   chiave: string; nome: string; onMinuti: (n: number, trascorsi: number) => void
   nomeCamera: (bookingId: string) => string | null
   onVaiA?: (chiave: string) => void
   compatto?: boolean
+  /** il timer pieno nella veste «Maison» (foglio «Pulita e recuperato») */
+  maison?: boolean
+  /** compatto: la scritta a sinistra delle cifre («Area comune, corridoio e biancheria») */
+  etichetta?: string
 }) {
   const s = useTimerPulizie()
   const [ora, setOra] = useState(0)
@@ -50,13 +54,31 @@ export default function TimerPulizia({ chiave, nome, onMinuti, nomeCamera, onVai
   }, [attesaRiporto, t, onMinuti])
 
   const altroDescritto = altro ? descriviChiave(altro.chiave, nomeCamera) : null
-  if (compatto) return <section className="home-timer" aria-label={`Timer ${nome}`} data-timer={chiave} data-secondi={secondi} data-in-corso={inCorso ? 1 : 0}>
-    <div className="home-timer-riga"><span>◷ <b role="timer" aria-live="off">{testoCronometro(secondi).padStart(5, '0')}</b></span>
-      <button type="button" disabled={!pronto || (!inCorso && !!altro)} onClick={() => void esegui(inCorso ? 'pausa' : 'avvia')}>{inCorso ? 'Pausa' : secondi ? 'Riprendi' : 'Avvia timer'}</button>
+  // Home «Maison» (28/09/2026): cifre in Cormorant e una parola sottolineata,
+  // «Avvia» / «Pausa» / «Riprendi»; con un altro timer in corso «Avvia» si
+  // attenua e sotto c'è «Un altro timer è in corso: … Metti in pausa».
+  if (compatto) return <section className="mz-timer" aria-label={`Timer ${nome}`} data-timer={chiave} data-secondi={secondi} data-in-corso={inCorso ? 1 : 0}>
+    <div className="mz-tm">{etichetta && <span className="et">{etichetta}</span>}<b role="timer" aria-live="off">{testoCronometro(secondi).padStart(5, '0')}</b>
+      <button type="button" className="mz-lnk q" disabled={!pronto || (!inCorso && !!altro)} onClick={() => void esegui(inCorso ? 'pausa' : 'avvia')}>{inCorso ? 'Pausa' : secondi ? 'Riprendi' : 'Avvia'}</button>
     </div>
-    {altroDescritto && <p className="home-secondario">Un altro timer è in corso: {altroDescritto.nome}. <button type="button" disabled={occupato} onClick={() => void esegui('pausa', altro!.chiave)}>Metti in pausa</button></p>}
-    {s.stato === 'caricamento' && <p className="home-secondario">Lettura del timer…</p>}
-    {(s.nonSincronizzato || s.errore || errore) && <p role="status" className="text-xs text-red-800">{errore || s.errore || 'Timer non sincronizzato: controlla la connessione.'}</p>}
+    {altroDescritto && <p className="mz-note" data-altro-timer>Un altro timer è in corso: {altroDescritto.nome}. <button type="button" className="mz-lnk q" disabled={occupato} onClick={() => void esegui('pausa', altro!.chiave)}>Metti in pausa</button></p>}
+    {s.stato === 'caricamento' && <p className="mz-note">Lettura del timer…</p>}
+    {(s.nonSincronizzato || s.errore || errore) && <p role="status" className="mz-errore">{errore || s.errore || 'Timer non sincronizzato: controlla la connessione.'}</p>}
+  </section>
+  // Dentro il foglio «Pulita e recuperato» (veste «Maison»): stessi comandi del timer pieno, come parole sottolineate
+  if (maison) return <section className="mz-timer" style={{ marginTop: 16 }} aria-label={`Timer ${nome}`} data-timer={chiave} data-secondi={secondi} data-in-corso={inCorso ? 1 : 0}>
+    <span className="mz-lab">Timer · {nome}</span>
+    <div className="mz-tm" style={{ flexWrap: 'wrap', gap: 14 }}><b role="timer" aria-live="off" style={{ fontSize: 24 }}>{testoCronometro(secondi)}</b>
+      <button type="button" className="mz-lnk q" disabled={!pronto || (!inCorso && !!altro)} onClick={() => void esegui(inCorso ? 'pausa' : 'avvia')}>{inCorso ? 'Pausa' : secondi ? 'Riprendi' : 'Avvia'}</button>
+      <button type="button" className="mz-lnk q" disabled={!pronto || !secondi} onClick={() => { setAttesaRiporto(true); void ferma() }}>Ferma e riporta i minuti</button>
+      {!inCorso && secondi > 0 && <button type="button" className="mz-lnk q" disabled={!pronto} onClick={() => void esegui('azzera')}>Azzera timer</button>}
+    </div>
+    <p className="mz-hint">Il timer continua anche chiudendo la scheda. Fermarlo compila i minuti; la conferma della pulizia resta tua. Minuti arrotondati per eccesso.</p>
+    {altroDescritto && <p className="mz-note" data-altro-timer>Un altro timer è in corso: {altroDescritto.nome}. <button type="button" className="mz-lnk q" disabled={occupato} onClick={() => void esegui('pausa', altro!.chiave)}>Metti in pausa · {altroDescritto.nome}</button>
+      {onVaiA && <> <button type="button" className="mz-lnk q" onClick={() => onVaiA(altro!.chiave)}>Vai a {altroDescritto.nome}</button></>}</p>}
+    {s.stato === 'caricamento' && <p className="mz-note">Lettura del timer…</p>}
+    {(s.nonSincronizzato || s.errore) && <p role="status" className="mz-errore">{s.errore ?? 'Timer non sincronizzato: controlla la connessione.'}</p>}
+    {errore && <p role="alert" className="mz-errore">{errore}</p>}
   </section>
   return <section className="border-y border-card-border py-4 my-4" aria-label={`Timer ${nome}`} data-timer={chiave} data-secondi={secondi} data-in-corso={inCorso ? 1 : 0}>
     <p className="text-sm">Timer · {nome}</p><p className="font-serif text-3xl my-2" role="timer" aria-live="off">{testoCronometro(secondi)}</p>

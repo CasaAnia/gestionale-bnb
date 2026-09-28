@@ -84,3 +84,49 @@ test('conferma di salvataggio B: «Salvato», cosa e ora, chiusura dopo 1,2 seco
   const css = leggi('app/maison.css')
   assert.match(css, /\.mz-salvato::before \{[^}]*background: rgba\(246,242,234,\.85\)/)
 })
+
+// ── 11: Pulizie di oggi ──────────────────────────────────────────────────
+import { rigaBiancheria, pulizieDiOggi } from './pulizieOggi.ts'
+test('pulizie di oggi: il cambio biancheria dice «Nome, Nª notte · resta fino al …» (con l’elisione) e niente prossimo arrivo in pagina', () => {
+  assert.equal(rigaBiancheria('Giovanni Serra', 4, '2026-10-05'), 'Giovanni Serra, 4ª notte · resta fino al 5 ottobre')
+  assert.equal(rigaBiancheria('Giovanni Serra', 4, '2026-10-01'), 'Giovanni Serra, 4ª notte · resta fino all\'1 ottobre')
+  assert.equal(rigaBiancheria('Giovanni Serra', 4, '2026-10-08'), 'Giovanni Serra, 4ª notte · resta fino all\'8 ottobre')
+  const lungo = b('s', 'allegra', '2026-09-24', '2026-10-05', { guest_name: 'Giovanni Serra' })
+  const [v] = pulizieDiOggi(camere, [lungo] as never, [], OGGI)
+  assert.equal(v.tipo, 'soggiorno')
+  assert.equal(v.biancheria, 'Giovanni Serra, 4ª notte · resta fino al 5 ottobre')
+  const pagina = leggi('components/PulizieOggi.tsx')
+  assert.match(pagina, /v\.tipo === 'soggiorno'\s*\? v\.biancheria && <p className="pr" data-biancheria>/)
+})
+
+test('pulizie di oggi: l’orario del prossimo arrivo compare SOLO se c’è (mai «orario da chiedere»)', () => {
+  const parte = b('p', 'amelia', '2026-09-25', OGGI, { guest_name: 'Marta Bellini' })
+  const senzaOra = b('a', 'amelia', OGGI, '2026-09-30', { guest_name: 'Paolo Conti' })
+  const [v] = pulizieDiOggi(camere, [parte, senzaOra] as never, [], OGGI)
+  assert.equal(v.prossimo, 'Paolo Conti · oggi')
+  const conOra = { ...senzaOra, check_in_time: '16:00' }
+  assert.equal(pulizieDiOggi(camere, [parte, conOra] as never, [], OGGI)[0].prossimo, 'Paolo Conti · oggi · 16:00')
+  assert.equal(/orario da chiedere/i.test(leggi('components/PulizieOggi.tsx') + leggi('lib/pulizieOggi.ts')), false)
+})
+
+test('pulizie di oggi: con l’arrivo lo stesso giorno NON sono più automatiche (niente «registrata da sola»)', () => {
+  const parte = b('p', 'amelia', '2026-09-25', OGGI)
+  const entra = b('a', 'amelia', OGGI, '2026-09-30')
+  const voci = pulizieDiOggi(camere, [parte, entra] as never, [], OGGI)
+  assert.deepEqual(voci.map(v => v.stato), ['da_fare'])
+  assert.ok(voci[0].daSegnare, 'la voce si segna con «Pulita»')
+  for (const f of ['lib/pulizieOggi.ts', 'components/PulizieOggi.tsx', 'app/pulizie/page.tsx']) assert.equal(/registrata da sola/.test(leggi(f)), false, f)
+})
+
+test('«Rimanda o salta» nella veste nuova: selettore a filo, data a filo, «Annulla» e «Conferma» pieno, stesse date', () => {
+  const c = leggi('components/ControlliPulizia.tsx')
+  const home = c.slice(c.indexOf('if (home) {'))
+  assert.match(home, /className="mz-inl"/)
+  assert.match(home, /'Rimanda al' : 'Salta questa · prossima il'/)
+  assert.match(home, /Nessun altro cambio prima della partenza del/)
+  assert.match(home, /className="mz-cta"[^>]*>\{occupata \? 'Salvo…' : 'Conferma'\}/)
+  // le stesse date di prima
+  assert.match(home, /addDaysStr\(pulizia\.data_prevista > oggi \? pulizia\.data_prevista : oggi, 1\)/)
+  assert.match(home, /addDaysStr\(pulizia\.data_prevista, 4\)/)
+  assert.match(home, /<SalvatoMaison salvato=\{salvato\} onFine=\{fineSalvato\} \/>/)
+})

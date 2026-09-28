@@ -6,6 +6,11 @@
 // tutto e si confronta con quanto inviato prima di dire «salvato».
 import { useCallback, useEffect, useRef, useState } from 'react'
 import TimerPulizia from './TimerPulizia'
+import FoglioMaison, { PiedeMaison } from './maison/FoglioMaison'
+import type { Salvataggio } from './maison/SalvatoMaison'
+import { COSA_SALVATA } from '@/lib/salvatoMaison'
+import { apriSelettore } from './nuova/CampoData'
+import { MESI_LUNGHI } from '@/lib/dateItaliane'
 import { supabase } from '@/lib/supabase'
 import { leggiRecuperiDellePulizie } from '@/lib/biancheriaDati'
 import { inviaOperazionePulizia } from '@/lib/pulizieServizio'
@@ -22,7 +27,8 @@ import {
 } from '@/lib/dotazionePulizie'
 
 export const TIPI_INTERVENTO: Record<TipoPulizia, string> = { fine_soggiorno: 'Fine soggiorno', soggiorno: 'Durante il soggiorno', cambio_camera: 'Cambio camera' }
-const classe = 'ed-pillola-contorno'
+/** Il foglio ha un'altezza fissa, quella del caso più lungo (letti, federe, due file di chip, timer) */
+export const ALTEZZA_FOGLIO_PULIZIA = 780
 const NESSUNO: SenzaMisura = { lenzuolo_sotto: 0, lenzuolo_sopra: 0 }
 // Fotografia del timer che si vedeva quando si sono scritti o riportati i minuti.
 const fotoTimer = (t: TimerSql | null | undefined): TimerVisto | null => t ? { versione: Number(t.versione), trascorsi: Number(t.trascorsi) } : null
@@ -48,8 +54,9 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
   const [bozza, setBozza] = useState<Bozza | null>(null)
   const [errore, setErrore] = useState('')
   const [salvando, setSalvando] = useState(false)
-  const [recuperoAperto, setRecuperoAperto] = useState(false)
   const [pendente, setPendente] = useState(false)
+  // Conferma B (28/09/2026): dopo il salvataggio la spunta, poi il foglio si chiude da solo
+  const [salvato, setSalvato] = useState<(Salvataggio & { risposta: RispostaPulizia }) | null>(null)
   const blocco = useRef(false)
   const timer = useTimerPulizie()
   const chiave = !correzione && pulizia.booking_id ? chiaveTimerPulizia(pulizia.booking_id, pulizia.tipo, pulizia.data_prevista) : null
@@ -93,7 +100,6 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
       setBozza({ data: riga.data_effettiva || riga.data_prevista, assetto, assettoDaConfermare: !salvato, federeScelte: !!salvato || !(assetto.matrimoniali && assetto.ospiti === 1),
         recuperi: rec?.pezzi ?? null, senzaMisura: rec?.senzaMisura ?? NESSUNO, minuti: riga.minuti ?? null,
         versione: riga.aggiornata_at ?? null, versioneRecupero: r.righe[0]?.updated_at ?? null })
-      setRecuperoAperto(!!rec)
     }
     apri().catch(() => { if (viva) setErrore('Non riesco a rileggere questa pulizia. Chiudi e riprova.') })
     return () => { viva = false }
@@ -107,7 +113,10 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
   }
   const riportaMinuti = useCallback((n: number) => { setBozza(b => b ? { ...b, minuti: n || null } : b); setVisto(fotoTimer(ultimoT.current)) }, [])
 
-  if (!bozza) return <Guscio camera={camera} tipo={pulizia.tipo} onChiudi={onChiudi}><p className="text-sm mt-4">{errore || 'Lettura della pulizia…'}</p></Guscio>
+  const sottotitolo = `${TIPI_INTERVENTO[pulizia.tipo]} · ${correzione ? 'Correzione' : 'Pulita e recuperato'}`
+  if (!bozza) return <FoglioMaison titolo={camera} sottotitolo={sottotitolo} altezza={ALTEZZA_FOGLIO_PULIZIA} onChiudi={onChiudi} dati="pulizia">
+    <p className="mz-hint" style={{ marginTop: 16 }}>{errore || 'Lettura della pulizia…'}</p>
+  </FoglioMaison>
 
   const dotazione = dotazioneDaAssetto(bozza.assetto)
   const oltre = bozza.recuperi ? recuperiOltre(dotazione, bozza.recuperi, bozza.senzaMisura) : []
@@ -153,57 +162,75 @@ export default function SchedaPulizia({ camera, pulizia, booking, oggi, ultimaId
         setVisto(nuovo); setErrore(`${TIMER_CAMBIATO} Ora il timer segna ${testoCronometro(nuovo?.trascorsi ?? 0)}.`); return
       }
       if (esito.errore || !esito.risposta) { setErrore(esito.errore || 'Risposta incompleta. Premi Riprova per verificare il salvataggio.'); return }
-      if (pendente) { onSalvato?.(esito.risposta); ricaricaNumeriOggiOvunque(); void ricaricaDaControllare(); onChiudi(); return }
+      if (pendente) { setSalvato({ cosa: COSA_SALVATA.pulizia(camera), quando: new Date(), risposta: esito.risposta }); return }
       // Rilettura completa: la risposta deve coincidere con quanto inviato e con il database.
       const verifica = await verificaSalvataggio(esito.risposta, { data: bozza.data, assetto, minuti: bozza.minuti, recupero })
       if (verifica) { setErrore(verifica); return }
-      onSalvato?.(esito.risposta)
-      ricaricaNumeriOggiOvunque(); void ricaricaDaControllare()
-      onChiudi()
+      setSalvato({ cosa: COSA_SALVATA.pulizia(camera), quando: new Date(), risposta: esito.risposta })
     } finally { blocco.current = false; setSalvando(false) }
   }
 
   const a = bozza.assetto
-  return <Guscio camera={camera} tipo={pulizia.tipo} onChiudi={salvando ? () => {} : onChiudi}>
-    <p className="text-sm text-stone mt-2">Dotazione del soggiorno che stai pulendo. Questi numeri resteranno nel registro.</p>
-    {bozza.assettoDaConfermare && <p className="text-sm mt-2" data-da-confermare>Letti non documentati: questa è una proposta dal soggiorno, da confermare.</p>}
-    <label className="block text-sm mt-4">Fatta il<input className="ed-campo mt-1 block" type="date" max={oggi} value={bozza.data} onChange={e => setBozza({ ...bozza, data: e.target.value })} /></label>
-    <div className="grid grid-cols-3 gap-3 mt-4">{([['matrimoniali', 'Matrimoniali'], ['singoli', 'Singoli'], ['ospiti', 'Ospiti']] as const).map(([k, label]) => <label key={k} className="text-xs">{label}<input className="ed-campo w-full mt-1" type="number" inputMode="numeric" min={k === 'ospiti' ? 1 : 0} max={k === 'ospiti' ? 4 : k === 'matrimoniali' ? 1 : 2} value={a[k]} onChange={e => cambiaAssetto({ [k]: Number(e.target.value) })} /></label>)}</div>
-    {!!a.matrimoniali && <div className="mt-4"><p className="text-sm mb-2">Federe sul matrimoniale{!bozza.federeScelte ? ' · scegli per questa pulizia' : ''}</p><div className="flex gap-3">{([2, 4] as const).map(n => <button type="button" key={n} aria-pressed={bozza.federeScelte && a.federeMatrimoniale === n} className={bozza.federeScelte && a.federeMatrimoniale === n ? 'ed-pillola' : classe} onClick={() => { setBozza({ ...bozza, assetto: { ...a, federeMatrimoniale: n }, federeScelte: true, assettoDaConfermare: false }); setErrore('') }}>{n} federe</button>)}</div></div>}
-    <p className="text-sm mt-3" data-dotazione={totalePezzi(dotazione)}>{dotazione.federe} federe totali · {a.ospiti} {a.ospiti === 1 ? 'completo' : 'completi'} asciugamani · 1 tappeto bagno · 1 scendidoccia</p>
-    <div className="ed-riga py-4 mt-4"><button type="button" className={classe} aria-expanded={recuperoAperto} onClick={() => setRecuperoAperto(!recuperoAperto)}>{recuperoAperto ? 'Chiudi quantità' : 'Segna il recuperato'}</button><button type="button" className={`${classe} ml-2 mt-2`} onClick={() => { setBozza({ ...bozza, recuperi: pezziVuoti() }); setRecuperoAperto(false) }}>Niente recuperato</button><p className="text-xs text-stone mt-2" data-recuperati={bozza.recuperi ? totalePezzi(bozza.recuperi) : ''}>{bozza.recuperi ? (totalePezzi(bozza.recuperi) === 0 ? 'Niente recuperato' : totalePezzi(bozza.recuperi) === 1 ? '1 pezzo recuperato' : `${totalePezzi(bozza.recuperi)} pezzi recuperati`) : 'Recuperi non ancora annotati: puoi aggiungerli anche dopo.'}</p></div>
-    {totaleSenzaMisura(bozza.senzaMisura) > 0 && <div className="text-sm py-2" data-senza-misura><p>Nello storico: {bozza.senzaMisura.lenzuolo_sotto ? `${bozza.senzaMisura.lenzuolo_sotto} lenzuolo sotto` : ''}{bozza.senzaMisura.lenzuolo_sotto && bozza.senzaMisura.lenzuolo_sopra ? ' e ' : ''}{bozza.senzaMisura.lenzuolo_sopra ? `${bozza.senzaMisura.lenzuolo_sopra} lenzuolo sopra` : ''} senza misura. Restano così finché non li riporti sulla misura giusta.</p><button type="button" className={`${classe} mt-2`} onClick={() => { setBozza({ ...bozza, senzaMisura: NESSUNO, recuperi: bozza.recuperi ?? pezziVuoti() }); setRecuperoAperto(true) }}>Riporta sulla misura</button></div>}
-    {recuperoAperto && <div className="flex flex-wrap gap-3 py-3">{VOCI_DOTAZIONE.filter(([k]) => dotazione[k] > 0 || (bozza.recuperi?.[k] ?? 0) > 0).map(([k, label]) => { const n = bozza.recuperi?.[k] ?? 0; return <button type="button" key={k} aria-label={`Recuperati ${label}: ${n} su ${dotazione[k]}`} aria-pressed={n > 0} data-voce={k} data-valore={n} className={n > 0 ? 'ed-pillola' : classe} onClick={() => tocca(k)}>{label} · {n}</button> })}<p className="text-xs text-stone w-full">Un tocco aggiunge un pezzo recuperato; dopo il massimo torna a zero.</p></div>}
-    {oltre.length > 0 && <p role="alert" className="text-sm text-red-800 mt-2" data-recuperi-oltre>Recuperi oltre la dotazione di questi letti: {oltre.join(', ')}. Correggili prima di salvare.</p>}
-    {lavaggio && <p className="text-sm mt-3" data-da-lavare={totalePezzi(lavaggio)}>{totalePezzi(dotazione)} preparati − {totalePezzi(bozza.recuperi!)} recuperati = <strong>{totalePezzi(lavaggio)} pezzi da lavare</strong></p>}
-    {chiave && <TimerPulizia chiave={chiave} nome={camera} onMinuti={riportaMinuti} nomeCamera={nomeCamera} onVaiA={onVaiA} />}
-    {correzione && <p className="text-xs text-stone mt-4">Correzione: i minuti qui sotto sono quelli salvati, nessun timer li sostituisce.</p>}
-    <label className="block text-sm mt-4">Minuti effettivi <span className="text-stone">· facoltativi</span><input className="ed-campo w-24 block mt-2" type="number" inputMode="numeric" min="1" max="1440" value={bozza.minuti ?? ''} onChange={e => { setBozza({ ...bozza, minuti: e.target.value === '' ? null : Number(e.target.value) }); setVisto(fotoTimer(t)) }} /></label>
-    {timerNonRiportato && <p className="text-xs text-stone mt-2">Il timer segna {testoCronometro(t!.trascorsi)}: riporta i minuti prima di confermare.</p>}
-    {pendente && <p role="status" className="text-sm mt-3">Un salvataggio di questa camera attende conferma: premi Riprova per verificarlo senza duplicarlo.</p>}
-    {errore && <p role="alert" className="text-red-800 my-3">{errore}</p>}
-    <div className="flex justify-end gap-3 mt-6"><button type="button" className={classe} disabled={salvando} onClick={onChiudi}>Annulla</button><button type="button" className="ed-pillola disabled:opacity-40" disabled={!bozza.federeScelte || salvando || !bozza.data || bozza.data > oggi} onClick={() => void salva()}>{salvando ? 'Salvo…' : pendente ? 'Riprova' : correzione ? 'Salva correzione' : 'Conferma pulizia'}</button></div>
-  </Guscio>
+  const pezzi = bozza.recuperi ? totalePezzi(bozza.recuperi) : null
+  const testoPezzi = pezzi === null ? '' : pezzi === 0 ? 'Niente recuperato' : pezzi === 1 ? '1 pezzo recuperato' : `${pezzi} pezzi recuperati`
+  const chip = ([k, label]: [keyof PezziPulizie, string]) => {
+    const n = bozza.recuperi?.[k] ?? 0
+    return <button type="button" key={k} aria-label={`Recuperati ${VOCI_DOTAZIONE.find(v => v[0] === k)![1]}: ${n} su ${dotazione[k]}`} aria-pressed={n > 0} data-voce={k} data-valore={n}
+      className={`mz-chip ${n > 0 ? 'on' : ''}`} onClick={() => tocca(k)}>{label}{n > 0 && <b>{n}</b>}</button>
+  }
+  const visibile = ([k]: [keyof PezziPulizie, string]) => dotazione[k] > 0 || (bozza.recuperi?.[k] ?? 0) > 0
+  const conMisura = dotazione.sotto_matrimoniale + dotazione.sopra_matrimoniale > 0 && dotazione.sotto_singolo + dotazione.sopra_singolo > 0
+  const lenzuola = chipLenzuola(conMisura).filter(visibile)
+  const asciugamani = CHIP_ASCIUGAMANI.filter(visibile)
+  return <FoglioMaison titolo={camera} sottotitolo={sottotitolo} altezza={ALTEZZA_FOGLIO_PULIZIA} dati="pulizia"
+    onChiudi={salvando || salvato ? () => {} : onChiudi}
+    salvato={salvato} onFineSalvato={() => { if (salvato) onSalvato?.(salvato.risposta); ricaricaNumeriOggiOvunque(); void ricaricaDaControllare(); onChiudi() }}
+    piede={<PiedeMaison azione={pendente ? 'Riprova' : correzione ? 'Salva correzione' : 'Conferma pulizia'} onAzione={() => void salva()} onAnnulla={onChiudi}
+      salvando={salvando} disabilitato={!bozza.federeScelte || !bozza.data || bozza.data > oggi || !!salvato}
+      totale={<span data-recuperati={bozza.recuperi ? totalePezzi(bozza.recuperi) : ''}>{testoPezzi}</span>} dati="pulizia" />}>
+    <div data-scheda-pulizia={camera}>
+    <p className="mz-hint">Dotazione del soggiorno che stai pulendo. Questi numeri resteranno nel registro.</p>
+    {bozza.assettoDaConfermare && <p className="mz-hint" data-da-confermare>Letti non documentati: questa è una proposta dal soggiorno, da confermare.</p>}
+    <label className="block">
+      <span className="mz-lab">Fatta il</span>
+      <span className="relative block">
+        <span className="mz-fld" data-data-scritta>{dataFatta(bozza.data)}</span>
+        <input aria-label="Fatta il" type="date" max={oggi} value={bozza.data} onChange={e => setBozza({ ...bozza, data: e.target.value })}
+          onClick={e => apriSelettore(e.currentTarget)} style={{ position: 'absolute', inset: '-8px 0', width: '100%', opacity: 0, cursor: 'pointer' }} />
+      </span>
+    </label>
+    <div className="mz-g3" style={{ marginTop: 16 }}>{([['matrimoniali', 'Matrimoniali'], ['singoli', 'Singoli'], ['ospiti', 'Ospiti']] as const).map(([k, label]) => <label key={k}><span className="mz-lab">{label}</span><input className="mz-fld grande" type="number" inputMode="numeric" min={k === 'ospiti' ? 1 : 0} max={k === 'ospiti' ? 4 : k === 'matrimoniali' ? 1 : 2} value={a[k]} onChange={e => cambiaAssetto({ [k]: Number(e.target.value) })} /></label>)}</div>
+    {!!a.matrimoniali && <><span className="mz-lab">Federe sul matrimoniale{!bozza.federeScelte ? ' · scegli per questa pulizia' : ''}</span><div className="mz-seg">{([2, 4] as const).map(n => <button type="button" key={n} aria-pressed={bozza.federeScelte && a.federeMatrimoniale === n} className={bozza.federeScelte && a.federeMatrimoniale === n ? 'on' : ''} onClick={() => { setBozza({ ...bozza, assetto: { ...a, federeMatrimoniale: n }, federeScelte: true, assettoDaConfermare: false }); setErrore('') }}>{n} federe</button>)}</div></>}
+    <p className="mz-note" data-dotazione={totalePezzi(dotazione)}>{dotazione.federe} federe totali · {a.ospiti} {a.ospiti === 1 ? 'completo' : 'completi'} asciugamani · 1 tappeto bagno · 1 scendidoccia</p>
+    {totaleSenzaMisura(bozza.senzaMisura) > 0 && <div className="mz-note" data-senza-misura><p>Nello storico: {bozza.senzaMisura.lenzuolo_sotto ? `${bozza.senzaMisura.lenzuolo_sotto} lenzuolo sotto` : ''}{bozza.senzaMisura.lenzuolo_sotto && bozza.senzaMisura.lenzuolo_sopra ? ' e ' : ''}{bozza.senzaMisura.lenzuolo_sopra ? `${bozza.senzaMisura.lenzuolo_sopra} lenzuolo sopra` : ''} senza misura. Restano così finché non li riporti sulla misura giusta.</p><button type="button" className="mz-lnk q" style={{ marginTop: 6 }} onClick={() => setBozza({ ...bozza, senzaMisura: NESSUNO, recuperi: bozza.recuperi ?? pezziVuoti() })}>Riporta sulla misura</button></div>}
+    {lenzuola.length > 0 && <><span className="mz-lab">Recuperato · Lenzuola</span><div className="mz-chips">{lenzuola.map(chip)}</div></>}
+    {asciugamani.length > 0 && <><span className="mz-lab">Recuperato · Asciugamani</span><div className="mz-chips">{asciugamani.map(chip)}</div></>}
+    <p className="mz-note">Un tocco aggiunge un pezzo recuperato; dopo il massimo torna a zero.{bozza.recuperi ? '' : ' Recuperi non ancora annotati: puoi aggiungerli anche dopo.'} <button type="button" className="mz-lnk q" onClick={() => setBozza({ ...bozza, recuperi: pezziVuoti() })}>Niente recuperato</button></p>
+    {oltre.length > 0 && <p role="alert" className="mz-errore" data-recuperi-oltre>Recuperi oltre la dotazione di questi letti: {oltre.join(', ')}. Correggili prima di salvare.</p>}
+    {lavaggio && <p className="mz-note" data-da-lavare={totalePezzi(lavaggio)}>{totalePezzi(dotazione)} preparati − {totalePezzi(bozza.recuperi!)} recuperati = <strong style={{ fontWeight: 500, color: 'var(--m-ink)' }}>{totalePezzi(lavaggio)} pezzi da lavare</strong></p>}
+    {chiave && <TimerPulizia maison chiave={chiave} nome={camera} onMinuti={riportaMinuti} nomeCamera={nomeCamera} onVaiA={onVaiA} />}
+    {correzione && <p className="mz-note">Correzione: i minuti qui sotto sono quelli salvati, nessun timer li sostituisce.</p>}
+    <label className="block"><span className="mz-lab">Minuti effettivi · facoltativi</span><input className="mz-fld" style={{ width: 80 }} type="number" inputMode="numeric" min="1" max="1440" value={bozza.minuti ?? ''} onChange={e => { setBozza({ ...bozza, minuti: e.target.value === '' ? null : Number(e.target.value) }); setVisto(fotoTimer(t)) }} /></label>
+    {timerNonRiportato && <p className="mz-note">Il timer segna {testoCronometro(t!.trascorsi)}: riporta i minuti prima di confermare.</p>}
+    {pendente && <p role="status" className="mz-note">Un salvataggio di questa camera attende conferma: premi Riprova per verificarlo senza duplicarlo.</p>}
+    {errore && <p role="alert" className="mz-errore">{errore}</p>}
+    </div>
+  </FoglioMaison>
 }
 
-function Guscio({ camera, tipo, onChiudi, children }: { camera: string; tipo: TipoPulizia; onChiudi: () => void; children: React.ReactNode }) {
-  const scheda = useRef<HTMLDivElement>(null)
-  const chiudi = useRef(onChiudi)
-  useEffect(() => { chiudi.current = onChiudi }, [onChiudi])
-  // Il fuoco entra nella scheda all'apertura e torna al comando che l'ha aperta.
-  useEffect(() => {
-    const prima = document.activeElement as HTMLElement | null
-    scheda.current?.focus()
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') chiudi.current() }
-    window.addEventListener('keydown', esc)
-    return () => { window.removeEventListener('keydown', esc); prima?.focus?.() }
-  }, [])
-  return <div className="fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center p-3" role="dialog" aria-modal="true" aria-label={`Pulizia ${camera}`} data-scheda-pulizia={camera}>
-    <div ref={scheda} tabIndex={-1} className="w-full max-w-xl max-h-[90dvh] overflow-y-auto bg-cream p-5 rounded-2xl shadow-lg outline-none">
-      <h2 className="font-serif text-2xl">{camera} · {TIPI_INTERVENTO[tipo]}</h2>
-      {children}
-    </div>
-  </div>
+// I chip del recuperato come nel riferimento (28/09/2026): «Federa, Sotto,
+// Sopra» e «Telo doccia, Viso, Mani, Tappetino doccia, Tappeto bagno». Con un
+// matrimoniale E un singolo le lenzuola dicono anche la misura.
+function chipLenzuola(conMisura: boolean): [keyof PezziPulizie, string][] {
+  return [['federe', 'Federa'],
+    ['sotto_matrimoniale', conMisura ? 'Sotto matrimoniale' : 'Sotto'], ['sopra_matrimoniale', conMisura ? 'Sopra matrimoniale' : 'Sopra'],
+    ['sotto_singolo', conMisura ? 'Sotto singolo' : 'Sotto'], ['sopra_singolo', conMisura ? 'Sopra singolo' : 'Sopra']]
+}
+const CHIP_ASCIUGAMANI: [keyof PezziPulizie, string][] = [['telo_doccia', 'Telo doccia'], ['asciugamano_viso', 'Viso'], ['asciugamano_mani', 'Mani'], ['scendidoccia', 'Tappetino doccia'], ['tappeto_bagno', 'Tappeto bagno']]
+/** «28 settembre 2026» */
+function dataFatta(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  return iso ? `${d} ${MESI_LUNGHI[m - 1]} ${y}` : 'da scegliere'
 }
 
 // Confronto fra quanto inviato, la risposta del database e una nuova lettura.

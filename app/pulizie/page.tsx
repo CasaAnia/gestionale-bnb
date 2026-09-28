@@ -171,10 +171,11 @@ export default function Pulizie() {
             <div className="flex justify-between items-baseline gap-3"><h2 className="font-serif text-2xl">{c.nome}</h2><span className="text-xs text-stone">{TIPI_INTERVENTO[p.tipo]}{rit}</span></div>
             <p className="text-sm mt-2">{lettiProposti(c.nome, b, td)}</p>
             <p className="text-xs text-stone mt-1">{p.tipo === 'soggiorno' ? `${nomeConAltri(b)} resta · pulizia 4 notti` : p.tipo === 'cambio_camera' ? `${nomeConAltri(b)} va in ${breve(p.cambioCameraVerso!.room_id)}` : p.prevista === td ? `è partito ${nomeOspite(b)}` : `partenza del ${dataNumerica(p.prevista)} · ${nomeOspite(b)}`}{i === 0 && c.arrivo ? ` · ${testoArrivo(c.arrivo)}` : ''}{i === 0 && c.priorita ? ` · ${PRIORITA[c.priorita]}` : ''}</p>
-            {p.automatica ? <p className="text-xs text-stone mt-3">Cambio ospite: la pulizia è registrata da sola, non c’è nulla da segnare. Se serve la correggi nel Registro.</p> : <>
+            {/* Dal 28/09/2026 anche il cambio ospite dello stesso giorno si segna a mano, come le altre */}
+            <>
               <button type="button" className="ed-pillola mt-4 disabled:opacity-40" disabled={!!saving} onClick={() => apriPulizia(p)}>Registra pulizia · {c.nome}</button>
               <div className="flex flex-wrap gap-3 mt-3"><button type="button" className={`${classe} disabled:opacity-40`} disabled={!!saving} onClick={() => void sposta(p, 1)}>Domani · {c.nome}</button><button type="button" className={`${classe} disabled:opacity-40`} disabled={!!saving} onClick={() => void sposta(p, 2)}>Tra due giorni · {c.nome}</button>{p.tipo === 'soggiorno' && <button type="button" className={`${classe} disabled:opacity-40`} disabled={!!saving} onClick={() => void sposta(p, null)}>Salta questo cambio · {c.nome}</button>}</div>
-            </>}
+            </>
           </div> })}
         {c.cronologia.length > 0 && <div className="mt-3"><button type="button" className="ed-azione ed-azione-tenue" aria-expanded={!!spiega[c.room.id]} onClick={() => setSpiega(s => ({ ...s, [c.room.id]: !s[c.room.id] }))}>{spiega[c.room.id] ? 'nascondi la cronologia' : 'perché questa data?'}</button>
           {spiega[c.room.id] && <div className="mt-2 text-xs text-stone">{c.cronologia.map((v, i) => <p key={i} className="py-0.5">{dataNumerica(v.data)} · {v.testo}{v.registro === 'ricostruita' ? ' · ricostruito, esito ignoto' : v.registro === 'futura' ? ' · previsto' : ''}</p>)}</div>}</div>}

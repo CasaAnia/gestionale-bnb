@@ -170,7 +170,7 @@ export default function Dashboard() {
           e della striscia; senza pulizie non compare. Le pulizie stanno SOLO qui:
           «Da controllare» non le ripete più (Ania, 11/09/2026: «due stanze sopra e
           tre sotto è confusionale, voglio vedere da fare oggi») */}
-      <div className="p-4 home-approvata"><PulizieOggi dati={numeriOggi} /></div>
+      <PulizieOggi dati={numeriOggi} />
 
       {/* «Da controllare» (versione B, 06/09/2026; in cima dal 07/09/2026): striscia
           con i conteggi e sezione delle eccezioni SOPRA i numeri del giorno; con

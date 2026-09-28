@@ -274,10 +274,11 @@ test('AUTOMATICA · partenza e arrivo lo stesso giorno → pulizia fatta da sola
   assert.equal(auto[0].partenza.id, p.id)
   assert.equal(auto[0].arrivo.id, a.id)
   assert.equal(auto[0].tipo, 'fine_soggiorno')
-  // il giorno stesso resta in «Oggi» come lavoro, ma automatica e mai in ritardo
+  // il giorno stesso resta in «Oggi» come lavoro; dal 28/09/2026 (Home
+  // «Maison», novità 3) è una voce da fare normale, non più automatica
   const oggi = pulizieAperte([p, a], AMBRA, '2026-08-30', [])
   assert.equal(oggi.length, 1)
-  assert.equal(oggi[0].automatica, true)
+  assert.equal('automatica' in oggi[0], false)
   assert.equal(oggi[0].ritardo, 0)
   assert.equal(prioritaDi(oggi[0], prossimoArrivo([p, a], AMBRA, '2026-08-30')), 'urgente')
 })
@@ -287,16 +288,16 @@ test('AUTOMATICA · arrivo il giorno dopo → sì; due giorni dopo → no', () =
   const domani = prenotazione({ room_id: AMBRA, check_in: '2026-08-31', check_out: '2026-09-02' })
   assert.equal(pulizieAutomatiche([p, domani], [], '2026-09-04').length, 1)
   const oggi = pulizieAperte([p, domani], AMBRA, '2026-08-30', [])
-  assert.equal(oggi[0].automatica, true)
+  assert.equal('automatica' in oggi[0], false)
   assert.equal(prioritaDi(oggi[0], prossimoArrivo([p, domani], AMBRA, '2026-08-30')), 'alta')
-  // ...ma la notifica della sera non la conta fra gli arretrati
-  assert.equal(calcolaNotifica(rooms, [p, domani], [], '2026-08-30').inRitardo.length, 0)
+  // dal 28/09/2026 è una pulizia da fare come le altre: la notifica della sera la ricorda («era per oggi»)
+  assert.equal(calcolaNotifica(rooms, [p, domani], [], '2026-08-30').inRitardo.length, 1)
 
   const dueGiorni = prenotazione({ room_id: AMBRA, check_in: '2026-09-01', check_out: '2026-09-03' })
   assert.equal(pulizieAutomatiche([p, dueGiorni], [], '2026-09-04').length, 0)
   const aperta = pulizieAperte([p, dueGiorni], AMBRA, '2026-08-30', [])
   assert.equal(aperta.length, 1)
-  assert.equal(aperta[0].automatica, undefined)
+  assert.equal('automatica' in aperta[0], false)
 })
 
 test('AUTOMATICA · partenza senza arrivo → niente: si segna a mano come oggi', () => {

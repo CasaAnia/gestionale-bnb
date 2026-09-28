@@ -13,6 +13,10 @@ import { leggiOperazionePulizia, type RichiestaPulizia, type RispostaPulizia } f
 import { inviaOperazionePulizia, leggiPersonePulizia } from '@/lib/pulizieServizio'
 import { ricaricaNumeriOggiOvunque } from '@/lib/numeriOggiDati'
 import { ricaricaDaControllare } from '@/lib/daControllareDati'
+import SalvatoMaison, { type Salvataggio } from './maison/SalvatoMaison'
+import { COSA_SALVATA } from '@/lib/salvatoMaison'
+import { apriSelettore } from './nuova/CampoData'
+import { dataBreve } from '@/lib/pulizieOggi'
 
 type Props = {
   camera: string; oggi: string; pulizia: Decisione; ultimaId: string | null
@@ -62,6 +66,16 @@ export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, pers
     return () => { viva = false }
   }, [confermata?.id, rilettura])
 
+  // Home «Maison» (28/09/2026): dopo «Conferma» di Rimanda/Salta il pannello
+  // mostra la conferma B; la rilettura della Home parte quando si chiude,
+  // altrimenti la voce sparirebbe sotto la spunta.
+  const [salvato, setSalvato] = useState<Salvataggio | null>(null)
+  const rinviaRilettura = useRef(false)
+  function fineSalvato() {
+    setSalvato(null); setSposta(null); setMenuSposta(false)
+    ricaricaNumeriOggiOvunque(); void ricaricaDaControllare()
+  }
+
   async function invia(richiesta: RichiestaPulizia | null): Promise<string | null> {
     if (blocco.current) return 'Salvataggio già in corso.'
     blocco.current = true; setOccupata(true); setErrore(null)
@@ -76,9 +90,14 @@ export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, pers
       if (esito.risposta) {
         const stessa = confermata ? esito.risposta.pulizia.id === confermata.id : esito.risposta.pulizia.booking_id === pulizia.booking_id && esito.risposta.pulizia.tipo === pulizia.tipo && esito.risposta.pulizia.data_prevista === pulizia.data_prevista
         if (stessa && esito.risposta.pulizia.stato === 'fatta') setConfermata(esito.risposta.pulizia)
-        if (stessa) setRecupero(esito.risposta.recupero); setScheda(null); setSposta(null)
+        if (stessa) setRecupero(esito.risposta.recupero); setScheda(null)
         onSalvato?.(esito.risposta)
-        ricaricaNumeriOggiOvunque(); void ricaricaDaControllare()
+        if (rinviaRilettura.current && richiesta?.azione === 'registra' && (richiesta.pulizia.stato === 'rimandata' || richiesta.pulizia.stato === 'saltata')) {
+          setSalvato({ cosa: (richiesta.pulizia.stato === 'rimandata' ? COSA_SALVATA.rimandata : COSA_SALVATA.saltata)(camera), quando: new Date() })
+        } else {
+          setSposta(null)
+          ricaricaNumeriOggiOvunque(); void ricaricaDaControllare()
+        }
       }
       return null
     } finally { blocco.current = false; setOccupata(false) }
@@ -105,6 +124,60 @@ export default function ControlliPulizia({ camera, oggi, pulizia, ultimaId, pers
   const letto = recupero ? recuperoDaRiga(recupero as unknown as Record<string, unknown>) : null
   const pezzi = letto ? totalePezzi(letto.pezzi) + totaleSenzaMisura(letto.senzaMisura) : 0
   const riepilogo = letto && pezzi > 0 ? `Recuperato: ${pezzi === 1 ? '1 pezzo' : `${pezzi} pezzi`}` : null
+  // ── Home «Maison» (28/09/2026) ────────────────────────────────────────
+  // Timer compatto, poi «Pulita» (ottone), «Pulita e recuperato» e «Rimanda o
+  // salta» (grigie). «Rimanda o salta» si apre sotto la voce come prima:
+  // selettore «Rimanda | Salta» a filo, la data a filo, la frase sulla
+  // partenza quando vale, «Annulla» e «Conferma» pieno. Stesse date di prima.
+  if (home) {
+    const apriSposta = () => {
+      if (menuSposta) { setMenuSposta(false); setSposta(null); return }
+      setMenuSposta(true)
+      setSposta({ stato: 'rimandata', data: addDaysStr(pulizia.data_prevista > oggi ? pulizia.data_prevista : oggi, 1) })
+    }
+    const conferma = () => { rinviaRilettura.current = true; void registra(sposta!.stato).finally(() => { rinviaRilettura.current = false }) }
+    return <div data-controlli-pulizia>
+      {!confermata && pulizia.booking_id && <TimerPulizia compatto chiave={chiaveTimerPulizia(pulizia.booking_id, pulizia.tipo, pulizia.data_prevista)} nome={camera} nomeCamera={id => id === pulizia.booking_id ? camera : null} onMinuti={apriRecupero} />}
+      <div className="ac">
+        {confermata ? <span className="mz-lnk" data-fatta>✓ Pulita</span>
+          : <button type="button" className="mz-lnk" onClick={() => timer && (timer.avviato_at || timer.trascorsi > 0) ? apriRecupero() : void registra('fatta')} disabled={occupata || pendente} data-pulita>{occupata && !sposta ? 'Salvo…' : 'Pulita'}</button>}
+        <button type="button" className="mz-lnk q" onClick={apriRecupero} disabled={occupata || pendente} data-recuperato>{!confermata ? 'Pulita e recuperato' : riepilogo ? 'Modifica recupero' : 'Recuperato'}</button>
+        {!confermata && <button type="button" className={menuSposta ? 'mz-lnk' : 'mz-lnk q'} style={menuSposta ? { borderColor: 'var(--m-acc)' } : undefined} disabled={occupata || pendente} onClick={apriSposta} aria-expanded={menuSposta} data-rimanda-o-salta>{menuSposta ? 'Rimanda o salta ⌃' : 'Rimanda o salta'}</button>}
+      </div>
+      {riepilogo && <p className="mz-note" data-riepilogo-recupero>{riepilogo}</p>}
+      {partenza && confermata?.tipo === 'soggiorno' && confermata.data_effettiva && <p className="mz-note">{addDaysStr(confermata.data_effettiva, 4) >= partenza ? 'Nessun altro cambio prima della partenza.' : `Prossimo cambio: ${addDaysStr(confermata.data_effettiva, 4).split('-').reverse().join('/')}`}</p>}
+      {!confermata && menuSposta && sposta && <div className="mz-inl" style={{ position: 'relative' }} data-rimanda-aperto>
+        <div className="mz-seg" role="group" aria-label="Rimanda o salta">
+          <button type="button" className={sposta.stato === 'rimandata' ? 'on' : ''} aria-pressed={sposta.stato === 'rimandata'} disabled={occupata || pendente}
+            onClick={() => setSposta({ stato: 'rimandata', data: addDaysStr(pulizia.data_prevista > oggi ? pulizia.data_prevista : oggi, 1) })}>Rimanda</button>
+          {pulizia.tipo === 'soggiorno' && <button type="button" className={sposta.stato === 'saltata' ? 'on' : ''} aria-pressed={sposta.stato === 'saltata'} disabled={occupata || pendente}
+            onClick={() => setSposta({ stato: 'saltata', data: addDaysStr(pulizia.data_prevista, 4) })}>Salta</button>}
+        </div>
+        <label className="row">
+          <span>{sposta.stato === 'rimandata' ? 'Rimanda al' : 'Salta questa · prossima il'}</span>
+          <span className="relative" style={{ width: 140 }}>
+            <span className="mz-fld" style={{ textAlign: 'right', fontSize: 15 }} data-data-scritta>{dataBreve(sposta.data)}</span>
+            <input type="date" aria-label="Prossima pulizia" min={addDaysStr(pulizia.data_prevista, 1)} value={sposta.data} onChange={e => setSposta({ ...sposta, data: e.target.value })} disabled={occupata || pendente}
+              onClick={e => apriSelettore(e.currentTarget)} style={{ position: 'absolute', inset: '-8px 0', width: '100%', opacity: 0, cursor: 'pointer' }} />
+          </span>
+        </label>
+        {partenza && sposta.data >= partenza && <p className="mz-note">Nessun altro cambio prima della partenza del {partenza.split('-').reverse().join('/')}.</p>}
+        <div className="mz-foot">
+          <span />
+          <span className="acts">
+            <button type="button" className="mz-lnk q" disabled={occupata || pendente} onClick={() => { setSposta(null); setMenuSposta(false) }}>Annulla</button>
+            <button type="button" className="mz-cta" disabled={occupata || pendente || sposta.data <= pulizia.data_prevista} onClick={conferma}>{occupata ? 'Salvo…' : 'Conferma'}</button>
+          </span>
+        </div>
+        {salvato && <SalvatoMaison salvato={salvato} onFine={fineSalvato} />}
+      </div>}
+      {(errore || pendente) && <AvvisoAzione testo={errore || 'Un salvataggio attende conferma. Premi Riprova.'} className="mt-2" onRiprova={pendente ? () => void invia(null) : () => window.location.reload()} />}
+      {scheda && <SchedaPulizia camera={camera} pulizia={scheda} oggi={oggi} ultimaId={ultimaId} onChiudi={() => setScheda(null)}
+        nomeCamera={id => id === pulizia.booking_id ? camera : null}
+        onSalvato={r => { if (r.pulizia.stato === 'fatta' && (!confermata || r.pulizia.id === confermata.id)) setConfermata(r.pulizia); setRecupero(r.recupero); setRilettura(x => x + 1); onSalvato?.(r) }} />}
+    </div>
+  }
+
   return <div className="mt-2" data-controlli-pulizia>
     {home && !confermata && pulizia.booking_id && <TimerPulizia compatto chiave={chiaveTimerPulizia(pulizia.booking_id, pulizia.tipo, pulizia.data_prevista)} nome={camera} nomeCamera={id => id === pulizia.booking_id ? camera : null} onMinuti={apriRecupero} />}
     <div className={`flex flex-wrap items-center ${home ? 'home-pulizia-azioni' : 'gap-2'}`}>

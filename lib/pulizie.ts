@@ -78,8 +78,6 @@ export type Pulizia = {
   ritardo: number         // giorni di ritardo rispetto a oggi (0 = non scaduta)
   rinvii: Decisione[]     // rimandi registrati per questa pulizia
   cambioCameraVerso?: PrenotazionePulizie | null // per chi parte spostandosi in un'altra camera
-  automatica?: boolean    // cambio ospite: già registrata da sola, non c'è nulla da segnare
-  arrivoAutomatico?: PrenotazionePulizie  // la prenotazione che arriva lo stesso giorno o il giorno dopo
 }
 
 export type ProssimoArrivo = {
@@ -378,16 +376,15 @@ export function pulizieAperte(bookings: PrenotazionePulizie[], roomId: string, o
   const out: Pulizia[] = []
 
   for (const fs of partenzeAperte(bookings, roomId, oggi, events).filter(s => s.due <= oggi)) {
-    // Cambio ospite: la pulizia è già registrata da sola. Resta in «Oggi»
-    // come lavoro della giornata (con la priorità dell'arrivo) ma senza
-    // pulsanti e mai «in ritardo».
-    const auto = cambioOspiteAutomatico(bookings, fs.partenza, events)
+    // Dal 28/09/2026 (Home «Maison», novità 3) il cambio ospite NON è più
+    // registrato da solo: anche con l'arrivo lo stesso giorno la pulizia è
+    // una voce da fare come le altre, che Ania segna con i comandi rapidi.
+    // La regola del 04/09/2026 resta solo per lo storico (pulizieAutomatiche).
     out.push({
       roomId, tipo: fs.tipo, booking: fs.partenza,
       prevista: fs.partenza.check_out, due: fs.due,
-      ritardo: auto ? 0 : Math.max(0, diffDays(oggi, fs.due)),
+      ritardo: Math.max(0, diffDays(oggi, fs.due)),
       rinvii: fs.rinvii, cambioCameraVerso: fs.cambioCameraVerso,
-      ...(auto ? { automatica: true, arrivoAutomatico: auto.arrivo } : {}),
     })
   }
 
@@ -595,7 +592,6 @@ export function calcolaNotifica(camereLette: Record<string, unknown>[], tutteLeP
     // Arretrati: aperti con scadenza oggi o prima. Compaiono come contesto,
     // col loro ritardo vero, solo in coda a una notifica che parte comunque.
     for (const p of pulizieAperte(bookings, room.id, oggi, events)) {
-      if (p.automatica) continue   // cambio ospite: registrata da sola, mai un arretrato
       const giorni = diffDays(oggi, p.due)
       const label = p.tipo === 'soggiorno' ? 'pulizia 4 notti' : p.tipo === 'cambio_camera' ? 'cambio camera' : 'fine soggiorno'
       const ritardoTxt = giorni === 0 ? 'era per oggi' : giorni === 1 ? 'in ritardo di 1 giorno' : `in ritardo di ${giorni} giorni`

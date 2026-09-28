@@ -37,14 +37,20 @@ test('in ritardo: partenza di due giorni fa mai segnata, con l’arrivo di oggi 
   assert.equal(testoRitardo(2), 'in ritardo di 2 giorni'); assert.equal(testoRitardo(1), 'in ritardo di 1 giorno'); assert.equal(testoRitardo(0), '')
 })
 
-test('cambio ospite lo stesso giorno: automatica, niente da spuntare', () => {
+// NOVITÀ 3 della Home «Maison» (28/09/2026): le pulizie con l'arrivo lo
+// stesso giorno NON sono più automatiche. La regola del 04/09/2026 è superata:
+// Ania segna ogni pulizia con i comandi rapidi («Pulita», «Rimanda o salta»).
+test('cambio ospite lo stesso giorno: NON più automatica, è una voce da fare con Pulita e Rimanda', () => {
   const parte = pren({ room_id: AMELIA, check_in: '2026-09-03', check_out: OGGI, guest_name: 'Ewa Lis' })
   const entra = pren({ room_id: AMELIA, check_in: OGGI, check_out: '2026-09-10', guest_name: 'Jan Buco' })
   const voci = pulizieDiOggi(rooms, [parte, entra], [], OGGI)
   assert.equal(voci.length, 1)
-  assert.equal(voci[0].stato, 'automatica'); assert.equal(voci[0].daSegnare, undefined); assert.equal(voci[0].annullabile, false)
-  assert.equal(voci[0].riga, 'è partito Ewa Lis · arriva Jan Buco · registrata da sola')
-  assert.equal(riassuntoPulizieOggi(voci), 'tutte fatte')
+  assert.equal(voci[0].stato, 'da_fare')
+  assert.deepEqual(voci[0].daSegnare, { room_id: AMELIA, booking_id: parte.id, tipo: 'fine_soggiorno', data_prevista: OGGI })
+  assert.equal(voci[0].riga, 'è partito Ewa Lis · arriva Jan Buco')
+  assert.equal(/registrata da sola/.test(voci.map(v => v.riga).join(' ')), false)
+  assert.equal(voci[0].priorita, 'urgente')
+  assert.equal(riassuntoPulizieOggi(voci), '1 da fare')
 })
 
 test('cambio biancheria delle 4 notti scaduto oggi: da fare, «resta · cambio biancheria»', () => {
@@ -70,7 +76,7 @@ test('segnata fatta oggi: voce «fatta» con l’ora di Roma, annullabile; riman
   assert.equal(pulizieDiOggi(rooms, [rossi], [corretta], OGGI)[0].annullabile, false)
 })
 
-test('ordine: da fare per urgenza e ritardo, poi automatiche, poi fatte; camere inattive escluse', () => {
+test('ordine: da fare per urgenza e ritardo, poi fatte; camere inattive escluse', () => {
   const ambraOut = pren({ room_id: AMBRA, check_in: '2026-09-04', check_out: OGGI, guest_name: 'A Ambra' })
   // Lena: partita il 4, nuovo arrivo oggi → non è un cambio ospite automatico (più di un giorno): da fare, urgente, 3 giorni di ritardo
   const lenaOut = pren({ room_id: LENA, check_in: '2026-09-01', check_out: '2026-09-04', guest_name: 'B Lena' })
@@ -80,12 +86,13 @@ test('ordine: da fare per urgenza e ritardo, poi automatiche, poi fatte; camere 
   const allegraOut = pren({ room_id: ALLEGRA, check_in: '2026-09-02', check_out: OGGI, guest_name: 'F Allegra' })
   const fatta = dec({ room_id: ALLEGRA, booking_id: allegraOut.id, data_effettiva: OGGI })
   const voci = pulizieDiOggi(rooms, [ambraOut, lenaOut, lenaIn, ameliaOut, ameliaIn, allegraOut], [fatta], OGGI)
-  assert.deepEqual(voci.map(v => `${v.stato}:${v.camera}`), ['da_fare:Lena', 'da_fare:Ambra', 'automatica:Amelia', 'fatta:Allegra'])
+  // Amelia (arrivo oggi dopo la partenza di oggi) non è più automatica: da fare, urgente
+  assert.deepEqual(voci.map(v => `${v.stato}:${v.camera}`), ['da_fare:Lena', 'da_fare:Amelia', 'da_fare:Ambra', 'fatta:Allegra'])
   assert.equal(voci[0].ritardo, 3); assert.equal(voci[0].priorita, 'urgente')
   // partita ieri e arrivo oggi = cambio ospite automatico di IERI: non è lavoro di oggi, non compare (come la striscia)
   const ieriOut = pren({ room_id: LENA, check_in: '2026-09-01', check_out: '2026-09-06', guest_name: 'G Lena' })
   assert.deepEqual(pulizieDiOggi(rooms, [ieriOut, lenaIn], [], OGGI), [])
-  assert.equal(riassuntoPulizieOggi(voci), '2 da fare · 1 in ritardo')
+  assert.equal(riassuntoPulizieOggi(voci), '3 da fare · 1 in ritardo')
   const senzaLena = pulizieDiOggi(rooms.map(r => (r.id === LENA ? { ...r, active: false } : r)), [ambraOut, lenaOut, lenaIn], [], OGGI)
   assert.deepEqual(senzaLena.map(v => v.camera), ['Ambra'])
   assert.equal(riassuntoPulizieOggi([]), '')

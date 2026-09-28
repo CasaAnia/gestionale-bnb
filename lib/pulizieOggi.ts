@@ -5,23 +5,28 @@
 //  · da_fare     aperta oggi o in ritardo (lib/pulizie.pulizieAperte: la stessa
 //                regola della sezione «Oggi» della pagina Pulizie e della
 //                striscia della settimana), con la pulizia da segnare «fatta»;
-//  · automatica  cambio ospite: registrata da sola, niente da spuntare;
+//  (dal 28/09/2026 non c'è più la voce «automatica»: il cambio ospite dello
+//  stesso giorno è una pulizia da fare come le altre, novità 3 della Home «Maison»);
 //  · fatta       segnata fatta con data di oggi (riga in cleanings), da poter
 //                riportare a «non fatta» (si cancella quella riga).
 // Ordine: prima le da fare (più urgenti in cima, poi il ritardo), poi le
-// automatiche, poi le fatte nell'ordine in cui sono state segnate.
+// fatte nell'ordine in cui sono state segnate.
 import {
   confrontaDecisioni, attive, pulizieAperte, prossimoArrivo, prioritaDi, continuaDa, continuaIn, statoFineSoggiorno, cambioOspiteAutomatico, diffDays, CUTOFF_STORICO,
   soggiornoContinuativo, type Decisione, type Priorita, type TipoPulizia,
 } from './pulizie.ts'
 import { nomeConAltri } from './guestName.ts'
 import { arrivoInHome, leggiArrivo } from './arrivo.ts'
+import { conPreposizione } from './richiesteTesti.ts'
+import { MESI_LUNGHI } from './dateItaliane.ts'
 
-export type StatoVoce = 'da_fare' | 'automatica' | 'fatta'
+export type StatoVoce = 'da_fare' | 'fatta'
 export type PuliziaDaSegnareOggi = { room_id: string; booking_id: string | null; tipo: TipoPulizia; data_prevista: string }
 
 export type VocePuliziaOggi = {
   prossimo?: string
+  /** cambio biancheria (Home «Maison», 28/09/2026): «Giovanni Serra, 4ª notte · resta fino al 5 ottobre» */
+  biancheria?: string
   descrizione?: string
   persone?: number | null
   partenza?: string
@@ -41,7 +46,7 @@ export type VocePuliziaOggi = {
 }
 
 const RANK: Record<Priorita, number> = { urgente: 0, alta: 1, flessibile: 2, nessuna_fretta: 3 }
-const ORDINE_STATO: Record<StatoVoce, number> = { da_fare: 0, automatica: 1, fatta: 2 }
+const ORDINE_STATO: Record<StatoVoce, number> = { da_fare: 0, fatta: 1 }
 
 export const nomeBreve = (nome: string) => nome.split(' ').slice(-1)[0]
 export function dataBreve(iso: string): string {
@@ -77,14 +82,6 @@ export function pulizieDiOggi(rooms: Camera[], tutteLePrenotazioni: Prenotazioni
       const cosa = p.tipo === 'soggiorno' ? `${nome} resta · cambio biancheria`
         : p.tipo === 'cambio_camera' ? `${nome} va in ${breve(p.cambioCameraVerso?.room_id)}`
           : p.prevista === oggi ? `è partito ${nome}` : `partenza del ${dataBreve(p.prevista)} · ${nome}`
-      if (p.automatica) {
-        out.push({
-          chiave: `automatica:${room.id}:${p.booking.id}`, roomId: room.id, camera: nomeBreve(room.name), stato: 'automatica', tipo: p.tipo,
-          riga: `${cosa}${p.arrivoAutomatico ? ` · arriva ${nomeConAltri(p.arrivoAutomatico)}` : ''} · registrata da sola`,
-          ritardo: 0, priorita: prioritaDi(p, arrivo), annullabile: false,
-        })
-        continue
-      }
       out.push({
         chiave: `da_fare:${room.id}:${p.tipo}:${p.booking.id}`, roomId: room.id, camera: nomeBreve(room.name), stato: 'da_fare', tipo: p.tipo,
         riga: `${cosa}${arrivoTesto}`, ritardo: p.ritardo, priorita: prioritaDi(p, arrivo),
@@ -139,6 +136,7 @@ export function pulizieDiOggi(rooms: Camera[], tutteLePrenotazioni: Prenotazioni
     const b = tutteLePrenotazioni.find(x => x.id === (v.daSegnare?.booking_id ?? v.decisione?.booking_id))
     v.persone = v.decisione?.persone_servite ?? (Number(b?.num_guests) || null)
     v.partenza = b ? soggiornoContinuativo(bookings, b).fine.check_out : undefined
+    if (v.tipo === 'soggiorno' && b) v.biancheria = rigaBiancheria(nomeConAltri(b), diffDays(oggi, soggiornoContinuativo(bookings, b).inizio.check_in), v.partenza)
     v.ultimaId = events.filter(e => e.room_id === v.roomId).sort((a, b) => confrontaDecisioni(b, a))[0]?.id ?? null
   }
   return out.sort((a, b) => ORDINE_STATO[a.stato] - ORDINE_STATO[b.stato]
@@ -146,6 +144,17 @@ export function pulizieDiOggi(rooms: Camera[], tutteLePrenotazioni: Prenotazioni
     || (a.stato === 'fatta' ? confrontaDecisioni(a.decisione!, b.decisione!) : 0)
     || posto(a) - posto(b))
 }
+
+/** «Giovanni Serra, 4ª notte · resta fino al 5 ottobre» (Home «Maison», 28/09/2026):
+ *  il cambio biancheria dice di chi, a che notte e fino a quando resta;
+ *  nessun «prossimo arrivo», la camera è ancora sua. */
+export function rigaBiancheria(nome: string, notte: number, partenza: string | undefined): string {
+  // regola fissa n. 3: «fino all'1», «all'8», «all'11», mai «al 1»
+  const [, m, g] = (partenza ?? '').split('-').map(Number)
+  return `${nome}, ${notte}ª notte${partenza ? ` · resta fino ${conPreposizione('al', g)} ${MESI_LUNGHI[m - 1]}` : ''}`
+}
+export const ETICHETTA_PROSSIMO_ARRIVO = 'Prossimo arrivo'
+export const ETICHETTA_CAMBIO_BIANCHERIA = 'Cambio biancheria'
 
 // «2 da fare · 1 in ritardo» · «tutte fatte» · «1 da fare»
 export function riassuntoPulizieOggi(voci: VocePuliziaOggi[]): string {

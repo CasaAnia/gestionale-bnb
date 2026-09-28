@@ -167,7 +167,8 @@ test('rifiuti del database in italiano corretto; guardie: niente elementi della 
   for (const vietato of ['PROPOSTA DA PROVARE', 'Giorno della prova', 'giornata di esempio', 'localStorage', "'2026-09-25'"]) assert.ok(!pagina.includes(vietato), vietato)
   for (const approvato of ['Camere, tempo di lavoro e biancheria, nello stesso registro.', 'Registra pulizia', 'Salta questo cambio', 'Prossime pulizie', 'Rinvii e salti', 'Ogni intervento, con i suoi numeri']) assert.ok(pagina.includes(approvato), approvato)
   const scheda = readFileSync(new URL('../components/SchedaPulizia.tsx', import.meta.url), 'utf8')
-  for (const approvato of ['max-w-xl max-h-[90dvh] overflow-y-auto bg-cream', 'items-end sm:items-center', 'Segna il recuperato', 'Niente recuperato', 'Minuti effettivi', 'Conferma pulizia']) assert.ok(scheda.includes(approvato), approvato)
+  // Dal 28/09/2026 la veste «Maison» (riferimento approvato da Ania): foglio dal basso, chip del recuperato sempre visibili
+  for (const approvato of ['<FoglioMaison titolo={camera}', 'Recuperato · Lenzuola', 'Recuperato · Asciugamani', 'Niente recuperato', 'Minuti effettivi · facoltativi', 'Conferma pulizia', 'Fatta il', 'Federe sul matrimoniale']) assert.ok(scheda.includes(approvato), approvato)
   // Home: nessuna striscia «da fare / fatta» portata dall'anteprima
   const home = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8') + readFileSync(new URL('../components/StrisciaSettimana.tsx', import.meta.url), 'utf8')
   assert.ok(!/da fare\s*\/|\/\s*\d+ fatt/.test(home))
