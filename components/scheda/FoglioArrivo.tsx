@@ -18,17 +18,33 @@
 //  - doppio tocco su «Salva» → il secondo non parte, e il freno è sincrono
 //    (un riferimento, non lo stato di React che arriva dopo).
 // ============================================================================
+//
+// Dal 28/09/2026 ha la veste «Maison» (riferimento approvato da Ania): foglio
+// dal basso con UNA altezza fissa, quella del caso più lungo («Arrivo a…»),
+// che non cambia cambiando tipo; titolo = nome, sotto «Camera · Arrivo e
+// navetta»; dopo il salvataggio la conferma B (spunta e «Salvato»), poi il
+// foglio si chiude da solo. Salvataggio e regole identici.
+// ============================================================================
 import { useRef, useState } from 'react'
-import Foglio, { PiedeFoglio } from './Foglio'
+import FoglioMaison, { PiedeMaison } from '@/components/maison/FoglioMaison'
+import type { Salvataggio } from '@/components/maison/SalvatoMaison'
 import AvvisoAzione from '@/components/AvvisoAzione'
-import ArrivoNavetta from '@/components/ArrivoNavetta'
+import ArrivoNavettaMaison from '@/components/maison/ArrivoNavettaMaison'
 import { supabase } from '@/lib/supabase'
 import { salvaArrivoPrenotazione } from '@/lib/arrivoDati'
 import { leggiArrivo, TITOLO_ARRIVO, SOTTOTITOLO_ARRIVO, type Arrivo } from '@/lib/arrivo'
+import { nomeConAltri } from '@/lib/guestName'
+import { COSA_SALVATA } from '@/lib/salvatoMaison'
 
 export { TITOLO_ARRIVO }
+/** L'altezza del foglio: quella del caso più lungo, «Arrivo a…» con la fascia
+ *  oraria, la stima e il prelievo (misurata a 390 px: 752). Nel riferimento il
+ *  caso disegnato, con l'ora precisa, stava in 660. Solo «Altro luogo…» con la
+ *  fascia supera di poco: lì il foglio scorre dentro, senza cambiare misura. */
+export const ALTEZZA_FOGLIO_ARRIVO = 752
 
 export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChiudi, onSalvato }: {
+  /** prima era il sottotitolo; dalla veste «Maison» il sottotitolo è «Camera · Arrivo e navetta» */
   etichetta?: string
   bookingId: string
   /** la riga della prenotazione: l'arrivo si rilegge da lì, con o senza 0058 */
@@ -39,13 +55,16 @@ export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChi
   const [arrivo, setArrivo] = useState<Arrivo>(() => leggiArrivo(prenotazione))
   const [salvando, setSalvando] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
+  const [salvato, setSalvato] = useState<(Salvataggio & { campi: Record<string, unknown> }) | null>(null)
   // Freno SINCRONO al doppio tocco: `salvando` arriva al prossimo giro di
   // React, e sul telefono di Ania due tocchi vicini passano prima (rilievo
   // di Codex, 21/09/2026 sera).
   const inCorso = useRef(false)
+  const nome = nomeConAltri(prenotazione ?? {}) || etichetta || ''
+  const camera = (prenotazione?.rooms as { name?: string | null } | null | undefined)?.name ?? ''
 
   async function salva() {
-    if (inCorso.current) return
+    if (inCorso.current || salvato) return
     inCorso.current = true
     setSalvando(true)
     setErrore(null)
@@ -57,7 +76,7 @@ export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChi
       )
       // Solo «ok» chiude il foglio: negli altri casi la bozza resta qui.
       if (esito.esito !== 'ok' || !esito.campi) { setErrore(esito.messaggio); return }
-      onSalvato(esito.campi)
+      setSalvato({ cosa: COSA_SALVATA.arrivo(nome), quando: new Date(), campi: esito.campi })
     } finally {
       inCorso.current = false
       setSalvando(false)
@@ -65,11 +84,12 @@ export default function FoglioArrivo({ bookingId, prenotazione, etichetta, onChi
   }
 
   return (
-    <Foglio titolo={TITOLO_ARRIVO} onChiudi={onChiudi} ampio>
-      <p className="uppercase" style={{ fontSize: 9.5, letterSpacing: '1.4px', color: 'var(--color-stone)', marginTop: -4, marginBottom: 14 }}>{etichetta ?? SOTTOTITOLO_ARRIVO}</p>
-      <ArrivoNavetta arrivo={arrivo} onArrivo={setArrivo} />
+    <FoglioMaison titolo={nome || TITOLO_ARRIVO} sottotitolo={camera ? `${camera} · ${TITOLO_ARRIVO}` : TITOLO_ARRIVO} altezza={ALTEZZA_FOGLIO_ARRIVO}
+      onChiudi={onChiudi} dati="arrivo" salvato={salvato} onFineSalvato={() => salvato && onSalvato(salvato.campi)}
+      piede={<PiedeMaison azione="Salva" onAzione={salva} salvando={salvando} onAnnulla={onChiudi} dati="arrivo" />}>
+      <p className="mz-hint">{SOTTOTITOLO_ARRIVO}</p>
+      <ArrivoNavettaMaison arrivo={arrivo} onArrivo={setArrivo} />
       {errore && <AvvisoAzione testo={errore} className="mt-3" />}
-      <PiedeFoglio azione="Salva" onAzione={salva} salvando={salvando} onAnnulla={onChiudi} dati="arrivo" />
-    </Foglio>
+    </FoglioMaison>
   )
 }

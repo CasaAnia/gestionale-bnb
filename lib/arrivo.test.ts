@@ -432,21 +432,17 @@ test('in Home gli arrivi stanno IN CIMA, subito sotto i tre numeri (Ania, 21/09/
   assert.match(home, /\{!loading && !errore && data && <ArriviOggi /)
 })
 
-test('RILIEVO CODEX: la Home non perde niente di quello che c’era', () => {
+test('RILIEVO CODEX: la Home non perde niente di quello che c’era (dal 28/09/2026 tutto dentro «La giornata»)', () => {
   const home = leggi('app/page.tsx')
   const card = leggi('components/ArriviOggi.tsx')
-  // la riga CHECK-IN è rimasta dov'era, con la nota rossa e il letto in più
-  assert.match(home, /CHECK-IN/)
-  assert.match(home, /\+letto agg\./)
-  assert.match(home, /data-nota-cliente-home/)
-  assert.match(home, /text-\[13px\] leading-snug font-semibold/)
-  assert.match(home, /CHECK-OUT/)
-  assert.match(home, /⇄ CAMBIO/)
-  // e il riquadro nuovo si aggiunge, col letto in più anche lì
-  assert.match(home, /<ArriviOggi oggi=\{data\.checkInOggi\} domani=\{data\.checkInDomani\} onSalvato=\{aggiornaArrivo\} \/>/)
+  // il vecchio blocco «Oggi / Domani» è assorbito nella giornata (Home «Maison»):
+  // la nota rossa del cliente e il letto in più stanno ora nel riquadro dell'arrivo
+  assert.equal(/renderEventi/.test(home), false)
   assert.match(card, /data-letto-agg/)
-  // la nota NON si ripete nel riquadro: sarebbe due volte in rosso sullo stesso schermo
-  assert.equal(/data-nota-cliente-home/.test(card), false)
+  assert.match(card, /data-nota-cliente-home className="nota"/)
+  assert.match(card, /Check-out/)
+  assert.match(card, /⇄ Cambio/)
+  assert.match(home, /<ArriviOggi oggi=\{data\.checkInOggi\} domani=\{data\.checkInDomani\} partenze=\{data\.partenzeResiduo\} cambi=\{data\.roomChangesOggi\}/)
 })
 
 // ── 11. IL SALVATAGGIO (i due bloccanti di Codex) ───────────────────────────
@@ -593,9 +589,11 @@ const INGRESSI_CHE_MODIFICANO = [
 ]
 
 test('tutti i punti in cui l’arrivo si scrive montano lo stesso modulo', () => {
+  // il foglio della scheda (veste «Maison», 28/09/2026) monta la veste nuova dello stesso piano
   for (const f of PUNTI_DI_INGRESSO) {
-    assert.match(leggi(f), /<ArrivoNavetta /, `${f} non monta il modulo condiviso`)
+    assert.match(leggi(f), /<ArrivoNavetta(Maison)? /, `${f} non monta il modulo condiviso`)
   }
+  assert.match(leggi('components/maison/ArrivoNavettaMaison.tsx'), /pianoModuloArrivo\(arrivo\)/)
 })
 
 test('nessuna pagina si scrive campi dell’arrivo suoi: check_in_time e shuttle li decide lib/arrivo', () => {

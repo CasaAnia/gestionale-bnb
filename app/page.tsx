@@ -10,6 +10,7 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import DaControllare from '@/components/DaControllare'
 import RichiesteHome from '@/components/RichiesteHome'
 import StrisciaFoto from '@/components/maison/StrisciaFoto'
+import { partenzeConResiduo } from '@/lib/incassiHome'
 import { ricaricaDaControllare, useDaControllare } from '@/lib/daControllareDati'
 import NumeriOggi from '@/components/NumeriOggi'
 import PulizieOggi from '@/components/PulizieOggi'
@@ -78,7 +79,11 @@ function calcola(d: DatiHome, td: string, tmr: string, ms: string, nms: string) 
   // R6: finché lo storico è da ricostruire la voce si chiama «Incassi registrati»
   const voceIncassi = etichettaIncassi(pianoRicostruzione(d.ricostruzione.prenotazioni, d.ricostruzione.pagamenti, d.ricostruzione.oggi).movimenti.length)
 
-  return { cassa, indici, voceIncassi, checkInOggi, checkOutOggi, checkInDomani, checkOutDomani, roomChangesOggi, roomChangesDomani, td, daIncassare: daInc }
+  // Home «Maison» (28/09/2026): le partenze di oggi con un residuo, nella giornata
+  const tutte = [...d.prenotazioni, ...d.prenotazioniConMovimenti.filter(b => !d.prenotazioni.some((x: any) => x.id === b.id))]
+  const partenzeResiduo = partenzeConResiduo(checkOutOggi, tutte as any, d.tuttiPagamenti as any)
+
+  return { cassa, indici, voceIncassi, checkInOggi, checkOutOggi, checkInDomani, checkOutDomani, roomChangesOggi, roomChangesDomani, td, daIncassare: daInc, partenzeResiduo, tutte, pagamenti: d.tuttiPagamenti }
 }
 
 export default function Dashboard() {
@@ -136,44 +141,10 @@ export default function Dashboard() {
     })
   }
 
-  // Righe di un giorno (arrivi, partenze, cambi camera). Il prefisso rende le key
-  // uniche tra le sezioni Oggi e Domani (una prenotazione può arrivare oggi e
-  // ripartire domani, comparendo in entrambe).
-  function renderEventi(prefix: string, checkIn: any[], checkOut: any[], changes: any[]) {
-    return (
-      <>
-        {checkIn.map((b: any) => (
-          <div key={`${prefix}-in-${b.id}`} className="flex flex-wrap items-center gap-2 text-sm py-1">
-            <span className="bg-sage text-green-dark rounded px-1.5 py-0.5 text-xs font-bold">CHECK-IN</span>
-            <span className="font-medium">{nomeConAltri(b)}</span>
-            <span className="text-gray-500">— {b.rooms?.name}</span>
-            {b.check_in_time && <span className="bg-sage text-green-mid rounded px-1.5 py-0.5 text-xs font-bold">🕐 {b.check_in_time}</span>}
-            {b.extra_bed && <span className="bg-red-50 text-[#E00000] font-bold rounded px-1.5 py-0.5 text-xs">+letto agg.</span>}
-            {/* Nota del cliente in evidenza anche qui (Ania, 10/09/2026): sul
-                suo rigo, in rosso come nella scheda, così prima che arrivi si
-                legge senza aprire nulla. Il rosso è quello scelto da Ania
-                l'8 settembre (#C00000): lo stesso ovunque compaia la nota. */}
-            {b.guests?.notes && (
-              <p data-nota-cliente-home className="basis-full text-[13px] leading-snug font-semibold" style={{ color: '#C00000' }}>{b.guests.notes}</p>
-            )}
-          </div>
-        ))}
-        {checkOut.map((b: any) => (
-          <div key={`${prefix}-out-${b.id}`} className="flex flex-wrap items-center gap-2 text-sm py-1">
-            <span className="bg-[#F4E6DF] text-[#7A3B22] rounded px-1.5 py-0.5 text-xs font-bold">CHECK-OUT</span>
-            <span className="font-medium">{nomeConAltri(b)}</span>
-            <span className="text-gray-500">— {b.rooms?.name}</span>
-          </div>
-        ))}
-        {changes.map((m: any) => (
-          <div key={`${prefix}-ch-${m.id}`} className="flex flex-wrap items-center gap-2 text-sm py-1">
-            <span className="rounded px-1.5 py-0.5 text-xs font-bold" style={{ background: '#EFE2C7', color: '#7A5C1E' }}>⇄ CAMBIO</span>
-            <span className="font-medium">{m.guest}</span>
-            <span className="text-gray-500">— {m.fromRoom} → {m.toRoom}</span>
-          </div>
-        ))}
-      </>
-    )
+  // Dopo un pagamento dalla Home (Segna pagato, Registra pagamento) si rilegge in silenzio
+  function dopoPagamento() {
+    void ricaricaDaControllare()
+    setTentativo(t => t + 1)
   }
 
   return (
@@ -186,61 +157,33 @@ export default function Dashboard() {
       </details>}
       <NumeriOggi dati={numeriOggi} daIncassareEuro={!loading && !errore && data ? totaleDaIncassareEuro(data.daIncassare) : null} />
 
-      <div className="p-4 home-approvata">
-      {/* «Arrivi di oggi» (21/09/2026), la terza superficie della proposta
-          approvata: per ogni arrivo l'ora IN STRUTTURA in grande e, sotto, da
-          dove arriva e chi la va a prendere.
-          IN CIMA, subito sotto i tre numeri (Ania, 21/09/2026 sera: «nella
-          home mettiamoli in alto, non a metà pagina»): prima stava dopo «Da
-          controllare», che nelle giornate piene è lungo, e per vedere chi
-          arriva oggi bisognava scorrere. I tre numeri dicono «1 arrivo»,
-          e qui sotto c'è chi è.
-          Finché i dati si caricano non occupa spazio, come «Da controllare».
-          Il blocco «Oggi / Domani» più in basso NON è stato toccato: la riga
-          CHECK-IN resta dov'era, con la nota del cliente e il letto in più. */}
-      {!loading && !errore && data && <ArriviOggi oggi={data.checkInOggi} domani={data.checkInDomani} onSalvato={aggiornaArrivo} />}
+      {/* «La giornata» e «Arrivi di domani» (Home «Maison», 28/09/2026; gli
+          arrivi in cima dal 21/09/2026, Ania: «nella home mettiamoli in alto,
+          non a metà pagina»). Qui dentro anche le partenze di oggi con un
+          residuo e i cambi camera: il vecchio blocco «Oggi / Domani» non c'è
+          più. Finché i dati si caricano non occupa spazio. */}
+      {!loading && !errore && data && <ArriviOggi oggi={data.checkInOggi} domani={data.checkInDomani} partenze={data.partenzeResiduo} cambi={data.roomChangesOggi}
+        partenzeOggi={data.checkOutOggi.length} onSalvato={aggiornaArrivo} onPagato={dopoPagamento} />}
 
       {/* «Pulizie di oggi» (Ania, 07/09/2026; in cima dall'11/09/2026): TUTTE le
           pulizie della giornata da spuntare dalla Home, stessa lettura dei numeri
           e della striscia; senza pulizie non compare. Le pulizie stanno SOLO qui:
           «Da controllare» non le ripete più (Ania, 11/09/2026: «due stanze sopra e
           tre sotto è confusionale, voglio vedere da fare oggi») */}
-      <PulizieOggi dati={numeriOggi} />
+      <div className="p-4 home-approvata"><PulizieOggi dati={numeriOggi} /></div>
 
       {/* «Da controllare» (versione B, 06/09/2026; in cima dal 07/09/2026): striscia
           con i conteggi e sezione delle eccezioni SOPRA i numeri del giorno; con
           zero eccezioni non occupa spazio (components/DaControllare) */}
       <DaControllare dati={controlli} />
 
+      <div className="p-4 home-approvata">
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>
       ) : errore ? (
         <AvvisoAzione testo={errore} onRiprova={riprova} />
       ) : (
         <>
-          {(() => {
-            const hasOggi = data.checkInOggi.length > 0 || data.checkOutOggi.length > 0 || data.roomChangesOggi.length > 0
-            const hasDomani = data.checkInDomani.length > 0 || data.checkOutDomani.length > 0 || data.roomChangesDomani.length > 0
-            if (!hasOggi && !hasDomani) return null
-            return (
-              <div className="mb-5">
-                {hasOggi && (
-                  <>
-                    <p className="ed-sezione mb-2">Oggi</p>
-                    {renderEventi('oggi', data.checkInOggi, data.checkOutOggi, data.roomChangesOggi)}
-                  </>
-                )}
-                {hasDomani && (
-                  <>
-                    {hasOggi && <div className="mt-4" />}
-                    <p className="ed-sezione mb-2" style={{ color: '#8a9488' }}>Domani</p>
-                    {renderEventi('domani', data.checkInDomani, data.checkOutDomani, data.roomChangesDomani)}
-                  </>
-                )}
-              </div>
-            )
-          })()}
-
           {data.daIncassare?.length > 0 && (
             <div className="mb-5">
               <p className="ed-sezione mb-1">Da incassare</p>

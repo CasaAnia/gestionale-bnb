@@ -31,8 +31,9 @@ body:has(.maison) { background: #F6F2EA; }
 /* Etichetta di sezione: maiuscoletto ottone col filo che continua a destra */
 .mz-eyebrow { font-family: var(--m-ui); font-size: 9.5px; letter-spacing: .24em; text-transform: uppercase; color: var(--m-acc); font-weight: 500; }
 .mz-sec { padding: 12px 22px 0; }
-.mz-sec > .mz-eyebrow { display: flex; align-items: center; gap: 10px; }
-.mz-sec > .mz-eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--m-line); }
+.mz-sec > .mz-eyebrow { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.mz-sec > .mz-eyebrow > small { flex: 0 1 auto; min-width: 0; white-space: normal; margin-left: -4px; }
+.mz-sec > .mz-eyebrow::after { content: ""; flex: 1 0 14px; height: 1px; background: var(--m-line); }
 .mz-eyebrow small { font-size: 9px; letter-spacing: .1em; color: var(--m-mut); text-transform: none; font-weight: 400; }
 .mz-eyebrow.grigio { color: var(--m-mut); }
 

@@ -437,7 +437,6 @@ test('posizione (07/09/2026): in Home la sezione «Da controllare» sta SOPRA i 
   const priorita = home.indexOf('<RichiesteHome ')
   assert.ok(priorita < home.indexOf('<NumeriOggi '), 'richieste nel riepilogo espandibile sopra i numeri, Home approvata 27 settembre')
   assert.ok(priorita < home.indexOf('<ArriviOggi '))
-  assert.ok(sezione < home.indexOf("renderEventi('oggi'"), 'prima di Oggi/Domani')
   assert.ok(sezione < home.indexOf('Ricavi per soggiorno'), 'prima dei numeri del mese')
   assert.ok(sezione < home.indexOf('{loading ?'), 'fuori dal ramo di caricamento dei numeri')
   const componente = readFileSync(new URL('../components/DaControllare.tsx', import.meta.url), 'utf8')

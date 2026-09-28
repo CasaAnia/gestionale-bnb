@@ -63,18 +63,25 @@ test('i campi dei fogli: righe col filo card-border sotto, etichettina in ottone
 })
 
 // ── Ogni foglio si apre dal suo comando e si chiude ─────────────────────────
+const FOGLI_MAISON = ['FoglioArrivo']
 for (const f of FOGLI) {
   const sorgente = leggi(`components/scheda/${f.file}.tsx`)
   test(`${f.file}: si apre dal comando della scheda, si chiude, e «Annulla» non cambia niente`, () => {
     assert.match(pagina, f.apre, `il comando non apre ${f.file}`)
     assert.match(pagina, new RegExp(`\\{${f.stato} && [\\s\\S]{0,120}<${f.file}`), `${f.file} non è in pagina sotto ${f.stato}`)
     assert.match(pagina, new RegExp(`<${f.file}[\\s\\S]{0,700}onChiudi=\\{\\(\\) => set${f.stato[0].toUpperCase()}${f.stato.slice(1)}\\(${f.stato === 'foglioArrivo' ? 'null' : 'false'}\\)\\}`), `${f.file} non si chiude`)
-    // la veste comune: Foglio e il suo piede
-    assert.match(sorgente, /import Foglio, \{ PiedeFoglio \} from '\.\/Foglio'/)
-    assert.match(sorgente, /<PiedeFoglio[\s\S]{0,300}onAnnulla=\{onChiudi\}/)
+    // la veste comune: Foglio e il suo piede. Arrivo e Pagamento dal
+    // 28/09/2026 hanno la veste «Maison» della Home (FoglioMaison e PiedeMaison)
+    if (FOGLI_MAISON.includes(f.file)) {
+      assert.match(sorgente, /import FoglioMaison, \{ PiedeMaison \} from '@\/components\/maison\/FoglioMaison'/)
+      assert.match(sorgente, /<PiedeMaison[\s\S]{0,300}onAnnulla=\{onChiudi\}/)
+    } else {
+      assert.match(sorgente, /import Foglio, \{ PiedeFoglio \} from '\.\/Foglio'/)
+      assert.match(sorgente, /<PiedeFoglio[\s\S]{0,300}onAnnulla=\{onChiudi\}/)
+    }
     // «Annulla» chiude e basta: onChiudi non scrive mai
     assert.equal(/onChiudi\(\)[^\n]*supabase|supabase[^\n]*onChiudi\(\)/.test(sorgente), false)
-    assert.match(f.etichette ? leggi(f.etichette) : sorgente, /ottone/i, 'le etichettine del foglio non sono in ottone')
+    if (!FOGLI_MAISON.includes(f.file)) assert.match(f.etichette ? leggi(f.etichette) : sorgente, /ottone/i, 'le etichettine del foglio non sono in ottone')
   })
 }
 
@@ -267,9 +274,11 @@ test('dopo «Come paga» la testa e il conto si aggiornano: le righe portano il 
 test('«Arrivo e navetta»: il modulo condiviso, il salvataggio condiviso, e «Salva»', () => {
   const arrivo = leggi('components/scheda/FoglioArrivo.tsx')
   assert.match(leggi('lib/arrivo.ts'), /export const TITOLO_ARRIVO = 'Arrivo e navetta'/)
-  assert.match(arrivo, /import ArrivoNavetta from '@\/components\/ArrivoNavetta'/)
-  assert.match(arrivo, /<ArrivoNavetta arrivo=\{arrivo\} onArrivo=\{setArrivo\} \/>/)
-  assert.match(arrivo, /<PiedeFoglio azione="Salva"/)
+  // dal 28/09/2026 la veste «Maison»: lo stesso piano (pianoModuloArrivo), un'altra veste
+  assert.match(arrivo, /import ArrivoNavettaMaison from '@\/components\/maison\/ArrivoNavettaMaison'/)
+  assert.match(arrivo, /<ArrivoNavettaMaison arrivo=\{arrivo\} onArrivo=\{setArrivo\} \/>/)
+  assert.match(leggi('components/maison/ArrivoNavettaMaison.tsx'), /const piano = pianoModuloArrivo\(arrivo\)/)
+  assert.match(arrivo, /<PiedeMaison azione="Salva"/)
   // il salvataggio è quello a esito controllato, uno solo per tutti i punti
   assert.match(arrivo, /import \{ salvaArrivoPrenotazione \} from '@\/lib\/arrivoDati'/)
   assert.match(arrivo, /leggiArrivo\(prenotazione\)/)
