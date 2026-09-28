@@ -1,0 +1,82 @@
+'use client'
+// ============================================================================
+// IL FOGLIO «MAISON» (riferimento approvato da Ania il 28/09/2026): sale dal
+// basso sul telefono, al centro sul Mac. Fondo avorio col filo in alto, la
+// maniglia, il titolo in Cormorant e sotto il sottotitolo in maiuscoletto
+// ottone. Ha un'ALTEZZA FISSA, quella del suo contenuto più lungo: scegliendo
+// opzioni diverse il foglio non cambia misura, lo spazio in più resta vuoto e
+// i comandi restano in fondo (regola 3 dell'incarico).
+//
+// Sopra ci può stare la conferma di salvataggio (SalvatoMaison, scelta B):
+// il foglio la mostra quando `salvato` è pieno e si chiude da solo.
+// ============================================================================
+import { useEffect, useRef, type ReactNode } from 'react'
+import { useDesktop } from '@/lib/richiesteVista'
+import SalvatoMaison, { type Salvataggio } from './SalvatoMaison'
+
+export const TESTO_ANNULLA_MAISON = 'Annulla'
+
+export default function FoglioMaison({ titolo, sottotitolo, altezza, onChiudi, salvato = null, onFineSalvato, dati, children, piede }: {
+  titolo: string
+  sottotitolo?: string
+  /** l'altezza fissa del foglio sul telefono, in px (mai oltre il 92% dello schermo) */
+  altezza: number
+  onChiudi: () => void
+  /** pieno dopo un salvataggio riuscito: compare la spunta e il foglio si chiude */
+  salvato?: Salvataggio | null
+  /** chiamato quando la conferma ha finito (dopo 1,2 s) */
+  onFineSalvato?: () => void
+  dati?: string
+  children: ReactNode
+  /** i comandi in fondo, sempre al loro posto */
+  piede?: ReactNode
+}) {
+  const desktop = useDesktop()
+  const foglio = useRef<HTMLDivElement>(null)
+  const chiudi = useRef(onChiudi)
+  useEffect(() => { chiudi.current = onChiudi }, [onChiudi])
+  // Il fuoco entra nel foglio all'apertura e torna al comando che l'ha aperto.
+  useEffect(() => {
+    const prima = document.activeElement as HTMLElement | null
+    foglio.current?.focus()
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') chiudi.current() }
+    window.addEventListener('keydown', esc)
+    return () => { window.removeEventListener('keydown', esc); prima?.focus?.() }
+  }, [])
+  return (
+    <div className="mz fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label={titolo} data-foglio-maison={dati}>
+      <div className="mz-velo velo-in" onClick={salvato ? undefined : onChiudi} />
+      <div ref={foglio} tabIndex={-1} className={`mz-foglio scheda-in outline-none ${desktop ? 'desktop' : ''}`}
+        style={{ height: `min(${altezza}px, 92dvh)` }}>
+        <h2>{titolo}{sottotitolo && <small>{sottotitolo}</small>}</h2>
+        <div className="corpo">{children}</div>
+        {piede}
+        {salvato && <SalvatoMaison salvato={salvato} onFine={onFineSalvato ?? onChiudi} />}
+      </div>
+    </div>
+  )
+}
+
+/** I due comandi in fondo: «Annulla» tenue e l'azione piena, angoli vivi. */
+export function PiedeMaison({ azione, onAzione, onAnnulla, salvando = false, testoSalvando = 'Salvo…', disabilitato = false, totale, dati, testoAnnulla = TESTO_ANNULLA_MAISON }: {
+  azione: string
+  onAzione: () => void
+  onAnnulla: () => void
+  salvando?: boolean
+  testoSalvando?: string
+  disabilitato?: boolean
+  /** a sinistra: «3 pezzi recuperati» e simili */
+  totale?: ReactNode
+  dati?: string
+  testoAnnulla?: string
+}) {
+  return (
+    <div className="mz-foot" data-piede-foglio>
+      {totale ? <span className="tot">{totale}</span> : <span />}
+      <span className="acts">
+        <button type="button" className="mz-lnk q" data-annulla-foglio onClick={onAnnulla} disabled={salvando}>{testoAnnulla}</button>
+        <button type="button" className="mz-cta" data-azione-foglio={dati} onClick={onAzione} disabled={salvando || disabilitato}>{salvando ? testoSalvando : azione}</button>
+      </span>
+    </div>
+  )
+}

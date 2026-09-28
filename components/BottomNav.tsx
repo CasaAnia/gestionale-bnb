@@ -1,6 +1,8 @@
 'use client'
 import Link from 'next/link'
+import { useState } from 'react'
 import { usePathname } from 'next/navigation'
+import FoglioMaison from './maison/FoglioMaison'
 import { House, CalendarDays, Inbox, DoorOpen, Sparkles, ClipboardList, Plus, Users, Banknote, Wallet, ChartColumn, Settings } from 'lucide-react'
 import { useDemoMode } from '@/lib/useDemoMode'
 import { isHiddenPath } from '@/lib/demoMode'
@@ -8,16 +10,32 @@ import { useRichiesteWeb } from '@/lib/webRequests'
 import { useRichiesteAperte } from '@/lib/richiesteDati'
 import { COLOR_PRENOTAZIONE } from '@/lib/calendarioMobile'
 
-// Max 5 tasti: devono restare grossi e comodi da toccare (a 390 px ognuno ha
-// 78 px). Le Statistiche/Report si raggiungono dalla Home (card), quindi non
-// stanno qui.
-const mobileNavItems = [
-  { href: '/', label: 'Home', Icon: House },
-  { href: '/calendario', label: 'Calendario', Icon: CalendarDays },
-  { href: '/richieste', label: 'Richieste', Icon: Inbox },
-  { href: '/arrivi', label: 'Arrivi', Icon: DoorOpen },
-  { href: '/pulizie', label: 'Pulizie', Icon: Sparkles },
-]
+// Barra in basso «Maison» (riferimento approvato da Ania il 28/09/2026):
+// cinque voci con icone a filo sottile ed etichette maiuscolette 8,5 px.
+// Pulizie, Prenotazioni, Clienti, Spese, Statistiche e Impostazioni stanno
+// nel foglio «Menu». Le icone sono quelle del riferimento, tali e quali.
+const ICONE_BARRA = {
+  oggi: <svg viewBox="0 0 24 24" aria-hidden><path d="M3 11l9-8 9 8v10H3z" /></svg>,
+  calendario: <svg viewBox="0 0 24 24" aria-hidden><rect x="3" y="5" width="18" height="16" rx="1" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>,
+  richieste: <svg viewBox="0 0 24 24" aria-hidden><path d="M4 5h16v11H9l-5 4z" /></svg>,
+  arrivi: <svg viewBox="0 0 24 24" aria-hidden><circle cx="8" cy="12" r="4" /><path d="M12 12h9M18 12v3M15 12v2" /></svg>,
+  menu: <svg viewBox="0 0 24 24" aria-hidden><path d="M4 7h16M4 12h16M4 17h16" /></svg>,
+}
+export const VOCI_BARRA = [
+  { href: '/', label: 'Oggi', icona: 'oggi' },
+  { href: '/calendario', label: 'Calendario', icona: 'calendario' },
+  { href: '/richieste', label: 'Richieste', icona: 'richieste' },
+  { href: '/arrivi', label: 'Arrivi', icona: 'arrivi' },
+] as const
+export const VOCI_MENU = [
+  { href: '/prenotazioni', label: 'Prenotazioni' },
+  { href: '/clienti', label: 'Clienti' },
+  { href: '/pulizie', label: 'Pulizie' },
+  { href: '/spese', label: 'Spese B&B' },
+  { href: '/spese-famiglia', label: 'Spese Famiglia' },
+  { href: '/statistiche', label: 'Statistiche' },
+  { href: '/impostazioni', label: 'Impostazioni e notifiche' },
+] as const
 
 const desktopNavGroups = [
   {
@@ -63,6 +81,7 @@ function RequestBadge({ count, className, colore = 'rosso' }: { count: number | 
 
 export default function BottomNav() {
   const pathname = usePathname()
+  const [menuAperto, setMenuAperto] = useState(false)
   const demo = useDemoMode()
   // La chiave cambia a ogni navigazione: il conteggio si riaggiorna anche
   // quando Ania conferma una richiesta e torna indietro.
@@ -79,37 +98,34 @@ export default function BottomNav() {
   const visible = (href: string) => !(demo && isHiddenPath(href))
   return (
     <>
-      {/* Mobile: bottom navigation crema & ottone */}
-      <nav className="barra-bassa lg:hidden fixed bottom-0 left-0 right-0 bg-sidebar border-t-[0.5px] border-[#E9E2D2] z-50"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="flex justify-around items-stretch h-[70px] max-w-lg mx-auto">
-          {mobileNavItems.map(item => {
+      {/* Mobile: barra «Maison» (28/09/2026) */}
+      <nav className="barra-bassa lg:hidden fixed bottom-0 left-0 right-0 z-50" aria-label="Navigazione"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)', background: '#F6F2EA', borderTop: '1px solid #E1D9CB' }}>
+        <div className="mz-nav">
+          {VOCI_BARRA.map(item => {
             const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
-            const color = active ? '#A9884E' : '#8a9488'
             return (
-              <Link key={item.href} href={item.href}
-                className="flex flex-col items-center justify-center flex-1 gap-[5px] transition-colors"
-                style={{ color }}>
-                <span className="relative">
-                  <item.Icon size={25} strokeWidth={active ? 2 : 1.6} aria-hidden />
-                  {item.href === '/calendario' && (
-                    <RequestBadge count={webCount} className="absolute -top-1.5 -right-2.5" />
-                  )}
-                  {item.href === '/richieste' && (
-                    <>
-                      <RequestBadge count={richiesteCount} className="absolute -top-1.5 -right-2.5" />
-                      {/* Blu sempre nel suo posto sotto il rosso: se il rosso manca,
-                          il vuoto resta visibile e il blu non risale. */}
-                      <RequestBadge count={inAttesaRisposta} colore="blu" className="absolute -right-2.5 top-[12px]" />
-                    </>
-                  )}
-                </span>
-                <span className="text-[12px] font-medium leading-none">{item.label}</span>
+              <Link key={item.href} href={item.href} className={active ? 'on' : ''} aria-current={active ? 'page' : undefined}>
+                {ICONE_BARRA[item.icona]}{item.label}
+                {/* Richieste: il puntino d'ottone quando c'è qualcosa da guardare (o la lettura è fallita) */}
+                {item.href === '/richieste' && (webCount !== 0 || richiesteCount !== 0) && <span className="punto" data-bollino="ottone" aria-label="Richieste da gestire" />}
               </Link>
             )
           })}
+          <button type="button" className={menuAperto || VOCI_MENU.some(v => pathname.startsWith(v.href)) ? 'on' : ''} onClick={() => setMenuAperto(true)} aria-expanded={menuAperto} data-menu-barra>
+            {ICONE_BARRA.menu}Menu
+          </button>
         </div>
       </nav>
+      {menuAperto && (
+        <FoglioMaison titolo="Menu" altezza={420} onChiudi={() => setMenuAperto(false)} dati="menu">
+          <div className="mz-vai" style={{ marginTop: 8 }} onClick={() => setMenuAperto(false)}>
+            {VOCI_MENU.filter(v => visible(v.href)).map(v => (
+              <Link key={v.href} href={v.href}><span>{v.label}</span><span aria-hidden>→</span></Link>
+            ))}
+          </div>
+        </FoglioMaison>
+      )}
 
       {/* Desktop: barra laterale a sinistra */}
       <nav className="hidden lg:flex fixed left-0 top-0 bottom-0 w-48 bg-sidebar border-r border-border-soft z-50 flex-col py-6">

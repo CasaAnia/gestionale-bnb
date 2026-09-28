@@ -9,6 +9,7 @@ import { useRichiesteWeb } from '@/lib/webRequests'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import DaControllare from '@/components/DaControllare'
 import RichiesteHome from '@/components/RichiesteHome'
+import StrisciaFoto from '@/components/maison/StrisciaFoto'
 import { ricaricaDaControllare, useDaControllare } from '@/lib/daControllareDati'
 import NumeriOggi from '@/components/NumeriOggi'
 import PulizieOggi from '@/components/PulizieOggi'
@@ -27,9 +28,6 @@ function today() { return ymd(new Date()) }
 function tomorrow() { return spostaGiorni(today(), 1) }
 function monthStart() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
 function nextMonthStart() { const d = new Date(); const n = new Date(d.getFullYear(), d.getMonth() + 1, 1); return ymd(n) }
-function italianDate() {
-  return new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-}
 
 // Tutti i numeri da lib/statistiche; qui solo la scelta delle righe da mostrare
 function calcola(d: DatiHome, td: string, tmr: string, ms: string, nms: string) {
@@ -177,12 +175,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-4 home-approvata">
-      {/* Stile editoriale (06/09/2026): titolo grande e leggero, data in maiuscoletto ottone */}
-      <div className="mb-4">
-        <h1 className="home-saluto">Buongiorno, Ania</h1>
-        <p className="home-data">{italianDate()}</p>
-      </div>
+    <div className="maison -mt-12 lg:mt-0 pb-8" data-senza-sottolinea>
+      <StrisciaFoto />
+      <div className="p-4 home-approvata">
 
       {(numeroRichieste > 0 || richiesteWeb.stato === 'errore' || controlli.stato === 'errore') && <details className="home-richieste">
         <summary>🌐 {numeroRichieste > 0 ? `${numeroRichieste} ${numeroRichieste === 1 ? 'richiesta da gestire' : 'richieste da gestire'}` : 'Richieste da controllare'}</summary>
@@ -311,6 +306,7 @@ export default function Dashboard() {
           </div>
         </>
       )}
+      </div>
     </div>
   )
 }

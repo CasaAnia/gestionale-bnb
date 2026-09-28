@@ -22,7 +22,8 @@ const SECTION_TITLES: [string, string][] = [
 export default function MobileTopBar() {
   const pathname = usePathname()
   const indietro = useAzioneIndietro()
-  if (pathname === '/login') return null
+  // Sulla Home «Maison» (28/09/2026) in cima c'è la striscia con la foto
+  if (pathname === '/login' || pathname === '/') return null
   const entry = SECTION_TITLES.find(([prefix]) => pathname.startsWith(prefix))
   const title = entry ? entry[1] : 'Casa Ania'
   return (

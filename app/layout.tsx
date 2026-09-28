@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
-import { Fraunces, Manrope, Nunito_Sans } from 'next/font/google'
+import { Cormorant_Garamond, Fraunces, Jost, Manrope, Nunito_Sans } from 'next/font/google'
 import './globals.css'
+import './maison.css'
 import BottomNav from '@/components/BottomNav'
 import MobileTopBar from '@/components/MobileTopBar'
 import { BackProvider } from '@/components/BackContext'
@@ -14,6 +15,10 @@ import AvvisoConnessione from '@/components/AvvisoConnessione'
 const nunitoSans = Nunito_Sans({ subsets: ['latin'], variable: '--font-nunito-sans', display: 'swap' })
 const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', weight: ['300', '400', '500', '600'], style: ['normal', 'italic'], display: 'swap' })
 const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope', weight: ['400', '500', '600', '700'], display: 'swap' })
+// Stile «Maison» della Home (riferimento approvato da Ania il 28/09/2026):
+// Cormorant Garamond per titoli, nomi, numeri e orari; Jost per il testo.
+const cormorant = Cormorant_Garamond({ subsets: ['latin'], variable: '--font-cormorant', weight: ['300', '400', '500'], style: ['normal', 'italic'], display: 'swap' })
+const jost = Jost({ subsets: ['latin'], variable: '--font-jost', weight: ['300', '400', '500'], display: 'swap' })
 
 export const metadata: Metadata = {
   title: 'Casa Ania Rozzano',
@@ -44,7 +49,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="it" className={`${nunitoSans.variable} ${fraunces.variable} ${manrope.variable}`}>
+    <html lang="it" className={`${nunitoSans.variable} ${fraunces.variable} ${manrope.variable} ${cormorant.variable} ${jost.variable}`}>
       <body className="bg-cream text-green-dark antialiased font-sans">
         <ScrollToTop />
         <NavTracker />
