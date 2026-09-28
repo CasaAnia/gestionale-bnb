@@ -1,3 +1,19 @@
+## Nuova prenotazione «Maison» — PUBBLICATA — 28/09/2026
+
+Riferimento approvato: `docs/design/nuova-prenotazione-riferimento.html`; checklist e riscontro accanto (`nuova-prenotazione-checklist.md`, `-riscontro.md`). Commit 0bef7d8 → 65f158f. Novità: tariffa sempre di listino (niente campo), letto a prezzo fisso (`LETTO_AGGIUNTIVO_A_NOTTE`: Amelia 5, Ambra e Allegra 10, Lena in 3 compreso, in 4 10), conto per camera con subtotali, «Chi dorme in camera» con la spunta «Non è lei a dormire qui». 🔴 Da applicare a mano la proposta `supabase/proposte/0061_chi_dorme_in_camera.BOZZA.sql`: finché manca, la spunta non compare. Tinte camere e «già ospite N volte» restano quelle di oggi (scelta di Ania).
+
+**Prove dal telefono in 10 minuti**
+1. Home → «+»: in alto «Nuova prenotazione», la data in ottone, «‹ Indietro» a destra.
+2. Cerca 2–3 lettere di una cliente già stata qui: sotto il nome «telefono · già ospite N volte · speso» (speso in rosso mattone).
+3. Caso «figlio che prenota per la mamma»: cerca il numero del figlio, «+ Nuovo cliente» (il numero è già scritto), compila, «Avanti».
+4. Arrivo e partenza, camera Ambra, ospiti 2: accanto «80 € di listino · in 2», nessun campo da scrivere.
+5. Tocca una notte: si apre sotto; «letto in più» → «Sì · 10 €»; sotto la notte compare «+letto»; nel conto la riga «Letto aggiuntivo · 1 notte · 10 €».
+6. Più di 7 notti: la striscia va a capo, le colonne restano strette.
+7. «+ Aggiungi camera», Lena: il conto mostra «Camera 1 · date» e «Camera 2 · date» con i subtotali; sconto 10 %: la frase ottone e «Sconto 10 %» nel conto.
+8. «Chi dorme in camera»: c'è il figlio come intestatario. Tocca «Non è lei a dormire qui» (solo dopo la 0061): la sua riga sparisce e si apre il foglietto: scrivi la mamma, «Chi è: Mamma», «Aggiungi».
+9. Con 2 ospiti si può aggiungere una persona sola in più (due se non è lei a dormire).
+10. Arrivo e navetta in fondo, poi «Salva la prenotazione»: cerchio con la spunta, «Salvato · Prenotazione di …», e si apre la scheda. Senza camera: sotto il tasto «manca la camera» in mattone.
+
 ## Home «Maison» — PUBBLICATA — 28/09/2026
 
 Riferimento approvato da Ania: docs/design/home-maison-riferimento.html; checklist e riscontro nella stessa cartella. Commit d7739cc…605ca5f più riscontro. Novità: frecce ⇄ sotto/sopra, riquadro sotto la striscia della settimana, pulizie con arrivo lo stesso giorno non più automatiche. Conferma di salvataggio B in Arrivo, Pulizia, Pagamento, Rimanda/Salta, Segna pagato. Metodi di pagamento solo Contanti e Bonifico. Suite 1825/1825, build OK. Nessuna migrazione, nessuna scrittura reale.
