@@ -155,7 +155,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="maison -mt-12 lg:mt-0 pb-8" data-senza-sottolinea>
+    <div className="maison mz-home -mt-12 lg:mt-0 pb-8" data-senza-sottolinea>
       <StrisciaFoto />
 
       {(numeroRichieste > 0 || richiesteWeb.stato === 'errore' || controlli.stato === 'errore') && <details className="mz-req" data-richieste-home>

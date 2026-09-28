@@ -205,3 +205,18 @@ test('Home dal telefono: le misure stanno nelle variabili --home-*, Mac invariat
     assert.ok(tel.includes(v), `telefono: ${v}`)
   assert.match(leggi('app/layout.tsx'), /Figtree\(\{[^)]*weight: \['400', '500', '600'\]/)
 })
+
+// ── Sfondo dal telefono: prova «C» (Ania, 28/09/2026) ───────────────────
+test('sfondo della Home: crema dal Mac, bianco dal telefono; fili con --home-line; il crema resta nei fogli e nel riquadro', () => {
+  const css = leggi('app/maison.css')
+  assert.match(css, /:root:has\(\.mz-home\) \{ --home-bg: #F6F2EA; --home-line: #E1D9CB; \}/)
+  const telefono = css.slice(css.indexOf('@media (max-width: 1023px)'))
+  assert.match(telefono, /:root:has\(\.mz-home\) \{\s*--home-bg: #FFFFFF;\s*--home-line: #E8E3DA;\s*\}/)
+  assert.match(telefono, /\.mz-home \.mz-wkin \{ background: #F6F2EA; \}/)
+  assert.match(css, /\.maison\.mz-home \{ --m-bg: var\(--home-bg\); --m-line: var\(--home-line\); \}/)
+  assert.match(css, /body:has\(\.mz-home\) \{ background: var\(--home-bg\); \}/)
+  // i fogli dal basso restano crema
+  assert.match(css, /\.mz-foglio \{[^}]*background: #F6F2EA/)
+  assert.match(leggi('app/page.tsx'), /className="maison mz-home /)
+  assert.match(leggi('components/BottomNav.tsx'), /background: 'var\(--home-bg, #F6F2EA\)', borderTop: '1px solid var\(--home-line, #E1D9CB\)'/)
+})

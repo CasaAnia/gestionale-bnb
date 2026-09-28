@@ -38,6 +38,19 @@
 .maison { --m-mut: var(--home-mut); font-family: var(--home-ui-font); }
 .maison { background: var(--m-bg); min-height: 100vh; }
 body:has(.maison) { background: #F6F2EA; }
+
+/* Sfondo e fili della Home (prova «C», Ania, 28/09/2026): dal Mac il crema
+   di sempre, dal telefono il bianco (valori nel media query in fondo). Stanno
+   sulla radice perché li leggono anche il fondo della pagina e la barra in
+   basso (BottomNav), che sono fuori da .maison; valgono solo con la Home
+   aperta (.mz-home). Il crema resta come tinta del riquadro sotto la
+   striscia della settimana, dei fogli dal basso e delle loro chip. */
+:root:has(.mz-home) { --home-bg: #F6F2EA; --home-line: #E1D9CB; }
+body:has(.mz-home) { background: var(--home-bg); }
+.maison.mz-home { --m-bg: var(--home-bg); --m-line: var(--home-line); }
+/* La conferma «Salvato» aperta nella pagina (Rimanda o salta) si sbianca
+   nel colore del fondo, non in crema; nei fogli (.mz) --m-bg resta crema. */
+.mz-home .mz-salvato::before { background: color-mix(in srgb, var(--m-bg) 85%, transparent); }
 .maison *, .mz * { box-sizing: border-box; }
 
 
@@ -271,6 +284,14 @@ body:has(.maison) { background: #F6F2EA; }
     --home-fs-lnk: 10.5px;
     --home-fs-cap: 10.5px;
   }
+  /* Prova «C»: sfondo bianco puro; per tornare al crema basta rimettere
+     --home-bg: #F6F2EA (e --home-line: #E1D9CB). */
+  :root:has(.mz-home) {
+    --home-bg: #FFFFFF;
+    --home-line: #E8E3DA;
+  }
+  /* Sul bianco il riquadro sotto la striscia della settimana prende il crema */
+  .mz-home .mz-wkin { background: #F6F2EA; }
   .maison .mz-arr .id .nm { font-size: 19px; }
 }
 

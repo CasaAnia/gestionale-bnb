@@ -19,6 +19,7 @@ Riferimento approvato: `docs/design/nuova-prenotazione-riferimento.html`; checkl
 Riferimento approvato da Ania: docs/design/home-maison-riferimento.html; checklist e riscontro nella stessa cartella. Commit d7739cc…605ca5f più riscontro. Novità: frecce ⇄ sotto/sopra, riquadro sotto la striscia della settimana, pulizie con arrivo lo stesso giorno non più automatiche. Conferma di salvataggio B in Arrivo, Pulizia, Pagamento, Rimanda/Salta, Segna pagato. Metodi di pagamento solo Contanti e Bonifico. Suite 1825/1825, build OK. Nessuna migrazione, nessuna scrittura reale.
 
 Home dal telefono: prova E attiva; per regolare basta cambiare le variabili --home-* nel media query (in fondo ad app/maison.css; riscontro in docs/design/home-leggibilita-riscontro.md).
+Home dal telefono: sfondo bianco (prova C); per tornare al crema basta cambiare --home-bg nella media query.
 
 ### Prove dal telefono in 10 minuti
 1. Apri la Home: in alto la foto di Lena con «Buongiorno, Ania», sotto richieste, quattro numeri, striscia della settimana.

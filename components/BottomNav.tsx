@@ -100,7 +100,7 @@ export default function BottomNav() {
     <>
       {/* Mobile: barra «Maison» (28/09/2026) */}
       <nav className="barra-bassa lg:hidden fixed bottom-0 left-0 right-0 z-50" aria-label="Navigazione"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)', background: '#F6F2EA', borderTop: '1px solid #E1D9CB' }}>
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)', background: 'var(--home-bg, #F6F2EA)', borderTop: '1px solid var(--home-line, #E1D9CB)' }}>
         <div className="mz-nav">
           {VOCI_BARRA.map(item => {
             const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
