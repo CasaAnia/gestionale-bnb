@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Cormorant_Garamond, Fraunces, Jost, Manrope, Nunito_Sans } from 'next/font/google'
+import { Cormorant_Garamond, Figtree, Fraunces, Jost, Manrope, Nunito_Sans } from 'next/font/google'
 import './globals.css'
 import './maison.css'
 import BottomNav from '@/components/BottomNav'
@@ -19,6 +19,8 @@ const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope', weight
 // Cormorant Garamond per titoli, nomi, numeri e orari; Jost per il testo.
 const cormorant = Cormorant_Garamond({ subsets: ['latin'], variable: '--font-cormorant', weight: ['300', '400', '500'], style: ['normal', 'italic'], display: 'swap' })
 const jost = Jost({ subsets: ['latin'], variable: '--font-jost', weight: ['300', '400', '500'], display: 'swap' })
+// Figtree: il testo della Home sul telefono (prova «E», 28/09/2026), vedi app/maison.css.
+const figtree = Figtree({ subsets: ['latin'], variable: '--font-figtree', weight: ['400', '500', '600'], display: 'swap' })
 
 export const metadata: Metadata = {
   title: 'Casa Ania Rozzano',
@@ -49,7 +51,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="it" className={`${nunitoSans.variable} ${fraunces.variable} ${manrope.variable} ${cormorant.variable} ${jost.variable}`}>
+    <html lang="it" className={`${nunitoSans.variable} ${fraunces.variable} ${manrope.variable} ${cormorant.variable} ${jost.variable} ${figtree.variable}`}>
       <body className="bg-cream text-green-dark antialiased font-sans">
         <ScrollToTop />
         <NavTracker />

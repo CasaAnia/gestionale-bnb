@@ -20,6 +20,22 @@
   font-weight: 400;
   color: var(--m-ink);
 }
+
+/* Tipografia secondaria della Home: numeri da regolare, non stili a mano.
+   Sul Mac valgono questi; sotto lg (telefono) li cambia il media query in
+   fondo al file (prova «E», scelta di Ania del 28/09/2026). I fogli (.mz)
+   rimettono i valori del Mac, così non cambiano neanche aperti dalla Home. */
+.maison, .mz {
+  --home-ui-font: var(--m-ui);
+  --home-mut: #8A8072;
+  --home-gutter: 22px;
+  --home-fs-sec: 11.5px;
+  --home-fs-info: 12.5px;
+  --home-fw-sec: 300;
+  --home-fs-lnk: 10px;
+  --home-fs-cap: 9.5px;
+}
+.maison { --m-mut: var(--home-mut); font-family: var(--home-ui-font); }
 .maison { background: var(--m-bg); min-height: 100vh; }
 body:has(.maison) { background: #F6F2EA; }
 .maison *, .mz * { box-sizing: border-box; }
@@ -30,7 +46,7 @@ body:has(.maison) { background: #F6F2EA; }
 
 /* Etichetta di sezione: maiuscoletto ottone col filo che continua a destra */
 .mz-eyebrow { font-family: var(--m-ui); font-size: 9.5px; letter-spacing: .24em; text-transform: uppercase; color: var(--m-acc); font-weight: 500; }
-.mz-sec { padding: 12px 22px 0; }
+.mz-sec { padding: 12px var(--home-gutter) 0; }
 .mz-sec > .mz-eyebrow { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
 .mz-sec > .mz-eyebrow > small { flex: 0 1 auto; min-width: 0; white-space: normal; margin-left: -4px; }
 .mz-sec > .mz-eyebrow::after { content: ""; flex: 1 0 14px; height: 1px; background: var(--m-line); }
@@ -39,8 +55,8 @@ body:has(.maison) { background: #F6F2EA; }
 
 /* Le azioni: parole maiuscolette col filo d'ottone, area di tocco 44 px */
 .mz-lnk {
-  position: relative; display: inline-block; font-family: var(--m-ui);
-  font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--m-ink);
+  position: relative; display: inline-block; font-family: var(--home-ui-font);
+  font-size: var(--home-fs-lnk); letter-spacing: .18em; text-transform: uppercase; color: var(--m-ink);
   border-bottom: 1px solid var(--m-acc); padding: 0 0 2px; font-weight: 500; white-space: nowrap;
   background: none; line-height: 1.3; cursor: pointer; text-decoration: none !important;
 }
@@ -56,7 +72,7 @@ body:has(.maison) { background: #F6F2EA; }
 /* ── Striscia in alto ─────────────────────────────────────────────────── */
 .mz-strip { height: 118px; position: relative; color: #fff; background-size: cover; background-position: center; }
 .mz-strip::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,15,10,.1), rgba(36,31,26,.66)); }
-.mz-strip .tx { position: absolute; left: 22px; right: 22px; bottom: 14px; z-index: 1; }
+.mz-strip .tx { position: absolute; left: var(--home-gutter); right: var(--home-gutter); bottom: 14px; z-index: 1; }
 .mz-strip .mz-eyebrow { color: #E7D6AE; }
 .mz-strip h1 { font-family: var(--m-disp); font-weight: 300; font-size: 30px; line-height: 1; margin: 4px 0 0; color: #fff; }
 .mz-strip h1 em { font-style: italic; font-weight: 400; }
@@ -65,7 +81,7 @@ body:has(.maison) { background: #F6F2EA; }
 .mz-strip .ic a::before { content: ""; position: absolute; inset: -8px; }
 
 /* ── Richieste ────────────────────────────────────────────────────────── */
-.mz-req { margin: 0 22px; border-bottom: 1px solid var(--m-line); padding: 12px 0 10px; }
+.mz-req { margin: 0 var(--home-gutter); border-bottom: 1px solid var(--m-line); padding: 12px 0 10px; }
 .mz-req > summary { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--m-ink); list-style: none; cursor: pointer; min-height: 24px; }
 .mz-req > summary::-webkit-details-marker { display: none; }
 .mz-req > summary b { font-weight: 500; }
@@ -74,12 +90,12 @@ body:has(.maison) { background: #F6F2EA; }
 .mz-req .it { margin-top: 10px; padding-left: 24px; }
 .mz-req .it .mz-eyebrow { font-size: 8.5px; }
 .mz-req .it .nm { font-family: var(--m-disp); font-size: 19px; font-weight: 500; margin-top: 2px; line-height: 1.05; }
-.mz-req .it .sm { font-size: 11.5px; color: var(--m-mut); margin-top: 3px; font-weight: 300; line-height: 1.4; }
+.mz-req .it .sm { font-size: var(--home-fs-sec); color: var(--m-mut); margin-top: 3px; font-weight: var(--home-fw-sec); line-height: 1.4; }
 .mz-req .it .sm.nota { color: var(--m-mat); font-weight: 400; }
 .mz-req .it .mz-lnk { margin-top: 7px; }
 
 /* ── Numeri ───────────────────────────────────────────────────────────── */
-.mz-nums { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0 22px; padding: 14px 0 10px; text-align: center; border-top: 1px solid rgba(168,137,79,.55); border-bottom: 1px solid rgba(168,137,79,.55); }
+.mz-nums { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0 var(--home-gutter); padding: 14px 0 10px; text-align: center; border-top: 1px solid rgba(168,137,79,.55); border-bottom: 1px solid rgba(168,137,79,.55); }
 .mz-nums > a { display: block; color: inherit; text-decoration: none !important; min-width: 0; }
 .mz-nums > a + a { border-left: 1px solid var(--m-line); }
 .mz-nums b { display: block; font-family: var(--m-disp); font-size: 28px; font-weight: 300; line-height: 1; white-space: nowrap; }
@@ -87,9 +103,9 @@ body:has(.maison) { background: #F6F2EA; }
 .mz-nums span { font-size: 8.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--m-mut); display: block; margin-top: 4px; }
 
 /* ── Striscia della settimana ─────────────────────────────────────────── */
-.mz-wk { margin: 8px 22px 0; display: flex; overflow-x: auto; border-bottom: 1px solid rgba(168,137,79,.55); padding-bottom: 6px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.mz-wk { margin: 8px var(--home-gutter) 0; display: flex; overflow-x: auto; border-bottom: 1px solid rgba(168,137,79,.55); padding-bottom: 6px; scroll-snap-type: x mandatory; scrollbar-width: none; }
 .mz-wk::-webkit-scrollbar { display: none; }
-.mz-wk > button { flex: 0 0 calc(100% / 7); scroll-snap-align: start; text-align: center; font-size: 9.5px; letter-spacing: .06em; color: var(--m-mut); line-height: 1; background: none; border: 0; padding: 0; font-family: var(--m-ui); text-decoration: none !important; }
+.mz-wk > button { flex: 0 0 calc(100% / 7); scroll-snap-align: start; text-align: center; font-size: var(--home-fs-cap); letter-spacing: .06em; color: var(--m-mut); line-height: 1; background: none; border: 0; padding: 0; font-family: var(--home-ui-font); text-decoration: none !important; }
 @media (min-width: 1024px) { .mz-wk > button { flex-basis: calc(100% / 14); } }
 .mz-wk > button b { display: block; font-family: var(--m-disp); font-size: 22px; font-weight: 400; color: var(--m-ink); margin-top: 5px; line-height: 1.1; }
 .mz-wk > button b.q { color: #C9C0B0; }
@@ -97,16 +113,16 @@ body:has(.maison) { background: #F6F2EA; }
 .mz-wk > button i { display: block; height: 10px; font-style: normal; color: var(--m-acc); font-size: 11px; font-weight: 600; line-height: 10px; }
 .mz-wk > button.sw { border-left: 1px solid rgba(168,137,79,.55); }
 .mz-wk > button.scelto { border-bottom: 2px solid var(--m-acc); margin-bottom: -7px; padding-bottom: 5px; }
-.mz-cap { margin: 5px 22px 0; font-size: 9px; color: var(--m-mut); letter-spacing: .06em; }
-.mz-wkin { margin: 10px 22px 0; background: #EFE9DD; border: 1px solid #DDD3C2; padding: 12px 14px; }
+.mz-cap { margin: 5px var(--home-gutter) 0; font-size: calc(var(--home-fs-cap) - .5px); color: var(--m-mut); letter-spacing: .06em; }
+.mz-wkin { margin: 10px var(--home-gutter) 0; background: #EFE9DD; border: 1px solid #DDD3C2; padding: 12px 14px; }
 .mz-wkin .hd { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-.mz-wkin .sm { font-size: 11px; color: var(--m-mut); font-weight: 300; }
+.mz-wkin .sm { font-size: calc(var(--home-fs-sec) - .5px); color: var(--m-mut); font-weight: var(--home-fw-sec); }
 .mz-wkin .r { padding: 9px 0; border-top: 1px solid #DDD3C2; }
 .mz-wkin .r:first-of-type { margin-top: 8px; }
 .mz-wkin .r .nm { font-family: var(--m-disp); font-size: 17px; font-weight: 500; line-height: 1; color: var(--m-ink); text-decoration: none !important; }
-.mz-wkin .r .nm small { font-family: var(--m-ui); font-size: 11px; color: var(--m-mut); font-weight: 300; }
+.mz-wkin .r .nm small { font-family: var(--home-ui-font); font-size: calc(var(--home-fs-sec) - .5px); color: var(--m-mut); font-weight: var(--home-fw-sec); }
 .mz-wkin .r .nm small.cambio { color: var(--m-acc); font-weight: 500; }
-.mz-wkin .r .de { font-size: 12px; color: var(--m-mut); margin-top: 3px; }
+.mz-wkin .r .de { font-size: calc(var(--home-fs-sec) + .5px); color: var(--m-mut); margin-top: 3px; }
 .mz-wkin .r .de b { color: var(--m-ink); font-weight: 500; }
 
 /* ── La giornata: arrivi, partenze, cambi ─────────────────────────────── */
@@ -120,12 +136,12 @@ body:has(.maison) { background: #F6F2EA; }
 .mz-arr .ora b small { font-size: 13px; color: var(--m-mut); font-weight: 300; margin-left: 4px; }
 .mz-arr .ora .pen { position: relative; color: var(--m-mut); font-size: 13px; background: none; border: 0; padding: 0 4px; line-height: 1; }
 .mz-arr .ora .pen::before { content: ""; position: absolute; left: -10px; right: -10px; top: 50%; height: 44px; transform: translateY(-50%); }
-.mz-arr .sotto { font-size: 11px; color: var(--m-mut); font-weight: 300; margin-top: 2px; }
+.mz-arr .sotto { font-size: calc(var(--home-fs-sec) - .5px); color: var(--m-mut); font-weight: var(--home-fw-sec); margin-top: 2px; }
 .mz-arr .tr { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: start; margin-top: 7px; }
 .mz-arr .tr svg { width: 14px; height: 14px; stroke: var(--m-acc); fill: none; stroke-width: 1.3; margin-top: 2px; }
-.mz-arr .tr .f { font-size: 12.5px; color: var(--m-ink); }
-.mz-arr .tr .s { font-size: 11px; color: var(--m-mut); font-weight: 300; }
-.mz-arr .nota { font-size: 12px; color: var(--m-mat); margin-top: 7px; line-height: 1.35; }
+.mz-arr .tr .f { font-size: var(--home-fs-info); color: var(--m-ink); }
+.mz-arr .tr .s { font-size: calc(var(--home-fs-sec) - .5px); color: var(--m-mut); font-weight: var(--home-fw-sec); }
+.mz-arr .nota { font-size: calc(var(--home-fs-info) - .5px); color: var(--m-mat); margin-top: 7px; line-height: 1.35; }
 .mz-wam { margin-left: auto; position: relative; }
 .mz-wam > summary { list-style: none; cursor: pointer; }
 .mz-wam > summary::-webkit-details-marker { display: none; }
@@ -136,29 +152,29 @@ body:has(.maison) { background: #F6F2EA; }
 .mz-ev .k.o { color: var(--m-mat); }
 .mz-ev .k.c { color: var(--m-acc); }
 .mz-ev .gn { font-family: var(--m-disp); font-size: 16px; font-weight: 500; color: inherit; }
-.mz-ev .r { font-size: 11.5px; color: var(--m-mut); font-weight: 300; }
+.mz-ev .r { font-size: var(--home-fs-sec); color: var(--m-mut); font-weight: var(--home-fw-sec); }
 .mz-ev .eur { margin-left: auto; font-family: var(--m-disp); font-size: 16px; color: var(--m-mat); white-space: nowrap; }
 .mz-ev .eur.ink { color: var(--m-ink); }
-.mz-ev .nota { flex-basis: 100%; font-size: 12px; color: var(--m-mat); line-height: 1.35; padding-left: 72px; }
+.mz-ev .nota { flex-basis: 100%; font-size: calc(var(--home-fs-info) - .5px); color: var(--m-mat); line-height: 1.35; padding-left: 72px; }
 .mz-ev .nota .mz-lnk { font-size: 9px; }
 
 /* ── Pulizie di oggi ──────────────────────────────────────────────────── */
 .mz-pul { padding: 10px 0 12px; border-bottom: 1px solid var(--m-line); }
 .mz-pul .id { display: flex; align-items: baseline; gap: 8px; }
 .mz-pul .id .nm { font-family: var(--m-disp); font-size: 20px; font-weight: 500; line-height: 1; }
-.mz-pul .id .os { font-size: 11px; color: var(--m-mut); font-weight: 300; }
+.mz-pul .id .os { font-size: calc(var(--home-fs-sec) - .5px); color: var(--m-mut); font-weight: var(--home-fw-sec); }
 .mz-pul .id .rit { margin-left: auto; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--m-mat); }
-.mz-pul .pr { margin-top: 6px; font-size: 12.5px; }
+.mz-pul .pr { margin-top: 6px; font-size: var(--home-fs-info); }
 .mz-pul .pr small { display: block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--m-mut); margin-bottom: 1px; }
-.mz-pul .de { font-size: 11.5px; color: var(--m-mut); font-weight: 300; margin-top: 4px; }
+.mz-pul .de { font-size: var(--home-fs-sec); color: var(--m-mut); font-weight: var(--home-fw-sec); margin-top: 4px; }
 .mz-tm { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--m-mut); }
 .mz-tm b { font-family: var(--m-disp); font-size: 18px; font-weight: 400; color: var(--m-ink); font-variant-numeric: tabular-nums; }
-.mz-note { font-size: 11px; color: var(--m-mut); font-weight: 300; margin-top: 6px; }
+.mz-note { font-size: calc(var(--home-fs-sec) - .5px); color: var(--m-mut); font-weight: var(--home-fw-sec); margin-top: 6px; }
 .mz-note .mz-lnk { margin-left: 4px; }
 .mz-errore { font-size: 11.5px; color: var(--m-mat); margin-top: 6px; }
 .mz-pul .ac { display: flex; gap: 14px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
 .mz-pul .ac .mz-lnk { margin: 8px 0; }
-.mz-fuori { font-size: 11px; color: var(--m-mut); padding: 10px 0 0; font-weight: 300; }
+.mz-fuori { font-size: calc(var(--home-fs-sec) - .5px); color: var(--m-mut); padding: 10px 0 0; font-weight: var(--home-fw-sec); }
 .mz-fuori .riga { display: flex; align-items: center; gap: 8px; }
 .mz-fuori .riga b { margin-left: auto; font-family: var(--m-disp); font-size: 18px; font-weight: 400; color: var(--m-ink); font-variant-numeric: tabular-nums; }
 .mz-fuori .mz-lnk { font-size: 9px; }
@@ -173,7 +189,7 @@ body:has(.maison) { background: #F6F2EA; }
 .mz-dc { padding: 9px 0; border-bottom: 1px solid var(--m-line); }
 .mz-dc .mz-eyebrow { font-size: 8.5px; }
 .mz-dc .ti { font-family: var(--m-disp); font-size: 17px; font-weight: 500; margin-top: 2px; line-height: 1.1; }
-.mz-dc .mo { font-size: 11.5px; color: var(--m-mut); font-weight: 300; margin: 3px 0 6px; }
+.mz-dc .mo { font-size: var(--home-fs-sec); color: var(--m-mut); font-weight: var(--home-fw-sec); margin: 3px 0 6px; }
 .mz-dc .mo .mat { color: var(--m-mat); }
 .mz-dc .azioni { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; min-height: 30px; }
 
@@ -237,5 +253,23 @@ body:has(.maison) { background: #F6F2EA; }
 .mz-nav svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.1; }
 .mz-nav .on { color: #241F1A; }
 .mz-nav .punto { position: absolute; top: calc(50% - 17px); right: calc(50% - 16px); width: 6px; height: 6px; border-radius: 50%; background: #A8894F; }
-.mz-timer .mz-tm .et { flex: 1; font-size: 11px; color: var(--m-mut); font-weight: 300; }
+.mz-timer .mz-tm .et { flex: 1; font-size: calc(var(--home-fs-sec) - .5px); color: var(--m-mut); font-weight: var(--home-fw-sec); }
 .mz-timer .mz-tm .et + b { margin-left: auto; }
+
+/* ── Home dal telefono: prova «E» (Ania, 28/09/2026) ──────────────────────
+   Solo sotto lg: per regolare basta cambiare questi numeri. Etichette in
+   maiuscoletto ottone, numeri grandi, orari in Cormorant e barra in basso
+   restano come sul Mac; i fogli (.mz) non ereditano (vedi sopra). */
+@media (max-width: 1023px) {
+  .maison {
+    --home-ui-font: var(--font-figtree), Figtree, system-ui, sans-serif;
+    --home-mut: #6E6558;
+    --home-gutter: 16px;
+    --home-fs-sec: 13px;
+    --home-fs-info: 13.5px;
+    --home-fw-sec: 400;
+    --home-fs-lnk: 10.5px;
+    --home-fs-cap: 10.5px;
+  }
+  .maison .mz-arr .id .nm { font-size: 19px; }
+}

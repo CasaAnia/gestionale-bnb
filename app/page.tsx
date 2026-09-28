@@ -187,7 +187,7 @@ export default function Dashboard() {
       {loading ? (
         <div className="mz-caricamento">Caricamento…</div>
       ) : errore ? (
-        <div className="mx-[22px] mt-3"><AvvisoAzione testo={errore} onRiprova={riprova} /></div>
+        <div className="mx-[var(--home-gutter)] mt-3"><AvvisoAzione testo={errore} onRiprova={riprova} /></div>
       ) : (
         <>
           {/* «Da incassare» e «Incassati oggi» (Home «Maison», 28/09/2026) */}

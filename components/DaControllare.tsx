@@ -50,7 +50,7 @@ export default function DaControllare({ dati, richieste = false }: { dati: Retur
   // eccezioni la Home resta com'è
   if (dc.stato === 'caricamento') return null
   if (dc.stato === 'errore') {
-    return <AvvisoAzione testo={dc.errore} onRiprova={dc.ricarica} className={richieste ? 'my-2' : 'mx-[22px] mt-3'} />
+    return <AvvisoAzione testo={dc.errore} onRiprova={dc.ricarica} className={richieste ? 'my-2' : 'mx-[var(--home-gutter)] mt-3'} />
   }
   // Gli arrivi hanno già il loro blocco operativo sopra: esclusi anche dai conteggi.
   const eccezioni = dc.eccezioni.filter(e => richieste ? e.tipo === 'richiesta' : e.tipo !== 'arrivo' && e.tipo !== 'richiesta')

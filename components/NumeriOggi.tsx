@@ -40,7 +40,7 @@ export default function NumeriOggi({ dati: n, daIncassareEuro = null }: { dati: 
           <Numero href={`#${ID_DA_INCASSARE}`} etichetta="Da incassare €" valore={daIncassareEuro == null ? trattino : daIncassareEuro.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
             onClick={e => { e.preventDefault(); document.getElementById(ID_DA_INCASSARE)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }} />
         </div>
-        {n.stato === 'errore' && <AvvisoAzione testo={n.errore} onRiprova={n.ricarica} className="mt-2 mx-[22px]" />}
+        {n.stato === 'errore' && <AvvisoAzione testo={n.errore} onRiprova={n.ricarica} className="mt-2 mx-[var(--home-gutter)]" />}
       </section>
       {/* Striscia della settimana: stessa lettura dei numeri (28 giorni); con errore o in caricamento non compare */}
       {pronto && <StrisciaSettimana giorni={n.settimana} />}

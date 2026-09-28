@@ -193,3 +193,15 @@ test('come si paga: SOLO due scelte, Contanti e Bonifico, ovunque si sceglie il 
   // la lettura dei movimenti storici con «carta» e «altro» resta
   assert.match(leggi('lib/pagamentoFoglio.ts'), /v === 'carta' \? 'carta' : v === 'altro' \? 'altro'/)
 })
+
+// ── Leggibilità dal telefono: prova «E» (Ania, 28/09/2026) ───────────────
+test('Home dal telefono: le misure stanno nelle variabili --home-*, Mac invariato, prova E sotto lg', () => {
+  const css = leggi('app/maison.css')
+  const mac = css.match(/\.maison, \.mz \{\s*--home-ui-font[^}]*\}/)?.[0] ?? ''
+  for (const v of ['--home-ui-font: var(--m-ui)', '--home-mut: #8A8072', '--home-gutter: 22px', '--home-fs-sec: 11.5px', '--home-fs-info: 12.5px', '--home-fw-sec: 300', '--home-fs-lnk: 10px', '--home-fs-cap: 9.5px'])
+    assert.ok(mac.includes(v), `Mac: ${v}`)
+  const tel = css.match(/@media \(max-width: 1023px\) \{\s*\.maison \{[^}]*\}/)?.[0] ?? ''
+  for (const v of ['--home-ui-font: var(--font-figtree), Figtree', '--home-mut: #6E6558', '--home-gutter: 16px', '--home-fs-sec: 13px', '--home-fs-info: 13.5px', '--home-fw-sec: 400', '--home-fs-lnk: 10.5px', '--home-fs-cap: 10.5px'])
+    assert.ok(tel.includes(v), `telefono: ${v}`)
+  assert.match(leggi('app/layout.tsx'), /Figtree\(\{[^)]*weight: \['400', '500', '600'\]/)
+})
