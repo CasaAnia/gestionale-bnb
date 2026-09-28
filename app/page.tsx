@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useState } from 'react'
-import './home-approvata.css'
 import Link from 'next/link'
 import { getUpcomingRoomChanges, buildChangeGroups } from '@/lib/roomChanges'
 import { nomeConAltri } from '@/lib/guestName'
@@ -10,7 +9,7 @@ import AvvisoAzione from '@/components/AvvisoAzione'
 import DaControllare from '@/components/DaControllare'
 import RichiesteHome from '@/components/RichiesteHome'
 import StrisciaFoto from '@/components/maison/StrisciaFoto'
-import { partenzeConResiduo, vociDaIncassare, incassatiOggi } from '@/lib/incassiHome'
+import { partenzeConResiduo, vociDaIncassare, incassatiOggi, type PrenotazioneIncasso, type PagamentoIncasso } from '@/lib/incassiHome'
 import SoldiHome from '@/components/maison/SoldiHome'
 import { ricaricaDaControllare, useDaControllare } from '@/lib/daControllareDati'
 import NumeriOggi from '@/components/NumeriOggi'
@@ -30,6 +29,8 @@ const euro = (cent: number) => (cent / 100).toLocaleString('it-IT', { minimumFra
 function ymd(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 function today() { return ymd(new Date()) }
 function tomorrow() { return spostaGiorni(today(), 1) }
+/** «settembre» */
+function nomeMese() { return new Date().toLocaleDateString('it-IT', { month: 'long', timeZone: 'Europe/Rome' }) }
 function monthStart() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01` }
 function nextMonthStart() { const d = new Date(); const n = new Date(d.getFullYear(), d.getMonth() + 1, 1); return ymd(n) }
 
@@ -81,11 +82,13 @@ function calcola(d: DatiHome, td: string, tmr: string, ms: string, nms: string) 
   const voceIncassi = etichettaIncassi(pianoRicostruzione(d.ricostruzione.prenotazioni, d.ricostruzione.pagamenti, d.ricostruzione.oggi).movimenti.length)
 
   // Home «Maison» (28/09/2026): le partenze di oggi con un residuo, nella giornata
-  const tutte = [...d.prenotazioni, ...d.prenotazioniConMovimenti.filter(b => !d.prenotazioni.some((x: any) => x.id === b.id))]
-  const partenzeResiduo = partenzeConResiduo(checkOutOggi, tutte as any, d.tuttiPagamenti as any)
+  const idsMese = new Set(d.prenotazioni.map(b => b.id))
+  const tutte = [...d.prenotazioni, ...d.prenotazioniConMovimenti.filter(b => !idsMese.has(b.id))] as unknown as PrenotazioneIncasso[]
+  const pagamenti = d.tuttiPagamenti as PagamentoIncasso[]
+  const partenzeResiduo = partenzeConResiduo(checkOutOggi as PrenotazioneIncasso[], tutte, pagamenti)
   // «Da incassare» e «Incassati oggi» (lib/incassiHome): le stesse voci e cifre di daIncassare, con le parole della veste nuova
-  const vociIncasso = vociDaIncassare(d.prenotazioniConMovimenti as any, d.tuttiPagamenti as any, td)
-  const incassiOggi = incassatiOggi(tutte as any, d.tuttiPagamenti as any, td)
+  const vociIncasso = vociDaIncassare(d.prenotazioniConMovimenti as unknown as PrenotazioneIncasso[], pagamenti, td)
+  const incassiOggi = incassatiOggi(tutte, pagamenti, td)
 
   return { cassa, indici, voceIncassi, checkInOggi, checkOutOggi, checkInDomani, checkOutDomani, roomChangesOggi, roomChangesDomani, td, daIncassare: daInc, partenzeResiduo, vociIncasso, incassiOggi }
 }
@@ -181,72 +184,47 @@ export default function Dashboard() {
           zero eccezioni non occupa spazio (components/DaControllare) */}
       <DaControllare dati={controlli} />
 
-      <div className="p-4 home-approvata">
       {loading ? (
-        <div className="text-center py-10 text-gray-400">Caricamento...</div>
+        <div className="mz-caricamento">Caricamento…</div>
       ) : errore ? (
-        <AvvisoAzione testo={errore} onRiprova={riprova} />
+        <div className="mx-[22px] mt-3"><AvvisoAzione testo={errore} onRiprova={riprova} /></div>
       ) : (
         <>
           {/* «Da incassare» e «Incassati oggi» (Home «Maison», 28/09/2026) */}
           <SoldiHome voci={data.vociIncasso} incassati={data.incassiOggi} onPagato={dopoPagamento} />
 
-          {/* Quattro significati separati, identici alle Statistiche (05/09/2026) */}
-          <p className="ed-sezione mb-1">Il mese</p>
-          <div className="py-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1">Ricavi per soggiorno</p>
-                <p className="numero-classico">€{euro(data.cassa.ricaviCent)}</p>
-                <p className="text-[11px] leading-tight text-gray-500 mt-1">valore delle prenotazioni confermate, diviso sulle notti dormite nel mese</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1">{data.voceIncassi.etichetta}</p>
-                <p className="numero-classico">€{euro(data.cassa.incassiCent)}</p>
-                <p className="text-[11px] leading-tight text-gray-500 mt-1">pagamenti registrati nel mese, per data di pagamento{data.voceIncassi.avviso ? <> · <span className="font-semibold text-green-dark">{data.voceIncassi.avviso}</span></> : null}</p>
-              </div>
+          {/* «Il mese»: sei cifre su due colonne, sotto le descrizioni in una riga
+              grigia. Gli stessi significati delle Statistiche (05/09/2026). */}
+          <section className="mz-sec" data-mese>
+            <p className="mz-eyebrow">Il mese <small>· {nomeMese()}</small></p>
+            <div className="mz-mese">
+              <div>Ricavi per soggiorno<b>{euro(data.cassa.ricaviCent)} €</b></div>
+              <div>{data.voceIncassi.etichetta}<b>{euro(data.cassa.incassiCent)} €</b></div>
+              <div>Spese<b>{euro(data.cassa.speseCent)} €</b></div>
+              <div>Saldo di cassa<b>{euro(data.cassa.saldoCent)} €</b></div>
+              <div>Occupazione<b>{data.indici.percento} %</b></div>
+              <div>Tariffa media<b>{euro(data.indici.adrCent)} €</b></div>
             </div>
-          </div>
+            <p className="mz-mese-note" data-descrizioni-mese>
+              Ricavi = valore delle prenotazioni confermate, diviso sulle notti dormite nel mese · {data.voceIncassi.etichetta} = pagamenti registrati nel mese, per data di pagamento{data.voceIncassi.avviso ? <> ({data.voceIncassi.avviso})</> : null} · Spese = spese del B&amp;B, per data di pagamento · Saldo di cassa = incassi meno spese del mese · Occupazione = {data.indici.anomalia
+                ? <>{TESTO_ANOMALIA_OCCUPAZIONE}: {data.indici.nottiVendute} notti su {data.indici.nottiVendibili}</>
+                : <>notti vendute su notti vendibili delle camere in servizio ({data.indici.nottiVendute} su {data.indici.nottiVendibili})</>} · Tariffa media = ricavi per soggiorno diviso le notti vendute nel mese
+            </p>
+          </section>
 
-          <div className="grid grid-cols-2 gap-x-3 mb-5">
-            <div className="ed-riga">
-              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Saldo di cassa</p>
-              <p className={`numero-classico ${data.cassa.saldoCent >= 0 ? '' : 'text-[#8C3B2E]'}`}>€{euro(data.cassa.saldoCent)}</p>
-              <p className="text-[11px] leading-tight text-gray-500 mt-1">incassi meno spese del mese</p>
+          {/* Scorciatoie: righe col filo e la freccia d'ottone */}
+          <section className="mz-sec" data-vai-a>
+            <p className="mz-eyebrow">Vai a</p>
+            <div className="mz-vai">
+              <Link href="/prenotazioni"><span>Prenotazioni</span><span>→</span></Link>
+              <Link href="/statistiche"><span>Statistiche</span><span>→</span></Link>
+              {!demo && <Link href="/spese"><span>Spese B&B</span><span>→</span></Link>}
+              {!demo && <Link href="/spese-famiglia"><span>Spese Famiglia</span><span>→</span></Link>}
+              <Link href="/impostazioni"><span>Impostazioni e notifiche</span><span>→</span></Link>
             </div>
-            <div className="ed-riga">
-              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Spese</p>
-              <p className="numero-classico text-[#8C3B2E]">€{euro(data.cassa.speseCent)}</p>
-              <p className="text-[11px] leading-tight text-gray-500 mt-1">spese del B&amp;B, per data di pagamento</p>
-            </div>
-            <div className="ed-riga">
-              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Occupazione</p>
-              <p className="numero-classico">{data.indici.percento}<span className="text-base text-gray-400">% mese</span></p>
-              <p className="text-[11px] leading-tight text-gray-500 mt-1">
-                {data.indici.anomalia
-                  ? <span className="font-semibold text-green-dark">{TESTO_ANOMALIA_OCCUPAZIONE}: {data.indici.nottiVendute} notti su {data.indici.nottiVendibili}</span>
-                  : <>notti vendute su notti vendibili delle camere in servizio ({data.indici.nottiVendute} su {data.indici.nottiVendibili})</>}
-              </p>
-            </div>
-            <div className="ed-riga">
-              <p className="text-[10px] uppercase tracking-[1.5px] text-brass mb-1.5">Tariffa media</p>
-              <p className="numero-classico">€{euro(data.indici.adrCent)}</p>
-              <p className="text-[11px] leading-tight text-gray-500 mt-1">ricavi per soggiorno diviso le notti vendute nel mese</p>
-            </div>
-          </div>
-
-          {/* Scorciatoie: righe editoriali, niente emoji né riquadri */}
-          <p className="ed-sezione mb-1">Vai a</p>
-          <div className="ed-lista">
-            <Link href="/prenotazioni" className="flex items-center justify-between py-3 text-[15px] text-green-dark"><span className="font-serif">Prenotazioni</span><span className="text-brass">→</span></Link>
-            <Link href="/statistiche" className="flex items-center justify-between py-3 text-[15px] text-green-dark"><span className="font-serif">Statistiche</span><span className="text-brass">→</span></Link>
-            {!demo && <Link href="/spese" className="flex items-center justify-between py-3 text-[15px] text-green-dark"><span className="font-serif">Spese B&B</span><span className="text-brass">→</span></Link>}
-            {!demo && <Link href="/spese-famiglia" className="flex items-center justify-between py-3 text-[15px] text-green-dark"><span className="font-serif">Spese Famiglia</span><span className="text-brass">→</span></Link>}
-            <Link href="/impostazioni" className="flex items-center justify-between py-3 text-[15px] text-green-dark"><span className="font-serif">Impostazioni e notifiche</span><span className="text-brass">→</span></Link>
-          </div>
+          </section>
         </>
       )}
-      </div>
     </div>
   )
 }
