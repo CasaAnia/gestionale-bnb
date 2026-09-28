@@ -421,7 +421,7 @@ test('in Home gli arrivi stanno IN CIMA, subito sotto i tre numeri (Ania, 21/09/
   // «Nella home mettiamoli in alto, non a metà pagina»: prima stavano dopo
   // «Da controllare», che nelle giornate piene è lungo.
   const home = leggi('app/page.tsx')
-  const numeri = home.indexOf('<NumeriOggi dati={numeriOggi} />')
+  const numeri = home.indexOf('<NumeriOggi dati={numeriOggi}')
   const arrivi = home.indexOf('<ArriviOggi oggi=')
   const pulizie = home.indexOf('<PulizieOggi dati={numeriOggi} />')
   const controllare = home.indexOf('<DaControllare dati={controlli} />')

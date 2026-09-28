@@ -12,9 +12,11 @@
 //   12/09/2026; prima era la stessa veste ma a 13 px).
 export const ROSSO_NOTA = '#D40000'   // lo stesso rosso di «da incassare», in grassetto vero (Ania, 17/09/2026)
 
-export default function NotaCliente({ note, className = '', piccola = false, grande = false }: { note: string | null | undefined; className?: string; piccola?: boolean; grande?: boolean }) {
+// `maison`: la veste della Home «Maison» (28/09/2026): solo il testo, in mattone.
+export default function NotaCliente({ note, className = '', piccola = false, grande = false, maison = false }: { note: string | null | undefined; className?: string; piccola?: boolean; grande?: boolean; maison?: boolean }) {
   const testo = (note ?? '').trim()
   if (!testo) return null
+  if (maison) return <p data-nota-cliente className={className} style={{ color: '#8C3B2E', fontSize: 11.5, marginTop: 3, lineHeight: 1.4 }}>{testo}</p>
   if (grande) {
     return (
       <p data-nota-cliente className={`text-[15px] leading-snug font-bold ${className}`} style={{ color: ROSSO_NOTA }}>{testo}</p>

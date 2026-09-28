@@ -627,10 +627,14 @@ export type StatoCameraGiorno = 'da_fare' | 'fatta' | 'nessuna'
 export type ConteggioGiorno = { daFare: number; fatte: number }
 type Prenotazioni = Parameters<typeof pulizieAperte>[0]
 
-export function statoCameraGiorno(bookings: Prenotazioni, roomId: string, giorno: string, oggi: string, events: Decisione[]): StatoCameraGiorno {
-  if (giorno < oggi) return 'nessuna'
-  let daFare = false, fatta = false
-  const segna = (fattaQuesta: boolean) => { if (fattaQuesta) fatta = true; else daFare = true }
+// Perché una camera è da preparare quel giorno (riquadro della striscia in
+// Home, 28/09/2026): stessa regola di statoCameraGiorno, che ora la usa.
+export type MotivoCamera = { tipo: 'partenza' | 'rimasta' | 'biancheria' | 'cambio'; booking: PrenotazionePulizie; verso?: PrenotazionePulizie | null }
+
+function esameCameraGiorno(bookings: Prenotazioni, roomId: string, giorno: string, oggi: string, events: Decisione[]): { motivi: MotivoCamera[]; fatta: boolean } {
+  const motivi: MotivoCamera[] = []
+  let fatta = false
+  if (giorno < oggi) return { motivi, fatta }
   const chiusaOAutomatica = (partenza: Prenotazioni[number]) => {
     const st = statoFineSoggiorno(bookings, partenza, events)
     return st.chiusa || (partenza.check_out <= oggi && !!cambioOspiteAutomatico(bookings, partenza, events))
@@ -644,20 +648,24 @@ export function statoCameraGiorno(bookings: Prenotazioni, roomId: string, giorno
     // Scadenza oggi: da fare finché Ania non la segna (fatta o saltata), anche
     // se è un cambio ospite automatico — la pagina Pulizie la elenca in «Oggi».
     // Nei giorni dopo l'automatica vale fatta (il nuovo ospite è già entrato).
-    segna(giorno === oggi ? st.chiusa : chiusaOAutomatica(p))
+    if (giorno === oggi ? st.chiusa : chiusaOAutomatica(p)) fatta = true
+    else motivi.push(st.tipo === 'cambio_camera' ? { tipo: 'cambio', booking: p, verso: st.cambioCameraVerso } : { tipo: p.check_out === giorno ? 'partenza' : 'rimasta', booking: p })
   }
   if (giorno === oggi) {
     // In ritardo (come «Oggi» della pagina): l'ultima partenza aperta con scadenza passata
-    for (const fs of partenzeAperte(bookings, roomId, oggi, events).filter(s => s.due < oggi)) segna(!!cambioOspiteAutomatico(bookings, fs.partenza, events))
+    for (const fs of partenzeAperte(bookings, roomId, oggi, events).filter(s => s.due < oggi)) {
+      if (cambioOspiteAutomatico(bookings, fs.partenza, events)) fatta = true
+      else motivi.push({ tipo: 'rimasta', booking: fs.partenza })
+    }
   }
 
   // Cambio biancheria
   const inCorso = bookings.find(b => b.room_id === roomId && b.check_in <= giorno && b.check_out > giorno) || null
   if (inCorso) {
     const ciclo = cicloCambio(bookings, inCorso, events)
-    if (ciclo.due === giorno || (giorno === oggi && ciclo.due !== null && ciclo.due < oggi)) segna(false)
+    if (ciclo.due === giorno || (giorno === oggi && ciclo.due !== null && ciclo.due < oggi)) motivi.push({ tipo: 'biancheria', booking: inCorso })
   }
-  if ((events || []).some(e => e.room_id === roomId && e.tipo === 'soggiorno' && e.stato === 'fatta' && (e.data_effettiva || e.data_prevista) === giorno)) segna(true)
+  if ((events || []).some(e => e.room_id === roomId && e.tipo === 'soggiorno' && e.stato === 'fatta' && (e.data_effettiva || e.data_prevista) === giorno)) fatta = true
 
   // Arrivi: la camera è pronta? Solo per OGGI (Ania, 10/09/2026: «diamo per
   // scontato che dopo ogni soggiorno la camera viene pulita»). Nei giorni
@@ -673,10 +681,25 @@ export function statoCameraGiorno(bookings: Prenotazioni, roomId: string, giorno
         .filter(b => b.room_id === roomId && b.check_out <= giorno && !continuaIn(bookings, b) && !arrivi.some(a => a.id === b.id))
         .sort((a, b) => a.check_out.localeCompare(b.check_out)).slice(-1)[0]
       const pronta = !precedente || precedente.check_out < CUTOFF_STORICO || chiusaOAutomatica(precedente)
-      segna(pronta)
+      if (pronta) fatta = true
+      else motivi.push({ tipo: 'rimasta', booking: precedente })
     }
   }
-  return daFare ? 'da_fare' : fatta ? 'fatta' : 'nessuna'
+  return { motivi, fatta }
+}
+
+export function statoCameraGiorno(bookings: Prenotazioni, roomId: string, giorno: string, oggi: string, events: Decisione[]): StatoCameraGiorno {
+  const e = esameCameraGiorno(bookings, roomId, giorno, oggi, events)
+  return e.motivi.length ? 'da_fare' : e.fatta ? 'fatta' : 'nessuna'
+}
+
+// Il motivo principale per cui la camera è da preparare quel giorno (null se
+// non lo è): il cambio camera prima, poi la partenza, la pulizia rimasta da
+// completare, il cambio biancheria.
+const ORDINE_MOTIVO: MotivoCamera['tipo'][] = ['cambio', 'partenza', 'rimasta', 'biancheria']
+export function motivoCameraGiorno(tutteLePrenotazioni: Prenotazioni, roomId: string, giorno: string, oggi: string, events: Decisione[]): MotivoCamera | null {
+  const { motivi } = esameCameraGiorno(attive(tutteLePrenotazioni), roomId, giorno, oggi, events)
+  return [...motivi].sort((a, b) => ORDINE_MOTIVO.indexOf(a.tipo) - ORDINE_MOTIVO.indexOf(b.tipo))[0] ?? null
 }
 
 // Quante camere hanno pulizie ancora da fare e quante le hanno tutte fatte

@@ -22,6 +22,8 @@ import { cassaIntervallo, daIncassare, indiciIntervallo, spostaGiorni, TESTO_ANO
 // pagina. I numeri del mese vengono da lib/statistiche sui dati del solo mese
 // (lib/statisticheDati), solo prenotazioni confermate/completate; gli stessi
 // quattro significati delle Statistiche. Denaro in centesimi → euro solo qui.
+// «Da incassare €» nei numeri in cima: la somma dei residui della sezione Da incassare
+const totaleDaIncassareEuro = (voci: { residuoCent: number }[]) => Math.round(voci.reduce((t, v) => t + v.residuoCent, 0) / 100)
 const euro = (cent: number) => (cent / 100).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 function ymd(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 function today() { return ymd(new Date()) }
@@ -177,14 +179,14 @@ export default function Dashboard() {
   return (
     <div className="maison -mt-12 lg:mt-0 pb-8" data-senza-sottolinea>
       <StrisciaFoto />
-      <div className="p-4 home-approvata">
 
-      {(numeroRichieste > 0 || richiesteWeb.stato === 'errore' || controlli.stato === 'errore') && <details className="home-richieste">
-        <summary>🌐 {numeroRichieste > 0 ? `${numeroRichieste} ${numeroRichieste === 1 ? 'richiesta da gestire' : 'richieste da gestire'}` : 'Richieste da controllare'}</summary>
+      {(numeroRichieste > 0 || richiesteWeb.stato === 'errore' || controlli.stato === 'errore') && <details className="mz-req" data-richieste-home>
+        <summary><span style={{ fontSize: 15 }} aria-hidden>🌐</span><b>{numeroRichieste > 0 ? `${numeroRichieste} ${numeroRichieste === 1 ? 'richiesta da gestire' : 'richieste da gestire'}` : 'Richieste da controllare'}</b></summary>
         <RichiesteHome web={richiesteWeb} controlli={controlli} />
       </details>}
-      <NumeriOggi dati={numeriOggi} />
+      <NumeriOggi dati={numeriOggi} daIncassareEuro={!loading && !errore && data ? totaleDaIncassareEuro(data.daIncassare) : null} />
 
+      <div className="p-4 home-approvata">
       {/* «Arrivi di oggi» (21/09/2026), la terza superficie della proposta
           approvata: per ogni arrivo l'ora IN STRUTTURA in grande e, sotto, da
           dove arriva e chi la va a prendere.

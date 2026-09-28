@@ -243,20 +243,19 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
   // l'etichettina blu e la nota compaiono solo se c'è qualcosa da dire
   assert.match(riga, /\{stesseDate && onGruppo && <SegnoStesseDate/)
 
-  // ── LE STESSE CLASSI DELLE RIGHE «DA CONTROLLARE» DELLA HOME ────────────
-  // (Ania, dal telefono, 12/09/2026: «esattamente come la Home, senza
-  // invenzioni»). Se la Home cambia misura, questa prova se ne accorge.
-  const home = readFileSync(new URL('../components/DaControllare.tsx', import.meta.url), 'utf8')
+  // ── LE CLASSI DELLE RIGHE (12/09/2026: «esattamente come la Home») ─────
+  // Dal 28/09/2026 la Home ha la veste «Maison» (riferimento approvato da
+  // Ania): la riga della richiesta, fuori da quell'incarico, tiene le sue
+  // classi di sempre, che qui restano protette.
   const ETICHETTA = 'text-[10px] uppercase tracking-[1.5px] text-brass'
   const TITOLO = 'text-[15px] font-semibold text-green-dark leading-snug mt-0.5'
   const SOTTO = 'text-[12.5px] leading-snug mt-0.5'
   for (const classe of [ETICHETTA, TITOLO, SOTTO]) {
-    assert.ok(home.includes(classe), `la Home non usa più «${classe}»`)
     assert.ok(riga.includes(classe), `la riga della richiesta non usa «${classe}»`)
   }
-  // la riga sotto è color stone, come il «motivo» della Home
+  // la riga sotto è color stone
   assert.match(riga, /style=\{\{ color: 'var\(--color-stone\)' \}\}/)
-  assert.match(home, /style=\{\{ color: 'var\(--color-stone\)' \}\}/)
+  const home = readFileSync(new URL('../components/DaControllare.tsx', import.meta.url), 'utf8')
   // la nota è lo STESSO componente della Home, ma nella misura grande: nella
   // riga si legge come il nome (Ania, dal telefono, 12/09/2026)
   assert.match(home, /<NotaCliente note=\{e\.nota\} piccola/)
@@ -264,7 +263,6 @@ test('nella riga i pezzi stanno nell’ordine della bozza', () => {
   // 12 px sopra e sotto, come py-3 della Home, e il filo che separa
   assert.match(riga, /border-t border-card-border/)
   assert.match(riga, /paddingTop: 12, paddingBottom: 12/)
-  assert.match(home, /py-3/)
 
   // l'etichetta: quando è arrivata, da dove, e se la conosciamo già
   assert.match(riga, /const etichetta = etichettaRigaRichiesta\(r\.created_at, r\.canale, adesso, pezzoCliente\(cliente\.volte, cliente\.inArchivio\)\)/)

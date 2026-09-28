@@ -366,7 +366,8 @@ test('la nota del cliente nella riga è tutta rossa, come nella Home', () => {
   const daControllare = readFileSync(new URL('../components/DaControllare.tsx', import.meta.url), 'utf8')
   // nell'elenco la nota è grande come il nome; in Home resta piccola
   assert.match(riga, /<NotaCliente note=\{r\.note\} grande className="mt-1" \/>/)
-  assert.match(daControllare, /<NotaCliente note=\{e\.nota\} piccola className="mt-1" \/>/)
+  // Home «Maison» (28/09/2026): in Home la nota è solo il testo, in mattone
+  assert.match(daControllare, /<NotaCliente note=\{e\.nota\} piccola maison className="mt-1" \/>/)
   assert.equal(/centrata/.test(riga), false)
 })
 

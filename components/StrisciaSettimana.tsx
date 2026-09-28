@@ -1,46 +1,73 @@
 'use client'
-// Striscia della settimana (07/09/2026), sotto i tre numeri e sopra «Da
-// controllare»: 28 caselle da oggi, con descrizione accessibile, che
-// scorrono di lato col dito (7 visibili sul telefono, 14 sul Mac), giorno in
-// alto («sab 6») e sotto le camere con pulizie ancora da fare quel giorno;
-// «✓» attenuato se sono tutte fatte, «—» attenuato se non c'è nulla; la casella
-// di oggi (variante «F» scelta da Ania il 07/09/2026) ha SOLO «Oggi» al posto
-// del giorno, nello stesso grassetto del nome cliente in «Da controllare»
-// (Nunito Sans 600, verde scuro #1F3D2F) ma piccolo come i giorni accanto:
-// nessuno sfondo, nessun bordo, nessun altro colore (numero, «—», «✓» e ⇄
-// come le altre); divisorio ottone sottile fra una settimana e l'altra. Un tocco apre Pulizie su quel giorno; un tocco
-// apre la pagina del giorno. Cifre come le altre della Home
-// (font-serif text-2xl text-green-dark), nessun colore nuovo.
+// Striscia della settimana (07/09/2026; veste «Maison» del 28/09/2026): 28
+// caselle da oggi che scorrono di lato col dito (7 visibili sul telefono, 14
+// sul Mac). In ogni casella il giorno in alto («Oggi», «mar 29»), sotto il
+// numero di camere con pulizie ancora da fare quel giorno; «✓» attenuato se
+// sono tutte fatte, «—» attenuato se non c'è nulla; divisorio ottone fra una
+// settimana e l'altra. Le frecce ⇄ dei cambi camera: la prima SOTTO il
+// numero, la seconda SOPRA solo con due cambi (al centro dal terzo).
+//
+// Un tocco su un giorno NON porta più a Pulizie (novità del 28/09/2026): il
+// giorno si segna col filo d'ottone sotto (nessuno sfondo) e SOTTO la
+// striscia si apre il riquadro con le camere da preparare, il perché e, se
+// c'è l'orario, «Prossimo arrivo: 16:00». Il nome della camera apre
+// /pulizie?giorno=…, come faceva prima la casella.
+import { useState } from 'react'
 import Link from 'next/link'
-import { etichettaGiornoBreve, testoCasella, simboliCambi, type GiornoStriscia } from '@/lib/numeriOggi'
-
-// Segnale ⇄ dei cambi camera (06/09/2026): ottone, grassetto, 13 px; lo spazio sopra e
-// sotto il numero è sempre riservato, così le caselle restano uguali e i numeri allineati
-const CAMBIO = { color: '#A9884E', fontWeight: 700, fontSize: 13, lineHeight: '14px', height: 14 } as const
-
-// Casella di oggi (variante «F», 07/09/2026): solo «Oggi», stesso grassetto e verde scuro del nome cliente
-const OGGI = { testo: '#1F3D2F', peso: 600 } as const
+import {
+  etichettaGiornoBreve, testoCasella, simboliCambi, testaRiquadro, PROSSIMO_ARRIVO_RIQUADRO, CHIUDI_RIQUADRO,
+  type GiornoStriscia,
+} from '@/lib/numeriOggi'
 
 export const DIDASCALIA_STRISCIA = 'Camere da preparare nei prossimi 7 giorni'
 
 export default function StrisciaSettimana({ giorni }: { giorni: GiornoStriscia[] }) {
+  const [scelto, setScelto] = useState<string | null>(null)
+  const giorno = giorni.find(g => g.giorno === scelto) ?? null
   return (
-    <section className="mb-5" aria-label={DIDASCALIA_STRISCIA} data-striscia-settimana>
-      <div className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory" style={{ borderBottom: '1px solid rgba(169,136,78,0.55)' }}>
-        {giorni.map(g => { const c = testoCasella(g); const s = simboliCambi(g.cambi); return (
-          <Link key={g.giorno} href={`/pulizie?giorno=${g.giorno}`} data-giorno={g.giorno} data-camere={g.daFare} data-fatte={g.fatte} data-tono={c.tono}
-            className="snap-start shrink-0 basis-[14.2857%] lg:basis-[7.1428%] flex flex-col items-center justify-center py-1.5"
-            style={g.inizioSettimana ? { borderLeft: '1px solid rgba(169,136,78,0.55)' } : undefined}>
-            <span className="text-[11px] leading-none" style={g.oggi ? { color: OGGI.testo, fontWeight: OGGI.peso } : { color: 'var(--color-stone)' }}>{g.oggi ? 'Oggi' : etichettaGiornoBreve(g.giorno)}</span>
-            <span aria-hidden data-cambi-sopra={s.sopra ? 1 : 0} style={CAMBIO}>{s.sopra ? '⇄' : ''}</span>
-            <span className={`numero-classico relative ${c.tono === 'numero' ? 'text-green-dark' : 'text-gray-400'}`} data-cambi={g.cambi}>
-              {c.testo}
-              {s.centro && <span aria-hidden className="absolute inset-0 flex items-center justify-center" style={{ ...CAMBIO, height: undefined, lineHeight: 1 }}>⇄</span>}
-            </span>
-            <span aria-hidden data-cambi-sotto={s.sotto ? 1 : 0} style={CAMBIO}>{s.sotto ? '⇄' : ''}</span>
-          </Link>
-        ) })}
+    <section aria-label={DIDASCALIA_STRISCIA} data-striscia-settimana>
+      <div className="mz-wk">
+        {giorni.map(g => {
+          const c = testoCasella(g)
+          const s = simboliCambi(g.cambi)
+          return (
+            <button key={g.giorno} type="button" data-giorno={g.giorno} data-camere={g.daFare} data-fatte={g.fatte} data-tono={c.tono}
+              aria-pressed={scelto === g.giorno} onClick={() => setScelto(x => (x === g.giorno ? null : g.giorno))}
+              className={`${g.oggi ? 'oggi' : ''} ${g.inizioSettimana ? 'sw' : ''} ${scelto === g.giorno ? 'scelto' : ''}`}>
+              {g.oggi ? 'Oggi' : etichettaGiornoBreve(g.giorno)}
+              <i aria-hidden data-cambi-sopra={s.sopra ? 1 : 0}>{s.sopra ? '⇄' : ''}</i>
+              <b className={c.tono === 'numero' ? '' : 'q'} data-cambi={g.cambi} style={{ position: 'relative' }}>
+                {c.testo}
+                {s.centro && <span aria-hidden style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--m-acc)', fontSize: 11, fontFamily: 'var(--m-ui)', fontWeight: 600 }}>⇄</span>}
+              </b>
+              <i aria-hidden data-cambi-sotto={s.sotto ? 1 : 0}>{s.sotto ? '⇄' : ''}</i>
+            </button>
+          )
+        })}
       </div>
+      {/* Come nel riferimento: con il riquadro aperto la didascalia lascia il posto al riquadro */}
+      {giorno ? <RiquadroGiorno g={giorno} onChiudi={() => setScelto(null)} /> : <p className="mz-cap">{DIDASCALIA_STRISCIA}</p>}
     </section>
+  )
+}
+
+function RiquadroGiorno({ g, onChiudi }: { g: GiornoStriscia; onChiudi: () => void }) {
+  const camere = g.camere ?? []
+  return (
+    <div className="mz-wkin" data-riquadro-giorno={g.giorno}>
+      <div className="hd">
+        <span className="sm" data-testa-riquadro>{testaRiquadro(camere.length, g.cambi)}</span>
+        <button type="button" className="mz-lnk q" onClick={onChiudi}>{CHIUDI_RIQUADRO}</button>
+      </div>
+      {camere.map(c => (
+        <div key={c.roomId} className="r" data-camera-riquadro={c.camera} data-motivo={c.motivo}>
+          <Link href={`/pulizie?giorno=${g.giorno}`} className="nm">
+            {c.camera} <small className={c.motivo === 'cambio' ? 'cambio' : ''}>{c.motivo === 'cambio' ? c.testoMotivo : `· ${c.testoMotivo}`}</small>
+          </Link>
+          {c.chiVaDove && <p className="de">{c.chiVaDove}</p>}
+          {c.arrivo && <p className="de" data-prossimo-arrivo>{PROSSIMO_ARRIVO_RIQUADRO} <b>{c.arrivo}</b></p>}
+        </div>
+      ))}
+    </div>
   )
 }

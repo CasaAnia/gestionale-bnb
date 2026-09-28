@@ -23,7 +23,7 @@
 .maison { background: var(--m-bg); min-height: 100vh; }
 body:has(.maison) { background: #F6F2EA; }
 .maison *, .mz * { box-sizing: border-box; }
-.maison p, .mz p { margin: 0; }
+
 
 /* Carattere dei titoli, dei nomi, dei numeri e degli orari */
 .mz-disp { font-family: var(--m-disp); }

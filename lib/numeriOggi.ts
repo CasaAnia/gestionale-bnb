@@ -52,13 +52,68 @@ export const testoOccupate = (n: NumeriOggi) => `${n.camereOccupate} su ${n.came
 // Ogni giorno: STESSA regola e stessa fonte della pagina Pulizie
 // (lib/pulizie.conteggioGiorno): quante camere hanno pulizie ancora da fare
 // (il numero) e quante le hanno tutte fatte («✓»); niente = «—».
-import { conteggioGiorno, type Decisione } from './pulizie.ts'
+import { conteggioGiorno, motivoCameraGiorno, attive, type Decisione, type MotivoCamera } from './pulizie.ts'
+import { nomeConAltri } from './guestName.ts'
+import { arrivoInHome, leggiArrivo } from './arrivo.ts'
 
 export const GIORNI_STRISCIA = 28
 export const GIORNI_VISIBILI_TELEFONO = 7
 export const GIORNI_VISIBILI_MAC = 14
 
-export type GiornoStriscia = { giorno: string; daFare: number; fatte: number; oggi: boolean; inizioSettimana: boolean; cambi: number }
+export type GiornoStriscia = { giorno: string; daFare: number; fatte: number; oggi: boolean; inizioSettimana: boolean; cambi: number; camere?: CameraDaPreparare[] }
+
+// ── Il riquadro sotto la striscia (Home «Maison», 28/09/2026) ─────────────
+// Un tocco su un giorno apre, sotto la striscia, le camere da preparare
+// quel giorno: nome, perché e, se c'è davvero un orario, a che ora arriva il
+// prossimo ospite quel giorno. Le camere sono esattamente quelle contate nel
+// numero della casella (stessa regola: lib/pulizie.motivoCameraGiorno).
+export type CameraDaPreparare = {
+  roomId: string
+  camera: string
+  motivo: MotivoCamera['tipo']
+  /** «partenza in giornata», «pulizia rimasta da completare», «cambio biancheria», «⇄ cambio camera» */
+  testoMotivo: string
+  /** solo per il cambio camera: «Fam. Russo va in Ambra» */
+  chiVaDove?: string
+  /** «16:00–17:00 circa»: solo se l'arrivo di quel giorno ha un orario */
+  arrivo?: string
+}
+export const TESTO_MOTIVO: Record<MotivoCamera['tipo'], string> = {
+  partenza: 'partenza in giornata',
+  rimasta: 'pulizia rimasta da completare',
+  biancheria: 'cambio biancheria',
+  cambio: '⇄ cambio camera',
+}
+export const PROSSIMO_ARRIVO_RIQUADRO = 'Prossimo arrivo:'
+export const CHIUDI_RIQUADRO = 'Chiudi'
+
+/** «2 camere da preparare · 1 cambio camera ⇄» */
+export function testaRiquadro(camere: number, cambi: number): string {
+  const base = `${camere} ${camere === 1 ? 'camera' : 'camere'} da preparare`
+  return cambi > 0 ? `${base} · ${cambi} ${cambi === 1 ? 'cambio camera' : 'cambi camera'} ⇄` : base
+}
+
+type CameraNome = { id: string; name?: string | null }
+const breve = (nome: string | null | undefined) => String(nome ?? '').split(' ').slice(-1)[0]
+
+export function camereDaPreparare(rooms: CameraNome[], prenotazioni: Parameters<typeof conteggioGiorno>[1], events: Decisione[], giorno: string, oggi: string): CameraDaPreparare[] {
+  const valide = attive(prenotazioni)
+  const out: CameraDaPreparare[] = []
+  for (const r of rooms) {
+    const m = motivoCameraGiorno(prenotazioni, r.id, giorno, oggi, events)
+    if (!m) continue
+    const voce: CameraDaPreparare = { roomId: r.id, camera: breve(r.name), motivo: m.tipo, testoMotivo: TESTO_MOTIVO[m.tipo] }
+    if (m.tipo === 'cambio' && m.verso) voce.chiVaDove = `${nomeConAltri(m.booking)} va in ${breve(rooms.find(x => x.id === m.verso!.room_id)?.name) || 'un’altra camera'}`
+    // L'arrivo di QUEL giorno in quella camera (non un prolungamento né chi arriva col cambio camera)
+    const arriva = valide.find(b => b.room_id === r.id && b.check_in === giorno && !valide.some(x => x.id !== b.id && x.guest_id && x.guest_id === b.guest_id && x.check_out === b.check_in))
+    if (arriva) {
+      const a = arrivoInHome(leggiArrivo(arriva as unknown as Parameters<typeof leggiArrivo>[0]))
+      if (a.numerico) voce.arrivo = `${a.grande}${a.circa ? ' circa' : ''}`
+    }
+    out.push(voce)
+  }
+  return out
+}
 
 // Cambi camera per giorno (incarico del 06/09/2026): un ospite che quel giorno
 // passa da una camera a un'altra (catene di lib/roomChanges, stesse del
@@ -80,13 +135,13 @@ export function simboliCambi(cambi: number): { sopra: boolean; centro: boolean; 
   return { sotto: cambi >= 1, sopra: cambi >= 2, centro: cambi >= 3 }
 }
 
-export function strisciaSettimane(rooms: { id: string }[], prenotazioni: Parameters<typeof conteggioGiorno>[1], events: Decisione[], oggi: string, giorni = GIORNI_STRISCIA): GiornoStriscia[] {
+export function strisciaSettimane(rooms: CameraNome[], prenotazioni: Parameters<typeof conteggioGiorno>[1], events: Decisione[], oggi: string, giorni = GIORNI_STRISCIA): GiornoStriscia[] {
   const out: GiornoStriscia[] = []
   const cambi = cambiCameraPerGiorno(prenotazioni as Parameters<typeof cambiCameraPerGiorno>[0])
   for (let i = 0; i < giorni; i++) {
     const giorno = new Date(Date.parse(oggi + 'T00:00:00Z') + i * 86400000).toISOString().slice(0, 10)
     const c = conteggioGiorno(rooms, prenotazioni, events, giorno, oggi)
-    out.push({ giorno, daFare: c.daFare, fatte: c.fatte, oggi: i === 0, inizioSettimana: i > 0 && i % 7 === 0, cambi: cambi[giorno] ?? 0 })
+    out.push({ giorno, daFare: c.daFare, fatte: c.fatte, oggi: i === 0, inizioSettimana: i > 0 && i % 7 === 0, cambi: cambi[giorno] ?? 0, camere: camereDaPreparare(rooms, prenotazioni, events, giorno, oggi) })
   }
   return out
 }
