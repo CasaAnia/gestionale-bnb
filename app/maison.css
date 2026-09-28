@@ -378,3 +378,20 @@ body:has(.maison) { background: #F6F2EA; }
 .np-row-letto { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
 .maison .np .np-lnk-piccolo { font-size: 10px; }
 .np-hint > .np-hint { margin: 0; display: inline; }
+
+/* Il conto, raggruppato per camera */
+.np-conto .np-lab { margin-top: 10px; }
+.np-conto > div:first-child .np-lab { margin-top: 6px; }
+.np-conto-r { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--m-line); font-family: var(--home-ui-font); font-size: 14px; color: var(--m-ink); }
+.np-conto-r > span { min-width: 0; }
+.np-conto-r small { display: block; font-size: 12px; color: var(--m-mut); margin-top: 1px; }
+.np-conto-r b, .np-conto-sub b, .np-conto-sc b { font-family: var(--m-disp); font-size: 17px; font-weight: 500; white-space: nowrap; }
+.np-conto-sub { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; font-family: var(--home-ui-font); font-size: 14px; }
+.np-conto-sub span { color: var(--m-mut); }
+.np-conto-sub b { font-weight: 400; }
+.np-conto-tot { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 0 2px; border-top: 1px solid rgba(168,137,79,.55); margin-top: 4px; }
+.np-conto-tot span, .np-conto-dp span { font-family: var(--home-ui-font); font-size: 13px; font-weight: 500; }
+.np-conto-tot b { font-family: var(--m-disp); font-size: 22px; font-weight: 500; }
+.np-conto-sc { display: flex; justify-content: space-between; align-items: baseline; color: var(--m-acc); font-family: var(--home-ui-font); font-size: 13px; padding: 6px 0; }
+.np-conto-dp { display: flex; justify-content: space-between; align-items: baseline; padding-top: 8px; }
+.np-conto-dp b { font-family: var(--m-disp); font-size: 30px; font-weight: 300; line-height: 1; }

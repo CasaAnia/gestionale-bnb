@@ -70,3 +70,28 @@ export function totaleLetto(room: any, numOspiti: number, giorniLetto: number): 
   if (!lettoAddebitato || giorniLetto <= 0) return 0
   return Number(room?.extra_bed_price || 0) * giorniLetto
 }
+
+// ── Il letto aggiuntivo a PREZZO FISSO (Ania, 28/09/2026) ──────────────────
+// Nell'inserimento di una prenotazione il letto in più non si prezza più a
+// mano: vale questo listino, UNA fonte sola per la notte scelta («Sì · 10 €»),
+// il conto e il salvataggio. Lena in 3 è compreso (la tripla ha già tre
+// posti: la notte però si segnala, «servono 3 posti in Lena»); in 4 si paga.
+// Il vecchio «extra_bed_price» delle Impostazioni resta leggibile e lo usano
+// ancora le pagine della scheda, non l'inserimento.
+export const LETTO_AGGIUNTIVO_A_NOTTE = {
+  Amelia: 5,
+  Ambra: 10,
+  Allegra: 10,
+  LenaIn3: 0,
+  LenaIn4: 10,
+} as const
+
+/** Quanto costa una notte col letto in più, in euro: 0 = compreso */
+export function lettoAggiuntivoANotte(room: { name?: string | null } | null | undefined, numOspiti: number): number {
+  const nome = room?.name ?? ''
+  if (nome === 'Lena') return (Number(numOspiti) || 1) >= 4 ? LETTO_AGGIUNTIVO_A_NOTTE.LenaIn4 : LETTO_AGGIUNTIVO_A_NOTTE.LenaIn3
+  if (nome === 'Amelia') return LETTO_AGGIUNTIVO_A_NOTTE.Amelia
+  if (nome === 'Ambra') return LETTO_AGGIUNTIVO_A_NOTTE.Ambra
+  if (nome === 'Allegra') return LETTO_AGGIUNTIVO_A_NOTTE.Allegra
+  return 0
+}

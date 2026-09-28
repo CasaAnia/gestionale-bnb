@@ -8,17 +8,17 @@
 // lib/prenotazioneComposta, le notti da lib/strisciaNotti, «come paga» da
 // lib/comePaga.
 // ============================================================================
-import { capienzaBase, capienzaCamera, tariffaCamera } from './tariffe.ts'
-import { giorniSoggiorno } from './prezzoNotti.ts'
+import { capienzaBase, capienzaCamera, tariffaCamera, lettoAggiuntivoANotte } from './tariffe.ts'
+import { giorniSoggiorno, prezzoPrenotazione, testoDettaglioNotti, fmtEuroBreve } from './prezzoNotti.ts'
 const giornoDopo = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)
 import { camereLibere, STATI_CHE_OCCUPANO, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
-import { contoPeriodo, lettoProposto, rigaDaSalvare, notti as nottiPeriodo, round2, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
-import { costoLettoIntero, lettoRipartito, type AccordoLetto } from './lettiAggiuntivi.ts'
+import { contoPeriodo, rigaDaSalvare, notti as nottiPeriodo, round2, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
 import type { NotteStriscia } from './strisciaNotti.ts'
 import { blocchiDaNotti, siAttacca, conNotte, type VincoloOspiti } from './strisciaNotti.ts'
 import { GIORNI_LUNGHI, MESI_LUNGHI } from './dateItaliane.ts'
-import { euroScheda } from './schedaPrenotazione.ts'
-import { rigaSconto, nottiANotte, dettaglioLetto, RIGA_LETTO, type ScontoVista } from './contoInRighe.ts'
+import { euroScheda, periodoConMese, testoNotti } from './schedaPrenotazione.ts'
+import { rigaSconto, nottiANotte, type ScontoVista } from './contoInRighe.ts'
+import { giornoMese } from './dateItaliane.ts'
 
 // ── I testi della pagina ────────────────────────────────────────────────────
 // Stanno qui e non nella pagina: una pagina di Next può esportare solo il
@@ -427,16 +427,29 @@ export function ospitiDellaNotte(camera: { name?: string | null } | null | undef
   return conLetto ? ospitiSoggiorno : Math.min(ospitiSoggiorno, capienzaBase(camera))
 }
 
-// ── Il conto, riga per riga ─────────────────────────────────────────────────
+// ── Il conto, riga per riga, raggruppato per camera (28/09/2026) ─────────
+// Veste «Maison»: con più camere ogni camera ha la sua etichetta («Camera 1 ·
+// 28 set → 4 ott»), le sue righe (i tratti, poi il letto aggiuntivo) e il
+// subtotale; con una camera sola niente etichette né subtotali. Poi Totale,
+// Sconto e Da pagare come sempre.
 export type RigaContoNuova = {
   chiave: string
-  titolo: string        // «Lena» oppure «Letto in più»
-  dettaglio: string     // «4 notti × 80 €»
-  importo: string       // «320 €»
+  titolo: string        // «Ambra · 3 notti», «Letto aggiuntivo · 1 notte»
+  dettaglio: string     // «28 set → 1 ott · 80 € a notte», «30 set · Ambra»
+  importo: string       // «240 €»
   cent: number
 }
-export type ContoNuova = {
+export type GruppoContoNuova = {
+  chiave: string
+  nome: string          // «Camera 1»
+  date: string          // «28 set → 4 ott»
   righe: RigaContoNuova[]
+  subtotale: string
+  subtotaleCent: number
+}
+export type ContoNuova = {
+  gruppi: GruppoContoNuova[]
+  righe: RigaContoNuova[]         // tutte, in ordine: comode per chi non guarda le camere
   totaleCent: number | null      // prima dello sconto
   scontoCent: number
   daPagareCent: number | null
@@ -451,22 +464,52 @@ export type ContoNuova = {
 export type ScontoNuova = { tipo: 'nessuno' | 'percentuale' | 'finale'; valore: number | null }
 
 const fmt = (cent: number) => euroScheda(cent)
+const dopo = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)
+
+export const RIGA_LETTO_AGGIUNTIVO = 'Letto aggiuntivo'
+export const LETTO_COMPRESO = 'compreso'
 
 /** Quante notti del soggiorno hanno il letto in più */
 export function nottiColLetto(periodi: PeriodoComposto[]): number {
   return new Set(periodi.flatMap(p => p.nottiLetto)).size
 }
-/** L'accordo del letto della prenotazione: uno solo, preso dal primo tratto
- *  che ce l'ha. Senza importo scritto a mano vale il listino della camera. */
-export function accordoLetto(
-  periodi: PeriodoComposto[], camera: (id: string | null) => CameraComposta | null,
-): AccordoLetto | null {
-  for (const p of periodi) {
-    if (p.nottiLetto.length === 0) continue
-    if (p.letto) return { importo: p.letto.importo, criterio: p.letto.criterio }
-    return { importo: lettoProposto(camera(p.roomId), p.ospiti), criterio: 'notte' }
+
+/** Il letto in più a prezzo fisso (punto 12b): ogni tratto col letto porta il
+ *  listino di LETTO_AGGIUNTIVO_A_NOTTE per la sua camera e i suoi ospiti, a
+ *  notte. Niente importo scritto a mano, niente «ogni 4 notti» o «totale». */
+export function conLettoDiListino(periodi: PeriodoComposto[], camera: (id: string | null) => CameraComposta | null): PeriodoComposto[] {
+  return periodi.map(p => ({
+    ...p,
+    letto: p.nottiLetto.length > 0 ? { importo: lettoAggiuntivoANotte(camera(p.roomId), p.ospiti), criterio: 'notte' as const } : null,
+  }))
+}
+
+/** Accanto a «Sì» nella notte scelta: «10 €», o «compreso» (Lena in 3) */
+export function prezzoLettoInParole(camera: { name?: string | null } | null | undefined, ospiti: number): string {
+  const euro = lettoAggiuntivoANotte(camera, ospiti)
+  return euro > 0 ? fmtEuroBreve(euro) : LETTO_COMPRESO
+}
+
+/** «30 set», «30 set → 2 ott» per notti di fila, separate da virgole */
+export function nottiInParole(notti: string[]): string {
+  const ordinate = [...new Set(notti)].sort()
+  const pezzi: string[][] = []
+  for (const g of ordinate) {
+    const ultimo = pezzi[pezzi.length - 1]
+    if (ultimo && dopo(ultimo[ultimo.length - 1]) === g) ultimo.push(g)
+    else pezzi.push([g])
   }
-  return null
+  return pezzi.map(p => (p.length === 1 ? giornoMese(p[0]) : periodoConMese(p[0], dopo(p[p.length - 1])))).join(', ')
+}
+
+/** «80 € a notte», o notte per notte quando la tariffa cambia */
+function aNotteDelTratto(p: PeriodoComposto, c: CameraComposta): string {
+  const pn = prezzoPrenotazione(c, {
+    check_in: p.checkIn, check_out: p.checkOut, num_guests: p.ospiti,
+    extra_bed: p.nottiLetto.length > 0, extra_bed_dates: p.nottiLetto, price_per_night: p.tariffa,
+  })
+  if (pn.tariffaUniforme) return `${fmtEuroBreve(pn.notti[0]?.tariffa ?? pn.prezzoNotte)} a notte`
+  return testoDettaglioNotti(pn.notti.map(n => ({ ...n, letto: 0, prezzo: n.tariffa })))
 }
 
 export function contoNuovaPrenotazione(
@@ -474,48 +517,60 @@ export function contoNuovaPrenotazione(
   camera: (id: string | null) => CameraComposta | null,
   sconto: ScontoNuova,
 ): ContoNuova {
-  const righe: RigaContoNuova[] = []
+  const gruppi: GruppoContoNuova[] = []
   let totale = 0
   let mancante = periodi.length === 0
   const giorni = new Set<string>()
-  // Il letto è UNO per tutta la prenotazione: si conta sul soggiorno intero e
-  // si riparte fra i tratti, invece di addebitarlo per intero a ognuno
-  // (rilievo del 15/09/2026: «30 € in tutto» su due tratti facevano 60).
-  const lettoCent = Math.round(costoLettoIntero(accordoLetto(periodi, camera), nottiColLetto(periodi)) * 100)
-  for (const p of periodi) {
-    const c = camera(p.roomId)
-    const conto = contoPeriodo(p, c)
-    if (!c || !conto) { mancante = true; continue }
-    for (const g of giorniSoggiorno(p.checkIn, p.checkOut)) giorni.add(g)
-    const n = nottiPeriodo(p)
-    const camereCent = Math.round((conto.totale - conto.lettoTotale) * 100)
-    righe.push({
-      chiave: p.id,
-      titolo: c.name,
-      dettaglio: `${n} ${n === 1 ? 'notte' : 'notti'} × ${fmt(Math.round(conto.prezzoNotte * 100))}`,
-      importo: fmt(camereCent),
-      cent: camereCent,
+  raggruppaPerCamera(periodi).forEach((linea, i) => {
+    const righe: RigaContoNuova[] = []
+    const letti: RigaContoNuova[] = []
+    let sub = 0
+    for (const p of linea.periodi) {
+      const c = camera(p.roomId)
+      const conto = contoPeriodo(p, c)
+      if (!c || !conto) { mancante = true; continue }
+      for (const g of giorniSoggiorno(p.checkIn, p.checkOut)) giorni.add(g)
+      const n = nottiPeriodo(p)
+      const camereCent = Math.round((conto.totale - conto.lettoTotale) * 100)
+      righe.push({
+        chiave: p.id,
+        titolo: `${c.name} · ${testoNotti(n)}`,
+        dettaglio: `${periodoConMese(p.checkIn, p.checkOut)} · ${aNotteDelTratto(p, c)}`,
+        importo: fmt(camereCent),
+        cent: camereCent,
+      })
+      sub += camereCent
+      // il letto del tratto, a prezzo fisso; Lena in 3 «compreso» a 0 €
+      if (p.nottiLetto.length > 0) {
+        const lettoCent = Math.round(conto.lettoTotale * 100)
+        letti.push({
+          chiave: `letto-${p.id}`,
+          titolo: `${RIGA_LETTO_AGGIUNTIVO} · ${testoNotti(p.nottiLetto.length)}${lettoCent === 0 ? ` · ${LETTO_COMPRESO}` : ''}`,
+          dettaglio: `${nottiInParole(p.nottiLetto)} · ${c.name}`,
+          importo: fmt(lettoCent),
+          cent: lettoCent,
+        })
+        sub += lettoCent
+      }
+    }
+    totale += sub
+    const d = datiLinea(linea)
+    gruppi.push({
+      chiave: linea.gruppo,
+      nome: `Camera ${i + 1}`,
+      date: d.arrivo && d.partenza && d.arrivo < d.partenza ? periodoConMese(d.arrivo, d.partenza) : '',
+      righe: [...righe, ...letti],
+      subtotale: fmt(sub),
+      subtotaleCent: sub,
     })
-    totale += camereCent
-  }
-  if (lettoCent > 0 && !mancante) {
-    const quante = nottiColLetto(periodi)
-    righe.push({
-      chiave: 'letto',
-      titolo: RIGA_LETTO,
-      // «3 notti × 10 €» quando l'importo a notte torna (18/09/2026)
-      dettaglio: dettaglioLetto(quante, lettoCent, [Number.isInteger(lettoCent / quante) ? lettoCent / quante : -1]),
-      importo: fmt(lettoCent),
-      cent: lettoCent,
-    })
-    totale += lettoCent
-  }
+  })
   const totaleCent = mancante ? null : totale
   const scontoCent = totaleCent === null ? 0 : scontoInCentesimi(totaleCent, sconto)
   const daPagareCent = totaleCent === null ? null : Math.max(0, totaleCent - scontoCent)
   const n = giorni.size
   return {
-    righe,
+    gruppi,
+    righe: gruppi.flatMap(g => g.righe),
     totaleCent,
     scontoCent,
     daPagareCent,
@@ -559,7 +614,7 @@ export function doveManca(guai: string[]): { avviso: string; dove: string } | nu
     : /luogo|fascia|stima in struttura/i.test(primo) ? '[data-arrivo]'
     : /partenza|arrivo/i.test(primo) ? '[data-campo="arrivo"]'
     : /ospiti|persona|persone|tiene al massimo/i.test(primo) ? '[data-ospiti]'
-    : /letto/i.test(primo) ? '[data-prezzo-letto]'
+    : /letto/i.test(primo) ? '[data-camera-soggiorno]'
     : DOVE_CONTO
   return { avviso: primo, dove }
 }
@@ -683,22 +738,6 @@ export function nottiDellaLinea(linea: LineaCamera): number {
   return giorni.size
 }
 
-// ── Il letto in più: prezzo unico per tutta la prenotazione ────────────────
-export const CRITERI_LETTO: { chiave: 'notte' | 'ogni4' | 'totale'; etichetta: string }[] = [
-  { chiave: 'notte', etichetta: 'a notte' },
-  { chiave: 'ogni4', etichetta: 'ogni 4 notti' },
-  { chiave: 'totale', etichetta: 'totale' },
-]
-/** «di listino · Lena compreso · Amelia 5 €» — il promemoria accanto al campo.
- *  Il prezzo è quello che le regole applicano DAVVERO per gli ospiti scelti:
- *  in Lena a tre il posto è già dentro il prezzo, e si scrive «compreso». */
-export const LETTO_COMPRESO_LISTINO = 'compreso'
-export function listinoLetto(righe: { nome: string; importo: number }[]): string {
-  if (righe.length === 0) return ''
-  const pezzi = righe.map(r => `${r.nome} ${r.importo > 0 ? `${r.importo} €` : LETTO_COMPRESO_LISTINO}`)
-  return `di listino · ${pezzi.join(' · ')}`
-}
-
 // ── Dalla striscia ai periodi ───────────────────────────────────────────────
 // Le notti attaccate con la stessa camera tornano a essere un periodo solo;
 // tariffa e accordo del letto restano quelli del periodo da cui vengono.
@@ -723,29 +762,18 @@ export function periodiDaNotti(notti: NotteStriscia[], linea: LineaCamera, nuovo
   })
 }
 
-// ── Le righe da salvare, col letto ripartito ────────────────────────────────
-// Il letto è UNO per tutta la prenotazione: il conto lo mostra una volta
-// (costoLettoIntero) e lo riparte fra i tratti. Le righe salvate devono dire
-// la stessa cosa: prima ogni tratto salvava il letto per intero — «30 € in
-// tutto» su due tratti facevano 60 salvati contro 30 mostrati (rilievo del
-// 16/09/2026). La ripartizione è lettoRipartito, la stessa della striscia
-// della scheda; la convenzione delle colonne resta quella di sempre
-// (price_per_night = notte più economica, extra_bed_total = tutto il resto).
+// ── Le righe da salvare ─────────────────────────────────────────────────────
+// Dal 28/09/2026 il letto ha un prezzo fisso a notte per camera e ospiti
+// (conLettoDiListino): ogni tratto salva il SUO letto, quello che il conto
+// mostra nella sua camera — non c'è più un accordo unico da ripartire. La
+// convenzione delle colonne resta quella di sempre (price_per_night = notte
+// più economica, extra_bed_total = tutto il resto).
 export function righeDaSalvare(
   periodi: PeriodoComposto[],
   camera: (id: string | null) => CameraComposta | null,
   groupIdDi: (p: PeriodoComposto) => string,
 ): ReturnType<typeof rigaDaSalvare>[] {
-  const fette = lettoRipartito(accordoLetto(periodi, camera), periodi.map(p => p.nottiLetto.length))
-  return periodi.map((p, i) => {
-    const c = camera(p.roomId) as CameraComposta
-    const riga = rigaDaSalvare(p, c, groupIdDi(p))
-    const conto = contoPeriodo(p, c)
-    if (!conto) return riga
-    const cameraTotale = round2(conto.totale - conto.lettoTotale)
-    const soloCamera = round2(cameraTotale - conto.prezzoNotte * nottiPeriodo(p))   // le differenze fra notti
-    return { ...riga, extra_bed_total: round2(soloCamera + fette[i]), total_amount: round2(cameraTotale + fette[i]) }
-  })
+  return periodi.map(p => rigaDaSalvare(p, camera(p.roomId) as CameraComposta, groupIdDi(p)))
 }
 
 // ── Quanto vale davvero ogni riga, sconto compreso ──────────────────────────

@@ -39,16 +39,16 @@ import {
   camereDelPeriodo, rigaCamereLibere, datiLinea, nottiDellaLinea, raggruppaPerCamera, periodiDaNottiTenendoVuote,
   periodiDellaLinea, soggiorniConclusi, conflittiConAltre, nottiNonSalvabili, NOTTE_NON_SALVABILE,
   RINUNCIABILI, SENZA_NON_SI_SALVA, COLONNE_ARRIVO_0058, mancaColonnaNecessaria, avvisoDegradazione, type RigaSoggiorno,
-  ospitiPossibiliNotte, ospitiMassimi, ospitiScegliendoCamera, contoNuovaPrenotazione, scontoInParole, listinoLetto, CRITERI_LETTO, LETTO_COMPRESO_LISTINO,
-  statoLettoNuova, mancaAlConto, doveManca, tariffaDiListino,
+  ospitiPossibiliNotte, ospitiMassimi, ospitiScegliendoCamera, contoNuovaPrenotazione, scontoInParole,
+  mancaAlConto, doveManca, tariffaDiListino, conLettoDiListino, prezzoLettoInParole,
   type ScontoNuova,
 } from '@/lib/nuovaPrenotazione'
 import {
-  nottiDaPeriodi, prezzoLettoNotte, motivoLettoObbligatorio, lettoDisponibileNotte,
+  nottiDaPeriodi, motivoLettoObbligatorio, lettoDisponibileNotte,
   cambiaCamera as cambiaCameraNotte, cambiaLetto as cambiaLettoNotte, nonDormeQui,
   camereDellaNotte, ospitiDaNotte, titoloNotte, type CameraStriscia, type ContestoNotti, type NotteStriscia,
 } from '@/lib/strisciaNotti'
-import { conLettoAutomatico, lettoProposto, type PeriodoComposto, type CameraComposta } from '@/lib/prenotazioneComposta'
+import { conLettoAutomatico, type PeriodoComposto, type CameraComposta } from '@/lib/prenotazioneComposta'
 import { capienzaCamera } from '@/lib/tariffe'
 import type { PrenotazioneMinima } from '@/lib/disponibilita'
 import type { PrenotazioneLetti } from '@/lib/lettiAggiuntivi'
@@ -61,7 +61,7 @@ import { campiConLei, scontoPerRiga, totaliScontati, righeDaSalvare } from '@/li
 import { AVVISO_AGGIUNTA, CLIENTE_DIVERSO, LEGAME_NON_CONFERMATO, legameConfermato } from '@/lib/aggiungiCamera'
 import { problemi } from '@/lib/prenotazioneComposta'
 import { colonnaMancante } from '@/lib/colonnaMancante'
-import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione } from '@/lib/lettiAggiuntivi'
+import { lettiOccupatiPerNotte } from '@/lib/lettiAggiuntivi'
 import { leggiOccupazioni, daQuandoLeggere, CAMPI_OCCUPAZIONE, NON_LETTE } from '@/lib/occupazioniDati'
 import { messaggioSovrapposizione } from '@/lib/erroreSovrapposizione'
 
@@ -101,7 +101,6 @@ export default function NuovaPrenotazionePage() {
   const [altre, setAltre] = useState<(PrenotazioneMinima & PrenotazioneLetti)[]>([])
   const [occupazioni, setOccupazioni] = useState<{ stato: 'carico' | 'pronte' | 'errore'; dal: string }>({ stato: 'carico', dal: oggiARoma() })
   const [periodi, setPeriodi] = useState<PeriodoComposto[]>([])
-  const [letto, setLetto] = useState<{ importo: number | null; criterio: 'notte' | 'ogni4' | 'totale' }>({ importo: null, criterio: 'notte' })
   const [sconto, setSconto] = useState<ScontoNuova>({ tipo: 'nessuno', valore: null })
   const [notteScelta, setNotteScelta] = useState<{ gruppo: string; iso: string } | null>(null)
   // «Solo questa notte / da qui in poi»: finché la domanda è a schermo si passa
@@ -249,20 +248,14 @@ export default function NuovaPrenotazionePage() {
   // ── le camere della prenotazione ─────────────────────────────────────────
   const linee = useMemo(() => raggruppaPerCamera(periodi), [periodi])
   const trovaCamera = (id: string | null): CameraComposta | null => (camere.find(c => c.id === id) as CameraComposta | undefined) ?? null
-  // il letto scelto una volta sola vale per tutti i periodi
-  // Il letto scelto una volta sola vale per tutti i periodi. Se l'importo non
-  // è stato scritto a mano vale il LISTINO della camera, non zero: con 4
-  // ospiti in Lena il letto costa 10 € e la notte va a 100 (Ania, 14/09/2026).
+  // Il letto in più a prezzo fisso (punto 12b, 28/09/2026): ogni tratto col
+  // letto porta il listino di LETTO_AGGIUNTIVO_A_NOTTE per la sua camera e i
+  // suoi ospiti, a notte. È quello che il conto mostra e che si salva.
   const periodiColLetto = useMemo(
-    () => periodi.map(p => ({
-      ...p,
-      letto: p.nottiLetto.length > 0
-        ? { importo: letto.importo ?? lettoProposto(trovaCamera(p.roomId), p.ospiti), criterio: letto.criterio }
-        : null,
-    })),
+    () => conLettoDiListino(periodi, trovaCamera),
     // trovaCamera dipende da `camere`
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [periodi, letto, camere],
+    [periodi, camere],
   )
   const conto = useMemo(
     () => contoNuovaPrenotazione(periodiColLetto, id => (camere.find(c => c.id === id) as CameraComposta | undefined) ?? null, sconto),
@@ -276,34 +269,6 @@ export default function NuovaPrenotazionePage() {
     setRisultati([])
     if (periodi.length === 0) aggiungiCamera()
   }
-
-  // il prezzo del letto secondo le regole, camera per camera
-  const righeListino = useMemo(() => {
-    const viste = new Map<string, number>()
-    for (const p of periodi) {
-      const c = (camere.find(x => x.id === p.roomId) as CameraComposta | undefined) ?? null
-      if (!c || p.nottiLetto.length === 0) continue
-      viste.set(c.name, lettoProposto(c, p.ospiti))
-    }
-    return [...viste.entries()].map(([nome, importo]) => ({ nome, importo }))
-  }, [periodi, camere])
-  const prezzoLetto = letto.importo ?? (righeListino[0]?.importo ?? 0)
-
-  // Il letto in più: si vede appena c'è una camera che lo prevede, e resta
-  // spento con «non disponibile» quando i due letti di casa sono già impegnati.
-  const lettiPresi = useMemo(
-    () => lettiOccupatiPerNotte(altre.filter(a => a.status === 'confermata' || a.status === 'completata')),
-    [altre],
-  )
-  const statoLetto = useMemo(
-    () => statoLettoNuova(periodi, trovaCamera, (iso, roomId) => {
-      const servono = Math.max(1, lettiPoolPrenotazione({ room_id: roomId, num_guests: periodi.find(p => p.roomId === roomId)?.ospiti ?? 1, extra_bed: true }))
-      return lettiLiberi(lettiPresi, iso) >= servono
-    }),
-    // trovaCamera dipende da `camere`: cambiando le camere il conto si rifà
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [periodi, camere, lettiPresi],
-  )
 
   function aggiungiCamera() {
     const gruppo = nuovoId()
@@ -638,7 +603,7 @@ export default function NuovaPrenotazionePage() {
                       camere={camere.map(c => ({ camera: c, libera: libereOra.has(c.id) }))}
                       ospitiPossibili={ospitiPossibiliNotte(cameraNotte, altreColLetto ? d.ospiti : capienzaCamera(cameraNotte))}
                       lettoLibero={lettoDisponibileNotte(notte.iso, notte.cameraId, ctx)}
-                      prezzoLetto={prezzoLettoNotte(cameraNotte as never, notte.dentro ? notte.persone : d.ospiti, { importo: letto.importo, criterio: letto.criterio })}
+                      prezzoLetto={prezzoLettoInParole(cameraNotte, notte.dentro ? notte.persone : d.ospiti)}
                       motivoLetto={notte.dentro ? motivoLettoObbligatorio(cameraNotte as never, notte.persone) : null}
                       domanda={domandaOspiti?.iso === notte.iso} daQui={Boolean(domandaOspiti?.daQui)}
                       onCamera={c => scegliCameraNotte(linea.gruppo, notte.iso, c)}
@@ -651,61 +616,39 @@ export default function NuovaPrenotazionePage() {
             )
           })}
 
-          {/* Il letto e lo sconto valgono per tutta la prenotazione */}
-          {statoLetto.possibile && (
-            <div data-prezzo-letto style={{ marginTop: 4 }}>
-              <Etichetta testo="Quanto costa il letto" centrata />
-              {statoLetto.testo && <p data-letto-non-disponibile className="text-center" style={{ fontSize: 12, color: OTTONE_PEZZI, marginTop: -4, marginBottom: 10 }}>{statoLetto.testo}</p>}
-              <FilaPastiglie centrata>
-                {CRITERI_LETTO.map(c => (
-                  <Pastiglia key={c.chiave} dati={`letto-${c.chiave}`} acceso={letto.criterio === c.chiave} onClick={() => setLetto(l => ({ ...l, criterio: c.chiave }))}>
-                    {c.chiave === 'notte' ? (prezzoLetto > 0 ? `${prezzoLetto} € a notte` : 'a notte') : c.etichetta}
-                  </Pastiglia>
-                ))}
-              </FilaPastiglie>
-              <div className="flex items-end" style={{ gap: 12, marginTop: 10 }}>
-                <RigaCampo etichetta="Quanto" className="flex-1 min-w-0">
-                  {/* come la tariffa: il listino è già scritto, non in grigio */}
-                  <input type="number" inputMode="decimal" data-campo="letto" value={letto.importo ?? (prezzoLetto > 0 ? prezzoLetto : '')}
-                    placeholder={LETTO_COMPRESO_LISTINO}
-                    onChange={e => setLetto(l => ({ ...l, importo: e.target.value === '' ? null : Number(e.target.value) }))} style={stileCampo} />
-                </RigaCampo>
-                <p data-listino-letto style={{ fontSize: 12, color: 'var(--color-stone)', paddingBottom: 10 }}>{listinoLetto(righeListino)}</p>
-              </div>
-            </div>
-          )}
+          {/* «+ Aggiungi camera», centrato dopo l'ultima camera: apre la
+              camera dopo con le sue date, ospiti e striscia (Ania, 14/09/2026) */}
+          <div className="np-sec" style={{ paddingTop: 18 }}>
+            <TastinoTenue testo={AGGIUNGI_CAMERA} onClick={aggiungiCamera} dati="aggiungi-camera" />
+          </div>
 
+          {/* Lo sconto, SUBITO PRIMA del conto (riferimento del 28/09/2026):
+              è l'unico modo di cambiare il prezzo, la tariffa è il listino */}
           {periodi.length > 0 && (
-            <div data-sconto>
-              <Etichetta testo="Sconto" centrata />
+            <div data-sconto className="np-sec">
+              <Etichetta testo="Sconto" centrata primo />
               <FilaPastiglie centrata>
                 {([['nessuno', 'Nessuno'], ['percentuale', 'Percentuale'], ['finale', 'Prezzo finale']] as const).map(([tipo, testo]) => (
                   <Pastiglia key={tipo} dati={`sconto-${tipo}`} acceso={sconto.tipo === tipo} onClick={() => setSconto({ tipo, valore: tipo === 'nessuno' ? null : sconto.valore })}>{testo}</Pastiglia>
                 ))}
               </FilaPastiglie>
               {sconto.tipo !== 'nessuno' && (
-                <div className="flex items-end" style={{ gap: 12, marginTop: 10 }}>
-                  <RigaCampo etichetta={sconto.tipo === 'percentuale' ? 'Quanto per cento' : 'Quanto paga in tutto'} className="flex-1 min-w-0">
+                <div className="np-g2" style={{ alignItems: 'end', marginTop: 4 }}>
+                  <RigaCampo etichetta={sconto.tipo === 'percentuale' ? 'Quanto per cento' : 'Quanto paga in tutto'}>
                     <input type="number" inputMode="decimal" data-campo="sconto" value={sconto.valore ?? ''}
                       onChange={e => setSconto(sc => ({ ...sc, valore: e.target.value === '' ? null : Number(e.target.value) }))} style={stileCampo} />
                   </RigaCampo>
-                  <p data-sconto-conto style={{ fontSize: 12, color: OTTONE_PEZZI, paddingBottom: 10 }}>{scontoInParole(conto.totaleCent, sconto)}</p>
+                  <p data-sconto-conto className="np-hint o" style={{ paddingBottom: 6 }}>{scontoInParole(conto.totaleCent, sconto)}</p>
                 </div>
               )}
             </div>
           )}
 
-          {/* Centrato dopo lo sconto: apre la seconda camera con le sue date,
-              ospiti, tariffa e striscia (Ania, 14/09/2026). */}
-          <div style={{ marginTop: 18, marginBottom: 4 }}>
-            <TastinoTenue testo={AGGIUNGI_CAMERA} onClick={aggiungiCamera} dati="aggiungi-camera" />
-          </div>
-
-          {/* ── Il conto, subito sotto il soggiorno ─────────────────────
+          {/* ── Il conto, raggruppato per camera ────────────────────────
               Sta qui e non in fondo (Ania, 15/09/2026): mentre si scelgono
               camere, notti, letto e sconto i numeri sono già sotto gli occhi,
               senza scorrere. È uno solo: in fondo resta il tasto e basta. */}
-          <ContoNuova className="mt-6" conto={conto} manca={mancaAlConto(periodiColLetto, trovaCamera)} />
+          <ContoNuova conto={conto} manca={mancaAlConto(periodiColLetto, trovaCamera)} />
 
           {/* ── Arrivo e navetta ────────────────────────────────────────
               Lo stesso modulo del foglio della scheda (components/

@@ -6,8 +6,8 @@ import { readFileSync, existsSync } from 'node:fs'
 import * as STRISCIA from './strisciaNotti.ts'
 import {
   dataDiOggi, volteInParole, rigaClienteTrovato, camereDelPeriodo, rigaCamereLibere,
-  ospitiPossibiliNotte, ospitiDellaNotte, listinoLetto, raggruppaPerCamera, datiLinea, nottiDellaLinea,
-  CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
+  ospitiPossibiliNotte, ospitiDellaNotte, raggruppaPerCamera, datiLinea, nottiDellaLinea,
+  conLettoDiListino, prezzoLettoInParole, nottiInParole, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
   totaliScontati, ospitiMassimi, ospitiMassimiPrenotazione, ospitiScegliendoCamera,
   statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO, mancaAlConto, MANCA_CAMERA, MANCA_DATE, doveManca,
   periodiDellaLinea, periodiDaNottiTenendoVuote, conflittiConAltre, soggiorniConclusi, spesoConcluso, tariffaDiListino,
@@ -24,6 +24,7 @@ import {
 } from './strisciaNotti.ts'
 import { dataConGiorno } from './dateItaliane.ts'
 import { LENA_ID } from './lettiAggiuntivi.ts'
+import { LETTO_AGGIUNTIVO_A_NOTTE, lettoAggiuntivoANotte } from './tariffe.ts'
 
 const AMELIA = { id: 'amelia', name: 'Amelia', base_price: 70, has_extra_bed: true, extra_bed_price: 5 }
 const ALLEGRA = { id: 'allegra', name: 'Allegra', base_price: 80, has_extra_bed: true, extra_bed_price: 10 }
@@ -221,18 +222,35 @@ test('le camere occupate restano spente, e sotto si legge chi è libero', () => 
   assert.match(pagina, /rigaLibere=\{rigaCamereLibere\(scelte, d\.arrivo, d\.partenza\)\}/)
 })
 
-test('il letto e lo sconto sono uno solo per tutta la prenotazione', () => {
-  assert.match(pagina, /const \[letto, setLetto\] = useState<\{ importo: number \| null; criterio: 'notte' \| 'ogni4' \| 'totale' \}>/)
-  // l'importo non scritto vale il listino della camera, non zero
-  assert.match(pagina, /letto: p\.nottiLetto\.length > 0[\s\S]{0,120}criterio: letto\.criterio/)
-  assert.deepEqual(CRITERI_LETTO.map(c => c.chiave), ['notte', 'ogni4', 'totale'])
+// ── 12b: il letto aggiuntivo a prezzo fisso (Ania, 28/09/2026) ──────────────
+test('12b — il letto in più ha un prezzo fisso: Amelia 5, Ambra e Allegra 10, Lena in 3 compreso, Lena in 4 10', () => {
+  assert.deepEqual({ ...LETTO_AGGIUNTIVO_A_NOTTE }, { Amelia: 5, Ambra: 10, Allegra: 10, LenaIn3: 0, LenaIn4: 10 })
+  assert.equal(lettoAggiuntivoANotte(AMELIA, 2), 5)
+  assert.equal(lettoAggiuntivoANotte(AMBRA, 3), 10)
+  assert.equal(lettoAggiuntivoANotte(AMBRA, 2), 10)          // anche chiesto a mano (due che dormono separate)
+  assert.equal(lettoAggiuntivoANotte(ALLEGRA, 3), 10)
+  assert.equal(lettoAggiuntivoANotte(LENA, 3), 0)            // compreso: la tripla ha già tre posti
+  assert.equal(lettoAggiuntivoANotte(LENA, 4), 10)
+  // il prezzo NON viene più dall'archivio: anche con extra_bed_price diverso vale il listino fisso
+  assert.equal(lettoAggiuntivoANotte({ ...AMBRA, extra_bed_price: 25 } as never, 3), 10)
+  // nella notte scelta: «Sì · 10 €», «Sì · compreso»
+  assert.equal(prezzoLettoInParole(AMELIA, 2), '5 €')
+  assert.equal(prezzoLettoInParole(LENA, 3), 'compreso')
+  assert.equal(prezzoLettoInParole(LENA, 4), '10 €')
+  // ogni tratto col letto porta il SUO prezzo a notte; senza notti col letto niente
+  const tratti = conLettoDiListino([
+    { id: 'a', gruppo: 'g', roomId: AMBRA.id, checkIn: '2026-10-01', checkOut: '2026-10-03', ospiti: 3, nottiLetto: ['2026-10-01', '2026-10-02'], letto: { importo: 99, criterio: 'totale' }, tariffa: null },
+    { id: 'b', gruppo: 'h', roomId: LENA.id, checkIn: '2026-10-01', checkOut: '2026-10-03', ospiti: 3, nottiLetto: ['2026-10-01'], letto: null, tariffa: null },
+    { id: 'c', gruppo: 'i', roomId: AMELIA.id, checkIn: '2026-10-01', checkOut: '2026-10-03', ospiti: 1, nottiLetto: [], letto: null, tariffa: null },
+  ], id => (CAMERE.find(c => c.id === id) ?? null) as never)
+  assert.deepEqual(tratti.map(p => p.letto), [{ importo: 10, criterio: 'notte' }, { importo: 0, criterio: 'notte' }, null])
+  // tolto dalla pagina tutto quello che faceva scegliere il prezzo a mano
+  assert.doesNotMatch(pagina, /CRITERI_LETTO|LETTO_COMPRESO_LISTINO|listinoLetto|setLetto|data-prezzo-letto|Quanto costa il letto/)
+  assert.match(pagina, /const periodiColLetto = useMemo\(\s*\(\) => conLettoDiListino\(periodi, trovaCamera\)/)
+  assert.match(pagina, /prezzoLetto=\{prezzoLettoInParole\(cameraNotte, notte\.dentro \? notte\.persone : d\.ospiti\)\}/)
+  // e ciò che si salva è quello che il conto mostra: importo e criterio dal listino fisso
+  assert.match(pagina, /extra_bed_importo: p\.letto\.importo, extra_bed_criterio: p\.letto\.criterio/)
   assert.match(pagina, /data-sconto-conto/)
-})
-
-test('il promemoria del listino dice «compreso» dove il posto è già nel prezzo', () => {
-  assert.equal(listinoLetto([]), '')
-  assert.equal(listinoLetto([{ nome: 'Lena', importo: 0 }]), 'di listino · Lena compreso')
-  assert.equal(listinoLetto([{ nome: 'Lena', importo: 10 }, { nome: 'Amelia', importo: 5 }]), 'di listino · Lena 10 € · Amelia 5 €')
 })
 
 test('le camere si raggruppano in linee, e la striscia le rifà', () => {
@@ -316,7 +334,9 @@ const trova = (id: string | null) => (CAMERE.find(c => c.id === id) as never) ??
 
 test('il conto: una riga per camera, il totale e quanto c’è da pagare', () => {
   const conto = contoNuovaPrenotazione([periodo('a', AMBRA.id, '2026-12-05', '2026-12-09')], trova, { tipo: 'nessuno', valore: null })
-  assert.deepEqual(conto.righe.map(r => [r.titolo, r.dettaglio, r.importo]), [['Ambra', '4 notti × 80 €', '320 €']])
+  assert.deepEqual(conto.righe.map(r => [r.titolo, r.dettaglio, r.importo]), [['Ambra · 4 notti', '5 → 9 dic · 80 € a notte', '320 €']])
+  // una camera sola: un gruppo, e il disegno non scrive né etichetta né subtotale
+  assert.equal(conto.gruppi.length, 1)
   assert.equal(conto.totale, '320 €')
   assert.equal(conto.sconto, null)
   assert.equal(conto.daPagare, '320 €')
@@ -341,8 +361,9 @@ test('il conto con il letto in più e con due camere insieme', () => {
     ospiti: 4, nottiLetto: ['2026-12-05', '2026-12-06'], letto: { importo: 10, criterio: 'notte' },
   })]
   const conto = contoNuovaPrenotazione(conLetto, trova, { tipo: 'nessuno', valore: null })
-  assert.deepEqual(conto.righe.map(r => r.titolo), ['Lena', 'Letto in più'])
-  assert.equal(conto.righe[1].dettaglio, '2 notti × 10 €')   // una riga sola, con le notti e l'importo a notte (18/09/2026)
+  assert.deepEqual(conto.righe.map(r => r.titolo), ['Lena · 2 notti', 'Letto aggiuntivo · 2 notti'])
+  assert.equal(conto.righe[0].dettaglio, '5 → 7 dic · 90 € a notte')
+  assert.equal(conto.righe[1].dettaglio, '5 → 7 dic · Lena')   // le notti del letto e la camera (28/09/2026)
   assert.equal(conto.righe[1].importo, '20 €')
   assert.equal(conto.daPagare, '200 €')   // 90 × 2 notti + 20 di letto
 
@@ -350,7 +371,7 @@ test('il conto con il letto in più e con due camere insieme', () => {
     periodo('a', AMBRA.id, '2026-12-05', '2026-12-07'),
     { ...periodo('b', AMELIA.id, '2026-12-05', '2026-12-07'), gruppo: 'g2', ospiti: 1 },
   ], trova, { tipo: 'nessuno', valore: null })
-  assert.deepEqual(due.righe.map(r => r.titolo), ['Ambra', 'Amelia'])
+  assert.deepEqual(due.righe.map(r => r.titolo), ['Ambra · 2 notti', 'Amelia · 2 notti'])
   assert.equal(due.daPagare, '300 €')     // 160 + 140
   assert.equal(due.notti, 2, 'le notti in parallelo si contano una volta sola')
 })
@@ -391,7 +412,7 @@ test('il salvataggio scrive le righe di sempre e apre la scheda nuova', () => {
   assert.match(pagina, /const fuori = problemi\(periodiColLetto,/)
   // le righe di sempre (rigaDaSalvare), col letto ripartito fra i tratti (16/09/2026)
   assert.match(pagina, /const base = righeDaSalvare\(periodiColLetto, trova, p => gruppi\.get\(p\.gruppo\)!\)/)
-  assert.match(readFileSync(new URL('./nuovaPrenotazione.ts', import.meta.url), 'utf8'), /const riga = rigaDaSalvare\(p, c, groupIdDi\(p\)\)/)
+  assert.match(readFileSync(new URL('./nuovaPrenotazione.ts', import.meta.url), 'utf8'), /return periodi\.map\(p => rigaDaSalvare\(p, camera\(p\.roomId\) as CameraComposta, groupIdDi\(p\)\)\)/)
   assert.match(pagina, /campiComePaga\(comePaga, \{/)
   assert.match(pagina, /router\.push\(`\/scheda\/\$\{prima\.id\}\?salvata=1`\)/)
   // la caparra si scrive una volta sola, sulla riga che arriva per prima
@@ -609,12 +630,9 @@ test('il letto si accende da solo quando gli ospiti lo richiedono, e costa il li
   const dopo = conLettoAutomatico(periodoLena(3), LENA as never)
   assert.deepEqual(dopo.nottiLetto, ['2026-10-02', '2026-10-03'])
   assert.equal(statoLettoNuova([dopo], () => LENA as never, sempreLibero).acceso, true)
-  // il listino accanto al campo: Amelia 5 €, le altre 10 €
-  assert.equal(listinoLetto([{ nome: 'Amelia', importo: 5 }]), 'di listino · Amelia 5 €')
-  assert.equal(listinoLetto([{ nome: 'Allegra', importo: 10 }]), 'di listino · Allegra 10 €')
-  // e la pagina mostra il blocco in base allo stato, non al letto già acceso
-  assert.match(pagina, /\{statoLetto\.possibile && \(/)
-  assert.doesNotMatch(pagina, /periodi\.some\(p => p\.nottiLetto\.length > 0\) && \(/)
+  // il prezzo è quello fisso (12b): Lena in 3 compreso; il blocco «Quanto costa il letto» non c'è più
+  assert.deepEqual(conLettoDiListino([dopo], () => LENA as never)[0].letto, { importo: 0, criterio: 'notte' })
+  assert.doesNotMatch(pagina, /statoLetto/)
 })
 
 // ── 5. Il conto si vede, e dice cosa manca davvero (14/09/2026) ─────────────
@@ -636,7 +654,7 @@ test('quello che ferma il conto è solo la camera o le date', () => {
   assert.equal(mancaAlConto([{ ...periodoLena(2), checkOut: '2026-10-02' }], () => LENA as never), MANCA_DATE)
   // e si scrive in ottone sotto il totale
   const contoTsx = readFileSync(new URL('../components/nuova/ContoNuova.tsx', import.meta.url), 'utf8')
-  assert.match(contoTsx, /data-manca-conto[\s\S]{0,160}color: OTTONE/)
+  assert.match(contoTsx, /data-manca-conto className="np-hint o"/)
   assert.match(pagina, /manca=\{mancaAlConto\(periodiColLetto, trovaCamera\)\}/)
 })
 
@@ -657,13 +675,16 @@ test('il conto si aggiorna a ogni tocco: sconto, letto, ospiti', () => {
 test('il tastino «+ Aggiungi camera» è centrato dopo lo sconto e si tocca', () => {
   const pezzi = readFileSync(new URL('../components/nuova/PezziNuova.tsx', import.meta.url), 'utf8')
   assert.match(pezzi, /ALTEZZA_TOCCO = 44/)
-  assert.match(pezzi, /TastinoTenue[\s\S]{0,600}minHeight: ALTEZZA_TOCCO/)
+  assert.match(pezzi, /TastinoTenue[\s\S]{0,900}minHeight: ALTEZZA_TOCCO/)
   assert.match(pezzi, /TastinoTenue[\s\S]{0,400}centrato \? 'text-center' : ''/)
-  // dopo lo sconto, prima di «Arrivo»
-  const dopoSconto = pagina.indexOf('data-sconto')
+  // veste «Maison»: parola tenue col filo, area di tocco 44 px (mz-lnk::before)
+  assert.match(pezzi, /className="mz-lnk q np-lnk"/)
+  assert.match(leggiFile('app/maison.css'), /\.mz-lnk::before \{[^}]*height: 44px/)
+  // dal 28/09/2026 dopo l'ultima camera, PRIMA dello sconto e del conto
   const tastino = pagina.indexOf('dati="aggiungi-camera"')
-  const arrivo = pagina.indexOf('data-arrivo')
-  assert.ok(dopoSconto > 0 && dopoSconto < tastino && tastino < arrivo)
+  const sconto = pagina.indexOf('data-sconto')
+  const conto = pagina.indexOf('<ContoNuova')
+  assert.ok(pagina.indexOf('<CameraSoggiorno') < tastino && tastino < sconto && sconto < conto)
   // e apre una camera nuova, con le sue date e i suoi ospiti
   assert.match(pagina, /function aggiungiCamera\(\)[\s\S]{0,400}roomId: null/)
 })
@@ -676,7 +697,7 @@ test('il tasto non è più spento quando il conto è incompleto', () => {
   assert.match(pagina, /<TastoSalva className="mt-6" onSalva=\{\(\) => void salva\(\)\} spento=\{salvando \|\| salvata !== null\} avviso=\{avvisoSalva\}/)
   assert.doesNotMatch(pagina, /salvaSpento=\{salvando \|\| conto\.daPagareCent === null\}/)
   // l'avviso sta accanto al tasto, in mattone
-  assert.match(conto, /data-avviso-salva[\s\S]{0,200}color: MATTONE/)
+  assert.match(conto, /data-avviso-salva className="np-hint m c"/)
 })
 
 test('senza camera il tasto dice cosa manca e porta la pagina sulla camera', () => {
@@ -803,8 +824,8 @@ test('gli altri listini del letto: Amelia 5 €, le altre 10 €', () => {
   assert.equal(lettoProposto(AMELIA as never, 2), 5)
   assert.equal(lettoProposto(ALLEGRA as never, 3), 10)
   assert.equal(lettoProposto(AMBRA as never, 3), 10)
-  // la pagina non legge più «niente» come zero
-  assert.match(pagina, /importo: letto\.importo \?\? lettoProposto\(trovaCamera\(p\.roomId\), p\.ospiti\)/)
+  // la pagina d'inserimento usa il prezzo fisso (12b, 28/09/2026), mai zero
+  assert.match(pagina, /conLettoDiListino\(periodi, trovaCamera\)/)
 })
 
 // ── 9. Il calendario delle date è quello del telefono (14/09/2026) ─────────
@@ -959,7 +980,7 @@ test('scegliere la camera di una notte non tocca le altre', () => {
     [LENA.id, '2026-09-17', '2026-09-18'],
   ])
   const conto = contoNuovaPrenotazione(periodi, id => (CAMERE.find(x => x.id === id) ?? null) as never, { tipo: 'nessuno', valore: null })
-  assert.deepEqual(conto.righe.map(r => r.titolo), ['Allegra', 'Lena'])
+  assert.deepEqual(conto.righe.map(r => r.titolo), ['Allegra · 1 notte', 'Lena · 1 notte'])
 })
 
 // ── 3. Sotto la striscia solo quello che manca (15/09/2026) ────────────────
@@ -1026,7 +1047,7 @@ test('due notti sistemate a mano tengono camere diverse', () => {
   assert.equal(riassuntoStriscia(notti), '1 cambio camera')
   assert.deepEqual(avvisiStriscia(notti), ['lun 14 e mar 15 senza camera'])
   const conto = contoNuovaPrenotazione(dopoLena, id => (CAMERE.find(c => c.id === id) ?? null) as never, { tipo: 'nessuno', valore: null })
-  assert.deepEqual(conto.righe.map(r => r.titolo), ['Allegra', 'Lena'])
+  assert.deepEqual(conto.righe.map(r => r.titolo), ['Allegra · 1 notte', 'Lena · 1 notte'])
 })
 
 test('una terza notte a mano non tocca le prime due', () => {
@@ -1037,7 +1058,7 @@ test('una terza notte a mano non tocca le prime due', () => {
   assert.deepEqual(notti.map(n => n.camera), [null, 'Ambra', 'Allegra', 'Lena'])
   assert.equal(cambiCamera(notti), 2)
   const conto = contoNuovaPrenotazione(periodi, id => (CAMERE.find(c => c.id === id) ?? null) as never, { tipo: 'nessuno', valore: null })
-  assert.deepEqual(conto.righe.map(r => r.titolo), ['Ambra', 'Allegra', 'Lena'])
+  assert.deepEqual(conto.righe.map(r => r.titolo), ['Ambra · 1 notte', 'Allegra · 1 notte', 'Lena · 1 notte'])
 })
 
 test('toccando gli ospiti in alto le camere delle notti restano', () => {
@@ -1183,8 +1204,8 @@ test('accanto a «Sì» il costo di quella notte: «10 €» o «compreso»', ()
   assert.equal(prezzoLettoNotte(LENA as never, 3, { importo: null, criterio: 'notte' }), 'compreso')
   assert.equal(prezzoLettoNotte(ALLEGRA as never, 3, { importo: null, criterio: 'notte' }), '10 €')
   assert.equal(prezzoLettoNotte(LENA as never, 4, { importo: null, criterio: 'notte' }), '10 €')
-  // e la pagina passa alla parte della notte l'accordo preso sopra
-  assert.match(pagina, /prezzoLettoNotte\(cameraNotte as never, notte\.dentro \? notte\.persone : d\.ospiti, \{ importo: letto\.importo, criterio: letto\.criterio \}\)/)
+  // la pagina (dal 28/09/2026) scrive il prezzo fisso di listino (12b)
+  assert.match(pagina, /prezzoLetto=\{prezzoLettoInParole\(cameraNotte, notte\.dentro \? notte\.persone : d\.ospiti\)\}/)
 })
 
 test('se i due letti di casa sono impegnati, «Sì» resta spento con «non disponibile»', () => {
@@ -1396,7 +1417,7 @@ test('il conto ignora le notti senza camera', () => {
     { id: 'b', gruppo: 'g', roomId: LENA.id, checkIn: '2026-09-16', checkOut: '2026-09-17', ospiti: 2, nottiLetto: [], letto: null, tariffa: null },
   ]
   const conto = contoNuovaPrenotazione(periodi, id => (CAMERE.find(c => c.id === id) ?? null) as never, { tipo: 'nessuno', valore: null })
-  assert.deepEqual(conto.righe.map(r => r.titolo), ['Lena'])
+  assert.deepEqual(conto.righe.map(r => r.titolo), ['Lena · 1 notte'])
   assert.equal(conto.righe[0].importo, '80 €')
   assert.equal(conto.totale, null)                    // e finché mancano, il conto non è intero
   assert.equal(mancaAlConto(periodi, id => (CAMERE.find(c => c.id === id) ?? null) as never), MANCA_CAMERA)
@@ -1477,10 +1498,9 @@ test('il conto sta subito sotto il soggiorno, non in fondo', () => {
   const ordine = [
     'data-cliente-scelto',        // 1. il cliente scelto
     '<CameraSoggiorno',           // 2-3. soggiorno, notti e parte della notte
-    'data-prezzo-letto',          // 4. quanto costa il letto
-    'data-sconto',                // 5. sconto
-    'dati="aggiungi-camera"',     // 6. + Aggiungi camera
-    '<ContoNuova',                // 7. il conto
+    'dati="aggiungi-camera"',     // 4. + Aggiungi camera (28/09/2026: prima dello sconto)
+    'data-sconto',                // 5. sconto, SUBITO PRIMA del conto
+    '<ContoNuova',                // 6. il conto
     'data-arrivo',                // 8. arrivo
     'data-come-paga-parte',       // 9. come paga
     '<ConLei',                    // 10. con lei
@@ -1499,8 +1519,8 @@ test('il conto è uno solo, e il tasto è un pezzo a parte', () => {
   assert.match(conto, /export function TastoSalva/)
   assert.doesNotMatch(conto, /data-conto-nuova[\s\S]*TastoAvanti/)
   // e il conto dice ancora cosa manca, dov'è adesso
-  assert.match(conto, /data-manca-conto[\s\S]{0,160}color: OTTONE/)
-  assert.match(pagina, /<ContoNuova className="mt-6" conto=\{conto\} manca=\{mancaAlConto\(periodiColLetto, trovaCamera\)\} \/>/)
+  assert.match(conto, /data-manca-conto className="np-hint o"/)
+  assert.match(pagina, /<ContoNuova conto=\{conto\} manca=\{mancaAlConto\(periodiColLetto, trovaCamera\)\} \/>/)
 })
 
 // ── Revisione 15/09: rilievi 7, 8, 10 e 11 ────────────────────────────────
@@ -1588,29 +1608,66 @@ test('Allegra da 2 a 3 ospiti col «+»: il letto si accende da solo e il totale
     .map(p => conLettoAutomatico(p, soloAllegra(p.roomId)))
   assert.deepEqual(tre[0].nottiLetto, ['2026-11-10'])
   assert.deepEqual(tre[0].letto, { importo: 10, criterio: 'notte', auto: true })
-  const conto = contoNuovaPrenotazione(tre, soloAllegra, { tipo: 'nessuno', valore: null })
-  assert.deepEqual(conto.righe.map(r => [r.titolo, r.importo]), [['Allegra', '80 €'], ['Letto in più', '10 €']])
+  // il prezzo del letto è quello fisso di listino (12b): la pagina lo mette con conLettoDiListino
+  const fisso = conLettoDiListino(tre, soloAllegra)
+  const conto = contoNuovaPrenotazione(fisso, soloAllegra, { tipo: 'nessuno', valore: null })
+  assert.deepEqual(conto.righe.map(r => [r.titolo, r.importo]), [['Allegra · 1 notte', '80 €'], ['Letto aggiuntivo · 1 notte', '10 €']])
   assert.equal(conto.daPagare, '90 €')
   // e la riga salvata dice lo stesso: 80 di camera + 10 di letto
-  const [riga] = righeDaSalvare(tre, soloAllegra, () => 'G')
+  const [riga] = righeDaSalvare(fisso, soloAllegra, () => 'G')
   assert.deepEqual([riga.price_per_night, riga.extra_bed_total, riga.total_amount, riga.extra_bed], [80, 10, 90, true])
 })
 
-test('letto «totale» su più tratti: le righe salvate sommano quanto mostra il conto', () => {
-  // Allegra 3 notti × 80 + Lena 2 notti × 90, letto 30 € in tutto su tutte e cinque le notti
-  const t1: PeriodoComposto = { id: 't1', gruppo: 'g', roomId: 'allegra', checkIn: '2026-11-10', checkOut: '2026-11-13', ospiti: 3, nottiLetto: ['2026-11-10', '2026-11-11', '2026-11-12'], letto: { importo: 30, criterio: 'totale' }, tariffa: 80 }
-  const t2: PeriodoComposto = { id: 't2', gruppo: 'g', roomId: 'lena', checkIn: '2026-11-13', checkOut: '2026-11-15', ospiti: 3, nottiLetto: ['2026-11-13', '2026-11-14'], letto: { importo: 30, criterio: 'totale' }, tariffa: 90 }
+test('letto su più tratti a prezzo fisso: ogni riga salva il SUO letto, e la somma è quella del conto', () => {
+  // Allegra 3 notti × 80 in 3 col letto (10 a notte) + Lena 2 notti × 90 in 3 (letto compreso)
+  const t1: PeriodoComposto = { id: 't1', gruppo: 'g', roomId: 'allegra', checkIn: '2026-11-10', checkOut: '2026-11-13', ospiti: 3, nottiLetto: ['2026-11-10', '2026-11-11', '2026-11-12'], letto: null, tariffa: null }
+  const t2: PeriodoComposto = { id: 't2', gruppo: 'g', roomId: 'lena', checkIn: '2026-11-13', checkOut: '2026-11-15', ospiti: 3, nottiLetto: ['2026-11-13', '2026-11-14'], letto: null, tariffa: null }
   const cam = (id: string | null) => (id === 'allegra' ? ALLEGRA_VERA as never : id === 'lena' ? LENA as never : null)
-  const conto = contoNuovaPrenotazione([t1, t2], cam, { tipo: 'nessuno', valore: null })
-  assert.equal(conto.daPagare, '450 €')                                   // 240 + 180 + 30
-  const righe = righeDaSalvare([t1, t2], cam, () => 'G')
-  // prima: 30 su ogni tratto, 480 salvati contro 450 mostrati (rilievo del 16/09/2026)
-  assert.deepEqual(righe.map(r => r.total_amount), [258, 192])            // 240 + 18, 180 + 12
-  assert.deepEqual(righe.map(r => r.extra_bed_total), [18, 12])
+  const fisso = conLettoDiListino([t1, t2], cam)
+  const conto = contoNuovaPrenotazione(fisso, cam, { tipo: 'nessuno', valore: null })
+  assert.equal(conto.daPagare, '450 €')                                   // 240 + 30 + 180 + 0
+  assert.deepEqual(conto.righe.map(r => [r.titolo, r.importo]), [
+    ['Allegra · 3 notti', '240 €'], ['Lena · 2 notti', '180 €'],
+    ['Letto aggiuntivo · 3 notti', '30 €'], ['Letto aggiuntivo · 2 notti · compreso', '0 €'],
+  ])
+  const righe = righeDaSalvare(fisso, cam, () => 'G')
+  assert.deepEqual(righe.map(r => r.total_amount), [270, 180])
+  assert.deepEqual(righe.map(r => r.extra_bed_total), [30, 0])
   assert.equal(righe.reduce((s, r) => s + r.total_amount, 0), 450)
   // con lo sconto del 10 %: 405 in tutto, riga per riga
   const scontati = totaliScontati(righe.map(r => r.total_amount), { tipo: 'percentuale', valore: 10 })
   assert.equal(Math.round(scontati.reduce((s, t) => s + t, 0) * 100), 40500)
+})
+
+// ── Q3: il conto raggruppato per camera, coi subtotali (28/09/2026) ─────────
+test('il conto con due camere: etichetta «Camera 1 · date», righe, letto, subtotale; poi totale, sconto, da pagare', () => {
+  const cam = (id: string | null) => (CAMERE.find(c => c.id === id) ?? null) as never
+  const periodi = conLettoDiListino([
+    { id: 'a1', gruppo: 'g1', roomId: AMBRA.id, checkIn: '2026-09-28', checkOut: '2026-10-01', ospiti: 3, nottiLetto: ['2026-09-30'], letto: null, tariffa: null },
+    { id: 'a2', gruppo: 'g1', roomId: LENA.id, checkIn: '2026-10-01', checkOut: '2026-10-02', ospiti: 2, nottiLetto: [], letto: null, tariffa: null },
+    { id: 'b1', gruppo: 'g2', roomId: AMELIA.id, checkIn: '2026-09-28', checkOut: '2026-09-30', ospiti: 1, nottiLetto: [], letto: null, tariffa: null },
+  ], cam)
+  const conto = contoNuovaPrenotazione(periodi, cam, { tipo: 'percentuale', valore: 10 })
+  assert.deepEqual(conto.gruppi.map(g => [g.nome, g.date, g.subtotale]), [
+    ['Camera 1', '28 set → 2 ott', '330 €'],      // 240 + 80 + 10
+    ['Camera 2', '28 → 30 set', '140 €'],
+  ])
+  assert.deepEqual(conto.gruppi[0].righe.map(r => [r.titolo, r.dettaglio, r.importo]), [
+    ['Ambra · 3 notti', '28 set → 1 ott · 80 € a notte', '240 €'],
+    ['Lena · 1 notte', '1 → 2 ott · 80 € a notte', '80 €'],
+    ['Letto aggiuntivo · 1 notte', '30 set · Ambra', '10 €'],
+  ])
+  assert.equal(conto.totale, '470 €')
+  assert.equal(conto.sconto?.importo, '−47 €')
+  assert.equal(conto.daPagare, '423 €')
+  // il disegno: etichetta e subtotale SOLO con più camere
+  const contoTsx = leggiFile('components/nuova/ContoNuova.tsx')
+  assert.match(contoTsx, /const perCamera = conto\.gruppi\.length > 1/)
+  assert.match(contoTsx, /\{perCamera && <p className="np-lab" data-etichetta-camera>\{g\.date \? `\$\{g\.nome\} · \$\{g\.date\}` : g\.nome\}<\/p>\}/)
+  assert.match(contoTsx, /\{perCamera && <div className="np-conto-sub" data-subtotale><span>\{g\.nome\}<\/span><b>\{g\.subtotale\}<\/b><\/div>\}/)
+  // le notti del letto in parole
+  assert.equal(nottiInParole(['2026-09-30']), '30 set')
+  assert.equal(nottiInParole(['2026-09-30', '2026-10-01', '2026-10-03']), '30 set → 2 ott, 3 ott')
 })
 
 test('prezzo finale su più tratti: ogni riga porta la sua quota, e la somma è esatta', () => {

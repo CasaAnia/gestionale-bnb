@@ -10,13 +10,20 @@
 //     quanto viene a notte.
 // ============================================================================
 import type { ReactNode } from 'react'
-import { GEORGIA, OTTONE } from '@/components/nuova/PezziNuova'
+import { GEORGIA, OTTONE, useMaison } from '@/components/nuova/PezziNuova'
 import { RIGA_TOTALE, RIGA_DA_PAGARE, type RigaContoVista, type ScontoVista } from '@/lib/contoInRighe'
 
 export const FILO_OTTONE = 'rgba(169,136,78,0.55)'
 
 /** Una riga del conto: la camera col dettaglio sotto, o il letto in più */
 export function RigaConto({ riga }: { riga: RigaContoVista }) {
+  // veste «Maison» della Nuova prenotazione (28/09/2026): classi np-conto
+  if (useMaison()) return (
+    <div data-riga-conto={riga.chiave} className="np-conto-r">
+      <span>{riga.titolo}<small>{riga.dettaglio}</small></span>
+      <b>{riga.importo}</b>
+    </div>
+  )
   return (
     <div data-riga-conto={riga.chiave} className="flex items-baseline justify-between gap-3" style={{ padding: '10px 0', borderBottom: '1px solid var(--color-card-border)' }}>
       <span className="min-w-0">
@@ -30,6 +37,7 @@ export function RigaConto({ riga }: { riga: RigaContoVista }) {
 
 /** «Totale»: quanto costa senza sconto */
 export function TotaleConto({ importo }: { importo: string }) {
+  if (useMaison()) return <div data-totale className="np-conto-tot"><span>{RIGA_TOTALE}</span><b>{importo}</b></div>
   return (
     <div data-totale className="flex items-baseline justify-between gap-3" style={{ borderTop: `1px solid ${FILO_OTTONE}`, paddingTop: 10, marginTop: 4 }}>
       <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-green-dark)' }}>{RIGA_TOTALE}</span>
@@ -40,6 +48,7 @@ export function TotaleConto({ importo }: { importo: string }) {
 
 /** Lo sconto, una riga sola in ottone: «Sconto 10 %» −32 € */
 export function ScontoConto({ sconto }: { sconto: ScontoVista }) {
+  if (useMaison()) return <div data-sconto-riga className="np-conto-sc"><span>{sconto.testo}</span><b>{sconto.importo}</b></div>
   return (
     <div data-sconto-riga className="flex items-baseline justify-between gap-3" style={{ paddingTop: 8 }}>
       <span style={{ fontSize: 14, color: OTTONE }}>{sconto.testo}</span>
@@ -50,6 +59,13 @@ export function ScontoConto({ sconto }: { sconto: ScontoVista }) {
 
 /** «Da pagare» in grande e, sotto a destra, «3 notti · 85 € a notte» */
 export function DaPagareConto({ importo, sotto, children }: { importo: string; sotto?: string | null; children?: ReactNode }) {
+  if (useMaison()) return (
+    <>
+      <div data-da-pagare className="np-conto-dp"><span>{RIGA_DA_PAGARE}</span><b>{importo}</b></div>
+      {sotto && <p data-a-notte className="np-hint" style={{ textAlign: 'right' }}>{sotto}</p>}
+      {children}
+    </>
+  )
   return (
     <>
       <div data-da-pagare className="flex items-baseline justify-between gap-3" style={{ paddingTop: 10 }}>
