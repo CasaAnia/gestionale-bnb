@@ -8,7 +8,7 @@
 // ============================================================================
 import { useState } from 'react'
 import Foglio from '@/components/scheda/Foglio'
-import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo } from './PezziNuova'
+import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo, useMaison } from './PezziNuova'
 import { CHI_E_VOCI, type PersonaConLei } from '@/lib/nuovaPrenotazione'
 import CampiNomeCognome from '@/components/CampiNomeCognome'
 import { nomeDaSalvare } from '@/lib/guestName'
@@ -18,6 +18,14 @@ export const TITOLO_FOGLIETTO = 'Chi dorme con lei'
 export const ALTRO = 'altro…'
 
 export function RigaPersona({ persona, onTogli }: { persona: PersonaConLei; onTogli: () => void }) {
+  // veste «Maison» (28/09/2026): nome in Cormorant, chi è in maiuscoletto, telefono, ✕
+  if (useMaison()) return (
+    <div data-persona className="np-persona">
+      <span className="min-w-0"><span className="nm">{persona.nome}</span>{persona.chiE && <span className="ch">{persona.chiE}</span>}</span>
+      <span className="tel">{persona.telefono}</span>
+      <button type="button" onClick={onTogli} aria-label={`Togli ${persona.nome}`} className="x">✕</button>
+    </div>
+  )
   return (
     <div data-persona className="flex items-center justify-between gap-3" style={{ padding: '10px 0', borderBottom: '1px solid var(--color-card-border)' }}>
       <span className="min-w-0">

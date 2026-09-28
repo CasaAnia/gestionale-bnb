@@ -28,13 +28,12 @@ import { leggiStrutture } from '@/lib/provenienzaDati'
 import { creaClienteNuovo } from '@/lib/cambiaClienteDati'
 import { moduloDaRicerca, campiNuovoCliente } from '@/lib/datiCliente'
 import { numeroUsabile } from '@/lib/whatsapp'
-import AvvisoAzione from '@/components/AvvisoAzione'
 import type { StrutturaNota } from '@/lib/provenienza'
 import CameraSoggiorno from '@/components/nuova/CameraSoggiorno'
 import ArrivoNavetta from '@/components/ArrivoNavetta'
 import { ARRIVO_VUOTO, campiArrivo, controllaArrivo, type Arrivo } from '@/lib/arrivo'
 import NotteScelta from '@/components/nuova/NotteScelta'
-import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo, VesteMaison, OTTONE as OTTONE_PEZZI } from '@/components/nuova/PezziNuova'
+import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo, VesteMaison } from '@/components/nuova/PezziNuova'
 import {
   camereDelPeriodo, rigaCamereLibere, datiLinea, nottiDellaLinea, raggruppaPerCamera, periodiDaNottiTenendoVuote,
   periodiDellaLinea, soggiorniConclusi, conflittiConAltre, nottiNonSalvabili, NOTTE_NON_SALVABILE,
@@ -53,11 +52,12 @@ import { capienzaCamera } from '@/lib/tariffe'
 import type { PrenotazioneMinima } from '@/lib/disponibilita'
 import type { PrenotazioneLetti } from '@/lib/lettiAggiuntivi'
 import ComePaga from '@/components/ComePaga'
-import ConLei from '@/components/nuova/ConLei'
-import { PERSONE_CON_LEI_MAX, TROPPE_PERSONE, type PersonaConLei } from '@/lib/nuovaPrenotazione'
+import ChiDormeInCamera from '@/components/nuova/ChiDormeInCamera'
+import { COLONNA_NON_E_LEI, campiChiDorme, type PersonaConLei } from '@/lib/nuovaPrenotazione'
+import { SALVATO, COSA_SALVATA, DURATA_SALVATO_MS, testoSalvato } from '@/lib/salvatoMaison'
 import { campiComePaga, chiedeScadenza as chiedeScadenzaComePaga, type ComePaga as ComePagaModo } from '@/lib/comePaga'
 import ContoNuova, { TastoSalva } from '@/components/nuova/ContoNuova'
-import { campiConLei, scontoPerRiga, totaliScontati, righeDaSalvare } from '@/lib/nuovaPrenotazione'
+import { scontoPerRiga, totaliScontati, righeDaSalvare } from '@/lib/nuovaPrenotazione'
 import { AVVISO_AGGIUNTA, CLIENTE_DIVERSO, LEGAME_NON_CONFERMATO, legameConfermato } from '@/lib/aggiungiCamera'
 import { problemi } from '@/lib/prenotazioneComposta'
 import { colonnaMancante } from '@/lib/colonnaMancante'
@@ -121,6 +121,12 @@ export default function NuovaPrenotazionePage() {
   const [caparraData, setCaparraData] = useState('')
   const [caparraOra, setCaparraOra] = useState('')
   const [persone, setPersone] = useState<PersonaConLei[]>([])
+  // «Non è lei a dormire qui» (punto 12c); la spunta si mostra solo se il
+  // database ha la colonna (proposta 0061): si guarda una volta, all'apertura
+  const [nonELei, setNonELei] = useState(false)
+  const [colonnaNonELei, setColonnaNonELei] = useState(false)
+  // la conferma «B» dopo un salvataggio riuscito
+  const [conferma, setConferma] = useState<{ cosa: string; quando: Date } | null>(null)
   const [nota, setNota] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [guai, setGuai] = useState<string[]>([])
@@ -184,6 +190,8 @@ export default function NuovaPrenotazionePage() {
   useEffect(() => {
     let vivo = true
     void leggiStrutture().then(r => { if (!vivo) return; setStrutture(r.strutture); setStruttureOk(r.disponibile) })
+    // la colonna della spunta «Non è lei a dormire qui» c'è? (proposta 0061)
+    void supabase.from('bookings').select(COLONNA_NON_E_LEI).limit(1).then(({ error }) => { if (vivo) setColonnaNonELei(!error) })
     void supabase.from('rooms').select('*').eq('active', true).then(({ data }) => {
       if (!vivo) return
       const lette = (data ?? []) as CameraStriscia[]
@@ -380,6 +388,9 @@ export default function NuovaPrenotazionePage() {
     }
   }
 
+  // gli ospiti prenotati (tutte le camere): il massimo di «Chi dorme in camera»
+  const ospitiPrenotati = linee.reduce((t, l) => t + datiLinea(l).ospiti, 0) || 1
+
   // ── il salvataggio ───────────────────────────────────────────────────────
   // Le righe le scrive rigaDaSalvare, le stesse di sempre; i controlli sono
   // quelli di lib/prenotazioneComposta (camere, capienza, letti della casa).
@@ -444,7 +455,8 @@ export default function NuovaPrenotazionePage() {
       // sempre, tenute vere. Se la 0058 non è ancora applicata il server
       // rifiuta la riga e `salvaPrenotazione` riprova senza le nuove.
       ...campiArrivo(arrivo),
-      ...campiConLei(persone),
+      // chi dorme in camera e, se la colonna c'è, la spunta (punto 12c)
+      ...campiChiDorme(persone, nonELei, colonnaNonELei),
     }
     const primo = [...periodiColLetto].sort((a, z) => a.checkIn.localeCompare(z.checkIn))[0]?.id
     // le righe di sempre, col letto ripartito fra i tratti come nel conto
@@ -512,7 +524,10 @@ export default function NuovaPrenotazionePage() {
       setSalvata(String(prima.id))
       return
     }
-    router.push(`/scheda/${prima.id}?salvata=1`)
+    // la conferma «B» sotto il tasto, poi la scheda si apre da sola
+    setSalvata(String(prima.id))
+    setConferma({ cosa: COSA_SALVATA.prenotazione((cliente.full_name ?? '').trim() || 'senza nome'), quando: new Date() })
+    window.setTimeout(() => router.push(`/scheda/${prima.id}?salvata=1`), DURATA_SALVATO_MS)
   }
 
   return (
@@ -650,62 +665,69 @@ export default function NuovaPrenotazionePage() {
               senza scorrere. È uno solo: in fondo resta il tasto e basta. */}
           <ContoNuova conto={conto} manca={mancaAlConto(periodiColLetto, trovaCamera)} />
 
-          {/* ── Arrivo e navetta ────────────────────────────────────────
-              Lo stesso modulo del foglio della scheda (components/
-              ArrivoNavetta): dove arriva, a che ora LÌ, la stima facoltativa
-              in struttura e la navetta con l'autista. */}
-          <section data-arrivo className="mt-6">
-            <p className="ed-sezione">Arrivo e navetta</p>
-            <div className="mt-3"><ArrivoNavetta arrivo={arrivo} onArrivo={setArrivo} /></div>
-          </section>
-
-          {/* ── Come paga ───────────────────────────────────────────────── */}
+          {/* ── Come paga ─────────────────────────────────────────────────
+              Aggiungendo una camera a una prenotazione che c'è già come paga
+              e caparra restano quelli: al loro posto la frase di sempre. */}
           {aggiungoA
-            ? <p data-aggiungo-a className="mt-6" style={{ fontSize: 12.5, color: OTTONE_PEZZI }}>{AVVISO_AGGIUNTA}</p>
-            : <section data-come-paga-parte className="mt-6">
-              <p className="ed-sezione">Come paga</p>
-              <div className="mt-3">
-                <ComePaga modo={comePaga} onModo={setComePaga} totaleCent={conto.daPagareCent}
-                  importo={caparra} onImporto={setCaparra}
-                  data={caparraData} ora={caparraOra} onData={setCaparraData} onOra={setCaparraOra} />
-              </div>
+            ? <div className="np-sec"><p data-aggiungo-a className="np-aggiungo">{AVVISO_AGGIUNTA}</p></div>
+            : <section data-come-paga-parte className="np-sec">
+              <p className="mz-eyebrow">Come paga</p>
+              <ComePaga modo={comePaga} onModo={setComePaga} totaleCent={conto.daPagareCent}
+                importo={caparra} onImporto={setCaparra}
+                data={caparraData} ora={caparraOra} onData={setCaparraData} onOra={setCaparraOra} />
             </section>}
 
-          {/* ── Con lei ─────────────────────────────────────────────────── */}
-          <ConLei className="mt-6" persone={persone} onPersone={setPersone}
-            avviso={persone.length > PERSONE_CON_LEI_MAX ? TROPPE_PERSONE : null} />
+          {/* ── Chi dorme in camera (era «Con lei», punto 12c) ─────────── */}
+          <ChiDormeInCamera intestataria={{ nome: (cliente.full_name ?? '').trim() || 'senza nome', telefono: (cliente.phone ?? '').trim() }}
+            persone={persone} onPersone={setPersone} nonELei={nonELei} onNonELei={setNonELei}
+            spuntaDisponibile={colonnaNonELei} ospiti={ospitiPrenotati} />
 
           {/* ── La nota di questo soggiorno ─────────────────────────────── */}
-          <section data-nota className="mt-6">
-            <p className="ed-sezione">Nota di questo soggiorno</p>
+          <section data-nota className="np-sec">
+            <p className="mz-eyebrow">Nota di questo soggiorno</p>
             <RigaCampo etichetta="Nota">
               <textarea rows={2} data-campo="nota" value={nota} onChange={e => setNota(e.target.value)} style={{ ...stileCampo, resize: 'none' }} />
             </RigaCampo>
           </section>
 
+          {/* ── Arrivo e navetta, per ultimo ──────────────────────────────
+              Lo stesso modulo del foglio della scheda (components/
+              ArrivoNavetta) nella veste «Maison»: dove arriva, a che ora LÌ,
+              la stima facoltativa in struttura e la navetta con l'autista. */}
+          <section data-arrivo className="np-sec">
+            <p className="mz-eyebrow">Arrivo e navetta</p>
+            <ArrivoNavetta arrivo={arrivo} onArrivo={setArrivo} />
+          </section>
+
           {/* ── E in fondo si salva ─────────────────────────────────────── */}
-          {guai.length > 0 && (
-            <div data-guai className="mt-6">
-              {guai.map(g => <AvvisoAzione key={g} testo={g} className="mt-2" />)}
-            </div>
-          )}
-          {/* Finché non si sa chi occupa le camere, non si promette che siano
-              libere: lo si dice, e il salvataggio rilegge comunque prima di
-              scrivere (rilievo del 15/09/2026). */}
-          {occupazioni.stato !== 'pronte' && (
-            <p data-occupazioni-stato className="text-center" style={{ fontSize: 12, color: OTTONE_PEZZI, marginTop: 10 }}>
-              {occupazioni.stato === 'carico' ? 'Sto guardando quali camere sono libere…' : NON_LETTE}
-            </p>
-          )}
-          <TastoSalva className="mt-6" onSalva={() => void salva()} spento={salvando || salvata !== null} avviso={avvisoSalva} />
-          {salvata && (
-            <p className="text-center" style={{ marginTop: 10 }}>
-              <button type="button" data-apri-salvata onClick={() => router.push(`/scheda/${salvata}?salvata=1`)}
-                style={{ minHeight: 44, padding: '0 18px', borderRadius: 999, background: 'var(--color-green-mid)', color: 'var(--color-cream)', fontSize: 13, fontWeight: 600 }}>
-                Apri la prenotazione
-              </button>
-            </p>
-          )}
+          <div className="np-savebox" data-salva-in-fondo>
+            {/* Finché non si sa chi occupa le camere, non si promette che siano
+                libere: lo si dice, e il salvataggio rilegge comunque prima di
+                scrivere (rilievo del 15/09/2026). */}
+            {occupazioni.stato !== 'pronte' && (
+              <p data-occupazioni-stato className="np-hint o" style={{ marginBottom: 12 }}>
+                {occupazioni.stato === 'carico' ? 'Sto guardando quali camere sono libere…' : NON_LETTE}
+              </p>
+            )}
+            <TastoSalva onSalva={() => void salva()} spento={salvando || salvata !== null} avviso={avvisoSalva && !guai.includes(avvisoSalva) ? avvisoSalva : null} />
+            {/* gli avvisi che fermano il salvataggio, in mattone sotto il tasto */}
+            {guai.length > 0 && (
+              <div data-guai style={{ marginTop: 10 }}>
+                {guai.map(g => <p key={g} className="np-hint m c" role="alert">{g}</p>)}
+              </div>
+            )}
+            {/* la conferma «B»: spunta, «Salvato», cosa e l'ora; poi la scheda si apre da sola */}
+            {conferma && (
+              <div className="np-ok conferma-in" role="status" aria-live="polite" data-salvato-maison>
+                <i aria-hidden>✓</i>{SALVATO}<small>{testoSalvato(conferma.cosa, conferma.quando)}</small>
+              </div>
+            )}
+            {salvata && (
+              <p style={{ marginTop: 12 }}>
+                <button type="button" data-apri-salvata className="mz-cta np-cta" onClick={() => router.push(`/scheda/${salvata}?salvata=1`)}>Apri la prenotazione</button>
+              </p>
+            )}
+          </div>
         </>
       )}
 

@@ -16,6 +16,7 @@ import { GRUPPI_COME_PAGA, NOME_COME_PAGA, FRASE_COME_PAGA, chiedeImporto, chied
 import { dataConGiorno } from '@/lib/dateItaliane'
 import { apriSelettore } from '@/components/nuova/CampoData'
 import { oraDigitata } from '@/lib/ora'
+import { useMaison } from '@/components/nuova/PezziNuova'
 
 export const ALTEZZA_PASTIGLIA = 30
 export const BORDO_SPENTA = '#C9BFA8'
@@ -51,8 +52,54 @@ export default function ComePaga({
   ottone?: boolean
   className?: string
 }) {
+  const maison = useMaison()
   const meta = totaleCent != null && totaleCent > 0 ? Math.round(totaleCent / 2) / 100 : null
   const etichetta = ottone ? { ...etichettaGruppo, color: OTTONE } : etichettaGruppo
+  // Veste «Maison» della Nuova prenotazione (28/09/2026): gli stessi gruppi,
+  // la stessa frase e gli stessi campi, a pastiglie e a filo (classi np-*)
+  if (maison) return (
+    <div data-come-paga className={className}>
+      {GRUPPI_COME_PAGA.map(gruppo => (
+        <div key={gruppo.id} data-gruppo={gruppo.id}>
+          <p className="np-lab">{gruppo.etichetta}</p>
+          <div className="np-chips" role="group" aria-label={gruppo.etichetta}>
+            {gruppo.modi.map(m => (
+              <button key={m} type="button" data-modo={m} aria-pressed={modo === m} onClick={() => onModo(m)}
+                className={`np-chip ${modo === m ? 'on' : ''}`}>{NOME_COME_PAGA[m]}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <p data-frase-come-paga className="np-hint">
+        {FRASE_COME_PAGA[modo]}
+        {modo === 'meta' && meta !== null && <> · <b data-meta-importo style={{ fontWeight: 500, color: 'var(--m-ink)' }}>{euro(meta)}</b></>}
+      </p>
+      {chiedeImporto(modo) && (
+        <label className="np-riga">
+          <span className="np-lab">Quanto</span>
+          <input type="number" inputMode="decimal" className="np-fld" data-importo-caparra placeholder="€"
+            value={importo ?? ''} onChange={e => onImporto(e.target.value === '' ? null : Number(e.target.value))} />
+        </label>
+      )}
+      {chiedeScadenza(modo) && (
+        <div className="np-g2" data-scadenza>
+          <label className="np-riga">
+            <span className="np-lab">Entro il</span>
+            <span className={`np-data ${data ? '' : 'vuota'}`} data-data-scritta>
+              {dataConGiorno(data) || 'da scegliere'}
+              <input type="date" data-entro-il value={data} onChange={e => onData(e.target.value)} onClick={e => apriSelettore(e.currentTarget)} aria-label="Entro il"
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, border: 'none', background: 'transparent', padding: 0, margin: 0, WebkitAppearance: 'none', appearance: 'none', cursor: 'pointer' }} />
+            </span>
+          </label>
+          <label className="np-riga">
+            <span className="np-lab">alle</span>
+            <input type="text" inputMode="numeric" maxLength={5} placeholder="es. 18:00" className="np-fld" data-entro-ora
+              value={ora} onChange={e => onOra(oraDigitata(e.target.value))} />
+          </label>
+        </div>
+      )}
+    </div>
+  )
   return (
     <div data-come-paga className={className}>
       {titolo && <p className="ed-sezione">{titolo}</p>}

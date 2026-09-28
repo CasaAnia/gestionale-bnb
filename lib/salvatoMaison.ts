@@ -22,4 +22,5 @@ export const COSA_SALVATA = {
   pagamento: (nome: string, ritrovato = false) => `Pagamento di ${nome}${ritrovato ? ' ritrovato e confermato' : ''}`,
   rimandata: (camera: string) => `Pulizia di ${camera} rimandata`,
   saltata: (camera: string) => `Pulizia di ${camera} saltata`,
+  prenotazione: (nome: string) => `Prenotazione di ${nome}`,
 } as const

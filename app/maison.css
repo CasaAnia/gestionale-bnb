@@ -395,3 +395,25 @@ body:has(.maison) { background: #F6F2EA; }
 .np-conto-sc { display: flex; justify-content: space-between; align-items: baseline; color: var(--m-acc); font-family: var(--home-ui-font); font-size: 13px; padding: 6px 0; }
 .np-conto-dp { display: flex; justify-content: space-between; align-items: baseline; padding-top: 8px; }
 .np-conto-dp b { font-family: var(--m-disp); font-size: 30px; font-weight: 300; line-height: 1; }
+
+/* Chi dorme in camera */
+.np-persona { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--m-line); font-family: var(--home-ui-font); font-size: 13px; }
+.np-persona.primo { border-top: 0; }
+.np-persona .nm { display: block; font-family: var(--m-disp); font-size: 17px; font-weight: 500; color: var(--m-ink); line-height: 1.15; }
+.np-persona .ch { display: block; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--m-mut); margin-top: 2px; }
+.np-persona .tel { color: var(--m-mut); margin-left: auto; white-space: nowrap; }
+.np-persona .x { position: relative; color: var(--m-mut); font-size: 16px; background: none; border: 0; padding: 0 2px; }
+.np-persona .x::before { content: ""; position: absolute; inset: -12px; }
+.np-foglio { margin: 10px 0 0; background: #EFE9DD; border: 1px solid #DDD3C2; padding: 12px 14px; }
+.np-foglio .ti { font-family: var(--m-disp); font-size: 19px; font-weight: 500; margin: 0; color: var(--m-ink); }
+.np-foglio > .np-lab:nth-child(2) { margin-top: 8px; }
+.np-foglio-piede { display: flex; gap: 18px; margin-top: 14px; justify-content: flex-end; align-items: center; }
+.np-foglio-piede .mz-cta { padding: 8px 14px; }
+
+/* Il salvataggio in fondo */
+.np-savebox { margin: 16px var(--home-gutter) 0; border-top: 1px solid var(--m-line); padding-top: 14px; text-align: center; }
+.np-savebox .np-hint { text-align: center; }
+.np-ok { padding: 24px 0 8px; text-align: center; font-family: var(--m-disp); font-size: 26px; color: var(--m-ink); }
+.np-ok i { display: block; width: 54px; height: 54px; border: 1px solid var(--m-acc); border-radius: 50%; margin: 0 auto 12px; font-style: normal; font-size: 24px; line-height: 54px; color: var(--m-acc); }
+.np-ok small { display: block; font-family: var(--home-ui-font); font-size: 11.5px; color: var(--m-mut); margin-top: 4px; font-weight: 300; }
+.np-aggiungo { font-family: var(--home-ui-font); font-size: 12.5px; color: var(--m-acc); line-height: 1.45; margin: 0; }

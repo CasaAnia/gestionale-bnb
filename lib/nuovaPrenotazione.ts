@@ -276,7 +276,7 @@ export function nottiNonSalvabili(
 // la prenotazione si salva lo stesso con l'ora in struttura e la navetta
 // nelle due colonne di sempre, dicendo cosa si è perso per strada.
 export const COLONNE_ARRIVO_0058 = ['arrivo_tipo', 'arrivo_luogo', 'arrivo_luogo_altro', 'arrivo_luogo_ora_da', 'arrivo_luogo_ora_a', 'arrivo_struttura_ora_da', 'arrivo_struttura_ora_a', 'arrivo_stima_da', 'arrivo_stima_a', 'navetta', 'navetta_prelievo']
-export const RINUNCIABILI = new Set(['prenotazione_id', 'extra_bed_importo', 'extra_bed_criterio', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro', 'chi_e_2', ...COLONNE_ARRIVO_0058])
+export const RINUNCIABILI = new Set(['prenotazione_id', 'extra_bed_importo', 'extra_bed_criterio', 'accordo_pagamento', 'caparra_centesimi', 'caparra_entro', 'chi_e_2', 'intestataria_non_dorme', ...COLONNE_ARRIVO_0058])
 export const SENZA_NON_SI_SALVA = new Set(['prenotazione_id'])
 
 export const NOMI_COLONNA: Record<string, string> = {
@@ -287,6 +287,7 @@ export const NOMI_COLONNA: Record<string, string> = {
   caparra_centesimi: 'la caparra',
   caparra_entro: 'la scadenza della caparra',
   chi_e_2: 'chi è la seconda persona che dorme con lei',
+  intestataria_non_dorme: 'che in camera non dorme chi ha prenotato',
   ...Object.fromEntries(COLONNE_ARRIVO_0058.map(c => [c, 'i dettagli dell’arrivo: il luogo, la fascia oraria e l’autista'])),
 }
 // Parole di tutti i giorni, niente sigle né istruzioni tecniche: quello che
@@ -666,7 +667,7 @@ export function scontoPerRiga(totaliBase: number[], sconto: ScontoNuova): Record
 }
 
 // ── «Con lei»: chi altro dorme qui ──────────────────────────────────────────
-export const CHI_E_VOCI = ['Sorella', 'Mamma', 'Figlia', 'Marito', 'Amica']
+export const CHI_E_VOCI = ['Sorella', 'Mamma', 'Papà', 'Figlia', 'Marito', 'Amica']
 export type PersonaConLei = { id: string; nome: string; chiE: string; telefono: string }
 /** Le due colonne di bookings reggono due persone: la terza si dice, non si perde in silenzio */
 export const PERSONE_CON_LEI_MAX = 2
@@ -685,6 +686,38 @@ export function campiConLei(persone: PersonaConLei[]): Record<string, unknown> {
     if (p.chiE.trim()) campi[i === 0 ? 'chi_e' : 'chi_e_2'] = p.chiE.trim()
   })
   return campi
+}
+
+// ── «Chi dorme in camera» (era «Con lei»; Ania, 28/09/2026, punto 12c) ─────
+// Di norma dorme l'intestataria: la sua riga c'è da sola e non si cancella.
+// Con la spunta «Non è lei a dormire qui» la sua riga sparisce e si scrive chi
+// dorme davvero (il figlio che prenota per la mamma). Le persone in elenco
+// sono al massimo gli ospiti prenotati; le colonne del database però sono
+// due (extra_phone_1/2, chi_e/chi_e_2): oltre, vince il limite delle colonne
+// e l'avviso TROPPE_PERSONE lo dice.
+export const TITOLO_CHI_DORME = 'Chi dorme in camera'
+export const INTESTATARIA = 'Intestataria · dati della prenotazione'
+export const NON_E_LEI = 'Non è lei a dormire qui'
+/** La colonna della spunta (proposta 0061): senza, la spunta non compare */
+export const COLONNA_NON_E_LEI = 'intestataria_non_dorme'
+
+/** Quante persone si possono ancora aggiungere, e se a fermare è il limite delle due colonne */
+export function limitePersone(ospiti: number, nonELei: boolean): { max: number; tecnico: boolean } {
+  const posti = Math.max(0, (Number(ospiti) || 1) - (nonELei ? 0 : 1))
+  return { max: Math.min(posti, PERSONE_CON_LEI_MAX), tecnico: posti > PERSONE_CON_LEI_MAX }
+}
+/** «+ Aggiungi una persona» si vede finché c'è posto; l'avviso quando il posto c'è ma le colonne no */
+export function statoPersone(ospiti: number, nonELei: boolean, quante: number): { aggiungi: boolean; avviso: string | null } {
+  const { max, tecnico } = limitePersone(ospiti, nonELei)
+  return { aggiungi: quante < max, avviso: quante > PERSONE_CON_LEI_MAX || (tecnico && quante >= max) ? TROPPE_PERSONE : null }
+}
+/** Le colonne da salvare: le persone di sempre e, se la colonna c'è, la spunta */
+export function campiChiDorme(persone: PersonaConLei[], nonELei: boolean, colonnaPresente: boolean): Record<string, unknown> {
+  return { ...campiConLei(persone), ...(colonnaPresente ? { [COLONNA_NON_E_LEI]: nonELei } : {}) }
+}
+/** Rilette dal database: la spunta è accesa solo se la colonna dice vero */
+export function nonELeiDaRiga(riga: Record<string, unknown> | null | undefined): boolean {
+  return riga?.[COLONNA_NON_E_LEI] === true
 }
 
 // ── Le camere della prenotazione («CAMERA 1», «CAMERA 2») ───────────────────

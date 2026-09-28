@@ -12,6 +12,7 @@ import {
   statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO, mancaAlConto, MANCA_CAMERA, MANCA_DATE, doveManca,
   periodiDellaLinea, periodiDaNottiTenendoVuote, conflittiConAltre, soggiorniConclusi, spesoConcluso, tariffaDiListino,
   RINUNCIABILI, SENZA_NON_SI_SALVA, mancaColonnaNecessaria, avvisoDegradazione, scontoPerRiga, righeDaSalvare,
+  limitePersone, statoPersone, campiChiDorme, nonELeiDaRiga, COLONNA_NON_E_LEI, TROPPE_PERSONE, CHI_E_VOCI, NON_E_LEI, INTESTATARIA,
 } from './nuovaPrenotazione.ts'
 import { eSovrapposizione, messaggioSovrapposizione } from './erroreSovrapposizione.ts'
 import { conLettoAutomatico, tariffaProposta, lettoProposto, problemi, type PeriodoComposto } from './prenotazioneComposta.ts'
@@ -277,7 +278,7 @@ const conLei = readFileSync(new URL('../components/nuova/ConLei.tsx', import.met
 // così non può nascere un secondo posto in cui «15:00» non dice di dove sia.
 test('l’arrivo: il modulo condiviso, e i campi vanno nelle colonne nuove più le due di sempre', () => {
   assert.match(pagina, /import ArrivoNavetta from '@\/components\/ArrivoNavetta'/)
-  assert.match(pagina, /<p className="ed-sezione">Arrivo e navetta<\/p>/)
+  assert.match(pagina, /<p className="mz-eyebrow">Arrivo e navetta<\/p>/)
   assert.match(pagina, /<ArrivoNavetta arrivo=\{arrivo\} onArrivo=\{setArrivo\} \/>/)
   assert.match(pagina, /\.\.\.campiArrivo\(arrivo\),/)
   // la pagina non si scrive più campi dell'arrivo suoi
@@ -321,7 +322,8 @@ test('le persone in più stanno nelle due colonne di sempre', () => {
     { id: '1', nome: 'A', chiE: '', telefono: '' }, { id: '2', nome: 'B', chiE: '', telefono: '' }, { id: '3', nome: 'C', chiE: '', telefono: '' },
   ])
   assert.equal(JSON.stringify(tre).includes('"C"'), false)
-  assert.match(pagina, /persone\.length > PERSONE_CON_LEI_MAX \? TROPPE_PERSONE : null/)
+  // la pagina lo dice (dal 28/09/2026 da «Chi dorme in camera», statoPersone)
+  assert.match(leggiFile('components/nuova/ChiDormeInCamera.tsx'), /\{stato\.avviso && <p data-avviso-persone className="np-hint m">\{stato\.avviso\}<\/p>\}/)
 })
 
 // ── 5. IL CONTO ────────────────────────────────────────────────────────────
@@ -694,7 +696,7 @@ test('il tastino «+ Aggiungi camera» è centrato dopo lo sconto e si tocca', (
 // era incompleto, e un tasto spento non dice niente.
 test('il tasto non è più spento quando il conto è incompleto', () => {
   const conto = readFileSync(new URL('../components/nuova/ContoNuova.tsx', import.meta.url), 'utf8')
-  assert.match(pagina, /<TastoSalva className="mt-6" onSalva=\{\(\) => void salva\(\)\} spento=\{salvando \|\| salvata !== null\} avviso=\{avvisoSalva\}/)
+  assert.match(pagina, /<TastoSalva onSalva=\{\(\) => void salva\(\)\} spento=\{salvando \|\| salvata !== null\} avviso=\{avvisoSalva && !guai\.includes\(avvisoSalva\) \? avvisoSalva : null\} \/>/)
   assert.doesNotMatch(pagina, /salvaSpento=\{salvando \|\| conto\.daPagareCent === null\}/)
   // l'avviso sta accanto al tasto, in mattone
   assert.match(conto, /data-avviso-salva className="np-hint m c"/)
@@ -1501,11 +1503,11 @@ test('il conto sta subito sotto il soggiorno, non in fondo', () => {
     'dati="aggiungi-camera"',     // 4. + Aggiungi camera (28/09/2026: prima dello sconto)
     'data-sconto',                // 5. sconto, SUBITO PRIMA del conto
     '<ContoNuova',                // 6. il conto
-    'data-arrivo',                // 8. arrivo
-    'data-come-paga-parte',       // 9. come paga
-    '<ConLei',                    // 10. con lei
-    'data-nota',                  // 11. nota
-    '<TastoSalva',                // 12. salva
+    'data-come-paga-parte',       // 7. come paga
+    '<ChiDormeInCamera',          // 8. chi dorme in camera (era «Con lei»)
+    'data-nota',                  // 9. nota
+    'data-arrivo',                // 10. arrivo e navetta, per ultimo
+    '<TastoSalva',                // 11. salva
   ]
   const posti = ordine.map(dove)
   assert.deepEqual(posti, [...posti].sort((a, z) => a - z), `le parti non sono in quest'ordine: ${ordine.join(' → ')}`)
@@ -1750,4 +1752,63 @@ test('la striscia «Maison»: 7 colonne fisse, a capo oltre le 7, un segmento pe
   assert.match(striscia, /if \(maison\) return <StrisciaMaison /)
   assert.match(striscia, /\{n\.dentro && n\.letto && <i data-piu-letto>\{PIU_LETTO\}<\/i>\}/)
   assert.match(striscia, /className=\{`u \$\{n\.iso === scelta \? 'sel' : ''\}`\}/)
+})
+
+// ── 12c: «Chi dorme in camera» (Ania, 28/09/2026) ───────────────────────────
+test('Q4 — le persone in elenco sono al massimo gli ospiti prenotati; oltre le due colonne vince il limite tecnico', () => {
+  // in 2, dorme lei: si aggiunge una persona sola
+  assert.deepEqual(limitePersone(2, false), { max: 1, tecnico: false })
+  assert.deepEqual(statoPersone(2, false, 0), { aggiungi: true, avviso: null })
+  assert.deepEqual(statoPersone(2, false, 1), { aggiungi: false, avviso: null })
+  // in 2, non è lei: si scrivono tutte e due
+  assert.deepEqual(limitePersone(2, true), { max: 2, tecnico: false })
+  assert.equal(statoPersone(2, true, 1).aggiungi, true)
+  // in 1, dorme lei: nessuno da aggiungere
+  assert.deepEqual(statoPersone(1, false, 0), { aggiungi: false, avviso: null })
+  // in 4, dorme lei: tre posti ma due colonne → a due ci si ferma e l'avviso lo dice
+  assert.deepEqual(limitePersone(4, false), { max: 2, tecnico: true })
+  assert.deepEqual(statoPersone(4, false, 1), { aggiungi: true, avviso: null })
+  assert.deepEqual(statoPersone(4, false, 2), { aggiungi: false, avviso: TROPPE_PERSONE })
+  assert.equal(TROPPE_PERSONE, 'Di persone in più se ne possono salvare due: la terza scrivila nella nota.')
+  // la pagina passa gli ospiti prenotati di tutte le camere
+  assert.match(pagina, /const ospitiPrenotati = linee\.reduce\(\(t, l\) => t \+ datiLinea\(l\)\.ospiti, 0\) \|\| 1/)
+  assert.match(pagina, /spuntaDisponibile=\{colonnaNonELei\} ospiti=\{ospitiPrenotati\}/)
+  // le voci di «Chi è», col Papà
+  assert.deepEqual(CHI_E_VOCI, ['Sorella', 'Mamma', 'Papà', 'Figlia', 'Marito', 'Amica'])
+})
+
+test('Q5 — la spunta «Non è lei a dormire qui» si salva e si rilegge; senza la colonna non compare', () => {
+  assert.equal(NON_E_LEI, 'Non è lei a dormire qui')
+  assert.equal(INTESTATARIA, 'Intestataria · dati della prenotazione')
+  assert.equal(COLONNA_NON_E_LEI, 'intestataria_non_dorme')
+  const figlio = [{ id: '1', nome: 'Teresa Bianchi', chiE: 'Mamma', telefono: '340 555 1122' }]
+  // con la colonna: si scrive, vera o falsa, insieme alle persone di sempre
+  const salvati = campiChiDorme(figlio, true, true)
+  assert.deepEqual(salvati, { extra_phone_1_name: 'Teresa Bianchi', extra_phone_1: '3405551122', chi_e: 'Mamma', intestataria_non_dorme: true })
+  assert.equal(campiChiDorme([], false, true).intestataria_non_dorme, false)
+  // e riletta dalla riga salvata torna uguale
+  assert.equal(nonELeiDaRiga(salvati), true)
+  assert.equal(nonELeiDaRiga({ intestataria_non_dorme: false }), false)
+  assert.equal(nonELeiDaRiga({}), false)
+  assert.equal(nonELeiDaRiga(null), false)
+  // senza la colonna (0061 non applicata) non si scrive e la spunta non si mostra
+  assert.equal('intestataria_non_dorme' in campiChiDorme(figlio, true, false), false)
+  assert.equal(RINUNCIABILI.has('intestataria_non_dorme'), true)
+  const comp = leggiFile('components/nuova/ChiDormeInCamera.tsx')
+  assert.match(comp, /\{spuntaDisponibile && \(/)
+  assert.match(comp, /\{!nonELei && \(\s*<div data-intestataria className="np-persona primo">/)
+  assert.match(pagina, /void supabase\.from\('bookings'\)\.select\(COLONNA_NON_E_LEI\)\.limit\(1\)\.then\(\(\{ error \}\) => \{ if \(vivo\) setColonnaNonELei\(!error\) \}\)/)
+  assert.match(pagina, /\.\.\.campiChiDorme\(persone, nonELei, colonnaNonELei\),/)
+  assert.match(leggiFile('supabase/proposte/0061_chi_dorme_in_camera.BOZZA.sql'), /add column if not exists intestataria_non_dorme boolean not null default false/)
+})
+
+test('in fondo: «Sto guardando…», Salva, gli avvisi in mattone sotto, la conferma B e «Apri la prenotazione»', () => {
+  const fondo = pagina.slice(pagina.indexOf('data-salva-in-fondo'))
+  const ordine = ['data-occupazioni-stato', '<TastoSalva', 'data-guai', 'data-salvato-maison', 'data-apri-salvata']
+  const posti = ordine.map(x => fondo.indexOf(x))
+  assert.ok(posti.every(x => x >= 0))
+  assert.deepEqual(posti, [...posti].sort((a, z) => a - z))
+  assert.match(fondo, /<i aria-hidden>✓<\/i>\{SALVATO\}<small>\{testoSalvato\(conferma\.cosa, conferma\.quando\)\}<\/small>/)
+  assert.match(pagina, /COSA_SALVATA\.prenotazione\(/)
+  assert.match(pagina, /window\.setTimeout\(\(\) => router\.push\(`\/scheda\/\$\{prima\.id\}\?salvata=1`\), DURATA_SALVATO_MS\)/)
 })

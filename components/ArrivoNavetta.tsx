@@ -15,7 +15,7 @@
 // niente riquadri bianchi.
 // ============================================================================
 import { Clock } from 'lucide-react'
-import { Etichetta, FilaPastiglie, Pastiglia, stileCampo, OTTONE, BORDO_SPENTA, SOTTO_PASTIGLIE } from '@/components/nuova/PezziNuova'
+import { Etichetta, FilaPastiglie, Pastiglia, stileCampo, useMaison, OTTONE, BORDO_SPENTA, SOTTO_PASTIGLIE } from '@/components/nuova/PezziNuova'
 import { oraDigitata } from '@/lib/ora'
 import {
   type Arrivo, type ChiaveLuogo, type ModoOrario, type Navetta,
@@ -32,6 +32,11 @@ export function CasellaOra({ valore, onValore, dati, etichetta }: {
   dati: string
   etichetta: string
 }) {
+  // veste «Maison»: solo il filo sotto, l'ora in Cormorant (np-fld)
+  if (useMaison()) return (
+    <input type="text" inputMode="numeric" maxLength={5} placeholder="--:--" className="np-fld"
+      data-campo={dati} aria-label={etichetta} value={valore} onChange={e => onValore(oraDigitata(e.target.value))} />
+  )
   return (
     <span className="inline-flex items-center flex-1 min-w-[104px]"
       style={{ border: `1px solid ${BORDO_SPENTA}`, borderRadius: 8, padding: '7px 10px', gap: 8 }}>
@@ -53,6 +58,13 @@ export default function ArrivoNavetta({ arrivo, onArrivo, prefisso = '' }: {
   const piano = pianoModuloArrivo(arrivo)
   const d = (nome: string) => `${prefisso}${nome}`
   const primo = { primo: true as const }
+  // veste «Maison» della Nuova prenotazione (28/09/2026): gli orari a filo,
+  // due per riga, con l'etichettina sopra ognuno
+  const maison = useMaison()
+  const ora = (etichetta: string, valore: string, onValore: (v: string) => void, dati: string, stile?: { width: number }) => (
+    <label className="np-riga" style={stile}><span className="np-lab" style={{ marginTop: 0 }}>{etichetta}</span>
+      <CasellaOra valore={valore} onValore={onValore} dati={dati} etichetta={etichetta} /></label>
+  )
 
   return (
     <div data-arrivo-navetta>
@@ -77,7 +89,13 @@ export default function ArrivoNavetta({ arrivo, onArrivo, prefisso = '' }: {
         </>
       )}
 
-      {piano.luogoAltro && (
+      {piano.luogoAltro && maison && (
+        <label className="np-riga"><span className="np-lab">{ETICHETTA_LUOGO_ALTRO}</span>
+          <input type="text" maxLength={60} placeholder="es. casa di un’amica in centro" className="np-fld ui"
+            data-campo={d('luogo-altro')} aria-label={ETICHETTA_LUOGO_ALTRO} value={arrivo.luogoAltro}
+            onChange={e => onArrivo({ ...arrivo, luogoAltro: e.target.value })} /></label>
+      )}
+      {piano.luogoAltro && !maison && (
         <>
           <Etichetta testo={ETICHETTA_LUOGO_ALTRO} ottone />
           <label className="block" style={{ padding: '8px 0', borderBottom: '1px solid var(--color-card-border)' }}>
@@ -98,7 +116,13 @@ export default function ArrivoNavetta({ arrivo, onArrivo, prefisso = '' }: {
                 onClick={() => onArrivo(cambiaModo(arrivo, s.chiave as ModoOrario))}>{s.nome}</Pastiglia>
             ))}
           </FilaPastiglie>
-          <div className="flex items-center" style={{ gap: 10, marginTop: SOTTO_PASTIGLIE }}>
+          {maison && (
+            <div className="np-g2" style={{ marginTop: 10 }}>
+              {ora(piano.caselleOrario === 2 ? 'Inizio della fascia' : 'Ora di arrivo', piano.oraDa, v => onArrivo(scriviOra(arrivo, 'da', v)), d('ora-da'))}
+              {piano.caselleOrario === 2 && ora('Fine della fascia', piano.oraA, v => onArrivo(scriviOra(arrivo, 'a', v)), d('ora-a'))}
+            </div>
+          )}
+          {!maison && <div className="flex items-center" style={{ gap: 10, marginTop: SOTTO_PASTIGLIE }}>
             {/* Le caselle scrivono nella casella del tipo attivo: quelle
                 dell'altro tipo restano nella bozza, intatte (scriviOra). */}
             <CasellaOra valore={piano.oraDa} onValore={v => onArrivo(scriviOra(arrivo, 'da', v))}
@@ -110,7 +134,7 @@ export default function ArrivoNavetta({ arrivo, onArrivo, prefisso = '' }: {
                   dati={d('ora-a')} etichetta="Fine della fascia" />
               </>
             )}
-          </div>
+          </div>}
         </>
       )}
 
@@ -118,14 +142,20 @@ export default function ArrivoNavetta({ arrivo, onArrivo, prefisso = '' }: {
       {piano.stima && (
         <>
           <Etichetta testo={ETICHETTA_STIMA} ottone />
-          <div className="flex items-center" style={{ gap: 10 }}>
+          {maison && (
+            <div className="np-g2">
+              {ora('In struttura, dalle', arrivo.stimaDa, v => onArrivo({ ...arrivo, stimaDa: v }), d('struttura-da'))}
+              {ora('alle', arrivo.stimaA, v => onArrivo({ ...arrivo, stimaA: v }), d('struttura-a'))}
+            </div>
+          )}
+          {!maison && <div className="flex items-center" style={{ gap: 10 }}>
             <CasellaOra valore={arrivo.stimaDa} onValore={v => onArrivo({ ...arrivo, stimaDa: v })}
               dati={d('struttura-da')} etichetta="In struttura, dalle" />
             <span aria-hidden style={{ color: 'var(--color-stone)' }}>—</span>
             <CasellaOra valore={arrivo.stimaA} onValore={v => onArrivo({ ...arrivo, stimaA: v })}
               dati={d('struttura-a')} etichetta="In struttura, alle" />
-          </div>
-          <p data-aiuto-stima className="mt-1.5" style={{ fontSize: 12, color: 'var(--color-stone)' }}>{AIUTO_STIMA}</p>
+          </div>}
+          <p data-aiuto-stima className={maison ? 'np-hint' : 'mt-1.5'} style={maison ? undefined : { fontSize: 12, color: 'var(--color-stone)' }}>{AIUTO_STIMA}</p>
         </>
       )}
 
@@ -149,11 +179,13 @@ export default function ArrivoNavetta({ arrivo, onArrivo, prefisso = '' }: {
       {piano.prelievo && (
         <>
           <Etichetta testo={ETICHETTA_PRELIEVO} ottone />
-          <div className="flex items-center" style={{ gap: 10 }}>
-            <CasellaOra valore={arrivo.prelievo} onValore={v => onArrivo({ ...arrivo, prelievo: v })}
-              dati={d('prelievo')} etichetta="Ora del prelievo" />
-            <span className="flex-1" />
-          </div>
+          {maison
+            ? <div style={{ width: 90 }}><CasellaOra valore={arrivo.prelievo} onValore={v => onArrivo({ ...arrivo, prelievo: v })} dati={d('prelievo')} etichetta="Ora del prelievo" /></div>
+            : <div className="flex items-center" style={{ gap: 10 }}>
+              <CasellaOra valore={arrivo.prelievo} onValore={v => onArrivo({ ...arrivo, prelievo: v })}
+                dati={d('prelievo')} etichetta="Ora del prelievo" />
+              <span className="flex-1" />
+            </div>}
         </>
       )}
     </div>

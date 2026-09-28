@@ -595,7 +595,7 @@ test('«Aggiungi camera»: prima il legame fra le camere se manca, poi l’inser
   assert.match(nuova, /const prenotazioneId = aggiungoA\?\.prenotazione \?\? crypto\.randomUUID\(\)/)
   assert.match(nuova, /\.\.\.\(aggiungoA \? \{\} : \{ accordo_pagamento: pagamento\.accordo_pagamento \}\),/)
   assert.match(nuova, /p\.id === primo && !aggiungoA \? \{ caparra_centesimi/)
-  assert.match(nuova, /\{aggiungoA\s*\? <p data-aggiungo-a[^>]*>\{AVVISO_AGGIUNTA\}<\/p>\s*: <section data-come-paga-parte/)
+  assert.match(nuova, /\{aggiungoA\s*\? <div className="np-sec"><p data-aggiungo-a[^>]*>\{AVVISO_AGGIUNTA\}<\/p><\/div>\s*: <section data-come-paga-parte/)
 })
 
 // ── 11. SCRITTURE A METÀ E RISPOSTE PERSE (revisione del 17/09/2026) ────────
