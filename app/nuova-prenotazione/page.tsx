@@ -559,8 +559,6 @@ export default function NuovaPrenotazionePage() {
           alto non c'è: la testata è la pagina. */}
       <TestaNuova data={dataDiOggi(oggi)} sotto={cliente ? ((cliente.full_name ?? '').trim() || 'senza nome') : nuovo ? 'nuovo cliente' : null} riserva="/prenotazioni" />
 
-      {avviso && <div className="np-sec"><p className="np-hint m" role="alert" data-avviso-cliente>{avviso}</p></div>}
-
       {!cliente && !nuovo && (
         <>
           <section data-cerca-cliente className="np-sec">
@@ -583,8 +581,12 @@ export default function NuovaPrenotazionePage() {
       )}
 
       {!cliente && nuovo && (
-        <NuovoCliente className="np-sec" dati={nuovo} onDati={setNuovo} strutture={strutture} struttureDisponibili={struttureOk}
-          onAvanti={() => void creaCliente()} avantiSpento={salvandoCliente} />
+        <>
+          <NuovoCliente className="np-sec" dati={nuovo} onDati={setNuovo} strutture={strutture} struttureDisponibili={struttureOk}
+            onAvanti={() => void creaCliente()} avantiSpento={salvandoCliente} />
+          {/* gli avvisi del cliente nuovo, in mattone sotto «Avanti» */}
+          {avviso && <div className="np-sec" style={{ paddingTop: 10 }}><p className="np-hint m" role="alert" data-avviso-cliente>{avviso}</p></div>}
+        </>
       )}
 
       {cliente && (

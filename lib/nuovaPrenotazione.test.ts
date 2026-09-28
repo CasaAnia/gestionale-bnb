@@ -162,7 +162,9 @@ test('ricevuta e valutazione, con le tre voci e il motivo', () => {
 test('«come ci ha trovato» e le strutture rientrate col filetto ottone', () => {
   assert.match(nuovoCliente, /\{PROVENIENZE\.map/)
   assert.match(nuovoCliente, /'altra_struttura' \? 'Struttura' : p\.label/)
-  assert.match(nuovoCliente, /data-strutture style=\{\{ marginTop: 10, marginLeft: 10, paddingLeft: 12, borderLeft: `2px solid \$\{OTTONE\}` \}\}/)
+  assert.match(nuovoCliente, /data-strutture className=\{maison \? 'np-sub2' : ''\} style=\{maison \? undefined : \{ marginTop: 10, marginLeft: 10, paddingLeft: 12, borderLeft: `2px solid \$\{OTTONE\}` \}\}/)
+  // veste «Maison»: rientro col filo d'ottone a sinistra
+  assert.match(leggiFile('app/maison.css'), /\.np-sub2 \{ margin: 8px 0 0 10px; padding-left: 12px; border-left: 2px solid var\(--m-acc\); \}/)
   assert.match(nuovoCliente, /export const ALTRA_STRUTTURA = 'altra…'/)
   // le strutture arrivano da fuori: l'elenco è quello già in uso
   assert.match(nuovoCliente, /strutture\.map\(s =>/)

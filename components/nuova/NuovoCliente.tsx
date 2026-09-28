@@ -13,7 +13,7 @@
 // tasto «Avanti» (`titolo={null}`, `avanti={null}`, ci pensa il piede del
 // foglio) e con le etichettine in ottone (`etichetteOttone`).
 // ============================================================================
-import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastoAvanti, stileCampo, MATTONE, OTTONE } from './PezziNuova'
+import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastoAvanti, stileCampo, useMaison, MATTONE, OTTONE } from './PezziNuova'
 import CampiNomeCognome from '@/components/CampiNomeCognome'
 import { PROVENIENZE, type Provenienza } from '@/lib/provenienza'
 import type { Valutazione } from '@/lib/valutazione'
@@ -67,15 +67,22 @@ export default function NuovoCliente({ dati, onDati, strutture, struttureDisponi
 }) {
   const cambia = (pezzo: Partial<DatiNuovoCliente>) => onDati({ ...dati, ...pezzo })
   const ottone = etichetteOttone
+  // veste «Maison» della pagina di inserimento (28/09/2026): nome e cognome
+  // sotto un'etichetta sola, «Chi», due campi a filo affiancati
+  const maison = useMaison()
   return (
     <section data-nuovo-cliente className={className}>
-      {titolo && <p className="ed-sezione">{titolo}</p>}
+      {titolo && <p className={maison ? 'mz-eyebrow' : 'ed-sezione'}>{titolo}</p>}
 
-      <Etichetta testo="Chi" primo ottone={ottone} className={titolo ? 'mt-3' : ''} />
+      <Etichetta testo="Chi" primo ottone={ottone} className={titolo && !maison ? 'mt-3' : ''} />
       {/* Nome e cognome: SOLO il componente condiviso (regola fissa n. 1, maiuscola mentre si scrive) */}
-      <CampiNomeCognome nome={dati.nome} cognome={dati.cognome} onNome={nome => cambia({ nome })} onCognome={cognome => cambia({ cognome })}
-        classeFila="flex" stileFila={{ gap: 12 }} stile={stileCampo}
-        avvolgi={(etichetta, campo) => <RigaCampo etichetta={etichetta} ottone={ottone} className="flex-1 min-w-0">{campo}</RigaCampo>} />
+      {maison
+        ? <CampiNomeCognome nome={dati.nome} cognome={dati.cognome} onNome={nome => cambia({ nome })} onCognome={cognome => cambia({ cognome })}
+            classeFila="np-g2" classeCampo="np-fld" placeholderNome="Nome" placeholderCognome="Cognome"
+            avvolgi={(_, campo) => <div className="min-w-0">{campo}</div>} />
+        : <CampiNomeCognome nome={dati.nome} cognome={dati.cognome} onNome={nome => cambia({ nome })} onCognome={cognome => cambia({ cognome })}
+            classeFila="flex" stileFila={{ gap: 12 }} stile={stileCampo}
+            avvolgi={(etichetta, campo) => <RigaCampo etichetta={etichetta} ottone={ottone} className="flex-1 min-w-0">{campo}</RigaCampo>} />}
       <RigaCampo etichetta="Telefono" ottone={ottone}>
         <input type="tel" inputMode="tel" value={dati.telefono} data-campo="telefono" onChange={e => cambia({ telefono: e.target.value })} style={stileCampo} />
       </RigaCampo>
@@ -83,8 +90,9 @@ export default function NuovoCliente({ dati, onDati, strutture, struttureDisponi
         <input type="email" inputMode="email" autoCapitalize="none" value={dati.email} data-campo="email" onChange={e => cambia({ email: e.target.value })} style={stileCampo} />
       </RigaCampo>
 
-      {/* Ricevuta e valutazione, affiancate con l'etichettina centrata sopra */}
-      <div className="flex flex-wrap" style={{ gap: 22 }}>
+      {/* Ricevuta e valutazione, affiancate con l'etichettina centrata sopra
+          (Maison: due colonne uguali) */}
+      <div className={maison ? 'np-g2' : 'flex flex-wrap'} style={maison ? { marginTop: 6 } : { gap: 22 }}>
         <div>
           <Etichetta testo="Ricevuta" centrata ottone={ottone} />
           <FilaPastiglie centrata>
@@ -122,7 +130,7 @@ export default function NuovoCliente({ dati, onDati, strutture, struttureDisponi
             ))}
           </FilaPastiglie>
           {dati.provenienza === 'altra_struttura' && (
-            <div data-strutture style={{ marginTop: 10, marginLeft: 10, paddingLeft: 12, borderLeft: `2px solid ${OTTONE}` }}>
+            <div data-strutture className={maison ? 'np-sub2' : ''} style={maison ? undefined : { marginTop: 10, marginLeft: 10, paddingLeft: 12, borderLeft: `2px solid ${OTTONE}` }}>
               <FilaPastiglie>
                 {strutture.map(s => (
                   <Pastiglia key={s.nome} dati={`struttura-${s.nome}`} acceso={dati.struttura === s.nome} onClick={() => cambia({ struttura: s.nome })}>{s.nome}</Pastiglia>
@@ -140,7 +148,7 @@ export default function NuovoCliente({ dati, onDati, strutture, struttureDisponi
       )}
 
       <Etichetta testo={ETICHETTA_NOTE} ottone={ottone} />
-      <RigaCampo etichetta="Nota" ottone={ottone}>
+      <RigaCampo etichetta="Nota" ottone={ottone} className={maison ? 'np-riga-stretta' : ''}>
         <textarea rows={2} value={dati.note} data-campo="note" onChange={e => cambia({ note: e.target.value })} style={{ ...stileCampo, resize: 'none' }} />
       </RigaCampo>
 
