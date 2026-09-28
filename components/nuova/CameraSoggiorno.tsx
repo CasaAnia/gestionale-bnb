@@ -5,11 +5,17 @@
 // sotto ogni notte. Il cambio camera non ha un tasto suo: si fa toccando una
 // notte della striscia.
 //
+// Veste «Maison» (riferimento del 28/09/2026): arrivo e partenza a filo
+// affiancati, sotto le notti in ottone; le camere a pastiglie (occupate
+// tratteggiate); ospiti col − e col + a cerchi; accanto la tariffa a notte,
+// che NON si scrive più: è il listino per camera e ospiti (punto 12a, lo
+// sconto è l'unico modo di cambiare il prezzo).
+//
 // Sola presentazione: chi è libero, la capienza e i prezzi restano nelle
 // librerie di sempre; qui si mostra e si chiama indietro.
 // ============================================================================
 import StrisciaNottiCamere from '@/components/StrisciaNottiCamere'
-import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, stileCampo, OTTONE } from './PezziNuova'
+import { Etichetta, FilaPastiglie, Pastiglia } from './PezziNuova'
 import CampoData from './CampoData'
 
 /** la prima partenza possibile: il giorno dopo l'arrivo */
@@ -25,7 +31,7 @@ export const ETICHETTA_NOTTI = 'Le notti'
 
 export default function CameraSoggiorno({
   titolo, arrivo, partenza, onArrivo, onPartenza, notti, camere, roomId, onCamera, rigaLibere,
-  ospiti, onOspiti, ospitiMax, tariffa, tariffaProposta, onTariffa, strisciaNotti, onNotte,
+  ospiti, onOspiti, ospitiMax, listino, strisciaNotti, onNotte,
   notteScelta, sottoStriscia, className = '',
 }: {
   /** «Soggiorno» per la prima camera, «Camera 2» per quelle dopo */
@@ -42,9 +48,8 @@ export default function CameraSoggiorno({
   ospiti: number
   onOspiti: (n: number) => void
   ospitiMax: number
-  tariffa: number | null
-  tariffaProposta: number | null
-  onTariffa: (v: number | null) => void
+  /** la tariffa di listino: «80 €» e «di listino · in 2»; null senza camera */
+  listino: { testo: string; sotto: string } | null
   strisciaNotti: NotteStriscia[]
   onNotte: (notte: NotteStriscia) => void
   /** la notte scelta: la striscia la segna col contorno d'ottone */
@@ -53,20 +58,19 @@ export default function CameraSoggiorno({
   sottoStriscia?: ReactNode
   className?: string
 }) {
-  const tasto = { width: 38, height: 38, borderRadius: 999, border: '1px solid var(--color-card-border)', fontSize: 18, color: 'var(--color-green-dark)', background: '#fff' }
   return (
-    <section data-camera-soggiorno className={className}>
-      <p className="ed-sezione">{titolo}</p>
+    <section data-camera-soggiorno className={`np-sec ${className}`}>
+      <p className="mz-eyebrow">{titolo}</p>
 
       {/* arrivo e partenza affiancati, sotto le notti in ottone. Il campo è
           quello del telefono (components/nuova/CampoData): si legge «gio 10
           set» e si apre il calendario nativo. La partenza non può venire
           prima dell'arrivo: glielo dice `min`. */}
-      <div className="flex" style={{ gap: 12, marginTop: 12 }}>
-        <CampoData etichetta="Arrivo" valore={arrivo} onValore={onArrivo} dati="arrivo" className="flex-1 min-w-0" />
-        <CampoData etichetta="Partenza" valore={partenza} onValore={onPartenza} min={giornoDopo(arrivo)} dati="partenza" className="flex-1 min-w-0" />
+      <div className="np-g2">
+        <CampoData etichetta="Arrivo" valore={arrivo} onValore={onArrivo} dati="arrivo" />
+        <CampoData etichetta="Partenza" valore={partenza} onValore={onPartenza} min={giornoDopo(arrivo)} dati="partenza" />
       </div>
-      {notti > 0 && <p data-notti-linea style={{ marginTop: 6, fontSize: 12, color: OTTONE }}>{notti === 1 ? '1 notte' : `${notti} notti`}</p>}
+      {notti > 0 && <p data-notti-linea className="np-hint o">{notti === 1 ? '1 notte' : `${notti} notti`}</p>}
 
       {/* la camera: quelle occupate in una qualsiasi notte restano spente */}
       <Etichetta testo={ETICHETTA_CAMERA} />
@@ -76,36 +80,33 @@ export default function CameraSoggiorno({
             onClick={() => onCamera(camera.id)}>{camera.name}</Pastiglia>
         ))}
       </FilaPastiglie>
-      {rigaLibere && <p data-camere-libere style={{ marginTop: 8, fontSize: 12, color: OTTONE }}>{rigaLibere}</p>}
+      {rigaLibere && <p data-camere-libere className="np-hint o">{rigaLibere}</p>}
 
       {/* ospiti e tariffa affiancati */}
-      <div className="flex flex-wrap" style={{ gap: 22 }}>
+      <div className="np-g2">
         <div>
           <Etichetta testo={ETICHETTA_OSPITI} />
-          <div className="flex items-center" style={{ gap: 12 }}>
-            <button type="button" data-ospiti-giu disabled={ospiti <= 1} onClick={() => onOspiti(ospiti - 1)} aria-label="Un ospite in meno"
-              style={{ ...tasto, opacity: ospiti <= 1 ? 0.4 : 1 }}>−</button>
-            <span data-ospiti style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 20, color: 'var(--color-green-dark)', minWidth: 22, textAlign: 'center' }}>{ospiti}</span>
-            <button type="button" data-ospiti-su disabled={ospiti >= ospitiMax} onClick={() => onOspiti(ospiti + 1)} aria-label="Un ospite in più"
-              style={{ ...tasto, opacity: ospiti >= ospitiMax ? 0.4 : 1 }}>+</button>
+          <div className="np-pm">
+            <button type="button" data-ospiti-giu disabled={ospiti <= 1} onClick={() => onOspiti(ospiti - 1)} aria-label="Un ospite in meno">−</button>
+            <b data-ospiti>{ospiti}</b>
+            <button type="button" data-ospiti-su disabled={ospiti >= ospitiMax} onClick={() => onOspiti(ospiti + 1)} aria-label="Un ospite in più">+</button>
           </div>
         </div>
-        <div className="flex-1 min-w-[120px]">
+        <div>
           <Etichetta testo={ETICHETTA_TARIFFA} />
-          <RigaCampo etichetta="€ a notte">
-            {/* Già scritta appena si sceglie la camera (Ania, 14/09/2026): il
-                listino di casa non cambia mai, quello che cambia è lo sconto.
-                Resta modificabile a mano; svuotandola torna il listino. */}
-            <input type="number" inputMode="decimal" data-campo="tariffa" value={tariffa ?? (tariffaProposta ?? '')}
-              onChange={e => onTariffa(e.target.value === '' ? null : Number(e.target.value))} style={stileCampo} />
-          </RigaCampo>
+          {/* Il listino di casa, da leggere e basta (punto 12a, 28/09/2026):
+              nessun campo, nessun filo sotto. Cambia con camera e ospiti. */}
+          <p data-tariffa-listino className="np-listino">
+            {listino && <>{listino.testo} <small>{listino.sotto}</small></>}
+          </p>
         </div>
       </div>
 
       {/* Le notti: la striscia della scheda (StrisciaNottiCamere, lo stesso
-          pezzo, non una copia), con in più gli ospiti sotto ogni notte.
-          Si vede appena ci sono le date, anche prima della camera: le notti
-          senza camera restano col «?» e si sistemano toccandole. */}
+          pezzo, non una copia) nella veste «Maison», con in più gli ospiti
+          sotto ogni notte. Si vede appena ci sono le date, anche prima della
+          camera: le notti senza camera restano col «?» e si sistemano
+          toccandole. */}
       {strisciaNotti.length > 0 && (
         <>
           <Etichetta testo={ETICHETTA_NOTTI} />

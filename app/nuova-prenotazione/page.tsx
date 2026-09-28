@@ -40,7 +40,7 @@ import {
   periodiDellaLinea, soggiorniConclusi, conflittiConAltre, nottiNonSalvabili, NOTTE_NON_SALVABILE,
   RINUNCIABILI, SENZA_NON_SI_SALVA, COLONNE_ARRIVO_0058, mancaColonnaNecessaria, avvisoDegradazione, type RigaSoggiorno,
   ospitiPossibiliNotte, ospitiMassimi, ospitiScegliendoCamera, contoNuovaPrenotazione, scontoInParole, listinoLetto, CRITERI_LETTO, LETTO_COMPRESO_LISTINO,
-  statoLettoNuova, mancaAlConto, doveManca,
+  statoLettoNuova, mancaAlConto, doveManca, tariffaDiListino,
   type ScontoNuova,
 } from '@/lib/nuovaPrenotazione'
 import {
@@ -48,7 +48,7 @@ import {
   cambiaCamera as cambiaCameraNotte, cambiaLetto as cambiaLettoNotte, nonDormeQui,
   camereDellaNotte, ospitiDaNotte, titoloNotte, type CameraStriscia, type ContestoNotti, type NotteStriscia,
 } from '@/lib/strisciaNotti'
-import { conLettoAutomatico, tariffaProposta, lettoProposto, type PeriodoComposto, type CameraComposta } from '@/lib/prenotazioneComposta'
+import { conLettoAutomatico, lettoProposto, type PeriodoComposto, type CameraComposta } from '@/lib/prenotazioneComposta'
 import { capienzaCamera } from '@/lib/tariffe'
 import type { PrenotazioneMinima } from '@/lib/disponibilita'
 import type { PrenotazioneLetti } from '@/lib/lettiAggiuntivi'
@@ -318,7 +318,7 @@ export default function NuovaPrenotazionePage() {
   // cieca: va nelle notti in cui è libera (regola di lib/disponibilita, chiesta
   // una notte alla volta), le altre restano senza camera e la striscia le
   // segna. Il cambio camera a mano si fa dalla striscia.
-  function cambiaLinea(gruppo: string, pezzo: { arrivo?: string; partenza?: string; roomId?: string | null; ospiti?: number; tariffa?: number | null }) {
+  function cambiaLinea(gruppo: string, pezzo: { arrivo?: string; partenza?: string; roomId?: string | null; ospiti?: number }) {
     setPeriodi(ps => {
       const linea = raggruppaPerCamera(ps).find(l => l.gruppo === gruppo)
       if (!linea) return ps
@@ -351,7 +351,6 @@ export default function NuovaPrenotazionePage() {
         ...(pezzo.ospiti !== undefined
           ? { ospiti: pezzo.ospiti }
           : cambiaCamera ? { ospiti: ospitiScegliendoCamera(d.ospiti, trovaCamera(d.roomId), camera) } : {}),
-        ...(pezzo.tariffa !== undefined ? { tariffa: pezzo.tariffa, cameraDellaTariffa: d.roomId } : {}),
       }, nuovoId)
       return [...fuori, ...rifatti.map(p => conLettoAutomatico(p, trovaCamera(p.roomId)))]
         .sort((a, z) => a.checkIn.localeCompare(z.checkIn) || a.gruppo.localeCompare(z.gruppo))
@@ -610,7 +609,7 @@ export default function NuovaPrenotazionePage() {
             // scriverlo (Ania, 15/09/2026).
             const notti = nottiDaPeriodi(linea.periodi, camere)
             return (
-              <CameraSoggiorno key={linea.gruppo} className="mt-5"
+              <CameraSoggiorno key={linea.gruppo}
                 titolo={i === 0 ? 'Soggiorno' : `Camera ${i + 1}`}
                 arrivo={d.arrivo} partenza={d.partenza}
                 onArrivo={v => cambiaLinea(linea.gruppo, { arrivo: v })}
@@ -619,8 +618,7 @@ export default function NuovaPrenotazionePage() {
                 camere={scelte} roomId={d.roomId} onCamera={id => cambiaLinea(linea.gruppo, { roomId: id })}
                 rigaLibere={rigaCamereLibere(scelte, d.arrivo, d.partenza)}
                 ospiti={d.ospiti} onOspiti={n => cambiaLinea(linea.gruppo, { ospiti: n })} ospitiMax={ospitiMassimi(camera, scelte)}
-                tariffa={d.tariffa} tariffaProposta={camera && linea.periodi[0] ? tariffaProposta(linea.periodi[0], camera) : null}
-                onTariffa={v => cambiaLinea(linea.gruppo, { tariffa: v })}
+                listino={tariffaDiListino(camera, d.ospiti)}
                 strisciaNotti={notti}
                 onNotte={n => { chiudiDomanda(); setNotteScelta(s => (s && s.gruppo === linea.gruppo && s.iso === n.iso ? null : { gruppo: linea.gruppo, iso: n.iso })) }}
                 notteScelta={notteScelta?.gruppo === linea.gruppo ? notteScelta.iso : null}

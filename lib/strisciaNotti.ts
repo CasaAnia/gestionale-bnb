@@ -740,3 +740,29 @@ export function stessaStriscia(a: NotteStriscia[], b: NotteStriscia[]): boolean 
   // anche le persone: dalla scheda si cambiano di qui (17/09/2026)
   return a.every((n, i) => n.iso === b[i].iso && n.cameraId === b[i].cameraId && n.letto === b[i].letto && n.dentro === b[i].dentro && n.persone === b[i].persone)
 }
+
+// ── La striscia «Maison» dell'inserimento (28/09/2026) ─────────────────────
+// 7 colonne fisse, una notte per colonna; oltre le 7 si va a capo. In ogni
+// riga i segmenti: notti di fila con la stessa camera (o tutte «fuori», o
+// tutte senza camera) diventano un segmento solo. Il disegno sta in
+// components/StrisciaNottiCamere (StrisciaMaison).
+export const NOTTI_PER_RIGA = 7
+export type SegmentoMaison = { da: number; a: number; tipo: 'camera' | 'fuori' | 'senza'; camera: string | null }
+/** Le notti a righe di sette, e in ogni riga i segmenti: notti di fila con la stessa camera */
+export function righeMaison(notti: NotteStriscia[]): { inizio: number; notti: NotteStriscia[]; segmenti: SegmentoMaison[] }[] {
+  const righe: { inizio: number; notti: NotteStriscia[]; segmenti: SegmentoMaison[] }[] = []
+  for (let inizio = 0; inizio < notti.length; inizio += NOTTI_PER_RIGA) {
+    const pezzo = notti.slice(inizio, inizio + NOTTI_PER_RIGA)
+    const segmenti: SegmentoMaison[] = []
+    pezzo.forEach((n, k) => {
+      const tipo = !n.dentro ? 'fuori' as const : n.camera ? 'camera' as const : 'senza' as const
+      const camera = tipo === 'camera' ? n.camera : null
+      const ultimo = segmenti[segmenti.length - 1]
+      if (ultimo && ultimo.tipo === tipo && ultimo.camera === camera && ultimo.a === k) ultimo.a = k + 1
+      else segmenti.push({ da: k, a: k + 1, tipo, camera })
+    })
+    righe.push({ inizio, notti: pezzo, segmenti })
+  }
+  return righe
+}
+

@@ -10,7 +10,7 @@
 // ============================================================================
 import type { CSSProperties } from 'react'
 import { dataConGiorno } from '@/lib/dateItaliane'
-import { RigaCampo } from './PezziNuova'
+import { RigaCampo, useMaison } from './PezziNuova'
 
 export const DATA_DA_SCEGLIERE = 'da scegliere'
 
@@ -36,6 +36,20 @@ export default function CampoData({ etichetta, valore, onValore, min, dati, otto
   stileEtichetta?: CSSProperties
   className?: string
 }) {
+  // veste «Maison» (28/09/2026): «lun 28 set» in Cormorant sul filo, stesso
+  // input nativo trasparente sopra
+  if (useMaison()) return (
+    <label className={`np-riga ${className}`}>
+      <span className="np-lab">{etichetta}</span>
+      <span className={`np-data ${valore ? '' : 'vuota'}`} data-data-scritta>
+        {dataConGiorno(valore) || DATA_DA_SCEGLIERE}
+        <input type="date" data-campo={dati} value={valore} min={min} aria-label={etichetta}
+          onChange={e => onValore(e.target.value)}
+          onClick={e => apriSelettore(e.currentTarget)}
+          style={{ position: 'absolute', top: -8, bottom: -8, left: 0, right: 0, width: '100%', opacity: 0, border: 'none', background: 'transparent', padding: 0, margin: 0, WebkitAppearance: 'none', appearance: 'none', cursor: 'pointer' }} />
+      </span>
+    </label>
+  )
   return (
     <RigaCampo etichetta={etichetta} ottone={ottone} stileEtichetta={stileEtichetta} className={className}>
       <span className="relative block" style={{ marginTop: 3 }}>

@@ -350,3 +350,31 @@ body:has(.maison) { background: #F6F2EA; }
 .np-cl .ar { font-size: 18px; color: var(--m-mut); }
 .np-sub2 { margin: 8px 0 0 10px; padding-left: 12px; border-left: 2px solid var(--m-acc); }
 .np-riga-stretta > .np-lab { margin-top: 6px; }
+.np-listino { font-family: var(--m-disp); font-size: 16px; color: var(--m-ink); padding: 5px 0; min-height: 30px; margin: 0; line-height: 20px; }
+.np-listino small { font-family: var(--home-ui-font); font-size: 11px; color: var(--m-mut); }
+
+/* La striscia delle notti: 7 colonne fisse, va a capo oltre le 7 */
+.np-notti { margin-top: 8px; }
+.np-notti .riga { position: relative; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: auto 38px auto; }
+.np-notti .riga + .riga { margin-top: 12px; }
+.np-notti .d { grid-row: 1; text-align: center; font-family: var(--home-ui-font); font-size: 10px; color: var(--m-mut); letter-spacing: .04em; white-space: nowrap; }
+.np-notti .seg { grid-row: 2; display: flex; align-items: center; justify-content: center; margin: 4px 1px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: var(--home-ui-font); font-size: 11px; font-weight: 600; color: #3B2F2A; border-radius: 3px; padding: 0 2px; }
+.np-notti .seg.fuori { background: transparent; border: 1px dashed #C4C0B6; color: #B8AE9C; font-weight: 400; }
+.np-notti .seg.q { background: #EDEAE1; border: 1px dashed #C4C0B6; color: var(--m-mut); }
+.np-notti .sw { grid-row: 2; justify-self: start; align-self: start; transform: translate(-50%, -35%); z-index: 2; color: var(--m-acc); font-size: 11px; font-weight: 700; line-height: 1; background: var(--m-bg); padding: 0 1px; pointer-events: none; }
+.np-notti .u { grid-row: 3; text-align: center; font-family: var(--m-disp); font-size: 14px; color: var(--m-ink); padding: 3px 0; min-height: 22px; line-height: 1.1; }
+.np-notti .u.sel { outline: 1.5px solid var(--m-acc); outline-offset: -1px; }
+.np-notti .u i { display: block; font-style: normal; font-family: var(--home-ui-font); font-size: 9px; color: var(--m-mat); line-height: 1; margin-top: 1px; }
+.np-notti .tocco { grid-row: 1 / 4; background: transparent; border: 0; padding: 0; margin: 0; z-index: 3; cursor: pointer; min-height: 44px; }
+.np-notti .tocco:focus-visible { outline: 1px solid var(--m-acc); outline-offset: -1px; }
+
+/* La notte scelta, sotto la striscia */
+.np-ns { margin-top: 10px; border-top: 1px solid var(--m-line); padding-top: 10px; text-align: center; }
+.np-ns > .np-lab:first-child { margin-top: 0; }
+.np-ns-camere { margin-top: 8px; }
+.np-ns-domanda { margin-top: 12px; }
+.np-row { display: flex; justify-content: center; align-items: center; gap: 12px 22px; flex-wrap: wrap; margin-top: 12px; }
+.np-row .np-lab { margin: 0; }
+.np-row-letto { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.maison .np .np-lnk-piccolo { font-size: 10px; }
+.np-hint > .np-hint { margin: 0; display: inline; }

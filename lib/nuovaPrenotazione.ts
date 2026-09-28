@@ -8,7 +8,7 @@
 // lib/prenotazioneComposta, le notti da lib/strisciaNotti, «come paga» da
 // lib/comePaga.
 // ============================================================================
-import { capienzaBase, capienzaCamera } from './tariffe.ts'
+import { capienzaBase, capienzaCamera, tariffaCamera } from './tariffe.ts'
 import { giorniSoggiorno } from './prezzoNotti.ts'
 const giornoDopo = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10)
 import { camereLibere, STATI_CHE_OCCUPANO, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
@@ -120,14 +120,13 @@ export type CambioLinea = {
   libera?: (iso: string, roomId: string) => boolean
   /** gli ospiti scritti in alto: valgono per tutte le notti */
   ospiti?: number
-  /** la tariffa scritta in alto: vale per le notti della camera della linea */
-  tariffa?: number | null
-  /** la camera a cui si riferisce la tariffa scritta in alto */
-  cameraDellaTariffa?: string | null
 }
+// La tariffa a notte NON si scrive più a mano (Ania, 28/09/2026, punto 12a):
+// è sempre il listino di lib/tariffe per camera e ospiti. Lo sconto è l'unico
+// modo di cambiare il prezzo. I periodi della pagina portano tariffa null.
 
 /** Com'era una notte prima della modifica */
-type NottePrima = { roomId: string | null; ospiti: number; letto: boolean; tariffa: number | null; accordo: PeriodoComposto['letto']; id: string; inizio: boolean }
+type NottePrima = { roomId: string | null; ospiti: number; letto: boolean; accordo: PeriodoComposto['letto']; id: string; inizio: boolean }
 
 export function periodiDellaLinea(
   base: { gruppo: string; arrivo: string; partenza: string },
@@ -140,7 +139,7 @@ export function periodiDellaLinea(
   const prima = new Map<string, NottePrima>()
   for (const p of ordinati) {
     for (const g of giorniSoggiorno(p.checkIn, p.checkOut)) {
-      prima.set(g, { roomId: p.roomId, ospiti: p.ospiti, letto: p.nottiLetto.includes(g), tariffa: p.tariffa, accordo: p.letto, id: p.id, inizio: g === p.checkIn })
+      prima.set(g, { roomId: p.roomId, ospiti: p.ospiti, letto: p.nottiLetto.includes(g), accordo: p.letto, id: p.id, inizio: g === p.checkIn })
     }
   }
   const notti = giorniSoggiorno(base.arrivo, base.partenza)
@@ -151,7 +150,7 @@ export function periodiDellaLinea(
       roomId: cambio.cameraScelta !== undefined ? cambio.cameraScelta : (uno?.roomId ?? null),
       checkIn: base.arrivo, checkOut: base.partenza,
       ospiti: cambio.ospiti ?? uno?.ospiti ?? 1, nottiLetto: [], letto: uno?.letto ?? null,
-      tariffa: cambio.tariffa !== undefined ? cambio.tariffa : (uno?.tariffa ?? null),
+      tariffa: null,
     }]
   }
 
@@ -194,7 +193,6 @@ export function periodiDellaLinea(
     const eraInizio = prima.get(checkIn)
     const era = eraInizio ?? b.notti.map(n => prima.get(n.iso)).find(Boolean)
     const stessaCamera = era?.roomId === b.roomId
-    const tariffaScritta = cambio.tariffa !== undefined && b.roomId != null && b.roomId === cambio.cameraDellaTariffa
     return {
       id: eraInizio && stessaCamera && eraInizio.inizio ? eraInizio.id : nuovoId(),
       gruppo: base.gruppo,
@@ -204,7 +202,7 @@ export function periodiDellaLinea(
       ospiti: b.ospiti,
       nottiLetto: b.notti.filter(n => n.letto).map(n => n.iso),
       letto: era?.accordo ?? null,
-      tariffa: tariffaScritta ? (cambio.tariffa ?? null) : (stessaCamera ? (era?.tariffa ?? null) : null),
+      tariffa: null,
     }
   })
 }
@@ -651,11 +649,12 @@ export function raggruppaPerCamera(periodi: PeriodoComposto[]): LineaCamera[] {
   return [...linee.entries()].map(([gruppo, ps]) => ({ gruppo, periodi: [...ps].sort((a, z) => a.checkIn.localeCompare(z.checkIn)) }))
 }
 
-/** I dati della linea come si vedono nei campi: date, camera, ospiti, tariffa */
-export type DatiLinea = { arrivo: string; partenza: string; roomId: string | null; ospiti: number; tariffa: number | null; spezzata: boolean }
+/** I dati della linea come si vedono nei campi: date, camera, ospiti (la
+ *  tariffa non è un dato della linea: è il listino, tariffaDiListino) */
+export type DatiLinea = { arrivo: string; partenza: string; roomId: string | null; ospiti: number; spezzata: boolean }
 export function datiLinea(linea: LineaCamera): DatiLinea {
   const ps = linea.periodi
-  if (ps.length === 0) return { arrivo: '', partenza: '', roomId: null, ospiti: 1, tariffa: null, spezzata: false }
+  if (ps.length === 0) return { arrivo: '', partenza: '', roomId: null, ospiti: 1, spezzata: false }
   return {
     arrivo: ps[0].checkIn,
     partenza: ps.reduce((m, p) => (p.checkOut > m ? p.checkOut : m), ps[0].checkOut),
@@ -663,9 +662,18 @@ export function datiLinea(linea: LineaCamera): DatiLinea {
     // sono rimaste senza (nessuna camera libera in quelle notti)
     roomId: ps.find(p => p.roomId)?.roomId ?? null,
     ospiti: Math.max(...ps.map(p => p.ospiti)),
-    tariffa: ps.filter(p => p.roomId).length === 1 ? (ps.find(p => p.roomId)?.tariffa ?? null) : null,
     spezzata: ps.length > 1,
   }
+}
+
+/** «80 €» e, accanto, «di listino · in 2»: la tariffa a notte della camera
+ *  per quegli ospiti, sempre il listino di lib/tariffe (punto 12a del
+ *  28/09/2026: niente campo, niente tariffa scritta a mano). Il letto in più
+ *  non è qui: ha il suo prezzo fisso (LETTO_AGGIUNTIVO_A_NOTTE). */
+export function tariffaDiListino(camera: CameraComposta | null | undefined, ospiti: number): { importo: number; testo: string; sotto: string } | null {
+  if (!camera) return null
+  const importo = tariffaCamera(camera, ospiti).prezzoNotte
+  return { importo, testo: `${importo} €`, sotto: `di listino · in ${ospiti}` }
 }
 
 /** «5 notti» sotto le date */

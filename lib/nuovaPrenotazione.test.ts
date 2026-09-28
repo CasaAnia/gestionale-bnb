@@ -3,13 +3,14 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { parametriInserimento } from './nuovaPrenotazione.ts'
 import { readFileSync, existsSync } from 'node:fs'
+import * as STRISCIA from './strisciaNotti.ts'
 import {
   dataDiOggi, volteInParole, rigaClienteTrovato, camereDelPeriodo, rigaCamereLibere,
   ospitiPossibiliNotte, ospitiDellaNotte, listinoLetto, raggruppaPerCamera, datiLinea, nottiDellaLinea,
   CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
   totaliScontati, ospitiMassimi, ospitiMassimiPrenotazione, ospitiScegliendoCamera,
   statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO, mancaAlConto, MANCA_CAMERA, MANCA_DATE, doveManca,
-  periodiDellaLinea, periodiDaNottiTenendoVuote, conflittiConAltre, soggiorniConclusi, spesoConcluso,
+  periodiDellaLinea, periodiDaNottiTenendoVuote, conflittiConAltre, soggiorniConclusi, spesoConcluso, tariffaDiListino,
   RINUNCIABILI, SENZA_NON_SI_SALVA, mancaColonnaNecessaria, avvisoDegradazione, scontoPerRiga, righeDaSalvare,
 } from './nuovaPrenotazione.ts'
 import { eSovrapposizione, messaggioSovrapposizione } from './erroreSovrapposizione.ts'
@@ -241,12 +242,12 @@ test('le camere si raggruppano in linee, e la striscia le rifà', () => {
   const linee = raggruppaPerCamera([periodo('a', 'g1', LENA.id, '2026-11-20', '2026-11-22'), periodo('b', 'g2', AMBRA.id, '2026-11-20', '2026-11-22')])
   assert.equal(linee.length, 2)
   const d = datiLinea(linee[0])
-  assert.deepEqual([d.arrivo, d.partenza, d.ospiti, d.tariffa], ['2026-11-20', '2026-11-22', 2, 80])
+  assert.deepEqual([d.arrivo, d.partenza, d.ospiti], ['2026-11-20', '2026-11-22', 2])
   assert.equal(nottiDellaLinea(linee[0]), 2)
   // una linea spezzata dal cambio camera: le date vanno da capo a fondo
   const spezzata = raggruppaPerCamera([periodo('a', 'g1', LENA.id, '2026-11-20', '2026-11-22'), periodo('b', 'g1', AMBRA.id, '2026-11-22', '2026-11-24')])[0]
   const ds = datiLinea(spezzata)
-  assert.deepEqual([ds.arrivo, ds.partenza, ds.spezzata, ds.tariffa], ['2026-11-20', '2026-11-24', true, null])
+  assert.deepEqual([ds.arrivo, ds.partenza, ds.spezzata], ['2026-11-20', '2026-11-24', true])
   assert.equal(nottiDellaLinea(spezzata), 4)
 })
 
@@ -504,22 +505,33 @@ test('oltre la capienza senza letto il letto si propone da solo', () => {
   assert.match(pagina, /ospitiMax=\{ospitiMassimi\(camera, scelte\)\}/)
 })
 
-// ── 2. La tariffa a notte è già scritta (14/09/2026) ────────────────────────
-// Era solo un suggerimento in grigio: Ania la vedeva vuota e scriveva 80 a mano.
-test('scelta la camera, la tariffa a notte porta il listino di quella camera', () => {
+// ── 2. La tariffa a notte NON si scrive: è il listino (punto 12a, 28/09/2026) ─
+// Prima era un campo già scritto col listino e modificabile; adesso si legge e
+// basta: «80 € di listino · in 2». Lo sconto è l'unico modo di cambiare il prezzo.
+test('12a — la tariffa a notte non è modificabile: sempre il listino per camera e ospiti', () => {
+  assert.deepEqual(tariffaDiListino(LENA as never, 2), { importo: 80, testo: '80 €', sotto: 'di listino · in 2' })
+  assert.deepEqual(tariffaDiListino(LENA as never, 3), { importo: 90, testo: '90 €', sotto: 'di listino · in 3' })
+  assert.equal(tariffaDiListino(AMELIA as never, 1)?.testo, '70 €')
+  assert.equal(tariffaDiListino(ALLEGRA as never, 2)?.testo, '80 €')
+  assert.equal(tariffaDiListino(null, 2), null)
+  // la vecchia proposta del campo resta la stessa regola (serve a /nuova)
   const periodo = (roomId: string, ospiti: number): PeriodoComposto => (
     { id: 'a', gruppo: 'g', roomId, checkIn: '2026-10-02', checkOut: '2026-10-04', ospiti, nottiLetto: [], letto: null, tariffa: null })
-  assert.equal(tariffaProposta(periodo(LENA.id, 2), LENA as never), 80)
   assert.equal(tariffaProposta(periodo(LENA.id, 3), LENA as never), 90)
-  assert.equal(tariffaProposta(periodo(AMELIA.id, 1), AMELIA as never), 70)
-  assert.equal(tariffaProposta(periodo(ALLEGRA.id, 2), ALLEGRA as never), 80)
 
-  // il campo la porta come VALORE, non come scritta in grigio
+  // nessun campo: niente input, niente onTariffa, niente tariffa nella linea
   const camera = readFileSync(new URL('../components/nuova/CameraSoggiorno.tsx', import.meta.url), 'utf8')
-  assert.match(camera, /data-campo="tariffa" value=\{tariffa \?\? \(tariffaProposta \?\? ''\)\}/)
-  assert.doesNotMatch(camera, /data-campo="tariffa"[^>]*placeholder/)
-  // e la pagina gliela passa dalla camera scelta
-  assert.match(pagina, /tariffaProposta=\{camera && linea\.periodi\[0\] \? tariffaProposta\(linea\.periodi\[0\], camera\) : null\}/)
+  assert.doesNotMatch(camera, /data-campo="tariffa"/)
+  assert.doesNotMatch(camera, /onTariffa/)
+  assert.match(camera, /<p data-tariffa-listino className="np-listino">/)
+  assert.doesNotMatch(pagina, /onTariffa|tariffa: v|cameraDellaTariffa/)
+  assert.match(pagina, /listino=\{tariffaDiListino\(camera, d\.ospiti\)\}/)
+  // anche un periodo con una tariffa vecchia scritta a mano torna al listino
+  let n = 0
+  const conTariffa: PeriodoComposto[] = [{ id: 'a', gruppo: 'g', roomId: LENA.id, checkIn: '2026-09-14', checkOut: '2026-09-16', ospiti: 2, nottiLetto: [], letto: null, tariffa: 55 }]
+  const rifatti = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-14', partenza: '2026-09-17' }, conTariffa, { ospiti: 2 }, () => `n${++n}`)
+  assert.equal(rifatti.every(p => p.tariffa === null), true)
+  assert.equal('tariffa' in datiLinea({ gruppo: 'g', periodi: rifatti }), false)
 })
 
 test('il conto sta in piedi anche senza toccare la tariffa', () => {
@@ -833,7 +845,9 @@ test('il campo data è quello nativo, senza riquadro e senza librerie', () => {
 
 // ── 4. Le tre righe della striscia, e gli ospiti nel foglietto (14/09/2026) ─
 test('ogni colonnina ha giorno, camera, quadratino del letto e ospiti', () => {
-  const striscia = readFileSync(new URL('../components/StrisciaNottiCamere.tsx', import.meta.url), 'utf8')
+  // la striscia della scheda (la veste «Maison» dell'inserimento sta sopra, a parte)
+  const tutta = readFileSync(new URL('../components/StrisciaNottiCamere.tsx', import.meta.url), 'utf8')
+  const striscia = tutta.slice(tutta.indexOf('export default function StrisciaNottiCamere'))
   // 1ª riga il giorno, 2ª la camera, 3ª il letto, 4ª gli ospiti — in quest'ordine
   const ordine = ['<Giorno iso=', 'data-camera-notte', 'data-letto-notte', 'data-ospiti-notte']
   const posti = ordine.map(x => striscia.indexOf(x))
@@ -842,7 +856,7 @@ test('ogni colonnina ha giorno, camera, quadratino del letto e ospiti', () => {
   // gli ospiti: Georgia 15 px, mattone quando sono diversi da quelli del soggiorno
   assert.match(striscia, /data-ospiti-notte[\s\S]{0,320}fontFamily: GEORGIA, fontSize: 15/)
   assert.match(striscia, /n\.persone === ospitiAttesi \? 'var\(--color-green-dark\)' : MATTONE_OSPITI/)
-  assert.match(striscia, /MATTONE_OSPITI = '#8a4f2f'/)
+  assert.match(tutta, /MATTONE_OSPITI = '#8a4f2f'/)
   // e la pagina glieli passa
   const camera = readFileSync(new URL('../components/nuova/CameraSoggiorno.tsx', import.meta.url), 'utf8')
   assert.match(camera, /ospitiAttesi=\{ospiti\}/)
@@ -1050,14 +1064,15 @@ test('il caso di Ania: Ambra in 2 dal 28 al 29, poi la partenza va al 30 → anc
   let c = 0
   const nuovoId = () => `n${++c}`
   const libera = () => true
-  const unaNotte = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-28', partenza: '2026-09-29' }, [], { cameraScelta: AMBRA.id, libera, ospiti: 2, tariffa: 90, cameraDellaTariffa: AMBRA.id }, nuovoId)
+  const unaNotte = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-28', partenza: '2026-09-29' }, [], { cameraScelta: AMBRA.id, libera, ospiti: 2 }, nuovoId)
   const dueNotti = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-28', partenza: '2026-09-30' }, unaNotte, { libera }, nuovoId)
-  assert.deepEqual(dueNotti.map(p => [p.roomId, p.checkIn, p.checkOut, p.ospiti, p.tariffa]), [[AMBRA.id, '2026-09-28', '2026-09-30', 2, 90]])
+  // la tariffa è sempre il listino (punto 12a, 28/09/2026): null nel periodo
+  assert.deepEqual(dueNotti.map(p => [p.roomId, p.checkIn, p.checkOut, p.ospiti, p.tariffa]), [[AMBRA.id, '2026-09-28', '2026-09-30', 2, null]])
   assert.deepEqual(nottiDaPeriodi(dueNotti, CAMERE as never).map(n => n.camera), ['Ambra', 'Ambra'])
   assert.equal(dueNotti[0].id, unaNotte[0].id, 'il tratto è lo stesso, allungato')
-  // anche all'indietro: l'arrivo va al 27 → il 27 è Ambra, stessa tariffa
+  // anche all'indietro: l'arrivo va al 27 → il 27 è Ambra, stessa tariffa (il listino)
   const indietro = periodiDellaLinea({ gruppo: 'g', arrivo: '2026-09-27', partenza: '2026-09-30' }, dueNotti, { libera }, nuovoId)
-  assert.deepEqual(indietro.map(p => [p.roomId, p.checkIn, p.checkOut, p.ospiti, p.tariffa]), [[AMBRA.id, '2026-09-27', '2026-09-30', 2, 90]])
+  assert.deepEqual(indietro.map(p => [p.roomId, p.checkIn, p.checkOut, p.ospiti, p.tariffa]), [[AMBRA.id, '2026-09-27', '2026-09-30', 2, null]])
 })
 
 test('la notte nuova resta col «?» solo se la camera accanto è occupata', () => {
@@ -1203,11 +1218,11 @@ test('la parte compare con la notte scelta e sparisce ritoccandola', () => {
   assert.match(pagina, /s\.iso === n\.iso \? null :/)
   // sta sotto la striscia, dentro la camera del soggiorno
   assert.match(cameraSoggiorno, /<StrisciaNottiCamere[\s\S]{0,200}\/>\s*\n\s*\{sottoStriscia\}/)
-  // filo card-border e 10 px di spazio
-  assert.match(notteScelta, /borderTop: '1px solid var\(--color-card-border\)', paddingTop: 10, marginTop: 10/)
-  // il giorno per esteso, 9,5 px maiuscolo stone, centrato
-  assert.match(notteScelta, /fontSize: 9\.5, letterSpacing: '1\.4px', color: 'var\(--color-stone\)'/)
-  assert.match(notteScelta, /data-titolo-notte className="uppercase text-center"/)
+  // veste «Maison» (28/09/2026): filo sopra, 10 px di spazio, tutto centrato
+  assert.match(notteScelta, /<section data-notte-scelta=\{notte\.iso\} className=\{`np-ns \$\{className\}`\}>/)
+  assert.match(leggiFile('app/maison.css'), /\.np-ns \{ margin-top: 10px; border-top: 1px solid var\(--m-line\); padding-top: 10px; text-align: center; \}/)
+  // il giorno per esteso, in maiuscoletto grigio, centrato
+  assert.match(notteScelta, /data-titolo-notte className="np-lab c"/)
   assert.match(notteScelta, /\{titoloNotte\(notte\.iso\)\} · \{CODA_TITOLO\}/)
 })
 
@@ -1241,10 +1256,10 @@ test('ospiti e letto della notte, sulla stessa riga, e «non dorme qui» in fond
   assert.match(notteScelta, /Sì · \{prezzoLetto\}/)
   assert.match(notteScelta, /\{LETTO_NON_DISPONIBILE\}/)
   assert.match(notteScelta, /spenta=\{Boolean\(motivoLetto\)\}/)      // «No» spento quando il letto serve
-  // «oppure non dorme qui», in fondo, 12 px
+  // «oppure non dorme qui», in fondo: parola tenue col filo (veste «Maison»)
   assert.match(notteScelta, /NON_DORME_QUI = 'non dorme qui'/)
   assert.match(notteScelta, /OPPURE = 'oppure '/)
-  assert.match(notteScelta, /fontSize: 12, color: 'var\(--color-stone\)'[\s\S]{0,200}data-non-dorme/)
+  assert.match(notteScelta, /\{OPPURE\}<button type="button" data-non-dorme onClick=\{onNonDormeQui\} className="mz-lnk q np-lnk-piccolo">\{NON_DORME_QUI\}<\/button>/)
   // la domanda «solo questa notte» / «da qui in poi» dopo aver toccato gli ospiti
   assert.match(notteScelta, /SOLO_QUESTA = 'solo questa notte'/)
   assert.match(notteScelta, /DA_QUI = 'da qui in poi'/)
@@ -1318,7 +1333,6 @@ test('in alto restano ospiti e tariffa, e valgono per tutto il soggiorno', () =>
   assert.match(cameraSoggiorno, /ETICHETTA_OSPITI = 'Ospiti'/)
   assert.match(cameraSoggiorno, /ETICHETTA_TARIFFA = 'Tariffa a notte'/)
   assert.match(pagina, /ospiti=\{d\.ospiti\} onOspiti=\{n => cambiaLinea\(linea\.gruppo, \{ ospiti: n \}\)\}/)
-  assert.match(pagina, /onTariffa=\{v => cambiaLinea\(linea\.gruppo, \{ tariffa: v \}\)\}/)
   // gli ospiti scritti in alto vanno su tutte le notti
   const vuoto: PeriodoComposto[] = [{ id: 'a', gruppo: 'g', roomId: LENA.id, checkIn: '2026-09-14', checkOut: '2026-09-16', ospiti: 2, nottiLetto: [], letto: null, tariffa: null }]
   let n = 0
@@ -1655,4 +1669,28 @@ test('lo speso del cliente: i soggiorni conclusi, gli stessi che si contano, in 
   assert.match(riga, /spesoCent != null && spesoCent > 0 && <> · <span className="np-mat" data-speso>\{euroTondi\(spesoCent\)\}<\/span><\/>/)
   assert.match(pagina, /spesoCent=\{speso\[c\.id\] \?\? null\}/)
   assert.match(pagina, /spesoCent=\{speso\[cliente\.id\] \?\? null\}/)
+})
+
+// ── Q6: la striscia «Maison» a colonne fisse, va a capo oltre le 7 notti ─────
+test('la striscia «Maison»: 7 colonne fisse, a capo oltre le 7, un segmento per camera, fuori e ?', () => {
+  const { righeMaison, NOTTI_PER_RIGA } = STRISCIA
+  assert.equal(NOTTI_PER_RIGA, 7)
+  const n = (iso: string, camera: string | null, extra: Partial<{ dentro: boolean; letto: boolean; persone: number }> = {}) =>
+    ({ iso, cameraId: camera, camera, letto: false, dentro: true, persone: 2, motivo: null, parallela: false, ...extra })
+  // il riferimento: Ambra 3 notti, Lena 1, fuori 1, ? 1
+  const sei = [n('2026-09-28', 'Ambra'), n('2026-09-29', 'Ambra'), n('2026-09-30', 'Ambra', { letto: true, persone: 3 }), n('2026-10-01', 'Lena', { persone: 3 }), n('2026-10-02', null, { dentro: false }), n('2026-10-03', null)]
+  const [riga] = righeMaison(sei)
+  assert.equal(righeMaison(sei).length, 1)
+  assert.deepEqual(riga.segmenti.map(sg => [sg.da, sg.a, sg.tipo, sg.camera]), [[0, 3, 'camera', 'Ambra'], [3, 4, 'camera', 'Lena'], [4, 5, 'fuori', null], [5, 6, 'senza', null]])
+  // dieci notti: due righe, 7 + 3, e il segmento si spezza al capo riga
+  const dieci = Array.from({ length: 10 }, (_, i) => n(`2026-10-${String(i + 1).padStart(2, '0')}`, 'Lena'))
+  const righe = righeMaison(dieci)
+  assert.deepEqual(righe.map(r => [r.inizio, r.notti.length]), [[0, 7], [7, 3]])
+  assert.deepEqual(righe.map(r => r.segmenti.map(sg => [sg.da, sg.a])), [[[0, 7]], [[0, 3]]])
+  // le colonne sono SEMPRE sette e uguali: due notti non si allargano
+  assert.match(leggiFile('app/maison.css'), /\.np-notti \.riga \{[^}]*grid-template-columns: repeat\(7, minmax\(0, 1fr\)\)/)
+  const striscia = leggiFile('components/StrisciaNottiCamere.tsx')
+  assert.match(striscia, /if \(maison\) return <StrisciaMaison /)
+  assert.match(striscia, /\{n\.dentro && n\.letto && <i data-piu-letto>\{PIU_LETTO\}<\/i>\}/)
+  assert.match(striscia, /className=\{`u \$\{n\.iso === scelta \? 'sel' : ''\}`\}/)
 })

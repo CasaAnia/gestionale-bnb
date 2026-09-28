@@ -20,7 +20,8 @@
 // delle richieste (persone o camera notte per notte, altra cosa).
 // ============================================================================
 import { Bed } from 'lucide-react'
-import { avvisiStriscia, compatta, giornoDellaNotte, riassuntoStriscia, segniDiCambio, titoloNotte, TESTO_LIBERA, type NotteStriscia } from '@/lib/strisciaNotti'
+import { avvisiStriscia, compatta, giornoDellaNotte, riassuntoStriscia, segniDiCambio, titoloNotte, righeMaison, TESTO_LIBERA, type NotteStriscia } from '@/lib/strisciaNotti'
+import { useMaison } from '@/components/nuova/PezziNuova'
 
 const OTTONE = '#A9884E'
 const ROSSO = '#D40000'
@@ -54,6 +55,56 @@ function Giorno({ iso, stretta, oggi }: { iso: string; stretta: boolean; oggi: b
     : <span className="block" style={stile}>{giorno} {numero}</span>
 }
 
+// ── La veste «Maison» (Nuova prenotazione, riferimento del 28/09/2026) ─────
+// Una griglia a 7 colonne di larghezza FISSA: una notte = una colonna, mai
+// più larga, anche con due notti sole; oltre le 7 va a capo. Sopra i giorni,
+// in mezzo un segmento per camera (le notti di fila nella stessa camera sono
+// un segmento solo, col nome), ⇄ d'ottone dove la camera cambia; sotto gli
+// ospiti della notte e «+letto» in mattone. «fuori» tratteggiato = non dorme
+// qui, «?» = notte senza camera. Il tocco su una notte la segna col contorno
+// d'ottone (sul numero) e apre NotteScelta. La scheda resta con la sua.
+export const PIU_LETTO = '+letto'
+export const TESTO_SEGMENTO_FUORI = 'fuori'
+export const TESTO_SENZA_CAMERA = '?'
+
+function StrisciaMaison({ notti, onNotte, scelta, className = '' }: { notti: NotteStriscia[]; onNotte?: (notte: NotteStriscia) => void; scelta?: string | null; className?: string }) {
+  const cambi = segniDiCambio(notti)
+  const avvisi = avvisiStriscia(notti)
+  const riassunto = riassuntoStriscia(notti)
+  return (
+    <div data-striscia-notti data-veste="maison" className={`np-notti ${className}`}>
+      {righeMaison(notti).map(riga => (
+        <div key={riga.inizio} className="riga" data-riga-notti>
+          {riga.notti.map((n, k) => {
+            const { giorno, numero } = giornoDellaNotte(n.iso)
+            return <span key={`d${n.iso}`} className="d" style={{ gridColumn: k + 1 }}>{giorno} {numero}</span>
+          })}
+          {riga.segmenti.map(sg => (
+            <span key={`s${sg.da}`} data-segmento={sg.tipo} className={`seg ${sg.tipo === 'fuori' ? 'fuori' : sg.tipo === 'senza' ? 'q' : ''}`}
+              style={{ gridColumn: `${sg.da + 1} / ${sg.a + 1}`, ...(sg.tipo === 'camera' ? { background: tintaCamera(sg.camera).fondo } : {}) }}>
+              {sg.tipo === 'fuori' ? TESTO_SEGMENTO_FUORI : sg.tipo === 'senza' ? TESTO_SENZA_CAMERA : sg.camera}
+            </span>
+          ))}
+          {riga.notti.map((n, k) => cambi[riga.inizio + k] && <span key={`c${n.iso}`} aria-hidden data-segno-cambio className="sw" style={{ gridColumn: k + 1 }}>⇄</span>)}
+          {riga.notti.map((n, k) => (
+            <span key={`u${n.iso}`} data-ospiti-notte={n.dentro && n.persone > 0 ? n.persone : undefined} className={`u ${n.iso === scelta ? 'sel' : ''}`} style={{ gridColumn: k + 1 }}>
+              {n.dentro && n.persone > 0 ? n.persone : ''}{n.dentro && n.letto && <i data-piu-letto>{PIU_LETTO}</i>}
+            </span>
+          ))}
+          {onNotte && riga.notti.map((n, k) => (
+            <button key={`t${n.iso}`} type="button" className="tocco" style={{ gridColumn: k + 1 }}
+              data-notte={n.iso} data-fuori={!n.dentro || undefined} data-cambia={cambi[riga.inizio + k] || undefined} data-scelta={n.iso === scelta || undefined}
+              onClick={() => onNotte(n)}
+              aria-label={`${titoloNotte(n.iso)}: ${!n.dentro ? 'non dorme qui' : n.camera ?? 'camera da scegliere'}${n.letto ? ', con letto in più' : ''}. Tocca per cambiare`} />
+          ))}
+        </div>
+      ))}
+      {riassunto && <p data-riassunto-striscia className="np-hint o c">{riassunto}</p>}
+      {avvisi.map(a => <p key={a} data-avviso-notte className="np-hint m c">{a}</p>)}
+    </div>
+  )
+}
+
 export default function StrisciaNottiCamere({ notti, oggi, onNotte, scelta, ospitiAttesi, spiegazione = true, className = '' }: {
   notti: NotteStriscia[]
   /** la data di oggi (YYYY-MM-DD): la notte di stanotte si scrive in verde */
@@ -68,7 +119,9 @@ export default function StrisciaNottiCamere({ notti, oggi, onNotte, scelta, ospi
   spiegazione?: boolean
   className?: string
 }) {
+  const maison = useMaison()
   if (notti.length === 0) return null
+  if (maison) return <StrisciaMaison notti={notti} onNotte={onNotte} scelta={scelta} className={className} />
   const stretta = compatta(notti.length)
   const avvisi = avvisiStriscia(notti)
   const cambi = segniDiCambio(notti)
