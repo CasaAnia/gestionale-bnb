@@ -705,3 +705,33 @@ test('«da qui in poi»: le notti dopo prendono le persone della notte aperta, c
   const misto = cambiaCamera(su, '2026-09-12', AMELIA, contesto())
   assert.deepEqual(ospitiDaQuiInPoi(misto, '2026-09-11', contesto()).map(n => [n.camera, n.persone, n.letto]), [['Allegra', 2, false], ['Allegra', 3, true], ['Amelia', 2, true]])
 })
+
+// ── Una persona sola in una matrimoniale (Ania, 28/09/2026) ─────────────────
+// La prenotazione di Emanuela Dominici (1 → 3 ott) restava bloccata a due:
+// il − del foglietto si fermava alla capienza base della camera.
+test('in matrimoniale si scende a 1 ospite, si salva 1 e si rilegge 1, col prezzo di prima', () => {
+  const salvati = [seg('e1', AMBRA, '2026-10-01', '2026-10-03', { price_per_night: 75 })]
+  const ctx = contesto({ ospiti: 2 })
+  const prima = nottiDaSegmenti(salvati)
+  const dopo = ospitiDaQuiInPoi(cambiaOspitiConLettoAuto(prima, '2026-10-01', 1, ctx, false).notti, '2026-10-01', ctx)
+  assert.deepEqual(dopo.map(n => n.persone), [1, 1])
+  const piano = pianoNotti(dopo, salvati, ctx)
+  assert.equal(piano.errore, null)
+  assert.equal(piano.aggiorna.length, 1)
+  assert.equal(piano.aggiorna[0].campi.num_guests, 1)
+  // il prezzo della camera non cambia: in uno o in due Ambra costa uguale
+  assert.equal(piano.aggiorna[0].campi.price_per_night, 75)
+  const riletti = nottiDaSegmenti([{ ...salvati[0], ...piano.aggiorna[0].campi }])
+  assert.deepEqual(riletti.map(n => n.persone), [1, 1])
+})
+
+test('una sola notte a 1 in matrimoniale non si perde accanto a una notte in 2', () => {
+  const salvati = [seg('e1', AMBRA, '2026-10-01', '2026-10-03')]
+  const ctx = contesto({ ospiti: 2 })
+  const dopo = cambiaOspitiNotte(nottiDaSegmenti(salvati), '2026-10-02', 1, ctx)
+  const piano = pianoNotti(dopo, salvati, ctx)
+  assert.equal(piano.errore, null)
+  const righe = [...piano.aggiorna.map(a => a.campi), ...piano.crea]
+    .sort((a, z) => a.check_in.localeCompare(z.check_in))
+  assert.deepEqual(righe.map(r => [r.check_in, r.num_guests]), [['2026-10-01', 2], ['2026-10-02', 1]])
+})

@@ -15,7 +15,7 @@ import { camereLibere, STATI_CHE_OCCUPANO, type CameraMinima, type PrenotazioneM
 import { contoPeriodo, lettoProposto, rigaDaSalvare, notti as nottiPeriodo, round2, type CameraComposta, type PeriodoComposto } from './prenotazioneComposta.ts'
 import { costoLettoIntero, lettoRipartito, type AccordoLetto } from './lettiAggiuntivi.ts'
 import type { NotteStriscia } from './strisciaNotti.ts'
-import { blocchiDaNotti } from './strisciaNotti.ts'
+import { blocchiDaNotti, siAttacca, conNotte, type VincoloOspiti } from './strisciaNotti.ts'
 import { GIORNI_LUNGHI, MESI_LUNGHI } from './dateItaliane.ts'
 import { euroScheda } from './schedaPrenotazione.ts'
 import { rigaSconto, nottiANotte, dettaglioLetto, RIGA_LETTO, type ScontoVista } from './contoInRighe.ts'
@@ -220,19 +220,19 @@ export function periodiDaNottiTenendoVuote(notti: NotteStriscia[], linea: LineaC
   const dentro = notti.filter(n => n.dentro)
   if (dentro.length === 0) return []
   const vecchi = [...linea.periodi].sort((a, z) => a.checkIn.localeCompare(z.checkIn))
-  // A imporre il numero di ospiti sono solo le notti COL letto: le altre
-  // valgono quelle che la camera tiene da sola. Due notti col letto e persone
-  // diverse vanno quindi in periodi diversi (rilievo del 15/09/2026).
-  const impone = (n: NotteStriscia) => (n.letto ? n.persone : null)
-  const blocchi: { cameraId: string | null; impone: number | null; notti: NotteStriscia[] }[] = []
+  // Il numero di ospiti lo impongono le notti COL letto e quelle con MENO
+  // persone di quante la camera ne tenga (una sola in matrimoniale): notti
+  // con numeri diversi vanno in periodi diversi (rilievi del 15/09 e del
+  // 28/09/2026). La regola è quella della scheda, lib/strisciaNotti.
+  const blocchi: { cameraId: string | null; vincolo: VincoloOspiti; notti: NotteStriscia[] }[] = []
   for (const n of dentro) {
     const ultimo = blocchi[blocchi.length - 1]
     const attaccata = ultimo
       && ultimo.cameraId === n.cameraId
-      && (ultimo.impone === null || impone(n) === null || ultimo.impone === impone(n))
+      && siAttacca(ultimo.vincolo, n)
       && giornoDopo(ultimo.notti[ultimo.notti.length - 1].iso) === n.iso
-    if (attaccata) { ultimo.notti.push(n); ultimo.impone = ultimo.impone ?? impone(n) }
-    else blocchi.push({ cameraId: n.cameraId, impone: impone(n), notti: [n] })
+    if (attaccata) { ultimo.notti.push(n); ultimo.vincolo = conNotte(ultimo.vincolo, n) }
+    else blocchi.push({ cameraId: n.cameraId, vincolo: conNotte({ esatto: null, minimo: 0 }, n), notti: [n] })
   }
   return blocchi.map(b => {
     const checkIn = b.notti[0].iso
@@ -244,7 +244,7 @@ export function periodiDaNottiTenendoVuote(notti: NotteStriscia[], linea: LineaC
       roomId: b.cameraId,
       checkIn,
       checkOut: giornoDopo(b.notti[b.notti.length - 1].iso),
-      ospiti: Math.max(1, ...b.notti.map(n => n.persone)),
+      ospiti: Math.max(1, b.vincolo.esatto ?? b.vincolo.minimo),
       nottiLetto: b.notti.filter(n => n.letto).map(n => n.iso),
       letto: origine?.letto ?? null,
       tariffa: stessaCamera ? (origine?.tariffa ?? null) : null,
@@ -400,13 +400,13 @@ export function statoLettoNuova(
 // ── Gli ospiti di una notte ─────────────────────────────────────────────────
 // Il modello di sempre (lib/prezzoNotti): in una notte ci sono gli ospiti del
 // soggiorno se c'è il letto in più, altrimenti quelli che la camera tiene da
-// sola. Quindi i valori possibili di una notte sono DUE, e il − e il + del
-// foglietto si muovono fra quelli: nessun numero che poi non si può salvare.
+// sola. Il − scende SEMPRE fino a 1, in ogni camera: una persona sola in
+// una matrimoniale si deve poter scrivere (Ania, 28/09/2026 — prima partiva
+// dalla capienza base e in Lena, Allegra e Ambra il − si fermava a 2).
 export function ospitiPossibiliNotte(camera: { name?: string | null; has_extra_bed?: boolean | null } | null | undefined, ospitiSoggiorno: number): number[] {
-  const base = capienzaBase(camera)
-  const max = Math.min(Math.max(ospitiSoggiorno, base), capienzaCamera(camera))
+  const max = Math.min(Math.max(ospitiSoggiorno, capienzaBase(camera)), capienzaCamera(camera))
   const out: number[] = []
-  for (let n = base; n <= max; n++) out.push(n)
+  for (let n = 1; n <= max; n++) out.push(n)
   return out
 }
 /** Quanti ospiti ha quella notte: col letto tutti, senza letto quelli della camera */

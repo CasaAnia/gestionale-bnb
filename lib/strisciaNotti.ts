@@ -17,7 +17,7 @@
 // ============================================================================
 import { camereLibere, elencoNomi, giorniTra, STATI_CHE_OCCUPANO, type CameraMinima, type PrenotazioneMinima } from './disponibilita.ts'
 import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione, lettoRipartito, type AccordoLetto, type PrenotazioneLetti } from './lettiAggiuntivi.ts'
-import { capienzaBase, capienzaCamera, totaleLetto } from './tariffe.ts'
+import { capienzaBase, capienzaCamera, tariffaCamera, totaleLetto } from './tariffe.ts'
 import { giorniSoggiorno, nottiConLetto, prezzoPrenotazione, fmtEuroBreve, type CameraTariffa } from './prezzoNotti.ts'
 import { contoSoggiorno } from './conto.ts'
 import { GIORNI_BREVI, GIORNI_LUNGHI } from './dateItaliane.ts'
@@ -433,25 +433,42 @@ export type BloccoNotti = { cameraId: string; camera: string; check_in: string; 
 // A imporre il numero sono quindi soltanto le notti COL letto: due notti col
 // letto e persone diverse (tre e quattro in Lena) devono stare in tratti
 // diversi, o il numero più alto si mangia l'altro (rilievo del 15/09/2026).
-const impegnativo = (n: NotteStriscia) => (n.letto ? n.persone : null)
-const compatibili = (a: number | null, b: number | null) => a === null || b === null || a === b
+// Lo stesso vale per una notte con MENO persone di quante la camera ne tenga
+// (una sola in una matrimoniale, 28/09/2026): accanto a una notte in due
+// deve stare in un tratto suo, o il due si mangia l'uno e riletta la
+// prenotazione torna a due ospiti. Una notte senza letto e alla capienza
+// della camera, invece, sta bene in qualunque tratto con ALMENO quelle persone.
+export function numeroCheImpone(n: NotteStriscia): number | null {
+  if (n.letto) return n.persone
+  return n.persone > 0 && n.persone < capienzaBase({ name: n.camera }) ? n.persone : null
+}
+/** Il vincolo di un tratto: il numero esatto imposto (o nessuno) e il minimo di persone */
+export type VincoloOspiti = { esatto: number | null; minimo: number }
+export function siAttacca(v: VincoloOspiti, n: NotteStriscia): boolean {
+  const esatto = numeroCheImpone(n)
+  if (esatto !== null) return (v.esatto === null || v.esatto === esatto) && esatto >= v.minimo
+  return v.esatto === null || v.esatto >= n.persone
+}
+export function conNotte(v: VincoloOspiti, n: NotteStriscia): VincoloOspiti {
+  return { esatto: v.esatto ?? numeroCheImpone(n), minimo: Math.max(v.minimo, n.persone) }
+}
 
 export function blocchiDaNotti(notti: NotteStriscia[]): BloccoNotti[] {
-  const out: { blocco: BloccoNotti; impone: number | null }[] = []
+  const out: { blocco: BloccoNotti; vincolo: VincoloOspiti }[] = []
   for (const n of notti) {
     if (!n.dentro || !n.cameraId) continue
     const ultimo = out[out.length - 1]
     if (ultimo && ultimo.blocco.cameraId === n.cameraId && ultimo.blocco.check_out === n.iso
-      && compatibili(ultimo.impone, impegnativo(n))) {
+      && siAttacca(ultimo.vincolo, n)) {
       ultimo.blocco.check_out = giornoDopo(n.iso)
-      ultimo.blocco.ospiti = Math.max(ultimo.blocco.ospiti, n.persone)
-      ultimo.impone = ultimo.impone ?? impegnativo(n)
+      ultimo.vincolo = conNotte(ultimo.vincolo, n)
+      ultimo.blocco.ospiti = ultimo.vincolo.esatto ?? ultimo.vincolo.minimo
       if (n.letto) ultimo.blocco.nottiLetto.push(n.iso)
       continue
     }
     out.push({
       blocco: { cameraId: n.cameraId, camera: n.camera ?? '', check_in: n.iso, check_out: giornoDopo(n.iso), nottiLetto: n.letto ? [n.iso] : [], ospiti: n.persone },
-      impone: impegnativo(n),
+      vincolo: conNotte({ esatto: null, minimo: 0 }, n),
     })
   }
   return out.map(x => x.blocco)
@@ -588,9 +605,13 @@ export function pianoNotti(notti: NotteStriscia[], segmenti: SegmentoNotti[], co
     // La tariffa concordata NON si riscrive col listino: se il blocco resta
     // nella stessa camera con le stesse persone, resta quella salvata
     // (rilievo del 15/09/2026: 60 € concordati tornavano 80 di listino).
+    // Stessa gente vuol dire anche «stesso listino»: una persona sola in una
+    // matrimoniale paga la camera come in due, quindi passando da 2 a 1 la
+    // tariffa salvata resta (regola fissa n. 6, 28/09/2026).
     const stessaCameraStessaGente = origine
       && origine.room_id === b.cameraId
-      && (Number(origine.num_guests) || 1) === b.ospiti
+      && ((Number(origine.num_guests) || 1) === b.ospiti
+        || tariffaCamera(camera, Number(origine.num_guests) || 1).prezzoNotte === tariffaCamera(camera, b.ospiti).prezzoNotte)
       && origine.price_per_night != null
     const aNotte = stessaCameraStessaGente ? Number(origine!.price_per_night) || 0 : prezzo.prezzoNotte
     const letto = lettoPerBlocco ? lettoPerBlocco[i] : prezzo.lettoTotale

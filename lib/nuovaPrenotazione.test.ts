@@ -65,15 +65,16 @@ test('la riga delle camere libere nei casi estremi', () => {
 })
 
 test('gli ospiti di una notte sono solo quelli salvabili', () => {
-  // Lena: da due (senza letto) fino a quello che si è scelto
-  assert.deepEqual(ospitiPossibiliNotte(LENA, 3), [2, 3])
-  assert.deepEqual(ospitiPossibiliNotte(LENA, 4), [2, 3, 4])
+  // Lena: da UNO fino a quello che si è scelto (Ania, 28/09/2026)
+  assert.deepEqual(ospitiPossibiliNotte(LENA, 3), [1, 2, 3])
+  assert.deepEqual(ospitiPossibiliNotte(LENA, 4), [1, 2, 3, 4])
   // Amelia: una senza letto, due col letto
   assert.deepEqual(ospitiPossibiliNotte(AMELIA, 2), [1, 2])
-  // se il soggiorno è già alla capienza base non c'è niente da scegliere
-  assert.deepEqual(ospitiPossibiliNotte(AMBRA, 2), [2])
+  // una persona sola in matrimoniale si può sempre scrivere
+  assert.deepEqual(ospitiPossibiliNotte(AMBRA, 2), [1, 2])
+  assert.deepEqual(ospitiPossibiliNotte(AMBRA, 1), [1, 2])
   // e non si va oltre quello che la camera tiene
-  assert.deepEqual(ospitiPossibiliNotte(AMBRA, 9), [2, 3])
+  assert.deepEqual(ospitiPossibiliNotte(AMBRA, 9), [1, 2, 3])
 })
 
 test('gli ospiti scelti valgono per tutte le notti; senza letto scendono', () => {
@@ -851,8 +852,8 @@ test('il foglietto della notte cambia camera, letto E ospiti, per una notte o da
   assert.match(foglio, /data-non-dorme/)
   assert.match(foglio, /NESSUNA_CAMERA_LIBERA/)
   // i valori possibili sono solo quelli salvabili
-  assert.deepEqual(ospitiPossibiliNotte(LENA, 3), [2, 3])
-  assert.deepEqual(ospitiPossibiliNotte(LENA, 4), [2, 3, 4])
+  assert.deepEqual(ospitiPossibiliNotte(LENA, 3), [1, 2, 3])
+  assert.deepEqual(ospitiPossibiliNotte(LENA, 4), [1, 2, 3, 4])
   assert.deepEqual(ospitiPossibiliNotte(AMELIA, 2), [1, 2])
 })
 
@@ -1620,4 +1621,14 @@ test('il parametro «prenotazione» (17/09/2026): il legame della prenotazione a
   assert.equal(parametriInserimento('?guest_id=g&prenotazione=pppp&check_in=2026-11-03&check_out=2026-11-07').prenotazione, 'pppp')
   assert.equal(parametriInserimento('?guest_id=g').prenotazione, null)
   assert.equal(parametriInserimento('?prenotazione=%20').prenotazione, null)
+})
+
+// Una persona sola in matrimoniale anche nell'inserimento (Ania, 28/09/2026)
+test('nuova prenotazione: 1 ospite in Ambra su una notte resta 1 e non si perde accanto a 2', () => {
+  const periodi: PeriodoComposto[] = [{ id: 'a', gruppo: 'g', roomId: AMBRA.id, checkIn: '2026-10-01', checkOut: '2026-10-03', ospiti: 2, nottiLetto: [], letto: null, tariffa: null }]
+  const notti = nottiDaPeriodi(periodi, CAMERE as never).map(n => (n.iso === '2026-10-02' ? { ...n, persone: 1 } : n))
+  const dopo = periodiDaNottiTenendoVuote(notti, { gruppo: 'g', periodi }, contaId())
+  assert.deepEqual(dopo.map(p => [p.checkIn, p.ospiti]), [['2026-10-01', 2], ['2026-10-02', 1]])
+  const tutti = periodiDaNottiTenendoVuote(notti.map(n => ({ ...n, persone: 1 })), { gruppo: 'g', periodi }, contaId())
+  assert.deepEqual(tutti.map(p => [p.checkIn, p.checkOut, p.ospiti]), [['2026-10-01', '2026-10-03', 1]])
 })
