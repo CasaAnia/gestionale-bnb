@@ -130,3 +130,16 @@ test('«Rimanda o salta» nella veste nuova: selettore a filo, data a filo, «An
   assert.match(home, /addDaysStr\(pulizia\.data_prevista, 4\)/)
   assert.match(home, /<SalvatoMaison salvato=\{salvato\} onFine=\{fineSalvato\} \/>/)
 })
+
+test('conferma B: lo stesso componente in Arrivo, Pulizia, Pagamento (anche Segna pagato), Rimanda/Salta', () => {
+  for (const f of ['components/scheda/FoglioArrivo.tsx', 'components/SchedaPulizia.tsx', 'components/scheda/FoglioPagamento.tsx']) {
+    assert.match(leggi(f), /salvato=\{salvato\} onFineSalvato=/, `${f} non usa la conferma B`)
+  }
+  assert.match(leggi('components/maison/FoglioMaison.tsx'), /\{salvato && <SalvatoMaison salvato=\{salvato\}/)
+  assert.match(leggi('components/ControlliPulizia.tsx'), /<SalvatoMaison salvato=\{salvato\} onFine=\{fineSalvato\} \/>/)
+  // «Segna pagato» della giornata apre lo stesso foglio del pagamento
+  assert.match(leggi('components/maison/PagamentoDaHome.tsx'), /<FoglioPagamento /)
+  assert.match(leggi('components/ArriviOggi.tsx'), /<PagamentoDaHome bookingId=\{pagamento\}/)
+  // i testi dei due modi di salvare restano per l'errore: «Non salvato, riprova» non cambia
+  assert.match(leggi('lib/scritturaSicura.ts'), /MESSAGGIO_NON_SALVATO = 'Non salvato, riprova'/)
+})

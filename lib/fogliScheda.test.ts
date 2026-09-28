@@ -63,7 +63,7 @@ test('i campi dei fogli: righe col filo card-border sotto, etichettina in ottone
 })
 
 // ── Ogni foglio si apre dal suo comando e si chiude ─────────────────────────
-const FOGLI_MAISON = ['FoglioArrivo']
+const FOGLI_MAISON = ['FoglioArrivo', 'FoglioPagamento']
 for (const f of FOGLI) {
   const sorgente = leggi(`components/scheda/${f.file}.tsx`)
   test(`${f.file}: si apre dal comando della scheda, si chiude, e «Annulla» non cambia niente`, () => {
@@ -95,12 +95,13 @@ test('il pagamento (disegno approvato il 20/09/2026, punto 5): residuo in cima, 
   assert.match(pagina, /<FoglioPagamento booking=\{booking\} righe=\{righe\} conto=\{conto\}/)
   assert.equal(/saldoMancanteCent|contoPrenotazione\(/.test(pagamento), false, 'il foglio ricalcola il conto da sé')
   assert.match(pagamento, /const residuoCent = totaleCent - ricevutiCent/)
-  assert.match(pagamento, /data-resta-da-incassare[\s\S]{0,200}\{RESTA_DA_INCASSARE\}[\s\S]{0,200}data-residuo-attuale[\s\S]{0,80}font: `26px \$\{GEORGIA\}`/)
+  // veste «Maison» (28/09/2026): l'etichetta e la cifra grande in Cormorant
+  assert.match(pagamento, /data-resta-da-incassare[\s\S]{0,200}\{RESTA_DA_INCASSARE\}[\s\S]{0,200}data-residuo-attuale className="mz-grande"/)
   // i due tasti, e all'apertura con residuo positivo è scelto il saldo, col campo già scritto e in sola lettura
   assert.match(pagamento, /useState<ModoImporto>\(incerto \? 'altro' : modoIniziale\(residuoCent\)\)/)
   assert.match(pagamento, /data-modo="saldo" aria-pressed=\{modo === 'saldo'\} disabled=\{nienteDaSaldare \|\| !!incerto\} onClick=\{scegliSaldo\}/)
   assert.match(pagamento, /data-modo="altro" aria-pressed=\{modo === 'altro'\} disabled=\{!!incerto\} onClick=\{scegliAltro\}/)
-  assert.match(pagamento, /role="group" aria-label=\{GRUPPO_MODI\} className="grid grid-cols-2 gap-2"/)
+  assert.match(pagamento, /role="group" aria-label=\{GRUPPO_MODI\} className="mz-seg"/)
   assert.match(pagamento, /type="text" inputMode="decimal"[^\n]*data-campo="importo" value=\{importo\} readOnly=\{modo === 'saldo' \|\| !!incerto\}/)
   assert.match(pagamento, /\{modo === 'saldo' \? SPIEGA_SALDO : SPIEGA_ALTRO\}/)
   // «Altro importo» svuota il campo e ci porta il fuoco; «Saldo completo» riscrive il residuo; data, modo e nota non si toccano
@@ -110,7 +111,7 @@ test('il pagamento (disegno approvato il 20/09/2026, punto 5): residuo in cima, 
   assert.equal(/scegliAltro\(\) \{[\s\S]{0,200}(setGiorno|setMetodo|setNota)/.test(pagamento), false, 'cambiare modalità tocca data, metodo o nota')
   // quando su oggi (il vero campo data), Contanti · Bonifico (le vere pastiglie), nota
   assert.match(pagamento, /useState\(incerto \? incerto\.giorno : oggi\)/)
-  assert.match(pagamento, /<CampoData etichetta=\{ETICHETTA_QUANDO\}[^\n]*ottone/)
+  assert.match(pagamento, /\{ETICHETTA_QUANDO\}[\s\S]{0,200}type="date" data-campo="giorno" value=\{giorno\}/)
   assert.match(pagamento, /useState<ModoPagamento>\(incerto \? \(incerto\.metodo === 'bonifico' \? 'bonifico' : 'contanti'\) : modoProposto\(bonifico\)\)/)
   assert.match(pagamento, /MODI_PAGAMENTO\.map/)
   assert.equal(/setMetodo\((?!m\.chiave)/.test(pagamento), false, 'il metodo cambia da solo con la modalità')
@@ -118,22 +119,21 @@ test('il pagamento (disegno approvato il 20/09/2026, punto 5): residuo in cima, 
   // in fondo: filo, «Dopo il pagamento resta» con la cifra prevista, l'esito, l'oltre in mattone, l'importo scritto male
   assert.match(pagamento, /const previsto = residuoPrevisto\(residuoCent, cent\)/)
   assert.match(pagamento, /<div aria-live="polite">/)
-  assert.match(pagamento, /data-dopo-resta[\s\S]{0,200}borderTop: `1px solid \$\{FILO_RESIDUO\}`[\s\S]{0,120}\{DOPO_IL_PAGAMENTO_RESTA\}[\s\S]{0,120}data-residuo-previsto[\s\S]{0,80}font: `25px \$\{GEORGIA\}`/)
-  assert.match(pagamento, /data-esito style=\{SPIEGA\}>\{previsto\.esito\}/)
-  assert.match(pagamento, /data-oltre-il-dovuto[\s\S]{0,120}color: MATTONE/)
+  assert.match(pagamento, /data-dopo-resta[\s\S]{0,120}\{DOPO_IL_PAGAMENTO_RESTA\}[\s\S]{0,120}data-residuo-previsto[\s\S]{0,120}\{previsto\.cifra\}/)
+  assert.match(pagamento, /data-esito> · \{previsto\.esito\}/)
+  assert.match(pagamento, /data-oltre-il-dovuto className="mz-errore"/)   // mattone, nella veste «Maison»
   assert.match(pagamento, /data-errore-importo[\s\S]{0,80}\{ERRORE_IMPORTO\}/)
   // senza importo valido non si salva: il tasto è spento (e oltre il dovuto NON si blocca)
-  assert.match(pagamento, /<PiedeFoglio azione=\{incerto \? COMANDO_RIPROVA_PAGAMENTO : SALVA_PAGAMENTO\} onAzione=\{salva\} salvando=\{salvando\} disabilitato=\{cent == null \|\| \(!!incerto && !riprovabile\)\}/)
+  assert.match(pagamento, /<PiedeMaison azione=\{incerto \? COMANDO_RIPROVA_PAGAMENTO : SALVA_PAGAMENTO\} onAzione=\{salva\} salvando=\{salvando\} disabilitato=\{cent == null \|\| \(!!incerto && !riprovabile\)/)
   assert.equal(/oltre[^\n]*return/.test(pagamento), false, 'il foglio blocca l’importo oltre il dovuto')
   assert.match(foglio, /disabled=\{salvando \|\| disabilitato\}/)
   assert.match(foglio, /data-annulla-foglio onClick=\{onAnnulla\} disabled=\{salvando\}/)   // «Annulla» resta viva
-  // le misure del riferimento: titolo Georgia 23, etichette 10 px / 1,3 px dorate, campi 16 px, tasti 13/600 angoli 8
-  assert.match(pagamento, /<Foglio titolo=\{TITOLO_PAGAMENTO\} misuraTitolo=\{23\} onChiudi=\{onChiudi\}>/)
-  assert.match(pagamento, /const ETICHETTA: CSSProperties = \{ fontSize: 10, letterSpacing: '1\.3px', color: '#9c814e' \}/)
-  assert.match(pagamento, /const CAMPO: CSSProperties = \{ \.\.\.stileCampo, fontSize: 16, color: TESTO \}/)
-  assert.match(pagamento, /fontSize: 13, fontWeight: 600, lineHeight: 1\.5, borderRadius: 8, padding: '12px 6px'/)
-  assert.match(pagamento, /const VERDE_SCELTO = '#30674f'/)
-  assert.match(pagamento, /const TESTO = '#30483b'/)
+  // dal 28/09/2026 la veste «Maison»: titolo = nome, sottotitolo camera · date · Aggiungi pagamento, altezza fissa, conferma B
+  assert.match(pagamento, /<FoglioMaison titolo=\{nome\} sottotitolo=\{sottotitolo\} altezza=\{ALTEZZA_FOGLIO_PAGAMENTO\}/)
+  assert.match(pagamento, /\[camere, arrivo && partenza \? periodoCompatto\(arrivo, partenza\) : '', TITOLO_PAGAMENTO\]/)
+  assert.match(pagamento, /salvato=\{salvato\} onFineSalvato=\{\(\) => \{ if \(salvato\) onSalvato\(salvato\.esito\) \}\}/)
+  assert.match(pagamento, /className=\{`mz-chip \$\{metodo === m\.chiave \? 'on' : ''\}`\}/)
+  assert.match(pagamento, /className="mz-fld grande"/)
   assert.equal(/Arial|fonts\.googleapis|@import/.test(pagamento), false, 'caratteri nuovi nel foglio')
   // aprire il foglio o scegliere un tasto non scrive: si scrive solo in salva()
   assert.equal((pagamento.match(/registraPagamento\(/g) || []).length, 1, 'registraPagamento chiamato fuori da salva()')
@@ -211,8 +211,10 @@ test('rilievo 3 (20/09/2026 notte): tre esiti, tre messaggi; «Verifica pagament
   assert.match(pagamento, /useState<TentativoIncerto \| null>\(\(\) => tentativoIncerto\(booking, righe\)\)/)
   assert.match(pagamento, /if \(esito\.incerto\) \{\s*setIncerto\(esito\.incerto\)\s*setRiprovabile\(false\)[^\n]*\n\s*setErrore\(esito\.messaggio\)\s*return\s*\}/)
   assert.match(pagamento, /data-verifica-pagamento onClick=\{verifica\} disabled=\{verificando\}/)
-  assert.match(pagamento, /if \(esito\.esito === 'ritrovato'\) \{[\s\S]{0,400}ritrovato: true \}\)/)
-  assert.match(pagina, /confermaPagamento\(esito\.importo, esito\.metodo, saldoMancanteCent\(righePerSaldo\(righe\), nuovi\), !!esito\.ritrovato\)/)
+  assert.match(pagamento, /if \(esito\.esito === 'ritrovato'\) \{[\s\S]{0,500}ritrovato: true \} \}\)/)
+  // dal 28/09/2026 la conferma è la B del foglio: il ritrovato si dice lì («ritrovato e confermato»)
+  assert.match(pagamento, /COSA_SALVATA\.pagamento\(nome, true\)/)
+  assert.equal(/confermaPagamento\(/.test(pagina), false, 'la scheda mostra ancora la conferma volante del pagamento')
   // il bollino «pagato» dice al server il mancante atteso (0): una camera aggiunta nel frattempo non fa nascere un saldo inventato
   assert.match(pagamentiDati, /let rpc = await supabase\.rpc\(nomeRpc, \{ \.\.\.argomenti, p_mancante_atteso: 0 \}\)/)
   assert.match(pagamentiDati, /bollinoContoCambiato = true/)
@@ -665,11 +667,11 @@ test('21/09/2026 — «Verifica pagamento» e nota; risposta persa con la scritt
   assert.match(pagamento, /useState\(incerto \? importoProposto\(Math\.round\(incerto\.importo \* 100\)\) : /)
   assert.match(pagamento, /useState\(incerto \? incerto\.nota : ''\)/)
   assert.match(pagamento, /data-campo="importo" value=\{importo\} readOnly=\{modo === 'saldo' \|\| !!incerto\}/)
-  assert.match(pagamento, /onValore=\{v => \{ if \(!incerto\) setGiorno\(v\) \}\}/)
+  assert.match(pagamento, /onChange=\{e => \{ if \(!incerto\) setGiorno\(e\.target\.value\) \}\}/)
   assert.match(pagamento, /onClick=\{\(\) => \{ if \(!incerto\) setMetodo\(m\.chiave\) \}\}/)
   assert.match(pagamento, /data-campo="nota" value=\{nota\} readOnly=\{!!incerto\}/)
   // al rinvio la conferma dice «Ritrovati e confermati» (il pagamento era quello in sospeso)
-  assert.match(pagamento, /onSalvato\(\{ \.\.\.esito, importo: dati\.importo, metodo: dati\.metodo, ritrovato: !!esito\.giaRegistrato \}\)/)
+  assert.match(pagamento, /COSA_SALVATA\.pagamento\(nome, !!esito\.giaRegistrato\), quando: new Date\(\), esito: \{ \.\.\.esito, importo: dati\.importo, metodo: dati\.metodo, ritrovato: !!esito\.giaRegistrato \}/)
   assert.match(pagamentiDati, /giaPresente = r\.gia_presente === true/)
   assert.match(pagamentiDati, /giaRegistrato: esito\.giaApplicato \|\| giaPresente/)
 })

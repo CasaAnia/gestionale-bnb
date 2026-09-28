@@ -90,9 +90,7 @@ import {
   PRENOTAZIONE_SALVATA, PRENOTAZIONE_DA_RICHIESTA, FONDO_SALVATA, FONDO_ANNULLATA, TESTO_ANNULLATA,
 } from '@/lib/schedaPrenotazione'
 import { comePagaSalvato } from '@/lib/comePaga'
-import { confermaPagamento, CONFERMA_CONTO_CAMBIATO, type ConfermaPagamento } from '@/lib/confermaPagamento'
-import { righePerSaldo, AVVISO_BOLLINO_CONTO_CAMBIATO } from '@/lib/pagamentiDati'
-import { saldoMancanteCent } from '@/lib/statistiche'
+import { type ConfermaPagamento } from '@/lib/confermaPagamento'
 import { pianoNotti, stessaStriscia, ospitiDaQuiInPoi, type ContestoNotti, type NotteStriscia, type CameraStriscia, type TrattoPiano } from '@/lib/strisciaNotti'
 import { ospitiPossibiliNotte } from '@/lib/nuovaPrenotazione'
 import { capienzaCamera } from '@/lib/tariffe'
@@ -789,10 +787,8 @@ export default function SchedaPage() {
             }
             setFoglioPagamento(false)
             setAvviso(esito.avviso)
-            const righeConferma = confermaPagamento(esito.importo, esito.metodo, saldoMancanteCent(righePerSaldo(righe), nuovi), !!esito.ritrovato)
-            // il conto è cambiato mentre si registrava (camera in più, movimento tolto): niente «soggiorno saldato» finché la scheda non rilegge
-            if (esito.avviso === AVVISO_BOLLINO_CONTO_CAMBIATO) righeConferma.seconda = CONFERMA_CONTO_CAMBIATO
-            setConferma(c => ({ n: (c?.n ?? 0) + 1, righe: righeConferma }))
+            // Dal 28/09/2026 la conferma è quella B del foglio («Salvato», l'ora,
+            // chiusura da sola): niente più conferma volante qui sotto
             rileggi()
           }} />
       )}

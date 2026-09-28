@@ -19,7 +19,7 @@ export const testoSalvato = (cosa: string, quando: Date) => `${cosa} · ${oraSal
 export const COSA_SALVATA = {
   arrivo: (nome: string) => `Arrivo di ${nome}`,
   pulizia: (camera: string) => `Pulizia di ${camera}`,
-  pagamento: (nome: string) => `Pagamento di ${nome}`,
+  pagamento: (nome: string, ritrovato = false) => `Pagamento di ${nome}${ritrovato ? ' ritrovato e confermato' : ''}`,
   rimandata: (camera: string) => `Pulizia di ${camera} rimandata`,
   saltata: (camera: string) => `Pulizia di ${camera} saltata`,
 } as const

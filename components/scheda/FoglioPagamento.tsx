@@ -20,12 +20,24 @@
 // telefono, letto al momento del salvataggio, oppure la scheda che rilegge)
 // la cifra in cima si aggiorna, nel saldo si riscrive il campo e lo si dice:
 // non si salva mai un importo diverso da quello mostrato.
+//
+// Dal 28/09/2026 la veste «Maison» (riferimento approvato da Ania): foglio
+// dal basso ad altezza fissa, titolo = nome, sotto «camera · date · Aggiungi
+// pagamento»; «Resta da incassare» grande in Cormorant; «Saldo completo |
+// Altro importo» a filo; Quanto e Quando a filo; Come con due sole scelte,
+// Contanti e Bonifico; la nota; «Dopo il pagamento resta … · Il conto sarà
+// saldato.»; «Annulla» e «Salva il pagamento» pieno. Dopo il salvataggio la
+// conferma B (spunta e «Salvato»), poi il foglio si chiude da solo. Logica
+// invariata (lib/pagamentoFoglio, lib/pagamentiDati).
 // ============================================================================
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import Foglio, { PiedeFoglio } from './Foglio'
+import { useEffect, useRef, useState } from 'react'
+import FoglioMaison, { PiedeMaison } from '@/components/maison/FoglioMaison'
+import type { Salvataggio } from '@/components/maison/SalvatoMaison'
 import AvvisoAzione from '@/components/AvvisoAzione'
-import CampoData from '@/components/nuova/CampoData'
-import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, stileCampo, MATTONE } from '@/components/nuova/PezziNuova'
+import { apriSelettore } from '@/components/nuova/CampoData'
+import { COSA_SALVATA } from '@/lib/salvatoMaison'
+import { nomeConAltri } from '@/lib/guestName'
+import { periodoCompatto, MESI_LUNGHI } from '@/lib/dateItaliane'
 import {
   TITOLO_PAGAMENTO, SALVA_PAGAMENTO, ETICHETTA_QUANTO, ETICHETTA_QUANDO, ETICHETTA_COME, ETICHETTA_NOTA, ERRORE_IMPORTO, ERRORE_GIORNO,
   RESTA_DA_INCASSARE, MODO_SALDO, MODO_ALTRO, GRUPPO_MODI, SPIEGA_SALDO, SPIEGA_ALTRO, DOPO_IL_PAGAMENTO_RESTA, NIENTE_DA_SALDARE,
@@ -45,18 +57,10 @@ export type PagamentoSalvato = Extract<EsitoPagamento, { esito: 'ok' }> & { impo
 /** Il conto autorevole della scheda: le tre cifre di contoPrenotazione */
 export type ContoFoglio = { totaleCent: number; ricevutiCent: number }
 
-// ── Le misure e i colori del riferimento approvato (solo dentro questo foglio) ──
-const TESTO = '#30483b'
-const VERDE_SCELTO = '#30674f'
-const FILO_TASTO = '#c9d1c3'
-const FILO_RESIDUO = '#d4c6aa'
-const SPIEGAZIONE = '#6d7967'
-const ERRORE = '#a83f2c'
-const GEORGIA = 'Georgia, serif'
-const MONETA: CSSProperties = { whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }
-const ETICHETTA: CSSProperties = { fontSize: 10, letterSpacing: '1.3px', color: '#9c814e' }
-const SPIEGA: CSSProperties = { marginTop: 6, fontSize: 12, color: SPIEGAZIONE }
-const CAMPO: CSSProperties = { ...stileCampo, fontSize: 16, color: TESTO }
+/** Il foglio ha un'altezza fissa, quella del caso più lungo (con l'avviso sull'esito) */
+export const ALTEZZA_FOGLIO_PAGAMENTO = 700
+/** «28 settembre 2026» */
+const giornoInParole = (iso: string) => { const [a, m, g] = iso.split('-').map(Number); return iso ? `${g} ${MESI_LUNGHI[m - 1]} ${a}` : 'da scegliere' }
 
 export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico, onChiudi, onSalvato, onContoCambiato }: {
   booking: RigaPagabile
@@ -101,6 +105,13 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   // farebbero partire altrettanti salvataggi (li salverebbe solo la chiave
   // idempotente). Con il ref il secondo tocco trova la porta già chiusa.
   const inCorso = useRef(false)
+  // Conferma B (28/09/2026): la spunta, poi il foglio si chiude da solo e la scheda (o la Home) riceve l'esito
+  const [salvato, setSalvato] = useState<(Salvataggio & { esito: PagamentoSalvato }) | null>(null)
+  const nome = nomeConAltri(booking) || 'Ospite'
+  const camere = [...new Set(righe.filter(r => r.status !== 'annullata').map(r => String((r as { rooms?: { name?: string | null } | null }).rooms?.name ?? '').split(' ').slice(-1)[0]).filter(Boolean))].join(' → ')
+  const arrivo = righe.filter(r => r.status !== 'annullata').reduce((m, r) => (!m || r.check_in < m ? r.check_in : m), '')
+  const partenza = righe.filter(r => r.status !== 'annullata').reduce((m, r) => (r.check_out > m ? r.check_out : m), '')
+  const sottotitolo = [camere, arrivo && partenza ? periodoCompatto(arrivo, partenza) : '', TITOLO_PAGAMENTO].filter(Boolean).join(' · ')
 
   // Il conto della scheda è cambiato mentre il foglio era aperto (rilettura):
   // la cifra in cima segue, nel saldo il campo si riscrive, e lo si dice.
@@ -184,7 +195,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
       return
     }
     // rimandato e già arrivato la volta prima → «Ritrovati e confermati»; scritto adesso → «Registrati»
-    onSalvato({ ...esito, importo: dati.importo, metodo: dati.metodo, ritrovato: !!esito.giaRegistrato })
+    setSalvato({ cosa: COSA_SALVATA.pagamento(nome, !!esito.giaRegistrato), quando: new Date(), esito: { ...esito, importo: dati.importo, metodo: dati.metodo, ritrovato: !!esito.giaRegistrato } })
   }
 
   async function verifica() {
@@ -195,7 +206,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
     let esito: Awaited<ReturnType<typeof verificaPagamento>>
     try { esito = await verificaPagamento(booking, righe) } finally { setVerificando(false) }
     if (esito.esito === 'ritrovato') {
-      onSalvato({ esito: 'ok', pagamenti: esito.pagamenti, pagato: esito.pagato, avviso: esito.avviso, importo: esito.tentativo.importo, metodo: (esito.tentativo.metodo === 'bonifico' ? 'bonifico' : 'contanti'), ritrovato: true })
+      setSalvato({ cosa: COSA_SALVATA.pagamento(nome, true), quando: new Date(), esito: { esito: 'ok', pagamenti: esito.pagamenti, pagato: esito.pagato, avviso: esito.avviso, importo: esito.tentativo.importo, metodo: (esito.tentativo.metodo === 'bonifico' ? 'bonifico' : 'contanti'), ritrovato: true } })
       return
     }
     if (esito.esito === 'errore') { setErrore(esito.messaggio); return }
@@ -207,74 +218,69 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
     setEsitoVerifica(esito.riprovabile ? PAGAMENTO_NON_TROVATO : PAGAMENTO_NON_RIPROVABILE)
   }
 
-  const tasto = (scelto: boolean, spento = false): CSSProperties => ({
-    fontSize: 13, fontWeight: 600, lineHeight: 1.5, borderRadius: 8, padding: '12px 6px', minWidth: 0,
-    border: `1px solid ${scelto ? VERDE_SCELTO : FILO_TASTO}`,
-    background: scelto ? VERDE_SCELTO : 'transparent', color: scelto ? '#fff' : TESTO,
-    opacity: spento ? 0.45 : 1, cursor: spento ? 'default' : 'pointer',
-  })
-
   return (
-    <Foglio titolo={TITOLO_PAGAMENTO} misuraTitolo={23} onChiudi={onChiudi}>
-      <div data-foglio-pagamento style={{ color: TESTO, fontSize: 14, lineHeight: 1.5, marginTop: 8 }}>
+    <FoglioMaison titolo={nome} sottotitolo={sottotitolo} altezza={ALTEZZA_FOGLIO_PAGAMENTO} onChiudi={salvato ? () => {} : onChiudi} dati="pagamento"
+      salvato={salvato} onFineSalvato={() => { if (salvato) onSalvato(salvato.esito) }}
+      piede={<PiedeMaison azione={incerto ? COMANDO_RIPROVA_PAGAMENTO : SALVA_PAGAMENTO} onAzione={salva} salvando={salvando} disabilitato={cent == null || (!!incerto && !riprovabile) || !!salvato} onAnnulla={onChiudi} dati="pagamento" />}>
+      <div data-foglio-pagamento>
         {/* In cima: quanto resta da incassare, dal conto autorevole della scheda */}
-        <div data-resta-da-incassare className="flex items-baseline justify-between gap-[10px]" style={{ marginBottom: nienteDaSaldare ? 8 : 20 }}>
-          <span>{RESTA_DA_INCASSARE}</span>
-          <strong data-residuo-attuale style={{ ...MONETA, font: `26px ${GEORGIA}`, fontWeight: 400 }}>{euroScheda(Math.max(0, residuoCent))}</strong>
+        <div data-resta-da-incassare>
+          <span className="mz-lab">{RESTA_DA_INCASSARE}</span>
+          <strong data-residuo-attuale className="mz-grande" style={{ fontWeight: 300, display: 'block' }}>{euroScheda(Math.max(0, residuoCent))}</strong>
         </div>
-        {residuoCent < 0 && <p data-oltre-il-totale style={{ ...SPIEGA, marginTop: 0, marginBottom: 12 }}>{OLTRE_IL_TOTALE_FOGLIO(-residuoCent)}</p>}
-        {nienteDaSaldare && residuoCent === 0 && <p data-niente-da-saldare style={{ ...SPIEGA, marginTop: 0, marginBottom: 12 }}>{NIENTE_DA_SALDARE}</p>}
+        {residuoCent < 0 && <p data-oltre-il-totale className="mz-hint">{OLTRE_IL_TOTALE_FOGLIO(-residuoCent)}</p>}
+        {nienteDaSaldare && residuoCent === 0 && <p data-niente-da-saldare className="mz-hint">{NIENTE_DA_SALDARE}</p>}
 
-        {/* I due tasti: saldo completo, oppure un altro importo */}
-        <div role="group" aria-label={GRUPPO_MODI} className="grid grid-cols-2 gap-2">
-          <button type="button" data-modo="saldo" aria-pressed={modo === 'saldo'} disabled={nienteDaSaldare || !!incerto} onClick={scegliSaldo} data-senza-sottolinea style={tasto(modo === 'saldo', nienteDaSaldare || !!incerto)}>{MODO_SALDO}</button>
-          <button type="button" data-modo="altro" aria-pressed={modo === 'altro'} disabled={!!incerto} onClick={scegliAltro} data-senza-sottolinea style={tasto(modo === 'altro')}>{MODO_ALTRO}</button>
+        {/* Il tipo di pagamento: saldo completo, oppure un altro importo */}
+        <span className="mz-lab">{GRUPPO_MODI}</span>
+        <div role="group" aria-label={GRUPPO_MODI} className="mz-seg">
+          <button type="button" data-modo="saldo" aria-pressed={modo === 'saldo'} disabled={nienteDaSaldare || !!incerto} onClick={scegliSaldo} className={modo === 'saldo' ? 'on' : ''}>{MODO_SALDO}</button>
+          <button type="button" data-modo="altro" aria-pressed={modo === 'altro'} disabled={!!incerto} onClick={scegliAltro} className={modo === 'altro' ? 'on' : ''}>{MODO_ALTRO}</button>
         </div>
+        <p id="pagamento-spiegazione" data-spiegazione className="mz-hint">{modo === 'saldo' ? SPIEGA_SALDO : SPIEGA_ALTRO}</p>
 
-        <RigaCampo etichetta={ETICHETTA_QUANTO} ottone stileEtichetta={ETICHETTA} className="mt-[19px]">
-          <input ref={campoImporto} type="text" inputMode="decimal" autoComplete="off" data-campo="importo" value={importo} readOnly={modo === 'saldo' || !!incerto}
-            aria-describedby="pagamento-spiegazione" onChange={e => { if (!incerto) setImporto(e.target.value) }}
-            style={{ ...CAMPO, color: modo === 'saldo' || incerto ? '#6f7c69' : TESTO }} />
-        </RigaCampo>
-        <p id="pagamento-spiegazione" data-spiegazione style={SPIEGA}>{modo === 'saldo' ? SPIEGA_SALDO : SPIEGA_ALTRO}</p>
-
-        <CampoData etichetta={ETICHETTA_QUANDO} valore={giorno} onValore={v => { if (!incerto) setGiorno(v) }} dati="giorno" ottone stileEtichetta={ETICHETTA} className="mt-[11px]" />
-        <Etichetta testo={ETICHETTA_COME} ottone stileEtichetta={{ ...ETICHETTA, marginTop: 19 }} />
-        <FilaPastiglie>
+        <div className="mz-g3" style={{ marginTop: 14 }}>
+          <label><span className="mz-lab">{ETICHETTA_QUANTO}</span>
+            <input ref={campoImporto} type="text" inputMode="decimal" autoComplete="off" data-campo="importo" value={importo} readOnly={modo === 'saldo' || !!incerto}
+              aria-describedby="pagamento-spiegazione" onChange={e => { if (!incerto) setImporto(e.target.value) }} className="mz-fld grande" /></label>
+          <label style={{ gridColumn: 'span 2' }}><span className="mz-lab">{ETICHETTA_QUANDO}</span>
+            <span className="relative block">
+              <span className="mz-fld grande" data-data-scritta>{giornoInParole(giorno)}</span>
+              <input type="date" data-campo="giorno" value={giorno} onChange={e => { if (!incerto) setGiorno(e.target.value) }} onClick={e => apriSelettore(e.currentTarget)}
+                style={{ position: 'absolute', inset: '-8px 0', width: '100%', opacity: 0, cursor: 'pointer' }} />
+            </span></label>
+        </div>
+        <span className="mz-lab">{ETICHETTA_COME}</span>
+        <div className="mz-chips">
           {MODI_PAGAMENTO.map(m => (
-            <Pastiglia key={m.chiave} dati={`modo-${m.chiave}`} acceso={metodo === m.chiave} onClick={() => { if (!incerto) setMetodo(m.chiave) }}>{m.testo}</Pastiglia>
+            <button key={m.chiave} type="button" data-pastiglia={`modo-${m.chiave}`} aria-pressed={metodo === m.chiave} className={`mz-chip ${metodo === m.chiave ? 'on' : ''}`} onClick={() => { if (!incerto) setMetodo(m.chiave) }}>{m.testo}</button>
           ))}
-        </FilaPastiglie>
-        <RigaCampo etichetta={ETICHETTA_NOTA} ottone stileEtichetta={ETICHETTA} className="mt-[19px]">
-          <input type="text" data-campo="nota" value={nota} readOnly={!!incerto} onChange={e => { if (!incerto) setNota(e.target.value) }} style={{ ...CAMPO, color: incerto ? '#6f7c69' : TESTO }} />
-        </RigaCampo>
+        </div>
+        <label className="block"><span className="mz-lab">{ETICHETTA_NOTA}</span>
+          <input type="text" data-campo="nota" value={nota} readOnly={!!incerto} onChange={e => { if (!incerto) setNota(e.target.value) }} className="mz-fld ui" /></label>
 
-        {/* Il filo e, sotto, quanto resterà dopo questo pagamento: si aggiorna mentre si scrive */}
+        {/* Quanto resterà dopo questo pagamento: si aggiorna mentre si scrive */}
         <div aria-live="polite">
-          <div data-dopo-resta className="flex flex-wrap items-baseline justify-between gap-[10px]" style={{ marginTop: 23, padding: '14px 0 0', borderTop: `1px solid ${FILO_RESIDUO}` }}>
-            <span>{DOPO_IL_PAGAMENTO_RESTA}</span>
-            <strong data-residuo-previsto style={{ ...MONETA, font: `25px ${GEORGIA}`, fontWeight: 400 }}>{previsto.cifra}</strong>
-          </div>
-          {previsto.esito && <p data-esito style={SPIEGA}>{previsto.esito}</p>}
-          {previsto.oltre && <p data-oltre-il-dovuto style={{ marginTop: 6, fontSize: 13, fontWeight: 600, color: MATTONE }}>{previsto.oltre}</p>}
-          {importoScrittoMale && <p data-errore-importo style={{ marginTop: 8, fontSize: 13, color: ERRORE }}>{ERRORE_IMPORTO}</p>}
-          {avvisoConto && <p data-conto-cambiato style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: MATTONE }}>{avvisoConto}</p>}
+          <p data-dopo-resta className="mz-hint" style={{ marginTop: 14 }}>
+            {DOPO_IL_PAGAMENTO_RESTA} <b data-residuo-previsto style={{ fontWeight: 500, color: 'var(--m-ink)' }}>{previsto.cifra}</b>
+            {previsto.esito && <span data-esito> · {previsto.esito}</span>}
+          </p>
+          {previsto.oltre && <p data-oltre-il-dovuto className="mz-errore">{previsto.oltre}</p>}
+          {importoScrittoMale && <p data-errore-importo className="mz-errore">{ERRORE_IMPORTO}</p>}
+          {avvisoConto && <p data-conto-cambiato className="mz-errore">{avvisoConto}</p>}
         </div>
         {errore && errore !== MESSAGGIO_ESITO_INCERTO && <AvvisoAzione testo={errore} className="mt-3" />}
         {incerto && (
-          <div data-tentativo-incerto role="alert" style={{ marginTop: 14, padding: '12px 0 0', borderTop: `1px solid ${FILO_RESIDUO}` }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: MATTONE }}>
+          <div data-tentativo-incerto role="alert" style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--m-line)' }}>
+            <p className="mz-errore" style={{ marginTop: 0 }}>
               {errore === MESSAGGIO_ESITO_INCERTO ? MESSAGGIO_ESITO_INCERTO : TENTATIVO_IN_SOSPESO(euroScheda(Math.round(incerto.importo * 100)), incerto.metodo, dataConGiorno(incerto.giorno))}
             </p>
-            {errore === MESSAGGIO_ESITO_INCERTO && <p style={{ ...SPIEGA, marginTop: 4 }}>{TENTATIVO_IN_SOSPESO(euroScheda(Math.round(incerto.importo * 100)), incerto.metodo, dataConGiorno(incerto.giorno))}</p>}
-            <button type="button" data-verifica-pagamento onClick={verifica} disabled={verificando} data-senza-sottolinea
-              style={{ ...tasto(true), width: '100%', marginTop: 10, opacity: verificando ? 0.5 : 1 }}>{verificando ? 'Controllo…' : COMANDO_VERIFICA_PAGAMENTO}</button>
+            {errore === MESSAGGIO_ESITO_INCERTO && <p className="mz-hint">{TENTATIVO_IN_SOSPESO(euroScheda(Math.round(incerto.importo * 100)), incerto.metodo, dataConGiorno(incerto.giorno))}</p>}
+            <button type="button" data-verifica-pagamento onClick={verifica} disabled={verificando} className="mz-lnk" style={{ marginTop: 10 }}>{verificando ? 'Controllo…' : COMANDO_VERIFICA_PAGAMENTO}</button>
           </div>
         )}
-        {esitoVerifica && <p data-esito-verifica style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: TESTO }}>{esitoVerifica}</p>}
-
-        <PiedeFoglio azione={incerto ? COMANDO_RIPROVA_PAGAMENTO : SALVA_PAGAMENTO} onAzione={salva} salvando={salvando} disabilitato={cent == null || (!!incerto && !riprovabile)} onAnnulla={onChiudi} dati="pagamento" />
+        {esitoVerifica && <p data-esito-verifica className="mz-note">{esitoVerifica}</p>}
       </div>
-    </Foglio>
+    </FoglioMaison>
   )
 }
