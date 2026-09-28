@@ -14,15 +14,13 @@
 // striscia della scheda), «come paga» da lib/comePaga. Qui sta solo la pagina.
 // ============================================================================
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import BackBar from '@/components/BackBar'
-import CampoRicerca from '@/components/CampoRicerca'
+import TestaNuova from '@/components/nuova/TestaNuova'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { oggiARoma } from '@/lib/spese/adattatore'
 import { spostaGiorni } from '@/lib/statistiche/periodo'
-import { dataDiOggi, rigaClienteTrovato, AGGIUNGI_CAMERA, SENZA_TELEFONO, SENZA_NOME, parametriInserimento } from '@/lib/nuovaPrenotazione'
-import { valutazioneDi, vuoleRicevuta } from '@/lib/valutazione'
-import RigaCliente, { TastinoSage, NUOVO_CLIENTE, type ClienteRiga } from '@/components/nuova/RigaCliente'
+import { dataDiOggi, AGGIUNGI_CAMERA, SENZA_TELEFONO, SENZA_NOME, parametriInserimento, spesoConcluso } from '@/lib/nuovaPrenotazione'
+import RigaCliente, { RigaClienteMaison, NUOVO_CLIENTE, type ClienteRiga } from '@/components/nuova/RigaCliente'
 import { filtraClienti } from '@/lib/cambiaCliente'
 import { messaggioLetturaNonRiuscita } from '@/lib/prenotazioneScritture'
 import NuovoCliente, { type DatiNuovoCliente } from '@/components/nuova/NuovoCliente'
@@ -36,7 +34,7 @@ import CameraSoggiorno from '@/components/nuova/CameraSoggiorno'
 import ArrivoNavetta from '@/components/ArrivoNavetta'
 import { ARRIVO_VUOTO, campiArrivo, controllaArrivo, type Arrivo } from '@/lib/arrivo'
 import NotteScelta from '@/components/nuova/NotteScelta'
-import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo, OTTONE as OTTONE_PEZZI } from '@/components/nuova/PezziNuova'
+import { Etichetta, FilaPastiglie, Pastiglia, RigaCampo, TastinoTenue, stileCampo, VesteMaison, OTTONE as OTTONE_PEZZI } from '@/components/nuova/PezziNuova'
 import {
   camereDelPeriodo, rigaCamereLibere, datiLinea, nottiDellaLinea, raggruppaPerCamera, periodiDaNottiTenendoVuote,
   periodiDellaLinea, soggiorniConclusi, conflittiConAltre, nottiNonSalvabili, NOTTE_NON_SALVABILE,
@@ -67,7 +65,6 @@ import { lettiOccupatiPerNotte, lettiLiberi, lettiPoolPrenotazione } from '@/lib
 import { leggiOccupazioni, daQuandoLeggere, CAMPI_OCCUPAZIONE, NON_LETTE } from '@/lib/occupazioniDati'
 import { messaggioSovrapposizione } from '@/lib/erroreSovrapposizione'
 
-const OTTONE = '#A9884E'
 // I testi della pagina (TITOLO_PAGINA, AGGIUNGI_CAMERA, SENZA_TELEFONO,
 // SENZA_NOME) stanno in lib/nuovaPrenotazione; la riga del cliente trovato e
 // «+ Nuovo cliente» in components/nuova/RigaCliente. Una pagina di Next non
@@ -87,6 +84,8 @@ export default function NuovaPrenotazionePage() {
   const [ricerca, setRicerca] = useState('')
   const [risultati, setRisultati] = useState<ClienteRiga[]>([])
   const [soggiorni, setSoggiorni] = useState<Record<string, number>>({})
+  // quanto ha speso in tutto, in centesimi (in mattone accanto ai soggiorni)
+  const [speso, setSpeso] = useState<Record<string, number>>({})
   const [erroreRicerca, setErroreRicerca] = useState<string | null>(null)
   const [cliente, setCliente] = useState<ClienteRiga | null>(null)
   const [nuovo, setNuovo] = useState<DatiNuovoCliente | null>(null)
@@ -144,6 +143,20 @@ export default function NuovaPrenotazionePage() {
     return esito
   }, [])
 
+  // Quante volte è già stata qui: si contano i SOGGIORNI, non le righe —
+  // una visita con due cambi camera è una visita sola (15/09/2026) — e
+  // quanto ha speso in tutto (28/09/2026). Se la lettura non riesce non si
+  // scrive un numero sbagliato: si lascia stare.
+  async function leggiStorico(ids: string[]) {
+    if (ids.length === 0) return
+    const { data: righe, error: erroreSoggiorni } = await supabase
+      .from('bookings').select('id, guest_id, check_out, prenotazione_id, group_id, total_amount')
+      .in('guest_id', ids).neq('status', 'annullata').limit(2000)
+    if (erroreSoggiorni) { setSoggiorni({}); setSpeso({}); return }
+    setSoggiorni(soggiorniConclusi((righe ?? []) as RigaSoggiorno[], oggi))
+    setSpeso(spesoConcluso((righe ?? []) as RigaSoggiorno[], oggi))
+  }
+
   // I parametri dell'indirizzo, una volta sola, appena lette le camere: il
   // cliente (guest_id) si legge dall'archivio; camera e date (room_id,
   // check_in, check_out) aprono la prima camera già compilata. Si legge
@@ -164,7 +177,7 @@ export default function NuovaPrenotazionePage() {
     if (p.prenotazione) setAggiungoA({ prenotazione: p.prenotazione, guestId: p.guestId })
     if (p.guestId) {
       void supabase.from('guests').select('*').eq('id', p.guestId).maybeSingle().then(({ data }) => {
-        if (data) { setCliente(data as ClienteRiga); setRicerca(''); setRisultati([]) }
+        if (data) { setCliente(data as ClienteRiga); setRicerca(''); setRisultati([]); void leggiStorico([String(data.id)]) }
       })
     }
   }
@@ -230,16 +243,7 @@ export default function NuovaPrenotazionePage() {
     if (error) { setErroreRicerca(messaggioLetturaNonRiuscita(error, 'cercare il cliente')); setRisultati([]); return }
     const trovati = filtraClienti(testo, (data ?? []) as ClienteRiga[])
     setRisultati(trovati)
-    // Quante volte è già stata qui: si contano i SOGGIORNI, non le righe —
-    // una visita con due cambi camera è una visita sola (15/09/2026). Se la
-    // lettura non riesce non si scrive un numero sbagliato: si lascia stare.
-    const ids = trovati.map(c => c.id)
-    if (ids.length === 0) return
-    const { data: righe, error: erroreSoggiorni } = await supabase
-      .from('bookings').select('id, guest_id, check_out, prenotazione_id, group_id')
-      .in('guest_id', ids).neq('status', 'annullata').limit(2000)
-    if (erroreSoggiorni) { setSoggiorni({}); return }
-    setSoggiorni(soggiorniConclusi((righe ?? []) as RigaSoggiorno[], oggi))
+    await leggiStorico(trovati.map(c => c.id))
   }
 
   // ── le camere della prenotazione ─────────────────────────────────────────
@@ -548,52 +552,49 @@ export default function NuovaPrenotazionePage() {
   }
 
   return (
-    <div className="py-4 px-[22px] md:max-w-[620px] md:mx-auto">
-      <div className="-mx-[6px]"><BackBar href="/prenotazioni" /></div>
+    <VesteMaison>
+    <div className="maison np -mt-12 lg:mt-0" data-senza-sottolinea data-nuova-prenotazione>
+      {/* La testata (veste «Maison», 28/09/2026): titolo, la data di oggi e il
+          cliente scelto; a destra «‹ Indietro». Sul telefono la barra in
+          alto non c'è: la testata è la pagina. */}
+      <TestaNuova data={dataDiOggi(oggi)} sotto={cliente ? ((cliente.full_name ?? '').trim() || 'senza nome') : nuovo ? 'nuovo cliente' : null} riserva="/prenotazioni" />
 
-      {/* Il titolo non si scrive: lo dice già la barra in alto, e leggerlo due
-          volte ruba una riga di schermo (Ania, 14/09/2026 — come nelle
-          Richieste). Resta la data di oggi, che la barra non dice. */}
-      <p data-oggi className="uppercase" style={{ fontSize: 10, letterSpacing: '1.5px', color: OTTONE, marginTop: 10 }}>{dataDiOggi(oggi)}</p>
-
-      {avviso && <AvvisoAzione testo={avviso} className="mt-3" />}
+      {avviso && <div className="np-sec"><p className="np-hint m" role="alert" data-avviso-cliente>{avviso}</p></div>}
 
       {!cliente && !nuovo && (
-        <section data-cerca-cliente style={{ marginTop: 18 }}>
-          <CampoRicerca value={ricerca} onChange={scriviRicerca} placeholder="Cerca per nome o telefono…" />
-          <div style={{ marginTop: 10 }}><TastinoSage testo={NUOVO_CLIENTE} onClick={() => setNuovo(moduloDaRicerca(ricerca))} /></div>
-          {erroreRicerca && <p className="mt-3" style={{ fontSize: 13, color: '#8C3B2E' }}>{erroreRicerca}</p>}
+        <>
+          <section data-cerca-cliente className="np-sec">
+            <label className="np-srch">
+              <span aria-hidden>⌕</span>
+              <input type="search" enterKeyHint="search" value={ricerca} onChange={e => scriviRicerca(e.target.value)}
+                placeholder="Cerca per nome o telefono…" aria-label="Cerca per nome o telefono" data-campo="ricerca" />
+            </label>
+            {erroreRicerca && <p className="np-hint m" data-errore-ricerca>{erroreRicerca}</p>}
+            <p style={{ marginTop: 12 }}><button type="button" className="mz-lnk np-lnk" data-nuovo-cliente onClick={() => setNuovo(moduloDaRicerca(ricerca))}>{NUOVO_CLIENTE}</button></p>
+          </section>
           {risultati.length > 0 && (
-            <div data-trovati style={{ marginTop: 14 }}>
-              {risultati.map(c => <RigaCliente key={c.id} cliente={c} soggiorni={soggiorni[c.id] ?? 0} onScegli={() => scegliCliente(c)} />)}
-              <div style={{ marginTop: 12 }}><TastinoSage testo={NUOVO_CLIENTE} onClick={() => setNuovo(moduloDaRicerca(ricerca))} /></div>
-            </div>
+            <section data-trovati className="np-sec">
+              <p className="mz-eyebrow" style={{ marginBottom: 4 }}>Trovati</p>
+              {risultati.map(c => <RigaCliente key={c.id} cliente={c} soggiorni={soggiorni[c.id] ?? 0} spesoCent={speso[c.id] ?? null} onScegli={() => scegliCliente(c)} />)}
+              <p style={{ marginTop: 14 }}><button type="button" className="mz-lnk np-lnk" data-nuovo-cliente onClick={() => setNuovo(moduloDaRicerca(ricerca))}>{NUOVO_CLIENTE}</button></p>
+            </section>
           )}
-        </section>
+        </>
       )}
 
       {!cliente && nuovo && (
-        <NuovoCliente className="mt-4" dati={nuovo} onDati={setNuovo} strutture={strutture} struttureDisponibili={struttureOk}
+        <NuovoCliente className="np-sec" dati={nuovo} onDati={setNuovo} strutture={strutture} struttureDisponibili={struttureOk}
           onAvanti={() => void creaCliente()} avantiSpento={salvandoCliente} />
       )}
 
       {cliente && (
         <>
-          {/* Il cliente scelto resta in cima, con «cambia» a destra */}
-          <div data-cliente-scelto className="flex items-center justify-between gap-3" style={{ marginTop: 16, padding: '10px 0', borderBottom: '1px solid var(--color-card-border)' }}>
-            <span className="min-w-0">
-              <span className="block truncate" style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-green-dark)' }}>
-                {vuoleRicevuta(cliente) && <span aria-label="vuole la ricevuta">🧾 </span>}
-                {valutazioneDi(cliente) === 'ottimo' && <span aria-hidden style={{ color: OTTONE }}>★ </span>}
-                {(cliente.full_name ?? '').trim() || 'senza nome'}
-              </span>
-              <span className="block truncate" style={{ fontSize: 12.5, color: 'var(--color-stone)', marginTop: 2 }}>{rigaClienteTrovato(cliente.phone, soggiorni[cliente.id] ?? 0)}</span>
-            </span>
-            {/* aggiungendo una camera la cliente è quella della prenotazione: non si cambia da qui */}
-            {!aggiungoA && (
-              <button type="button" data-cambia-cliente onClick={() => { setCliente(null); setRicerca(''); setRisultati([]) }}
-                className="py-2 -my-2 shrink-0" style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-green-mid)' }}>cambia</button>
-            )}
+          {/* Il cliente scelto resta in cima, con «cambia» a destra;
+              aggiungendo una camera la cliente è quella della prenotazione */}
+          <div className="np-sec">
+            <RigaClienteMaison cliente={cliente} soggiorni={soggiorni[cliente.id] ?? 0} spesoCent={speso[cliente.id] ?? null} primo
+              dati={{ 'data-cliente-scelto': '' }}
+              destra={!aggiungoA ? <button type="button" data-cambia-cliente className="mz-lnk q np-lnk" onClick={() => { setCliente(null); setRicerca(''); setRisultati([]) }}>cambia</button> : null} />
           </div>
 
           {linee.map((linea, i) => {
@@ -766,5 +767,6 @@ export default function NuovaPrenotazionePage() {
       )}
 
     </div>
+    </VesteMaison>
   )
 }

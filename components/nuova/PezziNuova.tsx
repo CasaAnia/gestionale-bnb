@@ -6,7 +6,19 @@
 // titoletto in ottone maiuscolo col filo (ed-sezione), righe col filo sotto,
 // niente riquadri.
 // ============================================================================
-import type { CSSProperties, ReactNode } from 'react'
+import { createContext, useContext, type CSSProperties, type ReactNode } from 'react'
+
+// ── La veste «Maison» (riferimento della Nuova prenotazione, 28/09/2026) ────
+// La pagina /nuova-prenotazione si avvolge in <VesteMaison>: gli stessi pezzi
+// (etichette, righe, pastiglie, tasti) si disegnano con le classi np-* di
+// app/maison.css. I fogli della scheda, che usano gli stessi pezzi fuori da
+// VesteMaison, restano come sono.
+const Veste = createContext(false)
+export function VesteMaison({ children }: { children: ReactNode }) {
+  return <Veste.Provider value={true}>{children}</Veste.Provider>
+}
+/** true dentro la pagina «Nuova prenotazione» Maison */
+export const useMaison = () => useContext(Veste)
 
 export const OTTONE = '#A9884E'
 export const MATTONE = '#8C3B2E'
@@ -23,6 +35,8 @@ export const SOTTO_ETICHETTA = 10
 /** L'etichettina piccola sopra un gruppo: «CAMERA», «OSPITI», «SCONTO»…
  *  Nei fogli della scheda (16/09/2026) è in ottone: `ottone`. */
 export function Etichetta({ testo, centrata = false, primo = false, ottone = false, stileEtichetta, className = '' }: { testo: string; centrata?: boolean; primo?: boolean; ottone?: boolean; stileEtichetta?: CSSProperties; className?: string }) {
+  const maison = useMaison()
+  if (maison) return <p data-etichetta className={`np-lab ${centrata ? 'c' : ''} ${primo ? 'primo' : ''} ${className}`}>{testo}</p>
   return (
     <p data-etichetta className={`uppercase ${centrata ? 'text-center' : ''} ${className}`}
       style={{ fontSize: 9.5, letterSpacing: '1.4px', color: ottone ? OTTONE : 'var(--color-stone)', marginTop: primo ? 0 : SOPRA_ETICHETTA, marginBottom: SOTTO_ETICHETTA, ...stileEtichetta }}>{testo}</p>
@@ -35,6 +49,9 @@ export function Etichetta({ testo, centrata = false, primo = false, ottone = fal
  *  del pagamento approvato il 20/09/2026: 10 px, 1,3 px): gli altri fogli
  *  non cambiano. */
 export function RigaCampo({ etichetta, children, ottone = false, stileEtichetta, className = '' }: { etichetta: string; children: ReactNode; ottone?: boolean; stileEtichetta?: CSSProperties; className?: string }) {
+  const maison = useMaison()
+  // Maison: l'etichettina sopra, il filo sotto il valore (np-riga, app/maison.css)
+  if (maison) return <label className={`np-riga ${className}`}><span className="np-lab">{etichetta}</span>{children}</label>
   return (
     <label className={`block ${className}`} style={{ padding: '8px 0', borderBottom: '1px solid var(--color-card-border)' }}>
       <span className="block uppercase" style={{ fontSize: 9.5, letterSpacing: '1.4px', color: ottone ? OTTONE : 'var(--color-stone)', ...stileEtichetta }}>{etichetta}</span>
@@ -58,6 +75,12 @@ export function Pastiglia({ acceso, onClick, spenta = false, colore, children, d
   children: ReactNode
   dati?: string
 }) {
+  const maison = useMaison()
+  // Maison: pillola a filo, accesa piena d'inchiostro; il mattone resta per «!»
+  if (maison) return (
+    <button type="button" data-pastiglia={dati} aria-pressed={acceso} disabled={spenta} onClick={onClick}
+      className={`np-chip ${acceso ? 'on' : ''} ${spenta ? 'off' : ''} ${colore ? 'm' : ''}`}>{children}</button>
+  )
   return (
     <button type="button" data-pastiglia={dati} aria-pressed={acceso} disabled={spenta} onClick={onClick}
       style={{
@@ -75,6 +98,7 @@ export const SPAZIO_PASTIGLIE = 6
 export const SPAZIO_FRA_RIGHE = 8
 
 export function FilaPastiglie({ children, centrata = false, className = '' }: { children: ReactNode; centrata?: boolean; className?: string }) {
+  if (useMaison()) return <div className={`np-chips ${centrata ? 'c' : ''} ${className}`}>{children}</div>
   return <div className={`flex flex-wrap ${centrata ? 'justify-center' : ''} ${className}`}
     style={{ columnGap: SPAZIO_PASTIGLIE, rowGap: SPAZIO_FRA_RIGHE }}>{children}</div>
 }
@@ -84,6 +108,9 @@ export const SOTTO_PASTIGLIE = 10
 
 /** Il tasto verde piccolo, centrato: «Avanti · date e camera», «Salva la prenotazione» */
 export function TastoAvanti({ testo, onClick, disabilitato = false, dati }: { testo: string; onClick: () => void; disabilitato?: boolean; dati?: string }) {
+  // Maison: l'azione principale è l'unico elemento pieno, angoli vivi; dove
+  // sta (a sinistra o al centro) lo decide chi lo contiene
+  if (useMaison()) return <button type="button" data-avanti={dati} onClick={onClick} disabled={disabilitato} className="mz-cta np-cta">{testo}</button>
   return (
     <p className="text-center">
       <button type="button" data-avanti={dati} onClick={onClick} disabled={disabilitato}
@@ -100,6 +127,8 @@ export function TastoAvanti({ testo, onClick, disabilitato = false, dati }: { te
 // telefono di Ania non si prendeva (14/09/2026). L'area cresce, la scritta no.
 export const ALTEZZA_TOCCO = 44
 export function TastinoTenue({ testo, onClick, centrato = true, dati }: { testo: string; onClick: () => void; centrato?: boolean; dati?: string }) {
+  // Maison: parola maiuscoletta tenue col filo (mz-lnk q), area di tocco 44 px
+  if (useMaison()) return <p className={centrato ? 'text-center' : ''}><button type="button" data-tastino={dati} onClick={onClick} className="mz-lnk q np-lnk">{testo}</button></p>
   return (
     <p className={centrato ? 'text-center' : ''}>
       <button type="button" data-tastino={dati} onClick={onClick}

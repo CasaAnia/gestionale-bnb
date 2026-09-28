@@ -273,3 +273,78 @@ body:has(.maison) { background: #F6F2EA; }
   }
   .maison .mz-arr .id .nm { font-size: 19px; }
 }
+
+/* ── Nuova prenotazione «Maison» (riferimento del 28/09/2026:
+   docs/design/nuova-prenotazione-riferimento.html). La pagina è
+   <div class="maison np">: prende le variabili --home-* della Home (dal
+   telefono Figtree, margini 16 px; dal Mac Jost). I pezzi condivisi
+   (components/nuova/PezziNuova) dentro <VesteMaison> usano queste classi. ── */
+.np { padding-bottom: 16px; }
+.np-hd { padding: 18px var(--home-gutter) 6px; display: flex; align-items: flex-end; gap: 10px; }
+.np-hd h1 { font-family: var(--m-disp); font-size: 26px; font-weight: 500; margin: 0; flex: 1; line-height: 1; color: var(--m-ink); min-width: 0; }
+.np-hd h1 small { display: block; font-family: var(--home-ui-font); font-size: 9.5px; letter-spacing: .22em; text-transform: uppercase; color: var(--m-acc); margin-top: 6px; font-weight: 500; line-height: 1.4; }
+.np-back { position: relative; font-family: var(--home-ui-font); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--m-mut); background: none; border: 0; padding: 0; white-space: nowrap; }
+.np-back::before { content: ""; position: absolute; left: -10px; right: -6px; top: 50%; height: 44px; transform: translateY(-50%); }
+.np-sec { padding: 14px var(--home-gutter) 0; }
+.np-sec > .mz-eyebrow { display: flex; align-items: center; gap: 10px; margin: 0; }
+.np-sec > .mz-eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--m-line); }
+.np-lab { display: block; font-family: var(--home-ui-font); font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--m-mut); margin: 14px 0 4px; font-weight: 400; line-height: 1.3; }
+.np-lab.c { text-align: center; }
+.np-lab.primo { margin-top: 10px; }
+.np-hint { font-family: var(--home-ui-font); font-size: 12.5px; color: var(--m-mut); font-weight: 400; margin: 6px 0 0; line-height: 1.45; }
+.np-hint.o { color: var(--m-acc); }
+.np-hint.m { color: var(--m-mat); }
+.np-hint.c { text-align: center; }
+.np-g2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.np-g2 > * { min-width: 0; }
+.np-mat { color: var(--m-mat); }
+
+/* I campi: solo il filo sotto, il valore in Cormorant 16. I pezzi condivisi
+   scrivono ancora il loro stile in linea (stileCampo): qui si sovrascrive. */
+.np-riga { display: block; }
+.np-fld, .np .np-riga input:not([type="date"]), .np .np-riga textarea {
+  display: block; width: 100% !important; border: 0 !important; border-bottom: 1px solid #C9BFA8 !important; border-radius: 0 !important;
+  background: transparent !important; padding: 5px 0 !important; margin: 0 !important; min-height: 30px;
+  font-family: var(--m-disp) !important; font-size: 16px !important; font-weight: 400 !important; color: var(--m-ink) !important; outline: none;
+}
+.np-fld:focus, .np .np-riga input:focus, .np .np-riga textarea:focus { border-bottom-color: var(--m-acc) !important; }
+.np-fld.ui, .np .np-riga textarea, .np [data-campo="motivo"], .np [data-campo="struttura"], .np [data-campo="luogo-altro"], .np [data-campo="persona-chi"] {
+  font-family: var(--home-ui-font) !important; font-size: 13.5px !important;
+}
+.np-fld::placeholder, .np .np-riga input::placeholder, .np .np-riga textarea::placeholder { color: #B8AE9C; font-family: var(--home-ui-font); font-size: 13px; opacity: 1; }
+.np-data { position: relative; display: block; border-bottom: 1px solid #C9BFA8; padding: 5px 0; min-height: 30px; font-family: var(--m-disp); font-size: 16px; color: var(--m-ink); line-height: 20px; }
+.np-data.vuota { color: #B8AE9C; font-family: var(--home-ui-font); font-size: 13px; }
+
+/* Le pastiglie: pillola a filo, accesa d'inchiostro, occupata tratteggiata */
+.np-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.np-chips.c { justify-content: center; }
+.np-chip { position: relative; font-family: var(--home-ui-font); font-size: 12.5px; font-weight: 400; border: 1px solid #C9BFA8; border-radius: 999px; padding: 6px 12px; color: var(--m-ink); background: #fff; line-height: 1.3; max-width: 100%; overflow-wrap: anywhere; text-decoration: none !important; }
+.np-chip::before { content: ""; position: absolute; left: -3px; right: -3px; top: 50%; height: 42px; transform: translateY(-50%); }
+.np-chip.on { background: var(--m-ink); color: #F6F2EA; border-color: var(--m-ink); }
+.np-chip.off { color: #B8AE9C; border-style: dashed; cursor: default; }
+.np-chip.m { color: var(--m-mat); border-color: var(--m-mat); }
+.np-chip.m.on { background: var(--m-mat); border-color: var(--m-mat); color: #fff; }
+.np-cta { display: inline-block; padding: 11px 18px; min-height: 40px; }
+.np-lnk { font-size: 11px; }
+.maison .np .mz-lnk { font-size: 11px; }
+
+/* Contatori − / + : cerchi a filo, numero in Cormorant */
+.np-pm { display: flex; align-items: center; gap: 12px; }
+.np-pm button { position: relative; width: 34px; height: 34px; border: 1px solid #C9BFA8; border-radius: 50%; display: grid; place-items: center; font-size: 17px; line-height: 1; background: #fff; color: var(--m-ink); padding: 0; font-family: var(--home-ui-font); }
+.np-pm button::before { content: ""; position: absolute; inset: -5px; }
+.np-pm button:disabled { opacity: .4; }
+.np-pm b { font-family: var(--m-disp); font-size: 22px; font-weight: 500; min-width: 22px; text-align: center; color: var(--m-ink); }
+.np-pm.piccolo { gap: 10px; }
+
+/* La ricerca e le righe dei clienti */
+.np-srch { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #C9BFA8; padding: 8px 0; }
+.np-srch > span { color: var(--m-mut); font-family: var(--home-ui-font); font-size: 13px; }
+.np-srch input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-family: var(--m-disp); font-size: 16px; color: var(--m-ink); padding: 0; }
+.np-srch input::placeholder { color: #B8AE9C; font-family: var(--home-ui-font); font-size: 13px; }
+.np-srch input::-webkit-search-cancel-button { display: none; }
+.np-cl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border: 0; border-top: 1px solid var(--m-line); width: 100%; text-align: left; background: none; color: inherit; }
+.np-cl.primo { border-top: 0; padding-top: 2px; }
+.np-cl .nm { display: block; font-family: var(--m-disp); font-size: 19px; font-weight: 500; line-height: 1.05; color: var(--m-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np-cl .nm b { color: var(--m-acc); font-weight: 400; }
+.np-cl .sm { display: block; font-family: var(--home-ui-font); font-size: 12.5px; color: var(--m-mut); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np-cl .ar { font-size: 18px; color: var(--m-mut); }

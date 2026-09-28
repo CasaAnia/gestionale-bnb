@@ -332,7 +332,7 @@ export function conflittiConAltre(
 // visita sola (rilievo del 15/09/2026, prima ne contava tre). L'identità è
 // quella di lib/storicoCliente: prenotazione_id, se manca group_id, se manca
 // la riga da sola.
-export type RigaSoggiorno = { guest_id: string; check_out: string; prenotazione_id?: string | null; group_id?: string | null; id?: string | null }
+export type RigaSoggiorno = { guest_id: string; check_out: string; prenotazione_id?: string | null; group_id?: string | null; id?: string | null; total_amount?: number | string | null }
 export function soggiorniConclusi(righe: RigaSoggiorno[], oggi: string): Record<string, number> {
   const visti = new Map<string, Set<string>>()
   for (const b of righe) {
@@ -342,6 +342,21 @@ export function soggiorniConclusi(righe: RigaSoggiorno[], oggi: string): Record<
     visti.get(b.guest_id)!.add(chiave)
   }
   return Object.fromEntries([...visti.entries()].map(([id, s]) => [id, s.size]))
+}
+
+// ── Quanto ha speso in tutto (28/09/2026, veste «Maison») ───────────────────
+// Accanto a «già ospite N volte», in mattone: la somma dei soggiorni che si
+// contano lì (conclusi, non annullati: la lettura li esclude già), come il
+// «640 €» della scheda del cliente (lib/clienteCheTorna.soggiorniConclusi).
+// In centesimi; chi non ha soggiorni conclusi non compare.
+export function spesoConcluso(righe: RigaSoggiorno[], oggi: string): Record<string, number> {
+  const speso = new Map<string, number>()
+  for (const b of righe) {
+    if (!b.guest_id || b.check_out > oggi) continue
+    const v = Number(b.total_amount)
+    speso.set(b.guest_id, (speso.get(b.guest_id) ?? 0) + (Number.isFinite(v) ? Math.round(v * 100) : 0))
+  }
+  return Object.fromEntries(speso.entries())
 }
 
 // ── Quanti ospiti può tenere il soggiorno ───────────────────────────────────

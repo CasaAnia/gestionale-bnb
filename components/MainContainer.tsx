@@ -15,8 +15,9 @@ const NO_ZOOM = ['/calendario', '/arrivi', '/richieste']
 export default function MainContainer({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const full = FULL_WIDTH.some(p => pathname.startsWith(p))
-  // La Home «Maison» (28/09/2026) resta a 768 px centrata, senza ingrandimento
-  const zoom = pathname !== '/' && !NO_ZOOM.some(p => pathname.startsWith(p))
+  // La Home «Maison» (28/09/2026) resta a 768 px centrata, senza ingrandimento;
+  // così anche la «Nuova prenotazione» nella stessa veste
+  const zoom = pathname !== '/' && pathname !== '/nuova-prenotazione' && !NO_ZOOM.some(p => pathname.startsWith(p))
   return (
     <div className={`mx-auto w-full ${full ? 'max-w-lg lg:max-w-full' : 'max-w-lg lg:max-w-3xl'} ${zoom ? 'lg:[zoom:1.2]' : ''}`}>
       {children}

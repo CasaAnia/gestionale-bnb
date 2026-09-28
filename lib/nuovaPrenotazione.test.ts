@@ -9,7 +9,7 @@ import {
   CRITERI_LETTO, campiConLei, PERSONE_CON_LEI_MAX, contoNuovaPrenotazione, scontoInParole, campiSconto,
   totaliScontati, ospitiMassimi, ospitiMassimiPrenotazione, ospitiScegliendoCamera,
   statoLettoNuova, LETTO_NON_DISPONIBILE_TESTO, mancaAlConto, MANCA_CAMERA, MANCA_DATE, doveManca,
-  periodiDellaLinea, periodiDaNottiTenendoVuote, conflittiConAltre, soggiorniConclusi,
+  periodiDellaLinea, periodiDaNottiTenendoVuote, conflittiConAltre, soggiorniConclusi, spesoConcluso,
   RINUNCIABILI, SENZA_NON_SI_SALVA, mancaColonnaNecessaria, avvisoDegradazione, scontoPerRiga, righeDaSalvare,
 } from './nuovaPrenotazione.ts'
 import { eSovrapposizione, messaggioSovrapposizione } from './erroreSovrapposizione.ts'
@@ -86,6 +86,7 @@ test('gli ospiti scelti valgono per tutte le notti; senza letto scendono', () =>
 
 // ── LA PAGINA, letta dai sorgenti ──────────────────────────────────────────
 const pagina = readFileSync(new URL('../app/nuova-prenotazione/page.tsx', import.meta.url), 'utf8')
+const leggiFile = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
 
 test('la pagina nasce a /nuova-prenotazione e non tocca quella di adesso', () => {
   assert.ok(pagina.length > 0)
@@ -93,26 +94,30 @@ test('la pagina nasce a /nuova-prenotazione e non tocca quella di adesso', () =>
   assert.ok(vecchia.includes('ComePaga'), 'la pagina di adesso è cambiata')
 })
 
-test('in cima non c’è il titolo: lo dice la barra. Resta la data in ottone', () => {
-  // Ania, 14/09/2026: come nelle Richieste, il titolo non si legge due volte
-  assert.equal(/<h1/.test(pagina), false, 'il titolo è tornato nel corpo della pagina')
-  assert.equal(/fontSize: 26/.test(pagina), false)
-  assert.match(pagina, /data-oggi className="uppercase" style=\{\{ fontSize: 10, letterSpacing: '1\.5px', color: OTTONE/)
-  assert.match(pagina, /\{dataDiOggi\(oggi\)\}/)
-  // la data è la prima cosa della pagina, dopo la freccia indietro
-  assert.ok(pagina.indexOf('data-oggi') < pagina.indexOf('data-cerca-cliente'))
+test('la testata «Maison» (28/09/2026): titolo in Cormorant, la data e il cliente in ottone, «‹ Indietro» a destra', () => {
+  // Dal riferimento approvato da Ania il 28/09/2026 il titolo torna: sul
+  // telefono la barra in alto qui non c'è più, la testata è la pagina.
+  const testa = readFileSync(new URL('../components/nuova/TestaNuova.tsx', import.meta.url), 'utf8')
+  assert.match(pagina, /<TestaNuova data=\{dataDiOggi\(oggi\)\} sotto=\{cliente \? /)
+  assert.match(testa, /<h1>\{TITOLO_PAGINA\}<small data-oggi>\{data\}\{sotto \? ` · \$\{sotto\}` : ''\}<\/small><\/h1>/)
+  assert.match(testa, /export const INDIETRO = '‹ Indietro'/)
+  assert.match(testa, /useRegistraIndietro\(indietro, 'Indietro'\)/)
+  assert.match(leggiFile('components/MobileTopBar.tsx'), /pathname === '\/nuova-prenotazione'\) return null/)
+  // la testata è la prima cosa della pagina
+  assert.ok(pagina.indexOf('<TestaNuova') < pagina.indexOf('data-cerca-cliente'))
 })
 
 // la riga del cliente trovato e il tastino stanno in un pezzo loro (16/09/2026): li usa anche la scheda
 const rigaCliente = readFileSync(new URL('../components/nuova/RigaCliente.tsx', import.meta.url), 'utf8')
 
-test('la ricerca è quella di sempre, col tastino sage «+ Nuovo cliente»', () => {
-  assert.match(pagina, /import CampoRicerca from '@\/components\/CampoRicerca'/)
+test('la ricerca: campo a filo con la lente, «+ Nuovo cliente» sopra e in fondo all’elenco', () => {
+  assert.match(pagina, /<label className="np-srch">\s*<span aria-hidden>⌕<\/span>/)
   assert.match(pagina, /placeholder="Cerca per nome o telefono…"/)
   assert.match(rigaCliente, /export const NUOVO_CLIENTE = '\+ Nuovo cliente'/)
-  assert.match(rigaCliente, /minHeight: 30, borderRadius: 6, padding: '0 9px', background: 'var\(--color-sage\)', color: 'var\(--color-green-mid\)', fontSize: 13, fontWeight: 700/)
-  // il tastino c'è sopra e in fondo all'elenco
-  assert.equal((pagina.match(/<TastinoSage testo=\{NUOVO_CLIENTE\}/g) || []).length >= 2, true)
+  // il tastino c'è sopra e in fondo all'elenco, e tiene quello che si è scritto
+  assert.equal((pagina.match(/data-nuovo-cliente onClick=\{\(\) => setNuovo\(moduloDaRicerca\(ricerca\)\)\}>\{NUOVO_CLIENTE\}/g) || []).length, 2)
+  // la regola di sempre: dal 2º carattere, un quarto di secondo di attesa
+  assert.match(pagina, /if \(testo\.length < 2\) \{ setRisultati\(\[\]\); return \}\s*timer\.current = setTimeout\(\(\) => \{ void cerca\(testo\) \}, 250\)/)
 })
 
 test('le righe dei clienti trovati hanno la forma della Home', () => {
@@ -1631,4 +1636,21 @@ test('nuova prenotazione: 1 ospite in Ambra su una notte resta 1 e non si perde 
   assert.deepEqual(dopo.map(p => [p.checkIn, p.ospiti]), [['2026-10-01', 2], ['2026-10-02', 1]])
   const tutti = periodiDaNottiTenendoVuote(notti.map(n => ({ ...n, persone: 1 })), { gruppo: 'g', periodi }, contaId())
   assert.deepEqual(tutti.map(p => [p.checkIn, p.checkOut, p.ospiti]), [['2026-10-01', '2026-10-03', 1]])
+})
+
+// ── 12d: quanto ha speso il cliente (veste «Maison», 28/09/2026) ────────────
+test('lo speso del cliente: i soggiorni conclusi, gli stessi che si contano, in centesimi', () => {
+  const righe = [
+    { guest_id: 'maria', check_out: '2026-05-04', prenotazione_id: 'a', total_amount: 320 },
+    { guest_id: 'maria', check_out: '2026-05-06', prenotazione_id: 'a', total_amount: '160.50' },
+    { guest_id: 'maria', check_out: '2026-10-04', prenotazione_id: 'b', total_amount: 900 }, // futura: non conta
+    { guest_id: 'carla', check_out: '2026-07-01', id: 'c', total_amount: 160 },
+  ]
+  assert.deepEqual(spesoConcluso(righe, '2026-09-28'), { maria: 48050, carla: 16000 })
+  assert.deepEqual(soggiorniConclusi(righe, '2026-09-28'), { maria: 1, carla: 1 })
+  // nella riga: in mattone, e solo quando c'è
+  const riga = readFileSync(new URL('../components/nuova/RigaCliente.tsx', import.meta.url), 'utf8')
+  assert.match(riga, /spesoCent != null && spesoCent > 0 && <> · <span className="np-mat" data-speso>\{euroTondi\(spesoCent\)\}<\/span><\/>/)
+  assert.match(pagina, /spesoCent=\{speso\[c\.id\] \?\? null\}/)
+  assert.match(pagina, /spesoCent=\{speso\[cliente\.id\] \?\? null\}/)
 })

@@ -348,7 +348,7 @@ test('«Cambia cliente»: la ricerca dell’inserimento, le righe 🧾 ★ nome 
   assert.match(leggi('lib/cambiaClienteDati.ts'), /export async function soggiorniConclusiDeiClienti/)
   assert.match(leggi('lib/cambiaClienteDati.ts'), /return soggiorniConclusi\(\(data \?\? \[\]\) as RigaSoggiorno\[\], oggi\)/)
   // e la riga dell'inserimento è la stessa: la pagina la importa da lì
-  assert.match(leggi('app/nuova-prenotazione/page.tsx'), /import RigaCliente, \{ TastinoSage, NUOVO_CLIENTE, type ClienteRiga \} from '@\/components\/nuova\/RigaCliente'/)
+  assert.match(leggi('app/nuova-prenotazione/page.tsx'), /import RigaCliente, \{ RigaClienteMaison, NUOVO_CLIENTE, type ClienteRiga \} from '@\/components\/nuova\/RigaCliente'/)
 })
 
 test('scegliendo, una riga sola di conferma e poi «Cambia» con le scritture di sempre', () => {
@@ -635,7 +635,7 @@ test('«Aggiungi camera»: il legame su TUTTE le righe (annullate comprese) in u
   const lib = leggi('lib/aggiungiCamera.ts')
   assert.match(lib, /ids: righe\.filter\(r => r\.prenotazione_id !== prenotazioneId\)\.map\(r => r\.id\)/)
   const nuova = leggi('app/nuova-prenotazione/page.tsx')
-  assert.match(nuova, /\{!aggiungoA && \(\s*<button type="button" data-cambia-cliente/)
+  assert.match(nuova, /destra=\{!aggiungoA \? <button type="button" data-cambia-cliente/)
   assert.match(nuova, /if \(aggiungoA\.guestId && cliente\.id !== aggiungoA\.guestId\) \{ setGuai\(\[CLIENTE_DIVERSO\]\)/)
   assert.match(nuova, /\.select\('id, guest_id, status'\)\.eq\('prenotazione_id', aggiungoA\.prenotazione\)/)
   assert.match(nuova, /if \(legame\.error \|\| !legameConfermato\(legame\.data, cliente\.id\)\) \{ setGuai\(\[LEGAME_NON_CONFERMATO\]\)/)
