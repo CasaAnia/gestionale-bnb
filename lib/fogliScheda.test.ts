@@ -72,7 +72,12 @@ for (const f of FOGLI) {
     assert.match(pagina, new RegExp(`<${f.file}[\\s\\S]{0,700}onChiudi=\\{\\(\\) => set${f.stato[0].toUpperCase()}${f.stato.slice(1)}\\(${f.stato === 'foglioArrivo' ? 'null' : 'false'}\\)\\}`), `${f.file} non si chiude`)
     // la veste comune: Foglio e il suo piede. Arrivo e Pagamento dal
     // 28/09/2026 hanno la veste «Maison» della Home (FoglioMaison e PiedeMaison)
-    if (FOGLI_MAISON.includes(f.file)) {
+    if (f.file === 'FoglioCliente') {
+      // «Dati della cliente» rifatto come il riferimento del 29/09/2026 (B2): FoglioMaison,
+      // tasto pieno «Salva» e sotto «Annulla» sottolineato, nella riga fissa del piede
+      assert.match(sorgente, /import FoglioMaison from '@\/components\/maison\/FoglioMaison'/)
+      assert.match(sorgente, /piede=\{\s*<div className="cli-piede" data-piede-foglio>[\s\S]{0,400}data-annulla-foglio onClick=\{onChiudi\}/)
+    } else if (FOGLI_MAISON.includes(f.file)) {
       assert.match(sorgente, /import FoglioMaison, \{ PiedeMaison \} from '@\/components\/maison\/FoglioMaison'/)
       assert.match(sorgente, /<PiedeMaison[\s\S]{0,300}onAnnulla=\{onChiudi\}/)
     } else {
@@ -81,7 +86,7 @@ for (const f of FOGLI) {
     }
     // «Annulla» chiude e basta: onChiudi non scrive mai
     assert.equal(/onChiudi\(\)[^\n]*supabase|supabase[^\n]*onChiudi\(\)/.test(sorgente), false)
-    if (!FOGLI_MAISON.includes(f.file)) assert.match(f.etichette ? leggi(f.etichette) : sorgente, /ottone/i, 'le etichettine del foglio non sono in ottone')
+    if (!FOGLI_MAISON.includes(f.file) && f.file !== 'FoglioCliente') assert.match(f.etichette ? leggi(f.etichette) : sorgente, /ottone/i, 'le etichettine del foglio non sono in ottone')
   })
 }
 
@@ -112,7 +117,8 @@ test('il pagamento (disegno approvato il 20/09/2026, punto 5): residuo in cima, 
   // quando su oggi (il vero campo data), Contanti · Bonifico (le vere pastiglie), nota
   assert.match(pagamento, /useState\(incerto \? incerto\.giorno : oggi\)/)
   assert.match(pagamento, /\{ETICHETTA_QUANDO\}[\s\S]{0,200}type="date" data-campo="giorno" value=\{giorno\}/)
-  assert.match(pagamento, /useState<ModoPagamento>\(incerto \? \(incerto\.metodo === 'bonifico' \? 'bonifico' : 'contanti'\) : modoProposto\(bonifico\)\)/)
+  // dal 29/09/2026 (D1) prima il modo con cui paga di solito la cliente, poi quello dell'accordo
+  assert.match(pagamento, /useState<ModoPagamento>\(incerto \? \(incerto\.metodo === 'bonifico' \? 'bonifico' : 'contanti'\) : metodoIniziale\(abituale, modoProposto\(bonifico\) as PagamentoAbituale\) as ModoPagamento\)/)
   assert.match(pagamento, /MODI_PAGAMENTO\.map/)
   assert.equal(/setMetodo\((?!m\.chiave)/.test(pagamento), false, 'il metodo cambia da solo con la modalità')
   assert.match(pagamento, /data-campo="nota"/)
@@ -295,20 +301,27 @@ test('«Arrivo e navetta»: il modulo condiviso, il salvataggio condiviso, e «S
 })
 
 // ── 3. DATI DELLA CLIENTE ───────────────────────────────────────────────────
-test('«Dati della cliente»: lo stesso modulo dell’inserimento, e l’avviso che vale per tutti i soggiorni', () => {
+test('«Dati della cliente»: rifatto come il riferimento del 29/09/2026 (B2), coi campi e le regole di prima, e l’avviso che vale per tutti i soggiorni', () => {
   const cliente = leggi('components/scheda/FoglioCliente.tsx')
   const modulo = leggi('components/nuova/NuovoCliente.tsx')
-  assert.match(cliente, /import NuovoCliente from '@\/components\/nuova\/NuovoCliente'/)
-  assert.match(cliente, /<NuovoCliente dati=\{dati\}[\s\S]{0,200}titolo=\{null\} avanti=\{null\} etichetteOttone/)
+  // titolo = il nome in Cormorant 24, sottotitolo «DATI DELLA CLIENTE» in ottone
+  assert.match(cliente, /<FoglioMaison titolo=\{nome\} sottotitolo=\{TITOLO_DATI_CLIENTE\} altezza=\{ALTEZZE_FOGLI\.cliente\}/)
   assert.match(cliente, /\{AVVISO_TUTTI_I_SOGGIORNI\}/)
   assert.match(leggi('lib/datiCliente.ts'), /AVVISO_TUTTI_I_SOGGIORNI = 'Questi dati sono della cliente: valgono per tutti i suoi soggiorni/)
-  assert.match(cliente, /<PiedeFoglio azione="Salva"/)
-  // il modulo: nome e cognome, telefono, ricevuta e valutazione sulla stessa riga, provenienza con le strutture, nota
-  // nome e cognome SOLO col componente condiviso (regola fissa n. 1, 18/09/2026), poi il telefono
-  assert.match(modulo, /<CampiNomeCognome nome=\{dati\.nome\} cognome=\{dati\.cognome\}[\s\S]{0,600}data-campo="telefono"/)
-  assert.match(modulo, /<Etichetta testo="Ricevuta" centrata ottone=\{ottone\} \/>[\s\S]{0,600}<Etichetta testo="Valutazione" centrata ottone=\{ottone\} \/>/)
-  assert.match(modulo, /\{PROVENIENZE\.map/)
-  assert.match(modulo, /data-campo="note"/)
+  // nome e cognome SOLO col componente condiviso (regola fissa n. 1), poi telefono ed email a filo
+  assert.match(cliente, /<CampiNomeCognome nome=\{dati\.nome\} cognome=\{dati\.cognome\}[\s\S]{0,900}data-campo="telefono"[\s\S]{0,400}Email · può restare vuota/)
+  // paga di solito con (D1), ricevuta e valutazione affiancate, «Perché», come ci ha trovato con le strutture e «Altra…», le note
+  assert.match(cliente, /\{ETICHETTA_PAGA_DI_SOLITO\}[\s\S]{0,400}VOCI_PAGAMENTO_ABITUALE\.map/)
+  assert.match(cliente, /<div className="cli-due">[\s\S]{0,200}Ricevuta[\s\S]{0,500}Valutazione/)
+  assert.match(cliente, /placeholder="resta solo per noi"/)
+  assert.match(cliente, /Come ci ha trovato[\s\S]{0,300}PROVENIENZE\.map/)
+  assert.match(cliente, /export const ALTRA_STRUTTURA_CHIP = 'Altra…'/)
+  assert.match(cliente, /export const ETICHETTA_NOTE_CLIENTE = 'Note del cliente · restano anche le prossime volte'/)
+  // tasto pieno «Salva» e «Annulla» sottolineato; la conferma B dal foglio stesso
+  assert.match(cliente, /className="cli-cta" data-azione-foglio="cliente"[\s\S]{0,200}?>\{salvando \? 'Salvo…' : 'Salva'\}/)
+  assert.match(cliente, /salvato=\{salvato\} onFineSalvato=/)
+  // regole e salvataggio di prima (lib/datiCliente)
+  assert.match(cliente, /campiDaModulo\(dati, cliente, \{ colonnaRicevuta: colonnaRicevutaPresente\(cliente\), conProvenienza, colonnaPagamento: conPagamento \}\)/)
   // il modulo dell'inserimento non cambia: titolo e «Avanti» restano quelli di prima
   assert.match(modulo, /titolo = TITOLO_NUOVO_CLIENTE, avanti = AVANTI/)
 })
@@ -712,7 +725,8 @@ test('i fogli della scheda: FoglioMaison col nome come titolo e il foglio sotto,
   assert.match(foglio, /createPortal\(\s*<div className="mz-foot" data-piede-foglio>/)
   // la conferma B: la pagina tiene il foglio aperto il tempo di «Salvato», poi lo chiude
   assert.match(pagina, /const chiudiConConferma = \(chiudi: \(\) => void\) => setSalvatoFoglio\(\{ quando: new Date\(\), dopo: \(\) => \{ setSalvatoFoglio\(null\); chiudi\(\) \} \}\)/)
-  for (const chiudi of ['setFoglioNota(false)', 'setFoglioConLei(false)', 'setFoglioSconto(false)', 'setFoglioCambiaCliente(false)', 'setFoglioCliente(false)', 'setFoglioComePaga(false)', 'setFoglioProvenienza(false)']) {
+  // «Dati della cliente» mostra la conferma B da sé (ritocchi B2): la scheda poi chiude e basta
+  for (const chiudi of ['setFoglioNota(false)', 'setFoglioConLei(false)', 'setFoglioSconto(false)', 'setFoglioCambiaCliente(false)', 'setFoglioComePaga(false)', 'setFoglioProvenienza(false)']) {
     assert.ok(pagina.includes(`chiudiConConferma(() => ${chiudi})`), `${chiudi} chiude senza la conferma`)
   }
   assert.match(pagina, /<ContestoFogli\.Provider value=\{\{ nome: /)

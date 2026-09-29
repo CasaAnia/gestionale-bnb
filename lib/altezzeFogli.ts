@@ -25,7 +25,7 @@ export const ALTEZZE_FOGLI = {
   annulla: 343,         // «Errore mio» con la spiegazione e il motivo
   mancatoArrivo: 500,   // 458 «Mancato arrivo»; «Pagamento · mancato arrivo» coi tre campi non si riproduce nell'anteprima: stima
   prezzoSoggiorno: 655, // due camere, «Concordo un prezzo nuovo» col campo
-  cliente: 790,         // il foglio «Dati della cliente» (misurato nel pezzo 5)
+  cliente: 771,         // «Dati della cliente» rifatto (B2): «!» col perché, «Altra struttura» con «Altra…» e il campo, «Paga di solito con»
   cambiaCliente: 720,   // la ricerca coi risultati (fino a 30): oltre, scorre dentro
   provenienza: 323,     // «Altra struttura» col campo della struttura
   chiDorme: 412,        // tre persone e l'avviso sulla camera; oltre, scorre dentro

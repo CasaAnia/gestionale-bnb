@@ -15,6 +15,7 @@ import { nomeDaSalvare, spezzaNome } from './guestName.ts'
 import { normalizzaTelefono, numeroUsabile } from './whatsapp.ts'
 import { valutazioneDi, vuoleRicevuta, payloadValutazione, type Valutazione } from './valutazione.ts'
 import { normalizzaProvenienza, campiProvenienza, type Provenienza } from './provenienza.ts'
+import { pagamentoAbitualeDi, type PagamentoAbituale } from './pagamentoAbituale.ts'
 
 export const TITOLO_DATI_CLIENTE = 'Dati della cliente'
 export const AVVISO_TUTTI_I_SOGGIORNI = 'Questi dati sono della cliente: valgono per tutti i suoi soggiorni, non solo per questo.'
@@ -33,6 +34,8 @@ export type ModuloCliente = {
   provenienza: Provenienza | null
   struttura: string
   note: string
+  /** «Paga di solito con» (0062, ritocchi del 29/09/2026): contanti, bonifico o niente */
+  pagamento?: PagamentoAbituale | null
 }
 
 export type ClienteSalvato = {
@@ -46,6 +49,7 @@ export type ClienteSalvato = {
   motivo_problematico?: string | null
   provenienza?: string | null
   struttura_nome?: string | null
+  pagamento_abituale?: string | null
 }
 
 // ── Dal cliente salvato al modulo ──────────────────────────────────────────
@@ -61,6 +65,7 @@ export function moduloDaCliente(c: ClienteSalvato | null | undefined): ModuloCli
     provenienza: c?.provenienza ? normalizzaProvenienza(c.provenienza) : null,
     struttura: (c?.struttura_nome ?? '').trim(),
     note: (c?.notes ?? '').trim(),
+    pagamento: pagamentoAbitualeDi(c),
   }
 }
 
@@ -82,6 +87,8 @@ export type OpzioniCampi = {
   colonnaRicevuta: boolean
   /** la provenienza si può scrivere (colonne della 0037 e strutture leggibili) */
   conProvenienza: boolean
+  /** la colonna pagamento_abituale esiste sulla riga letta (dopo la 0062) */
+  colonnaPagamento?: boolean
 }
 
 /** I campi del cliente NUOVO, come li scrive l'inserimento (/nuova-prenotazione). */
@@ -124,6 +131,8 @@ export function campiDaModulo(m: ModuloCliente, c: ClienteSalvato, o: OpzioniCam
     ...payloadValutazione(m.valutazione, m.ricevuta, o.colonnaRicevuta),
     ...(motivo !== motivoDiPrima ? { motivo_problematico: motivo } : {}),
     ...(o.conProvenienza && m.provenienza ? campiProvenienza(m.provenienza, m.struttura) : {}),
+    // «Paga di solito con»: si scrive solo se la colonna c'è ed è cambiato (D1)
+    ...(o.colonnaPagamento && (m.pagamento ?? null) !== pagamentoAbitualeDi(c) ? { pagamento_abituale: m.pagamento ?? null } : {}),
   }
   return { ok: true, campi }
 }

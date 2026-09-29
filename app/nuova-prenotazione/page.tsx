@@ -56,6 +56,8 @@ import ChiDormeInCamera from '@/components/nuova/ChiDormeInCamera'
 import { COLONNA_NON_E_LEI, campiChiDorme, type PersonaConLei } from '@/lib/nuovaPrenotazione'
 import { SALVATO, COSA_SALVATA, DURATA_SALVATO_MS, testoSalvato } from '@/lib/salvatoMaison'
 import { campiComePaga, chiedeScadenza as chiedeScadenzaComePaga, type ComePaga as ComePagaModo } from '@/lib/comePaga'
+import { pagamentoAbitualeDi, comePagaIniziale, daSalvareAllaPrima } from '@/lib/pagamentoAbituale'
+import { salvaPagamentoAbitualeAllaPrima } from '@/lib/pagamentoAbitualeDati'
 import ContoNuova, { TastoSalva } from '@/components/nuova/ContoNuova'
 import { scontoPerRiga, totaliScontati, righeDaSalvare } from '@/lib/nuovaPrenotazione'
 import { partenzaSpostandoArrivo } from '@/lib/lineeSoggiorno'
@@ -272,6 +274,14 @@ export default function NuovaPrenotazionePage() {
   )
 
   // Scelto il cliente si comincia subito dalla prima camera
+  // «Paga di solito con» (ritocchi del 29/09/2026, D1): scelta la cliente, in
+  // «Come paga» si accende la sua pastiglia (si cambia lo stesso); senza valore come prima
+  const idCliente = cliente?.id ?? null
+  useEffect(() => {
+    const abituale = pagamentoAbitualeDi(cliente as { pagamento_abituale?: string | null } | null)
+    if (abituale) setComePaga(prima => comePagaIniziale(abituale, prima))
+  }, [idCliente]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function scegliCliente(c: ClienteRiga) {
     setCliente(c)
     setRicerca('')
@@ -527,6 +537,10 @@ export default function NuovaPrenotazionePage() {
       setSalvata(String(prima.id))
       return
     }
+    // la prima prenotazione dice come paga di solito la cliente (D1): si scrive su
+    // di lei solo se non ha ancora un valore; aggiungendo una camera il come paga non si tocca
+    const abituale = aggiungoA ? null : daSalvareAllaPrima(cliente as { pagamento_abituale?: string | null }, comePaga)
+    if (abituale && cliente.id) void salvaPagamentoAbitualeAllaPrima(String(cliente.id), abituale)
     // la conferma «B» sotto il tasto, poi la scheda si apre da sola
     setSalvata(String(prima.id))
     setConferma({ cosa: COSA_SALVATA.prenotazione((cliente.full_name ?? '').trim() || 'senza nome'), quando: new Date() })

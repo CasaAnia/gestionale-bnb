@@ -152,7 +152,9 @@ test('Nuova prenotazione → cliente nuovo: campi condivisi, e si salva «Mario 
 })
 
 test('Scheda → «Dati della cliente»: lo stesso modulo, e si salva «Mario Rossi»', () => {
-  assert.match(leggi('components/scheda/FoglioCliente.tsx'), /<NuovoCliente dati=\{dati\} onDati=\{setDati\}/)
+  // dal 29/09/2026 (ritocchi B2) il foglio ha la veste del riferimento, ma i campi del nome sono
+  // sempre e solo quelli del componente condiviso (regola fissa n. 1)
+  assert.match(leggi('components/scheda/FoglioCliente.tsx'), /<CampiNomeCognome nome=\{dati\.nome\} cognome=\{dati\.cognome\} onNome=/)
   const m = campiDaModulo(MODULO_VUOTO, { phone: '333 111 2222' }, { colonnaRicevuta: true, conProvenienza: false })
   assert.ok(m.ok)
   assert.equal(m.campi.full_name, 'Mario Rossi')

@@ -10,7 +10,7 @@ const CARMELA = {
 test('dal cliente salvato al modulo: i due campi del nome, e tutto il resto com’è', () => {
   assert.deepEqual(moduloDaCliente(CARMELA), {
     nome: 'Carmela', cognome: 'Sabia', telefono: '393427004354', email: '', ricevuta: true, valutazione: 'ottimo', motivo: '',
-    provenienza: 'altra_struttura', struttura: 'Nida', note: 'Dorme male con i rumori.',
+    provenienza: 'altra_struttura', struttura: 'Nida', note: 'Dorme male con i rumori.', pagamento: null,
   })
   // prima della 0038 la ricevuta stava nella valutazione: si legge lo stesso
   const vecchio = moduloDaCliente({ full_name: 'Anna Rossi', rating: 'vuole_ricevuta' })

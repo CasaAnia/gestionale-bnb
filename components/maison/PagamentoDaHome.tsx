@@ -8,6 +8,7 @@
 // scrive niente.
 // ============================================================================
 import { useEffect, useState } from 'react'
+import { pagamentoAbitualeDi, type PagamentoAbituale } from '@/lib/pagamentoAbituale'
 import FoglioMaison from './FoglioMaison'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import FoglioPagamento, { type PagamentoSalvato } from '@/components/scheda/FoglioPagamento'
@@ -17,7 +18,7 @@ import type { RigaPagabile } from '@/lib/pagamentiDati'
 import { oggiARoma } from '@/lib/spese/adattatore'
 import { conLimite, LIMITE_SALVATAGGIO_MS, ERRORE_LETTURA_SCADUTA } from '@/lib/pagamentoFoglio'
 
-type Pronto = { booking: RigaPagabile; righe: RigaPagabile[]; conto: { totaleCent: number; ricevutiCent: number }; bonifico: boolean | null }
+type Pronto = { booking: RigaPagabile; righe: RigaPagabile[]; conto: { totaleCent: number; ricevutiCent: number }; bonifico: boolean | null; abituale: PagamentoAbituale | null }
 
 export default function PagamentoDaHome({ bookingId, onChiudi, onSalvato }: { bookingId: string; onChiudi: () => void; onSalvato: (esito: PagamentoSalvato) => void }) {
   const [pronto, setPronto] = useState<Pronto | null>(null)
@@ -27,7 +28,7 @@ export default function PagamentoDaHome({ bookingId, onChiudi, onSalvato }: { bo
     let vivo = true
     // anche la lettura ha il suo limite di tempo (29/09/2026): mai «Lettura del conto…» per sempre
     conLimite((async () => {
-      const letta = await supabase.from('bookings').select('*, rooms(*), guests(full_name, phone)').eq('id', bookingId).maybeSingle()
+      const letta = await supabase.from('bookings').select('*, rooms(*), guests(*)').eq('id', bookingId).maybeSingle()
       if (!vivo) return
       if (letta.error || !letta.data) { setErrore(ERRORE_CONTO_INCOMPLETO); return }
       const scheda = letta.data as RigaPagabile & { guests?: unknown; guest_name?: string | null }
@@ -41,14 +42,14 @@ export default function PagamentoDaHome({ bookingId, onChiudi, onSalvato }: { bo
       let conto: Pronto['conto']
       try { conto = contoPrenotazione(righe, (pag.data ?? []).map(p => ({ booking_id: p.booking_id, amount: p.amount }))) } catch { setErrore(ERRORE_CONTO_INCOMPLETO); return }
       const accordo = accordoPrenotazione(righe) as (RigaPagabile & { bonifico?: boolean | null }) | undefined
-      setPronto({ booking: righe.find(r => r.id === bookingId) ?? righe[0], righe, conto, bonifico: accordo?.bonifico ?? null })
+      setPronto({ booking: righe.find(r => r.id === bookingId) ?? righe[0], righe, conto, bonifico: accordo?.bonifico ?? null, abituale: pagamentoAbitualeDi(scheda.guests as { pagamento_abituale?: string | null } | null) })
     })(), LIMITE_SALVATAGGIO_MS)
       .then(r => { if (vivo && r.scaduto) { vivo = false; setErrore(ERRORE_LETTURA_SCADUTA) } })
       .catch(() => { if (vivo) setErrore(ERRORE_CONTO_INCOMPLETO) })
     return () => { vivo = false }
   }, [bookingId, giro])
 
-  if (pronto) return <FoglioPagamento booking={pronto.booking} righe={pronto.righe} conto={pronto.conto} oggi={oggiARoma()} bonifico={pronto.bonifico}
+  if (pronto) return <FoglioPagamento booking={pronto.booking} righe={pronto.righe} conto={pronto.conto} oggi={oggiARoma()} bonifico={pronto.bonifico} abituale={pronto.abituale}
     onChiudi={onChiudi} onSalvato={onSalvato}
     onContoCambiato={riletto => setPronto(p => (p ? { ...p, righe: riletto.righe, conto: riletto.conto } : p))} />
   return (

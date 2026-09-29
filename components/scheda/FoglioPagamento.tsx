@@ -51,6 +51,7 @@ import {
   COMANDO_VERIFICA_PAGAMENTO, PAGAMENTO_NON_TROVATO, TENTATIVO_IN_SOSPESO, MESSAGGIO_ESITO_INCERTO,
 } from '@/lib/pagamentiDati'
 import { dataConGiorno } from '@/lib/dateItaliane'
+import { metodoIniziale, type PagamentoAbituale } from '@/lib/pagamentoAbituale'
 
 export type PagamentoSalvato = Extract<EsitoPagamento, { esito: 'ok' }> & { importo: number; metodo: ModoPagamento; ritrovato?: boolean }
 
@@ -65,7 +66,7 @@ export const ALTEZZA_FOGLIO_PAGAMENTO = 611
 /** «28 settembre 2026» */
 const giornoInParole = (iso: string) => { const [a, m, g] = iso.split('-').map(Number); return iso ? `${g} ${MESI_LUNGHI[m - 1]} ${a}` : 'da scegliere' }
 
-export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico, onChiudi, onSalvato, onContoCambiato }: {
+export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico, abituale = null, onChiudi, onSalvato, onContoCambiato }: {
   booking: RigaPagabile
   /** tutte le camere della prenotazione, annullate comprese */
   righe: RigaPagabile[]
@@ -74,6 +75,8 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   oggi: string
   /** l'accordo aspetta un bonifico: la pastiglia proposta è quella */
   bonifico?: boolean | null
+  /** come paga di solito la cliente (D1, 29/09/2026): se c'è, la pastiglia accesa è la sua */
+  abituale?: PagamentoAbituale | null
   onChiudi: () => void
   onSalvato: (esito: PagamentoSalvato) => void
   /** al salvataggio il conto riletto (camere, totale, pagamenti) era diverso: la scheda lo riceve e si aggiorna */
@@ -91,7 +94,7 @@ export default function FoglioPagamento({ booking, righe, conto, oggi, bonifico,
   const [modo, setModo] = useState<ModoImporto>(incerto ? 'altro' : modoIniziale(residuoCent))
   const [importo, setImporto] = useState(incerto ? importoProposto(Math.round(incerto.importo * 100)) : modoIniziale(residuoCent) === 'saldo' ? importoProposto(residuoCent) : '')
   const [giorno, setGiorno] = useState(incerto ? incerto.giorno : oggi)
-  const [metodo, setMetodo] = useState<ModoPagamento>(incerto ? (incerto.metodo === 'bonifico' ? 'bonifico' : 'contanti') : modoProposto(bonifico))
+  const [metodo, setMetodo] = useState<ModoPagamento>(incerto ? (incerto.metodo === 'bonifico' ? 'bonifico' : 'contanti') : metodoIniziale(abituale, modoProposto(bonifico) as PagamentoAbituale) as ModoPagamento)
   const [nota, setNota] = useState(incerto ? incerto.nota : '')
   const [salvando, setSalvando] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)

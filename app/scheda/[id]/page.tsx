@@ -120,6 +120,7 @@ import { spostaGiorni } from '@/lib/statistiche/periodo'
 import type { PrenotazioneDC } from '@/lib/daControllare'
 import type { PagamentoStat } from '@/lib/statistiche/tipi'
 import type { SegmentoStorico } from '@/lib/storicoCliente'
+import { pagamentoAbitualeDi, comePagaSchedaConAbituale } from '@/lib/pagamentoAbituale'
 
 const COLONNE_ALTRE = '*, rooms(name), guests(full_name, phone)'
 // quante notti intorno al soggiorno si leggono le altre prenotazioni (per «Cambia date»)
@@ -810,7 +811,7 @@ export default function SchedaPage() {
           }} />
       )}
       {foglioPagamento && conto && !noShow && (
-        <FoglioPagamento booking={booking} righe={righe} conto={conto} oggi={oggi} bonifico={accordo?.bonifico}
+        <FoglioPagamento booking={booking} righe={righe} conto={conto} oggi={oggi} bonifico={accordo?.bonifico} abituale={pagamentoAbitualeDi(guest as { pagamento_abituale?: string | null } | null)}
           onChiudi={() => setFoglioPagamento(false)}
           onContoCambiato={riletto => {
             // il conto riletto dal foglio (camere, totale, pagamenti): la scheda lo mostra subito, come dopo una rilettura sua
@@ -985,7 +986,8 @@ export default function SchedaPage() {
             setBooking(b => (b ? aggiorna(b) : b))
             setRighe(rs => rs.map(aggiorna))
             setAltreCliente(as => as.map(a => aggiorna(a as unknown as { guests?: Prenotazione['guests'] }) as unknown as SoggiornoStorico))
-            chiudiConConferma(() => setFoglioCliente(false))
+            // la conferma B l'ha già mostrata il foglio (ritocchi B2): qui si chiude e basta
+            setFoglioCliente(false)
             setAvviso(msg)   // anche null: un avviso vecchio non resta appeso dopo un salvataggio riuscito
             rileggi()
           }} />
@@ -994,7 +996,7 @@ export default function SchedaPage() {
         <FoglioComePaga
           idRighe={righe.map(r => r.id)}
           idPrima={accordo.id}
-          modo={comePagaSalvato(accordoSalvato?.accordo_pagamento, accordo.bonifico)}
+          modo={comePagaSchedaConAbituale(comePagaSalvato(accordoSalvato?.accordo_pagamento, accordo.bonifico), pagamentoAbitualeDi(guest as { pagamento_abituale?: string | null } | null))}
           importo={accordoSalvato?.caparra_centesimi == null ? null : accordoSalvato.caparra_centesimi / 100}
           data={(accordoSalvato?.caparra_entro ?? '').slice(0, 10)}
           ora={(accordoSalvato?.caparra_entro ?? '').slice(11, 16)}
