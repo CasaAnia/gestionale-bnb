@@ -106,3 +106,35 @@ test('la legenda degli Arrivi: le cinque voci del riferimento e la riga delle ic
   assert.equal(VOCI_LEGENDA_ARRIVI[4].attenuata, true)
   assert.match(ICONE_LEGENDA_ARRIVI, /^Sulla scheda: orario grande \(o «\?»\), icone e nome, poi luogo · mezzo · navetta con autista e prelievo\. Icone: 🔒 esclusiva/)
 })
+
+// ── Le prove sul sorgente della pagina ──────────────────────────────────────
+import { readFileSync } from 'node:fs'
+const leggi = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
+const pagina = leggi('app/arrivi/page.tsx')
+
+test('frecce a una settimana a «2 settimane», al 1° del mese a «Mese»; 90 giorni (7 prima, 83 dopo)', () => {
+  assert.match(pagina, /scrollBy\(\{ left: direzione \* PASSO_FRECCE_QUINDICI \* CELL_W/)
+  assert.match(pagina, /aria-label=\{etichettaFreccia\(modo, -1\)\}/)
+  assert.match(pagina, /const DAYS_TOTAL = 90\nconst DAYS_BEFORE = 7/)
+  assert.match(pagina, /const CHIAVE_MODO = 'ca_calendario_modo'/)
+})
+
+test('il foglio si apre da ?apri=<id>, col nastro sul giorno prima, ed è il FoglioArrivo Maison', () => {
+  assert.match(pagina, /const apri = idDaParametro\(window\.location\.search, 'apri'\)/)
+  assert.match(pagina, /setPopup\(\{ id: daAprire\.id \}\)/)
+  assert.match(pagina, /days\.findIndex\(d => toStr\(d\) === apriUrlRef\.current\) - 1\) \* CELL_W/)
+  assert.match(pagina, /<FoglioArrivo key=\{cur\.id\} bookingId=\{cur\.id\}/)
+  assert.match(pagina, /salvaPieno=\{\{ salvando: 'Salvo\.\.\.' \}\}/)
+  assert.match(pagina, /\{arrivoInScheda\(a\)\.titolo\} · Navetta: \{navettaInScheda\(a\)\.titolo\}/)
+  for (const t of ['Usa come l&apos;ultima volta', "'nascondi storico'", 'Vedi storico arrivi (', 'Apri prenotazione']) assert.ok(pagina.includes(t), t)
+  assert.match(leggi('components/scheda/FoglioArrivo.tsx'), /export const ALTEZZA_FOGLIO_ARRIVO = 752/)
+})
+
+test('le schede della pagina: colore per stato, arrivi passati attenuati, stessi pezzi del Calendario, niente riga «🛏 extra»', () => {
+  assert.match(pagina, /const tinta = tintaArrivo\(stato, isWebPending\)/)
+  assert.match(pagina, /stileInterno=\{passato \? \{ opacity: OPACITA_ARRIVATA \} : undefined\}/)
+  assert.match(pagina, /<SchedaNastro /)
+  assert.match(pagina, /<RighelloNastro /)
+  assert.doesNotMatch(pagina, /cal-extra|ombraNavetta/)
+  assert.match(leggi('app/maison.css'), /\.cal-scheda-in \.tx > b \.hr \{ font-family: var\(--m-disp\); font-size: 19px; font-weight: 600;[^}]*color: #000; \}/)
+})
