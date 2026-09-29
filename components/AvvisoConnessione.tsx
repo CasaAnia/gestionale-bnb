@@ -42,7 +42,7 @@ export default function AvvisoConnessione() {
   return (
     // Nel flusso della pagina (sposta il contenuto, non lo copre) e «sticky»:
     // resta in vista anche scorrendo, sotto la barra del titolo su telefono.
-    <div role="alert" className="scheda-in sticky top-12 lg:top-0 z-30 px-3 pt-2 pb-1">
+    <div role="alert" className="scheda-in sticky top-[52px] lg:top-0 z-30 px-3 pt-2 pb-1">
       <div className="mx-auto max-w-[520px] rounded-xl px-4 py-3 shadow-md" style={{ background: '#F4E6DF', color: '#7A3B22' }}>
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">

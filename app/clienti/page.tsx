@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import BackBar from '@/components/BackBar'
+import TestaMac from '@/components/TestaMac'
+import { sottotitoloClienti } from '@/lib/testaMac'
 
 import { valutazioneDi, vuoleRicevuta, COLORE_VALUTAZIONE, ETICHETTA_RICEVUTA_BREVE } from '@/lib/valutazione'
 const RATING_LABEL: Record<string, string> = { ottimo: '⭐', problematico: '⚠️', normale: '' }
@@ -22,16 +24,23 @@ export default function Clienti() {
     g.phone?.includes(search)
   )
 
+  const nuovo = <Link href={search.trim() ? `/clienti/nuovo?ricerca=${encodeURIComponent(search.trim())}` : "/clienti/nuovo"} className="ml-auto bg-green-mid text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Nuovo</Link>
+  const ricerca = (classe: string) => (
+    <input value={search} onChange={e => setSearch(e.target.value)}
+      placeholder="🔍 Cerca per nome o telefono..."
+      className={`${classe} ed-campo rounded-xl p-3 text-sm focus:outline-none focus:border-green-mid`} />
+  )
+
   return (
     <div className="p-4">
       <BackBar href="/" />
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="ed-titolo-medio max-lg:hidden">Clienti</h1>
-        <Link href={search.trim() ? `/clienti/nuovo?ricerca=${encodeURIComponent(search.trim())}` : "/clienti/nuovo"} className="ml-auto bg-green-mid text-white text-sm font-semibold px-4 py-2 rounded-xl">+ Nuovo</Link>
+      {/* Dal Mac la testa condivisa (29/09/2026): titolo, «N clienti», ricerca e «+ Nuovo» */}
+      <TestaMac titolo="Clienti" sottotitolo={loading ? '' : sottotitoloClienti(guests.length)}
+        comandi={<>{ricerca('w-[calc(340px/var(--zoom-pagina,1))]')}{nuovo}</>} />
+      <div className="flex items-center justify-between mb-4 lg:hidden">
+        {nuovo}
       </div>
-      <input value={search} onChange={e => setSearch(e.target.value)}
-        placeholder="🔍 Cerca per nome o telefono..."
-        className="w-full ed-campo rounded-xl p-3 mb-4 text-sm focus:outline-none focus:border-green-mid" />
+      {ricerca('w-full mb-4 lg:hidden')}
 
       {loading ? (
         <div className="text-center py-10 text-gray-400">Caricamento...</div>

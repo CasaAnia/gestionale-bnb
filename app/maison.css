@@ -851,19 +851,27 @@ body:has(.cal) { background: var(--home-bg); }
 .mz-lato .ft { position: absolute; bottom: 18px; left: 0; width: 200px; padding: 0 24px; font-size: 10px; color: #8A8072; letter-spacing: .08em; }
 
 /* ── Barra in alto del telefono nelle pagine Maison (29/09/2026, Ania):
-   components/MobileTopBar (PAGINE_MAISON). Bianca, 52 px con il filo sotto,
-   freccia ‹ sottile, titolo maiuscoletto. Il contenuto parte 52 px più giù. ── */
+   components/MobileTopBar, su tutte le pagine. Bianca, 52 px con il filo sotto,
+   freccia ‹ sottile, titolo maiuscoletto. Dal 29/09/2026 su tutte le pagine:
+   il contenuto parte 52 px più giù (main.contenuto pt-[52px], app/layout). ── */
 .barra-maison { background: #FFFFFF; border-bottom: 1px solid #E8E3DA; }
 .barra-maison .freccia { font-family: var(--font-jost), Jost, system-ui, sans-serif; font-weight: 300; font-size: 20px; line-height: 1; color: #241F1A; }
 .barra-maison .titolo { font-family: var(--font-figtree), Figtree, var(--font-jost), Jost, system-ui, sans-serif; font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: #6E6558; font-weight: 500; line-height: 1; }
-@media (max-width: 1023px) {
-  body:has(.barra-maison) main.contenuto { padding-top: 52px; }
-}
 
 /* ── Testa delle pagine dal Mac (29/09/2026, Ania): Calendario, Arrivi,
    Richieste (components/TestaPagina con `sottotitolo`). Il bordo alto del
    titolo sta a 64 px dall'alto come il marchio «Casa Ania» della colonna
    (16 px della fascia + 48 qui); sotto, a 6 px, il sottotitolo d'ottone. ── */
 [data-testa-mac] .testa-mac-riga { margin-top: 48px; }
-[data-testa-mac] .testa-mac-titolo { margin: 0; font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 400; line-height: 1; color: #241F1A; letter-spacing: normal; }
-[data-testa-mac] .testa-mac-sotto { margin: 6px 0 0; min-height: 13px; font-family: var(--font-jost), Jost, system-ui, sans-serif; font-size: 9.5px; letter-spacing: .24em; text-transform: uppercase; color: #A8894F; line-height: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-testa-mac] .testa-mac-titolo { margin: 0; font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif; font-size: calc(30px / var(--zoom-pagina, 1)); font-weight: 400; line-height: 1; color: #241F1A; letter-spacing: normal; }
+[data-testa-mac] .testa-mac-sotto { margin: calc(6px / var(--zoom-pagina, 1)) 0 0; min-height: calc(13px / var(--zoom-pagina, 1)); font-family: var(--font-jost), Jost, system-ui, sans-serif; font-size: calc(9.5px / var(--zoom-pagina, 1)); letter-spacing: .24em; text-transform: uppercase; color: #A8894F; line-height: calc(13px / var(--zoom-pagina, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Titoli delle pagine interne (scheda cliente, nuovo cliente, nuova e
+   modifica richiesta, 29/09/2026): dal Mac la stessa veste del titolo di
+   TestaMac; il bordo alto a 64 px lo dà .testa-mac-sopra (16 del
+   contenitore p-4 + il resto, diviso per lo zoom delle pagine vecchie,
+   --zoom-pagina). Dal telefono restano come sono. */
+@media (min-width: 1024px) {
+  .titolo-mac.titolo-mac { font-family: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif; font-size: calc(30px / var(--zoom-pagina, 1)); font-weight: 400; line-height: 1; color: #241F1A; letter-spacing: normal; }
+  .testa-mac-sopra { margin-top: calc(64px / var(--zoom-pagina, 1) - 16px); }
+}

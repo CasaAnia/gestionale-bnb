@@ -8,7 +8,9 @@ import { usePathname } from 'next/navigation'
 // Richieste: calendario e lista affiancati chiedono tutta la larghezza.
 const FULL_WIDTH = ['/calendario', '/arrivi', '/statistiche', '/richieste']
 
-// Su desktop il contenuto è ingrandito del 20%. Calendario e Arrivi sono
+// Su desktop il contenuto è ingrandito del 20%. --zoom-pagina lo dice alla
+// testa del Mac (TestaMac, .titolo-mac), che si rimpicciolisce di tanto:
+// titolo a 30 px e bordo alto a 64 px VERI, come nelle pagine senza zoom. Calendario e Arrivi sono
 // esclusi: le loro griglie hanno già un ingrandimento proprio (GRID_SCALE).
 const NO_ZOOM = ['/calendario', '/arrivi', '/richieste']
 
@@ -19,7 +21,7 @@ export default function MainContainer({ children }: { children: React.ReactNode 
   // così anche la «Nuova prenotazione» nella stessa veste
   const zoom = pathname !== '/' && pathname !== '/nuova-prenotazione' && !NO_ZOOM.some(p => pathname.startsWith(p))
   return (
-    <div className={`mx-auto w-full ${full ? 'max-w-lg lg:max-w-full' : 'max-w-lg lg:max-w-3xl'} ${zoom ? 'lg:[zoom:1.2]' : ''}`}>
+    <div className={`mx-auto w-full ${full ? 'max-w-lg lg:max-w-full' : 'max-w-lg lg:max-w-3xl'} ${zoom ? 'lg:[zoom:1.2] lg:[--zoom-pagina:1.2]' : ''}`}>
       {children}
     </div>
   )

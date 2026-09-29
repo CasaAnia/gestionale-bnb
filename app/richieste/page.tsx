@@ -401,7 +401,7 @@ function Richieste() {
           d'ottone del menu), senza la riga «← Indietro». Dal telefono girato
           «← Indietro» torna alla Home; solo arrivando dalla scheda di una
           prenotazione (?apri=) si torna davvero indietro, a quella scheda. */}
-      <TestaPagina titolo="Richieste" titoloNascosto desktop={desktop && !orizzontale}
+      <TestaPagina titolo="Richieste" titoloNascosto maison desktop={desktop && !orizzontale}
         sottotitolo={desktop && !orizzontale ? sottotitoloRichieste(loading || richiesteNonLette ? null : bolliniRichieste(tutte, adesso).nuove) : undefined}
         indietro={<BackLink onClick={() => (apriId ? smartBack(router, '/') : router.push('/'))} />}
         comandi={desktop && !orizzontale ? (

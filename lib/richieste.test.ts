@@ -592,7 +592,7 @@ test('il selettore Reale/Presunta è lo stesso «Mese | 2 settimane» del Calend
 test('Calendario, Arrivi e Richieste usano la stessa testa di pagina', () => {
   const testa = readFileSync(new URL('../components/TestaPagina.tsx', import.meta.url), 'utf8')
   // la fascia: ferma in cima, 16 px sopra e 8 sotto, 16 ai lati
-  assert.match(testa, /export const FASCIA = 'shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream\/95 backdrop-blur-sm'/)
+  assert.match(testa, /export const FASCIA = 'shrink-0 sticky top-\[52px\] lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream\/95 backdrop-blur-sm'/)
   // la riga del titolo e il titolo: le stesse misure di prima
   assert.match(testa, /mt-0 lg:mt-4 mb-2 \$\{desktop \? 'flex items-center gap-4 min-h-\[44px\]' : 'flex flex-col gap-2'\}/)
   assert.match(testa, /titoloNascosto \? 'invisible' : 'max-lg:invisible'/)

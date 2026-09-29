@@ -32,9 +32,8 @@ import type { ReactNode } from 'react'
 //    a destra sulla stessa riga. Misure in app/maison.css (.testa-mac-*).
 // ============================================================================
 
-export const FASCIA = 'shrink-0 sticky top-12 lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm'
-// la stessa fascia sotto la barra Maison, alta 52 px invece di 48
-export const FASCIA_MAISON = 'shrink-0 sticky top-[52px] lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm'
+// ferma sotto la barra del telefono (alta 52 px, su tutte le pagine dal 29/09/2026)
+export const FASCIA = 'shrink-0 sticky top-[52px] lg:top-0 z-40 px-4 pt-4 pb-2 bg-cream/95 backdrop-blur-sm'
 
 export default function TestaPagina({ titolo, titoloNascosto = false, maison = false, sottotitolo, desktop, indietro, comandi, children, className = '' }: {
   titolo: string
@@ -48,7 +47,7 @@ export default function TestaPagina({ titolo, titoloNascosto = false, maison = f
   className?: string
 }) {
   if (sottotitolo !== undefined) return (
-    <div data-testa-pagina data-testa-mac className={`${maison ? FASCIA_MAISON : FASCIA} ${className}`}>
+    <div data-testa-pagina data-testa-mac className={`${FASCIA} ${className}`}>
       <div className="testa-mac-riga mb-2 flex items-end gap-4">
         <div className="mr-auto min-w-0">
           <h1 className="testa-mac-titolo">{titolo}</h1>
@@ -60,7 +59,7 @@ export default function TestaPagina({ titolo, titoloNascosto = false, maison = f
     </div>
   )
   return (
-    <div data-testa-pagina className={`${maison ? FASCIA_MAISON : FASCIA} ${className}`}>
+    <div data-testa-pagina className={`${FASCIA} ${className}`}>
       {indietro && <div className="indietro-barra hidden lg:block">{indietro}</div>}
       <div className={`mt-0 lg:mt-4 mb-2 ${desktop ? 'flex items-center gap-4 min-h-[44px]' : 'flex flex-col gap-2'}`}>
         <h1 className={`${titoloNascosto ? 'invisible' : 'max-lg:invisible'}${maison ? ' max-lg:hidden' : ''} ${desktop ? 'ed-titolo-medio mr-auto' : 'ed-titolo'}`}>{titolo}</h1>

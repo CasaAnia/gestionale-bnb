@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BackBar from '@/components/BackBar'
+import TestaMac from '@/components/TestaMac'
 import { ROOM_NUMBER_BY_NAME, ROOM_DESC_BY_NAME } from '@/lib/roomTypes'
 import { useDemoMode } from '@/lib/useDemoMode'
 import { hasDemoPin, setDemoPin, enableDemo, disableDemo } from '@/lib/demoMode'
@@ -127,7 +128,8 @@ export default function Impostazioni() {
   return (
     <div className="p-4">
       <BackBar href="/" />
-      <h1 className="ed-titolo-medio mb-2 max-lg:hidden">Impostazioni</h1>
+      {/* Dal Mac la testa condivisa (29/09/2026), senza sottotitolo: non c'è un dato da dire */}
+      <TestaMac titolo="Impostazioni" />
       <p className="text-sm text-gray-500 mb-4">Configura prezzi e camere</p>
 
       {loading ? (

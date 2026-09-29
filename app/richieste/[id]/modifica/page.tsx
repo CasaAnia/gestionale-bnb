@@ -42,7 +42,7 @@ export default function ModificaRichiesta() {
     return (
       <div className="p-4">
         <BackBar onClick={() => router.push(indietro)} />
-        <h1 className="ed-titolo-medio mb-3">Richiesta modificata</h1>
+        <h1 className="ed-titolo-medio titolo-mac testa-mac-sopra mb-3">Richiesta modificata</h1>
         <div role="status" className="bg-white ed-campo rounded-xl p-3 text-sm text-green-dark">{avviso}</div>
         <Link href={`/richieste/${richiesta.id}/proposta`} className="block w-full mt-4 text-center bg-green-mid text-cream-text rounded-xl py-3.5 font-semibold text-[15px]">Rigenera la proposta</Link>
         {indietro === '/richieste' && (
@@ -55,7 +55,7 @@ export default function ModificaRichiesta() {
   return (
     <div className="p-4">
       <BackBar onClick={() => router.push(indietro)} />
-      <h1 className="ed-titolo-medio mb-1">Modifica richiesta</h1>
+      <h1 className="ed-titolo-medio titolo-mac testa-mac-sopra mb-1">Modifica richiesta</h1>
       <p className="text-sm text-stone mb-3">{nomeCompleto(richiesta)}</p>
       {!modificabile(richiesta) ? (
         <div role="alert" className="bg-[#F6E4DE] border border-[#EAD3CC] rounded-xl p-3 text-sm text-[#8C3B2E]">Una richiesta confermata o rifiutata non si modifica.</div>

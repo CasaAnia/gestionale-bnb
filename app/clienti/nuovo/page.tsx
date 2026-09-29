@@ -46,7 +46,7 @@ function ModuloNuovoCliente() {
     <div className="p-4">
       <BackBar href="/clienti" />
       <div className="flex items-center gap-3 mb-4">
-        <h1 className="ed-titolo-medio">Nuovo cliente</h1>
+        <h1 className="ed-titolo-medio titolo-mac testa-mac-sopra">Nuovo cliente</h1>
       </div>
 
       <div className="ed-riga py-4 space-y-3">

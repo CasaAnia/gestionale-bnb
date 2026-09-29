@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import BackBar from '@/components/BackBar'
+import TestaMac from '@/components/TestaMac'
+import { sottotitoloPrenotazioni } from '@/lib/testaMac'
 import { nomeConAltri } from '@/lib/guestName'
 import { matchPrenotazione } from '@/lib/ricerca'
 import { leggiConEsito } from '@/lib/prenotazioneScritture'
@@ -74,17 +76,11 @@ export default function Prenotazioni() {
     return diff
   }
 
-  return (
-    <div className="p-4">
-      <BackBar href="/calendario" />
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="ed-titolo-medio max-lg:hidden">Prenotazioni</h1>
-        <Link href="/nuova-prenotazione" className="ml-auto bg-green-mid text-white rounded-full px-3 py-1.5 text-sm font-semibold">+ Nuova</Link>
-      </div>
-
-      {/* Ricerca istantanea su nome della prenotazione, nome in scheda e
-          telefono (tollerante a spazi, trattini e prefisso +39) */}
-      <div className="relative mb-3">
+  // Ricerca istantanea su nome della prenotazione, nome in scheda e
+  // telefono (tollerante a spazi, trattini e prefisso +39). Dal Mac sta a
+  // destra nella riga del titolo (TestaMac), dal telefono sotto «+ Nuova».
+  const ricerca = (classe: string) => (
+      <div className={`relative ${classe}`}>
         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔎</span>
         <input value={search} onChange={e => setSearch(e.target.value)} type="search" inputMode="search"
           placeholder="Cerca per nome o telefono…"
@@ -94,6 +90,19 @@ export default function Prenotazioni() {
             className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 px-2 py-1 text-sm">✕</button>
         )}
       </div>
+  )
+  const nuova = <Link href="/nuova-prenotazione" className="ml-auto bg-green-mid text-white rounded-full px-3 py-1.5 text-sm font-semibold">+ Nuova</Link>
+
+  return (
+    <div className="p-4">
+      <BackBar href="/calendario" />
+      {/* Dal Mac la testa condivisa (29/09/2026): titolo, «N in archivio», ricerca e «+ Nuova» */}
+      <TestaMac titolo="Prenotazioni" sottotitolo={loading || errore ? '' : sottotitoloPrenotazioni(bookings.length)}
+        comandi={<>{ricerca('w-[calc(340px/var(--zoom-pagina,1))]')}{nuova}</>} />
+      <div className="flex items-center justify-between mb-4 lg:hidden">
+        {nuova}
+      </div>
+      {ricerca('mb-3 lg:hidden')}
 
       <div className="flex flex-wrap gap-2 mb-4">
         {(['attive', 'tutte', 'annullate', 'mancati arrivi'] as const).map(f => (

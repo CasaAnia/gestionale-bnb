@@ -8,6 +8,8 @@ import { osservaAggiornamentiPulizie } from '@/lib/aggiornamentiPulizie'
 import { supabase } from '@/lib/supabase'
 import { nomeOspite, nomeConAltri } from '@/lib/guestName'
 import BackBar from '@/components/BackBar'
+import TestaMac from '@/components/TestaMac'
+import { sottotitoloOggi } from '@/lib/testaMac'
 import { giornoDaParametro } from '@/lib/daControllare'
 import SalvataggiPulizie from '@/components/SalvataggiPulizie'
 import SchedaPulizia, { TIPI_INTERVENTO } from '@/components/SchedaPulizia'
@@ -154,8 +156,11 @@ export default function Pulizie() {
   const pronta = !loading && !errore
   return <main className="max-w-4xl mx-auto px-4 py-6 pb-28" data-nuove-pulizie>
     <BackBar href="/" />
-    <h1 className="ed-titolo">Pulizie</h1>
-    <p className="ed-sotto mt-2">Camere, tempo di lavoro e biancheria, nello stesso registro.</p>
+    {/* Dal Mac la testa condivisa (29/09/2026): sotto il titolo la data di oggi.
+        Il contenitore ha già 24 px sopra (py-6) */}
+    <TestaMac titolo="Pulizie" sottotitolo={sottotitoloOggi(td)} contenitore={24} />
+    <h1 className="ed-titolo lg:hidden">Pulizie</h1>
+    <p className="ed-sotto mt-2 lg:hidden">Camere, tempo di lavoro e biancheria, nello stesso registro.</p>
     <nav className="flex flex-wrap gap-3 my-6" aria-label="Sezioni pulizie">{(['oggi', 'registro', 'resoconto'] as const).map(v => <button type="button" key={v} className={vista === v ? 'ed-pillola capitalize' : `${classe} capitalize`} aria-pressed={vista === v} onClick={() => setVista(v)}>{v === 'resoconto' ? 'Statistiche' : v}</button>)}</nav>
     <SalvataggiPulizie onVerificato={ricarica} />
     <TimerInCorso nomeCamera={nomeDaPrenotazione} onVaiA={vaiA} />

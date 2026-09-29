@@ -154,8 +154,8 @@ export default function ClienteDetail() {
   return (
     <div className="p-4">
       <BackBar href="/clienti" />
-      <div className="flex items-center gap-3 mb-4">
-        <h1 className="ed-titolo-medio flex-1">Cliente</h1>
+      <div className="flex items-center lg:items-end gap-3 mb-4">
+        <h1 className="ed-titolo-medio titolo-mac testa-mac-sopra flex-1">Cliente</h1>
         <button onClick={() => setEditing(!editing)} className="text-green-mid text-sm font-semibold">{editing ? 'Annulla' : 'Modifica'}</button>
       </div>
 

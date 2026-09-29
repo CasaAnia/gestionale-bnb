@@ -4,6 +4,7 @@ import { osservaAggiornamentiPulizie } from '@/lib/aggiornamentiPulizie'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import BackBar from '@/components/BackBar'
+import TestaMac from '@/components/TestaMac'
 import AvvisoAzione from '@/components/AvvisoAzione'
 import { ROOM_NUMBER_BY_NAME } from '@/lib/roomTypes'
 import { buildSiteFunnel, type SiteEvent } from '@/lib/siteStats'
@@ -299,7 +300,8 @@ export default function Statistiche() {
   return (
     <div className="p-4">
       <BackBar href="/" />
-      <h1 className="ed-titolo-medio mb-4 max-lg:hidden">Statistiche</h1>
+      {/* Dal Mac la testa condivisa (29/09/2026): sotto il titolo il periodo in vista */}
+      <TestaMac titolo="Statistiche" sottotitolo={label} />
 
       <div className="flex gap-2 mb-3">
         {(['oggi', 'settimana', 'mese', 'anno'] as const).map(p => (
