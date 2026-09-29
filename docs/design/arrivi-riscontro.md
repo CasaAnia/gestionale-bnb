@@ -22,7 +22,7 @@ condivisi), TypeScript, lint dei file toccati e build puliti.
 
 ## Scelte dove riferimento e incarico non coincidono (o dove ho dovuto scegliere)
 
-- **Richieste dal sito da confermare**: oggi gli Arrivi leggevano solo le prenotazioni confermate e concluse. L'incarico descrive la scheda tratteggiata e «· dal sito 🌐» (punti 4a e 5) e la legenda la elenca: per farla vedere gli Arrivi disegnano anche le richieste dal sito in attesa. È l'unico comportamento in più oltre al punto 10 → **da confermare con Ania** (si toglie in una riga: `eArrivo` in `app/arrivi/page.tsx`).
+- **Richieste dal sito da confermare**: oggi gli Arrivi leggevano solo le prenotazioni confermate e concluse. L'incarico descrive la scheda tratteggiata e «· dal sito 🌐» (punti 4a e 5) e la legenda la elenca: per farla vedere gli Arrivi disegnano anche le richieste dal sito in attesa. È l'unico comportamento in più oltre al punto 10: **confermato da Ania il 29/09/2026** («sì, va bene»).
 - **I buchi liberi** guardano tutte le prenotazioni non annullate della camera (anche quelle in attesa che negli Arrivi non si disegnano), così un «+» non cade mai su una camera occupata. Le camere tenute da una proposta negli Arrivi non si leggono (come oggi): lì un buco può comparire sopra una camera tenuta.
 - **Riga (c), il verbo del luogo**: il riferimento alterna («in treno a Rogoredo» ma «a Centrale», «atterra a Malpensa» ma «a Linate»). Regola unica: aeroporto «atterra a», stazione «in treno a», altro luogo «a». Quindi «in treno a Centrale 11:30».
 - **Variabili `--cal-*`**: il Calendario non ne ha, i suoi colori stanno in `TINTE_SCHEDA` (`lib/calendarioMobile`). Quelli degli Arrivi sono `TINTE_ARRIVO` lì accanto, costruiti dagli stessi fondi e fili.
