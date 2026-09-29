@@ -3,12 +3,11 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import FoglioMaison from './maison/FoglioMaison'
-import { House, CalendarDays, Inbox, DoorOpen, Sparkles, ClipboardList, Plus, Users, Banknote, Wallet, ChartColumn, Settings } from 'lucide-react'
+import { House, CalendarDays, Inbox, DoorOpen, Sparkles, ClipboardList, Users, Banknote, Wallet, ChartColumn, Settings } from 'lucide-react'
 import { useDemoMode } from '@/lib/useDemoMode'
 import { isHiddenPath } from '@/lib/demoMode'
 import { useRichiesteWeb } from '@/lib/webRequests'
 import { useRichiesteAperte } from '@/lib/richiesteDati'
-import { COLOR_PRENOTAZIONE } from '@/lib/calendarioMobile'
 
 // Barra in basso «Maison» (riferimento approvato da Ania il 28/09/2026):
 // cinque voci con icone a filo sottile ed etichette maiuscolette 8,5 px.
@@ -37,7 +36,10 @@ export const VOCI_MENU = [
   { href: '/impostazioni', label: 'Impostazioni e notifiche' },
 ] as const
 
-const desktopNavGroups = [
+// Menu del Mac «Maison» (riferimento approvato da Ania il 29/09/2026:
+// docs/design/menu-mac-riferimento.html, colonna M2). «Nuova» non c'è più:
+// Ania non inserisce mai da qui (dal telefono e dalle pagine i link restano).
+export const desktopNavGroups = [
   {
     label: null as string | null,
     items: [{ href: '/', label: 'Home', Icon: House }],
@@ -52,10 +54,9 @@ const desktopNavGroups = [
     ],
   },
   {
-    label: null as string | null,
+    label: 'Archivio',
     items: [
       { href: '/prenotazioni', label: 'Prenotazioni', Icon: ClipboardList },
-      { href: '/nuova-prenotazione', label: 'Nuova', Icon: Plus },
       { href: '/clienti', label: 'Clienti', Icon: Users },
       { href: '/spese', label: 'Spese B&B', Icon: Banknote },
       { href: '/spese-famiglia', label: 'Spese Famiglia', Icon: Wallet },
@@ -65,18 +66,13 @@ const desktopNavGroups = [
   },
 ]
 
-// Bollino rosso mattone con il numero di richieste dal sito da confermare.
-// Con «!» la lettura è fallita: un errore non deve mai sembrare «nessuna richiesta».
-// Blu (lo stesso blu delle prenotazioni nel Calendario) per le richieste già
-// gestite in attesa di risposta (Ania, 07/09/2026): sotto il rosso, nessuna urgenza.
-const COLORE_BOLLINO = { rosso: '#C0563B', blu: COLOR_PRENOTAZIONE } as const
-function RequestBadge({ count, className, colore = 'rosso' }: { count: number | '!'; className?: string; colore?: keyof typeof COLORE_BOLLINO }) {
+// Bollino del menu del Mac: pillola d'ottone col numero di richieste dal sito
+// da confermare (o nuove da gestire). Con «!» la lettura è fallita: un errore
+// non deve mai sembrare «nessuna richiesta». Blu per le richieste già gestite
+// in attesa di risposta (Ania, 07/09/2026): nessuna urgenza.
+function RequestBadge({ count, colore = 'ottone' }: { count: number | '!'; colore?: 'ottone' | 'blu' }) {
   if (count === 0) return null
-  return (
-    <span data-bollino={colore} className={`chip-in min-w-[17px] h-[17px] px-1 rounded-full text-white text-[10.5px] font-bold leading-none inline-flex items-center justify-center ${className || ''}`} style={{ background: COLORE_BOLLINO[colore] }}>
-      {count}
-    </span>
-  )
+  return <span data-bollino={colore} className={`bd chip-in${colore === 'blu' ? ' blu' : ''}`}>{count}</span>
 }
 
 export default function BottomNav() {
@@ -127,44 +123,28 @@ export default function BottomNav() {
         </FoglioMaison>
       )}
 
-      {/* Desktop: barra laterale a sinistra */}
-      <nav className="hidden lg:flex fixed left-0 top-0 bottom-0 w-48 bg-sidebar border-r border-border-soft z-50 flex-col py-6">
-        <div className="px-4 pt-3 mb-10 flex flex-col items-center text-center">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center mb-3" style={{ border: '1px solid var(--color-brass)' }}>
-            <span className="font-serif text-2xl" style={{ color: 'var(--color-brass)' }}>CA</span>
+      {/* Mac: menu laterale «Maison» (29/09/2026) */}
+      <nav className="mz-lato hidden lg:flex fixed left-0 top-0 bottom-0 z-50 flex-col" aria-label="Menu">
+        <div className="wm"><b>Casa Ania</b><small>Rozzano</small></div>
+        {desktopNavGroups.map((group, gi) => (
+          <div key={gi} className="flex flex-col">
+            {group.label && <p className="g">{group.label}</p>}
+            {group.items.filter(item => visible(item.href)).map(item => {
+              const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+              return (
+                <Link key={item.href} href={item.href} className={active ? 'on' : undefined} aria-current={active ? 'page' : undefined}>
+                  <item.Icon strokeWidth={1.3} aria-hidden />
+                  {item.label}
+                  {item.href === '/calendario' && webCount !== 0 && <span className="bds"><RequestBadge count={webCount} /></span>}
+                  {item.href === '/richieste' && (richiesteCount !== 0 || inAttesaRisposta !== 0) && (
+                    <span className="bds"><RequestBadge count={richiesteCount} /><RequestBadge count={inAttesaRisposta} colore="blu" /></span>
+                  )}
+                </Link>
+              )
+            })}
           </div>
-          <p className="font-serif text-xl text-green-dark leading-tight">Casa Ania</p>
-          <p className="text-[10px] mt-1 uppercase" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>
-            Rozzano
-          </p>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          {desktopNavGroups.map((group, gi) => (
-            <div key={gi} className="flex flex-col gap-1.5">
-              {group.label && (
-                <p className="pl-4 mt-3 mb-0.5 text-[9px] uppercase" style={{ color: 'var(--color-brass)', letterSpacing: '2px' }}>
-                  {group.label}
-                </p>
-              )}
-              {group.items.filter(item => visible(item.href)).map(item => {
-                const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
-                // «Nuova» apre l'inserimento nuovo (16/09/2026): dopo il
-                // salvataggio si apre la scheda, quindi niente returnTo.
-                const href = item.href
-                return (
-                  <Link key={item.href} href={href}
-                    className={`flex items-center gap-3 pl-4 pr-4 py-2.5 font-serif text-[15px] border-l-2 transition-colors duration-200 ${active ? 'border-[#A9884E] text-green-dark' : 'border-transparent text-[#8a9488] hover:text-green-dark'}`}>
-                    <item.Icon size={16} strokeWidth={1.5} className="shrink-0 text-green-mid" aria-hidden />
-                    <span>{item.label}</span>
-                    {item.href === '/calendario' && <RequestBadge count={webCount} />}
-                    {item.href === '/richieste' && <RequestBadge count={richiesteCount} />}
-                    {item.href === '/richieste' && <RequestBadge count={inAttesaRisposta} colore="blu" />}
-                  </Link>
-                )
-              })}
-            </div>
-          ))}
-        </div>
+        ))}
+        <p className="ft" data-versione>v. {process.env.NEXT_PUBLIC_BUILD_TAG}</p>
       </nav>
     </>
   )

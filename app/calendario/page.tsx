@@ -975,7 +975,7 @@ export default function Calendario() {
         <div className="shrink-0 px-4 pt-4 pb-4 flex flex-wrap gap-3 items-center">
           <VociLegenda />
           {/* Niente voce «Cambio camera» nella legenda (richiesta di Ania, 04/09/2026): le schede tagliate a incastro si spiegano da sole */}
-          <span className="ml-auto text-[9px] text-gray-300">v. {process.env.NEXT_PUBLIC_BUILD_TAG}</span>
+          {/* La versione sta in fondo al menu del Mac (29/09/2026), in un posto solo */}
         </div>
       )}
       {legendaAperta && <PannelloLegenda onChiudi={() => setLegendaAperta(false)} />}

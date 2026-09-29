@@ -60,7 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             lo mostra come freccia a sinistra del titolo (sul telefono). */}
         <BackProvider>
           <MobileTopBar />
-          <main className="contenuto min-h-screen pt-12 lg:pt-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-48">
+          <main className="contenuto min-h-screen pt-12 lg:pt-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[200px]">
             <AvvisoConnessione />
             <MainContainer>{children}</MainContainer>
           </main>

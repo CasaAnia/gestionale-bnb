@@ -79,7 +79,7 @@ test('i punti di partenza, uno per uno, portano alla scheda nuova', () => {
 test('i punti che creano una prenotazione nuova portano all’inserimento nuovo', () => {
   assert.match(leggi('app/calendario/page.tsx'), /router\.push\(`\/nuova-prenotazione\?room_id=\$\{room\.id\}&check_in=\$\{dateStr\}`\)/)
   assert.match(leggi('app/prenotazioni/page.tsx'), /<Link href="\/nuova-prenotazione"/)
-  assert.match(leggi('components/BottomNav.tsx'), /\{ href: '\/nuova-prenotazione', label: 'Nuova', Icon: Plus \}/)
+  assert.match(leggi('components/maison/StrisciaFoto.tsx'), /HREF_NUOVA = '\/nuova-prenotazione'/)   // dal telefono (la voce «Nuova» del Mac è sparita il 29/09/2026)
   assert.match(leggi('lib/opzioneLibera.ts'), /return `\/nuova-prenotazione\?\$\{p\.toString\(\)\}`/)
   // la barra in alto sa nominare tutte e due le pagine nuove
   const barra = leggi('components/MobileTopBar.tsx')
