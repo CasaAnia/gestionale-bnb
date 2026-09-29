@@ -4,17 +4,25 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { VOCI_LEGENDA, areaTocco, TOCCO_MIN, codificaPosizione, indicePosizione, CHIAVE_POSIZIONE } from './calendarioMobile.ts'
+import { VOCI_LEGENDA, ICONE_LEGENDA, ROSSO_LETTO, areaTocco, TOCCO_MIN, codificaPosizione, indicePosizione, CHIAVE_POSIZIONE } from './calendarioMobile.ts'
 
 const pagina = readFileSync(new URL('../app/calendario/page.tsx', import.meta.url), 'utf8')
 const legenda = readFileSync(new URL('../components/LegendaCalendario.tsx', import.meta.url), 'utf8')
 const occorrenze = (testo: string, frammento: string) => testo.split(frammento).length - 1
 
-test('legenda: sei voci, «Dal sito» tratteggiata, nessuna voce «Cambio camera»', () => {
-  assert.equal(VOCI_LEGENDA.length, 6)
-  assert.deepEqual(VOCI_LEGENDA.map(v => v.testo), ['Prenotazione', 'Bonifico attesa', 'Pagato', '1 letto extra occupato', '2 letti extra occupati', 'Dal sito (da confermare)'])
+test('legenda (29/09/2026): otto voci nell’ordine del riferimento, «Dal sito» tratteggiata, le due voci dei letti in rosso, nessuna voce «Cambio camera»', () => {
+  assert.equal(VOCI_LEGENDA.length, 8)
+  assert.deepEqual(VOCI_LEGENDA.map(v => v.testo), [
+    'Prenotazione', 'Bonifico in attesa', 'Pagato', 'Dal sito, da confermare', 'Camera tenuta in opzione (3 ore)',
+    'Letto extra in questa prenotazione (filo rosso sotto la scheda)', 'Letti extra finiti quella notte (riga «🛏 extra» rossa, 2/2)',
+    '🔒 Esclusiva e altri colori scelti in «Nota e colore»',
+  ])
   assert.equal(VOCI_LEGENDA.filter(v => v.tratteggiata).length, 1)
+  assert.equal(VOCI_LEGENDA.filter(v => v.colore === ROSSO_LETTO).length, 2)
+  assert.equal(ROSSO_LETTO, '#D0261B')
   assert.ok(!VOCI_LEGENDA.some(v => /cambio camera/i.test(v.testo)))
+  assert.ok(!VOCI_LEGENDA.some(v => /letti? extra occupat/i.test(v.testo)))
+  assert.equal(ICONE_LEGENDA, 'Icone, prima del nome: ⭐ ottimo · 🧾 ricevuta · 🛏 letto in più · ⇄ cambio camera · 🌐 dal sito · 🔒 esclusiva')
 })
 
 test('area di tocco: almeno 44 px, centrata sulla barra; una barra già alta resta com’è', () => {

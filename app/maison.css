@@ -671,3 +671,15 @@ body:has(.cal) { background: var(--home-bg); }
 .cal-wr .tx > .avviso { display: block; white-space: normal; font-size: 12px; font-weight: 700; color: #C0392B; }
 .cal-wr .tocca { margin-left: auto; font-size: 11px; color: var(--m-mut); }
 .cal-wr .mz-lnk { margin-left: auto; flex: none; }
+
+/* La riga di navigazione: ‹ · periodo in Cormorant · MESE | 2 SETTIMANE · › */
+.cal-nav { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 10px 12px 8px; border-bottom: 1px solid var(--m-line); margin-top: 8px; }
+.cal-nav .ar { position: relative; width: 28px; text-align: center; font-size: 18px; line-height: 1; color: var(--m-ink); background: none; border: 0; padding: 0; flex: none; }
+.cal-nav .ar::before { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
+.cal-nav .per { font-family: var(--m-disp); font-size: 16px; font-weight: 500; color: var(--m-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.cal-nav .dx { display: flex; align-items: center; gap: 6px; flex: none; }
+.cal-pill { display: inline-flex; border: 1px solid #C9BFA8; border-radius: 999px; overflow: hidden; }
+.cal-pill button { display: inline-flex; align-items: center; padding: 10px 0; margin: -10px 0; background: none; border: 0; }
+.cal-pill button span { display: block; padding: 5px 9px; font-family: var(--home-ui-font); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--m-ink); white-space: nowrap; line-height: 1.2; }
+.cal-pill button.on span { background: var(--m-ink); color: #F6F2EA; }
+.cal-pill button:focus-visible span { outline: 1px solid var(--m-acc); outline-offset: -2px; }

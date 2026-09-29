@@ -22,15 +22,28 @@
 export const BORDO_PILLOLA = '#C9BFA8'
 export const ALTEZZA_TOCCO = 44
 
-export default function InterruttorePillola<T extends string>({ voci, scelta, onScegli, nome, dati, grande = false, className = '' }: {
+export default function InterruttorePillola<T extends string>({ voci, scelta, onScegli, nome, dati, grande = false, maison = false, className = '' }: {
   voci: readonly (readonly [T, string])[]
   scelta: T
   onScegli: (v: T) => void
   nome: string
   dati?: string
   grande?: boolean
+  /** veste «Maison» (Calendario, 29/09/2026): filo #C9BFA8, maiuscoletto 10 px, voce accesa d'inchiostro */
+  maison?: boolean
   className?: string
 }) {
+  if (maison) {
+    return (
+      <div role="group" aria-label={nome} data-interruttore={dati} className={`cal-pill ${className}`}>
+        {voci.map(([v, label]) => (
+          <button key={v} type="button" onClick={() => onScegli(v)} aria-pressed={scelta === v} className={scelta === v ? 'on' : ''}>
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+    )
+  }
   return (
     <div role="group" aria-label={nome} data-interruttore={dati}
       className={`inline-flex rounded-full border p-0.5 ${className}`} style={{ borderColor: BORDO_PILLOLA }}>

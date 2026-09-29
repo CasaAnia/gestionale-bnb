@@ -22,13 +22,12 @@ import RigaMesi, { BORDO_RIQUADRO } from '@/components/RigaMesi'
 import InterruttorePillola from '@/components/InterruttorePillola'
 import { mesiCliccabili } from '@/lib/mesiCliccabili'
 import { MEDIA_ORIZZONTALE_TELEFONO, useOrizzontaleTelefono, useSchermoIntero } from '@/lib/richiesteVista'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { etichettaPeriodo, GIORNI_QUINDICINA, inizioQuindicina } from '@/lib/richiesteCalendario'
 import { formatIntervallo as formatIntervalloBreve } from '@/lib/richieste'
 import { giornoDaParametro } from '@/lib/daControllare'
 import { vuoleRicevuta as clienteVuoleRicevuta, BADGE_RICEVUTA } from '@/lib/valutazione'
 import { VociLegenda, PannelloLegenda } from '@/components/LegendaCalendario'
-import { areaTocco, CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, COLOR_PRENOTAZIONE, COLOR_BONIFICO, COLOR_PAGATO } from '@/lib/calendarioMobile'
+import { areaTocco, CHIAVE_POSIZIONE, codificaPosizione, indicePosizione, COLOR_PRENOTAZIONE, COLOR_BONIFICO, COLOR_PAGATO, PASSO_FRECCE_QUINDICI, etichettaFreccia, colonnaMinTelefono } from '@/lib/calendarioMobile'
 import { leggiMemoria, scriviMemoria } from '@/lib/memoriaBrowser'
 import {
   barreTenute, barrePerCamera, lettiTenutiPerNotte, testoTenuta, comeDovevaPagare, segniDellaBarra,
@@ -213,7 +212,7 @@ export default function Calendario() {
   // 2 settimane tutte le 14 caselle nella larghezza dello schermo, senza
   // scorrimento di lato e senza caselle a metà (colonne da ~20 px a mese: i
   // numeri restano leggibili, i nomi sulle barre si riducono a una lettera).
-  const colonnaMin = isDesktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : (modo === 'quindici' ? 60 : 40)
+  const colonnaMin = isDesktop ? (orizzontale ? 0 : LARGHEZZA_MIN_COLONNA) : colonnaMinTelefono(modo)
   // Senza minimo (telefono girato a mese) la colonna NON si arrotonda: così
   // in vista ci sono esattamente 31 caselle, non 31 e qualcosa (Ania, 05/09/2026)
   const CELL_W = larghezzaGriglia > 0
@@ -425,9 +424,10 @@ export default function Calendario() {
   function scorriDiGiorni(n: number) {
     scrollRef.current?.scrollBy({ left: n * CELL_W, behavior: 'smooth' })
   }
-  // Frecce ‹ ›: a 2 settimane spostano di 14 giorni, a mese vanno al 1° del mese prima/dopo
+  // Frecce ‹ ›: a 2 settimane spostano di UNA settimana (novità del 29/09/2026,
+  // prima 14 giorni), a mese vanno al 1° del mese prima/dopo
   function freccia(direzione: -1 | 1) {
-    if (modo === 'quindici') { scorriDiGiorni(direzione * GIORNI_QUINDICINA); return }
+    if (modo === 'quindici') { scorriDiGiorni(direzione * PASSO_FRECCE_QUINDICI); return }
     const d = days[Math.min(days.length - 1, Math.max(0, primoVisibile))]
     const primo = new Date(d.getFullYear(), d.getMonth() + (direzione === 1 ? 1 : (d.getDate() === 1 ? -1 : 0)), 1)
     vaiAData(toStr(primo), 0)
@@ -727,25 +727,21 @@ export default function Calendario() {
       {/* Dal Mac la griglia sta in un riquadro bianco arrotondato come il calendario
           delle Richieste, con la barra di navigazione come prima riga del riquadro */}
       {/* stesse distanze delle Richieste: riquadro, 12 px, riga «Oggi · mesi» allineata alla colonna delle camere */}
-      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : 'mx-4'} overflow-hidden`} style={{ borderTop: '1px solid rgba(169,136,78,0.55)' }}>
+      {/* Dal telefono il calendario va da bordo a bordo (riferimento del 29/09/2026):
+          la colonna delle camere parte dal bordo, «Oggi» e «Legenda» sotto di lei */}
+      <div className={`flex flex-col flex-none ${orizzontale ? 'mx-2 mt-2' : isDesktop ? 'mx-4' : ''} overflow-hidden`}>
       {!loading && (
         <>
-          {/* Riga di navigazione: la stessa del calendario delle Richieste */}
-          <div className="shrink-0 flex items-center justify-between px-2 py-2 border-b" style={{ borderColor: 'var(--color-card-border)' }}>
-            <button type="button" onClick={() => freccia(-1)} aria-label={modo === 'quindici' ? 'Due settimane prima' : 'Mese precedente'}
-              className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
-              <ChevronLeft size={20} strokeWidth={2} aria-hidden />
-            </button>
-            <span className={`font-serif text-green-dark whitespace-nowrap ${isDesktop ? 'text-[17px]' : 'text-[14px]'}`}>{etichettaVista}</span>
-            <div className="flex items-center gap-1">
+          {/* Riga di navigazione (veste «Maison», 29/09/2026): ‹ · periodo · Mese | 2 settimane · › */}
+          <div className="cal-nav shrink-0" data-riga-navigazione>
+            <button type="button" className="ar" onClick={() => freccia(-1)} aria-label={etichettaFreccia(modo, -1)}>‹</button>
+            <span className="per">{etichettaVista}</span>
+            <span className="dx">
               {/* Lo stesso interruttore delle Richieste: il disegno sta in
-                  components/InterruttorePillola (Ania, 12/09/2026) */}
-              <InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" grande={isDesktop} className="mr-1" />
-              <button type="button" onClick={() => freccia(1)} aria-label={modo === 'quindici' ? 'Due settimane dopo' : 'Mese successivo'}
-                className="w-10 h-10 flex items-center justify-center rounded-lg text-green-mid active:bg-sage transition-colors">
-                <ChevronRight size={20} strokeWidth={2} aria-hidden />
-              </button>
-            </div>
+                  components/InterruttorePillola (Ania, 12/09/2026), qui nella veste Maison */}
+              <InterruttorePillola voci={VOCI_GRIGLIA} scelta={modo} onScegli={cambiaModo} nome="Vista del calendario" dati="modo-griglia" maison />
+              <button type="button" className="ar" onClick={() => freccia(1)} aria-label={etichettaFreccia(modo, 1)}>›</button>
+            </span>
           </div>
         </>
       )}
